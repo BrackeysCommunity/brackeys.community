@@ -1,0 +1,10 @@
+{
+  "label": "Ford the north crossing",
+  "ops": [
+    {
+      "op": "add",
+      "entity": { "id": "ford", "type": "rough", "shape": ["box", 3, 1.5, 1, 0.5], "cost": 1 }
+    },
+    { "op": "update", "ref": "thicket", "set": { "cost": 3 } }
+  ]
+}

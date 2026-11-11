@@ -24,6 +24,8 @@ export type Camera = {
   getState: () => CameraState;
   /** Canvas px to world metres, honouring zoom and position. The engine's only screen-to-world conversion. */
   screenToWorld: (screen: Vec2) => Vec2;
+  /** World metres to canvas px: `screenToWorld`'s inverse. */
+  worldToScreen: (world: Vec2) => Vec2;
   /** Jumps to `p` (`null`: the bounds' center) and moves the view now, without easing. */
   snapTo: (p: Vec2 | null) => void;
   /** Moves the camera to `p`, clamped to the bounds; the view follows on the next `update`. */
@@ -144,6 +146,12 @@ export function createCamera(
     return { x: vp.x + (screen.x - offset.x) / scale, y: vp.y + (screen.y - offset.y) / scale };
   }
 
+  function worldToScreen(world: Vec2): Vec2 {
+    const vp = getViewport();
+    const scale = displayScale * zoom;
+    return { x: (world.x - vp.x) * scale + offset.x, y: (world.y - vp.y) * scale + offset.y };
+  }
+
   function snapTo(p: Vec2 | null): void {
     position = p ? { ...p } : boundsCenter();
     apply();
@@ -188,6 +196,7 @@ export function createCamera(
     getPxPerMetre: () => pxPerMetre,
     getState,
     screenToWorld,
+    worldToScreen,
     snapTo,
     setPosition,
     setMode,

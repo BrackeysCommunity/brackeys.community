@@ -55,6 +55,19 @@ const glob = z
 
 const globs = (description: string) => z.array(glob).describe(description);
 
+/** A module the project file names: a path relative to the file and an export name. */
+const moduleRef = (example: string, what: string) =>
+  z.strictObject({
+    module: z
+      .string()
+      .regex(/^\.\.?\/[^\\]+$/)
+      .describe(`The module, relative to this file ("${example}").`),
+    export: z
+      .string()
+      .regex(/^[A-Za-z_$][\w$]*$/)
+      .describe(`The name the module exports ${what} under.`),
+  });
+
 /** The zod schema `project.schema.json` is generated from; `parseProjectFile` checks with it. */
 export const projectFileSchema = z
   .strictObject({
@@ -68,19 +81,14 @@ export const projectFileSchema = z
         "The project's id: the first half of its scene and asset doc names, unique on the site.",
       ),
     name: z.string().min(1).describe("The project's display name."),
-    game: z
-      .strictObject({
-        module: z
-          .string()
-          .regex(/^\.\.?\/[^\\]+$/)
-          .describe('The module, relative to this file ("./index.ts").'),
-        export: z
-          .string()
-          .regex(/^[A-Za-z_$][\w$]*$/)
-          .describe("The name the module exports the GameDefinition under."),
-      })
+    game: moduleRef("./index.ts", "the GameDefinition")
       .nullable()
       .describe("The module that exports the game's definition; null for an engine-only project."),
+    ui: moduleRef("./ui/index.ts", "the MountUi function")
+      .optional()
+      .describe(
+        "The module that exports the game's DOM UI (a MountUi), mounted over the canvas by hosts; the CLI never imports it.",
+      ),
     assets: globs("Globs of files that may be assets.")
       .optional()
       .meta({ default: [...PROJECT_FILE_DEFAULTS.assets] }),
@@ -92,7 +100,7 @@ export const projectFileSchema = z
     ).optional(),
   })
   .describe(
-    `A project's root file (${PROJECT_FILE}): its id, its game module and which files are assets and code. Kept in git, never co-edited.`,
+    `A project's root file (${PROJECT_FILE}): its id, its game and UI modules and which files are assets and code. Kept in git, never co-edited.`,
   );
 
 /** The draft 2020-12 JSON Schema of `jams.project.json`. */
@@ -303,11 +311,23 @@ export function parseProjectFile(input: unknown): ParseProjectFileResult {
   return { ok: true, file: parsed.data as ProjectFile };
 }
 
-const PROJECT_KEYS = ["$schema", "kind", "v", "id", "name", "game", "assets", "code", "ignore"];
+const PROJECT_KEYS = [
+  "$schema",
+  "kind",
+  "v",
+  "id",
+  "name",
+  "game",
+  "ui",
+  "assets",
+  "code",
+  "ignore",
+];
 
 /** The canonical text of a project file: keys in the schema's order, a trailing newline. */
 export function formatProjectFile(file: ProjectFile): string {
   const value = orderKeys(file as Record<string, unknown>, PROJECT_KEYS);
   if (file.game) value.game = { module: file.game.module, export: file.game.export };
+  if (file.ui) value.ui = { module: file.ui.module, export: file.ui.export };
   return formatJsonDocument(value);
 }

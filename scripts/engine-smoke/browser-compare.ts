@@ -1,14 +1,17 @@
 /**
  * The browser smoke's verdicts, kept free of Playwright and Vite so the
  * runner's rules (a digest must equal Bun's, the physics-free run must
- * never load Rapier, the contact read must start on its pinned tick, the
+ * never load Rapier, the tactics replay must give its golden pin with no
+ * Rapier, the contact read must start on its pinned tick, the
  * sprite's pixel must be drawn and the empty one blank, the editor's islands must keep apart and
  * inside the window, a page must answer in time, a missing browser is never
  * a pass) are unit-tested without a browser.
  */
+import { TACTICS_GOLDEN_DIGEST } from "../../src/games/tactics/__tests__/pins";
 import { judgeContact, type ContactRead } from "./browser/contact";
 import type { EngineSmokeResult } from "./browser/main";
 import { INSIDE_COLOUR, SMOKE_BACKGROUND } from "./browser/sink";
+import type { TacticsProbe } from "./browser/tactics";
 
 export const BROWSERS = ["chromium", "firefox", "webkit"] as const;
 export type BrowserName = (typeof BROWSERS)[number];
@@ -66,6 +69,29 @@ export function judgePhysicsFree(
   return null;
 }
 
+/** How the tactics replay must end. */
+export const TACTICS_RESULT = "won";
+
+/**
+ * Why a tactics replay fails, or null: it resolved to no physics, never
+ * called its Rapier loader, won, ended as its recording did, and gave the
+ * golden pin, the one digest every platform must reproduce.
+ */
+export function judgeTactics(
+  probe: TacticsProbe | undefined,
+  pin: string = TACTICS_GOLDEN_DIGEST,
+): string | null {
+  if (!probe) return "the page ran no tactics replay";
+  if (probe.physics !== "none") return `the tactics scene resolved to ${probe.physics}, not none`;
+  if (probe.rapierLoads !== 0)
+    return `the tactics replay loaded Rapier ${probe.rapierLoads} time(s)`;
+  if (probe.result !== TACTICS_RESULT)
+    return `the tactics replay ended ${probe.result} at tick ${probe.tick}, not ${TACTICS_RESULT}`;
+  if (!probe.replayMatches) return "the tactics replay didn't end as its recording did";
+  if (probe.digest !== pin) return `tactics digest ${probe.digest} differs from the pin ${pin}`;
+  return null;
+}
+
 /** The digests every browser must reproduce, from the runner's own runs. */
 export type SmokeExpected = { digest: string; physicsFree: string };
 
@@ -111,6 +137,7 @@ export type BrowserOutcome = {
   render?: RenderProbe;
   physicsFree?: PhysicsFreeProbe;
   contact?: ContactRead;
+  tactics?: TacticsProbe;
   reason?: string;
   ms?: number;
   /** The editor page's run in the same browser. */
@@ -161,6 +188,7 @@ export function judgeResult(
     ...(result.render ? { render: result.render } : {}),
     ...(result.physicsFree ? { physicsFree: result.physicsFree } : {}),
     ...(result.contact !== undefined ? { contact: result.contact } : {}),
+    ...(result.tactics ? { tactics: result.tactics } : {}),
   };
   if (result.flavour !== "rapier2d-compat" || result.ticks !== 120) {
     return {
@@ -182,6 +210,8 @@ export function judgeResult(
   if (free) return { ...seen, status: "fail", reason: free };
   const touched = judgeContact(result.contact);
   if (touched) return { ...seen, status: "fail", reason: touched };
+  const second = judgeTactics(result.tactics);
+  if (second) return { ...seen, status: "fail", reason: second };
   return { ...seen, status: "pass" };
 }
 

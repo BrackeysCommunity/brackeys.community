@@ -10,6 +10,7 @@ import { ENGINE_YARD_EXPANDED } from "../../__tests__/fixtures/engine-yard.expan
 import { generateScene } from "../../__tests__/fixtures/generate-scene";
 import { PAINT, testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineEntityType, defineGame, withProject } from "../../game/define";
+import { shapeField } from "../../game/fields";
 import { primitiveFields } from "../../game/primitives";
 import type { AssetEntry } from "../../project/types";
 import { projectView } from "../../project/view";
@@ -238,6 +239,38 @@ describe("one-way landing faces", () => {
     expect(svg.indexOf(`<g id="one-way"`)).toBeGreaterThan(svg.indexOf(`<g id="entities"`));
     const twoWay = { ...sidesScene, entities: (sidesScene.entities ?? []).slice(-1) };
     expect(renderSceneSvg(twoWay, { registry: engine })).not.toContain(`id="one-way"`);
+  });
+});
+
+describe("one-way types", () => {
+  const ledges = createRegistry(
+    defineGame({
+      id: "ledges",
+      types: [
+        defineEntityType({
+          type: "ledge",
+          description: "A ledge its system makes one-way, with no oneWay field.",
+          fields: { shape: shapeField("Ledge shape.") },
+          system: () => ({ spawn() {}, despawn() {}, clear() {}, size: () => 0 }),
+          oneWay: "right",
+        }),
+      ],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    }),
+  );
+  const def = {
+    v: SCENE_FORMAT_VERSION,
+    game: "ledges",
+    name: "ledges",
+    bounds: [0, 0, 4, 2],
+    entities: [{ id: "l", type: "ledge", shape: ["box", 2, 1, 0.25, 0.5] }],
+  } as unknown as SceneDefinition;
+
+  it("draws a type's landing face from its metadata alone", () => {
+    expect(renderSceneSvg(def, { registry: ledges })).toContain(
+      `<path data-one-way="l" data-side="right" d="M225 50L225 150"/>`,
+    );
   });
 });
 

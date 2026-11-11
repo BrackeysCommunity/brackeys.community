@@ -122,7 +122,7 @@ export function shuttle(rapier: RapierModule | null) {
     rapier,
     game: shuttleGame,
     scene: yard(rapier ? "rapier" : "none"),
-    script: { v: 1, steps: [{ wait: 300 }] },
+    script: { v: 2, steps: [{ wait: 300 }] },
   });
   if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.issues)}`);
   return run.final!;

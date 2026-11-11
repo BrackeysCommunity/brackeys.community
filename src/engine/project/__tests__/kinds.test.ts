@@ -24,7 +24,7 @@ import {
 } from "../kinds";
 import { checksKind } from "../kinds/checks";
 import { dataTableIssues, dataTableKind } from "../kinds/data-table";
-import type { DocLayout } from "../kinds/define";
+import { isPerProject, type DocLayout } from "../kinds/define";
 import { engineResolution, gameSettingsIssues, gameSettingsKind } from "../kinds/game-settings";
 import { ENGINE_ASSET_KINDS, inputMapIssues } from "../kinds/index";
 import { INPUT_MAP_SCHEMA_ID, inputMapKind, inputMapProblems } from "../kinds/input-map";
@@ -169,6 +169,13 @@ function viewOf(entries: AssetEntry[]): ProjectView {
 }
 
 describe("ENGINE_ASSET_KINDS", () => {
+  it("marks game-settings and input-map, and no other kind, one per project", () => {
+    expect(ENGINE_ASSET_KINDS.filter(isPerProject).map((k) => k.kind)).toEqual([
+      "game-settings",
+      "input-map",
+    ]);
+  });
+
   it("lists the engine's kinds and code, in order, as the default kind registry", () => {
     const names = ENGINE_ASSET_KINDS.map((k) => k.kind);
     expect(names).toEqual([
@@ -1462,7 +1469,10 @@ describe("input-map", () => {
     ]);
     const issues = inputMapIssues(view);
     expect(issues.map((i) => [i.code, i.entityIds])).toEqual([["asset-kind", ["more"]]]);
-    expect(issues[0]!.message).toMatch(/"input-map" \(input-map\.json\) is the project's/);
+    expect(issues[0]!.message).toBe(
+      `"more" is a second input map; "input-map" (input-map.json) is the project's`,
+    );
+    expect(issues[0]!.hint).toBe(`Move its bindings into "input-map" and delete it.`);
     expect(inputMapIssues(viewOf([entry("input-map", "input-map", "input-map.json")]))).toEqual([]);
   });
 

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { toolRegistry as registry } from "../../__tests__/fixtures/test-tool";
-import { SIDES } from "../../game/fields";
-import type { Side } from "../../game/types";
+import { createRegistry, defineEntityType, defineGame } from "../../game/define";
+import { SIDES, shapeField } from "../../game/fields";
+import { primitiveFields } from "../../game/primitives";
+import type { SceneSystem, Side } from "../../game/types";
 import { expandScene } from "../expand";
 import { prefabLibrary } from "../prefab";
 import { drawnEntities, oneWayEdge, oneWayEdges, oneWaySide } from "../render-geometry";
@@ -149,5 +151,113 @@ describe("oneWayEdge", () => {
       } as Partial<SceneDefinition>);
       expect(edgesOf(def, prefabs).map((e) => e.side)).toEqual(["down"]);
     });
+  });
+});
+
+describe("type-wide one-way", () => {
+  const inert = (): SceneSystem => ({
+    spawn: () => {},
+    despawn: () => {},
+    clear: () => {},
+    size: () => 0,
+  });
+  const ledges = createRegistry(
+    defineGame({
+      id: "ledges",
+      types: [
+        // One-way only through its system, with no `oneWay` field of its own.
+        defineEntityType({
+          type: "ledge",
+          description: "A ledge its system makes one-way.",
+          fields: { shape: shapeField("Ledge shape.") },
+          system: inert,
+          oneWay: true,
+        }),
+        defineEntityType({
+          type: "shelf",
+          description: "A solid that lands actors on its bottom unless it names a side.",
+          base: "solid",
+          fields: (env) => primitiveFields("solid", env),
+          oneWay: "down",
+        }),
+      ],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    }),
+  );
+  const box = ["box", 100, 100, 30, 5] as const;
+  const edges = (entities: unknown[], instances?: unknown[]) =>
+    Object.fromEntries(
+      oneWayEdges(
+        drawnEntities(
+          expandScene(
+            {
+              ...scene({ entities, ...(instances ? { instances } : {}) } as never),
+              game: "ledges",
+            },
+            ledges,
+            {
+              prefabs: prefabLibrary([
+                {
+                  kind: "prefab",
+                  v: SCENE_FORMAT_VERSION,
+                  id: "p",
+                  entities: [{ id: "bar", type: "ledge", shape: [...box] }],
+                },
+              ]),
+            },
+          ),
+          ledges,
+        ),
+      ).map((e) => [e.entity.id, { side: e.side, from: e.from, to: e.to }]),
+    );
+
+  it("copies the type's oneWay onto the registered type", () => {
+    expect(ledges.types.get("ledge")?.oneWay).toBe(true);
+    expect(ledges.types.get("shelf")?.oneWay).toBe("down");
+  });
+
+  it("draws a type's landing face from its metadata alone, and an entity's own side wins", () => {
+    expect(
+      edges([
+        { id: "l", type: "ledge", shape: [...box] },
+        { id: "s", type: "shelf", shape: [...box] },
+        { id: "s-true", type: "shelf", shape: [...box], oneWay: true },
+        { id: "s-left", type: "shelf", shape: [...box], oneWay: "left" },
+        { id: "plain", type: "solid", shape: [...box] },
+      ]),
+    ).toEqual({
+      l: { side: "up", from: [70, 95], to: [130, 95] },
+      s: { side: "down", from: [130, 105], to: [70, 105] },
+      "s-true": { side: "down", from: [130, 105], to: [70, 105] },
+      "s-left": { side: "left", from: [70, 105], to: [70, 95] },
+    });
+  });
+
+  it("keeps a type-wide side unturned in a turned instance, as the solid system judges it", () => {
+    expect(edges([], [{ id: "i", prefab: "p", at: [0, 0], rot: 1 }])).toMatchObject({
+      "i/bar": { side: "up" },
+    });
+  });
+
+  it("refuses a type oneWay that isn't true or a side", () => {
+    expect(() =>
+      createRegistry(
+        defineGame({
+          id: "odd",
+          types: [
+            defineEntityType({
+              type: "odd",
+              description: "Odd.",
+              fields: { shape: shapeField("Shape.") },
+              system: inert,
+              oneWay: "sideways" as Side,
+            }),
+          ],
+          actions: [],
+          createRuntime: () => ({ snapshot: () => null }),
+        }),
+      ),
+    ).toThrow(/type "odd" oneWay must be true or one of up, right, down, left/);
   });
 });

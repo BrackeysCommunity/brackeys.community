@@ -1,6 +1,7 @@
 import type { z } from "zod";
 
 import type { Registry } from "../../game/types";
+import { makeIssue } from "../../scene/issues";
 import type { Migration, MigrateEnv } from "../../scene/migrate";
 import type { SceneIssue } from "../../scene/types";
 import type { RefSite } from "../refs";
@@ -98,6 +99,24 @@ export type DocKindDef<J = unknown> = KindBase & {
   validate?(value: J, env: KindEnv): readonly SceneIssue[];
   /** Per-doc caps; the hosted service enforces them. */
   limits?: { maxStateBytes: number; maxItems?: number };
+  /**
+   * 1 when a project holds at most one asset of this kind: the first live
+   * one by path is in effect, a later one reports `asset-kind`, and an op
+   * that would add a second is refused.
+   */
+  perProject?: 1;
+  /** How a one-per-project kind's issues name its asset; defaults from `kind`. */
+  perProjectWords?: PerProjectWords;
+};
+
+/** The words a one-per-project kind's `asset-kind` issues use. */
+export type PerProjectWords = {
+  /** After "a second": default `<kind> asset`. */
+  noun: string;
+  /** After "the project already has its": default `noun`. */
+  held?: string;
+  /** What the hint moves into the first one: default "contents". */
+  contents?: string;
 };
 
 export type InspectEnv = {
@@ -153,3 +172,62 @@ export const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b 
 /** Path order, the key breaking a tie: how a project's assets of one kind are read in turn. */
 export const byPathThenKey = (a: AssetEntry, b: AssetEntry): number =>
   byCodeUnit(a.path, b.path) || byCodeUnit(a.key, b.key);
+
+/** Whether a project holds at most one asset of `def`'s kind. */
+export const isPerProject = (def: AssetKindDef | undefined): def is DocKindDef<any> =>
+  def?.storage === "doc" && def.perProject === 1;
+
+function perProjectWords(def: DocKindDef<any>): Required<PerProjectWords> {
+  const noun = def.perProjectWords?.noun ?? `${def.kind} asset`;
+  return {
+    noun,
+    held: def.perProjectWords?.held ?? noun,
+    contents: def.perProjectWords?.contents ?? "contents",
+  };
+}
+
+/** The project's live assets of `kind`, the one in effect (first by path) first. */
+export function perProjectEntries(view: ProjectView, kind: AssetKindName): AssetEntry[] {
+  return [...view.byId.values()].filter((e) => e.kind === kind).sort(byPathThenKey);
+}
+
+/** `asset-kind` for every live asset of a one-per-project kind after the first by path; none for other kinds. */
+export function perProjectIssues(view: ProjectView, def: AssetKindDef): SceneIssue[] {
+  if (!isPerProject(def)) return [];
+  const words = perProjectWords(def);
+  const [first, ...extra] = perProjectEntries(view, def.kind);
+  return extra.map((entry) =>
+    makeIssue("asset-kind", {
+      message: `"${entry.id}" is a second ${words.noun}; "${first!.id}" (${first!.path}) is the project's`,
+      entityIds: [entry.key],
+      got: entry.path,
+      hint: `Move its ${words.contents} into "${first!.id}" and delete it.`,
+    }),
+  );
+}
+
+/** `perProjectIssues` for every kind of `kinds`, in their order. */
+export function onePerProjectIssues(
+  view: ProjectView,
+  kinds: { list(): readonly AssetKindDef[] },
+): SceneIssue[] {
+  return kinds.list().flatMap((def) => perProjectIssues(view, def));
+}
+
+/**
+ * Why adding an asset of `def`'s kind is refused: the one the project
+ * already holds, and the message naming it. Null when the kind allows many
+ * or the project holds none.
+ */
+export function perProjectHeld(
+  view: ProjectView,
+  def: AssetKindDef | undefined,
+): { held: AssetEntry; message: string } | null {
+  if (!isPerProject(def)) return null;
+  const [held] = perProjectEntries(view, def.kind);
+  if (!held) return null;
+  return {
+    held,
+    message: `the project already has its ${perProjectWords(def).held}, "${held.id}" (${held.path}); a project has at most one`,
+  };
+}

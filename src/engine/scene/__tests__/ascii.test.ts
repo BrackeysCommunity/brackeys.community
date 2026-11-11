@@ -16,6 +16,7 @@ import {
   RegistryError,
   withProject,
 } from "../../game/define";
+import { shapeField } from "../../game/fields";
 import { primitiveFields } from "../../game/primitives";
 import { projectView } from "../../project/view";
 import {
@@ -200,6 +201,32 @@ describe("one-way solids", () => {
     const map = sceneAsciiMap(def, { registry: engine });
     expect(map.lines[0]).toBe("=====##.");
     expect(legendOf(map)).toEqual({ "=": "solid one-way", "#": "solid" });
+  });
+
+  it("marks a type one-way through its metadata alone", () => {
+    const ledges = createRegistry(
+      defineGame({
+        id: "ledges",
+        types: [
+          defineEntityType({
+            type: "ledge",
+            description: "A ledge its system makes one-way, with no oneWay field.",
+            fields: { shape: shapeField("Ledge shape.") },
+            system: () => ({ spawn() {}, despawn() {}, clear() {}, size: () => 0 }),
+            oneWay: true,
+            ascii: "L",
+          }),
+        ],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const map = sceneAsciiMap(
+      { ...def, game: "ledges", entities: [{ ...box(0), type: "ledge" }, box(1)] },
+      { registry: ledges },
+    );
+    expect(map.lines[0]).toBe("=#......");
+    expect(legendOf(map)).toEqual({ "=": "ledge one-way", "#": "solid" });
   });
 });
 

@@ -1,0 +1,34 @@
+import { defineGame } from "@jams/engine/game";
+import { z } from "zod";
+
+import { ACTIONS } from "./actions";
+import { PLAY } from "./play";
+import { createRuntime } from "./runtime";
+import { TEMPLATE } from "./template";
+import { DIRECTIONS, GAME_ID, heroType, STEP, type Snapshot } from "./types";
+
+/** Demo: a game that steps a hero cell by cell, one `step` command at a time, to a goal. */
+export const demoGame = defineGame<Snapshot>({
+  id: GAME_ID,
+  types: [heroType],
+  actions: ACTIONS,
+  // The hero's body moves into sensors.
+  collisionGroups: { dynamic: { collidesWith: ["sensor"] } },
+  // Metres in the simulation, 32 px per metre on screen: 32 px cells.
+  world: {
+    physics: "none",
+    gravity: [0, 0],
+    grid: { kind: "square", cell: [1, 1] },
+    lengthUnit: 32,
+  },
+  time: { kind: "turns", rate: 60 },
+  commands: {
+    [STEP]: {
+      description: "Step the hero to the next cell that way.",
+      args: z.strictObject({ dir: z.enum(DIRECTIONS).describe("Which way to step.") }),
+    },
+  },
+  play: PLAY,
+  template: TEMPLATE,
+  createRuntime,
+});

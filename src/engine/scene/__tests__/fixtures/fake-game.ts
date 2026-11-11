@@ -80,7 +80,7 @@ const door = defineEntityType({
 export const fakeGame = defineGame({
   id: "fake",
   types: [pad, flag, button, door],
-  actions: [{ action: "jump", keys: ["Space"], description: "Jump." }],
+  actions: [{ action: "jump", keys: [" "], description: "Jump." }],
   materials: { mud: { friction: 2, restitution: 0, description: "Sticky ground." } },
   settings: {
     lives: z

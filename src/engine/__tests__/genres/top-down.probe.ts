@@ -31,7 +31,7 @@ const game = defineGame<TopDownSnapshot>({
   types: [],
   actions: Object.keys(DIRECTIONS).map((action) => ({
     action,
-    keys: [`arrow${action}`],
+    keys: [`Arrow${action.charAt(0).toUpperCase()}${action.slice(1)}`],
     description: `Steer ${action}.`,
   })),
   collisionGroups: { dynamic: { collidesWith: ["sensor"] } },

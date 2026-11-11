@@ -1,0 +1,17 @@
+{
+  "$schema": "../../engine/project/input-map.schema.json",
+  "kind": "input-map",
+  "v": 1,
+  "players": {
+    "join": "auto",
+    "max": 1
+  },
+  "actions": [
+    { "action": "cursor", "bindings": [{ "axis": "x", "code": "ArrowLeft", "device": "key", "value": -1 }, { "axis": "x", "code": "ArrowRight", "device": "key", "value": 1 }, { "axis": "y", "code": "ArrowUp", "device": "key", "value": -1 }, { "axis": "y", "code": "ArrowDown", "device": "key", "value": 1 }, { "axis": "x", "code": "KeyA", "device": "key", "value": -1 }, { "axis": "x", "code": "KeyD", "device": "key", "value": 1 }, { "axis": "y", "code": "KeyW", "device": "key", "value": -1 }, { "axis": "y", "code": "KeyS", "device": "key", "value": 1 }, { "axis": "x", "button": "dpad-left", "device": "pad", "value": -1 }, { "axis": "x", "button": "dpad-right", "device": "pad", "value": 1 }, { "axis": "y", "button": "dpad-up", "device": "pad", "value": -1 }, { "axis": "y", "button": "dpad-down", "device": "pad", "value": 1 }, { "device": "pad", "stick": "left" }], "kind": "vector" },
+    { "action": "confirm", "bindings": [{ "code": "Enter", "device": "key" }, { "code": "Space", "device": "key" }, { "button": "south", "device": "pad" }, { "button": "primary", "device": "pointer" }] },
+    { "action": "cancel", "bindings": [{ "code": "Escape", "device": "key" }, { "button": "east", "device": "pad" }] },
+    { "action": "end-turn", "bindings": [{ "code": "KeyE", "device": "key" }, { "button": "start", "device": "pad" }] },
+    { "action": "next-unit", "bindings": [{ "code": "KeyQ", "device": "key" }, { "button": "rb", "device": "pad" }] }
+  ],
+  "deadzone": 0.3
+}

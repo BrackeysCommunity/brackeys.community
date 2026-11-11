@@ -19,7 +19,7 @@ const run = runPlaytest({
   registry,
   scene,
   script: {
-    v: 1,
+    v: 2,
     steps: [
       { hold: ["right"], until: { event: "sensor:enter" }, max: 300 },
       { wait: 30 },

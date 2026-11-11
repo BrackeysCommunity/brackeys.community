@@ -1,6 +1,7 @@
 import "@jams/engine/editor-ui/style.css";
 import "@/styles/editor-ui.css";
 import * as Hocuspocus from "@hocuspocus/provider";
+import type { MountUi } from "@jams/engine";
 import { buildAtFrom } from "@jams/engine/collab";
 import type { DebugLayerFactory } from "@jams/engine/debug";
 import {
@@ -18,7 +19,6 @@ import { useStore } from "@tanstack/react-store";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { DEFAULT_SCENE as ENGINE_DEFAULT_SCENE } from "@/games/engine-editor";
-import { platformerGame } from "@/games/platformer";
 import { activeUserStore, type ActiveUserProfile } from "@/lib/active-user-store";
 import { presenceColor } from "@/lib/canvas/presence";
 import type { FeatureFlagValues } from "@/lib/flags";
@@ -26,36 +26,51 @@ import { useFlags } from "@/lib/hooks/use-flag";
 import { play, type SoundName } from "@/lib/sound";
 import { toast } from "@/lib/toast";
 
-import { BUNDLED_SCENE_ID } from "./platformer-scene";
+import { EditorLoading } from "./editor-loading";
+import { DEFAULT_GAME, hostedGames, type HostedGame } from "./hosted-games";
 import { GameSiteIsland } from "./site-island";
+
+/** What the editor opens a project with. */
+export type SiteProjectModules = {
+  /** The game its `jams.project.json` names; null when it names none, as the dev server judges it. */
+  game: GameDefinition | null;
+  /** The game's DOM UI, mounted over the canvas while Play runs; null without one. */
+  ui: MountUi | null;
+  /** The scene opened when the URL names none. */
+  defaultScene: string;
+};
 
 /**
  * A project the game room's editor can open: its `jams.project.json` id and
- * the game it is edited with. Its name is the project file's, from the dev
- * server's listing.
+ * how to load the game it is edited with. Its name is the project file's,
+ * from the dev server's listing.
  */
 export type SiteProject = {
   id: string;
-  /** The game its `jams.project.json` names; null when it names none, as the dev server judges it. */
-  game: GameDefinition | null;
-  /** The scene opened when the URL names none. */
-  defaultScene: string;
+  load(): Promise<SiteProjectModules>;
   /** The game's debug layers (F3), beside the engine's. */
   debugLayers?: () => Promise<readonly DebugLayerFactory[]>;
 };
 
+const fromHosted = (hosted: HostedGame): SiteProject => ({
+  id: hosted.id,
+  load: () => hosted.load().then(({ game, ui, scene }) => ({ game, ui, defaultScene: scene.name })),
+  debugLayers: () => hosted.debugLayers(),
+});
+
+const ENGINE_PROJECT: SiteProject = {
+  id: "engine",
+  load: () => Promise.resolve({ game: null, ui: null, defaultScene: ENGINE_DEFAULT_SCENE }),
+};
+
+/** Every game the site hosts, then the gameless engine project. */
 export const SITE_PROJECTS: readonly SiteProject[] = [
-  {
-    id: "platformer",
-    game: platformerGame,
-    defaultScene: BUNDLED_SCENE_ID,
-    debugLayers: () => import("@/games/platformer/debug").then((m) => m.PLATFORMER_DEBUG_LAYERS),
-  },
-  { id: "engine", game: null, defaultScene: ENGINE_DEFAULT_SCENE },
+  ...hostedGames().map(fromHosted),
+  ENGINE_PROJECT,
 ];
 
 /** The project `/game/<room>?edit=1` opens without `?project=`. */
-export const DEFAULT_PROJECT = "platformer";
+export const DEFAULT_PROJECT = DEFAULT_GAME;
 
 export const siteProject = (id: string): SiteProject | null =>
   SITE_PROJECTS.find((p) => p.id === id) ?? null;
@@ -293,23 +308,55 @@ export function SiteSceneEditor({ roomId, project, scene, onSceneChange }: SiteS
   );
 }
 
-function ProjectSceneEditor({
-  roomId,
-  project,
-  scene,
-  projectNames,
-  onSceneChange,
-  onProjectChange,
-}: {
+/** `project`'s modules once they load; null until then, and after a failure the toast reports. */
+function useProjectModules(project: SiteProject): SiteProjectModules | null {
+  const [modules, setModules] = useState<SiteProjectModules | null>(null);
+  useEffect(() => {
+    let live = true;
+    project.load().then(
+      (loaded) => {
+        if (live) setModules(loaded);
+      },
+      (error: unknown) => {
+        if (!live) return;
+        siteNotify.error(`The project "${project.id}" couldn't load`, {
+          description: error instanceof Error ? error.message : String(error),
+        });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [project]);
+  return modules;
+}
+
+function ProjectSceneEditor(props: ProjectSceneEditorProps) {
+  const modules = useProjectModules(props.project);
+  if (!modules) return <EditorLoading roomId={props.roomId} />;
+  return <LoadedSceneEditor {...props} modules={modules} />;
+}
+
+type ProjectSceneEditorProps = {
   roomId: string;
   project: SiteProject;
   scene: string | undefined;
   projectNames: ProjectNames | undefined;
   onSceneChange: (id: string) => void;
   onProjectChange: (id: string, opts?: { scene?: string }) => void;
-}) {
+};
+
+function LoadedSceneEditor({
+  roomId,
+  project,
+  scene,
+  projectNames,
+  onSceneChange,
+  onProjectChange,
+  modules,
+}: ProjectSceneEditorProps & { modules: SiteProjectModules }) {
   const [ready, setReady] = useState(false);
-  const editing = scene ?? project.defaultScene;
+  const editing = scene ?? modules.defaultScene;
   const [debug] = useState(() => debugFor(project));
   const host = useSiteEditorHost({
     title: ready ? editing : roomId,
@@ -320,7 +367,8 @@ function ProjectSceneEditor({
   return (
     <SceneEditor
       host={host}
-      game={project.game}
+      game={modules.game}
+      ui={modules.ui}
       project={project.id}
       scene={editing}
       rapier={loadRapier}

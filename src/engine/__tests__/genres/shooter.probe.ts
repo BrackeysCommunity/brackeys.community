@@ -75,7 +75,7 @@ const game = defineGame<ShooterSnapshot>({
     { action: "fire", keys: [" "], description: "Fire one bullet a tick." },
     ...Object.keys(AIM).map((action) => ({
       action,
-      keys: [`arrow${action.slice(4)}`],
+      keys: [`Arrow${action.charAt(4).toUpperCase()}${action.slice(5)}`],
       description: `Aim ${action.slice(4)}.`,
     })),
   ],
@@ -215,7 +215,6 @@ export const shooterProbe: GenreProbe<ShooterSnapshot> = {
   pending: {
     "twin-stick": "M16 (analog sticks, pointer aim), M22 (particles, screen shake)",
     "endless-runner": "M16 (touch controls), M19 (an installable PWA), M22 (parallax)",
-    "tower-defense": "M17 (build UI)",
   },
   game,
   scene,

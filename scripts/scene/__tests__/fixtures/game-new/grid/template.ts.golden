@@ -1,0 +1,17 @@
+import type { SceneTemplate } from "@jams/engine/game";
+
+/** A walled room with the hero and a goal, in metres. */
+export const TEMPLATE: SceneTemplate = {
+  bounds: [0, 0, 10, 8],
+  solid: [
+    ["box", 5, 0.5, 5, 0.5],
+    ["box", 5, 7.5, 5, 0.5],
+    ["box", 0.5, 4, 0.5, 3],
+    ["box", 9.5, 4, 0.5, 3],
+    ["box", 5.5, 3, 0.5, 2],
+  ],
+  entities: [
+    { id: "hero", type: "hero", at: [2.5, 2.5] },
+    { id: "goal", type: "sensor", shape: ["box", 7.5, 2.5, 0.375, 0.375], tags: ["goal"] },
+  ],
+};

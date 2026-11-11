@@ -14,6 +14,7 @@ import type { RecordingCommand } from "../scene/recording-schema";
 import type { Pt } from "../scene/types";
 import { compileInputScript, scriptSource } from "./compile-input-script";
 import { probeConfigHash } from "./headless";
+import { legalCommands, startState } from "./legal";
 import { blockedRun, prepareRun, runBlocked, runLibrary, runLoop } from "./play-loop";
 import type {
   CompiledInputScript,
@@ -93,8 +94,11 @@ export type PlaytestHooks = {
  * Plays an input script on a scene headless, starting the run the way the
  * editor's Play does (validation errors block, the document is cloned and
  * expanded, `at` is cast with the game's spawn shape), and reports how it
- * ended: the game's outcome, else `stuck`, `script-end` or `timeout`.
- * Deterministic: the same scene, game and script give the same report.
+ * ended: the game's outcome, else `stuck`, `script-end` or `timeout`. Its
+ * tracks drive the seats the run has, the project input map's over the
+ * game's (`scriptSeatLimit`). A game that lists its commands gets `legal`
+ * after the last tick (`legalCommands`). Deterministic: the same scene,
+ * game and script give the same report.
  */
 export function runPlaytest<S = unknown, G = unknown>(
   opts: PlaytestOptions<S, G> & PlaytestHooks & RecordingHost,
@@ -113,6 +117,8 @@ export function runPlaytest<S = unknown, G = unknown>(
       opts.script,
       registry,
       resolveTime({ project: engine, game: registry.time }),
+      opts.project?.inputMap?.players,
+      opts.project?.inputMap,
     );
     if (!compiled.ok) return blockedRun("script", name, [], compiled.issues);
     script = compiled.script;
@@ -178,6 +184,7 @@ export function runPlaytest<S = unknown, G = unknown>(
       platform: opts.platform,
       projectRef: opts.projectRef,
       maxTrail,
+      registry,
     });
 
     let last = null as PlayState | null;
@@ -209,6 +216,7 @@ export function runPlaytest<S = unknown, G = unknown>(
       throw err;
     }
     if (last) opts.onLastTick?.(last);
+    const legal = legalCommands(game?.play, last ?? startState(runtime));
 
     const final = runtime.snapshot() as S | null;
     const focus = game?.play?.focus && final !== null ? game.play.focus(final) : null;
@@ -238,6 +246,7 @@ export function runPlaytest<S = unknown, G = unknown>(
       stepsReached: steps.length,
       steps,
       final,
+      ...legal,
       inputs,
       stream: structuredClone({ actions, commands: commandNames, inputs: seatStreams, system }),
       commands,

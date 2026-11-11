@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { mountUi, type GameInstance, type GameStoreState, type UiActionEvent } from "@jams/engine";
 import {
   createProjectSession,
   docToScene,
@@ -14,10 +15,12 @@ import {
 import { createRegistry } from "@jams/engine/game";
 import { createKindRegistry, ENGINE_ASSET_KINDS, type AssetEntry } from "@jams/engine/project";
 import type { SceneDefinition } from "@jams/engine/scene";
+import { Store } from "@tanstack/store";
 import { describe, expect, it } from "vite-plus/test";
 import type * as Y from "yjs";
 
 import { loadCompatRapier } from "../../scene/rapier-compat";
+import type { FerrySlice } from "../examples/dom-hud";
 import {
   formatReference,
   REFERENCE_END,
@@ -172,19 +175,16 @@ describe("the world-model examples run", () => {
 
   it("shape-queries.ts finds what a blade cuts and where a laser lands, exactly", async () => {
     const { workbench } = await import("../examples/shape-queries");
-    const cut = workbench({ type: "circle", cx: 300, cy: 60, r: 5 }, [200, 100]);
-    expect(cut.upright).toEqual({ minX: 295, minY: 60, maxX: 305, maxY: 140 });
+    const cut = workbench({ type: "circle", cx: 3, cy: 0.6, r: 0.05 }, [2, 1]);
+    expect(cut.upright).toEqual({ minX: 2.95, minY: 0.6, maxX: 3.05, maxY: 1.4 });
     expect(cut.near).toEqual(["upright"]);
     expect(cut.cuts).toEqual(["upright"]);
-    expect(cut.laser).toEqual({ at: 295, normal: [-1, 0] });
-    const both = workbench(
-      { type: "box", cx: 200, cy: 100, hw: 100, hh: 2, rotDeg: 0 },
-      [200, 300],
-    );
+    expect(cut.laser).toEqual({ at: 2.95, normal: [-1, 0] });
+    const both = workbench({ type: "box", cx: 2, cy: 1, hw: 1, hh: 0.02, rotDeg: 0 }, [2, 3]);
     expect(both.near).toEqual(["flat", "upright"]);
     expect(both.cuts).toEqual(["flat", "upright"]);
     expect(both.laser).toBeNull();
-    const corner = workbench({ type: "circle", cx: 309, cy: 144, r: 5 }, [200, 100]);
+    const corner = workbench({ type: "circle", cx: 3.09, cy: 1.44, r: 0.05 }, [2, 1]);
     expect(corner.near).toEqual(["upright"]);
     expect(corner.cuts).toEqual([]);
   });
@@ -193,11 +193,11 @@ describe("the world-model examples run", () => {
     const { walkAround } = await import("../examples/nav-walk");
     const r = walkAround();
     expect(r.issues).toEqual([]);
-    expect(r.path?.[0]).toEqual([100, 150]);
-    expect(r.path?.at(-1)).toEqual([650, 150]);
+    expect(r.path?.[0]).toEqual([1, 1.5]);
+    expect(r.path?.at(-1)).toEqual([6.5, 1.5]);
     expect(r.path!.length).toBeGreaterThan(2);
     expect(r.onTable).toBe(false);
-    expect(r.clickedOutside).toEqual([550, 200]);
+    expect(r.clickedOutside).toEqual([5.5, 2]);
   });
 
   it("orchard-game.ts catches up eight hours of a day away", async () => {
@@ -435,5 +435,96 @@ describe("the input examples run", () => {
       decimals: [2, 5],
       scaled: { speed: 10, count: 3 },
     });
+  });
+});
+
+describe("the UI example runs", () => {
+  type Listener = (e: UiActionEvent) => void;
+
+  async function mountFerry(opts: { reducedMotion?: boolean } = {}) {
+    const { mountFerryHud } = await import("../examples/dom-hud");
+    const { window } = await dom(
+      `<div id="stage" style="position: relative"><canvas></canvas></div>`,
+    );
+    if (opts.reducedMotion) {
+      window.matchMedia = ((query: string) => ({
+        matches: query === "(prefers-reduced-motion: reduce)",
+      })) as unknown as typeof window.matchMedia;
+    }
+    const canvas = window.document.querySelector("canvas")!;
+    const store = new Store({ game: null } as unknown as GameStoreState);
+    const sent: unknown[] = [];
+    const listeners: { fn: Listener; actions?: readonly string[] }[] = [];
+    const game = {
+      getStore: () => store,
+      project: () => ({ settings: { boatName: "Molly" } }),
+      send: (command: unknown) => (sent.push(command), true),
+      worldToClient: (p: { x: number; y: number }) => ({ x: p.x * 100, y: p.y * 100 }),
+      input: {
+        onAction(fn: Listener, o?: { actions?: readonly string[] }) {
+          const entry = { fn, actions: o?.actions };
+          listeners.push(entry);
+          return () => void listeners.splice(listeners.indexOf(entry), 1);
+        },
+      },
+    } as unknown as GameInstance;
+    const before = store.listeners.size;
+    const unmount = mountUi(game, canvas, mountFerryHud);
+    const emit = (e: Partial<UiActionEvent>) => {
+      for (const l of [...listeners]) {
+        if (!l.actions || l.actions.includes(e.action!)) l.fn(e as UiActionEvent);
+      }
+    };
+    const slice = (game: FerrySlice | null) => store.setState((s) => ({ ...s, game }));
+    const q = <T extends Element>(sel: string) => window.document.querySelector<T>(sel)!;
+    return { window, store, before, sent, listeners, unmount, emit, slice, q };
+  }
+
+  it("dom-hud.ts follows the slice, sends cross and toggles help on the UI action", async () => {
+    const h = await mountFerry();
+    const status = h.q<HTMLElement>("[data-jams-ui] [role=status]");
+    const cross = h.q<HTMLButtonElement>("[data-jams-ui] button");
+    const tag = h.q<HTMLElement>("[data-jams-ui] span");
+    const help = h.q<HTMLElement>("[data-jams-ui] aside");
+    expect(h.q<HTMLElement>("[data-jams-ui] div").dataset.motion).toBe("full");
+    expect(status.textContent).toBe("Loading the ferry");
+    expect(cross.disabled).toBe(true);
+    expect(cross.style.pointerEvents).toBe("auto");
+    expect(tag.textContent).toBe("Molly");
+    expect(tag.style.visibility).toBe("hidden");
+
+    h.slice({ turn: 1, boat: [2, 1.5], aboard: 3, canCross: true, result: null });
+    expect(status.textContent).toBe("Turn 1 · 3 aboard");
+    expect(cross.disabled).toBe(false);
+    expect(tag.style.visibility).toBe("");
+    expect(tag.style.transform).toBe("translate(200px, 100px)");
+
+    cross.click();
+    expect(h.sent).toEqual([{ name: "cross" }]);
+
+    expect(h.listeners.map((l) => l.actions)).toEqual([["help"]]);
+    h.emit({ action: "help", down: true });
+    expect(help.hidden).toBe(false);
+    h.emit({ action: "help", down: true, repeat: true });
+    h.emit({ action: "help", down: false });
+    expect(help.hidden).toBe(false);
+    h.emit({ action: "help", down: true });
+    expect(help.hidden).toBe(true);
+
+    h.slice({ turn: 2, boat: [6, 1.5], aboard: 0, canCross: false, result: "won" });
+    expect(status.textContent).toBe("Everyone is across");
+    expect(cross.disabled).toBe(true);
+    expect(tag.style.transform).toBe("translate(600px, 100px)");
+
+    h.unmount();
+    expect(h.window.document.querySelector("[data-jams-ui]")).toBeNull();
+    expect(h.listeners).toEqual([]);
+    expect(h.store.listeners.size).toBe(h.before);
+  });
+
+  it("dom-hud.ts marks reduced motion when the page prefers it", async () => {
+    const h = await mountFerry({ reducedMotion: true });
+    expect(h.q<HTMLElement>("[data-jams-ui] div").dataset.motion).toBe("reduced");
+    h.unmount();
   });
 });

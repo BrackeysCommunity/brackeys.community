@@ -148,6 +148,40 @@ describe("applyJsonEdits", () => {
     expect(after.steps).toEqual([{ wait: 0 }, { wait: 1 }, { press: "jump" }, { press: "end" }]);
   });
 
+  it('appends on a last "-" segment in lists and keyed collections', () => {
+    const after = ok(doc(), [
+      { insert: "/rows/-", value: { id: "zap", cost: 1 } },
+      { insert: "/steps/-", value: { press: "end" } },
+      { insert: "/cards/-", value: { key: "a" } },
+      { insert: "/cards/@a/tags/-", value: "red" },
+      { insert: "/cards/@a/tags/-", value: "blue" },
+    ]);
+    expect(after.rows.map((r: { id: string }) => r.id)).toEqual(["fireball", "heal", "zap"]);
+    expect(after.steps).toEqual([{ wait: 1 }, { press: "jump" }, { press: "end" }]);
+    expect(after.cards).toEqual([{ key: "a", tags: ["red", "blue"] }]);
+    expect(ok([1], [{ insert: "/-", value: 2 }], { as: "list", item: atomic })).toEqual([1, 2]);
+    const taken = refused(doc(), [{ insert: "/rows/-", value: { id: "heal" } }]);
+    expect(taken.issue.code).toBe("id-taken");
+  });
+
+  it('refuses "-" anywhere but an insert\'s last segment, under a non-collection, or with before', () => {
+    const refusals: JsonEdit[] = [
+      { insert: "/rows/-/fx", value: { id: "x" } },
+      { insert: "/steps/-/0", value: 1 },
+      { set: "/steps/-", value: 1 },
+      { set: "/rows/-", value: { id: "x" } },
+      { remove: "/steps/-" },
+      { insert: "/physics/-", value: 1 },
+      { insert: "/table/-", value: 1 },
+      { insert: "/-", value: 1 },
+    ];
+    for (const edit of refusals) {
+      expect(refused(doc(), [edit]).issue.code, JSON.stringify(edit)).toBe("op-invalid");
+    }
+    const withBefore = refused(doc(), [{ insert: "/steps/-", value: 1, before: 0 }]);
+    expect(withBefore.issue).toMatchObject({ code: "op-invalid", path: "/0/before" });
+  });
+
   it("creates an absent collection on its first insert", () => {
     const after = ok({ kind: "x" }, [
       { insert: "/rows", value: { id: "a" } },

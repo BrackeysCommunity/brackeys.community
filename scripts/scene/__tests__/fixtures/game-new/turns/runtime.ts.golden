@@ -1,0 +1,120 @@
+import {
+  createGridStepper,
+  createMotionBody,
+  SENSOR_ENTER,
+  type Cell,
+  type EngineContext,
+  type GameRuntime,
+  type GridStepper,
+  type MotionBody,
+} from "@jams/engine/game";
+
+import {
+  DIRECTIONS,
+  GOAL_TAG,
+  HERO,
+  HERO_SIZE,
+  REACHED,
+  STEP,
+  type Direction,
+  type Slice,
+  type Snapshot,
+} from "./types";
+
+/** How long one step from cell to cell takes. */
+const MS_PER_STEP = 150;
+
+const OFFSETS: Readonly<Record<Direction, Cell>> = {
+  left: [-1, 0],
+  right: [1, 0],
+  up: [0, -1],
+  down: [0, 1],
+};
+
+/** Walks the hero one cell per `step` command, queued while it walks, and raises `REACHED` at a goal. */
+export function createRuntime(ctx: EngineContext): GameRuntime<Snapshot> {
+  let body: MotionBody | null = null;
+  let stepper: GridStepper | null = null;
+  let heroId: string | null = null;
+  let goals = new Set<string>();
+  let queue: Direction[] = [];
+  let reached = false;
+  let slice: Slice = { reached };
+
+  const next = (offset: Cell): Cell | null => {
+    const at = stepper?.cell();
+    return at ? [at[0] + offset[0], at[1] + offset[1]] : null;
+  };
+
+  return {
+    onLoad(scene) {
+      goals = new Set(
+        scene.entities
+          .filter(
+            (e) => e.type === "sensor" && (e.tags as string[] | undefined)?.includes(GOAL_TAG),
+          )
+          .map((e) => e.id),
+      );
+      const start = scene.entities.find((e) => e.type === HERO);
+      if (!start) return;
+      const grid = ctx.grid;
+      if (!grid) return;
+      const [x, y] = start.at as [number, number];
+      const cell = grid.geometry.cellAt([x, y]);
+      const [cx, cy] = grid.geometry.center(cell);
+      const half = (typeof start.size === "number" ? start.size : HERO_SIZE) / 2;
+      const shape = { type: "box" as const, cx: 0, cy: 0, hw: half, hh: half, rotDeg: 0 };
+      body = createMotionBody(ctx, start, { x: cx, y: cy }, { shape });
+      stepper = createGridStepper(ctx, start.id, {
+        start: cell,
+        msPerStep: MS_PER_STEP,
+        body,
+        occupy: true,
+      });
+      heroId = start.id;
+    },
+    onUnload() {
+      body = null;
+      stepper = null;
+      heroId = null;
+      goals.clear();
+      queue = [];
+      reached = false;
+    },
+    beforeStep(dtMs, _actions, commands) {
+      for (const c of commands) {
+        const dir = (c.args as { dir?: Direction } | undefined)?.dir;
+        if (c.name === STEP && dir !== undefined) queue.push(dir);
+      }
+      if (!stepper) return;
+      stepper.update(dtMs);
+      while (!stepper.moving() && !reached && queue.length > 0) {
+        const to = next(OFFSETS[queue.shift()!]);
+        if (to) stepper.step(to);
+      }
+    },
+    afterStep(_dtMs, events) {
+      for (const e of events) {
+        if (reached || e.type !== SENSOR_ENTER || e.other !== heroId) continue;
+        if (e.entityId === undefined || !goals.has(e.entityId)) continue;
+        reached = true;
+        ctx.emit({ type: REACHED, entityId: e.entityId, other: heroId, at: e.at });
+      }
+    },
+    // Ticks run while the hero walks or has steps queued.
+    busy: () => (stepper?.moving() ?? false) || queue.length > 0,
+    cameraTarget: () => body?.position() ?? null,
+    snapshot() {
+      const idle = stepper !== null && !stepper.moving() && queue.length === 0;
+      const moves = DIRECTIONS.filter((dir) => {
+        const to = next(OFFSETS[dir]);
+        return idle && to !== null && (ctx.grid?.passable(to) ?? false);
+      });
+      return { at: body?.position() ?? null, cell: stepper?.cell() ?? null, moves, reached };
+    },
+    storeSlice() {
+      if (slice.reached !== reached) slice = { reached };
+      return slice;
+    },
+  };
+}

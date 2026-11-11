@@ -46,6 +46,21 @@ afterEach(() => {
 
 const cam = () => game!.getStore().state.camera;
 
+/** worldToClient undoes clientToWorld within 0.01 client px, over a spread of page points. */
+function expectRoundTrip(g: GameInstance): void {
+  for (const [x, y] of [
+    [0, 0],
+    [31.5, 12.25],
+    [740, 540],
+    [1280.75, 333.3],
+    [2559, 1079],
+  ] as const) {
+    const back = g.worldToClient(g.clientToWorld(x, y));
+    expect(Math.abs(back.x - x)).toBeLessThan(0.01);
+    expect(Math.abs(back.y - y)).toBeLessThan(0.01);
+  }
+}
+
 describe("the editor camera", () => {
   it("converts screen px to metres through the camera, centre of the screen at the camera", () => {
     const { position } = cam();
@@ -65,6 +80,27 @@ describe("the editor camera", () => {
     // 200 screen px a metre at zoom 2.
     expect(at.x).toBeCloseTo(position.x + 0.5, 9);
     expect(at.y).toBeCloseTo(position.y + 0.25, 9);
+  });
+
+  it("maps a world point to page px through the camera and the rect, inverting clientToWorld", () => {
+    const canvas = document.querySelector("canvas")!;
+    canvas.getBoundingClientRect = () => ({ left: 30, top: 12 }) as DOMRect;
+    const { position } = cam();
+    expect(game!.worldToClient(position)).toEqual({ x: 30 + 960, y: 12 + 540 });
+    const right = game!.worldToClient({ x: position.x + 1.5, y: position.y - 0.25 });
+    expect(right.x).toBeCloseTo(30 + 960 + 150, 9);
+    expect(right.y).toBeCloseTo(12 + 540 - 25, 9);
+    expectRoundTrip(game!);
+
+    game!.zoomAt({ x: 700, y: 300 }, 2.5);
+    expectRoundTrip(game!);
+    game!.panBy({ x: -123.4, y: 56.7 });
+    expectRoundTrip(game!);
+    const p = { x: position.x - 2, y: position.y + 1 };
+    const at = game!.worldToClient(p);
+    const back = game!.clientToWorld(at.x, at.y);
+    expect(back.x).toBeCloseTo(p.x, 9);
+    expect(back.y).toBeCloseTo(p.y, 9);
   });
 
   it("pans with a drag: the world moves with the pointer, and the store follows", () => {
@@ -143,6 +179,45 @@ describe("a letterboxed shell", () => {
     const after = g.screenToWorld(screen);
     expect(after.x).toBeCloseTo(under.x, 6);
     expect(after.y).toBeCloseTo(under.y, 6);
+  });
+
+  it("inverts clientToWorld through the bars, under zoom and pan", async () => {
+    const g = await letterboxed();
+    const canvas = [...document.querySelectorAll("canvas")].at(-1)!;
+    canvas.getBoundingClientRect = () => ({ left: 7, top: 45 }) as DOMRect;
+    const { position } = cam();
+    // The view's centre is the canvas's centre, past the 740 px pillar.
+    expect(g.worldToClient(position)).toEqual({ x: 7 + 1280, y: 45 + 540 });
+    expectRoundTrip(g);
+    g.zoomAt({ x: 1000, y: 300 }, 1.75);
+    g.panBy({ x: 40, y: -18 });
+    expectRoundTrip(g);
+  });
+
+  it("inverts clientToWorld at a whole-number scale, its bars on both axes", async () => {
+    game?.destroy();
+    const canvas = document.createElement("canvas");
+    document.body.appendChild(canvas);
+    canvas.getBoundingClientRect = () => ({ left: 3, top: 9 }) as DOMRect;
+    game = await createGame(canvas, {
+      game: { ...testGame, world: { ...testGame.world, lengthUnit: 48 } },
+      rapier: async () => rapier,
+      scene: yard,
+      displayWidth: 1900,
+      displayHeight: 1000,
+      resolution: { virtual: { width: 576, height: 384 }, fit: "letterbox", integer: true },
+    });
+    game.stop();
+    // 1900 / 576 and 1000 / 384 floor to 2: bars of (1900 − 1152) / 2 and (1000 − 768) / 2.
+    expect(cam().scale).toBeCloseTo(2 * 48);
+    const { position } = cam();
+    expect(game.worldToClient(position)).toEqual({ x: 3 + 950, y: 9 + 500 });
+    const corner = game.worldToClient({ x: position.x - 6, y: position.y - 4 });
+    expect(corner.x).toBeCloseTo(3 + 374, 9);
+    expect(corner.y).toBeCloseTo(9 + 116, 9);
+    expectRoundTrip(game);
+    game.zoomAt({ x: 600, y: 400 }, 1.5);
+    expectRoundTrip(game);
   });
 
   it("reads the project's engine.resolution between the host's and the game's", async () => {

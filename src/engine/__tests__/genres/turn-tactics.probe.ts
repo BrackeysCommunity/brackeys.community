@@ -5,7 +5,7 @@ import { pointField } from "../../game/fields";
 import { ticksFor } from "../../game/time";
 import type { EngineContext } from "../../game/types";
 import { fieldOfView } from "../../grid/fov";
-import { cellKey, type Cell } from "../../grid/geometry";
+import { cellKey, sameCell, type Cell } from "../../grid/geometry";
 import { findPath } from "../../grid/path";
 import { createGridStepper, type GridStepper } from "../../motion/grid-step";
 import type { ExpandedScene, GridSettings, Pt, SceneDefinition } from "../../scene/types";
@@ -46,8 +46,6 @@ export type TurnTacticsSnapshot = {
 };
 
 type Unit = { id: string; stepper: GridStepper; queue: Cell[] };
-
-const sameCell = (a: Cell, b: Cell) => a[0] === b[0] && a[1] === b[1];
 
 const unitType = defineEntityType({
   type: UNIT,

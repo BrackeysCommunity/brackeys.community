@@ -3,7 +3,15 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { gridCellOutline } from "../../scene/render-geometry";
 import type { GridSettings, Pt, ShapeObj } from "../../scene/types";
-import { cellKey, cellOf, gridGeometry, type Cell } from "../geometry";
+import {
+  boundsCells,
+  cellKey,
+  cellOf,
+  gridGeometry,
+  inCellBounds,
+  sameCell,
+  type Cell,
+} from "../geometry";
 
 const SQUARE: GridSettings = { kind: "square", cell: [32, 24], origin: [-40, 16] };
 const HEXES: Record<string, GridSettings> = {
@@ -584,5 +592,41 @@ describe("cellsIn and rect", () => {
           }
         }
     }
+  });
+});
+
+describe("cell helpers", () => {
+  const b = { c0: -1, r0: 2, c1: 1, r1: 3 };
+
+  it("sameCell compares both coordinates", () => {
+    expect(sameCell([1, 2], [1, 2])).toBe(true);
+    expect(sameCell([1, 2], [2, 1])).toBe(false);
+    expect(sameCell([0, 0], [-0, 0])).toBe(true);
+  });
+
+  it("inCellBounds includes the edges and nothing past them", () => {
+    for (const c of boundsCells(b)) expect(inCellBounds(b, c)).toBe(true);
+    for (const c of [
+      [-2, 2],
+      [2, 3],
+      [0, 1],
+      [0, 4],
+    ] as Cell[])
+      expect(inCellBounds(b, c)).toBe(false);
+  });
+
+  it("boundsCells lists every cell once, in cell-key order", () => {
+    const cells = boundsCells(b);
+    expect(cells).toEqual([
+      [-1, 2],
+      [-1, 3],
+      [0, 2],
+      [0, 3],
+      [1, 2],
+      [1, 3],
+    ]);
+    const keys = cells.map(cellKey);
+    expect(keys).toEqual([...keys].sort((x, y) => x - y));
+    expect(boundsCells({ c0: 1, r0: 0, c1: 0, r1: 0 })).toEqual([]);
   });
 });

@@ -1,0 +1,32 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "rgmnmu3itkok",
+  "id": "units",
+  "assetKind": "atlas",
+  "sha256": "0ab9f17bbe038cc0445fe1a5d676ab8ddb27dd1ae54fbe36ce55af689dd57c6d",
+  "bytes": 2047,
+  "import": { "texture": "units-texture" },
+  "meta": {
+    "frames": {
+      "archer-blue": { "durationMs": 100, "h": 48, "w": 48, "x": 48, "y": 0 },
+      "archer-red": { "durationMs": 100, "h": 48, "w": 48, "x": 192, "y": 0 },
+      "knight-blue": { "durationMs": 100, "h": 48, "w": 48, "x": 0, "y": 0 },
+      "knight-red": { "durationMs": 100, "h": 48, "w": 48, "x": 144, "y": 0 },
+      "scout-blue": { "durationMs": 100, "h": 48, "w": 48, "x": 96, "y": 0 },
+      "scout-red": { "durationMs": 100, "h": 48, "w": 48, "x": 240, "y": 0 }
+    },
+    "order": ["knight-blue", "archer-blue", "scout-blue", "knight-red", "archer-red", "scout-red"],
+    "slices": [],
+    "tags": [
+      { "direction": "forward", "from": 0, "name": "blue", "to": 2 },
+      { "direction": "forward", "from": 3, "name": "red", "to": 5 }
+    ],
+    "tool": "aseprite"
+  },
+  "licence": {
+    "spdx": "CC0-1.0",
+    "author": "The @jams/engine authors",
+    "source": "Generated for this repository by art/make-art.ts, in Aseprite's JSON hash export format."
+  }
+}

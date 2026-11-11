@@ -44,6 +44,7 @@ import {
   SegmentedControl,
   useKit,
 } from "../kit/index";
+import { useBrowserState } from "../kit/ssr";
 import { useBusy } from "../pending/use-pending";
 import { openPrefabScope } from "../session/live-scene-editor";
 import { readStored, storedFlags, writeStored } from "../session/stored";
@@ -52,6 +53,7 @@ import { PeerFaces } from "./peer-faces";
 
 const COLLAPSE_KEY = `${STORAGE_PREFIX}outline-collapsed`;
 const VIEW_KEY = `${STORAGE_PREFIX}outline-view`;
+const NONE_COLLAPSED: Record<string, boolean> = {};
 
 /** A layer row's title: its name title-cased, `far-hills` as "Far Hills". */
 const layerTitle = (name: string) =>
@@ -545,10 +547,14 @@ export function EditorOutliner({
   const hover = useEditorStore(session, (s) => s.hover);
   const peers = useEditorStore(session, (s) => s.peers);
   const issues = useEditorStore(session, (s) => s.issues);
-  const [collapsed, setCollapsed] = useState(() =>
-    readStored(storage, COLLAPSE_KEY, {}, storedFlags),
+  const [collapsed, setCollapsed] = useBrowserState(
+    () => readStored(storage, COLLAPSE_KEY, {}, storedFlags),
+    NONE_COLLAPSED,
   );
-  const [view, setView] = useState<View>(() => readStored(storage, VIEW_KEY, "type", storedView));
+  const [view, setView] = useBrowserState<View>(
+    () => readStored(storage, VIEW_KEY, "type", storedView),
+    "type",
+  );
   const [query, setQuery] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 

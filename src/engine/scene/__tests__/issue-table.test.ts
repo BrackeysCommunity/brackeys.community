@@ -423,6 +423,8 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[]) | null> = {
   "asset-too-large": null,
   "import-failed": null,
   "quota-exceeded": null,
+  // The scaffolder (`game new`) emits it outside the package; scripts/scene's game-new tests cover it.
+  "project-id-taken": null,
   // Binding problems come from `createRegistry` and the input-map kind's schema, not the scene tools.
   "binding-unknown": null,
   "player-unknown": null,

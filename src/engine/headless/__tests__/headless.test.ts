@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeAll, describe, expect, it } from "vite-plus/test";
+import { z } from "zod";
 
 import { engineYard } from "../../__tests__/fixtures/engine-yard.expanded";
 import {
@@ -10,8 +11,9 @@ import {
 import { createRegistry, defineGame } from "../../game/define";
 import type { GameCommand, PlayState } from "../../game/types";
 import { SENSOR_ENTER } from "../../runtime/types";
+import { expandScene } from "../../scene/expand";
 import { prefabLibrary } from "../../scene/prefab";
-import type { Prefab } from "../../scene/types";
+import { SCENE_FORMAT_VERSION, type Prefab } from "../../scene/types";
 import type { RapierModule } from "../../types";
 import { createHeadlessRuntime, probeConfigHash, runProbe, unknownActionError } from "../headless";
 import { runLoop, startRun } from "../play-loop";
@@ -333,5 +335,65 @@ describe("runProbe blocked", () => {
     expect(() =>
       runProbe({ rapier, game, registry: createRegistry(game), scene: engineYard(), ticks: 3 }),
     ).toThrow("game bug");
+  });
+});
+
+describe("runProbe's legal commands", () => {
+  /** A physics-free turns game listing one `pick` per tick it has seen. */
+  const counting = (lists: boolean) =>
+    defineGame<{ seen: number }>({
+      id: "counting",
+      types: [],
+      actions: [],
+      time: { kind: "turns" },
+      world: { physics: "none" },
+      commands: { pick: { description: "Picks i.", args: z.strictObject({ i: z.number() }) } },
+      createRuntime() {
+        let seen = 0;
+        return {
+          beforeStep() {
+            seen++;
+          },
+          snapshot: () => ({ seen }),
+        };
+      },
+      play: lists
+        ? {
+            commands: ({ snapshot, tick }) =>
+              Array.from({ length: snapshot.seen * 40 }, (_, i) => ({
+                name: "pick",
+                args: { i: i + tick / 1000 },
+              })),
+          }
+        : {},
+    });
+  const probe = (ticks: number, lists = true) => {
+    const game = counting(lists);
+    const registry = createRegistry(game);
+    const scene = expandScene(
+      {
+        v: SCENE_FORMAT_VERSION,
+        name: "count-yard",
+        game: "counting",
+        bounds: [0, 0, 10, 10],
+        entities: [{ id: "start", type: "marker", at: [1, 1] }],
+      },
+      registry,
+    );
+    const report = runProbe({ game, registry, ticks, scene });
+    expect(report.load.ok, JSON.stringify(report.load)).toBe(true);
+    return report;
+  };
+
+  it("lists the commands legal after the last tick, cut at 64", () => {
+    const one = probe(1);
+    expect(one.legal).toHaveLength(40);
+    expect(one.legal![0]).toEqual({ name: "pick", args: { i: 0 } });
+    expect(one.legalTruncated).toBeUndefined();
+    const two = probe(2);
+    expect(two.legal).toHaveLength(64);
+    expect(two.legal![1]).toEqual({ name: "pick", args: { i: 1.001 } });
+    expect(two.legalTruncated).toBe(true);
+    expect("legal" in probe(2, false)).toBe(false);
   });
 });

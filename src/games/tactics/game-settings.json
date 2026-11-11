@@ -1,0 +1,10 @@
+{
+  "$schema": "../../engine/project/game-settings.schema.json",
+  "kind": "game-settings",
+  "v": 2,
+  "engine": {},
+  "game": {
+    "aiStepTicks": 20,
+    "critChance": 0.1
+  }
+}

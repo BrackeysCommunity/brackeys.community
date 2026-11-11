@@ -28,7 +28,7 @@ export async function walkCorridor(loadRapier: () => Promise<RapierModule>) {
     registry,
     scene: corridor,
     script: {
-      v: 1,
+      v: 2,
       steps: [
         { command: "walk", args: { to: [0, 4] } },
         { wait: 100 },

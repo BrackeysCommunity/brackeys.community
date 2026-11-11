@@ -7,7 +7,7 @@ import {
   type SpriteBlock,
 } from "../game/behaviors/sprite";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
-import { SIDES, sideOf } from "../game/fields";
+import { oneWaySideOf } from "../game/primitives";
 import { PRIMITIVE_TYPES, type RegisteredType, type Registry, type Side } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { assetInfo } from "../project/asset-info";
@@ -385,14 +385,16 @@ const SIDE_NORMALS: Record<Side, Pt> = { up: [0, -1], right: [1, 0], down: [0, 1
 
 /** A `oneWay` value's side: `true` is `"up"`; null when it isn't one-way. */
 export function oneWaySide(value: unknown): Side | null {
-  const valid =
-    value === true || (typeof value === "string" && (SIDES as readonly string[]).includes(value));
-  return valid ? sideOf(value as Side | true) : null;
+  return oneWaySideOf(value, undefined);
 }
 
-/** Where a drawn entity lands actors, from its own `oneWay` (already turned and flipped with it); null when it has none or no shape. */
+/**
+ * Where a drawn entity lands actors: its own `oneWay` (already turned and
+ * flipped with it), else its type's; null when neither is one-way or it has
+ * no shape.
+ */
 export function oneWayEdge(d: DrawnEntity): OneWayEdge | null {
-  const side = oneWaySide(d.entity.oneWay);
+  const side = oneWaySideOf(d.entity.oneWay, d.type.oneWay);
   if (!side || !d.shape) return null;
   const { minX, minY, maxX, maxY } = aabb(d.shape);
   const faces: Record<Side, [Pt, Pt]> = {

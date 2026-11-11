@@ -9,7 +9,13 @@ import type { MigrateEnv } from "../../scene/migrate";
 import type { SceneIssue } from "../../scene/types";
 import { schemaRefSites, type RefSite } from "../refs";
 import type { AssetEntry, ProjectView } from "../types";
-import { byPathThenKey, defineAssetKind, isPlainObject, type KindEnv } from "./define";
+import {
+  defineAssetKind,
+  isPlainObject,
+  perProjectEntries,
+  perProjectIssues,
+  type KindEnv,
+} from "./define";
 
 export const GAME_SETTINGS_KIND = "game-settings";
 export const GAME_SETTINGS_VERSION = 2;
@@ -171,20 +177,12 @@ function gameSettingsSchema(registry: Registry): z.ZodType<GameSettingsFile> {
 
 /** The project's live game-settings entries, the one in effect (first by path) first. */
 export function gameSettingsEntries(view: ProjectView): AssetEntry[] {
-  return [...view.byId.values()].filter((e) => e.kind === GAME_SETTINGS_KIND).sort(byPathThenKey);
+  return perProjectEntries(view, GAME_SETTINGS_KIND);
 }
 
 /** `asset-kind` for every live game-settings asset after the first by path: a project has at most one. */
 export function gameSettingsIssues(view: ProjectView): SceneIssue[] {
-  const [first, ...extra] = gameSettingsEntries(view);
-  return extra.map((entry) =>
-    makeIssue("asset-kind", {
-      message: `"${entry.id}" is a second game-settings asset; "${first!.id}" (${first!.path}) is the project's`,
-      entityIds: [entry.key],
-      got: entry.path,
-      hint: `Move its settings into "${first!.id}" and delete it.`,
-    }),
-  );
+  return perProjectIssues(view, gameSettingsKind);
 }
 
 /**
@@ -233,6 +231,8 @@ export const gameSettingsKind = defineAssetKind({
   match: { jsonKind: GAME_SETTINGS_KIND },
   defaultFolder: () => "",
   storage: "doc",
+  perProject: 1,
+  perProjectWords: { noun: "game-settings asset", held: "game settings", contents: "settings" },
   version: GAME_SETTINGS_VERSION,
   migrations: { 1: gameSettingsV1ToV2 },
   schemaId: GAME_SETTINGS_SCHEMA_ID,

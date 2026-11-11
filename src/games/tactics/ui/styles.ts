@@ -1,0 +1,102 @@
+/** The HUD's class names and its one stylesheet, scoped under the HUD's root class. */
+export const CLS = {
+  root: "tactics-hud",
+  cells: "tactics-hud-cells",
+  cell: "tactics-hud-cell",
+  pulse: "tactics-hud-pulse",
+  banner: "tactics-hud-banner",
+  card: "tactics-hud-card",
+  menu: "tactics-hud-menu",
+  button: "tactics-hud-button",
+  log: "tactics-hud-log",
+} as const;
+
+const css = `
+.${CLS.root} {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.3;
+  color: #f4f1e8;
+  --tactics-panel: rgb(20 22 34 / 0.86);
+  --tactics-edge: rgb(255 255 255 / 0.18);
+  --tactics-focus: #ffd75e;
+}
+.${CLS.cells} { position: absolute; inset: 0; pointer-events: none; }
+.${CLS.cell} {
+  box-sizing: border-box;
+  width: var(--tactics-cell-w, 48px);
+  height: var(--tactics-cell-h, 48px);
+  margin-left: calc(var(--tactics-cell-w, 48px) * -0.5);
+  margin-top: calc(var(--tactics-cell-h, 48px) * -0.5);
+  pointer-events: none;
+}
+.${CLS.cell}-fog { z-index: 0; background: rgb(8 10 20 / 0.55); }
+.${CLS.cell}-reach { z-index: 1; background: rgb(90 160 255 / 0.32); border: 1px solid rgb(140 190 255 / 0.7); }
+.${CLS.cell}-attack { z-index: 2; background: rgb(255 90 80 / 0.22); border: 1px dashed rgb(255 130 120 / 0.8); }
+.${CLS.cell}-target { z-index: 3; border: 3px solid #ffd75e; }
+.${CLS.cell}-cursor { z-index: 4; border: 2px solid #ffffff; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6); }
+.${CLS.pulse} { animation: tactics-hud-pulse 1.2s ease-in-out infinite alternate; }
+@keyframes tactics-hud-pulse { from { opacity: 1; } to { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .${CLS.pulse} { animation: none; } }
+
+.${CLS.banner}, .${CLS.card}, .${CLS.menu} {
+  position: absolute;
+  background: var(--tactics-panel);
+  border: 1px solid var(--tactics-edge);
+  border-radius: 6px;
+}
+.${CLS.banner} {
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.${CLS.card} { top: 8px; left: 8px; min-width: 9rem; padding: 6px 10px; }
+.${CLS.card}[hidden] { display: none; }
+.${CLS.card} h2 { margin: 0 0 4px; font-size: 14px; }
+.${CLS.card} dl { display: grid; grid-template-columns: auto auto; gap: 1px 10px; margin: 0; }
+.${CLS.card} dt { opacity: 0.7; }
+.${CLS.card} dd { margin: 0; text-align: right; }
+.${CLS.menu} {
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  pointer-events: auto;
+}
+.${CLS.button} {
+  font: inherit;
+  color: inherit;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid var(--tactics-edge);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.${CLS.button}:hover { background: rgb(255 255 255 / 0.16); }
+.${CLS.button}:focus-visible { outline: 2px solid var(--tactics-focus); outline-offset: 1px; }
+.${CLS.button}[aria-pressed="true"] { background: rgb(90 160 255 / 0.4); }
+.${CLS.button}[aria-disabled="true"] { opacity: 0.45; cursor: default; }
+.${CLS.log} {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+`;
+
+/** A `<style>` with the HUD's rules, for the HUD's own root so removing the HUD removes it. */
+export function createStyles(doc: Document): HTMLStyleElement {
+  const style = doc.createElement("style");
+  style.textContent = css;
+  return style;
+}

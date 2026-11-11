@@ -12,6 +12,8 @@ import {
   type RapierModule,
 } from "../index";
 import type { ProjectId, ProjectRuntimeView } from "../project/index";
+import { mountUi } from "../ui/layer";
+import type { MountUi } from "../ui/types";
 import type { SceneDocStatus, SceneFallback } from "./connect/scene-doc";
 import { editorChrome, type EditorChrome, type EditorFrameHandle } from "./frame/EditorFrame";
 import { EditorBooting, EditorSkeleton } from "./frame/EditorSkeleton";
@@ -35,6 +37,8 @@ export type SceneEditorProps = {
   /** The scene to open, by id or name; when the project has neither its first scene opens and `onSceneChange` reports it. */
   scene?: string;
   rapier: () => Promise<RapierModule>;
+  /** The game's DOM UI (its project file's `ui`), mounted over the canvas while Play runs. */
+  ui?: MountUi | null;
   /** Dev hosts: the debug overlay and the game's debug layers (F3). */
   debug?: () => Promise<{
     overlay: DebugOverlayFactory;
@@ -114,6 +118,35 @@ export function restoreEditView(
   const dx = (position.x - view.position.x) * scale;
   const dy = (position.y - view.position.y) * scale;
   if (dx !== 0 || dy !== 0) game.panBy({ x: dx, y: dy });
+}
+
+/**
+ * Mounts `ui` over `canvas` while `game` is in Play, and unmounts it on Stop,
+ * on a rebuild and when `ui` changes. The layer sits on the canvas, so a
+ * panel resize that resizes the canvas resizes it too.
+ */
+export function usePlayUi(
+  game: GameInstance | null,
+  canvas: () => HTMLCanvasElement | null,
+  ui: MountUi | null | undefined,
+): void {
+  const [playing, setPlaying] = useState<GameInstance | null>(null);
+  useEffect(() => {
+    if (!game) return;
+    const store = game.getStore();
+    const read = () => setPlaying(store.state.mode === "play" ? game : null);
+    read();
+    const unsubscribe = store.subscribe(read);
+    return () => {
+      unsubscribe();
+      setPlaying(null);
+    };
+  }, [game]);
+  useEffect(() => {
+    const el = canvas();
+    if (!playing || !ui || !el) return;
+    return mountUi(playing, el, ui);
+  }, [playing, ui, canvas]);
 }
 
 /**
@@ -299,6 +332,8 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
       setCanvasKey((k) => k + 1);
     };
   }, [definition, buildRegistry, projectData, loadRapier, notify, spent, canvasKey]);
+
+  usePlayUi(game, getCanvas, props.ui);
 
   // Said once per fallback; a host's route that follows it to the opened scene keeps the same one.
   const fellBack = editing.fellBack;

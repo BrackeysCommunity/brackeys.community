@@ -7,6 +7,7 @@ import { pxPerMetreOf } from "../../game/units";
 import { parseRecording, type RunRecordingV1 } from "../../scene/recording-schema";
 import { pxToMetres } from "../../scene/units";
 import type { RapierModule } from "../../types";
+import { ENGINE_VERSION } from "../../version";
 import { replayRecording } from "../recording";
 import { V1_FIXTURES } from "./fixtures/recordings/v1";
 import { readV1Recording, V1_DIR, v1Run } from "./fixtures/recordings/v1/runs";
@@ -58,7 +59,9 @@ describe("frozen v1 recordings", () => {
         expect(replay.migratedFrom).toBe(1);
         // The frozen scene is the v3 document, so its hash is never the migrated one's.
         expect(replay.stale).toBe(true);
-        expect(replay.warnings).toContain("recorded on engine 0.10.0, replayed on 0.11.0");
+        expect(replay.warnings).toContain(
+          `recorded on engine 0.10.0, replayed on ${ENGINE_VERSION}`,
+        );
         if (fixture.replays === "matches") {
           expect(replay.matches, replay.divergence ?? "").toBe(true);
           const named = (ms: typeof migrated.markers) =>

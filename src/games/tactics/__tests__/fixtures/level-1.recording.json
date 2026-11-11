@@ -1,0 +1,440 @@
+{
+  "v": 2,
+  "engine": {
+    "version": "0.11.0",
+    "physics": null
+  },
+  "platform": {
+    "arch": "arm64",
+    "runtime": "node 26.13.0",
+    "flavour": null
+  },
+  "game": "tactics",
+  "scene": "level-1",
+  "sceneHash": "a10f505ee54fd179",
+  "runHash": "c0a844d64889b54d",
+  "project": null,
+  "configHash": "8bc0b1f6f05bde39",
+  "time": {
+    "kind": "turns",
+    "rate": 60
+  },
+  "seed": 1,
+  "start": {},
+  "players": [
+    {
+      "index": 0,
+      "devices": ["keyboard", "pointer", "touch"]
+    }
+  ],
+  "actions": [],
+  "commands": ["move", "wait", "end-turn", "attack"],
+  "inputs": [
+    [
+      [
+        0,
+        "c",
+        0,
+        {
+          "unit": "blue-archer/unit",
+          "to": [2, 4]
+        }
+      ],
+      [
+        9,
+        "c",
+        1,
+        {
+          "unit": "blue-archer/unit"
+        }
+      ],
+      [
+        10,
+        "c",
+        0,
+        {
+          "unit": "blue-knight-1/unit",
+          "to": [4, 2]
+        }
+      ],
+      [
+        35,
+        "c",
+        1,
+        {
+          "unit": "blue-knight-1/unit"
+        }
+      ],
+      [
+        36,
+        "c",
+        0,
+        {
+          "unit": "blue-knight-2/unit",
+          "to": [4, 6]
+        }
+      ],
+      [
+        61,
+        "c",
+        1,
+        {
+          "unit": "blue-knight-2/unit"
+        }
+      ],
+      [62, "c", 2],
+      [
+        163,
+        "c",
+        0,
+        {
+          "unit": "blue-archer/unit",
+          "to": [3, 4]
+        }
+      ],
+      [
+        172,
+        "c",
+        1,
+        {
+          "unit": "blue-archer/unit"
+        }
+      ],
+      [
+        173,
+        "c",
+        0,
+        {
+          "unit": "blue-knight-1/unit",
+          "to": [4, 4]
+        }
+      ],
+      [
+        190,
+        "c",
+        1,
+        {
+          "unit": "blue-knight-1/unit"
+        }
+      ],
+      [
+        191,
+        "c",
+        0,
+        {
+          "unit": "blue-knight-2/unit",
+          "to": [5, 4]
+        }
+      ],
+      [
+        216,
+        "c",
+        1,
+        {
+          "unit": "blue-knight-2/unit"
+        }
+      ],
+      [217, "c", 2],
+      [
+        302,
+        "c",
+        0,
+        {
+          "unit": "blue-archer/unit",
+          "to": [3, 5]
+        }
+      ],
+      [
+        311,
+        "c",
+        1,
+        {
+          "unit": "blue-archer/unit"
+        }
+      ],
+      [
+        312,
+        "c",
+        0,
+        {
+          "unit": "blue-knight-1/unit",
+          "to": [5, 5]
+        }
+      ],
+      [
+        329,
+        "c",
+        1,
+        {
+          "unit": "blue-knight-1/unit"
+        }
+      ],
+      [
+        330,
+        "c",
+        0,
+        {
+          "unit": "blue-knight-2/unit",
+          "to": [6, 4]
+        }
+      ],
+      [
+        339,
+        "c",
+        3,
+        {
+          "unit": "blue-knight-2/unit",
+          "target": "red-archer/unit"
+        }
+      ],
+      [340, "c", 2],
+      [
+        417,
+        "c",
+        0,
+        {
+          "unit": "blue-archer/unit",
+          "to": [4, 6]
+        }
+      ],
+      [
+        434,
+        "c",
+        1,
+        {
+          "unit": "blue-archer/unit"
+        }
+      ],
+      [
+        435,
+        "c",
+        0,
+        {
+          "unit": "blue-knight-1/unit",
+          "to": [6, 7]
+        }
+      ],
+      [
+        460,
+        "c",
+        1,
+        {
+          "unit": "blue-knight-1/unit"
+        }
+      ],
+      [
+        461,
+        "c",
+        3,
+        {
+          "unit": "blue-knight-2/unit",
+          "target": "red-archer/unit"
+        }
+      ],
+      [462, "c", 2],
+      [
+        503,
+        "c",
+        0,
+        {
+          "unit": "blue-archer/unit",
+          "to": [5, 5]
+        }
+      ],
+      [
+        520,
+        "c",
+        3,
+        {
+          "unit": "blue-archer/unit",
+          "target": "red-knight/unit"
+        }
+      ],
+      [
+        521,
+        "c",
+        0,
+        {
+          "unit": "blue-knight-1/unit",
+          "to": [7, 5]
+        }
+      ],
+      [
+        546,
+        "c",
+        1,
+        {
+          "unit": "blue-knight-1/unit"
+        }
+      ],
+      [
+        547,
+        "c",
+        3,
+        {
+          "unit": "blue-knight-2/unit",
+          "target": "red-knight/unit"
+        }
+      ],
+      [548, "c", 2],
+      [
+        589,
+        "c",
+        3,
+        {
+          "unit": "blue-archer/unit",
+          "target": "red-knight/unit"
+        }
+      ]
+    ]
+  ],
+  "system": [],
+  "ticks": 590,
+  "outcome": {
+    "result": "won",
+    "tick": 589,
+    "at": null,
+    "cause": "the red side is gone"
+  },
+  "markers": [
+    {
+      "tick": 62,
+      "type": "tactics:turn",
+      "at": [0.5, 0.5]
+    },
+    {
+      "tick": 162,
+      "type": "tactics:turn",
+      "at": [0.5, 0.5]
+    },
+    {
+      "tick": 217,
+      "type": "tactics:turn",
+      "at": [0.5, 0.5]
+    },
+    {
+      "tick": 253,
+      "type": "tactics:hit",
+      "at": [4.5, 4.5],
+      "entityId": "blue-knight-1/unit",
+      "other": "red-archer/unit"
+    },
+    {
+      "tick": 301,
+      "type": "tactics:turn",
+      "at": [0.5, 0.5]
+    },
+    {
+      "tick": 339,
+      "type": "tactics:hit",
+      "at": [7.5, 4.5],
+      "entityId": "red-archer/unit",
+      "other": "blue-knight-2/unit"
+    },
+    {
+      "tick": 340,
+      "type": "tactics:turn",
+      "at": [0.5, 0.5]
+    },
+    {
+      "tick": 360,
+      "type": "tactics:hit",
+      "at": [5.5, 5.5],
+      "entityId": "blue-knight-1/unit",
+      "other": "red-archer/unit"
+    },
+    {
+      "tick": 396,
+      "type": "tactics:hit",
+      "at": [6.5, 4.5],
+      "entityId": "blue-knight-2/unit",
+      "other": "red-knight/unit"
+    },
+    {
+      "tick": 416,
+      "type": "tactics:turn",
+      "at": [0.5, 0.5]
+    },
+    {
+      "tick": 461,
+      "type": "tactics:hit",
+      "at": [7.5, 4.5],
+      "entityId": "red-archer/unit",
+      "other": "blue-knight-2/unit"
+    },
+    {
+      "tick": 461,
+      "type": "tactics:fell",
+      "at": [7.5, 4.5],
+      "entityId": "red-archer/unit"
+    },
+    {
+      "tick": 462,
+      "type": "tactics:turn",
+      "at": [0.5, 0.5]
+    },
+    {
+      "tick": 482,
+      "type": "tactics:hit",
+      "at": [6.5, 4.5],
+      "entityId": "blue-knight-2/unit",
+      "other": "red-knight/unit"
+    },
+    {
+      "tick": 502,
+      "type": "tactics:turn",
+      "at": [0.5, 0.5]
+    },
+    {
+      "tick": 520,
+      "type": "tactics:hit",
+      "at": [6.5, 3.5],
+      "entityId": "red-knight/unit",
+      "other": "blue-archer/unit"
+    },
+    {
+      "tick": 547,
+      "type": "tactics:hit",
+      "at": [6.5, 3.5],
+      "entityId": "red-knight/unit",
+      "other": "blue-knight-2/unit"
+    },
+    {
+      "tick": 548,
+      "type": "tactics:turn",
+      "at": [0.5, 0.5]
+    },
+    {
+      "tick": 568,
+      "type": "tactics:hit",
+      "at": [6.5, 4.5],
+      "entityId": "blue-knight-2/unit",
+      "other": "red-knight/unit"
+    },
+    {
+      "tick": 568,
+      "type": "tactics:fell",
+      "at": [6.5, 4.5],
+      "entityId": "blue-knight-2/unit"
+    },
+    {
+      "tick": 588,
+      "type": "tactics:turn",
+      "at": [0.5, 0.5]
+    },
+    {
+      "tick": 589,
+      "type": "tactics:hit",
+      "at": [6.5, 3.5],
+      "entityId": "red-knight/unit",
+      "other": "blue-archer/unit"
+    },
+    {
+      "tick": 589,
+      "type": "tactics:fell",
+      "at": [6.5, 3.5],
+      "entityId": "red-knight/unit"
+    }
+  ],
+  "end": "e2a58c6a80e955b3"
+}

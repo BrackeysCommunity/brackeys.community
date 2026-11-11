@@ -28,6 +28,7 @@ export {
   type KindEnv,
   type KindRegistry,
   type ParseAssetResult,
+  type PerProjectWords,
 } from "./kinds";
 export {
   ATLAS_KIND,

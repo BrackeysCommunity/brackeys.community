@@ -1,10 +1,10 @@
 import type { Store } from "@tanstack/store";
-import { useSyncExternalStore } from "react";
 
 import type { Pt, ShapeObj } from "../../../editor/index";
 import type { GameStoreState } from "../../../index";
 import { shapeOutline, type PathCommand } from "../../../scene/index";
 import { roundLength } from "../../../scene/units";
+import { useWindowSize } from "../../kit/ssr";
 import { useStoreValue } from "../../session/use-store-value";
 
 /**
@@ -37,12 +37,7 @@ export function viewScale(camera: Camera): number {
   return camera.scale;
 }
 
-function subscribeResize(cb: () => void) {
-  window.addEventListener("resize", cb);
-  return () => window.removeEventListener("resize", cb);
-}
-const windowWidth = () => window.innerWidth;
-const windowHeight = () => window.innerHeight;
+const NO_WINDOW = { width: 0, height: 0 };
 
 /** The game camera's view, following the store and the window. */
 export function useView(store: Store<GameStoreState>): View {
@@ -50,8 +45,7 @@ export function useView(store: Store<GameStoreState>): View {
     store,
     (s) => [s.camera.position.x, s.camera.position.y, s.camera.scale] as const,
   );
-  const width = useSyncExternalStore(subscribeResize, windowWidth, () => 0);
-  const height = useSyncExternalStore(subscribeResize, windowHeight, () => 0);
+  const { width, height } = useWindowSize(NO_WINDOW);
   return viewOf({ position: { x, y }, scale }, width, height);
 }
 

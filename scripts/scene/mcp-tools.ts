@@ -16,6 +16,7 @@ import {
   type ToolContext,
   type ToolResult,
 } from "./context";
+import { GAME_PRESETS } from "./game-templates";
 import {
   AGENT_SITE_ENV,
   agentSiteFrom,
@@ -34,6 +35,7 @@ import { check } from "./tools/check";
 import { codes } from "./tools/codes";
 import { diff } from "./tools/diff";
 import { fuzz } from "./tools/fuzz";
+import { gameNew } from "./tools/game-new";
 import { list } from "./tools/list";
 import { playtest } from "./tools/playtest";
 import { projectRefs } from "./tools/project-refs";
@@ -449,7 +451,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_playtest",
     title: "Playtest a scene",
     description:
-      "Play an input script headless (format v2; a v1 script migrates on read): the outcome, steps, events, focus trail (positions in metres), the commands stepped and the run's `recording` (v2). `steps` drive seat 0; `tracks` (`[{ player, steps }]`, up to the script's `players`) drive one seat each, side by side from tick 0. Steps hold or press actions, `set` axis values and vectors for the step (`{ set: { move: [1, 0] } }`), drive the pointer (`{ pointer: { at, press?, release?, drag? } }`, `at` and `drag` in metres; a drag moves from `at` to `drag` over the step; its buttons show in `ctx.input.pointer`, and scripts drive actions by name, so an action bound to a pointer button still needs its own `press` or `hold`), `join` a device (`keyboard`, `pointer`, `touch` or `pad:<n>`) to the track's seat or `leave` one, wait, send a game command (`{ command, args? }`) or report time away (`{ elapse }`, as `@elapsed`); an `until` can wait on `{ exists: id }` or `{ count: { type|tag, min|max|eq } }`. Events include `entity:spawned`, `entity:destroyed`, `entity:enabled`, `entity:disabled`, `contact:start` and `contact:end`, and `lifecycle` counts spawns and destroys per type. exitCode 1 when the scene or script is blocked, a runtime refusal included (stage `run`).",
+      "Play an input script headless (format v2; a v1 script migrates on read): the outcome, steps, events, focus trail (positions in metres), the commands stepped and the run's `recording` (v2). `steps` drive seat 0; `tracks` (`[{ player, steps }]`, up to the script's `players`) drive one seat each, side by side from tick 0. Steps hold or press actions, `set` axis values and vectors for the step (`{ set: { move: [1, 0] } }`), drive the pointer (`{ pointer: { at, press?, release?, drag? } }`, `at` and `drag` in metres; a drag moves from `at` to `drag` over the step; its buttons show in `ctx.input.pointer`, and scripts drive actions by name, so an action bound to a pointer button still needs its own `press` or `hold`), `join` a device (`keyboard`, `pointer`, `touch` or `pad:<n>`) to the track's seat or `leave` one, wait, send a game command (`{ command, args? }`) or report time away (`{ elapse }`, as `@elapsed`); an `until` can wait on `{ exists: id }` or `{ count: { type|tag, min|max|eq } }`. Events include `entity:spawned`, `entity:destroyed`, `entity:enabled`, `entity:disabled`, `contact:start` and `contact:end`, and `lifecycle` counts spawns and destroys per type. A game that lists its commands (`GamePlayDef.commands`) also gets `legal`: the commands it may send after the last tick, at most 64, with `legalTruncated: true` beyond. exitCode 1 when the scene or script is blocked, a runtime refusal included (stage `run`).",
     annotations: READ,
     input: {
       scene: sceneArg,
@@ -702,6 +704,60 @@ export const MCP_TOOLS: readonly McpTool[] = [
         await tmp.close();
       }
     },
+  }),
+  defineTool({
+    name: "game_new",
+    title: "Scaffold a game",
+    description:
+      "Write a new game project under `dir` (default src/games) from a preset: `top-down` (a motion body steered by `move`, fixed 60 Hz), `grid` (a grid stepper, event-stepped) or `turns` (one `step { dir }` command, its legal list from `GamePlayDef.commands`); physics none, gravity [0, 0], every world and time field written, scenes in metres. It writes the project file, the game and UI modules (a framework-free HUD), `scenes/main.json` with its checks and an input script that wins, game-settings and input-map docs, the generated schemas and a test. Refused, writing nothing, for an id outside the id pattern (`schema`), an id a project holds or a directory that exists (`project-id-taken`), or a scene with error issues. A dry run unless dryRun is false; either way the result lists every file, the issues, the URLs that open it on the dev site and the playtest command.",
+    annotations: WRITE,
+    input: {
+      id: z.string().describe("The project's id, also its game's id and its directory's name."),
+      name: z.string().optional().describe("The project's display name; default from the id."),
+      preset: z
+        .enum(GAME_PRESETS)
+        .optional()
+        .describe("What the game starts as; default `top-down`."),
+      physics: z.enum(["none", "rapier"]).optional().describe("Over the preset's `none`."),
+      gravity: z
+        .tuple([z.number(), z.number()])
+        .optional()
+        .describe("[x, y] in m/s², y down; over the preset's [0, 0]."),
+      time: z
+        .enum(["fixed", "turns", "event"])
+        .optional()
+        .describe("The clock, over the preset's; `turns` only with the `turns` preset."),
+      rate: z.number().optional().describe("Ticks per second, 1 to 240; over the preset's 60."),
+      grid: z
+        .enum(["square", "hex", "none"])
+        .optional()
+        .describe("The world grid; `grid` and `turns` step on a square one, `top-down` has none."),
+      cell: z.number().optional().describe("The grid cell's size in metres; default 1."),
+      pxPerMetre: z
+        .number()
+        .optional()
+        .describe("px per metre (`world.lengthUnit`); over the preset's 100 (top-down) or 32."),
+      dir: z.string().optional().describe("The directory the project goes in; default src/games."),
+      dryRun: z.boolean().default(true).describe("List the files without writing them."),
+    },
+    run: (i, ctx) =>
+      gameNew(
+        {
+          id: i.id,
+          name: i.name,
+          preset: i.preset,
+          physics: i.physics,
+          gravity: opt(i.gravity, (g) => g.join(",")),
+          time: i.time,
+          rate: opt(i.rate, String),
+          grid: i.grid,
+          cell: opt(i.cell, String),
+          pxPerMetre: opt(i.pxPerMetre, String),
+          dir: i.dir,
+          dryRun: i.dryRun,
+        },
+        ctx,
+      ),
   }),
 ];
 

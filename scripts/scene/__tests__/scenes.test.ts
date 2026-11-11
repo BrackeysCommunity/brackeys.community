@@ -40,10 +40,11 @@ function fmtIgnorePatterns(): string[] {
 }
 
 describe("the projects' scenes", () => {
-  it("are found in both projects", () => {
+  it("are found in every project", () => {
     expect(SCENES.map((s) => [s.project.file.id, s.scenes.length > 0])).toEqual([
       ["engine", true],
       ["platformer", true],
+      ["tactics", true],
     ]);
   });
 

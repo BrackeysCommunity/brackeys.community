@@ -238,6 +238,20 @@ describe("a watched prop on Rapier", () => {
     expect(byPair(r.step(10))).toEqual({ "ground>crate": ["start"] });
     r.rt.destroy();
   });
+  it("ends the contacts of a collider left enabled on a disabled body", () => {
+    const r = run("rapier", [ground, crate()]);
+    r.rt.ctx.contacts.watch("crate");
+    expect(r.step(120).map((e) => e.type)).toEqual([CONTACT_START]);
+    const [handle] = r.rt.ctx.tags.handlesOf("crate");
+    const collider = r.rt.ctx.physics!.world.getCollider(handle!)!;
+    collider.parent()!.setEnabled(false);
+    expect(collider.isEnabled()).toBe(true);
+    const ended = r.step(1);
+    expect(ended).toHaveLength(1);
+    expect(ended[0]).toMatchObject({ type: CONTACT_END, entityId: "crate", other: "ground" });
+    expect(r.step(10)).toEqual([]);
+    r.rt.destroy();
+  });
 });
 
 describe("watched pairs on both backends", () => {

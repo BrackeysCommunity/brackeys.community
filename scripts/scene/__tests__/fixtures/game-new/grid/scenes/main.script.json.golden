@@ -1,0 +1,10 @@
+{
+  "$schema": "../input-script.schema.json",
+  "v": 2,
+  "scene": "main",
+  "steps": [
+    { "max": 240, "set": { "move": [0, 1] }, "until": { "cell": [2, 5] } },
+    { "max": 240, "set": { "move": [1, 0] }, "until": { "cell": [7, 5] } },
+    { "max": 240, "set": { "move": [0, -1] }, "until": { "event": "demo:reached" } }
+  ]
+}

@@ -60,9 +60,7 @@ import {
   type KindRegistry,
 } from "../project/kinds";
 import { dataTableIssues } from "../project/kinds/data-table";
-import { byCodeUnit } from "../project/kinds/define";
-import { gameSettingsIssues } from "../project/kinds/game-settings";
-import { inputMapIssues } from "../project/kinds/index";
+import { byCodeUnit, onePerProjectIssues } from "../project/kinds/define";
 import { MATERIAL_KIND } from "../project/kinds/material";
 import { prefabKind } from "../project/kinds/prefab";
 import type { BlobInspect, ProjectOp } from "../project/ops";
@@ -164,6 +162,29 @@ export type ProjectDiskSync = ProjectSync | { kind: "pending" };
  * nothing that reacts to `disk` or user transactions should see it.
  */
 export const PERSISTED_ORIGIN: unique symbol = Symbol("jams-engine:persisted");
+
+const formatOfText = (text: string): number | undefined => {
+  try {
+    const v = (JSON.parse(text) as { v?: unknown } | null)?.v;
+    return typeof v === "number" ? v : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Throws when a scene or prefab doc is at an older format than its file. A
+ * doc only gets there by merging a client's copy of an older seed (a tab left
+ * open across a reseed), so its text would mix both formats' values.
+ */
+function refuseDowngrade(path: AssetPath, doc: Y.Doc, diskText: string): void {
+  const format = docMeta(doc)?.schemaVersion;
+  const onDisk = formatOfText(diskText);
+  if (format === undefined || onDisk === undefined || format >= onDisk) return;
+  throw new Error(
+    `${path}: the doc is at format v${format}, older than the file's v${onDisk}, so it isn't written; close the editor tabs on it and restart the dev server`,
+  );
+}
 
 /** One raw add or unlink as `pairDiskEvents` sees it. */
 export type DiskEvent = {
@@ -1081,8 +1102,9 @@ export function createProjectFileAdapter(
     loaded.set(key, doc);
     await persist(name, doc);
     if (entry.deleted || !codecOf(def).seeded(doc)) return false;
-    const text = canonical(def, doc);
     const disk = files.get(key);
+    if (disk?.text && def.layout === "custom") refuseDowngrade(entry.path, doc, disk.text);
+    const text = canonical(def, doc);
     if (disk) {
       if (disk.text === text) return false;
       await writeAtomic(abs(disk.path), text);
@@ -1166,16 +1188,12 @@ export function createProjectFileAdapter(
     }, DISK_ORIGIN);
   }
 
-  /** What the scan's files fail on together: a second game-settings asset or input map, a table row id two assets hold. */
+  /** What the scan's files fail on together: a second asset of a one-per-project kind, a table row id two assets hold. */
   function acrossAssets(entries: readonly AssetEntry[]): ProjectProblem[] {
     const view = projectView(stateOf(entries));
     const values = new Map<AssetId, unknown>();
     for (const entry of view.byId.values()) values.set(entry.id, scannedJson.get(entry.key));
-    return [
-      ...gameSettingsIssues(view),
-      ...inputMapIssues(view),
-      ...dataTableIssues(view, values),
-    ].map((issue) => ({
+    return [...onePerProjectIssues(view, kinds), ...dataTableIssues(view, values)].map((issue) => ({
       path: view.byKey.get(issue.entityIds[0] ?? "")?.path ?? "",
       issues: [issue],
     }));

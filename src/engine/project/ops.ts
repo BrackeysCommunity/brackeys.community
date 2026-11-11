@@ -50,9 +50,7 @@ import {
 } from "./kinds";
 import { checksBeside } from "./kinds/checks";
 import { DATA_TABLE_KIND, dataTableIssues } from "./kinds/data-table";
-import { isPlainObject } from "./kinds/define";
-import { GAME_SETTINGS_KIND, gameSettingsEntries } from "./kinds/game-settings";
-import { INPUT_MAP_KIND, inputMapEntries } from "./kinds/input-map";
+import { isPlainObject, perProjectHeld } from "./kinds/define";
 import { MATERIAL_KIND } from "./kinds/material";
 import {
   buildRefIndex,
@@ -92,7 +90,7 @@ export type JsonPointer = string;
 export type JsonEdit =
   | { set: JsonPointer; value: unknown }
   | { unset: JsonPointer }
-  /** Into a keyed collection (value carries its id) or a list; `before` is a sibling's id or index; default the end. */
+  /** Into a keyed collection (value carries its id) or a list; `before` is a sibling's id or index; default the end, which a last "-" segment also names. */
   | { insert: JsonPointer; value: unknown; before?: string | number }
   | { remove: JsonPointer };
 
@@ -401,7 +399,9 @@ const JsonEditSchema = z
     z.strictObject({ unset: PointerSchema }).describe("Remove an object key."),
     z
       .strictObject({
-        insert: PointerSchema.describe("The keyed collection or list to insert into."),
+        insert: PointerSchema.describe(
+          'The keyed collection or list to insert into; a last segment "-" names its end and appends ("/rows/-").',
+        ),
         value: z.unknown().describe("The item; a keyed collection's item carries its id."),
         before: z
           .union([z.string(), z.number().int().min(0)])
@@ -1846,28 +1846,14 @@ class BatchWork {
     this.put(next);
   }
 
-  /** A project has at most one game-settings asset and one input map. */
+  /** Refuses a second asset of a one-per-project kind. */
   private checkSingle(kind: AssetKindName, field: Field): void {
-    if (kind === GAME_SETTINGS_KIND) {
-      const [held] = gameSettingsEntries(this.view);
-      if (held)
-        this.fail(
-          "asset-kind",
-          `the project already has its game settings, "${held.id}" (${held.path}); a project has at most one`,
-          field,
-          { entityIds: [held.id], got: kind },
-        );
-    }
-    if (kind === INPUT_MAP_KIND) {
-      const [held] = inputMapEntries(this.view);
-      if (held)
-        this.fail(
-          "asset-kind",
-          `the project already has its input map, "${held.id}" (${held.path}); a project has at most one`,
-          field,
-          { entityIds: [held.id], got: kind },
-        );
-    }
+    const single = perProjectHeld(this.view, this.env.kinds.get(kind));
+    if (single)
+      this.fail("asset-kind", single.message, field, {
+        entityIds: [single.held.id],
+        got: kind,
+      });
   }
 
   private checkFolder(folder: string, field: string): void {

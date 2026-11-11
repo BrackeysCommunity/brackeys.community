@@ -12,6 +12,7 @@ import type { AssetEntry } from "../../../project/index";
 import { STORAGE_PREFIX } from "../../host";
 import { useKit } from "../../kit/context";
 import { Skeleton } from "../../kit/skeleton";
+import { useBrowserState } from "../../kit/ssr";
 import { PendingProvider, usePendingTasks } from "../../pending/use-pending";
 import { DeleteConfirm, type PendingDelete } from "./delete-confirm";
 import { FileDropTarget } from "./file-drop-target";
@@ -92,7 +93,7 @@ export function ProjectTree({
   const [renaming, setRenaming] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingDelete | null>(null);
   const { cue, storage } = useKit();
-  const [codeOpen, setCodeOpen] = useState(() => storage.get(CODE_OPEN_KEY) === "1");
+  const [codeOpen, setCodeOpen] = useBrowserState(() => storage.get(CODE_OPEN_KEY) === "1", false);
   const pendingOps = useTreePending(notify);
   const importing = usePendingTasks().some((t) => t.scope.startsWith(IMPORT_SCOPE_PREFIX));
   const imports = useRef(0);

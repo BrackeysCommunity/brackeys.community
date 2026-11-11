@@ -4,7 +4,7 @@ import { defineEntityType, defineGame } from "../../game/define";
 import { pointField } from "../../game/fields";
 import type { EngineContext } from "../../game/types";
 import { fieldOfView } from "../../grid/fov";
-import { cellKey, type Cell, type CellKey } from "../../grid/geometry";
+import { cellKey, sameCell, type Cell, type CellKey } from "../../grid/geometry";
 import { findPath } from "../../grid/path";
 import { createGridStepper, type GridStepper } from "../../motion/grid-step";
 import { prefabLibrary } from "../../scene/prefab";
@@ -105,7 +105,6 @@ type Rect = { c: number; r: number; w: number; h: number };
 const overlaps = (a: Rect, b: Rect) =>
   a.c - 1 <= b.c + b.w && b.c - 1 <= a.c + a.w && a.r - 1 <= b.r + b.h && b.r - 1 <= a.r + a.h;
 const centreCell = (a: Rect): Cell => [a.c + Math.floor(a.w / 2), a.r + Math.floor(a.h / 2)];
-const sameCell = (a: Cell, b: Cell) => a[0] === b[0] && a[1] === b[1];
 const inBounds = ([c, r]: Cell) => c >= 0 && r >= 0 && c < COLS && r < ROWS;
 
 /**

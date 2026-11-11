@@ -1,11 +1,20 @@
 import type { z } from "zod";
 
-import { POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
+import { pointerBit, POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
 import { resolveTime, ticksFor, type ResolvedTime } from "../game/time";
-import type { DeviceId, GameCommand, PlayState, Registry } from "../game/types";
+import type {
+  Binding,
+  DeviceId,
+  GameCommand,
+  PlayersDef,
+  PlayState,
+  Registry,
+} from "../game/types";
+import { combineAction, resolveBindings, type BindingReading } from "../input/bindings";
 import { qAxis, qVector } from "../input/quantize";
 import type { PointerState } from "../input/state";
 import type { SeatChange, TickInput } from "../input/stream";
+import type { InputMapFile } from "../project/kinds/input-map";
 import { inputAction } from "../runtime/recorder";
 import { closest } from "../scene/did-you-mean";
 import {
@@ -13,10 +22,12 @@ import {
   DEFAULT_SCRIPT_MAX_TICKS,
   DEFAULT_UNTIL_MAX,
   elapsedCommand,
+  hintedIssue,
   INPUT_SCRIPT_VERSION,
   inputScriptSchemasFor,
   pointerStepProblem,
   scriptCommandNames,
+  uiActionScriptProblem,
   type AnalogSet,
   type InputScriptSchemas,
   type ScriptPointer,
@@ -65,6 +76,11 @@ export type CompiledScriptStep = CompiledStep & {
 /** One seat's steps, played concurrently with the other tracks from slot 0. */
 export type CompiledTrack = { player: number; steps: CompiledScriptStep[] };
 
+/** One seat's pointer bindings: per button, each button action bound to it. */
+export type PointerBindings = Partial<
+  Record<PointerButton, readonly { action: string; binding: Binding }[]>
+>;
+
 /**
  * A compiled script of either format. A script written with `steps` keeps
  * them there (seat 0's track); one written with `tracks` has every seat's
@@ -75,6 +91,12 @@ export type CompiledScript = CompiledInputScript & {
   tracks?: CompiledTrack[];
   /** The script's `players`, when it names them. */
   players?: number;
+  /**
+   * Each seat's pointer bindings, by seat, when any action is bound to a
+   * pointer button: a pointer step's buttons raise those actions as live
+   * play does.
+   */
+  pointerBindings?: PointerBindings[];
 };
 
 /** How one step of a track went; `player` names the track for a script with `tracks`. */
@@ -166,7 +188,9 @@ function fromZod(
     const actionSlot = rel.includes("hold") || rel.includes("press");
     if (issue.code === "unrecognized_keys") {
       for (const key of issue.keys) {
-        if (rel.at(-1) === "set" && actions.includes(key)) {
+        const ui = rel.at(-1) === "set" ? uiActionScriptProblem(registry, key) : null;
+        if (ui) out.push(issueAt([...path, key], ui.message, { hint: ui.hint }));
+        else if (rel.at(-1) === "set" && actions.includes(key)) {
           out.push(issueAt([...path, key], `${key} is a button; hold it instead of setting it`));
         } else if (rel.at(-1) === "set") out.push(unknownAction([...path, key], key, registry));
         else out.push(unknownKey(path, key, keysAt(rel)));
@@ -179,9 +203,11 @@ function fromZod(
           ? [unknownAction([...path, i], a, registry)]
           : [],
       );
-      out.push(...(bad.length > 0 ? bad : [issueAt(path, issue.message)]));
+      out.push(
+        ...(bad.length > 0 ? bad : [issueAt(path, issue.message, hintedIssue(issue) ?? {})]),
+      );
     } else {
-      out.push(issueAt(path, issue.message));
+      out.push(issueAt(path, issue.message, hintedIssue(issue) ?? {}));
     }
   }
   return out;
@@ -564,7 +590,11 @@ function compileTracks(
 /**
  * Checks an input script against `registry`'s game (its actions and their
  * kinds, commands, `until` predicates, play options and seats) and resolves
- * every step to ticks at `time`'s rate, by default the game's own. Issues
+ * every step to ticks at `time`'s rate, by default the game's own. Its
+ * tracks drive the seats `players` (the project input map's) gives, else
+ * the game's, unless the script sets its own `players`. A pointer step's
+ * buttons hold the actions bound to them, the project input map's
+ * (`map`) over the game's, as live play does. Issues
  * carry JSON Pointers into the script; an unknown action, command or key
  * gets a "did you mean". A v1 script compiles as written, as the v2 subset
  * it is: lengths in a script handed here are metres in either version, and
@@ -574,8 +604,10 @@ export function compileInputScript(
   script: unknown,
   registry: Registry,
   time: Pick<ResolvedTime, "rate"> = resolveTime({ game: registry.time }),
+  players?: PlayersDef | null,
+  map?: Pick<InputMapFile, "actions"> | null,
 ): CompileResult {
-  const schemas = inputScriptSchemasFor(registry);
+  const schemas = inputScriptSchemasFor(registry, players);
   const issues: ScriptIssue[] = [];
   const raw = isRecord(script) ? script : null;
   const format = raw?.v === 2 ? FORMATS[2] : FORMATS[1];
@@ -613,16 +645,38 @@ export function compileInputScript(
   if (game !== undefined) play.game = game;
   if (head.data.seed !== undefined) play.seed = head.data.seed;
   const seat0 = tracks ? (tracks.find((t) => t.player === 0)?.steps ?? []) : steps;
+  const seats = tracks ? Math.max(1, ...tracks.map((t) => t.player + 1)) : 1;
+  const bound = pointerBindingsOf(registry, map, seats);
+  const pointerRaises = Object.keys(bound?.[0] ?? {}).length > 0 && seat0.some((s) => s.pointer);
   const compiled: CompiledScript = {
     steps,
     maxTicks,
     play,
-    edges: staticEdges(seat0, maxTicks),
+    edges: pointerRaises ? null : staticEdges(seat0, maxTicks),
   };
   if (tracks) compiled.tracks = tracks;
+  if (bound) compiled.pointerBindings = bound;
   if (head.data.players !== undefined) compiled.players = head.data.players;
   if (scene !== undefined) compiled.scene = scene;
   return { ok: true, script: compiled };
+}
+
+/** Each seat's pointer bindings, `map`'s over the game's; undefined when no seat binds a pointer button. */
+function pointerBindingsOf(
+  registry: Registry,
+  map: Pick<InputMapFile, "actions"> | null | undefined,
+  seats: number,
+): PointerBindings[] | undefined {
+  const { tables } = resolveBindings({ game: registry.actions, map, players: seats });
+  if (tables.pointer.size === 0) return undefined;
+  const out: PointerBindings[] = Array.from({ length: seats }, () => ({}));
+  for (const button of POINTER_BUTTONS) {
+    for (const b of tables.pointer.get(button) ?? []) {
+      const seat = out[b.player];
+      if (seat) seat[button] = [...(seat[button] ?? []), { action: b.action, binding: b.binding }];
+    }
+  }
+  return out;
 }
 
 // ─── Playing ─────────────────────────────────────────────
@@ -686,8 +740,6 @@ export function analogActions(
   return actions;
 }
 
-const bit = (button: PointerButton): number => 1 << POINTER_BUTTONS.indexOf(button);
-
 /**
  * The pointer on slot `k` of a pointer step `slots` long, from `buttons`
  * (what was down before the slot): at `at`, or along the line to `drag`,
@@ -703,8 +755,8 @@ export function pointerAt(
 ): PointerState {
   const last = slots !== undefined && k >= slots - 1;
   let down = buttons;
-  if (k === 0 && pointer.press) down |= bit(pointer.press);
-  if (last && pointer.release) down &= ~bit(pointer.release);
+  if (k === 0 && pointer.press) down |= pointerBit(pointer.press);
+  if (last && pointer.release) down &= ~pointerBit(pointer.release);
   let { x, y } = pointer.at;
   if (pointer.drag && slots !== undefined) {
     const t = slots <= 1 ? 1 : Math.min(1, k / (slots - 1));
@@ -712,6 +764,33 @@ export function pointerAt(
     y += (pointer.drag.y - pointer.at.y) * t;
   }
   return { x, y, buttons: down, over: true };
+}
+
+/**
+ * The button actions a seat holds: its step's `hold`, then each action a
+ * pointer button in `buttons` holds through `bound`, combined as live play
+ * combines an action's bindings (`combineAction`).
+ */
+export function pointerHeld(
+  hold: readonly string[],
+  buttons: number,
+  bound: PointerBindings | undefined,
+): readonly string[] {
+  if (!bound) return hold;
+  const readings = new Map<string, BindingReading[]>();
+  for (const button of POINTER_BUTTONS) {
+    const reading = buttons & pointerBit(button) ? 1 : 0;
+    for (const { action, binding } of bound[button] ?? []) {
+      const list = readings.get(action);
+      if (list) list.push({ binding, reading });
+      else readings.set(action, [{ binding, reading }]);
+    }
+  }
+  const out = [...hold];
+  for (const [action, list] of readings) {
+    if (!out.includes(action) && combineAction("button", list).pressed) out.push(action);
+  }
+  return out.length === hold.length ? hold : out;
 }
 
 const samePointer = (a: PointerState | null, b: PointerState): boolean =>
@@ -739,10 +818,14 @@ export type ScriptSource = InputSource & {
  * Plays a compiled script one slot at a time: every track from slot 0 at
  * once, each `TickInput` holding each seat's button edges (releases first),
  * analog values, pointer (only when it changed), seat changes and commands,
- * all on its step's first slot but the pointer. A step's length counts
+ * all on its step's first slot but the pointer. The actions bound to a
+ * pointer button are held while it is down, as in live play. A step's length counts
  * slots, so an idle turns or event game still moves through it; `until` is
  * judged by `holds` after each simulated tick. The input runs out
  * (`script-end`) once every track's steps have; nothing is released then.
+ * A track that ends before the others likewise keeps what its last step
+ * held (buttons, values, pointer) until the script ends: end it on a
+ * `wait` to let go, and on a pointer `release` for a pointer button.
  * A script written with `steps` plays as seat 0's one track.
  */
 export function scriptSource(
@@ -750,7 +833,7 @@ export function scriptSource(
   holds: (until: UntilClause, state: PlayState) => boolean,
   time?: Pick<ResolvedTime, "tickMs">,
 ): ScriptSource {
-  const { tracks } = script as CompiledScript;
+  const { tracks, pointerBindings } = script as CompiledScript;
   const named = tracks !== undefined;
   const cursors: Cursor[] = (tracks ?? [{ player: 0, steps: script.steps }]).map((t) => ({
     player: t.player,
@@ -790,12 +873,18 @@ export function scriptSource(
         const step = c.steps[c.at]!;
         const first = c.ran === 0;
         if (first) c.start = slot;
-        for (const [, action, pressed] of heldEdges(c.held, step.hold, slot)) {
+        let moved: PointerState | null = null;
+        if (step.pointer) {
+          const sample = pointerAt(step.pointer, c.ran, step.ticks, c.pointer?.buttons ?? 0);
+          if (!samePointer(c.pointer, sample)) moved = c.pointer = sample;
+        }
+        const held = pointerHeld(step.hold, c.pointer?.buttons ?? 0, pointerBindings?.[c.player]);
+        for (const [, action, pressed] of heldEdges(c.held, held, slot)) {
           input.actions.push(withSeat(inputAction(action, pressed === 1, slot, time), c.player));
         }
         const values = step.set ?? {};
         input.actions.push(...analogActions(c.values, values, slot, c.player, time));
-        c.held = step.hold;
+        c.held = held;
         c.values = values;
         if (first) {
           for (const command of step.commands ?? []) {
@@ -805,13 +894,9 @@ export function scriptSource(
           }
           for (const j of step.joins ?? []) joins.push({ player: c.player, ...j });
         }
-        if (step.pointer) {
-          const sample = pointerAt(step.pointer, c.ran, step.ticks, c.pointer?.buttons ?? 0);
-          if (!samePointer(c.pointer, sample)) {
-            while (input.pointers.length < c.player) input.pointers.push(undefined);
-            input.pointers[c.player] = sample;
-            c.pointer = sample;
-          }
+        if (moved) {
+          while (input.pointers.length < c.player) input.pointers.push(undefined);
+          input.pointers[c.player] = moved;
         }
       }
       input.joins = joins;

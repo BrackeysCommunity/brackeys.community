@@ -1,0 +1,47 @@
+import type { ActionDef, Binding, PadButton } from "@jams/engine/game";
+
+const key = (code: string, axis: "x" | "y", value: number): Binding => ({
+  device: "key",
+  code,
+  axis,
+  value,
+});
+const pad = (button: PadButton, axis: "x" | "y", value: number): Binding => ({
+  device: "pad",
+  button,
+  axis,
+  value,
+});
+
+/** `move` steers the hero; `pause` is UI-only, the HUD's, and never reaches the simulation. */
+export const ACTIONS: readonly ActionDef[] = [
+  {
+    action: "move",
+    kind: "vector",
+    bindings: [
+      key("ArrowLeft", "x", -1),
+      key("ArrowRight", "x", 1),
+      key("ArrowUp", "y", -1),
+      key("ArrowDown", "y", 1),
+      key("KeyA", "x", -1),
+      key("KeyD", "x", 1),
+      key("KeyW", "y", -1),
+      key("KeyS", "y", 1),
+      pad("dpad-left", "x", -1),
+      pad("dpad-right", "x", 1),
+      pad("dpad-up", "y", -1),
+      pad("dpad-down", "y", 1),
+      { device: "pad", stick: "left" },
+    ],
+    description: "Walk the hero cell by cell.",
+  },
+  {
+    action: "pause",
+    ui: true,
+    bindings: [
+      { device: "key", code: "KeyP" },
+      { device: "pad", button: "start" },
+    ],
+    description: "Pause or resume the game.",
+  },
+];

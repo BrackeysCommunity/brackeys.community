@@ -1,7 +1,10 @@
 export {
+  boundsCells,
   cellKey,
   cellOf,
   gridGeometry,
+  inCellBounds,
+  sameCell,
   type Cell,
   type CellBounds,
   type CellKey,

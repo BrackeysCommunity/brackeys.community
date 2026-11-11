@@ -3,7 +3,7 @@ import {
   gridCellsIn,
   metresToPx,
   num,
-  oneWaySide,
+  oneWayEdge,
   overlaps,
   sceneDrawing,
   type DrawnEntity,
@@ -91,7 +91,7 @@ function markOf(
       : d.path || d.base === "prop" || d.base === "follower"
         ? PRIORITY.moving
         : PRIORITY.static;
-  if (oneWaySide(d.entity.oneWay)) return { char: "=", label: `${name} one-way`, priority };
+  if (oneWayEdge(d)) return { char: "=", label: `${name} one-way`, priority };
   const tag = d.tags.find((t) => Object.hasOwn(tagChars, t));
   if (tag !== undefined) return { char: tagChars[tag]!, label: `${name} [${tag}]`, priority };
   const base = d.base === undefined ? undefined : registry.types.get(d.base);

@@ -16,6 +16,7 @@ export {
   type GamepadPoll,
   type GamepadReader,
   type GamepadReaderOptions,
+  type GamepadView,
   type PadBinding,
   type PadChange,
   type PadSnapshot,
@@ -55,6 +56,7 @@ export {
   createInputSystem,
   type ControlTouch,
   type InputSystem,
+  type InputSystemOptions,
   type PointerReading,
   type TouchControlTarget,
 } from "./system";

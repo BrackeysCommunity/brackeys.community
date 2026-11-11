@@ -340,7 +340,10 @@ describe("seeds in a play session", () => {
 describe("recording a session's TickInputs", () => {
   /** Standard pads behind a fake `navigator.getGamepads`. */
   function fakePad() {
-    const pad = { axes: [0, 0, 0, 0], pressed: Array.from({ length: 17 }, () => false) };
+    const pad: { axes: number[]; pressed: boolean[]; timestamp?: number } = {
+      axes: [0, 0, 0, 0],
+      pressed: Array.from({ length: 17 }, () => false),
+    };
     Object.defineProperty(navigator, "getGamepads", {
       configurable: true,
       value: () => [
@@ -351,6 +354,7 @@ describe("recording a session's TickInputs", () => {
           connected: true,
           buttons: pad.pressed.map((pressed) => ({ pressed, value: pressed ? 1 : 0 })),
           axes: [...pad.axes],
+          ...(pad.timestamp === undefined ? {} : { timestamp: pad.timestamp }),
         },
       ],
     });
@@ -663,6 +667,40 @@ describe("recording a session's TickInputs", () => {
     game.step(rec.ticks);
     expect(seen.splice(0)).toEqual(live);
 
+    const headless = replayRecording({ rapier, game: def, scene: doc, recording: rec });
+    if (headless.blocked) throw new Error("replay blocked");
+    expect(headless.matches, headless.divergence ?? "").toBe(true);
+  });
+
+  it("places a pad's change at the browser's update time, and at the tick without one", async () => {
+    let now = 1000;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    onTestFinished(() => clock.mockRestore());
+    const { def, seen, game, recorded } = await ordered(true);
+    const pad = fakePad();
+    const doc = yard();
+    const tickMs = 1000 / 60;
+    expect(game.play(doc)).toMatchObject({ ok: true });
+    now = 2000;
+    pad.axes[0] = 1;
+    pad.timestamp = now - tickMs * 0.5;
+    game.step(1);
+    now = 2100;
+    pad.axes[0] = 0;
+    pad.timestamp = undefined;
+    game.step(1);
+    now = 2200;
+    pad.axes[0] = -1;
+    pad.timestamp = 50;
+    game.step(1);
+    game.stop();
+    const live = seen.splice(0);
+    expect(live).toEqual([["0:steer:1:0.5"], ["1:steer:1:0.999"], ["2:steer:1:0.999"]]);
+
+    const rec = recorded[0]!;
+    expect(game.replay(doc, rec)).toMatchObject({ ok: true });
+    game.step(rec.ticks);
+    expect(seen.splice(0)).toEqual(live);
     const headless = replayRecording({ rapier, game: def, scene: doc, recording: rec });
     if (headless.blocked) throw new Error("replay blocked");
     expect(headless.matches, headless.divergence ?? "").toBe(true);

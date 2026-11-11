@@ -187,8 +187,39 @@ describe("projectView", () => {
     expect(issues[0]!.message).toBe(
       `"extra" is a second game-settings asset; "settings" (game-settings.json) is the project's`,
     );
+    expect(issues[0]!.hint).toBe(`Move its settings into "settings" and delete it.`);
     const alone = projectView(state([kept]), createKindRegistry(null)).issues;
     expect(alone).toEqual([]);
+  });
+
+  it("reports a second asset of any kind declaring perProject, by default words, and none for other kinds", () => {
+    const solo = defineAssetKind({
+      ...note,
+      kind: "solo",
+      match: { suffixes: [".solo.json"] },
+      perProject: 1,
+    });
+    const soloKinds = createKindRegistry(null, [note, solo]);
+    const one = (id: string, path: string, kind = "solo") => entry(id, path, 1, { kind });
+    const first = one("a", "a.solo.json");
+    const second = one("b", "b.solo.json");
+    const third = one("c", "c.solo.json");
+    const notes = [one("n1", "n1.note.json", "note"), one("n2", "n2.note.json", "note")];
+    const issues = projectView(state([third, second, first, ...notes]), soloKinds).issues;
+    expect(issues.map((i) => [i.code, i.entityIds, i.message, i.hint])).toEqual([
+      [
+        "asset-kind",
+        [second.key],
+        `"b" is a second solo asset; "a" (a.solo.json) is the project's`,
+        `Move its contents into "a" and delete it.`,
+      ],
+      [
+        "asset-kind",
+        [third.key],
+        `"c" is a second solo asset; "a" (a.solo.json) is the project's`,
+        `Move its contents into "a" and delete it.`,
+      ],
+    ]);
   });
 
   it("ignores trashed entries for collisions", () => {

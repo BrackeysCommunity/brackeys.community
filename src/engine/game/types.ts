@@ -478,6 +478,13 @@ export type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
   style?: Style;
   /** One character for the scene's ASCII map; omitted, the base primitive's, else the type's first letter. */
   ascii?: string;
+  /**
+   * Every entity of the type is one-way on this side, with or without a
+   * `oneWay` field (`true` is "up"; an entity's own side wins). Declare it
+   * when the type's system makes it one-way, so the editor and renderers
+   * draw the landing side.
+   */
+  oneWay?: true | Side;
   inspector?: { label?: string; group?: string; order?: readonly string[] };
   /** Whether the type can load in a scene with physics "none"; default its base primitive's, else "optional". */
   physics?: "required" | "optional";
@@ -686,6 +693,8 @@ export type ActionDef = InputBinding & {
   description: string;
   /** Default "button". */
   kind?: ActionKind;
+  /** Resolved from devices and every binding layer, but never delivered to the simulation or written to a recording. */
+  ui?: true;
 };
 
 /** What a new scene starts with: everything but its header (`$schema`, `v`, `game`, `name`). */
@@ -827,13 +836,22 @@ export type GamePlayDef<S = unknown, G = unknown> = {
   /**
    * The next fuzz macro; omitted, fuzz holds one or two random button actions
    * for 4–60 ticks, and sets the game's axis and vector actions and moves the
-   * pointer when it has them (`defaultFuzzMacro`).
+   * pointer when it has them (`defaultFuzzMacro`); with `commands` and no
+   * macro, fuzz sends one legal command per macro instead (every macro on a
+   * turns clock, half otherwise).
    */
   macro?(rng: MacroRandom, actions: readonly string[]): Macro;
   /** The schema of `PlayOptions.game` (abilities and the like) and of an input script's `game` key. */
   options?: z.ZodType<G>;
   /** Event types a recording keeps as markers for the ghost; omitted, every event but `entity:*`. */
   markers?: readonly string[];
+  /**
+   * The commands a run may send now, in a stable order. Fuzz picks among
+   * them; `scene step --legal` prints them. Before a run's first tick (fuzz's
+   * first macro, a playtest that ran none) `state.tick` is -1 and `events` is
+   * empty.
+   */
+  commands?(state: PlayState<S>): readonly GameCommand[];
 };
 
 /**
@@ -884,9 +902,10 @@ export type GameDefinition<S = unknown, G = unknown> = {
   types: readonly EntityTypeDef[];
   /**
    * Spawn groups in order; types inside one group spawn together in file
-   * order (bulk first). Lists every loadable type once, except that `decor`
-   * and `nav` may be left out and then spawn last. Omitted means each
-   * primitive, then each game type, in registration order.
+   * order (bulk first). Lists each of the game's loadable types once; a
+   * primitive it leaves out spawns before every listed group, in primitive
+   * order, except `decor` and `nav`, which then spawn last. Omitted means
+   * each primitive, then each game type, in registration order.
    */
   spawnOrder?: readonly (EntityTypeName | readonly EntityTypeName[])[];
   /** Action names and default bindings, in the order tools list them. */
@@ -987,6 +1006,8 @@ export type Registry = {
   materialNames: readonly string[];
   actions: readonly ActionDef[];
   actionNames: readonly string[];
+  /** The actions marked `ui: true`, in registration order; `actionNames` lists them too. */
+  uiActionNames: readonly string[];
   /** Packed Rapier `InteractionGroups` for a group name; throws on an unknown one. */
   collisionGroups: (name: string) => number;
   collisionGroupNames: readonly string[];

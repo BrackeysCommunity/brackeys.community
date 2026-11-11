@@ -4,6 +4,7 @@ import {
   cellKey,
   cellOf,
   gridGeometry,
+  inCellBounds,
   type Cell,
   type CellBounds,
   type CellKey,
@@ -129,13 +130,7 @@ export function createGridState(
         geometry,
         occupancy,
         bounds,
-        passable: (c) =>
-          c[0] >= bounds.c0 &&
-          c[0] <= bounds.c1 &&
-          c[1] >= bounds.r0 &&
-          c[1] <= bounds.r1 &&
-          !occupancy.wall(c) &&
-          !occupancy.blocked(c),
+        passable: (c) => inCellBounds(bounds, c) && !occupancy.wall(c) && !occupancy.blocked(c),
       };
       current = grid;
       syncWalls(grid, scene);

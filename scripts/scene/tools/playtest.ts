@@ -63,6 +63,12 @@ export function blockedText(run: PlaytestBlocked): string {
   return lines.join("\n");
 }
 
+/** How many commands a game listed as legal after the last tick, for a game that lists them. */
+export function legalCount(legal: readonly unknown[], truncated: boolean): string {
+  if (truncated) return `legal ${legal.length}+ commands (truncated)`;
+  return `legal ${legal.length} command${legal.length === 1 ? "" : "s"}`;
+}
+
 function reportText(
   r: PlaytestReport,
   runs: string,
@@ -79,6 +85,7 @@ function reportText(
         `  step ${s.player === undefined ? "" : `p${s.player}/`}${s.index} t${s.start} +${s.ticks} ${s.end}`,
     ),
     `  final ${rounded(r.final)}`,
+    ...(r.legal === undefined ? [] : [`  ${legalCount(r.legal, r.legalTruncated === true)}`]),
     ...events,
     ...(r.truncated ? ["  (events truncated)"] : []),
   ].join("\n");

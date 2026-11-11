@@ -1,0 +1,7 @@
+{
+  "v": 3,
+  "checks": [
+    { "id": "valid", "kind": "valid" },
+    { "id": "sides-connected", "kind": "connected", "from": "blue-knight-1/unit", "to": ["blue-archer/unit", "blue-knight-2/unit", "red-knight/unit", "red-archer/unit"] }
+  ]
+}

@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, renderHook } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { EditorStorage } from "../host";
@@ -116,4 +118,31 @@ describe("useLayout", () => {
       expect(() => unmount()).not.toThrow();
     });
   }
+
+  it("hydrates a server render with the default, then takes the stored layout", () => {
+    const stored = resizeColumn(DEFAULT_LAYOUT, "right", 420);
+    const storage = memoryStorage({ [LAYOUT_KEY]: JSON.stringify(stored) });
+    function Width() {
+      return <output>{useLayout(storage).layout.right.width}</output>;
+    }
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(<Width />);
+    expect(container.textContent).toBe(String(DEFAULT_LAYOUT.right.width));
+    expect(storage.get).not.toHaveBeenCalled();
+
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      let root: ReturnType<typeof hydrateRoot> | undefined;
+      act(() => {
+        root = hydrateRoot(container, <Width />);
+      });
+      expect(container.textContent).toBe("420");
+      act(() => vi.advanceTimersByTime(LAYOUT_WRITE_DELAY * 2));
+      expect(storage.set).not.toHaveBeenCalled();
+      expect(error).not.toHaveBeenCalled();
+      act(() => root?.unmount());
+    } finally {
+      error.mockRestore();
+    }
+  });
 });

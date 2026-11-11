@@ -19,7 +19,7 @@ import {
   type DocKindDef,
   type InputMapFile,
 } from "@jams/engine/project";
-import { ISSUE_CODES, type SceneIssue } from "@jams/engine/scene";
+import { ISSUE_CODES, scriptSeatLimit, type SceneIssue } from "@jams/engine/scene";
 
 import { inScope, issueLine, scopeError, usage, type Tool } from "../context";
 import { scanProject, type ProjectHandle } from "../projects";
@@ -121,7 +121,7 @@ async function projectReport(project: ProjectHandle, only?: number): Promise<Pro
   }
   const map = entry ? usableInputMap(raw, registry) : null;
   const players: PlayersDef = resolvePlayers(map, game);
-  const seatCount = Math.min(MAX_PLAYERS, Math.max(1, Math.floor(players.max)));
+  const seatCount = scriptSeatLimit(registry, map?.players);
 
   const actions = registry.actions;
   const resolved = resolveBindings({ map, game: actions, players: seatCount });

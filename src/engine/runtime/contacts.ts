@@ -6,6 +6,7 @@ import { createSpatialHash } from "../scene/spatial-hash";
 import type { Aabb } from "../scene/types";
 import type { RapierModule, Vec2 } from "../types";
 import { geometryColliders } from "./geometry-world";
+import { colliderLive } from "./space";
 import { CONTACT_END, CONTACT_START } from "./types";
 
 /** A runtime's contact reader: `EngineContext.contacts` plus what the tick and the lifecycle call. */
@@ -168,7 +169,7 @@ export function createContacts(ctx: EngineContext): RuntimeContacts {
       .filter(isSolid)
       .sort((x, y) => x - y);
 
-  const rapierTouches = (c: Collider) => c.isEnabled() && c.collisionGroups() !== 0;
+  const rapierTouches = (c: Collider) => colliderLive(c) && c.collisionGroups() !== 0;
 
   /** A collider's pose key (unchanged means its bounds are) and its world bounds, or undefined once it is gone. */
   type Locate = (handle: number) => { at: unknown[]; box: () => Aabb | null } | undefined;

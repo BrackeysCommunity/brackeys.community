@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { TACTICS_GOLDEN_DIGEST } from "../../../src/games/tactics/__tests__/pins";
 import {
   EDITOR_VIEWPORTS,
   judgeEditor,
@@ -10,6 +11,7 @@ import {
   judgePhysicsFree,
   judgeRender,
   judgeResult,
+  judgeTactics,
   leavesWindow,
   overallOk,
   PAGE_TIMEOUT_MS,
@@ -29,6 +31,7 @@ import {
 import { CONTACT_FLOOR, CONTACT_TICK, type ContactRead } from "../browser/contact";
 import type { EngineSmokeResult } from "../browser/main";
 import { runSmokeDigest } from "../browser/run";
+import type { TacticsProbe } from "../browser/tactics";
 
 const drawn: RenderProbe = {
   renderer: "webgl",
@@ -48,11 +51,21 @@ const free: PhysicsFreeProbe = {
 
 const touched: ContactRead = { tick: CONTACT_TICK, other: CONTACT_FLOOR };
 
+const tactics: TacticsProbe = {
+  physics: "none",
+  result: "won",
+  tick: 900,
+  replayMatches: true,
+  digest: TACTICS_GOLDEN_DIGEST,
+  rapierLoads: 0,
+};
+
 const passed = (
   digest: string,
   render: RenderProbe = drawn,
   physicsFree: PhysicsFreeProbe = free,
   contact: ContactRead = touched,
+  second: TacticsProbe = tactics,
 ): EngineSmokeResult => ({
   ok: true,
   flavour: "rapier2d-compat",
@@ -61,6 +74,7 @@ const passed = (
   render,
   physicsFree,
   contact,
+  tactics: second,
   userAgent: "test-agent",
 });
 
@@ -81,6 +95,7 @@ describe("judgeResult", () => {
       render: drawn,
       physicsFree: free,
       contact: touched,
+      tactics,
     });
   });
 
@@ -156,6 +171,45 @@ describe("judgeResult", () => {
     const { contact: _, ...bare } = passed("abc") as Extract<EngineSmokeResult, { ok: true }>;
     const none = judgeResult("chromium", bare as unknown as EngineSmokeResult, want("abc"));
     expect(none).toMatchObject({ status: "fail", reason: "the page ran no contact read" });
+  });
+
+  it("fails a page whose tactics digest isn't the pin, or that ran no tactics replay", () => {
+    const off = judgeResult(
+      "webkit",
+      passed("abc", drawn, free, touched, { ...tactics, digest: "elsewhere" }),
+      want("abc"),
+    );
+    expect(off).toMatchObject({
+      status: "fail",
+      reason: expect.stringContaining(TACTICS_GOLDEN_DIGEST),
+      tactics: { digest: "elsewhere" },
+    });
+    const { tactics: _, ...bare } = passed("abc") as Extract<EngineSmokeResult, { ok: true }>;
+    const none = judgeResult("firefox", bare as unknown as EngineSmokeResult, want("abc"));
+    expect(none).toMatchObject({ status: "fail", reason: "the page ran no tactics replay" });
+  });
+});
+
+describe("judgeTactics", () => {
+  it("passes a physics-free win that replayed to the pin", () => {
+    expect(judgeTactics(tactics)).toBeNull();
+    expect(judgeTactics({ ...tactics, digest: "p" }, "p")).toBeNull();
+  });
+
+  it("fails a scene that resolved to Rapier, or a loader that was called", () => {
+    expect(judgeTactics({ ...tactics, physics: "rapier" })).toMatch(/resolved to rapier/);
+    expect(judgeTactics({ ...tactics, rapierLoads: 1 })).toMatch(/loaded Rapier 1/);
+  });
+
+  it("fails another ending, or a replay that diverged from its recording", () => {
+    expect(judgeTactics({ ...tactics, result: "lost" })).toMatch(/ended lost at tick 900/);
+    expect(judgeTactics({ ...tactics, replayMatches: false })).toMatch(/recording/);
+  });
+
+  it("fails a digest other than the pin, naming both", () => {
+    const why = judgeTactics({ ...tactics, digest: "elsewhere" });
+    expect(why).toContain("elsewhere");
+    expect(why).toContain(TACTICS_GOLDEN_DIGEST);
   });
 });
 

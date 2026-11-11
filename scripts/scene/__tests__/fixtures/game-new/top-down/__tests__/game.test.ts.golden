@@ -1,0 +1,58 @@
+// @vitest-environment node
+import { readFileSync, writeFileSync } from "node:fs";
+
+import { runChecks } from "@jams/engine/headless";
+import {
+  createRegistry,
+  inputScriptJsonSchema,
+  parseChecks,
+  parseScene,
+  sceneJsonSchema,
+  validateScene,
+} from "@jams/engine/scene";
+import { describe, expect, it } from "vite-plus/test";
+
+import { demoGame } from "..";
+
+const registry = createRegistry(demoGame);
+const file = (path: string) => new URL(`../${path}`, import.meta.url);
+const read = (path: string) => readFileSync(file(path), "utf8");
+
+/** A generated file equals what its generator gives now; `UPDATE_SCHEMAS=1` rewrites it (then `vp fmt` it). */
+function expectCurrent(path: string, fresh: Record<string, unknown>) {
+  if (process.env.UPDATE_SCHEMAS) writeFileSync(file(path), `${JSON.stringify(fresh, null, 2)}\n`);
+  expect(JSON.parse(read(path))).toEqual(fresh);
+}
+
+describe("generated schemas", () => {
+  it("scene.schema.json is sceneJsonSchema's (UPDATE_SCHEMAS=1 regenerates)", () => {
+    expectCurrent("scene.schema.json", sceneJsonSchema(registry));
+  });
+
+  it("input-script.schema.json is inputScriptJsonSchema's (UPDATE_SCHEMAS=1 regenerates)", () => {
+    expectCurrent("input-script.schema.json", inputScriptJsonSchema(registry));
+  });
+});
+
+describe("scenes/main.json", () => {
+  const parsed = parseScene(read("scenes/main.json"), registry);
+
+  it("validates with no errors or warnings", () => {
+    expect(parsed.ok, JSON.stringify(parsed.issues)).toBe(true);
+    if (!parsed.ok) return;
+    expect(validateScene(parsed.def, registry).filter((i) => i.severity !== "info")).toEqual([]);
+  });
+
+  it("passes its checks: the input script wins headless", () => {
+    if (!parsed.ok) throw new Error("scenes/main.json doesn't parse");
+    const checks = parseChecks(read("scenes/main.checks.json"), registry);
+    if (!checks.ok) throw new Error(JSON.stringify(checks.issues));
+    const report = runChecks({
+      scene: parsed.def,
+      registry,
+      checks: checks.file,
+      readFile: (path) => read(`scenes/${path}`),
+    });
+    expect(report.results.filter((r) => !r.pass)).toEqual([]);
+  });
+});

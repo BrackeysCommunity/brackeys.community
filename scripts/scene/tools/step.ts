@@ -1,4 +1,4 @@
-import { pxPerMetreOf, type GameCommand } from "@jams/engine/game";
+import { pxPerMetreOf, type GameCommand, type PlayersDef } from "@jams/engine/game";
 import {
   compileInputScript,
   ENTITY_DESTROYED,
@@ -11,6 +11,7 @@ import {
 } from "@jams/engine/headless";
 import {
   expandScene,
+  INPUT_SCRIPT_VERSION,
   sceneHashWith,
   scenePhysics,
   type Registry,
@@ -37,16 +38,18 @@ export type StepInput = {
   hold?: string;
   inputs?: string;
   game?: string;
-  /** `<tick>:<name>[=<json>]`: a game command stepped on that tick, in flag order. */
+  /** `<tick>[@<seat>]:<name>[=<json>]`: a game command from a seat (default 0) stepped on that tick, in flag order. */
   command?: string | readonly string[];
   /** `<tick>:<ms>`: time away, stepped as `@elapsed` on that tick before its commands. */
   elapse?: string | readonly string[];
   /** `type,…`: print only events of these types. */
   events?: string;
+  /** Print the commands legal after the last tick, for a game that lists them. */
+  legal?: boolean;
 };
 
 export const STEP_FLAGS =
-  "[--ticks N] [--hold a,b] [--inputs file] [--command tick:name[=json]]… [--elapse tick:ms]… [--events type,…] [--game id]";
+  "[--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]]… [--elapse tick:ms]… [--events type,…] [--game id]";
 const STEP_USAGE = `step ${STEP_FLAGS}`;
 
 const DEFAULT_TICKS = 120;
@@ -65,37 +68,60 @@ function isEdge(v: unknown): v is Edge {
   );
 }
 
-type Queued = { flag: "command" | "elapse"; value: string; tick: number; step: object };
+type Queued = {
+  flag: "command" | "elapse";
+  value: string;
+  tick: number;
+  /** The seat a command comes from; `@elapsed` has none. */
+  player: number;
+  step: object;
+};
 
 const listOf = (v: string | readonly string[] | undefined): readonly string[] =>
   v === undefined ? [] : typeof v === "string" ? [v] : v;
 
-/** `<tick>:<rest>` with a whole tick from 0 to `ticks - 1`, or the usage error. */
-function tickOf(flag: string, value: string, ticks: number): [number, string] | string {
+const isWhole = (text: string) =>
+  text.trim() !== "" && Number.isInteger(Number(text)) && Number(text) >= 0;
+
+/**
+ * `<tick>[@<seat>]:<rest>` with a whole tick from 0 to `ticks - 1` and, for
+ * a command, a whole seat (default 0), or the usage error. The seat is
+ * judged against the run's seats when the commands compile.
+ */
+function tickOf(
+  flag: Queued["flag"],
+  value: string,
+  ticks: number,
+): [tick: number, player: number, rest: string] | string {
   const colon = value.indexOf(":");
-  const tick = colon < 0 ? NaN : Number(value.slice(0, colon));
-  if (!Number.isInteger(tick) || tick < 0 || value.slice(0, colon).trim() === "") {
-    return `--${flag} ${value}: expected ${flag === "command" ? "tick:name[=json]" : "tick:ms"} with a whole tick`;
+  const head = colon < 0 ? "" : value.slice(0, colon);
+  const at = flag === "command" ? head.indexOf("@") : -1;
+  const tickText = at < 0 ? head : head.slice(0, at);
+  const seatText = at < 0 ? "0" : head.slice(at + 1);
+  if (!isWhole(tickText) || !isWhole(seatText)) {
+    return `--${flag} ${value}: expected ${flag === "command" ? "tick:name[=json]" : "tick:ms"} with a whole tick${flag === "command" ? " (and tick@seat with a whole seat)" : ""}`;
   }
+  const tick = Number(tickText);
   if (tick >= ticks)
     return `--${flag} ${value}: tick ${tick} is past the run's last (${ticks - 1})`;
-  return [tick, value.slice(colon + 1)];
+  return [tick, Number(seatText), value.slice(colon + 1)];
 }
 
 /** One `--command` or `--elapse` as the input-script step that sends it, or the usage error. */
 function queued(flag: Queued["flag"], value: string, ticks: number): Queued | string {
   const parsed = tickOf(flag, value, ticks);
   if (typeof parsed === "string") return parsed;
-  const [tick, rest] = parsed;
+  const [tick, player, rest] = parsed;
   if (flag === "elapse") {
     const ms = rest.trim() === "" ? NaN : Number(rest);
-    return { flag, value, tick, step: { elapse: ms } };
+    return { flag, value, tick, player, step: { elapse: ms } };
   }
   const eq = rest.indexOf("=");
   const name = eq < 0 ? rest : rest.slice(0, eq);
-  if (eq < 0) return { flag, value, tick, step: { command: name } };
+  if (eq < 0) return { flag, value, tick, player, step: { command: name } };
   try {
-    return { flag, value, tick, step: { command: name, args: JSON.parse(rest.slice(eq + 1)) } };
+    const args: unknown = JSON.parse(rest.slice(eq + 1));
+    return { flag, value, tick, player, step: { command: name, args } };
   } catch (e) {
     return `--command ${value}: args are not JSON: ${(e as Error).message}`;
   }
@@ -104,13 +130,15 @@ function queued(flag: Queued["flag"], value: string, ticks: number): Queued | st
 /**
  * The `--elapse` and `--command` flags as commands on their ticks: each
  * tick's `@elapsed` first, then its commands in flag order. They are
- * checked as an input script's `elapse` and `command` steps are, so a bad
- * name or args gets the same message `playtest` gives.
+ * checked as an input script's `elapse` and `command` steps are, one track
+ * per seat over the seats `players` (the project input map's) or the game
+ * gives, so a bad name, args or seat gets the same message `playtest` gives.
  */
 function commandsOf(
   input: StepInput,
   ticks: number,
   registry: Registry,
+  players: PlayersDef | null | undefined,
 ): [tick: number, command: GameCommand][] | string {
   const all: Queued[] = [];
   for (const [flag, values] of [
@@ -124,18 +152,40 @@ function commandsOf(
     }
   }
   if (all.length === 0) return [];
-  const compiled = compileInputScript({ v: 1, steps: all.map((q) => q.step) }, registry);
+  const seats = [...new Set(all.map((q) => q.player))].sort((a, b) => a - b);
+  const bySeat = seats.map((player) => all.filter((q) => q.player === player));
+  const script =
+    seats.length === 1 && seats[0] === 0
+      ? { v: INPUT_SCRIPT_VERSION, steps: all.map((q) => q.step) }
+      : {
+          v: INPUT_SCRIPT_VERSION,
+          tracks: seats.map((player, t) => ({ player, steps: bySeat[t]!.map((q) => q.step) })),
+        };
+  const compiled = compileInputScript(script, registry, undefined, players);
   if (!compiled.ok) {
     const issue = compiled.issues[0]!;
-    const index = Number(/^\/steps\/(\d+)/.exec(issue.path)?.[1]);
-    const q = all[index];
+    const stepAt = /^\/steps\/(\d+)/.exec(issue.path);
+    const track = /^\/tracks\/(\d+)(?:\/steps\/(\d+))?/.exec(issue.path);
+    const q = stepAt
+      ? all[Number(stepAt[1])]
+      : track
+        ? bySeat[Number(track[1])]?.[track[2] === undefined ? 0 : Number(track[2])]
+        : undefined;
     return q ? `--${q.flag} ${q.value}: ${issue.message}` : issue.message;
   }
-  const commands = compiled.script.steps.map((s, i): [number, GameCommand] => [
-    all[i]!.tick,
-    s.commands![0]!,
-  ]);
-  return commands.sort((a, b) => a[0] - b[0]);
+  const { steps, tracks } = compiled.script as {
+    steps: { commands?: GameCommand[] }[];
+    tracks?: { steps: { commands?: GameCommand[] }[] }[];
+  };
+  const sent = tracks ? tracks.flatMap((t) => t.steps) : steps;
+  const queuedInOrder = tracks ? bySeat.flat() : all;
+  const commands = sent.map((s, i) => {
+    const q = queuedInOrder[i]!;
+    const command = s.commands![0]!;
+    const sentBy = q.player === 0 ? command : { ...command, player: q.player };
+    return { q, at: all.indexOf(q), entry: [q.tick, sentBy] as [number, GameCommand] };
+  });
+  return commands.sort((a, b) => a.q.tick - b.q.tick || a.at - b.at).map((c) => c.entry);
 }
 
 const firstError = (actions: readonly string[], registry: Registry) =>
@@ -243,6 +293,19 @@ export function eventsReport(
   };
 }
 
+/** The `--legal` lines: each legal command after the last tick (with its seat, when not 0), or why there are none. */
+function legalLines(legal: readonly GameCommand[] | undefined, truncated: boolean): string[] {
+  if (legal === undefined) return ["  legal: the game lists no commands"];
+  if (legal.length === 0) return ["  legal: none"];
+  return [
+    `  legal (${legal.length}${truncated ? ", truncated" : ""}):`,
+    ...legal.map(
+      (c) =>
+        `    ${c.player ? `@${c.player} ` : ""}${c.name}${c.args === undefined ? "" : ` ${JSON.stringify(c.args)}`}`,
+    ),
+  ];
+}
+
 export const step: Tool<StepInput> = async (input, ctx) => {
   const ticks = input.ticks === undefined ? DEFAULT_TICKS : Number(input.ticks);
   if (!Number.isInteger(ticks) || ticks < 1 || ticks > MAX_TICKS) {
@@ -286,10 +349,10 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     }
   }
 
-  const commands = commandsOf(input, ticks, registry);
+  const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
+  const commands = commandsOf(input, ticks, registry, project?.inputMap?.players);
   if (typeof commands === "string") return usage(commands);
 
-  const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
   const engine = project?.engine;
   const report = runProbe({
     rapier: await rapierFor(ctx, loaded.def, registry, engine),
@@ -341,6 +404,7 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     ),
     ...printed.lines,
     ...(report.truncated ? ["  (events truncated)"] : []),
+    ...(input.legal ? legalLines(report.legal, report.legalTruncated === true) : []),
     ...(report.outcome
       ? [
           `  outcome t${report.outcome.tick} ${report.outcome.result}${report.outcome.cause ? `: ${report.outcome.cause}` : ""}`,

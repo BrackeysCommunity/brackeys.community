@@ -7,41 +7,41 @@ const room = {
   id: "room",
   pts: [
     [0, 0],
-    [400, 0],
-    [400, 100],
-    [400, 200],
-    [400, 300],
-    [0, 300],
+    [4, 0],
+    [4, 1],
+    [4, 2],
+    [4, 3],
+    [0, 3],
   ] as Ring,
 };
 const corridor = {
   id: "corridor",
   pts: [
-    [400, 100],
-    [700, 100],
-    [700, 200],
-    [400, 200],
+    [4, 1],
+    [7, 1],
+    [7, 2],
+    [4, 2],
   ] as Ring,
 };
 const table = {
   id: "table",
   pts: [
-    [150, 100],
-    [250, 100],
-    [250, 200],
-    [150, 200],
+    [1.5, 1],
+    [2.5, 1],
+    [2.5, 2],
+    [1.5, 2],
   ] as Ring,
 };
 
 export function walkAround() {
   const { mesh, issues } = buildNavMesh([room, corridor], [table]);
   // The funnel's corners: round the table, through the doorway, to the end of the corridor.
-  const path = navPath(mesh, [100, 150], [650, 150]);
+  const path = navPath(mesh, [1, 1.5], [6.5, 1.5]);
   return {
     issues,
     path,
-    onTable: navContains(mesh, [200, 150]),
+    onTable: navContains(mesh, [2, 1.5]),
     // A click outside the walk areas, moved to the closest walkable point.
-    clickedOutside: navNearest(mesh, [550, 280]),
+    clickedOutside: navNearest(mesh, [5.5, 2.8]),
   };
 }

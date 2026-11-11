@@ -35,6 +35,9 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "gravity-sideways": "6576f4399893ef40",
     "physics-none": "7606f4e008e235f1",
   },
+  "tower-defense": {
+    default: "21321ff0988c2a3f",
+  },
   "turn-tactics": {
     default: "355be025a7f4aeda",
     "gravity-sideways": "355be025a7f4aeda",

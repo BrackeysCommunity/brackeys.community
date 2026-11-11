@@ -2,10 +2,14 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry, defineEntityType, defineGame } from "../game/define";
 import { primitiveFields } from "../game/primitives";
-import type { GameDefinition } from "../game/types";
+import type { GameDefinition, SceneSystem } from "../game/types";
+import { navPolygonsOf } from "../runtime/nav";
 import { createSceneRuntime } from "../runtime/runtime";
 import { expandScene } from "../scene/expand";
+import { isNavType } from "../scene/nav-type";
 import type { EntityDef, SceneDefinition } from "../scene/types";
+import { validateScene } from "../scene/validate";
+import { createNavSystem } from "../systems/nav";
 
 /** A game type based on `nav`, spawned by the engine's nav system. */
 const ward = defineEntityType({
@@ -156,5 +160,71 @@ describe("ctx.nav", () => {
     rt.unload();
     expect(rt.ctx.nav).toBeNull();
     rt.destroy();
+  });
+});
+
+describe("the nav-type rule", () => {
+  const inert = (): SceneSystem => ({ spawn() {}, despawn() {}, clear() {}, size: () => 0 });
+  /** Based on `nav`, but spawned by a system of its own. */
+  const fence = defineEntityType({
+    type: "fence",
+    description: "A nav-shaped type its own system spawns.",
+    base: "nav",
+    fields: (env) => primitiveFields("nav", env),
+    system: inert,
+  });
+  /** No base, spawned by the engine's nav system. */
+  const lane = defineEntityType({
+    type: "lane",
+    description: "A walk area named by its system.",
+    fields: (env) => primitiveFields("nav", env),
+    system: createNavSystem,
+  });
+  /** Based on `nav`, kept on disk only. */
+  const sketch = defineEntityType({
+    type: "sketch",
+    description: "An editor-only walk area.",
+    base: "nav",
+    fields: (env) => primitiveFields("nav", env),
+    loads: false,
+  });
+  const rules = createRegistry(
+    defineGame({
+      id: "navrules",
+      types: [ward, fence, lane, sketch],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    }),
+  );
+  const type = (name: string) => rules.types.get(name);
+
+  it("names the nav primitive, nav-based types and types the nav system spawns", () => {
+    for (const name of ["nav", "ward", "lane"])
+      expect(isNavType(type(name), createNavSystem)).toBe(true);
+    for (const name of ["fence", "sketch", "solid", "missing"])
+      expect(isNavType(type(name), createNavSystem)).toBe(false);
+  });
+
+  it("treats a type with its own system as not nav when the nav system isn't given", () => {
+    expect(isNavType(type("ward"))).toBe(true);
+    expect(isNavType(type("lane"))).toBe(false);
+    expect(isNavType(type("fence"))).toBe(false);
+  });
+
+  it("gives the validator and the runtime's polygons the same types", () => {
+    const bowtie = poly(100, 100, 300, 300, 300, 100, 100, 300);
+    const def: SceneDefinition = {
+      ...scene([
+        { id: "w", type: "ward", shape: bowtie },
+        { id: "f", type: "fence", shape: bowtie },
+      ]),
+      game: "navrules",
+    };
+    const flagged = validateScene(def, rules)
+      .filter((i) => i.code === "nav-invalid")
+      .flatMap((i) => i.entityIds ?? []);
+    expect(flagged).toEqual(["w"]);
+    const { areas } = navPolygonsOf(expandScene(def, rules).entities, rules);
+    expect(areas.map((a) => a.id)).toEqual(["w"]);
   });
 });

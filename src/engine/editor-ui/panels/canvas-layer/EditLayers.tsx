@@ -9,6 +9,7 @@ import { expandScene } from "../../../scene/expand";
 import type { ExpandedScene } from "../../../scene/types";
 import { STORAGE_PREFIX } from "../../host";
 import { useKit } from "../../kit/index";
+import { useClientReady } from "../../kit/ssr";
 import { readStored, writeStored } from "../../session/stored";
 import { useEditorDoc, useEditorPrefabs } from "../../session/use-editor-store";
 import { useStoreValue } from "../../session/use-store-value";
@@ -31,6 +32,9 @@ export const EDIT_LAYERS_KEY = `${STORAGE_PREFIX}view-layers`;
 
 const layerStores = new WeakMap<EditorSession, Store<EditLayerFlags>>();
 
+/** What a server render and hydration draw, before the viewer's stored flags are read. */
+const unreadLayers = new Store<EditLayerFlags>(NO_EDIT_LAYERS);
+
 /**
  * The View menu's layer flags for `session`, shared by the toolbar and the
  * canvas layer, and remembered per viewer; every layer starts off.
@@ -39,7 +43,9 @@ export function useEditLayers(
   session: EditorSession,
 ): [EditLayerFlags, (layer: EditLayer, on: boolean) => void] {
   const { storage } = useKit();
+  const ready = useClientReady();
   let store = layerStores.get(session);
+  if (!store && !ready) store = unreadLayers;
   if (!store) {
     store = new Store(readStored(storage, EDIT_LAYERS_KEY, NO_EDIT_LAYERS, parseEditLayers));
     layerStores.set(session, store);
@@ -48,6 +54,7 @@ export function useEditLayers(
   const target = store;
   const set = useCallback(
     (layer: EditLayer, on: boolean) => {
+      if (target === unreadLayers) return;
       target.setState((s) => ({ ...s, [layer]: on }));
       writeStored(storage, EDIT_LAYERS_KEY, target.state);
     },

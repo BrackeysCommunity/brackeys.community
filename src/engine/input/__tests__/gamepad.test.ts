@@ -63,6 +63,19 @@ describe("createGamepadReader", () => {
     expect(reader.reading(0, { device: "pad", button: 12 })).toBe(1);
   });
 
+  it("keeps each pad's browser timestamp as of the last poll", () => {
+    const f = fake();
+    const reader = createGamepadReader({ getGamepads: f.getGamepads });
+    f.set({ ...pad(), timestamp: 120.5 }, pad({ index: 1 }));
+    reader.poll(0);
+    expect(reader.updatedAt(0)).toBe(120.5);
+    expect(reader.updatedAt(1)).toBeUndefined();
+    f.set({ ...pad(), timestamp: Number.NaN });
+    reader.poll(1);
+    expect(reader.updatedAt(0)).toBeUndefined();
+    expect(reader.updatedAt(1)).toBeUndefined();
+  });
+
   it("reports a pad without the standard mapping by raw index", () => {
     const f = fake();
     const reader = createGamepadReader({ getGamepads: f.getGamepads, deadzone: 0.2 });
@@ -195,5 +208,34 @@ describe("createGamepadReader", () => {
     reader.destroy();
     expect(reader.pads()).toEqual([]);
     expect(reader.poll(3)).toEqual({ tick: 3, changes: [], connected: [], disconnected: [] });
+  });
+
+  it("keeps a frame cursor of its own, so a frame poll and the tick poll each see one press once", () => {
+    const f = fake();
+    const reader = createGamepadReader({ getGamepads: f.getGamepads });
+    const south = { pad: 0, kind: "button", button: "south", index: 0, pressed: true };
+    f.set(pad());
+    expect(reader.pollFrame()).toEqual({ tick: -1, changes: [], connected: [0], disconnected: [] });
+    expect(reader.poll(0).connected).toEqual([0]);
+
+    f.set(pad({ pressed: [0] }));
+    expect(reader.pollFrame().changes).toEqual([south]);
+    expect(reader.pollFrame().changes).toEqual([]);
+    expect(reader.frame.reading(0, { device: "pad", button: "south" })).toBe(1);
+    // The tick cursor still reads the pad as it was at tick 0.
+    expect(reader.reading(0, { device: "pad", button: "south" })).toBe(0);
+    expect(reader.poll(1).changes).toEqual([south]);
+    expect(reader.poll(2).changes).toEqual([]);
+    expect(reader.pollFrame()).toEqual({ tick: 2, changes: [], connected: [], disconnected: [] });
+
+    f.set(pad({ pressed: [0], index: 0, id: "pad" }), pad({ index: 1, id: "other" }));
+    expect(reader.poll(3).connected).toEqual([1]);
+    expect(reader.frame.pads()).toEqual([0]);
+    expect(reader.pollFrame().connected).toEqual([1]);
+    expect(reader.frame.pads()).toEqual([0, 1]);
+
+    reader.destroy();
+    expect(reader.frame.pads()).toEqual([]);
+    expect(reader.pollFrame().changes).toEqual([]);
   });
 });

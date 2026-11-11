@@ -44,7 +44,7 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
   "tower-defense": {
     genre: "Tower defense",
     deliveredBy: "M11, M14, M15, M17",
-    probes: ["shooter"],
+    probes: ["shooter", "tower-defense"],
   },
   rhythm: { genre: "Rhythm", deliveredBy: "M11, M16, M23", probes: ["rhythm-tap"] },
   roguelike: {
@@ -80,7 +80,7 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
 export const GENRE_ROWS = Object.keys(GENRE_MATRIX) as GenreRow[];
 
 /** Every milestone through this one has landed. */
-export const LANDED_THROUGH = 15;
+export const LANDED_THROUGH = 17;
 
 /** The milestone numbers a "Delivered by" cell names, ranges (`M19–M21`) expanded, sorted. */
 export function milestonesOf(deliveredBy: string): number[] {

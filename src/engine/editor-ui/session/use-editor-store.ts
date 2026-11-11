@@ -20,5 +20,5 @@ export function useEditorPrefabs(session: EditorSession) {
     [session],
   );
   const read = useCallback(() => session.getPrefabs(), [session]);
-  return useSyncExternalStore(subscribe, read);
+  return useSyncExternalStore(subscribe, read, read);
 }

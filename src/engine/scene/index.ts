@@ -297,6 +297,7 @@ export {
   MAX_SCRIPT_TICKS,
   migrateInputScript,
   parseInputScript,
+  scriptSeatLimit,
   scriptShapeIssues,
   worldPointSchema,
   type AnalogSet,

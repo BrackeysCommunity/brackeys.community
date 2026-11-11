@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys } from "../../collab/index";
 import type { SceneDefinition } from "../../editor/index";
 import { defineGame } from "../../game/index";
 import { createGame, type GameInstance, type RapierModule } from "../../index";
+import type { MountUi } from "../../ui/types";
 import { EditorFrame, editorChrome } from "../frame/EditorFrame";
+import { usePlayUi } from "../SceneEditor";
 import { editorIdentity, openLiveEditor, type LiveEditor } from "../session/live-scene-editor";
 
 // jsdom has no WebGL, so the Pixi application is a stand-in; the containers are real.
@@ -25,6 +27,12 @@ vi.mock("pixi.js", async (importOriginal) => {
     Assets: { load: async () => pixi.Texture.WHITE, unload: async () => {} },
   };
 });
+
+const ui = vi.hoisted(() => ({ unmount: vi.fn(), mountUi: vi.fn() }));
+vi.mock("../../ui/layer", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../ui/layer")>()),
+  mountUi: ui.mountUi,
+}));
 
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { error: vi.fn(), warning: vi.fn(), success: vi.fn() }),
@@ -62,6 +70,8 @@ let game: GameInstance | null = null;
 let live: LiveEditor | null = null;
 
 beforeEach(() => {
+  ui.unmount.mockReset();
+  ui.mountUi.mockReset().mockReturnValue(ui.unmount);
   toast.mockReset();
   toast.error.mockReset();
   vi.stubGlobal("requestAnimationFrame", () => 0);
@@ -200,5 +210,34 @@ describe("the editor driving a game", () => {
     expect(state().mode).toBe("edit");
     expect(live.session.store.state.selection).toEqual(["zone"]);
     expect(reached).toEqual([]);
+  });
+});
+
+describe("the game's UI during Play", () => {
+  it("mounts over the editor's canvas while Play runs and unmounts on Stop", async () => {
+    const { live, canvas } = await setup();
+    const hud: MountUi = () => ({ destroy() {} });
+    const { unmount } = renderHook(() => usePlayUi(game, () => canvas, hud));
+    expect(ui.mountUi).not.toHaveBeenCalled();
+
+    act(() => live.play());
+    expect(state().mode).toBe("play");
+    expect(ui.mountUi).toHaveBeenCalledExactlyOnceWith(game, canvas, hud);
+    expect(ui.unmount).not.toHaveBeenCalled();
+
+    act(() => live.stop());
+    expect(ui.unmount).toHaveBeenCalledOnce();
+
+    act(() => live.play());
+    expect(ui.mountUi).toHaveBeenCalledTimes(2);
+    unmount();
+    expect(ui.unmount).toHaveBeenCalledTimes(2);
+  });
+
+  it("mounts nothing without a UI", async () => {
+    const { live, canvas } = await setup();
+    renderHook(() => usePlayUi(game, () => canvas, null));
+    act(() => live.play());
+    expect(ui.mountUi).not.toHaveBeenCalled();
   });
 });

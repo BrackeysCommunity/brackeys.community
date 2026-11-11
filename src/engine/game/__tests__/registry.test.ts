@@ -169,6 +169,29 @@ describe("createRegistry bindings", () => {
     ]);
   });
 
+  it("refuses a 0.x key the table doesn't know, with did-you-mean, rather than binding nothing", () => {
+    expect(
+      refused([
+        { action: "up", keys: ["arrowup"], description: "Up." },
+        { action: "jump", keys: [" ", "space", "Hyper"], description: "Jump." },
+      ]),
+    ).toEqual([
+      'action "up" keys/0: unknown 0.x key "arrowup"; did you mean "ArrowUp"? (binding-unknown)',
+      'action "jump" keys/1: unknown 0.x key "space"; did you mean " "? (binding-unknown)',
+      'action "jump" keys/2: unknown 0.x key "Hyper" (binding-unknown)',
+    ]);
+    expect(
+      refused([
+        {
+          action: "go",
+          keys: ["nope"],
+          bindings: [{ device: "key", code: "KeyG" }],
+          description: "Bindings win; keys are not read.",
+        },
+      ]),
+    ).toEqual([]);
+  });
+
   it("refuses a binding whose shape doesn't fit its action's kind", () => {
     expect(
       refused(
@@ -360,6 +383,23 @@ describe("createRegistry", () => {
       ["nav"],
     ]);
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid", "solid:mud", "flag"]);
+  });
+
+  it("spawns the primitives a spawn order leaves out first, in primitive order", () => {
+    const r = createRegistry(game({ spawnOrder: ["flag", ["crate", "prop"]] }));
+    expect(r.spawnGroups).toEqual([
+      ["solid"],
+      ["sensor"],
+      ["marker"],
+      ["follower"],
+      ["flag"],
+      ["crate", "prop"],
+      ["decor"],
+      ["nav"],
+    ]);
+    expect(problems(() => createRegistry(game({ spawnOrder: ["flag"] })))).toEqual([
+      'spawnOrder misses type "crate"',
+    ]);
   });
 
   it("refuses duplicates and redefined primitives", () => {
@@ -556,6 +596,39 @@ describe("createRegistry field names and settings", () => {
     expect(problems(() => createRegistry(game({ behaviors: [odd] })))).toEqual([
       `behavior "fake/odd" field "@x" must match ${/^[A-Za-z_$][A-Za-z0-9_$]*$/}`,
     ]);
+  });
+
+  it("checks a behavior's template against its fields and refine when it registers", () => {
+    const timer = (template: Record<string, unknown>) =>
+      defineBehavior({
+        name: "fake/timer",
+        description: "A timer.",
+        fields: {
+          ticks: z.number().int().min(1).optional().describe("Ticks."),
+          ms: z.number().positive().optional().describe("Milliseconds."),
+          label: z.string().describe("Required; Add behavior seeds it."),
+        },
+        refine: (b) =>
+          (b.ticks === undefined) !== (b.ms === undefined) ? undefined : "one of ticks or ms",
+        template,
+      });
+    const refusedWith = (template: Record<string, unknown>) =>
+      problems(() => createRegistry(game({ behaviors: [timer(template)] })));
+    expect(refusedWith({ ticks: 30 })).toEqual([]);
+    expect(refusedWith({ tick: 30 })).toEqual([
+      'behavior "fake/timer" template: unknown field "tick"; did you mean "ticks"?',
+    ]);
+    expect(refusedWith({ ticks: 0 })).toEqual([
+      expect.stringMatching(/^behavior "fake\/timer" template: field "ticks": /),
+    ]);
+    expect(refusedWith({ ticks: 30, ms: 500 })).toEqual([
+      'behavior "fake/timer" template: one of ticks or ms',
+    ]);
+    expect(refusedWith({})).toEqual(['behavior "fake/timer" template: one of ticks or ms']);
+  });
+
+  it("registers the engine's own behavior templates", () => {
+    expect(() => createRegistry()).not.toThrow();
   });
 
   it("refuses a type with a grid field but no point field at", () => {

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
+import { z } from "zod";
 
 import { checkedTestGame } from "../../__tests__/fixtures/test-game";
 import { applyOpsToDoc } from "../../collab/apply";
@@ -34,11 +35,13 @@ import { assetInfo } from "../../project/asset-info";
 import { inspectEntry } from "../../project/inspect/entry";
 import {
   createKindRegistry,
+  defineAssetKind,
   formatAssetDoc,
   parseAssetDoc,
   type DocKindDef,
   type DocLayout,
 } from "../../project/kinds";
+import { ENGINE_ASSET_KINDS } from "../../project/kinds/index";
 import type { ProjectOp } from "../../project/ops";
 import { parseProjectFile } from "../../project/project-file";
 import type { AssetEntry, ProjectFile } from "../../project/types";
@@ -496,6 +499,46 @@ describe("scan", () => {
       path: "materials/ice.json",
     });
     expect(state.assets.ice).toBeUndefined();
+  });
+});
+
+describe("one-per-project kinds", () => {
+  const solo = defineAssetKind({
+    storage: "doc",
+    kind: "solo",
+    title: "Solo",
+    description: "A test kind a project holds one of.",
+    match: { suffixes: [".solo.json"] },
+    version: 1,
+    schemaId: "urn:jams-engine:solo:v1",
+    schema: () => z.looseObject({}),
+    layout: { as: "map", rest: { as: "atomic" } },
+    empty: () => ({ v: 1 }),
+    perProject: 1,
+  });
+
+  it("reports at load every asset after the first by path, for each kind declaring perProject", async () => {
+    await put("zz/extra-settings.json", FILES["game-settings"].text);
+    await put("zz/extra-map.json", FILES["input-map"].text);
+    await put("a.solo.json", '{ "v": 1 }\n');
+    await put("b.solo.json", '{ "v": 1 }\n');
+    const adapter = createProjectFileAdapter({
+      ...project,
+      kinds: createKindRegistry(null, [...ENGINE_ASSET_KINDS, solo]),
+    });
+    const problems = await adapter.loadProject(new Y.Doc());
+    const single = problems.filter((p) => p.issues[0]?.code === "asset-kind");
+    expect(single.map((p) => [p.path, p.issues[0]!.message])).toEqual([
+      [
+        "zz/extra-settings.json",
+        `"extra-settings" is a second game-settings asset; "settings" (settings.json) is the project's`,
+      ],
+      [
+        "zz/extra-map.json",
+        `"extra-map" is a second input map; "input-map" (input-map.json) is the project's`,
+      ],
+      ["b.solo.json", `"b-solo" is a second solo asset; "a-solo" (a.solo.json) is the project's`],
+    ]);
   });
 });
 
@@ -1713,6 +1756,34 @@ describe("write-back: scenes and prefabs", () => {
     expect(await s.adapter.syncPath("engine-yard.json", s.lookup, s.project)).toEqual({
       kind: "unchanged",
     });
+  });
+
+  it("scene: a doc that merged a client's copy of an older seed is persisted but never written", async () => {
+    const s = await session();
+    const doc = await s.open("engine-yard");
+    const before = await read("engine-yard.json");
+    // A tab left open across a reseed: its history is a second, older-format seed of the same scene.
+    const stale = new Y.Doc();
+    stale.clientID = 0xfffffffe;
+    sceneToDoc(
+      { ...parseSceneOrThrow(before, engine), v: SCENE_FORMAT_VERSION - 1 },
+      { doc: stale, project: "engine", assetKey: "engine-yard" },
+    );
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(stale));
+    expect(docMeta(doc)?.schemaVersion).toBe(SCENE_FORMAT_VERSION - 1);
+
+    await expect(s.adapter.storeDoc(YARD, doc)).rejects.toThrow(
+      `engine-yard.json: the doc is at format v${SCENE_FORMAT_VERSION - 1}, older than the file's v${SCENE_FORMAT_VERSION}`,
+    );
+    expect(await read("engine-yard.json")).toBe(before);
+    expect(
+      (await walk(join(cacheDir, "docs"))).filter((p) => p.endsWith("engine-yard.bin")),
+    ).toEqual(["scene/engine.engine-yard.bin"]);
+
+    const restarted = await session(createProjectFileAdapter(project));
+    const reseeded = await restarted.open("engine-yard");
+    expect(docMeta(reseeded)?.schemaVersion).toBe(SCENE_FORMAT_VERSION);
+    expect(sceneText(reseeded)).toBe(before);
   });
 
   it("scene: a disk edit is diffed into one disk transaction; a reformat or a broken file changes nothing", async () => {

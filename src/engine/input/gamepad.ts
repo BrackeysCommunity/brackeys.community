@@ -14,6 +14,8 @@ export type PadSnapshot = {
   connected: boolean;
   buttons: readonly { pressed: boolean; value: number }[];
   axes: readonly number[];
+  /** When the browser last updated the pad, on `performance.now()`'s clock. */
+  timestamp?: number;
 };
 
 export type GamepadReaderOptions = {
@@ -48,18 +50,34 @@ export type GamepadPoll = {
   disconnected: number[];
 };
 
-/** Reads every pad once per tick into edges and value changes. */
-export type GamepadReader = {
+/** What a cursor's last poll read: the pads, what a binding reads on one, when each last updated. */
+export type GamepadView = {
+  /** Connected pad indices, as of the cursor's last poll. */
+  pads(): number[];
+  /** What a binding reads on a pad as of the cursor's last poll: 1 or 0 for a button, an axis value, a stick position. */
+  reading(pad: number, binding: PadBinding): number | Vec2;
+  /** The pad's `timestamp` as of the cursor's last poll; undefined when it gave none. */
+  updatedAt(pad: number): number | undefined;
+};
+
+/**
+ * Reads every pad into edges and value changes through two cursors, each
+ * with its own previous state: `poll` once per tick for the simulation, and
+ * `pollFrame` as often as a host likes for `onAction` listeners, so neither
+ * consumes the other's edges. `pads`, `reading` and `updatedAt` are the
+ * tick cursor's; `frame` is the frame cursor's.
+ */
+export type GamepadReader = GamepadView & {
   /**
    * Reads `getGamepads()` once and reports what changed since the last
    * poll. A second poll for the same tick reads nothing and reports
    * nothing, so a tick never sees an edge twice.
    */
   poll(tick: number): GamepadPoll;
-  /** Connected pad indices, as of the last poll. */
-  pads(): number[];
-  /** What a binding reads on a pad as of the last poll: 1 or 0 for a button, an axis value, a stick position. */
-  reading(pad: number, binding: PadBinding): number | Vec2;
+  /** Reads `getGamepads()` and reports what changed since the last `pollFrame`; `tick` is the last tick polled, or -1. */
+  pollFrame(): GamepadPoll;
+  /** The frame cursor's view, as of the last `pollFrame`. */
+  frame: GamepadView;
   /** Forgets every pad; later polls report nothing. */
   destroy(): void;
 };
@@ -72,6 +90,7 @@ type PadState = {
   axes: number[];
   triggers: { lt: number; rt: number };
   sticks: { left: Vec2; right: Vec2 };
+  timestamp?: number;
 };
 
 const ZERO: Vec2 = { x: 0, y: 0 };
@@ -86,6 +105,13 @@ function browserGamepads(): (() => readonly (PadSnapshot | null)[]) | null {
 const finite = (v: number | undefined): number => (v !== undefined && Number.isFinite(v) ? v : 0);
 
 function readPad(pad: PadSnapshot, deadzone: number): PadState {
+  const state = readLayout(pad, deadzone);
+  if (typeof pad.timestamp === "number" && Number.isFinite(pad.timestamp))
+    state.timestamp = pad.timestamp;
+  return state;
+}
+
+function readLayout(pad: PadSnapshot, deadzone: number): PadState {
   const standard = pad.mapping === "standard";
   const buttons = pad.buttons.map((b) => !!b.pressed);
   const trigger = (i: number) => q(Math.min(1, Math.max(0, finite(pad.buttons[i]?.value))));
@@ -163,15 +189,72 @@ function diff(pad: number, before: PadState, after: PadState, out: PadChange[]):
   }
 }
 
+/** The changes from `states` to `next`, in pad order. */
+function changesBetween(
+  states: ReadonlyMap<number, PadState>,
+  next: ReadonlyMap<number, PadState>,
+  result: GamepadPoll,
+): void {
+  const indices = [...new Set([...states.keys(), ...next.keys()])].sort((a, b) => a - b);
+  for (const pad of indices) {
+    const before = states.get(pad);
+    const after = next.get(pad);
+    const replaced =
+      !!before && !!after && (before.id !== after.id || before.standard !== after.standard);
+    if (before && (!after || replaced)) {
+      diff(pad, before, emptyLike(before), result.changes);
+      result.disconnected.push(pad);
+    }
+    if (after && (!before || replaced)) {
+      result.connected.push(pad);
+      diff(pad, emptyLike(after), after, result.changes);
+    } else if (before && after) {
+      diff(pad, before, after, result.changes);
+    }
+  }
+}
+
+function readingOf(
+  states: ReadonlyMap<number, PadState>,
+  pad: number,
+  binding: PadBinding,
+): number | Vec2 {
+  const state = states.get(pad);
+  if ("stick" in binding) return state?.standard ? state.sticks[binding.stick] : ZERO;
+  if (!state) return 0;
+  if ("button" in binding) {
+    if (typeof binding.button === "number") return state.buttons[binding.button] ? 1 : 0;
+    return state.standard && state.buttons[PAD_BUTTONS.indexOf(binding.button)] ? 1 : 0;
+  }
+  const axis = binding.axis;
+  if (typeof axis === "number") return state.axes[axis] ?? 0;
+  if (!state.standard) return 0;
+  if (axis === "lt" || axis === "rt") return state.triggers[axis];
+  return state.axes[PAD_AXES.indexOf(axis)] ?? 0;
+}
+
+/** One cursor's previous state, read through a view. */
+type Cursor = { states: Map<number, PadState> };
+
+function viewOf(cursor: Cursor): GamepadView {
+  return {
+    pads: () => [...cursor.states.keys()].sort((a, b) => a - b),
+    reading: (pad, binding) => readingOf(cursor.states, pad, binding),
+    updatedAt: (pad) => cursor.states.get(pad)?.timestamp,
+  };
+}
+
 /**
  * Polls the browser's pads (or `getGamepads`) once per shell tick into
- * button edges and quantised axis and stick values. Pads are keyed by
- * index; a pad missing from the list, `null` or not `connected` is gone.
+ * button edges and quantised axis and stick values, and per animation frame
+ * through its own cursor. Pads are keyed by index; a pad missing from the
+ * list, `null` or not `connected` is gone.
  */
 export function createGamepadReader(opts: GamepadReaderOptions = {}): GamepadReader {
   const source = opts.getGamepads ?? browserGamepads();
   const deadzone = opts.deadzone ?? DEFAULT_DEADZONE;
-  let states = new Map<number, PadState>();
+  const ticked: Cursor = { states: new Map() };
+  const framed: Cursor = { states: new Map() };
   let lastTick: number | null = null;
   let destroyed = false;
 
@@ -191,54 +274,39 @@ export function createGamepadReader(opts: GamepadReaderOptions = {}): GamepadRea
     return next;
   };
 
+  const advance = (cursor: Cursor, result: GamepadPoll): GamepadPoll => {
+    const next = read();
+    changesBetween(cursor.states, next, result);
+    cursor.states = next;
+    return result;
+  };
+
   const poll = (tick: number): GamepadPoll => {
     const result: GamepadPoll = { tick, changes: [], connected: [], disconnected: [] };
     if (destroyed || tick === lastTick) return result;
     lastTick = tick;
-    const next = read();
-    const indices = [...new Set([...states.keys(), ...next.keys()])].sort((a, b) => a - b);
-    for (const pad of indices) {
-      const before = states.get(pad);
-      const after = next.get(pad);
-      const replaced =
-        !!before && !!after && (before.id !== after.id || before.standard !== after.standard);
-      if (before && (!after || replaced)) {
-        diff(pad, before, emptyLike(before), result.changes);
-        result.disconnected.push(pad);
-      }
-      if (after && (!before || replaced)) {
-        result.connected.push(pad);
-        diff(pad, emptyLike(after), after, result.changes);
-      } else if (before && after) {
-        diff(pad, before, after, result.changes);
-      }
-    }
-    states = next;
-    return result;
+    return advance(ticked, result);
   };
 
-  const reading = (pad: number, binding: PadBinding): number | Vec2 => {
-    const state = states.get(pad);
-    if ("stick" in binding) return state?.standard ? state.sticks[binding.stick] : ZERO;
-    if (!state) return 0;
-    if ("button" in binding) {
-      if (typeof binding.button === "number") return state.buttons[binding.button] ? 1 : 0;
-      return state.standard && state.buttons[PAD_BUTTONS.indexOf(binding.button)] ? 1 : 0;
-    }
-    const axis = binding.axis;
-    if (typeof axis === "number") return state.axes[axis] ?? 0;
-    if (!state.standard) return 0;
-    if (axis === "lt" || axis === "rt") return state.triggers[axis];
-    return state.axes[PAD_AXES.indexOf(axis)] ?? 0;
+  const pollFrame = (): GamepadPoll => {
+    const result: GamepadPoll = {
+      tick: lastTick ?? -1,
+      changes: [],
+      connected: [],
+      disconnected: [],
+    };
+    return destroyed ? result : advance(framed, result);
   };
 
   return {
     poll,
-    pads: () => [...states.keys()].sort((a, b) => a - b),
-    reading,
+    pollFrame,
+    ...viewOf(ticked),
+    frame: viewOf(framed),
     destroy() {
       destroyed = true;
-      states = new Map();
+      ticked.states = new Map();
+      framed.states = new Map();
     },
   };
 }

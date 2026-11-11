@@ -42,11 +42,13 @@ vi.mock("@jams/engine/editor-ui", async (original) => ({
 const {
   DEFAULT_PROJECT,
   fetchProjectNames,
+  projectChoices,
   SITE_PROJECTS,
   siteIdentity,
   SiteSceneEditor,
   useSiteEditorHost,
 } = await import("../editor-host");
+const { hostedGame, hostedGames } = await import("../hosted-games");
 const { platformerGame } = await import("@/games/platformer");
 const { discoverProjects } = await import("../../../../scripts/scene/projects");
 
@@ -55,9 +57,18 @@ type EditorProps = {
   game: unknown;
   project: string;
   scene: string;
+  ui: unknown;
   onReady(): void;
 };
 const lastEditor = () => fakes.editor.mock.lastCall![0] as EditorProps;
+/** The editor's props once the project's game has loaded and it rendered for `project`. */
+async function editorUp(project?: string): Promise<EditorProps> {
+  await waitFor(() => {
+    expect(fakes.editor).toHaveBeenCalled();
+    if (project) expect(lastEditor().project).toBe(project);
+  });
+  return lastEditor();
+}
 
 type Navigation = {
   to: string;
@@ -202,20 +213,44 @@ describe("SiteSceneEditor", () => {
   const projectFile = (path: string) =>
     JSON.parse(readFileSync(path, "utf8")) as { id: string; name: string };
 
-  it("offers the projects whose jams.project.json the site knows, each with the game its file names", () => {
+  it("offers the hosted games' projects, then the engine's, each with the game its file names", async () => {
     const platformer = projectFile("src/games/platformer/jams.project.json");
     const engine = projectFile("src/engine/scenes/jams.project.json");
-    expect(SITE_PROJECTS.map(({ id }) => id)).toEqual([platformer.id, engine.id]);
+    const hosted = hostedGames().map((g) => g.id);
+    expect(hosted).toContain(platformer.id);
+    expect(SITE_PROJECTS.map(({ id }) => id)).toEqual([...hosted, engine.id]);
     expect(DEFAULT_PROJECT).toBe(platformer.id);
-    expect(SITE_PROJECTS.map((p) => [p.game, p.defaultScene])).toEqual([
-      [platformerGame, "test-yard"],
-      [null, "kitchen-sink"],
-    ]);
+    const opened = await Promise.all(SITE_PROJECTS.map((p) => p.load()));
+    expect(opened[hosted.indexOf(platformer.id)]).toEqual({
+      game: platformerGame,
+      ui: null,
+      defaultScene: "test-yard",
+    });
+    expect(opened.at(-1)).toEqual({ game: null, ui: null, defaultScene: "kitchen-sink" });
   });
 
-  it("opens the platformer project on the dev server, titled by the room until the editor is up", () => {
+  it("shows the editor's loading frame while the project's game loads", () => {
     render(<SiteSceneEditor roomId="lobby-1" />);
-    const props = lastEditor();
+    expect(fakes.editor).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "lobby-1" })).toBeTruthy();
+  });
+
+  it("hands the editor the hosted game's UI for its Play canvas", async () => {
+    const mountHud = () => ({ destroy() {} });
+    const hosted = hostedGame("platformer")!;
+    const modules = await hosted.load();
+    const load = vi.spyOn(hosted, "load").mockResolvedValue({ ...modules, ui: mountHud });
+    try {
+      render(<SiteSceneEditor roomId="lobby-1" />);
+      expect((await editorUp()).ui).toBe(mountHud);
+    } finally {
+      load.mockRestore();
+    }
+  });
+
+  it("opens the platformer project on the dev server, titled by the room until the editor is up", async () => {
+    render(<SiteSceneEditor roomId="lobby-1" />);
+    const props = await editorUp();
     expect(props).toMatchObject({ project: DEFAULT_PROJECT, scene: "test-yard" });
     expect(props.game).toBe(platformerGame);
     expect(
@@ -231,9 +266,9 @@ describe("SiteSceneEditor", () => {
     expect(screen.getByRole("heading", { name: "test-yard" })).toBeTruthy();
   });
 
-  it("follows the scene the editor opened instead in the room's ?scene=, replacing the entry", () => {
+  it("follows the scene the editor opened instead in the room's ?scene=, replacing the entry", async () => {
     render(<SiteSceneEditor roomId="lobby-1" scene="kitchen-sink" />);
-    const props = lastEditor();
+    const props = await editorUp();
     props.host.onSceneChange?.("test-yard");
     expect(fakes.navigate).toHaveBeenCalledTimes(1);
     const to = lastNavigation();
@@ -241,9 +276,9 @@ describe("SiteSceneEditor", () => {
     expect(to.search({ edit: 1, scene: "kitchen-sink" })).toEqual({ edit: 1, scene: "test-yard" });
   });
 
-  it("opens the engine project from ?project=engine, its scenes by name or id", () => {
+  it("opens the engine project from ?project=engine, its scenes by name or id", async () => {
     const { rerender } = render(<SiteSceneEditor roomId="lobby-1" project="engine" />);
-    expect(lastEditor()).toMatchObject({ project: "engine", scene: "kitchen-sink" });
+    expect(await editorUp()).toMatchObject({ project: "engine", scene: "kitchen-sink" });
     expect(lastEditor().game).toBeNull();
     expect(lastEditor().host.readOnly).toBeUndefined();
     for (const scene of ["grid-yard", "engine-yard", "kitchen-sink", "7c1d2e3f"]) {
@@ -266,9 +301,10 @@ describe("SiteSceneEditor", () => {
       for (const project of SITE_PROJECTS) {
         const server = served.find((p) => p.file.id === project.id)!;
         expect(server, project.id).toBeDefined();
-        expect(project.game, project.id).toBe(server.game);
-        expect(createRegistry(project.game).id).toBe(server.registry.id);
-        expect(await hashes(createKindRegistry(project.game), project.game)).toEqual(
+        const { game } = await project.load();
+        expect(game, project.id).toBe(server.game);
+        expect(createRegistry(game).id).toBe(server.registry.id);
+        expect(await hashes(createKindRegistry(game), game)).toEqual(
           await hashes(server.kinds, server.game),
         );
       }
@@ -288,11 +324,12 @@ describe("SiteSceneEditor", () => {
         ],
       },
     });
-    render(<SiteSceneEditor roomId="lobby-1" />);
-    expect(lastEditor().host.projects).toEqual([
+    // Each project goes by its id until the listing answers.
+    expect(projectChoices({})).toEqual([
       { id: "platformer", name: "platformer" },
       { id: "engine", name: "engine" },
     ]);
+    render(<SiteSceneEditor roomId="lobby-1" />);
     await waitFor(() =>
       expect(lastEditor().host.projects).toEqual([
         { id: "platformer", name: "Platformer" },
@@ -340,9 +377,9 @@ describe("SiteSceneEditor", () => {
     });
   });
 
-  it("opens the scene the fallback notice points to in its own project", () => {
+  it("opens the scene the fallback notice points to in its own project", async () => {
     render(<SiteSceneEditor roomId="lobby-1" scene="test-yard" />);
-    lastEditor().host.onProjectChange?.("engine", { scene: "grid-yard" });
+    (await editorUp()).host.onProjectChange?.("engine", { scene: "grid-yard" });
     expect(lastNavigation().replace).toBe(false);
     expect(lastNavigation().search({ edit: 1, scene: "test-yard" })).toEqual({
       edit: 1,
@@ -367,11 +404,11 @@ describe("SiteSceneEditor", () => {
     shown.mockRestore();
   });
 
-  it("remounts the editor on another project, so its session and game start over", () => {
+  it("remounts the editor on another project, so its session and game start over", async () => {
     const { rerender } = render(<SiteSceneEditor roomId="lobby-1" />);
-    const first = lastEditor().host;
+    const first = (await editorUp()).host;
     rerender(<SiteSceneEditor roomId="lobby-1" project="engine" />);
-    expect(lastEditor().host).not.toBe(first);
+    expect((await editorUp("engine")).host).not.toBe(first);
     expect(lastEditor().project).toBe("engine");
   });
 
@@ -379,7 +416,7 @@ describe("SiteSceneEditor", () => {
     serve({ "/__project": PROJECT_LISTING });
     const warning = vi.spyOn(toast, "warning");
     render(<SiteSceneEditor roomId="lobby-1" project="nowhere" scene="grid-yard" />);
-    expect(lastEditor()).toMatchObject({ project: "platformer", scene: "test-yard" });
+    expect(await editorUp()).toMatchObject({ project: "platformer", scene: "test-yard" });
     await waitFor(() => expect(warning).toHaveBeenCalled());
     expect(warning).toHaveBeenCalledWith(`There's no project "nowhere" here`, {
       id: "project-fallback",
@@ -402,17 +439,17 @@ describe("SiteSceneEditor", () => {
       "/__project": PROJECT_LISTING,
     });
     render(<SiteSceneEditor roomId="lobby-1" scene="kitchen-sink" />);
-    const home = await lastEditor().host.findScene?.("kitchen-sink");
+    const home = await (await editorUp()).host.findScene?.("kitchen-sink");
     expect(home).toEqual({ project: "engine", id: "kitchen-sink", name: "kitchen-sink" });
     await waitFor(() =>
       expect(lastEditor().host.projects?.find((p) => p.id === home?.project)?.name).toBe("Engine"),
     );
   });
 
-  it("calls the onSceneChange it was given instead of navigating", () => {
+  it("calls the onSceneChange it was given instead of navigating", async () => {
     const onSceneChange = vi.fn();
     render(<SiteSceneEditor roomId="lobby-1" onSceneChange={onSceneChange} />);
-    const props = lastEditor();
+    const props = await editorUp();
     props.host.onSceneChange?.("engine-yard");
     expect(onSceneChange).toHaveBeenCalledWith("engine-yard");
     expect(fakes.navigate).not.toHaveBeenCalled();

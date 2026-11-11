@@ -26,6 +26,7 @@ import { isInstanceOverrideField } from "./field-path";
 import { comparePointers } from "./format";
 import { sceneHash } from "./hash";
 import { jsonPointer, lineAt, makeIssue, pointerSegments } from "./issues";
+import { isNavType } from "./nav-type";
 import { prefabsUsedBy } from "./prefab";
 import {
   CHILD_SEPARATOR,
@@ -745,10 +746,6 @@ function checkPhysics(r: Registry, def: SceneDefinition, push: Push, fix: () => 
     }
   });
 }
-
-/** Whether entities of `type` are nav polygons: the `nav` primitive, or a type based on it. */
-const isNavType = (type: RegisteredType | undefined): type is RegisteredType =>
-  type !== undefined && type.loads !== false && (type.base ?? type.type) === "nav";
 
 /**
  * `nav-invalid` on each walk area or hole that breaks the rules the mesh

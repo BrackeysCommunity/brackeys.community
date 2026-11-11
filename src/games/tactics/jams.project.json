@@ -1,0 +1,11 @@
+{
+  "$schema": "../../engine/project/project.schema.json",
+  "kind": "project",
+  "v": 1,
+  "id": "tactics",
+  "name": "Tactics",
+  "game": { "module": "./index.ts", "export": "tacticsGame" },
+  "ui": { "module": "./ui/index.ts", "export": "mountTacticsHud" },
+  "assets": ["scenes/**", "data/**", "art/**", "game-settings.json", "input-map.json"],
+  "code": ["**/*.ts", "!**/__tests__/**"]
+}

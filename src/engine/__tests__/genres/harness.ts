@@ -4,6 +4,7 @@ import { createRegistry } from "../../game/define";
 import { resolveTime } from "../../game/time";
 import type { GameCommand, GameDefinition } from "../../game/types";
 import { compileInputScript } from "../../headless/compile-input-script";
+import { fuzz } from "../../headless/fuzz";
 import { probeConfigHash } from "../../headless/headless";
 import {
   blockedRun,
@@ -16,6 +17,7 @@ import {
 } from "../../headless/play-loop";
 import { runPlaytest } from "../../headless/playtest";
 import type {
+  FuzzReport,
   InputEdge,
   InputScript,
   InputScriptV2,
@@ -96,6 +98,18 @@ export type GenreProbe<S = unknown> = {
   /** Settings the probe also runs under; the sweep needs gravity zero, sideways and physics none covered. */
   variants?: readonly ProbeVariant[];
   /** How long one run (play and replay) may take in a test; default `PROBE_TIMEOUT_MS`. */
+  timeoutMs?: number;
+  /** Seeded random rollouts of the probe's scene and game; some rollout must end with `expect.result`. */
+  fuzz?: ProbeFuzz;
+};
+
+export type ProbeFuzz = {
+  rollouts: number;
+  seed: number | string;
+  /** Input slots per rollout; default fuzz's own. */
+  ticks?: number;
+  expect: { result: string };
+  /** The fuzz test's timeout; default `PROBE_TIMEOUT_MS`. */
   timeoutMs?: number;
 };
 
@@ -409,6 +423,30 @@ export async function runGenreProbe<S>(
     digest: runDigest(report as PlaytestReport),
     usedRapier: rapier !== null,
   };
+}
+
+/**
+ * Runs a probe's `fuzz` through `fuzz` with the probe's game, scene and
+ * prefabs; Rapier only when the scene's physics resolves to it. Throws when
+ * the probe has no fuzz or the fuzz is blocked.
+ */
+export async function fuzzGenreProbe<S>(probe: GenreProbe<S>): Promise<FuzzReport> {
+  const p = probe as GenreProbe;
+  const opts = p.fuzz;
+  if (!opts) throw new Error(`${probe.id} has no fuzz`);
+  const rapier = probePhysics(p) === "none" ? null : await loadRapier();
+  const run = fuzz({
+    rapier,
+    game: p.game,
+    scene: p.scene,
+    prefabs: p.prefabs,
+    library: p.prefabs,
+    seed: opts.seed,
+    rollouts: opts.rollouts,
+    ...(opts.ticks === undefined ? {} : { ticks: opts.ticks }),
+  });
+  if (run.blocked) throw new Error(blockedMessage(`${probe.id}: the fuzz`, run));
+  return run;
 }
 
 function isProbe(value: unknown): value is GenreProbe {

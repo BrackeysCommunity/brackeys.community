@@ -4,11 +4,19 @@ import {
   actionProblem,
   bindingProblems,
   playersProblems,
+  uiActionEnumJson,
   type BindingProblem,
 } from "../../game/input-bindings";
 import type { ActionKind, Binding, PlayersDef, Registry } from "../../game/types";
+import type { SceneIssue } from "../../scene/types";
 import type { AssetEntry, ProjectView } from "../types";
-import { byPathThenKey, defineAssetKind, isPlainObject, type KindEnv } from "./define";
+import {
+  defineAssetKind,
+  isPlainObject,
+  perProjectEntries,
+  perProjectIssues,
+  type KindEnv,
+} from "./define";
 
 export const INPUT_MAP_KIND = "input-map";
 export const INPUT_MAP_VERSION = 1;
@@ -42,7 +50,14 @@ export type InputMapProblem = Omit<BindingProblem, "path"> & { at: (string | num
 
 const fraction = (description: string) => z.number().describe(description);
 
-const shapeFields = {
+/** An action name; for a game with UI-only actions, the JSON Schema lists its actions with those marked `x-ui`. */
+const actionField = (description: string, registry?: Registry) => {
+  const field = z.string();
+  const names = registry ? uiActionEnumJson(registry) : null;
+  return (names ? field.meta(names) : field).describe(description);
+};
+
+const shapeFieldsFor = (registry?: Registry) => ({
   $schema: z.string().optional().describe("The input-map JSON Schema this file follows."),
   kind: z.literal(INPUT_MAP_KIND).describe('Always "input-map".'),
   v: z.literal(INPUT_MAP_VERSION).describe("Input-map format version."),
@@ -67,7 +82,7 @@ const shapeFields = {
     .array(
       z
         .strictObject({
-          action: z.string().describe("One of the game's actions."),
+          action: actionField("One of the game's actions.", registry),
           kind: z
             .enum(["button", "axis", "vector"])
             .optional()
@@ -94,7 +109,7 @@ const shapeFields = {
         .strictObject({
           id: z.string().describe("The control's id, which touch bindings name."),
           kind: z.enum(["button", "stick", "dpad"]).describe("What the control is."),
-          action: z.string().describe("The game action it drives."),
+          action: actionField("The game action it drives.", registry),
           at: z
             .tuple([
               fraction("x, a fraction of the canvas's shorter side from its left edge."),
@@ -113,10 +128,10 @@ const shapeFields = {
     )
     .optional()
     .describe("On-screen controls for touch devices."),
-};
+});
 
 /** The file's shape alone: what every reader of an input map checks before its bindings. */
-const shapeSchema = z.strictObject(shapeFields);
+const shapeSchema = z.strictObject(shapeFieldsFor());
 
 const pathOf = (pointer: string): string[] => (pointer === "" ? [] : pointer.slice(1).split("/"));
 
@@ -182,7 +197,8 @@ export function inputMapProblems(file: InputMapFile, registry: Registry): InputM
 }
 
 function inputMapSchema(registry: Registry): z.ZodType<InputMapFile> {
-  return shapeSchema
+  return z
+    .strictObject(shapeFieldsFor(registry))
     .superRefine((value, ctx) => {
       for (const p of inputMapProblems(value as InputMapFile, registry))
         ctx.addIssue({
@@ -227,7 +243,12 @@ export function usableInputMap(raw: unknown, registry: Registry): InputMapFile |
 
 /** The project's live input-map entries, the one in effect (first by path) first. */
 export function inputMapEntries(view: ProjectView): AssetEntry[] {
-  return [...view.byId.values()].filter((e) => e.kind === INPUT_MAP_KIND).sort(byPathThenKey);
+  return perProjectEntries(view, INPUT_MAP_KIND);
+}
+
+/** `asset-kind` for every live input-map asset after the first by path: a project has at most one. */
+export function inputMapIssues(view: ProjectView): SceneIssue[] {
+  return perProjectIssues(view, inputMapKind);
 }
 
 /** Seats, deadzone, bindings per action and on-screen controls, co-edited per action and binding. */
@@ -239,6 +260,8 @@ export const inputMapKind = defineAssetKind({
   match: { jsonKind: INPUT_MAP_KIND },
   defaultFolder: () => "",
   storage: "doc",
+  perProject: 1,
+  perProjectWords: { noun: "input map", contents: "bindings" },
   version: INPUT_MAP_VERSION,
   schemaId: INPUT_MAP_SCHEMA_ID,
   schema: (env: KindEnv) => inputMapSchema(env.registry),

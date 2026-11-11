@@ -169,7 +169,7 @@ const move = (action: string) => [{ press: action }, { wait: 8 }];
 export const probe: GenreProbe<GridPuzzleSnapshot> = {
   id: ID,
   rows: ["puzzle", "card-board"],
-  pending: { puzzle: "M22 (tweens)", "card-board": "M16 (pointer swaps)" },
+  pending: { puzzle: "M22 (tweens)" },
   game,
   scene,
   script: {

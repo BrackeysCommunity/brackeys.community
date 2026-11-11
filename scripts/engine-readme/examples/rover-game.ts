@@ -4,6 +4,7 @@ import {
   createTopDownController,
   defineGame,
   SENSOR_ENTER,
+  type ActionDef,
   type EngineContext,
   type TopDownController,
 } from "@jams/engine/game";
@@ -19,15 +20,24 @@ const STEER: Readonly<Record<string, Vec2>> = {
   down: { x: 0, y: 1 },
 };
 
+const ARROW: Readonly<Record<string, string>> = {
+  left: "ArrowLeft",
+  right: "ArrowRight",
+  up: "ArrowUp",
+  down: "ArrowDown",
+};
+
 /** Top-down steering on whichever backend the scene loads: a motion body, a controller and a sensor goal. */
 export const roverGame = defineGame<RoverSnapshot>({
   id: "rover",
   types: [],
-  actions: Object.keys(STEER).map((action) => ({
-    action,
-    keys: [`arrow${action}`],
-    description: `Steer ${action}.`,
-  })),
+  actions: Object.keys(STEER).map(
+    (action): ActionDef => ({
+      action,
+      bindings: [{ device: "key", code: ARROW[action]! }],
+      description: `Steer ${action}.`,
+    }),
+  ),
   world: { gravity: [0, 0] },
   // Motion bodies are in the engine's dynamic group, which ignores sensors unless told.
   collisionGroups: { dynamic: { collidesWith: ["sensor"] } },
@@ -115,7 +125,7 @@ export function driveHome(rapier: RapierModule | null) {
     game: roverGame,
     scene: yard(rapier ? "rapier" : "none"),
     script: {
-      v: 1,
+      v: 2,
       steps: [
         { hold: ["right"], forMs: 2500 },
         { hold: ["right", "down"], until: { event: "rover:home" }, max: 600 },

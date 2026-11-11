@@ -3,10 +3,9 @@ import { Store } from "@tanstack/store";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { BUNDLED_PREFABS, BUNDLED_SCENE, SCENE_REGISTRY } from "../platformer-scene";
-
 const fakes = vi.hoisted(() => ({
   createGame: vi.fn(),
+  mountUi: vi.fn(() => () => {}),
   navigate: vi.fn(async () => {}),
   editor: vi.fn(),
 }));
@@ -14,12 +13,16 @@ const fakes = vi.hoisted(() => ({
 vi.mock("@jams/engine", async (original) => ({
   ...(await original<typeof import("@jams/engine")>()),
   createGame: fakes.createGame,
+  mountUi: fakes.mountUi,
 }));
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children?: React.ReactNode }) => <a href="/">{children}</a>,
   useNavigate: () => fakes.navigate,
 }));
 vi.mock("@/components/canvas/shell/SiteMenu", () => ({ SiteMenu: () => <nav>site menu</nav> }));
+vi.mock("@/components/layout/NotFoundPage", () => ({
+  NotFoundPage: ({ subject }: { subject?: string }) => <p>not found: {subject}</p>,
+}));
 vi.mock("../editor-host", () => ({
   SiteSceneEditor: (props: { roomId: string; scene?: string }) => {
     fakes.editor(props);
@@ -28,6 +31,7 @@ vi.mock("../editor-host", () => ({
 }));
 
 const { GameCanvas } = await import("../GameCanvas");
+const { hostedGame } = await import("../hosted-games");
 
 function fakeGame() {
   return {
@@ -44,9 +48,10 @@ afterEach(() => {
 });
 
 describe("GameCanvas", () => {
-  it("plays the bundled scene with its prefabs, without the editor", async () => {
+  it("plays the platformer's first scene with its prefabs, without the editor", async () => {
     const game = fakeGame();
     fakes.createGame.mockResolvedValue(game);
+    const platformer = await hostedGame("platformer")!.load();
     render(<GameCanvas roomId="lobby-1" />);
     await waitFor(() => expect(game.start).toHaveBeenCalledOnce());
     const [, options] = fakes.createGame.mock.calls[0] as [
@@ -54,14 +59,34 @@ describe("GameCanvas", () => {
       Record<string, unknown>,
     ];
     expect(options).toMatchObject({
-      registry: SCENE_REGISTRY,
-      scene: BUNDLED_SCENE,
-      prefabs: BUNDLED_PREFABS,
+      game: platformer.game,
+      registry: platformer.registry,
+      scene: platformer.scene,
+      prefabs: platformer.prefabs,
     });
+    expect(platformer.scene.name).toBe("test-yard");
+    expect(options.rapier).toBeTypeOf("function");
     expect(options).not.toHaveProperty("assets");
+    expect(fakes.mountUi).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "lobby-1" })).toBeTruthy();
     expect(await screen.findByText("60 FPS")).toBeTruthy();
     expect(fakes.editor).not.toHaveBeenCalled();
+  });
+
+  it("shows the house skeleton while the hosted game's modules load", async () => {
+    const game = fakeGame();
+    fakes.createGame.mockResolvedValue(game);
+    render(<GameCanvas roomId="lobby-1" gameId="platformer" />);
+    const pending = screen.getByRole("status", { name: "Loading Platformer" });
+    expect(pending.querySelector("[data-slot=skeleton]")).toBeTruthy();
+    await waitFor(() => expect(game.start).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("status", { name: "Loading Platformer" })).toBeNull();
+  });
+
+  it("renders the not-found page for a game the site doesn't host", () => {
+    render(<GameCanvas roomId="lobby-1" gameId="no-such-game" />);
+    expect(screen.getByText("not found: Game")).toBeTruthy();
+    expect(fakes.createGame).not.toHaveBeenCalled();
   });
 
   it("renders the package's editor with ?edit=1 and builds no game of its own", async () => {

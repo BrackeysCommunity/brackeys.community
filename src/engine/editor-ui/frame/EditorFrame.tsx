@@ -5,7 +5,6 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
-  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -28,6 +27,7 @@ import type { RapierModule } from "../../index";
 import type { AssetKey } from "../../project/index";
 import { hostPeerColor, type EditorHost } from "../host";
 import { cx, KitProvider, useKit } from "../kit/index";
+import { useIsomorphicLayoutEffect, useWindowSize } from "../kit/ssr";
 import {
   fitLayout,
   FRAME,
@@ -333,26 +333,35 @@ function placeTop(
   };
 }
 
+/** What a server render lays the frame out for: a desktop window, until the browser measures. */
+const SERVER_WINDOW = { width: 1280, height: 800 };
+
+const UNMEASURED: Measured = {
+  ...SERVER_WINDOW,
+  hostTopLeft: { width: 0, height: 0 },
+  topRight: { width: 0, height: 0 },
+  context: 0,
+  bottom: 0,
+  phone: 0,
+};
+
 function useMeasured(
   root: RefObject<HTMLDivElement | null>,
   parts: readonly RefObject<HTMLElement | null>[],
 ): Measured {
-  const [measured, setMeasured] = useState<Measured>(() => ({
-    width: window.innerWidth,
-    height: window.innerHeight,
-    hostTopLeft: { width: 0, height: 0 },
-    topRight: { width: 0, height: 0 },
-    context: 0,
-    bottom: 0,
-    phone: 0,
-  }));
+  const [measured, setMeasured] = useState<Measured | null>(null);
+  const win = useWindowSize(SERVER_WINDOW);
+  const unmeasured = useMemo(
+    () => ({ ...UNMEASURED, width: win.width, height: win.height }),
+    [win.width, win.height],
+  );
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const elements = parts.map((p) => p.current);
     const update = () =>
       setMeasured((last) => {
         const next = measure(root.current, elements);
-        return sameMeasure(last, next) ? last : next;
+        return last && sameMeasure(last, next) ? last : next;
       });
     update();
     window.addEventListener("resize", update);
@@ -365,7 +374,7 @@ function useMeasured(
       observer?.disconnect();
     };
   });
-  return measured;
+  return measured ?? unmeasured;
 }
 
 type GroupAt = { side: Side; group: 0 | 1 };
@@ -421,7 +430,7 @@ export function useBottomRow(part: "dock" | "status", widths: BottomPartWidths):
   const { full, least } = widths;
   const activityFull = widths.activity?.full ?? 0;
   const activityLeast = widths.activity?.least ?? 0;
-  useLayoutEffect(
+  useIsomorphicLayoutEffect(
     () =>
       report(part, {
         full,
@@ -430,7 +439,7 @@ export function useBottomRow(part: "dock" | "status", widths: BottomPartWidths):
       }),
     [report, part, full, least, activityFull, activityLeast],
   );
-  useLayoutEffect(() => () => report(part, null), [report, part]);
+  useIsomorphicLayoutEffect(() => () => report(part, null), [report, part]);
   return row;
 }
 
@@ -514,7 +523,7 @@ function FrameBody({
   const phone = fitted.mode === "phone";
 
   const live = useRef({ viewport, fitted, playing });
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     live.current = { viewport, fitted, playing };
   });
 

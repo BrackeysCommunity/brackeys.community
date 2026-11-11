@@ -10,7 +10,13 @@ const HOUR = 3_600_000;
 export const orchardGame = defineGame<OrchardSnapshot>({
   id: "orchard",
   types: [],
-  actions: [{ action: "pick", keys: [" "], description: "Pick every ripe apple." }],
+  actions: [
+    {
+      action: "pick",
+      bindings: [{ device: "key", code: "Space" }],
+      description: "Pick every ripe apple.",
+    },
+  ],
   time: { kind: "event", catchUp: { maxMs: 8 * HOUR } },
   world: { physics: "none" },
   commands: { plant: { description: "Plant one more tree." } },
@@ -55,7 +61,7 @@ export function dayAway() {
   const run = runPlaytest({
     game: orchardGame,
     scene: meadow,
-    script: { v: 1, steps: [{ command: "plant" }, { elapse: 24 * HOUR }, { press: ["pick"] }] },
+    script: { v: 2, steps: [{ command: "plant" }, { elapse: 24 * HOUR }, { press: ["pick"] }] },
   });
   if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.scriptIssues)}`);
   return { final: run.final, ticks: run.ticks };

@@ -3,6 +3,7 @@ import { readContact, type ContactRead } from "./contact";
 import { rapierSpy, runPhysicsFree, startPhysicsFree } from "./physics-free";
 import { runRenderSmoke } from "./render";
 import { loadRapier, runSmokeDigest, SMOKE_FLAVOUR, SMOKE_TICKS } from "./run";
+import { runTactics, type TacticsProbe } from "./tactics";
 
 export type EngineSmokeResult =
   | {
@@ -16,6 +17,8 @@ export type EngineSmokeResult =
       physicsFree: PhysicsFreeProbe;
       /** A prop dropped onto a floor under `ctx.contacts`: its first contact:start. */
       contact: ContactRead;
+      /** The tactics game's golden recording replayed with no physics. */
+      tactics: TacticsProbe;
       userAgent: string;
     }
   | { ok: false; error: string };
@@ -33,6 +36,8 @@ try {
   const run = await runPhysicsFree(spy.load);
   const shellTicks = await startPhysicsFree(spy.load);
   const contact = readContact(await loadRapier());
+  const tacticsSpy = rapierSpy(loadRapier);
+  const tactics = await runTactics(tacticsSpy.load);
   window.__engineSmoke = {
     ok: true,
     flavour: SMOKE_FLAVOUR,
@@ -41,6 +46,7 @@ try {
     render,
     physicsFree: { ...run, shellTicks, rapierLoads: spy.calls() },
     contact,
+    tactics: { ...tactics, rapierLoads: tacticsSpy.calls() },
     userAgent: navigator.userAgent,
   };
 } catch (err) {

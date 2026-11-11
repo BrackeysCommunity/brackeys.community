@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry, defineGame } from "../../game/define";
-import { bindingProblems } from "../../game/input-bindings";
+import { bindingProblems, SEAT_LIMIT } from "../../game/input-bindings";
 import type { ActionDef, Binding, PlayersDef } from "../../game/types";
 import type { InputAction } from "../../types";
 import { resolveBindings, seatTables } from "../bindings";
@@ -10,6 +10,7 @@ import {
   createSeatBook,
   createSeats,
   DEFAULT_PLAYERS,
+  MAX_PLAYERS,
   resolvePlayers,
   seatProblem,
 } from "../players";
@@ -167,6 +168,14 @@ describe("createSeats: host", () => {
     expect(problem?.message).toContain("past the last seat, 1");
     expect(seats.assign("pad:0", -1)?.code).toBe("player-unknown");
     expect(seats.drain()).toEqual([]);
+  });
+});
+
+describe("the seat limit", () => {
+  it("is the one input maps are judged against", () => {
+    expect(MAX_PLAYERS).toBe(SEAT_LIMIT);
+    expect(createSeatBook({ max: 99, join: "host" }).max).toBe(SEAT_LIMIT);
+    expect(seatProblem(SEAT_LIMIT - 1, SEAT_LIMIT)).toBeNull();
   });
 });
 

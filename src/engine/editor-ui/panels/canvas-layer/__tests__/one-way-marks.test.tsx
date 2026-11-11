@@ -16,6 +16,8 @@ import {
   type EditorSession,
   type ToolOverlay,
 } from "../../../../editor/index";
+import { createRegistry, defineEntityType, defineGame } from "../../../../game/define";
+import { shapeField } from "../../../../game/fields";
 import type { GameStoreState } from "../../../../index";
 import { expandScene } from "../../../../scene/expand";
 import {
@@ -161,5 +163,51 @@ describe("one-way landing faces on the edit overlay", () => {
       </svg>,
     );
     expect(Object.keys(marks()).sort()).toEqual(["cloud", "turned/bar", "wall"]);
+  });
+
+  it("marks a type one-way through its metadata alone", () => {
+    const ledges = createRegistry(
+      defineGame({
+        id: "ledges",
+        types: [
+          defineEntityType({
+            type: "ledge",
+            description: "A ledge its system makes one-way, with no oneWay field.",
+            fields: { shape: shapeField("Ledge shape.") },
+            system: () => ({ spawn() {}, despawn() {}, clear() {}, size: () => 0 }),
+            oneWay: true,
+          }),
+        ],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const def = {
+      v: SCENE_FORMAT_VERSION,
+      game: "ledges",
+      name: "ledges",
+      bounds: [0, 0, 2000, 1200],
+      entities: [{ id: "l", type: "ledge", shape: ["box", 100, 100, 50, 10] }],
+    } as unknown as SceneDefinition;
+    const session = createEditorSession({
+      doc: sceneToDoc(def, { key: sequentialKeys("l") }),
+      origin: ada,
+      name: "ledges",
+      registry: ledges,
+      issuesDebounceMs: 0,
+    });
+    sessions.push(session);
+    const view = { width: 2000, height: 1200, scale: 1, tx: 0, ty: 0 };
+    render(
+      <svg>
+        <OneWayMarks
+          session={session}
+          scene={expandScene(session.getDoc(), ledges)}
+          view={view}
+          transform=""
+        />
+      </svg>,
+    );
+    expect(marks()).toEqual({ l: { side: "up", face: "M50 90 L150 90", arrows: 2 } });
   });
 });

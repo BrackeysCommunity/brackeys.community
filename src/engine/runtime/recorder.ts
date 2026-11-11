@@ -3,6 +3,7 @@
  * input and the system events as streams, the focus every few ticks, the
  * game's markers, and how it ended.
  */
+import { isUiAction } from "../game/input-bindings";
 import { resolveTime, type ResolvedTime } from "../game/time";
 import type {
   DeviceId,
@@ -10,6 +11,7 @@ import type {
   GameDefinition,
   PlayerInfo,
   PlayState,
+  Registry,
   RunResult,
 } from "../game/types";
 import type { PlayOptions } from "../headless/playtest-types";
@@ -196,6 +198,8 @@ export function recordingTicks(
 export type RecorderOptions = RecordingHost & {
   rapier: RapierModule | null;
   game: GameDefinition | null;
+  /** The run's registry; with it, a UI-only action (`isUiAction`) a tick carries is left out of the recording. */
+  registry?: Registry;
   scene: string;
   sceneHash: SceneHash;
   /** `preparePlay`'s hash of what the run runs; a replay is stale when its own differs. */
@@ -264,6 +268,8 @@ export function createRunRecorder(opts: RecorderOptions): RunRecorder {
   const maxMarkers = opts.maxMarkers ?? DEFAULT_MAX_MARKERS;
   const maxTrail = opts.maxTrail ?? DEFAULT_MAX_TRAIL;
   const subTick = game?.input?.subTick === true;
+  const { registry } = opts;
+  const simulated = (a: InputAction) => !registry || !isUiAction(registry, a.action);
 
   const actions: string[] = [];
   const commands: string[] = [];
@@ -298,7 +304,10 @@ export function createRunRecorder(opts: RecorderOptions): RunRecorder {
   const seed = opts.start.seed ?? defaultSeed(game?.id ?? null, opts.scene);
 
   return {
-    tick(state, input, focus) {
+    tick(state, stepped, focus) {
+      const input = stepped.actions.every(simulated)
+        ? stepped
+        : { ...stepped, actions: stepped.actions.filter(simulated) };
       for (const a of input.actions) useAction(a.action);
       for (const c of input.commands) if (c.name !== ELAPSED) useCommand(c.name);
       const pointers = input.pointers.map((p, seat) => {

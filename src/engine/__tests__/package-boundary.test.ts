@@ -164,6 +164,9 @@ function stripComments(src: string): string {
     .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
 }
 
+/** `src` with its quoted string literals emptied, so a message naming a DOM type isn't a use of it. */
+const stripStrings = (src: string) => src.replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g, '""');
+
 function importsOf(file: string): Import[] {
   return importsIn(readFileSync(file, "utf8"));
 }
@@ -220,6 +223,97 @@ const entrySpecs = () =>
  */
 const isGameEntry = (target: string) =>
   /^[a-z0-9-]+(\/debug)?(\/index(\.ts)?)?$/.test(posix(relative(GAMES, target)));
+/**
+ * What the site may load of a game: its entries (`index.ts`, the DOM UI's
+ * `ui/index.ts`, the dev-only `debug/index.ts`) and its project JSON (the
+ * project file, scenes and prefabs). Nothing else of a game is the site's.
+ */
+const isSiteGameTarget = (target: string) => {
+  const path = posix(relative(GAMES, target));
+  return (
+    /^[a-z0-9-]+(\/(ui|debug))?(\/index(\.ts)?)?$/.test(path) ||
+    /^[a-z0-9-]+\/(jams\.project|scenes\/[a-z0-9-]+|scenes\/prefabs\/[a-z0-9-]+)\.json$/.test(path)
+  );
+};
+
+/**
+ * `import.meta.glob` patterns in `source`: each string of its first argument,
+ * with its line. Read from the raw text, since a pattern's `/*` would read as
+ * a comment's start; a commented-out call is judged too.
+ */
+function globsIn(src: string): { pattern: string; line: number }[] {
+  const out: { pattern: string; line: number }[] = [];
+  for (const m of src.matchAll(/\bimport\.meta\.glob\b/g)) {
+    let i = m.index + m[0].length;
+    if (src[i] === "<") {
+      for (let depth = 0; i < src.length; i++) {
+        if (src[i] === "<") depth++;
+        else if (src[i] === ">" && src[i - 1] !== "=" && --depth === 0) break;
+      }
+      i++;
+    }
+    const call = /^\s*\(\s*(\[[^\]]*\]|"[^"]*"|'[^']*'|`[^`]*`)/.exec(src.slice(i));
+    const line = src.slice(0, m.index).split("\n").length;
+    if (!call) {
+      out.push({ pattern: "", line });
+      continue;
+    }
+    for (const lit of call[1]!.matchAll(/"([^"]*)"|'([^']*)'|`([^`]*)`/g))
+      out.push({ pattern: lit[1] ?? lit[2] ?? lit[3]!, line });
+  }
+  return out;
+}
+
+/** `{a,b}` alternatives spelled out, so each pattern names one shape. */
+const expandBraces = (pattern: string): string[] => {
+  const m = /\{([^{}]*)\}/.exec(pattern);
+  if (!m) return [pattern];
+  return m[1]!
+    .split(",")
+    .flatMap((alt) =>
+      expandBraces(pattern.slice(0, m.index) + alt + pattern.slice(m.index + m[0].length)),
+    );
+};
+
+/**
+ * Why a site file's `import.meta.glob` pattern breaks the boundary, or null:
+ * a pattern into src/games must match only what `isSiteGameTarget` allows
+ * (a wildcard stands for one name), and none may reach src/engine.
+ */
+function siteGlobViolation(file: string, pattern: string): string | null {
+  if (pattern === "") return "calls import.meta.glob without a literal pattern";
+  if (pattern.startsWith("!")) return null;
+  for (const one of expandBraces(pattern)) {
+    const target = one.startsWith("@/")
+      ? join(SITE, one.slice(2))
+      : one.startsWith("/")
+        ? join(REPO, one)
+        : resolve(dirname(file), one);
+    if (inside(target, ENGINE)) return `globs into src/engine: ${pattern}`;
+    if (!inside(target, GAMES)) continue;
+    const path = posix(relative(GAMES, target));
+    if (/\*\*|[?[\]()!+@]/.test(path) || !isSiteGameTarget(target.replace(/\*/g, "x")))
+      return `globs more of a game than its entries and project JSON: ${pattern}`;
+  }
+  return null;
+}
+
+/** Site directories whose `import.meta.glob` patterns the site rule reads. */
+const SITE_GLOB_DIRS = [join(SITE, "components"), join(SITE, "routes")];
+
+/** The engine directory a DOM UI lives in: off Pixi values, the games and the editor UI. */
+const UI_DIR = "ui/";
+
+/** Why `imp`, in the engine file at `path`, breaks ui/'s boundary, or null. */
+function uiImportViolation(path: string, imp: Pick<Import, "spec" | "typeOnly">): string | null {
+  if (imp.spec === "pixi.js" && !imp.typeOnly) return "imports pixi.js as a value";
+  if (imp.spec.startsWith("@/")) return `imports ${imp.spec}`;
+  if (!imp.spec.startsWith(".")) return null;
+  const target = resolve(ENGINE, dirname(path), imp.spec);
+  if (inside(target, GAMES) || !inside(target, ENGINE)) return `imports ${imp.spec}`;
+  if (reachesEditorUi(path, imp.spec)) return `imports the editor UI: ${imp.spec}`;
+  return null;
+}
 
 /** Every runtime (non-type) import reachable from `entry`, as engine-relative files and bare specifiers. */
 function runtimeGraph(entry: string): { files: Set<string>; bare: Map<string, string[]> } {
@@ -501,6 +595,7 @@ describe("package boundary", () => {
         .filter((imp) => {
           if (!imp.spec.startsWith(".")) return !allowed("", imp.spec);
           const target = rel(resolveRelative(join(ENGINE, file), imp.spec) ?? imp.spec);
+          if (imp.typeOnly && isServiceCopied(target)) return false;
           return !allowed(target, imp.spec);
         })
         .map((imp) => `${file}:${imp.line} imports ${imp.spec}`);
@@ -524,6 +619,49 @@ describe("package boundary", () => {
     ]);
   });
 
+  it("keeps ui/ off Pixi values, src/games and the editor UI", () => {
+    const uiFiles = sourceFiles.map((f) => rel(f)).filter((p) => p.startsWith(UI_DIR));
+    expect(uiFiles).toContain("ui/index.ts");
+    const bad: string[] = [];
+    for (const path of uiFiles) {
+      for (const imp of importsOf(join(ENGINE, path))) {
+        const why = uiImportViolation(path, imp);
+        if (why) bad.push(`${path}:${imp.line} ${why}`);
+      }
+      const { files, bare } = runtimeGraph(path);
+      if (bare.has("pixi.js"))
+        bad.push(`${path} reaches pixi.js via ${bare.get("pixi.js")!.join(", ")}`);
+      for (const f of files) {
+        if (f.startsWith("editor-ui/") || f.startsWith("../")) bad.push(`${path} reaches ${f}`);
+      }
+    }
+    violations(bad);
+  });
+
+  it("refuses a fixture's Pixi value, game or editor UI import in ui/", () => {
+    const check = (source: string) =>
+      importsIn(source).map((imp) => uiImportViolation("ui/fixture.ts", imp));
+    expect(
+      check(
+        [
+          'import type { Container } from "pixi.js";',
+          'import type { GameInstance } from "../types";',
+          'import { Container as C } from "pixi.js";',
+          'import { tacticsGame } from "../../games/tactics";',
+          'import { EditorFrame } from "../editor-ui/frame/EditorFrame";',
+          'import { cn } from "@/lib/utils";',
+        ].join("\n"),
+      ),
+    ).toEqual([
+      null,
+      null,
+      "imports pixi.js as a value",
+      "imports ../../games/tactics",
+      "imports the editor UI: ../editor-ui/frame/EditorFrame",
+      "imports @/lib/utils",
+    ]);
+  });
+
   it("keeps input/ off Pixi and Rapier values, and its state, stream and quantising pure", () => {
     const inputFiles = sourceFiles.map((f) => rel(f)).filter((p) => p.startsWith("input/"));
     expect(inputFiles).toContain("input/system.ts");
@@ -538,7 +676,8 @@ describe("package boundary", () => {
       const { files, bare } = runtimeGraph(path);
       if (bare.size > 0) bad.push(`${path} reaches ${[...bare.keys()].join(", ")}`);
       for (const file of files) {
-        const dom = DOM_GLOBALS.exec(stripComments(readFileSync(join(ENGINE, file), "utf8")));
+        const code = stripStrings(stripComments(readFileSync(join(ENGINE, file), "utf8")));
+        const dom = DOM_GLOBALS.exec(code);
         if (dom) bad.push(`${path} reaches ${dom[1]} in ${file}`);
       }
     }
@@ -693,11 +832,7 @@ describe("package boundary", () => {
           bad.push(`${where} imports ${spec}`);
         } else if (spec.startsWith("@/games/")) {
           const target = join(GAMES, spec.slice("@/games/".length));
-          if (
-            !isGameEntry(target) &&
-            !/^@\/games\/[a-z0-9-]+\/scenes\/[a-z0-9-]+\.json$/.test(spec)
-          )
-            bad.push(`${where} deep-imports a game: ${spec}`);
+          if (!isSiteGameTarget(target)) bad.push(`${where} deep-imports a game: ${spec}`);
         } else if (spec.startsWith("@jams/engine")) {
           if (!entries.has(spec)) bad.push(`${where} imports unknown entry ${spec}`);
         } else if (spec.startsWith(".")) {
@@ -713,6 +848,52 @@ describe("package boundary", () => {
       }
     }
     violations(bad);
+  });
+
+  it("globs only game entries and project JSON from the site's components and routes", () => {
+    const bad: string[] = [];
+    for (const file of SITE_GLOB_DIRS.flatMap((d) => walk(d, /\.tsx?$/))) {
+      if (isTest(file)) continue;
+      for (const { pattern, line } of globsIn(readFileSync(file, "utf8"))) {
+        const why = siteGlobViolation(file, pattern);
+        if (why) bad.push(`${rel(file, REPO)}:${line} ${why}`);
+      }
+    }
+    violations(bad);
+  });
+
+  it("judges a fixture's glob patterns by the site's game-entry rule", () => {
+    const file = join(SITE, "components/game/fixture.ts");
+    const judged = (source: string) =>
+      globsIn(source).map(({ pattern }) => siteGlobViolation(file, pattern));
+    expect(
+      judged(
+        [
+          'import.meta.glob("/src/games/*/jams.project.json", { eager: true });',
+          'import.meta.glob<() => Promise<unknown>>(["/src/games/*/index.ts", "/src/games/*/ui/index.ts"]);',
+          "import.meta.glob('@/games/platformer/scenes/prefabs/*.json');",
+          'import.meta.glob("/src/games/*/scenes/{*.json,prefabs/*.json}");',
+          'import.meta.glob("/src/games/*/debug/index.ts");',
+          'import.meta.glob("/src/games/**/*.ts");',
+          'import.meta.glob("/src/games/*/runtime.ts");',
+          'import.meta.glob("../../games/*/ui/*.ts");',
+          'import.meta.glob("/src/engine/scenes/*.json");',
+          "import.meta.glob(patterns);",
+        ].join("\n"),
+      ),
+    ).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "globs more of a game than its entries and project JSON: /src/games/**/*.ts",
+      "globs more of a game than its entries and project JSON: /src/games/*/runtime.ts",
+      "globs more of a game than its entries and project JSON: ../../games/*/ui/*.ts",
+      "globs into src/engine: /src/engine/scenes/*.json",
+      "calls import.meta.glob without a literal pattern",
+    ]);
   });
 
   it("keeps scripts/scene on public entries and game entries only", () => {

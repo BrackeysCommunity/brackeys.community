@@ -18,6 +18,7 @@ import {
   compileInputScript,
   heldEdges,
   pointerAt,
+  pointerHeld,
   scriptSource,
   type CompiledScript,
 } from "../compile-input-script";
@@ -675,6 +676,35 @@ describe("input-script v2", () => {
       "/tracks/0/steps/0/set/stear",
     ]);
   });
+
+  it("drives the seats the project input map gives, over the game's", () => {
+    const fire = [{ press: "fire" }];
+    const script = {
+      v: 2,
+      tracks: [
+        { player: 0, steps: fire },
+        { player: 3, steps: fire },
+      ],
+    };
+    const rate = undefined;
+    const four = { max: 4, join: "host" } as const;
+    expect(issues(compileInputScript(script, pads, rate)).map((i) => i.path)).toEqual([
+      "/tracks/1/player",
+    ]);
+    const wide = compileInputScript(script, pads, rate, four);
+    expect(wide.ok).toBe(true);
+    expect((wide as { script: CompiledScript }).script.tracks!.map((t) => t.player)).toEqual([
+      0, 3,
+    ]);
+    expect(
+      issues(compileInputScript(script, pads, rate, { max: 3, join: "host" })).map((i) => i.path),
+    ).toEqual(["/tracks/1/player"]);
+    const narrow = { v: 2, tracks: [{ player: 1, steps: fire }] };
+    expect(compileInputScript(narrow, pads, rate).ok).toBe(true);
+    expect(
+      issues(compileInputScript(narrow, pads, rate, { max: 1, join: "auto" }))[0],
+    ).toMatchObject({ path: "/tracks/0/player" });
+  });
 });
 
 // ─── Playing a compiled script ───────────────────────────
@@ -879,6 +909,154 @@ describe("scriptSource", () => {
   });
 });
 
+describe("pointer buttons raise their bound actions", () => {
+  const clicker = createRegistry(
+    defineGame({
+      id: "clicker",
+      types: [],
+      actions: [
+        {
+          action: "fire",
+          bindings: [
+            { device: "pointer", button: "primary" },
+            { device: "pointer", button: "secondary" },
+          ],
+          description: "Fire.",
+        },
+        { action: "aim", bindings: [{ device: "key", code: "KeyA" }], description: "Aim." },
+      ],
+      input: { players: { max: 2, join: "host" } },
+      world: { physics: "none" },
+      createRuntime: () => ({ snapshot: () => null }),
+    }),
+  );
+
+  it("holds an action while a button bound to it is down, as live play does", () => {
+    const script = compiled(
+      {
+        v: 2,
+        steps: [
+          { pointer: { at: [1, 1], press: "primary" } },
+          { pointer: { at: [1, 1], press: "secondary" } },
+          { pointer: { at: [1, 1], release: "primary" }, for: 2 },
+          { hold: ["fire"], for: 1 },
+          { pointer: { at: [1, 1], release: "secondary" }, for: 2 },
+          { wait: 1 },
+        ],
+      },
+      clicker,
+    );
+    expect(script.edges).toBeNull();
+    const { ticks } = drive(script);
+    expect(ticks.map(actionsOf)).toEqual([
+      [["fire", true, null, 0]],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [["fire", false, null, 0]],
+    ]);
+    expect(ticks.map((t) => t.pointers.map((p) => p?.buttons))).toEqual([
+      [1],
+      [3],
+      [],
+      [2],
+      [],
+      [],
+      [0],
+      [],
+    ]);
+  });
+
+  it("drives the track's own seat, and the project input map's bindings win over the game's", () => {
+    const map = {
+      actions: [{ action: "aim", bindings: [{ device: "pointer", button: "middle" }] }],
+    };
+    const result = compileInputScript(
+      {
+        v: 2,
+        tracks: [
+          { player: 1, steps: [{ pointer: { at: [0, 0], press: "middle" }, for: 2 }] },
+          { player: 0, steps: [{ pointer: { at: [0, 0], press: "primary" }, for: 2 }] },
+        ],
+      },
+      clicker,
+      undefined,
+      null,
+      map as never,
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.issues));
+    const { ticks } = drive(result.script as CompiledScript);
+    expect(ticks.map(actionsOf)[0]).toEqual([
+      ["aim", true, null, 1],
+      ["fire", true, null, 0],
+    ]);
+  });
+
+  it("leaves a script on a game with no pointer bindings as it was", () => {
+    const script = compiled(
+      { v: 2, steps: [{ pointer: { at: [1, 2], press: "primary" }, for: 2 }, { wait: 1 }] },
+      pads,
+    );
+    expect(script.pointerBindings).toBeUndefined();
+    expect(script.edges).toEqual([]);
+    expect(drive(script).ticks.map(actionsOf)).toEqual([[], [], []]);
+  });
+
+  it("joins hold and pointer by the one combine rule", () => {
+    expect(pointerHeld(["aim"], 0, undefined)).toEqual(["aim"]);
+    const bound = {
+      primary: [{ action: "fire", binding: { device: "pointer", button: "primary" } }],
+    };
+    expect(pointerHeld(["aim"], 1, bound as never)).toEqual(["aim", "fire"]);
+    expect(pointerHeld(["fire"], 1, bound as never)).toEqual(["fire"]);
+    expect(pointerHeld([], 2, bound as never)).toEqual([]);
+  });
+});
+
+describe("a track that ends first", () => {
+  it("keeps holding its last step's buttons and values until every track has ended", () => {
+    const script = compiled(
+      {
+        v: 2,
+        tracks: [
+          { player: 0, steps: [{ hold: ["fire"], set: { steer: 0.5 }, for: 1 }] },
+          { player: 1, steps: [{ wait: 3 }] },
+        ],
+      },
+      pads,
+    );
+    const { ticks } = drive(script);
+    expect(ticks.map(actionsOf)).toEqual([
+      [
+        ["fire", true, null, 0],
+        ["steer", true, 0.5, 0],
+      ],
+      [],
+      [],
+    ]);
+  });
+
+  it("lets go when its last step is a wait", () => {
+    const script = compiled(
+      {
+        v: 2,
+        tracks: [
+          { player: 0, steps: [{ hold: ["fire"], set: { steer: 0.5 }, for: 1 }, { wait: 1 }] },
+          { player: 1, steps: [{ wait: 3 }] },
+        ],
+      },
+      pads,
+    );
+    expect(drive(script).ticks.map(actionsOf)[1]).toEqual([
+      ["fire", false, null, 0],
+      ["steer", false, 0, 0],
+    ]);
+  });
+});
+
 // ─── Runs ────────────────────────────────────────────────
 
 type Run = {
@@ -1051,6 +1229,44 @@ describe("compiled tracks in a run", () => {
     expect(played.steps).toEqual(report.steps);
     expect(played.inputs).toEqual(report.inputs);
     expect(played.final).toEqual(report.final);
+  });
+});
+
+describe("pointer-bound actions in a run", () => {
+  it("records the actions a pointer step raises, and the recording replays", () => {
+    const clickGame = defineGame({
+      id: "click-run",
+      types: [],
+      actions: [
+        {
+          action: "fire",
+          bindings: [{ device: "pointer", button: "primary" }],
+          description: "Fire.",
+        },
+      ],
+      world: { physics: "none" },
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const run: Run = {
+      rapier: null,
+      game: clickGame as GameDefinition,
+      registry: createRegistry(clickGame),
+      scene: { ...padsScene, name: "click-run", game: "click-run" },
+    };
+    const played = playScript(run, {
+      v: 2,
+      steps: [
+        { pointer: { at: [1, 2], press: "primary" }, for: 2 },
+        { pointer: { at: [1, 2], release: "primary" }, for: 2 },
+      ],
+    });
+    expect(played.inputs).toEqual([
+      [0, "fire", 1],
+      [3, "fire", 0],
+    ]);
+    const replay = replayRecording({ ...run, recording: played.recording });
+    if (replay.blocked) throw new Error(JSON.stringify(replay));
+    expect(replay.matches, replay.divergence ?? "").toBe(true);
   });
 });
 

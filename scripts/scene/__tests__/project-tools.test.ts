@@ -273,7 +273,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
     ]) {
       const result = await run();
       expect(result.exitCode).toBe(2);
-      expect(result.text).toContain("(projects: engine, platformer)");
+      expect(result.text).toContain("(projects: engine, platformer, tactics)");
     }
     const typo = await projectShow({ project: "platformr" }, ctx);
     expect(typo.exitCode).toBe(2);

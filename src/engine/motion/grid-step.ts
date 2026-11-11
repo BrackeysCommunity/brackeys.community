@@ -1,6 +1,6 @@
 import { ticksFor, ticksIn } from "../game/time";
 import type { EngineContext } from "../game/types";
-import type { Cell } from "../grid/geometry";
+import { sameCell, type Cell } from "../grid/geometry";
 import type { MotionBody } from "./body";
 
 /** Moves an entity cell to cell, one neighbour at a time. */
@@ -14,8 +14,6 @@ export interface GridStepper {
 }
 
 type Step = { from: Cell; to: Cell; ticks: number; done: number };
-
-const sameCell = (a: Cell, b: Cell) => a[0] === b[0] && a[1] === b[1];
 
 /**
  * A stepper for `entityId` on the loaded scene's grid, standing on `start`'s

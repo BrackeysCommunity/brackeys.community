@@ -4,7 +4,13 @@ import { Container } from "pixi.js";
 import { createCamera } from "./camera";
 import type { DebugOverlay } from "./debug";
 import { GameEventEmitter } from "./events";
-import { actionProblem, bindingProblems, type BindingProblem } from "./game/input-bindings";
+import {
+  actionProblem,
+  bindingProblems,
+  isUiAction,
+  keysProblems,
+  type BindingProblem,
+} from "./game/input-bindings";
 import { isRuntimeId } from "./game/runtime-ids";
 import { resolveTime, type ResolvedTime } from "./game/time";
 import type {
@@ -27,14 +33,15 @@ import {
 import {
   createGamepadReader,
   type GamepadPoll,
+  type GamepadView,
   type PadBinding,
   type PadChange,
 } from "./input/gamepad";
 import {
   createSeatBook,
   createSeats,
-  MAX_PLAYERS,
   resolvePlayers,
+  seatCount,
   seatProblem,
 } from "./input/players";
 import { DEFAULT_DEADZONE, qPointer } from "./input/quantize";
@@ -56,6 +63,7 @@ import {
   type AssetBundle,
   type BundleEntry,
 } from "./project/bundle";
+import { sameValue } from "./project/canonical";
 import { engineResolution } from "./project/kinds/game-settings";
 import { TEXTURE_KIND } from "./project/kinds/texture";
 import type { ProjectRuntimeView } from "./project/runtime-view";
@@ -110,6 +118,7 @@ import type {
   InputBinding,
   PlayReport,
   RapierModule,
+  UiActionEvent,
   Vec2,
 } from "./types";
 import { DEFAULT_GAME_CONFIG } from "./types";
@@ -125,6 +134,9 @@ type LoadedScene = {
 
 /** Time away shorter than this (a quick tab switch, one long frame) isn't worth an `@elapsed`. */
 const MIN_CATCH_UP_MS = 1000;
+
+/** A pad timestamp further back than this from now isn't on `performance.now()`'s clock. */
+const PAD_CLOCK_WINDOW_MS = 1000;
 
 /**
  * `config.project` is what every scene's game reads as `EngineContext.project`;
@@ -202,13 +214,17 @@ export async function createGame(
   // ─── Seats, bindings and devices ──────────────────────────
 
   const playersDef = resolvePlayers(project?.inputMap, game);
-  const seatMax = Math.min(MAX_PLAYERS, Math.max(1, Math.floor(playersDef.max)));
+  const seatMax = seatCount(playersDef);
   const seats = createSeats(playersDef);
   const remaps = cfg.input?.remaps ?? null;
   // The player's remaps belong to the game they were made for; a gameless project keeps none.
   const remapKey = game?.id ?? null;
-  const controls = (project?.inputMap?.touch ?? []).map((c) => c.id);
+  let controls = controlIds();
   let remap: RemapState = loadRemaps();
+
+  function controlIds(): string[] {
+    return (project?.inputMap?.touch ?? []).map((c) => c.id);
+  }
 
   function resolveAll(): ResolvedBindings {
     return resolveBindings({
@@ -228,7 +244,7 @@ export async function createGame(
   /** The seat each device class was last routed to; undefined before the first routing. */
   let routedOwners: Partial<Record<"keyboard" | "pointer" | "touch", number | null>> = {};
   routeDevices(true);
-  const input = createInputSystem(routed);
+  const input = createInputSystem(routed, { isUi: (action) => isUiAction(registry, action) });
   const pads = createGamepadReader({
     deadzone: project?.inputMap?.deadzone ?? game?.input?.deadzone ?? DEFAULT_DEADZONE,
   });
@@ -347,7 +363,7 @@ export async function createGame(
     }
     return { v: 1, players };
   }
-  const touch = createTouchOverlay();
+  let touch = createTouchOverlay();
 
   // Each loaded scene draws into its own container inside this layer, so a
   // reload never reorders it against the debug overlay.
@@ -632,6 +648,7 @@ export async function createGame(
         time: loaded.runtime.ctx.time,
         players: loaded.runtime.ctx.input.players(),
         world: playWorld(loaded.runtime.ctx),
+        registry,
         ...(replay ? { replay } : {}),
       });
       if (replay && loop.isPaused()) resume();
@@ -792,19 +809,49 @@ export async function createGame(
     syncSeats(true);
   }
 
-  function routePads(poll: GamepadPoll): void {
+  /**
+   * When `changes` happened: the latest browser update among their pads, so
+   * a sub-tick offset places a pad edge as it does a key's. A pad with no
+   * usable timestamp (none, or off `performance.now()`'s clock) counts as now.
+   */
+  function padsChangedAt(
+    reader: Pick<GamepadView, "updatedAt">,
+    changes: readonly PadChange[],
+    now: number,
+  ): number {
+    let at = -Infinity;
+    for (const c of changes) {
+      const t = reader.updatedAt(c.pad);
+      if (t === undefined || !(t <= now && t > now - PAD_CLOCK_WINDOW_MS)) return now;
+      at = Math.max(at, t);
+    }
+    return at === -Infinity ? now : at;
+  }
+
+  type PadSink = (
+    poll: GamepadPoll,
+    reader: Pick<GamepadView, "pads" | "reading">,
+    timestamp: number,
+  ) => void;
+
+  /** A poll's changes to the seat that owns each pad, read through `reader`: the cursor that polled. */
+  function routePads(
+    poll: GamepadPoll,
+    reader: GamepadView = pads,
+    sink: PadSink = input.setPads,
+  ): void {
     const now = performance.now();
-    if (seatMax === 1) return input.setPads(poll, pads, now);
+    if (seatMax === 1) return sink(poll, reader, padsChangedAt(reader, poll.changes, now));
     padTables.forEach((tables, player) => {
       const own = (pad: number) => seats.seatOf(`pad:${pad}`) === player;
       const changes = poll.changes.filter((c) => own(c.pad));
       if (changes.length === 0) return;
       Object.assign(routed, tables);
-      const reader = {
-        pads: () => pads.pads().filter(own),
-        reading: (pad: number, binding: PadBinding) => pads.reading(pad, binding),
+      const seated = {
+        pads: () => reader.pads().filter(own),
+        reading: (pad: number, binding: PadBinding) => reader.reading(pad, binding),
       };
-      input.setPads({ ...poll, changes }, reader, now);
+      sink({ ...poll, changes }, seated, padsChangedAt(reader, changes, now));
     });
   }
 
@@ -958,6 +1005,7 @@ export async function createGame(
     onRender(alpha: number) {
       // A frame's look at the devices ends with it; the next frame reads them afresh.
       sampled = false;
+      pollFrame();
       if (loaded) {
         // Paused or editing, nothing steps, so visuals sit at their latest poses (an idle
         // turns or event game gets alpha 1 from the loop).
@@ -1067,6 +1115,13 @@ export async function createGame(
     return camera.screenToWorld({ x: clientX - rect.left, y: clientY - rect.top });
   }
 
+  /** World metres to page px: `clientToWorld`'s inverse, through the camera and the input target's rect. */
+  function worldToClient(p: Vec2): { x: number; y: number } {
+    const rect = inputTarget.getBoundingClientRect();
+    const screen = camera.worldToScreen(p);
+    return { x: rect.left + screen.x, y: rect.top + screen.y };
+  }
+
   /**
    * The input map's on-screen controls over the canvas, shown in play per
    * `GameConfig.input.touch` (auto: while the primary pointer is coarse). A
@@ -1172,6 +1227,30 @@ export async function createGame(
     input.releaseAll(performance.now());
     bindings = resolveAll();
     routeDevices(true);
+  }
+
+  /**
+   * Swaps in the current project's input map: the old overlay and every
+   * held binding let go first (as releases), then the bindings and the touch
+   * overlay are rebuilt from the new map. The player's remaps stay, less any
+   * the new map no longer allows (a touch control it dropped). Seats and the
+   * pad deadzone keep what the instance started with.
+   */
+  function reloadInputMap(): void {
+    touch?.destroy();
+    input.releaseAll(performance.now());
+    controls = controlIds();
+    const players: Record<number, Record<string, readonly Binding[]>> = {};
+    for (const [seat, actions] of Object.entries(remap.players)) {
+      for (const [action, list] of Object.entries(actions)) {
+        if (!remapProblem(action, list, Number(seat)))
+          (players[Number(seat)] ??= {})[action] = list;
+      }
+    }
+    remap = { v: 1, players };
+    bindings = resolveAll();
+    routeDevices(true);
+    touch = createTouchOverlay();
   }
 
   function rebind(
@@ -1311,6 +1390,30 @@ export async function createGame(
   window.addEventListener("gamepadconnected", onPadConnected);
   window.addEventListener("gamepaddisconnected", onPadDisconnected);
 
+  // ─── Action listeners ─────────────────────────────────────
+
+  function onAction(
+    listener: (e: UiActionEvent) => void,
+    opts?: { actions?: readonly string[] },
+  ): () => void {
+    return destroyed ? () => {} : input.onAction(listener, opts);
+  }
+
+  /**
+   * Each frame while anything listens, whatever the mode and whether or not
+   * a tick runs: the pads' changes since the last frame reach the listeners
+   * (and only them) on the seats that own the pads. A capture's presses stay
+   * out, as its keys do; their releases pass, so nothing is left held.
+   */
+  function pollFrame(): void {
+    if (destroyed || !input.listening()) return;
+    const poll = pads.pollFrame();
+    const changes = capturing
+      ? poll.changes.filter((c) => !(c.kind === "button" && c.pressed))
+      : poll.changes;
+    if (changes.length > 0) routePads({ ...poll, changes }, pads.frame, input.setFramePads);
+  }
+
   const playerInput: GameInput = {
     bindings: (player) => bindings.bindings(player),
     rebind,
@@ -1319,6 +1422,7 @@ export async function createGame(
     assign,
     players: () => seats.players(),
     trackPointer,
+    onAction,
   };
 
   // ─── Editor camera ────────────────────────────────────────
@@ -1499,7 +1603,9 @@ export async function createGame(
   }): Promise<{ failed: BundleEntry[]; errors: AssetReloadError[] }> {
     if (destroyed) return { failed: [], errors: [] };
     const projectMoved = update.project !== project;
+    const mapMoved = !sameValue(update.project?.inputMap ?? null, project?.inputMap ?? null);
     project = update.project;
+    if (mapMoved) reloadInputMap();
     if (assets) reloaded = { view: update.view, over: assets.view };
     let failed: BundleEntry[] = [];
     if (assets) {
@@ -1609,6 +1715,8 @@ export async function createGame(
     router,
     screenToWorld: (screen) => camera.screenToWorld(screen),
     clientToWorld,
+    worldToClient,
+    project: () => project,
     input: playerInput,
     panBy,
     zoomAt,
@@ -1685,6 +1793,11 @@ const samePointer = (a: PointerState, b: PointerState): boolean =>
 function warnHostBindings(list: readonly InputBinding[], resolved: ResolvedBindings): void {
   for (const entry of list) {
     const ctx = { kind: resolved.kindOf(entry.action), max: resolved.players };
+    for (const problem of keysProblems(entry)) {
+      console.warn(
+        `[game] GameConfig.bindings "${entry.action}"${problem.path}: ${problem.message} (${problem.code})`,
+      );
+    }
     actionBindings(entry).forEach((binding, i) => {
       for (const problem of bindingProblems(binding, ctx)) {
         console.warn(

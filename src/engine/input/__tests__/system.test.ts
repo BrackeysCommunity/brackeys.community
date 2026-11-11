@@ -1,14 +1,16 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
-import { defineGame } from "../../game/define";
+import { createRegistry, defineGame } from "../../game/define";
+import { isUiAction } from "../../game/input-bindings";
 import { KEY_TO_CODE } from "../../game/input-codes";
 import type { ActionDef } from "../../game/types";
 import { createSceneRuntime } from "../../runtime/runtime";
 import type { ExpandedScene } from "../../scene/types";
 import { createToolRouter } from "../../tool-router";
-import type { InputAction, InputBinding, RapierModule } from "../../types";
+import type { InputAction, InputBinding, RapierModule, UiActionEvent } from "../../types";
 import { resolveBindings } from "../bindings";
+import { createGamepadReader, type PadSnapshot } from "../gamepad";
 import { createInputSystem } from "../system";
 
 const game = defineGame({
@@ -696,5 +698,244 @@ describe("game actions reach the runtime", () => {
     runtime.step(1000 / 60, input.poll(0));
 
     expect(seen).toEqual([[]]);
+  });
+});
+
+describe("createInputSystem: onAction and UI-only actions", () => {
+  const uiGame = defineGame({
+    id: "ui-input-test",
+    types: [],
+    actions: [
+      {
+        action: "jump",
+        description: "Jump.",
+        bindings: [
+          { device: "key", code: "Space" },
+          { device: "pad", button: "south" },
+        ],
+      },
+      {
+        action: "confirm",
+        ui: true,
+        description: "Confirm the menu choice.",
+        bindings: [
+          { device: "key", code: "Enter" },
+          { device: "pad", button: "east" },
+        ],
+      },
+      {
+        action: "cursor",
+        ui: true,
+        kind: "vector",
+        description: "Move the cursor.",
+        bindings: [
+          { device: "key", code: "ArrowRight", axis: "x", value: 1 },
+          { device: "key", code: "ArrowDown", axis: "y", value: 1 },
+          { device: "pad", button: "dpad-right", axis: "x", value: 1 },
+        ],
+      },
+      {
+        action: "zoom",
+        kind: "axis",
+        description: "Zoom.",
+        bindings: [
+          { device: "key", code: "Equal", value: 1 },
+          { device: "key", code: "Minus", value: -1 },
+        ],
+      },
+    ],
+    createRuntime: () => ({ snapshot: () => null }),
+  });
+  const registry = createRegistry(uiGame);
+
+  function listened() {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const resolved = resolveBindings({ game: uiGame.actions! });
+    const input = createInputSystem(resolved.tables, {
+      isUi: (action) => isUiAction(registry, action),
+    });
+    input.attach(host);
+    cleanups.push(() => (input.destroy(), host.remove()));
+    const events: UiActionEvent[] = [];
+    const key = (type: "keydown" | "keyup", code: string, repeat = false) =>
+      host.dispatchEvent(
+        new KeyboardEvent(type, { code, key: "", repeat, bubbles: true, cancelable: true }),
+      );
+    return { input, key, events, listen: () => input.onAction((e) => void events.push(e)) };
+  }
+
+  it("delivers keyboard edges and the OS's key repeat to listeners, never to the tick queue for a UI action", () => {
+    const { input, key, events, listen } = listened();
+    listen();
+    key("keydown", "Enter");
+    key("keydown", "Enter", true);
+    key("keydown", "Enter", true);
+    key("keyup", "Enter");
+    expect(events).toEqual([
+      { action: "confirm", player: 0, kind: "button", device: "keyboard", down: true },
+      {
+        action: "confirm",
+        player: 0,
+        kind: "button",
+        device: "keyboard",
+        down: true,
+        repeat: true,
+      },
+      {
+        action: "confirm",
+        player: 0,
+        kind: "button",
+        device: "keyboard",
+        down: true,
+        repeat: true,
+      },
+      { action: "confirm", player: 0, kind: "button", device: "keyboard", down: false },
+    ]);
+    expect(input.poll(1)).toEqual([]);
+  });
+
+  it("delivers a simulation action to both, and its repeat to the listeners alone", () => {
+    const { input, key, events, listen } = listened();
+    listen();
+    key("keydown", "Space");
+    key("keydown", "Space", true);
+    expect(events.map((e) => [e.action, e.down, e.repeat ?? false])).toEqual([
+      ["jump", true, false],
+      ["jump", true, true],
+    ]);
+    expect(input.poll(1).map((a) => [a.action, a.pressed])).toEqual([["jump", true]]);
+  });
+
+  it("delivers an axis's and a vector's quantised value changes", () => {
+    const { input, key, events, listen } = listened();
+    listen();
+    key("keydown", "Equal");
+    key("keydown", "Minus");
+    key("keyup", "Equal");
+    key("keydown", "ArrowRight");
+    key("keydown", "ArrowDown");
+    expect(events).toEqual([
+      { action: "zoom", player: 0, kind: "axis", device: "keyboard", value: 1 },
+      { action: "zoom", player: 0, kind: "axis", device: "keyboard", value: 0 },
+      { action: "zoom", player: 0, kind: "axis", device: "keyboard", value: -1 },
+      { action: "cursor", player: 0, kind: "vector", device: "keyboard", vector: { x: 1, y: 0 } },
+      {
+        action: "cursor",
+        player: 0,
+        kind: "vector",
+        device: "keyboard",
+        vector: { x: 0.707, y: 0.707 },
+      },
+    ]);
+    expect(input.poll(1).map((a) => a.action)).toEqual(["zoom", "zoom", "zoom"]);
+  });
+
+  it("filters by `actions`, and stops on unsubscribe", () => {
+    const { input, key } = listened();
+    const seen: string[] = [];
+    expect(input.listening()).toBe(false);
+    const off = input.onAction((e) => void seen.push(`${e.action}:${e.down}`), {
+      actions: ["confirm"],
+    });
+    expect(input.listening()).toBe(true);
+    key("keydown", "Space");
+    key("keydown", "Enter");
+    off();
+    expect(input.listening()).toBe(false);
+    key("keyup", "Enter");
+    expect(seen).toEqual(["confirm:true"]);
+  });
+
+  it("keeps delivering to the others when a listener throws", () => {
+    const { input, key, events, listen } = listened();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    input.onAction(() => {
+      throw new Error("boom");
+    });
+    listen();
+    key("keydown", "Enter");
+    expect(events.map((e) => e.action)).toEqual(["confirm"]);
+    expect(error).toHaveBeenCalledOnce();
+    error.mockRestore();
+  });
+
+  it("never queues a UI action for the tick, whatever the device", () => {
+    const { input, key } = listened();
+    let pads: PadSnapshot[] = [];
+    const reader = createGamepadReader({ getGamepads: () => pads });
+    const pad = (pressed: number[]): PadSnapshot => ({
+      index: 0,
+      id: "pad",
+      mapping: "standard",
+      connected: true,
+      buttons: Array.from({ length: 17 }, (_, i) => ({
+        pressed: pressed.includes(i),
+        value: pressed.includes(i) ? 1 : 0,
+      })),
+      axes: [0, 0, 0, 0],
+    });
+    key("keydown", "Enter");
+    key("keydown", "ArrowRight");
+    pads = [pad([1, 15])];
+    input.setPads(reader.poll(0), reader);
+    expect(input.poll(0)).toEqual([]);
+    pads = [pad([0, 1, 15])];
+    input.setPads(reader.poll(1), reader);
+    expect(input.poll(1).map((a) => a.action)).toEqual(["jump"]);
+  });
+
+  it("feeds pads to listeners from the frame poll and to the tick from the tick poll, one edge each", () => {
+    const { input, events, listen } = listened();
+    listen();
+    let pads: PadSnapshot[] = [];
+    const reader = createGamepadReader({ getGamepads: () => pads });
+    const pad = (pressed: number[]): PadSnapshot => ({
+      index: 2,
+      id: "pad",
+      mapping: "standard",
+      connected: true,
+      buttons: Array.from({ length: 17 }, (_, i) => ({
+        pressed: pressed.includes(i),
+        value: pressed.includes(i) ? 1 : 0,
+      })),
+      axes: [0, 0, 0, 0],
+    });
+    pads = [pad([])];
+    input.setFramePads(reader.pollFrame(), reader.frame);
+    input.setPads(reader.poll(0), reader);
+    pads = [pad([0, 1])];
+    // Frames run ahead of the tick: two frame polls, then the tick's.
+    input.setFramePads(reader.pollFrame(), reader.frame);
+    input.setFramePads(reader.pollFrame(), reader.frame);
+    expect(input.poll(0)).toEqual([]);
+    input.setPads(reader.poll(1), reader);
+    expect(events).toEqual([
+      { action: "jump", player: 0, kind: "button", device: "pad:2", down: true },
+      { action: "confirm", player: 0, kind: "button", device: "pad:2", down: true },
+    ]);
+    expect(input.poll(1).map((a) => [a.action, a.pressed])).toEqual([["jump", true]]);
+
+    pads = [pad([])];
+    input.setPads(reader.poll(2), reader);
+    expect(input.poll(2).map((a) => [a.action, a.pressed])).toEqual([["jump", false]]);
+    expect(events).toHaveLength(2);
+    input.setFramePads(reader.pollFrame(), reader.frame);
+    expect(events.slice(2).map((e) => [e.action, e.down])).toEqual([
+      ["jump", false],
+      ["confirm", false],
+    ]);
+  });
+
+  it("releaseAll lets go of a held UI action for the listeners", () => {
+    const { input, key, events, listen } = listened();
+    listen();
+    key("keydown", "Enter");
+    input.releaseAll();
+    expect(events.map((e) => [e.action, e.down])).toEqual([
+      ["confirm", true],
+      ["confirm", false],
+    ]);
+    expect(input.poll(0)).toEqual([]);
   });
 });

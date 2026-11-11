@@ -68,7 +68,7 @@ export function dealAndTake() {
         { command: "play-card", args: { card: "ace", at: [2, 1.5] } },
         { command: "play-card", args: { card: "king", at: [4, 1.5] } },
         { pointer: { at: [2.05, 1.5] } },
-        // Live, one primary click moves the pointer and raises `take`; a script writes them as two steps.
+        // A `pointer` step with `press: "primary"` would raise `take` too, as a live click does.
         { press: "take" },
         { pointer: { at: [2.05, 1.5], drag: [3, 1] }, for: 10 },
       ],

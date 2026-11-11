@@ -30,6 +30,19 @@ export function cellOf(k: CellKey): Cell {
   return [hi - HALF_RANGE, k - hi * ROW_SPAN - HALF_RANGE];
 }
 
+export const sameCell = (a: Cell, b: Cell): boolean => a[0] === b[0] && a[1] === b[1];
+
+/** Whether `c` lies in `b`, edges included. */
+export const inCellBounds = (b: CellBounds, c: Cell): boolean =>
+  c[0] >= b.c0 && c[0] <= b.c1 && c[1] >= b.r0 && c[1] <= b.r1;
+
+/** Every cell of `b` in cell-key order: column by column, each from its top row down. */
+export function boundsCells(b: CellBounds): Cell[] {
+  const out: Cell[] = [];
+  for (let c = b.c0; c <= b.c1; c++) for (let r = b.r0; r <= b.r1; r++) out.push([c, r]);
+  return out;
+}
+
 export interface GridGeometry {
   readonly settings: GridSettings;
   /** Fixed order: square N, E, S, W, then NE, SE, SW, NW with diagonals; hex the six edges clockwise from the top (or top-right). */

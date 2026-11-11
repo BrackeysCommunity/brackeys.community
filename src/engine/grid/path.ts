@@ -1,4 +1,11 @@
-import { cellKey, type Cell, type CellBounds, type CellKey, type GridGeometry } from "./geometry";
+import {
+  cellKey,
+  inCellBounds,
+  type Cell,
+  type CellBounds,
+  type CellKey,
+  type GridGeometry,
+} from "./geometry";
 
 export type GridPathOptions = {
   /** Default: RuntimeGrid.passable when called through ctx.grid, else every cell in `bounds`. */
@@ -101,9 +108,7 @@ export function gridSteps(grid: GridGeometry, opts: GridPathOptions = {}): GridS
   const diagonals = opts.diagonals === true;
   const cutCorners = opts.cutCorners === true;
   const square = grid.settings.kind === "square";
-  const inBounds = (c: Cell) =>
-    bounds === undefined ||
-    (c[0] >= bounds.c0 && c[0] <= bounds.c1 && c[1] >= bounds.r0 && c[1] <= bounds.r1);
+  const inBounds = (c: Cell) => bounds === undefined || inCellBounds(bounds, c);
   const open = (c: Cell) => inBounds(c) && (passable === undefined || passable(c));
 
   /** What stepping from `from` to its neighbour `to` costs; null when the step is not allowed. */

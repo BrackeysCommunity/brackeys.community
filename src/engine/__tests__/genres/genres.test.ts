@@ -4,7 +4,15 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, describe, expect, it } from "vite-plus/test";
 
-import { probePhysics, probeRuns, probeTimeout, probesFrom, runGenreProbe } from "./harness";
+import {
+  PROBE_TIMEOUT_MS,
+  fuzzGenreProbe,
+  probePhysics,
+  probeRuns,
+  probeTimeout,
+  probesFrom,
+  runGenreProbe,
+} from "./harness";
 import { GENRE_PINS } from "./pins";
 
 const PROBES = probesFrom(
@@ -62,6 +70,7 @@ describe("genre probes", () => {
       "roguelike",
       "shooter",
       "top-down",
+      "tower-defense",
       "turn-tactics",
     ])
       expect(ids).toContain(id);
@@ -105,6 +114,21 @@ describe("genre probes", () => {
         },
         probeTimeout(probe),
       );
+
+      const opts = probe.fuzz;
+      if (opts)
+        it(
+          `fuzz: some of ${opts.rollouts} rollouts with seed ${opts.seed} ends ${opts.expect.result}`,
+          async () => {
+            const run = await fuzzGenreProbe(probe);
+            expect(run.rollouts).toBe(opts.rollouts);
+            expect(
+              run.results[opts.expect.result] ?? 0,
+              JSON.stringify(run.results),
+            ).toBeGreaterThan(0);
+          },
+          opts.timeoutMs ?? PROBE_TIMEOUT_MS,
+        );
     });
   }
 });

@@ -12,10 +12,14 @@ import {
   type TestGameSnapshot,
 } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineGame } from "../../game/define";
+import { isUiAction } from "../../game/input-bindings";
 import { isRuntimeId } from "../../game/runtime-ids";
 import type { GameDefinition, Registry } from "../../game/types";
+import { resolveBindings } from "../../input/bindings";
+import { createGamepadReader } from "../../input/gamepad";
 import type { PointerState } from "../../input/state";
 import type { TickInput } from "../../input/stream";
+import { createInputSystem } from "../../input/system";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { createSessionRecording } from "../../runtime/play-session";
 import { createRunRecorder, REPLAY_ACROSS_PLATFORMS } from "../../runtime/recorder";
@@ -460,6 +464,119 @@ describe("commands in recordings", () => {
       { action: "right", pressed: true, tick: 0, timestamp: 0 },
     ]);
     expect(replay.input(17, tick0).commands).toEqual([{ name: NUDGE, args: { dx: 5 } }]);
+  });
+
+  it("a session that pressed only UI-only actions records empty seat streams and no actions", () => {
+    const menuGame = defineGame({
+      ...testGame,
+      actions: [
+        ...testGame.actions,
+        {
+          action: "confirm",
+          ui: true,
+          description: "Confirm the menu choice.",
+          bindings: [
+            { device: "pad", button: "east" },
+            { device: "touch", control: "ok" },
+          ],
+        },
+      ],
+    });
+    const menuRegistry = createRegistry(menuGame);
+    const input = createInputSystem(resolveBindings({ game: menuGame.actions! }).tables, {
+      isUi: (action) => isUiAction(menuRegistry, action),
+    });
+    let pressed: number[] = [];
+    const reader = createGamepadReader({
+      getGamepads: () => [
+        {
+          index: 0,
+          mapping: "standard",
+          connected: true,
+          buttons: Array.from({ length: 17 }, (_, i) => ({
+            pressed: pressed.includes(i),
+            value: pressed.includes(i) ? 1 : 0,
+          })),
+          axes: [0, 0, 0, 0],
+        },
+      ],
+    });
+    const heard: string[] = [];
+    input.onAction((e) => void heard.push(`${e.action}:${e.device}:${e.down}`));
+    const session = createSessionRecording({
+      rapier,
+      game: menuGame,
+      registry: menuRegistry,
+      scene: "engine-yard",
+      sceneHash: "h" as RunRecording["sceneHash"],
+      runHash: "r",
+      start: {},
+      world: { exists: () => false, count: () => 0 },
+    });
+    const press = [
+      () => (pressed = [1]),
+      () => (pressed = []),
+      () => input.setControl("ok", { down: true }),
+      () => input.setControl("ok", { down: false }),
+    ];
+    press.forEach((act, tick) => {
+      act();
+      input.setPads(reader.poll(tick), reader);
+      input.setFramePads(reader.pollFrame(), reader.frame);
+      const stepped: TickInput = {
+        tick,
+        actions: input.poll(tick),
+        commands: [],
+        pointers: [],
+        joins: [],
+      };
+      expect(stepped.actions).toEqual([]);
+      session.stepped({ tick, game: null, events: [] }, stepped, null);
+    });
+    const done = session.stop()!;
+    expect(heard).toEqual([
+      "confirm:pad:0:true",
+      "confirm:pad:0:false",
+      "confirm:touch:true",
+      "confirm:touch:false",
+    ]);
+    expect(done.actions).toEqual([]);
+    expect(done.inputs).toEqual([[]]);
+    expect(done.ticks).toBe(4);
+  });
+
+  it("a recorder with the run's registry leaves out a UI-only action a tick hands it", () => {
+    const menuGame = defineGame({
+      ...testGame,
+      actions: [...testGame.actions, { action: "confirm", ui: true, description: "Confirm." }],
+    });
+    const recorder = createRunRecorder({
+      rapier,
+      game: menuGame,
+      registry: createRegistry(menuGame),
+      scene: "engine-yard",
+      sceneHash: "h" as RunRecording["sceneHash"],
+      runHash: "r",
+      start: {},
+    });
+    const world = { exists: () => false, count: () => 0 };
+    recorder.tick(
+      { tick: 0, snapshot: null, events: [], world },
+      {
+        tick: 0,
+        actions: [
+          { action: "confirm", pressed: true, tick: 0, timestamp: 0 },
+          { action: "right", pressed: true, tick: 0, timestamp: 0 },
+        ],
+        commands: [],
+        pointers: [],
+        joins: [],
+      },
+      null,
+    );
+    const rec = recorder.finish({ result: "quit", tick: 0, ticks: 1 }, null);
+    expect(rec.actions).toEqual(["right"]);
+    expect(rec.inputs).toEqual([[[0, "b", 0, 1]]]);
   });
 
   it("replays a turns game's recording tick for tick, though its idle slots simulated nothing", () => {

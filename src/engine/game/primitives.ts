@@ -10,13 +10,30 @@ import {
   polygonField,
   shapeField,
   sideField,
+  SIDES,
   tagsField,
 } from "./fields";
-import type { EntityTypeDef, FieldEnv, PrimitiveType, RegisteredType } from "./types";
+import type { EntityTypeDef, FieldEnv, PrimitiveType, RegisteredType, Side } from "./types";
 
 export { DEFAULT_GRAVITY } from "./defaults";
 
 const absolute = "Absolute world metres; y is down.";
+
+const asSide = (value: unknown): Side | null =>
+  typeof value === "string" && (SIDES as readonly string[]).includes(value)
+    ? (value as Side)
+    : null;
+
+/**
+ * The side a one-way solid lands actors on: the entity's own `oneWay` when
+ * it names a side, else its type's (`EntityTypeDef.oneWay`); `true` is
+ * "up", null when neither makes it one-way.
+ */
+export function oneWaySideOf(own: unknown, typeWide: unknown): Side | null {
+  const side = asSide(own) ?? asSide(typeWide);
+  if (side) return side;
+  return own === true || typeWide === true ? "up" : null;
+}
 
 /**
  * The engine's own entity types, as schema. Their systems are the runtime's

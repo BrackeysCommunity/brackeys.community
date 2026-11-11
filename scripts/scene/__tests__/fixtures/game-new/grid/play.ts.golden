@@ -1,0 +1,27 @@
+import type { GamePlayDef } from "@jams/engine/game";
+import { z } from "zod";
+
+import { REACHED, type Snapshot } from "./types";
+
+/** Won when the hero reaches a goal. */
+export const PLAY: GamePlayDef<Snapshot> = {
+  results: ["won"],
+  focus: (snapshot) => snapshot.at,
+  movementActions: ["move"],
+  outcome({ events }) {
+    const goal = events.find((e) => e.type === REACHED);
+    return goal
+      ? { result: "won", cause: "the hero reached the goal", entityId: goal.entityId }
+      : null;
+  },
+  predicates: {
+    cell: {
+      description: "The hero stands on, or is stepping onto, this cell: [col, row].",
+      arg: z.tuple([z.number().int(), z.number().int()]),
+      test(arg, { snapshot }) {
+        const [col, row] = arg as [number, number];
+        return snapshot.cell?.[0] === col && snapshot.cell[1] === row;
+      },
+    },
+  },
+};

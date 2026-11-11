@@ -1,8 +1,8 @@
-import { KEY_TO_CODE } from "../game/input-codes";
-import type { PointerButton } from "../game/input-codes";
+import { KEY_TO_CODE, pointerBit, POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
+import type { DeviceId } from "../game/types";
 import { createToolRouter, isEditableTarget, TOOL_PRIORITY } from "../tool-router";
 import type { ToolConsumer, ToolEvent, ToolRouter } from "../tool-router";
-import type { InputAction, Vec2 } from "../types";
+import type { InputAction, UiActionEvent, Vec2 } from "../types";
 import { actionValueChanged, combineAction } from "./bindings";
 import type { ActionValue, BoundInput, DeviceTables } from "./bindings";
 import type { GamepadPoll, GamepadReader, PadBinding, PadChange } from "./gamepad";
@@ -41,11 +41,32 @@ export type TouchControlTarget = {
   drive?: (control: string, touch: ControlTouch) => void;
 };
 
+export type InputSystemOptions = {
+  /**
+   * Whether an action is UI-only (`isUiAction`): its changes reach `onAction`
+   * listeners and never the tick queue. Default: none is.
+   */
+  isUi?: (action: string) => boolean;
+};
+
 export type InputSystem = {
   /** Listens on `target` by itself; inside the shell a tool router feeds `consumer()` instead. */
   attach: (target: HTMLElement | Window) => void;
   detach: () => void;
+  /** The simulation's actions since the last poll, stamped `tick`; never a UI-only action. */
   poll: (tick: number) => InputAction[];
+  /**
+   * Every action's edges and quantised value changes as the devices produce
+   * them, UI-only or not, plus a held button's OS key repeat (`repeat: true`);
+   * `actions` narrows it. Pads reach listeners through `setFramePads` only.
+   * Returns the unsubscribe.
+   */
+  onAction: (
+    listener: (e: UiActionEvent) => void,
+    opts?: { actions?: readonly string[] },
+  ) => () => void;
+  /** Whether any `onAction` listener is registered, so a host knows to poll pads each frame. */
+  listening: () => boolean;
   /** The pointer in CSS pixels from the input target's top-left corner. */
   getMousePosition: () => { x: number; y: number };
   /** Whether the pointer has moved over the input target yet. */
@@ -59,6 +80,15 @@ export type InputSystem = {
    * pad drives seat 0; a binding reads the connected pad furthest from rest.
    */
   setPads: (
+    poll: GamepadPoll,
+    reader: Pick<GamepadReader, "pads" | "reading">,
+    timestamp?: number,
+  ) => void;
+  /**
+   * `setPads` for the listeners: a frame poll's pad changes (`GamepadReader.pollFrame`,
+   * read through its `frame` cursor) reach `onAction` and never the tick queue.
+   */
+  setFramePads: (
     poll: GamepadPoll,
     reader: Pick<GamepadReader, "pads" | "reading">,
     timestamp?: number,
@@ -96,22 +126,35 @@ function codesOf(e: KeyEvent): readonly string[] {
   return KEY_TO_CODE[key] ?? [];
 }
 
-/** The DOM `button` numbers of the pointer buttons a binding names, and their `buttons` bits. */
-const POINTER_BUTTON: Readonly<Record<number, { name: PointerButton; bit: number }>> = {
-  0: { name: "primary", bit: 1 },
-  1: { name: "middle", bit: 4 },
-  2: { name: "secondary", bit: 2 },
-};
-const BUTTON_BITS = 7;
+/** The pointer buttons by DOM `button` number, with their `buttons` bits. */
+const POINTER_BUTTON: readonly { name: PointerButton; bit: number }[] = (
+  ["primary", "middle", "secondary"] as const
+).map((name) => ({ name, bit: pointerBit(name) }));
+const PRIMARY_BIT = pointerBit("primary");
+const BUTTON_BITS = POINTER_BUTTONS.reduce((bits, b) => bits | pointerBit(b), 0);
 
-/** One seat's action and what each of its bindings reads now. */
+/** What each of an action's bindings reads now, and the state they combine to. */
+type Side = { readings: Map<BoundInput, number | Vec2>; state: ActionValue };
+
+/**
+ * One seat's action, read twice: `tick` for the simulation's queue, with
+ * pads as the tick poll read them; `live` for `onAction`, with pads as the
+ * frame poll read them. Keys, the pointer and touch feed both alike.
+ */
 type Slot = {
   action: string;
   kind: BoundInput["kind"];
   player: number;
-  readings: Map<BoundInput, number | Vec2>;
-  state: ActionValue;
+  tick: Side;
+  live: Side;
+  /** The device that last moved the live side, which its events name. */
+  device: DeviceId;
 };
+
+/** Which of a slot's sides a reading feeds. */
+type Sides = "both" | "tick" | "live";
+
+type Listener = { fn: (e: UiActionEvent) => void; actions: ReadonlySet<string> | null };
 
 const neutral = (kind: BoundInput["kind"]): ActionValue =>
   kind === "button"
@@ -129,13 +172,18 @@ const neutral = (kind: BoundInput["kind"]): ActionValue =>
  * combine by `combineAction`: a button action is raised on each edge of
  * "any binding held", an axis or vector action whenever its quantised value
  * changes. A touch that starts on an on-screen control drives it; the first
- * other touch is the pointer, holding its primary button.
+ * other touch is the pointer, holding its primary button. Each change goes
+ * to the `onAction` listeners, and to the tick queue unless `opts.isUi`
+ * names its action.
  */
 export function createInputSystem(
   tables: Pick<DeviceTables, "keys"> &
     Partial<Pick<DeviceTables, "pointer" | "touch" | "padButtons" | "padAxes" | "padSticks">>,
+  opts: InputSystemOptions = {},
 ): InputSystem {
+  const isUi = opts.isUi ?? (() => false);
   const actionQueue: InputAction[] = [];
+  const listeners: Listener[] = [];
   const keysDown = new Set<string>();
   const slots = new Map<string, Slot>();
   const mousePosition = { x: 0, y: 0 };
@@ -155,34 +203,86 @@ export function createInputSystem(
     const id = `${bound.player}:${bound.action}`;
     let slot = slots.get(id);
     if (!slot) {
+      const side = (): Side => ({ readings: new Map(), state: neutral(bound.kind) });
       slot = {
         action: bound.action,
         kind: bound.kind,
         player: bound.player,
-        readings: new Map(),
-        state: neutral(bound.kind),
+        tick: side(),
+        live: side(),
+        device: "keyboard",
       };
       slots.set(id, slot);
     }
     return slot;
   }
 
-  /** Re-combines a slot and queues an action when its state changed. */
-  function settle(slot: Slot, timestamp: number): void {
-    const readings = [...slot.readings].map(([bound, reading]) => ({
+  /** Re-combines one side of a slot; the new state when it changed. */
+  function combine(slot: Slot, side: Side): ActionValue | null {
+    const readings = [...side.readings].map(([bound, reading]) => ({
       binding: bound.binding,
       reading,
     }));
     const next = combineAction(slot.kind, readings);
-    if (!actionValueChanged(slot.state, next)) return;
-    slot.state = next;
-    const action: InputAction = { action: slot.action, pressed: next.pressed, tick: 0, timestamp };
-    if (next.value !== undefined) action.value = next.value;
-    if (next.x !== undefined) action.x = next.x;
-    if (next.y !== undefined) action.y = next.y;
-    if (slot.player !== 0) action.player = slot.player;
-    actionQueue.push(action);
+    if (!actionValueChanged(side.state, next)) return null;
+    side.state = next;
+    return next;
   }
+
+  function emit(slot: Slot, value: ActionValue, repeat = false): void {
+    if (listeners.length === 0) return;
+    const event: UiActionEvent = {
+      action: slot.action,
+      player: slot.player,
+      kind: slot.kind,
+      device: slot.device,
+    };
+    if (slot.kind === "button") event.down = value.pressed;
+    if (repeat) event.repeat = true;
+    if (slot.kind === "axis") event.value = value.value ?? 0;
+    if (slot.kind === "vector") event.vector = { x: value.x ?? 0, y: value.y ?? 0 };
+    for (const l of [...listeners]) {
+      if (l.actions && !l.actions.has(slot.action)) continue;
+      try {
+        l.fn(event);
+      } catch (error) {
+        console.error("[input] an onAction listener threw", error);
+      }
+    }
+  }
+
+  /**
+   * Re-combines the sides `sides` names: a changed tick side queues an
+   * action unless it is UI-only, a changed live side reaches the listeners.
+   */
+  function settle(slot: Slot, timestamp: number, sides: Sides = "both"): void {
+    if (sides !== "live") {
+      const next = combine(slot, slot.tick);
+      if (next && !isUi(slot.action)) {
+        const action: InputAction = {
+          action: slot.action,
+          pressed: next.pressed,
+          tick: 0,
+          timestamp,
+        };
+        if (next.value !== undefined) action.value = next.value;
+        if (next.x !== undefined) action.x = next.x;
+        if (next.y !== undefined) action.y = next.y;
+        if (slot.player !== 0) action.player = slot.player;
+        actionQueue.push(action);
+      }
+    }
+    if (sides !== "tick") {
+      const next = combine(slot, slot.live);
+      if (next) emit(slot, next);
+    }
+  }
+
+  /** Whether a binding drives its seat now: seat 0's, or one routed to the seat that owns its device. */
+  const drives = (b: BoundInput) => b.player === 0 || b.fixed;
+
+  const sidesOf = (slot: Slot, sides: Sides): Side[] =>
+    sides === "both" ? [slot.tick, slot.live] : [slot[sides]];
 
   /**
    * Sets what each binding in `bound` reads (null: let go), skipping those
@@ -192,23 +292,45 @@ export function createInputSystem(
     bound: Iterable<BoundInput>,
     reading: number | Vec2 | null,
     timestamp: number,
+    device: DeviceId,
   ): boolean {
     const touched: Slot[] = [];
     for (const b of bound) {
-      if (b.player !== 0 && !b.fixed) continue;
+      if (!drives(b)) continue;
       const slot = slotOf(b);
-      if (reading === null) slot.readings.delete(b);
-      else slot.readings.set(b, reading);
+      for (const side of sidesOf(slot, "both")) {
+        if (reading === null) side.readings.delete(b);
+        else side.readings.set(b, reading);
+      }
+      slot.device = device;
       if (!touched.includes(slot)) touched.push(slot);
     }
     for (const slot of touched) settle(slot, timestamp);
     return touched.length > 0;
   }
 
-  function press(codes: Iterable<string>, down: boolean, timestamp: number): boolean {
+  const keyBound = (codes: Iterable<string>): BoundInput[] => {
     const bound: BoundInput[] = [];
     for (const code of codes) bound.push(...(tables.keys.get(code) ?? []));
-    return read(bound, down ? 1 : null, timestamp);
+    return bound;
+  };
+
+  function press(codes: Iterable<string>, down: boolean, timestamp: number): boolean {
+    return read(keyBound(codes), down ? 1 : null, timestamp, "keyboard");
+  }
+
+  /** The OS's repeat of held keys: each held button action they drive, to the listeners alone. */
+  function repeatKeys(codes: Iterable<string>): void {
+    const repeated: Slot[] = [];
+    for (const b of keyBound(codes)) {
+      if (!drives(b) || b.kind !== "button") continue;
+      const slot = slotOf(b);
+      if (slot.live.state.pressed && !repeated.includes(slot)) repeated.push(slot);
+    }
+    for (const slot of repeated) {
+      slot.device = "keyboard";
+      emit(slot, slot.live.state, true);
+    }
   }
 
   /** Holds or lets go of the pointer buttons in `bits`, raising their bindings' actions. */
@@ -216,8 +338,9 @@ export function createInputSystem(
     const changed = down ? bits & ~buttonsHeld : bits & buttonsHeld;
     if (changed === 0) return;
     buttonsHeld = down ? buttonsHeld | changed : buttonsHeld & ~changed;
-    for (const { name, bit } of Object.values(POINTER_BUTTON)) {
-      if (changed & bit) read(tables.pointer?.get(name) ?? [], down ? 1 : null, timestamp);
+    for (const { name, bit } of POINTER_BUTTON) {
+      if (changed & bit)
+        read(tables.pointer?.get(name) ?? [], down ? 1 : null, timestamp, "pointer");
     }
   }
 
@@ -230,7 +353,7 @@ export function createInputSystem(
         : value.x !== 0 || value.y !== 0
           ? { x: value.x, y: value.y }
           : null;
-    read(tables.touch?.get(control) ?? [], reading, timestamp);
+    read(tables.touch?.get(control) ?? [], reading, timestamp, "touch");
   }
 
   /** The bindings a pad change moves: by name and, where the pad names it, by raw index too. */
@@ -246,35 +369,47 @@ export function createInputSystem(
     return [...named, ...(table?.get(change.index) ?? [])];
   }
 
-  function setPads(
+  /** A poll's pad changes into one side of their slots: the tick poll's or the frame poll's. */
+  function readPads(
     poll: GamepadPoll,
     reader: Pick<GamepadReader, "pads" | "reading">,
-    timestamp = 0,
+    timestamp: number,
+    sides: "tick" | "live",
   ): void {
-    const bound = new Set<BoundInput>();
-    for (const change of poll.changes) for (const b of padBound(change)) bound.add(b);
+    const bound = new Map<BoundInput, number>();
+    for (const change of poll.changes)
+      for (const b of padBound(change)) if (!bound.has(b)) bound.set(b, change.pad);
     const pads = reader.pads();
     const touched: Slot[] = [];
-    for (const b of bound) {
-      if (b.player !== 0 && !b.fixed) continue;
+    for (const [b, changedPad] of bound) {
+      if (!drives(b)) continue;
       let best: number | Vec2 = 0;
       let bestMagnitude = 0;
+      let bestPad = changedPad;
       for (const pad of pads) {
         const r = reader.reading(pad, b.binding as PadBinding);
         const m = typeof r === "number" ? Math.abs(r) : r.x * r.x + r.y * r.y;
         if (m > bestMagnitude) {
           best = r;
           bestMagnitude = m;
+          bestPad = pad;
         }
       }
       const slot = slotOf(b);
-      if (bestMagnitude > 0) slot.readings.set(b, best);
-      else slot.readings.delete(b);
+      const side = slot[sides];
+      if (bestMagnitude > 0) side.readings.set(b, best);
+      else side.readings.delete(b);
+      if (sides === "live") slot.device = `pad:${bestPad}`;
       if (!touched.includes(slot)) touched.push(slot);
     }
     // Every changed binding is read before any action settles, so one poll raises one action each.
-    for (const slot of touched) settle(slot, timestamp);
+    for (const slot of touched) settle(slot, timestamp, sides);
   }
+
+  const setPads: InputSystem["setPads"] = (poll, reader, timestamp = 0) =>
+    readPads(poll, reader, timestamp, "tick");
+  const setFramePads: InputSystem["setFramePads"] = (poll, reader, timestamp = 0) =>
+    readPads(poll, reader, timestamp, "live");
 
   type PointerEventOf = Extract<ToolEvent, { kind: "pointer" }>;
 
@@ -326,7 +461,7 @@ export function createInputSystem(
       if (pointerTouch !== null) return;
       pointerTouch = id;
       movePointer(e);
-      setButtons(POINTER_BUTTON[0]!.bit, true, timestamp);
+      setButtons(PRIMARY_BIT, true, timestamp);
       capture(e);
       return;
     }
@@ -335,7 +470,7 @@ export function createInputSystem(
     if (e.type === "up") {
       pointerTouch = null;
       pointerOver = false;
-      setButtons(POINTER_BUTTON[0]!.bit, false, timestamp);
+      setButtons(PRIMARY_BIT, false, timestamp);
     }
   }
 
@@ -358,8 +493,8 @@ export function createInputSystem(
   }
 
   function handleKeyDown(e: KeyEvent): void {
-    if (e.native.repeat) return;
     const codes = codesOf(e);
+    if (e.native.repeat) return repeatKeys(codes);
     for (const code of codes) keysDown.add(code);
     // A bound key doesn't also scroll the page (arrows, space).
     if (press(codes, true, e.native.timeStamp)) e.native.preventDefault();
@@ -414,8 +549,9 @@ export function createInputSystem(
       controls?.drive?.(control, { phase: "end", screen: { ...mousePosition }, id });
     forgetPointer();
     for (const slot of slots.values()) {
-      if (slot.readings.size === 0) continue;
-      slot.readings.clear();
+      if (slot.tick.readings.size === 0 && slot.live.readings.size === 0) continue;
+      slot.tick.readings.clear();
+      slot.live.readings.clear();
       settle(slot, timestamp);
     }
   }
@@ -433,8 +569,21 @@ export function createInputSystem(
     return actions;
   }
 
+  function onAction(
+    fn: (e: UiActionEvent) => void,
+    o?: { actions?: readonly string[] },
+  ): () => void {
+    const listener: Listener = { fn, actions: o?.actions ? new Set(o.actions) : null };
+    listeners.push(listener);
+    return () => {
+      const at = listeners.indexOf(listener);
+      if (at >= 0) listeners.splice(at, 1);
+    };
+  }
+
   function destroy(): void {
     detach();
+    listeners.length = 0;
     actionQueue.length = 0;
     keysDown.clear();
     slots.clear();
@@ -446,6 +595,8 @@ export function createInputSystem(
     attach,
     detach,
     poll,
+    onAction,
+    listening: () => listeners.length > 0,
     getMousePosition: () => ({ ...mousePosition }),
     hasPointer: () => pointerSeen,
     getPointer: () => ({ ...mousePosition, buttons: buttonsHeld, over: pointerOver }),
@@ -454,6 +605,7 @@ export function createInputSystem(
       controlTouches.clear();
     },
     setPads,
+    setFramePads,
     setControl,
     setEnabled: (next) => void (enabled = next),
     isKeyDown: (code) => keysDown.has(code),

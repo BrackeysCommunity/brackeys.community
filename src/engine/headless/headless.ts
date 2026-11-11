@@ -1,4 +1,4 @@
-import type { GameCommand, GameOutcome } from "../game/types";
+import type { GameCommand, GameOutcome, PlayState } from "../game/types";
 import { playWorld } from "../runtime/play-session";
 import { inputAction, probeConfigHash } from "../runtime/recorder";
 import { createSceneRuntime, resolveGame, type ProjectOption } from "../runtime/runtime";
@@ -11,6 +11,7 @@ import type {
 import { closest } from "../scene/did-you-mean";
 import type { PrefabLibrary } from "../scene/types";
 import type { InputAction } from "../types";
+import { legalCommands } from "./legal";
 import { runBlocked, runLibrary } from "./play-loop";
 import type { PlaytestBlocked } from "./playtest-types";
 import type { HeadlessRuntimeOptions, ProbeOptions, ProbeReport } from "./types";
@@ -66,7 +67,8 @@ type LibraryOption = {
  * and report what happened. Every tick is simulated whatever the time model,
  * as the shell's `step(n)` does. An `EngineError` out of a step ends the run
  * as `runPlaytest`'s does: `blocked` at stage `run` with the error's code,
- * the report covering the ticks before it.
+ * the report covering the ticks before it. A game that lists its commands
+ * gets `legal` after the last tick (`legalCommands`); a blocked run has none.
  */
 export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): ProbeReport<S> {
   const { registry, game } = resolveGame(opts);
@@ -88,6 +90,7 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): Pr
     let ticks = 0;
     let outcome: (GameOutcome & { tick: number }) | undefined;
     let blocked: PlaytestBlocked | undefined;
+    let last: PlayState | undefined;
     const play = game?.play;
     const time = runtime.ctx.time;
     const world = playWorld(runtime.ctx);
@@ -120,13 +123,9 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): Pr
         }
         events.push(...result.events);
         ticks++;
+        last = { tick, snapshot: result.game, events: result.events, world };
         if (play?.outcome && !outcome) {
-          const verdict = play.outcome({
-            tick,
-            snapshot: result.game as S,
-            events: result.events,
-            world,
-          });
+          const verdict = play.outcome(last as PlayState<S>);
           if (verdict) outcome = { ...verdict, tick };
         }
       }
@@ -134,6 +133,7 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): Pr
 
     const final = runtime.snapshot() as S | null;
     const maxEvents = opts.maxEvents ?? DEFAULT_MAX_EVENTS;
+    const legal = last && !blocked ? legalCommands(play, last) : null;
     const report: ProbeReport<S> = {
       configHash: probeConfigHash(game, time),
       tickRate: time.rate,
@@ -142,6 +142,7 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): Pr
       events: events.slice(0, maxEvents),
       truncated: events.length > maxEvents,
       final,
+      ...legal,
       stats: runtime.stats(),
     };
     if (outcome) report.outcome = outcome;

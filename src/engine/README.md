@@ -46,7 +46,7 @@ host imports for its effect is `@jams/engine/editor-ui/style.css`.
 
 | Entry                    | What it holds                                                                                                                                              | Runtime peers                     |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `@jams/engine`           | `createGame`, the browser shell: renderer, camera, input, the tool router and the store selectors                                                          | pixi.js, @tanstack/store          |
+| `@jams/engine`           | `createGame`, the browser shell: renderer, camera, input, the tool router and the store selectors; the UI seam (`mountUi`, `bindText`, `bindToWorld`)      | pixi.js, @tanstack/store          |
 | `@jams/engine/scene`     | the scene format: parse, migrate, format, hash, expand, validate, issue codes, `applyOps`, diffs, the JSON Schemas                                         | zod                               |
 | `@jams/engine/game`      | the authoring API: `defineGame`, `defineEntityType`, `createRegistry`, field helpers and the primitive systems                                             | zod                               |
 | `@jams/engine/headless`  | a DOM- and Pixi-free runtime: `createHeadlessRuntime`, `runProbe`, input scripts, `runPlaytest`, `fuzz`, `validatePhysical`, `runChecks`                   | zod                               |
@@ -170,11 +170,14 @@ way, each one version up.
 A scene's entities are typed by the registry: eight primitives the engine
 always has (`solid`, `sensor`, `marker`, `prop`, `follower`, `decor`,
 `nav`, `note`) plus the game's own types. A game type either names a primitive as
-its `base`, so the primitive's system spawns it, or brings its own `system`.
+its `base`, so the primitive's system spawns it, or brings its own `system`
+(`createDataSystem` for a type whose entities are data the game reads).
 `decor` is a picture with no body: `{ id, type: "decor", at, behaviors: {
 sprite } }`, its `sprite` block required. It loads (headless too), so it
 has a pose and is queryable, but nothing enters the physics world for it.
-A game's `spawnOrder` may leave `decor` out; it then spawns last. A game
+A game's `spawnOrder` lists its own types; a primitive it leaves out spawns
+before every listed group, in primitive order, except `decor` and `nav`,
+which then spawn last. A game
 type named `decor` is a registry error, as for every primitive.
 
 ```ts coin-game.ts
@@ -374,7 +377,7 @@ const run = runPlaytest({
   registry,
   scene,
   script: {
-    v: 1,
+    v: 2,
     steps: [
       { hold: ["right"], until: { event: "sensor:enter" }, max: 300 },
       { wait: 30 },
@@ -405,6 +408,9 @@ if (!coverage.blocked) {
   seeds `ctx.random`. Scripts are `v: 2`: per-seat `tracks`, analog
   `set`, `pointer`, `join` and `leave` steps (see
   [Local multiplayer](#local-multiplayer)); a v1 script migrates on read.
+  A pointer step's buttons raise the actions bound to them, as a live
+  click does, and a track that ends early holds its last step until the
+  script ends.
   `compileInputScript` checks a script and turns it into each slot's
   `TickInput`; `inputScriptJsonSchema(registry)` describes a game's scripts.
 - The outcome comes from the game's `play.outcome`; otherwise a run ends as
@@ -510,7 +516,9 @@ tick's action edges and commands.
   so a key sits where the QWERTY key sits on any layout. The editor's own
   shortcuts keep following the printed letter. A 0.x `keys` list still
   works, deprecated: each key binds every code `KEY_TO_CODE` gives it
-  (`"Shift"` is both Shifts, `"1"` the digit row and the numpad).
+  (`"Shift"` is both Shifts, `"1"` the digit row and the numpad). A key the
+  table doesn't know (`"space"`; Space is `" "`) is refused when the game
+  registers, with a did-you-mean.
 - **Analog.** A key or pad button on an axis or vector contributes its
   `value` (default 1) on its `axis` (`"x"` or `"y"`). Bindings on a button
   combine by OR; on an axis the reading furthest from zero wins; a vector
@@ -524,7 +532,10 @@ tick's action edges and commands.
   `select`, `start`, `ls`, `rs`, the d-pad, `home`) or a raw index for a
   non-standard pad; `{ stick: "left" | "right" }` for a vector;
   `{ axis, scale? }` (`PAD_AXES` or a trigger, `lt`/`rt`) for an axis. The
-  shell polls `navigator.getGamepads()` once per tick.
+  shell polls `navigator.getGamepads()` once per tick, and also every
+  animation frame while an `input.onAction` listener exists (see
+  [UI-only actions](#ui-only-actions)); the two polls keep their own
+  previous state, so neither eats the other's edges.
 - **Pointer.** `{ device: "pointer", button }` binds `primary`,
   `secondary` or `middle`; `ctx.input.pointer(seat)` is the pointer in
   world metres (quantised to 1/10,000 m), its `buttons` bits and whether
@@ -734,7 +745,7 @@ export function dealAndTake() {
         { command: "play-card", args: { card: "ace", at: [2, 1.5] } },
         { command: "play-card", args: { card: "king", at: [4, 1.5] } },
         { pointer: { at: [2.05, 1.5] } },
-        // Live, one primary click moves the pointer and raises `take`; a script writes them as two steps.
+        // A `pointer` step with `press: "primary"` would raise `take` too, as a live click does.
         { press: "take" },
         { pointer: { at: [2.05, 1.5], drag: [3, 1] }, for: 10 },
       ],
@@ -993,6 +1004,254 @@ export function runRace() {
 }
 ```
 
+## UI
+
+A game's UI goes in one of two places:
+
+- **DOM over the canvas** (the UI seam below): HUDs, menus, unit cards,
+  tooltips, anything with text, focus or a screen reader. It is a separate
+  module from the game's, so headless runs and the scene CLI, which import
+  the game module, never load DOM code, and one HUD serves the site, the
+  editor's Play and a page of your own.
+- **In the canvas**, drawn with the frame: the renderer's `uiContainer`, the
+  Pixi stage's screen-fixed layer above the world, in canvas px (a debug
+  layer gets it as `DebugLayerHost.uiContainer`), and the scene view's
+  layers for things that ride the world. Keep it for in-canvas drawing
+  only; it has no text input, focus or accessibility, so a game's HUD is
+  DOM.
+
+### The UI seam
+
+The project file names the UI module beside the game module, relative to
+the project file and with the same patterns as `game`:
+
+```json
+{
+  "kind": "project",
+  "v": 1,
+  "id": "ferry",
+  "name": "Ferry",
+  "game": { "module": "./index.ts", "export": "ferryGame" },
+  "ui": { "module": "./ui/index.ts", "export": "mountFerryHud" }
+}
+```
+
+The export is a `MountUi<G>`: it gets a `UiContext<G>` and returns a
+`UiHandle`, `{ destroy() }`, which takes away everything it added. The
+context holds:
+
+- `root`, a div over the canvas with the canvas's box. It takes no pointer
+  events, so the canvas keeps its clicks; a child that should be clicked
+  sets `pointer-events: auto`.
+- `canvas` and `game`, the `GameInstance`.
+- `slice()`, the store's `game` field (the runtime's `storeSlice()`), typed
+  as `G`; null before the first load.
+- `watch(select, fn)`, which calls `fn(value, prev)` now and again whenever
+  `select(state)` changes by identity (`Object.is`), and returns the
+  unsubscribe. Return the same slice object from `storeSlice` until
+  something changed, and a watch on `(s) => s.game` fires once per change.
+- `settings`, the game-settings doc's `game` block with defaults applied
+  (`{}` without a project), and `reducedMotion`, true when the page prefers
+  reduced motion, so the HUD skips its own animations.
+
+`mountUi(game, canvas, mount)` is how a host mounts one: `createUiLayer`
+inserts the layer (a `data-jams-ui` div, a sibling of the canvas in its
+offset parent, following the canvas's box through a `ResizeObserver`, or
+the window's `resize` where there is none), builds the context and calls
+`mount`. The function it returns calls `destroy`, drops every `watch` the
+context made and removes the layer. The jams.team site calls it from an
+effect in its game page, `SceneEditor` takes the same function as its `ui`
+prop and mounts it over the canvas while Play runs, and a page of your own
+calls it after `createGame`.
+
+Two helpers keep framework-free DOM current. `bindText(el, ctx, select,
+format?)` keeps `el.textContent` equal to `format(select(state))`.
+`bindToWorld(el, ctx, at)` keeps `el` over the world point `at()` returns
+(metres, through `game.worldToClient` and the camera), moving it with a
+transform on every store change and canvas resize and hiding it while
+`at()` is null. `watchView(ctx, fn)` is the trigger under `bindToWorld`,
+for DOM sized from `worldToClient` too, such as a cell highlight.
+
+**What a HUD may do:** read `slice()` and `watch`; call `game.send`
+(commands are recorded and replay); map points with `game.clientToWorld`
+and `game.worldToClient`; use `game.input` (`bindings`, `onAction`,
+`capture`, `rebind`); and `pause` and `resume`. It never reaches
+`game.runtime()` or the runtime's `ctx`: everything that changes the
+simulation is a command, so a run with a HUD replays without one. What it
+shows beyond the slice (a unit's reach, a fog of war) it computes from the
+slice with the pure toolkits in `./game`.
+
+The ferry's HUD: a status line, a button that sends `cross`, a name tag
+over the boat and a help panel on a UI-only action:
+
+```ts dom-hud.ts
+import { bindText, bindToWorld, type GameStoreState, type MountUi } from "@jams/engine";
+
+/** What the ferry game's `storeSlice()` returns: a new object only when something changed. */
+export type FerrySlice = {
+  turn: number;
+  /** The boat's position, world metres. */
+  boat: [x: number, y: number];
+  aboard: number;
+  /** Whether `cross` is among the commands the game lists as legal now. */
+  canCross: boolean;
+  result: "won" | null;
+};
+
+const ferry = (s: GameStoreState) => s.game as FerrySlice | null;
+
+/**
+ * The ferry's HUD, with no framework: a status line, a Cross button that
+ * sends the game's `cross` command, a name tag that rides the boat, and a
+ * help panel the UI-only `help` action toggles. It reads the slice and
+ * changes the game only through `send`.
+ */
+export const mountFerryHud: MountUi<FerrySlice> = (ctx) => {
+  const doc = ctx.root.ownerDocument;
+  const hud = doc.createElement("div");
+  hud.dataset.motion = ctx.reducedMotion ? "reduced" : "full";
+
+  const status = doc.createElement("p");
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+
+  const cross = doc.createElement("button");
+  cross.type = "button";
+  cross.textContent = "Cross";
+  // The layer takes no pointer events; whatever is clickable opts back in.
+  cross.style.pointerEvents = "auto";
+  cross.addEventListener("click", () => ctx.game.send({ name: "cross" }));
+
+  const tag = doc.createElement("span");
+  tag.setAttribute("aria-hidden", "true");
+  tag.textContent = typeof ctx.settings.boatName === "string" ? ctx.settings.boatName : "Ferry";
+
+  const help = doc.createElement("aside");
+  help.hidden = true;
+  help.textContent = "Cross carries everyone aboard to the far bank.";
+
+  hud.append(status, cross, tag, help);
+  ctx.root.append(hud);
+
+  const stops = [
+    bindText(status, ctx, ferry, (f) =>
+      !f
+        ? "Loading the ferry"
+        : f.result === "won"
+          ? "Everyone is across"
+          : `Turn ${f.turn} · ${f.aboard} aboard`,
+    ),
+    ctx.watch(ferry, (f) => {
+      cross.disabled = !f?.canCross;
+    }),
+    bindToWorld(tag, ctx, () => {
+      const f = ctx.slice();
+      return f ? { x: f.boat[0], y: f.boat[1] - 0.5 } : null;
+    }),
+    ctx.game.input.onAction(
+      (e) => {
+        if (e.down && !e.repeat) help.hidden = !help.hidden;
+      },
+      { actions: ["help"] },
+    ),
+  ];
+
+  return {
+    destroy() {
+      for (const stop of stops) stop();
+      hud.remove();
+    },
+  };
+};
+```
+
+A host page mounts it with `const unmount = mountUi(game, canvas,
+mountFerryHud)`; the canvas's parent should be positioned, since the layer
+is placed against the canvas's offset parent.
+
+### UI-only actions
+
+An action with `ui: true` is resolved from devices and every binding layer
+like any other (the game's bindings, the input map, the host's and the
+player's remaps, all checked alike), but it never enters the simulation:
+it is absent from `TickInput` and `ctx.input`, from a recording's `actions`
+table and seat streams, and from fuzz's default macro. A cursor or a menu
+is UI state; in a `turns` game no tick runs until a command arrives, so a
+cursor the simulation moved would freeze, and recording menu navigation
+would only grow recordings with input that can't change a run.
+
+`GameInstance.input.onAction(listener, { actions? })` delivers every
+action's changes as devices produce them, UI-only or not, whether the
+simulation is ticking, paused or idle; it returns the unsubscribe. Each
+`UiActionEvent` carries `action`, `player`, `kind` and `device`; a button
+gives its edge as `down`, with `repeat: true` for the OS's key repeat
+(which never reaches the simulation), and an axis or vector its quantised
+`value` or `vector` whenever that changes. While any listener exists the
+shell also polls pads every animation frame, and a listener that throws is
+logged without stopping the others.
+
+`registry.uiActionNames` lists the UI-only actions in registration order
+(`actionNames` still lists all of them, since input maps bind both), and
+`isUiAction(registry, name)` in `./game` is the one check the input
+system, the recorder, fuzz and script validation share. An input script's
+`hold`, `press` or `set` naming a UI-only action is `binding-unknown` with
+the hint "UI actions don't reach the simulation; send a command". The
+input-map and input-script schemas list a game's UI-only actions in their
+own enum branch, marked `x-ui: true`.
+
+## Turn games
+
+A turn game's player chooses, and the simulation then plays the choice
+out. On a `turns` clock ([World models](#world-models)) the shape is:
+
+- **Actions are UI-only.** A cursor (a vector), confirm and cancel drive
+  the HUD's own state machine through `onAction` and canvas clicks
+  (`clientToWorld`, then the grid's `cellAt`).
+- **Orders are commands.** The HUD sends `move { unit, to }` and the like
+  with `game.send`, which wakes the clock; the runtime applies them in
+  `beforeStep`, refuses (and reports) an illegal one, and keeps `busy()`
+  true while the result plays out, so the clock ticks only then.
+- **The game says what is legal.** `GamePlayDef.commands?(state)` lists
+  the commands a run may send now, in a stable order. Before a run's first
+  tick `state.tick` is −1 and `events` is empty. The list is the
+  game-agnostic shape every board, card and tactics game can give, and it
+  is how anything but a person explores the game.
+
+### Legal commands
+
+Every report reads the list through one rule: what `play.commands`
+returns after the last tick, cut at 64 entries with `legalTruncated: true`
+beyond. `runProbe`'s `ProbeReport` and `runPlaytest`'s `final` carry it as
+`legal` when the game declares `commands`, and it is absent when the game
+doesn't.
+
+`fuzz`, for a game with `commands` and no `play.macro` of its own, makes
+command macros: one slot sending one command picked from the slot's legal
+list by the rollout's seeded generator, for every macro on a `turns`
+clock and half of them otherwise (the rest hold actions, as before). An
+empty list sends nothing for that slot. `FuzzReport.legal` counts what the
+command macros did (`sent`, and `empty` for the slots that found the list
+empty), and the rollouts stay seeded, so a fuzz that reaches a game's
+goal replays.
+
+The scene CLI prints the list with `vp run scene step <scene> --legal`
+(see `scripts/scene/README.md`), and MCP's `scene_playtest` results carry
+it. On the second game's first level:
+
+```text
+$ vp run scene step level-1 --project tactics --ticks 1 --legal
+level-1 … game tactics …: 1 ticks at 60Hz; lengths in m, speeds in m/s (48 px/m)
+  final {"turn":1,"side":"blue","phase":"orders",…}
+  legal (42):
+    move {"unit":"blue-archer/unit","to":[0,3]}
+    …
+    wait {"unit":"blue-archer/unit"}
+    …
+```
+
+The `tower-defense` probe ([Genre probes](#genre-probes)) gives the same
+list on a fixed clock: `build { at }` on every free pad while money lasts.
+
 ## Editor tools
 
 `./editor` has no UI, so any host can draw it. `createToolHost({ session,
@@ -1091,36 +1350,36 @@ A scene can declare **groups** and place **prefabs**:
 
 ```json
 {
-  "v": 3,
+  "v": 4,
   "name": "gates",
-  "bounds": [0, 0, 2000, 1000],
+  "bounds": [0, 0, 20, 10],
   "groups": {
-    "east": { "at": [1200, 0], "rot": 2, "flip": true }
+    "east": { "at": [12, 0], "rot": 2, "flip": true }
   },
   "instances": [
-    { "id": "gate-1", "prefab": "gate", "at": [600, 900] },
+    { "id": "gate-1", "prefab": "gate", "at": [6, 9] },
     {
       "id": "gate-2",
       "prefab": "red-gate",
       "group": "east",
       "z": 5,
-      "at": [200, 900],
+      "at": [2, 9],
       "rot": 1,
-      "params": { "speed": 120 },
+      "params": { "speed": 1.2 },
       "overrides": { "trigger.tags": ["gate", "east"] }
     }
   ],
   "entities": [
-    { "id": "east-post", "type": "solid", "group": "east", "shape": ["box", 500, 900, 10, 60] }
+    { "id": "east-post", "type": "solid", "group": "east", "shape": ["box", 5, 9, 0.1, 0.6] }
   ]
 }
 ```
 
 - A group's members store their geometry relative to its `at`, so moving
-  the group is one integer edit. A group may turn and flip its members
+  the group is one edit. A group may turn and flip its members
   ([Transforms](#transforms)); there is no scale.
 - A prefab is an asset of kind `prefab` (a `.json` with `"kind": "prefab"`
-  anywhere in the project): `{ "kind": "prefab", "v": 3, "id",
+  anywhere in the project): `{ "kind": "prefab", "v": 4, "id",
 "entities", "bulk"?, "instances"? }` around a local origin. An instance
   puts that origin at `at` (inside its group's frame), turned and flipped
   by its own `rot` and `flip`; its children load as `gate-1/door` (bulk
@@ -1177,49 +1436,49 @@ out keeps v2's behaviour:
 ```json
 {
   "$schema": "../scene/scene.schema.json",
-  "v": 3,
+  "v": 4,
   "name": "yard",
-  "bounds": [0, 0, 4000, 2000],
+  "bounds": [0, 0, 40, 20],
   "settings": {
-    "gravity": [0, 1200],
-    "grid": { "kind": "square", "cell": [32, 32] },
+    "gravity": [0, 12],
+    "grid": { "kind": "square", "cell": [0.32, 0.32] },
     "physics": "rapier"
   },
   "assets": ["boom"],
   "groups": {
-    "left-wing": { "name": "Left wing", "at": [400, 0], "rot": 2, "flip": true }
+    "left-wing": { "name": "Left wing", "at": [4, 0], "rot": 2, "flip": true }
   },
   "instances": [
-    { "id": "gate-1", "prefab": "gate", "at": [800, 900] },
+    { "id": "gate-1", "prefab": "gate", "at": [8, 9] },
     {
       "id": "gate-2",
       "prefab": "red-gate",
       "z": 5,
-      "at": [1600, 900],
+      "at": [16, 9],
       "rot": 1,
       "flip": true,
-      "params": { "speed": 120 }
+      "params": { "speed": 1.2 }
     },
     {
       "id": "room-1",
       "prefab": "room",
-      "at": [2400, 600],
-      "overrides": { "door-1/panel.path.speed": 60 }
+      "at": [24, 6],
+      "overrides": { "door-1/panel.path.speed": 0.6 }
     }
   ],
-  "solid": [["box", 2000, 1980, 2000, 20]],
+  "solid": [["box", 20, 19.8, 20, 0.2]],
   "entities": [
     {
       "id": "lever",
       "type": "sensor",
       "z": 2,
-      "shape": ["box", 700, 950, 10, 20],
+      "shape": ["box", 7, 9.5, 0.1, 0.2],
       "tags": ["switch"]
     },
     {
       "id": "lift",
       "type": "solid",
-      "shape": ["box", 2400, 640, 40, 8],
+      "shape": ["box", 24, 6.4, 0.4, 0.08],
       "attach": "room-1/door-1/panel"
     }
   ]
@@ -1502,7 +1761,7 @@ redefine these. Each engine setting resolves, first match wins, from:
 1. the scene's `settings`;
 2. the project's `game-settings` `engine` block;
 3. the game's `GameDefinition` default;
-4. the engine's: gravity `[0, 1200]`, `rapier`, no grid, orthogonal.
+4. the engine's: gravity `[0, 12]` (`DEFAULT_GRAVITY`), `rapier`, no grid, orthogonal.
 
 `resolveSettings(settings, { project?, game? })` applies the order;
 `expandScene` resolves with the scene's values and the engine defaults.
@@ -1515,47 +1774,47 @@ and may expose parameters:
 ```json
 {
   "kind": "prefab",
-  "v": 3,
+  "v": 4,
   "id": "room",
   "instances": [
-    { "id": "gate-1", "prefab": "gate", "at": [-200, 0] },
+    { "id": "gate-1", "prefab": "gate", "at": [-2, 0] },
     {
       "id": "gate-2",
       "prefab": "gate",
-      "at": [200, 0],
+      "at": [2, 0],
       "rot": 2,
       "flip": true,
-      "overrides": { "door.path.speed": 90 }
+      "overrides": { "door.path.speed": 0.9 }
     },
     {
       "id": "door-1",
       "prefab": "door",
       "z": 2,
-      "at": [0, 40],
-      "overrides": { "latch/door.path.speed": 30 }
+      "at": [0, 0.4],
+      "overrides": { "latch/door.path.speed": 0.3 }
     }
   ],
-  "entities": [{ "id": "lamp", "type": "marker", "at": [0, -100], "tags": ["light"] }]
+  "entities": [{ "id": "lamp", "type": "marker", "at": [0, -1], "tags": ["light"] }]
 }
 ```
 
 ```json
 {
   "kind": "prefab",
-  "v": 3,
+  "v": 4,
   "id": "red-gate",
   "base": "gate",
   "params": {
     "speed": {
-      "description": "How fast the door opens, in px per second.",
+      "description": "How fast the door opens, in m/s.",
       "targets": ["door.path.speed"],
-      "default": 90
+      "default": 0.9
     }
   },
   "overrides": {
     "trigger.tags": ["gate", "red"]
   },
-  "entities": [{ "id": "lamp", "type": "marker", "at": [20, -90], "tags": ["light"] }]
+  "entities": [{ "id": "lamp", "type": "marker", "at": [0.2, -0.9], "tags": ["light"] }]
 }
 ```
 
@@ -1724,22 +1983,22 @@ its `sprite` behavior; an entity without one draws as its type's shape.
 it never changes simulation state and has no system headless. Any entity
 type may carry it, unless the type forbids it. Its fields:
 
-| Field       | Meaning                                                                                                      |
-| ----------- | ------------------------------------------------------------------------------------------------------------ |
-| `asset`     | A `texture`, or an `atlas` whose frame it draws. Without one only the fallback box draws (`sprite-no-asset`) |
-| `frame`     | The atlas frame's name; required for an atlas (`asset-frame-unknown` otherwise, or for a frame it lacks)     |
-| `size`      | Drawn size in world px; omitted, the frame's (or texture's) pixel size times `scale`                         |
-| `scale`     | Used when `size` is omitted; default 1                                                                       |
-| `anchor`    | 0–1 in the frame; default the frame's pivot, else the texture's import pivot, else the centre                |
-| `offset`    | World px from the pose to the anchor; turns and flips with the instance                                      |
-| `tint`      | 0xRRGGBB multiplied into the texture                                                                         |
-| `alpha`     | Opacity, 0–1; default 1                                                                                      |
-| `flipX`     | Mirror left–right; an instance flip toggles it                                                               |
-| `flipY`     | Mirror top–bottom                                                                                            |
-| `blend`     | `normal`, `add`, `multiply` or `screen`                                                                      |
-| `tile`      | Repeat the frame across `size` instead of stretching it                                                      |
-| `nineSlice` | Border insets in texture px; default the texture's import setting                                            |
-| `turn`      | Turn with the pose's rotation; default true                                                                  |
+| Field       | Meaning                                                                                                         |
+| ----------- | --------------------------------------------------------------------------------------------------------------- |
+| `asset`     | A `texture`, or an `atlas` whose frame it draws. Without one only the fallback box draws (`sprite-no-asset`)    |
+| `frame`     | The atlas frame's name; required for an atlas (`asset-frame-unknown` otherwise, or for a frame it lacks)        |
+| `size`      | Drawn size in world metres; omitted, the frame's (or texture's) pixel size over the px per metre, times `scale` |
+| `scale`     | Used when `size` is omitted; default 1                                                                          |
+| `anchor`    | 0–1 in the frame; default the frame's pivot, else the texture's import pivot, else the centre                   |
+| `offset`    | World metres from the pose to the anchor; turns and flips with the instance                                     |
+| `tint`      | 0xRRGGBB multiplied into the texture                                                                            |
+| `alpha`     | Opacity, 0–1; default 1                                                                                         |
+| `flipX`     | Mirror left–right; an instance flip toggles it                                                                  |
+| `flipY`     | Mirror top–bottom                                                                                               |
+| `blend`     | `normal`, `add`, `multiply` or `screen`                                                                         |
+| `tile`      | Repeat the frame across `size` instead of stretching it                                                         |
+| `nineSlice` | Border insets in texture px; default the texture's import setting                                               |
+| `turn`      | Turn with the pose's rotation; default true                                                                     |
 
 - **Placement.** The sprite draws at its entity's pose (the pose index,
   [below](#the-pose-index)) plus `offset`, anchored at `anchor`, as one
@@ -2145,7 +2404,13 @@ const HOUR = 3_600_000;
 export const orchardGame = defineGame<OrchardSnapshot>({
   id: "orchard",
   types: [],
-  actions: [{ action: "pick", keys: [" "], description: "Pick every ripe apple." }],
+  actions: [
+    {
+      action: "pick",
+      bindings: [{ device: "key", code: "Space" }],
+      description: "Pick every ripe apple.",
+    },
+  ],
   time: { kind: "event", catchUp: { maxMs: 8 * HOUR } },
   world: { physics: "none" },
   commands: { plant: { description: "Plant one more tree." } },
@@ -2190,7 +2455,7 @@ export function dayAway() {
   const run = runPlaytest({
     game: orchardGame,
     scene: meadow,
-    script: { v: 1, steps: [{ command: "plant" }, { elapse: 24 * HOUR }, { press: ["pick"] }] },
+    script: { v: 2, steps: [{ command: "plant" }, { elapse: 24 * HOUR }, { press: ["pick"] }] },
   });
   if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.scriptIssues)}`);
   return { final: run.final, ticks: run.ticks };
@@ -2319,7 +2584,7 @@ export async function walkCorridor(loadRapier: () => Promise<RapierModule>) {
     registry,
     scene: corridor,
     script: {
-      v: 1,
+      v: 2,
       steps: [
         { command: "walk", args: { to: [0, 4] } },
         { wait: 100 },
@@ -2487,8 +2752,8 @@ names the side actors land on (`"up"`, the same as `true`, `"down"`,
 `"left"` or `"right"`) and turns with its instance; the kitchen sink's
 `side-wall` is one-way from the left. A `prop` takes `gravityScale`,
 `linearDamping`, `angularDamping`, `fixedRotation` (the sink's `upright`)
-and `ccd`. `world.lengthUnit`, Rapier's pixels per metre, is reserved:
-accepted, and read by nothing yet.
+and `ccd`. `world.lengthUnit` is the game's px per metre, which only the
+drawing side reads (see Units).
 
 ### Shape queries
 
@@ -2499,9 +2764,9 @@ tools, editors and games that need them without a world. `shapeAtPose(local,
 `raycastShape(shape, from, dir, maxDist)` returns the first hit's `toi`, as
 a share of `maxDist`, and surface `normal`, or null. All three are exact:
 they use only `+ − × ÷` and `Math.sqrt`, and quarter turns come from exact
-tables, so a quarter-turned box stays a box with integer corners.
+tables, so a quarter-turned box is still exactly a box.
 `createSpatialHash(cell?)` is the broad phase the editor's index and the
-geometry world use: a uniform grid of `cell` px (256 by default) with
+geometry world use: a uniform grid of `cell` m (2.56 by default) with
 `insert`, `update`, `remove`, `clear` and `query(box)`, which returns the
 keys whose boxes overlap (touching counts) in insertion order.
 
@@ -2515,30 +2780,30 @@ import {
   type ShapeObj,
 } from "@jams/engine/scene";
 
-/** A plank's shape in its own frame: 80 px long, 10 px thick, centred on its origin. */
-const plank: ShapeObj = { type: "box", cx: 0, cy: 0, hw: 40, hh: 5, rotDeg: 0 };
+/** A plank's shape in its own frame: 0.8 m long, 0.1 m thick, centred on its origin. */
+const plank: ShapeObj = { type: "box", cx: 0, cy: 0, hw: 0.4, hh: 0.05, rotDeg: 0 };
 
 /** Two planks on a workbench: one lying flat, one stood on end by a quarter turn. */
 const placed = new Map<string, ShapeObj>([
-  ["flat", shapeAtPose(plank, { x: 100, y: 100, rot: 0 })],
-  ["upright", shapeAtPose(plank, { x: 300, y: 100, rot: Math.PI / 2 })],
+  ["flat", shapeAtPose(plank, { x: 1, y: 1, rot: 0 })],
+  ["upright", shapeAtPose(plank, { x: 3, y: 1, rot: Math.PI / 2 })],
 ]);
 
 /** What a saw blade at `blade` would cut, and where a laser fired right from `from` lands. */
 export function workbench(blade: ShapeObj, from: [number, number]) {
-  // Broad phase: boxes in 64 px cells; a query returns keys in insertion order.
-  const hash = createSpatialHash<string>(64);
+  // Broad phase: boxes in 0.64 m cells; a query returns keys in insertion order.
+  const hash = createSpatialHash<string>(0.64);
   for (const [id, shape] of placed) hash.insert(id, aabb(shape));
   const near = hash.query(aabb(blade));
-  // Narrow phase, exact: the quarter-turned plank is a 10 × 80 box, not a rounded one.
+  // Narrow phase, exact: the quarter-turned plank is a 0.1 × 0.8 m box, not a rounded one.
   const cuts = near.filter((id) => shapesIntersect(blade, placed.get(id)!));
   const upright = placed.get("upright")!;
-  const laser = raycastShape(upright, from, [1, 0], 400);
+  const laser = raycastShape(upright, from, [1, 0], 4);
   return {
     upright: aabb(upright),
     near,
     cuts,
-    laser: laser && { at: from[0] + laser.toi * 400, normal: laser.normal },
+    laser: laser && { at: from[0] + laser.toi * 4, normal: laser.normal },
   };
 }
 ```
@@ -2571,7 +2836,8 @@ A `connected` check asks a scene's `.checks.json` whether cells or entities
 reach each other on the grid, with no physics and no game code; each
 unreachable target is `grid-unreachable`. The scene CLI's `grid` command
 prints the walls, a path and a field of view as text. The engine's
-`grid-yard` is a physics-free scene on a 32 px square grid with a
+`grid-yard` is a physics-free scene on a 0.32 m square grid (32 px at the
+default 100 px per metre) with a
 `connected` check.
 
 ```ts grid-tools.ts
@@ -2586,7 +2852,13 @@ import {
 } from "@jams/engine/game";
 
 /** A 12×8 hex board, Tiled's flat-top layout, with a rock wall down column 5 but for its last row. */
-const hex = gridGeometry({ kind: "hex", cell: [32, 28], side: 16, stagger: "x", index: "odd" });
+const hex = gridGeometry({
+  kind: "hex",
+  cell: [0.32, 0.28],
+  side: 0.16,
+  stagger: "x",
+  index: "odd",
+});
 const bounds = { c0: 0, r0: 0, c1: 11, r1: 7 };
 const rocks = new Set([0, 1, 2, 3, 4, 5, 6].map((r) => cellKey([5, r])));
 const open = (c: Cell) => !rocks.has(cellKey(c));
@@ -2641,6 +2913,7 @@ import {
   createTopDownController,
   defineGame,
   SENSOR_ENTER,
+  type ActionDef,
   type EngineContext,
   type TopDownController,
 } from "@jams/engine/game";
@@ -2656,15 +2929,24 @@ const STEER: Readonly<Record<string, Vec2>> = {
   down: { x: 0, y: 1 },
 };
 
+const ARROW: Readonly<Record<string, string>> = {
+  left: "ArrowLeft",
+  right: "ArrowRight",
+  up: "ArrowUp",
+  down: "ArrowDown",
+};
+
 /** Top-down steering on whichever backend the scene loads: a motion body, a controller and a sensor goal. */
 export const roverGame = defineGame<RoverSnapshot>({
   id: "rover",
   types: [],
-  actions: Object.keys(STEER).map((action) => ({
-    action,
-    keys: [`arrow${action}`],
-    description: `Steer ${action}.`,
-  })),
+  actions: Object.keys(STEER).map(
+    (action): ActionDef => ({
+      action,
+      bindings: [{ device: "key", code: ARROW[action]! }],
+      description: `Steer ${action}.`,
+    }),
+  ),
   world: { gravity: [0, 0] },
   // Motion bodies are in the engine's dynamic group, which ignores sensors unless told.
   collisionGroups: { dynamic: { collidesWith: ["sensor"] } },
@@ -2752,7 +3034,7 @@ export function driveHome(rapier: RapierModule | null) {
     game: roverGame,
     scene: yard(rapier ? "rapier" : "none"),
     script: {
-      v: 1,
+      v: 2,
       steps: [
         { hold: ["right"], forMs: 2500 },
         { hold: ["right", "down"], until: { event: "rover:home" }, max: 600 },
@@ -2789,42 +3071,42 @@ const room = {
   id: "room",
   pts: [
     [0, 0],
-    [400, 0],
-    [400, 100],
-    [400, 200],
-    [400, 300],
-    [0, 300],
+    [4, 0],
+    [4, 1],
+    [4, 2],
+    [4, 3],
+    [0, 3],
   ] as Ring,
 };
 const corridor = {
   id: "corridor",
   pts: [
-    [400, 100],
-    [700, 100],
-    [700, 200],
-    [400, 200],
+    [4, 1],
+    [7, 1],
+    [7, 2],
+    [4, 2],
   ] as Ring,
 };
 const table = {
   id: "table",
   pts: [
-    [150, 100],
-    [250, 100],
-    [250, 200],
-    [150, 200],
+    [1.5, 1],
+    [2.5, 1],
+    [2.5, 2],
+    [1.5, 2],
   ] as Ring,
 };
 
 export function walkAround() {
   const { mesh, issues } = buildNavMesh([room, corridor], [table]);
   // The funnel's corners: round the table, through the doorway, to the end of the corridor.
-  const path = navPath(mesh, [100, 150], [650, 150]);
+  const path = navPath(mesh, [1, 1.5], [6.5, 1.5]);
   return {
     issues,
     path,
-    onTable: navContains(mesh, [200, 150]),
+    onTable: navContains(mesh, [2, 1.5]),
     // A click outside the walk areas, moved to the closest walkable point.
-    clickedOutside: navNearest(mesh, [550, 280]),
+    clickedOutside: navNearest(mesh, [5.5, 2.8]),
   };
 }
 ```
@@ -3203,7 +3485,7 @@ import {
   ENTITY_SPAWNED,
   replayRecording,
   runPlaytest,
-  type InputScript,
+  type InputScriptV2,
 } from "@jams/engine/headless";
 import { prefabLibrary } from "@jams/engine/scene";
 
@@ -3214,8 +3496,8 @@ const registry = createRegistry(fountainGame);
 const library = prefabLibrary([twinSpout]);
 
 /** Pours a twin spout, waits for the drops to pile up, then for every one to be gone. */
-const script = (seed: number): InputScript => ({
-  v: 1,
+const script = (seed: number): InputScriptV2 => ({
+  v: 2,
   scene: "basin",
   seed,
   steps: [
@@ -3270,7 +3552,7 @@ export function spillTwice() {
     registry,
     scene: basin,
     script: {
-      v: 1,
+      v: 2,
       steps: [
         { command: "spill", args: { id: "drop#first" } },
         { command: "spill", args: { id: "drop#first" } },
@@ -3542,7 +3824,7 @@ export function shuttle(rapier: RapierModule | null) {
     rapier,
     game: shuttleGame,
     scene: yard(rapier ? "rapier" : "none"),
-    script: { v: 1, steps: [{ wait: 300 }] },
+    script: { v: 2, steps: [{ wait: 300 }] },
   });
   if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.issues)}`);
   return run.final!;
@@ -3570,17 +3852,106 @@ code, an input script and the result it must reach:
 | `local-versus`    | local multiplayer, fighting               | none    | fixed | two seats on vector sticks, one on the keyboard and one on a pad, in a two-track script; the first knock-out wins            |
 | `point-and-click` | point-and-click, RTS                      | none    | fixed | a press on a walk area paths the walker along `ctx.nav`; a press on a hotspot (`ctx.space.pointAt`) walks there and fires it |
 | `rhythm-tap`      | rhythm                                    | none    | fixed | sub-tick offsets on: taps between ticks are graded by their `offset`, and a replay grades them the same                      |
+| `tower-defense`   | tower defense                             | none    | fixed | waves from a data table spawn creeps along a flow field; legal `build` commands place towers firing `lifetime` bolts         |
 
 `runGenreProbe` plays each, replays its recording, and compares a digest of
 the run with a pinned one, so CI on other machines checks the same numbers.
 Probes also run under variants (gravity zero, gravity sideways, physics
 none, another seed) that must reach the same result; `shooter`'s replay
-also proves both runs name the same thousand ids, and `roguelike` pins one
-layout for each of seeds 1 and 2. A physics-free probe never loads
+also proves both runs name the same thousand ids, `roguelike` pins one
+layout for each of seeds 1 and 2, and some of `tower-defense`'s 32 fuzz
+rollouts at seed 1 must win through its legal commands. A physics-free probe never loads
 Rapier: the harness hands it none and a mock fails if the wasm module ever
 initialises. A sweep test fails on side-view literals in engine source, and
 a matrix maps every genre row of the engine's roadmap to the probes that
 cover it.
+
+## A second game
+
+`src/games/tactics/` is the reference for a game that isn't a platformer:
+a turn-based skirmish on a 12 × 8 square grid with no physics, built on
+the public entries only (`@jams/engine`, `./game`, `./sim-kit`; the
+boundary test fails on anything else). The player's blue side moves each
+unit once a turn, then attacks or waits; `end-turn` hands over to the red
+side, which the game plays on ticks. Read it file by file:
+
+- **The project** (`jams.project.json`): the game module
+  (`./index.ts`, `tacticsGame`), the UI module (`./ui/index.ts`,
+  `mountTacticsHud`) and the asset and code globs. The site finds it by
+  this file (`/game/dev?game=tactics`, and `/game/dev?edit=1&project=tactics`
+  for the editor); no table names it.
+- **The definition** (`index.ts`): `world: { physics: "none", gravity:
+[0, 0], grid, gridWalls: ["solid"], lengthUnit: 48 }`, so a cell is
+  `[1, 1]` m drawn at 48 px; `time: { kind: "turns", rate: 60 }`; the
+  `unit` and `rough` types, with `spawnOrder: ["rough", "unit"]` (the
+  primitives, walls among them, spawn first); the actions, every one
+  `ui: true`; the commands; the `unit-class` data table; two project
+  settings (`aiStepTicks`, `critChance`); and a pixel-art resolution
+  policy (576 × 384 virtual px, letterbox, integer scale, nearest
+  sampling, `pixelSnap`).
+- **Types and data** (`types.ts`, `data/unit-classes.json`,
+  `game-settings.json`): a `unit` is an `occupant` on the grid with a
+  `side` and a `class`; a `rough` area adds an integer cost to the cells
+  under it. The knight, archer and scout rows (`hp`, `attack`, `move`,
+  `range`, `sight`) live in a data table that co-edits like any doc.
+- **Rules** (`rules.ts`, pure): a unit's reach is a `flowField` from its
+  cell with `maxCost: move × 10`, rough cells costing more; attack range
+  is grid distance; a class with `sight` needs `lineOfSight` with walls
+  opaque; damage doubles on a crit, `rng.next() < critChance`. `legal`
+  lists every legal order in a stable order.
+- **The computer side** (`ai.ts`, pure over a snapshot and an `Rng`): each
+  red unit, in id order, attacks the weakest blue unit in reach, else walks
+  toward the nearest along `findPath`; ties go by cell order, then the
+  generator.
+- **The runtime** (`runtime.ts`): `beforeStep` parses each command and
+  applies it through the rules, refusing an illegal one with a
+  `tactics:refused` event; a unit walks one cell per 8 ticks through a
+  grid stepper, and the red side gives one unit's orders every
+  `aiStepTicks`, so `busy()` is true only while either goes on. Its
+  snapshot holds the board and the class table, so `play.commands` lists
+  orders from the snapshot alone, and `storeSlice` returns the same object
+  until something changed.
+- **Play** (`play.ts`): results `won` and `lost` from `outcome`, the blue
+  side's legal orders as `commands` (red's turn is the game's own, so fuzz
+  and `step --legal` only ever play blue), and `turn` and `side`
+  predicates for scripts and checks.
+- **Content**: `scenes/level-1.json` (walls as `solid`, two `rough`
+  areas, three blue and two red units placed from the `knight` and
+  `archer` prefabs, whose `side` param sets the team), its checks (`valid`
+  and a `connected` check between the sides) and `level-1.script.json`, a
+  commands-only script that wins. `art/make-art.ts` generates the unit
+  sheet (an Aseprite atlas) and the tiles as PNGs with stored zlib blocks,
+  so rerunning it reproduces every byte; each carries a `CC0-1.0` sidecar.
+  `input-map.json` binds arrows and WASD, Enter and Space, Escape, `E`,
+  the pad's d-pad, stick, south, east and start, and the primary pointer
+  button.
+- **The HUD** (`ui/`, framework-free): `hud.ts` builds the turn banner
+  (`role="status"`, `aria-live`), the selected unit's card, an order menu
+  of real, labelled buttons (Move, Attack, Wait, End turn) and a log line;
+  `cursor.ts` is the cursor as a pure state machine (idle → unit selected
+  → target chosen → command sent), fed by `onAction` (the cursor vector,
+  confirm, cancel, end turn, next unit) and by canvas clicks through
+  `clientToWorld` and `cellAt`; `cells.ts` keeps one element per
+  highlighted cell (reach, attack range, target, fog, each with
+  `data-cell="c,r"`) over its cell with `bindToWorld` and `watchView`,
+  pulsing unless `reducedMotion`. Reach and fog come from the slice through
+  the pure grid toolkit (`flowField`, `fieldOfView`); the HUD sends only
+  commands.
+- **Tests** (`__tests__/`): the scene validates and its checks pass with no
+  Rapier; the rules and the AI; the HUD by keyboard, pad and pointer under
+  jsdom; the art regenerates byte for byte; the script wins, and its
+  recording replays to one digest pinned for every platform (physics-free
+  runs replay identically on every runner and in the browser smoke); and
+  64 fuzz rollouts with seed 7 reach `won` through the legal list.
+
+Run it headless with `vp run scene playtest level-1 --project tactics`.
+What the game needed and the engine lacked went into the engine as
+extension points rather than into the game: UI-only actions and
+`onAction`, legal commands, `worldToClient` and the UI seam, the site's
+discovery by project file, `createDataSystem`, the grid toolkit's
+`sameCell`, `inCellBounds` and `boundsCells`, and a `spawnOrder` that
+names only the game's own types. `vp run scene game new <id> --preset
+turns` starts a game of the same shape.
 
 ## Co-editing
 
@@ -3760,8 +4131,9 @@ with the toolbar, play bar and status bar in floating islands. It drives
 `./editor`'s session and `./collab`'s docs, and reaches a server only
 through the host.
 
-- **`SceneEditor`** takes `{ host, game, project, scene?, rapier, debug?,
-onReady? }`; `mountSceneEditor(element, props)` mounts the same thing
+- **`SceneEditor`** takes `{ host, game, project, scene?, rapier, ui?,
+debug?, onReady? }`; `ui` is the game's `MountUi` (its project file's
+  `ui`), mounted over the canvas while Play runs and unmounted on Stop; `mountSceneEditor(element, props)` mounts the same thing
   without JSX and returns `{ update, unmount }`. `onReady` hands the host a
   `SceneEditorHandle` (`openPanel(id)`, `resetLayout()`, and `game()`, the
   editor's current `GameInstance`, null while it builds).

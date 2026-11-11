@@ -99,6 +99,9 @@ export type PadButton = (typeof PAD_BUTTONS)[number] | number;
 export type PadAxis = (typeof PAD_AXES)[number] | number;
 export type PointerButton = (typeof POINTER_BUTTONS)[number];
 
+/** A pointer button's bit in a DOM `buttons` mask, and in a tick's recorded pointer buttons. */
+export const pointerBit = (button: PointerButton): number => 1 << POINTER_BUTTONS.indexOf(button);
+
 /** The digit row's shifted characters on a US layout, "!" for Digit1 through ")" for Digit0. */
 const SHIFTED_DIGITS = ")!@#$%^&*(";
 

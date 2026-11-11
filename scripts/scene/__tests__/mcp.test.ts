@@ -86,6 +86,7 @@ describe("scene MCP server", () => {
       "asset_apply_ops",
       "asset_import",
       "asset_refs",
+      "game_new",
       "project_tree",
       "scene_apply_ops",
       "scene_check",
@@ -104,6 +105,7 @@ describe("scene MCP server", () => {
       scene_apply_ops: false,
       asset_import: false,
       asset_apply_ops: true,
+      game_new: false,
     };
     for (const t of tools) {
       expect(t.inputSchema.properties, t.name).toHaveProperty("project");
@@ -277,6 +279,38 @@ describe("scene MCP server", () => {
     expect(ops.structuredContent.$id).toMatch(/^urn:jams-engine:project-ops:/);
   });
 
+  it(
+    "game_new lists a dry run, writes the game when asked, and refuses a taken id",
+    { timeout: 60_000 },
+    async () => {
+      const dir = join(root, "games");
+      const planned = await call("game_new", { id: "hopper", preset: "grid", dir });
+      expect(planned.isError).toBe(false);
+      const files = planned.structuredContent.files as string[];
+      expect(files).toContain(join(dir, "hopper", "scenes", "main.json"));
+      expect(planned.structuredContent).toMatchObject({ exitCode: 0, written: false, issues: [] });
+      await expect(readFile(join(dir, "hopper", "index.ts"), "utf8")).rejects.toThrow();
+
+      const made = await call("game_new", { id: "hopper", preset: "grid", dir, dryRun: false });
+      expect(made.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      expect(made.structuredContent.urls).toEqual({
+        play: "/game/dev?game=hopper",
+        edit: "/game/dev?edit=1&project=hopper",
+      });
+      for (const f of files) await expect(readFile(f, "utf8")).resolves.toBeTypeOf("string");
+
+      const again = await call("game_new", { id: "hopper", preset: "grid", dir });
+      expect(again.structuredContent.exitCode).toBe(1);
+      expect((again.structuredContent.issues as { code: string }[]).map((i) => i.code)).toEqual([
+        "project-id-taken",
+      ]);
+      const taken = await call("game_new", { id: "platformer", dir });
+      expect((taken.structuredContent.issues as { code: string }[])[0]?.code).toBe(
+        "project-id-taken",
+      );
+    },
+  );
+
   it("shows a project's tree and an asset's references", async () => {
     const ambiguous = await call("project_tree");
     expect(ambiguous).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
@@ -426,7 +460,7 @@ describe("scene MCP server", () => {
   });
 });
 
-/** A physics-free turns game that counts `bump`s and keeps time away. */
+/** A physics-free turns game that counts `bump`s, keeps time away, and lists a `bump` while under 10. */
 const tallyGame = defineGame({
   id: "tally-game",
   types: [],
@@ -447,6 +481,10 @@ const tallyGame = defineGame({
       },
       snapshot: () => ({ count, away }),
     };
+  },
+  play: {
+    commands: ({ snapshot }) =>
+      (snapshot as { count: number }).count < 10 ? [{ name: "bump", args: { n: 1 } }] : [],
   },
 });
 
@@ -528,7 +566,14 @@ describe("world models", () => {
       exitCode: 0,
       outcome: { result: "script-end" },
       final: { count: 5, away: 1000 },
+      legal: [{ name: "bump", args: { n: 1 } }],
     });
+    expect(played.structuredContent).not.toHaveProperty("legalTruncated");
+    const full = await callWorld("scene_playtest", {
+      scene: "tally-yard",
+      script: { v: 1, steps: [{ command: "bump", args: { n: 10 } }] },
+    });
+    expect(full.structuredContent).toMatchObject({ exitCode: 0, legal: [] });
     expect((played.structuredContent.commands as unknown[][]).map((c) => c.slice(1))).toEqual([
       ["bump", { n: 2 }],
       ["@elapsed", { ms: 1000 }],
@@ -795,6 +840,7 @@ describe("input v2", () => {
     for (const word of ["format v2", "v1 script migrates", "`tracks`", "`set`", "`pointer`"])
       expect(playtest).toContain(word);
     expect(playtest).toMatch(/`join` a device .*`leave`/);
+    expect(playtest).toMatch(/`legal`: the commands it may send after the last tick, at most 64/);
     expect(field("scene_playtest", "script")).toMatch(/v2 or v1/);
     const replay = tool("scene_replay").description!;
     expect(replay).toContain("`migratedFrom: 1`");

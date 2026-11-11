@@ -5,6 +5,7 @@ import { MAX_TICK_RATE, MIN_TICK_RATE, type TimeKind } from "../game/time";
 import type { DeviceId, Registry } from "../game/types";
 import { scaleLengths } from "../game/units";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
+import { deviceIdSchema } from "./device-id";
 import { jsonPointer } from "./issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "./json-schema";
 import { pxToMetres } from "./units";
@@ -258,18 +259,6 @@ const milli = (description: string) => z.number().int().min(-1000).max(1000).des
 const tenThousandths = (description: string) =>
   z.number().int().describe(description).meta({ unit: "m/10000" });
 const kind = <K extends string>(k: K, description: string) => z.literal(k).describe(description);
-
-const PAD_ID = /^pad:\d+$/;
-
-const deviceIdSchema = z
-  .union([
-    z.enum(["keyboard", "pointer", "touch"]),
-    z
-      .templateLiteral(["pad:", z.number().int()])
-      .refine((d) => PAD_ID.test(d), "a pad is `pad:<n>`, n a whole number from 0")
-      .meta({ pattern: PAD_ID.source }),
-  ])
-  .describe("A device: `keyboard`, `pointer`, `touch` or `pad:<n>`, n in connection order.");
 
 const seatEventSchema = z
   .union([

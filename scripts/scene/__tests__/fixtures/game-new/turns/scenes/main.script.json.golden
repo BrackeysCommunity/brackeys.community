@@ -1,0 +1,19 @@
+{
+  "$schema": "../input-script.schema.json",
+  "v": 2,
+  "scene": "main",
+  "steps": [
+    { "args": { "dir": "down" }, "command": "step" },
+    { "args": { "dir": "down" }, "command": "step" },
+    { "args": { "dir": "down" }, "command": "step" },
+    { "args": { "dir": "right" }, "command": "step" },
+    { "args": { "dir": "right" }, "command": "step" },
+    { "args": { "dir": "right" }, "command": "step" },
+    { "args": { "dir": "right" }, "command": "step" },
+    { "args": { "dir": "right" }, "command": "step" },
+    { "args": { "dir": "up" }, "command": "step" },
+    { "args": { "dir": "up" }, "command": "step" },
+    { "args": { "dir": "up" }, "command": "step" },
+    { "wait": 240 }
+  ]
+}

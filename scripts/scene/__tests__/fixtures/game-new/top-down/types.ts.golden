@@ -1,0 +1,40 @@
+import type { Vec2 } from "@jams/engine";
+import { defineEntityType, pointField } from "@jams/engine/game";
+import { z } from "zod";
+
+export const GAME_ID = "demo";
+
+/** Raised when the hero enters a sensor tagged `goal`: the run is won. */
+export const REACHED = `${GAME_ID}:reached`;
+
+/** The tag on the sensors the hero must reach: a goal is a plain `sensor` with it. */
+export const GOAL_TAG = "goal";
+
+export const HERO = "hero";
+/** The hero's width and height when its entity doesn't give one, m. */
+export const HERO_SIZE = 0.5;
+
+/** Where the hero starts; the game makes its body there. */
+export const heroType = defineEntityType({
+  type: HERO,
+  description: "Where the hero starts; the game moves it.",
+  base: "marker",
+  fields: {
+    at: pointField("Where the hero starts."),
+    size: z
+      .number()
+      .positive()
+      .optional()
+      .describe(`The hero's width and height, m; default ${HERO_SIZE}.`)
+      .meta({ unit: "m" }),
+  },
+});
+
+export type Snapshot = {
+  /** The hero's position, m; null before a scene with a hero loads. */
+  at: Vec2 | null;
+  reached: boolean;
+};
+
+/** What the HUD reads from the store; the same object until something in it changes. */
+export type Slice = { reached: boolean };

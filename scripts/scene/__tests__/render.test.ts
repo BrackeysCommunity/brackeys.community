@@ -110,7 +110,7 @@ describe("scene render", () => {
       (await runCli(["render", "test-yard", "--ascii", "--json"], ctx)).stdout,
     );
     expect(json).toMatchObject({ ok: true, scene: "test-yard", cell: 64, cols: 95, rows: 27 });
-    expect(json.legend).toContainEqual({ char: "=", label: "cloud" });
+    expect(json.legend).toContainEqual({ char: "=", label: "cloud one-way" });
 
     const region = await runCli(["render", "test-yard", "--ascii", "--region", "14,9,18,12"], ctx);
     expect(region.stdout).toContain("x 1344..1856");

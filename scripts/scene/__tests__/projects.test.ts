@@ -32,11 +32,11 @@ const exists = (path: string) =>
   );
 
 describe("discoverProjects over the repo", () => {
-  it("finds the two homes: the engine's scenes and the platformer", async () => {
+  it("finds the three homes: the engine's scenes, the platformer and tactics", async () => {
     const projects = await discoverProjects(ROOT);
-    expect(projects.map((p) => p.file.id)).toEqual(["engine", "platformer"]);
+    expect(projects.map((p) => p.file.id)).toEqual(["engine", "platformer", "tactics"]);
 
-    const [engine, platformer] = projects as [ProjectHandle, ProjectHandle];
+    const [engine, platformer] = projects as [ProjectHandle, ProjectHandle, ProjectHandle];
     expect(engine.dir).toBe(join(ROOT, "src/engine/scenes"));
     expect(engine.file.game).toBeNull();
     expect(engine.game).toBeNull();
@@ -57,6 +57,7 @@ describe("discoverProjects over the repo", () => {
     expect(projects.map((p) => p.cacheDir)).toEqual([
       join(ROOT, "node_modules/.cache/jams-engine/engine"),
       join(ROOT, "node_modules/.cache/jams-engine/platformer"),
+      join(ROOT, "node_modules/.cache/jams-engine/tactics"),
     ]);
   });
 
@@ -138,7 +139,7 @@ export const ${name} = {
       ["alpha", join(root, "src/games/alpha")],
       ["beta", join(root, "src/tools/beta")],
     ]);
-    const [alpha, beta] = projects as [ProjectHandle, ProjectHandle];
+    const [alpha, beta] = projects as [ProjectHandle, ProjectHandle, ProjectHandle];
     expect(alpha.game?.id).toBe("alpha");
     expect(alpha.registry.id).toBe("alpha");
     expect(alpha.kinds.get("alpha/notes")?.storage).toBe("code");

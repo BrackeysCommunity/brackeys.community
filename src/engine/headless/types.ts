@@ -50,6 +50,10 @@ export type ProbeReport<S = unknown> = {
   truncated: boolean;
   /** The game's snapshot after the last tick; `null` without a game. */
   final: S | null;
+  /** The commands legal after the last tick (`GamePlayDef.commands`), at most 64; absent when the game declares none. */
+  legal?: GameCommand[];
+  /** True when `legal` was cut at 64 entries. */
+  legalTruncated?: boolean;
   /** The game's first verdict (`play.outcome`) and its tick; the probe still runs every tick. */
   outcome?: GameOutcome & { tick: number };
   /** Set when an `EngineError` out of a step ended the run: stage `run`, the error's code on its issue; `ticks`, `events` and `final` cover the ticks before it. */

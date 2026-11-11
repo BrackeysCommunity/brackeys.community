@@ -2,9 +2,7 @@ import { ID_PATTERN } from "../game/fields";
 import { makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
 import type { KindRegistry } from "./kinds";
-import { byCodeUnit } from "./kinds/define";
-import { gameSettingsIssues } from "./kinds/game-settings";
-import { inputMapIssues } from "./kinds/index";
+import { byCodeUnit, onePerProjectIssues } from "./kinds/define";
 import type {
   AssetEntry,
   AssetId,
@@ -266,8 +264,7 @@ export function projectView(state: ProjectState, kinds?: KindRegistry): ProjectV
         }),
       );
     }
-    issues.push(...gameSettingsIssues(view));
-    issues.push(...inputMapIssues(view));
+    issues.push(...onePerProjectIssues(view, kinds));
   }
   return view;
 }

@@ -5,6 +5,8 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { checkedTestGame, GOAL_EVENT } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
+import { INPUT_MAP_KIND, INPUT_MAP_VERSION } from "../../project/kinds/input-map";
+import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { parseChecks, type ChecksFile, type SceneCheck } from "../../scene/checks";
 import { parseSceneOrThrow } from "../../scene/parse";
 import type { SceneDefinition, SceneIssue } from "../../scene/types";
@@ -421,5 +423,49 @@ describe("the connected check", () => {
       pass: false,
       message: "no loaded entity gone in maze",
     });
+  });
+});
+
+describe("runChecks seats", () => {
+  const withSeats = (max: number): ProjectRuntimeView => ({
+    settings: {},
+    engine: {},
+    table: () => [],
+    asset: () => undefined,
+    inputMap: { kind: INPUT_MAP_KIND, v: INPUT_MAP_VERSION, players: { max, join: "auto" } },
+  });
+  const twoSeats = {
+    v: 2,
+    scene: "engine-yard",
+    tracks: [
+      { player: 0, steps: toGoal.steps },
+      { player: 1, steps: [{ wait: 2 }] },
+    ],
+  };
+  const checks = file([
+    { id: "inline", kind: "reaches", script: twoSeats, result: "won" },
+    { id: "file", kind: "reaches", script: "two-seats.json", result: "won" },
+  ]);
+  const runWith = (project?: ProjectRuntimeView) =>
+    runChecks({
+      rapier,
+      scene: yard,
+      registry: game,
+      checks,
+      readFile: () => JSON.stringify(twoSeats),
+      ...(project ? { project } : {}),
+    });
+
+  it("plays inline and file scripts on the seats the project input map gives", () => {
+    expect(runWith(withSeats(2)).results.map((r) => [r.id, r.pass])).toEqual([
+      ["inline", true],
+      ["file", true],
+    ]);
+    for (const report of [runWith(), runWith(withSeats(1))]) {
+      expect(report.results.map((r) => r.message)).toEqual([
+        expect.stringContaining("blocked at script"),
+        expect.stringContaining("blocked at script"),
+      ]);
+    }
   });
 });

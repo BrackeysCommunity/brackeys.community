@@ -1,6 +1,6 @@
 import { closest } from "../scene/did-you-mean";
 import { KEY_CODES, KEY_TO_CODE, PAD_AXES, PAD_BUTTONS, POINTER_BUTTONS } from "./input-codes";
-import type { ActionKind, Binding, PlayersDef } from "./types";
+import type { ActionKind, Binding, PlayersDef, Registry } from "./types";
 
 /** What a binding is judged against: its action's kind, the seats there are and the declared touch controls. */
 export type BindingContext = {
@@ -22,7 +22,7 @@ export type BindingProblem = {
 };
 
 /** The most seats a game or an input map may declare. */
-const SEAT_LIMIT = 8;
+export const SEAT_LIMIT = 8;
 const JOIN_POLICIES: readonly PlayersDef["join"][] = ["auto", "press", "host"];
 const DEVICES = ["key", "pad", "pointer", "touch"] as const;
 const STICKS = ["left", "right"] as const;
@@ -39,7 +39,8 @@ export const ACTION_KINDS: readonly ActionKind[] = ["button", "axis", "vector"];
 /**
  * An action's bindings: its `bindings`, else its 0.x layout `keys` as a key
  * binding for every code `KEY_TO_CODE` gives each key. A key the table
- * doesn't know binds nothing, as it matched nothing before.
+ * doesn't know binds nothing here; `keysProblems` refuses it where the
+ * action enters.
  */
 export function declaredBindings(def: {
   bindings?: readonly Binding[];
@@ -49,6 +50,53 @@ export function declaredBindings(def: {
   return (def.keys ?? []).flatMap((key) =>
     (KEY_TO_CODE[key] ?? []).map((code): Binding => ({ device: "key", code })),
   );
+}
+
+const KEY_NAMES = Object.keys(KEY_TO_CODE);
+
+/**
+ * The 0.x key that stands for `got`: a key-table spelling in any case
+ * ("arrowup" is "ArrowUp"), else the key of a code it names ("space" is
+ * " ", the key Space types).
+ */
+function keyGuess(got: string): { key: string; code?: string } | undefined {
+  const key = closest(got, KEY_NAMES);
+  if (key !== undefined) return { key };
+  const code = KEY_CODES.find((c) => c.toLowerCase() === got.toLowerCase());
+  const typed = code && KEY_NAMES.find((k) => KEY_TO_CODE[k]!.includes(code));
+  return typed ? { key: typed, code } : undefined;
+}
+
+/**
+ * What's wrong with an action's 0.x `keys`, read only when it has no
+ * `bindings`: a key `KEY_TO_CODE` doesn't know would bind nothing, so it is
+ * refused (`binding-unknown`) with a did-you-mean. The table is 0.x's
+ * `KeyboardEvent.key` spelling, single characters lowercase: Space is
+ * `" "`, not `"space"`. There are no aliases: `bindings` names keys by
+ * `code`.
+ */
+export function keysProblems(def: {
+  bindings?: readonly Binding[];
+  keys?: readonly unknown[];
+}): BindingProblem[] {
+  const out: BindingProblem[] = [];
+  if (def.bindings) return out;
+  (def.keys ?? []).forEach((key, i) => {
+    if (typeof key === "string" && Object.hasOwn(KEY_TO_CODE, key)) return;
+    const guess = typeof key === "string" ? keyGuess(key) : undefined;
+    const mean = guess ? `did you mean ${show(guess.key)}?` : undefined;
+    out.push({
+      code: "binding-unknown",
+      message: `unknown 0.x key ${show(key)}${mean ? `; ${mean}` : ""}`,
+      path: `/keys/${i}`,
+      expected: "a US-layout KeyboardEvent.key the key table knows",
+      got: show(key),
+      hint: guess?.code
+        ? `${mean} Or bind { "device": "key", "code": "${guess.code}" }.`
+        : (mean ?? 'Bind keys by code instead: { "device": "key", "code": "KeyA" }.'),
+    });
+  });
+  return out;
 }
 
 /** An action name no declared action has (`binding-unknown`, with a did-you-mean); null for a declared one. */
@@ -195,4 +243,30 @@ export function bindingProblems(binding: Binding, ctx: BindingContext): BindingP
       unknown("device", "device", b.device, DEVICES);
   }
   return out;
+}
+
+/**
+ * Whether `name` is a UI-only action (`ActionDef.ui`): resolved from devices
+ * and delivered to `input.onAction` listeners, but never to the simulation,
+ * a recording or a fuzz macro.
+ */
+export function isUiAction(registry: Registry, name: string): boolean {
+  return registry.uiActionNames.includes(name);
+}
+
+/** The JSON Schema keyword marking the UI-only actions in an action enum. */
+export const UI_ACTION_KEYWORD = "x-ui";
+
+/**
+ * `registry`'s actions as a JSON Schema enum for a file that binds them, when
+ * it declares UI-only ones: the simulation's in one branch, the UI-only ones
+ * in another marked `x-ui: true`. Null when it declares no UI-only action.
+ */
+export function uiActionEnumJson(registry: Registry): Record<string, unknown> | null {
+  const names = registry.actionNames;
+  const ui = names.filter((n) => isUiAction(registry, n));
+  if (ui.length === 0) return null;
+  const sim = names.filter((n) => !isUiAction(registry, n));
+  const uiBranch = { enum: ui, [UI_ACTION_KEYWORD]: true };
+  return { anyOf: sim.length > 0 ? [{ enum: sim }, uiBranch] : [uiBranch] };
 }

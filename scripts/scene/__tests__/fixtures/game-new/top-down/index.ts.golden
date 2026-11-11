@@ -1,0 +1,26 @@
+import { defineGame } from "@jams/engine/game";
+
+import { ACTIONS } from "./actions";
+import { PLAY } from "./play";
+import { createRuntime } from "./runtime";
+import { TEMPLATE } from "./template";
+import { GAME_ID, heroType, type Snapshot } from "./types";
+
+/** Demo: a game that steers a hero round a wall to a goal. */
+export const demoGame = defineGame<Snapshot>({
+  id: GAME_ID,
+  types: [heroType],
+  actions: ACTIONS,
+  // The hero's body moves into sensors.
+  collisionGroups: { dynamic: { collidesWith: ["sensor"] } },
+  // Metres in the simulation, 100 px per metre on screen.
+  world: {
+    physics: "none",
+    gravity: [0, 0],
+    lengthUnit: 100,
+  },
+  time: { kind: "fixed", rate: 60 },
+  play: PLAY,
+  template: TEMPLATE,
+  createRuntime,
+});

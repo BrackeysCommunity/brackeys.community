@@ -3,7 +3,7 @@ import {
   ENTITY_SPAWNED,
   replayRecording,
   runPlaytest,
-  type InputScript,
+  type InputScriptV2,
 } from "@jams/engine/headless";
 import { prefabLibrary } from "@jams/engine/scene";
 
@@ -14,8 +14,8 @@ const registry = createRegistry(fountainGame);
 const library = prefabLibrary([twinSpout]);
 
 /** Pours a twin spout, waits for the drops to pile up, then for every one to be gone. */
-const script = (seed: number): InputScript => ({
-  v: 1,
+const script = (seed: number): InputScriptV2 => ({
+  v: 2,
   scene: "basin",
   seed,
   steps: [
@@ -70,7 +70,7 @@ export function spillTwice() {
     registry,
     scene: basin,
     script: {
-      v: 1,
+      v: 2,
       steps: [
         { command: "spill", args: { id: "drop#first" } },
         { command: "spill", args: { id: "drop#first" } },

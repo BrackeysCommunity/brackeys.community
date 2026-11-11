@@ -283,6 +283,9 @@ const config = defineConfig({
       // Written by the engine's formatScene, which owns their layout.
       "src/engine/scenes/**",
       "src/games/*/scenes/**",
+      "src/games/*/input-map.json",
+      "src/games/*/game-settings.json",
+      "src/games/*/data/**",
       "src/engine/__tests__/fixtures/*.json",
       "src/engine/scene/__tests__/fixtures/prefabs/**",
       // Frozen copies of each scene format version, compared byte for byte.

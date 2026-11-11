@@ -102,6 +102,7 @@ import {
   useComboboxAnchor,
   useKit,
 } from "../kit/index";
+import { useBrowserState } from "../kit/ssr";
 import { openPrefabScope } from "../session/live-scene-editor";
 import { readStored, storedFlags, writeStored } from "../session/stored";
 import { useEditorDoc, useEditorStore } from "../session/use-editor-store";
@@ -380,7 +381,10 @@ function Section({
   children: ReactNode;
 }) {
   const { storage } = useKit();
-  const [open, setOpen] = useState(() => !readStored(storage, COLLAPSED_KEY, {}, storedFlags)[id]);
+  const [open, setOpen] = useBrowserState(
+    () => !readStored(storage, COLLAPSED_KEY, {}, storedFlags)[id],
+    true,
+  );
   const toggle = (e: MouseEvent) => {
     e.preventDefault();
     const closed = { ...readStored(storage, COLLAPSED_KEY, {}, storedFlags) };

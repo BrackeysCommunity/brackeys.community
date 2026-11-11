@@ -1,7 +1,15 @@
-import { POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
+import { isUiAction } from "../game/input-bindings";
+import { pointerBit, POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
 import { isRuntimeId } from "../game/runtime-ids";
 import { resolveTime, type ResolvedTime } from "../game/time";
-import type { ActionKind, GameDefinition, Macro, MacroRandom } from "../game/types";
+import type {
+  ActionKind,
+  GameCommand,
+  GameDefinition,
+  Macro,
+  MacroRandom,
+  PlayState,
+} from "../game/types";
 import {
   actionValueChanged,
   combineAction,
@@ -19,6 +27,7 @@ import { Rng } from "../sim-kit/rng";
 import type { InputAction } from "../types";
 import { heldEdges } from "./compile-input-script";
 import { probeConfigHash, unknownActionError } from "./headless";
+import { legalCommands, startState } from "./legal";
 import {
   blockedRun,
   prepareRun,
@@ -28,7 +37,7 @@ import {
   startRun,
   type InputSource,
 } from "./play-loop";
-import type { FuzzOptions, FuzzRun, FuzzTouch } from "./playtest-types";
+import type { FuzzLegal, FuzzOptions, FuzzRun, FuzzTouch } from "./playtest-types";
 
 const DEFAULT_ROLLOUTS = 100;
 const DEFAULT_TICKS = 600;
@@ -108,8 +117,6 @@ export function defaultFuzzMacro(
   return macro;
 }
 
-const bitOf = (button: PointerButton) => 1 << POINTER_BUTTONS.indexOf(button);
-
 const isPair = (v: unknown): v is Pt =>
   Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n));
 
@@ -147,6 +154,18 @@ type MacroContext = {
   time: ResolvedTime;
 };
 
+/**
+ * How a game that lists its commands is explored: each macro is, with
+ * probability `chance` (1 or 0.5), one slot sending one command picked from
+ * `list(state)`, or nothing when the list is empty; `counts` tallies them.
+ */
+type CommandMacros = {
+  chance: 1 | 0.5;
+  list(state: PlayState): readonly GameCommand[];
+  start: PlayState;
+  counts: FuzzLegal;
+};
+
 /** One pointer macro under way: its path, the buttons it presses and releases, and how far along it is. */
 type PointerRun = { move: ScriptPointer; ticks: number; at: number };
 
@@ -160,8 +179,11 @@ function macroInput(
   rng: MacroRandom,
   macro: (rng: MacroRandom, actions: readonly string[]) => Macro,
   ctx: MacroContext,
+  commands: CommandMacros | null = null,
 ): InputSource {
   const { actions, kindOf, time } = ctx;
+  let state = commands?.start ?? null;
+  let send: GameCommand | null = null;
   let hold: readonly string[] = [];
   let left = 0;
   const analog = new Map<string, ActionValue>();
@@ -171,8 +193,22 @@ function macroInput(
     throw new Error(`fuzz macro: ${message}`);
   };
 
+  /** A one-slot macro holding nothing, its command (if the list has one) in `send`. */
+  function commandMacro(): Macro {
+    const list = commands!.list(state!);
+    if (list.length === 0) commands!.counts.empty++;
+    else {
+      send = { ...rng.pick(list) };
+      commands!.counts.sent++;
+    }
+    return { hold: [], ticks: 1 };
+  }
+
   function draw(slot: number, out: InputAction[]): void {
-    const next = macro(rng, actions);
+    const next =
+      commands && (commands.chance === 1 || rng.below(2) === 0)
+        ? commandMacro()
+        : macro(rng, actions);
     if (!Number.isInteger(next.ticks) || next.ticks < 1) {
       throw new RangeError(
         `fuzz macro returned ${next.ticks} ticks; it needs a whole number of at least 1`,
@@ -252,12 +288,12 @@ function macroInput(
     const x = qPointer(move.at[0] + (end[0] - move.at[0]) * t);
     const y = qPointer(move.at[1] + (end[1] - move.at[1]) * t);
     let buttons = pointer?.buttons ?? 0;
-    if (i === 0 && move.press !== undefined && !(buttons & bitOf(move.press))) {
-      buttons |= bitOf(move.press);
+    if (i === 0 && move.press !== undefined && !(buttons & pointerBit(move.press))) {
+      buttons |= pointerBit(move.press);
       buttonActions(move.press, true, slot, out);
     }
-    if (i === ticks - 1 && move.release !== undefined && buttons & bitOf(move.release)) {
-      buttons &= ~bitOf(move.release);
+    if (i === ticks - 1 && move.release !== undefined && buttons & pointerBit(move.release)) {
+      buttons &= ~pointerBit(move.release);
       buttonActions(move.release, false, slot, out);
     }
     if (i === ticks - 1) path = null;
@@ -275,7 +311,18 @@ function macroInput(
       if (left === 0) draw(slot, out);
       left--;
       const moved = pointerStep(slot, out);
-      return { tick: slot, actions: out, commands: [], pointers: moved ? [moved] : [], joins: [] };
+      const sent = send ? [send] : [];
+      send = null;
+      return {
+        tick: slot,
+        actions: out,
+        commands: sent,
+        pointers: moved ? [moved] : [],
+        joins: [],
+      };
+    },
+    after(next) {
+      state = next;
     },
   };
 }
@@ -293,7 +340,11 @@ const byRef = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
  * does and plays macros (the game's `play.macro`, else `defaultFuzzMacro`,
  * which also sets the game's axis and vector actions and moves and clicks
  * the pointer when an action is bound to it; a macro's `set` and `pointer`
- * drive seat 0) drawn from `@jams/engine/sim-kit`'s `Rng`, until the game's outcome,
+ * drive seat 0; it never holds a UI action) drawn from `@jams/engine/sim-kit`'s
+ * `Rng`. A game that lists its commands and has no macro of its own gets
+ * command macros: one slot sending one of `legalCommands` (nothing when it
+ * is empty), every macro for a `turns` game and half of them otherwise,
+ * counted in `legal`. Rollouts run until the game's outcome,
  * `stuck` or `ticks` slots (an idle turns or event game skips slots, so its
  * rollouts still end). Reports which scene entities the rollouts' events
  * named (never a runtime `#` id), how many rollouts reached each and how
@@ -319,9 +370,12 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
   const play = game?.play;
   const bindings = resolveBindings({ game: registry.actions, map: opts.project?.inputMap });
   const pointerBindings = (button: PointerButton) =>
-    (bindings.tables.pointer.get(button) ?? []).filter((b) => b.player === 0);
+    (bindings.tables.pointer.get(button) ?? []).filter(
+      (b) => b.player === 0 && !isUiAction(registry, b.action),
+    );
   const actions = registry.actionNames;
-  const ofKind = (kind: ActionKind) => actions.filter((a) => bindings.kindOf(a) === kind);
+  const simActions = actions.filter((a) => !isUiAction(registry, a));
+  const ofKind = (kind: ActionKind) => simActions.filter((a) => bindings.kindOf(a) === kind);
   const pointerButtons = POINTER_BUTTONS.filter((b) => pointerBindings(b).length > 0);
   const inputs: FuzzMacroInputs = {
     axes: ofKind("axis"),
@@ -339,7 +393,9 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
   };
   const macro = play?.macro
     ? (rng: MacroRandom, names: readonly string[]) => play.macro!(rng, names)
-    : (rng: MacroRandom, names: readonly string[]) => defaultFuzzMacro(rng, names, inputs);
+    : (rng: MacroRandom) => defaultFuzzMacro(rng, simActions, inputs);
+  const listsCommands = !play?.macro && play?.commands !== undefined;
+  const legal: FuzzLegal = { sent: 0, empty: 0 };
   const touched = new Map<Ref, Omit<FuzzTouch, "ref" | "type">>();
   const results: Record<string, number> = Object.fromEntries(
     registry.runResults.map((r) => [r, 0]),
@@ -361,6 +417,14 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
     });
     if (!started.ok) return blockedRun("load", name, prepared.issues, [], started.load);
     time = started.runtime.ctx.time;
+    const commands: CommandMacros | null = listsCommands
+      ? {
+          chance: time.kind === "turns" ? 1 : 0.5,
+          list: (state) => legalCommands(play, state, Infinity)?.legal ?? [],
+          start: startState(started.runtime),
+          counts: legal,
+        }
+      : null;
     const seen = new Set<Ref>();
     const touch = (id: string | undefined, tick: number) => {
       if (id === undefined || isRuntimeId(id) || seen.has(id) || !types.has(id)) return;
@@ -381,12 +445,17 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
         game,
         maxTicks: ticksPerRollout,
         maxSlots: ticksPerRollout,
-        input: macroInput(root.fork(`rollout:${rollout}`), macro, {
-          actions,
-          kindOf: bindings.kindOf,
-          pointerBindings,
-          time: started.runtime.ctx.time,
-        }),
+        input: macroInput(
+          root.fork(`rollout:${rollout}`),
+          macro,
+          {
+            actions,
+            kindOf: bindings.kindOf,
+            pointerBindings,
+            time: started.runtime.ctx.time,
+          },
+          commands,
+        ),
         onTick(state) {
           for (const e of state.events) {
             touch(e.entityId, state.tick);
@@ -420,6 +489,7 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
       .sort((a, b) => byRef(a.ref, b.ref)),
     untouched: [...types.keys()].filter((ref) => !touched.has(ref)).sort(byRef),
     results,
+    ...(listsCommands ? { legal } : {}),
     timing: {
       elapsedMs: Math.round(elapsedMs * 100) / 100,
       ticksPerSecond: elapsedMs > 0 ? Math.round((ticks * 1000) / elapsedMs) : 0,

@@ -83,6 +83,7 @@ export const PLATFORMER_TYPES: readonly EntityTypeDef[] = [
     bulk: { form: "shape", description: "One-way cloud platforms, box only, absolute metres." },
     style: { fill: CLOUD_LOOK.color, stroke: CLOUD_LOOK.color, alpha: CLOUD_LOOK.alpha },
     ascii: "=",
+    oneWay: true,
   }),
   defineEntityType({
     type: TYPE.mover,

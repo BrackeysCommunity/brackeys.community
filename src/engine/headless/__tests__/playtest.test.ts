@@ -14,6 +14,8 @@ import {
 } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineGame } from "../../game/define";
 import type { TickInput } from "../../input/stream";
+import { INPUT_MAP_KIND, INPUT_MAP_VERSION } from "../../project/kinds/input-map";
+import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { hashText } from "../../scene/hash";
 import { parseSceneOrThrow } from "../../scene/parse";
 import { prefabLibrary } from "../../scene/prefab";
@@ -26,6 +28,7 @@ import { runPlaytest } from "../playtest";
 import type {
   InputEdge,
   InputScript,
+  InputScriptV2,
   PlaytestBlocked,
   PlaytestReport,
   PlaytestRun,
@@ -851,5 +854,102 @@ describe("runPlaytest's world predicates", () => {
         `script predicate "${name}" is the engine's`,
       );
     }
+  });
+});
+
+describe("runPlaytest seats", () => {
+  const withSeats = (max: number): ProjectRuntimeView => ({
+    settings: {},
+    engine: {},
+    table: () => [],
+    asset: () => undefined,
+    inputMap: { kind: INPUT_MAP_KIND, v: INPUT_MAP_VERSION, players: { max, join: "auto" } },
+  });
+  const twoSeats: InputScriptV2 = {
+    v: 2,
+    tracks: [
+      { player: 0, steps: [{ hold: ["right"], until: { event: GOAL_EVENT }, max: 600 }] },
+      { player: 1, steps: [{ wait: 2 }, { press: "push" }] },
+    ],
+  };
+  const run = (project?: ProjectRuntimeView) =>
+    runPlaytest({ rapier, game: testGame, registry, scene: yard, script: twoSeats, project });
+
+  it("scripts the seats the project input map gives over the game's one", () => {
+    expect(blocked(run()).scriptIssues).toMatchObject([{ path: "/tracks/1/player" }]);
+    const r = report(run(withSeats(2)));
+    expect(r.outcome.result).toBe("won");
+    expect(r.steps.filter((s) => s.player === 1).map((s) => s.end)).toEqual(["done", "done"]);
+    expect(r.recording.inputs[1]!.length).toBeGreaterThan(0);
+    expect(blocked(run(withSeats(1))).scriptIssues).toMatchObject([{ path: "/tracks/1/player" }]);
+  });
+});
+
+describe("runPlaytest's legal commands", () => {
+  /** A physics-free turns game listing `n` legal `pick`s; `grow` lists one more. */
+  const lister = (n: number, lists = true) =>
+    defineGame<{ n: number }>({
+      id: "lister",
+      types: [],
+      actions: [],
+      time: { kind: "turns" },
+      world: { physics: "none" },
+      commands: {
+        pick: { description: "Picks i.", args: z.strictObject({ i: z.number().int() }) },
+        grow: { description: "Lists one more pick." },
+      },
+      createRuntime() {
+        let count = n;
+        return {
+          beforeStep(_dt, _actions, commands) {
+            for (const c of commands) if (c.name === "grow") count++;
+          },
+          snapshot: () => ({ n: count }),
+        };
+      },
+      play: lists
+        ? {
+            commands: ({ snapshot }) =>
+              Array.from({ length: snapshot.n }, (_, i) => ({ name: "pick", args: { i } })),
+          }
+        : {},
+    });
+  const scene: SceneDefinition = {
+    v: 4,
+    name: "list-yard",
+    game: "lister",
+    bounds: [0, 0, 10, 10],
+    entities: [{ id: "start", type: "marker", at: [1, 1] }],
+  };
+  const grows = (times: number): InputScript => ({
+    v: 1,
+    steps: Array.from({ length: times }, () => ({ command: "grow" })),
+  });
+  const listed = (n: number, script: InputScript, lists = true) => {
+    const game = lister(n, lists);
+    const run = runPlaytest({ game, registry: createRegistry(game), scene, script });
+    if (run.blocked) throw new Error(JSON.stringify(run));
+    return run;
+  };
+
+  it("carries the commands legal after the last tick, capped at 64", () => {
+    const few = listed(2, grows(1));
+    expect(few.legal).toEqual([0, 1, 2].map((i) => ({ name: "pick", args: { i } })));
+    expect("legalTruncated" in few).toBe(false);
+
+    const full = listed(63, grows(1));
+    expect(full.legal).toHaveLength(64);
+    expect("legalTruncated" in full).toBe(false);
+
+    const over = listed(64, grows(6));
+    expect(over.legal).toHaveLength(64);
+    expect(over.legal![63]).toEqual({ name: "pick", args: { i: 63 } });
+    expect(over.legalTruncated).toBe(true);
+  });
+
+  it("carries none for a game that lists no commands", () => {
+    const run = listed(3, grows(1), false);
+    expect("legal" in run).toBe(false);
+    expect("legalTruncated" in run).toBe(false);
   });
 });

@@ -39,6 +39,11 @@ function reportText(r: FuzzReport, runs: string): string {
     `${r.scene} ${r.sceneHash} ${runs} config ${r.configHash}: ${r.rollouts} rollouts of up to ${r.ticksPerRollout} ticks, seed ${JSON.stringify(r.seed)}`,
     `  ${r.ticks} ticks in ${Math.round(r.timing.elapsedMs)}ms (${r.timing.ticksPerSecond} ticks/s)`,
     `  results: ${results}`,
+    ...(r.legal
+      ? [
+          `  legal: ${r.legal.sent} commands sent, ${r.legal.empty} macro${r.legal.empty === 1 ? "" : "s"} with none legal`,
+        ]
+      : []),
     ...r.touched.map(
       (t) =>
         `  ${t.ref} (${t.type}) reached in ${t.reached} of ${r.rollouts} runs, first at t${t.firstTick} (rollout ${t.firstRollout})`,

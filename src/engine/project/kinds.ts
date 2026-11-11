@@ -43,6 +43,7 @@ export {
   type InspectResult,
   type KindEnv,
   type ParseAssetResult,
+  type PerProjectWords,
 } from "./kinds/define";
 
 export type KindRegistry = {

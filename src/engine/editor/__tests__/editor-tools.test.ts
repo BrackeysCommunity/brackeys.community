@@ -77,7 +77,7 @@ describe("placementEditorTool", () => {
           entity: {
             id: "crate",
             type: "prop",
-            shape: ["box", 100, 200.01, 20, 20, 0],
+            shape: ["box", 100, 200.01, 0.2, 0.2, 0],
             density: 1,
             restitution: 0,
           },
@@ -98,7 +98,7 @@ describe("placementEditorTool", () => {
     tool.pointer!(pointer("wheel", [100.2, 230.3], { deltaY: -1, shift: true }));
     // On the default 0.5 m grid.
     expect(tool.overlay!().ghosts).toEqual([
-      { shape: { type: "box", cx: 100, cy: 230.5, hw: 20, hh: 20, rotDeg: 29 }, valid: true },
+      { shape: { type: "box", cx: 100, cy: 230.5, hw: 0.2, hh: 0.2, rotDeg: 29 }, valid: true },
     ]);
     expect(tool.cursor!()).toBe("crosshair");
   });
@@ -107,9 +107,9 @@ describe("placementEditorTool", () => {
     const ctx = fakeToolContext(toolRegistry, doc(), free);
     const tool = testCrateTool.create(ctx);
     tool.command!("crate");
-    tool.pointer!(pointer("move", [5, 500]));
+    tool.pointer!(pointer("move", [0.1, 500]));
     expect(tool.overlay!().ghosts?.[0]).toMatchObject({ valid: false, reason: "Out of bounds" });
-    tool.pointer!(pointer("down", [5, 500]));
+    tool.pointer!(pointer("down", [0.1, 500]));
     expect(ctx.commits).toHaveLength(1);
   });
 

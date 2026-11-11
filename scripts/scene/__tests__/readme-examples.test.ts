@@ -8,6 +8,7 @@ import { formatPrefab, formatScene, type SceneDefinition } from "@jams/engine/sc
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { platformerGame } from "../../../src/games/platformer";
+import { tacticsGame } from "../../../src/games/tactics";
 import { duelGame, field } from "../../engine-readme/examples/duel-game";
 import { basin, fountainGame, twinSpout } from "../../engine-readme/examples/fountain-game";
 import { meadow, orchardGame } from "../../engine-readme/examples/orchard-game";
@@ -15,6 +16,8 @@ import { walkerGame } from "../../engine-readme/examples/walker-game";
 import { corridor } from "../../engine-readme/examples/walker-playtest";
 import { COMMAND_GROUPS, COMMANDS, runCli, type CommandName } from "../commands";
 import type { ToolContext } from "../context";
+import { GAME_PRESETS } from "../game-templates";
+import { openProject } from "../projects";
 import { loadCompatRapier } from "../rapier-compat";
 import { cardGame } from "./card-game";
 import { tempProject } from "./fixtures";
@@ -85,6 +88,7 @@ function isPure(argv: string[]): boolean {
     return name === "assets list" || name === "assets info" || rest.includes("--dry-run");
   if (name === "render") return !rest.includes("--out");
   if (name === "project snapshot") return !rest.includes("--out") || rest.includes("-");
+  if (name === "game new") return rest.includes("--dry-run");
   return name !== "new";
 }
 
@@ -210,6 +214,8 @@ const INPUT_LISTED = [...INPUT_CODES, "recording-other-platform"];
 /** The units and format v4 codes: `out-of-bounds` reproduced by a px-sized op, `migration-unresolved` listed. */
 const UNITS_CODES = ["out-of-bounds"];
 const UNITS_LISTED = ["migration-unresolved"];
+/** The code `game new` added: reproduced by a doc example and listed in the issue table. */
+const GAME_NEW_CODES = ["project-id-taken"];
 const LIFECYCLE_EVENTS = [
   "entity:spawned",
   "entity:destroyed",
@@ -246,6 +252,7 @@ async function projectsIn(base: string): Promise<ToolContext> {
     orchard: join(base, orchardGame.id),
     fountain: join(base, fountainGame.id),
     duel: join(base, duelGame.id),
+    tactics: join(base, tacticsGame.id),
   };
   await cp(repoFile("src/engine/scenes"), dirs.engine, { recursive: true });
   await mkdir(dirs.platformer);
@@ -264,6 +271,10 @@ async function projectsIn(base: string): Promise<ToolContext> {
     repoFile("scripts/scene/examples/duel.input-map.json"),
     join(dirs.duel, "input-map.json"),
   );
+  await cp(repoFile("src/games/tactics"), dirs.tactics, {
+    recursive: true,
+    filter: (src) => !src.includes("__tests__"),
+  });
   await copyFile(
     repoFile("src/games/platformer/scenes/test-yard.json"),
     join(dirs.platformer, "test-yard.json"),
@@ -277,6 +288,10 @@ async function projectsIn(base: string): Promise<ToolContext> {
       await tempProject(dirs.orchard, { game: orchardGame }),
       await tempProject(dirs.fountain, { game: fountainGame }),
       await tempProject(dirs.duel, { game: duelGame }),
+      await openProject(dirs.tactics, {
+        game: tacticsGame,
+        cacheDir: join(base, ".jams-cache", tacticsGame.id),
+      }),
     ],
     loadRapier: loadCompatRapier,
   };
@@ -321,11 +336,17 @@ describe("scene commands in the docs", () => {
 
     if (example.fenced && isPure(example.argv) && !example.argv.some(placeholder)) {
       const { expect: code } = example;
-      it(`${example.doc}: ${example.line} ${code ? `reports ${code}` : "runs"}`, async () => {
-        const r = await runCli(inRoot(example.argv), ctx);
-        if (code) expect([...codesIn(JSON.parse(r.stdout))], r.stdout + r.stderr).toContain(code);
-        else expect(r.exitCode, `${example.line}\n${r.stderr}`).toBe(0);
-      });
+      // `game new` imports and judges the game it generates.
+      const timeout = name === "game new" ? 60_000 : undefined;
+      it(
+        `${example.doc}: ${example.line} ${code ? `reports ${code}` : "runs"}`,
+        async () => {
+          const r = await runCli(inRoot(example.argv), ctx);
+          if (code) expect([...codesIn(JSON.parse(r.stdout))], r.stdout + r.stderr).toContain(code);
+          else expect(r.exitCode, `${example.line}\n${r.stderr}`).toBe(0);
+        },
+        timeout,
+      );
     }
   }
 });
@@ -505,6 +526,42 @@ describe("op batches in the docs", () => {
       v2.flatMap((s) => s.tracks!.flatMap((t) => t.steps.flatMap(Object.keys))),
     );
     for (const kind of ["set", "pointer", "join", "leave"]) expect(kinds).toContain(kind);
+  });
+
+  it("runs game new for every preset and flag, step --legal, and a command game's playtest and fuzz", () => {
+    const run = all.flat().filter((e) => e.fenced && isPure(e.argv) && !e.expect);
+    const used = (name: string, flag?: string, value?: string) =>
+      run.some(
+        (e) =>
+          split(e.argv)[0] === name &&
+          (!flag || e.argv.includes(flag)) &&
+          (!value || e.argv[e.argv.indexOf(flag!) + 1] === value),
+      );
+    const games = run.filter((e) => split(e.argv)[0] === "game new");
+    for (const preset of GAME_PRESETS.filter((p) => p !== "top-down"))
+      expect(used("game new", "--preset", preset), preset).toBe(true);
+    expect(
+      games.some((e) => !e.argv.includes("--preset")),
+      "the default preset",
+    ).toBe(true);
+    for (const flag of ["--physics", "--gravity", "--rate", "--cell", "--px-per-metre", "--json"])
+      expect(used("game new", flag), flag).toBe(true);
+    expect(used("step", "--legal")).toBe(true);
+    const onLevel = (name: string) =>
+      run.some((e) => split(e.argv)[0] === name && e.argv[1] === "level-1");
+    expect(onLevel("step") && onLevel("playtest") && onLevel("fuzz")).toBe(true);
+    expect(allBatches.some((b) => "scene" in b.target && b.target.scene === "level-1")).toBe(true);
+  });
+
+  it("reproduces project-id-taken and a bad id, and lists project-id-taken", () => {
+    const expected = all
+      .flat()
+      .filter((e) => split(e.argv)[0] === "game new")
+      .map((e) => e.expect);
+    expect(GAME_NEW_CODES.filter((code) => !expected.includes(code))).toEqual([]);
+    expect(expected).toContain("schema");
+    for (const code of GAME_NEW_CODES)
+      expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
   });
 
   it("reproduces a px-sized op landing out of bounds, and lists migration-unresolved", () => {

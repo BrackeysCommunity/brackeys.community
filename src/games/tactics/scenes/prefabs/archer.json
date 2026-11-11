@@ -1,0 +1,12 @@
+{
+  "kind": "prefab",
+  "v": 4,
+  "game": "tactics",
+  "id": "archer",
+  "params": {
+    "side": { "default": "blue", "description": "Which side the archer fights for: blue is the player's.", "targets": ["unit.side"] }
+  },
+  "entities": [
+    { "id": "unit", "type": "unit", "at": [0, 0], "class": "archer", "side": "blue", "behaviors": { "sprite": { "asset": "units", "frame": "archer-blue" } } }
+  ]
+}

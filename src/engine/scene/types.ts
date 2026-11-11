@@ -285,6 +285,7 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "asset-too-large",
   "import-failed",
   "quota-exceeded",
+  "project-id-taken",
   // input
   "binding-unknown",
   "player-unknown",

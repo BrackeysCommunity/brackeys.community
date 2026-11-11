@@ -18,8 +18,12 @@ export type {
   PlaySession,
   RapierModule,
   SimState,
+  UiActionEvent,
   Vec2,
 } from "./types";
+export { bindText, bindToWorld, watchView } from "./ui/bind";
+export { createUiLayer, mountUi } from "./ui/layer";
+export type { MountUi, UiContext, UiHandle } from "./ui/types";
 export {
   applyPt,
   applyVec,

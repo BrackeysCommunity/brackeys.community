@@ -50,7 +50,7 @@ vi.mock("pixi.js", async (importOriginal) => {
 const registry = toolRegistry;
 const PPM = pxPerMetreOf(registry);
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
-/** One screen px per metre, over a scene 2 km wide, so the test tools' 40 m crates fit. */
+/** One screen px per metre, so a scene 2 km wide fits. */
 const VIEW: View = { width: 2000, height: 1200, scale: 1, tx: 0, ty: 0 };
 /** A 64 m grid, so a snapped point is easy to follow. */
 const GRID: SnapSettings = { ...DEFAULT_SNAP, step: 64 };
@@ -159,7 +159,7 @@ describe("placement previews", () => {
     const ghost = svg().querySelector('[data-placement="ghost"]');
     expect(ghost?.getAttribute("data-tone")).toBe("ghost");
     expect(ghost?.querySelector(".je-ov-halo")).toBeTruthy();
-    expect(dOf(ghost)).toBe(shapePath(box(128, 256, 20, 20)));
+    expect(dOf(ghost)).toBe(shapePath(box(128, 256, 0.2, 0.2)));
     expect(document.querySelector("[data-ghost-reason]")).toBeNull();
     // Nothing is written until the click.
     expect(session.getDoc().entities).toHaveLength(1);
@@ -171,7 +171,7 @@ describe("placement previews", () => {
     ptr("move", 5, 500);
     const ghost = svg().querySelector("[data-placement]");
     expect(ghost?.getAttribute("data-tone")).toBe("invalid");
-    expect(dOf(ghost)).toBe(shapePath(box(0, 512, 20, 20)));
+    expect(dOf(ghost)).toBe(shapePath(box(0, 512, 0.2, 0.2)));
     expect(document.querySelector("[data-ghost-reason]")?.textContent).toBe("Out of bounds");
     ptr("move", 300, 300);
     expect(svg().querySelector("[data-placement]")?.getAttribute("data-tone")).toBe("ghost");

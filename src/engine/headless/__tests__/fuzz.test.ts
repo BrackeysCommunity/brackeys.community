@@ -3,14 +3,16 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { beforeAll, describe, expect, it } from "vite-plus/test";
+import { z } from "zod";
 
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import { isRuntimeId } from "../../game/runtime-ids";
-import type { ActionDef, GameDefinition, Macro } from "../../game/types";
+import type { ActionDef, GameCommand, GameDefinition, Macro } from "../../game/types";
 import type { PointerState } from "../../input/state";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { parseSceneOrThrow } from "../../scene/parse";
+import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/types";
 import { Rng } from "../../sim-kit/rng";
 import type { InputAction, RapierModule } from "../../types";
 import { defaultFuzzMacro, fuzz } from "../fuzz";
@@ -590,5 +592,154 @@ describe("fuzz", () => {
       );
       expect(() => fuzzOf(quick, { rollouts: 1, ticks: 5 })).toThrow(/at least 2 ticks/);
     }, 30_000);
+  });
+});
+
+describe("fuzz over legal commands", () => {
+  type Walk = { pos: number; illegal: number };
+  const GOAL = 3;
+  /** Step right, step left (not from 0) or wait: the walker's legal moves at `pos`. */
+  const movesAt = (pos: number): GameCommand[] => [
+    { name: "step", args: { d: 1 } },
+    ...(pos > 0 ? [{ name: "step", args: { d: -1 } }] : []),
+    { name: "wait" },
+  ];
+  const same = (a: GameCommand, b: GameCommand) =>
+    a.name === b.name && JSON.stringify(a.args) === JSON.stringify(b.args);
+
+  /**
+   * A physics-free turns game walking a line to `GOAL` by commands only: an
+   * illegal command loses, as does a UI or held action reaching the
+   * simulation when `seen` isn't collecting them.
+   */
+  function walker(
+    seen: { commands: GameCommand[]; actions: string[] },
+    list: (pos: number) => GameCommand[] = movesAt,
+    extra: Partial<GameDefinition<Walk>> = {},
+  ): GameDefinition<Walk> {
+    return {
+      id: "walker",
+      types: [],
+      actions: [
+        { action: "right", bindings: [{ device: "key", code: "KeyD" }], description: "Unused." },
+        {
+          action: "menu",
+          bindings: [{ device: "key", code: "Escape" }],
+          description: "Opens the menu.",
+          ui: true,
+        },
+      ],
+      time: { kind: "turns" },
+      world: { physics: "none" },
+      commands: {
+        step: { description: "Moves by d.", args: z.strictObject({ d: z.number().int() }) },
+        wait: { description: "Passes." },
+      },
+      createRuntime() {
+        let pos = 0;
+        let illegal = 0;
+        return {
+          beforeStep(_dt, actions, commands) {
+            for (const a of actions) seen.actions.push(a.action);
+            if (actions.some((a) => a.action === "menu")) illegal++;
+            for (const c of commands) {
+              seen.commands.push(c);
+              if (!list(pos).some((m) => same(m, c))) illegal++;
+              else if (c.name === "step") pos += (c.args as { d: number }).d;
+            }
+          },
+          snapshot: () => ({ pos, illegal }),
+        };
+      },
+      play: {
+        results: ["won", "lost"],
+        outcome: ({ snapshot }) =>
+          snapshot.illegal > 0
+            ? { result: "lost", cause: "an illegal command or a UI action" }
+            : snapshot.pos >= GOAL
+              ? { result: "won" }
+              : null,
+        commands: ({ snapshot }) => list(snapshot.pos),
+      },
+      ...extra,
+    };
+  }
+  const line: SceneDefinition = {
+    v: SCENE_FORMAT_VERSION,
+    name: "line",
+    game: "walker",
+    bounds: [0, 0, 10, 10],
+    entities: [{ id: "start", type: "marker", at: [1, 1] }],
+  };
+  const fuzzWalker = (game: GameDefinition<Walk>, opts: Partial<FuzzOptions> = {}) =>
+    report(
+      fuzz({
+        game,
+        registry: createRegistry(game as GameDefinition),
+        scene: line,
+        seed: 3,
+        rollouts: 16,
+        ticks: 600,
+        ...opts,
+      } as FuzzOptions),
+    );
+
+  it("sends only legal commands, the same for one seed, and reaches the goal", () => {
+    const seen = { commands: [] as GameCommand[], actions: [] as string[] };
+    const a = fuzzWalker(walker(seen));
+    expect(a.results).toMatchObject({ won: 16, lost: 0, timeout: 0 });
+    expect(seen.actions).toEqual([]);
+    expect(seen.commands.length).toBe(a.legal!.sent);
+    expect(a.legal).toEqual({ sent: a.ticks, empty: 0 });
+    expect(new Set(seen.commands.map((c) => JSON.stringify(c)))).toEqual(
+      new Set(movesAt(1).map((c) => JSON.stringify(c))),
+    );
+    expect(withoutTiming(fuzzWalker(walker(seen)))).toEqual(withoutTiming(a));
+    expect(withoutTiming(fuzzWalker(walker(seen), { seed: 4 }))).not.toEqual(withoutTiming(a));
+  });
+
+  it("holds nothing for a slot when the list is empty, so an idle turns game skips it", () => {
+    const seen = { commands: [] as GameCommand[], actions: [] as string[] };
+    const r = fuzzWalker(
+      walker(seen, () => []),
+      { rollouts: 2, ticks: 50 },
+    );
+    expect(r).toMatchObject({ ticks: 0, legal: { sent: 0, empty: 100 } });
+    expect(r.results.timeout).toBe(2);
+    expect(seen.commands).toEqual([]);
+  });
+
+  it("mixes commands with action holds off turns, never holding a UI action", () => {
+    const seen = { commands: [] as GameCommand[], actions: [] as string[] };
+    const fixed = walker(seen, movesAt, { time: { kind: "fixed" } });
+    const r = fuzzWalker(fixed, { rollouts: 8, ticks: 300 });
+    expect(r.results.lost).toBe(0);
+    expect(r.legal!.sent).toBeGreaterThan(0);
+    expect(seen.actions).toContain("right");
+    expect(seen.actions).not.toContain("menu");
+    expect(withoutTiming(fuzzWalker(fixed, { rollouts: 8, ticks: 300 }))).toEqual(withoutTiming(r));
+  });
+
+  it("leaves a game's own macro in charge, with no legal counts", () => {
+    const seen = { commands: [] as GameCommand[], actions: [] as string[] };
+    const own = walker(seen, movesAt, {});
+    own.play = { ...own.play, macro: () => ({ hold: ["right"], ticks: 5 }) };
+    const r = fuzzWalker(own, { rollouts: 2, ticks: 40 });
+    expect(r.legal).toBeUndefined();
+    expect(seen.commands).toEqual([]);
+  });
+
+  it("keeps UI actions out of the default macro", () => {
+    const rng = Rng.from(2);
+    const reg = createRegistry(walker({ commands: [], actions: [] }) as GameDefinition);
+    expect(reg.uiActionNames).toEqual(["menu"]);
+    const seen = { commands: [] as GameCommand[], actions: [] as string[] };
+    const noCommands = walker(seen, movesAt, {});
+    noCommands.play = { ...noCommands.play, commands: undefined };
+    const r = fuzzWalker({ ...noCommands, time: { kind: "fixed" } }, { rollouts: 4, ticks: 200 });
+    expect(r.legal).toBeUndefined();
+    expect(seen.actions).toContain("right");
+    expect(seen.actions).not.toContain("menu");
+    expect(defaultFuzzMacro(rng, ["right"]).hold).toEqual(["right"]);
   });
 });

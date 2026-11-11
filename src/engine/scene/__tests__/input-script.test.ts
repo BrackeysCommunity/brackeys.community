@@ -8,6 +8,9 @@ import { sequentialKeys } from "../../collab/keys";
 import { layoutFromDoc, layoutPatch, layoutToDoc } from "../../collab/layout";
 import { createRegistry } from "../../game/define";
 import { compileInputScript } from "../../headless/compile-input-script";
+import { docKindJsonSchema, parseAssetDoc } from "../../project/kinds";
+import type { DocKindDef } from "../../project/kinds/define";
+import { inputMapKind } from "../../project/kinds/input-map";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../agent-surface";
 import { formatInputScript, INPUT_SCRIPT_LAYOUT } from "../format";
 import {
@@ -18,6 +21,7 @@ import {
   inputScriptSchemasFor,
   migrateInputScript,
   parseInputScript,
+  scriptSeatLimit,
   scriptShapeIssues,
 } from "../input-script";
 import { SCHEMA_ID_BASE, undescribedProperties } from "../json-schema";
@@ -275,6 +279,39 @@ describe("input-script v2 steps", () => {
     ]);
   });
 
+  it("drives the seats the project input map gives over the game's", () => {
+    const steps = [{ wait: 1 }];
+    const tracks = (...players: number[]) => players.map((player) => ({ player, steps }));
+    const four = { max: 4, join: "press" } as const;
+    const one = { max: 1, join: "auto" } as const;
+    expect(scriptSeatLimit(two)).toBe(2);
+    expect(scriptSeatLimit(two, four)).toBe(4);
+    expect(scriptSeatLimit(two, one)).toBe(1);
+    expect(scriptSeatLimit(game)).toBe(1);
+    expect(scriptSeatLimit(game, four)).toBe(4);
+    expect(scriptSeatLimit(two, { max: 99, join: "auto" })).toBe(8);
+
+    expect(scriptShapeIssues({ tracks: tracks(0, 3) }, two)).toMatchObject([
+      { path: "/tracks/1/player" },
+    ]);
+    expect(scriptShapeIssues({ tracks: tracks(0, 3) }, two, four)).toEqual([]);
+    expect(scriptShapeIssues({ tracks: tracks(4) }, two, four)).toMatchObject([
+      { path: "/tracks/0/player" },
+    ]);
+    expect(scriptShapeIssues({ tracks: tracks(1) }, two, one)).toMatchObject([
+      { path: "/tracks/0/player" },
+    ]);
+    expect(scriptShapeIssues({ players: 2, tracks: tracks(1) }, two, one)).toEqual([]);
+
+    const script = { v: 2, tracks: tracks(0, 3) };
+    expect(inputScriptSchemaFor(two).safeParse(script).success).toBe(false);
+    expect(inputScriptSchemaFor(two, four).safeParse(script).success).toBe(true);
+    expect(inputScriptSchemaFor(two, four)).toBe(inputScriptSchemaFor(two, four));
+    expect(inputScriptSchemaFor(two, { max: 2, join: "host" })).toBe(inputScriptSchemaFor(two));
+    expect(parseInputScript(script, two).ok).toBe(false);
+    expect(parseInputScript(script, two, four)).toMatchObject({ ok: true, script });
+  });
+
   it("parses the spec's two-seat example", () => {
     const parsed = parseInputScript(
       {
@@ -311,6 +348,106 @@ describe("input-script v2 steps", () => {
     );
     expect(parsed).toMatchObject({ ok: true, script: { v: 2, players: 2 } });
     expect(parsed.ok && "migratedFrom" in parsed).toBe(false);
+  });
+});
+
+describe("input-script UI-only actions", () => {
+  const ui = createRegistry({
+    ...testGame,
+    actions: [
+      ...testGame.actions,
+      { action: "confirm", ui: true, description: "Confirm the menu choice." },
+      { action: "cursor", ui: true, kind: "vector", description: "Move the cursor." },
+      { action: "steer", kind: "axis", description: "Steer." },
+    ],
+  });
+  const HINT = "UI actions don't reach the simulation; send a command";
+
+  it("marks them x-ui in the action enum and the analog set, beside the simulation's", () => {
+    const schema = inputScriptJsonSchema(ui) as {
+      $defs: Record<string, { anyOf?: unknown[]; properties?: Record<string, unknown> }>;
+    };
+    expect(schema.$defs.Action!.anyOf).toEqual([
+      expect.objectContaining({ enum: ["left", "right", "push", "steer"] }),
+      expect.objectContaining({ enum: ["confirm", "cursor"], "x-ui": true }),
+    ]);
+    expect(schema.$defs.AnalogSet!.properties!.cursor).toMatchObject({ "x-ui": true });
+    expect(schema.$defs.AnalogSet!.properties!.steer).not.toHaveProperty("x-ui");
+    expect(undescribedProperties(inputScriptJsonSchema(ui))).toEqual([]);
+    // A game with no UI-only action keeps its plain enum.
+    expect((inputScriptJsonSchema(game) as Defs).$defs.Action!.enum).toEqual([
+      "left",
+      "right",
+      "push",
+    ]);
+  });
+
+  it("marks them x-ui where the input-map kind names an action, which still binds them", () => {
+    const schema = docKindJsonSchema(inputMapKind as DocKindDef, { registry: ui, project: null });
+    const json = JSON.stringify(schema);
+    const actions = (
+      schema as { properties: Record<string, { items: { properties: Record<string, unknown> } }> }
+    ).properties;
+    const marked = {
+      anyOf: [
+        { enum: ["left", "right", "push", "steer"] },
+        { enum: ["confirm", "cursor"], "x-ui": true },
+      ],
+    };
+    expect(actions.actions!.items.properties.action).toMatchObject(marked);
+    expect(actions.touch!.items.properties.action).toMatchObject(marked);
+    expect(json).toContain('"x-ui":true');
+    const plain = docKindJsonSchema(inputMapKind as DocKindDef, { registry: game, project: null });
+    expect(JSON.stringify(plain)).not.toContain("x-ui");
+    const doc = {
+      kind: "input-map",
+      v: 1,
+      actions: [{ action: "confirm", bindings: [{ device: "key", code: "Enter" }] }],
+    };
+    expect(parseAssetDoc(inputMapKind, doc, { registry: ui, project: null }).issues).toEqual([]);
+  });
+
+  it("refuses a hold, press or set naming one as binding-unknown, with the hint", () => {
+    const cases: [unknown, string][] = [
+      [{ hold: ["right", "confirm"], for: 2 }, "/steps/0/hold/1"],
+      [{ press: "confirm" }, "/steps/0/press"],
+      [{ press: ["push", "confirm"] }, "/steps/0/press"],
+      [{ set: { cursor: [1, 0] }, for: 2 }, "/steps/0/set/cursor"],
+      [{ set: { confirm: 1 }, for: 2 }, "/steps/0/set/confirm"],
+    ];
+    for (const [step, path] of cases) {
+      const compiled = compileInputScript({ v: 2, steps: [step] }, ui);
+      expect(compiled.ok, JSON.stringify(step)).toBe(false);
+      if (compiled.ok) continue;
+      expect(compiled.issues, JSON.stringify(step)).toEqual([
+        expect.objectContaining({
+          path: path.startsWith("/steps/0/press")
+            ? expect.stringMatching(/^\/steps\/0\/press/)
+            : path,
+          message: expect.stringContaining("(binding-unknown)"),
+          hint: HINT,
+        }),
+      ]);
+    }
+    const parsed = parseInputScript({ v: 2, steps: [{ hold: ["confirm"], for: 1 }] }, ui);
+    expect(parsed).toEqual({
+      ok: false,
+      issues: [
+        {
+          path: "/steps/0/hold/0",
+          message: '"confirm" is a UI-only action, which a script can\'t drive (binding-unknown)',
+          hint: HINT,
+        },
+      ],
+    });
+  });
+
+  it("still plays the simulation's actions", () => {
+    const compiled = compileInputScript(
+      { v: 2, steps: [{ hold: ["right"], set: { steer: 0.5 }, for: 2 }, { press: "push" }] },
+      ui,
+    );
+    expect(compiled.ok).toBe(true);
   });
 });
 

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { STORAGE_PREFIX, type EditorStorage } from "../host";
+import { useBrowserState } from "../kit/ssr";
 import { readStored, writeStored } from "../session/stored";
 import { DEFAULT_LAYOUT, parseLayout, type EditorLayout, type PanelId } from "./model";
 
@@ -22,17 +23,19 @@ export type LayoutState = {
 };
 
 /**
- * The viewer's layout: read once from storage, written once a change has
- * settled. A null or refusing storage keeps the layout for the page's life.
+ * The viewer's layout: read once from storage (after hydration when the
+ * server drew the default), written once a change has settled. A null or
+ * refusing storage keeps the layout for the page's life.
  */
 export function useLayout(
   storage: EditorStorage | null,
   known: readonly PanelId[] = DEFAULT_PANELS,
 ): LayoutState {
-  const [layout, setLayout] = useState(() =>
-    readStored(storage, LAYOUT_KEY, DEFAULT_LAYOUT, (v) => parseLayout(v, known)),
-  );
-  const stored = useRef(layout);
+  const stored = useRef<EditorLayout>(DEFAULT_LAYOUT);
+  const [layout, setLayout] = useBrowserState(() => {
+    stored.current = readStored(storage, LAYOUT_KEY, DEFAULT_LAYOUT, (v) => parseLayout(v, known));
+    return stored.current;
+  }, DEFAULT_LAYOUT);
   const unsaved = useRef<EditorLayout | null>(null);
   const target = useRef(storage);
   useEffect(() => {
@@ -61,7 +64,7 @@ export function useLayout(
     [],
   );
 
-  const update = useCallback<LayoutState["update"]>((edit) => setLayout(edit), []);
-  const reset = useCallback(() => setLayout(DEFAULT_LAYOUT), []);
+  const update = useCallback<LayoutState["update"]>((edit) => setLayout(edit), [setLayout]);
+  const reset = useCallback(() => setLayout(DEFAULT_LAYOUT), [setLayout]);
   return { layout, update, reset };
 }

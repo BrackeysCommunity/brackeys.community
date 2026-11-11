@@ -2,6 +2,8 @@
 import { Store } from "@tanstack/store";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createRef } from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys } from "../../collab/index";
@@ -25,6 +27,7 @@ import type { EditorStorage } from "../host";
 import {
   DEFAULT_LAYOUT,
   fitLayout,
+  resizeColumn,
   type EditorLayout,
   type FittedColumn,
   type Viewport,
@@ -189,6 +192,35 @@ describe("the frame's layout", () => {
     const fitted = fitLayout(custom, viewportOf(1440));
     expectColumnAt("right", fitted.right!);
     expect(px(column("right")!, "width")).toBe(420);
+  });
+
+  it("hydrates a server render, then lays out for the window and the stored layout", () => {
+    const custom = resizeColumn(DEFAULT_LAYOUT, "right", 420);
+    const storage = memoryStorage(custom);
+    const session = newSession();
+    const frame = () => (
+      <EditorFrame host={{ storage }} panels={panelsFor(session)}>
+        <canvas />
+      </EditorFrame>
+    );
+    const container = document.body.appendChild(document.createElement("div"));
+    container.innerHTML = renderToString(frame());
+    expect(px(column("right")!, "width")).toBe(DEFAULT_LAYOUT.right.width);
+
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    try {
+      act(() => {
+        root = hydrateRoot(container, frame());
+      });
+      expectColumnAt("right", fitLayout(custom, viewportOf(1440)).right!);
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      act(() => root?.unmount());
+      container.remove();
+      session.destroy();
+    }
   });
 
   it("moves a column's edge 8 px per arrow and 32 with Shift, to the limits with Home and End", () => {

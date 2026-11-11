@@ -27,6 +27,7 @@ import { buildRefIndex, referencedTrash } from "../project/refs";
 import type { AssetId, AssetKey, ProjectId, ProjectState, ProjectView } from "../project/types";
 import { projectView } from "../project/view";
 import { ENGINE_VERSION } from "../version";
+import { guardAbortedRequestBodies } from "./aborted-requests";
 import { fileContentStore } from "./content-store";
 import {
   handleProjectRequest,
@@ -681,6 +682,7 @@ export function sceneCollabServer(options: SceneCollabOptions): SceneCollabPlugi
     name: "jams-engine:scene-collab",
     apply: "serve",
     configureServer(vite) {
+      guardAbortedRequestBodies(options.warn ?? console.warn);
       let collab: Promise<SceneCollab> | undefined;
       let ready: SceneCollab | undefined;
       const sources = projectSources(options.projects, () => ready);

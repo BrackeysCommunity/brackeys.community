@@ -1343,6 +1343,109 @@ describe("step", () => {
   });
 });
 
+/** A physics-free turns game listing a `pick` for each of `count` cards not yet picked; it wins when all are. */
+function pickGame(count: number) {
+  return defineGame<{ picked: number[] }>({
+    id: "pick-game",
+    types: [],
+    actions: [],
+    time: { kind: "turns" },
+    world: { physics: "none" },
+    commands: { pick: { description: "Picks card i.", args: z.strictObject({ i: z.number() }) } },
+    createRuntime() {
+      const picked: number[] = [];
+      return {
+        beforeStep(_dt, _actions, commands) {
+          for (const c of commands) if (c.name === "pick") picked.push((c.args as { i: number }).i);
+        },
+        snapshot: () => ({ picked: [...picked] }),
+      };
+    },
+    play: {
+      results: ["won"],
+      outcome: ({ snapshot }) => (snapshot.picked.length >= count ? { result: "won" } : null),
+      commands: ({ snapshot }) =>
+        Array.from({ length: count }, (_, i) => i)
+          .filter((i) => !snapshot.picked.includes(i))
+          .map((i) => ({ name: "pick", args: { i } })),
+    },
+  });
+}
+
+/** `ctx` plus a project for `pickGame(count)` holding pick-yard. */
+async function pickCtx(count: number): Promise<ToolContext> {
+  const game = pickGame(count);
+  const dir = join(root, `${game.id}-${count}`);
+  await mkdir(dir, { recursive: true });
+  const yard = {
+    v: 4,
+    name: "pick-yard",
+    game: game.id,
+    bounds: [0, 0, 10, 10],
+    entities: [{ id: "start", type: "marker", at: [1, 1] }],
+  };
+  await writeFile(join(dir, "pick-yard.json"), JSON.stringify(yard, null, 2));
+  return {
+    ...ctx,
+    projects: [...ctx.projects, await tempProject(dir, { game })],
+    loadRapier: () => Promise.reject(new Error("a physics-free run loaded Rapier")),
+  };
+}
+
+describe("legal commands", () => {
+  it("step --legal prints the commands legal after the steps, and --json carries them", async () => {
+    const picks = await pickCtx(3);
+    const r = await step(
+      { scene: "pick-yard", ticks: "2", command: ['1:pick={"i":1}'], legal: true },
+      picks,
+    );
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.text).toContain('  legal (2):\n    pick {"i":0}\n    pick {"i":2}');
+    expect(r.text.indexOf("  legal (2)")).toBeGreaterThan(r.text.indexOf("t1 command pick"));
+    expect(r.data).toMatchObject({
+      legal: [
+        { name: "pick", args: { i: 0 } },
+        { name: "pick", args: { i: 2 } },
+      ],
+    });
+    expect((await step({ scene: "pick-yard", ticks: "2" }, picks)).text).not.toContain("legal");
+
+    const cli = await runCli(["step", "pick-yard", "--ticks", "1", "--legal", "--json"], picks);
+    expect(cli.exitCode, cli.stderr).toBe(0);
+    expect(JSON.parse(cli.stdout).legal).toHaveLength(3);
+
+    const many = await step({ scene: "pick-yard", ticks: "1", legal: true }, await pickCtx(70));
+    expect(many.text).toContain("  legal (64, truncated):");
+    expect(many.data).toMatchObject({ legalTruncated: true });
+    const none = await step({ scene: "tally-yard", ticks: "1", legal: true }, await tallyCtx());
+    expect(none.text).toContain("  legal: the game lists no commands");
+    const done = await step(
+      { scene: "pick-yard", ticks: "2", command: ['0:pick={"i":0}'], legal: true },
+      await pickCtx(1),
+    );
+    expect(done.text).toContain("  legal: none");
+  });
+
+  it("playtest and fuzz print legal counts for a game that lists its commands", async () => {
+    const picks = await pickCtx(3);
+    const script = join(root, "pick-one.json");
+    await writeFile(script, JSON.stringify({ v: 1, steps: [{ command: "pick", args: { i: 2 } }] }));
+    const played = await playtest({ scene: "pick-yard", script }, picks);
+    expect(played.exitCode, played.text).toBe(0);
+    expect(played.text).toContain("  legal 2 commands");
+    expect(played.data).toMatchObject({ legal: [{ args: { i: 0 } }, { args: { i: 1 } }] });
+
+    const fuzzed = await fuzz({ scene: "pick-yard", rollouts: "4", ticks: "20" }, picks);
+    expect(fuzzed.exitCode, fuzzed.text).toBe(0);
+    expect(fuzzed.text).toContain("  results: won 4");
+    expect(fuzzed.text).toContain("  legal: 12 commands sent, 0 macros with none legal");
+    expect(fuzzed.data).toMatchObject({ legal: { sent: 12, empty: 0 } });
+
+    const tally = await fuzz({ scene: "tally-yard", rollouts: "1", ticks: "5" }, await tallyCtx());
+    expect(tally.text).not.toContain("legal");
+  });
+});
+
 /** The avatar game with play hooks: it wins when the avatar enters `zone`. */
 const goalGame = defineGame({
   ...avatarGame,
@@ -2541,6 +2644,7 @@ describe("runCli", () => {
       "assets change-id",
       "assets set-import",
       "assets apply",
+      "game new",
     ]);
   });
 
@@ -2554,6 +2658,17 @@ describe("runCli", () => {
     const bad = await runCli(["assets", "nope"], ctx);
     expect(bad.exitCode).toBe(2);
     expect((await runCli(["project", "show"], ctx)).exitCode).toBe(2);
+  });
+
+  it("shows game new's flags and step's --legal in the help", async () => {
+    const help = (await runCli(["help"], ctx)).stdout;
+    expect(help).toContain(
+      'game new <id> [--name "Title"] [--preset top-down|grid|turns] [--physics none|rapier] [--gravity x,y] [--time fixed|turns|event] [--rate n] [--grid square|hex|none] [--cell n] [--px-per-metre n] [--dir src/games] [--dry-run]',
+    );
+    expect(help).toMatch(/step <scene\|file\|-> .*\[--legal\]/);
+    const bare = await runCli(["game", "new"], ctx);
+    expect(bare.exitCode).toBe(2);
+    expect(bare.stderr).toContain("game new <id> [--name");
   });
 
   it("takes grid's flags", async () => {

@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../engine/project/data-table.schema.json",
+  "kind": "data-table",
+  "v": 2,
+  "table": "unit-class",
+  "rows": [
+    { "id": "knight", "attack": 4, "hp": 10, "move": 3, "range": [1, 1], "sight": false },
+    { "id": "archer", "attack": 3, "hp": 6, "move": 2, "range": [2, 3], "sight": true },
+    { "id": "scout", "attack": 2, "hp": 5, "move": 5, "range": [1, 1], "sight": false }
+  ]
+}

@@ -18,6 +18,8 @@ export type PointerRead =
   | { ok: false; issue: SceneIssue };
 
 const INDEX = /^(0|[1-9]\d*)$/;
+/** RFC 6901's "past the last item" token; only `insert` takes it, as its last segment. */
+const END = "-";
 
 /** Edit-level failure; caught by `applyJsonEdits`, never escapes it. */
 class EditRefusal extends Error {
@@ -83,6 +85,13 @@ function indexIn(
     const id = token.slice(1);
     const key = idOf(layout);
     return arr.findIndex((item) => isPlainObject(item) && item[key] === id);
+  }
+  if (token === END) {
+    return refuse(
+      "op-invalid",
+      `"-" at ${at || "the root"} names no item; only an insert's last segment may be "-".`,
+      field,
+    );
   }
   return refuse(
     "op-invalid",
@@ -307,9 +316,19 @@ function collectionAt(
   return refuse("ref-not-found", describeMissing(last, parentAt), field);
 }
 
-function insert(root: unknown, layout: DocLayout, tokens: string[], edit: JsonEdit): void {
+/** A last "-" names the end of the collection above it: the same append as omitting `before`. */
+function insert(root: unknown, layout: DocLayout, pointer: string[], edit: JsonEdit): void {
   const { value, before } = edit as Extract<JsonEdit, { insert: JsonPointer }>;
+  const append = pointer.at(-1) === END;
+  const tokens = append ? pointer.slice(0, -1) : pointer;
   const at = jsonPointer(tokens);
+  if (append && before !== undefined) {
+    return refuse(
+      "op-invalid",
+      `${jsonPointer(pointer)} already names the end; drop before.`,
+      "before",
+    );
+  }
   const target = collectionAt(root, layout, tokens, "insert");
   const coll = target.layout;
   if (coll.as !== "list" && coll.as !== "keyed") {
@@ -415,7 +434,8 @@ function applyOne(root: unknown, layout: DocLayout, edit: JsonEdit): unknown {
  * layout decides what a pointer may address: keys of a map, indices of a
  * list, indices or "@<id>" of a keyed collection; never the inside of an
  * atomic or text value (`op-invalid`: set the whole value). `insert` goes
- * into a list or keyed collection, creating it when its key is absent;
+ * into a list or keyed collection, creating it when its key is absent; its
+ * pointer may end in RFC 6901's "-" to append, as an omitted `before` does;
  * `remove` takes a collection item out; `unset` drops an object key and is
  * a no-op when the key is absent. The input is never changed, and the first
  * failing edit stops the batch.

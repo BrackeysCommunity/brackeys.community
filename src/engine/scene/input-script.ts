@@ -1,17 +1,25 @@
 import { z } from "zod";
 
-import { bindingProblems, playersProblems } from "../game/input-bindings";
+import {
+  bindingProblems,
+  isUiAction,
+  playersProblems,
+  SEAT_LIMIT,
+  UI_ACTION_KEYWORD,
+} from "../game/input-bindings";
 import { POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
 import { resolveTime } from "../game/time";
 import {
   ENGINE_PREDICATES,
   type EntitySelector,
   type GameCommand,
+  type PlayersDef,
   type Registry,
 } from "../game/types";
 import { pxPerMetreOf, scaleLengths } from "../game/units";
 import type { InputScriptV2, ScriptIssue } from "../headless/playtest-types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
+import { deviceIdSchema } from "./device-id";
 import { closest } from "./did-you-mean";
 import { jsonPointer, lineAt, pointerSegments, unitsRefusal } from "./issues";
 import { schemaIdFor, toJsonSchema } from "./json-schema";
@@ -126,6 +134,25 @@ export function checkCommand(
   };
 }
 
+/** Why a script can't hold, press or set a UI-only action. */
+export const UI_ACTION_HINT = "UI actions don't reach the simulation; send a command";
+
+/**
+ * A script naming `name` in a hold, press or set, refused when it is a
+ * UI-only action (`isUiAction`): `binding-unknown`, with the hint. Null for
+ * any other name, which the action enum judges.
+ */
+export function uiActionScriptProblem(
+  registry: Registry,
+  name: string,
+): { message: string; hint: string } | null {
+  if (!isUiAction(registry, name)) return null;
+  return {
+    message: `${JSON.stringify(name)} is a UI-only action, which a script can't drive (binding-unknown)`,
+    hint: UI_ACTION_HINT,
+  };
+}
+
 const NO_CATCH_UP = "elapse needs the game's time.catchUp, and this game has none";
 
 /** The commands a script's `command` step may send: the game's own, not the engine's `@` ones. */
@@ -225,23 +252,35 @@ export function worldPointSchema() {
     .meta({ unit: "m" });
 }
 
-const PAD_ID = /^pad:\d+$/;
+const deviceSchema = deviceIdSchema.meta({ id: "Device" });
 
-const deviceSchema = z
-  .union([
-    z.enum(["keyboard", "pointer", "touch"]),
-    z
-      .templateLiteral(["pad:", z.number().int()])
-      .refine((d) => PAD_ID.test(d), "a pad is `pad:<n>`, n a whole number from 0")
-      .meta({ pattern: PAD_ID.source }),
-  ])
-  .describe("A device: `keyboard`, `pointer`, `touch` or `pad:<n>`, n in connection order.")
-  .meta({ id: "Device" });
+/**
+ * The seats a run has, and so the seats a script drives unless it sets
+ * `players`: the project input map's `players` when it has them, else the
+ * game's `input.players`, else one. The one rule every script reader
+ * (schema, compiler, playtest, checks, the CLI) and the runtime agree on.
+ */
+export function scriptSeatLimit(registry: Registry, players?: PlayersDef | null): number {
+  const def = players ?? registry.game?.input?.players;
+  return def ? Math.min(SEAT_LIMIT, Math.max(1, Math.floor(def.max))) : 1;
+}
 
-/** A script's step lists and seats: one of `steps` or `tracks`; a seat `players` and the game allow; one track per seat. */
+/**
+ * A script's step lists and seats: one of `steps` or `tracks`; seats within
+ * the script's `players`, else `scriptSeatLimit` of the map's `players` and
+ * the game; one track per seat.
+ */
 export function scriptShapeIssues(
   script: { players?: unknown; steps?: unknown; tracks?: unknown },
   registry: Registry,
+  players?: PlayersDef | null,
+): ScriptIssue[] {
+  return shapeIssues(script, scriptSeatLimit(registry, players));
+}
+
+function shapeIssues(
+  script: { players?: unknown; steps?: unknown; tracks?: unknown },
+  runSeats: number,
 ): ScriptIssue[] {
   const issues: ScriptIssue[] = [];
   const hasSteps = script.steps !== undefined;
@@ -253,7 +292,7 @@ export function scriptShapeIssues(
         ? "a script has `steps` or `tracks`, not both"
         : "a script needs `steps` (seat 0's) or `tracks` (one per seat)",
     });
-  let seats = registry.game?.input?.players?.max ?? 1;
+  let seats = runSeats;
   if (script.players !== undefined) {
     const problem = playersProblems({ max: script.players as number, join: "auto" }).at(0);
     if (problem)
@@ -280,7 +319,7 @@ export function scriptShapeIssues(
         message: problem.message,
         ...(problem.expected !== undefined && { expected: problem.expected }),
         ...(problem.got !== undefined && { got: problem.got }),
-        hint: "Raise the script's `players`, or drive a seat the game has.",
+        hint: "Raise the script's `players` (or the input map's), or drive a seat the run has.",
       });
     const first = seen.get(player);
     if (first !== undefined)
@@ -299,16 +338,49 @@ function addIssues(ctx: z.RefinementCtx, issues: readonly ScriptIssue[]): void {
     ctx.addIssue({ code: "custom", path: pointerSegments(issue.path), message: issue.message });
 }
 
-function buildInputScriptSchemas(registry: Registry) {
+/** Refuses a UI-only action where a script names one, with `uiActionScriptProblem`'s message and hint. */
+function refuseUiAction(registry: Registry) {
+  return (name: string, ctx: z.RefinementCtx) => {
+    const problem = uiActionScriptProblem(registry, name);
+    if (problem)
+      ctx.addIssue({
+        code: "custom",
+        message: problem.message,
+        params: { hint: problem.hint },
+        input: name,
+      });
+  };
+}
+
+/**
+ * The script's action enum. With UI-only actions, they form their own
+ * branch marked `x-ui: true` so the schema shows them, and parsing refuses
+ * them.
+ */
+function actionSchema(registry: Registry): z.ZodType<string> {
   const names = registry.actionNames;
-  const { rate, kind, catchUp } = resolveTime({ game: registry.time });
-  const action = (names.length > 0 ? z.enum(names as [string, ...string[]]) : z.never())
+  if (names.length === 0)
+    return z.never().describe("An action name; this registry has no game, so it declares none.");
+  const enumOf = (list: readonly string[]) => z.enum(list as [string, ...string[]]);
+  const ui = names.filter((n) => isUiAction(registry, n));
+  if (ui.length === 0)
+    return enumOf(names).describe(`An action the game declares: ${names.join(", ")}.`);
+  const sim = names.filter((n) => !isUiAction(registry, n));
+  const uiEnum = enumOf(ui)
+    .meta({ [UI_ACTION_KEYWORD]: true })
+    .describe(`UI-only actions, refused in a script: ${UI_ACTION_HINT}.`);
+  const named =
+    sim.length > 0 ? z.union([enumOf(sim).describe("The simulation's actions."), uiEnum]) : uiEnum;
+  return named
+    .superRefine(refuseUiAction(registry))
     .describe(
-      names.length > 0
-        ? `An action the game declares: ${names.join(", ")}.`
-        : "An action name; this registry has no game, so it declares none.",
-    )
-    .meta({ id: "Action" });
+      `An action the game declares: ${sim.length > 0 ? sim.join(", ") : "none the simulation reads"}; ${ui.join(", ")} ${ui.length === 1 ? "is" : "are"} UI-only (x-ui), which a script can't drive.`,
+    );
+}
+
+function buildInputScriptSchemas(registry: Registry, seats: number) {
+  const { rate, kind, catchUp } = resolveTime({ game: registry.time });
+  const action = actionSchema(registry).meta({ id: "Action" });
   const held = z
     .array(action)
     .describe(
@@ -317,23 +389,26 @@ function buildInputScriptSchemas(registry: Registry) {
 
   const unitValue = (description: string) => z.number().min(-1).max(1).describe(description);
   const analogActions = registry.actions.filter((a) => a.kind === "axis" || a.kind === "vector");
+  const analogValue = (a: (typeof analogActions)[number]) => {
+    const value =
+      a.kind === "axis"
+        ? unitValue(`${a.description} An axis value, −1…1.`)
+        : z
+            .tuple([unitValue("x, −1…1."), unitValue("y, −1…1; y is down.")])
+            .refine(([x, y]) => Math.sqrt(x * x + y * y) <= 1 + 1e-9, {
+              message: "a vector lies in the unit disc: x² + y² is at most 1",
+            })
+            .describe(`${a.description} A vector \`[x, y]\` in the unit disc.`);
+    if (!isUiAction(registry, a.action)) return value.optional();
+    const refuse = refuseUiAction(registry);
+    return value
+      .superRefine((_v, ctx) => refuse(a.action, ctx))
+      .meta({ [UI_ACTION_KEYWORD]: true })
+      .describe(`${a.description} UI-only, refused in a script: ${UI_ACTION_HINT}.`)
+      .optional();
+  };
   const analog = z
-    .strictObject(
-      Object.fromEntries(
-        analogActions.map((a) => [
-          a.action,
-          (a.kind === "axis"
-            ? unitValue(`${a.description} An axis value, −1…1.`)
-            : z
-                .tuple([unitValue("x, −1…1."), unitValue("y, −1…1; y is down.")])
-                .refine(([x, y]) => Math.sqrt(x * x + y * y) <= 1 + 1e-9, {
-                  message: "a vector lies in the unit disc: x² + y² is at most 1",
-                })
-                .describe(`${a.description} A vector \`[x, y]\` in the unit disc.`)
-          ).optional(),
-        ]),
-      ),
-    )
+    .strictObject(Object.fromEntries(analogActions.map((a) => [a.action, analogValue(a)])))
     .refine((s) => Object.values(s).some((v) => v !== undefined), {
       message: "set names at least one axis or vector action",
     })
@@ -621,14 +696,16 @@ function buildInputScriptSchemas(registry: Registry) {
       .int()
       .min(1)
       .optional()
-      .describe("The seats the run has, 1 to 8; default the game's (`input.players.max`, else 1)."),
+      .describe(
+        "The seats the script drives, 1 to 8; default the run's: the project input map's `players.max`, else the game's `input.players.max`, else 1.",
+      ),
     maxTicks: ticks(
       `The run ends as \`timeout\` after this many ticks (default ${DEFAULT_SCRIPT_MAX_TICKS}, ${seconds(DEFAULT_SCRIPT_MAX_TICKS, rate)}).`,
     ).optional(),
   };
   const oneOfLists = { oneOf: [{ required: ["steps"] }, { required: ["tracks"] }] };
   const shapeRefine = (s: Record<string, unknown>, ctx: z.RefinementCtx) =>
-    addIssues(ctx, scriptShapeIssues(s, registry));
+    addIssues(ctx, shapeIssues(s, seats));
 
   const script = z
     .strictObject({
@@ -684,21 +761,37 @@ function buildInputScriptSchemas(registry: Registry) {
 
 export type InputScriptSchemas = ReturnType<typeof buildInputScriptSchemas>;
 
-const built = new WeakMap<Registry, InputScriptSchemas>();
+const built = new WeakMap<Registry, Map<number, InputScriptSchemas>>();
 
-/** The input-script schemas for `registry`, built once per registry. */
-export function inputScriptSchemasFor(registry: Registry): InputScriptSchemas {
-  let schemas = built.get(registry);
+/**
+ * The input-script schemas for `registry`, built once per registry and seat
+ * limit; `players` is the project input map's, which sets the seats tracks
+ * may drive over the game's (`scriptSeatLimit`).
+ */
+export function inputScriptSchemasFor(
+  registry: Registry,
+  players?: PlayersDef | null,
+): InputScriptSchemas {
+  const seats = scriptSeatLimit(registry, players);
+  let bySeats = built.get(registry);
+  if (!bySeats) {
+    bySeats = new Map();
+    built.set(registry, bySeats);
+  }
+  let schemas = bySeats.get(seats);
   if (!schemas) {
-    schemas = buildInputScriptSchemas(registry);
-    built.set(registry, schemas);
+    schemas = buildInputScriptSchemas(registry, seats);
+    bySeats.set(seats, schemas);
   }
   return schemas;
 }
 
-/** An input script for `registry`'s game: its actions, `until` predicates and play options. */
-export function inputScriptSchemaFor(registry: Registry): InputScriptSchemas["script"] {
-  return inputScriptSchemasFor(registry).script;
+/** An input script for `registry`'s game: its actions, `until` predicates, play options and seats. */
+export function inputScriptSchemaFor(
+  registry: Registry,
+  players?: PlayersDef | null,
+): InputScriptSchemas["script"] {
+  return inputScriptSchemasFor(registry, players).script;
 }
 
 /** `urn:jams-engine:input-script:v2`, or `urn:jams-engine:input-script:<game>:v2`. */
@@ -785,18 +878,37 @@ export function migrateInputScript(raw: unknown, registry: Registry): MigrateInp
   };
 }
 
+/**
+ * The message and hint of a refinement that carries one (`params.hint`), in
+ * `issue` or, for a union no branch of which took the value, in a branch's
+ * own issues; null when there is none.
+ */
+export function hintedIssue(issue: z.core.$ZodIssue): { message: string; hint: string } | null {
+  const params = (issue as { params?: { hint?: unknown } }).params;
+  if (typeof params?.hint === "string") return { message: issue.message, hint: params.hint };
+  if (issue.code !== "invalid_union") return null;
+  for (const branch of issue.errors)
+    for (const inner of branch) {
+      const found = hintedIssue(inner);
+      if (found) return found;
+    }
+  return null;
+}
+
 export type ParseInputScriptResult<G = unknown> =
   | { ok: true; script: InputScriptV2<G>; migratedFrom?: number }
   | { ok: false; issues: (ScriptIssue & { line?: number })[] };
 
 /**
  * Reads an input script, as text or a parsed value, for `registry`'s game:
- * migrated to the current format, then judged by its schema. Issues carry
- * JSON Pointers into the script as written, and lines when read from text.
+ * migrated to the current format, then judged by its schema, its seats by
+ * `players` (the project input map's) over the game's. Issues carry JSON
+ * Pointers into the script as written, and lines when read from text.
  */
 export function parseInputScript<G = unknown>(
   input: unknown,
   registry: Registry,
+  players?: PlayersDef | null,
 ): ParseInputScriptResult<G> {
   let raw = input;
   let lines: Map<string, number> | undefined;
@@ -815,7 +927,7 @@ export function parseInputScript<G = unknown>(
   };
   const lifted = migrateInputScript(raw, registry);
   if (!lifted.ok) return { ok: false, issues: [withLine(lifted.issue)] };
-  const parsed = inputScriptSchemaFor(registry).safeParse(lifted.script);
+  const parsed = inputScriptSchemaFor(registry, players).safeParse(lifted.script);
   if (!parsed.success)
     return {
       ok: false,
@@ -829,7 +941,8 @@ export function parseInputScript<G = unknown>(
               got: JSON.stringify(key),
             }),
           );
-        return [withLine({ path: jsonPointer(path), message: issue.message })];
+        const hinted = hintedIssue(issue);
+        return [withLine({ path: jsonPointer(path), message: issue.message, ...hinted })];
       }),
     };
   const script = parsed.data as InputScriptV2<G>;

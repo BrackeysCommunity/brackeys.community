@@ -1,0 +1,8 @@
+{
+  "v": 3,
+  "checks": [
+    { "id": "valid", "kind": "valid" },
+    { "id": "goal-connected", "kind": "connected", "from": "hero", "to": ["goal"] },
+    { "id": "goal-reached", "kind": "reaches", "result": "won", "script": "main.script.json" }
+  ]
+}

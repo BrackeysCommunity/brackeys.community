@@ -8,8 +8,10 @@ import {
 } from "../../editor/tools";
 import { createRegistry, defineGame } from "../../game/define";
 import type { Registry } from "../../game/types";
+import { pxPerMetreOf } from "../../game/units";
 import { applyOps } from "../../scene/ops";
 import type { OpBatch, Pt, Ref, SceneDefinition } from "../../scene/types";
+import { snapToPixel } from "../../scene/units";
 import { testGame } from "./test-game";
 
 /**
@@ -22,9 +24,10 @@ export const testStrokeTool = defineEditorTool({
   description: "Drag to draw a solid chain.",
   create(ctx) {
     let pts: Pt[] | null = null;
+    const ppm = pxPerMetreOf(ctx.registry);
     const grid = ([x, y]: Pt): Pt => {
       const { enabled, step } = ctx.snap();
-      const snap = (v: number) => (enabled ? Math.round(v / step) * step : Math.round(v));
+      const snap = (v: number) => (enabled ? Math.round(v / step) * step : snapToPixel(v, ppm));
       return [snap(x), snap(y)];
     };
     const batch = (stroke: Pt[]): OpBatch => ({
@@ -67,7 +70,10 @@ export const testStrokeTool = defineEditorTool({
   },
 });
 
-/** Places 40px crates (props). */
+/** Half a crate's side, in metres. */
+const CRATE_HALF = 0.2;
+
+/** Places 0.4 m crates (props). */
 export const testCrateTool = placementEditorTool({
   id: "test-crate",
   label: "Crates",
@@ -76,12 +82,12 @@ export const testCrateTool = placementEditorTool({
     {
       id: "crate",
       label: "Crate",
-      shape: { type: "box", cx: 0, cy: 0, hw: 20, hh: 20, rotDeg: 0 },
+      shape: { type: "box", cx: 0, cy: 0, hw: CRATE_HALF, hh: CRATE_HALF, rotDeg: 0 },
     },
   ],
   toEntity: (_template, [x, y], rotDeg) => ({
     type: "prop",
-    shape: ["box", x, y, 20, 20, rotDeg],
+    shape: ["box", x, y, CRATE_HALF, CRATE_HALF, rotDeg],
     density: 1,
     restitution: 0,
   }),

@@ -2,6 +2,7 @@ import type { Store } from "@tanstack/store";
 
 import type { DebugLayerFactory, DebugOverlayFactory } from "./debug";
 import type {
+  ActionKind,
   Binding,
   DeviceId,
   GameCommand,
@@ -206,6 +207,25 @@ export type GameInput = {
   players: () => readonly PlayerInfo[];
   /** While on, pointer moves anywhere in the document update the pointer sample, so a DOM drag shows in the world. */
   trackPointer: (on: boolean) => void;
+  /** Every action edge and analog change as devices produce them, simulation idle or not; returns the unsubscribe. */
+  onAction: (
+    listener: (e: UiActionEvent) => void,
+    opts?: { actions?: readonly string[] },
+  ) => () => void;
+};
+
+/** One action change delivered to `GameInput.onAction` listeners, UI-only or not. */
+export type UiActionEvent = {
+  action: string;
+  player: number;
+  kind: ActionKind;
+  device: DeviceId;
+  /** Buttons: the edge; with `repeat` true for the OS's key repeat. */
+  down?: boolean;
+  repeat?: boolean;
+  /** Axes and vectors: the quantised value. */
+  value?: number;
+  vector?: Vec2;
 };
 
 // ─── Events ──────────────────────────────────────────────
@@ -302,6 +322,10 @@ export type GameInstance = {
    * loaded scene's visuals that use them, without reloading the scene. A new
    * `project` also re-resolves the project bundle from its game settings, so
    * a settings asset field moved to another id is loaded and kept resident.
+   * A new `project` whose input map differs rebuilds the bindings and the
+   * touch overlay from it, after letting go of everything the old map held;
+   * the player's remaps stay, and seats and the pad deadzone keep what the
+   * instance started with.
    * `failed` lists textures that did not load; `errors` the entities whose
    * redraw threw (every other entity still redraws). Never rejects for those.
    */
@@ -387,6 +411,10 @@ export type GameInstance = {
   screenToWorld: (screen: Vec2) => Vec2;
   /** Page coordinates (a DOM event's `clientX`, `clientY`) to world metres, through the input target's rect and the camera. */
   clientToWorld: (clientX: number, clientY: number) => Vec2;
+  /** Page coordinates of a world point through the camera and the canvas's rect; clientToWorld's inverse. */
+  worldToClient: (p: Vec2) => { x: number; y: number };
+  /** The project's runtime view: the one `createGame` was given, or the last `reloadAssets` passed; null without one. */
+  project: () => ProjectRuntimeView | null;
   /** Bindings, remapping, seats and pointer tracking. */
   input: GameInput;
   /**

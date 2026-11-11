@@ -91,6 +91,7 @@ export {
   PAD_AXES,
   PAD_BUTTONS,
   POINTER_BUTTONS,
+  pointerBit,
   type PadAxis,
   type PadButton,
   type PointerButton,
@@ -99,6 +100,8 @@ export {
   ACTION_KINDS,
   bindingProblems,
   declaredBindings,
+  isUiAction,
+  keysProblems,
   playersProblems,
   type BindingContext,
   type BindingProblem,
@@ -215,6 +218,8 @@ export type {
 } from "../systems/path-follower";
 export { createDecorSystem } from "../systems/decor";
 export type { DecorEntity } from "../systems/decor";
+export { createDataSystem } from "../systems/data";
+export type { DataSystem } from "../systems/data";
 export { createMarkerSystem } from "../systems/marker";
 export type { MarkerEntity, MarkerSystem } from "../systems/marker";
 export { createNavSystem, isNavSystem } from "../systems/nav";
@@ -244,6 +249,7 @@ export type { RuntimeNav } from "../runtime/nav";
 
 // ─── Grids, motion and navigation ────────────────────────
 export {
+  boundsCells,
   cellKey,
   cellOf,
   createOccupancy,
@@ -251,7 +257,9 @@ export {
   findPath,
   flowField,
   gridGeometry,
+  inCellBounds,
   lineOfSight,
+  sameCell,
   type Cell,
   type CellBounds,
   type CellKey,

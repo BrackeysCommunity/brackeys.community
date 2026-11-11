@@ -243,6 +243,10 @@ export type PlaytestReport<S = unknown> = {
   steps: PlaytestStep[];
   /** The game's snapshot after the last tick; `null` without a game. */
   final: S | null;
+  /** The commands legal after the last tick (`GamePlayDef.commands`), at most 64; absent when the game declares none. */
+  legal?: GameCommand[];
+  /** True when `legal` was cut at 64 entries. */
+  legalTruncated?: boolean;
   /**
    * Seat 0's button edges actually played, `until` steps resolved, as v1 held them.
    * @deprecated Read `stream`, which holds every seat's input.
@@ -326,8 +330,18 @@ export type FuzzReport = {
   untouched: Ref[];
   /** How many rollouts ended with each result. */
   results: Record<RunResult, number>;
+  /** For a game that lists its commands and has no macro of its own: what the command macros did. */
+  legal?: FuzzLegal;
   /** Measured, so it differs run to run; compare reports without it. */
   timing: { elapsedMs: number; ticksPerSecond: number };
+};
+
+/** The command macros of a fuzz over a game's legal commands, over every rollout. */
+export type FuzzLegal = {
+  /** Commands sent, each picked from the legal list of its slot. */
+  sent: number;
+  /** Command macros that found the list empty and held nothing for their slot. */
+  empty: number;
 };
 
 /** A fuzz that never ran: the scene has errors (`scene`) or doesn't load (`load`). */

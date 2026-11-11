@@ -338,6 +338,13 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "The message names the limit; empty the trash or remove unused assets, then retry.",
     fixable: false,
   },
+  "project-id-taken": {
+    severity: "error",
+    summary:
+      "A new project's id is already a discovered project's, or its directory already exists.",
+    hint: "Pick another id, or remove the existing project's directory.",
+    fixable: false,
+  },
   "binding-unknown": {
     severity: "error",
     summary:

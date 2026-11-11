@@ -1638,6 +1638,9 @@ describe("project-wide rules", () => {
     expect(created.ok || [created.issue.code, created.issue.path, created.issue.entityIds]).toEqual(
       ["asset-kind", "/ops/0/kind", ["settings"]],
     );
+    expect(created.ok || created.issue.message).toBe(
+      `the project already has its game settings, "settings" (game-settings.json); a project has at most one`,
+    );
     const restored = check([{ op: "restoreAsset", id: "gone" }]);
     expect(restored.ok || [restored.issue.code, restored.issue.path]).toEqual([
       "asset-kind",
@@ -1669,7 +1672,64 @@ describe("project-wide rules", () => {
     expect(created.ok || [created.issue.code, created.issue.path, created.issue.entityIds]).toEqual(
       ["asset-kind", "/ops/0/kind", ["map"]],
     );
+    expect(created.ok || created.issue.message).toBe(
+      `the project already has its input map, "map" (input-map.json); a project has at most one`,
+    );
     expect(create(state).ok).toBe(true);
+  });
+
+  it("refuses a second asset of any kind declaring perProject, within one batch and across batches", () => {
+    const solo = defineAssetKind({
+      ...note,
+      kind: "solo",
+      match: { suffixes: [".solo.json"] },
+      perProject: 1,
+    });
+    const soloEnv = env({ kinds: createKindRegistry(null, [note, solo]) });
+    const create = (path: string): ProjectOp => ({ op: "createAsset", kind: "solo", path });
+    const emptyState: ProjectState = { ...base, assets: {} };
+    const one = checkProjectBatch(
+      emptyState,
+      new Map(),
+      { v: 1, ops: [create("a.solo.json")] },
+      soloEnv,
+    );
+    if (!one.ok) throw new Error(one.issue.message);
+    const twice = checkProjectBatch(
+      emptyState,
+      new Map(),
+      { v: 1, ops: [create("a.solo.json"), create("b.solo.json")] },
+      soloEnv,
+    );
+    expect(twice.ok || [twice.issue.code, twice.issue.path, twice.issue.message]).toEqual([
+      "asset-kind",
+      "/ops/1/kind",
+      `the project already has its solo asset, "a-solo" (a.solo.json); a project has at most one`,
+    ]);
+    const held: ProjectState = {
+      ...base,
+      assets: { a: entry("a", { id: "a", kind: "solo", path: "a.solo.json" }) },
+    };
+    const again = checkProjectBatch(
+      held,
+      new Map(),
+      { v: 1, ops: [create("b.solo.json")] },
+      soloEnv,
+    );
+    expect(again.ok || [again.issue.code, again.issue.entityIds]).toEqual(["asset-kind", ["a"]]);
+    const notes = checkProjectBatch(
+      emptyState,
+      new Map(),
+      {
+        v: 1,
+        ops: [
+          { op: "createAsset", kind: "note", path: "x.json" },
+          { op: "createAsset", kind: "note", path: "y.json" },
+        ],
+      },
+      soloEnv,
+    );
+    expect(notes.ok).toBe(true);
   });
 
   it("reports a row id two assets of one table hold as dup-id on the later by path, for tables the batch wrote", () => {
@@ -1693,6 +1753,27 @@ describe("project-wide rules", () => {
     ]);
     const untouched = check([{ op: "setLicence", id: "red", licence: { spdx: "CC0-1.0" } }]);
     expect(untouched.ok && untouched.issues).toEqual([]);
+  });
+
+  it('appends through an editAsset insert ending in "-" and refuses "-" mid-pointer', () => {
+    const appended = check([
+      {
+        op: "editAsset",
+        id: "blue",
+        edits: [{ insert: "/rows/-", value: { id: "fireball", cost: 2 } }],
+      },
+    ]);
+    if (!appended.ok) throw new Error(appended.issue.message);
+    expect(appended.issues.map((i) => [i.code, i.entityIds])).toEqual([
+      ["dup-id", ["red", "fireball"]],
+    ]);
+    const midway = check([
+      { op: "editAsset", id: "blue", edits: [{ set: "/rows/-/cost", value: 2 }] },
+    ]);
+    expect(midway.ok || [midway.issue.code, midway.issue.path]).toEqual([
+      "op-invalid",
+      "/ops/0/edits/0/set",
+    ]);
   });
 });
 

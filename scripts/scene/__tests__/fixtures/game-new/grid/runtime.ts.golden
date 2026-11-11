@@ -1,0 +1,104 @@
+import type { Vec2 } from "@jams/engine";
+import {
+  createGridStepper,
+  createMotionBody,
+  SENSOR_ENTER,
+  type Cell,
+  type EngineContext,
+  type GameRuntime,
+  type GridStepper,
+  type MotionBody,
+} from "@jams/engine/game";
+
+import { GOAL_TAG, HERO, HERO_SIZE, REACHED, type Slice, type Snapshot } from "./types";
+
+/** How long one step from cell to cell takes. */
+const MS_PER_STEP = 150;
+
+/** The neighbour a `move` vector points at: its larger axis wins. */
+function offsetOf(v: Vec2): Cell | null {
+  if (v.x === 0 && v.y === 0) return null;
+  if (Math.abs(v.x) >= Math.abs(v.y)) return [Math.sign(v.x), 0];
+  return [0, Math.sign(v.y)];
+}
+
+/** Walks the hero cell by cell while `move` is held, and raises `REACHED` at a goal. */
+export function createRuntime(ctx: EngineContext): GameRuntime<Snapshot> {
+  let body: MotionBody | null = null;
+  let stepper: GridStepper | null = null;
+  let heroId: string | null = null;
+  let goals = new Set<string>();
+  let intent: Vec2 = { x: 0, y: 0 };
+  let reached = false;
+  let slice: Slice = { reached };
+
+  const next = (offset: Cell): Cell | null => {
+    const at = stepper?.cell();
+    return at ? [at[0] + offset[0], at[1] + offset[1]] : null;
+  };
+
+  return {
+    onLoad(scene) {
+      goals = new Set(
+        scene.entities
+          .filter(
+            (e) => e.type === "sensor" && (e.tags as string[] | undefined)?.includes(GOAL_TAG),
+          )
+          .map((e) => e.id),
+      );
+      const start = scene.entities.find((e) => e.type === HERO);
+      if (!start) return;
+      const grid = ctx.grid;
+      if (!grid) return;
+      const [x, y] = start.at as [number, number];
+      const cell = grid.geometry.cellAt([x, y]);
+      const [cx, cy] = grid.geometry.center(cell);
+      const half = (typeof start.size === "number" ? start.size : HERO_SIZE) / 2;
+      const shape = { type: "box" as const, cx: 0, cy: 0, hw: half, hh: half, rotDeg: 0 };
+      body = createMotionBody(ctx, start, { x: cx, y: cy }, { shape });
+      stepper = createGridStepper(ctx, start.id, {
+        start: cell,
+        msPerStep: MS_PER_STEP,
+        body,
+        occupy: true,
+      });
+      heroId = start.id;
+    },
+    onUnload() {
+      body = null;
+      stepper = null;
+      heroId = null;
+      goals.clear();
+      intent = { x: 0, y: 0 };
+      reached = false;
+    },
+    beforeStep(dtMs, actions) {
+      for (const a of actions) {
+        if (a.action === "move") intent = a.pressed ? { x: a.x ?? 0, y: a.y ?? 0 } : { x: 0, y: 0 };
+      }
+      if (!stepper) return;
+      stepper.update(dtMs);
+      const offset = offsetOf(intent);
+      const to = offset && next(offset);
+      if (to && !reached && !stepper.moving()) stepper.step(to);
+    },
+    afterStep(_dtMs, events) {
+      for (const e of events) {
+        if (reached || e.type !== SENSOR_ENTER || e.other !== heroId) continue;
+        if (e.entityId === undefined || !goals.has(e.entityId)) continue;
+        reached = true;
+        ctx.emit({ type: REACHED, entityId: e.entityId, other: heroId, at: e.at });
+      }
+    },
+    // The event clock keeps ticking while the hero walks or `move` is held.
+    busy: () => (stepper?.moving() ?? false) || intent.x !== 0 || intent.y !== 0,
+    cameraTarget: () => body?.position() ?? null,
+    snapshot() {
+      return { at: body?.position() ?? null, cell: stepper?.cell() ?? null, reached };
+    },
+    storeSlice() {
+      if (slice.reached !== reached) slice = { reached };
+      return slice;
+    },
+  };
+}

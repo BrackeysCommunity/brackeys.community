@@ -31,6 +31,8 @@ export type ProjectFile = {
   name: string;
   /** The module that exports the GameDefinition, relative to this file; null for an engine-only project. */
   game: { module: string; export: string } | null;
+  /** The module that exports the game's DOM UI (a `MountUi`), relative to this file; hosts mount it, the CLI never imports it. */
+  ui?: { module: string; export: string };
   /** Globs of files that may be assets; default ["**"]. */
   assets?: string[];
   /** Globs of code modules the tree lists read-only; default ["**\/*.ts", "**\/*.tsx"]. */

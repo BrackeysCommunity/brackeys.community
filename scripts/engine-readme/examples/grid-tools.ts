@@ -9,7 +9,13 @@ import {
 } from "@jams/engine/game";
 
 /** A 12×8 hex board, Tiled's flat-top layout, with a rock wall down column 5 but for its last row. */
-const hex = gridGeometry({ kind: "hex", cell: [32, 28], side: 16, stagger: "x", index: "odd" });
+const hex = gridGeometry({
+  kind: "hex",
+  cell: [0.32, 0.28],
+  side: 0.16,
+  stagger: "x",
+  index: "odd",
+});
 const bounds = { c0: 0, r0: 0, c1: 11, r1: 7 };
 const rocks = new Set([0, 1, 2, 3, 4, 5, 6].map((r) => cellKey([5, r])));
 const open = (c: Cell) => !rocks.has(cellKey(c));

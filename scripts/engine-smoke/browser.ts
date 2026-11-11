@@ -4,9 +4,10 @@
  * every browser's digest of the shared run (`browser/run.ts`) equals the
  * one Bun computes in-process, that its physics-free run
  * (`browser/physics-free.ts`) gives Bun's digest too without ever loading
- * Rapier, and that its render run (`browser/render.ts`) draws the kitchen
- * sink's crate sprite where it stands and nothing in the empty air beside
- * it. The preview server serves the engine project's blobs on the dev route
+ * Rapier, that its tactics run (`browser/tactics.ts`) replays the tactics
+ * game's golden recording to the game's one pin with no Rapier, and that its
+ * render run (`browser/render.ts`) draws the kitchen sink's crate sprite where
+ * it stands and nothing in the empty air beside it. The preview server serves the engine project's blobs on the dev route
  * (`browser/project.ts`).
  *
  * Then, in the same browser, the editor page (`browser/editor.ts`): the
@@ -43,6 +44,7 @@ import {
   judgeLaunchFailure,
   judgePhysicsFree,
   judgeResult,
+  judgeTactics,
   overallOk,
   PAGE_TIMEOUT_MS,
   parseBrowsers,
@@ -60,6 +62,7 @@ import { rapierSpy, runPhysicsFree } from "./browser/physics-free";
 import { loadSinkProject, sinkPreviewPlugin, type SinkProject } from "./browser/project";
 import { loadRapier, runSmokeDigest } from "./browser/run";
 import { INSIDE_COLOUR, INSIDE_POINT, OUTSIDE_POINT, SINK_SCENE } from "./browser/sink";
+import { runTactics, type TacticsProbe } from "./browser/tactics";
 import { ENGINE, REPO, run, VP } from "./pack";
 
 const PAGE_DIR = join(REPO, "scripts/engine-smoke/browser");
@@ -347,6 +350,7 @@ async function runIn(
 let outcomes: BrowserOutcome[] = [];
 let node: Awaited<ReturnType<typeof runSmokeDigest>> | null = null;
 let physicsFree: PhysicsFreeProbe | null = null;
+let tactics: TacticsProbe | null = null;
 let error: string | null = null;
 
 try {
@@ -357,6 +361,11 @@ try {
   const unsound = judgePhysicsFree(physicsFree, physicsFree.digest, false);
   if (unsound) throw new Error(`in-process: ${unsound}`);
   console.log(`in-process physics-free: ${physicsFree.digest}`);
+  const tacticsSpy = rapierSpy(loadRapier);
+  tactics = { ...(await runTactics(tacticsSpy.load)), rapierLoads: tacticsSpy.calls() };
+  const offPin = judgeTactics(tactics);
+  if (offPin) throw new Error(`in-process: ${offPin}`);
+  console.log(`in-process tactics: ${tactics.digest}`);
   const expected: SmokeExpected = { digest: node.digest, physicsFree: physicsFree.digest };
   const project = await loadSinkProject(join(ENGINE, "scenes"));
   sink = project;
@@ -424,9 +433,10 @@ try {
       ? `; ${outcome.render.renderer} drew rgba(${outcome.render.inside.join(", ")}) on the sprite`
       : "";
     const free = outcome.physicsFree ? `; physics-free ${outcome.physicsFree.digest}` : "";
+    const second = outcome.tactics ? `; tactics ${outcome.tactics.digest}` : "";
     const detail =
       outcome.status === "pass"
-        ? `${outcome.digest}${free}${drew} in ${outcome.ms} ms`
+        ? `${outcome.digest}${free}${second}${drew} in ${outcome.ms} ms`
         : outcome.reason;
     console.log(`${name}: ${outcome.status}${detail ? ` — ${detail}` : ""}`);
     const ed = outcome.editor;
@@ -466,6 +476,7 @@ writeFileSync(
         runtime: `bun ${process.versions.bun}`,
         digest: node.digest,
         physicsFree,
+        tactics,
       },
       browsers: outcomes,
       ...(error ? { error } : {}),

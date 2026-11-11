@@ -7,6 +7,221 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.12.0] — unreleased
+
+The second game, the scaffolder and the UI seam. `tactics`, a turn-based
+square-grid skirmish with no physics, is built only on the public entries,
+and what it couldn't do without a workaround landed in the engine (each
+such line below ends "Found by the second game"). Games mount a DOM HUD
+over the canvas through the project file's `ui` key, UI-only actions reach
+`onAction` listeners and never the simulation, turn games list their legal
+commands for fuzz, `step --legal` and the reports, and `game new` scaffolds
+a project the site and editor open without an edit. The release also
+closes 0.11.0's leftovers: dev-server and SSR crashes, one rule each for
+the seat limit, pointer bits, nav types and one-per-project kinds, live
+input-map reloads, and the remaining content in metres.
+
+### Added
+
+- `pointerBit(button)` in `@jams/engine/game`: a pointer button's bit in a
+  DOM `buttons` mask and in a recorded tick's pointer buttons. The seat
+  limit (`MAX_PLAYERS`), the pointer-button bit rule and the device-id
+  schema each have one definition now. No behaviour or schema change.
+- `DocKindDef.perProject: 1` marks a kind a project holds at most one of
+  (with optional `perProjectWords` for its messages); game-settings and
+  input-map declare it, and projectView, project ops and the dev file
+  adapter judge every such kind through one rule, so a game's kind can
+  declare it too. Messages are unchanged.
+- `EntityTypeDef.oneWay` (`true` or a side, copied onto `RegisteredType`):
+  every entity of the type is one-way on that side with or without its own
+  `oneWay` field (an entity's own side wins), so `oneWayEdges`, the
+  editor's one-way overlay, `renderSceneSvg` and the ASCII map draw the
+  landing side of types made one-way only by their system. `createRegistry`
+  refuses a value that isn't `true` or a side. The platformer's `cloud`
+  declares `oneWay: true`, so its ASCII legend now reads `cloud one-way`.
+- The UI seam: `mountUi(game, canvas, mount)` mounts a game's DOM UI
+  (`MountUi`, named by the project file's `ui` key) over the canvas in a
+  `data-jams-ui` layer from `createUiLayer` (pointer-events none, follows
+  the canvas's box through a ResizeObserver, or the window's resize
+  without one); its `UiContext` gives `slice()`, `watch` (once now, then
+  per change by identity), the project's `settings` and `reducedMotion`;
+  `bindText` and `bindToWorld` (a transform over a world point through
+  `worldToClient`, hidden while the point is null) for framework-free
+  HUDs. `UiHandle` and `UiActionEvent` are exported from `.` too. Found by
+  the second game.
+- `watchView(ctx, fn)` in `.`: calls `fn` now and whenever where the world
+  shows on screen may have moved (store changes, the camera's among them,
+  and the layer following a canvas resize), for HUD DOM sized or placed
+  through `worldToClient`; `bindToWorld` runs on it. Found by the second
+  game.
+- `createDataSystem` (and `DataSystem`) in `@jams/engine/game`: the system
+  for a type whose entities are data a game reads, keeping the live ones by
+  id in spawn order and simulating nothing; the marker primitive's system
+  is one. Found by the second game.
+- `sameCell`, `inCellBounds` and `boundsCells` (a `CellBounds`'s cells in
+  cell-key order) in `@jams/engine/game`'s grid toolkit; the grid stepper,
+  `findPath`'s bounds and `ctx.grid.passable` use them. Found by the second
+  game.
+- A game's `spawnOrder` lists only its own types (and any primitives it
+  places): a bodied primitive it leaves out spawns before every listed
+  group, in primitive order, as `decor` and `nav` already spawned last. An
+  order that lists every type is unchanged. Found by the second game.
+- `SceneEditor` takes `ui` (a game's `MountUi`) and mounts it over its Play
+  canvas while Play runs, unmounting it on Stop.
+- `ActionDef.ui?: true` marks a UI-only action; `Registry.uiActionNames`
+  lists them in registration order (`actionNames` still lists every action)
+  and `isUiAction(registry, name)` in `@jams/engine/game` is the one check.
+  `createRegistry` refuses a `ui` other than `true`; a UI action's bindings
+  are checked like any other's.
+- `ActionDef.ui` actions are resolved through every binding layer as
+  usual, then reach only the input system's `onAction(listener, { actions? })`
+  listeners (with `repeat: true` for the OS's key repeat on held buttons),
+  never the tick queue, a `TickInput` or a recording.
+  `createInputSystem(tables, { isUi })` takes the rule (`isUiAction`).
+  `setFramePads` feeds a frame poll's pad changes to the listeners alone,
+  and `listening()` says whether any listener exists.
+- `createGamepadReader` gains a frame cursor: `pollFrame()` and its `frame`
+  view (`pads`, `reading`, `updatedAt`, typed `GamepadView`) keep their own
+  previous state, so a frame poll and the tick poll never take each
+  other's edges.
+- `RecorderOptions.registry`: with it, the recorder leaves UI-only actions
+  out of its `actions` table and seat streams. The browser shell and
+  `runPlaytest` pass theirs.
+- Input scripts: a `hold`, `press` or `set` naming a UI-only action is
+  refused as `binding-unknown`, with the hint "UI actions don't reach the
+  simulation; send a command". The input-script schema's `Action` enum and
+  `AnalogSet`, and the input-map kind's `action` fields, list a game's
+  UI-only actions in their own branch, marked `x-ui: true`.
+- `GamePlayDef.commands?(state)`: the commands a run may send now.
+- `GameInstance.input.onAction(listener, { actions? })` (returns its
+  unsubscribe; the shell polls UI actions every frame, also while a turns
+  game waits), `GameInstance.worldToClient(p)` (a world point in metres
+  to client pixels through the current camera) and
+  `GameInstance.project()`, the project runtime view the instance was
+  created with or last given by `reloadAssets`.
+- `legal`/`legalTruncated` on `ProbeReport` and `PlaytestReport`: the
+  commands a game lists as legal after the last tick
+  (`GamePlayDef.commands`), at most 64; `FuzzReport.legal` (`FuzzLegal`:
+  `sent`, `empty`); `scene step --legal`; `playtest` and `fuzz` print
+  legal counts; `scene_playtest` results carry `legal`.
+- The `tower-defense` genre probe: waves from a data table, a flow field to
+  the exit, `ctx.timers.every` spawns, `ctx.query.inArea` targeting, bolts
+  with `lifetime`, and `build` commands from `GamePlayDef.commands`; a fuzz
+  variant (32 rollouts, seed 1) reaches `won`.
+- The second game, `tactics` (src/games/tactics): a turn-based square-grid
+  skirmish with no physics; level 1, the knight and archer prefabs, the
+  unit-class table, game settings and an input map.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 13, and every committed JSON Schema's
+  `x-agent-surface` with it.
+- The project file (`project:v1`) gains an optional `ui: { module, export }`
+  (the game's DOM UI module, with the `game` key's patterns); the CLI never
+  imports it. `project.schema.json` regenerated.
+- Issue code `project-id-taken` (error).
+- CLI: the `game` command group with `game new <id>` and its flags
+  (`--name`, `--preset`, `--physics`, `--gravity`, `--time`, `--rate`,
+  `--grid`, `--cell`, `--px-per-metre`, `--dir`, `--dry-run`);
+  `step --legal` prints the report's legal
+  commands after the last tick, or that the game lists none.
+- `vp run scene game new <id>` scaffolds a game project from a preset
+  (`top-down`, `grid`, `turns`; physics none, gravity [0, 0], every world
+  and time field written, v4 scenes in metres) with a framework-free HUD, a
+  scene whose checks and input script win, game-settings and input-map
+  docs, generated schemas and a test; `--dry-run` lists the files.
+- MCP `game_new` (a writer, dry run by default) takes the CLI's inputs and
+  returns the written paths, the issues, the dev URLs and the playtest
+  command.
+- `project-id-taken` is now emitted by `game new` and `game_new` for an id
+  a discovered project holds or a directory that exists.
+
+### Changed
+
+- `fuzz` explores a game that lists its commands and has no macro by
+  sending one legal command per one-slot macro (every macro on a `turns`
+  clock, half of them otherwise, the rest holding actions as before); the
+  default macro never holds a UI action.
+- `GameInstance.reloadAssets` now picks up an edited input map in a running
+  shell: when the update's `project.inputMap` differs from the current one,
+  everything the old map holds is let go first (releases reach the next
+  tick), then the bindings and the on-screen touch overlay are rebuilt from
+  the new map. The player's remaps stay, less any the new map no longer
+  allows (a touch control it dropped). The seat count and the pad deadzone
+  keep the values the instance started with until the next `createGame`.
+- A headless input script's pointer step now raises the actions bound to
+  its buttons (the project input map's over the game's), as live play
+  does; `compileInputScript` takes the input map as a fifth argument.
+- An action's 0.x `keys` that the key table doesn't know are refused at
+  registration (`binding-unknown`, with a did-you-mean: `"arrowup"` →
+  `"ArrowUp"`, `"space"` → `" "`) instead of binding nothing; new
+  `keysProblems`.
+- `createRegistry` refuses a behavior `template` with an unknown field, a
+  value its field refuses, or one its `refine` refuses.
+
+### Documented
+
+- The README gains §UI (the UI seam, the project file's `ui` key, what a
+  HUD may do, `uiContainer` for in-canvas drawing only, UI-only actions and
+  `onAction`, with the framework-free example `dom-hud.ts`), §Turn games
+  (legal commands in reports, fuzz and `step --legal`) and §A second game
+  (the tactics game file by file), and the `tower-defense` row in its genre
+  probe table.
+- Scene CLI README: §New games (`game new` presets, flags incl.
+  `--px-per-metre`, refusals, written files, how the site and editor open
+  the game), §Legal commands (`step --legal`, `playtest`/`fuzz` legal
+  counts), `game_new` in the MCP table, `project-id-taken` in the issue
+  table, and a tactics `level-1` edit loop; every example runs in
+  readme-examples.test.ts.
+- The README's maths examples (shape queries, grid tools, nav walks), its
+  scene and prefab format samples, the gravity default and the sprite
+  size rows are in metres, and its example input scripts are v2.
+- A track that ends before the others keeps holding its last step's
+  buttons, values and pointer buttons until the script ends.
+
+### Fixed
+
+- `SceneEditor` and the editor frame render on the server: nothing reads
+  `window`, `document`, `navigator` or storage during render (the shared
+  hooks are in `editor-ui/kit/ssr.ts`). A server render and hydration lay
+  out for a 1280×800 window and the default layout, then the stored layout,
+  section collapse and the real window size apply before the first paint;
+  hotkeys draw Ctrl glyphs until hydration switches them to ⌘ on a Mac.
+- `validateScene` judges whether a type is a nav type by the runtime's
+  rule: a nav-based type with its own system is no longer checked as a
+  walk area; `contacts` and the path follower read a collider's liveness
+  through one `colliderLive`.
+- Input scripts drive the seats the project input map's `players` gives,
+  over the game's `input.players`: `scriptSeatLimit(registry, players?)` is
+  the one rule; `scriptShapeIssues`, `inputScriptSchemasFor`/
+  `inputScriptSchemaFor`, `parseInputScript` and `compileInputScript` take
+  an optional `PlayersDef`, and `runPlaytest`, `runChecks` (`reaches`) and
+  `scene step` pass the project's map. `scene step --command` takes
+  `tick@seat:name[=json]` to send a command from a seat.
+- The dev plugin (`sceneCollabServer`) keeps the dev server alive when a
+  client hangs up mid-body on a request the site framework re-streams to
+  its SSR worker: an unlistened `aborted` (ECONNRESET) on a
+  `Readable.fromWeb` stream is dropped and warned once; any other
+  unlistened error stays fatal.
+- `editAsset` JSON edits accept RFC 6901's "-" end token as an insert
+  pointer's last segment (`insert: "/actions/@fire/bindings/-"`),
+  appending to a list or keyed collection the same way an omitted
+  `before` does, from the CLI, MCP and the live editor path alike; "-"
+  anywhere else, under a non-collection, or alongside `before` stays
+  `op-invalid`.
+- With `input.subTick` on, a live pad edge's offset comes from the pad's
+  `Gamepad.timestamp` (the browser's last update), as a key's comes from
+  its event; before, every pad edge was stamped at the tick's poll, the
+  window's last thousandth. A pad with no timestamp on the page clock
+  still counts as the poll.
+- The dev plugin never writes a scene or prefab file back at an older
+  format than the file holds. An editor tab left open across a restart
+  that reseeds a doc from its newer-format file syncs its copy of the old
+  seed back in, and the merged doc mixed both formats' values (a v4 level
+  was written back as `v: 3` with px and metre geometry side by side). The
+  doc is still persisted and the store throws, naming the file; closing
+  the tabs and restarting the dev server reseeds it from the file.
+
 ## [0.11.0] — unreleased
 
 Input v2, local multiplayer and recording v2, with the world authored in
@@ -433,7 +648,9 @@ gravity: [0, 12], lengthUnit: 100 }`): movement tuning, the player box
   began sending `use`; the other probes' pins didn't move.
 - Hosted scene and prefab docs stored at format v3 open read-only until
   migrated: canvas-sync holds no game code, so it never runs the v3 → v4
-  step. It keeps them at v3 (lifting v1/v2 docs to v3), serves them to v4
+  step for a doc that names a game, or for a prefab doc. A scene doc that
+  names no game is lifted to v4 at load with the engine's own registry.
+  The rest it keeps at v3 (lifting v1/v2 docs to v3), serves them to v4
   clients with the `scene-read-only` notice reason `migration-unresolved`,
   and stores no snapshot text for them. Migrate a hosted project with
   `vp run scene project pull`, `fmt` and `push`. New docs and seeds at the

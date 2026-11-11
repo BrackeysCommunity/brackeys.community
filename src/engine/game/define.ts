@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { BlendMode } from "../context";
 import { MATERIAL_KIND, projectMaterialOf } from "../project/kinds/material";
 import type { AssetId, AssetKindName, ProjectView } from "../project/types";
+import { closest } from "../scene/did-you-mean";
 import { FIELD_NAME_PATTERN } from "../scene/field-path";
 import { ISSUE_CODES } from "../scene/issues";
 import { DEFAULT_LAYERS, type SceneLayerDef } from "../scene/layers";
@@ -27,8 +28,14 @@ import { OCCUPANT } from "./behaviors/occupant";
 import { SPRITE } from "./behaviors/sprite";
 import { COMMAND_NAME_PATTERN, ENGINE_COMMANDS } from "./commands";
 import { DEFAULT_TIME } from "./defaults";
-import { ID_PATTERN, isAttachField, RESERVED_FIELDS } from "./fields";
-import { ACTION_KINDS, bindingProblems, declaredBindings, playersProblems } from "./input-bindings";
+import { ID_PATTERN, isAttachField, RESERVED_FIELDS, SIDES } from "./fields";
+import {
+  ACTION_KINDS,
+  bindingProblems,
+  declaredBindings,
+  keysProblems,
+  playersProblems,
+} from "./input-bindings";
 import {
   BASE_REQUIRED_FIELDS,
   ENGINE_SETTING_KEYS,
@@ -82,7 +89,7 @@ export class RegistryError extends Error {
   }
 }
 
-/** Primitives with no body: a game's `spawnOrder` may leave them out, and they then spawn last. */
+/** Primitives with no body: left out of a game's `spawnOrder`, they spawn last (the others first). */
 const BODILESS_PRIMITIVES: readonly EntityTypeName[] = ["decor", "nav"];
 
 const isPrimitive = (name: string): boolean =>
@@ -142,6 +149,34 @@ function shapeDefaults(shape: z.ZodRawShape): Record<string, unknown> {
     if (parsed.success && parsed.data !== undefined) out[field] = parsed.data;
   }
   return out;
+}
+
+/**
+ * What's wrong with a behavior's `template`, the block the editor's Add
+ * behavior starts from: a key that isn't one of its fields, a value its
+ * field refuses, or `refine` refusing the template over the field defaults.
+ * Required fields it leaves out are fine; Add behavior seeds them.
+ */
+function behaviorTemplateProblem(
+  def: Pick<BehaviorDef, "template" | "refine">,
+  shape: z.ZodRawShape,
+  defaults: BehaviorBlock,
+): string | undefined {
+  const template: unknown = def.template;
+  if (template === undefined) return undefined;
+  if (template === null || typeof template !== "object" || Array.isArray(template))
+    return "must be an object of the behavior's fields";
+  const fields = Object.keys(shape);
+  for (const [key, value] of Object.entries(template)) {
+    const schema = shape[key];
+    if (!schema) {
+      const guess = closest(key, fields);
+      return `unknown field "${key}"${guess ? `; did you mean "${guess}"?` : ""}`;
+    }
+    const parsed = z.safeParse(schema, value);
+    if (!parsed.success) return `field "${key}": ${parsed.error.issues[0]?.message ?? "invalid"}`;
+  }
+  return def.refine?.({ ...defaults, ...(template as BehaviorBlock) });
 }
 
 const noBehaviors: BehaviorRules = Object.freeze({
@@ -314,14 +349,14 @@ export function placeableTypes(registry: Registry): EntityTypeName[] {
  * keys or codes, a type without a system, a spawn-only type that never
  * loads or has a bulk form, a spawn order that misses or
  * repeats a type, unknown groups, a game behavior outside the game's
- * namespace, behavior rules naming unknown behaviors or failing their
- * schemas, a grid field without a point `at`, a `time.rate` the clock can't run
+ * namespace, a behavior `template` its fields or `refine` refuse, behavior
+ * rules naming unknown behaviors or failing their schemas, a grid field without a point `at`, a `time.rate` the clock can't run
  * (`tick-rate-invalid`), an unknown `time.kind` or a `time.catchUp.maxMs` that
  * isn't a whole number ≥ 0, world defaults the scene settings would refuse, and
  * `world.gridWalls` naming a type that is unknown or never loads, and input
  * the shell can't read: seats outside 1–8, a deadzone outside 0–1, an
- * unknown action kind, and every binding `bindingProblems` refuses
- * (`binding-unknown`, `player-unknown`).
+ * unknown action kind, a `ui` flag other than `true`, a 0.x key `keysProblems` refuses and every binding
+ * `bindingProblems` refuses (`binding-unknown`, `player-unknown`).
  */
 export function createRegistry(
   game?: GameDefinition | null,
@@ -396,8 +431,11 @@ export function createRegistry(
       if (!FIELD_NAME_PATTERN.test(key))
         problem(`behavior "${name}" field "${key}" must match ${FIELD_NAME_PATTERN}`);
     }
+    const defaults = Object.freeze(shapeDefaults(shape));
+    const templateProblem = behaviorTemplateProblem(def, shape, defaults);
+    if (templateProblem) problem(`behavior "${name}" template: ${templateProblem}`);
     behaviors.set(name, { ...def, origin, shape, index: behaviors.size });
-    behaviorDefaults.set(name, Object.freeze(shapeDefaults(shape)));
+    behaviorDefaults.set(name, defaults);
   }
   for (const b of behaviors.values()) {
     for (const dep of b.requires ?? []) {
@@ -422,6 +460,12 @@ export function createRegistry(
     if (def.ascii !== undefined && !/^[!-~]$/.test(def.ascii)) {
       problem(`type "${name}" ascii must be one printable ASCII character, not a space`);
     }
+    if (
+      def.oneWay !== undefined &&
+      def.oneWay !== true &&
+      !(SIDES as readonly unknown[]).includes(def.oneWay)
+    )
+      problem(`type "${name}" oneWay must be true or one of ${SIDES.join(", ")}`);
     const shape = resolveFields(def, env);
     for (const key of Object.keys(shape)) {
       if (RESERVED_FIELDS.includes(key))
@@ -504,12 +548,13 @@ export function createRegistry(
       if (seen.has(t)) problem(`spawnOrder lists "${t}" twice`);
       seen.add(t);
     }
-    for (const t of BODILESS_PRIMITIVES) {
-      if (!seen.has(t)) {
-        spawnGroups.push([t]);
-        seen.add(t);
-      }
-    }
+    const unlisted = loadable.filter((t) => isPrimitive(t) && !seen.has(t));
+    for (const t of unlisted) seen.add(t);
+    spawnGroups = [
+      ...unlisted.filter((t) => !BODILESS_PRIMITIVES.includes(t)).map((t) => [t]),
+      ...spawnGroups,
+      ...unlisted.filter((t) => BODILESS_PRIMITIVES.includes(t)).map((t) => [t]),
+    ];
     for (const t of loadable) if (!seen.has(t)) problem(`spawnOrder misses type "${t}"`);
   } else {
     spawnGroups = loadable.map((t) => [t]);
@@ -539,6 +584,7 @@ export function createRegistry(
 
   // actions
   const actionNames = (game?.actions ?? []).map((a) => a.action);
+  const uiActionNames = (game?.actions ?? []).filter((a) => a.ui === true).map((a) => a.action);
   const seenActions = new Set<string>();
   for (const a of actionNames) {
     if (seenActions.has(a)) problem(`action "${a}" is declared twice`);
@@ -557,6 +603,11 @@ export function createRegistry(
       problem(`action "${a.action}" has unknown kind "${String(kind)}"`);
       continue;
     }
+    const ui: unknown = a.ui;
+    if (ui !== undefined && ui !== true)
+      problem(`action "${a.action}" ui must be true when given; got ${JSON.stringify(ui)}`);
+    for (const p of keysProblems(a))
+      problem(`action "${a.action}" ${p.path.slice(1)}: ${p.message} (${p.code})`);
     declaredBindings(a).forEach((binding, i) => {
       for (const p of bindingProblems(binding, { kind: kind as ActionKind, max: seats }))
         problem(`action "${a.action}" binding ${i}${p.path}: ${p.message} (${p.code})`);
@@ -692,6 +743,7 @@ export function createRegistry(
     materialNames,
     actions: game?.actions ?? [],
     actionNames,
+    uiActionNames,
     collisionGroups(name) {
       const value = packed.get(name);
       if (value === undefined) throw new Error(`unknown collision group "${name}"`);

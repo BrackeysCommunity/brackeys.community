@@ -3,6 +3,7 @@ import { wholeTicksIn } from "../game/time";
 import type { EngineContext, RegisteredType, SceneSystem } from "../game/types";
 import { shapeColliderDesc } from "../physics";
 import { composePose, type Pose } from "../runtime/poses";
+import { colliderLive } from "../runtime/space";
 import { shapeSpawnPose } from "../runtime/spawn-pose";
 import type { PathDef, RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
@@ -369,7 +370,7 @@ export function createFollowerSystem(
         const riders: number[] = [];
         for (let i = 0; i < m.body.numColliders(); i++) {
           const c = m.body.collider(i);
-          if (c.handle === m.collider.handle || !c.isEnabled()) continue;
+          if (c.handle === m.collider.handle || !colliderLive(c)) continue;
           c.setEnabled(false);
           riders.push(c.handle);
         }

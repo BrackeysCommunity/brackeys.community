@@ -1,6 +1,5 @@
-import { useState } from "react";
-
 import { cx } from "./cx";
+import { useBrowserValue } from "./ssr";
 
 const MAC_GLYPHS: Record<string, string> = { Mod: "⌘", Ctrl: "⌃", Alt: "⌥", Shift: "⇧" };
 const OTHER_GLYPHS: Record<string, string> = { Mod: "Ctrl", Ctrl: "Ctrl", Alt: "Alt", Shift: "⇧" };
@@ -40,7 +39,7 @@ export function keyLabel(key: string, mac: boolean): string {
 
 /** A chord as key caps. */
 export function Hotkey({ chord, className }: { chord: string; className?: string }) {
-  const [mac] = useState(isMac);
+  const mac = useBrowserValue(isMac, false);
   return (
     <kbd className={cx("je-hotkey", className)}>
       {chordKeys(chord).map((key, i) => (

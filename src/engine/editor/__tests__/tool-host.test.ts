@@ -664,7 +664,7 @@ describe("game tools", () => {
     expect(r.writes()).toBe(1);
     expect(r.entity("crate-2")).toMatchObject({
       type: "prop",
-      shape: ["box", 8, 4, 20, 20, 0],
+      shape: ["box", 8, 4, 0.2, 0.2, 0],
     });
     // Escape drops the template first, then the tool.
     expect(r.host.cancel()).toBe(true);

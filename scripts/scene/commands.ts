@@ -19,6 +19,7 @@ import { codes } from "./tools/codes";
 import { diff } from "./tools/diff";
 import { fmt } from "./tools/fmt";
 import { fuzz } from "./tools/fuzz";
+import { GAME_NEW_FLAGS, gameNew } from "./tools/game-new";
 import { grid } from "./tools/grid";
 import { input } from "./tools/input";
 import { list } from "./tools/list";
@@ -34,7 +35,7 @@ import { render } from "./tools/render";
 import { replay } from "./tools/replay";
 import { schema, SCHEMA_NAMES } from "./tools/schema";
 import { show } from "./tools/show";
-import { step, STEP_FLAGS } from "./tools/step";
+import { step, STEP_FLAGS, type StepInput } from "./tools/step";
 import { textconv } from "./tools/textconv";
 import { validate } from "./tools/validate";
 
@@ -81,7 +82,7 @@ function liveReadFlags(flags: ParsedArgs["flags"]) {
 }
 
 /** Commands named by two words: `project show`, `assets import`. */
-export const COMMAND_GROUPS = ["project", "assets"] as const;
+export const COMMAND_GROUPS = ["project", "assets", "game"] as const;
 
 const DEFINITIONS = {
   list: {
@@ -198,27 +199,27 @@ const DEFINITIONS = {
       newScene({ name, game: str(flags.game), from: str(flags.from) }, ctx),
   },
   step: {
-    usage: `step <scene|file|-> ${STEP_FLAGS}`,
+    usage: `step <scene|file|-> ${STEP_FLAGS} [--legal]`,
     summary:
-      "run the headless runtime and report events and the game's final snapshot, with spawns and destroys counted per type; --events type,… prints only those event types; --command and --elapse repeat, stepped on their ticks, each tick's @elapsed first, then its commands in flag order",
+      "run the headless runtime and report events and the game's final snapshot, with spawns and destroys counted per type; --events type,… prints only those event types; --command and --elapse repeat; --command tick@seat:name sends from a seat (default 0), judged against the project input map's seats, else the game's; both are stepped on their ticks, each tick's @elapsed first, then its commands in flag order; --legal prints the commands legal after the last tick (at most 64, marked truncated beyond), for a game that lists them; --json carries them as legal/legalTruncated",
     values: ["ticks", "hold", "inputs", "command", "elapse", "events", "game"],
     repeatable: ["command", "elapse"],
-    switches: [],
+    switches: ["legal"],
     maxPositionals: 1,
-    run: ({ positionals: [scene], flags }, ctx) =>
-      step(
-        {
-          scene,
-          ticks: str(flags.ticks),
-          hold: str(flags.hold),
-          inputs: str(flags.inputs),
-          command: strs(flags.command),
-          elapse: strs(flags.elapse),
-          events: str(flags.events),
-          game: str(flags.game),
-        },
-        ctx,
-      ),
+    run: ({ positionals: [scene], flags }, ctx) => {
+      const input: StepInput = {
+        scene,
+        ticks: str(flags.ticks),
+        hold: str(flags.hold),
+        inputs: str(flags.inputs),
+        command: strs(flags.command),
+        elapse: strs(flags.elapse),
+        events: str(flags.events),
+        game: str(flags.game),
+        legal: flags.legal === true,
+      };
+      return step(input, ctx);
+    },
   },
   grid: {
     usage: "grid <scene> [--from c,r|ref] [--to c,r|ref] [--fov c,r:radius] [--diagonals] [--json]",
@@ -243,7 +244,7 @@ const DEFINITIONS = {
     usage:
       "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file]",
     summary:
-      "play an input script headless (actions, waits, game commands, time away), v1 or v2 (steps or tracks per seat, set/pointer/join/leave): the outcome, steps, events with spawns and destroys counted per type, and focus trail; --at is in metres; --events type,… prints only those event types; exit 1 when blocked",
+      "play an input script headless (actions, waits, game commands, time away), v1 or v2 (steps or tracks per seat, set/pointer/join/leave): the outcome, steps, events with spawns and destroys counted per type, and focus trail; a game that lists its commands (GamePlayDef.commands) prints how many are legal after the last tick (legal/legalTruncated in --json); --at is in metres; --events type,… prints only those event types; exit 1 when blocked",
     values: ["script", "at", "events", "game", "record"],
     switches: [],
     maxPositionals: 1,
@@ -272,7 +273,8 @@ const DEFINITIONS = {
   },
   fuzz: {
     usage: "fuzz <scene|file|-> [--seed s] [--rollouts n] [--ticks n] [--game id]",
-    summary: "seeded random rollouts: which entities were reached, in how many runs, how early",
+    summary:
+      "seeded random rollouts: which entities were reached, in how many runs, how early; a game that lists its commands and has no macro of its own is fuzzed by sending legal commands (every macro on a turns clock, half of them otherwise), counted on a legal line (legal.sent/legal.empty in --json); the default macro never holds a UI action",
     values: ["seed", "rollouts", "ticks", "game"],
     switches: [],
     maxPositionals: 1,
@@ -527,6 +529,43 @@ const DEFINITIONS = {
     switches: [...WRITER_SWITCHES],
     maxPositionals: 0,
     run: ({ flags }, ctx) => assetsApply({ ...writerFlags(flags), ops: str(flags.ops) }, ctx),
+  },
+  "game new": {
+    usage: `game new <id> ${GAME_NEW_FLAGS}`,
+    summary:
+      "scaffold a game project under --dir (default src/games) from a preset (top-down, grid or turns): project file, game and UI modules, a scene with checks and a winning input script, game settings, an input map, the generated schemas and a test, with every world and time field written; refused, writing nothing, for an id outside the id pattern (schema), a taken id or an existing directory (project-id-taken), or a scene with error issues; prints the /game/dev URLs and the playtest command; --dry-run lists the files and writes none",
+    values: [
+      "name",
+      "preset",
+      "physics",
+      "gravity",
+      "time",
+      "rate",
+      "grid",
+      "cell",
+      "px-per-metre",
+      "dir",
+    ],
+    switches: ["dry-run"],
+    maxPositionals: 1,
+    run: ({ positionals: [id], flags }, ctx) =>
+      gameNew(
+        {
+          id,
+          name: str(flags.name),
+          preset: str(flags.preset),
+          physics: str(flags.physics),
+          gravity: str(flags.gravity),
+          time: str(flags.time),
+          rate: str(flags.rate),
+          grid: str(flags.grid),
+          cell: str(flags.cell),
+          pxPerMetre: str(flags["px-per-metre"]),
+          dir: str(flags.dir),
+          dryRun: flags["dry-run"] === true,
+        },
+        ctx,
+      ),
   },
 } satisfies Record<string, Command>;
 
