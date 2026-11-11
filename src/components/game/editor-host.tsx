@@ -29,8 +29,8 @@ import { toast } from "@/lib/toast";
 
 import { EditorLoading } from "./editor-loading";
 import { BlankCanvas } from "./game-canvas-loading";
-import { LoadFailed } from "./GameCanvas";
 import { DEFAULT_GAME, hostedGames, useLoaded, type HostedGame } from "./hosted-games";
+import { LoadFailed } from "./load-failed";
 import { GameSiteIsland } from "./site-island";
 
 /** What the editor opens a project with. */

@@ -231,7 +231,7 @@ export function commandRunner(
         playHere();
         return true;
       case "stop":
-        // A game selection (the Shaper's) clears before play stops.
+        // A game's selection (a tool's, or its mounted UI's) clears before play stops.
         if (!game.cancel()) onStop();
         return true;
       case "pause":

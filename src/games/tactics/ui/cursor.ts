@@ -53,14 +53,13 @@ export type BoardView = {
 };
 
 /**
- * The slice carries each class's hp, move and range only; reach reads move
- * and the HUD's strike test reads range, so the rest is filled neutrally. A class
- * that needs a clear line still has its blocked shots refused by the rules.
+ * The rules' class table from the slice: everything reach and the strike test
+ * read (move, range, sight); attack stays neutral since the HUD never deals damage.
  */
 function ruleClasses(slice: TacticsSlice): UnitClasses {
   const out: Record<string, UnitClass> = {};
   for (const [id, c] of Object.entries(slice.classes))
-    out[id] = { hp: c.hp, move: c.move, range: c.range, attack: 1, sight: false };
+    out[id] = { hp: c.hp, move: c.move, range: c.range, attack: 1, sight: c.sight };
   return out;
 }
 

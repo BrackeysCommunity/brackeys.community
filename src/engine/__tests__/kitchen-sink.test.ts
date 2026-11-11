@@ -43,7 +43,7 @@ import { ENTITY_DESTROYED, SENSOR_ENTER } from "../runtime/types";
 import { parseChecks, type ChecksFile, type ReachesCheck } from "../scene/checks";
 import { expandScene } from "../scene/expand";
 import { formatPrefab, formatScene } from "../scene/format";
-import { parseInputScript, UI_ACTION_HINT } from "../scene/input-script";
+import { parseInputScript, scriptSeatLimit, UI_ACTION_HINT } from "../scene/input-script";
 import { parseScene } from "../scene/parse";
 import { prefabsUsedBy } from "../scene/prefab";
 import { drawnEntities, oneWayEdge } from "../scene/render-geometry";
@@ -502,6 +502,8 @@ describe("kitchen-sink.json", () => {
       }
     });
 
+    // The engine project is gameless, so a UI-only action's binding and a game's one-way type can't
+    // live in its files: the next three tests build their case from the files in memory.
     it("an input map that binds a UI-only action under a game declaring one, the schema marking it", () => {
       const map = values.get(entriesOf(INPUT_MAP_KIND)[0]!.id) as Record<string, unknown>;
       const kind = project.kinds.get(INPUT_MAP_KIND) as DocKindDef;
@@ -518,7 +520,6 @@ describe("kitchen-sink.json", () => {
       expect(schema.properties.actions!.items.properties.action).toMatchObject({
         anyOf: [{ enum: ["left", "right", "push"] }, { enum: [MENU_ACTION], "x-ui": true }],
       });
-      // The engine project is gameless, so its file can't carry the binding: no game declares it there.
       const gameless = parseAssetDoc(kind, bound, { registry: engine, project: view });
       expect(gameless.issues.map((i) => i.code)).toEqual(["binding-unknown"]);
     });
@@ -535,6 +536,22 @@ describe("kitchen-sink.json", () => {
       ]);
       const settles = checks.checks.find((c): c is ReachesCheck => c.id === "settles")!;
       expect(parseInputScript(settles.script, uiGame).ok).toBe(true);
+    });
+
+    it("a two-seat check whose tracks fit the seats the input map gives the gameless engine", () => {
+      const raw = JSON.parse(checksText) as { checks: { id: string }[] };
+      expect(raw.checks.at(-1)?.id).toBe("two-seats");
+      const twoSeats = checks.checks.find((c): c is ReachesCheck => c.id === "two-seats")!;
+      const { players: own, ...script } = twoSeats.script as { players?: number };
+      const map = values.get(entriesOf(INPUT_MAP_KIND)[0]!.id) as {
+        players: { max: number; join: "auto" };
+      };
+      expect(own).toBe(map.players.max);
+      expect(scriptSeatLimit(engine)).toBe(1);
+      expect(scriptSeatLimit(engine, map.players)).toBe(2);
+      expect(parseInputScript(script, engine, map.players).ok).toBe(true);
+      const bare = parseInputScript(script, engine);
+      expect(!bare.ok && bare.issues.map((i) => i.path)).toEqual(["/tracks/1/player"]);
     });
 
     it("type-wide one-way solids that draw the side the solid system lands actors on", () => {
@@ -869,6 +886,7 @@ describe("kitchen-sink.json", () => {
         ["settles", "reaches", true, false],
         ["fades", "reaches", true, false],
         ["ball-in-zone", "touches", true, true],
+        ["two-seats", "reaches", true, false],
       ]);
       expect(report.ok).toBe(true);
     });
@@ -908,7 +926,13 @@ describe("kitchen-sink.json", () => {
         checks: unskipped,
         readFile: (path) => readFileSync(new URL(path, scenesDir), "utf8"),
       });
-      expect(report.results.map((r) => r.kind)).toEqual(["valid", "reaches", "reaches", "touches"]);
+      expect(report.results.map((r) => r.kind)).toEqual([
+        "valid",
+        "reaches",
+        "reaches",
+        "touches",
+        "reaches",
+      ]);
       for (const r of report.results) {
         expect(r.skipped, r.id).toBeUndefined();
         expect(r.pass, `${r.id}: ${r.message}`).toBe(true);

@@ -192,7 +192,14 @@ export {
   type QuotaPolicy,
   type QuotaVerdict,
 } from "./usage";
-export { RUNTIME_VIEW_KINDS, runtimeView, type ProjectRuntimeView } from "./runtime-view";
+export {
+  heldProject,
+  RUNTIME_VIEW_KINDS,
+  runtimeView,
+  type HeldFile,
+  type HeldProject,
+  type ProjectRuntimeView,
+} from "./runtime-view";
 export { assetInfo, type AssetInfo } from "./asset-info";
 export { projectBundle, sceneBundle, type AssetBundle, type BundleEntry } from "./bundle";
 export {

@@ -25,6 +25,8 @@ import { tacticsGame } from "..";
 import {
   CELL_PX,
   makeArt,
+  TERRAIN_KINDS,
+  terrainFile,
   UNIT_ART_CLASSES,
   UNIT_ART_SIDES,
   UNIT_FRAMES,
@@ -51,6 +53,9 @@ const IDS: Record<string, string> = {
   "art/units.png": "units-texture",
   "art/units.json": "units",
   "art/tiles.png": "tiles",
+  "art/tile-wall.png": "tile-wall",
+  "art/tile-marsh.png": "tile-marsh",
+  "art/tile-thicket.png": "tile-thicket",
 };
 const idAt = (path: string) => IDS[path];
 
@@ -59,7 +64,16 @@ const registry = createRegistry(tacticsGame);
 describe("make-art.ts", () => {
   it("reproduces every committed art file byte for byte", () => {
     const art = makeArt();
-    expect([...art.keys()].sort()).toEqual(["tiles.png", "units.json", "units.png"]);
+    expect([...art.keys()].sort()).toEqual(
+      [
+        "tile-marsh.png",
+        "tile-thicket.png",
+        "tile-wall.png",
+        "tiles.png",
+        "units.json",
+        "units.png",
+      ].sort(),
+    );
     for (const [name, bytes] of art) expect(bytes, name).toEqual(bytesOf(`../art/${name}`));
   });
 
@@ -130,7 +144,7 @@ describe("drawing", () => {
   it("samples nearest and scales by whole multiples inside letterbox bars", () => {
     const policy = resolveResolution({ game: tacticsGame.resolution });
     expect(policy).toMatchObject({ fit: "letterbox", integer: true, sampling: "nearest" });
-    for (const name of ["units.png", "tiles.png"])
+    for (const name of ["units.png", "tiles.png", ...TERRAIN_KINDS.map(terrainFile)])
       expect(sidecar(name).import?.filter).toBe("nearest");
     for (const canvas of [
       { width: 1280, height: 720 },
@@ -157,6 +171,24 @@ describe("drawing", () => {
     );
     // A 2 × 2 checker of cells, so the board's 12 × 8 cells tile it whole.
     expect(tiles).toMatchObject({ ok: true, meta: { width: 2 * CELL_PX, height: 2 * CELL_PX } });
+  });
+
+  it("draws walls, marsh and thicket as one opaque board cell each", () => {
+    expect([...TERRAIN_KINDS].sort()).toEqual(["marsh", "thicket", "wall"]);
+    for (const kind of TERRAIN_KINDS) {
+      const file = terrainFile(kind);
+      const result = inspectEntry(
+        textureKind as BlobKindDef,
+        { path: `art/${file}` },
+        bytesOf(`../art/${file}`),
+        idAt,
+      );
+      expect(result, file).toMatchObject({
+        ok: true,
+        meta: { format: "png", width: CELL_PX, height: CELL_PX },
+      });
+      expect(sidecar(file).id).toBe(`tile-${kind}`);
+    }
   });
 });
 

@@ -21,9 +21,8 @@ export type {
   UiActionEvent,
   Vec2,
 } from "./types";
-export { bindText, bindToWorld, watchView } from "./ui/bind";
-export { createUiLayer, mountUi } from "./ui/layer";
-export type { MountUi, UiContext, UiHandle } from "./ui/types";
+export { bindText, bindToWorld, createUiLayer, mountUi, watchView } from "./ui";
+export type { MountUi, UiContext, UiHandle } from "./ui";
 export {
   applyPt,
   applyVec,

@@ -1,13 +1,22 @@
 import type { ProjectRuntimeView } from "@jams/engine/game";
 import type { FilesLoadInput } from "@jams/engine/headless";
-import { gameSettingsValues, usableInputMap } from "@jams/engine/project";
+import { heldProject, parseSidecar, type AssetSidecar } from "@jams/engine/project";
 import { createRegistry } from "@jams/engine/scene";
-import { z } from "zod";
 
-import { tacticsGame, UNIT_CLASS_ROW, UNIT_CLASS_TABLE } from "..";
+import { tacticsGame } from "..";
+import marshSidecar from "../art/tile-marsh.png.asset.json";
+import thicketSidecar from "../art/tile-thicket.png.asset.json";
+import wallSidecar from "../art/tile-wall.png.asset.json";
+import tilesSidecar from "../art/tiles.png.asset.json";
+import unitsSidecar from "../art/units.json.asset.json";
+import unitsTextureSidecar from "../art/units.png.asset.json";
 import unitClasses from "../data/unit-classes.json";
+import unitClassesSidecar from "../data/unit-classes.json.asset.json";
 import gameSettings from "../game-settings.json";
+import gameSettingsSidecar from "../game-settings.json.asset.json";
 import inputMap from "../input-map.json";
+import inputMapSidecar from "../input-map.json.asset.json";
+import project from "../jams.project.json";
 import level1 from "../scenes/level-1.json";
 import archer from "../scenes/prefabs/archer.json";
 import knight from "../scenes/prefabs/knight.json";
@@ -22,28 +31,34 @@ import knight from "../scenes/prefabs/knight.json";
  */
 export const TACTICS_GOLDEN_DIGEST = "e2a58c6a80e955b3";
 
-const classRow = z.object(UNIT_CLASS_ROW);
+function sidecar(raw: unknown): AssetSidecar {
+  const parsed = parseSidecar(raw);
+  if (!parsed.ok) throw new Error(`a tactics sidecar doesn't parse: ${parsed.issues[0]?.message}`);
+  return parsed.sidecar;
+}
 
 /**
- * What the pinned run reads as `EngineContext.project`: the project's own
- * game settings, unit classes and input map, read the way the scene CLI
- * reads them. JSON imports only, so the browser smoke builds the same view.
+ * What the pinned run reads as `EngineContext.project`: the project's game
+ * settings, unit classes, input map and art sidecars, through `heldProject`
+ * as the site's game room reads them. JSON imports only, so the browser
+ * smoke builds the same view.
  */
 export function tacticsProjectView(): ProjectRuntimeView {
-  const registry = createRegistry(tacticsGame);
-  const rows = Object.freeze(
-    unitClasses.rows.flatMap((row) => {
-      const parsed = classRow.safeParse(row);
-      return parsed.success ? [Object.freeze({ id: row.id, ...parsed.data })] : [];
-    }),
-  );
-  return {
-    settings: Object.freeze(gameSettingsValues(registry, gameSettings.game)),
-    engine: Object.freeze({ ...gameSettings.engine }),
-    table: (name) => (name === UNIT_CLASS_TABLE ? rows : []),
-    asset: () => undefined,
-    inputMap: usableInputMap(inputMap, registry),
-  };
+  return heldProject(
+    [
+      { path: "game-settings.json", json: gameSettings, sidecar: sidecar(gameSettingsSidecar) },
+      { path: "input-map.json", json: inputMap, sidecar: sidecar(inputMapSidecar) },
+      { path: "data/unit-classes.json", json: unitClasses, sidecar: sidecar(unitClassesSidecar) },
+      { path: "art/tile-marsh.png", sidecar: sidecar(marshSidecar) },
+      { path: "art/tile-thicket.png", sidecar: sidecar(thicketSidecar) },
+      { path: "art/tile-wall.png", sidecar: sidecar(wallSidecar) },
+      { path: "art/tiles.png", sidecar: sidecar(tilesSidecar) },
+      { path: "art/units.png", sidecar: sidecar(unitsTextureSidecar) },
+      { path: "art/units.json", sidecar: sidecar(unitsSidecar) },
+    ],
+    createRegistry(tacticsGame),
+    { projectId: project.id, name: project.name },
+  ).runtime;
 }
 
 /** Level 1, its prefabs and its project, for `loadHeadless`. */

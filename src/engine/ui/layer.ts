@@ -1,6 +1,26 @@
 import type { GameInstance, GameStoreState } from "../types";
 import type { MountUi, UiContext, UiHandle } from "./types";
 
+const mountedCancels = new WeakMap<GameInstance, (() => boolean)[]>();
+
+/** Offers Escape to the UIs mounted over `game`, newest first; true when one used it. */
+export function cancelMountedUi(game: GameInstance): boolean {
+  const cancels = mountedCancels.get(game);
+  if (!cancels) return false;
+  for (let i = cancels.length - 1; i >= 0; i--) if (cancels[i]?.()) return true;
+  return false;
+}
+
+function registerCancel(game: GameInstance, cancel: () => boolean): () => void {
+  let cancels = mountedCancels.get(game);
+  if (!cancels) mountedCancels.set(game, (cancels = []));
+  cancels.push(cancel);
+  return () => {
+    const i = cancels.indexOf(cancel);
+    if (i !== -1) cancels.splice(i, 1);
+  };
+}
+
 /** Dispatched on a layer's root after it follows a resize of its canvas. */
 export const UI_LAYER_RESIZE = "jams-ui-resize";
 
@@ -113,10 +133,14 @@ export function mountUi<G>(
     throw err;
   }
 
+  const ui = handle;
+  const unregister = ui.cancel ? registerCancel(game, () => ui.cancel?.() ?? false) : () => {};
+
   let unmounted = false;
   return () => {
     if (unmounted) return;
     unmounted = true;
+    unregister();
     try {
       handle.destroy();
     } finally {

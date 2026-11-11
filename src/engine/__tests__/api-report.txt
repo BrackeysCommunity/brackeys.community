@@ -34,6 +34,7 @@ LoadFailureReason
 LoadProgress
 LoadReport
 MAX_PLAYERS
+MountUi
 PixiView
 PixiViewOptions
 PlayOptions
@@ -68,9 +69,14 @@ TouchControlDef
 TouchControlValue
 TouchControls
 Transform2D
+UiActionEvent
+UiContext
+UiHandle
 Vec2
 applyPt
 applyVec
+bindText
+bindToWorld
 browserRemapStore
 compose
 composeDihedral
@@ -78,12 +84,14 @@ createAssetLoader
 createGame
 createPixiView
 createTouchControls
+createUiLayer
 dihedral
 dihedralOf
 drawSprite
 flipWorld
 invert
 memoryRemapStore
+mountUi
 pixiContainer
 resolveBindings
 resolvePlayers
@@ -99,6 +107,7 @@ selectSim
 selectTick
 spriteGeometry
 viewportFor
+watchView
 
 ## @jams/engine/collab
 ASSETS_KEY
@@ -744,6 +753,7 @@ DEFAULT_SPAWN_CAST
 DEFAULT_TICK_RATE
 DEFAULT_TIME
 DRAW_LAYERS
+DataSystem
 DecorEntity
 Delay
 DeviceId
@@ -922,12 +932,14 @@ assetKindsOf
 bindingProblems
 bodyLocalShape
 bodyShapeField
+boundsCells
 buildNavMesh
 carrierDelta
 cellKey
 cellOf
 clamp
 clampVec2
+createDataSystem
 createDecorSystem
 createFollowerSystem
 createGridStepper
@@ -960,11 +972,14 @@ gridGeometry
 gridMissingIssue
 gridPlace
 gridRoute
+inCellBounds
 initialWaypointState
 interpolatePosition
 isNavSystem
 isPolygonField
 isRuntimeId
+isUiAction
+keysProblems
 lengthUnitOf
 lerp
 lerpVec2
@@ -978,6 +993,7 @@ parseRuntimeId
 physicsOf
 playersProblems
 pointField
+pointerBit
 polygonField
 posedBodyDesc
 primitiveFields
@@ -985,6 +1001,7 @@ pxPerMetreOf
 refField
 resolveTime
 runtimeId
+sameCell
 scaleLengths
 sceneGrid
 shapeColliderDesc
@@ -1025,6 +1042,7 @@ ENTITY_ENABLED
 ENTITY_SPAWNED
 EventMatch
 FilesLoadInput
+FuzzLegal
 FuzzMacroInputs
 FuzzOptions
 FuzzReport
@@ -1055,6 +1073,7 @@ PlaytestOutcomeReport
 PlaytestReport
 PlaytestRun
 PlaytestStep
+PointerBindings
 PreparedPlay
 ProbeInput
 ProbeOptions
@@ -1121,6 +1140,7 @@ physicalEnv
 platformIssues
 playWorld
 pointerAt
+pointerHeld
 preparePlay
 probeConfigHash
 recordingDivergence
@@ -1131,6 +1151,7 @@ runPhysicalChecks
 runPlaytest
 runProbe
 scriptSource
+simActionError
 tickWakes
 unknownActionError
 untilHolds
@@ -1193,6 +1214,8 @@ GameSettingsEngine
 GameSettingsFile
 GlobMatch
 HashHistoryEntry
+HeldFile
+HeldProject
 INPUT_MAP_KIND
 INPUT_MAP_SCHEMA_ID
 INPUT_MAP_VERSION
@@ -1226,6 +1249,7 @@ ParseAssetResult
 ParseProjectFileResult
 ParseProjectSnapshotResult
 ParseSidecarResult
+PerProjectWords
 PointerRead
 ProjectApplyResult
 ProjectBatchCheck
@@ -1309,6 +1333,7 @@ gameSettingsIssues
 gameSettingsKind
 gameSettingsValues
 hashForPut
+heldProject
 idsAtPaths
 inputMapEntries
 inputMapIssues
@@ -1706,6 +1731,7 @@ sceneSchemaFor
 sceneSprites
 sceneViewport
 schemaIdFor
+scriptSeatLimit
 scriptShapeIssues
 shapeAtPose
 shapeIsClosed
@@ -2702,6 +2728,7 @@ type SceneEditorProps = {
     project: ProjectId;
     rapier: () => Promise<RapierModule>;
     scene?: string;
+    ui?: MountUi | null;
 };
 declare function mountSceneEditor(element: HTMLElement, props: SceneEditorProps): {
     unmount(): void;
@@ -4644,7 +4671,15 @@ declare function declaredBindings(def: {
     bindings?: readonly Binding[];
     keys?: readonly string[];
 }): readonly Binding[];
+declare function isUiAction(registry: Registry, name: string): boolean;
+declare function keysProblems(def: {
+    bindings?: readonly Binding[];
+    keys?: readonly unknown[];
+}): BindingProblem[];
 declare function playersProblems(players: PlayersDef): BindingProblem[];
+declare function resolvePlayers(map: null | undefined | {
+    players?: PlayersDef;
+}, game: GameDefinition | null | undefined): PlayersDef;
 
 ## game/input-codes.ts
 declare const KEY_CODES: readonly string[];
@@ -4682,6 +4717,7 @@ declare const POINTER_BUTTONS: readonly [
 type PadAxis = (typeof PAD_AXES)[number] | number;
 type PadButton = (typeof PAD_BUTTONS)[number] | number;
 type PointerButton = (typeof POINTER_BUTTONS)[number];
+declare const pointerBit: (button: PointerButton) => number;
 
 ## game/physics-of.ts
 declare class PhysicsRequiredError extends EngineError {
@@ -4907,6 +4943,7 @@ declare function ticksFor(ms: number, time: Pick<ResolvedTime, "rate">): number;
 type ActionDef = InputBinding & {
     description: string;
     kind?: ActionKind;
+    ui?: true;
 };
 type ActionKind = "axis" | "button" | "vector";
 type BasePrimitive = Exclude<PrimitiveType, "note">;
@@ -5120,6 +5157,7 @@ type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
         order?: readonly string[];
     };
     loads?: boolean;
+    oneWay?: Side | true;
     physics?: "optional" | "required";
     refs?: {
         field: string;
@@ -5211,6 +5249,7 @@ type GameOutcome = {
     result: string;
 };
 type GamePlayDef<S = unknown, G = unknown> = {
+    commands?(state: PlayState<S>): readonly GameCommand[];
     focus?(snapshot: S): Vec2 | null;
     macro?(rng: MacroRandom, actions: readonly string[]): Macro;
     markers?: readonly string[];
@@ -5410,6 +5449,7 @@ type Registry = {
     time: TimeModel;
     typeNames: readonly EntityTypeName[];
     types: ReadonlyMap<EntityTypeName, RegisteredType>;
+    uiActionNames: readonly string[];
     validators: readonly SceneValidator[];
     widgets: ReadonlyMap<string, InspectorWidgetDef>;
 };
@@ -5535,9 +5575,12 @@ interface GridGeometry {
     cellsIn(shape: ShapeObj): Cell[];
     rect(bounds: Bounds): CellBounds;
 }
+declare function boundsCells(b: CellBounds): Cell[];
 declare function cellKey(c: Cell): CellKey;
 declare function cellOf(k: CellKey): Cell;
 declare function gridGeometry(settings: GridSettings): GridGeometry;
+declare const inCellBounds: (b: CellBounds, c: Cell) => boolean;
+declare const sameCell: (a: Cell, b: Cell) => boolean;
 
 ## grid/occupancy.ts
 interface Occupancy {
@@ -5580,6 +5623,7 @@ type CompiledPointer = {
 };
 type CompiledScript = CompiledInputScript & {
     players?: number;
+    pointerBindings?: PointerBindings[];
     steps: CompiledScriptStep[];
     tracks?: CompiledTrack[];
 };
@@ -5595,6 +5639,10 @@ type CompiledTrack = {
     player: number;
     steps: CompiledScriptStep[];
 };
+type PointerBindings = Partial<Record<PointerButton, readonly {
+    action: string;
+    binding: Binding;
+}[]>>;
 type ScriptSource = InputSource & {
     log(): ScriptStepLog[];
     tick(slot: number): TickInput;
@@ -5604,10 +5652,11 @@ type ScriptStepLog = PlaytestStep & {
 };
 declare function analogActions(prev: AnalogValues, next: AnalogValues, tick: number, player?: number, time?: Pick<ResolvedTime, "tickMs">): InputAction[];
 declare function analogValues(set: AnalogSet): AnalogValues;
-declare function compileInputScript(script: unknown, registry: Registry, time?: Pick<ResolvedTime, "rate">): CompileResult;
+declare function compileInputScript(script: unknown, registry: Registry, time?: Pick<ResolvedTime, "rate">, players?: PlayersDef | null, map?: Pick<InputMapFile, "actions"> | null): CompileResult;
 declare function compiledPointer(pointer: ScriptPointer): CompiledPointer;
 declare function heldEdges(prev: readonly string[], next: readonly string[], tick: number): InputEdge[];
 declare function pointerAt(pointer: CompiledPointer, k: number, slots: number | undefined, buttons: number): PointerState;
+declare function pointerHeld(hold: readonly string[], buttons: number, bound: PointerBindings | undefined): readonly string[];
 declare function scriptSource(script: CompiledInputScript, holds: (until: UntilClause, state: PlayState) => boolean, time?: Pick<ResolvedTime, "tickMs">): ScriptSource;
 
 ## headless/fuzz.ts
@@ -5631,6 +5680,7 @@ type LibraryOption = {
 type PrefabsOption = Pick<SceneRuntimeOptions, "prefabs">;
 declare function createHeadlessRuntime(opts: HeadlessRuntimeOptions & ProjectOption & PrefabsOption): SceneRuntimeHandle;
 declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): ProbeReport<S>;
+declare function simActionError(registry: Registry, action: string): null | string;
 declare function unknownActionError(action: string, actionNames: readonly string[]): null | string;
 
 ## headless/load.ts
@@ -5704,6 +5754,10 @@ type EventMatch = string | {
     other?: string;
     type: string;
 };
+type FuzzLegal = {
+    empty: number;
+    sent: number;
+};
 type FuzzOptions<S = unknown, G = unknown> = {
     dev?: boolean;
     game?: GameDefinition<S, G> | null;
@@ -5721,6 +5775,7 @@ type FuzzOptions<S = unknown, G = unknown> = {
 type FuzzReport = {
     blocked: false;
     configHash: string;
+    legal?: FuzzLegal;
     results: Record<RunResult, number>;
     rollouts: number;
     scene: string;
@@ -5848,6 +5903,8 @@ type PlaytestReport<S = unknown> = {
     final: S | null;
     inputs: InputEdge[];
     issues: SceneIssue[];
+    legal?: GameCommand[];
+    legalTruncated?: boolean;
     outcome: PlaytestOutcomeReport;
     recording: RunRecording;
     scene: string;
@@ -5989,6 +6046,8 @@ type ProbeReport<S = unknown> = {
     configHash: string;
     events: StepEvent[];
     final: S | null;
+    legal?: GameCommand[];
+    legalTruncated?: boolean;
     load: LoadReport;
     outcome?: GameOutcome & {
         tick: number;
@@ -6051,9 +6110,6 @@ declare function resolveBindings(layers: BindingLayers): ResolvedBindings;
 
 ## input/players.ts
 declare const MAX_PLAYERS = 8;
-declare function resolvePlayers(map: null | undefined | {
-    players?: PlayersDef;
-}, game: GameDefinition | null | undefined): PlayersDef;
 
 ## input/remap.ts
 type RemapState = {
@@ -6767,6 +6823,8 @@ type DocKindDef<J = unknown> = KindBase & {
     };
     migrations?: Readonly<Record<number, Migration>>;
     parse?(input: unknown, env: KindEnv): ParseAssetResult<J>;
+    perProject?: 1;
+    perProjectWords?: PerProjectWords;
     prefix?: "asset" | "scene";
     refs?(value: J, env: KindEnv): readonly RefSite[];
     schema(env: KindEnv): z.ZodType<J>;
@@ -6825,6 +6883,11 @@ type ParseAssetResult<J = unknown> = {
 } | {
     issues: SceneIssue[];
     ok: false;
+};
+type PerProjectWords = {
+    contents?: string;
+    held?: string;
+    noun: string;
 };
 declare const byCodeUnit: (a: string, b: string) => number;
 declare function defineAssetKind<K extends AssetKindDef>(def: K): K;
@@ -6907,6 +6970,12 @@ declare const gameSettingsKind: {
     migrations: {
         1: typeof gameSettingsV1ToV2;
     };
+    perProject: 1;
+    perProjectWords: {
+        contents: string;
+        held: string;
+        noun: string;
+    };
     refs: (file: GameSettingsFile, env: KindEnv) => RefSite[];
     schema: (env: KindEnv) => z.ZodType<GameSettingsFile, unknown, z.core.$ZodTypeInternals<GameSettingsFile, unknown>>;
     schemaId: string;
@@ -6920,7 +6989,6 @@ declare function gameSettingsValues(registry: Registry, game: Record<string, unk
 
 ## project/kinds/index.ts
 declare const ENGINE_ASSET_KINDS: readonly AssetKindDef[];
-declare function inputMapIssues(view: ProjectView): SceneIssue[];
 
 ## project/kinds/input-map.ts
 declare const INPUT_MAP_KIND = "input-map";
@@ -6954,6 +7022,7 @@ type InputMapTouchControl = {
     radius: number;
 };
 declare function inputMapEntries(view: ProjectView): AssetEntry[];
+declare function inputMapIssues(view: ProjectView): SceneIssue[];
 declare const inputMapKind: {
     defaultFolder: () => string;
     description: string;
@@ -7005,6 +7074,11 @@ declare const inputMapKind: {
     };
     match: {
         jsonKind: string;
+    };
+    perProject: 1;
+    perProjectWords: {
+        contents: string;
+        noun: string;
     };
     schema: (env: KindEnv) => z.ZodType<InputMapFile, unknown, z.core.$ZodTypeInternals<InputMapFile, unknown>>;
     schemaId: string;
@@ -7629,6 +7703,10 @@ declare const projectFileSchema: z.ZodObject<{
     ignore: z.ZodOptional<z.ZodArray<z.ZodString>>;
     kind: z.ZodLiteral<"project">;
     name: z.ZodString;
+    ui: z.ZodOptional<z.ZodObject<{
+        export: z.ZodString;
+        module: z.ZodString;
+    }, z.core.$strict>>;
     v: z.ZodLiteral<1>;
 }, z.core.$strict>;
 declare function projectGlobs(file: ProjectFile): {
@@ -7661,6 +7739,16 @@ declare function rewriteRefs<J>(value: J, sites: readonly RefSite[], from: Asset
 declare function schemaRefSites(shape: z.ZodRawShape, value: unknown, pointer: JsonPointer): RefSite[];
 
 ## project/runtime-view.ts
+type HeldFile = {
+    json?: unknown;
+    path: AssetPath;
+    sidecar?: AssetSidecar | null;
+};
+type HeldProject = {
+    kinds: KindRegistry;
+    runtime: ProjectRuntimeView;
+    view: ProjectView;
+};
 type ProjectRuntimeView = {
     asset(id: AssetId, frame?: string): AssetInfo | undefined;
     engine: Readonly<Record<string, unknown>>;
@@ -7671,6 +7759,10 @@ type ProjectRuntimeView = {
     }>[];
 };
 declare const RUNTIME_VIEW_KINDS: readonly AssetKindName[];
+declare function heldProject(files: readonly HeldFile[], registry: Registry, meta: {
+    name: string;
+    projectId: ProjectId;
+}): HeldProject;
 declare function runtimeView(view: ProjectView, values: ReadonlyMap<AssetId, unknown>, registry: Registry): ProjectRuntimeView;
 
 ## project/sidecar.ts
@@ -7859,6 +7951,10 @@ type ProjectFile = {
     ignore?: string[];
     kind: "project";
     name: string;
+    ui?: {
+        export: string;
+        module: string;
+    };
     v: 1;
 };
 type ProjectId = string;
@@ -8130,6 +8226,7 @@ type RecorderOptions = RecordingHost & {
     maxTrail?: number;
     players?: readonly PlayerInfo[];
     rapier: RapierModule | null;
+    registry?: Registry;
     runHash: string;
     scene: string;
     sceneHash: SceneHash;
@@ -8277,7 +8374,7 @@ type StepResult = {
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 12;
+declare const AGENT_SURFACE_VERSION = 13;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -8651,7 +8748,7 @@ type ScriptPointer = {
     press?: PointerButton;
     release?: PointerButton;
 };
-declare function buildInputScriptSchemas(registry: Registry): {
+declare function buildInputScriptSchemas(registry: Registry, seats: number): {
     analog: z.ZodObject<{
         [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
             z.ZodNumber,
@@ -8716,9 +8813,7 @@ declare function buildInputScriptSchemas(registry: Registry): {
         ]>>;
         steps: z.ZodOptional<z.ZodArray<z.ZodUnion<readonly [
             z.ZodObject<{
-                hold: z.ZodArray<z.ZodEnum<{
-                    [x: string]: string;
-                }> | z.ZodNever>;
+                hold: z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
                 set: z.ZodOptional<z.ZodObject<{
                     [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
                         z.ZodNumber,
@@ -8729,9 +8824,7 @@ declare function buildInputScriptSchemas(registry: Registry): {
                 for: z.ZodNumber;
             }, z.core.$strict>,
             z.ZodObject<{
-                hold: z.ZodArray<z.ZodEnum<{
-                    [x: string]: string;
-                }> | z.ZodNever>;
+                hold: z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
                 set: z.ZodOptional<z.ZodObject<{
                     [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
                         z.ZodNumber,
@@ -8742,9 +8835,7 @@ declare function buildInputScriptSchemas(registry: Registry): {
                 forMs: z.ZodNumber;
             }, z.core.$strict>,
             z.ZodObject<{
-                hold: z.ZodArray<z.ZodEnum<{
-                    [x: string]: string;
-                }> | z.ZodNever>;
+                hold: z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
                 set: z.ZodOptional<z.ZodObject<{
                     [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
                         z.ZodNumber,
@@ -8919,12 +9010,8 @@ declare function buildInputScriptSchemas(registry: Registry): {
             }, z.core.$strict>,
             z.ZodObject<{
                 press: z.ZodUnion<readonly [
-                    z.ZodEnum<{
-                        [x: string]: string;
-                    }> | z.ZodNever,
-                    z.ZodArray<z.ZodEnum<{
-                        [x: string]: string;
-                    }> | z.ZodNever>
+                    z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>,
+                    z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>
                 ]>;
             }, z.core.$strict>,
             z.ZodObject<{
@@ -8965,9 +9052,7 @@ declare function buildInputScriptSchemas(registry: Registry): {
             player: z.ZodNumber;
             steps: z.ZodArray<z.ZodUnion<readonly [
                 z.ZodObject<{
-                    hold: z.ZodArray<z.ZodEnum<{
-                        [x: string]: string;
-                    }> | z.ZodNever>;
+                    hold: z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
                     set: z.ZodOptional<z.ZodObject<{
                         [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
                             z.ZodNumber,
@@ -8978,9 +9063,7 @@ declare function buildInputScriptSchemas(registry: Registry): {
                     for: z.ZodNumber;
                 }, z.core.$strict>,
                 z.ZodObject<{
-                    hold: z.ZodArray<z.ZodEnum<{
-                        [x: string]: string;
-                    }> | z.ZodNever>;
+                    hold: z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
                     set: z.ZodOptional<z.ZodObject<{
                         [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
                             z.ZodNumber,
@@ -8991,9 +9074,7 @@ declare function buildInputScriptSchemas(registry: Registry): {
                     forMs: z.ZodNumber;
                 }, z.core.$strict>,
                 z.ZodObject<{
-                    hold: z.ZodArray<z.ZodEnum<{
-                        [x: string]: string;
-                    }> | z.ZodNever>;
+                    hold: z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
                     set: z.ZodOptional<z.ZodObject<{
                         [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
                             z.ZodNumber,
@@ -9168,12 +9249,8 @@ declare function buildInputScriptSchemas(registry: Registry): {
                 }, z.core.$strict>,
                 z.ZodObject<{
                     press: z.ZodUnion<readonly [
-                        z.ZodEnum<{
-                            [x: string]: string;
-                        }> | z.ZodNever,
-                        z.ZodArray<z.ZodEnum<{
-                            [x: string]: string;
-                        }> | z.ZodNever>
+                        z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>,
+                        z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>
                     ]>;
                 }, z.core.$strict>,
                 z.ZodObject<{
@@ -9223,9 +9300,7 @@ declare function buildInputScriptSchemas(registry: Registry): {
             elapse: z.ZodNumber;
         }, z.core.$strict>;
         holdFor: z.ZodObject<{
-            hold: z.ZodArray<z.ZodEnum<{
-                [x: string]: string;
-            }> | z.ZodNever>;
+            hold: z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
             set: z.ZodOptional<z.ZodObject<{
                 [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
                     z.ZodNumber,
@@ -9236,9 +9311,7 @@ declare function buildInputScriptSchemas(registry: Registry): {
             for: z.ZodNumber;
         }, z.core.$strict>;
         holdForMs: z.ZodObject<{
-            hold: z.ZodArray<z.ZodEnum<{
-                [x: string]: string;
-            }> | z.ZodNever>;
+            hold: z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
             set: z.ZodOptional<z.ZodObject<{
                 [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
                     z.ZodNumber,
@@ -9249,9 +9322,7 @@ declare function buildInputScriptSchemas(registry: Registry): {
             forMs: z.ZodNumber;
         }, z.core.$strict>;
         holdUntil: z.ZodObject<{
-            hold: z.ZodArray<z.ZodEnum<{
-                [x: string]: string;
-            }> | z.ZodNever>;
+            hold: z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
             set: z.ZodOptional<z.ZodObject<{
                 [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
                     z.ZodNumber,
@@ -9403,12 +9474,8 @@ declare function buildInputScriptSchemas(registry: Registry): {
         }, z.core.$strict>;
         press: z.ZodObject<{
             press: z.ZodUnion<readonly [
-                z.ZodEnum<{
-                    [x: string]: string;
-                }> | z.ZodNever,
-                z.ZodArray<z.ZodEnum<{
-                    [x: string]: string;
-                }> | z.ZodNever>
+                z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>,
+                z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>
             ]>;
         }, z.core.$strict>;
         setFor: z.ZodObject<{
@@ -9462,9 +9529,7 @@ declare function buildInputScriptSchemas(registry: Registry): {
         player: z.ZodNumber;
         steps: z.ZodArray<z.ZodUnion<readonly [
             z.ZodObject<{
-                hold: z.ZodArray<z.ZodEnum<{
-                    [x: string]: string;
-                }> | z.ZodNever>;
+                hold: z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
                 set: z.ZodOptional<z.ZodObject<{
                     [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
                         z.ZodNumber,
@@ -9475,9 +9540,7 @@ declare function buildInputScriptSchemas(registry: Registry): {
                 for: z.ZodNumber;
             }, z.core.$strict>,
             z.ZodObject<{
-                hold: z.ZodArray<z.ZodEnum<{
-                    [x: string]: string;
-                }> | z.ZodNever>;
+                hold: z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
                 set: z.ZodOptional<z.ZodObject<{
                     [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
                         z.ZodNumber,
@@ -9488,9 +9551,7 @@ declare function buildInputScriptSchemas(registry: Registry): {
                 forMs: z.ZodNumber;
             }, z.core.$strict>,
             z.ZodObject<{
-                hold: z.ZodArray<z.ZodEnum<{
-                    [x: string]: string;
-                }> | z.ZodNever>;
+                hold: z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
                 set: z.ZodOptional<z.ZodObject<{
                     [k: string]: z.ZodOptional<z.ZodNumber> | z.ZodOptional<z.ZodTuple<[
                         z.ZodNumber,
@@ -9665,12 +9726,8 @@ declare function buildInputScriptSchemas(registry: Registry): {
             }, z.core.$strict>,
             z.ZodObject<{
                 press: z.ZodUnion<readonly [
-                    z.ZodEnum<{
-                        [x: string]: string;
-                    }> | z.ZodNever,
-                    z.ZodArray<z.ZodEnum<{
-                        [x: string]: string;
-                    }> | z.ZodNever>
+                    z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>,
+                    z.ZodArray<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>
                 ]>;
             }, z.core.$strict>,
             z.ZodObject<{
@@ -9726,16 +9783,17 @@ declare function buildInputScriptSchemas(registry: Registry): {
     }, z.core.$strict>;
 };
 declare function inputScriptJsonSchema(registry: Registry): Record<string, unknown>;
-declare function inputScriptSchemaFor(registry: Registry): InputScriptSchemas["script"];
+declare function inputScriptSchemaFor(registry: Registry, players?: PlayersDef | null): InputScriptSchemas["script"];
 declare function inputScriptSchemaId(registry: Registry): string;
-declare function inputScriptSchemasFor(registry: Registry): InputScriptSchemas;
+declare function inputScriptSchemasFor(registry: Registry, players?: PlayersDef | null): InputScriptSchemas;
 declare function migrateInputScript(raw: unknown, registry: Registry): MigrateInputScriptResult;
-declare function parseInputScript<G = unknown>(input: unknown, registry: Registry): ParseInputScriptResult<G>;
+declare function parseInputScript<G = unknown>(input: unknown, registry: Registry, players?: PlayersDef | null): ParseInputScriptResult<G>;
+declare function scriptSeatLimit(registry: Registry, players?: PlayersDef | null): number;
 declare function scriptShapeIssues(script: {
     players?: unknown;
     steps?: unknown;
     tracks?: unknown;
-}, registry: Registry): ScriptIssue[];
+}, registry: Registry, players?: PlayersDef | null): ScriptIssue[];
 declare function worldPointSchema(): z.ZodTuple<[
     z.ZodNumber,
     z.ZodNumber
@@ -11218,6 +11276,7 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "asset-too-large",
     "import-failed",
     "quota-exceeded",
+    "project-id-taken",
     "binding-unknown",
     "player-unknown",
     "spawn-id-invalid",
@@ -11841,6 +11900,13 @@ declare function drawEntity(ctx: Pick<EngineContext, "registry" | "view">, type:
     z?: number;
 }, layer: ViewLayer, shape?: ShapeObj): void;
 
+## systems/data.ts
+type DataSystem<E extends RuntimeEntity = RuntimeEntity> = SceneSystem<E> & {
+    get(id: string): E | undefined;
+    list(): E[];
+};
+declare function createDataSystem<E extends RuntimeEntity = RuntimeEntity>(_ctx?: EngineContext, _type?: RegisteredType): DataSystem<E>;
+
 ## systems/decor.ts
 type DecorEntity = RuntimeEntity<{
     at: Pt;
@@ -11852,11 +11918,8 @@ type MarkerEntity = RuntimeEntity<{
     at: Pt;
     tags?: string[];
 }>;
-type MarkerSystem = SceneSystem<MarkerEntity> & {
-    get(id: string): MarkerEntity | undefined;
-    list(): MarkerEntity[];
-};
-declare function createMarkerSystem(_ctx: EngineContext, _type: RegisteredType): MarkerSystem;
+type MarkerSystem = DataSystem<MarkerEntity>;
+declare function createMarkerSystem(ctx: EngineContext, type: RegisteredType): MarkerSystem;
 
 ## systems/nav.ts
 type NavEntity = RuntimeEntity<{
@@ -12015,6 +12078,9 @@ type GameInput = {
         devices?: readonly ("key" | "pad" | "pointer")[];
         timeoutMs?: number;
     }) => Promise<Binding | null>;
+    onAction: (listener: (e: UiActionEvent) => void, opts?: {
+        actions?: readonly string[];
+    }) => () => void;
     players: () => readonly PlayerInfo[];
     rebind: (action: string, bindings: readonly Binding[], opts?: {
         player?: number;
@@ -12058,6 +12124,7 @@ type GameInstance = {
     preload: (scene: ExpandedScene | SceneDefinition, onProgress?: (p: LoadProgress) => void) => Promise<{
         failed: BundleEntry[];
     }>;
+    project: () => ProjectRuntimeView | null;
     recording: () => RunRecording | null;
     registry: Registry;
     reloadAssets: (update: {
@@ -12082,6 +12149,10 @@ type GameInstance = {
     step: (n?: number) => void;
     stop: () => void;
     unloadScene: () => void;
+    worldToClient: (p: Vec2) => {
+        x: number;
+        y: number;
+    };
     zoomAt: (screen: Vec2, factor: number) => void;
 };
 type GameMode = "edit" | "play";
@@ -12134,13 +12205,51 @@ type SimState = {
     paused: boolean;
     timeScale: number;
 };
+type UiActionEvent = {
+    action: string;
+    device: DeviceId;
+    down?: boolean;
+    kind: ActionKind;
+    player: number;
+    repeat?: boolean;
+    value?: number;
+    vector?: Vec2;
+};
 type Vec2 = {
     x: number;
     y: number;
 };
 
+## ui/bind.ts
+declare function bindText<T>(el: HTMLElement, ctx: UiContext, select: (s: GameStoreState) => T, format?: (v: T) => string): () => void;
+declare function bindToWorld(el: HTMLElement, ctx: UiContext, at: () => Vec2 | null): () => void;
+declare function watchView(ctx: UiContext, fn: () => void): () => void;
+
+## ui/layer.ts
+declare function createUiLayer(canvas: HTMLCanvasElement): {
+    destroy(): void;
+    root: HTMLElement;
+};
+declare function mountUi<G>(game: GameInstance, canvas: HTMLCanvasElement, mount: MountUi<G>): () => void;
+
+## ui/types.ts
+type MountUi<G = unknown> = (ctx: UiContext<G>) => UiHandle;
+type UiContext<G = unknown> = {
+    canvas: HTMLCanvasElement;
+    game: GameInstance;
+    reducedMotion: boolean;
+    root: HTMLElement;
+    settings: Readonly<Record<string, unknown>>;
+    slice(): G | null;
+    watch<T>(select: (s: GameStoreState) => T, fn: (value: T, prev: T | undefined) => void): () => void;
+};
+type UiHandle = {
+    cancel?(): boolean;
+    destroy(): void;
+};
+
 ## version.ts
-declare const ENGINE_VERSION = "0.11.0";
+declare const ENGINE_VERSION = "0.12.0";
 
 ## vite/apply-files.ts
 type FileApplyOptions = {

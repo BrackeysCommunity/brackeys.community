@@ -29,9 +29,7 @@ import type { PointerState } from "../../input/state";
 import type { SeatChange, TickInput } from "../../input/stream";
 import { DATA_TABLE_KIND, DATA_TABLE_VERSION } from "../../project/kinds/data-table";
 import { GAME_SETTINGS_KIND, GAME_SETTINGS_VERSION } from "../../project/kinds/game-settings";
-import { runtimeView, type ProjectRuntimeView } from "../../project/runtime-view";
-import type { AssetEntry, AssetId } from "../../project/types";
-import { projectView } from "../../project/view";
+import { heldProject, type HeldFile, type ProjectRuntimeView } from "../../project/runtime-view";
 import {
   createRunRecorder,
   emptyTick,
@@ -380,14 +378,6 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
   }
 }
 
-const probeEntry = (id: string, kind: string, path: string): AssetEntry => ({
-  key: id,
-  id,
-  kind,
-  path,
-  created: { at: 0, by: "probe" },
-});
-
 /**
  * The runtime view a probe's game reads, built the way a host builds one
  * from a project's docs: a game-settings doc and one data-table doc per
@@ -398,37 +388,31 @@ const probeEntry = (id: string, kind: string, path: string): AssetEntry => ({
 export function probeProjectView(probe: GenreProbe): ProjectRuntimeView | null {
   const project = probe.project;
   if (!project) return null;
-  const entries: AssetEntry[] = [];
-  const values = new Map<AssetId, unknown>();
+  const files: HeldFile[] = [];
   if (project.settings) {
-    entries.push(probeEntry("settings", GAME_SETTINGS_KIND, "game-settings.json"));
-    values.set("settings", {
-      kind: GAME_SETTINGS_KIND,
-      v: GAME_SETTINGS_VERSION,
-      game: project.settings,
+    files.push({
+      path: "game-settings.json",
+      json: { kind: GAME_SETTINGS_KIND, v: GAME_SETTINGS_VERSION, game: project.settings },
     });
   }
   const tables = Object.entries(project.tables ?? {});
   for (const [name, rows] of tables) {
     if (!probe.game.tables?.[name])
       throw new Error(`${probe.id}: its game declares no data table ${name}`);
-    const id = `table-${name}`;
-    entries.push(probeEntry(id, DATA_TABLE_KIND, `data/${name}.json`));
-    values.set(id, {
-      kind: DATA_TABLE_KIND,
-      v: DATA_TABLE_VERSION,
-      table: name,
-      rows: structuredClone(rows),
+    files.push({
+      path: `data/${name}.json`,
+      json: {
+        kind: DATA_TABLE_KIND,
+        v: DATA_TABLE_VERSION,
+        table: name,
+        rows: structuredClone(rows),
+      },
     });
   }
-  const view = projectView({
-    meta: { projectId: probe.id, layout: 1, name: probe.id },
-    assets: Object.fromEntries(entries.map((e) => [e.key, e])),
-    history: {},
-    code: {},
-    build: {},
+  const { runtime } = heldProject(files, createRegistry(probe.game as GameDefinition), {
+    projectId: probe.id,
+    name: probe.id,
   });
-  const runtime = runtimeView(view, values, createRegistry(probe.game as GameDefinition));
   for (const [name, rows] of tables)
     if (runtime.table(name).length !== rows.length)
       throw new Error(

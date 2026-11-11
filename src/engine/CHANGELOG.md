@@ -53,6 +53,14 @@ input-map reloads, and the remaining content in metres.
   `-bottom` and `-left` on an ancestor of the layer, and HUD panels offset
   by them. `UiHandle` and `UiActionEvent` are exported from `.` too. Found
   by the second game.
+- `UiHandle.cancel?()`: a mounted UI is offered Escape in play through
+  `GameInstance.cancel()`, after the game's attachment and newest UI first;
+  returning true (it cleared a selection) keeps editor Play running instead
+  of stopping it. Found by the second game.
+- `heldProject(files, registry, meta)` (with `HeldFile` and `HeldProject`)
+  in `@jams/engine/project`: the project view, kinds and runtime view a
+  host builds from files it holds in memory (a doc's JSON, a binary's
+  sidecar), keyed and identified as the scene CLI seeds one from disk.
 - `watchView(ctx, fn)` in `.`: calls `fn` now and whenever where the world
   shows on screen may have moved (a camera change, and the layer following
   a canvas resize), for HUD DOM sized or placed through `worldToClient`;
@@ -60,15 +68,13 @@ input-map reloads, and the remaining content in metres.
 - `createDataSystem` (and `DataSystem`) in `@jams/engine/game`: the system
   for a type whose entities are data a game reads, keeping the live ones by
   id in spawn order and simulating nothing; the marker primitive's system
-  is one. Found by the second game.
+  is one (`MarkerSystem` is now `DataSystem<MarkerEntity>`, and
+  `createMarkerSystem(ctx, type)` uses both arguments). Found by the second
+  game.
 - `sameCell`, `inCellBounds` and `boundsCells` (a `CellBounds`'s cells in
   cell-key order) in `@jams/engine/game`'s grid toolkit; the grid stepper,
   `findPath`'s bounds and `ctx.grid.passable` use them. Found by the second
   game.
-- A game's `spawnOrder` lists only its own types (and any primitives it
-  places): a bodied primitive it leaves out spawns before every listed
-  group, in primitive order, as `decor` and `nav` already spawned last. An
-  order that lists every type is unchanged. Found by the second game.
 - `SceneEditor` takes `ui` (a game's `MountUi`) and mounts it over its Play
   canvas while Play runs, unmounting it on Stop.
 - `ActionDef.ui?: true` marks a UI-only action; `Registry.uiActionNames`
@@ -148,6 +154,16 @@ input-map reloads, and the remaining content in metres.
 
 ### Changed
 
+- The project file's optional `ui` key names the game's `MountUi`; a host
+  (the site's room, `SceneEditor`'s Play) imports and mounts it over the
+  canvas. The CLI and headless runs never import it.
+- A game's `spawnOrder` may list only its own types (and any primitives it
+  places): a bodied primitive it leaves out spawns before every listed
+  group, in primitive order, as `decor` and `nav` already spawned last.
+  Before, leaving one out was refused (`spawnOrder misses type`), so every
+  game that registered before keeps its spawn order and Rapier handle
+  order; only an order that leaves a bodied primitive out, newly accepted,
+  spawns it first. Found by the second game.
 - `fuzz` explores a game that lists its commands and has no macro by
   sending one legal command per one-slot macro (every macro on a `turns`
   clock, half of them otherwise, the rest holding actions as before); the
@@ -161,7 +177,8 @@ input-map reloads, and the remaining content in metres.
   keep the values the instance started with until the next `createGame`.
 - A headless input script's pointer step now raises the actions bound to
   its buttons (the project input map's over the game's), as live play
-  does; `compileInputScript` takes the input map as a fifth argument.
+  does; `compileInputScript` takes the input map as a fifth argument and
+  its `CompiledScript` carries each seat's `pointerBindings`.
   `pointerHeld(hold, buttons, bound)` and `PointerBindings` in
   `@jams/engine/headless` give the actions a seat holds from its step's
   `hold` and its pointer buttons' bindings, combined as live play combines
@@ -172,6 +189,10 @@ input-map reloads, and the remaining content in metres.
   `keysProblems`.
 - `createRegistry` refuses a behavior `template` with an unknown field, a
   value its field refuses, or one its `refine` refuses.
+- `InputScriptSchemas` (from `@jams/engine/scene`): a step's action
+  schemas (`hold`, `press` and their lists) are typed `ZodType<string>`
+  instead of a `ZodEnum`, since the action schema now refuses a UI-only
+  action with its own message. Parsing a script is unchanged otherwise.
 
 ### Documented
 

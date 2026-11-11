@@ -1,10 +1,11 @@
 import type { Registry } from "../game/types";
+import { assetFileEntries, ownAssetId, type AssetFile } from "./asset-files";
 import { entryInfo, type AssetInfo } from "./asset-info";
 import { deepFreeze } from "./canonical";
 import type { ContentStore } from "./content-store";
-import { createKindRegistry } from "./kinds";
+import { createKindRegistry, type KindRegistry } from "./kinds";
 import { DATA_TABLE_KIND, rowSchemaOf, tableAssets } from "./kinds/data-table";
-import { isPlainObject } from "./kinds/define";
+import { byCodeUnit, isPlainObject } from "./kinds/define";
 import { GAME_SETTINGS_KIND, gameSettingsEntries, gameSettingsValues } from "./kinds/game-settings";
 import {
   INPUT_MAP_KIND,
@@ -12,8 +13,18 @@ import {
   usableInputMap,
   type InputMapFile,
 } from "./kinds/input-map";
+import type { AssetSidecar } from "./sidecar";
 import { jsonValues, pinnedDocs, snapshotView, type ProjectSnapshot } from "./snapshot";
-import type { AssetId, AssetKindName, ProjectView } from "./types";
+import type {
+  AssetEntry,
+  AssetId,
+  AssetKey,
+  AssetKindName,
+  AssetPath,
+  ProjectId,
+  ProjectView,
+} from "./types";
+import { projectView } from "./view";
 
 /** What game code reads of its project, as of load and frozen for the run. */
 export type ProjectRuntimeView = {
@@ -128,4 +139,69 @@ export async function snapshotRuntimeView(
   const { texts } = await pinnedDocs(snapshot, store, RUNTIME_VIEW_KINDS);
   const view = snapshotView(snapshot, createKindRegistry(registry.game));
   return runtimeView(view, jsonValues(texts), registry);
+}
+
+/** A project file as a host holds it in memory: a doc's parsed JSON, or a binary's sidecar alone. */
+export type HeldFile = {
+  /** Project-relative. */
+  path: AssetPath;
+  /** A doc's JSON; absent for a binary, whose sidecar carries its hash, size, import settings and meta. */
+  json?: unknown;
+  sidecar?: AssetSidecar | null;
+};
+
+/** A project read from held files: the view and kinds bundles are computed over, and what its game reads. */
+export type HeldProject = { view: ProjectView; kinds: KindRegistry; runtime: ProjectRuntimeView };
+
+/**
+ * The project `files` make, keyed and identified the way the scene CLI
+ * seeds one from disk: in path order, each file's kind detected from its
+ * path, JSON and sidecar, its id and key its sidecar's, else its own. A
+ * binary is read from its sidecar, so no blob is fetched; one whose sidecar
+ * has no hash, a doc without its JSON and a file of no kind are left out.
+ */
+export function heldProject(
+  files: readonly HeldFile[],
+  registry: Registry,
+  meta: { projectId: ProjectId; name: string },
+): HeldProject {
+  const kinds = createKindRegistry(registry.game);
+  const held: (AssetFile & { json: unknown })[] = [];
+  for (const { path, json, sidecar = null } of [...files].sort((a, b) =>
+    byCodeUnit(a.path, b.path),
+  )) {
+    const def = kinds.detect(path, json, sidecar?.assetKind);
+    if (!def) continue;
+    if (def.storage === "doc" ? json === undefined : sidecar?.sha256 === undefined) continue;
+    const id = sidecar?.id ?? ownAssetId(def, path, json);
+    if (id === null) continue;
+    held.push({ path, def, id, sidecar, blob: null, json });
+  }
+  const assets: Record<AssetKey, AssetEntry> = {};
+  const docs = new Map<AssetKey, unknown>();
+  for (const { file, key, entry } of assetFileEntries(held, { at: 0, by: "host" })) {
+    const { sidecar } = file;
+    if (file.def.storage === "blob" && sidecar) {
+      entry.sha256 = sidecar.sha256;
+      entry.bytes = sidecar.bytes;
+      if (sidecar.import && Object.keys(sidecar.import).length > 0)
+        entry.import = structuredClone(sidecar.import);
+      if (sidecar.meta) entry.meta = structuredClone(sidecar.meta);
+    } else docs.set(key, file.json);
+    assets[key] = entry;
+  }
+  const view = projectView(
+    {
+      meta: { projectId: meta.projectId, layout: 1, name: meta.name },
+      assets,
+      history: {},
+      code: {},
+      build: {},
+    },
+    kinds,
+  );
+  // Two files may take one id: each id reads the doc of the entry the view resolves it to.
+  const values = new Map<AssetId, unknown>();
+  for (const [id, entry] of view.byId) if (docs.has(entry.key)) values.set(id, docs.get(entry.key));
+  return { view, kinds, runtime: runtimeView(view, values, registry) };
 }

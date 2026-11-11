@@ -120,6 +120,23 @@ describe("level-1.json", () => {
     expect(expanded.entities.some((e) => e.type === "rough")).toBe(true);
   });
 
+  it("draws every wall and rough patch over the grass, tiled to its shape", async () => {
+    const { scene, prefabs } = await load();
+    const ground = expandScene(scene, registry, { prefabs }).entities.filter(
+      (e) => e.type === "solid" || e.type === "rough",
+    );
+    expect(ground.length).toBeGreaterThan(0);
+    for (const e of ground) {
+      const { hw, hh } = e.shape as { hw: number; hh: number };
+      expect(e.layer, e.id).toBe("decor");
+      expect((e.behaviors as { sprite?: unknown }).sprite, e.id).toEqual({
+        asset: e.type === "solid" ? "tile-wall" : `tile-${e.id}`,
+        size: [hw * 2, hh * 2],
+        tile: true,
+      });
+    }
+  });
+
   it("loads with no Rapier: blue to act on turn 1, every legal order listed", async () => {
     const loaded = await load();
     const report = runProbe<TacticsRunSnapshot>({
@@ -211,7 +228,7 @@ describe("the runtime", () => {
     expect(after).not.toBe(before);
     expect(after.log.filter((l) => l.startsWith("refused"))).toHaveLength(2);
     expect(after.units).toEqual(before.units);
-    expect(after.classes.archer).toEqual({ move: 2, range: [2, 3] });
+    expect(after.classes.archer).toEqual({ hp: 6, move: 2, range: [2, 3], sight: true });
     rt.destroy();
   });
 

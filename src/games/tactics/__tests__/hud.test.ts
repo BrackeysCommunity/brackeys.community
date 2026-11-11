@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { mountUi, type GameInstance, type GameStoreState, type UiActionEvent } from "@jams/engine";
-import type { Cell, GameCommand } from "@jams/engine/game";
+import { cellKey, type Cell, type GameCommand } from "@jams/engine/game";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { tacticsBoard, type TacticsSlice, type TacticsSnapshot, type UnitState } from "../types";
@@ -12,12 +12,15 @@ const BOARD = tacticsBoard(GRID);
 const ORIGIN = { x: 10, y: 20 };
 const PX = 48;
 
-function sliceOf(s: TacticsSnapshot, log: string[] = []): TacticsSlice {
+function sliceOf(s: TacticsSnapshot, log: string[] = [], grid = GRID): TacticsSlice {
   return {
     ...s,
-    grid: GRID,
+    grid,
     classes: Object.fromEntries(
-      Object.entries(CLASSES).map(([id, c]) => [id, { hp: c.hp, move: c.move, range: c.range }]),
+      Object.entries(CLASSES).map(([id, c]) => [
+        id,
+        { hp: c.hp, move: c.move, range: c.range, sight: c.sight },
+      ]),
     ),
     log,
   };
@@ -218,6 +221,49 @@ describe("the tactics HUD", () => {
 
     press(fake, "end-turn");
     expect(fake.sends.at(-1)).toEqual({ name: "end-turn" });
+  });
+
+  it("offers an archer no shot through a wall, as the rules refuse it", () => {
+    const walled = {
+      ...GRID,
+      walls: (
+        [
+          [5, 1],
+          [5, 2],
+          [5, 3],
+        ] as Cell[]
+      ).map((c) => cellKey(c)),
+    };
+    const fake = mount(
+      sliceOf(
+        snapshot({
+          "blue-2": unit("blue", "archer", [4, 2]),
+          "red-1": unit("red", "knight", [7, 2]),
+          "red-2": unit("red", "knight", [4, 5]),
+        }),
+        [],
+        walled,
+      ),
+    );
+    expect(cursorCell()).toBe("4,2");
+    press(fake, "confirm");
+    expect(hud().dataset.mode).toBe("selected");
+    expect(cellsOf("attack")).toContain("4,5");
+    expect(cellsOf("attack")).not.toContain("7,2");
+    expect(cellsOf("attack")).not.toContain("6,2");
+
+    for (let i = 0; i < 3; i++) step(fake, 1, 0);
+    expect(cursorCell()).toBe("7,2");
+    press(fake, "confirm");
+    press(fake, "confirm");
+    expect(fake.sends).toEqual([]);
+
+    for (let i = 0; i < 3; i++) step(fake, -1, 0);
+    for (let i = 0; i < 3; i++) step(fake, 0, 1);
+    expect(cursorCell()).toBe("4,5");
+    press(fake, "confirm");
+    press(fake, "confirm");
+    expect(fake.sends).toEqual([{ name: "attack", args: { unit: "blue-2", target: "red-2" } }]);
   });
 
   it("drives the same turn by pointer clicks at worldToClient cell centres", () => {

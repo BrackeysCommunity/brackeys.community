@@ -349,7 +349,7 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
         classes: Object.fromEntries(
           Object.entries(classes).map(([id, c]) => [
             id,
-            { hp: c.hp, move: c.move, range: c.range },
+            { hp: c.hp, move: c.move, range: c.range, sight: c.sight },
           ]),
         ),
         log,

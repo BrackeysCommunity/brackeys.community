@@ -1,0 +1,15 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "it06sjyii1up",
+  "id": "tile-marsh",
+  "sha256": "5f36cc9a426a2b1a0673d7e45fe3ea6903410e01c1e69cccd7832985fcb93fe8",
+  "bytes": 2463,
+  "import": { "filter": "nearest" },
+  "meta": { "format": "png", "height": 48, "width": 48 },
+  "licence": {
+    "spdx": "CC0-1.0",
+    "author": "The @jams/engine authors",
+    "source": "Generated for this repository by art/make-art.ts: a palette PNG written with stored zlib blocks."
+  }
+}

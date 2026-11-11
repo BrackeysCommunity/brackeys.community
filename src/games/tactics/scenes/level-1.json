@@ -12,10 +12,10 @@
     { "id": "red-archer", "prefab": "archer", "at": [10.5, 5.5], "params": { "side": "red" }, "overrides": { "unit.behaviors.sprite.flipX": true, "unit.behaviors.sprite.frame": "archer-red" } }
   ],
   "entities": [
-    { "id": "wall-north", "type": "solid", "shape": ["box", 5.5, 2.5, 0.5, 1.5] },
-    { "id": "wall-south", "type": "solid", "shape": ["box", 6.5, 6, 0.5, 1] },
-    { "id": "marsh", "type": "rough", "shape": ["box", 4, 5, 1, 1], "cost": 1 },
-    { "id": "thicket", "type": "rough", "shape": ["box", 8.5, 3, 0.5, 1], "cost": 2 },
+    { "id": "wall-north", "type": "solid", "layer": "decor", "shape": ["box", 5.5, 2.5, 0.5, 1.5], "behaviors": { "sprite": { "asset": "tile-wall", "size": [1, 3], "tile": true } } },
+    { "id": "wall-south", "type": "solid", "layer": "decor", "shape": ["box", 6.5, 6, 0.5, 1], "behaviors": { "sprite": { "asset": "tile-wall", "size": [1, 2], "tile": true } } },
+    { "id": "marsh", "type": "rough", "layer": "decor", "shape": ["box", 4, 5, 1, 1], "cost": 1, "behaviors": { "sprite": { "asset": "tile-marsh", "size": [2, 2], "tile": true } } },
+    { "id": "thicket", "type": "rough", "layer": "decor", "shape": ["box", 8.5, 3, 0.5, 1], "cost": 2, "behaviors": { "sprite": { "asset": "tile-thicket", "size": [1, 2], "tile": true } } },
     { "id": "about", "type": "note", "at": [0.5, 0.5], "text": "Level 1: blue (two knights and an archer, the player's side) against red (a knight and an archer) on a 12 x 8 board of 1 m cells. Two walls split the middle; the marsh costs one extra move per cell and the thicket two." },
     { "id": "ground", "type": "decor", "layer": "terrain", "at": [6, 4], "behaviors": { "sprite": { "asset": "tiles", "size": [12, 8], "tile": true } } }
   ]

@@ -4,7 +4,9 @@ export const CLS = {
   cells: "tactics-hud-cells",
   cell: "tactics-hud-cell",
   pulse: "tactics-hud-pulse",
+  head: "tactics-hud-head",
   banner: "tactics-hud-banner",
+  prompt: "tactics-hud-prompt",
   card: "tactics-hud-card",
   menu: "tactics-hud-menu",
   button: "tactics-hud-button",
@@ -36,9 +38,26 @@ const css = `
   margin-top: calc(var(--tactics-cell-h, 48px) * -0.5);
   pointer-events: none;
 }
-.${CLS.cell}-fog { z-index: 0; background: rgb(8 10 20 / 0.55); }
-.${CLS.cell}-reach { z-index: 1; background: rgb(90 160 255 / 0.32); border: 1px solid rgb(140 190 255 / 0.7); }
-.${CLS.cell}-attack { z-index: 2; background: rgb(255 90 80 / 0.22); border: 1px dashed rgb(255 130 120 / 0.8); }
+/* Fog is near-opaque, so what stands in it stays hidden, as the unit card does. */
+.${CLS.cell}-fog {
+  z-index: 0;
+  background:
+    repeating-linear-gradient(135deg, rgb(255 255 255 / 0.04) 0 2px, transparent 2px 8px),
+    rgb(12 14 26 / 0.97);
+}
+/* Reach and attack read by their edges and pattern, not their tint: a light fill keeps units' colours true over any ground. */
+.${CLS.cell}-reach {
+  z-index: 1;
+  background: rgb(60 130 255 / 0.22);
+  border: 3px solid #2f6cf0;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.75);
+}
+.${CLS.cell}-attack {
+  z-index: 2;
+  background: repeating-linear-gradient(45deg, rgb(230 40 30 / 0.6) 0 3px, transparent 3px 9px);
+  border: 3px solid #d8281e;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.75);
+}
 .${CLS.cell}-target { z-index: 3; border: 3px solid #ffd75e; }
 .${CLS.cell}-cursor { z-index: 4; border: 2px solid #ffffff; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6); }
 .${CLS.pulse} { animation: tactics-hud-pulse 1.2s ease-in-out infinite alternate; }
@@ -69,13 +88,30 @@ const css = `
   align-items: start;
 }
 .${CLS.side} { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
-.${CLS.banner} {
+.${CLS.head} {
   grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.${CLS.banner} {
   padding: 4px 12px;
   font-weight: 600;
   text-align: center;
   overflow-wrap: anywhere;
 }
+.${CLS.prompt} {
+  margin: 0;
+  padding: 2px 10px;
+  border-radius: 4px;
+  background: rgb(20 22 34 / 0.72);
+  font-size: 12px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.${CLS.prompt}[hidden] { display: none; }
 .${CLS.card} { min-width: 9rem; padding: 6px 10px; }
 .${CLS.card}[hidden] { display: none; }
 .${CLS.card} h2 { margin: 0 0 4px; font-size: 14px; }
@@ -112,6 +148,15 @@ const css = `
 .${CLS.button}:focus-visible { outline: 2px solid var(--tactics-focus); outline-offset: 1px; }
 .${CLS.button}[aria-pressed="true"] { background: rgb(90 160 255 / 0.4); }
 .${CLS.button}[aria-disabled="true"] { opacity: 0.45; cursor: default; }
+.${CLS.button}[data-key]::after {
+  content: attr(data-key);
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--tactics-edge);
+  border-radius: 3px;
+  font-size: 11px;
+  opacity: 0.75;
+}
 .${CLS.live} {
   position: absolute;
   width: 1px;

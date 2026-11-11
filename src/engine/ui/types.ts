@@ -25,8 +25,13 @@ export type UiContext<G = unknown> = {
   reducedMotion: boolean;
 };
 
-/** What a mounted UI hands back: `destroy` removes everything it added. */
-export type UiHandle = { destroy(): void };
+/**
+ * What a mounted UI hands back: `destroy` removes everything it added.
+ * `cancel` is offered Escape in play (`GameInstance.cancel`) after the
+ * game's own attachment; it returns true when it used it (cleared a
+ * selection), so play goes on instead of stopping.
+ */
+export type UiHandle = { destroy(): void; cancel?(): boolean };
 
 /** A game's DOM UI, named by the project file's `ui` key. */
 export type MountUi<G = unknown> = (ctx: UiContext<G>) => UiHandle;

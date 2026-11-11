@@ -122,6 +122,7 @@ import type {
   Vec2,
 } from "./types";
 import { DEFAULT_GAME_CONFIG } from "./types";
+import { cancelMountedUi } from "./ui/layer";
 
 /** The scene that is playing: its runtime, the view it draws into, and the game's tools on it. */
 type LoadedScene = {
@@ -149,6 +150,8 @@ export async function createGame(
 ): Promise<GameInstance> {
   const { project: initialProject = null, ...rest } = config;
   let project = initialProject;
+  /** This instance, once built; a mounted UI's cancel is found through it. */
+  let self: GameInstance | null = null;
   const cfg: GameConfig = { ...DEFAULT_GAME_CONFIG, ...rest };
   const { game } = cfg;
   // Resolved before any rendering, so a malformed game fails fast; every scene's runtime shares it.
@@ -1102,7 +1105,9 @@ export async function createGame(
   }
 
   function cancel(): boolean {
-    return getMode() === "play" && (loaded?.attachment?.onCancel?.() ?? false);
+    if (getMode() !== "play") return false;
+    if (loaded?.attachment?.onCancel?.()) return true;
+    return self !== null && cancelMountedUi(self);
   }
 
   function pointerWorld(): Vec2 | null {
@@ -1681,7 +1686,7 @@ export async function createGame(
 
   setPhase(store, "idle");
 
-  return {
+  self = {
     start,
     destroy,
     resize,
@@ -1723,6 +1728,7 @@ export async function createGame(
     frame,
     extractPixels: (world) => renderer.extractPixels(world),
   };
+  return self;
 }
 
 /**

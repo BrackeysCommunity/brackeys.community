@@ -25,10 +25,10 @@ vi.mock("../renderer", () => ({
   }),
 }));
 
-const UI_ACTIONS = ["cursor", "confirm"];
+const UI_ACTIONS = ["cursor", "confirm", "zoom"];
 const FRAME_MS = 1000 / 120;
 
-/** The test game plus a UI-only cursor (arrows, the d-pad) and confirm (Enter, the pad's south). */
+/** The test game plus a UI-only cursor (arrows, the d-pad), confirm (Enter, the pad's south) and zoom (Equal/Minus, the right stick's x). */
 function uiGame(time: TimeModel) {
   const delivered: number[] = [];
   const inputs: TickInput[] = [];
@@ -60,6 +60,17 @@ function uiGame(time: TimeModel) {
         bindings: [
           { device: "key", code: "Enter" },
           { device: "pad", button: "south" },
+        ],
+      },
+      {
+        action: "zoom",
+        kind: "axis",
+        ui: true,
+        description: "Zooms the view.",
+        bindings: [
+          { device: "key", code: "Equal", value: 1 },
+          { device: "key", code: "Minus", value: -1 },
+          { device: "pad", axis: "right-x" },
         ],
       },
     ],
@@ -126,6 +137,7 @@ async function makeGame(game: GameDefinition): Promise<GameInstance> {
 /** A standard pad behind a fake `navigator.getGamepads`, counting its reads. */
 function fakePad() {
   const pressed = Array.from({ length: 17 }, () => false);
+  const axes = [0, 0, 0, 0];
   const reads = { count: 0 };
   Object.defineProperty(navigator, "getGamepads", {
     configurable: true,
@@ -138,18 +150,20 @@ function fakePad() {
           mapping: "standard",
           connected: true,
           buttons: pressed.map((p) => ({ pressed: p, value: p ? 1 : 0 })),
-          axes: [0, 0, 0, 0],
+          axes: [...axes],
         },
       ];
     },
   });
   const button = (name: number, down: boolean) => void (pressed[name] = down);
-  return { button, reads };
+  const axis = (index: number, value: number) => void (axes[index] = value);
+  return { button, axis, reads };
 }
 
 const SOUTH = 0;
 const EAST = 1;
 const DPAD_DOWN = 13;
+const RIGHT_X = 2;
 
 const key = (code: string, type: "down" | "up" = "down", repeat = false): ToolEvent => ({
   kind: "key",
@@ -234,6 +248,46 @@ describe("input.onAction", () => {
     // Each frame delivers a pad edge once: holding it raises nothing more.
     frames(100);
     expect(seen).toHaveLength(before + 3);
+
+    expect(delivered).toEqual([]);
+    expect(game.getStore().state.tick).toBe(0);
+  });
+
+  it("delivers an axis's value changes from keys and a pad's stick from a turns game with no tick running", async () => {
+    const pad = fakePad();
+    const { game: def, delivered } = uiGame({ kind: "turns", rate: 30 });
+    const game = await makeGame(def);
+    game.start();
+    expect(game.play(yard()).ok).toBe(true);
+    const { seen } = listen(game, ["zoom"]);
+    frames(100);
+
+    game.router.dispatch(key("Equal"));
+    game.router.dispatch(key("Minus"));
+    game.router.dispatch(key("Equal", "up"));
+    game.router.dispatch(key("Minus", "up"));
+    const axis = { action: "zoom", kind: "axis", player: 0 };
+    expect(seen).toEqual([
+      expect.objectContaining({ ...axis, device: "keyboard", value: 1 }),
+      expect.objectContaining({ ...axis, device: "keyboard", value: 0 }),
+      expect.objectContaining({ ...axis, device: "keyboard", value: -1 }),
+      expect.objectContaining({ ...axis, device: "keyboard", value: 0 }),
+    ]);
+
+    const before = seen.length;
+    pad.axis(RIGHT_X, 1);
+    frames(FRAME_MS);
+    // Holding the stick still raises nothing more.
+    frames(100);
+    pad.axis(RIGHT_X, -1);
+    frames(FRAME_MS);
+    pad.axis(RIGHT_X, 0);
+    frames(FRAME_MS);
+    expect(seen.slice(before)).toEqual([
+      expect.objectContaining({ ...axis, device: "pad:0", value: 1 }),
+      expect.objectContaining({ ...axis, device: "pad:0", value: -1 }),
+      expect.objectContaining({ ...axis, device: "pad:0", value: 0 }),
+    ]);
 
     expect(delivered).toEqual([]);
     expect(game.getStore().state.tick).toBe(0);

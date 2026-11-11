@@ -4,6 +4,7 @@
     { "id": "valid", "kind": "valid", "physical": true },
     { "id": "settles", "kind": "reaches", "result": "script-end", "script": { "scene": "kitchen-sink", "steps": [{ "wait": 60 }], "v": 2 } },
     { "id": "fades", "kind": "reaches", "expect": { "count": { "eq": 1, "type": "decor" }, "exists": "lamp" }, "result": "script-end", "script": { "scene": "kitchen-sink", "steps": [{ "wait": 60 }], "v": 2 } },
-    { "id": "ball-in-zone", "kind": "touches", "atLeast": 4, "entity": "zone", "rollouts": 4, "skip": "needs a game whose props touch sensors; the engine's test game runs it", "ticks": 120 }
+    { "id": "ball-in-zone", "kind": "touches", "atLeast": 4, "entity": "zone", "rollouts": 4, "skip": "needs a game whose props touch sensors; the engine's test game runs it", "ticks": 120 },
+    { "id": "two-seats", "kind": "reaches", "result": "script-end", "script": { "players": 2, "tracks": [{ "player": 0, "steps": [{ "wait": 30 }] }, { "player": 1, "steps": [{ "wait": 60 }] }], "v": 2 } }
   ]
 }

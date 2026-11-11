@@ -4,7 +4,7 @@
  * seam. It reads the game's slice, drives the cursor from UI actions and
  * canvas clicks, and changes the game only by sending commands.
  */
-import type { UiActionEvent, UiContext, UiHandle } from "@jams/engine";
+import type { ActionBindings, UiActionEvent, UiContext, UiHandle } from "@jams/engine";
 import { cellKey, type Cell, type CellKey } from "@jams/engine/game";
 
 import type { TacticsSlice } from "../types";
@@ -32,12 +32,14 @@ export const HUD_ACTIONS = [
 ] as const;
 
 type MenuOrder = Order | "wait" | "end-turn";
-const MENU: readonly { order: MenuOrder; label: string }[] = [
-  { order: "move", label: "Move" },
-  { order: "attack", label: "Attack" },
-  { order: "wait", label: "Wait" },
-  { order: "end-turn", label: "End turn" },
-];
+/** `action` is the UI action that gives the same order, shown on the button as its key. */
+const MENU: readonly { order: MenuOrder; label: string; action?: (typeof HUD_ACTIONS)[number] }[] =
+  [
+    { order: "move", label: "Move" },
+    { order: "attack", label: "Attack" },
+    { order: "wait", label: "Wait", action: "wait" },
+    { order: "end-turn", label: "End turn", action: "end-turn" },
+  ];
 
 /** How many of the slice's log lines the HUD shows; the rest stay in the slice. */
 const LOG_SHOWN = 3;
@@ -54,10 +56,84 @@ export function bannerText(slice: TacticsSlice | null): string {
   return `Turn ${slice.turn} · Your orders`;
 }
 
+const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+const KEY_NAMES: Readonly<Record<string, string>> = {
+  Escape: "Esc",
+  Space: "Space",
+  Enter: "Enter",
+  ArrowUp: "↑",
+  ArrowDown: "↓",
+  ArrowLeft: "←",
+  ArrowRight: "→",
+};
+
+/** A `KeyboardEvent.code` as a key cap: KeyF is "F", Digit1 is "1", Escape is "Esc". */
+export function keyCap(code: string): string {
+  return KEY_NAMES[code] ?? code.replace(/^(Key|Digit|Numpad)/, "");
+}
+
+/** The first key bound to `action`, as a key cap; null when only pads or the pointer give it. */
+export function actionKey(bindings: ActionBindings, action: string): string | null {
+  for (const b of bindings[action] ?? []) if (b.device === "key") return keyCap(b.code);
+  return null;
+}
+
+/** What to do next in the player's words, from the cursor's mode; empty when it isn't the player's move. */
+export function promptText(
+  slice: TacticsSlice | null,
+  state: CursorState,
+  key: (action: string) => string | null,
+): string {
+  if (!slice || slice.result !== null || slice.side !== PLAYER_SIDE) return "";
+  const press = (action: string, what: string) => {
+    const k = key(action);
+    return k ? `${k} ${what}` : "";
+  };
+  const join = (...parts: string[]) => parts.filter(Boolean).join(" · ");
+  const cancel = press("cancel", "to cancel");
+  switch (state.mode) {
+    case "idle":
+      return join("Click a blue unit to give it orders", press("next-unit", "picks the next"));
+    case "selected":
+      if (state.order === "attack") return join("Click a target in red", cancel);
+      if (state.order === "move") return join("Click a blue cell to move there", cancel);
+      return join("Click a blue cell to move, or an enemy in red to attack", cancel);
+    case "target": {
+      const confirm = key("confirm");
+      const what = state.command?.name === "attack" ? "attack" : "move";
+      return join(`Click again${confirm ? ` or press ${confirm}` : ""} to ${what}`, cancel);
+    }
+    case "sent":
+      return "";
+  }
+}
+
+const SIDE_NAMES: Readonly<Record<string, string>> = { blue: "The blue side", red: "The red side" };
+
+/** A unit's name for an id the slice no longer holds: its instance id without the entity or a trailing number. */
+const nameFromId = (id: string) =>
+  titleCase((id.split("/")[0] ?? id).replace(/-\d+$/, "").replaceAll("-", " "));
+
+/**
+ * A rules log line in the player's words: unit ids become their names and
+ * a move's cell is dropped. A line it doesn't know stays as it is.
+ */
+export function playerLogLine(line: string, nameOf: (id: string) => string): string {
+  let m: RegExpMatchArray | null;
+  if ((m = line.match(/^(\S+) moves to -?\d+,-?\d+$/))) return `${nameOf(m[1]!)} moves`;
+  if ((m = line.match(/^(\S+) waits$/))) return `${nameOf(m[1]!)} waits`;
+  if ((m = line.match(/^(\S+) hits (\S+) for (\d+)( \(crit\))?$/)))
+    return `${nameOf(m[1]!)} hits ${nameOf(m[2]!)} for ${m[3]}${m[4] ? ", a critical hit" : ""}`;
+  if ((m = line.match(/^(\S+) falls$/))) return `${nameOf(m[1]!)} falls`;
+  if ((m = line.match(/^(\S+) ends the turn$/)) && SIDE_NAMES[m[1]!])
+    return `${SIDE_NAMES[m[1]!]} ends its turn`;
+  if ((m = line.match(/^(\S+) wins$/)) && SIDE_NAMES[m[1]!]) return `${SIDE_NAMES[m[1]!]} wins`;
+  return line;
+}
+
 const statusOf = (u: { moved: boolean; acted: boolean }) =>
   u.acted ? "Done" : u.moved ? "Moved" : "Ready";
-
-const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const rangeText = ([near, far]: readonly [number, number]) =>
   near === far ? String(near) : `${near}–${far}`;
@@ -90,9 +166,13 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
 
   const top = el("div", CLS.top);
   const side = el("div", CLS.side);
+  const head = el("div", CLS.head);
   const banner = el("div", CLS.banner);
   banner.setAttribute("role", "status");
   banner.setAttribute("aria-live", "polite");
+  const prompt = el("p", CLS.prompt);
+  prompt.hidden = true;
+  head.append(banner, prompt);
 
   const card = el("section", CLS.card);
   card.setAttribute("aria-label", "Selected unit");
@@ -104,18 +184,19 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
   log.hidden = true;
 
   side.append(card, log);
-  top.append(side, banner);
+  top.append(side, head);
   root.appendChild(top);
 
   const menu = el("div", CLS.menu);
   menu.setAttribute("role", "group");
   menu.setAttribute("aria-label", "Orders");
   const buttons = new Map<MenuOrder, HTMLButtonElement>();
-  for (const { order, label } of MENU) {
+  for (const { order, label, action } of MENU) {
     const button = el("button", CLS.button);
     button.type = "button";
     button.textContent = label;
     button.dataset.order = order;
+    if (action) button.dataset.action = action;
     button.addEventListener("click", () => {
       if (button.getAttribute("aria-disabled") === "true") return;
       dispatch({ type: "order", order });
@@ -139,6 +220,30 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
     const still = doc.activeElement as HTMLElement | null;
     if (still && menu.contains(still)) still.blur();
   }
+
+  // A host's input may not offer the bindings; the prompt then names no keys.
+  const bindings = (): ActionBindings =>
+    typeof ctx.game.input.bindings === "function" ? ctx.game.input.bindings(0) : {};
+
+  // Names by unit id, kept after a unit falls so the log can still name it.
+  const names = new Map<string, string>();
+  function learnNames(slice: TacticsSlice): void {
+    const fresh = new Map<string, string[]>();
+    for (const [id, u] of Object.entries(slice.units)) {
+      if (names.has(id)) continue;
+      const name = `${titleCase(u.side)} ${u.class}`;
+      fresh.set(name, [...(fresh.get(name) ?? []), id]);
+    }
+    for (const [name, ids] of fresh) {
+      const shared =
+        ids.length > 1 ||
+        Object.entries(slice.units).some(
+          ([other, u]) => !ids.includes(other) && `${titleCase(u.side)} ${u.class}` === name,
+        );
+      ids.sort().forEach((id, i) => names.set(id, shared ? `${name} ${i + 1}` : name));
+    }
+  }
+  const nameOf = (id: string) => names.get(id) ?? nameFromId(id);
 
   let view: BoardView | null = null;
   let state: CursorState = initialCursor();
@@ -185,7 +290,7 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
     card.hidden = false;
   }
 
-  function renderMenu(): void {
+  function renderMenu(keys: ActionBindings): void {
     const v = view;
     const open = v !== null && v.canOrder() && state.mode !== "sent";
     const unit = open && state.unit !== null && v.canAct(state.unit) ? state.unit : null;
@@ -197,6 +302,14 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
     };
     for (const [order, button] of buttons) {
       button.setAttribute("aria-disabled", String(!enabled[order]));
+      const key = button.dataset.action ? actionKey(keys, button.dataset.action) : null;
+      if (key) {
+        button.dataset.key = key;
+        button.setAttribute("aria-keyshortcuts", key === "Esc" ? "Escape" : key);
+      } else {
+        delete button.dataset.key;
+        button.removeAttribute("aria-keyshortcuts");
+      }
       if (order === "move" || order === "attack")
         button.setAttribute("aria-pressed", String(state.order === order));
     }
@@ -222,20 +335,26 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
   }
 
   function render(): void {
+    const keys = bindings();
     setText(banner, bannerText(view?.slice ?? null));
-    setText(live, view?.slice.log.at(-1) ?? "");
-    renderLog(view?.slice.log ?? []);
+    const next = promptText(view?.slice ?? null, state, (a) => actionKey(keys, a));
+    setText(prompt, next);
+    prompt.hidden = next === "";
+    const lines = (view?.slice.log ?? []).map((line) => playerLogLine(line, nameOf));
+    setText(live, lines.at(-1) ?? "");
+    renderLog(lines);
     cells.render(view ? highlightsFor(state, view) : EMPTY_HIGHLIGHTS, view);
     root.dataset.cursor = cellAttr(state.cell);
     root.dataset.mode = state.mode;
     renderCard();
-    renderMenu();
+    renderMenu(keys);
   }
 
   const unwatch = ctx.watch(
     (s) => s.game,
     () => {
       const slice = ctx.slice();
+      if (slice) learnNames(slice);
       view = slice ? boardView(slice) : null;
       if (view && !placed) {
         placed = true;
@@ -301,6 +420,12 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
   ctx.canvas.addEventListener("pointermove", onMove);
 
   return {
+    // Editor Play offers Escape here before stopping; a selection clears instead.
+    cancel() {
+      if (state.mode !== "selected" && state.mode !== "target") return false;
+      dispatch({ type: "cancel" });
+      return true;
+    },
     destroy() {
       offAction();
       ctx.canvas.removeEventListener("click", onClick);

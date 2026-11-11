@@ -390,18 +390,20 @@ describe("fuzz", () => {
     }, 30_000);
 
     it("leaves a button-only game's rollouts as they were", () => {
-      const digest = (r: FuzzReport) =>
-        createHash("sha256")
-          .update(JSON.stringify(withoutTiming(r)))
-          .digest("hex")
-          .slice(0, 16);
+      // configHash carries ENGINE_VERSION, so it is checked on its own and left out of the
+      // digest: a version bump must not look like a change in play.
+      const digest = (game: GameDefinition, r: FuzzReport) => {
+        const { configHash, ...rest } = withoutTiming(r);
+        expect(configHash).toBe(probeConfigHash(game));
+        return createHash("sha256").update(JSON.stringify(rest)).digest("hex").slice(0, 16);
+      };
       const opts = { seed: 5, rollouts: 8, ticks: 300 };
       const plain = { ...testGame, play: { ...testGame.play, macro: undefined } };
-      expect(digest(report(fuzz({ rapier, game: testGame, scene: yard, ...opts })))).toBe(
-        "3dac68035eac86e0",
+      expect(digest(testGame, report(fuzz({ rapier, game: testGame, scene: yard, ...opts })))).toBe(
+        "35dc41f4dd585433",
       );
-      expect(digest(report(fuzz({ rapier, game: plain, scene: yard, ...opts })))).toBe(
-        "0c67a5bd90196f76",
+      expect(digest(plain, report(fuzz({ rapier, game: plain, scene: yard, ...opts })))).toBe(
+        "ef5546abccf3bad6",
       );
 
       const a = Rng.from(9);

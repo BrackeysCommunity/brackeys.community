@@ -1,5 +1,6 @@
 import {
   browserRemapStore,
+  createAssetLoader,
   createGame,
   mountUi,
   selectDebugMode,
@@ -15,11 +16,9 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 
 import { CanvasShell, Island } from "@/components/canvas/shell/CanvasShell";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel } from "@/components/ui/typography";
 import { useFlag } from "@/lib/hooks/use-flag";
-import { toast } from "@/lib/toast";
 
 import { displayResolution, useDisplaySetting } from "./display-menu";
 import { EditorLoading } from "./editor-loading";
@@ -30,6 +29,7 @@ import {
   type HostedGame,
   type HostedGameModules,
 } from "./hosted-games";
+import { LoadFailed } from "./load-failed";
 import { GameSiteIsland } from "./site-island";
 
 const loadRapier = () => import("@dimforge/rapier2d");
@@ -52,40 +52,17 @@ type GameCanvasProps = {
 };
 
 export function GameCanvas({ roomId, gameId, edit = false, project, scene }: GameCanvasProps) {
-  if (edit && SiteSceneEditor) {
-    const editing = project ?? (gameId !== undefined && hostedGame(gameId) ? gameId : undefined);
+  const hosted = hostedGame(gameId ?? DEFAULT_GAME);
+  if (edit && SiteSceneEditor && (hosted || project !== undefined)) {
+    const editing = project ?? gameId;
     return (
       <Suspense fallback={<EditorLoading roomId={roomId} />}>
         <SiteSceneEditor roomId={roomId} project={editing} scene={scene} />
       </Suspense>
     );
   }
-  const hosted = hostedGame(gameId ?? DEFAULT_GAME);
   if (!hosted) return <NotFoundPage subject="Game" />;
   return <GameRoom key={hosted.id} roomId={roomId} hosted={hosted} />;
-}
-
-/** In place of a room's loading view once its code failed to load: what failed, why, and a retry. */
-export function LoadFailed({
-  title,
-  error,
-  onRetry,
-}: {
-  title: string;
-  error: string;
-  onRetry: () => void;
-}) {
-  return (
-    <div role="alert" className="absolute inset-0 flex items-center justify-center p-6">
-      <div className="flex max-w-md flex-col items-center gap-3 text-center">
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        <p className="text-xs break-words text-muted-foreground">{error}</p>
-        <Button size="sm" onClick={onRetry}>
-          Retry
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 /**
@@ -99,6 +76,14 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
   const load = useCallback(() => hosted.load(), [hosted]);
   const { value: modules, error: loadError, retry } = useLoaded<HostedGameModules>(load);
   const [game, setGame] = useState<GameInstance | null>(null);
+  const [start, setStart] = useState<{ attempt: number; error: string | null }>({
+    attempt: 0,
+    error: null,
+  });
+  const retryStart = useCallback(
+    () => setStart((s) => ({ attempt: s.attempt + 1, error: null })),
+    [],
+  );
   const displayMenu = useFlag("game-display-menu");
   const [display, setDisplay] = useDisplaySetting();
   const resolutionKey = JSON.stringify(displayMenu ? (displayResolution(display) ?? null) : null);
@@ -110,10 +95,11 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !modules) return;
-    const { game: definition, registry, scene, prefabs, project } = modules;
+    const { game: definition, registry, scene, prefabs, project, assets } = modules;
 
     let instance: GameInstance | null = null;
     let mounted = true;
+    const loader = assets ? createAssetLoader({ project: hosted.id, url: assets.url }) : null;
 
     async function init() {
       if (!canvas || !mounted) return;
@@ -144,6 +130,7 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
         prefabs,
         scene,
         project,
+        ...(assets && loader ? { assets: { loader, view: assets.view, kinds: assets.kinds } } : {}),
         ...(resolution ? { resolution } : {}),
       });
 
@@ -154,14 +141,14 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
 
       instance = created;
       setGame(created);
+      setStart((s) => (s.error === null ? s : { ...s, error: null }));
       created.start();
     }
 
     init().catch((error: unknown) => {
       if (!mounted) return;
-      toast.error(`${hosted.name} couldn't start`, {
-        description: error instanceof Error ? error.message : String(error),
-      });
+      const message = error instanceof Error ? error.message : String(error);
+      setStart((s) => ({ ...s, error: message }));
     });
 
     function handleResize() {
@@ -178,9 +165,10 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
         instance.destroy();
         instance = null;
       }
+      loader?.destroy();
       setGame(null);
     };
-  }, [modules, hosted, resolution]);
+  }, [modules, hosted, resolution, start.attempt]);
 
   const ui = modules?.ui ?? null;
   useEffect(() => {
@@ -197,14 +185,29 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
           display={displayMenu ? { value: display, onChange: setDisplay } : undefined}
         />
       }
-      status={game ? <GameHUD store={game.getStore()} /> : undefined}
+      status={
+        game ? (
+          <GameHUD
+            store={game.getStore()}
+            clocked={(modules?.game.time?.kind ?? "fixed") === "fixed"}
+          />
+        ) : undefined
+      }
     >
       <canvas
         ref={canvasRef}
         className="block h-full w-full bg-[#1a1a2e] outline-none"
         style={{ touchAction: "none" }}
       />
-      {modules ? null : loadError !== null ? (
+      {modules ? (
+        start.error !== null ? (
+          <LoadFailed
+            title={`${hosted.name} couldn't start`}
+            error={start.error}
+            onRetry={retryStart}
+          />
+        ) : null
+      ) : loadError !== null ? (
         <LoadFailed title={`${hosted.name} couldn't load`} error={loadError} onRetry={retry} />
       ) : (
         <div role="status" aria-label={`Loading ${hosted.name}`} className="absolute inset-0 p-6">
@@ -217,25 +220,32 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
 
 // ─── HUD overlay ─────────────────────────────────────────
 
-function GameHUD({ store }: { store: Store<GameStoreState> }) {
+/**
+ * The room's status: the frame rate for a game on a fixed clock (a turns or
+ * event game draws only when it wakes, so its rate says nothing), else the
+ * phase while it isn't running; in dev builds, the debug mode and its key.
+ * Nothing when there is nothing to say.
+ */
+function GameHUD({ store, clocked }: { store: Store<GameStoreState>; clocked: boolean }) {
   const phase = useStore(store, selectPhase);
   const fps = useStore(store, selectFPS);
   const debugMode = useStore(store, selectDebugMode);
+  const reading = phase !== "running" ? phase : clocked ? `${Math.round(fps)} FPS` : null;
+  if (reading === null && !import.meta.env.DEV) return null;
 
   return (
     <Island role="status" className="flex-col items-start gap-0.5 px-2.5 py-1.5 text-xs">
-      <span className="text-muted-foreground">
-        {phase === "running" ? `${Math.round(fps)} FPS` : phase}
-      </span>
+      {reading !== null && <span className="text-muted-foreground">{reading}</span>}
       {import.meta.env.DEV && debugMode !== "off" && (
         <MicroLabel as="span" className="text-cyan-400/70 uppercase">
           Debug: {debugMode}
         </MicroLabel>
       )}
-      <MicroLabel as="span" className="text-muted-foreground">
-        WASD / Arrow keys to move · Space to jump
-        {import.meta.env.DEV && " · F3 debug overlay"}
-      </MicroLabel>
+      {import.meta.env.DEV && (
+        <MicroLabel as="span" className="text-muted-foreground">
+          F3 debug overlay
+        </MicroLabel>
+      )}
     </Island>
   );
 }

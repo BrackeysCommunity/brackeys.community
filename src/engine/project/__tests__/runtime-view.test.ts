@@ -5,7 +5,7 @@ import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import { memoryContentStore } from "../content-store";
 import { INPUT_MAP_KIND, type InputMapFile } from "../kinds/input-map";
-import { RUNTIME_VIEW_KINDS, runtimeView, snapshotRuntimeView } from "../runtime-view";
+import { heldProject, RUNTIME_VIEW_KINDS, runtimeView, snapshotRuntimeView } from "../runtime-view";
 import { snapshotProject } from "../snapshot";
 import type { AssetEntry, AssetId } from "../types";
 import { projectView } from "../view";
@@ -109,5 +109,71 @@ describe("ProjectRuntimeView.inputMap", () => {
     const view = viewOf([entry("controls", INPUT_MAP_KIND, "input-map.json")]);
     const snapshot = await snapshotProject(view, new Map([["controls", text]]), {});
     expect((await snapshotRuntimeView(snapshot, store, registry)).inputMap).toEqual(MAP);
+  });
+});
+
+describe("heldProject", () => {
+  const meta = { projectId: "test", name: "Test" };
+  const png = {
+    kind: "asset-sidecar" as const,
+    v: 1 as const,
+    key: "k-crate",
+    id: "crate",
+    sha256: "c".repeat(64),
+    bytes: 12,
+    import: { filter: "nearest" },
+    meta: { format: "png", width: 16, height: 8 },
+  };
+
+  it("keys docs and binaries by their sidecars, reads binaries from them, and leaves out the rest", () => {
+    const { view, kinds, runtime } = heldProject(
+      [
+        {
+          path: "input-map.json",
+          json: MAP,
+          sidecar: { kind: "asset-sidecar", v: 1, key: "k-map", id: "controls" },
+        },
+        { path: "art/crate.png", sidecar: png },
+        {
+          path: "art/unhashed.png",
+          sidecar: { kind: "asset-sidecar", v: 1, key: "u", id: "unhashed" },
+        },
+        { path: "art/bare.png" },
+        { path: "notes.txt", json: "hi" },
+        { path: "game-settings.json" },
+      ],
+      registry,
+      meta,
+    );
+    expect([...view.byId.keys()].sort()).toEqual(["controls", "crate"]);
+    expect(view.byKey.get("k-crate")).toMatchObject({
+      kind: "texture",
+      path: "art/crate.png",
+      sha256: png.sha256,
+      bytes: 12,
+      import: { filter: "nearest" },
+      meta: png.meta,
+    });
+    expect(view.state.meta).toEqual({ projectId: "test", layout: 1, name: "Test" });
+    expect(kinds.get("texture")).toBeDefined();
+    expect(runtime.inputMap).toEqual(MAP);
+    expect(runtime.asset("crate")).toMatchObject({ size: [16, 8], filter: "nearest" });
+  });
+
+  it("reads files in path order whatever order they come in, a doc without a sidecar by its own id", () => {
+    const later = { ...structuredClone(MAP), deadzone: 0.5 };
+    const { view, runtime } = heldProject(
+      [
+        { path: "z/input-map.json", json: later },
+        { path: "a/input-map.json", json: MAP },
+      ],
+      registry,
+      meta,
+    );
+    expect(runtime.inputMap?.deadzone).toBe(0.2);
+    expect(view.byPath.get("a/input-map.json")?.id).toBe("input-map");
+    expect(view.byPath.get("z/input-map.json")?.key).not.toBe(
+      view.byPath.get("a/input-map.json")?.key,
+    );
   });
 });

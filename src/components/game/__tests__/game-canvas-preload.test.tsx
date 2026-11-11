@@ -37,12 +37,12 @@ const { Route } = (await import("@/routes/game/$roomId")) as unknown as {
   Route: { options: { validateSearch: (search: Record<string, unknown>) => { game?: string } } };
 };
 
-function fakeGame() {
+function fakeGame(state: { phase: string; fps: number } = { phase: "running", fps: 60 }) {
   return {
     start: vi.fn(),
     destroy: vi.fn(),
     resize: vi.fn(),
-    getStore: () => new Store({ phase: "running", fps: 60, debugMode: "off" }),
+    getStore: () => new Store({ ...state, debugMode: "off" }),
   };
 }
 
@@ -104,6 +104,52 @@ describe("GameCanvas", () => {
     expect(options).not.toHaveProperty("rapier");
   });
 
+  it("gives tactics a loader over its art, the view it draws from and its kinds", async () => {
+    const game = fakeGame();
+    fakes.createGame.mockResolvedValue(game);
+    const tactics = await hostedGame("tactics")!.load();
+    const { unmount } = render(<GameCanvas roomId="lobby-1" gameId="tactics" />);
+    await waitFor(() => expect(game.start).toHaveBeenCalledOnce());
+    const [, options] = fakes.createGame.mock.calls[0] as [
+      HTMLCanvasElement,
+      { assets: { loader: { load: unknown; destroy: unknown }; view: unknown; kinds: unknown } },
+    ];
+    expect(options.assets.view).toBe(tactics.assets!.view);
+    expect(options.assets.kinds).toBe(tactics.assets!.kinds);
+    expect(options.assets.loader.load).toBeTypeOf("function");
+    unmount();
+    expect(game.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("shows a turns game's phase but no frame rate, and no game's controls", async () => {
+    const game = fakeGame();
+    fakes.createGame.mockResolvedValue(game);
+    render(<GameCanvas roomId="lobby-1" gameId="tactics" />);
+    await waitFor(() => expect(game.start).toHaveBeenCalledOnce());
+    const status = await screen.findByRole("status");
+    expect(status.textContent).not.toMatch(/FPS/);
+    expect(status.textContent).not.toMatch(/WASD|jump/);
+    expect(status.textContent).toContain("F3 debug overlay");
+    cleanup();
+    const paused = fakeGame({ phase: "paused", fps: 0 });
+    fakes.createGame.mockResolvedValue(paused);
+    render(<GameCanvas roomId="lobby-1" gameId="tactics" />);
+    expect(await screen.findByText("paused")).toBeTruthy();
+  });
+
+  it("says the game couldn't start in place of the canvas, and starts it again on retry", async () => {
+    const game = fakeGame();
+    fakes.createGame.mockRejectedValueOnce(new Error("no WebGL")).mockResolvedValue(game);
+    render(<GameCanvas roomId="lobby-1" />);
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Platformer couldn't start");
+    expect(alert.textContent).toContain("no WebGL");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(game.start).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(fakes.createGame).toHaveBeenCalledTimes(2);
+  });
+
   it("says the hosted game failed to load in place of the skeleton, and retries", async () => {
     const game = fakeGame();
     fakes.createGame.mockResolvedValue(game);
@@ -146,9 +192,15 @@ describe("GameCanvas", () => {
     await screen.findByText("package editor");
     expect(fakes.editor.mock.lastCall![0]).toMatchObject({ project: "engine" });
     cleanup();
-    render(<GameCanvas roomId="lobby-1" gameId="no-such-game" edit />);
+    render(<GameCanvas roomId="lobby-1" gameId="no-such-game" edit project="engine" />);
     await screen.findByText("package editor");
-    expect(fakes.editor.mock.lastCall![0].project).toBeUndefined();
+    expect(fakes.editor.mock.lastCall![0]).toMatchObject({ project: "engine" });
+  });
+
+  it("renders the not-found page for ?edit=1 on a game the site doesn't host", () => {
+    render(<GameCanvas roomId="lobby-1" gameId="no-such-game" edit />);
+    expect(screen.getByText("not found: Game")).toBeTruthy();
+    expect(fakes.editor).not.toHaveBeenCalled();
   });
 
   it("renders the not-found page for a game the site doesn't host", () => {

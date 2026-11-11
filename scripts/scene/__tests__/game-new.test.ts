@@ -92,8 +92,28 @@ describe("game new writes a project that passes the repo's checks", () => {
     "lints clean",
     async () => {
       const ts = written.filter((f) => f.endsWith(".ts"));
-      const { stdout } = await vp("lint", "--deny-warnings", ...ts);
-      expect(stdout).toMatch(/0 warnings and 0 errors/);
+      expect(ts.length).toBeGreaterThanOrEqual(GAME_PRESETS.length * 9);
+      await expect(vp("lint", "--deny-warnings", ...ts)).resolves.toBeDefined();
+    },
+    SUBPROCESS_MS,
+  );
+
+  it(
+    "lint reads files where game new stages them (a planted warning fails it)",
+    async () => {
+      const source = written.find((f) => f.endsWith("index.ts"))!;
+      const canary = join(source, "..", "lint-canary.ts");
+      await writeFile(canary, `${await readFile(source, "utf8")}\ndebugger;\n`);
+      try {
+        const err = await vp("lint", "--deny-warnings", canary).then(
+          () => null,
+          (e: { stdout?: string; stderr?: string }) => e,
+        );
+        expect(err, "lint passed a file with a planted debugger statement").not.toBeNull();
+        expect(`${err?.stdout ?? ""}${err?.stderr ?? ""}`).toContain("lint-canary.ts");
+      } finally {
+        await rm(canary, { force: true });
+      }
     },
     SUBPROCESS_MS,
   );

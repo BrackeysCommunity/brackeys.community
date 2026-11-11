@@ -195,6 +195,87 @@ describe("hostedGamesFrom", () => {
     expect(project.inputMap?.deadzone).toBe(0.3);
   });
 
+  it("reads a binary from its sidecar and serves a texture at the build's URL", async () => {
+    const texture = {
+      kind: "asset-sidecar",
+      v: 1,
+      key: "k-board",
+      id: "board-art",
+      sha256: "a".repeat(64),
+      bytes: 10,
+      import: { filter: "nearest" },
+      meta: { format: "png", width: 32, height: 16 },
+    };
+    const sidecar = (value: unknown) => vi.fn(async () => ({ default: value }));
+    const { maps } = globs({
+      sidecars: {
+        "/src/games/board/art/board.png.asset.json": sidecar(texture),
+        "/src/games/board/art/gone.png.asset.json": sidecar({
+          ...texture,
+          key: "k-gone",
+          id: "gone",
+          sha256: "b".repeat(64),
+        }),
+        "/src/games/board/game-settings.json.asset.json": sidecar({
+          kind: "asset-sidecar",
+          v: 1,
+          id: "board-settings",
+        }),
+      },
+      urls: { "/src/games/board/art/board.png": "/assets/board-123.png" },
+    });
+    const [board] = hostedGamesFrom(maps, vi.fn());
+    const { project, assets } = await board!.load();
+    expect(assets).not.toBeNull();
+    const entry = assets!.view.byId.get("board-art")!;
+    expect(entry).toMatchObject({
+      kind: "texture",
+      path: "art/board.png",
+      import: { filter: "nearest" },
+    });
+    expect(
+      assets!.url("board", { id: "board-art", kind: "texture", sha256: entry.sha256!, bytes: 10 }),
+    ).toBe("/assets/board-123.png");
+    expect(assets!.view.byId.has("gone")).toBe(false);
+    expect(assets!.view.byId.get("board-settings")?.path).toBe("game-settings.json");
+    expect(assets!.kinds.get("texture")).toBeDefined();
+    expect(project.asset("board-art")).toMatchObject({ size: [32, 16], filter: "nearest" });
+    expect(project.settings).toEqual({ speed: 3 });
+  });
+
+  it("gives a project with no textures no assets to fetch", async () => {
+    const { maps } = globs();
+    const [board] = hostedGamesFrom(maps, vi.fn());
+    expect((await board!.load()).assets).toBeNull();
+  });
+
+  it("serves tactics' sprites and tiles, and reads its project as its golden pin does", async () => {
+    const { tacticsProjectView } = await import("@/games/tactics/__tests__/pins");
+    const { UNIT_CLASS_TABLE } = await import("@/games/tactics");
+    const { project, assets } = await hostedGame("tactics")!.load();
+    expect(assets).not.toBeNull();
+    const textures = [...assets!.view.byId.values()].filter((e) => e.kind === "texture");
+    expect(textures.map((e) => e.id)).toEqual(expect.arrayContaining(["units-texture", "tiles"]));
+    for (const e of textures) {
+      const url = assets!.url("tactics", {
+        id: e.id,
+        kind: e.kind,
+        sha256: e.sha256!,
+        bytes: e.bytes!,
+      });
+      expect(url, e.id).toMatch(/\.png(?:\?|$)/);
+    }
+    expect(project.asset("units", "knight-blue")).toMatchObject({ texture: "units-texture" });
+
+    const pinned = tacticsProjectView();
+    expect(pinned.settings).toEqual(project.settings);
+    expect(pinned.engine).toEqual(project.engine);
+    expect(pinned.inputMap).toEqual(project.inputMap);
+    expect(pinned.table(UNIT_CLASS_TABLE)).toEqual(project.table(UNIT_CLASS_TABLE));
+    for (const id of assets!.view.byId.keys())
+      expect(pinned.asset(id), id).toEqual(project.asset(id));
+  });
+
   it("finds the site's own games from the real globs, the platformer among them", () => {
     expect(hostedGames().map((g) => g.id)).toContain("platformer");
     expect(hostedGame("platformer")?.name).toBe("Platformer");

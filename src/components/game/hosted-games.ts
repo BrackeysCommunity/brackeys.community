@@ -1,4 +1,4 @@
-import type { MountUi } from "@jams/engine";
+import type { AssetUrl, MountUi } from "@jams/engine";
 import type { DebugLayerFactory } from "@jams/engine/debug";
 import {
   createRegistry,
@@ -6,7 +6,14 @@ import {
   type ProjectRuntimeView,
   type Registry,
 } from "@jams/engine/game";
-import { byCodeUnit, parseProjectFile, type AssetEntry } from "@jams/engine/project";
+import {
+  byCodeUnit,
+  parseProjectFile,
+  type AssetSidecar,
+  type HeldFile,
+  type KindRegistry,
+  type ProjectView,
+} from "@jams/engine/project";
 import {
   parsePrefab,
   parseSceneOrThrow,
@@ -26,8 +33,10 @@ export type HostedGameModules = {
   /** The project's first scene by path. */
   scene: SceneDefinition;
   prefabs: PrefabLibrary;
-  /** What its game code reads as `EngineContext.project`: its game settings, data tables and input map. */
+  /** What its game code reads as `EngineContext.project`: its game settings, data tables, input map and art. */
   project: ProjectRuntimeView;
+  /** Where its textures come from, for `createGame`'s `assets` with a loader over `url`; null when it has none to fetch. */
+  assets: { view: ProjectView; kinds: KindRegistry; url: AssetUrl } | null;
 };
 
 /** A project under `src/games/` the site plays: found from its `jams.project.json`, its code loaded on demand. */
@@ -56,6 +65,10 @@ export type HostedGameGlobs = {
   prefabs: Readonly<Record<string, Lazy>>;
   /** `/src/games/<dir>/game-settings.json`, `input-map.json` and `data/*.json`: the docs its project view reads. */
   docs?: Readonly<Record<string, Lazy>>;
+  /** `/src/games/<dir>/**\/*.asset.json`: the docs' ids, and each binary's hash, size and meta. */
+  sidecars?: Readonly<Record<string, Lazy>>;
+  /** `/src/games/<dir>/**\/*.png` and the other texture files, eager: each one's URL as the build serves it. */
+  urls?: Readonly<Record<string, string>>;
   /** `/src/games/<dir>/debug/index.ts`; empty outside dev builds. */
   debug?: Readonly<Record<string, Lazy>>;
 };
@@ -67,6 +80,11 @@ const PROJECT_FILE = /^\/src\/games\/([^/]+)\/jams\.project\.json$/;
 
 /** A scene file: one extension, since checks, input scripts, recordings and sidecars all add their own. */
 const SCENE_FILE = /\/scenes\/[^/.]+\.json$/;
+
+/** The files the `urls` glob holds: a texture held without its URL couldn't be fetched, so it's left out. */
+const TEXTURE_FILE = /\.(?:png|jpe?g|webp|gif)$/i;
+
+const SIDECAR = ".asset.json";
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
@@ -99,46 +117,53 @@ function once<T>(run: () => Promise<T>): () => Promise<T> {
   };
 }
 
+/** The JSON values of the entries of `map` under `root`, by path. */
+const valuesUnder = (map: Readonly<Record<string, Lazy>>, root: string) =>
+  Promise.all(under(map, root).map(async ([path, get]) => [path, jsonValue(await get())] as const));
+
 /**
- * The project view of the docs under `root`, read the way the scene CLI
- * reads a project's files: each game-settings, data-table and input-map doc
- * by the kind its header names, through `runtimeView`.
+ * The project under `root` as the scene CLI reads its files, through
+ * `heldProject`: its docs with their sidecars, and each binary by its
+ * sidecar, a texture's bytes at the URL the build serves it from.
  */
 async function projectRuntime(
   root: string,
   file: { id: string; name: string },
-  docs: Readonly<Record<string, Lazy>>,
+  globs: HostedGameGlobs,
   registry: Registry,
-): Promise<ProjectRuntimeView> {
-  const [{ projectView, runtimeView, RUNTIME_VIEW_KINDS }, raws] = await Promise.all([
+): Promise<Pick<HostedGameModules, "project" | "assets">> {
+  const [{ heldProject, parseSidecar }, docs, sidecars] = await Promise.all([
     import("@jams/engine/project"),
-    Promise.all(
-      under(docs, root).map(async ([path, get]) => [path, jsonValue(await get())] as const),
-    ),
+    valuesUnder(globs.docs ?? {}, root),
+    valuesUnder(globs.sidecars ?? {}, root),
   ]);
-  const assets: Record<string, AssetEntry> = {};
-  const values = new Map<string, unknown>();
-  raws.forEach(([path, raw], i) => {
-    const kind = isRecord(raw) ? raw.kind : undefined;
-    if (typeof kind !== "string" || !RUNTIME_VIEW_KINDS.includes(kind)) return;
-    const id = `doc-${i}`;
-    assets[id] = {
-      key: id,
-      id,
-      kind,
-      path: path.slice(root.length),
-      created: { at: 0, by: "site" },
-    };
-    values.set(id, raw);
+  const sidecarOf = new Map<string, AssetSidecar>();
+  for (const [path, raw] of sidecars) {
+    const parsed = parseSidecar(raw);
+    if (parsed.ok) sidecarOf.set(path.slice(0, -SIDECAR.length), parsed.sidecar);
+  }
+  const files: HeldFile[] = docs.map(([path, json]) => ({
+    path: path.slice(root.length),
+    json,
+    sidecar: sidecarOf.get(path) ?? null,
+  }));
+  const urls = new Map<string, string>();
+  for (const [path, sidecar] of sidecarOf) {
+    if (sidecar.sha256 === undefined) continue;
+    const url = globs.urls?.[path];
+    if (url === undefined && TEXTURE_FILE.test(path)) continue;
+    files.push({ path: path.slice(root.length), sidecar });
+    if (url !== undefined) urls.set(sidecar.sha256, url);
+  }
+  const { view, kinds, runtime } = heldProject(files, registry, {
+    projectId: file.id,
+    name: file.name,
   });
-  const view = projectView({
-    meta: { projectId: file.id, layout: 1, name: file.name },
-    assets,
-    history: {},
-    code: {},
-    build: {},
-  });
-  return runtimeView(view, values, registry);
+  const assets =
+    urls.size > 0
+      ? { view, kinds, url: ((_, entry) => urls.get(entry.sha256) ?? "") as AssetUrl }
+      : null;
+  return { project: runtime, assets };
 }
 
 function hostedFrom(
@@ -177,8 +202,8 @@ function hostedFrom(
         return parsed.ok ? [parsed.prefab] : [];
       }),
     );
-    const project = await projectRuntime(root, file, globs.docs ?? {}, registry);
-    return { game, registry, ui, scene, prefabs, project };
+    const { project, assets } = await projectRuntime(root, file, globs, registry);
+    return { game, registry, ui, scene, prefabs, project, assets };
   });
 
   const loadDebug = globs.debug?.[`${root}debug/index.ts`];
@@ -262,6 +287,11 @@ const SITE_GLOBS: HostedGameGlobs = {
     "/src/games/*/data/*.json",
     "!/src/games/*/data/*.asset.json",
   ]),
+  sidecars: import.meta.glob(["/src/games/*/**/*.asset.json", "!/src/games/*/**/__tests__/**"]),
+  urls: import.meta.glob(
+    ["/src/games/*/**/*.{png,jpg,jpeg,webp,gif}", "!/src/games/*/**/__tests__/**"],
+    { eager: true, query: "?url", import: "default" },
+  ),
   debug: import.meta.env.DEV ? import.meta.glob("/src/games/*/debug/index.ts") : {},
 };
 
