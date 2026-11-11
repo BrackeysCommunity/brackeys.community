@@ -567,6 +567,106 @@ describe("recording a session's TickInputs", () => {
     });
     expect(recorded[0]?.project).toEqual({ id: "yard", snapshot: "abc123" });
   });
+  /** The seat game, also noting the order and offsets of the actions each tick hands `beforeStep`. */
+  function orderGame(subTick: boolean) {
+    const { game: seatDef } = seatGame();
+    const seen: string[][] = [];
+    const game: GameDefinition = {
+      ...seatDef,
+      input: { ...seatDef.input, subTick },
+      createRuntime(ctx) {
+        const base = seatDef.createRuntime(ctx);
+        return {
+          ...base,
+          beforeStep(dtMs, actions, commands) {
+            if (actions.length > 0) {
+              seen.push(
+                actions.map((a) => `${ctx.tick}:${a.action}:${a.player ?? 0}:${a.offset ?? "-"}`),
+              );
+            }
+            base.beforeStep?.(dtMs, actions, commands);
+          },
+        };
+      },
+    };
+    return { game, seen };
+  }
+
+  async function ordered(subTick = false) {
+    fakePad();
+    const { game: def, seen } = orderGame(subTick);
+    const game = await editing(def);
+    const recorded: RunRecording[] = [];
+    game.on("play:recorded", (r) => recorded.push(r));
+    return { def, seen, game, recorded };
+  }
+
+  it("hands beforeStep a tick's actions seat by seat, live and on replay", async () => {
+    const { def, seen, game, recorded } = await ordered();
+    const doc = yard();
+    expect(game.play(doc)).toMatchObject({ ok: true });
+    code(game, "ArrowRight");
+    code(game, "KeyD");
+    game.step(2);
+    code(game, "KeyD", "up");
+    code(game, "ArrowRight", "up");
+    game.step(2);
+    game.stop();
+    const live = seen.splice(0);
+    expect(live).toEqual([
+      ["0:right:0:-", "0:right:1:-"],
+      ["2:right:0:-", "2:right:1:-"],
+    ]);
+
+    expect(game.replay(doc, recorded[0]!)).toMatchObject({ ok: true });
+    game.step(recorded[0]!.ticks);
+    expect(seen.splice(0)).toEqual(live);
+
+    const headless = replayRecording({ rapier, game: def, scene: doc, recording: recorded[0]! });
+    if (headless.blocked) throw new Error("replay blocked");
+    expect(headless.matches, headless.divergence ?? "").toBe(true);
+  });
+
+  it("stamps live actions with their sub-tick offsets, and replays them to the same offsets", async () => {
+    let now = 1000;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    onTestFinished(() => clock.mockRestore());
+    const { def, seen, game, recorded } = await ordered(true);
+    const doc = yard();
+    const tickMs = 1000 / 60;
+    const at = (c: string, type: "down" | "up", timeStamp: number) => {
+      const native = new KeyboardEvent(`key${type}`, { code: c });
+      Object.defineProperty(native, "timeStamp", { value: timeStamp });
+      game.router.dispatch({ kind: "key", type, key: c, code: c, native });
+    };
+    expect(game.play(doc)).toMatchObject({ ok: true });
+    // The tick that steps at `now` closes the window [now - tickMs, now].
+    now = 2000;
+    at("KeyD", "down", now - tickMs * 0.75);
+    at("ArrowRight", "down", now - tickMs * 0.25);
+    game.step(1);
+    now = 2100;
+    at("KeyD", "up", now - tickMs * 3);
+    at("ArrowRight", "up", now + 5);
+    game.step(2);
+    game.stop();
+    const live = seen.splice(0);
+    expect(live).toEqual([
+      ["0:right:0:0.25", "0:right:1:0.75"],
+      ["1:right:0:0", "1:right:1:0.999"],
+    ]);
+    const rec = recorded[0]!;
+    expect(rec.inputs[0]!.filter((e) => e[1] === "b").map((e) => e[0])).toEqual([0.25, 1]);
+    expect(rec.inputs[1]!.filter((e) => e[1] === "b").map((e) => e[0])).toEqual([0.75, 1.999]);
+
+    expect(game.replay(doc, rec)).toMatchObject({ ok: true });
+    game.step(rec.ticks);
+    expect(seen.splice(0)).toEqual(live);
+
+    const headless = replayRecording({ rapier, game: def, scene: doc, recording: rec });
+    if (headless.blocked) throw new Error("replay blocked");
+    expect(headless.matches, headless.divergence ?? "").toBe(true);
+  });
 });
 
 describe("browserArch", () => {

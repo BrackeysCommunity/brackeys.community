@@ -13,6 +13,7 @@ import {
   instanceParamsModel,
   instanceTransformModel,
   instanceZBatch,
+  lengthStep,
   modelBatch,
   modelOps,
   paramBatch,
@@ -649,14 +650,28 @@ describe("metric fields", () => {
       decimals: 2,
       scrub: true,
     });
-    expect(field(of(32), "reach").widget).toMatchObject({ step: 1 / 32, decimals: 5 });
+    expect(field(of(32), "reach").widget).toMatchObject({
+      step: 1 / 32,
+      bigStep: 10 / 32,
+      decimals: 5,
+    });
     expect(field(of(48), "reach").widget).toMatchObject({ step: 1 / 48, decimals: 6 });
-    expect(field(of(32), "at").widget).toMatchObject({ unit: "m", step: 1 / 32, decimals: 5 });
+    expect(field(of(32), "at").widget).toMatchObject({
+      unit: "m",
+      step: 1 / 32,
+      bigStep: 10 / 32,
+      decimals: 5,
+    });
+    expect(lengthStep("m", 32)).toEqual({ step: 1 / 32, bigStep: 10 / 32, decimals: 5 });
   });
 
   it("steps m/s and m/s² fields 0.01 at any px per metre", () => {
     for (const ppm of [undefined, 32]) {
-      expect(field(of(ppm), "pace").widget).toMatchObject({ step: 0.01, decimals: 2 });
+      expect(field(of(ppm), "pace").widget).toMatchObject({
+        step: 0.01,
+        bigStep: 0.1,
+        decimals: 2,
+      });
       expect(field(of(ppm), "pull").widget).toMatchObject({ step: 0.01, decimals: 2 });
     }
   });
@@ -917,6 +932,58 @@ describe("behavior sections", () => {
     const r = applyOps(doc, add, games);
     if (!r.ok) throw new Error(r.issue.message);
     expect(r.def.entities![0]!.behaviors).toMatchObject({ lifetime: { ticks: 60 } });
+  });
+
+  it("keeps the template under a type's own defaults, unless together they fail the refine", () => {
+    const fuses = createRegistry(
+      defineGame({
+        id: "fuses",
+        types: [
+          defineEntityType({
+            type: "fuse",
+            description: "Goes dark after a while.",
+            base: "marker",
+            fields: { at: pointField("Where it burns.") },
+            behaviors: { defaults: { lifetime: { then: "disable" } } },
+          }),
+          defineEntityType({
+            type: "flash",
+            description: "Gone in half a second.",
+            base: "marker",
+            fields: { at: pointField("Where it flashes.") },
+            behaviors: { defaults: { lifetime: { ms: 500 } } },
+          }),
+        ],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const scene: SceneDefinition = {
+      v: 2,
+      game: "fuses",
+      name: "f",
+      bounds: [0, 0, 100, 100],
+      entities: [
+        { id: "fuse", type: "fuse", at: [10, 10] },
+        { id: "flash", type: "flash", at: [20, 10] },
+      ],
+    };
+    const added = (ref: string) => {
+      const add = of(fuses, scene, ref).addBehaviors.find((o) => o.name === "lifetime")!.batch;
+      const r = applyOps(scene, add, fuses);
+      if (!r.ok) throw new Error(r.issue.message);
+      return add.ops[0];
+    };
+    expect(added("fuse")).toEqual({
+      op: "update",
+      ref: "fuse",
+      set: { "behaviors.lifetime": { ticks: 60 } },
+    });
+    expect(added("flash")).toEqual({
+      op: "update",
+      ref: "flash",
+      set: { "behaviors.lifetime": {} },
+    });
   });
 
   it("gives the engine's sprite a section of its fields, its asset a picker and its tint a colour", () => {

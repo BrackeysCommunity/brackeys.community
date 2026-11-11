@@ -5,7 +5,7 @@
     "physics": "rapier 0.19.3"
   },
   "scene": "engine-yard",
-  "sceneHash": "238da20663ee0563",
+  "sceneHash": "1c791dd717974310",
   "game": null,
   "configHash": "6854da35c096b892",
   "tickRate": 60,

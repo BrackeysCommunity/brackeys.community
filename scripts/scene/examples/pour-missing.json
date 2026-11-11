@@ -1,5 +1,5 @@
 {
-  "v": 1,
+  "v": 2,
   "scene": "basin",
   "steps": [{ "command": "pour", "args": { "prefab": "fountain-head" } }]
 }

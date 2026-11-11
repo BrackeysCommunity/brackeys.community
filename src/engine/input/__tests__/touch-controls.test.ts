@@ -112,6 +112,36 @@ describe("createTouchControls", () => {
     ]);
   });
 
+  it("a pressed button looks pressed until released", () => {
+    const { node } = setup();
+    const fire = node("fire");
+    const idle = { background: fire.style.background, transform: fire.style.transform };
+    touch(fire, "pointerdown", 2, 1000, 450);
+    expect(fire.dataset.active).toBe("true");
+    expect(fire.style.background).not.toBe(idle.background);
+    expect(fire.style.transform).not.toBe(idle.transform);
+    touch(window, "pointerup", 2, 1000, 450);
+    expect(fire.style.background).toBe(idle.background);
+    expect(fire.style.transform).toBe(idle.transform);
+  });
+
+  it("a held d-pad lights the arms of its direction", () => {
+    const { node } = setup();
+    const pad = node("pad");
+    const arms = [...pad.children] as HTMLElement[];
+    const idle = arms.map((arm) => arm.style.background);
+    // Arms run up, right, down, left.
+    const lit = () => arms.map((arm, i) => arm.style.background !== idle[i]);
+    touch(pad, "pointerdown", 3, 640, 160);
+    expect(lit()).toEqual([true, true, false, false]);
+    expect(pad.style.background).not.toBe(node("stick").style.background);
+    touch(window, "pointermove", 3, 560, 202);
+    expect(lit()).toEqual([false, false, false, true]);
+    touch(window, "pointerup", 3, 560, 202);
+    expect(arms.map((arm) => arm.style.background)).toEqual(idle);
+    expect(pad.style.background).toBe(node("stick").style.background);
+  });
+
   it("two touches drive two controls at once; a second touch on a held control is ignored", () => {
     const { seen, node } = setup();
     touch(node("stick"), "pointerdown", 1, 250, 450);

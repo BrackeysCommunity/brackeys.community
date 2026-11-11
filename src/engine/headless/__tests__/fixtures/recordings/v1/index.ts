@@ -1,12 +1,14 @@
 /**
- * Recordings in format v1, written once by the v1 recorder (engine 0.10.0's
- * `runPlaytest`) and frozen: nothing rewrites them, so they prove that a
- * recording made before the format changed still replays. The scenes they
- * were made on are frozen beside them under `scenes/`; the probes' scenes
- * are built in code by their probe modules.
+ * Recordings in format v1, written once by engine 0.10.0's `runPlaytest` (the
+ * last v1 recorder, in world px) and frozen: nothing rewrites them. They prove
+ * that a recording made before the format changed still migrates, parses and
+ * replays, and say how each replay turns out now that the world is in metres
+ * (`replays`). The v3 scenes they were made on are frozen beside them under
+ * `scenes/`; the probes' scenes are built in code by their probe modules, as
+ * they are now. A script holds world px, as 0.10.0 played it.
  *
- * `UPDATE_V1_RECORDINGS=1` on recording-v1-fixtures.test.ts writes a missing
- * one, and only while the recorder still writes v1; it never overwrites.
+ * Writing one takes a checkout of engine 0.10.0 with this directory copied
+ * in, running its `runPlaytest` over the fixture.
  */
 import { ENGINE_PARITY_SCRIPT } from "../../../../../__tests__/fixtures/parity-script";
 import type { InputEdge, InputScript } from "../../../../playtest-types";
@@ -36,6 +38,13 @@ export type V1Fixture = {
   /** The recording, relative to this directory. */
   file: string;
   source: V1Source;
+  /**
+   * How a replay on this engine turns out: every one is stale (its scene
+   * hash is the v3 document's). `matches` reproduces the recorded end state;
+   * `diverges` doesn't, because the simulation it ran changed with the move
+   * to metres.
+   */
+  replays: "matches" | "diverges";
   /** The script `runPlaytest` played to make it; a probe plays its own. */
   script?: InputScript;
   /** How it was made, and what it covers. */
@@ -75,6 +84,7 @@ const ENGINE_YARD = "scenes/engine-yard.json";
 export const V1_FIXTURES: readonly V1Fixture[] = [
   {
     file: "engine-yard.parity.recording.json",
+    replays: "diverges",
     source: { kind: "scene", scene: ENGINE_YARD, game: "test-game-unjudged" },
     script: edgeScript(
       ENGINE_PARITY_SCRIPT.inputs.map(([t, a, p]) => [t, a, p ? 1 : 0] as const),
@@ -84,18 +94,21 @@ export const V1_FIXTURES: readonly V1Fixture[] = [
   },
   {
     file: "engine-yard.settles.recording.json",
+    replays: "matches",
     source: { kind: "scene", scene: ENGINE_YARD, game: null },
     script: { scene: "engine-yard", steps: [{ wait: 60 }], v: 1 },
     made: "The `settles` script of engine-yard.checks.json, gameless on Rapier: sixty idle ticks to script-end.",
   },
   {
     file: "engine-yard.times-out.recording.json",
+    replays: "matches",
     source: { kind: "scene", scene: ENGINE_YARD, game: null },
     script: { maxTicks: 30, steps: [{ wait: 60 }], v: 1 },
     made: "The `times-out` script of engine-yard.checks.json, gameless on Rapier: maxTicks 30 cuts a 60-tick wait, ending as timeout.",
   },
   {
     file: "platformer.hop-left.recording.json",
+    replays: "diverges",
     source: { kind: "scene", scene: "scenes/test-yard.json", game: "platformer" },
     script: {
       v: 1,
@@ -111,15 +124,29 @@ export const V1_FIXTURES: readonly V1Fixture[] = [
         { wait: 30 },
       ],
     },
-    made: "The platformer on its test-yard (metric, scene v4) with scripts/scene/examples/hop-left.json on Rapier: runs left, hops and lands on a solid.",
+    made: "The platformer on its test-yard (scene v3, px) with scripts/scene/examples/hop-left.json on Rapier: runs left, hops and lands on a solid.",
+  },
+  {
+    file: "platformer.start-at.recording.json",
+    replays: "diverges",
+    source: { kind: "scene", scene: "scenes/test-yard.json", game: "platformer" },
+    script: {
+      v: 1,
+      scene: "test-yard",
+      at: [1100, 900],
+      steps: [{ hold: ["move_right"], for: 10 }, { wait: 50 }],
+    },
+    made: "The platformer on its test-yard (scene v3, px) started at a play start (1100, 900) px, above the floor between the spawn and a wall, on Rapier: drops, lands, steps right and stops, so `start.at` is recorded.",
   },
   {
     file: "turn-tactics.commands.recording.json",
+    replays: "diverges",
     source: { kind: "probe", probe: "turn-tactics" },
     made: "The turn-tactics genre probe's script (game commands driving a physics-free turns game on a hex grid; its `inspect` edges wake nothing until a command), default seed.",
   },
   {
     file: "roguelike.seed-1.recording.json",
+    replays: "matches",
     source: { kind: "probe", probe: "roguelike", seed: 1 },
     made: "The roguelike genre probe's script with seed 1 (its seed-1 variant): seeded room generation, prefabs placed by ctx.instantiate, a spawned explorer and a `descend` command, physics-free.",
   },

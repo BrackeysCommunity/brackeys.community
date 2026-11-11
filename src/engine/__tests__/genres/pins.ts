@@ -15,8 +15,8 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "gravity-sideways": "12df0b2a076791a9",
   },
   "point-and-click": {
-    default: "d9278d37a14e284e",
-    "gravity-sideways": "d9278d37a14e284e",
+    default: "c5ebb0dcd62a5eb9",
+    "gravity-sideways": "c5ebb0dcd62a5eb9",
   },
   "rhythm-tap": {
     default: "127621617ae3b5ea",

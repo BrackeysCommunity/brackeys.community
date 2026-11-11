@@ -243,10 +243,13 @@ export type PlaytestReport<S = unknown> = {
   steps: PlaytestStep[];
   /** The game's snapshot after the last tick; `null` without a game. */
   final: S | null;
-  /** The button edges actually played, `until` steps resolved; `stream` holds every seat's input. */
+  /**
+   * Seat 0's button edges actually played, `until` steps resolved, as v1 held them.
+   * @deprecated Read `stream`, which holds every seat's input.
+   */
   inputs: InputEdge[];
   /** Every seat's input and the system events, as a v2 recording holds them. */
-  stream?: RecordingStream;
+  stream: RecordingStream;
   /** The commands stepped, oldest first, stamped with the tick that stepped them. */
   commands: RecordingCommand[];
   /** Warnings and info the scene had; errors block instead. */

@@ -1,5 +1,5 @@
 {
-  "v": 1,
+  "v": 2,
   "scene": "corridor",
   "steps": [
     { "command": "walk", "args": { "to": [0, 4] } },

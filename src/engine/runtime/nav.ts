@@ -1,7 +1,7 @@
-import type { EngineContext } from "../game/types";
+import type { EngineContext, RegisteredType, Registry } from "../game/types";
 import { buildNavMesh, navContains, navNearest, navPath, type NavMesh } from "../nav/navmesh";
-import type { Pt } from "../scene/types";
-import { isNavSystem, type NavPolygon, type NavSystem } from "../systems/nav";
+import type { Pt, RuntimeEntity, ShapeObj } from "../scene/types";
+import { createNavSystem, isNavSystem, type NavPolygon, type NavSystem } from "../systems/nav";
 import type { Vec2 } from "../types";
 
 /** Navigation over the loaded scene's walk areas: present when it has some. */
@@ -23,6 +23,46 @@ function navSystems(ctx: EngineContext): NavSystem[] {
     if (isNavSystem(system)) out.push(system);
   }
   return out;
+}
+
+/**
+ * Whether `type` spawns into the engine's nav system: its own system is
+ * `createNavSystem`, or it has none and is the `nav` primitive or based on it.
+ * A game system that only implements the nav system's methods is found on a
+ * live runtime alone.
+ */
+export function isNavType(type: RegisteredType): boolean {
+  return type.system ? type.system === createNavSystem : (type.base ?? type.type) === "nav";
+}
+
+/**
+ * The walk areas and holes among `entities` (a loaded scene's, in spawn
+ * order) in the order `ctx.nav` reads them: type by type in the registry's
+ * spawn order, each type's polygons in entity order.
+ */
+export function navPolygonsOf(
+  entities: readonly RuntimeEntity[],
+  registry: Registry,
+): { areas: NavPolygon[]; holes: NavPolygon[] } {
+  const byType = new Map<string, RuntimeEntity[]>();
+  for (const e of entities) {
+    const list = byType.get(e.type);
+    if (list) list.push(e);
+    else byType.set(e.type, [e]);
+  }
+  const areas: NavPolygon[] = [];
+  const holes: NavPolygon[] = [];
+  for (const name of registry.spawnGroups.flat()) {
+    const list = byType.get(name);
+    const type = registry.types.get(name);
+    if (!list || !type || !isNavType(type)) continue;
+    for (const e of list) {
+      const shape = e.shape as ShapeObj | undefined;
+      if (shape?.type !== "poly") continue;
+      (e.mode === "block" ? holes : areas).push({ id: e.id, pts: shape.pts });
+    }
+  }
+  return { areas, holes };
 }
 
 function runtimeNavOver(mesh: NavMesh): RuntimeNav {

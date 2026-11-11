@@ -1,8 +1,9 @@
 import { readdirSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vite-plus/test";
+import { z } from "zod";
 
-import { createRegistry } from "../../game/define";
+import { createRegistry, defineGame } from "../../game/define";
 import { defaultSeed } from "../../runtime/seed";
 import { Rng } from "../../sim-kit/rng";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../agent-surface";
@@ -234,12 +235,56 @@ describe("the v1 → v2 migration", () => {
     expect(v2.sceneHash).toBe(v1.sceneHash);
     expect(v2.configHash).toBe(v1.configHash);
     expect(v2.ticks).toBe(v1.ticks);
-    expect(v2.outcome).toEqual(v1.outcome);
-    expect(v2.markers).toEqual(v1.markers);
-    expect(v2.trail).toEqual(v1.trail);
     expect(v2.end).toBe(v1.end);
     expect(v2.actions).toEqual(v1.actions);
     expect(v2).not.toHaveProperty("$schema");
+  });
+
+  it("moves v1's world px to metres at the default px per metre without a game", () => {
+    const v2 = ok(v1Full()).recording;
+    expect(v2.outcome).toEqual({ ...v1Full().outcome, at: [0.03, 0.04] });
+    expect(v2.markers).toEqual([{ ...v1Full().markers[0]!, at: [0.01, 0.01] }]);
+    expect(v2.trail).toEqual({
+      ...v1Full().trail!,
+      pts: [
+        [0, 0],
+        [0.01, 0],
+        [0.02, 0],
+      ],
+    });
+  });
+
+  it("scales by the game's px per metre, and its options and command args where their schemas hold lengths", () => {
+    const game = defineGame({
+      id: "tactics",
+      types: [],
+      actions: [{ action: "left", keys: ["a"], description: "Left." }],
+      world: { lengthUnit: 50 },
+      commands: {
+        move: {
+          description: "Move a unit.",
+          args: z.strictObject({
+            unit: z.string(),
+            to: z.tuple([z.number(), z.number()]).meta({ unit: "m" }),
+          }),
+        },
+        "end-turn": { description: "End the turn." },
+      },
+      play: {
+        options: z.strictObject({ mode: z.string(), reach: z.number().meta({ unit: "m" }) }),
+      },
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const v1 = { ...v1Full(), start: { at: [100, 50], game: { mode: "hard", reach: 25 } } };
+    const v2 = ok(v1, createRegistry(game)).recording;
+    expect(v2.start).toEqual({ at: [2, 1], game: { mode: "hard", reach: 0.5 } });
+    expect(v2.markers[0]!.at).toEqual([0.02, 0.02]);
+    expect(v2.inputs[0]!.find((e) => e[1] === "c" && e[2] === 2)).toEqual([
+      6,
+      "c",
+      2,
+      { unit: "a", to: [0.02, 0.04] },
+    ]);
   });
 
   it("writes physics `none` as null", () => {
@@ -250,7 +295,7 @@ describe("the v1 → v2 migration", () => {
   it("moves start.seed to seed and keeps the rest of the start", () => {
     const v2 = ok(v1Full()).recording;
     expect(v2.seed).toBe("daily-7");
-    expect(v2.start).toEqual({ at: [1.5, -2], timeOffsetMs: 250, game: { mode: "hard" } });
+    expect(v2.start).toEqual({ at: [0.015, -0.02], timeOffsetMs: 250, game: { mode: "hard" } });
     const bare = { ...v1Full(), start: {} };
     expect(ok(bare).recording.start).toEqual({});
   });

@@ -62,11 +62,29 @@ export type EncodeOptions = { subTick?: boolean };
  */
 export type DecodeOptions = { tickMs?: number; subTick?: boolean };
 
+const thousandthsOf = (offset: number): number =>
+  Math.min(
+    SUB_TICK - 1,
+    Math.max(0, Math.round((Number.isFinite(offset) ? offset : 0) * SUB_TICK)),
+  );
+
+/** An offset as a recording keeps it: thousandths of a tick, inside the tick. */
+export function qOffset(offset: number): number {
+  return thousandthsOf(offset) / SUB_TICK;
+}
+
+/**
+ * Where `timestamp` falls in the `tickMs` window starting at `startMs`, as a
+ * quantised offset: before the window is 0, after it the window's last thousandth.
+ */
+export function offsetIn(timestamp: number, startMs: number, tickMs: number): number {
+  return qOffset(tickMs > 0 ? (timestamp - startMs) / tickMs : 0);
+}
+
 /** `tick` plus `offset` as thousandths, kept inside the tick. */
 function stampOf(tick: number, offset: number | undefined, subTick: boolean): number {
   if (!subTick || offset === undefined || !Number.isFinite(offset)) return tick;
-  const thousandths = Math.min(SUB_TICK - 1, Math.max(0, Math.round(offset * SUB_TICK)));
-  return (tick * SUB_TICK + thousandths) / SUB_TICK;
+  return (tick * SUB_TICK + thousandthsOf(offset)) / SUB_TICK;
 }
 
 const seatOf = (player: number | undefined): number => player ?? 0;

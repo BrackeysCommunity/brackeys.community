@@ -753,7 +753,7 @@ describe("the input stream, every event kind", () => {
 describe("v1 recordings", () => {
   for (const fixture of V1_FIXTURES) {
     it(
-      `${fixture.file} migrates, replays as it ran, and its re-recording is a fresh v2`,
+      `${fixture.file} migrates, replays (${fixture.replays}), and its re-recording is a fresh v2`,
       async () => {
         const run = await v1Run(fixture, rapier);
         const raw = readV1Recording(fixture);
@@ -764,10 +764,11 @@ describe("v1 recordings", () => {
         const replay = replayRecording({ ...run, recording: raw });
         if (replay.blocked) throw new Error(`blocked: ${JSON.stringify(replay)}`);
         expect(replay.migratedFrom).toBe(1);
-        expect(replay.matches, replay.divergence ?? "").toBe(true);
-        expect(replay.stale).toBe(false);
+        // 0.10.0 recorded it on the v3 scene, whose hash the migrated scene never has.
+        expect(replay.stale).toBe(true);
+        expect(replay.matches, replay.divergence ?? "").toBe(fixture.replays === "matches");
         expect(replay.recording.v).toBe(2);
-        expect(replay.recording.end).toBe(parsed.recording.end);
+        if (fixture.replays === "matches") expect(replay.recording.end).toBe(parsed.recording.end);
 
         const again = replayRecording({ ...run, recording: replay.recording });
         if (again.blocked) throw new Error(`blocked: ${JSON.stringify(again)}`);

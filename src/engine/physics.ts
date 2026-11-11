@@ -29,6 +29,13 @@ export type PhysicsWorld = {
   addCollider: (desc: ColliderDesc, body?: RigidBody) => Collider;
   /** A character controller set up exactly as `opts` says; `SIDE_VIEW_CONTROLLER` and `TOP_DOWN_CONTROLLER` are presets. */
   createCharacterController: (opts: CharacterControllerOptions) => KinematicCharacterController;
+  /**
+   * Whether `controller`'s last `computeColliderMovement` ended on the ground.
+   * Rapier's `computedGrounded()` alone also counts ground within its
+   * prediction distance (about 5 cm at the metre unit) before contact; this
+   * also asks for a collision whose normal faces the controller's `up`.
+   */
+  isGrounded: (controller: KinematicCharacterController) => boolean;
   /** Remove a rigid body (and its attached colliders) */
   removeRigidBody: (body: RigidBody) => void;
   removeCollider: (collider: Collider) => void;
@@ -130,6 +137,17 @@ export function createPhysicsWorld(
     return controller;
   }
 
+  function isGrounded(controller: KinematicCharacterController): boolean {
+    if (!controller.computedGrounded()) return false;
+    const up = controller.up();
+    const count = controller.numComputedCollisions();
+    for (let i = 0; i < count; i++) {
+      const normal = controller.computedCollision(i)?.normal1;
+      if (normal && normal.x * up.x + normal.y * up.y > 0) return true;
+    }
+    return false;
+  }
+
   function removeRigidBody(body: RigidBody): void {
     world.removeRigidBody(body);
   }
@@ -160,6 +178,7 @@ export function createPhysicsWorld(
     addRigidBody,
     addCollider,
     createCharacterController,
+    isGrounded,
     removeRigidBody,
     removeCollider,
     debugRender,

@@ -97,10 +97,12 @@ const shapeFields = {
           action: z.string().describe("The game action it drives."),
           at: z
             .tuple([
-              fraction("x, a fraction of the canvas's width."),
-              fraction("y, a fraction of the canvas's height."),
+              fraction("x, a fraction of the canvas's shorter side from its left edge."),
+              fraction("y, a fraction of the canvas's shorter side from its top edge."),
             ])
-            .describe("Where its centre sits on the canvas."),
+            .describe(
+              "Where its centre sits, in fractions of the canvas's shorter side from its top-left corner.",
+            ),
           radius: z
             .number()
             .positive()

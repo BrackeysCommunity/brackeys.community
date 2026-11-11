@@ -2,8 +2,7 @@
  * What a replay of each frozen v1 recording needs: its game, registry,
  * scene, prefabs and Rapier, set up the way the recording was made.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { testGame } from "../../../../../__tests__/fixtures/test-game";
@@ -22,14 +21,6 @@ import type { V1Fixture } from "./index";
 
 export const V1_DIR = new URL("./", import.meta.url);
 
-/** Where each frozen scene was copied from when its first recording was written. */
-const SCENE_ORIGINS: Record<string, URL> = {
-  "scenes/engine-yard.json": new URL("../../../../../scenes/engine-yard.json", import.meta.url),
-  "scenes/test-yard.json": new URL(
-    "../../../../../../games/platformer/scenes/test-yard.json",
-    import.meta.url,
-  ),
-};
 const PLATFORMER_DIR = new URL("../../../../../../games/platformer/", import.meta.url);
 
 /** The options `runPlaytest` made a fixture with, and `replayRecording` replays it with. */
@@ -63,24 +54,8 @@ async function projectGame(dir: URL): Promise<GameDefinition> {
   return game;
 }
 
-/** A frozen scene's text; with `write`, a missing one is copied from where it came from. */
-function frozenScene(path: string, write: boolean): string {
-  const file = new URL(path, V1_DIR);
-  if (!existsSync(file)) {
-    const origin = SCENE_ORIGINS[path];
-    if (!write || !origin) throw new Error(`missing frozen scene ${path}`);
-    mkdirSync(dirname(fileURLToPath(file)), { recursive: true });
-    writeFileSync(file, readFileSync(origin, "utf8"));
-  }
-  return readFileSync(file, "utf8");
-}
-
-/** How `fixture` was played; `write` lets a missing frozen scene be copied in. */
-export async function v1Run(
-  fixture: V1Fixture,
-  rapier: RapierModule,
-  opts: { write?: boolean } = {},
-): Promise<V1Run> {
+/** How `fixture` was played, on the frozen v3 scene it was made on. */
+export async function v1Run(fixture: V1Fixture, rapier: RapierModule): Promise<V1Run> {
   const { source } = fixture;
   if (source.kind === "probe") {
     const probe = (source.probe === "roguelike" ? roguelike : turnTactics) as typeof roguelike;
@@ -106,7 +81,7 @@ export async function v1Run(
           : null;
   const loaded = await loadHeadless({
     registry: createRegistry(game),
-    files: { scene: frozenScene(source.scene, opts.write ?? false) },
+    files: { scene: readFileSync(new URL(source.scene, V1_DIR), "utf8") },
   });
   if (!fixture.script) throw new Error(`${fixture.file} names no script`);
   return {

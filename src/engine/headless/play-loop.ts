@@ -17,7 +17,7 @@ import {
 } from "../game/types";
 import { qAxis, qPointer, qVector } from "../input/quantize";
 import type { PointerState } from "../input/state";
-import { mergeTick, type TickInput } from "../input/stream";
+import { mergeTick, qOffset, type TickInput } from "../input/stream";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import { playWorld, preparePlay } from "../runtime/play-session";
 import { inputAction } from "../runtime/recorder";
@@ -414,10 +414,6 @@ function joinTicks(a: TickInput, b: TickInput): TickInput {
     joins: [...a.joins, ...b.joins],
   };
 }
-
-/** An offset as a recording keeps it: thousandths of a tick, inside the tick. */
-const qOffset = (offset: number): number =>
-  Math.min(999, Math.max(0, Math.round((Number.isFinite(offset) ? offset : 0) * 1000))) / 1000;
 
 /** An action as the runtime and a replay of it see it: values quantised, the offset kept only with `subTick`. */
 function settled(a: InputAction, tick: number, tickMs: number, subTick: boolean): InputAction {

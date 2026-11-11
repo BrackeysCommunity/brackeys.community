@@ -4,7 +4,6 @@ import {
   Cursor01Icon,
   CursorMove01Icon,
   CursorPointer01Icon,
-  GridIcon,
   Magnet01Icon,
   MoreHorizontalIcon,
   PenTool01Icon,
@@ -17,7 +16,6 @@ import {
 } from "@hugeicons/core-free-icons";
 import { useMemo, type ReactNode } from "react";
 
-import { formatMetres } from "../../editor/gizmos/readout";
 import {
   drawTypeOptions,
   ENGINE_TOOL_IDS,
@@ -56,8 +54,8 @@ import {
   type IconSvgElement,
 } from "../kit/index";
 import { useEditorStore } from "../session/use-editor-store";
-import { EDIT_LAYERS } from "./canvas-layer/edit-layers";
-import { useEditLayers } from "./canvas-layer/EditLayers";
+import { EDIT_LAYERS, unavailableLayers } from "./canvas-layer/edit-layers";
+import { useEditLayers, useExpandedScene } from "./canvas-layer/EditLayers";
 import { useHostValue } from "./canvas-layer/tool-host";
 
 const TOOL_ICONS: Record<EngineToolId, IconSvgElement> = {
@@ -195,10 +193,7 @@ function PickerMenu({
   );
 }
 
-/**
- * The grid step snapping uses, and the View layers drawn over the canvas:
- * the button shows the step's number, its label and menu the metres.
- */
+/** The grid step snapping uses, and the View layers drawn over the canvas. */
 function GridStep({
   session,
   host,
@@ -212,10 +207,9 @@ function GridStep({
 }) {
   return (
     <PickerMenu
-      text={formatMetres(snap.step, ppm)}
+      text={formatLength(snap.step, ppm)}
       label={`Grid step ${formatLength(snap.step, ppm)}`}
-      tooltip="Grid step, metres, and the View layers"
-      icon={GridIcon}
+      tooltip="Grid step and view layers"
     >
       <MenuGroup>
         <MenuLabel>Grid step</MenuLabel>
@@ -227,9 +221,14 @@ function GridStep({
   );
 }
 
-/** The edit overlay's View layers, each on or off for this viewer. */
+/**
+ * The edit overlay's View layers, each on or off for this viewer. A layer
+ * the scene gives nothing to draw says why, and can't be turned on.
+ */
 function ViewItems({ session }: { session: EditorSession }) {
   const [layers, setLayer] = useEditLayers(session);
+  const scene = useExpandedScene(session);
+  const missing = unavailableLayers(scene, session.registry);
   return (
     <MenuGroup>
       <MenuLabel>View</MenuLabel>
@@ -237,11 +236,12 @@ function ViewItems({ session }: { session: EditorSession }) {
         <MenuCheckboxItem
           key={id}
           checked={layers[id]}
+          disabled={missing[id] !== undefined && !layers[id]}
           onCheckedChange={(checked) => setLayer(id, checked)}
         >
           <span className="je-option-choice">
             {label}
-            <span className="je-option-choice-description">{description}</span>
+            <span className="je-option-choice-description">{missing[id] ?? description}</span>
           </span>
         </MenuCheckboxItem>
       ))}
@@ -355,9 +355,9 @@ const glyphs = (label: string) =>
   [...label].reduce((sum, ch) => sum + (ch === "." ? W.narrow : W.char), 0);
 
 const textWidth = (label: string) => W.textPad + Math.ceil(label.length * W.char);
-/** The grid step's button: its icon, the step's number, the chevron and the label's gaps. */
+/** The grid step's button: the step in metres, the chevron and the gap before it. */
 const stepWidth = (step: number, ppm: number) =>
-  W.textPad + 14 + 4 + Math.ceil(glyphs(formatMetres(step, ppm))) + 6 + 13;
+  W.textPad + Math.ceil(glyphs(formatLength(step, ppm))) + 6 + 13;
 /** A tool option's button at its longest choice, so picking another doesn't refit the dock. */
 const optionWidth = (option: OptionChoices) =>
   W.textPad + Math.ceil(Math.max(...option.choices.map((c) => c.label.length)) * W.char) + 6 + 13;
@@ -641,7 +641,6 @@ export function EditorToolbar({
           <Divider />
         </>
       ) : null}
-      <Divider />
       <IconButton
         icon={Undo02Icon}
         label="Undo"

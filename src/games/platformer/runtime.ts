@@ -198,16 +198,18 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
       ctx.system<PlayerSystem>(PLAYER_TYPE)?.syncPoses();
       const snap = snapshotOf(player);
       const at = snap.position;
-      if (snap.grounded) {
-        if (!prevGrounded || (snap.groundId !== undefined && snap.groundId !== prevGroundId)) {
+      // A landing names what it landed on: grounded with no ground entity changes nothing.
+      if (snap.grounded && snap.groundId !== undefined) {
+        if (!prevGrounded || snap.groundId !== prevGroundId) {
           ctx.emit({ type: "landed", entityId: snap.groundId, at });
         }
-        if (snap.groundId !== undefined) prevGroundId = snap.groundId;
-      } else if (prevGrounded) {
+        prevGroundId = snap.groundId;
+        prevGrounded = true;
+      } else if (!snap.grounded && prevGrounded) {
         ctx.emit({ type: "left-ground", entityId: prevGroundId, at });
         prevGroundId = undefined;
+        prevGrounded = false;
       }
-      prevGrounded = snap.grounded;
       if (!sameSnapshot(slice.player, snap)) slice = { player: snap };
     },
     snapshot() {

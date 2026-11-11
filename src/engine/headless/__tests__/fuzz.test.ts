@@ -15,6 +15,7 @@ import { Rng } from "../../sim-kit/rng";
 import type { InputAction, RapierModule } from "../../types";
 import { defaultFuzzMacro, fuzz } from "../fuzz";
 import { probeConfigHash } from "../headless";
+import { runPlaytest } from "../playtest";
 import type { FuzzOptions, FuzzReport, FuzzRun } from "../playtest-types";
 
 const registry = createRegistry(testGame);
@@ -395,10 +396,10 @@ describe("fuzz", () => {
       const opts = { seed: 5, rollouts: 8, ticks: 300 };
       const plain = { ...testGame, play: { ...testGame.play, macro: undefined } };
       expect(digest(report(fuzz({ rapier, game: testGame, scene: yard, ...opts })))).toBe(
-        "f195a9c283c297ea",
+        "3dac68035eac86e0",
       );
       expect(digest(report(fuzz({ rapier, game: plain, scene: yard, ...opts })))).toBe(
-        "4ce394498b84bc6a",
+        "0c67a5bd90196f76",
       );
 
       const a = Rng.from(9);
@@ -407,6 +408,84 @@ describe("fuzz", () => {
         expect(
           defaultFuzzMacro(a, ["left", "right"], { axes: [], vectors: [], pointer: null }),
         ).toEqual(defaultFuzzMacro(b, ["left", "right"]));
+      }
+    }, 30_000);
+
+    it("plays a button-only game's macros as a hold script would", () => {
+      const types = new Map(
+        (yard.entities ?? []).filter((e) => !isRuntimeId(e.id)).map((e) => [e.id, e.type]),
+      );
+      const ticksPerRollout = 300;
+
+      /** What fuzz should report when each rollout's macros play as a v1 script of holds. */
+      function asHoldScripts(
+        game: GameDefinition,
+        macro: (rng: Rng, names: readonly string[]) => Macro,
+      ) {
+        const root = Rng.from(5);
+        const touched = new Map<
+          string,
+          { reached: number; firstTick: number; firstRollout: number }
+        >();
+        const results: Record<string, number> = {};
+        let ticks = 0;
+        for (let rollout = 0; rollout < 8; rollout++) {
+          const rng = root.fork(`rollout:${rollout}`);
+          const steps: { hold: string[]; for: number }[] = [];
+          for (let total = 0; total <= ticksPerRollout; ) {
+            const m = macro(rng, registry.actionNames);
+            steps.push({ hold: [...new Set(m.hold)], for: m.ticks });
+            total += m.ticks;
+          }
+          const p = runPlaytest({
+            rapier,
+            game,
+            scene: yard,
+            script: { v: 1, maxTicks: ticksPerRollout, steps },
+            maxEvents: 100_000,
+          });
+          if (p.blocked) throw new Error(`blocked at ${p.stage}`);
+          results[p.outcome.result] = (results[p.outcome.result] ?? 0) + 1;
+          ticks += p.ticks;
+          const seen = new Set<string>();
+          for (const e of p.events) {
+            for (const id of [e.entityId, e.other]) {
+              if (id === undefined || isRuntimeId(id) || seen.has(id) || !types.has(id)) continue;
+              seen.add(id);
+              const t = touched.get(id);
+              if (!t) touched.set(id, { reached: 1, firstTick: e.tick, firstRollout: rollout });
+              else {
+                t.reached++;
+                if (e.tick < t.firstTick)
+                  Object.assign(t, { firstTick: e.tick, firstRollout: rollout });
+              }
+            }
+          }
+        }
+        return {
+          ticks,
+          results,
+          touched: [...touched]
+            .map(([ref, t]) => ({ ref, type: types.get(ref), ...t }))
+            .sort((a, b) => (a.ref < b.ref ? -1 : 1)),
+        };
+      }
+
+      const plain = { ...testGame, play: { ...testGame.play, macro: undefined } };
+      for (const [game, macro] of [
+        [testGame, (rng: Rng, names: readonly string[]) => testGame.play!.macro!(rng, names)],
+        [plain, (rng: Rng, names: readonly string[]) => defaultFuzzMacro(rng, names)],
+      ] as const) {
+        const want = asHoldScripts(game, macro);
+        const r = report(
+          fuzz({ rapier, game, scene: yard, seed: 5, rollouts: 8, ticks: ticksPerRollout }),
+        );
+        expect({
+          ticks: r.ticks,
+          results: Object.fromEntries(Object.entries(r.results).filter(([, n]) => n > 0)),
+          touched: r.touched,
+        }).toEqual(want);
+        expect(r.touched.length).toBeGreaterThan(0);
       }
     }, 30_000);
 

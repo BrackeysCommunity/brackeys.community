@@ -30,16 +30,17 @@ setDefaultTimeout(30_000);
 
 const quiet = { captureException() {}, capture() {}, async shutdown() {} };
 
+// At the current format: this side can't lift a seed naming a game past the step that needs its code.
 const SEED = JSON.stringify({
-  v: 1,
+  v: SCENE_FORMAT_VERSION,
   game: "test",
   name: "stored",
-  bounds: [0, 0, 640, 360],
+  bounds: [0, 0, 6.4, 3.6],
   solid: [
-    ["box", 0, 300, 320, 20],
-    ["box", 400, 200, 40, 10],
+    ["box", 0, 3, 3.2, 0.2],
+    ["box", 4, 2, 0.4, 0.1],
   ],
-  entities: [{ id: "spawn", type: "marker", at: [10, 280] }],
+  entities: [{ id: "spawn", type: "marker", at: [0.1, 2.8] }],
 });
 
 function keysOf(state: Uint8Array | null): string[] {

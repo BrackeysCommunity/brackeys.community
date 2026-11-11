@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 
+import { EMPTY_SCENE_TEMPLATE } from "../../../src/engine/scene/create.ts";
 import { syncEnvPrefix } from "../../../src/lib/canvas/sync-channels.ts";
 import { startServer, type SyncServer } from "../src/index.ts";
 import { createRedisExtension, redisChannels } from "../src/redis.ts";
@@ -106,7 +107,7 @@ describe("seeding a brand-new hosted scene", () => {
       v: SCENE_FORMAT_VERSION,
       game: "platformer",
       name: sceneId.split(".")[1],
-      bounds: [0, 0, 1920, 1080],
+      bounds: EMPTY_SCENE_TEMPLATE.bounds,
     });
     expect(a.entities.size).toBe(0);
   });

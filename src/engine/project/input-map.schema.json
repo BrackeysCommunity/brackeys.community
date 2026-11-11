@@ -103,14 +103,14 @@
             "prefixItems": [
               {
                 "type": "number",
-                "description": "x, a fraction of the canvas's width."
+                "description": "x, a fraction of the canvas's shorter side from its left edge."
               },
               {
                 "type": "number",
-                "description": "y, a fraction of the canvas's height."
+                "description": "y, a fraction of the canvas's shorter side from its top edge."
               }
             ],
-            "description": "Where its centre sits on the canvas."
+            "description": "Where its centre sits, in fractions of the canvas's shorter side from its top-left corner."
           },
           "radius": {
             "type": "number",

@@ -191,7 +191,7 @@ describe("file batches and blocked paths", () => {
   const agent = { kind: "agent", agentId: "cli" } as const;
   const apply = (ops: ProjectOp[], dryRun = false) =>
     applyProjectBatchToFiles(copy.project, { v: 1, ops }, { origin: agent, dryRun });
-  const rubber = { kind: "material", v: 1, description: "Bouncy." };
+  const rubber = { kind: "material", v: 2, description: "Bouncy." };
 
   it("refuses a create blocked by a file the scan doesn't list, dry run or not, and writes nothing", async () => {
     await put("stuff", "a file");

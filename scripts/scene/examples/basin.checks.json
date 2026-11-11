@@ -1,5 +1,5 @@
 {
-  "v": 1,
+  "v": 3,
   "checks": [
     {
       "id": "runs-dry",

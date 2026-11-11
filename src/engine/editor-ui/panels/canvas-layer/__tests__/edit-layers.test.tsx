@@ -6,12 +6,14 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../../../collab/index";
 import { createEditorSession, type EditorSession } from "../../../../editor/index";
-import { createRegistry, defineGame } from "../../../../game/index";
+import { createRegistry, defineEntityType, defineGame } from "../../../../game/index";
+import { primitiveFields } from "../../../../game/primitives";
 import type { Registry } from "../../../../game/types";
 import { gridGeometry, type Cell } from "../../../../grid/geometry";
 import type { GameStoreState } from "../../../../index";
 import { buildNavMesh } from "../../../../nav/navmesh";
 import { sceneGrid } from "../../../../runtime/grid";
+import { createSceneRuntime } from "../../../../runtime/runtime";
 import { expandScene } from "../../../../scene/expand";
 import { SCENE_GRID_MAX_CELLS } from "../../../../scene/render-geometry";
 import type { GridSettings, Pt, SceneDefinition, ShapeObj } from "../../../../scene/types";
@@ -24,10 +26,11 @@ import {
   navLayer,
   NO_EDIT_LAYERS,
   parseEditLayers,
+  unavailableLayers,
   viewViewport,
   wallCells,
 } from "../edit-layers";
-import { EDIT_LAYERS_KEY } from "../EditLayers";
+import { EDIT_LAYERS_KEY, useExpandedScene } from "../EditLayers";
 import { polylinePath, viewOf, type View } from "../view";
 
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
@@ -316,5 +319,174 @@ describe("the edit overlay's layers", () => {
     expect(after.split("Z").length).toBeLessThan(before.split("Z").length);
     expect(layer("grid")).toBeNull();
     expect(layer("nav")).toBeNull();
+  });
+});
+
+describe("the edit overlay's layers against the snapping step and the runtime", () => {
+  it("draws the snapping step's lines without a scene grid", () => {
+    const registry = createRegistry();
+    const scene = expanded(registry, yard(null));
+    const plan = gridLayerPlan(scene, viewAt(100), 0.25)!;
+    const xs = [...plan.minor, ...plan.major]
+      .filter(([x1, , x2]) => x1 === x2)
+      .map(([x]) => x)
+      .sort((a, b) => a - b);
+    const gaps = new Set(xs.slice(1).map((x, i) => Math.round((x - xs[i]!) * 1000) / 1000));
+    expect([...gaps]).toEqual([0.25]);
+    expect(plan.major.some(([x1, , x2]) => x1 === x2 && x1 === 2.5)).toBe(true);
+    // A scene grid wins over the step.
+    const gridded = gridLayerPlan(expanded(registry), viewAt(100), 0.25)!;
+    expect(gridded.key).toBe(gridLayerPlan(expanded(registry), viewAt(100))!.key);
+  });
+
+  it("picks and orders the nav polygons as ctx.nav does, by type in spawn order", () => {
+    const ward = defineEntityType({
+      type: "ward",
+      description: "A named walk area.",
+      base: "nav",
+      fields: (env) => primitiveFields("nav", env),
+    });
+    const base = defineGame({
+      id: "wards",
+      types: [ward],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const others = createRegistry(base)
+      .spawnGroups.flat()
+      .filter((t) => t !== "ward" && t !== "nav");
+    const game = defineGame({ ...base, spawnOrder: [...others, ["nav", "ward"]] });
+    const registry = createRegistry(game);
+    const def = {
+      v: 4,
+      game: "wards",
+      name: "ward-yard",
+      bounds: [0, 0, 20, 12],
+      settings: { physics: "none", gravity: [0, 0] },
+      entities: [
+        { id: "east", type: "ward", shape: poly(9, 1, 15, 1, 15, 5, 9, 5) },
+        { id: "west", type: "nav", shape: poly(1, 1, 9, 1, 9, 5, 1, 5) },
+        { id: "closed", type: "nav", off: true, shape: poly(1, 6, 5, 6, 5, 9) },
+        { id: "south", type: "ward", shape: poly(1, 5, 15, 5, 15, 9, 1, 9) },
+      ],
+    } as SceneDefinition;
+    const scene = expandScene(def, registry);
+    const nav = navLayer(scene, registry);
+    expect(nav.areas.map((pts) => pts[0])).toEqual([
+      [1, 1],
+      [9, 1],
+      [1, 5],
+    ]);
+    const rt = createSceneRuntime({ rapier: null, view: null, game });
+    expect(rt.load(scene)).toMatchObject({ ok: true });
+    expect(nav.triangles).toEqual(rt.ctx.nav!.mesh.triangles);
+    rt.destroy();
+  });
+
+  it("says why a layer has nothing to draw", () => {
+    const registry = createRegistry();
+    expect(unavailableLayers(expanded(registry), registry)).toEqual({});
+    const bare = { ...yard(null), entities: [] } as SceneDefinition;
+    expect(unavailableLayers(expanded(registry, bare), registry)).toEqual({
+      occupancy: "Needs settings.grid",
+      nav: "No nav areas",
+    });
+  });
+});
+
+describe("the edit overlay's notes and its one expansion", () => {
+  it("notes a layer the scene gives nothing to draw", () => {
+    const storage = memoryStorage({
+      [EDIT_LAYERS_KEY]: JSON.stringify({ occupancy: true, nav: true }),
+    });
+    const registry = createRegistry();
+    const bare = { ...yard(null), entities: [] } as SceneDefinition;
+    const session = createEditorSession({
+      doc: sceneToDoc(bare, { key: sequentialKeys("n") }),
+      origin: ada,
+      name: "layer-yard",
+      registry,
+      issuesDebounceMs: 0,
+    });
+    sessions.push(session);
+    const store = new Store({
+      camera: { position: { x: 10, y: 6 }, scale: 100 },
+    } as unknown as GameStoreState);
+    render(
+      <KitProvider host={{ storage }}>
+        <CanvasLayer
+          session={session}
+          host={null}
+          store={store}
+          runStore={new Store<LoadedRun | null>(null)}
+          notify={notify}
+        />
+      </KitProvider>,
+    );
+    const notes = [...document.querySelectorAll("[data-edit-layer-notes] span")].map(
+      (n) => n.textContent,
+    );
+    expect(notes).toEqual(["Occupancy: Needs settings.grid", "Nav: No nav areas"]);
+  });
+
+  it("notes walls and grid lines left out while the view is too far out", () => {
+    const fine: GridSettings = { kind: "square", cell: [0.01, 0.01] };
+    const storage = memoryStorage({
+      [EDIT_LAYERS_KEY]: JSON.stringify({ grid: true, occupancy: true }),
+    });
+    const registry = createRegistry();
+    const session = createEditorSession({
+      doc: sceneToDoc(yard(fine), { key: sequentialKeys("f") }),
+      origin: ada,
+      name: "layer-yard",
+      registry,
+      issuesDebounceMs: 0,
+    });
+    sessions.push(session);
+    const store = new Store({
+      camera: { position: { x: 10, y: 6 }, scale: 32 },
+    } as unknown as GameStoreState);
+    render(
+      <KitProvider host={{ storage }}>
+        <CanvasLayer
+          session={session}
+          host={null}
+          store={store}
+          runStore={new Store<LoadedRun | null>(null)}
+          notify={notify}
+        />
+      </KitProvider>,
+    );
+    const notes = [...document.querySelectorAll("[data-edit-layer-notes] span")].map(
+      (n) => n.textContent,
+    );
+    expect(notes).toEqual([
+      "Grid: zoom in to see every cell",
+      "Occupancy: zoom in to see every wall",
+    ]);
+  });
+
+  it("expands the document once per change for every reader of the session", () => {
+    const { session } = setup(100, memoryStorage());
+    const seen: unknown[] = [];
+    function Reader() {
+      seen.push(useExpandedScene(session));
+      return null;
+    }
+    render(
+      <>
+        <Reader />
+        <Reader />
+      </>,
+    );
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).not.toBeNull();
+    expect(seen[1]).toBe(seen[0]);
+    act(() => {
+      session.dispatch({ ops: [{ op: "remove", refs: ["pillar"] }] });
+    });
+    expect(seen.length).toBeGreaterThan(2);
+    expect(seen.at(-1)).not.toBe(seen[0]);
+    expect(seen.at(-1)).toBe(seen.at(-2));
   });
 });

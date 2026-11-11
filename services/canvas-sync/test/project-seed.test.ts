@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import * as Y from "yjs";
 
 import { engineAssetDocs, engineBlobs, engineProjects, sceneDocs } from "../../../src/db/schema.ts";
+import { DATA_TABLE_VERSION } from "../../../src/engine/project/kinds/data-table.ts";
 import type { AssetEntry, ProjectState } from "../../../src/engine/project/types.ts";
 import { syncEnvPrefix } from "../../../src/lib/canvas/sync-channels.ts";
 import {
@@ -46,7 +47,7 @@ const HASH = "c".repeat(64);
 
 const TABLE = JSON.stringify({
   kind: "data-table",
-  v: 1,
+  v: DATA_TABLE_VERSION,
   table: "card",
   rows: [
     { id: "fireball", cost: 3, damage: 5 },

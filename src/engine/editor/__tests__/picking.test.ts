@@ -115,12 +115,10 @@ describe("marqueeSelect", () => {
   it("picks the engine yard's follower at its path's first point", () => {
     const yardIndex = createSpatialIndex();
     yardIndex.rebuild(structuredClone(yard) as unknown as SceneDefinition, registry);
-    expect(pickAt(yardIndex, [1700, 900], { tolPx: 4, scale: 1 }).map((e) => e.ref)).toContain(
-      "lift",
-    );
-    expect(pickAt(yardIndex, [1700, 600], { tolPx: 4, scale: 1 }).map((e) => e.ref)).not.toContain(
-      "lift",
-    );
+    // Screen px per metre at zoom 1.
+    const at = (p: Pt) => pickAt(yardIndex, p, { tolPx: 4, scale: 100 }).map((e) => e.ref);
+    expect(at([17, 9])).toContain("lift");
+    expect(at([17, 6])).not.toContain("lift");
   });
 });
 

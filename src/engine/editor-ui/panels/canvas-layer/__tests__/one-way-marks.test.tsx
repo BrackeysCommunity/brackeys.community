@@ -17,6 +17,7 @@ import {
   type ToolOverlay,
 } from "../../../../editor/index";
 import type { GameStoreState } from "../../../../index";
+import { expandScene } from "../../../../scene/expand";
 import {
   prefabLibrary,
   SCENE_FORMAT_VERSION,
@@ -136,10 +137,11 @@ describe("one-way landing faces on the edit overlay", () => {
     cleanup();
     const view = { width: 2000, height: 1200, scale: 1, tx: 0, ty: 0 };
     const box = { type: "box", cx: 0, cy: 0, hw: 1, hh: 1, rotDeg: 0 } as const;
+    const scene = expandScene(session.getDoc(), registry, { prefabs: session.getPrefabs() });
     const marksWith = (overlay?: ToolOverlay) =>
       render(
         <svg>
-          <OneWayMarks session={session} view={view} transform="" overlay={overlay} />
+          <OneWayMarks session={session} scene={scene} view={view} transform="" overlay={overlay} />
         </svg>,
       );
     const { rerender } = marksWith({
@@ -155,7 +157,7 @@ describe("one-way landing faces on the edit overlay", () => {
 
     rerender(
       <svg>
-        <OneWayMarks session={session} view={view} transform="" overlay={{}} />
+        <OneWayMarks session={session} scene={scene} view={view} transform="" overlay={{}} />
       </svg>,
     );
     expect(Object.keys(marks()).sort()).toEqual(["cloud", "turned/bar", "wall"]);

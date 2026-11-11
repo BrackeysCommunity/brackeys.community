@@ -1,56 +1,56 @@
 {
   "$schema": "../scene.schema.json",
-  "v": 4,
+  "v": 3,
   "game": "platformer",
   "name": "test-yard",
-  "bounds": [-20, -5, 40, 12],
+  "bounds": [-2000, -500, 4000, 1200],
   "anchor": [
-    [6, 6],
-    [9, 5],
-    [11, 5.5],
-    [4, 5]
+    [600, 600],
+    [900, 500],
+    [1100, 550],
+    [400, 500]
   ],
   "cloud": [
-    ["box", 9.6, 9, 0.6, 0.06],
-    ["box", 9.6, 7.8, 0.6, 0.06],
-    ["box", 6.8, 8.5, 0.5, 0.06]
+    ["box", 960, 900, 60, 6],
+    ["box", 960, 780, 60, 6],
+    ["box", 680, 850, 50, 6]
   ],
   "solid": [
-    ["box", -2.55, 10.4, 17.45, 0.2],
-    ["box", 28.55, 10.4, 11.45, 0.2],
-    ["box", 12, 7.7, 0.1, 2.5],
-    ["box", 14, 7.7, 0.1, 2.5],
-    ["box", 7, 9.4, 0.8, 0.08],
-    ["box", 5, 8.4, 0.8, 0.08],
-    ["box", 3.5, 7.2, 0.8, 0.08],
-    ["box", 8.2, 9.7, 0.4, 0.08],
-    ["box", 7.4, 9.2, 0.4, 0.08],
-    ["box", 6.6, 8.7, 0.4, 0.08],
-    ["box", 16, 11.6, 1.2, 0.1],
-    ["box", 14.9, 11, 0.1, 0.8],
-    ["box", 17.1, 11, 0.1, 0.8],
-    ["box", 2, 9.2, 0.1, 1]
+    ["box", -255, 1040, 1745, 20],
+    ["box", 2855, 1040, 1145, 20],
+    ["box", 1200, 770, 10, 250],
+    ["box", 1400, 770, 10, 250],
+    ["box", 700, 940, 80, 8],
+    ["box", 500, 840, 80, 8],
+    ["box", 350, 720, 80, 8],
+    ["box", 820, 970, 40, 8],
+    ["box", 740, 920, 40, 8],
+    ["box", 660, 870, 40, 8],
+    ["box", 1600, 1160, 120, 10],
+    ["box", 1490, 1100, 10, 80],
+    ["box", 1710, 1100, 10, 80],
+    ["box", 200, 920, 10, 100]
   ],
   "solid:chocolate": [
-    ["box", 5.5, 9.7, 0.6, 0.08]
+    ["box", 550, 970, 60, 8]
   ],
   "solid:ice": [
-    ["box", 1, 10, 1, 0.08]
+    ["box", 100, 1000, 100, 8]
   ],
   "solid:trampoline": [
-    ["box", 16, 11.2, 0.4, 0.08]
+    ["box", 1600, 1120, 40, 8]
   ],
   "spawn": [
-    [9.6, 10.2]
+    [960, 1020]
   ],
   "entities": [
-    { "id": "pit-shuttle", "type": "mover", "shape": ["box", 0, 0, 0.5, 0.06], "path": { "pts": [[15, 9.5], [17, 9.5]], "mode": "ping_pong", "speed": 0.8, "pauseMs": 500 } },
-    { "id": "elevator", "type": "mover", "shape": ["box", 0, 0, 0.4, 0.06], "path": { "pts": [[13, 10], [13, 7], [13.32, 7]], "mode": "ping_pong", "speed": 1, "pauseMs": 800 } },
-    { "id": "diagonal", "type": "mover", "shape": ["box", 0, 0, 0.35, 0.06], "path": { "pts": [[2, 8], [4, 7], [6, 7.5]], "mode": "loop", "speed": 1.2, "pauseMs": 300 } },
-    { "id": "plank", "type": "prop", "shape": ["box", 3.5, 7, 0.5, 0.06], "density": 2, "restitution": 0.2 },
-    { "id": "ball", "type": "prop", "shape": ["circle", 7.8, 9, 0.15], "density": 1.5, "restitution": 0.6 },
-    { "id": "cheese", "type": "goal", "shape": ["circle", 5, 8, 0.12] },
-    { "id": "hole", "type": "exit", "shape": ["circle", 18.5, 10.1, 0.2] },
-    { "id": "lava", "type": "hazard", "shape": ["box", 16, 11.6, 1, 0.08] }
+    { "id": "pit-shuttle", "type": "mover", "shape": ["box", 0, 0, 50, 6], "path": { "pts": [[1500, 950], [1700, 950]], "mode": "ping_pong", "speed": 80, "pauseMs": 500 } },
+    { "id": "elevator", "type": "mover", "shape": ["box", 0, 0, 40, 6], "path": { "pts": [[1300, 1000], [1300, 700], [1332, 700]], "mode": "ping_pong", "speed": 100, "pauseMs": 800 } },
+    { "id": "diagonal", "type": "mover", "shape": ["box", 0, 0, 35, 6], "path": { "pts": [[200, 800], [400, 700], [600, 750]], "mode": "loop", "speed": 120, "pauseMs": 300 } },
+    { "id": "plank", "type": "prop", "shape": ["box", 350, 700, 50, 6], "density": 2, "restitution": 0.2 },
+    { "id": "ball", "type": "prop", "shape": ["circle", 780, 900, 15], "density": 1.5, "restitution": 0.6 },
+    { "id": "cheese", "type": "goal", "shape": ["circle", 500, 800, 12] },
+    { "id": "hole", "type": "exit", "shape": ["circle", 1850, 1010, 20] },
+    { "id": "lava", "type": "hazard", "shape": ["box", 1600, 1160, 100, 8] }
   ]
 }

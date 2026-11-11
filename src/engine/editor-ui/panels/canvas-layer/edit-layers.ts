@@ -4,8 +4,10 @@ import type { Registry } from "../../../game/types";
 import { gridGeometry } from "../../../grid/geometry";
 import { buildNavMesh } from "../../../nav/navmesh";
 import type { RuntimeGrid } from "../../../runtime/grid";
+import { navPolygonsOf } from "../../../runtime/nav";
 import { SCENE_GRID_MAX_CELLS } from "../../../scene/render-geometry";
-import type { Bounds, ExpandedScene, Pt, ShapeObj } from "../../../scene/types";
+import type { Bounds, ExpandedScene, Pt } from "../../../scene/types";
+import type { NavPolygon } from "../../../systems/nav";
 import type { View } from "./view";
 
 /** The edit overlay's optional layers, each toggled from the toolbar's View menu. */
@@ -14,10 +16,22 @@ export type EditLayer = "grid" | "occupancy" | "nav";
 export type EditLayers = Readonly<Record<EditLayer, boolean>>;
 
 export const EDIT_LAYERS: readonly { id: EditLayer; label: string; description: string }[] = [
-  { id: "grid", label: "Grid", description: "The scene grid's cells, else a line every metre" },
+  { id: "grid", label: "Grid", description: "The scene grid's cells, else the snapping step's" },
   { id: "occupancy", label: "Occupancy", description: "The grid cells the game's walls fill" },
   { id: "nav", label: "Nav", description: "The walk areas, their holes and the nav mesh" },
 ];
+
+/** Why each layer would draw nothing in `scene`; a layer that can draw has no entry. */
+export function unavailableLayers(
+  scene: ExpandedScene | null,
+  registry: Registry,
+): Partial<Record<EditLayer, string>> {
+  if (!scene) return {};
+  const out: Partial<Record<EditLayer, string>> = {};
+  if (!scene.settings.grid) out.occupancy = "Needs settings.grid";
+  if (navPolygonsOf(scene.entities, registry).areas.length === 0) out.nav = "No nav areas";
+  return out;
+}
 
 /** Every layer off: the overlay's default. */
 export const NO_EDIT_LAYERS: EditLayers = { grid: false, occupancy: false, nav: false };
@@ -52,18 +66,31 @@ const boundsOf = ({ x, y, width, height }: Viewport): Bounds => [x, y, x + width
 
 /**
  * The scene grid's cell lines (or hex outlines) over the view, by the debug
- * overlay's rule: without a scene grid, a line every metre and a major one
- * every ten. The region stops at the major lines just past the view, and a
- * hex grid outlines at most `SCENE_GRID_MAX_CELLS` cells.
+ * overlay's rule. Without a scene grid, a line every `step` metres (the
+ * snapping step; the overlay's metre without one) and a major one every
+ * ten. The region stops at the major lines just past the view, and a hex
+ * grid outlines at most `SCENE_GRID_MAX_CELLS` cells.
  */
-export function gridLayerPlan(scene: ExpandedScene | null, view: View): GridOverlayPlan | null {
+export function gridLayerPlan(
+  scene: ExpandedScene | null,
+  view: View,
+  step: number | null = null,
+): GridOverlayPlan | null {
   if (!(view.scale > 0) || !Number.isFinite(view.scale)) return null;
-  const settings = scene?.settings.grid ?? null;
+  const settings =
+    scene?.settings.grid ??
+    (step !== null && step > 0
+      ? { kind: "square" as const, cell: [step, step] as [number, number] }
+      : null);
   return gridOverlayPlan(viewViewport(view), view.scale, settings ? gridGeometry(settings) : null, {
     margin: 0,
     maxCells: SCENE_GRID_MAX_CELLS,
   });
 }
+
+/** Whether `plan` leaves cells out because the view is too far out to draw them. */
+export const gridTooDense = (plan: GridOverlayPlan): boolean =>
+  plan.minor.length === 0 && plan.cells.length === 0;
 
 /** The wall cells over the view, as outlines; `truncated` when the cap left some out. */
 export type WallCells = { cells: Pt[][]; truncated: boolean };
@@ -113,22 +140,14 @@ export type NavLayer = {
   triangles: readonly (readonly [Pt, Pt, Pt])[];
 };
 
-/** Whether entities of `type` are nav polygons: the `nav` primitive, or a type based on it. */
-const isNavType = (registry: Registry, name: string) => {
-  const type = registry.types.get(name);
-  return type !== undefined && (type.base ?? type.type) === "nav";
-};
-
-/** The nav entities' polygons, and the mesh over them as the runtime builds it. */
-export function navLayer(scene: ExpandedScene, registry: Registry): NavLayer {
-  const areas: { id: string; pts: readonly Pt[] }[] = [];
-  const holes: { id: string; pts: readonly Pt[] }[] = [];
-  for (const e of scene.entities) {
-    if (!isNavType(registry, e.type)) continue;
-    const shape = e.shape as ShapeObj | undefined;
-    if (shape?.type !== "poly") continue;
-    (e.mode === "block" ? holes : areas).push({ id: e.id, pts: shape.pts });
-  }
+/** The mesh the runtime builds over `areas` and `holes`, with their outlines. */
+export function navMeshLayer(areas: readonly NavPolygon[], holes: readonly NavPolygon[]): NavLayer {
   const triangles = areas.length > 0 ? buildNavMesh(areas, holes).mesh.triangles : [];
   return { areas: areas.map((a) => a.pts), holes: holes.map((h) => h.pts), triangles };
+}
+
+/** The scene's nav polygons, picked and ordered as the runtime's `ctx.nav` reads them, and the mesh over them. */
+export function navLayer(scene: ExpandedScene, registry: Registry): NavLayer {
+  const { areas, holes } = navPolygonsOf(scene.entities, registry);
+  return navMeshLayer(areas, holes);
 }

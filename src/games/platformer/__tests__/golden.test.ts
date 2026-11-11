@@ -11,8 +11,9 @@ import { LENGTH_UNITS, platformerLengthUnitRows } from "./probes/length-unit-pro
 
 /**
  * The platformer must replay these traces bit for bit: the final state and
- * every event of each script on `test-yard`, in order. The scripts are M1's;
- * the traces were recaptured when the simulation moved to metres at Rapier's
+ * every event of each script on `test-yard`, in order. The scripts are the
+ * ones the traces were first captured with; the traces were recaptured when
+ * the simulation moved to metres at Rapier's
  * default length unit, whose tolerances suit a metre world (px-scale
  * tolerances made the px world's contacts differ). A trace that moves means
  * replays break: recapture only for a change that is meant to move it, with

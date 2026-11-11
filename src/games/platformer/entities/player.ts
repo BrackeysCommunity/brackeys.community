@@ -561,7 +561,7 @@ export function createPlayerEntity(
 
     // 5. Update grounded state
     const wasGrounded = grounded;
-    grounded = controller.computedGrounded();
+    grounded = physics.isGrounded(controller);
 
     // Track last-grounded time for coyote time
     if (grounded) {

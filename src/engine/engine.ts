@@ -45,7 +45,7 @@ import {
   type RemapState,
 } from "./input/remap";
 import type { PointerState } from "./input/state";
-import { mergeTick, type SeatChange, type TickInput } from "./input/stream";
+import { mergeTick, offsetIn, type SeatChange } from "./input/stream";
 import { createInputSystem } from "./input/system";
 import { createTouchControls, type TouchControls } from "./input/touch-controls";
 import { createGameLoop } from "./loop";
@@ -808,6 +808,14 @@ export async function createGame(
     });
   }
 
+  const subTick = game?.input?.subTick === true;
+
+  /** Each action's offset: where its event fell in the tick-long wall-clock window this tick closes. */
+  function stampOffsets(actions: InputAction[], tickMs: number): void {
+    const start = performance.now() - tickMs;
+    for (const action of actions) action.offset = offsetIn(action.timestamp, start, tickMs);
+  }
+
   function takeInput(tick: number): InputAction[] {
     const polled = input.poll(tick);
     if (heldInput.length === 0) return polled;
@@ -901,15 +909,15 @@ export async function createGame(
       let mouseWorld = camera.screenToWorld(input.getMousePosition());
 
       if (loaded && playing) {
-        const live: TickInput = {
+        if (subTick) stampOffsets(polled, loaded.runtime.ctx.time.tickMs);
+        // Seat by seat, as a replay decodes it, so a run and its replay deliver one order.
+        const live = mergeTick({
           tick: loaded.runtime.ctx.tick,
           actions: polled,
           commands: pendingCommands,
           pointers: takePointers(),
           joins: queuedJoins,
-        };
-        // Commands seat by seat, as a replay decodes them, so a run and its replay deliver one order.
-        live.commands = mergeTick(live).commands;
+        });
         pendingCommands = [];
         queuedJoins = [];
         const replaying = session?.replaying ?? false;

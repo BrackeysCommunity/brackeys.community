@@ -256,7 +256,7 @@ describe("file batches whose scene ops write prefabs", () => {
     const after = await files();
     expect(JSON.parse(after["prefabs/latch.json"]!).id).toBe("bolt");
     expect(JSON.parse(after["prefabs/doorway.json"]!).instances).toEqual([
-      { id: "latch", prefab: "bolt", at: [70, 0] },
+      { id: "latch", prefab: "bolt", at: [0.7, 0] },
     ]);
     expect(JSON.parse(after["prefabs/room.json"]!).instances[1]).toMatchObject({
       id: "latch-1",

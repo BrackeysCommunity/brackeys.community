@@ -8,6 +8,12 @@ import type {
 } from "@hocuspocus/server";
 import * as Y from "yjs";
 
+import {
+  createRegistry,
+  sceneGameOf,
+  type Migration,
+  type Registry,
+} from "../../../../src/engine/scene/index.ts";
 import { SYNC_LIMITS } from "../../../../src/lib/canvas/limits.ts";
 import { documentName, SYNC_CLOSE, syncClose } from "../../../../src/lib/canvas/sync-channels.ts";
 import {
@@ -80,6 +86,25 @@ export interface SceneKindOptions {
   projects?: SceneProjects;
 }
 
+let engineRegistry: Registry | null = null;
+
+/**
+ * `format` with every step given the engine's own registry for a document
+ * that names no game: the engine's primitives are a gameless document's
+ * whole registry, so this side can lift it all the way. A document naming
+ * a game still stops where a step needs that game's code.
+ */
+export function gamelessFormat(format: SceneFormat): SceneFormat {
+  const migrations: Record<number, Migration> = {};
+  for (const [from, step] of Object.entries(format.migrations)) {
+    migrations[Number(from)] = (raw, env) =>
+      env.registry || sceneGameOf(raw) !== undefined
+        ? step(raw, env)
+        : step(raw, { ...env, registry: (engineRegistry ??= createRegistry(null)) });
+  }
+  return { version: format.version, migrations: Object.freeze(migrations) };
+}
+
 const liveVersion = (doc: Y.Doc | undefined): number | null => {
   const v = doc?.getMap("meta").get("schemaVersion");
   return typeof v === "number" ? v : null;
@@ -93,8 +118,9 @@ const liveLayout = (doc: Y.Doc | undefined): number | null => {
 /**
  * `scene:<project>.<key>`: a hosted scene. Only the server fills a new doc
  * (from the row's seed), migrates an older one at load (its format as far
- * as it can without the game's code, and a layout-1 doc's prefabs out into
- * prefab docs of its project), and merges every store into what's stored
+ * as it can without the game's code, all the way for a gameless one, and a
+ * layout-1 doc's prefabs out into prefab docs of its project), and merges
+ * every store into what's stored
  * through a scratch doc. A client whose engine reads another format or
  * collab layout than the doc holds connects read-only, so a doc left at
  * an older format by a step that needs its game stays read-only to
@@ -105,7 +131,7 @@ export function createSceneKind(options: SceneKindOptions): DocumentKind & {
 } {
   const { store, now, metrics } = options;
   const limits = options.limits ?? SCENE_LIMITS;
-  const format = options.format ?? ENGINE_FORMAT;
+  const format = gamelessFormat(options.format ?? ENGINE_FORMAT);
   const runner = options.snapshots ?? inlineSnapshots(format.version);
   const schedule = new SnapshotSchedule(
     options.snapshotIntervalMs ?? SYNC_LIMITS.snapshotIntervalMs,

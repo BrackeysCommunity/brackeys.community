@@ -48,8 +48,13 @@ loop guard get fixes.
   system `w` event), `start.seed` or the default seed becomes `seed`,
   `tickRate` becomes `time` with the registry's time kind, else `fixed`;
   platform unknown, project null, `runHash` empty so staleness falls back
-  to `sceneHash`. v1 command arguments are carried as they are (pre-0.11
-  px-valued arguments are not rescaled).
+  to `sceneHash`. v1 ran in world px, so its lengths become metres at the
+  registry's px per metre (else the default 100) by the input-script rule:
+  `start.at`, the outcome's `at`, markers and trail always, the play
+  options and each command's args where their schemas declare a length
+  unit. A 0.10.0 recording replays stale (its `sceneHash` is the v3
+  document's), and most diverge: the simulation it ran was recaptured in
+  metres.
 - Recordings are written as v2: per-seat input streams and a system stream
   (button, axis, vector, pointer and command events; `@elapsed`, joins and
   leaves), every seed (the default one when the run named none), time,
@@ -146,6 +151,16 @@ controls? })` is the one binding check: unknown code, button, axis,
   stick, pointer button or control, with did-you-mean; a shape that doesn't
   fit the action's kind; a seat past `max`. `playersProblems` judges
   `players` (max 1–8, a known join policy).
+- The types and helpers around them: in `.`, `ResolvedBindings`,
+  `BindingLayers`, `BindingLayerName`, `ActionBindings`, `DeviceTables`,
+  `BoundInput`, `TouchControlValue`, `MAX_PLAYERS` (8) and
+  `resolvePlayers(map, game)` (the input map's seats, else the game's,
+  else one); in `./game`, `ACTION_KINDS`, `BindingContext`,
+  `BindingProblem` and `declaredBindings(def)` (an action's `bindings`,
+  else its 0.x `keys` through `KEY_TO_CODE`); in `./project`,
+  `InputMapProblem`; in `./headless`, `DecodeOptions`; in `./scene`,
+  `ScriptPointer`, `AnalogSet`, `ParseInputScriptResult` and
+  `MigrateInputScriptResult`.
 - `BehaviorDef.template` (`./game`): the block the editor's Add behavior
   writes before seeding required fields (default `{}`); `lifetime` uses
   `{ ticks: 60 }`.
@@ -231,8 +246,12 @@ tickMs?, subTick? })` implement the recording v2 stream: per-seat
   `ReplayReport.migratedFrom`.
 - `RecordingHost { platform?, projectRef? }` on `ReplayOptions` and
   `runPlaytest` for the Rapier flavour and the project's snapshot.
-- `PlaytestReport.stream`, every seat's input as a v2 recording holds it,
-  beside the deprecated `inputs`.
+- `PlaytestReport.stream` (always filled), every seat's input as a v2
+  recording holds it, beside `inputs`, now deprecated.
+- `PhysicsWorld.isGrounded(controller)`: Rapier's `computedGrounded()`
+  and a computed collision whose normal faces the controller's `up`, so a
+  character is grounded on contact rather than within Rapier's prediction
+  distance (about 5 cm at the metre unit) above the floor.
 - `GameConfig.recording` (`RecordingHost`): the Rapier flavour and the
   project's snapshot a host knows, carried into Play's recordings.
 - `parseInputScript`, `migrateInputScript`, `INPUT_SCRIPT_MIGRATIONS`,
@@ -270,7 +289,9 @@ bounds }`). A button-only game's rollouts are unchanged;
   vector sticks join on the keyboard and `pad:0` and play a two-track v2
   script with physics `none`. `point-and-click` (point-and-click, and rts in
   part): a click on a walk area paths a walker along `ctx.nav`, and a click
-  on a hotspot found with `ctx.space.pointAt` walks it there and fires it.
+  on a hotspot found with `ctx.space.pointAt` picks it, and the `use {
+hotspot }` command a host sends for the pick walks the walker there and
+  fires it; the recording carries the command and the replay reproduces it.
   `rhythm-tap` (rhythm, in part until the audio clock): with
   `input.subTick` on, taps arrive as `TickInput`s with sub-tick offsets and
   are judged by them. Each run reaches its result and its replay matches.
@@ -394,20 +415,22 @@ gravity: [0, 12], lengthUnit: 100 }`): movement tuning, the player box
   m1-golden.json ÷ 100 on test-yard: every route differs from tick 0 by
   float rounding (≤ 0.1 mm). Final positions drift 0.19 mm (parity),
   0.12 mm (right-route) and 1.1 mm (left-route), with the same state,
-  ground and velocity. Rapier's character controller now reports grounded
-  up to its fixed prediction distance (about 5 cm) before contact, which
-  adds `landed` events with no ground entity (parity from tick 95,
-  right-route from tick 52, left-route from tick 18). The largest drift
-  between matched events is 1.94 m (parity's third landing comes at tick
-  169, not 192), 1.6 mm (right-route) and 0.34 m (left-route, whose path
-  diverges: the landings on ~solid:9 at tick 116 and ~solid:5 at tick 225
-  are gone). The determinism pins' script and fuzz digests moved (script
+  ground and velocity. At the metre unit Rapier's `computedGrounded()`
+  also counts ground within its prediction distance (about 5 cm) above
+  the floor; the player is grounded through `PhysicsWorld.isGrounded`,
+  which needs a contact as well, and `landed` always names its ground
+  entity (grounded on nothing nameable changes no state). With that, every
+  landing and left-ground lands on the px traces' ticks and grounds,
+  except two in left-route: its one-tick touch of ~solid:9 at tick 116 is
+  gone, and it leaves the ball at tick 394, not 392, and lands on ~solid:0
+  at 403, not 404. The determinism pins' script and fuzz digests moved (script
   ec60f220d6590d0d → 4f2826bab91c676f, fuzz cede7d80dbf9a1bb →
   319584c2c406e711); pile is plain Rapier and didn't move. Both
   length-unit probes now show that `world.lengthUnit` (100, 32, 48) leaves
   every digest identical. The genre pins of the shooter, top-down and
   turn-tactics probes moved with their positions, now in metres, on every
-  variant (with and without physics); the other probes' pins didn't move.
+  variant (with and without physics), and point-and-click's when its probe
+  began sending `use`; the other probes' pins didn't move.
 - Hosted scene and prefab docs stored at format v3 open read-only until
   migrated: canvas-sync holds no game code, so it never runs the v3 → v4
   step. It keeps them at v3 (lifting v1/v2 docs to v3), serves them to v4
@@ -458,6 +481,13 @@ id="one-way">` of `<path data-one-way="<id>" data-side="up|right|down|left">`
   order, with analog values and pointers quantised; `InputSource.tick`,
   `RunLoopOptions.onTick`'s fifth argument (the `TickInput`), and
   `tickWakes` judge waking from the whole tick input as the shell does.
+- The shell steps each live tick's whole `TickInput` through `mergeTick`,
+  seat by seat as a replay decodes it, so actions, pointers and commands
+  reach the runtime in the order the recording replays them (before, only
+  commands were merged). With `input.subTick` on, each live action's
+  `offset` is stamped from its event's timestamp: where it fell in the
+  tick-long wall-clock window the tick closes, in thousandths, so a live
+  run and its recording carry the same offsets.
 - `SessionRecording.input(tick, live)` feeds a replay's `TickInput`s;
   `actions()` and `commands()` are deprecated; `stepped()` takes a
   `TickInput`.
@@ -547,6 +577,10 @@ to v4)`; `grid` prints cell sizes in metres; text reports round to 1e-4;
 - CLI: `playtest` takes v2 scripts (tracks, analog, pointer, seats),
   migrates a v1 script before `--at` (now metres) and prints `script
 migratedFrom 1`; step lines name a track's seat (`step p1/0 …`).
+- CLI: `fuzz` takes no script, as before: its v2 input is the default
+  macro's analog and pointer moves (or the game's `play.macro`), and a
+  scripted run is a `playtest`. An optional prefix script can be added
+  later without breaking a caller.
 - CLI: `replay` prints the recorded engine version and physics,
   `migratedFrom 1` for a v1 recording, a `platform recorded …; replayed …`
   line and the `recording-other-platform` issue; JSON gains `recorded: {
@@ -576,6 +610,7 @@ true, stage: "run", issues, … }` and `<scene>: blocked at run` text)
   drops), §The input map, §Remapping, §Local multiplayer and §Recordings
   v2, each with an example that runs; the scene CLI README gains §Input v2
   and §Units and format v4, and its examples and op batches are in metres.
+  Its example input scripts are v2 and its checks files v3.
 
 ## [0.10.0] — unreleased
 

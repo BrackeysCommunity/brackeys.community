@@ -8,7 +8,7 @@ import { computeDesiredMovement } from "../entities/player";
 const G = platformerGame.world!.gravity![1];
 const DT = 1 / 60;
 
-/** M1's jump in px: -500 px/s up under 1200 px/s², stepped at 60 Hz. Its apex height, px. */
+/** The original px jump tuning: -500 px/s up under 1200 px/s², stepped at 60 Hz. Its apex height, px. */
 function pxApexHeight(): number {
   let vy = -500;
   let y = 0;
@@ -70,7 +70,7 @@ describe("computeJumpArc", () => {
     expect(apex(6)).toBeLessThan(apex(12));
   });
 
-  it("peaks at M1's px apex ÷ 100", () => {
+  it("peaks at the original px tuning's apex ÷ 100", () => {
     const arc = computeJumpArc(0, 0, 0, G);
     const height = -Math.min(...arc.map((p) => p.y));
     expect(Math.abs(height - pxApexHeight() / 100)).toBeLessThan(1e-9);
@@ -78,7 +78,7 @@ describe("computeJumpArc", () => {
 });
 
 describe("the player's jump", () => {
-  it("peaks at M1's px apex ÷ 100", () => {
+  it("peaks at the original px tuning's apex ÷ 100", () => {
     let velocity = { x: 0, y: 0 };
     let y = 0;
     let top = 0;

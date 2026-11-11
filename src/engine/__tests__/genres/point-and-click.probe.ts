@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { defineEntityType, defineGame } from "../../game/define";
 import { shapeField } from "../../game/fields";
 import type { EngineContext } from "../../game/types";
@@ -13,8 +15,10 @@ const HOTSPOT = `${ID}-hotspot`;
 const WALKER = "walker";
 /** Raised when the walker reaches the end of a path. */
 export const ARRIVED = `${ID}:arrived`;
-/** Raised when the walker reaches a clicked hotspot, which then fires. */
+/** Raised when the walker reaches a used hotspot, which then fires. */
 export const TRIGGERED = `${ID}:triggered`;
+/** Walks to the hotspot the last press picked, which fires on arrival. */
+export const USE = "use";
 
 /** Walking speed, m/s. */
 const SPEED = 3;
@@ -28,8 +32,10 @@ export type PointAndClickSnapshot = {
   walking: boolean;
   /** Primary presses read from the pointer. */
   clicks: number;
-  /** Presses on neither a hotspot nor a walk area. */
+  /** Presses on neither a hotspot nor a walk area, and `use` commands refused. */
   ignored: number;
+  /** The hotspot the last press picked, until a `use` takes it. */
+  picked: string | null;
   /** The hotspots fired, in order. */
   triggered: string[];
   /** Every path the walker took, from where it stood, corners included. */
@@ -47,16 +53,24 @@ const dist = (a: Vec2, b: Vec2) => Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.y - 
 
 /**
  * A point-and-click room with no physics. A primary press on a hotspot
- * (`ctx.space.pointAt`, sensors of the hotspot type only) sends the walker
- * to the walk area's nearest point to the hotspot, and the hotspot fires
- * when it arrives; a press elsewhere on a walk area sends it there along
- * `ctx.nav`'s path; any other press is ignored. The game reads presses from
- * `ctx.input.pointer()`, so a replay rebuilds them from the recording.
+ * (`ctx.space.pointAt`, sensors of the hotspot type only) picks it, and the
+ * host sends `use { hotspot }` for the pick: that sends the walker to the
+ * walk area's nearest point to the hotspot, and the hotspot fires when it
+ * arrives. A press elsewhere on a walk area sends the walker there along
+ * `ctx.nav`'s path; any other press, and a `use` of anything but the pick,
+ * is ignored. Presses come from `ctx.input.pointer()` and `use` from the
+ * command stream, so a replay rebuilds both from the recording.
  */
 const game = defineGame<PointAndClickSnapshot>({
   id: ID,
   types: [hotspot],
   actions: [],
+  commands: {
+    [USE]: {
+      description: "Walk to the hotspot the last press picked; it fires when the walker arrives.",
+      args: z.strictObject({ hotspot: z.string().describe("The picked hotspot's entity id.") }),
+    },
+  },
   world: { physics: "none" },
   time: { kind: "fixed" },
   play: {
@@ -75,6 +89,7 @@ const game = defineGame<PointAndClickSnapshot>({
     let buttons = 0;
     let clicks = 0;
     let ignored = 0;
+    let picked: string | null = null;
     const triggered: string[] = [];
     const paths: Vec2[][] = [];
 
@@ -97,11 +112,16 @@ const game = defineGame<PointAndClickSnapshot>({
     function click(p: Vec2): void {
       clicks++;
       const [hit] = ctx.space.pointAt(p, { sensors: true, types: [HOTSPOT] });
-      if (hit) {
-        const centre = centreOf(hit.tag.entityId) ?? p;
-        if (walkTo(centre, hit.tag.entityId)) return;
-      } else if (ctx.nav?.contains(p) && walkTo(p, null)) return;
+      picked = hit?.tag.entityId ?? null;
+      if (picked !== null) return;
+      if (ctx.nav?.contains(p) && walkTo(p, null)) return;
       ignored++;
+    }
+
+    function use(hotspot: string): void {
+      const centre = hotspot === picked ? centreOf(hotspot) : null;
+      if (centre && walkTo(centre, hotspot)) picked = null;
+      else ignored++;
     }
 
     function arrive(): void {
@@ -155,13 +175,15 @@ const game = defineGame<PointAndClickSnapshot>({
         walker = null;
         route = [];
         goal = null;
+        picked = null;
         buttons = 0;
       },
-      beforeStep(dtMs) {
+      beforeStep(dtMs, _actions, commands) {
         const pointer = ctx.input.pointer();
         const now = pointer?.buttons ?? 0;
         if (pointer && now & PRIMARY && !(buttons & PRIMARY)) click(pointer);
         buttons = now;
+        for (const c of commands) if (c.name === USE) use((c.args as { hotspot: string }).hotspot);
         walk(dtMs);
       },
       snapshot: () => ({
@@ -169,6 +191,7 @@ const game = defineGame<PointAndClickSnapshot>({
         walking: route.length > 0,
         clicks,
         ignored,
+        picked,
         triggered: [...triggered],
         paths: paths.map((p) => [...p]),
       }),
@@ -208,8 +231,9 @@ const awaitEvent = (event: string): InputScriptStepV2 => ({ hold: [], until: { e
 
 /**
  * Three clicks: one in the room's empty notch (ignored), one at the foot of
- * the left arm (a walk round the inner corner), and one on the door (a walk
- * back round the corner to it, then the door fires).
+ * the left arm (a walk round the inner corner), and one on the door, which
+ * picks it; the `use` the host sends for the pick walks back round the
+ * corner to the door, which then fires.
  */
 const script: InputScriptV2 = {
   v: 2,
@@ -222,6 +246,7 @@ const script: InputScriptV2 = {
     click([1.5, 4.5]),
     awaitEvent(ARRIVED),
     click([7.8, 1.4]),
+    { command: USE, args: { hotspot: "door" } },
     awaitEvent(TRIGGERED),
   ],
 };

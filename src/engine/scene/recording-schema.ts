@@ -1,10 +1,13 @@
 import { z } from "zod";
 
+import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import { MAX_TICK_RATE, MIN_TICK_RATE, type TimeKind } from "../game/time";
 import type { DeviceId, Registry } from "../game/types";
+import { scaleLengths } from "../game/units";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { jsonPointer } from "./issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "./json-schema";
+import { pxToMetres } from "./units";
 
 /** The recording format version every recording is written in. */
 export const RECORDING_VERSION = 2;
@@ -446,6 +449,10 @@ type Same<A, B> =
 const schemaMatchesType: Same<z.infer<typeof runRecordingSchema>, RunRecordingV2> = true;
 void schemaMatchesType;
 
+/** What reading a recording takes from the registry: the time kind, and for a v1 file the game and commands. */
+export type RecordingRegistry = Pick<Registry, "time"> &
+  Partial<Pick<Registry, "game" | "commands">>;
+
 /** A recording that didn't parse: a JSON Pointer into it and one sentence per problem. */
 export type RecordingIssue = { path: string; message: string };
 
@@ -463,15 +470,30 @@ export type ParseRecordingResult =
  * events and commands its `c` events, except an `@elapsed` that leads its
  * tick, which becomes a system `w` event (the system stream merges first,
  * so the tick's order is kept); `tickRate` becomes `time` with the
- * registry's time kind, else `fixed`. The platform is unknown, the project
- * null and `runHash` empty, so a replay judges staleness on `sceneHash`.
- * Without a seed the run used its default one, written as the text the
- * default is hashed from, which seeds the generator identically.
+ * registry's time kind, else `fixed`. v1 ran in world px, so its lengths
+ * become metres at the registry's px per metre (`world.lengthUnit`, else the
+ * default), by the input-script rule: positions (`start.at`, the outcome's
+ * `at`, markers and trail) always, and the play options and each command's
+ * args wherever the registry's schemas declare a length unit. The platform
+ * is unknown, the project null and `runHash` empty, so a replay judges
+ * staleness on `sceneHash`. Without a seed the run used its default one,
+ * written as the text the default is hashed from, which seeds the
+ * generator identically.
  */
 export function migrateRecordingV1(
   v1: RunRecordingV1,
-  registry?: Pick<Registry, "time">,
+  registry?: RecordingRegistry,
 ): RunRecordingV2 {
+  const pxPerMetre = registry?.game?.world?.lengthUnit ?? DEFAULT_LENGTH_UNIT;
+  const metres = ([x, y]: readonly [number, number]): [number, number] => [
+    pxToMetres(x, pxPerMetre),
+    pxToMetres(y, pxPerMetre),
+  ];
+
+  const argsOf = (name: string, args: unknown): unknown => {
+    const schema = registry?.commands?.get(name)?.args;
+    return schema ? scaleLengths(structuredClone(args), schema, pxPerMetre) : structuredClone(args);
+  };
   const commandNames: string[] = [];
   const commandIndex = (name: string): number => {
     let i = commandNames.indexOf(name);
@@ -495,16 +517,20 @@ export function migrateRecordingV1(
     const event: SeatEvent =
       args === undefined
         ? [t, "c", commandIndex(name)]
-        : [t, "c", commandIndex(name), structuredClone(args)];
+        : [t, "c", commandIndex(name), argsOf(name, args)];
     seat.push({ t, order: 1, seq, event });
   });
   seat.sort((a, b) => a.t - b.t || a.order - b.order || a.seq - b.seq);
 
   const { at, timeOffsetMs, game, seed } = v1.start;
   const start: RunRecordingV2["start"] = {};
-  if (at !== undefined) start.at = [at[0], at[1]];
+  if (at !== undefined) start.at = metres(at);
   if (timeOffsetMs !== undefined) start.timeOffsetMs = timeOffsetMs;
-  if (game !== undefined) start.game = structuredClone(game);
+  const options = registry?.game?.play?.options;
+  if (game !== undefined)
+    start.game = options
+      ? scaleLengths(structuredClone(game), options, pxPerMetre)
+      : structuredClone(game);
 
   const out: RunRecordingV2 = {
     v: 2,
@@ -528,11 +554,11 @@ export function migrateRecordingV1(
     inputs: [seat.map((s) => s.event)],
     system,
     ticks: v1.ticks,
-    outcome: structuredClone(v1.outcome),
-    markers: structuredClone(v1.markers),
+    outcome: { ...structuredClone(v1.outcome), at: v1.outcome.at && metres(v1.outcome.at) },
+    markers: v1.markers.map((m) => ({ ...structuredClone(m), at: metres(m.at) })),
     end: v1.end,
   };
-  if (v1.trail) out.trail = structuredClone(v1.trail);
+  if (v1.trail) out.trail = { ...v1.trail, pts: v1.trail.pts.map(metres) };
   return out;
 }
 
@@ -605,13 +631,10 @@ function v2Problem(rec: RunRecordingV2): ParseRecordingResult | null {
 
 /**
  * Parses a recording from JSON text or a parsed value, v1 or v2; a v1 file
- * is migrated (`migratedFrom: 1`), its time kind taken from `registry` when
- * given. Never throws.
+ * is migrated (`migratedFrom: 1`), its time kind and px per metre taken
+ * from `registry` when given. Never throws.
  */
-export function parseRecording(
-  input: unknown,
-  registry?: Pick<Registry, "time">,
-): ParseRecordingResult {
+export function parseRecording(input: unknown, registry?: RecordingRegistry): ParseRecordingResult {
   let raw = input;
   if (typeof input === "string") {
     try {

@@ -74,7 +74,7 @@ Two scenes to practise on: `test-yard` (the platformer's) and
 | `grid <scene> [--from c,r\|ref] [--to c,r\|ref] [--fov c,r:radius] [--diagonals]`                                                                                                      | no                       | the scene's grid as text: walls, a path between two cells or entities, what a cell sees; exit 1 with no path; see [World models](#grids-and-connected)                             |
 | `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--events type,…] [--game id] [--record file]`                                                                                | with --record            | a headless run of a v1 or v2 input script (`--at` in metres): outcome, steps, events, spawns and destroys per type, focus trail, `recording`; exit 1 when blocked                  |
 | `replay <scene\|file\|-> --run <file\|-> [--game id]`                                                                                                                                  | no                       | replays a run recording (or a playtest report's) headless, with the recorded engine, physics and platform and `migratedFrom 1` for a v1 file; exit 1 when it ends differently      |
-| `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id]`                                                                                                              | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second                                                                                    |
+| `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id]`                                                                                                              | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second; takes no script                                                                   |
 | `input [--project p] [--player n] [--json]`                                                                                                                                            | no                       | each seat's resolved bindings per action, layer by layer (the input map's, then the game's), which one the seat uses, and their issues; loads no Rapier; see [Input v2](#input-v2) |
 | `check <scene\|file> [--checks file] [--only id] [--game id]`                                                                                                                          | no                       | runs `<scene>.checks.json`; each check passes, fails or is skipped; exit 1 when one fails                                                                                          |
 | `render <scene\|file\|-> [--out file] [--ascii] [view flags…]`                                                                                                                         | with --out               | a schematic PNG or SVG of the scene, or `--ascii` a character map; see [Rendering](#rendering)                                                                                     |
@@ -344,8 +344,9 @@ focus moves under 0.04 m in 120 ticks), `script-end` or `timeout`. The report
 has `outcome` (`result`, `tick`, `at`, `cause`), `steps` (each started
 step's start tick, length and why it ended: `done`, `until`, `max` or
 `run`), `events` (at most 1000, then `truncated`), `trail` (the focus every
-4 ticks), `final` (the game's snapshot), `inputs` (the `[tick, action, 0|1]`
-edges played, `until` steps resolved), `sceneHash` and `configHash`. A
+4 ticks), `final` (the game's snapshot), `stream` (every seat's input and the system events, as a v2 recording
+holds them), `inputs` (deprecated: seat 0's `[tick, action, 0|1]` edges
+played, `until` steps resolved), `sceneHash` and `configHash`. A
 script that doesn't compile, a scene with errors or a start that doesn't
 load is `blocked` with its `stage` and issues, and exits 1, and so is a run
 an engine error stops mid-step (stage `run`, the error's code on its issue,
@@ -361,7 +362,10 @@ rollouts, `firstTick` and `firstRollout`; a runtime `#` id is never counted),
 the loadable entities nothing touched (`untouched`), how the rollouts ended (`results`) and the measured
 `timing`. The same `--seed` (a number or a string, default 1) gives the
 same report apart from `timing`, and a longer fuzz repeats a shorter one's
-first rollouts.
+first rollouts. It takes no script: its rollouts are the default macro's
+moves (analog and pointer ones too when the game has axis, vector or
+pointer actions) or the game's `play.macro`, and a scripted run is a
+`playtest`.
 
 ```sh
 vp run scene schema script --game platformer
@@ -745,7 +749,6 @@ vp run scene playtest basin --script scripts/scene/examples/fountain-pour.json -
 
 ```text
 basin 6517a02fa65d6a12 game fountain config a6ee13aa1cfb7ab1: dry at t180 (181 ticks)
-  script migratedFrom 1
   step 0 t0 +1 done
   step 1 t1 +30 until
   step 2 t31 +150 until
@@ -1063,9 +1066,10 @@ input stream per seat plus a system stream, indexing the `actions` and
 for replays across CPU architectures, a Rapier recording made on another
 one warns `recording-other-platform`; since the cross-platform check held
 on x86_64 it does vouch, so today the warning never fires. A v1 recording
-replays too, migrated on read losslessly (key edges and commands become
-seat 0's stream), and `replay` reports `migratedFrom 1` beside the engine
-version that recorded it:
+replays too, migrated on read (key edges and commands become seat 0's
+stream, and its world px become metres at the game's px per metre), and
+`replay` reports `migratedFrom 1` beside the engine version that recorded
+it:
 
 ```sh
 vp run scene replay engine-yard --run scripts/scene/examples/settles.v1.recording.json
@@ -1077,9 +1081,10 @@ engine-yard: replays: script-end at t59 (60 ticks)
   platform recorded unknown; replayed arm64, bun 1.3.11
 ```
 
-A recording of a Rapier run made before 0.11.0 still migrates, but replays
-as a mismatch: the simulation moved to metres and Rapier's own length
-unit, which changed every Rapier run's numbers once.
+A recording made before 0.11.0 still migrates, but replays `stale` (its
+`sceneHash` is the v3 document's), and most as a mismatch: the move to
+metres and to Rapier's own length unit changed the numbers a run
+simulates once.
 
 ## Rendering
 

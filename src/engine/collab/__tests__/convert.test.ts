@@ -103,7 +103,7 @@ describe("sceneToDoc and docToScene", () => {
     expect(doc.getMap<Y.Map<unknown>>("entities").get(bulk)!.toJSON()).toMatchObject({
       [BULK_FIELD]: "solid",
       type: "solid",
-      shape: ["box", 1000, 980, 1000, 20],
+      shape: ["box", 10, 9.8, 10, 0.2],
     });
   });
 

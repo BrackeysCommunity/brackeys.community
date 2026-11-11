@@ -37,7 +37,26 @@ const DPAD_CENTER = 0.3;
 const keyOf = (value: TouchControlValue): string =>
   "down" in value ? String(value.down) : `${value.x},${value.y}`;
 
-type Held = { def: TouchControlDef; node: HTMLElement; knob: HTMLElement | null; last: string };
+const IDLE_BG = "rgba(0, 0, 0, 0.28)";
+const ACTIVE_BG = "rgba(255, 255, 255, 0.3)";
+const ARM_IDLE = "rgba(255, 255, 255, 0.55)";
+const ARM_ACTIVE = "rgba(255, 255, 255, 1)";
+
+/** A d-pad's arms as [left %, top %, direction x, direction y]: up, right, down, left. */
+const DPAD_ARMS = [
+  [50, 18, 0, -1],
+  [82, 50, 1, 0],
+  [50, 82, 0, 1],
+  [18, 50, -1, 0],
+] as const;
+
+type Control = {
+  def: TouchControlDef;
+  node: HTMLElement;
+  knob: HTMLElement | null;
+  arms: HTMLElement[];
+};
+type Held = Control & { last: string };
 
 /**
  * Draws `controls` as a DOM overlay filling `host` (the canvas's frame) and
@@ -71,10 +90,7 @@ export function createTouchControls(
     zIndex: "1",
   } satisfies Partial<CSSStyleDeclaration>);
 
-  const nodes = new Map<
-    string,
-    { def: TouchControlDef; node: HTMLElement; knob: HTMLElement | null }
-  >();
+  const nodes = new Map<string, Control>();
   for (const def of controls) {
     const node = doc.createElement("div");
     node.dataset.touchControl = def.id;
@@ -88,7 +104,8 @@ export function createTouchControls(
       borderRadius: "50%",
       boxSizing: "border-box",
       border: "2px solid rgba(255, 255, 255, 0.55)",
-      background: "rgba(0, 0, 0, 0.28)",
+      background: IDLE_BG,
+      transition: "transform 60ms, background-color 60ms",
       pointerEvents: "auto",
       touchAction: "none",
       display: "flex",
@@ -98,6 +115,7 @@ export function createTouchControls(
       font: `600 calc(${def.radius * 0.6} * 100cqmin) / 1 sans-serif`,
     } satisfies Partial<CSSStyleDeclaration>);
     let knob: HTMLElement | null = null;
+    const arms: HTMLElement[] = [];
     if (def.kind === "button") {
       if (def.label) node.textContent = def.label;
     } else if (def.kind === "stick") {
@@ -114,12 +132,7 @@ export function createTouchControls(
       } satisfies Partial<CSSStyleDeclaration>);
       node.append(knob);
     } else {
-      for (const [x, y] of [
-        [50, 18],
-        [82, 50],
-        [50, 82],
-        [18, 50],
-      ] as const) {
+      for (const [x, y] of DPAD_ARMS) {
         const arm = doc.createElement("div");
         Object.assign(arm.style, {
           position: "absolute",
@@ -128,15 +141,16 @@ export function createTouchControls(
           width: "16%",
           height: "16%",
           borderRadius: "2px",
-          background: "rgba(255, 255, 255, 0.55)",
+          background: ARM_IDLE,
           pointerEvents: "none",
         } satisfies Partial<CSSStyleDeclaration>);
         node.append(arm);
+        arms.push(arm);
       }
     }
     node.addEventListener("pointerdown", (e) => press(def.id, e));
     root.append(node);
-    nodes.set(def.id, { def, node, knob });
+    nodes.set(def.id, { def, node, knob, arms });
   }
   host.append(root);
 
@@ -175,8 +189,19 @@ export function createTouchControls(
     if (h.knob && !("down" in value)) {
       h.knob.style.transform = `translate(${value.x * 125}%, ${value.y * 125}%)`;
     }
-    h.node.dataset.active =
-      "down" in value ? String(value.down) : String(value.x !== 0 || value.y !== 0);
+    const active = "down" in value ? value.down : value.x !== 0 || value.y !== 0;
+    h.node.dataset.active = String(active);
+    if (h.def.kind !== "stick") {
+      h.node.style.background = active ? ACTIVE_BG : IDLE_BG;
+      h.node.style.transform = active && h.def.kind === "button" ? "scale(0.92)" : "";
+    }
+    if (!("down" in value)) {
+      h.arms.forEach((arm, i) => {
+        const dir = DPAD_ARMS[i];
+        const lit = dir !== undefined && value.x * dir[2] + value.y * dir[3] > 0.5;
+        arm.style.background = lit ? ARM_ACTIVE : ARM_IDLE;
+      });
+    }
     sink(h.def.id, value);
   }
 

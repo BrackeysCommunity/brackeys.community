@@ -134,7 +134,7 @@ describe("computeDesiredMovement", () => {
 });
 
 describe("tuning in metres", () => {
-  it("is M1's px tuning ÷ 100 at the platformer's 100 px per metre", () => {
+  it("is the original px tuning (-500 px/s under 1200 px/s²) ÷ 100 at the platformer's 100 px per metre", () => {
     expect(platformerGame.world).toMatchObject({ gravity: [0, 12], lengthUnit: 100 });
     expect(MOVEMENT_CONFIG).toMatchObject({
       moveSpeed: 3,

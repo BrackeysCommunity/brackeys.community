@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
+import { BEHAVIORS_FIELD, type BehaviorName, type RegisteredBehavior } from "../game/behaviors";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import { assetKindsOf, SIDES } from "../game/fields";
 import type { BehaviorRules, InspectorWidgetDef, RegisteredType, Registry } from "../game/types";
@@ -112,7 +112,14 @@ export type FieldWidget =
   | { kind: "switch" }
   | { kind: "text"; pattern?: string; maxLength?: number }
   /** Paired x and y fields with a pick-in-canvas crosshair; a metric one steps and shows as an `m` number does. */
-  | { kind: "point"; unit?: string; pick: true; step?: number; decimals?: number }
+  | {
+      kind: "point";
+      unit?: string;
+      pick: true;
+      step?: number;
+      bigStep?: number;
+      decimals?: number;
+    }
   | { kind: "points"; min?: number }
   | { kind: "tags" }
   /** A combobox of ids whose type (or base) is in `accepts` (`refCandidates`), plus an eyedropper. */
@@ -249,11 +256,17 @@ type Ctx = { registry: Registry; type: RegisteredType | undefined };
 const isLengthUnit = (unit: unknown): unit is LengthUnitName =>
   (LENGTH_UNITS as readonly unknown[]).includes(unit);
 
-/** How a length-unit field steps and how many decimals it shows, at `pxPerMetre`. */
-function lengthStep(unit: LengthUnitName, pxPerMetre: number): { step: number; decimals: number } {
+/**
+ * How a metric field steps and how many decimals it shows, at `pxPerMetre`:
+ * a length one world px (ten with Shift), a speed or an acceleration 0.01.
+ */
+export function lengthStep(
+  unit: LengthUnitName,
+  pxPerMetre: number,
+): { step: number; bigStep: number; decimals: number } {
   return unit === "m"
-    ? { step: 1 / pxPerMetre, decimals: lengthDecimals(pxPerMetre) }
-    : { step: 0.01, decimals: 2 };
+    ? { step: 1 / pxPerMetre, bigStep: 10 / pxPerMetre, decimals: lengthDecimals(pxPerMetre) }
+    : { step: 0.01, bigStep: 0.1, decimals: 2 };
 }
 
 function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): FieldWidget {
@@ -294,6 +307,7 @@ function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): Fie
     const length =
       !b.integer && isLengthUnit(unit) ? lengthStep(unit, pxPerMetreOf(ctx.registry)) : undefined;
     const step = length?.step ?? (b.integer || unit === "px" ? 1 : 0.1);
+    const bigStep = length?.bigStep ?? step * 10;
     return {
       kind: "number",
       integer: b.integer,
@@ -302,7 +316,7 @@ function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): Fie
       ...(b.max !== undefined ? { max: b.max } : {}),
       ...(b.exclusive ? { exclusiveMin: true } : {}),
       step,
-      bigStep: step * 10,
+      bigStep,
       scrub: unit !== undefined,
       ...(length ? { decimals: length.decimals } : {}),
     };
@@ -549,22 +563,29 @@ function seedBlock(shape: z.ZodRawShape, defaults: Readonly<Record<string, unkno
 }
 
 /**
- * The block Add behavior writes: the behavior's template, then a seed for each
- * required field still unset. A type that sets its own defaults for the
- * behavior skips the template, which could contradict them.
+ * The block Add behavior writes: the behavior's template under the type's own
+ * defaults for it, then a seed for each required field still unset. The
+ * template keys the defaults don't set are kept unless, with the defaults,
+ * they break the behavior's refine; then the template is dropped.
  */
 function addedBlock(
   registry: Registry,
   s: BehaviorState,
   name: BehaviorName,
-  template: Readonly<Record<string, unknown>> | undefined,
+  b: RegisteredBehavior,
 ) {
   const defaults = s.rules.defaults.get(name) ?? {};
-  const base = template && Object.keys(defaults).length === 0 ? structuredClone(template) : {};
-  return {
+  const shape = blockShape(registry, s.target.entity.type, name);
+  const block = (base: Record<string, unknown>) => ({
     ...base,
-    ...seedBlock(blockShape(registry, s.target.entity.type, name), { ...defaults, ...base }),
-  };
+    ...seedBlock(shape, { ...defaults, ...base }),
+  });
+  if (!b.template) return block({});
+  const kept = Object.fromEntries(
+    Object.entries(structuredClone(b.template)).filter(([k]) => defaults[k] === undefined),
+  );
+  const withTemplate = block(kept);
+  return b.refine?.({ ...defaults, ...withTemplate }) === undefined ? withTemplate : block({});
 }
 
 function removeBatch(states: readonly BehaviorState[], name: BehaviorName, title: string) {
@@ -592,7 +613,7 @@ function addOptions(registry: Registry, states: readonly BehaviorState[]): Behav
     const ops: SceneOp[] = lacking.map((s) => ({
       op: "update",
       ref: s.target.ref,
-      set: { [`${BEHAVIORS_FIELD}.${name}`]: addedBlock(registry, s, name, b.template) },
+      set: { [`${BEHAVIORS_FIELD}.${name}`]: addedBlock(registry, s, name, b) },
     }));
     const who = lacking.length === 1 ? lacking[0]!.target.ref : `${lacking.length} entities`;
     out.push({

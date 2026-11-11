@@ -18,8 +18,8 @@ const engineYard = () => structuredClone(yard) as unknown as SceneDefinition;
 function crowdedYard(): SceneDefinition {
   const def = engineYard();
   const solid = def.solid as unknown[];
-  for (let i = 0; i < 40; i++) solid.push(["box", 100 + i * 40, 700, 16, 8]);
-  def.entities!.push({ id: "spare", type: "solid", shape: ["circle", 600, 300, 30], off: true });
+  for (let i = 0; i < 40; i++) solid.push(["box", 1 + i * 0.4, 7, 0.16, 0.08]);
+  def.entities!.push({ id: "spare", type: "solid", shape: ["circle", 6, 3, 0.3], off: true });
   return def;
 }
 
@@ -30,6 +30,15 @@ function apply(def: SceneDefinition, ops: SceneOp[]) {
   return result;
 }
 
+/** A box's numeric fields rounded to the scene's length precision. */
+const r6 = (box: object | undefined) =>
+  box &&
+  Object.fromEntries(
+    Object.entries(box)
+      .filter((kv): kv is [string, number] => typeof kv[1] === "number")
+      .map(([k, v]) => [k, roundLength(v)]),
+  );
+
 const snapshot = (index: EditableSpatialIndex) =>
   index.entries().sort((a, b) => (a.ref < b.ref ? -1 : 1));
 
@@ -39,8 +48,8 @@ function expectSameAsRebuild(index: EditableSpatialIndex, def: SceneDefinition) 
   expect(snapshot(index)).toEqual(snapshot(fresh));
   expect(index.size).toBe(fresh.size);
   for (const rect of [
-    { minX: 0, minY: 600, maxX: 900, maxY: 800 },
-    { minX: 1500, minY: 0, maxX: 2000, maxY: 1000 },
+    { minX: 0, minY: 6, maxX: 9, maxY: 8 },
+    { minX: 15, minY: 0, maxX: 20, maxY: 10 },
     { minX: -1e6, minY: -1e6, maxX: 1e6, maxY: 1e6 },
   ]) {
     expect(index.query(rect).map((e) => e.ref)).toEqual(fresh.query(rect).map((e) => e.ref));
@@ -56,17 +65,17 @@ describe("createSpatialIndex", () => {
       key: "~solid:0",
       type: "solid",
       layer: "terrain",
-      aabb: { minX: 0, minY: 960, maxX: 2000, maxY: 1000 },
     });
+    expect(r6(index.get("~solid:0")?.aabb)).toEqual({ minX: 0, minY: 9.6, maxX: 20, maxY: 10 });
     // A follower's local shape sits at its path's first point.
     expect(index.get("lift")).toMatchObject({
       layer: "gameplay",
-      aabb: { minX: 1640, minY: 892, maxX: 1760, maxY: 908 },
-      geometry: { type: "box", cx: 1700, cy: 900 },
+      geometry: { type: "box", cx: 17, cy: 9 },
     });
+    expect(r6(index.get("lift")?.aabb)).toEqual({ minX: 16.4, minY: 8.92, maxX: 17.6, maxY: 9.08 });
     expect(index.get("start")).toMatchObject({
-      geometry: [300, 960],
-      aabb: { minX: 300, maxX: 300 },
+      geometry: [3, 9.6],
+      aabb: { minX: 3, maxX: 3 },
     });
     expect(index.get("readme")?.layer).toBe("editor");
   });
@@ -76,7 +85,7 @@ describe("createSpatialIndex", () => {
     def.entities!.find((e) => e.id === "zone")!.layer = "decor";
     const index = createSpatialIndex();
     index.rebuild(def, registry);
-    const hits = index.query({ minX: 880, minY: 950, maxX: 920, maxY: 970 }).map((e) => e.ref);
+    const hits = index.query({ minX: 8.8, minY: 9.5, maxX: 9.2, maxY: 9.7 }).map((e) => e.ref);
     expect(hits).toEqual(["zone", "~solid:0"]);
     const z = (ref: string) => index.get(ref)!.z;
     expect(z("~solid:1")).toBeGreaterThan(z("~solid:0"));
@@ -163,13 +172,13 @@ describe("createSpatialIndex", () => {
   });
 
   it("finds wide entries from any cell, and narrow ones only where they are", () => {
-    const index = createSpatialIndex({ cell: 64 });
+    const index = createSpatialIndex({ cell: 0.64 });
     const def = engineYard();
-    (def.solid as unknown[]).push(["box", 0, 0, 1e6, 10]);
+    (def.solid as unknown[]).push(["box", 0, 0, 1e4, 0.1]);
     index.rebuild(def, registry);
-    expect(index.query({ minX: 500, minY: -5, maxX: 501, maxY: 5 }).map((e) => e.ref)).toEqual([
-      "~solid:3",
-    ]);
+    expect(index.query({ minX: 5, minY: -0.05, maxX: 5.01, maxY: 0.05 }).map((e) => e.ref)).toEqual(
+      ["~solid:3"],
+    );
   });
 
   it("uses the session's doc keys when given", () => {
@@ -187,18 +196,18 @@ describe("createSpatialIndex", () => {
       [
         {
           op: "add",
-          entity: { id: "pad", type: "sensor", shape: ["box", 640, 640, 32, 32] },
+          entity: { id: "pad", type: "sensor", shape: ["box", 6.4, 6.4, 0.32, 0.32] },
           index: 0,
         },
-        { op: "addBulk", key: "solid", shapes: [["circle", 1000, 200, 40]], index: 0 },
+        { op: "addBulk", key: "solid", shapes: [["circle", 10, 2, 0.4]], index: 0 },
       ],
-      [{ op: "move", refs: ["~solid:5", "lift", "start"], by: [300, -64] }],
+      [{ op: "move", refs: ["~solid:5", "lift", "start"], by: [3, -0.64] }],
       [{ op: "remove", refs: ["~solid:2", "~solid:30", "crate"] }],
       [
         {
           op: "update",
           ref: "ledge",
-          set: { layer: "decor", shape: ["box", 1400, 820, 160, 10, 15] },
+          set: { layer: "decor", shape: ["box", 14, 8.2, 1.6, 0.1, 15] },
         },
       ],
       [{ op: "rename", from: "avatar", to: "hero" }],
@@ -251,8 +260,6 @@ describe("sprite boxes", () => {
       },
     ],
   });
-  const r6 = (box: Record<string, number> | undefined) =>
-    box && Object.fromEntries(Object.entries(box).map(([k, v]) => [k, roundLength(v)]));
 
   it("indexes a point entity by its sprite's box, and a body by its body and sprite", () => {
     const index = createSpatialIndex();
@@ -311,13 +318,20 @@ describe("the kitchen sink's sprites", () => {
     const index = createSpatialIndex();
     index.rebuild(def(), registry);
     const crate = index.get("crate");
-    expect(crate?.sprite).toEqual({ type: "box", cx: 880, cy: 1140, hw: 36, hh: 36, rotDeg: 0 });
-    expect(crate?.aabb).toEqual({ minX: 844, minY: 1104, maxX: 916, maxY: 1176 });
-    // Outside the 40 px body, inside the 72 px sprite.
-    expect(pickAt(index, [910, 1140], { tolPx: 0, scale: 1 }).map((e) => e.ref)).toContain("crate");
-    expect(pickAt(index, [920, 1140], { tolPx: 0, scale: 1 }).map((e) => e.ref)).not.toContain(
-      "crate",
-    );
+    expect(r6(crate?.sprite)).toEqual({
+      cx: 8.8,
+      cy: 11.4,
+      hw: 0.36,
+      hh: 0.36,
+      rotDeg: 0,
+    });
+    expect(crate?.sprite?.type).toBe("box");
+    expect(r6(crate?.aabb)).toEqual({ minX: 8.44, minY: 11.04, maxX: 9.16, maxY: 11.76 });
+    // Outside the 0.4 m body, inside the 0.72 m sprite; screen px per metre at zoom 1.
+    const at = (p: [number, number]) =>
+      pickAt(index, p, { tolPx: 0, scale: 100 }).map((e) => e.ref);
+    expect(at([9.1, 11.4])).toContain("crate");
+    expect(at([9.2, 11.4])).not.toContain("crate");
   });
 
   it("draws a dropped frame's ghost on the box the placed entity's entry carries", () => {
@@ -334,8 +348,8 @@ describe("the kitchen sink's sprites", () => {
     };
     const asset = (id: string) => (id === "crates" ? drop.info : undefined);
     const scene = def();
-    const preview = dropPreview(drop, [1200, 400], { def: scene, registry, asset });
-    const placed = dropBatch(drop, [1200, 400], { def: scene, registry });
+    const preview = dropPreview(drop, [12, 4], { def: scene, registry, asset });
+    const placed = dropBatch(drop, [12, 4], { def: scene, registry });
     if (!placed.ok) throw new Error("the drop was refused");
     const after = applyOps(scene, placed.batch, registry, { validate: "none" });
     if (!after.ok) throw new Error(after.issue.message);

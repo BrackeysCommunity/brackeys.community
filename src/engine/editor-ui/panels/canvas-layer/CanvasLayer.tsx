@@ -19,7 +19,7 @@ import { Button, useKit } from "../../kit/index";
 import { runOverlay, type LoadedRun } from "../../session/loaded-run";
 import { useStoreValue } from "../../session/use-store-value";
 import { carriesAsset, readAssetDrag } from "../project-tree/tree-rows";
-import { EditLayers } from "./EditLayers";
+import { EditLayerNotes, EditLayers, useEditLayerDrawing, useExpandedScene } from "./EditLayers";
 import { OneWayMarks } from "./OneWayMarks";
 import { RunMarks } from "./RunMarks";
 import { hostAsset, hostToWorld, useHostOverlay, useHostValue } from "./tool-host";
@@ -245,6 +245,9 @@ export function CanvasLayer({
   const dropGhost = useAssetDrop(session, host, canvas, notify);
   const overlay = withDropGhost(hostOverlay, dropGhost);
   const transform = worldTransform(view);
+  const scene = useExpandedScene(session);
+  const step = useHostValue(host, (h) => h.snap().step, null);
+  const layers = useEditLayerDrawing(session, scene, view, step);
 
   let offerAt: [number, number] | null = null;
   if (host && overlay.offer) {
@@ -257,12 +260,13 @@ export function CanvasLayer({
   return (
     <div data-canvas-layer="" className="je-canvas-layer">
       <svg aria-hidden width={view.width} height={view.height} className="je-canvas-svg">
-        <EditLayers session={session} view={view} transform={transform} />
-        <OneWayMarks session={session} view={view} transform={transform} />
+        <EditLayers drawing={layers} transform={transform} />
+        <OneWayMarks session={session} scene={scene} view={view} transform={transform} />
         {run ? <RunMarks overlay={run} view={view} transform={transform} /> : null}
         <ToolOverlayMarks overlay={overlay} view={view} transform={transform} />
       </svg>
       <ToolOverlayLabels overlay={overlay} view={view} />
+      <EditLayerNotes drawing={layers} />
       {offerAt && overlay.offer ? (
         <div
           className="je-canvas-offer"

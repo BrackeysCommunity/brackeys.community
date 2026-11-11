@@ -1,6 +1,6 @@
 {
   "$schema": "../../../src/games/platformer/input-script.schema.json",
-  "v": 1,
+  "v": 2,
   "scene": "test-yard",
   "steps": [
     { "hold": ["move_left"], "for": 30 },

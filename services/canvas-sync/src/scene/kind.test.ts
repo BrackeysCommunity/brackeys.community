@@ -70,8 +70,9 @@ describe("the scene kind's layout check", () => {
 
 const V = SCENE_FORMAT_VERSION;
 
-const scene = (v: number) => ({
+const scene = (v: number, game: string | null = "jam") => ({
   v,
+  ...(game ? { game } : {}),
   name: "hosted",
   bounds: [0, 0, 640, 360] as [number, number, number, number],
   entities: [{ id: "spawn", type: "marker", at: [10, 280] as [number, number] }],
@@ -181,5 +182,41 @@ describe("a hosted doc whose next format step needs its game", () => {
   it("lets a v3 client write the v3 doc, its own format", async () => {
     storedAt("jam.v3-client", V - 1);
     expect(await admit("jam.v3-client", V - 1)).toEqual({});
+  });
+});
+
+describe("a hosted doc that names no game", () => {
+  const store = new MemorySceneStore();
+  const live = new Map<string, Y.Doc>();
+  const kind = createSceneKind({
+    store,
+    documents: () => live,
+    now: Date.now,
+    metrics: new SyncMetrics(),
+  });
+  const storedAt = (sceneId: string, v: number) => {
+    store.create(sceneId);
+    const row = store.rows.get(sceneId)!;
+    row.state = seedState(sceneId, scene(v, null) as never);
+    row.schemaVersion = v;
+    return row;
+  };
+
+  it("lifts to v4 with the engine's own registry, lengths in metres, and a v4 client writes it", async () => {
+    storedAt("p-yard.old", V - 2);
+    expect(
+      await kind.admit("p-yard.old", await claims(COLLAB_LAYOUT_VERSION, V, "scene:p-yard.old")),
+    ).toEqual({});
+    const state = (await kind.persistence.onLoadDocument!({
+      documentName: "scene:p-yard.old",
+    } as onLoadDocumentPayload)) as Uint8Array;
+    expect(stateSchemaVersion(state)).toBe(V);
+    const row = store.rows.get("p-yard.old")!;
+    expect(row.schemaVersion).toBe(V);
+    expect(JSON.parse(row.snapshot!)).toMatchObject({
+      v: V,
+      bounds: [0, 0, 6.4, 3.6],
+      entities: [{ id: "spawn", at: [0.1, 2.8] }],
+    });
   });
 });

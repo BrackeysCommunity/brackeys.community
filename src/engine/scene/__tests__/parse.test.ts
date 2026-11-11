@@ -38,7 +38,7 @@ describe("parseScene", () => {
     expect(fromText.issues).toEqual([]);
     expect(fromText.migratedFrom).toBeUndefined();
     expect(fromText.def.name).toBe("engine-yard");
-    expect(fromText.def.settings).toEqual({ gravity: [0, 1200] });
+    expect(fromText.def.settings).toEqual({ gravity: [0, 12] });
     expect(parseScene(JSON.parse(engineYardText), engine)).toEqual(fromText);
   });
 

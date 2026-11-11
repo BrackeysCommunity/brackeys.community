@@ -1071,7 +1071,9 @@ describe("v1 scripts unchanged in behaviour", () => {
       expect(played.inputs).toEqual(report.inputs);
       expect(played.final).toEqual(report.final);
       expect(played.recording.end).toBe(report.recording.end);
-      expect(played.recording.end).toBe((readV1Recording(fixture) as { end: string }).end);
+      // 0.10.0 recorded it; only a run the move to metres left alone still ends as it did.
+      if (fixture.replays === "matches")
+        expect(played.recording.end).toBe((readV1Recording(fixture) as { end: string }).end);
     }, 120_000);
   }
 
@@ -1087,7 +1089,9 @@ describe("v1 scripts unchanged in behaviour", () => {
     expect(parsed.script.v).toBe(2);
     const played = playScript(run, parsed.script);
     expect(played.end.result).toBe("script-end");
-    expect(played.recording.end).toBe((readV1Recording(fixture) as { end: string }).end);
+    const report = runPlaytest(run);
+    if (report.blocked) throw new Error(JSON.stringify(report));
+    expect(played.recording.end).toBe(report.recording.end);
     const replay = replayRecording({ ...run, recording: played.recording });
     if (replay.blocked) throw new Error(JSON.stringify(replay));
     expect(replay.matches, replay.divergence ?? "").toBe(true);

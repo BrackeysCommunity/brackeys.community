@@ -5,7 +5,7 @@
     "physics": "none"
   },
   "scene": "roguelike",
-  "sceneHash": "2db8386606f6fe77",
+  "sceneHash": "9fcfbd8f647ad1ae",
   "game": "roguelike",
   "configHash": "d28ad77b1e77876a",
   "tickRate": 60,

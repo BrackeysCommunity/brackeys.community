@@ -63,6 +63,7 @@ import {
   type SceneDefinition,
   type ShapeTuple,
 } from "../../editor/index";
+import { lengthStep } from "../../editor/inspector-model";
 import { pxPerMetreOf } from "../../game/units";
 import { fieldKind } from "../../scene/index";
 import { LENGTH_UNITS, roundLength, snapToPixel, type LengthUnitName } from "../../scene/units";
@@ -298,18 +299,16 @@ const relative = (delta: number) => (delta >= 0 ? `+=${delta}` : `-=${-delta}`);
 const metricUnit = (unit: unknown): LengthUnitName | undefined =>
   (LENGTH_UNITS as readonly unknown[]).includes(unit) ? (unit as LengthUnitName) : undefined;
 
-/**
- * Arrow steps for a metric value: one world px at the game's px per metre
- * for a length (ten with Shift), hundredths for a speed or an acceleration.
- */
-function metricSteps(unit: LengthUnitName, ppm: number): { step: number; bigStep: number } {
-  return unit === "m" ? { step: 1 / ppm, bigStep: 10 / ppm } : { step: 0.01, bigStep: 0.1 };
-}
-
 const ppmOf = (ctx: Ctx) => pxPerMetreOf(ctx.session.registry);
 
-/** A unit after a row of number inputs. */
-const UnitSuffix = ({ unit }: { unit: string }) => <span className="je-insp-suffix">{unit}</span>;
+/** A unit after a pair of number inputs, centred on their line. */
+const UnitSuffix = ({ unit }: { unit: string }) => (
+  <span className="je-insp-line je-insp-suffix">{unit}</span>
+);
+
+/** A number as an input shows it: to `decimals` places when given, trailing zeros dropped. */
+const shownNumber = (n: number, decimals: number | undefined) =>
+  decimals === undefined ? String(n) : String(Number(n.toFixed(decimals)) + 0);
 
 // ─── Building blocks ─────────────────────────────────────
 
@@ -532,6 +531,7 @@ function NumberInput({
   bigStep,
   preview,
   suffix,
+  decimals,
   onCommit,
 }: {
   label: string;
@@ -543,6 +543,8 @@ function NumberInput({
   bigStep: number;
   preview?: string | null;
   suffix?: string;
+  /** Decimals the value shows; all of them when omitted. */
+  decimals?: number;
   onCommit: (text: string) => string | null;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -552,7 +554,8 @@ function NumberInput({
     setError(problem);
     if (!problem) setDraft(null);
   };
-  const shown = preview ?? draft ?? (mixed || value === undefined ? "" : String(value));
+  const shown =
+    preview ?? draft ?? (mixed || value === undefined ? "" : shownNumber(value, decimals));
   return (
     <div className="je-insp-number">
       <div className="je-insp-row" data-gap="tight">
@@ -649,11 +652,12 @@ function NumberField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         step={w.step}
         bigStep={w.bigStep}
         suffix={w.unit}
+        decimals={w.decimals}
         preview={
           preview === null
             ? null
             : value !== undefined
-              ? String(roundLength(value + preview))
+              ? shownNumber(roundLength(value + preview), w.decimals)
               : relative(preview)
         }
         onCommit={commit}
@@ -831,7 +835,10 @@ const PT_BOUNDS: Bounds = { integer: false, length: true };
 function PointField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const w = field.widget as Extract<FieldWidget, { kind: "point" }>;
   const unit = metricUnit(w.unit) ?? "m";
-  const { step, bigStep } = metricSteps(unit, ppmOf(ctx));
+  const fallback = lengthStep(unit, ppmOf(ctx));
+  const step = w.step ?? fallback.step;
+  const bigStep = w.bigStep ?? fallback.bigStep;
+  const decimals = w.decimals ?? fallback.decimals;
   const at = asPt(field.value);
   const axis = (i: 0 | 1) => (text: string) =>
     commitEach(ctx, field, (cur) => {
@@ -853,6 +860,7 @@ function PointField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
             mixed={field.mixed}
             step={step}
             bigStep={bigStep}
+            decimals={decimals}
             suffix={name}
             onCommit={axis(i as 0 | 1)}
           />
@@ -878,7 +886,7 @@ function PointsEditor({
   ppm: number;
   onCommit: (next: Pt[]) => string | null;
 }) {
-  const { step, bigStep } = metricSteps("m", ppm);
+  const { step, bigStep, decimals } = lengthStep("m", ppm);
   const [error, setError] = useState<string | null>(null);
   const set = (next: Pt[]) => {
     const problem = onCommit(next);
@@ -898,6 +906,8 @@ function PointsEditor({
               mixed={false}
               step={step}
               bigStep={bigStep}
+              decimals={decimals}
+              suffix={name}
               onCommit={(text) => {
                 const n = resolveNumber(text, pt[axis], PT_BOUNDS);
                 if (n instanceof EditError) return n.message;
@@ -1152,7 +1162,7 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   };
 
   const slots = tag && first ? shapeSlots(first) : null;
-  const { step, bigStep } = metricSteps("m", ppmOf(ctx));
+  const { step, bigStep, decimals } = lengthStep("m", ppmOf(ctx));
   return (
     <div className="je-insp-stack">
       <FieldRow field={field} error={error}>
@@ -1185,6 +1195,7 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
                   mixed={mixed}
                   step={turn ? 1 : step}
                   bigStep={turn ? 15 : bigStep}
+                  decimals={turn ? undefined : decimals}
                   suffix={turn ? "°" : "m"}
                   onCommit={(text) =>
                     commitEach(ctx, field, (cur) => {

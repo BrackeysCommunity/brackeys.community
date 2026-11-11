@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import type { EditorSession, Pt, Ref, ToolOverlay } from "../../../editor/index";
 import { drawnEntities, oneWayEdges, type OneWayEdge } from "../../../scene/render-geometry";
 import { CHILD_SEPARATOR } from "../../../scene/resolve";
-import { useExpandedScene } from "./EditLayers";
+import type { ExpandedScene } from "../../../scene/types";
 import { num, worldPx, type View } from "./view";
 
 /** Screen px of the face's highlight and of each arrow. */
@@ -14,8 +14,7 @@ const ARROW_EVERY_PX = 48;
 const MAX_ARROWS = 12;
 
 /** The scene's one-way faces, from its resolved view; none while the document doesn't expand. */
-function useOneWayEdges(session: EditorSession): OneWayEdge[] {
-  const scene = useExpandedScene(session);
+function useOneWayEdges(session: EditorSession, scene: ExpandedScene | null): OneWayEdge[] {
   return useMemo(
     () => (scene ? oneWayEdges(drawnEntities(scene, session.registry)) : []),
     [scene, session],
@@ -66,18 +65,21 @@ function arrowsPath(edge: OneWayEdge, view: View): string {
  */
 export function OneWayMarks({
   session,
+  scene,
   view,
   transform,
   overlay,
 }: {
   session: EditorSession;
+  /** The committed document, expanded (`useExpandedScene`). */
+  scene: ExpandedScene | null;
   view: View;
   /** The world group's transform. */
   transform: string;
   /** The tool host's overlay, whose previewed outlines name what a drag is moving. */
   overlay?: ToolOverlay;
 }) {
-  const all = useOneWayEdges(session);
+  const all = useOneWayEdges(session, scene);
   const moving = previewedRefs(overlay);
   const edges = moving.length > 0 ? all.filter((e) => !within(e.entity.id, moving)) : all;
   if (edges.length === 0) return null;
