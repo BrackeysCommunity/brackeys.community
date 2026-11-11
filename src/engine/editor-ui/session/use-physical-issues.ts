@@ -20,7 +20,8 @@ const NONE: readonly SceneIssue[] = Object.freeze([]);
 /**
  * The scene's physical issues (a spawn in a solid, a path that runs into one),
  * rechecked in a headless world `delayMs` after the doc or one of its
- * prefabs stops changing. None without Rapier, and none while playing.
+ * prefabs stops changing, on the backend the project's engine block and the
+ * scene resolve to. None without Rapier, and none while playing.
  * From a change until its check lands, `PHYSICAL_CHECK` is held on the
  * editor's `Pending`.
  */
@@ -56,12 +57,14 @@ export function usePhysicalIssues(
     release.current ??= pending?.hold(PHYSICAL_CHECK) ?? null;
     const timer = setTimeout(() => {
       try {
+        const engine = session.engine();
         setIssues(
           validatePhysical({
             rapier,
             scene: session.getDoc(),
             registry: session.registry,
             prefabs: session.getPrefabs(),
+            ...(engine ? { engine } : {}),
           }),
         );
       } catch {

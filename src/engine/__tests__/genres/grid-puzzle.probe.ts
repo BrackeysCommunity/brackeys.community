@@ -85,24 +85,9 @@ const game = defineGame<GridPuzzleSnapshot>({
         : null,
   },
   createRuntime(ctx: EngineContext) {
-    let scene: ExpandedScene | null = null;
     let pusher: GridStepper | null = null;
     let crates: GridStepper[] = [];
     let goals: Cell[] = [];
-
-    // The grid is built after onLoad, so the steppers start on the first tick.
-    function start(): boolean {
-      if (pusher) return true;
-      const grid = ctx.grid;
-      if (!scene || !grid) return false;
-      const cellOf = (at: Pt) => grid.geometry.cellAt(at);
-      const opts = (at: Pt) => ({ start: cellOf(at), msPerStep: MS_PER_STEP, occupy: true });
-      crates = atOf(scene, CRATE).map((c) => createGridStepper(ctx, c.id, opts(c.at)));
-      goals = atOf(scene, GOAL).map((g) => cellOf(g.at));
-      const [p] = atOf(scene, PUSHER);
-      if (p) pusher = createGridStepper(ctx, p.id, opts(p.at));
-      return pusher !== null;
-    }
 
     function push(dir: Cell): void {
       if (!pusher || pusher.moving() || crates.some((c) => c.moving())) return;
@@ -115,16 +100,21 @@ const game = defineGame<GridPuzzleSnapshot>({
 
     return {
       onLoad(next) {
-        scene = next;
+        const grid = ctx.grid;
+        if (!grid) return;
+        const cellOf = (at: Pt) => grid.geometry.cellAt(at);
+        const opts = (at: Pt) => ({ start: cellOf(at), msPerStep: MS_PER_STEP, occupy: true });
+        crates = atOf(next, CRATE).map((c) => createGridStepper(ctx, c.id, opts(c.at)));
+        goals = atOf(next, GOAL).map((g) => cellOf(g.at));
+        const [p] = atOf(next, PUSHER);
+        if (p) pusher = createGridStepper(ctx, p.id, opts(p.at));
       },
       onUnload() {
-        scene = null;
         pusher = null;
         crates = [];
         goals = [];
       },
       beforeStep(dtMs, actions) {
-        if (!start()) return;
         for (const a of actions) {
           const dir = DIRECTIONS[a.action];
           if (a.pressed && dir) push(dir);

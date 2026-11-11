@@ -1,6 +1,11 @@
 import { resolveTime } from "../game/time";
 import type { GameDefinition, PlayState, ScriptPredicate } from "../game/types";
-import { createRunRecorder, recordedCommand, trailPoint } from "../runtime/recorder";
+import {
+  createRunRecorder,
+  recordedCommand,
+  recordingRapier,
+  trailPoint,
+} from "../runtime/recorder";
 import { createSceneRuntime, resolveGame } from "../runtime/runtime";
 import type { StepEvent } from "../runtime/types";
 import type { RecordingCommand } from "../scene/recording-schema";
@@ -181,7 +186,7 @@ export function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G
     const input = scriptInput(script, game?.play?.predicates ?? {});
     const time = runtime.ctx.time;
     const recorder = createRunRecorder({
-      rapier: prepared.scene.settings.physics === "rapier" ? (opts.rapier ?? null) : null,
+      rapier: recordingRapier(prepared.scene, opts.rapier),
       game,
       scene: name,
       sceneHash: prepared.hash,

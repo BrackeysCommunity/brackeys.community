@@ -390,6 +390,8 @@ describe("costs and distances", () => {
 });
 
 describe("line", () => {
+  const at = (c: Cell | undefined) => (c ? `${c[0]},${c[1]}` : "none");
+
   it("is a supercover on squares, taking both cells beside a corner it passes through", () => {
     const g = gridGeometry(SQUARE);
     expect(g.line([0, 0], [3, 1])).toEqual([
@@ -422,19 +424,22 @@ describe("line", () => {
     for (const settings of Object.values(ALL)) {
       const g = gridGeometry(settings);
       const r = rng(9);
+      const wrong: string[] = [];
       for (let i = 0; i < 300; i++) {
         const a: Cell = [int(r, -30, 30), int(r, -30, 30)];
         const b: Cell = [int(r, -30, 30), int(r, -30, 30)];
         const cells = g.line(a, b);
-        expect(cells[0]).toEqual(a);
-        expect(cells.at(-1)).toEqual(b);
-        if (settings.kind === "hex") expect(cells).toHaveLength(g.distance(a, b) + 1);
+        if (cellKey(cells[0]!) !== cellKey(a) || cellKey(cells.at(-1)!) !== cellKey(b))
+          wrong.push(`${at(a)} → ${at(b)}: ends at ${at(cells[0])} and ${at(cells.at(-1))}`);
+        if (settings.kind === "hex" && cells.length !== g.distance(a, b) + 1)
+          wrong.push(`${at(a)} → ${at(b)}: ${cells.length} cells`);
         for (let j = 1; j < cells.length; j++) {
           const [p, q] = [cells[j - 1]!, cells[j]!];
-          if (settings.kind === "hex") expect(g.distance(p, q)).toBe(1);
-          else expect(g.distance(p, q, true)).toBe(1);
+          const step = settings.kind === "hex" ? g.distance(p, q) : g.distance(p, q, true);
+          if (step !== 1) wrong.push(`${at(a)} → ${at(b)}: ${at(p)} to ${at(q)}`);
         }
       }
+      expect(wrong).toEqual([]);
     }
   });
 
@@ -442,12 +447,16 @@ describe("line", () => {
     for (const settings of Object.values(ALL)) {
       const g = gridGeometry(settings);
       const r = rng(23);
+      const asymmetric: string[] = [];
       for (let i = 0; i < 1000; i++) {
         const span = i % 4 === 0 ? 6 : 200;
         const a: Cell = [int(r, -span, span), int(r, -span, span)];
         const b: Cell = [int(r, -span, span), int(r, -span, span)];
-        expect(g.line(b, a)).toEqual(g.line(a, b).reverse());
+        const back = g.line(b, a).map(cellKey).join();
+        const forth = g.line(a, b).map(cellKey).reverse().join();
+        if (back !== forth) asymmetric.push(`${at(a)} → ${at(b)}`);
       }
+      expect(asymmetric).toEqual([]);
     }
   });
 

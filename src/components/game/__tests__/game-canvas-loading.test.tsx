@@ -77,9 +77,10 @@ describe("GameCanvasLoading", () => {
     expect(container.firstElementChild?.className).toContain("bg-[#1a1a2e]");
   });
 
-  it("draws the editor's loading frame with edit", async () => {
+  it("says it is loading at once with edit, then draws the editor's loading frame", async () => {
     render(<GameCanvasLoading roomId="lobby-1" edit />);
-    expect((await screen.findByRole("status")).textContent).toContain("Loading the editor");
-    expect(screen.getByRole("heading", { name: "lobby-1" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("Loading the editor");
+    expect(await screen.findByRole("heading", { name: "lobby-1" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("Loading the editor");
   });
 });

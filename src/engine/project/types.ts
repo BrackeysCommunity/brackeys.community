@@ -110,6 +110,12 @@ export type ProjectView = {
   /** The repairs a server would write: key → { id?, path? }. */
   repairs: ReadonlyMap<AssetKey, { id?: AssetId; path?: AssetPath }>;
   tree(): ProjectTreeNode[];
+  /**
+   * The game-settings asset's `engine` block, set by a reader that holds its
+   * doc (`projectView` alone reads no docs). Validation resolves a scene's
+   * physics and grid through it, as Play does.
+   */
+  engine?: Readonly<Record<string, unknown>>;
 };
 
 export type ProjectTreeNode =

@@ -63,6 +63,7 @@ import {
   type SceneDefinition,
   type ShapeTuple,
 } from "../../editor/index";
+import { fieldKind } from "../../scene/index";
 import { STORAGE_PREFIX } from "../host";
 import {
   Button,
@@ -675,6 +676,9 @@ function AngleField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   );
 }
 
+/** The segment that clears an optional side field. */
+const OFF = "\u0000off";
+
 function OptionsField({
   field,
   ctx,
@@ -687,13 +691,14 @@ function OptionsField({
   segmented: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const current =
-    !field.mixed && (typeof field.value === "string" || typeof field.value === "number")
-      ? String(field.value)
-      : "";
+  // An optional side's unset state is a choice of its own, so it gets a segment.
+  const off = segmented && field.optional && fieldKind(field.schema) === "side";
+  const set = typeof field.value === "string" || typeof field.value === "number";
+  const current = field.mixed ? "" : set ? String(field.value) : off ? OFF : "";
   const pick = (key: string) => {
     const option = options.find((o) => String(o.value) === key);
-    if (key === current && field.optional) setError(commitField(ctx, field, undefined));
+    if (key === OFF) setError(commitField(ctx, field, undefined));
+    else if (key === current && field.optional) setError(commitField(ctx, field, undefined));
     else if (option) setError(commitField(ctx, field, option.value));
     else if (key === "" && field.optional) setError(commitField(ctx, field, undefined));
   };
@@ -705,10 +710,15 @@ function OptionsField({
             size="xs"
             aria-label={field.path}
             value={current}
-            emitOnReselect={field.optional}
+            emitOnReselect={field.optional && !off}
             onChange={pick}
             className="je-insp-wrap"
           >
+            {off ? (
+              <SegmentedControl.Item value={OFF} tooltip="Not set: no side">
+                off
+              </SegmentedControl.Item>
+            ) : null}
             {options.map((o) => (
               <SegmentedControl.Item
                 key={String(o.value)}

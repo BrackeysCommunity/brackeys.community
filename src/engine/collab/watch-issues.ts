@@ -1,11 +1,15 @@
 import type * as Y from "yjs";
 
 import type { Registry } from "../game/types";
-import type { ProjectView } from "../project/types";
+import type { DocLayout } from "../project/kinds";
+import { isPlainObject } from "../project/kinds/define";
+import { gameSettingsEntries } from "../project/kinds/game-settings";
+import type { AssetEntry, ProjectView } from "../project/types";
 import { makeIssue } from "../scene/issues";
 import type { Bounds, SceneIssue } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import { contentMaps, prefabsReachedBy, readDoc, touchesMaps } from "./convert";
+import { layoutFromDoc } from "./layout";
 import { EMPTY_PREFAB_SOURCE, type PrefabSource } from "./prefab-source";
 import { projectAssetsMap } from "./project-doc";
 
@@ -18,9 +22,45 @@ export type IssueWatch = {
 /**
  * The project a doc belongs to, as validation reads it: a `ProjectSession`
  * fits. A change to `projectDoc`'s registry (an asset added, renamed or
- * trashed) revalidates.
+ * trashed) revalidates. The project's engine block is the view's `engine`,
+ * else the game-settings doc's while `get` has it open, which an edit to
+ * revalidates.
  */
-export type IssueProject = { view(): ProjectView; readonly projectDoc?: Y.Doc };
+export type IssueProject = {
+  view(): ProjectView;
+  readonly projectDoc?: Y.Doc;
+  docNameFor?(entry: AssetEntry): string | null;
+  get?(name: string): { readonly doc: Y.Doc; readonly layout?: DocLayout } | undefined;
+};
+
+type EngineBlock = Readonly<Record<string, unknown>>;
+
+/** The open game-settings doc an `IssueProject` reads its engine block from. */
+function settingsDoc(
+  project: IssueProject,
+  view: ProjectView,
+): { doc: Y.Doc; layout: DocLayout } | null {
+  const [entry] = gameSettingsEntries(view);
+  const name = entry ? project.docNameFor?.(entry) : null;
+  const open = name ? project.get?.(name) : undefined;
+  return open?.layout ? { doc: open.doc, layout: open.layout } : null;
+}
+
+/**
+ * The project's game-settings `engine` block, which scene settings resolve
+ * through as Play resolves them: the view's own, else the open doc's;
+ * undefined without either.
+ */
+export function issueEngine(
+  project: IssueProject,
+  view: ProjectView = project.view(),
+): EngineBlock | undefined {
+  if (view.engine) return view.engine;
+  const open = settingsDoc(project, view);
+  if (!open) return undefined;
+  const value = layoutFromDoc(open.doc, open.layout);
+  return isPlainObject(value.engine) ? value.engine : undefined;
+}
 
 export type WatchIssuesOptions = {
   /** Default 150ms. */
@@ -31,7 +71,7 @@ export type WatchIssuesOptions = {
   prefabs?: PrefabSource;
   /** For a prefab doc: the scene size its view centres on (`readDoc`'s `parentBounds`). */
   parentBounds?: Bounds;
-  /** With it, asset ids the doc names are checked against the project (`asset-missing`, `asset-kind`). */
+  /** With it, asset ids the doc names are checked against the project (`asset-missing`, `asset-kind`), and settings resolve through its engine block. */
   project?: IssueProject;
 };
 
@@ -49,10 +89,12 @@ export function validateDoc(
       ...(opts.parentBounds ? { parentBounds: opts.parentBounds } : {}),
     });
     const project = opts.project?.view();
+    const engine = opts.project && project ? issueEngine(opts.project, project) : undefined;
     return validateScene(view.def, registry, {
       prefabs,
       ...(view.kind === "prefab" && view.prefab?.id ? { prefab: view.prefab.id } : {}),
       ...(project ? { project } : {}),
+      ...(engine ? { engine } : {}),
     });
   } catch (err) {
     return [
@@ -81,8 +123,20 @@ export function watchIssues(
   const tracked = contentMaps(doc);
   let timer: unknown = null;
 
+  let settings: Y.Doc | null = null;
+  const onSettings = () => schedule();
+  /** Follows the game-settings doc the engine block is read from, which can open or change after the watch starts. */
+  const followSettings = () => {
+    const project = opts.project;
+    const next = project?.get ? (settingsDoc(project, project.view())?.doc ?? null) : null;
+    if (next === settings) return;
+    settings?.off("update", onSettings);
+    settings = next;
+    settings?.on("update", onSettings);
+  };
   const run = () => {
     timer = null;
+    followSettings();
     const issues = validateDoc(doc, registry, opts);
     onIssues(issues);
     return issues;
@@ -116,6 +170,8 @@ export function watchIssues(
       timer = null;
       doc.off("afterTransaction", onTransaction);
       projectDoc?.off("afterTransaction", onProject);
+      settings?.off("update", onSettings);
+      settings = null;
       unsubscribe();
     },
   };

@@ -10,6 +10,7 @@ import {
   type TestGameSnapshot,
 } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
+import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { createSessionRecording } from "../../runtime/play-session";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../../scene/agent-surface";
 import { formatScene } from "../../scene/format";
@@ -116,6 +117,42 @@ describe("RunRecording", () => {
       expect(b.recording).toEqual(rec);
       expect(b.final).toEqual(a.final);
     }
+  });
+
+  it("replays a recording made in a project that sets engine.tickRate without a tuning warning", () => {
+    const project: ProjectRuntimeView = {
+      settings: {},
+      engine: { tickRate: 30 },
+      table: () => [],
+      asset: () => undefined,
+    };
+    const run = runPlaytest<TestGameSnapshot>({
+      rapier,
+      game: testGame,
+      registry,
+      scene: yard,
+      script: wander,
+      project,
+    });
+    if (run.blocked) throw new Error("blocked");
+    const rec = run.recording;
+    expect(rec.tickRate).toBe(30);
+    expect(rec.configHash).toBe(run.configHash);
+
+    const here = replayRecording({
+      rapier,
+      game: testGame,
+      registry,
+      scene: yard,
+      recording: rec,
+      project,
+    });
+    if (here.blocked) throw new Error("replay blocked");
+    expect(here.warnings).toEqual([]);
+    expect(here.matches, here.divergence ?? "").toBe(true);
+
+    const elsewhere = replayed(rec);
+    expect(elsewhere.warnings).toEqual(["recorded at 30 ticks a second, replayed at 60"]);
   });
 
   it("warns that a recording of a changed scene is stale, and says how it diverged", () => {

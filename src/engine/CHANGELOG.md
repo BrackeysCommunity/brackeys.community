@@ -167,6 +167,18 @@ time?)` and `RecorderOptions.time` take the run's clock; omitted, the
   before it is built.
 - `ApplyOptions.project`: with a project, `applyOps` (and `applyOpsToDoc`)
   judge asset ids and sprite frames as `validateScene` does.
+- `ProjectView.engine?`: the game-settings asset's `engine` block, set by a
+  reader that holds its doc. `validateScene` resolves settings through
+  `opts.engine`, else `opts.project.engine`, so `applyOps` and
+  `applyOpsToDoc` given such a view report `physics-required` as `validate`
+  and Play do. `IssueProject` gains optional `docNameFor` and `get` (a
+  `ProjectSession` has both): `validateDoc` and `watchIssues` then read the
+  open game-settings doc's engine block, and an edit to it revalidates.
+  `EditorSession.engine()` gives the block, and the editor's physical checks
+  run on the backend it and the scene resolve to.
+- `takesConcave(registry, target)` and `judgeConcave(edit, registry,
+target)` in `./editor`: whether a gizmo target's shape field takes concave
+  polygons, and the edit without its `concave` flag when it does.
 - `IndexEntry.sprite`: the world box an indexed entity's sprite draws, when
   it has one (picking, marquee and asset drop read it).
 - `EditorSkeleton` (`./editor-ui`): the editor's frame in its default
@@ -203,7 +215,12 @@ time?)` and `RecorderOptions.time` take the run's clock; omitted, the
   `occupy` reserves its target in `ctx.grid.occupancy` as it starts.
 - `sceneGrid(scene, registry, wallTypes?)` in `./game`: a scene's grid
   outside a runtime, walls rasterised as a load does; the `connected` check
-  and `scene grid` both use it.
+  and `scene grid` both use it, and share `gridRoute(grid, from, to,
+diagonals)` (a path over passable cells within the grid's bounds, none from
+  a blocked start), `gridPlace(grid, registry, cellOrEntity)` (`GridPlace`:
+  a cell, or the cell an entity's spawn pose falls in) and
+  `gridMissingIssue(sceneName, what)` (`grid-invalid` for a scene with no
+  grid), all in `./game`.
 - Genre probes (tests only, not public API): `__tests__/genres/` runs each
   `*.probe.ts` headless, with its variants, against pinned digests. Probe
   `grid-puzzle` pushes crates on a square grid with physics `none`, under
@@ -257,7 +274,9 @@ time?)` and `RecorderOptions.time` take the run's clock; omitted, the
 - The scene CLI's `step`, `playtest`, `replay`, `fuzz`, `check` and
   `validate --physical` load Rapier only for a scene whose physics resolves
   to `"rapier"`, and resolve settings through the project's `engine`
-  block.
+  block. `apply`, `apply --live` and `list` judge a scene through that block
+  too, so they report the `physics-required` that `validate` reports; `list`
+  also judges asset ids against the project, as `validate` does.
 - `createRegistry` refuses game command names that start with `@` or don't
   match `COMMAND_NAME_PATTERN`.
 - A game's explicit `spawnOrder` may leave out `nav` as it may `decor`;
@@ -269,7 +288,7 @@ time?)` and `RecorderOptions.time` take the run's clock; omitted, the
 - `PhysicsWorld.createCharacterController(opts)` takes
   `CharacterControllerOptions` and has no default (breaking): pass
   `SIDE_VIEW_CONTROLLER` for the controller it built before. A null option
-  turns that behaviour off.
+  turns that behaviour off. Its `up` is a `Pt` (`[0, -1]` in both presets).
 - `GameConfig.rapier` is optional, `SceneRuntimeOptions.rapier` takes null,
   and `CheckEnv.rapier`, `PhysicalEnv.rapier` and `PhysicalEnv.physics` may
   be null; `CheckEnv.rapier` is optional. A runtime given no Rapier builds

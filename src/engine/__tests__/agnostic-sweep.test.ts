@@ -82,13 +82,12 @@ const PROBES: GenreProbe[] = Object.values(PROBE_MODULES)
   .filter((p, i, all) => all.indexOf(p) === i)
   .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
-/** Each run a probe makes (its default, then each variant), with the settings it resolves to. */
-function runsOf(probe: GenreProbe) {
+/** Each variant a probe lists, with the settings it resolves to. */
+function variantRunsOf(probe: GenreProbe) {
   const registry = createRegistry(probe.game as Parameters<typeof createRegistry>[0]);
   const sources = settingsSources(registry);
-  const variants: (ProbeVariant | undefined)[] = [undefined, ...(probe.variants ?? [])];
-  return variants.map((variant) => {
-    const settings: SceneSettings = { ...probe.scene.settings, ...variant?.settings };
+  return (probe.variants ?? []).map((variant) => {
+    const settings: SceneSettings = { ...probe.scene.settings, ...variant.settings };
     return { probe, variant, resolved: resolveSettings(settings, sources) };
   });
 }
@@ -101,14 +100,14 @@ describe("agnostic sweep: variants", () => {
 
   for (const req of REQUIRED) {
     it(`a probe runs under ${req.name} and reaches its result`, async () => {
-      const run = PROBES.flatMap(runsOf).find((r) => req.matches(r.resolved));
-      expect(run, `no probe lists or defaults to ${req.name}`).toBeDefined();
+      const run = PROBES.flatMap(variantRunsOf).find((r) => req.matches(r.resolved));
+      expect(run, `no probe lists a variant with ${req.name}`).toBeDefined();
       if (!run) return;
       const load = HARNESS["./genres/harness.ts"];
       if (!load) throw new Error("genres/harness.ts is missing");
       const { runGenreProbe } = await load();
       const out = await runGenreProbe(run.probe, run.variant);
-      const label = `${run.probe.id} ${run.variant?.name ?? "(default)"}`;
+      const label = `${run.probe.id} ${run.variant.name}`;
       expect(out.report.outcome.result, label).toBe(run.probe.expect.result);
       if (run.probe.expect.maxTicks !== undefined) {
         expect(out.report.ticks, label).toBeLessThanOrEqual(run.probe.expect.maxTicks);

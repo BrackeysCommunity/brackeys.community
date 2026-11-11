@@ -788,10 +788,12 @@ fields with the builders:
 | `vectorField`             | turns (never translated)      | mirrors                       |
 | `angleField(desc, "deg")` | gains 90° per turn            | negated                       |
 | `mirrorField("x", desc)`  | unchanged                     | toggled                       |
+| `sideField(desc)`         | the side turns by the turn    | the side mirrors              |
 | grid fields               | cells remap (square only)     | cells remap (square only)     |
 | any other value           | unchanged                     | unchanged                     |
 
-A one-way solid stays screen-up inside a turned instance. The resolved
+One-way sides (`sideField`, a solid's `oneWay`) turn and flip with the
+instance; `true` stays `true` while the side still faces up. The resolved
 entity carries the transform it ended up with
 (`RuntimeEntity.transform: { turn, flip }`). `Transform2D`, `dihedral`,
 `compose`, `invert`, `applyPt`, `applyVec`, `composeDihedral` and
@@ -1590,7 +1592,6 @@ export const walkerGame = defineGame<WalkerSnapshot>({
     outcome: ({ snapshot }) => (snapshot.home ? { result: "won" } : null),
   },
   createRuntime(ctx: EngineContext) {
-    let hero: { id: string; at: Pt } | null = null;
     let goal: Pt | null = null;
     let stepper: GridStepper | null = null;
     let route: Cell[] = [];
@@ -1605,21 +1606,21 @@ export const walkerGame = defineGame<WalkerSnapshot>({
 
     return {
       onLoad(scene) {
-        const h = markerAt(scene, "hero");
-        hero = h ? { id: h.id, at: h.at as Pt } : null;
+        const hero = markerAt(scene, "hero");
         goal = (markerAt(scene, "goal")?.at as Pt | undefined) ?? null;
-        stepper = null;
         route = [];
         walks = 0;
+        stepper =
+          hero && ctx.grid
+            ? createGridStepper(ctx, hero.id, {
+                start: ctx.grid.geometry.cellAt(hero.at as Pt),
+                msPerStep: 150,
+              })
+            : null;
       },
       beforeStep(dtMs, _actions, commands) {
         const grid = ctx.grid;
-        if (!grid || !hero) return;
-        // ctx.grid is built after onLoad, so the stepper starts on the first tick.
-        stepper ??= createGridStepper(ctx, hero.id, {
-          start: grid.geometry.cellAt(hero.at),
-          msPerStep: 150,
-        });
+        if (!grid || !stepper) return;
         stepper.update(dtMs);
         for (const command of commands) {
           if (command.name !== "walk") continue;

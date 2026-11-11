@@ -14,7 +14,7 @@ export const DEFAULT_SPAWN_CAST = "gravity";
 /** Side-view tuning, the controller every game had through 0.8: up −y, climb 50°, slide 30°, autostep 4×2, snap 4, push. */
 export const SIDE_VIEW_CONTROLLER: CharacterControllerOptions = {
   offset: 0.01,
-  up: { x: 0, y: -1 },
+  up: [0, -1],
   maxSlopeClimbDeg: 50,
   minSlopeSlideDeg: 30,
   autostep: { maxHeight: 4, minWidth: 2, dynamic: true },
@@ -25,7 +25,7 @@ export const SIDE_VIEW_CONTROLLER: CharacterControllerOptions = {
 /** No slopes, autostep or snap: walls stop you, nothing lifts you. */
 export const TOP_DOWN_CONTROLLER: CharacterControllerOptions = {
   offset: 0.01,
-  up: { x: 0, y: -1 },
+  up: [0, -1],
   maxSlopeClimbDeg: null,
   minSlopeSlideDeg: null,
   autostep: null,

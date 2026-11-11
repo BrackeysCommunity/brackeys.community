@@ -97,7 +97,6 @@ const game = defineGame<TurnTacticsSnapshot>({
       snapshot.reached ? { result: "won", cause: "a unit reached the target" } : null,
   },
   createRuntime(ctx: EngineContext) {
-    let scene: ExpandedScene | null = null;
     let units: Unit[] = [];
     let target: { id: string; cell: Cell } | null = null;
     let turn = 1;
@@ -112,26 +111,6 @@ const game = defineGame<TurnTacticsSnapshot>({
       return p ? { x: p.x, y: p.y } : null;
     };
     const opaque = (c: Cell) => ctx.grid?.occupancy.wall(c) ?? true;
-
-    // The grid is built after onLoad, so the units take their cells on the first tick.
-    function start(): boolean {
-      if (units.length > 0) return true;
-      const grid = ctx.grid;
-      if (!scene || !grid) return false;
-      units = atOf(scene, UNIT).map((u) => ({
-        id: u.id,
-        stepper: createGridStepper(ctx, u.id, {
-          start: grid.geometry.cellAt(u.at),
-          msPerStep: MS_PER_STEP,
-          occupy: true,
-        }),
-        queue: [],
-      }));
-      const [t] = atOf(scene, TARGET);
-      target = t ? { id: t.id, cell: grid.geometry.cellAt(t.at) } : null;
-      for (const u of units) look(u);
-      return units.length > 0;
-    }
 
     function look(u: Unit): void {
       const grid = ctx.grid;
@@ -177,15 +156,26 @@ const game = defineGame<TurnTacticsSnapshot>({
 
     return {
       onLoad(next) {
-        scene = next;
+        const grid = ctx.grid;
+        if (!grid) return;
+        units = atOf(next, UNIT).map((u) => ({
+          id: u.id,
+          stepper: createGridStepper(ctx, u.id, {
+            start: grid.geometry.cellAt(u.at),
+            msPerStep: MS_PER_STEP,
+            occupy: true,
+          }),
+          queue: [],
+        }));
+        const [t] = atOf(next, TARGET);
+        target = t ? { id: t.id, cell: grid.geometry.cellAt(t.at) } : null;
+        for (const u of units) look(u);
       },
       onUnload() {
-        scene = null;
         units = [];
         target = null;
       },
       beforeStep(dtMs, actions, commands) {
-        if (!start()) return;
         for (const a of actions) if (a.action === "inspect" && a.pressed) inspected++;
         for (const u of units) advance(u, dtMs);
         for (const c of commands) {

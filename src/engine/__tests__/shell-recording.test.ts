@@ -148,6 +148,38 @@ describe("recording a play session", () => {
     expect(recorded[0]!.inputs).toEqual(rec.inputs);
     expect(game.getStore().state.sim.paused).toBe(true);
   });
+
+  it("names no physics build for a physics-free scene, though Rapier is loaded", async () => {
+    const game = await editing();
+    const doc: SceneDefinition = {
+      v: 1,
+      name: "markers",
+      bounds: [0, 0, 500, 500],
+      settings: { physics: "none" },
+      entities: [{ id: "a", type: "marker", at: [100, 100], tags: ["spawn"] }],
+    };
+    const recorded: RunRecording[] = [];
+    game.on("play:recorded", (r) => recorded.push(r));
+    expect(game.play(doc)).toMatchObject({ ok: true });
+    game.router.dispatch(key("d"));
+    game.step(10);
+    game.stop();
+    const rec = recorded[0]!;
+    expect(rec.ticks).toBe(10);
+    expect(rec.engine.physics).toBe("none");
+    expect(session(game, yard()).engine.physics).toMatch(/^rapier/);
+
+    const replay = replayRecording({
+      rapier,
+      game: testGame,
+      registry,
+      scene: doc,
+      recording: rec,
+    });
+    if (replay.blocked) throw new Error("replay blocked");
+    expect(replay.warnings).toEqual([]);
+    expect(replay.matches, replay.divergence ?? "").toBe(true);
+  });
 });
 
 describe("commands in a play session", () => {

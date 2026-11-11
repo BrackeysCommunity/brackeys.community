@@ -1,7 +1,8 @@
 import type { Store } from "@tanstack/store";
-import { useId, useMemo, useState, useSyncExternalStore } from "react";
+import { useId, useMemo, useState } from "react";
 
 import type { EditorSession } from "../../editor/index";
+import { resolveTime, type TimeKind } from "../../game/index";
 import type { PlayOptions } from "../../index";
 import type { EditorNotify } from "../host";
 import {
@@ -26,7 +27,7 @@ import {
   usePending,
 } from "../pending/use-pending";
 import { parseRun, runIsStale, runStart, type LoadedRun } from "../session/loaded-run";
-import { useEditorDoc } from "../session/use-editor-store";
+import { useEditorDoc, useEditorPrefabs } from "../session/use-editor-store";
 import { useStoreValue } from "../session/use-store-value";
 
 /** Markers listed before the rest are summarised as a count. */
@@ -46,6 +47,23 @@ function readText(file: Blob): Promise<string> {
 
 /** `tick` as seconds at the recording's tick rate. */
 const seconds = (tick: number, tickRate: number) => `${(tick / tickRate).toFixed(1)}s`;
+
+/**
+ * A recording's length and marker times. A fixed clock's ticks are elapsed
+ * time; a turns or event game skips idle ticks, so its ticks are only steps.
+ */
+function runTimes(recording: LoadedRun["recording"], kind: TimeKind) {
+  if (kind === "fixed") {
+    return {
+      length: `${recording.ticks} ticks (${seconds(recording.ticks, recording.tickRate)})`,
+      at: (tick: number) => seconds(tick, recording.tickRate),
+    };
+  }
+  return {
+    length: `${recording.ticks} steps`,
+    at: (tick: number) => `step ${tick}`,
+  };
+}
 
 const OUTCOME_VARIANT: Record<string, BadgeVariant> = {
   won: "success",
@@ -145,15 +163,18 @@ function LoadRunDialog({
 function RunSummary({
   run,
   stale,
+  timeKind,
   onPlayFrom,
   onReplay,
 }: {
   run: LoadedRun;
   stale: boolean;
+  timeKind: TimeKind;
   onPlayFrom: (opts: PlayOptions) => void;
   onReplay: (run: LoadedRun) => void;
 }) {
   const { recording } = run;
+  const times = runTimes(recording, timeKind);
   const { outcome } = recording;
   const markers = recording.markers.slice(0, MAX_EVENTS);
   return (
@@ -165,7 +186,7 @@ function RunSummary({
         </Badge>
       </div>
       <Text as="p" size="xs" variant="muted">
-        {recording.scene} · {recording.ticks} ticks ({seconds(recording.ticks, recording.tickRate)})
+        {recording.scene} · {times.length}
         {outcome.cause ? ` · ${outcome.cause}` : ""}
         {outcome.entityId ? ` at ${outcome.entityId}` : ""}
       </Text>
@@ -201,7 +222,7 @@ function RunSummary({
         <ol aria-label="Run markers" className="je-run-markers je-scene-panel-scroll">
           {markers.map((e, i) => (
             <li key={`${e.tick}:${i}`} className="je-run-marker">
-              <span className="je-run-marker-at">{seconds(e.tick, recording.tickRate)}</span>
+              <span className="je-run-marker-at">{times.at(e.tick)}</span>
               <span className="je-sp-truncate">
                 {e.type}
                 {e.entityId ? ` · ${e.entityId}` : ""}
@@ -240,10 +261,7 @@ export function LoadRunPanel({
 }) {
   const loaded = useStoreValue(run);
   const def = useEditorDoc(session);
-  const prefabs = useSyncExternalStore(
-    (changed) => session.prefabs.subscribe(changed),
-    () => session.getPrefabs(),
-  );
+  const prefabs = useEditorPrefabs(session);
   const stale = useMemo(
     () => (loaded ? runIsStale(loaded, def, prefabs, session.getHash()) : false),
     [loaded, def, prefabs, session],
@@ -271,7 +289,13 @@ export function LoadRunPanel({
           ) : null}
         </div>
         {loaded ? (
-          <RunSummary run={loaded} stale={stale} onPlayFrom={onPlayFrom} onReplay={onReplay} />
+          <RunSummary
+            run={loaded}
+            stale={stale}
+            timeKind={resolveTime({ game: session.registry.time }).kind}
+            onPlayFrom={onPlayFrom}
+            onReplay={onReplay}
+          />
         ) : (
           <Text as="p" size="xs" variant="muted">
             Play the scene, or load a recording, to see its trail over the scene.

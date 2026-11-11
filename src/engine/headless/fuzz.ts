@@ -1,3 +1,4 @@
+import { resolveTime } from "../game/time";
 import type { GameDefinition, Macro, MacroRandom } from "../game/types";
 import { resolveGame } from "../runtime/runtime";
 import type { EntityTypeName, Ref } from "../scene/types";
@@ -95,6 +96,7 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
   );
   let ticks = 0;
   const startedAt = performance.now();
+  let time = resolveTime({ project: opts.project?.engine, game: registry.time });
 
   for (let rollout = 0; rollout < rollouts; rollout++) {
     const started = startRun({
@@ -107,6 +109,7 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
       project: opts.project,
     });
     if (!started.ok) return blockedRun("load", name, prepared.issues, [], started.load);
+    time = started.runtime.ctx.time;
     const seen = new Set<Ref>();
     const touch = (id: string | undefined, tick: number) => {
       if (id === undefined || seen.has(id) || !types.has(id)) return;
@@ -147,7 +150,7 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
     blocked: false,
     scene: name,
     sceneHash: prepared.hash,
-    configHash: probeConfigHash(game),
+    configHash: probeConfigHash(game, time),
     seed: opts.seed,
     rollouts,
     ticksPerRollout,

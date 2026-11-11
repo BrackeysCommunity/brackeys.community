@@ -25,9 +25,11 @@ import { createPixiView, type PixiView } from "./render/pixi-view";
 import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
 import { createSessionRecording, preparePlay, type SessionRecording } from "./runtime/play-session";
+import { recordingRapier } from "./runtime/recorder";
 import { createSceneRuntime, resolveGame, type ProjectOption } from "./runtime/runtime";
 import type { AssetReloadError, LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
 import { defaultPhysics, expandScene, isExpandedScene, scenePhysics } from "./scene/expand";
+import { checkCommand, elapsedCommand } from "./scene/input-script";
 import type { RunRecording } from "./scene/recording-schema";
 import type { Aabb, ExpandedScene, PrefabLibrary, SceneDefinition } from "./scene/types";
 import {
@@ -398,7 +400,7 @@ export async function createGame(
     const report = startPlay(prepared.scene, bundleFor(prepared.scene, doc), opts);
     if (report.ok) {
       session = createSessionRecording({
-        rapier,
+        rapier: recordingRapier(prepared.scene, rapier),
         game,
         scene: doc.name,
         sceneHash: prepared.hash,
@@ -544,10 +546,7 @@ export async function createGame(
   function queueElapsed(ms: number): boolean {
     const catchUp = clock().catchUp;
     if (!catchUp || !loaded || getMode() !== "play") return false;
-    pendingCommands.push({
-      name: "@elapsed",
-      args: { ms: Math.floor(Math.min(ms, catchUp.maxMs)) },
-    });
+    pendingCommands.push(elapsedCommand(ms, catchUp));
     return true;
   }
 
@@ -661,23 +660,18 @@ export async function createGame(
     return loaded?.attachment?.onCommand?.(name) ?? false;
   }
 
-  /** Why `command` can't be queued now, or its args as parsed. */
-  function commandProblem(command: GameCommand): { why: string } | { args: unknown } {
+  /** Why `command` can't be queued now, or the command as it is queued. */
+  function commandProblem(command: GameCommand): { why: string } | { command: GameCommand } {
     if (destroyed) return { why: "game destroyed" };
     if (!loaded || getMode() !== "play") return { why: "nothing is playing" };
     if (session?.replaying) return { why: "a replay plays its recorded commands" };
-    const def = registry.commands.get(command.name);
-    if (!def) return { why: `unknown command; known: ${registry.commandNames.join(", ")}` };
-    if (!def.args) {
-      return command.args === undefined ? { args: undefined } : { why: "it takes no args" };
-    }
-    const parsed = def.args.safeParse(command.args);
-    if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      const where = issue?.path.length ? `${issue.path.join(".")}: ` : "";
-      return { why: `args don't parse: ${where}${issue?.message ?? "invalid"}` };
-    }
-    return { args: parsed.data };
+    const checked = checkCommand(registry, command);
+    if (!checked.ok) return { why: checked.message };
+    if (checked.command.name !== "@elapsed") return { command: checked.command };
+    const catchUp = clock().catchUp;
+    if (!catchUp) return { why: "the game has no time.catchUp" };
+    const { ms } = checked.command.args as { ms: number };
+    return { command: elapsedCommand(ms, catchUp) };
   }
 
   function send(command: GameCommand): boolean {
@@ -686,10 +680,7 @@ export async function createGame(
       if (cfg.dev) console.warn(`[game] send("${command.name}"): ${checked.why}`);
       return false;
     }
-    const queued: GameCommand = { ...command };
-    if (checked.args === undefined) delete queued.args;
-    else queued.args = checked.args;
-    pendingCommands.push(queued);
+    pendingCommands.push(checked.command);
     return true;
   }
 

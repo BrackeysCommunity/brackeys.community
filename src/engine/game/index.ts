@@ -192,8 +192,8 @@ export type {
 } from "../runtime/types";
 export type { GeometryColliderDesc, GeometryWorld } from "../runtime/geometry-world";
 export type { SpaceCastHit, SpaceFilter, SpaceHit, SpaceQuery } from "../runtime/space";
-export { sceneGrid } from "../runtime/grid";
-export type { RuntimeGrid } from "../runtime/grid";
+export { gridMissingIssue, gridPlace, gridRoute, sceneGrid } from "../runtime/grid";
+export type { GridPlace, RuntimeGrid } from "../runtime/grid";
 export type { RuntimeNav } from "../runtime/nav";
 
 // ─── Grids, motion and navigation ────────────────────────

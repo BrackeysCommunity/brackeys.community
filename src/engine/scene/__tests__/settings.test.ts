@@ -67,7 +67,7 @@ describe("resolveSettings", () => {
     expect(resolveSettings(undefined).gravity).toEqual([0, 1200]);
   });
 
-  it("resolves every existing scene to Rapier, no grid and the orthogonal view", () => {
+  it("resolves every existing scene to its declared world model, else Rapier with no grid", () => {
     const dirs = [
       new URL("../../scenes/", import.meta.url),
       new URL("../../../games/platformer/scenes/", import.meta.url),
@@ -80,14 +80,22 @@ describe("resolveSettings", () => {
     const scenes = files
       .map((url) => JSON.parse(readFileSync(url, "utf8")) as SceneDefinition)
       .filter((def) => Array.isArray(def.bounds));
-    expect(scenes.length).toBeGreaterThanOrEqual(3);
-    for (const def of scenes) {
-      expect(resolveSettings(def.settings)).toMatchObject({
-        physics: "rapier",
-        grid: null,
+    const resolved = scenes.map((def) => {
+      const out = resolveSettings(def.settings);
+      expect(out).toEqual({
+        ...DEFAULTS,
+        ...def.settings,
+        physics: def.settings?.physics ?? "rapier",
+        grid: def.settings?.grid ?? null,
         view: { projection: "orthogonal" },
       });
-    }
+      return out;
+    });
+    const physical = resolved.filter((s) => s.physics === "rapier" && s.grid === null);
+    expect(physical.length).toBeGreaterThanOrEqual(3);
+    expect(resolved).toContainEqual(
+      expect.objectContaining({ physics: "none", grid: { kind: "square", cell: [32, 32] } }),
+    );
   });
 });
 

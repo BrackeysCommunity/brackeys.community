@@ -34,7 +34,7 @@ import {
   PRIMITIVES,
   resolveFields,
 } from "./primitives";
-import { tickRateProblem } from "./time";
+import { tickRateProblem, type TimeKind, type TimeModel } from "./time";
 import {
   ENGINE_CHECK_KINDS,
   ENGINE_COLLISION_GROUPS,
@@ -271,6 +271,25 @@ function checkWorld(
     problem(`world.lengthUnit must be a finite number above 0, got ${String(unit)}`);
 }
 
+const TIME_KINDS: readonly string[] = ["fixed", "turns", "event"] satisfies TimeKind[];
+
+/** Refuses a time model the clock can't run besides its rate: an unknown kind, or a `catchUp.maxMs` `@elapsed`'s args would refuse. */
+function checkTime(time: TimeModel, problem: (msg: string) => void): void {
+  const kind: unknown = time.kind;
+  if (!TIME_KINDS.includes(kind as string))
+    problem(`time.kind must be one of ${TIME_KINDS.join(", ")}, got ${JSON.stringify(kind)}`);
+  if (time.catchUp !== undefined) {
+    const maxMs: unknown = (time.catchUp as { maxMs?: unknown } | null)?.maxMs;
+    if (!(typeof maxMs === "number" && Number.isInteger(maxMs) && maxMs >= 0))
+      problem(
+        `time.catchUp.maxMs must be a whole number of milliseconds, 0 or more, got ${typeof maxMs === "number" ? String(maxMs) : JSON.stringify(maxMs)}`,
+      );
+  }
+  const wake: unknown = time.wakeOnPointerMove;
+  if (wake !== undefined && typeof wake !== "boolean")
+    problem(`time.wakeOnPointerMove must be true or false, got ${JSON.stringify(wake)}`);
+}
+
 /**
  * Merges the engine's primitives with a game's types, materials, actions,
  * collision groups and issue codes, and the project's materials over the
@@ -280,7 +299,8 @@ function checkWorld(
  * repeats a type, unknown groups, a game behavior outside the game's
  * namespace, behavior rules naming unknown behaviors or failing their
  * schemas, a grid field without a point `at`, a `time.rate` the clock can't run
- * (`tick-rate-invalid`), world defaults the scene settings would refuse, and
+ * (`tick-rate-invalid`), an unknown `time.kind` or a `time.catchUp.maxMs` that
+ * isn't a whole number ≥ 0, world defaults the scene settings would refuse, and
  * `world.gridWalls` naming a type that is unknown or never loads.
  */
 export function createRegistry(
@@ -543,6 +563,7 @@ export function createRegistry(
   const rate = game?.time?.rate;
   const rateProblem = rate === undefined ? null : tickRateProblem(rate);
   if (rateProblem) problem(`time.rate: ${rateProblem} (tick-rate-invalid)`);
+  if (game?.time) checkTime(game.time, problem);
   const world = game?.world;
   if (world) checkWorld(world, types, problem);
 

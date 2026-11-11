@@ -524,6 +524,7 @@ instancesOf
 isBulkRef
 isFollowerType
 isolationBounds
+judgeConcave
 keyChord
 labelFor
 lock45
@@ -603,6 +604,7 @@ snapDraggedPoint
 snapMove
 snapPoint
 strokeShape
+takesConcave
 targetBox
 targetHandles
 targetsOf
@@ -738,6 +740,7 @@ GridFieldInfo
 GridGeometry
 GridPath
 GridPathOptions
+GridPlace
 GridStepper
 ID_PATTERN
 InspectorWidgetDef
@@ -871,6 +874,9 @@ flowField
 gridField
 gridFieldInfo
 gridGeometry
+gridMissingIssue
+gridPlace
+gridRoute
 initialWaypointState
 interpolatePosition
 isNavSystem
@@ -2360,6 +2366,11 @@ declare function createSceneUndo(doc: Y.Doc, origin: SceneOrigin): SceneUndo;
 
 ## collab/watch-issues.ts
 type IssueProject = {
+    docNameFor?(entry: AssetEntry): null | string;
+    get?(name: string): undefined | {
+        readonly doc: Y.Doc;
+        readonly layout?: DocLayout;
+    };
     readonly projectDoc?: Y.Doc;
     view(): ProjectView;
 };
@@ -3159,11 +3170,13 @@ type GizmoEdit = {
     readout: string;
     shape?: ShapeObj;
 };
+declare function judgeConcave(edit: GizmoEdit | null, registry: Registry, t: GizmoTarget | undefined): GizmoEdit | null;
 declare function shapeEdit(t: GizmoTarget, world: ShapeObj, label: string, readout?: string): GizmoEdit;
 declare function snapDraggedPoint(t: GizmoTarget, start: Pt, from: Pt, to: Pt, opts: DragOptions): {
     at: Pt;
     guides: SnapGuide[];
 };
+declare function takesConcave(registry: Registry, t: GizmoTarget): boolean;
 
 ## editor/gizmos/handles.ts
 declare const HANDLE_HIT_PX = 6;
@@ -3710,6 +3723,7 @@ type EditorSession = {
     destroy(): void;
     dispatch(batch: OpBatch, opts?: DispatchOptions): DocApplyResult;
     doc: Y.Doc;
+    engine(): Readonly<Record<string, unknown>> | undefined;
     getDoc(): SceneDefinition;
     getHash(): SceneHash;
     getPrefabs(): PrefabLibrary;
@@ -5467,7 +5481,7 @@ type CharacterControllerOptions = {
     offset?: number;
     pushDynamic: boolean;
     snapToGround: null | number;
-    up: Vec2;
+    up: Pt;
 };
 type PhysicsWorld = {
     addCollider: (desc: ColliderDesc, body?: RigidBody) => Collider;
@@ -6969,6 +6983,7 @@ type ProjectView = {
     byKey: ReadonlyMap<AssetKey, AssetEntry>;
     byPath: ReadonlyMap<AssetPath, AssetEntry>;
     deleted: readonly AssetEntry[];
+    engine?: Readonly<Record<string, unknown>>;
     issues: readonly SceneIssue[];
     repairs: ReadonlyMap<AssetKey, {
         id?: AssetId;
@@ -7129,12 +7144,21 @@ interface GeometryWorld {
 }
 
 ## runtime/grid.ts
+type GridPlace = {
+    at: Pt;
+    cell: Cell;
+    label: string;
+    ref?: string;
+};
 type RuntimeGrid = {
     bounds: CellBounds;
     geometry: GridGeometry;
     occupancy: Occupancy;
     passable(c: Cell): boolean;
 };
+declare function gridMissingIssue(sceneName: string, what: string): SceneIssue;
+declare function gridPlace(grid: RuntimeGrid, registry: Registry, place: Cell | RuntimeEntity): GridPlace;
+declare function gridRoute(grid: RuntimeGrid, from: Cell, to: Cell, diagonals: boolean): GridPath | null;
 declare function sceneGrid(scene: ExpandedScene, registry: Registry, wallTypes?: readonly string[]): RuntimeGrid | null;
 
 ## runtime/nav.ts

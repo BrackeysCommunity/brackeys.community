@@ -1,5 +1,4 @@
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
-import { useSyncExternalStore } from "react";
 
 import type { EditorSession } from "../../editor/index";
 import { Island } from "../frame/EditorFrame";
@@ -11,6 +10,7 @@ import {
   PREFAB_HEADER_SCOPE,
   type OpenPrefabLink,
 } from "../session/live-scene-editor";
+import { useEditorPrefabs } from "../session/use-editor-store";
 
 /**
  * Where the editor is while a prefab is open on its own, one row in the
@@ -26,10 +26,7 @@ export function PrefabHeader({
   onOpen,
   onCreateVariant,
 }: OpenPrefabLink & { session: EditorSession }) {
-  const base = useSyncExternalStore(
-    (changed) => session.prefabs.subscribe(changed),
-    () => session.getPrefabs().get(id)?.base,
-  );
+  const base = useEditorPrefabs(session).get(id)?.base;
   const task = useBusy(PREFAB_HEADER_SCOPE);
   const creating = task?.id === createVariantTask(id);
   const openingBase = base !== undefined && task?.id === openPrefabTask(base);

@@ -14,7 +14,7 @@ import {
 import { applyProjectBatchToFiles } from "@jams/engine/vite";
 
 import { failure, issueLine, loadScene, readArg, usage, UsageError, type Tool } from "../context";
-import { scanProject, withLiveMaterials } from "../projects";
+import { projectRuntime, scanProject, withLiveMaterials } from "../projects";
 
 export type ApplyInput = { scene?: string; ops?: string; dryRun?: boolean; base?: string };
 
@@ -30,7 +30,8 @@ function renameHash<T extends { hash: string }>({ hash, ...rest }: T) {
  * server applies it live: prefab ops follow the project's id, path and trash
  * rules and write sidecars and the registry. `--dry-run` runs that project
  * batch in memory too, so it reports what the write would refuse. The trial
- * judges asset ids and sprite frames against the scene's project, as
+ * judges asset ids, sprite frames and the physics the scene resolves to
+ * (through the project's engine block) against the scene's project, as
  * `validate` does. A batch that would leave error-severity issues writes
  * nothing.
  */
@@ -52,7 +53,11 @@ export const apply: Tool<ApplyInput> = async (input, ctx) => {
   }
 
   const home = loaded.scene.project;
-  const project = projectView((await scanProject(home)).state, home.kinds);
+  const scan = await scanProject(home);
+  const project = {
+    ...projectView(scan.state, home.kinds),
+    engine: (await projectRuntime(home, loaded.registry, scan)).engine,
+  };
   const result = applyOps(loaded.def, batch, loaded.registry, {
     prefabs: loaded.prefabs,
     project,

@@ -111,7 +111,8 @@ export type ValidateOptions = {
    * children is judged against, is the scene's, else the game's
    * `world.grid`. A prefab view has no settings of its own and judges
    * against the grid these sources give; with none, each scene that places
-   * the prefab judges it.
+   * the prefab judges it. Default `project.engine`, so a caller that hands
+   * over the project's view judges physics and grids as Play does.
    */
   engine?: Readonly<Record<string, unknown>>;
   /** Overrides the sources `engine` and the game's world give, key by key. */
@@ -289,7 +290,10 @@ export function validateScene(
   const batch = (label: string, ops: SceneOp[], refs: Ref[]): OpBatch =>
     refs.some((ref) => ref.startsWith("~")) ? { label, base: base(), ops } : { label, ops };
 
-  const sources = { ...settingsSources(r, opts.engine), ...opts.settings };
+  const sources = {
+    ...settingsSources(r, opts.engine ?? opts.project?.engine),
+    ...opts.settings,
+  };
   const { grid, physics } = resolveSettings(
     opts.prefab === undefined ? source.settings : undefined,
     sources,

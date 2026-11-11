@@ -67,6 +67,7 @@ const GROUP_SECTIONS: Readonly<Record<string, InspectorSectionId>> = {
   geometry: "shape",
   motion: "path",
   surface: "physics",
+  body: "physics",
 };
 
 // ─── Descriptors ─────────────────────────────────────────

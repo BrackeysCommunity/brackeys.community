@@ -12,7 +12,8 @@ export const INPUT_SCRIPT_SUFFIX = ".script.json";
 export const inputScriptKind = defineAssetKind({
   kind: "input-script",
   title: "Input script",
-  description: "A headless playtest: steps of held actions at 60 ticks a second.",
+  description:
+    "A headless playtest: steps of held actions, played tick by tick on the game's clock.",
   match: { suffixes: [INPUT_SCRIPT_SUFFIX] },
   defaultFolder: (_env, near) => folderOf(near),
   storage: "doc",

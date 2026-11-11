@@ -38,7 +38,7 @@ export type RuntimeGrid = {
 /** The runtime's grid across loads: built at load, kept in step with edits, gone at unload. */
 export type GridState = {
   readonly current: RuntimeGrid | null;
-  /** At the end of a load. */
+  /** At a load, before anything spawns: walls come from the scene's entities. */
   load(scene: ExpandedScene): void;
   /** After each batch of adds, updates and removes. */
   sync(scene: ExpandedScene | null): void;

@@ -9,6 +9,12 @@ vi.mock("@/components/game/GameCanvas", () => ({
     <p>{edit ? `editor ${roomId}` : `room ${roomId}`}</p>
   ),
 }));
+// The editor's loading frame pulls in all of `@jams/engine/editor-ui`;
+// game-canvas-loading.test.tsx covers it, and this test only needs the route's
+// pending view to stay a lazy component.
+vi.mock("@/components/game/editor-loading", () => ({
+  EditorLoading: () => <p>editor pending</p>,
+}));
 vi.mock("@/components/layout/PageSkeleton", () => ({ PageSkeleton: () => <p>pending</p> }));
 vi.mock("@/components/layout/NotFoundPage", () => ({ NotFoundPage: () => <p>not found</p> }));
 vi.mock("@/lib/motion-timing", () => ({ installMotionTiming: () => {} }));

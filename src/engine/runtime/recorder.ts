@@ -14,7 +14,7 @@ import {
   type RecordingMarker,
   type RunRecording,
 } from "../scene/recording-schema";
-import type { Pt, SceneHash } from "../scene/types";
+import type { Pt, ResolvedSettings, SceneHash } from "../scene/types";
 import type { InputAction, RapierModule, Vec2 } from "../types";
 import { ENGINE_VERSION } from "../version";
 
@@ -66,6 +66,14 @@ export function physicsBuild(rapier: RapierModule | null): string {
   if (!rapier) return "none";
   const version = (rapier as { version?: () => string }).version?.();
   return version ? `rapier ${version}` : "rapier";
+}
+
+/** The Rapier a run of `scene` steps on, for its recording: `null` when the scene's physics resolves to none, loaded or not. */
+export function recordingRapier(
+  scene: { settings: Pick<ResolvedSettings, "physics"> },
+  rapier: RapierModule | null | undefined,
+): RapierModule | null {
+  return scene.settings.physics === "rapier" ? (rapier ?? null) : null;
 }
 
 /** A command as recordings and reports list it, stepped on `tick`. */

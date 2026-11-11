@@ -1,12 +1,14 @@
 import {
   cellKey,
   fieldOfView,
-  findPath,
+  gridMissingIssue,
+  gridPlace,
+  gridRoute,
   sceneGrid,
-  spawnPose,
   type Cell,
   type CellKey,
   type GridGeometry,
+  type GridPlace,
   type RuntimeGrid,
 } from "@jams/engine/game";
 import { closest, expandScene, makeIssue } from "@jams/engine/scene";
@@ -38,8 +40,6 @@ const USAGE = "grid <scene> [--from c,r|ref] [--to c,r|ref] [--fov c,r:radius] [
 export const MAX_MAP_CELLS = 40_000;
 
 const CELL_ARG = /^(-?\d+),(-?\d+)$/;
-
-type Place = { label: string; cell: Cell; ref?: string };
 
 const fmtCell = ([c, r]: Cell) => `[${c}, ${r}]`;
 
@@ -91,11 +91,7 @@ export const grid: Tool<GridInput> = async (input, ctx) => {
   const scene = expandScene(def, registry, { prefabs, ...(engine ? { engine } : {}) });
   const g = sceneGrid(scene, registry);
   if (!g) {
-    const issue = makeIssue("grid-invalid", {
-      message: `scene "${def.name}" has no settings.grid to draw`,
-      path: "/settings/grid",
-      hint: 'Give the scene a grid, e.g. `settings.grid: { "kind": "square", "cell": [32, 32] }`.',
-    });
+    const issue = gridMissingIssue(def.name, "to draw");
     return {
       exitCode: 1,
       data: { ok: false, scene: loaded.name, issues: [issue] },
@@ -104,12 +100,9 @@ export const grid: Tool<GridInput> = async (input, ctx) => {
   }
 
   const byId = new Map(scene.entities.map((e) => [e.id, e]));
-  const place = (arg: string, flag: string): Place | ToolResult => {
+  const place = (arg: string, flag: string): GridPlace | ToolResult => {
     const m = CELL_ARG.exec(arg);
-    if (m) {
-      const cell: Cell = [Number(m[1]), Number(m[2])];
-      return { label: fmtCell(cell), cell };
-    }
+    if (m) return gridPlace(g, registry, [Number(m[1]), Number(m[2])]);
     const e = byId.get(arg);
     if (!e) {
       const guess = closest(arg, [...byId.keys()]);
@@ -117,9 +110,7 @@ export const grid: Tool<GridInput> = async (input, ctx) => {
         `${flag}: no cell or loaded entity ${arg} in ${def.name}${guess ? `; did you mean ${guess}?` : ""}`,
       );
     }
-    const { x, y } = spawnPose(e, registry);
-    const cell = g.geometry.cellAt([x, y]);
-    return { label: `${arg} ${fmtCell(cell)}`, cell, ref: arg };
+    return gridPlace(g, registry, e);
   };
 
   const { c0, r0, c1, r1 } = g.bounds;
@@ -147,14 +138,7 @@ export const grid: Tool<GridInput> = async (input, ctx) => {
     if (isToolResult(from)) return from;
     const to = place(input.to, "--to");
     if (isToolResult(to)) return to;
-    const found = g.passable(from.cell)
-      ? findPath(g.geometry, from.cell, to.cell, {
-          passable: (c) => g.passable(c),
-          diagonals: input.diagonals,
-          bounds: g.bounds,
-          maxExpanded: Math.max(1, cells),
-        })
-      : null;
+    const found = gridRoute(g, from.cell, to.cell, input.diagonals);
     const ends = { from: from.cell, to: to.cell, diagonals: input.diagonals };
     if (found) {
       const steps = found.cells.length - 1;

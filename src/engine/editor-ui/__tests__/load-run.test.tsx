@@ -139,7 +139,8 @@ describe("loaded-run", () => {
     const plain = { ...yard };
     expect(sceneHashWith(plain, library)).toBe(sceneHash(plain));
     expect(runHashOf(plain, library, "own")).toBe("own");
-    expect(runHashOf(plain, library)).toBe("own");
+    expect(runHashOf(plain, library)).toBe(sceneHash(plain));
+    expect(runHashOf(plain, library, "own")).toBe("own");
   });
 
   it("says why a blocked run or a stranger file can't be shown", () => {
@@ -167,12 +168,12 @@ describe("loaded-run", () => {
 });
 
 describe("LoadRunPanel", () => {
-  function setup(def: SceneDefinition = yard, prefabs?: PrefabSource) {
+  function setup(def: SceneDefinition = yard, prefabs?: PrefabSource, reg = registry) {
     const session = createEditorSession({
       doc: sceneToDoc(def, { key: sequentialKeys("t") }),
       origin: ada,
       name: "engine-yard",
-      registry,
+      registry: reg,
       issuesDebounceMs: 0,
       ...(prefabs ? { prefabs } : {}),
     });
@@ -254,6 +255,23 @@ describe("LoadRunPanel", () => {
     act(() => store.setState(() => ({ recording: { ...at60, tickRate: 30 }, name: "thirty" })));
     expect(panel.getByText(/300 ticks \(10\.0s\)/)).toBeTruthy();
     expect(panel.getByText("3.0s")).toBeTruthy();
+  });
+
+  it("counts a turns or event game's run in steps, not seconds", () => {
+    for (const kind of ["turns", "event"] as const) {
+      const { store } = setup(
+        yard,
+        undefined,
+        createRegistry({ ...testGame, time: { kind, rate: 60 } }),
+      );
+      const run = { ...report.recording, ticks: 300, markers: [{ ...marker(), tick: 90 }] };
+      act(() => store.setState(() => ({ recording: run, name: kind })));
+      const panel = within(screen.getByRole("region", { name: "Run" }));
+      expect(panel.getByText(/300 steps/)).toBeTruthy();
+      expect(panel.queryByText(/ticks|\d\.\ds/)).toBeNull();
+      expect(panel.getByText("step 90")).toBeTruthy();
+      cleanup();
+    }
   });
 
   it("loads a report file, and toasts a bad one", async () => {

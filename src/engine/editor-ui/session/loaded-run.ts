@@ -103,22 +103,20 @@ const hashes = new WeakMap<SceneDefinition, WeakMap<PrefabLibrary, SceneHash>>()
 
 /**
  * `def`'s hash with the prefabs it reaches, as the recorder hashes it
- * (`sceneHashWith`), once per scene and library. A scene that reaches no
- * prefab hashes as `sceneHash` does, so `ownHash`, the hash the session
- * already holds for `def`, stands in for it.
+ * (`sceneHashWith`), computed once per scene and library. A scene that
+ * reaches no prefab hashes as `sceneHash` does, so `ownHash`, the hash the
+ * session already holds for `def`, is returned for it as given.
  */
 export function runHashOf(
   def: SceneDefinition,
   prefabs: PrefabLibrary,
   ownHash?: SceneHash,
 ): SceneHash {
+  if (ownHash !== undefined && prefabsUsedBy(def, prefabs).length === 0) return ownHash;
   let byLibrary = hashes.get(def);
   const cached = byLibrary?.get(prefabs);
   if (cached !== undefined) return cached;
-  const hash =
-    ownHash !== undefined && prefabsUsedBy(def, prefabs).length === 0
-      ? ownHash
-      : sceneHashWith(def, prefabs);
+  const hash = sceneHashWith(def, prefabs);
   if (!byLibrary) hashes.set(def, (byLibrary = new WeakMap()));
   byLibrary.set(prefabs, hash);
   return hash;

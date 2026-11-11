@@ -15,6 +15,7 @@ import {
   type ProjectMaterialDef,
 } from "../define";
 import { pointField, shapeField } from "../fields";
+import type { TimeModel } from "../time";
 import { PRIMITIVE_TYPES, type GameDefinition } from "../types";
 
 const crate = defineEntityType({
@@ -490,6 +491,35 @@ describe("createRegistry time and world", () => {
     expect(() => createRegistry(game({ time: { kind: "fixed", rate: 0 } }))).toThrow(
       /tick-rate-invalid/,
     );
+  });
+
+  it("refuses a time.catchUp.maxMs @elapsed's args would refuse", () => {
+    for (const maxMs of [-5, Number.NaN, 1.5, Number.POSITIVE_INFINITY, "60000"]) {
+      const time = { kind: "fixed", catchUp: { maxMs } } as unknown as TimeModel;
+      const found = problems(() => createRegistry(game({ time })));
+      expect(found, String(maxMs)).toHaveLength(1);
+      expect(found[0]).toContain("time.catchUp.maxMs");
+    }
+    for (const maxMs of [0, 60_000]) {
+      expect(
+        createRegistry(game({ time: { kind: "turns", catchUp: { maxMs } } })).time.catchUp,
+      ).toEqual({ maxMs });
+    }
+  });
+
+  it("refuses an unknown time.kind and a non-boolean wakeOnPointerMove", () => {
+    const kind = problems(() =>
+      createRegistry(game({ time: { kind: "realtime" } as unknown as TimeModel })),
+    );
+    expect(kind).toHaveLength(1);
+    expect(kind[0]).toContain("time.kind");
+    const wake = problems(() =>
+      createRegistry(
+        game({ time: { kind: "event", wakeOnPointerMove: "yes" } as unknown as TimeModel }),
+      ),
+    );
+    expect(wake).toHaveLength(1);
+    expect(wake[0]).toContain("time.wakeOnPointerMove");
   });
 
   it("takes a valid rate, or none, as the registry's time", () => {

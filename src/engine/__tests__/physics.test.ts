@@ -237,7 +237,7 @@ describe("character controller", () => {
 
     const custom = readBack({
       offset: 0.5,
-      up: { x: 1, y: 0 },
+      up: [1, 0],
       maxSlopeClimbDeg: 20,
       minSlopeSlideDeg: 10,
       autostep: { maxHeight: 8, minWidth: 3, dynamic: false },

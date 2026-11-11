@@ -322,6 +322,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       space = geometryQueries;
     }
     ctx.physics?.setGravity(ctx.gravity);
+    gridState.load(next);
 
     const counts: Record<EntityTypeName, number> = {};
     let current: string | undefined;
@@ -365,7 +366,6 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
 
     loadedScene = next;
     cachedScene = next;
-    gridState.load(next);
     return { ok: true, counts, ms: now() - started };
   }
 

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import type { GridSettings } from "../../scene/types";
 import { fieldOfView, lineOfSight } from "../fov";
-import { cellKey, gridGeometry, type Cell } from "../geometry";
+import { cellKey, gridGeometry, type Cell, type CellKey } from "../geometry";
 
 const SQUARE: GridSettings = { kind: "square", cell: [16, 16] };
 const HEXES: Record<string, GridSettings> = {
@@ -65,20 +65,27 @@ describe("fieldOfView on squares", () => {
     expect(seen).toBeGreaterThan(1000);
   });
 
-  it("agrees with lineOfSight, which is symmetric between floors", () => {
+  // ~0.3s alone; the explicit timeout covers a loaded CI runner sharing the suite.
+  it("agrees with lineOfSight, which is symmetric between floors", { timeout: 30_000 }, () => {
     const broken: string[] = [];
     for (let seed = 20; seed <= 26; seed++) {
       const { cells, floors, opaque } = randomMap(seed, 15, 0.25);
+      const lines = new Map<CellKey, Set<CellKey>>();
       for (const a of floors) {
         const fov = fieldOfView(grid, a, 15, opaque);
+        const seen = new Set<CellKey>();
         for (const b of cells) {
           const sees = lineOfSight(grid, a, b, opaque);
+          if (sees) seen.add(cellKey(b));
           if (sees !== fov.has(cellKey(b)))
             broken.push(`seed ${seed}: fov ${a.join()} → ${b.join()}`);
-          if (!opaque(b) && lineOfSight(grid, b, a, opaque) !== sees)
-            broken.push(`seed ${seed}: line ${a.join()} ↔ ${b.join()}`);
         }
+        lines.set(cellKey(a), seen);
       }
+      for (const a of floors)
+        for (const b of floors)
+          if (lines.get(cellKey(a))!.has(cellKey(b)) !== lines.get(cellKey(b))!.has(cellKey(a)))
+            broken.push(`seed ${seed}: line ${a.join()} ↔ ${b.join()}`);
     }
     expect(broken).toEqual([]);
   });

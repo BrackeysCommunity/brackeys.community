@@ -420,17 +420,48 @@ describe("send", () => {
     game.play(yard());
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(game.send({ name: "shovee" })).toBe(false);
-    expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/unknown command; known: .*shove/));
+    expect(warn).toHaveBeenLastCalledWith(
+      expect.stringMatching(/unknown command "shovee"; did you mean "shove"\?.*shove/),
+    );
     expect(game.send({ name: "shove", args: { by: 1.5 } })).toBe(false);
     expect(game.send({ name: "shove", args: { by: 1, extra: true } })).toBe(false);
     expect(game.send({ name: "shove" })).toBe(false);
-    expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/args don't parse/));
+    expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/bad args for shove/));
     expect(game.send({ name: "wait", args: {} })).toBe(false);
     expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/takes no args/));
     expect(game.send({ name: "@elapsed", args: { ms: -1 } })).toBe(false);
     warn.mockRestore();
     game.step(1);
     expect(delivered).toEqual([[]]);
+  });
+
+  it("refuses @elapsed in a game without time.catchUp", async () => {
+    const { game: def, delivered } = sendingGame();
+    const game = await editing({ game: def, dev: true });
+    game.play(yard());
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(game.send({ name: "@elapsed", args: { ms: 10_000_000 } })).toBe(false);
+    expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/no time\.catchUp/));
+    warn.mockRestore();
+    game.step(1);
+    expect(delivered).toEqual([[]]);
+  });
+
+  it("clamps a sent @elapsed to catchUp.maxMs, as elapse() does", async () => {
+    const { game: def, delivered } = sendingGame({ kind: "fixed", catchUp: { maxMs: 2000 } });
+    const game = await editing({ game: def });
+    game.play(yard());
+    expect(game.send({ name: "@elapsed", args: { ms: 10_000_000 } })).toBe(true);
+    expect(game.send({ name: "@elapsed", args: { ms: 500 } })).toBe(true);
+    game.elapse(10_000_000);
+    game.step(1);
+    expect(delivered).toEqual([
+      [
+        { name: "@elapsed", args: { ms: 2000 } },
+        { name: "@elapsed", args: { ms: 500 } },
+        { name: "@elapsed", args: { ms: 2000 } },
+      ],
+    ]);
   });
 
   it("hands the game's shell the same send", async () => {

@@ -1,3 +1,4 @@
+import type { ResolvedTime } from "../game/time";
 import type { GameDefinition, Registry } from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import {
@@ -6,6 +7,7 @@ import {
   probeConfigHash,
   recordingCommands,
   recordingEdges,
+  recordingRapier,
 } from "../runtime/recorder";
 import { resolveGame } from "../runtime/runtime";
 import { checkCommand } from "../scene/input-script";
@@ -60,6 +62,7 @@ function replayWarnings(
   hash: string,
   game: GameDefinition | null,
   rapier: RapierModule | null,
+  time: ResolvedTime,
 ): string[] {
   const out: string[] = [];
   if (recording.scene !== scene)
@@ -74,9 +77,12 @@ function replayWarnings(
     out.push(
       `the recording is of game ${JSON.stringify(recording.game)}, not ${JSON.stringify(game?.id ?? null)}`,
     );
-  if (recording.engine.version !== ENGINE_VERSION)
+  const sameEngine = recording.engine.version === ENGINE_VERSION;
+  if (!sameEngine)
     out.push(`recorded on engine ${recording.engine.version}, replayed on ${ENGINE_VERSION}`);
-  else if (recording.configHash !== probeConfigHash(game))
+  if (recording.tickRate !== time.rate)
+    out.push(`recorded at ${recording.tickRate} ticks a second, replayed at ${time.rate}`);
+  else if (sameEngine && recording.configHash !== probeConfigHash(game, time))
     out.push("the game's tuning changed since it was recorded (config hash differs)");
   const physics = physicsBuild(rapier);
   if (recording.engine.physics !== physics)
@@ -159,7 +165,7 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
   });
   if (!started.ok) return blockedRun("load", name, prepared.issues, [], started.load);
   const { runtime } = started;
-  const rapier = prepared.scene.settings.physics === "rapier" ? (opts.rapier ?? null) : null;
+  const rapier = recordingRapier(prepared.scene, opts.rapier);
 
   try {
     const byTick = recordingEdges(rec);
@@ -199,7 +205,7 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     return {
       blocked: false,
       stale: rec.sceneHash !== prepared.hash,
-      warnings: replayWarnings(rec, name, prepared.hash, game, rapier),
+      warnings: replayWarnings(rec, name, prepared.hash, game, rapier, runtime.ctx.time),
       matches: divergence === null,
       divergence,
       recording,

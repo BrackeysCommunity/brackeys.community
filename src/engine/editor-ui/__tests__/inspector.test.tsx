@@ -102,9 +102,9 @@ function scene(): SceneDefinition {
   };
 }
 
-function setup(selection: string[], readOnly?: "prop" | "context") {
+function setup(selection: string[], readOnly?: "prop" | "context", def = scene()) {
   const session = createEditorSession({
-    doc: sceneToDoc(scene(), { key: sequentialKeys("t") }),
+    doc: sceneToDoc(def, { key: sequentialKeys("t") }),
     origin: ada,
     name: "panel-yard",
     registry,
@@ -208,6 +208,40 @@ describe("EditorInspector", () => {
 
     expect(dispatch).toHaveBeenCalledTimes(3);
     expect(entity(session, "gizmo").power).toBe(21);
+  });
+
+  it("turns a one-way solid's side off through a segment of its own", () => {
+    const def = scene();
+    def.entities!.push({
+      id: "ledge",
+      type: "solid",
+      shape: ["box", 300, 300, 100, 10],
+      oneWay: true,
+    });
+    const { session } = setup(["ledge"], undefined, def);
+    const side = within(screen.getByRole("group", { name: "oneWay" }));
+    const pressed = () =>
+      side
+        .getAllByRole("button")
+        .filter((b) => b.getAttribute("aria-pressed") === "true")
+        .map((b) => b.textContent);
+    expect(side.getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "off",
+      "up",
+      "right",
+      "down",
+      "left",
+    ]);
+    expect(pressed()).toEqual(["up"]);
+
+    fireEvent.click(side.getByRole("button", { name: "off" }));
+    expect(entity(session, "ledge").oneWay).toBeUndefined();
+    expect(pressed()).toEqual(["off"]);
+
+    fireEvent.click(side.getByRole("button", { name: "left" }));
+    expect(entity(session, "ledge").oneWay).toBe("left");
+    fireEvent.click(side.getByRole("button", { name: "left" }));
+    expect(entity(session, "ledge").oneWay).toBe("left");
   });
 
   it("edits enums, switches and tags through their widgets, and shows a game widget", () => {

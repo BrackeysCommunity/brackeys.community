@@ -13,7 +13,7 @@ import { revertEntry, revertOpenProjectEntry, type RevertResult } from "../colla
 import type { AwarenessLike, LogEntry, SceneOrigin, ScenePresence } from "../collab/types";
 import { createSceneUndo, type SelectionMeta } from "../collab/undo";
 import type { UndoneStep } from "../collab/undo-coordinator";
-import { watchIssues, type IssueProject } from "../collab/watch-issues";
+import { issueEngine, watchIssues, type IssueProject } from "../collab/watch-issues";
 import type { Registry } from "../game/types";
 import { sceneHash } from "../scene/hash";
 import { toSourceBatch } from "../scene/ops";
@@ -64,7 +64,7 @@ export type EditorSessionOptions = {
   prefabs?: PrefabSource;
   /** On a prefab doc: the scene size its view centres on (`readDoc`'s `parentBounds`). */
   parentBounds?: Bounds;
-  /** The project the doc belongs to (a `ProjectSession` fits); with it, issues include the doc's asset ids. */
+  /** The project the doc belongs to (a `ProjectSession` fits); with it, issues include the doc's asset ids and settings resolve through its engine block. */
   project?: IssueProject;
 };
 
@@ -220,6 +220,8 @@ export type EditorSession = {
   prefabs: PrefabSource;
   /** Set on a session over a prefab doc: the scene size its view centres on. */
   parentBounds?: Bounds;
+  /** The project's game-settings `engine` block as it is now, which issues and physical checks resolve settings through; undefined outside a project. */
+  engine(): Readonly<Record<string, unknown>> | undefined;
   getHash(): SceneHash;
   /**
    * The doc key behind a ref, and back; keys stay put while bulk refs shift.
@@ -497,6 +499,7 @@ export function createEditorSession({
     getPrefabs: () => library,
     prefabs,
     ...(parentBounds ? { parentBounds } : {}),
+    engine: () => (project ? issueEngine(project) : undefined),
     getHash: () => hash,
     keyOf: keyOfRef,
     refOf: refOfKey,

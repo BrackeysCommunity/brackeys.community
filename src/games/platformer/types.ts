@@ -132,6 +132,7 @@ export const PLATFORMER_TYPES: readonly EntityTypeDef[] = [
     description: "A pre-placed Shaper construct, built at load time with its type's default size.",
     fields: constructFields,
     system: createConstructSystem,
+    physics: "required",
     ascii: "c",
   }),
   defineEntityType({

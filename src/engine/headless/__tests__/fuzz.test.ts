@@ -5,10 +5,12 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
+import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { parseSceneOrThrow } from "../../scene/parse";
 import { Rng } from "../../sim-kit/rng";
 import type { RapierModule } from "../../types";
 import { defaultFuzzMacro, fuzz } from "../fuzz";
+import { probeConfigHash } from "../headless";
 import type { FuzzOptions, FuzzReport, FuzzRun } from "../playtest-types";
 
 const registry = createRegistry(testGame);
@@ -46,6 +48,19 @@ const withoutTiming = ({ timing, ...rest }: FuzzReport) => {
 };
 
 describe("fuzz", () => {
+  it("hashes the config on the run's clock, a project's engine.tickRate included", () => {
+    const project: ProjectRuntimeView = {
+      settings: {},
+      engine: { tickRate: 30 },
+      table: () => [],
+      asset: () => undefined,
+    };
+    const opts = { rollouts: 1, ticks: 10 };
+    expect(run(opts).configHash).toBe(probeConfigHash(testGame));
+    expect(run({ ...opts, project }).configHash).toBe(probeConfigHash(testGame, { rate: 30 }));
+    expect(run({ ...opts, project }).configHash).not.toBe(run(opts).configHash);
+  });
+
   it("gives the same report for the same seed, and another for another", () => {
     const a = run();
     expect(withoutTiming(a)).toEqual(withoutTiming(run()));

@@ -34,7 +34,6 @@ export const walkerGame = defineGame<WalkerSnapshot>({
     outcome: ({ snapshot }) => (snapshot.home ? { result: "won" } : null),
   },
   createRuntime(ctx: EngineContext) {
-    let hero: { id: string; at: Pt } | null = null;
     let goal: Pt | null = null;
     let stepper: GridStepper | null = null;
     let route: Cell[] = [];
@@ -49,21 +48,21 @@ export const walkerGame = defineGame<WalkerSnapshot>({
 
     return {
       onLoad(scene) {
-        const h = markerAt(scene, "hero");
-        hero = h ? { id: h.id, at: h.at as Pt } : null;
+        const hero = markerAt(scene, "hero");
         goal = (markerAt(scene, "goal")?.at as Pt | undefined) ?? null;
-        stepper = null;
         route = [];
         walks = 0;
+        stepper =
+          hero && ctx.grid
+            ? createGridStepper(ctx, hero.id, {
+                start: ctx.grid.geometry.cellAt(hero.at as Pt),
+                msPerStep: 150,
+              })
+            : null;
       },
       beforeStep(dtMs, _actions, commands) {
         const grid = ctx.grid;
-        if (!grid || !hero) return;
-        // ctx.grid is built after onLoad, so the stepper starts on the first tick.
-        stepper ??= createGridStepper(ctx, hero.id, {
-          start: grid.geometry.cellAt(hero.at),
-          msPerStep: 150,
-        });
+        if (!grid || !stepper) return;
         stepper.update(dtMs);
         for (const command of commands) {
           if (command.name !== "walk") continue;

@@ -1,5 +1,17 @@
-import { applyOpsToDoc, docMeta, type PrefabDocWriter } from "@jams/engine/collab";
-import { PREFAB_SCENE_OPS, type ProjectOpBatch } from "@jams/engine/project";
+import {
+  applyOpsToDoc,
+  docMeta,
+  layoutFromDoc,
+  type PrefabDocWriter,
+  type ProjectSession,
+} from "@jams/engine/collab";
+import type { Registry } from "@jams/engine/game";
+import {
+  gameSettingsEntries,
+  PREFAB_SCENE_OPS,
+  runtimeView,
+  type ProjectOpBatch,
+} from "@jams/engine/project";
 import { describeChange, type OpBatch, type SceneOp } from "@jams/engine/scene";
 import * as Y from "yjs";
 
@@ -41,6 +53,23 @@ export type ApplyLiveInput = {
 /** Lets a trial on a copy of the scene doc run prefab ops; the project batch writes the prefab docs. */
 const TRIAL_PREFABS: PrefabDocWriter = { plan: () => ({ ok: true, write: () => [] }) };
 
+/** The project's game-settings `engine` block as the server holds it, read the way Play reads it. */
+async function liveEngine(
+  session: ProjectSession,
+  registry: Registry,
+): Promise<Readonly<Record<string, unknown>>> {
+  const [entry] = gameSettingsEntries(session.view());
+  const name = entry ? session.docNameFor(entry) : null;
+  if (!entry || !name) return runtimeView(session.view(), new Map(), registry).engine;
+  const opened = await session.open(name);
+  try {
+    const value = opened.layout ? layoutFromDoc(opened.doc, opened.layout) : null;
+    return runtimeView(session.view(), new Map([[entry.id, value]]), registry).engine;
+  } finally {
+    session.release(name);
+  }
+}
+
 const USAGE =
   "scene apply <scene> --live --ops <file|-> [--url ws://…|https://site [--token t]] [--agent id] [--on-behalf-of user] [--dry-run]";
 
@@ -50,8 +79,9 @@ const USAGE =
  * has it, then sent as one `editScene` project op, so prefab ops write the
  * prefab docs they name. `~` refs resolve against the doc as it is when the
  * batch lands, so a batch needs no `base` (one it brings is still checked,
- * and failing it is exit 1, not 3). Like `apply`, the trial judges asset ids
- * and sprite frames against the project as the server has it, and a batch
+ * and failing it is exit 1, not 3). Like `apply`, the trial judges asset ids,
+ * sprite frames and the physics the scene resolves to against the project
+ * as the server has it, and a batch
  * that would leave error-severity issues isn't applied.
  */
 export const applyLive: Tool<ApplyLiveInput> = async (input, ctx) => {
@@ -114,7 +144,7 @@ export const applyLive: Tool<ApplyLiveInput> = async (input, ctx) => {
       const trial = applyOpsToDoc(scratch, batch, origin, registry, {
         prefabs: session.prefabLibrary(),
         prefabWriter: TRIAL_PREFABS,
-        project: session.view(),
+        project: { ...session.view(), engine: await liveEngine(session, registry) },
       });
       scratch.destroy();
       if (!trial.ok) {

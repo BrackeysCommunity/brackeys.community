@@ -9,7 +9,7 @@ import type {
 
 import { DEFAULT_GRAVITY, DEFAULT_TICK_RATE } from "./game/defaults";
 import { signedArea } from "./scene/shape-geometry";
-import type { ShapeObj } from "./scene/types";
+import type { Pt, ShapeObj } from "./scene/types";
 import type { RapierModule, Vec2 } from "./types";
 
 // ─── Physics World ──────────────────────────────────────
@@ -43,7 +43,7 @@ export type CharacterControllerOptions = {
   /** The gap kept from what it touches; default 0.01. */
   offset?: number;
   /** Unit vector pointing up. */
-  up: Vec2;
+  up: Pt;
   /** null: no climbing limit. */
   maxSlopeClimbDeg: number | null;
   /** null: never slides. */
@@ -103,7 +103,7 @@ export function createPhysicsWorld(
     opts: CharacterControllerOptions,
   ): KinematicCharacterController {
     const controller = world.createCharacterController(opts.offset ?? 0.01);
-    controller.setUp(new rapier.Vector2(opts.up.x, opts.up.y));
+    controller.setUp(new rapier.Vector2(opts.up[0], opts.up[1]));
     // A right angle from `up` is any slope: no climbing limit, and nothing slides.
     controller.setMaxSlopeClimbAngle(
       opts.maxSlopeClimbDeg === null ? Math.PI / 2 : (opts.maxSlopeClimbDeg * Math.PI) / 180,

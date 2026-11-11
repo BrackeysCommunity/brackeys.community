@@ -9,7 +9,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { ArrowDown01Icon, ArrowRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
-import { useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
 import { selectionsByKey } from "../../collab/index";
 import {
@@ -47,7 +47,7 @@ import {
 import { useBusy } from "../pending/use-pending";
 import { openPrefabScope } from "../session/live-scene-editor";
 import { readStored, storedFlags, writeStored } from "../session/stored";
-import { useEditorDoc, useEditorStore } from "../session/use-editor-store";
+import { useEditorDoc, useEditorPrefabs, useEditorStore } from "../session/use-editor-store";
 import { PeerFaces } from "./peer-faces";
 
 const COLLAPSE_KEY = `${STORAGE_PREFIX}outline-collapsed`;
@@ -552,10 +552,7 @@ export function EditorOutliner({
   const [query, setQuery] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  const prefabs = useSyncExternalStore(
-    (changed) => session.prefabs.subscribe(changed),
-    () => session.getPrefabs(),
-  );
+  const prefabs = useEditorPrefabs(session);
   const byType = useMemo(
     () => buildOutline(doc, session.registry, prefabs),
     [doc, session.registry, prefabs],
