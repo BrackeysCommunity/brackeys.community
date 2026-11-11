@@ -194,10 +194,19 @@ edits. Call `game.destroy()` when the canvas goes away.
 An editor host switches between an edit world and a play world.
 `game.play(doc, { at })` validates the document (errors block and come back
 in the report), builds a fresh world from a frozen copy, and starts at the
-game's spawn or, with `at`, on the first surface below that point;
-`game.stop()` throws the play world away and rebuilds the edit world with
+game's spawn or, with `at`, settled along the game's spawn cast (gravity
+by default; not at all under zero gravity or `cast: "none"`, see
+[World models](#world-models)); `game.stop()` throws the play world away and rebuilds the edit world with
 the editor's camera. `pause`, `resume`, `step` and `setTimeScale` drive the
 loop, and `./editor`'s `createKeymap` resolves the editor's keys per scope.
+
+`game.extractPixels(world)` reads back what the canvas shows: the RGBA bytes
+under each world point through the camera, from the stage at resolution 1
+over the game's background colour, null for a point off the canvas, and
+`renderer`, the renderer that drew them (`webgl` or `webgpu`). Smoke tests
+and agents use it to check a frame without screenshots; an editor host
+reaches the editor's running game through its handle's `game()` (see
+[Editor UI](#editor-ui)).
 
 ## Headless
 
@@ -1467,7 +1476,9 @@ reports list them beside `inputs`, recordings carry them, and replays send
 them on the same ticks.
 
 **Catch-up.** With `time.catchUp: { maxMs }`, time away arrives as one
-engine command, `@elapsed { ms }`, capped at `maxMs`: the browser shell
+engine command, `@elapsed { ms }` (`ENGINE_COMMANDS` in `./game` lists the
+engine's commands, which every registry accepts beside the game's), capped
+at `maxMs`: the browser shell
 measures how long the page was hidden and sends it when the page is shown
 again after at least a second, and `GameInstance.elapse(ms)` sends it for a
 host (a restored save's last-seen gap). Without `catchUp` neither does
@@ -1831,6 +1842,59 @@ names the side actors land on (`"up"`, the same as `true`, `"down"`,
 `linearDamping`, `angularDamping`, `fixedRotation` (the sink's `upright`)
 and `ccd`. `world.lengthUnit`, Rapier's pixels per metre, is reserved:
 accepted, and read by nothing yet.
+
+### Shape queries
+
+The geometry backend's shape tests are plain functions in `./scene`, for
+tools, editors and games that need them without a world. `shapeAtPose(local,
+{ x, y, rot })` moves a shape from its own frame to a pose,
+`shapesIntersect(a, b)` tests overlap (touching counts), and
+`raycastShape(shape, from, dir, maxDist)` returns the first hit's `toi`, as
+a share of `maxDist`, and surface `normal`, or null. All three are exact:
+they use only `+ − × ÷` and `Math.sqrt`, and quarter turns come from exact
+tables, so a quarter-turned box stays a box with integer corners.
+`createSpatialHash(cell?)` is the broad phase the editor's index and the
+geometry world use: a uniform grid of `cell` px (256 by default) with
+`insert`, `update`, `remove`, `clear` and `query(box)`, which returns the
+keys whose boxes overlap (touching counts) in insertion order.
+
+```ts shape-queries.ts
+import {
+  aabb,
+  createSpatialHash,
+  raycastShape,
+  shapeAtPose,
+  shapesIntersect,
+  type ShapeObj,
+} from "@jams/engine/scene";
+
+/** A plank's shape in its own frame: 80 px long, 10 px thick, centred on its origin. */
+const plank: ShapeObj = { type: "box", cx: 0, cy: 0, hw: 40, hh: 5, rotDeg: 0 };
+
+/** Two planks on a workbench: one lying flat, one stood on end by a quarter turn. */
+const placed = new Map<string, ShapeObj>([
+  ["flat", shapeAtPose(plank, { x: 100, y: 100, rot: 0 })],
+  ["upright", shapeAtPose(plank, { x: 300, y: 100, rot: Math.PI / 2 })],
+]);
+
+/** What a saw blade at `blade` would cut, and where a laser fired right from `from` lands. */
+export function workbench(blade: ShapeObj, from: [number, number]) {
+  // Broad phase: boxes in 64 px cells; a query returns keys in insertion order.
+  const hash = createSpatialHash<string>(64);
+  for (const [id, shape] of placed) hash.insert(id, aabb(shape));
+  const near = hash.query(aabb(blade));
+  // Narrow phase, exact: the quarter-turned plank is a 10 × 80 box, not a rounded one.
+  const cuts = near.filter((id) => shapesIntersect(blade, placed.get(id)!));
+  const upright = placed.get("upright")!;
+  const laser = raycastShape(upright, from, [1, 0], 400);
+  return {
+    upright: aabb(upright),
+    near,
+    cuts,
+    laser: laser && { at: from[0] + laser.toi * 400, normal: laser.normal },
+  };
+}
+```
 
 ## Grids at runtime
 

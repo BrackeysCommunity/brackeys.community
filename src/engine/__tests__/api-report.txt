@@ -5333,6 +5333,7 @@ type ProbeInput = {
 };
 type ProbeOptions<S = unknown> = ProbeInput & {
     game?: GameDefinition<S> | null;
+    project?: ProjectRuntimeView | null;
     rapier?: RapierModule | null;
     registry?: Registry;
     scene: ExpandedScene;

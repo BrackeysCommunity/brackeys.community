@@ -1,9 +1,13 @@
 import type { CheckEnv, CheckVerdict, Registry } from "../game/types";
-import type { Cell } from "../grid/geometry";
-import { findPath } from "../grid/path";
 import type { ProjectRuntimeView } from "../project/runtime-view";
-import { sceneGrid, type RuntimeGrid } from "../runtime/grid";
-import { spawnPose } from "../runtime/spawn-pose";
+import {
+  gridMissingIssue,
+  gridPlace,
+  gridRoute,
+  sceneGrid,
+  type GridPlace,
+  type RuntimeGrid,
+} from "../runtime/grid";
 import { parseBulkId } from "../scene/bulk-ref";
 import {
   DEFAULT_BLOCKED_BY,
@@ -22,7 +26,7 @@ import { expandScene } from "../scene/expand";
 import { formatScene } from "../scene/format";
 import { jsonPointer, lineAt, makeIssue } from "../scene/issues";
 import { parseChildRef } from "../scene/resolve";
-import type { PrefabLibrary, Pt, Ref, SceneDefinition, SceneIssue, Severity } from "../scene/types";
+import type { PrefabLibrary, Ref, SceneDefinition, SceneIssue, Severity } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import type { RapierModule } from "../types";
 import { fuzz } from "./fuzz";
@@ -190,10 +194,6 @@ function refPointer(def: SceneDefinition, ref: Ref): string | undefined {
   return i < 0 ? undefined : jsonPointer(["entities", i]);
 }
 
-const fmtCell = ([c, r]: Cell) => `[${c}, ${r}]`;
-
-type Place = { label: string; cell: Cell; ref?: Ref; at: Pt };
-
 function runConnected(
   check: ConnectedCheck,
   env: CheckEnv,
@@ -215,23 +215,16 @@ function runConnected(
   );
   if (!grid) {
     const issue = withLine(
-      makeIssue("grid-invalid", {
-        message: `scene "${env.def.name}" has no settings.grid for check "${check.id}" to find paths on`,
-        path: "/settings/grid",
-        hint: 'Give the scene a grid, e.g. `settings.grid: { "kind": "square", "cell": [32, 32] }`.',
-      }),
+      gridMissingIssue(env.def.name, `for check "${check.id}" to find paths on`),
     );
     return { pass: false, message: issue.message, detail: { issues: [issue] } };
   }
 
   const byId = new Map(scene.entities.map((e) => [e.id, e]));
-  const place = (p: CheckPlace): Place | string => {
-    if (typeof p !== "string") return { label: fmtCell(p), cell: p, at: grid.geometry.center(p) };
+  const place = (p: CheckPlace): GridPlace | string => {
+    if (typeof p !== "string") return gridPlace(grid, env.registry, p);
     const e = byId.get(p);
-    if (!e) return `no loaded entity ${p} in ${env.def.name}`;
-    const { x, y } = spawnPose(e, env.registry);
-    const cell = grid.geometry.cellAt([x, y]);
-    return { label: `${p} ${fmtCell(cell)}`, cell, ref: p, at: [x, y] };
+    return e ? gridPlace(grid, env.registry, e) : `no loaded entity ${p} in ${env.def.name}`;
   };
   const from = place(check.from);
   if (typeof from === "string") return { pass: false, message: from };
@@ -239,19 +232,10 @@ function runConnected(
   const missing = targets.find((t): t is string => typeof t === "string");
   if (missing !== undefined) return { pass: false, message: missing };
 
-  const { c0, r0, c1, r1 } = grid.bounds;
-  const opts = {
-    passable: (c: Cell) => grid.passable(c),
-    diagonals: check.diagonals ?? false,
-    bounds: grid.bounds,
-    maxExpanded: Math.max(1, (c1 - c0 + 1) * (r1 - r0 + 1)),
-  };
   const paths: { to: string; steps: number; cost: number }[] = [];
   const issues: SceneIssue[] = [];
-  for (const to of targets as Place[]) {
-    const path = grid.passable(from.cell)
-      ? findPath(grid.geometry, from.cell, to.cell, opts)
-      : null;
+  for (const to of targets as GridPlace[]) {
+    const path = gridRoute(grid, from.cell, to.cell, check.diagonals ?? false);
     if (path) {
       paths.push({ to: to.label, steps: path.cells.length - 1, cost: path.cost });
       continue;

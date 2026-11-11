@@ -445,13 +445,18 @@ time fixed 60Hz; physics none, no wasm
 
 The engine's `grid-yard` is the scene to practise on: no game, `settings.physics`
 `"none"`, a 32 px square grid, walls of solids with one gap, markers
-`start` and `exit` and two sensors. No repo game declares a time model or
-commands yet, so the `corridor` and `meadow` examples below run against the
+`start` and `exit` and two sensors. No repo game uses a turns or event
+clock or declares commands yet (the platformer states a fixed 60 Hz clock),
+so `corridor` and `meadow` below are not repo scenes: they belong to the
 engine README's walker and orchard games
-(`scripts/engine-readme/examples/walker-game.ts`, `orchard-game.ts`), whose
-scenes the README test writes: `corridor` is a turn game on a square grid
-with a `walk { to: [col, row] }` command; `meadow` an idle game with a
-`plant` command and catch-up.
+(`scripts/engine-readme/examples/walker-game.ts`, `orchard-game.ts`), and
+the README test writes them into projects of their own. `corridor` is a
+turn game on a square grid with a `walk { to: [col, row] }` command;
+`meadow` an idle game with a `plant` command and catch-up. Run in the repo,
+these commands report an unknown scene; to try them, put the scene
+(`corridor` in `walker-playtest.ts`, `meadow` in `orchard-game.ts`) in a
+folder whose `jams.project.json` names the game, e.g. `"game": { "module":
+"./walker-game.ts", "export": "walkerGame" }`.
 
 ### Time models
 
@@ -487,10 +492,12 @@ simulated tick and handed to the game's `beforeStep`. The engine's one
 command is `@elapsed { ms }`: time away, which a game with `time.catchUp`
 gets in one piece, capped at `catchUp.maxMs`; without `catchUp` it is
 refused. `step` sends them on given ticks: `--command <tick>:<name>[=<json>]`
-and `--elapse <tick>:<ms>`, both repeatable, sent in flag order. Quote the
-JSON for your shell:
+and `--elapse <tick>:<ms>`, both repeatable, sent on their ticks: each
+tick's `@elapsed` first, then its commands in flag order. Quote the JSON for
+your shell:
 
 ```sh
+# corridor and meadow: the walker and orchard example games' scenes, not repo scenes
 vp run scene step corridor --ticks 40 --command '0:walk={"to":[9,0]}'
 vp run scene step meadow --ticks 3 --command 0:plant --command 0:plant --elapse 1:28800000
 ```
@@ -505,6 +512,7 @@ the recording carries them, and `replay` sends them on the same ticks.
 the far corner, and wins:
 
 ```sh
+# corridor: the walker example game's scene, not a repo scene
 vp run scene playtest corridor --script scripts/scene/examples/walk-corridor.json --record walk.json
 vp run scene replay corridor --run walk.json
 ```
@@ -541,6 +549,15 @@ anything loads:
 `validate --physical` and `check`'s `physical` run on the same colliders:
 `solid-overlap`, `follower-hits-solid` and the game's checks, except one
 that declares `needsPhysics`, which is skipped as `physics-skipped` (info).
+All three of the platformer's physical checks need physics, and its player
+needs Rapier, so `examples/flat-yard.json`, a platformer scene with
+`settings.physics` `"none"`, has no spawn: `validate` reports the missing
+spawn and skips the three checks:
+
+```sh expect=physics-skipped
+vp run scene validate scripts/scene/examples/flat-yard.json --physical --json
+```
+
 Replays of a physics-free scene match on every platform as long as its
 colliders stay axis-aligned or turned by quarter turns.
 
@@ -1583,7 +1600,7 @@ Sprites add these; [Sprites](#sprites) has a batch that reports each:
 | `sprite-no-asset`     | warn     | A sprite has no `asset`, so only its fallback box draws.                          | set `asset`  |
 
 World models add these; [World models](#world-models) has an example that
-reports each but `physics-skipped`:
+reports each:
 
 | Code                | Severity | Meaning                                                                                                    | Fix                      |
 | ------------------- | -------- | ---------------------------------------------------------------------------------------------------------- | ------------------------ |

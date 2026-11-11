@@ -12,7 +12,7 @@
   ],
   "entities": [
     { "id": "divider", "type": "solid", "shape": ["box", 336, 160, 16, 128] },
-    { "id": "start", "type": "marker", "at": [80, 80], "tags": ["spawn"] },
+    { "id": "start", "type": "marker", "at": [80, 80], "tags": ["spawn"], "behaviors": { "occupant": {} } },
     { "id": "exit", "type": "marker", "at": [560, 80], "tags": ["exit"] },
     { "id": "exit-zone", "type": "sensor", "shape": ["box", 560, 80, 16, 16], "tags": ["goal"] },
     { "id": "gap-zone", "type": "sensor", "shape": ["box", 336, 320, 16, 32], "tags": ["gap"] },

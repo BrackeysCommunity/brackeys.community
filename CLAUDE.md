@@ -139,7 +139,7 @@ what is actually relevant to a current dev
 Levels and their assets live in **projects**: a folder with a `jams.project.json` naming
 the project's id, its game module (or `null`) and the globs of its asset and code files.
 The platformer's is `src/games/platformer/` (levels in `scenes/`); the engine's gameless one
-is `src/engine/scenes/` (the engine yard, the kitchen sink, its prefabs, a material, the
+is `src/engine/scenes/` (the engine yard, the kitchen sink, the physics-free grid yard, its prefabs, a material, the
 game settings and a data table). Every scene, prefab, checks file, input script, material,
 game-settings doc, data table and binary (texture, atlas, font, audio, recording) under a
 project's globs is an asset whose id survives renames and moves; binaries carry a

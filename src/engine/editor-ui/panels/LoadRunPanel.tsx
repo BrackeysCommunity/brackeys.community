@@ -44,7 +44,8 @@ function readText(file: Blob): Promise<string> {
   });
 }
 
-const seconds = (tick: number) => `${(tick / 60).toFixed(1)}s`;
+/** `tick` as seconds at the recording's tick rate. */
+const seconds = (tick: number, tickRate: number) => `${(tick / tickRate).toFixed(1)}s`;
 
 const OUTCOME_VARIANT: Record<string, BadgeVariant> = {
   won: "success",
@@ -164,7 +165,7 @@ function RunSummary({
         </Badge>
       </div>
       <Text as="p" size="xs" variant="muted">
-        {recording.scene} · {recording.ticks} ticks ({seconds(recording.ticks)})
+        {recording.scene} · {recording.ticks} ticks ({seconds(recording.ticks, recording.tickRate)})
         {outcome.cause ? ` · ${outcome.cause}` : ""}
         {outcome.entityId ? ` at ${outcome.entityId}` : ""}
       </Text>
@@ -200,7 +201,7 @@ function RunSummary({
         <ol aria-label="Run markers" className="je-run-markers je-scene-panel-scroll">
           {markers.map((e, i) => (
             <li key={`${e.tick}:${i}`} className="je-run-marker">
-              <span className="je-run-marker-at">{seconds(e.tick)}</span>
+              <span className="je-run-marker-at">{seconds(e.tick, recording.tickRate)}</span>
               <span className="je-sp-truncate">
                 {e.type}
                 {e.entityId ? ` · ${e.entityId}` : ""}
@@ -244,8 +245,8 @@ export function LoadRunPanel({
     () => session.getPrefabs(),
   );
   const stale = useMemo(
-    () => (loaded ? runIsStale(loaded, def, prefabs) : false),
-    [loaded, def, prefabs],
+    () => (loaded ? runIsStale(loaded, def, prefabs, session.getHash()) : false),
+    [loaded, def, prefabs, session],
   );
   const [open, setOpen] = useState(false);
   const pending = useOwnOrSharedPending(notify);

@@ -33,7 +33,7 @@ import { render } from "./tools/render";
 import { replay } from "./tools/replay";
 import { schema, SCHEMA_NAMES } from "./tools/schema";
 import { show } from "./tools/show";
-import { step } from "./tools/step";
+import { step, STEP_FLAGS } from "./tools/step";
 import { textconv } from "./tools/textconv";
 import { validate } from "./tools/validate";
 
@@ -187,10 +187,9 @@ const DEFINITIONS = {
       newScene({ name, game: str(flags.game), from: str(flags.from) }, ctx),
   },
   step: {
-    usage:
-      "step <scene|file|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick:name[=json]]… [--elapse tick:ms]… [--game id]",
+    usage: `step <scene|file|-> ${STEP_FLAGS}`,
     summary:
-      "run the headless runtime and report events and the game's final snapshot; --command and --elapse repeat, stepped on their ticks in flag order",
+      "run the headless runtime and report events and the game's final snapshot; --command and --elapse repeat, stepped on their ticks, each tick's @elapsed first, then its commands in flag order",
     values: ["ticks", "hold", "inputs", "command", "elapse", "game"],
     repeatable: ["command", "elapse"],
     switches: [],

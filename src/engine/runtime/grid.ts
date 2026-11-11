@@ -10,10 +10,20 @@ import {
   type GridGeometry,
 } from "../grid/geometry";
 import { createOccupancy, type Occupancy } from "../grid/occupancy";
+import { findPath, type GridPath } from "../grid/path";
+import { makeIssue } from "../scene/issues";
 import { geometryFields } from "../scene/schema";
 import { translateShape } from "../scene/shape-geometry";
-import type { ExpandedScene, PathDef, RuntimeEntity, ShapeObj } from "../scene/types";
+import type {
+  ExpandedScene,
+  PathDef,
+  Pt,
+  RuntimeEntity,
+  SceneIssue,
+  ShapeObj,
+} from "../scene/types";
 import type { OccupantSystem } from "./behaviors/occupant";
+import { spawnPose } from "./spawn-pose";
 
 /** The loaded scene's grid: present when its resolved settings have one. */
 export type RuntimeGrid = {
@@ -156,4 +166,47 @@ export function sceneGrid(
   const state = createGridState(NO_RUNTIME, walls);
   state.load(scene);
   return state.current;
+}
+
+/** The `grid-invalid` issue for a scene with no grid; `what` ends the message: "to draw", "for check x to find paths on". */
+export function gridMissingIssue(sceneName: string, what: string): SceneIssue {
+  return makeIssue("grid-invalid", {
+    message: `scene "${sceneName}" has no settings.grid ${what}`,
+    path: "/settings/grid",
+    hint: 'Give the scene a grid, e.g. `settings.grid: { "kind": "square", "cell": [32, 32] }`.',
+  });
+}
+
+/** A cell, or an entity's cell: the one its spawn pose falls in. */
+export type GridPlace = { label: string; cell: Cell; ref?: string; at: Pt };
+
+const fmtCell = ([c, r]: Cell) => `[${c}, ${r}]`;
+const isCell = (p: Cell | RuntimeEntity): p is Cell => Array.isArray(p);
+
+export function gridPlace(
+  grid: RuntimeGrid,
+  registry: Registry,
+  place: Cell | RuntimeEntity,
+): GridPlace {
+  if (isCell(place)) return { label: fmtCell(place), cell: place, at: grid.geometry.center(place) };
+  const { x, y } = spawnPose(place, registry);
+  const cell = grid.geometry.cellAt([x, y]);
+  return { label: `${place.id} ${fmtCell(cell)}`, cell, ref: place.id, at: [x, y] };
+}
+
+/** A path over the grid's passable cells within its bounds, or null; none from a blocked start. */
+export function gridRoute(
+  grid: RuntimeGrid,
+  from: Cell,
+  to: Cell,
+  diagonals: boolean,
+): GridPath | null {
+  if (!grid.passable(from)) return null;
+  const { c0, r0, c1, r1 } = grid.bounds;
+  return findPath(grid.geometry, from, to, {
+    passable: (c) => grid.passable(c),
+    diagonals,
+    bounds: grid.bounds,
+    maxExpanded: Math.max(1, (c1 - c0 + 1) * (r1 - r0 + 1)),
+  });
 }

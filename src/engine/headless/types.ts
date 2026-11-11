@@ -1,4 +1,5 @@
 import type { GameCommand, GameDefinition, GameOutcome, Registry } from "../game/types";
+import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { LoadReport, RuntimeStats, StepEvent } from "../runtime/types";
 import type { ExpandedScene } from "../scene/types";
 import type { RapierModule } from "../types";
@@ -32,6 +33,8 @@ export type ProbeOptions<S = unknown> = ProbeInput & {
   game?: GameDefinition<S> | null;
   registry?: Registry;
   scene: ExpandedScene;
+  /** The project the scene runs in: its `engine.tickRate` sets the clock before the game's. */
+  project?: ProjectRuntimeView | null;
 };
 
 export type ProbeReport<S = unknown> = {

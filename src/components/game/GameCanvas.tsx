@@ -16,6 +16,7 @@ import { platformerGame } from "@/games/platformer";
 import { useFlag } from "@/lib/hooks/use-flag";
 
 import { displayResolution, useDisplaySetting } from "./display-menu";
+import { EditorLoading } from "./editor-loading";
 import { BUNDLED_PREFABS, BUNDLED_SCENE, SCENE_REGISTRY } from "./platformer-scene";
 import { GameSiteIsland } from "./site-island";
 
@@ -24,20 +25,6 @@ const loadRapier = () => import("@dimforge/rapier2d");
 /** `null` in production builds, so the editor's chunks (and the provider) are never emitted there. */
 const SiteSceneEditor = import.meta.env.DEV
   ? lazy(() => import("./editor-host").then((m) => ({ default: m.SiteSceneEditor })))
-  : null;
-
-/**
- * The editor's skeleton frame, loaded on its own beside the editor's chunk;
- * the play route imports nothing from `@jams/engine/editor-ui` statically.
- */
-const EditorSkeleton = import.meta.env.DEV
-  ? lazy(() =>
-      Promise.all([
-        import("@jams/engine/editor-ui"),
-        import("@jams/engine/editor-ui/style.css"),
-        import("@/styles/editor-ui.css"),
-      ]).then(([m]) => ({ default: m.EditorSkeleton })),
-    )
   : null;
 
 type GameCanvasProps = {
@@ -57,24 +44,6 @@ export function GameCanvas({ roomId, edit = false, scene }: GameCanvasProps) {
     );
   }
   return <GameRoom roomId={roomId} />;
-}
-
-/** The room before its code runs: the editor's loading frame with `edit`, else the bare canvas. */
-export function GameCanvasLoading({ roomId, edit = false }: { roomId: string; edit?: boolean }) {
-  return edit && SiteSceneEditor ? <EditorLoading roomId={roomId} /> : <BlankCanvas />;
-}
-
-const BlankCanvas = () => <div className="h-full w-full bg-[#1a1a2e]" />;
-
-/** While the editor's chunk loads: its skeleton frame in the room's chrome, a plain canvas until then. */
-function EditorLoading({ roomId }: { roomId: string }) {
-  const canvas = <BlankCanvas />;
-  if (!EditorSkeleton) return canvas;
-  return (
-    <Suspense fallback={canvas}>
-      <EditorSkeleton topLeft={<GameSiteIsland title={roomId} />} />
-    </Suspense>
-  );
 }
 
 /**

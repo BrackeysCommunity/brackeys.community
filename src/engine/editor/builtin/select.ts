@@ -2,7 +2,7 @@ import type { OpBatch, Pt, Ref, SceneDefinition } from "../../scene/types";
 import { targetsOf } from "../commands";
 import { convertToChainFix } from "../gizmos/batch";
 import { dragHandle, moveTarget } from "../gizmos/drag";
-import type { DragOptions, GizmoEdit } from "../gizmos/edit";
+import { judgeConcave, type DragOptions, type GizmoEdit } from "../gizmos/edit";
 import { hitHandle, selectionHandles, targetHandles } from "../gizmos/handles";
 import { dragSelection, selectionBox } from "../gizmos/multi";
 import { gizmoTarget, type GizmoTarget } from "../gizmos/target";
@@ -236,16 +236,18 @@ export const selectTool = defineEditorTool({
       const opts = dragOpts(e);
       const { targets } = drag;
       const only = targets.length === 1 ? targets[0]! : undefined;
+      let edit: GizmoEdit | null;
       if (drag.kind === "move") {
-        drag.edit = only
+        edit = only
           ? moveTarget(only, drag.from, e.world, { ...opts, mods: { ...opts.mods, alt: false } })
           : dragSelection(targets, "move", drag.from, e.world, opts);
       } else {
-        drag.edit =
+        edit =
           only && !drag.multi
             ? dragHandle(only, drag.handle.id, drag.from, e.world, opts)
             : dragSelection(targets, drag.handle.id, drag.from, e.world, opts);
       }
+      drag.edit = judgeConcave(edit, ctx.registry, only);
       const batch = drag.edit?.batch ?? null;
       ctx.preview(batch);
       const by = moveBy(batch);

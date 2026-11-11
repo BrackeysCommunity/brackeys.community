@@ -233,7 +233,7 @@ time?)` and `RecorderOptions.time` take the run's clock; omitted, the
   `RunChecksOptions`, `PlaytestOptions`, `FuzzOptions` and `ReplayOptions`
   take `rapier?: RapierModule | null`. `validatePhysical` throws
   `PhysicsRequiredError` for a Rapier scene without a module. `ValidatePhysicalOptions` and `RunChecksOptions`
-  gain `engine?` (the project's engine block). `FuzzOptions`,
+  gain `engine?` (the project's engine block). `ProbeOptions`, `FuzzOptions`,
   `ReplayOptions` and `RunChecksOptions` gain `project?`
   (`ProjectRuntimeView`), as `PlaytestOptions` has it: its `engine` block
   resolves the scene's settings and the clock, and `runChecks` passes it to
@@ -334,8 +334,17 @@ Origin`, and allows `content-type`, `x-expect-sha256` and `x-asset-kind`,
 - The standalone editor's (`vp run engine:editor`) Play camera frames the
   play start, or the centre of the scene's bounds when Play didn't start
   from a point.
-- The site's editor loading frame draws the editor's skeleton instead of the
-  site's canvas chrome.
+- The site's editor loading frame says "Loading the editor" in the room's
+  chrome at once, then draws the editor's skeleton while the editor loads.
+- The scene editor builds each game on a new `<canvas>` element. Rebuilding
+  the game (a project, settings or table change, or a new game definition)
+  used to put the new Pixi app on the old game's canvas. Pixi had already
+  lost that canvas's WebGL context, so in Chromium, and in WebKit wherever
+  it falls back to WebGL, the tab hung in Pixi's shader probe and the editor
+  never mounted.
+- The Run panel converts ticks to seconds at the recording's tick rate.
+- Reshaping a nav walk area into a concave polygon no longer previews in the
+  invalid tone.
 - The editor's Run panel no longer marks a fresh run stale: it compares the
   recording's `sceneHash` with `sceneHashWith` of the open scene and its
   prefab library, the hash the recorder writes; editing a prefab the scene
@@ -595,15 +604,6 @@ for these (`setHover` and `EditorStoreState.hover`, `dropPreview`,
   little past each side. The draw tools show a crosshair on the snapped
   start before the press. Leaving the canvas between gestures clears the
   shared hover.
-
-### Fixed
-
-- The scene editor builds each game on a new `<canvas>` element. Rebuilding
-  the game (a project, settings or table change, or a new game definition)
-  used to put the new Pixi app on the old game's canvas. Pixi had already
-  lost that canvas's WebGL context, so in Chromium, and in WebKit wherever
-  it falls back to WebGL, the tab hung in Pixi's shader probe and the editor
-  never mounted.
 
 ### Agent surface
 

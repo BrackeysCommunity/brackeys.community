@@ -102,6 +102,25 @@ describe("the world-model examples run", () => {
     expect(r.clearShot).toBe(true);
   });
 
+  it("shape-queries.ts finds what a blade cuts and where a laser lands, exactly", async () => {
+    const { workbench } = await import("../examples/shape-queries");
+    const cut = workbench({ type: "circle", cx: 300, cy: 60, r: 5 }, [200, 100]);
+    expect(cut.upright).toEqual({ minX: 295, minY: 60, maxX: 305, maxY: 140 });
+    expect(cut.near).toEqual(["upright"]);
+    expect(cut.cuts).toEqual(["upright"]);
+    expect(cut.laser).toEqual({ at: 295, normal: [-1, 0] });
+    const both = workbench(
+      { type: "box", cx: 200, cy: 100, hw: 100, hh: 2, rotDeg: 0 },
+      [200, 300],
+    );
+    expect(both.near).toEqual(["flat", "upright"]);
+    expect(both.cuts).toEqual(["flat", "upright"]);
+    expect(both.laser).toBeNull();
+    const corner = workbench({ type: "circle", cx: 309, cy: 144, r: 5 }, [200, 100]);
+    expect(corner.near).toEqual(["upright"]);
+    expect(corner.cuts).toEqual([]);
+  });
+
   it("nav-walk.ts walks round the table and through the doorway", async () => {
     const { walkAround } = await import("../examples/nav-walk");
     const r = walkAround();

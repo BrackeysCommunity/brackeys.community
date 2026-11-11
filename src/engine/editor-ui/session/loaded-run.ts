@@ -3,10 +3,12 @@ import { Store } from "@tanstack/store";
 import type { PlayOptions } from "../../index";
 import {
   parseRecording,
+  prefabsUsedBy,
   sceneHashWith,
   type PrefabLibrary,
   type RunRecording,
   type SceneDefinition,
+  type SceneHash,
   type SceneOverlay,
 } from "../../scene/index";
 
@@ -97,11 +99,41 @@ export function parseRun(text: string, name: string): ParsedRun {
   return { ok: true, run: { recording: parsed.recording, name } };
 }
 
+const hashes = new WeakMap<SceneDefinition, WeakMap<PrefabLibrary, SceneHash>>();
+
+/**
+ * `def`'s hash with the prefabs it reaches, as the recorder hashes it
+ * (`sceneHashWith`), once per scene and library. A scene that reaches no
+ * prefab hashes as `sceneHash` does, so `ownHash`, the hash the session
+ * already holds for `def`, stands in for it.
+ */
+export function runHashOf(
+  def: SceneDefinition,
+  prefabs: PrefabLibrary,
+  ownHash?: SceneHash,
+): SceneHash {
+  let byLibrary = hashes.get(def);
+  const cached = byLibrary?.get(prefabs);
+  if (cached !== undefined) return cached;
+  const hash =
+    ownHash !== undefined && prefabsUsedBy(def, prefabs).length === 0
+      ? ownHash
+      : sceneHashWith(def, prefabs);
+  if (!byLibrary) hashes.set(def, (byLibrary = new WeakMap()));
+  byLibrary.set(prefabs, hash);
+  return hash;
+}
+
 /**
  * Whether the run was recorded on a different version of the scene than
- * `def` with `prefabs`, hashed as the recorder hashes it (`sceneHashWith`,
- * so editing a prefab the scene places counts too).
+ * `def` with `prefabs` (`runHashOf`, so editing a prefab the scene places
+ * counts too). `ownHash` is the session's hash of `def`, if it has one.
  */
-export function runIsStale(run: LoadedRun, def: SceneDefinition, prefabs: PrefabLibrary): boolean {
-  return run.recording.sceneHash !== sceneHashWith(def, prefabs);
+export function runIsStale(
+  run: LoadedRun,
+  def: SceneDefinition,
+  prefabs: PrefabLibrary,
+  ownHash?: SceneHash,
+): boolean {
+  return run.recording.sceneHash !== runHashOf(def, prefabs, ownHash);
 }

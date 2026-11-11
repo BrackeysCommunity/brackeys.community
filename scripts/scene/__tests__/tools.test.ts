@@ -249,12 +249,19 @@ describe("show", () => {
     });
     await rm(join(root, tallyGame.id), { recursive: true, force: true });
 
-    const project = await show(
-      { scene: "tally-yard" },
-      await tallyCtx({ tickRate: 30, physics: "rapier" }),
-    );
+    const at30 = await tallyCtx({ tickRate: 30, physics: "rapier" });
+    const project = await show({ scene: "tally-yard" }, at30);
     expect(project.text.split("\n")[1]).toBe(
       "time turns 30Hz catch-up 1000ms; physics none, no wasm",
+    );
+    const stepped = await step({ scene: "tally-yard", ticks: "3" }, at30);
+    expect(stepped.exitCode, stepped.text).toBe(0);
+    expect(stepped.data).toMatchObject({ tickRate: 30, ticks: 3 });
+    await rm(join(root, tallyGame.id), { recursive: true, force: true });
+    const at60 = await step({ scene: "tally-yard", ticks: "3" }, await tallyCtx());
+    expect(at60.data).toMatchObject({ tickRate: 60 });
+    expect((at60.data as { configHash: string }).configHash).not.toBe(
+      (stepped.data as { configHash: string }).configHash,
     );
     const settings = JSON.parse(await engineYardText()) as Record<string, unknown>;
     await writeFile(

@@ -52,7 +52,13 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S>): ProbeReport<S> {
     const error = unknownActionError(action, registry.actionNames);
     if (error) throw new Error(error);
   }
-  const runtime = createSceneRuntime({ rapier: opts.rapier ?? null, view: null, game, registry });
+  const runtime = createSceneRuntime({
+    rapier: opts.rapier ?? null,
+    view: null,
+    game,
+    registry,
+    project: opts.project,
+  });
   try {
     const load = runtime.load(opts.scene);
     const events: StepEvent[] = [];

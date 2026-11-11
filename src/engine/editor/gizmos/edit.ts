@@ -1,3 +1,5 @@
+import { isPolygonField } from "../../game/fields";
+import type { Registry } from "../../game/types";
 import { isConvex } from "../../scene/shape-geometry";
 import type { OpBatch, Pt, ShapeObj } from "../../scene/types";
 import { snapMove, type SnapGuide } from "../snap";
@@ -30,7 +32,8 @@ export type GizmoEdit = {
   pts?: Pt[];
   /**
    * The edit leaves a poly non-convex. It still commits; afterwards offer
-   * **Convert to chain** (`convertToChainFix`).
+   * **Convert to chain** (`convertToChainFix`). `judgeConcave` clears it for
+   * a field that takes concave polygons.
    */
   concave?: boolean;
   guides?: SnapGuide[];
@@ -50,6 +53,23 @@ export function shapeEdit(
     shape,
     ...(shape.type === "poly" && !isConvex(shape.pts) ? { concave: true } : {}),
   };
+}
+
+/** Whether `t`'s shape field takes concave polygons, so a concave edit of it is no fault. */
+export function takesConcave(registry: Registry, t: GizmoTarget): boolean {
+  const schema = t.shapeField ? registry.types.get(t.type)?.shape[t.shapeField] : undefined;
+  return schema !== undefined && isPolygonField(schema);
+}
+
+/** `edit` without its `concave` flag when `t`'s field allows concave polygons. */
+export function judgeConcave(
+  edit: GizmoEdit | null,
+  registry: Registry,
+  t: GizmoTarget | undefined,
+): GizmoEdit | null {
+  if (!edit?.concave || !t || !takesConcave(registry, t)) return edit;
+  const { concave: _, ...rest } = edit;
+  return rest;
 }
 
 /**

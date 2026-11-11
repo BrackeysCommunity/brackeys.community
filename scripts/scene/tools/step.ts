@@ -39,8 +39,9 @@ export type StepInput = {
   elapse?: string | readonly string[];
 };
 
-export const STEP_USAGE =
-  "step [--ticks N] [--hold a,b] [--inputs file] [--command tick:name[=json]]… [--elapse tick:ms]… [--game id]";
+export const STEP_FLAGS =
+  "[--ticks N] [--hold a,b] [--inputs file] [--command tick:name[=json]]… [--elapse tick:ms]… [--game id]";
+const STEP_USAGE = `step ${STEP_FLAGS}`;
 
 const DEFAULT_TICKS = 120;
 const MAX_TICKS = 60 * 60 * 10;
@@ -207,11 +208,13 @@ export const step: Tool<StepInput> = async (input, ctx) => {
   const commands = commandsOf(input, ticks, registry);
   if (typeof commands === "string") return usage(commands);
 
-  const engine = await projectEngine(loaded.project, registry);
+  const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
+  const engine = project?.engine;
   const report = runProbe({
     rapier: await rapierFor(ctx, loaded.def, registry, engine),
     game: registry.game,
     registry,
+    project,
     scene: expandScene(loaded.def, registry, { prefabs: loaded.prefabs, engine }),
     ticks,
     hold,

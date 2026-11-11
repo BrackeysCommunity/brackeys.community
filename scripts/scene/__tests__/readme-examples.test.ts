@@ -24,17 +24,24 @@ const DOCS = ["scripts/scene/README.md"];
 
 const INVOCATION = /(?:vp run scene|bun scripts\/scene\/cli\.ts) ([^`\n]+)/g;
 
-type Example = { doc: string; line: string; fenced: boolean; argv: string[] };
+/** `expect` is the issue code a fenced command reports (` ```sh expect=<code>`), whatever its exit code. */
+type Example = { doc: string; line: string; fenced: boolean; argv: string[]; expect?: string };
 
 /** Every scene command in a document: fenced `sh`/`bash` lines, and inline code spans. */
 function examples(doc: string, text: string): Example[] {
   const out: Example[] = [];
-  const fences = [...text.matchAll(/^```(?:sh|bash)\n([\s\S]*?)^```/gm)];
-  for (const block of fences) {
-    for (const line of block[1]!.split("\n")) {
+  const fences = [...text.matchAll(/^```(?:sh|bash)(?: expect=(\S+))?\n([\s\S]*?)^```/gm)];
+  for (const [, expect, body] of fences) {
+    for (const line of body!.split("\n")) {
       const m = /^(?:vp run scene|bun scripts\/scene\/cli\.ts) (.+)$/.exec(line.trim());
       if (!m) continue;
-      out.push({ doc, line: line.trim(), fenced: true, argv: shellWords(m[1]!) });
+      out.push({
+        doc,
+        line: line.trim(),
+        fenced: true,
+        argv: shellWords(m[1]!),
+        ...(expect ? { expect } : {}),
+      });
     }
   }
   const prose = text.replace(/^```[\s\S]*?^```/gm, "");
@@ -178,7 +185,13 @@ const SPRITE_CODES = ["asset-frame-unknown", "sprite-no-asset"];
 const SPRITE_COMMANDS = ["assets info", "bundle"];
 
 /** The codes the world models added, each reproduced by a doc example and listed in the issue table. */
-const WORLD_CODES = ["tick-rate-invalid", "physics-required", "grid-unreachable", "nav-invalid"];
+const WORLD_CODES = [
+  "tick-rate-invalid",
+  "physics-required",
+  "physics-skipped",
+  "grid-unreachable",
+  "nav-invalid",
+];
 
 /** The card game's scene: a square grid, a painted floor, a lamp and a plain marker. */
 const CARD_TABLE: SceneDefinition = {
@@ -268,9 +281,11 @@ describe("scene commands in the docs", () => {
     });
 
     if (example.fenced && isPure(example.argv) && !example.argv.some(placeholder)) {
-      it(`${example.doc}: ${example.line} runs`, async () => {
+      const { expect: code } = example;
+      it(`${example.doc}: ${example.line} ${code ? `reports ${code}` : "runs"}`, async () => {
         const r = await runCli(inRoot(example.argv), ctx);
-        expect(r.exitCode, `${example.line}\n${r.stderr}`).toBe(0);
+        if (code) expect([...codesIn(JSON.parse(r.stdout))], r.stdout + r.stderr).toContain(code);
+        else expect(r.exitCode, `${example.line}\n${r.stderr}`).toBe(0);
       });
     }
   }
@@ -352,7 +367,10 @@ describe("op batches in the docs", () => {
   });
 
   it("reproduces every issue code the world models added, and lists each in the issue table", () => {
-    const expected = new Set(allBatches.map((b) => b.expect));
+    const expected = new Set([
+      ...allBatches.map((b) => b.expect),
+      ...all.flat().map((e) => e.expect),
+    ]);
     expect(WORLD_CODES.filter((code) => !expected.has(code))).toEqual([]);
     for (const code of WORLD_CODES)
       expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));

@@ -325,6 +325,45 @@ describe("point editing", () => {
     expect((r.entity("rock")!.shape as ShapeTuple)[0]).toBe("chain");
     expect(r.host.overlay().offer).toBeUndefined();
   });
+
+  function dragVertexConcave(r: Rig) {
+    r.later();
+    expect(r.key("Enter")).toBe(true);
+    r.ptr("down", 600, 600);
+    r.ptr("move", 640, 560);
+    r.ptr("move", 680, 520);
+    return r.host.overlay().outlines ?? [];
+  }
+
+  it("previews a solid poly turning concave in the invalid tone", () => {
+    const r = rig();
+    withRock(r, [600, 600, 700, 600, 700, 500, 600, 500]);
+    r.click(650, 550);
+    const outlines = dragVertexConcave(r);
+    expect(outlines.map((o) => o.tone)).toContain("invalid");
+  });
+
+  it("previews a nav walk area turning concave as a plain selection", () => {
+    const r = rig();
+    r.session.dispatch({
+      ops: [
+        {
+          op: "add",
+          entity: {
+            id: "walk",
+            type: "nav",
+            shape: ["poly", 600, 600, 700, 600, 700, 500, 600, 500],
+          },
+        },
+      ],
+    });
+    r.click(650, 550);
+    expect(r.session.store.state.selection).toEqual(["walk"]);
+    const outlines = dragVertexConcave(r);
+    expect(outlines.some((o) => o.tone === "invalid")).toBe(false);
+    r.ptr("up", 680, 520);
+    expect(r.entity("walk")?.shape).toEqual(["poly", 680, 520, 700, 600, 700, 500, 600, 500]);
+  });
 });
 
 describe("drawing tools", () => {

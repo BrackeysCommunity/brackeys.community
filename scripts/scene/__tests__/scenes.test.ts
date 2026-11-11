@@ -106,6 +106,8 @@ describe("grid-yard, the engine's physics-free scene", () => {
     expect(scene.settings?.grid?.kind).toBe("square");
     const types = new Set((scene.entities ?? []).map((e) => e.type));
     for (const t of ["solid", "marker", "sensor"]) expect(types.has(t), t).toBe(true);
+    const start = scene.entities?.find((e) => e.id === "start");
+    expect(start).toMatchObject({ behaviors: { occupant: {} } });
   });
 
   it("validates, structural and physical, with no issue and without loading Rapier", async () => {

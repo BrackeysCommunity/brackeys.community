@@ -172,7 +172,7 @@ export const gridGame = defineGame<GridSnapshot>({
  *   . . . . . . . .
  */
 export const gridScene: SceneDefinition = {
-  v: 1,
+  v: 3,
   game: GRID_GAME_ID,
   name: GRID_SCENE,
   bounds: [0, 0, COLUMNS * CELL, ROWS * CELL],
@@ -184,7 +184,7 @@ export const gridScene: SceneDefinition = {
     box(GOAL, "sensor", 6, 1, CELL / 4),
     { id: WALKER, type: WALKER, at: centre(1, 1) },
   ],
-} as SceneDefinition;
+};
 
 /** A press, then enough slots for the step it starts to finish. */
 const move = (action: string) => [{ press: action }, { wait: 8 }];
@@ -206,7 +206,7 @@ export const gridScript: InputScript = {
     ...move("right"),
     { wait: 20 },
   ],
-} as InputScript;
+};
 
 /** A Rapier loader that counts its calls. */
 export type RapierSpy = { load: () => Promise<RapierModule>; calls: () => number };

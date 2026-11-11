@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { GameCanvas, GameCanvasLoading } from "@/components/game/GameCanvas";
+import { GameCanvasLoading } from "@/components/game/game-canvas-loading";
+import { GameCanvas } from "@/components/game/GameCanvas";
 
 /** `scene` names the project scene `?edit=1` opens, by id. */
 type GameSearch = { edit?: 1; scene?: string };

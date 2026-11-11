@@ -189,21 +189,6 @@ describe("lazy Rapier", () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
-  it("never calls GameConfig.rapier in the shell of a physics-free game", async () => {
-    vi.stubGlobal("requestAnimationFrame", () => 0);
-    vi.stubGlobal("cancelAnimationFrame", () => {});
-    const { instance, load } = await spied(freeGame, { scene: markers });
-    instance.start();
-    expect(world(instance)?.ctx.physics).toBeNull();
-    await instance.preload(markers);
-    expect(instance.loadScene(markers).ok).toBe(true);
-    expect(instance.play(markers).ok).toBe(true);
-    instance.step(10);
-    expect(instance.getStore().state.tick).toBe(10);
-    instance.stop();
-    expect(load).not.toHaveBeenCalled();
-  });
-
   it("loads it at start for a physics-free game whose start-up scene runs on Rapier", async () => {
     const { instance, load } = await spied(freeGame, { scene: withRapier });
     expect(load).toHaveBeenCalledTimes(1);

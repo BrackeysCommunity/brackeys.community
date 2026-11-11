@@ -19,13 +19,21 @@ import {
   parsePrefab,
   parseSceneOrThrow,
   prefabLibrary,
+  sceneHash,
+  sceneHashWith,
   type Prefab,
   type PrefabLibrary,
   type SceneDefinition,
 } from "../../scene/index";
 import type { EditorNotify } from "../host";
 import { LoadRunPanel } from "../panels/LoadRunPanel";
-import { createLoadedRunStore, parseRun, runOverlay, runStart } from "../session/loaded-run";
+import {
+  createLoadedRunStore,
+  parseRun,
+  runHashOf,
+  runOverlay,
+  runStart,
+} from "../session/loaded-run";
 
 const toasts = { error: vi.fn(), warning: vi.fn(), success: vi.fn() };
 const notify: EditorNotify = Object.assign(vi.fn(), toasts);
@@ -98,6 +106,9 @@ beforeAll(async () => {
 });
 
 beforeEach(() => toasts.error.mockReset());
+
+/** A marker shaped as a recording carries one. */
+const marker = () => ({ type: "jump", at: [0, 0] as [number, number], tick: 0 });
 afterEach(cleanup);
 
 describe("loaded-run", () => {
@@ -118,6 +129,17 @@ describe("loaded-run", () => {
     const parsed = parseRun(JSON.stringify(recording), "pasted");
     if (!parsed.ok) throw new Error(parsed.error);
     expect(runStart(parsed.run)).toEqual({ at: { x: 96, y: 40 }, timeOffsetMs: 250 });
+  });
+
+  it("hashes a scene with its prefabs as the recorder does, once per scene and library", () => {
+    const library = prefabLibrary([post]);
+    expect(runHashOf(yardWithPost, library)).toBe(withPost.recording.sceneHash);
+    expect(runHashOf(yardWithPost, library, "ignored")).toBe(withPost.recording.sceneHash);
+    // A scene that reaches no prefab takes the session's own hash of it.
+    const plain = { ...yard };
+    expect(sceneHashWith(plain, library)).toBe(sceneHash(plain));
+    expect(runHashOf(plain, library, "own")).toBe("own");
+    expect(runHashOf(plain, library)).toBe("own");
   });
 
   it("says why a blocked run or a stranger file can't be shown", () => {
@@ -219,6 +241,19 @@ describe("LoadRunPanel", () => {
       session.dispatch({ ops: [{ op: "move", refs: ["crate"], by: [16, 0] }] });
     });
     expect(panel.getByRole("status").textContent).toContain("scene changed since this run");
+  });
+
+  it("times the run and its markers at the recording's own tick rate", () => {
+    const { store } = setup();
+    const at60 = { ...report.recording, ticks: 300, markers: [{ ...marker(), tick: 90 }] };
+    act(() => store.setState(() => ({ recording: at60, name: "sixty" })));
+    const panel = within(screen.getByRole("region", { name: "Run" }));
+    expect(panel.getByText(/300 ticks \(5\.0s\)/)).toBeTruthy();
+    expect(panel.getByText("1.5s")).toBeTruthy();
+
+    act(() => store.setState(() => ({ recording: { ...at60, tickRate: 30 }, name: "thirty" })));
+    expect(panel.getByText(/300 ticks \(10\.0s\)/)).toBeTruthy();
+    expect(panel.getByText("3.0s")).toBeTruthy();
   });
 
   it("loads a report file, and toasts a bad one", async () => {
