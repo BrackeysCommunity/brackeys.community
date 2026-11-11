@@ -51,10 +51,12 @@ breaking on 0.x. The editor UI's close-out from 0.8.1 lands here too.
   heuristic, `center`/`cellAt` laid out the way Tiled lays them out,
   `corners`, `line` (supercover on squares, cube lerp on hexes, symmetric),
   `cellsIn`, `rect`), `cellKey`/`cellOf` and `createOccupancy`; `ctx.grid`
-  (`RuntimeGrid`) built at load from `settings.grid`, with walls from
-  `GameDefinition.world.gridWalls` (default `["solid"]`) kept in step with
-  edits; the `occupant` behavior (`OCCUPANT`, `OccupantBlock`: `{ blocks? }`),
-  which keeps an entity on its pose's cell.
+  (`RuntimeGrid`) built from `settings.grid` before entities spawn and
+  before `onLoad`, with walls from `GameDefinition.world.gridWalls` (default
+  `["solid"]`) kept in step with edits, so a grid stepper made at load takes
+  its start cell at once; the `occupant` behavior (`OCCUPANT`,
+  `OccupantBlock`: `{ blocks? }`), which keeps an entity on its pose's cell
+  and places it as it attaches.
 - Scenes without physics: the runtime makes its Rapier world at the first
   load whose physics resolves to `rapier` and keeps it, emptied between
   loads. A physics-free load leaves `ctx.rapier` and `ctx.physics` null and
