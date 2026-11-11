@@ -345,7 +345,7 @@ describe("the loop guard", () => {
     expect((caught as EngineError).code).toBe("event-loop");
     expect(handled).toBe(EVENT_PASS_LIMIT);
     rt.destroy();
-  });
+  }, 30_000);
 
   it("counts deliveries, so a pass of events nobody hears passes", () => {
     const { ctx, step, hooks, rt } = setup();

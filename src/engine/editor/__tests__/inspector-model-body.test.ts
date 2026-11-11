@@ -65,7 +65,7 @@ describe("buildInspectorModel: a prop's mass and surface", () => {
     expect(field("fixedRotation").defaultValue).toBe(false);
     expect(field("ccd").defaultValue).toBe(false);
     expect(field("friction").defaultValue).toBeUndefined();
-    expect(field("friction").placeholder).toBe("material's");
+    expect(field("friction").placeholder).toBe("from material");
     expect(field("density").defaultValue).toBeUndefined();
   });
 });

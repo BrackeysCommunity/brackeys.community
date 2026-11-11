@@ -260,7 +260,7 @@ describe("EditorInspector", () => {
     expect(placeholder("gravityScale")).toBe("1 (default)");
     expect(placeholder("linearDamping")).toBe("0 (default)");
     expect(placeholder("angularDamping")).toBe("0 (default)");
-    expect(placeholder("friction")).toBe("material's");
+    expect(placeholder("friction")).toBe("from material");
     for (const path of ["density", "restitution"])
       expect(physics.getByLabelText(path)).toBeTruthy();
     expect(screen.queryByRole("region", { name: "Gameplay" })).toBeNull();

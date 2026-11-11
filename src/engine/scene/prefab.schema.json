@@ -1276,7 +1276,7 @@
               "description": "Surface friction; omitted uses the material's, else the physics default.",
               "title": "Friction",
               "group": "body",
-              "placeholder": "material's",
+              "placeholder": "from material",
               "type": "number",
               "minimum": 0
             },
