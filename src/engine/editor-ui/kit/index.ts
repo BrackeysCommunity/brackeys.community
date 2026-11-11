@@ -69,6 +69,7 @@ export {
   PopoverTrigger,
 } from "./popover";
 export { Progress } from "./progress";
+export { Radio, type RadioProps } from "./radio";
 export { SegmentedControl, type SegmentedControlProps } from "./segmented";
 export {
   Select,

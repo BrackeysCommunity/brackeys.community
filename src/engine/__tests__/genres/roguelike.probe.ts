@@ -58,6 +58,12 @@ export type RoguelikeSnapshot = {
   seen: number;
   sighted: boolean;
   descended: boolean;
+  /**
+   * While the rogue explores, the cells it has seen by key, sorted, for a
+   * world save to put back. Absent otherwise, so a finished run's end state
+   * stays what it was.
+   */
+  exploring?: CellKey[];
 };
 
 const floorType = defineEntityType({
@@ -319,7 +325,16 @@ const game = defineGame<RoguelikeSnapshot>({
           seen: seen.size,
           sighted,
           descended,
+          ...(exploring ? { exploring: [...seen].sort((a, b) => a - b) } : {}),
         };
+      },
+      // The floor comes back with the fresh load (the same seed draws the same rooms) and the rogue's stepper with the world save.
+      restore(s) {
+        steps = s.steps;
+        sighted = s.sighted;
+        descended = s.descended;
+        exploring = s.exploring !== undefined;
+        if (s.exploring) seen = new Set(s.exploring);
       },
     };
   },
@@ -338,7 +353,7 @@ const scene: SceneDefinition = {
 export const probe: GenreProbe<RoguelikeSnapshot> = {
   id: ID,
   rows: ["roguelike"],
-  pending: { roguelike: "M18 (saves), M25 (tilemap writes)" },
+  pending: { roguelike: "M25 (tilemap writes)" },
   game,
   scene,
   prefabs,
@@ -351,6 +366,8 @@ export const probe: GenreProbe<RoguelikeSnapshot> = {
   variants: [
     { name: "seed-1", seed: 1 },
     { name: "seed-2", seed: 2 },
+    // Exploring, the stairs not yet in sight.
+    { name: "saved-mid-run", saveAt: 120 },
   ],
   timeoutMs: 60_000,
 };

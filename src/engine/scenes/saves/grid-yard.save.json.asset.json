@@ -1,0 +1,9 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "flo6pxlnna64",
+  "id": "grid-yard-save",
+  "sha256": "ea09ba5d791be090ed02c34e883eaa0ce911d158715c912f2c4a421cdda55c83",
+  "bytes": 1068,
+  "meta": { "depth": "world", "game": "engine", "gameVersion": 1, "scene": "grid-yard" }
+}

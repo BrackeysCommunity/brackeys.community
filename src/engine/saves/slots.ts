@@ -3,7 +3,7 @@ import {
   effectiveSaveLimits,
   formatSaveFile,
   parseSaveFile,
-  SLOT_PATTERN,
+  slotNameIssue,
   type SaveDepth,
   type SaveFile,
   type SaveLimits,
@@ -64,15 +64,6 @@ export function pickSaveStore(
   return game?.saves?.store?.() ?? host ?? browserSaveStore();
 }
 
-const slotIssue = (slot: string): SceneIssue | null =>
-  SLOT_PATTERN.test(slot)
-    ? null
-    : makeIssue("schema", {
-        message: `"${slot}" isn't a slot name: use lowercase letters, digits and dashes, 1–32 characters`,
-        path: "/slot",
-        got: slot,
-      });
-
 /** Runs a store call, turning a throw into `save-store-failed`. */
 async function guarded<T>(what: string, slot: string, call: () => Promise<T>, text?: string) {
   try {
@@ -84,7 +75,8 @@ async function guarded<T>(what: string, slot: string, call: () => Promise<T>, te
 
 /**
  * Slots over `host.store` for `host.game`. A save captures at once, then
- * judges size before any write and the slot limit before a new slot; every
+ * judges size before any write and the slot limit before a new slot; writes
+ * run one at a time, so saves made together can't pass the limit. Every
  * store call that throws is `save-store-failed`.
  */
 export function createSaveSlots(host: SaveSlotsHost): SaveSlots {
@@ -92,7 +84,14 @@ export function createSaveSlots(host: SaveSlotsHost): SaveSlots {
   const limits = effectiveSaveLimits(game, store);
   const slotNames = async () => (await store.list(game.id)).map((s) => s.slot);
 
-  async function write(file: SaveFile): Promise<SaveWriteResult> {
+  let writing: Promise<unknown> = Promise.resolve();
+  function write(file: SaveFile): Promise<SaveWriteResult> {
+    const next = writing.then(() => writeNow(file));
+    writing = next.catch(() => {});
+    return next;
+  }
+
+  async function writeNow(file: SaveFile): Promise<SaveWriteResult> {
     const text = formatSaveFile(file);
     const bytes = textBytes(text);
     const limited = await guarded(
@@ -125,7 +124,7 @@ export function createSaveSlots(host: SaveSlotsHost): SaveSlots {
       return listed.ok ? listed.value : [];
     },
     save(slot, opts) {
-      const bad = slotIssue(slot);
+      const bad = slotNameIssue(slot);
       if (bad) return Promise.resolve({ ok: false, issue: bad });
       const captured = host.capture({
         depth: opts?.depth ?? "progress",
@@ -136,7 +135,7 @@ export function createSaveSlots(host: SaveSlotsHost): SaveSlots {
       return captured.ok ? write(captured.file) : Promise.resolve(captured);
     },
     async load(slot) {
-      const bad = slotIssue(slot);
+      const bad = slotNameIssue(slot);
       if (bad) return { ok: false, issue: bad };
       const read = await guarded("loading", slot, () => store.read(game.id, slot));
       if (!read.ok) return read;
@@ -162,7 +161,7 @@ export function createSaveSlots(host: SaveSlotsHost): SaveSlots {
       };
     },
     async remove(slot) {
-      if (slotIssue(slot)) return;
+      if (slotNameIssue(slot)) return;
       await guarded("removing", slot, () => store.remove(game.id, slot));
     },
   };

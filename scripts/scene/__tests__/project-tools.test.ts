@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -48,6 +49,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "engine-yard.checks.json",
       "grid-yard.json",
       "grid-yard.checks.json",
+      "grid-annex.json",
       "prefabs/doorway.json",
       "prefabs/gate.json",
       "prefabs/latch.json",
@@ -60,12 +62,13 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "input-map.json",
       "scene-list.json",
     ];
-    const art = [
+    const blobFiles = [
       "art/backdrop.png",
       "art/crates.json",
       "art/crates.png",
       "art/hero.json",
       "art/hero.png",
+      "saves/grid-yard.save.json",
     ];
     const size = async (list: string[]) => {
       let bytes = 0;
@@ -78,7 +81,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       name: "Engine",
       game: null,
       dir: join(ROOT, "src/engine/scenes"),
-      assets: 22,
+      assets: 24,
       counts: {
         atlas: 2,
         checks: 3,
@@ -87,7 +90,9 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
         "input-map": 1,
         material: 1,
         prefab: 6,
-        scene: 3,
+        save: 1,
+        scene: 4,
+        "scene-list": 1,
         texture: 3,
       },
       deleted: 0,
@@ -95,10 +100,10 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       problems: [],
       issues: [],
       usage: {
-        docs: 17,
+        docs: 18,
         docBytes: await size(files),
-        blobs: 5,
-        blobBytes: await size(art),
+        blobs: 6,
+        blobBytes: await size(blobFiles),
         trashBytes: 0,
       },
     });
@@ -115,6 +120,23 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
     });
     expect(data(platformer).code).toBeGreaterThan(0);
     expect(platformer.text.split("\n")[0]).toMatch(/^platformer {2}Platformer {2}game platformer/);
+  });
+
+  it("holds each hosted game's scene-list.json as a scene-list asset of its own project", async () => {
+    const games = ctx.projects.filter((p) => p.dir.startsWith(join(ROOT, "src/games")));
+    expect(games.map((p) => p.file.id).sort()).toEqual(["platformer", "tactics"]);
+    for (const project of games) {
+      const id = project.file.id;
+      expect(existsSync(join(project.dir, "scene-list.json")), id).toBe(true);
+      const shown = await projectShow({ project: id }, ctx);
+      expect(shown.exitCode, shown.text).toBe(0);
+      expect(data(shown).counts, id).toMatchObject({ "scene-list": 1 });
+      const tree = flatten(data(await projectTree({ project: id }, ctx)).tree as ProjectTreeNode[]);
+      expect(
+        tree.find((n) => n.type === "asset" && n.entry.path === "scene-list.json"),
+        id,
+      ).toMatchObject({ entry: { kind: "scene-list" } });
+    }
   });
 
   it("tree lists folders, assets and the platformer's code modules", async () => {
@@ -140,9 +162,12 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "prefabs/one-way-latch.json",
       "prefabs/post.json",
       "prefabs/room.json",
+      "saves",
+      "saves/grid-yard.save.json",
       "engine-yard.checks.json",
       "engine-yard.json",
       "game-settings.json",
+      "grid-annex.json",
       "grid-yard.checks.json",
       "grid-yard.json",
       "input-map.json",
@@ -226,7 +251,14 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
     expect(second.text).toBe(first.text);
     const snap = data(first).snapshot as ProjectSnapshot;
     expect(snap.hash).toBe(first.text);
-    const blobs = ["backdrop", "crates", "crates-texture", "hero", "hero-texture"];
+    const blobs = [
+      "backdrop",
+      "crates",
+      "crates-texture",
+      "grid-yard-save",
+      "hero",
+      "hero-texture",
+    ];
     expect(Object.keys(snap.assets).sort()).toEqual(
       [
         "bouncy",
@@ -236,6 +268,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
         "engine-yard-checks",
         "game-settings",
         "gate",
+        "grid-annex",
         "grid-yard",
         "grid-yard-checks",
         "input-map",
@@ -257,7 +290,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
         );
       else expect(asset.sha256, id).toBe(await sha256(loaded.texts.get(id)!));
     }
-    for (const id of ["kitchen-sink", "engine-yard", "grid-yard"])
+    for (const id of ["kitchen-sink", "engine-yard", "grid-yard", "grid-annex"])
       expect(snap.assets[id]!.sha256).toBe(
         await sha256(await readFile(join(ROOT, "src/engine/scenes", `${id}.json`), "utf8")),
       );

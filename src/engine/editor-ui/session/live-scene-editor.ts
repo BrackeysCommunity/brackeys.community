@@ -245,13 +245,13 @@ export async function prefabsReady(project: ProjectSession): Promise<void> {
   }
 }
 
-/** A project's registry and runtime data, kept in step with its material and runtime-view (game-settings, data-table, input-map) assets. */
+/** A project's registry and runtime data, kept in step with its material and runtime-view (game-settings, data-table, input-map, scene-list) assets. */
 export type ProjectRegistry = {
   /** The session's registry with the project's live material assets overlaid by id; the session's own while it has none. */
   current(): Registry;
   /** What the project's game code reads as `EngineContext.project`: its game settings and tables as their docs hold them. */
   project(): ProjectRuntimeView;
-  /** Resolves once every live material and runtime-view (game-settings, data-table, input-map) doc has opened, so `current()` and `project()` hold them all. */
+  /** Resolves once every live material and runtime-view (game-settings, data-table, input-map, scene-list) doc has opened, so `current()` and `project()` hold them all. */
   ready(): Promise<void>;
   /** Fires when `current()` or `project()` changes: one of those assets was added, deleted or edited. */
   subscribe(listener: () => void): () => void;
@@ -295,7 +295,7 @@ const isWatchedKind = (kind: string): boolean =>
  * (`withProject`), rebuilt only when a material's value changes. The
  * session itself keeps its code registry, which its schema hashes come from.
  * Beside it, the project's runtime view (`runtimeView`) from its
- * runtime-view (game-settings, data-table, input-map) docs, rebuilt only
+ * runtime-view (game-settings, data-table, input-map, scene-list) docs, rebuilt only
  * when one of their values changes.
  */
 export function projectRegistry(

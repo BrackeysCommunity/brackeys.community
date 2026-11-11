@@ -3,22 +3,30 @@ import { bodyShapeField, PathSchema, pointField } from "../../game/fields";
 import { runtimeId } from "../../game/runtime-ids";
 import type { EngineContext } from "../../game/types";
 import { CONTACT_START, ENTITY_DESTROYED, type StepEvent } from "../../runtime/types";
-import type { EntityDef, Pt, SceneDefinition } from "../../scene/types";
+import {
+  SCENE_FORMAT_VERSION,
+  type EntityDef,
+  type Pt,
+  type SceneDefinition,
+} from "../../scene/types";
 import type { GenreProbe } from "./harness";
 
 const ID = "shooter";
 const TURRET = "turret";
 const BULLET = "bullet";
+/** Raised by a bullet's own timer when its lifetime ends. */
+const EXPIRE = `${ID}:expire`;
 
 /** Bullets the turret fires in a run; it fires one a tick while `fire` is held. */
 export const SHOTS = 1000;
-/** px/s along the bullet's path: 10 px a tick at 60 Hz, under the walls' 16 px thickness. */
-const SPEED = 600;
-/** Well past the walls, so a bullet always meets one before its path turns back. */
-const RANGE = 2000;
+/** m/s along the bullet's path: 0.1 m a tick at 60 Hz, under the walls' 0.16 m thickness. */
+const SPEED = 6;
+/** Metres, well past the walls, so a bullet always meets one before its path turns back. */
+const RANGE = 20;
 /** Long enough to cross the arena; a bullet that outlives it missed every wall. */
 const LIFETIME_MS = 1500;
-const RADIUS = 3;
+/** The bullet's radius, m. */
+const RADIUS = 0.03;
 
 const AIM: Readonly<Record<string, Pt>> = {
   "aim-left": [-1, 0],
@@ -53,7 +61,7 @@ const turret = defineEntityType({
   type: TURRET,
   description: "Where bullets are fired from.",
   base: "marker",
-  fields: { at: pointField("The muzzle, absolute world px.") },
+  fields: { at: pointField("The muzzle, in world metres.") },
   ascii: "T",
 });
 
@@ -92,7 +100,6 @@ const game = defineGame<ShooterSnapshot>({
     },
   },
   createRuntime(ctx: EngineContext) {
-    const held = new Set<string>();
     const live = new Set<string>();
     const hits = new Set<string>();
     let muzzle: Pt | null = null;
@@ -106,9 +113,8 @@ const game = defineGame<ShooterSnapshot>({
       if (!muzzle || snap.fired >= SHOTS) return;
       let dx = 0;
       let dy = 0;
-      for (const action of held) {
-        const d = AIM[action];
-        if (!d) continue;
+      for (const [action, d] of Object.entries(AIM)) {
+        if (!ctx.input.held(action)) continue;
         dx += d[0];
         dy += d[1];
       }
@@ -125,8 +131,9 @@ const game = defineGame<ShooterSnapshot>({
           mode: "ping_pong",
           speed: SPEED,
         },
-        behaviors: { lifetime: { ms: LIFETIME_MS } },
       });
+      // An emit-form timer rather than the lifetime behavior's, so a world save can hold it.
+      ctx.timers.after({ ms: LIFETIME_MS }, { emit: EXPIRE, entityId: id }, { owner: id });
       snap.fired++;
       if (id !== runtimeId(BULLET, snap.fired)) snap.misnamed ??= id;
       live.add(id);
@@ -134,7 +141,6 @@ const game = defineGame<ShooterSnapshot>({
 
     return {
       onLoad(scene) {
-        held.clear();
         live.clear();
         hits.clear();
         snap = fresh();
@@ -146,6 +152,9 @@ const game = defineGame<ShooterSnapshot>({
           hits.add(e.entityId);
           ctx.destroy(e.entityId);
         });
+        ctx.events.on(EXPIRE, (e: StepEvent) => {
+          if (e.entityId) ctx.destroy(e.entityId);
+        });
         ctx.events.on(ENTITY_DESTROYED, (e: StepEvent) => {
           const id = e.entityId;
           if (!id || !live.delete(id)) return;
@@ -156,19 +165,22 @@ const game = defineGame<ShooterSnapshot>({
       },
       onUnload() {
         muzzle = null;
-        held.clear();
         live.clear();
         hits.clear();
       },
-      beforeStep(_dtMs, actions) {
-        for (const a of actions) {
-          if (a.pressed) held.add(a.action);
-          else held.delete(a.action);
-        }
-        if (held.has("fire")) fire();
+      beforeStep() {
+        if (ctx.input.held("fire")) fire();
       },
       snapshot() {
         return { ...snap, live: live.size };
+      },
+      // The bullets come back with the world save; between ticks none is hit and not yet destroyed.
+      restore(s) {
+        snap = { ...fresh(), fired: s.fired, hit: s.hit, expired: s.expired, ids: s.ids };
+        snap.misnamed = s.misnamed;
+        live.clear();
+        for (const id of ctx.query.byType(BULLET)) live.add(id);
+        hits.clear();
       },
     };
   },
@@ -181,23 +193,23 @@ const wall = (id: string, cx: number, cy: number, hw: number, hh: number): Entit
 });
 
 /**
- * A closed 640 px arena with 16 px walls, a pillar in the north-east
+ * A closed 6.4 m arena with 0.16 m walls, a pillar in the north-east
  * quarter that the diagonal stream meets first, and the turret off-centre
  * so each side's bullets travel a different distance.
  */
 const scene: SceneDefinition = {
-  v: 3,
+  v: SCENE_FORMAT_VERSION,
   game: ID,
   name: "shooter-probe",
-  bounds: [0, 0, 640, 640],
+  bounds: [0, 0, 6.4, 6.4],
   settings: { gravity: [0, 0], physics: "rapier" },
   entities: [
-    wall("north", 320, 8, 320, 8),
-    wall("south", 320, 632, 320, 8),
-    wall("west", 8, 320, 8, 304),
-    wall("east", 632, 320, 8, 304),
-    wall("pillar", 480, 140, 24, 24),
-    { id: "muzzle", type: TURRET, at: [280, 300] },
+    wall("north", 3.2, 0.08, 3.2, 0.08),
+    wall("south", 3.2, 6.32, 3.2, 0.08),
+    wall("west", 0.08, 3.2, 0.08, 3.04),
+    wall("east", 6.32, 3.2, 0.08, 3.04),
+    wall("pillar", 4.8, 1.4, 0.24, 0.24),
+    { id: "muzzle", type: TURRET, at: [2.8, 3] },
   ],
 };
 
@@ -213,8 +225,8 @@ export const shooterProbe: GenreProbe<ShooterSnapshot> = {
   id: ID,
   rows: ["twin-stick", "endless-runner", "tower-defense"],
   pending: {
-    "twin-stick": "M16 (analog sticks, pointer aim), M22 (particles, screen shake)",
-    "endless-runner": "M16 (touch controls), M19 (an installable PWA), M22 (parallax)",
+    "twin-stick": "M22 (particles, screen shake)",
+    "endless-runner": "M19 (an installable PWA), M22 (parallax)",
   },
   game,
   scene,
@@ -232,6 +244,10 @@ export const shooterProbe: GenreProbe<ShooterSnapshot> = {
     ],
   },
   expect: { result: "won", maxTicks: 1300 },
-  variants: [{ name: "physics-none", settings: { physics: "none" } }],
+  variants: [
+    { name: "physics-none", settings: { physics: "none" } },
+    // Mid-stream, bullets in flight; a world save needs the geometry backend.
+    { name: "saved-physics-none", settings: { physics: "none" }, saveAt: 300 },
+  ],
   timeoutMs: 30_000,
 };

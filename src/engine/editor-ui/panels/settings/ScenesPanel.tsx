@@ -10,13 +10,24 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { ArrowDown01Icon, ArrowUp01Icon, DragDropVerticalIcon } from "@hugeicons/core-free-icons";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { settingsEdit } from "../../../editor/settings-model";
 import { SCENE_KIND_NAME, type AssetId, type ProjectView } from "../../../project/index";
 import { isPlainObject } from "../../../project/kinds/define";
 import { assetName } from "../../connect/scene-doc";
-import { Badge, Button, Icon, IconButton, Input, MicroLabel, Switch, Text } from "../../kit/index";
+import {
+  Badge,
+  Button,
+  IconButton,
+  Input,
+  MicroLabel,
+  Radio,
+  Spinner,
+  Switch,
+  Text,
+} from "../../kit/index";
+import { useBusy } from "../../pending/use-pending";
 import { useProjectView } from "../EditorProject";
 import { DocGate } from "./DocGate";
 import { RemoveButton } from "./RemoveButton";
@@ -97,6 +108,16 @@ function TitleField({ ctx, entry, name }: { ctx: ListCtx; entry: Entry; name: st
   );
 }
 
+/** Whether an edit to the list, its start or one of `entry`'s own fields is landing. */
+function useRowBusy(ctx: ListCtx, entry: Entry): boolean {
+  const scope = (path: string) => settingScope(ctx.doc.docName, path);
+  const list = useBusy(scope(LIST_SCOPE));
+  const start = useBusy(scope("start"));
+  const title = useBusy(scope(`scenes.${entry.scene}.title`));
+  const sublevel = useBusy(scope(`scenes.${entry.scene}.sublevel`));
+  return [list, start, title, sublevel].some((t) => t !== undefined);
+}
+
 function SceneRow({
   ctx,
   entry,
@@ -113,35 +134,41 @@ function SceneRow({
   const name = asset?.kind === SCENE_KIND_NAME ? assetName(asset) : entry.scene;
   const start = value.start === entry.scene;
   const sublevel = entry.sublevel === true;
-  const drag = useDraggable({ id: entry.scene, disabled: readOnly });
+  const busy = useRowBusy(ctx, entry);
+  const startId = useId();
+  const locked = readOnly || busy;
+  const drag = useDraggable({ id: entry.scene, disabled: locked });
   const drop = useDroppable({ id: entry.scene });
   const setRef = (node: HTMLElement | null) => {
     drag.setNodeRef(node);
     drop.setNodeRef(node);
   };
+  const from = entries.findIndex((e) => e.scene === drop.active?.id);
+  const over = drop.isOver && !drag.isDragging ? (from < index ? "after" : "before") : undefined;
   const scope = (part: string) => settingScope(doc.docName, `scenes.${entry.scene}.${part}`);
   return (
     <li
       ref={setRef}
-      className="je-insp-field"
+      className="je-insp-field je-scene-entry"
       aria-label={name}
+      aria-busy={busy || undefined}
       data-dragging={drag.isDragging ? "" : undefined}
-      data-over={drop.isOver && !drag.isDragging ? "" : undefined}
+      data-over={over}
+      style={drag.transform ? { transform: `translate3d(0, ${drag.transform.y}px, 0)` } : undefined}
     >
       <div className="je-insp-field-label">
-        <button
-          type="button"
-          className="je-btn"
-          data-variant="ghost"
-          data-size="icon-xs"
+        <IconButton
+          size="icon-xs"
+          icon={DragDropVerticalIcon}
+          label={`Drag ${name}`}
+          tooltip={null}
+          cue={null}
           {...drag.listeners}
           {...drag.attributes}
-          aria-label={`Drag ${name}`}
-          disabled={readOnly}
-        >
-          <Icon icon={DragDropVerticalIcon} size={12} />
-        </button>
+          disabled={locked}
+        />
         <span className="je-insp-field-title">{name}</span>
+        {busy ? <Spinner size={11} label={null} /> : null}
         {!asset ? (
           <Badge size="label" variant="warning">
             missing
@@ -150,14 +177,14 @@ function SceneRow({
       </div>
       <div className="je-insp-field-control">
         <TitleField ctx={ctx} entry={entry} name={name} />
-        <div className="je-insp-row je-insp-line" data-gap="tight">
-          <label className="je-insp-line">
-            <input
-              type="radio"
+        <div className="je-insp-row je-insp-line je-insp-wrap" data-gap="tight">
+          <label className="je-insp-row je-insp-line" data-gap="tight" htmlFor={startId}>
+            <Radio
+              id={startId}
               name={`${doc.docName ?? "scene-list"}:start`}
               aria-label={`Start in ${name}`}
               checked={start}
-              disabled={readOnly || sublevel}
+              disabled={locked || sublevel}
               onChange={() =>
                 void doc.edit(
                   [edit(ctx, "start", entry.scene)],
@@ -168,59 +195,63 @@ function SceneRow({
             />
             <Text size="xs">Start</Text>
           </label>
-          <Switch
-            aria-label={`${name} is a sublevel`}
-            checked={sublevel}
-            disabled={readOnly || start}
-            onCheckedChange={(on) =>
-              void doc.edit(
-                [edit(ctx, `scenes.@${entry.scene}.sublevel`, on ? true : undefined)],
-                on ? `Make ${name} a sublevel` : `Make ${name} a main scene`,
-                scope("sublevel"),
-              )
-            }
-          />
-          <Text size="xs" aria-hidden>
-            Sublevel
-          </Text>
-          <IconButton
-            size="icon-xs"
-            icon={ArrowUp01Icon}
-            label={`Move ${name} up`}
-            disabled={readOnly || index === 0}
-            onClick={() => reorder(ctx, entry.scene, index - 1, `Move ${name} up`)}
-          />
-          <IconButton
-            size="icon-xs"
-            icon={ArrowDown01Icon}
-            label={`Move ${name} down`}
-            disabled={readOnly || index === entries.length - 1}
-            onClick={() => reorder(ctx, entry.scene, index + 1, `Move ${name} down`)}
-          />
-          <RemoveButton
-            label={`Remove ${name} from the list`}
-            title={`Remove ${name} from the scene list?`}
-            message={
-              start
-                ? "It's the start scene: the game has no start until you pick another. The scene itself stays in the project."
-                : "Flow can no longer load it. The scene itself stays in the project."
-            }
-            disabled={readOnly}
-            onConfirm={() =>
-              doc.edit(
-                [
-                  edit(
-                    ctx,
-                    "scenes",
-                    entries.filter((e) => e !== entry),
-                  ),
-                  ...(start ? [edit(ctx, "start", null)] : []),
-                ],
-                `Remove ${name} from the scene list`,
-                settingScope(doc.docName, LIST_SCOPE),
-              )
-            }
-          />
+          <span className="je-insp-row je-insp-line" data-gap="tight">
+            <Switch
+              aria-label={`${name} is a sublevel`}
+              checked={sublevel}
+              disabled={locked || start}
+              onCheckedChange={(on) =>
+                void doc.edit(
+                  [edit(ctx, `scenes.@${entry.scene}.sublevel`, on ? true : undefined)],
+                  on ? `Make ${name} a sublevel` : `Make ${name} a main scene`,
+                  scope("sublevel"),
+                )
+              }
+            />
+            <Text size="xs" aria-hidden>
+              Sublevel
+            </Text>
+          </span>
+          <span className="je-insp-row je-insp-line je-scene-entry-moves" data-gap="tight">
+            <IconButton
+              size="icon-xs"
+              icon={ArrowUp01Icon}
+              label={`Move ${name} up`}
+              disabled={locked || index === 0}
+              onClick={() => reorder(ctx, entry.scene, index - 1, `Move ${name} up`)}
+            />
+            <IconButton
+              size="icon-xs"
+              icon={ArrowDown01Icon}
+              label={`Move ${name} down`}
+              disabled={locked || index === entries.length - 1}
+              onClick={() => reorder(ctx, entry.scene, index + 1, `Move ${name} down`)}
+            />
+            <RemoveButton
+              label={`Remove ${name} from the list`}
+              title={`Remove ${name} from the scene list?`}
+              message={
+                start
+                  ? "It's the start scene: the game has no start until you pick another. The scene itself stays in the project."
+                  : "Flow can no longer load it. The scene itself stays in the project."
+              }
+              disabled={locked}
+              onConfirm={() =>
+                doc.edit(
+                  [
+                    edit(
+                      ctx,
+                      "scenes",
+                      entries.filter((e) => e !== entry),
+                    ),
+                    ...(start ? [edit(ctx, "start", null)] : []),
+                  ],
+                  `Remove ${name} from the scene list`,
+                  settingScope(doc.docName, LIST_SCOPE),
+                )
+              }
+            />
+          </span>
         </div>
       </div>
     </li>
@@ -281,6 +312,7 @@ export function ScenesPanel({ doc }: { doc: SettingsDoc }) {
                     <Button
                       size="xs"
                       variant="ghost"
+                      aria-label={`Add ${assetName(scene)}`}
                       disabled={ctx.readOnly}
                       busyScope={settingScope(doc.docName, LIST_SCOPE)}
                       onClick={() =>
@@ -291,7 +323,7 @@ export function ScenesPanel({ doc }: { doc: SettingsDoc }) {
                         )
                       }
                     >
-                      Add {assetName(scene)}
+                      Add
                     </Button>
                   </div>
                 ))}

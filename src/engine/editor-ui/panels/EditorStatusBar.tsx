@@ -69,6 +69,9 @@ function useActivityWidths(now: () => number = Date.now): { full: number; least:
   };
 }
 
+// The notice's width in the short row, matching `.je-status-notice`'s max-width: cut short past it.
+const NOTICE_LEAST = 200;
+
 const NO_NOTICE: ReadableStore<SceneNotice | null> = { state: null, subscribe: () => () => {} };
 
 /**
@@ -76,8 +79,8 @@ const NO_NOTICE: ReadableStore<SceneNotice | null> = { state: null, subscribe: (
  * scene), its save state, who is here, its errors and warnings and what is
  * running. When the bottom row is short it draws a save-state dot (with a
  * short word while the connection isn't live) and counts, keeping the full
- * words for screen readers and in the dot's hint; what is running keeps its
- * label, cut short, and its count.
+ * words for screen readers and in the dot's hint; the notice and what is
+ * running keep their words, cut short.
  */
 export function EditorStatusBar({
   session,
@@ -124,6 +127,7 @@ export function EditorStatusBar({
     sum(
       [
         W.dot + (save.short ? W.tight + text(save.short) : 0),
+        notice ? Math.min(text(notice), NOTICE_LEAST) : -1,
         errors > 0 ? countWidth(errors) : -1,
         warnings > 0 ? countWidth(warnings) : -1,
         others > 0 ? facesWidth(others, 1) : -1,
@@ -140,13 +144,17 @@ export function EditorStatusBar({
     return (
       <div role="status" className="je-status" data-compact="">
         <span className="je-sr-only">{sceneName}</span>
-        {notice ? <span className="je-sr-only">{notice}</span> : null}
         <SaveState
           connection={connection}
           unsynced={unsynced}
           compact
-          hint={`${sceneName} · ${save.label}`}
+          hint={[sceneName, notice, save.label].filter(Boolean).join(" · ")}
         />
+        {notice ? (
+          <span className="je-status-notice" data-tone="muted">
+            {notice}
+          </span>
+        ) : null}
         {errors > 0 ? (
           <span className="je-status-count" data-tone="danger">
             <Icon icon={AlertCircleIcon} size={12} />
@@ -173,7 +181,11 @@ export function EditorStatusBar({
   return (
     <div role="status" className="je-status">
       <span className="je-status-scene">{sceneName}</span>
-      {notice ? <span data-tone="muted">{notice}</span> : null}
+      {notice ? (
+        <span className="je-status-notice" data-tone="muted">
+          {notice}
+        </span>
+      ) : null}
       <SaveState connection={connection} unsynced={unsynced} />
       {others > 0 ? (
         <span className="je-status-peers" data-tone="muted">

@@ -307,10 +307,10 @@ const DEFINITIONS = {
   },
   save: {
     usage:
-      "save <scene|file> --script <file|-> --at <tick> --out <file>.save.json [--depth world|progress]",
+      "save <scene|file> --script <file|-> --at <tick> --out <file>.save.json [--depth world|progress] [--now ms]",
     summary:
-      "run an input script to a tick and write a save fixture there (save:v1, world depth by default; the slot is the file's stem): inside a project it is imported as a save asset with its sidecar, or replaces the fixture already at that path; a world save that can't be taken is refused with save-unsupported and each cause; a run that ends before the tick saves nothing",
-    values: ["script", "at", "out", "depth"],
+      "run an input script to a tick and write a save fixture there (save:v1, world depth by default; the slot is the file's stem): inside a project it is imported as a save asset with its sidecar, or replaces the fixture already at that path; a world save that can't be taken is refused with save-unsupported and each cause; a run that ends before the tick saves nothing; meta.savedAt is --now (epoch ms, default 0), so saving the same run twice writes the same bytes",
+    values: ["script", "at", "out", "depth", "now"],
     switches: [],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) =>
@@ -321,6 +321,7 @@ const DEFINITIONS = {
           at: str(flags.at),
           out: str(flags.out),
           depth: str(flags.depth),
+          now: str(flags.now),
         },
         ctx,
       ),

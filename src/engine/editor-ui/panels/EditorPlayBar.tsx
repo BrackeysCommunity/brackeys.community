@@ -28,29 +28,40 @@ export function flowRequestedScene(state: Pick<GameStoreState, "session">): stri
 
 /**
  * While playing: the chip, pause, step, time scale, stop, a restart when the
- * scene moved on, and the scene a flow request asked for when one ended Play.
+ * scene moved on, and the scene a flow request asked for when one ended Play,
+ * which opens it. Once the session has an outcome, Resume and Step are off.
  */
-export function EditorPlayBar({ game, host, keymap, onStop, onRestart }: EditorControls) {
+export function EditorPlayBar({ game, host, keymap, onStop, onRestart, project }: EditorControls) {
   const { paused, timeScale } = useStoreValue(game.getStore(), (s) => s.sim);
   const sceneChanged = useStoreValue(host, (s) => s.sceneChanged);
   const requested = useStoreValue(game.getStore(), flowRequestedScene);
+  const ended = useStoreValue(game.getStore(), (s) => (s.session?.outcome ?? null) !== null);
+  const openScene = project?.openScene;
+  const openRequested =
+    requested !== null && openScene && requested !== project?.scene
+      ? () => {
+          onStop();
+          openScene(requested);
+        }
+      : null;
 
   return (
     <div className="je-play-bar">
       <Badge size="label" variant="secondary">
-        Playing · Esc to stop
+        {ended ? "Ended" : "Playing"} · Esc to stop
       </Badge>
       <Island role="toolbar" aria-label="Play controls">
         <IconButton
           icon={paused ? PlayIcon : PauseIcon}
           label={paused ? "Resume" : "Pause"}
+          disabled={ended && paused}
           onClick={() => (paused ? game.resume() : game.pause())}
           tooltip={<KeyHint text={paused ? "Resume" : "Pause"} chord={keymap.chordOf("pause")} />}
         />
         <IconButton
           icon={NextIcon}
           label="Step"
-          disabled={!paused}
+          disabled={!paused || ended}
           onClick={() => game.step()}
           tooltip={<KeyHint text="Step one tick" chord={keymap.chordOf("step")} />}
         />
@@ -89,7 +100,12 @@ export function EditorPlayBar({ game, host, keymap, onStop, onRestart }: EditorC
       </Island>
       {requested !== null ? (
         <Island role="status" className="je-scene-changed" data-flow-requested="">
-          Requested {requested}
+          Ended: requested {requested}
+          {openRequested ? (
+            <Button size="xs" variant="secondary" onClick={openRequested}>
+              Open {requested}
+            </Button>
+          ) : null}
         </Island>
       ) : null}
       {sceneChanged ? (

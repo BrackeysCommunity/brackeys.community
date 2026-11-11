@@ -23,6 +23,17 @@ export const SAVE_SCHEMA_ID = `urn:jams-engine:save:v${SAVE_VERSION}`;
 /** A slot name: lowercase letters, digits and dashes, 1–32 characters, starting with a letter or digit. */
 export const SLOT_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
+/** A `schema` issue at `/slot` when `slot` isn't a slot name, else null. */
+export function slotNameIssue(slot: string): SceneIssue | null {
+  return SLOT_PATTERN.test(slot)
+    ? null
+    : makeIssue("schema", {
+        message: `"${slot}" isn't a slot name: use lowercase letters, digits and dashes, 1–32 characters`,
+        path: "/slot",
+        got: slot,
+      });
+}
+
 /** `progress`: the scene, persist and the game's snapshot. `world`: everything a run needs to continue exactly. */
 export type SaveDepth = "progress" | "world";
 
@@ -97,7 +108,13 @@ export type SaveFile = {
   meta: SaveMeta;
   depth: SaveDepth;
   persist: JsonValue;
-  scene: { id: AssetId; runHash: string; sublevels: readonly SublevelInfo[] };
+  scene: {
+    id: AssetId;
+    runHash: string;
+    /** The scene's `ctx.flow.entry` when saved; absent for none. */
+    entry?: string;
+    sublevels: readonly SublevelInfo[];
+  };
   /** The game's own data, its `snapshot()`; `game` is the game's id. */
   data: JsonValue;
   /** Depth `world` only. */
@@ -272,6 +289,10 @@ export const saveFileSchema: z.ZodType<SaveFile> = z
         runHash: z
           .string()
           .describe("The run hash it was saved under; a different one loads with a note."),
+        entry: z
+          .string()
+          .optional()
+          .describe("The entry the scene was reached through, its `ctx.flow.entry`."),
         sublevels: z.array(sublevelSchema).describe("Sublevels attached, in attach order."),
       })
       .describe("The scene it was saved in."),
@@ -313,7 +334,12 @@ const SAVE_TEXT_LAYOUT: DocLayout = {
     persist: OPEN_MAP,
     scene: {
       as: "map",
-      fields: { id: { as: "atomic" }, runHash: { as: "atomic" }, sublevels: LIST },
+      fields: {
+        id: { as: "atomic" },
+        runHash: { as: "atomic" },
+        entry: { as: "atomic" },
+        sublevels: LIST,
+      },
     },
     data: OPEN_MAP,
     world: {

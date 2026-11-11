@@ -1,0 +1,46 @@
+{
+  "kind": "save",
+  "v": 1,
+  "game": "engine",
+  "gameVersion": 1,
+  "engine": "0.13.0",
+  "release": null,
+  "project": null,
+  "slot": "grid-yard",
+  "meta": { "playTicks": 30, "savedAt": 0, "scene": "grid-yard" },
+  "depth": "world",
+  "persist": null,
+  "scene": {
+    "id": "grid-yard",
+    "runHash": "233dd275d5b5e95e",
+    "sublevels": []
+  },
+  "data": null,
+  "world": {
+    "tick": 30,
+    "counters": {},
+    "random": [4269307524, 2439480051, 1591552067, 3011703621],
+    "timers": [],
+    "enabled": {},
+    "destroyed": [],
+    "spawned": [],
+    "poses": {
+      "divider": [3.36, 1.6, 0],
+      "exit": [5.6, 0.8, 0],
+      "exit-zone": [5.6, 0.8, 0],
+      "gap-zone": [3.36, 3.2, 0],
+      "start": [0.8, 0.8, 0],
+      "~solid:0": [3.2, 0.16, 0],
+      "~solid:1": [3.2, 3.68, 0],
+      "~solid:2": [0.16, 1.92, 0],
+      "~solid:3": [6.24, 1.92, 0]
+    },
+    "systems": {
+      "@timers": { "next": 1 },
+      "start": { "occupant": [2, 2] }
+    },
+    "seats": [
+      { "devices": ["keyboard", "pointer", "touch"], "player": 0 }
+    ]
+  }
+}

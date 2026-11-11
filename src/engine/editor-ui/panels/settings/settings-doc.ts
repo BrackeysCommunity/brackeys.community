@@ -31,7 +31,7 @@ export type SettingsDoc = {
   readOnly: string | null;
   /** Applies `ops` as one batch: one history entry and one undo step, busy in `scope` until it lands. */
   edit(ops: readonly ProjectOp[], label: string, scope: string): Promise<boolean>;
-  /** Creates the kind's asset from its `empty`, at the project's root. */
+  /** Creates the kind's asset from its `empty` over the project (a scene list lists every scene by path, the first as start), at the project's root. */
   create(): Promise<boolean>;
 };
 

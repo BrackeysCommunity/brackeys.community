@@ -219,7 +219,7 @@ describe("buildInspectorModel", () => {
 
   it("titles from meta.title and tooltips from describe", () => {
     expect(field(m, "power")).toMatchObject({ title: "Power", description: "How hard it pushes." });
-    expect(field(m, "ratio").title).toBe("ratio");
+    expect(field(m, "ratio").title).toBe("Ratio");
   });
 
   it("picks a widget per Zod kind", () => {

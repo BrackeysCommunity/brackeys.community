@@ -290,7 +290,7 @@ describe("EditorInspector", () => {
     expect(entity(session, "gizmo").turn).toBe(90);
 
     const physics = screen.getByRole("region", { name: "Physics" });
-    expect(within(physics).getByText("glow")).toBeTruthy();
+    expect(within(physics).getByText("Glow")).toBeTruthy();
     expect(within(physics).getByText("3")).toBeTruthy();
   });
 

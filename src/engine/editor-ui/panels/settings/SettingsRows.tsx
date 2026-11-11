@@ -1,7 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
+import { z } from "zod";
 
 import type { InspectorRow } from "../../../editor/inspector-model";
 import { settingsEdit, settingsValue } from "../../../editor/settings-model";
+import { unwrapSchema } from "../../../scene/schema";
 import {
   Hint,
   Input,
@@ -289,6 +291,111 @@ function PairRow({ row, ctx }: { row: InspectorRow; ctx: RowsCtx }) {
   );
 }
 
+type Axis = { key: string; schema: z.ZodType; unit?: string };
+
+/**
+ * The fields of a union of objects whose every field is a number, each key
+ * once in the order first given: a size whose axes may each be left out
+ * (a resolution's virtual width and height). Null for any other schema.
+ */
+function unionAxes(schema: z.ZodType): Axis[] | null {
+  const inner = unwrapSchema(schema);
+  if (!(inner instanceof z.ZodUnion)) return null;
+  const axes = new Map<string, Axis>();
+  for (const option of inner.options) {
+    const object = unwrapSchema(option as z.ZodType);
+    if (!(object instanceof z.ZodObject)) return null;
+    for (const [key, field] of Object.entries(object.shape)) {
+      if (!(unwrapSchema(field as z.ZodType) instanceof z.ZodNumber)) return null;
+      if (axes.has(key)) continue;
+      const unit = (field as z.ZodType).meta()?.unit;
+      axes.set(key, {
+        key,
+        schema: field as z.ZodType,
+        ...(typeof unit === "string" ? { unit } : {}),
+      });
+    }
+  }
+  return axes.size > 0 ? [...axes.values()] : null;
+}
+
+const recordOf = (v: unknown): Record<string, unknown> | undefined =>
+  v !== null && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : undefined;
+
+/** A size whose axes may each be blank (`unionAxes`): the axes given commit as one object. */
+function AxesRow({ row, ctx, axes }: { row: InspectorRow; ctx: RowsCtx; axes: Axis[] }) {
+  const { error, setError, commit } = useCommit(ctx, row);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const value = recordOf(row.value);
+  const fallback = recordOf(ctx.fallbacks[row.path] ?? row.defaultValue);
+  const unit = axes.find((a) => a.unit)?.unit;
+  const shown = (key: string) => (typeof value?.[key] === "number" ? String(value[key]) : "");
+  const run = () => {
+    if (Object.keys(draft).length === 0) return;
+    const base = value ?? fallback ?? {};
+    const next: Record<string, number> = {};
+    for (const { key, schema } of axes) {
+      const text = draft[key];
+      const given = text === undefined ? base[key] : text.trim() === "" ? undefined : text.trim();
+      if (given === undefined) continue;
+      const n = Number(given);
+      const checked = schema.safeParse(n);
+      if (!checked.success) {
+        setDraft({});
+        return setError(`${key}: ${checked.error.issues[0]?.message ?? "invalid value"}`);
+      }
+      next[key] = n;
+    }
+    setDraft({});
+    if (Object.keys(next).length === 0) {
+      if (row.optional) commit(undefined);
+      else setError(`${row.title} needs a ${axes.map((a) => a.key).join(" or ")}.`);
+      return;
+    }
+    commit(next);
+  };
+  return (
+    <SettingRow {...rowProps(ctx, row)} error={error}>
+      <div className="je-insp-row" data-gap="tight">
+        {axes.map(({ key }, i) => (
+          <Fragment key={key}>
+            {i > 0 ? (
+              <span className="je-insp-suffix" aria-hidden>
+                ×
+              </span>
+            ) : null}
+            <Input
+              aria-label={`${row.path}.${key}`}
+              inputMode="decimal"
+              placeholder={
+                value === undefined && typeof fallback?.[key] === "number"
+                  ? String(fallback[key])
+                  : "auto"
+              }
+              value={draft[key] ?? shown(key)}
+              onChange={(e) => {
+                const text = e.target.value;
+                setDraft((d) => ({ ...d, [key]: text }));
+              }}
+              onBlur={run}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") run();
+                else if (e.key === "Escape") {
+                  setDraft({});
+                  setError(null);
+                }
+              }}
+            />
+          </Fragment>
+        ))}
+        {unit ? <span className="je-insp-suffix">{unit}</span> : null}
+      </div>
+    </SettingRow>
+  );
+}
+
 function ReadonlyRow({ row, ctx }: { row: InspectorRow; ctx: RowsCtx }) {
   const text =
     row.value === undefined
@@ -319,6 +426,8 @@ function NestedRows({ row, ctx }: { row: InspectorRow; ctx: RowsCtx }) {
 }
 
 function RowView({ row, ctx }: { row: InspectorRow; ctx: RowsCtx }) {
+  const axes = row.widget.kind === "readonly" ? unionAxes(row.schema) : null;
+  if (axes) return <AxesRow row={row} ctx={ctx} axes={axes} />;
   if (row.readonly) return <ReadonlyRow row={row} ctx={ctx} />;
   switch (row.widget.kind) {
     case "number":

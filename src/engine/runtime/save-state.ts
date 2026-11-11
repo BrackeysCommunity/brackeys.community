@@ -2,7 +2,7 @@ import type { SublevelInfo } from "../game/flow";
 import {
   formatSaveFile,
   SAVE_VERSION,
-  SLOT_PATTERN,
+  slotNameIssue,
   type SaveDepth,
   type SaveFile,
 } from "../game/save-file";
@@ -11,8 +11,8 @@ import { makeIssue } from "../scene/issues";
 import { locatePointer } from "../scene/parse";
 import type { SceneIssue } from "../scene/types";
 import { ENGINE_VERSION } from "../version";
-import { flowLoaderOf, loadListed } from "./flow";
-import { plainJsonProblem } from "./persist";
+import { flowLoaderOf, loadListed, loadRefusalIssue } from "./flow";
+import { persistProblem, plainJsonProblem } from "./persist";
 import { runHash } from "./play-session";
 import { saveHostOf, type SaveHost } from "./runtime";
 import type { LoadReport, SceneRuntimeHandle } from "./types";
@@ -110,15 +110,8 @@ export function captureSave(
       }),
     );
   }
-  if (!SLOT_PATTERN.test(opts.slot)) {
-    return failed(
-      makeIssue("schema", {
-        message: `"${opts.slot}" isn't a slot name: use lowercase letters, digits and dashes, 1–32 characters`,
-        path: "/slot",
-        got: opts.slot,
-      }),
-    );
-  }
+  const badSlot = slotNameIssue(opts.slot);
+  if (badSlot) return failed(badSlot);
   const { ctx } = runtime;
   const game = ctx.registry.game;
   const persist = ctx.persist.value;
@@ -138,13 +131,14 @@ export function captureSave(
       ...(opts.title !== undefined ? { title: opts.title } : {}),
       scene: id,
       savedAt: opts.now,
-      playTicks: ctx.tick,
+      playTicks: host.playClock().ticks,
     },
     depth: "progress",
     persist: structuredClone(persist),
     scene: {
       id,
       runHash: runHashOf(runtime, host),
+      ...(ctx.flow.entry !== null ? { entry: ctx.flow.entry } : {}),
       sublevels: ctx.flow.sublevels().map((s) => ({ ...s, at: [s.at[0], s.at[1]] })),
     },
     data: structuredClone(data),
@@ -168,10 +162,14 @@ function freshLoad(
   runtime: SceneRuntimeHandle,
   host: SaveHost,
   id: string,
+  entry: string | undefined,
 ): { ok: true; report: Extract<LoadReport, { ok: true }> } | { ok: false; issue: SceneIssue } {
   const play = host.play();
   if (flowLoaderOf(runtime.ctx)?.read()) {
-    const loaded = loadListed(runtime, id, play ? { play } : {});
+    const loaded = loadListed(runtime, id, {
+      ...(entry !== undefined ? { entry } : {}),
+      ...(play ? { play } : {}),
+    });
     return loaded.ok ? { ok: true, report: loaded.report } : loaded;
   }
   const current = host.sceneId();
@@ -188,13 +186,7 @@ function freshLoad(
     );
   }
   const report = host.reloadMain();
-  if (report.ok) return { ok: true, report };
-  return failed(
-    makeIssue(report.reason === "physics-not-loaded" ? "physics-required" : "schema", {
-      message: `"${id}" failed to load: ${report.error}`,
-      entityIds: report.entityId ? [report.entityId] : [id],
-    }),
-  );
+  return report.ok ? { ok: true, report } : failed(loadRefusalIssue(id, report));
 }
 
 const sameSublevels = (a: readonly SublevelInfo[], b: readonly SublevelInfo[]) =>
@@ -205,9 +197,11 @@ const sameSublevels = (a: readonly SublevelInfo[], b: readonly SublevelInfo[]) =
   });
 
 /**
- * Loads `file`'s scene into `runtime` fresh and puts back what it saved,
- * between ticks. Progress depth: the fresh load, the game's `restore` with
- * the saved data, then `persist`. World depth puts the world back between
+ * Loads `file`'s scene into `runtime` fresh, through the entry it was
+ * reached by, and puts back what it saved, between ticks. The save's
+ * `persist` is judged by `persistProblem` against the game's schema first,
+ * in production too. Progress depth: the fresh load, the game's `restore`
+ * with the saved data, then `persist` and the play clock. World depth puts the world back between
  * the load and the game's `restore` (sublevels, spawns, destroys, counters,
  * enabled flags, the tick, poses and each owner's state, timers,
  * `ctx.random` and its forks, seats), raising no event. A scene whose run
@@ -238,7 +232,16 @@ export function restoreSave(
   if (file.depth === "world" && !world) {
     return failed(makeIssue("schema", { message: "a world save holds `world`", path: "/world" }));
   }
-  const loaded = freshLoad(runtime, host, file.scene.id);
+  const persistBad = persistProblem(file.persist, ctx.registry.game?.persist?.schema);
+  if (persistBad) {
+    return failed(
+      makeIssue("schema", {
+        message: `the save's persist ${persistBad}`,
+        path: "/persist",
+      }),
+    );
+  }
+  const loaded = freshLoad(runtime, host, file.scene.id, file.scene.entry);
   if (!loaded.ok) return loaded;
 
   const issues: SceneIssue[] = [];
@@ -291,5 +294,6 @@ export function restoreSave(
       }),
     );
   }
+  host.playClock().ticks = file.meta.playTicks;
   return { ok: true, report: loaded.report, issues };
 }

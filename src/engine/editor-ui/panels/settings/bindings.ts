@@ -1,5 +1,6 @@
 import { bindingProblems, declaredBindings } from "../../../game/input-bindings";
 import type { ActionDef, ActionKind, Binding, Registry } from "../../../game/types";
+import { keycapLabel, pointerButtonLabel } from "../../../input/keycaps";
 import type { InputMapFile } from "../../../project/index";
 import { isPlainObject } from "../../../project/kinds/define";
 
@@ -111,29 +112,6 @@ export function directed(
     : { ...binding, axis: direction.axis, value: direction.value };
 }
 
-const KEYCAPS: Readonly<Record<string, string>> = {
-  ArrowLeft: "←",
-  ArrowRight: "→",
-  ArrowUp: "↑",
-  ArrowDown: "↓",
-  Escape: "Esc",
-  Space: "Space",
-  Enter: "Enter",
-};
-
-const POINTER: Readonly<Record<string, string>> = {
-  primary: "Click",
-  secondary: "Right-click",
-  middle: "Middle-click",
-};
-
-function keycap(code: string): string {
-  const named = KEYCAPS[code];
-  if (named) return named;
-  const short = /^(?:Key|Digit)(.)$/.exec(code);
-  return short ? short[1]! : code;
-}
-
 const SIGN = (value: number | undefined) => ((value ?? 1) < 0 ? "−" : "+");
 
 /** What a binding reads as on its chip: `W`, `Pad south`, `Left stick`, `Click`, with its direction and seat. */
@@ -142,7 +120,7 @@ export function bindingLabel(binding: Binding): string {
   let push: string | null = null;
   switch (binding.device) {
     case "key":
-      label = keycap(binding.code);
+      label = keycapLabel(binding.code);
       if (binding.axis !== undefined || binding.value !== undefined)
         push = `${binding.axis ?? ""}${SIGN(binding.value)}`;
       break;
@@ -155,7 +133,7 @@ export function bindingLabel(binding: Binding): string {
       } else label = `Pad ${binding.axis}${(binding.scale ?? 1) < 0 ? " inverted" : ""}`;
       break;
     case "pointer":
-      label = POINTER[binding.button] ?? `Pointer ${binding.button}`;
+      label = pointerButtonLabel(binding.button) ?? `Pointer ${binding.button}`;
       break;
     case "touch":
       label = `Touch ${binding.control}`;

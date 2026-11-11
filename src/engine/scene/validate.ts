@@ -1798,7 +1798,9 @@ export type SublevelUse = {
  * `sublevel-invalid` for each use that `sublevelIssue` refuses beside the
  * main scene `main`, settings resolved as `expandScene` resolves them;
  * uses are judged in order, so a label an earlier use took is taken. A
- * listed scene the library holds no text for is `asset-missing`.
+ * listed scene the library holds no text for is `asset-missing`. No
+ * checks file or input-script op names a sublevel yet: this is the rule
+ * for when one does, kept off the public barrel until then.
  */
 export function sublevelUseIssues(
   main: SceneDefinition,

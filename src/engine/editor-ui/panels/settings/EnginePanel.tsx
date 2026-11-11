@@ -22,6 +22,12 @@ export function engineFallbacks(registry: Registry): Record<string, unknown> {
   };
 }
 
+const ORDER = ["physics", "gravity", "tickRate", "resolution"];
+const rank = (name: string) => {
+  const at = ORDER.indexOf(name);
+  return at < 0 ? ORDER.length : at;
+};
+
 /**
  * The game-settings doc's `engine` block: physics, gravity in m/s², tick
  * rate and resolution, each over the game's. The game's px per metre is
@@ -35,7 +41,9 @@ export function EnginePanel({ doc, registry }: { doc: SettingsDoc; registry: Reg
         <>
           <SettingsRows
             doc={doc}
-            rows={settingsRows(engine, value.engine ?? {}, "engine", { registry })}
+            rows={settingsRows(engine, value.engine ?? {}, "engine", { registry }).sort(
+              (a, b) => rank(a.name) - rank(b.name),
+            )}
             fallbacks={engineFallbacks(registry)}
           />
           <SettingRow

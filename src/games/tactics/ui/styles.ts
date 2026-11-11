@@ -83,7 +83,7 @@ const css = `
   left: var(--tactics-left);
   right: var(--tactics-right);
   display: grid;
-  grid-template-columns: minmax(min-content, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(min-content, 1fr) auto minmax(min-content, 1fr);
   gap: 8px;
   align-items: start;
 }

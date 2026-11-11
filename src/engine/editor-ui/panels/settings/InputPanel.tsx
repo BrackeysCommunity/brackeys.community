@@ -113,11 +113,35 @@ function ActionLine({ ctx, row }: { ctx: InputCtx; row: ActionRow }) {
   useEffect(() => {
     latest.current = { ctx, row };
   });
+  // Bumped by Cancel, so the capture it interrupts binds nothing.
+  const attempt = useRef(0);
+  const prompt = useRef<HTMLDivElement>(null);
+  const cancel = () => {
+    attempt.current++;
+    setWaiting(false);
+  };
   const add = async () => {
     if (!ctx.capture) return;
+    const id = ++attempt.current;
+    // The capture takes every press, Cancel's own too: this listener runs before
+    // the capture's (it is added first), so that press only cancels.
+    const onPress = (e: Event) => {
+      const onCancel = e.target instanceof Node && prompt.current?.contains(e.target);
+      const activates = !(e instanceof KeyboardEvent) || e.key === "Enter" || e.key === " ";
+      if (onCancel && activates) cancel();
+    };
+    window.addEventListener("pointerdown", onPress, true);
+    window.addEventListener("keydown", onPress, true);
     setWaiting(true);
-    const captured = await ctx.capture({ timeoutMs: CAPTURE_MS }).finally(() => setWaiting(false));
-    if (!captured) return;
+    let captured: Binding | null;
+    try {
+      captured = await ctx.capture({ timeoutMs: CAPTURE_MS });
+    } finally {
+      window.removeEventListener("pointerdown", onPress, true);
+      window.removeEventListener("keydown", onPress, true);
+      if (attempt.current === id) setWaiting(false);
+    }
+    if (!captured || attempt.current !== id) return;
     const { ctx: now, row: current } = latest.current;
     const binding = directed(captured, current.kind, directions[direction]);
     const problem = addBindingProblem(current, binding, {
@@ -137,16 +161,9 @@ function ActionLine({ ctx, row }: { ctx: InputCtx; row: ActionRow }) {
   return (
     <div className="je-insp-field" role="group" aria-label={row.action}>
       <div className="je-insp-field-label">
-        <Hint content={row.description} disabled={!row.description}>
+        <Hint content={row.description || row.action}>
           <span className="je-insp-field-title">{row.action}</span>
         </Hint>
-        {row.ui ? (
-          <Hint content="UI-only: the game's UI reads it; the simulation and recordings never see it.">
-            <Badge size="label" variant="outline">
-              UI
-            </Badge>
-          </Hint>
-        ) : null}
       </div>
       <div className="je-insp-field-control">
         <div className="je-chips" aria-label={`${row.action} bindings`}>
@@ -160,8 +177,15 @@ function ActionLine({ ctx, row }: { ctx: InputCtx; row: ActionRow }) {
             />
           ))}
           {row.bindings.length === 0 ? <span className="je-insp-muted">unbound</span> : null}
+          {row.ui ? (
+            <Hint content="UI-only: the game's UI reads it; the simulation and recordings never see it.">
+              <Badge size="label" variant="outline">
+                UI
+              </Badge>
+            </Hint>
+          ) : null}
         </div>
-        <div className="je-insp-row" data-gap="tight">
+        <div className="je-insp-row je-insp-wrap" data-gap="tight">
           {directions.length > 0 ? (
             <SegmentedControl
               size="xs"
@@ -184,9 +208,19 @@ function ActionLine({ ctx, row }: { ctx: InputCtx; row: ActionRow }) {
             tooltip={ctx.capture ? undefined : "The game isn't running here yet."}
             onClick={() => void add()}
           >
-            {waiting ? "Press a key or button… (Esc cancels)" : "Add binding"}
+            {waiting ? "Listening…" : "Add binding"}
           </Button>
         </div>
+        {waiting ? (
+          <div ref={prompt} className="je-insp-row je-insp-wrap" data-gap="tight">
+            <Text size="xs" variant="muted" role="status">
+              Press a key or button to bind it. Esc cancels.
+            </Text>
+            <Button size="xs" variant="ghost" onClick={cancel}>
+              Cancel
+            </Button>
+          </div>
+        ) : null}
         {!row.mapped ? (
           <span className="je-insp-muted">The game's bindings; editing one copies them here.</span>
         ) : null}

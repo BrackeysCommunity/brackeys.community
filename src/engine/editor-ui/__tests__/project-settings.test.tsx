@@ -10,6 +10,7 @@ import {
   memoryDocHost,
   projectPeers,
   readLog,
+  readProjectLog,
   sceneToDoc,
   seedProjectDoc,
   sequentialKeys,
@@ -457,6 +458,33 @@ describe("the project settings panel", () => {
     expect(await panel.findByRole("group", { name: "jump" })).toBeTruthy();
   });
 
+  it("Create scene list lists every scene by path, the first as start, as one batch", async () => {
+    const host = project([SCENE_LIST_KIND]);
+    const { session } = await client(host, ada);
+    const panel = mount(session);
+    await openTab(panel, "Scenes");
+    await act(async () => {
+      fireEvent.click(await panel.findByRole("button", { name: "Create scene list" }));
+    });
+    const made = () => [...session.view().byId.values()].find((e) => e.kind === SCENE_LIST_KIND);
+    await waitFor(() => expect(made()).toBeDefined());
+    const name = session.docNameFor(made()!)!;
+    await waitFor(() =>
+      expect(layoutFromDoc(session.get(name)!.doc, layoutOf(sceneListKind))).toEqual({
+        kind: SCENE_LIST_KIND,
+        v: 1,
+        start: "attic",
+        scenes: [{ scene: "attic" }, { scene: "cellar" }, { scene: "yard" }],
+      }),
+    );
+    await waitFor(() =>
+      expect(readProjectLog(host.doc(`project:${PROJECT}`)).map((e) => e.label)).toEqual([
+        "Create scene list",
+      ]),
+    );
+    expect(await panel.findByRole("radio", { name: "Start in attic" })).toBeTruthy();
+  });
+
   it("shows the edited doc in this client's presence while focus is inside it", async () => {
     const host = project();
     const { session } = await client(host, ada);
@@ -516,7 +544,7 @@ describe("the Layers section", () => {
   });
 });
 
-describe("two editors on one project (S18 Panels)", () => {
+describe("two editors on one project", () => {
   it("an input binding in one and a scene reorder in the other converge, each one history entry and one undo step for its author", async () => {
     const host = project();
     const a = await client(host, ada);

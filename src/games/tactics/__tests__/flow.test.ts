@@ -112,7 +112,7 @@ async function playFrom(
   return run;
 }
 
-/** Menu → level 1 (won on M17's script) → result → menu → level 2, on one script. */
+/** Menu → level 1 (won on level-1.script.json) → result → menu → level 2, on one script. */
 const tour: InputScriptStepV2[] = [
   { command: "start" },
   ...(level1Script.steps ?? []),
@@ -137,7 +137,7 @@ describe("the second game's flow, headless", () => {
       { result: "flow", tick: 0, to: "level-2" },
       { result: "script-end", tick: expect.any(Number) },
     ]);
-    // Level 1 plays as M17's golden did, and ends on the tick the red side falls.
+    // Level 1 plays as the level-1 golden does, and ends on the tick the red side falls.
     expect(r.segments![1]!.ticks).toBe(golden.ticks);
     expect(r.final?.screen).toBeUndefined();
     expect(Object.keys(r.final!.units).sort()).toEqual([

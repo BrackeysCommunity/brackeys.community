@@ -5,7 +5,7 @@
  * Continue loads the newest save through the instance's slots.
  * Nothing here is built, and the instance isn't read, while a level plays.
  */
-import type { SaveSummary, UiActionEvent, UiContext, UiHandle } from "@jams/engine";
+import type { GameInstance, SaveSummary, UiActionEvent, UiContext, UiHandle } from "@jams/engine";
 
 import type { TacticsFlowSlice, TacticsProgress } from "../runtime";
 
@@ -74,6 +74,16 @@ const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export const unitName = (id: string): string =>
   titleCase((id.split("/")[0] ?? id).replace(/^[a-z0-9-]+:/, "").replaceAll("-", " "));
 
+/**
+ * A listed scene's title, else its id. The flow source's list comes first;
+ * a game with none (the editor's Play runs one scene) reads the project's
+ * scene list, so the title screen names levels the same way everywhere.
+ */
+export function sceneTitle(game: Pick<GameInstance, "flow" | "project">, scene: string): string {
+  const listed = game.flow.scenes.length > 0 ? game.flow.scenes : game.project()?.flow?.scenes;
+  return listed?.find((s) => s.scene === scene)?.title ?? scene;
+}
+
 /** "Turn" counts the turn a level ended in; one turn is one blue and one red move. */
 const turnsText = (n: number) => (n === 1 ? "1 turn" : `${n} turns`);
 
@@ -137,9 +147,7 @@ export function createTacticsMenu(
     return node;
   };
 
-  /** A listed scene's title from the scene list, else its id. */
-  const titleOf = (scene: string) =>
-    ctx.game.flow?.scenes.find((s) => s.scene === scene)?.title ?? scene;
+  const titleOf = (scene: string) => sceneTitle(ctx.game, scene);
   const saveTitle = (s: SaveSummary) =>
     s.meta.title ? `${titleOf(s.meta.scene)} · ${s.meta.title}` : titleOf(s.meta.scene);
 

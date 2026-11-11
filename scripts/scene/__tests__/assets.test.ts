@@ -81,6 +81,7 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "engine-yard-checks",
       "engine-yard",
       "game-settings",
+      "grid-annex",
       "grid-yard-checks",
       "grid-yard",
       "input-map",
@@ -93,6 +94,7 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "one-way-latch",
       "post",
       "room",
+      "grid-yard-save",
       "scene-list",
     ]);
     expect((await run("assets", "list", "--kind", "prefab")).data.assets).toHaveLength(6);
@@ -280,16 +282,19 @@ describe("assets on files", { timeout: 60_000 }, () => {
       await validates("kitchen-sink");
 
       const ops = join(root, "define.json");
-      const bar = { id: "bar", type: "solid", shape: ["box", 0, -20, 8, 20] };
-      await writeFile(
-        ops,
-        JSON.stringify({ ops: [{ op: "definePrefab", id: "post", prefab: { entities: [bar] } }] }),
-      );
+      const bar = { id: "bar", type: "solid", shape: ["box", 0, -0.5, 0.2, 0.5] };
+      const before = JSON.parse(await readFile(join(deck, "prefabs/pillar.json"), "utf8")) as {
+        params: Data;
+        entities: Data[];
+      };
+      const cap = before.entities.find((e) => e.id === "cap");
+      const prefab = { params: before.params, entities: [bar, cap] };
+      await writeFile(ops, JSON.stringify({ ops: [{ op: "definePrefab", id: "post", prefab }] }));
       const applied = await run("apply", "kitchen-sink", "--ops", ops);
       expect(applied.exitCode, JSON.stringify(applied.data)).toBe(0);
       expect(Object.keys(await tree(deck))).not.toContain("prefabs/post.json");
       const post = JSON.parse(await readFile(join(deck, "prefabs/pillar.json"), "utf8")) as Data;
-      expect(post).toMatchObject({ id: "post", entities: [bar] });
+      expect(post).toMatchObject({ id: "post", params: before.params, entities: [bar, cap] });
     });
 
     it("after a prefab moves out of prefabs/, and apply writes it back to its own file", async () => {

@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import type { ProjectSession } from "../../../collab/index";
 import type { SettingsSection } from "../../../editor/settings-model";
 import { GAME_SETTINGS_KIND, INPUT_MAP_KIND, SCENE_LIST_KIND } from "../../../project/index";
 import type { EditorNotify } from "../../host";
@@ -20,6 +21,9 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: "layers", title: "Layers" },
 ];
 
+/** The section each project session last showed, so a scene switch, which remounts the panel, keeps it. */
+const shownSection = new WeakMap<ProjectSession, string>();
+
 /**
  * The project's settings in five tabs over its game-settings, input-map and
  * scene-list docs (and, read-only, what its code registers). Every edit is
@@ -36,7 +40,11 @@ export function ProjectSettings({
   /** The running game's binding capture; null while there is none. */
   capture: CaptureBinding | null;
 }) {
-  const [tab, setTab] = useState<string>("general");
+  const [tab, setShown] = useState<string>(() => shownSection.get(project.session) ?? "general");
+  const setTab = (next: string) => {
+    shownSection.set(project.session, next);
+    setShown(next);
+  };
   const settings = useSettingsDoc(project, GAME_SETTINGS_KIND, notify);
   const input = useSettingsDoc(project, INPUT_MAP_KIND, notify);
   const scenes = useSettingsDoc(project, SCENE_LIST_KIND, notify);
@@ -44,6 +52,7 @@ export function ProjectSettings({
   return (
     <div className="je-insp-stack" aria-label="Project settings" role="region">
       <Tabs
+        className="je-settings-tabs"
         value={tab}
         onValueChange={setTab}
         label="Project settings sections"

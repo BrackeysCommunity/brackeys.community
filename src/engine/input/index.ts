@@ -31,6 +31,7 @@ export {
   type SeatBook,
   type Seats,
 } from "./players";
+export { bindingKeyLabel, keycapLabel, pointerButtonLabel } from "./keycaps";
 export { DEFAULT_DEADZONE, q, qPointer, radialDeadzone } from "./quantize";
 export { browserRemapStore, memoryRemapStore, type RemapState, type RemapStore } from "./remap";
 export {

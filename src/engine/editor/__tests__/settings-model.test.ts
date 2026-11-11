@@ -155,7 +155,7 @@ describe("settingsValue", () => {
     });
     const required = settingsRows(z.object({ n: z.number() }), { n: 2 }, "")[0]!;
     expect(settingsValue(required, "*=3")).toEqual({ ok: true, value: 6 });
-    expect(settingsValue(required, undefined)).toEqual({ ok: false, error: "n can't be unset" });
+    expect(settingsValue(required, undefined)).toEqual({ ok: false, error: "N can't be unset" });
   });
 });
 

@@ -68,12 +68,13 @@ describe("the genre matrix", () => {
       for (const row of probe.rows) expect(Object.keys(GENRE_MATRIX)).toContain(row);
     });
 
-    it("lists pending needs only for its own rows, each naming a milestone still to land", () => {
+    it("lists pending needs only for its own rows, naming only milestones still to land", () => {
       for (const [row, need] of Object.entries(probe.pending ?? {})) {
         expect(probe.rows).toContain(row as GenreRow);
         const named = [...(need ?? "").matchAll(/M(\d+)/g)].map((m) => Number(m[1]));
+        expect(named.length, `${row}: ${need}`).toBeGreaterThan(0);
         expect(
-          named.some((m) => m > LANDED_THROUGH),
+          named.every((m) => m > LANDED_THROUGH),
           `${row}: ${need}`,
         ).toBe(true);
       }

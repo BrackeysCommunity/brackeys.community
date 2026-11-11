@@ -1,0 +1,18 @@
+{
+  "$schema": "../scene/scene.schema.json",
+  "v": 4,
+  "name": "grid-annex",
+  "bounds": [0, 0, 3.2, 1.92],
+  "settings": { "grid": { "cell": [0.32, 0.32], "kind": "square" }, "physics": "none" },
+  "solid": [
+    ["box", 1.6, 0.16, 1.6, 0.16],
+    ["box", 1.6, 1.76, 1.6, 0.16],
+    ["box", 0.16, 0.96, 0.16, 0.64],
+    ["box", 3.04, 0.96, 0.16, 0.64]
+  ],
+  "entities": [
+    { "id": "annex-spot", "type": "marker", "at": [1.6, 0.96], "tags": ["annex"] },
+    { "id": "annex-zone", "type": "sensor", "shape": ["box", 2.56, 0.96, 0.16, 0.16], "tags": ["annex"] },
+    { "id": "about", "type": "note", "at": [0.48, 0.48], "text": "Grid annex: a gameless sublevel, never a scene of its own (scene-list.json marks it sublevel). It runs with no physics on grid-yard's 32 px square grid, so it attaches beside grid-yard on any cell boundary; its ids join the run as <label>:<id>." }
+  ]
+}

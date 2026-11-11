@@ -67,8 +67,12 @@ function gradeOf(delta: number): Grade | null {
   return null;
 }
 
-/** The tap's time in thousandths of a tick; the offset is already quantised to them. */
-const tapTime = (a: InputAction): number => a.tick * TICK + Math.round((a.offset ?? 0) * TICK);
+/**
+ * The tap's time in thousandths of a tick, on the run's clock (`ctx.tick`,
+ * which a world save puts back); the offset is already quantised to them.
+ */
+const tapTime = (tick: number, a: InputAction): number =>
+  tick * TICK + Math.round((a.offset ?? 0) * TICK);
 
 function mismatch(judged: readonly Judgement[]): string | null {
   for (const [i, want] of EXPECTED.entries()) {
@@ -128,7 +132,7 @@ const game = defineGame<RhythmSnapshot>({
       beforeStep(_dtMs, actions) {
         for (const a of actions) {
           if (a.action !== TAP || !a.pressed) continue;
-          const at = tapTime(a);
+          const at = tapTime(ctx.tick, a);
           const beat = nearest(at);
           if (beat === null) {
             strays++;
@@ -145,6 +149,12 @@ const game = defineGame<RhythmSnapshot>({
       },
       snapshot() {
         return { judged: judged.map((j) => ({ ...j })), strays };
+      },
+      // Rebuilt field by field: the save's canonical text sorts keys, and the end digest reads them in order.
+      restore(s) {
+        judged = s.judged.map(({ beat, grade, delta, tick }) => ({ beat, grade, delta, tick }));
+        open = new Set([...BEATS.keys()].filter((beat) => !judged.some((j) => j.beat === beat)));
+        strays = s.strays;
       },
     };
   },
@@ -189,5 +199,7 @@ export const rhythmTapProbe: GenreProbe<RhythmSnapshot> = {
   ticks: rhythmTicks(),
   script: { v: 2, scene: scene.name, maxTicks: LAST_TICK, steps: [{ wait: LAST_TICK }] },
   expect: { result: "cleared", maxTicks: LAST_TICK },
+  // Between the third and fourth taps, three beats judged and six open.
+  variants: [{ name: "saved-mid-chart", saveAt: 100 }],
   timeoutMs: 30_000,
 };

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { Container } from "pixi.js";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
+import { z } from "zod";
 
 import { createGame } from "../engine";
 import { createRegistry, defineGame } from "../game/define";
@@ -303,6 +304,90 @@ describe("world saves continue to the same digest", () => {
   });
 });
 
+describe("what a save carries across scenes", () => {
+  it("meta.playTicks counts every scene played, and a restore seeds it", () => {
+    const game = vaultGame();
+    const a = runtime(game);
+    loadListed(a, "hall");
+    run(a, 0, 20);
+    loadListed(a, "two");
+    run(a, 0, 10);
+    const file = captureSave(a, { depth: "progress", slot: "s", now: 0 });
+    if (!file.ok) throw new Error(file.issue.message);
+    expect(a.ctx.tick).toBe(10);
+    expect(file.file.meta.playTicks).toBe(30);
+    a.destroy();
+
+    const b = runtime(game);
+    expect(restoreSave(b, roundTrip(file.file, game)).ok).toBe(true);
+    run(b, 0, 5);
+    const again = captureSave(b, { depth: "progress", slot: "s", now: 0 });
+    expect(again.ok ? again.file.meta.playTicks : null).toBe(35);
+    b.destroy();
+  });
+
+  it("keeps the entry the scene was reached through", () => {
+    const game = vaultGame();
+    const a = runtime(game);
+    loadListed(a, "two", { entry: "start" });
+    run(a, 0, 3);
+    const file = captureSave(a, { depth: "world", slot: "s", now: 0 });
+    if (!file.ok) throw new Error(file.issue.message);
+    expect(file.file.scene.entry).toBe("start");
+    a.destroy();
+
+    const b = runtime(game);
+    expect(restoreSave(b, roundTrip(file.file, game)).ok).toBe(true);
+    expect(b.ctx.flow.entry).toBe("start");
+    b.destroy();
+  });
+
+  it("saves every fork of one label and restores them in the order they were made", () => {
+    type Pair = { a: number; b: number };
+    const game = defineGame<Pair>({
+      id: "vault",
+      types: [],
+      actions: [],
+      world: { physics: "none" },
+      createRuntime(ctx) {
+        let first: Rng = ctx.random.fork("unit");
+        let second: Rng = ctx.random.fork("unit");
+        let pair: Pair = { a: 0, b: 0 };
+        return {
+          onLoad() {
+            first = ctx.random.fork("unit");
+            second = ctx.random.fork("unit");
+            pair = { a: 0, b: 0 };
+          },
+          beforeStep() {
+            pair = { a: first.below(1000), b: second.below(1000) + second.below(1000) };
+          },
+          snapshot: () => ({ ...pair }),
+          restore(s) {
+            pair = { ...s };
+          },
+        };
+      },
+    });
+    const a = runtime(game as unknown as GameDefinition<VaultSnap>);
+    loadListed(a, "hall");
+    run(a, 0, 12);
+    const file = captureSave(a, { depth: "world", slot: "s", now: 0 });
+    if (!file.ok) throw new Error(file.issue.message);
+    expect(Object.keys(file.file.world!.systems["@random"] ?? {}).sort()).toEqual([
+      "unit",
+      "unit#2",
+    ]);
+    const digestA = run(a, 12, 20);
+    a.destroy();
+
+    const b = runtime(game as unknown as GameDefinition<VaultSnap>);
+    expect(restoreSave(b, file.file).ok).toBe(true);
+    expect(run(b, 12, 20)).toBe(digestA);
+    b.destroy();
+  });
+});
+
 describe("progress saves", () => {
   it("restore a Rapier scene fresh, with the game's data and persist", () => {
     const game = vaultGame({
@@ -564,6 +649,35 @@ describe("the shell's load path", () => {
     second.step(1);
     expect(joined.map((e) => [e.player, e.data])).toEqual([[1, { device: "pad:0" }]]);
     expect(rt.ctx.input.players()[1]?.devices).toEqual(["pad:0"]);
+  });
+
+  it("refuses a save whose persist the game's schema rejects, outside dev too", async () => {
+    const store = memorySaveStore();
+    const game = vaultGame({
+      persist: {
+        initial: () => ({ cleared: [] }),
+        schema: z.strictObject({ cleared: z.array(z.string()) }),
+      },
+    });
+    const first = await shell(game, store);
+    first.start();
+    first.step(3);
+    expect((await first.saves.save("ok")).ok).toBe(true);
+    const parsed = parseSaveFile((await store.read("vault", "ok"))!);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    const bad = { ...parsed.file, persist: { cleared: 7 } } as SaveFile;
+    await store.write("vault", "bad", formatSaveFile(bad));
+
+    const before = first.runtime();
+    const loaded = await first.saves.load("bad");
+    expect(loaded.ok ? null : [loaded.issue.code, loaded.issue.path]).toEqual([
+      "schema",
+      "/persist",
+    ]);
+    expect(loaded.ok ? "" : loaded.issue.message).toContain("persist schema");
+    expect(first.runtime()).toBe(before);
+    expect((first.runtime() as SceneRuntimeHandle).ctx.persist.value).toEqual({ cleared: [] });
+    expect((await first.saves.load("ok")).ok).toBe(true);
   });
 
   it("keeps the scene it had when the save can't be restored", async () => {

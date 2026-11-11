@@ -293,6 +293,29 @@ describe("physics-free genre runs never load Rapier", () => {
     );
   });
 
+  it("gives every physics-free probe a world-save variant pinned to the run it continues", () => {
+    const unsaved = PROBES.filter((probe) => {
+      const runs = physicsFree(probe);
+      return runs.length > 0 && !runs.some((r) => r.variant?.saveAt !== undefined);
+    });
+    expect(unsaved.map((p) => p.id)).toStrictEqual([]);
+    for (const probe of PROBES)
+      for (const { name, variant } of physicsFree(probe)) {
+        if (variant?.saveAt === undefined) continue;
+        const { saveAt: _at, name: _name, ...rest } = variant;
+        const continued = physicsFree(probe).find(
+          (r) =>
+            r.variant?.saveAt === undefined &&
+            JSON.stringify(r.variant?.settings ?? {}) === JSON.stringify(rest.settings ?? {}) &&
+            r.variant?.seed === rest.seed,
+        );
+        expect(continued, `${probe.id} ${name}`).toBeDefined();
+        expect(GENRE_PINS[probe.id]?.[name], `${probe.id} ${name}`).toBe(
+          GENRE_PINS[probe.id]?.[continued!.name],
+        );
+      }
+  });
+
   for (const probe of PROBES) {
     const runs = physicsFree(probe);
     if (runs.length === 0) continue;

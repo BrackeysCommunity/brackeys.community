@@ -156,6 +156,10 @@
           "type": "string",
           "description": "The run hash it was saved under; a different one loads with a note."
         },
+        "entry": {
+          "description": "The entry the scene was reached through, its `ctx.flow.entry`.",
+          "type": "string"
+        },
         "sublevels": {
           "type": "array",
           "items": {

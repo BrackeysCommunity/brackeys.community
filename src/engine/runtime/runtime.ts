@@ -58,7 +58,7 @@ import { createGeometryWorld, type GeometryWorld } from "./geometry-world";
 import { createGridState, gridWallTypes, type GridState } from "./grid";
 import { createLifecycle, type Lifecycle } from "./lifecycle";
 import { runtimeNav } from "./nav";
-import { gamePersistCell } from "./persist";
+import { gamePersistCell, playClockOf, type PlayClock } from "./persist";
 import { LOAD_GENERATION } from "./pool";
 import { createPoseIndex } from "./poses";
 import { systemFactoryOf } from "./primitives";
@@ -137,6 +137,8 @@ export type SaveHost = {
   captureWorld(): WorldState;
   /** Brings a fresh load to `world`; an issue when a saved part can't be put back. */
   restoreWorld(world: WorldState, sublevels: readonly SublevelInfo[]): SceneIssue | null;
+  /** Ticks played under the runtime's persist cell, across its scenes. */
+  playClock(): PlayClock;
 };
 
 export function saveHostOf(ctx: EngineContext): SaveHost | undefined {
@@ -147,17 +149,23 @@ const setRngState = (rng: Rng, state: RngState) => void Object.assign(rng, Rng.r
 
 /**
  * `ctx.random`'s forks, tracked by label path (`a/b` for a fork of fork
- * `a`), the newest per path, so a world save holds their streams. A saved
- * fork the restored run hasn't made yet takes its state when it is made.
+ * `a`) and, from a path's second fork on, its occurrence (`a#2`), so a
+ * world save holds every stream and a restore matches them in the order
+ * they were made. A saved fork the restored run hasn't made yet takes its
+ * state when it is made.
  */
 function createForkBook() {
   const forks = new Map<string, Rng>();
+  const made = new Map<string, number>();
   let waiting = new Map<string, RngState>();
 
   function track(rng: Rng, path: string): Rng {
     const fork = rng.fork.bind(rng);
     rng.fork = (label) => {
-      const key = path === "" ? label : `${path}/${label}`;
+      const at = path === "" ? label : `${path}/${label}`;
+      const n = (made.get(at) ?? 0) + 1;
+      made.set(at, n);
+      const key = n === 1 ? at : `${at}#${n}`;
       const child = track(fork(label), key);
       forks.set(key, child);
       const saved = waiting.get(key);
@@ -185,6 +193,7 @@ function createForkBook() {
     },
     clear(): void {
       forks.clear();
+      made.clear();
       waiting.clear();
     },
   };
@@ -290,6 +299,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   const input = createInputState(registry, resolvePlayers(opts.project?.inputMap, registry.game));
   // Without a view the runtime is headless, which checks what the game sets as dev does.
   const persist = opts.persist ?? gamePersistCell(gameDef, (opts.dev ?? false) || view === null);
+  const playClock = playClockOf(persist);
   /** Requests game code made since the host last took them. */
   let flowRequest: FlowRequest | null = null;
   let saveRequests: SaveRequest[] = [];
@@ -816,6 +826,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     ctx.view?.commit?.(t);
 
     tick++;
+    playClock.ticks++;
     return { tick: t, events: [...engineEvents, ...gameEvents], game: snapshot() };
   }
 
@@ -1060,6 +1071,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     },
     captureWorld,
     restoreWorld,
+    playClock: () => playClock,
   };
   Object.defineProperty(ctx, SAVE_HOST, { value: saveHost });
 

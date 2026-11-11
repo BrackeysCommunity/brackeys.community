@@ -3,7 +3,12 @@ import type { EngineContext } from "../../game/types";
 import { createMotionBody } from "../../motion/body";
 import { createTopDownController, type TopDownController } from "../../motion/top-down";
 import { SENSOR_ENTER } from "../../runtime/types";
-import type { EntityDef, Pt, SceneDefinition } from "../../scene/types";
+import {
+  SCENE_FORMAT_VERSION,
+  type EntityDef,
+  type Pt,
+  type SceneDefinition,
+} from "../../scene/types";
 import type { Vec2 } from "../../types";
 import type { GenreProbe } from "./harness";
 
@@ -14,8 +19,10 @@ const GOAL = "goal";
 /** Raised when the rover enters a goal sensor. */
 const ARRIVED = `${ID}:arrived`;
 
-const TUNING = { maxSpeed: 160, accel: 800, decel: 600 };
-const HALF = 6;
+/** m/s and m/s². */
+const TUNING = { maxSpeed: 1.6, accel: 8, decel: 6 };
+/** The rover's half width, m. */
+const HALF = 0.06;
 
 export type TopDownSnapshot = { position: Vec2; velocity: Vec2 } | null;
 
@@ -46,7 +53,6 @@ const game = defineGame<TopDownSnapshot>({
     },
   },
   createRuntime(ctx: EngineContext) {
-    const held = new Set<string>();
     let rover: TopDownController | null = null;
     let roverId: string | null = null;
     let position: () => Vec2 = () => ({ x: 0, y: 0 });
@@ -73,19 +79,13 @@ const game = defineGame<TopDownSnapshot>({
       onUnload() {
         rover = null;
         roverId = null;
-        held.clear();
         goals.clear();
       },
-      beforeStep(dtMs, actions) {
-        for (const a of actions) {
-          if (a.pressed) held.add(a.action);
-          else held.delete(a.action);
-        }
+      beforeStep(dtMs) {
         if (!rover) return;
         const intent = { x: 0, y: 0 };
-        for (const action of held) {
-          const d = DIRECTIONS[action];
-          if (!d) continue;
+        for (const [action, d] of Object.entries(DIRECTIONS)) {
+          if (!ctx.input.held(action)) continue;
           intent.x += d.x;
           intent.y += d.y;
         }
@@ -102,6 +102,8 @@ const game = defineGame<TopDownSnapshot>({
         if (!rover) return null;
         return { position: position(), velocity: rover.velocity() };
       },
+      // The rover's body comes back with the world save, and held directions with the input.
+      restore() {},
     };
   },
 });
@@ -113,25 +115,25 @@ const solid = (id: string, cx: number, cy: number, hw: number, hh: number): Enti
 });
 
 /**
- * An L-shaped corridor 64 px wide: east along y 64–128 from the start, then
- * south along x 416–480 to a goal sensor near its foot. Every wall is an
- * axis-aligned box, so the geometry backend's sweeps are exact.
+ * An L-shaped corridor 0.64 m wide: east along y 0.64–1.28 m from the start,
+ * then south along x 4.16–4.8 m to a goal sensor near its foot. Every wall
+ * is an axis-aligned box, so the geometry backend's sweeps are exact.
  */
 const scene: SceneDefinition = {
-  v: 3,
+  v: SCENE_FORMAT_VERSION,
   game: ID,
   name: "top-down-probe",
-  bounds: [0, 0, 512, 448],
+  bounds: [0, 0, 5.12, 4.48],
   settings: { gravity: [0, 0], physics: "rapier" },
   entities: [
-    solid("north", 248, 56, 248, 8),
-    solid("east", 488, 232, 8, 184),
-    solid("west-cap", 8, 96, 8, 32),
-    solid("inner-south", 208, 136, 208, 8),
-    solid("inner-west", 408, 272, 8, 144),
-    solid("south-cap", 448, 408, 32, 8),
-    { id: "start", type: "marker", at: [48, 96], tags: [ROVER] },
-    { id: "goal", type: "sensor", shape: ["box", 448, 368, 24, 16], tags: [GOAL] },
+    solid("north", 2.48, 0.56, 2.48, 0.08),
+    solid("east", 4.88, 2.32, 0.08, 1.84),
+    solid("west-cap", 0.08, 0.96, 0.08, 0.32),
+    solid("inner-south", 2.08, 1.36, 2.08, 0.08),
+    solid("inner-west", 4.08, 2.72, 0.08, 1.44),
+    solid("south-cap", 4.48, 4.08, 0.32, 0.08),
+    { id: "start", type: "marker", at: [0.48, 0.96], tags: [ROVER] },
+    { id: "goal", type: "sensor", shape: ["box", 4.48, 3.68, 0.24, 0.16], tags: [GOAL] },
   ],
 };
 
@@ -140,8 +142,8 @@ export const topDownProbe: GenreProbe<TopDownSnapshot> = {
   id: ID,
   rows: ["top-down", "racing"],
   pending: {
-    "top-down": "M18 (saves), M23 (dialogue), M25 (tilemaps)",
-    racing: "M15 (contact events), M16 (analog steering), M22 (look-ahead camera)",
+    "top-down": "M23 (dialogue), M25 (tilemaps)",
+    racing: "M22 (look-ahead camera)",
   },
   game,
   scene,
@@ -157,6 +159,8 @@ export const topDownProbe: GenreProbe<TopDownSnapshot> = {
   expect: { result: "won", maxTicks: 900 },
   variants: [
     { name: "physics-none", settings: { physics: "none" } },
-    { name: "gravity-sideways", settings: { gravity: [1200, 0] } },
+    { name: "gravity-sideways", settings: { gravity: [12, 0] } },
+    // Turning the corner; a world save needs the geometry backend.
+    { name: "saved-physics-none", settings: { physics: "none" }, saveAt: 200 },
   ],
 };

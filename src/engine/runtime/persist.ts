@@ -70,17 +70,8 @@ export function createPersistCell(
 
   function take(next: JsonValue, what: string): JsonValue {
     if (opts.check) {
-      const problem = plainJsonProblem(next);
-      if (problem) throw new EngineError("schema", `${what} isn't plain JSON: ${problem}`);
-      const parsed = opts.schema?.safeParse(next);
-      if (parsed && !parsed.success) {
-        const issue = parsed.error.issues[0];
-        const where = issue && issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
-        throw new EngineError(
-          "schema",
-          `${what} doesn't match the game's persist schema: ${where}${issue?.message ?? "invalid"}`,
-        );
-      }
+      const problem = persistProblem(next, opts.schema);
+      if (problem) throw new EngineError("schema", `${what} ${problem}`);
     }
     return frozenCopy(next);
   }
@@ -97,6 +88,32 @@ export function createPersistCell(
       value = undefined;
     },
   };
+}
+
+/** Ticks played under one persist cell, across every scene and runtime that share it. */
+export type PlayClock = { ticks: number };
+
+const PLAY_CLOCK: unique symbol = Symbol("play clock");
+
+/** The play clock beside `cell`, kept on it: what a save's `meta.playTicks` holds and a restore seeds. */
+export function playClockOf(cell: PersistCell): PlayClock {
+  return ((cell as PersistCell & { [PLAY_CLOCK]?: PlayClock })[PLAY_CLOCK] ??= { ticks: 0 });
+}
+
+/**
+ * Why `value` can't be the game's persistent value, as a phrase to follow
+ * its name ("isn't plain JSON: /a: …"), or null: plain JSON, then the
+ * game's `persist.schema`. Every value a cell checks and every save's
+ * persist is judged by it.
+ */
+export function persistProblem(value: unknown, schema: z.ZodType | undefined): string | null {
+  const problem = plainJsonProblem(value);
+  if (problem) return `isn't plain JSON: ${problem}`;
+  const parsed = schema?.safeParse(value);
+  if (!parsed || parsed.success) return null;
+  const issue = parsed.error.issues[0];
+  const where = issue && issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+  return `doesn't match the game's persist schema: ${where}${issue?.message ?? "invalid"}`;
 }
 
 /** The cell for `game`'s `persist`: null for a game that declares none. */

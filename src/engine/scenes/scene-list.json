@@ -6,6 +6,7 @@
   "scenes": [
     { "scene": "engine-yard", "title": "Engine yard" },
     { "scene": "kitchen-sink", "title": "Kitchen sink" },
-    { "scene": "grid-yard", "title": "Grid yard" }
+    { "scene": "grid-yard", "title": "Grid yard" },
+    { "scene": "grid-annex", "sublevel": true, "title": "Grid annex" }
   ]
 }

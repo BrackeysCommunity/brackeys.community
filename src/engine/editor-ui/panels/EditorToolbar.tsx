@@ -397,11 +397,11 @@ export function dockParts(
   const game = tools.filter((t) => !isEngineTool(t.id));
   const parts: DockPart[] = [];
   if (scene !== null) {
-    // Into "More tools" after the game's tools, so long as there is that menu.
+    // Into "More tools" after the grid step and the tool's option, so long as there is that menu.
     parts.push({
       key: "scene",
       width: scenePickerWidth(scene),
-      ...(tools.length > 0 ? { drop: 50 } : {}),
+      ...(tools.length > 0 ? { drop: 160 } : {}),
     });
     if (tools.length > 0) parts.push({ key: "divider:scene", width: W.divider });
   }
@@ -462,7 +462,7 @@ export function dockWidth(parts: readonly DockPart[], hidden: ReadonlySet<string
 
 /**
  * What moves into the overflow menu so the toolbar fits in `room`: game
- * tools, the scene picker, the grid step, the tool's option, then shape tools.
+ * tools, the grid step, the tool's option, the scene picker, then shape tools.
  */
 export function fitDock(parts: readonly DockPart[], room: number): Set<string> {
   const hidden = new Set<string>();

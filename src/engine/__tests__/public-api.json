@@ -270,7 +270,6 @@
       "splitOverridePath",
       "spriteBoxOf",
       "sublevelIssue",
-      "sublevelUseIssues",
       "suggestType",
       "takenIds",
       "toSourceBatch",
@@ -1402,7 +1401,7 @@
       "scale"
     ],
     "replay": ["game", "json", "project", "run"],
-    "save": ["at", "depth", "json", "out", "project", "script"],
+    "save": ["at", "depth", "json", "now", "out", "project", "script"],
     "schema": ["game", "json", "project"],
     "show": ["json", "near", "project", "ref", "type"],
     "step": [

@@ -928,6 +928,44 @@
     translate: 14px 0;
   }
 
+  .je-radio {
+    display: inline-grid;
+    flex-shrink: 0;
+    place-content: center;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    border: 1px solid var(--je-border);
+    border-radius: 999px;
+    background: var(--je-muted);
+    appearance: none;
+    transition: background-color 150ms;
+  }
+
+  .je-radio::before {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--je-primary-fg);
+    content: "";
+    scale: 0;
+    transition: scale 150ms;
+  }
+
+  .je-radio:checked {
+    border-color: var(--je-primary);
+    background: var(--je-primary);
+  }
+
+  .je-radio:checked::before {
+    scale: 1;
+  }
+
+  .je-radio:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .je-slider {
     flex: 1;
     min-width: 0;
@@ -1097,6 +1135,17 @@
     font-size: var(--je-text);
     font-weight: 500;
     white-space: nowrap;
+  }
+
+  .je-settings-tabs > .je-tab-strip {
+    height: auto;
+    min-height: var(--je-tab);
+  }
+
+  .je-settings-tabs > .je-tab-strip > .je-tab-list {
+    flex-wrap: wrap;
+    padding: 3px 0;
+    overflow: visible;
   }
 
   .je-tab:hover {
@@ -1921,6 +1970,21 @@
     font-weight: 500;
   }
 
+  .je-status-notice {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .je-status > .je-status-notice {
+    flex-shrink: 1;
+  }
+
+  .je-status[data-compact] .je-status-notice {
+    max-width: 200px;
+  }
+
   .je-status-peers {
     display: flex;
     align-items: center;
@@ -2516,6 +2580,28 @@
     grid-template-columns: var(--je-label-col) minmax(0, 1fr);
     align-items: start;
     column-gap: 6px;
+  }
+
+  .je-scene-entry {
+    position: relative;
+    border-radius: var(--je-radius-sm);
+  }
+
+  .je-scene-entry-moves {
+    margin-left: auto;
+  }
+
+  .je-scene-entry[data-dragging] {
+    z-index: 1;
+    opacity: 0.5;
+  }
+
+  .je-scene-entry[data-over="before"] {
+    box-shadow: inset 0 2px 0 var(--je-primary);
+  }
+
+  .je-scene-entry[data-over="after"] {
+    box-shadow: inset 0 -2px 0 var(--je-primary);
   }
 
   .je-insp-field-label {

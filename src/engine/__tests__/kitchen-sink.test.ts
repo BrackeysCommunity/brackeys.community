@@ -13,7 +13,9 @@ import { docToPrefab, prefabToDoc } from "../collab/prefab-doc";
 import { LIFETIME, type LifetimeBlock } from "../game/behaviors/lifetime";
 import { SPRITE, type SpriteBlock } from "../game/behaviors/sprite";
 import { createRegistry, defineGame, withProject } from "../game/define";
+import { parseSaveFile } from "../game/save-file";
 import { PRIMITIVE_TYPES, type GameDefinition, type Registry } from "../game/types";
+import { pxPerMetreOf } from "../game/units";
 import { loadHeadless } from "../headless/load";
 import { runPlaytest } from "../headless/playtest";
 import type { PlaytestReport } from "../headless/playtest-types";
@@ -34,7 +36,8 @@ import { DATA_TABLE_KIND } from "../project/kinds/data-table";
 import { GAME_SETTINGS_KIND } from "../project/kinds/game-settings";
 import { INPUT_MAP_KIND } from "../project/kinds/input-map";
 import { MATERIAL_KIND } from "../project/kinds/material";
-import { SCENE_LIST_KIND } from "../project/kinds/scene-list";
+import { SAVE_KIND } from "../project/kinds/save";
+import { SCENE_LIST_KIND, type SceneListEntry } from "../project/kinds/scene-list";
 import { TEXTURE_KIND } from "../project/kinds/texture";
 import { snapshotProject } from "../project/snapshot";
 import type { AssetEntry, AssetId, ProjectView } from "../project/types";
@@ -52,7 +55,7 @@ import { drawnEntities, oneWayEdge } from "../scene/render-geometry";
 import { resolvePrefab, valueAtPath } from "../scene/resolve";
 import { SHAPE_TYPES } from "../scene/shapes";
 import type { PrefabLibrary, Pt, RuntimeEntity, SceneDefinition } from "../scene/types";
-import { validateScene } from "../scene/validate";
+import { sublevelIssue, validateScene } from "../scene/validate";
 import type { SolidSystem } from "../systems/bodies";
 import type { RapierModule } from "../types";
 import {
@@ -970,7 +973,7 @@ describe("kitchen-sink.json", () => {
 });
 
 describe("the engine project", () => {
-  it("scans with no problems: docs keyed by id without sidecars, each blob with a CC0 sidecar naming its key", async () => {
+  it("scans with no problems: docs keyed by id or by their sidecar, each blob with a sidecar naming its key, its art CC0", async () => {
     expect(scan.problems).toEqual([]);
     expect(scan.state.meta).toMatchObject({ projectId: "engine", name: "Engine" });
     const entries = Object.values(scan.state.assets);
@@ -986,32 +989,94 @@ describe("the engine project", () => {
         DATA_TABLE_KIND,
         TEXTURE_KIND,
         ATLAS_KIND,
+        SAVE_KIND,
       ]),
     );
     const blobs = entries.filter((e) => e.sha256 !== undefined);
-    for (const e of entries) {
-      if (e.sha256 === undefined) expect(e.key, e.path).toBe(e.id);
-      expect(e.created).toEqual({ at: 0, by: "disk" });
-    }
     expect(blobs.map((e) => e.path).sort()).toEqual([
       "art/backdrop.png",
       "art/crates.json",
       "art/crates.png",
       "art/hero.json",
       "art/hero.png",
+      "saves/grid-yard.save.json",
     ]);
     const sidecars = (await walk(scenesPath))
       .filter((p) => p.endsWith(".asset.json"))
       .map((p) => p.slice(scenesPath.length))
       .sort();
-    expect(sidecars).toEqual(blobs.map((e) => `${e.path}.asset.json`).sort());
-    for (const e of blobs) {
+    const sided = new Set(sidecars.map((p) => p.slice(0, -".asset.json".length)));
+    for (const e of blobs) expect(sided.has(e.path), e.path).toBe(true);
+    for (const e of entries) {
+      expect(e.created).toEqual({ at: 0, by: "disk" });
+      if (!sided.has(e.path)) {
+        expect(e.key, e.path).toBe(e.id);
+        continue;
+      }
       const sidecar = JSON.parse(
         await readFile(join(scenesPath, `${e.path}.asset.json`), "utf8"),
-      ) as { key: string; id: string; sha256: string; licence?: { spdx?: string } };
-      expect(sidecar, e.path).toMatchObject({ key: e.key, id: e.id, sha256: e.sha256 });
-      expect(sidecar.licence?.spdx, e.path).toBe("CC0-1.0");
+      ) as { key: string; id: string; sha256?: string; licence?: { spdx?: string } };
+      expect(sidecar, e.path).toMatchObject({ key: e.key, id: e.id });
+      expect(sidecar.sha256, e.path).toBe(e.sha256);
+      if (e.path.startsWith("art/")) expect(sidecar.licence?.spdx, e.path).toBe("CC0-1.0");
     }
+    expect([...sided].sort()).toEqual(
+      entries
+        .map((e) => e.path)
+        .filter((p) => sided.has(p))
+        .sort(),
+    );
+  });
+
+  it("lists a sublevel that attaches beside grid-yard, and refuses it beside a Rapier scene", () => {
+    const list = values.get("scene-list") as { start: string; scenes: SceneListEntry[] };
+    const subs = list.scenes.filter((e) => e.sublevel === true);
+    expect(subs.map((e) => e.scene)).toEqual(["grid-annex"]);
+    expect(list.start).not.toBe("grid-annex");
+    const scene = (name: string) => {
+      const parsed = parseScene(readFileSync(new URL(`${name}.json`, scenesDir), "utf8"), engine);
+      if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+      return expandScene(parsed.def, engine, { prefabs });
+    };
+    const annex = scene("grid-annex");
+    const judge = (main: string, at: Pt) =>
+      sublevelIssue(scene(main), annex, {
+        scene: "grid-annex",
+        list: list.scenes,
+        label: "annex",
+        at,
+        pxPerMetre: pxPerMetreOf(engine),
+      });
+    expect(judge("grid-yard", [6.4, 0])).toBeNull();
+    expect(judge("grid-yard", [6.5, 0])?.detail).toMatchObject({ reason: "grid" });
+    expect(judge("kitchen-sink", [0, 0])?.detail).toMatchObject({ reason: "physics" });
+  });
+
+  it("holds a save fixture of grid-yard that a headless run starts from and names", async () => {
+    const [entry, ...more] = entriesOf(SAVE_KIND);
+    expect(more).toEqual([]);
+    expect(entry).toMatchObject({
+      path: "saves/grid-yard.save.json",
+      meta: { scene: "grid-yard" },
+    });
+    const text = await readFile(join(scenesPath, entry!.path), "utf8");
+    const parsed = parseSaveFile(text);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    expect(parsed.file).toMatchObject({ depth: "world", slot: "grid-yard", meta: { savedAt: 0 } });
+    const { snapshot, store } = await pinned();
+    const loaded = await loadHeadless(
+      { snapshot, store, scene: "grid-yard", registry: engine },
+      { fromSave: text },
+    );
+    expect(loaded.fromSave?.sha256).toBe(entry!.sha256);
+    const run = runPlaytest({
+      rapier,
+      game: null,
+      ...loaded,
+      script: { v: 2, seed: 1, steps: [{ wait: 10 }] },
+    });
+    if (run.blocked) throw new Error(`blocked: ${JSON.stringify(run)}`);
+    expect(run.recording.fromSave).toEqual({ slot: "grid-yard", sha256: entry!.sha256 });
   });
 
   it("round-trips every doc asset byte-identically through its doc and back, also across the wire", async () => {

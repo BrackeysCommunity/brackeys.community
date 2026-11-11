@@ -30,7 +30,14 @@ const KNOCKBACK = 0.3;
 const COOLDOWN = 12;
 const HP = 3;
 
-export type FighterSnapshot = { position: Vec2; velocity: Vec2; hp: number; joined: boolean };
+export type FighterSnapshot = {
+  position: Vec2;
+  velocity: Vec2;
+  hp: number;
+  /** Ticks before this seat can strike again. */
+  cooldown: number;
+  joined: boolean;
+};
 export type LocalVersusSnapshot = { fighters: FighterSnapshot[]; started: boolean } | null;
 
 const key = (code: string, axis: "x" | "y", value: number, player: number): Binding => ({
@@ -207,9 +214,21 @@ const game = defineGame<LocalVersusSnapshot>({
             position: f.body.position(),
             velocity: f.move.velocity(),
             hp: f.hp,
+            cooldown: f.cooldown,
             joined: joined(seat),
           })),
         };
+      },
+      // The bodies come back with the world save, and the seats with its input.
+      restore(s) {
+        if (!s) return;
+        started = s.started;
+        fighters.forEach((f, seat) => {
+          const saved = s.fighters[seat];
+          if (!saved) return;
+          f.hp = saved.hp;
+          f.cooldown = saved.cooldown;
+        });
       },
     };
   },
@@ -293,5 +312,9 @@ export const localVersusProbe: GenreProbe<LocalVersusSnapshot> = {
   scene,
   script,
   expect: { result: "seat-0-wins", maxTicks: 200 },
-  variants: [{ name: "gravity-sideways", settings: { gravity: [12, 0] } }],
+  variants: [
+    { name: "gravity-sideways", settings: { gravity: [12, 0] } },
+    // After the first exchange, a strike still cooling down.
+    { name: "saved-mid-round", saveAt: 80 },
+  ],
 };

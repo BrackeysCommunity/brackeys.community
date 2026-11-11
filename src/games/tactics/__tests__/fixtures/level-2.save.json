@@ -7,7 +7,7 @@
   "release": null,
   "project": null,
   "slot": "level-2",
-  "meta": { "playTicks": 303, "savedAt": 1794436040840, "scene": "level-2" },
+  "meta": { "playTicks": 303, "savedAt": 0, "scene": "level-2" },
   "depth": "world",
   "persist": {
     "cleared": [],

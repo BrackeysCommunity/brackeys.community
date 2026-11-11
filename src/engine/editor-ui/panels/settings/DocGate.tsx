@@ -6,7 +6,7 @@ import { SettingsNote } from "./SettingsRows";
 
 /**
  * A settings tab over one doc: "Create" while the project has none (the
- * kind's empty asset), a placeholder while it opens, then `children` with
+ * kind's empty asset over the project), a placeholder while it opens, then `children` with
  * the doc's value. Focus inside it shows the doc in this client's presence.
  */
 export function DocGate({

@@ -19,6 +19,11 @@ export const BUILD = "build";
 /** Raised when a creep's last hit points go, and when one walks out of the exit. */
 export const KILLED = `${ID}:killed`;
 export const ESCAPED = `${ID}:escaped`;
+/** Raised by the game's own timers: a wave's first creep, each later one, a tower's shot, a bolt landing. */
+const WAVE_START = `${ID}:wave`;
+const WAVE_NEXT = `${ID}:wave-next`;
+const FIRE = `${ID}:fire`;
+const LAND = `${ID}:land`;
 
 const GRID: GridSettings = { kind: "square", cell: [1, 1] };
 /** px per metre: one 32 px tile a cell. */
@@ -58,10 +63,23 @@ export type TowerDefenseSnapshot = {
   kills: number;
   escaped: number;
   fired: number;
+  /**
+   * Present only while they hold something, so a finished run's end state
+   * stays the same: each live creep's hit points, cell and the step under
+   * way (from `from`, `done` ticks in), the bolts in flight, and the ones
+   * that landed since the last step.
+   */
+  creeps?: SavedCreep[];
+  bolts?: (Bolt & { id: string })[];
+  landed?: Bolt[];
 };
 
-type Creep = { id: string; stepper: GridStepper; hp: number };
+type SavedCreep = { id: string; hp: number; cell: Cell; from?: Cell; done?: number };
+type Creep = { id: string; stepper: GridStepper; hp: number; from: Cell | null; done: number };
 type Bolt = { from: Pt; target: string; age: number };
+
+const cellOf = (c: Cell): Cell => [c[0], c[1]];
+const boltOf = (b: Bolt): Bolt => ({ from: [b.from[0], b.from[1]], target: b.target, age: b.age });
 
 const creepType = defineEntityType({
   type: CREEP,
@@ -108,8 +126,9 @@ const markerCell = (
  * off the path while the money lasts, and the game lists exactly those cells
  * as its legal commands. Each tower fires on its own timer at the creep
  * furthest along that `ctx.query.inArea` finds in its range; the bolt it
- * spawns lands when its `lifetime` ends. The run is won when every wave is
- * spawned and gone with fewer than five out of the exit, lost at five.
+ * spawns lands when its own timer runs out. Every timer is emit-form, so a
+ * world save holds them. The run is won when every wave is spawned and gone
+ * with fewer than five out of the exit, lost at five.
  */
 const game = defineGame<TowerDefenseSnapshot>({
   id: ID,
@@ -152,6 +171,7 @@ const game = defineGame<TowerDefenseSnapshot>({
     let field: FlowField | null = null;
     let entry: Cell | null = null;
     let exit: Cell | null = null;
+    let waves: readonly WaveRow[] = [];
     let creeps: Creep[] = [];
     const bolts = new Map<string, Bolt>();
     let landed: Bolt[] = [];
@@ -174,8 +194,23 @@ const game = defineGame<TowerDefenseSnapshot>({
         id,
         stepper: createGridStepper(ctx, id, { start: entry, msPerStep: MS_PER_STEP }),
         hp,
+        from: null,
+        done: 0,
       });
       spawned++;
+    }
+
+    /** A saved creep's stepper again, its step under way replayed to the tick it had reached. */
+    function restoreCreep(c: SavedCreep): Creep {
+      const from = c.from ? cellOf(c.from) : null;
+      const stepper = createGridStepper(ctx, c.id, {
+        start: from ?? cellOf(c.cell),
+        msPerStep: MS_PER_STEP,
+      });
+      const done = c.done ?? 0;
+      if (from) stepper.step(cellOf(c.cell));
+      if (from && done > 0) stepper.update(done * ctx.time.tickMs);
+      return { id: c.id, stepper, hp: c.hp, from, done };
     }
 
     function fire(at: Pt): void {
@@ -187,7 +222,8 @@ const game = defineGame<TowerDefenseSnapshot>({
         if (!target || progress(c) < progress(target)) target = c;
       }
       if (!target) return;
-      const { id } = ctx.spawn({ type: BOLT, at, behaviors: { lifetime: { ticks: BOLT_TICKS } } });
+      const { id } = ctx.spawn({ type: BOLT, at });
+      ctx.timers.after(BOLT_TICKS, { emit: LAND, entityId: id }, { owner: id });
       bolts.set(id, { from: at, target: target.id, age: 0 });
       fired++;
     }
@@ -200,7 +236,7 @@ const game = defineGame<TowerDefenseSnapshot>({
       towers.push([cell[0], cell[1]]);
       const at = centre(cell);
       const { id } = ctx.spawn({ type: TOWER, at });
-      ctx.timers.every({ ms: FIRE_MS }, () => fire(at), { owner: id });
+      ctx.timers.every({ ms: FIRE_MS }, { emit: FIRE, entityId: id }, { owner: id });
     }
 
     function remove(c: Creep, event: string): void {
@@ -224,14 +260,20 @@ const game = defineGame<TowerDefenseSnapshot>({
       landed = [];
       for (const c of [...creeps]) {
         c.stepper.update(dtMs);
-        if (c.stepper.moving()) continue;
+        if (c.stepper.moving()) {
+          c.done++;
+          continue;
+        }
+        c.from = null;
+        c.done = 0;
         if (exit && sameCell(c.stepper.cell(), exit)) {
           escaped++;
           remove(c, ESCAPED);
           continue;
         }
-        const next = field?.next(c.stepper.cell());
-        if (next) c.stepper.step(next);
+        const here = c.stepper.cell();
+        const next = field?.next(here);
+        if (next && c.stepper.step(next)) c.from = cellOf(here);
       }
       for (const [id, b] of bolts) {
         b.age++;
@@ -265,16 +307,36 @@ const game = defineGame<TowerDefenseSnapshot>({
         for (let r = grid.bounds.r0; r <= grid.bounds.r1; r++)
           for (let c = grid.bounds.c0; c <= grid.bounds.c1; c++)
             if (grid.passable([c, r]) && !path.some((p) => sameCell(p, [c, r]))) pads.push([c, r]);
-        const waves = (ctx.project?.table(WAVE) ?? []) as readonly WaveRow[];
+        waves = (ctx.project?.table(WAVE) ?? []) as readonly WaveRow[];
         total = waves.reduce((n, w) => n + w.count, 0);
-        for (const wave of waves)
-          ctx.timers.after({ ms: wave.startMs }, () => {
-            spawnCreep(wave.hp);
-            if (wave.count > 1)
-              ctx.timers.every({ ms: wave.everyMs }, () => spawnCreep(wave.hp), {
+        waves.forEach((wave, i) =>
+          ctx.timers.after({ ms: wave.startMs }, { emit: WAVE_START, data: { wave: i } }),
+        );
+        const waveOf = (e: StepEvent) => waves[(e.data as { wave: number }).wave];
+        ctx.events.on(WAVE_START, (e: StepEvent) => {
+          const wave = waveOf(e);
+          if (!wave) return;
+          spawnCreep(wave.hp);
+          if (wave.count > 1)
+            ctx.timers.every(
+              { ms: wave.everyMs },
+              { emit: WAVE_NEXT, data: e.data },
+              {
                 times: wave.count - 1,
-              });
-          });
+              },
+            );
+        });
+        ctx.events.on(WAVE_NEXT, (e: StepEvent) => {
+          const wave = waveOf(e);
+          if (wave) spawnCreep(wave.hp);
+        });
+        ctx.events.on(FIRE, (e: StepEvent) => {
+          const at = e.entityId === undefined ? undefined : ctx.poses.get(e.entityId);
+          if (at) fire([at.x, at.y]);
+        });
+        ctx.events.on(LAND, (e: StepEvent) => {
+          if (e.entityId) ctx.destroy(e.entityId);
+        });
         ctx.events.on(ENTITY_DESTROYED, (e: StepEvent) => {
           const b = e.entityId === undefined ? undefined : bolts.get(e.entityId);
           if (!b || !e.entityId) return;
@@ -284,6 +346,7 @@ const game = defineGame<TowerDefenseSnapshot>({
       },
       onUnload() {
         field = null;
+        waves = [];
         creeps = [];
         bolts.clear();
         landed = [];
@@ -303,7 +366,35 @@ const game = defineGame<TowerDefenseSnapshot>({
         kills,
         escaped,
         fired,
+        ...(creeps.length > 0
+          ? {
+              creeps: creeps.map(
+                (c): SavedCreep => ({
+                  id: c.id,
+                  hp: c.hp,
+                  cell: cellOf(c.stepper.cell()),
+                  ...(c.from ? { from: cellOf(c.from), done: c.done } : {}),
+                }),
+              ),
+            }
+          : {}),
+        ...(bolts.size > 0 ? { bolts: [...bolts].map(([id, b]) => ({ id, ...boltOf(b) })) } : {}),
+        ...(landed.length > 0 ? { landed: landed.map(boltOf) } : {}),
       }),
+      // Creeps, towers, bolts and every timer come back with the world save; the creeps' steppers are the game's to rebuild.
+      restore(s) {
+        money = s.money;
+        towers = s.towers.map(cellOf);
+        pads = s.pads.map(cellOf);
+        spawned = s.spawned;
+        kills = s.kills;
+        escaped = s.escaped;
+        fired = s.fired;
+        creeps = (s.creeps ?? []).map(restoreCreep);
+        bolts.clear();
+        for (const { id, ...b } of s.bolts ?? []) bolts.set(id, boltOf(b));
+        landed = (s.landed ?? []).map(boltOf);
+      },
     };
   },
 });
@@ -346,6 +437,8 @@ export const towerDefenseProbe: GenreProbe<TowerDefenseSnapshot> = {
     steps: [order([2, 3]), order([6, 1]), order([4, 5]), { wait: 1800 }],
   },
   expect: { result: "won", maxTicks: 1200 },
+  // The second wave on the path, towers firing and bolts in flight.
+  variants: [{ name: "saved-mid-wave", saveAt: 400 }],
   fuzz: { rollouts: 32, seed: 1, ticks: 1800, expect: { result: "won" }, timeoutMs: 30_000 },
   timeoutMs: 30_000,
 };

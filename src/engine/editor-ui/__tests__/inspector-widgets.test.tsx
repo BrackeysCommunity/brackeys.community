@@ -129,7 +129,7 @@ describe("the inspector's colour widget", () => {
     const { dispatch, sprite } = setup(["pic"]);
     const hex = screen.getByLabelText(TINT) as HTMLInputElement;
     expect(hex.value).toBe("#ff0000");
-    expect(screen.getByRole("button", { name: "Pick tint" }).style.background).toBe(
+    expect(screen.getByRole("button", { name: "Pick Tint" }).style.background).toBe(
       "rgb(255, 0, 0)",
     );
     fireEvent.change(hex, { target: { value: "#00ff88" } });
@@ -143,7 +143,7 @@ describe("the inspector's colour widget", () => {
 
   it("writes the picker's colour as one batch when a control is let go", async () => {
     const { dispatch, sprite } = setup(["pic"]);
-    fireEvent.click(screen.getByRole("button", { name: "Pick tint" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pick Tint" }));
     const value = await waitFor(() => screen.getByRole("textbox", { name: "Colour value" }));
     fireEvent.change(value, { target: { value: "#3366cc" } });
     expect(dispatch).not.toHaveBeenCalled();
@@ -172,7 +172,7 @@ describe("an unset colour", () => {
     const hex = screen.getByLabelText(TINT) as HTMLInputElement;
     expect(hex.value).toBe("");
     expect(hex.placeholder).toBe("unset (#ffffff)");
-    fireEvent.click(screen.getByRole("button", { name: "Pick tint" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pick Tint" }));
     const value = await waitFor(
       () => screen.getByRole("textbox", { name: "Colour value" }) as HTMLInputElement,
     );

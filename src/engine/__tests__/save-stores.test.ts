@@ -337,6 +337,15 @@ describe("SaveSlots", () => {
     expect((await slots.save("slot-9")).ok).toBe(true);
   });
 
+  it("two new slots saved together at maxSlots - 1 keep the cap", async () => {
+    const { slots } = slotsOver(memorySaveStore());
+    for (let i = 1; i <= 7; i++) expect((await slots.save(`slot-${i}`)).ok).toBe(true);
+    const [eighth, ninth] = await Promise.all([slots.save("slot-8"), slots.save("slot-9")]);
+    expect(eighth.ok).toBe(true);
+    expect(ninth.ok ? null : ninth.issue.code).toBe("save-slot-limit");
+    expect((await slots.list()).length).toBe(8);
+  });
+
   it("lists the slots with their meta, savedAt from the host's clock", async () => {
     const { slots } = slotsOver(memorySaveStore());
     await slots.save("b", { title: "Second" });

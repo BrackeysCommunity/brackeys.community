@@ -4290,8 +4290,10 @@ A game that remembers things between scenes (levels cleared, a roster, a
 key picked up) declares `GameDefinition.persist: { initial, schema? }`.
 `ctx.persist.value` is one plain JSON value, deep-frozen and the same object
 until `ctx.persist.set(next)` replaces it, at once. In dev and headless
-every value set is checked as plain JSON and against `schema`; a save's
-load checks it too. A game that declares none reads null.
+every value set is checked as plain JSON and against `schema`. A save's
+load checks its value the same way everywhere, production included, and
+refuses one that fails as a `schema` issue at `/persist`, keeping the scene
+that was playing. A game that declares none reads null.
 
 - **One value per game instance**, and per headless session: it survives
   every `loadScene`, flow change, sublevel attach and Play-from-here. It is
@@ -4345,12 +4347,17 @@ second game attaches `cellar` when a unit steps on level 2's stair cell.
 
 A save is a `save:v1` file at one of two depths:
 
-- **`progress`**: the persistent value, the game's `snapshot()` and the
-  scene it was taken in. Loading it loads that scene fresh, then hands the
+- **`progress`**: the persistent value, the game's `snapshot()` (under
+  `data`, since `game` is the game's id) and the scene it was taken in,
+  with the entry it was reached through (`scene.entry`, the scene's
+  `ctx.flow.entry`). Loading it loads that scene fresh through that entry,
+  then hands the
   snapshot to `GameRuntime.restore(state)` and sets the persistent value.
   Every game can take one; restoring game state needs `restore`.
 - **`world`**: everything a run needs to continue exactly: the tick, the
-  runtime's counters, `ctx.random` and its forks, emit timers, enabled
+  runtime's counters, `ctx.random` and every fork it made (keyed by label
+  path, `unit#2` for a path's second fork, matched in the order the
+  restored run makes them), emit timers, enabled
   flags, destroyed and spawned entities with their exact ids, poses, each
   system's and behavior's own state (their optional `save(id)` and
   `restore(id, state)`, kept per owner; motion bodies and grid steppers
@@ -4360,8 +4367,8 @@ A save is a `save:v1` file at one of two depths:
   online play's snapshots; use a progress save), while a function-form
   timer or a coroutine is pending (named by owner), or when the game has
   no `restore`. `worldSaveBlockers(runtime)` is that one rule, and every
-  save path calls it. The guarantee, tested on every physics-free genre
-  probe and the second game: a run saved at tick N and played on to N + M
+  save path calls it. The guarantee, tested by the save variants of the
+  physics-free genre probes and on the second game: a run saved at tick N and played on to N + M
   reaches the same digest as a fresh runtime that restored the save and
   played M.
 
@@ -4377,7 +4384,9 @@ scene changed since (its `runHash`) still loads, with an info issue, since
 refusing every save after a balance tweak would read as data loss. Slot
 names are lowercase letters, digits and dashes, 1–32 characters
 (`SLOT_PATTERN`). `meta.savedAt` is the host's clock, never read inside the
-simulation.
+simulation. `meta.playTicks` is the play time: every tick played under the
+instance's persist cell (or the headless session's), across scenes and
+runtimes, seeded from the save when one loads and back to 0 on `flow.restart()`.
 
 Saves go to a `SaveStore` (`kind`, `describe`, optional `limits`, `list`,
 `read`, `write`, `remove`, every call guarded so a failing store never
@@ -4399,8 +4408,9 @@ still: `effectiveSaveLimits(game, store)` is the minimum of the three, and
 every store, the slots and a game's menu read it. A save over the size is
 `save-too-large`, checked before anything is written; a new slot past the
 count is `save-slot-limit` ("This game keeps at most 8 saves; delete one to
-save again."), while overwriting a slot never is; a store that throws is
-`save-store-failed`.
+save again."), while overwriting a slot never is; one instance's writes run
+one at a time, so saves made together can't pass the count; a store that
+throws is `save-store-failed`.
 
 `game.saves` is the instance's `SaveSlots`: `store` (`kind` and
 `describe`), `limits`, `list()` (each slot's `meta`: title, scene,

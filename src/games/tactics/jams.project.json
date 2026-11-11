@@ -6,6 +6,13 @@
   "name": "Tactics",
   "game": { "module": "./index.ts", "export": "tacticsGame" },
   "ui": { "module": "./ui/index.ts", "export": "mountTacticsHud" },
-  "assets": ["scenes/**", "data/**", "art/**", "game-settings.json", "input-map.json"],
+  "assets": [
+    "scenes/**",
+    "data/**",
+    "art/**",
+    "game-settings.json",
+    "input-map.json",
+    "scene-list.json"
+  ],
   "code": ["**/*.ts", "!**/__tests__/**"]
 }

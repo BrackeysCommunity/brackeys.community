@@ -155,7 +155,7 @@ export type InspectorRow = {
   path: FieldPath;
   /** The field's own key. */
   name: string;
-  /** `meta.title`, else the key. */
+  /** `meta.title`, else the key in sentence case (`fieldTitle`). */
   title: string;
   /** The field's `.describe()` text: the tooltip, and what an agent reads in the JSON Schema. */
   description?: string;
@@ -416,6 +416,28 @@ function fieldValue(schema: z.ZodType, root: unknown, path: FieldPath): unknown 
   return value === true && fieldKind(schema) === "side" ? "up" : value;
 }
 
+const ACRONYMS = new Set(["id", "ui", "url", "fps", "hud", "rng", "ai"]);
+
+/**
+ * A key as a label when the schema gives no title: camelCase, kebab-case and
+ * snake_case split into words, sentence-cased, acronyms kept upper-case.
+ * `aiStepTicks` reads "AI step ticks", `end-turn` "End turn".
+ */
+export function fieldTitle(name: string): string {
+  const words = name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((w) =>
+      ACRONYMS.has(w.toLowerCase()) || (w.length > 1 && /^[A-Z0-9]+$/.test(w))
+        ? w.toUpperCase()
+        : w.toLowerCase(),
+    );
+  const text = words.join(" ");
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : name;
+}
+
 /** Where a field lands: `forced` always (a behavior's block), else its group, `inherited`, or its kind's. */
 type Placement = { inherited?: ModelSectionId; forced?: ModelSectionId };
 
@@ -437,7 +459,7 @@ export function describeRow(
   const row: InspectorRow = {
     path,
     name,
-    title: typeof meta.title === "string" ? meta.title : name,
+    title: typeof meta.title === "string" ? meta.title : fieldTitle(name),
     ...(schema.description ? { description: schema.description } : {}),
     widget,
     optional: schema.safeParse(undefined).success,

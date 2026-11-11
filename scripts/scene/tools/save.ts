@@ -1,9 +1,16 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, join, relative, sep } from "node:path";
+import { basename, dirname, join, matchesGlob, relative, sep } from "node:path";
 
 import { formatSaveFile, SLOT_PATTERN, type SaveDepth, type SaveFile } from "@jams/engine/game";
 import { captureSave, runPlaytest, type SaveBlocker } from "@jams/engine/headless";
-import { SAVE_KIND, SAVE_SUFFIX, sha256, type ProjectOp, type Sha256 } from "@jams/engine/project";
+import {
+  projectPathMatcher,
+  SAVE_KIND,
+  SAVE_SUFFIX,
+  sha256,
+  type ProjectOp,
+  type Sha256,
+} from "@jams/engine/project";
 import { MAX_SCRIPT_TICKS, type SceneIssue } from "@jams/engine/scene";
 
 import {
@@ -30,12 +37,12 @@ export type SaveInput = {
   /** The fixture to write, `<slot>.save.json`. */
   out?: string;
   depth?: string;
-  /** `meta.savedAt`; default the clock's now. */
-  now?: number;
+  /** `meta.savedAt` in epoch ms, as the flag's text or a number; default 0, so a fixture's bytes depend only on the run. */
+  now?: string | number;
 };
 
 const USAGE =
-  "save <scene|file> --script <file|-> --at <tick> --out <file>.save.json [--depth world|progress]";
+  "save <scene|file> --script <file|-> --at <tick> --out <file>.save.json [--depth world|progress] [--now ms]";
 
 const DEPTHS: readonly SaveDepth[] = ["world", "progress"];
 
@@ -79,18 +86,23 @@ export async function projectSaveFixtures(project: ProjectHandle): Promise<Map<S
   return out;
 }
 
-/** The fixture's path in `project`, with `/` separators; null when it sits outside the project's directory. */
+/**
+ * The fixture's path in `project`, with `/` separators; null when it isn't
+ * one of the project's assets (outside its directory or asset globs, or a
+ * test path such as `__tests__/fixtures/`).
+ */
 function pathIn(project: ProjectHandle, file: string): string | null {
   const rel = relative(project.dir, file);
   if (rel === "" || rel.startsWith("..")) return null;
-  return rel.split(sep).join("/");
+  const path = rel.split(sep).join("/");
+  return projectPathMatcher(project.file, matchesGlob).isAsset(path) ? path : null;
 }
 
 /**
  * Writes the fixture's bytes. Inside a project it goes through the
  * project's writer as any binary asset does: a new path is an
  * `importAsset` (file, sidecar and registry entry), an existing save
- * fixture's a `replaceContent`. Outside every project it is a plain file.
+ * fixture's a `replaceContent`. Anywhere else it is a plain file.
  */
 async function writeFixture(
   ctx: ToolContext,
@@ -141,6 +153,9 @@ export const save: Tool<SaveInput> = async (input, ctx) => {
   const depth = (input.depth ?? "world") as SaveDepth;
   if (!DEPTHS.includes(depth))
     return usage(`--depth is world or progress; got ${JSON.stringify(input.depth)}`);
+  const now = input.now === undefined ? 0 : Number(input.now);
+  if (!Number.isSafeInteger(now) || now < 0)
+    return usage(`--now takes a time in epoch milliseconds, 0 or more; got ${input.now}`);
   const name = basename(input.out);
   if (!name.endsWith(SAVE_SUFFIX))
     return usage(`--out names a save fixture, <slot>${SAVE_SUFFIX}; got ${name}`);
@@ -168,7 +183,7 @@ export const save: Tool<SaveInput> = async (input, ctx) => {
     script: { ...read.script, maxTicks: at },
     projectRef: projectRef(loaded.project),
     onEnd: (runtime) => {
-      captured = captureSave(runtime, { depth, slot, now: input.now ?? Date.now() });
+      captured = captureSave(runtime, { depth, slot, now });
     },
   });
   const game = registry.game?.id ?? null;

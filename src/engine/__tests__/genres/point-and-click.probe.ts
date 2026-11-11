@@ -40,7 +40,17 @@ export type PointAndClickSnapshot = {
   triggered: string[];
   /** Every path the walker took, from where it stood, corners included. */
   paths: Vec2[][];
+  /**
+   * Present only while they hold something, so a finished run's end state
+   * stays the same: the corners still ahead, the hotspot the walk is
+   * going to use, and the pointer buttons read last tick.
+   */
+  route?: Vec2[];
+  goal?: string;
+  buttons?: number;
 };
+
+const pt = (p: Vec2): Vec2 => ({ x: p.x, y: p.y });
 
 const hotspot = defineEntityType({
   type: HOTSPOT,
@@ -194,7 +204,21 @@ const game = defineGame<PointAndClickSnapshot>({
         picked,
         triggered: [...triggered],
         paths: paths.map((p) => [...p]),
+        ...(route.length > 0 ? { route: route.map(pt) } : {}),
+        ...(goal !== null ? { goal } : {}),
+        ...(buttons !== 0 ? { buttons } : {}),
       }),
+      // The walker's body comes back with the world save; points are rebuilt because the save's text sorts keys.
+      restore(s) {
+        clicks = s.clicks;
+        ignored = s.ignored;
+        picked = s.picked;
+        triggered.splice(0, triggered.length, ...s.triggered);
+        paths.splice(0, paths.length, ...s.paths.map((p) => p.map(pt)));
+        route = (s.route ?? []).map(pt);
+        goal = s.goal ?? null;
+        buttons = s.buttons ?? 0;
+      },
     };
   },
 });
@@ -262,5 +286,9 @@ export const pointAndClickProbe: GenreProbe<PointAndClickSnapshot> = {
   scene,
   script,
   expect: { result: "won", maxTicks: 300 },
-  variants: [{ name: "gravity-sideways", settings: { gravity: [12, 0] } }],
+  variants: [
+    { name: "gravity-sideways", settings: { gravity: [12, 0] } },
+    // Walking back round the corner to use the door.
+    { name: "saved-mid-walk", saveAt: 200 },
+  ],
 };

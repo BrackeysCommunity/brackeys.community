@@ -125,7 +125,7 @@ const SERVICE_TYPE_ONLY = [
 const isServiceTypeTarget = (path: string) =>
   isServiceCopied(path) ||
   SERVICE_TYPE_ONLY.some((p) => (p.endsWith("/") ? path.startsWith(p) : path === p));
-/** The save file, flow's rule and the two M18 kinds: what a server reads a save or a scene list with. */
+/** The save file, flow's rule and the scene-list and save kinds: what a server reads a save or a scene list with. */
 const SAVE_AND_FLOW_FILES = [
   "game/save-file.ts",
   "game/flow.ts",

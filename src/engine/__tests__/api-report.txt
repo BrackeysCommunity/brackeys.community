@@ -12,16 +12,21 @@ BlendMode
 BoundInput
 CameraMode
 CameraState
+DEFAULT_INDEXED_DB_NAME
+DEFAULT_LOCAL_STORAGE_PREFIX
 DEFAULT_RESOLUTION
 DeviceTables
 Dihedral
 ENGINE_VERSION
 ExpandedScene
+FlowRequest
+FlowResult
 FrameRect
 GameCommand
 GameConfig
 GameDefinition
 GameEventMap
+GameFlow
 GameInput
 GameInstance
 GameMode
@@ -33,6 +38,8 @@ InputBinding
 LoadFailureReason
 LoadProgress
 LoadReport
+LoadingView
+LoadingViewFactory
 MAX_PLAYERS
 MountUi
 PixiView
@@ -53,6 +60,16 @@ RunRecording
 RuntimeEntity
 SPRITE
 SPRITE_FALLBACK_SIZE
+SaveDepth
+SaveLimits
+SaveMeta
+SaveSlots
+SaveStore
+SaveSummary
+SaveWriteResult
+SceneLibrary
+SceneListEntry
+SceneSource
 SimState
 SpriteAssetInfo
 SpriteBlock
@@ -69,6 +86,8 @@ TouchControlDef
 TouchControlValue
 TouchControls
 Transform2D
+TransitionRunner
+TransitionSpec
 UiActionEvent
 UiContext
 UiHandle
@@ -78,19 +97,25 @@ applyVec
 bindText
 bindToWorld
 browserRemapStore
+browserSaveStore
 compose
 composeDihedral
 createAssetLoader
 createGame
+createLoadingOverlay
 createPixiView
 createTouchControls
 createUiLayer
 dihedral
 dihedralOf
 drawSprite
+fadeTransition
 flipWorld
+indexedDbSaveStore
 invert
+localStorageSaveStore
 memoryRemapStore
+memorySaveStore
 mountUi
 pixiContainer
 resolveBindings
@@ -405,6 +430,7 @@ INSTANCES_ROW
 IndexEntry
 InspectorField
 InspectorModel
+InspectorRow
 InspectorSectionId
 InspectorSectionModel
 InspectorWidgetDef
@@ -466,6 +492,8 @@ SceneOrigin
 ScenePresence
 SelectMode
 SessionHistory
+SettingsRowsOptions
+SettingsSection
 ShapeConversion
 ShapeObj
 ShapeSlot
@@ -629,6 +657,9 @@ selectionBounds
 selectionBox
 selectionHandles
 setHover
+settingsEdit
+settingsRows
+settingsValue
 shapeBatch
 shapeConversions
 shapeEdit
@@ -749,6 +780,7 @@ DEFAULT_LAYERS
 DEFAULT_LENGTH_UNIT
 DEFAULT_PHYSICS
 DEFAULT_ROTATE_STEP
+DEFAULT_SAVE_LIMITS
 DEFAULT_SPAWN_CAST
 DEFAULT_TICK_RATE
 DEFAULT_TIME
@@ -783,10 +815,14 @@ EntityTypeDef
 EventBus
 EventSubscribeOptions
 FieldEnv
+FlowContext
 FlowField
+FlowRequest
+FlowUse
 FollowerOptions
 FollowerSystem
 FrameRect
+GRID_STEP_SAVE_OWNER
 GameAttachment
 GameCommand
 GameDefinition
@@ -794,8 +830,10 @@ GameEditorDef
 GameInputDef
 GameKeyBinding
 GameOutcome
+GamePersistDef
 GamePlayDef
 GameRuntime
+GameSavesDef
 GameShell
 GameTableDef
 GameWorldDef
@@ -806,6 +844,7 @@ GridGeometry
 GridPath
 GridPathOptions
 GridPlace
+GridSettings
 GridStepper
 ID_PATTERN
 InputState
@@ -813,13 +852,17 @@ InspectorWidgetDef
 InstantiateOptions
 InstantiateResult
 IssueCodeDef
+JsonValue
 KEY_CODES
 KEY_TO_CODE
 LIFETIME
+LibraryScene
 LifetimeBlock
 LoadFailureReason
+MAX_BROWSER_SAVE_LIMITS
 MAX_TICK_RATE
 MIN_TICK_RATE
+MOTION_SAVE_OWNER
 Macro
 MacroRandom
 MarkerEntity
@@ -844,7 +887,9 @@ POINTER_BUTTONS
 PRIMITIVE_TYPES
 PadAxis
 PadButton
+ParseSaveResult
 PathSchema
+PersistContext
 PhysicalCheck
 PhysicalEnv
 PhysicalHit
@@ -879,13 +924,30 @@ ResolvedTime
 RunResult
 RuntimeGrid
 RuntimeNav
+SAVE_RANDOM_KEY
+SAVE_SCHEMA_ID
+SAVE_VERSION
 SENSOR_ENTER
 SENSOR_EXIT
 SIDES
 SIDE_VIEW_CONTROLLER
+SLOT_PATTERN
 SPRITE
 SPRITE_FALLBACK_SIZE
+SUBLEVEL_ID_PATTERN
+SaveDepth
+SaveFile
+SaveGameData
+SaveLimits
+SaveLimitsStore
+SaveMeta
+SaveRequest
+SavedSystems
+SavedTimer
+SavesContext
 SceneLayerDef
+SceneLibrary
+SceneListEntry
 SceneRuntimeHandle
 SceneSystem
 SceneTemplate
@@ -908,6 +970,9 @@ SpriteGeometry
 StepEvent
 StepResult
 Style
+SublevelInfo
+SublevelOptions
+SublevelResult
 SystemFactory
 TOOL_PRIORITY
 TOP_DOWN_CONTROLLER
@@ -920,11 +985,13 @@ ToolEvent
 ToolRouter
 TopDownController
 TopDownOptions
+TransitionSpec
 ViewLayer
 ViewLayerHandle
 VisualOptions
 WaypointMode
 WaypointState
+WorldState
 advanceWaypoint
 angleField
 assetField
@@ -963,9 +1030,12 @@ degToRad
 distanceVec2
 drawEntity
 drawShape
+effectiveSaveLimits
 fieldOfView
 findPath
 flowField
+flowIssue
+formatSaveFile
 gridField
 gridFieldInfo
 gridGeometry
@@ -990,6 +1060,8 @@ navContains
 navNearest
 navPath
 parseRuntimeId
+parseSaveFile
+parseSublevelId
 physicsOf
 playersProblems
 pointField
@@ -1002,6 +1074,8 @@ refField
 resolveTime
 runtimeId
 sameCell
+saveFileBytes
+saveFileSchema
 scaleLengths
 sceneGrid
 shapeColliderDesc
@@ -1011,6 +1085,7 @@ sideField
 spawnPose
 spriteGeometry
 styleOf
+sublevelId
 tagsField
 tickRateProblem
 ticksFor
@@ -1050,6 +1125,8 @@ FuzzRun
 FuzzTouch
 HeadlessLoad
 HeadlessLoadInput
+HeadlessLoadOptions
+HeadlessRuntime
 HeadlessRuntimeOptions
 InputEdge
 InputScript
@@ -1062,6 +1139,9 @@ LoadReport
 PLAYER_JOINED
 PLAYER_LEFT
 ParseRecordingResult
+PersistCell
+PersistCellOptions
+PersistMatch
 PhysicalEnv
 PhysicalHit
 PhysicalOptions
@@ -1072,6 +1152,9 @@ PlaytestOptions
 PlaytestOutcomeReport
 PlaytestReport
 PlaytestRun
+PlaytestSegment
+PlaytestSegmentEnd
+PlaytestStart
 PlaytestStep
 PointerBindings
 PreparedPlay
@@ -1099,11 +1182,14 @@ RunRecorder
 RunRecording
 RunRecordingV1
 RunRecordingV2
+RuntimeRequests
 RuntimeStats
 SENSOR_ENTER
 SENSOR_EXIT
 STUCK_METRES
 STUCK_TICKS
+SaveBlocker
+SaveStart
 SceneRuntime
 SceneRuntimeHandle
 ScriptIssue
@@ -1124,19 +1210,24 @@ ValidatePhysicalOptions
 analogActions
 analogValues
 assetInfo
+captureSave
 compileInputScript
 compiledPointer
 createHeadlessRuntime
+createPersistCell
 createRunRecorder
 decodeStreams
 defaultFuzzMacro
 defaultSeed
 fuzz
+gamePersistCell
 heldEdges
 loadHeadless
+memorySaveStore
 mergeTick
 parseRecording
 physicalEnv
+plainJsonProblem
 platformIssues
 playWorld
 pointerAt
@@ -1145,6 +1236,7 @@ preparePlay
 probeConfigHash
 recordingDivergence
 replayRecording
+restoreSave
 runBlocked
 runChecks
 runPhysicalChecks
@@ -1156,6 +1248,7 @@ tickWakes
 unknownActionError
 untilHolds
 validatePhysical
+worldSaveBlockers
 
 ## @jams/engine/project
 ATLAS_KIND
@@ -1277,10 +1370,21 @@ RecordingSettings
 RefIndex
 RefSite
 Referrer
+SAVE_FIXTURE_MAX_BYTES
+SAVE_KIND
+SAVE_SUFFIX
 SCENE_KIND_NAME
+SCENE_LIST_KIND
+SCENE_LIST_SCHEMA_ID
+SCENE_LIST_VERSION
 SIDECAR_SCHEMA_ID
 SIDECAR_SUFFIX
 SIDECAR_VERSION
+SaveFixtureMeta
+SaveFixtureSettings
+SceneListEntry
+SceneListFile
+SceneListFlow
 SceneWrite
 Sha256
 SnapshotAsset
@@ -1293,6 +1397,8 @@ UNLIMITED_QUOTA
 applyJsonEdits
 assetFileEntries
 assetFileEntry
+assetFileKind
+assetFilesIn
 assetIdOfPath
 assetInfo
 assetPathProblem
@@ -1344,8 +1450,10 @@ inspectEntry
 isSha256
 isSkippedAssetPath
 keyedItemPointer
+kindInputMap
 materialKind
 materialSchema
+mayBeAssetFile
 memoryContentStore
 orphanSidecarIssue
 ownAssetId
@@ -1383,8 +1491,15 @@ referencedTrash
 rewriteRefs
 rowSchemaOf
 runtimeView
+saveFixtureMetaSchema
+saveFixtureSettingsSchema
+saveKind
 sceneBundle
 sceneKind
+sceneListEntries
+sceneListFlow
+sceneListIssues
+sceneListKind
 schemaRefSites
 sha256
 sidecarJsonSchema
@@ -1578,6 +1693,8 @@ SpatialHash
 SpotAnchor
 SpriteAssetLookup
 SpritePoseSource
+SublevelJudgeOptions
+SublevelSettings
 SystemEvent
 TouchesCheck
 Transform2D
@@ -1745,6 +1862,7 @@ splitChildRef
 splitFieldPath
 splitOverridePath
 spriteBoxOf
+sublevelIssue
 suggestType
 takenIds
 toSourceBatch
@@ -3042,7 +3160,7 @@ type PanelContext = {
     pickedAsset: Store<AssetKey | null>;
     subscribe: (listener: () => void) => () => void;
 };
-type PanelControls = Pick<EditorControls, "frame" | "notify" | "onOpenPrefab" | "onReplay" | "playFrom" | "prefab" | "project" | "runStore" | "session">;
+type PanelControls = Pick<EditorControls, "frame" | "notify" | "onOpenPrefab" | "onReplay" | "playFrom" | "prefab" | "project" | "runStore" | "session"> & Partial<Pick<EditorControls, "game">>;
 type PanelDef = {
     badge?: (ctx: PanelContext) => null | {
         count: number;
@@ -3137,9 +3255,13 @@ type EditorChromeGame = Pick<GameInstance, "cancel" | "command" | "frame" | "get
 type EditorProjectLink = {
     blobs?: ProjectBlobs;
     doc: string;
+    flow?: SceneListFlow;
+    notice?: Store<SceneNotice | null>;
     onProjectChange?: (id: ProjectId) => void;
+    openScene?: (id: string) => void;
     projects?: readonly EditorProjectChoice[];
     readOnly?: boolean;
+    scene?: string;
     session: ProjectSession;
 };
 type EditorProps = EditingTarget & {
@@ -3153,6 +3275,9 @@ type EditorProps = EditingTarget & {
     project?: EditorProjectLink;
     rapier?: RapierModule | null;
     runStore?: Store<LoadedRun | null>;
+};
+type SceneNotice = {
+    text: string;
 };
 
 ## editor-ui/session/use-store-value.ts
@@ -3603,7 +3728,7 @@ type FieldWidget = {
     bigStep?: number;
     decimals?: number;
     kind: "point";
-    pick: true;
+    pick: boolean;
     step?: number;
     unit?: string;
 } | {
@@ -3664,6 +3789,21 @@ type InspectorModel = {
     sections: InspectorSectionModel[];
     types: EntityTypeName[];
 };
+type InspectorRow = {
+    children?: InspectorRow[];
+    defaultValue?: unknown;
+    description?: string;
+    mixed: boolean;
+    name: string;
+    optional: boolean;
+    path: FieldPath;
+    placeholder?: string;
+    readonly: boolean;
+    schema: z.ZodType;
+    title: string;
+    value: unknown;
+    widget: FieldWidget;
+};
 type InspectorSectionId = (typeof INSPECTOR_SECTIONS)[number];
 type InspectorSectionModel = {
     behavior?: BehaviorSectionInfo;
@@ -3692,21 +3832,9 @@ type ModelEdit = {
     ok: true;
     ops: SceneOp[];
 };
-type ModelField = {
+type ModelField = Omit<InspectorRow, "children"> & {
     children?: ModelField[];
-    defaultValue?: unknown;
-    description?: string;
-    mixed: boolean;
-    name: string;
-    optional: boolean;
-    path: FieldPath;
-    placeholder?: string;
-    readonly: boolean;
-    schema: z.ZodType;
     section: ModelSectionId;
-    title: string;
-    value: unknown;
-    widget: FieldWidget;
 };
 type ModelSectionId = BehaviorSectionId | InspectorSectionId;
 type ParamModel = {
@@ -4051,6 +4179,28 @@ declare function labelFor(batch: OpBatch): string;
 declare function projectHistory(project: ProjectSession, docName: string, opts?: {
     onUndone?: (step: UndoneStep, how: "redo" | "undo") => void;
 }): SessionHistory;
+
+## editor/settings-model.ts
+type SettingsRowsOptions = {
+    pxPerMetre?: number;
+    registry?: Registry;
+};
+type SettingsSection = {
+    id: "engine" | "general" | "input" | "layers" | "scenes" | (string & {});
+    title: string;
+};
+declare function settingsEdit(asset: AssetId, path: string, value: unknown, current?: {
+    doc: unknown;
+    layout: DocLayout;
+}): ProjectOp;
+declare function settingsRows(schema: z.ZodObject, value: unknown, path: string, options?: SettingsRowsOptions): InspectorRow[];
+declare function settingsValue(row: InspectorRow, input: unknown): {
+    error: string;
+    ok: false;
+} | {
+    ok: true;
+    value: unknown;
+};
 
 ## editor/snap.ts
 declare const SNAP_PX = 8;
@@ -4401,6 +4551,8 @@ interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
     ready?(ids: readonly string[]): void;
     disable?(entityId: string): void;
     enable?(entityId: string): void;
+    save?(entityId: string): JsonValue | undefined;
+    restore?(entityId: string, state: JsonValue): void;
 }
 type BehaviorSystemFactory = (ctx: EngineContext, def: RegisteredBehavior) => BehaviorSystem;
 type RegisteredBehavior = BehaviorDef & {
@@ -4651,6 +4803,46 @@ declare function sideField(description: string): z.ZodType<Side | true>;
 declare function tagsField(description: string): z.ZodOptional<z.ZodArray<z.ZodString>>;
 declare function vectorField(description: string): z.ZodType<Pt>;
 
+## game/flow.ts
+type FlowRequest = {
+    entry?: string;
+    persist?: JsonValue;
+    to: AssetId;
+    transition?: TransitionSpec;
+};
+type FlowUse = "attach" | "go" | "start";
+type LibraryScene = {
+    def: SceneDefinition;
+    prefabs: PrefabLibrary;
+};
+type SceneLibrary = {
+    readonly list: readonly SceneListEntry[];
+    readonly scenes: ReadonlyMap<AssetId, LibraryScene>;
+};
+type SublevelInfo = {
+    at: Pt;
+    label: string;
+    scene: AssetId;
+};
+type SublevelOptions = {
+    at?: Pt;
+    label: string;
+    z?: number;
+};
+type SublevelResult = {
+    entities: readonly string[];
+    ok: true;
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
+type TransitionSpec = {
+    color?: number;
+    kind: "fade" | "none" | (string & {});
+    ms?: number;
+};
+declare function flowIssue(list: readonly SceneListEntry[], id: AssetId | null, use: FlowUse): SceneIssue | null;
+
 ## game/input-bindings.ts
 declare const ACTION_KINDS: readonly ActionKind[];
 type BindingContext = {
@@ -4900,13 +5092,122 @@ declare function primitiveFields<P extends PrimitiveType>(name: P, env: FieldEnv
 
 ## game/runtime-ids.ts
 declare const RUNTIME_ID_PATTERN: RegExp;
+declare const SUBLEVEL_ID_PATTERN: RegExp;
 declare function isRuntimeId(id: string): boolean;
 declare function parseRuntimeId(id: string): null | {
     child?: string;
     label: string;
     name: string;
 };
+declare function parseSublevelId(id: string): null | {
+    id: string;
+    label: string;
+};
 declare function runtimeId(name: string, n: number): string;
+declare function sublevelId(label: string, id: string): string;
+
+## game/save-file.ts
+declare const DEFAULT_SAVE_LIMITS: SaveLimits;
+declare const GRID_STEP_SAVE_OWNER = "grid-step";
+declare const MAX_BROWSER_SAVE_LIMITS: SaveLimits;
+declare const MOTION_SAVE_OWNER = "motion";
+type ParseSaveResult = {
+    file: SaveFile;
+    migratedFrom?: number;
+    ok: true;
+} | {
+    issues: SceneIssue[];
+    ok: false;
+};
+declare const SAVE_RANDOM_KEY = "@random";
+declare const SAVE_SCHEMA_ID = "urn:jams-engine:save:v1";
+declare const SAVE_VERSION = 1;
+declare const SLOT_PATTERN: RegExp;
+type SaveDepth = "progress" | "world";
+type SaveFile = {
+    $schema?: string;
+    data: JsonValue;
+    depth: SaveDepth;
+    engine: string;
+    game: string;
+    gameVersion: number;
+    kind: "save";
+    meta: SaveMeta;
+    persist: JsonValue;
+    project: null | {
+        id: ProjectId;
+        snapshot: Sha256;
+    };
+    release: Sha256 | null;
+    scene: {
+        entry?: string;
+        id: AssetId;
+        runHash: string;
+        sublevels: readonly SublevelInfo[];
+    };
+    slot: string;
+    v: typeof SAVE_VERSION;
+    world?: WorldState;
+};
+type SaveGameData = {
+    game: JsonValue;
+    persist: JsonValue;
+};
+type SaveLimits = {
+    maxBytes: number;
+    maxSlots: number;
+};
+type SaveLimitsStore = {
+    kind: string;
+    limits?: Partial<SaveLimits>;
+};
+type SaveMeta = {
+    playTicks: number;
+    savedAt: number;
+    scene: AssetId;
+    title?: string;
+};
+type SavedSystems = Readonly<Record<string, Readonly<Record<string, JsonValue>>>>;
+type SavedTimer = {
+    data?: JsonValue;
+    due: number;
+    emit: string;
+    entityId?: string;
+    id: number;
+    owner?: string;
+    period?: number;
+    times?: number;
+};
+type WorldState = {
+    counters: Readonly<Record<string, number>>;
+    destroyed: readonly string[];
+    enabled: Readonly<Record<string, false>>;
+    poses: Readonly<Record<string, readonly [
+        number,
+        number,
+        number
+    ]>>;
+    random: RngState;
+    seats: readonly {
+        devices: readonly DeviceId[];
+        player: number;
+    }[];
+    spawned: readonly {
+        id: string;
+        input: SpawnInput;
+        instance?: InstantiateOptions & {
+            prefab: AssetId;
+        };
+    }[];
+    systems: SavedSystems;
+    tick: number;
+    timers: readonly SavedTimer[];
+};
+declare function effectiveSaveLimits(game: Pick<GameDefinition, "saves"> | null, store?: SaveLimitsStore): SaveLimits;
+declare function formatSaveFile(file: SaveFile): string;
+declare function parseSaveFile(text: string, game?: Pick<GameDefinition, "id" | "saves">): ParseSaveResult;
+declare function saveFileBytes(file: SaveFile): number;
+declare const saveFileSchema: z.ZodType<SaveFile>;
 
 ## game/style.ts
 declare function styleOf(ctx: Pick<EngineContext, "registry">, type: RegisteredType, material: string | undefined): Style | undefined;
@@ -5053,14 +5354,17 @@ declare const ENGINE_PREDICATES: readonly [
     "event",
     "tick",
     "exists",
-    "count"
+    "count",
+    "scene",
+    "persist"
 ];
 declare const ENGINE_REGISTRY_ID = "engine";
 declare const ENGINE_RUN_RESULTS: readonly [
     "timeout",
     "script-end",
     "stuck",
-    "quit"
+    "quit",
+    "flow"
 ];
 declare const ENGINE_TOOL_IDS: readonly [
     "select",
@@ -5084,11 +5388,13 @@ type EngineContext = {
     enabled: (id: string) => boolean;
     events: EventBus;
     exists: (id: string) => boolean;
+    flow: FlowContext;
     geometry: GeometryWorld | null;
     get: (id: string) => RuntimeEntity | undefined;
     gravity: Vec2;
     input: InputState;
     instantiate: (prefab: AssetId, at: Pt | Vec2, opts?: InstantiateOptions) => InstantiateResult;
+    persist: PersistContext;
     physics: PhysicsWorld | null;
     poses: PoseIndex;
     query: EntityQuery;
@@ -5103,6 +5409,7 @@ type EngineContext = {
     readonly tick: number;
     readonly time: ResolvedTime;
     registry: Registry;
+    saves: SavesContext;
     setEnabled: (id: string, enabled: boolean) => void;
     settings: ResolvedSettings;
     space: SpaceQuery;
@@ -5182,6 +5489,14 @@ type FieldEnv = {
     materials: readonly string[];
     types: readonly string[];
 };
+type FlowContext = {
+    attach(scene: AssetId, opts: SublevelOptions): SublevelResult;
+    detach(label: string): void;
+    readonly entry: null | string;
+    readonly scene: AssetId | null;
+    request(req: FlowRequest): void;
+    sublevels(): readonly SublevelInfo[];
+};
 type GameAttachment = {
     destroy(): void;
     onCancel?(): boolean;
@@ -5213,11 +5528,13 @@ type GameDefinition<S = unknown, G = unknown> = {
     issues?: Readonly<Record<string, IssueCodeDef>>;
     layers?: readonly SceneLayerDef[];
     materials?: Readonly<Record<string, MaterialDef>>;
+    persist?: GamePersistDef;
     physicalChecks?: readonly PhysicalCheck[];
     play?: GamePlayDef<S, G>;
     prefabContract?: z.ZodRawShape;
     projectSettings?: z.ZodRawShape;
     resolution?: Partial<ResolutionPolicy>;
+    saves?: GameSavesDef;
     settings?: z.ZodRawShape;
     spawnOrder?: readonly (EntityTypeName | readonly EntityTypeName[])[];
     tables?: Readonly<Record<string, GameTableDef>>;
@@ -5248,6 +5565,10 @@ type GameOutcome = {
     entityId?: string;
     result: string;
 };
+type GamePersistDef = {
+    initial: () => JsonValue;
+    schema?: z.ZodType;
+};
 type GamePlayDef<S = unknown, G = unknown> = {
     commands?(state: PlayState<S>): readonly GameCommand[];
     focus?(snapshot: S): Vec2 | null;
@@ -5269,8 +5590,15 @@ type GameRuntime<S = unknown> = {
     destroy?(): void;
     onLoad?(scene: ExpandedScene): void;
     onUnload?(): void;
+    restore?(state: S): void;
     snapshot(): S;
     storeSlice?(): unknown;
+};
+type GameSavesDef = {
+    limits?: Partial<SaveLimits>;
+    migrations?: Readonly<Record<number, (data: SaveGameData) => SaveGameData>>;
+    store?: () => SaveStore;
+    version: number;
 };
 type GameShell = {
     dev: boolean;
@@ -5323,6 +5651,9 @@ type InstantiateResult = {
     id: string;
 };
 type IssueCodeDef = IssueCodeInfo;
+type JsonValue = JsonValue[] | boolean | null | number | string | {
+    [key: string]: JsonValue;
+};
 type Macro = {
     hold: readonly string[];
     pointer?: ScriptPointer;
@@ -5353,6 +5684,10 @@ declare const PRIMITIVE_TYPES: readonly [
     "nav",
     "note"
 ];
+type PersistContext = {
+    readonly value: JsonValue;
+    set(next: JsonValue): void;
+};
 type PhysicalCheck = {
     description: string;
     id: string;
@@ -5388,6 +5723,7 @@ type PlayStart = {
 };
 type PlayState<S = unknown> = {
     events: readonly StepEvent[];
+    persist?: JsonValue;
     snapshot: S;
     tick: number;
     world: PlayWorld;
@@ -5397,6 +5733,10 @@ type PlayWorld = {
     exists(id: string, opts?: {
         enabled?: boolean;
     }): boolean;
+    get?(id: string): RuntimeEntity | undefined;
+    readonly grid?: RuntimeGrid | null;
+    readonly project?: ProjectRuntimeView | null;
+    select?(sel?: EntitySelector): readonly string[];
 };
 type PlayerInfo = {
     devices: readonly DeviceId[];
@@ -5454,6 +5794,17 @@ type Registry = {
     widgets: ReadonlyMap<string, InspectorWidgetDef>;
 };
 type RunResult = (string & {}) | EngineRunResult;
+type SaveRequest = {
+    depth?: SaveDepth;
+    slot: string;
+    title?: string;
+};
+type SavesContext = {
+    request(slot: string, opts?: {
+        depth?: SaveDepth;
+        title?: string;
+    }): void;
+};
 interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
     spawn(e: E): void;
     despawn(id: string): void;
@@ -5467,6 +5818,8 @@ interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
     ready?(ids: readonly string[]): void;
     disable?(id: string): void;
     enable?(id: string): void;
+    save?(id: string): JsonValue | undefined;
+    restore?(id: string, state: JsonValue): void;
 }
 type SceneTemplate = {
     [bulkKey: BulkKey]: unknown;
@@ -5487,6 +5840,7 @@ type Side = "down" | "left" | "right" | "up";
 type SpawnInput = {
     [field: string]: unknown;
     id?: string;
+    sublevel?: string;
     type: EntityTypeName;
 };
 type SpawnShape = ({
@@ -5677,8 +6031,10 @@ type LibraryOption = {
     library?: PrefabLibrary;
     prefabs?: PrefabLibrary;
 };
-type PrefabsOption = Pick<SceneRuntimeOptions, "prefabs">;
-declare function createHeadlessRuntime(opts: HeadlessRuntimeOptions & ProjectOption & PrefabsOption): SceneRuntimeHandle;
+type RuntimeShareOptions = Pick<SceneRuntimeOptions, "persist" | "prefabs">;
+declare function createHeadlessRuntime(opts: HeadlessRuntimeOptions & ProjectOption & RuntimeShareOptions): HeadlessRuntime & {
+    save: NonNullable<HeadlessRuntime["save"]>;
+};
 declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): ProbeReport<S>;
 declare function simActionError(registry: Registry, action: string): null | string;
 declare function unknownActionError(action: string, actionNames: readonly string[]): null | string;
@@ -5691,6 +6047,7 @@ type FilesLoadInput = LoadCommon & {
     };
 };
 type HeadlessLoad = {
+    fromSave?: SaveStart;
     library: PrefabLibrary;
     prefabs: PrefabLibrary;
     project: ProjectRuntimeView | null;
@@ -5700,6 +6057,9 @@ type HeadlessLoad = {
     snapshot: Sha256 | null;
 };
 type HeadlessLoadInput = FilesLoadInput | SnapshotLoadInput;
+type HeadlessLoadOptions = {
+    fromSave?: SaveFile | string;
+};
 type LoadCommon = {
     project?: ProjectRuntimeView | null;
     registry: Registry;
@@ -5709,7 +6069,7 @@ type SnapshotLoadInput = LoadCommon & {
     snapshot: ProjectSnapshot;
     store: ContentStore;
 };
-declare function loadHeadless(input: HeadlessLoadInput): Promise<HeadlessLoad>;
+declare function loadHeadless(input: HeadlessLoadInput, opts?: HeadlessLoadOptions): Promise<HeadlessLoad>;
 
 ## headless/play-loop.ts
 type InputSource = {
@@ -5723,6 +6083,10 @@ type InputSource = {
 };
 declare const STUCK_METRES = 0.04;
 declare const STUCK_TICKS = 120;
+type SaveStart = {
+    file: SaveFile;
+    sha256: Sha256;
+};
 declare function runBlocked(err: unknown, scene: string, issues: SceneIssue[], registry: Registry): PlaytestBlocked | null;
 declare function tickWakes(time: Pick<ResolvedTime, "kind" | "wakeOnPointerMove">, input: Pick<TickInput, "actions" | "commands" | "pointers">, pointers?: readonly (PointerState | null | undefined)[]): boolean;
 
@@ -5760,6 +6124,7 @@ type FuzzLegal = {
 };
 type FuzzOptions<S = unknown, G = unknown> = {
     dev?: boolean;
+    fromSave?: SaveStart;
     game?: GameDefinition<S, G> | null;
     library?: PrefabLibrary;
     play?: PlayOptions<G>;
@@ -5861,6 +6226,12 @@ type InputScriptV2<G = unknown> = Omit<InputScript<G>, "steps" | "v"> & {
     steps?: never;
     tracks: InputScriptTrack[];
 });
+type PersistMatch = {
+    eq?: JsonValue;
+    gte?: number;
+    lte?: number;
+    pointer: string;
+};
 type PlayOptions<G = unknown> = {
     at?: Vec2;
     game?: G;
@@ -5877,6 +6248,7 @@ type PlaytestBlocked = {
 };
 type PlaytestOptions<S = unknown, G = unknown> = {
     dev?: boolean;
+    flow?: SceneLibrary;
     game?: GameDefinition<S, G> | null;
     library?: PrefabLibrary;
     maxEvents?: number;
@@ -5894,6 +6266,7 @@ type PlaytestOutcomeReport = {
     entityId?: string;
     result: RunResult;
     tick: number;
+    to?: AssetId;
 };
 type PlaytestReport<S = unknown> = {
     blocked: false;
@@ -5909,6 +6282,7 @@ type PlaytestReport<S = unknown> = {
     recording: RunRecording;
     scene: string;
     sceneHash: SceneHash;
+    segments?: PlaytestSegment[];
     slots: number;
     steps: PlaytestStep[];
     stepsReached: number;
@@ -5923,6 +6297,18 @@ type PlaytestReport<S = unknown> = {
     truncated: boolean;
 };
 type PlaytestRun<S = unknown> = PlaytestBlocked | PlaytestReport<S>;
+type PlaytestSegment = {
+    end: PlaytestSegmentEnd;
+    recording: RunRecording;
+    scene: AssetId;
+    ticks: number;
+};
+type PlaytestSegmentEnd = {
+    entry?: string;
+    result: RunResult;
+    tick: number;
+    to?: AssetId;
+};
 type PlaytestStep = {
     end: "done" | "max" | "run" | "until";
     index: number;
@@ -5948,19 +6334,26 @@ type UntilClause = {
     count?: CountMatch;
     event?: EventMatch;
     exists?: ExistsMatch;
+    persist?: PersistMatch;
+    scene?: AssetId;
     tick?: number;
 };
 
 ## headless/playtest.ts
 type PlaytestHooks = {
+    onEnd?(runtime: SceneRuntimeHandle): void;
     onLastTick?(state: PlayState): void;
 };
-declare function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G> & PlaytestHooks & RecordingHost): PlaytestRun<S>;
-declare function untilHolds(until: UntilClause, state: PlayState, registry: Registry): boolean;
+type PlaytestStart = {
+    fromSave?: SaveStart;
+};
+declare function runPlaytest<S = unknown, G = unknown>(opts: PlaytestOptions<S, G> & PlaytestStart & PlaytestHooks & RecordingHost): PlaytestRun<S>;
+declare function untilHolds(until: UntilClause, state: PlayState, registry: Registry, scene?: AssetId | null): boolean;
 
 ## headless/recording.ts
 type ReplayOptions<S = unknown> = RecordingHost & {
     dev?: boolean;
+    flow?: SceneLibrary;
     game?: GameDefinition<S> | null;
     library?: PrefabLibrary;
     prefabs?: PrefabLibrary;
@@ -5968,7 +6361,9 @@ type ReplayOptions<S = unknown> = RecordingHost & {
     rapier?: RapierModule | null;
     recording: unknown;
     registry?: Registry;
+    saves?: ReadonlyMap<Sha256, SaveFile | string>;
     scene: SceneDefinition;
+    sceneId?: AssetId;
 };
 type ReplayReport<S = unknown> = {
     blocked: false;
@@ -6013,8 +6408,24 @@ type RunChecksOptions = {
 declare function runChecks(opts: RunChecksOptions): ChecksReport;
 
 ## headless/types.ts
+type HeadlessRuntime = SceneRuntimeHandle & {
+    save?(opts: {
+        depth: SaveDepth;
+        now: number;
+        slot: string;
+        title?: string;
+    }): {
+        file: SaveFile;
+        ok: true;
+    } | {
+        issue: SceneIssue;
+        ok: false;
+    };
+};
 type HeadlessRuntimeOptions = {
     dev?: boolean;
+    flow?: SceneLibrary;
+    fromSave?: SaveFile;
     game?: GameDefinition | null;
     rapier?: RapierModule | null;
     registry?: Registry;
@@ -6224,6 +6635,8 @@ interface MotionBody {
     }): MotionResult;
     teleport(x: number, y: number): void;
     setEnabled(enabled: boolean): void;
+    velocity(): Vec2;
+    setVelocity(v: Vec2): void;
     destroy(): void;
 }
 type MotionBodyOptions = {
@@ -6398,7 +6811,10 @@ declare function assetFileEntry(file: AssetFile, key: AssetKey, created: AssetEn
     entry: AssetEntry;
     issue: SceneIssue | null;
 };
+declare function assetFileKind(kinds: KindRegistry, path: AssetPath, json: () => unknown, sidecarKind?: string): AssetKindDef | null;
+declare function assetFilesIn<B extends Uint8Array>(files: ReadonlyMap<AssetPath, B>, kinds: KindRegistry): Map<AssetPath, B>;
 declare function idsAtPaths(entries: Iterable<Pick<AssetEntry, "deleted" | "id" | "path">>): (path: AssetPath) => AssetId | undefined;
+declare function mayBeAssetFile(kinds: KindRegistry, path: AssetPath, hasSidecar: () => boolean): boolean;
 declare function orphanSidecarIssue(sidecarPath: AssetPath, assetPath: AssetPath): SceneIssue;
 declare function ownAssetId(def: AssetKindDef, path: AssetPath, json: unknown): AssetId | null;
 declare function projectPathMatcher(file: ProjectFile, match: GlobMatch): ProjectPathMatcher;
@@ -6871,6 +7287,7 @@ type KindBase = {
     title: string;
 };
 type KindEnv = {
+    inputMap?: Pick<InputMapFile, "players"> | null;
     prefab?: MigrateEnv["prefab"];
     project: ProjectView | null;
     registry: Registry;
@@ -7160,6 +7577,7 @@ declare const inputScriptKind: {
     title: string;
     version: number;
 };
+declare function kindInputMap(view: ProjectView, valueOf: (id: AssetId) => unknown, registry: Registry): InputMapFile | null;
 
 ## project/kinds/material.ts
 declare const MATERIAL_KIND = "material";
@@ -7326,6 +7744,108 @@ declare const recordingKind: {
 };
 declare const recordingMetaSchema: z.ZodType<RecordingMeta>;
 declare const recordingSettingsSchema: z.ZodType<RecordingSettings>;
+
+## project/kinds/save.ts
+declare const SAVE_FIXTURE_MAX_BYTES = 1048576;
+declare const SAVE_KIND = "save";
+declare const SAVE_SUFFIX = ".save.json";
+type SaveFixtureMeta = {
+    depth: SaveDepth;
+    game: string;
+    gameVersion: number;
+    scene: string;
+};
+type SaveFixtureSettings = Record<string, never>;
+declare const saveFixtureMetaSchema: z.ZodType<SaveFixtureMeta>;
+declare const saveFixtureSettingsSchema: z.ZodType<SaveFixtureSettings>;
+declare const saveKind: {
+    contentTypes: string[];
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    inspect: (bytes: Uint8Array, settings: SaveFixtureSettings, env: InspectEnv) => InspectResult<SaveFixtureMeta>;
+    kind: string;
+    match: {
+        suffixes: string[];
+    };
+    maxBytes: number;
+    meta: z.ZodType<SaveFixtureMeta, unknown, z.core.$ZodTypeInternals<SaveFixtureMeta, unknown>>;
+    refs: (entry: AssetEntry) => RefSite[];
+    settings: z.ZodType<SaveFixtureSettings, unknown, z.core.$ZodTypeInternals<SaveFixtureSettings, unknown>>;
+    storage: "blob";
+    title: string;
+};
+
+## project/kinds/scene-list.ts
+declare const SCENE_LIST_KIND = "scene-list";
+declare const SCENE_LIST_SCHEMA_ID = "urn:jams-engine:scene-list:v1";
+declare const SCENE_LIST_VERSION = 1;
+type SceneListEntry = {
+    scene: AssetId;
+    sublevel?: true;
+    title?: string;
+};
+type SceneListFile = {
+    $schema?: string;
+    kind: typeof SCENE_LIST_KIND;
+    scenes: SceneListEntry[];
+    start: AssetId | null;
+    v: typeof SCENE_LIST_VERSION;
+};
+type SceneListFlow = {
+    readonly scenes: readonly SceneListEntry[];
+    readonly start: AssetId | null;
+};
+declare function sceneListEntries(view: ProjectView): AssetEntry[];
+declare function sceneListFlow(value: unknown): SceneListFlow;
+declare function sceneListIssues(view: ProjectView, values: ReadonlyMap<AssetId, unknown>, opts?: {
+    lineOf?: (asset: AssetId, pointer: string) => number | undefined;
+}): SceneIssue[];
+declare const sceneListKind: {
+    defaultFolder: () => string;
+    description: string;
+    empty: (env?: KindEnv) => SceneListFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            scenes: {
+                as: "keyed";
+                id: string;
+                item: {
+                    as: "map";
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+            start: {
+                as: "atomic";
+            };
+        };
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxItems: number;
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    perProject: 1;
+    perProjectWords: {
+        contents: string;
+        noun: string;
+    };
+    refs: (file: SceneListFile) => RefSite[];
+    schema: () => z.ZodType<SceneListFile, unknown, z.core.$ZodTypeInternals<SceneListFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    validate: (file: SceneListFile) => SceneIssue[];
+    version: number;
+};
 
 ## project/kinds/scene.ts
 declare const sceneKind: {
@@ -7752,6 +8272,7 @@ type HeldProject = {
 type ProjectRuntimeView = {
     asset(id: AssetId, frame?: string): AssetInfo | undefined;
     engine: Readonly<Record<string, unknown>>;
+    flow?: SceneListFlow;
     inputMap: InputMapFile | null;
     settings: Readonly<Record<string, unknown>>;
     table(name: string): readonly Readonly<Record<string, unknown> & {
@@ -8173,6 +8694,15 @@ type RuntimeNav = {
     path(from: Vec2, to: Vec2): Vec2[] | null;
 };
 
+## runtime/persist.ts
+type PersistCellOptions = {
+    check?: boolean;
+    schema?: z.ZodType;
+};
+declare function createPersistCell(initial: () => JsonValue, opts?: PersistCellOptions): PersistCell;
+declare function gamePersistCell(game: GameDefinition | null | undefined, check: boolean): PersistCell;
+declare function plainJsonProblem(value: unknown): null | string;
+
 ## runtime/play-session.ts
 type PreparedPlay = {
     def: SceneDefinition;
@@ -8185,7 +8715,7 @@ type PreparedPlay = {
     issues: SceneIssue[];
     ok: false;
 };
-declare function playWorld(ctx: Pick<EngineContext, "enabled" | "exists" | "query">): PlayWorld;
+declare function playWorld(ctx: Pick<EngineContext, "enabled" | "exists" | "get" | "grid" | "project" | "query">): PlayWorld;
 declare function preparePlay(doc: SceneDefinition, registry: Registry, opts?: {
     dev?: boolean;
     engine?: Readonly<Record<string, unknown>>;
@@ -8221,9 +8751,15 @@ interface PoseIndex {
 ## runtime/recorder.ts
 declare const REPLAY_ACROSS_PLATFORMS = true;
 type RecorderOptions = RecordingHost & {
+    entry?: null | string;
+    fromSave?: {
+        sha256: Sha256;
+        slot: string;
+    };
     game: GameDefinition | null;
     maxMarkers?: number;
     maxTrail?: number;
+    persist?: JsonValue;
     players?: readonly PlayerInfo[];
     rapier: RapierModule | null;
     registry?: Registry;
@@ -8236,6 +8772,10 @@ type RecorderOptions = RecordingHost & {
 type RecordingEnd = {
     cause?: string;
     entityId?: string;
+    next?: {
+        entry?: string;
+        scene: string;
+    };
     result: RunResult;
     tick: number;
     ticks: number;
@@ -8253,6 +8793,48 @@ type RunRecorder = {
 };
 declare function createRunRecorder(opts: RecorderOptions): RunRecorder;
 declare function probeConfigHash(game?: GameDefinition | null, time?: Pick<ResolvedTime, "rate">): string;
+
+## runtime/runtime.ts
+type ProjectOption = {
+    project?: ProjectRuntimeView | null;
+};
+
+## runtime/save-state.ts
+type SaveBlocker = {
+    cause: "coroutine" | "timer";
+    id: number;
+    message: string;
+    owner?: string;
+} | {
+    cause: "physics";
+    message: string;
+} | {
+    cause: "restore";
+    message: string;
+};
+declare function captureSave(runtime: SceneRuntimeHandle, opts: {
+    depth: SaveDepth;
+    now: number;
+    slot: string;
+    title?: string;
+}): {
+    file: SaveFile;
+    ok: true;
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
+declare function restoreSave(runtime: SceneRuntimeHandle, file: SaveFile): {
+    issue: SceneIssue;
+    ok: false;
+} | {
+    issues: SceneIssue[];
+    ok: true;
+    report: Extract<LoadReport, {
+        ok: true;
+    }>;
+};
+declare function worldSaveBlockers(runtime: SceneRuntimeHandle): SaveBlocker[];
 
 ## runtime/seed.ts
 declare function defaultSeed(gameId: null | string, sceneName: string): number;
@@ -8309,12 +8891,21 @@ type LoadReport = {
 };
 declare const PLAYER_JOINED = "player:joined";
 declare const PLAYER_LEFT = "player:left";
+type PersistCell = {
+    readonly value: JsonValue;
+    reset(): void;
+    set(next: JsonValue): void;
+};
 type ReconcileReport = {
     entityId?: string;
     error: string;
     ok: false;
 } | {
     ok: true;
+};
+type RuntimeRequests = {
+    flow: FlowRequest | null;
+    saves: SaveRequest[];
 };
 type RuntimeStats = {
     backend: "geometry" | "rapier";
@@ -8337,6 +8928,7 @@ type SceneRuntime = {
     snapshot: () => unknown;
     stats: () => RuntimeStats;
     step: (dtMs: number, input: InputAction[] | TickInput, commands?: readonly GameCommand[]) => StepResult;
+    takeRequests: () => RuntimeRequests;
     unload: () => void;
     update: (entities: RuntimeEntity[]) => ReconcileReport;
 };
@@ -8351,10 +8943,12 @@ type SceneRuntimeOptions = {
     dev?: boolean;
     game?: GameDefinition | null;
     now?: () => number;
+    persist?: PersistCell;
     prefabs?: (() => PrefabLibrary) | PrefabLibrary;
     rapier: RapierModule | null | undefined;
     registry?: Registry;
     sampling?: "linear" | "nearest";
+    scenes?: (() => SceneLibrary) | SceneLibrary;
     view: SceneView | null;
 };
 type StepEvent = {
@@ -8372,9 +8966,65 @@ type StepResult = {
     tick: number;
 };
 
+## saves/browser.ts
+declare function browserSaveStore(): SaveStore;
+
+## saves/slots.ts
+interface SaveSlots {
+    readonly store: Pick<SaveStore, "describe" | "kind">;
+    readonly limits: SaveLimits;
+    list(): Promise<readonly SaveSummary[]>;
+    save(slot: string, opts?: {
+        depth?: SaveDepth;
+        title?: string;
+    }): Promise<SaveWriteResult>;
+    load(slot: string): Promise<{
+        issue: SceneIssue;
+        ok: false;
+    } | {
+        meta: SaveMeta;
+        migratedFrom?: number;
+        ok: true;
+    }>;
+    remove(slot: string): Promise<void>;
+}
+
+## saves/store.ts
+declare const DEFAULT_INDEXED_DB_NAME = "jams-engine-saves";
+declare const DEFAULT_LOCAL_STORAGE_PREFIX = "jams-engine:save:";
+interface SaveStore {
+    readonly kind: "browser" | "game" | "host" | "memory";
+    readonly describe: string;
+    readonly limits?: Partial<SaveLimits>;
+    list(gameId: string): Promise<readonly SaveSummary[]>;
+    read(gameId: string, slot: string): Promise<null | string>;
+    write(gameId: string, slot: string, text: string): Promise<SaveWriteResult>;
+    remove(gameId: string, slot: string): Promise<void>;
+}
+type SaveSummary = {
+    bytes: number;
+    meta: SaveMeta;
+    slot: string;
+};
+type SaveWriteResult = {
+    bytes: number;
+    ok: true;
+} | {
+    issue: SceneIssue;
+    ok: false;
+};
+declare function indexedDbSaveStore(opts?: {
+    db?: string;
+}): SaveStore;
+declare function localStorageSaveStore(opts?: {
+    prefix?: string;
+    storage?: Storage;
+}): SaveStore;
+declare function memorySaveStore(): SaveStore;
+
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 13;
+declare const AGENT_SURFACE_VERSION = 14;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -8855,6 +9505,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                         }, z.core.$strict>
                     ]>>;
                     exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                    persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+                    scene: z.ZodOptional<z.ZodString>;
                     tick: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strict>;
             }, z.core.$strict>,
@@ -8898,6 +9550,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                         }, z.core.$strict>
                     ]>>;
                     exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                    persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+                    scene: z.ZodOptional<z.ZodString>;
                     tick: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strict>;
             }, z.core.$strict>,
@@ -9005,6 +9659,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                         }, z.core.$strict>
                     ]>>;
                     exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                    persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+                    scene: z.ZodOptional<z.ZodString>;
                     tick: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strict>;
             }, z.core.$strict>,
@@ -9094,6 +9750,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                             }, z.core.$strict>
                         ]>>;
                         exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                        persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+                        scene: z.ZodOptional<z.ZodString>;
                         tick: z.ZodOptional<z.ZodNumber>;
                     }, z.core.$strict>;
                 }, z.core.$strict>,
@@ -9137,6 +9795,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                             }, z.core.$strict>
                         ]>>;
                         exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                        persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+                        scene: z.ZodOptional<z.ZodString>;
                         tick: z.ZodOptional<z.ZodNumber>;
                     }, z.core.$strict>;
                 }, z.core.$strict>,
@@ -9244,6 +9904,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                             }, z.core.$strict>
                         ]>>;
                         exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                        persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+                        scene: z.ZodOptional<z.ZodString>;
                         tick: z.ZodOptional<z.ZodNumber>;
                     }, z.core.$strict>;
                 }, z.core.$strict>,
@@ -9342,6 +10004,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                     }, z.core.$strict>
                 ]>>;
                 exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+                scene: z.ZodOptional<z.ZodString>;
                 tick: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>;
         }, z.core.$strict>;
@@ -9469,6 +10133,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                     }, z.core.$strict>
                 ]>>;
                 exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+                scene: z.ZodOptional<z.ZodString>;
                 tick: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>;
         }, z.core.$strict>;
@@ -9518,6 +10184,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                     }, z.core.$strict>
                 ]>>;
                 exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+                scene: z.ZodOptional<z.ZodString>;
                 tick: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>;
         }, z.core.$strict>;
@@ -9571,6 +10239,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                         }, z.core.$strict>
                     ]>>;
                     exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                    persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+                    scene: z.ZodOptional<z.ZodString>;
                     tick: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strict>;
             }, z.core.$strict>,
@@ -9614,6 +10284,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                         }, z.core.$strict>
                     ]>>;
                     exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                    persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+                    scene: z.ZodOptional<z.ZodString>;
                     tick: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strict>;
             }, z.core.$strict>,
@@ -9721,6 +10393,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                         }, z.core.$strict>
                     ]>>;
                     exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                    persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+                    scene: z.ZodOptional<z.ZodString>;
                     tick: z.ZodOptional<z.ZodNumber>;
                 }, z.core.$strict>;
             }, z.core.$strict>,
@@ -9779,6 +10453,8 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
             }, z.core.$strict>
         ]>>;
         exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+        persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
+        scene: z.ZodOptional<z.ZodString>;
         tick: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>;
 };
@@ -10073,6 +10749,7 @@ declare function buildOpSchemas(registry: Registry): {
                         params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                             default: z.ZodOptional<z.ZodUnknown>;
                             description: z.ZodString;
+                            map: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodRecord<z.ZodString, z.ZodUnknown>>>;
                             targets: z.ZodArray<z.ZodString>;
                         }, z.core.$strict>>>;
                     }, z.core.$loose>,
@@ -10135,6 +10812,7 @@ declare function buildOpSchemas(registry: Registry): {
                     z.ZodObject<{
                         default: z.ZodOptional<z.ZodUnknown>;
                         description: z.ZodString;
+                        map: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodRecord<z.ZodString, z.ZodUnknown>>>;
                         targets: z.ZodArray<z.ZodString>;
                     }, z.core.$strict>,
                     z.ZodNull
@@ -10358,6 +11036,7 @@ declare function buildOpSchemas(registry: Registry): {
                     params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodObject<{
                         default: z.ZodOptional<z.ZodUnknown>;
                         description: z.ZodString;
+                        map: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodRecord<z.ZodString, z.ZodUnknown>>>;
                         targets: z.ZodArray<z.ZodString>;
                     }, z.core.$strict>>>;
                 }, z.core.$loose>,
@@ -10420,6 +11099,7 @@ declare function buildOpSchemas(registry: Registry): {
                 z.ZodObject<{
                     default: z.ZodOptional<z.ZodUnknown>;
                     description: z.ZodString;
+                    map: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodRecord<z.ZodString, z.ZodUnknown>>>;
                     targets: z.ZodArray<z.ZodString>;
                 }, z.core.$strict>,
                 z.ZodNull
@@ -10529,9 +11209,17 @@ type RunRecordingV2 = {
         physics: null | string;
         version: string;
     };
+    fromSave?: {
+        sha256: Sha256;
+        slot: string;
+    };
     game: null | string;
     inputs: SeatEvent[][];
     markers: RecordingMarker[];
+    next?: {
+        entry?: string;
+        scene: AssetId;
+    };
     outcome: RunRecordingV1["outcome"];
     platform: RecordingPlatform;
     players: {
@@ -10551,7 +11239,9 @@ type RunRecordingV2 = {
             x: number,
             y: number
         ];
+        entry?: string;
         game?: unknown;
+        persist?: JsonValue;
         timeOffsetMs?: number;
     };
     system: SystemEvent[];
@@ -10620,6 +11310,10 @@ declare const runRecordingSchema: z.ZodObject<{
         physics: z.ZodNullable<z.ZodString>;
         version: z.ZodString;
     }, z.core.$strict>;
+    fromSave: z.ZodOptional<z.ZodObject<{
+        sha256: z.ZodString;
+        slot: z.ZodString;
+    }, z.core.$strict>>;
     game: z.ZodNullable<z.ZodString>;
     inputs: z.ZodArray<z.ZodArray<z.ZodUnion<readonly [
         z.ZodTuple<[
@@ -10672,6 +11366,10 @@ declare const runRecordingSchema: z.ZodObject<{
         tick: z.ZodNumber;
         type: z.ZodString;
     }, z.core.$strict>>;
+    next: z.ZodOptional<z.ZodObject<{
+        entry: z.ZodOptional<z.ZodString>;
+        scene: z.ZodString;
+    }, z.core.$strict>>;
     outcome: z.ZodObject<{
         at: z.ZodNullable<z.ZodTuple<[
             z.ZodNumber,
@@ -10714,7 +11412,9 @@ declare const runRecordingSchema: z.ZodObject<{
             z.ZodNumber,
             z.ZodNumber
         ], null>>;
+        entry: z.ZodOptional<z.ZodString>;
         game: z.ZodOptional<z.ZodUnknown>;
+        persist: z.ZodOptional<z.ZodJSONSchema>;
         timeOffsetMs: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>;
     system: z.ZodArray<z.ZodUnion<readonly [
@@ -11281,7 +11981,15 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "player-unknown",
     "spawn-id-invalid",
     "prefab-not-spawnable",
-    "recording-other-platform"
+    "recording-other-platform",
+    "scene-unlisted",
+    "start-scene-missing",
+    "sublevel-invalid",
+    "save-version-newer",
+    "save-too-large",
+    "save-slot-limit",
+    "save-unsupported",
+    "save-store-failed"
 ];
 type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 type EntityBase = {
@@ -11422,6 +12130,7 @@ type PrefabLibrary = ReadonlyMap<string, Prefab>;
 type PrefabParam = {
     default?: unknown;
     description: string;
+    map?: Record<OverridePath, Record<string, unknown>>;
     targets: OverridePath[];
 };
 type Pt = [
@@ -11753,6 +12462,17 @@ declare function roundLength(m: number): number;
 declare function snapToPixel(m: number, pxPerMetre: number): number;
 
 ## scene/validate.ts
+type SublevelJudgeOptions = {
+    at?: Pt;
+    label: string;
+    list: readonly SceneListEntry[];
+    pxPerMetre: number;
+    scene: AssetId;
+    taken?: (label: string) => boolean;
+};
+type SublevelSettings = {
+    settings: Pick<ResolvedSettings, "gravity" | "grid" | "physics">;
+};
 type ValidateOptions = {
     engine?: Readonly<Record<string, unknown>>;
     lines?: ReadonlyMap<string, number>;
@@ -11761,6 +12481,7 @@ type ValidateOptions = {
     project?: ProjectView;
     settings?: SettingsSources;
 };
+declare function sublevelIssue(main: SublevelSettings, sub: SublevelSettings, opts: SublevelJudgeOptions): SceneIssue | null;
 declare function validateScene(source: SceneDefinition, registry: Registry, opts?: ValidateOptions): SceneIssue[];
 
 ## sim-kit/digest.ts
@@ -12030,6 +12751,14 @@ type CameraState = {
     scale: number;
     zoom: number;
 };
+type FlowResult = {
+    issue: SceneIssue;
+    ok: false;
+} | {
+    ok: true;
+    report: LoadReport;
+    scene: AssetId;
+};
 type GameConfig = {
     assets?: {
         kinds: KindRegistry;
@@ -12044,6 +12773,11 @@ type GameConfig = {
     dev: boolean;
     displayHeight: number;
     displayWidth: number;
+    flow?: {
+        loading?: LoadingViewFactory | false;
+        source: SceneSource;
+        transition?: TransitionRunner;
+    };
     game: GameDefinition | null;
     input?: {
         remaps?: RemapStore;
@@ -12057,10 +12791,17 @@ type GameConfig = {
     recording?: RecordingHost;
     registry?: Registry;
     resolution?: Partial<ResolutionPolicy>;
+    saves?: SaveStore;
     scene?: ExpandedScene | SceneDefinition;
     targetFPS: number;
 };
 type GameEventMap = {
+    "flow:change": {
+        entry: null | string;
+        from: AssetId | null;
+        to: AssetId;
+    };
+    "flow:loading": LoadProgress;
     "game:destroy": undefined;
     "game:pause": undefined;
     "game:start": undefined;
@@ -12069,7 +12810,22 @@ type GameEventMap = {
     };
     "play:outcome": PlayOutcome;
     "play:recorded": RunRecording;
+    "save:failed": {
+        issue: SceneIssue;
+        slot: string;
+    };
+    "save:written": {
+        bytes: number;
+        slot: string;
+    };
     "scene:step": StepResult;
+};
+type GameFlow = {
+    current(): AssetId | null;
+    go(to: AssetId, opts?: Omit<FlowRequest, "to">): Promise<FlowResult>;
+    readonly scenes: readonly SceneListEntry[];
+    readonly start: AssetId | null;
+    restart(): Promise<FlowResult>;
 };
 type GameInput = {
     assign: (device: DeviceId, player: null | number) => void;
@@ -12110,6 +12866,7 @@ type GameInstance = {
         ])[];
         renderer: string;
     };
+    flow: GameFlow;
     frame: (rect: Aabb, marginPx?: number) => void;
     getMode: () => GameMode;
     getStore: () => Store<GameStoreState>;
@@ -12140,6 +12897,7 @@ type GameInstance = {
     resume: () => void;
     router: ToolRouter;
     runtime: () => SceneRuntime | null;
+    saves: SaveSlots;
     screenToWorld: (screen: Vec2) => Vec2;
     send: (command: GameCommand) => boolean;
     setMode: (mode: GameMode) => void;
@@ -12184,8 +12942,14 @@ type InputBinding = {
     bindings?: readonly Binding[];
     keys?: readonly string[];
 };
+type LoadingView = {
+    hide(): void;
+    show(p: LoadProgress): void;
+};
+type LoadingViewFactory = (layer: HTMLElement) => LoadingView;
 type PlayOutcome = GameOutcome & {
     tick: number;
+    to?: AssetId;
 };
 type PlayReport = {
     error?: string;
@@ -12201,10 +12965,16 @@ type PlaySession = {
     startTick: number;
 };
 type RapierModule = typeof _$_dimforge_rapier2d0;
+type SceneSource = {
+    list(): readonly SceneListEntry[];
+    scene(id: AssetId): LibraryScene | null;
+    start(): AssetId | null;
+};
 type SimState = {
     paused: boolean;
     timeScale: number;
 };
+type TransitionRunner = (phase: "in" | "out", spec: TransitionSpec, layer: HTMLElement) => Promise<void>;
 type UiActionEvent = {
     action: string;
     device: DeviceId;
@@ -12224,6 +12994,14 @@ type Vec2 = {
 declare function bindText<T>(el: HTMLElement, ctx: UiContext, select: (s: GameStoreState) => T, format?: (v: T) => string): () => void;
 declare function bindToWorld(el: HTMLElement, ctx: UiContext, at: () => Vec2 | null): () => void;
 declare function watchView(ctx: UiContext, fn: () => void): () => void;
+
+## ui/flow-views.ts
+declare function createLoadingOverlay(opts?: {
+    label?: string;
+}): LoadingViewFactory;
+declare function fadeTransition(opts?: {
+    color?: number;
+}): TransitionRunner;
 
 ## ui/layer.ts
 declare function createUiLayer(canvas: HTMLCanvasElement): {
@@ -12249,7 +13027,7 @@ type UiHandle = {
 };
 
 ## version.ts
-declare const ENGINE_VERSION = "0.12.0";
+declare const ENGINE_VERSION = "0.13.0";
 
 ## vite/apply-files.ts
 type FileApplyOptions = {

@@ -78,7 +78,7 @@ import { createPixiView, type PixiView } from "./render/pixi-view";
 import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
 import { loadListed } from "./runtime/flow";
-import { gamePersistCell } from "./runtime/persist";
+import { gamePersistCell, playClockOf } from "./runtime/persist";
 import {
   createSessionRecording,
   playWorld,
@@ -718,7 +718,11 @@ export async function createGame(
       };
       let loadedListed: ReturnType<typeof loadListed>;
       try {
-        loadedListed = loadListed(built.runtime, id);
+        loadedListed = loadListed(
+          built.runtime,
+          id,
+          file.scene.entry !== undefined ? { entry: file.scene.entry } : {},
+        );
       } catch (error) {
         drop();
         return {
@@ -749,7 +753,7 @@ export async function createGame(
       if (running) resume();
     }
     syncGameSlice();
-    events.emit("flow:change", { from, to: id, entry: null });
+    events.emit("flow:change", { from, to: id, entry: file.scene.entry ?? null });
     return { ok: true };
   }
 
@@ -1764,7 +1768,12 @@ export async function createGame(
       session = null;
     }
     const before = opts.reset ? persist.value : undefined;
-    if (opts.reset) persist.reset();
+    const clock = playClockOf(persist);
+    const ticksBefore = clock.ticks;
+    if (opts.reset) {
+      persist.reset();
+      clock.ticks = 0;
+    }
     const built = buildRuntime(id);
     let result: ReturnType<typeof loadListed>;
     try {
@@ -1785,6 +1794,7 @@ export async function createGame(
         built.view.destroy();
       }
       if (before !== undefined) persist.set(before);
+      clock.ticks = ticksBefore;
       return { ok: false, issue: result.issue };
     }
     const scene = built.runtime.scene()!;

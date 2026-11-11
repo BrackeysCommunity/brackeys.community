@@ -301,10 +301,22 @@ export function panelGroup(
   return null;
 }
 
+/**
+ * The bottom-group height, px, a panel with long forms needs to be usable:
+ * selecting it in a shorter bottom group grows the group to this (still
+ * bounded by the column when drawn), and the viewer can shrink it again.
+ */
+const PANEL_HEIGHTS: Readonly<Partial<Record<PanelId, number>>> = { settings: 480 };
+
 export const selectTab = (layout: EditorLayout, panel: PanelId): EditorLayout => {
   const at = panelGroup(layout, panel);
   if (!at || layout[at.side].groups[at.group]?.active === panel) return layout;
-  return setGroup(layout, at.side, at.group, (g) => ({ ...g, active: panel }));
+  const wants = at.group === 1 ? PANEL_HEIGHTS[panel] : undefined;
+  return setGroup(layout, at.side, at.group, (g) => ({
+    ...g,
+    active: panel,
+    ...(wants !== undefined && g.size !== null && g.size < wants ? { size: wants } : {}),
+  }));
 };
 
 /** The bottom group's height a column starts with when a panel moves into a new one. */

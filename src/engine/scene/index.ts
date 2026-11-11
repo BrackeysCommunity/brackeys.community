@@ -183,11 +183,9 @@ export {
 export { closest } from "./did-you-mean";
 export {
   sublevelIssue,
-  sublevelUseIssues,
   validateScene,
   type SublevelJudgeOptions,
   type SublevelSettings,
-  type SublevelUse,
   type ValidateOptions,
 } from "./validate";
 export { ISSUE_CODES, jsonPointer, makeIssue } from "./issues";

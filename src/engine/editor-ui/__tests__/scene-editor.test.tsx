@@ -440,7 +440,7 @@ describe("SceneEditor", () => {
       />,
     );
     await waitFor(() => outliner().getByRole("button", { name: /pad/ }), { timeout: 10_000 });
-    fireEvent.click(screen.getByRole("tab", { name: /Project/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Project$/ }));
     const trigger = await waitFor(() => screen.getByRole("combobox", { name: "Open project" }));
     fireEvent.click(trigger);
     const engine = await waitFor(() => screen.getByRole("option", { name: "Engine" }));

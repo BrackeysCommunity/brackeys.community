@@ -78,7 +78,7 @@ tactics game's: a turn game on a grid, driven by commands) and `engine-yard`
 | `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file]`                                                                                                       | with --record            | a headless run of a v1 or v2 input script (`--at` in metres): outcome, steps, events, spawns and destroys per type, focus trail, `recording`, and a `legal` count for a game that lists its commands; `--flow` follows scene requests (`segments`), `--from-save` starts from a save fixture; exit 1 when blocked |
 | `replay <scene\|file\|-> --run <file\|-> [--game id]`                                                                                                                                                                                     | no                       | replays a run recording (or a playtest report's) headless, with the recorded engine, physics and platform and `migratedFrom 1` for a v1 file; exit 1 when it ends differently                                                                                                                                     |
 | `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id] [--from-save file]`                                                                                                                                              | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second, and for a game that lists its commands how many it sent; takes no script; `--from-save` starts every rollout from a save fixture                                                                                 |
-| `save <scene\|file> --script <file\|-> --at <tick> --out <file>.save.json [--depth world\|progress]`                                                                                                                                      | yes                      | runs the script to the tick and writes a `save:v1` fixture there (inside a project, as a `save` asset); refused with `save-unsupported` and its causes; see [Saves](#saves)                                                                                                                                       |
+| `save <scene\|file> --script <file\|-> --at <tick> --out <file>.save.json [--depth world\|progress] [--now ms]`                                                                                                                           | yes                      | runs the script to the tick and writes a `save:v1` fixture there (inside a project, as a `save` asset); refused with `save-unsupported` and its causes; see [Saves](#saves)                                                                                                                                       |
 | `input [--project p] [--player n] [--json]`                                                                                                                                                                                               | no                       | each seat's resolved bindings per action, layer by layer (the input map's, then the game's), which one the seat uses, and their issues; loads no Rapier; see [Input v2](#input-v2)                                                                                                                                |
 | `check <scene\|file> [--checks file] [--only id] [--game id]`                                                                                                                                                                             | no                       | runs `<scene>.checks.json`; each check passes, fails or is skipped; exit 1 when one fails                                                                                                                                                                                                                         |
 | `render <scene\|file\|-> [--out file] [--ascii] [view flags…]`                                                                                                                                                                            | with --out               | a schematic PNG or SVG of the scene, or `--ascii` a character map; see [Rendering](#rendering)                                                                                                                                                                                                                    |
@@ -1476,7 +1476,11 @@ simulated tick) and writes one there (`--depth world`, the default, or
 `progress`); the slot is the file's stem. Inside a project the fixture is
 imported as a `save` asset, and saving again to the same path replaces its
 bytes (the project's history keeps the old ones); outside one it is a plain
-file. A run that ends before `--at` saves nothing (exit 1).
+file; a path a project doesn't hold as an asset (a test's `__tests__/fixtures/`)
+is a plain file too. A run that ends before `--at` saves nothing (exit 1).
+`meta.savedAt` is `--now <ms>` (epoch milliseconds, default 0), so saving the
+same script to the same tick writes the same bytes and the same hash, and a
+recording's `fromSave` pin survives a recapture of an unchanged state.
 `playtest --from-save <file>` and `fuzz --from-save <file>` start from a
 fixture instead of the scene's fresh load, and the run's recording names it
 in `fromSave`; replaying that recording needs the project's fixture with
@@ -1493,7 +1497,7 @@ vp run scene save level-2 --script scripts/scene/examples/take-stair.json --at 1
 ```
 
 ```text
-level-2: saved world at t10 to turn-one.save.json (slot turn-one, 2728 B, sha256 86641d3ad73e)
+level-2: saved world at t10 to turn-one.save.json (slot turn-one, 2716 B, sha256 3f314a889fde)
 ```
 
 The platformer's scenes run on Rapier, so a world save refuses with each

@@ -6,7 +6,13 @@ import type { SceneIssue } from "../../scene/types";
 import type { RefSite } from "../refs";
 import type { AssetEntry, AssetId, AssetPath, ProjectView } from "../types";
 import { checksBeside } from "./checks";
-import { defineAssetKind, folderOf, isPlainObject, perProjectEntries } from "./define";
+import {
+  defineAssetKind,
+  folderOf,
+  isPlainObject,
+  perProjectEntries,
+  type KindEnv,
+} from "./define";
 
 export const SCENE_LIST_KIND = "scene-list";
 export const SCENE_LIST_VERSION = 1;
@@ -82,16 +88,18 @@ export const sceneListKind = defineAssetKind({
   },
   limits: { maxStateBytes: 65_536, maxItems: 1_024 },
   /**
-   * `start-scene-missing` from flow's rule: an error for a start that isn't
-   * listed or is a sublevel, a warning while `start` is null (the empty
-   * list's), so a new list can be written before it names one; flow refuses
-   * to start either. An entry naming no scene is the ref index's
-   * `asset-missing`; a repeated entry is the keyed layout's `dup-id`.
+   * `start-scene-missing` from flow's rule: an error for a start that is
+   * null, isn't listed or is a sublevel. A list that lists nothing (a
+   * project without scenes) has nothing to start, so its null start is a
+   * warning there; flow refuses to start either way. An entry naming no
+   * scene is the ref index's `asset-missing`; a repeated entry is the keyed
+   * layout's `dup-id`.
    */
   validate: (file: SceneListFile): SceneIssue[] => {
     const issue = flowIssue(file.scenes, file.start, "start");
     if (!issue) return [];
-    return [{ ...issue, path: "/start", ...(file.start === null ? { severity: "warn" } : {}) }];
+    const nothingListed = file.start === null && file.scenes.length === 0;
+    return [{ ...issue, path: "/start", ...(nothingListed ? { severity: "warn" } : {}) }];
   },
   refs: (file: SceneListFile): RefSite[] => [
     ...(file.start === null ? [] : [{ pointer: "/start", id: file.start, kinds: [SCENE_KIND] }]),
@@ -102,13 +110,17 @@ export const sceneListKind = defineAssetKind({
       kinds: [SCENE_KIND],
     })),
   ],
-  empty: (): SceneListFile => ({
-    kind: SCENE_LIST_KIND,
-    v: SCENE_LIST_VERSION,
-    start: null,
-    scenes: [],
-  }),
+  empty: (env?: KindEnv): SceneListFile => sceneListOf(env?.project ?? null),
 });
+
+/**
+ * A new scene list for `view`: every live scene by path, the first as
+ * start; `{ start: null, scenes: [] }` without a view or a scene.
+ */
+function sceneListOf(view: ProjectView | null): SceneListFile {
+  const scenes = view ? perProjectEntries(view, SCENE_KIND).map((e) => ({ scene: e.id })) : [];
+  return { kind: SCENE_LIST_KIND, v: SCENE_LIST_VERSION, start: scenes[0]?.scene ?? null, scenes };
+}
 
 /** The project's live scene lists, the one in effect (first by path) first. */
 export function sceneListEntries(view: ProjectView): AssetEntry[] {
