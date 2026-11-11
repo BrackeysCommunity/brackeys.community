@@ -226,13 +226,16 @@ const isGameEntry = (target: string) =>
 /**
  * What the site may load of a game: its entries (`index.ts`, the DOM UI's
  * `ui/index.ts`, the dev-only `debug/index.ts`) and its project JSON (the
- * project file, scenes and prefabs). Nothing else of a game is the site's.
+ * project file, scenes, prefabs, game settings, input map and data
+ * tables). Nothing else of a game is the site's.
  */
 const isSiteGameTarget = (target: string) => {
   const path = posix(relative(GAMES, target));
   return (
     /^[a-z0-9-]+(\/(ui|debug))?(\/index(\.ts)?)?$/.test(path) ||
-    /^[a-z0-9-]+\/(jams\.project|scenes\/[a-z0-9-]+|scenes\/prefabs\/[a-z0-9-]+)\.json$/.test(path)
+    /^[a-z0-9-]+\/(jams\.project|game-settings|input-map|scenes\/[a-z0-9-]+|scenes\/prefabs\/[a-z0-9-]+|data\/[a-z0-9-]+)\.json$/.test(
+      path,
+    )
   );
 };
 
@@ -874,6 +877,8 @@ describe("package boundary", () => {
           "import.meta.glob('@/games/platformer/scenes/prefabs/*.json');",
           'import.meta.glob("/src/games/*/scenes/{*.json,prefabs/*.json}");',
           'import.meta.glob("/src/games/*/debug/index.ts");',
+          'import.meta.glob(["/src/games/*/{game-settings,input-map}.json", "/src/games/*/data/*.json", "!/src/games/*/data/*.asset.json"]);',
+          'import.meta.glob("/src/games/*/data/**/*.json");',
           'import.meta.glob("/src/games/**/*.ts");',
           'import.meta.glob("/src/games/*/runtime.ts");',
           'import.meta.glob("../../games/*/ui/*.ts");',
@@ -888,6 +893,10 @@ describe("package boundary", () => {
       null,
       null,
       null,
+      null,
+      null,
+      null,
+      "globs more of a game than its entries and project JSON: /src/games/*/data/**/*.json",
       "globs more of a game than its entries and project JSON: /src/games/**/*.ts",
       "globs more of a game than its entries and project JSON: /src/games/*/runtime.ts",
       "globs more of a game than its entries and project JSON: ../../games/*/ui/*.ts",

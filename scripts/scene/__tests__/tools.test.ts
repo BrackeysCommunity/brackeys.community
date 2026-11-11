@@ -1344,19 +1344,23 @@ describe("step", () => {
 });
 
 /** A physics-free turns game listing a `pick` for each of `count` cards not yet picked; it wins when all are. */
-function pickGame(count: number) {
+function pickGame(count: number, refuses = false) {
   return defineGame<{ picked: number[] }>({
-    id: "pick-game",
+    id: refuses ? "refusing-pick-game" : "pick-game",
     types: [],
     actions: [],
     time: { kind: "turns" },
     world: { physics: "none" },
-    commands: { pick: { description: "Picks card i.", args: z.strictObject({ i: z.number() }) } },
-    createRuntime() {
+    commands: {
+      pick: { description: "Picks card i.", args: z.strictObject({ i: z.number() }) },
+      ...(refuses ? { refuse: { description: "Spawns a type nobody registered." } } : {}),
+    },
+    createRuntime(ctx) {
       const picked: number[] = [];
       return {
         beforeStep(_dt, _actions, commands) {
           for (const c of commands) if (c.name === "pick") picked.push((c.args as { i: number }).i);
+          if (commands.some((c) => c.name === "refuse")) ctx.spawn({ type: "nope", at: [0, 0] });
         },
         snapshot: () => ({ picked: [...picked] }),
       };
@@ -1373,8 +1377,8 @@ function pickGame(count: number) {
 }
 
 /** `ctx` plus a project for `pickGame(count)` holding pick-yard. */
-async function pickCtx(count: number): Promise<ToolContext> {
-  const game = pickGame(count);
+async function pickCtx(count: number, refuses = false): Promise<ToolContext> {
+  const game = pickGame(count, refuses);
   const dir = join(root, `${game.id}-${count}`);
   await mkdir(dir, { recursive: true });
   const yard = {
@@ -1391,6 +1395,59 @@ async function pickCtx(count: number): Promise<ToolContext> {
     loadRapier: () => Promise.reject(new Error("a physics-free run loaded Rapier")),
   };
 }
+
+describe("UI-only actions in step", () => {
+  const menuGame = defineGame({
+    id: "menu-game",
+    types: [],
+    actions: [
+      { action: "go", bindings: [{ device: "key", code: "KeyG" }], description: "Goes." },
+      {
+        action: "menu",
+        bindings: [{ device: "key", code: "Escape" }],
+        description: "Opens the menu.",
+        ui: true,
+      },
+    ],
+    world: { physics: "none" },
+    createRuntime: () => ({ snapshot: () => null }),
+  });
+
+  async function menuCtx(): Promise<ToolContext> {
+    const dir = join(root, menuGame.id);
+    await mkdir(dir, { recursive: true });
+    const yard = {
+      v: 4,
+      name: "menu-yard",
+      game: menuGame.id,
+      bounds: [0, 0, 10, 10],
+      entities: [],
+    };
+    await writeFile(join(dir, "menu-yard.json"), JSON.stringify(yard, null, 2));
+    return {
+      ...ctx,
+      projects: [...ctx.projects, await tempProject(dir, { game: menuGame })],
+      loadRapier: () => Promise.reject(new Error("a physics-free run loaded Rapier")),
+    };
+  }
+
+  it("refuses a UI-only action in --hold and --inputs, as a script does", async () => {
+    const menus = await menuCtx();
+    expect((await step({ scene: "menu-yard", ticks: "2", hold: "go" }, menus)).exitCode).toBe(0);
+    const held = await step({ scene: "menu-yard", ticks: "2", hold: "menu" }, menus);
+    expect(held.exitCode).toBe(2);
+    expect(held.text).toContain('--hold: "menu" is a UI-only action');
+    expect(held.text).toContain("binding-unknown");
+    expect(held.text).toContain("UI actions don't reach the simulation; send a command");
+    await writeFile(join(root, "menu-in.json"), JSON.stringify([[1, "menu", 1]]));
+    const pressed = await step(
+      { scene: "menu-yard", ticks: "2", inputs: join(root, "menu-in.json") },
+      menus,
+    );
+    expect(pressed.exitCode).toBe(2);
+    expect(pressed.text).toContain('--inputs: "menu" is a UI-only action');
+  });
+});
 
 describe("legal commands", () => {
   it("step --legal prints the commands legal after the steps, and --json carries them", async () => {
@@ -1424,6 +1481,16 @@ describe("legal commands", () => {
       await pickCtx(1),
     );
     expect(done.text).toContain("  legal: none");
+  });
+
+  it("step --legal says a blocked run of a game that lists commands has none", async () => {
+    const blocked = await step(
+      { scene: "pick-yard", ticks: "4", command: ["2:refuse"], legal: true },
+      await pickCtx(3, true),
+    );
+    expect(blocked.exitCode).toBe(1);
+    expect(blocked.text).toContain("after 2 ticks\n  legal: none (run blocked)");
+    expect(blocked.text).not.toContain("lists no commands");
   });
 
   it("playtest and fuzz print legal counts for a game that lists its commands", async () => {

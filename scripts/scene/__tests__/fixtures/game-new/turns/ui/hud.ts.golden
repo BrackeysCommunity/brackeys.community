@@ -13,8 +13,9 @@ export const createHud: MountUi<Slice> = (ctx) => {
   const panel = document.createElement("div");
   Object.assign(panel.style, {
     position: "absolute",
-    top: "8px",
-    left: "8px",
+    // The host's chrome over the canvas, if any, sets these; see UiContext.root.
+    top: "calc(var(--jams-ui-safe-top, 0px) + 8px)",
+    left: "calc(var(--jams-ui-safe-left, 0px) + 8px)",
     display: "flex",
     alignItems: "center",
     gap: "8px",

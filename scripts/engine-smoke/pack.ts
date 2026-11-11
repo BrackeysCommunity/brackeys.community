@@ -33,7 +33,7 @@ export type PackageJson = {
 export function run(cmd: string, args: string[], opts: SpawnSyncOptions = {}): string {
   const res = spawnSync(cmd, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...opts });
   if (res.status !== 0) throw new Error(describeFailure([cmd, ...args].join(" "), res));
-  return String(res.stdout);
+  return text(res.stdout);
 }
 
 /** Why a child failed: a spawn error (ENOENT, ETIMEDOUT, ENOBUFS), a signal, or an exit code. */
@@ -43,8 +43,8 @@ export function describeFailure(
     status: number | null;
     signal?: NodeJS.Signals | null;
     error?: Error;
-    stdout?: unknown;
-    stderr?: unknown;
+    stdout?: string | Buffer | null;
+    stderr?: string | Buffer | null;
   },
 ): string {
   const how = res.error
@@ -52,7 +52,12 @@ export function describeFailure(
     : res.signal
       ? `was killed by ${res.signal}`
       : `exited ${res.status}`;
-  return `${command} ${how}\n${String(res.stdout ?? "")}\n${String(res.stderr ?? "")}`;
+  return `${command} ${how}\n${text(res.stdout)}\n${text(res.stderr)}`;
+}
+
+function text(out: string | Buffer | null | undefined): string {
+  if (out == null) return "";
+  return typeof out === "string" ? out : out.toString("utf8");
 }
 
 export type Packed = {

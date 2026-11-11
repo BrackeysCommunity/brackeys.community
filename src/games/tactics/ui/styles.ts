@@ -8,7 +8,10 @@ export const CLS = {
   card: "tactics-hud-card",
   menu: "tactics-hud-menu",
   button: "tactics-hud-button",
+  top: "tactics-hud-top",
+  side: "tactics-hud-side",
   log: "tactics-hud-log",
+  live: "tactics-hud-live",
 } as const;
 
 const css = `
@@ -42,31 +45,56 @@ const css = `
 @keyframes tactics-hud-pulse { from { opacity: 1; } to { opacity: 0.55; } }
 @media (prefers-reduced-motion: reduce) { .${CLS.pulse} { animation: none; } }
 
-.${CLS.banner}, .${CLS.card}, .${CLS.menu} {
-  position: absolute;
+/* The host's chrome over the canvas, as UiContext.root documents it; panels keep 8px clear of it. */
+.${CLS.root} {
+  --tactics-top: calc(var(--jams-ui-safe-top, 0px) + 8px);
+  --tactics-right: calc(var(--jams-ui-safe-right, 0px) + 8px);
+  --tactics-bottom: calc(var(--jams-ui-safe-bottom, 0px) + 8px);
+  --tactics-left: calc(var(--jams-ui-safe-left, 0px) + 8px);
+}
+.${CLS.banner}, .${CLS.card}, .${CLS.menu}, .${CLS.log} {
   background: var(--tactics-panel);
   border: 1px solid var(--tactics-edge);
   border-radius: 6px;
 }
+/* The side column (card, log) and the banner share one grid row, so a narrow window wraps the banner instead of overlapping. */
+.${CLS.top} {
+  position: absolute;
+  top: var(--tactics-top);
+  left: var(--tactics-left);
+  right: var(--tactics-right);
+  display: grid;
+  grid-template-columns: minmax(min-content, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.${CLS.side} { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
 .${CLS.banner} {
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
+  grid-column: 2;
   padding: 4px 12px;
   font-weight: 600;
-  white-space: nowrap;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
-.${CLS.card} { top: 8px; left: 8px; min-width: 9rem; padding: 6px 10px; }
+.${CLS.card} { min-width: 9rem; padding: 6px 10px; }
 .${CLS.card}[hidden] { display: none; }
 .${CLS.card} h2 { margin: 0 0 4px; font-size: 14px; }
 .${CLS.card} dl { display: grid; grid-template-columns: auto auto; gap: 1px 10px; margin: 0; }
 .${CLS.card} dt { opacity: 0.7; }
 .${CLS.card} dd { margin: 0; text-align: right; }
+.${CLS.log} { max-width: 16rem; margin: 0; padding: 4px 10px; list-style: none; font-size: 12px; }
+.${CLS.log}[hidden] { display: none; }
+.${CLS.log} li { opacity: 0.7; }
+.${CLS.log} li:last-child { opacity: 1; }
 .${CLS.menu} {
-  bottom: 8px;
+  position: absolute;
+  bottom: var(--tactics-bottom);
   left: 50%;
   transform: translateX(-50%);
+  max-width: calc(100% - var(--tactics-left) - var(--tactics-right));
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 4px;
   padding: 4px;
   pointer-events: auto;
@@ -84,7 +112,7 @@ const css = `
 .${CLS.button}:focus-visible { outline: 2px solid var(--tactics-focus); outline-offset: 1px; }
 .${CLS.button}[aria-pressed="true"] { background: rgb(90 160 255 / 0.4); }
 .${CLS.button}[aria-disabled="true"] { opacity: 0.45; cursor: default; }
-.${CLS.log} {
+.${CLS.live} {
   position: absolute;
   width: 1px;
   height: 1px;

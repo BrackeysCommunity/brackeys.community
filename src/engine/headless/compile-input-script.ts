@@ -1,5 +1,6 @@
 import type { z } from "zod";
 
+import { simBindings } from "../game/input-bindings";
 import { pointerBit, POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
 import { resolveTime, ticksFor, type ResolvedTime } from "../game/time";
 import type {
@@ -661,7 +662,10 @@ export function compileInputScript(
   return { ok: true, script: compiled };
 }
 
-/** Each seat's pointer bindings, `map`'s over the game's; undefined when no seat binds a pointer button. */
+/**
+ * Each seat's pointer bindings, `map`'s over the game's, without UI-only
+ * actions (`simBindings`); undefined when no seat binds a pointer button.
+ */
 function pointerBindingsOf(
   registry: Registry,
   map: Pick<InputMapFile, "actions"> | null | undefined,
@@ -671,12 +675,12 @@ function pointerBindingsOf(
   if (tables.pointer.size === 0) return undefined;
   const out: PointerBindings[] = Array.from({ length: seats }, () => ({}));
   for (const button of POINTER_BUTTONS) {
-    for (const b of tables.pointer.get(button) ?? []) {
+    for (const b of simBindings(registry, tables.pointer.get(button) ?? [])) {
       const seat = out[b.player];
       if (seat) seat[button] = [...(seat[button] ?? []), { action: b.action, binding: b.binding }];
     }
   }
-  return out;
+  return out.some((seat) => Object.keys(seat).length > 0) ? out : undefined;
 }
 
 // ─── Playing ─────────────────────────────────────────────

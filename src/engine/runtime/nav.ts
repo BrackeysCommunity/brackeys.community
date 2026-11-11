@@ -2,7 +2,7 @@ import type { EngineContext, Registry } from "../game/types";
 import { buildNavMesh, navContains, navNearest, navPath, type NavMesh } from "../nav/navmesh";
 import { isNavType } from "../scene/nav-type";
 import type { Pt, RuntimeEntity, ShapeObj } from "../scene/types";
-import { createNavSystem, isNavSystem, type NavPolygon, type NavSystem } from "../systems/nav";
+import { isNavSystem, type NavPolygon, type NavSystem } from "../systems/nav";
 import type { Vec2 } from "../types";
 
 /** Navigation over the loaded scene's walk areas: present when it has some. */
@@ -46,7 +46,7 @@ export function navPolygonsOf(
   for (const name of registry.spawnGroups.flat()) {
     const list = byType.get(name);
     const type = registry.types.get(name);
-    if (!list || !type || !isNavType(type, createNavSystem)) continue;
+    if (!list || !type || !isNavType(type)) continue;
     for (const e of list) {
       const shape = e.shape as ShapeObj | undefined;
       if (shape?.type !== "poly") continue;

@@ -16,8 +16,9 @@ import {
 import type { GameDefinition } from "@jams/engine/game";
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@tanstack/react-store";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { CanvasShell } from "@/components/canvas/shell/CanvasShell";
 import { DEFAULT_SCENE as ENGINE_DEFAULT_SCENE } from "@/games/engine-editor";
 import { activeUserStore, type ActiveUserProfile } from "@/lib/active-user-store";
 import { presenceColor } from "@/lib/canvas/presence";
@@ -27,7 +28,9 @@ import { play, type SoundName } from "@/lib/sound";
 import { toast } from "@/lib/toast";
 
 import { EditorLoading } from "./editor-loading";
-import { DEFAULT_GAME, hostedGames, type HostedGame } from "./hosted-games";
+import { BlankCanvas } from "./game-canvas-loading";
+import { LoadFailed } from "./GameCanvas";
+import { DEFAULT_GAME, hostedGames, useLoaded, type HostedGame } from "./hosted-games";
 import { GameSiteIsland } from "./site-island";
 
 /** What the editor opens a project with. */
@@ -302,38 +305,32 @@ export function SiteSceneEditor({ roomId, project, scene, onSceneChange }: SiteS
       projectNames={names ?? undefined}
       onSceneChange={onSceneChange ?? ((id) => go({ scene: id }, true))}
       onProjectChange={(id, opts) =>
-        go({ project: id === DEFAULT_PROJECT ? undefined : id, scene: opts?.scene }, false)
+        go(
+          { project: id === DEFAULT_PROJECT ? undefined : id, scene: opts?.scene, game: undefined },
+          false,
+        )
       }
     />
   );
 }
 
-/** `project`'s modules once they load; null until then, and after a failure the toast reports. */
-function useProjectModules(project: SiteProject): SiteProjectModules | null {
-  const [modules, setModules] = useState<SiteProjectModules | null>(null);
-  useEffect(() => {
-    let live = true;
-    project.load().then(
-      (loaded) => {
-        if (live) setModules(loaded);
-      },
-      (error: unknown) => {
-        if (!live) return;
-        siteNotify.error(`The project "${project.id}" couldn't load`, {
-          description: error instanceof Error ? error.message : String(error),
-        });
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [project]);
-  return modules;
-}
-
 function ProjectSceneEditor(props: ProjectSceneEditorProps) {
-  const modules = useProjectModules(props.project);
-  if (!modules) return <EditorLoading roomId={props.roomId} />;
+  const { project, roomId } = props;
+  const load = useCallback(() => project.load(), [project]);
+  const { value: modules, error, retry } = useLoaded(load);
+  if (error !== null) {
+    return (
+      <CanvasShell topLeft={<GameSiteIsland title={roomId} />}>
+        <BlankCanvas />
+        <LoadFailed
+          title={`The project "${project.id}" couldn't load`}
+          error={error}
+          onRetry={retry}
+        />
+      </CanvasShell>
+    );
+  }
+  if (!modules) return <EditorLoading roomId={roomId} />;
   return <LoadedSceneEditor {...props} modules={modules} />;
 }
 

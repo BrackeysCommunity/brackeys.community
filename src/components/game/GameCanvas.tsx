@@ -11,10 +11,11 @@ import {
 import { scenePhysics } from "@jams/engine/scene";
 import { useStore } from "@tanstack/react-store";
 import type { Store } from "@tanstack/store";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CanvasShell, Island } from "@/components/canvas/shell/CanvasShell";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel } from "@/components/ui/typography";
 import { useFlag } from "@/lib/hooks/use-flag";
@@ -22,7 +23,13 @@ import { toast } from "@/lib/toast";
 
 import { displayResolution, useDisplaySetting } from "./display-menu";
 import { EditorLoading } from "./editor-loading";
-import { DEFAULT_GAME, hostedGame, type HostedGame, type HostedGameModules } from "./hosted-games";
+import {
+  DEFAULT_GAME,
+  hostedGame,
+  useLoaded,
+  type HostedGame,
+  type HostedGameModules,
+} from "./hosted-games";
 import { GameSiteIsland } from "./site-island";
 
 const loadRapier = () => import("@dimforge/rapier2d");
@@ -38,52 +45,47 @@ type GameCanvasProps = {
   gameId?: string;
   /** Opens the scene editor; dev builds only. */
   edit?: boolean;
-  /** The project the editor opens, by id; default the platformer. */
+  /** The project the editor opens, by id; default the hosted game `gameId` names, else the platformer. */
   project?: string;
   /** The project scene the editor opens, by id or name; default the project's own. */
   scene?: string;
 };
 
-export function GameCanvas({
-  roomId,
-  gameId = DEFAULT_GAME,
-  edit = false,
-  project,
-  scene,
-}: GameCanvasProps) {
+export function GameCanvas({ roomId, gameId, edit = false, project, scene }: GameCanvasProps) {
   if (edit && SiteSceneEditor) {
+    const editing = project ?? (gameId !== undefined && hostedGame(gameId) ? gameId : undefined);
     return (
       <Suspense fallback={<EditorLoading roomId={roomId} />}>
-        <SiteSceneEditor roomId={roomId} project={project} scene={scene} />
+        <SiteSceneEditor roomId={roomId} project={editing} scene={scene} />
       </Suspense>
     );
   }
-  const hosted = hostedGame(gameId);
+  const hosted = hostedGame(gameId ?? DEFAULT_GAME);
   if (!hosted) return <NotFoundPage subject="Game" />;
   return <GameRoom key={hosted.id} roomId={roomId} hosted={hosted} />;
 }
 
-/** The hosted game's modules once they load; null until then, and after a failure the toast reports. */
-function useHostedModules(hosted: HostedGame): HostedGameModules | null {
-  const [modules, setModules] = useState<HostedGameModules | null>(null);
-  useEffect(() => {
-    let live = true;
-    hosted.load().then(
-      (loaded) => {
-        if (live) setModules(loaded);
-      },
-      (error: unknown) => {
-        if (!live) return;
-        toast.error(`${hosted.name} couldn't load`, {
-          description: error instanceof Error ? error.message : String(error),
-        });
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [hosted]);
-  return modules;
+/** In place of a room's loading view once its code failed to load: what failed, why, and a retry. */
+export function LoadFailed({
+  title,
+  error,
+  onRetry,
+}: {
+  title: string;
+  error: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div role="alert" className="absolute inset-0 flex items-center justify-center p-6">
+      <div className="flex max-w-md flex-col items-center gap-3 text-center">
+        <p className="text-sm font-medium text-foreground">{title}</p>
+        <p className="text-xs break-words text-muted-foreground">{error}</p>
+        <Button size="sm" onClick={onRetry}>
+          Retry
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -94,7 +96,8 @@ function useHostedModules(hosted: HostedGame): HostedGameModules | null {
  */
 function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const modules = useHostedModules(hosted);
+  const load = useCallback(() => hosted.load(), [hosted]);
+  const { value: modules, error: loadError, retry } = useLoaded<HostedGameModules>(load);
   const [game, setGame] = useState<GameInstance | null>(null);
   const displayMenu = useFlag("game-display-menu");
   const [display, setDisplay] = useDisplaySetting();
@@ -107,7 +110,7 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !modules) return;
-    const { game: definition, registry, scene, prefabs } = modules;
+    const { game: definition, registry, scene, prefabs, project } = modules;
 
     let instance: GameInstance | null = null;
     let mounted = true;
@@ -130,7 +133,9 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
         dev: import.meta.env.DEV,
         debug,
         debugLayers,
-        ...(scenePhysics(scene, registry) === "rapier" ? { rapier: loadRapier } : {}),
+        ...(scenePhysics(scene, registry, project.engine) === "rapier"
+          ? { rapier: loadRapier }
+          : {}),
         // The page is the game: debug keys work with focus fallen to the body,
         // while play input still needs the canvas focused.
         keyTarget: window,
@@ -138,6 +143,7 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
         input: { touch: "auto", remaps: browserRemapStore() },
         prefabs,
         scene,
+        project,
         ...(resolution ? { resolution } : {}),
       });
 
@@ -198,7 +204,9 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
         className="block h-full w-full bg-[#1a1a2e] outline-none"
         style={{ touchAction: "none" }}
       />
-      {modules ? null : (
+      {modules ? null : loadError !== null ? (
+        <LoadFailed title={`${hosted.name} couldn't load`} error={loadError} onRetry={retry} />
+      ) : (
         <div role="status" aria-label={`Loading ${hosted.name}`} className="absolute inset-0 p-6">
           <Skeleton className="h-full w-full bg-white/5" />
         </div>

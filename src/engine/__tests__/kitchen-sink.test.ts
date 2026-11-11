@@ -23,7 +23,12 @@ import { validatePhysical } from "../headless/validate-physical";
 import { assetInfo } from "../project/asset-info";
 import { sceneBundle } from "../project/bundle";
 import { memoryContentStore } from "../project/content-store";
-import { formatAssetDoc, parseAssetDoc, type DocKindDef } from "../project/kinds";
+import {
+  docKindJsonSchema,
+  formatAssetDoc,
+  parseAssetDoc,
+  type DocKindDef,
+} from "../project/kinds";
 import { ATLAS_KIND } from "../project/kinds/atlas";
 import { DATA_TABLE_KIND } from "../project/kinds/data-table";
 import { GAME_SETTINGS_KIND } from "../project/kinds/game-settings";
@@ -38,8 +43,10 @@ import { ENTITY_DESTROYED, SENSOR_ENTER } from "../runtime/types";
 import { parseChecks, type ChecksFile, type ReachesCheck } from "../scene/checks";
 import { expandScene } from "../scene/expand";
 import { formatPrefab, formatScene } from "../scene/format";
+import { parseInputScript, UI_ACTION_HINT } from "../scene/input-script";
 import { parseScene } from "../scene/parse";
 import { prefabsUsedBy } from "../scene/prefab";
+import { drawnEntities, oneWayEdge } from "../scene/render-geometry";
 import { resolvePrefab, valueAtPath } from "../scene/resolve";
 import { SHAPE_TYPES } from "../scene/shapes";
 import type { PrefabLibrary, Pt, RuntimeEntity, SceneDefinition } from "../scene/types";
@@ -54,7 +61,14 @@ import {
   type ProjectFileAdapter,
   type ProjectScan,
 } from "../vite/project-files";
-import { AVATAR_SPEED, CARD_TABLE, testGame } from "./fixtures/test-game";
+import {
+  AVATAR_SPEED,
+  CARD_TABLE,
+  CEILING,
+  MENU_ACTION,
+  testGame,
+  uiTestGame,
+} from "./fixtures/test-game";
 
 const scenesDir = new URL("../scenes/", import.meta.url);
 const scenesPath = fileURLToPath(scenesDir);
@@ -110,6 +124,8 @@ let values: Map<AssetId, unknown>;
 /** The engine's and the test game's registries with the project's material assets overlaid. */
 let engine: Registry;
 let game: Registry;
+/** The test game with a UI-only action and a type-wide one-way type, overlaid the same way. */
+let uiGame: Registry;
 const overlaid = (g: GameDefinition | null) => withProject(createRegistry(g), view, values);
 
 beforeAll(async () => {
@@ -123,6 +139,7 @@ beforeAll(async () => {
     values.set(entry.id, JSON.parse(await readFile(join(scenesPath, entry.path), "utf8")));
   engine = overlaid(null);
   game = overlaid(testGame);
+  uiGame = overlaid(uiTestGame);
   adapter = createProjectFileAdapter({ ...project, registry: engine });
   scan = await adapter.scan();
   view = projectView(scan.state, project.kinds);
@@ -483,6 +500,70 @@ describe("kitchen-sink.json", () => {
         const parsed = parseAssetDoc(kind, values.get(maps[0]!.id), { registry, project: view });
         expect(parsed.ok && parsed.issues).toEqual([]);
       }
+    });
+
+    it("an input map that binds a UI-only action under a game declaring one, the schema marking it", () => {
+      const map = values.get(entriesOf(INPUT_MAP_KIND)[0]!.id) as Record<string, unknown>;
+      const kind = project.kinds.get(INPUT_MAP_KIND) as DocKindDef;
+      expect(uiGame.uiActionNames).toEqual([MENU_ACTION]);
+      const bound = {
+        ...map,
+        actions: [{ action: MENU_ACTION, bindings: [{ device: "key", code: "KeyP" }] }],
+      };
+      const parsed = parseAssetDoc(kind, bound, { registry: uiGame, project: view });
+      expect(parsed.ok && parsed.issues).toEqual([]);
+      const schema = docKindJsonSchema(kind, { registry: uiGame, project: view }) as {
+        properties: Record<string, { items: { properties: Record<string, unknown> } }>;
+      };
+      expect(schema.properties.actions!.items.properties.action).toMatchObject({
+        anyOf: [{ enum: ["left", "right", "push"] }, { enum: [MENU_ACTION], "x-ui": true }],
+      });
+      // The engine project is gameless, so its file can't carry the binding: no game declares it there.
+      const gameless = parseAssetDoc(kind, bound, { registry: engine, project: view });
+      expect(gameless.issues.map((i) => i.code)).toEqual(["binding-unknown"]);
+    });
+
+    it("a script over the scene naming the UI-only action, refused with the hint", () => {
+      const parsed = parseInputScript(
+        { v: 2, scene: "kitchen-sink", steps: [{ hold: ["right", MENU_ACTION], for: 30 }] },
+        uiGame,
+      );
+      expect(parsed.ok).toBe(false);
+      if (parsed.ok) return;
+      expect(parsed.issues).toEqual([
+        expect.objectContaining({ path: "/steps/0/hold/1", hint: UI_ACTION_HINT }),
+      ]);
+      const settles = checks.checks.find((c): c is ReachesCheck => c.id === "settles")!;
+      expect(parseInputScript(settles.script, uiGame).ok).toBe(true);
+    });
+
+    it("type-wide one-way solids that draw the side the solid system lands actors on", () => {
+      expect(uiGame.types.get(CEILING.type)?.oneWay).toBe("down");
+      const retyped = ["ledge", "shelf-board", "side-wall"];
+      const own = Object.fromEntries(
+        entities()
+          .filter((e) => retyped.includes(e.id))
+          .map((e) => [e.id, e.oneWay]),
+      );
+      expect(own).toEqual({ ledge: true, "shelf-board": undefined, "side-wall": "left" });
+      const scene: SceneDefinition = {
+        ...def,
+        entities: entities().map((e) =>
+          retyped.includes(e.id) ? { ...e, type: CEILING.type } : e,
+        ),
+      };
+      const expandedScene = expandScene(scene, uiGame, { prefabs });
+      const drawn = Object.fromEntries(
+        drawnEntities(expandedScene, uiGame)
+          .filter((d) => retyped.includes(d.id))
+          .map((d) => [d.id, oneWayEdge(d)?.side]),
+      );
+      expect(drawn).toEqual({ ledge: "down", "shelf-board": "down", "side-wall": "left" });
+      const rt = createSceneRuntime({ rapier, view: null, game: uiTestGame, registry: uiGame });
+      expect(rt.load(expandedScene).ok).toBe(true);
+      for (const id of retyped)
+        expect(rt.ctx.tags.get(rt.ctx.tags.handlesOf(id)[0]!)?.oneWaySide, id).toBe(drawn[id]);
+      rt.destroy();
     });
   });
 

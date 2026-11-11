@@ -1,4 +1,4 @@
-import { isUiAction } from "../game/input-bindings";
+import { isUiAction, simBindings } from "../game/input-bindings";
 import { pointerBit, POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
 import { isRuntimeId } from "../game/runtime-ids";
 import { resolveTime, type ResolvedTime } from "../game/time";
@@ -9,6 +9,7 @@ import type {
   Macro,
   MacroRandom,
   PlayState,
+  Registry,
 } from "../game/types";
 import {
   actionValueChanged,
@@ -26,7 +27,7 @@ import type { Bounds, EntityTypeName, Pt, Ref } from "../scene/types";
 import { Rng } from "../sim-kit/rng";
 import type { InputAction } from "../types";
 import { heldEdges } from "./compile-input-script";
-import { probeConfigHash, unknownActionError } from "./headless";
+import { probeConfigHash, simActionError } from "./headless";
 import { legalCommands, startState } from "./legal";
 import {
   blockedRun,
@@ -147,6 +148,8 @@ function actionOf(name: string, state: ActionValue, slot: number, time: Resolved
 
 /** How a macro source reads the game's actions. */
 type MacroContext = {
+  registry: Registry;
+  /** The actions a macro may drive: the game's, without the UI-only ones. */
   actions: readonly string[];
   kindOf: (action: string) => ActionKind;
   /** Seat 0's bindings on each pointer button. */
@@ -181,7 +184,7 @@ function macroInput(
   ctx: MacroContext,
   commands: CommandMacros | null = null,
 ): InputSource {
-  const { actions, kindOf, time } = ctx;
+  const { registry, actions, kindOf, time } = ctx;
   let state = commands?.start ?? null;
   let send: GameCommand | null = null;
   let hold: readonly string[] = [];
@@ -215,12 +218,12 @@ function macroInput(
       );
     }
     for (const a of next.hold) {
-      const error = unknownActionError(a, actions);
+      const error = simActionError(registry, a);
       if (error) fail(error);
     }
     const set = new Map<string, ActionValue>();
     for (const [name, v] of Object.entries(next.set ?? {})) {
-      const error = unknownActionError(name, actions);
+      const error = simActionError(registry, name);
       if (error) fail(`set: ${error}`);
       const state = analogValue(kindOf(name), v);
       if (typeof state === "string") fail(`set.${name}: ${state}`);
@@ -340,7 +343,8 @@ const byRef = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
  * does and plays macros (the game's `play.macro`, else `defaultFuzzMacro`,
  * which also sets the game's axis and vector actions and moves and clicks
  * the pointer when an action is bound to it; a macro's `set` and `pointer`
- * drive seat 0; it never holds a UI action) drawn from `@jams/engine/sim-kit`'s
+ * drive seat 0; a game's macro gets the actions without the UI-only ones and
+ * fails the run if it holds or sets one, `simActionError`) drawn from `@jams/engine/sim-kit`'s
  * `Rng`. A game that lists its commands and has no macro of its own gets
  * command macros: one slot sending one of `legalCommands` (nothing when it
  * is empty), every macro for a `turns` game and half of them otherwise,
@@ -370,9 +374,7 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
   const play = game?.play;
   const bindings = resolveBindings({ game: registry.actions, map: opts.project?.inputMap });
   const pointerBindings = (button: PointerButton) =>
-    (bindings.tables.pointer.get(button) ?? []).filter(
-      (b) => b.player === 0 && !isUiAction(registry, b.action),
-    );
+    simBindings(registry, bindings.tables.pointer.get(button) ?? []).filter((b) => b.player === 0);
   const actions = registry.actionNames;
   const simActions = actions.filter((a) => !isUiAction(registry, a));
   const ofKind = (kind: ActionKind) => simActions.filter((a) => bindings.kindOf(a) === kind);
@@ -449,7 +451,8 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
           root.fork(`rollout:${rollout}`),
           macro,
           {
-            actions,
+            registry,
+            actions: simActions,
             kindOf: bindings.kindOf,
             pointerBindings,
             time: started.runtime.ctx.time,

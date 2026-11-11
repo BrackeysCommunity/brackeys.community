@@ -710,6 +710,15 @@ function FrameBody({
     "--je-toasts-right": `${(playing ? 0 : fitted.canvas.right) + INSET}px`,
     "--je-toasts-bottom": `${bottomInset + (phone && !playing && measured.phone > 0 ? measured.phone + GAP : 0)}px`,
   } as CSSProperties;
+  // What the chrome covers of the canvas, as the safe area a game's HUD reads
+  // (UiContext.root); in Play only the host's corners and the dock stay.
+  const covered = playing ? { ...fitted.canvas, left: 0, right: 0 } : fitted.canvas;
+  const safeArea = {
+    "--jams-ui-safe-top": `${covered.top}px`,
+    "--jams-ui-safe-right": `${covered.right}px`,
+    "--jams-ui-safe-bottom": `${covered.bottom}px`,
+    "--jams-ui-safe-left": `${covered.left}px`,
+  } as CSSProperties;
 
   return (
     <VisibleAreaContext.Provider value={readArea}>
@@ -801,7 +810,13 @@ function FrameBody({
             </div>
           ) : null}
         </div>
-        <div data-je-region="" data-je-document="" tabIndex={-1} className="je-frame-document">
+        <div
+          data-je-region=""
+          data-je-document=""
+          tabIndex={-1}
+          className="je-frame-document"
+          style={safeArea}
+        >
           {children}
         </div>
         {overlay}

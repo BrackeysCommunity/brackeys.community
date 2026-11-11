@@ -2,7 +2,13 @@ import type { GameInstance, GameStoreState } from "../types";
 
 /** What a game's DOM UI is given when a host mounts it over the canvas. */
 export type UiContext<G = unknown> = {
-  /** A div over the canvas with the canvas's box; pointer-events none, so children opt in with "auto". */
+  /**
+   * A div over the canvas with the canvas's box; pointer-events none, so
+   * children opt in with "auto". A host whose own chrome floats over the
+   * canvas sets `--jams-ui-safe-top`, `-right`, `-bottom` and `-left` (px
+   * from each edge of the layer that chrome covers) on an ancestor; HUD
+   * panels offset by them, e.g. `top: calc(var(--jams-ui-safe-top, 0px) + 8px)`.
+   */
   root: HTMLElement;
   canvas: HTMLCanvasElement;
   game: GameInstance;

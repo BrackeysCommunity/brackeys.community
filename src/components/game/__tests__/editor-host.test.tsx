@@ -7,7 +7,15 @@ import { join } from "node:path";
 import type { EditorHost } from "@jams/engine/editor-ui";
 import { createRegistry, type GameDefinition } from "@jams/engine/game";
 import { createKindRegistry, type KindRegistry } from "@jams/engine/project";
-import { act, cleanup, render, renderHook, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { activeUserStore, type ActiveUserProfile } from "@/lib/active-user-store";
@@ -109,6 +117,7 @@ const PROJECT_LISTING = {
   projects: [
     { id: "engine", name: "Engine", game: null },
     { id: "platformer", name: "Platformer", game: "platformer" },
+    { id: "tactics", name: "Tactics", game: "tactics" },
   ],
 };
 function serve(answers: Record<string, unknown>) {
@@ -235,6 +244,24 @@ describe("SiteSceneEditor", () => {
     expect(screen.getByRole("heading", { name: "lobby-1" })).toBeTruthy();
   });
 
+  it("says the project failed to load in place of the loading frame, and retries", async () => {
+    const hosted = hostedGame("platformer")!;
+    const load = vi.spyOn(hosted, "load").mockRejectedValueOnce(new Error("chunk gone"));
+    try {
+      render(<SiteSceneEditor roomId="lobby-1" />);
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain('The project "platformer" couldn\'t load');
+      expect(alert.textContent).toContain("chunk gone");
+      expect(screen.getByRole("heading", { name: "lobby-1" })).toBeTruthy();
+      expect(fakes.editor).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+      expect((await editorUp("platformer")).project).toBe("platformer");
+      expect(screen.queryByRole("alert")).toBeNull();
+    } finally {
+      load.mockRestore();
+    }
+  });
+
   it("hands the editor the hosted game's UI for its Play canvas", async () => {
     const mountHud = () => ({ destroy() {} });
     const hosted = hostedGame("platformer")!;
@@ -295,7 +322,11 @@ describe("SiteSceneEditor", () => {
     try {
       const served = await discoverProjects(
         process.cwd(),
-        ["src/games/platformer/jams.project.json", "src/engine/scenes/jams.project.json"],
+        [
+          "src/games/platformer/jams.project.json",
+          "src/games/tactics/jams.project.json",
+          "src/engine/scenes/jams.project.json",
+        ],
         { cacheDirOf: (id) => join(cache, id) },
       );
       for (const project of SITE_PROJECTS) {
@@ -327,12 +358,14 @@ describe("SiteSceneEditor", () => {
     // Each project goes by its id until the listing answers.
     expect(projectChoices({})).toEqual([
       { id: "platformer", name: "platformer" },
+      { id: "tactics", name: "tactics" },
       { id: "engine", name: "engine" },
     ]);
     render(<SiteSceneEditor roomId="lobby-1" />);
     await waitFor(() =>
       expect(lastEditor().host.projects).toEqual([
         { id: "platformer", name: "Platformer" },
+        { id: "tactics", name: "tactics" },
         { id: "engine", name: "Engine Room" },
       ]),
     );
@@ -361,6 +394,7 @@ describe("SiteSceneEditor", () => {
     await waitFor(() =>
       expect(lastEditor().host.projects).toEqual([
         { id: "platformer", name: "Platformer" },
+        { id: "tactics", name: "Tactics" },
         { id: "engine", name: "Engine" },
       ]),
     );
@@ -375,6 +409,7 @@ describe("SiteSceneEditor", () => {
     expect(lastNavigation().search({ edit: 1, project: "engine", scene: "grid-yard" })).toEqual({
       edit: 1,
     });
+    expect(lastNavigation().search({ edit: 1, game: "tactics" })).toEqual({ edit: 1 });
   });
 
   it("opens the scene the fallback notice points to in its own project", async () => {

@@ -34,8 +34,9 @@ input-map reloads, and the remaining content in metres.
   declare it too. Messages are unchanged.
 - `EntityTypeDef.oneWay` (`true` or a side, copied onto `RegisteredType`):
   every entity of the type is one-way on that side with or without its own
-  `oneWay` field (an entity's own side wins), so `oneWayEdges`, the
-  editor's one-way overlay, `renderSceneSvg` and the ASCII map draw the
+  `oneWay` field (a side the entity names wins; its own `true` or `false`
+  keeps the type's side, as the solid system judges it), so `oneWayEdges`,
+  the editor's one-way overlay, `renderSceneSvg` and the ASCII map draw the
   landing side of types made one-way only by their system. `createRegistry`
   refuses a value that isn't `true` or a side. The platformer's `cloud`
   declares `oneWay: true`, so its ASCII legend now reads `cloud one-way`.
@@ -46,14 +47,16 @@ input-map reloads, and the remaining content in metres.
   without one); its `UiContext` gives `slice()`, `watch` (once now, then
   per change by identity), the project's `settings` and `reducedMotion`;
   `bindText` and `bindToWorld` (a transform over a world point through
-  `worldToClient`, hidden while the point is null) for framework-free
-  HUDs. `UiHandle` and `UiActionEvent` are exported from `.` too. Found by
-  the second game.
+  `worldToClient`, moved when the view moves or a store change moves the
+  point, hidden while the point is null) for framework-free HUDs. A host
+  whose chrome floats over the canvas sets `--jams-ui-safe-top`, `-right`,
+  `-bottom` and `-left` on an ancestor of the layer, and HUD panels offset
+  by them. `UiHandle` and `UiActionEvent` are exported from `.` too. Found
+  by the second game.
 - `watchView(ctx, fn)` in `.`: calls `fn` now and whenever where the world
-  shows on screen may have moved (store changes, the camera's among them,
-  and the layer following a canvas resize), for HUD DOM sized or placed
-  through `worldToClient`; `bindToWorld` runs on it. Found by the second
-  game.
+  shows on screen may have moved (a camera change, and the layer following
+  a canvas resize), for HUD DOM sized or placed through `worldToClient`;
+  `bindToWorld` runs on it. Found by the second game.
 - `createDataSystem` (and `DataSystem`) in `@jams/engine/game`: the system
   for a type whose entities are data a game reads, keeping the live ones by
   id in spawn order and simulating nothing; the marker primitive's system
@@ -72,14 +75,15 @@ input-map reloads, and the remaining content in metres.
   lists them in registration order (`actionNames` still lists every action)
   and `isUiAction(registry, name)` in `@jams/engine/game` is the one check.
   `createRegistry` refuses a `ui` other than `true`; a UI action's bindings
-  are checked like any other's.
+  are checked like any other's. Found by the second game.
 - `ActionDef.ui` actions are resolved through every binding layer as
   usual, then reach only the input system's `onAction(listener, { actions? })`
   listeners (with `repeat: true` for the OS's key repeat on held buttons),
   never the tick queue, a `TickInput` or a recording.
   `createInputSystem(tables, { isUi })` takes the rule (`isUiAction`).
   `setFramePads` feeds a frame poll's pad changes to the listeners alone,
-  and `listening()` says whether any listener exists.
+  and `listening()` says whether any listener exists. Found by the second
+  game.
 - `createGamepadReader` gains a frame cursor: `pollFrame()` and its `frame`
   view (`pads`, `reading`, `updatedAt`, typed `GamepadView`) keep their own
   previous state, so a frame poll and the tick poll never take each
@@ -92,25 +96,31 @@ input-map reloads, and the remaining content in metres.
   simulation; send a command". The input-script schema's `Action` enum and
   `AnalogSet`, and the input-map kind's `action` fields, list a game's
   UI-only actions in their own branch, marked `x-ui: true`.
-- `GamePlayDef.commands?(state)`: the commands a run may send now.
+- `GamePlayDef.commands?(state)`: the commands a run may send now. Found
+  by the second game.
 - `GameInstance.input.onAction(listener, { actions? })` (returns its
   unsubscribe; the shell polls UI actions every frame, also while a turns
   game waits), `GameInstance.worldToClient(p)` (a world point in metres
   to client pixels through the current camera) and
   `GameInstance.project()`, the project runtime view the instance was
-  created with or last given by `reloadAssets`.
+  created with or last given by `reloadAssets`. Found by the second game.
 - `legal`/`legalTruncated` on `ProbeReport` and `PlaytestReport`: the
   commands a game lists as legal after the last tick
   (`GamePlayDef.commands`), at most 64; `FuzzReport.legal` (`FuzzLegal`:
   `sent`, `empty`); `scene step --legal`; `playtest` and `fuzz` print
   legal counts; `scene_playtest` results carry `legal`.
-- The `tower-defense` genre probe: waves from a data table, a flow field to
-  the exit, `ctx.timers.every` spawns, `ctx.query.inArea` targeting, bolts
-  with `lifetime`, and `build` commands from `GamePlayDef.commands`; a fuzz
+- The `tower-defense` genre probe: waves from its project's `wave` data
+  table (declared in the game's `tables`, read through
+  `ctx.project.table`), a flow field to the exit, `ctx.timers.every`
+  spawns, `ctx.query.inArea` targeting, bolts with `lifetime`, and `build` commands from `GamePlayDef.commands`; a fuzz
   variant (32 rollouts, seed 1) reaches `won`.
 - The second game, `tactics` (src/games/tactics): a turn-based square-grid
   skirmish with no physics; level 1, the knight and archer prefabs, the
   unit-class table, game settings and an input map.
+- `simActionError(registry, action)` in `@jams/engine/headless`: the error
+  for an action scripted input can't drive (one the game doesn't declare,
+  or a UI-only one), or null. `runProbe`, `scene step` and fuzz macros
+  apply it; input scripts refuse the same actions with the same message.
 
 ### Agent surface
 
@@ -152,6 +162,10 @@ input-map reloads, and the remaining content in metres.
 - A headless input script's pointer step now raises the actions bound to
   its buttons (the project input map's over the game's), as live play
   does; `compileInputScript` takes the input map as a fifth argument.
+  `pointerHeld(hold, buttons, bound)` and `PointerBindings` in
+  `@jams/engine/headless` give the actions a seat holds from its step's
+  `hold` and its pointer buttons' bindings, combined as live play combines
+  an action's bindings.
 - An action's 0.x `keys` that the key table doesn't know are refused at
   registration (`binding-unknown`, with a did-you-mean: `"arrowup"` →
   `"ArrowUp"`, `"space"` → `" "`) instead of binding nothing; new
@@ -181,6 +195,13 @@ input-map reloads, and the remaining content in metres.
 
 ### Fixed
 
+- UI-only actions are refused on every headless input path, not only in
+  input scripts: `runProbe`'s `hold` and `inputs`, `scene step`, and a
+  game's fuzz macro (whose action list no longer holds them) fail with the
+  input-script message and hint; pointer bindings of UI-only actions raise
+  nothing in a script's pointer step or a fuzz pointer move.
+- `runProbe` reports `legal` for a run that loaded but stepped no tick,
+  from the start state, as `runPlaytest` does.
 - `SceneEditor` and the editor frame render on the server: nothing reads
   `window`, `document`, `navigator` or storage during render (the shared
   hooks are in `editor-ui/kit/ssr.ts`). A server render and hydration lay

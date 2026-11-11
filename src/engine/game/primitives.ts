@@ -25,9 +25,11 @@ const asSide = (value: unknown): Side | null =>
     : null;
 
 /**
- * The side a one-way solid lands actors on: the entity's own `oneWay` when
- * it names a side, else its type's (`EntityTypeDef.oneWay`); `true` is
- * "up", null when neither makes it one-way.
+ * The side a one-way solid lands actors on, as the solid system judges it:
+ * the entity's own `oneWay` when it names a side, else its type's
+ * (`EntityTypeDef.oneWay`) when that names one, else "up" when either is
+ * `true`. An entity's `true` or `false` doesn't override a type-wide side.
+ * Null when neither makes it one-way.
  */
 export function oneWaySideOf(own: unknown, typeWide: unknown): Side | null {
   const side = asSide(own) ?? asSide(typeWide);

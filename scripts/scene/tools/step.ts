@@ -4,7 +4,7 @@ import {
   ENTITY_DESTROYED,
   ENTITY_SPAWNED,
   runProbe,
-  unknownActionError,
+  simActionError,
   type ProbeInput,
   type RapierModule,
   type StepEvent,
@@ -49,7 +49,7 @@ export type StepInput = {
 };
 
 export const STEP_FLAGS =
-  "[--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]]… [--elapse tick:ms]… [--events type,…] [--game id]";
+  "[--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]]… [--elapse tick:ms]… [--events type,…] [--game id] [--legal]";
 const STEP_USAGE = `step ${STEP_FLAGS}`;
 
 const DEFAULT_TICKS = 120;
@@ -189,7 +189,7 @@ function commandsOf(
 }
 
 const firstError = (actions: readonly string[], registry: Registry) =>
-  actions.map((a) => unknownActionError(a, registry.actionNames)).find((e) => e !== null);
+  actions.map((a) => simActionError(registry, a)).find((e) => e !== null);
 
 type Engine = Readonly<Record<string, unknown>>;
 
@@ -294,8 +294,13 @@ export function eventsReport(
 }
 
 /** The `--legal` lines: each legal command after the last tick (with its seat, when not 0), or why there are none. */
-function legalLines(legal: readonly GameCommand[] | undefined, truncated: boolean): string[] {
-  if (legal === undefined) return ["  legal: the game lists no commands"];
+function legalLines(
+  registry: Registry,
+  legal: readonly GameCommand[] | undefined,
+  truncated: boolean,
+): string[] {
+  if (!registry.game?.play?.commands) return ["  legal: the game lists no commands"];
+  if (legal === undefined) return ["  legal: none (run blocked)"];
   if (legal.length === 0) return ["  legal: none"];
   return [
     `  legal (${legal.length}${truncated ? ", truncated" : ""}):`,
@@ -392,7 +397,10 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     return {
       exitCode: 1,
       data: { ok: false, ...data, ...report.blocked },
-      text: `${blockedText(report.blocked)}\n  after ${report.ticks} ticks`,
+      text: [
+        `${blockedText(report.blocked)}\n  after ${report.ticks} ticks`,
+        ...(input.legal ? legalLines(registry, report.legal, false) : []),
+      ].join("\n"),
     };
   }
   const lines = [
@@ -404,7 +412,7 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     ),
     ...printed.lines,
     ...(report.truncated ? ["  (events truncated)"] : []),
-    ...(input.legal ? legalLines(report.legal, report.legalTruncated === true) : []),
+    ...(input.legal ? legalLines(registry, report.legal, report.legalTruncated === true) : []),
     ...(report.outcome
       ? [
           `  outcome t${report.outcome.tick} ${report.outcome.result}${report.outcome.cause ? `: ${report.outcome.cause}` : ""}`,

@@ -5,6 +5,7 @@
  * canvas clicks, and changes the game only by sending commands.
  */
 import type { UiActionEvent, UiContext, UiHandle } from "@jams/engine";
+import { cellKey, type Cell, type CellKey } from "@jams/engine/game";
 
 import type { TacticsSlice } from "../types";
 import { cellAttr, createCellLayer, EMPTY_HIGHLIGHTS, highlightsFor } from "./cells";
@@ -21,7 +22,14 @@ import {
 import { CLS, createStyles } from "./styles";
 
 /** The UI actions the HUD listens to; all of them are the game's `ui: true` actions. */
-export const HUD_ACTIONS = ["cursor", "confirm", "cancel", "end-turn", "next-unit"] as const;
+export const HUD_ACTIONS = [
+  "cursor",
+  "confirm",
+  "cancel",
+  "wait",
+  "end-turn",
+  "next-unit",
+] as const;
 
 type MenuOrder = Order | "wait" | "end-turn";
 const MENU: readonly { order: MenuOrder; label: string }[] = [
@@ -30,6 +38,9 @@ const MENU: readonly { order: MenuOrder; label: string }[] = [
   { order: "wait", label: "Wait" },
   { order: "end-turn", label: "End turn" },
 ];
+
+/** How many of the slice's log lines the HUD shows; the rest stay in the slice. */
+const LOG_SHOWN = 3;
 
 /** How far a stick or d-pad axis has to go before the cursor steps. */
 const NUDGE_AT = 0.5;
@@ -48,6 +59,20 @@ const statusOf = (u: { moved: boolean; acted: boolean }) =>
 
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+const rangeText = ([near, far]: readonly [number, number]) =>
+  near === far ? String(near) : `${near}–${far}`;
+
+const fogCache = new WeakMap<BoardView, ReadonlySet<CellKey>>();
+/** Whether no unit of the player's side sees `cell`. */
+function fogged(v: BoardView, cell: Cell): boolean {
+  let fog = fogCache.get(v);
+  if (!fog) {
+    fog = new Set(v.fog().map(cellKey));
+    fogCache.set(v, fog);
+  }
+  return fog.has(cellKey(cell));
+}
+
 export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
   const doc = ctx.root.ownerDocument;
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string) => {
@@ -63,18 +88,27 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
 
   const cells = createCellLayer(ctx, root, { pulse: !ctx.reducedMotion });
 
+  const top = el("div", CLS.top);
+  const side = el("div", CLS.side);
   const banner = el("div", CLS.banner);
   banner.setAttribute("role", "status");
   banner.setAttribute("aria-live", "polite");
-  root.appendChild(banner);
 
   const card = el("section", CLS.card);
   card.setAttribute("aria-label", "Selected unit");
   card.hidden = true;
-  root.appendChild(card);
+
+  // The last few lines for the eye; the live region below announces each new one once.
+  const log = el("ol", CLS.log);
+  log.setAttribute("aria-hidden", "true");
+  log.hidden = true;
+
+  side.append(card, log);
+  top.append(side, banner);
+  root.appendChild(top);
 
   const menu = el("div", CLS.menu);
-  menu.setAttribute("role", "toolbar");
+  menu.setAttribute("role", "group");
   menu.setAttribute("aria-label", "Orders");
   const buttons = new Map<MenuOrder, HTMLButtonElement>();
   for (const { order, label } of MENU) {
@@ -85,16 +119,26 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
     button.addEventListener("click", () => {
       if (button.getAttribute("aria-disabled") === "true") return;
       dispatch({ type: "order", order });
+      // Hand the keys back to the board, so the next Enter confirms there instead of pressing this again.
+      releaseMenuFocus();
     });
     buttons.set(order, button);
     menu.appendChild(button);
   }
   root.appendChild(menu);
 
-  const log = el("div", CLS.log);
-  log.setAttribute("role", "log");
-  log.setAttribute("aria-live", "polite");
-  root.appendChild(log);
+  const live = el("div", CLS.live);
+  live.setAttribute("role", "log");
+  live.setAttribute("aria-live", "polite");
+  root.appendChild(live);
+
+  function releaseMenuFocus(): void {
+    if (!menu.contains(doc.activeElement)) return;
+    ctx.canvas.focus({ preventScroll: true });
+    // A canvas without a tabindex takes no focus, so the button lets go of it itself.
+    const still = doc.activeElement as HTMLElement | null;
+    if (still && menu.contains(still)) still.blur();
+  }
 
   let view: BoardView | null = null;
   let state: CursorState = initialCursor();
@@ -114,20 +158,20 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
     const v = view;
     const id = v && (state.unit ?? v.unitAt(state.cell));
     const unit = v && id ? v.slice.units[id] : undefined;
-    if (!v || !id || !unit) {
+    if (!v || !id || !unit || (unit.side !== PLAYER_SIDE && fogged(v, unit.cell))) {
       card.hidden = true;
+      delete card.dataset.unit;
       return;
     }
     const cls = v.slice.classes[unit.class];
     const rows: [string, string][] = [
-      ["Side", titleCase(unit.side)],
-      ["HP", String(unit.hp)],
+      ["HP", cls ? `${unit.hp}/${cls.hp}` : String(unit.hp)],
       ["Move", cls ? String(cls.move) : "?"],
-      ["Range", cls ? `${cls.range[0]}–${cls.range[1]}` : "?"],
+      ["Range", cls ? rangeText(cls.range) : "?"],
       ["Status", statusOf(unit)],
     ];
     const heading = el("h2");
-    heading.textContent = `${titleCase(unit.class)} ${id}`;
+    heading.textContent = `${titleCase(unit.side)} ${unit.class}`;
     const list = el("dl");
     for (const [term, value] of rows) {
       const dt = el("dt");
@@ -162,9 +206,25 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
     if (node.textContent !== text) node.textContent = text;
   }
 
+  let shownLog: readonly string[] = [];
+  function renderLog(lines: readonly string[]): void {
+    const recent = lines.slice(-LOG_SHOWN);
+    if (recent.length === shownLog.length && recent.every((l, i) => l === shownLog[i])) return;
+    shownLog = recent;
+    log.replaceChildren(
+      ...recent.map((line) => {
+        const item = el("li");
+        item.textContent = line;
+        return item;
+      }),
+    );
+    log.hidden = recent.length === 0;
+  }
+
   function render(): void {
     setText(banner, bannerText(view?.slice ?? null));
-    setText(log, view?.slice.log.at(-1) ?? "");
+    setText(live, view?.slice.log.at(-1) ?? "");
+    renderLog(view?.slice.log ?? []);
     cells.render(view ? highlightsFor(state, view) : EMPTY_HIGHLIGHTS, view);
     root.dataset.cursor = cellAttr(state.cell);
     root.dataset.mode = state.mode;
@@ -187,7 +247,7 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
     },
   );
 
-  // The menu's own buttons answer Enter and Space while focused; the board's confirm and cancel wait.
+  // A focused menu button answers Enter and Space itself; the board's confirm waits until it lets go.
   const menuFocused = () => menu.contains(doc.activeElement);
   let lastAxis = { x: 0, y: 0 };
   const onAction = (e: UiActionEvent) => {
@@ -208,6 +268,9 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
         return;
       case "cancel":
         dispatch({ type: "cancel" });
+        return;
+      case "wait":
+        if (!e.repeat) dispatch({ type: "order", order: "wait" });
         return;
       case "end-turn":
         if (!e.repeat) dispatch({ type: "order", order: "end-turn" });

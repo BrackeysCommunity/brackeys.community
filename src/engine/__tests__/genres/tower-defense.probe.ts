@@ -35,18 +35,20 @@ const MS_PER_STEP = 300;
 /** Creeps out of the exit that lose the run. */
 export const ESCAPES_TO_LOSE = 5;
 
+const WAVE = "wave";
 type WaveRow = { id: string; startMs: number; everyMs: number; count: number; hp: number };
 
-/** The waves, as a project's data table would hold them: when each starts, its spacing, size and toughness. */
-export const WAVES: readonly WaveRow[] = [
+/** The probe project's wave table: when each wave starts, its spacing, size and toughness. */
+export const WAVE_ROWS: readonly WaveRow[] = [
   { id: "first", startMs: 1000, everyMs: 700, count: 4, hp: 2 },
   { id: "second", startMs: 5000, everyMs: 600, count: 6, hp: 3 },
   { id: "third", startMs: 9500, everyMs: 500, count: 8, hp: 3 },
 ];
-const TOTAL = WAVES.reduce((n, w) => n + w.count, 0);
 
 export type TowerDefenseSnapshot = {
   money: number;
+  /** Creeps the wave table holds in all. */
+  total: number;
   /** Towers in build order, by cell. */
   towers: Cell[];
   /** Cells a tower may still go on: off the creeps' path, in row-then-column order. */
@@ -101,7 +103,8 @@ const markerCell = (
 /**
  * Tower defense on a square grid with no physics, at a fixed 60 Hz. Creeps
  * walk a flow field from the entry to the exit; `ctx.timers.every` spawns
- * each wave of the table on its own spacing. `build` puts a tower on a cell
+ * each wave of the project's `wave` table (`ctx.project.table`) on its own
+ * spacing. `build` puts a tower on a cell
  * off the path while the money lasts, and the game lists exactly those cells
  * as its legal commands. Each tower fires on its own timer at the creep
  * furthest along that `ctx.query.inArea` finds in its range; the bolt it
@@ -114,6 +117,17 @@ const game = defineGame<TowerDefenseSnapshot>({
   actions: [],
   time: { kind: "fixed" },
   world: { physics: "none", lengthUnit: LENGTH_UNIT },
+  tables: {
+    [WAVE]: {
+      description: "Creep waves in start order.",
+      row: {
+        startMs: z.number().int().nonnegative().describe("When the wave's first creep spawns."),
+        everyMs: z.number().int().positive().describe("The spacing of the rest."),
+        count: z.number().int().positive().describe("Creeps in the wave."),
+        hp: z.number().int().positive().describe("Each creep's hit points."),
+      },
+    },
+  },
   commands: {
     [BUILD]: {
       description: "Build a tower on a cell off the path, if the money covers it.",
@@ -128,7 +142,7 @@ const game = defineGame<TowerDefenseSnapshot>({
     outcome({ snapshot: s }) {
       if (s.escaped >= ESCAPES_TO_LOSE)
         return { result: "lost", cause: `${s.escaped} creeps reached the exit` };
-      if (s.spawned === TOTAL && s.live === 0)
+      if (s.total > 0 && s.spawned === s.total && s.live === 0)
         return { result: "won", cause: "every wave was cleared" };
       return null;
     },
@@ -145,6 +159,7 @@ const game = defineGame<TowerDefenseSnapshot>({
     let towers: Cell[] = [];
     let money = START_MONEY;
     let spawned = 0;
+    let total = 0;
     let kills = 0;
     let escaped = 0;
     let fired = 0;
@@ -235,7 +250,7 @@ const game = defineGame<TowerDefenseSnapshot>({
         landed = [];
         towers = [];
         money = START_MONEY;
-        spawned = kills = escaped = fired = 0;
+        spawned = kills = escaped = fired = total = 0;
         if (!grid) return;
         entry = markerCell(scene, "entry", grid);
         exit = markerCell(scene, "exit", grid);
@@ -250,7 +265,9 @@ const game = defineGame<TowerDefenseSnapshot>({
         for (let r = grid.bounds.r0; r <= grid.bounds.r1; r++)
           for (let c = grid.bounds.c0; c <= grid.bounds.c1; c++)
             if (grid.passable([c, r]) && !path.some((p) => sameCell(p, [c, r]))) pads.push([c, r]);
-        for (const wave of WAVES)
+        const waves = (ctx.project?.table(WAVE) ?? []) as readonly WaveRow[];
+        total = waves.reduce((n, w) => n + w.count, 0);
+        for (const wave of waves)
           ctx.timers.after({ ms: wave.startMs }, () => {
             spawnCreep(wave.hp);
             if (wave.count > 1)
@@ -278,6 +295,7 @@ const game = defineGame<TowerDefenseSnapshot>({
       },
       snapshot: () => ({
         money,
+        total,
         towers: towers.map((t) => [t[0], t[1]] as Cell),
         pads: pads.map((p) => [p[0], p[1]] as Cell),
         spawned,
@@ -320,6 +338,7 @@ export const towerDefenseProbe: GenreProbe<TowerDefenseSnapshot> = {
   rows: ["tower-defense"],
   game,
   scene,
+  project: { tables: { [WAVE]: WAVE_ROWS } },
   script: {
     v: 1,
     scene: scene.name,

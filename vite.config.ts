@@ -229,8 +229,8 @@ function sceneCollab(): Plugin {
 const logger = createLogger();
 const shouldFilter = (msg: string) =>
   msg.includes("Failed to load source map") && msg.includes("/@tanstack/");
-const originalWarn = logger.warn;
-const originalWarnOnce = logger.warnOnce;
+const originalWarn = logger.warn.bind(logger);
+const originalWarnOnce = logger.warnOnce.bind(logger);
 logger.warn = (msg, options) => {
   if (shouldFilter(msg)) return;
   originalWarn(msg, options);

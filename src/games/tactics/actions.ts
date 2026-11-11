@@ -45,6 +45,12 @@ export const TACTICS_ACTIONS: readonly ActionDef[] = [
     description: "Step back: drop the chosen target, then the selected unit.",
   },
   {
+    action: "wait",
+    ui: true,
+    bindings: [key("KeyF"), pad("west")],
+    description: "End the selected unit's turn where it stands.",
+  },
+  {
     action: "end-turn",
     ui: true,
     bindings: [key("KeyE"), pad("start")],

@@ -742,4 +742,32 @@ describe("fuzz over legal commands", () => {
     expect(seen.actions).not.toContain("menu");
     expect(defaultFuzzMacro(rng, ["right"]).hold).toEqual(["right"]);
   });
+
+  it("hands a game's own macro the actions without the UI-only ones", () => {
+    const named: string[][] = [];
+    const own = walker({ commands: [], actions: [] }, movesAt, {});
+    own.play = {
+      ...own.play,
+      macro: (_rng, actions) => {
+        named.push([...actions]);
+        return { hold: [], ticks: 5 };
+      },
+    };
+    fuzzWalker(own, { rollouts: 1, ticks: 10 });
+    expect(named.length).toBeGreaterThan(0);
+    expect(named.every((a) => a.length === 1 && a[0] === "right")).toBe(true);
+  });
+
+  it("fails a game macro that holds or sets a UI action", () => {
+    const holds = walker({ commands: [], actions: [] }, movesAt, {});
+    holds.play = { ...holds.play, macro: () => ({ hold: ["menu"], ticks: 5 }) };
+    expect(() => fuzzWalker(holds, { rollouts: 1, ticks: 10 })).toThrow(
+      /fuzz macro: "menu" is a UI-only action.*binding-unknown.*send a command/,
+    );
+    const sets = walker({ commands: [], actions: [] }, movesAt, {});
+    sets.play = { ...sets.play, macro: () => ({ hold: [], set: { menu: 1 }, ticks: 5 }) };
+    expect(() => fuzzWalker(sets, { rollouts: 1, ticks: 10 })).toThrow(
+      /fuzz macro: set: "menu" is a UI-only action/,
+    );
+  });
 });

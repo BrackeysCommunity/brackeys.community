@@ -479,8 +479,9 @@ export type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
   /** One character for the scene's ASCII map; omitted, the base primitive's, else the type's first letter. */
   ascii?: string;
   /**
-   * Every entity of the type is one-way on this side, with or without a
-   * `oneWay` field (`true` is "up"; an entity's own side wins). Declare it
+   * Every entity of the type is one-way on this side (`true` is "up"), with
+   * or without a `oneWay` field. A side the entity names wins; its `true` or
+   * `false` keeps the type's side, as the solid system judges it. Declare it
    * when the type's system makes it one-way, so the editor and renderers
    * draw the landing side.
    */

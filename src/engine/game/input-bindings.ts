@@ -1,6 +1,6 @@
 import { closest } from "../scene/did-you-mean";
 import { KEY_CODES, KEY_TO_CODE, PAD_AXES, PAD_BUTTONS, POINTER_BUTTONS } from "./input-codes";
-import type { ActionKind, Binding, PlayersDef, Registry } from "./types";
+import type { ActionKind, Binding, GameDefinition, PlayersDef, Registry } from "./types";
 
 /** What a binding is judged against: its action's kind, the seats there are and the declared touch controls. */
 export type BindingContext = {
@@ -23,6 +23,22 @@ export type BindingProblem = {
 
 /** The most seats a game or an input map may declare. */
 export const SEAT_LIMIT = 8;
+
+/** One seat that every device drives. */
+export const DEFAULT_PLAYERS: PlayersDef = Object.freeze({ max: 1, join: "auto" });
+
+/** The seats a run has: the input map's `players`, else the game's, else one seat. */
+export function resolvePlayers(
+  map: { players?: PlayersDef } | null | undefined,
+  game: GameDefinition | null | undefined,
+): PlayersDef {
+  return map?.players ?? game?.input?.players ?? DEFAULT_PLAYERS;
+}
+
+/** How many seats `def` allows: its `max`, floored and held to 1–`SEAT_LIMIT`. */
+export function seatLimitOf(def: PlayersDef): number {
+  return Math.min(SEAT_LIMIT, Math.max(1, Math.floor(def.max)));
+}
 const JOIN_POLICIES: readonly PlayersDef["join"][] = ["auto", "press", "host"];
 const DEVICES = ["key", "pad", "pointer", "touch"] as const;
 const STICKS = ["left", "right"] as const;
@@ -252,6 +268,14 @@ export function bindingProblems(binding: Binding, ctx: BindingContext): BindingP
  */
 export function isUiAction(registry: Registry, name: string): boolean {
   return registry.uiActionNames.includes(name);
+}
+
+/** `bindings` without those of UI-only actions: what a headless input path may raise. */
+export function simBindings<B extends { action: string }>(
+  registry: Registry,
+  bindings: readonly B[],
+): B[] {
+  return bindings.filter((b) => !isUiAction(registry, b.action));
 }
 
 /** The JSON Schema keyword marking the UI-only actions in an action enum. */

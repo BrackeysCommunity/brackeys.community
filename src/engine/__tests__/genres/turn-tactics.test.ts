@@ -33,9 +33,11 @@ describe(`${probe.id} probe`, () => {
     expect(report.ticks).toBe(report.commands.length + busyTicks);
     expect(report.slots).toBeGreaterThan(report.ticks);
     // The key's press and release waited, in order, for the tick the first command woke.
-    expect(report.inputs).toEqual([
-      [0, "inspect", 1],
-      [0, "inspect", 0],
+    const inspect = report.stream.actions.indexOf("inspect");
+    expect(inspect).toBeGreaterThanOrEqual(0);
+    expect(report.stream.inputs[0]!.filter((e) => e[1] === "b")).toEqual([
+      [0, "b", inspect, 1],
+      [0, "b", inspect, 0],
     ]);
     expect(report.commands[0]![0]).toBe(0);
     expect(final.inspected).toBe(1);

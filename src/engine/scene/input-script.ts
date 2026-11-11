@@ -4,7 +4,8 @@ import {
   bindingProblems,
   isUiAction,
   playersProblems,
-  SEAT_LIMIT,
+  resolvePlayers,
+  seatLimitOf,
   UI_ACTION_KEYWORD,
 } from "../game/input-bindings";
 import { POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
@@ -261,8 +262,7 @@ const deviceSchema = deviceIdSchema.meta({ id: "Device" });
  * (schema, compiler, playtest, checks, the CLI) and the runtime agree on.
  */
 export function scriptSeatLimit(registry: Registry, players?: PlayersDef | null): number {
-  const def = players ?? registry.game?.input?.players;
-  return def ? Math.min(SEAT_LIMIT, Math.max(1, Math.floor(def.max))) : 1;
+  return seatLimitOf(resolvePlayers(players ? { players } : null, registry.game));
 }
 
 /**

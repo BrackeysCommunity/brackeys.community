@@ -2,14 +2,24 @@ import { readFileSync } from "node:fs";
 
 import { defineGame } from "@jams/engine/game";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { z } from "zod";
 
-import { hostedGame, hostedGames, hostedGamesFrom, type HostedGameGlobs } from "../hosted-games";
+import {
+  gameCodeChanged,
+  hostedGame,
+  hostedGames,
+  hostedGamesFrom,
+  type HostedGame,
+  type HostedGameGlobs,
+} from "../hosted-games";
 
 const json = (path: string): unknown => JSON.parse(readFileSync(path, "utf8"));
 
 const boardGame = defineGame({
   id: "board",
   types: [],
+  projectSettings: { speed: z.number().default(1) },
+  tables: { piece: { description: "Pieces.", row: { value: z.number() } } },
   actions: [{ action: "confirm", keys: ["Enter"], description: "Confirm." }],
   createRuntime: () => ({ snapshot: () => null }),
 });
@@ -34,6 +44,20 @@ function globs(patch: Partial<HostedGameGlobs> = {}) {
     boardChecks: vi.fn(async () => ({ default: { v: 3, checks: [] } })),
     boardLevel: vi.fn(async () => ({ default: { v: 4, name: "level-1", bounds: [0, 0, 8, 8] } })),
     boardLevel2: vi.fn(async () => ({ default: { v: 4, name: "level-2", bounds: [0, 0, 8, 8] } })),
+    boardSettings: vi.fn(async () => ({
+      default: { kind: "game-settings", v: 2, engine: { tickRate: 30 }, game: { speed: 3 } },
+    })),
+    boardPieces: vi.fn(async () => ({
+      default: {
+        kind: "data-table",
+        v: 2,
+        table: "piece",
+        rows: [
+          { id: "pawn", value: 1 },
+          { id: "rook", value: "five" },
+        ],
+      },
+    })),
     boardPrefab: vi.fn(async () => ({
       default: {
         kind: "prefab",
@@ -57,11 +81,18 @@ function globs(patch: Partial<HostedGameGlobs> = {}) {
     uis: { "/src/games/board/ui/index.ts": loaders.boardUi },
     scenes: {
       "/src/games/platformer/scenes/test-yard.json": loaders.testYard,
+      "/src/games/board/scenes/level-1.json.asset.json": vi.fn(async () => ({
+        default: { kind: "asset-sidecar", v: 1, key: "abc", id: "level-1" },
+      })),
       "/src/games/board/scenes/level-2.json": loaders.boardLevel2,
       "/src/games/board/scenes/level-1.json": loaders.boardLevel,
       "/src/games/board/scenes/level-1.checks.json": loaders.boardChecks,
     },
     prefabs: { "/src/games/board/scenes/prefabs/crate.json": loaders.boardPrefab },
+    docs: {
+      "/src/games/board/game-settings.json": loaders.boardSettings,
+      "/src/games/board/data/pieces.json": loaders.boardPieces,
+    },
     ...patch,
   };
   return { maps, loaders };
@@ -90,6 +121,11 @@ describe("hostedGamesFrom", () => {
     expect(loaded.scene.name).toBe("level-1");
     expect([...loaded.prefabs.keys()]).toEqual(["crate"]);
     expect(loaders.boardLevel2).not.toHaveBeenCalled();
+    expect(loaders.boardChecks).not.toHaveBeenCalled();
+    expect(loaded.project.settings).toEqual({ speed: 3 });
+    expect(loaded.project.engine).toEqual({ tickRate: 30 });
+    expect(loaded.project.table("piece")).toEqual([{ id: "pawn", value: 1 }]);
+    expect(loaded.project.inputMap).toBeNull();
     expect(loaders.platformer).not.toHaveBeenCalled();
     expect(loaders.testYard).not.toHaveBeenCalled();
     expect(await board!.load()).toBe(loaded);
@@ -142,9 +178,61 @@ describe("hostedGamesFrom", () => {
     expect((await board!.load()).game).toBe(boardGame);
   });
 
+  it("gives a project without docs its game's defaults", async () => {
+    const { maps } = globs({ docs: {} });
+    const [board] = hostedGamesFrom(maps, vi.fn());
+    const { project } = await board!.load();
+    expect(project.settings).toEqual({ speed: 1 });
+    expect(project.table("piece")).toEqual([]);
+  });
+
+  it("loads tactics with its unit classes, game settings and input map from its own files", async () => {
+    const { UNIT_CLASS_TABLE } = await import("@/games/tactics");
+    const { project } = await hostedGame("tactics")!.load();
+    const classes = json("src/games/tactics/data/unit-classes.json") as { rows: { id: string }[] };
+    expect(project.table(UNIT_CLASS_TABLE).map((r) => r.id)).toEqual(classes.rows.map((r) => r.id));
+    expect(project.settings).toMatchObject({ aiStepTicks: 20, critChance: 0.1 });
+    expect(project.inputMap?.deadzone).toBe(0.3);
+  });
+
   it("finds the site's own games from the real globs, the platformer among them", () => {
     expect(hostedGames().map((g) => g.id)).toContain("platformer");
     expect(hostedGame("platformer")?.name).toBe("Platformer");
     expect(hostedGame("no-such-game")).toBeNull();
+  });
+});
+
+describe("gameCodeChanged", () => {
+  const game = (id: string, load: HostedGame["load"]): HostedGame => ({
+    id,
+    name: id,
+    load,
+    debugLayers: async () => [],
+  });
+
+  it("is false when every loaded game loads the same game and UI again", async () => {
+    const { maps } = globs();
+    const [board] = hostedGamesFrom(maps, vi.fn());
+    const { game: g, ui } = await board!.load();
+    const again = hostedGamesFrom(globs().maps, vi.fn());
+    const find = (id: string) => again.find((h) => h.id === id) ?? null;
+    expect(await gameCodeChanged(new Map([["board", { game: g, ui }]]), find)).toBe(false);
+  });
+
+  it("is true when a loaded game now loads another game, or none, or fails", async () => {
+    const was = new Map([["board", { game: boardGame, ui: null }]]);
+    const other = defineGame({
+      id: "board",
+      types: [],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const loading = (value: unknown) => () => game("board", async () => value as never);
+    expect(await gameCodeChanged(was, loading({ game: other, ui: null }))).toBe(true);
+    expect(await gameCodeChanged(was, () => null)).toBe(true);
+    expect(
+      await gameCodeChanged(was, () => game("board", () => Promise.reject(new Error("syntax")))),
+    ).toBe(true);
+    expect(await gameCodeChanged(new Map(), () => null)).toBe(false);
   });
 });

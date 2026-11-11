@@ -58,7 +58,7 @@ export type TacticsGridData = {
 /** The HUD's view: the snapshot plus the grid as data, so the HUD computes reach and fog with the pure grid toolkit. */
 export type TacticsSlice = TacticsSnapshot & {
   grid: TacticsGridData;
-  classes: Readonly<Record<string, { move: number; range: [number, number] }>>;
+  classes: Readonly<Record<string, { hp: number; move: number; range: [number, number] }>>;
   /** The last 20 lines. */
   log: readonly string[];
 };

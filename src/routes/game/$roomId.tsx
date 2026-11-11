@@ -5,8 +5,9 @@ import { GameCanvas } from "@/components/game/GameCanvas";
 
 /**
  * `game` names the hosted game the room plays, by project id (default the
- * platformer); `project` names the project `?edit=1` opens, by id, and
- * `scene` its scene, by id or name.
+ * platformer), kept as written so an id the site doesn't host renders the
+ * not-found page; `project` names the project `?edit=1` opens, by id
+ * (default the hosted game `game` names), and `scene` its scene, by id or name.
  */
 type GameSearch = { game?: string; edit?: 1; project?: string; scene?: string };
 
@@ -17,9 +18,9 @@ const PROJECT_ID = /^[a-z0-9][a-z0-9-]{0,47}$/;
 export const Route = createFileRoute("/game/$roomId")({
   staticData: { shell: "takeover" },
   validateSearch: (search: Record<string, unknown>): GameSearch => ({
-    ...(typeof search.game === "string" && PROJECT_ID.test(search.game)
-      ? { game: search.game }
-      : {}),
+    ...(search.game === undefined
+      ? {}
+      : { game: typeof search.game === "string" ? search.game : JSON.stringify(search.game) }),
     ...(search.edit === 1 || search.edit === "1" ? { edit: 1 as const } : {}),
     ...(typeof search.project === "string" && PROJECT_ID.test(search.project)
       ? { project: search.project }

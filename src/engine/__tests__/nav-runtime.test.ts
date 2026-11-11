@@ -199,16 +199,9 @@ describe("the nav-type rule", () => {
   const type = (name: string) => rules.types.get(name);
 
   it("names the nav primitive, nav-based types and types the nav system spawns", () => {
-    for (const name of ["nav", "ward", "lane"])
-      expect(isNavType(type(name), createNavSystem)).toBe(true);
+    for (const name of ["nav", "ward", "lane"]) expect(isNavType(type(name))).toBe(true);
     for (const name of ["fence", "sketch", "solid", "missing"])
-      expect(isNavType(type(name), createNavSystem)).toBe(false);
-  });
-
-  it("treats a type with its own system as not nav when the nav system isn't given", () => {
-    expect(isNavType(type("ward"))).toBe(true);
-    expect(isNavType(type("lane"))).toBe(false);
-    expect(isNavType(type("fence"))).toBe(false);
+      expect(isNavType(type(name))).toBe(false);
   });
 
   it("gives the validator and the runtime's polygons the same types", () => {
@@ -217,14 +210,15 @@ describe("the nav-type rule", () => {
       ...scene([
         { id: "w", type: "ward", shape: bowtie },
         { id: "f", type: "fence", shape: bowtie },
+        { id: "l", type: "lane", shape: poly(400, 100, 600, 300, 600, 100, 400, 300) },
       ]),
       game: "navrules",
     };
     const flagged = validateScene(def, rules)
       .filter((i) => i.code === "nav-invalid")
       .flatMap((i) => i.entityIds ?? []);
-    expect(flagged).toEqual(["w"]);
+    expect(flagged).toEqual(["w", "l"]);
     const { areas } = navPolygonsOf(expandScene(def, rules).entities, rules);
-    expect(areas.map((a) => a.id)).toEqual(["w"]);
+    expect(areas.map((a) => a.id)).toEqual(["w", "l"]);
   });
 });

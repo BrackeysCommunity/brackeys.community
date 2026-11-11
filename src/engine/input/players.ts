@@ -1,29 +1,24 @@
-import { bindingProblems, SEAT_LIMIT, type BindingProblem } from "../game/input-bindings";
-import type { DeviceId, GameDefinition, PlayerInfo, PlayersDef } from "../game/types";
+import {
+  bindingProblems,
+  DEFAULT_PLAYERS,
+  SEAT_LIMIT,
+  seatLimitOf,
+  type BindingProblem,
+} from "../game/input-bindings";
+import type { DeviceId, PlayerInfo, PlayersDef } from "../game/types";
 import type { SeatChange } from "./stream";
 
 export type { DeviceId, PlayerInfo, PlayersDef } from "../game/types";
+export { DEFAULT_PLAYERS, resolvePlayers } from "../game/input-bindings";
 
 /** The most seats a game or an input map may declare. */
 export const MAX_PLAYERS = SEAT_LIMIT;
-
-/** One seat that every device drives. */
-export const DEFAULT_PLAYERS: PlayersDef = Object.freeze({ max: 1, join: "auto" });
-
-/** The seats a run has: the input map's `players`, else the game's, else one seat. */
-export function resolvePlayers(
-  map: { players?: PlayersDef } | null | undefined,
-  game: GameDefinition | null | undefined,
-): PlayersDef {
-  return map?.players ?? game?.input?.players ?? DEFAULT_PLAYERS;
-}
 
 /** The devices seat 0 owns from the start under `"auto"`. */
 const AUTO_DEVICES: readonly DeviceId[] = ["keyboard", "pointer", "touch"];
 
 /** How many seats `def` allows: its `max`, floored and held to 1–`MAX_PLAYERS`. */
-export const seatCount = (def: PlayersDef): number =>
-  Math.min(MAX_PLAYERS, Math.max(1, Math.floor(def.max)));
+export const seatCount: (def: PlayersDef) => number = seatLimitOf;
 
 /**
  * `player-unknown` for a seat a script track, command or `assign` names

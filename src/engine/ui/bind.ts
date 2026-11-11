@@ -24,19 +24,24 @@ export function bindText<T>(
 /**
  * Keeps `el` at a world point (through worldToClient and the camera), e.g. a
  * label over an entity. `el` is placed at the layer's top-left corner and
- * moved with a transform; it re-runs whenever `watchView` calls, and is
- * hidden while `at()` is null.
+ * moved with a transform whenever `watchView` calls, and whenever a store
+ * change moves the point `at()` returns; it is hidden while `at()` is null.
  */
 export function bindToWorld(el: HTMLElement, ctx: UiContext, at: () => Vec2 | null): () => void {
   const shownVisibility = el.style.visibility;
   Object.assign(el.style, { position: "absolute", left: "0px", top: "0px" });
 
-  const place = () => {
+  let placed: Vec2 | null = null;
+  const place = (viewMoved: boolean) => {
     const p = at();
     if (!p) {
+      placed = null;
       el.style.visibility = "hidden";
       return;
     }
+    // A store change that left both the view and the point alone has nothing to move.
+    if (!viewMoved && placed && placed.x === p.x && placed.y === p.y) return;
+    placed = { x: p.x, y: p.y };
     const client = ctx.game.worldToClient(p);
     const origin = ctx.root.getBoundingClientRect();
     const transform = `translate(${client.x - origin.left}px, ${client.y - origin.top}px)`;
@@ -44,21 +49,28 @@ export function bindToWorld(el: HTMLElement, ctx: UiContext, at: () => Vec2 | nu
     el.style.visibility = shownVisibility;
   };
 
-  return watchView(ctx, place);
+  const unwatchView = watchView(ctx, () => place(true));
+  const unwatchPoint = ctx.watch(
+    (s) => s,
+    () => place(false),
+  );
+  return () => {
+    unwatchView();
+    unwatchPoint();
+  };
 }
 
 /**
  * Calls `fn` now and whenever where the world shows on screen may have
- * moved: on every store change (the camera's among them) and when the layer
- * follows a canvas resize. For DOM sized or placed by `worldToClient`.
- * Returns the unsubscribe.
+ * moved: when the camera changes and when the layer follows a canvas resize.
+ * For DOM sized or placed by `worldToClient`. Returns the unsubscribe.
  */
 export function watchView(ctx: UiContext, fn: () => void): () => void {
-  const onResize = () => fn();
-  const unwatch = ctx.watch((s) => s, onResize);
-  ctx.root.addEventListener(UI_LAYER_RESIZE, onResize);
+  const onView = () => fn();
+  const unwatch = ctx.watch((s) => s.camera, onView);
+  ctx.root.addEventListener(UI_LAYER_RESIZE, onView);
   return () => {
     unwatch();
-    ctx.root.removeEventListener(UI_LAYER_RESIZE, onResize);
+    ctx.root.removeEventListener(UI_LAYER_RESIZE, onView);
   };
 }

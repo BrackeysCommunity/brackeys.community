@@ -3,7 +3,13 @@
  * reports; compile input scripts, run playtests and fuzz rollouts the way
  * the editor's Play starts a world.
  */
-export { createHeadlessRuntime, probeConfigHash, runProbe, unknownActionError } from "./headless";
+export {
+  createHeadlessRuntime,
+  probeConfigHash,
+  runProbe,
+  simActionError,
+  unknownActionError,
+} from "./headless";
 export type { HeadlessRuntimeOptions, ProbeInput, ProbeOptions, ProbeReport } from "./types";
 export type {
   AssetReloadError,

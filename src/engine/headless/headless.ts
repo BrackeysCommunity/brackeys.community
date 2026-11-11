@@ -1,4 +1,4 @@
-import type { GameCommand, GameOutcome, PlayState } from "../game/types";
+import type { GameCommand, GameOutcome, PlayState, Registry } from "../game/types";
 import { playWorld } from "../runtime/play-session";
 import { inputAction, probeConfigHash } from "../runtime/recorder";
 import { createSceneRuntime, resolveGame, type ProjectOption } from "../runtime/runtime";
@@ -9,9 +9,10 @@ import type {
   StepResult,
 } from "../runtime/types";
 import { closest } from "../scene/did-you-mean";
+import { uiActionScriptProblem } from "../scene/input-script";
 import type { PrefabLibrary } from "../scene/types";
 import type { InputAction } from "../types";
-import { legalCommands } from "./legal";
+import { legalCommands, startState } from "./legal";
 import { runBlocked, runLibrary } from "./play-loop";
 import type { PlaytestBlocked } from "./playtest-types";
 import type { HeadlessRuntimeOptions, ProbeOptions, ProbeReport } from "./types";
@@ -55,6 +56,19 @@ export function unknownActionError(action: string, actionNames: readonly string[
   return `unknown action ${JSON.stringify(action)}${guess ? `; did you mean "${guess}"?` : ""} (actions: ${known})`;
 }
 
+/**
+ * The error for an action that scripted input can't drive, or null: one the
+ * game doesn't declare (`unknownActionError`), or a UI-only one
+ * (`uiActionScriptProblem`, `binding-unknown`). The one check every headless
+ * input path (probe, step, fuzz macro, input script) applies.
+ */
+export function simActionError(registry: Registry, action: string): string | null {
+  const unknown = unknownActionError(action, registry.actionNames);
+  if (unknown) return unknown;
+  const ui = uiActionScriptProblem(registry, action);
+  return ui ? `${ui.message}; ${ui.hint}` : null;
+}
+
 /** The prefabs a probe's `ctx.instantiate` places: `library` when given, else `prefabs`. */
 type LibraryOption = {
   prefabs?: PrefabLibrary;
@@ -68,12 +82,14 @@ type LibraryOption = {
  * as the shell's `step(n)` does. An `EngineError` out of a step ends the run
  * as `runPlaytest`'s does: `blocked` at stage `run` with the error's code,
  * the report covering the ticks before it. A game that lists its commands
- * gets `legal` after the last tick (`legalCommands`); a blocked run has none.
+ * gets `legal` after the last tick, else at the start (`legalCommands`), as
+ * `runPlaytest` does; a blocked run has none. A UI-only action in `hold` or
+ * `inputs` is refused (`simActionError`).
  */
 export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): ProbeReport<S> {
   const { registry, game } = resolveGame(opts);
   for (const action of [...(opts.hold ?? []), ...(opts.inputs ?? []).map((e) => e[1])]) {
-    const error = unknownActionError(action, registry.actionNames);
+    const error = simActionError(registry, action);
     if (error) throw new Error(error);
   }
   const runtime = createSceneRuntime({
@@ -133,7 +149,7 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): Pr
 
     const final = runtime.snapshot() as S | null;
     const maxEvents = opts.maxEvents ?? DEFAULT_MAX_EVENTS;
-    const legal = last && !blocked ? legalCommands(play, last) : null;
+    const legal = load.ok && !blocked ? legalCommands(play, last ?? startState(runtime)) : null;
     const report: ProbeReport<S> = {
       configHash: probeConfigHash(game, time),
       tickRate: time.rate,

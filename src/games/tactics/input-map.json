@@ -11,7 +11,8 @@
     { "action": "confirm", "bindings": [{ "code": "Enter", "device": "key" }, { "code": "Space", "device": "key" }, { "button": "south", "device": "pad" }, { "button": "primary", "device": "pointer" }] },
     { "action": "cancel", "bindings": [{ "code": "Escape", "device": "key" }, { "button": "east", "device": "pad" }] },
     { "action": "end-turn", "bindings": [{ "code": "KeyE", "device": "key" }, { "button": "start", "device": "pad" }] },
-    { "action": "next-unit", "bindings": [{ "code": "KeyQ", "device": "key" }, { "button": "rb", "device": "pad" }] }
+    { "action": "next-unit", "bindings": [{ "code": "KeyQ", "device": "key" }, { "button": "rb", "device": "pad" }] },
+    { "action": "wait", "bindings": [{ "code": "KeyF", "device": "key" }, { "button": "west", "device": "pad" }] }
   ],
   "deadzone": 0.3
 }

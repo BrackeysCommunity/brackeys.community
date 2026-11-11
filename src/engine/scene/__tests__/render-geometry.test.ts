@@ -217,12 +217,13 @@ describe("type-wide one-way", () => {
     expect(ledges.types.get("shelf")?.oneWay).toBe("down");
   });
 
-  it("draws a type's landing face from its metadata alone, and an entity's own side wins", () => {
+  it("draws a type's landing face from its metadata alone; a side the entity names wins, its true or false keeps the type's", () => {
     expect(
       edges([
         { id: "l", type: "ledge", shape: [...box] },
         { id: "s", type: "shelf", shape: [...box] },
         { id: "s-true", type: "shelf", shape: [...box], oneWay: true },
+        { id: "s-false", type: "shelf", shape: [...box], oneWay: false },
         { id: "s-left", type: "shelf", shape: [...box], oneWay: "left" },
         { id: "plain", type: "solid", shape: [...box] },
       ]),
@@ -230,6 +231,7 @@ describe("type-wide one-way", () => {
       l: { side: "up", from: [70, 95], to: [130, 95] },
       s: { side: "down", from: [130, 105], to: [70, 105] },
       "s-true": { side: "down", from: [130, 105], to: [70, 105] },
+      "s-false": { side: "down", from: [130, 105], to: [70, 105] },
       "s-left": { side: "left", from: [70, 105], to: [70, 95] },
     });
   });

@@ -15,7 +15,13 @@ import { expandScene } from "../../scene/expand";
 import { prefabLibrary } from "../../scene/prefab";
 import { SCENE_FORMAT_VERSION, type Prefab } from "../../scene/types";
 import type { RapierModule } from "../../types";
-import { createHeadlessRuntime, probeConfigHash, runProbe, unknownActionError } from "../headless";
+import {
+  createHeadlessRuntime,
+  probeConfigHash,
+  runProbe,
+  simActionError,
+  unknownActionError,
+} from "../headless";
 import { runLoop, startRun } from "../play-loop";
 
 let rapier: RapierModule;
@@ -395,5 +401,51 @@ describe("runProbe's legal commands", () => {
     expect(two.legal![1]).toEqual({ name: "pick", args: { i: 1.001 } });
     expect(two.legalTruncated).toBe(true);
     expect("legal" in probe(2, false)).toBe(false);
+  });
+
+  it("lists the start state's commands when no tick ran, as a playtest does", () => {
+    expect(probe(0).legal).toEqual([]);
+  });
+});
+
+describe("runProbe and UI-only actions", () => {
+  const menuGame = defineGame({
+    id: "menu-game",
+    types: [],
+    actions: [
+      { action: "go", bindings: [{ device: "key", code: "KeyG" }], description: "Goes." },
+      {
+        action: "menu",
+        bindings: [{ device: "key", code: "Escape" }],
+        description: "Opens the menu.",
+        ui: true,
+      },
+    ],
+    world: { physics: "none" },
+    createRuntime: () => ({ snapshot: () => null }),
+  });
+  const registry = createRegistry(menuGame);
+  const scene = () =>
+    expandScene(
+      {
+        v: SCENE_FORMAT_VERSION,
+        name: "menu-yard",
+        game: "menu-game",
+        bounds: [0, 0, 10, 10],
+        entities: [],
+      },
+      registry,
+    );
+
+  it("refuses a UI-only action in hold or inputs, the rule a script follows", () => {
+    expect(simActionError(registry, "go")).toBeNull();
+    expect(simActionError(registry, "menu")).toMatch(
+      /"menu" is a UI-only action.*\(binding-unknown\); UI actions don't reach the simulation/,
+    );
+    const run = (opts: { hold?: string[]; inputs?: [number, string, 0 | 1][] }) =>
+      runProbe({ game: menuGame, registry, scene: scene(), ticks: 2, ...opts });
+    expect(run({ hold: ["go"] }).load.ok).toBe(true);
+    expect(() => run({ hold: ["menu"] })).toThrow(/UI-only action/);
+    expect(() => run({ inputs: [[1, "menu", 1]] })).toThrow(/UI-only action/);
   });
 });

@@ -1,7 +1,12 @@
 import type { MountUi } from "@jams/engine";
 import type { DebugLayerFactory } from "@jams/engine/debug";
-import { createRegistry, type GameDefinition, type Registry } from "@jams/engine/game";
-import { byCodeUnit, createKindRegistry, parseProjectFile } from "@jams/engine/project";
+import {
+  createRegistry,
+  type GameDefinition,
+  type ProjectRuntimeView,
+  type Registry,
+} from "@jams/engine/game";
+import { byCodeUnit, parseProjectFile, type AssetEntry } from "@jams/engine/project";
 import {
   parsePrefab,
   parseSceneOrThrow,
@@ -10,6 +15,7 @@ import {
   type PrefabLibrary,
   type SceneDefinition,
 } from "@jams/engine/scene";
+import { useCallback, useEffect, useState } from "react";
 
 /** What a hosted game's `load` resolves to: everything a host builds the game with. */
 export type HostedGameModules = {
@@ -20,13 +26,15 @@ export type HostedGameModules = {
   /** The project's first scene by path. */
   scene: SceneDefinition;
   prefabs: PrefabLibrary;
+  /** What its game code reads as `EngineContext.project`: its game settings, data tables and input map. */
+  project: ProjectRuntimeView;
 };
 
 /** A project under `src/games/` the site plays: found from its `jams.project.json`, its code loaded on demand. */
 export type HostedGame = {
   id: string;
   name: string;
-  /** Loads the game, its UI, scene and prefabs; the same promise every call once it resolves. */
+  /** Loads the game, its UI, scene, prefabs and project view; the same promise every call once it resolves. */
   load(): Promise<HostedGameModules>;
   /** The layers its `debug/index.ts` exports (as `<NAME>_DEBUG_LAYERS`), [] without one; dev builds only. */
   debugLayers(): Promise<readonly DebugLayerFactory[]>;
@@ -46,6 +54,8 @@ export type HostedGameGlobs = {
   scenes: Readonly<Record<string, Lazy>>;
   /** `/src/games/<dir>/scenes/prefabs/*.json`. */
   prefabs: Readonly<Record<string, Lazy>>;
+  /** `/src/games/<dir>/game-settings.json`, `input-map.json` and `data/*.json`: the docs its project view reads. */
+  docs?: Readonly<Record<string, Lazy>>;
   /** `/src/games/<dir>/debug/index.ts`; empty outside dev builds. */
   debug?: Readonly<Record<string, Lazy>>;
 };
@@ -54,6 +64,9 @@ export type HostedGameGlobs = {
 const STANDARD = { game: "./index.ts", ui: "./ui/index.ts" } as const;
 
 const PROJECT_FILE = /^\/src\/games\/([^/]+)\/jams\.project\.json$/;
+
+/** A scene file: one extension, since checks, input scripts, recordings and sidecars all add their own. */
+const SCENE_FILE = /\/scenes\/[^/.]+\.json$/;
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
@@ -86,6 +99,48 @@ function once<T>(run: () => Promise<T>): () => Promise<T> {
   };
 }
 
+/**
+ * The project view of the docs under `root`, read the way the scene CLI
+ * reads a project's files: each game-settings, data-table and input-map doc
+ * by the kind its header names, through `runtimeView`.
+ */
+async function projectRuntime(
+  root: string,
+  file: { id: string; name: string },
+  docs: Readonly<Record<string, Lazy>>,
+  registry: Registry,
+): Promise<ProjectRuntimeView> {
+  const [{ projectView, runtimeView, RUNTIME_VIEW_KINDS }, raws] = await Promise.all([
+    import("@jams/engine/project"),
+    Promise.all(
+      under(docs, root).map(async ([path, get]) => [path, jsonValue(await get())] as const),
+    ),
+  ]);
+  const assets: Record<string, AssetEntry> = {};
+  const values = new Map<string, unknown>();
+  raws.forEach(([path, raw], i) => {
+    const kind = isRecord(raw) ? raw.kind : undefined;
+    if (typeof kind !== "string" || !RUNTIME_VIEW_KINDS.includes(kind)) return;
+    const id = `doc-${i}`;
+    assets[id] = {
+      key: id,
+      id,
+      kind,
+      path: path.slice(root.length),
+      created: { at: 0, by: "site" },
+    };
+    values.set(id, raw);
+  });
+  const view = projectView({
+    meta: { projectId: file.id, layout: 1, name: file.name },
+    assets,
+    history: {},
+    code: {},
+    build: {},
+  });
+  return runtimeView(view, values, registry);
+}
+
 function hostedFrom(
   dir: string,
   root: string,
@@ -102,12 +157,12 @@ function hostedFrom(
     if (ui !== null && typeof ui !== "function")
       throw new Error(`project "${file.id}": "${file.ui!.export}" isn't a MountUi function`);
     const registry = createRegistry(game);
-    const kinds = createKindRegistry(game);
 
     let scene: SceneDefinition | null = null;
     for (const [path, loadScene] of under(globs.scenes, `${root}scenes/`)) {
+      if (!SCENE_FILE.test(path)) continue;
       const raw = jsonValue(await loadScene());
-      if (kinds.detect(path.slice(root.length), raw)?.kind !== "scene") continue;
+      if (isRecord(raw) && "kind" in raw) continue;
       scene = parseSceneOrThrow(raw, registry);
       break;
     }
@@ -122,7 +177,8 @@ function hostedFrom(
         return parsed.ok ? [parsed.prefab] : [];
       }),
     );
-    return { game, registry, ui, scene, prefabs };
+    const project = await projectRuntime(root, file, globs.docs ?? {}, registry);
+    return { game, registry, ui, scene, prefabs, project };
   });
 
   const loadDebug = globs.debug?.[`${root}debug/index.ts`];
@@ -200,14 +256,39 @@ const SITE_GLOBS: HostedGameGlobs = {
   uis: import.meta.glob("/src/games/*/ui/index.ts"),
   scenes: import.meta.glob("/src/games/*/scenes/*.json"),
   prefabs: import.meta.glob("/src/games/*/scenes/prefabs/*.json"),
+  docs: import.meta.glob([
+    "/src/games/*/game-settings.json",
+    "/src/games/*/input-map.json",
+    "/src/games/*/data/*.json",
+    "!/src/games/*/data/*.asset.json",
+  ]),
   debug: import.meta.env.DEV ? import.meta.glob("/src/games/*/debug/index.ts") : {},
 };
+
+/** The code each hosted game last loaded with, by id; kept across hot updates of this module. */
+type LoadedCode = Map<string, Pick<HostedGameModules, "game" | "ui">>;
+
+const hotData = import.meta.hot?.data as { loadedCode?: LoadedCode } | undefined;
+const loadedCode: LoadedCode = hotData?.loadedCode ?? new Map();
+if (hotData) hotData.loadedCode = loadedCode;
+
+/** `game` with each load's game and UI recorded in `into`. */
+function tracked(game: HostedGame, into: LoadedCode): HostedGame {
+  return {
+    ...game,
+    load: () =>
+      game.load().then((modules) => {
+        into.set(game.id, { game: modules.game, ui: modules.ui });
+        return modules;
+      }),
+  };
+}
 
 let hosted: readonly HostedGame[] | null = null;
 
 /** The games under `src/games/` the site plays, in path order. */
 export function hostedGames(): readonly HostedGame[] {
-  hosted ??= hostedGamesFrom(SITE_GLOBS);
+  hosted ??= hostedGamesFrom(SITE_GLOBS).map((g) => (hotData ? tracked(g, loadedCode) : g));
   return hosted;
 }
 
@@ -216,9 +297,71 @@ export function hostedGame(id: string): HostedGame | null {
   return hostedGames().find((g) => g.id === id) ?? null;
 }
 
+/** What `load` resolved to, or why it failed; `retry` runs it again. */
+export type Loaded<T> = { value: T | null; error: string | null; retry: () => void };
+
+/** `load()`'s result once it settles, run again on `retry` and whenever `load` changes. */
+export function useLoaded<T>(load: () => Promise<T>): Loaded<T> {
+  const [attempt, setAttempt] = useState(0);
+  const [settled, setSettled] = useState<{
+    load: () => Promise<T>;
+    attempt: number;
+    value: T | null;
+    error: string | null;
+  } | null>(null);
+  useEffect(() => {
+    let live = true;
+    load().then(
+      (value) => {
+        if (live) setSettled({ load, attempt, value, error: null });
+      },
+      (error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        if (live) setSettled({ load, attempt, value: null, error: message });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [load, attempt]);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const current = settled?.load === load && settled.attempt === attempt ? settled : null;
+  return { value: current?.value ?? null, error: current?.error ?? null, retry };
+}
+
 /** The game the room plays without `?game=`. */
 export const DEFAULT_GAME = "platformer";
 
-// The dev server writes scene and prefab files as people edit; accepting
-// them here stops those updates before they reach GameCanvas and remount the game.
-if (import.meta.hot) import.meta.hot.accept(() => {});
+/**
+ * Whether a hot update changed a loaded game's code: each game in `was`
+ * loaded again through `find` (the updated module's games) gives another
+ * game or UI, or no longer loads. A scene, prefab or doc edit leaves both
+ * the same module instances.
+ */
+export async function gameCodeChanged(
+  was: ReadonlyMap<string, Pick<HostedGameModules, "game" | "ui">>,
+  find: (id: string) => HostedGame | null,
+): Promise<boolean> {
+  for (const [id, before] of was) {
+    const now = await find(id)
+      ?.load()
+      .catch(() => null);
+    if (!now || now.game !== before.game || now.ui !== before.ui) return true;
+  }
+  return false;
+}
+
+// The dev server writes scene, prefab and doc files as people edit; accepting
+// them here stops those updates before they reach GameCanvas and remount the
+// game or the editor. A change to a game's code is passed on to the importers.
+if (import.meta.hot && hotData) {
+  const hot = import.meta.hot;
+  hot.accept((next) => {
+    const was = new Map(loadedCode);
+    const find = (next as { hostedGame?: typeof hostedGame } | undefined)?.hostedGame;
+    if (!find) return hot.invalidate("hosted-games failed to update");
+    void gameCodeChanged(was, find).then((changed) => {
+      if (changed) hot.invalidate("a hosted game's code changed");
+    });
+  });
+}

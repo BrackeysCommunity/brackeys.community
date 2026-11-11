@@ -25,6 +25,13 @@ describe("run", () => {
     );
   });
 
+  test("decodes Buffer output when the caller asks for raw bytes", () => {
+    expect(run("sh", ["-c", "printf hi"], { encoding: "buffer" })).toBe("hi");
+    expect(() =>
+      run("sh", ["-c", "echo out; echo err >&2; exit 3"], { encoding: "buffer" }),
+    ).toThrow(/exited 3\nout\n\nerr/);
+  });
+
   test("describeFailure prefers the spawn error, then the signal", () => {
     expect(
       describeFailure("x", {

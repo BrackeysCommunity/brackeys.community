@@ -97,7 +97,8 @@ export type PlaytestHooks = {
  * ended: the game's outcome, else `stuck`, `script-end` or `timeout`. Its
  * tracks drive the seats the run has, the project input map's over the
  * game's (`scriptSeatLimit`). A game that lists its commands gets `legal`
- * after the last tick (`legalCommands`). Deterministic: the same scene,
+ * after the last tick, else at the start (`legalCommands`), as `runProbe`
+ * does. Deterministic: the same scene,
  * game and script give the same report.
  */
 export function runPlaytest<S = unknown, G = unknown>(

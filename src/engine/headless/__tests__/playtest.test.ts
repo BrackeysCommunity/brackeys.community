@@ -56,6 +56,13 @@ function report(run: PlaytestRun<TestGameSnapshot>): Report {
   return run;
 }
 
+/** Seat 0's button edges in the run's stream, action names resolved. */
+function buttonEdges({ stream }: Pick<PlaytestReport, "stream">): InputEdge[] {
+  return (stream.inputs[0] ?? []).flatMap((e) =>
+    e[1] === "b" ? [[e[0], stream.actions[e[2]] ?? "", e[3]] satisfies InputEdge] : [],
+  );
+}
+
 function blocked(run: PlaytestRun): PlaytestBlocked {
   if (!run.blocked) throw new Error(`ran: ${run.outcome.result}`);
   return run;
@@ -81,7 +88,7 @@ describe("runPlaytest", () => {
     );
     expect(r.stepsReached).toBe(1);
     expect(r.steps).toEqual([{ index: 0, start: 0, ticks: r.ticks, end: "until" }]);
-    expect(r.inputs).toEqual([[0, "right", 1]]);
+    expect(buttonEdges(r)).toEqual([[0, "right", 1]]);
     expect(r.stream).toEqual({
       actions: ["right"],
       commands: [],
@@ -147,7 +154,7 @@ describe("runPlaytest", () => {
     expect(c).toMatchObject({ index: 2, start: 41, end: "until" });
     expect(d).toMatchObject({ index: 3, ticks: 20, end: "max" });
     expect(r.ticks).toBe(d!.start + 20);
-    expect(r.inputs).toEqual([
+    expect(buttonEdges(r)).toEqual([
       [0, "right", 1],
       [31, "right", 0],
       [41, "right", 1],
@@ -200,7 +207,7 @@ describe("runPlaytest", () => {
     const compiled = compileInputScript(script, registry);
     if (!compiled.ok) throw new Error("did not compile");
     const r = report(play(script));
-    expect(r.inputs).toEqual(compiled.script.edges);
+    expect(buttonEdges(r)).toEqual(compiled.script.edges);
     expect(r.ticks).toBe(15 + 1 + 5 + 3);
     expect(
       report(runPlaytest({ rapier, game: testGame, scene: yard, script: compiled.script })),
@@ -275,7 +282,7 @@ describe("runPlaytest with commands", () => {
     ];
     const r = report(play({ v: 1, steps }));
     expect(r.commands).toEqual([[5, NUDGE, { dx: 60 }]]);
-    expect(r.inputs).toEqual([[0, "right", 1]]);
+    expect(buttonEdges(r)).toEqual([[0, "right", 1]]);
     expect(r.ticks).toBe(11);
     expect(r.steps[1]).toEqual({ index: 1, start: 5, ticks: 1, end: "done" });
     const walked = report(play({ v: 1, steps: [{ hold: ["right"], for: 11 }] }));
@@ -309,7 +316,7 @@ describe("runPlaytest with commands", () => {
     ]);
     expect(r.ticks).toBe(3);
     expect(r.slots).toBe(10);
-    expect(r.inputs).toEqual([
+    expect(buttonEdges(r)).toEqual([
       [0, "right", 1],
       [1, "right", 0],
     ]);
@@ -404,7 +411,7 @@ describe("runPlaytest on the game's clock", () => {
     expect(r.outcome).toMatchObject({ result: "script-end", tick: -1 });
     expect(r.steps).toEqual([{ index: 0, start: 0, ticks: 30, end: "done" }]);
     expect(r.recording.ticks).toBe(0);
-    expect(r.inputs).toEqual([]);
+    expect(buttonEdges(r)).toEqual([]);
   });
 
   it("wakes an event game on an edge and steps it while busy, then idles", () => {
@@ -419,7 +426,7 @@ describe("runPlaytest on the game's clock", () => {
     // The press and the release each wake one tick; five busy ticks follow the release.
     expect(r.ticks).toBe(7);
     expect(r.slots).toBe(31);
-    expect(r.inputs).toEqual([
+    expect(buttonEdges(r)).toEqual([
       [0, "right", 1],
       [1, "right", 0],
     ]);

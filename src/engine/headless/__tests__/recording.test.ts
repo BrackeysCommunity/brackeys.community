@@ -151,7 +151,7 @@ describe("RunRecording", () => {
       ticks: r.ticks,
       outcome: { result: "won", entityId: "zone" },
     });
-    expect(rec.inputs).toEqual([r.inputs.map(([t, a, p]) => [t, "b", rec.actions.indexOf(a), p])]);
+    expect(rec.inputs).toEqual([[[0, "b", 0, 1]]]);
     expect(r.stream).toEqual({
       actions: rec.actions,
       commands: rec.commands,

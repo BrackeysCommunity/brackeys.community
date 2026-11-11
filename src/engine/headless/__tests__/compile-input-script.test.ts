@@ -24,7 +24,7 @@ import {
 } from "../compile-input-script";
 import { prepareRun, runLibrary, runLoop, startRun } from "../play-loop";
 import { runPlaytest, untilHolds } from "../playtest";
-import type { CompileResult, InputEdge, ScriptIssue } from "../playtest-types";
+import type { CompileResult, InputEdge, PlaytestReport, ScriptIssue } from "../playtest-types";
 import { replayRecording } from "../recording";
 import { V1_FIXTURES } from "./fixtures/recordings/v1";
 import { readV1Recording, v1Run } from "./fixtures/recordings/v1/runs";
@@ -1005,6 +1005,60 @@ describe("pointer buttons raise their bound actions", () => {
     expect(drive(script).ticks.map(actionsOf)).toEqual([[], [], []]);
   });
 
+  it("never raises a UI-only action bound to a pointer button", () => {
+    const tactics = createRegistry(
+      defineGame({
+        id: "picker",
+        types: [],
+        actions: [
+          {
+            action: "confirm",
+            bindings: [{ device: "pointer", button: "primary" }],
+            description: "Confirms.",
+            ui: true,
+          },
+          {
+            action: "fire",
+            bindings: [{ device: "pointer", button: "secondary" }],
+            description: "Fire.",
+          },
+        ],
+        world: { physics: "none" },
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const steps = [
+      { pointer: { at: [1, 1], press: "primary" }, for: 2 },
+      { pointer: { at: [1, 1], press: "secondary" }, for: 2 },
+      { pointer: { at: [1, 1], release: "primary" }, for: 2 },
+    ];
+    const script = compiled({ v: 2, steps }, tactics);
+    expect(script.pointerBindings?.[0]?.primary).toBeUndefined();
+    const raised = drive(script).ticks.flatMap((t) => actionsOf(t).map((a) => a[0]));
+    expect(raised).toContain("fire");
+    expect(raised).not.toContain("confirm");
+
+    const uiOnly = createRegistry(
+      defineGame({
+        id: "picker-ui",
+        types: [],
+        actions: [
+          {
+            action: "confirm",
+            bindings: [{ device: "pointer", button: "primary" }],
+            description: "Confirms.",
+            ui: true,
+          },
+        ],
+        world: { physics: "none" },
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const plain = compiled({ v: 2, steps: steps.slice(0, 1) }, uiOnly);
+    expect(plain.pointerBindings).toBeUndefined();
+    expect(drive(plain).ticks.map(actionsOf)).toEqual([[], []]);
+  });
+
   it("joins hold and pointer by the one combine rule", () => {
     expect(pointerHeld(["aim"], 0, undefined)).toEqual(["aim"]);
     const bound = {
@@ -1068,6 +1122,13 @@ type Run = {
   library?: PrefabLibrary;
   project?: ProjectRuntimeView | null;
 };
+
+/** Seat 0's button edges in the run's stream, action names resolved. */
+function buttonEdges({ stream }: Pick<PlaytestReport, "stream">): InputEdge[] {
+  return (stream.inputs[0] ?? []).flatMap((e) =>
+    e[1] === "b" ? [[e[0], stream.actions[e[2]] ?? "", e[3]] satisfies InputEdge] : [],
+  );
+}
 
 /** A run the way `runPlaytest` starts and records one, its input from `scriptSource`. */
 function playScript(run: Run, raw: unknown) {
@@ -1227,7 +1288,7 @@ describe("compiled tracks in a run", () => {
     if (report.blocked) throw new Error(JSON.stringify(report));
     expect(played.recording.end).toBe(report.recording.end);
     expect(played.steps).toEqual(report.steps);
-    expect(played.inputs).toEqual(report.inputs);
+    expect(played.inputs).toEqual(buttonEdges(report));
     expect(played.final).toEqual(report.final);
   });
 });
@@ -1284,7 +1345,7 @@ describe("v1 scripts unchanged in behaviour", () => {
       if (report.blocked) throw new Error(JSON.stringify(report));
       expect(played.end).toMatchObject({ result: report.outcome.result, ticks: report.ticks });
       expect(played.steps).toEqual(report.steps);
-      expect(played.inputs).toEqual(report.inputs);
+      expect(played.inputs).toEqual(buttonEdges(report));
       expect(played.final).toEqual(report.final);
       expect(played.recording.end).toBe(report.recording.end);
       // 0.10.0 recorded it; only a run the move to metres left alone still ends as it did.

@@ -386,9 +386,9 @@
     },
     "Action": {
       "type": "string",
-      "enum": ["cursor", "confirm", "cancel", "end-turn", "next-unit"],
+      "enum": ["cursor", "confirm", "cancel", "wait", "end-turn", "next-unit"],
       "x-ui": true,
-      "description": "An action the game declares: none the simulation reads; cursor, confirm, cancel, end-turn, next-unit are UI-only (x-ui), which a script can't drive."
+      "description": "An action the game declares: none the simulation reads; cursor, confirm, cancel, wait, end-turn, next-unit are UI-only (x-ui), which a script can't drive."
     },
     "AnalogSet": {
       "type": "object",

@@ -176,7 +176,8 @@ describe("mountUi", () => {
     expect(layer()).toBeNull();
     expect(frame.childElementCount).toBe(before);
     expect(store.listeners.size).toBe(subscribed);
-    const resizeCalls = (spy: typeof add) => spy.mock.calls.filter(([type]) => type === "resize");
+    const resizeCalls = (spy: typeof add) =>
+      spy.mock.calls.filter(([type]) => (type as string) === "resize");
     expect(resizeCalls(add)).toHaveLength(1);
     expect(resizeCalls(remove).map(([, fn]) => fn)).toEqual(resizeCalls(add).map(([, fn]) => fn));
 

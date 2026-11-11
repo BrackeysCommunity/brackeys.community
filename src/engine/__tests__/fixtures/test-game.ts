@@ -4,12 +4,14 @@ import { z } from "zod";
 import { defineBehavior, type BehaviorSystem } from "../../game/behaviors";
 import { defineEntityType, defineGame } from "../../game/define";
 import { gridField, pointField } from "../../game/fields";
+import { primitiveFields } from "../../game/primitives";
 import type { EngineContext } from "../../game/types";
 import { SENSOR_ENTER } from "../../runtime/types";
 import { makeIssue } from "../../scene/issues";
 import { DEFAULT_LAYERS } from "../../scene/layers";
 import { aabb } from "../../scene/shape-geometry";
 import type { ShapeObj } from "../../scene/types";
+import { createSolidSystem } from "../../systems/bodies";
 import type { Vec2 } from "../../types";
 
 export type TestGameSnapshot = { position: Vec2; velocity: Vec2 } | null;
@@ -298,4 +300,32 @@ export const checkedTestGame = defineGame<TestGameSnapshot, TestGameOptions>({
       },
     },
   },
+});
+
+/** The UI-only action of `uiTestGame`: resolved from devices, never delivered to the simulation. */
+export const MENU_ACTION = "menu";
+
+/** A solid its system makes one-way on its bottom face, declared type-wide so renderers draw that side. */
+export const CEILING = defineEntityType({
+  type: "ceiling",
+  description: "A solid actors drop down through and bump from below.",
+  base: "solid",
+  fields: (env) => primitiveFields("solid", env),
+  system: (ctx, type) => createSolidSystem(ctx, type, { oneWay: "down" }),
+  oneWay: "down",
+});
+
+/** The test game with a UI-only action and a type-wide one-way type. */
+export const uiTestGame = defineGame<TestGameSnapshot, TestGameOptions>({
+  ...testGame,
+  types: [...testGame.types, CEILING],
+  actions: [
+    ...testGame.actions,
+    {
+      action: MENU_ACTION,
+      ui: true,
+      bindings: [{ device: "key", code: "Escape" }],
+      description: "Open the pause menu.",
+    },
+  ],
 });

@@ -27,6 +27,11 @@ import type {
 import { replayRecording, type ReplayReport } from "../../headless/recording";
 import type { PointerState } from "../../input/state";
 import type { SeatChange, TickInput } from "../../input/stream";
+import { DATA_TABLE_KIND, DATA_TABLE_VERSION } from "../../project/kinds/data-table";
+import { GAME_SETTINGS_KIND, GAME_SETTINGS_VERSION } from "../../project/kinds/game-settings";
+import { runtimeView, type ProjectRuntimeView } from "../../project/runtime-view";
+import type { AssetEntry, AssetId } from "../../project/types";
+import { projectView } from "../../project/view";
 import {
   createRunRecorder,
   emptyTick,
@@ -84,6 +89,8 @@ export type GenreProbe<S = unknown> = {
   scene: SceneDefinition;
   /** Every prefab the run may place: the scene's instances and `ctx.instantiate` both draw on it. */
   prefabs?: PrefabLibrary;
+  /** The project data the game reads as `ctx.project`; omitted, the run has no project. */
+  project?: ProbeProject;
   script: InputScript | InputScriptV2;
   /**
    * Input no script can say, such as a tap's sub-tick `offset`, fed in place
@@ -101,6 +108,12 @@ export type GenreProbe<S = unknown> = {
   timeoutMs?: number;
   /** Seeded random rollouts of the probe's scene and game; some rollout must end with `expect.result`. */
   fuzz?: ProbeFuzz;
+};
+
+/** A probe's project data: a game-settings doc's `game` block and each data table's rows. */
+export type ProbeProject = {
+  settings?: Readonly<Record<string, unknown>>;
+  tables?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
 };
 
 export type ProbeFuzz = {
@@ -235,6 +248,7 @@ export type TickRunOptions = {
   scene: SceneDefinition;
   prefabs?: PrefabLibrary;
   library?: PrefabLibrary;
+  project?: ProjectRuntimeView | null;
   /** Its header starts the run; its `wait` steps set how many slots the input lasts. */
   script: InputScript | InputScriptV2;
   ticks: readonly TickInput[];
@@ -258,7 +272,10 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
     throw new Error(`the probe's script is for scene ${scene}, not ${name}`);
 
   const library = runLibrary(opts);
-  const prepared = prepareRun(opts.scene, registry, false, opts.prefabs, undefined, { library });
+  const prepared = prepareRun(opts.scene, registry, false, opts.prefabs, opts.project?.engine, {
+    library,
+    project: opts.project,
+  });
   if (!prepared.ok) return prepared.blocked;
   const started = startRun({
     rapier: opts.rapier,
@@ -267,6 +284,7 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
     scene: prepared.scene,
     play,
     prefabs: library,
+    project: opts.project,
   });
   if (!started.ok) return blockedRun("load", name, prepared.issues, [], started.load);
   const { runtime } = started;
@@ -362,6 +380,63 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
   }
 }
 
+const probeEntry = (id: string, kind: string, path: string): AssetEntry => ({
+  key: id,
+  id,
+  kind,
+  path,
+  created: { at: 0, by: "probe" },
+});
+
+/**
+ * The runtime view a probe's game reads, built the way a host builds one
+ * from a project's docs: a game-settings doc and one data-table doc per
+ * table, each row through the game's row schema. Null for a probe with no
+ * project. Throws on a table the game doesn't declare and on a row the
+ * schema leaves out, since the run would read fewer rows than the probe gave.
+ */
+export function probeProjectView(probe: GenreProbe): ProjectRuntimeView | null {
+  const project = probe.project;
+  if (!project) return null;
+  const entries: AssetEntry[] = [];
+  const values = new Map<AssetId, unknown>();
+  if (project.settings) {
+    entries.push(probeEntry("settings", GAME_SETTINGS_KIND, "game-settings.json"));
+    values.set("settings", {
+      kind: GAME_SETTINGS_KIND,
+      v: GAME_SETTINGS_VERSION,
+      game: project.settings,
+    });
+  }
+  const tables = Object.entries(project.tables ?? {});
+  for (const [name, rows] of tables) {
+    if (!probe.game.tables?.[name])
+      throw new Error(`${probe.id}: its game declares no data table ${name}`);
+    const id = `table-${name}`;
+    entries.push(probeEntry(id, DATA_TABLE_KIND, `data/${name}.json`));
+    values.set(id, {
+      kind: DATA_TABLE_KIND,
+      v: DATA_TABLE_VERSION,
+      table: name,
+      rows: structuredClone(rows),
+    });
+  }
+  const view = projectView({
+    meta: { projectId: probe.id, layout: 1, name: probe.id },
+    assets: Object.fromEntries(entries.map((e) => [e.key, e])),
+    history: {},
+    code: {},
+    build: {},
+  });
+  const runtime = runtimeView(view, values, createRegistry(probe.game as GameDefinition));
+  for (const [name, rows] of tables)
+    if (runtime.table(name).length !== rows.length)
+      throw new Error(
+        `${probe.id}: a row of table ${name} doesn't fit its schema or repeats an id`,
+      );
+  return runtime;
+}
+
 /** What a run is pinned by: how it ended, what it emitted, and the game's end state. */
 function runDigest(report: PlaytestReport): string {
   return hashText(
@@ -387,7 +462,8 @@ function blockedMessage(
  * Plays a probe headless (under a variant's settings and seed when given),
  * from its script or its `TickInput`s, replays its recording, and digests
  * the run. The probe's prefabs go to both
- * runs as the scene's and as the library `ctx.instantiate` draws on. Rapier is
+ * runs as the scene's and as the library `ctx.instantiate` draws on, and its
+ * project as `ctx.project`. Rapier is
  * loaded only when the scene's physics resolves to it; a physics-free run
  * gets `rapier: null`.
  */
@@ -401,7 +477,8 @@ export async function runGenreProbe<S>(
   const label = `${probe.id} ${variant?.name ?? DEFAULT_VARIANT}`;
 
   const script = variantScript(p, variant);
-  const runs = { rapier, game: p.game, scene, prefabs: p.prefabs, library: p.prefabs };
+  const project = probeProjectView(p);
+  const runs = { rapier, game: p.game, scene, prefabs: p.prefabs, library: p.prefabs, project };
   const report = p.ticks
     ? playTicks({ ...runs, script, ticks: p.ticks })
     : runPlaytest({ ...runs, script });
@@ -413,6 +490,7 @@ export async function runGenreProbe<S>(
     scene,
     prefabs: p.prefabs,
     library: p.prefabs,
+    project,
     recording: report.recording,
   });
   if (replay.blocked) throw new Error(blockedMessage(`${label}: the replay`, replay));
@@ -426,8 +504,8 @@ export async function runGenreProbe<S>(
 }
 
 /**
- * Runs a probe's `fuzz` through `fuzz` with the probe's game, scene and
- * prefabs; Rapier only when the scene's physics resolves to it. Throws when
+ * Runs a probe's `fuzz` through `fuzz` with the probe's game, scene,
+ * prefabs and project; Rapier only when the scene's physics resolves to it. Throws when
  * the probe has no fuzz or the fuzz is blocked.
  */
 export async function fuzzGenreProbe<S>(probe: GenreProbe<S>): Promise<FuzzReport> {
@@ -441,6 +519,7 @@ export async function fuzzGenreProbe<S>(probe: GenreProbe<S>): Promise<FuzzRepor
     scene: p.scene,
     prefabs: p.prefabs,
     library: p.prefabs,
+    project: probeProjectView(p),
     seed: opts.seed,
     rollouts: opts.rollouts,
     ...(opts.ticks === undefined ? {} : { ticks: opts.ticks }),

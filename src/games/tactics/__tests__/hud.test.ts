@@ -17,7 +17,7 @@ function sliceOf(s: TacticsSnapshot, log: string[] = []): TacticsSlice {
     ...s,
     grid: GRID,
     classes: Object.fromEntries(
-      Object.entries(CLASSES).map(([id, c]) => [id, { move: c.move, range: c.range }]),
+      Object.entries(CLASSES).map(([id, c]) => [id, { hp: c.hp, move: c.move, range: c.range }]),
     ),
     log,
   };
@@ -123,6 +123,17 @@ function mount(initial: TacticsSlice | null = sliceOf(snapshot(START))): Fake {
 }
 
 const hud = () => document.querySelector<HTMLElement>(".tactics-hud")!;
+const termsOf = (card: HTMLElement) =>
+  Object.fromEntries(
+    [...card.querySelectorAll("dt")].map((dt) => [
+      dt.textContent,
+      dt.nextElementSibling!.textContent,
+    ]),
+  );
+const shownLog = () => {
+  const log = document.querySelector<HTMLElement>(".tactics-hud-log")!;
+  return log.hidden ? [] : [...log.querySelectorAll("li")].map((li) => li.textContent);
+};
 const cursorCell = () => hud().dataset.cursor;
 const cellsOf = (kind: string) =>
   [...document.querySelectorAll<HTMLElement>(`[data-highlight="${kind}"]`)].map(
@@ -161,7 +172,10 @@ describe("the tactics HUD", () => {
     press(fake, "confirm");
     expect(hud().dataset.mode).toBe("selected");
     expect(document.querySelector<HTMLElement>(".tactics-hud-card")!.hidden).toBe(false);
-    expect(document.querySelector(".tactics-hud-card")!.textContent).toContain("Knight blue-1");
+    const card = document.querySelector<HTMLElement>(".tactics-hud-card")!;
+    expect(card.dataset.unit).toBe("blue-1");
+    expect(card.querySelector("h2")!.textContent).toBe("Blue knight");
+    expect(termsOf(card)).toEqual({ HP: "10/10", Move: "3", Range: "1", Status: "Ready" });
     expect(cellsOf("reach")).toContain("4,1");
     expect(cellsOf("attack")).toEqual(expect.arrayContaining(["0,1", "1,0", "1,2", "2,1"]));
     expect(cellsOf("attack")).toHaveLength(4);
@@ -180,6 +194,7 @@ describe("the tactics HUD", () => {
     expect(hud().dataset.mode).toBe("selected");
     expect(cellsOf("reach")).toEqual([]);
     expect(document.querySelector('[role="log"]')!.textContent).toBe("blue-1 moves to 4,1");
+    expect(shownLog()).toEqual(["blue-1 moves to 4,1"]);
 
     step(fake, 1, 0);
     press(fake, "confirm");
@@ -307,6 +322,7 @@ describe("the tactics HUD", () => {
     expect(fake.sends).toEqual([]);
 
     // Enter on a focused button is the button's; the board's confirm waits.
+    expect(document.querySelector(".tactics-hud-menu")!.getAttribute("role")).toBe("group");
     end.focus();
     press(fake, "confirm");
     expect(hud().dataset.mode).toBe("idle");
@@ -335,6 +351,115 @@ describe("the tactics HUD", () => {
     expect(end.getAttribute("aria-disabled")).toBe("true");
     press(fake, "confirm");
     expect(hud().dataset.mode).toBe("idle");
+  });
+
+  it("hands the keys back to the board once a menu button fires", () => {
+    const fake = mount();
+    const button = (label: string) =>
+      [...document.querySelectorAll<HTMLButtonElement>(".tactics-hud-menu button")].find(
+        (b) => b.textContent === label,
+      )!;
+    press(fake, "confirm");
+    const wait = button("Wait");
+    // Tab to Wait and press Enter: the key's confirm is the button's, then the button fires.
+    wait.focus();
+    press(fake, "confirm");
+    wait.click();
+    expect(fake.sends).toEqual([{ name: "wait", args: { unit: "blue-1" } }]);
+    expect(wait.contains(document.activeElement)).toBe(false);
+
+    fake.setSlice(
+      sliceOf(snapshot({ ...START, "blue-1": { ...START["blue-1"]!, moved: true, acted: true } })),
+    );
+    press(fake, "next-unit");
+    expect(document.querySelector<HTMLElement>(".tactics-hud-card")!.dataset.unit).toBe("blue-2");
+    press(fake, "confirm");
+    expect(fake.sends.filter((c) => c.name === "wait")).toHaveLength(1);
+
+    // A clicked order, then keyboard targeting: Enter confirms on the board.
+    fake.setSlice(sliceOf(snapshot(START)));
+    press(fake, "cancel");
+    press(fake, "next-unit");
+    const move = button("Move");
+    move.focus();
+    move.click();
+    expect(move.getAttribute("aria-pressed")).toBe("true");
+    step(fake, 1, 0);
+    press(fake, "confirm");
+    press(fake, "confirm");
+    expect(fake.sends.at(-1)).toEqual({ name: "move", args: { unit: "blue-1", to: [2, 1] } });
+  });
+
+  it("waits the selected unit from its own key and a pad's button", () => {
+    const fake = mount();
+    press(fake, "wait");
+    expect(fake.sends).toEqual([]);
+    press(fake, "confirm");
+    press(fake, "wait", "pad:0");
+    expect(fake.sends).toEqual([{ name: "wait", args: { unit: "blue-1" } }]);
+  });
+
+  it("titles the card by side and class, shows hp out of the class's, and hides fogged enemies", () => {
+    const fake = mount(
+      sliceOf(
+        snapshot({
+          ...START,
+          "red-1": { ...START["red-1"]!, hp: 7 },
+          "red-2": unit("red", "archer", [11, 7]),
+        }),
+      ),
+    );
+    const card = document.querySelector<HTMLElement>(".tactics-hud-card")!;
+    const hover = (cell: Cell) => {
+      const [x, y] = BOARD.geometry.center(cell);
+      canvas.dispatchEvent(
+        new MouseEvent("pointermove", { clientX: ORIGIN.x + x * PX, clientY: ORIGIN.y + y * PX }),
+      );
+    };
+    hover([5, 1]);
+    expect(card.hidden).toBe(false);
+    expect(card.querySelector("h2")!.textContent).toBe("Red knight");
+    expect(termsOf(card).HP).toBe("7/10");
+    expect(card.textContent).not.toContain("red-1");
+
+    hover([1, 4]);
+    expect(termsOf(card).Range).toBe("2–3");
+
+    expect(cellsOf("fog")).toContain("11,7");
+    hover([11, 7]);
+    expect(card.hidden).toBe(true);
+    expect(card.dataset.unit).toBeUndefined();
+    expect(fake.sends).toEqual([]);
+  });
+
+  it("shows the last three log lines and announces only the newest", () => {
+    const fake = mount();
+    expect(shownLog()).toEqual([]);
+    const lines = ["a", "b", "blue-1 hits red-1 for 8 (crit)", "red-1 hits blue-1 for 4", "e"];
+    fake.setSlice(sliceOf(snapshot(START), lines));
+    expect(shownLog()).toEqual(lines.slice(-3));
+    expect(document.querySelector(".tactics-hud-log")!.getAttribute("aria-hidden")).toBe("true");
+    expect(document.querySelector('[role="log"]')!.textContent).toBe("e");
+  });
+
+  it("keeps its panels clear of the host's chrome through the safe-area variables", () => {
+    mount();
+    const css = document.querySelector(".tactics-hud style")!.textContent!;
+    const rule = (selector: string) => {
+      const at = css.indexOf(`${selector} {`);
+      expect(at).toBeGreaterThanOrEqual(0);
+      return css.slice(at, css.indexOf("}", at));
+    };
+    for (const edge of ["top", "right", "bottom", "left"])
+      expect(css).toContain(`--tactics-${edge}: calc(var(--jams-ui-safe-${edge}, 0px) + 8px)`);
+    expect(rule(".tactics-hud-top")).toContain("top: var(--tactics-top)");
+    expect(rule(".tactics-hud-top")).toContain("left: var(--tactics-left)");
+    expect(rule(".tactics-hud-menu")).toContain("bottom: var(--tactics-bottom)");
+    // The card and the banner share the top row's grid, so neither is placed over the other.
+    const top = document.querySelector(".tactics-hud-top")!;
+    expect(top.querySelector(".tactics-hud-card")).toBeTruthy();
+    expect(top.querySelector(".tactics-hud-banner")).toBeTruthy();
+    expect(rule(".tactics-hud-banner")).not.toContain("nowrap");
   });
 
   it("shades cells no blue unit can see", () => {

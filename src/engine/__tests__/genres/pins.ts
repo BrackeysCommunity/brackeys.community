@@ -36,7 +36,7 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "physics-none": "7606f4e008e235f1",
   },
   "tower-defense": {
-    default: "21321ff0988c2a3f",
+    default: "7b78ff5b782483c4",
   },
   "turn-tactics": {
     default: "355be025a7f4aeda",

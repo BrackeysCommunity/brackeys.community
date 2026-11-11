@@ -1,5 +1,6 @@
 import type { EngineContext, RegisteredType, SceneSystem } from "../game/types";
 import type { RuntimeNav } from "../runtime/nav";
+import { markNavSystem } from "../scene/nav-type";
 import type { Pt, RuntimeEntity, ShapeObj } from "../scene/types";
 
 export type NavEntity = RuntimeEntity<{
@@ -76,3 +77,5 @@ export function createNavSystem(_ctx: EngineContext, _type: RegisteredType): Nav
     memo: null,
   };
 }
+
+markNavSystem(createNavSystem);
