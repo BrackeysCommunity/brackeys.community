@@ -1,0 +1,11 @@
+{
+  "$schema": "../scene.schema.json",
+  "v": 4,
+  "game": "tactics",
+  "name": "menu",
+  "bounds": [0, 0, 12, 8],
+  "entities": [
+    { "id": "ground", "type": "decor", "layer": "terrain", "at": [6, 4], "behaviors": { "sprite": { "asset": "tiles", "size": [12, 8], "tile": true } } },
+    { "id": "about", "type": "note", "at": [0.5, 0.5], "text": "Menu: the title scene. No units; the game's DOM menu draws the title, Start and the save line over the ground, and Start asks for the first level not cleared yet." }
+  ]
+}

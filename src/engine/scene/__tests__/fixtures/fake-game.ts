@@ -12,7 +12,8 @@ import {
   tagsField,
   vectorField,
 } from "../../../game/fields";
-import type { Registry, SceneSystem } from "../../../game/types";
+import type { Registry } from "../../../game/types";
+import { createDataSystem } from "../../../systems/data";
 import { makeIssue } from "../../issues";
 import type { Prefab } from "../../types";
 
@@ -24,13 +25,6 @@ export const engineYardText = readFileSync(
   "utf8",
 );
 
-const inert = (): SceneSystem => ({
-  spawn: () => {},
-  despawn: () => {},
-  clear: () => {},
-  size: () => 0,
-});
-
 /** Box-only one-way pads, with plain and material bulk keys. */
 const pad = defineEntityType({
   type: "pad",
@@ -41,6 +35,7 @@ const pad = defineEntityType({
     material: materialField(env),
   }),
   bulk: { form: "shape", materials: true, description: "One-way pads, box only." },
+  oneWay: true,
 });
 
 /** Point bulk form. */
@@ -64,7 +59,7 @@ const button = defineEntityType({
 const door = defineEntityType({
   type: "door",
   description: "A door its switch opens.",
-  system: inert,
+  system: createDataSystem,
   fields: {
     shape: shapeField("Door shape."),
     opens: z.string().optional().describe("The sensor that opens it.").meta({ title: "Opens" }),

@@ -7,11 +7,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../game/define";
+import { SAVE_SCHEMA_ID } from "../game/save-file";
 import { docKindJsonSchema } from "../project/kinds";
 import { dataTableKind } from "../project/kinds/data-table";
 import { gameSettingsKind } from "../project/kinds/game-settings";
 import { inputMapKind } from "../project/kinds/input-map";
 import { materialKind } from "../project/kinds/material";
+import { sceneListKind } from "../project/kinds/scene-list";
 import { PROJECT_OP_NAMES, projectOpsJsonSchema } from "../project/ops";
 import { projectJsonSchema } from "../project/project-file";
 import { sidecarJsonSchema } from "../project/sidecar";
@@ -106,6 +108,30 @@ const FILE_EXPORTS = ["@jams/engine/editor-ui/style.css"];
 const SERVICE_COPIED = ["scene/", "collab/", "game/", "project/", "version.ts"];
 const isServiceCopied = (path: string) =>
   SERVICE_COPIED.some((p) => (p.endsWith("/") ? path.startsWith(p) : path === p));
+/**
+ * What the copied files may name in a type-only import beside each other:
+ * the image strips types, so these never have to exist there.
+ */
+const SERVICE_TYPE_ONLY = [
+  "runtime/",
+  "saves/",
+  "input/",
+  "sim-kit/",
+  "ui/",
+  "types.ts",
+  "engine.ts",
+  "headless/",
+];
+const isServiceTypeTarget = (path: string) =>
+  isServiceCopied(path) ||
+  SERVICE_TYPE_ONLY.some((p) => (p.endsWith("/") ? path.startsWith(p) : path === p));
+/** The save file, flow's rule and the two M18 kinds: what a server reads a save or a scene list with. */
+const SAVE_AND_FLOW_FILES = [
+  "game/save-file.ts",
+  "game/flow.ts",
+  "project/kinds/scene-list.ts",
+  "project/kinds/save.ts",
+];
 /** The canvas-sync service's own sources, which reach the engine by relative path. */
 const SERVICE_SRC = join(REPO, "services/canvas-sync/src");
 /** Engine directories that hold pure toolkits: no Pixi, and Rapier only through `ctx.rapier`. */
@@ -226,14 +252,14 @@ const isGameEntry = (target: string) =>
 /**
  * What the site may load of a game: its entries (`index.ts`, the DOM UI's
  * `ui/index.ts`, the dev-only `debug/index.ts`) and its project JSON (the
- * project file, scenes, prefabs, game settings, input map and data
- * tables). Nothing else of a game is the site's.
+ * project file, scenes, prefabs, game settings, input map, scene list and
+ * data tables). Nothing else of a game is the site's.
  */
 const isSiteGameTarget = (target: string) => {
   const path = posix(relative(GAMES, target));
   return (
     /^[a-z0-9-]+(\/(ui|debug))?(\/index(\.ts)?)?$/.test(path) ||
-    /^[a-z0-9-]+\/(jams\.project|game-settings|input-map|scenes\/[a-z0-9-]+|scenes\/prefabs\/[a-z0-9-]+|data\/[a-z0-9-]+)\.json$/.test(
+    /^[a-z0-9-]+\/(jams\.project|game-settings|input-map|scene-list|scenes\/[a-z0-9-]+|scenes\/prefabs\/[a-z0-9-]+|data\/[a-z0-9-]+)\.json$/.test(
       path,
     )
   );
@@ -634,6 +660,64 @@ describe("package boundary", () => {
     ]);
   });
 
+  it("keeps the save file, flow's rule and the scene-list and save kinds on zod, game/ and project/", () => {
+    const bad: string[] = [];
+    for (const path of SAVE_AND_FLOW_FILES) {
+      for (const imp of importsOf(join(ENGINE, path))) {
+        const where = `${path}:${imp.line} imports ${imp.spec}`;
+        if (!imp.spec.startsWith(".")) {
+          if (imp.spec !== "zod") bad.push(where);
+          continue;
+        }
+        const target = rel(resolveRelative(join(ENGINE, path), imp.spec) ?? imp.spec);
+        if (imp.typeOnly) {
+          if (!isServiceTypeTarget(target)) bad.push(where);
+        } else if (
+          !target.startsWith("game/") &&
+          !target.startsWith("project/") &&
+          target !== "scene/issues.ts" &&
+          target !== "scene/parse.ts"
+        ) {
+          bad.push(where);
+        }
+      }
+      const { files, bare } = runtimeGraph(path);
+      for (const spec of bare.keys()) if (spec !== "zod") bad.push(`${path} reaches ${spec}`);
+      for (const f of files)
+        if (!/^(game|project|scene)\//.test(f) && f !== "version.ts")
+          bad.push(`${path} reaches ${f}`);
+    }
+    violations(bad);
+  });
+
+  it("lets what the canvas-sync image copies reach the rest of the engine only through type imports, and never @/", () => {
+    const bad: string[] = [];
+    for (const file of sourceFiles) {
+      const path = rel(file);
+      if (!isServiceCopied(path) || path === "game/index.ts") continue;
+      for (const imp of importsOf(file)) {
+        const where = `${path}:${imp.line} imports ${imp.spec}`;
+        if (imp.spec.startsWith("@/")) bad.push(where);
+        if (!imp.spec.startsWith(".") || imp.typeOnly) continue;
+        const target = rel(resolveRelative(file, imp.spec) ?? resolve(dirname(file), imp.spec));
+        if (!isServiceCopied(target)) bad.push(where);
+      }
+    }
+    violations(bad);
+  });
+
+  it("keeps saves/ off Pixi values", () => {
+    const saveFiles = sourceFiles.map((f) => rel(f)).filter((p) => p.startsWith("saves/"));
+    expect(saveFiles).toContain("saves/index.ts");
+    const bad: string[] = [];
+    for (const path of saveFiles) {
+      const { bare } = runtimeGraph(path);
+      if (bare.has("pixi.js"))
+        bad.push(`${path} reaches pixi.js via ${bare.get("pixi.js")!.join(", ")}`);
+    }
+    violations(bad);
+  });
+
   it("keeps ui/ off Pixi values, src/games and the editor UI", () => {
     const uiFiles = sourceFiles.map((f) => rel(f)).filter((p) => p.startsWith(UI_DIR));
     expect(uiFiles).toContain("ui/index.ts");
@@ -885,6 +969,7 @@ describe("package boundary", () => {
       judged(
         [
           'import.meta.glob("/src/games/*/jams.project.json", { eager: true });',
+          'import.meta.glob("/src/games/*/scene-list.json", { eager: true });',
           'import.meta.glob<() => Promise<unknown>>(["/src/games/*/index.ts", "/src/games/*/ui/index.ts"]);',
           "import.meta.glob('@/games/platformer/scenes/prefabs/*.json');",
           'import.meta.glob("/src/games/*/scenes/{*.json,prefabs/*.json}");',
@@ -903,6 +988,7 @@ describe("package boundary", () => {
         ].join("\n"),
       ),
     ).toEqual([
+      null,
       null,
       null,
       null,
@@ -971,6 +1057,8 @@ describe("package boundary", () => {
       join(ENGINE, "project/material.schema.json"),
       join(ENGINE, "project/game-settings.schema.json"),
       join(ENGINE, "project/input-map.schema.json"),
+      join(ENGINE, "project/scene-list.schema.json"),
+      join(ENGINE, "project/save.schema.json"),
       join(ENGINE, "project/data-table.schema.json"),
       join(ENGINE, "project/project-snapshot.schema.json"),
       ...walk(join(ENGINE, "scenes"), /\.json$/),
@@ -1095,6 +1183,8 @@ async function surface() {
       docKindJsonSchema(gameSettingsKind, kindEnv).$id as string,
       docKindJsonSchema(dataTableKind, kindEnv).$id as string,
       docKindJsonSchema(inputMapKind, kindEnv).$id as string,
+      docKindJsonSchema(sceneListKind, kindEnv).$id as string,
+      SAVE_SCHEMA_ID,
     ],
     cliCommands: Object.fromEntries(
       Object.entries(cli.COMMANDS)

@@ -1,5 +1,19 @@
+import type { SavedTimer } from "../game/save-file";
 import { ticksFor } from "../game/time";
-import type { CoroutineYield, Delay, EngineContext, TimerAction, Timers } from "../game/types";
+import type {
+  CoroutineYield,
+  Delay,
+  EngineContext,
+  JsonValue,
+  TimerAction,
+  Timers,
+} from "../game/types";
+
+/** A pending timer a world save can't hold: a function-form timer or a coroutine. */
+export type UnsaveableTimer = { kind: "timer" | "coroutine"; id: number; owner?: string };
+
+/** The emit-form timers a world save holds, and the id the next timer gets. */
+export type TimersCapture = { timers: SavedTimer[]; next: number };
 
 /** A runtime's timers: `EngineContext.timers` plus what the tick, the load and the lifecycle call. */
 export type RuntimeTimers = Timers & {
@@ -13,6 +27,18 @@ export type RuntimeTimers = Timers & {
   pauseOwner(id: string, paused: boolean): void;
   /** Cancels everything and sets the clock back to 0; at unload. */
   reset(): void;
+  /** The pending function-form timers and coroutines, by id. */
+  unsaveable(): UnsaveableTimer[];
+  /**
+   * The emit-form timers between ticks, each `due` on the tick it fires
+   * (a paused one as if its owner were enabled now, at `tick`).
+   */
+  capture(tick: number): TimersCapture;
+  /**
+   * Replaces every timer with `saved`, on a clock whose next phase is
+   * `tick`; one whose owner is disabled waits paused. Ids carry on from `next`.
+   */
+  restore(saved: readonly SavedTimer[], tick: number, next: number): void;
 };
 
 type Base = {
@@ -240,6 +266,59 @@ export function createTimers(ctx: EngineContext): RuntimeTimers {
       offset = 0;
       seekPhase = null;
       lastPhase = -1;
+    },
+    unsaveable() {
+      const out: UnsaveableTimer[] = [];
+      for (const e of entries.values()) {
+        if (e.kind === "timer" && typeof e.action !== "function") continue;
+        out.push({ kind: e.kind, id: e.id, ...(e.owner !== undefined ? { owner: e.owner } : {}) });
+      }
+      return out;
+    },
+    capture(tick) {
+      const timers: SavedTimer[] = [];
+      for (const e of entries.values()) {
+        if (e.kind !== "timer" || typeof e.action === "function") continue;
+        const { emit, entityId, data } = e.action;
+        timers.push({
+          id: e.id,
+          due: e.paused === null ? e.due - offset : tick + e.paused,
+          ...(e.period !== null ? { period: Math.max(1, e.period) } : {}),
+          ...(e.left !== null ? { times: e.left } : {}),
+          emit,
+          ...(entityId !== undefined ? { entityId } : {}),
+          ...(data !== undefined ? { data: data as JsonValue } : {}),
+          ...(e.owner !== undefined ? { owner: e.owner } : {}),
+        });
+      }
+      return { timers, next: nextId };
+    },
+    restore(saved, tick, next) {
+      entries.clear();
+      offset = 0;
+      seekPhase = null;
+      lastPhase = tick - 1;
+      let top = 0;
+      for (const t of saved) {
+        const owner = t.owner;
+        const paused = owner !== undefined && ctx.exists(owner) && !ctx.enabled(owner);
+        entries.set(t.id, {
+          kind: "timer",
+          id: t.id,
+          owner,
+          due: t.due,
+          paused: paused ? Math.max(0, t.due - tick) : null,
+          action: {
+            emit: t.emit,
+            ...(t.entityId !== undefined ? { entityId: t.entityId } : {}),
+            ...(t.data !== undefined ? { data: structuredClone(t.data) } : {}),
+          },
+          period: t.period ?? null,
+          left: t.times ?? null,
+        });
+        top = Math.max(top, t.id);
+      }
+      nextId = Math.max(next, top + 1, 1);
     },
   };
 }

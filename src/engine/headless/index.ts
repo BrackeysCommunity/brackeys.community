@@ -10,11 +10,32 @@ export {
   simActionError,
   unknownActionError,
 } from "./headless";
-export type { HeadlessRuntimeOptions, ProbeInput, ProbeOptions, ProbeReport } from "./types";
+export type {
+  HeadlessRuntime,
+  HeadlessRuntimeOptions,
+  ProbeInput,
+  ProbeOptions,
+  ProbeReport,
+} from "./types";
+export { memorySaveStore } from "../saves/store";
+export {
+  captureSave,
+  restoreSave,
+  worldSaveBlockers,
+  type SaveBlocker,
+} from "../runtime/save-state";
+export {
+  createPersistCell,
+  gamePersistCell,
+  plainJsonProblem,
+  type PersistCellOptions,
+} from "../runtime/persist";
 export type {
   AssetReloadError,
   LoadFailureReason,
   LoadReport,
+  PersistCell,
+  RuntimeRequests,
   RuntimeStats,
   SceneRuntime,
   SceneRuntimeHandle,
@@ -52,6 +73,7 @@ export {
   type FilesLoadInput,
   type HeadlessLoad,
   type HeadlessLoadInput,
+  type HeadlessLoadOptions,
   type SnapshotLoadInput,
 } from "./load";
 export { SnapshotError, type ProjectSnapshot } from "../project/snapshot";
@@ -74,7 +96,7 @@ export {
   type ScriptStepLog,
 } from "./compile-input-script";
 export { playWorld, preparePlay, type PreparedPlay } from "../runtime/play-session";
-export { runPlaytest, untilHolds, type PlaytestHooks } from "./playtest";
+export { runPlaytest, untilHolds, type PlaytestHooks, type PlaytestStart } from "./playtest";
 export {
   platformIssues,
   recordingDivergence,
@@ -106,7 +128,7 @@ export {
 } from "../scene/recording-schema";
 export { defaultFuzzMacro, fuzz } from "./fuzz";
 export type { FuzzMacroInputs } from "./fuzz";
-export { runBlocked, STUCK_METRES, STUCK_TICKS, tickWakes } from "./play-loop";
+export { runBlocked, STUCK_METRES, STUCK_TICKS, tickWakes, type SaveStart } from "./play-loop";
 export {
   physicalEnv,
   runPhysicalChecks,
@@ -140,8 +162,11 @@ export type {
   PlaytestBlocked,
   PlaytestOptions,
   PlaytestOutcomeReport,
+  PersistMatch,
   PlaytestReport,
   PlaytestRun,
+  PlaytestSegment,
+  PlaytestSegmentEnd,
   PlaytestStep,
   PlayOptions,
   ScriptIssue,

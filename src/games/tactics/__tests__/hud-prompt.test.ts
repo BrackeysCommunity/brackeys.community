@@ -7,7 +7,7 @@ import {
   type UiActionEvent,
   type UiHandle,
 } from "@jams/engine";
-import type { GameCommand } from "@jams/engine/game";
+import { cellKey, type GameCommand } from "@jams/engine/game";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import inputMap from "../input-map.json";
@@ -18,9 +18,9 @@ import { CLASSES, snapshot, unit } from "./fixtures";
 
 const GRID: TacticsSlice["grid"] = { cols: 12, rows: 8, cell: 1, walls: [], costs: [] };
 
-const sliceOf = (s: TacticsSnapshot, log: string[] = []): TacticsSlice => ({
+const sliceOf = (s: TacticsSnapshot, log: string[] = [], grid = GRID): TacticsSlice => ({
   ...s,
-  grid: GRID,
+  grid,
   classes: Object.fromEntries(
     Object.entries(CLASSES).map(([id, c]) => [
       id,
@@ -126,6 +126,17 @@ describe("the tactics HUD's Escape", () => {
     expect(handle?.cancel?.()).toBe(false);
     expect(sends).toEqual([]);
   });
+
+  it("is declined while no board is shown, so the editor's Escape still stops play", () => {
+    mount();
+    emit({ action: "confirm" });
+    expect(q(".tactics-hud").dataset.mode).toBe("selected");
+    setSlice(null as unknown as TacticsSlice);
+    expect(handle?.cancel?.()).toBe(false);
+    setSlice(sliceOf(snapshot(START)));
+    expect(handle?.cancel?.()).toBe(true);
+    expect(q(".tactics-hud").dataset.mode).toBe("idle");
+  });
 });
 
 describe("the tactics HUD's guidance", () => {
@@ -133,9 +144,7 @@ describe("the tactics HUD's guidance", () => {
     mount();
     expect(promptShown()).toBe("Click a blue unit to give it orders · Q picks the next");
     emit({ action: "confirm" });
-    expect(promptShown()).toBe(
-      "Click a blue cell to move, or an enemy in red to attack · Esc to cancel",
-    );
+    expect(promptShown()).toBe("Click a blue cell to move · Esc to cancel");
     emit({ action: "cursor", kind: "vector", vector: { x: 1, y: 0 } });
     emit({ action: "cursor", kind: "vector", vector: { x: 0, y: 0 } });
     emit({ action: "confirm" });
@@ -145,6 +154,27 @@ describe("the tactics HUD's guidance", () => {
 
     setSlice(sliceOf(snapshot(START, { side: "red", phase: "enemy" })));
     expect(promptShown()).toBe("");
+  });
+
+  it("names an attack only when a target is in range and in sight", () => {
+    const archer = unit("blue", "archer", [4, 2]);
+    const red = unit("red", "knight", [6, 2]);
+    const walled = { ...GRID, walls: [cellKey([5, 2])] };
+    mount(sliceOf(snapshot({ "blue-archer/unit": archer, "red-knight/unit": red }), [], walled));
+    emit({ action: "confirm" });
+    expect(promptShown()).toBe("Click a blue cell to move · Esc to cancel");
+
+    setSlice(sliceOf(snapshot({ "blue-archer/unit": archer, "red-knight/unit": red })));
+    expect(promptShown()).toBe(
+      "Click a blue cell to move, or an enemy in red to attack · Esc to cancel",
+    );
+
+    const moved = { ...archer, moved: true };
+    setSlice(sliceOf(snapshot({ "blue-archer/unit": moved, "red-knight/unit": red })));
+    expect(promptShown()).toBe("Click an enemy in red to attack · Esc to cancel");
+
+    setSlice(sliceOf(snapshot({ "blue-archer/unit": moved, "red-knight/unit": red }), [], walled));
+    expect(promptShown()).toBe("No move or target from here · F to wait · Esc to cancel");
   });
 
   it("shows the Wait and End turn keys on their buttons", () => {
@@ -182,6 +212,26 @@ describe("the tactics HUD's guidance", () => {
     expect(q('[role="log"]').textContent).toBe("Red knight falls");
     expect(q(".tactics-hud").textContent).not.toMatch(/\/unit|\d+,\d+/);
   });
+
+  it("numbers a sublevel's unit on from those named alike, a fallen one included", () => {
+    const { "red-knight/unit": _fallen, ...left } = START;
+    mount(sliceOf(snapshot(START), []));
+    setSlice(sliceOf(snapshot(left), ["red-knight/unit falls"]));
+    const guard = "cellar:red-knight/unit";
+    setSlice(
+      sliceOf(snapshot({ ...left, [guard]: unit("red", "knight", [3, 7]) }), [
+        "red-knight/unit falls",
+        "blue-archer/unit opens the cellar",
+        `blue-archer/unit hits ${guard} for 2`,
+      ]),
+    );
+    const lines = [...document.querySelectorAll(".tactics-hud-log li")].map((li) => li.textContent);
+    expect(lines).toEqual([
+      "Red knight falls",
+      "Blue archer opens the way down to the cellar",
+      "Blue archer hits Red knight 2 for 2",
+    ]);
+  });
 });
 
 describe("the HUD's text helpers", () => {
@@ -194,6 +244,9 @@ describe("the HUD's text helpers", () => {
     expect(playerLogLine("b falls", nameOf)).toBe("Red archer falls");
     expect(playerLogLine("blue ends the turn", nameOf)).toBe("The blue side ends its turn");
     expect(playerLogLine("red wins", nameOf)).toBe("The red side wins");
+    expect(playerLogLine("a opens the wine-cellar", nameOf)).toBe(
+      "Blue knight opens the way down to the wine cellar",
+    );
     expect(playerLogLine("something else", nameOf)).toBe("something else");
   });
 

@@ -1,3 +1,5 @@
+import type { SceneSource } from "@jams/engine";
+import type { Binding } from "@jams/engine/game";
 // @vitest-environment jsdom
 import { Store } from "@tanstack/store";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -31,20 +33,54 @@ vi.mock("../editor-host", () => ({
   },
 }));
 
+const { resolveBindings } = await import("@jams/engine");
+const { flowIssue } = await import("@jams/engine/game");
 const { GameCanvas } = await import("../GameCanvas");
 const { hostedGame } = await import("../hosted-games");
 const { Route } = (await import("@/routes/game/$roomId")) as unknown as {
   Route: { options: { validateSearch: (search: Record<string, unknown>) => { game?: string } } };
 };
 
-function fakeGame(state: { phase: string; fps: number } = { phase: "running", fps: 60 }) {
+type FlowOptions = { flow: { source: SceneSource } };
+
+/**
+ * A game whose `flow.restart` judges the start of the source `createGame` was
+ * given, as the engine's does, and loads nothing.
+ */
+function fakeGame(
+  state: { phase: string; fps: number } = { phase: "running", fps: 60 },
+  bindings: Record<string, readonly Binding[]> = {},
+) {
+  let source: SceneSource | null = null;
   return {
     start: vi.fn(),
     destroy: vi.fn(),
     resize: vi.fn(),
     getStore: () => new Store({ ...state, debugMode: "off" }),
+    input: { bindings: () => bindings },
+    flow: {
+      restart: vi.fn(async () => {
+        const start = source?.start() ?? null;
+        const issue = flowIssue(source?.list() ?? [], start, "start");
+        return issue ? { ok: false, issue } : { ok: true, scene: start };
+      }),
+    },
+    given(options: FlowOptions) {
+      source = options.flow.source;
+    },
   };
 }
+
+/** `createGame` resolving `game`, with the flow source it was given. */
+function creates(game: ReturnType<typeof fakeGame>) {
+  fakes.createGame.mockImplementation(async (_canvas: unknown, options: FlowOptions) => {
+    game.given(options);
+    return game;
+  });
+}
+
+const options = (call: number) =>
+  (fakes.createGame.mock.calls[call] as [HTMLCanvasElement, Record<string, unknown>])[1];
 
 afterEach(() => {
   cleanup();
@@ -52,12 +88,16 @@ afterEach(() => {
 });
 
 describe("GameCanvas", () => {
-  it("plays the platformer's first scene with its prefabs, without the editor", async () => {
+  it("plays the platformer's scene list from its start, with its prefabs, without the editor", async () => {
     const game = fakeGame();
-    fakes.createGame.mockResolvedValue(game);
+    creates(game);
     const platformer = await hostedGame("platformer")!.load();
-    render(<GameCanvas roomId="lobby-1" />);
-    await waitFor(() => expect(game.start).toHaveBeenCalledOnce());
+    render(<GameCanvas roomId="lobby-1" scene="elsewhere" />);
+    await waitFor(() => expect(game.flow.restart).toHaveBeenCalledOnce());
+    expect(game.start).toHaveBeenCalledOnce();
+    expect(game.start.mock.invocationCallOrder[0]).toBeLessThan(
+      game.flow.restart.mock.invocationCallOrder[0]!,
+    );
     const [, options] = fakes.createGame.mock.calls[0] as [
       HTMLCanvasElement,
       Record<string, unknown>,
@@ -65,10 +105,15 @@ describe("GameCanvas", () => {
     expect(options).toMatchObject({
       game: platformer.game,
       registry: platformer.registry,
-      scene: platformer.scene,
+      flow: { source: platformer.flow },
       prefabs: platformer.prefabs,
     });
-    expect(platformer.scene.name).toBe("test-yard");
+    expect(options).not.toHaveProperty("scene");
+    expect(platformer.flow.start()).toBe("test-yard");
+    expect(await game.flow.restart.mock.results[0]!.value).toMatchObject({
+      ok: true,
+      scene: "test-yard",
+    });
     expect(options.rapier).toBeTypeOf("function");
     expect(options).not.toHaveProperty("assets");
     expect(fakes.mountUi).not.toHaveBeenCalled();
@@ -77,9 +122,47 @@ describe("GameCanvas", () => {
     expect(fakes.editor).not.toHaveBeenCalled();
   });
 
+  it("says on the page that a project without a scene list has no start scene", async () => {
+    const game = fakeGame();
+    creates(game);
+    const platformer = hostedGame("platformer")!;
+    const modules = await platformer.load();
+    const unlisted: SceneSource = { list: () => [], start: () => null, scene: () => null };
+    const load = vi.spyOn(platformer, "load").mockResolvedValue({ ...modules, flow: unlisted });
+    try {
+      render(<GameCanvas roomId="lobby-1" />);
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain("Platformer couldn't start");
+      expect(alert.textContent).toContain("start-scene-missing");
+      expect(options(0)).not.toHaveProperty("rapier");
+    } finally {
+      load.mockRestore();
+    }
+  });
+
+  it("shows the platformer's controls from the game's own bindings", async () => {
+    const platformer = await hostedGame("platformer")!.load();
+    const game = fakeGame(undefined, {
+      ...resolveBindings({ game: platformer.game.actions }).bindings(),
+      jump: [{ device: "key", code: "KeyJ" }],
+    });
+    creates(game);
+    render(<GameCanvas roomId="lobby-1" />);
+    const controls = await screen.findByRole("list", { name: "Controls" });
+    const rows = [...controls.querySelectorAll("li")].map((li) => li.textContent);
+    expect(rows).toEqual([
+      "←AMove left",
+      "→DMove right",
+      "JJump",
+      "↓SMove down",
+      "ShiftDash",
+      "EGrapple",
+    ]);
+  });
+
   it("shows the house skeleton while the hosted game's modules load", async () => {
     const game = fakeGame();
-    fakes.createGame.mockResolvedValue(game);
+    creates(game);
     render(<GameCanvas roomId="lobby-1" gameId="platformer" />);
     const pending = screen.getByRole("status", { name: "Loading Platformer" });
     expect(pending.querySelector("[data-slot=skeleton]")).toBeTruthy();
@@ -89,7 +172,7 @@ describe("GameCanvas", () => {
 
   it("gives the hosted game its project: tactics' unit classes, settings and input map", async () => {
     const game = fakeGame();
-    fakes.createGame.mockResolvedValue(game);
+    creates(game);
     const tactics = await hostedGame("tactics")!.load();
     render(<GameCanvas roomId="lobby-1" gameId="tactics" />);
     await waitFor(() => expect(game.start).toHaveBeenCalledOnce());
@@ -106,7 +189,7 @@ describe("GameCanvas", () => {
 
   it("gives tactics a loader over its art, the view it draws from and its kinds", async () => {
     const game = fakeGame();
-    fakes.createGame.mockResolvedValue(game);
+    creates(game);
     const tactics = await hostedGame("tactics")!.load();
     const { unmount } = render(<GameCanvas roomId="lobby-1" gameId="tactics" />);
     await waitFor(() => expect(game.start).toHaveBeenCalledOnce());
@@ -123,23 +206,25 @@ describe("GameCanvas", () => {
 
   it("shows a turns game's phase but no frame rate, and no game's controls", async () => {
     const game = fakeGame();
-    fakes.createGame.mockResolvedValue(game);
+    creates(game);
     render(<GameCanvas roomId="lobby-1" gameId="tactics" />);
     await waitFor(() => expect(game.start).toHaveBeenCalledOnce());
     const status = await screen.findByRole("status");
     expect(status.textContent).not.toMatch(/FPS/);
-    expect(status.textContent).not.toMatch(/WASD|jump/);
+    expect(status.textContent).not.toMatch(/WASD|jump/i);
+    expect(screen.queryByRole("list", { name: "Controls" })).toBeNull();
     expect(status.textContent).toContain("F3 debug overlay");
     cleanup();
     const paused = fakeGame({ phase: "paused", fps: 0 });
-    fakes.createGame.mockResolvedValue(paused);
+    creates(paused);
     render(<GameCanvas roomId="lobby-1" gameId="tactics" />);
     expect(await screen.findByText("paused")).toBeTruthy();
   });
 
   it("says the game couldn't start in place of the canvas, and starts it again on retry", async () => {
     const game = fakeGame();
-    fakes.createGame.mockRejectedValueOnce(new Error("no WebGL")).mockResolvedValue(game);
+    creates(game);
+    fakes.createGame.mockRejectedValueOnce(new Error("no WebGL"));
     render(<GameCanvas roomId="lobby-1" />);
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("Platformer couldn't start");
@@ -152,7 +237,7 @@ describe("GameCanvas", () => {
 
   it("says the hosted game failed to load in place of the skeleton, and retries", async () => {
     const game = fakeGame();
-    fakes.createGame.mockResolvedValue(game);
+    creates(game);
     const platformer = hostedGame("platformer")!;
     const load = vi.spyOn(platformer, "load").mockRejectedValueOnce(new Error("chunk gone"));
     try {

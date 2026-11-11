@@ -6,23 +6,29 @@
  * that nothing wakes skips the slot.
  */
 
+import type { FlowRequest, SceneLibrary } from "../game/flow";
+import type { SaveFile } from "../game/save-file";
 import type { ResolvedTime } from "../game/time";
 import {
   EngineError,
   type GameCommand,
   type GameDefinition,
+  type PlayerInfo,
   type PlayState,
   type Registry,
   type RunResult,
 } from "../game/types";
 import { qAxis, qPointer, qVector } from "../input/quantize";
 import type { PointerState } from "../input/state";
-import { mergeTick, qOffset, type TickInput } from "../input/stream";
+import { mergeTick, qOffset, type SeatChange, type TickInput } from "../input/stream";
 import type { ProjectRuntimeView } from "../project/runtime-view";
+import type { AssetId, Sha256 } from "../project/types";
+import { flowLoaderOf, type FlowIdentity } from "../runtime/flow";
 import { playWorld, preparePlay } from "../runtime/play-session";
 import { inputAction } from "../runtime/recorder";
 import { createSceneRuntime } from "../runtime/runtime";
-import type { LoadReport, SceneRuntimeHandle } from "../runtime/types";
+import { restoreSave } from "../runtime/save-state";
+import type { LoadReport, PersistCell, SceneRuntimeHandle } from "../runtime/types";
 import { makeIssue } from "../scene/issues";
 import type {
   ExpandedScene,
@@ -132,12 +138,45 @@ export type StartOptions = {
   project?: ProjectRuntimeView | null;
   /** What `ctx.instantiate` places. */
   prefabs?: PrefabLibrary;
+  /** The session's persistent value; default one of the run's own. */
+  persist?: PersistCell;
+  /** Which listed scene this is (`ctx.flow.scene`, `ctx.flow.entry`) and the library its run keeps. */
+  flow?: FlowIdentity;
+  /** Start where this save left off (`restoreSave`) instead of at the scene's fresh load. */
+  fromSave?: SaveFile;
 };
 
-/** A fresh headless play world for one run; the caller destroys the runtime. */
+/**
+ * A save a run starts from, with the hash of the fixture's bytes, which
+ * its recording names (`fromSave`) so a replay can find the same fixture.
+ */
+export type SaveStart = { file: SaveFile; sha256: Sha256 };
+
+/**
+ * Loads `scene` as the listed scene `flow` names, so the game reads its id
+ * and entry from `ctx.flow`; without `flow`, a plain load.
+ */
+export function loadAs(
+  runtime: SceneRuntimeHandle,
+  scene: ExpandedScene,
+  play: PlayOptions | undefined,
+  flow: FlowIdentity | undefined,
+): LoadReport {
+  const loader = flow ? flowLoaderOf(runtime.ctx) : undefined;
+  return loader ? loader.load(scene, play, flow!) : runtime.load(scene, play);
+}
+
+/**
+ * A fresh headless play world for one run; the caller destroys the
+ * runtime. With `fromSave` the save is restored over the load (what the
+ * restore noted, such as a scene changed since the save, in `issues`), and
+ * a save that can't be is a failed load carrying the refusal as `issue`.
+ */
 export function startRun(
   opts: StartOptions,
-): { ok: true; runtime: SceneRuntimeHandle } | { ok: false; load: LoadReport } {
+):
+  | { ok: true; runtime: SceneRuntimeHandle; issues?: SceneIssue[] }
+  | { ok: false; load: LoadReport; issue?: SceneIssue } {
   const runtime = createSceneRuntime({
     rapier: opts.rapier,
     view: null,
@@ -146,11 +185,55 @@ export function startRun(
     dev: opts.dev,
     project: opts.project,
     ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
+    ...(opts.persist ? { persist: opts.persist } : {}),
+    ...(opts.flow ? { scenes: opts.flow.library } : {}),
   });
-  const load = runtime.load(opts.scene, opts.play);
-  if (load.ok) return { ok: true, runtime };
+  const load = loadAs(runtime, opts.scene, opts.play, opts.flow);
+  if (!load.ok) {
+    runtime.destroy();
+    return { ok: false, load };
+  }
+  if (!opts.fromSave) return { ok: true, runtime };
+  const restored = restoreSave(runtime, opts.fromSave);
+  if (restored.ok) return { ok: true, runtime, issues: restored.issues };
   runtime.destroy();
-  return { ok: false, load };
+  const { issue } = restored;
+  const entityId = issue.entityIds[0];
+  return {
+    ok: false,
+    load: {
+      ok: false,
+      error: `the save can't be restored: ${issue.message}`,
+      ...(entityId !== undefined ? { entityId } : {}),
+    },
+    issue,
+  };
+}
+
+/**
+ * The listed id of `def` in `library`: the entry holding that very
+ * definition, else one whose scene has its name, else its name when that is
+ * a listed id; null when the library doesn't hold it.
+ */
+export function listedSceneId(
+  library: SceneLibrary,
+  def: Pick<SceneDefinition, "name">,
+): AssetId | null {
+  for (const [id, s] of library.scenes) if (s.def === def) return id;
+  for (const [id, s] of library.scenes) if (s.def.name === def.name) return id;
+  return library.list.some((e) => e.scene === def.name) ? def.name : null;
+}
+
+/**
+ * What a later scene of a run starts with: the play options that aren't
+ * about where the first scene began (`at`, `timeOffsetMs`), so the seed
+ * and the game's options carry on.
+ */
+export function nextScenePlay(play: PlayOptions): PlayOptions {
+  const next: PlayOptions = {};
+  if (play.seed !== undefined) next.seed = play.seed;
+  if (play.game !== undefined) next.game = play.game;
+  return next;
 }
 
 /**
@@ -186,6 +269,8 @@ export type RunEnd = {
   slots: number;
   cause?: string;
   entityId?: string;
+  /** With `result: "flow"`: the request game code made on the last tick. */
+  request?: FlowRequest;
 };
 
 export type RunLoopOptions = {
@@ -202,6 +287,11 @@ export type RunLoopOptions = {
   stuck?: boolean;
   /** Simulate every slot whatever the time model, as a replay of recorded ticks does. */
   everySlot?: boolean;
+  /**
+   * Input standing from the scene before (`standingInput`), played with the
+   * first simulated tick, before that slot's own.
+   */
+  carry?: TickInput | null;
   /**
    * After each tick, before the run decides whether it is over: its state,
    * the focus, its seat-0 button edges and commands, and the whole input it
@@ -321,8 +411,10 @@ function applyActions(held: readonly string[], actions: readonly InputAction[]):
 }
 
 /**
- * Steps `runtime` until the game's outcome, `stuck`, the input running out,
- * `maxTicks` simulated ticks or `maxSlots` slots. A turns or event game
+ * Steps `runtime` until the game's outcome, a flow request (`flow`, the
+ * request on `RunEnd.request`; a tick whose outcome ends the run ends it
+ * even with a request pending), `stuck`, the input running out, `maxTicks`
+ * simulated ticks or `maxSlots` slots. A turns or event game
  * skips a slot nothing wakes (`tickWakes`) while it isn't busy; that slot's
  * actions and seat changes are played, in order, with the next simulated
  * tick, and its pointer stands until a later one replaces it. Each tick's
@@ -337,8 +429,8 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
   const movement = play?.focus ? (play.movementActions ?? []) : [];
   const stuck = movement.length > 0 && opts.stuck !== false ? stuckDetector() : null;
   const subTick = opts.game?.input?.subTick === true;
-  let held: readonly string[] = [];
-  let carried: TickInput | null = null;
+  let carried: TickInput | null = opts.carry ?? null;
+  let held: readonly string[] = carried ? applyActions([], carried.actions) : [];
   const sent: (PointerState | undefined)[] = [];
   let tick = 0;
   const world = playWorld(runtime.ctx);
@@ -371,7 +463,13 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
     opts.record?.push(...edges);
     const result = runtime.step(time.tickMs, merged);
 
-    const state: PlayState = { tick, snapshot: result.game, events: result.events, world };
+    const state: PlayState = {
+      tick,
+      snapshot: result.game,
+      events: result.events,
+      world,
+      persist: runtime.ctx.persist.value,
+    };
     const focus = play?.focus ? play.focus(result.game) : null;
     input.after?.(state);
     opts.onTick?.(state, focus, edges, merged.commands, merged);
@@ -385,6 +483,8 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
       if (verdict.entityId !== undefined) out.entityId = verdict.entityId;
       return out;
     }
+    const request = runtime.takeRequests().flow;
+    if (request) return { result: "flow", ...ended, cause: `requested "${request.to}"`, request };
     if (
       stuck?.(
         held.some((a) => movement.includes(a)),
@@ -451,5 +551,74 @@ function stamped(
     pointers: input.pointers.map((p) =>
       p ? { x: qPointer(p.x), y: qPointer(p.y), buttons: p.buttons | 0, over: p.over } : undefined,
     ),
+  };
+}
+
+/** What `standingInput` tracks; `carry` is what the next scene's fresh runtime must be told. */
+export type StandingInput = {
+  /** After each simulated tick, with the whole input it stepped. */
+  step(input: TickInput): void;
+  /**
+   * The input still standing, as one tick for a runtime whose seats are
+   * `players`: a press for every button held and the last non-zero value
+   * of every axis and vector, each seat's last pointer, and the joins and
+   * leaves that make its seats match; null when nothing stands.
+   */
+  carry(players: readonly PlayerInfo[]): TickInput | null;
+};
+
+const seatKey = (player: number, device: string) => `${player}\u0000${device}`;
+
+/**
+ * Tracks the input a run has standing, from `players` (the seats as the
+ * first scene loaded) and every tick stepped since, so a scene change hands
+ * a fresh runtime the keys still held, the pointers and the seats. A
+ * scene's recording then starts from what its runtime was given and
+ * replays alone.
+ */
+export function standingInput(players: readonly PlayerInfo[]): StandingInput {
+  const actions = new Map<string, InputAction>();
+  const pointers: (PointerState | undefined)[] = [];
+  const seated = new Map<string, SeatChange>();
+  for (const p of players)
+    for (const device of p.devices)
+      seated.set(seatKey(p.index, device), { player: p.index, device, joined: true });
+
+  return {
+    step(input) {
+      for (const a of input.actions) {
+        const key = seatKey(a.player ?? 0, a.action);
+        actions.delete(key);
+        if (a.pressed) actions.set(key, a);
+      }
+      input.pointers.forEach((p, seat) => {
+        if (p) pointers[seat] = { ...p };
+      });
+      for (const change of input.joins) {
+        const key = seatKey(change.player, change.device);
+        if (change.joined) seated.set(key, { ...change });
+        else seated.delete(key);
+      }
+    },
+    carry(next) {
+      const joins: SeatChange[] = [];
+      const there = new Set<string>();
+      for (const p of next)
+        for (const device of p.devices) {
+          const key = seatKey(p.index, device);
+          there.add(key);
+          if (!seated.has(key)) joins.push({ player: p.index, device, joined: false });
+        }
+      for (const [key, change] of seated) if (!there.has(key)) joins.push({ ...change });
+      joins.sort((a, b) => Number(a.joined) - Number(b.joined));
+      const held = [...actions.values()].map((a) => {
+        const out: InputAction = { ...a, tick: 0, timestamp: 0 };
+        delete out.offset;
+        return out;
+      });
+      const standing = pointers.map((p) => (p ? { ...p } : undefined));
+      if (held.length === 0 && joins.length === 0 && !standing.some(Boolean)) return null;
+      return { tick: 0, actions: held, commands: [], pointers: standing, joins };
+    },
   };
 }

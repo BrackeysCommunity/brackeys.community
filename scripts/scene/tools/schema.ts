@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import {
   createKindRegistry,
   docKindJsonSchema,
@@ -35,6 +37,12 @@ const kindSchema =
     return docKindJsonSchema(def, env);
   };
 
+/** The `save:v1` schema: saves are a blob kind, so this is the committed file. */
+const saveSchema = (): Record<string, unknown> =>
+  JSON.parse(
+    readFileSync(new URL("../../../src/engine/project/save.schema.json", import.meta.url), "utf8"),
+  );
+
 export const SCHEMAS = {
   scene: (r) => sceneJsonSchema(r),
   ops: (r) => opsJsonSchema(r),
@@ -47,6 +55,7 @@ export const SCHEMAS = {
   "asset-sidecar": () => sidecarJsonSchema(),
   "project-ops": () => projectOpsJsonSchema(),
   "project-snapshot": () => projectSnapshotJsonSchema(),
+  save: saveSchema,
   material: kindSchema("material"),
   "game-settings": kindSchema("game-settings"),
   "data-table": kindSchema("data-table"),

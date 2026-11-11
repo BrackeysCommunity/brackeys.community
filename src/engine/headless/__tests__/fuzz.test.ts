@@ -86,7 +86,14 @@ describe("fuzz", () => {
     const r = run();
     expect(r.results.won).toBeGreaterThan(0);
     expect(Object.values(r.results).reduce((a, b) => a + b, 0)).toBe(12);
-    expect(Object.keys(r.results)).toEqual(["timeout", "script-end", "stuck", "quit", "won"]);
+    expect(Object.keys(r.results)).toEqual([
+      "timeout",
+      "script-end",
+      "stuck",
+      "quit",
+      "flow",
+      "won",
+    ]);
     expect(r.results["script-end"]).toBe(0);
 
     const zone = r.touched.find((t) => t.ref === "zone");
@@ -391,7 +398,8 @@ describe("fuzz", () => {
 
     it("leaves a button-only game's rollouts as they were", () => {
       // configHash carries ENGINE_VERSION, so it is checked on its own and left out of the
-      // digest: a version bump must not look like a change in play.
+      // digest: a version bump must not look like a change in play. `results` holds a count
+      // for every run result, so a new engine result moves the digest without moving a rollout.
       const digest = (game: GameDefinition, r: FuzzReport) => {
         const { configHash, ...rest } = withoutTiming(r);
         expect(configHash).toBe(probeConfigHash(game));
@@ -400,10 +408,10 @@ describe("fuzz", () => {
       const opts = { seed: 5, rollouts: 8, ticks: 300 };
       const plain = { ...testGame, play: { ...testGame.play, macro: undefined } };
       expect(digest(testGame, report(fuzz({ rapier, game: testGame, scene: yard, ...opts })))).toBe(
-        "35dc41f4dd585433",
+        "54358566f81d2ff2",
       );
       expect(digest(plain, report(fuzz({ rapier, game: plain, scene: yard, ...opts })))).toBe(
-        "ef5546abccf3bad6",
+        "c702eae74c4df8a2",
       );
 
       const a = Rng.from(9);

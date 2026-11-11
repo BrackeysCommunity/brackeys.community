@@ -160,6 +160,7 @@ try {
       "material",
       "game-settings",
       "input-map",
+      "scene-list",
       "data-table",
       "project-snapshot",
     ]) {

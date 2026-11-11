@@ -3,6 +3,7 @@ import {
   Folder01Icon,
   ListViewIcon,
   Route01Icon,
+  Settings02Icon,
   SlidersHorizontalIcon,
   WorkHistoryIcon,
 } from "@hugeicons/core-free-icons";
@@ -12,6 +13,7 @@ import type { ReactNode } from "react";
 
 import type { EditorSession, Ref, SceneIssue } from "../../editor/index";
 import type { AssetKey } from "../../project/index";
+import type { GameInstance } from "../../types";
 import type { EditorControls } from "../frame/keys";
 import type { EditorNotify } from "../host";
 import { Skeleton, Text } from "../kit/index";
@@ -25,6 +27,8 @@ import { EditorOutliner } from "./EditorOutliner";
 import { EditorProject, useSelectedAsset } from "./EditorProject";
 import { LoadRunPanel } from "./LoadRunPanel";
 import { ProblemsPanel } from "./ProblemsPanel";
+import type { CaptureBinding } from "./settings/InputPanel";
+import { ProjectSettings } from "./settings/ProjectSettings";
 
 /** What the panels are drawn from: the editor's controls and the stores they share. */
 export type PanelControls = Pick<
@@ -38,7 +42,8 @@ export type PanelControls = Pick<
   | "runStore"
   | "playFrom"
   | "frame"
->;
+> &
+  Partial<Pick<EditorControls, "game">>;
 
 /** What a panel's tab and body are drawn with. */
 export type PanelContext = {
@@ -276,7 +281,32 @@ export const PANELS: readonly PanelDef[] = [
     render: ({ controls }) => <EditorHistory session={controls.session} notify={controls.notify} />,
     skeleton: rows(4),
   },
+  {
+    id: "settings",
+    title: "Project settings",
+    icon: Settings02Icon,
+    render: ({ controls }) =>
+      controls.project ? (
+        <ProjectSettings
+          project={controls.project}
+          notify={controls.notify}
+          capture={captureOf(controls.game)}
+        />
+      ) : (
+        <Text as="p" size="xs" variant="muted" className="je-panel-empty">
+          This scene isn't part of a project.
+        </Text>
+      ),
+    skeleton: rows(5),
+  },
 ];
+
+/** The running game's binding capture, when the editor's game is a whole instance. */
+function captureOf(game: PanelControls["game"]): CaptureBinding | null {
+  if (!game || !("input" in game)) return null;
+  const { input } = game as Pick<GameInstance, "input">;
+  return (opts) => input.capture(opts);
+}
 
 export const PANEL_IDS: readonly PanelId[] = PANELS.map((p) => p.id);
 

@@ -162,7 +162,7 @@ describe("blob upload: per-kind caps", () => {
       (def): def is BlobKindDef => def.storage === "blob",
     );
     expect(blobKinds.map((def) => def.kind).sort()).toEqual(
-      ["atlas", "audio", "font", "recording", "texture"].sort(),
+      ["atlas", "audio", "font", "recording", "save", "texture"].sort(),
     );
     for (const def of blobKinds) {
       expect(ENGINE_BLOB_KINDS(def.kind), def.kind).toMatchObject({

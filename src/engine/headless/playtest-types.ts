@@ -1,5 +1,14 @@
-import type { DeviceId, GameCommand, GameDefinition, Registry, RunResult } from "../game/types";
+import type { SceneLibrary } from "../game/flow";
+import type {
+  DeviceId,
+  GameCommand,
+  GameDefinition,
+  JsonValue,
+  Registry,
+  RunResult,
+} from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
+import type { AssetId } from "../project/types";
 import type { LoadReport, StepEvent } from "../runtime/types";
 import type { AnalogSet, CountMatch, ExistsMatch, ScriptPointer } from "../scene/input-script";
 import type { RecordingCommand, RecordingStream, RunRecording } from "../scene/recording-schema";
@@ -13,6 +22,7 @@ import type {
   SceneIssue,
 } from "../scene/types";
 import type { RapierModule, Vec2 } from "../types";
+import type { SaveStart } from "./play-loop";
 
 // ─── Play options ────────────────────────────────────────
 
@@ -36,10 +46,13 @@ export type InputEdge = [tick: number, action: string, pressed: 0 | 1];
 /** The engine's `event` predicate: an event type, or a type with the entity ids it must name. */
 export type EventMatch = string | { type: string; entityId?: string; other?: string };
 
+/** The engine's `persist` predicate: the value at a JSON Pointer into `ctx.persist` equals, or is at least or at most, a value. */
+export type PersistMatch = { pointer: string; eq?: JsonValue; gte?: number; lte?: number };
+
 /**
  * When a step ends early: every key must hold (AND). `event`, `tick` (an
- * absolute tick, reached or passed), `exists` and `count` are the engine's;
- * the rest are the game's `play.predicates`.
+ * absolute tick, reached or passed), `exists`, `count`, `scene` and
+ * `persist` are the engine's; the rest are the game's `play.predicates`.
  */
 export type UntilClause = {
   event?: EventMatch;
@@ -48,6 +61,9 @@ export type UntilClause = {
   exists?: ExistsMatch;
   /** The number of entities matching a selector keeps `min`, `max` or `eq`. */
   count?: CountMatch;
+  /** Holds once the main scene is this scene. */
+  scene?: AssetId;
+  persist?: PersistMatch;
   [predicate: string]: unknown;
 };
 
@@ -191,6 +207,19 @@ export type PlaytestOptions<S = unknown, G = unknown> = {
   dev?: boolean;
   /** The project's data the game reads as `EngineContext.project`; null without one. */
   project?: ProjectRuntimeView | null;
+  /** The listed scenes: with it the run follows flow requests on the same script; without it a request ends the run as `flow`. */
+  flow?: SceneLibrary;
+};
+
+/** How one scene's part of a run ended: the request that left it (`flow`, with `to`), or the run's own end. */
+export type PlaytestSegmentEnd = { result: RunResult; tick: number; to?: AssetId; entry?: string };
+
+/** One scene a run visited: its ticks and its own recording, which replays alone. */
+export type PlaytestSegment = {
+  scene: AssetId;
+  ticks: number;
+  recording: RunRecording;
+  end: PlaytestSegmentEnd;
 };
 
 /** How one script step went. */
@@ -215,8 +244,17 @@ export type PlaytestOutcomeReport = {
   at: Vec2 | null;
   cause?: string;
   entityId?: string;
+  /** With `result: "flow"`: the scene the request that ended the run went to. */
+  to?: AssetId;
 };
 
+/**
+ * How a playtest went. In a run that followed flow requests, `ticks`,
+ * `slots`, `outcome.tick`, `steps`, `inputs`, `commands`, `events` and
+ * `trail` cover every scene, ticks counted from the run's start; `scene`,
+ * `sceneHash`, `stream` and `recording` are the first scene's, and
+ * `segments` has each scene's own.
+ */
 export type PlaytestReport<S = unknown> = {
   blocked: false;
   scene: string;
@@ -252,14 +290,16 @@ export type PlaytestReport<S = unknown> = {
    * @deprecated Read `stream`, which holds every seat's input.
    */
   inputs: InputEdge[];
-  /** Every seat's input and the system events, as a v2 recording holds them. */
+  /** Every seat's input and the system events, as a v2 recording holds them; the first scene's. */
   stream: RecordingStream;
   /** The commands stepped, oldest first, stamped with the tick that stepped them. */
   commands: RecordingCommand[];
   /** Warnings and info the scene had; errors block instead. */
   issues: SceneIssue[];
-  /** The run as a recording: `replayRecording` plays it again tick for tick. */
+  /** The run as a recording: `replayRecording` plays it again tick for tick; the first segment's in a multi-scene run. */
   recording: RunRecording;
+  /** Each scene the run visited, in order; present when the run was given `flow`. */
+  segments?: PlaytestSegment[];
 };
 
 /**
@@ -301,6 +341,8 @@ export type FuzzOptions<S = unknown, G = unknown> = {
   dev?: boolean;
   /** The project's data the game reads as `EngineContext.project`; its `engine` block resolves the scene's settings and the clock. */
   project?: ProjectRuntimeView | null;
+  /** Start every rollout from this save (`restoreSave`) instead of the scene's fresh load. */
+  fromSave?: SaveStart;
 };
 
 /** An entity some rollout touched: named by an event's `entityId` or `other`. */

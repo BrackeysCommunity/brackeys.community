@@ -1,7 +1,7 @@
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
 import type { OccupantBlock } from "../../game/behaviors/occupant";
-import type { EngineContext } from "../../game/types";
-import { cellKey, type CellKey } from "../../grid/geometry";
+import type { EngineContext, JsonValue } from "../../game/types";
+import { cellKey, cellOf, type CellKey } from "../../grid/geometry";
 
 /** The occupant system; the grid calls `resync` when it is rebuilt under attached entities. */
 export type OccupantSystem = BehaviorSystem<OccupantBlock> & {
@@ -15,7 +15,7 @@ type Attached = { blocks: boolean; key: CellKey | null };
  * The occupant system: each entity carrying an `occupant` block stands in
  * `ctx.grid.occupancy` on the cell under its pose, re-placed after each
  * tick when its pose crossed into another cell. Nothing is placed while the
- * loaded scene has no grid.
+ * loaded scene has no grid. A world save keeps the cell it stands in.
  */
 export const createOccupantSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const attached = new Map<string, Attached>();
@@ -49,6 +49,21 @@ export const createOccupantSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     detach: hide,
     step() {
       for (const [id, a] of attached) place(id, a, false);
+    },
+    /** The cell it stands in, which trails its pose until the tick's end. */
+    save(id) {
+      const a = attached.get(id);
+      return a && a.key !== null ? [...cellOf(a.key)] : undefined;
+    },
+    restore(id, state: JsonValue) {
+      const a = attached.get(id);
+      const grid = ctx.grid;
+      if (!a || !grid || !Array.isArray(state)) return;
+      const [c, r] = state;
+      if (!Number.isInteger(c) || !Number.isInteger(r)) return;
+      const cell: [number, number] = [c as number, r as number];
+      grid.occupancy.place(id, cell, { blocks: a.blocks });
+      a.key = cellKey(cell);
     },
     resync() {
       for (const [id, a] of attached) place(id, a, true);

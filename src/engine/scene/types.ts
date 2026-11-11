@@ -294,6 +294,16 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "prefab-not-spawnable",
   // replay
   "recording-other-platform",
+  // flow
+  "scene-unlisted",
+  "start-scene-missing",
+  "sublevel-invalid",
+  // saves
+  "save-version-newer",
+  "save-too-large",
+  "save-slot-limit",
+  "save-unsupported",
+  "save-store-failed",
 ] as const;
 export type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 /** An engine code, or a game's `<game-id>/<code>`. */
@@ -338,6 +348,13 @@ export type PrefabParam = {
   targets: OverridePath[];
   /** Shown in the inspector and used when an instance sets none; omitted, the targets' own values stand. */
   default?: unknown;
+  /**
+   * Per target, the value it takes for each string value of the param
+   * (`{ "unit.behaviors.sprite.frame": { "red": "knight-red" } }`). A mapped
+   * target the map has no entry for keeps its own value; targets left out
+   * take the param's value as it is.
+   */
+  map?: Record<OverridePath, Record<string, unknown>>;
 };
 /** A prefab's content as a `definePrefab` op carries it: its children around a local origin. */
 export type PrefabBody = {

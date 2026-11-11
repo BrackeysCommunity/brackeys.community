@@ -1,9 +1,10 @@
 import { vi } from "vite-plus/test";
 
 import { createRegistry } from "../../game/define";
+import { formatSaveFile, parseSaveFile, type SaveFile } from "../../game/save-file";
 import { resolveTime } from "../../game/time";
 import type { GameCommand, GameDefinition } from "../../game/types";
-import { compileInputScript } from "../../headless/compile-input-script";
+import { compileInputScript, scriptSource } from "../../headless/compile-input-script";
 import { fuzz } from "../../headless/fuzz";
 import { probeConfigHash } from "../../headless/headless";
 import {
@@ -15,7 +16,7 @@ import {
   startRun,
   type InputSource,
 } from "../../headless/play-loop";
-import { runPlaytest } from "../../headless/playtest";
+import { runPlaytest, untilHolds } from "../../headless/playtest";
 import type {
   FuzzReport,
   InputEdge,
@@ -35,10 +36,12 @@ import {
   emptyTick,
   recordedCommand,
   recordingRapier,
+  snapshotDigest,
   trailPoint,
 } from "../../runtime/recorder";
 import { resolveGame } from "../../runtime/runtime";
-import type { StepEvent } from "../../runtime/types";
+import { captureSave, restoreSave } from "../../runtime/save-state";
+import type { SceneRuntimeHandle, StepEvent } from "../../runtime/types";
 import { scenePhysics } from "../../scene/expand";
 import { hashText } from "../../scene/hash";
 import type { RecordingCommand } from "../../scene/recording-schema";
@@ -75,6 +78,13 @@ export type ProbeVariant = {
   settings?: Partial<SceneSettings>;
   /** Overrides the script's `seed` (`PlayOptions.seed`); omitted, the script's or the default. */
   seed?: number | string;
+  /**
+   * Also plays the run from a world save: captured after this tick, restored
+   * into a fresh runtime, and played on with the rest of the input. It must
+   * end exactly as the uninterrupted run does (`ProbeRun.fromSave`). Pick a
+   * tick no key is held on, since held keys are input and no save holds them.
+   */
+  saveAt?: number;
 };
 
 export type GenreProbe<S = unknown> = {
@@ -130,6 +140,24 @@ export type ProbeRun = {
   digest: string;
   /** Whether a Rapier module was ever handed to the run. */
   usedRapier: boolean;
+  /** With the variant's `saveAt`: the same run played on from a world save. */
+  fromSave?: SaveRun;
+};
+
+/** A run that was saved mid-way and finished in a fresh runtime restored from the save. */
+export type SaveRun = {
+  /** The tick the save was captured after. */
+  at: number;
+  /** The save, as read back from its canonical text. */
+  save: SaveFile;
+  /** The game's snapshot when the save was captured. */
+  saved: unknown;
+  outcome: PlaytestReport["outcome"];
+  ticks: number;
+  slots: number;
+  final: unknown;
+  /** Digested as a whole run's is, so it equals the uninterrupted run's when the save continues it. */
+  digest: string;
 };
 
 /** The name pins.ts files a probe's run without a variant under. */
@@ -236,6 +264,18 @@ function waitSlots(script: InputScript | InputScriptV2): number {
   return longest;
 }
 
+/** Plays the slots `tickSlots` read, nothing in the others, until `length` slots have run. */
+function tickSource(slots: ReadonlyMap<number, TickInput>, length: number): InputSource {
+  let read = 0;
+  return {
+    done: () => read >= length,
+    tick: (slot) => {
+      read = slot + 1;
+      return slots.get(slot) ?? emptyTick(slot);
+    },
+  };
+}
+
 const DEFAULT_MAX_EVENTS = 1000;
 const DEFAULT_MAX_TRAIL = 2000;
 const TRAIL_EVERY = 4;
@@ -263,7 +303,13 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
   const name = opts.scene.name;
   const length = waitSlots(opts.script);
   const slots = tickSlots(opts.ticks, length, game);
-  const compiled = compileInputScript(opts.script, registry, resolveTime({ game: registry.time }));
+  const compiled = compileInputScript(
+    opts.script,
+    registry,
+    resolveTime({ game: registry.time }),
+    opts.project?.inputMap?.players,
+    opts.project?.inputMap,
+  );
   if (!compiled.ok) return blockedRun("script", name, [], compiled.issues);
   const { play, maxTicks, scene } = compiled.script;
   if (scene !== undefined && scene !== name)
@@ -295,14 +341,7 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
     let trailTruncated = false;
     const inputs: InputEdge[] = [];
     const commands: RecordingCommand[] = [];
-    let read = 0;
-    const input: InputSource = {
-      done: () => read >= length,
-      tick: (slot) => {
-        read = slot + 1;
-        return slots.get(slot) ?? emptyTick(slot);
-      },
-    };
+    const input = tickSource(slots, length);
     const recorder = createRunRecorder({
       rapier: recordingRapier(prepared.scene, opts.rapier),
       game,
@@ -421,18 +460,164 @@ export function probeProjectView(probe: GenreProbe): ProjectRuntimeView | null {
   return runtime;
 }
 
+type DigestParts = {
+  outcome: PlaytestReport["outcome"];
+  ticks: number;
+  slots: number;
+  /** The digest of the game's final snapshot. */
+  end: string;
+  events: readonly StepEvent[];
+  trail: readonly Pt[];
+};
+
 /** What a run is pinned by: how it ended, what it emitted, and the game's end state. */
-function runDigest(report: PlaytestReport): string {
+function probeDigest(run: DigestParts): string {
   return hashText(
-    JSON.stringify([
-      report.outcome,
-      report.ticks,
-      report.slots,
-      report.recording.end,
-      report.events,
-      report.trail.pts,
-    ]),
+    JSON.stringify([run.outcome, run.ticks, run.slots, run.end, run.events, run.trail]),
   );
+}
+
+const runDigest = (report: PlaytestReport): string =>
+  probeDigest({ ...report, end: report.recording.end, trail: report.trail.pts });
+
+export type SaveRunOptions = Omit<TickRunOptions, "ticks"> & {
+  /** Fed in place of the script's steps, as `playTicks` feeds them. */
+  ticks?: readonly TickInput[];
+  /** The tick to capture the world save after. */
+  at: number;
+  /** Names the run in errors. */
+  label?: string;
+};
+
+/**
+ * Plays a run in two runtimes: the first to tick `at`, where it captures a
+ * world save (written to its canonical text and parsed back); the second
+ * loaded fresh, restored from that save and played on with the rest of the
+ * input, from the same script or ticks, until the run ends. The parts the
+ * digest reads are kept across both, so a save that continues the run digests
+ * as the uninterrupted run does. Throws when the run ends before `at`, or when
+ * anything refuses: the script, the load, the capture, the text or the restore.
+ */
+export function playFromSave(opts: SaveRunOptions): SaveRun {
+  const label = opts.label ?? opts.scene.name;
+  const fail = (what: string, detail: unknown): never => {
+    throw new Error(`${label}: ${what}: ${JSON.stringify(detail)}`);
+  };
+  const { registry, game } = resolveGame({ game: opts.game });
+  const name = opts.scene.name;
+  const engine = opts.project?.engine;
+  const compiled = compileInputScript(
+    opts.script,
+    registry,
+    resolveTime({ project: engine, game: registry.time }),
+    opts.project?.inputMap?.players,
+    opts.project?.inputMap,
+  );
+  if (!compiled.ok) return fail("the script", compiled.issues);
+  const { play, maxTicks } = compiled.script;
+  const library = runLibrary(opts);
+  const prepared = prepareRun(opts.scene, registry, false, opts.prefabs, engine, {
+    library,
+    project: opts.project,
+  });
+  if (!prepared.ok) return fail("the scene", prepared.blocked.issues);
+  const start = (): SceneRuntimeHandle => {
+    const started = startRun({
+      rapier: opts.rapier,
+      game,
+      registry,
+      scene: prepared.scene,
+      play,
+      prefabs: library,
+      project: opts.project,
+    });
+    return started.ok ? started.runtime : fail("the load", started.load);
+  };
+
+  const events: StepEvent[] = [];
+  const pts: Pt[] = [];
+  const base = { ticks: 0, slots: 0 };
+  let source: InputSource | null = null;
+  const fed = (ticks: readonly TickInput[]) => {
+    const length = waitSlots(opts.script);
+    return tickSource(tickSlots(ticks, length, game), length);
+  };
+  const leg = (runtime: SceneRuntimeHandle, ticks: number) => {
+    source ??= opts.ticks
+      ? fed(opts.ticks)
+      : scriptSource(
+          compiled.script,
+          (until, state) => untilHolds(until, state, registry, name),
+          runtime.ctx.time,
+        );
+    const from = source;
+    const at = { ...base };
+    return runLoop({
+      runtime,
+      game,
+      maxTicks: ticks,
+      input: {
+        done: () => from.done(),
+        tick: (slot) => from.tick!(at.slots + slot),
+        after: (state) => from.after?.({ ...state, tick: at.ticks + state.tick }),
+        skipped: (slot) => from.skipped?.(at.slots + slot),
+      },
+      onTick(state, focus) {
+        const tick = at.ticks + state.tick;
+        for (const e of state.events) if (events.length < DEFAULT_MAX_EVENTS) events.push(e);
+        if (focus && tick % TRAIL_EVERY === 0 && pts.length < DEFAULT_MAX_TRAIL)
+          pts.push(trailPoint(focus));
+      },
+    });
+  };
+
+  let save: SaveFile;
+  let saved: unknown;
+  const first = start();
+  try {
+    const end = leg(first, opts.at + 1);
+    if (end.result !== "timeout" || end.ticks !== opts.at + 1)
+      fail(`the run ended before tick ${opts.at}`, { result: end.result, tick: end.tick });
+    saved = first.snapshot();
+    const captured = captureSave(first, { depth: "world", slot: "probe", now: 0 });
+    if (!captured.ok) return fail("the capture", captured.issue);
+    const parsed = parseSaveFile(formatSaveFile(captured.file), game ?? undefined);
+    if (!parsed.ok) return fail("the save's text", parsed.issues);
+    save = parsed.file;
+    base.ticks += end.ticks;
+    base.slots += end.slots;
+  } finally {
+    first.destroy();
+  }
+
+  const second = start();
+  try {
+    const restored = restoreSave(second, save);
+    if (!restored.ok) return fail("the restore", restored.issue);
+    const end = leg(second, maxTicks - base.ticks);
+    const final = second.snapshot();
+    const focus = game?.play?.focus && final !== null ? game.play.focus(final) : null;
+    const outcome: PlaytestReport["outcome"] = {
+      result: end.result,
+      tick: base.ticks + end.tick,
+      at: focus ? { x: focus.x, y: focus.y } : null,
+    };
+    if (end.cause !== undefined) outcome.cause = end.cause;
+    if (end.entityId !== undefined) outcome.entityId = end.entityId;
+    const ticks = base.ticks + end.ticks;
+    const slots = base.slots + end.slots;
+    const digest = probeDigest({
+      outcome,
+      ticks,
+      slots,
+      end: snapshotDigest(final),
+      events,
+      trail: pts,
+    });
+    return { at: opts.at, save, saved, outcome, ticks, slots, final, digest };
+  } finally {
+    second.destroy();
+  }
 }
 
 function blockedMessage(
@@ -479,12 +664,21 @@ export async function runGenreProbe<S>(
   });
   if (replay.blocked) throw new Error(blockedMessage(`${label}: the replay`, replay));
 
-  return {
+  const run: ProbeRun = {
     report: report as PlaytestReport,
     replay: replay as ReplayReport,
     digest: runDigest(report as PlaytestReport),
     usedRapier: rapier !== null,
   };
+  if (variant?.saveAt !== undefined)
+    run.fromSave = playFromSave({
+      ...runs,
+      script,
+      ...(p.ticks ? { ticks: p.ticks } : {}),
+      at: variant.saveAt,
+      label: `${label} from a save`,
+    });
+  return run;
 }
 
 /**
@@ -527,8 +721,8 @@ function isProbe(value: unknown): value is GenreProbe {
 
 /**
  * The probes a `*.probe.ts` glob found, sorted by id: every exported probe of
- * each module. Throws on a duplicate id or a variant named twice or
- * `default`, since pins.ts files runs by those names.
+ * each module. Throws on a duplicate id, a variant named twice or `default`
+ * (pins.ts files runs by those names), and a `saveAt` that isn't a tick.
  */
 export function probesFrom(modules: Record<string, Record<string, unknown>>): GenreProbe[] {
   const probes = [
@@ -540,6 +734,8 @@ export function probesFrom(modules: Record<string, Record<string, unknown>>): Ge
     for (const v of probe.variants ?? []) {
       if (names.has(v.name)) throw new Error(`${probe.id}: variant name ${v.name} is taken`);
       names.add(v.name);
+      if (v.saveAt !== undefined && !(Number.isInteger(v.saveAt) && v.saveAt >= 0))
+        throw new Error(`${probe.id}: variant ${v.name} saves at ${v.saveAt}, not a tick`);
     }
   }
   return probes;

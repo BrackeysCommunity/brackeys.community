@@ -1,3 +1,4 @@
+import type { FlowRequest } from "../game/flow";
 import { resolveTime, type ResolvedTime } from "../game/time";
 import {
   ENGINE_RUN_RESULTS,
@@ -158,6 +159,12 @@ export type SessionRecording = {
     verdict: GameOutcome | null,
     commands?: readonly GameCommand[],
   ): RunRecording | null;
+  /**
+   * After the tick that made `req`: the editor's Play doesn't change scene,
+   * so the request finishes it as `flow`, written with `next`. Null when it
+   * had already finished.
+   */
+  requested(req: Pick<FlowRequest, "to" | "entry">): RunRecording | null;
   /** Finishes it as `quit` unless it already finished; null when it had. */
   stop(): RunRecording | null;
   /** The finished recording, once there is one. */
@@ -229,6 +236,11 @@ export function createSessionRecording(opts: SessionRecordingOptions): SessionRe
       }
       return null;
     },
+    requested(req) {
+      if (done) return null;
+      const next = { scene: req.to, ...(req.entry !== undefined ? { entry: req.entry } : {}) };
+      return finish({ result: "flow", tick: last, ticks: last + 1, next });
+    },
     stop() {
       if (done) return null;
       return finish({ result: "quit", tick: last, ticks: last + 1 });
@@ -244,12 +256,23 @@ export function createSessionRecording(opts: SessionRecordingOptions): SessionRe
 
 /**
  * What `PlayState.world` answers, read live from `ctx`: an entity exists
- * while it is enabled unless asked with `enabled: false`, and counts go
- * through the query index.
+ * while it is enabled unless asked with `enabled: false`, counts and
+ * selections go through the query index, and the grid and project are
+ * whatever `ctx` holds at the time of the read.
  */
-export function playWorld(ctx: Pick<EngineContext, "exists" | "enabled" | "query">): PlayWorld {
+export function playWorld(
+  ctx: Pick<EngineContext, "exists" | "enabled" | "query" | "get" | "grid" | "project">,
+): PlayWorld {
   return {
     exists: (id, opts) => (opts?.enabled === false ? ctx.exists(id) : ctx.enabled(id)),
     count: (sel) => ctx.query.count(sel),
+    select: (sel) => ctx.query.select(sel),
+    get: (id) => ctx.get(id),
+    get grid() {
+      return ctx.grid;
+    },
+    get project() {
+      return ctx.project;
+    },
   };
 }

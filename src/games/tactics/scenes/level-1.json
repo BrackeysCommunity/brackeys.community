@@ -8,8 +8,8 @@
     { "id": "blue-knight-1", "prefab": "knight", "at": [1.5, 2.5] },
     { "id": "blue-archer", "prefab": "archer", "at": [1.5, 4.5] },
     { "id": "blue-knight-2", "prefab": "knight", "at": [1.5, 6.5] },
-    { "id": "red-knight", "prefab": "knight", "at": [10.5, 3.5], "params": { "side": "red" }, "overrides": { "unit.behaviors.sprite.flipX": true, "unit.behaviors.sprite.frame": "knight-red" } },
-    { "id": "red-archer", "prefab": "archer", "at": [10.5, 5.5], "params": { "side": "red" }, "overrides": { "unit.behaviors.sprite.flipX": true, "unit.behaviors.sprite.frame": "archer-red" } }
+    { "id": "red-knight", "prefab": "knight", "at": [10.5, 3.5], "params": { "side": "red" } },
+    { "id": "red-archer", "prefab": "archer", "at": [10.5, 5.5], "params": { "side": "red" } }
   ],
   "entities": [
     { "id": "wall-north", "type": "solid", "layer": "decor", "shape": ["box", 5.5, 2.5, 0.5, 1.5], "behaviors": { "sprite": { "asset": "tile-wall", "size": [1, 3], "tile": true } } },

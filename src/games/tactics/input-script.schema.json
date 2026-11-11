@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:input-script:tactics:v2",
-  "x-agent-surface": 13,
+  "x-agent-surface": 14,
   "title": "jams engine input script for tactics, format v2",
   "type": "object",
   "properties": {
@@ -333,8 +333,8 @@
           "properties": {
             "command": {
               "type": "string",
-              "enum": ["move", "attack", "wait", "end-turn"],
-              "description": "A command the game declares: move (Walk a unit of the side to act to a cell in its reach; once per turn, before it acts.); attack (Strike an enemy in the unit's range (and in sight, for a class that needs it); ends the unit's turn.); wait (End the unit's turn without attacking.); end-turn (Hand the turn to the other side.)."
+              "enum": ["move", "attack", "wait", "end-turn", "start", "menu"],
+              "description": "A command the game declares: move (Walk a unit of the side to act to a cell in its reach; once per turn, before it acts.); attack (Strike an enemy in the unit's range (and in sight, for a class that needs it); ends the unit's turn.); wait (End the unit's turn without attacking.); end-turn (Hand the turn to the other side.); start (On the menu: play the first level not cleared yet, or level 1 afresh once every level is cleared.); menu (On the result scene: go back to the menu.)."
             },
             "args": {
               "description": "The command's arguments, checked by its `args` schema; omit for none."
@@ -435,6 +435,14 @@
         "count": {
           "$ref": "#/$defs/CountMatch"
         },
+        "scene": {
+          "description": "Holds once the main scene is this one (its asset id), after a flow request the run followed.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+        },
+        "persist": {
+          "$ref": "#/$defs/PersistMatch"
+        },
         "turn": {
           "description": "The turn number has reached this one (the first turn is 1).",
           "type": "integer",
@@ -449,7 +457,7 @@
       },
       "additionalProperties": false,
       "minProperties": 1,
-      "description": "Ends the step on the first tick where every key holds (AND), checked after each tick, so the step runs at least one tick. Predicates: event, tick, exists, count, turn, side."
+      "description": "Ends the step on the first tick where every key holds (AND), checked after each tick, so the step runs at least one tick. Predicates: event, tick, exists, count, scene, persist, turn, side."
     },
     "EventMatch": {
       "anyOf": [
@@ -582,9 +590,66 @@
         "nav",
         "note",
         "unit",
-        "rough"
+        "rough",
+        "stair"
       ],
-      "description": "An entity type: solid, sensor, marker, prop, follower, decor, nav, note, unit, rough."
+      "description": "An entity type: solid, sensor, marker, prop, follower, decor, nav, note, unit, rough, stair."
+    },
+    "PersistMatch": {
+      "type": "object",
+      "properties": {
+        "pointer": {
+          "type": "string",
+          "description": "A JSON Pointer into the persistent value, e.g. \"/coins\"; \"\" is the whole value."
+        },
+        "eq": {
+          "description": "Holds while the value there equals this, key order aside.",
+          "$ref": "#/$defs/JsonValue"
+        },
+        "gte": {
+          "description": "Holds while the value there is a number at least this.",
+          "type": "number"
+        },
+        "lte": {
+          "description": "Holds while the value there is a number at most this.",
+          "type": "number"
+        }
+      },
+      "required": ["pointer"],
+      "additionalProperties": false,
+      "description": "Holds while the persistent value (`ctx.persist`) at `pointer` keeps every bound given; a pointer naming nothing doesn't hold."
+    },
+    "JsonValue": {
+      "description": "Any JSON value.",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        }
+      ]
     },
     "ScriptPointer": {
       "type": "object",

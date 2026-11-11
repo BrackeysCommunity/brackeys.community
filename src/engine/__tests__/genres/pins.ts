@@ -9,6 +9,7 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     default: "8df0c7714f456fd0",
     "gravity-sideways": "8df0c7714f456fd0",
     "gravity-zero": "8df0c7714f456fd0",
+    "saved-mid-push": "8df0c7714f456fd0",
   },
   "local-versus": {
     default: "12df0b2a076791a9",
@@ -41,5 +42,6 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
   "turn-tactics": {
     default: "355be025a7f4aeda",
     "gravity-sideways": "355be025a7f4aeda",
+    "saved-mid-walk": "355be025a7f4aeda",
   },
 };

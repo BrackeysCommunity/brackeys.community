@@ -1,5 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { ENGINE_REGISTRY_ID, type SceneTemplate } from "@jams/engine/game";
 import { projectGlobs } from "@jams/engine/project";
@@ -59,7 +60,23 @@ function sceneFolder(project: ProjectHandle, scenes: readonly SceneFile[]): stri
   return join(project.dir, ...fixed);
 }
 
-/** The schema file the project's scenes point at: `ctx.schemaFiles`, else the `$schema` of one of its scenes. */
+/** The scene schema of gameless scenes: the engine's own. */
+const ENGINE_SCENE_SCHEMA = fileURLToPath(
+  new URL("../../../src/engine/scene/scene.schema.json", import.meta.url),
+);
+
+const exists = (file: string) =>
+  access(file).then(
+    () => true,
+    () => false,
+  );
+
+/**
+ * The schema file the project's scenes point at: `ctx.schemaFiles`, else the
+ * `$schema` of one of its scenes, else, for a project with no scene to copy,
+ * its game's generated `scene.schema.json` beside its project file (the
+ * engine's for a gameless project) when that file exists.
+ */
 async function schemaFileOf(
   ctx: ToolContext,
   project: ProjectHandle,
@@ -76,7 +93,8 @@ async function schemaFileOf(
       // A scene that doesn't parse names no schema.
     }
   }
-  return undefined;
+  const own = project.game ? join(project.dir, "scene.schema.json") : ENGINE_SCENE_SCHEMA;
+  return (await exists(own)) ? own : undefined;
 }
 
 /**
@@ -84,7 +102,8 @@ async function schemaFileOf(
  * the scene is for (the engine's for a scene without a game), beside the
  * project's other scenes. It is a copy of `--from` under the new name, else
  * the game's template, else an empty world. `$schema` points where the
- * project's scenes point. The file is written by a `createAsset` op through
+ * project's scenes point, or at the project's own scene schema for its
+ * first scene. The file is written by a `createAsset` op through
  * `applyProjectBatchToFiles`, so the project's id and path rules hold: an id
  * another asset holds is asset-id-taken, a path another asset or an unlisted
  * file holds is path-taken. Nothing is written when the name is taken by a

@@ -1,6 +1,11 @@
 import type { ProjectRuntimeView } from "@jams/engine/game";
 import type { FilesLoadInput } from "@jams/engine/headless";
-import { heldProject, parseSidecar, type AssetSidecar } from "@jams/engine/project";
+import {
+  heldProject,
+  parseSidecar,
+  type AssetSidecar,
+  type HeldProject,
+} from "@jams/engine/project";
 import { createRegistry } from "@jams/engine/scene";
 
 import { tacticsGame } from "..";
@@ -38,12 +43,11 @@ function sidecar(raw: unknown): AssetSidecar {
 }
 
 /**
- * What the pinned run reads as `EngineContext.project`: the project's game
- * settings, unit classes, input map and art sidecars, through `heldProject`
- * as the site's game room reads them. JSON imports only, so the browser
- * smoke builds the same view.
+ * The project's game settings, unit classes, input map and art sidecars,
+ * through `heldProject` as the site's game room reads them. JSON imports
+ * only, so the browser smoke builds the same view.
  */
-export function tacticsProjectView(): ProjectRuntimeView {
+export function tacticsHeldProject(): HeldProject {
   return heldProject(
     [
       { path: "game-settings.json", json: gameSettings, sidecar: sidecar(gameSettingsSidecar) },
@@ -58,7 +62,12 @@ export function tacticsProjectView(): ProjectRuntimeView {
     ],
     createRegistry(tacticsGame),
     { projectId: project.id, name: project.name },
-  ).runtime;
+  );
+}
+
+/** What the pinned run reads as `EngineContext.project`. */
+export function tacticsProjectView(): ProjectRuntimeView {
+  return tacticsHeldProject().runtime;
 }
 
 /** Level 1, its prefabs and its project, for `loadHeadless`. */

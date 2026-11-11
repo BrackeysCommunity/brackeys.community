@@ -6,13 +6,13 @@
   },
   "platform": {
     "arch": "arm64",
-    "runtime": "node 26.13.0",
+    "runtime": "node 26.13.1",
     "flavour": null
   },
   "game": "tactics",
   "scene": "level-1",
-  "sceneHash": "3c3ad3792788b45a",
-  "runHash": "3aa5ff2553739d00",
+  "sceneHash": "a905131b5aaff308",
+  "runHash": "f45f4935540fe8a4",
   "project": null,
   "configHash": "9a40e5fbc53f6748",
   "time": {
@@ -20,7 +20,13 @@
     "rate": 60
   },
   "seed": 1,
-  "start": {},
+  "start": {
+    "persist": {
+      "cleared": [],
+      "roster": [],
+      "last": null
+    }
+  },
   "players": [
     {
       "index": 0,

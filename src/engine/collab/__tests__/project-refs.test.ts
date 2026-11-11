@@ -15,6 +15,7 @@ import {
 import { dataTableKind } from "../../project/kinds/data-table";
 import { gameSettingsKind } from "../../project/kinds/game-settings";
 import { ENGINE_ASSET_KINDS } from "../../project/kinds/index";
+import { sceneListKind, type SceneListFile } from "../../project/kinds/scene-list";
 import type { ProjectOp, ProjectOpBatch } from "../../project/ops";
 import { buildRefIndex, referencedTrash } from "../../project/refs";
 import type { AssetEntry, AssetId, ProjectState } from "../../project/types";
@@ -22,7 +23,7 @@ import { projectView } from "../../project/view";
 import { rng } from "../../scene/__tests__/fixtures/random-ops";
 import { INPUT_SCRIPT_LAYOUT } from "../../scene/format";
 import { parseScene } from "../../scene/parse";
-import type { Prefab, SceneDefinition } from "../../scene/types";
+import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../../scene/types";
 import { docToScene, prefabHeaderMap, sceneToDoc } from "../convert";
 import { sequentialKeys } from "../keys";
 import { layoutFromDoc, layoutToDoc } from "../layout";
@@ -845,4 +846,244 @@ describe("references through asset fields", () => {
     expect(dangling[0]!.message).toContain("in the trash");
     s.destroy();
   });
+});
+
+// ─── A scene list's references ───────────────────────────
+
+describe("a scene list's references", () => {
+  const LIST_LAYOUT = sceneListKind.layout as DocLayout;
+  const SCENES = ["yard", "ford", "cellar", "result"] as const;
+  const listState: ProjectState = {
+    meta: { projectId: "p", layout: 1, name: "P" },
+    assets: Object.fromEntries(
+      [
+        ...SCENES.map((id) => entry(id, "scene", `levels/${id}.json`)),
+        entry("list", "scene-list", "scene-list.json"),
+      ].map((e) => [e.key, e]),
+    ),
+    history: {},
+    code: {},
+    build: {},
+  };
+  const startList: SceneListFile = {
+    kind: "scene-list",
+    v: 1,
+    start: "yard",
+    scenes: [
+      { scene: "yard", title: "Yard" },
+      { scene: "cellar", sublevel: true },
+      { scene: "result" },
+    ],
+  };
+  const sceneDef = (name: string): SceneDefinition => ({
+    v: SCENE_FORMAT_VERSION,
+    name,
+    bounds: [0, 0, 10, 10],
+    entities: [],
+  });
+
+  function seedList(doc: (name: string) => Y.Doc): void {
+    seedProjectDoc(doc("project:p"), listState, { kind: "migration" });
+    for (const id of SCENES)
+      sceneToDoc(sceneDef(id), { doc: doc(`scene:p.${id}`), key: sequentialKeys("srv") });
+    layoutToDoc(doc("asset:p.list"), LIST_LAYOUT, startList, { kind: "migration" });
+  }
+
+  const listOf = (doc: (name: string) => Y.Doc) =>
+    layoutFromDoc(doc("asset:p.list"), LIST_LAYOUT) as SceneListFile;
+  const listed = (doc: (name: string) => Y.Doc) => listOf(doc).scenes.map((e) => e.scene);
+
+  function listRefs(state: ProjectState, doc: (name: string) => Y.Doc) {
+    const view = projectView(state, kinds);
+    const values = new Map<AssetId, unknown>();
+    for (const e of Object.values(state.assets))
+      if (!e.deleted && e.kind === "scene-list") values.set(e.id, listOf(doc));
+    return { view, index: buildRefIndex(view, values, kinds, { registry, project: view }) };
+  }
+
+  function simList(clients: number, seed: number) {
+    const initial: Record<string, Y.Doc> = {};
+    seedList((name) => {
+      const doc = (initial[name] ??= new Y.Doc());
+      doc.clientID = 1;
+      return doc;
+    });
+    const sim = new SimProject(clients + 1, rng(seed), initial);
+    return {
+      sim,
+      join: (i: number, origin: DocOrigin) =>
+        createProjectSession({ project: "p", openDoc: sim.openDoc(i), origin, registry, kinds }),
+      server: (name: string) => sim.doc(name, clients),
+    };
+  }
+
+  it(
+    "renaming a listed scene during a concurrent reorder keeps the entry",
+    { timeout: 30_000 },
+    async () => {
+      let partitions = 0;
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        const { sim, join } = simList(2, seed);
+        const [mover, sorter] = await Promise.all([join(0, ada), join(1, bo)]);
+        for (const s of [mover, sorter]) await s.open("asset:p.list");
+        const ids: Record<string, string> = { yard: "yard", cellar: "cellar", result: "result" };
+        let reorders = 0;
+        for (let step = 0; step < 12; step++) {
+          const scene = (["yard", "cellar", "result"] as const)[step % 3]!;
+          const id = ids[scene]!;
+          const at = mover.view().byId.get(id)!;
+          const roll = sim.rand();
+          if (roll < 0.4) {
+            ids[scene] = `${scene}-${step}`;
+            await applied(mover, [{ op: "changeAssetId", id, to: ids[scene]! }]);
+          } else if (roll < 0.7)
+            await applied(mover, [
+              {
+                op: "renameAsset",
+                id,
+                file: `s${step}-${at.path.slice(at.path.lastIndexOf("/") + 1)}`,
+              },
+            ]);
+          else await applied(mover, [{ op: "moveAsset", ids: [id], to: `moved-${step}/` }]);
+
+          // A copy holding updates that wait on earlier ones reads a half-applied change; a person sorting waits it out.
+          const held = sessionDoc(sorter)("asset:p.list").store;
+          if (held.pendingStructs === null && held.pendingDs === null) {
+            const current = listOf(sessionDoc(sorter)).scenes;
+            const reordered = [...current].sort(() => sim.rand() - 0.5);
+            await applied(sorter, [
+              { op: "editAsset", id: "list", edits: [{ set: "/scenes", value: reordered }] },
+            ]);
+            reorders++;
+          }
+          sim.deliver(Math.floor(sim.rand() * 3));
+          sim.weather(0.2, 0.2);
+        }
+        sim.settle();
+
+        const states = [mover, sorter].map((s) => readProject(s.projectDoc));
+        expect(states[1], `seed ${seed}`).toEqual(states[0]);
+        for (const s of [mover, sorter]) {
+          const doc = sessionDoc(s);
+          expect(listed(doc).sort(), `seed ${seed}: every entry kept`).toEqual(
+            Object.values(ids).sort(),
+          );
+          expect(listOf(doc).start).toBe(ids.yard);
+          const kept = listOf(doc).scenes;
+          expect(kept.find((e) => e.scene === ids.yard)).toEqual({
+            scene: ids.yard,
+            title: "Yard",
+          });
+          expect(kept.find((e) => e.scene === ids.cellar)).toEqual({
+            scene: ids.cellar,
+            sublevel: true,
+          });
+          const { index } = listRefs(readProject(s.projectDoc), doc);
+          expect(index.dangling(), `seed ${seed}`).toEqual([]);
+          expect(index.referrers(ids.yard!).map((r) => r.pointer)).toEqual(
+            expect.arrayContaining(["/start"]),
+          );
+        }
+        expect(listOf(sessionDoc(sorter))).toEqual(listOf(sessionDoc(mover)));
+        expect(reorders, `seed ${seed}: the sorter reorders`).toBeGreaterThan(6);
+        partitions += sim.partitions;
+        for (const s of [mover, sorter]) s.destroy();
+      }
+      expect(partitions, "the runs must cut clients off").toBeGreaterThan(3);
+    },
+  );
+
+  it("changeAssetId of the start scene rewrites start and the entry in one batch", async () => {
+    const host = memoryDocHost();
+    seedList((name) => host.doc(name));
+    const a = await createProjectSession({
+      project: "p",
+      openDoc: host.client().openDoc,
+      origin: ada,
+      registry,
+      kinds,
+    });
+    const doc = (name: string) => host.doc(name);
+    const r = await applied(a, [{ op: "changeAssetId", id: "yard", to: "court" }], "Rename yard");
+    expect(r.docs).toContain("asset:p.list");
+    expect(r.docs.at(-1)).toBe("project:p");
+    expect(listOf(doc)).toEqual({
+      ...startList,
+      start: "court",
+      scenes: [{ scene: "court", title: "Yard" }, ...startList.scenes.slice(1)],
+    });
+    const logged = readLog(host.doc("asset:p.list"));
+    expect(logged, "one history entry on the list for both sites").toHaveLength(1);
+    expect(logged[0]).toMatchObject({ label: "Rename yard", actor: ada });
+    expect(readProjectLog(host.doc("project:p"))).toHaveLength(1);
+    expect(r.entry?.docs.map((d) => d.doc)).toEqual(r.docs);
+    const { index } = listRefs(readProject(host.doc("project:p")), doc);
+    expect(index.dangling()).toEqual([]);
+    expect(index.referrers("court").map((ref) => ref.pointer)).toEqual([
+      "/scenes/0/scene",
+      "/start",
+    ]);
+
+    expect(a.undo()?.docs).toEqual(r.docs);
+    expect(listOf(doc)).toEqual(startList);
+    expect(readProject(host.doc("project:p")).assets.yard!.id).toBe("yard");
+    a.destroy();
+  });
+
+  it(
+    "deleting a listed scene while another client adds it to the list ends asset-in-use",
+    { timeout: 30_000 },
+    async () => {
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        const { sim, join, server } = simList(2, seed);
+        const [a, b] = await Promise.all([join(0, ada), join(1, bo)]);
+        for (const s of [a, b]) await s.open("asset:p.list");
+
+        if (seed % 2 === 1) sim.partition([seed % 3]);
+        await applied(a, [{ op: "deleteAsset", id: "ford" }]);
+        await applied(b, [
+          {
+            op: "editAsset",
+            id: "list",
+            edits: [{ insert: "/scenes/-", value: { scene: "ford", title: "Ford" } }],
+          },
+        ]);
+        for (let step = 0; step < 4; step++) sim.weather(0.2, 0.2);
+        sim.settle();
+        const raced = listRefs(readProject(b.projectDoc), sessionDoc(b));
+        expect(raced.view.byId.has("ford")).toBe(false);
+        expect(raced.index.dangling().map((i) => [i.code, i.got, i.entityIds])).toEqual([
+          ["asset-missing", "ford", ["list"]],
+        ]);
+
+        const stored = listRefs(readProject(server("project:p")), server);
+        const restore = referencedTrash(stored.view, stored.index);
+        expect(restore).toEqual(["ford"]);
+        const repair = { kind: "repair", reason: "asset-in-use" } as const;
+        expect(
+          applyRepairs(server("project:p"), { restore, origin: repair, now: 5 }).restored,
+        ).toEqual(["ford"]);
+        sim.settle();
+
+        for (const s of [a, b]) {
+          expect(readProject(s.projectDoc).assets.ford!.deleted).toBeUndefined();
+          const log = readProjectLog(s.projectDoc).at(-1)!;
+          expect([log.actor, log.label]).toEqual([repair, "Restore ford"]);
+          expect(listed(sessionDoc(s))).toEqual(["yard", "cellar", "result", "ford"]);
+        }
+        expect(listRefs(readProject(b.projectDoc), sessionDoc(b)).index.dangling()).toEqual([]);
+
+        const again = await applyProjectBatch(
+          a,
+          { v: 1, ops: [{ op: "deleteAsset", id: "ford" }] },
+          ada,
+        );
+        expect(again.ok || [again.issue.code, again.issue.detail]).toEqual([
+          "asset-in-use",
+          { referrers: [{ id: "list", pointer: "/scenes/3/scene" }] },
+        ]);
+        for (const s of [a, b]) s.destroy();
+      }
+    },
+  );
 });

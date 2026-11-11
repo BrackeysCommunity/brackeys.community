@@ -43,6 +43,8 @@ export type TurnTacticsSnapshot = {
   walked: number;
   /** Presses of `inspect`, read on the ticks a command wakes. */
   inspected: number;
+  /** The cells each unit still has to walk, by unit; only units with some, and absent when none have. */
+  queued?: Record<string, Cell[]>;
 };
 
 type Unit = { id: string; stepper: GridStepper; queue: Cell[] };
@@ -189,17 +191,33 @@ const game = defineGame<TurnTacticsSnapshot>({
         }
       },
       busy: () => units.some((u) => u.stepper.moving() || u.queue.length > 0),
-      snapshot: () => ({
-        turn,
-        moves,
-        units: Object.fromEntries(units.map((u) => [u.id, u.stepper.cell()])),
-        at: poseOf(units[0]?.id),
-        moving: units.some((u) => u.stepper.moving()),
-        revealed,
-        reached,
-        walked,
-        inspected,
-      }),
+      snapshot: () => {
+        const queued = units
+          .filter((u) => u.queue.length > 0)
+          .map((u) => [u.id, u.queue.map((c): Cell => [c[0], c[1]])]);
+        return {
+          turn,
+          moves,
+          units: Object.fromEntries(units.map((u) => [u.id, u.stepper.cell()])),
+          at: poseOf(units[0]?.id),
+          moving: units.some((u) => u.stepper.moving()),
+          revealed,
+          reached,
+          walked,
+          inspected,
+          ...(queued.length > 0 ? { queued: Object.fromEntries(queued) } : {}),
+        };
+      },
+      // The steppers come back with the world save; the rest of the game's state is here.
+      restore(s) {
+        turn = s.turn;
+        moves = s.moves;
+        revealed = s.revealed;
+        reached = s.reached;
+        walked = s.walked;
+        inspected = s.inspected;
+        for (const u of units) u.queue = (s.queued?.[u.id] ?? []).map((c): Cell => [c[0], c[1]]);
+      },
     };
   },
 });
@@ -229,6 +247,9 @@ const scene: SceneDefinition = {
   ],
 };
 
+/** A tick inside the first walk, partway through a step with more queued behind it. */
+export const SAVE_AT = 14;
+
 const order = (unit: string, to: Cell) => ({ command: MOVE, args: { unit, to: [to[0], to[1]] } });
 const endTurn = { command: END_TURN };
 /** More slots than a full turn's walk takes, so each order finishes before the next. */
@@ -237,10 +258,7 @@ const settle = { wait: MOVES_PER_TURN * ticksFor(MS_PER_STEP, { rate: 60 }) + 6 
 export const probe: GenreProbe<TurnTacticsSnapshot> = {
   id: ID,
   rows: ["tactics", "roguelike"],
-  pending: {
-    tactics: "M16 (pointer selection), M17 (UI), M18 (saves)",
-    roguelike: "M15 (seeded generation, runtime prefabs), M18 (saves), M25 (tilemap writes)",
-  },
+  pending: { roguelike: "M25 (tilemap writes)" },
   game,
   scene,
   script: {
@@ -267,5 +285,9 @@ export const probe: GenreProbe<TurnTacticsSnapshot> = {
     ],
   },
   expect: { result: "won", maxTicks: 80 },
-  variants: [{ name: "gravity-sideways", settings: { gravity: [1200, 0] } }],
+  variants: [
+    { name: "gravity-sideways", settings: { gravity: [1200, 0] } },
+    // Mid-way through the first walk, with steps still queued.
+    { name: "saved-mid-walk", saveAt: SAVE_AT },
+  ],
 };

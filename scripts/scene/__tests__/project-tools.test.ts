@@ -58,6 +58,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "materials/bouncy.json",
       "game-settings.json",
       "input-map.json",
+      "scene-list.json",
     ];
     const art = [
       "art/backdrop.png",
@@ -77,7 +78,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       name: "Engine",
       game: null,
       dir: join(ROOT, "src/engine/scenes"),
-      assets: 21,
+      assets: 22,
       counts: {
         atlas: 2,
         checks: 3,
@@ -94,7 +95,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       problems: [],
       issues: [],
       usage: {
-        docs: 16,
+        docs: 17,
         docBytes: await size(files),
         blobs: 5,
         blobBytes: await size(art),
@@ -147,6 +148,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       "input-map.json",
       "kitchen-sink.checks.json",
       "kitchen-sink.json",
+      "scene-list.json",
     ]);
     expect(engine.text).toContain("  prefabs/\n    doorway.json  prefab doorway");
 
@@ -173,6 +175,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       referrers: [
         { id: "kitchen-sink-checks", kind: "checks", pointer: "/checks/@fades/script/scene" },
         { id: "kitchen-sink-checks", kind: "checks", pointer: "/checks/@settles/script/scene" },
+        { id: "scene-list", kind: "scene-list", pointer: "/scenes/1/scene" },
       ],
       dangling: [],
     });
@@ -242,6 +245,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
         "one-way-latch",
         "post",
         "room",
+        "scene-list",
         ...blobs,
       ].sort(),
     );
@@ -261,7 +265,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
     const printed = await projectSnapshot({ project: "platformer", out: "-" }, ctx);
     const parsed = await parseProjectSnapshot(printed.text);
     expect(parsed.ok && parsed.snapshot.project).toBe("platformer");
-    expect(parsed.ok && Object.keys(parsed.snapshot.assets)).toEqual(["test-yard"]);
+    expect(parsed.ok && Object.keys(parsed.snapshot.assets)).toEqual(["scene-list", "test-yard"]);
   });
 
   it("refuses a missing or unknown project with exit 2, naming the projects", async () => {

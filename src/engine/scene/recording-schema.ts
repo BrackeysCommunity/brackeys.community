@@ -1,9 +1,12 @@
 import { z } from "zod";
 
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
+import { ID_PATTERN } from "../game/fields";
 import { MAX_TICK_RATE, MIN_TICK_RATE, type TimeKind } from "../game/time";
-import type { DeviceId, Registry } from "../game/types";
+import type { DeviceId, JsonValue, Registry } from "../game/types";
 import { scaleLengths } from "../game/units";
+import { SHA256_PATTERN } from "../project/hash";
+import type { AssetId, Sha256 } from "../project/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { deviceIdSchema } from "./device-id";
 import { jsonPointer } from "./issues";
@@ -41,7 +44,7 @@ const outcomeSchema = z
     result: z
       .string()
       .describe(
-        "An engine result (`timeout`, `script-end`, `stuck`, `quit`) or one the game declares.",
+        "An engine result (`timeout`, `script-end`, `stuck`, `quit`, `flow`) or one the game declares.",
       ),
     tick: z.number().int().min(-1).describe("The last tick simulated."),
     at: pt.nullable().describe("The game's focus then; null without one."),
@@ -228,7 +231,15 @@ export type RunRecordingV2 = {
   time: { kind: TimeKind; rate: number };
   /** Always written: the default seed when the run named none. */
   seed: number | string;
-  start: { at?: [x: number, y: number]; timeOffsetMs?: number; game?: unknown };
+  start: {
+    at?: [x: number, y: number];
+    timeOffsetMs?: number;
+    game?: unknown;
+    /** `EngineContext.persist` as the scene loaded; written when the game declares `persist`. */
+    persist?: JsonValue;
+    /** The entry the flow request that loaded this scene named (`EngineContext.flow.entry`). */
+    entry?: string;
+  };
   players: { index: number; devices: DeviceId[] }[];
   /** Names `inputs` index into. */
   actions: string[];
@@ -241,6 +252,10 @@ export type RunRecordingV2 = {
   markers: RecordingMarker[];
   trail?: RunRecordingV1["trail"];
   end: string;
+  /** The flow request that ended this scene's run; a replay ends here without following it. */
+  next?: { scene: AssetId; entry?: string };
+  /** The save the run began from: its slot and the save file's hash. */
+  fromSave?: { slot: string; sha256: Sha256 };
 };
 
 /** A recording in the current format. */
@@ -395,7 +410,23 @@ export const runRecordingSchema = z
       .describe(
         "The seed `EngineContext.random` was given: the run's own, or the default for its game and scene.",
       ),
-    start: z.strictObject(startShape).describe("How the play world started."),
+    start: z
+      .strictObject({
+        ...startShape,
+        persist: z
+          .json()
+          .optional()
+          .describe(
+            "`EngineContext.persist` as the scene loaded, set before the load on replay; written when the game declares `persist`.",
+          ),
+        entry: z
+          .string()
+          .optional()
+          .describe(
+            "The entry the flow request that loaded this scene named, read in `onLoad` as `EngineContext.flow.entry`.",
+          ),
+      })
+      .describe("How the play world started."),
     players: z
       .array(
         z
@@ -427,6 +458,25 @@ export const runRecordingSchema = z
       .describe(
         "A digest of the game's snapshot after the last tick, which a replay must reproduce.",
       ),
+    next: z
+      .strictObject({
+        scene: z.string().regex(ID_PATTERN).describe("The scene the request went to."),
+        entry: z.string().optional().describe("The entry it named."),
+      })
+      .optional()
+      .describe(
+        "The flow request that ended this scene's part of a run, whose next scene has its own recording; a replay ends here without following it.",
+      ),
+    fromSave: z
+      .strictObject({
+        slot: z.string().describe("The save's slot."),
+        sha256: z
+          .string()
+          .regex(SHA256_PATTERN)
+          .describe("The save file's hash; a replay needs the fixture with this hash."),
+      })
+      .optional()
+      .describe("The save the run began by loading, instead of the scene's fresh load."),
   })
   .describe(
     "A recorded run: how it started and every seat's input, enough to replay it tick for tick, " +

@@ -1,6 +1,11 @@
 import { PhysicsRequiredError } from "../game/physics-of";
 import { physicsNeeds } from "../game/primitives";
-import { parseRuntimeId, RUNTIME_ID_PATTERN, runtimeId } from "../game/runtime-ids";
+import {
+  parseRuntimeId,
+  RUNTIME_ID_PATTERN,
+  runtimeId,
+  sublevelLabelOf,
+} from "../game/runtime-ids";
 import {
   EngineError,
   type EngineContext,
@@ -51,9 +56,23 @@ export type LifecycleDeps = {
   changed: (type: EntityTypeName) => void;
   /** After an outside-step spawn or destroy, and after the end-of-tick flush. */
   settled: () => void;
+  /** Whether a sublevel with this label is attached, so a spawn may belong to it; default none is. */
+  attached?: (label: string) => boolean;
 };
 
 export type EntityRejection = { ok: false; error: string; entityId: string };
+
+/**
+ * What a live runtime spawn came from: a `spawn`'s input, or for an
+ * instance its prefab and options, with `input` holding the prefab as
+ * `type` and the placement as `at`. `ids` are the entities it made.
+ */
+export type SpawnRecord = {
+  id: string;
+  input: SpawnInput;
+  instance?: InstantiateOptions & { prefab: AssetId };
+  ids: readonly string[];
+};
 
 /** How entities enter and leave a runtime: the load, the editor's reconcile, and game code alike. */
 export type Lifecycle = {
@@ -98,6 +117,20 @@ export type Lifecycle = {
   /** Each system's `ready` with its ids, in spawn-group order, then the behaviors'. */
   ready: (entities: readonly RuntimeEntity[]) => void;
   spawn: (input: SpawnInput) => RuntimeEntity;
+  /**
+   * A sublevel's entities into the table as `SceneRuntime.add` spawns them,
+   * then `ready`, then one `entity:spawned` each inside a step. A throw
+   * undoes every one of them, then rethrows as an `EngineError`.
+   */
+  place: (entities: readonly RuntimeEntity[]) => void;
+  /**
+   * Destroys every live `<label>:*` entity and every spawn made with
+   * `sublevel: label`, last spawned first, as `destroy` does: at the
+   * end-of-tick flush inside a step, at once outside one.
+   */
+  destroySublevel: (label: string) => void;
+  /** Whether any live entity's id carries `label`'s prefix. */
+  holdsSublevel: (label: string) => boolean;
   destroy: (id: string) => void;
   instantiate: (prefab: AssetId, at: Pt | Vec2, opts?: InstantiateOptions) => InstantiateResult;
   setEnabled: (id: string, enabled: boolean) => void;
@@ -122,6 +155,19 @@ export type Lifecycle = {
   reset: () => void;
   /** The library `load` froze; empty before a load. */
   readonly library: PrefabLibrary;
+  /** The runtime spawns and instances with a live entity, in spawn order. */
+  spawns: () => readonly SpawnRecord[];
+  /**
+   * Spawns `rec` again with its exact id, which may carry a counter label
+   * (all digits) only the counter gives out otherwise. Outside a step it
+   * raises no event.
+   */
+  restoreSpawn: (rec: Omit<SpawnRecord, "ids">) => void;
+  /** The counters' last ids given out, by type or prefab name. */
+  counters: () => Record<string, number>;
+  setCounters: (next: Readonly<Record<string, number>>) => void;
+  /** The live entities switched off, in the order they were. */
+  disabledIds: () => string[];
   /**
    * Which load the runtime is in: it changes at every `load` and `reset`, so
    * state bound to one load (a pool, whose counter ids the next load gives
@@ -158,6 +204,12 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   const counters = new Map<string, number>();
   /** Destroys requested inside a step, in request order, until the flush. */
   let doomed: string[] = [];
+  /** Per sublevel label, the live spawns made for it. */
+  const sublevelSpawns = new Map<string, Set<string>>();
+  /** Each runtime spawn with a live entity, by its id, in spawn order. */
+  const records = new Map<string, SpawnRecord>();
+  /** Each entity a runtime spawn made, to the spawn's id. */
+  const recordOf = new Map<string, string>();
   let generation = 0;
 
   function posed(e: RuntimeEntity): void {
@@ -230,6 +282,34 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     const out: RuntimeEntity[] = [];
     for (const [key, e] of entities) if (key.startsWith(prefix)) out.push(e);
     return out;
+  }
+
+  function record(rec: SpawnRecord): void {
+    records.set(rec.id, rec);
+    for (const id of rec.ids) recordOf.set(id, rec.id);
+  }
+
+  /** `id` left the table: its spawn is forgotten once none of what it made is live. */
+  function forgetSpawn(id: string): void {
+    const of = recordOf.get(id);
+    if (of === undefined) return;
+    recordOf.delete(id);
+    const rec = records.get(of);
+    if (rec && !rec.ids.some((e) => entities.has(e))) records.delete(of);
+  }
+
+  /** A copy that a caller changing its input later can't reach; kept as given when it can't be cloned. */
+  function copied<T>(value: T): T {
+    try {
+      return structuredClone(value);
+    } catch {
+      return value;
+    }
+  }
+
+  function claimExact(id: string): string {
+    if (live(id)) throw new EngineError("spawn-id-invalid", `spawn id "${id}" is already live`, id);
+    return id;
   }
 
   function claimId(name: string, explicit?: string): string {
@@ -310,6 +390,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     prefab: AssetId,
     at: Pt | Vec2,
     opts: InstantiateOptions = {},
+    exact?: string,
   ): InstantiateResult {
     if (!library.has(prefab)) {
       throw notSpawnable(
@@ -322,7 +403,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
         }),
       );
     }
-    const id = claimId(prefab, opts.id);
+    const id = exact !== undefined ? claimExact(exact) : claimId(prefab, opts.id);
     const inst: InstanceDef = {
       id,
       prefab,
@@ -370,6 +451,13 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       if (err instanceof PhysicsRequiredError) throw notSpawnable(prefab, id, err);
       throw asEngineError(err, id);
     }
+    const { id: _asked, ...kept } = opts;
+    record({
+      id,
+      input: { type: prefab, at: [...inst.at] },
+      instance: { prefab, ...copied(kept) },
+      ids: spawned.map((e) => e.id),
+    });
     for (const e of spawned) {
       deps.changed(e.type);
       raise(ENTITY_SPAWNED, e);
@@ -397,14 +485,21 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     );
   }
 
-  function spawn(input: SpawnInput): RuntimeEntity {
+  function spawn(input: SpawnInput, exact?: string): RuntimeEntity {
     const type = registry.types.get(input.type);
     if (!type || !systems.has(input.type)) {
       const why = type ? "doesn't load" : "isn't registered";
       throw new EngineError("unknown-type", `can't spawn type "${input.type}": it ${why}`);
     }
-    const id = claimId(input.type, input.id);
-    const { id: _id, ...fields } = input;
+    const label = input.sublevel;
+    if (label !== undefined && !deps.attached?.(label)) {
+      throw new EngineError(
+        "sublevel-invalid",
+        `can't spawn "${input.type}" for sublevel "${label}": no sublevel with that label is attached`,
+      );
+    }
+    const id = exact !== undefined ? claimExact(exact) : claimId(input.type, input.id);
+    const { id: _id, sublevel: _sublevel, ...fields } = input;
     if (ctx.dev || ctx.view === null) parseSpawn(input.type, fields, id);
     let e: RuntimeEntity;
     try {
@@ -420,10 +515,59 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       entities.delete(id);
       throw asEngineError(err, id);
     }
+    if (label !== undefined) {
+      const ids = sublevelSpawns.get(label);
+      if (ids) ids.add(id);
+      else sublevelSpawns.set(label, new Set([id]));
+    }
+    record({ id, input: copied({ ...input }), ids: [id] });
     deps.changed(e.type);
     raise(ENTITY_SPAWNED, e);
     if (!deps.stepping()) deps.settled();
     return e;
+  }
+
+  function place(list: readonly RuntimeEntity[]): void {
+    const rejected = lifecycle.checkEntities(list, (id) => entities.has(id));
+    if (rejected) throw new EngineError("spawn-id-invalid", rejected.error, rejected.entityId);
+    const spawned: RuntimeEntity[] = [];
+    let current: string | undefined;
+    try {
+      for (const e of lifecycle.spawnOrder(list)) {
+        current = e.id;
+        spawnEntity(e, { table: true });
+        spawned.push(e);
+      }
+      current = undefined;
+      lifecycle.ready(spawned);
+    } catch (err) {
+      for (let i = spawned.length - 1; i >= 0; i--) {
+        const e = spawned[i]!;
+        despawnEntity(e);
+        entities.delete(e.id);
+      }
+      throw asEngineError(err, current ?? spawned[0]?.id ?? "");
+    }
+    for (const e of spawned) {
+      deps.changed(e.type);
+      raise(ENTITY_SPAWNED, e);
+    }
+    if (!deps.stepping()) deps.settled();
+  }
+
+  function destroySublevel(label: string): void {
+    const prefix = `${label}:`;
+    const spawns = sublevelSpawns.get(label);
+    const ids = [...entities.keys()]
+      .filter((id) => id.startsWith(prefix) || spawns?.has(id))
+      .reverse();
+    sublevelSpawns.delete(label);
+    if (deps.stepping()) {
+      doomed.push(...ids);
+      return;
+    }
+    for (const id of ids) remove(id);
+    deps.settled();
   }
 
   /** `id` and, for an instance id, its live children in reverse spawn order; gone ids are skipped. */
@@ -434,6 +578,8 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       const last = poseAt(e.id);
       despawnEntity(e);
       entities.delete(e.id);
+      forgetSpawn(e.id);
+      for (const ids of sublevelSpawns.values()) ids.delete(e.id);
       deps.changed(e.type);
       raise(ENTITY_DESTROYED, e, last);
     }
@@ -493,7 +639,13 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       }
       behaviors.ready(list.map((e) => e.id));
     },
-    spawn,
+    spawn: (input) => spawn(input),
+    place,
+    destroySublevel,
+    holdsSublevel(label) {
+      for (const id of entities.keys()) if (sublevelLabelOf(id) === label) return true;
+      return false;
+    },
     destroy(id) {
       if (deps.stepping()) {
         doomed.push(id);
@@ -502,7 +654,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       remove(id);
       deps.settled();
     },
-    instantiate,
+    instantiate: (prefab, at, opts) => instantiate(prefab, at, opts),
     setEnabled(id, on) {
       const e = entities.get(id);
       if (!e || disabled.has(id) !== on) return;
@@ -530,6 +682,9 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       library = new Map(next);
       counters.clear();
       doomed = [];
+      sublevelSpawns.clear();
+      records.clear();
+      recordOf.clear();
       generation++;
     },
     reset() {
@@ -537,11 +692,30 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       disabled.clear();
       counters.clear();
       doomed = [];
+      sublevelSpawns.clear();
+      records.clear();
+      recordOf.clear();
       generation++;
     },
     get library() {
       return library;
     },
+    spawns: () => [...records.values()],
+    restoreSpawn(rec) {
+      if (rec.instance) {
+        const { prefab, ...opts } = rec.instance;
+        const at = rec.input.at as Pt;
+        instantiate(prefab, [at[0], at[1]], opts, rec.id);
+        return;
+      }
+      spawn(copied(rec.input), rec.id);
+    },
+    counters: () => Object.fromEntries(counters),
+    setCounters(next) {
+      counters.clear();
+      for (const [name, n] of Object.entries(next)) counters.set(name, n);
+    },
+    disabledIds: () => [...entities.keys()].filter((id) => disabled.has(id)),
     get generation() {
       return generation;
     },

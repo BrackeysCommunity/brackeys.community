@@ -3,6 +3,7 @@ import { bulkId } from "./bulk-ref";
 import { isInstanceOverrideField, splitChildRef, splitOverridePath } from "./field-path";
 import { transformCell } from "./grid";
 import { makeIssue } from "./issues";
+import { paramTargetValues } from "./prefab-params";
 import { fieldKind, gridFieldsOf } from "./schema";
 import {
   applyPt,
@@ -512,7 +513,8 @@ function inherit(def: BulkPlacement, inst: InstanceDef): void {
 /**
  * An instance's params as overrides of every target, to go ahead of its own
  * overrides (prefab < param < override). A param the instance leaves unset
- * takes its `default`; with none, its targets keep their own values. Names
+ * takes its `default`; with none, its targets keep their own values. A
+ * target the param maps takes the mapped value (`paramTargetValues`). Names
  * the prefab doesn't expose feed nothing.
  */
 export function paramOverrides(
@@ -523,7 +525,7 @@ export function paramOverrides(
   for (const [name, param] of Object.entries(params)) {
     const value = values?.[name] ?? param.default;
     if (value === undefined) continue;
-    for (const target of param.targets) out.push([target, value]);
+    out.push(...paramTargetValues(param, value));
   }
   return out;
 }

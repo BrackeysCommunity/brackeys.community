@@ -1,6 +1,7 @@
 import type { Store } from "@tanstack/store";
 
 import type { DebugLayerFactory, DebugOverlayFactory } from "./debug";
+import type { FlowRequest, LibraryScene, SceneListEntry, TransitionSpec } from "./game/flow";
 import type {
   ActionKind,
   Binding,
@@ -27,6 +28,8 @@ import type {
   SceneRuntime,
   StepResult,
 } from "./runtime/types";
+import type { SaveSlots } from "./saves/slots";
+import type { SaveStore } from "./saves/store";
 import type { RunRecording } from "./scene/recording-schema";
 import type {
   Aabb,
@@ -109,6 +112,56 @@ export type GameConfig = {
   assets?: { loader: AssetLoader; view: ProjectView; kinds: KindRegistry };
   /** The host's resolution policy, over the project's and the game's. */
   resolution?: Partial<ResolutionPolicy>;
+  /** Scenes for `GameInstance.flow`, and how a change between them looks. */
+  flow?: {
+    /** Where scenes come from: the site's files, a release's data, a test's map. */
+    source: SceneSource;
+    /** Runs a transition's halves; default `fadeTransition()` for "fade", nothing for "none". */
+    transition?: TransitionRunner;
+    /** Shown when a load takes longer than 150 ms; default `createLoadingOverlay()`; false for none. */
+    loading?: LoadingViewFactory | false;
+  };
+  /** The host's save store; a game's own (`GameDefinition.saves.store`) wins, and the browser's is the default. */
+  saves?: SaveStore;
+};
+
+// ─── Flow ────────────────────────────────────────────────
+
+/** The scenes a host can play: the scene list, its start, and each listed scene's data. */
+export type SceneSource = {
+  list(): readonly SceneListEntry[];
+  start(): AssetId | null;
+  /** Synchronous: every listed scene's text is resident, since sublevels attach inside a step. */
+  scene(id: AssetId): LibraryScene | null;
+};
+
+/** Runs one half of a transition over `layer`, which sits above the game's UI. */
+export type TransitionRunner = (
+  phase: "out" | "in",
+  spec: TransitionSpec,
+  layer: HTMLElement,
+) => Promise<void>;
+
+/** What the flow host shows while a slow load runs. */
+export type LoadingView = { show(p: LoadProgress): void; hide(): void };
+/** Builds the loading view inside the host's layer. */
+export type LoadingViewFactory = (layer: HTMLElement) => LoadingView;
+
+/** What a scene change did: the scene it loaded, or why it refused (`scene-unlisted`, `start-scene-missing`, a load's refusal). */
+export type FlowResult =
+  | { ok: true; scene: AssetId; report: LoadReport }
+  | { ok: false; issue: SceneIssue };
+
+/** `GameInstance.flow`: the scene list and changes between its scenes. */
+export type GameFlow = {
+  readonly start: AssetId | null;
+  readonly scenes: readonly SceneListEntry[];
+  /** The main scene playing, or null. */
+  current(): AssetId | null;
+  /** Changes scene between ticks, through the transition; a `go` during a change waits for it. */
+  go(to: AssetId, opts?: Omit<FlowRequest, "to">): Promise<FlowResult>;
+  /** Loads `start` with persist reset to the game's initial value. */
+  restart(): Promise<FlowResult>;
 };
 
 export const DEFAULT_GAME_CONFIG: Omit<GameConfig, "game" | "rapier"> = {
@@ -241,6 +294,14 @@ export type GameEventMap = {
   "play:outcome": PlayOutcome;
   /** A play session's recording, finished at the game's first verdict, a replay's last tick, or Stop. */
   "play:recorded": RunRecording;
+  /** A scene change finished. */
+  "flow:change": { from: AssetId | null; to: AssetId; entry: string | null };
+  /** A scene change's load progress. */
+  "flow:loading": LoadProgress;
+  /** A save landed in the store. */
+  "save:written": { slot: string; bytes: number };
+  /** A save didn't land; game code never sees why. */
+  "save:failed": { slot: string; issue: SceneIssue };
 };
 
 // ─── Store ───────────────────────────────────────────────
@@ -250,8 +311,12 @@ export type GameMode = "edit" | "play";
 
 export type GamePhase = "idle" | "loading" | "running" | "paused" | "destroyed";
 
-/** A game's verdict, at the play world's tick (from 0 at Play) that produced it. */
-export type PlayOutcome = GameOutcome & { tick: number };
+/**
+ * A game's verdict, at the play world's tick (from 0 at Play) that produced
+ * it; or `flow`, when a scene change the game requested ended the editor's
+ * Play, with the scene it asked for as `to`.
+ */
+export type PlayOutcome = GameOutcome & { tick: number; to?: AssetId };
 
 /** One Play to Stop. The shell records the game's first verdict and keeps playing; stopping is the host's call. */
 export type PlaySession = {
@@ -439,4 +504,8 @@ export type GameInstance = {
     renderer: string;
     pixels: (readonly [number, number, number, number] | null)[];
   };
+  /** The scene list, the current scene and changes between scenes. */
+  flow: GameFlow;
+  /** Save slots over the game's, the host's or the browser's store. */
+  saves: SaveSlots;
 };

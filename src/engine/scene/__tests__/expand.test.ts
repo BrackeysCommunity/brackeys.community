@@ -830,7 +830,40 @@ describe("expandScene: instance by instance", () => {
       { id: "m", prefab: "missing", at: [0, 0] },
     ],
   });
+  const mappedLib = () => {
+    const lib = yardPrefabs(undefined, { params: true });
+    const gate = lib.get("gate")!;
+    gate.params = {
+      ...gate.params,
+      mode: {
+        description: "How the door runs.",
+        targets: ["door.path.mode", "trigger.tags"],
+        map: {
+          "door.path.mode": { round: "loop" },
+          "trigger.tags": { round: ["gate", "round"] },
+        },
+      },
+    };
+    return lib;
+  };
+  const mappedYard = (): SceneDefinition => {
+    const def = engineYard();
+    def.instances = def.instances!.map((inst) =>
+      inst.id === "gate-1" ? { ...inst, params: { mode: "round" } } : inst,
+    );
+    return def;
+  };
+
+  it("loads each mapped target with its value for the param's", () => {
+    const out = expandScene(mappedYard(), engine, { prefabs: mappedLib() });
+    const door = out.entities.find((e) => e.id === "gate-1/door");
+    const trigger = out.entities.find((e) => e.id === "gate-1/trigger");
+    expect(door?.path).toMatchObject({ mode: "loop" });
+    expect(trigger?.tags).toEqual(["gate", "round"]);
+  });
+
   const FIXTURES: [string, SceneDefinition, Registry, PrefabLibrary | undefined][] = [
+    ["engine yard with a mapped param", mappedYard(), engine, mappedLib()],
     ["engine-yard text", yard, engine, yardPrefabs()],
     ["engine-yard text, no library", yard, engine, undefined],
     ["engine yard", engineYard(), engine, yardPrefabs()],

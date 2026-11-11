@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../project/scene-list.schema.json",
+  "kind": "scene-list",
+  "v": 1,
+  "start": "menu",
+  "scenes": [
+    { "scene": "menu", "title": "Title screen" },
+    { "scene": "ford", "title": "The ford" },
+    { "scene": "result" },
+    { "scene": "cellar", "sublevel": true, "title": "Cellar" }
+  ]
+}

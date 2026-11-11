@@ -31,13 +31,12 @@ const PASS_THROUGH_STYLE = cloudStyle(PASS_THROUGH_LOOK);
 
 /**
  * Clouds: one-way solids, box only. The engine's solid system does the
- * physics and the pass-through; this draws each cloud, dimmed while the
- * actor can pass through it.
+ * physics and the pass-through, one-way by the type's `oneWay`; this draws
+ * each cloud, dimmed while the actor can pass through it.
  */
 export function createCloudSystem(ctx: EngineContext, type: RegisteredType): SolidSystem {
   const inner = createSolidSystem(ctx, type, {
     ...CLOUD_SURFACE,
-    oneWay: true,
     group: CLOUD_GROUP,
     draw: false,
   });

@@ -71,9 +71,17 @@ describe("createRegistry play hooks", () => {
 
   it("lists the engine's results and predicates, then the game's", () => {
     const r = createRegistry(game({ play: { results: ["won"], predicates: { grounded: pred } } }));
-    expect(r.runResults).toEqual(["timeout", "script-end", "stuck", "quit", "won"]);
-    expect(r.predicateNames).toEqual(["event", "tick", "exists", "count", "grounded"]);
-    expect(createRegistry().runResults).toEqual(["timeout", "script-end", "stuck", "quit"]);
+    expect(r.runResults).toEqual(["timeout", "script-end", "stuck", "quit", "flow", "won"]);
+    expect(r.predicateNames).toEqual([
+      "event",
+      "tick",
+      "exists",
+      "count",
+      "scene",
+      "persist",
+      "grounded",
+    ]);
+    expect(createRegistry().runResults).toEqual(["timeout", "script-end", "stuck", "quit", "flow"]);
   });
 
   it("rejects a predicate or result that collides with the engine's", () => {

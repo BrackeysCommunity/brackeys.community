@@ -9,6 +9,7 @@ import {
   probe,
   REACHED,
   REVEALED,
+  SAVE_AT,
   type TurnTacticsSnapshot,
 } from "./turn-tactics.probe";
 
@@ -44,5 +45,19 @@ describe(`${probe.id} probe`, () => {
     expect(report.events.map((e) => e.type)).toEqual([REVEALED, REACHED]);
     expect(run.replay.matches).toBe(true);
     expect(run.replay.recording.end).toBe(report.recording.end);
+  });
+
+  it("finishes from a world save taken mid-step, with steps still queued", async () => {
+    const variant = probe.variants!.find((v) => v.saveAt === SAVE_AT)!;
+    const run = await runGenreProbe(probe, variant);
+    const restored = run.fromSave!;
+    const saved = restored.saved as TurnTacticsSnapshot;
+    expect(saved).toMatchObject({ turn: 1, moving: true, walked: 2 });
+    expect(saved.queued?.scout?.length).toBeGreaterThan(0);
+    expect(restored.save.data).toStrictEqual(saved);
+    expect(restored.final).toStrictEqual(run.report.final);
+    expect((restored.final as TurnTacticsSnapshot).queued).toBeUndefined();
+    expect(restored.outcome).toStrictEqual(run.report.outcome);
+    expect(restored.digest).toBe(run.digest);
   });
 });

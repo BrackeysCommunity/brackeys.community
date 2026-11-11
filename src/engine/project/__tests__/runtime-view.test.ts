@@ -5,6 +5,7 @@ import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import { memoryContentStore } from "../content-store";
 import { INPUT_MAP_KIND, type InputMapFile } from "../kinds/input-map";
+import { SCENE_LIST_KIND, type SceneListFile } from "../kinds/scene-list";
 import { heldProject, RUNTIME_VIEW_KINDS, runtimeView, snapshotRuntimeView } from "../runtime-view";
 import { snapshotProject } from "../snapshot";
 import type { AssetEntry, AssetId } from "../types";
@@ -112,6 +113,85 @@ describe("ProjectRuntimeView.inputMap", () => {
   });
 });
 
+describe("ProjectRuntimeView.flow", () => {
+  const LIST: SceneListFile = {
+    kind: SCENE_LIST_KIND,
+    v: 1,
+    start: "menu",
+    scenes: [
+      { scene: "menu", title: "Title" },
+      { scene: "ford", title: "Ford" },
+      { scene: "cellar", sublevel: true },
+    ],
+  };
+  const listView = viewOf([entry("flow", SCENE_LIST_KIND, "scene-list.json")]);
+
+  it("is the empty flow without a scene list", () => {
+    expect(runtimeView(viewOf([]), new Map(), registry).flow).toEqual({ start: null, scenes: [] });
+  });
+
+  it("is the scene list's start and entries in order, copied and frozen", () => {
+    const file = structuredClone(LIST);
+    const { flow } = runtimeView(listView, new Map([["flow", file]]), registry);
+    expect(flow).toEqual({ start: LIST.start, scenes: LIST.scenes });
+    expect(Object.isFrozen(flow)).toBe(true);
+    expect(Object.isFrozen(flow?.scenes[0])).toBe(true);
+    file.scenes.pop();
+    expect(flow?.scenes).toHaveLength(3);
+  });
+
+  it("leaves out a repeated scene's later entries and entries naming no scene", () => {
+    const file = {
+      ...LIST,
+      scenes: [
+        { scene: "menu" },
+        { title: "no scene" },
+        { scene: "menu", title: "again" },
+        { scene: "ford", sublevel: false },
+      ],
+    };
+    const { flow } = runtimeView(listView, new Map([["flow", file]]), registry);
+    expect(flow?.scenes).toEqual([{ scene: "menu" }, { scene: "ford" }]);
+  });
+
+  it("reads the first scene list by path, and an unreadable one as empty", () => {
+    const view = viewOf([
+      entry("later", SCENE_LIST_KIND, "z/scene-list.json"),
+      entry("flow", SCENE_LIST_KIND, "scene-list.json"),
+    ]);
+    const later = { ...LIST, start: "ford" };
+    expect(
+      runtimeView(
+        view,
+        new Map<AssetId, unknown>([
+          ["flow", LIST],
+          ["later", later],
+        ]),
+        registry,
+      ).flow?.start,
+    ).toBe("menu");
+    expect(runtimeView(listView, new Map([["flow", "text"]]), registry).flow).toEqual({
+      start: null,
+      scenes: [],
+    });
+  });
+
+  it("is read from a snapshot's pinned scene-list doc and from held files", async () => {
+    expect(RUNTIME_VIEW_KINDS).toContain(SCENE_LIST_KIND);
+    const store = memoryContentStore();
+    const text = JSON.stringify(LIST);
+    await store.put(new TextEncoder().encode(text));
+    const snapshot = await snapshotProject(listView, new Map([["flow", text]]), {});
+    expect((await snapshotRuntimeView(snapshot, store, registry)).flow?.start).toBe("menu");
+    const held = heldProject([{ path: "scene-list.json", json: LIST }], registry, {
+      projectId: "test",
+      name: "Test",
+    });
+    expect(held.view.byPath.get("scene-list.json")?.kind).toBe(SCENE_LIST_KIND);
+    expect(held.runtime.flow?.scenes.map((e) => e.scene)).toEqual(["menu", "ford", "cellar"]);
+  });
+});
+
 describe("heldProject", () => {
   const meta = { projectId: "test", name: "Test" };
   const png = {
@@ -175,5 +255,24 @@ describe("heldProject", () => {
     expect(view.byPath.get("z/input-map.json")?.key).not.toBe(
       view.byPath.get("a/input-map.json")?.key,
     );
+  });
+
+  it("reads an id two sidecars give from the file the view resolves it to", () => {
+    const car = (key: string) => ({
+      kind: "asset-sidecar" as const,
+      v: 1 as const,
+      key,
+      id: "pad",
+    });
+    const { view, runtime } = heldProject(
+      [
+        { path: "z/input-map.json", json: { ...MAP, deadzone: 0.5 }, sidecar: car("kz") },
+        { path: "a/input-map.json", json: MAP, sidecar: car("ka") },
+      ],
+      registry,
+      meta,
+    );
+    expect(view.byId.get("pad")?.path).toBe("a/input-map.json");
+    expect(runtime.inputMap?.deadzone).toBe(0.2);
   });
 });

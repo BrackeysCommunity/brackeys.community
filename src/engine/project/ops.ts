@@ -51,6 +51,7 @@ import {
 import { checksBeside } from "./kinds/checks";
 import { DATA_TABLE_KIND, dataTableIssues } from "./kinds/data-table";
 import { isPlainObject, perProjectHeld } from "./kinds/define";
+import { kindInputMap } from "./kinds/input-script";
 import { MATERIAL_KIND } from "./kinds/material";
 import {
   buildRefIndex,
@@ -745,7 +746,15 @@ class BatchWork {
   }
 
   kindEnv(): KindEnv {
-    return { registry: this.judge, project: this.view };
+    const valueOf = (id: AssetId) => {
+      const e = this.view.byId.get(id);
+      return e ? this.peek(e) : undefined;
+    };
+    return {
+      registry: this.judge,
+      project: this.view,
+      inputMap: kindInputMap(this.view, valueOf, this.judge),
+    };
   }
 
   /** The id an entry had when the batch began, which is how `docs` names it. */

@@ -6,6 +6,7 @@ import type { Migration, MigrateEnv } from "../../scene/migrate";
 import type { SceneIssue } from "../../scene/types";
 import type { RefSite } from "../refs";
 import type { AssetEntry, AssetId, AssetKindName, AssetPath, ProjectView } from "../types";
+import type { InputMapFile } from "./input-map";
 
 /** What a kind's schema, defaults and checks may depend on. */
 export type KindEnv = {
@@ -16,6 +17,12 @@ export type KindEnv = {
    * a scene or prefab migration reads the fields its instances override.
    */
   prefab?: MigrateEnv["prefab"];
+  /**
+   * The project's input map as a run reads it (`kindInputMap`), for a host
+   * that holds its doc: an input script's tracks drive the seats its
+   * `players` give, over the game's.
+   */
+  inputMap?: Pick<InputMapFile, "players"> | null;
 };
 
 /** The migration env of a kind's file: the registry, and the project's prefabs when the host gave them. */

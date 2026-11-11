@@ -1,12 +1,20 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { createRegistry, defineGame } from "../../game/define";
-import type { GameDefinition } from "../../game/types";
+import type { EngineContext, GameDefinition, JsonValue } from "../../game/types";
 import { createSceneRuntime } from "../../runtime/runtime";
 import { expandScene } from "../../scene/expand";
 import type { EntityDef, SceneDefinition } from "../../scene/types";
 import type { RapierModule } from "../../types";
-import { createMotionBody, type MotionBody } from "../body";
+import {
+  SAVE_REGISTRY,
+  createMotionBody,
+  saveRegistryOf,
+  type MotionBody,
+  type SaveEntry,
+  type SaveRegistry,
+} from "../body";
+import { createTopDownController } from "../top-down";
 
 let rapier: RapierModule;
 
@@ -195,6 +203,118 @@ describe("a motion body on Rapier", () => {
         },
       ),
     ).toThrow(/chain/);
+    rt.destroy();
+  });
+});
+
+/** The entries registered with the runtime's save registry, by `<entity id> <owner>`, seen through its `register`. */
+function withRegistry(ctx: EngineContext): Map<string, SaveEntry> {
+  const entries = new Map<string, SaveEntry>();
+  const own = saveRegistryOf(ctx);
+  const inner = own ? own.register.bind(own) : null;
+  const register: SaveRegistry["register"] = (entityId, owner, entry) => {
+    const key = `${entityId} ${owner}`;
+    entries.set(key, entry);
+    const off = inner?.(entityId, owner, entry);
+    return () => {
+      off?.();
+      if (entries.get(key) === entry) entries.delete(key);
+    };
+  };
+  if (own) own.register = register;
+  else (ctx as EngineContext & { [SAVE_REGISTRY]: SaveRegistry })[SAVE_REGISTRY] = { register };
+  return entries;
+}
+
+describe.each(BACKENDS)("a motion body in a world save (physics %s)", (physics) => {
+  it("registers under its entity id as `motion` and leaves when destroyed", () => {
+    const rt = loaded(physics);
+    const entries = withRegistry(rt.ctx);
+    const body = hero(rt, 0.5, 0.5);
+    expect([...entries.keys()]).toEqual(["hero motion"]);
+    expect(entries.get("hero motion")!.save()).toEqual({ at: [0.5, 0.5] });
+    body.setVelocity({ x: 1, y: -0.5 });
+    body.setEnabled(false);
+    expect(body.velocity()).toEqual({ x: 1, y: -0.5 });
+    expect(entries.get("hero motion")!.save()).toEqual({ at: [0.5, 0.5], v: [1, -0.5], off: true });
+    body.destroy();
+    expect(entries.size).toBe(0);
+    rt.destroy();
+  });
+
+  it("continues identically for 120 ticks after a restore mid-motion", () => {
+    const intent = (n: number) =>
+      n < 40 ? { x: 1, y: 0.4 } : n < 90 ? { x: -0.3, y: 1 } : { x: 0, y: -1 };
+    const make = () => {
+      const rt = loaded(physics);
+      const entries = withRegistry(rt.ctx);
+      const body = hero(rt, 0.3, 0.4);
+      return {
+        rt,
+        entries,
+        body,
+        ctl: createTopDownController(body, { maxSpeed: 1.5, accel: 4, decel: 3 }),
+      };
+    };
+    const run = (m: ReturnType<typeof make>, from: number, to: number) => {
+      const out: [number, number, number, number][] = [];
+      for (let n = from; n < to; n++) {
+        m.ctl.step(DT, intent(n));
+        m.rt.step(DT, []);
+        const p = m.body.position();
+        const v = m.body.velocity();
+        out.push([p.x, p.y, v.x, v.y]);
+      }
+      return out;
+    };
+    const a = make();
+    run(a, 0, 30);
+    const saved = JSON.parse(JSON.stringify(a.entries.get("hero motion")!.save())) as JsonValue;
+    const at = a.body.position();
+    const expected = run(a, 30, 150);
+
+    const b = make();
+    b.entries.get("hero motion")!.restore(saved);
+    expect(b.body.position()).toEqual(at);
+    expect(b.rt.ctx.poses.get("hero")).toMatchObject(at);
+    expect(run(b, 30, 150)).toEqual(expected);
+    // The same restore without the velocity starts from rest and drifts.
+    const c = make();
+    const { v: _v, ...still } = saved as { v?: unknown };
+    c.entries.get("hero motion")!.restore(still as JsonValue);
+    expect(run(c, 30, 150)).not.toEqual(expected);
+    a.rt.destroy();
+    b.rt.destroy();
+    c.rt.destroy();
+  });
+
+  it("needs no registry on a context without one", () => {
+    const rt = loaded(physics, []);
+    const ctx = { ...rt.ctx, [SAVE_REGISTRY]: undefined } as EngineContext;
+    expect(saveRegistryOf(ctx)).toBeNull();
+    const body = createMotionBody(
+      ctx,
+      { id: "bare", type: "hero" },
+      { x: 0.5, y: 0.5 },
+      { shape: BOX },
+    );
+    expect(body.move({ x: 0.1, y: 0 }).blocked).toBe(false);
+    body.destroy();
+    rt.destroy();
+  });
+
+  it("restores disabled, and ignores a state that isn't its own", () => {
+    const rt = loaded(physics, []);
+    const entries = withRegistry(rt.ctx);
+    const body = hero(rt, 0.5, 0.5);
+    entries.get("hero motion")!.restore({ at: [1.5, 0.7], off: true });
+    expect(body.position()).toEqual({ x: 1.5, y: 0.7 });
+    expect(rt.ctx.poses.prev("hero")).toMatchObject({ x: 1.5, y: 0.7 });
+    expect(rt.ctx.space.pointAt({ x: 1.5, y: 0.7 })).toEqual([]);
+    for (const bad of [null, [1, 2], { at: [1] }, { at: [0, 0], v: "fast" }] as JsonValue[]) {
+      entries.get("hero motion")!.restore(bad);
+      expect(body.position()).toEqual({ x: 1.5, y: 0.7 });
+    }
     rt.destroy();
   });
 });

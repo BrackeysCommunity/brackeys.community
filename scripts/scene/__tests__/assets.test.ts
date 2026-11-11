@@ -93,6 +93,7 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "one-way-latch",
       "post",
       "room",
+      "scene-list",
     ]);
     expect((await run("assets", "list", "--kind", "prefab")).data.assets).toHaveLength(6);
     expect((await run("assets", "list", "--trash")).data.assets).toEqual([]);

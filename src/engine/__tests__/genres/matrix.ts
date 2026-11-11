@@ -80,7 +80,7 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
 export const GENRE_ROWS = Object.keys(GENRE_MATRIX) as GenreRow[];
 
 /** Every milestone through this one has landed. */
-export const LANDED_THROUGH = 17;
+export const LANDED_THROUGH = 18;
 
 /** The milestone numbers a "Delivered by" cell names, ranges (`M19–M21`) expanded, sorted. */
 export function milestonesOf(deliveredBy: string): number[] {

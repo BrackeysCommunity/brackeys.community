@@ -1,7 +1,9 @@
 import type { GameCommand, GameOutcome, PlayState, Registry } from "../game/types";
+import { applyFlowRequest } from "../runtime/flow";
 import { playWorld } from "../runtime/play-session";
 import { inputAction, probeConfigHash } from "../runtime/recorder";
 import { createSceneRuntime, resolveGame, type ProjectOption } from "../runtime/runtime";
+import { captureSave, restoreSave } from "../runtime/save-state";
 import type {
   SceneRuntimeHandle,
   SceneRuntimeOptions,
@@ -13,22 +15,36 @@ import { uiActionScriptProblem } from "../scene/input-script";
 import type { PrefabLibrary } from "../scene/types";
 import type { InputAction } from "../types";
 import { legalCommands, startState } from "./legal";
-import { runBlocked, runLibrary } from "./play-loop";
+import { listedSceneId, loadAs, runBlocked, runLibrary } from "./play-loop";
 import type { PlaytestBlocked } from "./playtest-types";
-import type { HeadlessRuntimeOptions, ProbeOptions, ProbeReport } from "./types";
+import type { HeadlessRuntime, HeadlessRuntimeOptions, ProbeOptions, ProbeReport } from "./types";
 
 export { inputAction, probeConfigHash };
 
 const DEFAULT_MAX_EVENTS = 1000;
 
-/** The prefabs the game's `ctx.instantiate` places, as the scene runtime takes them. */
-type PrefabsOption = Pick<SceneRuntimeOptions, "prefabs">;
+/**
+ * The prefabs the game's `ctx.instantiate` places, and the persistent value
+ * to share with other runtimes, as the scene runtime takes them.
+ */
+type RuntimeShareOptions = Pick<SceneRuntimeOptions, "prefabs" | "persist">;
 
-/** A runtime with no view: nothing is drawn and nothing touches the DOM. */
+/**
+ * A runtime with no view: nothing is drawn and nothing touches the DOM. Its
+ * persistent value lasts as long as it does, across every `load`, unless
+ * `persist` hands it one that outlives it. With `flow`, a flow request is
+ * applied after the `step` that made it, with no transition and no wall
+ * time (`applyFlowRequest`; a refused one throws), and `scene` loads as the
+ * library's id for it; without, requests wait in `takeRequests` for the caller.
+ * With `fromSave` it starts where the save left off (`restoreSave`): its
+ * scene from `flow`, else `scene`, which must be the save's; a save that
+ * can't be restored throws. `save` captures it as `captureSave` does.
+ */
 export function createHeadlessRuntime(
-  opts: HeadlessRuntimeOptions & ProjectOption & PrefabsOption,
-): SceneRuntimeHandle {
-  const runtime = createSceneRuntime({
+  opts: HeadlessRuntimeOptions & ProjectOption & RuntimeShareOptions,
+): HeadlessRuntime & { save: NonNullable<HeadlessRuntime["save"]> } {
+  const library = opts.flow ?? null;
+  const runtime: SceneRuntimeHandle = createSceneRuntime({
     rapier: opts.rapier ?? null,
     view: null,
     game: opts.game,
@@ -36,16 +52,47 @@ export function createHeadlessRuntime(
     dev: opts.dev,
     project: opts.project,
     ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
+    ...(opts.persist ? { persist: opts.persist } : {}),
+    ...(library ? { scenes: library } : {}),
+  });
+  const handle = Object.assign(runtime, {
+    save: (saveOpts: Parameters<NonNullable<HeadlessRuntime["save"]>>[0]) =>
+      captureSave(runtime, saveOpts),
   });
   if (opts.scene) {
-    const report = runtime.load(opts.scene);
+    const id = library ? listedSceneId(library, opts.scene) : null;
+    const report = loadAs(
+      handle,
+      opts.scene,
+      undefined,
+      library && id !== null ? { scene: id, entry: null, library } : undefined,
+    );
     if (!report.ok) {
       runtime.destroy();
       const where = report.entityId ? ` (${report.entityId})` : "";
       throw new Error(`scene failed to load${where}: ${report.error}`);
     }
   }
-  return runtime;
+  if (opts.fromSave) {
+    const restored = restoreSave(handle, opts.fromSave);
+    if (!restored.ok) {
+      runtime.destroy();
+      throw new Error(`the save can't be restored: ${restored.issue.message}`);
+    }
+  }
+  if (library) {
+    const step = runtime.step;
+    runtime.step = (dtMs, input, commands) => {
+      const result = step(dtMs, input, commands);
+      const request = runtime.takeRequests().flow;
+      if (request) {
+        const applied = applyFlowRequest(runtime, request);
+        if (!applied.ok) throw new Error(`flow request refused: ${applied.issue.message}`);
+      }
+      return result;
+    };
+  }
+  return handle;
 }
 
 /** The probe's error for an action name the game doesn't declare, or null. */
@@ -139,7 +186,13 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): Pr
         }
         events.push(...result.events);
         ticks++;
-        last = { tick, snapshot: result.game, events: result.events, world };
+        last = {
+          tick,
+          snapshot: result.game,
+          events: result.events,
+          world,
+          persist: runtime.ctx.persist.value,
+        };
         if (play?.outcome && !outcome) {
           const verdict = play.outcome(last as PlayState<S>);
           if (verdict) outcome = { ...verdict, tick };

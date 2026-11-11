@@ -503,4 +503,16 @@ describe("a game's project, hosted and pulled back", () => {
     expect(r.exitCode, r.stdout).toBe(0);
     expect(JSON.parse(r.stdout)).toMatchObject({ changes: [], written: false });
   });
+
+  it("leaves a script beside the art alone: neither pulled nor removed", async () => {
+    const out = join(root, "tactics-pulled");
+    await writeFile(join(out, "art", "make-art.ts"), "export {};\n");
+    const r = await runCli(
+      ["project", "pull", "tactics", "--url", SITE, "--token", TOKEN, "--out", out, "--json"],
+      ctx,
+    );
+    expect(r.exitCode, r.stdout).toBe(0);
+    expect(JSON.parse(r.stdout)).toMatchObject({ changes: [], written: false });
+    expect(await readFile(join(out, "art", "make-art.ts"), "utf8")).toBe("export {};\n");
+  });
 });

@@ -34,6 +34,7 @@ import { DATA_TABLE_KIND } from "../project/kinds/data-table";
 import { GAME_SETTINGS_KIND } from "../project/kinds/game-settings";
 import { INPUT_MAP_KIND } from "../project/kinds/input-map";
 import { MATERIAL_KIND } from "../project/kinds/material";
+import { SCENE_LIST_KIND } from "../project/kinds/scene-list";
 import { TEXTURE_KIND } from "../project/kinds/texture";
 import { snapshotProject } from "../project/snapshot";
 import type { AssetEntry, AssetId, ProjectView } from "../project/types";
@@ -46,6 +47,7 @@ import { formatPrefab, formatScene } from "../scene/format";
 import { parseInputScript, scriptSeatLimit, UI_ACTION_HINT } from "../scene/input-script";
 import { parseScene } from "../scene/parse";
 import { prefabsUsedBy } from "../scene/prefab";
+import { paramTargetValues } from "../scene/prefab-params";
 import { drawnEntities, oneWayEdge } from "../scene/render-geometry";
 import { resolvePrefab, valueAtPath } from "../scene/resolve";
 import { SHAPE_TYPES } from "../scene/shapes";
@@ -315,12 +317,38 @@ describe("kitchen-sink.json", () => {
         for (const [name, value] of Object.entries(inst.params!)) {
           const param = r.prefab.params[name];
           expect(param, name).toBeDefined();
-          for (const target of param!.targets) {
+          for (const [target, want] of paramTargetValues(param!, value)) {
             const dot = target.indexOf(".");
             const child = byId.get(`${inst.id}/${target.slice(0, dot)}`);
-            expect(valueAtPath(child, target.slice(dot + 1)), target).toBe(value);
+            expect(valueAtPath(child, target.slice(dot + 1)), target).toEqual(want);
           }
         }
+      }
+    });
+
+    it("a param with a value map, its mapped target taking the mapped value", () => {
+      const byId = new Map(expanded().entities.map((e) => [e.id, e]));
+      const mapped = def.instances!.flatMap((inst) => {
+        const r = resolvePrefab(inst.prefab, prefabs, engine);
+        if (!r.ok) return [];
+        return Object.entries(inst.params ?? {}).flatMap(([name, value]) => {
+          const param = r.prefab.params[name];
+          return Object.keys(param?.map ?? {}).map((target) => ({
+            inst,
+            param: param!,
+            value,
+            target,
+          }));
+        });
+      });
+      expect(mapped.length).toBeGreaterThanOrEqual(1);
+      for (const { inst, param, value, target } of mapped) {
+        const want = param.map![target]![String(value)];
+        expect(want, target).toBeDefined();
+        expect(want, target).not.toEqual(value);
+        const dot = target.indexOf(".");
+        const child = byId.get(`${inst.id}/${target.slice(0, dot)}`);
+        expect(valueAtPath(child, target.slice(dot + 1)), target).toEqual(want);
       }
     });
 
@@ -954,6 +982,7 @@ describe("the engine project", () => {
         MATERIAL_KIND,
         GAME_SETTINGS_KIND,
         INPUT_MAP_KIND,
+        SCENE_LIST_KIND,
         DATA_TABLE_KIND,
         TEXTURE_KIND,
         ATLAS_KIND,

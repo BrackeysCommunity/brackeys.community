@@ -10,7 +10,8 @@ import { ACTIVITY_DELAY_MS, type PendingTask } from "../pending/pending";
 import { usePendingTasks } from "../pending/use-pending";
 import type { EditorHostState } from "../session/live-scene-editor";
 import { useEditorStore } from "../session/use-editor-store";
-import { useStoreValue } from "../session/use-store-value";
+import type { SceneNotice } from "../session/use-scene-editor";
+import { useStoreValue, type ReadableStore } from "../session/use-store-value";
 import { distinctPeople, PeerFaces } from "./peer-faces";
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
@@ -68,8 +69,11 @@ function useActivityWidths(now: () => number = Date.now): { full: number; least:
   };
 }
 
+const NO_NOTICE: ReadableStore<SceneNotice | null> = { state: null, subscribe: () => () => {} };
+
 /**
- * The scene, its save state, who is here, its errors and warnings and what is
+ * The scene, why the editor last opened it by itself (an undo in another
+ * scene), its save state, who is here, its errors and warnings and what is
  * running. When the bottom row is short it draws a save-state dot (with a
  * short word while the connection isn't live) and counts, keeping the full
  * words for screen readers and in the dot's hint; what is running keeps its
@@ -78,11 +82,15 @@ function useActivityWidths(now: () => number = Date.now): { full: number; least:
 export function EditorStatusBar({
   session,
   host,
+  notice: noticeStore = NO_NOTICE,
 }: {
   session: EditorSession;
   host: Store<EditorHostState>;
+  /** Why the editor switched to this scene by itself. */
+  notice?: ReadableStore<SceneNotice | null>;
 }) {
   const sceneName = useEditorStore(session, (s) => s.sceneName);
+  const notice = useStoreValue(noticeStore, (n) => n?.text ?? null);
   const issues = useEditorStore(session, (s) => s.issues);
   const peers = useEditorStore(session, (s) => s.peers);
   const connection = useStoreValue(host, (s) => s.connection);
@@ -102,6 +110,7 @@ export function EditorStatusBar({
     sum(
       [
         text(sceneName) + 4,
+        notice ? text(notice) : -1,
         text(save.label),
         others > 0 ? facesWidth(others, 3) + 8 + text(here) : -1,
         errors > 0 ? text(errorText) : -1,
@@ -131,6 +140,7 @@ export function EditorStatusBar({
     return (
       <div role="status" className="je-status" data-compact="">
         <span className="je-sr-only">{sceneName}</span>
+        {notice ? <span className="je-sr-only">{notice}</span> : null}
         <SaveState
           connection={connection}
           unsynced={unsynced}
@@ -163,6 +173,7 @@ export function EditorStatusBar({
   return (
     <div role="status" className="je-status">
       <span className="je-status-scene">{sceneName}</span>
+      {notice ? <span data-tone="muted">{notice}</span> : null}
       <SaveState connection={connection} unsynced={unsynced} />
       {others > 0 ? (
         <span className="je-status-peers" data-tone="muted">

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ID_PATTERN } from "../game/fields";
 import {
   bindingProblems,
   isUiAction,
@@ -14,11 +15,13 @@ import {
   ENGINE_PREDICATES,
   type EntitySelector,
   type GameCommand,
+  type JsonValue,
   type PlayersDef,
   type Registry,
 } from "../game/types";
 import { pxPerMetreOf, scaleLengths } from "../game/units";
-import type { InputScriptV2, ScriptIssue } from "../headless/playtest-types";
+import type { InputScriptV2, PersistMatch, ScriptIssue } from "../headless/playtest-types";
+import { parseJsonPointer } from "../project/json-edit";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { deviceIdSchema } from "./device-id";
 import { closest } from "./did-you-mean";
@@ -162,6 +165,41 @@ export function scriptCommandNames(registry: Registry): string[] {
 }
 
 const COUNT_BOUNDS = ["min", "max", "eq"] as const;
+
+const jsonValue: z.ZodType<JsonValue> = z
+  .lazy(() =>
+    z.union([
+      z.null(),
+      z.boolean(),
+      z.number(),
+      z.string(),
+      z.array(jsonValue),
+      z.record(z.string(), jsonValue),
+    ]),
+  )
+  .describe("Any JSON value.")
+  .meta({ id: "JsonValue" });
+
+/** The engine's `persist` predicate: a value inside `ctx.persist`, by JSON Pointer. */
+const persistMatch: z.ZodType<PersistMatch> = z
+  .strictObject({
+    pointer: z
+      .string()
+      .refine((p) => parseJsonPointer(p) !== null, {
+        message: 'a JSON Pointer: "" for the whole value, else "/key/0" with ~0 for ~ and ~1 for /',
+      })
+      .describe('A JSON Pointer into the persistent value, e.g. "/coins"; "" is the whole value.'),
+    eq: jsonValue.optional().describe("Holds while the value there equals this, key order aside."),
+    gte: z.number().optional().describe("Holds while the value there is a number at least this."),
+    lte: z.number().optional().describe("Holds while the value there is a number at most this."),
+  })
+  .refine((m) => m.eq !== undefined || m.gte !== undefined || m.lte !== undefined, {
+    message: "a persist predicate needs eq, gte or lte",
+  })
+  .describe(
+    "Holds while the persistent value (`ctx.persist`) at `pointer` keeps every bound given; a pointer naming nothing doesn't hold.",
+  )
+  .meta({ id: "PersistMatch" });
 
 /** The engine's `exists` and `count` predicates, over `registry`'s entity types. */
 function worldPredicates(registry: Registry) {
@@ -476,6 +514,14 @@ function buildInputScriptSchemas(registry: Registry, seats: number) {
         .describe("Holds once this absolute tick (from 0) is reached or passed."),
       exists: exists.optional(),
       count: count.optional(),
+      scene: z
+        .string()
+        .regex(ID_PATTERN, "a scene's asset id: lowercase letters, digits and dashes")
+        .optional()
+        .describe(
+          "Holds once the main scene is this one (its asset id), after a flow request the run followed.",
+        ),
+      persist: persistMatch.optional(),
       ...Object.fromEntries(
         Object.entries(predicates).map(([name, p]) => [
           name,

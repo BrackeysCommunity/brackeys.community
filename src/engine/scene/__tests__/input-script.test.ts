@@ -55,6 +55,8 @@ describe("input-script.schema.json", () => {
       "tick",
       "exists",
       "count",
+      "scene",
+      "persist",
       "past",
     ]);
     expect(schema.properties).toHaveProperty("game");
@@ -65,6 +67,8 @@ describe("input-script.schema.json", () => {
       "tick",
       "exists",
       "count",
+      "scene",
+      "persist",
     ]);
   });
 
@@ -132,6 +136,57 @@ describe("input-script.schema.json", () => {
     expect(until({ count: { tag: "coin", min: 3, enabled: true } })).toBe(true);
     expect(until({ count: { type: "lamp" } })).toBe(false);
     expect(until({ count: { type: "ghost", min: 1 } })).toBe(false);
+  });
+
+  it("has a persist predicate: a JSON Pointer and eq, gte or lte", () => {
+    const schema = inputScriptJsonSchema(game) as Defs;
+    expect(Object.keys(schema.$defs.PersistMatch!.properties!)).toEqual([
+      "pointer",
+      "eq",
+      "gte",
+      "lte",
+    ]);
+    expect(JSON.stringify(schema.$defs.Until)).toContain(
+      '"persist":{"$ref":"#/$defs/PersistMatch"}',
+    );
+    const zod = inputScriptSchemaFor(game);
+    const until = (u: unknown) => zod.safeParse({ v: 2, steps: [{ hold: [], until: u }] }).success;
+    expect(until({ persist: { pointer: "/coins", gte: 3 } })).toBe(true);
+    expect(until({ persist: { pointer: "/level", eq: "cellar" } })).toBe(true);
+    expect(until({ persist: { pointer: "", eq: { coins: 1, keys: [null] } } })).toBe(true);
+    expect(until({ persist: { pointer: "/flags/a~1b", eq: null } })).toBe(true);
+    expect(until({ persist: { pointer: "/coins" } })).toBe(false);
+    expect(until({ persist: { pointer: "coins", eq: 1 } })).toBe(false);
+    expect(until({ persist: { pointer: "/a~2", eq: 1 } })).toBe(false);
+    expect(until({ persist: { pointer: "/coins", gte: "3" } })).toBe(false);
+    expect(until({ persist: { pointer: "/coins", eq: 1, past: 2 } })).toBe(false);
+  });
+
+  it("has a scene predicate: a scene's asset id", () => {
+    const schema = inputScriptJsonSchema(game) as Defs;
+    expect(schema.$defs.Until!.properties!.scene).toMatchObject({
+      type: "string",
+      pattern: "^[a-z0-9][a-z0-9-]{0,47}$",
+    });
+    const zod = inputScriptSchemaFor(game);
+    const until = (u: unknown) => zod.safeParse({ v: 2, steps: [{ hold: [], until: u }] }).success;
+    expect(until({ scene: "level-2" })).toBe(true);
+    expect(until({ scene: "level-2", tick: 30 })).toBe(true);
+    expect(until({ scene: "Level 2" })).toBe(false);
+    expect(until({ scene: "" })).toBe(false);
+    expect(until({ scene: 2 })).toBe(false);
+    const v1 = { v: 1, steps: [{ hold: [], until: { scene: "menu" } }] };
+    const lifted = migrateInputScript(v1, pads(32));
+    expect(lifted.ok && lifted.script).toMatchObject({ steps: [{ until: { scene: "menu" } }] });
+  });
+
+  it("keeps a v1 script's persist bounds as they are: they aren't lengths", () => {
+    const v1 = { v: 1, steps: [{ hold: [], until: { persist: { pointer: "/x", gte: 64 } } }] };
+    const lifted = migrateInputScript(v1, pads(32));
+    expect(lifted.ok && lifted.script).toMatchObject({
+      v: 2,
+      steps: [{ until: { persist: { pointer: "/x", gte: 64 } } }],
+    });
   });
 
   it("describes every property", () => {

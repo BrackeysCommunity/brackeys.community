@@ -1,4 +1,5 @@
 import type {
+  beforeSyncPayload,
   beforeUnloadDocumentPayload,
   Document,
   Extension,
@@ -8,6 +9,7 @@ import type {
 } from "@hocuspocus/server";
 import * as Y from "yjs";
 
+import { assertSameSeed, stampSeedState } from "../../../../src/engine/collab/seed-identity.ts";
 import {
   createRegistry,
   sceneGameOf,
@@ -286,7 +288,7 @@ export function createSceneKind(options: SceneKindOptions): DocumentKind & {
       // The layout first: the format migration reads the doc at this engine's layout.
       const lifted = await liftLayout(sceneId, row.state);
       const prepared = prepareLoadedState(sceneId, lifted ?? row.state, row.seed, format);
-      const state = prepared.state;
+      const state = stampSeedState(prepared.state);
       if (prepared.unresolved) {
         console.log(
           `[load] scene ${sceneId} stays at v${prepared.schemaVersion}, read-only to v${format.version} clients: ${prepared.unresolved.message}`,
@@ -307,6 +309,11 @@ export function createSceneKind(options: SceneKindOptions): DocumentKind & {
         schedule.written(sceneId, now());
       }
       return state;
+    },
+
+    // A client holding another seed's history is refused before either side merges.
+    async beforeSync(payload: beforeSyncPayload) {
+      assertSameSeed(payload);
     },
 
     async onChange({ documentName: name, transactionOrigin }: onChangePayload) {

@@ -28,18 +28,25 @@ describe("the genre matrix", () => {
       MATRIX[row].milestones.every((m) => m <= LANDED_THROUGH),
     );
     for (const row of landed) expect(MATRIX[row].probes.length, row).toBeGreaterThan(0);
-    expect(landed).toStrictEqual(["tower-defense"]);
+    expect(landed).toStrictEqual(["tactics", "tower-defense"]);
     expect(MATRIX["tower-defense"].probes).toContain("tower-defense");
+    expect(MATRIX.tactics.probes).toContain("turn-tactics");
   });
 
-  it("completes only tactics with the milestone after the last landed one", () => {
+  it("leaves turn-tactics nothing pending on the tactics row", () => {
+    const probe = PROBES.find((p) => p.id === "turn-tactics");
+    expect(probe?.rows).toContain("tactics");
+    expect(probe?.pending?.tactics).toBeUndefined();
+  });
+
+  it("completes no row with the milestone after the last landed one", () => {
     const next = LANDED_THROUGH + 1;
     const complete = GENRE_ROWS.filter(
       (row) =>
         MATRIX[row].milestones.every((m) => m <= next) &&
         !MATRIX[row].milestones.every((m) => m <= LANDED_THROUGH),
     );
-    expect(complete).toStrictEqual(["tactics"]);
+    expect(complete).toStrictEqual([]);
   });
 
   it("names the input probes on the rows they prove", () => {

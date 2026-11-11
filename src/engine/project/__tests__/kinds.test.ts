@@ -8,6 +8,7 @@ import { CARD_TABLE, testGame } from "../../__tests__/fixtures/test-game";
 import { layoutFromDoc, layoutPatch, layoutToDoc } from "../../collab/layout";
 import { createRegistry, defineGame } from "../../game/define";
 import { assetField, materialField, pointField, shapeField } from "../../game/fields";
+import { formatSaveFile, type SaveFile } from "../../game/save-file";
 import type { FieldEnv, GameDefinition, Registry } from "../../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../../scene/agent-surface";
 import { undescribedProperties } from "../../scene/json-schema";
@@ -32,7 +33,9 @@ import { inputScriptKind } from "../kinds/input-script";
 import { materialKind, projectMaterialOf } from "../kinds/material";
 import { prefabKind } from "../kinds/prefab";
 import { recordingKind, recordingMetaSchema } from "../kinds/recording";
+import { saveKind } from "../kinds/save";
 import { sceneKind } from "../kinds/scene";
+import { sceneListKind } from "../kinds/scene-list";
 import type { AssetEntry, ProjectView } from "../types";
 import { projectUsage } from "../usage";
 import { engineHomeRegistry } from "./fixtures/engine-home";
@@ -107,6 +110,17 @@ const FIXTURES = {
     '  "deadzone": 0.2',
     "}",
   ),
+  "scene-list": lines(
+    "{",
+    '  "kind": "scene-list",',
+    '  "v": 1,',
+    '  "start": "engine-yard",',
+    '  "scenes": [',
+    '    { "scene": "engine-yard", "title": "Engine yard" },',
+    '    { "scene": "kitchen-sink" }',
+    "  ]",
+    "}",
+  ),
   checks: lines(
     "{",
     '  "v": 3,',
@@ -124,6 +138,7 @@ const DECLARATIVE: DocKindDef[] = [
   dataTableKind,
   inputScriptKind,
   inputMapKind,
+  sceneListKind,
   checksKind,
 ];
 
@@ -169,10 +184,11 @@ function viewOf(entries: AssetEntry[]): ProjectView {
 }
 
 describe("ENGINE_ASSET_KINDS", () => {
-  it("marks game-settings and input-map, and no other kind, one per project", () => {
+  it("marks game-settings, input-map and scene-list, and no other kind, one per project", () => {
     expect(ENGINE_ASSET_KINDS.filter(isPerProject).map((k) => k.kind)).toEqual([
       "game-settings",
       "input-map",
+      "scene-list",
     ]);
   });
 
@@ -186,12 +202,14 @@ describe("ENGINE_ASSET_KINDS", () => {
       "data-table",
       "input-script",
       "input-map",
+      "scene-list",
       "checks",
       "texture",
       "atlas",
       "font",
       "audio",
       "recording",
+      "save",
       "code",
     ]);
     expect(
@@ -212,6 +230,7 @@ describe("ENGINE_ASSET_KINDS", () => {
     expect(kindOf("a.script.json", { v: 1, steps: [] })).toBe("input-script");
     expect(kindOf("a.checks.json", { v: 1, checks: [] })).toBe("checks");
     expect(kindOf("input-map.json", { kind: "input-map", v: 1 })).toBe("input-map");
+    expect(kindOf("scene-list.json", { kind: "scene-list", v: 1 })).toBe("scene-list");
     expect(kindOf("notes.json", { title: "no v" })).toBeNull();
     expect(kindOf("module.ts")).toBeNull();
   });
@@ -220,7 +239,7 @@ describe("ENGINE_ASSET_KINDS", () => {
     const hashes = await createKindRegistry(testGame).schemaHashes(gameEnv);
     expect(Object.keys(hashes).sort()).toEqual(
       DECLARATIVE.map((k) => k.kind)
-        .concat("scene", "prefab", "texture", "atlas", "font", "audio", "recording")
+        .concat("scene", "prefab", "texture", "atlas", "font", "audio", "recording", "save")
         .sort(),
     );
     const engine = await createKindRegistry().schemaHashes(engineEnv);
@@ -781,7 +800,15 @@ describe("refs", () => {
     ]);
   });
 
-  it("a material names no other asset; empty game-settings and data-table name none", () => {
+  it("scene-list: its start and every listed scene, entries by index", () => {
+    expect(refsOf(sceneListKind as DocKindDef, JSON.parse(FIXTURES["scene-list"]), env)).toEqual([
+      { pointer: "/start", id: "engine-yard", kinds: ["scene"] },
+      { pointer: "/scenes/0/scene", id: "engine-yard", kinds: ["scene"] },
+      { pointer: "/scenes/1/scene", id: "kitchen-sink", kinds: ["scene"] },
+    ]);
+  });
+
+  it("a material names no other asset; empty game-settings, data-table and scene-list name none", () => {
     expect(
       refsOf(
         materialKind as DocKindDef,
@@ -789,7 +816,7 @@ describe("refs", () => {
         gameEnv,
       ),
     ).toBeUndefined();
-    for (const kind of [gameSettingsKind, dataTableKind] as DocKindDef[])
+    for (const kind of [gameSettingsKind, dataTableKind, sceneListKind] as DocKindDef[])
       expect(refsOf(kind, kind.empty(gameEnv, { id: "x" }), gameEnv)).toEqual([]);
   });
 });
@@ -1572,5 +1599,46 @@ describe("recording", () => {
     expect(recordingMetaSchema.safeParse({ scene: "s", ticks: 1, sceneHash: "h" }).success).toBe(
       false,
     );
+  });
+});
+
+describe("save", () => {
+  const env = { path: "fixtures/level-2.save.json", idAt: () => undefined };
+  const bytes = (text: string) => new TextEncoder().encode(text);
+  const progress = (over: Partial<SaveFile> = {}): SaveFile => ({
+    kind: "save",
+    v: 1,
+    game: "tactics",
+    gameVersion: 3,
+    engine: "0.13.0",
+    release: null,
+    project: null,
+    slot: "fixture",
+    meta: { scene: "level-2", savedAt: 0, playTicks: 600 },
+    depth: "progress",
+    persist: { cleared: ["level-1"] },
+    scene: { id: "level-2", runHash: "a90e44d1c2b3f507", sublevels: [] },
+    data: { turn: 1 },
+    ...over,
+  });
+
+  it("reads the game, its save version, the depth and the scene from the envelope", () => {
+    expect(saveKind.inspect(bytes(formatSaveFile(progress())), {}, env)).toEqual({
+      ok: true,
+      meta: { game: "tactics", gameVersion: 3, depth: "progress", scene: "level-2" },
+    });
+  });
+
+  it("keeps the version it was written at, running no game's migrations", () => {
+    const result = saveKind.inspect(bytes(formatSaveFile(progress({ gameVersion: 99 }))), {}, env);
+    expect(result.ok && result.meta.gameVersion).toBe(99);
+  });
+
+  it("refuses a file that isn't save:v1, saying where", () => {
+    const result = saveKind.inspect(bytes(JSON.stringify({ ...progress(), v: 2 })), {}, env);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issue.code).toBe("import-failed");
+    expect(result.issue.message).toMatch(/save:v1 file \(\/v: /);
   });
 });

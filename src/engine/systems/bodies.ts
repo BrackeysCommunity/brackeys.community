@@ -4,8 +4,17 @@ import { createSensorCollider } from "../collisions";
 import type { ViewLayer } from "../context";
 import { SPRITE } from "../game/behaviors/sprite";
 import { physicsOf } from "../game/physics-of";
+import { oneWaySideOf } from "../game/primitives";
 import { styleOf } from "../game/style";
-import type { ColliderTag, EngineContext, RegisteredType, SceneSystem, Side } from "../game/types";
+import type {
+  ColliderTag,
+  ColliderTags,
+  EngineContext,
+  JsonValue,
+  RegisteredType,
+  SceneSystem,
+  Side,
+} from "../game/types";
 import { posedBodyDesc, shapeColliderDesc, shapePose } from "../physics";
 import type { GeometryColliderDesc } from "../runtime/geometry-world";
 import { composePose, relativePose, type Pose } from "../runtime/poses";
@@ -505,7 +514,7 @@ export type VisualOptions = {
 /** Visuals default to the `terrain` layer. */
 export type SolidOptions = SurfaceDefaults &
   VisualOptions & {
-    /** Every entity of the type is one-way, whatever its own `oneWay` says; `true` is `"up"`, and an entity's own side wins. */
+    /** Every entity of the type is one-way, whatever its own `oneWay` says; `true` is `"up"`, and an entity's own side wins. Omitted, the type's `oneWay`. */
     oneWay?: boolean | Side;
     /** Collision group; `static` when omitted. */
     group?: string;
@@ -532,16 +541,6 @@ export type SolidSystem = SceneSystem<SolidEntity> & {
 const ONE_WAY_TOLERANCE = 0.04;
 /** Where a hidden one-way body waits, m: far outside any scene. */
 const HIDDEN_Y = -999.99;
-
-/** A one-way solid's side: the entity's own when it names one, else the type's; `true` is `"up"`, null when not one-way. */
-function oneWaySideOf(
-  own: boolean | Side | undefined,
-  typeWide: boolean | Side | undefined,
-): Side | null {
-  if (typeof own === "string") return own;
-  if (typeof typeWide === "string") return typeWide;
-  return own === true || typeWide === true ? "up" : null;
-}
 
 /** Whether `actor` is on a one-way solid's `side`, at most the tolerance past that face: where the solid holds it. */
 function onOneWaySide(side: Side, solid: Aabb, actor: Aabb): boolean {
@@ -578,7 +577,8 @@ export function createSolidSystem(
     string,
     { handle: number; box: Aabb; side: Side; hidden: boolean }
   >();
-  const sideOf = (e: SolidEntity) => oneWaySideOf(e.oneWay, opts.oneWay);
+  const typeSide = opts.oneWay ?? type.oneWay;
+  const sideOf = (e: SolidEntity) => oneWaySideOf(e.oneWay, typeSide);
   /** Attached one-way solids gated off: their collider's groups are 0 until the actor is above them again. */
   const gated = new Set<string>();
   /** Each live entity's record, to redraw it on enable. */
@@ -710,6 +710,20 @@ export function createSolidSystem(
       for (const id of [...gated]) gate(id, false);
     },
     size: () => table.size() + riders.riders.size,
+    /** A one-way solid's gate, while it lets actors through. */
+    save(id) {
+      const hidden = table.owned.get(id)?.hidden ?? placedOneWay.get(id)?.hidden ?? gated.has(id);
+      return hidden ? { hidden: true } : undefined;
+    },
+    restore(id, state) {
+      if (typeof state !== "object" || state === null || Array.isArray(state)) return;
+      const hidden = state.hidden === true;
+      const solid = table.owned.get(id);
+      if (solid) return solid.oneWay ? setHidden(id, solid, hidden) : undefined;
+      const placed = placedOneWay.get(id);
+      if (placed) return setPlacedHidden(id, placed, hidden);
+      if (riders.riders.has(id)) gate(id, hidden);
+    },
     gateOneWaySides: (actor, passing) => gateSides(actor, passing, null),
     gateOneWay(actorBottomY, dropping) {
       const edge = { minX: 0, minY: actorBottomY, maxX: 0, maxY: actorBottomY };
@@ -844,6 +858,39 @@ type PlacedSensor = {
   next: Map<number, SpaceHit> | null;
   fresh: boolean;
 };
+
+/**
+ * An overlap kept by what owns the collider rather than by its handle, which
+ * a fresh load may hand out differently: the entity id and the collider's
+ * place among that entity's handles in ascending order.
+ */
+type SavedOverlap = [entityId: string, nth: number];
+
+function saveOverlaps(tags: ColliderTags, overlaps: Overlaps): SavedOverlap[] {
+  const saved: SavedOverlap[] = [];
+  for (const [handle, entityId] of overlaps) {
+    if (entityId === undefined) continue;
+    const nth = tags
+      .handlesOf(entityId)
+      .sort((a, b) => a - b)
+      .indexOf(handle);
+    if (nth >= 0) saved.push([entityId, nth]);
+  }
+  return saved;
+}
+
+function restoreOverlaps(tags: ColliderTags, saved: JsonValue | undefined): Overlaps {
+  const overlaps: Overlaps = new Map();
+  if (!Array.isArray(saved)) return overlaps;
+  for (const item of saved) {
+    if (!Array.isArray(item)) continue;
+    const [entityId, nth] = item;
+    if (typeof entityId !== "string" || typeof nth !== "number") continue;
+    const handle = tags.handlesOf(entityId).sort((a, b) => a - b)[nth];
+    if (handle !== undefined) overlaps.set(handle, entityId);
+  }
+  return overlaps;
+}
 
 export function createSensorSystem(ctx: EngineContext, type: RegisteredType): SensorSystem {
   const table = createBodyTable<SensorBody>(ctx);
@@ -1032,6 +1079,28 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
       inside.clear();
     },
     size: () => table.size() + riders.riders.size,
+    /** What overlaps the sensor since the last step, so a restore raises no enter for it again. */
+    save(id): JsonValue | undefined {
+      const placed = placedSensors.get(id);
+      const overlaps = placed?.inside ?? table.owned.get(id)?.inside ?? inside.get(id);
+      const saved = overlaps ? saveOverlaps(ctx.tags, overlaps) : [];
+      if (placed?.fresh) return { inside: saved, fresh: true };
+      return saved.length > 0 ? { inside: saved } : undefined;
+    },
+    restore(id, state) {
+      if (typeof state !== "object" || state === null || Array.isArray(state)) return;
+      const overlaps = restoreOverlaps(ctx.tags, state.inside);
+      const placed = placedSensors.get(id);
+      if (placed) {
+        placed.inside = overlaps;
+        placed.next = null;
+        placed.fresh = state.fresh === true;
+        return;
+      }
+      const owned = table.owned.get(id);
+      if (owned) owned.inside = overlaps;
+      else if (riders.riders.has(id)) inside.set(id, overlaps);
+    },
     beforeStep() {
       if (placedSensors.size > 0) takePlaced();
     },

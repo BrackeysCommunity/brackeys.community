@@ -16,10 +16,13 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 
 import { CanvasShell, Island } from "@/components/canvas/shell/CanvasShell";
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { MicroLabel } from "@/components/ui/typography";
 import { useFlag } from "@/lib/hooks/use-flag";
 
+import { controlsHint, type ControlsHintEntry } from "./controls-hint";
 import { displayResolution, useDisplaySetting } from "./display-menu";
 import { EditorLoading } from "./editor-loading";
 import {
@@ -47,7 +50,7 @@ type GameCanvasProps = {
   edit?: boolean;
   /** The project the editor opens, by id; default the hosted game `gameId` names, else the platformer. */
   project?: string;
-  /** The project scene the editor opens, by id or name; default the project's own. */
+  /** The project scene the editor opens, by id or name; default the project's start scene. Play always starts there. */
   scene?: string;
 };
 
@@ -66,8 +69,8 @@ export function GameCanvas({ roomId, gameId, edit = false, project, scene }: Gam
 }
 
 /**
- * The game room as everyone plays it: the hosted game's first scene, with its
- * DOM UI over the canvas. Under the display menu's flag the viewer's choice
+ * The game room as everyone plays it: the hosted game's scene list from its
+ * start scene, with its DOM UI over the canvas. Under the display menu's flag the viewer's choice
  * is the host's resolution policy, and a new choice rebuilds the game, since
  * the engine reads it once at creation.
  */
@@ -95,7 +98,11 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !modules) return;
-    const { game: definition, registry, scene, prefabs, project, assets } = modules;
+    const { game: definition, registry, flow, prefabs, project, assets } = modules;
+    const physics = flow.list().flatMap(({ scene }) => {
+      const listed = flow.scene(scene);
+      return listed ? [scenePhysics(listed.def, registry, project.engine)] : [];
+    });
 
     let instance: GameInstance | null = null;
     let mounted = true;
@@ -119,16 +126,14 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
         dev: import.meta.env.DEV,
         debug,
         debugLayers,
-        ...(scenePhysics(scene, registry, project.engine) === "rapier"
-          ? { rapier: loadRapier }
-          : {}),
+        ...(physics.includes("rapier") ? { rapier: loadRapier } : {}),
         // The page is the game: debug keys work with focus fallen to the body,
         // while play input still needs the canvas focused.
         keyTarget: window,
         // A player's remaps stay in their own browser.
         input: { touch: "auto", remaps: browserRemapStore() },
         prefabs,
-        scene,
+        flow: { source: flow },
         project,
         ...(assets && loader ? { assets: { loader, view: assets.view, kinds: assets.kinds } } : {}),
         ...(resolution ? { resolution } : {}),
@@ -143,6 +148,11 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
       setGame(created);
       setStart((s) => (s.error === null ? s : { ...s, error: null }));
       created.start();
+      const started = await created.flow.restart();
+      if (!started.ok && mounted) {
+        const { code, message } = started.issue;
+        setStart((s) => ({ ...s, error: `${message} (${code})` }));
+      }
     }
 
     init().catch((error: unknown) => {
@@ -171,6 +181,17 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
   }, [modules, hosted, resolution, start.attempt]);
 
   const ui = modules?.ui ?? null;
+  const hint = useMemo(
+    () =>
+      game && modules
+        ? controlsHint({
+            actions: modules.game.actions,
+            bindings: game.input.bindings(),
+            ownUi: ui !== null,
+          })
+        : null,
+    [game, modules, ui],
+  );
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!game || !ui || !canvas) return;
@@ -190,6 +211,7 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
           <GameHUD
             store={game.getStore()}
             clocked={(modules?.game.time?.kind ?? "fixed") === "fixed"}
+            hint={hint}
           />
         ) : undefined
       }
@@ -223,19 +245,29 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
 /**
  * The room's status: the frame rate for a game on a fixed clock (a turns or
  * event game draws only when it wakes, so its rate says nothing), else the
- * phase while it isn't running; in dev builds, the debug mode and its key.
- * Nothing when there is nothing to say.
+ * phase while it isn't running; the game's controls when it has no UI of its
+ * own to say them; in dev builds, the debug mode and its key. Nothing when
+ * there is nothing to say.
  */
-function GameHUD({ store, clocked }: { store: Store<GameStoreState>; clocked: boolean }) {
+function GameHUD({
+  store,
+  clocked,
+  hint,
+}: {
+  store: Store<GameStoreState>;
+  clocked: boolean;
+  hint: readonly ControlsHintEntry[] | null;
+}) {
   const phase = useStore(store, selectPhase);
   const fps = useStore(store, selectFPS);
   const debugMode = useStore(store, selectDebugMode);
   const reading = phase !== "running" ? phase : clocked ? `${Math.round(fps)} FPS` : null;
-  if (reading === null && !import.meta.env.DEV) return null;
+  if (reading === null && hint === null && !import.meta.env.DEV) return null;
 
   return (
     <Island role="status" className="flex-col items-start gap-0.5 px-2.5 py-1.5 text-xs">
       {reading !== null && <span className="text-muted-foreground">{reading}</span>}
+      {hint !== null && <ControlsHint entries={hint} />}
       {import.meta.env.DEV && debugMode !== "off" && (
         <MicroLabel as="span" className="text-cyan-400/70 uppercase">
           Debug: {debugMode}
@@ -247,5 +279,31 @@ function GameHUD({ store, clocked }: { store: Store<GameStoreState>; clocked: bo
         </MicroLabel>
       )}
     </Island>
+  );
+}
+
+function ControlsHint({ entries }: { entries: readonly ControlsHintEntry[] }) {
+  return (
+    <ul aria-label="Controls" className="flex max-w-md flex-wrap gap-x-3 gap-y-1 py-0.5">
+      {entries.map((entry) => {
+        const row = (
+          <li key={entry.action} className="flex items-center gap-1.5 text-muted-foreground">
+            <KbdGroup>
+              {entry.keys.map((key) => (
+                <Kbd key={key}>{key}</Kbd>
+              ))}
+            </KbdGroup>
+            <span>{entry.label}</span>
+          </li>
+        );
+        return entry.description ? (
+          <SimpleTooltip key={entry.action} content={entry.description} side="top">
+            {row}
+          </SimpleTooltip>
+        ) : (
+          row
+        );
+      })}
+    </ul>
   );
 }

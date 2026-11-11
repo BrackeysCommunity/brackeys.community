@@ -4,7 +4,13 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import type { GameCommand, ProjectRuntimeView } from "@jams/engine/game";
-import { createHeadlessRuntime, loadHeadless, runChecks, runProbe } from "@jams/engine/headless";
+import {
+  createHeadlessRuntime,
+  loadHeadless,
+  playWorld,
+  runChecks,
+  runProbe,
+} from "@jams/engine/headless";
 import {
   createRegistry,
   createScene,
@@ -12,7 +18,9 @@ import {
   formatScene,
   inputScriptJsonSchema,
   parseChecks,
+  parsePrefab,
   parseScene,
+  prefabLibrary,
   sceneJsonSchema,
   undescribedProperties,
   validateScene,
@@ -29,9 +37,11 @@ import {
   TACTICS_TURN,
   UNIT_CLASS_TABLE,
   WALK_TICKS,
+  worldBoard,
   type TacticsRunSnapshot,
   type TacticsSlice,
 } from "..";
+import { TERRAIN_KINDS } from "../art/make-art";
 
 // The board has no physics: loading Rapier at all is a failure.
 vi.mock("@dimforge/rapier2d-compat", () => ({
@@ -153,14 +163,34 @@ describe("level-1.json", () => {
     expect(final.grid.costs.length).toBeGreaterThan(0);
     expect(Object.keys(final.classes).sort()).toEqual(["archer", "knight", "scout"]);
     expect(final).toMatchObject({ turn: 1, side: "blue", phase: "orders", result: null });
-    const legal = tacticsGame.play!.commands!({
-      tick: 0,
-      snapshot: final,
-      events: [],
-      world: { exists: () => true, count: () => 0 },
-    });
+    const legal = report.legal!;
     expect(legal.at(-1)).toEqual({ name: "end-turn" });
     expect(legal.filter((c) => c.name === "wait")).toHaveLength(3);
+  });
+
+  it("lists legal orders from the world's grid and project, the board the run loaded", async () => {
+    const loaded = await load();
+    const rt = createHeadlessRuntime({
+      game: tacticsGame,
+      registry,
+      scene: expandScene(loaded.scene, registry, { prefabs: loaded.prefabs }),
+      project: loaded.project,
+    });
+    const world = playWorld(rt.ctx);
+    const snapshot = rt.snapshot() as TacticsRunSnapshot;
+    expect(worldBoard(world)).toEqual({ grid: snapshot.grid, classes: snapshot.classes });
+    const legal = tacticsGame.play!.commands!({ tick: -1, snapshot, events: [], world });
+    expect(legal.filter((c) => c.name === "move").length).toBeGreaterThan(0);
+
+    // Without a grid or a project in the world there is no board to move on, whatever the snapshot holds.
+    const bare = { exists: () => true, count: () => 0 };
+    expect(worldBoard(bare)).toEqual({
+      grid: { cols: 0, rows: 0, cell: 1, walls: [], costs: [] },
+      classes: {},
+    });
+    const blind = tacticsGame.play!.commands!({ tick: -1, snapshot, events: [], world: bare });
+    expect(blind.filter((c) => c.name === "move")).toEqual([]);
+    rt.destroy();
   });
 
   it("passes its checks headless, the sides' spawns connected", async () => {
@@ -259,7 +289,7 @@ describe("the runtime", () => {
         tick: 0,
         snapshot: { ...snap(), side: "red" },
         events: [],
-        world: { exists: () => true, count: () => 0 },
+        world: playWorld(rt.ctx),
       }),
     ).toEqual([]);
     rt.destroy();
@@ -278,7 +308,7 @@ describe("the runtime", () => {
         tick: 0,
         snapshot: snap(),
         events: [],
-        world: { exists: () => true, count: () => 0 },
+        world: playWorld(rt.ctx),
       });
       const attack = legal.find((c) => c.name === "attack");
       const order = attack ??
@@ -304,6 +334,40 @@ describe("the runtime", () => {
     ].filter((id) => !snap().units[id]);
     for (const id of gone) expect(rt.ctx.exists(id)).toBe(false);
     rt.destroy();
+  });
+});
+
+describe("every listed scene", () => {
+  const terrain = new Set(TERRAIN_KINDS.map((kind) => `tile-${kind}`));
+  const list = json("../scene-list.json").scenes as { scene: string }[];
+  const prefabs = prefabTexts().map((text) => {
+    const p = parsePrefab(text, registry);
+    if (!p.ok) throw new Error(p.issues.map((i) => i.message).join("\n"));
+    return p.prefab;
+  });
+
+  it("draws each wall as stone and each rough patch as a terrain tile, tiled to its shape", () => {
+    let drawn = 0;
+    for (const { scene: id } of list) {
+      const result = parseScene(read(`../scenes/${id}.json`), registry);
+      if (!result.ok) throw new Error(`${id}: ${result.issues.map((i) => i.message).join("\n")}`);
+      const ground = expandScene(result.def, registry, {
+        prefabs: prefabLibrary(prefabs),
+      }).entities.filter((e) => e.type === "solid" || e.type === "rough");
+      for (const e of ground) {
+        const { hw, hh } = e.shape as { hw: number; hh: number };
+        const sprite = (e.behaviors as { sprite?: { asset?: string } }).sprite;
+        expect(e.layer, `${id}/${e.id}`).toBe("decor");
+        expect(sprite, `${id}/${e.id}`).toEqual({
+          asset: e.type === "solid" ? "tile-wall" : sprite?.asset,
+          size: [hw * 2, hh * 2],
+          tile: true,
+        });
+        expect(terrain.has(sprite!.asset!), `${id}/${e.id} draws ${sprite?.asset}`).toBe(true);
+        drawn++;
+      }
+    }
+    expect(drawn).toBeGreaterThan(5);
   });
 });
 

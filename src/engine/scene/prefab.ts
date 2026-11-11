@@ -9,6 +9,7 @@ import { hashText } from "./hash";
 import { jsonPointer, makeIssue } from "./issues";
 import { migrate, MIGRATIONS } from "./migrate";
 import { migrateEnvOf, parseScene, type ParseOptions } from "./parse";
+import { paramMapProblem } from "./prefab-params";
 import { InstanceSchema, OVERRIDE_PATH } from "./schema";
 import {
   PREFAB_KIND,
@@ -47,25 +48,36 @@ function contractSchema(registry: Registry): z.ZodType {
         .describe("This game defines no prefab contract, so a prefab carries none.");
 }
 
-/** A parameter name: letters, digits, `_` and `$`, not starting with a digit. */
-
 const OverridePathSchema = z.string().regex(OVERRIDE_PATH, {
   error: "an override key is `<childId>.<field.path>`, e.g. door.path.speed",
 });
 
-const PrefabParamSchema = z
-  .strictObject({
-    description: z.string().min(1).describe("One sentence for the inspector and agents."),
-    targets: z
-      .array(OverridePathSchema)
-      .min(1)
-      .describe("Override paths inside the prefab that the value feeds, e.g. `door.path.speed`."),
-    default: z
-      .unknown()
-      .optional()
-      .describe("Used when an instance sets none; omitted, the targets' own values stand."),
-  })
-  .describe("An exposed parameter: one value an instance sets that overrides every target.");
+/**
+ * One exposed parameter, as a prefab file and an `exposeParam` op carry it,
+ * with `path` the schema of its targets.
+ */
+export const prefabParamSchema = (path: z.ZodString) =>
+  z
+    .strictObject({
+      description: z.string().min(1).describe("One sentence for the inspector and agents."),
+      targets: z
+        .array(path)
+        .min(1)
+        .describe("Override paths inside the prefab that the value feeds, e.g. `door.path.speed`."),
+      default: z
+        .unknown()
+        .optional()
+        .describe("Used when an instance sets none; omitted, the targets' own values stand."),
+      map: z
+        .record(path, z.record(z.string(), z.unknown()))
+        .optional()
+        .describe(
+          'Per target, the value it takes for each string value of the param, e.g. `{ "unit.behaviors.sprite.frame": { "red": "knight-red" } }`. A mapped target with no entry for the value keeps its own; targets left out take the value as it is.',
+        ),
+    })
+    .describe("An exposed parameter: one value an instance sets that overrides every target.");
+
+const PrefabParamSchema = prefabParamSchema(OverridePathSchema);
 
 /** The header keys a variant and its parameters add, in file order. */
 const variantHeader = {
@@ -291,6 +303,19 @@ export function parsePrefab(
     };
   }
   const { base, params, assets, overrides } = header.data;
+  for (const [name, param] of Object.entries(params ?? {})) {
+    const problem = paramMapProblem(param);
+    if (problem)
+      return {
+        ok: false,
+        issues: [
+          makeIssue("schema", {
+            message: `param "${name}" ${problem.message}`,
+            path: jsonPointer(["params", name, ...problem.path]),
+          }),
+        ],
+      };
+  }
   const f = fragment.fragment;
   const prefab: Prefab = {
     ...(typeof doc.$schema === "string" ? { $schema: doc.$schema } : {}),
@@ -321,6 +346,7 @@ function paramsOf(params: Record<string, PrefabParam>): Record<string, PrefabPar
       description: p.description,
       targets: p.targets,
       ...(p.default !== undefined ? { default: p.default } : {}),
+      ...(p.map && Object.keys(p.map).length > 0 ? { map: p.map } : {}),
     };
   return out;
 }

@@ -24,6 +24,7 @@ import {
   type ModelField,
 } from "../inspector-model";
 import { lookupRef } from "../refs";
+import { settingsRows } from "../settings-model";
 
 const registry = createRegistry(
   defineGame({
@@ -1167,5 +1168,51 @@ describe("colour and asset widgets", () => {
       ops: [{ op: "update", ref: "shade", set: { art: "other-sheet" } }],
     });
     expect(modelOps(art, "Not An Id!", [lookupRef(doc, "shade")!]).ok).toBe(false);
+  });
+});
+
+describe("the field rule the settings model shares", () => {
+  it("describes a field as settingsRows does, plus its section", () => {
+    const gadgetType = registry.types.get("gadget")!;
+    const schema = z.object({
+      ratio: gadgetType.shape.ratio as z.ZodType,
+      mode: gadgetType.shape.mode as z.ZodType,
+      armed: gadgetType.shape.armed as z.ZodType,
+    });
+    const value = { ratio: 0.5, mode: "on" };
+    const rows = settingsRows(schema, value, "", { registry });
+    for (const row of rows) {
+      const { section, ...rest } = field(model("a"), row.path);
+      expect(section).toBe("behavior");
+      expect(rest).toEqual(row);
+    }
+  });
+
+  it("keeps a scene point's canvas pick", () => {
+    const pt = createRegistry(
+      defineGame({
+        id: "pt",
+        types: [
+          defineEntityType({
+            type: "spot",
+            description: "A point.",
+            base: "decor",
+            fields: { at: pointField("Where.") },
+          }),
+        ],
+        actions: [],
+        createRuntime: () => ({ snapshot: () => null }),
+      }),
+    );
+    const doc: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      game: "pt",
+      name: "p",
+      bounds: [0, 0, 10, 10],
+      entities: [{ id: "s", type: "spot", at: [1, 2] }],
+    };
+    const m = buildInspectorModel(pt, [lookupRef(doc, "s")!]);
+    const at = m.sections.flatMap((s) => s.fields).find((f) => f.path === "at");
+    expect(at?.widget).toMatchObject({ kind: "point", pick: true });
   });
 });

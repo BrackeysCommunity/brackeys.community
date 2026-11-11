@@ -14,6 +14,7 @@ import { shapeField } from "../../game/fields";
 import { primitiveFields } from "../../game/primitives";
 import type { AssetEntry } from "../../project/types";
 import { projectView } from "../../project/view";
+import { createDataSystem } from "../../systems/data";
 import {
   createProjectFileAdapter,
   readFileProject,
@@ -251,7 +252,7 @@ describe("one-way types", () => {
           type: "ledge",
           description: "A ledge its system makes one-way, with no oneWay field.",
           fields: { shape: shapeField("Ledge shape.") },
-          system: () => ({ spawn() {}, despawn() {}, clear() {}, size: () => 0 }),
+          system: createDataSystem,
           oneWay: "right",
         }),
       ],

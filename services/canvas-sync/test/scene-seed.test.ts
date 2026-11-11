@@ -1,5 +1,8 @@
 import { afterAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 
+import * as Y from "yjs";
+
+import { SEED_STALE_REASON } from "../../../src/engine/collab/seed-identity.ts";
 import { EMPTY_SCENE_TEMPLATE } from "../../../src/engine/scene/create.ts";
 import { syncEnvPrefix } from "../../../src/lib/canvas/sync-channels.ts";
 import { startServer, type SyncServer } from "../src/index.ts";
@@ -129,6 +132,44 @@ describe("seeding a brand-new hosted scene", () => {
     expect(a.entities.size).toBe(5);
     expect(b.entities.size).toBe(5);
     expect(sceneOf(a.doc)).toEqual(sceneOf(b.doc));
+  });
+
+  it("refuses a client still holding the scene from before a reseed, and serves the new seed alone", async () => {
+    const one = await instance("seed-stale-one");
+    const sceneId = newSceneId();
+    store.create(sceneId, JSON.stringify(SEED));
+    const a = open(one.port, sceneId, "alice");
+    expect(await sceneSynced(a)).toBe(true);
+    expect(a.entities.size).toBe(5);
+    a.destroy();
+    await one.stop(3000);
+
+    // The web app replaces the row, so the next load seeds its new content.
+    const next = {
+      v: SEED.v,
+      game: SEED.game,
+      name: "reseeded",
+      bounds: SEED.bounds,
+      entities: [{ id: "spawn", type: "marker", at: [20, 280] }],
+    };
+    store.create(sceneId, JSON.stringify(next));
+    const two = await instance("seed-stale-two");
+    const stale = open(two.port, sceneId, "alice", { doc: a.doc });
+    const reasons: string[] = [];
+    stale.provider.on("close", ({ event }: { event: { reason: string } }) => {
+      reasons.push(event.reason);
+    });
+    expect(await until(() => reasons.includes(SEED_STALE_REASON), 5000)).toBe(true);
+
+    const fresh = open(two.port, sceneId, "bob");
+    expect(await sceneSynced(fresh)).toBe(true);
+    expect(fresh.entities.size).toBe(1);
+    expect(JSON.parse(sceneOf(fresh.doc)!.text).entities).toEqual(next.entities);
+    fresh.destroy();
+    await two.stop(3000);
+    const stored = new Y.Doc();
+    Y.applyUpdate(stored, store.rows.get(sceneId)!.state!);
+    expect(stored.getMap("entities").size).toBe(1);
   });
 
   it("refuses a scene the web app never created", async () => {

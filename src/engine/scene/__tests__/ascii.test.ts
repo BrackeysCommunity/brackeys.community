@@ -19,6 +19,7 @@ import {
 import { shapeField } from "../../game/fields";
 import { primitiveFields } from "../../game/primitives";
 import { projectView } from "../../project/view";
+import { createDataSystem } from "../../systems/data";
 import {
   createProjectFileAdapter,
   readFileProject,
@@ -82,15 +83,15 @@ describe("renderSceneAscii", () => {
       ],
     };
     const map = sceneAsciiMap(def, { registry: fake });
-    expect(map.lines[0]).toBe("#+sdx...");
+    expect(map.lines[0]).toBe("=+sdx...");
     expect(legendOf(map)).toEqual({
-      "#": "pad",
+      "=": "pad one-way",
       "+": "flag",
       s: "button",
       d: "door",
       x: "button [hazard]",
     });
-    expect(sceneAsciiMap(def, { registry: fake, tagChars: {} }).lines[0]).toBe("#+sds...");
+    expect(sceneAsciiMap(def, { registry: fake, tagChars: {} }).lines[0]).toBe("=+sds...");
 
     const game = defineGame({
       id: "lettered",
@@ -212,7 +213,7 @@ describe("one-way solids", () => {
             type: "ledge",
             description: "A ledge its system makes one-way, with no oneWay field.",
             fields: { shape: shapeField("Ledge shape.") },
-            system: () => ({ spawn() {}, despawn() {}, clear() {}, size: () => 0 }),
+            system: createDataSystem,
             oneWay: true,
             ascii: "L",
           }),

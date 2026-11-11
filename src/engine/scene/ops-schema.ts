@@ -7,6 +7,7 @@ import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { closest } from "./did-you-mean";
 import { FIELD_NAME_PATTERN } from "./field-path";
 import { layerNames, toJsonSchema } from "./json-schema";
+import { prefabParamSchema } from "./prefab";
 import { OVERRIDE_PATH } from "./schema";
 import { OP_NAMES, type OpBatch, type Ref, type SceneOp } from "./types";
 
@@ -427,19 +428,7 @@ const SetPrefabBaseOp = z
   })
   .describe("Prefab docs only: set or clear the variant base.");
 
-const PrefabParamSchema = z
-  .strictObject({
-    description: z.string().min(1).describe("One sentence for the inspector and agents."),
-    targets: z
-      .array(OverridePathSchema)
-      .min(1)
-      .describe("Override paths inside the prefab that the value feeds, e.g. `door.path.speed`."),
-    default: z
-      .unknown()
-      .optional()
-      .describe("Used when an instance sets none; omitted, the targets' own values stand."),
-  })
-  .describe("An exposed parameter: one value an instance sets that overrides every target.");
+const PrefabParamSchema = prefabParamSchema(OverridePathSchema);
 
 const ExposeParamOp = z
   .strictObject({

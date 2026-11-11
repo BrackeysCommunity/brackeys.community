@@ -111,11 +111,15 @@ export type FieldWidget =
   | { kind: "select"; options: EnumOption[] }
   | { kind: "switch" }
   | { kind: "text"; pattern?: string; maxLength?: number }
-  /** Paired x and y fields with a pick-in-canvas crosshair; a metric one steps and shows as an `m` number does. */
+  /**
+   * Paired x and y fields; a metric one steps and shows as an `m` number
+   * does. `pick` adds a pick-in-canvas crosshair: a scene point has one, a
+   * plain number pair (a setting's gravity) doesn't.
+   */
   | {
       kind: "point";
       unit?: string;
-      pick: true;
+      pick: boolean;
       step?: number;
       bigStep?: number;
       decimals?: number;
@@ -145,8 +149,9 @@ export type FieldWidget =
   | { kind: "custom"; id: string; widget: InspectorWidgetDef }
   | { kind: "readonly"; format: "text" | "json" };
 
-export type ModelField = {
-  /** Dot path into the entity, as an update op's `set` takes it. */
+/** One field as any schema-driven form draws it: the scene inspector's fields and the settings panels' rows. */
+export type InspectorRow = {
+  /** Dot path from the root of the entity or doc, as an update op's `set` or `settingsEdit` takes it. */
   path: FieldPath;
   /** The field's own key. */
   name: string;
@@ -154,7 +159,6 @@ export type ModelField = {
   title: string;
   /** The field's `.describe()` text: the tooltip, and what an agent reads in the JSON Schema. */
   description?: string;
-  section: ModelSectionId;
   widget: FieldWidget;
   optional: boolean;
   /** What an unset field takes: a behavior's or the type's default, else the schema's `meta.default`. */
@@ -170,6 +174,12 @@ export type ModelField = {
   /** What a draft must pass before it commits. */
   schema: z.ZodType;
   /** A path's or an object's fields, paths prefixed with this one's. */
+  children?: InspectorRow[];
+};
+
+/** An inspector row placed in a section of the scene inspector. */
+export type ModelField = Omit<InspectorRow, "children"> & {
+  section: ModelSectionId;
   children?: ModelField[];
 };
 
@@ -251,7 +261,37 @@ function choice(values: readonly (string | number)[]): FieldWidget {
   return options.length <= 4 ? { kind: "segmented", options } : { kind: "select", options };
 }
 
-type Ctx = { registry: Registry; type: RegisteredType | undefined };
+/**
+ * What a schema walk reads beyond the schema: the game's widgets, layers
+ * and px per metre, and, for an entity, its type's refs. `entity` is false
+ * for a settings doc, whose top-level keys are no entity fields.
+ */
+export type FieldCtx = {
+  registry: Registry | undefined;
+  type: RegisteredType | undefined;
+  ppm: number;
+  entity: boolean;
+};
+
+type Ctx = FieldCtx;
+
+const entityCtx = (registry: Registry, type: RegisteredType | undefined): Ctx => ({
+  registry,
+  type,
+  ppm: pxPerMetreOf(registry),
+  entity: true,
+});
+
+/** A tuple of exactly two numbers that isn't a point, vector or other kinded field. */
+function isNumberPair(schema: z.ZodType, inner: z.core.$ZodType): boolean {
+  if (fieldKind(schema) !== "value" || !(inner instanceof z.ZodTuple)) return false;
+  const items = inner.def.items;
+  return (
+    inner.def.rest === null &&
+    items.length === 2 &&
+    items.every((item) => unwrapSchema(item) instanceof z.ZodNumber)
+  );
+}
 
 const isLengthUnit = (unit: unknown): unit is LengthUnitName =>
   (LENGTH_UNITS as readonly unknown[]).includes(unit);
@@ -272,40 +312,41 @@ export function lengthStep(
 function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): FieldWidget {
   const meta = fieldMeta(schema);
   if (typeof meta.widget === "string") {
-    const widget = ctx.registry.widgets.get(meta.widget);
+    const widget = ctx.registry?.widgets.get(meta.widget);
     if (widget) return { kind: "custom", id: meta.widget, widget };
     if (meta.widget === "color") return { kind: "color" };
   }
   const assetKinds = assetKindsOf(schema);
   if (assetKinds) return { kind: "asset", kinds: [...assetKinds] };
-  if (top && name === "layer") return choice(ctx.registry.layers.map((l) => l.name));
+  if (top && ctx.entity && ctx.registry && name === "layer")
+    return choice(ctx.registry.layers.map((l) => l.name));
   const kind = fieldKind(schema);
   if (kind === "shape") return { kind: "shape", types: shapeTypesOf(schema) };
-  if (kind === "point")
-    return {
-      kind: "point",
-      pick: true,
-      ...(typeof meta.unit === "string" ? { unit: meta.unit } : {}),
-      ...(isLengthUnit(meta.unit) ? lengthStep(meta.unit, pxPerMetreOf(ctx.registry)) : {}),
-    };
+  const point = (pick: boolean): FieldWidget => ({
+    kind: "point",
+    pick,
+    ...(typeof meta.unit === "string" ? { unit: meta.unit } : {}),
+    ...(isLengthUnit(meta.unit) ? lengthStep(meta.unit, ctx.ppm) : {}),
+  });
+  if (kind === "point") return point(true);
   if (kind === "path") return { kind: "path" };
   if (kind === "side") return choice(SIDES);
 
   const inner = unwrapSchema(schema);
-  const ref = top ? ctx.type?.refs?.find((r) => r.field === name) : undefined;
+  const ref = top && ctx.entity ? ctx.type?.refs?.find((r) => r.field === name) : undefined;
   const accepts = ref
     ? [...ref.targets]
     : Array.isArray(meta.accepts)
       ? meta.accepts.filter((t): t is string => typeof t === "string")
       : undefined;
   if (accepts) return { kind: "entity-ref", accepts, multiple: inner instanceof z.ZodArray };
+  if (isNumberPair(schema, inner)) return point(false);
 
   if (inner instanceof z.ZodNumber) {
     const b = numberBounds(inner);
     const unit = typeof meta.unit === "string" ? meta.unit : undefined;
     if (unit === "deg") return { kind: "angle", integer: b.integer, snapDeg: 15 };
-    const length =
-      !b.integer && isLengthUnit(unit) ? lengthStep(unit, pxPerMetreOf(ctx.registry)) : undefined;
+    const length = !b.integer && isLengthUnit(unit) ? lengthStep(unit, ctx.ppm) : undefined;
     const step = length?.step ?? (b.integer || unit === "px" ? 1 : 0.1);
     const bigStep = length?.bigStep ?? step * 10;
     return {
@@ -378,6 +419,70 @@ function fieldValue(schema: z.ZodType, root: unknown, path: FieldPath): unknown 
 /** Where a field lands: `forced` always (a behavior's block), else its group, `inherited`, or its kind's. */
 type Placement = { inherited?: ModelSectionId; forced?: ModelSectionId };
 
+/**
+ * The row for the field at `path` (its value read from `root` by that
+ * path), with a path's or an object's fields as children: its widget from
+ * its Zod kind or `meta.widget`, its title, help, default and placeholder
+ * from its metadata. An entity's `id`, or a doc's `id` key, is read-only.
+ */
+export function describeRow(
+  path: FieldPath,
+  schema: z.ZodType,
+  root: unknown,
+  ctx: FieldCtx,
+): InspectorRow {
+  const name = path.slice(path.lastIndexOf(".") + 1);
+  const meta = fieldMeta(schema);
+  const widget = widgetFor(schema, name, !path.includes("."), ctx);
+  const row: InspectorRow = {
+    path,
+    name,
+    title: typeof meta.title === "string" ? meta.title : name,
+    ...(schema.description ? { description: schema.description } : {}),
+    widget,
+    optional: schema.safeParse(undefined).success,
+    readonly:
+      (ctx.entity ? path === "id" : name === "id") ||
+      widget.kind === "readonly" ||
+      (widget.kind === "custom" && widget.widget.kind === "readonly"),
+    value: fieldValue(schema, root, path),
+    mixed: false,
+    schema,
+  };
+  if (row.optional && meta.default !== undefined) row.defaultValue = meta.default;
+  if (typeof meta.placeholder === "string") row.placeholder = meta.placeholder;
+  const inner = unwrapSchema(schema);
+  if ((widget.kind === "path" || widget.kind === "object") && inner instanceof z.ZodObject) {
+    row.children = linkFrames(
+      Object.entries(inner.shape).map(([k, s]) =>
+        describeRow(`${path}.${k}`, s as z.ZodType, root, ctx),
+      ),
+    );
+  }
+  return row;
+}
+
+/** `row` and its children in their sections: `forced`, else the field's group, the parent's, or its kind's. */
+function placeRow(row: InspectorRow, place: Placement): ModelField {
+  const { path, name, title, description, children, ...rest } = row;
+  const group = fieldMeta(row.schema).group;
+  const section =
+    place.forced ??
+    (typeof group === "string" ? GROUP_SECTIONS[group] : undefined) ??
+    place.inherited ??
+    defaultSection(row.widget);
+  const field: ModelField = {
+    path,
+    name,
+    title,
+    ...(description !== undefined ? { description } : {}),
+    section,
+    ...rest,
+  };
+  if (children) field.children = children.map((c) => placeRow(c, { ...place, inherited: section }));
+  return field;
+}
+
 function describeField(
   path: FieldPath,
   schema: z.ZodType,
@@ -385,42 +490,11 @@ function describeField(
   ctx: Ctx,
   place: Placement = {},
 ): ModelField {
-  const name = path.slice(path.lastIndexOf(".") + 1);
-  const meta = fieldMeta(schema);
-  const widget = widgetFor(schema, name, !path.includes("."), ctx);
-  const group = typeof meta.group === "string" ? GROUP_SECTIONS[meta.group] : undefined;
-  const section = place.forced ?? group ?? place.inherited ?? defaultSection(widget);
-  const field: ModelField = {
-    path,
-    name,
-    title: typeof meta.title === "string" ? meta.title : name,
-    ...(schema.description ? { description: schema.description } : {}),
-    section,
-    widget,
-    optional: schema.safeParse(undefined).success,
-    readonly:
-      path === "id" ||
-      widget.kind === "readonly" ||
-      (widget.kind === "custom" && widget.widget.kind === "readonly"),
-    value: fieldValue(schema, root, path),
-    mixed: false,
-    schema,
-  };
-  if (field.optional && meta.default !== undefined) field.defaultValue = meta.default;
-  if (typeof meta.placeholder === "string") field.placeholder = meta.placeholder;
-  const inner = unwrapSchema(schema);
-  if ((widget.kind === "path" || widget.kind === "object") && inner instanceof z.ZodObject) {
-    field.children = linkFrames(
-      Object.entries(inner.shape).map(([k, s]) =>
-        describeField(`${path}.${k}`, s as z.ZodType, root, ctx, { ...place, inherited: section }),
-      ),
-    );
-  }
-  return field;
+  return placeRow(describeRow(path, schema, root, ctx), place);
 }
 
 /** Points each atlas-taking asset field at its sibling `frame` text field; `siblings` share one parent. */
-function linkFrames(siblings: ModelField[]): ModelField[] {
+function linkFrames<R extends InspectorRow>(siblings: R[]): R[] {
   const frame = siblings.find((f) => f.name === "frame" && f.widget.kind === "text");
   if (!frame) return siblings;
   for (const f of siblings) {
@@ -454,13 +528,13 @@ function targetFields(
     const root = { [info.field]: target.value };
     return {
       type: info.type,
-      fields: [describeField(info.field, schema, root, { registry, type })],
+      fields: [describeField(info.field, schema, root, entityCtx(registry, type))],
     };
   }
   const type = registry.types.get(target.entity.type);
   const schema = entitySchemaFor(registry, target.entity.type);
   if (!type || !schema) return { fields: [] };
-  const ctx = { registry, type };
+  const ctx = entityCtx(registry, type);
   const fields = orderedFields(schema.shape, type.inspector?.order ?? [])
     .filter(([n]) => n !== BEHAVIORS_FIELD)
     .map(([n, s]) => describeField(n, s, target.entity, ctx));
@@ -509,7 +583,7 @@ function blockShape(registry: Registry, type: EntityTypeName, name: BehaviorName
 
 function behaviorFields(registry: Registry, s: BehaviorState, name: BehaviorName): ModelField[] {
   const entity = s.target.entity;
-  const ctx: Ctx = { registry, type: registry.types.get(entity.type) };
+  const ctx = entityCtx(registry, registry.types.get(entity.type));
   const forced = behaviorSectionId(name);
   const b = registry.behaviors.get(name);
   if (!b)
@@ -756,6 +830,27 @@ function roundMetric(w: FieldWidget, value: unknown): unknown {
 }
 
 /**
+ * What `input` sets `row` to when it now holds `current`: a string typed
+ * into a number field parsed by `parseRelative` (against `current`, else
+ * the row's default) and rounded when whole, a metric number or point
+ * rounded as a file holds it. Not yet checked against the schema.
+ */
+export function typedValue(
+  row: InspectorRow,
+  input: unknown,
+  current: unknown,
+): { ok: true; value: unknown } | { ok: false; error: string } {
+  let next = input;
+  if (typeof input === "string" && numeric(row.widget)) {
+    next = parseRelative(input, current ?? row.defaultValue);
+    if (next === undefined)
+      return { ok: false, error: `"${input}" isn't a number or a relative edit like +=16` };
+    if (row.widget.kind !== "number" || row.widget.integer) next = Math.round(next as number);
+  }
+  return { ok: true, value: roundMetric(row.widget, next) };
+}
+
+/**
  * The update ops that set `field` to `input` on each target, one per
  * target whose value changes. On a number field a string is parsed by
  * `parseRelative` against each target's own value (or the field's default
@@ -777,14 +872,9 @@ export function modelOps(
           ? undefined
           : t.value
         : valueAt(t.entity, field.path);
-    let next = input;
-    if (typeof input === "string" && numeric(field.widget)) {
-      next = parseRelative(input, current ?? field.defaultValue);
-      if (next === undefined)
-        return { ok: false, error: `"${input}" isn't a number or a relative edit like +=16` };
-      if (field.widget.kind !== "number" || field.widget.integer) next = Math.round(next as number);
-    }
-    next = roundMetric(field.widget, next);
+    const typed = typedValue(field, input, current);
+    if (!typed.ok) return typed;
+    const next = typed.value;
     if (same(next, current)) continue;
     if (next === undefined) {
       if (!field.optional || t.kind === "bulk")
@@ -953,8 +1043,8 @@ function paramField(
   const path = `params.${name}`;
   const root = { params: values };
   const base = info
-    ? describeField(info.field, info.schema, info.root, { registry, type: info.type })
-    : describeField(path, z.unknown(), root, { registry, type: undefined });
+    ? describeField(info.field, info.schema, info.root, entityCtx(registry, info.type))
+    : describeField(path, z.unknown(), root, entityCtx(registry, undefined));
   const field = moveField(base, info?.field ?? path, path, root);
   const fallback = param.default ?? (info ? valueAt(info.root, info.field) : undefined);
   field.name = name;

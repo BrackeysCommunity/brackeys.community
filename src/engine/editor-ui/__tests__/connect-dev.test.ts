@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vite-plus/test";
+import * as Y from "yjs";
 
+import { seedProjectDoc } from "../../collab/project-doc";
+import { SEED_STALE_REASON } from "../../collab/seed-identity";
+import type { AwarenessLike } from "../../collab/types";
+import { createKindRegistry } from "../../project/kinds";
 import { createRegistry } from "../../scene/index";
 import * as engineVite from "../../vite/index";
 import {
@@ -11,8 +16,8 @@ import {
   SCENE_COLLAB_PATH,
   SCENE_ROUTE,
 } from "../connect/dev";
-import { CONNECTION_OFF, offConnection } from "../connect/project-session";
-import type { HocuspocusModule } from "../host";
+import { CONNECTION_OFF, connectProjectSession, offConnection } from "../connect/project-session";
+import type { HocuspocusModule, ProjectDocEvents, ProjectTransport } from "../host";
 
 /** A Hocuspocus module that records the socket URLs it's asked for and never connects. */
 function recordingHocuspocus() {
@@ -201,5 +206,113 @@ describe("offConnection", () => {
     });
     unsubscribe();
     connection.destroy();
+  });
+});
+
+describe("a doc the server refuses as another seed's", () => {
+  type Opened = { name: string; doc: Y.Doc; events: ProjectDocEvents; destroyed: boolean };
+
+  /** A transport over in-memory server docs: each provider syncs its doc from the server's copy. */
+  function memoryTransport() {
+    const server = new Map<string, Y.Doc>();
+    const project = new Y.Doc();
+    seedProjectDoc(
+      project,
+      {
+        meta: { projectId: "p", layout: 1, name: "P" },
+        assets: {
+          a: { key: "a", id: "a", kind: "scene", path: "a.json", created: { at: 0, by: "seed" } },
+        },
+        history: {},
+        code: {},
+        build: {},
+      },
+      { kind: "migration" },
+    );
+    server.set("project:p", project);
+    const sockets: { destroyed: boolean; providers: Opened[] }[] = [];
+    const transport: ProjectTransport = () => {
+      const socket = { destroyed: false, providers: [] as Opened[] };
+      sockets.push(socket);
+      return {
+        status: () => "connected",
+        subscribe: () => () => {},
+        provider({ name, doc, events }) {
+          const opened: Opened = { name, doc, events, destroyed: false };
+          socket.providers.push(opened);
+          const from = server.get(name) ?? new Y.Doc();
+          Y.applyUpdate(doc, Y.encodeStateAsUpdate(from));
+          queueMicrotask(() => events.synced());
+          return {
+            awareness: {} as AwarenessLike,
+            attach() {},
+            detach() {},
+            destroy() {
+              opened.destroyed = true;
+            },
+          };
+        },
+        destroy() {
+          socket.destroyed = true;
+        },
+      };
+    };
+    return { server, sockets, transport };
+  }
+
+  it("resets the whole session to the server's state on a fresh socket, never merging", async () => {
+    const { server, sockets, transport } = memoryTransport();
+    const link = connectProjectSession({
+      project: "p",
+      registry: createRegistry(null),
+      kinds: createKindRegistry(null),
+      origin: { kind: "user", userId: "u", name: "U" },
+      transport,
+      url: "ws://dev.test/__scene-collab",
+    });
+    await expect.poll(() => link.getState().status).toBe("live");
+    const first = link.getState().session!;
+    await first.open("scene:p.a");
+    expect(sockets).toHaveLength(1);
+    const old = sockets[0]!;
+
+    // The server reseeds the scene: its copy shares no history with the client's.
+    const reseeded = new Y.Doc();
+    reseeded.getMap("entities").set("fresh", 1);
+    server.set("scene:p.a", reseeded);
+    const scene = old.providers.find((p) => p.name === "scene:p.a")!;
+    scene.events.closed(1000, true, SEED_STALE_REASON);
+
+    expect(link.getState()).toMatchObject({ session: null, status: "connecting", stopped: {} });
+    expect(old.destroyed).toBe(true);
+    expect(old.providers.every((p) => p.destroyed)).toBe(true);
+    await expect.poll(() => link.getState().status).toBe("live");
+    const second = link.getState().session!;
+    expect(second).not.toBe(first);
+    expect(sockets).toHaveLength(2);
+    const doc = await second.open("scene:p.a");
+    expect(doc.doc.getMap("entities").toJSON()).toEqual({ fresh: 1 });
+    expect(link.getState().error).toBeNull();
+    link.destroy();
+  });
+
+  it("leaves other closes to the close reasons", async () => {
+    const { sockets, transport } = memoryTransport();
+    const link = connectProjectSession({
+      project: "p",
+      registry: createRegistry(null),
+      kinds: createKindRegistry(null),
+      origin: { kind: "user", userId: "u", name: "U" },
+      transport,
+      url: "ws://dev.test/__scene-collab",
+      closeReason: () => "revoked",
+    });
+    await expect.poll(() => link.getState().status).toBe("live");
+    const session = link.getState().session!;
+    sockets[0]!.providers[0]!.events.closed(4403, true, "4403 revoked");
+    expect(link.getState().session).toBe(session);
+    expect(link.getState().stopped).toEqual({ "project:p": "revoked" });
+    expect(sockets).toHaveLength(1);
+    link.destroy();
   });
 });

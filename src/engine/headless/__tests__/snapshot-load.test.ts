@@ -79,9 +79,11 @@ async function snapshotOf(
     entry(def.name, "scene", `scenes/${def.name}.json`),
     ...prefabs.map((p) => entry(p.id, "prefab", `scenes/prefabs/${p.id}.json`)),
     ...homeMaterials.entries,
+    entry("scene-list", "scene-list", "scenes/scene-list.json"),
   ];
   const texts = new Map<AssetId, string>([
     [def.name, formatScene(def).text],
+    ["scene-list", read("scene-list.json")],
     ...prefabs.map((p): [AssetId, string] => [p.id, formatPrefab(p)]),
     ...[...homeMaterials.values].map(([id, value]): [AssetId, string] => [
       id,
@@ -98,6 +100,16 @@ async function snapshotOf(
   });
   return snapshotProject(view, texts, {});
 }
+
+/** The engine project's scene list, which every snapshot of it pins. */
+const ENGINE_FLOW = {
+  start: "engine-yard",
+  scenes: [
+    { scene: "engine-yard", title: "Engine yard" },
+    { scene: "kitchen-sink", title: "Kitchen sink" },
+    { scene: "grid-yard", title: "Grid yard" },
+  ],
+};
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -164,6 +176,7 @@ describe.each(CASES)("loadHeadless by snapshot: $name", ({ before, edit, script 
     expect(loadA.snapshot).toBe(snapA.hash);
     expect(loadB.snapshot).toBe(snapB.hash);
     expect(loadA.project?.settings).toEqual({ avatarSpeed: AVATAR_SPEED });
+    for (const loaded of [loadA, loadB]) expect(loaded.project?.flow).toEqual(ENGINE_FLOW);
     expect(loadA.sceneHash).not.toBe(loadB.sceneHash);
 
     const recA = play(loadA, script).recording;

@@ -2,11 +2,19 @@
  * The skirmish's HUD: a turn banner, the selected unit's card, an order menu
  * and the board's cell highlights, over the canvas through the engine's UI
  * seam. It reads the game's slice, drives the cursor from UI actions and
- * canvas clicks, and changes the game only by sending commands.
+ * canvas clicks, and changes the game only by sending commands. On a listed
+ * level it also offers Save, into `SAVE_SLOT` at world depth, between turns.
  */
-import type { ActionBindings, UiActionEvent, UiContext, UiHandle } from "@jams/engine";
+import {
+  bindToWorld,
+  type ActionBindings,
+  type UiActionEvent,
+  type UiContext,
+  type UiHandle,
+} from "@jams/engine";
 import { cellKey, type Cell, type CellKey } from "@jams/engine/game";
 
+import { turnSaveTitle, type TacticsFlowSlice } from "../runtime";
 import type { TacticsSlice } from "../types";
 import { cellAttr, createCellLayer, EMPTY_HIGHLIGHTS, highlightsFor } from "./cells";
 import {
@@ -40,6 +48,22 @@ const MENU: readonly { order: MenuOrder; label: string; action?: (typeof HUD_ACT
     { order: "wait", label: "Wait", action: "wait" },
     { order: "end-turn", label: "End turn", action: "end-turn" },
   ];
+
+/** The slot the HUD's Save writes; Continue on the menu loads whichever slot is newest. */
+export const SAVE_SLOT = "slot-1";
+
+/**
+ * Whether Save is offered: the player's turn has just begun (orders open,
+ * none given yet) on a level that hasn't ended or asked for the next scene.
+ */
+export function canSaveNow(view: BoardView | null, flow: TacticsFlowSlice["flow"]): boolean {
+  if (!view || !flow || flow.screen !== "level" || flow.scene === null || flow.next !== null)
+    return false;
+  if (!view.canOrder()) return false;
+  return Object.values(view.slice.units).every(
+    (u) => u.side !== PLAYER_SIDE || (!u.moved && !u.acted),
+  );
+}
 
 /** How many of the slice's log lines the HUD shows; the rest stay in the slice. */
 const LOG_SHOWN = 3;
@@ -79,13 +103,18 @@ export function actionKey(bindings: ActionBindings, action: string): string | nu
   return null;
 }
 
-/** What to do next in the player's words, from the cursor's mode; empty when it isn't the player's move. */
+/**
+ * What to do next in the player's words, from the cursor's mode and what the
+ * selected unit can do: it names a move or an attack only when one is there.
+ * Empty when it isn't the player's move.
+ */
 export function promptText(
-  slice: TacticsSlice | null,
+  view: BoardView | null,
   state: CursorState,
   key: (action: string) => string | null,
 ): string {
-  if (!slice || slice.result !== null || slice.side !== PLAYER_SIDE) return "";
+  const slice = view?.slice;
+  if (!view || !slice || slice.result !== null || slice.side !== PLAYER_SIDE) return "";
   const press = (action: string, what: string) => {
     const k = key(action);
     return k ? `${k} ${what}` : "";
@@ -95,10 +124,18 @@ export function promptText(
   switch (state.mode) {
     case "idle":
       return join("Click a blue unit to give it orders", press("next-unit", "picks the next"));
-    case "selected":
+    case "selected": {
       if (state.order === "attack") return join("Click a target in red", cancel);
       if (state.order === "move") return join("Click a blue cell to move there", cancel);
-      return join("Click a blue cell to move, or an enemy in red to attack", cancel);
+      const unit = state.unit;
+      const move = unit !== null && view.reach(unit).length > 0;
+      const attack = unit !== null && view.targets(unit).length > 0;
+      if (move && attack)
+        return join("Click a blue cell to move, or an enemy in red to attack", cancel);
+      if (move) return join("Click a blue cell to move", cancel);
+      if (attack) return join("Click an enemy in red to attack", cancel);
+      return join("No move or target from here", press("wait", "to wait"), cancel);
+    }
     case "target": {
       const confirm = key("confirm");
       const what = state.command?.name === "attack" ? "attack" : "move";
@@ -129,6 +166,8 @@ export function playerLogLine(line: string, nameOf: (id: string) => string): str
   if ((m = line.match(/^(\S+) ends the turn$/)) && SIDE_NAMES[m[1]!])
     return `${SIDE_NAMES[m[1]!]} ends its turn`;
   if ((m = line.match(/^(\S+) wins$/)) && SIDE_NAMES[m[1]!]) return `${SIDE_NAMES[m[1]!]} wins`;
+  if ((m = line.match(/^(\S+) opens the (\S+)$/)))
+    return `${nameOf(m[1]!)} opens the way down to the ${m[2]!.replaceAll("-", " ")}`;
   return line;
 }
 
@@ -149,7 +188,63 @@ function fogged(v: BoardView, cell: Cell): boolean {
   return fog.has(cellKey(cell));
 }
 
-export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
+/**
+ * One marker per stair cell whose sublevel hasn't opened, kept over the
+ * cell like the highlights are.
+ */
+function createStairMarkers(ctx: UiContext, parent: HTMLElement) {
+  const doc = parent.ownerDocument;
+  const shown = new Map<string, { el: HTMLElement; unbind: () => void }>();
+  let size = 1;
+  return {
+    render(stairs: readonly Cell[], cell: number) {
+      size = cell;
+      const wanted = new Set(stairs.map(cellAttr));
+      for (const [key, entry] of shown) {
+        if (wanted.has(key)) continue;
+        entry.unbind();
+        entry.el.remove();
+        shown.delete(key);
+      }
+      for (const c of stairs) {
+        const key = cellAttr(c);
+        if (shown.has(key)) continue;
+        const el = doc.createElement("div");
+        el.dataset.stair = key;
+        el.setAttribute("aria-hidden", "true");
+        el.textContent = "Stairs";
+        Object.assign(el.style, {
+          position: "absolute",
+          transform: "translate(-50%, -50%)",
+          padding: "1px 4px",
+          borderRadius: "3px",
+          border: "1px solid #ffd75e",
+          background: "rgb(20 22 34 / 0.8)",
+          color: "#ffd75e",
+          fontSize: "10px",
+          fontWeight: "600",
+          pointerEvents: "none",
+        });
+        const at: Cell = [c[0], c[1]];
+        const unbind = bindToWorld(el, ctx, () => ({
+          x: (at[0] + 0.5) * size,
+          y: (at[1] + 0.5) * size,
+        }));
+        parent.appendChild(el);
+        shown.set(key, { el, unbind });
+      }
+    },
+    destroy() {
+      for (const { el, unbind } of shown.values()) {
+        unbind();
+        el.remove();
+      }
+      shown.clear();
+    },
+  };
+}
+
+export function createTacticsHud(ctx: UiContext<TacticsFlowSlice>): UiHandle {
   const doc = ctx.root.ownerDocument;
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string) => {
     const node = doc.createElement(tag);
@@ -163,6 +258,7 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
   ctx.root.appendChild(root);
 
   const cells = createCellLayer(ctx, root, { pulse: !ctx.reducedMotion });
+  const stairMarks = createStairMarkers(ctx, root);
 
   const top = el("div", CLS.top);
   const side = el("div", CLS.side);
@@ -184,7 +280,37 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
   log.hidden = true;
 
   side.append(card, log);
-  top.append(side, head);
+
+  // Save sits in the top bar's free right-hand column, apart from the orders.
+  const tools = el("div");
+  tools.setAttribute("role", "group");
+  tools.setAttribute("aria-label", "Game");
+  tools.hidden = true;
+  Object.assign(tools.style, {
+    gridColumn: "3",
+    justifySelf: "end",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    pointerEvents: "auto",
+  });
+  const saveButton = el("button", CLS.button);
+  saveButton.type = "button";
+  saveButton.textContent = "Save";
+  saveButton.dataset.action = "save";
+  const saveNote = el("span");
+  saveNote.setAttribute("role", "status");
+  saveNote.dataset.save = "note";
+  Object.assign(saveNote.style, {
+    padding: "2px 8px",
+    borderRadius: "4px",
+    background: "rgb(20 22 34 / 0.72)",
+    fontSize: "12px",
+  });
+  saveNote.hidden = true;
+  tools.append(saveNote, saveButton);
+
+  top.append(side, head, tools);
   root.appendChild(top);
 
   const menu = el("div", CLS.menu);
@@ -213,20 +339,75 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
   live.setAttribute("aria-live", "polite");
   root.appendChild(live);
 
+  // A focused menu button answers Enter and Space itself; the board's confirm waits until it lets go.
+  const menuFocused = () => menu.contains(doc.activeElement) || tools.contains(doc.activeElement);
+
   function releaseMenuFocus(): void {
-    if (!menu.contains(doc.activeElement)) return;
+    if (!menuFocused()) return;
     ctx.canvas.focus({ preventScroll: true });
     // A canvas without a tabindex takes no focus, so the button lets go of it itself.
     const still = doc.activeElement as HTMLElement | null;
-    if (still && menu.contains(still)) still.blur();
+    if (still && menuFocused()) still.blur();
+  }
+
+  let flow: TacticsFlowSlice["flow"] = undefined;
+  let saving = false;
+  // What the last Save said, kept until the turn it was made in ends.
+  let saveSaid: { turn: string; text: string } | null = null;
+  const turnKey = () => `${flow?.scene ?? ""}:${view?.slice.turn ?? ""}:${view?.slice.side ?? ""}`;
+
+  saveButton.addEventListener("click", () => {
+    if (saveButton.getAttribute("aria-disabled") === "true") return;
+    releaseMenuFocus();
+    void save();
+  });
+
+  async function save(): Promise<void> {
+    const scene = flow?.scene;
+    if (!view || !scene) return;
+    const turn = turnKey();
+    saving = true;
+    saveSaid = { turn, text: "Saving…" };
+    render();
+    let text: string;
+    try {
+      const result = await ctx.game.saves.save(SAVE_SLOT, {
+        depth: "world",
+        title: turnSaveTitle(view.slice.turn),
+      });
+      text = result.ok ? "Saved" : `Not saved: ${result.issue.message}`;
+    } catch (error) {
+      text = `Not saved: ${error instanceof Error ? error.message : String(error)}`;
+    }
+    if (destroyed) return;
+    saving = false;
+    saveSaid = { turn, text };
+    render();
+  }
+
+  function renderSave(): void {
+    const offered = !!view && !!flow && flow.screen === "level" && flow.scene !== null;
+    tools.hidden = !offered;
+    if (!offered) return;
+    saveButton.setAttribute(
+      "aria-disabled",
+      String(saving || state.mode === "sent" || !canSaveNow(view, flow)),
+    );
+    if (saving) saveButton.setAttribute("aria-busy", "true");
+    else saveButton.removeAttribute("aria-busy");
+    if (saveSaid && saveSaid.turn !== turnKey()) saveSaid = null;
+    setText(saveNote, saveSaid?.text ?? "");
+    saveNote.hidden = !saveSaid;
   }
 
   // A host's input may not offer the bindings; the prompt then names no keys.
   const bindings = (): ActionBindings =>
     typeof ctx.game.input.bindings === "function" ? ctx.game.input.bindings(0) : {};
 
-  // Names by unit id, kept after a unit falls so the log can still name it.
+  // Names by unit id, kept after a unit falls so the log can still name it. A unit
+  // joining later (a sublevel's) numbers on from those already named alike, fallen or not.
   const names = new Map<string, string>();
+  const namedAlike = new Map<string, number>();
   function learnNames(slice: TacticsSlice): void {
     const fresh = new Map<string, string[]>();
     for (const [id, u] of Object.entries(slice.units)) {
@@ -235,19 +416,20 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
       fresh.set(name, [...(fresh.get(name) ?? []), id]);
     }
     for (const [name, ids] of fresh) {
-      const shared =
-        ids.length > 1 ||
-        Object.entries(slice.units).some(
-          ([other, u]) => !ids.includes(other) && `${titleCase(u.side)} ${u.class}` === name,
-        );
-      ids.sort().forEach((id, i) => names.set(id, shared ? `${name} ${i + 1}` : name));
+      const before = namedAlike.get(name) ?? 0;
+      const numbered = before > 0 || ids.length > 1;
+      ids.sort().forEach((id, i) => names.set(id, numbered ? `${name} ${before + i + 1}` : name));
+      namedAlike.set(name, before + ids.length);
     }
   }
   const nameOf = (id: string) => names.get(id) ?? nameFromId(id);
 
   let view: BoardView | null = null;
+  let destroyed = false;
   let state: CursorState = initialCursor();
   let placed = false;
+  // The scene the cursor was placed in: a new level places it afresh.
+  let placedIn: string | null = null;
 
   function dispatch(input: CursorInput): void {
     if (!view) return;
@@ -296,7 +478,7 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
     const unit = open && state.unit !== null && v.canAct(state.unit) ? state.unit : null;
     const enabled: Record<MenuOrder, boolean> = {
       move: unit !== null && v!.reach(unit).length > 0,
-      attack: unit !== null,
+      attack: unit !== null && v!.targets(unit).length > 0,
       wait: unit !== null,
       "end-turn": open,
     };
@@ -337,7 +519,7 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
   function render(): void {
     const keys = bindings();
     setText(banner, bannerText(view?.slice ?? null));
-    const next = promptText(view?.slice ?? null, state, (a) => actionKey(keys, a));
+    const next = promptText(view, state, (a) => actionKey(keys, a));
     setText(prompt, next);
     prompt.hidden = next === "";
     const lines = (view?.slice.log ?? []).map((line) => playerLogLine(line, nameOf));
@@ -348,14 +530,27 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
     root.dataset.mode = state.mode;
     renderCard();
     renderMenu(keys);
+    renderSave();
   }
 
   const unwatch = ctx.watch(
     (s) => s.game,
     () => {
       const slice = ctx.slice();
-      if (slice) learnNames(slice);
-      view = slice ? boardView(slice) : null;
+      flow = slice?.flow;
+      // The menu and result scenes have their own panel; the HUD stands down.
+      const level = !!slice && (!flow || flow.screen === "level");
+      root.hidden = !level;
+      if (flow && flow.scene !== placedIn) {
+        placedIn = flow.scene;
+        placed = false;
+        state = initialCursor();
+        names.clear();
+        namedAlike.clear();
+      }
+      if (slice && level) learnNames(slice);
+      view = slice && level ? boardView(slice) : null;
+      stairMarks.render(level ? (flow?.stairs ?? []) : [], slice?.grid.cell ?? 1);
       if (view && !placed) {
         placed = true;
         const first = view.ready()[0];
@@ -366,8 +561,6 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
     },
   );
 
-  // A focused menu button answers Enter and Space itself; the board's confirm waits until it lets go.
-  const menuFocused = () => menu.contains(doc.activeElement);
   let lastAxis = { x: 0, y: 0 };
   const onAction = (e: UiActionEvent) => {
     if (e.player !== 0) return;
@@ -420,17 +613,19 @@ export function createTacticsHud(ctx: UiContext<TacticsSlice>): UiHandle {
   ctx.canvas.addEventListener("pointermove", onMove);
 
   return {
-    // Editor Play offers Escape here before stopping; a selection clears instead.
+    // Editor Play offers Escape here before stopping; a selection on a shown board clears instead.
     cancel() {
-      if (state.mode !== "selected" && state.mode !== "target") return false;
+      if (!view || (state.mode !== "selected" && state.mode !== "target")) return false;
       dispatch({ type: "cancel" });
       return true;
     },
     destroy() {
+      destroyed = true;
       offAction();
       ctx.canvas.removeEventListener("click", onClick);
       ctx.canvas.removeEventListener("pointermove", onMove);
       unwatch();
+      stairMarks.destroy();
       cells.destroy();
       root.remove();
     },

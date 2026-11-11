@@ -4,6 +4,8 @@ import { Container } from "pixi.js";
 import { createCamera } from "./camera";
 import type { DebugOverlay } from "./debug";
 import { GameEventEmitter } from "./events";
+import { createFlowHost } from "./flow-host";
+import { flowIssue, type FlowRequest, type LibraryScene, type SceneLibrary } from "./game/flow";
 import {
   actionProblem,
   bindingProblems,
@@ -12,6 +14,7 @@ import {
   type BindingProblem,
 } from "./game/input-bindings";
 import { isRuntimeId } from "./game/runtime-ids";
+import type { SaveFile } from "./game/save-file";
 import { resolveTime, type ResolvedTime } from "./game/time";
 import type {
   Binding,
@@ -20,6 +23,8 @@ import type {
   GameCommand,
   GameOutcome,
   GameShell,
+  JsonValue,
+  PlayerInfo,
 } from "./game/types";
 import { pxPerMetreOf } from "./game/units";
 import type { PlayOptions } from "./headless/playtest-types";
@@ -72,6 +77,8 @@ import type { LoadProgress } from "./render/asset-loader";
 import { createPixiView, type PixiView } from "./render/pixi-view";
 import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
+import { loadListed } from "./runtime/flow";
+import { gamePersistCell } from "./runtime/persist";
 import {
   createSessionRecording,
   playWorld,
@@ -79,8 +86,22 @@ import {
   type SessionRecording,
 } from "./runtime/play-session";
 import { recordingRapier, recordingStart } from "./runtime/recorder";
-import { createSceneRuntime, resolveGame, type ProjectOption } from "./runtime/runtime";
+import {
+  createSceneRuntime,
+  resolveGame,
+  SAVE_INPUT_KEY,
+  type ProjectOption,
+} from "./runtime/runtime";
+import { captureSave, restoreSave } from "./runtime/save-state";
 import type { AssetReloadError, LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
+import {
+  createSaveSlots,
+  inertSaveSlots,
+  pickSaveStore,
+  saveRequested,
+  type SaveSlots,
+} from "./saves/slots";
+import type { SaveWriteResult } from "./saves/store";
 import { defaultPhysics, expandScene, isExpandedScene, scenePhysics } from "./scene/expand";
 import { checkCommand, elapsedCommand } from "./scene/input-script";
 import { makeIssue } from "./scene/issues";
@@ -108,6 +129,7 @@ import {
 import { createToolRouter, resolveInputTarget, type ToolEvent } from "./tool-router";
 import type {
   CameraState,
+  FlowResult,
   GameConfig,
   GameEventMap,
   GameInput,
@@ -116,13 +138,14 @@ import type {
   GameStoreState,
   InputAction,
   InputBinding,
+  PlayOutcome,
   PlayReport,
   RapierModule,
   UiActionEvent,
   Vec2,
 } from "./types";
 import { DEFAULT_GAME_CONFIG } from "./types";
-import { cancelMountedUi } from "./ui/layer";
+import { cancelMountedUi, createTransitionLayer } from "./ui/layer";
 
 /** The scene that is playing: its runtime, the view it draws into, and the game's tools on it. */
 type LoadedScene = {
@@ -167,6 +190,8 @@ export async function createGame(
 
   const store = createGameStore();
   const events = new GameEventEmitter();
+  /** The game's persistent value, shared by every runtime this instance builds, Play's included. */
+  const persist = gamePersistCell(game, cfg.dev);
   let destroyed = false;
   // Read once for every recording this instance makes; "unknown" until (and unless) the browser says.
   let arch = "unknown";
@@ -287,12 +312,21 @@ export async function createGame(
 
   /**
    * The joins that bring a fresh world's seats (which start as the join
-   * policy starts them) to the live ones, so a new world and its recording
-   * begin with the devices where they are.
+   * policy starts them, or as `from` says for a restored one) to the live
+   * ones, so a new world and its recording begin with the devices where they are.
    */
-  function seatSync(): SeatChange[] {
+  function seatSync(from?: readonly PlayerInfo[]): SeatChange[] {
     seats.drain();
     const fresh = createSeatBook(playersDef);
+    if (from) {
+      for (const { index, devices } of fresh.players()) {
+        for (const device of devices)
+          if (!from[index]?.devices.includes(device))
+            fresh.apply({ player: index, device, joined: false });
+      }
+      for (const { index, devices } of from)
+        for (const device of devices) fresh.apply({ player: index, device, joined: true });
+    }
     const out: SeatChange[] = [];
     for (const { index, devices } of fresh.players()) {
       for (const device of devices) {
@@ -389,6 +423,8 @@ export async function createGame(
   // ─── Scene runtime (one at a time) ────────────────────────
 
   let loaded: LoadedScene | null = null;
+  /** True while a scene change runs: the loop renders on but doesn't tick. */
+  let flowHolding = false;
 
   // ─── Textures ─────────────────────────────────────────────
 
@@ -426,10 +462,14 @@ export async function createGame(
    * A definition's bundle covers its `assets` header and its prefabs'; an
    * expanded scene carries no header, so only its entities and settings count.
    */
-  function bundleFor(scene: ExpandedScene, def: SceneDefinition | null): AssetBundle | null {
+  function bundleFor(
+    scene: ExpandedScene,
+    def: SceneDefinition | null,
+    defPrefabs: PrefabLibrary = prefabs,
+  ): AssetBundle | null {
     if (!assets) return null;
     const source = def ?? { v: 0, name: scene.name, bounds: scene.bounds };
-    const library = def ? prefabs : new Map();
+    const library = def ? defPrefabs : new Map();
     return sceneBundle(scene, source, library, assetView()!, assets.kinds, registry).bundle;
   }
 
@@ -483,8 +523,32 @@ export async function createGame(
     snap?: boolean,
   ): LoadReport {
     if (destroyed) return { ok: false, error: "game destroyed" };
+    const built = buildRuntime(scene.name);
+    const report = built.runtime.load(scene, play);
+    if (!report.ok) {
+      discard(built, report);
+      return report;
+    }
+    return swapIn(built, scene, bundle, report, snap);
+  }
+
+  type BuiltRuntime = { runtime: SceneRuntimeHandle; view: PixiView; container: Container };
+
+  /** The listed scenes as the flow source holds them, for a runtime's flow loads and attaches. */
+  function flowLibrary(): SceneLibrary {
+    const source = cfg.flow!.source;
+    const list = source.list();
+    const scenes = new Map<AssetId, LibraryScene>();
+    for (const entry of list) {
+      const listed = source.scene(entry.scene);
+      if (listed) scenes.set(entry.scene, listed);
+    }
+    return { list, scenes };
+  }
+
+  function buildRuntime(name: string): BuiltRuntime {
     const container = new Container();
-    container.label = `scene:${scene.name}`;
+    container.label = `scene:${name}`;
     const view = createPixiView(container, {
       layers: registry.layers,
       textures: cfg.assets?.loader,
@@ -501,16 +565,27 @@ export async function createGame(
       now: () => performance.now(),
       project,
       prefabs: () => prefabs,
+      persist,
+      ...(cfg.flow ? { scenes: flowLibrary } : {}),
       ...(resolution.sampling ? { sampling: resolution.sampling } : {}),
     });
-    const report = runtime.load(scene, play);
-    if (!report.ok) {
-      runtime.destroy();
-      view.destroy();
-      if (cfg.dev) console.warn(`[scene] load failed: ${report.error}`, report);
-      return report;
-    }
+    return { runtime, view, container };
+  }
 
+  function discard(built: BuiltRuntime, report: Extract<LoadReport, { ok: false }>): void {
+    built.runtime.destroy();
+    built.view.destroy();
+    if (cfg.dev) console.warn(`[scene] load failed: ${report.error}`, report);
+  }
+
+  /** Makes a loaded runtime the playing scene, tearing down the one before. */
+  function swapIn(
+    { runtime, view, container }: BuiltRuntime,
+    scene: ExpandedScene,
+    bundle: AssetBundle | null,
+    report: LoadReport,
+    snap?: boolean,
+  ): LoadReport {
     const first = loaded === null;
     syncTickRate(runtime.ctx.time);
     // Retained before the old scene releases, so textures both use stay resident.
@@ -558,6 +633,152 @@ export async function createGame(
 
   function getMode(): GameMode {
     return store.state.mode;
+  }
+
+  // ─── Saves ────────────────────────────────────────────────
+
+  /**
+   * Pads a loaded world save seated that weren't connected when it loaded:
+   * each takes its saved seat when it connects, and until then its seat
+   * holds no pad.
+   */
+  const awaitingPads = new Map<DeviceId, number>();
+
+  function padConnected(device: DeviceId): void {
+    seats.connect(device);
+    const player = awaitingPads.get(device);
+    if (player === undefined) return;
+    awaitingPads.delete(device);
+    seats.assign(device, player);
+  }
+
+  const padPresent = (device: DeviceId): boolean => {
+    if (!device.startsWith("pad:")) return true;
+    const index = Number(device.slice(4));
+    return typeof navigator !== "undefined" && navigator.getGamepads?.()?.[index] != null;
+  };
+
+  /**
+   * The save as the shell restores it: the devices decide what is held, so
+   * the saved held input is left out, and a seat's pad that isn't
+   * connected waits in `awaitingPads` instead of being seated.
+   */
+  function liveSave(file: SaveFile): SaveFile {
+    awaitingPads.clear();
+    if (!file.world) return file;
+    const { [SAVE_INPUT_KEY]: _held, ...systems } = file.world.systems;
+    const seated = file.world.seats.map(({ player, devices }) => {
+      for (const d of devices) if (!padPresent(d)) awaitingPads.set(d, player);
+      return { player, devices: devices.filter(padPresent) };
+    });
+    return { ...file, world: { ...file.world, systems, seats: seated } };
+  }
+
+  /** Brings the live seats to a restored world's and queues the joins that bring it to the live ones. */
+  function seatRestored(runtime: SceneRuntimeHandle): void {
+    for (const { index, devices } of runtime.ctx.input.players())
+      for (const device of devices) seats.assign(device, index);
+    queuedJoins = seatSync(runtime.ctx.input.players());
+    routeDevices();
+  }
+
+  /**
+   * Loads a save in place of the current scene: pauses, builds a fresh
+   * world for the save's listed scene, restores the save into it and swaps
+   * it in, then resumes. On a refusal the current scene keeps running.
+   */
+  async function loadSave(
+    file: SaveFile,
+  ): Promise<{ ok: true } | { ok: false; issue: SceneIssue }> {
+    if (destroyed) return { ok: false, issue: loadRefused(file.scene.id, "game destroyed") };
+    const id = file.scene.id;
+    const source = cfg.flow?.source;
+    const refused = flowIssue(source?.list() ?? [], id, "go");
+    if (refused) return { ok: false, issue: refused };
+    const listed = source?.scene(id) ?? null;
+    if (!listed) {
+      return {
+        ok: false,
+        issue: makeIssue("scene-unlisted", {
+          severity: "error",
+          message: `the scene list holds "${id}" but the host's scene source has no data for it`,
+          entityIds: [id],
+        }),
+      };
+    }
+    const from = self?.flow.current() ?? null;
+    // A host that had paused (a pause menu's Load) keeps its pause; it resumes when it closes.
+    const running = !loop.isPaused();
+    if (running) pause();
+    try {
+      const built = buildRuntime(id);
+      const drop = () => {
+        built.runtime.destroy();
+        built.view.destroy();
+      };
+      let loadedListed: ReturnType<typeof loadListed>;
+      try {
+        loadedListed = loadListed(built.runtime, id);
+      } catch (error) {
+        drop();
+        return {
+          ok: false,
+          issue: loadRefused(id, error instanceof Error ? error.message : error),
+        };
+      }
+      if (!loadedListed.ok) {
+        drop();
+        return { ok: false, issue: loadedListed.issue };
+      }
+      const restored = restoreSave(built.runtime, liveSave(file));
+      if (!restored.ok) {
+        drop();
+        return restored;
+      }
+      if (cfg.dev)
+        for (const issue of restored.issues ?? []) console.info(`[saves] ${issue.message}`);
+      if (session) {
+        finishRecording(session.requested({ to: id }));
+        session = null;
+      }
+      const scene = built.runtime.scene()!;
+      swapIn(built, scene, bundleFor(scene, listed.def, listed.prefabs), restored.report, true);
+      resetQueues();
+      if (file.depth === "world") seatRestored(built.runtime);
+    } finally {
+      if (running) resume();
+    }
+    syncGameSlice();
+    events.emit("flow:change", { from, to: id, entry: null });
+    return { ok: true };
+  }
+
+  const saves: SaveSlots = game
+    ? createSaveSlots({
+        game,
+        store: pickSaveStore(game, cfg.saves),
+        now: () => Date.now(),
+        capture: (opts) =>
+          loaded
+            ? captureSave(loaded.runtime, opts)
+            : {
+                ok: false,
+                issue: makeIssue("save-unsupported", {
+                  message: `slot "${opts.slot}" can't be saved: no scene is loaded`,
+                }),
+              },
+        restore: loadSave,
+      })
+    : inertSaveSlots();
+
+  function reportSave(slot: string, result: SaveWriteResult): void {
+    if (destroyed) return;
+    if (result.ok) {
+      events.emit("save:written", { slot, bytes: result.bytes });
+      return;
+    }
+    if (cfg.dev) console.warn(`[saves] slot "${slot}": ${result.issue.message}`);
+    events.emit("save:failed", { slot, issue: result.issue });
   }
 
   // ─── Edit and play ────────────────────────────────────────
@@ -714,6 +935,7 @@ export async function createGame(
       snapshot: result.game,
       events: result.events,
       world: playWorld(runtime.ctx),
+      persist: runtime.ctx.persist.value,
     });
     if (!verdict) return null;
     const recorded = { ...verdict, tick: result.tick };
@@ -801,7 +1023,7 @@ export async function createGame(
    * before the seat is freed. A press a capture takes is no play input.
    */
   function applyPads(poll: GamepadPoll, play = true): void {
-    for (const index of poll.connected) seats.connect(`pad:${index}`);
+    for (const index of poll.connected) padConnected(`pad:${index}`);
     let changes = poll.changes;
     const taken = capturing?.pad(changes);
     if (taken) changes = changes.filter((c) => c !== taken);
@@ -914,6 +1136,7 @@ export async function createGame(
 
   /** Whether the loop may tick now: always outside play, while replaying and for fixed games. */
   function gate(): boolean {
+    if (flowHolding) return false;
     if (!loaded || getMode() !== "play" || session?.replaying) return true;
     const time = loaded.runtime.ctx.time;
     if (time.kind === "fixed") return true;
@@ -952,6 +1175,10 @@ export async function createGame(
     ...(initialTime.kind === "fixed" ? {} : { gate }),
 
     onTick(dt: number) {
+      if (flowHolding) {
+        shellTick(dt, camera.screenToWorld(input.getMousePosition()));
+        return;
+      }
       const playing = loaded !== null && getMode() === "play";
       if (playing) sampleDevices();
       sampled = false;
@@ -984,6 +1211,9 @@ export async function createGame(
         const result = loaded.runtime.step(dt, tickInput);
         incrementTick(store);
         events.emit("scene:step", result);
+        const requests = loaded.runtime.takeRequests();
+        // A replay re-runs the game's save requests; it never writes the player's saves.
+        if (!replaying) saveRequested(saves, requests.saves, reportSave);
         const verdict = judge(result, loaded.runtime);
         if (session) {
           const finished = session.stepped(result, tickInput, verdict);
@@ -991,6 +1221,7 @@ export async function createGame(
           // A replay holds its last frame until Stop, so the end state can be looked at.
           if (finished && replaying) pause();
         }
+        if (requests.flow) flowRequested(requests.flow, result.tick, verdict);
       }
 
       shellTick(dt, mouseWorld);
@@ -1381,7 +1612,7 @@ export async function createGame(
 
   /** Pads reach seats as the browser reports them; in play the next poll does the same, in order with their input. */
   function onPadConnected(e: GamepadEvent): void {
-    seats.connect(`pad:${e.gamepad.index}`);
+    padConnected(`pad:${e.gamepad.index}`);
     syncSeats();
   }
 
@@ -1488,6 +1719,134 @@ export async function createGame(
     syncSim();
   }
 
+  // ─── Scene flow ───────────────────────────────────────────
+
+  let transitionLayer: { root: HTMLElement; destroy(): void } | null = null;
+
+  function flowLayer(): HTMLElement | null {
+    if (destroyed) return null;
+    if (!transitionLayer && canvas.parentElement) transitionLayer = createTransitionLayer(canvas);
+    return transitionLayer?.root ?? null;
+  }
+
+  function currentScene(): AssetId | null {
+    return loaded?.runtime.ctx.flow.scene ?? null;
+  }
+
+  /** Unloads the playing scene in place; the returned function loads it again after a failed change. */
+  function flowUnload(): () => void {
+    const prior = loaded;
+    if (!prior) return () => {};
+    const { runtime } = prior;
+    const id = runtime.ctx.flow.scene;
+    const entry = runtime.ctx.flow.entry;
+    const authored = id === null ? authoredScene() : null;
+    runtime.unload();
+    syncGameSlice();
+    return () => {
+      if (destroyed || loaded !== prior) return;
+      const back =
+        id !== null ? loadListed(runtime, id, { entry }) : authored ? runtime.load(authored) : null;
+      if (back && !back.ok && cfg.dev) console.warn("[flow] the previous scene didn't load again");
+      syncGameSlice();
+    };
+  }
+
+  function flowLoad(
+    id: AssetId,
+    opts: { entry: string | null; persist?: JsonValue; reset?: boolean },
+  ): FlowResult {
+    if (destroyed) return { ok: false, issue: loadRefused(id, "game destroyed") };
+    const listed = cfg.flow?.source.scene(id) ?? null;
+    // A recording covers one scene: a change during a Play session ends it there.
+    if (session) {
+      finishRecording(session.requested({ to: id }));
+      session = null;
+    }
+    const before = opts.reset ? persist.value : undefined;
+    if (opts.reset) persist.reset();
+    const built = buildRuntime(id);
+    let result: ReturnType<typeof loadListed>;
+    try {
+      result = loadListed(built.runtime, id, {
+        entry: opts.entry,
+        ...(opts.persist !== undefined ? { persist: opts.persist } : {}),
+      });
+    } catch (error) {
+      result = {
+        ok: false,
+        issue: loadRefused(id, error instanceof Error ? error.message : error),
+      };
+    }
+    if (!result.ok) {
+      if (result.report) discard(built, result.report);
+      else {
+        built.runtime.destroy();
+        built.view.destroy();
+      }
+      if (before !== undefined) persist.set(before);
+      return { ok: false, issue: result.issue };
+    }
+    const scene = built.runtime.scene()!;
+    const bundle = listed ? bundleFor(scene, listed.def, listed.prefabs) : null;
+    swapIn(built, scene, bundle, result.report, true);
+    return { ok: true, scene: id, report: result.report };
+  }
+
+  const flowHost = cfg.flow
+    ? createFlowHost({
+        source: cfg.flow.source,
+        ...(cfg.flow.transition ? { transition: cfg.flow.transition } : {}),
+        ...(cfg.flow.loading !== undefined ? { loading: cfg.flow.loading } : {}),
+        layer: flowLayer,
+        current: currentScene,
+        setTicking: (on) => {
+          flowHolding = !on;
+        },
+        unload: flowUnload,
+        preload: (_id, listed, onProgress) => {
+          const scene = expandScene(listed.def, registry, {
+            prefabs: listed.prefabs,
+            engine: project?.engine,
+          });
+          return preloadExpanded(scene, listed.def, listed.prefabs, onProgress);
+        },
+        load: flowLoad,
+        changed: (e) => events.emit("flow:change", e),
+        loadingProgress: (p) => events.emit("flow:loading", p),
+        destroyed: () => destroyed,
+        dev: cfg.dev,
+      })
+    : null;
+
+  /**
+   * A drained flow request, after its tick. The editor's Play stays on its
+   * scene: the request ends the session with a `flow` outcome and holds the
+   * frame, unless the game decided an outcome first. Otherwise the host
+   * changes scene.
+   */
+  function flowRequested(req: FlowRequest, tick: number, verdict: GameOutcome | null): void {
+    const current = store.state.session;
+    if (current) {
+      if (verdict || current.outcome) return;
+      const outcome: PlayOutcome = { result: "flow", to: req.to, tick };
+      setSession(store, { ...current, outcome });
+      events.emit("play:outcome", outcome);
+      finishRecording(session?.requested(req) ?? null);
+      pause();
+      return;
+    }
+    if (!flowHost) {
+      if (cfg.dev) console.warn(`[flow] "${req.to}" was requested, but the host gave no scenes`);
+      return;
+    }
+    const { to, ...rest } = req;
+    void flowHost.go(to, rest).then((r) => {
+      if (!r.ok && cfg.dev)
+        console.warn(`[flow] the request for "${to}" failed: ${r.issue.message}`);
+    });
+  }
+
   // ─── Public API ───────────────────────────────────────────
 
   function start(): void {
@@ -1529,14 +1888,23 @@ export async function createGame(
     if (destroyed) return { failed: [] };
     const expanded = expand(source);
     if (!expanded.ok) return { failed: [] };
+    const def = isExpandedScene(source) ? null : source;
+    return preloadExpanded(expanded.scene, def, prefabs, onProgress);
+  }
+
+  async function preloadExpanded(
+    scene: ExpandedScene,
+    def: SceneDefinition | null,
+    defPrefabs: PrefabLibrary,
+    onProgress?: (p: LoadProgress) => void,
+  ): Promise<{ failed: BundleEntry[] }> {
     const physics =
-      expanded.scene.settings.physics === "rapier"
+      scene.settings.physics === "rapier"
         ? loadRapier().catch((error: unknown) => {
             if (cfg.dev) console.warn(`[scene] Rapier failed to load`, error);
           })
         : null;
-    const def = isExpandedScene(source) ? null : source;
-    const bundle = assets ? bundleFor(expanded.scene, def) : null;
+    const bundle = assets ? bundleFor(scene, def, defPrefabs) : null;
     const textures = bundle ? loadBundle(bundle, onProgress) : { failed: [] };
     const [, result] = await Promise.all([physics, textures]);
     return result;
@@ -1633,6 +2001,8 @@ export async function createGame(
     destroyed = true;
 
     loop.stop();
+    flowHost?.destroy();
+    transitionLayer?.destroy();
     capturing?.end(null);
     trackPointer(false);
     window.removeEventListener("gamepadconnected", onPadConnected);
@@ -1727,8 +2097,37 @@ export async function createGame(
     zoomAt,
     frame,
     extractPixels: (world) => renderer.extractPixels(world),
+    flow: {
+      get start() {
+        return cfg.flow?.source.start() ?? null;
+      },
+      get scenes() {
+        return cfg.flow?.source.list() ?? [];
+      },
+      current: currentScene,
+      go: (to, opts) => (flowHost ? flowHost.go(to, opts) : Promise.resolve(flowUnavailable())),
+      restart: () => (flowHost ? flowHost.restart() : Promise.resolve(flowUnavailable())),
+    },
+    saves,
   };
   return self;
+}
+
+/** A save's scene that didn't build: the expand's or the load's own words. */
+function loadRefused(scene: string, why: unknown): SceneIssue {
+  return makeIssue("schema", {
+    message: `the save's scene "${scene}" didn't load: ${String(why)}`,
+    entityIds: [scene],
+  });
+}
+
+function flowUnavailable(): FlowResult {
+  return {
+    ok: false,
+    issue: makeIssue("start-scene-missing", {
+      message: "this game instance can't change scenes: scene flow is not available",
+    }),
+  };
 }
 
 /**

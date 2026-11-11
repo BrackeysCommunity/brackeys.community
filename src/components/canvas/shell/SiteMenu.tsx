@@ -8,6 +8,7 @@ import {
   Home01Icon,
   Login01Icon,
   Notification03Icon,
+  Settings02Icon,
   UserGroupIcon,
   UserIcon,
   UserMultiple02Icon,
@@ -59,9 +60,16 @@ export type SiteMenuProps = {
   back?: { label: string; link: ReactElement };
   signinSource: SigninSource;
   workspace?: boolean;
+  /** The game editor's host: opens its Project settings panel. */
+  onProjectSettings?: () => void;
 };
 
-export function SiteMenu({ back, signinSource, workspace = false }: SiteMenuProps) {
+export function SiteMenu({
+  back,
+  signinSource,
+  workspace = false,
+  onProjectSettings,
+}: SiteMenuProps) {
   const { data: session } = authClient.useSession();
   const user = session?.user;
   const forumOn = useFlag("forum-enabled");
@@ -103,6 +111,18 @@ export function SiteMenu({ back, signinSource, workspace = false }: SiteMenuProp
                 <HugeiconsIcon icon={ArrowLeft01Icon} size={14} />
                 Back to {back.label}
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
+          {onProjectSettings ? (
+            <>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Editor</DropdownMenuLabel>
+                <DropdownMenuItem onClick={onProjectSettings}>
+                  <HugeiconsIcon icon={Settings02Icon} size={14} />
+                  Project settings
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
             </>
           ) : null}

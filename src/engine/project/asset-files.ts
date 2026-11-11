@@ -1,10 +1,10 @@
 import { makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
 import { inspectEntry } from "./inspect/entry";
-import { isSkippedAssetPath } from "./kinds";
+import { isSkippedAssetPath, type KindRegistry } from "./kinds";
 import type { AssetKindDef } from "./kinds/define";
 import { projectGlobs } from "./project-file";
-import type { AssetSidecar } from "./sidecar";
+import { parseSidecar, SIDECAR_SUFFIX, sidecarPathOf, type AssetSidecar } from "./sidecar";
 import type { AssetEntry, AssetId, AssetKey, AssetPath, ProjectFile, Sha256 } from "./types";
 import { assetIdOfPath, suffixedId } from "./view";
 
@@ -33,6 +33,74 @@ export function projectPathMatcher(file: ProjectFile, match: GlobMatch): Project
     isAsset: (path) => !isSkippedAssetPath(path) && isAsset(path),
     isCode: tester(globs.code),
   };
+}
+
+const isJsonPath = (path: AssetPath) => path.toLowerCase().endsWith(".json");
+
+/**
+ * Whether a file under the asset globs can be an asset before its content
+ * is read: a kind claims its suffix, it is JSON a kind may claim by its
+ * content, or a sidecar beside it names its kind. Anything else (a script
+ * beside the art) is never read, listed, watched, pushed or pulled.
+ */
+export function mayBeAssetFile(
+  kinds: KindRegistry,
+  path: AssetPath,
+  hasSidecar: () => boolean,
+): boolean {
+  if (isSkippedAssetPath(path)) return false;
+  return kinds.detect(path) !== null || isJsonPath(path) || hasSidecar();
+}
+
+/**
+ * The kind of a file under the asset globs, as every host judges it: its
+ * sidecar's kind, else its suffix's, else, for a `.json` file, what its
+ * content names. `json` is asked only for a `.json` file no suffix claims.
+ */
+export function assetFileKind(
+  kinds: KindRegistry,
+  path: AssetPath,
+  json: () => unknown,
+  sidecarKind?: string,
+): AssetKindDef | null {
+  const byPath = kinds.detect(path, undefined, sidecarKind);
+  if (byPath !== null || sidecarKind !== undefined || !isJsonPath(path)) return byPath;
+  return kinds.detect(path, json());
+}
+
+/**
+ * The files of `files` (project-relative paths to bytes) a project holds:
+ * each one `assetFileKind` gives a kind, with its sidecar, and each sidecar
+ * whose file isn't among them.
+ */
+export function assetFilesIn<B extends Uint8Array>(
+  files: ReadonlyMap<AssetPath, B>,
+  kinds: KindRegistry,
+): Map<AssetPath, B> {
+  const decoder = new TextDecoder();
+  const out = new Map<AssetPath, B>();
+  for (const [path, bytes] of files) {
+    if (path.endsWith(SIDECAR_SUFFIX)) {
+      if (!files.has(path.slice(0, -SIDECAR_SUFFIX.length))) out.set(path, bytes);
+      continue;
+    }
+    const sidecar = files.get(sidecarPathOf(path));
+    const parsed = sidecar === undefined ? null : parseSidecar(decoder.decode(sidecar));
+    const json = () => {
+      try {
+        return JSON.parse(decoder.decode(bytes)) as unknown;
+      } catch {
+        return undefined;
+      }
+    };
+    if (
+      assetFileKind(kinds, path, json, parsed?.ok ? parsed.sidecar.assetKind : undefined) === null
+    )
+      continue;
+    out.set(path, bytes);
+    if (sidecar !== undefined) out.set(sidecarPathOf(path), sidecar);
+  }
+  return out;
 }
 
 /** The id a file gives itself with no sidecar: its doc kind's id field, else its name. */

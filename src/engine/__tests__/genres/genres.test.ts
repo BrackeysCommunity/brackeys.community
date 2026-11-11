@@ -106,6 +106,12 @@ describe("genre probes", () => {
           expect(run.replay.matches, label).toBe(true);
           expect(run.replay.recording.end, label).toBe(run.report.recording.end);
           expect(run.usedRapier, label).toBe(probePhysics(probe, variant) === "rapier");
+          if (variant?.saveAt !== undefined) {
+            const saved = run.fromSave!;
+            expect(saved.outcome, `${label} from a save`).toStrictEqual(run.report.outcome);
+            expect(saved.final, `${label} from a save`).toStrictEqual(run.report.final);
+            expect(saved.digest, `${label} from a save`).toBe(run.digest);
+          }
           if (UPDATE) (fresh[probe.id] ??= {})[name] = run.digest;
           else
             expect(run.digest, `${label}: rerun with UPDATE_GENRE_PINS=1`).toBe(

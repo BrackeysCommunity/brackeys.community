@@ -78,6 +78,8 @@ const deckGame = defineGame({
 
 const SCRIPT_FILE = "kitchen-sink.script.json";
 const INPUT_MAP = "input-map";
+/** The engine project's scene list, copied with its scenes. */
+const SCENE_LIST = "scene-list";
 /** A scene of the deck game, so its grid type is there to paint. */
 const TILES_ROOM = {
   v: 4,
@@ -291,6 +293,7 @@ beforeAll(async () => {
     "kitchen-sink-checks",
     "engine-yard-checks",
     INPUT_MAP,
+    SCENE_LIST,
   ])
     await hold(id);
 });
@@ -335,9 +338,13 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
       shape: ["box", 0, -height, 10, height],
     });
     const cap = (y: number) => ({ id: "cap", type: "marker", at: [0, y], tags: ["top"] });
+    // The kitchen sink's post-2 sets `mark`, so the new content keeps that param.
+    const { params } = JSON.parse(
+      await readFile(join(ENGINE_SCENES, "prefabs/post.json"), "utf8"),
+    ) as { params: Record<string, unknown> };
     const define = (height: number, y: number) =>
       editScene("kitchen-sink", [
-        { op: "definePrefab", id: "post", prefab: { entities: [pole(height), cap(y)] } },
+        { op: "definePrefab", id: "post", prefab: { params, entities: [pole(height), cap(y)] } },
       ]);
 
     const viaCli = await cli("assets", "apply", "--ops", await jsonFile(define(70, -150)));
@@ -461,7 +468,7 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
       MCP_AGENT,
       "the MCP exposeParam",
     );
-    expect(Object.keys(params() ?? {}).sort()).toEqual(["capTags", "oneWay"]);
+    expect(Object.keys(params() ?? {}).sort()).toEqual(["capTags", "mark", "oneWay"]);
   });
 
   it(
@@ -672,6 +679,70 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
         const text = await readOrEmpty(join(deck, "input-map.json"));
         return text.includes('"action": "fire"') && text.includes('"button": "south"');
       }, "the server to write the fire bindings back");
+    },
+  );
+
+  it(
+    "scene list: an agent's editAsset inserting /scenes/- lands as the agent, off the human's undo stack; an unlisted start is refused",
+    { timeout: 60_000 },
+    async () => {
+      type Entry = { scene: string; title?: string };
+      const list = () => valueOf(SCENE_LIST) as { start: string | null; scenes: Entry[] };
+      const listed = () => list().scenes.map((e) => e.scene);
+      const before = list();
+      expect(listed()).not.toContain("tiles-room");
+      const setStart = (value: string) => editAsset(SCENE_LIST, [{ set: "/start", value }]);
+
+      const badCli = await cli("assets", "apply", "--ops", await jsonFile(setStart("tiles-room")));
+      expect(badCli.exitCode).toBe(1);
+      expect(badCli.data).toMatchObject({ written: false, issue: { code: "start-scene-missing" } });
+      const badMcp = await mcp("asset_apply_ops", { ops: setStart("tiles-room") });
+      expect(badMcp.structuredContent).toMatchObject({
+        exitCode: 1,
+        written: false,
+        issue: { code: "start-scene-missing" },
+      });
+      expect(list()).toEqual(before);
+
+      const viaCli = await cli(
+        "assets",
+        "apply",
+        "--ops",
+        await jsonFile(
+          editAsset(SCENE_LIST, [
+            { insert: "/scenes/-", value: { scene: "tiles-room", title: "Tiles room" } },
+          ]),
+        ),
+      );
+      expect(viaCli.exitCode, JSON.stringify(viaCli.data)).toBe(0);
+      await landsInDoc(
+        SCENE_LIST,
+        () => listed().includes("tiles-room"),
+        CLI_AGENT,
+        "the CLI's listed tiles room",
+      );
+      expect(list().scenes).toEqual([
+        ...before.scenes,
+        { scene: "tiles-room", title: "Tiles room" },
+      ]);
+
+      const viaMcp = await mcp("asset_apply_ops", { ops: setStart("tiles-room") });
+      expect(viaMcp.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      await landsInDoc(SCENE_LIST, () => list().start === "tiles-room", MCP_AGENT, "the MCP start");
+
+      await until(async () => {
+        const text = await readOrEmpty(join(deck, "scene-list.json"));
+        return text.includes('"start": "tiles-room"') && text.includes('"title": "Tiles room"');
+      }, "the server to write the scene list back");
+
+      const reset = await mcp("asset_apply_ops", { ops: setStart(before.start!) });
+      expect(reset.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      await landsInDoc(
+        SCENE_LIST,
+        () => list().start === before.start,
+        MCP_AGENT,
+        "the MCP start put back",
+      );
     },
   );
 

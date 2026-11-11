@@ -17,7 +17,14 @@ export type RuntimeContacts = Contacts & {
   forget(id: string): void;
   /** Ends every watch; at unload. */
   clear(): void;
+  /** Each watch's touching pairs, in watch order, as a world save holds them. */
+  capture(): SavedTouch[][];
+  /** Puts back what `capture` gave onto the watches made since the load, by position; a missing watch is skipped. */
+  restore(saved: readonly (readonly SavedTouch[])[]): void;
 };
+
+/** A touching pair as a world save holds it: the watched side, the other, the contact point. */
+export type SavedTouch = [entityId: string, other: string, x: number, y: number];
 
 type Touch = { entityId: string; other: string; at: Vec2 };
 
@@ -374,6 +381,23 @@ export function createContacts(ctx: EngineContext): RuntimeContacts {
       }
       const handles = placedOf.get(id);
       if (handles) for (const handle of [...handles]) unplace(handle);
+    },
+    capture() {
+      return watches.map((w) =>
+        [...w.touching.values()].map((t): SavedTouch => [t.entityId, t.other, t.at.x, t.at.y]),
+      );
+    },
+    restore(saved) {
+      watches.forEach((watch, i) => {
+        const pairs = saved[i];
+        if (!pairs) return;
+        watch.touching = new Map(
+          pairs.map(([entityId, other, x, y]) => [
+            pairKey(entityId, other),
+            { entityId, other, at: { x, y } },
+          ]),
+        );
+      });
     },
     clear() {
       watches.length = 0;

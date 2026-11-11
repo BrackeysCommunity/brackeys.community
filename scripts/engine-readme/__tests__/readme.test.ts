@@ -3,7 +3,13 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { mountUi, type GameInstance, type GameStoreState, type UiActionEvent } from "@jams/engine";
+import {
+  mountUi,
+  type GameInstance,
+  type GameStoreState,
+  type SaveSlots,
+  type UiActionEvent,
+} from "@jams/engine";
 import {
   createProjectSession,
   docToScene,
@@ -526,5 +532,94 @@ describe("the UI example runs", () => {
     const h = await mountFerry({ reducedMotion: true });
     expect(h.q<HTMLElement>("[data-jams-ui] div").dataset.motion).toBe("reduced");
     h.unmount();
+  });
+});
+
+describe("the scene flow and save examples run", () => {
+  it("scene-flow.ts walks title → harbour → ending → title, the cellar attached in the harbour", async () => {
+    const { deliveryRound } = await import("../examples/scene-flow");
+    const r = deliveryRound();
+    expect(r.visited).toEqual(["title", "harbour", "ending", "title"]);
+    expect(r.ends.map((e) => [e.result, e.to, e.entry])).toEqual([
+      ["flow", "harbour", "pier"],
+      ["flow", "ending", undefined],
+      ["flow", "title", undefined],
+      ["script-end", undefined, undefined],
+    ]);
+    expect(r.persistAtStart).toEqual([
+      { letters: 0 },
+      { letters: 0 },
+      { letters: 2 },
+      { letters: 0 },
+    ]);
+    expect(r.sceneEnds[1]).toEqual({
+      scene: "harbour",
+      entry: "pier",
+      arrivedAt: [0.5, 2.5],
+      attached: ["cellar:barrel", "cellar:ladder"],
+      sublevels: [],
+      letters: 2,
+    });
+    expect(r.replayed).toBe(true);
+    expect(r.final).toMatchObject({ scene: "title", letters: 0, sublevels: [] });
+  });
+
+  it("scene-flow.ts's source serves the list, its start and each listed scene", async () => {
+    const { courierSource } = await import("../examples/scene-flow");
+    const source = courierSource();
+    expect(source.start()).toBe("title");
+    expect(source.list().map((e) => e.scene)).toEqual(["title", "harbour", "ending", "cellar"]);
+    expect(source.scene("cellar")?.def.name).toBe("cellar");
+    expect(source.scene("nowhere")).toBeNull();
+  });
+
+  it("save-slots.ts resumes a world save to the same state, migrates and refuses a newer save", async () => {
+    const { keepHive } = await import("../examples/save-slots");
+    const r = await keepHive();
+    expect(r.limits).toEqual({ maxBytes: 65_536, maxSlots: 8 });
+    expect(r.slots).toEqual([
+      ["auto", "Tick 49", 50],
+      ["slot-1", "Before the swarm", 30],
+    ]);
+    expect(r.sameState).toBe(true);
+    expect(r.honey).toBeGreaterThan(0);
+    expect(r.progressHasWorld).toBe(false);
+    expect(r.migrated).toEqual([1, { honey: 3 }]);
+    expect(r.newer).toEqual(["save-version-newer"]);
+  });
+
+  it("save-slots.ts's menu shows where saves live and the next free slot, and Continue loads the newest", async () => {
+    const { continueNewest, saveMenu } = await import("../examples/save-slots");
+    const meta = (title: string, savedAt: number) => ({
+      title,
+      scene: "meadow",
+      savedAt,
+      playTicks: 0,
+    });
+    const loaded: string[] = [];
+    const saves = (n: number) =>
+      ({
+        store: { kind: "memory", describe: "Saves last until this tab closes." },
+        limits: { maxBytes: 65_536, maxSlots: 3 },
+        list: async () =>
+          Array.from({ length: n }, (_, i) => ({
+            slot: `slot-${i + 1}`,
+            meta: meta(`Day ${i + 1}`, [30, 10, 20][i]!),
+            bytes: 2048,
+          })),
+        load: async (slot: string) => {
+          loaded.push(slot);
+          return { ok: true as const, meta: meta(slot, 0) };
+        },
+      }) as unknown as SaveSlots;
+    expect(await saveMenu(saves(2))).toEqual({
+      where: "Saves last until this tab closes.",
+      rows: ["Day 1 · 2 KB", "Day 2 · 2 KB"],
+      free: "slot-3",
+    });
+    expect((await saveMenu(saves(3))).free).toBeNull();
+    expect(await continueNewest({ saves: saves(0) })).toBeNull();
+    await continueNewest({ saves: saves(3) });
+    expect(loaded).toEqual(["slot-1"]);
   });
 });

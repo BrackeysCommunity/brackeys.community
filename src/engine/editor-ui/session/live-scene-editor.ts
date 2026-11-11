@@ -55,6 +55,7 @@ import {
   type AssetEntry,
   type AssetId,
   type ProjectRuntimeView,
+  type ProjectView,
 } from "../../project/index";
 import {
   nextFreeId,
@@ -258,11 +259,14 @@ export type ProjectRegistry = {
    * Hot reload of art: once the project doc holds the hash an `asset:changed`
    * message names, `project()` is rebuilt in place (no `subscribe` listener
    * fires, so the host keeps its game) and `game.reloadAssets` redraws what
-   * uses the asset, as a `pending` hold while it runs. Returns the unsubscribe.
+   * uses the asset, as a `pending` hold while it runs. While `game` plays,
+   * a `project()` change (an edited input map, settings or table) reaches it
+   * the same way with nothing `changed`, so the run keeps going on the new
+   * data. Returns the unsubscribe.
    */
   followAssets(
     changes: AssetChangeSource,
-    game: Pick<GameInstance, "reloadAssets">,
+    game: Pick<GameInstance, "reloadAssets"> & Partial<Pick<GameInstance, "getMode">>,
     opts?: { pending?: Pending },
   ): () => void;
   destroy(): void;
@@ -404,6 +408,29 @@ export function projectRegistry(
     },
     followAssets(changes, game, { pending: tasks } = {}) {
       const pending = new Map<AssetId, AssetChangedMessage["sha256"]>();
+      let sent = project;
+      const reload = (view: ProjectView, changed: readonly AssetId[]) => {
+        sent = project;
+        const art = changed.length > 0;
+        const release = tasks?.hold({
+          id: art ? "art:reload" : "project:reload",
+          label: art ? `Reloading ${reloadName(view, changed)}` : "Applying the project's edits",
+          scope: "editor",
+        });
+        game
+          .reloadAssets({ project, view, changed })
+          .then(({ errors }) => {
+            for (const { entityId, error } of errors) warnReload(`${entityId}: ${error}`);
+            release?.();
+          })
+          .catch((err: unknown) => {
+            const errorTitle = art
+              ? "The art couldn't reload"
+              : "The project's edits couldn't apply";
+            if (release) release({ error: err, errorTitle });
+            else warnReload(err instanceof Error ? err.message : String(err));
+          });
+      };
       // The message can arrive before the doc update that carries its hash.
       const flush = () => {
         if (destroyed || pending.size === 0) return;
@@ -417,29 +444,22 @@ export function projectRegistry(
         if (changed.length === 0) return;
         project = runtimeView(view, dataValues(watched()), session.registry);
         changed.sort();
-        const release = tasks?.hold({
-          id: "art:reload",
-          label: `Reloading ${reloadName(view, changed)}`,
-          scope: "editor",
-        });
-        game
-          .reloadAssets({ project, view, changed })
-          .then(({ errors }) => {
-            for (const { entityId, error } of errors) warnReload(`${entityId}: ${error}`);
-            release?.();
-          })
-          .catch((err: unknown) => {
-            if (release) release({ error: err, errorTitle: "The art couldn't reload" });
-            else warnReload(err instanceof Error ? err.message : String(err));
-          });
+        reload(view, changed);
+      };
+      // Outside Play the host rebuilds its game on the new data instead.
+      const followProject = () => {
+        if (destroyed || project === sent || game.getMode?.() !== "play") return;
+        reload(session.view(), []);
       };
       const off = changes.onAssetChanged((message) => {
         pending.set(message.id, message.sha256);
         flush();
       });
+      listeners.add(followProject);
       session.projectDoc.on("update", flush);
       return () => {
         off();
+        listeners.delete(followProject);
         session.projectDoc.off("update", flush);
       };
     },

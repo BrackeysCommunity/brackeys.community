@@ -2,11 +2,36 @@ import type { Collider, KinematicCharacterController, RigidBody } from "@dimforg
 
 import { TOP_DOWN_CONTROLLER } from "../game/defaults";
 import { physicsOf } from "../game/physics-of";
-import type { ColliderTag, EngineContext } from "../game/types";
+import type { ColliderTag, EngineContext, JsonValue } from "../game/types";
 import { shapeColliderDesc } from "../physics";
 import type { SpaceCastHit, SpaceFilter } from "../runtime/space";
 import type { ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
+
+/** State an object game code made for an entity holds, for a world save. */
+export type SaveEntry = {
+  save(): JsonValue | undefined;
+  restore(state: JsonValue): void;
+};
+
+/**
+ * A runtime's list of what game code made that holds state for a world
+ * save, under each entity id and an owner name (`motion`, `grid-step`).
+ * The runtime clears it at each load; capture writes each entry's `save`,
+ * and restore hands it back to what the fresh load registered again.
+ */
+export type SaveRegistry = {
+  /** Replaces any entry `entityId` already has for `owner`; returns its unregister. */
+  register(entityId: string, owner: string, entry: SaveEntry): () => void;
+};
+
+/** The key a runtime keeps its `SaveRegistry` under on its context. */
+export const SAVE_REGISTRY: unique symbol = Symbol("save registry");
+
+/** The runtime's save registry, or null for a context without one (a bare test context). */
+export function saveRegistryOf(ctx: EngineContext): SaveRegistry | null {
+  return (ctx as EngineContext & { [SAVE_REGISTRY]?: SaveRegistry })[SAVE_REGISTRY] ?? null;
+}
 
 export type MotionBodyOptions = {
   /** Local, centred on 0, 0; not chain. */
@@ -36,7 +61,24 @@ export interface MotionBody {
   teleport(x: number, y: number): void;
   /** A disabled body is out of the world: nothing hits it, and its moves travel in full. */
   setEnabled(enabled: boolean): void;
+  /** m/s, kept for the controller moving it (`createTopDownController`); a world save keeps it. */
+  velocity(): Vec2;
+  setVelocity(v: Vec2): void;
   destroy(): void;
+}
+
+/** The `motion` owner's state in a world save. */
+type SavedBody = { at: [number, number]; v?: [number, number]; off?: true };
+
+function readSavedBody(state: JsonValue): SavedBody | null {
+  if (typeof state !== "object" || state === null || Array.isArray(state)) return null;
+  const pair = (p: JsonValue | undefined): p is [number, number] =>
+    Array.isArray(p) &&
+    p.length === 2 &&
+    p.every((n) => typeof n === "number" && Number.isFinite(n));
+  const { at, v, off } = state;
+  if (!pair(at) || (v !== undefined && !pair(v))) return null;
+  return { at, ...(v ? { v } : {}), ...(off === true ? { off } : {}) };
 }
 
 /** Sweep-and-slide passes per move. */
@@ -221,6 +263,7 @@ export function createMotionBody(
       : geometryBackend(ctx, entity.id, at, opts, group, tag);
 
   let pos: Vec2 = { x: at.x, y: at.y };
+  let velocity: Vec2 = { x: 0, y: 0 };
   let enabled = true;
   let destroyed = false;
   ctx.poses.set(entity.id, pos.x, pos.y, undefined, { snap: true });
@@ -229,7 +272,23 @@ export function createMotionBody(
     if (destroyed) throw new Error(`motion body "${entity.id}" was destroyed before ${what}`);
   };
 
-  return {
+  const unregister = saveRegistryOf(ctx)?.register(entity.id, "motion", {
+    save() {
+      const saved: SavedBody = { at: [pos.x, pos.y] };
+      if (velocity.x !== 0 || velocity.y !== 0) saved.v = [velocity.x, velocity.y];
+      if (!enabled) saved.off = true;
+      return saved;
+    },
+    restore(state) {
+      const saved = readSavedBody(state);
+      if (!saved || destroyed) return;
+      body.setEnabled(saved.off !== true);
+      body.teleport(saved.at[0], saved.at[1]);
+      velocity = saved.v ? { x: saved.v[0], y: saved.v[1] } : { x: 0, y: 0 };
+    },
+  });
+
+  const body: MotionBody = {
     entityId: entity.id,
     handle: backend.handle,
     position: () => ({ ...pos }),
@@ -255,10 +314,16 @@ export function createMotionBody(
       enabled = next;
       backend.setEnabled(next);
     },
+    velocity: () => ({ ...velocity }),
+    setVelocity(v) {
+      velocity = { x: v.x, y: v.y };
+    },
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      unregister?.();
       backend.destroy();
     },
   };
+  return body;
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:recording:v2",
-  "x-agent-surface": 13,
+  "x-agent-surface": 14,
   "title": "jams engine run recording, format v2",
   "type": "object",
   "properties": {
@@ -165,6 +165,14 @@
         },
         "game": {
           "description": "The game's play options, as its `play.options` schema defines them."
+        },
+        "persist": {
+          "description": "`EngineContext.persist` as the scene loaded, set before the load on replay; written when the game declares `persist`.",
+          "$ref": "#/$defs/__schema0"
+        },
+        "entry": {
+          "description": "The entry the flow request that loaded this scene named, read in `onLoad` as `EngineContext.flow.entry`.",
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -517,7 +525,7 @@
       "properties": {
         "result": {
           "type": "string",
-          "description": "An engine result (`timeout`, `script-end`, `stuck`, `quit`) or one the game declares."
+          "description": "An engine result (`timeout`, `script-end`, `stuck`, `quit`, `flow`) or one the game declares."
         },
         "tick": {
           "type": "integer",
@@ -610,6 +618,40 @@
     "end": {
       "type": "string",
       "description": "A digest of the game's snapshot after the last tick, which a replay must reproduce."
+    },
+    "next": {
+      "description": "The flow request that ended this scene's part of a run, whose next scene has its own recording; a replay ends here without following it.",
+      "type": "object",
+      "properties": {
+        "scene": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "description": "The scene the request went to."
+        },
+        "entry": {
+          "description": "The entry it named.",
+          "type": "string"
+        }
+      },
+      "required": ["scene"],
+      "additionalProperties": false
+    },
+    "fromSave": {
+      "description": "The save the run began by loading, instead of the scene's fresh load.",
+      "type": "object",
+      "properties": {
+        "slot": {
+          "type": "string",
+          "description": "The save's slot."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The save file's hash; a replay needs the fixture with this hash."
+        }
+      },
+      "required": ["slot", "sha256"],
+      "additionalProperties": false
     }
   },
   "required": [
@@ -650,6 +692,37 @@
           "type": "number",
           "description": "y in world metres; y is down.",
           "unit": "m"
+        }
+      ]
+    },
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
         }
       ]
     }

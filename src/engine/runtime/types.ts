@@ -1,11 +1,14 @@
 import type { SceneView } from "../context";
 import type { BehaviorName } from "../game/behaviors";
+import type { FlowRequest, SceneLibrary } from "../game/flow";
 import type {
   EngineContext,
   GameCommand,
   GameDefinition,
   GameRuntime,
+  JsonValue,
   Registry,
+  SaveRequest,
 } from "../game/types";
 import type { PlayOptions } from "../headless/playtest-types";
 import type { TickInput } from "../input/stream";
@@ -136,7 +139,27 @@ export type SceneRuntime = {
   /** The game's snapshot now; `null` without a game. */
   snapshot: () => unknown;
   stats: () => RuntimeStats;
+  /**
+   * The flow request and the save requests game code made since the last
+   * call, emptied: the host applies them after the tick that made them.
+   */
+  takeRequests: () => RuntimeRequests;
   destroy: () => void;
+};
+
+/** What `SceneRuntime.takeRequests` hands the host. */
+export type RuntimeRequests = { flow: FlowRequest | null; saves: SaveRequest[] };
+
+/**
+ * The value `EngineContext.persist` reads and writes. One cell outlives
+ * every runtime of a game instance or headless session, so the value
+ * survives scene loads.
+ */
+export type PersistCell = {
+  readonly value: JsonValue;
+  set(next: JsonValue): void;
+  /** Back to the game's initial value. */
+  reset(): void;
 };
 
 export type SceneRuntimeOptions = {
@@ -154,6 +177,10 @@ export type SceneRuntimeOptions = {
   sampling?: "linear" | "nearest";
   /** The prefabs `ctx.instantiate` resolves, read once per load and frozen for the run. */
   prefabs?: PrefabLibrary | (() => PrefabLibrary);
+  /** The listed scenes flow loads and attaches, read once per load and frozen for the run. */
+  scenes?: SceneLibrary | (() => SceneLibrary);
+  /** The persistent value; without one the runtime keeps its own, from the game's `persist.initial()`. */
+  persist?: PersistCell;
 };
 
 /** The runtime plus the parts the shell and a game's tools drive directly. */

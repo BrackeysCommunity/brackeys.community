@@ -27,20 +27,20 @@ function clampToDisc(intent: Vec2): Vec2 {
 /**
  * Free movement in the plane: the velocity turns toward `intent × maxSpeed`
  * at `accel` (or eases to rest at `decel`), the body moves by it, and what
- * it hits takes away the part of the velocity heading into it.
+ * it hits takes away the part of the velocity heading into it. The velocity
+ * lives on the body, so a world save keeps it.
  */
 export function createTopDownController(body: MotionBody, opts: TopDownOptions): TopDownController {
   for (const key of ["maxSpeed", "accel", "decel"] as const) {
     const v = opts[key];
     if (!Number.isFinite(v) || v < 0) throw new Error(`top-down ${key} must be ≥ 0; got ${v}`);
   }
-  let v: Vec2 = { x: 0, y: 0 };
-
   return {
-    velocity: () => ({ ...v }),
+    velocity: () => body.velocity(),
     step(dtMs, rawIntent) {
       if (!(dtMs > 0)) return { moved: { x: 0, y: 0 }, hits: [], blocked: false };
       const dt = dtMs / 1000;
+      let v = body.velocity();
       const intent = clampToDisc(rawIntent);
       const idle = intent.x === 0 && intent.y === 0;
       const target = { x: intent.x * opts.maxSpeed, y: intent.y * opts.maxSpeed };
@@ -55,6 +55,7 @@ export function createTopDownController(body: MotionBody, opts: TopDownOptions):
         const into = v.x * n.x + v.y * n.y;
         if (into < 0) v = { x: v.x - n.x * into, y: v.y - n.y * into };
       }
+      body.setVelocity(v);
       return result;
     },
   };

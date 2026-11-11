@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
-import { defineGame } from "@jams/engine/game";
+import { defineGame, flowIssue } from "@jams/engine/game";
 import { heldProject, parseSidecar } from "@jams/engine/project";
 import { createRegistry } from "@jams/engine/scene";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -74,9 +74,21 @@ function globs(patch: Partial<HostedGameGlobs> = {}) {
     board: vi.fn(async () => ({ boardGame })),
     boardUi: vi.fn(async () => ({ mountBoardHud })),
     testYard: vi.fn(async () => ({ default: json("src/games/platformer/scenes/test-yard.json") })),
+    platformerList: vi.fn(async () => ({ default: json("src/games/platformer/scene-list.json") })),
+    boardSidecar: vi.fn(async () => ({
+      default: { kind: "asset-sidecar", v: 1, key: "abc", id: "level-1" },
+    })),
     boardChecks: vi.fn(async () => ({ default: { v: 3, checks: [] } })),
     boardLevel: vi.fn(async () => ({ default: { v: 4, name: "level-1", bounds: [0, 0, 8, 8] } })),
     boardLevel2: vi.fn(async () => ({ default: { v: 4, name: "level-2", bounds: [0, 0, 8, 8] } })),
+    boardList: vi.fn(async () => ({
+      default: {
+        kind: "scene-list",
+        v: 1,
+        start: "level-1",
+        scenes: [{ scene: "level-1", title: "Level 1" }, { scene: "missing" }],
+      },
+    })),
     boardSettings: vi.fn(async () => ({
       default: { kind: "game-settings", v: 2, engine: { tickRate: 30 }, game: { speed: 3 } },
     })),
@@ -114,17 +126,20 @@ function globs(patch: Partial<HostedGameGlobs> = {}) {
     uis: { "/src/games/board/ui/index.ts": loaders.boardUi },
     scenes: {
       "/src/games/platformer/scenes/test-yard.json": loaders.testYard,
-      "/src/games/board/scenes/level-1.json.asset.json": vi.fn(async () => ({
-        default: { kind: "asset-sidecar", v: 1, key: "abc", id: "level-1" },
-      })),
+      "/src/games/board/scenes/level-1.json.asset.json": loaders.boardSidecar,
       "/src/games/board/scenes/level-2.json": loaders.boardLevel2,
       "/src/games/board/scenes/level-1.json": loaders.boardLevel,
       "/src/games/board/scenes/level-1.checks.json": loaders.boardChecks,
     },
     prefabs: { "/src/games/board/scenes/prefabs/crate.json": loaders.boardPrefab },
     docs: {
+      "/src/games/platformer/scene-list.json": loaders.platformerList,
       "/src/games/board/game-settings.json": loaders.boardSettings,
+      "/src/games/board/scene-list.json": loaders.boardList,
       "/src/games/board/data/pieces.json": loaders.boardPieces,
+    },
+    sidecars: {
+      "/src/games/board/scenes/level-1.json.asset.json": loaders.boardSidecar,
     },
     ...patch,
   };
@@ -151,9 +166,7 @@ describe("hostedGamesFrom", () => {
     expect(loaded.game).toBe(boardGame);
     expect(loaded.registry.game).toBe(boardGame);
     expect(loaded.ui).toBe(mountBoardHud);
-    expect(loaded.scene.name).toBe("level-1");
     expect([...loaded.prefabs.keys()]).toEqual(["crate"]);
-    expect(loaders.boardLevel2).not.toHaveBeenCalled();
     expect(loaders.boardChecks).not.toHaveBeenCalled();
     expect(loaded.project.settings).toEqual({ speed: 3 });
     expect(loaded.project.engine).toEqual({ tickRate: 30 });
@@ -165,14 +178,88 @@ describe("hostedGamesFrom", () => {
     expect(loaders.board).toHaveBeenCalledOnce();
   });
 
-  it("resolves the platformer with no UI and its first scene", async () => {
+  it("resolves the platformer with no UI and its scene list's start", async () => {
     const { maps } = globs();
     const platformer = hostedGamesFrom(maps, vi.fn()).find((g) => g.id === "platformer")!;
-    const { game, ui, scene } = await platformer.load();
+    const { game, ui, flow, prefabs } = await platformer.load();
     const { platformerGame } = await import("@/games/platformer");
     expect(game).toBe(platformerGame);
     expect(ui).toBeNull();
-    expect(scene.name).toBe("test-yard");
+    expect(flow.start()).toBe("test-yard");
+    expect(flow.list()).toEqual([{ scene: "test-yard" }]);
+    expect(flow.scene("test-yard")?.def.name).toBe("test-yard");
+    expect(flow.scene("test-yard")?.prefabs).toBe(prefabs);
+  });
+
+  it("holds every listed scene by the id its sidecar gives, and only listed ones", async () => {
+    const { maps, loaders } = globs();
+    const [board] = hostedGamesFrom(maps, vi.fn());
+    const { flow, prefabs } = await board!.load();
+    expect(flow.start()).toBe("level-1");
+    expect(flow.list()).toEqual([{ scene: "level-1", title: "Level 1" }, { scene: "missing" }]);
+    expect(flow.scene("level-1")?.def.name).toBe("level-1");
+    expect(flow.scene("level-1")?.prefabs).toBe(prefabs);
+    expect(flow.scene("level-2")).toBeNull();
+    expect(flow.scene("missing")).toBeNull();
+    expect(flowIssue(flow.list(), flow.start(), "start")).toBeNull();
+    expect(loaders.boardChecks).not.toHaveBeenCalled();
+
+    const { maps: listed } = globs({
+      sidecars: {
+        "/src/games/board/scenes/level-1.json.asset.json": vi.fn(async () => ({
+          default: { kind: "asset-sidecar", v: 1, key: "abc", id: "first" },
+        })),
+      },
+      docs: {
+        "/src/games/board/scene-list.json": vi.fn(async () => ({
+          default: { kind: "scene-list", v: 1, start: "first", scenes: [{ scene: "first" }] },
+        })),
+      },
+    });
+    const [again] = hostedGamesFrom(listed, vi.fn());
+    const loaded = await again!.load();
+    expect(loaded.flow.scene("first")?.def.name).toBe("level-1");
+    expect(loaded.flow.scene("level-1")).toBeNull();
+  });
+
+  it("gives a project without a scene list no start, which flow refuses as start-scene-missing", async () => {
+    const { maps } = globs({ docs: {} });
+    const [board] = hostedGamesFrom(maps, vi.fn());
+    const { flow } = await board!.load();
+    expect(flow.start()).toBeNull();
+    expect(flow.list()).toEqual([]);
+    expect(flowIssue(flow.list(), flow.start(), "start")?.code).toBe("start-scene-missing");
+  });
+
+  it("fails load when a listed scene doesn't parse", async () => {
+    const { maps } = globs({
+      scenes: {
+        "/src/games/board/scenes/level-2.json": vi.fn(async () => ({
+          default: { v: 4, name: "level-2", bounds: "wide" },
+        })),
+      },
+      docs: {
+        "/src/games/board/scene-list.json": vi.fn(async () => ({
+          default: { kind: "scene-list", v: 1, start: "level-2", scenes: [{ scene: "level-2" }] },
+        })),
+      },
+    });
+    const [board] = hostedGamesFrom(maps, vi.fn());
+    await expect(board!.load()).rejects.toThrow();
+  });
+
+  it("starts each site game at the start its own scene list names", async () => {
+    const games = hostedGames();
+    expect(games.map((g) => g.id)).toEqual(expect.arrayContaining(["platformer", "tactics"]));
+    for (const hosted of games) {
+      const file = `src/games/${hosted.id}/scene-list.json`;
+      expect(existsSync(file), file).toBe(true);
+      const { start } = json(file) as { start: string };
+      const { flow } = await hosted.load();
+      expect(flow.start(), hosted.id).toBe(start);
+      expect(flow.scene(start)?.def, hosted.id).toBeDefined();
+    }
+    expect((await hostedGame("platformer")!.load()).flow.start()).toBe("test-yard");
   });
 
   it("warns about and skips a project whose game or UI module isn't at the standard path", () => {

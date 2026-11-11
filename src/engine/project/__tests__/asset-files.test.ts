@@ -5,6 +5,9 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   assetFileEntries,
+  assetFileKind,
+  assetFilesIn,
+  mayBeAssetFile,
   orphanSidecarIssue,
   ownAssetId,
   projectPathMatcher,
@@ -44,6 +47,50 @@ describe("projectPathMatcher", () => {
     expect(isCode("src/game.ts")).toBe(true);
     expect(isCode("src/game.gen.ts")).toBe(false);
     expect(isCode("tmp/game.ts")).toBe(false);
+  });
+});
+
+describe("which files are assets", () => {
+  const none = () => false;
+  const noJson = () => {
+    throw new Error("read only for a .json no suffix claims");
+  };
+  const bytes = (text: string) => new TextEncoder().encode(text);
+
+  it("reads a file only when a kind claims its suffix, it is JSON, or a sidecar is beside it", () => {
+    expect(mayBeAssetFile(kinds, "art/crate.png", none)).toBe(true);
+    expect(mayBeAssetFile(kinds, "scenes/level.json", none)).toBe(true);
+    expect(mayBeAssetFile(kinds, "art/make-art.ts", none)).toBe(false);
+    expect(mayBeAssetFile(kinds, "art/make-art.ts", () => true)).toBe(true);
+    expect(mayBeAssetFile(kinds, "art/a.schema.json", () => true)).toBe(false);
+  });
+
+  it("takes the sidecar's kind, else the suffix's, else what a .json names", () => {
+    expect(assetFileKind(kinds, "art/crate.png", noJson)?.kind).toBe("texture");
+    expect(assetFileKind(kinds, "art/make-art.ts", noJson)).toBeNull();
+    expect(assetFileKind(kinds, "art/make-art.ts", noJson, "texture")?.kind).toBe("texture");
+    expect(assetFileKind(kinds, "m.json", () => ({ kind: "material", v: 1 }))?.kind).toBe(
+      "material",
+    );
+    expect(assetFileKind(kinds, "m.json", () => undefined)).toBeNull();
+  });
+
+  it("keeps detected files with their sidecars and orphan sidecars, never a script beside the art", () => {
+    const png = fixture("hero.png");
+    const files = new Map<string, Uint8Array>([
+      ["art/hero.png", png],
+      ["art/hero.png.asset.json", bytes('{"kind":"asset-sidecar","v":1}')],
+      ["art/make-art.ts", bytes("export {};\n")],
+      ["art/gone.png.asset.json", bytes('{"kind":"asset-sidecar","v":1}')],
+      ["notes.json", bytes("not json")],
+      ["m.json", bytes('{"kind":"material","v":1}')],
+    ]);
+    expect([...assetFilesIn(files, kinds).keys()].sort()).toEqual([
+      "art/gone.png.asset.json",
+      "art/hero.png",
+      "art/hero.png.asset.json",
+      "m.json",
+    ]);
   });
 });
 

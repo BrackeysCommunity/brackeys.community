@@ -34,6 +34,7 @@ import { assetsImport } from "./tools/assets-import";
 import { check } from "./tools/check";
 import { codes } from "./tools/codes";
 import { diff } from "./tools/diff";
+import { flow } from "./tools/flow";
 import { fuzz } from "./tools/fuzz";
 import { gameNew } from "./tools/game-new";
 import { list } from "./tools/list";
@@ -348,6 +349,15 @@ export const MCP_TOOLS: readonly McpTool[] = [
     run: (_i, ctx) => codes({}, ctx),
   }),
   defineTool({
+    name: "scene_flow",
+    title: "Scene flow",
+    description:
+      "Each project's scene list as data (`project` narrows it to one): the list's id and path, its `start`, each listed scene with its title, sublevel tag, whether it starts, `physics` (`rapier` or `none`) and `bundle` (the blobs and bytes it loads before it draws; both null for a scene that doesn't open), `unlisted` (the project's scenes the list leaves out), and `issues`: the list's own (`start-scene-missing`, an entry naming no scene as `asset-missing`) and every check naming a scene flow can't go to (`scene-unlisted`). Edit the list with `asset_apply_ops` on its `scene-list` doc. exitCode 1 on an error-severity issue.",
+    annotations: READ,
+    input: {},
+    run: (_i, ctx) => flow({}, ctx),
+  }),
+  defineTool({
     name: "scene_validate",
     title: "Validate a scene",
     description:
@@ -451,7 +461,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "scene_playtest",
     title: "Playtest a scene",
     description:
-      "Play an input script headless (format v2; a v1 script migrates on read): the outcome, steps, events, focus trail (positions in metres), the commands stepped and the run's `recording` (v2). `steps` drive seat 0; `tracks` (`[{ player, steps }]`, up to the script's `players`) drive one seat each, side by side from tick 0. Steps hold or press actions, `set` axis values and vectors for the step (`{ set: { move: [1, 0] } }`), drive the pointer (`{ pointer: { at, press?, release?, drag? } }`, `at` and `drag` in metres; a drag moves from `at` to `drag` over the step; its buttons show in `ctx.input.pointer` and hold the actions bound to them, the project input map's over the game's, as live play does, except UI-only actions, which a script never raises, holds, presses or sets), `join` a device (`keyboard`, `pointer`, `touch` or `pad:<n>`) to the track's seat or `leave` one, wait, send a game command (`{ command, args? }`) or report time away (`{ elapse }`, as `@elapsed`); an `until` can wait on `{ exists: id }` or `{ count: { type|tag, min|max|eq } }`. Events include `entity:spawned`, `entity:destroyed`, `entity:enabled`, `entity:disabled`, `contact:start` and `contact:end`, and `lifecycle` counts spawns and destroys per type. A game that lists its commands (`GamePlayDef.commands`) also gets `legal`: the commands it may send after the last tick, at most 64, with `legalTruncated: true` beyond. exitCode 1 when the scene or script is blocked, a runtime refusal included (stage `run`).",
+      "Play an input script headless (format v2; a v1 script migrates on read): the outcome, steps, events, focus trail (positions in metres), the commands stepped and the run's `recording` (v2). `steps` drive seat 0; `tracks` (`[{ player, steps }]`, up to the script's `players`) drive one seat each, side by side from tick 0. Steps hold or press actions, `set` axis values and vectors for the step (`{ set: { move: [1, 0] } }`), drive the pointer (`{ pointer: { at, press?, release?, drag? } }`, `at` and `drag` in metres; a drag moves from `at` to `drag` over the step; its buttons show in `ctx.input.pointer` and hold the actions bound to them, the project input map's over the game's, as live play does, except UI-only actions, which a script never raises, holds, presses or sets), `join` a device (`keyboard`, `pointer`, `touch` or `pad:<n>`) to the track's seat or `leave` one, wait, send a game command (`{ command, args? }`) or report time away (`{ elapse }`, as `@elapsed`); an `until` can wait on `{ exists: id }` or `{ count: { type|tag, min|max|eq } }`. Events include `entity:spawned`, `entity:destroyed`, `entity:enabled`, `entity:disabled`, `contact:start` and `contact:end`, and `lifecycle` counts spawns and destroys per type. A game that lists its commands (`GamePlayDef.commands`) also gets `legal`: the commands it may send after the last tick, at most 64, with `legalTruncated: true` beyond. A scene change the game requests (`ctx.flow.request`) ends the run with result `flow` and the recording's `next`; with `flow` the run follows it through the project's scene list on the same script (an `until` can wait on `{ scene: id }`) and reports each scene it visited in `segments`. With `fromSave` the run starts where a save fixture left off instead of the scene's fresh load, and the recording's `fromSave` names the fixture's slot and hash. exitCode 1 when the scene or script is blocked, a runtime refusal included (stage `run`).",
     annotations: READ,
     input: {
       scene: sceneArg,
@@ -466,6 +476,13 @@ export const MCP_TOOLS: readonly McpTool[] = [
         .array(z.string())
         .optional()
         .describe("Report only events of these types; `lifecycle` still counts every spawn."),
+      flow: z
+        .boolean()
+        .optional()
+        .describe("Follow scene requests through the project's scene list on the same script."),
+      fromSave: jsonOrPath(
+        "A save:v1 fixture to start from (`*.save.json`, as `scene save` writes one)",
+      ).optional(),
       game,
       ...liveFields,
     },
@@ -478,6 +495,11 @@ export const MCP_TOOLS: readonly McpTool[] = [
             at: opt(i.at, (p) => p.join(",")),
             events: opt(i.events, (t) => t.join(",")),
             game: i.game,
+            flow: i.flow === true,
+            fromSave:
+              i.fromSave === undefined
+                ? undefined
+                : await tmp.payload("from.save.json", i.fromSave),
           },
           c,
         ),
@@ -681,7 +703,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "asset_apply_ops",
     title: "Apply a project op batch",
     description:
-      'Apply a project op batch (`scene_schema` with which `project-ops`), which may span docs. A dry run unless dryRun is false. With live, edits the dev server\'s docs (or a hosted project\'s) as one undoable entry under an agent actor; otherwise writes the files. A batch the engine refuses writes nothing. The input map is a doc like any other: `{ op: "editAsset", id, edits: [{ insert: "/actions/@fire/bindings", value: { device: "key", code: "KeyF" } }] }` appends a binding to `fire` (the insert names the list; `before` an index places it), and a binding the game can\'t read (an unknown code, button, axis or control, or a shape that doesn\'t fit the action\'s kind) is refused as `binding-unknown`, a seat past the map\'s as `player-unknown`.',
+      'Apply a project op batch (`scene_schema` with which `project-ops`), which may span docs. A dry run unless dryRun is false. With live, edits the dev server\'s docs (or a hosted project\'s) as one undoable entry under an agent actor; otherwise writes the files. A batch the engine refuses writes nothing. The input map is a doc like any other: `{ op: "editAsset", id, edits: [{ insert: "/actions/@fire/bindings", value: { device: "key", code: "KeyF" } }] }` appends a binding to `fire` (the insert names the list; `before` an index places it), and a binding the game can\'t read (an unknown code, button, axis or control, or a shape that doesn\'t fit the action\'s kind) is refused as `binding-unknown`, a seat past the map\'s as `player-unknown`. The scene list is one too: `{ op: "editAsset", id: "scene-list", edits: [{ insert: "/scenes", value: { scene: "level-2", title: "Level 2" } }, { set: "/start", value: "level-2" }] }` lists a scene and starts there (`remove: "/scenes/@level-2"` unlists it); a start that isn\'t listed, or is a sublevel, is refused as `start-scene-missing`, a scene listed twice as `id-taken`, and an entry naming no scene is a dangling reference `asset_refs` reports (`asset-missing`).',
     annotations: { ...WRITE, destructiveHint: true },
     input: {
       ops: z

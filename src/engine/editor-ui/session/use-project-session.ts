@@ -52,6 +52,47 @@ export function useProjectSession(options: UseProjectSessionOptions): ProjectCon
   return useStoreValue(store);
 }
 
+/** How long a doc the editor switched away from stays connected. */
+export const WARM_DOC_MS = 60_000;
+
+/**
+ * Keeps docs a little longer: `keep(session, name)` holds `name` once more
+ * from now, while the editor still holds it, and lets go `keepMs` later, so
+ * a doc the editor switches away from stays connected that long. Unmounting
+ * lets go of every doc it still keeps at once.
+ */
+export function useWarmDocs(
+  keepMs: number = WARM_DOC_MS,
+): (session: ProjectSession, name: string) => void {
+  const [cooling] = useState(() => new Set<() => void>());
+  useEffect(
+    () => () => {
+      for (const release of [...cooling]) release();
+    },
+    [cooling],
+  );
+  const after = useRef(keepMs);
+  useEffect(() => {
+    after.current = keepMs;
+  });
+  const [keep] = useState(() => (session: ProjectSession, name: string) => {
+    // A doc held already is held once more before `open` returns, so nothing can close it in between.
+    session.open(name).then(
+      () => {
+        const release = () => {
+          clearTimeout(timer);
+          cooling.delete(release);
+          session.release(name);
+        };
+        const timer = setTimeout(release, after.current);
+        cooling.add(release);
+      },
+      () => {},
+    );
+  });
+  return keep;
+}
+
 /**
  * Holds one doc of the session open while the component is mounted. When
  * it unmounts the session lets the doc go, and closes it unless an undo

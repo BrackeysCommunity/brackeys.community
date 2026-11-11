@@ -5,6 +5,6 @@
   "id": "platformer",
   "name": "Platformer",
   "game": { "module": "./index.ts", "export": "platformerGame" },
-  "assets": ["scenes/**"],
+  "assets": ["scenes/**", "scene-list.json"],
   "code": ["**/*.ts", "!**/__tests__/**"]
 }

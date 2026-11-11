@@ -4,13 +4,22 @@ import { eq } from "drizzle-orm";
 import * as Y from "yjs";
 
 import { engineAssetDocs, engineBlobs, engineProjects } from "../../../src/db/schema.ts";
-import { CONTENT_MAP, KEYED_ITEM, KEYED_Z } from "../../../src/engine/collab/index.ts";
+import {
+  assignZ,
+  compareZ,
+  CONTENT_MAP,
+  KEYED_ITEM,
+  KEYED_Z,
+} from "../../../src/engine/collab/index.ts";
 import {
   formatAssetDoc,
   INPUT_MAP_KIND,
   inputMapKind,
   projectView,
+  SCENE_LIST_KIND,
+  sceneListKind,
   type InputMapFile,
+  type SceneListFile,
 } from "../../../src/engine/project/index.ts";
 import type { AssetEntry, ProjectState } from "../../../src/engine/project/types.ts";
 import { SCENE_FORMAT_VERSION } from "../../../src/engine/scene/types.ts";
@@ -591,6 +600,134 @@ describe("an input-map asset doc through the real server", () => {
     expect(await until(() => row()?.snapshot === expected!.text, 10_000)).toBe(true);
     expect(row()?.contentSha256).toBe(expected!.sha256);
     expect(row()?.kind).toBe(INPUT_MAP_KIND);
+    expect(JSON.parse(row()!.snapshot!)).toEqual(merged);
+  });
+});
+
+describe("a scene-list asset doc through the real server", () => {
+  const stores = memoryEngineStores();
+  let server: SyncServer;
+  const clients: EngineClient[] = [];
+
+  const SEED: SceneListFile = {
+    kind: SCENE_LIST_KIND,
+    v: 1,
+    start: "yard",
+    scenes: [
+      { scene: "yard", title: "Yard" },
+      { scene: "result" },
+      { scene: "cellar", sublevel: true },
+    ],
+  };
+
+  beforeAll(async () => {
+    server = await startServer({
+      port: 0,
+      secret: SECRET,
+      ...stores.options,
+      instanceId: "project-converge-scene-list",
+      telemetry: quiet,
+      debounceMs: 100,
+      maxDebounceMs: 400,
+    });
+  });
+
+  afterAll(async () => {
+    for (const client of clients) client.destroy();
+    await server?.stop(3000);
+  });
+
+  // Client docs come from the service's yjs: read them through their bytes,
+  // and write them by their Y types, as a provider's client does.
+  const valueOf = (doc: Y.Doc) =>
+    assetDocValue(Y.encodeStateAsUpdate(doc)) as unknown as SceneListFile;
+  const content = (doc: Y.Doc) => doc.getMap<unknown>(CONTENT_MAP);
+  const scenesOf = (doc: Y.Doc) => content(doc).get("scenes") as Y.Map<Y.Map<unknown>>;
+  /** The list's entries in order, `(z, key)`, as the layout reads them. */
+  const ordered = (doc: Y.Doc) =>
+    [...scenesOf(doc).entries()]
+      .map(([key, entry]) => ({ key, entry, z: String(entry.get(KEYED_Z)) }))
+      .sort(compareZ);
+  const itemOf = (doc: Y.Doc, scene: string) =>
+    ordered(doc)
+      .map((e) => e.entry)
+      .find((entry) => (entry.get(KEYED_ITEM) as Y.Map<unknown>).get("scene") === scene)!;
+
+  it("seeds once, merges two clients' edits and snapshots the canonical text", async () => {
+    const projectId = newProjectId();
+    createMemoryProject(
+      stores,
+      {
+        ...emptyProjectState(projectId, "Ford"),
+        assets: { list: entry("list", { kind: SCENE_LIST_KIND, path: "scene-list.json" }) },
+      },
+      { list: JSON.stringify(SEED) },
+    );
+    const docId = `${projectId}.list`;
+    const [a, b] = ["alice", "bob"].map((user) => connectAsset(server.port, docId, user));
+    clients.push(a!, b!);
+    expect(await synced(a!)).toBe(true);
+    expect(await synced(b!)).toBe(true);
+
+    expect(valueOf(a!.doc)).toEqual(SEED);
+    expect(Y.encodeStateVector(a!.doc)).toEqual(Y.encodeStateVector(b!.doc));
+    expect(a!.doc.getMap("meta").get("kind")).toBe(SCENE_LIST_KIND);
+
+    // Concurrent: one client lists a new scene at the end and retitles one;
+    // the other moves the result scene first and starts there.
+    a!.doc.transact(() => {
+      const zs = ordered(a!.doc).map((e) => e.z);
+      const entry = new Y.Map<unknown>();
+      const item = new Y.Map<unknown>();
+      item.set("scene", "ford");
+      item.set("title", "Ford");
+      entry.set(KEYED_Z, assignZ([...zs, undefined]).at(-1)!);
+      entry.set(KEYED_ITEM, item);
+      scenesOf(a!.doc).set("a-ford", entry);
+      (itemOf(a!.doc, "yard").get(KEYED_ITEM) as Y.Map<unknown>).set("title", "Court");
+    });
+    b!.doc.transact(() => {
+      const zs = ordered(b!.doc).map((e) => e.z);
+      itemOf(b!.doc, "result").set(KEYED_Z, assignZ([undefined, ...zs])[0]!);
+      content(b!.doc).set("start", "result");
+    });
+
+    const live = () => server.hocuspocus.documents.get(`asset:${docId}`)!;
+    const texts = () => [a!.doc, b!.doc, live()].map((doc) => JSON.stringify(valueOf(doc)));
+    expect(
+      await until(() => {
+        const [first, ...rest] = texts();
+        return (
+          rest.every((t) => t === first) &&
+          valueOf(a!.doc).start === "result" &&
+          valueOf(b!.doc).scenes.length === 4
+        );
+      }, 10_000),
+    ).toBe(true);
+
+    const merged = valueOf(a!.doc);
+    expect(merged).toEqual({
+      ...SEED,
+      start: "result",
+      scenes: [
+        { scene: "result" },
+        { scene: "yard", title: "Court" },
+        { scene: "cellar", sublevel: true },
+        { scene: "ford", title: "Ford" },
+      ],
+    });
+
+    // An engine kind: the service formats the snapshot itself, as the engine does.
+    const expected = await assetSnapshotOf(a!.doc);
+    expect(expected?.text).toBe(formatAssetDoc(sceneListKind, merged));
+    expect(await assetSnapshotOf(b!.doc)).toEqual(expected);
+
+    a!.destroy();
+    b!.destroy();
+    const row = () => stores.assets.rows.get(docId);
+    expect(await until(() => row()?.snapshot === expected!.text, 10_000)).toBe(true);
+    expect(row()?.contentSha256).toBe(expected!.sha256);
+    expect(row()?.kind).toBe(SCENE_LIST_KIND);
     expect(JSON.parse(row()!.snapshot!)).toEqual(merged);
   });
 });

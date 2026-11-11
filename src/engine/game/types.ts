@@ -15,6 +15,7 @@ import type { RuntimeNav } from "../runtime/nav";
 import type { PoseIndex } from "../runtime/poses";
 import type { SpaceQuery } from "../runtime/space";
 import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
+import type { SaveStore } from "../saves/store";
 import type { AnalogSet, ScriptPointer } from "../scene/input-script";
 import type { SceneLayerDef } from "../scene/layers";
 import type {
@@ -50,10 +51,21 @@ import type {
   BehaviorSystem,
   RegisteredBehavior,
 } from "./behaviors";
+import type { FlowRequest, SublevelInfo, SublevelOptions, SublevelResult } from "./flow";
 import type { PadAxis, PadButton, PointerButton } from "./input-codes";
+import type { SaveDepth, SaveGameData, SaveLimits } from "./save-file";
 import type { ResolvedTime, TimeModel } from "./time";
 
 export type { ResolvedTime, RuntimeGrid, RuntimeNav };
+
+/** Plain JSON: what persistent state, saves and snapshots hold. */
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 
 // ─── Primitives ──────────────────────────────────────────
 
@@ -176,7 +188,46 @@ export interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
   disable?(id: string): void;
   /** Simulate `id` again. Without it the runtime spawns it again from its record, state reset. */
   enable?(id: string): void;
+  /** Per-entity state beyond the pose that a world save needs (a path's progress); undefined for none. */
+  save?(id: string): JsonValue | undefined;
+  /** Puts back what `save` returned, after the entity was spawned again from its scene or record. */
+  restore?(id: string, state: JsonValue): void;
 }
+
+/** A save game code asked for; the host writes it after the tick, and the result is a host event. */
+export type SaveRequest = { slot: string; depth?: SaveDepth; title?: string };
+
+/** `EngineContext.flow`: the scene the runtime plays, requests to change it, and sublevels beside it. */
+export type FlowContext = {
+  /** The loaded main scene's id; null for a scene loaded without a scene library (bare tests). */
+  readonly scene: AssetId | null;
+  /** The entry the request that loaded this scene named, or null. */
+  readonly entry: string | null;
+  /**
+   * Applied by the host after this tick ends. The first request since the
+   * host last took them wins; later ones are dropped with a dev warning.
+   */
+  request(req: FlowRequest): void;
+  /** Loads a listed scene's entities beside the main scene, now, with ids `<label>:<id>`. */
+  attach(scene: AssetId, opts: SublevelOptions): SublevelResult;
+  /** Destroys a sublevel's entities, and the spawns made for it, at the tick's destroy flush. */
+  detach(label: string): void;
+  sublevels(): readonly SublevelInfo[];
+};
+
+/** `EngineContext.persist`: one JSON value that outlives scene loads within one game instance. */
+export type PersistContext = {
+  /** Deep-frozen; the same object until `set`. */
+  readonly value: JsonValue;
+  /** Replaces the value now. */
+  set(next: JsonValue): void;
+};
+
+/** `EngineContext.saves`: asks the host to save; never answers inside the simulation. */
+export type SavesContext = {
+  /** Saves `slot` after this tick; whether it worked arrives only as a host event (`save:written`, `save:failed`). */
+  request(slot: string, opts?: { depth?: SaveDepth; title?: string }): void;
+};
 
 /** Everything a scene system or a game's runtime hooks need, scoped to one runtime. */
 export type EngineContext = {
@@ -281,6 +332,11 @@ export type EngineContext = {
   contacts: Contacts;
   /** Each seat's actions and pointer this tick, derived from the tick's input, so a replay rebuilds it exactly. */
   input: InputState;
+  /** The main scene, requests for the next one, and sublevels. */
+  flow: FlowContext;
+  /** State that survives scene changes (`GameDefinition.persist`); its value is null when the game declares none. */
+  persist: PersistContext;
+  saves: SavesContext;
 };
 
 // ─── Lifecycle ───────────────────────────────────────────
@@ -293,6 +349,8 @@ export type SpawnInput = {
   type: EntityTypeName;
   /** `<name>#<label>`, the label not all digits; omitted, the next `<type>#<n>`. */
   id?: string;
+  /** A sublevel's label: the spawn is destroyed with that sublevel's detach. */
+  sublevel?: string;
   [field: string]: unknown;
 };
 
@@ -718,6 +776,8 @@ export type GameRuntime<S = unknown> = {
   afterStep?(dtMs: number, events: readonly StepEvent[]): void;
   /** What `StepResult.game` and `ProbeReport.final` carry; plain JSON. */
   snapshot(): S;
+  /** Rebuilds the game's state from `snapshot()` output; any save needs it to restore game state. */
+  restore?(state: S): void;
   /** Where the shell's camera follows; `null` keeps it still. */
   cameraTarget?(): Vec2 | null;
   /** The game's slice of the shell's store, read once per tick. Return the same object when nothing changed. */
@@ -751,15 +811,16 @@ export type CommandDef = {
 
 /**
  * Run results the engine decides itself; a game declares the rest in
- * `play.results`. `quit` is a browser run stopped before any outcome.
+ * `play.results`. `quit` is a browser run stopped before any outcome;
+ * `flow` is a run that ended on a scene change it didn't follow.
  */
-export const ENGINE_RUN_RESULTS = ["timeout", "script-end", "stuck", "quit"] as const;
+export const ENGINE_RUN_RESULTS = ["timeout", "script-end", "stuck", "quit", "flow"] as const;
 export type EngineRunResult = (typeof ENGINE_RUN_RESULTS)[number];
 /** How a run ended: an engine result, or one the game declares (`won`, `died`). */
 export type RunResult = EngineRunResult | (string & {});
 
 /** `until` predicates the engine provides; a game's predicates can't take these names. */
-export const ENGINE_PREDICATES = ["event", "tick", "exists", "count"] as const;
+export const ENGINE_PREDICATES = ["event", "tick", "exists", "count", "scene", "persist"] as const;
 
 /** What a game's outcome hook and script predicates see after each tick. */
 export type PlayState<S = unknown> = {
@@ -770,6 +831,8 @@ export type PlayState<S = unknown> = {
   events: readonly StepEvent[];
   /** The live world after the tick: whether an entity exists (and is enabled), and how many match. */
   world: PlayWorld;
+  /** The persistent value after the tick (`EngineContext.persist`); absent where the host doesn't track it. */
+  persist?: JsonValue;
 };
 
 /** What `PlayState.world` answers about the entities live after a tick. */
@@ -777,6 +840,14 @@ export type PlayWorld = {
   /** True while `id` exists and is enabled; with `enabled: false`, while it exists at all. */
   exists(id: string, opts?: { enabled?: boolean }): boolean;
   count(sel: EntitySelector): number;
+  /** Live entities in spawn order (`EngineContext.query.select`); absent where the host doesn't build the world with `playWorld`. */
+  select?(sel?: EntitySelector): readonly string[];
+  /** A live entity (`EngineContext.get`); absent as `select` is. */
+  get?(id: string): RuntimeEntity | undefined;
+  /** The loaded scene's grid (`EngineContext.grid`), null without one; absent as `select` is. */
+  readonly grid?: RuntimeGrid | null;
+  /** The run's project view (`EngineContext.project`), null without one; absent as `select` is. */
+  readonly project?: ProjectRuntimeView | null;
 };
 
 /** A game's verdict: one of its declared `results`, with what caused it. */
@@ -966,6 +1037,30 @@ export type GameDefinition<S = unknown, G = unknown> = {
   layers?: readonly SceneLayerDef[];
   /** The game's resolution policy, under the project's and the host's. */
   resolution?: Partial<ResolutionPolicy>;
+  /** State that survives every scene change within one instance (`EngineContext.persist`). */
+  persist?: GamePersistDef;
+  /** The game's save data version, its migrations, limits and own backend. */
+  saves?: GameSavesDef;
+};
+
+/** `GameDefinition.persist`. */
+export type GamePersistDef = {
+  /** The value a new game starts with; also what `flow.restart()` resets to. */
+  initial: () => JsonValue;
+  /** Checked on `set` in dev and headless, and on a save's load. */
+  schema?: z.ZodType;
+};
+
+/** `GameDefinition.saves`. */
+export type GameSavesDef = {
+  /** The game's save-data version; bump it and add a migration when `snapshot()` or `persist` changes shape. */
+  version: number;
+  /** Keyed by the version each migrates from, to that version + 1. */
+  migrations?: Readonly<Record<number, (data: SaveGameData) => SaveGameData>>;
+  /** Raises or lowers the engine defaults; the browser stores cap at `MAX_BROWSER_SAVE_LIMITS`. */
+  limits?: Partial<SaveLimits>;
+  /** The game's own save backend: wins over the host's and the browser's. */
+  store?: () => SaveStore;
 };
 
 /** A game's world defaults (`GameDefinition.world`). */

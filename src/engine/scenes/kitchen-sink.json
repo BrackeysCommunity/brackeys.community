@@ -11,7 +11,7 @@
   },
   "instances": [
     { "id": "post-1", "prefab": "post", "at": [16.4, 11.6] },
-    { "id": "post-2", "prefab": "post", "at": [17.6, 11.6] },
+    { "id": "post-2", "prefab": "post", "at": [17.6, 11.6], "params": { "mark": "peak" } },
     { "id": "gate-1", "prefab": "gate", "at": [19.8, 11.6] },
     { "id": "gate-2", "prefab": "gate", "at": [22, 11.6], "overrides": { "bar.oneWay": true } },
     { "id": "room-1", "prefab": "room", "at": [27.2, 9], "params": { "doorSpeed": 0.6 } },

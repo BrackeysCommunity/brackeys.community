@@ -41,9 +41,9 @@ export type BoardView = {
   unitAt(cell: Cell): string | null;
   /** Cells the unit may move to this turn, its own excluded; [] once it moved. */
   reach(id: string): readonly Cell[];
-  /** Cells it strikes from where it stands, by grid distance; walls excluded. */
+  /** Cells it strikes from where it stands, by the rules' strike test (range, and sight for a class that needs it); walls excluded. */
   attackCells(id: string): readonly Cell[];
-  /** Enemies in those cells, in id order. */
+  /** Enemies in those cells, in id order: the only targets the HUD offers. */
   targets(id: string): readonly string[];
   /** Cells none of the player's units can see. */
   fog(): readonly Cell[];
@@ -237,6 +237,7 @@ function order(s: CursorState, o: Order | "wait" | "end-turn", v: BoardView): Cu
   if (s.unit === null || !v.canAct(s.unit)) return keep(s);
   if (o === "wait") return sent(s, { name: "wait", args: { unit: s.unit } }, s.unit);
   if (o === "move" && v.reach(s.unit).length === 0) return keep(s);
+  if (o === "attack" && v.targets(s.unit).length === 0) return keep(s);
   return keep({ ...s, mode: "selected", order: o, command: null, targetCell: null });
 }
 
@@ -252,6 +253,7 @@ function resync(s: CursorState, v: BoardView): CursorState {
   if (s.unit === null || !v.canOrder() || !v.canAct(s.unit)) return idle(s);
   let next = s;
   if (next.order === "move" && v.reach(s.unit).length === 0) next = { ...next, order: null };
+  if (next.order === "attack" && v.targets(s.unit).length === 0) next = { ...next, order: null };
   if (next.mode === "target" && next.targetCell) {
     const still = candidate(v, s.unit, next.order, next.targetCell);
     if (!still || JSON.stringify(still) !== JSON.stringify(next.command))

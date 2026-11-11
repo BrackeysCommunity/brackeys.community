@@ -1,0 +1,13 @@
+{
+  "$schema": "../../engine/project/scene-list.schema.json",
+  "kind": "scene-list",
+  "v": 1,
+  "start": "menu",
+  "scenes": [
+    { "scene": "menu", "title": "Title" },
+    { "scene": "level-1", "title": "Ford" },
+    { "scene": "level-2", "title": "Bridge" },
+    { "scene": "result" },
+    { "scene": "cellar", "sublevel": true }
+  ]
+}

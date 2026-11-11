@@ -1,7 +1,7 @@
 import { ticksFor, ticksIn } from "../game/time";
-import type { EngineContext } from "../game/types";
+import type { EngineContext, JsonValue } from "../game/types";
 import { sameCell, type Cell } from "../grid/geometry";
-import type { MotionBody } from "./body";
+import { saveRegistryOf, type MotionBody } from "./body";
 
 /** Moves an entity cell to cell, one neighbour at a time. */
 export interface GridStepper {
@@ -15,13 +15,36 @@ export interface GridStepper {
 
 type Step = { from: Cell; to: Cell; ticks: number; done: number };
 
+const isCell = (c: JsonValue | undefined): c is [number, number] =>
+  Array.isArray(c) && c.length === 2 && c.every((n) => Number.isInteger(n));
+
+/** The `grid-step` owner's state in a world save: the cell it stands in (or steps to) and the step under way. */
+function readSaved(state: JsonValue): { cell: Cell; step: Step | null } | null {
+  if (typeof state !== "object" || state === null || Array.isArray(state)) return null;
+  const { cell, step } = state;
+  if (!isCell(cell)) return null;
+  if (step === undefined || step === null) return { cell: [cell[0], cell[1]], step: null };
+  if (typeof step !== "object" || Array.isArray(step)) return null;
+  const { from, ticks, done } = step;
+  if (!isCell(from) || !Number.isInteger(ticks) || !Number.isInteger(done)) return null;
+  const total = ticks as number;
+  const progress = done as number;
+  if (total <= 0 || progress < 0 || progress >= total) return null;
+  return {
+    cell: [cell[0], cell[1]],
+    step: { from: [from[0], from[1]], to: [cell[0], cell[1]], ticks: total, done: progress },
+  };
+}
+
 /**
  * A stepper for `entityId` on the loaded scene's grid, standing on `start`'s
  * centre. Each step takes `ticksFor(msPerStep, ctx.time)` ticks, writes the
  * entity's pose every tick (moving `body` along with it when given) and ends
  * exactly on the target's centre. With `occupy`, the entity stands in
  * `ctx.grid.occupancy` and a step moves it to its target as the step
- * starts. Without a grid nothing moves and every step is refused.
+ * starts. Without a grid nothing moves and every step is refused. A world
+ * save keeps the cell, the step under way and its reservation; the pose is
+ * the runtime's (and the body's) to put back.
  */
 export function createGridStepper(
   ctx: EngineContext,
@@ -48,6 +71,21 @@ export function createGridStepper(
     moveTo(x, y, true);
     if (occupy) grid.occupancy.place(entityId, cell);
   }
+
+  saveRegistryOf(ctx)?.register(entityId, "grid-step", {
+    save(): JsonValue {
+      if (!current) return { cell: [cell[0], cell[1]] };
+      const { from, ticks, done } = current;
+      return { cell: [cell[0], cell[1]], step: { from: [from[0], from[1]], ticks, done } };
+    },
+    restore(state) {
+      const saved = readSaved(state);
+      if (!saved) return;
+      cell = saved.cell;
+      current = saved.step;
+      if (occupy) ctx.grid?.occupancy.place(entityId, cell);
+    },
+  });
 
   return {
     cell: () => cell,

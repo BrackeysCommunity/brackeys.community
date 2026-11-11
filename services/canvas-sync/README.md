@@ -79,7 +79,10 @@ kind, or is project-scoped (below); any other prefix is refused at
 
 Close codes (in `src/lib/canvas/sync-channels.ts`; Hocuspocus carries them at the
 front of the close reason): `4401` bad token (retry with a fresh one), `4403`
-revoked, `4413` too large (stop), `4429` rate or caps (back off).
+revoked, `4409` seed-stale (the client's copy came from another seed, the row
+was reseeded: the server refuses it before syncing, and the editor reopens its
+project session from the server's state), `4413` too large (stop), `4429` rate
+or caps (back off).
 
 ## Scenes
 

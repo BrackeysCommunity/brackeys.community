@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { createHash } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,9 +7,10 @@ import { fileURLToPath } from "node:url";
 
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import { docToScene, readLog, readProject, readProjectLog } from "@jams/engine/collab";
-import { defineGame } from "@jams/engine/game";
+import { createRegistry, defineGame, formatSaveFile } from "@jams/engine/game";
+import { createHeadlessRuntime } from "@jams/engine/headless";
 import { docNameOf } from "@jams/engine/project";
-import { SCENE_FORMAT_VERSION } from "@jams/engine/scene";
+import { expandScene, SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { listenSceneCollab, readFileProject, type ListeningSceneCollab } from "@jams/engine/vite";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -20,8 +22,15 @@ import { platformerGame } from "../../../src/games/platformer";
 import type { ToolContext } from "../context";
 import { AGENT_SITE_ENV, AGENT_TOKEN_ENV } from "../hosted";
 import { createSceneMcpServer, MCP_SERVER_NAME } from "../mcp";
-import { DEFAULT_MCP_AGENT_ID, MCP_TOOL_NAMES, MCP_TOOLS, runMcpTool } from "../mcp-tools";
+import {
+  DEFAULT_MCP_AGENT_ID,
+  MCP_TOOL_NAMES,
+  MCP_TOOLS,
+  runMcpTool,
+  toMcpResult,
+} from "../mcp-tools";
 import { loadCompatRapier } from "../rapier-compat";
+import { flow as flowTool } from "../tools/flow";
 import { tempProject } from "./fixtures";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
@@ -92,6 +101,7 @@ describe("scene MCP server", () => {
       "scene_check",
       "scene_codes",
       "scene_diff",
+      "scene_flow",
       "scene_fuzz",
       "scene_list",
       "scene_playtest",
@@ -984,6 +994,292 @@ describe("input v2", () => {
       message: expect.stringContaining('unknown key code "Spcae"'),
     });
     expect(await fire()).toHaveLength(2);
+  });
+});
+
+type HopSnap = { scene: string | null; x: number; trips: number };
+
+/** Holding `right` counts up `x`; `go` requests a scene and counts the trip in persistent state. */
+const hopGame = defineGame<HopSnap>({
+  id: "flow-hop",
+  types: [],
+  actions: [{ action: "right", keys: ["d"], description: "Counts up." }],
+  world: { physics: "none" },
+  time: { kind: "fixed" },
+  persist: {
+    initial: () => ({ trips: 0 }),
+    schema: z.strictObject({ trips: z.number().int().min(0) }),
+  },
+  saves: { version: 1 },
+  commands: {
+    go: { description: "Requests a scene.", args: z.strictObject({ to: z.string() }) },
+  },
+  createRuntime(ctx) {
+    let x = 0;
+    const trips = () => (ctx.persist.value as { trips: number }).trips;
+    return {
+      onLoad() {
+        x = 0;
+      },
+      beforeStep(_dt, _actions, commands) {
+        if (ctx.input.held("right")) x++;
+        for (const c of commands)
+          if (c.name === "go")
+            ctx.flow.request({
+              to: (c.args as { to: string }).to,
+              persist: { trips: trips() + 1 },
+            });
+      },
+      snapshot: () => ({ scene: ctx.flow.scene, x, trips: trips() }),
+      restore(state) {
+        x = state.x;
+      },
+    };
+  },
+});
+
+describe("scene flow and saves", () => {
+  let hop: Client;
+  let dir: string;
+  let ctx: ToolContext;
+  const callHop = async (name: string, args: Record<string, unknown>) =>
+    (await hop.callTool({ name, arguments: args })) as Called;
+  const hopScene = (name: string) =>
+    JSON.stringify({
+      v: SCENE_FORMAT_VERSION,
+      name,
+      game: hopGame.id,
+      bounds: [0, 0, 10, 6],
+      entities: [{ id: "start", type: "marker", at: [1, 1] }],
+    });
+  const listFile = async () => JSON.parse(await readFile(join(dir, "scene-list.json"), "utf8"));
+  const editList = (...edits: object[]) => ({
+    v: 1,
+    ops: [{ op: "editAsset", id: "scene-list", edits }],
+  });
+  const GO_THEN_RIGHT = {
+    v: 2,
+    steps: [
+      { command: "go", args: { to: "level" } },
+      { hold: ["right"], for: 3 },
+    ],
+  };
+
+  beforeAll(async () => {
+    dir = join(root, hopGame.id);
+    await mkdir(dir);
+    for (const name of ["menu", "level", "vault"])
+      await writeFile(join(dir, `${name}.json`), hopScene(name));
+    ctx = {
+      projects: [await tempProject(dir, { game: hopGame })],
+      loadRapier: () => Promise.reject(new Error("a physics-free tool loaded Rapier")),
+    };
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await createSceneMcpServer(ctx).connect(serverSide);
+    hop = new Client({ name: "scene-mcp-flow-test", version: "0" });
+    await hop.connect(clientSide);
+  });
+
+  afterAll(async () => {
+    await hop.close();
+  });
+
+  it("describes scene_flow, the playtest's flow and fromSave, and scene-list edits", async () => {
+    const { tools } = await client.listTools();
+    const tool = (name: string) => tools.find((t) => t.name === name)!;
+    expect(tool("scene_flow").description).toMatch(/scene list as data/);
+    expect(tool("scene_flow").description).toContain("`unlisted`");
+    expect(tool("scene_flow").inputSchema.properties).toHaveProperty("project");
+    const props = tool("scene_playtest").inputSchema.properties as Record<string, object>;
+    expect(props.flow).toMatchObject({ type: "boolean" });
+    expect(props.fromSave).toBeDefined();
+    expect(tool("scene_playtest").description).toContain("`segments`");
+    const assets = tool("asset_apply_ops").description!;
+    for (const code of ["start-scene-missing", "id-taken", "asset-missing"])
+      expect(assets).toContain(code);
+  });
+
+  it("asset_apply_ops writes and edits the scene list through its kind", async () => {
+    const created = await callHop("asset_apply_ops", {
+      ops: {
+        v: 1,
+        ops: [
+          {
+            op: "createAsset",
+            kind: "scene-list",
+            path: "scene-list.json",
+            content: {
+              kind: "scene-list",
+              v: 1,
+              start: "menu",
+              scenes: [{ scene: "menu", title: "Menu" }],
+            },
+          },
+        ],
+      },
+      dryRun: false,
+    });
+    expect(created.structuredContent, JSON.stringify(created.structuredContent)).toMatchObject({
+      exitCode: 0,
+      written: true,
+    });
+
+    const listLevel = editList({ insert: "/scenes", value: { scene: "level", title: "Level 1" } });
+    const planned = await callHop("asset_apply_ops", { ops: listLevel });
+    expect(planned.structuredContent).toMatchObject({ exitCode: 0, written: false });
+    expect((await listFile()).scenes).toHaveLength(1);
+    const listed = await callHop("asset_apply_ops", { ops: listLevel, dryRun: false });
+    expect(listed.structuredContent, JSON.stringify(listed.structuredContent)).toMatchObject({
+      exitCode: 0,
+      written: true,
+    });
+    expect(await listFile()).toMatchObject({
+      start: "menu",
+      scenes: [
+        { scene: "menu", title: "Menu" },
+        { scene: "level", title: "Level 1" },
+      ],
+    });
+
+    const sublevel = await callHop("asset_apply_ops", {
+      ops: editList({ insert: "/scenes", value: { scene: "vault", sublevel: true } }),
+      dryRun: false,
+    });
+    expect(sublevel.structuredContent).toMatchObject({ exitCode: 0, written: true });
+    for (const [edit, code] of [
+      [{ set: "/start", value: "vault" }, "start-scene-missing"],
+      [{ set: "/start", value: "attic" }, "start-scene-missing"],
+      [{ insert: "/scenes", value: { scene: "menu" } }, "id-taken"],
+    ] as const) {
+      const refused = await callHop("asset_apply_ops", { ops: editList(edit), dryRun: false });
+      expect(refused.structuredContent, JSON.stringify(edit)).toMatchObject({
+        exitCode: 1,
+        written: false,
+        issue: { code },
+      });
+    }
+    expect(await listFile()).toMatchObject({ start: "menu" });
+    expect((await listFile()).scenes).toHaveLength(3);
+
+    const nowhere = await callHop("asset_apply_ops", {
+      ops: editList({ insert: "/scenes", value: { scene: "nowhere" } }),
+      dryRun: false,
+    });
+    expect(nowhere.structuredContent).toMatchObject({ exitCode: 0, written: true });
+    const dangling = await callHop("asset_refs", {});
+    expect(dangling.structuredContent).toMatchObject({
+      exitCode: 1,
+      dangling: [{ code: "asset-missing" }],
+    });
+    const unlisted = await callHop("asset_apply_ops", {
+      ops: editList({ remove: "/scenes/@nowhere" }),
+      dryRun: false,
+    });
+    expect(unlisted.structuredContent).toMatchObject({ exitCode: 0, written: true });
+    expect((await callHop("asset_refs", {})).structuredContent).toMatchObject({
+      exitCode: 0,
+      dangling: [],
+    });
+    expect((await listFile()).scenes.map((e: { scene: string }) => e.scene)).toEqual([
+      "menu",
+      "level",
+      "vault",
+    ]);
+  });
+
+  it("scene_flow hands back the CLI's scene flow as data", async () => {
+    const called = await callHop("scene_flow", {});
+    const cli = await flowTool({}, { ...ctx, project: hopGame.id });
+    expect(cli.exitCode, cli.text).toBe(0);
+    expect(called.isError).toBe(false);
+    expect(called.structuredContent).toEqual(toMcpResult(cli).structuredContent);
+    expect(called.structuredContent).toMatchObject({
+      projects: [
+        {
+          project: hopGame.id,
+          list: { path: "scene-list.json" },
+          start: "menu",
+          scenes: [
+            { scene: "menu", title: "Menu", start: true, physics: "none" },
+            { scene: "level", title: "Level 1", start: false, physics: "none" },
+            { scene: "vault", sublevel: true, physics: "none" },
+          ],
+          unlisted: [],
+        },
+      ],
+    });
+    const scenes = (called.structuredContent.projects as { scenes: { bundle: object }[] }[])[0]!
+      .scenes;
+    for (const row of scenes) expect(row.bundle).toMatchObject({ bytes: expect.any(Number) });
+  });
+
+  it("scene_playtest ends at a scene request, or follows it with flow", async () => {
+    const stopped = await callHop("scene_playtest", { scene: "menu", script: GO_THEN_RIGHT });
+    expect(stopped.structuredContent, JSON.stringify(stopped.structuredContent)).toMatchObject({
+      exitCode: 0,
+      outcome: { result: "flow" },
+      recording: { next: { scene: "level" } },
+    });
+    expect(stopped.structuredContent).not.toHaveProperty("segments");
+
+    const followed = await callHop("scene_playtest", {
+      scene: "menu",
+      script: GO_THEN_RIGHT,
+      flow: true,
+    });
+    expect(followed.structuredContent, JSON.stringify(followed.structuredContent)).toMatchObject({
+      exitCode: 0,
+      outcome: { result: "script-end" },
+      final: { scene: "level", x: 3, trips: 1 },
+      segments: [
+        { scene: "menu", end: { result: "flow", to: "level" } },
+        { scene: "level", end: { result: "script-end" } },
+      ],
+    });
+  });
+
+  it("scene_playtest starts from a save fixture, by path or inline", async () => {
+    const registry = createRegistry(hopGame);
+    const runtime = createHeadlessRuntime({
+      game: hopGame,
+      registry,
+      scene: expandScene(JSON.parse(hopScene("level")), registry),
+    });
+    for (let tick = 0; tick < 5; tick++)
+      runtime.step(runtime.ctx.time.tickMs, [
+        { action: "right", pressed: true, tick, timestamp: 0 },
+      ]);
+    expect(runtime.snapshot()).toMatchObject({ x: 5 });
+    const saved = runtime.save({ depth: "world", slot: "fixture", now: 0 });
+    runtime.destroy();
+    if (!saved.ok) throw new Error(saved.issue.message);
+    const text = formatSaveFile(saved.file);
+    const file = join(root, "level.save.json");
+    await writeFile(file, text);
+    const sha256 = createHash("sha256").update(text).digest("hex");
+    const script = { v: 2, steps: [{ hold: ["right"], for: 2 }] };
+
+    const fresh = await callHop("scene_playtest", { scene: "level", script });
+    expect(fresh.structuredContent).toMatchObject({ final: { x: 2 } });
+    expect(fresh.structuredContent.recording).not.toHaveProperty("fromSave");
+
+    const resumed = await callHop("scene_playtest", { scene: "level", script, fromSave: file });
+    expect(resumed.structuredContent, JSON.stringify(resumed.structuredContent)).toMatchObject({
+      exitCode: 0,
+      final: { x: 7 },
+      recording: { fromSave: { slot: "fixture", sha256 } },
+    });
+
+    const inline = await callHop("scene_playtest", {
+      scene: "level",
+      script,
+      fromSave: JSON.parse(text),
+    });
+    expect(inline.structuredContent, JSON.stringify(inline.structuredContent)).toMatchObject({
+      exitCode: 0,
+      final: { x: 7 },
+      recording: { fromSave: { slot: "fixture" } },
+    });
   });
 });
 

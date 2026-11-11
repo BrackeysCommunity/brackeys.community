@@ -61,44 +61,46 @@ tactics game's: a turn game on a grid, driven by commands) and `engine-yard`
 
 ## Commands
 
-| Command                                                                                                                                                                                                                                   | Writes                   | What it returns                                                                                                                                                                                                                              |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list`                                                                                                                                                                                                                                    | no                       | every scene with its `game`, `sceneHash`, issue counts, entity counts per type and bounds, `clashes`                                                                                                                                         |
-| `show <scene\|file\|-> [--ref id] [--type t] [--near x,y,r]`                                                                                                                                                                              | no                       | entities and bulk entries with their ref, type, raw shape, world AABB and top span, plus `sceneHash`, the time model and the physics backend                                                                                                 |
-| `schema [scene\|ops\|script\|checks\|recording\|fragment\|prefab\|project\|asset-sidecar\|project-ops\|project-snapshot\|material\|game-settings\|data-table\|<doc kind>] [--game id]`                                                    | no                       | a JSON Schema the engine serves (`urn:jams-engine:<kind>[:<game>]:v<n>`): a game's scene, ops, script, checks, fragment, prefab and doc kinds; the recording and project schemas                                                             |
-| `codes`                                                                                                                                                                                                                                   | no                       | `agentSurface` and every issue code with its severity, summary, hint and fixability, grouped by owner                                                                                                                                        |
-| `validate <scene\|file\|-> [--physical]`                                                                                                                                                                                                  | no                       | `SceneIssue[]` with JSON Pointer paths and line numbers; `--physical` adds the physics world's; exit 1 on errors                                                                                                                             |
-| `fmt [asset] [--check]`                                                                                                                                                                                                                   | yes, unless check        | rewrites a doc asset (or every one) in its kind's canonical form; `--check` exits 1 when one isn't canonical                                                                                                                                 |
-| `apply <scene> --ops <file\|-> [--dry-run] [--base hash] [--live …]`                                                                                                                                                                      | yes, unless dry run      | the `ApplyResult`: diff, inverse, created ids, ref remap, issues and the new `sceneHash`                                                                                                                                                     |
-| `diff <a> (<b> \| --git <rev> \| --ops <file\|->)`                                                                                                                                                                                        | no                       | `changes`: what changed from the first side to the second, entity by entity                                                                                                                                                                  |
-| `new <name> [--game id] [--from scene]`                                                                                                                                                                                                   | yes                      | writes a new scene from the game's template, or a copy of `--from` under the new name, as a `createAsset` (an id or path another asset holds is refused)                                                                                     |
-| `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]] [--elapse tick:ms] [--events type,…] [--game id] [--legal]`                                                                           | no                       | a headless probe: events by entity id, spawns and destroys per type, the game's final snapshot, runtime stats; `--command` and `--elapse` repeat; `--legal` lists the commands legal after the last tick ([Legal commands](#legal-commands)) |
-| `grid <scene> [--from c,r\|ref] [--to c,r\|ref] [--fov c,r:radius] [--diagonals]`                                                                                                                                                         | no                       | the scene's grid as text: walls, a path between two cells or entities, what a cell sees; exit 1 with no path; see [World models](#grids-and-connected)                                                                                       |
-| `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--events type,…] [--game id] [--record file]`                                                                                                                                   | with --record            | a headless run of a v1 or v2 input script (`--at` in metres): outcome, steps, events, spawns and destroys per type, focus trail, `recording`, and a `legal` count for a game that lists its commands; exit 1 when blocked                    |
-| `replay <scene\|file\|-> --run <file\|-> [--game id]`                                                                                                                                                                                     | no                       | replays a run recording (or a playtest report's) headless, with the recorded engine, physics and platform and `migratedFrom 1` for a v1 file; exit 1 when it ends differently                                                                |
-| `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id]`                                                                                                                                                                 | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second, and for a game that lists its commands how many it sent; takes no script                                                                    |
-| `input [--project p] [--player n] [--json]`                                                                                                                                                                                               | no                       | each seat's resolved bindings per action, layer by layer (the input map's, then the game's), which one the seat uses, and their issues; loads no Rapier; see [Input v2](#input-v2)                                                           |
-| `check <scene\|file> [--checks file] [--only id] [--game id]`                                                                                                                                                                             | no                       | runs `<scene>.checks.json`; each check passes, fails or is skipped; exit 1 when one fails                                                                                                                                                    |
-| `render <scene\|file\|-> [--out file] [--ascii] [view flags…]`                                                                                                                                                                            | with --out               | a schematic PNG or SVG of the scene, or `--ascii` a character map; see [Rendering](#rendering)                                                                                                                                               |
-| `textconv <file>`                                                                                                                                                                                                                         | no                       | a scene as one sorted line per header field, bulk entry and entity, for `git diff`                                                                                                                                                           |
-| `bundle <scene>`                                                                                                                                                                                                                          | no                       | the texture blobs a scene loads (sorted, deduplicated, with bytes and a total); `asset-missing` issues with a did-you-mean, exit 1 on them                                                                                                   |
-| `project show`                                                                                                                                                                                                                            | no                       | the project's id, name, game, live assets by kind, code modules, file problems and storage usage                                                                                                                                             |
-| `project tree`                                                                                                                                                                                                                            | no                       | folders, live assets and read-only code modules, as the editor's tree panel shows them                                                                                                                                                       |
-| `project refs [id]`                                                                                                                                                                                                                       | no                       | what an asset names and what names it; without an id, every dangling reference; exit 1 on dangling ones                                                                                                                                      |
-| `project snapshot [--out file\|-]`                                                                                                                                                                                                        | with --out               | every live asset pinned by SHA-256; its `hash` is what a file batch's `base` names                                                                                                                                                           |
-| `project pull <project> --url https://site [--out dir] [--check]`                                                                                                                                                                         | unless --check           | every file the hosted project changes (added, changed, removed); exit 1 with `--check` when one would                                                                                                                                        |
-| `project push <dir> --create --url https://site [--dry-run]`                                                                                                                                                                              | the site, unless dry run | the files, docs and uploads a new hosted project was seeded with; with `--dry-run`, the docs it would seed and the binaries it would upload                                                                                                  |
-| `assets list [--kind k] [--trash] [--live]`                                                                                                                                                                                               | no                       | each live (or trashed) asset: project, path, kind, id, key, name, bytes, hash                                                                                                                                                                |
-| `assets info <id> [--frame f]`                                                                                                                                                                                                            | no                       | an asset's kind, hash and bytes; a texture's size, pivot, nine-slice and filter; an atlas's frames, tags and texture; `--frame` for one frame's size and pivot                                                                               |
-| `assets import <file> [--path p] [--id id] [--kind k] [--settings json]`                                                                                                                                                                  | yes, unless dry run      | bytes to the content store, then `importAsset` (a doc kind's JSON: `createAsset`); the file, sidecar and entry                                                                                                                               |
-| `assets rename <id> [--name text] [--file name.ext]`                                                                                                                                                                                      | yes, unless dry run      | `renameAsset`: the display name and the file name in place; the id stays                                                                                                                                                                     |
-| `assets move <id...> --to <folder/>`                                                                                                                                                                                                      | yes, unless dry run      | `moveAsset`, sidecars included                                                                                                                                                                                                               |
-| `assets delete <id> [--force]`                                                                                                                                                                                                            | yes, unless dry run      | `deleteAsset` to the trash; `asset-in-use` while something names it, unless `--force`                                                                                                                                                        |
-| `assets restore <id>`                                                                                                                                                                                                                     | yes, unless dry run      | `restoreAsset` from the trash                                                                                                                                                                                                                |
-| `assets change-id <id> <new-id>`                                                                                                                                                                                                          | yes, unless dry run      | `changeAssetId`: the new id and every reference to it, in every doc, as one batch                                                                                                                                                            |
-| `assets set-import <id> --set <json\|key=value,…>`                                                                                                                                                                                        | yes, unless dry run      | `setImport` per field (`null` resets one); meta is re-inspected                                                                                                                                                                              |
-| `assets apply --ops <file\|->`                                                                                                                                                                                                            | yes, unless dry run      | any project op batch (`schema project-ops`), which may span docs                                                                                                                                                                             |
-| `game new <id> [--name "Title"] [--preset top-down\|grid\|turns] [--physics none\|rapier] [--gravity x,y] [--time fixed\|turns\|event] [--rate n] [--grid square\|hex\|none] [--cell n] [--px-per-metre n] [--dir src/games] [--dry-run]` | yes, unless dry run      | a new game project from a preset: its files, its scene's issues, the URLs that open it on the dev site and the playtest command; see [New games](#new-games)                                                                                 |
+| Command                                                                                                                                                                                                                                   | Writes                   | What it returns                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list`                                                                                                                                                                                                                                    | no                       | every scene with its `game`, `sceneHash`, issue counts, entity counts per type and bounds, `clashes`                                                                                                                                                                                                              |
+| `show <scene\|file\|-> [--ref id] [--type t] [--near x,y,r]`                                                                                                                                                                              | no                       | entities and bulk entries with their ref, type, raw shape, world AABB and top span, plus `sceneHash`, the time model and the physics backend                                                                                                                                                                      |
+| `schema [scene\|ops\|script\|checks\|recording\|fragment\|prefab\|project\|asset-sidecar\|project-ops\|project-snapshot\|save\|material\|game-settings\|data-table\|<doc kind>] [--game id]`                                              | no                       | a JSON Schema the engine serves (`urn:jams-engine:<kind>[:<game>]:v<n>`): a game's scene, ops, script, checks, fragment, prefab and doc kinds; the recording, project and save schemas                                                                                                                            |
+| `codes`                                                                                                                                                                                                                                   | no                       | `agentSurface` and every issue code with its severity, summary, hint and fixability, grouped by owner                                                                                                                                                                                                             |
+| `flow [--project p]`                                                                                                                                                                                                                      | no                       | each project's scene list: its start, every listed scene's title, sublevel tag, physics and bundle bytes, the scenes it leaves out, and its issues; exit 1 on an error; see [Flow](#flow)                                                                                                                         |
+| `validate <scene\|file\|-> [--physical]`                                                                                                                                                                                                  | no                       | `SceneIssue[]` with JSON Pointer paths and line numbers; `--physical` adds the physics world's; exit 1 on errors                                                                                                                                                                                                  |
+| `fmt [asset] [--check]`                                                                                                                                                                                                                   | yes, unless check        | rewrites a doc asset (or every one) in its kind's canonical form; `--check` exits 1 when one isn't canonical                                                                                                                                                                                                      |
+| `apply <scene> --ops <file\|-> [--dry-run] [--base hash] [--live …]`                                                                                                                                                                      | yes, unless dry run      | the `ApplyResult`: diff, inverse, created ids, ref remap, issues and the new `sceneHash`                                                                                                                                                                                                                          |
+| `diff <a> (<b> \| --git <rev> \| --ops <file\|->)`                                                                                                                                                                                        | no                       | `changes`: what changed from the first side to the second, entity by entity                                                                                                                                                                                                                                       |
+| `new <name> [--game id] [--from scene]`                                                                                                                                                                                                   | yes                      | writes a new scene from the game's template, or a copy of `--from` under the new name, as a `createAsset` (an id or path another asset holds is refused)                                                                                                                                                          |
+| `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]] [--elapse tick:ms] [--events type,…] [--game id] [--legal]`                                                                           | no                       | a headless probe: events by entity id, spawns and destroys per type, the game's final snapshot, runtime stats; `--command` and `--elapse` repeat; `--legal` lists the commands legal after the last tick ([Legal commands](#legal-commands))                                                                      |
+| `grid <scene> [--from c,r\|ref] [--to c,r\|ref] [--fov c,r:radius] [--diagonals]`                                                                                                                                                         | no                       | the scene's grid as text: walls, a path between two cells or entities, what a cell sees; exit 1 with no path; see [World models](#grids-and-connected)                                                                                                                                                            |
+| `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file]`                                                                                                       | with --record            | a headless run of a v1 or v2 input script (`--at` in metres): outcome, steps, events, spawns and destroys per type, focus trail, `recording`, and a `legal` count for a game that lists its commands; `--flow` follows scene requests (`segments`), `--from-save` starts from a save fixture; exit 1 when blocked |
+| `replay <scene\|file\|-> --run <file\|-> [--game id]`                                                                                                                                                                                     | no                       | replays a run recording (or a playtest report's) headless, with the recorded engine, physics and platform and `migratedFrom 1` for a v1 file; exit 1 when it ends differently                                                                                                                                     |
+| `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id] [--from-save file]`                                                                                                                                              | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second, and for a game that lists its commands how many it sent; takes no script; `--from-save` starts every rollout from a save fixture                                                                                 |
+| `save <scene\|file> --script <file\|-> --at <tick> --out <file>.save.json [--depth world\|progress]`                                                                                                                                      | yes                      | runs the script to the tick and writes a `save:v1` fixture there (inside a project, as a `save` asset); refused with `save-unsupported` and its causes; see [Saves](#saves)                                                                                                                                       |
+| `input [--project p] [--player n] [--json]`                                                                                                                                                                                               | no                       | each seat's resolved bindings per action, layer by layer (the input map's, then the game's), which one the seat uses, and their issues; loads no Rapier; see [Input v2](#input-v2)                                                                                                                                |
+| `check <scene\|file> [--checks file] [--only id] [--game id]`                                                                                                                                                                             | no                       | runs `<scene>.checks.json`; each check passes, fails or is skipped; exit 1 when one fails                                                                                                                                                                                                                         |
+| `render <scene\|file\|-> [--out file] [--ascii] [view flags…]`                                                                                                                                                                            | with --out               | a schematic PNG or SVG of the scene, or `--ascii` a character map; see [Rendering](#rendering)                                                                                                                                                                                                                    |
+| `textconv <file>`                                                                                                                                                                                                                         | no                       | a scene as one sorted line per header field, bulk entry and entity, for `git diff`                                                                                                                                                                                                                                |
+| `bundle <scene>`                                                                                                                                                                                                                          | no                       | the texture blobs a scene loads (sorted, deduplicated, with bytes and a total); `asset-missing` issues with a did-you-mean, exit 1 on them                                                                                                                                                                        |
+| `project show`                                                                                                                                                                                                                            | no                       | the project's id, name, game, live assets by kind, code modules, file problems and storage usage                                                                                                                                                                                                                  |
+| `project tree`                                                                                                                                                                                                                            | no                       | folders, live assets and read-only code modules, as the editor's tree panel shows them                                                                                                                                                                                                                            |
+| `project refs [id]`                                                                                                                                                                                                                       | no                       | what an asset names and what names it; without an id, every dangling reference; exit 1 on dangling ones                                                                                                                                                                                                           |
+| `project snapshot [--out file\|-]`                                                                                                                                                                                                        | with --out               | every live asset pinned by SHA-256; its `hash` is what a file batch's `base` names                                                                                                                                                                                                                                |
+| `project pull <project> --url https://site [--out dir] [--check]`                                                                                                                                                                         | unless --check           | every file the hosted project changes (added, changed, removed); exit 1 with `--check` when one would                                                                                                                                                                                                             |
+| `project push <dir> --create --url https://site [--dry-run]`                                                                                                                                                                              | the site, unless dry run | the files, docs and uploads a new hosted project was seeded with; with `--dry-run`, the docs it would seed and the binaries it would upload                                                                                                                                                                       |
+| `assets list [--kind k] [--trash] [--live]`                                                                                                                                                                                               | no                       | each live (or trashed) asset: project, path, kind, id, key, name, bytes, hash                                                                                                                                                                                                                                     |
+| `assets info <id> [--frame f]`                                                                                                                                                                                                            | no                       | an asset's kind, hash and bytes; a texture's size, pivot, nine-slice and filter; an atlas's frames, tags and texture; `--frame` for one frame's size and pivot                                                                                                                                                    |
+| `assets import <file> [--path p] [--id id] [--kind k] [--settings json]`                                                                                                                                                                  | yes, unless dry run      | bytes to the content store, then `importAsset` (a doc kind's JSON: `createAsset`); the file, sidecar and entry                                                                                                                                                                                                    |
+| `assets rename <id> [--name text] [--file name.ext]`                                                                                                                                                                                      | yes, unless dry run      | `renameAsset`: the display name and the file name in place; the id stays                                                                                                                                                                                                                                          |
+| `assets move <id...> --to <folder/>`                                                                                                                                                                                                      | yes, unless dry run      | `moveAsset`, sidecars included                                                                                                                                                                                                                                                                                    |
+| `assets delete <id> [--force]`                                                                                                                                                                                                            | yes, unless dry run      | `deleteAsset` to the trash; `asset-in-use` while something names it, unless `--force`                                                                                                                                                                                                                             |
+| `assets restore <id>`                                                                                                                                                                                                                     | yes, unless dry run      | `restoreAsset` from the trash                                                                                                                                                                                                                                                                                     |
+| `assets change-id <id> <new-id>`                                                                                                                                                                                                          | yes, unless dry run      | `changeAssetId`: the new id and every reference to it, in every doc, as one batch                                                                                                                                                                                                                                 |
+| `assets set-import <id> --set <json\|key=value,…>`                                                                                                                                                                                        | yes, unless dry run      | `setImport` per field (`null` resets one); meta is re-inspected                                                                                                                                                                                                                                                   |
+| `assets apply --ops <file\|->`                                                                                                                                                                                                            | yes, unless dry run      | any project op batch (`schema project-ops`), which may span docs                                                                                                                                                                                                                                                  |
+| `game new <id> [--name "Title"] [--preset top-down\|grid\|turns] [--physics none\|rapier] [--gravity x,y] [--time fixed\|turns\|event] [--rate n] [--grid square\|hex\|none] [--cell n] [--px-per-metre n] [--dir src/games] [--dry-run]` | yes, unless dry run      | a new game project from a preset: its files, its scene's issues, the URLs that open it on the dev site and the playtest command; see [New games](#new-games)                                                                                                                                                      |
 
 The `assets` writers and `apply` also take `--dry-run`, `--live`, `--url`,
 `--token`, `--agent` and `--on-behalf-of`; the `assets` writers take `--base` (see
@@ -451,9 +453,13 @@ inside a solid. `schema script --game <id>` is the reference; a script's
   id that exists and is enabled, `"boss#1"`; `{ "id": "boss#1", "enabled":
 false }` holds while it exists at all), `count` (entities matching a
   selector of `type`, one or a list, `tag` and `enabled`, kept within
-  `min`/`max` or at `eq`: `{ "type": "enemy", "max": 0 }`), and the game's
-  predicates (the platformer's `grounded`). A game predicate can't be named
-  `exists` or `count`.
+  `min`/`max` or at `eq`: `{ "type": "enemy", "max": 0 }`), `scene` (the
+  main scene is this one, once a `--flow` run followed a request there),
+  `persist` (a value in the game's persistent state, by JSON Pointer:
+  `{ "pointer": "/cleared/0", "eq": "level-1" }`, or `gte`/`lte` for a
+  number; see [Flow](#flow)), and the game's predicates (the platformer's
+  `grounded`). A game predicate can't be named `exists`, `count`, `scene`
+  or `persist`.
 - `maxTicks` (default 1800), `scene` (a run against another scene is
   refused), `at`, `timeOffsetMs`, `game` for the game's play options, and
   `seed` (a number or a string) for the game's `ctx.random`; without one the
@@ -1273,6 +1279,241 @@ A recording made before 0.11.0 still migrates, but replays `stale` (its
 metres and to Rapier's own length unit changed the numbers a run
 simulates once.
 
+## Flow
+
+A project's **scene list** (`scene-list.json` at its root, kind
+`scene-list`, `schema scene-list`, `urn:jams-engine:scene-list:v1`) names
+the scenes a game can go to: `start`, the scene the game opens on, and
+`scenes`, one entry per scene with an optional `title` and `"sublevel":
+true` for a scene that only attaches beside another
+([Sublevels](#sublevels)). A project has at most one. Without one, nothing
+plays through flow: the site and an export report `start-scene-missing`,
+and the editor offers "Create scene list". The tactics game's:
+
+```json
+{
+  "$schema": "../../engine/project/scene-list.schema.json",
+  "kind": "scene-list",
+  "v": 1,
+  "start": "menu",
+  "scenes": [
+    { "scene": "menu", "title": "Title" },
+    { "scene": "level-1", "title": "Ford" },
+    { "scene": "level-2", "title": "Bridge" },
+    { "scene": "result" },
+    { "scene": "cellar", "sublevel": true }
+  ]
+}
+```
+
+`flow` prints each project's list: the start, every listed scene's title,
+sublevel tag, physics backend and bundle (the blobs it loads before it
+draws), the project's scenes the list leaves out (`not listed: …`), and the
+list's issues. A start that is null, names no scene, or names an unlisted
+scene or a sublevel is `start-scene-missing` (exit 1); an entry naming no
+scene is `asset-missing`; a scene listed twice is `dup-id`; a listed
+scene's check that names a scene flow can't go to (a `reaches` check's
+`expect.scene`, or its script's `scene` or `until.scene`) is
+`scene-unlisted`, a warning.
+
+```sh
+vp run scene flow
+vp run scene flow --project tactics --json
+```
+
+```text
+tactics: scene list scene-list.json, start menu, 5 listed
+  menu  start  physics none  bundle 1 blob 9420 B  "Title"
+  level-1  physics none  bundle 5 blobs 30804 B  "Ford"
+  level-2  physics none  bundle 4 blobs 28341 B  "Bridge"
+  result  physics none  bundle 1 blob 9420 B
+  cellar  sublevel  physics none  bundle 4 blobs 28341 B
+```
+
+**Editing the list.** The list is a doc asset (id `scene-list`), changed
+with `assets apply` and an `editAsset`, never by hand: `scenes` is keyed
+by scene id, so `/scenes/@result/title` is the `result` entry's title,
+`insert` at `/scenes` appends an entry and `remove` at `/scenes/@<id>`
+drops one. MCP's `asset_apply_ops` takes the same batch.
+`examples/title-result.json` titles the result scene:
+
+```sh
+vp run scene assets apply --ops scripts/scene/examples/title-result.json --project tactics --dry-run
+```
+
+A start the game can't open on is refused:
+
+```json project=tactics expect=start-scene-missing
+{
+  "v": 1,
+  "ops": [
+    { "op": "editAsset", "id": "scene-list", "edits": [{ "set": "/start", "value": "cellar" }] }
+  ]
+}
+```
+
+**Requests.** A game changes scene with `ctx.flow.request({ to, entry?,
+transition?, persist? })`; the request applies after the tick, the first
+one of a tick wins, and the next scene reads `ctx.flow.entry`. A request
+for a scene the list doesn't hold, or for a sublevel, is refused at run
+time as `scene-unlisted`, an error there. `ctx.persist` is the game's
+persistent state (its `persist.initial()`, checked by `persist.schema`):
+it outlives every scene change, and a request's `persist` replaces it
+before the next load.
+
+**Headless runs.** `playtest` without `--flow` ends a run at its first
+request, with result `flow` and the scene it asked for (`flow at t0 (1
+ticks): requested "level-1"`). With `--flow` the run follows each request
+through the scene's project's list (a scene file outside a project, or a
+project with no list, is refused), loads the next scene with no
+transition and no wall time, and goes on with the same script; one script
+spans every scene. `until: { "scene": "<id>" }` waits for the main scene
+to be one, and `until: { "persist": { "pointer", "eq"|"gte"|"lte" } }` for
+a value in the persistent state. The report's `segments` has one row per
+scene visited (`scene`, `ticks`, `recording`, `end`), printed as `scene
+<id> +<ticks> <end> -> <next>`.
+
+`examples/menu-to-level-2.json` starts the tactics game on its menu,
+starts level 1, wins it with level 1's own orders, waits for the result
+scene with `level-1` cleared in the persistent state, goes back to the
+menu and starts again, which now opens level 2:
+
+```sh
+vp run scene playtest menu --script scripts/scene/examples/menu-to-level-2.json
+vp run scene playtest menu --script scripts/scene/examples/menu-to-level-2.json --flow
+vp run scene playtest menu --script scripts/scene/examples/menu-to-level-2.json --flow --record tour.json
+vp run scene replay menu --run tour.json
+```
+
+```text
+menu 52b0e915a58238a0 game tactics config 9a40e5fbc53f6748: script-end at t592 (593 ticks)
+  …
+  scene menu +1 flow -> level-1
+  scene level-1 +590 flow -> result
+  scene result +1 flow -> menu
+  scene menu +1 flow -> level-2
+  scene level-2 +0 script-end
+```
+
+**Recordings.** Each segment's recording is recording v2, widened
+additively: `start.persist` (the persistent state the segment began with,
+written when the game declares `persist`), `next` (`{ scene, entry? }`,
+the request that ended the segment) and `fromSave` (`{ slot, sha256 }`,
+for a run that began from a save fixture). `--record` writes the first
+segment's, which is also the report's `recording`. A replay applies
+`start.persist` before the load and ends at `next` without following it,
+so each segment replays on its own scene.
+
+MCP's `scene_flow` returns `flow --json`, and `scene_playtest` takes
+`flow` and `fromSave`.
+
+### Sublevels
+
+A sublevel is a listed scene marked `"sublevel": true` that a game
+attaches beside the main scene with `ctx.flow.attach(scene, { label, at
+})` and removes with `ctx.flow.detach(label)`; `ctx.flow.sublevels()`
+lists the attached ones. Its entities join the run under
+`<label>:<id>` (`cellar:guard/unit`), queries and sensors see them, and a
+detach removes every body, collider and entity it brought. A sublevel
+can't be a start or a request's `to`.
+
+An attach that can't happen returns `{ ok: false }` with
+`sublevel-invalid`, whose `detail.reason` says why: `unlisted` (the scene
+isn't in the list), `physics` (its physics backend differs from the main
+scene's), `grid` (its grid's shape or cell differs, or `at` isn't on a
+cell boundary of the main scene's grid, judged in whole px at the game's
+px per metre), `settings` (its gravity differs) or `label` (malformed or
+taken). The game decides what a refusal does; the tactics game's stair
+stays shut.
+
+Level 2's stair attaches the `cellar` as `cellar`, two rows under the
+board, when a unit steps on it (`examples/take-stair.json`); it opens
+only in a `--flow` run, since without the list nothing is listed to
+attach:
+
+```sh
+vp run scene playtest level-2 --script scripts/scene/examples/take-stair.json --flow --events tactics:opened
+```
+
+```text
+  spawned unit ×1
+  …
+  t16 tactics:opened stair (blue-knight-2/unit)
+```
+
+## Saves
+
+A save is a `save:v1` file (`schema save`,
+`src/engine/project/save.schema.json`,
+`urn:jams-engine:save:v1`): the game and its `saves.version`, the engine
+version, the slot, `meta` (`playTicks`, `savedAt`, the scene), the
+`depth`, the persistent state, the scene (`id`, `runHash`, the attached
+sublevels) and the game's `data`. Its text is canonical, so the same save
+is the same bytes. Two depths:
+
+- **`world`** holds the whole running world (entities, spawns and
+  disables, emit timers, motion bodies and grid steppers, the random
+  streams, each system's state, the game's `restore`d snapshot), so a run
+  restored from it goes on to the same digest as the run that saved it.
+  It can't be taken while the scene runs on Rapier, a function timer or
+  coroutine is pending, or the game's runtime has no `restore`: that is
+  `save-unsupported`, with each cause in `detail.causes`.
+- **`progress`** holds the persistent state and the game's snapshot only;
+  loading it starts the scene fresh. Any scene can take one.
+
+Saves are limited to 64 KB and 8 slots per game by default (a game's
+`saves.limits` lowers or raises them, up to 1 MiB and 64 slots in a
+browser). In a running game, `ctx.saves.request(slot, …)` asks for a save
+after the tick, and `GameInstance.saves` lists, saves, loads and removes
+slots through the game's store; a save result never reaches the
+simulation. Your own save backend is the recommended path for anything
+past the limits; browser saves stay on the player's device.
+
+**Fixtures.** A save fixture is a save file a playtest can start from:
+the `save` kind (`*.save.json`, a blob with a sidecar, meta `game`,
+`gameVersion`, `depth` and `scene`). `save` runs a script to `--at` (a
+simulated tick) and writes one there (`--depth world`, the default, or
+`progress`); the slot is the file's stem. Inside a project the fixture is
+imported as a `save` asset, and saving again to the same path replaces its
+bytes (the project's history keeps the old ones); outside one it is a plain
+file. A run that ends before `--at` saves nothing (exit 1).
+`playtest --from-save <file>` and `fuzz --from-save <file>` start from a
+fixture instead of the scene's fresh load, and the run's recording names it
+in `fromSave`; replaying that recording needs the project's fixture with
+that hash, else it is blocked with `asset-missing` (`detail.kind: "save"`).
+Save fixtures change only through `save`, never by hand.
+
+Saving level 2 mid-walk, then playing on from there:
+
+```sh
+vp run scene save level-2 --script scripts/scene/examples/take-stair.json --at 10 --out turn-one.save.json
+vp run scene playtest level-2 --script scripts/scene/examples/end-turn.json --from-save turn-one.save.json
+vp run scene fuzz level-2 --from-save turn-one.save.json --rollouts 4 --ticks 120
+vp run scene save level-2 --script scripts/scene/examples/take-stair.json --at 10 --out progress.save.json --depth progress
+```
+
+```text
+level-2: saved world at t10 to turn-one.save.json (slot turn-one, 2728 B, sha256 86641d3ad73e)
+```
+
+The platformer's scenes run on Rapier, so a world save refuses with each
+cause (`cause physics: the scene runs on Rapier`, `cause restore: the
+game's runtime has no restore`) and writes nothing; `--depth progress`
+takes one:
+
+```sh expect=save-unsupported
+vp run scene save test-yard --script scripts/scene/examples/hop-left.json --at 10 --out yard.save.json --json
+```
+
+A save from a newer build of the game (its `gameVersion` past the game's
+`saves.version`), or one whose version has no migration step to the
+game's, is `save-version-newer`. `examples/newer.save.json` is level 2's
+save with its game version raised:
+
+```sh expect=save-version-newer
+vp run scene playtest level-2 --script scripts/scene/examples/end-turn.json --from-save scripts/scene/examples/newer.save.json --json
+```
+
 ## Rendering
 
 `render` draws a scene so you can look at it: a schematic, not the game's
@@ -1444,25 +1685,26 @@ functions as the CLI (it never spawns it), versioned with the engine
 { "mcpServers": { "jams-scenes": { "command": "bun", "args": ["scripts/scene/mcp.ts"] } } }
 ```
 
-| Tool              | CLI command        | Notes                                                                                                                                                                                                                                                          |
-| ----------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scene_list`      | `list`             |                                                                                                                                                                                                                                                                |
-| `scene_show`      | `show`             | `near` is `[x, y, r]`; rows with a sprite carry its `sprite` box; `time` and `physics`                                                                                                                                                                         |
-| `scene_schema`    | `schema`           | `which`: any name `schema` takes (`scene`, `ops`, `project-ops`, a doc kind…)                                                                                                                                                                                  |
-| `scene_codes`     | `codes`            |                                                                                                                                                                                                                                                                |
-| `scene_validate`  | `validate`         | `physical`                                                                                                                                                                                                                                                     |
-| `scene_diff`      | `diff`             | one of `other`, `git` or an inline `ops` batch                                                                                                                                                                                                                 |
-| `scene_apply_ops` | `apply` / `--live` | writes; `dryRun` defaults to `true`                                                                                                                                                                                                                            |
-| `scene_playtest`  | `playtest`         | `script` inline or a path, v1 or v2 (tracks, `set`, `pointer`, `join`, `leave`), command and elapse steps included; `at` is `[x, y]` in metres; `events` a list of types, returns `lifecycle`, and `legal`/`legalTruncated` for a game that lists its commands |
-| `scene_replay`    | `replay`           | `run` inline or a path: a v1 or v2 recording or a playtest result; reports `migratedFrom`, the platform and `issues`                                                                                                                                           |
-| `scene_fuzz`      | `fuzz`             | `seed`, `rollouts`, `ticks` as numbers                                                                                                                                                                                                                         |
-| `scene_check`     | `check`            | every kind, `connected` included; `reaches` takes `expect`                                                                                                                                                                                                     |
-| `scene_render`    | `render`           | a PNG `image` block; `ascii` for the map; `overlay` inline or a path; `sprites` lists the sprite boxes                                                                                                                                                         |
-| `project_tree`    | `project tree`     |                                                                                                                                                                                                                                                                |
-| `asset_refs`      | `project refs`     | `id`; without one, every dangling reference                                                                                                                                                                                                                    |
-| `asset_import`    | `assets import`    | writes; `file` (a local path), `path`, `id`, `kind`, `settings`                                                                                                                                                                                                |
-| `asset_apply_ops` | `assets apply`     | writes; `ops` inline or a path; `base` on files; edits input maps (`/actions/@<action>/bindings`)                                                                                                                                                              |
-| `game_new`        | `game new`         | writes; the CLI's inputs (`gravity` as `[x, y]`, `rate`, `cell` and `pxPerMetre` as numbers); returns the files, issues, `urls` and the playtest command                                                                                                       |
+| Tool              | CLI command        | Notes                                                                                                                                                                                                                                                                                                                                             |
+| ----------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scene_list`      | `list`             |                                                                                                                                                                                                                                                                                                                                                   |
+| `scene_show`      | `show`             | `near` is `[x, y, r]`; rows with a sprite carry its `sprite` box; `time` and `physics`                                                                                                                                                                                                                                                            |
+| `scene_schema`    | `schema`           | `which`: any name `schema` takes (`scene`, `ops`, `project-ops`, a doc kind…)                                                                                                                                                                                                                                                                     |
+| `scene_codes`     | `codes`            |                                                                                                                                                                                                                                                                                                                                                   |
+| `scene_flow`      | `flow`             | each project's scene list as data; edit the list with `asset_apply_ops`                                                                                                                                                                                                                                                                           |
+| `scene_validate`  | `validate`         | `physical`                                                                                                                                                                                                                                                                                                                                        |
+| `scene_diff`      | `diff`             | one of `other`, `git` or an inline `ops` batch                                                                                                                                                                                                                                                                                                    |
+| `scene_apply_ops` | `apply` / `--live` | writes; `dryRun` defaults to `true`                                                                                                                                                                                                                                                                                                               |
+| `scene_playtest`  | `playtest`         | `script` inline or a path, v1 or v2 (tracks, `set`, `pointer`, `join`, `leave`), command and elapse steps included; `at` is `[x, y]` in metres; `events` a list of types, returns `lifecycle`, and `legal`/`legalTruncated` for a game that lists its commands; `flow` follows scene requests (`segments`), `fromSave` a fixture inline or a path |
+| `scene_replay`    | `replay`           | `run` inline or a path: a v1 or v2 recording or a playtest result; reports `migratedFrom`, the platform and `issues`                                                                                                                                                                                                                              |
+| `scene_fuzz`      | `fuzz`             | `seed`, `rollouts`, `ticks` as numbers                                                                                                                                                                                                                                                                                                            |
+| `scene_check`     | `check`            | every kind, `connected` included; `reaches` takes `expect`                                                                                                                                                                                                                                                                                        |
+| `scene_render`    | `render`           | a PNG `image` block; `ascii` for the map; `overlay` inline or a path; `sprites` lists the sprite boxes                                                                                                                                                                                                                                            |
+| `project_tree`    | `project tree`     |                                                                                                                                                                                                                                                                                                                                                   |
+| `asset_refs`      | `project refs`     | `id`; without one, every dangling reference                                                                                                                                                                                                                                                                                                       |
+| `asset_import`    | `assets import`    | writes; `file` (a local path), `path`, `id`, `kind`, `settings`                                                                                                                                                                                                                                                                                   |
+| `asset_apply_ops` | `assets apply`     | writes; `ops` inline or a path; `base` on files; edits input maps (`/actions/@<action>/bindings`) and scene lists (`/scenes/@<scene>`, `/start`)                                                                                                                                                                                                  |
+| `game_new`        | `game new`         | writes; the CLI's inputs (`gravity` as `[x, y]`, `rate`, `cell` and `pxPerMetre` as numbers); returns the files, issues, `urls` and the playtest command                                                                                                                                                                                          |
 
 Each result is the command's `--json` output as compact JSON in a text block
 and as `structuredContent`, with `exitCode` added. A scene with error issues
@@ -2136,7 +2378,13 @@ instance's `params` apply as overrides of every target; its own
 redeclare one. `exposeParam` declares, replaces or (with `null`) removes
 one in the prefab's own document; `setParam` sets (or with `null` clears)
 one on an instance, as do `instantiate` and `update` on `params.<name>`.
-Exposing one on `gate`:
+A param's optional `map` gives a target its own value per string value
+of the param: tactics' `knight` maps `side` to
+`{ "unit.behaviors.sprite.frame": { "blue": "knight-blue", "red": "knight-red" } }`,
+so its `unit.side` gets `"red"` and its frame `"knight-red"`. A mapped
+target with no entry for the value keeps its own; a map of a path that
+isn't a target, an empty map, or a non-string `default` beside a map is
+refused. Exposing one on `gate`:
 
 ```json project=engine
 {
@@ -2350,6 +2598,24 @@ Lifecycle adds these; a running game throws them as an `EngineError`, and
 | ------------------ | -------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `project-id-taken` | error    | A new project's id is already a discovered project's, or its directory already exists. | pick another id, or remove the existing project's directory |
 
+Flow and saves add these; [Flow](#flow) and [Saves](#saves) have an
+example that reports `start-scene-missing`, `save-unsupported` and
+`save-version-newer`. The rest come from a running game: an attach
+returns `sublevel-invalid`, a runtime `go` to an unlisted scene refuses
+with `scene-unlisted`, and a save store or `GameInstance.saves` returns
+the other three:
+
+| Code                  | Severity | Meaning                                                                                                                                                                           | Fix                                                                                    |
+| --------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `scene-unlisted`      | warn     | Flow names a scene the scene list doesn't hold: a listed scene's check, or an export; an error when a running game requests one.                                                  | list the scene through `assets apply`, or name a listed one                            |
+| `start-scene-missing` | error    | The project has no scene list, or its `start` is null, names no scene, or names an unlisted scene or a sublevel.                                                                  | set `start` to a listed scene that isn't a sublevel                                    |
+| `sublevel-invalid`    | error    | A sublevel can't attach: unlisted, its physics, grid or gravity differs from the main scene's, `at` is off a cell boundary, or its label is taken or malformed (`detail.reason`). | list it, match the main scene's settings, put `at` on whole cells, pick a free label   |
+| `save-version-newer`  | error    | A save's game version is past the game's `saves.version`, or a migration step between them is missing.                                                                            | load it with the build that wrote it, or add the step to `saves.migrations`            |
+| `save-too-large`      | error    | A save is bigger than the game's save limit (64 KB by default), so it wasn't written.                                                                                             | save less state, or raise `saves.limits.maxBytes` (1 MiB at most in a browser)         |
+| `save-slot-limit`     | error    | A save to a new slot would pass the slot limit (8 by default); overwriting a slot never does.                                                                                     | remove or overwrite a slot, or raise `saves.limits.maxSlots` (64 at most in a browser) |
+| `save-unsupported`    | error    | A world save can't be taken: the scene runs on Rapier, a function timer or coroutine is pending, or the game has no `restore` (`detail.causes`).                                  | take a progress save, or remove each cause                                             |
+| `save-store-failed`   | warn     | The save store threw or refused a read or a write; the game keeps running.                                                                                                        | read the store's `describe`, and try again or use another store                        |
+
 ## The agent surface version
 
 Issue codes, op names, the JSON Schema `$id`s, these commands and their
@@ -2392,8 +2658,8 @@ trusting codes or flags.
   imports the MCP SDK.
 - `raster.ts`: SVG to PNG for `render`, with resvg-wasm and the site's Rubik
   files from `src/lib/og/assets/`; the engine stays font-free.
-- `examples/`: the op batches, input list, input scripts, checks file and
-  image this README uses.
+- `examples/`: the op batches, input list, input scripts, checks file,
+  save fixture and image this README uses.
 - `__tests__/`: the tools against temp projects (`fixtures.ts`), with the
   platformer and a small inline game; the asset commands on files and live;
   the repo's own projects; and every command and op batch in this README.

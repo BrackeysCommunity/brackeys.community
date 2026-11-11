@@ -70,6 +70,7 @@ export {
   type EnumOption,
   type FieldWidget,
   type InspectorModel,
+  type InspectorRow,
   type InstanceParamsModel,
   type InstanceTransformModel,
   type InspectorSectionId,
@@ -80,6 +81,13 @@ export {
   type ParamModel,
   type ShapeConversion,
 } from "./inspector-model";
+export {
+  settingsEdit,
+  settingsRows,
+  settingsValue,
+  type SettingsRowsOptions,
+  type SettingsSection,
+} from "./settings-model";
 export {
   defineEditorTool,
   DEFAULT_SNAP,

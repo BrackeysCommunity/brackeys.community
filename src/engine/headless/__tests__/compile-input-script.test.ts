@@ -6,7 +6,7 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry, defineGame } from "../../game/define";
 import { resolveTime } from "../../game/time";
-import type { GameDefinition, PlayState, Registry } from "../../game/types";
+import type { GameDefinition, Macro, PlayState, Registry } from "../../game/types";
 import type { TickInput } from "../../input/stream";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { createRunRecorder, recordingRapier } from "../../runtime/recorder";
@@ -22,6 +22,7 @@ import {
   scriptSource,
   type CompiledScript,
 } from "../compile-input-script";
+import { fuzz } from "../fuzz";
 import { prepareRun, runLibrary, runLoop, startRun } from "../play-loop";
 import { runPlaytest, untilHolds } from "../playtest";
 import type { CompileResult, InputEdge, PlaytestReport, ScriptIssue } from "../playtest-types";
@@ -1067,6 +1068,73 @@ describe("pointer buttons raise their bound actions", () => {
     expect(pointerHeld(["aim"], 1, bound as never)).toEqual(["aim", "fire"]);
     expect(pointerHeld(["fire"], 1, bound as never)).toEqual(["fire"]);
     expect(pointerHeld([], 2, bound as never)).toEqual([]);
+  });
+
+  it("plays two buttons bound to one action the same in fuzz as in a script", () => {
+    const at: [number, number] = [1, 1];
+    const steps: { macro: Macro; step: Record<string, unknown> }[] = [
+      {
+        macro: { hold: [], ticks: 1, pointer: { at, press: "primary" } },
+        step: { pointer: { at, press: "primary" } },
+      },
+      {
+        macro: { hold: [], ticks: 1, pointer: { at, press: "secondary" } },
+        step: { pointer: { at, press: "secondary" } },
+      },
+      {
+        macro: { hold: [], ticks: 2, pointer: { at, release: "primary" } },
+        step: { pointer: { at, release: "primary" }, for: 2 },
+      },
+      { macro: { hold: ["fire"], ticks: 1 }, step: { hold: ["fire"], for: 1 } },
+      {
+        // A script's pointer step goes on holding the timed step before it's buttons.
+        macro: { hold: ["fire"], ticks: 2, pointer: { at, release: "secondary" } },
+        step: { pointer: { at, release: "secondary" }, for: 2 },
+      },
+      { macro: { hold: [], ticks: 1 }, step: { wait: 1 } },
+    ];
+    const ticks = 8;
+    let seen: [boolean, string[]][] = [];
+    let next = 0;
+    const clicks = defineGame({
+      id: "clicks",
+      types: [],
+      actions: [
+        {
+          action: "fire",
+          bindings: [
+            { device: "pointer", button: "primary" },
+            { device: "pointer", button: "secondary" },
+          ],
+          description: "Fire.",
+        },
+      ],
+      world: { physics: "none" },
+      play: { macro: () => steps[next++ % steps.length]!.macro },
+      createRuntime: (ctx) => ({
+        beforeStep(_dt, actions) {
+          seen.push([ctx.input.held("fire"), actions.map((a) => `${a.action}:${a.pressed}`)]);
+        },
+        snapshot: () => null,
+      }),
+    }) as GameDefinition;
+    const scene: SceneDefinition = { ...padsScene, name: "clicks", game: "clicks" };
+
+    const fuzzed = fuzz({ rapier: null, game: clicks, scene, seed: 1, rollouts: 1, ticks });
+    if (fuzzed.blocked) throw new Error(JSON.stringify(fuzzed));
+    const fromFuzz = seen;
+    seen = [];
+    const played = runPlaytest({
+      rapier: null,
+      game: clicks,
+      scene,
+      script: { v: 2, maxTicks: ticks, steps: steps.map((s) => s.step) } as never,
+    });
+    if (played.blocked) throw new Error(JSON.stringify(played));
+
+    expect(fromFuzz).toEqual(seen);
+    expect(seen.map(([held]) => held)).toEqual([true, true, true, true, true, true, true, false]);
+    expect(seen.flatMap(([, actions]) => actions)).toEqual(["fire:true", "fire:false"]);
   });
 });
 

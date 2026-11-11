@@ -53,7 +53,7 @@ export const DEFAULT_LAYOUT: EditorLayout = {
   left: {
     width: 288,
     collapsed: false,
-    groups: [group(["outliner"], null), group(["project"], 260)],
+    groups: [group(["outliner"], null), group(["project", "settings"], 260)],
   },
   right: {
     width: 320,

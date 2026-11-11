@@ -1,4 +1,4 @@
-import { isUiAction, simBindings } from "../game/input-bindings";
+import { isUiAction } from "../game/input-bindings";
 import { pointerBit, POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
 import { isRuntimeId } from "../game/runtime-ids";
 import { resolveTime, type ResolvedTime } from "../game/time";
@@ -16,7 +16,6 @@ import {
   combineAction,
   resolveBindings,
   type ActionValue,
-  type BoundInput,
 } from "../input/bindings";
 import { qAxis, qPointer, qVector } from "../input/quantize";
 import type { PointerState } from "../input/state";
@@ -26,7 +25,12 @@ import type { ScriptPointer } from "../scene/input-script";
 import type { Bounds, EntityTypeName, Pt, Ref } from "../scene/types";
 import { Rng } from "../sim-kit/rng";
 import type { InputAction } from "../types";
-import { heldEdges } from "./compile-input-script";
+import {
+  heldEdges,
+  pointerBindingsOf,
+  pointerHeld,
+  type PointerBindings,
+} from "./compile-input-script";
 import { probeConfigHash, simActionError } from "./headless";
 import { legalCommands, startState } from "./legal";
 import {
@@ -152,8 +156,8 @@ type MacroContext = {
   /** The actions a macro may drive: the game's, without the UI-only ones. */
   actions: readonly string[];
   kindOf: (action: string) => ActionKind;
-  /** Seat 0's bindings on each pointer button. */
-  pointerBindings: (button: PointerButton) => readonly BoundInput[];
+  /** Seat 0's pointer bindings, when an action is bound to a pointer button. */
+  pointer: PointerBindings | undefined;
   time: ResolvedTime;
 };
 
@@ -188,6 +192,8 @@ function macroInput(
   let state = commands?.start ?? null;
   let send: GameCommand | null = null;
   let hold: readonly string[] = [];
+  /** What seat 0 holds: `hold` joined with the actions the pointer's buttons hold. */
+  let held: readonly string[] = [];
   let left = 0;
   const analog = new Map<string, ActionValue>();
   let pointer: PointerState | null = null;
@@ -246,11 +252,8 @@ function macroInput(
       }
     }
 
-    const nextHold = [...new Set(next.hold)];
-    for (const [, a, pressed] of heldEdges(hold, nextHold, slot)) {
-      out.push(inputAction(a, pressed === 1, slot, time));
-    }
-    hold = nextHold;
+    hold = [...new Set(next.hold)];
+    holdEdges(slot, out);
     for (const [name, was] of analog) {
       if (set.has(name)) continue;
       const zero = neutral(kindOf(name));
@@ -266,19 +269,13 @@ function macroInput(
     left = next.ticks;
   }
 
-  /** Raises the actions bound to `button`, except those a hold or set already drives. */
-  function buttonActions(button: PointerButton, down: boolean, slot: number, out: InputAction[]) {
-    const seen = new Set<string>();
-    for (const bound of ctx.pointerBindings(button)) {
-      if (seen.has(bound.action) || hold.includes(bound.action) || analog.has(bound.action)) {
-        continue;
-      }
-      seen.add(bound.action);
-      const state = down
-        ? combineAction(bound.kind, [{ binding: bound.binding, reading: 1 }])
-        : neutral(bound.kind);
-      out.push(actionOf(bound.action, state, slot, time));
+  /** The edges from what seat 0 held to `hold` and the pointer's buttons, as a script plays them (`pointerHeld`). */
+  function holdEdges(slot: number, out: InputAction[], buttons = pointer?.buttons ?? 0) {
+    const next = pointerHeld(hold, buttons, ctx.pointer);
+    for (const [, a, pressed] of heldEdges(held, next, slot)) {
+      out.push(inputAction(a, pressed === 1, slot, time));
     }
+    held = next;
   }
 
   /** The pointer this slot when it changed: along the path, its press on the first tick and its release on the last. */
@@ -291,14 +288,9 @@ function macroInput(
     const x = qPointer(move.at[0] + (end[0] - move.at[0]) * t);
     const y = qPointer(move.at[1] + (end[1] - move.at[1]) * t);
     let buttons = pointer?.buttons ?? 0;
-    if (i === 0 && move.press !== undefined && !(buttons & pointerBit(move.press))) {
-      buttons |= pointerBit(move.press);
-      buttonActions(move.press, true, slot, out);
-    }
-    if (i === ticks - 1 && move.release !== undefined && buttons & pointerBit(move.release)) {
-      buttons &= ~pointerBit(move.release);
-      buttonActions(move.release, false, slot, out);
-    }
+    if (i === 0 && move.press !== undefined) buttons |= pointerBit(move.press);
+    if (i === ticks - 1 && move.release !== undefined) buttons &= ~pointerBit(move.release);
+    if (buttons !== (pointer?.buttons ?? 0)) holdEdges(slot, out, buttons);
     if (i === ticks - 1) path = null;
     if (pointer && pointer.x === x && pointer.y === y && pointer.buttons === buttons) {
       return undefined;
@@ -354,6 +346,7 @@ const byRef = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
  * named (never a runtime `#` id), how many rollouts reached each and how
  * early, the ones never touched, and how the rollouts ended. Rollout `i` draws from its own fork of the seed,
  * so the first rollouts of a longer fuzz are the same as a shorter one's.
+ * With `fromSave` every rollout starts where that save left off.
  */
 export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun {
   const { registry, game } = resolveGame({
@@ -373,12 +366,13 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
   const root = Rng.from(opts.seed);
   const play = game?.play;
   const bindings = resolveBindings({ game: registry.actions, map: opts.project?.inputMap });
-  const pointerBindings = (button: PointerButton) =>
-    simBindings(registry, bindings.tables.pointer.get(button) ?? []).filter((b) => b.player === 0);
+  const pointerBound = pointerBindingsOf(registry, opts.project?.inputMap, 1)?.[0];
+  const pointerActions = (button: PointerButton) =>
+    (pointerBound?.[button] ?? []).map((b) => b.action);
   const actions = registry.actionNames;
   const simActions = actions.filter((a) => !isUiAction(registry, a));
   const ofKind = (kind: ActionKind) => simActions.filter((a) => bindings.kindOf(a) === kind);
-  const pointerButtons = POINTER_BUTTONS.filter((b) => pointerBindings(b).length > 0);
+  const pointerButtons = POINTER_BUTTONS.filter((b) => pointerActions(b).length > 0);
   const inputs: FuzzMacroInputs = {
     axes: ofKind("axis"),
     vectors: ofKind("vector"),
@@ -386,9 +380,7 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
       pointerButtons.length > 0
         ? {
             buttons: pointerButtons,
-            actions: [
-              ...new Set(pointerButtons.flatMap((b) => pointerBindings(b).map((p) => p.action))),
-            ],
+            actions: [...new Set(pointerButtons.flatMap(pointerActions))],
             bounds: prepared.scene.bounds,
           }
         : null,
@@ -416,8 +408,16 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
       dev: opts.dev,
       project: opts.project,
       prefabs: runLibrary(opts),
+      ...(opts.fromSave ? { fromSave: opts.fromSave.file } : {}),
     });
-    if (!started.ok) return blockedRun("load", name, prepared.issues, [], started.load);
+    if (!started.ok)
+      return blockedRun(
+        "load",
+        name,
+        started.issue ? [...prepared.issues, started.issue] : prepared.issues,
+        [],
+        started.load,
+      );
     time = started.runtime.ctx.time;
     const commands: CommandMacros | null = listsCommands
       ? {
@@ -454,7 +454,7 @@ export function fuzz<S = unknown, G = unknown>(opts: FuzzOptions<S, G>): FuzzRun
             registry,
             actions: simActions,
             kindOf: bindings.kindOf,
-            pointerBindings,
+            pointer: pointerBound,
             time: started.runtime.ctx.time,
           },
           commands,

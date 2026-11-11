@@ -19,6 +19,7 @@ import {
   readProject,
 } from "../collab/project-doc";
 import { buildHashes } from "../collab/project-session";
+import { assertSameSeed, SeedStaleError, stampSeed } from "../collab/seed-identity";
 import type { DocOrigin } from "../collab/types";
 import type { ContentStore } from "../project/content-store";
 import { docNameOf, parseDocName } from "../project/doc-names";
@@ -131,6 +132,7 @@ const BUILD_REPAIR: DocOrigin = { kind: "repair", reason: "build" };
 const IN_USE_REPAIR = { kind: "repair", reason: "asset-in-use" } as const;
 const HASH_REPAIR: DocOrigin = { kind: "repair", reason: "hash-mismatch" };
 const REINSPECT_REPAIR = { kind: "repair", reason: "reinspect" } as const;
+const SEED_REPAIR: DocOrigin = { kind: "repair", reason: "seed" };
 
 type Served = {
   project: FileProject;
@@ -162,9 +164,11 @@ type Served = {
  * repairs duplicate ids and paths. It writes the code map and this build's
  * schema stamps when a project doc loads, and sends `asset:changed` on the
  * project doc whenever a binary's hash changes: on disk, by a client's
- * `replaceContent`, or by a repair. Needs `@hocuspocus/server`, imported
- * here and only here, and Node: its websocket adapter refuses to run under
- * Bun.
+ * `replaceContent`, or by a repair. Each doc it seeds carries its seed's
+ * stamp, and a client whose copy came from another seed (held across a
+ * reseed) is refused before anything merges, so it resets to the server's
+ * state. Needs `@hocuspocus/server`, imported here and only here, and
+ * Node: its websocket adapter refuses to run under Bun.
  */
 export async function createSceneCollab(options: SceneCollabOptions): Promise<SceneCollab> {
   const { Server } = options.hocuspocus ?? (await import("@hocuspocus/server"));
@@ -361,13 +365,25 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
             await writeCode(s, document);
             await repair(s, document);
             watchContent(s, document);
+            await stampLoaded(s, documentName, document);
           });
           return;
         }
         await holdProject(s);
-        await enqueue(s.project.file.id, () => s.adapter.loadDoc(documentName, document));
+        await enqueue(s.project.file.id, async () => {
+          await s.adapter.loadDoc(documentName, document);
+          await stampLoaded(s, documentName, document);
+        });
       } catch (e) {
         warn(`${documentName}: ${(e as Error).message}`);
+        throw e;
+      }
+    },
+    async beforeSync({ type, payload, document, documentName }) {
+      try {
+        assertSameSeed({ type, payload, document, documentName });
+      } catch (e) {
+        if (e instanceof SeedStaleError) warn(e.message);
         throw e;
       }
     },
@@ -416,6 +432,11 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
       await enqueue(s.project.file.id, async () => s.adapter.forget(documentName));
     },
   });
+
+  /** Stamps a doc the server just seeded, and persists the stamp so a restart keeps its identity. */
+  async function stampLoaded(s: Served, documentName: string, doc: Y.Doc): Promise<void> {
+    if (stampSeed(doc, SEED_REPAIR)) await s.adapter.persist(documentName, doc);
+  }
 
   function holdProject(s: Served): Promise<DirectConnection> {
     s.hold ??= server.hocuspocus.openDirectConnection(s.name).catch((e: unknown) => {

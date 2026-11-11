@@ -5,18 +5,25 @@ import { GLOW, LAMP, PLAIN, testGame } from "../../__tests__/fixtures/test-game"
 import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineGame } from "../../game/define";
 import { assetField } from "../../game/fields";
+import { parseSaveFile, type SaveFile } from "../../game/save-file";
 import type { Registry } from "../../game/types";
 import { runChecks } from "../../headless/run-checks";
 import { validatePhysical } from "../../headless/validate-physical";
 import { parseAssetDoc } from "../../project/kinds";
 import { gameSettingsKind } from "../../project/kinds/game-settings";
+import { sceneListIssues, sceneListKind } from "../../project/kinds/scene-list";
 import type { AssetEntry } from "../../project/types";
 import { projectView } from "../../project/view";
+import { createSceneRuntime } from "../../runtime/runtime";
+import { captureSave } from "../../runtime/save-state";
+import { createSaveSlots } from "../../saves/slots";
+import { memorySaveStore, type SaveStore } from "../../saves/store";
 import type { RapierModule } from "../../types";
+import { expandScene } from "../expand";
 import { formatScene } from "../format";
 import { ISSUE_CODES } from "../issues";
 import { applyOps } from "../ops";
-import { parseScene } from "../parse";
+import { locatePointer, parseScene } from "../parse";
 import {
   ENGINE_ISSUE_CODE_LIST,
   PREFAB_MAX_DEPTH,
@@ -28,7 +35,7 @@ import {
   type SceneDefinition,
   type SceneIssue,
 } from "../types";
-import { validateScene, type ValidateOptions } from "../validate";
+import { sublevelUseIssues, validateScene, type ValidateOptions } from "../validate";
 import { engine, engineYardText, fake } from "./fixtures/fake-game";
 
 function scene(over: Partial<SceneDefinition> = {}, extra: EntityDef[] = []): SceneDefinition {
@@ -167,6 +174,49 @@ let rapier: RapierModule;
 
 beforeAll(async () => {
   rapier = await import("@dimforge/rapier2d");
+});
+
+/** What a store and the slots over it refuse, gathered once since saving is asynchronous. */
+const storeIssues: Partial<Record<EngineIssueCode, SceneIssue[]>> = {};
+
+beforeAll(async () => {
+  const file = (slot: string, pad = 0): SaveFile => ({
+    kind: "save",
+    v: 1,
+    game: "fake",
+    gameVersion: 1,
+    engine: "0.13.0",
+    release: null,
+    project: null,
+    slot,
+    meta: { scene: "t", savedAt: 0, playTicks: 0, title: "x".repeat(pad) },
+    depth: "progress",
+    persist: null,
+    scene: { id: "t", runHash: "", sublevels: [] },
+    data: null,
+  });
+  const slotsOver = (store: SaveStore, pad = 0) =>
+    createSaveSlots({
+      game: { id: "fake" },
+      store,
+      now: () => 0,
+      capture: ({ slot }) => ({ ok: true, file: file(slot, pad) }),
+      restore: async () => ({ ok: true }),
+    });
+  const issueOf = (r: { ok: true } | { ok: false; issue: SceneIssue }) => (r.ok ? [] : [r.issue]);
+
+  storeIssues["save-too-large"] = issueOf(await slotsOver(memorySaveStore(), 70_000).save("big"));
+  const one = slotsOver({ ...memorySaveStore(), kind: "host", limits: { maxSlots: 1 } });
+  await one.save("first");
+  storeIssues["save-slot-limit"] = issueOf(await one.save("second"));
+  const refusing: SaveStore = {
+    ...memorySaveStore(),
+    kind: "host",
+    write: async () => {
+      throw new Error("quota exceeded");
+    },
+  };
+  storeIssues["save-store-failed"] = issueOf(await slotsOver(refusing).save("s"));
 });
 
 /** Physical issues, with lines from the canonical text. */
@@ -433,6 +483,103 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[]) | null> = {
   // Runtime refusals are thrown as `EngineError`s by `ctx.spawn` and `ctx.instantiate`, not reported by the scene tools.
   "spawn-id-invalid": null,
   "prefab-not-spawnable": null,
+  "scene-unlisted": () => {
+    const checks = {
+      v: 3,
+      checks: [
+        {
+          id: "wins",
+          kind: "reaches",
+          result: "won",
+          expect: { scene: "vault" },
+          script: { v: 2, steps: [{ wait: 1 }] },
+        },
+      ],
+    };
+    const text = JSON.stringify(checks, null, 2);
+    const view = projectView({
+      meta: { projectId: "p", layout: 2, name: "P" },
+      assets: {
+        "k-yard": { ...asset("yard", "scene"), path: "levels/yard.json" },
+        "k-yard-checks": { ...asset("yard-checks", "checks"), path: "levels/yard.checks.json" },
+        "k-flow": { ...asset("flow", "scene-list"), path: "scene-list.json" },
+      },
+      history: {},
+      code: {},
+      build: {},
+    });
+    const values = new Map<string, unknown>([
+      ["flow", { kind: "scene-list", v: 1, start: "yard", scenes: [{ scene: "yard" }] }],
+      ["yard-checks", checks],
+    ]);
+    return sceneListIssues(view, values, {
+      lineOf: (id, pointer) => (id === "yard-checks" ? locatePointer(text, pointer) : undefined),
+    });
+  },
+  "start-scene-missing": () =>
+    parseAssetDoc(
+      sceneListKind,
+      JSON.stringify(
+        {
+          kind: "scene-list",
+          v: 1,
+          start: "cellar",
+          scenes: [{ scene: "cellar", sublevel: true }],
+        },
+        null,
+        2,
+      ),
+      { registry: engine, project: null },
+    ).issues,
+  "sublevel-invalid": () =>
+    sublevelUseIssues(
+      scene({ settings: { physics: "none" } }),
+      [{ scene: "cellar", label: "cellar", path: "/checks/0/attach", line: 3 }],
+      {
+        registry: engine,
+        library: {
+          list: [{ scene: "cellar", sublevel: true }],
+          scenes: new Map([
+            ["cellar", { def: scene({ settings: { physics: "rapier" } }), prefabs: new Map() }],
+          ]),
+        },
+      },
+    ),
+  // Save codes come from the save file, the stores and capture, outside the scene tools.
+  "save-version-newer": () => {
+    const r = parseSaveFile(
+      JSON.stringify({
+        kind: "save",
+        v: 1,
+        game: "fake",
+        gameVersion: 2,
+        engine: "0.13.0",
+        release: null,
+        project: null,
+        slot: "slot-1",
+        meta: { scene: "t", savedAt: 0, playTicks: 0 },
+        depth: "progress",
+        persist: null,
+        scene: { id: "t", runHash: "", sublevels: [] },
+        data: null,
+      }),
+      { id: "fake", saves: { version: 1 } },
+    );
+    return r.ok ? [] : r.issues;
+  },
+  "save-too-large": () => storeIssues["save-too-large"] ?? [],
+  "save-slot-limit": () => storeIssues["save-slot-limit"] ?? [],
+  "save-unsupported": () => {
+    const rt = createSceneRuntime({ rapier, view: null, registry: engine });
+    try {
+      if (!rt.load(expandScene(scene({ settings: { physics: "rapier" } }), engine)).ok) return [];
+      const r = captureSave(rt, { depth: "world", slot: "s", now: 0 });
+      return r.ok ? [] : [r.issue];
+    } finally {
+      rt.destroy();
+    }
+  },
+  "save-store-failed": () => storeIssues["save-store-failed"] ?? [],
 };
 
 /** `applyOps` codes point into the batch, which has no line map. */

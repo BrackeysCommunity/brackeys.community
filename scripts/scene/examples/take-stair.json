@@ -1,0 +1,10 @@
+{
+  "$schema": "../../../src/games/tactics/input-script.schema.json",
+  "v": 2,
+  "scene": "level-2",
+  "seed": 1,
+  "steps": [
+    { "command": "move", "args": { "unit": "blue-knight-2/unit", "to": [3, 5] } },
+    { "wait": 32 }
+  ]
+}

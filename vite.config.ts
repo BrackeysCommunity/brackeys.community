@@ -285,6 +285,7 @@ const config = defineConfig({
       "src/games/*/scenes/**",
       "src/games/*/input-map.json",
       "src/games/*/game-settings.json",
+      "src/games/*/scene-list.json",
       "src/games/*/data/**",
       "src/engine/__tests__/fixtures/*.json",
       "src/engine/scene/__tests__/fixtures/prefabs/**",
@@ -294,6 +295,8 @@ const config = defineConfig({
       "src/engine/headless/__tests__/fixtures/recordings/v*/**/*.json",
       // Frozen asset files, compared byte for byte with the engine's formatter.
       "src/engine/collab/__tests__/fixtures/*.json",
+      // Written by the engine's formatSaveFile, which owns their layout.
+      "**/*.save.json",
     ],
   },
 

@@ -1,14 +1,16 @@
-import type { AssetUrl, MountUi } from "@jams/engine";
+import type { AssetUrl, MountUi, SceneSource } from "@jams/engine";
 import type { DebugLayerFactory } from "@jams/engine/debug";
 import {
   createRegistry,
   type GameDefinition,
+  type LibraryScene,
   type ProjectRuntimeView,
   type Registry,
 } from "@jams/engine/game";
 import {
   byCodeUnit,
   parseProjectFile,
+  type AssetId,
   type AssetSidecar,
   type HeldFile,
   type KindRegistry,
@@ -20,7 +22,6 @@ import {
   prefabLibrary,
   type Prefab,
   type PrefabLibrary,
-  type SceneDefinition,
 } from "@jams/engine/scene";
 import { useCallback, useEffect, useState } from "react";
 
@@ -30,8 +31,12 @@ export type HostedGameModules = {
   registry: Registry;
   /** The game's DOM UI, mounted over the canvas; null when its project file names none. */
   ui: MountUi | null;
-  /** The project's first scene by path. */
-  scene: SceneDefinition;
+  /**
+   * The project's scene list and every listed scene, resident: `GameConfig.flow`'s
+   * source. A project without a list has no start, so `flow.restart()` refuses
+   * with `start-scene-missing`.
+   */
+  flow: SceneSource;
   prefabs: PrefabLibrary;
   /** What its game code reads as `EngineContext.project`: its game settings, data tables, input map and art. */
   project: ProjectRuntimeView;
@@ -43,7 +48,7 @@ export type HostedGameModules = {
 export type HostedGame = {
   id: string;
   name: string;
-  /** Loads the game, its UI, scene, prefabs and project view; the same promise every call once it resolves. */
+  /** Loads the game, its UI, listed scenes, prefabs and project view; the same promise every call once it resolves. */
   load(): Promise<HostedGameModules>;
   /** The layers its `debug/index.ts` exports (as `<NAME>_DEBUG_LAYERS`), [] without one; dev builds only. */
   debugLayers(): Promise<readonly DebugLayerFactory[]>;
@@ -59,11 +64,11 @@ export type HostedGameGlobs = {
   games: Readonly<Record<string, Lazy>>;
   /** `/src/games/<dir>/ui/index.ts`. */
   uis: Readonly<Record<string, Lazy>>;
-  /** `/src/games/<dir>/scenes/*.json`. */
+  /** `/src/games/<dir>/scenes/*.json`: scenes, and the checks, scripts and sidecars beside them. */
   scenes: Readonly<Record<string, Lazy>>;
   /** `/src/games/<dir>/scenes/prefabs/*.json`. */
   prefabs: Readonly<Record<string, Lazy>>;
-  /** `/src/games/<dir>/game-settings.json`, `input-map.json` and `data/*.json`: the docs its project view reads. */
+  /** `/src/games/<dir>/game-settings.json`, `input-map.json`, `scene-list.json` and `data/*.json`: the docs its project view reads. */
   docs?: Readonly<Record<string, Lazy>>;
   /** `/src/games/<dir>/**\/*.asset.json`: the docs' ids, and each binary's hash, size and meta. */
   sidecars?: Readonly<Record<string, Lazy>>;
@@ -123,18 +128,25 @@ const valuesUnder = (map: Readonly<Record<string, Lazy>>, root: string) =>
 
 /**
  * The project under `root` as the scene CLI reads its files, through
- * `heldProject`: its docs with their sidecars, and each binary by its
- * sidecar, a texture's bytes at the URL the build serves it from.
+ * `heldProject`: its docs (its scenes among them) with their sidecars, and
+ * each binary by its sidecar, a texture's bytes at the URL the build serves
+ * it from. `sceneJson` is each scene doc's JSON by the id the view gives it.
  */
 async function projectRuntime(
   root: string,
   file: { id: string; name: string },
   globs: HostedGameGlobs,
   registry: Registry,
-): Promise<Pick<HostedGameModules, "project" | "assets">> {
-  const [{ heldProject, parseSidecar }, docs, sidecars] = await Promise.all([
+): Promise<
+  Pick<HostedGameModules, "project" | "assets"> & { sceneJson: ReadonlyMap<AssetId, unknown> }
+> {
+  const [{ heldProject, parseSidecar }, docs, scenes, sidecars] = await Promise.all([
     import("@jams/engine/project"),
     valuesUnder(globs.docs ?? {}, root),
+    valuesUnder(
+      Object.fromEntries(Object.entries(globs.scenes).filter(([path]) => SCENE_FILE.test(path))),
+      `${root}scenes/`,
+    ),
     valuesUnder(globs.sidecars ?? {}, root),
   ]);
   const sidecarOf = new Map<string, AssetSidecar>();
@@ -142,7 +154,7 @@ async function projectRuntime(
     const parsed = parseSidecar(raw);
     if (parsed.ok) sidecarOf.set(path.slice(0, -SIDECAR.length), parsed.sidecar);
   }
-  const files: HeldFile[] = docs.map(([path, json]) => ({
+  const files: HeldFile[] = [...docs, ...scenes].map(([path, json]) => ({
     path: path.slice(root.length),
     json,
     sidecar: sidecarOf.get(path) ?? null,
@@ -163,11 +175,40 @@ async function projectRuntime(
     urls.size > 0
       ? { view, kinds, url: ((_, entry) => urls.get(entry.sha256) ?? "") as AssetUrl }
       : null;
-  return { project: runtime, assets };
+  const jsonAt = new Map(files.map((f) => [f.path, f.json]));
+  const sceneJson = new Map<AssetId, unknown>();
+  for (const [id, entry] of view.byId)
+    if (entry.kind === "scene") sceneJson.set(id, jsonAt.get(entry.path));
+  return { project: runtime, assets, sceneJson };
+}
+
+/**
+ * The scenes `project`'s list names, each parsed with the project's prefabs,
+ * as a synchronous source: a sublevel attaches inside a step, so every listed
+ * scene is resident before the game starts. A listed id no scene holds is left
+ * out, for the flow's load to refuse; a listed scene that doesn't parse fails
+ * the load.
+ */
+function listedScenes(
+  project: ProjectRuntimeView,
+  sceneJson: ReadonlyMap<AssetId, unknown>,
+  registry: Registry,
+  prefabs: PrefabLibrary,
+): SceneSource {
+  const list = project.flow ?? { start: null, scenes: [] };
+  const scenes = new Map<AssetId, LibraryScene>();
+  for (const { scene: id } of list.scenes) {
+    const raw = sceneJson.get(id);
+    if (raw !== undefined) scenes.set(id, { def: parseSceneOrThrow(raw, registry), prefabs });
+  }
+  return {
+    list: () => list.scenes,
+    start: () => list.start,
+    scene: (id) => scenes.get(id) ?? null,
+  };
 }
 
 function hostedFrom(
-  dir: string,
   root: string,
   file: { id: string; name: string; game: { export: string }; ui?: { export: string } },
   globs: HostedGameGlobs,
@@ -183,16 +224,6 @@ function hostedFrom(
       throw new Error(`project "${file.id}": "${file.ui!.export}" isn't a MountUi function`);
     const registry = createRegistry(game);
 
-    let scene: SceneDefinition | null = null;
-    for (const [path, loadScene] of under(globs.scenes, `${root}scenes/`)) {
-      if (!SCENE_FILE.test(path)) continue;
-      const raw = jsonValue(await loadScene());
-      if (isRecord(raw) && "kind" in raw) continue;
-      scene = parseSceneOrThrow(raw, registry);
-      break;
-    }
-    if (!scene) throw new Error(`project "${file.id}" has no scene under ${dir}/scenes/`);
-
     const raws = await Promise.all(
       under(globs.prefabs, `${root}scenes/prefabs/`).map(async ([, get]) => jsonValue(await get())),
     );
@@ -202,8 +233,9 @@ function hostedFrom(
         return parsed.ok ? [parsed.prefab] : [];
       }),
     );
-    const { project, assets } = await projectRuntime(root, file, globs, registry);
-    return { game, registry, ui, scene, prefabs, project, assets };
+    const { project, assets, sceneJson } = await projectRuntime(root, file, globs, registry);
+    const flow = listedScenes(project, sceneJson, registry, prefabs);
+    return { game, registry, ui, flow, prefabs, project, assets };
   });
 
   const loadDebug = globs.debug?.[`${root}debug/index.ts`];
@@ -270,7 +302,7 @@ export function hostedGamesFrom(
       warn(`project id "${file.id}" is taken; the site hosts the first by path`);
       continue;
     }
-    out.push(hostedFrom(dir, root, { ...file, game: file.game }, globs, loadGame, loadUi));
+    out.push(hostedFrom(root, { ...file, game: file.game }, globs, loadGame, loadUi));
   }
   return out;
 }
@@ -284,6 +316,7 @@ const SITE_GLOBS: HostedGameGlobs = {
   docs: import.meta.glob([
     "/src/games/*/game-settings.json",
     "/src/games/*/input-map.json",
+    "/src/games/*/scene-list.json",
     "/src/games/*/data/*.json",
     "!/src/games/*/data/*.asset.json",
   ]),

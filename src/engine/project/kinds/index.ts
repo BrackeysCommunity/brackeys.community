@@ -11,7 +11,9 @@ import { inputScriptKind } from "./input-script";
 import { materialKind } from "./material";
 import { prefabKind } from "./prefab";
 import { recordingKind } from "./recording";
+import { saveKind } from "./save";
 import { sceneKind } from "./scene";
+import { sceneListKind } from "./scene-list";
 import { textureKind } from "./texture";
 
 export {
@@ -77,7 +79,7 @@ export {
   type InputMapProblem,
   type InputMapTouchControl,
 } from "./input-map";
-export { INPUT_SCRIPT_SUFFIX, inputScriptKind } from "./input-script";
+export { INPUT_SCRIPT_SUFFIX, inputScriptKind, kindInputMap } from "./input-script";
 export {
   MATERIAL_KIND,
   MATERIAL_SCHEMA_ID,
@@ -97,7 +99,29 @@ export {
   type RecordingMeta,
   type RecordingSettings,
 } from "./recording";
+export {
+  SAVE_FIXTURE_MAX_BYTES,
+  SAVE_KIND,
+  SAVE_SUFFIX,
+  saveFixtureMetaSchema,
+  saveFixtureSettingsSchema,
+  saveKind,
+  type SaveFixtureMeta,
+  type SaveFixtureSettings,
+} from "./save";
 export { sceneKind } from "./scene";
+export {
+  SCENE_LIST_KIND,
+  SCENE_LIST_SCHEMA_ID,
+  SCENE_LIST_VERSION,
+  sceneListEntries,
+  sceneListFlow,
+  sceneListIssues,
+  sceneListKind,
+  type SceneListEntry,
+  type SceneListFile,
+  type SceneListFlow,
+} from "./scene-list";
 export {
   TEXTURE_KIND,
   textureKind,
@@ -117,11 +141,13 @@ export const ENGINE_ASSET_KINDS: readonly AssetKindDef[] = [
   dataTableKind,
   inputScriptKind,
   inputMapKind,
+  sceneListKind,
   checksKind,
   textureKind,
   atlasKind,
   fontKind,
   audioKind,
   recordingKind,
+  saveKind,
   codeKind,
 ];

@@ -7,7 +7,7 @@
 import type { z } from "zod";
 
 import type { RuntimeEntity } from "../scene/types";
-import type { EngineContext, FieldEnv } from "./types";
+import type { EngineContext, FieldEnv, JsonValue } from "./types";
 
 /** `sprite`, or a game's `<gameId>/<name>`. */
 export type BehaviorName = string;
@@ -80,6 +80,10 @@ export interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
   /** The entity is disabled; without it the host detaches the block, and attaches it again on enable. */
   disable?(entityId: string): void;
   enable?(entityId: string): void;
+  /** The block's state on `entityId` that a world save needs (a timer's progress); undefined for none. */
+  save?(entityId: string): JsonValue | undefined;
+  /** Puts back what `save` returned, after the block was attached again. */
+  restore?(entityId: string, state: JsonValue): void;
 }
 
 export type BehaviorSystemFactory = (ctx: EngineContext, def: RegisteredBehavior) => BehaviorSystem;

@@ -7,7 +7,7 @@ import { createRegistry, withProject } from "../../game/define";
 import { formatPrefab, formatScene } from "../../scene/format";
 import { parseScene } from "../../scene/parse";
 import { parsePrefab } from "../../scene/prefab";
-import type { Prefab, SceneDefinition } from "../../scene/types";
+import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../../scene/types";
 import { ENGINE_VERSION } from "../../version";
 import { stableJson } from "../canonical";
 import { memoryContentStore, type ContentStore } from "../content-store";
@@ -23,6 +23,7 @@ import {
   type KindEnv,
 } from "../kinds";
 import { ENGINE_ASSET_KINDS } from "../kinds/index";
+import type { SceneListFile } from "../kinds/scene-list";
 import type { RefSite } from "../refs";
 import {
   checkSnapshot,
@@ -59,6 +60,22 @@ const prefabDef = (id: string): Prefab => {
   if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
   return parsed.prefab;
 };
+
+/** A second scene, placing a home prefab, for snapshots whose lists start in different scenes. */
+const yardDef = (): SceneDefinition => ({
+  v: SCENE_FORMAT_VERSION,
+  name: "yard",
+  bounds: [0, 0, 20, 10],
+  instances: [{ id: "p1", prefab: "post", at: [4, 8] }],
+  entities: [{ id: "spawn", type: "marker", at: [1, 8] }],
+});
+
+const sceneList = (start: string | null, scenes: string[] = ["kitchen-sink"]): SceneListFile => ({
+  kind: "scene-list",
+  v: 1,
+  start,
+  scenes: scenes.map((scene) => ({ scene })),
+});
 
 type Skin = { kind: "skin"; v: 1; texture: string };
 /** A doc that names a texture, so references into blobs are covered. */
@@ -105,12 +122,16 @@ async function fixture(
     heroBytes?: string;
     created?: number;
     sheetImport?: Record<string, unknown>;
+    list?: SceneListFile;
+    yard?: boolean;
   } = {},
 ): Promise<Fixture> {
   const heroHash = await sha256(opts.heroBytes ?? "hero pixels");
   const created = { at: opts.created ?? 1, by: "test" };
   const entries = [
     entry("kitchen-sink", "scene", "scenes/kitchen-sink.json", { created }),
+    ...(opts.yard ? [entry("yard", "scene", "scenes/yard.json", { created })] : []),
+    entry("scene-list", "scene-list", "scenes/scene-list.json", { created }),
     ...PREFAB_IDS.map((id) => entry(id, "prefab", `scenes/prefabs/${id}.json`, { created })),
     entry("cards", "data-table", "scenes/data/cards.json", { created }),
     entry("hero", "texture", "art/hero.png", {
@@ -140,6 +161,11 @@ async function fixture(
   );
   const texts = new Map<AssetId, string>([
     ["kitchen-sink", formatScene(sinkDef()).text],
+    ...(opts.yard ? [["yard", formatScene(yardDef()).text] as [AssetId, string]] : []),
+    [
+      "scene-list",
+      formatAssetDoc(kinds.get("scene-list") as DocKindDef, opts.list ?? sceneList("kitchen-sink")),
+    ],
     ...PREFAB_IDS.map((id): [AssetId, string] => [
       id,
       formatPrefab((id === "post" ? opts.post : undefined) ?? prefabDef(id)),
@@ -186,6 +212,7 @@ describe("snapshotProject", () => {
         "hero-sheet",
         "hero-skin",
         "kitchen-sink",
+        "scene-list",
         ...PREFAB_IDS,
         ...materials.values.keys(),
       ].sort(),
@@ -525,5 +552,76 @@ describe("snapshot pinning over the real texture kind", () => {
     expect(sceneB.def).toEqual(sceneA.def);
     expect(sceneB.prefabs).toEqual(sceneA.prefabs);
     expect(sceneA.def).toEqual(sinkDef());
+  });
+});
+
+describe("a snapshot's scene list", () => {
+  const listKind = () => kinds.get("scene-list") as DocKindDef;
+  const listOf = async (snap: ProjectSnapshot, store: ContentStore) => {
+    const pinned = snap.assets["scene-list"]!;
+    const bytes = await store.get(pinned.sha256);
+    const parsed = parseAssetDoc(listKind(), new TextDecoder().decode(bytes!), env);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    return parsed.value as SceneListFile;
+  };
+
+  it("is pinned by its canonical text's hash, and its start and entries resolve in the snapshot", async () => {
+    const list = sceneList("yard", ["yard", "kitchen-sink"]);
+    const f = await fixture({ yard: true, list });
+    const snap = await snapshotProject(...args(f));
+    const store = await storeOf(f.texts);
+    expect(snap.assets["scene-list"]).toEqual({
+      key: "scene-list",
+      kind: "scene-list",
+      path: "scenes/scene-list.json",
+      sha256: await sha256(formatAssetDoc(listKind(), list)),
+    });
+    expect(await listOf(snap, store)).toEqual(list);
+    const sites = listKind().refs!(list, env);
+    expect(sites.map((site) => [site.pointer, site.id])).toEqual([
+      ["/start", "yard"],
+      ["/scenes/0/scene", "yard"],
+      ["/scenes/1/scene", "kitchen-sink"],
+    ]);
+    for (const site of sites) expect(snap.assets[site.id]?.kind).toBe("scene");
+    expect(await checkSnapshot(snap, store, kinds, env)).toEqual([]);
+  });
+
+  it("reports a listed scene the snapshot lacks as asset-missing", async () => {
+    const f = await fixture({ list: sceneList("kitchen-sink", ["kitchen-sink", "yard"]) });
+    const snap = await snapshotProject(...args(f));
+    const issues = await checkSnapshot(snap, await storeOf(f.texts), kinds, env);
+    expect(issues.map((i) => [i.code, i.entityIds[0], i.got, i.path])).toEqual([
+      ["asset-missing", "scene-list", "yard", "/scenes/1/scene"],
+    ]);
+  });
+
+  it("two snapshots with different starts load side by side through snapshotScene", async () => {
+    const scenes = ["kitchen-sink", "yard"];
+    const a = await fixture({ yard: true, list: sceneList("kitchen-sink", scenes) });
+    const b = await fixture({ yard: true, list: sceneList("yard", scenes) });
+    const snapA = await snapshotProject(...args(a));
+    const snapB = await snapshotProject(...args(b));
+    expect(snapB.hash).not.toBe(snapA.hash);
+    expect(
+      Object.keys(snapA.assets).filter(
+        (id) => stableJson(snapA.assets[id]) !== stableJson(snapB.assets[id]),
+      ),
+    ).toEqual(["scene-list"]);
+    const store = await storeOf(a.texts);
+    await store.put(enc(b.texts.get("scene-list")!));
+    for (const snap of [snapA, snapB])
+      expect(await checkSnapshot(snap, store, kinds, env)).toEqual([]);
+
+    const started = async (snap: ProjectSnapshot) => {
+      const { start } = await listOf(snap, store);
+      return snapshotScene(snap, start!, store, registry);
+    };
+    const [sceneA, sceneB] = await Promise.all([started(snapA), started(snapB)]);
+    expect(sceneA.def).toEqual(sinkDef());
+    expect([...sceneA.prefabs.keys()].sort()).toEqual(PREFAB_IDS);
+    expect(sceneB.def).toEqual(yardDef());
+    expect([...sceneB.prefabs.keys()]).toEqual(["post"]);
+    expect(sceneB.prefabs.get("post")).toEqual(prefabDef("post"));
   });
 });

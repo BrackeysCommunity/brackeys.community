@@ -33,7 +33,52 @@ export {
 } from "./behaviors/sprite";
 export { OCCUPANT, type OccupantBlock } from "./behaviors/occupant";
 export { LIFETIME, type LifetimeBlock } from "./behaviors/lifetime";
-export { isRuntimeId, parseRuntimeId, RUNTIME_ID_PATTERN, runtimeId } from "./runtime-ids";
+export {
+  isRuntimeId,
+  parseRuntimeId,
+  parseSublevelId,
+  RUNTIME_ID_PATTERN,
+  runtimeId,
+  SUBLEVEL_ID_PATTERN,
+  sublevelId,
+} from "./runtime-ids";
+export {
+  flowIssue,
+  type FlowRequest,
+  type FlowUse,
+  type LibraryScene,
+  type SceneLibrary,
+  type SceneListEntry,
+  type SublevelInfo,
+  type SublevelOptions,
+  type SublevelResult,
+  type TransitionSpec,
+} from "./flow";
+export {
+  DEFAULT_SAVE_LIMITS,
+  effectiveSaveLimits,
+  formatSaveFile,
+  GRID_STEP_SAVE_OWNER,
+  MAX_BROWSER_SAVE_LIMITS,
+  MOTION_SAVE_OWNER,
+  parseSaveFile,
+  SAVE_RANDOM_KEY,
+  SAVE_SCHEMA_ID,
+  SAVE_VERSION,
+  saveFileBytes,
+  saveFileSchema,
+  SLOT_PATTERN,
+  type ParseSaveResult,
+  type SavedSystems,
+  type SavedTimer,
+  type SaveDepth,
+  type SaveFile,
+  type SaveGameData,
+  type SaveLimits,
+  type SaveLimitsStore,
+  type SaveMeta,
+  type WorldState,
+} from "./save-file";
 export {
   angleField,
   assetField,
@@ -155,6 +200,13 @@ export type {
   GameTableDef,
   GameWorldDef,
   EngineToolId,
+  FlowContext,
+  GamePersistDef,
+  GameSavesDef,
+  JsonValue,
+  PersistContext,
+  SaveRequest,
+  SavesContext,
   EntityQuery,
   EntitySelector,
   EventBus,
@@ -245,6 +297,7 @@ export type { GeometryColliderDesc, GeometryWorld } from "../runtime/geometry-wo
 export type { SpaceCastHit, SpaceFilter, SpaceHit, SpaceQuery } from "../runtime/space";
 export { gridMissingIssue, gridPlace, gridRoute, sceneGrid } from "../runtime/grid";
 export type { GridPlace, RuntimeGrid } from "../runtime/grid";
+export type { GridSettings } from "../scene/types";
 export type { RuntimeNav } from "../runtime/nav";
 
 // ─── Grids, motion and navigation ────────────────────────

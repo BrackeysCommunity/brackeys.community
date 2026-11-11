@@ -62,6 +62,7 @@ export {
   inputMapIssues,
   INPUT_SCRIPT_SUFFIX,
   inputScriptKind,
+  kindInputMap,
   MATERIAL_KIND,
   MATERIAL_SCHEMA_ID,
   MATERIAL_VERSION,
@@ -100,6 +101,28 @@ export {
   type TextureSettings,
 } from "./kinds/index";
 export { atlasExportApp } from "./kinds/atlas";
+export {
+  SCENE_LIST_KIND,
+  SCENE_LIST_SCHEMA_ID,
+  SCENE_LIST_VERSION,
+  sceneListEntries,
+  sceneListFlow,
+  sceneListIssues,
+  sceneListKind,
+  type SceneListEntry,
+  type SceneListFile,
+  type SceneListFlow,
+} from "./kinds/scene-list";
+export {
+  SAVE_FIXTURE_MAX_BYTES,
+  SAVE_KIND,
+  SAVE_SUFFIX,
+  saveFixtureMetaSchema,
+  saveFixtureSettingsSchema,
+  saveKind,
+  type SaveFixtureMeta,
+  type SaveFixtureSettings,
+} from "./kinds/save";
 export { engineResolution, type GameSettingsEngine } from "./kinds/game-settings";
 export {
   INPUT_MAP_KIND,
@@ -216,7 +239,10 @@ export {
 export {
   assetFileEntries,
   assetFileEntry,
+  assetFileKind,
+  assetFilesIn,
   idsAtPaths,
+  mayBeAssetFile,
   orphanSidecarIssue,
   ownAssetId,
   projectPathMatcher,

@@ -379,6 +379,60 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Rapier replays are only guaranteed on the platform that recorded them.",
     fixable: false,
   },
+  "scene-unlisted": {
+    severity: "warn",
+    summary:
+      "Flow names a scene the project's scene list doesn't hold: a listed scene's `connected` or `reaches` check, a sublevel attach in an input script, or an export. A runtime `go` to one is refused as an error.",
+    hint: "Add the scene to scene-list.json through `vp run scene assets apply`, or name a listed scene; `vp run scene flow` prints the list.",
+    fixable: false,
+  },
+  "start-scene-missing": {
+    severity: "error",
+    summary:
+      "The project has no scene list, or its `start` is null, names no scene, or names a scene that isn't listed or is a sublevel, so nothing plays through flow.",
+    hint: "Set `start` in scene-list.json to a listed scene that isn't a sublevel.",
+    fixable: false,
+  },
+  "sublevel-invalid": {
+    severity: "error",
+    summary:
+      "A sublevel can't attach: it isn't listed, its physics, grid or gravity differs from the main scene's, `at` isn't on a cell boundary, or its label is taken or malformed.",
+    hint: "Read `detail.reason` (unlisted, physics, grid, label or settings): list the scene, match the main scene's physics, grid and gravity, put `at` on a whole number of cells, and pick a free id-pattern label.",
+    fixable: false,
+  },
+  "save-version-newer": {
+    severity: "error",
+    summary:
+      "A save's game version is newer than this build's `saves.version`, or a migration step between its version and the game's is missing.",
+    hint: "Load it with the build that wrote it, or add the missing step to `saves.migrations` (each key migrates from that version to the next).",
+    fixable: false,
+  },
+  "save-too-large": {
+    severity: "error",
+    summary: "A save is bigger than the game's save limit, so it wasn't written.",
+    hint: "Save less state in snapshot(), or raise `saves.limits.maxBytes` (the browser's stores cap at 1 MiB); your own save backend is the path for more.",
+    fixable: false,
+  },
+  "save-slot-limit": {
+    severity: "error",
+    summary:
+      "A save to a new slot would pass the game's slot limit, so it wasn't written; overwriting a slot never is.",
+    hint: "Delete a slot or overwrite one; `saves.limits.maxSlots` raises the limit (the browser's stores cap at 64).",
+    fixable: false,
+  },
+  "save-unsupported": {
+    severity: "error",
+    summary:
+      "A world save can't be taken: the scene runs on Rapier, a function timer or coroutine is pending, or the game has no `restore`. `detail` names each cause.",
+    hint: "Take a progress save instead, or for a world save run without physics, use emit-form timers and give the game's runtime `restore`.",
+    fixable: false,
+  },
+  "save-store-failed": {
+    severity: "warn",
+    summary: "The save store threw or refused a read or a write.",
+    hint: "Read the store's `describe`: browser storage may be full, blocked or private. The game keeps running; try the save again or use another store.",
+    fixable: false,
+  },
 };
 
 /**

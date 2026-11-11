@@ -61,7 +61,8 @@ The JSON Schemas ship as files too: `@jams/engine/schemas/scene.schema.json`,
 `prefab.schema.json`, `fragment.schema.json`, `ops.schema.json`,
 `input-script.schema.json` and `recording.schema.json`, and the project's
 (`project`, `asset-sidecar`, `project-ops`, `material`, `game-settings`,
-`data-table`, `input-map`, `project-snapshot`), all under `@jams/engine/schemas/`.
+`data-table`, `input-map`, `project-snapshot`, `scene-list`, `save`), all under
+`@jams/engine/schemas/`.
 
 ## Rapier is injected
 
@@ -309,6 +310,11 @@ over the game's background colour, null for a point off the canvas, and
 and agents use it to check a frame without screenshots; an editor host
 reaches the editor's running game through its handle's `game()` (see
 [Editor UI](#editor-ui)).
+
+A game of several scenes passes `flow` (its scene list and scenes) and
+calls `game.flow.restart()` instead of `loadScene`; see
+[Scene flow](#scene-flow). `game.saves` saves and loads it; see
+[Saves](#saves).
 
 ## Headless
 
@@ -1836,10 +1842,13 @@ and may expose parameters:
   toward the depth; an unknown base is `variant-base-unknown`. Make one
   with the project op `createAsset` (kind `prefab`, content `{ "base":
 "gate" }`); `setPrefabBase { base }` changes or clears it.
-- **Parameters.** `params` declares `{ description, targets, default? }`
+- **Parameters.** `params` declares `{ description, targets, default?, map? }`
   by name; each target is an override path inside the prefab. An
   instance's `params: { speed: 120 }` applies as an override of every
-  target, so the precedence is prefab < param < override. A variant
+  target, so the precedence is prefab < param < override. `map` gives a
+  target its own value per string value of the param, e.g.
+  `{ "unit.behaviors.sprite.frame": { "red": "knight-red" } }`; a mapped
+  target with no entry for the value keeps its own. A variant
   inherits its base's params and may redeclare one. An instance setting
   one its prefab lacks is `param-unknown`. Ops: `exposeParam { name,
 param | null }` (prefab docs only) and `setParam { ref, name, value |
@@ -3937,6 +3946,15 @@ side, which the game plays on ticks. Read it file by file:
   pulsing unless `reducedMotion`. Reach and fog come from the slice through
   the pure grid toolkit (`flowField`, `fieldOfView`); the HUD sends only
   commands.
+- **Flow and saves** (`scene-list.json`, `ui/menu.ts`): the list starts at
+  `menu` (Start, Continue and the store's `describe` line), then `level-1`
+  and `level-2`, whose end (won or lost) requests `result` with the
+  progress in `persist` (`cleared`, `roster` and how the level ended) and
+  a 400 ms fade, and `result` goes back to the menu. Level 2's stair attaches the `cellar` sublevel. The
+  game declares `saves: { version: 1 }` and `restore`; it autosaves its
+  world to `auto` through `ctx.saves.request` as each blue turn starts, and
+  the HUD's Save writes `slot-1` between turns. See
+  [Scene flow](#scene-flow) and [Saves](#saves).
 - **Tests** (`__tests__/`): the scene validates and its checks pass with no
   Rapier; the rules and the AI; the HUD by keyboard, pad and pointer under
   jsdom; the art regenerates byte for byte; the script wins, and its
@@ -3952,6 +3970,651 @@ discovery by project file, `createDataSystem`, the grid toolkit's
 `sameCell`, `inCellBounds` and `boundsCells`, and a `spawnOrder` that
 names only the game's own types. `vp run scene game new <id> --preset
 turns` starts a game of the same shape.
+
+## Scene flow
+
+A game of more than one scene names them in the project's scene list,
+`scene-list.json` at the project's root (kind `scene-list`, at most one per
+project): the start, and every scene flow may load, in order, each with an
+optional title. A scene that only ever attaches beside another is listed
+with `sublevel: true` (see [Sublevels](#sublevels)). The second game's:
+
+```json
+{
+  "$schema": "../../engine/project/scene-list.schema.json",
+  "kind": "scene-list",
+  "v": 1,
+  "start": "menu",
+  "scenes": [
+    { "scene": "menu", "title": "Title" },
+    { "scene": "level-1", "title": "Ford" },
+    { "scene": "level-2", "title": "Bridge" },
+    { "scene": "result" },
+    { "scene": "cellar", "sublevel": true }
+  ]
+}
+```
+
+The list is a doc like a scene: it co-edits per entry, so two people adding
+different scenes and a third reordering converge with no lost entry, and
+renaming or re-iding a listed scene rewrites its entry. It validates with
+`start-scene-missing` (error) when `start` is null, names no scene, or names
+one that isn't listed or is a sublevel; `asset-missing` for an entry naming
+no scene; `dup-id` for a scene listed twice; and `scene-unlisted` (warn)
+when a listed scene's `connected` or `reaches` checks, or a sublevel attach
+in an input script, name a scene the list doesn't hold. One rule judges
+every path: `flowIssue(list, id, use)` from `./game` says whether a scene may
+`"start"`, be gone to (`"go"`) or be `"attach"`ed, and the kind, the
+runtime, headless runs and the scene CLI all call it. A project without a
+list plays nothing through flow: `game.flow.start` is null and
+`game.flow.restart()` is `start-scene-missing`. `vp run scene flow` prints
+the list, the start, each scene's physics and bundle bytes and any unlisted
+references (see the scene CLI's README).
+
+Game code changes scene by asking. `ctx.flow.request({ to, entry?,
+transition?, persist? })` is applied by the host after the tick ends, after
+its destroy flush, so a run of several scenes is as deterministic as a
+command stream; the first request since the host last took them wins, and
+later ones are dropped with a dev warning. `ctx.flow.scene` is the main
+scene's id (null for a scene loaded without a scene list, as in bare
+tests) and `ctx.flow.entry` the entry the request named, which the next
+scene's `onLoad` reads to place the player. `persist` replaces the
+[persistent state](#persistent-state) before the next load. A tick whose
+`play.outcome` returns a verdict ends the run even with a request pending,
+so a game that chains scenes returns null while it requests.
+
+A host passes `GameConfig.flow`:
+
+- **`source`**, a `SceneSource`: `list()`, `start()` and `scene(id)`, which
+  returns `{ def, prefabs }` synchronously, because every listed scene's
+  text is resident (sublevels attach inside a step). The site bundles each
+  hosted game's list and listed scenes by glob and calls
+  `game.flow.restart()` once the game starts; no scene id is written in
+  its code, and `?scene=<id>` overrides the start for the editor only.
+- **`transition`**, a `TransitionRunner(phase, spec, layer)` that runs the
+  `out` and `in` halves of a `TransitionSpec` (`{ kind, ms?, color? }`).
+  The default is `fadeTransition()` for `"fade"` (400 ms in all unless the
+  spec says) and nothing for `"none"`. Transitions draw into a layer above
+  the [UI layer](#the-ui-seam), so a fade covers the HUD too; they never
+  touch the simulation, and under reduced motion a fade is a cut.
+- **`loading`**, a factory for the view shown when a load takes longer than
+  150 ms: default `createLoadingOverlay({ label? })`, a centred label and
+  progress bar; `false` shows none.
+
+`game.flow` has the list's `start` and `scenes`, `current()`, `go(to,
+opts?)` and `restart()`, which loads the start with persist reset to the
+game's initial value; both resolve a `FlowResult`, `{ ok: true, scene,
+report }` or `{ ok: false, issue }` (`scene-unlisted` for a scene that isn't
+a main scene of the list, `start-scene-missing`, a load's refusal). A change
+runs in this order: the tick that asked ends (or `go` is called between
+ticks); the loop stops ticking while rendering goes on; the transition's
+`out` half; `onUnload`, with every sublevel detached; `source.scene(to)`
+and its preload (`flow:loading` reports progress, the loading view shows
+after 150 ms); the load, with persist applied and `ctx.flow.entry` set; the
+`in` half; ticking resumes and `flow:change` fires with `{ from, to, entry
+}`. A `go` during a change waits for it.
+
+The editor's Play stays on one scene, so editing never jumps scenes under
+the author: a request during Play ends the session with the outcome `{
+result: "flow", to }`, and the play bar says "Requested level-2". `flow` is
+an engine run result, so a game can't declare one by that name. The
+editor's toolbar has a scene picker: the listed scenes first, in list order
+with their titles and sublevels tagged, then the rest by path, the open one
+checked. Picking one opens it and keeps `?scene=<id>` in the route; "New
+scene…" names a scene, creates it from the game's template and, with "Add
+to scene list" ticked, lists it in the same batch, so one undo removes both.
+
+Headless, `runPlaytest`, `createHeadlessRuntime` and `replayRecording` take
+the listed scenes as `flow: SceneLibrary` (`{ list, scenes }`, the scene
+list's entries and a map from id to `{ def, prefabs }`). With it a request
+is applied after the tick, with no transition and no wall time, and the
+script carries on in the next scene; without it a request ends the run as
+`{ result: "flow", to }`. A playtest's `segments` holds one entry per scene
+visited, `{ scene, ticks, recording, end }`, and `recording` stays the
+first segment's. Each segment's recording replays alone: its `start` holds
+the persistent value (and the entry) it began with, its `next` the request
+that ended it, and a replay applies the first and stops at the second
+without following it. Scripts gain two engine predicates: `until: { scene:
+"<id>" }` holds once the main scene is that scene, and `until: { persist: {
+pointer, eq | gte | lte } }` reads the persistent value by JSON Pointer.
+
+```ts scene-flow.ts
+import {
+  createGame,
+  createLoadingOverlay,
+  fadeTransition,
+  type GameInstance,
+  type SceneSource,
+} from "@jams/engine";
+import {
+  defineGame,
+  type EngineContext,
+  type SceneLibrary,
+  type TransitionSpec,
+} from "@jams/engine/game";
+import { replayRecording, runPlaytest } from "@jams/engine/headless";
+import type { EntityDef, Pt, SceneDefinition } from "@jams/engine/scene";
+import { z } from "zod";
+
+type Post = { letters: number };
+
+export type CourierSnapshot = {
+  scene: string | null;
+  entry: string | null;
+  arrivedAt: Pt | null;
+  /** What the cellar's attach spawned (`cellar:<id>`), and the sublevels attached now. */
+  attached: string[];
+  sublevels: string[];
+  letters: number;
+};
+
+const FADE: TransitionSpec = { kind: "fade", ms: 400 };
+
+/**
+ * A courier walks scenes: `start` leaves the title for the harbour, which
+ * attaches its cellar beside it; two `deliver`s close the cellar and end
+ * the round, and the ending goes back to the title on its own.
+ */
+export const courierGame = defineGame<CourierSnapshot>({
+  id: "courier",
+  types: [],
+  actions: [],
+  world: { physics: "none" },
+  persist: {
+    initial: () => ({ letters: 0 }),
+    schema: z.strictObject({ letters: z.number().int().min(0) }),
+  },
+  commands: {
+    start: { description: "Leaves the title for the harbour, arriving at the pier." },
+    deliver: { description: "Delivers a letter; the second ends the round." },
+  },
+  createRuntime(ctx: EngineContext) {
+    let arrivedAt: Pt | null = null;
+    let attached: string[] = [];
+    let ticks = 0;
+    const letters = () => (ctx.persist.value as Post).letters;
+    return {
+      onLoad(scene) {
+        ticks = 0;
+        attached = [];
+        const entry = scene.entities.find((e) => e.id === ctx.flow.entry);
+        arrivedAt = (entry?.at as Pt | undefined) ?? null;
+        if (ctx.flow.scene === "harbour") {
+          const cellar = ctx.flow.attach("cellar", { label: "cellar", at: [4, 0] });
+          if (!cellar.ok) throw new Error(cellar.issue.message);
+          attached = [...cellar.entities];
+        }
+      },
+      beforeStep(_dtMs, _actions, commands) {
+        for (const command of commands) {
+          if (command.name === "start") {
+            ctx.flow.request({ to: "harbour", entry: "pier", transition: FADE });
+          }
+          if (command.name === "deliver") {
+            ctx.persist.set({ letters: letters() + 1 });
+            if (letters() === 2) {
+              ctx.flow.detach("cellar");
+              ctx.flow.request({ to: "ending", transition: FADE });
+            }
+          }
+        }
+      },
+      afterStep() {
+        ticks++;
+        if (ctx.flow.scene === "ending" && ticks === 3) {
+          ctx.flow.request({ to: "title", persist: { letters: 0 } });
+        }
+      },
+      snapshot: () => ({
+        scene: ctx.flow.scene,
+        entry: ctx.flow.entry,
+        arrivedAt,
+        attached,
+        sublevels: ctx.flow.sublevels().map((s) => s.label),
+        letters: letters(),
+      }),
+    };
+  },
+});
+
+const scene = (name: string, entities: EntityDef[]): SceneDefinition => ({
+  v: 4,
+  game: "courier",
+  name,
+  bounds: [0, 0, 6.4, 3.2],
+  entities,
+});
+
+/** The scene list and every listed scene, resident: what a host's `SceneSource` serves. */
+export const courierScenes: SceneLibrary = {
+  list: [
+    { scene: "title", title: "Title" },
+    { scene: "harbour", title: "Harbour" },
+    { scene: "ending" },
+    { scene: "cellar", sublevel: true },
+  ],
+  scenes: new Map(
+    Object.entries({
+      title: scene("title", [{ id: "sign", type: "marker", at: [3.2, 1.6] }]),
+      harbour: scene("harbour", [
+        { id: "pier", type: "marker", at: [0.5, 2.5] },
+        { id: "post-office", type: "marker", at: [3, 2.5] },
+      ]),
+      ending: scene("ending", [{ id: "sunset", type: "marker", at: [3.2, 0.5] }]),
+      cellar: scene("cellar", [
+        { id: "barrel", type: "marker", at: [0.5, 0.5] },
+        { id: "ladder", type: "marker", at: [1.5, 0.5] },
+      ]),
+    }).map(([id, def]) => [id, { def, prefabs: new Map() }]),
+  ),
+};
+
+/** One script across every scene: title → harbour → ending → title, each scene its own segment. */
+export function deliveryRound() {
+  const title = courierScenes.scenes.get("title")!.def;
+  const run = runPlaytest<CourierSnapshot>({
+    game: courierGame,
+    scene: title,
+    flow: courierScenes,
+    script: {
+      v: 1,
+      steps: [
+        { command: "start" },
+        { command: "deliver" },
+        { hold: [], until: { persist: { pointer: "/letters", eq: 1 } }, max: 5 },
+        { wait: 5 },
+        { command: "deliver" },
+        { hold: [], until: { scene: "title" }, max: 30 },
+      ],
+    },
+  });
+  if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.issues)}`);
+  const segments = run.segments ?? [];
+  // Each segment's recording replays alone and stops at its `next` without following it.
+  const replays = segments.map((s) =>
+    replayRecording<CourierSnapshot>({
+      game: courierGame,
+      scene: courierScenes.scenes.get(s.scene)!.def,
+      recording: s.recording,
+      flow: courierScenes,
+    }),
+  );
+  return {
+    visited: segments.map((s) => s.scene),
+    ends: segments.map((s) => s.end),
+    persistAtStart: segments.map((s) => s.recording.start?.persist),
+    sceneEnds: replays.map((r) => (r.blocked ? null : r.final)),
+    replayed: replays.every((r) => !r.blocked && r.matches),
+    final: run.final,
+  };
+}
+
+/** A host's scenes: here a map, on the site the project's files bundled by glob. */
+export function courierSource(library: SceneLibrary = courierScenes): SceneSource {
+  return {
+    list: () => library.list,
+    start: () => "title",
+    scene: (id) => library.scenes.get(id) ?? null,
+  };
+}
+
+/** Plays from the list's start, with a dark fade and a loading line on a slow load. */
+export async function playCourier(canvas: HTMLCanvasElement): Promise<GameInstance> {
+  const game = await createGame(canvas, {
+    game: courierGame,
+    displayWidth: canvas.clientWidth,
+    displayHeight: canvas.clientHeight,
+    flow: {
+      source: courierSource(),
+      transition: fadeTransition({ color: 0x10141c }),
+      loading: createLoadingOverlay({ label: "Sorting the post…" }),
+    },
+  });
+  game.on("flow:change", ({ from, to, entry }) => {
+    console.log(`${from ?? "start"} → ${to}${entry ? ` at ${entry}` : ""}`);
+  });
+  game.start();
+  const started = await game.flow.restart();
+  if (!started.ok) throw new Error(`${started.issue.code}: ${started.issue.message}`);
+  return game;
+}
+```
+
+`deliveryRound()` visits title, harbour, ending and title again on one
+script; the harbour's recording starts with `{ letters: 0 }` and ends with
+`next: { scene: "ending" }`, and every segment replays to its own digest.
+
+## Persistent state
+
+A game that remembers things between scenes (levels cleared, a roster, a
+key picked up) declares `GameDefinition.persist: { initial, schema? }`.
+`ctx.persist.value` is one plain JSON value, deep-frozen and the same object
+until `ctx.persist.set(next)` replaces it, at once. In dev and headless
+every value set is checked as plain JSON and against `schema`; a save's
+load checks it too. A game that declares none reads null.
+
+- **One value per game instance**, and per headless session: it survives
+  every `loadScene`, flow change, sublevel attach and Play-from-here. It is
+  reset to `initial()` by `game.flow.restart()`, replaced by a flow
+  request's `persist` before the next load, and set to the saved value when
+  a save loads.
+- **Not in any digest by itself.** A game whose run branches on it puts
+  what matters in `snapshot()`. Recordings carry it at their start
+  (`start.persist`), and a replay sets it before the load.
+- **Headless:** `PlayState.persist` reaches `play.outcome` and the game's
+  predicates, `until: { persist: … }` waits on it, and runtimes that should
+  share one value take the same cell from `createPersistCell(initial,
+opts?)` or `gamePersistCell(game, check)` (`./headless`) as their
+  `persist` option.
+
+## Sublevels
+
+A sublevel is a listed scene loaded beside the main one, inside a step:
+a cellar under a board, a room behind a door. `ctx.flow.attach(scene, {
+label, at?, z? })` takes the scene from the runtime's scene list, frozen at
+each load as the prefabs are, expands it, moves every entity by `at`
+(metres; default `[0, 0]`), adds `z` to every entity's z, and spawns them
+as `add` does, now: `ready` runs and each raises one `entity:spawned`. Scene
+entities get the label as a prefix, `<label>:<id>` (`sublevelId`,
+`parseSublevelId`, `SUBLEVEL_ID_PATTERN` from `./game`); runtime spawns keep
+`<name>#<n>` from the runtime's counters, which a main-scene load resets and
+attach and detach never touch. The result is `{ ok: true, entities }` or `{
+ok: false, issue }` with `sublevel-invalid` and a `detail.reason`:
+
+- `"unlisted"`: the scene isn't in the scene list;
+- `"physics"`: it resolves to other physics than the main scene;
+- `"grid"`: its grid has another shape or cell size, or `at` isn't on a
+  cell boundary, judged in whole px against the metric cell;
+- `"label"`: the label is taken or isn't an id word;
+- `"settings"`: its gravity differs.
+
+A sublevel has no `onLoad` of its own; the game reacts to its
+`entity:spawned` events or to the attach's result. Queries, contacts and
+sensors see its entities like any other, and the grid gains its walls.
+`ctx.spawn({ …, sublevel: label })` ties a runtime spawn to it.
+`ctx.flow.detach(label)` queues every `<label>:*` entity and every spawn
+tied to it for the tick's destroy flush, then removes its grid walls;
+`ctx.flow.sublevels()` lists those attached as `{ label, scene, at }`, and a
+main-scene change detaches them all. Their art loads through the loader
+like any scene's (placeholders until it arrives); a host calls
+`game.preload` for the sublevels it expects. The courier above attaches its
+cellar in the harbour's `onLoad` and detaches it with the last letter; the
+second game attaches `cellar` when a unit steps on level 2's stair cell.
+
+## Saves
+
+A save is a `save:v1` file at one of two depths:
+
+- **`progress`**: the persistent value, the game's `snapshot()` and the
+  scene it was taken in. Loading it loads that scene fresh, then hands the
+  snapshot to `GameRuntime.restore(state)` and sets the persistent value.
+  Every game can take one; restoring game state needs `restore`.
+- **`world`**: everything a run needs to continue exactly: the tick, the
+  runtime's counters, `ctx.random` and its forks, emit timers, enabled
+  flags, destroyed and spawned entities with their exact ids, poses, each
+  system's and behavior's own state (their optional `save(id)` and
+  `restore(id, state)`, kept per owner; motion bodies and grid steppers
+  under `motion` and `grid-step`), sublevels and seats. A world save is
+  refused as `save-unsupported`, its detail naming each cause, while the
+  main scene runs on Rapier (world saves of physics scenes arrive with
+  online play's snapshots; use a progress save), while a function-form
+  timer or a coroutine is pending (named by owner), or when the game has
+  no `restore`. `worldSaveBlockers(runtime)` is that one rule, and every
+  save path calls it. The guarantee, tested on every physics-free genre
+  probe and the second game: a run saved at tick N and played on to N + M
+  reaches the same digest as a fresh runtime that restored the save and
+  played M.
+
+`GameDefinition.saves: { version, migrations?, limits?, store? }` gives the
+game's save-data version: bump it and add a migration (keyed by the version
+it migrates from, `{ persist, game }` in and out) when `snapshot()` or the
+persistent value changes shape. `parseSaveFile(text, game?)` checks the
+envelope and migrates up, saying `migratedFrom`; a save from a newer
+version, or one with a missing step ("no migration from 2 to 3"), is
+`save-version-newer`. `formatSaveFile` writes the canonical text, and a
+save's size is that text's UTF-8 length (`saveFileBytes`). A save whose
+scene changed since (its `runHash`) still loads, with an info issue, since
+refusing every save after a balance tweak would read as data loss. Slot
+names are lowercase letters, digits and dashes, 1–32 characters
+(`SLOT_PATTERN`). `meta.savedAt` is the host's clock, never read inside the
+simulation.
+
+Saves go to a `SaveStore` (`kind`, `describe`, optional `limits`, `list`,
+`read`, `write`, `remove`, every call guarded so a failing store never
+stops the game): `memorySaveStore()`, `localStorageSaveStore({ prefix?,
+storage? })`, `indexedDbSaveStore({ db? })`, or `browserSaveStore()`, which
+probes once for IndexedDB, else localStorage, else memory. The game's own
+backend (`GameDefinition.saves.store`) wins over the host's
+(`GameConfig.saves`), which wins over `browserSaveStore()`. A store's
+`describe` is the line a save menu shows: "Saves stay in this browser until
+you clear its site data.", or "Saves last until this tab closes." for
+memory.
+
+Saves are limited to 64 KB and 8 slots per game by default; your own save
+backend is the recommended path for anything more; browser saves stay on
+the player's device. `DEFAULT_SAVE_LIMITS` is that default and
+`saves.limits` raises or lowers it, but the browser stores cap at
+`MAX_BROWSER_SAVE_LIMITS` (1 MB, 64 slots) and a store may be stricter
+still: `effectiveSaveLimits(game, store)` is the minimum of the three, and
+every store, the slots and a game's menu read it. A save over the size is
+`save-too-large`, checked before anything is written; a new slot past the
+count is `save-slot-limit` ("This game keeps at most 8 saves; delete one to
+save again."), while overwriting a slot never is; a store that throws is
+`save-store-failed`.
+
+`game.saves` is the instance's `SaveSlots`: `store` (`kind` and
+`describe`), `limits`, `list()` (each slot's `meta`: title, scene,
+`savedAt`, `playTicks`, and its bytes), `save(slot, { depth?, title? })`,
+`load(slot)` and `remove(slot)`. A load pauses, swaps in the save's scene
+restored, resumes and fires `flow:change`; a game with `time.catchUp` may
+then be sent the time away since `meta.savedAt`, which idle games use for
+"you were away". Game code saves with `ctx.saves.request(slot, opts?)`,
+which the host honours after the tick; whether it worked arrives only as a
+host event, `save:written { slot, bytes }` or `save:failed { slot, issue }`,
+never as a simulation input.
+
+Headless keeps saves in memory: `HeadlessRuntime.save(opts)` captures
+(`captureSave`), `createHeadlessRuntime({ fromSave })` and `loadHeadless(…,
+{ fromSave })` start from one (`restoreSave`), and a caller honours
+`ctx.saves.request` by draining `takeRequests().saves`. A save fixture is
+an asset of kind `save` (`*.save.json`, a blob with the game, version,
+depth and scene as its meta) that `vp run scene save` writes and
+`playtest --from-save` starts from; the recording then carries `fromSave:
+{ slot, sha256 }`, and replaying it without that fixture is `asset-missing`.
+
+```ts save-slots.ts
+import { createGame, localStorageSaveStore, type GameInstance, type SaveSlots } from "@jams/engine";
+import {
+  createRegistry,
+  defineGame,
+  effectiveSaveLimits,
+  formatSaveFile,
+  parseSaveFile,
+  type EngineContext,
+} from "@jams/engine/game";
+import { createHeadlessRuntime, memorySaveStore } from "@jams/engine/headless";
+import { expandScene, type SceneDefinition } from "@jams/engine/scene";
+import { z } from "zod";
+
+export type HiveSnapshot = { nectar: number; bees: number };
+type Honey = { honey: number };
+
+/**
+ * A physics-free hive: nectar comes in at a random rate, every 20 makes a
+ * jar of honey (persistent), a timer hatches a bee every 10 ticks, and the
+ * game asks for an autosave every 25 ticks.
+ */
+export const hiveGame = defineGame<HiveSnapshot>({
+  id: "hive",
+  types: [],
+  actions: [],
+  world: { physics: "none" },
+  persist: {
+    initial: () => ({ honey: 0 }),
+    schema: z.strictObject({ honey: z.number().int().min(0) }),
+  },
+  saves: {
+    version: 2,
+    // Version 1 called the jars `jars`.
+    migrations: {
+      1: ({ persist, game }) => ({ persist: { honey: (persist as { jars: number }).jars }, game }),
+    },
+  },
+  createRuntime(ctx: EngineContext) {
+    let nectar = 0;
+    let bees = 0;
+    return {
+      onLoad() {
+        nectar = 0;
+        bees = 0;
+        ctx.timers.every(10, { emit: "hatch" });
+      },
+      beforeStep() {
+        nectar += 1 + ctx.random.below(3);
+        if (nectar >= 20) {
+          nectar -= 20;
+          ctx.persist.set({ honey: (ctx.persist.value as Honey).honey + 1 });
+        }
+        if (ctx.tick % 25 === 24) {
+          ctx.saves.request("auto", { depth: "world", title: `Tick ${ctx.tick}` });
+        }
+      },
+      afterStep(_dtMs, events) {
+        for (const e of events) {
+          if (e.type !== "hatch") continue;
+          bees++;
+          ctx.spawn({ type: "marker", at: [ctx.random.below(4), 1] });
+        }
+      },
+      snapshot: () => ({ nectar, bees }),
+      // Without `restore` a world save is refused (`save-unsupported`).
+      restore(s) {
+        nectar = s.nectar;
+        bees = s.bees;
+      },
+    };
+  },
+});
+
+const registry = createRegistry(hiveGame);
+const meadow: SceneDefinition = {
+  v: 4,
+  game: "hive",
+  name: "meadow",
+  bounds: [0, 0, 4, 2],
+  entities: [{ id: "hive", type: "marker", at: [2, 1] }],
+};
+
+/**
+ * Plays 60 ticks, honouring the game's autosave requests and saving
+ * `slot-1` by hand at tick 30; then a fresh runtime resumes `slot-1` and
+ * plays the same 30 ticks to the same state.
+ */
+export async function keepHive() {
+  const store = memorySaveStore();
+  const scene = expandScene(meadow, registry);
+  const open = (saveText?: string) => {
+    const parsed = saveText === undefined ? null : parseSaveFile(saveText, hiveGame);
+    if (parsed && !parsed.ok) throw new Error(parsed.issues[0]!.message);
+    return createHeadlessRuntime({
+      game: hiveGame,
+      registry,
+      scene,
+      ...(parsed ? { fromSave: parsed.file } : {}),
+    });
+  };
+  const now = (tick: number) => 1_762_531_200_000 + tick * 1000;
+  const state = (r: ReturnType<typeof open>) => JSON.stringify([r.snapshot(), r.ctx.persist.value]);
+
+  const run = open();
+  const { tickMs } = run.ctx.time;
+  for (let tick = 0; tick < 60; tick++) {
+    run.step(tickMs, []);
+    // The host's half of `ctx.saves.request`: capture after the tick, then write.
+    for (const req of run.takeRequests().saves) {
+      const saved = run.save({ ...req, depth: req.depth ?? "progress", now: now(tick) });
+      if (saved.ok) await store.write("hive", req.slot, formatSaveFile(saved.file));
+    }
+    if (tick === 29) {
+      const saved = run.save({
+        depth: "world",
+        slot: "slot-1",
+        title: "Before the swarm",
+        now: now(tick),
+      });
+      if (!saved.ok) throw new Error(saved.issue.message);
+      await store.write("hive", "slot-1", formatSaveFile(saved.file));
+    }
+  }
+  const played = state(run);
+
+  const resumed = open((await store.read("hive", "slot-1"))!);
+  for (let tick = 30; tick < 60; tick++) resumed.step(tickMs, []);
+
+  const progress = run.save({ depth: "progress", slot: "slot-2", now: now(60) });
+  const file = run.save({ depth: "world", slot: "slot-3", now: now(60) });
+  if (!progress.ok || !file.ok) throw new Error("the hive can't be saved");
+  // An old save of the game's version 1, migrated on parse.
+  const old = parseSaveFile(
+    formatSaveFile({ ...file.file, gameVersion: 1, persist: { jars: 3 } }),
+    hiveGame,
+  );
+  const newer = parseSaveFile(formatSaveFile({ ...file.file, gameVersion: 3 }), hiveGame);
+  run.destroy();
+  resumed.destroy();
+
+  return {
+    limits: effectiveSaveLimits(hiveGame, store),
+    slots: (await store.list("hive")).map((s) => [s.slot, s.meta.title, s.meta.playTicks]),
+    sameState: state(resumed) === played,
+    honey: (resumed.ctx.persist.value as Honey).honey,
+    progressHasWorld: "world" in progress.file,
+    migrated: old.ok ? [old.migratedFrom, old.file.persist] : null,
+    newer: newer.ok ? null : newer.issues.map((i) => i.code),
+  };
+}
+
+/** A save menu's lines: where saves live, the slots in use, and the next free slot. */
+export async function saveMenu(saves: Pick<SaveSlots, "store" | "limits" | "list">) {
+  const held = await saves.list();
+  const names = new Set(held.map((s) => s.slot));
+  let free: string | null = null;
+  for (let n = 1; n <= saves.limits.maxSlots && free === null; n++) {
+    if (!names.has(`slot-${n}`)) free = `slot-${n}`;
+  }
+  return {
+    where: saves.store.describe,
+    rows: held.map((s) => `${s.meta.title ?? s.meta.scene} · ${Math.round(s.bytes / 1024)} KB`),
+    free: held.length < saves.limits.maxSlots ? free : null,
+  };
+}
+
+/** Continue: loads the save written last, through the instance's slots. */
+export async function continueNewest(game: Pick<GameInstance, "saves">) {
+  const held = await game.saves.list();
+  const newest = held.reduce<(typeof held)[number] | null>(
+    (best, s) => (best && best.meta.savedAt >= s.meta.savedAt ? best : s),
+    null,
+  );
+  return newest ? game.saves.load(newest.slot) : null;
+}
+
+/** A host's own store: localStorage under its own prefix; the game's `saves.store` would win over it. */
+export async function playHive(canvas: HTMLCanvasElement): Promise<GameInstance> {
+  const game = await createGame(canvas, {
+    game: hiveGame,
+    saves: localStorageSaveStore({ prefix: "hive-demo:" }),
+  });
+  game.on("save:written", ({ slot, bytes }) => console.log(`saved ${slot} (${bytes} B)`));
+  game.on("save:failed", ({ slot, issue }) => console.warn(`${slot}: ${issue.message}`));
+  game.start();
+  return game;
+}
+```
+
+`keepHive()` resumes `slot-1` to the same state as the run that went on,
+lists the autosave beside it, migrates a version-1 save and refuses one
+from version 3 as `save-version-newer`.
 
 ## Co-editing
 
@@ -4244,6 +4907,49 @@ points the page at a dev server on another origin (`http(s)://` or
 (`vp run engine:editor`). It edits a scratch copy of `src/engine/scenes`
 (the engine project: kitchen sink and engine yard) unless `--in-place` is
 passed, so the kitchen sink can be checked in the editor without the site.
+
+## Project settings
+
+The editor's Project settings panel (panel id `settings`: the host opens it
+with `SceneEditorHandle.openPanel("settings")`, as the site's menu does,
+and the toolbar's scene menu has "Project settings…")
+edits a project's one-per-project docs in five tabs:
+
+- **General**: the `game` block of `game-settings.json`, the fields the
+  game's `projectSettings` declares.
+- **Engine**: `engine.physics`, gravity in m/s², the tick rate and the
+  resolution policy, each showing the game's value while the project sets
+  none. The game's px per metre is shown and not edited: it is the code's
+  (`GameDefinition.world.lengthUnit`).
+- **Input**: the input map's seats and deadzone, every action with its
+  bindings as chips (UI-only actions tagged), "Add binding", which takes
+  the next press through the running game's `input.capture`, and the touch
+  controls.
+- **Scenes**: the scene list: drag a row, or use its arrows, to reorder;
+  pick the start; edit titles; toggle a sublevel; add the scenes it doesn't
+  list, and remove one.
+- **Layers**: the scene layers and collision groups the game's code
+  registers, each with the module it comes from, read-only, since they
+  change in code.
+
+A project without a `game-settings`, `input-map` or `scene-list` doc offers
+"Create", an asset made from the kind's empty value. Removing a binding, a
+touch control or a listed scene asks first through the editor's `Confirm`.
+Every edit is one `editAsset` batch through the project session, so it has
+history, per-person undo, presence and sync like any other edit, and two
+people editing different tabs converge.
+
+The panels are built on `./editor`'s pure settings model, which any host or
+tool can use over a zod object: `settingsRows(schema, value, path, {
+registry?, pxPerMetre? })` gives the inspector's rows (enums, bounded
+numbers, booleans and number pairs with the scene inspector's widgets,
+nested objects as children, metric steps at the game's px per metre),
+`settingsValue(row, input)` checks and types what a control gives, and
+`settingsEdit(asset, path, value, current?)` is the one op that writes a dot
+path. Given the doc and its kind's layout as `current`, it writes where the
+layout allows: a field inside an atomic value (`engine.resolution.fit`)
+sets the whole value, a field under a missing object sets the object, and
+`undefined` unsets.
 
 ## Versioning
 

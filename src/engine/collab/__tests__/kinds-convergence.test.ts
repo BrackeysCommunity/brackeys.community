@@ -3,14 +3,20 @@ import * as Y from "yjs";
 
 import { NUDGE, testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
+import { formatSaveFile, type SaveFile } from "../../game/save-file";
 import { stableJson } from "../../project/canonical";
+import { memoryContentStore, type ContentStore } from "../../project/content-store";
+import { sha256 } from "../../project/hash";
+import { inspectEntry } from "../../project/inspect/entry";
 import {
   createKindRegistry,
   parseAssetDoc,
+  type BlobKindDef,
   type DocKindDef,
   type DocLayout,
   type KindEnv,
 } from "../../project/kinds";
+import type { AssetEntry } from "../../project/types";
 import { rng } from "../../scene/__tests__/fixtures/random-ops";
 import { readCell, type CellEdit, type GridCells } from "../../scene/grid";
 import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../../scene/types";
@@ -19,6 +25,9 @@ import { docToScene, entitiesMap, gridRowKey, sceneToDoc } from "../convert";
 import { sequentialKeys } from "../keys";
 import { layoutFromDoc, layoutPatch, layoutToDoc } from "../layout";
 import { docToPrefab, prefabPatch, prefabToDoc } from "../prefab-doc";
+import { applyProjectBatch } from "../project-apply";
+import { readProject, seedProjectDoc } from "../project-doc";
+import { createProjectSession, memoryDocHost } from "../project-session";
 import type { DocOrigin } from "../types";
 import { deckGame, deckKind } from "./fixtures/deck-kind";
 import {
@@ -304,6 +313,15 @@ describe("the engine's doc kinds and a game's converge", () => {
       actions: [{ action: "push", bindings: [{ device: "key", code: "Space" }] }],
       touch: [{ id: "jump", kind: "button", action: "push", at: [0.85, 0.8], radius: 0.08 }],
     },
+    "scene-list": {
+      kind: "scene-list",
+      v: 1,
+      start: "yard",
+      scenes: [
+        { scene: "yard", title: "Yard" },
+        { scene: "cellar", sublevel: true },
+      ],
+    },
     checks: {
       v: 1,
       checks: [
@@ -553,6 +571,94 @@ describe("the engine's doc kinds and a game's converge", () => {
     expect(v.players).toEqual({ max: 4, join: "press" });
     expect(items(v, "touch").map((t) => t.id)).toEqual(["jump", "walk"]);
     expect(v.actions).toEqual(START["input-map"]!.actions);
+  });
+
+  const listed = (x: Obj) => items(x, "scenes").map((e) => e.scene);
+
+  it("scene-list: two clients inserting different scenes and one reordering converge with no lost entry", () => {
+    const v = offline("scene-list", [
+      (x) => ({ ...x, scenes: [...items(x, "scenes"), { scene: "ford", title: "Ford" }] }),
+      (x) => ({ ...x, scenes: [{ scene: "menu" }, ...items(x, "scenes")] }),
+      (x) => ({ ...x, scenes: [...items(x, "scenes")].reverse() }),
+    ]);
+    expect(listed(v)).toHaveLength(4);
+    expect(listed(v)).toEqual(expect.arrayContaining(["cellar", "ford", "menu", "yard"]));
+    expect(listed(v).indexOf("cellar"), "the reorder lands").toBeLessThan(
+      listed(v).indexOf("yard"),
+    );
+    expect(items(v, "scenes").find((e) => e.scene === "ford")).toEqual({
+      scene: "ford",
+      title: "Ford",
+    });
+    expect(v.start).toBe("yard");
+  });
+
+  it("scene-list: random inserts on two clients and shuffles on a third keep every entry, over partitions", () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      const rand = rng(seed * 7_919);
+      const s = network(kind("scene-list").layout, START["scene-list"]!, 3, rand);
+      const added: string[] = [];
+      for (let step = 0; step < 12; step++) {
+        for (const i of [0, 1]) {
+          const scene = `c${i}-${step}`;
+          added.push(scene);
+          s.write(i, (x) => {
+            const scenes = [...items(x, "scenes")];
+            scenes.splice(int(rand, scenes.length + 1), 0, { scene });
+            return { ...x, scenes };
+          });
+        }
+        s.write(2, (x) => {
+          const scenes = [...items(x, "scenes")];
+          const [moved] = scenes.splice(int(rand, scenes.length), 1);
+          scenes.splice(int(rand, scenes.length + 1), 0, moved!);
+          return { ...x, scenes };
+        });
+        s.net.deliver(int(rand, 4));
+        const roll = rand();
+        if (roll < 0.2) s.net.partition([int(rand, 3)]);
+        else if (roll < 0.4) s.net.heal();
+      }
+      s.net.settle();
+      const vs = s.values();
+      expectConverged(vs, `scene-list seed ${seed}`);
+      const kept = listed(vs[0]!);
+      expect(kept, `seed ${seed}`).toHaveLength(added.length + 2);
+      expect(kept, `seed ${seed}`).toEqual(expect.arrayContaining(["cellar", "yard", ...added]));
+    }
+  });
+
+  it("scene-list: concurrent start edits are last-writer-wins on one value", () => {
+    const start: Obj = {
+      ...START["scene-list"]!,
+      scenes: [
+        { scene: "yard", title: "Yard" },
+        { scene: "ford" },
+        { scene: "result" },
+        { scene: "cellar", sublevel: true },
+      ],
+    };
+    const v = offline(
+      "scene-list",
+      [
+        (x) => ({ ...x, start: "ford" }),
+        (x) => ({ ...x, start: "result" }),
+        (x) => ({
+          ...x,
+          scenes: items(x, "scenes").map((e) =>
+            e.scene === "yard" ? { ...e, title: "Court" } : e,
+          ),
+        }),
+      ],
+      start,
+    );
+    expect(["ford", "result"]).toContain(v.start);
+    expect(items(v, "scenes")).toEqual([
+      { scene: "yard", title: "Court" },
+      { scene: "ford" },
+      { scene: "result" },
+      { scene: "cellar", sublevel: true },
+    ]);
   });
 
   it("checks: concurrent edits of different checks and fields all land", () => {
@@ -921,4 +1027,181 @@ describe("scene docs converge", () => {
     }
     expect(painted).toBe(480);
   });
+});
+
+describe("save fixtures: the binary replace race", () => {
+  const kinds = createKindRegistry(null);
+  const registry = createRegistry();
+  const saveKind = () => kinds.get("save") as BlobKindDef;
+  const fixture = (playTicks: number, persist: SaveFile["persist"]) =>
+    new TextEncoder().encode(
+      formatSaveFile({
+        kind: "save",
+        v: 1,
+        game: "test-game",
+        gameVersion: 1,
+        engine: "0.13.0",
+        release: null,
+        project: null,
+        slot: "fixture",
+        meta: { scene: playTicks > 100 ? "cellar" : "yard", savedAt: 0, playTicks },
+        depth: "progress",
+        persist,
+        scene: { id: playTicks > 100 ? "cellar" : "yard", runHash: "5a1d2c3e", sublevels: [] },
+        data: {},
+      }),
+    );
+  const FIRST = fixture(30, { cleared: [] });
+  const POOL = [FIRST, fixture(60, { cleared: ["yard"] }), fixture(120, { cleared: ["yard"] })];
+
+  async function world(store: ContentStore) {
+    const host = memoryDocHost();
+    const entry: AssetEntry = {
+      key: "fixture",
+      id: "fixture",
+      kind: "save",
+      path: "saves/fixture.save.json",
+      sha256: await store.put(FIRST),
+      bytes: FIRST.byteLength,
+      created: { at: 0, by: "seed" },
+    };
+    const inspected = inspectEntry(saveKind(), entry, FIRST, () => undefined);
+    if (!inspected.ok) throw new Error("the first fixture doesn't inspect");
+    entry.meta = inspected.meta as Record<string, unknown>;
+    seedProjectDoc(
+      host.doc("project:p"),
+      {
+        meta: { projectId: "p", layout: 1, name: "P" },
+        assets: { fixture: entry },
+        history: {},
+        code: {},
+        build: {},
+      },
+      { kind: "migration" },
+    );
+    return host;
+  }
+
+  async function join(
+    host: ReturnType<typeof memoryDocHost>,
+    origin: DocOrigin,
+    store: ContentStore,
+    clientID: number,
+  ) {
+    const client = host.client();
+    const session = await createProjectSession({
+      project: "p",
+      origin,
+      registry,
+      kinds,
+      store,
+      openDoc: async (name) => {
+        const opened = await client.openDoc(name);
+        opened.doc.clientID = clientID;
+        return opened;
+      },
+    });
+    return { session, setOnline: (online: boolean) => client.setOnline(online) };
+  }
+
+  const recapture = async (
+    c: Awaited<ReturnType<typeof join>>,
+    bytes: Uint8Array,
+  ): Promise<void> => {
+    const r = await applyProjectBatch(
+      c.session,
+      {
+        v: 1,
+        ops: [
+          {
+            op: "replaceContent",
+            id: "fixture",
+            sha256: await sha256(bytes),
+            bytes: bytes.length,
+          },
+        ],
+      },
+      c.session.origin,
+    );
+    if (!r.ok) throw new Error(`${r.issue.code}: ${r.issue.message}`);
+  };
+
+  /** The entry's hash, size and meta all describe the bytes the store holds for that hash. */
+  async function consistent(store: ContentStore, entry: AssetEntry): Promise<void> {
+    const bytes = await store.get(entry.sha256!);
+    expect(bytes, "the store keeps the bytes the entry names").not.toBeNull();
+    expect(entry.bytes).toBe(bytes!.byteLength);
+    const inspected = inspectEntry(saveKind(), entry, bytes!, () => undefined);
+    expect(inspected.ok && inspected.meta).toEqual(entry.meta);
+  }
+
+  for (const [winner, ids] of [
+    ["the client with the higher id", [1, 2]],
+    ["the client with the lower id", [2, 1]],
+  ] as const)
+    it(`two offline recaptures end on one hash, its size and meta with it (${winner} first)`, async () => {
+      const store = memoryContentStore();
+      const host = await world(store);
+      const a = await join(host, origins[0]!, store, ids[0]);
+      const b = await join(host, origins[1]!, store, ids[1]);
+      for (const bytes of POOL) await store.put(bytes);
+
+      a.setOnline(false);
+      b.setOnline(false);
+      await recapture(a, POOL[1]!);
+      await recapture(b, POOL[2]!);
+      a.setOnline(true);
+      b.setOnline(true);
+
+      const end = readProject(host.doc("project:p"));
+      for (const c of [a, b])
+        expect(stableJson(readProject(c.session.projectDoc))).toBe(stableJson(end));
+      const fixtureEntry = end.assets.fixture!;
+      expect([await sha256(POOL[1]!), await sha256(POOL[2]!)]).toContain(fixtureEntry.sha256);
+      await consistent(store, fixtureEntry);
+      expect(new Set(end.history.fixture!.map((h) => h.sha256))).toEqual(
+        new Set(await Promise.all(POOL.map((bytes) => sha256(bytes)))),
+      );
+      a.session.destroy();
+      b.session.destroy();
+    });
+
+  it(
+    "random recaptures across partitions converge on one consistent hash, keeping every blob",
+    { timeout: 30_000 },
+    async () => {
+      let moved = 0;
+      for (let seed = 1; seed <= 4; seed++) {
+        const rand = rng(seed);
+        const store = memoryContentStore();
+        const host = await world(store);
+        const clients = await Promise.all(
+          origins.slice(0, 3).map((o, i) => join(host, o, store, 10 + i)),
+        );
+        const offered = new Set([await sha256(FIRST)]);
+        for (let round = 0; round < 10; round++) {
+          const c = clients[Math.floor(rand() * clients.length)]!;
+          if (rand() < 0.3) c.setOnline(rand() < 0.5);
+          const bytes = POOL[Math.floor(rand() * POOL.length)]!;
+          const hash = await store.put(bytes);
+          if (readProject(c.session.projectDoc).assets.fixture!.sha256 !== hash) moved++;
+          offered.add(hash);
+          await recapture(c, bytes);
+        }
+        for (const c of clients) c.setOnline(true);
+
+        const end = readProject(host.doc("project:p"));
+        for (const c of clients)
+          expect(stableJson(readProject(c.session.projectDoc)), `seed ${seed}`).toBe(
+            stableJson(end),
+          );
+        const fixtureEntry = end.assets.fixture!;
+        expect(offered.has(fixtureEntry.sha256!)).toBe(true);
+        await consistent(store, fixtureEntry);
+        for (const h of end.history.fixture ?? []) expect(await store.has(h.sha256)).toBe(true);
+        for (const c of clients) c.session.destroy();
+      }
+      expect(moved, "some recapture moved the fixture off a hash").toBeGreaterThan(0);
+    },
+  );
 });

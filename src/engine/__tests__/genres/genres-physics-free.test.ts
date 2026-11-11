@@ -39,7 +39,11 @@ const counter: GenreProbe<{ ticks: number }> = {
     },
     createRuntime: () => {
       let ticks = 0;
-      return { afterStep: () => void ticks++, snapshot: () => ({ ticks }) };
+      return {
+        afterStep: () => void ticks++,
+        snapshot: () => ({ ticks }),
+        restore: (s) => void (ticks = s.ticks),
+      };
     },
   }),
   scene: {
@@ -55,6 +59,7 @@ const counter: GenreProbe<{ ticks: number }> = {
     { name: "gravity-zero", settings: { gravity: [0, 0] } },
     { name: "rapier", settings: { physics: "rapier" } },
     { name: "seed-7", seed: 7 },
+    { name: "saved", saveAt: 4 },
   ],
 };
 
@@ -177,6 +182,11 @@ async function expectPhysicsFree(probe: GenreProbe, name: string, variant?: Prob
   if (probe.expect.maxTicks !== undefined)
     expect(run.report.ticks, label).toBeLessThanOrEqual(probe.expect.maxTicks);
   expect(run.replay.matches, label).toBe(true);
+  if (variant?.saveAt !== undefined) {
+    expect(run.fromSave?.save.depth, label).toBe("world");
+    expect(run.fromSave?.outcome, label).toStrictEqual(run.report.outcome);
+    expect(run.fromSave?.digest, label).toBe(run.digest);
+  }
   expect(init, label).not.toHaveBeenCalled();
   expect(loadRapier, label).not.toHaveBeenCalled();
   return run;
@@ -188,7 +198,33 @@ describe("physics-free genre runs never load Rapier", () => {
       "default",
       "gravity-zero",
       "seed-7",
+      "saved",
     ]);
+  });
+
+  it("plays a run on from a world save to the uninterrupted run's digest", async () => {
+    const saved = (counter.variants ?? []).find((v) => v.name === "saved")!;
+    const run = await expectPhysicsFree(counter as GenreProbe, saved.name, saved);
+    expect(run.fromSave).toMatchObject({ at: 4, saved: { ticks: 5 }, final: { ticks: 10 } });
+    expect(run.fromSave?.save.data).toStrictEqual({ ticks: 5 });
+    expect(run.fromSave?.ticks).toBe(run.report.ticks);
+    expect(run.fromSave?.slots).toBe(run.report.slots);
+  });
+
+  it("refuses a save taken after the run ended, and a world save of a game with no restore", async () => {
+    await expect(
+      runGenreProbe(counter as GenreProbe, { name: "late", saveAt: 40 }),
+    ).rejects.toThrow(/ended before tick 40/);
+    const game = defineGame<{ ticks: number }>({
+      ...counter.game,
+      createRuntime: () => {
+        let ticks = 0;
+        return { afterStep: () => void ticks++, snapshot: () => ({ ticks }) };
+      },
+    });
+    await expect(
+      runGenreProbe({ ...counter, game } as GenreProbe, { name: "saved", saveAt: 4 }),
+    ).rejects.toThrow(/the capture: .*save-unsupported/);
   });
 
   it.each(physicsFree(counter as GenreProbe))(

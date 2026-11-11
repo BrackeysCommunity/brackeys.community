@@ -5,9 +5,12 @@ import type { Registry } from "@jams/engine/game";
 import {
   dataTableIssues,
   formatAssetDoc,
+  inputMapEntries,
+  kindInputMap,
   parseAssetDoc,
   projectUsage,
   projectView,
+  sceneListIssues,
   type AssetEntry,
   type AssetId,
   type AssetKey,
@@ -78,21 +81,28 @@ export async function loadProject(project: ProjectHandle): Promise<LoadedProject
   const values = new Map<AssetId, unknown>();
   const texts = new Map<AssetId, string>();
   const fileBytes = new Map<AssetKey, number>();
-  for (const entry of view.byKey.values()) {
+  const read = async (entry: AssetEntry) => {
     const def = project.kinds.get(entry.kind);
-    if (entry.deleted !== undefined || def?.storage !== "doc") continue;
+    if (entry.deleted !== undefined || def?.storage !== "doc") return;
     let text: string;
     try {
       text = await readFile(join(project.dir, entry.path), "utf8");
     } catch {
-      continue;
+      return;
     }
     fileBytes.set(entry.key, Buffer.byteLength(text, "utf8"));
-    if (view.byId.get(entry.id)?.key !== entry.key) continue;
+    if (view.byId.get(entry.id)?.key !== entry.key) return;
     const parsed = parseAssetDoc(def, text, env);
-    if (!parsed.ok) continue;
+    if (!parsed.ok) return;
     values.set(entry.id, parsed.value);
     texts.set(entry.id, formatAssetDoc(def, parsed.value));
+  };
+  // Input scripts are judged against the map's seats, so the map is read first.
+  const [mapEntry] = inputMapEntries(view);
+  if (mapEntry) await read(mapEntry);
+  env.inputMap = kindInputMap(view, (id) => values.get(id), registry);
+  for (const entry of view.byKey.values()) {
+    if (entry !== mapEntry) await read(entry);
   }
   return { project, state, problems: scan.problems, view, registry, env, values, texts, fileBytes };
 }
@@ -157,7 +167,11 @@ export async function projectShow(
   const { view, problems, project } = loaded;
   const live = liveEntries(view);
   const usageReport: ProjectUsage = projectUsage(view, loaded.fileBytes);
-  const issues = [...view.issues, ...dataTableIssues(view, loaded.values)];
+  const issues = [
+    ...view.issues,
+    ...dataTableIssues(view, loaded.values),
+    ...sceneListIssues(view, loaded.values),
+  ];
   const counts = countByKind(live);
   const code = Object.keys(view.state.code).length;
   const data = {

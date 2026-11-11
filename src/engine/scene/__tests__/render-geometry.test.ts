@@ -4,7 +4,8 @@ import { toolRegistry as registry } from "../../__tests__/fixtures/test-tool";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { SIDES, shapeField } from "../../game/fields";
 import { primitiveFields } from "../../game/primitives";
-import type { SceneSystem, Side } from "../../game/types";
+import type { Side } from "../../game/types";
+import { createDataSystem } from "../../systems/data";
 import { expandScene } from "../expand";
 import { prefabLibrary } from "../prefab";
 import { drawnEntities, oneWayEdge, oneWayEdges, oneWaySide } from "../render-geometry";
@@ -155,12 +156,6 @@ describe("oneWayEdge", () => {
 });
 
 describe("type-wide one-way", () => {
-  const inert = (): SceneSystem => ({
-    spawn: () => {},
-    despawn: () => {},
-    clear: () => {},
-    size: () => 0,
-  });
   const ledges = createRegistry(
     defineGame({
       id: "ledges",
@@ -170,7 +165,7 @@ describe("type-wide one-way", () => {
           type: "ledge",
           description: "A ledge its system makes one-way.",
           fields: { shape: shapeField("Ledge shape.") },
-          system: inert,
+          system: createDataSystem,
           oneWay: true,
         }),
         defineEntityType({
@@ -252,7 +247,7 @@ describe("type-wide one-way", () => {
               type: "odd",
               description: "Odd.",
               fields: { shape: shapeField("Shape.") },
-              system: inert,
+              system: createDataSystem,
               oneWay: "sideways" as Side,
             }),
           ],

@@ -1,5 +1,6 @@
 import { NextIcon, PauseIcon, PlayIcon, StopIcon } from "@hugeicons/core-free-icons";
 
+import type { GameStoreState } from "../../types";
 import { Island } from "../frame/EditorFrame";
 import type { EditorControls } from "../frame/keys";
 import { Badge, Button, IconButton, KeyHint } from "../kit/index";
@@ -19,10 +20,20 @@ export function nextTimeScale(current: number, dir: 1 | -1): number {
 
 const scaleLabel = (s: number) => `${s}×`;
 
-/** While playing: the chip, pause, step, time scale, stop, and a restart when the scene moved on. */
+/** The scene a flow request asked for when that request ended the editor's Play, else null. */
+export function flowRequestedScene(state: Pick<GameStoreState, "session">): string | null {
+  const outcome = state.session?.outcome;
+  return outcome?.result === "flow" ? (outcome.to ?? null) : null;
+}
+
+/**
+ * While playing: the chip, pause, step, time scale, stop, a restart when the
+ * scene moved on, and the scene a flow request asked for when one ended Play.
+ */
 export function EditorPlayBar({ game, host, keymap, onStop, onRestart }: EditorControls) {
   const { paused, timeScale } = useStoreValue(game.getStore(), (s) => s.sim);
   const sceneChanged = useStoreValue(host, (s) => s.sceneChanged);
+  const requested = useStoreValue(game.getStore(), flowRequestedScene);
 
   return (
     <div className="je-play-bar">
@@ -76,6 +87,11 @@ export function EditorPlayBar({ game, host, keymap, onStop, onRestart }: EditorC
           Stop
         </Button>
       </Island>
+      {requested !== null ? (
+        <Island role="status" className="je-scene-changed" data-flow-requested="">
+          Requested {requested}
+        </Island>
+      ) : null}
       {sceneChanged ? (
         <Island role="status" className="je-scene-changed">
           Scene changed

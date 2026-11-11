@@ -1,6 +1,7 @@
 import { sameValue as same } from "../project/canonical";
 import { closest } from "./did-you-mean";
-import { makeIssue } from "./issues";
+import { jsonPointer, makeIssue } from "./issues";
+import { paramMapProblem } from "./prefab-params";
 import type {
   OverridePath,
   Prefab,
@@ -153,6 +154,16 @@ export function applyHeaderOp(
     }
     case "exposeParam": {
       const params = { ...header.params };
+      const problem = op.param === null ? null : paramMapProblem(op.param);
+      if (problem)
+        return {
+          ok: false,
+          issue: makeIssue("op-invalid", {
+            message: `Prefab "${id}"'s param "${op.name}" ${problem.message}.`,
+            path: jsonPointer(["param", ...problem.path]),
+            entityIds: [id],
+          }),
+        };
       if (op.param !== null) params[op.name] = structuredClone(op.param);
       else if (op.name in params) delete params[op.name];
       else {

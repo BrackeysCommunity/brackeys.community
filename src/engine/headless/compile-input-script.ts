@@ -666,7 +666,7 @@ export function compileInputScript(
  * Each seat's pointer bindings, `map`'s over the game's, without UI-only
  * actions (`simBindings`); undefined when no seat binds a pointer button.
  */
-function pointerBindingsOf(
+export function pointerBindingsOf(
   registry: Registry,
   map: Pick<InputMapFile, "actions"> | null | undefined,
   seats: number,
@@ -771,7 +771,7 @@ export function pointerAt(
 }
 
 /**
- * The button actions a seat holds: its step's `hold`, then each action a
+ * The button actions a seat holds, in a script and in fuzz: its `hold`, then each action a
  * pointer button in `buttons` holds through `bound`, combined as live play
  * combines an action's bindings (`combineAction`).
  */

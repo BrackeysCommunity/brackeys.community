@@ -10,6 +10,7 @@ import * as Y from "yjs";
 
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
+import { formatSaveFile } from "../../game/save-file";
 import { engineHomeRegistry } from "../../project/__tests__/fixtures/engine-home";
 import {
   createKindRegistry,
@@ -87,6 +88,8 @@ const FIXTURES: Record<string, string> = {
   ),
   /** Frozen: a change to the input-map's layout or formatter that moves a byte of it is a format change. */
   "input-map": readFileSync(new URL("./fixtures/input-map.json", import.meta.url), "utf8"),
+  /** Frozen: a change to the scene list's layout or formatter that moves a byte of it is a format change. */
+  "scene-list": readFileSync(new URL("./fixtures/scene-list.json", import.meta.url), "utf8"),
   checks: lines(
     "{",
     '  "v": 3,',
@@ -274,6 +277,24 @@ describe("file → doc → file, per kind", () => {
     expect(players.max).toBe(2);
   });
 
+  it("scene-list: the frozen fixture names a start, titles, an untitled entry and a sublevel, in order", () => {
+    const parsed = parseAssetDoc(
+      kinds.get("scene-list") as DocKindDef,
+      FIXTURES["scene-list"]!,
+      env,
+    );
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    expect(parsed.issues).toEqual([]);
+    const { start, scenes } = parsed.value as {
+      start: string;
+      scenes: { scene: string; title?: string; sublevel?: true }[];
+    };
+    expect(start).toBe("menu");
+    expect(scenes.map((e) => e.scene)).toEqual(["menu", "ford", "result", "cellar"]);
+    expect(scenes.find((e) => e.scene === "result")!.title).toBeUndefined();
+    expect(scenes.filter((e) => e.sublevel).map((e) => e.scene)).toEqual(["cellar"]);
+  });
+
   for (const [name, text] of Object.entries(WORLD_PREDICATES)) {
     it(`${name}: a script with exists and count is byte-identical, also after the doc crosses the wire`, () => {
       const kind = kinds.get(name) as DocKindDef;
@@ -416,7 +437,8 @@ const BLOBS: Record<
   {
     kind?: string;
     path: string;
-    file: string;
+    /** A fixture's path, or the bytes themselves. */
+    file: string | Uint8Array;
     beside?: Record<string, string>;
     import?: object;
     meta?: object;
@@ -445,6 +467,27 @@ const BLOBS: Record<
     path: "runs/versus.recording.json",
     file: "./fixtures/run.v2.recording.json",
     meta: { scene: "yard", ticks: 60, sceneHash: "5a1d2c3e", v: 2, players: 2 },
+  },
+  save: {
+    path: "saves/level-2.save.json",
+    file: new TextEncoder().encode(
+      formatSaveFile({
+        kind: "save",
+        v: 1,
+        game: "test-game",
+        gameVersion: 2,
+        engine: "0.13.0",
+        release: null,
+        project: null,
+        slot: "fixture",
+        meta: { scene: "yard", savedAt: 0, playTicks: 90 },
+        depth: "progress",
+        persist: { cleared: ["yard"] },
+        scene: { id: "yard", runHash: "5a1d2c3e", sublevels: [] },
+        data: { turn: 3 },
+      }),
+    ),
+    meta: { game: "test-game", gameVersion: 2, depth: "progress", scene: "yard" },
   },
 };
 
@@ -483,7 +526,8 @@ describe("sidecar → registry → sidecar, per blob kind", () => {
         cacheDir: join(root, cache),
       });
       try {
-        const bytes = new Uint8Array(await blobFixture(spec.file));
+        const bytes =
+          typeof spec.file === "string" ? new Uint8Array(await blobFixture(spec.file)) : spec.file;
         await put("jams.project.json", `${JSON.stringify(projectFile)}\n`);
         await put(spec.path, bytes);
         for (const [path, file] of Object.entries(spec.beside ?? {}))

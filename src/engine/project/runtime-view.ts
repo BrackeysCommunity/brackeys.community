@@ -7,12 +7,14 @@ import { createKindRegistry, type KindRegistry } from "./kinds";
 import { DATA_TABLE_KIND, rowSchemaOf, tableAssets } from "./kinds/data-table";
 import { byCodeUnit, isPlainObject } from "./kinds/define";
 import { GAME_SETTINGS_KIND, gameSettingsEntries, gameSettingsValues } from "./kinds/game-settings";
+import { INPUT_MAP_KIND, type InputMapFile } from "./kinds/input-map";
+import { kindInputMap } from "./kinds/input-script";
 import {
-  INPUT_MAP_KIND,
-  inputMapEntries,
-  usableInputMap,
-  type InputMapFile,
-} from "./kinds/input-map";
+  SCENE_LIST_KIND,
+  sceneListEntries,
+  sceneListFlow,
+  type SceneListFlow,
+} from "./kinds/scene-list";
 import type { AssetSidecar } from "./sidecar";
 import { jsonValues, pinnedDocs, snapshotView, type ProjectSnapshot } from "./snapshot";
 import type {
@@ -42,6 +44,12 @@ export type ProjectRuntimeView = {
    * wrong are left out, so those keep the game's; null without one.
    */
   inputMap: InputMapFile | null;
+  /**
+   * The project's scene list, the first by path: the start scene and the
+   * listed scenes in order, a repeated scene's later entries left out;
+   * `{ start: null, scenes: [] }` without one. `runtimeView` always sets it.
+   */
+  flow?: SceneListFlow;
 };
 
 /** The doc kinds a runtime view reads: a host loading one passes these docs' values. */
@@ -49,6 +57,7 @@ export const RUNTIME_VIEW_KINDS: readonly AssetKindName[] = [
   GAME_SETTINGS_KIND,
   DATA_TABLE_KIND,
   INPUT_MAP_KIND,
+  SCENE_LIST_KIND,
 ];
 
 type Row = Readonly<Record<string, unknown> & { id: string }>;
@@ -62,7 +71,8 @@ type Row = Readonly<Record<string, unknown> & { id: string }>;
  * has, is left out (the editor reports both). A table the game doesn't
  * declare has no rows. `engine` is that asset's `engine` block, unparsed.
  * `inputMap` is the first input-map asset by path, as `usableInputMap`
- * reads it. Read once, copied and frozen.
+ * reads it, and `flow` the first scene list's as `sceneListFlow` reads it.
+ * Read once, copied and frozen.
  */
 export function runtimeView(
   view: ProjectView,
@@ -106,9 +116,13 @@ export function runtimeView(
     assets.set(entry.id, { info, frames });
   }
 
-  const [mapEntry] = inputMapEntries(view);
-  const map = mapEntry ? usableInputMap(values.get(mapEntry.id), registry) : null;
+  const map = kindInputMap(view, (id) => values.get(id), registry);
   const inputMap = map ? deepFreeze(structuredClone(map)) : null;
+
+  const [listEntry] = sceneListEntries(view);
+  const flow = deepFreeze(
+    structuredClone(sceneListFlow(listEntry ? values.get(listEntry.id) : undefined)),
+  );
 
   return Object.freeze({
     settings,
@@ -119,11 +133,12 @@ export function runtimeView(
       return frame === undefined ? found?.info : found?.frames.get(frame);
     },
     inputMap,
+    flow,
   });
 }
 
 /**
- * `runtimeView` of a snapshot: its game-settings, data-table and input-map docs, each
+ * `runtimeView` of a snapshot: its game-settings, data-table, input-map and scene-list docs, each
  * read from its canonical text in `store`, and its blobs as the snapshot
  * pins them: hash, size, import settings and meta, so `asset` gives what
  * `assetInfo` gives over the project (pixel sizes and frames included)

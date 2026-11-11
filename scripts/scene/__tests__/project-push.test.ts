@@ -84,6 +84,7 @@ beforeAll(async () => {
     const r = await runCli(argv, ctx);
     expect(r.exitCode, `${argv.join(" ")}\n${r.stderr}`).toBe(0);
   }
+  await writeFile(join(deck, "art", "make-art.ts"), "export {};\n");
 });
 
 afterAll(async () => {
@@ -128,6 +129,7 @@ describe("project push --dry-run", () => {
     const seeds = r.data.seeds as string[];
     expect(seeds).toContain("kitchen-sink.json");
     for (const b of binaries) expect(seeds).not.toContain(b.path);
+    expect(seeds).not.toContain("art/make-art.ts");
     expect(r.data.docs).toBe(seeds.length);
     expect(r.data.files).toBe(seeds.length + binaries.length);
     expect(requests[0]).toBe("GET bundle");

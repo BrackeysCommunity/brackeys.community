@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { mountUi, type GameInstance, type GameStoreState, type UiActionEvent } from "@jams/engine";
-import { cellKey, type Cell, type GameCommand } from "@jams/engine/game";
+import { boundsCells, cellKey, sameCell, type Cell, type GameCommand } from "@jams/engine/game";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { targetsFrom } from "../rules";
 import { tacticsBoard, type TacticsSlice, type TacticsSnapshot, type UnitState } from "../types";
+import { boardView } from "../ui/cursor";
 import { mountTacticsHud } from "../ui/index";
 import { CLASSES, snapshot, unit } from "./fixtures";
 
@@ -266,6 +268,93 @@ describe("the tactics HUD", () => {
     expect(fake.sends).toEqual([{ name: "attack", args: { unit: "blue-2", target: "red-2" } }]);
   });
 
+  it("offers no Attack order, prompt or target for an archer whose only enemy is behind a wall", () => {
+    const walled = { ...GRID, walls: [cellKey([5, 2])] };
+    const units = {
+      "blue-2": unit("blue", "archer", [4, 2]),
+      "red-1": unit("red", "knight", [6, 2]),
+    };
+    // In range by grid distance either way: only the wall stands between them.
+    expect(BOARD.geometry.distance([4, 2], [6, 2])).toBe(2);
+    const fake = mount(sliceOf(snapshot(units), [], walled));
+    const attack = document.querySelector<HTMLButtonElement>('[data-order="attack"]')!;
+    const prompt = document.querySelector<HTMLElement>(".tactics-hud-prompt")!;
+
+    press(fake, "confirm");
+    expect(hud().dataset.mode).toBe("selected");
+    expect(cellsOf("attack")).not.toContain("6,2");
+    expect(attack.getAttribute("aria-disabled")).toBe("true");
+    expect(prompt.textContent).toBe("Click a blue cell to move");
+    expect(prompt.textContent).not.toContain("attack");
+
+    attack.click();
+    expect(attack.getAttribute("aria-pressed")).toBe("false");
+
+    for (let i = 0; i < 2; i++) step(fake, 1, 0);
+    expect(cursorCell()).toBe("6,2");
+    press(fake, "confirm");
+    expect(hud().dataset.mode).toBe("selected");
+    expect(cellsOf("target")).toEqual([]);
+    press(fake, "confirm");
+    expect(fake.sends).toEqual([]);
+
+    // Without the wall the same shot is offered, so the wall is what refused it.
+    fake.setSlice(sliceOf(snapshot(units)));
+    expect(cellsOf("attack")).toContain("6,2");
+    expect(attack.getAttribute("aria-disabled")).toBe("false");
+    expect(prompt.textContent).toBe("Click a blue cell to move, or an enemy in red to attack");
+    press(fake, "confirm");
+    expect(cellsOf("target")).toEqual(["6,2"]);
+    press(fake, "confirm");
+    expect(fake.sends).toEqual([{ name: "attack", args: { unit: "blue-2", target: "red-1" } }]);
+  });
+
+  it("offers exactly the strikes the rules allow, from every cell of a walled board", () => {
+    const walls = (
+      [
+        [3, 1],
+        [3, 2],
+        [5, 4],
+        [6, 4],
+        [2, 5],
+      ] as Cell[]
+    ).map((c) => cellKey(c));
+    const grid = { ...GRID, walls };
+    const board = tacticsBoard(grid);
+    const enemies = {
+      "red-1": unit("red", "knight", [5, 1]),
+      "red-2": unit("red", "knight", [6, 6]),
+      "red-3": unit("red", "archer", [1, 7]),
+    };
+    for (const cls of ["archer", "knight"] as const)
+      for (const c of boundsCells(board.bounds)) {
+        if (walls.includes(cellKey(c)) || Object.values(enemies).some((e) => sameCell(e.cell, c)))
+          continue;
+        const s = snapshot({ ...enemies, me: unit("blue", cls, c) });
+        expect(boardView(sliceOf(s, [], grid)).targets("me")).toEqual(
+          targetsFrom(s, "me", CLASSES, board),
+        );
+      }
+  });
+
+  it("drops a chosen Attack order once a wall comes between the archer and its last target", () => {
+    const units = {
+      "blue-2": unit("blue", "archer", [4, 2]),
+      "red-1": unit("red", "knight", [6, 2]),
+    };
+    const fake = mount(sliceOf(snapshot(units)));
+    const attack = document.querySelector<HTMLButtonElement>('[data-order="attack"]')!;
+    press(fake, "confirm");
+    attack.click();
+    expect(attack.getAttribute("aria-pressed")).toBe("true");
+
+    fake.setSlice(sliceOf(snapshot(units), [], { ...GRID, walls: [cellKey([5, 2])] }));
+    expect(hud().dataset.mode).toBe("selected");
+    expect(attack.getAttribute("aria-pressed")).toBe("false");
+    expect(attack.getAttribute("aria-disabled")).toBe("true");
+    expect(cellsOf("attack")).not.toContain("6,2");
+  });
+
   it("drives the same turn by pointer clicks at worldToClient cell centres", () => {
     const fake = mount();
     click([1, 1]);
@@ -340,7 +429,7 @@ describe("the tactics HUD", () => {
   });
 
   it("offers real, labelled, focusable menu buttons and no title attributes", () => {
-    const fake = mount();
+    const fake = mount(sliceOf(snapshot({ ...START, "red-1": unit("red", "knight", [2, 1]) })));
     const buttons = [...document.querySelectorAll<HTMLButtonElement>(".tactics-hud-menu button")];
     expect(buttons.map((b) => b.textContent)).toEqual(["Move", "Attack", "Wait", "End turn"]);
     expect(document.querySelector(".tactics-hud-menu")!.getAttribute("aria-label")).toBe("Orders");

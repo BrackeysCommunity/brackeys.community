@@ -12,14 +12,21 @@ import { DisplayMenu, type DisplaySetting } from "./display-menu";
 export function GameSiteIsland({
   title,
   display,
+  onProjectSettings,
 }: {
   title: ReactNode;
   display?: { value: DisplaySetting; onChange: (next: DisplaySetting) => void };
+  /** In the editor: the site menu's "Project settings" entry. */
+  onProjectSettings?: () => void;
 }) {
   return (
     <SiteIsland
       label="Game"
-      site={{ back: { label: "lobby", link: <Link to="/game" /> }, signinSource: "game" }}
+      site={{
+        back: { label: "lobby", link: <Link to="/game" /> },
+        signinSource: "game",
+        ...(onProjectSettings ? { onProjectSettings } : {}),
+      }}
     >
       <ShellTitle>{title}</ShellTitle>
       {display ? (

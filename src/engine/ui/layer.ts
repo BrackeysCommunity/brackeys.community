@@ -38,15 +38,15 @@ function observeResize(el: HTMLElement, fn: () => void): () => void {
   return () => view.removeEventListener("resize", fn);
 }
 
-/** The overlay a MountUi draws into: absolutely positioned over `canvas`, resized with it. */
-export function createUiLayer(canvas: HTMLCanvasElement): {
-  root: HTMLElement;
-  destroy(): void;
-} {
-  if (!canvas.parentElement) throw new Error("createUiLayer: the canvas isn't in a document");
+/** A layer over `canvas`'s box, a sibling right after it (after any layers already there), resized with it. */
+function createCanvasLayer(
+  canvas: HTMLCanvasElement,
+  name: string,
+  style: Partial<CSSStyleDeclaration>,
+): { root: HTMLElement; destroy(): void } {
+  if (!canvas.parentElement) throw new Error(`${name}: the canvas isn't in a document`);
   const root = canvas.ownerDocument.createElement("div");
-  root.setAttribute("data-jams-ui", "");
-  Object.assign(root.style, { position: "absolute", pointerEvents: "none", margin: "0" });
+  Object.assign(root.style, { position: "absolute", pointerEvents: "none", margin: "0", ...style });
 
   // A sibling shares the canvas's offset parent, so offsetLeft/Top place it over the canvas's box.
   const sync = () => {
@@ -74,6 +74,34 @@ export function createUiLayer(canvas: HTMLCanvasElement): {
       root.remove();
     },
   };
+}
+
+/**
+ * The overlay a MountUi draws into: absolutely positioned over `canvas`,
+ * resized with it. It isolates its children's z-indexes, so the transition
+ * layer covers all of them.
+ */
+export function createUiLayer(canvas: HTMLCanvasElement): {
+  root: HTMLElement;
+  destroy(): void;
+} {
+  const layer = createCanvasLayer(canvas, "createUiLayer", { isolation: "isolate" });
+  layer.root.setAttribute("data-jams-ui", "");
+  return layer;
+}
+
+/**
+ * The layer scene transitions and the loading view draw into: over
+ * `canvas` like the UI layer and stacked above it and the touch controls,
+ * so a fade covers the HUD.
+ */
+export function createTransitionLayer(canvas: HTMLCanvasElement): {
+  root: HTMLElement;
+  destroy(): void;
+} {
+  const layer = createCanvasLayer(canvas, "createTransitionLayer", { zIndex: "2" });
+  layer.root.setAttribute("data-jams-transition", "");
+  return layer;
 }
 
 /** createUiLayer + the context + mount; the returned function unmounts and removes the layer. */

@@ -1,3 +1,4 @@
+import { formatSaveFile, parseSaveFile, type SaveFile } from "../game/save-file";
 import type { Registry } from "../game/types";
 import type { ContentStore } from "../project/content-store";
 import { isSha256, sha256 } from "../project/hash";
@@ -5,6 +6,7 @@ import { byCodeUnit } from "../project/kinds/define";
 import { snapshotRuntimeView, type ProjectRuntimeView } from "../project/runtime-view";
 import { snapshotScene, type ProjectSnapshot } from "../project/snapshot";
 import type { AssetId, Sha256 } from "../project/types";
+import { makeIssue } from "../scene/issues";
 import { parseScene, SceneParseError } from "../scene/parse";
 import { parsePrefab, prefabsUsedBy, sceneHashWith } from "../scene/prefab";
 import {
@@ -14,6 +16,7 @@ import {
   type SceneDefinition,
   type SceneHash,
 } from "../scene/types";
+import type { SaveStart } from "./play-loop";
 
 type LoadCommon = {
   registry: Registry;
@@ -40,6 +43,15 @@ export type FilesLoadInput = LoadCommon & {
 
 export type HeadlessLoadInput = SnapshotLoadInput | FilesLoadInput;
 
+export type HeadlessLoadOptions = {
+  /**
+   * A save to start the run from, as text or parsed: a save of the loaded
+   * scene, for the registry's game. Text is parsed and migrated with the
+   * game's save migrations.
+   */
+  fromSave?: SaveFile | string;
+};
+
 /** What `runPlaytest`, `replayRecording` and `runChecks` take, ready to spread into their options. */
 export type HeadlessLoad = {
   scene: SceneDefinition;
@@ -54,7 +66,38 @@ export type HeadlessLoad = {
   sceneHash: SceneHash;
   /** The snapshot it was loaded from; null for files. */
   snapshot: Sha256 | null;
+  /**
+   * The save the run starts from, when one was given, with the hash of its
+   * text as given (of its canonical text when given parsed), which a
+   * recording names it by.
+   */
+  fromSave?: SaveStart;
 };
+
+/** `given` read as a save for `registry`'s game, which must be of `scene`; throws a `SceneParseError` otherwise. */
+async function readSave(
+  given: SaveFile | string,
+  registry: Registry,
+  scene: string,
+): Promise<SaveStart> {
+  let file: SaveFile;
+  if (typeof given === "string") {
+    const parsed = parseSaveFile(given, registry.game ?? undefined);
+    if (!parsed.ok) throw new SceneParseError(parsed.issues);
+    file = parsed.file;
+  } else file = given;
+  if (file.scene.id !== scene) {
+    throw new SceneParseError([
+      makeIssue("schema", {
+        message: `the save is of "${file.scene.id}", not the scene loaded, "${scene}"`,
+        path: "/scene/id",
+        got: file.scene.id,
+        expected: scene,
+      }),
+    ]);
+  }
+  return { file, sha256: await sha256(typeof given === "string" ? given : formatSaveFile(file)) };
+}
 
 function fromFiles(files: FilesLoadInput["files"], registry: Registry) {
   const parsed = parseScene(files.scene, registry);
@@ -108,9 +151,13 @@ async function fromSnapshot(input: SnapshotLoadInput) {
  * pins the snapshot's materials too) or by files. Neither fetches or decodes a blob: what a run needs of one is its
  * entry's meta. Throws a `SnapshotError` for a snapshot that can't give the
  * scene or its project data, and a `SceneParseError` for a file that
- * doesn't parse; validation is the run's, as Play does it.
+ * doesn't parse; validation is the run's, as Play does it. With `fromSave`
+ * the result carries the save, read and checked against the scene.
  */
-export async function loadHeadless(input: HeadlessLoadInput): Promise<HeadlessLoad> {
+export async function loadHeadless(
+  input: HeadlessLoadInput,
+  opts: HeadlessLoadOptions = {},
+): Promise<HeadlessLoad> {
   const { def, prefabs, library, registry } =
     "files" in input ? fromFiles(input.files, input.registry) : await fromSnapshot(input);
   const project =
@@ -119,6 +166,7 @@ export async function loadHeadless(input: HeadlessLoadInput): Promise<HeadlessLo
       : "files" in input
         ? null
         : await snapshotRuntimeView(input.snapshot, input.store, registry);
+  const sceneId = "files" in input ? def.name : input.scene;
   return {
     scene: def,
     prefabs,
@@ -127,5 +175,8 @@ export async function loadHeadless(input: HeadlessLoadInput): Promise<HeadlessLo
     project,
     sceneHash: sceneHashWith(def, prefabs),
     snapshot: "files" in input ? null : input.snapshot.hash,
+    ...(opts.fromSave !== undefined
+      ? { fromSave: await readSave(opts.fromSave, registry, sceneId) }
+      : {}),
   };
 }

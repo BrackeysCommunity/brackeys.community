@@ -3,6 +3,7 @@ import { readContact, type ContactRead } from "./contact";
 import { rapierSpy, runPhysicsFree, startPhysicsFree } from "./physics-free";
 import { runRenderSmoke } from "./render";
 import { loadRapier, runSmokeDigest, SMOKE_FLAVOUR, SMOKE_TICKS } from "./run";
+import { runSaves, type SavesProbe } from "./saves";
 import { runTactics, type TacticsProbe } from "./tactics";
 
 export type EngineSmokeResult =
@@ -19,6 +20,8 @@ export type EngineSmokeResult =
       contact: ContactRead;
       /** The tactics game's golden recording replayed with no physics. */
       tactics: TacticsProbe;
+      /** A save round trip through IndexedDB and the browser store; the page fails when it does. */
+      saves?: SavesProbe;
       userAgent: string;
     }
   | { ok: false; error: string };
@@ -38,6 +41,7 @@ try {
   const contact = readContact(await loadRapier());
   const tacticsSpy = rapierSpy(loadRapier);
   const tactics = await runTactics(tacticsSpy.load);
+  const saves = await runSaves();
   window.__engineSmoke = {
     ok: true,
     flavour: SMOKE_FLAVOUR,
@@ -47,6 +51,7 @@ try {
     physicsFree: { ...run, shellTicks, rapierLoads: spy.calls() },
     contact,
     tactics: { ...tactics, rapierLoads: tacticsSpy.calls() },
+    saves,
     userAgent: navigator.userAgent,
   };
 } catch (err) {

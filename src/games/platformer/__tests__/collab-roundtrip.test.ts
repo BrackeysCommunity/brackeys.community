@@ -55,14 +55,15 @@ async function walk(dir: string): Promise<string[]> {
 }
 
 describe("the platformer project", () => {
-  it("scans with no problems, its scenes keyed by id, with no sidecars", async () => {
+  it("scans with no problems, its scenes and its scene list keyed by id, with no sidecars", async () => {
     expect(scan.problems).toEqual([]);
     expect(scan.state.meta).toMatchObject({ projectId: "platformer", name: "Platformer" });
     const entries = Object.values(scan.state.assets);
     expect(entries.map((e) => e.id)).toContain("test-yard");
+    expect(entries.map((e) => [e.id, e.kind])).toContainEqual(["scene-list", "scene-list"]);
     for (const e of entries) {
       expect(e.key, e.path).toBe(e.id);
-      expect(e.path.startsWith("scenes/"), e.path).toBe(true);
+      expect(e.path.startsWith("scenes/") || e.path === "scene-list.json", e.path).toBe(true);
       expect(e.created).toEqual({ at: 0, by: "disk" });
     }
     expect((await walk(join(home, "scenes"))).filter((p) => p.endsWith(".asset.json"))).toEqual([]);

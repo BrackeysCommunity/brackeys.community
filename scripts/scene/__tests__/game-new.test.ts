@@ -6,6 +6,7 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import { sceneListFlow } from "@jams/engine/project";
 import { inputScriptJsonSchema, sceneJsonSchema } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
@@ -17,6 +18,7 @@ import { loadCompatRapier } from "../rapier-compat";
 import { check } from "../tools/check";
 import { GAME_NEW_STAGE, gameNew, gameOptionsFrom, planGame } from "../tools/game-new";
 import { playtest } from "../tools/playtest";
+import { projectShow } from "../tools/project-show";
 import { validate } from "../tools/validate";
 
 const run = promisify(execFile);
@@ -119,11 +121,14 @@ describe("game new writes a project that passes the repo's checks", () => {
   );
 
   it(
-    "is formatted as vp fmt writes it (scenes aside, which the repo's fmt leaves to formatScene)",
+    "is formatted as vp fmt writes it (scenes and the scene list aside, whose layout the engine's formatters own)",
     async () => {
       const ignore = join(ROOT, "empty-ignore");
       await writeFile(ignore, "");
-      const files = written.filter((f) => !f.split(/[\\/]/).includes("scenes"));
+      const files = written.filter((f) => {
+        const parts = f.split(/[\\/]/);
+        return !parts.includes("scenes") && parts.at(-1) !== "scene-list.json";
+      });
       await expect(
         vp("fmt", "--check", "--with-node-modules", `--ignore-path=${ignore}`, ...files),
       ).resolves.toBeDefined();
@@ -143,6 +148,24 @@ describe("game new writes a project that passes the repo's checks", () => {
           module: "./ui/index.ts",
           export: gameNames(id).hudExport,
         });
+      });
+
+      it("ships a scene list starting at main, which the project judges clean", async () => {
+        const text = await readFile(join(GAMES, id, "scene-list.json"), "utf8");
+        expect(sceneListFlow(JSON.parse(text))).toEqual({
+          start: "main",
+          scenes: [{ scene: "main" }],
+        });
+        const out = await projectShow({ project: id }, { projects });
+        expect(out.exitCode, out.text).toBe(0);
+        const data = out.data as {
+          counts: Record<string, number>;
+          problems: unknown[];
+          issues: { severity: string }[];
+        };
+        expect(data.counts["scene-list"]).toBe(1);
+        expect(data.problems).toEqual([]);
+        expect(data.issues.filter((i) => i.severity !== "info")).toEqual([]);
       });
 
       it("validates main with no errors or warnings", async () => {

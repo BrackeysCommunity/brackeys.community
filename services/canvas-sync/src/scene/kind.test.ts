@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import type { onLoadDocumentPayload } from "@hocuspocus/server";
 import * as Y from "yjs";
 
+import { stampSeedState } from "../../../../src/engine/collab/seed-identity.ts";
 import { SCENE_FORMAT_VERSION } from "../../../../src/engine/scene/types.ts";
 import { signCanvasToken, verifyCanvasToken } from "../../../../src/lib/canvas/token.ts";
 import { seedState, stateSchemaVersion } from "../../../../src/lib/scene/doc-bytes.ts";
@@ -116,7 +117,8 @@ describe("a hosted doc whose next format step needs its game", () => {
     const before = row.state;
     const state = await load("jam.old");
     expect(stateSchemaVersion(state)).toBe(V - 1);
-    expect(state).toEqual(before!);
+    // The live doc gains only its seed stamp.
+    expect(state).toEqual(stampSeedState(before!));
     expect(store.rows.get("jam.old")!.schemaVersion).toBe(V - 1);
     expect(store.rows.get("jam.old")!.state).toBe(before);
   });

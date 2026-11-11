@@ -3,7 +3,7 @@ import { dirname, join, relative, sep } from "node:path";
 import type { TimeKind } from "@jams/engine/game";
 
 import { actionsFile, indexFile, playFile, templateFile, typesFile } from "./game";
-import { gameSettingsFile, inputMapFile, projectFile } from "./project";
+import { gameSettingsFile, inputMapFile, projectFile, sceneListFile } from "./project";
 import { runtimeFile } from "./runtime";
 import { checksFile, scriptFile, sceneTemplateOf } from "./scene";
 import { testFile } from "./tests";
@@ -174,7 +174,7 @@ export const GENERATED_FILES = [
 /**
  * Every file of the game except `GENERATED_FILES`, sorted by path: the
  * project file, the game and UI modules, the scene's checks and its winning
- * input script, the game-settings and input-map docs, and the test.
+ * input script, the scene list, the game-settings and input-map docs, and the test.
  */
 export function renderSources(options: GameOptions, paths: RenderPaths): GameFile[] {
   const names = gameNames(options.id);
@@ -192,6 +192,10 @@ export function renderSources(options: GameOptions, paths: RenderPaths): GameFil
     {
       path: "input-map.json",
       text: inputMapFile(schema("input-map.json", "project/input-map.schema.json")),
+    },
+    {
+      path: "scene-list.json",
+      text: sceneListFile(schema("scene-list.json", "project/scene-list.schema.json")),
     },
     { path: "index.ts", text: indexFile(options, names) },
     { path: "types.ts", text: typesFile(options, names) },

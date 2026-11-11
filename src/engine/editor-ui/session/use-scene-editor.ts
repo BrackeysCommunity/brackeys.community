@@ -1,12 +1,30 @@
 import { Store } from "@tanstack/store";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import type { ProjectSession } from "../../collab/index";
-import type { EditorStoreState, Ref } from "../../editor/index";
+import type { ProjectSession, UndoneStep } from "../../collab/index";
+import {
+  projectHistory,
+  type EditorStoreState,
+  type Ref,
+  type SessionHistory,
+} from "../../editor/index";
 import type { GameInstance, PlayOptions, RapierModule, RunRecording } from "../../index";
-import type { KindRegistry, ProjectId, ProjectRuntimeView, ProjectView } from "../../project/index";
+import {
+  parseDocName,
+  SCENE_KIND_NAME,
+  type KindRegistry,
+  type ProjectId,
+  type ProjectRuntimeView,
+  type ProjectView,
+  type SceneListFlow,
+} from "../../project/index";
 import type { Registry } from "../../scene/index";
-import { useSceneDoc, type SceneDocStatus, type SceneFallback } from "../connect/scene-doc";
+import {
+  assetName,
+  useSceneDoc,
+  type SceneDocStatus,
+  type SceneFallback,
+} from "../connect/scene-doc";
 import {
   hostPeerColor,
   type EditorHost,
@@ -29,6 +47,7 @@ import {
   type ProjectRegistry,
 } from "./live-scene-editor";
 import type { LoadedRun } from "./loaded-run";
+import { useWarmDocs } from "./use-project-session";
 import { useStoreValue } from "./use-store-value";
 
 /** The parts of the game the editor's chrome reads and drives. */
@@ -56,6 +75,14 @@ export type EditorProjectLink = {
   session: ProjectSession;
   /** The scene doc the editor has open. */
   doc: string;
+  /** The open scene's asset id. */
+  scene?: string;
+  /** The project's scene list as flow reads it; default empty. */
+  flow?: SceneListFlow;
+  /** Opens another scene of the project in the editor, in place of this one. */
+  openScene?: (id: string) => void;
+  /** Why the editor last switched scenes by itself, for the status bar; null when it didn't. */
+  notice?: Store<SceneNotice | null>;
   /** Where dropped files are uploaded; without it the tree takes no files. */
   blobs?: ProjectBlobs;
   /** Viewers: the tree and the licence fields take no edits. */
@@ -64,6 +91,14 @@ export type EditorProjectLink = {
   projects?: readonly EditorProjectChoice[];
   onProjectChange?: (id: ProjectId) => void;
 };
+
+/** An undo or redo whose step was in another scene switched the editor there. */
+export type SceneNotice = { text: string };
+
+/** How long the status bar says why the editor switched scenes. */
+export const SCENE_NOTICE_MS = 12_000;
+
+const NO_FLOW: SceneListFlow = Object.freeze({ start: null, scenes: Object.freeze([]) });
 
 /** Everything the editor's frame and panels are drawn from. */
 export type EditorProps = EditingTarget & {
@@ -113,7 +148,14 @@ export type SceneEditorOptions = {
    */
   host: Pick<
     EditorHost,
-    "connect" | "identity" | "peerColor" | "notify" | "readOnly" | "projects" | "onProjectChange"
+    | "connect"
+    | "identity"
+    | "peerColor"
+    | "notify"
+    | "readOnly"
+    | "projects"
+    | "onProjectChange"
+    | "onSceneChange"
   >;
   /** Where notices go when the host has no `notify`: the frame's own toast region. */
   notify?: EditorNotify;
@@ -126,7 +168,10 @@ export type SceneEditorOptions = {
   project: ProjectId;
   /** The game's code registry; the project session is opened with it. */
   registry: Registry;
-  /** The scene to open, by id; the project's first scene when it holds none of that id. */
+  /**
+   * The scene to open, by id; the project's first scene when it holds none
+   * of that id. A scene opened from the picker replaces it until this changes.
+   */
   scene?: string | null;
   enabled: boolean;
   /** The game's Rapier loader, for the editor's physical checks. */
@@ -165,7 +210,8 @@ export type SceneEditorState = {
   registry: Registry;
   /**
    * What the host builds its game with as `project`: the open project's
-   * game settings and tables, null without one. It changes as `registry` does.
+   * game settings and tables, null without one. It changes as `registry` does;
+   * while the editor plays, the running game takes the change in place.
    */
   projectData: ProjectRuntimeView | null;
   /** Who the editor joined as, once it has loaded. */
@@ -236,11 +282,13 @@ export function useSceneEditor({
   );
   const projectChange = useRef(host.onProjectChange);
   const [switchProject] = useState(() => (id: ProjectId) => projectChange.current?.(id));
+  const sceneChange = useRef(host.onSceneChange);
   // A host's profile can arrive after the editor mounts; whoever it names once Rapier is in is who joins.
   const identityInput = useRef(host.identity);
   useEffect(() => {
     identityInput.current = host.identity;
     projectChange.current = host.onProjectChange;
+    sceneChange.current = host.onSceneChange;
   });
   const carried = useRef<Carried | null>(null);
   const [carrying, setCarrying] = useState(false);
@@ -286,9 +334,43 @@ export function useSceneEditor({
   const unsynced = useSyncExternalStore(watchConnection, readUnsynced, readUnsynced);
   const readProjectOpen = () => connection?.getState().session != null;
   const projectOpen = useSyncExternalStore(watchConnection, readProjectOpen, readProjectOpen);
-  const link = useSceneDoc(connection, scene);
+  // A scene opened here holds until the host asks for another; a host following it asks for that one.
+  const asked = scene ?? null;
+  const [picked, setPicked] = useState<{ asked: string | null; id: string } | null>(null);
+  const askedRef = useRef(asked);
+  const wanted = picked && picked.asked === asked ? picked.id : asked;
+  const link = useSceneDoc(connection, wanted);
   const ready = link.ready;
   const session = ready?.session ?? null;
+  const keepWarm = useWarmDocs();
+
+  const [notice] = useState(() => new Store<SceneNotice | null>(null));
+  const shownNotice = useStoreValue(notice);
+  useEffect(() => {
+    if (!shownNotice) return;
+    const timer = setTimeout(
+      () => notice.setState((n) => (n === shownNotice ? null : n)),
+      SCENE_NOTICE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [notice, shownNotice]);
+  const opened = useRef<typeof ready>(null);
+  useEffect(() => {
+    askedRef.current = asked;
+    opened.current = ready;
+  });
+  // The live session on the open doc closes; the doc stays connected a while, so switching back is quick.
+  const [switchTo] = useState(() => (id: string) => {
+    const from = opened.current;
+    if (id === from?.id) return;
+    if (from) keepWarm(from.session, from.name);
+    setPicked({ asked: askedRef.current, id });
+    sceneChange.current?.(id);
+  });
+  const [openScene] = useState(() => (id: string) => {
+    notice.setState(() => null);
+    switchTo(id);
+  });
 
   const [overlay, setOverlay] = useState<
     ({ session: ProjectSession; watch: ProjectRegistry } & Build) | null
@@ -323,13 +405,18 @@ export function useSceneEditor({
   const current = session !== null && overlay?.session === session ? overlay : null;
   const settled = current !== null;
   const openSession = current?.session ?? null;
+  const flow = current?.projectData?.flow ?? NO_FLOW;
+  const flowRef = useRef(flow);
+  useEffect(() => {
+    flowRef.current = flow;
+  });
   const assets = useMemo<EditorAssets | null>(
     () =>
       openSession ? { project, view: () => openSession.view(), kinds: openSession.kinds } : null,
     [openSession, project],
   );
 
-  // Re-imported art redraws in the running game; only the dev server sends these messages.
+  // Re-imported art (only the dev server sends these messages) and, during Play, edited project data reach the running game.
   const watch = current?.watch ?? null;
   useEffect(() => {
     if (!watch || !connection || !game) return;
@@ -355,6 +442,22 @@ export function useSceneEditor({
     if (!loaded || !game || !ready || !settled || !fits) return;
     let next: LiveEditor | null = null;
     let gone = false;
+    // An undo or redo whose step was in another scene opens that scene, and the status bar says so.
+    const onUndone = (step: UndoneStep, how: "undo" | "redo") => {
+      if (step.docs.includes(ready.name)) return;
+      const verb = how === "undo" ? "Undid" : "Redid";
+      const other = sceneOfStep(ready.session, step.docs);
+      if (other) {
+        const title = flowRef.current.scenes.find((e) => e.scene === other.id)?.title;
+        notice.setState(() => ({ text: `${verb} ${step.label} in ${title ?? other.name}` }));
+        switchTo(other.id);
+        return;
+      }
+      const where = step.docs
+        .filter((d) => d !== ready.session.name)
+        .map((d) => assetIdOf(ready.session, d));
+      say(`${verb} ${step.label} in ${where.length > 0 ? where.join(", ") : "the project"}`);
+    };
     // Opened once the prefab docs are, so the scene's instances resolve from the first frame.
     void prefabsReady(ready.session)
       .catch(() => {})
@@ -369,6 +472,7 @@ export function useSceneEditor({
           notify: say,
           ...(tasks ? { pending: tasks } : {}),
           project: { session: ready.session, doc: ready.name },
+          history: announcedHistory(() => projectHistory(ready.session, ready.name, { onUndone })),
         });
         const kept = carried.current;
         carried.current = null;
@@ -385,7 +489,7 @@ export function useSceneEditor({
       }
       next?.destroy();
     };
-  }, [liveCell, loaded, game, ready, settled, fits, say, tasks]);
+  }, [liveCell, loaded, game, ready, settled, fits, say, tasks, notice, switchTo]);
 
   useEffect(() => {
     live?.host.setState((s) => ({ ...s, connection: link.status }));
@@ -425,6 +529,10 @@ export function useSceneEditor({
             project: {
               session: ready.session,
               doc: ready.name,
+              scene: ready.id,
+              flow,
+              openScene,
+              notice,
               ...(connection?.blobs ? { blobs: connection.blobs } : {}),
               ...(readOnly ? { readOnly } : {}),
               ...(projects ? { projects, onProjectChange: switchProject } : {}),
@@ -444,6 +552,9 @@ export function useSceneEditor({
     readOnly,
     projects,
     switchProject,
+    flow,
+    openScene,
+    notice,
   ]);
 
   const self = useMemo<EditorSelf | null>(
@@ -478,6 +589,57 @@ export function useSceneEditor({
     assets: on ? assets : null,
     projectChoice: on ? projectChoice : null,
   };
+}
+
+/**
+ * The history `make` returns, made when the editor session first reads it.
+ * A new subscriber hears from it once straight away: a session takes its
+ * undo state from these calls, and the project's stack may already hold
+ * steps from a scene opened before.
+ */
+function announcedHistory(make: () => SessionHistory): SessionHistory {
+  let made: SessionHistory | null = null;
+  const history = () => (made ??= make());
+  return {
+    state: () => history().state(),
+    undo: () => history().undo(),
+    redo: () => history().redo(),
+    revert: (entryId) => history().revert(entryId),
+    commit: (selection) => history().commit?.(selection),
+    subscribe(listener) {
+      const off = history().subscribe(listener);
+      let live = true;
+      queueMicrotask(() => {
+        if (live) listener();
+      });
+      return () => {
+        live = false;
+        off();
+      };
+    },
+  };
+}
+
+/** A doc's asset id in `session`, else the doc's name. */
+function assetIdOf(session: ProjectSession, docName: string): string {
+  const ref = parseDocName(docName);
+  if (!ref || ref.kind === "project") return docName;
+  return session.state().assets[ref.key]?.id ?? ref.key;
+}
+
+/** The first live scene among `docs`, with its display name. */
+function sceneOfStep(
+  session: ProjectSession,
+  docs: readonly string[],
+): { id: string; name: string } | null {
+  for (const docName of docs) {
+    const ref = parseDocName(docName);
+    if (!ref || ref.kind === "project") continue;
+    const entry = session.state().assets[ref.key];
+    if (entry?.kind === SCENE_KIND_NAME && !entry.deleted)
+      return { id: entry.id, name: assetName(entry) };
+  }
+  return null;
 }
 
 export function carry(live: LiveEditor, doc: string): Carried {

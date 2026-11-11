@@ -3,8 +3,9 @@ import { Container } from "pixi.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 
+import { flowRequestedScene } from "../editor-ui/panels/EditorPlayBar";
 import { createGame } from "../engine";
-import { createRegistry } from "../game/define";
+import { createRegistry, defineGame } from "../game/define";
 import type { TimeModel } from "../game/time";
 import type { GameAttachment, GameCommand, GameDefinition } from "../game/types";
 import { replayRecording } from "../headless/recording";
@@ -13,7 +14,7 @@ import { formatScene } from "../scene/format";
 import { sceneHash } from "../scene/hash";
 import { parseSceneOrThrow } from "../scene/parse";
 import type { RunRecording } from "../scene/recording-schema";
-import type { SceneDefinition } from "../scene/types";
+import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
 import engineYardJson from "../scenes/engine-yard.json";
 import type { ToolEvent } from "../tool-router";
 import type { GameConfig, GameInstance, PlayOutcome, RapierModule } from "../types";
@@ -849,5 +850,100 @@ describe("key target", () => {
     field.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true }));
     expect(plain).toEqual([]);
     expect(typing).toEqual(["x"]);
+  });
+});
+
+describe("a flow request during Play", () => {
+  /** Physics-free; `go` requests a scene, `win` decides `won` in the same tick as a `go`. */
+  const flowy = defineGame<{ ticks: number; won: boolean }>({
+    id: "flowy",
+    types: [],
+    actions: [{ action: "jump", keys: [" "], description: "Jump." }],
+    world: { physics: "none" },
+    commands: {
+      go: {
+        description: "Requests a scene.",
+        args: z.strictObject({
+          to: z.string().describe("The scene."),
+          win: z.boolean().optional().describe("Also wins this tick."),
+        }),
+      },
+    },
+    play: {
+      results: ["won"],
+      outcome: ({ snapshot }) => (snapshot.won ? { result: "won" } : null),
+    },
+    createRuntime(ctx) {
+      let ticks = 0;
+      let won = false;
+      return {
+        beforeStep(_dt, _actions, commands) {
+          for (const c of commands) {
+            const args = c.args as { to: string; win?: boolean };
+            ctx.flow.request({ to: args.to, entry: "door" });
+            if (args.win) won = true;
+          }
+        },
+        afterStep() {
+          ticks++;
+        },
+        snapshot: () => ({ ticks, won }),
+      };
+    },
+  });
+  const room = (name: string): SceneDefinition => ({
+    v: SCENE_FORMAT_VERSION,
+    name,
+    game: "flowy",
+    bounds: [0, 0, 10, 10],
+    entities: [{ id: "door", type: "marker", at: [1, 1] }],
+  });
+
+  async function playing(): Promise<GameInstance> {
+    const game = await createGame(canvas, { game: flowy, dev: true });
+    games.push(game);
+    game.start();
+    game.stop();
+    expect(game.play(room("hall"))).toMatchObject({ ok: true });
+    return game;
+  }
+
+  it("ends the session with a flow outcome on its scene, shown in the Play bar", async () => {
+    const game = await playing();
+    const outcomes: PlayOutcome[] = [];
+    const recorded: RunRecording[] = [];
+    game.on("play:outcome", (o) => outcomes.push(o));
+    game.on("play:recorded", (r) => recorded.push(r));
+    game.step(2);
+    expect(flowRequestedScene(game.getStore().state)).toBeNull();
+
+    expect(game.send({ name: "go", args: { to: "level-2" } })).toBe(true);
+    game.step();
+    expect(outcomes).toEqual([{ result: "flow", to: "level-2", tick: 2 }]);
+    expect(game.getStore().state.session?.outcome).toEqual(outcomes[0]);
+    expect(flowRequestedScene(game.getStore().state)).toBe("level-2");
+    // Play stays on its scene and holds the frame.
+    expect(game.getMode()).toBe("play");
+    expect(game.getStore().state.sim.paused).toBe(true);
+    expect(world(game)?.scene()?.name).toBe("hall");
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]!.outcome).toMatchObject({ result: "flow", tick: 2 });
+    expect(recorded[0]!.next).toEqual({ scene: "level-2", entry: "door" });
+
+    game.stop();
+    expect(flowRequestedScene(game.getStore().state)).toBeNull();
+  });
+
+  it("keeps the game's own outcome when it decides one in the requesting tick", async () => {
+    const game = await playing();
+    const outcomes: PlayOutcome[] = [];
+    game.on("play:outcome", (o) => outcomes.push(o));
+
+    game.send({ name: "go", args: { to: "level-2", win: true } });
+    game.step();
+    expect(outcomes).toEqual([{ result: "won", tick: 0 }]);
+    expect(game.getStore().state.sim.paused).toBe(false);
+    expect(flowRequestedScene(game.getStore().state)).toBeNull();
+    expect(game.recording()?.next).toBeUndefined();
   });
 });

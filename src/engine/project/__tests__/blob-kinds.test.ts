@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../../game/define";
+import { formatSaveFile, type SaveFile } from "../../game/save-file";
 import { sha256 } from "../hash";
 import { parseAsepriteJson } from "../inspect/aseprite";
 import { parseTexturePackerJson } from "../inspect/texturepacker";
@@ -12,6 +13,7 @@ import { audioKind } from "../kinds/audio";
 import { fontKind } from "../kinds/font";
 import { ENGINE_ASSET_KINDS } from "../kinds/index";
 import { recordingKind } from "../kinds/recording";
+import { saveKind } from "../kinds/save";
 import { textureKind } from "../kinds/texture";
 import { checkProjectBatch, type ProjectBatchEnv, type ProjectOp } from "../ops";
 import type { AssetEntry, ProjectState } from "../types";
@@ -55,6 +57,38 @@ function entry(extra: Partial<AssetEntry> & Pick<AssetEntry, "kind">): AssetEntr
   return { key: "k", id: "a", path: "a", created: { at: 0, by: "t" }, ...extra };
 }
 
+function saveFile(over: Partial<SaveFile> = {}): SaveFile {
+  return {
+    kind: "save",
+    v: 1,
+    game: "tactics",
+    gameVersion: 1,
+    engine: "0.13.0",
+    release: null,
+    project: null,
+    slot: "fixture",
+    meta: { scene: "level-2", savedAt: 0, playTicks: 600 },
+    depth: "world",
+    persist: { cleared: ["level-1"] },
+    scene: { id: "level-2", runHash: "a90e44d1c2b3f507", sublevels: [] },
+    data: { turn: 1 },
+    world: {
+      tick: 600,
+      counters: {},
+      random: [1, 2, 3, 4],
+      timers: [],
+      enabled: {},
+      destroyed: [],
+      spawned: [],
+      poses: { "knight-1": [6.75, 3.75, 0] },
+      systems: {},
+      seats: [{ player: 0, devices: ["keyboard"] }],
+    },
+    ...over,
+  };
+}
+const saveText = (over: Partial<SaveFile> = {}) => formatSaveFile(saveFile(over));
+
 /** mulberry32: a small seeded generator, so a failing case reproduces. */
 function rng(seed: number): () => number {
   let a = seed >>> 0;
@@ -74,6 +108,7 @@ describe("the blob kinds", () => {
     [fontKind, 4, ["text/plain", "font/woff2", "font/woff", "font/ttf", "font/otf"]],
     [audioKind, 16, ["audio/ogg", "audio/mpeg", "audio/wav", "audio/mp4"]],
     [recordingKind, 4, ["application/json"]],
+    [saveKind, 1, ["application/json"]],
   ] as const)("$kind: is a blob of at most N MiB with its content types", (kind, mib, types) => {
     expect(kind.storage).toBe("blob");
     expect(kind.maxBytes).toBe(mib * MiB);
@@ -96,6 +131,7 @@ describe("the blob kinds", () => {
       "font",
       "audio",
       "recording",
+      "save",
       "code",
     ]);
     const kinds = createKindRegistry();
@@ -110,6 +146,7 @@ describe("the blob kinds", () => {
       expect(kindOf(`fonts/a.${ext}`)).toBe("font");
     for (const ext of ["ogg", "mp3", "wav", "m4a"]) expect(kindOf(`sfx/a.${ext}`)).toBe("audio");
     expect(kindOf("runs/a.recording.json", fixtureJson("run.recording.json"))).toBe("recording");
+    expect(kindOf("fixtures/level-2.save.json", JSON.parse(saveText()))).toBe("save");
   });
 
   it("schema-hash their settings and meta", async () => {
@@ -389,6 +426,42 @@ describe("recording", () => {
   });
 });
 
+describe("save", () => {
+  it("reads the game, its save version, the depth and the scene", () => {
+    expect(meta(saveKind, encode(saveText()))).toEqual({
+      ok: true,
+      meta: { game: "tactics", gameVersion: 1, depth: "world", scene: "level-2" },
+    });
+  });
+
+  it("refuses a malformed file, saying where", () => {
+    failure(saveKind, encode("{ not json"));
+    failure(saveKind, fixture("run.recording.json"));
+    failure(saveKind, new Uint8Array([0xff, 0xfe, 0x00]));
+    const { world: _world, ...noWorld } = saveFile();
+    expect(failure(saveKind, encode(noWorld)).message).toMatch(/save:v1 file \(\/world: /);
+    expect(failure(saveKind, encode({ ...saveFile(), kind: "recording" })).message).toMatch(
+      /save:v1 file/,
+    );
+  });
+
+  it("references its scene", () => {
+    expect(saveKind.refs!(entry({ kind: "save", meta: { scene: "level-2" } }))).toEqual([
+      { pointer: "/meta/scene", id: "level-2", kinds: ["scene"] },
+    ]);
+    expect(saveKind.refs!(entry({ kind: "save" }))).toEqual([]);
+  });
+
+  it("never throws on a truncated fixture", () => {
+    const bytes = encode(saveText());
+    for (let end = 0; end <= bytes.length; end += 7) {
+      const result = saveKind.inspect(bytes.subarray(0, end), {}, noIds);
+      if (result.ok) expect(saveKind.meta.safeParse(result.meta).success).toBe(true);
+      else expect(result.issue.code).toBe("import-failed");
+    }
+  });
+});
+
 describe("inspect never throws", { timeout: 30_000 }, () => {
   const files = fixtureFiles().map((name) => [name, fixture(name)] as const);
 
@@ -517,5 +590,55 @@ describe("through project ops", { timeout: 60_000 }, () => {
     const wrong = apply([imp("art/fake.png", "hero.json")]);
     expect(wrong.ok).toBe(false);
     if (!wrong.ok) expect(wrong.issue.code).toBe("import-failed");
+  });
+
+  it("imports a save fixture and replaces it last-writer-wins, keeping the old bytes in history", async () => {
+    const first = encode(saveText());
+    const second = encode(saveText({ depth: "progress", world: undefined, gameVersion: 2 }));
+    const [h1, h2] = [await sha256(first), await sha256(second)];
+    const byHash = new Map([
+      [h1, first],
+      [h2, second],
+    ]);
+    let state: ProjectState = {
+      meta: { projectId: "p", layout: 1, name: "P" },
+      assets: {},
+      history: {},
+      code: {},
+      build: {},
+    };
+    const e = env(() => state, byHash);
+    const apply = (ops: ProjectOp[]) => {
+      const result = checkProjectBatch(state, new Map(), { v: 1, ops }, e);
+      if (result.ok) state = result.state;
+      return result;
+    };
+
+    const path = "fixtures/level-2.save.json";
+    expect(apply([{ op: "importAsset", path, sha256: h1, bytes: first.length }]).ok).toBe(true);
+    const saved = () => Object.values(state.assets).find((a) => a.path === path)!;
+    expect(saved().kind).toBe("save");
+    expect(saved().meta).toEqual({
+      game: "tactics",
+      gameVersion: 1,
+      depth: "world",
+      scene: "level-2",
+    });
+
+    const replaced = apply([
+      { op: "replaceContent", id: saved().id, sha256: h2, bytes: second.length },
+    ]);
+    expect(replaced.ok).toBe(true);
+    expect(saved().sha256).toBe(h2);
+    expect(saved().meta).toEqual({
+      game: "tactics",
+      gameVersion: 2,
+      depth: "progress",
+      scene: "level-2",
+    });
+    expect(JSON.stringify(state.history[saved().key])).toContain(h1);
+
+    const tooBig = apply([{ op: "replaceContent", id: saved().id, sha256: h1, bytes: MiB + 1 }]);
+    expect(tooBig.ok).toBe(false);
   });
 });

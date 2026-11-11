@@ -1,0 +1,11 @@
+{
+  "$schema": "../scene.schema.json",
+  "v": 4,
+  "game": "tactics",
+  "name": "result",
+  "bounds": [0, 0, 12, 8],
+  "entities": [
+    { "id": "ground", "type": "decor", "layer": "terrain", "at": [6, 4], "behaviors": { "sprite": { "asset": "tiles", "size": [12, 8], "tile": true } } },
+    { "id": "about", "type": "note", "at": [0.5, 0.5], "text": "Result: where a level's end goes. No units; the game's DOM panel reads the progress (won or lost, turns taken, the blue units standing) and its Back to menu button asks for the menu." }
+  ]
+}

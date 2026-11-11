@@ -123,6 +123,8 @@ const game = defineGame<GridPuzzleSnapshot>({
         for (const c of crates) c.update(dtMs);
       },
       busy: () => (pusher?.moving() ?? false) || crates.some((c) => c.moving()),
+      // The pusher and crates are grid steppers, which a world save brings back itself.
+      restore() {},
       snapshot() {
         const cells = crates.map((c) => c.cell());
         return {
@@ -163,6 +165,9 @@ const scene: SceneDefinition = {
   ],
 };
 
+/** A tick inside a push, the pusher and a crate both mid-step. */
+export const SAVE_AT = 10;
+
 /** A press, then enough slots for the step it starts to finish. */
 const move = (action: string) => [{ press: action }, { wait: 8 }];
 
@@ -190,5 +195,7 @@ export const probe: GenreProbe<GridPuzzleSnapshot> = {
   variants: [
     { name: "gravity-zero", settings: { gravity: [0, 0] } },
     { name: "gravity-sideways", settings: { gravity: [1200, 0] } },
+    // Partway through the push that puts the first crate on its goal.
+    { name: "saved-mid-push", saveAt: SAVE_AT },
   ],
 };

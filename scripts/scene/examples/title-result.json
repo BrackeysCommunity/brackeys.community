@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "label": "Title the result scene",
+  "ops": [
+    {
+      "op": "editAsset",
+      "id": "scene-list",
+      "edits": [{ "set": "/scenes/@result/title", "value": "Result" }]
+    }
+  ]
+}

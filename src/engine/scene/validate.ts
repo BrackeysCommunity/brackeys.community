@@ -4,7 +4,8 @@ import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD, type BehaviorName } from "../ga
 import { OCCUPANT } from "../game/behaviors/occupant";
 import { SPRITE } from "../game/behaviors/sprite";
 import { isSpawnOnly, placeableTypes } from "../game/define";
-import { isPolygonField } from "../game/fields";
+import { ID_PATTERN, isPolygonField } from "../game/fields";
+import { flowIssue, type SceneLibrary } from "../game/flow";
 import { physicsNeeds } from "../game/primitives";
 import type { RegisteredType, Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
@@ -12,8 +13,9 @@ import { assetInfo } from "../project/asset-info";
 import { ATLAS_KIND } from "../project/kinds/atlas";
 import { isPlainObject } from "../project/kinds/define";
 import { entityRefSites, headerAssetRefs } from "../project/kinds/fields";
+import type { SceneListEntry } from "../project/kinds/scene-list";
 import { schemaRefSites, type RefSite } from "../project/refs";
-import type { AssetKindName, ProjectView } from "../project/types";
+import type { AssetId, AssetKindName, ProjectView } from "../project/types";
 import { closest } from "./did-you-mean";
 import {
   behaviorBlocks,
@@ -70,6 +72,7 @@ import {
   SCENE_FORMAT_VERSION,
   type Aabb,
   type EntityDef,
+  type GridSettings,
   type InstanceDef,
   type IssueCode,
   type OpBatch,
@@ -78,6 +81,7 @@ import {
   type PrefabLibrary,
   type Pt,
   type Ref,
+  type ResolvedSettings,
   type SceneDefinition,
   type SceneIssue,
   type SceneOp,
@@ -1680,4 +1684,155 @@ function validateGridTransforms(
       children.map((c) => `${inst.id}/${c}`),
     );
   });
+}
+
+/** What `sublevelIssue` reads of a scene: its resolved settings. */
+export type SublevelSettings = { settings: Pick<ResolvedSettings, "physics" | "grid" | "gravity"> };
+
+export type SublevelJudgeOptions = {
+  /** The attached scene's asset id. */
+  scene: AssetId;
+  /** The scene list in effect. */
+  list: readonly SceneListEntry[];
+  label: string;
+  /** World offset, metres; default [0, 0]. */
+  at?: Pt;
+  /** Whether a label is attached already, or still has live entities. */
+  taken?: (label: string) => boolean;
+  /** The game's px per metre, which `at` and the cell are judged in. */
+  pxPerMetre: number;
+};
+
+/** The repeat of a grid's lattice in whole px: a cell, or two staggered rows (columns) of hexes. */
+function gridPeriodPx(grid: GridSettings, ppm: number): Pt {
+  const [w, h] = grid.cell;
+  if (grid.kind === "square") return [Math.round(w * ppm), Math.round(h * ppm)];
+  return grid.stagger === "x"
+    ? [Math.round((w + grid.side) * ppm), Math.round(h * ppm)]
+    : [Math.round(w * ppm), Math.round((h + grid.side) * ppm)];
+}
+
+const samePx = (a: number, b: number, ppm: number) => Math.round(a * ppm) === Math.round(b * ppm);
+
+/** Why `sub`'s grid moved by `at` doesn't lie on `main`'s, or null. */
+function gridMismatch(
+  main: GridSettings | null,
+  sub: GridSettings | null,
+  at: Pt,
+  ppm: number,
+): string | null {
+  if (!main && !sub) return null;
+  if (!main) return "it has a grid and the main scene has none";
+  if (!sub) return "the main scene has a grid and it has none";
+  if (main.kind !== sub.kind) return `its grid is ${sub.kind} and the main scene's is ${main.kind}`;
+  if (!samePx(main.cell[0], sub.cell[0], ppm) || !samePx(main.cell[1], sub.cell[1], ppm))
+    return `its cell [${sub.cell.join(", ")}] isn't the main scene's [${main.cell.join(", ")}]`;
+  if (
+    main.kind === "hex" &&
+    sub.kind === "hex" &&
+    (!samePx(main.side, sub.side, ppm) || main.stagger !== sub.stagger || main.index !== sub.index)
+  )
+    return "its hex side, stagger or index isn't the main scene's";
+  if (!isWholePixel(at[0], ppm) || !isWholePixel(at[1], ppm))
+    return `at [${at.join(", ")}] isn't a whole world pixel at ${ppm} px per metre`;
+  const period = gridPeriodPx(main, ppm);
+  const [mx, my] = main.origin ?? [0, 0];
+  const [sx, sy] = sub.origin ?? [0, 0];
+  const off = [Math.round((sx + at[0] - mx) * ppm), Math.round((sy + at[1] - my) * ppm)] as const;
+  if (off[0] % period[0] !== 0 || off[1] % period[1] !== 0)
+    return `at [${at.join(", ")}] doesn't put its cells on the main scene's (they repeat every ${period[0]} × ${period[1]} px)`;
+  return null;
+}
+
+/**
+ * Why the listed scene `opts.scene`, resolved to `sub`, can't attach beside
+ * the main scene `main` as `opts.label` at `opts.at`, or null when it can.
+ * Every refusal is `sublevel-invalid` with `detail.reason`: "unlisted" (by
+ * `flowIssue`), "label" (malformed or taken), "physics", "grid" (shape,
+ * cell size, or `at` off the main scene's cells, judged in whole px) or
+ * "settings" (gravity). The one rule the runtime's attach and validation
+ * both judge by.
+ */
+export function sublevelIssue(
+  main: SublevelSettings,
+  sub: SublevelSettings,
+  opts: SublevelJudgeOptions,
+): SceneIssue | null {
+  const { scene, label } = opts;
+  const unlisted = flowIssue(opts.list, scene, "attach");
+  if (unlisted) return unlisted;
+  const refuse = (reason: string, why: string) =>
+    makeIssue("sublevel-invalid", {
+      message: `"${scene}" can't attach as "${label}": ${why}`,
+      entityIds: [scene],
+      detail: { reason, scene, label },
+    });
+  if (!ID_PATTERN.test(label))
+    return refuse("label", "the label isn't lowercase letters, digits and dashes");
+  if (opts.taken?.(label)) return refuse("label", "the label is taken");
+  const m = main.settings;
+  const s = sub.settings;
+  if (m.physics !== s.physics)
+    return refuse("physics", `it runs on ${s.physics} and the main scene on ${m.physics}`);
+  const grid = gridMismatch(m.grid, s.grid, opts.at ?? [0, 0], opts.pxPerMetre);
+  if (grid) return refuse("grid", grid);
+  if (m.gravity[0] !== s.gravity[0] || m.gravity[1] !== s.gravity[1])
+    return refuse(
+      "settings",
+      `its gravity [${s.gravity.join(", ")}] isn't the main scene's [${m.gravity.join(", ")}]`,
+    );
+  return null;
+}
+
+/** A place a check or script names a sublevel: the scene it attaches, as what and where, and its pointer. */
+export type SublevelUse = {
+  scene: AssetId;
+  label: string;
+  at?: Pt;
+  /** A JSON Pointer into the file that names it. */
+  path: string;
+  line?: number;
+};
+
+/**
+ * `sublevel-invalid` for each use that `sublevelIssue` refuses beside the
+ * main scene `main`, settings resolved as `expandScene` resolves them;
+ * uses are judged in order, so a label an earlier use took is taken. A
+ * listed scene the library holds no text for is `asset-missing`.
+ */
+export function sublevelUseIssues(
+  main: SceneDefinition,
+  uses: readonly SublevelUse[],
+  env: {
+    registry: Registry;
+    library: SceneLibrary;
+    engine?: Readonly<Record<string, unknown>>;
+  },
+): SceneIssue[] {
+  const sources = settingsSources(env.registry, env.engine);
+  const at = (def: SceneDefinition) => ({ settings: resolveSettings(def.settings, sources) });
+  const host = at(main);
+  const taken = new Set<string>();
+  const out: SceneIssue[] = [];
+  for (const use of uses) {
+    const where = { path: use.path, ...(use.line === undefined ? {} : { line: use.line }) };
+    const listed = env.library.scenes.get(use.scene);
+    const issue = listed
+      ? sublevelIssue(host, at(listed.def), {
+          scene: use.scene,
+          list: env.library.list,
+          label: use.label,
+          ...(use.at ? { at: use.at } : {}),
+          taken: (label) => taken.has(label),
+          pxPerMetre: pxPerMetreOf(env.registry),
+        })
+      : (flowIssue(env.library.list, use.scene, "attach") ??
+        makeIssue("asset-missing", {
+          message: `"${use.scene}" is in the scene list, but the library holds no scene for it`,
+          entityIds: [use.scene],
+        }));
+    taken.add(use.label);
+    if (issue) out.push({ ...issue, ...where });
+  }
+  return out;
 }

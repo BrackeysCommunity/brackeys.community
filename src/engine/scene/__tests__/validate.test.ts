@@ -6,10 +6,12 @@ import { defineBehavior } from "../../game/behaviors";
 import { OCCUPANT } from "../../game/behaviors/occupant";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { assetField, gridField, pointField } from "../../game/fields";
+import type { SceneLibrary } from "../../game/flow";
 import { PRIMITIVES, primitiveFields, typePhysics } from "../../game/primitives";
-import type { FieldEnv, Registry, SceneSystem } from "../../game/types";
+import type { FieldEnv, Registry } from "../../game/types";
 import type { AssetEntry } from "../../project/types";
 import { projectView } from "../../project/view";
+import { createDataSystem } from "../../systems/data";
 import { parseBulkId } from "../expand";
 import { formatScene } from "../format";
 import { sceneHash } from "../hash";
@@ -17,7 +19,7 @@ import { applyOps } from "../ops";
 import { parseScene, parseSceneOrThrow } from "../parse";
 import { prefabScene } from "../prefab";
 import type { EntityDef, IssueCode, OpBatch, Prefab, SceneDefinition, SceneIssue } from "../types";
-import { validateScene } from "../validate";
+import { sublevelIssue, sublevelUseIssues, validateScene } from "../validate";
 import { engine, engineYardText, fake } from "./fixtures/fake-game";
 import { yardPrefabs } from "./fixtures/random-ops";
 
@@ -545,16 +547,10 @@ describe("validateScene", () => {
 
   describe("asset ids", () => {
     const env: FieldEnv = { materials: [], materialDefs: new Map(), types: [], assets: () => [] };
-    const inert = (): SceneSystem => ({
-      spawn: () => {},
-      despawn: () => {},
-      clear: () => {},
-      size: () => 0,
-    });
     const painting = defineEntityType({
       type: "painting",
       description: "A framed picture.",
-      system: inert,
+      system: createDataSystem,
       fields: (fieldEnv) => ({
         at: pointField("Where it hangs."),
         skin: assetField(fieldEnv, "texture", "Its picture.").optional(),
@@ -983,7 +979,7 @@ describe("sprite blocks", () => {
     const decal = defineEntityType({
       type: "decal",
       description: "A picture on the wall.",
-      system: () => ({ spawn: () => {}, despawn: () => {}, clear: () => {}, size: () => 0 }),
+      system: createDataSystem,
       fields: { at: pointField("Where it hangs.") },
       behaviors: { required: { sprite: {} } },
     });
@@ -1919,5 +1915,110 @@ describe("spawn-only types", () => {
     );
     expect(issue).toMatchObject({ code: "unknown-type", entityIds: ["h1/spark"] });
     expect(issue!.path).toMatch(/^\/instances\/0/);
+  });
+});
+
+describe("sublevelIssue", () => {
+  const list = [{ scene: "hall" }, { scene: "cellar", sublevel: true as const }];
+  const settings = (over: Record<string, unknown> = {}) => ({
+    settings: {
+      physics: "none" as const,
+      gravity: [0, 9.8] as [number, number],
+      grid: { kind: "square" as const, cell: [0.32, 0.32] as [number, number] },
+      ...over,
+    },
+  });
+  const judge = (sub = settings(), opts: Partial<Parameters<typeof sublevelIssue>[2]> = {}) => {
+    const issue = sublevelIssue(settings(), sub, {
+      scene: "cellar",
+      list,
+      label: "cellar",
+      pxPerMetre: 100,
+      ...opts,
+    });
+    if (issue) expect(issue).toMatchObject({ code: "sublevel-invalid", severity: "error" });
+    return (issue?.detail as { reason?: string } | undefined)?.reason ?? null;
+  };
+
+  it("accepts a listed scene on the main scene's physics, cells and gravity", () => {
+    expect(judge()).toBeNull();
+    expect(judge(settings(), { at: [3.2, -0.64] })).toBeNull();
+  });
+
+  it("judges each reason through the one rule", () => {
+    expect(judge(settings(), { scene: "attic" })).toBe("unlisted");
+    expect(judge(settings(), { label: "Cellar" })).toBe("label");
+    expect(judge(settings(), { taken: (l) => l === "cellar" })).toBe("label");
+    expect(judge(settings({ physics: "rapier" }))).toBe("physics");
+    expect(judge(settings({ grid: null }))).toBe("grid");
+    expect(judge(settings({ grid: { kind: "square", cell: [0.16, 0.16] } }))).toBe("grid");
+    expect(judge(settings(), { at: [0.16, 0] })).toBe("grid");
+    expect(judge(settings(), { at: [0.3205, 0] })).toBe("grid");
+    expect(judge(settings({ gravity: [0, 0] }))).toBe("settings");
+  });
+
+  it("judges at against the main grid's origin and a hex grid's repeat", () => {
+    const shifted = settings({
+      grid: { kind: "square", cell: [0.32, 0.32], origin: [0.16, 0] },
+    });
+    expect(judge(shifted)).toBe("grid");
+    expect(judge(shifted, { at: [0.16, 0] })).toBeNull();
+    const hex = { kind: "hex", cell: [0.32, 0.28], side: 0.14, stagger: "y", index: "odd" };
+    const main = settings({ grid: hex });
+    const at = (p: [number, number]) =>
+      sublevelIssue(main, main, { scene: "cellar", list, label: "c", at: p, pxPerMetre: 100 });
+    expect(at([0.32, 0.42])).toBeNull();
+    expect(at([0, 0.21])?.detail).toMatchObject({ reason: "grid" });
+  });
+});
+
+describe("sublevelUseIssues", () => {
+  const def = (name: string, over: Partial<SceneDefinition> = {}): SceneDefinition => ({
+    v: 1,
+    name,
+    bounds: [0, 0, 1000, 1000],
+    settings: { physics: "none" },
+    entities: [{ id: "start", type: "marker", at: [500, 900] }],
+    ...over,
+  });
+  const library: SceneLibrary = {
+    list: [
+      { scene: "hall" },
+      { scene: "cellar", sublevel: true },
+      { scene: "heavy", sublevel: true },
+      { scene: "lost", sublevel: true },
+    ],
+    scenes: new Map([
+      ["hall", { def: def("hall"), prefabs: new Map() }],
+      ["cellar", { def: def("cellar"), prefabs: new Map() }],
+      ["heavy", { def: def("heavy", { settings: { physics: "rapier" } }), prefabs: new Map() }],
+    ]),
+  };
+
+  it("reports sublevel-invalid at each use that names a sublevel it can't attach, labels taken in order", () => {
+    const issues = sublevelUseIssues(
+      def("hall"),
+      [
+        { scene: "cellar", label: "cellar", path: "/checks/0/attach", line: 4 },
+        { scene: "cellar", label: "cellar", path: "/checks/1/attach", line: 9 },
+        { scene: "heavy", label: "heavy", path: "/checks/2/attach" },
+        { scene: "attic", label: "attic", path: "/checks/3/attach" },
+        { scene: "lost", label: "lost", path: "/checks/4/attach" },
+      ],
+      { registry: engine, library },
+    );
+    expect(
+      issues.map((i) => [
+        i.code,
+        (i.detail as { reason?: string } | undefined)?.reason,
+        i.path,
+        i.line,
+      ]),
+    ).toEqual([
+      ["sublevel-invalid", "label", "/checks/1/attach", 9],
+      ["sublevel-invalid", "physics", "/checks/2/attach", undefined],
+      ["sublevel-invalid", "unlisted", "/checks/3/attach", undefined],
+      ["asset-missing", undefined, "/checks/4/attach", undefined],
+    ]);
   });
 });

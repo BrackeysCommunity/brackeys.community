@@ -1,0 +1,16 @@
+{
+  "$schema": "../scene.schema.json",
+  "v": 4,
+  "game": "tactics",
+  "name": "cellar",
+  "bounds": [0, 0, 12, 2],
+  "instances": [
+    { "id": "guard", "prefab": "knight", "at": [8.5, 0.5], "params": { "side": "red" } }
+  ],
+  "entities": [
+    { "id": "ground", "type": "decor", "layer": "terrain", "at": [6, 1], "behaviors": { "sprite": { "asset": "tiles", "size": [12, 2], "tile": true } } },
+    { "id": "pillar", "type": "solid", "layer": "decor", "shape": ["box", 2.5, 1.5, 0.5, 0.5], "behaviors": { "sprite": { "asset": "tile-wall", "size": [1, 1], "tile": true } } },
+    { "id": "rubble", "type": "rough", "layer": "decor", "shape": ["box", 5, 1, 1, 1], "cost": 1, "behaviors": { "sprite": { "asset": "tile-marsh", "size": [2, 2], "tile": true } } },
+    { "id": "about", "type": "note", "at": [0.5, 0.5], "text": "Cellar: a sublevel, never a scene of its own. Level 2's stair attaches it at [0, 6], two rows under the board, on the same grid; its ids become cellar:<id>. A pillar, rubble that costs one extra move per cell, and a red knight on guard." }
+  ]
+}

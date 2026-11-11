@@ -6,6 +6,6 @@
   "name": "Demo",
   "game": { "module": "./index.ts", "export": "demoGame" },
   "ui": { "module": "./ui/index.ts", "export": "mountDemoHud" },
-  "assets": ["scenes/**", "game-settings.json", "input-map.json"],
+  "assets": ["scenes/**", "game-settings.json", "input-map.json", "scene-list.json"],
   "code": ["**/*.ts", "!**/__tests__/**"]
 }

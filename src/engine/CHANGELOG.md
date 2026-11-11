@@ -7,6 +7,344 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.13.0] — unreleased
+
+Scene flow, additive scenes and saves: a game is several scenes with a
+start, transitions, loading and saved progress. A project's scene list
+names the start and the scenes a game may go to; games ask for a change
+through `ctx.flow.request`, keep progress in `ctx.persist`, attach
+sublevels beside the main scene, and save at two depths through stores
+with caps. The editor gains a scene picker and a Project settings panel,
+the site plays each hosted game from its list's start, and the second game
+goes menu → level → result → menu with a fade and saves between turns. The
+release also closes 0.12.0's leftovers: doc identity across a reseed,
+input-map seats wherever a script is judged, Play following co-edited
+project data, one-way physics from the type metadata, one pointer rule for
+fuzz and scripts, controls hints from the game, prefab param value maps
+and asset detection shared by push, pull and the dev server.
+
+### Added
+
+- The scene flow and save contract, typed and inert. `EngineContext` gains `flow` (the main
+  scene, `request`, `attach`, `detach`, `sublevels`), `persist` (one JSON
+  value that outlives every runtime of an instance) and `saves.request`;
+  `ctx.flow.request` keeps the first request since the host last took one
+  and drops later ones with a dev warning, `ctx.saves.request` queues, and
+  `SceneRuntime.takeRequests()` hands both to the host and empties them
+  (no host applies them yet). `SceneRuntimeOptions.persist` takes the
+  instance's `PersistCell` (`createGame` makes one per instance) and
+  `SceneRuntimeOptions.scenes` a `SceneLibrary`. `GameDefinition` gains
+  `persist` and `saves`, `GameRuntime` `restore`, `SceneSystem` and
+  `BehaviorSystem` `save`/`restore`, `SpawnInput` `sublevel`, `PlayState`
+  `persist`; `GameConfig` gains `flow` (a `SceneSource`, a
+  `TransitionRunner`, a loading view) and `saves`; `GameInstance` gains
+  `flow` and `saves` (both inert: `go` and `restart` resolve
+  `start-scene-missing`, saves list nothing and refuse with
+  `save-store-failed`); `GameEventMap` gains `flow:change`, `flow:loading`,
+  `save:written` and `save:failed`.
+- `./game`: `flowIssue(list, id, use)`, the one rule for whether a scene
+  is listed and may start, be gone to or be attached; `FlowRequest`,
+  `TransitionSpec`, `SceneLibrary`, the sublevel types,
+  `SUBLEVEL_ID_PATTERN`, `sublevelId` and `parseSublevelId`; the `save:v1`
+  types (`SaveFile`, `WorldState` with `systems` keyed by entity, then
+  owner, and `@random` holding `ctx.random`'s forks), the owner keys
+  `SAVE_RANDOM_KEY`, `MOTION_SAVE_OWNER` and `GRID_STEP_SAVE_OWNER`,
+  `SAVE_VERSION`,
+  `SLOT_PATTERN`, `DEFAULT_SAVE_LIMITS` (64 KiB, 8 slots) and
+  `MAX_BROWSER_SAVE_LIMITS` (1 MiB, 64 slots), `saveFileSchema`,
+  `parseSaveFile`, `formatSaveFile` and `effectiveSaveLimits`.
+- `.`: the save stores (`memorySaveStore`, `localStorageSaveStore`,
+  `indexedDbSaveStore`, `browserSaveStore`), `SaveStore`, `SaveSlots`, `fadeTransition` and
+  `createLoadingOverlay` (inert); `./headless`: `memorySaveStore`,
+  `captureSave`, `restoreSave`, `HeadlessRuntime`, `PlaytestSegment`; `./project`:
+  `SCENE_LIST_KIND`, `SAVE_KIND` and their file types.
+- The `scene-list` kind (`scene-list:v1`, one per project at its root):
+  `start` and `scenes` keyed by scene, co-edited per entry. Its refs make
+  `changeAssetId` rewrite it, and deleting a listed scene is `asset-in-use`.
+  Validation: `start-scene-missing` (an error for an unlisted or sublevel
+  start, a warning while `start` is null), `dup-id`, `asset-missing`, and
+  `sceneListIssues` for `scene-unlisted` (reported by `scene project show`
+  and the dev server's project check). `ProjectRuntimeView.flow` gives the
+  list's start and scenes, empty without one. `RUNTIME_VIEW_KINDS` includes
+  `scene-list`; `./project` exports `sceneListKind`, `sceneListEntries`,
+  `sceneListFlow`, `sceneListIssues` and `SceneListFlow`, and the package
+  exports `./schemas/scene-list.schema.json`.
+- Persistent state: `GameDefinition.persist` ({ initial, schema? }) and
+  `ctx.persist` hold one deep-frozen JSON value per game instance and per
+  headless runtime, surviving every `loadScene` and Play-from-here; `set`
+  checks plain JSON and the game's schema in dev and headless (production
+  trusts it). `PlayState.persist` carries it to `play.outcome` and
+  predicates, and input scripts gain `until: { persist: { pointer, eq |
+gte | lte } }`. Persistent state is in no digest by itself.
+  `createHeadlessRuntime` takes `persist` to share one cell across
+  runtimes; `./headless` exports `createPersistCell`, `gamePersistCell`,
+  `plainJsonProblem` and `PersistCellOptions`.
+- `parseSaveFile`, `formatSaveFile`, `saveFileSchema` and
+  `effectiveSaveLimits` are real: a strict `save:v1` schema
+  (`project/save.schema.json`, `urn:jams-engine:save:v1`, exported as
+  `./schemas/save.schema.json`), canonical save
+  text with a trailing newline, envelope checks (kind, `v`, the game's id,
+  `SLOT_PATTERN`) and the game's `saves.migrations` run in order from
+  `gameVersion` up (`migratedFrom`); a newer `gameVersion` or a missing
+  step ("no migration from 2 to 3") is `save-version-newer`.
+  `saveFileBytes(file)` gives a save's size, the UTF-8 length of its
+  canonical text.
+- `PlayState.world` now also reads the live world for
+  `GamePlayDef.commands`, outcomes and predicates: `select`, `get`, `grid`
+  and `project` (all optional on the type; `playWorld` always fills them,
+  and its parameter widens to match).
+- `GridSettings` is exported from `@jams/engine/game`.
+- Scene flow in the runtime: `ctx.flow.scene` and `ctx.flow.entry` follow
+  each load from the scene library (null for a plain `load`); hosts apply a
+  drained `ctx.flow.request` after the tick, after its destroy flush, by
+  loading the listed scene with its own prefabs and the request's
+  `persist` applied first (put back if the load is refused). A target that
+  isn't a main scene of the list is refused as `scene-unlisted` through
+  `flowIssue`, and dev warns at request time. The runtime reads
+  `SceneRuntimeOptions.scenes` once per load and keeps that frozen library
+  for the run.
+- `runPlaytest` with `flow` follows flow requests after the tick on one
+  script; `PlaytestReport.segments` ({ scene, ticks, recording, end }, one
+  per scene visited; `recording` stays the first scene's); without `flow`,
+  a request ends the run as `{ result: "flow", to, tick }`, and a non-null
+  outcome ends a tick even with a request pending. `until: { scene }`.
+  `createHeadlessRuntime({ flow })` applies a request after the step that
+  made it. Recording v2 widens additively (`RECORDING_VERSION` stays 2):
+  `start.persist`, `start.entry`, `next`, `fromSave` (schema only).
+  `replayRecording` applies `start.persist` and `start.entry` before the
+  load, ends at `next` without following it, and counts a different `next`
+  as a divergence; `ReplayOptions` gains `flow` and `sceneId`.
+- Save stores: `memorySaveStore`, `localStorageSaveStore` (keys
+  `${prefix}${gameId}:${slot}`, an optional `storage`),
+  `indexedDbSaveStore` and `browserSaveStore` (IndexedDB, else
+  localStorage, else memory, probed once; `describe` says where saves
+  live). Every storage call is in try/catch, and the browser stores hold at
+  most `MAX_BROWSER_SAVE_LIMITS`.
+- `GameInstance.saves`: slots over the game's own store
+  (`GameDefinition.saves.store`), else the host's (`GameConfig.saves`),
+  else `browserSaveStore()`, under `effectiveSaveLimits`. `save-too-large`
+  is checked before any write; a new slot past `maxSlots` is
+  `save-slot-limit`, an overwrite never is; a store that throws is
+  `save-store-failed`. `load` restores through the shell (pause, load,
+  restore, resume) and fires `flow:change`.
+- `ctx.saves.request` is saved after its tick. The result is only a host
+  event (`save:written`, `save:failed`), never a `StepResult`; a replay
+  never writes saves.
+- The editor's scene picker: a toolbar menu of the project's scenes
+  (listed ones first in list order with their titles, then the rest by
+  path, sublevels and the start tagged, the open one checked). Switching
+  keeps the previous scene's doc connected for 60 s. "New scene…" creates a
+  scene from the game's template and can add it to the scene list in the
+  same undo step. An undo or redo whose step is in another scene opens that
+  scene and says so in the status bar.
+- `./project`: `KindEnv.inputMap` (the project input map's `players`, for
+  a host that holds its doc) and `kindInputMap(view, valueOf, registry)`;
+  the input-script kind judges a script's tracks against the map's seats
+  over the game's, as playtest and `scene step` do.
+- Scene changes in the shell: `GameInstance.flow` (`start`, `scenes`,
+  `current()`, `go`, `restart()`) applies `ctx.flow.request` after its tick
+  and runs a change between ticks: ticking stops, the transition's out
+  half, `onUnload`, preload (a loading view past 150 ms), the load with
+  `persist` and `entry`, the in half, then ticking resumes and
+  `flow:change` fires; a `go` during a change waits for it.
+  `fadeTransition` (a cut under reduced motion) and `createLoadingOverlay`
+  draw in a transition layer above the UI layer, so a fade covers the HUD.
+- In the editor's Play a flow request ends the session with outcome
+  `{ result: "flow", to }` (`PlayOutcome.to`), finishes its recording with
+  `next`, holds the frame, and the Play bar says "Requested <scene>".
+- Sublevels: `ctx.flow.attach(scene, { label, at?, z? })` spawns a listed
+  scene's entities beside the main scene, at once, as `<label>:<id>`
+  (`<label>:<inst>/<child>`), its refs, positions and z following;
+  `detach(label)` destroys them and every
+  `ctx.spawn({ ..., sublevel: label })` at the tick's destroy flush;
+  `sublevels()` lists them. Refusals are `sublevel-invalid` with
+  `detail.reason` unlisted, label, physics, grid (cells judged in whole px)
+  or settings (gravity), judged by `sublevelIssue` (`@jams/engine/scene`),
+  which `sublevelUseIssues` also applies to sublevels a check or script
+  names. While attached, `ctx.bounds` and the grid's cell bounds cover
+  them.
+- `./editor`: the settings model. `settingsRows(schema, value, path,
+options?)` gives `InspectorRow`s (the scene inspector's field descriptors
+  without a section) for any zod object, nested objects as children, enums,
+  bounded numbers, booleans and number pairs drawn as the inspector draws
+  them; `settingsValue(row, input)` parses and checks a typed value as the
+  inspector does; `settingsEdit(asset, path, value, current?)` gives one
+  `editAsset` op, setting a whole atomic value or a missing parent object
+  when given the doc and its layout; `SettingsSection` names a project
+  settings tab.
+- The editor's Project settings panel (tabs General, Engine, Input, Scenes,
+  Layers) over the project's game-settings, input-map and scene-list docs,
+  opened from the site menu and from "Project settings…" in the toolbar's
+  scene menu.
+  Every edit is one `settingsEdit` batch through the project session
+  (history entry, per-person undo, presence, sync). "Add binding" takes the
+  next press through `GameInstance.input.capture`, and UI-only actions are
+  tagged. The scene list is reordered by drag or arrows. Removals ask
+  through Confirm. A missing doc offers Create. Layers and collision groups
+  are read-only, each with its code module.
+- A prefab param's optional `map` gives each target its own value per
+  string value of the param
+  (`{ "unit.behaviors.sprite.frame": { "red": "knight-red" } }`). A mapped
+  target with no entry for the value keeps its own. A map of a path that
+  isn't a target, an empty map, or a non-string `default` beside a map is
+  refused: `schema` when a prefab file parses, `op-invalid` from
+  `exposeParam`. Tactics' knight and archer take their frame and red flip
+  from `side`, so level 1 has no per-instance art overrides. Level 1
+  expands to the same scene, so its golden digest is unchanged; its
+  recording fixture takes the file's new `sceneHash` and `runHash`.
+- `assetFileKind`, `assetFilesIn` and `mayBeAssetFile`
+  (`@jams/engine/project`): the one rule for which files under a project's
+  asset globs are assets.
+- `captureSave`/`restoreSave` capture and restore saves at two depths:
+  `progress` (scene, sublevels, persist, the game's snapshot) and `world`
+  (tick, counters, `ctx.random` and its forks, emit-form timers, enabled
+  flags, destroyed and spawned entities with exact ids, poses, each type
+  system's, behavior's and registered object's `save`, contact watches,
+  seats and held input). A world save restored and run on matches the
+  uninterrupted run's digest.
+- `worldSaveBlockers(runtime)` and `SaveBlocker`, the one rule behind
+  `save-unsupported` (Rapier physics, a pending function timer or
+  coroutine named by owner, a game runtime without `restore`).
+- `createHeadlessRuntime` returns a runtime with `save(opts)` and takes
+  `fromSave` to start where a save left off; `loadHeadless(input, {
+fromSave })` reads a save (text or parsed), checks it against the
+  loaded scene and returns it as `HeadlessLoad.fromSave` (a `SaveStart`:
+  the file and the hash of the text given), so spreading the load into
+  `runPlaytest` or `fuzz` starts there; new type
+  `HeadlessLoadOptions`.
+- `MotionBody.velocity()` and `setVelocity()`: a body keeps its velocity
+  for the controller that moves it, and a world save keeps it.
+- World saves keep the state engine systems hold: sensors' inside sets (a
+  restored sensor raises no `sensor:enter` for what was already inside),
+  one-way solids' gates, path followers' clocks, motion bodies (position,
+  velocity, enabled), grid steppers (cell, step under way, reservation)
+  and occupants' cells.
+- The second game has a scene flow: tactics' scene list (menu start;
+  Ford, Bridge, result, and cellar as a sublevel), a DOM title menu
+  (Start, a Continue placeholder, the save store's describe line) and a
+  result scene (won or lost, turns taken, back to menu). Every change
+  fades for 400 ms. Persistent progress is { cleared, roster, last }.
+  Level 2's stair attaches the cellar through `ctx.flow.attach`.
+- `save` asset kind: `*.save.json` files in a project are save:v1 fixtures
+  (blob, application/json, 1 MiB cap). Inspect reads the file as written,
+  with no game check and no migration, and records `{ game, gameVersion,
+depth, scene }`. Its scene is a ref to the scene kind, and new bytes
+  replace it last-writer-wins, with the old hash kept in history. The
+  engine kind order is now scene, prefab, material, game-settings,
+  data-table, input-script, input-map, scene-list, checks, texture, atlas,
+  font, audio, recording, save, code.
+- `runPlaytest` starts from a save with `fromSave: { file, sha256 }`
+  (`PlaytestStart`, `SaveStart`): the first scene's recording names the
+  fixture as `fromSave`, and `replayRecording` finds it by hash in `saves`
+  (a recording whose fixture is missing is blocked with `asset-missing`,
+  `detail.kind: "save"`). `fuzz` takes the same `fromSave`: every
+  rollout starts where that save left off.
+- `PlaytestHooks.onEnd(runtime)`, called with the last scene's runtime
+  before it is destroyed.
+
+### Changed
+
+- `ENGINE_RUN_RESULTS` gains `flow`, a run that ended on a scene change it
+  didn't follow, so a game can no longer declare a result named `flow`;
+  fuzz reports count it beside the others. `ENGINE_PREDICATES` gains
+  `scene` and `persist`, so a game's script predicate can't take either
+  name.
+- `createSolidSystem` reads its type's `oneWay` metadata when
+  `SolidOptions.oneWay` is omitted, so a `base: "solid"` type that declares
+  `oneWay` is one-way in physics too; the solid system and the editor share
+  one side rule (`oneWaySideOf`).
+- `scene new` writes `$schema` for a project's first scene. It points at
+  the game's `scene.schema.json` beside the project file, or at the
+  engine's scene schema for a gameless project, when that file exists.
+- `isRuntimeId` is also true for sublevel entity ids (`cellar:door`); bulk
+  ids stay false.
+- `FieldWidget`'s `point` widget's `pick` is a boolean: scene points keep
+  `true`; a plain two-number tuple field (a setting's gravity) is now a
+  `point` widget with `pick: false` instead of read-only JSON. `ModelField`
+  is `InspectorRow` plus `section`.
+- `captureSave` and `restoreSave` take a `SceneRuntimeHandle`;
+  `restoreSave`'s success carries `issues` (an info `hash-mismatch` when
+  the scene's run hash changed since the save). The shell's `saves.load`
+  builds the save's scene fresh and restores into it before swapping it
+  in, so a refused restore keeps the current scene. A world save's pad
+  that isn't connected takes its saved seat when it connects.
+- `createTopDownController` keeps its velocity on the motion body;
+  behavior is unchanged.
+- The site's game room plays the hosted project's scene list from its
+  start scene (`GameConfig.flow` plus `flow.restart()`); a project without
+  a list reports `start-scene-missing` on the page. The platformer gains
+  `scene-list.json` (start `test-yard`).
+- Tactics' level-1 golden recording
+  (`src/games/tactics/__tests__/fixtures/level-1.recording.json`) gains
+  `start.persist` because the game now declares `persist`.
+  `TACTICS_GOLDEN_DIGEST` e2a58c6a80e955b3, `level-1.script.json`, the
+  fuzz goal and the genre pins are unchanged: level 1 played without a
+  scene list (golden, fuzz, browser smoke) still ends won at tick 589;
+  only a level loaded through the flow asks for the result scene and
+  returns a null outcome while it does.
+
+### Fixed
+
+- A client still holding a doc's history from before the server reseeded
+  it (lost dev cache, replaced hosted row) is refused at its first sync
+  step with close reason `4409 seed-stale` instead of merging both seeds
+  into one doc, in the dev collab server and in canvas-sync. The editor's
+  project session then drops its session, docs and socket and reopens from
+  the server's state. Every doc the server seeds carries a `seed` root map
+  stamping its seed's identity (`collab/seed-identity.ts`), written by a
+  deterministic client id, so two instances seeding one doc write the same
+  stamp.
+- Editor Play follows co-edited project data: while the editor plays, an
+  edit to the input map, game settings or a data table reaches the running
+  game through `game.reloadAssets({ project, view, changed: [] })`, so new
+  bindings drive actions mid-run instead of waiting for Stop.
+- The genre harness's tick runs (`playTicks`) compile their script with the
+  probe project's input-map seats and bindings.
+- `project push`, `project pull` and the dev server's file adapter
+  (`scan`, `watches()`) agree on which files are assets: a file under the
+  asset globs that no kind detects (a script such as `art/make-art.ts`
+  beside the art) is never read, watched, pushed, pulled or removed.
+  `watches()` was true for it before.
+- The tactics HUD declines Escape while no board is shown, so editor Play
+  stops instead of the key being swallowed between scenes; a unit that
+  joins later (a sublevel's guard) is numbered on from the units already
+  named alike, fallen ones included, so the log never gives two units one
+  name. Game side only: no pin, golden, public API, API report or schema
+  moves.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 14, and every committed JSON Schema's
+  `x-agent-surface` with it. `public-api.json`'s schema ids gain
+  `urn:jams-engine:scene-list:v1` and `urn:jams-engine:save:v1`.
+- Issue codes `scene-unlisted` (warn; an error at a runtime `go`),
+  `start-scene-missing`, `sublevel-invalid`, `save-version-newer`,
+  `save-too-large`, `save-slot-limit`, `save-unsupported` (errors) and
+  `save-store-failed` (warn).
+- CLI: `scene save <scene> --script s --at n --out <slot>.save.json
+[--depth world|progress]` writes a save fixture (imported as a `save`
+  asset in a project; world depth refused with `save-unsupported` and its
+  causes); `playtest --from-save <file>` and `fuzz --from-save <file>`
+  start there; `playtest --flow` follows flow requests through the
+  project's scene list; `scene flow [--project p] [--json]` lists the
+  start, each listed scene's physics and bundle bytes, unlisted scenes and
+  `scene-unlisted` references.
+- CLI: `scene schema save` serves the `save:v1` schema.
+- MCP `scene_flow`: each project's scene list as data, the same output as
+  `scene flow --json` (start, each listed scene's physics and bundle
+  blobs/bytes, unlisted scenes, issues). `scene_playtest` gains `flow`
+  (follow scene requests through the scene list; `segments` in the result)
+  and `fromSave` (a save fixture path or inline save:v1; the recording
+  carries `fromSave`). `asset_apply_ops` edits the `scene-list` doc
+  through its kind (insert/set/remove; `start-scene-missing` and
+  `id-taken` refused).
+- Schemas: `project/scene-list.schema.json` (`scene-list:v1`) and
+  `project/save.schema.json` (`save:v1`) are new; `input-script.schema.json`
+  gains `until.scene` and `until.persist` (`PersistMatch`: `pointer` with
+  `eq`, `gte` or `lte`); `recording.schema.json` gains the optional
+  `start.persist`, `start.entry`, `next` and `fromSave` (its id unchanged); `prefab.schema.json`'s params and `ops.schema.json`'s
+  `exposeParam` gain the optional value `map`.
+
 ## [0.12.0] — unreleased
 
 The second game, the scaffolder and the UI seam. `tactics`, a turn-based

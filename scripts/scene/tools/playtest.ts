@@ -1,11 +1,13 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 
+import { parseSaveFile, type Registry, type SaveFile } from "@jams/engine/game";
 import {
   runPlaytest,
   type InputScript,
   type PlaytestBlocked,
   type PlaytestReport,
 } from "@jams/engine/headless";
+import { sha256, type Sha256 } from "@jams/engine/project";
 import { INPUT_SCRIPT_VERSION, migrateInputScript } from "@jams/engine/scene";
 
 import {
@@ -18,9 +20,11 @@ import {
   usage,
   UsageError,
   type Tool,
+  type ToolContext,
   type ToolResult,
 } from "../context";
 import { projectRuntime, type ProjectHandle } from "../projects";
+import { projectSceneLibrary } from "./flow";
 import { eventsReport, eventTypes, rapierFor, rounded } from "./step";
 
 export type PlaytestInput = {
@@ -32,10 +36,14 @@ export type PlaytestInput = {
   record?: string;
   /** `type,…`: print only events of these types. */
   events?: string;
+  /** Follow flow requests through the project's scene list instead of ending the run at the first. */
+  flow?: boolean;
+  /** A save fixture (`.save.json`) to start from instead of the scene's fresh load. */
+  fromSave?: string;
 };
 
 const USAGE =
-  "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file]";
+  "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file]";
 
 /** `x,y` as two finite numbers, or null. */
 export function parsePoint(text: string): [number, number] | null {
@@ -91,10 +99,97 @@ function reportText(
   ].join("\n");
 }
 
+/** A save fixture as a run starts from it: parsed (and migrated) for `registry`'s game, with the hash of its bytes. */
+export type SaveFixture = { file: SaveFile; sha256: Sha256; path: string };
+
+/**
+ * The save fixture at `path`, read for `registry`'s game: `parseSaveFile`
+ * with the game's migrations, and the SHA-256 of its bytes, which a
+ * recording names. A missing or malformed file is a failure.
+ */
+export async function readSaveFixture(
+  path: string,
+  registry: Registry,
+): Promise<SaveFixture | ToolResult> {
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(await readFile(path));
+  } catch (e) {
+    const code = (e as { code?: string }).code;
+    if (code === "ENOENT" || code === "EISDIR") return failure(`Not found: ${path}.`);
+    throw e;
+  }
+  const parsed = parseSaveFile(new TextDecoder().decode(bytes), registry.game ?? undefined);
+  if (!parsed.ok)
+    return {
+      exitCode: 1,
+      data: { ok: false, save: path, issues: parsed.issues },
+      text: [`${path}: not a save this game can load`, ...parsed.issues.map(issueLine)].join("\n"),
+    };
+  return { file: parsed.file, sha256: await sha256(bytes), path };
+}
+
+type ScriptRead =
+  | { ok: true; script: InputScript; migratedFrom: number | undefined }
+  | { ok: false; result: ToolResult };
+
+/**
+ * The input script `arg` names, migrated to the current version for
+ * `registry` (before `at` lands, so a v1 script's px never rescale a point
+ * given in metres), with `at` set on it when given; a script that isn't
+ * JSON or doesn't migrate blocks at `script`.
+ */
+export async function readPlaytestScript(
+  ctx: ToolContext,
+  arg: string,
+  scene: string,
+  registry: Registry,
+  at?: [number, number],
+): Promise<ScriptRead> {
+  const game = registry.game?.id ?? null;
+  const blockedAt = (issue: PlaytestBlocked["scriptIssues"][number]): ScriptRead => ({
+    ok: false,
+    result: blockedResult(
+      { blocked: true, stage: "script", scene, issues: [], scriptIssues: [issue] },
+      game,
+    ),
+  });
+  let script: unknown;
+  try {
+    script = JSON.parse(await readArg(ctx, arg));
+  } catch (e) {
+    if (e instanceof UsageError) return { ok: false, result: usage(e.message) };
+    if ((e as { code?: string }).code === "ENOENT")
+      return { ok: false, result: failure(`Not found: ${arg}.`) };
+    return blockedAt({ path: "", message: `the script is not JSON: ${(e as Error).message}` });
+  }
+  const lifted = migrateInputScript(script, registry);
+  if (!lifted.ok) return blockedAt(lifted.issue);
+  const migratedFrom = lifted.from < INPUT_SCRIPT_VERSION ? lifted.from : undefined;
+  script = lifted.script;
+  if (at && script !== null && typeof script === "object" && !Array.isArray(script))
+    script = { ...script, at };
+  return { ok: true, script: script as InputScript, migratedFrom };
+}
+
+/** The run's start and each scene it went through, for a run that followed flow or began from a save. */
+function flowLines(r: PlaytestReport, save: SaveFixture | undefined): string[] {
+  const lines: string[] = [];
+  if (save) lines.push(`  from save ${save.path} (slot ${save.file.slot}, ${save.file.depth})`);
+  for (const s of r.segments ?? []) {
+    const to =
+      s.end.to === undefined ? "" : ` -> ${s.end.to}${s.end.entry ? `@${s.end.entry}` : ""}`;
+    lines.push(`  scene ${s.scene} +${s.ticks} ${s.end.result}${to}`);
+  }
+  return lines;
+}
+
 /**
  * Plays an input script, v1 or v2 (one seat's steps or a track per seat,
  * with analog values, pointer moves and seat changes), on a scene headless
  * and reports how the run ended; a v1 script is migrated first and says so.
+ * With `flow` the run follows flow requests through its project's scene
+ * list; with `fromSave` it starts from a save fixture of the scene.
  */
 export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
   if (!input.script) return usage(`scene ${USAGE}`);
@@ -115,38 +210,25 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
   if (!loaded.ok) return loaded.result;
   const { registry } = loaded;
 
-  let script: unknown;
-  try {
-    script = JSON.parse(await readArg(ctx, input.script));
-  } catch (e) {
-    if (e instanceof UsageError) return usage(e.message);
-    if ((e as { code?: string }).code === "ENOENT") return failure(`Not found: ${input.script}.`);
-    const blocked: PlaytestBlocked = {
-      blocked: true,
-      stage: "script",
-      scene: loaded.def.name,
-      issues: [],
-      scriptIssues: [{ path: "", message: `the script is not JSON: ${(e as Error).message}` }],
-    };
-    return blockedResult(blocked, registry.game?.id ?? null);
+  const read = await readPlaytestScript(ctx, input.script, loaded.def.name, registry, at);
+  if (!read.ok) return read.result;
+  const { script, migratedFrom } = read;
+
+  let flow;
+  if (input.flow) {
+    if (!loaded.project)
+      return usage("--flow follows the scene list of the scene's project; this scene is in none");
+    const library = await projectSceneLibrary(ctx, loaded.project);
+    if (!library)
+      return failure(`project "${loaded.project.file.id}" has no scene list for --flow to follow`);
+    flow = library;
   }
-  // Migrated before `--at` lands, so a v1 script's px never rescale a point given in metres.
-  const lifted = migrateInputScript(script, registry);
-  if (!lifted.ok)
-    return blockedResult(
-      {
-        blocked: true,
-        stage: "script",
-        scene: loaded.def.name,
-        issues: [],
-        scriptIssues: [lifted.issue],
-      },
-      registry.game?.id ?? null,
-    );
-  const migratedFrom = lifted.from < INPUT_SCRIPT_VERSION ? lifted.from : undefined;
-  script = lifted.script;
-  if (at && script !== null && typeof script === "object" && !Array.isArray(script))
-    script = { ...script, at };
+  let save: SaveFixture | undefined;
+  if (input.fromSave !== undefined) {
+    const fixture = await readSaveFixture(input.fromSave, registry);
+    if (isToolResult(fixture)) return fixture;
+    save = fixture;
+  }
 
   const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
   const run = runPlaytest({
@@ -156,9 +238,11 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
     scene: loaded.def,
     prefabs: loaded.prefabs,
     project,
-    script: script as InputScript,
+    script,
     projectRef: projectRef(loaded.project),
     ...(ctx.rapierFlavour ? { platform: { flavour: ctx.rapierFlavour } } : {}),
+    ...(flow ? { flow } : {}),
+    ...(save ? { fromSave: { file: save.file, sha256: save.sha256 } } : {}),
   });
   const game = registry.game?.id ?? null;
   if (run.blocked) return blockedResult(run, game);
@@ -173,11 +257,13 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
       events: printed.events,
       ...(printed.lifecycle ? { lifecycle: printed.lifecycle } : {}),
       ...(migratedFrom === undefined ? {} : { scriptMigratedFrom: migratedFrom }),
+      ...(save ? { fromSave: { path: save.path, slot: save.file.slot, sha256: save.sha256 } } : {}),
     },
-    text: reportText(run, runs, printed.lines, migratedFrom),
+    text: reportText(run, runs, [...flowLines(run, save), ...printed.lines], migratedFrom),
   };
 };
 
-function blockedResult(run: PlaytestBlocked, game: string | null): ToolResult {
+/** A blocked run's result: exit 1, its stage and issues. */
+export function blockedResult(run: PlaytestBlocked, game: string | null): ToolResult {
   return { exitCode: 1, data: { ok: false, game, ...run }, text: blockedText(run) };
 }

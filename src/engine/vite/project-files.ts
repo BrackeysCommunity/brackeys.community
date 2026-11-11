@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { dirname, join, matchesGlob, relative, resolve, sep } from "node:path";
 
@@ -36,7 +37,9 @@ import type { GameDefinition, Registry } from "../game/types";
 import {
   assetFileEntries,
   assetFileEntry,
+  assetFileKind,
   idsAtPaths,
+  mayBeAssetFile,
   orphanSidecarIssue,
   ownAssetId,
   projectPathMatcher,
@@ -61,8 +64,11 @@ import {
 } from "../project/kinds";
 import { dataTableIssues } from "../project/kinds/data-table";
 import { byCodeUnit, onePerProjectIssues } from "../project/kinds/define";
+import { INPUT_MAP_KIND } from "../project/kinds/input-map";
+import { kindInputMap } from "../project/kinds/input-script";
 import { MATERIAL_KIND } from "../project/kinds/material";
 import { prefabKind } from "../project/kinds/prefab";
+import { sceneListIssues } from "../project/kinds/scene-list";
 import type { BlobInspect, ProjectOp } from "../project/ops";
 import { parseProjectFile, projectGlobs } from "../project/project-file";
 import {
@@ -306,7 +312,7 @@ export type ProjectFileAdapter = {
   persist(name: string, doc: Y.Doc): Promise<void>;
   /** Drops an unloaded doc; its persisted state and files stay. */
   forget(name: string): void;
-  /** Whether a project-relative path is an asset candidate or the sidecar of one. */
+  /** Whether a project-relative path under the asset globs may be an asset (`mayBeAssetFile`), or is a sidecar there. */
   watches(path: AssetPath): boolean;
   /** The doc name an entry's content lives under. */
   docNameOf(entry: Pick<AssetEntry, "key" | "kind">): string;
@@ -452,9 +458,9 @@ export function createProjectFileAdapter(
   /** What the last scan parsed each JSON file as. */
   let scannedJson = new Map<AssetKey, unknown>();
 
-  /** A material's value: its open doc's, else the text last read from its file, else the last scan's. */
-  const materialValue = (entry: AssetEntry): unknown => {
-    const def = kinds.get(MATERIAL_KIND);
+  /** A doc asset's value: its open doc's, else the text last read from its file, else the last scan's. */
+  const docValue = (entry: AssetEntry): unknown => {
+    const def = kinds.get(entry.kind);
     const doc = loaded.get(entry.key);
     if (doc && isDocKind(def) && def.layout !== "custom" && contentMap(doc).size > 0)
       return layoutFromDoc(doc, def.layout as DocLayout);
@@ -463,7 +469,7 @@ export function createProjectFileAdapter(
   };
 
   /** The registry docs are judged by: the project's, with the live material assets among `entries` overlaid by id. */
-  function registryOf(entries: Iterable<AssetEntry>, valueOf = materialValue): Registry {
+  function registryOf(entries: Iterable<AssetEntry>, valueOf = docValue): Registry {
     const live = [...entries].filter((e) => e.kind === MATERIAL_KIND && !e.deleted);
     if (live.length === 0) return project.registry;
     const values = new Map<AssetId, unknown>(live.map((e) => [e.id, valueOf(e) ?? null]));
@@ -507,9 +513,32 @@ export function createProjectFileAdapter(
       return r?.ok ? { ...r.prefab, id } : undefined;
     };
   }
+  /** The input map in effect among `entries`, as `KindEnv.inputMap` gives it to input scripts. */
+  function inputMapOf(
+    entries: readonly AssetEntry[],
+    valueOf: (entry: AssetEntry) => unknown,
+    registry: Registry,
+  ) {
+    const maps = entries.filter((e) => e.kind === INPUT_MAP_KIND);
+    if (maps.length === 0) return null;
+    const view = projectView(stateOf(maps), kinds);
+    return kindInputMap(
+      view,
+      (id) => {
+        const entry = view.byId.get(id);
+        return entry ? valueOf(entry) : undefined;
+      },
+      registry,
+    );
+  }
   const envNow = (): KindEnv => {
     const registry = registryNow();
-    return { registry, project: null, prefab: prefabNow(registry) };
+    return {
+      registry,
+      project: null,
+      prefab: prefabNow(registry),
+      inputMap: inputMapOf(liveEntries(), docValue, registry),
+    };
   };
 
   const abs = (path: AssetPath) => join(dir, ...path.split("/"));
@@ -673,14 +702,15 @@ export function createProjectFileAdapter(
       else problems.push({ path: sidecarPath, issues: parsed.issues });
     }
     const isJson = path.toLowerCase().endsWith(".json");
-    let def = kinds.detect(path, undefined, sidecar?.assetKind);
     let text: string | null = null;
     let json: unknown;
-    if (!isBlobKind(def)) {
+    const decode = () => {
       text = raw.toString("utf8");
       json = isJson ? tryJson(text) : undefined;
-      def = kinds.detect(path, json, sidecar?.assetKind);
-    }
+      return json;
+    };
+    const def = assetFileKind(kinds, path, decode, sidecar?.assetKind);
+    if (!isBlobKind(def) && text === null) decode();
     let blob: FileRead["blob"] = null;
     if (isBlobKind(def)) {
       text = null;
@@ -757,7 +787,11 @@ export function createProjectFileAdapter(
           problems.push({ path, issues: [orphanSidecarIssue(path, base)] });
         continue;
       }
-      if (!isCandidate(path)) continue;
+      if (
+        !isCandidate(path) ||
+        !mayBeAssetFile(kinds, path, () => present.has(sidecarPathOf(path)))
+      )
+        continue;
       const read = await readAsset(path);
       if (!read) continue;
       problems.push(...read.problems);
@@ -793,6 +827,7 @@ export function createProjectFileAdapter(
         const r = prefabs(id);
         return r?.ok ? { ...r.prefab, id } : undefined;
       },
+      inputMap: inputMapOf(listed, (e) => json.get(e.key), registry),
     };
     for (const { at, read } of docs.reverse()) {
       const parsed = parseAssetDoc(read.def as DocKindDef, read.text!, env);
@@ -1193,7 +1228,11 @@ export function createProjectFileAdapter(
     const view = projectView(stateOf(entries));
     const values = new Map<AssetId, unknown>();
     for (const entry of view.byId.values()) values.set(entry.id, scannedJson.get(entry.key));
-    return [...onePerProjectIssues(view, kinds), ...dataTableIssues(view, values)].map((issue) => ({
+    return [
+      ...onePerProjectIssues(view, kinds),
+      ...dataTableIssues(view, values),
+      ...sceneListIssues(view, values),
+    ].map((issue) => ({
       path: view.byKey.get(issue.entityIds[0] ?? "")?.path ?? "",
       issues: [issue],
     }));
@@ -1687,8 +1726,12 @@ export function createProjectFileAdapter(
       const ref = parseDocName(name);
       if (ref && ref.kind !== "project") loaded.delete(ref.key);
     },
-    watches: (path) =>
-      isCandidate(path.endsWith(SIDECAR_SUFFIX) ? path.slice(0, -SIDECAR_SUFFIX.length) : path),
+    watches(path) {
+      if (path.endsWith(SIDECAR_SUFFIX)) return isCandidate(path.slice(0, -SIDECAR_SUFFIX.length));
+      return (
+        isCandidate(path) && mayBeAssetFile(kinds, path, () => existsSync(abs(sidecarPathOf(path))))
+      );
+    },
     docNameOf: nameOf,
   };
 }

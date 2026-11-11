@@ -83,6 +83,7 @@ export interface DocumentKind {
 const ROUTED_HOOKS = [
   "onLoadDocument",
   "afterLoadDocument",
+  "beforeSync",
   "onChange",
   "onStoreDocument",
   "afterStoreDocument",

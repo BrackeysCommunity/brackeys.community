@@ -12,6 +12,7 @@ import {
   type EditorIdentityInput,
   type EditorNotify,
   type NotifyOptions,
+  type SceneEditorHandle,
 } from "@jams/engine/editor-ui";
 import type { GameDefinition } from "@jams/engine/game";
 import { useNavigate } from "@tanstack/react-router";
@@ -39,8 +40,8 @@ export type SiteProjectModules = {
   game: GameDefinition | null;
   /** The game's DOM UI, mounted over the canvas while Play runs; null without one. */
   ui: MountUi | null;
-  /** The scene opened when the URL names none. */
-  defaultScene: string;
+  /** The scene opened when the URL names none: the project's start scene; without one the editor opens the project's first. */
+  defaultScene?: string;
 };
 
 /**
@@ -57,7 +58,11 @@ export type SiteProject = {
 
 const fromHosted = (hosted: HostedGame): SiteProject => ({
   id: hosted.id,
-  load: () => hosted.load().then(({ game, ui, scene }) => ({ game, ui, defaultScene: scene.name })),
+  load: () =>
+    hosted.load().then(({ game, ui, flow }) => {
+      const start = flow.start();
+      return { game, ui, ...(start === null ? {} : { defaultScene: start }) };
+    }),
   debugLayers: () => hosted.debugLayers(),
 });
 
@@ -184,6 +189,8 @@ export type SiteEditorHostOptions = {
   projectNames?: ProjectNames;
   /** The project's server; default the dev server. */
   project?: Pick<EditorHost, "connect" | "assetUrl"> & Partial<Pick<EditorHost, "findScene">>;
+  /** The site menu's "Project settings" entry. */
+  onProjectSettings?: () => void;
 };
 
 /** jams.team as the editor's host: the site's toasts, sounds, identity, colours, flags and menu. */
@@ -193,6 +200,7 @@ export function useSiteEditorHost({
   onProjectChange,
   projectNames,
   project,
+  onProjectSettings,
 }: SiteEditorHostOptions): EditorHost {
   const [server] = useState(() => project ?? devProject());
   const profile = useStore(activeUserStore, (s) => s.profile);
@@ -202,10 +210,12 @@ export function useSiteEditorHost({
   const flagsRef = useRef<FeatureFlagValues>(flags);
   const sceneChangeRef = useRef(onSceneChange);
   const projectChangeRef = useRef(onProjectChange);
+  const projectSettingsRef = useRef(onProjectSettings);
   useEffect(() => {
     flagsRef.current = flags;
     sceneChangeRef.current = onSceneChange;
     projectChangeRef.current = onProjectChange;
+    projectSettingsRef.current = onProjectSettings;
   });
   const [flag] = useState(
     () =>
@@ -216,6 +226,7 @@ export function useSiteEditorHost({
   const [projectChange] = useState(
     () => (id: string, opts?: { scene?: string }) => projectChangeRef.current?.(id, opts),
   );
+  const [projectSettings] = useState(() => () => projectSettingsRef.current?.());
   const projects = useMemo(() => projectChoices(projectNames ?? {}), [projectNames]);
 
   return useMemo<EditorHost>(
@@ -231,11 +242,11 @@ export function useSiteEditorHost({
       cue: siteCue,
       flag,
       chrome: {
-        topLeft: <GameSiteIsland title={title} />,
+        topLeft: <GameSiteIsland title={title} onProjectSettings={projectSettings} />,
       },
       onSceneChange: sceneChange,
     }),
-    [server, identity, flag, sceneChange, projectChange, projects, title],
+    [server, identity, flag, sceneChange, projectChange, projectSettings, projects, title],
   );
 }
 
@@ -353,12 +364,14 @@ function LoadedSceneEditor({
   modules,
 }: ProjectSceneEditorProps & { modules: SiteProjectModules }) {
   const [ready, setReady] = useState(false);
+  const editor = useRef<SceneEditorHandle | null>(null);
   const editing = scene ?? modules.defaultScene;
   const [debug] = useState(() => debugFor(project));
   const host = useSiteEditorHost({
-    title: ready ? editing : roomId,
+    title: ready ? (editing ?? roomId) : roomId,
     onSceneChange,
     onProjectChange,
+    onProjectSettings: () => editor.current?.openPanel("settings"),
     ...(projectNames ? { projectNames } : {}),
   });
   return (
@@ -370,7 +383,10 @@ function LoadedSceneEditor({
       scene={editing}
       rapier={loadRapier}
       debug={debug}
-      onReady={() => setReady(true)}
+      onReady={(handle) => {
+        editor.current = handle;
+        setReady(true);
+      }}
     />
   );
 }

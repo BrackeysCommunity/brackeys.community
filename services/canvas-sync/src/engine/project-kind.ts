@@ -1,4 +1,5 @@
 import type {
+  beforeSyncPayload,
   Extension,
   onChangePayload,
   onLoadDocumentPayload,
@@ -14,6 +15,7 @@ import {
   sceneDocs,
 } from "../../../../src/db/schema.ts";
 import { projectAssetsMap, readEntry } from "../../../../src/engine/collab/index.ts";
+import { assertSameSeed, stampSeedState } from "../../../../src/engine/collab/seed-identity.ts";
 import {
   buildRefIndex,
   compareEntries,
@@ -694,7 +696,7 @@ export function createProjectKind(options: ProjectKindOptions): ProjectKind {
       linkRegistryRows(document, (key) => ensureRow(projectId, key));
       const row = await store.load(projectId);
       if (!row) throw new SyncRefusal(SYNC_CLOSE.revoked, "project not found", "auth");
-      const live = seededRow(projectId, row);
+      const live = stampSeedState(seededRow(projectId, row));
       // Stored at once with the duties done, so every instance starts from the same registry.
       const { outcome, merged } = await persist(projectId, live);
       if (outcome.kind === "refused") {
@@ -704,6 +706,11 @@ export function createProjectKind(options: ProjectKindOptions): ProjectKind {
         throw new SyncRefusal(SYNC_CLOSE.revoked, "project not found", "auth");
       }
       return merged ?? live;
+    },
+
+    // A client holding another seed's history is refused before either side merges.
+    async beforeSync(payload: beforeSyncPayload) {
+      assertSameSeed(payload);
     },
 
     // A client that writes a new doc entry opens its doc next: its row is made now, not at the store.

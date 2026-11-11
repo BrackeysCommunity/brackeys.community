@@ -1,16 +1,27 @@
-import type { ExpandedScene } from "@jams/engine";
+import type { ExpandedScene, RuntimeEntity } from "@jams/engine";
 import {
   boundsCells,
   cellKey,
   createGridStepper,
+  defineEntityType,
+  OCCUPANT,
+  ID_PATTERN,
+  pointField,
   sameCell,
   spawnPose,
+  vectorField,
   type Cell,
   type CellKey,
+  type CommandDef,
   type EngineContext,
+  type EntityOf,
   type GameCommand,
   type GameRuntime,
   type GridStepper,
+  type PlayWorld,
+  type ProjectRuntimeView,
+  type RuntimeGrid,
+  type TransitionSpec,
 } from "@jams/engine/game";
 import { z } from "zod";
 
@@ -18,9 +29,12 @@ import { nextEnemyUnit, enemyOrders } from "./ai";
 import { parseTacticsCommand, type TacticsCommand } from "./commands";
 import { applyCommand, reachField } from "./rules";
 import {
+  ROUGH_TYPE,
   STEP_COST,
+  TACTICS_SIDES,
   tacticsBoard,
   UNIT_CLASS_ROW,
+  UNIT_TYPE,
   type RoughEntity,
   type TacticsBoard,
   type TacticsGridData,
@@ -70,17 +84,200 @@ export const TACTICS_FELL = "tactics:fell";
 /** Raised when the turn passes; `data` the side to act and the turn number. */
 export const TACTICS_TURN = "tactics:turn";
 
+/** Raised when a unit steps on a stair and its sublevel attaches: `entityId` the stair, `other` the unit, `data` the sublevel. */
+export const TACTICS_OPENED = "tactics:opened";
+
+// ─── Flow ────────────────────────────────────────────────
+
+/** The title scene, with Start. */
+export const MENU_SCENE = "menu";
+/** Where a level's end goes: won or lost, turns taken, back to the menu. */
+export const RESULT_SCENE = "result";
+/** The levels in play order; Start goes to the first one not cleared yet. */
+export const TACTICS_LEVELS = ["level-1", "level-2"] as const;
+
+/** Every scene change the game asks for fades out and back in. */
+export const TACTICS_FADE: TransitionSpec = { kind: "fade", ms: 400 };
+
+/** The commands the menu and result scenes take; a level refuses them. */
+export const TACTICS_FLOW_COMMANDS = {
+  start: {
+    description:
+      "On the menu: play the first level not cleared yet, or level 1 afresh once every level is cleared.",
+  },
+  menu: { description: "On the result scene: go back to the menu." },
+} as const satisfies Readonly<Record<string, CommandDef>>;
+
+/** The game's persistent state: what outlives every scene change. */
+export const TACTICS_PROGRESS = z.strictObject({
+  cleared: z.array(z.string()).describe("The levels won, in the order they were first won."),
+  roster: z.array(z.string()).describe("The blue units standing at the end of the last level won."),
+  last: z
+    .strictObject({
+      level: z.string(),
+      result: z.enum(["won", "lost"]),
+      turns: z.number().int().min(1),
+    })
+    .nullable()
+    .describe("How the last level played ended, for the result scene; null before any."),
+});
+export type TacticsProgress = z.infer<typeof TACTICS_PROGRESS>;
+
+export const initialProgress = (): TacticsProgress => ({ cleared: [], roster: [], last: null });
+
+/** What a loaded scene is to the game: a board to fight on, or one of the two screens around the levels. */
+export type TacticsScreen = "level" | "menu" | "result";
+
+const screenOf = (scene: string): TacticsScreen =>
+  scene === MENU_SCENE ? "menu" : scene === RESULT_SCENE ? "result" : "level";
+
+/** The first level `progress` hasn't cleared, or null once all are. */
+export function nextLevel(progress: TacticsProgress): (typeof TACTICS_LEVELS)[number] | null {
+  return TACTICS_LEVELS.find((l) => !progress.cleared.includes(l)) ?? null;
+}
+
+// ─── Stairs ──────────────────────────────────────────────
+
+export const STAIR_TYPE = defineEntityType({
+  type: "stair",
+  description:
+    "A stair cell: the first unit to step on it attaches a listed sublevel beside the board, its units joining the fight.",
+  base: "marker",
+  fields: {
+    at: pointField("The stair's cell, by its centre. Absolute world metres; y is down."),
+    sublevel: z
+      .string()
+      .regex(ID_PATTERN)
+      .describe("The listed sublevel scene it opens, attached under its own id as the label.")
+      .meta({ title: "Sublevel" }),
+    offset: vectorField(
+      "Where the sublevel's origin lands, world metres: a whole number of cells, so its cells fall on the board's.",
+    ).meta({ title: "Offset" }),
+  },
+  style: { stroke: 0xffd75e },
+  ascii: ">",
+});
+export type StairEntity = EntityOf<typeof STAIR_TYPE>;
+
+type Stair = { id: string; cell: Cell; sublevel: string; offset: [number, number] };
+
 /**
  * What the runtime reports each tick: the rules' snapshot plus the board and
- * the class table the run loaded, so `play.commands` can list legal orders
- * from the snapshot alone.
+ * the class table the run loaded. `play.commands` reads both from the world
+ * (`worldBoard`), not from here; they stay in the snapshot because the
+ * golden recording's end digest hashes it. A level's snapshot carries
+ * `screen` and `next` only when they apply, so a level played on its own
+ * digests as it always has.
  */
 export type TacticsRunSnapshot = TacticsSnapshot & {
   grid: TacticsGridData;
   classes: UnitClasses;
+  /** Set on the menu and result scenes; absent on a level. */
+  screen?: Exclude<TacticsScreen, "level">;
+  /** The scene this scene asked for once it ended; absent until then. */
+  next?: string;
+  /** The walk under way; absent when no unit walks. */
+  walk?: TacticsWalk;
+  /** The red side's orders in hand while it acts; absent on blue's turn and once the level ends. */
+  ai?: { wait: number; pending: TacticsCommand[] };
 };
 
-type Walk = { unit: string; stepper: GridStepper; path: Cell[]; resume: TacticsSnapshot["phase"] };
+/** A walk between ticks: the step it is on and the cells after it. */
+export type TacticsWalk = {
+  unit: string;
+  /** The cell the current step left and the one it walks into. */
+  from: Cell;
+  on: Cell;
+  /** Ticks of the current step done, fewer than `WALK_TICKS`. */
+  done: number;
+  path: Cell[];
+  resume: TacticsSnapshot["phase"];
+};
+
+/** The slot the game autosaves to at each turn start. */
+export const TACTICS_AUTOSAVE_SLOT = "auto";
+
+/** A save's title, from either the autosave or the HUD's Save; the menu puts the level's title before it. */
+export const turnSaveTitle = (turn: number) => `Turn ${turn}`;
+
+const cellSchema = z.tuple([z.number().int(), z.number().int()]);
+const phaseSchema = z.enum(["orders", "moving", "enemy", "over"]);
+
+/** What `restore` takes: `snapshot()` output, checked before any of it is put back. */
+const runSnapshotSchema = z.object({
+  turn: z.number().int().min(1),
+  side: z.enum(TACTICS_SIDES),
+  phase: phaseSchema,
+  units: z.record(
+    z.string(),
+    z.object({
+      side: z.enum(TACTICS_SIDES),
+      class: z.string(),
+      hp: z.number().int(),
+      cell: cellSchema,
+      moved: z.boolean(),
+      acted: z.boolean(),
+    }),
+  ),
+  result: z.enum(["won", "lost"]).nullable(),
+  grid: z.object({
+    cols: z.number().int().min(0),
+    rows: z.number().int().min(0),
+    cell: z.number().positive(),
+    walls: z.array(z.number().int()),
+    costs: z.array(z.tuple([z.number().int(), z.number()])),
+  }),
+  classes: z.record(z.string(), classSchema),
+  screen: z.enum(["menu", "result"]).optional(),
+  next: z.string().optional(),
+  walk: z
+    .object({
+      unit: z.string(),
+      from: cellSchema,
+      on: cellSchema,
+      done: z
+        .number()
+        .int()
+        .min(0)
+        .max(WALK_TICKS - 1),
+      path: z.array(cellSchema),
+      resume: phaseSchema,
+    })
+    .optional(),
+  ai: z
+    .object({
+      wait: z.number().int().min(0),
+      pending: z.array(z.object({ name: z.string(), args: z.unknown().optional() })),
+    })
+    .optional(),
+});
+
+/** The HUD's and the menu's view: the slice plus where the game is in its flow. */
+export type TacticsFlowSlice = TacticsSlice & {
+  flow?: {
+    screen: TacticsScreen;
+    /** The loaded scene's id; null for a scene loaded on its own. */
+    scene: string | null;
+    progress: TacticsProgress;
+    /** Stair cells whose sublevel hasn't opened yet. */
+    stairs: readonly Cell[];
+    /** Set once this scene asked for the next one. */
+    next: string | null;
+  };
+};
+
+type Walk = {
+  unit: string;
+  stepper: GridStepper;
+  path: Cell[];
+  resume: TacticsSnapshot["phase"];
+  /** The cell the stepper is walking into; null before the first step. */
+  on: Cell | null;
+  /** The cell the current step left. */
+  from: Cell;
+  /** Ticks of the current step done. */
+  done: number;
+};
 
 const EMPTY_GRID: TacticsGridData = { cols: 0, rows: 0, cell: 1, walls: [], costs: [] };
 
@@ -93,9 +290,9 @@ const INITIAL: TacticsSnapshot = {
 };
 
 /** The class table from the project's rows; a row that doesn't fit the class row schema is left out. */
-function readClasses(ctx: EngineContext): UnitClasses {
+export function unitClasses(project: ProjectRuntimeView | null | undefined): UnitClasses {
   const out: Record<string, UnitClass> = {};
-  for (const row of ctx.project?.table(UNIT_CLASS_TABLE) ?? []) {
+  for (const row of project?.table(UNIT_CLASS_TABLE) ?? []) {
     const parsed = classSchema.safeParse(row);
     if (parsed.success) out[row.id] = parsed.data;
   }
@@ -103,17 +300,17 @@ function readClasses(ctx: EngineContext): UnitClasses {
 }
 
 /** The loaded grid as data: its walls, and each rough cell's extra cost (the dearest rough area over it). */
-function readGrid(ctx: EngineContext, scene: ExpandedScene): TacticsGridData {
-  const grid = ctx.grid;
+export function boardData(
+  grid: RuntimeGrid | null | undefined,
+  roughs: Iterable<RoughEntity>,
+): TacticsGridData {
   if (!grid) return EMPTY_GRID;
   const { c0, r0, c1, r1 } = grid.bounds;
   const walls: CellKey[] = boundsCells(grid.bounds)
     .filter((c) => grid.occupancy.wall(c))
     .map(cellKey);
   const costs = new Map<CellKey, number>();
-  for (const e of scene.entities) {
-    if (e.type !== "rough") continue;
-    const rough = e as RoughEntity;
+  for (const rough of roughs) {
     for (const cell of grid.geometry.cellsIn(rough.shape)) {
       const k = cellKey(cell);
       costs.set(k, Math.max(costs.get(k) ?? 0, rough.cost * STEP_COST));
@@ -128,6 +325,30 @@ function readGrid(ctx: EngineContext, scene: ExpandedScene): TacticsGridData {
   };
 }
 
+const isRough = (e: RuntimeEntity | undefined): e is RoughEntity => e?.type === ROUGH_TYPE.type;
+
+/** The board and class table a run's world holds now, as `play.commands` reads them. */
+export function worldBoard(world: PlayWorld): { grid: TacticsGridData; classes: UnitClasses } {
+  const roughs = (world.select?.({ type: ROUGH_TYPE.type }) ?? [])
+    .map((id) => world.get?.(id))
+    .filter(isRough);
+  return { grid: boardData(world.grid, roughs), classes: unitClasses(world.project) };
+}
+
+/** `record` with `order`'s keys first, in that order, then the rest sorted. */
+function inOrder<T>(
+  record: Readonly<Record<string, T>>,
+  order: readonly string[],
+): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const k of order) if (Object.hasOwn(record, k)) out[k] = record[k]!;
+  for (const k of Object.keys(record).sort()) if (!Object.hasOwn(out, k)) out[k] = record[k]!;
+  return out;
+}
+
+const isEmptyArgs = (v: unknown) =>
+  typeof v === "object" && v !== null && !Array.isArray(v) && Object.keys(v).length === 0;
+
 const describe = (c: GameCommand) =>
   c.args === undefined ? c.name : `${c.name} ${JSON.stringify(c.args)}`;
 
@@ -138,6 +359,17 @@ const describe = (c: GameCommand) =>
  * `occupant` behavior follows it. After `end-turn` the red side plays: one
  * unit's orders every `aiStepTicks` ticks, each walk finished before the
  * next order. The run stays busy while either goes on.
+ *
+ * Around the levels: the menu's `start` asks for the next level, a listed
+ * level that ends asks for the result scene with the progress updated, and
+ * the result's `menu` goes back; each request fades. A level loaded on its
+ * own (no scene list) asks for nothing, so its run ends won or lost. The
+ * first unit to step on a stair attaches the stair's sublevel, whose units
+ * join the fight and whose walls and rough ground join the board.
+ *
+ * Saves: a listed level asks for a world save to `TACTICS_AUTOSAVE_SLOT`
+ * as each of blue's turns starts, and `restore` rebuilds the run from
+ * `snapshot()` output, a walk or the red side's orders under way included.
  */
 export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRunSnapshot> {
   let state: TacticsSnapshot = INITIAL;
@@ -148,10 +380,19 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
   let walk: Walk | null = null;
   let pending: TacticsCommand[] = [];
   let aiWait = 0;
-  let slice: TacticsSlice | null = null;
+  let screen: TacticsScreen = "level";
+  let stairs: Stair[] = [];
+  let next: string | null = null;
+  let boardStale = false;
+  let autosaved: number | null = null;
+  let slice: TacticsFlowSlice | null = null;
 
   const settings = () => settingsSchema.parse(ctx.project?.settings ?? {});
   const changed = () => void (slice = null);
+  const progress = (): TacticsProgress => {
+    const parsed = TACTICS_PROGRESS.safeParse(ctx.persist.value);
+    return parsed.success ? parsed.data : initialProgress();
+  };
 
   function note(...lines: string[]): void {
     if (lines.length === 0) return;
@@ -186,7 +427,7 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     if (path.length === 0 || !ctx.grid) return;
     const msPerStep = (WALK_TICKS * 1000) / ctx.time.rate;
     const stepper = createGridStepper(ctx, unitId, { start: from, msPerStep });
-    walk = { unit: unitId, stepper, path, resume };
+    walk = { unit: unitId, stepper, path, resume, on: null, from, done: 0 };
     state = { ...state, phase: "moving" };
     changed();
     stepWalk(walk);
@@ -194,21 +435,127 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
 
   /** Starts the walk's next cell; ends the walk when none is left or the grid refuses the step. */
   function stepWalk(w: Walk): void {
-    const next = w.path.shift();
-    if (next && w.stepper.step(next)) return;
-    if (next) {
-      const last = w.path.at(-1) ?? next;
+    if (w.on) arrive(w.unit, w.on);
+    const step = w.path.shift();
+    const from = w.stepper.cell();
+    if (step && w.stepper.step(step)) {
+      w.from = [from[0], from[1]];
+      w.on = step;
+      w.done = 0;
+      return;
+    }
+    if (step) {
+      const last = w.path.at(-1) ?? step;
       const { x, y } = centre(last);
       ctx.poses.set(w.unit, x, y, undefined, { snap: true });
+      arrive(w.unit, last);
     }
     walk = null;
     state = { ...state, phase: w.resume };
     changed();
   }
 
+  /** A unit is on `cell`: a stair there opens its sublevel, once. */
+  function arrive(unitId: string, cell: Cell): void {
+    const at = stairs.findIndex((s) => sameCell(s.cell, cell));
+    if (at < 0) return;
+    const [stair] = stairs.splice(at, 1);
+    changed();
+    const opened = ctx.flow.attach(stair!.sublevel, { label: stair!.sublevel, at: stair!.offset });
+    if (!opened.ok) {
+      note(`${stair!.id} stays shut: ${opened.issue.message}`);
+      if (ctx.dev) console.warn(`[tactics] ${stair!.id} stays shut: ${opened.issue.message}`);
+      return;
+    }
+    const units: Record<string, UnitState> = {};
+    for (const id of opened.entities) {
+      const e = ctx.get(id);
+      if (e?.type === UNIT_TYPE.type) units[id] = unitState(e as UnitEntity);
+    }
+    // The grid walls the sublevel's solids at the tick's destroy flush; the board catches up after it.
+    boardStale = true;
+    state = { ...state, units: { ...state.units, ...units } };
+    note(`${unitId} opens the ${stair!.sublevel}`);
+    ctx.emit({
+      type: TACTICS_OPENED,
+      entityId: stair!.id,
+      other: unitId,
+      at: centre(stair!.cell),
+      data: { sublevel: stair!.sublevel, units: Object.keys(units).sort() },
+    });
+  }
+
+  function freshBoard(): void {
+    if (!boardStale) return;
+    boardStale = false;
+    grid = boardData(ctx.grid, liveRoughs());
+    board = tacticsBoard(grid);
+    changed();
+  }
+
+  function liveRoughs(): RoughEntity[] {
+    return ctx.query
+      .select({ type: ROUGH_TYPE.type })
+      .map((id) => ctx.get(id))
+      .filter(isRough);
+  }
+
+  function unitState(unit: UnitEntity): UnitState {
+    const pose = spawnPose(unit, ctx.registry);
+    const cls = classes[unit.class];
+    if (!cls) note(`${unit.id}: no unit class "${unit.class}"`);
+    return {
+      side: unit.side,
+      class: unit.class,
+      hp: cls?.hp ?? 1,
+      cell: board.geometry.cellAt([pose.x, pose.y]),
+      moved: false,
+      acted: false,
+    };
+  }
+
+  function request(to: string, persist?: TacticsProgress): void {
+    ctx.flow.request({ to, transition: TACTICS_FADE, ...(persist ? { persist } : {}) });
+    next = to;
+    changed();
+  }
+
+  /** Whether a listed level has ended and not yet asked for the result scene. */
+  const endPending = () =>
+    screen === "level" && state.result !== null && next === null && ctx.flow.scene !== null;
+
+  /** A listed level that has ended asks for the result scene, with the progress it made. */
+  function finishLevel(): void {
+    const level = ctx.flow.scene;
+    if (!endPending() || level === null || state.result === null) return;
+    const p = progress();
+    const won = state.result === "won";
+    const standing = Object.keys(state.units)
+      .filter((id) => state.units[id]!.side === "blue")
+      .sort();
+    request(RESULT_SCENE, {
+      cleared: won && !p.cleared.includes(level) ? [...p.cleared, level] : p.cleared,
+      roster: won ? standing : p.roster,
+      last: { level, result: state.result, turns: state.turn },
+    });
+  }
+
+  /** The menu's and the result scene's one command each. */
+  function screenCommand(c: GameCommand): void {
+    const want = screen === "menu" ? "start" : "menu";
+    if (c.name !== want || (c.args !== undefined && !isEmptyArgs(c.args)))
+      return refuse(c, `the ${screen} scene takes only ${want}`);
+    if (next !== null) return refuse(c, `already going to ${next}`);
+    if (screen === "result") return request(MENU_SCENE);
+    const level = nextLevel(progress());
+    if (level) request(level);
+    else request(TACTICS_LEVELS[0], initialProgress());
+  }
+
   function advanceWalk(dtMs: number): void {
     if (!walk) return;
     walk.stepper.update(dtMs);
+    walk.done += Math.round((dtMs * ctx.time.rate) / 1000);
     if (!walk.stepper.moving()) stepWalk(walk);
   }
 
@@ -284,29 +631,128 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
   }
 
   function load(scene: ExpandedScene): void {
-    grid = readGrid(ctx, scene);
+    screen = screenOf(ctx.flow.scene ?? scene.name);
+    next = null;
+    boardStale = false;
+    grid = boardData(
+      ctx.grid,
+      scene.entities.filter((e): e is RoughEntity => e.type === ROUGH_TYPE.type),
+    );
     board = tacticsBoard(grid);
-    classes = readClasses(ctx);
+    classes = unitClasses(ctx.project);
     const units: Record<string, UnitState> = {};
+    stairs = [];
     for (const e of scene.entities) {
-      if (e.type !== "unit") continue;
-      const unit = e as UnitEntity;
-      const pose = spawnPose(e, ctx.registry);
-      const cls = classes[unit.class];
-      if (!cls) note(`${e.id}: no unit class "${unit.class}"`);
-      units[e.id] = {
-        side: unit.side,
-        class: unit.class,
-        hp: cls?.hp ?? 1,
-        cell: board.geometry.cellAt([pose.x, pose.y]),
-        moved: false,
-        acted: false,
-      };
+      if (e.type === UNIT_TYPE.type) units[e.id] = unitState(e as UnitEntity);
+      else if (e.type === STAIR_TYPE.type) {
+        const stair = e as StairEntity;
+        const pose = spawnPose(stair, ctx.registry);
+        stairs.push({
+          id: stair.id,
+          cell: board.geometry.cellAt([pose.x, pose.y]),
+          sublevel: stair.sublevel,
+          offset: [stair.offset[0], stair.offset[1]],
+        });
+      }
     }
     const sides = new Set(Object.values(units).map((u) => u.side));
     const result =
       sides.size === 0 ? null : !sides.has("red") ? "won" : !sides.has("blue") ? "lost" : null;
     state = { ...INITIAL, units, result, phase: result === null ? "orders" : "over" };
+    autosaved = null;
+    changed();
+  }
+
+  /**
+   * A listed level autosaves once a turn, as blue's turn starts: at the tick
+   * that starts it, or the first tick for turn 1. The host captures a request
+   * after its tick, so a first tick that already carries orders skips turn 1's.
+   */
+  function autosave(ordered = false): void {
+    if (screen !== "level" || ctx.flow.scene === null) return;
+    if (state.result !== null || state.side !== "blue" || autosaved === state.turn) return;
+    autosaved = state.turn;
+    if (ordered) return;
+    ctx.saves.request(TACTICS_AUTOSAVE_SLOT, { depth: "world", title: turnSaveTitle(state.turn) });
+  }
+
+  /** Whether the loaded world holds `s`'s units, each standing on its cell (the walker anywhere). */
+  function worldHolds(s: TacticsRunSnapshot): boolean {
+    const live = [...ctx.query.select({ type: UNIT_TYPE.type })].sort();
+    const saved = Object.keys(s.units).sort();
+    if (live.length !== saved.length || live.some((id, i) => id !== saved[i])) return false;
+    return saved.every((id) => {
+      if (id === s.walk?.unit) return true;
+      const pose = ctx.poses.get(id);
+      return (
+        pose !== undefined && sameCell(board.geometry.cellAt([pose.x, pose.y]), s.units[id]!.cell)
+      );
+    });
+  }
+
+  /**
+   * Puts the walk back mid-step: a stepper from the step's first cell, the
+   * step taken and advanced by the ticks it had done. The walker stands on
+   * that first cell while the step is taken, since its own cell would refuse
+   * it, and back where it stood after.
+   */
+  function resumeWalk(w: TacticsWalk): void {
+    const occupancy = ctx.grid?.occupancy;
+    const held = occupancy?.cellOf(w.unit);
+    const blocks = ctx.get(w.unit)?.behaviors?.[OCCUPANT.name]?.blocks !== false;
+    if (held) occupancy!.place(w.unit, w.from, { blocks });
+    const msPerStep = (WALK_TICKS * 1000) / ctx.time.rate;
+    const stepper = createGridStepper(ctx, w.unit, { start: w.from, msPerStep });
+    if (!stepper.step(w.on))
+      throw new Error(`${w.unit} can't walk from ${w.from.join(",")} to ${w.on.join(",")}`);
+    if (w.done > 0) stepper.update((w.done * 1000) / ctx.time.rate);
+    if (held) occupancy!.place(w.unit, held, { blocks });
+    walk = {
+      unit: w.unit,
+      stepper,
+      path: w.path.map((c) => [c[0], c[1]]),
+      resume: w.resume,
+      on: [w.on[0], w.on[1]],
+      from: [w.from[0], w.from[1]],
+      done: w.done,
+    };
+  }
+
+  /**
+   * Rebuilds the run from `snapshot()` output over a world a save put back.
+   * A save that kept no world (a progress save of a level) finds the level
+   * as it loads, and the level starts again.
+   */
+  function restore(given: TacticsRunSnapshot): void {
+    const parsed = runSnapshotSchema.safeParse(given);
+    if (!parsed.success)
+      throw new Error(`not a tactics snapshot: ${parsed.error.issues[0]?.message ?? "invalid"}`);
+    const s = parsed.data as TacticsRunSnapshot;
+    const orders = (s.ai?.pending ?? []).map((c) => {
+      const command = parseTacticsCommand(c);
+      if (!command) throw new Error(`the red side's order ${describe(c)} isn't a tactics command`);
+      return command;
+    });
+    walk = null;
+    log = [];
+    if (screen === "level" && !worldHolds(s)) {
+      note("the save kept no board, so the level starts again");
+      return;
+    }
+    // A save's text sorts its keys, and the rules walk units in record order: put back the run's own orders.
+    const units = inOrder(s.units, ctx.query.select({ type: UNIT_TYPE.type }));
+    state = { turn: s.turn, side: s.side, phase: s.phase, units, result: s.result };
+    grid = s.grid;
+    board = tacticsBoard(grid);
+    classes = inOrder(s.classes, Object.keys(classes));
+    next = s.next ?? null;
+    const open = new Set(ctx.flow.sublevels().map((l) => l.label));
+    stairs = stairs.filter((st) => !open.has(st.sublevel));
+    boardStale = false;
+    pending = orders;
+    aiWait = s.ai?.wait ?? 0;
+    autosaved = s.turn;
+    if (s.walk) resumeWalk(s.walk);
     changed();
   }
 
@@ -319,6 +765,11 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     walk = null;
     pending = [];
     aiWait = 0;
+    screen = "level";
+    stairs = [];
+    next = null;
+    boardStale = false;
+    autosaved = null;
     changed();
   }
 
@@ -326,23 +777,58 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     onLoad: load,
     onUnload: reset,
     beforeStep(dtMs, _actions, commands) {
+      autosave(commands.length > 0);
+      freshBoard();
       advanceWalk(dtMs);
       for (const c of commands) {
+        if (screen !== "level") {
+          screenCommand(c);
+          continue;
+        }
         const command = parseTacticsCommand(c);
         if (!command) refuse(c, "not a tactics command, or its args don't fit");
         else if (state.side !== "blue") refuse(c, "the red side is acting");
         else if (!apply(command)) refuse(c, "not legal now");
       }
       enemyTick();
+      finishLevel();
+      autosave();
     },
     busy: () =>
       walk !== null ||
       pending.length > 0 ||
-      (state.result === null && state.side === "red" && state.phase === "enemy"),
-    snapshot: () => ({ ...state, grid, classes }),
+      (state.result === null && state.side === "red" && state.phase === "enemy") ||
+      endPending(),
+    snapshot() {
+      freshBoard();
+      return {
+        ...state,
+        grid,
+        classes,
+        ...(screen !== "level" ? { screen } : {}),
+        ...(next !== null ? { next } : {}),
+        ...(walk?.on
+          ? {
+              walk: {
+                unit: walk.unit,
+                from: [walk.from[0], walk.from[1]],
+                on: [walk.on[0], walk.on[1]],
+                done: walk.done,
+                path: walk.path.map((c): Cell => [c[0], c[1]]),
+                resume: walk.resume,
+              },
+            }
+          : {}),
+        ...(state.side === "red" && state.result === null
+          ? { ai: { wait: aiWait, pending: structuredClone(pending) } }
+          : {}),
+      };
+    },
+    restore,
     cameraTarget: () =>
       grid.cols === 0 ? null : { x: (grid.cols * grid.cell) / 2, y: (grid.rows * grid.cell) / 2 },
     storeSlice() {
+      freshBoard();
       slice ??= {
         ...state,
         grid,
@@ -353,6 +839,13 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
           ]),
         ),
         log,
+        flow: {
+          screen,
+          scene: ctx.flow.scene,
+          progress: progress(),
+          stairs: stairs.map((s) => s.cell),
+          next,
+        },
       };
       return slice;
     },

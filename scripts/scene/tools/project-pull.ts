@@ -4,14 +4,12 @@ import { dirname, join, resolve } from "node:path";
 
 import { readProject } from "@jams/engine/collab";
 import {
+  assetFilesIn,
   docNameOf,
   formatProjectFile,
-  parseSidecar,
   PROJECT_FILE,
-  SIDECAR_SUFFIX,
   sidecarPathOf,
   type KindEnv,
-  type KindRegistry,
   type ProjectId,
 } from "@jams/engine/project";
 import { createProjectFileAdapter, fileContentStore } from "@jams/engine/vite";
@@ -76,37 +74,6 @@ async function filesUnder(dir: string, keep: (path: string) => boolean) {
     }
   }
   await walk("");
-  return out;
-}
-
-/**
- * The files of `files` a project holds as assets: each one a kind detects,
- * with its sidecar, and each sidecar left without its file. Anything else
- * the asset globs reach (a script beside the art) is not the project's to
- * pull or remove.
- */
-function assetFilesOf(files: Map<string, Buffer>, kinds: KindRegistry) {
-  const out = new Map<string, Buffer>();
-  for (const [path, bytes] of files) {
-    if (path.endsWith(SIDECAR_SUFFIX)) {
-      if (!files.has(path.slice(0, -SIDECAR_SUFFIX.length))) out.set(path, bytes);
-      continue;
-    }
-    const sidecar = files.get(sidecarPathOf(path));
-    const parsed = sidecar === undefined ? null : parseSidecar(sidecar.toString("utf8"));
-    let json: unknown;
-    if (path.toLowerCase().endsWith(".json")) {
-      try {
-        json = JSON.parse(bytes.toString("utf8"));
-      } catch {
-        json = undefined;
-      }
-    }
-    if (kinds.detect(path, json, parsed?.ok ? parsed.sidecar.assetKind : undefined) === null)
-      continue;
-    out.set(path, bytes);
-    if (sidecar !== undefined) out.set(sidecarPathOf(path), sidecar);
-  }
   return out;
 }
 
@@ -259,7 +226,9 @@ export const projectPull: Tool<ProjectPullInput> = async (input, ctx: ToolContex
         { ...head, missing: staged.missing },
       );
 
-    const current = assetFilesOf(await filesUnder(out, staged.watches), project.kinds);
+    // Everything under the asset globs is read, since a sidecar here may name its file's kind.
+    const read = (path: string) => staged.watches(path) || staged.watches(sidecarPathOf(path));
+    const current = assetFilesIn(await filesUnder(out, read), project.kinds);
     const changes: PulledChange[] = [];
     for (const [path, bytes] of staged.files) {
       const had = current.get(path);

@@ -1,9 +1,9 @@
-import { fuzz as runFuzz, type FuzzReport } from "@jams/engine/headless";
+import { fuzz as runFuzz, type FuzzOptions, type FuzzReport } from "@jams/engine/headless";
 import { MAX_SCRIPT_TICKS } from "@jams/engine/scene";
 
 import { gameFlag, isToolResult, openScene, usage, type Tool } from "../context";
 import { projectRuntime } from "../projects";
-import { blockedText } from "./playtest";
+import { blockedText, readSaveFixture, type SaveFixture } from "./playtest";
 import { rapierFor } from "./step";
 
 export type FuzzInput = {
@@ -12,9 +12,12 @@ export type FuzzInput = {
   rollouts?: string;
   ticks?: string;
   game?: string;
+  /** A save fixture (`.save.json`) every rollout starts from instead of the scene's fresh load. */
+  fromSave?: string;
 };
 
-const USAGE = "fuzz <scene|file|-> [--seed s] [--rollouts n] [--ticks n] [--game id]";
+const USAGE =
+  "fuzz <scene|file|-> [--seed s] [--rollouts n] [--ticks n] [--game id] [--from-save file]";
 const DEFAULT_ROLLOUTS = 100;
 const MAX_ROLLOUTS = 10_000;
 const DEFAULT_TICKS = 600;
@@ -30,13 +33,14 @@ function count(text: string | undefined, fallback: number, max: number): number 
 const seedOf = (text: string | undefined): number | string =>
   text === undefined ? 1 : /^\d+$/.test(text) ? Number(text) : text;
 
-function reportText(r: FuzzReport, runs: string): string {
+function reportText(r: FuzzReport, runs: string, save: SaveFixture | undefined): string {
   const results = Object.entries(r.results)
     .filter(([, n]) => n > 0)
     .map(([result, n]) => `${result} ${n}`)
     .join(", ");
   return [
     `${r.scene} ${r.sceneHash} ${runs} config ${r.configHash}: ${r.rollouts} rollouts of up to ${r.ticksPerRollout} ticks, seed ${JSON.stringify(r.seed)}`,
+    ...(save ? [`  from save ${save.path} (slot ${save.file.slot}, ${save.file.depth})`] : []),
     `  ${r.ticks} ticks in ${Math.round(r.timing.elapsedMs)}ms (${r.timing.ticksPerSecond} ticks/s)`,
     `  results: ${results}`,
     ...(r.legal
@@ -52,7 +56,10 @@ function reportText(r: FuzzReport, runs: string): string {
   ].join("\n");
 }
 
-/** Seeded random rollouts of a scene: which entities they touched, and how they ended. */
+/**
+ * Seeded random rollouts of a scene: which entities they touched, and how
+ * they ended. With `fromSave` every rollout starts from that save fixture.
+ */
 export const fuzz: Tool<FuzzInput> = async (input, ctx) => {
   const rollouts = count(input.rollouts, DEFAULT_ROLLOUTS, MAX_ROLLOUTS);
   if (rollouts === null) return usage(`--rollouts must be an integer from 1 to ${MAX_ROLLOUTS}`);
@@ -66,9 +73,15 @@ export const fuzz: Tool<FuzzInput> = async (input, ctx) => {
   if (!loaded.ok) return loaded.result;
   const { registry } = loaded;
   const game = registry.game?.id ?? null;
+  let save: SaveFixture | undefined;
+  if (input.fromSave !== undefined) {
+    const fixture = await readSaveFixture(input.fromSave, registry);
+    if (isToolResult(fixture)) return fixture;
+    save = fixture;
+  }
 
   const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
-  const run = runFuzz({
+  const options: FuzzOptions = {
     rapier: await rapierFor(ctx, loaded.def, registry, project?.engine),
     game: registry.game,
     registry,
@@ -78,12 +91,18 @@ export const fuzz: Tool<FuzzInput> = async (input, ctx) => {
     seed: seedOf(input.seed),
     rollouts,
     ticks,
-  });
+    ...(save ? { fromSave: { file: save.file, sha256: save.sha256 } } : {}),
+  };
+  const run = runFuzz(options);
   if (run.blocked)
     return { exitCode: 1, data: { ok: false, game, ...run }, text: blockedText(run) };
   return {
     exitCode: 0,
-    data: { game, ...run },
-    text: reportText(run, game ? `game ${game}` : "no game"),
+    data: {
+      game,
+      ...run,
+      ...(save ? { fromSave: { path: save.path, slot: save.file.slot, sha256: save.sha256 } } : {}),
+    },
+    text: reportText(run, game ? `game ${game}` : "no game", save),
   };
 };

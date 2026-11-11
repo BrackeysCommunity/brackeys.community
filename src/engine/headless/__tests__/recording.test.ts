@@ -14,15 +14,18 @@ import {
 import { createRegistry, defineGame } from "../../game/define";
 import { isUiAction } from "../../game/input-bindings";
 import { isRuntimeId } from "../../game/runtime-ids";
+import { formatSaveFile, type SaveFile } from "../../game/save-file";
 import type { GameDefinition, Registry } from "../../game/types";
 import { resolveBindings } from "../../input/bindings";
 import { createGamepadReader } from "../../input/gamepad";
 import type { PointerState } from "../../input/state";
 import type { TickInput } from "../../input/stream";
 import { createInputSystem } from "../../input/system";
+import { sha256 } from "../../project/hash";
 import type { ProjectRuntimeView } from "../../project/runtime-view";
 import { createSessionRecording } from "../../runtime/play-session";
 import { createRunRecorder, REPLAY_ACROSS_PLATFORMS } from "../../runtime/recorder";
+import { captureSave } from "../../runtime/save-state";
 import { defaultSeed } from "../../runtime/seed";
 import { ENTITY_DESTROYED, ENTITY_SPAWNED } from "../../runtime/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../../scene/agent-surface";
@@ -38,6 +41,7 @@ import {
 import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../../scene/types";
 import type { FollowerSystem } from "../../systems/path-follower";
 import type { InputAction, RapierModule } from "../../types";
+import { fuzz } from "../fuzz";
 import { prepareRun, runLoop, startRun } from "../play-loop";
 import { runPlaytest } from "../playtest";
 import type { InputScript, PlaytestReport } from "../playtest-types";
@@ -1088,6 +1092,89 @@ describe("recording.schema.json", () => {
   });
 });
 
+describe("recording v2's flow keys", () => {
+  const rec = () => played(toGoal).recording;
+
+  it("a v2 recording without start.persist, start.entry, next or fromSave still parses", () => {
+    const plain = rec();
+    expect(plain.start).not.toHaveProperty("persist");
+    expect(plain.start).not.toHaveProperty("entry");
+    expect(plain).not.toHaveProperty("next");
+    expect(plain).not.toHaveProperty("fromSave");
+    expect(parseRecording(JSON.stringify(plain))).toEqual({ ok: true, recording: plain });
+    expect(plain.v).toBe(2);
+  });
+
+  it("parses the keys a multi-scene run and a run from a save write, and checks their shapes", () => {
+    const widened: RunRecording = {
+      ...rec(),
+      start: { persist: { trips: 2, cleared: ["menu"] }, entry: "door" },
+      next: { scene: "level-2", entry: "gate" },
+      fromSave: { slot: "slot-1", sha256: "ab".repeat(32) },
+    };
+    expect(parseRecording(JSON.parse(JSON.stringify(widened)))).toEqual({
+      ok: true,
+      recording: widened,
+    });
+    const bad = (patch: Record<string, unknown>) => {
+      const parsed = parseRecording({ ...widened, ...patch });
+      return parsed.ok ? [] : parsed.issues.map((i) => i.path);
+    };
+    expect(bad({ next: { scene: "Level 2" } })).toEqual(["/next/scene"]);
+    expect(bad({ next: { entry: "gate" } })).toEqual(["/next/scene"]);
+    expect(bad({ fromSave: { slot: "slot-1", sha256: "abc" } })).toEqual(["/fromSave/sha256"]);
+    expect(bad({ start: { entry: 3 } })).toEqual(["/start/entry"]);
+  });
+
+  it("a replay sets start.persist before the load, which the run then reads", () => {
+    const counter = defineGame<{ coins: number; loaded: number }>({
+      id: "coins",
+      types: [],
+      actions: [{ action: "grab", keys: ["g"], description: "Grabs a coin." }],
+      world: { physics: "none" },
+      persist: { initial: () => ({ coins: 0 }) },
+      createRuntime(ctx) {
+        let loaded = 0;
+        return {
+          onLoad() {
+            loaded = (ctx.persist.value as { coins: number }).coins;
+          },
+          beforeStep() {
+            if (ctx.input.held("grab"))
+              ctx.persist.set({ coins: (ctx.persist.value as { coins: number }).coins + 1 });
+          },
+          snapshot: () => ({ coins: (ctx.persist.value as { coins: number }).coins, loaded }),
+        };
+      },
+    });
+    const field: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      name: "field",
+      game: "coins",
+      bounds: [0, 0, 10, 10],
+      entities: [{ id: "start", type: "marker", at: [1, 1] }],
+    };
+    const run = runPlaytest({
+      game: counter,
+      scene: field,
+      script: { v: 1, steps: [{ hold: ["grab"], for: 4 }] },
+    });
+    if (run.blocked) throw new Error(JSON.stringify(run));
+    expect(run.recording.start.persist).toEqual({ coins: 0 });
+    expect(run.final).toEqual({ coins: 4, loaded: 0 });
+
+    const carried = { ...run.recording, start: { ...run.recording.start, persist: { coins: 10 } } };
+    const again = replayRecording({ game: counter, scene: field, recording: carried });
+    if (again.blocked) throw new Error(JSON.stringify(again));
+    expect(again.final).toEqual({ coins: 14, loaded: 10 });
+    expect(again.recording.start.persist).toEqual({ coins: 10 });
+    expect(again.matches).toBe(false);
+
+    const same = replayRecording({ game: counter, scene: field, recording: run.recording });
+    expect(!same.blocked && same.matches).toBe(true);
+  });
+});
+
 describe("replayRecording when a step throws", () => {
   it("ends blocked at 'run' on an EngineError, its code in issues", () => {
     const rec = played(toGoal).recording;
@@ -1115,5 +1202,167 @@ describe("replayRecording when a step throws", () => {
     expect(run).toMatchObject({ blocked: true, stage: "run", scene: "engine-yard" });
     if (!run.blocked) throw new Error("expected a blocked replay");
     expect(run.issues.at(-1)).toMatchObject({ severity: "error", code: "spawn-id-invalid" });
+  });
+});
+
+describe("runs that begin from a save", () => {
+  type Dice = { steps: number; total: number; rolls: number };
+  const dice = defineGame<Dice>({
+    id: "dice",
+    types: [],
+    actions: [{ action: "roll", keys: ["r"], description: "Rolls a die each tick while held." }],
+    world: { physics: "none" },
+    createRuntime(ctx) {
+      let state: Dice = { steps: 0, total: 0, rolls: 0 };
+      return {
+        onLoad() {
+          state = { steps: 0, total: 0, rolls: 0 };
+        },
+        beforeStep() {
+          state.steps++;
+          if (!ctx.input.held("roll")) return;
+          state.total += ctx.random.below(6) + 1;
+          state.rolls++;
+        },
+        snapshot: () => ({ ...state }),
+        // Rebuilt in snapshot order: a save's text holds its keys sorted, and the end digest reads the order.
+        restore(saved) {
+          state = { steps: saved.steps, total: saved.total, rolls: saved.rolls };
+        },
+      };
+    },
+  });
+  const table: SceneDefinition = {
+    v: SCENE_FORMAT_VERSION,
+    name: "table",
+    game: "dice",
+    bounds: [0, 0, 4, 4],
+    settings: { physics: "none" },
+    entities: [{ id: "spot", type: "marker", at: [1, 1] }],
+  };
+  const rolling = (ticks: number): InputScript => ({
+    v: 1,
+    seed: 7,
+    steps: [{ hold: ["roll"], for: ticks }],
+  });
+  const play = (
+    script: InputScript,
+    extra: Partial<Parameters<typeof runPlaytest<Dice>>[0]> = {},
+  ): PlaytestReport<Dice> => {
+    const run = runPlaytest<Dice>({ game: dice, scene: table, script, ...extra });
+    if (run.blocked) throw new Error(`blocked: ${JSON.stringify(run)}`);
+    return run;
+  };
+
+  let save: SaveFile;
+  let text: string;
+  let hash: string;
+  beforeAll(async () => {
+    let captured: ReturnType<typeof captureSave> | null = null;
+    play(rolling(30), {
+      onEnd: (runtime) => {
+        captured = captureSave(runtime, { depth: "world", slot: "mid", now: 0 });
+      },
+    });
+    const result = captured as ReturnType<typeof captureSave> | null;
+    if (!result?.ok) throw new Error(`no save: ${JSON.stringify(result)}`);
+    save = result.file;
+    text = formatSaveFile(save);
+    hash = await sha256(text);
+  });
+
+  it("continues from the save to the uninterrupted run's end, and its recording names the fixture", () => {
+    const whole = play(rolling(60));
+    const resumed = play(rolling(30), { fromSave: { file: save, sha256: hash } });
+    expect(resumed.ticks).toBe(30);
+    expect(resumed.final).toEqual(whole.final);
+    expect(resumed.final).toMatchObject({ steps: 60, rolls: 60 });
+    expect(resumed.recording.end).toBe(whole.recording.end);
+    expect(resumed.recording.fromSave).toEqual({ slot: "mid", sha256: hash });
+    expect(whole.recording).not.toHaveProperty("fromSave");
+    expect(parseRecording(JSON.stringify(resumed.recording))).toEqual({
+      ok: true,
+      recording: resumed.recording,
+    });
+  });
+
+  it("replays from the fixture its hash names, as text or parsed, to the same end", () => {
+    const { recording } = play(rolling(30), { fromSave: { file: save, sha256: hash } });
+    for (const fixture of [text, save]) {
+      const again = replayRecording({
+        game: dice,
+        scene: table,
+        recording,
+        saves: new Map([[hash, fixture]]),
+      });
+      if (again.blocked) throw new Error(JSON.stringify(again));
+      expect(again.divergence).toBeNull();
+      expect(again.matches).toBe(true);
+      expect(again.recording.fromSave).toEqual(recording.fromSave);
+    }
+  });
+
+  it("refuses to replay without the fixture: asset-missing with detail.kind save", () => {
+    const { recording } = play(rolling(30), { fromSave: { file: save, sha256: hash } });
+    for (const saves of [undefined, new Map([["cd".repeat(32), text]])]) {
+      const run = replayRecording({
+        game: dice,
+        scene: table,
+        recording,
+        ...(saves ? { saves } : {}),
+      });
+      expect(run).toMatchObject({ blocked: true, stage: "load", scene: "table" });
+      if (!run.blocked) throw new Error("expected a blocked replay");
+      expect(run.issues).toEqual([
+        expect.objectContaining({
+          code: "asset-missing",
+          severity: "error",
+          path: "/fromSave/sha256",
+          detail: { kind: "save", slot: "mid", sha256: hash },
+        }),
+      ]);
+    }
+  });
+
+  it("refuses a save of another scene, and one restoreSave refuses", () => {
+    const other = { ...table, name: "other-table" };
+    const elsewhere = runPlaytest({
+      game: dice,
+      scene: other,
+      script: rolling(5),
+      fromSave: { file: save, sha256: hash },
+    });
+    expect(elsewhere).toMatchObject({ blocked: true, stage: "load" });
+    if (!elsewhere.blocked) throw new Error("expected a blocked run");
+    expect(elsewhere.issues.at(-1)?.message).toContain('the save is of "table"');
+
+    const refused = runPlaytest({
+      game: dice,
+      scene: table,
+      script: rolling(5),
+      fromSave: { file: { ...save, game: "cards" }, sha256: hash },
+    });
+    expect(refused).toMatchObject({ blocked: true, stage: "load" });
+    if (!refused.blocked) throw new Error("expected a blocked run");
+    expect(refused.issues.at(-1)).toMatchObject({ code: "schema", path: "/game" });
+    expect(refused.load?.ok === false && refused.load.error).toContain("can't be restored");
+  });
+
+  it("starts every fuzz rollout from the save, and blocks one restoreSave refuses", () => {
+    const fromSave = { file: save, sha256: hash };
+    const resumed = fuzz({ game: dice, scene: table, seed: 3, rollouts: 2, ticks: 5, fromSave });
+    expect(resumed.blocked).toBe(false);
+
+    const refused = fuzz({
+      game: dice,
+      scene: table,
+      seed: 3,
+      rollouts: 2,
+      ticks: 5,
+      fromSave: { file: { ...save, game: "cards" }, sha256: hash },
+    });
+    expect(refused).toMatchObject({ blocked: true, stage: "load" });
+    if (!refused.blocked) throw new Error("expected a blocked fuzz");
+    expect(refused.issues.at(-1)).toMatchObject({ code: "schema", path: "/game" });
   });
 });

@@ -4,8 +4,10 @@ export type {
   ActionBindings,
   CameraMode,
   CameraState,
+  FlowResult,
   GameConfig,
   GameEventMap,
+  GameFlow,
   GameInput,
   GameInstance,
   GameMode,
@@ -13,14 +15,33 @@ export type {
   GameStoreState,
   InputAction,
   InputBinding,
+  LoadingView,
+  LoadingViewFactory,
   PlayOutcome,
   PlayReport,
   PlaySession,
   RapierModule,
+  SceneSource,
   SimState,
+  TransitionRunner,
   UiActionEvent,
   Vec2,
 } from "./types";
+export {
+  browserSaveStore,
+  DEFAULT_INDEXED_DB_NAME,
+  DEFAULT_LOCAL_STORAGE_PREFIX,
+  indexedDbSaveStore,
+  localStorageSaveStore,
+  memorySaveStore,
+  type SaveSlots,
+  type SaveStore,
+  type SaveSummary,
+  type SaveWriteResult,
+} from "./saves/index";
+export { createLoadingOverlay, fadeTransition } from "./ui/flow-views";
+export type { FlowRequest, SceneLibrary, SceneListEntry, TransitionSpec } from "./game/flow";
+export type { SaveDepth, SaveLimits, SaveMeta } from "./game/save-file";
 export { bindText, bindToWorld, createUiLayer, mountUi, watchView } from "./ui";
 export type { MountUi, UiContext, UiHandle } from "./ui";
 export {

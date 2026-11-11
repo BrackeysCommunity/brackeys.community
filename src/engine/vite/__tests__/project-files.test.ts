@@ -31,6 +31,7 @@ import { applyRegistryBatch } from "../../collab/project-apply";
 import { projectAssetsMap, readProject } from "../../collab/project-doc";
 import { COLLAB_LAYOUT_VERSION } from "../../collab/types";
 import { createRegistry } from "../../game/define";
+import { formatSaveFile, type SaveFile } from "../../game/save-file";
 import { assetInfo } from "../../project/asset-info";
 import { inspectEntry } from "../../project/inspect/entry";
 import {
@@ -171,6 +172,25 @@ const FILES = {
       ],
     }),
   },
+  "scene-list": {
+    path: "scene-list.json",
+    text: lines(
+      "{",
+      '  "kind": "scene-list",',
+      '  "v": 1,',
+      '  "start": "yard",',
+      '  "scenes": [',
+      '    { "scene": "yard", "title": "Yard" },',
+      '    { "scene": "ford", "title": "Ford" },',
+      '    { "scene": "cellar", "sublevel": true }',
+      "  ]",
+      "}",
+    ),
+    edit: (v: Record<string, unknown>) => ({
+      ...v,
+      scenes: [...(v.scenes as unknown[]), { scene: "result" }],
+    }),
+  },
 } as const;
 
 const KIND_NAMES = Object.keys(FILES) as (keyof typeof FILES)[];
@@ -181,6 +201,7 @@ const IDS: Record<keyof typeof FILES, string> = {
   "input-script": "far-script",
   checks: "yard-checks",
   "input-map": "input-map",
+  "scene-list": "scene-list",
 };
 
 const projectFile: ProjectFile = {
@@ -415,20 +436,22 @@ describe("scan", () => {
         ["kitchen-sink", "scene", "kitchen-sink.json"],
         ["kitchen-sink-checks", "checks", "kitchen-sink.checks.json"],
         ["post", "prefab", "prefabs/post.json"],
+        ["scene-list", "scene-list", "scene-list.json"],
       ]),
     );
   });
 
-  it("of the platformer's home lists its scenes only, keyed by id, with no sidecars", async () => {
+  it("of the platformer's home lists its scenes and its scene list, keyed by id, with no sidecars", async () => {
     const { state } = await (await home(PLATFORMER_HOME)).scan();
     const entries = Object.values(state.assets);
     expect(entries.length).toBeGreaterThan(0);
     for (const e of entries) {
       expect(e.key).toBe(e.id);
-      expect(e.path.startsWith("scenes/")).toBe(true);
+      expect(e.path.startsWith("scenes/") || e.path === "scene-list.json").toBe(true);
       expect(e.created).toEqual({ at: 0, by: "disk" });
     }
     expect(entries.map((e) => e.id)).toContain("test-yard");
+    expect(entries.map((e) => [e.id, e.kind])).toContainEqual(["scene-list", "scene-list"]);
     const files = await walk(join(PLATFORMER_HOME, "scenes"));
     expect(files.filter((p) => p.endsWith(".asset.json"))).toEqual([]);
   });
@@ -683,6 +706,51 @@ describe("write-back: edits, for every declarative kind", () => {
       kind: "unchanged",
     });
     expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry("input-map")!), doc)).toBe(false);
+  });
+
+  it("scene-list: a disk edit is one disk transaction touching only the changed entry", async () => {
+    const { path, text } = FILES["scene-list"];
+    const s = await session();
+    const doc = await s.open("scene-list");
+    const scenes = contentMap(doc).get("scenes") as Y.Map<Y.Map<unknown>>;
+    const keyOf = (scene: string) =>
+      [...scenes.entries()].find(
+        ([, e]) => (e.get("item") as Y.Map<unknown>).get("scene") === scene,
+      )![0];
+    const keys = [...scenes.keys()].sort();
+    const touched: string[] = [];
+    contentMap(doc).observeDeep((events) => {
+      for (const e of events)
+        for (const key of e.changes.keys.keys()) touched.push([...e.path, key].join("."));
+    });
+    const edits: [string, (v: { scenes: Record<string, unknown>[] }) => void, string[]][] = [
+      [
+        "a retitle",
+        (v) => (v.scenes[1]!.title = "The ford"),
+        [`scenes.${keyOf("ford")}.item.title`],
+      ],
+      ["a reorder", (v) => v.scenes.unshift(v.scenes.pop()!), [`scenes.${keyOf("cellar")}.@z`]],
+    ];
+    let value = JSON.parse(text) as { scenes: Record<string, unknown>[] };
+    for (const [what, change, want] of edits) {
+      value = structuredClone(value);
+      change(value);
+      const after = formatAssetDoc(kindOf("scene-list"), value);
+      await put(path, after);
+      touched.length = 0;
+      const origins = await transactions(doc, async () => {
+        expect(await s.adapter.syncPath(path, s.lookup, s.project), what).toEqual({
+          kind: "applied",
+          ops: 1,
+        });
+      });
+      expect(origins, what).toEqual([{ kind: "disk" }]);
+      expect(touched, what).toEqual(want);
+      expect([...scenes.keys()].sort(), `${what} keeps every entry's key`).toEqual(keys);
+      expect(textOf("scene-list", doc), what).toBe(after);
+    }
+    expect(await s.adapter.syncPath(path, s.lookup, s.project)).toEqual({ kind: "unchanged" });
+    expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry("scene-list")!), doc)).toBe(false);
   });
 
   it("input-script: a v1 script on disk opens as v2 and is rewritten as v2 on the next store", async () => {
@@ -1121,9 +1189,27 @@ describe("write-back: the registry", () => {
     const doc = new Y.Doc();
     await expect(s.adapter.loadDoc("asset:other.ice", doc)).rejects.toThrow(/project "demo"/);
     await expect(s.adapter.loadDoc("asset:demo.nope", doc)).rejects.toThrow(/no asset/);
-    expect(s.adapter.watches("notes.txt")).toBe(true);
     expect(s.adapter.watches("a.schema.json")).toBe(false);
     expect(s.adapter.watches("x/__tests__/a.json")).toBe(false);
+  });
+
+  it("watches only files a kind may detect, as the scan lists them", async () => {
+    await put("art/make-art.ts", "export {};\n");
+    const s = await session();
+    expect(s.adapter.watches("art/make-art.ts")).toBe(false);
+    expect(s.adapter.watches("notes.txt")).toBe(false);
+    expect(s.adapter.watches("art/crate.png")).toBe(true);
+    expect(s.adapter.watches("art/later.json")).toBe(true);
+    expect(s.adapter.watches("art/make-art.ts.asset.json")).toBe(true);
+    const { state, problems } = await s.adapter.scan();
+    expect(Object.values(state.assets).map((e) => e.path)).not.toContain("art/make-art.ts");
+    expect(problems.map((p) => p.path)).not.toContain("art/make-art.ts");
+
+    await put(
+      "art/make-art.ts.asset.json",
+      '{"kind":"asset-sidecar","v":1,"assetKind":"texture"}\n',
+    );
+    expect(s.adapter.watches("art/make-art.ts")).toBe(true);
   });
 });
 
@@ -1133,6 +1219,44 @@ const sha = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("he
 const bytesAt = (path: string) => readFile(join(dir, path));
 const sidecarAt = async (path: string) =>
   JSON.parse(await read(`${path}.asset.json`)) as Record<string, unknown>;
+
+/** A save:v1 fixture's bytes, as its formatter writes them. */
+function saveBytes(over: Partial<SaveFile> = {}): Uint8Array {
+  const depth = over.depth ?? "progress";
+  const file: SaveFile = {
+    kind: "save",
+    v: 1,
+    game: "test-game",
+    gameVersion: 1,
+    engine: "0.13.0",
+    release: null,
+    project: null,
+    slot: "fixture",
+    meta: { scene: "level-2", savedAt: 0, playTicks: 120 },
+    depth,
+    persist: { cleared: ["level-1"] },
+    scene: { id: "level-2", runHash: "5a1d2c3e", sublevels: [] },
+    data: { turn: 4 },
+    ...(depth === "world"
+      ? {
+          world: {
+            tick: 120,
+            counters: {},
+            random: [1, 2, 3, 4],
+            timers: [],
+            enabled: {},
+            destroyed: [],
+            spawned: [],
+            poses: { hero: [1.5, 2, 0] },
+            systems: {},
+            seats: [],
+          },
+        }
+      : {}),
+    ...over,
+  };
+  return new TextEncoder().encode(formatSaveFile(file));
+}
 
 async function putBytes(path: string, bytes: Uint8Array): Promise<void> {
   await mkdir(dirname(join(dir, path)), { recursive: true });
@@ -1499,6 +1623,74 @@ describe("write-back: binaries", () => {
       sha256: sha(recording),
       meta: { v: 2, players: 2 },
     });
+  });
+
+  it("a new world save on disk is imported with its meta, and a sidecar on store", async () => {
+    const s = await session();
+    const bytes = saveBytes({ depth: "world" });
+    await putBytes("saves/level-2.save.json", bytes);
+    expect(await s.adapter.syncPath("saves/level-2.save.json", s.lookup, s.project)).toEqual({
+      kind: "pending",
+    });
+    await s.adapter.settle(s.lookup, s.project);
+    expect(s.entry("level-2-save")).toMatchObject({
+      kind: "save",
+      path: "saves/level-2.save.json",
+      sha256: sha(bytes),
+      bytes: bytes.byteLength,
+      meta: { game: "test-game", gameVersion: 1, depth: "world", scene: "level-2" },
+      created: { by: "disk" },
+    });
+    expect(await s.adapter.storeProject(s.project)).toBe(true);
+    expect(await sidecarAt("saves/level-2.save.json")).toMatchObject({
+      id: "level-2-save",
+      sha256: sha(bytes),
+      meta: { depth: "world", scene: "level-2" },
+    });
+    expect(await bytesAt("saves/level-2.save.json")).toEqual(Buffer.from(bytes));
+  });
+
+  it("a save fixture rewritten by hand, its file missing for a moment, is one disk replaceContent", async () => {
+    const path = "saves/level-2.save.json";
+    const first = saveBytes();
+    await putBytes(path, first);
+    const s = await session();
+    await s.adapter.storeProject(s.project);
+    const key = Object.keys(readProject(s.project).assets).find((k) => s.entry(k)!.path === path)!;
+    expect(s.entry(key)).toMatchObject({ kind: "save", sha256: sha(first) });
+
+    await rm(join(dir, path));
+    expect(await s.adapter.syncPath(path, s.lookup, s.project)).toEqual({ kind: "pending" });
+    const next = saveBytes({
+      depth: "world",
+      meta: { scene: "level-2", savedAt: 5, playTicks: 240 },
+    });
+    await putBytes(path, next);
+    let result: unknown;
+    const origins = await transactions(s.project, async () => {
+      result = await s.adapter.syncPath(path, s.lookup, s.project);
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect(result).toMatchObject({
+      kind: "applied",
+      ops: 1,
+      changed: { key, kind: "save", sha256: sha(next), previous: sha(first) },
+    });
+    expect(await s.adapter.settle(s.lookup, s.project)).toEqual([{ kind: "unchanged" }]);
+    expect(s.entry(key)).toMatchObject({
+      sha256: sha(next),
+      bytes: next.byteLength,
+      meta: { depth: "world", scene: "level-2" },
+    });
+    expect(s.entry(key)!.deleted).toBeUndefined();
+    expect(readProject(s.project).history[key]!.map((h) => h.sha256)).toEqual([
+      sha(first),
+      sha(next),
+    ]);
+    expect(await s.adapter.storeProject(s.project)).toBe(true);
+    expect(await sidecarAt(path)).toMatchObject({ sha256: sha(next), bytes: next.byteLength });
+    for (const p of [path, `${path}.asset.json`])
+      expect(await s.adapter.syncPath(p, s.lookup, s.project)).toEqual({ kind: "unchanged" });
   });
 
   it("two replaces merged from two clients write the winner's bytes, its sidecar, and keep every blob", async () => {
@@ -2188,10 +2380,11 @@ describe("write-back: replacing and moving every binary kind", () => {
         a: Buffer.from(recording),
         b: Buffer.from(recording.replace('"ticks": 120', '"ticks": 121')),
       },
+      save: { path: "saves/run.save.json", a: saveBytes(), b: saveBytes({ depth: "world" }) },
     };
   };
 
-  for (const kind of ["texture", "atlas", "font", "audio", "recording"]) {
+  for (const kind of ["texture", "atlas", "font", "audio", "recording", "save"]) {
     it(`${kind}: new bytes on disk are rehashed, and a registry move carries the sidecar`, async () => {
       const { path, a, b } = (await variants())[kind]!;
       expect(Buffer.from(a).equals(Buffer.from(b))).toBe(false);

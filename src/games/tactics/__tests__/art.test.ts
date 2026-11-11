@@ -61,6 +61,43 @@ const idAt = (path: string) => IDS[path];
 
 const registry = createRegistry(tacticsGame);
 
+/** The palette index make-art's tRNS chunk marks fully transparent. */
+const TRANSPARENT = 0;
+
+/** A make-art PNG's palette indices, row by row: its IDAT is a zlib stream of stored blocks. */
+function paletteImage(png: Uint8Array): { width: number; height: number; pixels: Uint8Array } {
+  const data = new DataView(png.buffer, png.byteOffset, png.byteLength);
+  let width = 0;
+  let height = 0;
+  const idat: number[] = [];
+  for (let at = 8; at < png.length; ) {
+    const length = data.getUint32(at);
+    const type = String.fromCharCode(...png.subarray(at + 4, at + 8));
+    const body = png.subarray(at + 8, at + 8 + length);
+    if (type === "IHDR") {
+      width = data.getUint32(at + 8);
+      height = data.getUint32(at + 12);
+      expect([body[8], body[9]], "an 8-bit palette image").toEqual([8, 3]);
+    }
+    if (type === "IDAT") idat.push(...body);
+    at += 12 + length;
+  }
+  const raw: number[] = [];
+  for (let at = 2, last = 0; !last; ) {
+    last = idat[at]! & 1;
+    expect(idat[at]! >> 1, "a stored deflate block").toBe(0);
+    const len = idat[at + 1]! | (idat[at + 2]! << 8);
+    raw.push(...idat.slice(at + 5, at + 5 + len));
+    at += 5 + len;
+  }
+  const pixels = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    expect(raw[y * (width + 1)], "no row filter").toBe(0);
+    pixels.set(raw.slice(y * (width + 1) + 1, (y + 1) * (width + 1)), y * width);
+  }
+  return { width, height, pixels };
+}
+
 describe("make-art.ts", () => {
   it("reproduces every committed art file byte for byte", () => {
     const art = makeArt();
@@ -188,7 +225,12 @@ describe("drawing", () => {
         meta: { format: "png", width: CELL_PX, height: CELL_PX },
       });
       expect(sidecar(file).id).toBe(`tile-${kind}`);
+      const { width, height, pixels } = paletteImage(bytesOf(`../art/${file}`));
+      expect([width, height], file).toEqual([CELL_PX, CELL_PX]);
+      expect(pixels.indexOf(TRANSPARENT), `${file} has a see-through pixel`).toBe(-1);
     }
+    // The unit sheet's sprites stand on a transparent cell, so the reading above can see one.
+    expect(paletteImage(bytesOf("../art/units.png")).pixels.includes(TRANSPARENT)).toBe(true);
   });
 });
 

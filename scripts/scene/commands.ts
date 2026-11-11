@@ -17,6 +17,7 @@ import { bundle } from "./tools/bundle";
 import { check } from "./tools/check";
 import { codes } from "./tools/codes";
 import { diff } from "./tools/diff";
+import { flow } from "./tools/flow";
 import { fmt } from "./tools/fmt";
 import { fuzz } from "./tools/fuzz";
 import { GAME_NEW_FLAGS, gameNew } from "./tools/game-new";
@@ -33,6 +34,7 @@ import { projectSnapshot } from "./tools/project-snapshot";
 import { projectTree } from "./tools/project-tree";
 import { render } from "./tools/render";
 import { replay } from "./tools/replay";
+import { save } from "./tools/save";
 import { schema, SCHEMA_NAMES } from "./tools/schema";
 import { show } from "./tools/show";
 import { step, STEP_FLAGS, type StepInput } from "./tools/step";
@@ -106,7 +108,7 @@ const DEFINITIONS = {
   schema: {
     usage: `schema [${SCHEMA_NAMES.join("|")}|<doc kind>] [--game id]`,
     summary:
-      "a JSON Schema the engine serves: a game's scene, op batch, script, checks, fragment, prefab or doc kind; the recording, project, sidecar, project-op and snapshot schemas",
+      "a JSON Schema the engine serves: a game's scene, op batch, script, checks, fragment, prefab or doc kind; the recording, project, sidecar, project-op, snapshot and save schemas",
     values: ["game"],
     switches: [],
     maxPositionals: 1,
@@ -120,6 +122,15 @@ const DEFINITIONS = {
     switches: [],
     maxPositionals: 0,
     run: (_a, ctx) => codes({}, ctx),
+  },
+  flow: {
+    usage: "flow [--project p] [--json]",
+    summary:
+      "the scene list of each project in scope: the start, each listed scene's physics and bundle bytes, the scenes it leaves out, and its issues (start-scene-missing, entries naming no scene, checks naming a scene flow can't go to: scene-unlisted); exit 1 on an error",
+    values: [],
+    switches: [],
+    maxPositionals: 0,
+    run: (_a, ctx) => flow({}, ctx),
   },
   input: {
     usage: "input [--project p] [--player n] [--json]",
@@ -242,11 +253,11 @@ const DEFINITIONS = {
   },
   playtest: {
     usage:
-      "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file]",
+      "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file]",
     summary:
-      "play an input script headless (actions, waits, game commands, time away), v1 or v2 (steps or tracks per seat, set/pointer/join/leave): the outcome, steps, events with spawns and destroys counted per type, and focus trail; a game that lists its commands (GamePlayDef.commands) prints how many are legal after the last tick (legal/legalTruncated in --json); --at is in metres; --events type,… prints only those event types; exit 1 when blocked",
-    values: ["script", "at", "events", "game", "record"],
-    switches: [],
+      "play an input script headless (actions, waits, game commands, time away), v1 or v2 (steps or tracks per seat, set/pointer/join/leave): the outcome, steps, events with spawns and destroys counted per type, and focus trail; a game that lists its commands (GamePlayDef.commands) prints how many are legal after the last tick (legal/legalTruncated in --json); --at is in metres; --events type,… prints only those event types; --flow follows scene requests through the scene list, --from-save starts from a save fixture; exit 1 when blocked",
+    values: ["script", "at", "events", "game", "record", "from-save"],
+    switches: ["flow"],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) =>
       playtest(
@@ -257,6 +268,8 @@ const DEFINITIONS = {
           events: str(flags.events),
           game: str(flags.game),
           record: str(flags.record),
+          flow: flags.flow === true,
+          fromSave: str(flags["from-save"]),
         },
         ctx,
       ),
@@ -272,10 +285,11 @@ const DEFINITIONS = {
       replay({ scene, run: str(flags.run), game: str(flags.game) }, ctx),
   },
   fuzz: {
-    usage: "fuzz <scene|file|-> [--seed s] [--rollouts n] [--ticks n] [--game id]",
+    usage:
+      "fuzz <scene|file|-> [--seed s] [--rollouts n] [--ticks n] [--game id] [--from-save file]",
     summary:
-      "seeded random rollouts: which entities were reached, in how many runs, how early; a game that lists its commands and has no macro of its own is fuzzed by sending legal commands (every macro on a turns clock, half of them otherwise), counted on a legal line (legal.sent/legal.empty in --json); the default macro never holds a UI action",
-    values: ["seed", "rollouts", "ticks", "game"],
+      "seeded random rollouts: which entities were reached, in how many runs, how early; a game that lists its commands and has no macro of its own is fuzzed by sending legal commands (every macro on a turns clock, half of them otherwise), counted on a legal line (legal.sent/legal.empty in --json); the default macro never holds a UI action; --from-save starts every rollout from a save fixture",
+    values: ["seed", "rollouts", "ticks", "game", "from-save"],
     switches: [],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) =>
@@ -286,6 +300,27 @@ const DEFINITIONS = {
           rollouts: str(flags.rollouts),
           ticks: str(flags.ticks),
           game: str(flags.game),
+          fromSave: str(flags["from-save"]),
+        },
+        ctx,
+      ),
+  },
+  save: {
+    usage:
+      "save <scene|file> --script <file|-> --at <tick> --out <file>.save.json [--depth world|progress]",
+    summary:
+      "run an input script to a tick and write a save fixture there (save:v1, world depth by default; the slot is the file's stem): inside a project it is imported as a save asset with its sidecar, or replaces the fixture already at that path; a world save that can't be taken is refused with save-unsupported and each cause; a run that ends before the tick saves nothing",
+    values: ["script", "at", "out", "depth"],
+    switches: [],
+    maxPositionals: 1,
+    run: ({ positionals: [scene], flags }, ctx) =>
+      save(
+        {
+          scene,
+          script: str(flags.script),
+          at: str(flags.at),
+          out: str(flags.out),
+          depth: str(flags.depth),
         },
         ctx,
       ),

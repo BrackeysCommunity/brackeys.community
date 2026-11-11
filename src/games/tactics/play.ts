@@ -2,7 +2,7 @@ import type { GameCommand, GamePlayDef } from "@jams/engine/game";
 import { z } from "zod";
 
 import { legal } from "./rules";
-import type { TacticsRunSnapshot } from "./runtime";
+import { worldBoard, type TacticsRunSnapshot } from "./runtime";
 import { TACTICS_SIDES, tacticsBoard } from "./types";
 
 /**
@@ -18,9 +18,10 @@ export const TACTICS_PLAY: GamePlayDef<TacticsRunSnapshot> = {
       : snapshot.result === "lost"
         ? { result: "lost", cause: "the blue side is gone" }
         : null,
-  commands({ snapshot }): GameCommand[] {
+  commands({ snapshot, world }): GameCommand[] {
     if (snapshot.side !== "blue") return [];
-    return legal(snapshot, snapshot.classes, tacticsBoard(snapshot.grid)).map((c) =>
+    const { grid, classes } = worldBoard(world);
+    return legal(snapshot, classes, tacticsBoard(grid)).map((c) =>
       c.name === "end-turn" ? { name: c.name } : { name: c.name, args: c.args },
     );
   },

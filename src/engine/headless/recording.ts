@@ -1,7 +1,12 @@
+import type { SceneLibrary } from "../game/flow";
+import { parseSaveFile, type SaveFile } from "../game/save-file";
 import type { ResolvedTime } from "../game/time";
-import type { GameDefinition, Registry } from "../game/types";
+import { EngineError, type GameDefinition, type Registry } from "../game/types";
 import type { TickInput } from "../input/stream";
 import type { ProjectRuntimeView } from "../project/runtime-view";
+import type { AssetId, Sha256 } from "../project/types";
+import type { FlowIdentity } from "../runtime/flow";
+import { gamePersistCell } from "../runtime/persist";
 import {
   createRunRecorder,
   hostPlatform,
@@ -28,6 +33,7 @@ import { ENGINE_VERSION } from "../version";
 import { unknownActionError } from "./headless";
 import {
   blockedRun,
+  listedSceneId,
   prepareRun,
   runBlocked,
   runLibrary,
@@ -53,7 +59,71 @@ export type ReplayOptions<S = unknown> = RecordingHost & {
   dev?: boolean;
   /** The project's data the game reads as `EngineContext.project`; its `engine` block resolves the scene's settings and the clock. */
   project?: ProjectRuntimeView | null;
+  /** The listed scenes the recorded run had, which the replay keeps for `ctx.flow`; it never follows a request. */
+  flow?: SceneLibrary;
+  /** The scene's listed id (`ctx.flow.scene`); default the library's id for it, else its name. */
+  sceneId?: AssetId;
+  /**
+   * Save fixtures by the hash of their bytes, as files or parsed: a
+   * recording that began from a save (`fromSave`) replays from the one
+   * with its hash, and without it is blocked with `asset-missing`.
+   */
+  saves?: ReadonlyMap<Sha256, SaveFile | string>;
 };
+
+/**
+ * The save a recording began from, found by its hash in `saves`: null for
+ * a recording that began at the scene's load; `asset-missing` (detail
+ * `kind: "save"`) when no fixture has the hash; the save's own issues when
+ * its text doesn't parse for `game`.
+ */
+function recordedSave(
+  rec: RunRecording,
+  saves: ReplayOptions["saves"],
+  registry: Registry,
+): { ok: true; file: SaveFile | null } | { ok: false; issues: SceneIssue[] } {
+  const from = rec.fromSave;
+  if (!from) return { ok: true, file: null };
+  const given = saves?.get(from.sha256);
+  if (given === undefined) {
+    return {
+      ok: false,
+      issues: [
+        makeIssue("asset-missing", {
+          message: `the recording began from the save in slot "${from.slot}" (sha256 ${from.sha256}), and no save fixture with that hash was given`,
+          hint: "Replay it beside the .save.json fixture it was played from, or play the script again from a fixture you have.",
+          path: "/fromSave/sha256",
+          got: from.sha256,
+          detail: { kind: "save", slot: from.slot, sha256: from.sha256 },
+        }),
+      ],
+    };
+  }
+  if (typeof given !== "string") return { ok: true, file: given };
+  const parsed = parseSaveFile(given, registry.game ?? undefined);
+  return parsed.ok ? { ok: true, file: parsed.file } : { ok: false, issues: parsed.issues };
+}
+
+const EMPTY_LIBRARY: SceneLibrary = Object.freeze({ list: [], scenes: new Map() });
+
+/**
+ * The flow identity a replay loads its scene with, so the game reads the
+ * same `ctx.flow` as the recorded run: whenever the replay names a library
+ * or an id, or the recording is one scene of a run that followed flow.
+ */
+function replayIdentity(
+  opts: Pick<ReplayOptions, "flow" | "sceneId" | "scene">,
+  rec: RunRecording,
+): FlowIdentity | undefined {
+  const flowed = rec.start.entry !== undefined || rec.next !== undefined;
+  if (!opts.flow && opts.sceneId === undefined && !flowed) return undefined;
+  const library = opts.flow ?? EMPTY_LIBRARY;
+  return {
+    scene: opts.sceneId ?? listedSceneId(library, opts.scene) ?? opts.scene.name,
+    entry: rec.start.entry ?? null,
+    library,
+  };
+}
 
 export type ReplayReport<S = unknown> = {
   blocked: false;
@@ -147,6 +217,11 @@ export function recordingDivergence(a: RunRecording, b: RunRecording): string | 
     return `ended as ${b.outcome.result}, not ${a.outcome.result}`;
   if (a.ticks !== b.ticks) return `ran ${b.ticks} ticks, not ${a.ticks}`;
   if (a.end !== b.end) return `the game's end state differs (digest ${b.end}, recorded ${a.end})`;
+  const to = (r: RunRecording) => r.next?.scene ?? null;
+  if (to(a) !== to(b))
+    return to(b) === null
+      ? `requested no scene, not "${to(a)}"`
+      : `requested "${to(b)}", not ${to(a) === null ? "none" : `"${to(a)}"`}`;
   return null;
 }
 
@@ -182,11 +257,14 @@ function commandIssues(registry: Registry, rec: RunRecording): ScriptIssue[] {
 }
 
 /**
- * Replays a recording headless: the play world starts as it did (its start
- * and seed) and every recorded tick's input, read by `decodeStreams`, is
- * stepped on its tick, every tick simulated whatever the time model. The run
- * ends where the recording did (its outcome, or its last tick), so a
- * deterministic replay matches it exactly. A recording of an earlier format
+ * Replays a recording headless: the play world starts as it did (its start,
+ * seed, persistent value and flow entry) and every recorded tick's input,
+ * read by `decodeStreams`, is stepped on its tick, every tick simulated
+ * whatever the time model. The run ends where the recording did (its
+ * outcome, its last tick, or the flow request at its `next`, which it
+ * never follows), so a deterministic replay matches it exactly. One that
+ * began from a save starts from the fixture `saves` holds under its hash
+ * (`recordedSave`). A recording of an earlier format
  * migrates on read; a stale run, other tuning or another platform is a
  * warning, not a block.
  */
@@ -229,12 +307,26 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     play.game = checked.data;
   }
 
+  const persist = gamePersistCell(game, true);
+  if (rec.start.persist !== undefined) {
+    try {
+      persist.set(rec.start.persist);
+    } catch (err) {
+      if (!(err instanceof EngineError)) throw err;
+      return blockedRun("script", name, [], [scriptIssue("/start/persist", err.message)]);
+    }
+  }
+
+  const saved = recordedSave(rec, opts.saves, registry);
+  if (!saved.ok) return blockedRun("load", name, saved.issues);
+
   const library = runLibrary(opts);
   const prepared = prepareRun(opts.scene, registry, opts.dev, opts.prefabs, opts.project?.engine, {
     project: opts.project,
     library,
   });
   if (!prepared.ok) return prepared.blocked;
+  const flow = replayIdentity(opts, rec);
   const started = startRun({
     rapier: opts.rapier,
     game,
@@ -244,8 +336,18 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     dev: opts.dev,
     project: opts.project,
     prefabs: library,
+    persist,
+    ...(flow ? { flow } : {}),
+    ...(saved.file ? { fromSave: saved.file } : {}),
   });
-  if (!started.ok) return blockedRun("load", name, prepared.issues, [], started.load);
+  if (!started.ok)
+    return blockedRun(
+      "load",
+      name,
+      started.issue ? [...prepared.issues, started.issue] : prepared.issues,
+      [],
+      started.load,
+    );
   const { runtime } = started;
   const rapier = recordingRapier(prepared.scene, opts.rapier);
   const time = runtime.ctx.time;
@@ -276,6 +378,9 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
       sceneHash: prepared.hash,
       runHash: prepared.runHash,
       start: play,
+      ...(rec.start.persist !== undefined ? { persist: rec.start.persist } : {}),
+      entry: rec.start.entry ?? null,
+      ...(rec.fromSave ? { fromSave: { ...rec.fromSave } } : {}),
       time,
       players: runtime.ctx.input.players(),
       platform: opts.platform,
@@ -299,7 +404,11 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     }
     if (end.result === "script-end" && rec.outcome.result === "quit") end.result = "quit";
     const final = runtime.snapshot() as S | null;
-    const recording = recorder.finish(end, final);
+    const next = end.request && {
+      scene: end.request.to,
+      ...(end.request.entry !== undefined ? { entry: end.request.entry } : {}),
+    };
+    const recording = recorder.finish({ ...end, ...(next ? { next } : {}) }, final);
     const divergence = recordingDivergence(rec, recording);
     const stale =
       parsed.migratedFrom === 1

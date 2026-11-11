@@ -1,6 +1,6 @@
 import { physicsOf } from "../game/physics-of";
 import { wholeTicksIn } from "../game/time";
-import type { EngineContext, RegisteredType, SceneSystem } from "../game/types";
+import type { EngineContext, JsonValue, RegisteredType, SceneSystem } from "../game/types";
 import { shapeColliderDesc } from "../physics";
 import { composePose, type Pose } from "../runtime/poses";
 import { colliderLive } from "../runtime/space";
@@ -151,6 +151,43 @@ export function interpolatePosition(a: Vec2, b: Vec2, t: number): Vec2 {
 /** At the first waypoint, heading for the second, not paused. */
 export function initialWaypointState(): WaypointState {
   return { currentIndex: 0, nextIndex: 1, t: 0, direction: 1, pauseRemainingMs: 0 };
+}
+
+/** A follower's place on its path as plain JSON, for a world save. */
+function saveMotion(m: Motion): JsonValue {
+  const { currentIndex, nextIndex, t, direction, pauseRemainingMs } = m.state;
+  return {
+    state: [currentIndex, nextIndex, t, direction, pauseRemainingMs],
+    prev: [m.prevPos.x, m.prevPos.y],
+    delta: [m.frameDelta.x, m.frameDelta.y],
+  };
+}
+
+const finite = (v: JsonValue | undefined): v is number =>
+  typeof v === "number" && Number.isFinite(v);
+
+/** Reads `saveMotion`'s output back; null when it doesn't fit `waypoints`. */
+function readMotion(
+  state: JsonValue,
+  waypoints: readonly Vec2[],
+): Pick<Motion, "state" | "prevPos" | "frameDelta"> | null {
+  if (typeof state !== "object" || state === null || Array.isArray(state)) return null;
+  const { state: s, prev, delta } = state;
+  if (!Array.isArray(s) || !Array.isArray(prev) || !Array.isArray(delta)) return null;
+  const [currentIndex, nextIndex, t, direction, pauseRemainingMs] = s;
+  const index = (i: JsonValue | undefined): i is number =>
+    Number.isInteger(i) && (i as number) >= 0 && (i as number) < waypoints.length;
+  if (!index(currentIndex) || !index(nextIndex) || !finite(t) || !finite(pauseRemainingMs))
+    return null;
+  if (direction !== 1 && direction !== -1) return null;
+  const [px, py] = prev;
+  const [dx, dy] = delta;
+  if (!finite(px) || !finite(py) || !finite(dx) || !finite(dy)) return null;
+  return {
+    state: { currentIndex, nextIndex, t, direction, pauseRemainingMs },
+    prevPos: { x: px, y: py },
+    frameDelta: { x: dx, y: dy },
+  };
 }
 
 // ─── Follower system ────────────────────────────────────
@@ -416,6 +453,24 @@ export function createFollowerSystem(
       follow(true);
     },
     size: () => table.size() + bodiless.size,
+    /** Its path clock, so a restored follower resumes its phase. */
+    save(id) {
+      const m = bodiless.get(id) ?? table.owned.get(id);
+      return m ? saveMotion(m) : undefined;
+    },
+    restore(id, state) {
+      const m = bodiless.get(id) ?? table.owned.get(id);
+      const read = m ? readMotion(state, m.waypoints) : null;
+      if (!m || !read) return;
+      Object.assign(m, read);
+      if (disabled.has(id)) return;
+      if ("body" in m) {
+        place(m, m.prevPos, true);
+        physicsOf(ctx, type.type, id).physics.world.propagateModifiedBodyPositionsToColliders();
+        poseBody(m, true);
+        ctx.attachments.moved(id, true);
+      } else poseBodiless(m, true);
+    },
     seek(ms) {
       const { tickMs } = ctx.time;
       const { ticks, restMs } = wholeTicksIn(ms, ctx.time);

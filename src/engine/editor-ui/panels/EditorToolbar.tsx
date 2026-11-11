@@ -14,7 +14,7 @@ import {
   SquareIcon,
   Undo02Icon,
 } from "@hugeicons/core-free-icons";
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import {
   drawTypeOptions,
@@ -32,7 +32,8 @@ import {
 import { DEFAULT_LENGTH_UNIT } from "../../game/defaults";
 import { pxPerMetreOf } from "../../game/units";
 import type { Registry } from "../../scene/index";
-import { useBottomRow } from "../frame/EditorFrame";
+import { useBottomRow, usePanelOpener } from "../frame/EditorFrame";
+import type { EditorNotify } from "../host";
 import { formatLength } from "../kit/format";
 import {
   Button,
@@ -50,13 +51,25 @@ import {
   MenuRadioItem,
   MenuSeparator,
   MenuShortcut,
+  MenuSub,
+  MenuSubContent,
+  MenuSubTrigger,
   MenuTrigger,
   type IconSvgElement,
 } from "../kit/index";
 import { useEditorStore } from "../session/use-editor-store";
+import type { EditorProjectLink } from "../session/use-scene-editor";
 import { EDIT_LAYERS, unavailableLayers } from "./canvas-layer/edit-layers";
 import { useEditLayers, useExpandedScene } from "./canvas-layer/EditLayers";
 import { useHostValue } from "./canvas-layer/tool-host";
+import {
+  NewSceneDialog,
+  SceneMenuItems,
+  ScenePicker,
+  scenePickerWidth,
+  useScenePicker,
+  type ScenePickerRow,
+} from "./ScenePicker";
 
 const TOOL_ICONS: Record<EngineToolId, IconSvgElement> = {
   select: Cursor01Icon,
@@ -370,21 +383,35 @@ export type DockPart = { key: string; width: number; drop?: number; game?: true 
 
 /**
  * What the toolbar draws, in order, before anything overflows; `option` is
- * the slot's (`optionSlot`), and the grid step is shown in metres at `ppm`.
+ * the slot's (`optionSlot`), the grid step is shown in metres at `ppm`, and
+ * `scene` is the scene picker's label when the toolbar has one.
  */
 export function dockParts(
   tools: readonly EditorToolDef[],
   step: number | null,
   option: OptionChoices | null = null,
   ppm: number = DEFAULT_LENGTH_UNIT,
+  scene: string | null = null,
 ): DockPart[] {
   const engine = tools.filter((t) => isEngineTool(t.id));
   const game = tools.filter((t) => !isEngineTool(t.id));
-  const parts: DockPart[] = engine.map((t, i) => ({
-    key: `tool:${t.id}`,
-    width: W.icon,
-    drop: isPinned(t.id) ? undefined : 200 + engine.length - i,
-  }));
+  const parts: DockPart[] = [];
+  if (scene !== null) {
+    // Into "More tools" after the game's tools, so long as there is that menu.
+    parts.push({
+      key: "scene",
+      width: scenePickerWidth(scene),
+      ...(tools.length > 0 ? { drop: 50 } : {}),
+    });
+    if (tools.length > 0) parts.push({ key: "divider:scene", width: W.divider });
+  }
+  engine.forEach((t, i) =>
+    parts.push({
+      key: `tool:${t.id}`,
+      width: W.icon,
+      drop: isPinned(t.id) ? undefined : 200 + engine.length - i,
+    }),
+  );
   if (game.length > 0) parts.push({ key: "divider:game", width: W.divider });
   game.forEach((t, i) =>
     parts.push({
@@ -425,7 +452,8 @@ export function dockWidth(parts: readonly DockPart[], hidden: ReadonlySet<string
     (p) =>
       !hidden.has(p.key) &&
       (p.key !== "divider:game" || anyGame) &&
-      (p.key !== "divider:option" || !hidden.has("option")),
+      (p.key !== "divider:option" || !hidden.has("option")) &&
+      (p.key !== "divider:scene" || !hidden.has("scene")),
   );
   const widths = shown.map((p) => p.width);
   if (hidden.size > 0) widths.push(W.icon);
@@ -434,7 +462,7 @@ export function dockWidth(parts: readonly DockPart[], hidden: ReadonlySet<string
 
 /**
  * What moves into the overflow menu so the toolbar fits in `room`: game
- * tools, the grid step, the tool's option, then shape tools.
+ * tools, the scene picker, the grid step, the tool's option, then shape tools.
  */
 export function fitDock(parts: readonly DockPart[], room: number): Set<string> {
   const hidden = new Set<string>();
@@ -451,9 +479,19 @@ export function fitDock(parts: readonly DockPart[], room: number): Set<string> {
 const allDroppable = (parts: readonly DockPart[]) =>
   new Set(parts.filter((p) => p.drop !== undefined).map((p) => p.key));
 
+/** The scene picker as "More tools" holds it: a submenu naming the open scene. */
+type OverflowScene = {
+  project: EditorProjectLink;
+  rows: readonly ScenePickerRow[];
+  label: string;
+  onNewScene: () => void;
+  onProjectSettings: (() => void) | null;
+};
+
 /**
- * The tools, the tool's option and the grid menu (the step and the View
- * layers) that didn't fit, in a menu at the end of the tools.
+ * The tools, the tool's option, the grid menu (the step and the View
+ * layers) and the scene picker that didn't fit, in a menu at the end of the
+ * tools.
  */
 function OverflowMenu({
   session,
@@ -464,6 +502,7 @@ function OverflowMenu({
   snap,
   option,
   ppm,
+  scene,
 }: {
   session: EditorSession;
   tools: readonly EditorToolDef[];
@@ -473,6 +512,7 @@ function OverflowMenu({
   snap: Snap | null;
   option: ToolOption | null;
   ppm: number;
+  scene: OverflowScene | null;
 }) {
   return (
     <Menu>
@@ -527,6 +567,22 @@ function OverflowMenu({
             <ViewItems session={session} />
           </>
         ) : null}
+        {scene ? (
+          <>
+            {tools.length > 0 || option || snap ? <MenuSeparator /> : null}
+            <MenuSub>
+              <MenuSubTrigger>Scene: {scene.label}</MenuSubTrigger>
+              <MenuSubContent className="je-option-menu">
+                <SceneMenuItems
+                  project={scene.project}
+                  rows={scene.rows}
+                  onNewScene={scene.onNewScene}
+                  onProjectSettings={scene.onProjectSettings}
+                />
+              </MenuSubContent>
+            </MenuSub>
+          </>
+        ) : null}
       </MenuContent>
     </Menu>
   );
@@ -536,8 +592,9 @@ const NO_SNAP: Snap | null = null;
 const NO_OPTION: ToolOption | null = null;
 
 /**
- * The tools, the active tool's option, snapping, the grid menu (the step
- * and the View layers), undo and redo, and Play.
+ * The scene picker (in a project), the tools, the active tool's option,
+ * snapping, the grid menu (the step and the View layers), undo and redo,
+ * and Play.
  * What doesn't fit in the room the frame leaves between the status and the
  * columns moves into a "More tools" menu: game tools first, then the grid
  * step, the tool's option, then the shape tools.
@@ -548,6 +605,8 @@ export function EditorToolbar({
   host,
   onPlay,
   onPlayHere,
+  project,
+  notify,
 }: {
   session: EditorSession;
   keymap: Keymap;
@@ -555,6 +614,9 @@ export function EditorToolbar({
   host: ToolHost | null;
   onPlay: () => void;
   onPlayHere: () => void;
+  /** The open scene's project; with a way to open another scene, the toolbar starts with the picker. */
+  project?: EditorProjectLink;
+  notify?: EditorNotify;
 }) {
   const canUndo = useEditorStore(session, (s) => s.canUndo);
   const canRedo = useEditorStore(session, (s) => s.canRedo);
@@ -570,10 +632,14 @@ export function EditorToolbar({
   );
   const slotWidth = slot ? optionWidth(slot) : 0;
 
+  const picker = useScenePicker(project);
+  const openSettings = usePanelOpener("settings");
+  const sceneLabel = picker?.label ?? null;
+  const [creating, setCreating] = useState(false);
   const ppm = pxPerMetreOf(session.registry);
   const parts = useMemo(
-    () => dockParts(tools, snap?.step ?? null, slot, ppm),
-    [tools, snap?.step, slot, ppm],
+    () => dockParts(tools, snap?.step ?? null, slot, ppm, sceneLabel),
+    [tools, snap?.step, slot, ppm, sceneLabel],
   );
   const full = useMemo(() => dockWidth(parts, new Set()), [parts]);
   const least = useMemo(() => dockWidth(parts, allDroppable(parts)), [parts]);
@@ -607,12 +673,41 @@ export function EditorToolbar({
         snap={hidden.has("step") ? snap : null}
         option={hidden.has("option") ? option : null}
         ppm={ppm}
+        scene={
+          picker && project && hidden.has("scene")
+            ? {
+                project,
+                ...picker,
+                onNewScene: () => setCreating(true),
+                onProjectSettings: openSettings,
+              }
+            : null
+        }
       />
     );
   }
 
   return (
     <div role="toolbar" aria-label="Editor" className="je-toolbar">
+      {picker && project && !hidden.has("scene") ? (
+        <>
+          <ScenePicker
+            project={project}
+            rows={picker.rows}
+            label={picker.label}
+            onNewScene={() => setCreating(true)}
+            onProjectSettings={openSettings}
+          />
+          {!host || tools.length > 0 ? <Divider /> : null}
+        </>
+      ) : null}
+      {creating && project ? (
+        <NewSceneDialog
+          project={project}
+          {...(notify ? { notify } : {})}
+          onClose={() => setCreating(false)}
+        />
+      ) : null}
       {host ? (
         <>
           {engineTools.map(toolButton)}

@@ -125,7 +125,7 @@ describe("panel groups", () => {
   it("draw the default grouping, one strip per group", () => {
     setup();
     expect(tabNames("Left column, top group")).toEqual(["Outliner"]);
-    expect(tabNames("Left column, bottom group")).toEqual(["Project"]);
+    expect(tabNames("Left column, bottom group")).toEqual(["Project", "Project settings"]);
     expect(tabNames("Right column, top group")).toEqual(["Inspector"]);
     expect(tabNames("Right column, bottom group")).toEqual(["Problems", "Run", "History"]);
     expect(PANELS.map((p) => p.id)).toEqual([
@@ -135,6 +135,7 @@ describe("panel groups", () => {
       "problems",
       "run",
       "history",
+      "settings",
     ]);
     expect(screen.queryByRole("heading", { name: /History|Problems|Run/ })).toBeNull();
   });
@@ -225,12 +226,20 @@ describe("panel groups", () => {
 
   it("drop a group its last panel leaves, and refuse to empty a column", async () => {
     setup();
-    await chooseFromMenu(/Project/, "Move to top group");
+    await chooseFromMenu(/^Project$/, "Move to top group");
     await waitFor(() =>
       expect(tabNames("Left column, top group")).toEqual(["Outliner", "Project"]),
     );
+    await chooseFromMenu(/Project settings/, "Move to top group");
+    await waitFor(() =>
+      expect(tabNames("Left column, top group")).toEqual([
+        "Outliner",
+        "Project",
+        "Project settings",
+      ]),
+    );
     expect(screen.queryByRole("tablist", { name: "Left column, bottom group" })).toBeNull();
-    fireEvent.contextMenu(tab(/Project/));
+    fireEvent.contextMenu(tab(/^Project$/));
     const move = await waitFor(() =>
       within(portal()).getByRole("menuitem", { name: "Move to bottom group" }),
     );
@@ -262,8 +271,8 @@ describe("panel groups", () => {
     setup({ layout: together });
     const filter = screen.getByRole("searchbox", { name: "Filter rows" }) as HTMLInputElement;
     fireEvent.change(filter, { target: { value: "type:sensor" } });
-    fireEvent.click(tab(/Project/));
-    await waitFor(() => expect(tab(/Project/).getAttribute("aria-selected")).toBe("true"));
+    fireEvent.click(tab(/^Project$/));
+    await waitFor(() => expect(tab(/^Project$/).getAttribute("aria-selected")).toBe("true"));
     expect(filter.closest("[role=tabpanel]")?.hasAttribute("hidden")).toBe(true);
     fireEvent.click(tab(/Outliner/));
     await waitFor(() => expect(tab(/Outliner/).getAttribute("aria-selected")).toBe("true"));

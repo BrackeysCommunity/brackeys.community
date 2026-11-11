@@ -9,6 +9,7 @@ import type {
   DeviceId,
   GameCommand,
   GameDefinition,
+  JsonValue,
   PlayerInfo,
   PlayState,
   Registry,
@@ -17,6 +18,7 @@ import type {
 import type { PlayOptions } from "../headless/playtest-types";
 import type { PointerState } from "../input/state";
 import { decodeStreams, encodeTick, type TickInput } from "../input/stream";
+import type { Sha256 } from "../project/types";
 import { hashText } from "../scene/hash";
 import {
   RECORDING_TRAIL_EVERY,
@@ -206,6 +208,12 @@ export type RecorderOptions = RecordingHost & {
   runHash: string;
   /** The start as Play was asked for it; a replay casts `at` again the same way. */
   start: PlayOptions;
+  /** `ctx.persist` as the scene loaded; written as `start.persist` only when the game declares `persist`. */
+  persist?: JsonValue;
+  /** The flow entry the scene loaded with. */
+  entry?: string | null;
+  /** The save the run began by loading: its slot and the fixture's hash, written as `fromSave`. */
+  fromSave?: { slot: string; sha256: Sha256 };
   /** The run's clock (`runtime.ctx.time`); omitted, the game's own. */
   time?: ResolvedTime;
   /** The seats as the run loaded (`runtime.ctx.input.players()`); devices they take later come from the joins recorded. */
@@ -222,6 +230,8 @@ export type RecordingEnd = {
   ticks: number;
   cause?: string;
   entityId?: string;
+  /** The flow request that ended the scene's run, written as `next`. */
+  next?: { scene: string; entry?: string };
 };
 
 export type RunRecorder = {
@@ -301,6 +311,8 @@ export function createRunRecorder(opts: RecorderOptions): RunRecorder {
   if (opts.start.at) start.at = [opts.start.at.x, opts.start.at.y];
   if (opts.start.timeOffsetMs) start.timeOffsetMs = opts.start.timeOffsetMs;
   if (opts.start.game !== undefined) start.game = structuredClone(opts.start.game);
+  if (game?.persist && opts.persist !== undefined) start.persist = structuredClone(opts.persist);
+  if (opts.entry != null) start.entry = opts.entry;
   const seed = opts.start.seed ?? defaultSeed(game?.id ?? null, opts.scene);
 
   return {
@@ -384,6 +396,8 @@ export function createRunRecorder(opts: RecorderOptions): RunRecorder {
         markers: markers.map((m) => ({ ...m })),
         end: snapshotDigest(final),
       };
+      if (end.next) recording.next = { ...end.next };
+      if (opts.fromSave) recording.fromSave = { ...opts.fromSave };
       if (play?.focus)
         recording.trail = {
           every: RECORDING_TRAIL_EVERY,

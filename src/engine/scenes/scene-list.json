@@ -1,0 +1,11 @@
+{
+  "$schema": "../project/scene-list.schema.json",
+  "kind": "scene-list",
+  "v": 1,
+  "start": "engine-yard",
+  "scenes": [
+    { "scene": "engine-yard", "title": "Engine yard" },
+    { "scene": "kitchen-sink", "title": "Kitchen sink" },
+    { "scene": "grid-yard", "title": "Grid yard" }
+  ]
+}

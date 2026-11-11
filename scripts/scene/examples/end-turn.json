@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../src/games/tactics/input-script.schema.json",
+  "v": 2,
+  "scene": "level-2",
+  "seed": 1,
+  "steps": [
+    { "wait": 30 },
+    { "command": "end-turn" },
+    { "hold": [], "until": { "side": "blue" }, "max": 2000 }
+  ]
+}

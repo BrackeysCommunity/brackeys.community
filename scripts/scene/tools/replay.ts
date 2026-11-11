@@ -19,6 +19,7 @@ import {
 } from "../context";
 import { projectRuntime } from "../projects";
 import { blockedText, projectRef } from "./playtest";
+import { projectSaveFixtures } from "./save";
 import { rapierFor, rounded } from "./step";
 
 export type ReplayInput = { scene?: string; run?: string; game?: string };
@@ -83,6 +84,7 @@ export const replay: Tool<ReplayInput> = async (input, ctx) => {
   const recording = isRecord(json) && json.blocked === false ? json.recording : json;
 
   const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
+  const saves = loaded.project ? await projectSaveFixtures(loaded.project) : undefined;
   const run = replayRecording({
     rapier: await rapierFor(ctx, loaded.def, registry, project?.engine),
     game: registry.game,
@@ -92,6 +94,7 @@ export const replay: Tool<ReplayInput> = async (input, ctx) => {
     project,
     recording,
     projectRef: projectRef(loaded.project),
+    ...(saves ? { saves } : {}),
     ...(ctx.rapierFlavour ? { platform: { flavour: ctx.rapierFlavour } } : {}),
   });
   const game = registry.game?.id ?? null;

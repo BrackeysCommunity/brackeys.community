@@ -30,6 +30,7 @@ function fakeGame() {
     destroy: vi.fn(),
     resize: vi.fn(),
     getStore: () => new Store({ phase: "running", fps: 60, debugMode: "off" }),
+    input: { bindings: () => ({}) },
   };
 }
 

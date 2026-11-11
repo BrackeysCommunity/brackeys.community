@@ -1,4 +1,5 @@
 import type {
+  beforeSyncPayload,
   beforeUnloadDocumentPayload,
   Document,
   Extension,
@@ -8,6 +9,7 @@ import type {
 } from "@hocuspocus/server";
 import * as Y from "yjs";
 
+import { assertSameSeed, stampSeedState } from "../../../../src/engine/collab/seed-identity.ts";
 import type { KindRegistry } from "../../../../src/engine/project/index.ts";
 import { PREFAB_KIND, SCENE_FORMAT_VERSION } from "../../../../src/engine/scene/index.ts";
 import { SYNC_LIMITS } from "../../../../src/lib/canvas/limits.ts";
@@ -260,9 +262,9 @@ export function createAssetKind(options: AssetKindOptions): AssetKind {
       limitsByDoc.set(id, limitsOfKind(head.kind));
       if (assetDocMeta(row.state)) {
         const lifted = migrateAssetLayoutState(row.state, kinds);
-        if (!lifted) return row.state;
+        if (!lifted) return stampSeedState(row.state!);
         console.log(`[load] asset ${id} lifted to layout ${COLLAB_LAYOUT_VERSION}`);
-        return storeLoaded(id, lifted);
+        return storeLoaded(id, stampSeedState(lifted));
       }
 
       const parts = splitDocId(id)!;
@@ -280,7 +282,12 @@ export function createAssetKind(options: AssetKindOptions): AssetKind {
         options.telemetry?.captureException(error, { asset_id: id, during: "seed" });
         throw new SyncRefusal(SYNC_CLOSE.revoked, "asset can't be seeded", "auth");
       }
-      return storeLoaded(id, seeded);
+      return storeLoaded(id, stampSeedState(seeded));
+    },
+
+    // A client holding another seed's history is refused before either side merges.
+    async beforeSync(payload: beforeSyncPayload) {
+      assertSameSeed(payload);
     },
 
     async onChange(payload: onChangePayload) {

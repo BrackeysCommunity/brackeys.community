@@ -1,7 +1,9 @@
+import type { SceneLibrary } from "../game/flow";
+import type { SaveDepth, SaveFile } from "../game/save-file";
 import type { GameCommand, GameDefinition, GameOutcome, Registry } from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
-import type { LoadReport, RuntimeStats, StepEvent } from "../runtime/types";
-import type { ExpandedScene } from "../scene/types";
+import type { LoadReport, RuntimeStats, SceneRuntimeHandle, StepEvent } from "../runtime/types";
+import type { ExpandedScene, SceneIssue } from "../scene/types";
 import type { RapierModule } from "../types";
 import type { PlaytestBlocked } from "./playtest-types";
 
@@ -14,6 +16,21 @@ export type HeadlessRuntimeOptions = {
   registry?: Registry;
   scene?: ExpandedScene;
   dev?: boolean;
+  /** The listed scenes: with it a flow request loads the next scene after the tick; without it the run ends there. */
+  flow?: SceneLibrary;
+  /** Start from this save instead of the scene's fresh load. */
+  fromSave?: SaveFile;
+};
+
+/** A headless runtime; `save` captures the world as `captureSave` does. */
+export type HeadlessRuntime = SceneRuntimeHandle & {
+  save?(opts: {
+    depth: SaveDepth;
+    slot: string;
+    title?: string;
+    /** The caller's clock for `meta.savedAt`. */
+    now: number;
+  }): { ok: true; file: SaveFile } | { ok: false; issue: SceneIssue };
 };
 
 export type ProbeInput = {

@@ -2,13 +2,14 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry, defineEntityType, defineGame } from "../game/define";
 import { primitiveFields } from "../game/primitives";
-import type { GameDefinition, SceneSystem } from "../game/types";
+import type { GameDefinition } from "../game/types";
 import { navPolygonsOf } from "../runtime/nav";
 import { createSceneRuntime } from "../runtime/runtime";
 import { expandScene } from "../scene/expand";
 import { isNavType } from "../scene/nav-type";
 import type { EntityDef, SceneDefinition } from "../scene/types";
 import { validateScene } from "../scene/validate";
+import { createDataSystem } from "../systems/data";
 import { createNavSystem } from "../systems/nav";
 
 /** A game type based on `nav`, spawned by the engine's nav system. */
@@ -164,14 +165,13 @@ describe("ctx.nav", () => {
 });
 
 describe("the nav-type rule", () => {
-  const inert = (): SceneSystem => ({ spawn() {}, despawn() {}, clear() {}, size: () => 0 });
   /** Based on `nav`, but spawned by a system of its own. */
   const fence = defineEntityType({
     type: "fence",
     description: "A nav-shaped type its own system spawns.",
     base: "nav",
     fields: (env) => primitiveFields("nav", env),
-    system: inert,
+    system: createDataSystem,
   });
   /** No base, spawned by the engine's nav system. */
   const lane = defineEntityType({

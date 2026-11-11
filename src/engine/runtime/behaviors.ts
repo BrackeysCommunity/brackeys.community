@@ -5,7 +5,12 @@ import type {
   BehaviorSystemFactory,
   RegisteredBehavior,
 } from "../game/behaviors";
-import { ENGINE_REGISTRY_ID, type EngineContext, type Registry } from "../game/types";
+import {
+  ENGINE_REGISTRY_ID,
+  type EngineContext,
+  type JsonValue,
+  type Registry,
+} from "../game/types";
 import { schemaRefSites } from "../project/refs";
 import type { AssetId } from "../project/types";
 import type { RuntimeEntity } from "../scene/types";
@@ -61,6 +66,10 @@ export type BehaviorHost = {
    * reported and the remaining entities still redraw.
    */
   reloadAssets(changed: readonly AssetId[]): HostReloadError[];
+  /** Each of `e`'s attached blocks' `save`, by behavior name; blocks that return undefined are left out. */
+  save(e: RuntimeEntity): Record<BehaviorName, JsonValue>;
+  /** Hands each of `e`'s attached blocks its entry in `states`, through the system's `restore`. */
+  restore(e: RuntimeEntity, states: Readonly<Record<string, JsonValue>>): void;
 };
 
 type HostReloadError = Omit<AssetReloadError, "error"> & { error: unknown };
@@ -125,6 +134,16 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
       const texture = ctx.project?.asset(id)?.texture;
       return texture !== undefined && changed.has(texture);
     });
+  }
+
+  /** The systems holding one of `e`'s blocks now: not left detached by a failed reload or a disable. */
+  function live(e: RuntimeEntity): Built[] {
+    if (!e.behaviors || !carriers.has(e.id)) return [];
+    const gone = dropped.get(e.id);
+    const off = parked.get(e.id);
+    return built.filter(
+      ({ name }) => blockOf(e, name) !== undefined && !gone?.has(name) && !off?.has(name),
+    );
   }
 
   return {
@@ -241,6 +260,20 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     },
     system: <S extends BehaviorSystem = BehaviorSystem>(name: BehaviorName) =>
       byName.get(name) as S | undefined,
+    save(e) {
+      const out: Record<BehaviorName, JsonValue> = {};
+      for (const { name, system } of live(e)) {
+        const state = system.save?.(e.id);
+        if (state !== undefined) out[name] = state;
+      }
+      return out;
+    },
+    restore(e, states) {
+      for (const { name, system } of live(e)) {
+        const state = states[name];
+        if (state !== undefined) system.restore?.(e.id, state);
+      }
+    },
     reloadAssets(changed) {
       if (changed.length === 0) return [];
       const ids = new Set(changed);

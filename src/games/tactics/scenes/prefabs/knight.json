@@ -4,7 +4,7 @@
   "game": "tactics",
   "id": "knight",
   "params": {
-    "side": { "default": "blue", "description": "Which side the knight fights for: blue is the player's.", "targets": ["unit.side"] }
+    "side": { "default": "blue", "description": "Which side the knight fights for: blue is the player's.", "map": { "unit.behaviors.sprite.flipX": { "red": true }, "unit.behaviors.sprite.frame": { "blue": "knight-blue", "red": "knight-red" } }, "targets": ["unit.side", "unit.behaviors.sprite.frame", "unit.behaviors.sprite.flipX"] }
   },
   "entities": [
     { "id": "unit", "type": "unit", "at": [0, 0], "class": "knight", "side": "blue", "behaviors": { "sprite": { "asset": "units", "frame": "knight-blue" } } }

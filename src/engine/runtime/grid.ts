@@ -16,6 +16,7 @@ import { makeIssue } from "../scene/issues";
 import { geometryFields } from "../scene/schema";
 import { translateShape } from "../scene/shape-geometry";
 import type {
+  Bounds,
   EntityTypeName,
   ExpandedScene,
   PathDef,
@@ -46,6 +47,11 @@ export type GridState = {
   sync(scene: ExpandedScene | null): void;
   /** At unload. */
   clear(): void;
+  /**
+   * Widens the grid's cell bounds from the scene's to cover each of `rects`
+   * too (attached sublevels' bounds, world metres); `[]` puts them back.
+   */
+  extend(rects: readonly Bounds[]): void;
 };
 
 const DEFAULT_GRID_WALLS: readonly EntityTypeName[] = ["solid"];
@@ -84,6 +90,8 @@ export function createGridState(
   wallTypes: ReadonlySet<EntityTypeName> = gridWallTypes(registry),
 ): GridState {
   let current: RuntimeGrid | null = null;
+  /** The loaded scene's bounds in cells, before any `extend`. */
+  let own: CellBounds | null = null;
   /** Per wall entity, the entity as last rasterised and the wall cells it gave. */
   let rasterised = new Map<string, { entity: RuntimeEntity; keys: readonly CellKey[] }>();
   /** How many wall entities cover each wall cell. */
@@ -111,6 +119,7 @@ export function createGridState(
   function clear(): void {
     current?.occupancy.clear();
     current = null;
+    own = null;
     rasterised = new Map();
     covers = new Map();
   }
@@ -125,12 +134,13 @@ export function createGridState(
       if (!settings) return;
       const geometry = gridGeometry(settings);
       const occupancy = createOccupancy();
-      const bounds = geometry.rect(scene.bounds);
+      own = geometry.rect(scene.bounds);
       const grid: RuntimeGrid = {
         geometry,
         occupancy,
-        bounds,
-        passable: (c) => inCellBounds(bounds, c) && !occupancy.wall(c) && !occupancy.blocked(c),
+        bounds: own,
+        passable: (c) =>
+          inCellBounds(grid.bounds, c) && !occupancy.wall(c) && !occupancy.blocked(c),
       };
       current = grid;
       syncWalls(grid, scene);
@@ -142,6 +152,18 @@ export function createGridState(
       else syncWalls(current, scene);
     },
     clear,
+    extend(rects) {
+      if (!current || !own) return;
+      let { c0, r0, c1, r1 } = own;
+      for (const rect of rects) {
+        const b = current.geometry.rect(rect);
+        c0 = Math.min(c0, b.c0);
+        r0 = Math.min(r0, b.r0);
+        c1 = Math.max(c1, b.c1);
+        r1 = Math.max(r1, b.r1);
+      }
+      current.bounds = { c0, r0, c1, r1 };
+    },
   };
 }
 

@@ -395,6 +395,18 @@ function createOpener() {
 
 const VisibleAreaContext = createContext<() => VisibleArea | null>(() => null);
 
+/** The frame's `openPanel` for chrome outside the panels (the dock), with the panels it can open. */
+const PanelOpenerContext = createContext<{
+  open: (id: PanelId) => void;
+  known: readonly PanelId[];
+} | null>(null);
+
+/** Opens `id` in the frame around this part, or null when the frame has no such panel. */
+export function usePanelOpener(id: PanelId): (() => void) | null {
+  const opener = useContext(PanelOpenerContext);
+  return useMemo(() => (opener?.known.includes(id) ? () => opener.open(id) : null), [opener, id]);
+}
+
 type Widths = { full: number; least: number };
 
 /** What the dock and the status each take of the bottom row: drawn in full, and at their least. */
@@ -566,6 +578,8 @@ function FrameBody({
     if (tab) tab.focus({ preventScroll: true });
     else if (group) focusRegion(group);
   });
+
+  const panelOpener = useMemo(() => (known ? { open: opener.open, known } : null), [opener, known]);
 
   const base = panels?.context;
   const ctx = useMemo(
@@ -797,7 +811,11 @@ function FrameBody({
               }
             >
               <BottomRowContext.Provider value={bottom}>
-                {dock ? <div className="je-frame-dock">{dock}</div> : null}
+                {dock ? (
+                  <PanelOpenerContext.Provider value={panelOpener}>
+                    <div className="je-frame-dock">{dock}</div>
+                  </PanelOpenerContext.Provider>
+                ) : null}
                 {statusShown ? (
                   <div
                     className="je-frame-status"
@@ -887,7 +905,11 @@ export function editorChrome(
     status: (
       <EditMode session={session}>
         <Island>
-          <EditorStatusBar session={session} host={host} />
+          <EditorStatusBar
+            session={session}
+            host={host}
+            {...(props.project?.notice ? { notice: props.project.notice } : {})}
+          />
         </Island>
       </EditMode>
     ),
@@ -971,6 +993,8 @@ function EditorDock(controls: EditorControls) {
         host={host}
         onPlay={() => controls.onPlay()}
         onPlayHere={controls.playHere}
+        {...(controls.project ? { project: controls.project } : {})}
+        notify={controls.notify}
       />
     </Island>
   );

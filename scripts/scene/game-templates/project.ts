@@ -7,12 +7,15 @@ import {
   INPUT_MAP_KIND,
   INPUT_MAP_VERSION,
   inputMapKind,
+  SCENE_LIST_KIND,
+  SCENE_LIST_VERSION,
+  sceneListKind,
 } from "@jams/engine/project";
 import { makeIssue, pointerLines, type SceneIssue } from "@jams/engine/scene";
 
 import type { GameNames, GameOptions } from ".";
 
-/** `jams.project.json`: the game and UI modules, its scenes and docs as assets, its code. */
+/** `jams.project.json`: the game and UI modules, its scenes, scene list and docs as assets, its code. */
 export function projectFile(options: GameOptions, names: GameNames, $schema: string): string {
   return formatProjectFile({
     $schema,
@@ -22,7 +25,7 @@ export function projectFile(options: GameOptions, names: GameNames, $schema: str
     name: options.name,
     game: { module: "./index.ts", export: names.gameExport },
     ui: { module: "./ui/index.ts", export: names.hudExport },
-    assets: ["scenes/**", "game-settings.json", "input-map.json"],
+    assets: ["scenes/**", "game-settings.json", "input-map.json", "scene-list.json"],
     code: ["**/*.ts", "!**/__tests__/**"],
   });
 }
@@ -46,6 +49,17 @@ export function inputMapFile($schema: string): string {
     v: INPUT_MAP_VERSION,
     players: { join: "auto", max: 1 },
     deadzone: 0.15,
+  });
+}
+
+/** `scene-list.json`: the one scene, `main`, as the start. */
+export function sceneListFile($schema: string): string {
+  return formatAssetDoc(sceneListKind, {
+    $schema,
+    kind: SCENE_LIST_KIND,
+    v: SCENE_LIST_VERSION,
+    start: "main",
+    scenes: [{ scene: "main" }],
   });
 }
 

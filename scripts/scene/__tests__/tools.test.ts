@@ -5,7 +5,7 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { RigidBody } from "@dimforge/rapier2d";
-import { defineGame } from "@jams/engine/game";
+import { defineGame, parseSaveFile } from "@jams/engine/game";
 import type { RapierModule } from "@jams/engine/headless";
 import {
   checksKind,
@@ -37,6 +37,7 @@ import { apply } from "../tools/apply";
 import { check } from "../tools/check";
 import { codes } from "../tools/codes";
 import { diff } from "../tools/diff";
+import { flow } from "../tools/flow";
 import { fmt } from "../tools/fmt";
 import { fuzz } from "../tools/fuzz";
 import { grid } from "../tools/grid";
@@ -45,6 +46,7 @@ import { list } from "../tools/list";
 import { newScene } from "../tools/new";
 import { playtest } from "../tools/playtest";
 import { replay, replayText } from "../tools/replay";
+import { projectSaveFixtures, save } from "../tools/save";
 import { schema } from "../tools/schema";
 import { MAX_ROWS, show } from "../tools/show";
 import { step } from "../tools/step";
@@ -514,7 +516,7 @@ describe("show", () => {
 });
 
 describe("schema and codes", () => {
-  it("serves every schema it names, fragment, prefab and the project schemas included", async () => {
+  it("serves every schema it names, fragment, prefab, save and the project schemas included", async () => {
     const usage = await runCli(["schema", "nope"], ctx);
     expect(usage.exitCode).toBe(2);
     for (const which of ["scene", "ops", "script", "checks", "recording", "fragment", "prefab"])
@@ -524,6 +526,7 @@ describe("schema and codes", () => {
       "asset-sidecar": "urn:jams-engine:asset-sidecar:v1",
       "project-ops": "urn:jams-engine:project-ops:v1",
       "project-snapshot": "urn:jams-engine:project-snapshot:v1",
+      save: "urn:jams-engine:save:v1",
       material: `urn:jams-engine:material:v${materialKind.version}`,
       "game-settings": `urn:jams-engine:game-settings:v${gameSettingsKind.version}`,
       "data-table": `urn:jams-engine:data-table:v${dataTableKind.version}`,
@@ -723,14 +726,41 @@ describe("new", () => {
     };
     const r = await newScene({ name: "blank" }, withEngine);
     expect(r.exitCode, r.text).toBe(0);
-    expect(
-      parseSceneOrThrow(await readFile(join(engineDir, "blank.json"), "utf8"), ENGINE),
-    ).toEqual({
+    const def = parseSceneOrThrow(await readFile(join(engineDir, "blank.json"), "utf8"), ENGINE);
+    expect(def).toEqual({
+      $schema: expect.any(String),
       v: SCENE_FORMAT_VERSION,
       name: "blank",
       bounds: [0, 0, 19.2, 10.8],
     });
+    expect(join(engineDir, def.$schema!)).toBe(repoFile("src/engine/scene/scene.schema.json"));
     expect((await newScene({ name: "blank-2" }, ctx)).exitCode).toBe(1);
+  });
+
+  it("points a project's first scene at the game's scene schema beside the project file", async () => {
+    const dir = join(root, cardGame.id);
+    const project = await tempProject(dir, { game: cardGame, assets: ["scenes/**"] });
+    const withCards: ToolContext = { ...ctx, projects: [...ctx.projects, project] };
+    const r = await newScene({ name: "first", game: cardGame.id }, withCards);
+    expect(r.exitCode, r.text).toBe(0);
+    const text = await readFile(join(dir, "scenes", "first.json"), "utf8");
+    expect(JSON.parse(text)).not.toHaveProperty("$schema");
+
+    await rm(join(dir, "scenes"), { recursive: true });
+    await writeFile(join(dir, "scene.schema.json"), "{}\n");
+    const again = await newScene({ name: "first", game: cardGame.id }, withCards);
+    expect(again.exitCode, again.text).toBe(0);
+    const first = JSON.parse(await readFile(join(dir, "scenes", "first.json"), "utf8")) as {
+      $schema?: string;
+    };
+    expect(first.$schema).toBe("../scene.schema.json");
+
+    const second = await newScene({ name: "second", game: cardGame.id }, withCards);
+    expect(second.exitCode, second.text).toBe(0);
+    const copied = JSON.parse(await readFile(join(dir, "scenes", "second.json"), "utf8")) as {
+      $schema?: string;
+    };
+    expect(copied.$schema).toBe("../scene.schema.json");
   });
 
   it("exits 1 on a taken name and 2 on usage", async () => {
@@ -1283,6 +1313,25 @@ describe("step", () => {
     expect(fixed.text).toContain("--elapse 1:500: elapse needs the game's time.catchUp");
     const gameless = await step({ scene: "engine-yard", ticks: "10", command: ["1:reset"] }, ctx);
     expect(gameless.text).toContain("(commands: none)");
+  });
+
+  it("judges --command tick@seat against the project input map's seats over the game's", async () => {
+    const seated = { scene: "tally-yard", ticks: "6", command: ['2@2:bump={"n":3}'] };
+    const gameSeats = await step(seated, await tallyCtx());
+    expect(gameSeats.exitCode, gameSeats.text).toBe(2);
+    expect(gameSeats.text).toContain('--command 2@2:bump={"n":3}:');
+
+    await rm(join(root, tallyGame.id), { recursive: true, force: true });
+    await mkdir(join(root, tallyGame.id), { recursive: true });
+    await writeFile(
+      join(root, tallyGame.id, "input-map.json"),
+      JSON.stringify({ kind: "input-map", v: 1, players: { max: 3, join: "auto" } }),
+    );
+    const mapped = await step(seated, await tallyCtx());
+    expect(mapped.exitCode, mapped.text).toBe(0);
+    expect(mapped.data).toMatchObject({ final: { count: 3, log: ["2:bump"] } });
+    const past = await step({ ...seated, command: ["2@3:reset"] }, await tallyCtx());
+    expect(past.exitCode, past.text).toBe(2);
   });
 
   it("takes repeated --command and --elapse flags on the command line", async () => {
@@ -2680,6 +2729,7 @@ describe("runCli", () => {
       "show",
       "schema",
       "codes",
+      "flow",
       "input",
       "validate",
       "fmt",
@@ -2691,6 +2741,7 @@ describe("runCli", () => {
       "playtest",
       "replay",
       "fuzz",
+      "save",
       "check",
       "render",
       "textconv",
@@ -2736,6 +2787,16 @@ describe("runCli", () => {
     const bare = await runCli(["game", "new"], ctx);
     expect(bare.exitCode).toBe(2);
     expect(bare.stderr).toContain("game new <id> [--name");
+  });
+
+  it("shows flow, save, and playtest's and fuzz's flow and save flags in the help", async () => {
+    const help = (await runCli(["help"], ctx)).stdout;
+    expect(help).toContain("flow [--project p] [--json]");
+    expect(help).toContain(
+      "save <scene|file> --script <file|-> --at <tick> --out <file>.save.json [--depth world|progress]",
+    );
+    expect(help).toMatch(/playtest <scene\|file\|-> .*\[--flow\] \[--from-save file\]/);
+    expect(help).toMatch(/fuzz <scene\|file\|-> .*\[--from-save file\]/);
   });
 
   it("takes grid's flags", async () => {
@@ -2799,5 +2860,353 @@ describe("runCli", () => {
     expect(JSON.parse(r.stdout).entities).toHaveLength(1);
     expect((await runCli(["fmt", "test-yard", "--check"], ctx)).exitCode).toBe(0);
     expect((await runCli(["fmt", "test-yard", "--check=yes"], ctx)).exitCode).toBe(2);
+  });
+});
+
+type Dice = { steps: number; total: number; rolls: number };
+
+/**
+ * A physics-free game whose state a world save holds: a die rolled each
+ * tick `roll` is held, on `ctx.random`. Holding `door` asks flow for the
+ * other table.
+ */
+const diceGame = defineGame<Dice>({
+  id: "dice",
+  types: [],
+  actions: [
+    { action: "roll", keys: ["r"], description: "Rolls a die each tick while held." },
+    { action: "door", keys: ["e"], description: "Asks for the other table." },
+  ],
+  world: { physics: "none" },
+  createRuntime(ctx) {
+    let state: Dice = { steps: 0, total: 0, rolls: 0 };
+    return {
+      onLoad() {
+        state = { steps: 0, total: 0, rolls: 0 };
+      },
+      beforeStep() {
+        state.steps++;
+        if (ctx.input.held("door"))
+          ctx.flow.request({ to: ctx.flow.scene === "table-2" ? "table" : "table-2" });
+        if (!ctx.input.held("roll")) return;
+        state.total += ctx.random.below(6) + 1;
+        state.rolls++;
+      },
+      snapshot: () => ({ ...state }),
+      // In snapshot order: a save's text holds its keys sorted, and the end digest reads the order.
+      restore(saved) {
+        state = { steps: saved.steps, total: saved.total, rolls: saved.rolls };
+      },
+    };
+  },
+});
+
+const diceTable = (name: string) =>
+  JSON.stringify({
+    v: SCENE_FORMAT_VERSION,
+    name,
+    game: diceGame.id,
+    bounds: [0, 0, 4, 4],
+    settings: { physics: "none" },
+    entities: [{ id: "spot", type: "marker", at: [1, 1] }],
+  });
+
+const rolls = (ticks: number) =>
+  JSON.stringify({ v: 1, seed: 7, steps: [{ hold: ["roll"], for: ticks }] });
+
+async function diceCtx(): Promise<{
+  dir: string;
+  dice: ToolContext;
+  script: (n: number) => Promise<string>;
+}> {
+  const dir = join(root, diceGame.id);
+  await mkdir(join(dir, "scenes"), { recursive: true });
+  await writeFile(join(dir, "scenes", "table.json"), diceTable("table"));
+  await writeFile(join(dir, "scenes", "table-2.json"), diceTable("table-2"));
+  await writeFile(
+    join(dir, "scene-list.json"),
+    JSON.stringify({
+      kind: "scene-list",
+      v: 1,
+      start: "table",
+      scenes: [{ scene: "table" }, { scene: "table-2" }],
+    }),
+  );
+  const dice = { ...ctx, projects: [...ctx.projects, await tempProject(dir, { game: diceGame })] };
+  const script = async (n: number) => {
+    const file = join(root, `rolls-${n}.json`);
+    await writeFile(file, rolls(n));
+    return file;
+  };
+  return { dir, dice, script };
+}
+
+type Saved = { ok: boolean; slot: string; depth: string; sha256: string; project: string | null };
+type Run = {
+  final: Dice;
+  ticks: number;
+  outcome: { result: string; to?: string };
+  recording: { end: string; fromSave?: { slot: string; sha256: string } };
+  segments?: { scene: string; ticks: number; end: { result: string; to?: string } }[];
+  fromSave?: { sha256: string };
+};
+
+describe("save fixtures", { timeout: 60_000 }, () => {
+  it("scene save then playtest --from-save reproduces the uninterrupted run's end", async () => {
+    const { dir, dice, script } = await diceCtx();
+    const whole = await script(60);
+    const out = join(dir, "saves", "mid.save.json");
+
+    const saved = await save({ scene: "table", script: whole, at: "30", out, now: 0 }, dice);
+    expect(saved.exitCode, saved.text).toBe(0);
+    expect(saved.data).toMatchObject({ ok: true, slot: "mid", depth: "world", project: "dice" });
+    expect(saved.text).toContain("saved world at t30");
+    const fixture = await readFile(out, "utf8");
+    const parsed = parseSaveFile(fixture, diceGame);
+    expect(parsed.ok && parsed.file).toMatchObject({
+      slot: "mid",
+      depth: "world",
+      scene: { id: "table" },
+      meta: { savedAt: 0, playTicks: 30 },
+      data: { steps: 30, rolls: 30 },
+    });
+    expect(await readdir(join(dir, "saves"))).toEqual([
+      "mid.save.json",
+      "mid.save.json.asset.json",
+    ]);
+    const project = dice.projects.find((p) => p.file.id === "dice")!;
+    expect([...(await projectSaveFixtures(project))]).toEqual([
+      [(saved.data as Saved).sha256, fixture],
+    ]);
+
+    const uninterrupted = await playtest({ scene: "table", script: whole }, dice);
+    const record = join(root, "resumed.rec.json");
+    const resumed = await playtest(
+      { scene: "table", script: await script(30), fromSave: out, record },
+      dice,
+    );
+    expect(resumed.exitCode, resumed.text).toBe(0);
+    const a = uninterrupted.data as Run;
+    const b = resumed.data as Run;
+    expect(b.ticks).toBe(30);
+    expect(b.final).toEqual(a.final);
+    expect(b.recording.end).toBe(a.recording.end);
+    expect(b.recording.fromSave).toEqual({ slot: "mid", sha256: (saved.data as Saved).sha256 });
+    expect(b.fromSave?.sha256).toBe((saved.data as Saved).sha256);
+    expect(resumed.text).toContain(`from save ${out} (slot mid, world)`);
+
+    const again = await save({ scene: "table", script: whole, at: "40", out, now: 0 }, dice);
+    expect(again.exitCode, again.text).toBe(0);
+    expect((again.data as Saved).sha256).not.toBe((saved.data as Saved).sha256);
+    expect(await readFile(out, "utf8")).toContain('"playTicks": 40');
+
+    const fuzzed = await fuzz({ scene: "table", fromSave: out, rollouts: "2", ticks: "10" }, dice);
+    expect(fuzzed.exitCode, fuzzed.text).toBe(0);
+    expect(fuzzed.text).toContain(`from save ${out}`);
+    const missing = await fuzz({ scene: "table", fromSave: join(dir, "nope.save.json") }, dice);
+    expect(missing.exitCode).toBe(1);
+    expect(missing.text).toContain("Not found");
+  });
+
+  it("refuses to replay a run from a save without its fixture: asset-missing, kind save", async () => {
+    const { dir, dice, script } = await diceCtx();
+    const out = join(dir, "saves", "start.save.json");
+    const saved = await save({ scene: "table", script: await script(10), at: "10", out }, dice);
+    expect(saved.exitCode, saved.text).toBe(0);
+    const record = join(root, "from-save.rec.json");
+    const played = await playtest(
+      { scene: "table", script: await script(5), fromSave: out, record },
+      dice,
+    );
+    expect(played.exitCode, played.text).toBe(0);
+    await rm(join(dir, "saves"), { recursive: true });
+
+    const r = await replay({ scene: "table", run: record }, dice);
+    expect(r.exitCode).toBe(1);
+    expect(r.data).toMatchObject({ blocked: true, stage: "load" });
+    expect((r.data as { issues: unknown[] }).issues).toEqual([
+      expect.objectContaining({
+        code: "asset-missing",
+        detail: { kind: "save", slot: "start", sha256: (saved.data as Saved).sha256 },
+      }),
+    ]);
+  });
+
+  it("refuses a world save of a Rapier scene with its cause, and takes a progress one", async () => {
+    const script = join(root, "walk.json");
+    await writeFile(script, JSON.stringify({ v: 1, steps: [{ hold: ["move_right"], for: 20 }] }));
+    const out = join(root, "fixtures", "yard.save.json");
+    const world = await save({ scene: "test-yard", script, at: "10", out }, ctx);
+    expect(world.exitCode).toBe(1);
+    expect(world.data).toMatchObject({
+      ok: false,
+      issue: { code: "save-unsupported" },
+      causes: [
+        expect.objectContaining({ cause: "physics" }),
+        expect.objectContaining({ cause: "restore" }),
+      ],
+    });
+    expect(world.text).toContain("cause physics: the scene runs on Rapier");
+    expect(world.text).toContain("cause restore: the game's runtime has no `restore`");
+    expect(await readdir(root)).not.toContain("fixtures");
+
+    const progress = await save(
+      { scene: "test-yard", script, at: "10", out, depth: "progress" },
+      ctx,
+    );
+    expect(progress.exitCode, progress.text).toBe(0);
+    expect(progress.data).toMatchObject({ depth: "progress", project: null });
+    const file = parseSaveFile(await readFile(out, "utf8"), platformerGame);
+    expect(file.ok && file.file).toMatchObject({ depth: "progress", scene: { id: "test-yard" } });
+  });
+
+  it("saves nothing when the run ends before --at, and checks its flags", async () => {
+    const { dir, dice, script } = await diceCtx();
+    const short = await script(5);
+    const out = join(dir, "early.save.json");
+    const early = await save({ scene: "table", script: short, at: "20", out }, dice);
+    expect(early.exitCode).toBe(1);
+    expect(early.text).toContain("before --at 20; nothing was saved");
+    expect(await readdir(dir)).not.toContain("early.save.json");
+
+    const usages = [
+      { at: "20", out: join(dir, "early.json") },
+      { at: "20", out: join(dir, "Early.save.json") },
+      { at: "0", out },
+      { at: "20", out, depth: "deep" },
+      { at: "20" },
+    ];
+    for (const flags of usages) {
+      const r = await save({ scene: "table", script: short, ...flags }, dice);
+      expect(r.exitCode, JSON.stringify(flags)).toBe(2);
+    }
+  });
+});
+
+describe("scene flow", { timeout: 60_000 }, () => {
+  type Flowed = {
+    ok: boolean;
+    projects: {
+      project: string;
+      list: { path: string } | null;
+      start: string | null;
+      scenes: {
+        scene: string;
+        start: boolean;
+        sublevel?: true;
+        physics: string | null;
+        bundle: { blobs: number; bytes: number } | null;
+      }[];
+      unlisted: string[];
+      issues: { code: string; severity: string }[];
+    }[];
+  };
+
+  let engineDir: string;
+  let engineCtx: ToolContext;
+  beforeEach(async () => {
+    engineDir = join(root, "engine");
+    await cp(ENGINE_SCENES, engineDir, { recursive: true });
+    engineCtx = { ...ctx, projects: [await tempProject(engineDir, { id: "engine" })] };
+  });
+
+  it("lists the start and each listed scene's physics and bundle bytes", async () => {
+    const r = await flow({}, engineCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    const [engine] = (r.data as Flowed).projects;
+    expect(engine).toMatchObject({
+      project: "engine",
+      list: { path: "scene-list.json" },
+      start: "engine-yard",
+      unlisted: [],
+      issues: [],
+    });
+    const rows = Object.fromEntries(engine!.scenes.map((s) => [s.scene, s]));
+    expect(Object.keys(rows)).toEqual(["engine-yard", "kitchen-sink", "grid-yard"]);
+    expect(rows["engine-yard"]).toMatchObject({ start: true, physics: "rapier" });
+    expect(rows["grid-yard"]).toMatchObject({ start: false, physics: "none" });
+    expect(rows["kitchen-sink"]!.bundle!.bytes).toBeGreaterThan(0);
+    for (const row of engine!.scenes) expect(row.bundle?.bytes).toEqual(expect.any(Number));
+    expect(r.text.split("\n")[0]).toBe(
+      "engine: scene list scene-list.json, start engine-yard, 3 listed",
+    );
+    expect(r.text).toMatch(
+      /^ {2}engine-yard {2}start {2}physics rapier {2}bundle \d+ blobs? \d+ B/m,
+    );
+    expect(r.text).toMatch(/^ {2}grid-yard {2}physics none {2}bundle /m);
+  });
+
+  it("reports the start, entries naming no scene, unlisted scenes and references flow can't follow", async () => {
+    await writeFile(
+      join(engineDir, "scene-list.json"),
+      JSON.stringify({
+        kind: "scene-list",
+        v: 1,
+        start: "lobby",
+        scenes: [
+          { scene: "engine-yard" },
+          { scene: "grid-yard", sublevel: true },
+          { scene: "ghost" },
+        ],
+      }),
+    );
+    const r = await flow({}, engineCtx);
+    expect(r.exitCode).toBe(1);
+    const [engine] = (r.data as Flowed).projects;
+    expect(engine!.unlisted).toEqual(["kitchen-sink"]);
+    expect(engine!.scenes.find((s) => s.scene === "ghost")).toMatchObject({
+      physics: null,
+      bundle: null,
+    });
+    expect(engine!.scenes.find((s) => s.scene === "grid-yard")).toMatchObject({ sublevel: true });
+    const codes = engine!.issues.map((i) => `${i.severity} ${i.code}`);
+    expect(codes).toContain("error start-scene-missing");
+    expect(codes).toContain("error asset-missing");
+    expect(codes).toContain("warn scene-unlisted");
+    expect(r.text).toContain("not listed: kitchen-sink");
+    expect(r.text).toMatch(/^ {2}ghost {2}doesn't open$/m);
+  });
+
+  it("says a project has no scene list, and refuses an unknown --project", async () => {
+    const r = await flow({}, ctx);
+    expect(r.exitCode).toBe(0);
+    expect(r.text).toContain("platformer: no scene list");
+    expect((await flow({}, { ...ctx, project: "nope" })).exitCode).toBe(2);
+  });
+});
+
+describe("playtest --flow", { timeout: 60_000 }, () => {
+  const doorThenRoll = JSON.stringify({
+    v: 1,
+    steps: [
+      { hold: ["door"], for: 1 },
+      { hold: ["roll"], for: 10 },
+    ],
+  });
+
+  it("ends the run at a request without --flow, and follows it through the scene list with it", async () => {
+    const { dice } = await diceCtx();
+    const script = join(root, "door.json");
+    await writeFile(script, doorThenRoll);
+
+    const ended = await playtest({ scene: "table", script }, dice);
+    expect(ended.exitCode, ended.text).toBe(0);
+    expect((ended.data as Run).outcome).toMatchObject({ result: "flow", to: "table-2" });
+
+    const followed = await playtest({ scene: "table", script, flow: true }, dice);
+    expect(followed.exitCode, followed.text).toBe(0);
+    const run = followed.data as Run;
+    expect(run.outcome.result).toBe("script-end");
+    expect(run.segments?.map((s) => [s.scene, s.ticks, s.end.result, s.end.to])).toEqual([
+      ["table", 1, "flow", "table-2"],
+      ["table-2", 10, "script-end", undefined],
+    ]);
+    expect(followed.text).toContain("scene table +1 flow -> table-2");
+  });
+
+  it("needs a scene list", async () => {
+    const r = await playtest({ scene: "test-yard", script: HOP_LEFT, flow: true }, ctx);
+    expect(r.exitCode).toBe(1);
+    expect(r.text).toContain('project "platformer" has no scene list');
   });
 });

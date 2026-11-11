@@ -10,6 +10,7 @@ import {
   type CellKey,
   type EntityOf,
   type GridGeometry,
+  type GridSettings,
 } from "@jams/engine/game";
 import { z } from "zod";
 
@@ -21,7 +22,7 @@ export const BOARD_COLS = 12;
 export const BOARD_ROWS = 8;
 
 /** Square cells one metre across; the game draws 48 px per metre. */
-export const TACTICS_GRID: GridGeometry["settings"] = { kind: "square", cell: [1, 1] };
+export const TACTICS_GRID: GridSettings = { kind: "square", cell: [1, 1] };
 
 /** What one edge step costs on the grid toolkit's scale: a unit's `move` is in these steps. */
 export const STEP_COST = 10;

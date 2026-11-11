@@ -10,6 +10,7 @@ import {
   type OpenedDoc,
   type PrefabWriter,
 } from "../../collab/index";
+import { isSeedStaleClose } from "../../collab/seed-identity";
 import type { ContentStore, KindRegistry, ProjectId } from "../../project/index";
 import type { Registry } from "../../scene/index";
 import type {
@@ -157,6 +158,9 @@ function assetChangedOf(payload: string, project: ProjectId): AssetChangedMessag
  * dropped while the socket stays up) is re-attached after a backoff, and one
  * `closeReason` says is closed for good is detached and listed in `stopped`.
  * A socket's own close (a code under 4000, or none) is left to the transport.
+ * A doc the server refuses as another seed's (the server reseeded it while
+ * this session held its history) is never merged: the whole session is
+ * dropped and opened afresh, so every doc resets to the server's state.
  */
 export function connectProjectSession(options: ConnectProjectSessionOptions): ProjectConnection {
   const {
@@ -288,6 +292,7 @@ export function connectProjectSession(options: ConnectProjectSessionOptions): Pr
           },
           closed(code, socketOpen, reason) {
             if (closed || state.stopped[name]) return;
+            if (isSeedStaleClose(code, reason)) return reopen();
             const why = closeReason(code, reason);
             if (why !== "retry") return end(why);
             // A closed socket reconnects on its own and re-authenticates every attached doc.
@@ -313,29 +318,56 @@ export function connectProjectSession(options: ConnectProjectSessionOptions): Pr
     window.addEventListener("offline", onNetwork);
   }
 
-  createProjectSession({
-    project,
-    openDoc,
-    origin: options.origin,
-    registry: options.registry,
-    kinds: options.kinds,
-    ...(options.buildAt !== undefined ? { buildAt: options.buildAt } : {}),
-    ...(options.store ? { store: options.store } : {}),
-    ...(options.prefabWriter ? { prefabWriter: options.prefabWriter } : {}),
-    ...(options.key ? { key: options.key } : {}),
-    ...(options.cap !== undefined ? { cap: options.cap } : {}),
-    ...(options.now ? { now: options.now } : {}),
-  }).then(
-    (session) => {
-      if (destroyed) return session.destroy();
-      set({ session });
-      refresh();
-    },
-    (error: unknown) => {
-      if (destroyed) return;
-      set({ status: "failed", error: error instanceof Error ? error : new Error(String(error)) });
-    },
-  );
+  let generation = 0;
+
+  function start(): void {
+    const at = ++generation;
+    createProjectSession({
+      project,
+      openDoc,
+      origin: options.origin,
+      registry: options.registry,
+      kinds: options.kinds,
+      ...(options.buildAt !== undefined ? { buildAt: options.buildAt } : {}),
+      ...(options.store ? { store: options.store } : {}),
+      ...(options.prefabWriter ? { prefabWriter: options.prefabWriter } : {}),
+      ...(options.key ? { key: options.key } : {}),
+      ...(options.cap !== undefined ? { cap: options.cap } : {}),
+      ...(options.now ? { now: options.now } : {}),
+    }).then(
+      (session) => {
+        if (destroyed || at !== generation) return session.destroy();
+        set({ session });
+        refresh();
+      },
+      (error: unknown) => {
+        if (destroyed || at !== generation) return;
+        set({ status: "failed", error: error instanceof Error ? error : new Error(String(error)) });
+      },
+    );
+  }
+
+  /**
+   * Drops the session, every doc it opened and their socket, then opens the
+   * project again from the server's state. The socket goes too: a provider
+   * let go on it tells the server to close its doc, and the server would
+   * apply that to the doc's next attach.
+   */
+  function reopen(): void {
+    if (destroyed) return;
+    const old = state.session;
+    set({ session: null, status: "connecting", stopped: {}, error: null });
+    old?.destroy();
+    for (const close of [...live]) close();
+    unwatchSocket?.();
+    unwatchSocket = null;
+    opened?.destroy();
+    opened = null;
+    socket = null;
+    start();
+  }
+
+  start();
 
   return {
     getState: () => state,

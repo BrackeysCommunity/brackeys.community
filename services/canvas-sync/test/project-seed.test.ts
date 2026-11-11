@@ -4,9 +4,10 @@ import { and, eq } from "drizzle-orm";
 import * as Y from "yjs";
 
 import { engineAssetDocs, engineBlobs, engineProjects, sceneDocs } from "../../../src/db/schema.ts";
+import { SEED_STALE_REASON } from "../../../src/engine/collab/seed-identity.ts";
 import { DATA_TABLE_VERSION } from "../../../src/engine/project/kinds/data-table.ts";
 import type { AssetEntry, ProjectState } from "../../../src/engine/project/types.ts";
-import { syncEnvPrefix } from "../../../src/lib/canvas/sync-channels.ts";
+import { documentName, syncEnvPrefix } from "../../../src/lib/canvas/sync-channels.ts";
 import {
   emptyProjectState,
   readProjectState,
@@ -23,11 +24,13 @@ import {
   assetSnapshotOf,
   COLLAB_LAYOUT_VERSION,
   connectAsset,
+  connectDoc,
   connectProject,
   type EngineClient,
   newEntry,
   newProjectId,
   projectStateOf,
+  projectToken,
   putEntry,
   SECRET,
   seedAssetRow,
@@ -84,6 +87,8 @@ interface Fixture {
   relay(): Promise<{ url: string; close(): Promise<void> }>;
   /** A project row with its first registry state, and the rows the web app makes with it. */
   create(projectId: string, state: Uint8Array | null): Promise<void>;
+  /** What the web app does when it restores a project: the registry row's state replaced. */
+  replaceRegistry(projectId: string, state: Uint8Array): Promise<void>;
   storedRegistry(projectId: string): Promise<ProjectState | null>;
   assetRow(docId: string): Promise<{
     kind: string;
@@ -202,6 +207,42 @@ function seedSuite(label: string, make: () => Promise<Fixture>) {
       expect(seeded?.sha).toMatch(/^[0-9a-f]{64}$/);
     });
 
+    it("refuses a client still holding the registry from before a reseed, and serves the new one alone", async () => {
+      const one = await instance(`${label}-stale-one`);
+      const projectId = newProjectId();
+      await fixture.create(projectId, seedProjectState(bundleState(projectId)));
+      const a = track(connectProject(one.port, projectId, "alice"));
+      expect(await synced(a)).toBe(true);
+      expect(Object.keys(projectStateOf(a.doc).assets)).toHaveLength(4);
+      a.destroy();
+      await one.stop(3000);
+
+      const restored: ProjectState = {
+        ...emptyProjectState(projectId, "Restored"),
+        assets: { level: entry("level", { kind: "scene", path: "level.json" }) },
+      };
+      await fixture.replaceRegistry(projectId, seedProjectState(restored));
+      const two = await instance(`${label}-stale-two`);
+      const stale = track(
+        connectDoc(
+          two.port,
+          documentName("project", projectId),
+          () => projectToken(projectId, "alice"),
+          a.doc,
+        ),
+      );
+      const reasons: string[] = [];
+      stale.provider.on("close", ({ event }: { event: { reason: string } }) => {
+        reasons.push(event.reason);
+      });
+      expect(await until(() => reasons.includes(SEED_STALE_REASON), 5000)).toBe(true);
+
+      const fresh = track(connectProject(two.port, projectId, "bob"));
+      expect(await synced(fresh)).toBe(true);
+      expect(Object.keys(projectStateOf(fresh.doc).assets)).toEqual(["level"]);
+      expect(projectStateOf(fresh.doc).meta.name).toBe("Restored");
+    });
+
     it("refuses a project the web app never created, and an asset doc with no row", async () => {
       const server = await instance(`${label}-missing`);
       const projectId = newProjectId();
@@ -261,6 +302,9 @@ seedSuite("memory", async () => {
       for (const row of SEED_ROWS) assets.create(`${projectId}.${row.key}`, row.kind, row.seed);
       scenes.create(`${projectId}.level`);
     },
+    async replaceRegistry(projectId, state) {
+      projects.create(projectId, "Demo", state);
+    },
     async storedRegistry(projectId) {
       const row = projects.rowsById.get(projectId);
       return row?.state ? readProjectState(row.state) : null;
@@ -299,6 +343,12 @@ if (TEST_DATABASE_URL) {
         });
         for (const row of SEED_ROWS) await seedAssetRow(db, projectId, row.key, row.kind, row.seed);
         await db.insert(sceneDocs).values({ sceneId: `${projectId}.level`, projectId });
+      },
+      async replaceRegistry(projectId, state) {
+        await db
+          .update(engineProjects)
+          .set({ state: Buffer.from(state) })
+          .where(eq(engineProjects.projectId, projectId));
       },
       async storedRegistry(projectId) {
         const [row] = await db
