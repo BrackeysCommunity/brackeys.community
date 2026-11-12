@@ -127,18 +127,23 @@ edge holds it for a year once the Cache Rule above is in place.
 - **Errors are never cached immutable.** Route-rule headers apply to 2xx
   only, so a 404, 403 or 410 gets Nitro's `no-cache`.
 - **Takedown.** A hidden or collected release answers `410` at origin and
-  the play page stops framing it. A staff hide drops it from that web
-  process's frame-route cache at once; other web processes, and every
-  other takedown (a confirmed flagged image, the media-scan worker's
-  quarantine auto-hide, the canvas-sync collector), reach that cache when
-  its ten-minute entry expires.
+  the play page stops framing it. A staff hide or unhide, a flagged image's
+  quarantine, dismiss or confirm, and a game settings change announce the
+  release (or project) on Redis's `engine:release-changes` channel, and
+  every web process drops it from its frame-route cache at once; the
+  canvas-sync collector doesn't announce, so a collected release, like a
+  missed notice, reaches that cache when its ten-minute entry expires.
 - **Edge purge.** Every takedown purges the release's five shell files
   (`index.html`, `release.json`, `credits.html`, `sw.js`,
   `app.webmanifest`) by URL through Cloudflare's
   `POST /zones/<id>/purge_cache` with `files`: staff hide and unhide in the
   web app, the quarantine auto-hide and a confirm (`src/lib/image-quarantine.ts`,
-  for each release it newly hides), and the collector (each release it
-  collects). All of them call `src/lib/cloudflare-purge.ts`, which is
+  for each release it newly hides; the flagged image's own URLs go too, in
+  every release that lists it, since an image is viewable without its
+  release booting), the collector (each release it collects), and a game
+  settings change (`src/lib/engine/game-settings.ts`, every kept release)
+  that takes a public or unlisted game private or changes its connect
+  origins or `online`, since each shell keeps its CSP at the edge. All of them call `src/lib/cloudflare-purge.ts`, which is
   import-free so both services copy it. It is best effort and logged, and
   runs only in a process that has `CLOUDFLARE_ZONE_ID`,
   `CLOUDFLARE_PURGE_TOKEN` and a frame origin (`ENGINE_PLAY_ORIGIN`, else

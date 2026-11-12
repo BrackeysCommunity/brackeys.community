@@ -5,7 +5,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { RELEASE_FILE, type ReleaseManifest } from "@jams/engine/project";
 
 import { PROJECT_QUOTA } from "../../../src/lib/engine/limits";
-import type { QuotaName, UsageLine } from "../../../src/lib/engine/quota";
+import { quotaAmount, quotaLabel, type UsageLine } from "../../../src/lib/engine/quota";
 import {
   engineReleaseCommitPath,
   engineReleaseFilePath,
@@ -242,21 +242,6 @@ const shortId = (id: string) => `${id.slice(0, 6)}…`;
 const plural = (n: number, one: string, many = `${one}s`) =>
   `${formatCount(n)} ${n === 1 ? one : many}`;
 
-const QUOTA_WORDS: Readonly<Record<QuotaName, { name: string; bytes: boolean }>> = {
-  assetBytes: { name: "asset storage", bytes: true },
-  docs: { name: "documents", bytes: false },
-  docBytes: { name: "document storage", bytes: true },
-  releaseBytes: { name: "release size", bytes: true },
-  releaseFiles: { name: "files in a release", bytes: false },
-  releaseFileBytes: { name: "file size", bytes: true },
-  releaseStorageBytes: { name: "release storage", bytes: true },
-  jamPins: { name: "jam pins", bytes: false },
-  releasesPerDay: { name: "releases today", bytes: false },
-};
-
-const amount = (quota: QuotaName, n: number) =>
-  QUOTA_WORDS[quota].bytes ? formatBytes(n) : formatCount(n);
-
 /** Amber on a terminal that takes colour; plain everywhere else (pipes, `--json`, MCP). */
 function amber(text: string, env: Readonly<Record<string, string | undefined>>): string {
   return process.stdout.isTTY && env.NO_COLOR === undefined ? `\x1b[33m${text}\x1b[0m` : text;
@@ -267,8 +252,8 @@ export function quotaWarnings(lines: readonly UsageLine[]): string[] {
   return lines
     .filter((l) => l.level !== "ok")
     .map((l) => {
-      const { name } = QUOTA_WORDS[l.quota];
-      const of = `${amount(l.quota, l.used)} of ${amount(l.quota, l.max)}`;
+      const name = quotaLabel(l.quota);
+      const of = `${quotaAmount(l.quota, l.used)} of ${quotaAmount(l.quota, l.max)}`;
       return l.level === "full"
         ? `warning: ${name} is full: ${of}`
         : `warning: ${name} is ${Math.floor(l.ratio * 100)}% full: ${of}`;
@@ -532,7 +517,7 @@ async function release(
     `  Play:     ${committed.playUrl}`,
     ...(storage
       ? [
-          `  Storage:  ${formatBytes(storage.used)} of ${formatBytes(storage.max)} release storage · ${formatCount(kept)} of ${formatCount(PROJECT_QUOTA.releasesKept)} releases kept`,
+          `  Storage:  ${formatBytes(storage.used)} of ${formatBytes(storage.max)} ${quotaLabel("releaseStorageBytes")} · ${formatCount(kept)} of ${formatCount(PROJECT_QUOTA.releasesKept)} releases kept`,
         ]
       : []),
     `  Removal:  ${removal ? `v${removal.version} on ${releaseDay(removal.at)} (not pinned)` : "none due"}`,

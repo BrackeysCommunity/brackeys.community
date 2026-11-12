@@ -102,3 +102,44 @@ describe("setGameSettings: the edge after going private", () => {
     expect(purged).toEqual([]);
   });
 });
+
+describe("setGameSettings: the edge after a CSP change", () => {
+  it("purges a public game's shells when its connect origins or online change", async () => {
+    await set({ connectOrigins: ["https://api.example.test"] });
+    expect(purged.sort(), "a wider connect-src").toEqual([hex(1), hex(2)]);
+    purged = [];
+    await set({ connectOrigins: [] });
+    expect(purged.sort(), "a narrower one").toEqual([hex(1), hex(2)]);
+    purged = [];
+    await set({ online: true });
+    expect(purged.sort(), "the sync origin").toEqual([hex(1), hex(2)]);
+  });
+
+  it("leaves the edge alone for a private game, or when the origins stay the same", async () => {
+    await set({ connectOrigins: ["https://api.example.test"] });
+    purged = [];
+    await set({ connectOrigins: ["https://api.example.test"] });
+    expect(purged).toEqual([]);
+    await set({ visibility: "private" });
+    purged = [];
+    await set({ connectOrigins: [], online: true });
+    expect(purged).toEqual([]);
+  });
+});
+
+describe("setGameSettings: other web processes", () => {
+  it("announces the project to every frame cache by default", async () => {
+    const notices = await import("../frame-cache-notice");
+    const announce = vi.spyOn(notices, "announceReleaseChange").mockResolvedValue();
+    try {
+      const { forget: _local, ...rest } = deps;
+      await setGameSettings(
+        { projectId: PROJECT, patch: { saveMode: "none" }, actor: creator },
+        rest,
+      );
+      expect(announce).toHaveBeenCalledWith({ releaseIds: [], projectIds: [PROJECT] });
+    } finally {
+      announce.mockRestore();
+    }
+  });
+});

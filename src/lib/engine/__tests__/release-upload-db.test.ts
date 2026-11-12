@@ -13,6 +13,12 @@ import {
   engineReleaseUploads,
   imageScans,
 } from "@/db/schema";
+import {
+  ENGINE_QUARANTINE_REASON,
+  type ImageObjectStore,
+  quarantineImage,
+  restoreImage,
+} from "@/lib/image-quarantine";
 import { seedUser, type TestDb } from "@/test/db";
 
 import { PROJECT_QUOTA } from "../limits";
@@ -631,6 +637,109 @@ describe("commitRelease", () => {
     expect(
       await refusal(() => commitRelease(deps(), { uploadId: begun.uploadId, actor: staff })),
     ).toMatchObject({ code: "release-upload-expired" });
+  });
+});
+
+describe("a release listing an image under review", () => {
+  /** A hosted game's image never reaches the bucket calls; a call here fails the case. */
+  const untouched: ImageObjectStore = {
+    move: async (from) => {
+      throw new Error(`moved ${from}`);
+    },
+    remove: async (key) => {
+      throw new Error(`removed ${key}`);
+    },
+  };
+  const takedown = { purge: async () => {} };
+
+  beforeEach(async () => {
+    await db.delete(imageScans);
+  });
+
+  const hidden = async () =>
+    Object.fromEntries(
+      (
+        await db
+          .select({ version: engineReleases.version, reason: engineReleases.hiddenReason })
+          .from(engineReleases)
+          .orderBy(asc(engineReleases.version))
+      ).map((r) => [r.version, r.reason]),
+    );
+
+  it("commits hidden when it reuses a quarantined release file, and the dismiss shows it", async () => {
+    const r1 = await release();
+    await publish(r1);
+    const key = `engine-releases/${PROJECT}/${textureOf(r1).sha256}`;
+    await db.insert(imageScans).values({
+      objectKey: key,
+      ownerType: "engine_release_file",
+      ownerId: PROJECT,
+      uploaderId: "member",
+      status: "scanned",
+    });
+    await quarantineImage(db, untouched, key, takedown);
+    expect(await hidden()).toEqual({ 1: ENGINE_QUARANTINE_REASON });
+
+    const r2 = await release({ hallVariant: 1 });
+    const begun = await begin(r2);
+    // Begin's dedupe holds the image already, so nothing sends it again.
+    expect(begun.missing.map((f) => f.sha256)).not.toContain(textureOf(r2).sha256);
+    await putAll(r2, begun.uploadId, begun.missing);
+    const committed = await commitRelease(deps(), { uploadId: begun.uploadId, actor: staff });
+    expect(committed).toMatchObject({ version: 2, created: true });
+    expect(await hidden()).toEqual({ 1: ENGINE_QUARANTINE_REASON, 2: ENGINE_QUARANTINE_REASON });
+
+    const [release2] = await db
+      .select({ hiddenAt: engineReleases.hiddenAt, hiddenById: engineReleases.hiddenById })
+      .from(engineReleases)
+      .where(eq(engineReleases.id, r2.releaseId));
+    expect(release2).toEqual({ hiddenAt: NOW, hiddenById: null });
+    const audit = await db
+      .select({ action: engineReleaseAudit.action, actorKind: engineReleaseAudit.actorKind })
+      .from(engineReleaseAudit)
+      .where(eq(engineReleaseAudit.releaseId, r2.releaseId))
+      .orderBy(asc(engineReleaseAudit.id));
+    expect(audit).toEqual([
+      { action: "create", actorKind: "user" },
+      { action: "hide", actorKind: "system" },
+      { action: "promote", actorKind: "user" },
+    ]);
+
+    await restoreImage(db, untouched, key, takedown);
+    expect(await hidden()).toEqual({ 1: null, 2: null });
+  });
+
+  it("commits hidden when it lists a project blob under review", async () => {
+    const r = await release();
+    const { key } = await holdTextureAsBlob(r);
+    await db.insert(imageScans).values({
+      objectKey: key,
+      ownerType: "engine_blob",
+      ownerId: PROJECT,
+      uploaderId: "member",
+      status: "quarantined",
+    });
+    await publish(r);
+    expect(await hidden()).toEqual({ 1: ENGINE_QUARANTINE_REASON });
+    const [scan] = await db
+      .select({ detached: imageScans.detached })
+      .from(imageScans)
+      .where(eq(imageScans.objectKey, key));
+    expect(scan?.detached).toMatchObject({ engineReleases: [r.releaseId] });
+  });
+
+  it("commits visible once the image is cleared", async () => {
+    const r = await release();
+    const { key } = await holdTextureAsBlob(r);
+    await db.insert(imageScans).values({
+      objectKey: key,
+      ownerType: "engine_blob",
+      ownerId: PROJECT,
+      uploaderId: "member",
+      status: "cleared",
+    });
+    await publish(r);
+    expect(await hidden()).toEqual({ 1: null });
   });
 });
 

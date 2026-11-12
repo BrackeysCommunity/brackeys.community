@@ -23,14 +23,23 @@ export function hostOf(origin: string): string | null {
   }
 }
 
-/** The play host: `ENGINE_PLAY_ORIGIN`'s (or `configured`'s) host, else null when frames share the site's. */
+const env = (name: string): string | undefined =>
+  typeof process === "undefined" ? undefined : process.env[name];
+
+/**
+ * The play host: `ENGINE_PLAY_ORIGIN`'s (or `configured`'s) host, else null
+ * when frames share the site's, including a play origin set to the site's
+ * own (`site`, default `VITE_SITE_ORIGIN` or `APP_URL`), which would
+ * otherwise turn every page of the site into a 404.
+ */
 export function playHost(
-  configured: string | null | undefined = typeof process === "undefined"
-    ? undefined
-    : process.env.ENGINE_PLAY_ORIGIN,
+  configured: string | null | undefined = env("ENGINE_PLAY_ORIGIN"),
+  site: string | null | undefined = env("VITE_SITE_ORIGIN") || env("APP_URL"),
 ): string | null {
   const trimmed = configured?.trim();
-  return trimmed ? hostOf(trimmed) : null;
+  const host = trimmed ? hostOf(trimmed) : null;
+  const siteHost = site?.trim() ? hostOf(site.trim()) : null;
+  return host === siteHost ? null : host;
 }
 
 /** Whether `url` came in on the play host; false while there is none. */

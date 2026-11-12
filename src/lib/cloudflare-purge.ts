@@ -104,8 +104,25 @@ export async function purgeUrls(
   return { purged: true, urls: urls.length };
 }
 
+/** A release file's URL on the public frame prefix, each path segment encoded as the browser asks for it. */
+export function releaseFileUrl(releaseId: string, path: string, origin: string): string {
+  return `${origin}/frames/${releaseId}/${path.split("/").map(encodeURIComponent).join("/")}`;
+}
+
 /** Purges one release's five shell files from the edge. */
 export async function purgeShell(releaseId: string, deps: PurgeDeps = {}): Promise<PurgeResult> {
+  return purgeReleaseFiles(releaseId, [], deps);
+}
+
+/**
+ * Purges one release's shell and the release paths in `files` from the
+ * edge: a flagged image is viewable on its own URL, shell or not.
+ */
+export async function purgeReleaseFiles(
+  releaseId: string,
+  files: readonly string[],
+  deps: PurgeDeps = {},
+): Promise<PurgeResult> {
   const origin = deps.origin === undefined ? configuredPlayOrigin() : deps.origin;
   if (!origin) {
     (deps.log ?? ((message, context) => console.warn(message, context ?? {})))(
@@ -114,5 +131,7 @@ export async function purgeShell(releaseId: string, deps: PurgeDeps = {}): Promi
     );
     return { purged: false, reason: NO_ORIGIN };
   }
-  return purgeUrls(shellUrls(releaseId, origin), deps);
+  const urls = new Set(shellUrls(releaseId, origin));
+  for (const path of files) urls.add(releaseFileUrl(releaseId, path, origin));
+  return purgeUrls([...urls], deps);
 }

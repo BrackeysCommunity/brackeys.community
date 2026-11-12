@@ -4,8 +4,9 @@ import type { SceneIssue } from "../scene/types";
 import {
   frameMessageSchema,
   HOST_HANDSHAKE_TIMEOUT_MS,
-  HOST_WELCOME_TIMEOUT_MS,
   HOST_PROTOCOL_VERSION,
+  HOST_REQUEST_TIMEOUT_MS,
+  HOST_WELCOME_TIMEOUT_MS,
   HOST_REQUESTS,
   hostHandshakeSchema,
   hostMessageSchema,
@@ -25,8 +26,9 @@ export type HostChannel = {
   readonly dropped: number;
   /**
    * One request; rejects with a `HostRequestError` carrying the page's
-   * issue, or `save-store-failed` when the channel closes first or the
-   * page's result isn't the method's.
+   * issue, or `save-store-failed` when the channel closes first, the page
+   * doesn't answer within the channel's `requestTimeoutMs`, or the page's
+   * result isn't the method's.
    */
   request<M extends HostRequestMethod>(
     method: M,
@@ -48,6 +50,8 @@ export type ConnectHostOptions = {
   timeoutMs?: number;
   /** How long to wait for `welcome` once the port arrived; default `HOST_WELCOME_TIMEOUT_MS`. */
   welcomeTimeoutMs?: number;
+  /** How long each later request waits for the page's reply; default `HOST_REQUEST_TIMEOUT_MS`. */
+  requestTimeoutMs?: number;
   /** The frame's window; default the global one. */
   window?: Window;
 };
@@ -69,7 +73,10 @@ type Pending = {
   method: HostRequestMethod;
   resolve(result: unknown): void;
   reject(error: HostRequestError): void;
+  timer?: ReturnType<typeof setTimeout>;
 };
+
+const seconds = (ms: number) => `${Math.round(ms / 100) / 10} s`;
 
 type Listeners = { [E in keyof HostEvents]: Set<(data: HostEvents[E]) => void> };
 
@@ -84,8 +91,14 @@ function deliver<T>(fns: Iterable<(data: T) => void>, data: T): void {
   }
 }
 
+type OpenChannel = HostChannel & {
+  setWelcome(w: HostWelcome): void;
+  /** `hello`, bounded by `connectHost`'s welcome timeout rather than the request one. */
+  hello(params: HostRequestParams<"hello">): Promise<HostWelcome>;
+};
+
 /** The channel over `port`; `welcome` is set once `hello` is answered. */
-function openChannel(port: MessagePort): HostChannel & { setWelcome(w: HostWelcome): void } {
+function openChannel(port: MessagePort, requestTimeoutMs: number): OpenChannel {
   let nextId = 0;
   let dropped = 0;
   let closed = false;
@@ -113,7 +126,7 @@ function openChannel(port: MessagePort): HostChannel & { setWelcome(w: HostWelco
           dropped++;
           return;
         }
-        pending.delete(message.id);
+        settle(message.id);
         if (!message.ok) {
           waiting.reject(new HostRequestError(message.issue));
           return;
@@ -148,6 +161,37 @@ function openChannel(port: MessagePort): HostChannel & { setWelcome(w: HostWelco
     }
   };
 
+  /** Forgets request `id` and its timer. */
+  function settle(id: number): void {
+    const waiting = pending.get(id);
+    if (waiting?.timer !== undefined) globalThis.clearTimeout(waiting.timer);
+    pending.delete(id);
+  }
+
+  function send<M extends HostRequestMethod>(
+    method: M,
+    params: HostRequestParams<M>,
+    timeoutMs: number | null,
+  ): Promise<HostRequestResult<M>> {
+    if (closed)
+      return Promise.reject(channelFailed(`${method}: the channel to the page is closed`));
+    const id = nextId++;
+    return new Promise<HostRequestResult<M>>((resolve, reject) => {
+      const waiting: Pending = { method, resolve: resolve as (r: unknown) => void, reject };
+      pending.set(id, waiting);
+      if (!post({ type: method, id, params })) {
+        pending.delete(id);
+        reject(channelFailed(`${method}: the request isn't one the channel can carry`));
+        return;
+      }
+      if (timeoutMs !== null)
+        waiting.timer = globalThis.setTimeout(() => {
+          pending.delete(id);
+          reject(channelFailed(`${method}: the page didn't answer within ${seconds(timeoutMs)}`));
+        }, timeoutMs);
+    });
+  }
+
   port.onmessage = (event: MessageEvent) => receive(event.data);
   port.start();
 
@@ -162,18 +206,8 @@ function openChannel(port: MessagePort): HostChannel & { setWelcome(w: HostWelco
     setWelcome(w) {
       welcome = w;
     },
-    request<M extends HostRequestMethod>(method: M, params: HostRequestParams<M>) {
-      if (closed)
-        return Promise.reject(channelFailed(`${method}: the channel to the page is closed`));
-      const id = nextId++;
-      return new Promise<HostRequestResult<M>>((resolve, reject) => {
-        pending.set(id, { method, resolve: resolve as (r: unknown) => void, reject });
-        if (!post({ type: method, id, params })) {
-          pending.delete(id);
-          reject(channelFailed(`${method}: the request isn't one the channel can carry`));
-        }
-      });
-    },
+    hello: (params) => send("hello", params, null),
+    request: (method, params) => send(method, params, requestTimeoutMs),
     on(event, fn) {
       const set = listeners[event] as Set<typeof fn>;
       if (!closed) set.add(fn);
@@ -192,8 +226,10 @@ function openChannel(port: MessagePort): HostChannel & { setWelcome(w: HostWelco
       closed = true;
       port.onmessage = null;
       port.close();
-      for (const waiting of pending.values())
+      for (const waiting of pending.values()) {
+        if (waiting.timer !== undefined) globalThis.clearTimeout(waiting.timer);
         waiting.reject(channelFailed(`${waiting.method}: the channel to the page closed`));
+      }
       pending.clear();
       for (const set of Object.values(listeners)) set.clear();
     },
@@ -207,7 +243,8 @@ function openChannel(port: MessagePort): HostChannel & { setWelcome(w: HostWelco
  * frame has no parent, no port arrives within `timeoutMs`, or no `welcome`
  * within `welcomeTimeoutMs` after it;
  * the game then plays as a plain standalone build. Every other window
- * message is ignored.
+ * message is ignored. Each request after `hello` waits `requestTimeoutMs`
+ * for its reply.
  */
 export function connectHost(opts: ConnectHostOptions): Promise<HostChannel | null> {
   const win = opts.window ?? (typeof window === "undefined" ? undefined : window);
@@ -216,7 +253,7 @@ export function connectHost(opts: ConnectHostOptions): Promise<HostChannel | nul
   const timeoutMs = opts.timeoutMs ?? HOST_HANDSHAKE_TIMEOUT_MS;
 
   return new Promise((resolve) => {
-    let channel: ReturnType<typeof openChannel> | null = null;
+    let channel: OpenChannel | null = null;
     let settled = false;
     const finish = (welcome: HostWelcome | null) => {
       if (settled) return;
@@ -242,9 +279,9 @@ export function connectHost(opts: ConnectHostOptions): Promise<HostChannel | nul
         () => finish(null),
         opts.welcomeTimeoutMs ?? HOST_WELCOME_TIMEOUT_MS,
       );
-      const opened = openChannel(port);
+      const opened = openChannel(port, opts.requestTimeoutMs ?? HOST_REQUEST_TIMEOUT_MS);
       channel = opened;
-      opened.request("hello", opts.hello).then(finish, () => finish(null));
+      opened.hello(opts.hello).then(finish, () => finish(null));
     };
     win.addEventListener("message", onMessage);
     try {

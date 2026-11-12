@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { PgAsyncDatabase } from "drizzle-orm/pg-core";
 
 import {
@@ -17,6 +17,7 @@ import {
   engineReleaseObjects,
   engineReleases,
   engineReleaseUploads,
+  engineSaves,
   itchTierHeartbeats,
 } from "../../../../src/db/schema.ts";
 import { purgeShell } from "../../../../src/lib/cloudflare-purge.ts";
@@ -24,6 +25,7 @@ import {
   blobsDue,
   nextCollectorRun,
   releasesToCollect,
+  savesDue,
 } from "../../../../src/lib/engine/collect-plan.ts";
 import {
   BLOB_GRACE_DAYS,
@@ -31,7 +33,7 @@ import {
   PROJECT_PURGE_DAYS,
 } from "../../../../src/lib/engine/limits.ts";
 import { writeAudit } from "../../../../src/lib/engine/release-audit.ts";
-import { engineProjectPrefixes } from "../../../../src/lib/engine/storage-keys.ts";
+import { engineProjectPrefixes, engineSaveKey } from "../../../../src/lib/engine/storage-keys.ts";
 import { formatBytes } from "../../../../src/lib/format-bytes.ts";
 import { readProjectState } from "../../../../src/lib/scene/project-bytes.ts";
 import type { ServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
@@ -39,8 +41,8 @@ import type { CollectorObjectStore } from "./object-store.ts";
 
 /**
  * The daily cleanup of hosted games: releases beyond the kept set, release
- * files nothing lists, blobs nothing references, expired uploads and
- * projects deleted long enough ago. Every run works out the whole plan from
+ * files nothing lists, blobs nothing references, saves nobody has used for
+ * the expiry period, expired uploads and projects deleted long enough ago. Every run works out the whole plan from
  * what is stored and logs it; in `report` mode that is all it does.
  *
  * Deletions go object first, then row, so a run that stops halfway leaves
@@ -51,17 +53,18 @@ import type { CollectorObjectStore } from "./object-store.ts";
 
 export type CollectorMode = "report" | "delete";
 
-export type CollectorStep = "releases" | "orphans" | "blobs" | "uploads" | "projects";
+export type CollectorStep = "releases" | "orphans" | "blobs" | "saves" | "uploads" | "projects";
 
 export const COLLECTOR_STEPS: readonly CollectorStep[] = [
   "releases",
   "orphans",
   "blobs",
+  "saves",
   "uploads",
   "projects",
 ];
 
-/** One deletion: a release's manifest and files, an object and its row, an upload, a project row. */
+/** One deletion: a release's manifest and files, an object and its row (a save's too), an upload, a project row. */
 export type CollectorAction = {
   step: CollectorStep;
   projectId: string;
@@ -605,6 +608,8 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
     }
 
     const purgeBefore = new Date(clock().getTime() - PROJECT_PURGE_DAYS * DAY_MS);
+    await expireSaves(savesDue(clock()), purgeBefore);
+
     const deleted = await db
       .select({ projectId: engineProjects.projectId })
       .from(engineProjects)
@@ -639,9 +644,104 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
   }
   return finish();
 
-  /** Every object under the project's prefixes and every object its rows name, then the row. */
+  /**
+   * Saves last used before `before`, 500 at a time: the object, then the row.
+   * A project the purge step removes this run is left to it, so no save is
+   * planned twice.
+   */
+  async function expireSaves(before: Date, purgeBefore: Date): Promise<void> {
+    let after: { userId: string; projectId: string; slot: string } | undefined;
+    for (;;) {
+      if (options.shouldStop?.()) return;
+      const rows = await db
+        .select({
+          userId: engineSaves.userId,
+          projectId: engineSaves.projectId,
+          slot: engineSaves.slot,
+          bytes: engineSaves.bytes,
+        })
+        .from(engineSaves)
+        .innerJoin(engineProjects, eq(engineProjects.projectId, engineSaves.projectId))
+        .where(
+          and(
+            lt(engineSaves.usedAt, before),
+            or(isNull(engineProjects.deletedAt), gt(engineProjects.deletedAt, purgeBefore)),
+            scope ? inArray(engineSaves.projectId, [...scope]) : undefined,
+            after
+              ? sql`(${engineSaves.userId}, ${engineSaves.projectId}, ${engineSaves.slot}) > (${after.userId}, ${after.projectId}, ${after.slot})`
+              : undefined,
+          ),
+        )
+        .orderBy(asc(engineSaves.userId), asc(engineSaves.projectId), asc(engineSaves.slot))
+        .limit(CHUNK);
+      for (const row of rows) {
+        const key = engineSaveKey(row.userId, row.projectId, row.slot);
+        const action = {
+          step: "saves",
+          projectId: row.projectId,
+          target: key,
+          bytes: row.bytes,
+        } as const;
+        if (!plan(action, true)) continue;
+        try {
+          if (!(await removeSave(row, key, before)))
+            log(`[collector] kept ${key}: it was used after the plan`);
+        } catch (error) {
+          // The bucket failing one save fails the rest: leave them to the next run.
+          failures.push({ projectId: row.projectId, error: message(error) });
+          log(`[collector] save ${key} failed: ${message(error)}`);
+          telemetry.captureException(error, {
+            during: "engine-collector-saves",
+            project_id: row.projectId,
+          });
+          return;
+        }
+      }
+      const last = rows.at(-1);
+      if (rows.length < CHUNK || !last) return;
+      after = last;
+      await pause();
+    }
+  }
+
+  /** Under the save's row lock, unless a read or a write used it since the plan. */
+  async function removeSave(
+    save: { userId: string; projectId: string; slot: string },
+    key: string,
+    before: Date,
+  ): Promise<boolean> {
+    const due = and(
+      eq(engineSaves.userId, save.userId),
+      eq(engineSaves.projectId, save.projectId),
+      eq(engineSaves.slot, save.slot),
+      lt(engineSaves.usedAt, before),
+    );
+    return db.transaction(async (tx: CollectorTx) => {
+      const [row] = await tx
+        .select({ slot: engineSaves.slot })
+        .from(engineSaves)
+        .where(due)
+        .for("update");
+      if (!row) return false;
+      await objects!.remove(key);
+      await tx.delete(engineSaves).where(due);
+      return true;
+    });
+  }
+
+  /**
+   * Every object under the project's prefixes, every object its rows name and
+   * its saves (read before anything goes, as deleting the row cascades them),
+   * then the row.
+   */
   async function purgeProject(projectId: string, purgeBefore: Date): Promise<void> {
     const sizes = new Map<string, number>();
+    const saves = await db
+      .select({ userId: engineSaves.userId, slot: engineSaves.slot, bytes: engineSaves.bytes })
+      .from(engineSaves)
+      .where(eq(engineSaves.projectId, projectId));
+    for (const { userId, slot, bytes } of saves)
+      sizes.set(engineSaveKey(userId, projectId, slot), bytes);
     const blobs = await db
       .select({ key: engineBlobs.storageKey, bytes: engineBlobs.byteSize })
       .from(engineBlobs)

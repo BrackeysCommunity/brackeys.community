@@ -606,6 +606,8 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
     }
   },
   "save-store-failed": () => storeIssues["save-store-failed"] ?? [],
+  // Hosts raise it (a site refusing a signed-out player's save); the engine passes it through.
+  "save-forbidden": null,
   // An export icon that isn't a PNG of its size; a build's missing files are checkReleaseManifest's, tested in release.test.ts.
   "export-asset-missing": () =>
     planIcons({

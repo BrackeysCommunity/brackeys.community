@@ -49,7 +49,8 @@ import {
   withTimeout,
   type BrowserName,
 } from "./browser-compare";
-import { describeFailure, REPO, VP } from "./pack";
+import { describeFailure, REPO } from "./pack";
+import { buildOne, pageErrors, waitReady } from "./smoke-page";
 import { serveStatic, type StaticServer } from "./static-server";
 
 // ─── What runs ───────────────────────────────────────────
@@ -83,7 +84,6 @@ export const RESTORE_AFTER_MS = 500;
 export const RESTORE_TIMEOUT_MS = 15_000;
 /** One whole run in one browser: load, play, and for offline a second load. */
 export const RUN_TIMEOUT_MS = 3 * PAGE_TIMEOUT_MS;
-export const BUILD_TIMEOUT_MS = 10 * 60_000;
 export const BUNDLE_CHECK_TIMEOUT_MS = 2 * 60_000;
 
 export type RunKind = "play" | "offline" | "context-loss" | "host";
@@ -591,20 +591,6 @@ export function exportSmokeReport(
 
 // ─── Building ────────────────────────────────────────────
 
-/** `game build` into `out`; the release id it printed, or the reason it failed. */
-function buildOne(b: SmokeBuild, out: string): { release: string | null; reason?: string } {
-  const args = ["run", "scene", "game", "build", b.game, "--target", b.target, "--out", out];
-  const res = spawnSync(VP, args, {
-    cwd: REPO,
-    encoding: "utf8",
-    timeout: BUILD_TIMEOUT_MS,
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  if (res.status !== 0)
-    return { release: null, reason: describeFailure(`vp ${args.join(" ")}`, res) };
-  return { release: /\(release ([0-9a-f]{64})\)/.exec(res.stdout)?.[1] ?? null };
-}
-
 /** `engine-bundle-check --export <out>`: no editor, editor UI, dev server or debug code in the build. */
 function bundleCheck(out: string): BundleCheckOutcome {
   const res = spawnSync(
@@ -620,34 +606,6 @@ function bundleCheck(out: string): BundleCheckOutcome {
 }
 
 // ─── In the browser ──────────────────────────────────────
-
-/** Rejects with the page's first uncaught error, for racing against whatever the run waits on. */
-function pageErrors(page: Page): Promise<never> {
-  const failed = new Promise<never>((_, reject) => {
-    page.once("pageerror", (err) => reject(new Error(`uncaught in the page: ${err.message}`)));
-  });
-  failed.catch(() => {});
-  return failed;
-}
-
-/** Waits for the standalone host's `ready`; its `error` throws with the page's refusal. */
-async function waitReady(page: Frame): Promise<void> {
-  const handle = await page.waitForFunction(
-    () => {
-      const state = document.documentElement.dataset.jamsState;
-      return state === "ready" || state === "error" ? state : null;
-    },
-    null,
-    { timeout: PAGE_TIMEOUT_MS },
-  );
-  if ((await handle.jsonValue()) === "ready") return;
-  const shown = await page
-    .locator("[data-jams-error]")
-    .first()
-    .textContent({ timeout: 1000 })
-    .catch(() => null);
-  throw new Error(`the page reports jamsState "error"${shown ? `: ${shown.trim()}` : ""}`);
-}
 
 /** The page's box once ready: the window, what it scrolls over and the canvas's rect. */
 function pageLayout(page: Frame): Promise<PageLayout> {

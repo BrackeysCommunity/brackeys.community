@@ -25,10 +25,11 @@ export type SaveMode = "site" | "own" | "none";
 export type HostServerOptions = {
   iframe: HTMLIFrameElement;
   release: { id: string; gameId: string; projectId: string };
-  /** Local or site saves; read again after sign-in. */
+  /** This browser's saves signed out, the save API's signed in; read on every request. */
   saves: () => SaveStore;
   describe: () => string;
-  mode: SaveMode;
+  /** Where the project saves; a function when it can change while the page is open. */
+  mode: SaveMode | (() => SaveMode);
   /** The project plays online; `welcome` tells the frame. Default false. */
   online?: boolean;
   prefs: {
@@ -43,7 +44,7 @@ export type HostServerOptions = {
 };
 
 export type HostServer = {
-  /** Tells the frame where saves go now (after sign-in or a claim). */
+  /** Tells the frame where saves go now: after a claim, or when the store, its limits or the mode change. */
   notifySavesChanged(): void;
   pause(): void;
   resume(): void;
@@ -54,6 +55,8 @@ export type HostServer = {
 
 export const HOST_THROTTLED_MESSAGE = "Too many save requests; try again in a moment.";
 export const HOST_NO_SITE_SAVES_MESSAGE = `This game doesn't save to ${SITE.name}.`;
+export const HOST_NO_SITE_SAVES_HINT =
+  "Its publisher set it to save on its own servers or not at all.";
 
 /** How often each kind of message may arrive: `max` within `windowMs`. */
 export const HOST_RATES = {
@@ -88,6 +91,14 @@ class Refusal extends Error {
 
 const storeFailed = (message: string) => new Refusal(makeIssue("save-store-failed", { message }));
 
+const notSiteSaves = () =>
+  new Refusal(
+    makeIssue("save-forbidden", {
+      message: HOST_NO_SITE_SAVES_MESSAGE,
+      hint: HOST_NO_SITE_SAVES_HINT,
+    }),
+  );
+
 type MessageOf<T extends FrameMessage["type"]> = Extract<FrameMessage, { type: T }>;
 
 /** One row per message type: the rate it counts against, and what the page does with it. */
@@ -117,6 +128,10 @@ export function createHostServer(opts: HostServerOptions): HostServer {
   let dropped = 0;
   let disposed = false;
 
+  const modeNow = (): SaveMode => (typeof opts.mode === "function" ? opts.mode() : opts.mode);
+  /** Site writes are refused for a game that saves on its own servers or not at all. */
+  const siteSaves = () => modeNow() === "site";
+
   const savesNow = (): HostSaves => {
     const store = opts.saves();
     return {
@@ -125,7 +140,7 @@ export function createHostServer(opts: HostServerOptions): HostServer {
         maxBytes: Math.min(SITE_SAVE_LIMITS.maxBytes, store.limits?.maxBytes ?? Infinity),
         maxSlots: Math.min(SITE_SAVE_LIMITS.maxSlots, store.limits?.maxSlots ?? Infinity),
       },
-      mode: opts.mode,
+      mode: modeNow(),
     };
   };
 
@@ -142,9 +157,6 @@ export function createHostServer(opts: HostServerOptions): HostServer {
     if (named !== gameId)
       throw storeFailed(`This page keeps saves for "${gameId}", not "${named}".`);
   };
-
-  /** Site writes are refused for a game that saves on its own servers or not at all. */
-  const siteSaves = opts.mode === "site";
 
   const table: DispatchTable = {
     hello: {
@@ -168,21 +180,21 @@ export function createHostServer(opts: HostServerOptions): HostServer {
       rate: "saves",
       async handle({ params }) {
         ownGame(params.gameId);
-        return siteSaves ? [...(await opts.saves().list(gameId))] : [];
+        return siteSaves() ? [...(await opts.saves().list(gameId))] : [];
       },
     },
     "saves.read": {
       rate: "saves",
       async handle({ params }) {
         ownGame(params.gameId);
-        return siteSaves ? await opts.saves().read(gameId, params.slot) : null;
+        return siteSaves() ? await opts.saves().read(gameId, params.slot) : null;
       },
     },
     "saves.write": {
       rate: "saves",
       async handle({ params }) {
         ownGame(params.gameId);
-        if (!siteSaves) throw storeFailed(HOST_NO_SITE_SAVES_MESSAGE);
+        if (!siteSaves()) throw notSiteSaves();
         const store = opts.saves();
         const refused = await siteSaveRefusal(params, async () =>
           (await store.list(gameId)).map((s) => s.slot),
@@ -195,7 +207,7 @@ export function createHostServer(opts: HostServerOptions): HostServer {
       rate: "saves",
       async handle({ params }) {
         ownGame(params.gameId);
-        if (siteSaves) await opts.saves().remove(gameId, params.slot);
+        if (siteSaves()) await opts.saves().remove(gameId, params.slot);
         return null;
       },
     },

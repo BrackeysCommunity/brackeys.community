@@ -62,6 +62,14 @@ export function createAuthenticate(options: {
   }: onAuthenticatePayload): Promise<SyncContext> => {
     const claims = await verifyCanvasToken(token, options.secret, options.now());
     if (!claims) throw new SyncRefusal(SYNC_CLOSE.unauthorized, "invalid token", "auth");
+    // No kind hosted here admits a player's token; only game sessions will.
+    if (claims.r === "player") {
+      throw new SyncRefusal(
+        SYNC_CLOSE.unauthorized,
+        "player tokens open game sessions only",
+        "auth",
+      );
+    }
     if (!tokenAdmits(claims, documentName)) {
       throw new SyncRefusal(SYNC_CLOSE.unauthorized, "token is for another document", "auth");
     }

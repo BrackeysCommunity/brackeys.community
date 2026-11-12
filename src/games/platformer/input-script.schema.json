@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:input-script:platformer:v2",
-  "x-agent-surface": 16,
+  "x-agent-surface": 17,
   "title": "jams engine input script for platformer, format v2",
   "type": "object",
   "properties": {

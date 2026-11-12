@@ -1648,7 +1648,7 @@ manifest` prints (the wasm line among them), then where the bundle report went:
 
 ```text
 tactics web: wrote dist/games/tactics/web (release <sha256>)
-  game tactics, engine 0.14.1 (agent surface 16), target web, snapshot <sha256>
+  game tactics, engine 0.14.2 (agent surface 17), target web, snapshot <sha256>
   scenes menu (start, none), level-1 (none), level-2 (none), result (none), cellar (sublevel, none)
   wasm: 0 B (no listed scene uses Rapier)
   files <n> + release.json, <bytes>: code …, shell …, worker …, icon …, asset …, data …
@@ -2799,8 +2799,8 @@ Flow and saves add these; [Flow](#flow) and [Saves](#saves) have an
 example that reports `start-scene-missing`, `save-unsupported` and
 `save-version-newer`. The rest come from a running game: an attach
 returns `sublevel-invalid`, a runtime `go` to an unlisted scene refuses
-with `scene-unlisted`, and a save store or `GameInstance.saves` returns
-the other three:
+with `scene-unlisted`, a save store or `GameInstance.saves` returns
+the save codes, and a host's store returns `save-forbidden`:
 
 | Code                  | Severity | Meaning                                                                                                                                                                           | Fix                                                                                    |
 | --------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -2812,6 +2812,7 @@ the other three:
 | `save-slot-limit`     | error    | A save to a new slot would pass the slot limit (8 by default); overwriting a slot never does.                                                                                     | remove or overwrite a slot, or raise `saves.limits.maxSlots` (64 at most in a browser) |
 | `save-unsupported`    | error    | A world save can't be taken: the scene runs on Rapier, a function timer or coroutine is pending, or the game has no `restore` (`detail.causes`).                                  | take a progress save, or remove each cause                                             |
 | `save-store-failed`   | warn     | The save store threw or refused a read or a write; the game keeps running.                                                                                                        | read the store's `describe`, and try again or use another store                        |
+| `save-forbidden`      | error    | The host refused this save: the player is signed out, or the game doesn't save to that host.                                                                                      | sign in, or check where the game saves                                                 |
 
 Game builds add these; [Game builds](#game-builds) has a build that
 reports `export-target-unsupported`. The rest come from a build of a

@@ -22,6 +22,7 @@ import { StandaloneBootError } from "../errors";
 import { connectHost, HostRequestError, type HostChannel } from "../host-channel";
 import {
   HOST_HANDSHAKE_TIMEOUT_MS,
+  HOST_REQUEST_TIMEOUT_MS,
   HOST_WELCOME_TIMEOUT_MS,
   type HostSaves,
   type HostWelcome,
@@ -431,6 +432,82 @@ describe("the channel's methods", () => {
   });
 });
 
+describe("the request timeout", () => {
+  const silentAfterHello = () =>
+    fakeParent({ answer: (m) => (m.type === "hello" ? undefined : { type: "pause" }) });
+
+  it("fails a request the page never answers after 30 s by default, saying so", async () => {
+    expect(HOST_REQUEST_TIMEOUT_MS).toBe(30_000);
+    const [channel] = await connected(silentAfterHello());
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let outcome: unknown;
+    channel.request("saves.list", { gameId: "test" }).then(
+      () => (outcome = "resolved"),
+      (error: unknown) => (outcome = error),
+    );
+    await vi.advanceTimersByTimeAsync(HOST_REQUEST_TIMEOUT_MS - 1);
+    expect(outcome).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(outcome).toBeInstanceOf(HostRequestError);
+    expect((outcome as HostRequestError).issue).toMatchObject({
+      code: "save-store-failed",
+      message: "saves.list: the page didn't answer within 30 s",
+    });
+  });
+
+  it("drops a reply that arrives after its request timed out", async () => {
+    let lateId: number | undefined;
+    const page = fakeParent({
+      answer: (m) => {
+        if (m.type === "hello") return undefined;
+        lateId = m.id;
+        return { type: "pause" };
+      },
+    });
+    const channel = await connectHost({ hello: HELLO, timeoutMs: 2000, requestTimeoutMs: 50 });
+    channels.push(channel!);
+    await expect(channel!.request("saves.list", { gameId: "test" })).rejects.toThrow(
+      "saves.list: the page didn't answer within 0.1 s",
+    );
+    page.send({ type: "reply", id: lateId, ok: true, result: [] });
+    await vi.waitFor(() => expect(channel!.dropped).toBe(1));
+  });
+
+  it("leaves an answered request alone, its timer cleared", async () => {
+    const [channel] = await connected();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const listed = channel.request("saves.list", { gameId: "test" });
+    await vi.waitFor(() => expect(vi.getTimerCount()).toBe(0));
+    await expect(listed).resolves.toEqual([]);
+    await vi.advanceTimersByTimeAsync(HOST_REQUEST_TIMEOUT_MS * 2);
+    expect(channel.dropped).toBe(0);
+  });
+
+  it("clears a pending request's timer when the channel closes", async () => {
+    const [channel] = await connected(silentAfterHello());
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const pending = channel.request("saves.list", { gameId: "test" });
+    expect(vi.getTimerCount()).toBe(1);
+    channel.close();
+    await expect(pending).rejects.toThrow("saves.list: the channel to the page closed");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("turns a write the page never answers into a failed write", async () => {
+    const [channel] = await connected(silentAfterHello());
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const written = channelSaveStore(channel).write("test", "a", "{}");
+    await vi.advanceTimersByTimeAsync(HOST_REQUEST_TIMEOUT_MS);
+    await expect(written).resolves.toEqual({
+      ok: false,
+      issue: expect.objectContaining({
+        code: "save-store-failed",
+        message: "saves.write: the page didn't answer within 30 s",
+      }),
+    });
+  });
+});
+
 describe("channelSaveStore", () => {
   it("is the host's store, with the welcome's words and limits", async () => {
     const [channel, page] = await connected();
@@ -601,6 +678,22 @@ function serve(b: Build): typeof fetch {
 const own = memorySaveStore();
 const ownGame: GameDefinition = { ...testGame, saves: { version: 1, store: () => own } };
 
+/** Asks to save slot "auto" on its second tick. */
+const saving: GameDefinition = {
+  ...testGame,
+  createRuntime(ctx) {
+    const runtime = testGame.createRuntime(ctx);
+    let ticks = 0;
+    return {
+      ...runtime,
+      afterStep(dtMs, events) {
+        runtime.afterStep?.(dtMs, events);
+        if (++ticks === 2) ctx.saves.request("auto");
+      },
+    };
+  },
+};
+
 describe("bootStandalone with ?host=jams", () => {
   let build: Build;
   let ownBuild: Build;
@@ -716,6 +809,46 @@ describe("bootStandalone with ?host=jams", () => {
     await game.instance.saves.remove("a");
     await expect(own.read(ownGame.id, "a")).resolves.toBeNull();
     expect(page.received.filter((m) => m.type.startsWith("saves."))).toEqual([]);
+  });
+
+  it("hands the page's save-forbidden to the game's save:failed with the page's words", async () => {
+    const forbidden = makeIssue("save-forbidden", {
+      message: "Sign in to save to your jams.team account.",
+    });
+    const page = fakeParent({
+      answer: (m) =>
+        m.type === "saves.write"
+          ? { type: "reply", id: m.id, ok: true, result: { ok: false, issue: forbidden } }
+          : undefined,
+    });
+    const game = await boot(saving);
+    const failed: { slot: string; issue: SceneIssue }[] = [];
+    game.instance.on("save:failed", (e) => failed.push(e));
+    game.instance.step(3);
+    await page.until("saves.write");
+    await vi.waitFor(() => expect(failed).toEqual([{ slot: "auto", issue: forbidden }]));
+  });
+
+  it("hands a write the page never answers to save:failed instead of leaving it pending", async () => {
+    const page = fakeParent({
+      answer: (m) => (m.type === "saves.write" ? { type: "pause" } : undefined),
+    });
+    const game = await boot(saving);
+    const failed: { slot: string; issue: SceneIssue }[] = [];
+    game.instance.on("save:failed", (e) => failed.push(e));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    game.instance.step(3);
+    await page.until("saves.write");
+    await vi.advanceTimersByTimeAsync(HOST_REQUEST_TIMEOUT_MS);
+    expect(failed).toEqual([
+      {
+        slot: "auto",
+        issue: expect.objectContaining({
+          code: "save-store-failed",
+          message: "saves.write: the page didn't answer within 30 s",
+        }),
+      },
+    ]);
   });
 
   it("reports a refusal to the page before closing the channel", async () => {

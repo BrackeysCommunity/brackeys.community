@@ -1,0 +1,91 @@
+import { bindText, type MountUi } from "@jams/engine";
+
+import type { Slice } from "../types";
+
+/** The slot the Save button writes. */
+export const SAVE_SLOT = "slot-1";
+
+/**
+ * The status line, a pause button (`pause`, P or a pad's start, toggles it
+ * too) and a Save button whose note says how the save went.
+ */
+export const createHud: MountUi<Slice> = (ctx) => {
+  const panel = document.createElement("div");
+  Object.assign(panel.style, {
+    position: "absolute",
+    // The host's chrome over the canvas, if any, sets these; see UiContext.root.
+    top: "calc(var(--jams-ui-safe-top, 0px) + 8px)",
+    left: "calc(var(--jams-ui-safe-left, 0px) + 8px)",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "4px 8px",
+    borderRadius: "6px",
+    background: "rgba(0, 0, 0, 0.6)",
+    color: "#fff",
+    font: "14px system-ui, sans-serif",
+    pointerEvents: "auto",
+  });
+
+  const status = document.createElement("p");
+  status.setAttribute("aria-live", "polite");
+  status.style.margin = "0";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  const toggle = () => {
+    if (ctx.game.getStore().state.sim.paused) ctx.game.resume();
+    else ctx.game.pause();
+  };
+  button.addEventListener("click", toggle);
+
+  const saveButton = document.createElement("button");
+  saveButton.type = "button";
+  saveButton.dataset.action = "save";
+  saveButton.textContent = "Save";
+  const note = document.createElement("span");
+  note.dataset.save = "note";
+  const save = async () => {
+    note.textContent = "Saving…";
+    try {
+      const result = await ctx.game.saves.save(SAVE_SLOT, { title: "Own saves" });
+      note.textContent = result.ok ? "Saved" : `Not saved: ${result.issue.message}`;
+    } catch (error) {
+      note.textContent = `Not saved: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  };
+  const onSave = () => void save();
+  saveButton.addEventListener("click", onSave);
+
+  panel.append(status, button, saveButton, note);
+  ctx.root.append(panel);
+  const stops = [
+    bindText(
+      status,
+      ctx,
+      (s) => (s.game as Slice | null)?.reached === true,
+      (reached) => (reached ? "Goal reached!" : "Find the goal."),
+    ),
+    bindText(
+      button,
+      ctx,
+      (s) => s.sim.paused,
+      (paused) => (paused ? "Resume" : "Pause"),
+    ),
+    ctx.game.input.onAction(
+      (e) => {
+        if (e.down && !e.repeat) toggle();
+      },
+      { actions: ["pause"] },
+    ),
+  ];
+
+  return {
+    destroy() {
+      for (const stop of stops) stop();
+      button.removeEventListener("click", toggle);
+      saveButton.removeEventListener("click", onSave);
+      panel.remove();
+    },
+  };
+};

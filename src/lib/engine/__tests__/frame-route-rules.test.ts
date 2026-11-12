@@ -126,6 +126,15 @@ describe("the play host", () => {
     expect(playHost()).toBeNull();
   });
 
+  it("is none when it names the site's own host, so the site never answers itself 404", () => {
+    expect(playHost("https://jams.example.test/", "https://Jams.example.test")).toBeNull();
+    expect(playHost(PLAY, "https://jams.example.test")).toBe("play.example.test");
+    vi.stubEnv("ENGINE_PLAY_ORIGIN", "https://jams.example.test");
+    vi.stubEnv("VITE_SITE_ORIGIN", "https://jams.example.test");
+    expect(playHost()).toBeNull();
+    expect(playHostRefusal(new Request("https://jams.example.test/games/x"))).toBeNull();
+  });
+
   it("answers 404, uncached, for every route but the frames", async () => {
     for (const path of ["/", "/api/rpc/listJams", "/games/x", "/games/x/play/1", "/framesx/a"]) {
       const res = on(path);

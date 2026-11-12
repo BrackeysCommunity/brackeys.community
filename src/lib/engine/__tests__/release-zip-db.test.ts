@@ -25,6 +25,7 @@ import {
 } from "../release-upload";
 import {
   ITCH_ISSUES_HEADER,
+  ITCH_ISSUES_HEADER_MAX_CHARS,
   itchIssuesHeader,
   readItchIssuesHeader,
   releaseZip,
@@ -278,6 +279,24 @@ describe("itchIssuesHeader", () => {
     expect(read?.count).toBe(issues.length);
     expect(read?.messages[0]).toBe(issues[0]!.message);
     expect(read?.messages.every((m) => m.length <= 200)).toBe(true);
+  });
+
+  it("stays small enough for a proxy's header buffer, dropping messages but not the count", () => {
+    const issue = (i: number) =>
+      ({
+        code: "export-itch-layout",
+        severity: "warning",
+        message: `${i} ${"é".repeat(190)}`,
+      }) as const;
+    const issues = Array.from({ length: 12 }, (_, i) => issue(i)) as unknown as Parameters<
+      typeof itchIssuesHeader
+    >[0];
+    const value = itchIssuesHeader(issues);
+    expect(value.length).toBeLessThanOrEqual(ITCH_ISSUES_HEADER_MAX_CHARS);
+    const read = readItchIssuesHeader(value);
+    expect(read?.count).toBe(12);
+    expect(read?.messages.length).toBeGreaterThan(0);
+    expect(read?.messages.length).toBeLessThan(10);
   });
 
   it("reads nothing from a missing or foreign header", () => {

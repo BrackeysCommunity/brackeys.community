@@ -3,17 +3,24 @@ import type { ReactNode } from "react";
 
 import { cx } from "./cx";
 
-/** A determinate bar (`value` of `max`), or an indeterminate one when `value` is null. */
+export type ProgressTone = "primary" | "warning" | "danger";
+
+/**
+ * A determinate bar (`value` of `max`), or an indeterminate one when `value`
+ * is null. `tone` colours the bar, e.g. for a nearly-full or full quota.
+ */
 export function Progress({
   value,
   max = 100,
   label,
+  tone = "primary",
   className,
 }: {
   value: number | null;
   max?: number;
   /** The accessible name; also shown above the bar when given as a node. */
   label?: ReactNode;
+  tone?: ProgressTone;
   className?: string;
 }) {
   return (
@@ -21,6 +28,7 @@ export function Progress({
       value={value}
       max={max}
       className={cx("je-progress", className)}
+      data-tone={tone}
       aria-label={typeof label === "string" ? label : undefined}
     >
       {label != null && typeof label !== "string" ? (

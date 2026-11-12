@@ -44,6 +44,7 @@ import { Route as StaffImageSplatRouteImport } from './routes/staff-image.$'
 import { Route as SettingsPrivacyRouteImport } from './routes/settings.privacy'
 import { Route as SettingsNotificationsRouteImport } from './routes/settings.notifications'
 import { Route as SettingsMotionRouteImport } from './routes/settings.motion'
+import { Route as SettingsGameSavesRouteImport } from './routes/settings.game-saves'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
 import { Route as SettingsAccountRouteImport } from './routes/settings.account'
 import { Route as ProjectsProjectSlugRouteImport } from './routes/projects.$projectSlug'
@@ -258,6 +259,11 @@ const SettingsNotificationsRoute = SettingsNotificationsRouteImport.update({
 const SettingsMotionRoute = SettingsMotionRouteImport.update({
   id: '/motion',
   path: '/motion',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsGameSavesRoute = SettingsGameSavesRouteImport.update({
+  id: '/game-saves',
+  path: '/game-saves',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
@@ -509,6 +515,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectSlug': typeof ProjectsProjectSlugRoute
   '/settings/account': typeof SettingsAccountRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/game-saves': typeof SettingsGameSavesRoute
   '/settings/motion': typeof SettingsMotionRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/privacy': typeof SettingsPrivacyRoute
@@ -577,6 +584,7 @@ export interface FileRoutesByTo {
   '/projects/$projectSlug': typeof ProjectsProjectSlugRoute
   '/settings/account': typeof SettingsAccountRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/game-saves': typeof SettingsGameSavesRoute
   '/settings/motion': typeof SettingsMotionRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/privacy': typeof SettingsPrivacyRoute
@@ -655,6 +663,7 @@ export interface FileRoutesById {
   '/projects/$projectSlug': typeof ProjectsProjectSlugRoute
   '/settings/account': typeof SettingsAccountRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
+  '/settings/game-saves': typeof SettingsGameSavesRoute
   '/settings/motion': typeof SettingsMotionRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/privacy': typeof SettingsPrivacyRoute
@@ -734,6 +743,7 @@ export interface FileRouteTypes {
     | '/projects/$projectSlug'
     | '/settings/account'
     | '/settings/appearance'
+    | '/settings/game-saves'
     | '/settings/motion'
     | '/settings/notifications'
     | '/settings/privacy'
@@ -802,6 +812,7 @@ export interface FileRouteTypes {
     | '/projects/$projectSlug'
     | '/settings/account'
     | '/settings/appearance'
+    | '/settings/game-saves'
     | '/settings/motion'
     | '/settings/notifications'
     | '/settings/privacy'
@@ -879,6 +890,7 @@ export interface FileRouteTypes {
     | '/projects/$projectSlug'
     | '/settings/account'
     | '/settings/appearance'
+    | '/settings/game-saves'
     | '/settings/motion'
     | '/settings/notifications'
     | '/settings/privacy'
@@ -1209,6 +1221,13 @@ declare module '@tanstack/react-router' {
       path: '/motion'
       fullPath: '/settings/motion'
       preLoaderRoute: typeof SettingsMotionRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/game-saves': {
+      id: '/settings/game-saves'
+      path: '/game-saves'
+      fullPath: '/settings/game-saves'
+      preLoaderRoute: typeof SettingsGameSavesRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/appearance': {
@@ -1594,6 +1613,7 @@ const ProfileRouteWithChildren =
 interface SettingsRouteChildren {
   SettingsAccountRoute: typeof SettingsAccountRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
+  SettingsGameSavesRoute: typeof SettingsGameSavesRoute
   SettingsMotionRoute: typeof SettingsMotionRoute
   SettingsNotificationsRoute: typeof SettingsNotificationsRoute
   SettingsPrivacyRoute: typeof SettingsPrivacyRoute
@@ -1603,6 +1623,7 @@ interface SettingsRouteChildren {
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAccountRoute: SettingsAccountRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
+  SettingsGameSavesRoute: SettingsGameSavesRoute,
   SettingsMotionRoute: SettingsMotionRoute,
   SettingsNotificationsRoute: SettingsNotificationsRoute,
   SettingsPrivacyRoute: SettingsPrivacyRoute,

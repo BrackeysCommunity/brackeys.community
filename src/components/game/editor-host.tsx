@@ -509,18 +509,20 @@ type ProjectSceneEditorProps = {
 
 /**
  * The open project as a hosted game this viewer publishes: once the site
- * answers for its settings, which only its publishers may read. Undefined
- * while publishing is off, while asking, and for a project the site doesn't
- * host. The project's team isn't read here, so the Team choice waits for it.
+ * answers for its settings, which only its publishers may read, with the
+ * team that owns it, which the Team visibility needs. Undefined while
+ * publishing is off, while asking, and for a project the site doesn't host.
  */
 export function useHostedGame(
   projectId: string,
-  read: (projectId: string) => Promise<unknown> = (id) =>
+  read: (projectId: string) => Promise<{ team?: string | null }> = (id) =>
     import("@/orpc/client").then(({ client }) => client.getGameSettings({ projectId: id })),
 ): SiteEditorHostOptions["hosted"] {
   const flags = useFlags();
   const on = publishAllowed((name) => (flags as Partial<Record<string, boolean>>)[name] ?? false);
-  const [hosted, setHosted] = useState<{ project: string; team: null } | undefined>(undefined);
+  const [hosted, setHosted] = useState<{ project: string; team: string | null } | undefined>(
+    undefined,
+  );
   const readRef = useRef(read);
   useEffect(() => {
     readRef.current = read;
@@ -530,8 +532,8 @@ export function useHostedGame(
     if (!on) return;
     let live = true;
     readRef.current(projectId).then(
-      () => {
-        if (live) setHosted({ project: projectId, team: null });
+      (settings) => {
+        if (live) setHosted({ project: projectId, team: settings.team ?? null });
       },
       () => {},
     );

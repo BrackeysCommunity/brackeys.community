@@ -140,3 +140,65 @@ describe("project-scoped tokens", () => {
     expect(tokenAdmits({ c: "canvas:c1" }, "canvas:c1")).toBe(true);
   });
 });
+
+describe("player tokens", () => {
+  /** Signs any payload, so claims `signCanvasToken`'s types refuse can be tried. */
+  async function signRaw(payload: Record<string, unknown>): Promise<string> {
+    const body = b64url(JSON.stringify({ e: NOW + 60_000, v: 1, ...payload }));
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(SECRET),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const signature = new Uint8Array(
+      await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body)),
+    );
+    return `${body}.${b64url(String.fromCharCode(...signature))}`;
+  }
+
+  const session = {
+    c: "session:s1",
+    u: "anon:3f0c",
+    a: "write",
+    k: "session",
+    r: "player",
+  } as const;
+
+  it("round-trip a session token with r", async () => {
+    const claims = await verifyCanvasToken(
+      await signCanvasToken(session, SECRET, NOW),
+      SECRET,
+      NOW,
+    );
+    expect(claims).toEqual({ ...session, e: NOW + SYNC_LIMITS.tokenTtlMs, v: 1 });
+    expect(tokenKind(claims!)).toBe("session");
+  });
+
+  it("carry r on any kind, leaving the refusal to the service", async () => {
+    const canvas = await signCanvasToken({ ...claims, r: "player" }, SECRET, NOW);
+    expect(await verifyCanvasToken(canvas, SECRET, NOW)).toMatchObject({ r: "player" });
+  });
+
+  it("refuse the session kind without r, and any other r", async () => {
+    const { r: _r, ...noRole } = session;
+    expect(await verifyCanvasToken(await signRaw(noRole), SECRET, NOW)).toBeNull();
+    expect(
+      await verifyCanvasToken(await signRaw({ ...session, r: "admin" }), SECRET, NOW),
+    ).toBeNull();
+    expect(await verifyCanvasToken(await signRaw({ ...claims, r: null }), SECRET, NOW)).toBeNull();
+    expect(
+      await verifyCanvasToken(await signRaw({ ...session, k: "lobby" }), SECRET, NOW),
+    ).toBeNull();
+  });
+
+  it("leave a token without r as it was", async () => {
+    const claims2 = await verifyCanvasToken(await signRaw(claims), SECRET, NOW);
+    expect(claims2).toEqual({ ...claims, e: NOW + 60_000, v: 1 });
+    expect(claims2).not.toHaveProperty("r");
+    expect(
+      await verifyCanvasToken(await signCanvasToken(claims, SECRET, NOW), SECRET, NOW),
+    ).not.toHaveProperty("r");
+  });
+});

@@ -364,6 +364,7 @@ describe("readGameSettings", () => {
       saveMode: "site",
       connectOrigins: ["https://api.example.org"],
       online: true,
+      team: null,
     });
     await setProject({ publicApprovedAt: NOW });
     expect(

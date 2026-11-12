@@ -2001,6 +2001,7 @@ HOST_HANDSHAKE_TIMEOUT_MS
 HOST_MESSAGE_MAX_BYTES
 HOST_PROTOCOL_VERSION
 HOST_REQUESTS
+HOST_REQUEST_TIMEOUT_MS
 HOST_WELCOME_TIMEOUT_MS
 HostChannel
 HostEvents
@@ -9671,7 +9672,7 @@ declare function memorySaveStore(): SaveStore;
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 16;
+declare const AGENT_SURFACE_VERSION = 17;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -12642,6 +12643,7 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "save-slot-limit",
     "save-unsupported",
     "save-store-failed",
+    "save-forbidden",
     "export-asset-missing",
     "export-over-budget",
     "export-itch-layout",
@@ -13233,6 +13235,7 @@ type ConnectHostOptions = {
         game: string;
         release: Sha256;
     };
+    requestTimeoutMs?: number;
     timeoutMs?: number;
     welcomeTimeoutMs?: number;
     window?: Window;
@@ -13356,6 +13359,7 @@ declare const HOST_REQUESTS: {
         }, z.core.$strip>;
     };
 };
+declare const HOST_REQUEST_TIMEOUT_MS = 30000;
 declare const HOST_WELCOME_TIMEOUT_MS = 30000;
 type HostEvents = {
     "saves.changed": HostSaves;
@@ -14093,7 +14097,7 @@ type UiHandle = {
 
 ## version.ts
 declare const COLLAB_LAYOUT_VERSION = 3;
-declare const ENGINE_VERSION = "0.14.1";
+declare const ENGINE_VERSION = "0.14.2";
 declare const REPLAY_ACROSS_PLATFORMS = true;
 
 ## vite/apply-files.ts

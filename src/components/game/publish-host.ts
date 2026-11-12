@@ -22,7 +22,7 @@ import {
   SITE_SAVE_EXPIRY_DAYS,
   SITE_SAVE_LIMITS,
 } from "@/lib/engine/limits";
-import { usageNotice, type UsageLine } from "@/lib/engine/quota";
+import { quotaAmount, quotaLabel, usageNotice, type UsageLine } from "@/lib/engine/quota";
 import type { StoredUsage } from "@/lib/engine/usage";
 import { formatBytes, formatCount } from "@/lib/format-bytes";
 import { releaseDay } from "@/lib/jam-links";
@@ -82,6 +82,16 @@ async function call<T>(run: () => Promise<T>): Promise<T> {
 const site = SITE.name;
 const bytes = formatBytes;
 const n = formatCount;
+
+/** A quota's label at the start of a row: "Asset storage". */
+const rowLabel = (quota: UsageLine["quota"]): string => {
+  const label = quotaLabel(quota);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
+/** "12 MB of 64 MB" in the quota's own unit. */
+const ofMax = (l: UsageLine): string =>
+  `${quotaAmount(l.quota, l.used)} of ${quotaAmount(l.quota, l.max)}`;
 
 const iso = (at: Date | string): string => new Date(at).toISOString();
 
@@ -189,7 +199,7 @@ export function usageView(
           const governing = docBytes.ratio > docs.ratio ? docBytes : docs;
           return {
             quota: "docs",
-            text: `Documents: ${n(docs.used)} of ${n(docs.max)} · ${bytes(docBytes.used)} of ${bytes(docBytes.max)}`,
+            text: `${rowLabel("docs")}: ${ofMax(docs)} · ${ofMax(docBytes)}`,
             used: governing.used,
             max: governing.max,
             ratio: governing.ratio,
@@ -214,18 +224,18 @@ export function usageView(
   const lines = [
     row(
       "assetBytes",
-      (l) => `Asset storage: ${bytes(l.used)} of ${bytes(l.max)}`,
+      (l) => `${rowLabel(l.quota)}: ${ofMax(l)}`,
       `${bytes(usage.liveBlobBytes)} in use · ${bytes(usage.trashBytes)} in the trash · ${bytes(usage.historyBytes)} replaced versions (deleted ${n(BLOB_GRACE_DAYS)} days after replacement)`,
     ),
     documents,
-    row("releaseStorageBytes", (l) => `Release storage: ${bytes(l.used)} of ${bytes(l.max)}`),
+    row("releaseStorageBytes", (l) => `${rowLabel(l.quota)}: ${ofMax(l)}`),
     row("releaseBytes", (l) =>
       usage.largestRelease
         ? `Largest release: v${usage.largestRelease.version}, ${bytes(l.used)} of ${bytes(l.max)} per release`
         : `Largest release: none yet, up to ${bytes(l.max)} per release`,
     ),
     keptRow,
-    row("jamPins", (l) => `Jam versions: ${n(l.used)} of ${n(l.max)}`),
+    row("jamPins", (l) => `${rowLabel(l.quota)}: ${ofMax(l)}`),
     row("releasesPerDay", (l) => `Today: ${n(l.used)} of ${n(l.max)} releases`),
   ].filter((l): l is UsageLineView => l !== null);
 

@@ -13,8 +13,11 @@ import { documentProject, isSyncKind, type SyncKind } from "./sync-channels";
 
 export type SyncAccess = "read" | "write";
 
-/** The kind of document a token opens. */
-export type SyncTokenKind = SyncKind;
+/**
+ * The kind of document a token opens: a sync kind, or `session` for a
+ * player's token, which only game sessions admit.
+ */
+export type SyncTokenKind = SyncKind | "session";
 
 /** A token's scope beyond its own document: `project` admits every document of its project. */
 export type SyncTokenScope = "project";
@@ -45,6 +48,8 @@ export interface CanvasTokenClaims {
   /** The agent a project-scoped agent token was minted for, and the user it acts for. */
   g?: string;
   o?: string;
+  /** A player's token: opens only `session:` docs; every other kind refuses it. */
+  r?: "player";
 }
 
 export function tokenKind(claims: Pick<CanvasTokenClaims, "k">): SyncTokenKind {
@@ -126,6 +131,7 @@ export async function signCanvasToken(
     l?: number;
     g?: string;
     o?: string;
+    r?: "player";
   },
   secret: string,
   now: number = Date.now(),
@@ -140,6 +146,7 @@ export async function signCanvasToken(
   if (claims.l !== undefined) full.l = claims.l;
   if (claims.g !== undefined) full.g = claims.g;
   if (claims.o !== undefined) full.o = claims.o;
+  if (claims.r !== undefined) full.r = claims.r;
   const payload = toBase64Url(encoder.encode(JSON.stringify(full)));
   const signature = await crypto.subtle.sign(
     "HMAC",
@@ -159,6 +166,7 @@ function isClaims(value: unknown): value is CanvasTokenClaims {
   const claims = value as Record<string, unknown>;
   const kind = claims.k ?? "canvas";
   const agent = claims.g !== undefined || claims.o !== undefined;
+  const player = claims.r === "player";
   return (
     isName(claims.c) &&
     isName(claims.u) &&
@@ -168,7 +176,9 @@ function isClaims(value: unknown): value is CanvasTokenClaims {
     claims.v === 1 &&
     (claims.n === undefined || typeof claims.n === "string") &&
     (claims.p === undefined || typeof claims.p === "string") &&
-    (claims.k === undefined || isSyncKind(claims.k)) &&
+    (claims.r === undefined || player) &&
+    // `session` is a player's kind only; the service decides which kinds admit players.
+    (claims.k === undefined || isSyncKind(claims.k) || (claims.k === "session" && player)) &&
     (claims.f === undefined || isVersion(claims.f)) &&
     (claims.s === undefined || (claims.s === "project" && kind === "project")) &&
     (claims.l === undefined ? kind !== "project" && kind !== "asset" : isVersion(claims.l)) &&

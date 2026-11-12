@@ -9,7 +9,8 @@ import { creditPlacementOwner, insertProject, type ProjectDb } from "@/lib/proje
 import { canDo, roleOf, type GameRole } from "./release-access";
 import { writeAudit, type ReleaseDb } from "./release-audit";
 import { ReleaseError, releaseForbidden, type ReleaseApiError } from "./release-errors";
-import { releaseViewer, type Actor, type ReleaseTxDb } from "./release-upload";
+import type { Actor, ReleaseTxDb } from "./release-upload";
+import { releaseViewer } from "./release-viewer";
 
 export type { Actor } from "./release-upload";
 

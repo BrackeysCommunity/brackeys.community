@@ -62,6 +62,8 @@ export type SiteMenuProps = {
   workspace?: boolean;
   /** The game editor's host: opens its Project settings panel. */
   onProjectSettings?: () => void;
+  /** Runs in place of signing in straight away, for a page that asks first. */
+  onSignIn?: () => void;
 };
 
 export function SiteMenu({
@@ -69,6 +71,7 @@ export function SiteMenu({
   signinSource,
   workspace = false,
   onProjectSettings,
+  onSignIn,
 }: SiteMenuProps) {
   const { data: session } = authClient.useSession();
   const user = session?.user;
@@ -188,7 +191,7 @@ export function SiteMenu({
           ) : (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => void signInWithDiscord(signinSource)}>
+              <DropdownMenuItem onClick={onSignIn ?? (() => void signInWithDiscord(signinSource))}>
                 <HugeiconsIcon icon={Login01Icon} size={14} />
                 Sign in with Discord
               </DropdownMenuItem>

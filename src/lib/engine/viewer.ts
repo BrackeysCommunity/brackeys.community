@@ -5,7 +5,7 @@ import { engineProjects } from "@/db/schema";
 
 import type { Viewer } from "./release-access";
 import type { ReleaseDb } from "./release-audit";
-import { releaseViewer } from "./release-upload";
+import { releaseViewer } from "./release-viewer";
 
 const ANONYMOUS: Viewer = { userId: null, staff: false, teamRole: null, isCreator: false };
 

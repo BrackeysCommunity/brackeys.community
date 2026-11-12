@@ -236,7 +236,7 @@ type Dihedral = {
 _const_ in `version.ts`
 
 ```ts
-declare const ENGINE_VERSION = "0.14.1";
+declare const ENGINE_VERSION = "0.14.2";
 ```
 
 ## `ExpandedScene`
@@ -1459,7 +1459,11 @@ A game instance's save slots, over the store precedence picked.
 ```ts
 interface SaveSlots {
     readonly store: Pick<SaveStore, "describe" | "kind">;
-    /** min(the game's limits or the defaults, `MAX_BROWSER_SAVE_LIMITS` for a browser store, the store's own). */
+    /**
+     * min(the game's limits or the defaults, `MAX_BROWSER_SAVE_LIMITS` for a
+     * browser store, the store's own), read afresh each time: a host's limits
+     * can change after sign-in.
+     */
     readonly limits: SaveLimits;
     list(): Promise<readonly SaveSummary[]>;
     save(slot: string, opts?: {
@@ -1520,7 +1524,9 @@ Refers to [`SaveMeta`](#savemeta).
 
 _type_ in `saves/store.ts`
 
-A write's result: `save-too-large`, `save-slot-limit` or `save-store-failed` when it didn't land.
+A write's result: `save-too-large`, `save-slot-limit` or `save-store-failed`
+when it didn't land, or `save-forbidden` when a host refused it (signed out,
+or the game doesn't save to that host).
 
 ```ts
 type SaveWriteResult = {

@@ -1,0 +1,18 @@
+{
+  "$schema": "../scene.schema.json",
+  "v": 4,
+  "game": "own-saves",
+  "name": "main",
+  "bounds": [0, 0, 8, 6],
+  "solid": [
+    ["box", 4, 0.1, 4, 0.1],
+    ["box", 4, 5.9, 4, 0.1],
+    ["box", 0.1, 3, 0.1, 2.8],
+    ["box", 7.9, 3, 0.1, 2.8],
+    ["box", 4, 2.1, 0.1, 1.9]
+  ],
+  "entities": [
+    { "id": "hero", "type": "hero", "at": [1.5, 1.5] },
+    { "id": "goal", "type": "sensor", "shape": ["box", 6.75, 1.5, 0.9, 0.5], "tags": ["goal"] }
+  ]
+}

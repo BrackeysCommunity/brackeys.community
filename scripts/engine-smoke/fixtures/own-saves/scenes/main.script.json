@@ -1,0 +1,10 @@
+{
+  "$schema": "../input-script.schema.json",
+  "v": 2,
+  "scene": "main",
+  "steps": [
+    { "for": 75, "set": { "move": [0, 1] } },
+    { "for": 120, "set": { "move": [1, 0] } },
+    { "max": 240, "set": { "move": [0, -1] }, "until": { "event": "own-saves:reached" } }
+  ]
+}

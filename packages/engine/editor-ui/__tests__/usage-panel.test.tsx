@@ -1,4 +1,8 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
@@ -21,6 +25,7 @@ import {
 } from "../../project/index";
 import type { EditorNotify, EditorPublishHost, UsageLineView, UsageView } from "../host";
 import { KitProvider } from "../kit/index";
+import { Progress } from "../kit/progress";
 import { UsagePanel } from "../panels/settings/UsagePanel";
 
 const layout: DocLayout = { as: "map", rest: { as: "atomic" } };
@@ -202,11 +207,12 @@ describe("UsagePanel", () => {
     expect(notice.dataset.tone).toBe("warning");
     const row = panel.getByText("assetBytes: 205 of 256").closest("[data-quota]") as HTMLElement;
     expect(row.dataset.level).toBe("warn");
-    expect((row.firstElementChild as HTMLElement).style.getPropertyValue("--je-primary")).toBe(
-      "var(--je-warning)",
-    );
+    expect(row.querySelector<HTMLElement>(".je-progress")?.dataset.tone).toBe("warning");
     const other = panel.getByText("releaseStorageBytes: 10 of 512").closest("[data-quota]");
     expect((other as HTMLElement).dataset.level).toBe("ok");
+    expect((other as HTMLElement).querySelector<HTMLElement>(".je-progress")?.dataset.tone).toBe(
+      "primary",
+    );
   });
 
   it("marks a full quota red with the host's full notice", async () => {
@@ -225,9 +231,7 @@ describe("UsagePanel", () => {
     expect(notice.dataset.tone).toBe("danger");
     const row = panel.getByText("assetBytes: 256 of 256").closest("[data-quota]") as HTMLElement;
     expect(row.dataset.level).toBe("full");
-    expect((row.firstElementChild as HTMLElement).style.getPropertyValue("--je-primary")).toBe(
-      "var(--je-danger)",
-    );
+    expect(row.querySelector<HTMLElement>(".je-progress")?.dataset.tone).toBe("danger");
   });
 
   it("has no Empty trash while the host's trash is empty", async () => {
@@ -319,5 +323,34 @@ describe("UsagePanel", () => {
     const alert = await waitFor(() => panel.getByRole("alert"));
     expect(alert.textContent).toMatch(/offline/);
     expect(panel.getByRole("button", { name: "Try again" })).toBeTruthy();
+  });
+});
+
+describe("Progress tone", () => {
+  const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../style.css"), "utf8");
+  const root = () =>
+    document.querySelector<HTMLElement>(".je-progress") ?? expect.fail("no progress bar");
+
+  it("defaults to the primary tone", () => {
+    render(<Progress value={1} max={4} label="Uploading" />);
+    expect(root().dataset.tone).toBe("primary");
+  });
+
+  it.each(["warning", "danger"] as const)(
+    "marks the bar %s, with no inline token override",
+    (tone) => {
+      render(<Progress value={3} max={4} label="Storage" tone={tone} />);
+      expect(root().dataset.tone).toBe(tone);
+      expect(root().style.getPropertyValue("--je-primary")).toBe("");
+    },
+  );
+
+  it("colours each tone's bar from the stylesheet", () => {
+    expect(css).toMatch(
+      /\.je-progress\[data-tone="warning"\] \.je-progress-bar \{\s*background: var\(--je-warning\);/,
+    );
+    expect(css).toMatch(
+      /\.je-progress\[data-tone="danger"\] \.je-progress-bar \{\s*background: var\(--je-danger\);/,
+    );
   });
 });

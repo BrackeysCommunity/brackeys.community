@@ -25,6 +25,8 @@ export type PlayFrameProps = {
   saves: HostServerOptions["saves"];
   describe: HostServerOptions["describe"];
   prefs: HostServerOptions["prefs"];
+  /** Who plays, as the frame's `welcome` says; signed out when absent. */
+  player?: HostServerOptions["player"];
   /** True while the page's chrome has a dialog open over the game. */
   dialogOpen?: boolean;
   /** False ignores the frame's download offers, so no Download recording button shows. */
@@ -69,6 +71,7 @@ export function PlayFrame({
   saves,
   describe,
   prefs,
+  player,
   dialogOpen = false,
   offerDownloads = true,
   onState,
@@ -89,6 +92,7 @@ export function PlayFrame({
     saves,
     describe,
     prefs,
+    player,
     onState,
     sessionToken,
     offerDownloads,
@@ -125,6 +129,10 @@ export function PlayFrame({
       prefs: {
         load: () => latest().prefs.load(),
         save: (store, value) => latest().prefs.save(store, value),
+      },
+      player: () => {
+        const who = latest().player;
+        return who ? who() : { signedIn: false, name: null };
       },
       onState: (s) => latest().onState?.(s),
       onDownload: (d) => {

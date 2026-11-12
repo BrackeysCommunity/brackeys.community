@@ -7,6 +7,47 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.14.2] — unreleased
+
+The patch jams.team's player saves stand on: a host can refuse a save in
+its own words, and a store's limits can change while the game runs (a
+player signing in moves from this browser's saves to the account's). It
+also closes 0.14.1's leftovers: host requests that time out, and one
+`asset-missing` for a texture that records no size.
+
+### Added
+
+- `save-forbidden` (error): a host refused a save, for a signed-out player
+  or a game that doesn't save to that host. Hosts raise it; `SaveWriteResult`
+  documents it beside the store's own codes.
+- `HOST_REQUEST_TIMEOUT_MS` (30 s) from `@jams/engine/standalone`, and
+  `ConnectHostOptions.requestTimeoutMs` to set it per channel.
+
+### Changed
+
+- `SaveSlots` re-reads a store's limits on every save: `SaveSlots.limits` is
+  a getter over `effectiveSaveLimits(game, store)`, so a host's limits
+  changing after sign-in, a claim or a save-mode change apply to the next
+  save.
+- `channelSaveStore` passes a host's refusal (e.g. `save-forbidden`) through
+  unchanged as the write's result, so the game's `save:failed` carries the
+  site's message.
+- `HostChannel.request` times out: a request the page doesn't answer within
+  `HOST_REQUEST_TIMEOUT_MS` rejects with `save-store-failed`, so a save the
+  page never answers reaches the game as `save:failed` instead of staying
+  pending until close. `hello` stays bounded by `welcomeTimeoutMs`; a reply
+  after the timeout is dropped.
+- `sceneBundle` and `projectBundle` leave out a texture whose entry records a
+  hash but no size without raising `asset-missing`; the export refuses it
+  once, as the shipped asset (`"<id>" (<path>) ships, but its entry records
+no size for blob <sha>`), instead of twice.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 17, and every committed JSON Schema's
+  `x-agent-surface` with it.
+- Issue code `save-forbidden` (error, "The host refused this save.").
+
 ## [0.14.1] — unreleased
 
 The release jams.team hosts games on: a typed channel between a released

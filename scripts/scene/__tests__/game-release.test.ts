@@ -19,6 +19,7 @@ import {
   gameReleaseList,
   gameReleasePromote,
   gameReleaseRollback,
+  quotaWarnings,
   RELEASE_FILE_ATTEMPTS,
   type GameReleaseDeps,
   type ReleaseListEntry,
@@ -289,6 +290,22 @@ describe("game release create", () => {
       noWait,
     );
     expect(full.text).toContain("warning: release storage is full: 512 MB of 512 MB");
+  });
+
+  it("names each quota in its warning as the site's usage rows do", () => {
+    const line = (quota: UsageLine["quota"], used: number, max: number): UsageLine => ({
+      quota,
+      used,
+      max,
+      ratio: used / max,
+      level: used >= max ? "full" : "warn",
+    });
+    expect(
+      quotaWarnings([line("jamPins", 8, 8), line("assetBytes", 220 * MIB, 256 * MIB)]),
+    ).toEqual([
+      "warning: jam versions is full: 8 of 8",
+      "warning: asset storage is 85% full: 220 MB of 256 MB",
+    ]);
   });
 
   it("gives the same fields as JSON with --json", async () => {

@@ -1,6 +1,6 @@
 import { flowIssue } from "../game/flow";
 import { resolveTime } from "../game/time";
-import { projectBundle, sceneBundle, type AssetBundle } from "../project/bundle";
+import { blobContent, projectBundle, sceneBundle, type AssetBundle } from "../project/bundle";
 import { sha256 } from "../project/hash";
 import { byCodeUnit } from "../project/kinds/define";
 import { engineResolution, gameSettingsEntries } from "../project/kinds/game-settings";
@@ -252,7 +252,8 @@ async function releaseAsset(
   }
   if (entry.sha256 === undefined) return null;
   // The size becomes the build file's row and the release's pin, so a guessed one would disagree with the bytes shipped.
-  if (entry.bytes === undefined) {
+  const content = blobContent(entry);
+  if (!content) {
     issues.push(
       makeIssue("asset-missing", {
         message: `"${entry.id}" (${entry.path}) ships, but its entry records no size for blob ${entry.sha256}`,
@@ -264,8 +265,7 @@ async function releaseAsset(
   }
   return {
     ...common,
-    sha256: entry.sha256,
-    bytes: entry.bytes,
+    ...content,
     storage: "blob",
     file: blobFile(entry, entry.sha256),
     ...(entry.meta && Object.keys(entry.meta).length > 0

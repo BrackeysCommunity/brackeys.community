@@ -29,6 +29,8 @@
  * - MinIO objects — the loop below deletes the user's own uploads, which is
  *   safe precisely because a canonical row never references a user-scoped
  *   key (it carries a provider CDN URL, or its own project-scoped upload).
+ *   Game saves are the user's alone: their objects go here, their
+ *   `engine_saves` rows with the user row's cascade.
  */
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
@@ -39,14 +41,54 @@ import {
   canvasMembers,
   comments,
   developerProfiles,
+  engineSaves,
   profileProjects,
 } from "@/db/schema";
+import { env } from "@/env";
 import { emitCanvasEvent } from "@/lib/canvas-events";
 import { publishCanvasRevoke } from "@/lib/canvas-sync-publish";
 import { purgeGuildMemberCache } from "@/lib/discord";
-import { removeProfileProjectImageFromStorage } from "@/lib/profile-project-image-storage";
+import { engineSaveKey, engineSavesPrefixOf } from "@/lib/engine/storage-keys";
+import {
+  getMinioClient,
+  isMissingObject,
+  removeProfileProjectImageFromStorage,
+} from "@/lib/profile-project-image-storage";
 
-export async function cleanupUserData(userId: string): Promise<void> {
+/** The bucket calls removing a player's saves needs. A missing object is not an error. */
+export type SaveObjectStore = {
+  list(prefix: string): Promise<string[]>;
+  remove(key: string): Promise<void>;
+};
+
+/** The site's bucket, or null when none is configured (then there are no save objects). */
+function minioSaveObjectStore(): SaveObjectStore | null {
+  const bucket = env.MINIO_BUCKET;
+  if (!bucket) return null;
+  return {
+    async list(prefix) {
+      const keys: string[] = [];
+      for await (const item of getMinioClient().listObjectsV2(bucket, prefix, true)) {
+        if (item.name) keys.push(item.name);
+      }
+      return keys;
+    },
+    async remove(key) {
+      try {
+        await getMinioClient().removeObject(bucket, key);
+      } catch (error) {
+        if (!isMissingObject(error)) throw error;
+      }
+    },
+  };
+}
+
+export async function cleanupUserData(
+  userId: string,
+  opts: { saveObjects?: SaveObjectStore | null } = {},
+): Promise<void> {
+  await removeSaveObjects(userId, opts.saveObjects ?? minioSaveObjectStore());
+
   const [profile] = await db
     .select({ discordId: developerProfiles.discordId })
     .from(developerProfiles)
@@ -116,6 +158,34 @@ export async function cleanupUserData(userId: string): Promise<void> {
   await db.delete(developerProfiles).where(eq(developerProfiles.id, userId));
 
   if (profile.discordId) await purgeGuildMemberCache(profile.discordId);
+}
+
+/**
+ * Deletes the player's save objects while their `engine_saves` rows still
+ * name them; the rows go with the user row's cascade. The prefix sweep
+ * catches objects no row names (a write whose row never landed). Like the
+ * project images, a failure is logged and the account deletion goes on.
+ */
+async function removeSaveObjects(userId: string, store: SaveObjectStore | null): Promise<void> {
+  if (!store) return;
+  const keys = new Set<string>();
+  try {
+    const rows = await db
+      .select({ projectId: engineSaves.projectId, slot: engineSaves.slot })
+      .from(engineSaves)
+      .where(eq(engineSaves.userId, userId));
+    for (const { projectId, slot } of rows) keys.add(engineSaveKey(userId, projectId, slot));
+  } catch (error) {
+    console.error(error);
+  }
+  for (const key of keys) await store.remove(key).catch(console.error);
+  try {
+    for (const key of await store.list(engineSavesPrefixOf(userId))) {
+      if (!keys.has(key)) await store.remove(key).catch(console.error);
+    }
+  } catch (error) {
+    console.error(error);
+  }
 }
 
 /**

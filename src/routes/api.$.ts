@@ -18,6 +18,7 @@ import { checkPath, repairPath } from "@/lib/canvas/paths";
 import { isStaffMember } from "@/lib/discord";
 import { createReleaseRoutes } from "@/lib/engine/release-routes";
 import { createEngineRoutes } from "@/lib/engine/routes";
+import { createSaveRoutes } from "@/lib/engine/save-routes";
 import { ENGINE_BLOB_KINDS } from "@/lib/engine/upload-limits";
 import { SITE } from "@/lib/legal-meta";
 import {
@@ -214,6 +215,8 @@ async function handle({ request }: { request: Request }) {
   if (pathname.startsWith("/api/engine/")) {
     const release = await handleReleaseRoute(request);
     if (release) return release;
+    const save = await handleSaveRoute(request);
+    if (save) return save;
     const engine = await handleEngineRoute(request);
     if (engine) return engine;
   }
@@ -569,6 +572,9 @@ const handleEngineRoute = createEngineRoutes({
  * routes; null passes the request on to them.
  */
 const handleReleaseRoute = createReleaseRoutes({ readSession: readUploadSession });
+
+/** Players' saves on their account, for a signed-in session. Null passes the request on. */
+const handleSaveRoute = createSaveRoutes({ readSession: readUploadSession });
 
 /** An import's own path for an image, or the nearest valid one. */
 function wantedImagePath(path: string): string {

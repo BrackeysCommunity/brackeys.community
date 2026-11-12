@@ -104,3 +104,46 @@ describe("the terms' games section", () => {
     expect(sectionIds(container)).toContain("jams");
   });
 });
+
+describe("the privacy notice's game paragraphs", () => {
+  const gameParts = (container: HTMLElement) => [
+    ...container.querySelectorAll("[data-engine-games]"),
+  ];
+
+  it("say what games keep, where the site hosts games", () => {
+    const { container } = render(<PrivacyDocument />);
+    const where = (section: string) =>
+      gameParts(container)
+        .filter((el) => el.closest("section")?.id === section)
+        .map((el) => el.textContent ?? "");
+
+    expect(where("what-we-collect").join(" ")).toContain("Game saves.");
+    expect(where("cookies-analytics").join(" ")).toContain("While you play signed out");
+    expect(where("sharing").join(" ")).toContain("Games that connect elsewhere.");
+    expect(where("retention").join(" ")).toContain("Game saves");
+    expect(where("retention").join(" ")).toContain("and your game saves");
+    expect(where("your-rights").join(" ")).toContain("Settings → Game saves");
+    expect(container.querySelector("section#retention")?.textContent).toContain(
+      "your collaboration posts and responses, and your game saves. Comments",
+    );
+  });
+
+  it("leave out features that haven't shipped", () => {
+    const { container } = render(<PrivacyDocument />);
+    expect(container.textContent).not.toContain("Online matches");
+    expect(container.textContent).not.toContain("Agents in the editor");
+  });
+
+  it("are absent on production", () => {
+    deploy.env.VITE_DEPLOY_ENV = "production";
+    const { container } = render(<PrivacyDocument />);
+    expect(gameParts(container)).toEqual([]);
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("Game saves");
+    expect(text).not.toContain("game saves");
+    expect(text).not.toContain("Games that connect elsewhere");
+    expect(container.querySelector("section#retention")?.textContent).toContain(
+      "and your collaboration posts and responses. Comments",
+    );
+  });
+});

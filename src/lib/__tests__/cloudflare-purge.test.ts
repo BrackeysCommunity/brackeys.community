@@ -11,6 +11,7 @@ import {
   configuredPlayOrigin,
   NO_ORIGIN,
   NOT_CONFIGURED,
+  purgeReleaseFiles,
   purgeShell,
   purgeUrls,
   SHELL_FILES,
@@ -138,6 +139,24 @@ describe("purgeShell", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe("purgeReleaseFiles", () => {
+  it("purges the listed release paths with the shell, each segment encoded as a browser asks", async () => {
+    const { fetch, calls } = fakeFetch();
+    const result = await purgeReleaseFiles(RELEASE, ["assets/hero image.png", "index.html"], {
+      zoneId: "zone-1",
+      token: "secret-token",
+      fetch,
+      log: () => {},
+      origin: PLAY,
+    });
+
+    expect(result).toEqual({ purged: true, urls: 6 });
+    expect(JSON.parse(calls[0]?.init.body as string)).toEqual({
+      files: [...shellUrls(RELEASE, PLAY), `${PLAY}/frames/${RELEASE}/assets/hero%20image.png`],
+    });
   });
 });
 

@@ -30,9 +30,14 @@ import {
   releaseRemoved,
   type ReleaseApiError,
 } from "./release-errors";
-import { playUrlOf, releaseViewer, type Actor, type ReleaseTxDb } from "./release-upload";
+import type { Actor, ReleaseTxDb } from "./release-upload";
+import { releaseViewer } from "./release-viewer";
 
 export type ReleaseChannel = "preview" | "production";
+
+/** Where version `version` of a hosted game plays. */
+export const playUrlOf = (projectId: string, version: number): string =>
+  siteUrl(`/games/${encodeURIComponent(projectId)}/play/${version}`);
 
 export type PointerMoveInput = {
   project: string;

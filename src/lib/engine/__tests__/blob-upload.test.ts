@@ -123,6 +123,16 @@ describe("blob upload: the hash", () => {
     expect(await again.json()).toEqual({ sha256: await sha256(PNG), bytes: PNG.byteLength });
     expect(await db.select().from(engineBlobs)).toHaveLength(1);
   });
+
+  it("restarts a held blob's grace, so the collector keeps what the uploader goes on to use", async () => {
+    expect((await send(upload(PNG))).status).toBe(201);
+    const long = new Date("2020-01-01T00:00:00Z");
+    await db.update(engineBlobs).set({ lastReferencedAt: long });
+    const before = Date.now();
+    expect((await send(upload(PNG, { expect: await sha256(PNG) }))).status).toBe(200);
+    const [row] = await db.select({ at: engineBlobs.lastReferencedAt }).from(engineBlobs);
+    expect(row?.at?.getTime()).toBeGreaterThanOrEqual(before - 1_000);
+  });
 });
 
 describe("blob upload: per-kind caps", () => {

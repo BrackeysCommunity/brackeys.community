@@ -18,12 +18,13 @@ import { memberName } from "@/lib/member-name";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { profileIdentityColumns, profileStubJoin } from "@/orpc/profile-projection";
 
-import { forgetProjectReleases, forgetRelease } from "./frame-route";
+import { announceReleaseChange } from "./frame-cache-notice";
 import { GAME_REPORTS_PER_DAY } from "./limits";
 import { canDo, roleOf, type GameAction, type Viewer } from "./release-access";
 import { writeAudit } from "./release-audit";
 import { ReleaseError, type ReleaseApiError } from "./release-errors";
-import { releaseViewer, type Actor, type ProjectRow, type ReleaseTxDb } from "./release-upload";
+import type { Actor, ReleaseTxDb } from "./release-upload";
+import { releaseViewer, type ProjectRow } from "./release-viewer";
 
 /** What moderation runs over; every field defaults to the site's own. */
 export type ModerationDeps = {
@@ -31,7 +32,7 @@ export type ModerationDeps = {
   now?: () => Date;
   /** The caller as the access rules see them; default read from the project, its team and the caller's roles. */
   viewer?: (userId: string, project: ProjectRow) => Promise<Viewer>;
-  /** Drops releases from the frame route's cache; default this process's. */
+  /** Drops releases from the frame route's cache; default this process's at once, and every other's through the release notice. */
   forget?: { release: (releaseId: string) => void; project: (projectId: string) => void };
   /** Purges a release's shell files at the edge; default Cloudflare when configured. */
   purge?: (releaseId: string) => Promise<PurgeResult>;
@@ -60,7 +61,12 @@ const DAY_SECONDS = 86_400;
 const resolved = (deps: ModerationDeps) => ({
   db: deps.db ?? (siteDb as unknown as ReleaseTxDb),
   now: deps.now ?? (() => new Date()),
-  forget: deps.forget ?? { release: forgetRelease, project: forgetProjectReleases },
+  forget: deps.forget ?? {
+    release: (releaseId: string) =>
+      void announceReleaseChange({ releaseIds: [releaseId], projectIds: [] }),
+    project: (projectId: string) =>
+      void announceReleaseChange({ releaseIds: [], projectIds: [projectId] }),
+  },
   purge: deps.purge ?? ((releaseId: string) => purgeShell(releaseId)),
   rateLimit: deps.rateLimit ?? checkRateLimit,
 });

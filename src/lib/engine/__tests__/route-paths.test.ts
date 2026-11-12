@@ -12,12 +12,18 @@ import {
   engineReleaseRollbackPath,
   engineReleasesPath,
   engineReleaseZipPath,
+  engineProjectSavesPath,
+  engineSavePath,
+  ENGINE_SAVES_PATH,
+  PROJECT_SAVES_PATH,
   RELEASE_COMMIT_PATH,
   RELEASE_FILE_PATH,
   RELEASE_MOVE_PATH,
   RELEASE_ROLLBACK_PATH,
   RELEASE_ZIP_PATH,
   RELEASES_PATH,
+  SAVE_SLOT_PATH,
+  SAVES_PATH,
 } from "../route-paths";
 
 const HASH = "ab".repeat(32);
@@ -53,5 +59,18 @@ describe("engine route paths", () => {
     expect(RELEASE_ZIP_PATH.exec(engineReleaseZipPath(HASH))?.[1]).toBe(HASH);
     expect(RELEASE_ZIP_PATH.test(engineReleaseFilePath("u", HASH))).toBe(false);
     expect(BLOBS_PATH.test(engineReleasesPath("demo"))).toBe(false);
+  });
+
+  it("build the save paths their matchers take apart, and no other's", () => {
+    expect(SAVES_PATH.test(ENGINE_SAVES_PATH)).toBe(true);
+    expect(PROJECT_SAVES_PATH.exec(engineProjectSavesPath("a b"))?.[1]).toBe("a%20b");
+    expect(SAVE_SLOT_PATH.exec(engineSavePath("demo", "slot/1"))?.slice(1)).toEqual([
+      "demo",
+      "slot%2F1",
+    ]);
+    expect(SAVES_PATH.test(engineProjectSavesPath("demo"))).toBe(false);
+    expect(PROJECT_SAVES_PATH.test(engineSavePath("demo", "auto"))).toBe(false);
+    expect(SAVE_SLOT_PATH.test(engineProjectSavesPath("demo"))).toBe(false);
+    expect(BLOBS_PATH.test(engineSavePath("demo", "auto"))).toBe(false);
   });
 });

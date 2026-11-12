@@ -308,6 +308,7 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "save-slot-limit",
   "save-unsupported",
   "save-store-failed",
+  "save-forbidden",
   // export
   "export-asset-missing",
   "export-over-budget",

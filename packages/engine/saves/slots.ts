@@ -25,7 +25,11 @@ import {
 /** A game instance's save slots, over the store precedence picked. */
 export interface SaveSlots {
   readonly store: Pick<SaveStore, "kind" | "describe">;
-  /** min(the game's limits or the defaults, `MAX_BROWSER_SAVE_LIMITS` for a browser store, the store's own). */
+  /**
+   * min(the game's limits or the defaults, `MAX_BROWSER_SAVE_LIMITS` for a
+   * browser store, the store's own), read afresh each time: a host's limits
+   * can change after sign-in.
+   */
   readonly limits: SaveLimits;
   list(): Promise<readonly SaveSummary[]>;
   save(slot: string, opts?: { depth?: SaveDepth; title?: string }): Promise<SaveWriteResult>;
@@ -75,13 +79,14 @@ async function guarded<T>(what: string, slot: string, call: () => Promise<T>, te
 
 /**
  * Slots over `host.store` for `host.game`. A save captures at once, then
- * judges size before any write and the slot limit before a new slot; writes
- * run one at a time, so saves made together can't pass the limit. Every
- * store call that throws is `save-store-failed`.
+ * judges size before any write and the slot limit before a new slot, under
+ * the limits as they stand when that write runs; writes run one at a time,
+ * so saves made together can't pass the limit. Every store call that throws
+ * is `save-store-failed`.
  */
 export function createSaveSlots(host: SaveSlotsHost): SaveSlots {
   const { game, store } = host;
-  const limits = effectiveSaveLimits(game, store);
+  const limits = () => effectiveSaveLimits(game, store);
   const slotNames = async () => (await store.list(game.id)).map((s) => s.slot);
 
   let writing: Promise<unknown> = Promise.resolve();
@@ -97,7 +102,7 @@ export function createSaveSlots(host: SaveSlotsHost): SaveSlots {
     const limited = await guarded(
       "listing before saving",
       file.slot,
-      () => saveLimitIssue(limits, { slot: file.slot, text, bytes }, slotNames),
+      () => saveLimitIssue(limits(), { slot: file.slot, text, bytes }, slotNames),
       text,
     );
     if (!limited.ok) return limited;
@@ -118,7 +123,9 @@ export function createSaveSlots(host: SaveSlotsHost): SaveSlots {
         return store.describe;
       },
     },
-    limits,
+    get limits() {
+      return limits();
+    },
     async list() {
       const listed = await guarded("listing", "*", () => store.list(game.id));
       return listed.ok ? listed.value : [];

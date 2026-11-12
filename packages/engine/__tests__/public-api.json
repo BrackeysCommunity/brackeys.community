@@ -1,5 +1,5 @@
 {
-  "version": "0.14.1",
+  "version": "0.14.2",
   "entries": {
     ".": [
       "DEFAULT_INDEXED_DB_NAME",
@@ -1165,6 +1165,7 @@
       "HOST_MESSAGE_MAX_BYTES",
       "HOST_PROTOCOL_VERSION",
       "HOST_REQUESTS",
+      "HOST_REQUEST_TIMEOUT_MS",
       "HOST_WELCOME_TIMEOUT_MS",
       "HostRequestError",
       "StandaloneBootError",
@@ -1248,6 +1249,7 @@
     "ref-type",
     "release-forbidden",
     "release-immutable",
+    "save-forbidden",
     "save-slot-limit",
     "save-store-failed",
     "save-too-large",

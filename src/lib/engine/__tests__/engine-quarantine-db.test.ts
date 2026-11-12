@@ -36,7 +36,14 @@ const IMAGE_KEY = engineReleaseObjectKey(PROJECT, IMAGE);
 let db: TestDb;
 /** The releases each takedown purged from the edge, in order. */
 let purged: string[] = [];
-const takedown = { purge: async (releaseId: string) => void purged.push(releaseId) };
+/** The release paths each purge took off the edge with the shell. */
+let purgedFiles = new Map<string, readonly string[]>();
+const takedown = {
+  purge: async (releaseId: string, files: readonly string[] = []) => {
+    purged.push(releaseId);
+    purgedFiles.set(releaseId, files);
+  },
+};
 
 /** Records every bucket call; a hosted game's image must never reach it. */
 function recordingStore(): ImageObjectStore & { calls: string[] } {
@@ -92,6 +99,7 @@ async function seedScan(objectKey: string, ownerType: "engine_blob" | "engine_re
 
 beforeEach(async () => {
   purged = [];
+  purgedFiles = new Map();
   db = await createTestDb();
   await seedUser(db, "owner");
   await seedUser(db, "staff");
@@ -198,6 +206,12 @@ describe("a flagged release image", () => {
     expect(await quarantinedAt(SCRIPT)).toBeNull();
     expect(await scanStatus(IMAGE_KEY)).toBe("quarantined");
     expect([...purged].sort()).toEqual([V1, V2]);
+    expect(purgedFiles).toEqual(
+      new Map([
+        [V1, ["assets/hero.png"]],
+        [V2, ["assets/hero-copy.png"]],
+      ]),
+    );
     const rows = await audit();
     expect(rows).toHaveLength(2);
     expect(
@@ -229,7 +243,8 @@ describe("a flagged release image", () => {
     const store = recordingStore();
     const refs = await quarantineImage(db, store, IMAGE_KEY, takedown);
     expect(refs?.engineReleases).toEqual([V2]);
-    expect(purged).toEqual([V2]);
+    expect([...purged].sort(), "the image's own URL leaves the edge in V1 too").toEqual([V1, V2]);
+    expect(purgedFiles.get(V1)).toEqual(["assets/hero.png"]);
 
     await restoreImage(db, store, IMAGE_KEY);
     expect(await releases()).toEqual({ 1: "Reported for spam.", 2: null, 3: null });

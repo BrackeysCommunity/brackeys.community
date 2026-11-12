@@ -557,6 +557,14 @@
     transition: width 150ms;
   }
 
+  .je-progress[data-tone="warning"] .je-progress-bar {
+    background: var(--je-warning);
+  }
+
+  .je-progress[data-tone="danger"] .je-progress-bar {
+    background: var(--je-danger);
+  }
+
   /* Avatar */
 
   .je-avatar {

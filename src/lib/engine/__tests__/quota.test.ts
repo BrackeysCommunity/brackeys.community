@@ -12,6 +12,8 @@ import {
   checkQuota,
   checkReleaseQuota,
   ENGINE_QUOTA,
+  quotaAmount,
+  quotaLabel,
   siteQuotaPolicy,
   UNLIMITED_QUOTA,
   usageLevel,
@@ -48,6 +50,35 @@ const refused = (verdict: SiteQuotaVerdict) => {
   if (verdict.ok) throw new Error("expected a refusal");
   return verdict;
 };
+
+describe("quotaLabel", () => {
+  const ALL: QuotaName[] = [
+    "assetBytes",
+    "docs",
+    "docBytes",
+    "releaseBytes",
+    "releaseFiles",
+    "releaseFileBytes",
+    "releaseStorageBytes",
+    "jamPins",
+    "releasesPerDay",
+  ];
+
+  it("names every quota once, in lower case for the middle of a sentence", () => {
+    const labels = ALL.map(quotaLabel);
+    expect(new Set(labels).size).toBe(ALL.length);
+    for (const label of labels) expect(label).toBe(label.toLowerCase());
+    expect(quotaLabel("assetBytes")).toBe("asset storage");
+    expect(quotaLabel("releaseStorageBytes")).toBe("release storage");
+    expect(quotaLabel("jamPins")).toBe("jam versions");
+  });
+
+  it("writes an amount in the quota's own unit", () => {
+    expect(quotaAmount("releaseStorageBytes", 440 * MiB)).toBe(formatBytes(440 * MiB));
+    expect(quotaAmount("docs", 1_000)).toBe(formatCount(1_000));
+    expect(quotaAmount("jamPins", 8)).toBe("8");
+  });
+});
 
 describe("siteQuotaPolicy", () => {
   const policy = siteQuotaPolicy();

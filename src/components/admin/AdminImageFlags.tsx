@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { Text } from "@/components/ui/typography";
 import { toastMutationError } from "@/lib/mutation-errors";
+import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
 const PAGE_SIZE = 20;
@@ -40,8 +41,10 @@ type Resolve = (input: { flagIds: number[]; action: "confirm" | "dismiss" }) => 
  * The upload queue (plan 27): images members uploaded that the media-scan
  * worker flagged. Unlike entry flags, a ruling here acts on our own object
  * — confirm deletes it, dismiss puts a quarantined image back where it
- * was. Quarantined images are shown through the staff-only route since the
- * public URL 404s once the object has moved.
+ * was. A hosted game's image is shared by hash and can't be deleted, so its
+ * confirm keeps the object and the releases listing it hidden. Quarantined
+ * images are shown through the staff-only route since the public URL 404s
+ * once the object has moved.
  */
 export function AdminImageFlags() {
   const [scope, setScope] = useState<"open" | "resolved">("open");
@@ -151,6 +154,7 @@ function FlagRow({
   const evidence = (flag.evidence ?? {}) as FlagEvidence;
   const resolved = flag.resolvedAt != null;
   const quarantined = flag.scanStatus === "quarantined";
+  const keptHidden = flag.keepsObject && flag.scanStatus === "purged";
 
   return (
     <AdminRow muted={resolved}>
@@ -167,6 +171,10 @@ function FlagRow({
           {quarantined ? (
             <Badge size="label" variant="destructive">
               HIDDEN — QUARANTINED
+            </Badge>
+          ) : keptHidden ? (
+            <Badge size="label" variant="outline">
+              HIDDEN — CONFIRMED
             </Badge>
           ) : flag.scanStatus === "purged" ? (
             <Badge size="label" variant="outline">
@@ -240,7 +248,11 @@ function FlagRow({
 
         {resolved ? (
           <Text size="xs" variant="muted">
-            {flag.status === "confirmed" ? "Confirmed" : "Dismissed"}{" "}
+            {flag.status === "confirmed"
+              ? keptHidden
+                ? "Confirmed and kept hidden"
+                : "Confirmed"
+              : "Dismissed"}{" "}
             {flag.resolvedBy ? (
               <>
                 by{" "}
@@ -253,18 +265,39 @@ function FlagRow({
           </Text>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
-            <Confirm
-              title="Delete this image?"
-              message="Confirms the detection and deletes the object for good. The uploader keeps everything else on the page."
-              confirmText="Delete image"
-              onConfirm={async () => {
-                await resolve({ flagIds: [flag.id], action: "confirm" });
-              }}
-            >
-              <Button variant="default" size="xs" disabled={busy}>
-                Confirm &amp; delete
-              </Button>
-            </Confirm>
+            {flag.keepsObject ? (
+              <Confirm
+                title="Keep this game's releases hidden?"
+                message="Confirms the detection. The image stays stored, since other releases and scenes of the game can share it by its hash, and every release that lists it stays hidden for good."
+                confirmText="Keep hidden"
+                onConfirm={async () => {
+                  await resolve({ flagIds: [flag.id], action: "confirm" });
+                  toast.success("Confirmed. The releases listing this image stay hidden.");
+                }}
+              >
+                <Button
+                  variant="default"
+                  size="xs"
+                  disabled={busy}
+                  tooltip="A hosted game's image can't be deleted, only kept hidden"
+                >
+                  Confirm &amp; keep hidden
+                </Button>
+              </Confirm>
+            ) : (
+              <Confirm
+                title="Delete this image?"
+                message="Confirms the detection and deletes the object for good. The uploader keeps everything else on the page."
+                confirmText="Delete image"
+                onConfirm={async () => {
+                  await resolve({ flagIds: [flag.id], action: "confirm" });
+                }}
+              >
+                <Button variant="default" size="xs" disabled={busy}>
+                  Confirm &amp; delete
+                </Button>
+              </Confirm>
+            )}
             <Confirm
               title={quarantined ? "Restore this image?" : "Dismiss this flag?"}
               message={

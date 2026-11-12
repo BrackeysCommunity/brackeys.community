@@ -299,6 +299,14 @@ describe("useHostedGame", () => {
     expect(read).toHaveBeenCalledWith("demo");
   });
 
+  it("carries the team that owns the project, so the Publish panel offers Team", async () => {
+    const read = vi.fn(async () => ({ team: "Night Owls" }));
+    const { result } = renderHook(() => useHostedGame("demo", read), {
+      wrapper: withFlags({ "engine-games-enabled": true }),
+    });
+    await waitFor(() => expect(result.current).toEqual({ project: "demo", team: "Night Owls" }));
+  });
+
   it("leaves a project the site refuses or doesn't host unpublished", async () => {
     const read = vi.fn(async () => {
       throw new Error('There is no hosted project "demo".');

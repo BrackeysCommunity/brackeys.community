@@ -33,13 +33,14 @@ import {
   SIGNED_OUT_SAVES_DESCRIBE,
 } from "@/lib/engine/local-saves";
 import type { PlayRefusal } from "@/lib/engine/release-access";
+import { siteSaveStore } from "@/lib/engine/save-store";
 import { useFlagBlocks } from "@/lib/hooks/use-flag";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
-import { SITE } from "@/lib/legal-meta";
 import { pageTitle } from "@/lib/site-meta";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
+import { KeepSavesDialog } from "./KeepSavesDialog";
 import { PlayFrame } from "./PlayFrame";
 import { SaveNotice } from "./SaveNotice";
 
@@ -48,9 +49,6 @@ export const PLAY_VERSION = /^(latest|preview|[1-9]\d{0,8})$/;
 
 export const playPath = (projectId: string, version: string): string =>
   `/games/${projectId}/play/${version}`;
-
-/** Until the save API lands, a signed-in player's saves stay in this browser too. */
-export const SIGNED_IN_BROWSER_DESCRIBE = `Saves stay in this browser on ${SITE.name} until you clear its site data.`;
 
 export const SIGN_IN_MESSAGE = "Signing in reloads the game.";
 
@@ -122,6 +120,26 @@ export function useLocalPlayStores(projectId: string, describe: (stored: string)
   };
 }
 
+/**
+ * The play page's saves: the viewer's account through the save API when
+ * signed in, this browser's otherwise. Preferences stay in this browser
+ * either way. Signing in reloads the page, so the store is picked once the
+ * session is known.
+ */
+export function usePlayStores(projectId: string, signedIn: boolean) {
+  const local = useLocalPlayStores(projectId, (stored) => stored);
+  const site = useMemo(() => (signedIn ? siteSaveStore(projectId) : null), [projectId, signedIn]);
+  return {
+    saves: () => site ?? local.saves(),
+    describe: () => (site ? site.describe : local.describe()),
+    prefs: local.prefs,
+    /** This browser's saves, whichever store the frame uses. */
+    local: local.saves(),
+    /** The account's saves, or null signed out. */
+    site,
+  };
+}
+
 /** The tab's title once a release loads: its game and version, so tabs and history tell games apart. */
 export function usePlayTitle(play: Pick<PlayPayload, "title" | "version"> | undefined): void {
   const title = play ? pageTitle(`${play.title} v${play.version}`) : null;
@@ -165,6 +183,14 @@ export function PlayUnavailable({ reason }: { reason?: PlayUnavailableReason | n
   );
 }
 
+function PlayLoading() {
+  return (
+    <div role="status" aria-label="Loading the game" className="h-full w-full bg-black p-6">
+      <Skeleton className="h-full w-full bg-white/5" />
+    </div>
+  );
+}
+
 /** `/games/<project>/play/<version>`: the gate, the payload, then the chrome around the frame. */
 export function PlayPage({ projectId, version }: { projectId: string; version: string }) {
   const blocked = useEngineGamesBlocked();
@@ -172,13 +198,7 @@ export function PlayPage({ projectId, version }: { projectId: string; version: s
   const query = usePlayQuery(projectId, version, !blocked && valid);
 
   if (blocked || !valid) return <PlayUnavailable />;
-  if (query.isPending) {
-    return (
-      <div role="status" aria-label="Loading the game" className="h-full w-full bg-black p-6">
-        <Skeleton className="h-full w-full bg-white/5" />
-      </div>
-    );
-  }
+  if (query.isPending) return <PlayLoading />;
   if (query.isError) {
     const reason = refusalOf(query.error);
     if (reason !== undefined) return <PlayUnavailable reason={reason} />;
@@ -195,44 +215,62 @@ export function PlayPage({ projectId, version }: { projectId: string; version: s
   return <PlayChrome play={query.data} version={version} />;
 }
 
-function SignInButton({ callbackURL, phone }: { callbackURL: string; phone: boolean }) {
-  const label = "Sign in to keep your saves";
+const SIGN_IN_LABEL = "Sign in to keep your saves";
+
+/** Asks before signing in, since the reload restarts the game; raised by the chrome's button and the site menu's item. */
+function SignInConfirm({
+  callbackURL,
+  open,
+  onOpenChange,
+}: {
+  callbackURL: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   return (
     <Confirm
-      title={`${label}?`}
+      title={`${SIGN_IN_LABEL}?`}
       message={SIGN_IN_MESSAGE}
       confirmText="Sign in"
+      open={open}
+      onOpenChange={onOpenChange}
       onConfirm={async () => {
         await signInWithDiscord("game", { callbackURL });
       }}
+    />
+  );
+}
+
+function SignInButton({ phone, onClick }: { phone: boolean; onClick: () => void }) {
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={onClick}
+      {...(phone ? { tooltip: SIGN_IN_LABEL, "aria-label": SIGN_IN_LABEL } : {})}
     >
-      <Button
-        size="sm"
-        variant="outline"
-        {...(phone ? { tooltip: label, "aria-label": label } : {})}
-      >
-        <HugeiconsIcon icon={Login01Icon} data-icon="inline-start" />
-        {phone ? "Sign in" : label}
-      </Button>
-    </Confirm>
+      <HugeiconsIcon icon={Login01Icon} data-icon="inline-start" />
+      {phone ? "Sign in" : SIGN_IN_LABEL}
+    </Button>
   );
 }
 
 /** The play page around a release's frame, in the takeover shell's islands. */
 export function PlayChrome({ play, version }: { play: PlayPayload; version: string }) {
   const phone = useIsMobile();
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending: sessionPending } = authClient.useSession();
   const user = session?.user ?? null;
   const signedIn = user !== null;
+  const signInId = session?.session?.id ?? user?.id ?? null;
   const dialogOpen = useOverlayOpen();
+  const [signInAsked, setSignInAsked] = useState(false);
+  const askSignIn = () => setSignInAsked(true);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const hostRef = useRef<HostServer | null>(null);
   const { projectId } = play;
   usePlayTitle(play);
 
-  const stores = useLocalPlayStores(projectId, (stored) =>
-    signedIn ? SIGNED_IN_BROWSER_DESCRIBE : stored,
-  );
+  const stores = usePlayStores(projectId, signedIn);
 
   useEffect(() => {
     hostRef.current?.notifySavesChanged();
@@ -281,7 +319,11 @@ export function PlayChrome({ play, version }: { play: PlayPayload; version: stri
           <HugeiconsIcon icon={FloppyDiskIcon} size={16} />
         </PopoverTrigger>
         <PopoverContent align="end" sideOffset={8} className="w-80">
-          <SaveNotice mode={play.saveMode} connectOrigins={play.connectOrigins} />
+          <SaveNotice
+            mode={play.saveMode}
+            connectOrigins={play.connectOrigins}
+            saveMenu={stores.describe()}
+          />
         </PopoverContent>
       </Popover>
       <Button
@@ -321,7 +363,7 @@ export function PlayChrome({ play, version }: { play: PlayPayload; version: stri
           </span>
         </SimpleTooltip>
       ) : (
-        <SignInButton callbackURL={playPath(projectId, version)} phone={phone} />
+        <SignInButton phone={phone} onClick={askSignIn} />
       )}
     </>
   );
@@ -333,28 +375,55 @@ export function PlayChrome({ play, version }: { play: PlayPayload; version: stri
         <SiteIsland
           label="Game"
           compact={phone}
-          site={{ back: { label: "game page", link: gamePage }, signinSource: "game" }}
+          site={{
+            back: { label: "game page", link: gamePage },
+            signinSource: "game",
+            onSignIn: askSignIn,
+          }}
         >
           {name}
         </SiteIsland>
       }
       topRight={phone ? actions : <Island aria-label="Play">{actions}</Island>}
     >
-      <PlayFrame
-        ref={iframeRef}
-        frameUrl={play.frameUrl}
-        title={play.title}
-        release={{ id: play.release.id, gameId: play.release.gameId, projectId }}
-        saveMode={play.saveMode}
-        online={play.online}
-        saves={stores.saves}
-        describe={stores.describe}
-        prefs={stores.prefs}
-        dialogOpen={dialogOpen}
-        onHostServer={(server) => {
-          hostRef.current = server;
-        }}
-      />
+      {sessionPending ? (
+        <PlayLoading />
+      ) : (
+        <PlayFrame
+          ref={iframeRef}
+          frameUrl={play.frameUrl}
+          title={play.title}
+          release={{ id: play.release.id, gameId: play.release.gameId, projectId }}
+          saveMode={play.saveMode}
+          online={play.online}
+          saves={stores.saves}
+          describe={stores.describe}
+          prefs={stores.prefs}
+          player={() => ({ signedIn, name: user?.name ?? null })}
+          dialogOpen={dialogOpen}
+          onHostServer={(server) => {
+            hostRef.current = server;
+          }}
+        />
+      )}
+      {signedIn ? null : (
+        <SignInConfirm
+          callbackURL={playPath(projectId, version)}
+          open={signInAsked}
+          onOpenChange={setSignInAsked}
+        />
+      )}
+      {stores.site && signInId && play.saveMode === "site" && play.channel !== "preview" ? (
+        <KeepSavesDialog
+          projectId={projectId}
+          gameId={play.release.gameId}
+          title={play.title}
+          signIn={signInId}
+          local={stores.local}
+          site={stores.site}
+          onClaimed={() => hostRef.current?.notifySavesChanged()}
+        />
+      ) : null}
     </CanvasShell>
   );
 }

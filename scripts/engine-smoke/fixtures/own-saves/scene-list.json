@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../../packages/engine/project/scene-list.schema.json",
+  "kind": "scene-list",
+  "v": 1,
+  "start": "main",
+  "scenes": [{ "scene": "main" }]
+}

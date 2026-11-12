@@ -2,7 +2,8 @@ import { ORPCError } from "@orpc/client";
 import { call } from "@orpc/server";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { getGamePage, getGamePlay, reportGame } from "@/orpc/router/engine-game";
+import { CONNECT_ORIGINS_MAX } from "@/lib/engine/limits";
+import { getGamePage, getGamePlay, reportGame, setGameSettings } from "@/orpc/router/engine-game";
 import { asUser } from "@/test/orpc";
 
 vi.mock("@/db", () => ({ db: {} }));
@@ -45,6 +46,17 @@ vi.mock("@/lib/engine/release-moderation", () => ({
     return { ok: true };
   },
 }));
+
+vi.mock("@/lib/engine/game-settings", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/engine/game-settings")>();
+  return {
+    ...actual,
+    setGameSettings: async ({ patch }: { patch: { connectOrigins?: string[] } }) => {
+      state.calls.push("settings");
+      return { connectOrigins: actual.checkConnectOrigins(patch.connectOrigins ?? [], []) };
+    },
+  };
+});
 
 const PLAY = { projectId: "kitchen", version: "latest" };
 
@@ -96,5 +108,40 @@ describe("hosted game procedures are staff only", () => {
     state.open = false;
     expect(await codeOf(call(getGamePlay, PLAY, asUser("staff")))).toBe("NOT_FOUND");
     expect(state.calls).toEqual([]);
+  });
+});
+
+describe("setGameSettings", () => {
+  const origins = (count: number) =>
+    Array.from({ length: count }, (_, i) => `https://api${i}.example.com`);
+
+  it("answers a list one past the limit with the site's own message, not the schema's", async () => {
+    const { connectOriginsTooMany } = await import("@/lib/engine/game-settings");
+    const count = CONNECT_ORIGINS_MAX + 1;
+    let refusal: unknown;
+    try {
+      await call(
+        setGameSettings,
+        { projectId: "kitchen", connectOrigins: origins(count) },
+        asUser("staff"),
+      );
+    } catch (error) {
+      refusal = error;
+    }
+    expect(refusal).toBeInstanceOf(ORPCError);
+    const expected = connectOriginsTooMany(count);
+    expect((refusal as ORPCError<string, unknown>).message).toBe(expected.message);
+    expect((refusal as ORPCError<string, unknown>).data).toEqual(expected);
+    expect(state.calls).toEqual(["settings"]);
+  });
+
+  it("lets the limit's worth through", async () => {
+    await expect(
+      call(
+        setGameSettings,
+        { projectId: "kitchen", connectOrigins: origins(CONNECT_ORIGINS_MAX) },
+        asUser("staff"),
+      ),
+    ).resolves.toEqual({ connectOrigins: origins(CONNECT_ORIGINS_MAX) });
   });
 });

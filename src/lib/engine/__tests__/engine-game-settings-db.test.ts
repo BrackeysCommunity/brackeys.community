@@ -332,10 +332,20 @@ describe("setGameSettings: the audit", () => {
 });
 
 describe("readGameSettings", () => {
+  const read = () =>
+    readGameSettings({ projectId: PROJECT, actor: creator }, db as unknown as ReleaseTxDb);
+
   it("answers what setGameSettings wrote", async () => {
     const written = await set({ visibility: "public", online: true });
-    expect(
-      await readGameSettings({ projectId: PROJECT, actor: creator }, db as unknown as ReleaseTxDb),
-    ).toEqual(written);
+    expect(await read()).toEqual({ ...written, team: null });
+  });
+
+  it("names the team that owns the project, so the editor can offer Team", async () => {
+    const [team] = await db
+      .insert(teams)
+      .values({ slug: "read-settings-team", name: "Night Owls", createdBy: "creator" })
+      .returning({ id: teams.id });
+    await db.update(engineProjects).set({ teamId: team!.id });
+    expect(await read()).toMatchObject({ team: "Night Owls" });
   });
 });

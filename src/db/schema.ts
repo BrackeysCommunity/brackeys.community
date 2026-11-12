@@ -2868,6 +2868,43 @@ export const engineReleaseUploads = canvasSchema.table(
   ],
 );
 
+/**
+ * A signed-in player's save in a hosted game. The save text lives in object
+ * storage at `engine-saves/<user>/<project>/<slot>`, never in the row; the
+ * row is what lists, quotas and expiry read. `used_at` moves on every write,
+ * read and list, and the collector expires saves unused for 180 days.
+ */
+export const engineSaves = canvasSchema.table(
+  "engine_saves",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    // The engine's SLOT_PATTERN.
+    slot: text("slot").notNull(),
+    // Bytes of the stored save text: what the per-player total counts.
+    bytes: integer("bytes").notNull(),
+    gameVersion: integer("game_version").notNull(),
+    // The release the save was made on. No foreign key: releases are collected.
+    releaseId: text("release_id"),
+    // The engine's SaveMeta; a title over 80 characters is refused in code.
+    meta: jsonb("meta")
+      .$type<{ title?: string; scene: string; savedAt: number; playTicks: number }>()
+      .notNull(),
+    writtenAt: timestamp("written_at").defaultNow().notNull(),
+    usedAt: timestamp("used_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.projectId, t.slot] }),
+    index("engine_saves_used_at_idx").on(t.usedAt),
+    index("engine_saves_user_idx").on(t.userId),
+    check("engine_saves_slot", sql`${t.slot} ~ '^[a-z0-9][a-z0-9-]{0,31}$'`),
+  ],
+);
+
 /** People invited to a personal canvas. Team canvases use the roster. */
 export const canvasMembers = canvasSchema.table(
   "canvas_members",

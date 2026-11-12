@@ -10,8 +10,10 @@ import {
   engineReleases,
 } from "@/db/schema";
 import { siteOrigin as appSiteOrigin } from "@/env";
+import type { EngineReleaseNotice } from "@/lib/image-quarantine";
 import { streamStoredObject, type StoredObjectSource } from "@/lib/stored-object-stream";
 
+import { onReleaseNotice, type FrameCacheNoticeDeps } from "./frame-cache-notice";
 import { frameBase, frameCsp, playOrigin as appPlayOrigin } from "./frame-csp";
 import { onPlayHost, playHost as playHostOf } from "./frame-route-rules";
 import { verifyFrameToken } from "./frame-token";
@@ -72,7 +74,11 @@ const RELEASE_ID = /^[0-9a-f]{64}$/;
 /** A frame token is base64url parts joined by dots; anything else can't verify and mustn't reach the CSP. */
 const FRAME_TOKEN_CHARS = /^[A-Za-z0-9_.-]{1,1024}$/;
 
-/** Hide and unhide change a release's answer here at once; other processes see it within the TTL. */
+/**
+ * Hide and unhide change a release's answer here at once, and other
+ * processes hear of it through the release notice; one that misses the
+ * notice sees it within the TTL.
+ */
 const releaseCache = new Map<string, { at: number; release: LoadedRelease }>();
 
 /** Drops a release from this process's cache, after it's hidden, unhidden or collected. */
@@ -85,6 +91,24 @@ export function forgetProjectReleases(projectId: string): void {
   for (const [id, entry] of releaseCache) {
     if (entry.release.projectId === projectId) releaseCache.delete(id);
   }
+}
+
+/** Drops what a release notice names from this process's cache. */
+export function applyReleaseNotice(notice: EngineReleaseNotice): void {
+  for (const releaseId of notice.releaseIds) forgetRelease(releaseId);
+  for (const projectId of notice.projectIds) forgetProjectReleases(projectId);
+}
+
+let listening: Promise<() => void> | null = null;
+
+/**
+ * Starts this cache listening for release notices, once; the first release
+ * a frame loads starts it, since an empty cache has nothing to drop.
+ * Returns the unsubscribe.
+ */
+export function listenForReleaseNotices(deps: FrameCacheNoticeDeps = {}): Promise<() => void> {
+  listening ??= onReleaseNotice(applyReleaseNotice, deps);
+  return listening;
 }
 
 async function readRelease(
@@ -190,6 +214,7 @@ export async function loadRelease(
   opts: { db?: Pick<ReleaseDb, "select">; now?: () => Date } = {},
 ): Promise<LoadedRelease | null> {
   if (!RELEASE_ID.test(releaseId)) return null;
+  void listenForReleaseNotices();
   const now = (opts.now ?? (() => new Date()))().getTime();
   const cached = releaseCache.get(releaseId);
   if (cached && now - cached.at < CACHE_TTL_MS) {

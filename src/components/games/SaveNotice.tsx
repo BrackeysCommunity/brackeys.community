@@ -9,6 +9,12 @@ export type SaveNoticeProps = {
   mode: SaveMode;
   /** The project's declared connect origins; a game with its own save store names them too. */
   connectOrigins: readonly string[];
+  /**
+   * What the game's save menu says for this viewer now, the play page's
+   * signed-in or signed-out sentence; shown under the paragraph for a game
+   * that saves to the site.
+   */
+  saveMenu?: string;
   className?: string;
 };
 
@@ -39,7 +45,7 @@ export function connectsToSentence(origins: readonly string[]): string | null {
 }
 
 /** Where a game's saves and settings live, by its save mode. */
-export function SaveNotice({ mode, connectOrigins, className }: SaveNoticeProps) {
+export function SaveNotice({ mode, connectOrigins, saveMenu, className }: SaveNoticeProps) {
   const connects = connectsToSentence(connectOrigins);
   return (
     <div className={cn("space-y-2 text-sm text-muted-foreground", className)} data-save-mode={mode}>
@@ -47,6 +53,7 @@ export function SaveNotice({ mode, connectOrigins, className }: SaveNoticeProps)
         <strong className="font-semibold text-foreground">Saves.</strong>{" "}
         {savesSentence(mode, connectOrigins)}
       </p>
+      {mode === "site" && saveMenu ? <p data-save-menu>{saveMenu}</p> : null}
       <p>{PREFS_SENTENCE}</p>
       {connects ? <p>{connects}</p> : null}
     </div>

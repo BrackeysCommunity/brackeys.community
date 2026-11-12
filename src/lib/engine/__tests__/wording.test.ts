@@ -1,15 +1,21 @@
 // @vitest-environment jsdom
 // Every number a person reads about hosted games is the formatted value of
-// a constant: the README's hosting sections, the terms, the editor's
-// publish wording, the save menu's sentences and every quota and release
-// message. A number that isn't one fails here, and so does a constant no
+// a constant: the README's hosting sections, the terms, the privacy
+// notice's game paragraphs, the editor's publish wording, the save menu's
+// sentences, the save notice, Settings → Game saves and every quota,
+// release and save message. A number that isn't one fails here, and so does a constant no
 // sentence states. A limit changes by one edit in `limits.ts` (or the
 // engine's constants) plus the copy this suite points at.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { ITCH_LIMITS, DEFAULT_EXPORT_BUDGET } from "@jams/engine/export";
-import { DEFAULT_SAVE_LIMITS, MAX_BROWSER_SAVE_LIMITS } from "@jams/engine/game";
+import {
+  DEFAULT_SAVE_LIMITS,
+  MAX_BROWSER_SAVE_LIMITS,
+  parseSaveFile,
+  SLOT_PATTERN,
+} from "@jams/engine/game";
 import { cleanup, render } from "@testing-library/react";
 import { createElement } from "react";
 import ts from "typescript";
@@ -38,6 +44,14 @@ const { prefsRefusal, SIGNED_OUT_SAVES_DESCRIBE, siteSaveRefusal } = await impor
 const { emptyTrashConfirm, publishWording, removalText, USAGE_FOOTER, usageView } =
   await import("@/components/game/publish-host");
 const { TermsDocument } = await import("@/components/legal/TermsDocument");
+const GAME_SETTINGS = await import("../game-settings");
+const SHOWCASE = await import("../engine-showcase");
+const { GAME_SAVES_SETTINGS_RULE } = await import("@/components/settings/GameSaves");
+const SAVE_API = await import("../save-api");
+const { SAVE_FAILED_MESSAGE, SAVE_UNREACHABLE_MESSAGE } = await import("../save-store");
+const { connectsToSentence, PREFS_SENTENCE, savesSentence } =
+  await import("@/components/games/SaveNotice");
+const { PrivacyDocument } = await import("@/components/legal/PrivacyDocument");
 
 const ROOT = resolve(import.meta.dirname, "../../../..");
 const readRepo = (path: string): string => readFileSync(resolve(ROOT, path), "utf8");
@@ -111,7 +125,16 @@ const ENGINE_CONSTANTS: Record<string, Constant> = {
   "ITCH_LIMITS.maxFileBytes": { kind: "bytes", text: decimalMb(ITCH_LIMITS.maxFileBytes) },
 };
 
-const CONSTANTS: Record<string, Constant> = { ...SITE_CONSTANTS, ...ENGINE_CONSTANTS };
+/** Every number `save-api.ts` exports; the suite fails when one is missing here. */
+const SAVE_API_CONSTANTS: Record<string, Constant> = {
+  SAVE_TITLE_MAX: countOf(SAVE_API.SAVE_TITLE_MAX),
+};
+
+const CONSTANTS: Record<string, Constant> = {
+  ...SITE_CONSTANTS,
+  ...ENGINE_CONSTANTS,
+  ...SAVE_API_CONSTANTS,
+};
 
 /**
  * Site constants no sentence states, each with why. Rate refusals say
@@ -306,16 +329,70 @@ const RELEASE_MESSAGES: Record<string, () => ERRORS.ReleaseApiError[]> = {
   releaseUnchangeable: () => [ERRORS.releaseUnchangeable()],
 };
 
+/** Every `game-settings-invalid` message `game-settings.ts` writes, by its function's name. */
+const GAME_SETTINGS_MESSAGES: Record<string, () => ERRORS.ReleaseApiError[]> = {
+  connectOriginsTooMany: () => [
+    GAME_SETTINGS.connectOriginsTooMany(LIMITS.CONNECT_ORIGINS_MAX + 1),
+  ],
+  connectOriginInvalid: () => [GAME_SETTINGS.connectOriginInvalid("http://api.example.com/v")],
+  connectOriginIsSite: () => [GAME_SETTINGS.connectOriginIsSite(`https://${SITE.domain}`)],
+  ownSavesNeedOrigin: () => [GAME_SETTINGS.ownSavesNeedOrigin()],
+};
+
+/** What `game-settings.ts` exports besides its messages. */
+const GAME_SETTINGS_RULES = ["checkConnectOrigins", "readGameSettings", "setGameSettings"];
+
+/** Every message `engine-showcase.ts` writes, by its function's name. */
+const SHOWCASE_MESSAGES: Record<string, () => ERRORS.ReleaseApiError[]> = {
+  showcaseNotFound: () => [SHOWCASE.showcaseNotFound("lanes")],
+  showcaseNotEditable: () => [SHOWCASE.showcaseNotEditable("Lanes")],
+  showcaseTaken: () => [SHOWCASE.showcaseTaken("Lanes")],
+  showcaseAlreadyLinked: () => [SHOWCASE.showcaseAlreadyLinked("Lanes")],
+};
+
+const notASave = parseSaveFile("{}");
+const NOT_A_SAVE_ISSUE = notASave.ok ? undefined : notASave.issues[0];
+
+/** Every message `save-api.ts` writes, by its function's name. */
+const SAVE_API_MESSAGES: Record<string, () => ERRORS.ReleaseApiError[]> = {
+  saveSignedOut: () => [SAVE_API.saveSignedOut()],
+  saveNotSite: () => [SAVE_API.saveNotSite()],
+  saveUnplayable: () => [SAVE_API.saveUnplayable()],
+  saveWritesRateLimited: () => [SAVE_API.saveWritesRateLimited()],
+  saveReadsRateLimited: () => [SAVE_API.saveReadsRateLimited()],
+  saveAccountFull: () => [SAVE_API.saveAccountFull(LIMITS.SITE_SAVE_ACCOUNT_BYTES - 20 * KB)],
+  saveNotASaveFile: () => (NOT_A_SAVE_ISSUE ? [SAVE_API.saveNotASaveFile(NOT_A_SAVE_ISSUE)] : []),
+  saveOtherGame: () => [SAVE_API.saveOtherGame("tactics", "lanes")],
+  saveOtherSlot: () => [SAVE_API.saveOtherSlot("slot-a", "slot-b")],
+  saveBadSlot: () => [SAVE_API.saveBadSlot("Slot A")],
+  saveTitleTooLong: () => [SAVE_API.saveTitleTooLong(SAVE_API.SAVE_TITLE_MAX + 1)],
+};
+
+/** What `save-api.ts` exports besides its messages. */
+const SAVE_API_RULES = ["saveAccess", "saveWriteBucket"];
+
+/**
+ * The slot length a slot refusal states. The engine keeps it only inside
+ * `SLOT_PATTERN`, so the suite checks the phrase against the pattern.
+ */
+const SLOT_LENGTH_PHRASE = "1–32 characters";
+
 const words = (m: { message: string; hint?: string }): string =>
   [m.message, m.hint ?? ""].join(" ");
 
 let terms = "";
+let privacy = "";
 
 beforeAll(() => {
   const { container } = render(createElement(TermsDocument));
   const section = container.querySelector("section#games");
   expect(section, "the terms' games section renders with the guard on").not.toBeNull();
   terms = tidy([...section!.querySelectorAll("p")].map((p) => p.textContent ?? "").join("\n"));
+
+  const notice = render(createElement(PrivacyDocument)).container;
+  const games = [...notice.querySelectorAll("[data-engine-games]")];
+  expect(games.length, "the privacy notice's game paragraphs render with the guard on").toBe(6);
+  privacy = tidy(games.map((el) => el.textContent ?? "").join("\n"));
 });
 
 afterAll(cleanup);
@@ -415,6 +492,28 @@ async function sources(): Promise<Source[]> {
       ),
       given: givenOf(LIMITS.SITE_SAVE_LIMITS.maxBytes + 9 * KB, LIMITS.PREFS_MAX_BYTES + 2 * KB),
     },
+    { name: "the privacy notice's game paragraphs", text: privacy },
+    {
+      name: "the signed-in save menu",
+      text: tidy(
+        [SAVE_API.SIGNED_IN_SAVES_DESCRIBE, SAVE_UNREACHABLE_MESSAGE, SAVE_FAILED_MESSAGE].join(
+          "\n",
+        ),
+      ),
+    },
+    {
+      name: "the save notice",
+      text: tidy(
+        [
+          savesSentence("site", []),
+          savesSentence("own", ["https://saves.example.com"]),
+          savesSentence("none", []),
+          PREFS_SENTENCE,
+          connectsToSentence(["https://saves.example.com"]) ?? "",
+        ].join("\n"),
+      ),
+    },
+    { name: "Settings → Game saves", text: tidy(GAME_SAVES_SETTINGS_RULE) },
     {
       name: "quota.ts's messages",
       text: tidy(
@@ -435,6 +534,36 @@ async function sources(): Promise<Source[]> {
           .join("\n"),
       ),
       given: ["0.14.0", "1", "3", ...DATE_GIVEN],
+    },
+    {
+      name: "game-settings.ts's messages",
+      text: tidy(
+        Object.values(GAME_SETTINGS_MESSAGES)
+          .flatMap((make) => make())
+          .map(words)
+          .join("\n"),
+      ),
+      given: givenOf(LIMITS.CONNECT_ORIGINS_MAX + 1),
+    },
+    {
+      name: "save-api.ts's messages",
+      text: tidy(
+        Object.values(SAVE_API_MESSAGES)
+          .flatMap((make) => make())
+          .map(words)
+          .join("\n"),
+      ),
+      given: givenOf(SAVE_API.SAVE_TITLE_MAX + 1),
+      prose: [SLOT_LENGTH_PHRASE],
+    },
+    {
+      name: "engine-showcase.ts's messages",
+      text: tidy(
+        Object.values(SHOWCASE_MESSAGES)
+          .flatMap((make) => make())
+          .map(words)
+          .join("\n"),
+      ),
     },
   ];
 }
@@ -623,6 +752,50 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
     source: "the save menu and the host's refusals",
     phrase: `keeps at most ${C("PREFS_MAX_BYTES")} of them in this browser`,
   },
+  // Settings → Game saves
+  {
+    states: [
+      "SITE_SAVE_LIMITS.maxSlots",
+      "SITE_SAVE_LIMITS.maxBytes",
+      "SITE_SAVE_ACCOUNT_BYTES",
+      "SITE_SAVE_EXPIRY_DAYS",
+    ],
+    source: "Settings → Game saves",
+    phrase: `Games on ${SITE.name} can save to your account: up to ${C("SITE_SAVE_LIMITS.maxSlots")} saves of ${C("SITE_SAVE_LIMITS.maxBytes")} per game, ${C("SITE_SAVE_ACCOUNT_BYTES")} in all. A save you don't load, overwrite or open the game's save menu for in ${C("SITE_SAVE_EXPIRY_DAYS")} days is deleted. Saves made while signed out stay in that browser and aren't listed here.`,
+  },
+  // The privacy notice
+  {
+    states: ["SITE_SAVE_LIMITS.maxBytes", "SITE_SAVE_LIMITS.maxSlots", "SITE_SAVE_ACCOUNT_BYTES"],
+    source: "the privacy notice's game paragraphs",
+    phrase: `we store each save (up to ${C("SITE_SAVE_LIMITS.maxBytes")}; at most ${C("SITE_SAVE_LIMITS.maxSlots")} per game and ${C("SITE_SAVE_ACCOUNT_BYTES")} in all)`,
+  },
+  {
+    states: ["SITE_SAVE_EXPIRY_DAYS"],
+    source: "the privacy notice's game paragraphs",
+    phrase: `until ${C("SITE_SAVE_EXPIRY_DAYS")} days after you last used them`,
+  },
+  // The signed-in save menu and the save notice
+  {
+    states: ["SITE_SAVE_LIMITS.maxSlots", "SITE_SAVE_LIMITS.maxBytes", "SITE_SAVE_EXPIRY_DAYS"],
+    source: "the signed-in save menu",
+    phrase: `Saved to your ${SITE.name} account: up to ${C("SITE_SAVE_LIMITS.maxSlots")} saves of ${C("SITE_SAVE_LIMITS.maxBytes")} for this game. Saves you don't use for ${C("SITE_SAVE_EXPIRY_DAYS")} days are deleted.`,
+  },
+  {
+    states: ["SITE_SAVE_LIMITS.maxSlots", "SITE_SAVE_LIMITS.maxBytes", "SITE_SAVE_EXPIRY_DAYS"],
+    source: "the save notice",
+    phrase: `Signed in, this game saves to your ${SITE.name} account: up to ${C("SITE_SAVE_LIMITS.maxSlots")} saves of ${C("SITE_SAVE_LIMITS.maxBytes")}, deleted after ${C("SITE_SAVE_EXPIRY_DAYS")} days you don't use them.`,
+  },
+  // The save API
+  {
+    states: ["SITE_SAVE_ACCOUNT_BYTES"],
+    source: "save-api.ts's messages",
+    phrase: `Your saves on ${SITE.name} have reached ${C("SITE_SAVE_ACCOUNT_BYTES")} across all games.`,
+  },
+  {
+    states: ["SAVE_TITLE_MAX"],
+    source: "save-api.ts's messages",
+    phrase: `${SITE.name} keeps titles of up to ${C("SAVE_TITLE_MAX")}.`,
+  },
   // Quota and release messages
   {
     states: ["PROJECT_QUOTA.releasesPerDay"],
@@ -638,6 +811,11 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
     states: ["RELEASE_GRACE_DAYS", "PROJECT_QUOTA.releasesKept"],
     source: "quota.ts's messages",
     phrase: `Releases outside your ${C("PROJECT_QUOTA.releasesKept")} newest are removed ${C("RELEASE_GRACE_DAYS")} days after publishing unless pinned`,
+  },
+  {
+    states: ["CONNECT_ORIGINS_MAX"],
+    source: "game-settings.ts's messages",
+    phrase: `A game can connect to at most ${C("CONNECT_ORIGINS_MAX")} origins`,
   },
   {
     states: ["UPLOAD_SESSION_HOURS"],
@@ -674,6 +852,18 @@ const MESSAGE_FILES = [
   "src/lib/engine/local-saves.ts",
   "src/lib/engine/host-server.ts",
   "src/components/game/publish-host.ts",
+  "src/lib/engine/game-settings.ts",
+  "src/lib/engine/engine-showcase.ts",
+  "src/components/settings/GameSaves.tsx",
+  "src/lib/engine/save-api.ts",
+  "src/lib/engine/save-store.ts",
+  "src/components/games/SaveNotice.tsx",
+];
+
+/** Numbers typed into a message on purpose, each checked against what it states. */
+const TYPED: { file: string; raw: string; why: string }[] = [
+  { file: "src/lib/engine/save-api.ts", raw: "1", why: SLOT_LENGTH_PHRASE },
+  { file: "src/lib/engine/save-api.ts", raw: "32", why: SLOT_LENGTH_PHRASE },
 ];
 
 /** The literal parts of every string in a file that reads as a sentence. */
@@ -709,6 +899,21 @@ describe("the wording suite", () => {
       else leaves.push(name);
     }
     expect(leaves.sort()).toEqual(Object.keys(SITE_CONSTANTS).sort());
+  });
+
+  it("knows every number save-api.ts exports", () => {
+    const numbers = Object.entries(SAVE_API)
+      .filter(([, value]) => typeof value === "number")
+      .map(([name]) => name);
+    expect(numbers.sort()).toEqual(Object.keys(SAVE_API_CONSTANTS).sort());
+  });
+
+  it("states the slot length the engine's slot pattern holds", () => {
+    const [shortest, longest] = SLOT_LENGTH_PHRASE.match(/\d+/g)!.map(Number);
+    expect(SLOT_PATTERN.test("a".repeat(shortest!))).toBe(true);
+    expect(SLOT_PATTERN.test("")).toBe(false);
+    expect(SLOT_PATTERN.test("a".repeat(longest!))).toBe(true);
+    expect(SLOT_PATTERN.test("a".repeat(longest! + 1))).toBe(false);
   });
 
   it("reads numbers as copy writes them, and flags one no constant has", () => {
@@ -774,6 +979,33 @@ describe("the wording suite", () => {
     expect(writers.sort()).toEqual(Object.keys(RELEASE_MESSAGES).sort());
   });
 
+  it("renders every message game-settings.ts and engine-showcase.ts write", () => {
+    const writers = (module: Record<string, unknown>, skip: readonly string[]) =>
+      Object.entries(module)
+        .filter(([name, value]) => typeof value === "function" && !skip.includes(name))
+        .map(([name]) => name)
+        .sort();
+    expect(writers(GAME_SETTINGS, GAME_SETTINGS_RULES)).toEqual(
+      Object.keys(GAME_SETTINGS_MESSAGES).sort(),
+    );
+    for (const message of Object.values(GAME_SETTINGS_MESSAGES).flatMap((make) => make()))
+      expect(message.code).toBe("game-settings-invalid");
+    expect(writers(SHOWCASE, ["linkShowcase", "createShowcase", "unlinkShowcase"])).toEqual(
+      Object.keys(SHOWCASE_MESSAGES).sort(),
+    );
+  });
+
+  it("renders every message save-api.ts writes", () => {
+    const writers = Object.entries(SAVE_API)
+      .filter(
+        ([name, value]) =>
+          typeof value === "function" && /^save[A-Z]/.test(name) && !SAVE_API_RULES.includes(name),
+      )
+      .map(([name]) => name);
+    expect(writers.sort()).toEqual(Object.keys(SAVE_API_MESSAGES).sort());
+    expect(NOT_A_SAVE_ISSUE, "an empty object isn't a save file").toBeDefined();
+  });
+
   it("renders a refusal for every quota", () => {
     const named = Object.keys(Q).filter((key) => key !== "releasesKept");
     expect(QUOTA_INPUTS.map((input) => input.limit).sort()).toEqual(named.sort());
@@ -781,15 +1013,22 @@ describe("the wording suite", () => {
 
   it("never types a number into a message: every one is interpolated", () => {
     const typed: string[] = [];
+    const used = new Set<(typeof TYPED)[number]>();
     for (const path of MESSAGE_FILES) {
       const literals = sentenceLiterals(path);
       expect(literals.length, `${path} has sentences`).toBeGreaterThan(0);
       for (const literal of literals) {
-        for (const token of tokens(literal.text))
-          typed.push(`${path}:${literal.at}: "${token.raw}"`);
+        for (const token of tokens(literal.text)) {
+          const known = TYPED.find(
+            (t) => t.file === path && t.raw === token.raw && literal.text.includes(t.why),
+          );
+          if (known) used.add(known);
+          else typed.push(`${path}:${literal.at}: "${token.raw}"`);
+        }
       }
     }
     expect(typed).toEqual([]);
+    expect(TYPED.filter((t) => !used.has(t))).toEqual([]);
   });
 
   it("names the abuse address for appeals in the terms", () => {

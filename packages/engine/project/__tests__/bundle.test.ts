@@ -8,7 +8,7 @@ import { expandScene } from "../../scene/expand";
 import { parseScene } from "../../scene/parse";
 import { parsePrefab, prefabLibrary } from "../../scene/prefab";
 import type { Prefab, SceneDefinition } from "../../scene/types";
-import { projectBundle, sceneBundle } from "../bundle";
+import { blobContent, projectBundle, sceneBundle } from "../bundle";
 import { createKindRegistry } from "../kinds";
 import type { AssetEntry, ProjectState } from "../types";
 import { projectView } from "../view";
@@ -231,6 +231,30 @@ describe("sceneBundle", () => {
     expect(followed).toBe(
       '"broken" import.texture names texture "crate-art", which the project doesn\'t have; did you mean "crates-art"?',
     );
+  });
+
+  it("leaves out a texture with a hash but no size, raising nothing the release raises again", () => {
+    const sizeless = entries.map((e) => {
+      if (e.id !== "sky-art") return e;
+      const { bytes: _, ...rest } = e;
+      return rest;
+    });
+    const r = bundleOf(
+      scene({ assets: ["sky-art", "statue-art"] }),
+      projectView(state(sizeless), kinds),
+    );
+    expect(ids(r)).toEqual(["statue-art"]);
+    expect(r.issues).toEqual([]);
+  });
+});
+
+describe("blobContent", () => {
+  it("is the hash with the size, or null while the entry lacks either", () => {
+    const sha256 = "a".repeat(64);
+    expect(blobContent({ sha256, bytes: 3 })).toEqual({ sha256, bytes: 3 });
+    expect(blobContent({ sha256 })).toBeNull();
+    expect(blobContent({ bytes: 3 })).toBeNull();
+    expect(blobContent({})).toBeNull();
   });
 });
 

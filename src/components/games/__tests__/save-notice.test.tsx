@@ -3,6 +3,8 @@ import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import { SITE_SAVE_EXPIRY_DAYS, SITE_SAVE_LIMITS } from "@/lib/engine/limits";
+import { SIGNED_OUT_SAVES_DESCRIBE } from "@/lib/engine/local-saves";
+import { SIGNED_IN_SAVES_DESCRIBE } from "@/lib/engine/save-api";
 import { formatBytes } from "@/lib/format-bytes";
 import { SITE } from "@/lib/legal-meta";
 
@@ -59,5 +61,42 @@ describe("SaveNotice", () => {
     expect(text(container)).toContain(
       "This game connects to: https://leaderboard.example.test. Those sites' own terms apply to what you send them.",
     );
+  });
+
+  it("on the play page, adds the save menu's sentence for the viewer's session", () => {
+    const signedIn = render(
+      <SaveNotice mode="site" connectOrigins={[]} saveMenu={SIGNED_IN_SAVES_DESCRIBE} />,
+    );
+    const inBody = text(signedIn.container);
+    expect(inBody).toContain(
+      `Saved to your ${SITE.name} account: up to 4 saves of 32 KB for this game. Saves you don't use for 180 days are deleted.`,
+    );
+    expect(inBody).toContain("Signed out, saves stay in this browser");
+    expect(inBody.indexOf(SIGNED_IN_SAVES_DESCRIBE)).toBeLessThan(inBody.indexOf(PREFS));
+    signedIn.unmount();
+
+    const signedOut = render(
+      <SaveNotice mode="site" connectOrigins={[]} saveMenu={SIGNED_OUT_SAVES_DESCRIBE} />,
+    );
+    const outBody = text(signedOut.container);
+    expect(outBody).toContain(
+      `Saves stay in this browser on ${SITE.name} until you clear its site data. Sign in to keep them on your account.`,
+    );
+    expect(outBody).not.toContain(SIGNED_IN_SAVES_DESCRIBE);
+  });
+
+  it("leaves the save menu's sentence out on the game page", () => {
+    const { container } = render(<SaveNotice mode="site" connectOrigins={[]} />);
+    expect(container.querySelector("[data-save-menu]")).toBeNull();
+  });
+
+  it("leaves the save menu's sentence out for own and none, signed in or out", () => {
+    for (const mode of ["own", "none"] as const) {
+      for (const saveMenu of [SIGNED_IN_SAVES_DESCRIBE, SIGNED_OUT_SAVES_DESCRIBE]) {
+        const view = render(<SaveNotice mode={mode} connectOrigins={[]} saveMenu={saveMenu} />);
+        expect(text(view.container)).not.toContain(saveMenu);
+        view.unmount();
+      }
+    }
   });
 });

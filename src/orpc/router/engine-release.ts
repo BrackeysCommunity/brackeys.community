@@ -47,6 +47,9 @@ const channel = z.enum(["preview", "production"]);
 
 const person = (userId: string): Actor => ({ kind: "user", userId });
 const staff = (userId: string): Actor => ({ kind: "staff", userId });
+/** The caller as their audit rows name them: staff by their roles, else the person. */
+const actorOf = (context: { user: { id: string }; isStaff: boolean }): Actor =>
+  context.isStaff ? staff(context.user.id) : person(context.user.id);
 const deps = () => ({ store: minioReleaseStore });
 
 /** Checks a build's `release.json` and every quota, and lists the files the site doesn't hold yet. */
@@ -59,32 +62,32 @@ export const beginRelease = releaseStaff
     }),
   )
   .handler(({ context, input }) =>
-    orpcRefusals(() => begin(deps(), { ...input, actor: person(context.user.id) })),
+    orpcRefusals(() => begin(deps(), { ...input, actor: actorOf(context) })),
   );
 
 /** Records the release once its files have arrived, and moves preview to it unless the upload said not to. */
 export const commitRelease = releaseStaff
   .input(z.object({ uploadId: z.string().min(1).max(64) }))
   .handler(({ context, input }) =>
-    orpcRefusals(() => commit(deps(), { ...input, actor: person(context.user.id) })),
+    orpcRefusals(() => commit(deps(), { ...input, actor: actorOf(context) })),
   );
 
 export const listReleases = releaseStaff
   .input(z.object({ projectId }))
   .handler(({ context, input }) =>
-    orpcRefusals(() => readReleases({ ...input, actor: person(context.user.id) })),
+    orpcRefusals(() => readReleases({ ...input, actor: actorOf(context) })),
   );
 
 export const getRelease = releaseStaff
   .input(z.object({ projectId, version }))
   .handler(({ context, input }) =>
-    orpcRefusals(() => readRelease({ ...input, actor: person(context.user.id) })),
+    orpcRefusals(() => readRelease({ ...input, actor: actorOf(context) })),
   );
 
 export const promoteRelease = releaseStaff
   .input(z.object({ projectId, version, channel }))
   .handler(({ context, input }) =>
-    orpcRefusals(() => promote({ ...input, actor: person(context.user.id) })),
+    orpcRefusals(() => promote({ ...input, actor: actorOf(context) })),
   );
 
 /** Back to the channel's previous release, or to the kept version `to`. */
@@ -96,7 +99,7 @@ export const rollbackRelease = releaseStaff
         projectId: input.projectId,
         channel: input.channel,
         ...(input.to !== undefined ? { to: input.to } : {}),
-        actor: person(context.user.id),
+        actor: actorOf(context),
       }),
     ),
   );
@@ -104,13 +107,13 @@ export const rollbackRelease = releaseStaff
 export const linkReleaseJam = releaseStaff
   .input(z.object({ projectId, version, jamId: z.number().int().min(1) }))
   .handler(({ context, input }) =>
-    orpcRefusals(() => linkJam({ ...input, actor: person(context.user.id) })),
+    orpcRefusals(() => linkJam({ ...input, actor: actorOf(context) })),
   );
 
 export const unlinkReleaseJam = releaseStaff
   .input(z.object({ projectId, jamId: z.number().int().min(1) }))
   .handler(({ context, input }) =>
-    orpcRefusals(() => unlinkJam({ ...input, actor: person(context.user.id) })),
+    orpcRefusals(() => unlinkJam({ ...input, actor: actorOf(context) })),
   );
 
 /** Hides one version, or the whole game without one, with the reason its publishers see. */

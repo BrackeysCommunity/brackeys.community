@@ -95,6 +95,12 @@ export const unlinkGameShowcase = gameStaff
     orpcRefusals(() => unlinkShowcase({ ...input, actor: person(context.user.id) })),
   );
 
+/**
+ * A request guard on the list's length, well above the limit, so a list
+ * that is only too long gets `checkConnectOrigins`'s own message.
+ */
+const CONNECT_ORIGINS_INPUT_MAX = CONNECT_ORIGINS_MAX * 4;
+
 /** The settings `setGameSettings` changes, as it answers with them. */
 export const getGameSettings = gameStaff
   .input(z.object({ projectId }))
@@ -111,7 +117,7 @@ export const setGameSettings = gameStaff
       projectId,
       visibility: z.enum(["private", "team", "unlisted", "public"]).optional(),
       saveMode: z.enum(["site", "own", "none"]).optional(),
-      connectOrigins: z.array(z.string().max(255)).max(CONNECT_ORIGINS_MAX).optional(),
+      connectOrigins: z.array(z.string().max(255)).max(CONNECT_ORIGINS_INPUT_MAX).optional(),
       online: z.boolean().optional(),
     }),
   )

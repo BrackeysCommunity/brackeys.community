@@ -4542,12 +4542,16 @@ the player's device. `DEFAULT_SAVE_LIMITS` is that default and
 `saves.limits` raises or lowers it, but the browser stores cap at
 `MAX_BROWSER_SAVE_LIMITS` (1 MB, 64 slots) and a store may be stricter
 still: `effectiveSaveLimits(game, store)` is the minimum of the three, and
-every store, the slots and a game's menu read it. A save over the size is
+every store, the slots and a game's menu read it. The slots read it again
+on every save, so a host whose limits change (a player signing in) applies
+them to the next one. A save over the size is
 `save-too-large`, checked before anything is written; a new slot past the
 count is `save-slot-limit` ("This game keeps at most 8 saves; delete one to
 save again."), while overwriting a slot never is; one instance's writes run
 one at a time, so saves made together can't pass the count; a store that
-throws is `save-store-failed`.
+throws is `save-store-failed`, and a host that refuses the save (a
+signed-out player, or a game that doesn't save there) is `save-forbidden`,
+with the host's own message.
 
 `game.saves` is the instance's `SaveSlots`: `store` (`kind` and
 `describe`), `limits`, `list()` (each slot's `meta`: title, scene,

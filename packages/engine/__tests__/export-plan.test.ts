@@ -500,14 +500,15 @@ describe("finishExport", () => {
     const hosted = { ...input, view: { ...input.view, byId } };
     const content = await planContent(hosted);
     expect(content.assets.rocks).toBeUndefined();
-    expect(content.issues).toContainEqual(
+    const missing = content.issues.filter((i) => i.code === "asset-missing");
+    expect(missing).toEqual([
       expect.objectContaining({
-        code: "asset-missing",
         severity: "error",
         entityIds: ["rocks"],
+        got: "rocks",
         message: expect.stringContaining("records no size") as string,
       }),
-    );
+    ]);
   });
 
   it("plans no service worker or web manifest with the PWA off", async () => {

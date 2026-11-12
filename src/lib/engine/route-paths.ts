@@ -53,3 +53,20 @@ export const RELEASE_ROLLBACK_PATH = /^\/api\/engine\/projects\/([^/]+)\/release
 export const RELEASE_FILE_PATH = /^\/api\/engine\/releases\/uploads\/([^/]+)\/files\/([^/]+)$/;
 /** The release id. */
 export const RELEASE_ZIP_PATH = /^\/api\/engine\/releases\/([^/]+)\/zip$/;
+
+/** `GET` every game's saves on the signed-in account. */
+export const ENGINE_SAVES_PATH = "/api/engine/saves";
+
+/** `GET` a game's saves, with its limits, its save menu's sentence and its save mode. */
+export const engineProjectSavesPath = (projectId: string) =>
+  `${ENGINE_SAVES_PATH}/${encodeURIComponent(projectId)}`;
+
+/** `GET`, `PUT` or `DELETE` one slot's save. */
+export const engineSavePath = (projectId: string, slot: string) =>
+  `${engineProjectSavesPath(projectId)}/${encodeURIComponent(slot)}`;
+
+export const SAVES_PATH = /^\/api\/engine\/saves$/;
+/** The encoded project id. */
+export const PROJECT_SAVES_PATH = /^\/api\/engine\/saves\/([^/]+)$/;
+/** The encoded project id and slot. */
+export const SAVE_SLOT_PATH = /^\/api\/engine\/saves\/([^/]+)\/([^/]+)$/;

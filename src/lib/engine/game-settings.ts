@@ -1,13 +1,13 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db as siteDb } from "@/db";
-import { engineProjects, engineReleases } from "@/db/schema";
+import { engineProjects, engineReleases, teams } from "@/db/schema";
 import { siteOrigin } from "@/env";
 import { purgeShell, type PurgeResult } from "@/lib/cloudflare-purge";
 import { SITE } from "@/lib/legal-meta";
 
+import { announceReleaseChange } from "./frame-cache-notice";
 import { playOrigin } from "./frame-csp";
-import { forgetProjectReleases } from "./frame-route";
 import { CONNECT_ORIGINS_MAX } from "./limits";
 import {
   canDo,
@@ -19,7 +19,8 @@ import {
 } from "./release-access";
 import { writeAudit, type ReleaseDb } from "./release-audit";
 import { ReleaseError, releaseForbidden, type ReleaseApiError } from "./release-errors";
-import { releaseViewer, type Actor, type ReleaseTxDb } from "./release-upload";
+import type { Actor, ReleaseTxDb } from "./release-upload";
+import { releaseViewer } from "./release-viewer";
 
 export type GameSaveMode = "site" | "own" | "none";
 
@@ -46,7 +47,7 @@ export type GameSettingsDeps = {
   now?: () => Date;
   /** The site's own origins, which no game may list; default `siteOrigin()` and `playOrigin()`. */
   siteOrigins?: () => readonly string[];
-  /** Drops the project's releases from the frame route's cache; default this process's. */
+  /** Drops the project's releases from the frame route's cache; default every web process's, through the release notice. */
   forget?: (projectId: string) => void;
   /** Purges a release's shell files at the edge; default Cloudflare when configured. */
   purge?: (releaseId: string) => Promise<PurgeResult>;
@@ -192,18 +193,30 @@ const settingsOf = (row: SettingsRow): GameSettings => ({
   online: row.online,
 });
 
-/** The game's settings as `setGameSettings` answers with them, for the people who may change them. */
+/**
+ * The game's settings as `setGameSettings` answers with them, for the people
+ * who may change them, with the name of the team that owns the project
+ * (null for a personal one), which the Team visibility is offered for.
+ */
 export async function readGameSettings(
   input: { projectId: string; actor: Actor },
   handle: ReleaseDb = siteDb as unknown as ReleaseDb,
-): Promise<GameSettings> {
+): Promise<GameSettings & { team: string | null }> {
   const [row] = await handle
     .select(settingsColumns)
     .from(engineProjects)
     .where(and(eq(engineProjects.projectId, input.projectId), isNull(engineProjects.deletedAt)));
   if (!row) notFound(input.projectId);
   assertMay(await roleFor(handle, input.actor, row), ["settings"]);
-  return settingsOf(row);
+  const [team] =
+    row.teamId === null
+      ? []
+      : await handle
+          .select({ name: teams.name })
+          .from(teams)
+          .where(eq(teams.id, row.teamId))
+          .limit(1);
+  return { ...settingsOf(row), team: team?.name ?? null };
 }
 
 const isPrivate = (visibility: GameVisibility) => visibility === "private" || visibility === "team";
@@ -238,7 +251,9 @@ const sameList = (a: readonly string[], b: readonly string[]) =>
  * and asks staff for the one-time review; once approved, `public` is
  * immediate. Choosing anything else while that review waits withdraws it.
  * Moving from public or unlisted to private or team purges the project's
- * public shells at the edge; when that can't happen, `edgeNote` says why.
+ * public shells at the edge, and so does changing the connect origins or
+ * `online` of a public or unlisted game, since the edge keeps each shell's
+ * CSP with it; when that can't happen, `edgeNote` says why.
  */
 export async function setGameSettings(
   input: { projectId: string; patch: GameSettingsPatch; actor: Actor },
@@ -247,7 +262,9 @@ export async function setGameSettings(
   const db = deps.db ?? (siteDb as unknown as ReleaseTxDb);
   const now = deps.now ?? (() => new Date());
   const siteOrigins = deps.siteOrigins ?? (() => [siteOrigin(), playOrigin()]);
-  const forget = deps.forget ?? forgetProjectReleases;
+  const forget =
+    deps.forget ??
+    ((id: string) => void announceReleaseChange({ releaseIds: [], projectIds: [id] }));
   const purge = deps.purge ?? ((releaseId: string) => purgeShell(releaseId));
   const { projectId, patch, actor } = input;
 
@@ -264,7 +281,7 @@ export async function setGameSettings(
     ...(touchesSettings || patch.visibility === undefined ? (["settings"] as const) : []),
   ]);
 
-  const { settings, changed, wentPrivate } = await db.transaction(async (tx) => {
+  const { settings, changed, purgeEdge } = await db.transaction(async (tx) => {
     const [row] = await tx.select(settingsColumns).from(engineProjects).where(live).for("update");
     if (!row) notFound(projectId);
 
@@ -318,7 +335,7 @@ export async function setGameSettings(
     }
     const settingsChanged = Object.keys(settingsAfter).length > 0;
     if (!visibilityChanged && !settingsChanged)
-      return { settings: before, changed: false, wentPrivate: false };
+      return { settings: before, changed: false, purgeEdge: false };
 
     await tx
       .update(engineProjects)
@@ -353,16 +370,17 @@ export async function setGameSettings(
         detail: { before: settingsBefore, after: settingsAfter },
       });
     }
+    const cspChanged = "connectOrigins" in settingsAfter || "online" in settingsAfter;
     return {
       settings: after,
       changed: true,
-      wentPrivate: !isPrivate(before.visibility) && isPrivate(after.visibility),
+      purgeEdge: !isPrivate(before.visibility) && (isPrivate(after.visibility) || cspChanged),
     };
   });
 
   // Visibility and connect origins shape what the frame route serves and its CSP.
   if (changed) forget(projectId);
-  if (!wentPrivate) return settings;
+  if (!purgeEdge) return settings;
   const note = await purgePublicShells(db, projectId, purge);
   return note === null ? settings : { ...settings, edgeNote: note };
 }

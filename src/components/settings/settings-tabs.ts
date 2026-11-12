@@ -1,11 +1,15 @@
 import {
   ColorsIcon,
+  FloppyDiskIcon,
   LockKeyIcon,
   MagicWand01Icon,
   Notification03Icon,
   UserIcon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
+
+import { engineGamesAllowed } from "@/lib/engine/guard";
+import { useFlag } from "@/lib/hooks/use-flag";
 
 /** The `/settings` sections, in nav order. Shared with the header cog so
  * the menu's quick rows deep-link to the pane they summarise. */
@@ -62,3 +66,32 @@ export const SETTINGS_TAB_META = {
   SettingsTab,
   { label: string; hint: string; icon: IconSvgElement; to: string }
 >;
+
+/** A section the nav lists only while its feature is on for the viewer. */
+export type SettingsNavTab = SettingsTab | "game-saves";
+
+export const SETTINGS_NAV_META = {
+  ...SETTINGS_TAB_META,
+  "game-saves": {
+    label: "Game saves",
+    hint: "Saves from games you play",
+    icon: FloppyDiskIcon,
+    to: "/settings/game-saves",
+  },
+} as const satisfies Record<
+  SettingsNavTab,
+  { label: string; hint: string; icon: IconSvgElement; to: string }
+>;
+
+/** Whether Settings → Game saves exists for this viewer on this deployment. */
+export function useGameSavesSettings(): boolean {
+  return useFlag("engine-games-enabled") && engineGamesAllowed();
+}
+
+/** The nav's sections, in order: `SETTINGS_TABS` plus the ones switched on. */
+export function useSettingsNavTabs(): readonly SettingsNavTab[] {
+  const gameSaves = useGameSavesSettings();
+  if (!gameSaves) return SETTINGS_TABS;
+  const at = SETTINGS_TABS.indexOf("account");
+  return [...SETTINGS_TABS.slice(0, at), "game-saves", ...SETTINGS_TABS.slice(at)];
+}

@@ -7,11 +7,20 @@ export const ITCH_ISSUES_HEADER = "x-jams-itch-issues";
 
 const HEADER_MESSAGES = 10;
 const HEADER_MESSAGE_CHARS = 200;
+/** Under the smallest header buffer a proxy on the way commonly has (nginx's 4 KiB): a larger one fails the whole response. */
+export const ITCH_ISSUES_HEADER_MAX_CHARS = 3_072;
+
+const asciiJson = (value: unknown): string =>
+  JSON.stringify(value).replace(
+    /[^\x20-\x7e]/g,
+    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
 
 /**
  * `ITCH_ISSUES_HEADER`'s value: `{ count, messages }` as JSON with every
  * character outside printable ASCII escaped, so it's a legal header and
- * `JSON.parse` reads it back. Messages are capped; `count` is every issue.
+ * `JSON.parse` reads it back. Messages are capped, and the value stays
+ * within `ITCH_ISSUES_HEADER_MAX_CHARS`; `count` is every issue.
  */
 export function itchIssuesHeader(issues: readonly SceneIssue[]): string {
   const messages = issues
@@ -21,10 +30,12 @@ export function itchIssuesHeader(issues: readonly SceneIssue[]): string {
         ? `${issue.message.slice(0, HEADER_MESSAGE_CHARS - 1)}…`
         : issue.message,
     );
-  return JSON.stringify({ count: issues.length, messages }).replace(
-    /[^\x20-\x7e]/g,
-    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
-  );
+  let value = asciiJson({ count: issues.length, messages });
+  while (value.length > ITCH_ISSUES_HEADER_MAX_CHARS && messages.length > 0) {
+    messages.pop();
+    value = asciiJson({ count: issues.length, messages });
+  }
+  return value;
 }
 
 /** What the game page shows from a zip response's `ITCH_ISSUES_HEADER`; null when it has none or it's malformed. */

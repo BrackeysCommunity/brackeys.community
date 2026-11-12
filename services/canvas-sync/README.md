@@ -213,10 +213,15 @@ the collector cleans up hosted games' storage, one project at a time:
    holds it, else the row) and every kept release's snapshot are what keep a
    blob. Referenced ones get `last_referenced_at` = now; unreferenced ones go
    after 30 quiet days.
-4. **Uploads** expired and uncommitted (their files go with step 2 a day on).
-5. **Deleted projects** 30 days after `deleted_at`: every object under
-   `engine-assets/<project>/` and `engine-releases/<project>/` and every
-   object its rows name, then the row (the tables cascade).
+4. **Saves** last used more than 180 days ago (`savesDue`), 500 at a time:
+   the object at `engine-saves/<user>/<project>/<slot>`, then the row, each
+   under the save's row lock and only if a read or write hasn't used it since
+   the plan. Saves of a project the purge removes this run are left to it.
+5. **Uploads** expired and uncommitted (their files go with step 2 a day on).
+6. **Deleted projects** 30 days after `deleted_at`: every object under
+   `engine-assets/<project>/` and `engine-releases/<project>/`, every object
+   its rows name and its saves' keys (read from `engine_saves` first), then
+   the row (the tables cascade).
 
 Each run plans everything first and logs every deletion (`[collector] would
 delete …` or `[collector] deleting …`), then ends with counts and bytes per

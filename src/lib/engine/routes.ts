@@ -13,7 +13,7 @@ import { and, eq } from "drizzle-orm";
 import * as z from "zod";
 
 import { db } from "@/db";
-import { engineBlobs } from "@/db/schema";
+import { engineBlobs, engineProjects } from "@/db/schema";
 import type { SyncAccess } from "@/lib/canvas/token";
 import { isAllowedProfileProjectImageType } from "@/lib/image-upload-policy";
 import { requestUploadScan } from "@/lib/media-scan";
@@ -148,7 +148,8 @@ export function createEngineRoutes(deps: EngineRouteDeps) {
 
     const reply = (status: number) =>
       Response.json({ sha256: hash, bytes: bytes.byteLength }, { status });
-    if (heldRow ?? (await blobRow(projectId, hash))) return reply(200);
+    if ((heldRow ?? (await blobRow(projectId, hash))) && (await touchHeldBlob(projectId, hash)))
+      return reply(200);
 
     const refusal = checkQuota(quota, await storedProjectUsage(projectId), {
       blobs: 1,
@@ -313,6 +314,28 @@ function agentRefusal(refusal: AgentExchangeRefusal): Response {
       headers: refusal.status === 401 ? { "www-authenticate": "Bearer" } : {},
     },
   );
+}
+
+/**
+ * Restarts a held blob's grace, under the project's row lock, the one the
+ * collector removes blobs under: an uploader who finds the blob held goes on
+ * to reference it, so the collector must not take it once it has answered.
+ * False when the collector removed it first, and the upload stores it again.
+ */
+async function touchHeldBlob(projectId: string, hash: string): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    await tx
+      .select({ projectId: engineProjects.projectId })
+      .from(engineProjects)
+      .where(eq(engineProjects.projectId, projectId))
+      .for("update");
+    const touched = await tx
+      .update(engineBlobs)
+      .set({ lastReferencedAt: new Date() })
+      .where(and(eq(engineBlobs.projectId, projectId), eq(engineBlobs.sha256, hash)))
+      .returning({ sha256: engineBlobs.sha256 });
+    return touched.length > 0;
+  });
 }
 
 async function blobRow(projectId: string, hash: string) {

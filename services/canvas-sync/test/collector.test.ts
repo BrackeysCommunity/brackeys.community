@@ -13,13 +13,18 @@ import {
   engineReleaseObjects,
   engineReleases,
   engineReleaseUploads,
+  engineSaves,
   itchTierHeartbeats,
 } from "../../../src/db/schema.ts";
 import {
   plannedRelease,
   type PlannedRelease,
 } from "../../../src/lib/engine/__tests__/release-fixture.ts";
-import { engineAssetKey, engineReleaseObjectKey } from "../../../src/lib/engine/storage-keys.ts";
+import {
+  engineAssetKey,
+  engineReleaseObjectKey,
+  engineSaveKey,
+} from "../../../src/lib/engine/storage-keys.ts";
 import { emptyProjectState, seedProjectState } from "../../../src/lib/scene/project-bytes.ts";
 import {
   COLLECTOR_LOCK_SECONDS,
@@ -33,7 +38,7 @@ import {
 } from "../src/engine/collector.ts";
 import { MemoryObjectStore } from "../src/engine/object-store.ts";
 import { FakeRedis } from "./fake-redis.ts";
-import { newProjectId, TEST_DATABASE_URL, testDb, warnSkipped } from "./harness.ts";
+import { newProjectId, seedUser, TEST_DATABASE_URL, testDb, warnSkipped } from "./harness.ts";
 
 const quiet = { captureException() {}, capture() {}, async shutdown() {} };
 const DAY = 86_400_000;
@@ -321,6 +326,37 @@ if (TEST_DATABASE_URL) {
       });
       return releases;
     }
+
+    const newUserId = () => `u-${crypto.randomUUID().slice(0, 8)}`;
+
+    /** A stored save and its object, last used at `usedAt`. */
+    async function seedSave(
+      store: MemoryObjectStore,
+      save: { userId: string; projectId: string; slot: string; usedAt: Date; bytes?: number },
+    ): Promise<string> {
+      await db.insert(engineSaves).values({
+        userId: save.userId,
+        projectId: save.projectId,
+        slot: save.slot,
+        bytes: save.bytes ?? 100,
+        gameVersion: 1,
+        meta: { scene: "hall", savedAt: 0, playTicks: 0 },
+        writtenAt: save.usedAt,
+        usedAt: save.usedAt,
+      });
+      const key = engineSaveKey(save.userId, save.projectId, save.slot);
+      store.put(key);
+      return key;
+    }
+
+    const saveRows = async (projectId: string) =>
+      (
+        await db
+          .select({ userId: engineSaves.userId, slot: engineSaves.slot })
+          .from(engineSaves)
+          .where(eq(engineSaves.projectId, projectId))
+          .orderBy(engineSaves.slot)
+      ).map((r) => r.slot);
 
     const filesOf = (release: PlannedRelease) =>
       new Set(release.manifest.build.files.map((f) => f.sha256));
@@ -699,6 +735,208 @@ if (TEST_DATABASE_URL) {
       expect(next.ran && next.actions.map((a) => a.target)).toEqual([key]);
       expect(await blobRow(projectId, orphan)).toBeUndefined();
     }, 60_000);
+
+    it("expires a save unused for 181 days and keeps one used 179 days ago", async () => {
+      const projectId = newProjectId();
+      const userId = newUserId();
+      const store = new MemoryObjectStore();
+      await seedProject(projectId);
+      await seedUser(db, userId);
+      const old = await seedSave(store, {
+        userId,
+        projectId,
+        slot: "old",
+        usedAt: at(-181 * DAY),
+        bytes: 321,
+      });
+      const recent = await seedSave(store, {
+        userId,
+        projectId,
+        slot: "recent",
+        usedAt: at(-179 * DAY),
+      });
+
+      const run = await collector([projectId], { objects: store, at: T0 });
+      if (!run.ran) throw new Error("the run didn't take the lock");
+      expect(run.failures).toEqual([]);
+      expect(run.actions).toEqual([{ step: "saves", projectId, target: old, bytes: 321 }]);
+      expect(run.totals.saves).toEqual({ count: 1, bytes: 321 });
+      expect(store.has(old)).toBe(false);
+      expect(store.has(recent)).toBe(true);
+      expect(await saveRows(projectId)).toEqual(["recent"]);
+
+      // Two days on, the other one has gone quiet for the whole period too.
+      const later = await collector([projectId], { objects: store, at: at(2 * DAY) });
+      expect(later.ran && later.actions.map((a) => a.target)).toEqual([recent]);
+      expect(await saveRows(projectId)).toEqual([]);
+    }, 60_000);
+
+    it("keeps a save a listing used, before the run or between its plan and the deletion", async () => {
+      const projectId = newProjectId();
+      const userId = newUserId();
+      const store = new MemoryObjectStore();
+      await seedProject(projectId);
+      await seedUser(db, userId);
+      const listed = await seedSave(store, {
+        userId,
+        projectId,
+        slot: "listed",
+        usedAt: at(-200 * DAY),
+      });
+      const racing = await seedSave(store, {
+        userId,
+        projectId,
+        slot: "racing",
+        usedAt: at(-200 * DAY),
+      });
+      // A listing bumps `used_at` on every save it returns.
+      await db
+        .update(engineSaves)
+        .set({ usedAt: at(-HOUR) })
+        .where(and(eq(engineSaves.projectId, projectId), eq(engineSaves.slot, "listed")));
+
+      let bumped = false;
+      const listing = new Proxy(db, {
+        get(target, prop) {
+          const value = Reflect.get(target, prop, target);
+          if (prop !== "transaction" || bumped)
+            return typeof value === "function" ? value.bind(target) : value;
+          return async (...args: Parameters<typeof db.transaction>) => {
+            bumped = true;
+            await db
+              .update(engineSaves)
+              .set({ usedAt: T0 })
+              .where(and(eq(engineSaves.projectId, projectId), eq(engineSaves.slot, "racing")));
+            return target.transaction(...args);
+          };
+        },
+      });
+      const lines: string[] = [];
+
+      const run = await collector([projectId], { db: listing, objects: store, at: T0, lines });
+      expect(run.ran && run.failures).toEqual([]);
+      expect(bumped).toBe(true);
+      expect(run.ran && run.actions.map((a) => a.target)).toEqual([racing]);
+      expect(lines.some((l) => l.startsWith(`[collector] kept ${racing}`))).toBe(true);
+      expect(store.has(listed)).toBe(true);
+      expect(store.has(racing)).toBe(true);
+      expect(store.removed).toEqual([]);
+      expect(await saveRows(projectId)).toEqual(["listed", "racing"]);
+    }, 60_000);
+
+    it("deletes a purged project's saves' objects before its row, which takes the save rows", async () => {
+      const old = newProjectId();
+      const recent = newProjectId();
+      const alice = newUserId();
+      const bob = newUserId();
+      const store = new MemoryObjectStore();
+      await seedProject(old, { deletedAt: at(-31 * DAY) });
+      await seedProject(recent, { deletedAt: at(-29 * DAY) });
+      await seedUser(db, alice);
+      await seedUser(db, bob);
+      // In use yesterday: only the purge removes these.
+      const aliceSave = await seedSave(store, {
+        userId: alice,
+        projectId: old,
+        slot: "a",
+        usedAt: at(-DAY),
+      });
+      const bobSave = await seedSave(store, {
+        userId: bob,
+        projectId: old,
+        slot: "b",
+        usedAt: at(-DAY),
+      });
+      // A project still inside its 30 days keeps its saves, unless they expire.
+      const kept = await seedSave(store, {
+        userId: alice,
+        projectId: recent,
+        slot: "kept",
+        usedAt: at(-DAY),
+      });
+      const expired = await seedSave(store, {
+        userId: alice,
+        projectId: recent,
+        slot: "expired",
+        usedAt: at(-181 * DAY),
+      });
+
+      const run = await collector([old, recent], { objects: store, at: T0 });
+      expect(run.ran && run.failures).toEqual([]);
+      expect(run.ran && run.actions.map((a) => [a.step, a.target])).toEqual([
+        ["saves", expired],
+        ...[aliceSave, bobSave].sort().map((key) => ["projects", key]),
+        ["projects", old],
+      ]);
+      expect(store.has(aliceSave)).toBe(false);
+      expect(store.has(bobSave)).toBe(false);
+      expect(store.has(expired)).toBe(false);
+      expect(store.has(kept)).toBe(true);
+      expect(await saveRows(old)).toEqual([]);
+      expect(await saveRows(recent)).toEqual(["kept"]);
+      expect(
+        await db.select().from(engineProjects).where(eq(engineProjects.projectId, old)),
+      ).toEqual([]);
+    }, 60_000);
+
+    it("in report mode plans expired saves, more than a page of them, and deletes none", async () => {
+      const projectId = newProjectId();
+      const purged = newProjectId();
+      const store = new MemoryObjectStore();
+      await seedProject(projectId);
+      await seedProject(purged, { deletedAt: at(-40 * DAY) });
+      const users = Array.from({ length: 501 }, newUserId);
+      for (const userId of users) await seedUser(db, userId);
+      await db.insert(engineSaves).values(
+        users.map((userId) => ({
+          userId,
+          projectId,
+          slot: "auto",
+          bytes: 10,
+          gameVersion: 1,
+          meta: { scene: "hall", savedAt: 0, playTicks: 0 },
+          usedAt: at(-200 * DAY),
+        })),
+      );
+      for (const userId of users) store.put(engineSaveKey(userId, projectId, "auto"));
+      const purgedSave = await seedSave(store, {
+        userId: users[0]!,
+        projectId: purged,
+        slot: "a",
+        usedAt: at(-DAY),
+      });
+      const keysBefore = [...store.objects.keys()].sort();
+      const captured: Record<string, unknown>[] = [];
+      const lines: string[] = [];
+
+      const report = await collector([projectId, purged], {
+        objects: store,
+        mode: "report",
+        at: T0,
+        lines,
+        telemetry: { ...quiet, capture: (_event, properties) => captured.push(properties ?? {}) },
+      });
+      if (!report.ran) throw new Error("the report run didn't take the lock");
+      expect(report.failures).toEqual([]);
+      expect(report.totals.saves).toEqual({ count: 501, bytes: 5010 });
+      expect(report.actions.filter((a) => a.step === "projects").map((a) => a.target)).toEqual([
+        purgedSave,
+        purged,
+      ]);
+      expect(store.removed).toEqual([]);
+      expect([...store.objects.keys()].sort()).toEqual(keysBefore);
+      expect(await saveRows(projectId)).toHaveLength(501);
+      expect(await saveRows(purged)).toEqual(["a"]);
+      expect(captured[0]).toMatchObject({ saves_count: 501, saves_bytes: 5010 });
+      expect(lines.some((l) => l.includes("saves 501 ("))).toBe(true);
+
+      const run = await collector([projectId, purged], { objects: store, at: T0 });
+      expect(run.ran && run.failures).toEqual([]);
+      expect(run.ran && run.totals.saves.count).toBe(501);
+      expect(await saveRows(projectId)).toEqual([]);
+      expect(await saveRows(purged)).toEqual([]);
+      expect(store.removed).toHaveLength(502);
+    }, 120_000);
 
     it("without a bucket collects releases but leaves objects and their rows", async () => {
       const projectId = newProjectId();

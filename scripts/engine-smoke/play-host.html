@@ -1,16 +1,22 @@
 <!doctype html>
 <!--
   The play-frame smoke's play page: the site's own host server
-  (src/lib/engine/host-server.ts) and signed-out saves
-  (src/lib/engine/local-saves.ts), bundled by the smoke, around a release's
-  frame on another origin.
+  (src/lib/engine/host-server.ts), signed-out saves
+  (src/lib/engine/local-saves.ts), signed-in saves through the save API
+  (src/lib/engine/save-store.ts) and the claim of this browser's saves on
+  sign-in (src/lib/engine/claim-saves.ts), bundled by the smoke, around a
+  release's frame on another origin.
 
-    play-host.html?frame=<url>&release=<id>&game=<id>&project=<id>&sandbox=<tokens>&allow=<list>
+    play-host.html?frame=<url>&release=<id>&game=<id>&project=<id>&sandbox=<tokens>&allow=<list>&session=<path>[&mode=site|own|none]
 
   The iframe gets the play page's sandbox and allow lists from the query
-  (the smoke passes PlayFrame's), the host server is listening before the
-  frame loads, and what the host heard is kept on window.__playHost for the
-  smoke to read.
+  (the smoke passes PlayFrame's). Who is signed in comes from the smoke's
+  session at the session path. Signed in with saves in this browser, the page
+  keeps the ones the claim ticks, as the Keep your saves dialog does when
+  the player accepts it, before the frame loads. The host server is
+  listening before the frame loads, and what the host heard, every message
+  the frame sent on its channel and every call to its save store is kept on
+  window.__playHost for the smoke to read.
 -->
 <html lang="en">
   <head>
@@ -36,8 +42,10 @@
   <body>
     <iframe id="frame" referrerpolicy="no-referrer" title="Game"></iframe>
     <script type="module">
+      import { claimSaves, planClaim } from "../../src/lib/engine/claim-saves.ts";
       import { createHostServer } from "../../src/lib/engine/host-server.ts";
       import { localPlayPrefs, localPlaySaves } from "../../src/lib/engine/local-saves.ts";
+      import { siteSaveStore } from "../../src/lib/engine/save-store.ts";
 
       const query = new URLSearchParams(location.search);
       const need = (name) => {
@@ -47,19 +55,81 @@
       };
       const frame = document.getElementById("frame");
       const projectId = need("project");
-      const record = { states: [], issues: [], dropped: 0 };
+      const gameId = need("game");
+      const mode = query.get("mode") ?? "site";
+      const record = {
+        states: [],
+        issues: [],
+        dropped: 0,
+        user: null,
+        claim: null,
+        frameMessages: [],
+        storeCalls: [],
+      };
       window.__playHost = record;
+
+      // Every message the frame sends on its channel, beside the host server's own handler.
+      const NativeChannel = window.MessageChannel;
+      window.MessageChannel = class extends NativeChannel {
+        constructor() {
+          super();
+          this.port1.addEventListener("message", (e) => {
+            const type = e.data && typeof e.data.type === "string" ? e.data.type : "?";
+            record.frameMessages.push(type);
+          });
+        }
+      };
+
+      const user = await fetch(need("session"), { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : { user: null }))
+        .then((body) => body.user)
+        .catch(() => null);
+      record.user = user;
+
+      const local = localPlaySaves(projectId);
+      let store = local;
+      if (user) {
+        const site = siteSaveStore(projectId);
+        const offered = await local.list(gameId);
+        if (offered.length > 0) {
+          const rows = planClaim(offered, await site.list(gameId), site.limits);
+          record.claim = {
+            rows: rows.map((r) => ({ slot: r.slot, ticked: r.ticked, collides: r.collides })),
+            results: [],
+          };
+          record.claim.results = await claimSaves(rows, local, site, gameId);
+        }
+        store = site;
+      }
+
+      const recorded = {
+        get kind() {
+          return store.kind;
+        },
+        get describe() {
+          return store.describe;
+        },
+        get limits() {
+          return store.limits;
+        },
+      };
+      for (const method of ["list", "read", "write", "remove"])
+        recorded[method] = (...args) => {
+          record.storeCalls.push(method);
+          return store[method](...args);
+        };
 
       frame.setAttribute("sandbox", need("sandbox"));
       frame.setAttribute("allow", need("allow"));
-      const saves = localPlaySaves(projectId);
       const server = createHostServer({
         iframe: frame,
-        release: { id: need("release"), gameId: need("game"), projectId },
-        saves: () => saves,
-        describe: () => saves.describe,
-        mode: "site",
+        release: { id: need("release"), gameId, projectId },
+        saves: () => recorded,
+        describe: () => store.describe,
+        mode,
         prefs: localPlayPrefs(projectId),
+        player: () =>
+          user ? { signedIn: true, name: user.name } : { signedIn: false, name: null },
         onState: (s) => {
           record.states.push(s.jamsState);
           if (s.issue) record.issues.push(s.issue.message);

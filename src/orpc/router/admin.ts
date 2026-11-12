@@ -70,8 +70,15 @@ import {
   isStaffMember as checkIsStaff,
   purgeGuildBanCache,
 } from "@/lib/discord";
+import { announceReleaseChange } from "@/lib/engine/frame-cache-notice";
 import { forumPostTitle } from "@/lib/forum-posts";
-import { purgeImage, restoreImage } from "@/lib/image-quarantine";
+import {
+  confirmKeepHidden,
+  engineObjectOf,
+  purgeImage,
+  restoreImage,
+  type TakedownDeps,
+} from "@/lib/image-quarantine";
 import { enqueueImageRescan } from "@/lib/media-scan";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
@@ -2536,14 +2543,20 @@ export const listImageFlags = os
 
     const total = totals?.total ?? 0;
     return {
-      items: rows.map((row) => ({
-        ...row,
-        imageUrl: row.scanStatus === "purged" ? null : staffImageUrl(row.objectKey),
-        ownerTypeLabel: IMAGE_OWNER_TYPE_LABEL[row.ownerType],
-        owner: owners.get(imageOwnerKey(row)) ?? null,
-        uploader: row.uploaderId ? (people.get(row.uploaderId) ?? null) : null,
-        resolvedBy: row.resolvedById ? (people.get(row.resolvedById) ?? null) : null,
-      })),
+      items: rows.map((row) => {
+        // A hosted game's image is shared by hash and never deleted: a confirm keeps it hidden.
+        const keepsObject = engineObjectOf(row.objectKey) !== null;
+        return {
+          ...row,
+          keepsObject,
+          imageUrl:
+            row.scanStatus === "purged" && !keepsObject ? null : staffImageUrl(row.objectKey),
+          ownerTypeLabel: IMAGE_OWNER_TYPE_LABEL[row.ownerType],
+          owner: owners.get(imageOwnerKey(row)) ?? null,
+          uploader: row.uploaderId ? (people.get(row.uploaderId) ?? null) : null,
+          resolvedBy: row.resolvedById ? (people.get(row.resolvedById) ?? null) : null,
+        };
+      }),
       total,
       page: input.page,
       pageSize: input.pageSize,
@@ -2551,12 +2564,17 @@ export const listImageFlags = os
     };
   });
 
+/** Hides and unhides reach every web process's frame cache, not only this one's. */
+const takedown: TakedownDeps = { announce: (notice) => announceReleaseChange(notice) };
+
 /**
  * Confirm or dismiss an upload flag. Unlike entry flags, resolving acts on
  * our own object: confirm purges it (from wherever it sits — live or
- * quarantined), dismiss restores a quarantined image to where it was. The
- * scan row remembers the ruling, so a rescan never re-quarantines a
- * cleared image, and the detector stands down on the resolved kind.
+ * quarantined), dismiss restores a quarantined image to where it was. A
+ * hosted game's image is shared by hash, so its confirm keeps the object
+ * and leaves every release listing it hidden instead. The scan row
+ * remembers the ruling, so a rescan never re-quarantines a cleared image,
+ * and the detector stands down on the resolved kind.
  */
 async function resolveImageFlagRow(
   flagId: number,
@@ -2581,10 +2599,13 @@ async function resolveImageFlagRow(
   if (!flag) return "missing";
   if (flag.status !== "open") return "already";
 
-  if (action === "confirm") {
-    await purgeImage(db, storedImageStore, flag.objectKey);
+  const keptHidden = engineObjectOf(flag.objectKey) !== null;
+  if (action === "dismiss") {
+    await restoreImage(db, storedImageStore, flag.objectKey, takedown);
+  } else if (keptHidden) {
+    await confirmKeepHidden(db, flag.objectKey, takedown);
   } else {
-    await restoreImage(db, storedImageStore, flag.objectKey);
+    await purgeImage(db, storedImageStore, flag.objectKey);
   }
 
   await db
@@ -2609,6 +2630,7 @@ async function resolveImageFlagRow(
       score: flag.score,
       ownerType: flag.ownerType,
       ownerId: flag.ownerId,
+      ...(action === "confirm" && keptHidden ? { keptHidden: true } : {}),
     },
   });
   return "resolved";

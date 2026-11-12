@@ -1,0 +1,7 @@
+{
+  "v": 3,
+  "checks": [
+    { "id": "valid", "kind": "valid" },
+    { "id": "goal-reached", "kind": "reaches", "result": "won", "script": "main.script.json" }
+  ]
+}

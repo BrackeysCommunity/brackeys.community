@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import type { SaveStore } from "@jams/engine";
+import { formatSaveFile } from "@jams/engine/game";
 import { ORPCError } from "@orpc/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
@@ -8,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import type { PlayPayload } from "@/lib/engine/game-play";
 import type { HostServerOptions } from "@/lib/engine/host-server";
+import { localPlaySaves } from "@/lib/engine/local-saves";
 import { pageTitle } from "@/lib/site-meta";
 
 const calls = vi.hoisted(() => ({
@@ -19,7 +22,11 @@ const auth = vi.hoisted(() => ({
   user: null as null | { id: string; name: string; image: string | null },
   signIn: vi.fn(),
 }));
-const hosts = vi.hoisted(() => ({ created: [] as HostServerOptions[] }));
+const hosts = vi.hoisted(() => ({
+  created: [] as HostServerOptions[],
+  notified: 0,
+  siteWrites: [] as string[],
+}));
 
 vi.mock("@/orpc/client", () => {
   const fn = (name: string) => (calls as Record<string, (input: unknown) => unknown>)[name];
@@ -52,11 +59,28 @@ vi.mock("@/lib/engine/guard", () => ({ engineGamesAllowed: () => gate.allowed })
 vi.mock("@/lib/engine/host-server", () => ({
   createHostServer: (opts: HostServerOptions) => {
     hosts.created.push(opts);
-    return { notifySavesChanged: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() };
+    return {
+      notifySavesChanged: () => {
+        hosts.notified += 1;
+      },
+      pause: vi.fn(),
+      resume: vi.fn(),
+      dispose: vi.fn(),
+    };
   },
 }));
-vi.mock("@/components/canvas/shell/SiteMenu", () => ({
-  SiteMenu: () => <button type="button">Site menu</button>,
+vi.mock("@/lib/engine/save-store", () => ({
+  siteSaveStore: (): SaveStore => ({
+    kind: "host",
+    describe: "Saved to your account.",
+    list: () => Promise.resolve([]),
+    read: () => Promise.resolve(null),
+    write: (_game, slot, text) => {
+      hosts.siteWrites.push(slot);
+      return Promise.resolve({ ok: true, bytes: text.length });
+    },
+    remove: () => Promise.resolve(),
+  }),
 }));
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
@@ -105,6 +129,24 @@ function payload(patch: Partial<PlayPayload> = {}): PlayPayload {
   };
 }
 
+function saveText(slot: string): string {
+  return formatSaveFile({
+    kind: "save",
+    v: 1,
+    game: "tactics",
+    gameVersion: 1,
+    engine: "0.14.2",
+    release: null,
+    project: null,
+    slot,
+    meta: { title: "Camp", scene: "level-1", savedAt: Date.UTC(2026, 10, 1), playTicks: 0 },
+    depth: "progress",
+    persist: null,
+    scene: { id: "level-1", runHash: "", sublevels: [] },
+    data: null,
+  });
+}
+
 function wrap(node: ReactNode) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>);
@@ -118,6 +160,10 @@ beforeEach(() => {
   gate.flagBlocks = false;
   gate.allowed = true;
   hosts.created.length = 0;
+  hosts.notified = 0;
+  hosts.siteWrites.length = 0;
+  localStorage.clear();
+  sessionStorage.clear();
 });
 afterEach(cleanup);
 
@@ -139,6 +185,43 @@ describe("the play page", () => {
     );
   });
 
+  it("asks the same before the site menu's Sign in, and signs in only once confirmed", async () => {
+    const user = userEvent.setup();
+    wrap(<PlayChrome play={payload()} version="latest" />);
+
+    await user.click(screen.getByRole("button", { name: "Site menu" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Sign in with Discord" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("Sign in to keep your saves?");
+    expect(dialog.textContent).toContain(SIGN_IN_MESSAGE);
+    expect(auth.signIn).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "CANCEL" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(auth.signIn).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Site menu" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Sign in with Discord" }));
+    await user.click(await screen.findByRole("button", { name: "Sign in" }));
+    await waitFor(() =>
+      expect(auth.signIn).toHaveBeenCalledWith("game", {
+        callbackURL: "/games/tactics/play/latest",
+      }),
+    );
+    expect(auth.signIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the site menu's Sign in immediate on pages that don't ask first", async () => {
+    const { SiteMenu } = await import("@/components/canvas/shell/SiteMenu");
+    const user = userEvent.setup();
+    wrap(<SiteMenu signinSource="game" />);
+
+    await user.click(screen.getByRole("button", { name: "Site menu" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Sign in with Discord" }));
+    expect(auth.signIn).toHaveBeenCalledWith("game");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
   it("shows the viewer's avatar and Report when signed in, not the sign-in button", async () => {
     auth.user = { id: "u1", name: "Carol", image: null };
     calls.reportGame.mockResolvedValue({ ok: true });
@@ -158,6 +241,36 @@ describe("the play page", () => {
         reason: "stolen art",
       }),
     );
+  });
+
+  it("offers this browser's saves once signed in, and tells the frame after keeping them", async () => {
+    await localPlaySaves("tactics").write("tactics", "1", saveText("1"));
+    auth.user = { id: "u1", name: "Carol", image: null };
+    const user = userEvent.setup();
+    wrap(<PlayChrome play={payload()} version="latest" />);
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("Keep your saves?");
+    const before = hosts.notified;
+    await user.click(screen.getByRole("button", { name: "Keep 1 save" }));
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(hosts.siteWrites).toEqual(["1"]);
+    expect(hosts.notified).toBe(before + 1);
+    expect(await localPlaySaves("tactics").list("tactics")).toEqual([]);
+  });
+
+  it("offers no saves to keep signed out or on the preview", async () => {
+    await localPlaySaves("tactics").write("tactics", "1", saveText("1"));
+    const signedOut = wrap(<PlayChrome play={payload()} version="latest" />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    signedOut.unmount();
+
+    auth.user = { id: "u1", name: "Carol", image: null };
+    wrap(<PlayChrome play={payload({ channel: "preview" })} version="preview" />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
   it("has no Report for a signed-out viewer", () => {

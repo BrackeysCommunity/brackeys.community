@@ -14,6 +14,7 @@ import { releaseDay } from "@/lib/jam-links";
 import { checkJamPinQuota } from "./quota";
 import { canDo, roleOf, type GameRole, type GameVisibility } from "./release-access";
 import { writeAudit, type ReleaseDb } from "./release-audit";
+import { playUrlOf } from "./release-channels";
 import {
   ReleaseError,
   releaseForbidden,
@@ -21,7 +22,8 @@ import {
   releaseRemoved,
   type ReleaseApiError,
 } from "./release-errors";
-import { playUrlOf, releaseViewer, type Actor, type ReleaseTxDb } from "./release-upload";
+import type { Actor, ReleaseTxDb } from "./release-upload";
+import { releaseViewer } from "./release-viewer";
 
 /** What the jam-link calls run over; both default to the site's own. */
 export type JamLinkDeps = { db?: ReleaseTxDb; now?: () => Date };

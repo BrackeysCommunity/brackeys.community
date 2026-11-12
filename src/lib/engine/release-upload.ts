@@ -22,10 +22,13 @@ import {
   engineReleases,
   engineReleaseUploads,
   imageScans,
-  teamMembers,
 } from "@/db/schema";
-import { siteUrl } from "@/env";
 import { formatBytes } from "@/lib/format-bytes";
+import {
+  ENGINE_QUARANTINE_REASON,
+  engineHashesUnderReview,
+  holdNewRelease,
+} from "@/lib/image-quarantine";
 import { SITE } from "@/lib/legal-meta";
 import { requestUploadScan } from "@/lib/media-scan";
 import { bestEffort } from "@/lib/posthog-server";
@@ -38,11 +41,10 @@ import {
   RELEASE_MANIFEST_MAX_BYTES,
   UPLOAD_SESSION_HOURS,
 } from "./limits";
-import { isEngineStaff } from "./projects";
 import { checkReleaseQuota, type SiteQuotaRefusal } from "./quota";
 import { canDo, roleOf, type GameRole, type Viewer } from "./release-access";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
-import { movePointer } from "./release-channels";
+import { movePointer, playUrlOf } from "./release-channels";
 import {
   issueError,
   releaseEngineOld,
@@ -66,11 +68,13 @@ import {
   refusedReleaseFile,
   type ReleaseObjectStore,
 } from "./release-storage";
+import { releaseViewer, type ProjectRow } from "./release-viewer";
 import { engineReleaseObjectKey } from "./storage-keys";
 import { releaseUsageReport, storedUsage, type StoredUsage, type UsageReport } from "./usage";
 
 /** Who uploads or moves a release: a person, an agent token acting for its creator, or staff. */
 export type { Actor };
+export { playUrlOf };
 
 /** The database, with transactions: the app's node-postgres or the tests' pglite. */
 export type ReleaseTxDb = Pick<
@@ -116,14 +120,6 @@ export type CommitResult = {
   playUrl: string;
 };
 
-/** The hosted project row the checks read. */
-export type ProjectRow = {
-  projectId: string;
-  game: string | null;
-  teamId: string | null;
-  createdById: string | null;
-};
-
 const HOUR_MS = 3_600_000;
 const FILE_ROWS_PER_INSERT = 500;
 
@@ -158,9 +154,6 @@ function quotaRefusal(verdict: SiteQuotaRefusal): never {
     max: verdict.max,
   });
 }
-
-export const playUrlOf = (projectId: string, version: number): string =>
-  siteUrl(`/games/${encodeURIComponent(projectId)}/play/${version}`);
 
 /** Whether `version` is `min` or newer; a prerelease sorts before its release. */
 export function engineAtLeast(version: string, min: string): boolean {
@@ -260,31 +253,6 @@ async function liveProject(db: ReleaseDb, projectId: string): Promise<ProjectRow
     .from(engineProjects)
     .where(and(eq(engineProjects.projectId, projectId), isNull(engineProjects.deletedAt)));
   return row ?? notFound(`There is no hosted project "${projectId}".`);
-}
-
-/** The caller as the access rules see them: staff by their roles, publisher or editor by the project and its team. */
-export async function releaseViewer(
-  db: ReleaseDb,
-  userId: string,
-  project: ProjectRow,
-): Promise<Viewer> {
-  const [staff, membership] = await Promise.all([
-    isEngineStaff(userId),
-    project.teamId === null
-      ? Promise.resolve([])
-      : db
-          .select({ role: teamMembers.role })
-          .from(teamMembers)
-          .where(and(eq(teamMembers.teamId, project.teamId), eq(teamMembers.userId, userId)))
-          .limit(1),
-  ]);
-  const role = membership[0]?.role;
-  return {
-    userId,
-    staff,
-    teamRole: role === "owner" ? "owner" : role === undefined ? null : "member",
-    isCreator: project.createdById === userId,
-  };
 }
 
 async function assertMayUpload(
@@ -675,7 +643,9 @@ export async function putReleaseFile(
  * row, the one the collector takes before it removes anything: every file
  * still stored, the next version, the release and its file rows, the
  * preview pointer (unless the upload said `none`), the audit rows, and the
- * upload marked committed; then images no scan has seen go to the scan.
+ * upload marked committed; then images no scan has seen go to the scan. A
+ * release listing a hash under review is recorded hidden from the start,
+ * as the quarantine would have hidden it had it existed then.
  * The same release committed again answers its existing version with
  * `created: false`.
  */
@@ -764,6 +734,12 @@ export async function commitRelease(
       .from(engineReleases)
       .where(eq(engineReleases.projectId, projectId));
     const version = (top?.version ?? 0) + 1;
+    const underReview = await engineHashesUnderReview(
+      tx,
+      projectId,
+      manifest.build.files.map((f) => f.sha256),
+    );
+    const held = underReview.size > 0;
 
     await tx.insert(engineReleases).values({
       id,
@@ -781,6 +757,7 @@ export async function commitRelease(
       createdById: actor.userId,
       agentTokenId: actor.kind === "agent" ? (actor.agentTokenId ?? null) : null,
       createdAt: at,
+      ...(held ? { hiddenAt: at, hiddenById: null, hiddenReason: ENGINE_QUARANTINE_REASON } : {}),
     });
     const rows = manifest.build.files.map((f) => ({
       releaseId: id,
@@ -802,6 +779,7 @@ export async function commitRelease(
       detail: { version },
       at,
     });
+    if (held) await holdNewRelease(tx, { projectId, releaseId: id, hashes: underReview, at });
     if (upload.channel === "preview")
       await movePointer(tx, {
         project: projectId,

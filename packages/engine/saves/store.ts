@@ -24,7 +24,11 @@ export interface SaveStore {
 
 export type SaveSummary = { slot: string; meta: SaveMeta; bytes: number };
 
-/** A write's result: `save-too-large`, `save-slot-limit` or `save-store-failed` when it didn't land. */
+/**
+ * A write's result: `save-too-large`, `save-slot-limit` or `save-store-failed`
+ * when it didn't land, or `save-forbidden` when a host refused it (signed out,
+ * or the game doesn't save to that host).
+ */
 export type SaveWriteResult = { ok: true; bytes: number } | { ok: false; issue: SceneIssue };
 
 export const DEFAULT_LOCAL_STORAGE_PREFIX = "jams-engine:save:";

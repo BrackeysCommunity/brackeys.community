@@ -272,7 +272,7 @@ describe("saves", () => {
     const issue = await refusal(
       channel.request("saves.write", { gameId: "tactics", slot: "a", text: saveText("a") }),
     );
-    expect(issue.code).toBe("save-store-failed");
+    expect(issue.code).toBe("save-forbidden");
     expect(issue.message).toBe("This game doesn't save to jams.team.");
     expect(HOST_NO_SITE_SAVES_MESSAGE).toBe(issue.message);
     expect(await channel.request("saves.list", { gameId: "tactics" })).toEqual([]);

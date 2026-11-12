@@ -16,7 +16,7 @@ import { createLogger, defineConfig, runnerImport, type Plugin } from "vite-plus
 
 import pkg from "./package.json" with { type: "json" };
 import { engineBundleReport } from "./scripts/engine-bundle-report.ts";
-import { engineSourceRunner } from "./scripts/engine-source-alias.ts";
+import { engineSourceAlias, engineSourceRunner } from "./scripts/engine-source-alias.ts";
 import { frameRouteRules } from "./src/lib/engine/frame-route-rules.ts";
 import { publicCacheRouteRules } from "./src/orpc/public-procedures.ts";
 
@@ -423,12 +423,12 @@ const config = defineConfig({
   },
   resolve: {
     tsconfigPaths: true,
-    alias: {
-      "@jams/engine/editor-ui/style.css": fileURLToPath(
-        new URL("./packages/engine/editor-ui/style.css", import.meta.url),
-      ),
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
-    },
+    // tsconfig paths cover only the files tsconfig.json includes; any other
+    // importer (a .js or .mjs file, node_modules) would reach the packed dist.
+    alias: [
+      ...engineSourceAlias,
+      { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
+    ],
   },
   plugins: [
     wasm(),

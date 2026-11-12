@@ -27,7 +27,7 @@ Bump it whenever one of those lists changes; `codes --json` and the
 published JSON Schemas carry it.
 
 ```ts
-declare const AGENT_SURFACE_VERSION = 16;
+declare const AGENT_SURFACE_VERSION = 17;
 ```
 
 ## `Aabb`
@@ -583,6 +583,7 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "save-slot-limit",
     "save-unsupported",
     "save-store-failed",
+    "save-forbidden",
     "export-asset-missing",
     "export-over-budget",
     "export-itch-layout",

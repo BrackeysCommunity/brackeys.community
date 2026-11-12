@@ -14,6 +14,7 @@ import { quarantineImage, quarantineKey } from "../../../../src/lib/image-quaran
 import { config } from "../config.ts";
 import { db } from "../db/client.ts";
 import { notify } from "../notify.ts";
+import { releaseNoticePublisher } from "../release-notice.ts";
 import { objectStore, readObject, storage } from "../storage.ts";
 import { hashCover } from "./cover.ts";
 import { encodeEmbedding } from "./embedding.ts";
@@ -93,7 +94,9 @@ export async function scanUploadByKey(
   let quarantined = scan.status === "quarantined";
 
   if (overQuarantine && !quarantined && scan.status !== "cleared") {
-    const refs = await quarantineImage(db, objectStore, objectKey);
+    const refs = await quarantineImage(db, objectStore, objectKey, {
+      announce: releaseNoticePublisher(),
+    });
     quarantined = refs != null;
   }
 

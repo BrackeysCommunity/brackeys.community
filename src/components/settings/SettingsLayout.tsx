@@ -11,7 +11,7 @@ import { EASE_OUT } from "@/lib/motion";
 import { TOGGLE_CUE } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
-import { SETTINGS_TAB_META, SETTINGS_TABS } from "./settings-tabs";
+import { SETTINGS_NAV_META, useSettingsNavTabs } from "./settings-tabs";
 
 export function SettingsLayout() {
   return (
@@ -30,13 +30,14 @@ export function SettingsLayout() {
 }
 
 function SettingsNav() {
+  const tabs = useSettingsNavTabs();
   return (
     <nav
       aria-label="Settings sections"
       className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto border-b border-muted/30 px-1 lg:sticky lg:top-4 lg:mx-0 lg:flex-col lg:overflow-visible lg:border-r lg:border-b-0 lg:px-0 lg:pr-2"
     >
-      {SETTINGS_TABS.map((id) => {
-        const meta = SETTINGS_TAB_META[id];
+      {tabs.map((id) => {
+        const meta = SETTINGS_NAV_META[id];
         return (
           <Link
             key={id}
@@ -48,7 +49,7 @@ function SettingsNav() {
             // around it holds still.
             viewTransition={false}
             // The same cue the header cog's rows carry — these are the same
-            // five destinations. Click only: a rail you sweep past on the way
+            // destinations. Click only: a rail you sweep past on the way
             // to the pane shouldn't tick at you.
             {...TOGGLE_CUE}
             className={cn(

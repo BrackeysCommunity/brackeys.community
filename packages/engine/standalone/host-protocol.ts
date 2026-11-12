@@ -29,6 +29,14 @@ export const HOST_HANDSHAKE_TIMEOUT_MS = 2_000;
  */
 export const HOST_WELCOME_TIMEOUT_MS = 30_000;
 
+/**
+ * How long the frame waits for the page's reply to any later request before
+ * it fails with `save-store-failed`: a page that never answers would
+ * otherwise leave a save pending until the channel closes. A reply that
+ * arrives after is dropped as a reply to nothing.
+ */
+export const HOST_REQUEST_TIMEOUT_MS = 30_000;
+
 const protocol = z.literal(HOST_PROTOCOL_VERSION);
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/);
 const slot = z.string().regex(SLOT_PATTERN);

@@ -60,6 +60,25 @@ const quotaOf = (opts?: QuotaOptions): ProjectQuota => ({ ...PROJECT_QUOTA, ...o
 
 const site = SITE.name;
 
+const QUOTA_LABELS: Readonly<Record<QuotaName, { label: string; bytes: boolean }>> = {
+  assetBytes: { label: "asset storage", bytes: true },
+  docs: { label: "documents", bytes: false },
+  docBytes: { label: "document storage", bytes: true },
+  releaseBytes: { label: "release size", bytes: true },
+  releaseFiles: { label: "files in a release", bytes: false },
+  releaseFileBytes: { label: "file size", bytes: true },
+  releaseStorageBytes: { label: "release storage", bytes: true },
+  jamPins: { label: "jam versions", bytes: false },
+  releasesPerDay: { label: "releases today", bytes: false },
+};
+
+/** A quota's name in a sentence, lower case: "asset storage", "jam versions". */
+export const quotaLabel = (quota: QuotaName): string => QUOTA_LABELS[quota].label;
+
+/** An amount of a quota, as bytes or as a count by what the quota measures. */
+export const quotaAmount = (quota: QuotaName, amount: number): string =>
+  QUOTA_LABELS[quota].bytes ? formatBytes(amount) : formatCount(amount);
+
 /** The numbers a refusal's sentence names beside `used` and `max`. */
 export type QuotaWordsInput =
   | { limit: "assetBytes"; used: number; max: number; adding: number }

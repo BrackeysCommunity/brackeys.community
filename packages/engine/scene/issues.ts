@@ -453,6 +453,12 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Read the store's `describe`: browser storage may be full, blocked or private. The game keeps running; try the save again or use another store.",
     fixable: false,
   },
+  "save-forbidden": {
+    severity: "error",
+    summary: "The host refused this save.",
+    hint: "Sign in, or check where this game saves.",
+    fixable: false,
+  },
   "export-asset-missing": {
     severity: "error",
     summary:

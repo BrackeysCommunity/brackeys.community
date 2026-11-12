@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { applyProjectBatch, type ProjectSession } from "../../../collab/index";
 import type { ProjectOp } from "../../../project/index";
@@ -9,7 +9,15 @@ import type {
   UsageLineView,
   UsageView,
 } from "../../host";
-import { Button, Confirm, MicroLabel, Progress, Skeleton, Text } from "../../kit/index";
+import {
+  Button,
+  Confirm,
+  MicroLabel,
+  Progress,
+  type ProgressTone,
+  Skeleton,
+  Text,
+} from "../../kit/index";
 import { PendingProvider, useOwnOrSharedPending } from "../../pending/use-pending";
 import { useProjectView } from "../EditorProject";
 import { SettingsNote } from "./SettingsRows";
@@ -24,12 +32,10 @@ type Loaded =
 
 const assetsLabel = (n: number) => `${n} ${n === 1 ? "asset" : "assets"}`;
 
-/** A nearly-full or full quota recolours its bar through the kit's primary token. */
-function barStyle(level: UsageLevel): CSSProperties | undefined {
-  if (level === "ok") return undefined;
-  const tone = level === "warn" ? "var(--je-warning)" : "var(--je-danger)";
-  return { "--je-primary": tone } as CSSProperties;
-}
+const BAR_TONE = { ok: "primary", warn: "warning", full: "danger" } as const satisfies Record<
+  UsageLevel,
+  ProgressTone
+>;
 
 /**
  * Purges every trashed entry in one batch. An entry someone restored since
@@ -209,13 +215,12 @@ function Usage({
 function UsageRow({ line, action }: { line: UsageLineView; action: ReactNode }) {
   return (
     <div className="je-insp-stack" data-quota={line.quota} data-level={line.level}>
-      <div style={barStyle(line.level)}>
-        <Progress
-          value={Math.min(Math.max(line.used, 0), Math.max(line.max, 1))}
-          max={Math.max(line.max, 1)}
-          label={<MicroLabel>{line.text}</MicroLabel>}
-        />
-      </div>
+      <Progress
+        value={Math.min(Math.max(line.used, 0), Math.max(line.max, 1))}
+        max={Math.max(line.max, 1)}
+        tone={BAR_TONE[line.level]}
+        label={<MicroLabel>{line.text}</MicroLabel>}
+      />
       {line.detail ? (
         <Text as="p" size="xs" variant="muted">
           {line.detail}

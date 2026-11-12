@@ -17,7 +17,8 @@ import {
   ReleaseError,
 } from "./release-errors";
 import { minioReleaseStore, type ReleaseObjectStore } from "./release-storage";
-import { releaseViewer, type Actor, type ProjectRow } from "./release-upload";
+import type { Actor } from "./release-upload";
+import { releaseViewer, type ProjectRow } from "./release-viewer";
 import { ITCH_ISSUES_HEADER, itchIssuesHeader } from "./release-zip-header";
 
 export type ReleaseZipDeps = {
@@ -37,7 +38,12 @@ export type ReleaseZip = {
   issues: SceneIssue[];
 };
 
-export { ITCH_ISSUES_HEADER, itchIssuesHeader, readItchIssuesHeader } from "./release-zip-header";
+export {
+  ITCH_ISSUES_HEADER,
+  ITCH_ISSUES_HEADER_MAX_CHARS,
+  itchIssuesHeader,
+  readItchIssuesHeader,
+} from "./release-zip-header";
 
 /** Files read from storage at once. */
 const READ_CONCURRENCY = 16;
