@@ -92,7 +92,12 @@ import {
 import { useBrowserState } from "../kit/ssr";
 import { openPrefabScope } from "../session/live-scene-editor";
 import { readStored, storedFlags, writeStored } from "../session/stored";
-import { useEditorDoc, useEditorStore } from "../session/use-editor-store";
+import {
+  useEditorDoc,
+  useEditorPrefabs,
+  useEditorResolved,
+  useEditorStore,
+} from "../session/use-editor-store";
 import { useProjectView } from "./EditorProject";
 import {
   AssetCombobox,
@@ -507,12 +512,8 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const w = field.widget as Extract<FieldWidget, { kind: "entity-ref" }>;
   const [error, setError] = useState<string | null>(null);
   const anchor = useComboboxAnchor();
-  const candidates = refCandidates(
-    ctx.def,
-    ctx.session.registry,
-    w.accepts,
-    ctx.session.getPrefabs(),
-  );
+  const prefabs = useEditorPrefabs(ctx.session);
+  const candidates = refCandidates(ctx.def, ctx.session.registry, w.accepts, prefabs);
   const values = field.mixed
     ? []
     : Array.isArray(field.value)
@@ -1139,7 +1140,8 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
   const labelColumn = useLabelColumn();
   const selection = useEditorStore(session, (s) => s.selection);
   const doc = useEditorDoc(session);
-  const view = session.getResolved();
+  const view = useEditorResolved(session);
+  const prefabs = useEditorPrefabs(session);
   if (asset) return <AssetPanel {...asset} />;
 
   const targets = selection.flatMap((ref) => {
@@ -1149,8 +1151,7 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
   const only = selection.length === 1 ? selection[0] : undefined;
   const instance =
     only !== undefined &&
-    (doc.instances?.some((i) => i.id === only) ||
-      nestedInstanceOf(doc, only, session.getPrefabs()) !== null);
+    (doc.instances?.some((i) => i.id === only) || nestedInstanceOf(doc, only, prefabs) !== null);
   if (only !== undefined && instance) {
     return (
       <InstancePanel
@@ -1183,8 +1184,7 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
     drawnBy: framesDrawn(byPath),
     ...(child ? { overrides: child.fields } : {}),
   };
-  const prefabBatch =
-    child || inPrefab ? null : createPrefabBatch(doc, selection, session.getPrefabs());
+  const prefabBatch = child || inPrefab ? null : createPrefabBatch(doc, selection, prefabs);
   const typeDefs = model.types.map((t) => session.registry.types.get(t));
   const typeLabel = model.types.map((t, i) => typeDefs[i]?.inspector?.label ?? t).join(", ");
   const scope = targets.map((t) => t.ref).join(",");
@@ -1481,7 +1481,7 @@ function InstancePanel({
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState<string | null>(null);
-  const prefabs = session.getPrefabs();
+  const prefabs = useEditorPrefabs(session);
   const nested = nestedInstanceOf(doc, id, prefabs);
   const inst = nested?.instance ?? instanceOfRef(doc, id)!;
   const keys = overridePathsOf(doc, id);
