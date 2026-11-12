@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* Project data the editor writes on every edit holds no class names; scanning it reloaded the editor. */
+@source not "./games/**/*.json";
+@source not "../packages/engine/scenes/**/*.json";
+
 @import "tw-animate-css";
 
 @import "overlayscrollbars/styles/overlayscrollbars.css";

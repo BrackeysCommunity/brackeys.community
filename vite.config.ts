@@ -213,6 +213,7 @@ const buildAt = process.env.VITE_BUILD_AT ?? String(Date.now());
  * which the config bundler, lint and fmt can't resolve.
  */
 function sceneCollab(): Plugin {
+  let isProjectData: ((file: string) => boolean) | undefined;
   return {
     name: "scene-collab",
     apply: "serve",
@@ -221,7 +222,12 @@ function sceneCollab(): Plugin {
         fileURLToPath(new URL("./scripts/scene/dev-sink.ts", import.meta.url)),
         engineSourceRunner,
       );
+      isProjectData = (file) => module.isDevProjectData(file);
       module.devSceneCollab({ buildAt }).configureServer(server);
+    },
+    // The collab docs carry project data edits; a module update would remount the editor.
+    handleHotUpdate({ file }) {
+      return isProjectData?.(file) ? [] : undefined;
     },
   };
 }

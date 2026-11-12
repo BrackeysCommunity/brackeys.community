@@ -1,7 +1,13 @@
+import { isAbsolute, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import * as hocuspocus from "@hocuspocus/server";
-import { sceneCollabServer, type FileProject } from "@jams/engine/vite";
+import {
+  createProjectFileAdapter,
+  isCodePath,
+  sceneCollabServer,
+  type FileProject,
+} from "@jams/engine/vite";
 
 import { discoverProjects } from "./projects";
 
@@ -33,4 +39,24 @@ export function buildAtOf(raw: string | undefined): number | undefined {
 export function devSceneCollab(opts: { buildAt?: string } = {}) {
   const buildAt = buildAtOf(opts.buildAt);
   return sceneCollabServer({ projects, hocuspocus, ...(buildAt === undefined ? {} : { buildAt }) });
+}
+
+const owned = projects.map((project) => ({ project, adapter: createProjectFileAdapter(project) }));
+
+/**
+ * Whether `file` is an asset the collab server writes as people edit (a
+ * scene, prefab, doc or sidecar under a project's asset globs), not code.
+ * The collab docs already carry those edits, so the dev server drops Vite's
+ * hot update for them; passed on, it remounts the editor on every edit.
+ */
+export function isDevProjectData(
+  file: string,
+  among: readonly { project: FileProject; adapter: { watches(path: string): boolean } }[] = owned,
+): boolean {
+  return among.some(({ project, adapter }) => {
+    const rel = relative(project.dir, file);
+    if (!rel || rel.startsWith("..") || isAbsolute(rel)) return false;
+    const path = rel.split(sep).join("/");
+    return !isCodePath(project.file, path) && adapter.watches(path);
+  });
 }
