@@ -16,6 +16,7 @@ import { createLogger, defineConfig, runnerImport, type Plugin } from "vite-plus
 
 import pkg from "./package.json" with { type: "json" };
 import { engineBundleReport } from "./scripts/engine-bundle-report.ts";
+import { engineSourceRunner } from "./scripts/engine-source-alias.ts";
 import { frameRouteRules } from "./src/lib/engine/frame-route-rules.ts";
 import { publicCacheRouteRules } from "./src/orpc/public-procedures.ts";
 
@@ -207,9 +208,9 @@ const buildAt = process.env.VITE_BUILD_AT ?? String(Date.now());
  * scenes, `/__project` the projects and their blobs, and websockets on
  * `/__scene-collab` co-edit every project's docs (`project:<id>`,
  * `scene:<id>.<key>`, `asset:<id>.<key>`), written back to the project
- * files. Run through a module runner with tsconfig paths, because the
- * engine and games import each other by `@jams/engine/*`, which the config
- * bundler, lint and fmt can't resolve.
+ * files. Run through a module runner with `@jams/engine/*` aliased to the
+ * engine's source, because the engine and games import each other by it,
+ * which the config bundler, lint and fmt can't resolve.
  */
 function sceneCollab(): Plugin {
   return {
@@ -218,7 +219,7 @@ function sceneCollab(): Plugin {
     async configureServer(server) {
       const { module } = await runnerImport<typeof import("./scripts/scene/dev-sink.ts")>(
         fileURLToPath(new URL("./scripts/scene/dev-sink.ts", import.meta.url)),
-        { configFile: false, resolve: { tsconfigPaths: true } },
+        engineSourceRunner,
       );
       module.devSceneCollab({ buildAt }).configureServer(server);
     },

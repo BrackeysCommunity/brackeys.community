@@ -20,6 +20,8 @@ import { parseArgs } from "node:util";
 
 import { createServer, runnerImport, type ViteDevServer } from "vite-plus";
 
+import { engineSourceRunner } from "../engine-source-alias";
+
 const CONFIG = fileURLToPath(new URL("./vite.config.ts", import.meta.url));
 
 /** The engine project as the repo holds it. */
@@ -88,10 +90,10 @@ export async function startEngineEditor(opts: EngineEditorOptions = {}): Promise
   });
   let server: ViteDevServer | null = null;
   try {
-    const { module } = await runnerImport<typeof import("./vite.config.ts")>(CONFIG, {
-      configFile: false,
-      resolve: { tsconfigPaths: true },
-    });
+    const { module } = await runnerImport<typeof import("./vite.config.ts")>(
+      CONFIG,
+      engineSourceRunner,
+    );
     const { engineEditorConfig } = module;
     server = await createServer(
       await engineEditorConfig({

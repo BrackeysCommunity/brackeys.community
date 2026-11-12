@@ -6,9 +6,10 @@ import { readFileProject, sceneCollabServer } from "@jams/engine/vite";
 import wasm from "vite-plugin-wasm";
 import type { InlineConfig } from "vite-plus";
 
+import { engineSourceAlias } from "../engine-source-alias";
+
 const PAGE_DIR = fileURLToPath(new URL(".", import.meta.url));
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
-const ENGINE = fileURLToPath(new URL("../../packages/engine/", import.meta.url));
 
 /** Vite's own port is never this one: the owner's tooling holds it. */
 export const RESERVED_PORT = 42069;
@@ -48,14 +49,7 @@ export async function engineEditorConfig(opts: EngineEditorConfigOptions): Promi
     clearScreen: false,
     define: { "import.meta.env.VITE_BUILD_AT": JSON.stringify(String(opts.buildAt)) },
     resolve: {
-      alias: [
-        {
-          find: /^@jams\/engine\/editor-ui\/style\.css$/,
-          replacement: `${ENGINE}editor-ui/style.css`,
-        },
-        { find: /^@jams\/engine$/, replacement: `${ENGINE}index.ts` },
-        { find: /^@jams\/engine\/(.+)$/, replacement: `${ENGINE}$1/index.ts` },
-      ],
+      alias: engineSourceAlias,
     },
     plugins: [
       wasm(),

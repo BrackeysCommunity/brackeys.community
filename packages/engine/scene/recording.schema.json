@@ -690,15 +690,17 @@
       "prefixItems": [
         {
           "type": "number",
-          "description": "x in world metres.",
+          "description": "x, m.",
           "unit": "m"
         },
         {
           "type": "number",
-          "description": "y in world metres; y is down.",
+          "description": "y, m; y is down.",
           "unit": "m"
         }
-      ]
+      ],
+      "description": "A point [x, y] in world metres; y is down.",
+      "unit": "m"
     },
     "__schema0": {
       "anyOf": [

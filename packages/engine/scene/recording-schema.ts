@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
-import { ID_PATTERN } from "../game/fields";
+import { ID_PATTERN, PtSchema } from "../game/fields";
 import { MAX_TICK_RATE, MIN_TICK_RATE, type TimeKind } from "../game/time";
 import type { DeviceId, JsonValue, Registry } from "../game/types";
 import { scaleLengths } from "../game/units";
@@ -28,13 +28,6 @@ const V1_NO_PHYSICS = "none";
 /** The engine command a v2 recording holds as the system stream's `w` events. */
 const ELAPSED_COMMAND = "@elapsed";
 
-const pt = z
-  .tuple([
-    z.number().describe("x in world metres.").meta({ unit: "m" }),
-    z.number().describe("y in world metres; y is down.").meta({ unit: "m" }),
-  ])
-  .meta({ id: "Pt" });
-
 const tick = (description: string) => z.number().int().min(0).describe(description);
 const index = (description: string) => z.number().int().min(0).describe(description);
 const bit = (description: string) => z.union([z.literal(0), z.literal(1)]).describe(description);
@@ -47,7 +40,7 @@ const outcomeSchema = z
         "An engine result (`timeout`, `script-end`, `stuck`, `quit`, `flow`) or one the game declares.",
       ),
     tick: z.number().int().min(-1).describe("The last tick simulated."),
-    at: pt.nullable().describe("The game's focus then; null without one."),
+    at: PtSchema.nullable().describe("The game's focus then; null without one."),
     cause: z.string().optional().describe("Why, in a sentence."),
     entityId: z.string().optional().describe("The entity the outcome names."),
   })
@@ -59,7 +52,7 @@ const markersSchema = z
       .strictObject({
         tick: tick("The tick that raised it."),
         type: z.string().describe("The event type."),
-        at: pt.describe("Where."),
+        at: PtSchema.describe("Where."),
         entityId: z.string().optional().describe("The entity it names."),
         other: z.string().optional().describe("The other entity it names."),
       })
@@ -73,7 +66,7 @@ const trailSchema = z
   .strictObject({
     every: z.literal(RECORDING_TRAIL_EVERY).describe("Ticks between samples."),
     pts: z
-      .array(pt)
+      .array(PtSchema)
       .describe("The focus after ticks 0, 4, 8, …; a tick without a focus is left out."),
     truncated: z.boolean().describe("True when the cap cut the trail short."),
   })
@@ -81,11 +74,9 @@ const trailSchema = z
   .describe("The game's focus over the run, for the ghost.");
 
 const startShape = {
-  at: pt
-    .optional()
-    .describe(
-      "Where play was asked to start, before the cast onto the ground; omitted for the game's spawn.",
-    ),
+  at: PtSchema.optional().describe(
+    "Where play was asked to start, before the cast onto the ground; omitted for the game's spawn.",
+  ),
   timeOffsetMs: z
     .number()
     .min(0)
