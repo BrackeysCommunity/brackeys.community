@@ -62,6 +62,8 @@ const ENTRIES = {
 
 const PEERS = [
   "pixi.js",
+  // Pixi's eval-free renderer paths, which the standalone host installs.
+  "pixi.js/unsafe-eval",
   "@tanstack/store",
   "zod",
   "@dimforge/rapier2d",

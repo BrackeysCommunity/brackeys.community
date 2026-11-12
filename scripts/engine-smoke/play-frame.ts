@@ -52,7 +52,7 @@ import {
 } from "./browser-compare";
 import { BUILD_TIMEOUT_MS, decodePng, distinctColours, judgeDrawn, RUN_TIMEOUT_MS } from "./export";
 import { describeFailure, REPO, VP } from "./pack";
-import type { HandlerServer, PublishedRelease } from "./play-adapter";
+import type { HandlerServer, PublishedRelease, SmokeSite } from "./play-adapter";
 import { serveStatic, type StaticServer } from "./static-server";
 
 // ─── What runs ───────────────────────────────────────────
@@ -168,8 +168,8 @@ export type CspViolation = { directive: string; blocked: string; source: string 
 
 /**
  * Whether a violation is the CSP doing what it was written for while the
- * game plays on: Pixi's feature probe for `new Function` (it falls back to
- * code that needs no eval), and the build's PWA manifest link (a hosted
+ * game plays on: Pixi's feature probe for `new Function` (the standalone
+ * host installs Pixi's eval-free paths), and the build's PWA manifest link (a hosted
  * release installs nothing: `manifest-src 'none'`).
  */
 export function expectedViolation(v: CspViolation): boolean {
@@ -851,10 +851,13 @@ async function main(): Promise<number> {
   const tmp = mkdtempSync(join(tmpdir(), "jams-engine-play-smoke-"));
   const servers: { close(): Promise<void> }[] = [];
   const open = new Set<Browser>();
+  let smokeSite: SmokeSite | undefined;
   const cleanup = async () => {
     await Promise.allSettled([...open].map((b) => b.close()));
     open.clear();
     await Promise.allSettled(servers.splice(0).map((s) => s.close()));
+    await smokeSite?.db.$client.close().catch(() => {});
+    smokeSite = undefined;
     rmSync(tmp, { recursive: true, force: true });
   };
   for (const [signal, code] of [
@@ -872,7 +875,7 @@ async function main(): Promise<number> {
   const runs: PlayRunOutcome[] = [];
   let error: string | undefined;
   try {
-    const smokeSite = await site.createSmokeSite();
+    smokeSite = await site.createSmokeSite();
     const published = new Map<PlayGame, PublishedRelease>();
     for (const game of PLAY_GAMES) {
       const out = join(tmp, game);
@@ -973,4 +976,6 @@ async function main(): Promise<number> {
   return 0;
 }
 
-if (import.meta.main) process.exitCode = await main();
+// Exits rather than waiting for the event loop: the site modules the smoke
+// imports may hold handles that would keep a finished run alive until CI's timeout.
+if (import.meta.main) process.exit(await main());

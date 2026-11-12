@@ -1,3 +1,5 @@
+// A hosted release runs under a CSP without 'unsafe-eval'; Pixi's eval-free shader and uniform sync works there and anywhere else.
+import "pixi.js/unsafe-eval";
 import { createGame } from "../engine";
 import { createRegistry, withProject } from "../game/define";
 import type { LibraryScene, SceneListEntry } from "../game/flow";

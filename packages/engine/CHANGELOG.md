@@ -127,6 +127,9 @@ pointer itself outside the site's stylesheet.
 
 ### Fixed
 
+- A released game boots under a CSP without `'unsafe-eval'`, as jams.team
+  frames it: `./standalone` installs Pixi's eval-free shader and uniform
+  sync (`pixi.js/unsafe-eval`), where Pixi otherwise refused to start.
 - `connectHost` takes `jams:host` only from the parent window; a message
   with no `source` is ignored like any other window's.
 - An export refuses a shipped blob whose entry records no size with
