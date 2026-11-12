@@ -238,8 +238,10 @@ export {
 } from "./project-file";
 export {
   checkReleaseManifest,
+  CREDITS_FILE,
   findRelease,
   formatReleaseManifest,
+  INDEX_HTML_FILE,
   parseReleaseManifest,
   RELEASE_FILE,
   RELEASE_SCHEMA_ID,
@@ -249,6 +251,8 @@ export {
   releaseJsonSchema,
   releaseManifestSchema,
   releaseSnapshot,
+  SERVICE_WORKER_FILE,
+  WEB_MANIFEST_FILE,
   type CheckReleaseOptions,
   type ExportBudget,
   type ExportBudgetReport,

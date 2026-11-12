@@ -844,6 +844,15 @@ describe("package boundary", () => {
     );
   });
 
+  it("keeps ./export's reach outside export/ inside what ./project already reaches", () => {
+    const project = runtimeGraph(ENTRIES["./project"]).files;
+    violations(
+      [...runtimeGraph(ENTRIES["./export"]).files].filter(
+        (f) => !f.startsWith("export/") && !project.has(f),
+      ),
+    );
+  });
+
   it("keeps ./standalone on the shell, ./game and ./project, with ./export's types only", () => {
     const { files, bare } = runtimeGraph(ENTRIES["./standalone"]);
     const bad = [

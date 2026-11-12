@@ -1,10 +1,6 @@
-import type { ReleaseManifest } from "../project/release";
+import { WEB_MANIFEST_FILE, type ReleaseManifest } from "../project/release";
 import { iconFile } from "./icons";
 import { exportTarget } from "./targets";
-import { WEB_MANIFEST_FILE } from "./web-manifest";
-
-/** The page every build opens at. */
-export const INDEX_HTML_FILE = "index.html";
 
 /** Text for an HTML text node or a double-quoted attribute. */
 export const escapeHtml = (s: string): string =>

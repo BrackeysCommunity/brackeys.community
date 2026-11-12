@@ -156,12 +156,14 @@ _type_ in `vite/export-build.ts`
 
 The build options an export needs, merged into Vite's config by the
 plugin: the virtual entry as the only input, every bundler file under
-`code/` named by content hash, no sourcemaps and no public dir copied.
+`code/` named by content hash, no sourcemaps, no public dir copied and
+no module preload helper (the page loads its entry alone).
 
 ```ts
 type ExportBuildConfig = {
     build: {
         copyPublicDir: false;
+        modulePreload: false;
         rolldownOptions: {
             input: Record<string, string>;
             output: {
@@ -220,13 +222,21 @@ type ExportPluginLike = {
         root: string;
     }): void;
     enforce?: "pre";
-    generateBundle(this: {
-        emitFile(f: {
-            fileName: string;
-            source: Uint8Array | string;
-            type: "asset";
-        }): void;
-    }, opts: unknown, bundle: Record<string, unknown>): Promise<void>;
+    /**
+     * Ordered after every other plugin's `generateBundle` (Vite's import
+     * analysis rewrites chunk code in its own), so the chunks are hashed as
+     * they are written.
+     */
+    generateBundle: {
+        handler(this: {
+            emitFile(f: {
+                fileName: string;
+                source: Uint8Array | string;
+                type: "asset";
+            }): void;
+        }, opts: unknown, bundle: Record<string, unknown>): Promise<void>;
+        order: "post";
+    };
     load(id: string): null | string;
     name: string;
     resolveId(id: string): null | string;

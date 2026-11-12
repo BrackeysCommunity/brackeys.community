@@ -37,6 +37,7 @@ const fakes = vi.hoisted(() => ({
 fakes.ready.session = {
   view: () => fakes.views[Math.min(fakes.edits, 1)],
   kinds: fakes.kinds,
+  get: (name: string) => (name === fakes.ready.name ? fakes.ready.doc : undefined),
 };
 
 vi.mock("../connect/scene-doc", () => ({

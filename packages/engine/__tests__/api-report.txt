@@ -746,6 +746,7 @@ BudgetContributor
 BuiltCode
 CREDITS_FILE
 ContentPlan
+DEFAULT_BUILD_TARGET
 DEFAULT_EXPORT_BUDGET
 DEFAULT_ZIP_TARGET
 EXPORT_TARGETS
@@ -1328,6 +1329,7 @@ BlobInspect
 BlobKindDef
 BuildStamp
 BundleEntry
+CREDITS_FILE
 CheckReleaseOptions
 CodeKindDef
 CodeModuleInfo
@@ -1361,6 +1363,7 @@ GlobMatch
 HashHistoryEntry
 HeldFile
 HeldProject
+INDEX_HTML_FILE
 INPUT_MAP_KIND
 INPUT_MAP_SCHEMA_ID
 INPUT_MAP_VERSION
@@ -1442,6 +1445,7 @@ SCENE_KIND_NAME
 SCENE_LIST_KIND
 SCENE_LIST_SCHEMA_ID
 SCENE_LIST_VERSION
+SERVICE_WORKER_FILE
 SIDECAR_SCHEMA_ID
 SIDECAR_SUFFIX
 SIDECAR_VERSION
@@ -1460,6 +1464,7 @@ TextureMeta
 TextureSettings
 ThirdPartyLicence
 UNLIMITED_QUOTA
+WEB_MANIFEST_FILE
 applyJsonEdits
 assetFileEntries
 assetFileEntry
@@ -4639,7 +4644,6 @@ declare function planContent(input: ExportInput): Promise<ContentPlan>;
 declare function crc32(bytes: Uint8Array, crc?: number): number;
 
 ## export/credits.ts
-declare const CREDITS_FILE = "credits.html";
 declare function assetCredits(assets: Readonly<Record<AssetId, ReleaseAsset>>): {
     credits: Omit<ReleaseManifest["credits"], "code">;
     issues: SceneIssue[];
@@ -4647,7 +4651,6 @@ declare function assetCredits(assets: Readonly<Record<AssetId, ReleaseAsset>>): 
 declare function renderCredits(m: ReleaseManifest): string;
 
 ## export/html.ts
-declare const INDEX_HTML_FILE = "index.html";
 declare function renderIndexHtml(m: ReleaseManifest, opts: {
     styles: readonly string[];
 }): string;
@@ -4747,12 +4750,12 @@ type PlannedFile = {
 declare function finishExport(content: ContentPlan, code: BuiltCode, input: ExportInput, budget?: Partial<ExportBudget>): Promise<ExportPlan>;
 
 ## export/service-worker.ts
-declare const SERVICE_WORKER_FILE = "sw.js";
 declare function renderServiceWorker(m: ReleaseManifest): string;
 declare const serviceWorkerCacheName: (m: ReleaseManifest) => string;
 declare function serviceWorkerPrecache(m: ReleaseManifest): string[];
 
 ## export/targets.ts
+declare const DEFAULT_BUILD_TARGET: ReleaseTarget;
 declare const DEFAULT_ZIP_TARGET: ReleaseTarget;
 declare const EXPORT_TARGETS: Readonly<Partial<Record<ReleaseTarget, ExportTargetDef>>>;
 type ExportTargetDef = {
@@ -4766,7 +4769,6 @@ declare function exportTarget(target: ReleaseTarget): ExportTargetDef | undefine
 declare function exportTargetNames(): ReleaseTarget[];
 
 ## export/web-manifest.ts
-declare const WEB_MANIFEST_FILE = "app.webmanifest";
 declare function renderWebManifest(m: ReleaseManifest): string;
 
 ## export/zip.ts
@@ -8550,6 +8552,7 @@ declare function rewriteRefs<J>(value: J, sites: readonly RefSite[], from: Asset
 declare function schemaRefSites(shape: z.ZodRawShape, value: unknown, pointer: JsonPointer): RefSite[];
 
 ## project/release.ts
+declare const CREDITS_FILE = "credits.html";
 type CheckReleaseOptions = {
     measureBudget?: (files: readonly ReleaseFile[], content: ReleaseBudgetContent, limits: ExportBudget) => ExportBudgetReport;
 };
@@ -8575,6 +8578,7 @@ type ExportBudgetReport = {
     };
     over: readonly (keyof ExportBudget)[];
 };
+declare const INDEX_HTML_FILE = "index.html";
 type ParseReleaseManifestResult = {
     issues: SceneIssue[];
     ok: false;
@@ -8711,12 +8715,14 @@ type ReleaseScene = {
     title?: string;
 };
 type ReleaseTarget = "desktop" | "itch" | "mobile" | "web";
+declare const SERVICE_WORKER_FILE = "sw.js";
 type ThirdPartyLicence = {
     licence: string;
     notice: null | string;
     package: string;
     version: string;
 };
+declare const WEB_MANIFEST_FILE = "app.webmanifest";
 declare function checkReleaseManifest(manifest: ReleaseManifest, files?: ReadonlyMap<string, Sha256>, options?: CheckReleaseOptions): Promise<SceneIssue[]>;
 declare function findRelease<R extends {
     id: Sha256;
@@ -13039,6 +13045,7 @@ type StandaloneGame = {
 };
 type StandaloneOptions = {
     fetch?: typeof fetch;
+    fillPage?: boolean;
     game: GameDefinition;
     rapier?: () => Promise<RapierModule>;
     release?: string;
@@ -13575,6 +13582,10 @@ type MountUi<G = unknown> = (ctx: UiContext<G>) => UiHandle;
 type UiContext<G = unknown> = {
     canvas: HTMLCanvasElement;
     game: GameInstance;
+    install?: {
+        current(): (() => Promise<boolean>) | null;
+        onChange(fn: () => void): () => void;
+    };
     links?: {
         credits?: string;
     };
@@ -13670,6 +13681,7 @@ declare const EXPORT_ENTRY_ID = "virtual:jams-export/main";
 type ExportBuildConfig = {
     build: {
         copyPublicDir: false;
+        modulePreload: false;
         rolldownOptions: {
             input: Record<string, string>;
             output: {
@@ -13708,13 +13720,16 @@ type ExportPluginLike = {
         root: string;
     }): void;
     enforce?: "pre";
-    generateBundle(this: {
-        emitFile(f: {
-            fileName: string;
-            source: Uint8Array | string;
-            type: "asset";
-        }): void;
-    }, opts: unknown, bundle: Record<string, unknown>): Promise<void>;
+    generateBundle: {
+        handler(this: {
+            emitFile(f: {
+                fileName: string;
+                source: Uint8Array | string;
+                type: "asset";
+            }): void;
+        }, opts: unknown, bundle: Record<string, unknown>): Promise<void>;
+        order: "post";
+    };
     load(id: string): null | string;
     name: string;
     resolveId(id: string): null | string;

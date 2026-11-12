@@ -5,7 +5,13 @@ import type { KindRegistry } from "../project/kinds";
 import { byCodeUnit } from "../project/kinds/define";
 import {
   checkReleaseManifest,
+  CREDITS_FILE,
+  formatReleaseManifest,
+  INDEX_HTML_FILE,
+  RELEASE_FILE,
   releaseBuildHash,
+  SERVICE_WORKER_FILE,
+  WEB_MANIFEST_FILE,
   type ExportBudget,
   type ReleaseAsset,
   type ReleaseFile,
@@ -31,12 +37,12 @@ import { RECORDING_VERSION } from "../scene/recording-schema";
 import { SCENE_FORMAT_VERSION, type SceneIssue } from "../scene/types";
 import { COLLAB_LAYOUT_VERSION, ENGINE_VERSION, REPLAY_ACROSS_PLATFORMS } from "../version";
 import { budgetIssues, measureBudget, resolveExportBudget } from "./budget";
-import { CREDITS_FILE, renderCredits } from "./credits";
-import { INDEX_HTML_FILE, renderIndexHtml } from "./html";
+import { renderCredits } from "./credits";
+import { renderIndexHtml } from "./html";
 import { defaultIconPng, planIcons } from "./icons";
-import { renderServiceWorker, SERVICE_WORKER_FILE } from "./service-worker";
+import { renderServiceWorker } from "./service-worker";
 import { exportTarget } from "./targets";
-import { renderWebManifest, WEB_MANIFEST_FILE } from "./web-manifest";
+import { renderWebManifest } from "./web-manifest";
 
 /** Everything an export is planned from. */
 export type ExportInput = {
@@ -298,8 +304,14 @@ export async function finishExport(
   const rows = files.map((f) => f.row).sort(byPath);
   const manifest = await manifestOf(rows);
   issues.push(...budgetIssues(manifest.budget, manifest.build.files, content));
+  // The layout check sees the build as written, `release.json` included.
   if (target?.layout)
-    issues.push(...target.layout(rows.map(({ path, bytes }) => ({ path, bytes }))));
+    issues.push(
+      ...target.layout([
+        ...rows.map(({ path, bytes }) => ({ path, bytes })),
+        { path: RELEASE_FILE, bytes: utf8(formatReleaseManifest(manifest)).length },
+      ]),
+    );
   issues.push(...(await checkReleaseManifest(manifest, undefined, { measureBudget })));
   return { manifest, files: files.map((f) => f.file).sort(byPath), issues };
 }

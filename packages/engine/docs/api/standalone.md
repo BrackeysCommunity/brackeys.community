@@ -56,6 +56,13 @@ _type_ in `standalone/boot.ts`
 ```ts
 type StandaloneOptions = {
     fetch?: typeof fetch;
+    /**
+     * Default true: the page is laid out for the game alone (no margin or
+     * scrolling, the build's background, `root` fixed over the whole window)
+     * and the canvas takes the root's size. False leaves the page's layout to
+     * its own CSS, which then gives `root` its size.
+     */
+    fillPage?: boolean;
     game: GameDefinition;
     /** Present only when the build ships Rapier. */
     rapier?: () => Promise<RapierModule>;

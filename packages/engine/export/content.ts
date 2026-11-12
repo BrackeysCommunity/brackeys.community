@@ -169,6 +169,47 @@ function shippedIds(
   return [...seen].sort(byCodeUnit);
 }
 
+/**
+ * `scene-unlisted` (warn) for each reference out of a shipped asset to a
+ * scene the list doesn't hold (a door's or a sublevel's target): that scene
+ * doesn't ship, so the jump fails at runtime. The list's own entries are
+ * judged by `flowIssue` at its start.
+ */
+function unlistedReferences(
+  input: ExportInput,
+  index: RefIndex,
+  shipped: readonly AssetId[],
+  list: readonly SceneListEntry[],
+  listId: AssetId | undefined,
+  lineOf: (id: AssetId, pointer: string) => number | undefined,
+): SceneIssue[] {
+  const listed = new Set(list.map((e) => e.scene));
+  const issues: SceneIssue[] = [];
+  for (const from of shipped) {
+    if (from === listId) continue;
+    const seen = new Set<string>();
+    for (const site of index.targets(from)) {
+      const target = input.view.byId.get(site.id);
+      if (target?.kind !== sceneKind.kind || listed.has(site.id)) continue;
+      if (seen.has(`${site.pointer}\n${site.id}`)) continue;
+      seen.add(`${site.pointer}\n${site.id}`);
+      const refused = flowIssue(list, site.id, "go");
+      const source = input.view.byId.get(from);
+      const line = lineOf(from, site.pointer);
+      issues.push(
+        makeIssue("scene-unlisted", {
+          message: `${refused?.message ?? `"${site.id}" isn't in the scene list`}: "${from}" (${source?.path ?? from} at ${site.pointer}) names it, and it doesn't ship`,
+          path: site.pointer,
+          ...(line === undefined ? {} : { line }),
+          entityIds: [from, site.id],
+          got: site.id,
+        }),
+      );
+    }
+  }
+  return issues;
+}
+
 const utf8Bytes = (text: string): number => new TextEncoder().encode(text).length;
 
 async function releaseAsset(
@@ -323,8 +364,16 @@ export async function planContent(input: ExportInput): Promise<ContentPlan> {
     registry: input.registry,
     project: input.view,
   });
-  const ids = shippedIds(input, index, roots, listed);
+  // A named icon ships at its icon path; one that something else also reaches ships at its own file too.
+  const icons = planIcons(input);
+  const reached = new Set(shippedIds(input, index, roots, listed));
+  const iconOnly = new Map<AssetId, string>();
+  for (const icon of icons.icons)
+    if (icon.source.kind === "asset" && !reached.has(icon.source.id))
+      iconOnly.set(icon.source.id, icon.file);
+  const ids = shippedIds(input, index, [...roots, ...iconOnly.keys()], listed);
   const shipped = new Set(ids);
+  issues.push(...unlistedReferences(input, index, ids, list.scenes, listEntry?.id, lineOf));
   // Scenes' and the settings' references are judged by their bundles, and listed scenes by planScene.
   const judged = new Set([...listed, settingsEntry?.id, listEntry?.id]);
   issues.push(
@@ -337,12 +386,13 @@ export async function planContent(input: ExportInput): Promise<ContentPlan> {
   const assets: Record<AssetId, ReleaseAsset> = {};
   for (const id of ids) {
     const asset = await releaseAsset(input.view.byId.get(id)!, input, issues);
-    if (asset) assets[id] = asset;
+    const iconPath = iconOnly.get(id);
+    if (asset) assets[id] = iconPath === undefined ? asset : { ...asset, file: iconPath };
   }
 
   const credits = assetCredits(assets);
   issues.push(...credits.issues);
-  issues.push(...planIcons(input).issues);
+  issues.push(...icons.issues);
 
   const time = resolveTime({ project: input.engine, game: input.game.time });
   const scenes = planned.map((s) => s.release);

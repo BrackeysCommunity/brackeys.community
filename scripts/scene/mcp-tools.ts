@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { exportTargetNames } from "@jams/engine/export";
+import { DEFAULT_BUILD_TARGET, exportTargetNames } from "@jams/engine/export";
 import { RELEASE_FILE } from "@jams/engine/project";
 import { checksPathOf, SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { z } from "zod";
@@ -835,7 +835,9 @@ export const MCP_TOOLS: readonly McpTool[] = [
       target: z
         .string()
         .optional()
-        .describe(`A release target: one of ${exportTargetNames().join(", ")}. Default \`web\`.`),
+        .describe(
+          `A release target: one of ${exportTargetNames().join(", ")}. Default \`${DEFAULT_BUILD_TARGET}\`.`,
+        ),
       out: z
         .string()
         .optional()

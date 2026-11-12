@@ -25,6 +25,7 @@ type Backend = "webgpu" | "webgl";
 /** jsdom has no GPU: each Application is a stand-in over a real stage, logged in `apps`. */
 const gpu = vi.hoisted(() => ({
   webgpu: false,
+  webglFails: false,
   apps: [] as {
     preference: Backend;
     canvas: HTMLCanvasElement;
@@ -48,6 +49,7 @@ vi.mock("pixi.js", async (importOriginal) => {
       height: number;
     }) {
       if (opts.preference === "webgpu" && !gpu.webgpu) throw new Error("no WebGPU adapter");
+      if (opts.preference === "webgl" && gpu.webglFails) throw new Error("no WebGL context");
       let loseDevice = () => {};
       const lost = new Promise<{ reason: string }>(
         (done) => (loseDevice = () => done({ reason: "unknown" })),
@@ -114,6 +116,7 @@ const games: GameInstance[] = [];
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   gpu.webgpu = false;
+  gpu.webglFails = false;
   gpu.apps.length = 0;
   gpu.textures.length = 0;
   now = 0;
@@ -217,6 +220,10 @@ const lose = (on: HTMLCanvasElement) => {
 };
 
 const overlay = () => document.querySelector("[data-jams-render-lost]");
+
+/** How often the renderer logged that it couldn't rebuild. */
+const rebuildErrors = (spy: { mock: { calls: unknown[][] } }) =>
+  spy.mock.calls.filter(([line]) => String(line).includes("couldn't rebuild")).length;
 
 describe("createRenderer's start", () => {
   it("retries a failed WebGPU init with WebGL and says so with reason init", async () => {
@@ -385,6 +392,65 @@ describe("a lost GPU context", () => {
     expect(lossy.game.getStore().state.tick).toBe(TICKS);
     expect(snapshotDigest(lossy.game.runtime()!.snapshot())).toBe(expected);
     expect(expected).not.toBe(snapshotDigest(null));
+  });
+
+  it("stays paused behind a reload notice when the WebGL rebuild fails", async () => {
+    const { game, log } = await playing();
+    runTo(game, 5);
+    const tick = game.getStore().state.tick;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    gpu.webglFails = true;
+    lose(gpu.apps[0]!.canvas);
+    await vi.advanceTimersByTimeAsync(CONTEXT_RESTORE_MS);
+    await settle();
+
+    expect(rebuildErrors(error)).toBe(1);
+    expect(gpu.apps[0]!.destroyed).toBe(true);
+    expect(overlay()?.textContent).toBe("Graphics stopped working. Reload the page to continue.");
+    expect(log["render:restored"]).toBeUndefined();
+    expect(() => game.resize(320, 200)).not.toThrow();
+    expect(game.extractPixels([{ x: 0, y: 0 }])).toEqual({ renderer: "webgl", pixels: [null] });
+    game.resume();
+    frames(30);
+    expect(game.getStore().state.tick).toBe(tick);
+    expect(game.getStore().state.sim.paused).toBe(true);
+
+    lose(canvas);
+    await vi.advanceTimersByTimeAsync(CONTEXT_RESTORE_MS);
+    expect(gpu.apps).toHaveLength(1);
+    expect(rebuildErrors(error)).toBe(1);
+    error.mockRestore();
+  });
+
+  it("tells its shell once that the rebuild failed, and tears down cleanly after", async () => {
+    gpu.webgpu = true;
+    gpu.webglFails = true;
+    const layer = document.createElement("div");
+    document.body.append(layer);
+    const hooks = { failed: vi.fn(), restored: vi.fn(), layer: () => layer };
+    const renderer = await createRenderer(
+      canvas,
+      { ...DEFAULT_GAME_CONFIG, game: testGame },
+      undefined,
+      hooks,
+    );
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    gpu.apps[0]!.loseDevice();
+    await settle();
+
+    expect(rebuildErrors(error)).toBe(1);
+    expect(hooks.failed).toHaveBeenCalledTimes(1);
+    expect(hooks.failed.mock.calls[0]?.[0]).toBe("webgpu");
+    expect(hooks.restored).not.toHaveBeenCalled();
+    expect(() => renderer.resize(100, 100)).not.toThrow();
+    expect(renderer.extractPixels([{ x: 1, y: 1 }])).toEqual({
+      renderer: "webgpu",
+      pixels: [null],
+    });
+    renderer.destroy();
+    expect(overlay()).toBeNull();
+    expect(gpu.apps[0]!.destroyed).toBe(true);
+    error.mockRestore();
   });
 
   it("stops listening when destroyed, so the app's own teardown isn't a loss", async () => {

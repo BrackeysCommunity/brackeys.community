@@ -12,6 +12,7 @@ import {
   exportSmokeOk,
   exportSmokeReport,
   judgeCanvasChange,
+  judgeControlHit,
   judgeDrawn,
   judgeRun,
   launchFailures,
@@ -270,6 +271,21 @@ describe("pickReachCell", () => {
     expect(pickReachCell("1,1", [{ cell: "2,1", clear: false }])).toBeNull();
     expect(pickReachCell("1,1", [{ cell: "1,1", clear: true }])).toBeNull();
     expect(pickReachCell("1,1", [{ cell: "x", clear: true }])).toBeNull();
+  });
+});
+
+describe("judgeControlHit", () => {
+  it("passes a click that lands on the control or inside it", () => {
+    expect(judgeControlHit("Start", { own: true })).toBeNull();
+  });
+
+  it("names what takes the click instead, so a covered control fails at once", () => {
+    expect(judgeControlHit("Start", { own: false, hit: "canvas" })).toBe(
+      "a click at Start's centre lands on the canvas, not Start: something over it takes the pointer, or Start passes pointer events through",
+    );
+    expect(judgeControlHit("Start", { own: false, hit: null })).toBe(
+      "a click at Start's centre lands on nothing on the page",
+    );
   });
 });
 

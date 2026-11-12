@@ -10,10 +10,12 @@ import { ContentStoreError, memoryContentStore } from "../project/content-store"
 import { createKindRegistry } from "../project/kinds";
 import {
   checkReleaseManifest,
+  CREDITS_FILE,
   parseReleaseManifest,
   RELEASE_FILE,
   releaseId,
   releaseSnapshot,
+  SERVICE_WORKER_FILE,
   type ReleaseManifest,
 } from "../project/release";
 import { jsonValues, snapshotScene, SnapshotError } from "../project/snapshot";
@@ -27,7 +29,7 @@ import { RECORDING_VERSION } from "../scene/recording-schema";
 import { SCENE_FORMAT_VERSION, type SceneIssue } from "../scene/types";
 import type { GameInstance, RapierModule, SceneSource } from "../types";
 import { mountUi } from "../ui/layer";
-import type { MountUi } from "../ui/types";
+import type { MountUi, UiContext } from "../ui/types";
 import { COLLAB_LAYOUT_VERSION } from "../version";
 import { fetchReleaseTexts, fetchText, releaseUrl, type FetchText } from "./data";
 import { renderBootError, StandaloneBootError } from "./errors";
@@ -47,6 +49,13 @@ export type StandaloneOptions = {
   /** Default true when the manifest has `pwa`; ignored where there is no service worker or the context isn't secure. */
   serviceWorker?: boolean;
   fetch?: typeof fetch;
+  /**
+   * Default true: the page is laid out for the game alone (no margin or
+   * scrolling, the build's background, `root` fixed over the whole window)
+   * and the canvas takes the root's size. False leaves the page's layout to
+   * its own CSS, which then gives `root` its size.
+   */
+  fillPage?: boolean;
 };
 
 export type StandaloneGame = {
@@ -65,9 +74,6 @@ export type StandaloneGame = {
   destroy(): void;
 };
 
-const CREDITS_FILE = "credits.html";
-const SERVICE_WORKER_FILE = "sw.js";
-
 /** Chromium's `beforeinstallprompt` event: the install prompt, deferred until `prompt()`. */
 type InstallPromptEvent = Event & {
   prompt(): Promise<unknown>;
@@ -85,19 +91,23 @@ const canServiceWork = (win: Window | null): win is Window =>
  */
 function installPrompt(win: Window) {
   let deferred: InstallPromptEvent | null = null;
+  const listeners = new Set<() => void>();
+  const set = (next: InstallPromptEvent | null) => {
+    const changed = (deferred === null) !== (next === null);
+    deferred = next;
+    if (changed) for (const fn of [...listeners]) fn();
+  };
   const onPrompt = (event: Event) => {
     event.preventDefault();
-    deferred = event as InstallPromptEvent;
+    set(event as InstallPromptEvent);
   };
-  const onInstalled = () => {
-    deferred = null;
-  };
+  const onInstalled = () => set(null);
   win.addEventListener("beforeinstallprompt", onPrompt);
   win.addEventListener("appinstalled", onInstalled);
   const install = async (): Promise<boolean> => {
     const event = deferred;
     if (!event) return false;
-    deferred = null;
+    set(null);
     try {
       await event.prompt();
       return (await event.userChoice).outcome === "accepted";
@@ -105,12 +115,21 @@ function installPrompt(win: Window) {
       return false;
     }
   };
-  return {
+  const ui: NonNullable<UiContext["install"]> = {
     current: () => (deferred ? install : null),
+    onChange(fn) {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+  };
+  return {
+    ui,
+    current: () => ui.current(),
     stop() {
       win.removeEventListener("beforeinstallprompt", onPrompt);
       win.removeEventListener("appinstalled", onInstalled);
-      deferred = null;
+      set(null);
+      listeners.clear();
     },
   };
 }
@@ -175,6 +194,61 @@ function timeIssues(m: ReleaseManifest, time: ReturnType<typeof resolveTime>): S
   ];
 }
 
+/** The game's save version and config hash must be the build's: else its code and data come from different builds. */
+function gameIssues(m: ReleaseManifest, game: GameDefinition): SceneIssue[] {
+  const page = { saveVersion: game.saves?.version ?? null, configHash: game.configHash ?? null };
+  return (["saveVersion", "configHash"] as const)
+    .filter((field) => m.game[field] !== page[field])
+    .map((field) =>
+      makeIssue("hash-mismatch", {
+        message: `the game's ${field} (${String(page[field])}) isn't the ${String(m.game[field])} release.json was built with: the page's code and its data come from different builds; reload to fetch one build`,
+        path: `/game/${field}`,
+        expected: String(m.game[field]),
+        got: String(page[field]),
+      }),
+    );
+}
+
+/** The page's background while the build has none of its own (a target without the PWA). */
+const DEFAULT_BACKGROUND = "#000000";
+
+/** Lays the page out for the game alone, through CSSOM so a strict CSP allows it. */
+function fillPage(root: HTMLElement, background: string | null): void {
+  const doc = root.ownerDocument;
+  const html = doc.documentElement.style;
+  html.height = "100%";
+  html.overflow = "hidden";
+  html.background = background ?? DEFAULT_BACKGROUND;
+  const body = doc.body?.style;
+  if (body) {
+    body.margin = "0";
+    body.height = "100%";
+    body.overflow = "hidden";
+    body.background = background ?? DEFAULT_BACKGROUND;
+  }
+  Object.assign(root.style, {
+    position: "fixed",
+    top: "0",
+    right: "0",
+    bottom: "0",
+    left: "0",
+    overflow: "hidden",
+    touchAction: "none",
+    overscrollBehavior: "none",
+  });
+}
+
+/** The line shown in `root` until the game's first scene is up. */
+function showLoading(root: HTMLElement, cover: boolean): { remove(): void } {
+  const line = root.ownerDocument.createElement("p");
+  line.dataset.jamsLoading = "";
+  line.setAttribute("role", "status");
+  line.textContent = "Loading…";
+  line.style.cssText = `${cover ? "position:absolute;inset:0;" : ""}margin:0;padding:16px;display:flex;align-items:center;justify-content:center;font:16px/1.4 system-ui,sans-serif;color:#888;pointer-events:none`;
+  root.append(line);
+  return { remove: () => line.remove() };
+}
+
 /** `?renderer=webgl` on the page asks for WebGL. */
 function rendererPreference(doc: Document): { preference: "webgl" } | null {
   const search = doc.defaultView?.location.search ?? "";
@@ -221,7 +295,10 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
   const { root, game } = opts;
   const doc = root.ownerDocument;
   const fetchFn: FetchText = opts.fetch ?? ((url) => globalThis.fetch(url));
+  const fills = opts.fillPage !== false;
   setState(doc, "loading");
+  if (fills) fillPage(root, null);
+  let loading: { remove(): void } | null = showLoading(root, fills);
 
   let canvas: HTMLCanvasElement | null = null;
   let instance: GameInstance | null = null;
@@ -235,6 +312,8 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
     instance?.resize(size.width, size.height);
   };
   const teardown = () => {
+    loading?.remove();
+    loading = null;
     win?.removeEventListener("resize", resize);
     prompt?.stop();
     prompt = null;
@@ -264,6 +343,9 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
           got: manifest.game.id,
         }),
       ]);
+    const mixed = gameIssues(manifest, game);
+    if (mixed.length > 0) throw new StandaloneBootError(mixed);
+    if (fills && manifest.pwa) fillPage(root, manifest.pwa.background);
     if (!manifest.pwa) {
       prompt?.stop();
       prompt = null;
@@ -320,13 +402,22 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
       const credits = manifest.build.files.some((f) => f.path === CREDITS_FILE)
         ? { credits: releaseUrl(base, CREDITS_FILE).href }
         : null;
-      unmountUi = mountUi(instance, canvas, opts.ui, credits ? { links: credits } : {});
+      const install = prompt?.ui;
+      const ui = opts.ui;
+      unmountUi = mountUi(
+        instance,
+        canvas,
+        install ? (ctx) => ui({ ...ctx, install }) : ui,
+        credits ? { links: credits } : {},
+      );
     }
     instance.start();
     const started = await instance.flow.restart();
     if (!started.ok) throw new StandaloneBootError([started.issue]);
     if (workerWin && manifest.pwa) registerWorker(workerWin, releaseUrl(base, SERVICE_WORKER_FILE));
     win?.addEventListener("resize", resize);
+    loading?.remove();
+    loading = null;
     setState(doc, "ready");
 
     const playing = instance;
@@ -364,11 +455,10 @@ function registerWorker(win: Window, url: URL): void {
   win.navigator.serviceWorker.register(url.href).catch(() => {});
 }
 
-/** The root's size, or the window's while the root has none (before layout). */
+/** The root's size; the window's only while the root has no box at all (not laid out yet). */
 function sizeOf(root: HTMLElement): { width: number; height: number } {
   const win = root.ownerDocument.defaultView;
-  return {
-    width: root.clientWidth || win?.innerWidth || 1,
-    height: root.clientHeight || win?.innerHeight || 1,
-  };
+  if (root.clientWidth === 0 && root.clientHeight === 0)
+    return { width: win?.innerWidth || 1, height: win?.innerHeight || 1 };
+  return { width: root.clientWidth || 1, height: root.clientHeight || 1 };
 }

@@ -877,6 +877,14 @@ export async function createGame(
   let session: SessionRecording | null = null;
   let lastRecording: RunRecording | null = null;
 
+  /** The host's own project ref, else the released project's when this instance plays a release. */
+  const recordingProjectRef =
+    cfg.recording?.projectRef !== undefined
+      ? cfg.recording.projectRef
+      : cfg.release
+        ? { id: cfg.release.manifest.project.id, snapshot: cfg.release.manifest.project.snapshot }
+        : undefined;
+
   function finishRecording(recording: RunRecording | null): void {
     if (!recording) return;
     lastRecording = recording;
@@ -903,9 +911,7 @@ export async function createGame(
         sceneHash: prepared.hash,
         runHash: prepared.runHash,
         platform: { arch, runtime: "browser", ...cfg.recording?.platform },
-        ...(cfg.recording?.projectRef !== undefined
-          ? { projectRef: cfg.recording.projectRef }
-          : {}),
+        ...(recordingProjectRef !== undefined ? { projectRef: recordingProjectRef } : {}),
         ...(cfg.release ? { release: cfg.release.id } : {}),
         start: opts,
         persist: persistAtLoad,

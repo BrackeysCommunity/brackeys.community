@@ -3,6 +3,8 @@ import type { LifetimeBlock } from "../../game/behaviors/lifetime";
 import { ticksFor, wholeTicksIn } from "../../game/time";
 import type { EngineContext, JsonValue } from "../../game/types";
 
+const isCount = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
+
 /** A running lifetime: the clock phase it ends in, and its order among those ending then. */
 type Countdown = { due: number; seq: number };
 
@@ -32,12 +34,14 @@ export const createLifetimeSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     return lastPhase >= base ? base + 1 : base;
   };
 
-  function start(id: string, ticks: number): void {
+  function start(id: string, ticks: number, order?: number): void {
     if (ctx.exists(id) && !ctx.enabled(id)) {
       running.delete(id);
       return;
     }
-    running.set(id, { due: Math.max(now() + ticks, nextPhase()), seq: seq++ });
+    const at = order ?? seq;
+    seq = Math.max(seq, at + 1);
+    running.set(id, { due: Math.max(now() + ticks, nextPhase()), seq: at });
   }
 
   function schedule(id: string, block: LifetimeBlock): void {
@@ -94,17 +98,21 @@ export const createLifetimeSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       const block = blocks.get(id);
       if (block) schedule(id, block);
     },
-    /** The ticks left before it goes, counted from the next tick. */
+    /**
+     * The ticks left before it goes, counted from the next tick, and its
+     * start order, so lifetimes ending on one tick go in the same order
+     * after a restore.
+     */
     save(id) {
       const c = running.get(id);
-      return c ? { left: Math.max(0, c.due - nextPhase()) } : undefined;
+      return c ? { left: Math.max(0, c.due - nextPhase()), seq: c.seq } : undefined;
     },
     restore(id, state: JsonValue) {
       if (!blocks.has(id) || typeof state !== "object" || state === null) return;
-      const left = (state as { left?: unknown }).left;
-      if (typeof left !== "number" || !Number.isInteger(left) || left < 0) return;
+      const { left, seq: order } = state as { left?: unknown; seq?: unknown };
+      if (!isCount(left)) return;
       lastPhase = Math.min(lastPhase, now() - 1);
-      start(id, left);
+      start(id, left, isCount(order) ? order : undefined);
     },
     clear() {
       blocks.clear();

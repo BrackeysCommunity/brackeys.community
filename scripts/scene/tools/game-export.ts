@@ -20,7 +20,7 @@ export type GameExportInput = {
 
 export const GAME_EXPORT_USAGE = `game export <id> --zip ${targetFlag(ZIP_TARGET)} [--out dist/games/<id>-<target>.zip]`;
 
-/** Where `game export <id> --zip` writes when `--out` is left out, relative to the working directory. */
+/** Where `game export <id> --zip` writes when `--out` is left out (`id` is the project's), relative to the working directory. */
 export const defaultZipOut = (id: string, target: string) =>
   join("dist", "games", `${id}-${target}.zip`);
 
@@ -35,7 +35,7 @@ export const gameExport: Tool<GameExportInput> = async (input, ctx) => {
   );
   if (!built || result.exitCode !== 0) return result;
 
-  const { out, plan } = built;
+  const { out, plan, project } = built;
   const target = plan.manifest.build.target;
   const files = await Promise.all(
     (await filesUnder(out)).map(async (path) => ({
@@ -44,7 +44,7 @@ export const gameExport: Tool<GameExportInput> = async (input, ctx) => {
     })),
   );
   const zip = zipFiles(files);
-  const file = resolve(input.out ?? defaultZipOut(plan.manifest.game.id, target));
+  const file = resolve(input.out ?? defaultZipOut(project.file.id, target));
   await mkdir(dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   await writeFile(tmp, zip);

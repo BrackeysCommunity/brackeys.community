@@ -21,6 +21,8 @@ export type RendererHooks = {
   lost?: (backend: RenderBackend) => void;
   restored?: (backend: RenderBackend, rebuilt: boolean) => void;
   fallback?: (reason: "init" | "lost") => void;
+  /** The rebuild after a loss failed: nothing draws again, and `restored` never follows. */
+  failed?: (backend: RenderBackend, error: unknown) => void;
   /** Runs on a rebuilt renderer before `restored`, so resident textures upload to it. */
   rebuilt?: () => void;
   /** Where the lost overlay goes; none is shown without one. */
@@ -36,11 +38,11 @@ function backendOf(app: Application): RenderBackend {
   return (app.renderer as { name?: string } | undefined)?.name === "webgpu" ? "webgpu" : "webgl";
 }
 
-/** A centred "Restoring graphics…" line over the game. */
-function defaultLostOverlay(layer: HTMLElement): { destroy(): void } {
+/** A centred status line over the game. */
+function statusOverlay(layer: HTMLElement, text: string): { destroy(): void } {
   const line = layer.ownerDocument.createElement("div");
   line.setAttribute("role", "status");
-  line.textContent = "Restoring graphics…";
+  line.textContent = text;
   Object.assign(line.style, {
     position: "absolute",
     inset: "0",
@@ -54,6 +56,11 @@ function defaultLostOverlay(layer: HTMLElement): { destroy(): void } {
   layer.append(line);
   return { destroy: () => line.remove() };
 }
+
+const defaultLostOverlay = (layer: HTMLElement) => statusOverlay(layer, "Restoring graphics…");
+
+/** What replaces the lost overlay when drawing can't come back. */
+const RENDER_FAILED_TEXT = "Graphics stopped working. Reload the page to continue.";
 
 /**
  * The Pixi app, antialiased as `resolution` says, with the world under the
@@ -145,11 +152,13 @@ export async function createRenderer(
   let standIn: { root: HTMLElement; destroy(): void } | null = null;
   let lost: RenderBackend | null = null;
   let rebuilding = false;
+  /** The rebuild failed: `app` is torn down and nothing draws again. */
+  let failed = false;
   let restoreTimer: ReturnType<typeof setTimeout> | null = null;
   let overlay: { root: HTMLElement; shown: { destroy(): void } } | null = null;
   let unlisten: () => void = () => {};
 
-  function showOverlay(): void {
+  function showOverlay(draw = config.renderer?.lostOverlay ?? defaultLostOverlay): void {
     if (overlay) return;
     const layer = hooks.layer?.();
     if (!layer) return;
@@ -157,8 +166,7 @@ export async function createRenderer(
     root.setAttribute("data-jams-render-lost", "");
     Object.assign(root.style, { position: "absolute", inset: "0" });
     layer.append(root);
-    const shown = (config.renderer?.lostOverlay ?? defaultLostOverlay)(root);
-    overlay = { root, shown };
+    overlay = { root, shown: draw(root) };
   }
 
   function hideOverlay(): void {
@@ -240,7 +248,7 @@ export async function createRenderer(
 
   async function rebuild(): Promise<void> {
     clearRestoreTimer();
-    if (destroyed || rebuilding) return;
+    if (destroyed || rebuilding || failed) return;
     const from = lost ?? backendOf(app);
     rebuilding = true;
     teardown(app, true);
@@ -250,7 +258,13 @@ export async function createRenderer(
       next = await build(surface, "webgl");
     } catch (error) {
       rebuilding = false;
+      failed = true;
       console.error("[renderer] couldn't rebuild after a lost GPU context", error);
+      hideOverlay();
+      if (!destroyed) {
+        showOverlay((layer) => statusOverlay(layer, RENDER_FAILED_TEXT));
+        hooks.failed?.(from, error);
+      }
       return;
     }
     rebuilding = false;
@@ -276,13 +290,13 @@ export async function createRenderer(
 
   function resize(width: number, height: number): void {
     size = { width, height };
-    if (rebuilding) return;
+    if (rebuilding || failed) return;
     app.renderer.resize(width, height);
     drawBars(width, height);
   }
 
   function extractPixels(world: readonly Vec2[]): ReturnType<GameInstance["extractPixels"]> {
-    if (rebuilding) return { renderer: lost ?? "webgl", pixels: world.map(() => null) };
+    if (rebuilding || failed) return { renderer: lost ?? "webgl", pixels: world.map(() => null) };
     const { width, height } = app.screen;
     const pixels = world.map((point) => {
       const at = worldContainer.toGlobal(point);
@@ -305,7 +319,7 @@ export async function createRenderer(
     destroyed = true;
     clearRestoreTimer();
     hideOverlay();
-    if (!rebuilding) teardown(app, false);
+    if (!rebuilding && !failed) teardown(app, false);
     else {
       unlisten();
       for (const node of [worldContainer, bars, uiContainer]) node.destroy({ children: true });

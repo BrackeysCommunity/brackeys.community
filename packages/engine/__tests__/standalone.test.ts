@@ -5,12 +5,16 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { createGame } from "../engine";
 import { planContent } from "../export/content";
 import { finishExport, type BuiltCode, type ExportInput } from "../export/plan";
-import { SERVICE_WORKER_FILE } from "../export/service-worker";
 import { createRegistry, withProject } from "../game/define";
 import type { GameDefinition } from "../game/types";
 import type { BundleEntry } from "../project/bundle";
 import { createKindRegistry } from "../project/kinds";
-import { formatReleaseManifest, releaseId, type ReleaseManifest } from "../project/release";
+import {
+  formatReleaseManifest,
+  releaseId,
+  SERVICE_WORKER_FILE,
+  type ReleaseManifest,
+} from "../project/release";
 import { heldProject, type HeldFile } from "../project/runtime-view";
 import type { AssetSidecar } from "../project/sidecar";
 import { jsonValues, snapshotProject } from "../project/snapshot";
@@ -21,6 +25,8 @@ import type { RunRecording } from "../scene/recording-schema";
 import type { SceneDefinition } from "../scene/types";
 import { bootStandalone, type StandaloneGame, type StandaloneOptions } from "../standalone/boot";
 import { manifestView } from "../standalone/manifest-view";
+import type { UiContext } from "../ui/types";
+import { ENGINE_VERSION } from "../version";
 import { testGame } from "./fixtures/test-game";
 
 vi.mock("../renderer", () => ({
@@ -223,6 +229,8 @@ beforeEach(() => {
 afterEach(() => {
   for (const game of booted.splice(0)) game.destroy();
   document.body.replaceChildren();
+  document.documentElement.removeAttribute("style");
+  document.body.removeAttribute("style");
   document.head.querySelector("base")?.remove();
   vi.unstubAllGlobals();
 });
@@ -287,6 +295,7 @@ describe("bootStandalone", () => {
     const alert = root.querySelector('[role="alert"]')!;
     expect(alert.textContent).toContain("version-newer");
     expect(alert.textContent).toContain("v99");
+    expect(alert.textContent).toContain("The game couldn't start");
     const reload = alert.querySelector("button")!;
     expect(reload.textContent).toBe("Reload");
     expect(reload.type).toBe("button");
@@ -356,6 +365,81 @@ describe("bootStandalone", () => {
     game.instance.step(2);
     game.instance.stop();
     expect(recorded[0]?.release).toBe(game.release);
+    expect(recorded[0]?.project).toEqual({
+      id: build.manifest.project.id,
+      snapshot: build.manifest.project.snapshot,
+    });
+    expect(recorded[0]?.engine.version).toBe(build.manifest.engine.version);
+    expect(recorded[0]?.engine.version).toBe(ENGINE_VERSION);
+  });
+
+  it("refuses a game whose save version or config hash isn't the build's", async () => {
+    const resaved = { ...testGame, saves: { ...testGame.saves, version: 99 } };
+    await expect(
+      boot({ fetch: fakeFetch(build, DIR).fetch, game: resaved as GameDefinition }),
+    ).rejects.toMatchObject({
+      issues: [expect.objectContaining({ code: "hash-mismatch", path: "/game/saveVersion" })],
+    });
+    expect(root.querySelector('[role="alert"]')!.textContent).toContain("hash-mismatch");
+    const rehashed = { ...testGame, configHash: "f".repeat(64) };
+    await expect(
+      boot({ fetch: fakeFetch(build, DIR).fetch, game: rehashed as GameDefinition }),
+    ).rejects.toMatchObject({
+      issues: [expect.objectContaining({ code: "hash-mismatch", path: "/game/configHash" })],
+    });
+  });
+});
+
+describe("the page", () => {
+  it("lays the page out for the game alone, in the build's background", async () => {
+    await boot({ fetch: fakeFetch(build, DIR).fetch });
+    const html = document.documentElement.style;
+    const body = document.body.style;
+    expect(body.margin).toBe("0px");
+    expect(body.overflow).toBe("hidden");
+    expect(html.overflow).toBe("hidden");
+    expect(html.height).toBe("100%");
+    expect(body.height).toBe("100%");
+    expect(build.manifest.pwa?.background).toBeTruthy();
+    expect(body.background).toBe(html.background);
+    expect(body.background).not.toBe("");
+    expect(root.style.position).toBe("fixed");
+    for (const side of ["top", "right", "bottom", "left"] as const)
+      expect(root.style[side]).toBe("0px");
+    expect(root.style.touchAction).toBe("none");
+  });
+
+  it("leaves the page alone with fillPage off", async () => {
+    await boot({ fetch: fakeFetch(build, DIR).fetch, fillPage: false });
+    expect(document.documentElement.getAttribute("style")).toBeNull();
+    expect(document.body.getAttribute("style")).toBeNull();
+    expect(root.style.position).toBe("");
+  });
+
+  it("shows a loading line until the first scene is up", async () => {
+    const served = fakeFetch(build, DIR);
+    const serve = vi.mocked(served.fetch).getMockImplementation()!;
+    let during: string | null | undefined;
+    vi.mocked(served.fetch).mockImplementation(async (url) => {
+      during ??= root.querySelector("[data-jams-loading]")?.textContent;
+      return serve(url);
+    });
+    await boot({ fetch: served.fetch });
+    expect(during).toBe("Loading…");
+    expect(root.querySelector("[data-jams-loading]")).toBeNull();
+  });
+
+  it("lays the error panel over the viewport, scrolling, so a long message reads from its start", async () => {
+    const newer = structuredClone(build.manifest) as ReleaseManifest;
+    newer.engine.formats = { ...newer.engine.formats, scene: 99 };
+    await expect(boot({ fetch: fakeFetch(build, DIR, newer).fetch })).rejects.toThrow();
+    expect(root.querySelector("[data-jams-loading]")).toBeNull();
+    const alert = root.querySelector<HTMLElement>('[role="alert"]')!;
+    expect(alert.style.position).toBe("fixed");
+    expect(alert.style.overflow).toBe("auto");
+    const inner = alert.firstElementChild as HTMLElement;
+    expect(inner.style.margin).toBe("auto");
+    expect(inner.firstElementChild?.textContent).toBe("The game couldn't start");
   });
 });
 
@@ -489,6 +573,44 @@ describe("the PWA", () => {
 
     offerInstall("dismissed");
     await expect(game.install!()).resolves.toBe(false);
+  });
+
+  it("hands the install prompt to the game's UI, telling it when one comes and goes", async () => {
+    let ctx: UiContext | null = null;
+    const game = await boot({
+      fetch: fakeFetch(build, DIR).fetch,
+      ui: (c) => {
+        ctx = c;
+        return { destroy() {} };
+      },
+    });
+    const install = (ctx as UiContext | null)?.install;
+    expect(install).toBeDefined();
+    expect(install!.current()).toBeNull();
+    const changes = vi.fn();
+    const off = install!.onChange(changes);
+    offerInstall("accepted");
+    expect(changes).toHaveBeenCalledTimes(1);
+    expect(install!.current()).toBe(game.install);
+    await expect(install!.current()!()).resolves.toBe(true);
+    expect(changes).toHaveBeenCalledTimes(2);
+    expect(install!.current()).toBeNull();
+    off();
+    offerInstall("accepted");
+    expect(changes).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives the UI no install where the build has no PWA", async () => {
+    let ctx: UiContext | null = null;
+    await boot({
+      fetch: fakeFetch(itch, DIR).fetch,
+      ui: (c) => {
+        ctx = c;
+        return { destroy() {} };
+      },
+    });
+    expect(ctx).not.toBeNull();
+    expect((ctx as UiContext | null)?.install).toBeUndefined();
   });
 
   it("keeps a prompt fired while the game loads, and drops it once installed or destroyed", async () => {

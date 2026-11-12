@@ -19,6 +19,7 @@ import {
   type SceneListFlow,
 } from "../../project/index";
 import type { Registry } from "../../scene/index";
+import { reloadOf } from "../connect/project-session";
 import {
   assetName,
   useSceneDoc,
@@ -98,6 +99,39 @@ export type SceneNotice = { text: string };
 
 /** How long the status bar says why the editor switched scenes. */
 export const SCENE_NOTICE_MS = 12_000;
+
+/** What the editor says when the server reset the project and the session opened it again. */
+export function reloadNotice(dropped: number): { message: string; description: string } {
+  const lost =
+    dropped === 1
+      ? " One change that hadn't synced was dropped."
+      : dropped > 1
+        ? ` ${dropped} changes that hadn't synced were dropped.`
+        : "";
+  return {
+    message: "The project was reset on the server",
+    description: `The editor reloaded its current state.${lost}`,
+  };
+}
+
+/** Warns through `notify` each time `connection` reloads its project from the server's state. */
+export function useProjectReloadNotice(
+  connection: ProjectConnection | null,
+  notify: EditorNotify,
+): void {
+  useEffect(() => {
+    if (!connection) return;
+    let before = connection.getState();
+    return connection.subscribe(() => {
+      const next = connection.getState();
+      const reload = reloadOf(before, next);
+      before = next;
+      if (!reload) return;
+      const { message, description } = reloadNotice(reload.dropped);
+      notify.warning(message, { id: "project-reloaded", description });
+    });
+  }, [connection, notify]);
+}
 
 const NO_FLOW: SceneListFlow = Object.freeze({ start: null, scenes: Object.freeze([]) });
 
@@ -327,6 +361,7 @@ export function useSceneEditor({
   }, [projectCell, loaded, connect, project, registry]);
 
   const connection = useStoreValue(projectCell);
+  useProjectReloadNotice(connection, say);
   const watchConnection = useCallback(
     (listener: () => void) => connection?.subscribe(listener) ?? (() => {}),
     [connection],
@@ -369,7 +404,7 @@ export function useSceneEditor({
     sceneChange.current?.(id);
   });
   /** An undo or redo whose step is in another scene: the editor switches there first, then takes it. */
-  const deferred = useRef<{ doc: string; how: "undo" | "redo"; text: string } | null>(null);
+  const deferred = useRef<DeferredStep | null>(null);
   const [openScene] = useState(() => (id: string) => {
     notice.setState(() => null);
     deferred.current = null;
@@ -446,13 +481,12 @@ export function useSceneEditor({
     if (!loaded || !game || !ready || !settled || !fits) return;
     let next: LiveEditor | null = null;
     let gone = false;
-    const verbOf = (how: "undo" | "redo") => (how === "undo" ? "Undid" : "Redid");
     const titleOf = (scene: { id: string; name: string }) =>
       flowRef.current.scenes.find((e) => e.scene === scene.id)?.title ?? scene.name;
     // A step the peek didn't foresee still opens its scene once taken, and the status bar says so.
     const onUndone = (step: UndoneStep, how: "undo" | "redo") => {
       if (step.docs.includes(ready.name)) return;
-      const verb = verbOf(how);
+      const verb = how === "undo" ? "Undid" : "Redid";
       const other = sceneOfStep(ready.session, step.docs);
       if (other) {
         notice.setState(() => ({ text: `${verb} ${step.label} in ${titleOf(other)}` }));
@@ -471,11 +505,9 @@ export function useSceneEditor({
       if (!step || step.docs.includes(ready.name)) return false;
       const other = sceneOfStep(ready.session, step.docs);
       if (!other) return false;
-      deferred.current = {
-        doc: other.doc,
-        how,
-        text: `${verbOf(how)} ${step.label} in ${titleOf(other)}`,
-      };
+      const due: DeferredStep = { doc: other.doc, how, label: step.label, scene: titleOf(other) };
+      deferred.current = due;
+      notice.setState(() => ({ text: stepNotice(due, "opening") }));
       switchTo(other.id);
       return true;
     };
@@ -508,8 +540,8 @@ export function useSceneEditor({
         const due = deferred.current;
         if (due?.doc === ready.name) {
           deferred.current = null;
-          if (due.how === "undo" ? next.session.undo() : next.session.redo())
-            notice.setState(() => ({ text: due.text }));
+          const taken = due.how === "undo" ? next.session.undo() : next.session.redo();
+          notice.setState(() => ({ text: stepNotice(due, taken ? "taken" : "failed") }));
         }
       });
     return () => {
@@ -522,6 +554,15 @@ export function useSceneEditor({
       next?.destroy();
     };
   }, [liveCell, loaded, game, ready, settled, fits, say, tasks, notice, switchTo]);
+
+  // A deferred step whose scene didn't open, or opened another in its place, is never taken.
+  const switchFailed = link.error !== null || link.status === "failed" || link.fellBack !== null;
+  useEffect(() => {
+    const due = deferred.current;
+    if (!switchFailed || !due) return;
+    deferred.current = null;
+    notice.setState(() => ({ text: stepNotice(due, "failed") }));
+  }, [switchFailed, notice]);
 
   useEffect(() => {
     live?.host.setState((s) => ({ ...s, connection: link.status }));
@@ -621,6 +662,20 @@ export function useSceneEditor({
     assets: on ? assets : null,
     projectChoice: on ? projectChoice : null,
   };
+}
+
+/** An undo or redo step in another scene, waiting for the editor to open it. */
+type DeferredStep = { doc: string; how: "undo" | "redo"; label: string; scene: string };
+
+/** The status bar's word on a deferred step: while its scene opens, once taken, or when it couldn't be. */
+export function stepNotice(
+  step: Omit<DeferredStep, "doc">,
+  stage: "opening" | "taken" | "failed",
+): string {
+  const { how, label, scene } = step;
+  if (stage === "opening") return `Opening ${scene} to ${how} ${label}…`;
+  if (stage === "failed") return `Couldn't ${how} ${label} in ${scene}`;
+  return `${how === "undo" ? "Undid" : "Redid"} ${label} in ${scene}`;
 }
 
 /** A doc's asset id in `session`, else the doc's name. */

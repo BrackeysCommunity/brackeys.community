@@ -17,30 +17,32 @@ export function renderBootError(
   const panel = doc.createElement("div");
   panel.setAttribute("role", "alert");
   panel.dataset.jamsError = error.code ?? "";
+  // Fixed to the viewport and scrolling, so a long message on a small screen stays readable from its first line.
   panel.style.cssText =
-    "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;text-align:center;font:16px/1.4 system-ui,sans-serif;color:#eee;background:#111";
+    "position:fixed;inset:0;z-index:1;display:flex;overflow:auto;padding:16px;box-sizing:border-box;text-align:center;font:16px/1.4 system-ui,sans-serif;color:#eee;background:#111";
+  const body = doc.createElement("div");
+  body.style.cssText =
+    "margin:auto;display:flex;flex-direction:column;align-items:center;gap:12px;max-width:40em";
 
   const heading = doc.createElement("p");
   heading.style.cssText = "margin:0;font-size:20px;font-weight:600";
   heading.textContent = "The game couldn't start";
   const message = doc.createElement("p");
-  message.style.cssText = "margin:0;max-width:40em;overflow-wrap:anywhere";
+  message.style.cssText = "margin:0;max-width:100%;overflow-wrap:anywhere";
   message.textContent = error.message;
-  panel.append(heading, message);
+  body.append(heading, message);
   if (error.code !== null) {
     const code = doc.createElement("code");
     code.textContent = error.code;
-    panel.append(code);
+    body.append(code);
   }
   const reload = doc.createElement("button");
   reload.type = "button";
   reload.textContent = "Reload";
   reload.style.cssText = "font:inherit;padding:6px 16px;cursor:pointer";
   reload.addEventListener("click", () => doc.defaultView?.location.reload());
-  panel.append(reload);
-
-  if (doc.defaultView?.getComputedStyle(root).position === "static")
-    root.style.position = "relative";
+  body.append(reload);
+  panel.append(body);
   root.append(panel);
   return { destroy: () => panel.remove() };
 }

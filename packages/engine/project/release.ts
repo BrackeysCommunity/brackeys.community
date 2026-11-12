@@ -36,6 +36,14 @@ export const RELEASE_VERSION = 1;
 export const RELEASE_SCHEMA_ID = `${SCHEMA_ID_BASE}release:v${RELEASE_VERSION}`;
 /** The manifest's file name, at the root of every build. */
 export const RELEASE_FILE = "release.json";
+/** The page every build opens at. */
+export const INDEX_HTML_FILE = "index.html";
+/** The credits page every build ships, next to its `index.html`. */
+export const CREDITS_FILE = "credits.html";
+/** The service worker a PWA build registers, next to its page. */
+export const SERVICE_WORKER_FILE = "sw.js";
+/** The web app manifest a PWA build links from its page. */
+export const WEB_MANIFEST_FILE = "app.webmanifest";
 
 /** All four are valid in a manifest; this engine builds the targets `EXPORT_TARGETS` has a row for. */
 export type ReleaseTarget = "web" | "itch" | "desktop" | "mobile";

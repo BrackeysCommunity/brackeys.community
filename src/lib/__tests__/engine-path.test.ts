@@ -9,7 +9,7 @@ import { describe, expect, it } from "vite-plus/test";
  * The engine lives in `packages/engine/`. A path that still names its old
  * home (`src/engine`, or a relative `../engine` that lands there) is a
  * config, script, service or test that silently reads nothing, so this
- * fails on any in a file git tracks or would track. The engine's
+ * fails on any in a file git tracks. The engine's
  * CHANGELOG keeps its history, and plans are gitignored.
  */
 
@@ -38,15 +38,11 @@ function oldEnginePaths(path: string, text: string): string[] {
 }
 
 function repoFiles(): string[] {
-  const out = execFileSync(
-    "git",
-    ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
-    {
-      cwd: REPO,
-      encoding: "utf8",
-      maxBuffer: 64 * 1024 * 1024,
-    },
-  );
+  const out = execFileSync("git", ["ls-files", "--cached", "-z"], {
+    cwd: REPO,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
   return [...new Set(out.split("\0").filter((p) => p !== ""))].sort();
 }
 

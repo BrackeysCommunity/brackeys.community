@@ -603,7 +603,8 @@ dropped while the socket stays up) is re-attached after a backoff, and one
 A socket's own close (a code under 4000, or none) is left to the transport.
 A doc the server refuses as another seed's (the server reseeded it while
 this session held its history) is never merged: the whole session is
-dropped and opened afresh, so every doc resets to the server's state.
+dropped and opened afresh, so every doc resets to the server's state;
+`reloadOf` tells a listener that happened and what it dropped.
 
 ```ts
 declare function connectProjectSession(options: ConnectProjectSessionOptions): ProjectConnection;

@@ -127,6 +127,25 @@ export function offConnection(access: ProjectAccess = "write"): ProjectConnectio
   };
 }
 
+/** A project session the server reset: the session was dropped and is opening again from the server's state. */
+export type ProjectReload = {
+  /** Updates no server had acknowledged when the session was dropped; they are gone. */
+  dropped: number;
+};
+
+/**
+ * Whether `next` is the reload of the session `before` held: only a reload
+ * takes an open session away while the connection stays up. The first state
+ * of a reload still counts the updates it drops, since the docs close after.
+ */
+export function reloadOf(
+  before: ProjectConnectionState,
+  next: ProjectConnectionState,
+): ProjectReload | null {
+  if (!before.session || next.session || next.status !== "connecting") return null;
+  return { dropped: Math.max(before.unsynced, next.unsynced) };
+}
+
 const retryAll = (): CloseReason => "retry";
 
 /** A token refusal that means the project is gone or no longer this viewer's. */
@@ -160,7 +179,8 @@ function assetChangedOf(payload: string, project: ProjectId): AssetChangedMessag
  * A socket's own close (a code under 4000, or none) is left to the transport.
  * A doc the server refuses as another seed's (the server reseeded it while
  * this session held its history) is never merged: the whole session is
- * dropped and opened afresh, so every doc resets to the server's state.
+ * dropped and opened afresh, so every doc resets to the server's state;
+ * `reloadOf` tells a listener that happened and what it dropped.
  */
 export function connectProjectSession(options: ConnectProjectSessionOptions): ProjectConnection {
   const {

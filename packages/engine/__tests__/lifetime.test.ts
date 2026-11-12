@@ -283,6 +283,48 @@ describe("a world save of lifetimes", () => {
     resumed.destroy();
   });
 
+  it("keeps the start order of lifetimes ending on one tick across a restore", () => {
+    const game = lifetimeGame(60);
+    const registry = createRegistry(game);
+    const open = (fromSave?: Parameters<typeof createHeadlessRuntime>[0]["fromSave"]) =>
+      createHeadlessRuntime({
+        game,
+        registry,
+        scene: scene([dot("a", { ticks: 5 }), dot("b", { ticks: 7 })]),
+        ...(fromSave ? { fromSave } : {}),
+      });
+
+    // A restore visits scene entities before spawned ones; `a` is started
+    // after the spawn here, so only the saved start order keeps it second.
+    const whole = open();
+    whole.ctx.setEnabled("a", false);
+    play(whole, 1, []);
+    const spawned = whole.ctx.spawn({
+      type: "dot",
+      at: [0, 0],
+      behaviors: { lifetime: { ticks: 6 } },
+    });
+    play(whole, 2, []);
+    whole.ctx.setEnabled("a", true);
+    play(whole, 3, []);
+    const saved = whole.save({ depth: "world", slot: "tie", now: 0 });
+    if (!saved.ok) throw new Error(saved.issue.message);
+    const wholeSeen: Seen = [];
+    play(whole, 12, wholeSeen);
+    expect(wholeSeen).toEqual([
+      [7, ENTITY_DESTROYED, "b"],
+      [7, ENTITY_DESTROYED, spawned.id],
+      [7, ENTITY_DESTROYED, "a"],
+    ]);
+
+    const resumed = open(saved.file);
+    const resumedSeen: Seen = [];
+    play(resumed, 12, resumedSeen);
+    expect(resumedSeen).toEqual(wholeSeen);
+    whole.destroy();
+    resumed.destroy();
+  });
+
   it("starts a disabled entity's lifetime afresh when a restored run enables it", () => {
     const game = lifetimeGame(60);
     const registry = createRegistry(game);

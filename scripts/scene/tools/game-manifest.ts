@@ -2,8 +2,9 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 
 import { formatBytes, measureBudget } from "@jams/engine/export";
-import { parseRecording } from "@jams/engine/headless";
+import { parseRecording, type RunRecording } from "@jams/engine/headless";
 import {
+  byCodeUnit,
   checkReleaseManifest,
   findRelease,
   parseReleaseManifest,
@@ -33,8 +34,6 @@ export type GameManifestInput = {
 };
 
 export const GAME_MANIFEST_USAGE = "game manifest <dir|release.json>";
-
-const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** A path as a summary prints it: relative to the working directory when under it. */
 export function shownPath(path: string): string {
@@ -266,10 +265,66 @@ export type ReplayReleasesInput = ReplayInput & {
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 
+/** The release a recording was made on, and whether its fallback match was confirmed. */
+export type ReleaseMatch = {
+  release: FoundRelease;
+  /** `release`: the run's own release id; `snapshot`: the same snapshot and engine. */
+  matchedBy: "release" | "snapshot";
+  /** Always true for a `release` match; a `snapshot` match is confirmed when it reproduces the run's `runHash`. */
+  confirmed: boolean;
+};
+
+/**
+ * Whether a release reproduces what a run ran (`runHash`): the replay over
+ * the run's snapshot isn't stale, and the release's game and clock are the
+ * run's. The snapshot and engine are already the run's, so the clock is all
+ * `runHash` covers that two such releases can differ in.
+ */
+function reproducesRun(r: FoundRelease, recording: RunRecording, stale: boolean | null): boolean {
+  const { game, time } = r.manifest;
+  return (
+    stale === false &&
+    game.id === recording.game &&
+    time.kind === recording.time.kind &&
+    time.rate === recording.time.rate
+  );
+}
+
+/**
+ * `findRelease` over `releases` (newest first): the run's own release id is
+ * exact; else each release with the run's snapshot and engine in turn, the
+ * first that reproduces its `runHash` (`stale` is the replay's verdict, null
+ * when it didn't run), and the newest unconfirmed when none does.
+ */
+export function matchRelease(
+  recording: RunRecording,
+  releases: readonly FoundRelease[],
+  stale: boolean | null,
+): ReleaseMatch | null {
+  const first = findRelease(recording, releases);
+  if (!first) return null;
+  if (recording.release === first.id)
+    return { release: first, matchedBy: "release", confirmed: true };
+  const bySnapshot = { project: recording.project, engine: recording.engine };
+  let rest = releases.filter((r) => r !== first);
+  for (let next: FoundRelease | null = first; next; next = findRelease(bySnapshot, rest)) {
+    if (reproducesRun(next, recording, stale))
+      return { release: next, matchedBy: "snapshot", confirmed: true };
+    const done = next;
+    rest = rest.filter((r) => r !== done);
+  }
+  return { release: first, matchedBy: "snapshot", confirmed: false };
+}
+
+/** A release's clock and replay rule as the release line prints them. */
+const releaseTerms = (m: ReleaseManifest) =>
+  `time ${m.time.kind} at ${m.time.rate}, ${m.replay.acrossPlatforms ? "replays across platforms" : "replays on its own platform only"}`;
+
 /**
  * `replay`, then the release among `releases`' builds the recording was
- * made on (`findRelease`: its `release` id, else the same snapshot and
- * engine), or that none is. The replay decides the exit code.
+ * made on (`matchRelease`: its `release` id, else the same snapshot and
+ * engine judged by `runHash`), or that none is, with that release's time
+ * model and `replay.acrossPlatforms`. The replay decides the exit code.
  */
 export const replayRelease: Tool<ReplayReleasesInput> = async (input, ctx) => {
   if (!input.run) return replay(input, ctx);
@@ -303,14 +358,32 @@ export const replayRelease: Tool<ReplayReleasesInput> = async (input, ctx) => {
   }
   const raw = isRecord(json) && json.blocked === false ? json.recording : json;
   const read = parseRecording(raw);
-  const match = read.ok ? findRelease(read.recording, found.releases) : null;
-  const how = match && read.ok && read.recording.release === match.id ? "release" : "snapshot";
+  const stale =
+    isRecord(replayed.data) && typeof replayed.data.stale === "boolean"
+      ? replayed.data.stale
+      : null;
+  const match = read.ok ? matchRelease(read.recording, found.releases, stale) : null;
   const release = match
-    ? { id: match.id, dir: match.dir, target: match.manifest.build.target, matchedBy: how }
+    ? {
+        id: match.release.id,
+        dir: match.release.dir,
+        target: match.release.manifest.build.target,
+        matchedBy: match.matchedBy,
+        confirmed: match.confirmed,
+        time: match.release.manifest.time,
+        acrossPlatforms: match.release.manifest.replay.acrossPlatforms,
+      }
     : null;
   const searched = found.releases.length;
+  const how = !match
+    ? ""
+    : match.matchedBy === "release"
+      ? "the run's release id"
+      : match.confirmed
+        ? "same snapshot and engine, run hash reproduced"
+        : "same snapshot and engine, unconfirmed: no build reproduces the run hash";
   const line = match
-    ? `  release ${match.id} at ${shownPath(match.dir)} (${match.manifest.build.target}; ${how === "release" ? "the run's release id" : "same snapshot and engine"})`
+    ? `  release ${match.release.id} at ${shownPath(match.release.dir)} (${match.release.manifest.build.target}; ${how}; ${releaseTerms(match.release.manifest)})`
     : `  release none of the ${searched} build${searched === 1 ? "" : "s"} under ${shownPath(input.releases)} ${read.ok ? `has snapshot ${read.recording.project?.snapshot ?? "(none recorded)"} on engine ${read.recording.engine.version}` : "can be matched: the run doesn't parse"}`;
   return {
     exitCode: replayed.exitCode,

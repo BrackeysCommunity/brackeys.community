@@ -10,6 +10,7 @@ import { planContent } from "../export/content";
 import { checkItchLayout } from "../export/itch";
 import type { ExportInput } from "../export/plan";
 import {
+  DEFAULT_BUILD_TARGET,
   DEFAULT_ZIP_TARGET,
   EXPORT_TARGETS,
   exportTarget,
@@ -169,6 +170,9 @@ describe("EXPORT_TARGETS", () => {
     });
     expect(exportTargetNames()).toEqual(["web", "itch"]);
     expect(DEFAULT_ZIP_TARGET).toBe("itch");
+    expect(DEFAULT_BUILD_TARGET).toBe("web");
+    for (const t of [DEFAULT_BUILD_TARGET, DEFAULT_ZIP_TARGET])
+      expect(exportTarget(t), t).toBeDefined();
     for (const t of UNBUILT) expect(exportTarget(t), t).toBeUndefined();
   });
 });

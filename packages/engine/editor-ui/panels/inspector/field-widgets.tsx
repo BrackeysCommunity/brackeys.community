@@ -177,17 +177,27 @@ export function FieldRow({
   );
 }
 
+/**
+ * Whether a pointer gesture on `el` may edit: not when its widget is
+ * disabled, nor inside a disabled fieldset, which disables inputs but not
+ * the spans that scrub and dial.
+ */
+const takesPointer = (el: Element, disabled: boolean | undefined): boolean =>
+  !disabled && el.closest("fieldset[disabled]") === null;
+
 /** A label that scrubs its number: drag sideways to change it, one commit at release. */
 function ScrubLabel({
   field,
   step,
   bigStep,
+  disabled,
   onPreview,
   onCommit,
 }: {
   field: InspectorRow;
   step: number;
   bigStep: number;
+  disabled?: boolean;
   onPreview: (delta: number | null) => void;
   onCommit: (text: string) => void;
 }) {
@@ -214,12 +224,20 @@ function ScrubLabel({
     if (d && d.delta !== 0) onCommit(relative(d.delta));
   };
 
+  if (disabled) {
+    return (
+      <Hinted hint={field.description}>
+        <span className="je-insp-field-title">{field.title}</span>
+      </Hinted>
+    );
+  }
+
   return (
     <Hinted hint={field.description}>
       <span
         className="je-insp-field-title je-insp-scrub"
         onPointerDown={(e) => {
-          if (e.button !== 0) return;
+          if (e.button !== 0 || !takesPointer(e.currentTarget, disabled)) return;
           e.currentTarget.setPointerCapture?.(e.pointerId);
           drag.current = { x: e.clientX, delta: 0 };
           setActive(true);
@@ -327,6 +345,8 @@ export type FieldWidgetProps = {
   unset?: string;
   /** The pending scope its edits run in, for the busy spinner. */
   scope?: string;
+  /** Number and angle fields: the scrub label and dial don't drag (a disabled fieldset disables the inputs). */
+  disabled?: boolean;
 };
 
 const placeholderOf = (field: InspectorRow, unset: string | undefined) =>
@@ -375,7 +395,7 @@ export function TextField({ field, commit, unset, scope }: FieldWidgetProps) {
 
 type NumberWidget = Extract<InspectorRow["widget"], { kind: "number" }>;
 
-export function NumberField({ field, commit, unset, scope }: FieldWidgetProps) {
+export function NumberField({ field, commit, unset, scope, disabled }: FieldWidgetProps) {
   const w = field.widget as NumberWidget;
   const [preview, setPreview] = useState<number | null>(null);
   const value = typeof field.value === "number" ? field.value : undefined;
@@ -389,6 +409,7 @@ export function NumberField({ field, commit, unset, scope }: FieldWidgetProps) {
       field={field}
       step={w.step}
       bigStep={w.bigStep}
+      {...(disabled ? { disabled } : {})}
       onPreview={setPreview}
       onCommit={(text) => void run(text)}
     />
@@ -419,7 +440,7 @@ export function NumberField({ field, commit, unset, scope }: FieldWidgetProps) {
 }
 
 /** Degrees: a dial (snapping to `snapDeg`, Shift for free) beside the field. */
-export function AngleField({ field, commit, unset, scope }: FieldWidgetProps) {
+export function AngleField({ field, commit, unset, scope, disabled }: FieldWidgetProps) {
   const w = field.widget as Extract<InspectorRow["widget"], { kind: "angle" }>;
   const value = typeof field.value === "number" ? field.value : undefined;
   const [preview, setPreview] = useState<number | null>(null);
@@ -446,7 +467,9 @@ export function AngleField({ field, commit, unset, scope }: FieldWidgetProps) {
           ref={dial}
           role="presentation"
           className="je-insp-dial"
+          aria-disabled={disabled || undefined}
           onPointerDown={(e) => {
+            if (!takesPointer(e.currentTarget, disabled)) return;
             e.currentTarget.setPointerCapture?.(e.pointerId);
             setPreview(angleAt(e));
           }}

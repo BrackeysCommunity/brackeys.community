@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`BudgetContent`](#budgetcontent) · [`BudgetContributor`](#budgetcontributor) · [`BuiltCode`](#builtcode) · [`CREDITS_FILE`](#credits_file) · [`ContentPlan`](#contentplan) · [`DEFAULT_EXPORT_BUDGET`](#default_export_budget) · [`DEFAULT_ZIP_TARGET`](#default_zip_target) · [`EXPORT_TARGETS`](#export_targets) · [`ExportIcon`](#exporticon) · [`ExportIconSize`](#exporticonsize) · [`ExportInput`](#exportinput) · [`ExportPlan`](#exportplan) · [`ExportTargetDef`](#exporttargetdef) · [`INDEX_HTML_FILE`](#index_html_file) · [`ITCH_LIMITS`](#itch_limits) · [`PlannedFile`](#plannedfile) · [`SERVICE_WORKER_FILE`](#service_worker_file) · [`WEB_MANIFEST_FILE`](#web_manifest_file) · [`assetCredits`](#assetcredits) · [`budgetIssues`](#budgetissues) · [`checkItchLayout`](#checkitchlayout) · [`crc32`](#crc32) · [`defaultIconPng`](#defaulticonpng) · [`exportTarget`](#exporttarget) · [`exportTargetNames`](#exporttargetnames) · [`finishExport`](#finishexport) · [`formatBytes`](#formatbytes) · [`iconFile`](#iconfile) · [`measureBudget`](#measurebudget) · [`planContent`](#plancontent) · [`planIcons`](#planicons) · [`renderCredits`](#rendercredits) · [`renderIndexHtml`](#renderindexhtml) · [`renderServiceWorker`](#renderserviceworker) · [`renderWebManifest`](#renderwebmanifest) · [`resolveExportBudget`](#resolveexportbudget) · [`serviceWorkerCacheName`](#serviceworkercachename) · [`serviceWorkerPrecache`](#serviceworkerprecache) · [`zipFiles`](#zipfiles)
+[`BudgetContent`](#budgetcontent) · [`BudgetContributor`](#budgetcontributor) · [`BuiltCode`](#builtcode) · [`CREDITS_FILE`](#credits_file) · [`ContentPlan`](#contentplan) · [`DEFAULT_BUILD_TARGET`](#default_build_target) · [`DEFAULT_EXPORT_BUDGET`](#default_export_budget) · [`DEFAULT_ZIP_TARGET`](#default_zip_target) · [`EXPORT_TARGETS`](#export_targets) · [`ExportIcon`](#exporticon) · [`ExportIconSize`](#exporticonsize) · [`ExportInput`](#exportinput) · [`ExportPlan`](#exportplan) · [`ExportTargetDef`](#exporttargetdef) · [`INDEX_HTML_FILE`](#index_html_file) · [`ITCH_LIMITS`](#itch_limits) · [`PlannedFile`](#plannedfile) · [`SERVICE_WORKER_FILE`](#service_worker_file) · [`WEB_MANIFEST_FILE`](#web_manifest_file) · [`assetCredits`](#assetcredits) · [`budgetIssues`](#budgetissues) · [`checkItchLayout`](#checkitchlayout) · [`crc32`](#crc32) · [`defaultIconPng`](#defaulticonpng) · [`exportTarget`](#exporttarget) · [`exportTargetNames`](#exporttargetnames) · [`finishExport`](#finishexport) · [`formatBytes`](#formatbytes) · [`iconFile`](#iconfile) · [`measureBudget`](#measurebudget) · [`planContent`](#plancontent) · [`planIcons`](#planicons) · [`renderCredits`](#rendercredits) · [`renderIndexHtml`](#renderindexhtml) · [`renderServiceWorker`](#renderserviceworker) · [`renderWebManifest`](#renderwebmanifest) · [`resolveExportBudget`](#resolveexportbudget) · [`serviceWorkerCacheName`](#serviceworkercachename) · [`serviceWorkerPrecache`](#serviceworkerprecache) · [`zipFiles`](#zipfiles)
 
 ## `BudgetContent`
 
@@ -52,7 +52,7 @@ type BuiltCode = {
 
 ## `CREDITS_FILE`
 
-_const_ in `export/credits.ts`
+_const_ in `project/release.ts`
 
 The credits page every build ships, next to its `index.html`.
 
@@ -78,6 +78,16 @@ type ContentPlan = {
     start: AssetId;
     time: ReleaseManifest["time"];
 };
+```
+
+## `DEFAULT_BUILD_TARGET`
+
+_const_ in `export/targets.ts`
+
+The target `game build` builds when none is given.
+
+```ts
+declare const DEFAULT_BUILD_TARGET: ReleaseTarget;
 ```
 
 ## `DEFAULT_EXPORT_BUDGET`
@@ -204,7 +214,7 @@ type ExportTargetDef = {
 
 ## `INDEX_HTML_FILE`
 
-_const_ in `export/html.ts`
+_const_ in `project/release.ts`
 
 The page every build opens at.
 
@@ -259,7 +269,7 @@ type PlannedFile = {
 
 ## `SERVICE_WORKER_FILE`
 
-_const_ in `export/service-worker.ts`
+_const_ in `project/release.ts`
 
 The service worker a PWA build registers, next to its page.
 
@@ -269,7 +279,7 @@ declare const SERVICE_WORKER_FILE = "sw.js";
 
 ## `WEB_MANIFEST_FILE`
 
-_const_ in `export/web-manifest.ts`
+_const_ in `project/release.ts`
 
 The web app manifest a PWA build links from its page.
 
@@ -464,8 +474,10 @@ _function_ in `export/credits.ts`
 `credits.html`: the game's name, its assets grouped by licence (each
 group's attribution, author, source, SPDX id and asset names), the
 assets with no licence recorded, each shipped package with its notice,
-and the engine's version. No script and no style, so it reads the same
-under any CSP and in either colour scheme.
+and the engine's version, then a "Play the game" link to `index.html`
+(it opens the game; a page reached from a running game's new tab is
+closed to return). No script and no style, so it reads the same under
+any CSP and in either colour scheme.
 
 ```ts
 declare function renderCredits(m: ReleaseManifest): string;

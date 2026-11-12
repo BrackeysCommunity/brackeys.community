@@ -162,7 +162,7 @@ describe("measureBudget", () => {
 });
 
 describe("resolveExportBudget", () => {
-  test("defaults are E151's numbers", () => {
+  test("defaults to 4 MiB of code, 16 MiB to the first frame, 100 MiB in all and 32 MiB per file", () => {
     expect(DEFAULT_EXPORT_BUDGET).toEqual({
       codeBytes: 4 * MiB,
       firstLoadBytes: 16 * MiB,

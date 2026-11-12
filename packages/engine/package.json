@@ -7,7 +7,7 @@
     "editor-ui/style.css",
     "scene/*.schema.json",
     "project/*.schema.json",
-    "docs/",
+    "docs/api/*.md",
     "README.md",
     "CHANGELOG.md"
   ],

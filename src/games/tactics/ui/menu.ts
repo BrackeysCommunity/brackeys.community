@@ -3,7 +3,9 @@
  * shown while the menu or result scene is loaded. Start and Back to menu
  * send the scene's one command; the game asks for the next scene itself.
  * Continue loads the newest save through the instance's slots. Credits
- * opens the host's credits page (`UiContext.links.credits`) where it has one.
+ * opens the host's credits page (`UiContext.links.credits`) in a new tab
+ * where it has one, and Install shows the browser's install prompt while
+ * the host offers one (`UiContext.install`).
  * Nothing here is built, and the instance isn't read, while a level plays.
  */
 import type { GameInstance, SaveSummary, UiActionEvent, UiContext, UiHandle } from "@jams/engine";
@@ -179,6 +181,8 @@ export function createTacticsMenu(
     const actions = el("div", MENU_CLS.actions);
     primary = button(next ? "Start" : "Play again", "start", flow.next !== null);
     actions.append(primary, continueButton(flow));
+    const install = ctx.install?.current();
+    if (install) actions.append(installButton(install));
     const credits = ctx.links?.credits;
     if (credits) actions.append(creditsLink(credits));
     panel.append(title, line, actions);
@@ -214,6 +218,15 @@ export function createTacticsMenu(
       if (b.getAttribute("aria-disabled") === "true" || !newest) return;
       void resume(newest.slot);
     });
+    return b;
+  }
+
+  function installButton(install: () => Promise<boolean>): HTMLButtonElement {
+    const b = el("button", MENU_CLS.button, "Install");
+    b.type = "button";
+    b.dataset.kind = "secondary";
+    b.dataset.action = "install";
+    b.addEventListener("click", () => void install());
     return b;
   }
 
@@ -330,11 +343,15 @@ export function createTacticsMenu(
     (s) => s.game,
     () => render(ctx.slice()),
   );
+  const offInstall = ctx.install?.onChange(() => {
+    if (root) rerender();
+  });
 
   return {
     destroy() {
       destroyed = true;
       unwatch();
+      offInstall?.();
       hide();
     },
   };

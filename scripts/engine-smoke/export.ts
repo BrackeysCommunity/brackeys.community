@@ -6,7 +6,8 @@
  *
  * - every run waits for `data-jams-state="ready"`, records every request and
  *   fails on any URL outside the server's origin (or, under a nested mount,
- *   outside its directory);
+ *   outside its directory), and fails a page that scrolls or a canvas that
+ *   doesn't fill the window;
  * - tactics: Start on the menu, then a unit and a reachable cell through the
  *   HUD's `data-cell` elements, until the HUD's card shows the unit moved;
  * - the platformer: `ArrowRight` held for a second changes the canvas's
@@ -285,6 +286,20 @@ export function pickReachCell(unitCell: string, reach: readonly CellTarget[]): s
   return ranked[0]?.cell ?? null;
 }
 
+/**
+ * What a click at a control's centre would land on: the control itself (or
+ * one of its children), or the element named by `hit` (`canvas`, `div.x`),
+ * or nothing on the page.
+ */
+export type ControlHit = { own: true } | { own: false; hit: string | null };
+
+/** Why a click on the control `label` wouldn't reach it, or null when it would. */
+export function judgeControlHit(label: string, hit: ControlHit): string | null {
+  if (hit.own) return null;
+  if (hit.hit === null) return `a click at ${label}'s centre lands on nothing on the page`;
+  return `a click at ${label}'s centre lands on the ${hit.hit}, not ${label}: something over it takes the pointer, or ${label} passes pointer events through`;
+}
+
 // ─── Outcomes ────────────────────────────────────────────
 
 export type PlayProbe =
@@ -321,7 +336,39 @@ export type RunOutcome = PlannedRun & {
   controlled?: boolean;
   play?: PlayProbe;
   contextLoss?: ContextLossProbe;
+  layout?: PageLayout;
 };
+
+/** The page's box once ready, in CSS pixels. */
+export type PageLayout = {
+  innerWidth: number;
+  innerHeight: number;
+  scrollWidth: number;
+  scrollHeight: number;
+  /** The game's canvas's client rect, or null when the page has none. */
+  canvas: { top: number; left: number; width: number; height: number } | null;
+};
+
+/** Why the page's layout fails: it scrolls, or the canvas doesn't fill the window from its corner. */
+export function judgeLayout(l: PageLayout): string | null {
+  const problems: string[] = [];
+  if (l.scrollHeight > l.innerHeight || l.scrollWidth > l.innerWidth)
+    problems.push(
+      `the page scrolls: ${l.scrollWidth}×${l.scrollHeight} in a ${l.innerWidth}×${l.innerHeight} window`,
+    );
+  const c = l.canvas;
+  if (!c) problems.push("the page has no canvas");
+  else if (
+    Math.round(c.top) !== 0 ||
+    Math.round(c.left) !== 0 ||
+    Math.round(c.width) !== l.innerWidth ||
+    Math.round(c.height) !== l.innerHeight
+  )
+    problems.push(
+      `the canvas is ${Math.round(c.width)}×${Math.round(c.height)} at ${Math.round(c.left)},${Math.round(c.top)}, not the ${l.innerWidth}×${l.innerHeight} window`,
+    );
+  return problems.length ? problems.join("; ") : null;
+}
 
 /** What a finished run observed, before judging. */
 export type RunObservation = {
@@ -336,9 +383,10 @@ export type RunObservation = {
   /** The play check's own verdict. */
   playReason: string | null;
   contextLoss?: ContextLossProbe;
+  layout?: PageLayout;
 };
 
-/** Every reason a run fails, in a fixed order: requests, service worker, context loss, play. */
+/** Every reason a run fails, in a fixed order: requests, service worker, layout, context loss, play. */
 export function judgeRun(kind: RunKind, o: RunObservation): string[] {
   const reasons: string[] = [];
   const { offOrigin, outsideMount } = checkRequests(o.requests, o.origin, o.mount);
@@ -346,6 +394,8 @@ export function judgeRun(kind: RunKind, o: RunObservation): string[] {
   if (outsideMount.length) reasons.push(`requests outside ${o.mount}: ${outsideMount.join(", ")}`);
   if (!o.pwa && o.serviceWorkers > 0)
     reasons.push(`${o.serviceWorkers} service worker(s) registered by a build without a PWA`);
+  const layout = o.layout ? judgeLayout(o.layout) : null;
+  if (layout) reasons.push(layout);
   if (kind === "offline" && o.controlled !== true)
     reasons.push("offline, the reloaded page isn't controlled by the build's service worker");
   if (kind === "context-loss") {
@@ -383,6 +433,7 @@ export function runOutcome(planned: PlannedRun, o: RunObservation, ms: number): 
     ...(o.controlled !== undefined ? { controlled: o.controlled } : {}),
     play: o.play,
     ...(o.contextLoss ? { contextLoss: o.contextLoss } : {}),
+    ...(o.layout ? { layout: o.layout } : {}),
   };
 }
 
@@ -521,6 +572,23 @@ async function waitReady(page: Page): Promise<void> {
   throw new Error(`the page reports jamsState "error"${shown ? `: ${shown.trim()}` : ""}`);
 }
 
+/** The page's box once ready: the window, what it scrolls over and the canvas's rect. */
+function pageLayout(page: Page): Promise<PageLayout> {
+  return page.evaluate(() => {
+    const doc = document.documentElement;
+    const rect = document.querySelector("#game canvas")?.getBoundingClientRect();
+    return {
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      scrollWidth: doc.scrollWidth,
+      scrollHeight: doc.scrollHeight,
+      canvas: rect
+        ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+        : null,
+    };
+  });
+}
+
 /** Two frames and a beat, so what the canvas shows is what the game last drew. */
 async function settle(page: Page): Promise<void> {
   await page.evaluate(
@@ -606,8 +674,28 @@ const hudMode = (page: Page, mode: string) =>
     { timeout: PAGE_TIMEOUT_MS },
   );
 
+/** Where a click at `target`'s centre lands, read through the page's own hit test. */
+function controlHit(target: Locator): Promise<ControlHit> {
+  return target.evaluate((el): ControlHit => {
+    const box = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    if (hit && el.contains(hit)) return { own: true };
+    if (!hit) return { own: false, hit: null };
+    const cls = typeof hit.className === "string" ? hit.className.split(/\s+/)[0] : "";
+    return { own: false, hit: `${hit.tagName.toLowerCase()}${cls ? `.${cls}` : ""}` };
+  });
+}
+
+/** Clicks `target` once it's visible, failing at once with the reason when the click wouldn't reach it. */
+async function clickControl(target: Locator, label: string): Promise<void> {
+  await target.waitFor({ state: "visible", timeout: PAGE_TIMEOUT_MS });
+  const reason = judgeControlHit(label, await controlHit(target));
+  if (reason) throw new Error(reason);
+  await target.click();
+}
+
 async function playTactics(page: Page): Promise<{ probe: PlayProbe; reason: string | null }> {
-  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await clickControl(page.getByRole("button", { name: "Start", exact: true }), "Start");
   const cursor = page.locator('[data-highlight="cursor"][data-cell]').first();
   await cursor.waitFor({ state: "attached" });
   await hudMode(page, "idle");
@@ -712,6 +800,7 @@ async function runOne(browser: Browser, planned: PlannedRun, served: Served): Pr
       const query = planned.kind === "context-loss" ? "?renderer=webgl" : "";
       await page.goto(`${served.server.url}${query}`);
       await waitReady(page);
+      const layout = await pageLayout(page);
       let controlled: boolean | undefined;
       if (planned.kind === "offline") {
         await waitActivated(page);
@@ -734,6 +823,7 @@ async function runOne(browser: Browser, planned: PlannedRun, served: Served): Pr
         play: played.probe,
         playReason: played.reason,
         ...(contextLoss ? { contextLoss } : {}),
+        layout,
       };
     };
     const observed = await withTimeout(

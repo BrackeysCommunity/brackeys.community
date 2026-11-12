@@ -1997,6 +1997,17 @@ type UiContext<G = unknown> = {
     canvas: HTMLCanvasElement;
     game: GameInstance;
     /**
+     * The browser's install prompt where the host can offer one (an exported
+     * build with the PWA on); absent elsewhere. An Install button shows while
+     * `current()` is a function.
+     */
+    install?: {
+        /** Shows the browser's prompt, resolving true once it was accepted; null while the browser offers none. */
+        current(): (() => Promise<boolean>) | null;
+        /** Calls `fn` whenever `current()` turns from null to a function or back; returns the unsubscribe. */
+        onChange(fn: () => void): () => void;
+    };
+    /**
      * Pages the host ships beside the game, as URLs a link can open; absent
      * where the host has none. An exported build sets `credits` to its
      * `credits.html`.

@@ -29,6 +29,17 @@ export type UiContext<G = unknown> = {
    * `credits.html`.
    */
   links?: { credits?: string };
+  /**
+   * The browser's install prompt where the host can offer one (an exported
+   * build with the PWA on); absent elsewhere. An Install button shows while
+   * `current()` is a function.
+   */
+  install?: {
+    /** Shows the browser's prompt, resolving true once it was accepted; null while the browser offers none. */
+    current(): (() => Promise<boolean>) | null;
+    /** Calls `fn` whenever `current()` turns from null to a function or back; returns the unsubscribe. */
+    onChange(fn: () => void): () => void;
+  };
 };
 
 /**

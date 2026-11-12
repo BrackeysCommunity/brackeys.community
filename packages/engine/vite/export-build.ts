@@ -28,13 +28,15 @@ const ENTRY_NAME = "main";
 /**
  * The build options an export needs, merged into Vite's config by the
  * plugin: the virtual entry as the only input, every bundler file under
- * `code/` named by content hash, no sourcemaps and no public dir copied.
+ * `code/` named by content hash, no sourcemaps, no public dir copied and
+ * no module preload helper (the page loads its entry alone).
  */
 export type ExportBuildConfig = {
   publicDir: false;
   build: {
     sourcemap: false;
     copyPublicDir: false;
+    modulePreload: false;
     rolldownOptions: {
       input: Record<string, string>;
       output: {
@@ -58,11 +60,19 @@ export type ExportPluginLike = {
   buildStart(): Promise<void>;
   resolveId(id: string): string | null;
   load(id: string): string | null;
-  generateBundle(
-    this: { emitFile(f: { type: "asset"; fileName: string; source: string | Uint8Array }): void },
-    opts: unknown,
-    bundle: Record<string, unknown>,
-  ): Promise<void>;
+  /**
+   * Ordered after every other plugin's `generateBundle` (Vite's import
+   * analysis rewrites chunk code in its own), so the chunks are hashed as
+   * they are written.
+   */
+  generateBundle: {
+    order: "post";
+    handler(
+      this: { emitFile(f: { type: "asset"; fileName: string; source: string | Uint8Array }): void },
+      opts: unknown,
+      bundle: Record<string, unknown>,
+    ): Promise<void>;
+  };
 };
 
 export type ExportBuildOptions = {
@@ -362,6 +372,7 @@ export function createExportBuild(opts: ExportBuildOptions): ExportPluginLike {
         build: {
           sourcemap: false,
           copyPublicDir: false,
+          modulePreload: false,
           rolldownOptions: {
             input: { [ENTRY_NAME]: EXPORT_ENTRY_ID },
             output: {
@@ -388,56 +399,61 @@ export function createExportBuild(opts: ExportBuildOptions): ExportPluginLike {
       if (!content) throw new Error(`${EXPORT_ENTRY_ID} loaded before the export was planned`);
       return exportEntrySource(opts.modules, content.needsRapier ? opts.rapier : null);
     },
-    async generateBundle(output, bundle) {
-      if ((output as { sourcemap?: unknown } | null)?.sourcemap)
-        throw new Error("an export builds without sourcemaps");
-      const plan = await planned();
-      const outDir = (output as { dir?: unknown } | null)?.dir;
-      const { chunks, assets } = readBundle(bundle);
-      const maps = assets.filter((a) => a.fileName.endsWith(".map"));
-      if (maps.length > 0) throw new Error(`an export ships no sourcemaps: ${maps[0]!.fileName}`);
-      const dirs = machineDirs(
-        [
-          ...(root ? [root] : []),
-          ...(typeof outDir === "string" ? [outDir] : []),
-          dirOf(opts.modules.game.path),
-          ...(opts.modules.ui ? [dirOf(opts.modules.ui.path)] : []),
-        ],
-        chunks.flatMap((c) => Object.keys(c.moduleLengths)),
-      );
-      const leak = leakedPath(chunks, assets, dirs);
-      if (leak) throw new Error(`an export carries no absolute path: ${leak}`);
+    generateBundle: {
+      order: "post",
+      async handler(output, bundle) {
+        if ((output as { sourcemap?: unknown } | null)?.sourcemap)
+          throw new Error("an export builds without sourcemaps");
+        const plan = await planned();
+        const outDir = (output as { dir?: unknown } | null)?.dir;
+        const { chunks, assets } = readBundle(bundle);
+        const maps = assets.filter((a) => a.fileName.endsWith(".map"));
+        if (maps.length > 0) throw new Error(`an export ships no sourcemaps: ${maps[0]!.fileName}`);
+        const dirs = machineDirs(
+          [
+            ...(root ? [root] : []),
+            ...(typeof outDir === "string" ? [outDir] : []),
+            dirOf(opts.modules.game.path),
+            ...(opts.modules.ui ? [dirOf(opts.modules.ui.path)] : []),
+          ],
+          chunks.flatMap((c) => Object.keys(c.moduleLengths)),
+        );
+        const leak = leakedPath(chunks, assets, dirs);
+        if (leak) throw new Error(`an export carries no absolute path: ${leak}`);
 
-      const code = await builtCode(chunks, assets, plan.needsRapier ? opts.rapier : null);
-      const result = await finishExport(plan, code, opts.input, opts.budget);
-      const built = new Set(code.files.map((f) => f.path));
-      const missing: string[] = [];
-      for (const file of result.files) {
-        const { source } = file;
-        if (source.kind === "built") {
-          if (!built.has(source.path)) missing.push(source.path);
-          continue;
-        }
-        if (source.kind === "blob") {
-          const bytes = await opts.content.get(source.sha256);
-          if (!bytes) {
-            missing.push(`${file.path} (blob ${source.sha256})`);
+        const code = await builtCode(chunks, assets, plan.needsRapier ? opts.rapier : null);
+        const result = await finishExport(plan, code, opts.input, opts.budget);
+        const built = new Set(code.files.map((f) => f.path));
+        const missing: string[] = [];
+        for (const file of result.files) {
+          const { source } = file;
+          if (source.kind === "built") {
+            if (!built.has(source.path)) missing.push(source.path);
             continue;
           }
-          this.emitFile({ type: "asset", fileName: file.path, source: bytes });
-        } else {
-          const bytes = source.kind === "text" ? source.text : source.bytes;
-          this.emitFile({ type: "asset", fileName: file.path, source: bytes });
+          if (source.kind === "blob") {
+            const bytes = await opts.content.get(source.sha256);
+            if (!bytes) {
+              missing.push(`${file.path} (blob ${source.sha256})`);
+              continue;
+            }
+            this.emitFile({ type: "asset", fileName: file.path, source: bytes });
+          } else {
+            const bytes = source.kind === "text" ? source.text : source.bytes;
+            this.emitFile({ type: "asset", fileName: file.path, source: bytes });
+          }
         }
-      }
-      if (missing.length > 0)
-        throw new Error(`the export can't write ${missing.length} file(s): ${missing.join(", ")}`);
-      this.emitFile({
-        type: "asset",
-        fileName: RELEASE_FILE,
-        source: formatReleaseManifest(result.manifest),
-      });
-      opts.onPlan?.(result);
+        if (missing.length > 0)
+          throw new Error(
+            `the export can't write ${missing.length} file(s): ${missing.join(", ")}`,
+          );
+        this.emitFile({
+          type: "asset",
+          fileName: RELEASE_FILE,
+          source: formatReleaseManifest(result.manifest),
+        });
+        opts.onPlan?.(result);
+      },
     },
   };
 }

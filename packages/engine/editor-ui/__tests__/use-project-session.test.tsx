@@ -9,6 +9,7 @@ import {
   ASSET_CHANGED,
   buildAtFrom,
   COLLAB_LAYOUT_VERSION,
+  SEED_STALE_CODE,
   seedProjectDoc,
   type AssetChangedMessage,
   type AwarenessLike,
@@ -22,6 +23,7 @@ import { hocuspocusTransport } from "../connect/hocuspocus";
 import {
   connectProjectSession,
   createProjectTokens,
+  reloadOf,
   TOKEN_REFRESH_MARGIN_MS,
   type ProjectTokens,
 } from "../connect/project-session";
@@ -31,9 +33,11 @@ import type {
   ProjectAccess,
   ProjectDocEvents,
   ProjectTokenAnswer,
+  EditorNotify,
   ProjectTransport,
 } from "../host";
 import { useProjectSession, useSessionDoc } from "../session/use-project-session";
+import { reloadNotice, useProjectReloadNotice } from "../session/use-scene-editor";
 
 const fakes = { mint: vi.fn() };
 
@@ -468,6 +472,54 @@ describe("close codes", () => {
     expect(l.getState().status).toBe("failed");
     expect(l.getState().stopped).toEqual({ "project:p": "revoked" });
     l.destroy();
+  });
+
+  it("reopens the project from the server's state on a seed-stale close, saying what it dropped", async () => {
+    const { server, link: l } = link();
+    const before = await ready(l);
+    const warning = vi.fn();
+    const notify: EditorNotify = Object.assign(vi.fn(), {
+      success: vi.fn(),
+      warning,
+      error: vi.fn(),
+    });
+    const reloads: number[] = [];
+    let last = l.getState();
+    l.subscribe(() => {
+      const next = l.getState();
+      const reload = reloadOf(last, next);
+      last = next;
+      if (reload) reloads.push(reload.dropped);
+    });
+    renderHook(() => useProjectReloadNotice(l, notify));
+    const p = server.provider("project:p")!;
+    act(() => p.events.unsynced?.(3));
+    expect(l.getState().unsynced).toBe(3);
+
+    act(() => p.events.closed(SEED_STALE_CODE, true));
+    expect(reloads).toEqual([3]);
+    const { message, description } = reloadNotice(3);
+    expect(warning).toHaveBeenCalledTimes(1);
+    expect(warning).toHaveBeenCalledWith(message, { id: "project-reloaded", description });
+    expect(description).toContain("3 changes that hadn't synced were dropped");
+
+    const after = await ready(l);
+    expect(after).not.toBe(before);
+    expect(l.getState().unsynced).toBe(0);
+    expect(reloads).toEqual([3]);
+    expect(warning).toHaveBeenCalledTimes(1);
+    l.destroy();
+  });
+
+  it("says nothing of dropped changes when a reload drops none, and nothing at all outside a reload", () => {
+    expect(reloadNotice(0).description).toBe("The editor reloaded its current state.");
+    expect(reloadNotice(1).description).toContain("One change that hadn't synced was dropped.");
+    const open = { status: "live", session: {}, unsynced: 2 } as never;
+    const off = { status: "connecting", session: null, unsynced: 0 } as never;
+    const failed = { status: "failed", session: null, unsynced: 0 } as never;
+    expect(reloadOf(off, open)).toBeNull();
+    expect(reloadOf(open, failed)).toBeNull();
+    expect(reloadOf(open, off)).toEqual({ dropped: 2 });
   });
 
   it("leaves a closed socket's reconnect to the transport", async () => {

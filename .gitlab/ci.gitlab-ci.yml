@@ -358,6 +358,9 @@ engine-export-smoke:
         - src/games/**/*
         - scripts/engine-smoke/**/*
         - scripts/engine-bundle-check.ts
+        - scripts/engine-bundle-report.ts
+        - scripts/scene/**/*
+        - vite.config.ts
         - package.json
         - bun.lock
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -368,5 +371,8 @@ engine-export-smoke:
         - src/games/**/*
         - scripts/engine-smoke/**/*
         - scripts/engine-bundle-check.ts
+        - scripts/engine-bundle-report.ts
+        - scripts/scene/**/*
+        - vite.config.ts
         - package.json
         - bun.lock

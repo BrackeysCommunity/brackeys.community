@@ -1,5 +1,5 @@
 import { byCodeUnit } from "../project/kinds/define";
-import { RELEASE_FILE } from "../project/release";
+import { INDEX_HTML_FILE, RELEASE_FILE } from "../project/release";
 import { jsonPointer, makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
 
@@ -21,8 +21,6 @@ export const ITCH_LIMITS: {
   maxFileBytes: 200 * 1000 * 1000,
   maxPathLength: 240,
 };
-
-const INDEX = "index.html";
 
 /** Decimal megabytes, the unit itch.io's limits are stated in. */
 const mb = (bytes: number) => `${Math.round(bytes / 100_000) / 10} MB`;
@@ -76,15 +74,15 @@ export function checkItchLayout(files: readonly { path: string; bytes: number }[
       `at most ${ITCH_LIMITS.maxTotalBytes} bytes`,
     );
 
-  if (!sorted.some((f) => f.path === INDEX)) {
-    const nested = sorted.find((f) => f.path.endsWith(`/${INDEX}`));
+  if (!sorted.some((f) => f.path === INDEX_HTML_FILE)) {
+    const nested = sorted.find((f) => f.path.endsWith(`/${INDEX_HTML_FILE}`));
     issue(
       nested
         ? `index.html is at "${nested.path}"; itch.io needs it at the zip's root, not in a folder`
         : "the build has no index.html; itch.io needs one at the zip's root",
       whole,
       nested?.path ?? "",
-      INDEX,
+      INDEX_HTML_FILE,
     );
   }
 

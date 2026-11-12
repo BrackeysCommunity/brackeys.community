@@ -151,6 +151,18 @@ files, content)` raises one `export-over-budget` per exceeded budget,
   optional fourth argument `{ links }`: the pages a host ships beside the
   game; the standalone host sets `links.credits` to the build's
   `credits.html` when the build lists it.
+- `UiContext.install` (optional): the browser's install prompt where the
+  host can offer one, as `current()` (the prompt, or null while the browser
+  offers none) and `onChange(fn)`. The standalone host passes it to a PWA
+  build's UI, and the tactics title menu shows an Install button while it
+  is offered.
+- `StandaloneOptions.fillPage` (default true): the standalone host lays the
+  page out for the game alone through CSSOM (no margin or scrolling, the
+  build's `pwa.background`, else black, behind it; the root fixed over the
+  window, touch scrolling off) and sizes the canvas from the root. It shows
+  a "Loading…" line in the root until the first scene is up.
+- `DEFAULT_BUILD_TARGET` (`web`) in `./export` beside `DEFAULT_ZIP_TARGET`;
+  `game build` and the MCP `game_build` read it.
 - README §Your first game: from `vp run scene game new orbs --preset
 top-down` through apply, playtest, `game build` and `game export --zip`,
   its shell blocks run in CI by
@@ -237,6 +249,33 @@ name` in text, and `[tick, name, args | null, seat]` in `data.commands`
 
 ### Fixed
 
+- A recording made under the standalone host carries `project` (the
+  release's project id and `project.snapshot`), so `findRelease` matches a
+  release run by snapshot: `createGame` takes the ref from
+  `GameConfig.release` when `GameConfig.recording.projectRef` isn't given.
+- `createExportBuild`'s `generateBundle` is the object form `{ order:
+"post", handler }`, so chunks are hashed after Vite's import analysis
+  rewrites them, for any Vite config that adds the plugin; its `config()`
+  turns `build.modulePreload` off (`ExportBuildConfig.build.modulePreload`).
+- `planContent` warns `scene-unlisted` for a reference out of a shipped
+  asset to a scene the list doesn't hold (a door's or sublevel's target),
+  which doesn't ship.
+- A project's named export icons are assets of the release: pinned by its
+  snapshot, credited with their licence and checked against the build's
+  snapshot. An icon nothing else ships is written once, at its icon path.
+- The itch layout check of `finishExport` counts `release.json` among the
+  files and bytes, as the zip holds it.
+- The boot error panel is fixed over the viewport and scrolls, so its
+  heading and a long message read from the start on a small screen.
+- The standalone host refuses a game whose `saves.version` or `configHash`
+  isn't the build's (`hash-mismatch` at `/game/saveVersion` or
+  `/game/configHash`), as it does a time model.
+- `credits.html` ends with "Play the game" (it opens the game) instead of
+  "Back to the game": the tactics menu opens it in a new tab.
+- The shell file names (`INDEX_HTML_FILE`, `CREDITS_FILE`,
+  `SERVICE_WORKER_FILE`, `WEB_MANIFEST_FILE`) are defined once in
+  `./project` beside `RELEASE_FILE`, which `./export` re-exports and the
+  standalone host reads.
 - A bound scene doc that loses its header (undoing the `createAsset` that
   made it) no longer throws; the binding keeps the last name and bounds,
   and `expandLenient` expands a header-less scene empty-named with zero
@@ -249,6 +288,13 @@ name` in text, and `[tick, name, args | null, seat]` in `data.commands`
   replays headless to the same end.
 - A save fixture whose bytes aren't JSON fails to import with the engine's
   own sentence, the same under Bun and Node.
+- `game build` always bundles for production: it defines
+  `import.meta.env.DEV`, `import.meta.env.PROD` and `process.env.NODE_ENV`
+  itself instead of taking them from the caller's `NODE_ENV`, so a build
+  run under vitest or a dev server drops dev-only branches (the
+  platformer's editor tools) like a CLI build does.
+- The package's `files` ships `docs/api/*.md` only, and the release smoke
+  accepts the API reference in the tarball.
 
 ### Agent surface
 

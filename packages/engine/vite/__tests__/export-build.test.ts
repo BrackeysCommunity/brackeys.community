@@ -169,7 +169,7 @@ async function runBuild(
   const resolved = plugin.resolveId(EXPORT_ENTRY_ID);
   const entry = resolved === null ? null : plugin.load(resolved);
   const emitted: Emitted[] = [];
-  await plugin.generateBundle.call(
+  await plugin.generateBundle.handler.call(
     { emitFile: (f) => emitted.push({ fileName: f.fileName, source: f.source }) },
     output,
     bundle,
@@ -191,6 +191,7 @@ describe("createExportBuild", () => {
     const config = plugin.config();
     expect(config.publicDir).toBe(false);
     expect(config.build.sourcemap).toBe(false);
+    expect(config.build.modulePreload).toBe(false);
     expect(config.build.rolldownOptions.input).toEqual({ main: EXPORT_ENTRY_ID });
     expect(config.build.rolldownOptions.output).toEqual({
       entryFileNames: "code/[name]-[hash].js",
@@ -200,6 +201,17 @@ describe("createExportBuild", () => {
     });
     expect(plugin.resolveId("./other.ts")).toBeNull();
     expect(plugin.load("/work/other.ts")).toBeNull();
+  });
+
+  it("hashes chunks after every other plugin's generateBundle, as Vite writes them", () => {
+    const plugin = createExportBuild({
+      input: {} as ExportInput,
+      modules: MODULES,
+      content: memoryContentStore(),
+      rapier: "standard",
+    });
+    expect(plugin.generateBundle.order).toBe("post");
+    expect(Object.keys(plugin.generateBundle).sort()).toEqual(["handler", "order"]);
   });
 
   it("emits every planned file and release.json, and the plan holds together with the built files", async () => {
@@ -288,7 +300,11 @@ describe("createExportBuild", () => {
   it("refuses sourcemaps, absolute paths in code and bundler files it can't place", async () => {
     await expect(
       runBuild("none").then(async ({ plugin }) =>
-        plugin.generateBundle.call({ emitFile: () => {} }, { sourcemap: true }, fakeBundle(null)),
+        plugin.generateBundle.handler.call(
+          { emitFile: () => {} },
+          { sourcemap: true },
+          fakeBundle(null),
+        ),
       ),
     ).rejects.toThrow(/sourcemaps/);
 

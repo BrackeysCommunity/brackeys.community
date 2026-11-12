@@ -1,11 +1,12 @@
 import { byCodeUnit } from "../project/kinds/define";
-import { RELEASE_FILE, type ReleaseManifest } from "../project/release";
-import { CREDITS_FILE } from "./credits";
-import { INDEX_HTML_FILE } from "./html";
-import { WEB_MANIFEST_FILE } from "./web-manifest";
-
-/** The service worker a PWA build registers, next to its page. */
-export const SERVICE_WORKER_FILE = "sw.js";
+import {
+  CREDITS_FILE,
+  INDEX_HTML_FILE,
+  RELEASE_FILE,
+  SERVICE_WORKER_FILE,
+  WEB_MANIFEST_FILE,
+  type ReleaseManifest,
+} from "../project/release";
 
 /** `jams-<project>-`: every cache a build of this project names starts with it, followed by two 12-hex hashes. */
 export const serviceWorkerCachePrefix = (m: ReleaseManifest): string => `jams-${m.project.id}-`;

@@ -19,6 +19,9 @@ export const EXPORT_TARGETS: Readonly<Partial<Record<ReleaseTarget, ExportTarget
   itch: { pwa: false, layout: checkItchLayout },
 };
 
+/** The target `game build` builds when none is given. */
+export const DEFAULT_BUILD_TARGET: ReleaseTarget = "web";
+
 /** The target `game export --zip` builds when none is given. */
 export const DEFAULT_ZIP_TARGET: ReleaseTarget = "itch";
 

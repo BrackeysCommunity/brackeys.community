@@ -11,11 +11,20 @@ import type { LiveEditor, OpenPrefab } from "../session/live-scene-editor";
 import { useSceneEditor } from "../session/use-scene-editor";
 
 const fakes = vi.hoisted(() => ({
-  ready: { session: {}, name: "scene:p.yard", id: "yard", doc: { doc: {}, awareness: null } },
+  ready: {
+    session: {} as Record<string, unknown>,
+    name: "scene:p.yard",
+    id: "yard",
+    doc: { doc: {}, awareness: null },
+  },
   data: null as unknown,
   listeners: new Set<() => void>(),
   editorStores: [] as { setState: (fn: (s: { mode: string }) => { mode: string }) => void }[],
 }));
+
+fakes.ready.session = {
+  get: (name: string) => (name === fakes.ready.name ? fakes.ready.doc : undefined),
+};
 
 const REGISTRY = {} as Registry;
 

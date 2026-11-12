@@ -98,8 +98,11 @@ export function useSettingsDoc(
     value,
     layout: held.doc?.layout ?? null,
     readOnly,
-    edit: (ops, label, scope) =>
-      ops.length === 0 ? Promise.resolve(true) : apply(ops, label, scope, "Couldn't change it"),
+    edit(ops, label, scope) {
+      if (ops.length === 0) return Promise.resolve(true);
+      if (readOnly !== null) return Promise.resolve(false);
+      return apply(ops, label, scope, "Couldn't change it");
+    },
     create: () => {
       const def = session.kinds.get(kind);
       return apply(

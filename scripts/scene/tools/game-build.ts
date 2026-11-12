@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  DEFAULT_BUILD_TARGET,
   DEFAULT_ZIP_TARGET,
   exportTargetNames,
   formatBytes,
@@ -20,12 +21,7 @@ import {
   type ReleaseTarget,
 } from "@jams/engine/project";
 import { closest, type SceneIssue } from "@jams/engine/scene";
-import {
-  createExportBuild,
-  fileContentStore,
-  snapshotFiles,
-  type ExportPluginLike,
-} from "@jams/engine/vite";
+import { createExportBuild, fileContentStore, snapshotFiles } from "@jams/engine/vite";
 import wasm from "vite-plugin-wasm";
 import { build, type Plugin } from "vite-plus";
 
@@ -45,7 +41,7 @@ import { loadProject, problemLines } from "./project-show";
 
 export type GameBuildInput = {
   id?: string;
-  /** Any release target; one with no `EXPORT_TARGETS` row is `export-target-unsupported`. Default "web". */
+  /** Any release target; one with no `EXPORT_TARGETS` row is `export-target-unsupported`. Default `DEFAULT_BUILD_TARGET`. */
   target?: string;
   /** Default `dist/games/<id>/<target>`. */
   out?: string;
@@ -65,7 +61,6 @@ export const GAME_BUILD_USAGE = `game build <id> ${targetFlag()} [--out dist/gam
 /** The target `game export --zip` builds when none is given. */
 export const ZIP_TARGET = DEFAULT_ZIP_TARGET;
 
-const BUILD_TARGET: ReleaseTarget = "web";
 const RAPIER_FLAVOURS = ["standard", "compat"] as const;
 type RapierFlavour = (typeof RAPIER_FLAVOURS)[number];
 
@@ -219,18 +214,6 @@ async function clearOut(out: string): Promise<ToolResult | null> {
 }
 
 /**
- * The export plugin with its `generateBundle` ordered last: Vite's import
- * analysis rewrites chunk code (the preload helper's dependency lists) in
- * its own `generateBundle`, and the export must hash chunks as written.
- */
-function hashLast(plugin: ExportPluginLike): Plugin {
-  const { generateBundle } = plugin as { generateBundle: unknown };
-  return (typeof generateBundle === "function"
-    ? { ...plugin, generateBundle: { order: "post", handler: generateBundle } }
-    : plugin) as unknown as Plugin;
-}
-
-/**
  * Builds project `input.id` into `--out`: plans what ships, runs Vite with
  * the export plugin (and `vite-plugin-wasm` when the standard Rapier
  * ships), writes the bundle report beside the output and returns the plan.
@@ -242,7 +225,7 @@ export async function buildGame(
   input: GameBuildInput,
   ctx: ToolContext,
   cmd = "game build",
-  defaultTarget: string = BUILD_TARGET,
+  defaultTarget: string = DEFAULT_BUILD_TARGET,
 ): Promise<GameBuildOutcome> {
   const fail = (result: ToolResult): GameBuildOutcome => ({ result, built: null });
   const project = projectOf(ctx, input.id, cmd);
@@ -299,6 +282,13 @@ export async function buildGame(
       root: project.dir,
       base: "./",
       mode: "production",
+      // Vite takes DEV and NODE_ENV from the caller's NODE_ENV, not the mode, so
+      // a build run under vitest or a dev server would keep dev-only branches.
+      define: {
+        "import.meta.env.DEV": "false",
+        "import.meta.env.PROD": "true",
+        "process.env.NODE_ENV": JSON.stringify("production"),
+      },
       logLevel: "warn",
       envDir: false,
       cacheDir: join(CACHE_DIR, id),
@@ -308,7 +298,7 @@ export async function buildGame(
       resolve: { preserveSymlinks: true },
       plugins: [
         ...(content.needsRapier && rapier === "standard" ? [wasm()] : []),
-        hashLast(exportPlugin),
+        exportPlugin as unknown as Plugin,
         engineBundleReport({ dir: report }),
       ],
       build: {
@@ -316,7 +306,6 @@ export async function buildGame(
         emptyOutDir: false,
         target: "es2022",
         assetsInlineLimit: 0,
-        modulePreload: false,
         reportCompressedSize: false,
         // `-compat` inlines its wasm as base64, so its chunk is a few MB by design.
         chunkSizeWarningLimit: 8192,

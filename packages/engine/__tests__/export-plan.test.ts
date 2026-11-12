@@ -11,15 +11,22 @@ import { planContent } from "../export/content";
 import { renderCredits } from "../export/credits";
 import { renderIndexHtml } from "../export/html";
 import { defaultIconPng, iconFile, planIcons } from "../export/icons";
+import { ITCH_LIMITS } from "../export/itch";
 import { finishExport, type BuiltCode, type ExportInput, type ExportPlan } from "../export/plan";
 import { renderServiceWorker, serviceWorkerCacheName } from "../export/service-worker";
 import { renderWebManifest } from "../export/web-manifest";
-import { createRegistry, withProject } from "../game/define";
+import { createRegistry, defineEntityType, defineGame, withProject } from "../game/define";
+import { assetField, pointField } from "../game/fields";
 import type { GameDefinition } from "../game/types";
 import { stableJson } from "../project/canonical";
 import { sha256 } from "../project/hash";
 import { parseProjectFile } from "../project/project-file";
-import { formatReleaseManifest, type ReleaseManifest } from "../project/release";
+import {
+  formatReleaseManifest,
+  RELEASE_FILE,
+  releaseSnapshot,
+  type ReleaseManifest,
+} from "../project/release";
 import { heldProject, type HeldFile } from "../project/runtime-view";
 import type { AssetSidecar } from "../project/sidecar";
 import { jsonValues, snapshotProject } from "../project/snapshot";
@@ -317,6 +324,39 @@ describe("the content plan over a physics-free project", () => {
     expect(unlisted[0]!.line).toBeTypeOf("number");
   });
 
+  it("warns scene-unlisted for an entity field of a listed scene naming an unlisted scene, which doesn't ship", async () => {
+    const DOOR = defineEntityType({
+      type: "door",
+      description: "A door to another scene.",
+      base: "marker",
+      fields: (env) => ({
+        at: pointField("Where it stands."),
+        to: assetField(env, "scene", "The scene it leads to."),
+      }),
+    });
+    const doorGame = defineGame({ ...testGame, types: [...testGame.types, DOOR] });
+    const held = physicsFreeFiles();
+    const hall = {
+      ...scene("hall", ["rocks", "tiles"]),
+      game: testGame.id,
+      entities: [
+        { id: "start", type: "marker", at: [1, 1], tags: ["spawn"] },
+        { id: "trapdoor", type: "door", at: [2, 1], to: "attic" },
+      ],
+    };
+    held.texts.set("hall.json", `${JSON.stringify(hall, null, 2)}\n`);
+    held.files = held.files.map((f) => (f.path === "hall.json" ? { path: f.path, json: hall } : f));
+    const plan = await planContent(await inputOf(FREE_PROJECT, held, doorGame));
+    const unlisted = plan.issues.filter((i) => i.code === "scene-unlisted" && i.got === "attic");
+    expect(unlisted).toHaveLength(1);
+    expect(unlisted[0]).toMatchObject({ severity: "warn", entityIds: ["hall", "attic"] });
+    expect(unlisted[0]!.path).toContain("trapdoor");
+    expect(unlisted[0]!.message).toContain("isn't in the scene list");
+    expect(plan.assets.attic).toBeUndefined();
+    expect(plan.assets.unused).toBeUndefined();
+    expect(plan.issues.filter((i) => i.code === "asset-missing")).toEqual([]);
+  });
+
   it("raises licence-missing once per shipped asset without a licence", async () => {
     const plan = await planContent(input);
     const missing = plan.issues.filter((i) => i.code === "licence-missing");
@@ -441,6 +481,30 @@ describe("icons", () => {
       file: iconFile(512),
       source: { kind: "asset", id: "icon", sha256: "9".repeat(64), bytes: 900 },
     });
+  });
+
+  it("ships a named icon as an asset of the release: pinned by its snapshot, credited, written once", async () => {
+    const held = physicsFreeFiles();
+    held.files.push({ path: "art/icon.png", sidecar: png("icon", "9".repeat(64), 900, 512, CC0) });
+    const input = await inputOf(
+      { ...FREE_PROJECT, export: { icons: { "512": "icon" } } },
+      held,
+      testGame,
+    );
+    const content = await planContent(input);
+    expect(content.assets.icon).toMatchObject({
+      sha256: "9".repeat(64),
+      file: iconFile(512),
+      licence: CC0,
+    });
+    expect(content.credits.assets.find((c) => c.assets.includes("icon"))).toBeDefined();
+    const plan = await finishExport(content, builtCode(), input);
+    expect(plan.issues.filter((i) => i.severity === "error")).toEqual([]);
+    expect(releaseSnapshot(plan.manifest).assets.icon?.sha256).toBe("9".repeat(64));
+    expect(plan.files.filter((f) => f.path === iconFile(512))).toEqual([
+      { path: iconFile(512), role: "icon", source: { kind: "blob", sha256: "9".repeat(64) } },
+    ]);
+    expect(plan.files.some((f) => f.path.startsWith(`assets/${"9".repeat(64)}`))).toBe(false);
   });
 
   it("draws the defaults as valid palette PNGs, byte for byte the same every time", async () => {
@@ -704,6 +768,36 @@ describe("the shell renderers", () => {
       '<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">',
     );
     expect(() => renderWebManifest(built.manifest)).toThrow(/no pwa/);
+  });
+
+  it("counts release.json in the itch layout check, as the zip holds it", async () => {
+    const itch = { ...input, target: "itch" as const };
+    const content = await planContent(itch);
+    const first = await finishExport(content, builtCode(), itch);
+    const base = builtCode();
+    const pad = ITCH_LIMITS.maxFiles - first.manifest.build.files.length;
+    const padded: BuiltCode = {
+      ...base,
+      files: [
+        ...base.files,
+        ...Array.from({ length: pad }, (_, i) => ({
+          path: `code/pad-${String(i).padStart(4, "0")}.js`,
+          sha256: "1".repeat(64),
+          bytes: 10,
+          role: "code" as const,
+        })),
+      ],
+    };
+    const built = await finishExport(content, padded, itch);
+    expect(built.manifest.build.files).toHaveLength(ITCH_LIMITS.maxFiles);
+    const layout = built.issues.filter((i) => i.code === "export-itch-layout");
+    expect(layout).toHaveLength(1);
+    expect(layout[0]!.got).toBe(String(ITCH_LIMITS.maxFiles + 1));
+    expect(built.files.some((f) => f.path === RELEASE_FILE)).toBe(false);
+  });
+
+  it("ends the credits page with a link that opens the game", () => {
+    expect(renderCredits(m)).toContain('<p><a href="index.html">Play the game</a></p>');
   });
 
   it("escapes the project's name everywhere it is printed", () => {

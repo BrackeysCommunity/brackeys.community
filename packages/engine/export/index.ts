@@ -10,8 +10,14 @@ export {
 } from "./budget";
 export { planContent } from "./content";
 export { crc32 } from "./crc32";
-export { assetCredits, CREDITS_FILE, renderCredits } from "./credits";
-export { INDEX_HTML_FILE, renderIndexHtml } from "./html";
+export {
+  CREDITS_FILE,
+  INDEX_HTML_FILE,
+  SERVICE_WORKER_FILE,
+  WEB_MANIFEST_FILE,
+} from "../project/release";
+export { assetCredits, renderCredits } from "./credits";
+export { renderIndexHtml } from "./html";
 export { defaultIconPng, iconFile, planIcons, type ExportIcon, type ExportIconSize } from "./icons";
 export { checkItchLayout, ITCH_LIMITS } from "./itch";
 export {
@@ -24,16 +30,16 @@ export {
 } from "./plan";
 export {
   renderServiceWorker,
-  SERVICE_WORKER_FILE,
   serviceWorkerCacheName,
   serviceWorkerPrecache,
 } from "./service-worker";
 export {
+  DEFAULT_BUILD_TARGET,
   DEFAULT_ZIP_TARGET,
   EXPORT_TARGETS,
   exportTarget,
   exportTargetNames,
   type ExportTargetDef,
 } from "./targets";
-export { renderWebManifest, WEB_MANIFEST_FILE } from "./web-manifest";
+export { renderWebManifest } from "./web-manifest";
 export { zipFiles } from "./zip";

@@ -42,7 +42,7 @@ console.log(`packed ${pkg.name}@${pkg.version} into ${dir}`);
 
 try {
   // ─── 1. Tarball contents and exports ───────────────────
-  for (const required of ["package.json", "README.md", "CHANGELOG.md"]) {
+  for (const required of ["package.json", "README.md", "CHANGELOG.md", "docs/api/README.md"]) {
     check(files.includes(required), `the tarball has no ${required}`);
   }
   const stray = files.filter(
@@ -50,11 +50,12 @@ try {
       !f.startsWith("dist/") &&
       !/^scene\/[a-z-]+\.schema\.json$/.test(f) &&
       !/^project\/[a-z-]+\.schema\.json$/.test(f) &&
+      !/^docs\/api\/([a-z-]+|README)\.md$/.test(f) &&
       !["package.json", "README.md", "CHANGELOG.md", "editor-ui/style.css"].includes(f),
   );
   check(
     stray.length === 0,
-    `the tarball has files outside dist, the schemas and the stylesheet: ${stray.join(", ")}`,
+    `the tarball has files outside dist, the schemas, the API reference and the stylesheet: ${stray.join(", ")}`,
   );
   const sources = files.filter((f) => /\.tsx?$/.test(f) && !f.endsWith(".d.mts"));
   check(sources.length === 0, `the tarball has TypeScript sources: ${sources.join(", ")}`);

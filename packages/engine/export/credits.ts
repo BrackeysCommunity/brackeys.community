@@ -1,10 +1,15 @@
 import { stableJson } from "../project/canonical";
 import { byCodeUnit } from "../project/kinds/define";
-import type { ReleaseAsset, ReleaseCredit, ReleaseManifest } from "../project/release";
+import {
+  INDEX_HTML_FILE,
+  type ReleaseAsset,
+  type ReleaseCredit,
+  type ReleaseManifest,
+} from "../project/release";
 import type { AssetId, Licence } from "../project/types";
 import { makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
-import { escapeHtml, INDEX_HTML_FILE, relativeHref } from "./html";
+import { escapeHtml, relativeHref } from "./html";
 
 const LICENCE_FIELDS = (): readonly (keyof Licence)[] => [
   "spdx",
@@ -63,9 +68,6 @@ export function assetCredits(assets: Readonly<Record<AssetId, ReleaseAsset>>): {
   return { credits: { assets: credited, missing }, issues };
 }
 
-/** The credits page every build ships, next to its `index.html`. */
-export const CREDITS_FILE = "credits.html";
-
 /** An http(s) source is linked; anything else is a description. */
 const isHttpUrl = (s: string): boolean => /^https?:\/\/[^\s"<>]+$/i.test(s);
 
@@ -113,8 +115,10 @@ function packageHtml(pkg: ReleaseManifest["credits"]["code"][number]): string[] 
  * `credits.html`: the game's name, its assets grouped by licence (each
  * group's attribution, author, source, SPDX id and asset names), the
  * assets with no licence recorded, each shipped package with its notice,
- * and the engine's version. No script and no style, so it reads the same
- * under any CSP and in either colour scheme.
+ * and the engine's version, then a "Play the game" link to `index.html`
+ * (it opens the game; a page reached from a running game's new tab is
+ * closed to return). No script and no style, so it reads the same under
+ * any CSP and in either colour scheme.
  */
 export function renderCredits(m: ReleaseManifest): string {
   const name = escapeHtml(m.project.name);
@@ -144,7 +148,7 @@ export function renderCredits(m: ReleaseManifest): string {
   body.push(
     `  </section>`,
     `  <p>Made with @jams/engine ${escapeHtml(m.engine.version)}</p>`,
-    `  <p><a href="${relativeHref(INDEX_HTML_FILE)}">Back to the game</a></p>`,
+    `  <p><a href="${relativeHref(INDEX_HTML_FILE)}">Play the game</a></p>`,
   );
   return [
     `<!doctype html>`,

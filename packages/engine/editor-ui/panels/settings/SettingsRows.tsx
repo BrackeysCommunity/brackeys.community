@@ -50,6 +50,7 @@ const parentPath = (path: string) => {
  */
 async function commitRow(ctx: RowsCtx, row: InspectorRow, input: unknown): Promise<string | null> {
   const { doc } = ctx;
+  if (doc.readOnly !== null) return doc.readOnly;
   if (!doc.entry || !doc.value || !doc.layout) return "The settings haven't opened yet.";
   const checked = settingsValue(row, input);
   if (!checked.ok) return checked.error;
@@ -89,6 +90,7 @@ function widgetProps(ctx: RowsCtx, row: InspectorRow) {
     commit: (input: unknown) => commitRow(ctx, row, input),
     unset: fallbackText(row, ctx.fallbacks),
     scope: settingScope(ctx.doc.docName, row.path),
+    disabled: ctx.doc.readOnly !== null,
   };
 }
 
