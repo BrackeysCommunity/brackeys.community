@@ -415,7 +415,7 @@ describe("scan", () => {
     });
   }
 
-  it("of the engine's home gives its docs keys equal to ids and no sidecars, its art sidecars, and no problems", async () => {
+  it("of the engine's home gives its sidecar-less docs keys equal to ids, its binaries sidecars, and no problems", async () => {
     const { state, problems } = await (await home(ENGINE_HOME)).scan();
     expect(problems).toEqual([]);
     expect(state.meta).toEqual({ projectId: "engine", layout: 1, name: "Engine" });
@@ -423,11 +423,15 @@ describe("scan", () => {
     const files = await walk(ENGINE_HOME);
     const sidecars = files.filter((p) => p.endsWith(".asset.json"));
     const blobs = entries.filter((e) => e.sha256 !== undefined);
-    expect(sidecars).toEqual(blobs.map((e) => `${e.path}.asset.json`).sort());
+    const keyedDocs = ["grid-annex.json"];
+    expect(sidecars).toEqual(
+      [...blobs.map((e) => e.path), ...keyedDocs].map((p) => `${p}.asset.json`).sort(),
+    );
     expect(entries.map((e) => e.path).sort()).toEqual(
       files.filter((p) => p !== "jams.project.json" && !sidecars.includes(p)),
     );
-    for (const e of entries) if (e.sha256 === undefined) expect(e.key).toBe(e.id);
+    for (const e of entries)
+      if (e.sha256 === undefined && !keyedDocs.includes(e.path)) expect(e.key).toBe(e.id);
     expect(entries.map((e) => [e.id, e.kind, e.path])).toEqual(
       expect.arrayContaining([
         ["engine-yard", "scene", "engine-yard.json"],

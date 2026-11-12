@@ -107,6 +107,7 @@ describe("project push --dry-run", () => {
       { path: "art/dot.png", kind: "texture" },
       { path: "art/hero.json", kind: "atlas" },
       { path: "art/hero.png", kind: "texture" },
+      { path: "saves/grid-yard.save.json", kind: "save" },
     ];
     const want = await Promise.all(
       binaries.map(async (b) => ({

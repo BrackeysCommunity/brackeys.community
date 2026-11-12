@@ -3122,13 +3122,13 @@ describe("scene flow", { timeout: 60_000 }, () => {
       issues: [],
     });
     const rows = Object.fromEntries(engine!.scenes.map((s) => [s.scene, s]));
-    expect(Object.keys(rows)).toEqual(["engine-yard", "kitchen-sink", "grid-yard"]);
+    expect(Object.keys(rows)).toEqual(["engine-yard", "kitchen-sink", "grid-yard", "grid-annex"]);
     expect(rows["engine-yard"]).toMatchObject({ start: true, physics: "rapier" });
     expect(rows["grid-yard"]).toMatchObject({ start: false, physics: "none" });
     expect(rows["kitchen-sink"]!.bundle!.bytes).toBeGreaterThan(0);
     for (const row of engine!.scenes) expect(row.bundle?.bytes).toEqual(expect.any(Number));
     expect(r.text.split("\n")[0]).toBe(
-      "engine: scene list scene-list.json, start engine-yard, 3 listed",
+      "engine: scene list scene-list.json, start engine-yard, 4 listed",
     );
     expect(r.text).toMatch(
       /^ {2}engine-yard {2}start {2}physics rapier {2}bundle \d+ blobs? \d+ B/m,
@@ -3153,7 +3153,7 @@ describe("scene flow", { timeout: 60_000 }, () => {
     const r = await flow({}, engineCtx);
     expect(r.exitCode).toBe(1);
     const [engine] = (r.data as Flowed).projects;
-    expect(engine!.unlisted).toEqual(["kitchen-sink"]);
+    expect(engine!.unlisted).toEqual(["grid-annex", "kitchen-sink"]);
     expect(engine!.scenes.find((s) => s.scene === "ghost")).toMatchObject({
       physics: null,
       bundle: null,
@@ -3163,7 +3163,7 @@ describe("scene flow", { timeout: 60_000 }, () => {
     expect(codes).toContain("error start-scene-missing");
     expect(codes).toContain("error asset-missing");
     expect(codes).toContain("warn scene-unlisted");
-    expect(r.text).toContain("not listed: kitchen-sink");
+    expect(r.text).toContain("not listed: grid-annex, kitchen-sink");
     expect(r.text).toMatch(/^ {2}ghost {2}doesn't open$/m);
   });
 

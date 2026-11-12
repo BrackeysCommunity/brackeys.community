@@ -350,8 +350,8 @@ describe("scene commands in the docs", () => {
 
     if (example.fenced && isPure(example.argv) && !example.argv.some(placeholder)) {
       const { expect: code } = example;
-      // `game new` imports and judges the game it generates.
-      const timeout = name === "game new" ? 60_000 : undefined;
+      // `game new` imports and judges the game it generates; `flow` opens and bundles every listed scene.
+      const timeout = name === "game new" || name === "flow" ? 60_000 : undefined;
       it(
         `${example.doc}: ${example.line} ${code ? `reports ${code}` : "runs"}`,
         async () => {

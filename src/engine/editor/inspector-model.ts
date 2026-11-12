@@ -416,7 +416,7 @@ function fieldValue(schema: z.ZodType, root: unknown, path: FieldPath): unknown 
   return value === true && fieldKind(schema) === "side" ? "up" : value;
 }
 
-const ACRONYMS = new Set(["id", "ui", "url", "fps", "hud", "rng", "ai"]);
+const ACRONYM = /^(?:id|ui|url|fps|hud|rng|ai)$/i;
 
 /**
  * A key as a label when the schema gives no title: camelCase, kebab-case and
@@ -430,7 +430,7 @@ export function fieldTitle(name: string): string {
     .split(/[\s_-]+/)
     .filter(Boolean)
     .map((w) =>
-      ACRONYMS.has(w.toLowerCase()) || (w.length > 1 && /^[A-Z0-9]+$/.test(w))
+      ACRONYM.test(w) || (w.length > 1 && /^[A-Z0-9]+$/.test(w))
         ? w.toUpperCase()
         : w.toLowerCase(),
     );
