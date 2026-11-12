@@ -27,6 +27,7 @@ import { projectCtaLabel, projectTypeLabel, releaseStatusLabel } from "@/lib/pro
 import { toast } from "@/lib/toast";
 import { markWrite } from "@/orpc/recent-write";
 
+import { PlayButton, type PlayableGame } from "./PlayButton";
 import { ProjectDetailsEditor } from "./ProjectDetailsEditor";
 import type { ProjectJamAppearance, ProjectRow } from "./types";
 
@@ -37,7 +38,8 @@ import type { ProjectJamAppearance, ProjectRow } from "./types";
  * The CTA is type-aware rather than "PLAY" — the entity is artifact-neutral
  * on purpose (itch hosts tools, asset packs, soundtracks; our members also
  * ship libraries and websites itch never sees), and a sample pack with a
- * "PLAY" button is the games-first bias leaking back in.
+ * "PLAY" button is the games-first bias leaking back in. A linked game
+ * with a release to play here is the exception: then the CTA plays it.
  */
 export function ProjectHero({
   project,
@@ -46,6 +48,7 @@ export function ProjectHero({
   deleteBlockers,
   recruitTeamId,
   fromJam,
+  game,
 }: {
   project: ProjectRow;
   canEdit: boolean;
@@ -58,6 +61,8 @@ export function ProjectHero({
    *  project has one — earns an entry button beside the CTA so they
    *  don't have to find it in the JAM RECORD list. */
   fromJam?: ProjectJamAppearance;
+  /** A linked engine game with a release to play here. */
+  game?: PlayableGame | null;
 }) {
   const [editing, setEditing] = useState(false);
   const typeLabel = projectTypeLabel(project);
@@ -67,7 +72,7 @@ export function ProjectHero({
   // record — but its provider links are dead for anonymous visitors, so we
   // don't offer them. Same semantics as the library sync's URL probe.
   const restricted = project.restrictedAt != null;
-  const showCta = project.url != null && !restricted;
+  const showCta = !game && project.url != null && !restricted;
   const ctaHost = showCta ? externalUrlHost(project.url) : null;
 
   return (
@@ -127,7 +132,14 @@ export function ProjectHero({
           ) : null}
 
           <div className="mt-auto flex flex-wrap items-center gap-3 pt-2">
-            {showCta ? (
+            {game ? (
+              <PlayButton
+                game={game}
+                label="PLAY IN BROWSER"
+                size="sm"
+                className="tracking-widest"
+              />
+            ) : showCta ? (
               <Button
                 size="sm"
                 className="tracking-widest"

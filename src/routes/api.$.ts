@@ -16,8 +16,9 @@ import { insertCanvasAttachment } from "@/lib/canvas-persistence";
 import { CANVAS_IMAGE_UPLOADS_PER_DAY } from "@/lib/canvas/limits";
 import { checkPath, repairPath } from "@/lib/canvas/paths";
 import { isStaffMember } from "@/lib/discord";
-import { ENGINE_BLOB_KINDS } from "@/lib/engine/limits";
+import { createReleaseRoutes } from "@/lib/engine/release-routes";
 import { createEngineRoutes } from "@/lib/engine/routes";
+import { ENGINE_BLOB_KINDS } from "@/lib/engine/upload-limits";
 import { SITE } from "@/lib/legal-meta";
 import {
   bestEffort,
@@ -211,6 +212,8 @@ async function handle({ request }: { request: Request }) {
     return handleCanvasImageUpload(request);
   }
   if (pathname.startsWith("/api/engine/")) {
+    const release = await handleReleaseRoute(request);
+    if (release) return release;
     const engine = await handleEngineRoute(request);
     if (engine) return engine;
   }
@@ -559,6 +562,13 @@ const handleEngineRoute = createEngineRoutes({
   kinds: ENGINE_BLOB_KINDS,
   serve: streamStoredImage,
 });
+
+/**
+ * Hosted game releases: begin, the file upload, commit, promote, rollback
+ * and the zip, for a session or an agent token. Tried before the project
+ * routes; null passes the request on to them.
+ */
+const handleReleaseRoute = createReleaseRoutes({ readSession: readUploadSession });
 
 /** An import's own path for an image, or the nearest valid one. */
 function wantedImagePath(path: string): string {

@@ -1,47 +1,55 @@
-import {
-  ENGINE_ASSET_KINDS,
-  type AssetKindDef,
-  type BlobKindDef,
-  type KindRegistry,
-} from "@jams/engine/project";
+// Every number a hosted game is held to, and the one source every message
+// formats them from. Import-free, so the services that copy it need nothing
+// else. Sizes are bytes; "KB" and "MB" in copy mean KiB and MiB.
 
-import { checkRateLimit } from "@/lib/rate-limit";
+/** A signed-in player's save, and a signed-out one's in this browser: 32 KiB, 4 slots per game. */
+export const SITE_SAVE_LIMITS = { maxBytes: 32_768, maxSlots: 4 } as const;
+/** Every save a player keeps on the site, across all games. */
+export const SITE_SAVE_ACCOUNT_BYTES = 1_048_576;
+/** A save not loaded, written or listed for this long is deleted. */
+export const SITE_SAVE_EXPIRY_DAYS = 180;
+export const SAVE_WRITES_PER_HOUR = 120;
+export const SAVE_READS_PER_HOUR = 600;
+/** One preferences store (remaps, or the other preferences), kept in this browser only. */
+export const PREFS_MAX_BYTES = 16_384;
 
-/** Engine blobs a member may upload a day: its own budget, apart from images and canvas uploads. */
-export const ENGINE_BLOB_UPLOADS_PER_DAY = 500;
+/** A hosted project's quotas. */
+export const PROJECT_QUOTA = {
+  assetBytes: 268_435_456, // 256 MiB
+  docs: 1_000,
+  docBytes: 67_108_864, // 64 MiB
+  releaseBytes: 104_857_600, // 100 MiB per release
+  releaseFiles: 2_000,
+  releaseFileBytes: 33_554_432, // 32 MiB
+  releaseStorageBytes: 536_870_912, // 512 MiB
+  releasesKept: 10,
+  jamPins: 8,
+  releasesPerDay: 20,
+} as const;
 
-/** No upload is read past this, whatever its kind allows. */
-export const ENGINE_BLOB_MAX_BYTES = 64 * 1024 * 1024;
-
-/** Agent token exchanges per credential an hour: a CLI refreshes its 60 s sync token about once a minute. */
-export const AGENT_SYNC_TOKENS_PER_HOUR = 600;
-
-/** A pushed bundle's JSON, texts and sidecars only (blobs travel by hash). */
-export const ENGINE_BUNDLE_MAX_BYTES = 32 * 1024 * 1024;
-
-/** What the upload route needs from a blob kind. */
-export type BlobKindLimits = Pick<BlobKindDef, "kind" | "maxBytes" | "contentTypes">;
-
-/** The blob kinds the site accepts, by name; undefined refuses the kind. */
-export type BlobKindLookup = (kind: string) => BlobKindLimits | undefined;
-
-/** A lookup over a kind registry or a list of kinds; doc and code kinds are refused. */
-export function blobKindLookup(
-  kinds: KindRegistry | readonly (AssetKindDef | (BlobKindLimits & { storage: "blob" }))[],
-): BlobKindLookup {
-  const list = "list" in kinds ? kinds.list() : kinds;
-  const blobs = new Map<string, BlobKindLimits>();
-  for (const def of list) if (def.storage === "blob") blobs.set(def.kind, def);
-  return (kind) => blobs.get(kind);
-}
-
-/** The blob kinds the upload route accepts: the engine's, each capped at its own `maxBytes`. */
-export const ENGINE_BLOB_KINDS: BlobKindLookup = blobKindLookup(ENGINE_ASSET_KINDS);
-
-export function engineBlobUploadAllowed(userId: string): Promise<boolean> {
-  return checkRateLimit("engine-blob", userId, ENGINE_BLOB_UPLOADS_PER_DAY, 86400);
-}
-
-export function agentSyncTokenAllowed(tokenId: string): Promise<boolean> {
-  return checkRateLimit("engine-agent-sync", tokenId, AGENT_SYNC_TOKENS_PER_HOUR, 3600);
-}
+/** At this share of any quota the editor shows it nearly full; at 1 it is refused. */
+export const QUOTA_WARN_RATIO = 0.8;
+/** An unpinned release outside the newest `releasesKept` is removed this long after it was created. */
+export const RELEASE_GRACE_DAYS = 14;
+/** A blob nothing references is deleted after this long. */
+export const BLOB_GRACE_DAYS = 30;
+/** A stored release file no release lists is deleted after this long. */
+export const ORPHAN_FILE_GRACE_HOURS = 24;
+/** How long an upload may take from `begin` to `commit`. */
+export const UPLOAD_SESSION_HOURS = 24;
+/** A deleted project's docs, blobs, releases and saves are purged this long after the delete. */
+export const PROJECT_PURGE_DAYS = 30;
+/** How long a private release's frame link works. */
+export const FRAME_TOKEN_HOURS = 12;
+/** The oldest engine whose builds the site hosts: the first that speaks the host channel. */
+export const MIN_HOSTED_ENGINE = "0.14.1";
+/** The most "Connects to" origins a game may declare. */
+export const CONNECT_ORIGINS_MAX = 4;
+/** Release file uploads one person may make an hour. */
+export const RELEASE_FILE_PUTS_PER_HOUR = 4_000;
+/** Release uploads a project may begin an hour. */
+export const RELEASE_BEGINS_PER_HOUR = 60;
+/** Reports one person may file a day. */
+export const GAME_REPORTS_PER_DAY = 10;
+/** The largest `release.json` an upload may begin with. */
+export const RELEASE_MANIFEST_MAX_BYTES = 1_048_576;

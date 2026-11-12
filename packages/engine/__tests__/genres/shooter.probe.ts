@@ -14,8 +14,6 @@ import type { GenreProbe } from "./harness";
 const ID = "shooter";
 const TURRET = "turret";
 const BULLET = "bullet";
-/** Raised by a bullet's own timer when its lifetime ends. */
-const EXPIRE = `${ID}:expire`;
 
 /** Bullets the turret fires in a run; it fires one a tick while `fire` is held. */
 export const SHOTS = 1000;
@@ -131,9 +129,8 @@ const game = defineGame<ShooterSnapshot>({
           mode: "ping_pong",
           speed: SPEED,
         },
+        behaviors: { lifetime: { ms: LIFETIME_MS } },
       });
-      // An emit-form timer rather than the lifetime behavior's, so a world save can hold it.
-      ctx.timers.after({ ms: LIFETIME_MS }, { emit: EXPIRE, entityId: id }, { owner: id });
       snap.fired++;
       if (id !== runtimeId(BULLET, snap.fired)) snap.misnamed ??= id;
       live.add(id);
@@ -151,9 +148,6 @@ const game = defineGame<ShooterSnapshot>({
           if (!e.entityId || hits.has(e.entityId)) return;
           hits.add(e.entityId);
           ctx.destroy(e.entityId);
-        });
-        ctx.events.on(EXPIRE, (e: StepEvent) => {
-          if (e.entityId) ctx.destroy(e.entityId);
         });
         ctx.events.on(ENTITY_DESTROYED, (e: StepEvent) => {
           const id = e.entityId;

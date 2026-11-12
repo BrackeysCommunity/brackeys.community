@@ -7,6 +7,7 @@ import {
 import { makeIssue } from "../scene/issues";
 import { locatePointer } from "../scene/parse";
 import type { SceneIssue } from "../scene/types";
+import type { HostChannel } from "../standalone/host-channel";
 
 /** Where a game's saves live: the game's own backend, the host's, the browser's, or memory. */
 export interface SaveStore {
@@ -323,4 +324,62 @@ export function indexedDbSaveStore(opts?: { db?: string }): SaveStore {
     describe: () => BROWSER_SAVES_DESCRIBE,
     ceiling: MAX_BROWSER_SAVE_LIMITS,
   });
+}
+
+/** The issue a channel request rejected with: the page's own refusal, or the channel's failure. */
+const rejectionIssue = (error: unknown): SceneIssue | null =>
+  typeof error === "object" && error !== null && "issue" in error
+    ? (error as { issue: SceneIssue }).issue
+    : null;
+
+/**
+ * Saves kept by the page that frames the game, over its `jams-host`
+ * channel: `kind` "host", `describe` and `limits` from the page's welcome,
+ * updated when the page sends `saves.changed`. A write the page refuses
+ * returns the page's issue unchanged, so the game shows the page's words; a
+ * list or read that fails is empty, and a failed remove does nothing.
+ */
+export function channelSaveStore(channel: HostChannel): SaveStore {
+  let saves = channel.welcome.saves;
+  channel.on("saves.changed", (next) => {
+    saves = next;
+  });
+  return {
+    kind: "host",
+    get describe() {
+      return saves.describe;
+    },
+    get limits() {
+      return saves.limits;
+    },
+    async list(gameId) {
+      try {
+        return await channel.request("saves.list", { gameId });
+      } catch {
+        return [];
+      }
+    },
+    async read(gameId, slot) {
+      try {
+        return await channel.request("saves.read", { gameId, slot });
+      } catch {
+        return null;
+      }
+    },
+    async write(gameId, slot, text) {
+      try {
+        return await channel.request("saves.write", { gameId, slot, text });
+      } catch (error) {
+        const issue = rejectionIssue(error);
+        return { ok: false, issue: issue ?? storeFailed("writing", slot, error, text) };
+      }
+    },
+    async remove(gameId, slot) {
+      try {
+        await channel.request("saves.remove", { gameId, slot });
+      } catch {
+        // A save the page couldn't remove stays listed; the game keeps running.
+      }
+    },
+  };
 }

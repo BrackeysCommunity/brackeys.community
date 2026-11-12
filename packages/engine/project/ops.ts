@@ -123,6 +123,8 @@ export type ProjectOp =
   /** To the trash; refused with `asset-in-use` while referenced (a scene's checks file included) unless `force`. */
   | { op: "deleteAsset"; id: AssetId; force?: boolean }
   | { op: "restoreAsset"; id: AssetId }
+  /** Removes a trashed asset and its hash history for good, so its bytes become unreferenced; it can't be undone. */
+  | { op: "purgeAsset"; id: AssetId }
   /** Changes the id and rewrites every reference in every doc, in one cross-doc batch. */
   | { op: "changeAssetId"; id: AssetId; to: AssetId }
   /** Import settings, per field; null resets one to its default. Meta is re-inspected. */
@@ -257,6 +259,7 @@ export const PROJECT_OP_NAMES = [
   "moveAsset",
   "deleteAsset",
   "restoreAsset",
+  "purgeAsset",
   "changeAssetId",
   "setImport",
   "replaceContent",
@@ -340,6 +343,8 @@ export type ProjectBatchCheck =
       /** The scene docs among `written`, with the scene ops that reach each (a `changeAssetId`'s rewrites included). */
       scenes: ReadonlyMap<AssetKey, SceneWrite>;
       created: AssetId[];
+      /** Keys of the trashed entries removed for good, with their hash history; a batch with any can't be undone. */
+      purged: AssetKey[];
       issues: SceneIssue[];
       /** Indices of the `editScene` ops `prefabEdit` accepted; the caller writes those. */
       delegated: number[];
@@ -495,6 +500,14 @@ const OP_SCHEMAS = [
       id: AssetIdSchema.describe("The trashed asset's id; the most recently trashed one wins."),
     })
     .describe("Bring an asset back from the trash to its old path; refused while it is taken."),
+  z
+    .strictObject({
+      op: opName("purgeAsset"),
+      id: AssetIdSchema.describe("The trashed asset's id."),
+    })
+    .describe(
+      "Delete a trashed asset for good, with its replaced versions; refused with asset-not-trashed unless it is in the trash. It can't be undone.",
+    ),
   z
     .strictObject({
       op: opName("changeAssetId"),
@@ -677,6 +690,8 @@ class BatchWork {
   readonly writtenBy = new Map<AssetKey, number>();
   readonly scenes = new Map<AssetKey, SceneWrite>();
   readonly created: AssetId[] = [];
+  /** Keys of the trashed entries the batch removes for good, in op order. */
+  readonly purged: AssetKey[] = [];
   readonly warnings: SceneIssue[] = [];
   readonly delegated: number[] = [];
   /** Ids trashed with `force` while referenced: their referrers' `asset-missing` is on the result. */
@@ -1008,6 +1023,8 @@ class BatchWork {
         return this.deleteAsset(op);
       case "restoreAsset":
         return this.restoreAsset(op);
+      case "purgeAsset":
+        return this.purgeAsset(op);
       case "setImport":
         return this.setImport(op);
       case "replaceContent":
@@ -1815,6 +1832,47 @@ class BatchWork {
     this.put(restored);
   }
 
+  /** Removes the most recently trashed entry with the id, and its hash history, for good. */
+  private purgeAsset(op: Extract<ProjectOp, { op: "purgeAsset" }>): void {
+    const trashed = this.view.deleted
+      .filter((e) => e.id === op.id)
+      .sort((a, b) => b.deleted!.at - a.deleted!.at || compareEntries(b, a))[0];
+    if (!trashed) {
+      const guess = this.view.byId.has(op.id)
+        ? undefined
+        : closest(
+            op.id,
+            this.view.deleted.map((e) => e.id),
+          );
+      this.fail(
+        "asset-not-trashed",
+        this.view.byId.has(op.id)
+          ? `"${op.id}" isn't in the trash: trash it with deleteAsset first, since only a trashed asset can be deleted for good`
+          : `the trash holds no "${op.id}"${guess ? `; did you mean "${guess}"?` : ""}`,
+        "id",
+        { entityIds: [op.id], got: op.id },
+      );
+    }
+    const key = trashed.key;
+    const touched =
+      this.values.has(key) ||
+      this.scenes.has(key) ||
+      this.created.includes(trashed.id) ||
+      this.deferred.some((d) => d.entry.key === key);
+    if (touched)
+      this.fail(
+        "op-invalid",
+        `an earlier op of this batch writes "${op.id}", so it can't also be deleted for good; purge it in a batch of its own`,
+        "id",
+        { entityIds: [op.id] },
+      );
+    delete this.assets[key];
+    delete this.history[key];
+    this.purged.push(key);
+    this.registry = true;
+    this.cached = null;
+  }
+
   private setImport(op: Extract<ProjectOp, { op: "setImport" }>): void {
     const entry = this.live(op.id);
     const def = this.blob(entry);
@@ -2170,6 +2228,7 @@ export function checkProjectBatch(
     writtenBy: work.writtenBy,
     scenes: work.scenes,
     created: work.created,
+    purged: work.purged,
     issues: [
       ...work.view.issues,
       ...work.warnings,

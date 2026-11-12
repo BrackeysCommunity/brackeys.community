@@ -680,6 +680,30 @@ describe("the shell's load path", () => {
     expect((await first.saves.load("ok")).ok).toBe(true);
   });
 
+  it("refuses a save holding a persistent value for a game that declares none", async () => {
+    const store = memorySaveStore();
+    const game = vaultGame();
+    const first = await shell(game, store);
+    first.start();
+    first.step(3);
+    expect((await first.saves.save("ok")).ok).toBe(true);
+    const parsed = parseSaveFile((await store.read("vault", "ok"))!);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    expect(parsed.file.persist).toBeNull();
+    await store.write("vault", "bad", formatSaveFile({ ...parsed.file, persist: { cleared: [] } }));
+
+    const before = first.runtime();
+    const loaded = await first.saves.load("bad");
+    expect(loaded.ok ? null : [loaded.issue.code, loaded.issue.path]).toEqual([
+      "schema",
+      "/persist",
+    ]);
+    expect(loaded.ok ? "" : loaded.issue.message).toContain('"vault" declares no persist');
+    expect(first.runtime()).toBe(before);
+    expect((first.runtime() as SceneRuntimeHandle).ctx.persist.value).toBeNull();
+    expect((await first.saves.load("ok")).ok).toBe(true);
+  });
+
   it("keeps the scene it had when the save can't be restored", async () => {
     const store = memorySaveStore();
     const game = vaultGame();

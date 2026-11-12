@@ -105,4 +105,29 @@ describe.each(services)("services/%s image", (name) => {
     });
     expect(offenders, `shared files copied into services/${name} must not use @/:`).toEqual([]);
   });
+
+  /**
+   * A file can be copied ahead of the service code that imports it. It
+   * must already hold to the same rules, or the first import of it breaks
+   * the image: every COPY source exists, and none takes an `@/` value import.
+   */
+  it("copies only files that exist and reach nothing through @/", () => {
+    const missing = copied.filter((path) => !existsSync(path)).map((path) => relative(ROOT, path));
+    expect(missing, `services/${name}/Dockerfile copies files that don't exist:`).toEqual([]);
+    const files = copied.flatMap((path) =>
+      existsSync(path) && statSync(path).isDirectory()
+        ? sourceFiles(path)
+        : /\.tsx?$/.test(path)
+          ? [path]
+          : [],
+    );
+    const offenders = files.flatMap((file) => {
+      const text = readFileSync(file, "utf8").replace(TYPE_IMPORT_RE, "");
+      return [...text.matchAll(IMPORT_RE)]
+        .map((match) => match[1]!)
+        .filter((spec) => spec.startsWith("@/"))
+        .map((spec) => `${relative(ROOT, file)} imports "${spec}"`);
+    });
+    expect(offenders, `files copied into services/${name} must not use @/:`).toEqual([]);
+  });
 });

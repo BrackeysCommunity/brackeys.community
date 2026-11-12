@@ -321,6 +321,8 @@ export type GameEventMap = {
   "render:lost": { backend: RenderBackend };
   /** Drawing resumed: in place (`rebuilt: false`) or on a new renderer. */
   "render:restored": { backend: RenderBackend; rebuilt: boolean };
+  /** Rebuilding the renderer after a loss failed: nothing draws again, and `render:restored` never follows. */
+  "render:failed": { backend: RenderBackend };
   /** WebGPU failed at start or was lost, and the shell draws with WebGL for the rest of the session. */
   "render:fallback": { from: "webgpu"; reason: "init" | "lost" };
 };

@@ -81,8 +81,12 @@ export type EditorProjectLink = {
   scene?: string;
   /** The project's scene list as flow reads it; default empty. */
   flow?: SceneListFlow;
-  /** Opens another scene of the project in the editor, in place of this one. */
-  openScene?: (id: string) => void;
+  /**
+   * Opens another scene of the project in the editor, in place of this one.
+   * `madeFrom` names the scene a new one was made from: an undo that removes
+   * the new scene returns the editor there.
+   */
+  openScene?: (id: string, opts?: { madeFrom?: string }) => void;
   /** Why the editor last switched scenes by itself, for the status bar; null when it didn't. */
   notice?: Store<SceneNotice | null>;
   /** Where dropped files are uploaded; without it the tree takes no files. */
@@ -395,20 +399,40 @@ export function useSceneEditor({
     askedRef.current = asked;
     opened.current = ready;
   });
+  /** Where each scene was last opened from, and where each new scene was made from. */
+  const cameFrom = useRef(new Map<string, string>());
+  const madeFrom = useRef(new Map<string, string>());
   // The live session on the open doc closes; the doc stays connected a while, so switching back is quick.
   const [switchTo] = useState(() => (id: string) => {
     const from = opened.current;
     if (id === from?.id) return;
-    if (from) keepWarm(from.session, from.name);
+    if (from) {
+      keepWarm(from.session, from.name);
+      cameFrom.current.set(id, from.id);
+    }
     setPicked({ asked: askedRef.current, id });
     sceneChange.current?.(id);
   });
   /** An undo or redo whose step is in another scene: the editor switches there first, then takes it. */
   const deferred = useRef<DeferredStep | null>(null);
-  const [openScene] = useState(() => (id: string) => {
+  const [openScene] = useState(() => (id: string, opts?: { madeFrom?: string }) => {
     notice.setState(() => null);
     deferred.current = null;
+    if (opts?.madeFrom) madeFrom.current.set(id, opts.madeFrom);
     switchTo(id);
+  });
+  /**
+   * After an undo or redo took the open scene away (New scene… undone), the
+   * editor goes to the scene it was made from, else the one it came to it
+   * from, while that scene is still there.
+   */
+  const [leaveIfGone] = useState(() => (session: ProjectSession, id: string) => {
+    const view = session.view();
+    if (view.byId.has(id)) return;
+    const back = [madeFrom.current.get(id), cameFrom.current.get(id)].find(
+      (other) => other !== undefined && view.byId.get(other)?.kind === SCENE_KIND_NAME,
+    );
+    if (back) switchTo(back);
   });
 
   const [overlay, setOverlay] = useState<
@@ -511,10 +535,15 @@ export function useSceneEditor({
       switchTo(other.id);
       return true;
     };
+    const here = (how: "undo" | "redo") => {
+      const taken = how === "undo" ? history.undo() : history.redo();
+      leaveIfGone(ready.session, ready.id);
+      return taken;
+    };
     const switching: SessionHistory = {
       ...history,
-      undo: () => elsewhere("undo") || history.undo(),
-      redo: () => elsewhere("redo") || history.redo(),
+      undo: () => elsewhere("undo") || here("undo"),
+      redo: () => elsewhere("redo") || here("redo"),
     };
     // Opened once the prefab docs are, so the scene's instances resolve from the first frame.
     void prefabsReady(ready.session)
@@ -553,7 +582,7 @@ export function useSceneEditor({
       }
       next?.destroy();
     };
-  }, [liveCell, loaded, game, ready, settled, fits, say, tasks, notice, switchTo]);
+  }, [liveCell, loaded, game, ready, settled, fits, say, tasks, notice, switchTo, leaveIfGone]);
 
   // A deferred step whose scene didn't open, or opened another in its place, is never taken.
   const switchFailed = link.error !== null || link.status === "failed" || link.fellBack !== null;

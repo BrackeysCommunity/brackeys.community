@@ -33,6 +33,8 @@ COPY src/lib/itch-pacer.ts ./src/lib/itch-pacer.ts
 COPY src/lib/itch-http.ts ./src/lib/itch-http.ts
 COPY src/lib/media-scan-queue.ts ./src/lib/media-scan-queue.ts
 COPY src/lib/image-quarantine.ts ./src/lib/image-quarantine.ts
+COPY src/lib/engine/release-audit.ts ./src/lib/engine/release-audit.ts
+COPY src/lib/engine/storage-keys.ts ./src/lib/engine/storage-keys.ts
 COPY src/lib/notify-core.ts ./src/lib/notify-core.ts
 COPY src/lib/notification-copy.ts ./src/lib/notification-copy.ts
 

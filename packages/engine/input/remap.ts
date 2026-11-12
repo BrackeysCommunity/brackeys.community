@@ -59,6 +59,35 @@ export function browserRemapStore(prefix = "jams-engine:remap:"): RemapStore {
   };
 }
 
+/** How long a snapshot store waits after the last change before handing remaps back. */
+const SNAPSHOT_REMAP_SAVE_DELAY_MS = 500;
+
+/**
+ * Remaps a host keeps for the game: `load` reads the snapshot the host
+ * handed over at start (none when it isn't a v1 state) and then the latest
+ * change; `save` hands the latest state back to the host once no change has
+ * come for `SNAPSHOT_REMAP_SAVE_DELAY_MS`, so a run of edits posts once.
+ */
+export function snapshotRemapStore(
+  initial: unknown,
+  save: (gameId: string, state: RemapState) => void,
+): RemapStore {
+  let snapshot: RemapState | null = isRemapState(initial) ? structuredClone(initial) : null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return {
+    load: () => (snapshot ? structuredClone(snapshot) : null),
+    save: (gameId, state) => {
+      const held = structuredClone(state);
+      snapshot = held;
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        save(gameId, structuredClone(held));
+      }, SNAPSHOT_REMAP_SAVE_DELAY_MS);
+    },
+  };
+}
+
 const DEVICES: readonly string[] = ["key", "pad", "pointer", "touch"];
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

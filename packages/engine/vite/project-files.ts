@@ -1271,6 +1271,13 @@ export function createProjectFileAdapter(
       } else if (!disk) creates.push({ entry, def });
       else if (disk.path !== entry.path) moves.push({ entry, disk });
     }
+    // A purged entry leaves the registry; its trashed text goes from the index too.
+    const index = await trashIndex();
+    const purged = [...index.keys()].filter((key) => !Object.hasOwn(state.assets, key));
+    if (purged.length > 0) {
+      for (const key of purged) index.delete(key);
+      await saveTrash();
+    }
 
     // Trashed files are gone and moving files are staged aside before any
     // create, so an entry can take a path this same write frees.

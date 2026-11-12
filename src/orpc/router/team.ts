@@ -41,12 +41,13 @@ import {
   type NotificationType,
 } from "@/db/schema";
 import { liveTeamCanvasIds, revokeCanvases, revokeTeamCanvases } from "@/lib/canvas-sync-publish";
+import { playableGames } from "@/lib/engine/playable-game";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { optionalExternalUrlSchema } from "@/lib/external-url";
 import { jamUrl } from "@/lib/jam-links";
 import { memberName } from "@/lib/member-name";
 import { recordModerationAction } from "@/lib/moderation-audit";
-import { canOverride, type ModOverride, type ModPowerAction } from "@/lib/moderation-policy";
+import type { ModOverride } from "@/lib/moderation-policy";
 import { notify } from "@/lib/notifications";
 import { isUniqueViolation } from "@/lib/pg-errors";
 import { bestEffort, captureServerEvent } from "@/lib/posthog-server";
@@ -67,6 +68,13 @@ import { describeImageKey, isTeamProjectImageKey } from "@/lib/stored-image-keys
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 import { touchTeamActivity } from "@/lib/team-activity";
 import { slugifyTeamName } from "@/lib/team-links";
+import {
+  getMembership,
+  requireMembership,
+  requireMembershipOrOverride,
+  requireOwnership,
+  requireOwnershipOrOverride,
+} from "@/lib/team-membership";
 import { blockPairExists } from "@/lib/user-blocks";
 import {
   requireAuth,
@@ -112,8 +120,6 @@ async function claimSlug(executor: DbExecutor, name: string): Promise<string> {
   }
 }
 
-// ── Membership helpers ───────────────────────────────────────────────────────
-
 async function getTeamRow(teamId: string) {
   const [team] = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
   if (!team) {
@@ -122,34 +128,7 @@ async function getTeamRow(teamId: string) {
   return team;
 }
 
-async function getMembership(teamId: string, userId: string) {
-  const [membership] = await db
-    .select()
-    .from(teamMembers)
-    .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)))
-    .limit(1);
-  return membership ?? null;
-}
-
-async function requireMembership(teamId: string, userId: string) {
-  const membership = await getMembership(teamId, userId);
-  if (!membership) {
-    throw new ORPCError("FORBIDDEN", { message: "You are not a member of this team." });
-  }
-  return membership;
-}
-
-async function requireOwnership(teamId: string, userId: string) {
-  const membership = await requireMembership(teamId, userId);
-  if (membership.role !== "owner") {
-    throw new ORPCError("FORBIDDEN", { message: "Only the team owner can do that." });
-  }
-  return membership;
-}
-
 // ── Staff overrides (plan 23) ────────────────────────────────────────────────
-
-type OverrideCaller = { user: { id: string }; isStaff: boolean; isAdmin: boolean };
 
 const overrideReasonSchema = z.string().trim().max(500).optional();
 
@@ -164,36 +143,6 @@ function assertNotFrozen(team: { hiddenAt: Date | null }, isOverride: boolean): 
   if (!isOverride && team.hiddenAt) {
     throw new ORPCError("FORBIDDEN", { message: TEAM_UNDER_REVIEW });
   }
-}
-
-/**
- * Owner passes as themselves (unlogged, whatever roles they hold); staff
- * and admins pass as an override when `MOD_POWERS` admits them. Everyone
- * else gets the exact pre-override refusals.
- */
-async function requireOwnershipOrOverride(
-  action: ModPowerAction,
-  teamId: string,
-  context: OverrideCaller,
-) {
-  const membership = await getMembership(teamId, context.user.id);
-  if (membership?.role === "owner") return { membership, isOverride: false as const };
-  if (canOverride(action, context)) return { membership, isOverride: true as const };
-  if (!membership) {
-    throw new ORPCError("FORBIDDEN", { message: "You are not a member of this team." });
-  }
-  throw new ORPCError("FORBIDDEN", { message: "Only the team owner can do that." });
-}
-
-async function requireMembershipOrOverride(
-  action: ModPowerAction,
-  teamId: string,
-  context: OverrideCaller,
-) {
-  const membership = await getMembership(teamId, context.user.id);
-  if (membership) return { membership, isOverride: false as const };
-  if (canOverride(action, context)) return { membership: null, isOverride: true as const };
-  throw new ORPCError("FORBIDDEN", { message: "You are not a member of this team." });
 }
 
 async function getTeamOwnerId(teamId: string): Promise<string | null> {
@@ -917,6 +866,13 @@ async function buildTeamPagePayload(team: TeamRow) {
     jamLinksByProject.set(link.projectId, list);
   }
 
+  // Signed out, like every caller of the public read this payload serves.
+  const games = await playableGames(
+    db,
+    projectRows.flatMap((row) => (row.project.projectId ? [row.project.projectId] : [])),
+    { userId: null },
+  );
+
   return {
     ...team,
     avatarUrl: await resolveTeamAvatarUrl(team),
@@ -972,6 +928,7 @@ async function buildTeamPagePayload(team: TeamRow) {
             // The scraped slug, so the jam log can link to the jam's page
             // here rather than only off to itch.
             jamSlug: itchJamSlug,
+            game: (project.projectId ? games.get(project.projectId) : undefined) ?? null,
           });
         },
       ),

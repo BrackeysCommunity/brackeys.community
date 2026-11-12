@@ -2,6 +2,9 @@ import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  engineProjects,
+  engineReleaseChannels,
+  engineReleases,
   forumCategories,
   forumPosts,
   itchJamEntries,
@@ -24,15 +27,22 @@ const db: TestDb = await (async () => {
 vi.mock("@/db", () => ({ db }));
 
 let forumEnabled = false;
+let gamesEnabled = true;
 vi.mock("@/lib/posthog-server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/posthog-server")>()),
-  isServerFlagEnabled: async () => forumEnabled,
+  isServerFlagEnabled: async (flag: string) =>
+    flag === "engine-games-enabled" ? gamesEnabled : forumEnabled,
 }));
 
+const guard = vi.hoisted(() => ({ allowed: true }));
+vi.mock("@/lib/engine/guard", () => ({ engineGamesAllowed: () => guard.allowed }));
+
 let sitemap: typeof import("@/lib/sitemap");
+let games: typeof import("@/lib/og/game");
 
 beforeAll(async () => {
   sitemap = await import("@/lib/sitemap");
+  games = await import("@/lib/og/game");
 });
 
 async function seedJam(jamId: number, overrides: Partial<typeof itchJams.$inferInsert> = {}) {
@@ -172,6 +182,69 @@ describe("forum section", () => {
     expect(xml).toContain(`/forum/${live!.id}-how-do-i<`);
     expect(xml).not.toContain(`/forum/${hidden!.id}-`);
     expect(xml).not.toContain(`/forum/${draft!.id}-`);
+  });
+});
+
+describe("games section", () => {
+  async function seedGame(
+    projectId: string,
+    digit: string,
+    overrides: Partial<typeof engineProjects.$inferInsert> = {},
+  ) {
+    await db.insert(engineProjects).values({
+      projectId,
+      name: projectId,
+      visibility: "public",
+      publicApprovedAt: new Date(),
+      ...overrides,
+    });
+    await db.insert(engineReleases).values({
+      id: digit.repeat(64),
+      projectId,
+      version: 1,
+      manifest: "{}",
+      manifestBytes: 2,
+      totalBytes: 10,
+      fileCount: 1,
+      engineVersion: "0.14.1",
+      gameId: "tactics",
+      snapshot: "a".repeat(64),
+      buildHash: "b".repeat(64),
+      target: "web",
+    });
+    await db
+      .insert(engineReleaseChannels)
+      .values({ projectId, channel: "production", releaseId: digit.repeat(64) });
+  }
+
+  it("lists public, approved, playable games and nothing unlisted or private", async () => {
+    await seedGame("lantern", "1");
+    await seedGame("quiet", "2", { visibility: "unlisted" });
+    await seedGame("secret", "3", { visibility: "private" });
+    await seedGame("awaiting", "4", { publicApprovedAt: null });
+    await seedGame("hidden", "5", { hiddenAt: new Date() });
+
+    const urls = await games.gameSitemapUrls(0, sitemap.SITEMAP_PAGE_SIZE);
+
+    expect(urls.map((url) => url.path)).toEqual(["/games/lantern"]);
+    expect(await games.gameSitemapCount()).toBe(1);
+    expect(await sitemap.renderSitemapSection("games", 0)).toContain("/games/lantern<");
+  });
+
+  it("lists none on production, or while games are closed to signed-out visitors", async () => {
+    guard.allowed = false;
+    try {
+      expect(await games.gameSitemapUrls(0, sitemap.SITEMAP_PAGE_SIZE)).toEqual([]);
+      expect(await games.gameSitemapCount()).toBe(0);
+    } finally {
+      guard.allowed = true;
+    }
+    gamesEnabled = false;
+    try {
+      expect(await games.gameSitemapUrls(0, sitemap.SITEMAP_PAGE_SIZE)).toEqual([]);
+    } finally {
+      gamesEnabled = true;
+    }
   });
 });
 

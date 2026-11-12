@@ -1314,6 +1314,7 @@ declare const PROJECT_OP_NAMES: readonly [
     "moveAsset",
     "deleteAsset",
     "restoreAsset",
+    "purgeAsset",
     "changeAssetId",
     "setImport",
     "replaceContent",
@@ -1505,6 +1506,8 @@ type ProjectBatchCheck = {
     delegated: number[];
     issues: SceneIssue[];
     ok: true;
+    /** Keys of the trashed entries removed for good, with their hash history; a batch with any can't be undone. */
+    purged: AssetKey[];
     /** The batch changes the registry, so the project doc is written first. */
     registry: boolean;
     /** The scene docs among `written`, with the scene ops that reach each (a `changeAssetId`'s rewrites included). */
@@ -1714,6 +1717,9 @@ type ProjectOp = {
     id: AssetId;
     op: "editScene";
     ops: SceneOp[];
+} | {
+    id: AssetId;
+    op: "purgeAsset";
 } | {
     id: AssetId;
     op: "restoreAsset";
@@ -4263,6 +4269,10 @@ declare const projectOpBatchSchema: z.ZodObject<{
         z.ZodObject<{
             id: z.ZodString;
             op: z.ZodLiteral<"restoreAsset">;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            id: z.ZodString;
+            op: z.ZodLiteral<"purgeAsset">;
         }, z.core.$strict>,
         z.ZodObject<{
             id: z.ZodString;

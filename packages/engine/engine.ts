@@ -78,7 +78,7 @@ import { createPixiView, type PixiView } from "./render/pixi-view";
 import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
 import { loadListed } from "./runtime/flow";
-import { gamePersistCell, playClockOf } from "./runtime/persist";
+import { gamePersistCell, persistProblem, playClockOf } from "./runtime/persist";
 import {
   createSessionRecording,
   playWorld,
@@ -226,6 +226,7 @@ export async function createGame(
       if (!pausedWhileHidden) loop.resume();
       syncSim();
     },
+    failed: (backend) => events.emit("render:failed", { backend }),
     fallback: (reason) => {
       if (reason === "init") initFallback = true;
       else events.emit("render:fallback", { from: "webgpu", reason });
@@ -931,8 +932,20 @@ export async function createGame(
     return playRecorded(doc, opts);
   }
 
+  /** Starts from the recording's persistent value, as a headless replay does; a refused start keeps the value it had. */
   function replay(doc: SceneDefinition, recording: RunRecording): PlayReport {
-    return playRecorded(doc, recordingStart(recording.start, recording.seed), recording);
+    if (destroyed) return { ok: false, issues: [], error: "game destroyed" };
+    const recorded = recording.start.persist;
+    const before = recorded !== undefined ? persist.value : undefined;
+    if (recorded !== undefined) {
+      const problem = persistProblem(recorded, game?.persist?.schema);
+      if (problem)
+        return { ok: false, issues: [], error: `the recording's start.persist ${problem}` };
+      persist.set(recorded);
+    }
+    const report = playRecorded(doc, recordingStart(recording.start, recording.seed), recording);
+    if (!report.ok && before !== undefined) persist.set(before);
+    return report;
   }
 
   function stop(): void {

@@ -14,9 +14,14 @@
  *   pixel hash;
  * - tactics `itch` also plays under `/games/t/`, and no `itch` run registers
  *   a service worker;
+ * - tactics `web` also plays framed by `host-stub.html` (another origin)
+ *   with `?host=jams`: the stub must see one handshake, a `hello` naming
+ *   the build's release, `state` going to "ready", and no service worker
+ *   may register in the frame;
  * - Chromium only: each PWA build plays again offline once its service
  *   worker is activated, and the platformer, with `?renderer=webgl`, loses
- *   and gets back its WebGL context, then draws and plays again. Whether
+ *   and gets back its WebGL context (as the host mirrors it on the root
+ *   element's `data-jams-render`), then draws and plays again. Whether
  *   Pixi restored the context in place or the engine rebuilt the renderer
  *   is recorded as `pixiRestoredInPlace`.
  *
@@ -28,13 +33,13 @@
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { inflateSync } from "node:zlib";
 
-import type { Browser, BrowserContext, BrowserType, Locator, Page } from "playwright";
+import type { Browser, BrowserContext, BrowserType, Frame, Locator, Page } from "playwright";
 
 import {
   installCommand,
@@ -74,14 +79,14 @@ export const CONTEXT_LOSS_BUILD = "platformer-web";
 export const HOLD_MS = 1000;
 /** How long the context stays lost before `restoreContext()`: inside the engine's 3 s restore window. */
 export const RESTORE_AFTER_MS = 500;
-/** How long the lost overlay may take to go once the context is restored (or the renderer rebuilt). */
+/** How long `data-jams-render` may take to leave "lost" once the context is restored (or the renderer rebuilt). */
 export const RESTORE_TIMEOUT_MS = 15_000;
 /** One whole run in one browser: load, play, and for offline a second load. */
 export const RUN_TIMEOUT_MS = 3 * PAGE_TIMEOUT_MS;
 export const BUILD_TIMEOUT_MS = 10 * 60_000;
 export const BUNDLE_CHECK_TIMEOUT_MS = 2 * 60_000;
 
-export type RunKind = "play" | "offline" | "context-loss";
+export type RunKind = "play" | "offline" | "context-loss" | "host";
 
 export type PlannedRun = { build: string; mount: string; browser: BrowserName; kind: RunKind };
 
@@ -101,6 +106,28 @@ export function plannedRuns(
       runs.push({ build: CONTEXT_LOSS_BUILD, mount: "/", browser, kind: "context-loss" });
     return runs;
   });
+}
+
+/** The build the host run frames: it has a PWA, so the run shows a host keeps its worker off. */
+export const HOST_BUILD = "tactics-web";
+/** The stub page that frames a build with `?host=jams`, served from its own origin. */
+export const HOST_STUB_FILE = "host-stub.html";
+
+/** The host runs: `HOST_BUILD` framed by the stub, once in every browser. */
+export function hostRuns(
+  builds: readonly SmokeBuild[],
+  browsers: readonly BrowserName[],
+): PlannedRun[] {
+  if (!builds.some((b) => buildName(b) === HOST_BUILD)) return [];
+  return browsers.map((browser) => ({ build: HOST_BUILD, mount: "/", browser, kind: "host" }));
+}
+
+/** Every run, the host runs after each browser's others. */
+export function allRuns(
+  builds: readonly SmokeBuild[],
+  browsers: readonly BrowserName[],
+): PlannedRun[] {
+  return browsers.flatMap((b) => [...plannedRuns(builds, [b]), ...hostRuns(builds, [b])]);
 }
 
 // ─── Requests ────────────────────────────────────────────
@@ -309,16 +336,57 @@ export type PlayProbe =
 export type ContextLossProbe = {
   /** `WEBGL_lose_context` was there to call. */
   extension: boolean;
-  /** The lost overlay (`[data-jams-render-lost]`) showed: the shell saw `render:lost`. */
-  overlayShown: boolean;
-  /** The overlay went again: the shell reported `render:restored`. */
+  /** The host's `data-jams-render` on the root element went to "lost": the shell said `render:lost`. */
+  lost: boolean;
+  /** It left "lost" for "restored" or "rebuilt": the shell said `render:restored`. */
   restored: boolean;
   restoreMs: number | null;
-  /** The engine replaced the renderer (`[data-jams-renderer]`), rather than Pixi restoring in place. */
+  /** It says "rebuilt": the engine replaced the renderer, rather than Pixi restoring in place. */
   rebuilt: boolean;
   /** Distinct colours on the canvas after the restore. */
   colours: number;
 };
+
+/** What the root element's `data-jams-render` says about a restore: back at all, and on a new renderer. */
+export function renderRestore(state: string | undefined): { restored: boolean; rebuilt: boolean } {
+  return { restored: state === "restored" || state === "rebuilt", rebuilt: state === "rebuilt" };
+}
+
+/** What the stub host page saw from the frame it hosted. */
+export type HostProbe = {
+  /** `jams:frame-ready` messages from the frame. */
+  handshakes: number;
+  /** The frame's `hello` params, or null when it sent none. */
+  hello: { engine: string; release: string; game: string } | null;
+  /** Each `state` event's `jamsState`, in order. */
+  states: string[];
+  /** Each request's type, in order. */
+  requests: string[];
+  /** Messages the stub couldn't read. */
+  invalid: number;
+};
+
+/** Why the host run fails: the handshake, hello or the reported state went wrong. */
+export function judgeHost(probe: HostProbe | undefined, release: string | null): string[] {
+  if (!probe) return ["the host probe didn't run"];
+  const reasons: string[] = [];
+  if (probe.handshakes !== 1)
+    reasons.push(`the frame posted jams:frame-ready ${probe.handshakes} times, not once`);
+  if (!probe.hello) reasons.push("the frame never said hello over the host's port");
+  else if (release !== null && probe.hello.release !== release)
+    reasons.push(
+      `the frame's hello names release ${probe.hello.release}, not the build's ${release}`,
+    );
+  if (probe.states.includes("error"))
+    reasons.push('the frame reported jamsState "error" to the host');
+  else if (probe.states.at(-1) !== "ready")
+    reasons.push(
+      `the frame's last reported jamsState is ${probe.states.at(-1) ?? "none"}, not "ready"`,
+    );
+  if (probe.invalid > 0)
+    reasons.push(`the host couldn't read ${probe.invalid} of the frame's messages`);
+  return reasons;
+}
 
 export type RunOutcome = PlannedRun & {
   status: "pass" | "fail" | "skipped";
@@ -337,6 +405,7 @@ export type RunOutcome = PlannedRun & {
   play?: PlayProbe;
   contextLoss?: ContextLossProbe;
   layout?: PageLayout;
+  host?: HostProbe;
 };
 
 /** The page's box once ready, in CSS pixels. */
@@ -384,9 +453,12 @@ export type RunObservation = {
   playReason: string | null;
   contextLoss?: ContextLossProbe;
   layout?: PageLayout;
+  host?: HostProbe;
+  /** The release the build printed: what a host run's hello must name. */
+  release?: string | null;
 };
 
-/** Every reason a run fails, in a fixed order: requests, service worker, layout, context loss, play. */
+/** Every reason a run fails, in a fixed order: requests, service worker, layout, context loss, host, play. */
 export function judgeRun(kind: RunKind, o: RunObservation): string[] {
   const reasons: string[] = [];
   const { offOrigin, outsideMount } = checkRequests(o.requests, o.origin, o.mount);
@@ -394,6 +466,8 @@ export function judgeRun(kind: RunKind, o: RunObservation): string[] {
   if (outsideMount.length) reasons.push(`requests outside ${o.mount}: ${outsideMount.join(", ")}`);
   if (!o.pwa && o.serviceWorkers > 0)
     reasons.push(`${o.serviceWorkers} service worker(s) registered by a build without a PWA`);
+  if (kind === "host" && o.serviceWorkers > 0)
+    reasons.push(`${o.serviceWorkers} service worker(s) registered in a frame with a host`);
   const layout = o.layout ? judgeLayout(o.layout) : null;
   if (layout) reasons.push(layout);
   if (kind === "offline" && o.controlled !== true)
@@ -403,15 +477,17 @@ export function judgeRun(kind: RunKind, o: RunObservation): string[] {
     if (!c) reasons.push("the context-loss probe didn't run");
     else if (!c.extension) reasons.push("WEBGL_lose_context isn't available on the canvas");
     else {
-      if (!c.overlayShown) reasons.push("losing the context showed no lost overlay (render:lost)");
+      if (!c.lost)
+        reasons.push('losing the context never set data-jams-render to "lost" (render:lost)');
       if (!c.restored)
         reasons.push(
-          `the lost overlay stayed ${RESTORE_TIMEOUT_MS} ms after restoreContext() (no render:restored)`,
+          `data-jams-render didn't leave "lost" ${RESTORE_TIMEOUT_MS} ms after restoreContext() (no render:restored)`,
         );
       const flat = judgeDrawn(c.colours);
       if (flat) reasons.push(`after the restore, ${flat}`);
     }
   }
+  if (kind === "host") reasons.push(...judgeHost(o.host, o.release ?? null));
   if (o.playReason) reasons.push(o.playReason);
   return reasons;
 }
@@ -434,6 +510,7 @@ export function runOutcome(planned: PlannedRun, o: RunObservation, ms: number): 
     play: o.play,
     ...(o.contextLoss ? { contextLoss: o.contextLoss } : {}),
     ...(o.layout ? { layout: o.layout } : {}),
+    ...(o.host ? { host: o.host } : {}),
   };
 }
 
@@ -554,7 +631,7 @@ function pageErrors(page: Page): Promise<never> {
 }
 
 /** Waits for the standalone host's `ready`; its `error` throws with the page's refusal. */
-async function waitReady(page: Page): Promise<void> {
+async function waitReady(page: Frame): Promise<void> {
   const handle = await page.waitForFunction(
     () => {
       const state = document.documentElement.dataset.jamsState;
@@ -573,7 +650,7 @@ async function waitReady(page: Page): Promise<void> {
 }
 
 /** The page's box once ready: the window, what it scrolls over and the canvas's rect. */
-function pageLayout(page: Page): Promise<PageLayout> {
+function pageLayout(page: Frame): Promise<PageLayout> {
   return page.evaluate(() => {
     const doc = document.documentElement;
     const rect = document.querySelector("#game canvas")?.getBoundingClientRect();
@@ -590,7 +667,7 @@ function pageLayout(page: Page): Promise<PageLayout> {
 }
 
 /** Two frames and a beat, so what the canvas shows is what the game last drew. */
-async function settle(page: Page): Promise<void> {
+async function settle(page: Frame): Promise<void> {
   await page.evaluate(
     () =>
       new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
@@ -599,11 +676,11 @@ async function settle(page: Page): Promise<void> {
 }
 
 /** The game's canvas as it shows on the page, overlays and a rebuilt renderer's stand-in included. */
-async function canvasImage(page: Page): Promise<Image> {
+async function canvasImage(page: Frame): Promise<Image> {
   return decodePng(await page.locator("#game canvas").first().screenshot({ animations: "allow" }));
 }
 
-async function serviceWorkerCount(page: Page): Promise<number> {
+async function serviceWorkerCount(page: Frame): Promise<number> {
   return page.evaluate(async () =>
     "serviceWorker" in navigator ? (await navigator.serviceWorker.getRegistrations()).length : 0,
   );
@@ -633,14 +710,21 @@ async function clickCentre(page: Page, target: Locator): Promise<void> {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
-async function playPlatformer(page: Page): Promise<{ probe: PlayProbe; reason: string | null }> {
-  await settle(page);
-  const before = await canvasImage(page);
+/**
+ * The game is played in `frame`: the page's main frame, or the build's
+ * iframe under the host stub. Mouse and keyboard go through `page`.
+ */
+async function playPlatformer(
+  page: Page,
+  frame: Frame,
+): Promise<{ probe: PlayProbe; reason: string | null }> {
+  await settle(frame);
+  const before = await canvasImage(frame);
   await page.keyboard.down("ArrowRight");
   await page.waitForTimeout(HOLD_MS);
   await page.keyboard.up("ArrowRight");
-  await settle(page);
-  const after = await canvasImage(page);
+  await settle(frame);
+  const after = await canvasImage(frame);
   const probe: PlayProbe = {
     game: "platformer",
     before: pixelHash(before),
@@ -654,7 +738,7 @@ async function playPlatformer(page: Page): Promise<{ probe: PlayProbe; reason: s
 }
 
 /** The highlighted cells of `kind` and whether a click at each centre lands on the canvas. */
-function highlighted(page: Page, kind: string): Promise<CellTarget[]> {
+function highlighted(page: Frame, kind: string): Promise<CellTarget[]> {
   return page.locator(`[data-highlight="${kind}"][data-cell]`).evaluateAll((els) =>
     els.map((el) => {
       const box = el.getBoundingClientRect();
@@ -667,7 +751,7 @@ function highlighted(page: Page, kind: string): Promise<CellTarget[]> {
   );
 }
 
-const hudMode = (page: Page, mode: string) =>
+const hudMode = (page: Frame, mode: string) =>
   page.waitForFunction(
     (want) => document.querySelector<HTMLElement>(".tactics-hud")?.dataset.mode === want,
     mode,
@@ -694,24 +778,27 @@ async function clickControl(target: Locator, label: string): Promise<void> {
   await target.click();
 }
 
-async function playTactics(page: Page): Promise<{ probe: PlayProbe; reason: string | null }> {
-  await clickControl(page.getByRole("button", { name: "Start", exact: true }), "Start");
-  const cursor = page.locator('[data-highlight="cursor"][data-cell]').first();
+async function playTactics(
+  page: Page,
+  frame: Frame,
+): Promise<{ probe: PlayProbe; reason: string | null }> {
+  await clickControl(frame.getByRole("button", { name: "Start", exact: true }), "Start");
+  const cursor = frame.locator('[data-highlight="cursor"][data-cell]').first();
   await cursor.waitFor({ state: "attached" });
-  await hudMode(page, "idle");
-  const [unitCell] = await highlighted(page, "cursor");
+  await hudMode(frame, "idle");
+  const [unitCell] = await highlighted(frame, "cursor");
   if (!unitCell) throw new Error("the HUD shows no cursor cell after Start");
   if (!unitCell.clear) throw new Error(`a HUD panel covers the first unit's cell ${unitCell.cell}`);
   await clickCentre(page, cursor);
-  await hudMode(page, "selected");
-  const card = page.locator(".tactics-hud-card");
+  await hudMode(frame, "selected");
+  const card = frame.locator(".tactics-hud-card");
   const unit = (await card.getAttribute("data-unit")) ?? "";
-  const to = pickReachCell(unitCell.cell, await highlighted(page, "reach"));
+  const to = pickReachCell(unitCell.cell, await highlighted(frame, "reach"));
   if (!to) throw new Error(`no clear reachable cell for ${unit || "the unit"} at ${unitCell.cell}`);
-  await clickCentre(page, page.locator(`[data-highlight="reach"][data-cell="${to}"]`).first());
-  await hudMode(page, "target");
-  await clickCentre(page, page.locator(`[data-highlight="target"][data-cell="${to}"]`).first());
-  const status = await page
+  await clickCentre(page, frame.locator(`[data-highlight="reach"][data-cell="${to}"]`).first());
+  await hudMode(frame, "target");
+  await clickCentre(page, frame.locator(`[data-highlight="target"][data-cell="${to}"]`).first());
+  const status = await frame
     .waitForFunction(
       (id) => {
         const el = document.querySelector<HTMLElement>(".tactics-hud-card");
@@ -727,13 +814,13 @@ async function playTactics(page: Page): Promise<{ probe: PlayProbe; reason: stri
   return { probe: { game: "tactics", unit, from: unitCell.cell, to, status }, reason: null };
 }
 
-const play = (page: Page, game: SmokeGame) =>
-  game === "tactics" ? playTactics(page) : playPlatformer(page);
+const play = (page: Page, frame: Frame, game: SmokeGame) =>
+  game === "tactics" ? playTactics(page, frame) : playPlatformer(page, frame);
 
 type LoseHandle = { loseContext(): void; restoreContext(): void };
 
 async function loseAndRestore(page: Page): Promise<ContextLossProbe> {
-  await settle(page);
+  await settle(page.mainFrame());
   const extension = await page.evaluate(() => {
     const canvas = document.querySelector<HTMLCanvasElement>("#game canvas");
     const gl = canvas?.getContext("webgl2") ?? canvas?.getContext("webgl") ?? null;
@@ -744,16 +831,17 @@ async function loseAndRestore(page: Page): Promise<ContextLossProbe> {
   });
   const none: ContextLossProbe = {
     extension,
-    overlayShown: false,
+    lost: false,
     restored: false,
     restoreMs: null,
     rebuilt: false,
     colours: 0,
   };
   if (!extension) return none;
-  const overlay = page.locator("[data-jams-render-lost]");
-  const overlayShown = await overlay
-    .waitFor({ state: "attached", timeout: 5000 })
+  const lost = await page
+    .waitForFunction(() => document.documentElement.dataset.jamsRender === "lost", undefined, {
+      timeout: 5000,
+    })
     .then(() => true)
     .catch(() => false);
   await page.waitForTimeout(RESTORE_AFTER_MS);
@@ -761,31 +849,72 @@ async function loseAndRestore(page: Page): Promise<ContextLossProbe> {
   await page.evaluate(() =>
     (window as unknown as { __exportSmokeLose: LoseHandle }).__exportSmokeLose.restoreContext(),
   );
-  const restored = await overlay
-    .waitFor({ state: "detached", timeout: RESTORE_TIMEOUT_MS })
-    .then(() => true)
-    .catch(() => false);
+  const back = await page
+    .waitForFunction(() => document.documentElement.dataset.jamsRender !== "lost", undefined, {
+      timeout: RESTORE_TIMEOUT_MS,
+    })
+    .then(() => page.evaluate(() => document.documentElement.dataset.jamsRender))
+    .catch(() => undefined);
+  const { restored, rebuilt } = renderRestore(back);
   const restoreMs = restored ? Math.round(performance.now() - started) : null;
-  const rebuilt = (await page.locator("[data-jams-renderer]").count()) > 0;
-  await settle(page);
+  await settle(page.mainFrame());
   return {
     ...none,
-    overlayShown,
+    lost,
     restored,
     restoreMs,
     rebuilt,
-    colours: distinctColours(await canvasImage(page)),
+    colours: distinctColours(await canvasImage(page.mainFrame())),
   };
 }
 
-type Served = { build: SmokeBuild; mount: string; server: StaticServer };
+type Served = { build: SmokeBuild; mount: string; server: StaticServer; release: string | null };
 
-async function runOne(browser: Browser, planned: PlannedRun, served: Served): Promise<RunOutcome> {
+/** The stub's page URL framing `frame`. */
+const stubUrl = (stub: StaticServer, frame: string) =>
+  `${stub.url}${HOST_STUB_FILE}?frame=${encodeURIComponent(frame)}`;
+
+/** Opens the stub framing the build and hands back the build's frame once it is attached. */
+async function openHosted(page: Page, stub: StaticServer, build: string): Promise<Frame> {
+  await page.goto(stubUrl(stub, build));
+  const frame = await (await page.waitForSelector("iframe#frame")).contentFrame();
+  if (!frame) throw new Error("the host stub's iframe has no frame");
+  return frame;
+}
+
+/** What the stub recorded, without its `send`. */
+function hostProbe(page: Page): Promise<HostProbe> {
+  return page.evaluate(() => {
+    const r = (window as unknown as { __hostStub?: HostProbe }).__hostStub;
+    return r
+      ? {
+          handshakes: r.handshakes,
+          hello: r.hello,
+          states: [...r.states],
+          requests: [...r.requests],
+          invalid: r.invalid,
+        }
+      : { handshakes: 0, hello: null, states: [], requests: [], invalid: 0 };
+  });
+}
+
+async function runOne(
+  browser: Browser,
+  planned: PlannedRun,
+  served: Served,
+  stub: StaticServer | null,
+): Promise<RunOutcome> {
   const started = performance.now();
   const context: BrowserContext = await browser.newContext({ serviceWorkers: "allow" });
   const requests: string[] = [];
   const failed: string[] = [];
-  context.on("request", (r) => requests.push(r.url()));
+  // The stub page is the run's own parent, not a request the build made.
+  const own = (url: string) =>
+    stub !== null &&
+    (url.startsWith(`${stub.url}${HOST_STUB_FILE}`) || url === `${stub.origin}/favicon.ico`);
+  context.on("request", (r) => {
+    if (!own(r.url())) requests.push(r.url());
+  });
   context.on("requestfailed", (r) =>
     failed.push(`${r.url()} (${r.failure()?.errorText ?? "failed"})`),
   );
@@ -797,21 +926,28 @@ async function runOne(browser: Browser, planned: PlannedRun, served: Served): Pr
     page.setDefaultTimeout(PAGE_TIMEOUT_MS);
     const errors = pageErrors(page);
     const work = async (): Promise<RunObservation> => {
-      const query = planned.kind === "context-loss" ? "?renderer=webgl" : "";
-      await page.goto(`${served.server.url}${query}`);
-      await waitReady(page);
-      const layout = await pageLayout(page);
+      let frame = page.mainFrame();
+      if (planned.kind === "host") {
+        if (!stub) throw new Error("no host stub is served");
+        frame = await openHosted(page, stub, served.server.url);
+      } else {
+        const query = planned.kind === "context-loss" ? "?renderer=webgl" : "";
+        await page.goto(`${served.server.url}${query}`);
+      }
+      await waitReady(frame);
+      const layout = await pageLayout(frame);
       let controlled: boolean | undefined;
       if (planned.kind === "offline") {
         await waitActivated(page);
         await context.setOffline(true);
         await page.reload();
-        await waitReady(page);
+        await waitReady(frame);
         controlled = await page.evaluate(() => navigator.serviceWorker.controller !== null);
       }
       const contextLoss = planned.kind === "context-loss" ? await loseAndRestore(page) : undefined;
-      const serviceWorkers = await serviceWorkerCount(page);
-      const played = await play(page, served.build.game);
+      const serviceWorkers = await serviceWorkerCount(frame);
+      const played = await play(page, frame, served.build.game);
+      const host = planned.kind === "host" ? await hostProbe(page) : undefined;
       return {
         requests,
         failed,
@@ -824,6 +960,7 @@ async function runOne(browser: Browser, planned: PlannedRun, served: Served): Pr
         playReason: played.reason,
         ...(contextLoss ? { contextLoss } : {}),
         layout,
+        ...(host ? { host, release: served.release } : {}),
       };
     };
     const observed = await withTimeout(
@@ -888,11 +1025,17 @@ async function main(): Promise<number> {
     });
   }
 
-  const planned = plannedRuns(SMOKE_BUILDS, browsers);
+  const planned = allRuns(SMOKE_BUILDS, browsers);
   const builds: BuildOutcome[] = [];
   const runs: RunOutcome[] = [];
   let error: string | undefined;
+  let stub: StaticServer | null = null;
   try {
+    const stubDir = join(tmp, "host-stub");
+    mkdirSync(stubDir);
+    copyFileSync(join(REPO, "scripts/engine-smoke", HOST_STUB_FILE), join(stubDir, HOST_STUB_FILE));
+    stub = await serveStatic({ dir: stubDir });
+    servers.push(stub);
     const served = new Map<string, Served>();
     for (const b of SMOKE_BUILDS) {
       const name = buildName(b);
@@ -919,7 +1062,7 @@ async function main(): Promise<number> {
       for (const mount of b.mounts) {
         const server = await serveStatic({ dir: out, mount });
         servers.push(server);
-        served.set(`${name} ${mount}`, { build: b, mount, server });
+        served.set(`${name} ${mount}`, { build: b, mount, server, release: built.release });
         console.log(`serving ${name} at ${server.url}`);
       }
     }
@@ -939,7 +1082,7 @@ async function main(): Promise<number> {
         for (const p of mine) {
           const target = served.get(`${p.build} ${p.mount}`);
           if (!target) throw new Error(`nothing serves ${p.build} at ${p.mount}`);
-          const outcome = await runOne(browser, p, target);
+          const outcome = await runOne(browser, p, target, p.kind === "host" ? stub : null);
           runs.push(outcome);
           const extra = outcome.contextLoss
             ? `; ${outcome.contextLoss.rebuilt ? "rebuilt" : "restored in place"}`

@@ -19,6 +19,11 @@ import {
 import { useCanvasesOn } from "@/components/canvas/use-canvases-on";
 import { CollabFunnelExplainer } from "@/components/collab/CollabFunnelExplainer";
 import { TeamDevlog } from "@/components/forum/TeamDevlog";
+import {
+  PlayButton,
+  playableGame,
+  type PlayableGame,
+} from "@/components/projects/ProjectPage/PlayButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Chonk } from "@/components/ui/chonk";
@@ -128,6 +133,8 @@ export interface TeamProject {
   result: string | null;
   participatedAt: string | Date | null;
   addedBy: string | null;
+  /** The engine game linked to this placement's project. */
+  game?: PlayableGame | null;
 }
 
 const MAX_STACK_CHIPS = 12;
@@ -741,11 +748,32 @@ function Section({
 }
 
 /**
- * A showcase entry. Linked projects are `Chonk` tiles like the directory's
- * — the whole tile is the destination; an entry with no link stays a
- * debossed `Well`, since there is nothing to press.
+ * A showcase entry, with a Play button over the cover when its project's
+ * game is playable here. The button sits beside the tile rather than in it,
+ * since a link can't nest inside the tile's link.
  */
-function ShowcaseCard({ project }: { project: TeamProject }) {
+export function ShowcaseCard({ project }: { project: TeamProject }) {
+  const game = playableGame(project.game);
+  if (!game) return <ShowcaseTile project={project} />;
+  return (
+    <div className="relative h-full">
+      <ShowcaseTile project={project} />
+      <PlayButton
+        game={game}
+        label="PLAY"
+        size="xs"
+        className="absolute top-2 right-2 tracking-widest"
+      />
+    </div>
+  );
+}
+
+/**
+ * Linked projects are `Chonk` tiles like the directory's — the whole tile
+ * is the destination; an entry with no link stays a debossed `Well`, since
+ * there is nothing to press.
+ */
+function ShowcaseTile({ project }: { project: TeamProject }) {
   const body = (
     <>
       <span className="relative block h-32 w-full overflow-hidden border-b border-muted/40 bg-muted/20">

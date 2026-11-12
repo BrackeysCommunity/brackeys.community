@@ -63,7 +63,8 @@ import {
   seedProjectState,
 } from "@/lib/scene/project-bytes";
 
-import { checkQuota, storedProjectUsage, type QuotaExceeded } from "./quota";
+import { checkQuota, type QuotaExceeded } from "./quota";
+import { storedProjectUsage } from "./usage";
 
 /** What is wrong with one file of a bundle (or the bundle itself, at path ""). */
 export type BundleProblem = { path: AssetPath; issues: SceneIssue[] };

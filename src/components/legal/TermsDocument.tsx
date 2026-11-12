@@ -1,4 +1,15 @@
 import { DiscordInviteLink } from "@/components/ui/discord-invite-link";
+import { engineGamesAllowed } from "@/lib/engine/guard";
+import {
+  BLOB_GRACE_DAYS,
+  PROJECT_PURGE_DAYS,
+  PROJECT_QUOTA,
+  RELEASE_GRACE_DAYS,
+  SITE_SAVE_ACCOUNT_BYTES,
+  SITE_SAVE_EXPIRY_DAYS,
+  SITE_SAVE_LIMITS,
+} from "@/lib/engine/limits";
+import { formatBytes, formatCount } from "@/lib/format-bytes";
 import { CONTACT, OPERATOR, SITE } from "@/lib/legal-meta";
 
 import { LegalDocument, type LegalSection } from "./LegalDocument";
@@ -737,6 +748,75 @@ const SECTIONS: LegalSection[] = [
   },
 ];
 
+/**
+ * Hosted games, shown only where the site hosts them. Lifting the production
+ * guard publishes this section, so that change also bumps `EFFECTIVE_DATE`
+ * and `LAST_UPDATED`.
+ */
+const GAMES_SECTION: LegalSection = {
+  id: "games",
+  heading: "Games you publish and play",
+  body: (
+    <>
+      <p>
+        <strong>Publishing a game.</strong> A game you publish on {SITE.name}, its code, art, sound
+        and data, is Your Content. The license in "Your Content and the license you grant" includes
+        storing it, serving its files, and running its code in the browsers of people who open it,
+        at the visibility you choose (private, team, unlisted or public), and, for public games,
+        showing it on its project, team and jam pages. You are responsible for what your game does:
+        it must not try to escape its sandbox, attack its players or the Service, collect players'
+        information without telling them, or send data anywhere other than the sites you list under
+        "Connects to".
+      </p>
+      <p>
+        <strong>Limits.</strong> Each game has fixed limits, shown in the editor before you reach
+        them: {formatBytes(PROJECT_QUOTA.releaseBytes)} per release,{" "}
+        {formatBytes(PROJECT_QUOTA.releaseStorageBytes)} for all of its releases,{" "}
+        {formatBytes(PROJECT_QUOTA.assetBytes)} of assets and {formatCount(PROJECT_QUOTA.docs)}{" "}
+        documents. Uploads past a limit are refused.
+      </p>
+      <p>
+        <strong>Cleanup.</strong> We keep each game's {formatCount(PROJECT_QUOTA.releasesKept)}{" "}
+        newest releases and every release that is live or marked as a jam version. Other releases
+        are deleted {formatCount(RELEASE_GRACE_DAYS)} days after they were published; replaced
+        versions of assets are deleted {formatCount(BLOB_GRACE_DAYS)} days after they were replaced
+        unless a kept release uses them; assets in the trash stay until you empty it; a deleted game
+        is erased {formatCount(PROJECT_PURGE_DAYS)} days after deletion. The Service is not a backup
+        service: keep your own copies of your game.
+      </p>
+      <p>
+        <strong>Saves.</strong> Players who sign in can keep up to{" "}
+        {formatCount(SITE_SAVE_LIMITS.maxSlots)} saves of {formatBytes(SITE_SAVE_LIMITS.maxBytes)}{" "}
+        per game on {SITE.name}, {formatBytes(SITE_SAVE_ACCOUNT_BYTES)} in all; a save not used for{" "}
+        {formatCount(SITE_SAVE_EXPIRY_DAYS)} days is deleted, and saves are deleted with the
+        player's account. Saves made while signed out stay in the player's browser. A game that
+        saves to its own servers is responsible for those saves; we neither store nor control them.
+      </p>
+      <p>
+        <strong>Moderation.</strong> Images in games are scanned automatically; a game's first
+        public release is reviewed by staff. Members may report a game, and we may hide a release or
+        a game that breaches these Terms or the community rules, as set out in the section on
+        moderation. You may appeal to{" "}
+        <a href={`mailto:${CONTACT.abuse}`} className={A}>
+          {CONTACT.abuse}
+        </a>
+        .
+      </p>
+      <p>
+        <strong>Jam versions.</strong> A release you mark as your submission to a jam can be changed
+        until the jam's submission deadline and is kept as long as it is marked.
+      </p>
+    </>
+  ),
+};
+
+/** The sections in order, the games section after the jams one where the site hosts games. */
+function termsSections(): LegalSection[] {
+  if (!engineGamesAllowed()) return SECTIONS;
+  const at = SECTIONS.findIndex((section) => section.id === "jams") + 1;
+  return [...SECTIONS.slice(0, at), GAMES_SECTION, ...SECTIONS.slice(at)];
+}
+
 export function TermsDocument() {
   return (
     <LegalDocument
@@ -752,7 +832,7 @@ export function TermsDocument() {
           accounts, and you may appeal. The site is run by volunteers and comes with no warranty.
         </>
       }
-      sections={SECTIONS}
+      sections={termsSections()}
     />
   );
 }

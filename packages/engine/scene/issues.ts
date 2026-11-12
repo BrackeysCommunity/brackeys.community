@@ -334,7 +334,8 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
   },
   "quota-exceeded": {
     severity: "error",
-    summary: "The project is out of room for what the op adds.",
+    summary:
+      "The project is out of room for what the op adds. `detail.limit` names the quota (a hosted project's are assetBytes, docs, docBytes, releaseBytes, releaseFiles, releaseFileBytes, releaseStorageBytes, jamPins and releasesPerDay), with `used` and `max`.",
     hint: "The message names the limit; empty the trash or remove unused assets, then retry.",
     fixable: false,
   },
@@ -343,6 +344,25 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     summary:
       "A new project's id is already a discovered project's, or its directory already exists.",
     hint: "Pick another id, or remove the existing project's directory.",
+    fixable: false,
+  },
+  "asset-not-trashed": {
+    severity: "error",
+    summary: "Only a trashed asset can be deleted for good, and this one isn't in the trash.",
+    hint: "Trash it with deleteAsset first; a purge can't be undone, so check nothing still needs it.",
+    fixable: false,
+  },
+  "release-immutable": {
+    severity: "error",
+    summary: "The change would alter a published release, or acts on one whose files were removed.",
+    hint: "Publish a new version instead; a removed release keeps its record but not its files.",
+    fixable: false,
+  },
+  "release-forbidden": {
+    severity: "error",
+    summary:
+      "The caller may not do this to the release: their role, an agent token on production, a hidden release, or a site that doesn't host games.",
+    hint: "Ask one of the game's publishers, or move production by a person on the game's page.",
     fixable: false,
   },
   "binding-unknown": {

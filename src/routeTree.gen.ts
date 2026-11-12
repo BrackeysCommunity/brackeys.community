@@ -53,7 +53,10 @@ import { Route as JamsJamSlugRouteImport } from './routes/jams_.$jamSlug'
 import { Route as JamsCalendarRouteImport } from './routes/jams.calendar'
 import { Route as JamsArchiveRouteImport } from './routes/jams.archive'
 import { Route as ImagesSplatRouteImport } from './routes/images.$'
+import { Route as GamesProjectIdRouteImport } from './routes/games.$projectId'
 import { Route as GameRoomIdRouteImport } from './routes/game/$roomId'
+import { Route as FramesSplatRouteImport } from './routes/frames.$'
+import { Route as FramesPrivateSplatRouteImport } from './routes/frames-private.$'
 import { Route as ForumFeedDotxmlRouteImport } from './routes/forum_.feed[.]xml'
 import { Route as ForumPostIdRouteImport } from './routes/forum.$postId'
 import { Route as CollabNewRouteImport } from './routes/collab.new'
@@ -76,7 +79,10 @@ import { Route as ApiNotificationsStreamRouteImport } from './routes/api.notific
 import { Route as ApiForumStreamRouteImport } from './routes/api.forum.stream'
 import { Route as ApiDiscordMemberSyncRouteImport } from './routes/api.discord.member-sync'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as GamesProjectIdPlayIndexRouteImport } from './routes/games_.$projectId.play.index'
 import { Route as OauthGitlabProviderIdCallbackRouteImport } from './routes/oauth.gitlab.$providerId.callback'
+import { Route as GamesProjectIdPlayVersionRouteImport } from './routes/games_.$projectId.play.$version'
+import { Route as GamesProjectIdEmbedVersionRouteImport } from './routes/games_.$projectId.embed.$version'
 import { Route as ApiPublicRpcSplatRouteImport } from './routes/api.public.rpc.$'
 
 const TermsRoute = TermsRouteImport.update({
@@ -299,10 +305,25 @@ const ImagesSplatRoute = ImagesSplatRouteImport.update({
   path: '/images/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GamesProjectIdRoute = GamesProjectIdRouteImport.update({
+  id: '/games/$projectId',
+  path: '/games/$projectId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GameRoomIdRoute = GameRoomIdRouteImport.update({
   id: '/$roomId',
   path: '/$roomId',
   getParentRoute: () => GameRoute,
+} as any)
+const FramesSplatRoute = FramesSplatRouteImport.update({
+  id: '/frames/$',
+  path: '/frames/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FramesPrivateSplatRoute = FramesPrivateSplatRouteImport.update({
+  id: '/frames-private/$',
+  path: '/frames-private/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ForumFeedDotxmlRoute = ForumFeedDotxmlRouteImport.update({
   id: '/forum_/feed.xml',
@@ -414,10 +435,27 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GamesProjectIdPlayIndexRoute = GamesProjectIdPlayIndexRouteImport.update({
+  id: '/games_/$projectId/play/',
+  path: '/games/$projectId/play/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OauthGitlabProviderIdCallbackRoute =
   OauthGitlabProviderIdCallbackRouteImport.update({
     id: '/oauth/gitlab/$providerId/callback',
     path: '/oauth/gitlab/$providerId/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const GamesProjectIdPlayVersionRoute =
+  GamesProjectIdPlayVersionRouteImport.update({
+    id: '/games_/$projectId/play/$version',
+    path: '/games/$projectId/play/$version',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const GamesProjectIdEmbedVersionRoute =
+  GamesProjectIdEmbedVersionRouteImport.update({
+    id: '/games_/$projectId/embed/$version',
+    path: '/games/$projectId/embed/$version',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicRpcSplatRoute = ApiPublicRpcSplatRouteImport.update({
@@ -458,7 +496,10 @@ export interface FileRoutesByFullPath {
   '/collab/new': typeof CollabNewRoute
   '/forum/$postId': typeof ForumPostIdRoute
   '/forum/feed.xml': typeof ForumFeedDotxmlRoute
+  '/frames-private/$': typeof FramesPrivateSplatRoute
+  '/frames/$': typeof FramesSplatRoute
   '/game/$roomId': typeof GameRoomIdRoute
+  '/games/$projectId': typeof GamesProjectIdRoute
   '/images/$': typeof ImagesSplatRoute
   '/jams/archive': typeof JamsArchiveRoute
   '/jams/calendar': typeof JamsCalendarRoute
@@ -495,7 +536,10 @@ export interface FileRoutesByFullPath {
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
   '/teams/$teamId/devlog.xml': typeof TeamsTeamIdDevlogDotxmlRoute
   '/api/public/rpc/$': typeof ApiPublicRpcSplatRoute
+  '/games/$projectId/embed/$version': typeof GamesProjectIdEmbedVersionRoute
+  '/games/$projectId/play/$version': typeof GamesProjectIdPlayVersionRoute
   '/oauth/gitlab/$providerId/callback': typeof OauthGitlabProviderIdCallbackRoute
+  '/games/$projectId/play/': typeof GamesProjectIdPlayIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -520,7 +564,10 @@ export interface FileRoutesByTo {
   '/collab/new': typeof CollabNewRoute
   '/forum/$postId': typeof ForumPostIdRoute
   '/forum/feed.xml': typeof ForumFeedDotxmlRoute
+  '/frames-private/$': typeof FramesPrivateSplatRoute
+  '/frames/$': typeof FramesSplatRoute
   '/game/$roomId': typeof GameRoomIdRoute
+  '/games/$projectId': typeof GamesProjectIdRoute
   '/images/$': typeof ImagesSplatRoute
   '/jams/archive': typeof JamsArchiveRoute
   '/jams/calendar': typeof JamsCalendarRoute
@@ -557,7 +604,10 @@ export interface FileRoutesByTo {
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
   '/teams/$teamId/devlog.xml': typeof TeamsTeamIdDevlogDotxmlRoute
   '/api/public/rpc/$': typeof ApiPublicRpcSplatRoute
+  '/games/$projectId/embed/$version': typeof GamesProjectIdEmbedVersionRoute
+  '/games/$projectId/play/$version': typeof GamesProjectIdPlayVersionRoute
   '/oauth/gitlab/$providerId/callback': typeof OauthGitlabProviderIdCallbackRoute
+  '/games/$projectId/play': typeof GamesProjectIdPlayIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -592,7 +642,10 @@ export interface FileRoutesById {
   '/collab/new': typeof CollabNewRoute
   '/forum/$postId': typeof ForumPostIdRoute
   '/forum_/feed.xml': typeof ForumFeedDotxmlRoute
+  '/frames-private/$': typeof FramesPrivateSplatRoute
+  '/frames/$': typeof FramesSplatRoute
   '/game/$roomId': typeof GameRoomIdRoute
+  '/games/$projectId': typeof GamesProjectIdRoute
   '/images/$': typeof ImagesSplatRoute
   '/jams/archive': typeof JamsArchiveRoute
   '/jams/calendar': typeof JamsCalendarRoute
@@ -629,7 +682,10 @@ export interface FileRoutesById {
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
   '/teams_/$teamId/devlog.xml': typeof TeamsTeamIdDevlogDotxmlRoute
   '/api/public/rpc/$': typeof ApiPublicRpcSplatRoute
+  '/games_/$projectId/embed/$version': typeof GamesProjectIdEmbedVersionRoute
+  '/games_/$projectId/play/$version': typeof GamesProjectIdPlayVersionRoute
   '/oauth/gitlab/$providerId/callback': typeof OauthGitlabProviderIdCallbackRoute
+  '/games_/$projectId/play/': typeof GamesProjectIdPlayIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -665,7 +721,10 @@ export interface FileRouteTypes {
     | '/collab/new'
     | '/forum/$postId'
     | '/forum/feed.xml'
+    | '/frames-private/$'
+    | '/frames/$'
     | '/game/$roomId'
+    | '/games/$projectId'
     | '/images/$'
     | '/jams/archive'
     | '/jams/calendar'
@@ -702,7 +761,10 @@ export interface FileRouteTypes {
     | '/projects/game/$gameId'
     | '/teams/$teamId/devlog.xml'
     | '/api/public/rpc/$'
+    | '/games/$projectId/embed/$version'
+    | '/games/$projectId/play/$version'
     | '/oauth/gitlab/$providerId/callback'
+    | '/games/$projectId/play/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -727,7 +789,10 @@ export interface FileRouteTypes {
     | '/collab/new'
     | '/forum/$postId'
     | '/forum/feed.xml'
+    | '/frames-private/$'
+    | '/frames/$'
     | '/game/$roomId'
+    | '/games/$projectId'
     | '/images/$'
     | '/jams/archive'
     | '/jams/calendar'
@@ -764,7 +829,10 @@ export interface FileRouteTypes {
     | '/projects/game/$gameId'
     | '/teams/$teamId/devlog.xml'
     | '/api/public/rpc/$'
+    | '/games/$projectId/embed/$version'
+    | '/games/$projectId/play/$version'
     | '/oauth/gitlab/$providerId/callback'
+    | '/games/$projectId/play'
   id:
     | '__root__'
     | '/'
@@ -798,7 +866,10 @@ export interface FileRouteTypes {
     | '/collab/new'
     | '/forum/$postId'
     | '/forum_/feed.xml'
+    | '/frames-private/$'
+    | '/frames/$'
     | '/game/$roomId'
+    | '/games/$projectId'
     | '/images/$'
     | '/jams/archive'
     | '/jams/calendar'
@@ -835,7 +906,10 @@ export interface FileRouteTypes {
     | '/projects/game/$gameId'
     | '/teams_/$teamId/devlog.xml'
     | '/api/public/rpc/$'
+    | '/games_/$projectId/embed/$version'
+    | '/games_/$projectId/play/$version'
     | '/oauth/gitlab/$providerId/callback'
+    | '/games_/$projectId/play/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -865,6 +939,9 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   AuthErrorRoute: typeof AuthErrorRoute
   ForumFeedDotxmlRoute: typeof ForumFeedDotxmlRoute
+  FramesPrivateSplatRoute: typeof FramesPrivateSplatRoute
+  FramesSplatRoute: typeof FramesSplatRoute
+  GamesProjectIdRoute: typeof GamesProjectIdRoute
   ImagesSplatRoute: typeof ImagesSplatRoute
   JamsJamSlugRoute: typeof JamsJamSlugRoute
   OgSplatRoute: typeof OgSplatRoute
@@ -881,7 +958,10 @@ export interface RootRouteChildren {
   ProjectsGameGameIdRoute: typeof ProjectsGameGameIdRoute
   TeamsTeamIdDevlogDotxmlRoute: typeof TeamsTeamIdDevlogDotxmlRoute
   ApiPublicRpcSplatRoute: typeof ApiPublicRpcSplatRoute
+  GamesProjectIdEmbedVersionRoute: typeof GamesProjectIdEmbedVersionRoute
+  GamesProjectIdPlayVersionRoute: typeof GamesProjectIdPlayVersionRoute
   OauthGitlabProviderIdCallbackRoute: typeof OauthGitlabProviderIdCallbackRoute
+  GamesProjectIdPlayIndexRoute: typeof GamesProjectIdPlayIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1194,12 +1274,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ImagesSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/games/$projectId': {
+      id: '/games/$projectId'
+      path: '/games/$projectId'
+      fullPath: '/games/$projectId'
+      preLoaderRoute: typeof GamesProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/game/$roomId': {
       id: '/game/$roomId'
       path: '/$roomId'
       fullPath: '/game/$roomId'
       preLoaderRoute: typeof GameRoomIdRouteImport
       parentRoute: typeof GameRoute
+    }
+    '/frames/$': {
+      id: '/frames/$'
+      path: '/frames/$'
+      fullPath: '/frames/$'
+      preLoaderRoute: typeof FramesSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/frames-private/$': {
+      id: '/frames-private/$'
+      path: '/frames-private/$'
+      fullPath: '/frames-private/$'
+      preLoaderRoute: typeof FramesPrivateSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/forum_/feed.xml': {
       id: '/forum_/feed.xml'
@@ -1355,11 +1456,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/games_/$projectId/play/': {
+      id: '/games_/$projectId/play/'
+      path: '/games/$projectId/play'
+      fullPath: '/games/$projectId/play/'
+      preLoaderRoute: typeof GamesProjectIdPlayIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/oauth/gitlab/$providerId/callback': {
       id: '/oauth/gitlab/$providerId/callback'
       path: '/oauth/gitlab/$providerId/callback'
       fullPath: '/oauth/gitlab/$providerId/callback'
       preLoaderRoute: typeof OauthGitlabProviderIdCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/games_/$projectId/play/$version': {
+      id: '/games_/$projectId/play/$version'
+      path: '/games/$projectId/play/$version'
+      fullPath: '/games/$projectId/play/$version'
+      preLoaderRoute: typeof GamesProjectIdPlayVersionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/games_/$projectId/embed/$version': {
+      id: '/games_/$projectId/embed/$version'
+      path: '/games/$projectId/embed/$version'
+      fullPath: '/games/$projectId/embed/$version'
+      preLoaderRoute: typeof GamesProjectIdEmbedVersionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/rpc/$': {
@@ -1530,6 +1652,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   AuthErrorRoute: AuthErrorRoute,
   ForumFeedDotxmlRoute: ForumFeedDotxmlRoute,
+  FramesPrivateSplatRoute: FramesPrivateSplatRoute,
+  FramesSplatRoute: FramesSplatRoute,
+  GamesProjectIdRoute: GamesProjectIdRoute,
   ImagesSplatRoute: ImagesSplatRoute,
   JamsJamSlugRoute: JamsJamSlugRoute,
   OgSplatRoute: OgSplatRoute,
@@ -1546,7 +1671,10 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectsGameGameIdRoute: ProjectsGameGameIdRoute,
   TeamsTeamIdDevlogDotxmlRoute: TeamsTeamIdDevlogDotxmlRoute,
   ApiPublicRpcSplatRoute: ApiPublicRpcSplatRoute,
+  GamesProjectIdEmbedVersionRoute: GamesProjectIdEmbedVersionRoute,
+  GamesProjectIdPlayVersionRoute: GamesProjectIdPlayVersionRoute,
   OauthGitlabProviderIdCallbackRoute: OauthGitlabProviderIdCallbackRoute,
+  GamesProjectIdPlayIndexRoute: GamesProjectIdPlayIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

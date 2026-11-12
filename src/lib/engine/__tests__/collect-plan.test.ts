@@ -1,0 +1,158 @@
+import { describe, expect, it } from "vite-plus/test";
+
+import {
+  blobsDue,
+  collectionForecast,
+  nextCollectorRun,
+  releasesToCollect,
+  savesDue,
+  type ReleaseRow,
+} from "../collect-plan";
+import {
+  BLOB_GRACE_DAYS,
+  PROJECT_QUOTA,
+  RELEASE_GRACE_DAYS,
+  SITE_SAVE_EXPIRY_DAYS,
+} from "../limits";
+
+const DAY = 86_400_000;
+const NOW = new Date("2026-11-12T12:00:00Z");
+const daysAgo = (days: number) => new Date(NOW.getTime() - days * DAY);
+const NONE = { channels: [], jams: [] };
+
+/** `count` releases, v1 oldest, one a day ending today. */
+function releases(count: number, ageOfNewest = 0): ReleaseRow[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `r${i + 1}`,
+    version: i + 1,
+    createdAt: daysAgo(ageOfNewest + count - 1 - i),
+    collectedAt: null,
+  }));
+}
+
+describe("releasesToCollect", () => {
+  it("keeps the newest releases", () => {
+    expect(releasesToCollect(releases(PROJECT_QUOTA.releasesKept, 100), NONE, NOW)).toEqual([]);
+  });
+
+  it("collects what is beyond the kept set and past the grace, oldest first", () => {
+    const rows = releases(PROJECT_QUOTA.releasesKept + 3, 100);
+    expect(releasesToCollect(rows, NONE, NOW)).toEqual(["r1", "r2", "r3"]);
+  });
+
+  it("never collects a release a channel or a jam pins", () => {
+    const rows = releases(PROJECT_QUOTA.releasesKept + 3, 100);
+    expect(releasesToCollect(rows, { channels: ["r1"], jams: ["r3"] }, NOW)).toEqual(["r2"]);
+  });
+
+  it("counts pinned releases among the newest", () => {
+    const rows = releases(PROJECT_QUOTA.releasesKept + 1, 100);
+    expect(releasesToCollect(rows, { channels: ["r11"], jams: [] }, NOW)).toEqual(["r1"]);
+  });
+
+  it("counts only live releases toward the kept set", () => {
+    const rows = releases(PROJECT_QUOTA.releasesKept + 2, 100);
+    rows[0]!.collectedAt = daysAgo(50);
+    expect(releasesToCollect(rows, NONE, NOW)).toEqual(["r2"]);
+  });
+
+  it("ranks by version, not by the order rows come in", () => {
+    const rows = releases(PROJECT_QUOTA.releasesKept + 1, 100).reverse();
+    expect(releasesToCollect(rows, NONE, NOW)).toEqual(["r1"]);
+  });
+
+  it("waits out the grace from creation", () => {
+    const rows = releases(PROJECT_QUOTA.releasesKept + 1, 0);
+    const oldest = rows[0]!;
+    oldest.createdAt = new Date(NOW.getTime() - RELEASE_GRACE_DAYS * DAY + 1);
+    expect(releasesToCollect(rows, NONE, NOW)).toEqual([]);
+    oldest.createdAt = new Date(NOW.getTime() - RELEASE_GRACE_DAYS * DAY);
+    expect(releasesToCollect(rows, NONE, NOW)).toEqual(["r1"]);
+  });
+});
+
+describe("collectionForecast", () => {
+  it("dates each unpinned release beyond the kept set at the first run after its grace", () => {
+    const rows = releases(PROJECT_QUOTA.releasesKept + 2, 0);
+    rows[0]!.createdAt = new Date("2026-11-01T10:00:00Z");
+    rows[1]!.createdAt = new Date("2026-11-01T02:00:00Z");
+    expect(collectionForecast(rows, NONE, NOW)).toEqual([
+      { version: 1, at: new Date("2026-11-16T03:30:00Z") },
+      { version: 2, at: new Date("2026-11-15T03:30:00Z") },
+    ]);
+  });
+
+  it("dates a release already past its grace at the next run", () => {
+    const rows = releases(PROJECT_QUOTA.releasesKept + 1, 100);
+    expect(collectionForecast(rows, NONE, NOW)).toEqual([
+      { version: 1, at: new Date("2026-11-13T03:30:00Z") },
+    ]);
+  });
+
+  it("leaves out the kept set and pinned releases", () => {
+    const rows = releases(PROJECT_QUOTA.releasesKept + 2, 0);
+    expect(collectionForecast(releases(PROJECT_QUOTA.releasesKept), NONE, NOW)).toEqual([]);
+    expect(
+      collectionForecast(rows, { channels: [], jams: ["r1"] }, NOW).map((f) => f.version),
+    ).toEqual([2]);
+  });
+
+  it("names exactly what releasesToCollect takes once its date comes", () => {
+    const rows = releases(PROJECT_QUOTA.releasesKept + 4, 0);
+    for (const { version, at } of collectionForecast(rows, NONE, NOW)) {
+      expect(releasesToCollect(rows, NONE, at)).toContain(`r${version}`);
+      expect(releasesToCollect(rows, NONE, new Date(at.getTime() - DAY))).not.toContain(
+        `r${version}`,
+      );
+    }
+  });
+});
+
+describe("nextCollectorRun", () => {
+  it("is today's run until it has passed, then tomorrow's", () => {
+    expect(nextCollectorRun(new Date("2026-11-12T03:00:00Z"))).toEqual(
+      new Date("2026-11-12T03:30:00Z"),
+    );
+    expect(nextCollectorRun(new Date("2026-11-12T03:30:00Z"))).toEqual(
+      new Date("2026-11-12T03:30:00Z"),
+    );
+    expect(nextCollectorRun(new Date("2026-12-31T03:31:00Z"))).toEqual(
+      new Date("2027-01-01T03:30:00Z"),
+    );
+  });
+});
+
+describe("blobsDue", () => {
+  const graceAgo = (ms = 0) => new Date(NOW.getTime() - BLOB_GRACE_DAYS * DAY + ms);
+
+  it("takes an unreferenced blob only after the whole quiet period", () => {
+    const row = (lastReferencedAt: Date | null, createdAt = daysAgo(400)) => [
+      { sha256: "a", createdAt, lastReferencedAt },
+    ];
+    expect(blobsDue(["a"], row(graceAgo(1)), NOW)).toEqual([]);
+    expect(blobsDue(["a"], row(graceAgo()), NOW)).toEqual(["a"]);
+  });
+
+  it("dates a blob never referenced from when it was stored", () => {
+    expect(
+      blobsDue(["a"], [{ sha256: "a", createdAt: graceAgo(1), lastReferencedAt: null }], NOW),
+    ).toEqual([]);
+    expect(
+      blobsDue(["a"], [{ sha256: "a", createdAt: graceAgo(), lastReferencedAt: null }], NOW),
+    ).toEqual(["a"]);
+  });
+
+  it("never takes a referenced blob, however old", () => {
+    const rows = [
+      { sha256: "a", createdAt: daysAgo(400), lastReferencedAt: daysAgo(300) },
+      { sha256: "b", createdAt: daysAgo(400), lastReferencedAt: null },
+    ];
+    expect(blobsDue(["b"], rows, NOW)).toEqual(["b"]);
+  });
+});
+
+describe("savesDue", () => {
+  it("is the expiry before now", () => {
+    expect(savesDue(NOW)).toEqual(daysAgo(SITE_SAVE_EXPIRY_DAYS));
+  });
+});

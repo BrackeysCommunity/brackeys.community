@@ -13,6 +13,7 @@
 import type { FileBody } from "@/lib/canvas/json-canvas";
 import { CANVAS_IMPORT_LIMITS, CANVAS_LIMITS } from "@/lib/canvas/limits";
 import { pathKind } from "@/lib/canvas/paths";
+import { formatBytes } from "@/lib/format-bytes";
 
 const BOM = [0xef, 0xbb, 0xbf] as const;
 
@@ -81,10 +82,4 @@ export function placeLoneNote(bytes: Uint8Array): MarkdownPlacement {
   const truncated =
     text.length > CANVAS_LIMITS.maxCardText || bytes.length > CANVAS_IMPORT_LIMITS.maxMarkdownBytes;
   return { kind: "text-card", text: text.slice(0, CANVAS_LIMITS.maxCardText), truncated };
-}
-
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
 }

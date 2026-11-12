@@ -17,6 +17,7 @@ import { captureEvent } from "@/lib/product-insights";
 import { teamLinkParams } from "@/lib/team-links";
 import { cn } from "@/lib/utils";
 
+import { playableGame } from "./PlayButton";
 import { ProjectCredits } from "./ProjectCredits";
 import { ProjectHero } from "./ProjectHero";
 import type { ProjectDetail, ProjectJamAppearance } from "./types";
@@ -51,6 +52,7 @@ export function ProjectPage({
     viewerCanDelete,
     deleteBlockers,
     openPostCount,
+    game,
   } = detail;
   const fromJam =
     fromJamId != null ? jamRecord.find((appearance) => appearance.jamId === fromJamId) : undefined;
@@ -79,6 +81,7 @@ export function ProjectPage({
         deleteBlockers={deleteBlockers}
         recruitTeamId={teams.length === 1 ? teams[0]!.teamId : undefined}
         fromJam={fromJam}
+        game={playableGame(game)}
       />
 
       {/* The page as a recruiting surface, not just a trophy case: only

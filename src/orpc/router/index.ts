@@ -127,6 +127,16 @@ import {
 import { getContributions } from "./contributions";
 import { listGuildEmojis } from "./emoji";
 import {
+  createGameShowcase,
+  getGamePage,
+  getGamePlay,
+  getGameSettings,
+  linkGameShowcase,
+  reportGame,
+  setGameSettings,
+  unlinkGameShowcase,
+} from "./engine-game";
+import {
   createAgentToken,
   createHostedProject,
   deleteHostedProject,
@@ -134,8 +144,24 @@ import {
   getProjectSyncToken,
   listAgentTokens,
   createEmptyHostedProject,
+  getProjectUsage,
   revokeAgentToken,
 } from "./engine-project";
+import {
+  approveGamePublic,
+  beginRelease,
+  commitRelease,
+  getRelease,
+  hideRelease,
+  linkReleaseJam,
+  listGameModerationQueue,
+  listReleases,
+  promoteRelease,
+  resolveGameReport,
+  rollbackRelease,
+  unhideRelease,
+  unlinkReleaseJam,
+} from "./engine-release";
 import { getFeatureFlags } from "./flags";
 import {
   addForumPostImage,
@@ -570,4 +596,26 @@ export default {
   createAgentToken,
   revokeAgentToken,
   listAgentTokens,
+  getProjectUsage,
+  beginRelease,
+  commitRelease,
+  listReleases,
+  getRelease,
+  promoteRelease,
+  rollbackRelease,
+  linkReleaseJam,
+  unlinkReleaseJam,
+  hideRelease,
+  unhideRelease,
+  approveGamePublic,
+  listGameModerationQueue,
+  resolveGameReport,
+  getGamePlay,
+  getGamePage,
+  linkGameShowcase,
+  createGameShowcase,
+  unlinkGameShowcase,
+  getGameSettings,
+  setGameSettings,
+  reportGame,
 };

@@ -20,9 +20,18 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { activeUserStore, type ActiveUserProfile } from "@/lib/active-user-store";
 import { presenceColor } from "@/lib/canvas/presence";
+import { FEATURE_FLAGS, type FeatureFlagValues } from "@/lib/flags";
+import { ServerFlagsContext } from "@/lib/hooks/use-flag";
 import { toast } from "@/lib/toast";
 
-const fakes = vi.hoisted(() => ({ play: vi.fn(), editor: vi.fn(), navigate: vi.fn() }));
+const fakes = vi.hoisted(() => ({
+  play: vi.fn(),
+  editor: vi.fn(),
+  navigate: vi.fn(),
+  createAgentToken: vi.fn(),
+}));
+
+vi.mock("@/orpc/client", () => ({ client: { createAgentToken: fakes.createAgentToken } }));
 
 vi.mock("@/lib/sound", async (original) => ({
   ...(await original<typeof import("@/lib/sound")>()),
@@ -215,6 +224,61 @@ describe("the site's editor host", () => {
     host.onSceneChange?.("engine-yard");
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledWith("engine-yard");
+  });
+});
+
+describe("the site's publish host in the editor", () => {
+  const withFlags =
+    (patch: Partial<FeatureFlagValues>) =>
+    ({ children }: { children: React.ReactNode }) => (
+      <ServerFlagsContext value={{ ...FEATURE_FLAGS, ...patch }}>{children}</ServerFlagsContext>
+    );
+  const gamesOn = withFlags({ "engine-games-enabled": true });
+
+  it("has no publish host for the file-backed dev editor", () => {
+    const { result } = renderHook(() => useSiteEditorHost({ title: "room", project: noServer }), {
+      wrapper: gamesOn,
+    });
+    expect(result.current.publish).toBeUndefined();
+  });
+
+  it("has none for a hosted project while engine-games-enabled is off", () => {
+    const { result } = renderHook(
+      () => useSiteEditorHost({ title: "room", project: noServer, hosted: { project: "demo" } }),
+      { wrapper: withFlags({}) },
+    );
+    expect(result.current.publish).toBeUndefined();
+  });
+
+  it("publishes a hosted project with the site's wording, and opens the token dialog", async () => {
+    const { result } = renderHook(
+      () =>
+        useSiteEditorHost({
+          title: "room",
+          project: noServer,
+          hosted: { project: "demo", team: "Bit Bakers" },
+        }),
+      { wrapper: gamesOn },
+    );
+    const publish = result.current.publish!;
+    expect(publish.project).toBe("demo");
+    expect(publish.wording.command).toBe("vp run scene game release create demo");
+    expect(publish.wording.visibility.team).toBe("Team: everyone on Bit Bakers can play.");
+
+    render(<>{result.current.chrome?.topLeft}</>);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    act(() => publish.openTokenDialog());
+    expect((await screen.findByRole("dialog")).textContent).toContain("Agent token for demo");
+    fakes.createAgentToken.mockResolvedValue({ id: "t1", secret: "jat_secret" });
+    fireEvent.click(screen.getByRole("button", { name: "Create token" }));
+    const secret = await screen.findByRole<HTMLInputElement>("textbox", { name: "Agent token" });
+    expect(secret.value).toBe("jat_secret");
+    expect(fakes.createAgentToken).toHaveBeenCalledWith({
+      projectId: "demo",
+      access: "write",
+      label: "Releases from the editor",
+      ttlHours: 24,
+    });
   });
 });
 

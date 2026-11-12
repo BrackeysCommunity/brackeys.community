@@ -14,9 +14,10 @@ import { parseSaveFile, type SaveFile } from "../../game/save-file";
 import type { Registry } from "../../game/types";
 import { runChecks } from "../../headless/run-checks";
 import { validatePhysical } from "../../headless/validate-physical";
-import { parseAssetDoc } from "../../project/kinds";
+import { createKindRegistry, parseAssetDoc } from "../../project/kinds";
 import { gameSettingsKind } from "../../project/kinds/game-settings";
 import { sceneListIssues, sceneListKind } from "../../project/kinds/scene-list";
+import { checkProjectBatch } from "../../project/ops";
 import { heldProject } from "../../project/runtime-view";
 import { jsonValues, snapshotProject } from "../../project/snapshot";
 import type { AssetEntry } from "../../project/types";
@@ -482,6 +483,24 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
   "quota-exceeded": null,
   // The scaffolder (`game new`) emits it outside the package; scripts/scene's game-new tests cover it.
   "project-id-taken": null,
+  "asset-not-trashed": () => {
+    const check = checkProjectBatch(
+      project.state,
+      new Map(),
+      { v: 1, ops: [{ op: "purgeAsset", id: "boom" }] },
+      {
+        registry: engine,
+        kinds: createKindRegistry(null, []),
+        now: 0,
+        by: "t",
+        newKey: () => "k-new",
+      },
+    );
+    return check.ok ? [] : [check.issue];
+  },
+  // Release codes come from a site's release routes, never from the scene tools.
+  "release-immutable": null,
+  "release-forbidden": null,
   // Binding problems come from `createRegistry` and the input-map kind's schema, not the scene tools.
   "binding-unknown": null,
   "player-unknown": null,
@@ -665,12 +684,13 @@ const NO_LINE_CODES: readonly EngineIssueCode[] = [
 /** A build's target comes from the command line, not from a document a path could point into. */
 const NO_PATH_CODES: readonly EngineIssueCode[] = ["export-target-unsupported"];
 
-/** `applyOps` codes point into the batch, which has no line map. */
+/** `applyOps` and `checkProjectBatch` codes point into the batch, which has no line map. */
 const OP_CODES: readonly EngineIssueCode[] = [
   "stale-base",
   "ref-not-found",
   "op-invalid",
   "id-taken",
+  "asset-not-trashed",
 ];
 
 describe("the engine's issue table", () => {

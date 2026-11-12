@@ -1,0 +1,158 @@
+<!doctype html>
+<!--
+  The export smoke's stand-in for the page that frames a release: it loads
+  the build named by ?frame=<url> in an iframe with ?host=jams, answers the
+  frame's jams:frame-ready with a port, answers hello and every saves.* and
+  prefs.save request from memory, and records what it saw on
+  window.__hostStub for the smoke to read.
+
+  The iframe isn't sandboxed: the smoke's static server sends no CORS
+  headers, so an opaque-origin frame couldn't fetch its own build. It is on
+  another origin than this page all the same, so the handshake crosses
+  origins as it does on the site.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Host stub</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+      }
+      iframe {
+        display: block;
+        border: 0;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe id="frame" allow="autoplay; fullscreen; gamepad"></iframe>
+    <script>
+      (() => {
+        const record = {
+          handshakes: 0,
+          hello: null,
+          states: [],
+          requests: [],
+          invalid: 0,
+        };
+        window.__hostStub = record;
+
+        const frame = document.getElementById("frame");
+        const target = new URLSearchParams(location.search).get("frame");
+        if (!target) {
+          document.body.textContent = "host-stub.html needs ?frame=<url>";
+          return;
+        }
+
+        const SAVES = {
+          describe: "Saves last until this page closes.",
+          limits: { maxBytes: 32768, maxSlots: 8 },
+          mode: "site",
+        };
+        const slots = new Map();
+        let port = null;
+
+        const isRequest = (m) =>
+          m !== null &&
+          typeof m === "object" &&
+          typeof m.type === "string" &&
+          Number.isInteger(m.id) &&
+          typeof m.params === "object";
+
+        const reply = (id, result) => port.postMessage({ type: "reply", id, ok: true, result });
+        const refuse = (id, message) =>
+          port.postMessage({
+            type: "reply",
+            id,
+            ok: false,
+            issue: { severity: "warn", code: "save-store-failed", message, entityIds: [] },
+          });
+
+        function handle(m) {
+          if (m && m.type === "state" && typeof m.jamsState === "string") {
+            record.states.push(m.jamsState);
+            return;
+          }
+          if (m && m.type === "download") return;
+          if (!isRequest(m)) {
+            record.invalid++;
+            return;
+          }
+          record.requests.push(m.type);
+          const p = m.params;
+          const key = `${p.gameId}:${p.slot}`;
+          switch (m.type) {
+            case "hello":
+              record.hello = p;
+              return reply(m.id, {
+                player: { signedIn: false, name: null },
+                saves: SAVES,
+                prefs: { remap: null, prefs: null },
+                online: false,
+              });
+            case "saves.list":
+              return reply(
+                m.id,
+                [...slots]
+                  .filter(([k]) => k.startsWith(`${p.gameId}:`))
+                  .map(([k, v]) => ({
+                    slot: k.slice(p.gameId.length + 1),
+                    meta: v.meta,
+                    bytes: v.bytes,
+                  })),
+              );
+            case "saves.read":
+              return reply(m.id, slots.get(key)?.text ?? null);
+            case "saves.write": {
+              const bytes = new TextEncoder().encode(p.text).length;
+              if (bytes > SAVES.limits.maxBytes) return refuse(m.id, "This save is too large.");
+              let meta = { scene: "", savedAt: 0, playTicks: 0 };
+              try {
+                meta = JSON.parse(p.text).meta ?? meta;
+              } catch {}
+              slots.set(key, { text: p.text, bytes, meta });
+              return reply(m.id, { ok: true, bytes });
+            }
+            case "saves.remove":
+              slots.delete(key);
+              return reply(m.id, null);
+            case "prefs.save":
+              return reply(m.id, null);
+            default:
+              return refuse(m.id, `the stub host doesn't answer ${m.type}`);
+          }
+        }
+
+        window.addEventListener("message", (event) => {
+          if (event.source !== frame.contentWindow) return;
+          const d = event.data;
+          if (!d || d.type !== "jams:frame-ready" || d.protocol !== 1) {
+            record.invalid++;
+            return;
+          }
+          record.handshakes++;
+          if (port) return;
+          const channel = new MessageChannel();
+          port = channel.port1;
+          port.onmessage = (e) => handle(e.data);
+          frame.contentWindow.postMessage({ type: "jams:host", protocol: 1 }, "*", [channel.port2]);
+        });
+
+        /** Posts a page event (pause, resume, saves.changed) to the frame. */
+        record.send = (message) => port?.postMessage(message);
+
+        const url = new URL(target);
+        url.searchParams.set("host", "jams");
+        frame.src = url.href;
+      })();
+    </script>
+  </body>
+</html>

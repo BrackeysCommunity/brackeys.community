@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { ProjectSession } from "../../../collab/index";
 import type { SettingsSection } from "../../../editor/settings-model";
 import { GAME_SETTINGS_KIND, INPUT_MAP_KIND, SCENE_LIST_KIND } from "../../../project/index";
-import type { EditorNotify } from "../../host";
+import type { EditorNotify, EditorPublishHost } from "../../host";
 import { TabPanel, Tabs } from "../../kit/index";
 import type { EditorProjectLink } from "../../session/use-scene-editor";
 import { EnginePanel } from "./EnginePanel";
@@ -12,6 +12,7 @@ import { InputPanel, type CaptureBinding } from "./InputPanel";
 import { LayersPanel } from "./LayersPanel";
 import { ScenesPanel } from "./ScenesPanel";
 import { useSettingsDoc } from "./settings-doc";
+import { UsagePanel } from "./UsagePanel";
 
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: "general", title: "General" },
@@ -20,6 +21,9 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: "scenes", title: "Scenes" },
   { id: "layers", title: "Layers" },
 ];
+
+/** The section a publishing host adds: the project's storage against its quotas. */
+export const USAGE_SECTION: SettingsSection = { id: "usage", title: "Usage" };
 
 /** The section each project session last showed, so a scene switch, which remounts the panel, keeps it. */
 const shownSection = new WeakMap<ProjectSession, string>();
@@ -34,13 +38,18 @@ export function ProjectSettings({
   project,
   notify,
   capture,
+  publish,
 }: {
   project: EditorProjectLink;
   notify: EditorNotify;
   /** The running game's binding capture; null while there is none. */
   capture: CaptureBinding | null;
+  /** The host's publishing; with it, a Usage section joins the tabs. */
+  publish?: EditorPublishHost;
 }) {
-  const [tab, setShown] = useState<string>(() => shownSection.get(project.session) ?? "general");
+  const sections = publish ? [...SETTINGS_SECTIONS, USAGE_SECTION] : SETTINGS_SECTIONS;
+  const [shown, setShown] = useState<string>(() => shownSection.get(project.session) ?? "general");
+  const tab = sections.some((s) => s.id === shown) ? shown : "general";
   const setTab = (next: string) => {
     shownSection.set(project.session, next);
     setShown(next);
@@ -56,7 +65,7 @@ export function ProjectSettings({
         value={tab}
         onValueChange={setTab}
         label="Project settings sections"
-        items={SETTINGS_SECTIONS.map((s) => ({ value: s.id, label: s.title }))}
+        items={sections.map((s) => ({ value: s.id, label: s.title }))}
       >
         <TabPanel value="general">
           <GeneralPanel doc={settings} registry={registry} />
@@ -73,6 +82,11 @@ export function ProjectSettings({
         <TabPanel value="layers">
           <LayersPanel session={project.session} />
         </TabPanel>
+        {publish ? (
+          <TabPanel value="usage">
+            <UsagePanel publish={publish} session={project.session} notify={notify} />
+          </TabPanel>
+        ) : null}
       </Tabs>
     </div>
   );

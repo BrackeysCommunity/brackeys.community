@@ -49,6 +49,16 @@ export const env = createEnv({
     // the editor stays on the solo save.
     CANVAS_SYNC_SECRET: z.string().min(16).optional(),
     CANVAS_SYNC_URL: z.url().optional(),
+    // Hosted games. The play origin puts release frames on another
+    // registrable domain (unset, they are served from the site's own); the
+    // frame secret signs private releases' frame links, which refuse
+    // without it.
+    ENGINE_PLAY_ORIGIN: z.url().optional(),
+    ENGINE_FRAME_SECRET: z.string().min(16).optional(),
+    // Purges a hidden release's shell files at the CDN; either unset, a
+    // takedown leaves edge copies until they expire.
+    CLOUDFLARE_ZONE_ID: z.string().min(1).optional(),
+    CLOUDFLARE_PURGE_TOKEN: z.string().min(1).optional(),
   },
 
   /**

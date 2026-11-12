@@ -203,9 +203,10 @@ function ScrubLabel({
 }) {
   const drag = useRef<{ x: number; delta: number } | null>(null);
   const [active, setActive] = useState(false);
+  const dragging = active && !disabled;
 
   useEffect(() => {
-    if (!active) return;
+    if (!dragging) return;
     const cancel = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       drag.current = null;
@@ -214,14 +215,21 @@ function ScrubLabel({
     };
     window.addEventListener("keydown", cancel, true);
     return () => window.removeEventListener("keydown", cancel, true);
-  }, [active, onPreview]);
+  }, [dragging, onPreview]);
 
-  const end = () => {
+  // Edits that stop mid-drag (the doc turned read-only) drop the drag, so its preview doesn't stick.
+  useEffect(() => {
+    if (!disabled || !drag.current) return;
+    drag.current = null;
+    onPreview(null);
+  }, [disabled, onPreview]);
+
+  const end = (el: Element) => {
     const d = drag.current;
     drag.current = null;
     setActive(false);
     onPreview(null);
-    if (d && d.delta !== 0) onCommit(relative(d.delta));
+    if (d && d.delta !== 0 && takesPointer(el, disabled)) onCommit(relative(d.delta));
   };
 
   if (disabled) {
@@ -250,7 +258,7 @@ function ScrubLabel({
           );
           onPreview(d.delta);
         }}
-        onPointerUp={end}
+        onPointerUp={(e) => end(e.currentTarget)}
         onPointerCancel={() => {
           drag.current = null;
           setActive(false);
@@ -467,15 +475,16 @@ export function AngleField({ field, commit, unset, scope, disabled }: FieldWidge
           ref={dial}
           role="presentation"
           className="je-insp-dial"
-          aria-disabled={disabled || undefined}
+          data-disabled={disabled || undefined}
           onPointerDown={(e) => {
             if (!takesPointer(e.currentTarget, disabled)) return;
             e.currentTarget.setPointerCapture?.(e.pointerId);
             setPreview(angleAt(e));
           }}
           onPointerMove={(e) => preview !== null && setPreview(angleAt(e))}
-          onPointerUp={() => {
-            if (preview !== null && preview !== value) void commit(preview);
+          onPointerUp={(e) => {
+            if (preview !== null && preview !== value && takesPointer(e.currentTarget, disabled))
+              void commit(preview);
             setPreview(null);
           }}
         >

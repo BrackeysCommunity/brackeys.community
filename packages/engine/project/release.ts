@@ -1,12 +1,15 @@
 import { z } from "zod";
 
 import { ID_PATTERN } from "../game/fields";
+import { SAVE_VERSION } from "../game/save-file";
 import type { TimeKind } from "../game/time";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
+import { INPUT_SCRIPT_VERSION } from "../scene/input-script";
 import { jsonPointer, makeIssue } from "../scene/issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
-import type { RunRecording } from "../scene/recording-schema";
-import type { SceneIssue } from "../scene/types";
+import { RECORDING_VERSION, type RunRecording } from "../scene/recording-schema";
+import { SCENE_FORMAT_VERSION, type SceneIssue } from "../scene/types";
+import { COLLAB_LAYOUT_VERSION } from "../version";
 import { canonicalJson, stableJson } from "./canonical";
 import { sha256, SHA256_PATTERN } from "./hash";
 import type { DocLayout } from "./kinds";
@@ -38,6 +41,16 @@ export const RELEASE_SCHEMA_ID = `${SCHEMA_ID_BASE}release:v${RELEASE_VERSION}`;
 export const RELEASE_FILE = "release.json";
 /** The page every build opens at. */
 export const INDEX_HTML_FILE = "index.html";
+
+/** The format versions this engine writes and reads: what a build records in `engine.formats`, and the newest a page boots. */
+export const ENGINE_FORMATS: Readonly<ReleaseManifest["engine"]["formats"]> = Object.freeze({
+  scene: SCENE_FORMAT_VERSION,
+  prefab: SCENE_FORMAT_VERSION,
+  recording: RECORDING_VERSION,
+  inputScript: INPUT_SCRIPT_VERSION,
+  save: SAVE_VERSION,
+  collabLayout: COLLAB_LAYOUT_VERSION,
+});
 /** The credits page every build ships, next to its `index.html`. */
 export const CREDITS_FILE = "credits.html";
 /** The service worker a PWA build registers, next to its page. */

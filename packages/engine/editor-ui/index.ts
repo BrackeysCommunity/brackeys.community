@@ -27,6 +27,20 @@ export type {
   SceneHome,
 } from "./host";
 export type { CloseReason, ProjectSocket, ProjectTokenAnswer, ProjectTransport } from "./host";
+export type {
+  EditorPublishHost,
+  GameSaveMode,
+  GameSettingsPatch,
+  GameSettingsView,
+  GameVisibility,
+  PointerMove,
+  PublishChannel,
+  PublishWording,
+  ReleaseView,
+  UsageLevel,
+  UsageLineView,
+  UsageView,
+} from "./host";
 
 export { blobContentStore, BlobRouteError, projectBlobs } from "./connect/blobs";
 export { devProjectHost } from "./connect/dev";

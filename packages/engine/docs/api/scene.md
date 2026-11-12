@@ -27,7 +27,7 @@ Bump it whenever one of those lists changes; `codes --json` and the
 published JSON Schemas carry it.
 
 ```ts
-declare const AGENT_SURFACE_VERSION = 15;
+declare const AGENT_SURFACE_VERSION = 16;
 ```
 
 ## `Aabb`
@@ -567,6 +567,9 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "import-failed",
     "quota-exceeded",
     "project-id-taken",
+    "asset-not-trashed",
+    "release-immutable",
+    "release-forbidden",
     "binding-unknown",
     "player-unknown",
     "spawn-id-invalid",

@@ -41,6 +41,12 @@ import { fuzz } from "./tools/fuzz";
 import { gameBuild } from "./tools/game-build";
 import { gameManifest } from "./tools/game-manifest";
 import { gameNew } from "./tools/game-new";
+import {
+  gameReleaseCreate,
+  gameReleaseList,
+  gameReleasePromote,
+  gameReleaseRollback,
+} from "./tools/game-release";
 import { list } from "./tools/list";
 import { playtest } from "./tools/playtest";
 import { projectRefs } from "./tools/project-refs";
@@ -106,6 +112,22 @@ const projectArg = z
 /** A tool with `project` added to its input, which `runMcpTool` scopes the call to. */
 const defineTool = <S extends z.ZodRawShape>(tool: McpTool<S>): McpTool =>
   ({ ...tool, input: { ...tool.input, project: projectArg } }) as never;
+
+/** Uploads a release to the site; the same build uploaded twice is the same release. */
+const RELEASE_CREATE: McpAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+};
+/** Points the preview channel at another release; the release itself never changes. */
+const RELEASE_MOVE: McpAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+};
+const RELEASE_READ: McpAnnotations = { readOnlyHint: true, openWorldHint: true };
 
 // ─── Inputs ──────────────────────────────────────────────
 
@@ -332,6 +354,31 @@ function buildReport(result: ToolResult): ToolResult {
     data: "summary" in data || "error" in data ? data : { ...data, summary: result.text },
   };
 }
+
+/**
+ * The release tools reach the site with the agent token and site origin of
+ * the server's environment, never with tool arguments, so a caller can't
+ * send the token anywhere else.
+ */
+function releaseEnv(ctx: ToolContext): ToolResult | null {
+  const env = ctx.env ?? process.env;
+  if (!agentTokenFrom(undefined, env))
+    return usage(
+      `releases need an agent token with write access: set ${AGENT_TOKEN_ENV} in the MCP server's environment`,
+    );
+  if (!agentSiteFrom(env))
+    return usage(
+      `releases need ${AGENT_SITE_ENV} (the site's https:// origin) set in the MCP server's environment`,
+    );
+  return null;
+}
+
+const releaseProject = z.string().describe("The project's id, as `scene_list` shows it.");
+const releaseChannel = z
+  .string()
+  .describe(
+    "`preview`. Production moves only by a person on the game's page; an agent asking for it is refused (`release-forbidden`) with that page's URL.",
+  );
 
 // ─── Tools ───────────────────────────────────────────────
 
@@ -870,7 +917,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
   defineTool({
     name: "game_manifest",
     title: "Check a release manifest",
-    description: `Parse and check a release manifest (\`game manifest\`, schema \`release:v1\`): given a build directory, against its files and their hashes; given a \`${RELEASE_FILE}\` or an inline manifest, on its own. Returns the validated manifest, its summary (the release id, engine, target, scenes, files and budget) and the issues. exitCode 1 on an error-severity issue.`,
+    description: `Parse and check a release manifest (\`game manifest\`, schema \`release:v1\`): given a build directory, against its files and their hashes; given a \`${RELEASE_FILE}\` or an inline manifest, on its own. Returns the validated manifest, its summary (the release id, engine, target, scenes, the wasm line, files and budget) and the issues. exitCode 1 on an error-severity issue.`,
     annotations: READ,
     input: {
       path: z
@@ -892,6 +939,97 @@ export const MCP_TOOLS: readonly McpTool[] = [
         await tmp.close();
       }
     },
+  }),
+  defineTool({
+    name: "game_release_create",
+    title: "Release a game",
+    description: `Build a project (\`game release create\`; or take \`from\`'s build) and upload it to its hosted project on the site (${AGENT_SITE_ENV}, with ${AGENT_TOKEN_ENV}) as a new release: begin, the files the site doesn't hold yet, commit. It lands on preview unless \`channel\` is \`none\`; production moves only by a person on the game's page. Returns the release's summary (version, id, size, files, new bytes, the play URL, the quota lines with a warning for any at or over 80%, the next removal, the game page), never a file's contents. Uploading the same build again is the same release. Refusals carry the site's code, message and hint.`,
+    annotations: RELEASE_CREATE,
+    input: {
+      id: releaseProject,
+      hosted: z
+        .boolean()
+        .optional()
+        .describe(
+          "Build what the hosted project holds (pulled into a temporary copy) instead of the working tree.",
+        ),
+      target: z
+        .string()
+        .optional()
+        .describe(
+          `A release target: one of ${exportTargetNames().join(", ")}. Default \`${DEFAULT_BUILD_TARGET}\`.`,
+        ),
+      channel: z
+        .string()
+        .optional()
+        .describe(
+          "`preview` (default) or `none`. Production moves only by a person on the game's page.",
+        ),
+      from: z
+        .string()
+        .optional()
+        .describe("A build directory `game_build` wrote, uploaded instead of building."),
+      allowOverBudget: z
+        .boolean()
+        .optional()
+        .describe("Release a build over its size budgets (`export-over-budget`)."),
+    },
+    run: async (i, ctx) =>
+      releaseEnv(ctx) ??
+      buildReport(
+        await gameReleaseCreate(
+          {
+            project: i.id,
+            hosted: i.hosted === true,
+            target: i.target,
+            channel: i.channel,
+            from: i.from,
+            allowOverBudget: i.allowOverBudget === true,
+          },
+          ctx,
+        ),
+      ),
+  }),
+  defineTool({
+    name: "game_release_list",
+    title: "List releases",
+    description:
+      "A hosted project's releases (`game release list`), newest first: version, id, size, files, engine, target, the channels and jams that pin it, its audience, the play URL and when the cleanup removes it.",
+    annotations: RELEASE_READ,
+    input: { id: releaseProject },
+    run: async (i, ctx) =>
+      releaseEnv(ctx) ?? buildReport(await gameReleaseList({ project: i.id }, ctx)),
+  }),
+  defineTool({
+    name: "game_release_promote",
+    title: "Promote a release",
+    description:
+      "Point a hosted project's preview channel at a kept version (`game release promote`). Production is refused (`release-forbidden`) with the game page's URL, where a person moves it.",
+    annotations: RELEASE_MOVE,
+    input: {
+      id: releaseProject,
+      version: z.number().int().positive().describe("The version to point the channel at."),
+      channel: releaseChannel,
+    },
+    run: async (i, ctx) =>
+      releaseEnv(ctx) ??
+      buildReport(
+        await gameReleasePromote(
+          { project: i.id, version: String(i.version), channel: i.channel },
+          ctx,
+        ),
+      ),
+  }),
+  defineTool({
+    name: "game_release_rollback",
+    title: "Roll back a release",
+    description:
+      "Point a hosted project's preview channel back at the release it named before (`game release rollback`). Production is refused (`release-forbidden`) with the game page's URL, where a person moves it.",
+    annotations: RELEASE_MOVE,
+    input: { id: releaseProject, channel: releaseChannel },
+    run: async (i, ctx) =>
+      releaseEnv(ctx) ??
+      buildReport(await gameReleaseRollback({ project: i.id, channel: i.channel }, ctx)),
   }),
 ];
 

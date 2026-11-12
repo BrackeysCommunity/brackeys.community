@@ -194,9 +194,16 @@ export function appendHistory(
 /**
  * Writes `next`'s registry where it differs from `prev` (the state `doc`
  * held when `next` was computed from it): changed entries field by field,
- * and history entries past `prev`'s. Call inside the batch's transaction.
+ * history entries past `prev`'s, and the removal of an entry or history
+ * `next` no longer has (a purge). Call inside the batch's transaction.
  */
 export function writeProjectState(doc: Y.Doc, prev: ProjectState, next: ProjectState): void {
+  const assets = projectAssetsMap(doc);
+  for (const key of Object.keys(prev.assets))
+    if (!Object.hasOwn(next.assets, key)) assets.delete(key);
+  const histories = projectHistoryMap(doc);
+  for (const key of Object.keys(prev.history))
+    if (!Object.hasOwn(next.history, key)) histories.delete(key);
   for (const [key, entry] of Object.entries(next.assets))
     if (!sameValue(prev.assets[key], entry)) writeEntry(doc, entry);
   for (const [key, items] of Object.entries(next.history)) {

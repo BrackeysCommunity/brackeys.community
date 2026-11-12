@@ -1,16 +1,16 @@
 import { createGame } from "../engine";
 import { createRegistry, withProject } from "../game/define";
 import type { LibraryScene, SceneListEntry } from "../game/flow";
-import { SAVE_VERSION } from "../game/save-file";
 import { resolveTime } from "../game/time";
 import type { GameDefinition, Registry } from "../game/types";
-import { browserRemapStore } from "../input/remap";
+import { browserRemapStore, snapshotRemapStore } from "../input/remap";
 import { stableJson } from "../project/canonical";
 import { ContentStoreError, memoryContentStore } from "../project/content-store";
 import { createKindRegistry } from "../project/kinds";
 import {
   checkReleaseManifest,
   CREDITS_FILE,
+  ENGINE_FORMATS,
   parseReleaseManifest,
   RELEASE_FILE,
   releaseId,
@@ -22,17 +22,16 @@ import { jsonValues, snapshotScene, SnapshotError } from "../project/snapshot";
 import type { AssetId, Sha256 } from "../project/types";
 import { createAssetLoader } from "../render/asset-loader";
 import { browserSaveStore } from "../saves/browser";
-import type { SaveStore } from "../saves/store";
-import { INPUT_SCRIPT_VERSION } from "../scene/input-script";
+import { channelSaveStore, type SaveStore } from "../saves/store";
 import { makeIssue } from "../scene/issues";
-import { RECORDING_VERSION } from "../scene/recording-schema";
-import { SCENE_FORMAT_VERSION, type SceneIssue } from "../scene/types";
-import type { GameInstance, RapierModule, SceneSource } from "../types";
+import type { SceneIssue } from "../scene/types";
+import type { GameEventMap, GameInstance, RapierModule, SceneSource } from "../types";
 import { mountUi } from "../ui/layer";
 import type { MountUi, UiContext } from "../ui/types";
-import { COLLAB_LAYOUT_VERSION } from "../version";
+import { ENGINE_VERSION } from "../version";
 import { fetchReleaseTexts, fetchText, releaseUrl, type FetchText } from "./data";
 import { renderBootError, StandaloneBootError } from "./errors";
+import { connectHost, hostRequested, type HostChannel } from "./host-channel";
 import { manifestRuntimeView, manifestView } from "./manifest-view";
 
 export type StandaloneOptions = {
@@ -44,7 +43,7 @@ export type StandaloneOptions = {
   rapier?: () => Promise<RapierModule>;
   /** The manifest's URL, resolved against the document's base URI; default "release.json" next to the page. */
   release?: string;
-  /** Default `browserSaveStore()`; a game's own `saves.store` still wins. */
+  /** Default `browserSaveStore()`, or the host's store when a page hosts the frame; a game's own `saves.store` still wins. */
   saves?: SaveStore;
   /** Default true when the manifest has `pwa`; ignored where there is no service worker or the context isn't secure. */
   serviceWorker?: boolean;
@@ -71,6 +70,8 @@ export type StandaloneGame = {
   install: (() => Promise<boolean>) | null;
   /** The credits page, relative to the manifest: "credits.html". */
   credits: string;
+  /** The page hosting this frame (`?host=jams`), or null when none answered. */
+  host: HostChannel | null;
   destroy(): void;
 };
 
@@ -136,19 +137,50 @@ function installPrompt(win: Window) {
 
 type Formats = ReleaseManifest["engine"]["formats"];
 
-/** The format versions this engine reads. */
-const readableFormats = (): Formats => ({
-  scene: SCENE_FORMAT_VERSION,
-  prefab: SCENE_FORMAT_VERSION,
-  recording: RECORDING_VERSION,
-  inputScript: INPUT_SCRIPT_VERSION,
-  save: SAVE_VERSION,
-  collabLayout: COLLAB_LAYOUT_VERSION,
-});
-
 const setState = (doc: Document, state: "loading" | "ready" | "error") => {
   doc.documentElement.dataset.jamsState = state;
 };
+
+/** What `data-jams-render` says: the GPU context is gone, came back in place, a new renderer took over, or none could be built. */
+export type RenderState = "lost" | "restored" | "rebuilt" | "failed";
+
+/**
+ * Mirrors the game's renderer on `root` (default the document's root
+ * element), where the page, its tests and a smoke can read it:
+ * `dataset.jamsRender` is "lost" from `render:lost`, then "restored" or
+ * "rebuilt" from `render:restored`, or "failed" from `render:failed`;
+ * `dataset.jamsRenderFallback` is the
+ * reason ("init" or "lost") once `render:fallback` moved drawing to WebGL.
+ * Listen before `start()`, which tells an init fallback. The returned stop
+ * clears both.
+ */
+export function mirrorRenderState(
+  game: Pick<GameInstance, "on" | "off">,
+  root: HTMLElement = document.documentElement,
+): () => void {
+  const set = (state: RenderState) => {
+    root.dataset.jamsRender = state;
+  };
+  const onLost = () => set("lost");
+  const onRestored = ({ rebuilt }: GameEventMap["render:restored"]) =>
+    set(rebuilt ? "rebuilt" : "restored");
+  const onFailed = () => set("failed");
+  const onFallback = ({ reason }: GameEventMap["render:fallback"]) => {
+    root.dataset.jamsRenderFallback = reason;
+  };
+  game.on("render:lost", onLost);
+  game.on("render:restored", onRestored);
+  game.on("render:failed", onFailed);
+  game.on("render:fallback", onFallback);
+  return () => {
+    game.off("render:lost", onLost);
+    game.off("render:restored", onRestored);
+    game.off("render:failed", onFailed);
+    game.off("render:fallback", onFallback);
+    delete root.dataset.jamsRender;
+    delete root.dataset.jamsRenderFallback;
+  };
+}
 
 /** The issues a thrown error carries, or null for one that carries none. */
 function issuesOf(error: unknown): readonly SceneIssue[] | null {
@@ -159,7 +191,7 @@ function issuesOf(error: unknown): readonly SceneIssue[] | null {
 
 /** The manifest's formats this engine can't read: `version-newer`. */
 function formatIssues(m: ReleaseManifest): SceneIssue[] {
-  const readable = readableFormats();
+  const readable = ENGINE_FORMATS;
   return (Object.keys(readable) as (keyof Formats)[])
     .filter((name) => m.engine.formats[name] > readable[name])
     .map((name) =>
@@ -287,9 +319,16 @@ async function shippedScenes(
  * asset loader over the build's files, the scene flow at the list's start,
  * the UI and saves. Sets `document.documentElement.dataset.jamsState` to
  * "loading", then "ready", or "error" with the refusal shown in `root`
- * (the promise rejects then). Every URL is resolved against the manifest's
+ * (the promise rejects then), and mirrors the renderer's state there too
+ * (`mirrorRenderState`). Every URL is resolved against the manifest's
  * own, which resolves against the document's base URI, and none leaves its
  * directory.
+ *
+ * With `?host=jams` on the page's URL it first looks for the page that
+ * frames it (`connectHost`). When one answers, saves and remaps go through
+ * that page, no service worker registers, the state is reported to it too
+ * and its `pause`/`resume` pause the game; when none answers in 2 s the
+ * build plays as it would anywhere else.
  */
 export async function bootStandalone(opts: StandaloneOptions): Promise<StandaloneGame> {
   const { root, game } = opts;
@@ -303,7 +342,9 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
   let canvas: HTMLCanvasElement | null = null;
   let instance: GameInstance | null = null;
   let unmountUi: (() => void) | null = null;
+  let unmirror: (() => void) | null = null;
   let loader: ReturnType<typeof createAssetLoader> | null = null;
+  let host: HostChannel | null = null;
   const win = doc.defaultView;
   const workerWin = opts.serviceWorker !== false && canServiceWork(win) ? win : null;
   let prompt = workerWin ? installPrompt(workerWin) : null;
@@ -319,12 +360,16 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
     prompt = null;
     unmountUi?.();
     unmountUi = null;
+    unmirror?.();
+    unmirror = null;
     instance?.destroy();
     instance = null;
     loader?.destroy();
     loader = null;
     canvas?.remove();
     canvas = null;
+    host?.close();
+    host = null;
   };
 
   try {
@@ -357,6 +402,18 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
       releaseId(manifest),
       fetchReleaseTexts(manifest, base, fetchFn),
     ]);
+    if (hostRequested(win?.location.href)) {
+      host = await connectHost({
+        hello: { engine: ENGINE_VERSION, release: id, game: game.id },
+        ...(win ? { window: win } : {}),
+      });
+    }
+    // A hosted frame has an opaque origin: no worker, and storage only through the page.
+    if (host) {
+      prompt?.stop();
+      prompt = null;
+      host.state("loading");
+    }
     const view = manifestView(manifest);
     const project = manifestRuntimeView(manifest, texts, game);
     const registry = withProject(createRegistry(game), view, jsonValues(texts));
@@ -390,14 +447,15 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
       dev: false,
       ...(opts.rapier && manifest.build.rapier !== null ? { rapier: opts.rapier } : {}),
       keyTarget: win ?? undefined,
-      input: { touch: "auto", remaps: browserRemapStore() },
+      input: { touch: "auto", remaps: remapsFor(host) },
       flow: { source },
       project,
       assets: { loader, view, kinds },
-      saves: opts.saves ?? browserSaveStore(),
+      saves: opts.saves ?? (host ? channelSaveStore(host) : browserSaveStore()),
       release: { id, manifest },
       ...(renderer ? { renderer } : {}),
     });
+    unmirror = mirrorRenderState(instance, doc.documentElement);
     if (opts.ui) {
       const credits = manifest.build.files.some((f) => f.path === CREDITS_FILE)
         ? { credits: releaseUrl(base, CREDITS_FILE).href }
@@ -414,13 +472,18 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
     instance.start();
     const started = await instance.flow.restart();
     if (!started.ok) throw new StandaloneBootError([started.issue]);
-    if (workerWin && manifest.pwa) registerWorker(workerWin, releaseUrl(base, SERVICE_WORKER_FILE));
+    if (workerWin && manifest.pwa && !host)
+      registerWorker(workerWin, releaseUrl(base, SERVICE_WORKER_FILE));
     win?.addEventListener("resize", resize);
     loading?.remove();
     loading = null;
     setState(doc, "ready");
-
     const playing = instance;
+    if (host) {
+      followHostPause(host, playing);
+      host.state("ready");
+    }
+
     return {
       instance: playing,
       manifest,
@@ -429,13 +492,15 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
         return prompt?.current() ?? null;
       },
       credits: CREDITS_FILE,
+      host,
       destroy: teardown,
     };
   } catch (error) {
-    teardown();
-    setState(doc, "error");
     const issues = issuesOf(error);
     const [first] = issues ?? [];
+    host?.state("error", first);
+    teardown();
+    setState(doc, "error");
     renderBootError(
       root,
       first
@@ -448,6 +513,35 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
         : new StandaloneBootError(issues)
       : error;
   }
+}
+
+/** The host's remaps snapshot, saved back over its channel; else this browser's. */
+function remapsFor(host: HostChannel | null) {
+  if (!host) return browserRemapStore();
+  const channel = host;
+  return snapshotRemapStore(channel.welcome.prefs.remap, (_gameId, state) => {
+    // A remap the page couldn't keep still applies for this session.
+    channel.request("prefs.save", { store: "remap", value: state }).catch(() => {});
+  });
+}
+
+/**
+ * Pauses the game while the page says it is hidden or covered, and resumes
+ * it after only when the page's pause was what stopped it: a game the
+ * player had already paused stays paused.
+ */
+function followHostPause(host: HostChannel, instance: GameInstance): void {
+  let pausedByHost = false;
+  host.on("pause", () => {
+    const already = instance.getStore().state.sim.paused;
+    instance.pause();
+    if (!already) pausedByHost = true;
+  });
+  host.on("resume", () => {
+    if (!pausedByHost) return;
+    pausedByHost = false;
+    instance.resume();
+  });
 }
 
 /** Registers the build's `sw.js`, scoped to its directory. A refusal leaves the game playing online only. */

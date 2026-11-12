@@ -11,6 +11,7 @@ import {
   type EditorHost,
   type EditorIdentityInput,
   type EditorNotify,
+  type EditorPublishHost,
   type NotifyOptions,
   type SceneEditorHandle,
 } from "@jams/engine/editor-ui";
@@ -20,6 +21,16 @@ import { useStore } from "@tanstack/react-store";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { CanvasShell } from "@/components/canvas/shell/CanvasShell";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { ENGINE_START_SCENE } from "@/games/engine-editor";
 import { activeUserStore, type ActiveUserProfile } from "@/lib/active-user-store";
 import { presenceColor } from "@/lib/canvas/presence";
@@ -32,6 +43,7 @@ import { EditorLoading } from "./editor-loading";
 import { BlankCanvas } from "./game-canvas-loading";
 import { DEFAULT_GAME, hostedGames, useLoaded, type HostedGame } from "./hosted-games";
 import { LoadFailed } from "./load-failed";
+import { publishAllowed, publishError, sitePublishHost } from "./publish-host";
 import { GameSiteIsland } from "./site-island";
 
 /** What the editor opens a project with. */
@@ -191,6 +203,12 @@ export type SiteEditorHostOptions = {
   project?: Pick<EditorHost, "connect" | "assetUrl"> & Partial<Pick<EditorHost, "findScene">>;
   /** The site menu's "Project settings" entry. */
   onProjectSettings?: () => void;
+  /**
+   * The hosted project the editor has open, so the Publish panel and the
+   * Usage section can act on it; the file-backed dev editor has none.
+   * Shown only while `engine-games-enabled` is on and the deployment hosts games.
+   */
+  hosted?: { project: string; team?: string | null };
 };
 
 /** jams.team as the editor's host: the site's toasts, sounds, identity, colours, flags and menu. */
@@ -201,6 +219,7 @@ export function useSiteEditorHost({
   projectNames,
   project,
   onProjectSettings,
+  hosted,
 }: SiteEditorHostOptions): EditorHost {
   const [server] = useState(() => project ?? devProject());
   const profile = useStore(activeUserStore, (s) => s.profile);
@@ -229,6 +248,24 @@ export function useSiteEditorHost({
   const [projectSettings] = useState(() => () => projectSettingsRef.current?.());
   const projects = useMemo(() => projectChoices(projectNames ?? {}), [projectNames]);
 
+  const gamesOn = publishAllowed(
+    (name) => (flags as Partial<Record<string, boolean>>)[name] ?? false,
+  );
+  const [openTokenDialog] = useState(() => ({ current: null as (() => void) | null }));
+  const hostedProject = hosted?.project;
+  const hostedTeam = hosted?.team ?? null;
+  const publish = useMemo<EditorPublishHost | undefined>(
+    () =>
+      hostedProject !== undefined && gamesOn
+        ? sitePublishHost({
+            project: hostedProject,
+            team: hostedTeam,
+            openTokenDialog: () => openTokenDialog.current?.(),
+          })
+        : undefined,
+    [hostedProject, hostedTeam, gamesOn, openTokenDialog],
+  );
+
   return useMemo<EditorHost>(
     () => ({
       connect: server.connect,
@@ -242,11 +279,126 @@ export function useSiteEditorHost({
       cue: siteCue,
       flag,
       chrome: {
-        topLeft: <GameSiteIsland title={title} onProjectSettings={projectSettings} />,
+        topLeft: (
+          <>
+            <GameSiteIsland title={title} onProjectSettings={projectSettings} />
+            {publish ? <AgentTokenDialog project={publish.project} bind={openTokenDialog} /> : null}
+          </>
+        ),
       },
       onSceneChange: sceneChange,
+      ...(publish ? { publish } : {}),
     }),
-    [server, identity, flag, sceneChange, projectChange, projectSettings, projects, title],
+    [
+      server,
+      identity,
+      flag,
+      sceneChange,
+      projectChange,
+      projectSettings,
+      projects,
+      title,
+      publish,
+      openTokenDialog,
+    ],
+  );
+}
+
+/** A release token lasts a working day; the CLI asks for a new one after. */
+const RELEASE_TOKEN_TTL_HOURS = 24;
+
+/**
+ * The agent token the release command needs: a write token for the open
+ * project, minted on request and shown once. `bind` receives the opener,
+ * so the publish host can open it without the host changing.
+ */
+export function AgentTokenDialog({
+  project,
+  bind,
+}: {
+  project: string;
+  bind: { current: (() => void) | null };
+}) {
+  const [open, setOpen] = useState(false);
+  const [secret, setSecret] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  useEffect(() => {
+    bind.current = () => setOpen(true);
+    return () => {
+      bind.current = null;
+    };
+  }, [bind]);
+
+  const create = async () => {
+    setPending(true);
+    try {
+      const { client } = await import("@/orpc/client");
+      const token = await client.createAgentToken({
+        projectId: project,
+        access: "write",
+        label: "Releases from the editor",
+        ttlHours: RELEASE_TOKEN_TTL_HOURS,
+      });
+      setSecret(token.secret);
+    } catch (error) {
+      const refusal = publishError(error);
+      siteNotify.error("Couldn't create the token", {
+        description: refusal instanceof Error ? refusal.message : String(refusal),
+      });
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const copy = async () => {
+    if (secret === null) return;
+    try {
+      await navigator.clipboard.writeText(secret);
+      siteNotify.success("Token copied");
+    } catch {
+      siteNotify.error("Couldn't copy the token", {
+        description: "Select it and copy it instead.",
+      });
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (pending) return;
+        setOpen(next);
+        if (!next) setSecret(null);
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Agent token for {project}</DialogTitle>
+          <DialogDescription>
+            {secret === null
+              ? "A token with write access lets the release command upload this project's builds. It lasts a day."
+              : "This is the only time it's shown. Set it as JAMS_AGENT_TOKEN, or pass it with --token."}
+          </DialogDescription>
+        </DialogHeader>
+        {secret !== null ? (
+          <Input
+            readOnly
+            value={secret}
+            aria-label="Agent token"
+            onFocus={(e) => e.target.select()}
+          />
+        ) : null}
+        <DialogFooter>
+          {secret === null ? (
+            <Button onClick={() => void create()} disabled={pending}>
+              {pending ? "Creating…" : "Create token"}
+            </Button>
+          ) : (
+            <Button onClick={() => void copy()}>Copy</Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

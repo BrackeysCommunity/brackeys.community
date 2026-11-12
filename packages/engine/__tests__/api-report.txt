@@ -132,6 +132,7 @@ selectPhase
 selectSession
 selectSim
 selectTick
+snapshotRemapStore
 spriteGeometry
 viewportFor
 watchView
@@ -705,15 +706,21 @@ EditorIdentityInput
 EditorLayout
 EditorNotify
 EditorProjectChoice
+EditorPublishHost
 EditorSkeleton
 EditorSkeletonProps
 EditorStorage
+GameSaveMode
+GameSettingsPatch
+GameSettingsView
+GameVisibility
 MintProjectToken
 NotifyOptions
 PanelId
 Pending
 PendingRun
 PendingTask
+PointerMove
 ProjectAccess
 ProjectBlobs
 ProjectConnection
@@ -724,10 +731,16 @@ ProjectTokenAnswer
 ProjectTokenRequest
 ProjectTokens
 ProjectTransport
+PublishChannel
+PublishWording
+ReleaseView
 SceneEditor
 SceneEditorHandle
 SceneEditorProps
 SceneHome
+UsageLevel
+UsageLineView
+UsageView
 blobContentStore
 connectProjectSession
 createPending
@@ -1979,15 +1992,49 @@ fpToString
 seedFromString
 
 ## @jams/engine/standalone
+ConnectHostOptions
 FetchText
+FrameMessage
+HOST_DOWNLOAD_MAX_BYTES
+HOST_HANDSHAKE_TIMEOUT_MS
+HOST_MESSAGE_MAX_BYTES
+HOST_PROTOCOL_VERSION
+HOST_REQUESTS
+HostChannel
+HostEvents
+HostMessage
+HostRequestError
+HostRequestMethod
+HostRequestParams
+HostRequestResult
+HostSaves
+HostWelcome
+RenderState
 StandaloneBootError
 StandaloneGame
 StandaloneOptions
 bootStandalone
+channelSaveStore
+connectHost
 fetchReleaseTexts
+frameMessageSchema
+frameReadySchema
+hostHandshakeSchema
+hostIssueSchema
+hostMessageBytes
+hostMessageSchema
+hostRequested
+hostSavesSchema
 manifestRuntimeView
 manifestView
+mirrorRenderState
+saveLimitsSchema
+saveModeSchema
+saveSummarySchema
+saveWriteResultSchema
 showBootError
+welcomeSchema
+withinHostMessageCap
 
 ## @jams/engine/vite
 ASSET_CHANGED
@@ -3092,6 +3139,7 @@ type EditorHost = {
     onSceneChange?: (id: string) => void;
     peerColor?: (id: string) => string;
     projects?: readonly EditorProjectChoice[];
+    publish?: EditorPublishHost;
     readOnly?: boolean;
     storage?: EditorStorage | null;
 };
@@ -3108,10 +3156,37 @@ type EditorProjectChoice = {
     id: ProjectId;
     name: string;
 };
+type EditorPublishHost = {
+    openTokenDialog(): void;
+    project: ProjectId;
+    promote(version: number, channel: PublishChannel): Promise<PointerMove>;
+    releases(): Promise<readonly ReleaseView[]>;
+    rollback(channel: PublishChannel, to?: number): Promise<PointerMove>;
+    setSettings(patch: GameSettingsPatch): Promise<GameSettingsView>;
+    settings(): Promise<GameSettingsView>;
+    usage(): Promise<UsageView>;
+    wording: PublishWording;
+};
 type EditorStorage = {
     get(key: string): null | string;
     set(key: string, value: string): void;
 };
+type GameSaveMode = "none" | "own" | "site";
+type GameSettingsPatch = {
+    connectOrigins?: readonly string[];
+    online?: boolean;
+    saveMode?: GameSaveMode;
+    visibility?: GameVisibility;
+};
+type GameSettingsView = {
+    connectOrigins: readonly string[];
+    online: boolean;
+    reviewPending: boolean;
+    saveMode: GameSaveMode;
+    team: null | string;
+    visibility: GameVisibility;
+};
+type GameVisibility = "private" | "public" | "team" | "unlisted";
 type HocuspocusModule = typeof _$_hocuspocus_provider0;
 type MintProjectToken = (request: ProjectTokenRequest) => Promise<ProjectTokenAnswer>;
 type NotifyOptions = {
@@ -3121,6 +3196,10 @@ type NotifyOptions = {
     };
     description?: string;
     id?: string;
+};
+type PointerMove = {
+    from: null | number;
+    to: number;
 };
 type ProjectAccess = "read" | "write";
 type ProjectBlobs = {
@@ -3182,6 +3261,33 @@ type ProjectTokenRequest = {
     projectId: ProjectId;
 };
 type ProjectTransport = (url: string) => ProjectSocket;
+type PublishChannel = "preview" | "production";
+type PublishWording = {
+    command: string;
+    connectsTo: string;
+    noRelease: string;
+    privateLinks: string;
+    saveModes: Readonly<Record<GameSaveMode, string>>;
+    token: string;
+    visibility: Readonly<Record<GameVisibility, string>>;
+};
+type ReleaseView = {
+    bytes: number;
+    channels: readonly PublishChannel[];
+    collected: boolean;
+    createdAt: string;
+    engine: string;
+    firstPromotedAt: null | string;
+    hidden: null | string;
+    id: Sha256;
+    jams: readonly string[];
+    playUrl: string;
+    removal: null | {
+        at: string;
+        text: string;
+    };
+    version: number;
+};
 type SceneHome = {
     id: string;
     name: string;
@@ -3190,6 +3296,29 @@ type SceneHome = {
 type UploadedBlob = {
     bytes: number;
     sha256: Sha256;
+};
+type UsageLevel = "full" | "ok" | "warn";
+type UsageLineView = {
+    detail?: string;
+    level: UsageLevel;
+    max: number;
+    quota: string;
+    ratio: number;
+    text: string;
+    used: number;
+};
+type UsageView = {
+    footer: string;
+    lines: readonly UsageLineView[];
+    notice: null | {
+        level: Exclude<UsageLevel, "ok">;
+        text: string;
+    };
+    trash: null | {
+        assets: number;
+        bytes: number;
+        confirm: string;
+    };
 };
 
 ## editor-ui/index.ts
@@ -3265,7 +3394,9 @@ type PanelContext = {
     pickedAsset: Store<AssetKey | null>;
     subscribe: (listener: () => void) => () => void;
 };
-type PanelControls = Pick<EditorControls, "frame" | "notify" | "onOpenPrefab" | "onReplay" | "playFrom" | "prefab" | "project" | "runStore" | "session"> & Partial<Pick<EditorControls, "game">>;
+type PanelControls = Pick<EditorControls, "frame" | "notify" | "onOpenPrefab" | "onReplay" | "playFrom" | "prefab" | "project" | "runStore" | "session"> & Partial<Pick<EditorControls, "game">> & {
+    publish?: EditorPublishHost;
+};
 type PanelDef = {
     badge?: (ctx: PanelContext) => null | {
         count: number;
@@ -3363,7 +3494,9 @@ type EditorProjectLink = {
     flow?: SceneListFlow;
     notice?: Store<SceneNotice | null>;
     onProjectChange?: (id: ProjectId) => void;
-    openScene?: (id: string) => void;
+    openScene?: (id: string, opts?: {
+        madeFrom?: string;
+    }) => void;
     projects?: readonly EditorProjectChoice[];
     readOnly?: boolean;
     scene?: string;
@@ -6796,6 +6929,7 @@ interface RemapStore {
 }
 declare function browserRemapStore(prefix?: string): RemapStore;
 declare function memoryRemapStore(): RemapStore;
+declare function snapshotRemapStore(initial: unknown, save: (gameId: string, state: RemapState) => void): RemapStore;
 
 ## input/state.ts
 interface InputState {
@@ -8213,6 +8347,7 @@ declare const PROJECT_OP_NAMES: readonly [
     "moveAsset",
     "deleteAsset",
     "restoreAsset",
+    "purgeAsset",
     "changeAssetId",
     "setImport",
     "replaceContent",
@@ -8236,6 +8371,7 @@ type ProjectBatchCheck = {
     delegated: number[];
     issues: SceneIssue[];
     ok: true;
+    purged: AssetKey[];
     registry: boolean;
     scenes: ReadonlyMap<AssetKey, SceneWrite>;
     state: ProjectState;
@@ -8306,6 +8442,9 @@ type ProjectOp = {
     id: AssetId;
     op: "editScene";
     ops: SceneOp[];
+} | {
+    id: AssetId;
+    op: "purgeAsset";
 } | {
     id: AssetId;
     op: "restoreAsset";
@@ -8386,6 +8525,10 @@ declare const projectOpBatchSchema: z.ZodObject<{
         z.ZodObject<{
             id: z.ZodString;
             op: z.ZodLiteral<"restoreAsset">;
+        }, z.core.$strict>,
+        z.ZodObject<{
+            id: z.ZodString;
+            op: z.ZodLiteral<"purgeAsset">;
         }, z.core.$strict>,
         z.ZodObject<{
             id: z.ZodString;
@@ -9509,6 +9652,7 @@ type SaveWriteResult = {
     issue: SceneIssue;
     ok: false;
 };
+declare function channelSaveStore(channel: HostChannel): SaveStore;
 declare function indexedDbSaveStore(opts?: {
     db?: string;
 }): SaveStore;
@@ -9520,7 +9664,7 @@ declare function memorySaveStore(): SaveStore;
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 15;
+declare const AGENT_SURFACE_VERSION = 16;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -12475,6 +12619,9 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "import-failed",
     "quota-exceeded",
     "project-id-taken",
+    "asset-not-trashed",
+    "release-immutable",
+    "release-forbidden",
     "binding-unknown",
     "player-unknown",
     "spawn-id-invalid",
@@ -13035,9 +13182,11 @@ type RngState = readonly [
 declare function seedFromString(seed: string): number;
 
 ## standalone/boot.ts
+type RenderState = "failed" | "lost" | "rebuilt" | "restored";
 type StandaloneGame = {
     credits: string;
     destroy(): void;
+    host: HostChannel | null;
     install: (() => Promise<boolean>) | null;
     instance: GameInstance;
     manifest: ReleaseManifest;
@@ -13055,6 +13204,7 @@ type StandaloneOptions = {
     ui?: MountUi;
 };
 declare function bootStandalone(opts: StandaloneOptions): Promise<StandaloneGame>;
+declare function mirrorRenderState(game: Pick<GameInstance, "off" | "on">, root?: HTMLElement): () => void;
 
 ## standalone/data.ts
 type FetchText = (url: string) => Promise<Response>;
@@ -13068,6 +13218,335 @@ declare class StandaloneBootError extends Error {
 declare function showBootError(root: HTMLElement, issue: SceneIssue): {
     destroy(): void;
 };
+
+## standalone/host-channel.ts
+type ConnectHostOptions = {
+    hello: {
+        engine: string;
+        game: string;
+        release: Sha256;
+    };
+    timeoutMs?: number;
+    window?: Window;
+};
+type HostChannel = {
+    close(): void;
+    offerDownload(name: string, contentType: string, bytes: ArrayBuffer): void;
+    on<E extends keyof HostEvents>(event: E, fn: (data: HostEvents[E]) => void): () => void;
+    readonly dropped: number;
+    readonly welcome: HostWelcome;
+    request<M extends HostRequestMethod>(method: M, params: HostRequestParams<M>): Promise<HostRequestResult<M>>;
+    state(state: "error" | "loading" | "ready", issue?: SceneIssue): void;
+};
+declare class HostRequestError extends Error {
+    readonly issue: SceneIssue;
+    constructor(issue: SceneIssue);
+}
+declare function connectHost(opts: ConnectHostOptions): Promise<HostChannel | null>;
+declare function hostRequested(href: string | undefined): boolean;
+
+## standalone/host-protocol.ts
+type FrameMessage = z.infer<typeof frameMessageSchema>;
+declare const HOST_DOWNLOAD_MAX_BYTES: number;
+declare const HOST_HANDSHAKE_TIMEOUT_MS = 2000;
+declare const HOST_MESSAGE_MAX_BYTES = 65536;
+declare const HOST_PROTOCOL_VERSION = 1;
+declare const HOST_REQUESTS: {
+    readonly "prefs.save": {
+        readonly params: z.ZodObject<{
+            store: z.ZodEnum<{
+                prefs: "prefs";
+                remap: "remap";
+            }>;
+            value: z.ZodUnknown;
+        }, z.core.$strict>;
+        readonly result: z.ZodNull;
+    };
+    readonly "saves.list": {
+        readonly params: z.ZodObject<{
+            gameId: z.ZodString;
+        }, z.core.$strict>;
+        readonly result: z.ZodArray<z.ZodObject<{
+            bytes: z.ZodNumber;
+            meta: z.ZodObject<{
+                playTicks: z.ZodNumber;
+                savedAt: z.ZodNumber;
+                scene: z.ZodString;
+                title: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            slot: z.ZodString;
+        }, z.core.$strip>>;
+    };
+    readonly "saves.read": {
+        readonly params: z.ZodObject<{
+            gameId: z.ZodString;
+            slot: z.ZodString;
+        }, z.core.$strict>;
+        readonly result: z.ZodNullable<z.ZodString>;
+    };
+    readonly "saves.remove": {
+        readonly params: z.ZodObject<{
+            gameId: z.ZodString;
+            slot: z.ZodString;
+        }, z.core.$strict>;
+        readonly result: z.ZodNull;
+    };
+    readonly "saves.write": {
+        readonly params: z.ZodObject<{
+            gameId: z.ZodString;
+            slot: z.ZodString;
+            text: z.ZodString;
+        }, z.core.$strict>;
+        readonly result: z.ZodUnion<readonly [
+            z.ZodObject<{
+                bytes: z.ZodNumber;
+                ok: z.ZodLiteral<true>;
+            }, z.core.$strip>,
+            z.ZodObject<{
+                issue: z.ZodType<SceneIssue, unknown, z.core.$ZodTypeInternals<SceneIssue, unknown>>;
+                ok: z.ZodLiteral<false>;
+            }, z.core.$strip>
+        ]>;
+    };
+    readonly "session.token": {
+        readonly params: z.ZodObject<{
+            sessionId: z.ZodString;
+        }, z.core.$strict>;
+        readonly result: z.ZodObject<{
+            token: z.ZodString;
+            url: z.ZodString;
+        }, z.core.$strip>;
+    };
+    readonly hello: {
+        readonly params: z.ZodObject<{
+            engine: z.ZodString;
+            game: z.ZodString;
+            release: z.ZodString;
+        }, z.core.$strict>;
+        readonly result: z.ZodObject<{
+            online: z.ZodBoolean;
+            player: z.ZodObject<{
+                name: z.ZodNullable<z.ZodString>;
+                signedIn: z.ZodBoolean;
+            }, z.core.$strip>;
+            prefs: z.ZodObject<{
+                prefs: z.ZodUnknown;
+                remap: z.ZodUnknown;
+            }, z.core.$strip>;
+            saves: z.ZodObject<{
+                describe: z.ZodString;
+                limits: z.ZodObject<{
+                    maxBytes: z.ZodNumber;
+                    maxSlots: z.ZodNumber;
+                }, z.core.$strict>;
+                mode: z.ZodEnum<{
+                    none: "none";
+                    own: "own";
+                    site: "site";
+                }>;
+            }, z.core.$strip>;
+        }, z.core.$strip>;
+    };
+};
+type HostEvents = {
+    "saves.changed": HostSaves;
+    pause: undefined;
+    resume: undefined;
+};
+type HostMessage = z.infer<typeof hostMessageSchema>;
+type HostRequestMethod = keyof typeof HOST_REQUESTS;
+type HostRequestParams<M extends HostRequestMethod> = z.infer<(typeof HOST_REQUESTS)[M]["params"]>;
+type HostRequestResult<M extends HostRequestMethod> = z.infer<(typeof HOST_REQUESTS)[M]["result"]>;
+type HostSaves = z.infer<typeof hostSavesSchema>;
+type HostWelcome = z.infer<typeof welcomeSchema>;
+declare const frameMessageSchema: z.ZodDiscriminatedUnion<[
+    z.ZodObject<{
+        id: z.ZodNumber;
+        params: z.ZodObject<{
+            engine: z.ZodString;
+            game: z.ZodString;
+            release: z.ZodString;
+        }, z.core.$strict>;
+        type: z.ZodLiteral<"hello">;
+    }, z.core.$strict>,
+    z.ZodObject<{
+        id: z.ZodNumber;
+        params: z.ZodObject<{
+            gameId: z.ZodString;
+        }, z.core.$strict>;
+        type: z.ZodLiteral<"saves.list">;
+    }, z.core.$strict>,
+    z.ZodObject<{
+        id: z.ZodNumber;
+        params: z.ZodObject<{
+            gameId: z.ZodString;
+            slot: z.ZodString;
+        }, z.core.$strict>;
+        type: z.ZodLiteral<"saves.read">;
+    }, z.core.$strict>,
+    z.ZodObject<{
+        id: z.ZodNumber;
+        params: z.ZodObject<{
+            gameId: z.ZodString;
+            slot: z.ZodString;
+            text: z.ZodString;
+        }, z.core.$strict>;
+        type: z.ZodLiteral<"saves.write">;
+    }, z.core.$strict>,
+    z.ZodObject<{
+        id: z.ZodNumber;
+        params: z.ZodObject<{
+            gameId: z.ZodString;
+            slot: z.ZodString;
+        }, z.core.$strict>;
+        type: z.ZodLiteral<"saves.remove">;
+    }, z.core.$strict>,
+    z.ZodObject<{
+        id: z.ZodNumber;
+        params: z.ZodObject<{
+            store: z.ZodEnum<{
+                prefs: "prefs";
+                remap: "remap";
+            }>;
+            value: z.ZodUnknown;
+        }, z.core.$strict>;
+        type: z.ZodLiteral<"prefs.save">;
+    }, z.core.$strict>,
+    z.ZodObject<{
+        id: z.ZodNumber;
+        params: z.ZodObject<{
+            sessionId: z.ZodString;
+        }, z.core.$strict>;
+        type: z.ZodLiteral<"session.token">;
+    }, z.core.$strict>,
+    z.ZodObject<{
+        issue: z.ZodOptional<z.ZodType<SceneIssue, unknown, z.core.$ZodTypeInternals<SceneIssue, unknown>>>;
+        jamsState: z.ZodEnum<{
+            error: "error";
+            loading: "loading";
+            ready: "ready";
+        }>;
+        type: z.ZodLiteral<"state">;
+    }, z.core.$strict>,
+    z.ZodObject<{
+        bytes: z.ZodCustom<ArrayBuffer, ArrayBuffer>;
+        contentType: z.ZodString;
+        name: z.ZodString;
+        type: z.ZodLiteral<"download">;
+    }, z.core.$strict>
+], "type">;
+declare const frameReadySchema: z.ZodObject<{
+    protocol: z.ZodLiteral<1>;
+    type: z.ZodLiteral<"jams:frame-ready">;
+}, z.core.$strict>;
+declare const hostHandshakeSchema: z.ZodObject<{
+    protocol: z.ZodLiteral<1>;
+    type: z.ZodLiteral<"jams:host">;
+}, z.core.$strict>;
+declare const hostIssueSchema: z.ZodType<SceneIssue>;
+declare function hostMessageBytes(message: unknown): number;
+declare const hostMessageSchema: z.ZodDiscriminatedUnion<[
+    z.ZodDiscriminatedUnion<[
+        z.ZodObject<{
+            id: z.ZodNumber;
+            ok: z.ZodLiteral<true>;
+            result: z.ZodUnknown;
+            type: z.ZodLiteral<"reply">;
+        }, z.core.$strip>,
+        z.ZodObject<{
+            id: z.ZodNumber;
+            issue: z.ZodType<SceneIssue, unknown, z.core.$ZodTypeInternals<SceneIssue, unknown>>;
+            ok: z.ZodLiteral<false>;
+            type: z.ZodLiteral<"reply">;
+        }, z.core.$strip>
+    ], "ok">,
+    z.ZodObject<{
+        saves: z.ZodObject<{
+            describe: z.ZodString;
+            limits: z.ZodObject<{
+                maxBytes: z.ZodNumber;
+                maxSlots: z.ZodNumber;
+            }, z.core.$strict>;
+            mode: z.ZodEnum<{
+                none: "none";
+                own: "own";
+                site: "site";
+            }>;
+        }, z.core.$strip>;
+        type: z.ZodLiteral<"saves.changed">;
+    }, z.core.$strip>,
+    z.ZodObject<{
+        type: z.ZodLiteral<"pause">;
+    }, z.core.$strip>,
+    z.ZodObject<{
+        type: z.ZodLiteral<"resume">;
+    }, z.core.$strip>
+], "type">;
+declare const hostSavesSchema: z.ZodObject<{
+    describe: z.ZodString;
+    limits: z.ZodObject<{
+        maxBytes: z.ZodNumber;
+        maxSlots: z.ZodNumber;
+    }, z.core.$strict>;
+    mode: z.ZodEnum<{
+        none: "none";
+        own: "own";
+        site: "site";
+    }>;
+}, z.core.$strip>;
+declare const saveLimitsSchema: z.ZodObject<{
+    maxBytes: z.ZodNumber;
+    maxSlots: z.ZodNumber;
+}, z.core.$strict>;
+declare const saveModeSchema: z.ZodEnum<{
+    none: "none";
+    own: "own";
+    site: "site";
+}>;
+declare const saveSummarySchema: z.ZodObject<{
+    bytes: z.ZodNumber;
+    meta: z.ZodObject<{
+        playTicks: z.ZodNumber;
+        savedAt: z.ZodNumber;
+        scene: z.ZodString;
+        title: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>;
+    slot: z.ZodString;
+}, z.core.$strip>;
+declare const saveWriteResultSchema: z.ZodUnion<readonly [
+    z.ZodObject<{
+        bytes: z.ZodNumber;
+        ok: z.ZodLiteral<true>;
+    }, z.core.$strip>,
+    z.ZodObject<{
+        issue: z.ZodType<SceneIssue, unknown, z.core.$ZodTypeInternals<SceneIssue, unknown>>;
+        ok: z.ZodLiteral<false>;
+    }, z.core.$strip>
+]>;
+declare const welcomeSchema: z.ZodObject<{
+    online: z.ZodBoolean;
+    player: z.ZodObject<{
+        name: z.ZodNullable<z.ZodString>;
+        signedIn: z.ZodBoolean;
+    }, z.core.$strip>;
+    prefs: z.ZodObject<{
+        prefs: z.ZodUnknown;
+        remap: z.ZodUnknown;
+    }, z.core.$strip>;
+    saves: z.ZodObject<{
+        describe: z.ZodString;
+        limits: z.ZodObject<{
+            maxBytes: z.ZodNumber;
+            maxSlots: z.ZodNumber;
+        }, z.core.$strict>;
+        mode: z.ZodEnum<{
+            none: "none";
+            own: "own";
+            site: "site";
+        }>;
+    }, z.core.$strip>;
+}, z.core.$strip>;
+declare function withinHostMessageCap(message: unknown): boolean;
 
 ## standalone/manifest-view.ts
 declare function manifestRuntimeView(m: ReleaseManifest, texts: ReadonlyMap<AssetId, string>, game: GameDefinition): ProjectRuntimeView;
@@ -13357,6 +13836,9 @@ type GameEventMap = {
     };
     "play:outcome": PlayOutcome;
     "play:recorded": RunRecording;
+    "render:failed": {
+        backend: RenderBackend;
+    };
     "render:fallback": {
         from: "webgpu";
         reason: "init" | "lost";
@@ -13602,7 +14084,7 @@ type UiHandle = {
 
 ## version.ts
 declare const COLLAB_LAYOUT_VERSION = 3;
-declare const ENGINE_VERSION = "0.14.0";
+declare const ENGINE_VERSION = "0.14.1";
 declare const REPLAY_ACROSS_PLATFORMS = true;
 
 ## vite/apply-files.ts

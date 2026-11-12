@@ -100,6 +100,15 @@ export function actorId(origin: DocOrigin): string {
   }
 }
 
+/**
+ * The transaction origin a checked batch is written with: a purge has no
+ * inverse, so its batch is written with an untracked copy of `origin` (the
+ * log still names it) and never lands on an undo stack.
+ */
+function writerOf(origin: DocOrigin, check: Extract<ProjectBatchCheck, { ok: true }>): DocOrigin {
+  return check.purged.length > 0 ? { ...origin } : origin;
+}
+
 /** Ops that write docs other than the project doc. */
 const DOC_OPS: readonly ProjectOpName[] = ["changeAssetId", "editAsset", "editScene"];
 
@@ -181,15 +190,18 @@ export function applyRegistryBatch(
   if (!check.ok) return check;
   if (!check.registry) return { ok: true, docs: [], created: [], issues: check.issues, check };
   let entry: ProjectLogEntry | undefined;
-  doc.transact(() => {
-    writeState(doc, state, check.state);
-    entry = logBatch(
-      doc,
-      state,
-      { actor: origin, label: opts.label ?? batchLabel(batch), at: now },
-      opts.alsoWrote,
-    );
-  }, origin);
+  doc.transact(
+    () => {
+      writeState(doc, state, check.state);
+      entry = logBatch(
+        doc,
+        state,
+        { actor: origin, label: opts.label ?? batchLabel(batch), at: now },
+        opts.alsoWrote,
+      );
+    },
+    writerOf(origin, check),
+  );
   return {
     ok: true,
     docs: [entry!.docs[0]!.doc],
@@ -569,7 +581,8 @@ const readsReferrers = (op: Record<string, unknown>) =>
  * docs. `changeAssetId` writes the entry, the prefab header of a prefab,
  * and every referrer the same way. A batch that wrote two or more docs
  * also appends one project log entry naming each doc's entry. When
- * `origin` is the session's, the batch is one undo step.
+ * `origin` is the session's, the batch is one undo step, unless it purges
+ * an asset: then it is on no undo stack.
  */
 export async function applyProjectBatch(
   session: ProjectSession,
@@ -723,6 +736,7 @@ export async function applyProjectBatch(
       now,
     );
     if (!check.ok) return check;
+    origin = writerOf(origin, check);
     for (const key of check.written) {
       if (!state.assets[key]) continue;
       const name = session.docNameFor(check.state.assets[key]!);

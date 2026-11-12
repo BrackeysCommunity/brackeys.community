@@ -2249,7 +2249,8 @@ export type ImageOwnerType =
   | "team_project_image"
   | "forum_post_image"
   | "canvas_attachment"
-  | "engine_blob";
+  | "engine_blob"
+  | "engine_release_file";
 
 /**
  * `pending` — row minted at upload, not yet scanned. `scanned` — fingerprinted
@@ -2480,8 +2481,40 @@ export const engineProjects = canvasSchema.table(
     deletedAt: timestamp("deleted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    // Who plays its releases, in the canvases' words: 'private' | 'team' |
+    // 'unlisted' | 'public'. A first 'public' stays 'unlisted' until staff
+    // approve it once (`public_approved_at`).
+    visibility: text("visibility").notNull().default("private"),
+    // The showcase project whose title, cover and credits the game page shows.
+    showcaseProjectId: text("showcase_project_id")
+      .unique()
+      .references(() => projects.id, { onDelete: "set null" }),
+    publicReviewRequestedAt: timestamp("public_review_requested_at"),
+    publicApprovedAt: timestamp("public_approved_at"),
+    publicApprovedById: text("public_approved_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    hiddenAt: timestamp("hidden_at"),
+    hiddenById: text("hidden_by_id").references(() => user.id, { onDelete: "set null" }),
+    hiddenReason: text("hidden_reason"),
+    // Origins the game's frame may connect to beside its own files, shown on the game page.
+    connectOrigins: text("connect_origins")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    // Where players' saves go: 'site' | 'own' (the game's backend) | 'none'.
+    saveMode: text("save_mode").notNull().default("site"),
+    // The frame may reach the sync service.
+    online: boolean("online").notNull().default(false),
   },
-  (t) => [check("engine_projects_id", sql`${t.projectId} ~ '^[a-z0-9][a-z0-9-]{0,47}$'`)],
+  (t) => [
+    check("engine_projects_id", sql`${t.projectId} ~ '^[a-z0-9][a-z0-9-]{0,47}$'`),
+    check(
+      "engine_projects_visibility",
+      sql`${t.visibility} IN ('private', 'team', 'unlisted', 'public')`,
+    ),
+    check("engine_projects_save_mode", sql`${t.saveMode} IN ('site', 'own', 'none')`),
+  ],
 );
 
 /** Every doc of a project that isn't a scene or the registry (`asset:<project>.<key>`), by registry key. */
@@ -2560,6 +2593,278 @@ export const engineAgentTokens = canvasSchema.table(
     check("engine_agent_tokens_access", sql`${t.access} IN ('read', 'write')`),
     check("engine_agent_tokens_sha256", sql`${t.tokenSha256} ~ '^[0-9a-f]{64}$'`),
     index("engine_agent_tokens_project_idx").on(t.projectId),
+  ],
+);
+
+// ── Hosted game releases (canvas schema) ────────────────────────────────────
+
+/**
+ * One published build of a hosted project, keyed by its release id (the
+ * SHA-256 of its canonical `release.json`) and numbered per project. A
+ * release never changes; collecting it drops its manifest and file rows
+ * and keeps the record. The summary columns copy manifest fields, so lists,
+ * quotas and collected records never parse a manifest.
+ */
+export const engineReleases = canvasSchema.table(
+  "engine_releases",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    // Canonical release.json; null once collected.
+    manifest: text("manifest"),
+    manifestBytes: integer("manifest_bytes").notNull(),
+    // Every file plus release.json: what the release-size quota counts.
+    totalBytes: bigint("total_bytes", { mode: "number" }).notNull(),
+    fileCount: integer("file_count").notNull(),
+    engineVersion: text("engine_version").notNull(),
+    gameId: text("game_id").notNull(),
+    snapshot: text("snapshot").notNull(),
+    buildHash: text("build_hash").notNull(),
+    target: text("target").notNull(),
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    agentTokenId: uuid("agent_token_id").references(() => engineAgentTokens.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    // Set once, the first time production points at it.
+    firstPromotedAt: timestamp("first_promoted_at"),
+    collectedAt: timestamp("collected_at"),
+    hiddenAt: timestamp("hidden_at"),
+    hiddenById: text("hidden_by_id").references(() => user.id, { onDelete: "set null" }),
+    hiddenReason: text("hidden_reason"),
+  },
+  (t) => [
+    uniqueIndex("engine_releases_project_version_uq").on(t.projectId, t.version),
+    check("engine_releases_id", sql`${t.id} ~ '^[0-9a-f]{64}$'`),
+    check("engine_releases_snapshot", sql`${t.snapshot} ~ '^[0-9a-f]{64}$'`),
+    check("engine_releases_build_hash", sql`${t.buildHash} ~ '^[0-9a-f]{64}$'`),
+    check("engine_releases_version", sql`${t.version} >= 1`),
+    check("engine_releases_target", sql`${t.target} IN ('web', 'itch')`),
+  ],
+);
+
+/**
+ * A stored release file that isn't one of the project's blobs, at
+ * `engine-releases/<project>/<sha256>`, shared by every release that lists it.
+ */
+export const engineReleaseObjects = canvasSchema.table(
+  "engine_release_objects",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    sha256: text("sha256").notNull(),
+    bytes: integer("bytes").notNull(),
+    contentType: text("content_type").notNull(),
+    storageKey: text("storage_key").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    // An image scan flagged it; every release listing it is hidden meanwhile.
+    quarantinedAt: timestamp("quarantined_at"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.sha256] }),
+    check("engine_release_objects_sha256", sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+  ],
+);
+
+/** A release's path → content. `project_id` is denormalised so "is this hash still listed" is one index read. */
+export const engineReleaseFiles = canvasSchema.table(
+  "engine_release_files",
+  {
+    releaseId: text("release_id")
+      .notNull()
+      .references(() => engineReleases.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    sha256: text("sha256").notNull(),
+    bytes: integer("bytes").notNull(),
+    role: text("role").notNull(),
+    // 'release': an engine_release_objects row; 'blob': the project's own engine_blobs row.
+    source: text("source").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.releaseId, t.path] }),
+    index("engine_release_files_hash_idx").on(t.projectId, t.sha256),
+    check("engine_release_files_sha256", sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+    check(
+      "engine_release_files_role",
+      sql`${t.role} IN ('code', 'style', 'wasm', 'shell', 'worker', 'icon', 'asset', 'data')`,
+    ),
+    check("engine_release_files_source", sql`${t.source} IN ('release', 'blob')`),
+  ],
+);
+
+/**
+ * What a channel plays. A release a channel names can't be deleted (no
+ * action, checked at the end of the statement, so a project's own delete
+ * still cascades through both).
+ */
+export const engineReleaseChannels = canvasSchema.table(
+  "engine_release_channels",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    channel: text("channel").notNull(),
+    releaseId: text("release_id")
+      .notNull()
+      .references(() => engineReleases.id, { onDelete: "no action" }),
+    updatedById: text("updated_by_id").references(() => user.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.channel] }),
+    check("engine_release_channels_channel", sql`${t.channel} IN ('preview', 'production')`),
+  ],
+);
+
+/**
+ * Every pointer move, link, visibility change, hide and collection, for the
+ * project's life. No foreign key to releases, so rows outlive collection.
+ */
+export const engineReleaseAudit = canvasSchema.table(
+  "engine_release_audit",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+    actorKind: text("actor_kind").notNull(),
+    actorId: text("actor_id").references(() => user.id, { onDelete: "set null" }),
+    agentTokenId: uuid("agent_token_id").references(() => engineAgentTokens.id, {
+      onDelete: "set null",
+    }),
+    action: text("action").notNull(),
+    releaseId: text("release_id"),
+    channel: text("channel"),
+    fromRelease: text("from_release"),
+    toRelease: text("to_release"),
+    detail: jsonb("detail")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+  },
+  (t) => [
+    index("engine_release_audit_project_at_idx").on(t.projectId, t.at.desc()),
+    check(
+      "engine_release_audit_actor_kind",
+      sql`${t.actorKind} IN ('user', 'agent', 'staff', 'system')`,
+    ),
+    check(
+      "engine_release_audit_action",
+      sql`${t.action} IN ('create', 'promote', 'rollback', 'visibility', 'jam-link', 'jam-unlink', 'hide', 'unhide', 'collect', 'approve-public', 'settings', 'report-resolved')`,
+    ),
+    check(
+      "engine_release_audit_channel",
+      sql`${t.channel} IS NULL OR ${t.channel} IN ('preview', 'production')`,
+    ),
+  ],
+);
+
+/** The version a project submitted to a jam: one per project and jam, pinned against collection. */
+export const engineReleaseJamLinks = canvasSchema.table(
+  "engine_release_jam_links",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    jamId: integer("jam_id")
+      .notNull()
+      .references(() => itchJams.jamId, { onDelete: "cascade" }),
+    // No action, like a channel's: a pinned release can't be deleted.
+    releaseId: text("release_id")
+      .notNull()
+      .references(() => engineReleases.id, { onDelete: "no action" }),
+    linkedById: text("linked_by_id").references(() => user.id, { onDelete: "set null" }),
+    linkedAt: timestamp("linked_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.jamId] }),
+    index("engine_release_jam_links_release_idx").on(t.releaseId),
+  ],
+);
+
+/**
+ * Reports on a hosted game, the `canvas_reports` shape: the project and
+ * release are `set null` so deleting them can't delete the evidence, and
+ * the title snapshot keeps an orphaned report readable.
+ */
+export const engineReleaseReports = canvasSchema.table(
+  "engine_release_reports",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    projectId: text("project_id").references(() => engineProjects.projectId, {
+      onDelete: "set null",
+    }),
+    releaseId: text("release_id").references(() => engineReleases.id, { onDelete: "set null" }),
+    version: integer("version"),
+    title: text("title").notNull(),
+    reporterId: text("reporter_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    resolvedAt: timestamp("resolved_at"),
+    resolvedById: text("resolved_by_id").references(() => user.id, { onDelete: "set null" }),
+    // How staff resolved it: 'hidden-release' | 'hidden-project' | 'dismissed'.
+    resolution: text("resolution"),
+  },
+  (t) => [
+    index("engine_release_reports_open_idx")
+      .on(t.createdAt.desc())
+      .where(sql`${t.resolvedAt} IS NULL`),
+    index("engine_release_reports_reporter_idx").on(t.reporterId, t.createdAt.desc()),
+    check(
+      "engine_release_reports_resolution",
+      sql`${t.resolution} IS NULL OR ${t.resolution} IN ('hidden-release', 'hidden-project', 'dismissed')`,
+    ),
+  ],
+);
+
+/**
+ * An upload between `begin` and `commit`: the manifest, the files the site
+ * didn't hold yet, and the channel the commit moves. Expires 24 hours after
+ * `begin`; an expired one's files go with the orphan cleanup.
+ */
+export const engineReleaseUploads = canvasSchema.table(
+  "engine_release_uploads",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    manifest: text("manifest").notNull(),
+    releaseId: text("release_id").notNull(),
+    missing: jsonb("missing")
+      .$type<{ path: string; sha256: string; bytes: number }[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    channel: text("channel").notNull().default("preview"),
+    actorKind: text("actor_kind").notNull(),
+    actorId: text("actor_id").references(() => user.id, { onDelete: "set null" }),
+    agentTokenId: uuid("agent_token_id").references(() => engineAgentTokens.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    committedAt: timestamp("committed_at"),
+  },
+  (t) => [
+    index("engine_release_uploads_project_idx").on(t.projectId),
+    index("engine_release_uploads_open_idx")
+      .on(t.expiresAt)
+      .where(sql`${t.committedAt} IS NULL`),
+    check("engine_release_uploads_release_id", sql`${t.releaseId} ~ '^[0-9a-f]{64}$'`),
+    check("engine_release_uploads_channel", sql`${t.channel} IN ('preview', 'none')`),
+    check("engine_release_uploads_actor_kind", sql`${t.actorKind} IN ('user', 'agent', 'staff')`),
   ],
 );
 

@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`BlobRouteError`](#blobrouteerror) · [`CloseReason`](#closereason) · [`ConnectProjectSessionOptions`](#connectprojectsessionoptions) · [`DEFAULT_LAYOUT`](#default_layout) · [`EDITOR_UI_STYLESHEET`](#editor_ui_stylesheet) · [`EditorCue`](#editorcue) · [`EditorHost`](#editorhost) · [`EditorIdentityInput`](#editoridentityinput) · [`EditorLayout`](#editorlayout) · [`EditorNotify`](#editornotify) · [`EditorProjectChoice`](#editorprojectchoice) · [`EditorSkeleton`](#editorskeleton) · [`EditorSkeletonProps`](#editorskeletonprops) · [`EditorStorage`](#editorstorage) · [`MintProjectToken`](#mintprojecttoken) · [`NotifyOptions`](#notifyoptions) · [`PanelId`](#panelid) · [`Pending`](#pending) · [`PendingRun`](#pendingrun) · [`PendingTask`](#pendingtask) · [`ProjectAccess`](#projectaccess) · [`ProjectBlobs`](#projectblobs) · [`ProjectConnection`](#projectconnection) · [`ProjectConnectionState`](#projectconnectionstate) · [`ProjectConnectionStatus`](#projectconnectionstatus) · [`ProjectSocket`](#projectsocket) · [`ProjectTokenAnswer`](#projecttokenanswer) · [`ProjectTokenRequest`](#projecttokenrequest) · [`ProjectTokens`](#projecttokens) · [`ProjectTransport`](#projecttransport) · [`SceneEditor`](#sceneeditor) · [`SceneEditorHandle`](#sceneeditorhandle) · [`SceneEditorProps`](#sceneeditorprops) · [`SceneHome`](#scenehome) · [`blobContentStore`](#blobcontentstore) · [`connectProjectSession`](#connectprojectsession) · [`createPending`](#createpending) · [`createProjectTokens`](#createprojecttokens) · [`devProjectHost`](#devprojecthost) · [`fitLayout`](#fitlayout) · [`hocuspocusTransport`](#hocuspocustransport) · [`mountSceneEditor`](#mountsceneeditor) · [`offConnection`](#offconnection) · [`parseLayout`](#parselayout) · [`projectBlobs`](#projectblobs-1)
+[`BlobRouteError`](#blobrouteerror) · [`CloseReason`](#closereason) · [`ConnectProjectSessionOptions`](#connectprojectsessionoptions) · [`DEFAULT_LAYOUT`](#default_layout) · [`EDITOR_UI_STYLESHEET`](#editor_ui_stylesheet) · [`EditorCue`](#editorcue) · [`EditorHost`](#editorhost) · [`EditorIdentityInput`](#editoridentityinput) · [`EditorLayout`](#editorlayout) · [`EditorNotify`](#editornotify) · [`EditorProjectChoice`](#editorprojectchoice) · [`EditorPublishHost`](#editorpublishhost) · [`EditorSkeleton`](#editorskeleton) · [`EditorSkeletonProps`](#editorskeletonprops) · [`EditorStorage`](#editorstorage) · [`GameSaveMode`](#gamesavemode) · [`GameSettingsPatch`](#gamesettingspatch) · [`GameSettingsView`](#gamesettingsview) · [`GameVisibility`](#gamevisibility) · [`MintProjectToken`](#mintprojecttoken) · [`NotifyOptions`](#notifyoptions) · [`PanelId`](#panelid) · [`Pending`](#pending) · [`PendingRun`](#pendingrun) · [`PendingTask`](#pendingtask) · [`PointerMove`](#pointermove) · [`ProjectAccess`](#projectaccess) · [`ProjectBlobs`](#projectblobs) · [`ProjectConnection`](#projectconnection) · [`ProjectConnectionState`](#projectconnectionstate) · [`ProjectConnectionStatus`](#projectconnectionstatus) · [`ProjectSocket`](#projectsocket) · [`ProjectTokenAnswer`](#projecttokenanswer) · [`ProjectTokenRequest`](#projecttokenrequest) · [`ProjectTokens`](#projecttokens) · [`ProjectTransport`](#projecttransport) · [`PublishChannel`](#publishchannel) · [`PublishWording`](#publishwording) · [`ReleaseView`](#releaseview) · [`SceneEditor`](#sceneeditor) · [`SceneEditorHandle`](#sceneeditorhandle) · [`SceneEditorProps`](#sceneeditorprops) · [`SceneHome`](#scenehome) · [`UsageLevel`](#usagelevel) · [`UsageLineView`](#usagelineview) · [`UsageView`](#usageview) · [`blobContentStore`](#blobcontentstore) · [`connectProjectSession`](#connectprojectsession) · [`createPending`](#createpending) · [`createProjectTokens`](#createprojecttokens) · [`devProjectHost`](#devprojecthost) · [`fitLayout`](#fitlayout) · [`hocuspocusTransport`](#hocuspocustransport) · [`mountSceneEditor`](#mountsceneeditor) · [`offConnection`](#offconnection) · [`parseLayout`](#parselayout) · [`projectBlobs`](#projectblobs-1)
 
 ## `BlobRouteError`
 
@@ -135,6 +135,8 @@ type EditorHost = {
     peerColor?: (id: string) => string;
     /** The projects the host can open; with two or more the Project panel offers a switcher. */
     projects?: readonly EditorProjectChoice[];
+    /** Releases, channels and usage for the open project; without it the Publish panel and the Usage section aren't shown. */
+    publish?: EditorPublishHost;
     /** The tree, inspector and licence fields take no edits. */
     readOnly?: boolean;
     /** Per-viewer storage; default `window.localStorage`, every call in try/catch; null keeps nothing. */
@@ -142,7 +144,7 @@ type EditorHost = {
 };
 ```
 
-Refers to [`EditorCue`](#editorcue), [`EditorIdentityInput`](#editoridentityinput), [`EditorNotify`](#editornotify), [`EditorProjectChoice`](#editorprojectchoice), [`EditorStorage`](#editorstorage), [`ProjectConnection`](#projectconnection), [`SceneHome`](#scenehome).
+Refers to [`EditorCue`](#editorcue), [`EditorIdentityInput`](#editoridentityinput), [`EditorNotify`](#editornotify), [`EditorProjectChoice`](#editorprojectchoice), [`EditorPublishHost`](#editorpublishhost), [`EditorStorage`](#editorstorage), [`ProjectConnection`](#projectconnection), [`SceneHome`](#scenehome).
 
 ## `EditorIdentityInput`
 
@@ -194,6 +196,35 @@ type EditorProjectChoice = {
 };
 ```
 
+## `EditorPublishHost`
+
+_type_ in `editor-ui/host.ts`
+
+A host that publishes the project's releases. Every sentence that states
+one of the host's own numbers (a quota, a save cap, a link's lifetime, a
+cleanup grace) arrives already written, so the editor carries none of
+them.
+
+```ts
+type EditorPublishHost = {
+    /** Opens the host's agent token dialog, for the release command. */
+    openTokenDialog(): void;
+    /** The project these calls act on. */
+    project: ProjectId;
+    promote(version: number, channel: PublishChannel): Promise<PointerMove>;
+    /** Newest first. */
+    releases(): Promise<readonly ReleaseView[]>;
+    /** Back to the channel's previous release, or to `to`. */
+    rollback(channel: PublishChannel, to?: number): Promise<PointerMove>;
+    setSettings(patch: GameSettingsPatch): Promise<GameSettingsView>;
+    settings(): Promise<GameSettingsView>;
+    usage(): Promise<UsageView>;
+    wording: PublishWording;
+};
+```
+
+Refers to [`GameSettingsPatch`](#gamesettingspatch), [`GameSettingsView`](#gamesettingsview), [`PointerMove`](#pointermove), [`PublishChannel`](#publishchannel), [`PublishWording`](#publishwording), [`ReleaseView`](#releaseview), [`UsageView`](#usageview).
+
 ## `EditorSkeleton`
 
 _function_ in `editor-ui/frame/EditorSkeleton.ts`
@@ -240,6 +271,56 @@ type EditorStorage = {
     get(key: string): null | string;
     set(key: string, value: string): void;
 };
+```
+
+## `GameSaveMode`
+
+_type_ in `editor-ui/host.ts`
+
+```ts
+type GameSaveMode = "none" | "own" | "site";
+```
+
+## `GameSettingsPatch`
+
+_type_ in `editor-ui/host.ts`
+
+```ts
+type GameSettingsPatch = {
+    connectOrigins?: readonly string[];
+    online?: boolean;
+    saveMode?: GameSaveMode;
+    visibility?: GameVisibility;
+};
+```
+
+Refers to [`GameSaveMode`](#gamesavemode), [`GameVisibility`](#gamevisibility).
+
+## `GameSettingsView`
+
+_type_ in `editor-ui/host.ts`
+
+```ts
+type GameSettingsView = {
+    connectOrigins: readonly string[];
+    online: boolean;
+    /** Public was asked for and waits for staff review; the game stays unlisted meanwhile. */
+    reviewPending: boolean;
+    saveMode: GameSaveMode;
+    /** The project's team, by name; null for a personal project, which can't be team-only. */
+    team: null | string;
+    visibility: GameVisibility;
+};
+```
+
+Refers to [`GameSaveMode`](#gamesavemode), [`GameVisibility`](#gamevisibility).
+
+## `GameVisibility`
+
+_type_ in `editor-ui/host.ts`
+
+```ts
+type GameVisibility = "private" | "public" | "team" | "unlisted";
 ```
 
 ## `MintProjectToken`
@@ -344,6 +425,19 @@ type PendingTask = {
     /** A control or row (`project:rename:<assetId>`), a panel (`panel:problems`), or `editor`. */
     scope: string;
     startedAt: number;
+};
+```
+
+## `PointerMove`
+
+_type_ in `editor-ui/host.ts`
+
+A channel's pointer before and after a promote or a rollback, by version.
+
+```ts
+type PointerMove = {
+    from: null | number;
+    to: number;
 };
 ```
 
@@ -502,6 +596,70 @@ type ProjectTransport = (url: string) => ProjectSocket;
 
 Refers to [`ProjectSocket`](#projectsocket).
 
+## `PublishChannel`
+
+_type_ in `editor-ui/host.ts`
+
+```ts
+type PublishChannel = "preview" | "production";
+```
+
+## `PublishWording`
+
+_type_ in `editor-ui/host.ts`
+
+The Publish panel's sentences that carry a host's numbers, written by the host.
+
+```ts
+type PublishWording = {
+    /** The command that builds and uploads a release of this project. */
+    command: string;
+    connectsTo: string;
+    /** Shown before the command while the project has no release. */
+    noRelease: string;
+    privateLinks: string;
+    saveModes: Readonly<Record<GameSaveMode, string>>;
+    /** The agent token line beside the command. */
+    token: string;
+    visibility: Readonly<Record<GameVisibility, string>>;
+};
+```
+
+Refers to [`GameSaveMode`](#gamesavemode), [`GameVisibility`](#gamevisibility).
+
+## `ReleaseView`
+
+_type_ in `editor-ui/host.ts`
+
+```ts
+type ReleaseView = {
+    bytes: number;
+    channels: readonly PublishChannel[];
+    /** Its files are gone; the record stays. */
+    collected: boolean;
+    /** ISO 8601, UTC. */
+    createdAt: string;
+    engine: string;
+    /** When it was first on production; null for a preview-only release. ISO 8601, UTC. */
+    firstPromotedAt: null | string;
+    /** Why staff hid it; null when it isn't hidden. */
+    hidden: null | string;
+    /** The release id: the SHA-256 of its `release.json`. */
+    id: Sha256;
+    /** The jams this release is pinned to, by title. */
+    jams: readonly string[];
+    playUrl: string;
+    /** When the cleanup removes it unless pinned, with the sentence saying so; null when it is kept. */
+    removal: null | {
+        at: string;
+        text: string;
+    };
+    version: number;
+};
+```
+
+Refers to [`PublishChannel`](#publishchannel).
+
 ## `SceneEditor`
 
 _function_ in `editor-ui/SceneEditor.ts`
@@ -576,6 +734,61 @@ type SceneHome = {
     project: ProjectId;
 };
 ```
+
+## `UsageLevel`
+
+_type_ in `editor-ui/host.ts`
+
+```ts
+type UsageLevel = "full" | "ok" | "warn";
+```
+
+## `UsageLineView`
+
+_type_ in `editor-ui/host.ts`
+
+One quota's row: its line already written ("Release storage: 120 MB of 512 MB"), and where it stands.
+
+```ts
+type UsageLineView = {
+    /** A second line under the row, such as asset storage's breakdown. */
+    detail?: string;
+    level: UsageLevel;
+    max: number;
+    quota: string;
+    /** used / max. */
+    ratio: number;
+    text: string;
+    used: number;
+};
+```
+
+Refers to [`UsageLevel`](#usagelevel).
+
+## `UsageView`
+
+_type_ in `editor-ui/host.ts`
+
+```ts
+type UsageView = {
+    /** The cleanup rules, under the rows. */
+    footer: string;
+    lines: readonly UsageLineView[];
+    /** The nearly-full or full line, when a quota is at either. */
+    notice: null | {
+        level: Exclude<UsageLevel, "ok">;
+        text: string;
+    };
+    /** The trash's assets, with the confirmation that emptying it asks; null when it is empty. */
+    trash: null | {
+        assets: number;
+        bytes: number;
+        confirm: string;
+    };
+};
+```
+
+Refers to [`UsageLevel`](#usagelevel), [`UsageLineView`](#usagelineview).
 
 ## `blobContentStore`
 

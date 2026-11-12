@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { engineAssetKey, engineReleaseObjectKey, engineSaveKey } from "@/lib/engine/storage-keys";
 import {
   buildCollabPostImageObjectKey,
   buildEngineAssetObjectKey,
@@ -12,6 +13,7 @@ import {
   isEngineAssetKey,
   isServableImageKey,
   isTeamProjectImageKey,
+  SCANNABLE_PREFIXES,
 } from "@/lib/stored-image-keys";
 import { uploadedImageUrlSchema } from "@/lib/stored-image-urls";
 
@@ -135,5 +137,34 @@ describe("engine asset keys", () => {
     });
     expect(describeImageKey("engine-assets/../profile-projects/x.png")).toBeNull();
     expect(describeImageKey("quarantine/engine-assets/kitchen/x")).toBeNull();
+  });
+});
+
+describe("engine object keys", () => {
+  const hash = "b".repeat(64);
+  const keys = {
+    blob: engineAssetKey("kitchen", hash),
+    release: engineReleaseObjectKey("kitchen", hash),
+    save: engineSaveKey("user1", "kitchen", "slot-1"),
+  };
+
+  it("are never served by the public image route: no blob, release file or save", () => {
+    for (const key of Object.values(keys)) expect(isServableImageKey(key)).toBe(false);
+  });
+
+  it("scan blobs and release files under their own owner types", () => {
+    expect(SCANNABLE_PREFIXES).toEqual(["engine-assets", "engine-releases"]);
+    expect(describeImageKey(keys.blob)).toEqual({ ownerType: "engine_blob", ownerId: "kitchen" });
+    expect(describeImageKey(keys.release)).toEqual({
+      ownerType: "engine_release_file",
+      ownerId: "kitchen",
+    });
+  });
+
+  it("never describe a save, a traversal or a quarantined copy", () => {
+    expect(describeImageKey(keys.save)).toBeNull();
+    expect(describeImageKey("engine-releases/kitchen/../../profile-projects/x.png")).toBeNull();
+    expect(describeImageKey("engine-releases//x")).toBeNull();
+    expect(describeImageKey(`quarantine/${keys.release}`)).toBeNull();
   });
 });

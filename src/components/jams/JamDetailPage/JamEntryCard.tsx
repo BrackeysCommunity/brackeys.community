@@ -1,5 +1,6 @@
 import { Link as RouterLink } from "@tanstack/react-router";
 
+import { PlayButton, playableGame } from "@/components/projects/ProjectPage/PlayButton";
 import { Badge } from "@/components/ui/badge";
 import { DotGrid } from "@/components/ui/dot-grid";
 import { HoverPlayImage } from "@/components/ui/hover-play-image";
@@ -22,7 +23,8 @@ import type { JamEntryRow } from "./types";
  * Links inward to `/projects/$slug` when the game has a canonical project
  * here, and to the mint-on-visit route otherwise — `rel="nofollow"` so a
  * crawler walking a 3k-entry grid doesn't mint 3k rows; the itch link lives
- * on the project page it lands on.
+ * on the project page it lands on. An entry whose game is playable here
+ * gains a button to play it: this jam's pinned version, else the live one.
  */
 export function JamEntryCard({
   entry,
@@ -39,6 +41,7 @@ export function JamEntryCard({
   // Scraped text never reaches a style attribute without re-validation.
   const cover = safeThemeColor(entry.gameCoverColor) ?? "var(--muted)";
   const platforms = entry.gamePlatforms ?? [];
+  const game = playableGame(entry.game);
 
   const body = (
     <>
@@ -117,13 +120,24 @@ export function JamEntryCard({
     </RouterLink>
   );
 
-  // A member chip has to be its own link (to their profile), and a link
-  // can't nest inside the card's link — so when there are chips the card
-  // root becomes a plain wrapper with the cover/title anchor inside it.
+  const play = game ? (
+    <PlayButton
+      game={game}
+      label={`PLAY ON ${SITE.name.toUpperCase()}`}
+      size="xs"
+      variant="outline"
+      className="self-start tracking-widest"
+    />
+  ) : null;
+
+  // A member chip and the play button are links of their own, and a link
+  // can't nest inside the card's link, so they sit below the cover/title
+  // anchor in a plain wrapper.
   if (entry.members.length === 0) {
     return (
       <div data-hover-play-group className="group/entry flex flex-col gap-1.5">
         {target}
+        {play}
       </div>
     );
   }
@@ -155,6 +169,7 @@ export function JamEntryCard({
           </RouterLink>
         ))}
       </div>
+      {play}
     </div>
   );
 }

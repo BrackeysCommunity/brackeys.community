@@ -1,0 +1,64 @@
+import { ORPCError } from "@orpc/client";
+import { describe, expect, it } from "vite-plus/test";
+
+import { formatCount } from "@/lib/format-bytes";
+
+import { MIN_HOSTED_ENGINE, RELEASE_FILE_PUTS_PER_HOUR, UPLOAD_SESSION_HOURS } from "../limits";
+import {
+  apiErrorResponse,
+  orpcRefusals,
+  ReleaseError,
+  releaseEngineOld,
+  releaseFilesMissing,
+  releaseRateLimited,
+  releaseRemoved,
+  releaseUploadExpired,
+  toOrpcError,
+} from "../release-errors";
+
+describe("release errors", () => {
+  it("send one body over HTTP and oRPC, with the code's status", async () => {
+    const err = new ReleaseError(releaseEngineOld("0.14.0"));
+    const response = apiErrorResponse(err);
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body).toEqual(err.body);
+    const orpc = toOrpcError(err);
+    expect(orpc).toBeInstanceOf(ORPCError);
+    expect(orpc.status).toBe(422);
+    expect(orpc.message).toBe(err.body.message);
+    expect(orpc.data).toEqual(body);
+  });
+
+  it("give an engine issue code a 400 and a quota a 413", () => {
+    expect(apiErrorResponse({ code: "hash-mismatch", message: "x" }).status).toBe(400);
+    expect(toOrpcError({ code: "quota-exceeded", message: "x" }).status).toBe(413);
+  });
+
+  it("format their numbers from limits.ts", () => {
+    expect(releaseEngineOld("0.14.0").message).toContain(`${MIN_HOSTED_ENGINE} or newer`);
+    expect(releaseUploadExpired().message).toContain(`${UPLOAD_SESSION_HOURS} hours`);
+    expect(releaseRateLimited("files").message).toContain(formatCount(RELEASE_FILE_PUTS_PER_HOUR));
+    expect(releaseFilesMissing(1).message).toBe("1 file of this upload hasn't arrived yet.");
+  });
+
+  it("date a removed release in UTC", () => {
+    // 23:30 on 2 Dec in UTC is 3 Dec east of it: the message says 2 Dec everywhere.
+    expect(releaseRemoved(2, new Date("2026-12-02T23:30:00Z")).message).toBe(
+      "v2 was removed on 2 Dec 2026; its files are gone.",
+    );
+  });
+
+  it("turn a ReleaseError into the oRPC answer and let others through", async () => {
+    await expect(
+      orpcRefusals(async () => {
+        throw new ReleaseError(releaseUploadExpired());
+      }),
+    ).rejects.toMatchObject({ status: 410, data: { code: "release-upload-expired" } });
+    await expect(
+      orpcRefusals(async () => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+  });
+});

@@ -8,8 +8,8 @@ import {
 import { seedUser, type TestDb } from "@/test/db";
 
 import { minioContentStore } from "../content-store";
-import { blobKindLookup, type BlobKindLimits } from "../limits";
 import { createEngineRoutes, type EngineRouteDeps } from "../routes";
+import { blobKindLookup, type BlobKindLimits } from "../upload-limits";
 import type { fakeMinio } from "./fake-minio";
 
 export const PROJECT = "kitchen";

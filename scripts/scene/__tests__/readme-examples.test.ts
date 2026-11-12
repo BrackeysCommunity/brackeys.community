@@ -79,9 +79,12 @@ const shellWords = (line: string) =>
 
 /** A command's name and the arguments after it: `assets import x` is `assets import`, then `x`. */
 function split(argv: readonly string[]): [string | undefined, string[]] {
-  const [first, second, ...more] = argv;
-  if (first && second && (COMMAND_GROUPS as readonly string[]).includes(first))
-    return [`${first} ${second}`, more];
+  const [first, second, third, ...more] = argv;
+  if (first && second && (COMMAND_GROUPS as readonly string[]).includes(first)) {
+    const triple = `${first} ${second} ${third}`;
+    if (third !== undefined && Object.hasOwn(COMMANDS, triple)) return [triple, more];
+    return [`${first} ${second}`, third === undefined ? more : [third, ...more]];
+  }
   return [first, argv.slice(1)];
 }
 

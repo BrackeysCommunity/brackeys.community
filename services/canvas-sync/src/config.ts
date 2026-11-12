@@ -18,6 +18,14 @@ const schema = z.object({
   STORE_DEBOUNCE_MS: z.coerce.number().int().positive().optional(),
   // Shutdown waits this long for stores to land; Railway's drainingSeconds is 30.
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(25_000),
+  // The web app's uploads bucket, where hosted games' blobs and release files
+  // live. Without it the collector reports and leaves objects and their rows alone.
+  MINIO_ENDPOINT: z.string().min(1).optional(),
+  MINIO_ACCESS_KEY: z.string().min(1).optional(),
+  MINIO_SECRET_KEY: z.string().min(1).optional(),
+  MINIO_BUCKET: z.string().min(1).optional(),
+  // `report` logs every deletion the daily collector would make; `delete` makes them.
+  ENGINE_COLLECTOR_MODE: z.enum(["report", "delete"]).default("report"),
 });
 
 export const config = parseServiceConfig(schema);

@@ -19,11 +19,10 @@ export const BUILD = "build";
 /** Raised when a creep's last hit points go, and when one walks out of the exit. */
 export const KILLED = `${ID}:killed`;
 export const ESCAPED = `${ID}:escaped`;
-/** Raised by the game's own timers: a wave's first creep, each later one, a tower's shot, a bolt landing. */
+/** Raised by the game's own timers: a wave's first creep, each later one, a tower's shot. */
 const WAVE_START = `${ID}:wave`;
 const WAVE_NEXT = `${ID}:wave-next`;
 const FIRE = `${ID}:fire`;
-const LAND = `${ID}:land`;
 
 const GRID: GridSettings = { kind: "square", cell: [1, 1] };
 /** px per metre: one 32 px tile a cell. */
@@ -126,8 +125,8 @@ const markerCell = (
  * off the path while the money lasts, and the game lists exactly those cells
  * as its legal commands. Each tower fires on its own timer at the creep
  * furthest along that `ctx.query.inArea` finds in its range; the bolt it
- * spawns lands when its own timer runs out. Every timer is emit-form, so a
- * world save holds them. The run is won when every wave is spawned and gone
+ * spawns lands when its `lifetime` runs out. Every timer is emit-form, so a
+ * world save holds them, as it holds each bolt's lifetime. The run is won when every wave is spawned and gone
  * with fewer than five out of the exit, lost at five.
  */
 const game = defineGame<TowerDefenseSnapshot>({
@@ -222,8 +221,7 @@ const game = defineGame<TowerDefenseSnapshot>({
         if (!target || progress(c) < progress(target)) target = c;
       }
       if (!target) return;
-      const { id } = ctx.spawn({ type: BOLT, at });
-      ctx.timers.after(BOLT_TICKS, { emit: LAND, entityId: id }, { owner: id });
+      const { id } = ctx.spawn({ type: BOLT, at, behaviors: { lifetime: { ticks: BOLT_TICKS } } });
       bolts.set(id, { from: at, target: target.id, age: 0 });
       fired++;
     }
@@ -334,9 +332,6 @@ const game = defineGame<TowerDefenseSnapshot>({
           const at = e.entityId === undefined ? undefined : ctx.poses.get(e.entityId);
           if (at) fire([at.x, at.y]);
         });
-        ctx.events.on(LAND, (e: StepEvent) => {
-          if (e.entityId) ctx.destroy(e.entityId);
-        });
         ctx.events.on(ENTITY_DESTROYED, (e: StepEvent) => {
           const b = e.entityId === undefined ? undefined : bolts.get(e.entityId);
           if (!b || !e.entityId) return;
@@ -381,7 +376,7 @@ const game = defineGame<TowerDefenseSnapshot>({
         ...(bolts.size > 0 ? { bolts: [...bolts].map(([id, b]) => ({ id, ...boltOf(b) })) } : {}),
         ...(landed.length > 0 ? { landed: landed.map(boltOf) } : {}),
       }),
-      // Creeps, towers, bolts and every timer come back with the world save; the creeps' steppers are the game's to rebuild.
+      // Creeps, towers, bolts, their lifetimes and every timer come back with the world save; the creeps' steppers are the game's to rebuild.
       restore(s) {
         money = s.money;
         towers = s.towers.map(cellOf);

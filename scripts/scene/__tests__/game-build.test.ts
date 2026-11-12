@@ -6,27 +6,16 @@ import { dirname, join } from "node:path";
 import { checkItchLayout, formatBytes, zipFiles } from "@jams/engine/export";
 import {
   checkReleaseManifest,
-  memoryContentStore,
   parseReleaseManifest,
   PROJECT_FILE,
   projectGlobs,
   RELEASE_FILE,
   sha256,
-  type CodeModuleInfo,
-  type ProjectBundle,
   type ReleaseManifest,
   type Sha256,
 } from "@jams/engine/project";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
-import * as Y from "yjs";
 
-import { bundleProjectState } from "../../../src/lib/engine/bundle";
-import { prepareLoadedState } from "../../../src/lib/scene/doc-bytes";
-import {
-  emptyProjectState,
-  seedAssetState,
-  seedProjectState,
-} from "../../../src/lib/scene/project-bytes";
 import type { ReportedChunk } from "../../engine-bundle-report";
 import { runCli } from "../commands";
 import type { ToolContext } from "../context";
@@ -38,6 +27,7 @@ import { bundleReportDir, gameBuild, type GameBuildInput } from "../tools/game-b
 import { gameExport } from "../tools/game-export";
 import { filesUnder, gameManifest, replayRelease } from "../tools/game-manifest";
 import { GAME_NEW_STAGE } from "../tools/game-new";
+import { hostedSite } from "./fixtures/hosted-site";
 
 vi.mock("@/db", () => ({ db: {} }));
 
@@ -176,6 +166,7 @@ describe("game build", () => {
       const files = await hashedFiles(t.dir);
       expect(t.manifest.budget.measured.wasmBytes).toBe(0);
       expect(t.text).toContain("\n  wasm: 0 B (no listed scene uses Rapier)\n");
+      expect(t.text.match(/\bwasm: /g)).toHaveLength(1);
       expect(t.data.wasm).toEqual({
         bytes: 0,
         package: null,
@@ -422,120 +413,23 @@ describe("Rapier and the budget", () => {
 describe("hosted to git: pushed, pulled and built", () => {
   const SITE = "https://staging.example.test";
   const TOKEN = "jat_gameBuildTestSecret";
-  const RESERVED: Record<string, string> = { tactics: "Tactics" };
-  type Hosted = {
-    registry: Y.Doc;
-    docs: Map<string, { prefix: "scene" | "asset"; kind: string; doc: Y.Doc | null; seed: string }>;
-    game: string | null;
-  };
-  const hosted = new Map<string, Hosted>();
-  const blobs = memoryContentStore();
-  const b64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
   let site: ToolContext;
   let checkout: string | undefined;
+  const hosted = hostedSite({
+    token: TOKEN,
+    reserved: { tactics: "Tactics" },
+    handle: (id) => site.projects.find((p) => p.file.id === id)!,
+  });
 
   afterAll(async () => {
     if (checkout) await rm(checkout, { recursive: true, force: true });
   });
 
-  /** What the site seeds from a pushed bundle, judged with the kinds of the project's game. */
-  async function seed(
-    id: string,
-    body: { bundle: ProjectBundle; game: string | null; code: Record<string, CodeModuleInfo> },
-  ) {
-    const handle = site.projects.find((p) => p.file.id === id)!;
-    const derived = await bundleProjectState(body.bundle, {
-      store: blobs,
-      kinds: handle.kinds,
-      registry: handle.registry,
-      code: body.code,
-    });
-    if (!derived.ok) return Response.json({ problems: derived.problems }, { status: 400 });
-    const registry = new Y.Doc();
-    Y.applyUpdate(registry, seedProjectState(derived.state));
-    const env = { registry: handle.registry, project: null };
-    const docs: Hosted["docs"] = new Map();
-    for (const d of derived.docs) {
-      let doc: Y.Doc | null = null;
-      if (d.kind !== "material") {
-        doc = new Y.Doc();
-        Y.applyUpdate(
-          doc,
-          d.prefix === "scene"
-            ? prepareLoadedState(`${id}.${d.key}`, null, d.seed).state
-            : seedAssetState({
-                project: id,
-                key: d.key,
-                kind: d.kind,
-                seed: d.seed,
-                kinds: handle.kinds,
-                env,
-              }),
-        );
-      }
-      docs.set(d.key, { prefix: d.prefix, kind: d.kind, doc, seed: d.seed });
-    }
-    hosted.set(id, { registry, docs, game: body.game });
-    return Response.json({ projectId: id, docs: docs.size, warnings: [] }, { status: 201 });
-  }
-
-  /** The site's bundle and blob routes, in memory, for the one agent token. */
-  const fakeSite = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = new URL(
-      typeof input === "string" ? input : input instanceof URL ? input : input.url,
-    );
-    const headers = new Headers(init?.headers);
-    const method = init?.method ?? "GET";
-    if (headers.get("authorization") !== `Bearer ${TOKEN}`)
-      return Response.json({ message: "That agent token isn't valid." }, { status: 401 });
-    const id = /^\/api\/engine\/projects\/([^/]+)\//.exec(url.pathname)?.[1];
-    const name = id === undefined ? undefined : RESERVED[id];
-    if (id === undefined || name === undefined)
-      return Response.json({ message: "Not found." }, { status: 404 });
-    const base = `/api/engine/projects/${id}`;
-    const project = hosted.get(id);
-    if (url.pathname === `${base}/bundle`) {
-      if (method === "POST") {
-        if (project) return Response.json({ message: "exists" }, { status: 409 });
-        return seed(id, JSON.parse(init?.body as string));
-      }
-      const registry = project
-        ? Y.encodeStateAsUpdate(project.registry)
-        : seedProjectState(emptyProjectState(id, name));
-      return Response.json({
-        projectId: id,
-        name,
-        game: project?.game ?? null,
-        project: b64(registry),
-        docs: [...(project?.docs ?? [])].map(([key, d]) => ({
-          prefix: d.prefix,
-          key,
-          kind: d.kind,
-          state: d.doc ? b64(Y.encodeStateAsUpdate(d.doc)) : null,
-          seed: d.doc ? null : d.seed,
-        })),
-        blobs: [],
-      });
-    }
-    if (url.pathname === `${base}/blobs` && method === "POST") {
-      const bytes = new Uint8Array(init?.body as Uint8Array);
-      const sha = await blobs.put(bytes, headers.get("x-expect-sha256") ?? undefined);
-      return Response.json({ sha256: sha, bytes: bytes.byteLength }, { status: 201 });
-    }
-    const blob = new RegExp(`^${base}/blobs/([0-9a-f]{64})$`).exec(url.pathname);
-    if (blob) {
-      const bytes = await blobs.get(blob[1]!);
-      if (!bytes) return Response.json({ message: "Not found." }, { status: 404 });
-      return new Response(method === "HEAD" ? null : new Uint8Array(bytes));
-    }
-    return Response.json({ message: "Not found." }, { status: 404 });
-  }) as typeof fetch;
-
   it(
     "tactics pushed to the hosted harness, pulled to a temp dir with its code from git, builds the same release.json byte for byte",
     async () => {
       const repo = built.tactics!;
-      site = { ...ctx, fetch: fakeSite, env: {} };
+      site = { ...ctx, fetch: hosted.fetch, env: {} };
       const tactics = site.projects.find((p) => p.file.id === "tactics")!;
       const cli = async (...argv: string[]) => {
         const r = await runCli([...argv, "--url", SITE, "--token", TOKEN, "--json"], site);
@@ -546,7 +440,7 @@ describe("hosted to git: pushed, pulled and built", () => {
         ok: true,
         project: "tactics",
       });
-      expect(hosted.get("tactics")?.game).toBe("tactics");
+      expect(hosted.projects.get("tactics")?.game).toBe("tactics");
 
       // A checkout of its own, as a person pulls one: outside this repo, its packages beside it.
       checkout = await mkdtemp(join(tmpdir(), "game-build-pulled-"));
@@ -588,9 +482,10 @@ describe("game manifest", () => {
       expect(alone.exitCode, alone.text).toBe(0);
       expect(alone.data).toMatchObject({ filesChecked: false });
     }
-    expect((await gameManifest({ path: built.tactics!.dir }, ctx)).text).toContain(
-      "\n  physics none: no wasm\n",
-    );
+    const checked = await gameManifest({ path: built.tactics!.dir }, ctx);
+    expect(checked.text).toContain("\n  wasm: 0 B (no listed scene uses Rapier)\n");
+    expect(checked.text).not.toContain("physics none");
+    expect((checked.data as { wasm: unknown }).wasm).toEqual(built.tactics!.data.wasm);
   });
 
   it("fails a build whose file changed after it was written", async () => {

@@ -10,6 +10,7 @@ import {
   type GameStoreState,
 } from "@jams/engine";
 import { scenePhysics } from "@jams/engine/scene";
+import { mirrorRenderState } from "@jams/engine/standalone";
 import { useStore } from "@tanstack/react-store";
 import type { Store } from "@tanstack/store";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -105,6 +106,7 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
     });
 
     let instance: GameInstance | null = null;
+    let unmirror: (() => void) | null = null;
     let mounted = true;
     const loader = assets ? createAssetLoader({ project: hosted.id, url: assets.url }) : null;
 
@@ -145,6 +147,8 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
       }
 
       instance = created;
+      // Before start, which tells a WebGPU init fallback.
+      unmirror = mirrorRenderState(created);
       setGame(created);
       setStart((s) => (s.error === null ? s : { ...s, error: null }));
       created.start();
@@ -171,6 +175,8 @@ function GameRoom({ roomId, hosted }: { roomId: string; hosted: HostedGame }) {
     return () => {
       mounted = false;
       window.removeEventListener("resize", handleResize);
+      unmirror?.();
+      unmirror = null;
       if (instance) {
         instance.destroy();
         instance = null;

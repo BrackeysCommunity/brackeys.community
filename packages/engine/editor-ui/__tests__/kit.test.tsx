@@ -8,6 +8,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { useState, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { formatBytes as budgetFormatBytes } from "../../export/budget";
 import type { EditorCue, EditorHost, EditorStorage } from "../host";
 import { Avatar } from "../kit/avatar";
 import { Badge } from "../kit/badge";
@@ -111,7 +112,8 @@ describe("helpers", () => {
     expect(cx("je-a", false, null, undefined, "b", 0, "")).toBe("je-a b");
   });
 
-  it("formatBytes reads as B, KB and MB", () => {
+  it("formatBytes is the export budget's, reading as B, KB and MB", () => {
+    expect(formatBytes).toBe(budgetFormatBytes);
     expect([formatBytes(512), formatBytes(14_336), formatBytes(2_411_725)]).toEqual([
       "512 B",
       "14 KB",

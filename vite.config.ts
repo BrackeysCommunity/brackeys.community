@@ -16,6 +16,7 @@ import { createLogger, defineConfig, runnerImport, type Plugin } from "vite-plus
 
 import pkg from "./package.json" with { type: "json" };
 import { engineBundleReport } from "./scripts/engine-bundle-report.ts";
+import { frameRouteRules } from "./src/lib/engine/frame-route-rules.ts";
 import { publicCacheRouteRules } from "./src/orpc/public-procedures.ts";
 
 // Railpack builds from a snapshot with no .git dir and `railway up` has no
@@ -498,6 +499,8 @@ const config = defineConfig({
         // responses are immutable. Deleted objects can outlive deletion at
         // the edge until evicted or purged (see docs/caching.md).
         "/images/**": { headers: { "cache-control": "public, max-age=31536000, immutable" } },
+        // Hosted games' release files and play/embed documents (src/lib/engine/frame-route-rules.ts).
+        ...frameRouteRules,
         // no-transform keeps proxies from buffering the event stream.
         "/api/notifications/stream": {
           headers: { "cache-control": "no-cache, no-transform" },

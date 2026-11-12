@@ -58,7 +58,9 @@ export type PreparedPlay =
  * declares in name order, and the input map) and every prefab the run's
  * `ctx.instantiate` may place, in id order. File text never reaches it, so
  * a re-format that leaves the expanded scene equal leaves it equal, while a
- * changed table row or prefab changes it.
+ * changed table row or prefab changes it. A doc's `$schema` points at a
+ * schema file's location, not at anything the run reads, so moving the
+ * schema leaves it equal too.
  */
 export function runHash(
   scene: ExpandedScene,
@@ -72,10 +74,21 @@ export function runHash(
     .sort(byCodeUnit)
     .map((name) => [name, view ? view.table(name) : []]);
   const data = view
-    ? { settings: view.settings, engine: view.engine, tables, inputMap: view.inputMap }
+    ? {
+        settings: withoutSchemaPointer(view.settings),
+        engine: view.engine,
+        tables,
+        inputMap: withoutSchemaPointer(view.inputMap),
+      }
     : null;
   const prefabs = [...(library ?? new Map())].sort(([a], [b]) => byCodeUnit(a, b));
   return hashText(stableJson({ scene, time, project: data, prefabs }));
+}
+
+function withoutSchemaPointer<T extends object | null>(doc: T): T {
+  if (doc === null || !("$schema" in doc)) return doc;
+  const { $schema: _, ...rest } = doc as Record<string, unknown>;
+  return rest as T;
 }
 
 /**

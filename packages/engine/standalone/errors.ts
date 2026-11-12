@@ -17,9 +17,10 @@ export function renderBootError(
   const panel = doc.createElement("div");
   panel.setAttribute("role", "alert");
   panel.dataset.jamsError = error.code ?? "";
-  // Fixed to the viewport and scrolling, so a long message on a small screen stays readable from its first line.
+  // Fixed to the viewport and scrolling, so a long message on a small screen stays readable from its first line;
+  // it takes the pointer itself, whatever the page sets around `root`, so Reload stays clickable.
   panel.style.cssText =
-    "position:fixed;inset:0;z-index:1;display:flex;overflow:auto;padding:16px;box-sizing:border-box;text-align:center;font:16px/1.4 system-ui,sans-serif;color:#eee;background:#111";
+    "position:fixed;inset:0;z-index:1;pointer-events:auto;display:flex;overflow:auto;padding:16px;box-sizing:border-box;text-align:center;font:16px/1.4 system-ui,sans-serif;color:#eee;background:#111";
   const body = doc.createElement("div");
   body.style.cssText =
     "margin:auto;display:flex;flex-direction:column;align-items:center;gap:12px;max-width:40em";

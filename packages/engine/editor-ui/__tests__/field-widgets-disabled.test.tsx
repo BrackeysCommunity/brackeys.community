@@ -80,4 +80,31 @@ describe("a number or angle field that takes no edits", () => {
     }
     expect(commit).toHaveBeenCalledTimes(1);
   });
+
+  it("drops a scrub that is under way when the field turns disabled, preview and all", () => {
+    const commit = vi.fn<FieldCommit>(() => null);
+    const view = render(<NumberField field={row("width")} commit={commit} />);
+    const label = screen.getByText(row("width").title);
+    const input = view.container.querySelector("input")!;
+    const before = input.value;
+    fireEvent.pointerDown(label, { pointerId: 1, button: 0, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(label, { pointerId: 1, clientX: 200, clientY: 0 });
+    expect(input.value).not.toBe(before);
+
+    view.rerender(<NumberField field={row("width")} commit={commit} disabled />);
+    expect(input.value).toBe(before);
+    fireEvent.pointerUp(screen.getByText(row("width").title), { pointerId: 1, clientX: 200 });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it("doesn't commit a dial turn released after the field turned disabled", () => {
+    const commit = vi.fn<FieldCommit>(() => null);
+    const view = render(<AngleField field={row("heading")} commit={commit} />);
+    const dial = dialOf(view.container);
+    dial.getBoundingClientRect = () => new DOMRect(0, 0, 20, 20);
+    fireEvent.pointerDown(dial, { pointerId: 1, clientX: 10, clientY: 30 });
+    view.rerender(<AngleField field={row("heading")} commit={commit} disabled />);
+    fireEvent.pointerUp(dialOf(view.container), { pointerId: 1 });
+    expect(commit).not.toHaveBeenCalled();
+  });
 });

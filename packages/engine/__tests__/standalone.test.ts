@@ -5,7 +5,6 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { createGame } from "../engine";
 import { planContent } from "../export/content";
 import { finishExport, type BuiltCode, type ExportInput } from "../export/plan";
-import { createRegistry, withProject } from "../game/define";
 import type { GameDefinition } from "../game/types";
 import type { BundleEntry } from "../project/bundle";
 import { createKindRegistry } from "../project/kinds";
@@ -15,28 +14,35 @@ import {
   SERVICE_WORKER_FILE,
   type ReleaseManifest,
 } from "../project/release";
-import { heldProject, type HeldFile } from "../project/runtime-view";
-import type { AssetSidecar } from "../project/sidecar";
-import { jsonValues, snapshotProject } from "../project/snapshot";
-import type { ProjectFile } from "../project/types";
 import { projectView } from "../project/view";
 import type { AssetUrl } from "../render/asset-loader";
 import type { RunRecording } from "../scene/recording-schema";
-import type { SceneDefinition } from "../scene/types";
 import { bootStandalone, type StandaloneGame, type StandaloneOptions } from "../standalone/boot";
 import { manifestView } from "../standalone/manifest-view";
 import type { UiContext } from "../ui/types";
 import { ENGINE_VERSION } from "../version";
+import { FREE_PROJECT, heldInput, physicsFreeFiles, scene } from "./fixtures/held-project";
 import { testGame } from "./fixtures/test-game";
 
+type RendererHooks = {
+  lost?: (backend: "webgl" | "webgpu") => void;
+  restored?: (backend: "webgl" | "webgpu", rebuilt: boolean) => void;
+  fallback?: (reason: "init" | "lost") => void;
+  failed?: (backend: "webgl" | "webgpu", error: unknown) => void;
+};
+const renderer = vi.hoisted(() => ({ hooks: null as RendererHooks | null }));
+
 vi.mock("../renderer", () => ({
-  createRenderer: async () => ({
-    app: {},
-    worldContainer: new Container(),
-    uiContainer: new Container(),
-    resize: () => {},
-    destroy: () => {},
-  }),
+  createRenderer: async (_canvas: unknown, _config: unknown, _resolution: unknown, hooks = {}) => {
+    renderer.hooks = hooks as RendererHooks;
+    return {
+      app: {},
+      worldContainer: new Container(),
+      uiContainer: new Container(),
+      resize: () => {},
+      destroy: () => {},
+    };
+  },
 }));
 
 vi.mock("../engine", async (original) => {
@@ -82,80 +88,6 @@ vi.mock("../render/asset-loader", async (original) => {
   };
 });
 
-const png = (id: string, sha: string, bytes: number, size: number): AssetSidecar => ({
-  kind: "asset-sidecar",
-  v: 1,
-  key: `key-${id}`,
-  id,
-  sha256: sha,
-  bytes,
-  meta: { format: "png", width: size, height: size },
-  licence: { spdx: "CC0-1.0", author: "Test authors" },
-});
-
-const yard = (): SceneDefinition =>
-  ({
-    v: 4,
-    name: "yard",
-    bounds: [0, 0, 6.4, 3.84],
-    settings: { physics: "none" },
-    assets: ["tiles"],
-    entities: [{ id: "start", type: "marker", at: [1, 1], tags: ["spawn"] }],
-  }) as SceneDefinition;
-
-/** A physics-free project: two listed scenes, one unlisted, one texture. */
-function heldFiles(): { files: HeldFile[]; texts: Map<string, string> } {
-  const docs: Record<string, unknown> = {
-    "scene-list.json": {
-      kind: "scene-list",
-      v: 1,
-      start: "yard",
-      scenes: [{ scene: "yard", title: "Yard" }, { scene: "hall" }],
-    },
-    "game-settings.json": { kind: "game-settings", v: 2, engine: {}, game: {} },
-    "yard.json": yard(),
-    "hall.json": { ...yard(), name: "hall" },
-    "cellar.json": { ...yard(), name: "cellar", assets: [] },
-  };
-  const texts = new Map<string, string>();
-  const files: HeldFile[] = [];
-  for (const [path, json] of Object.entries(docs)) {
-    texts.set(path, `${JSON.stringify(json, null, 2)}\n`);
-    files.push({ path, json });
-  }
-  files.push({ path: "art/tiles.png", sidecar: png("tiles", "a".repeat(64), 300, 16) });
-  return { files, texts };
-}
-
-const PROJECT: ProjectFile = { kind: "project", v: 1, id: "free", name: "Free", game: null };
-
-async function exportInput(
-  game: GameDefinition,
-  target: ExportInput["target"] = "web",
-): Promise<ExportInput> {
-  const held = heldFiles();
-  const { view, kinds } = heldProject(held.files, createRegistry(game), {
-    projectId: PROJECT.id,
-    name: PROJECT.name,
-  });
-  const texts = new Map<string, string>();
-  for (const entry of view.byId.values()) {
-    const text = entry.sha256 === undefined ? held.texts.get(entry.path) : undefined;
-    if (text !== undefined) texts.set(entry.id, text);
-  }
-  return {
-    project: PROJECT,
-    view,
-    texts,
-    kinds,
-    registry: withProject(createRegistry(game), view, jsonValues(texts)),
-    game,
-    engine: {},
-    target,
-    snapshot: await snapshotProject(view, texts, view.state.build),
-  };
-}
-
 const CODE: BuiltCode = {
   files: [{ path: "code/main-abc123.js", sha256: "d".repeat(64), bytes: 1000, role: "code" }],
   entry: "code/main-abc123.js",
@@ -167,7 +99,7 @@ const CODE: BuiltCode = {
 type Build = { manifest: ReleaseManifest; files: Map<string, string> };
 
 async function plannedBuild(target: ExportInput["target"] = "web"): Promise<Build> {
-  const input = await exportInput(testGame, target);
+  const input = await heldInput(FREE_PROJECT, physicsFreeFiles(), testGame, target);
   const plan = await finishExport(await planContent(input), CODE, input);
   expect(plan.issues.filter((i) => i.severity === "error")).toEqual([]);
   const files = new Map<string, string>();
@@ -212,6 +144,7 @@ beforeEach(() => {
   root.id = "game";
   document.body.append(root);
   delete document.documentElement.dataset.jamsState;
+  renderer.hooks = null;
   vi.stubGlobal("requestAnimationFrame", () => 0);
   vi.stubGlobal("cancelAnimationFrame", () => {});
   vi.stubGlobal(
@@ -361,7 +294,7 @@ describe("bootStandalone", () => {
     const game = await boot({ fetch: fakeFetch(build, DIR).fetch });
     const recorded: RunRecording[] = [];
     game.instance.on("play:recorded", (r) => recorded.push(r));
-    game.instance.play(yard());
+    game.instance.play(scene("yard", ["tiles"]));
     game.instance.step(2);
     game.instance.stop();
     expect(recorded[0]?.release).toBe(game.release);
@@ -440,6 +373,31 @@ describe("the page", () => {
     const inner = alert.firstElementChild as HTMLElement;
     expect(inner.style.margin).toBe("auto");
     expect(inner.firstElementChild?.textContent).toBe("The game couldn't start");
+  });
+});
+
+describe("the renderer's state", () => {
+  it("mirrors render:lost, render:restored, render:failed and render:fallback on the root element, until destroyed", async () => {
+    const served = fakeFetch(build, DIR);
+    const game = await boot({ fetch: served.fetch });
+    const { dataset } = document.documentElement;
+    const hooks = renderer.hooks!;
+    expect(dataset.jamsRender).toBeUndefined();
+    hooks.lost!("webgpu");
+    expect(dataset.jamsRender).toBe("lost");
+    hooks.fallback!("lost");
+    expect(dataset.jamsRenderFallback).toBe("lost");
+    hooks.restored!("webgl", true);
+    expect(dataset.jamsRender).toBe("rebuilt");
+    hooks.lost!("webgl");
+    hooks.restored!("webgl", false);
+    expect(dataset.jamsRender).toBe("restored");
+    hooks.lost!("webgl");
+    hooks.failed!("webgl", new Error("no context"));
+    expect(dataset.jamsRender).toBe("failed");
+    game.destroy();
+    expect(dataset.jamsRender).toBeUndefined();
+    expect(dataset.jamsRenderFallback).toBeUndefined();
   });
 });
 

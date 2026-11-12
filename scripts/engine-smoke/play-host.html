@@ -1,0 +1,72 @@
+<!doctype html>
+<!--
+  The play-frame smoke's play page: the site's own host server
+  (src/lib/engine/host-server.ts) and signed-out saves
+  (src/lib/engine/local-saves.ts), bundled by the smoke, around a release's
+  frame on another origin.
+
+    play-host.html?frame=<url>&release=<id>&game=<id>&project=<id>&sandbox=<tokens>&allow=<list>
+
+  The iframe gets the play page's sandbox and allow lists from the query
+  (the smoke passes PlayFrame's), the host server is listening before the
+  frame loads, and what the host heard is kept on window.__playHost for the
+  smoke to read.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Play host</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+      }
+      iframe {
+        display: block;
+        border: 0;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe id="frame" referrerpolicy="no-referrer" title="Game"></iframe>
+    <script type="module">
+      import { createHostServer } from "../../src/lib/engine/host-server.ts";
+      import { localPlayPrefs, localPlaySaves } from "../../src/lib/engine/local-saves.ts";
+
+      const query = new URLSearchParams(location.search);
+      const need = (name) => {
+        const value = query.get(name);
+        if (value === null) throw new Error(`play-host.html needs ?${name}=`);
+        return value;
+      };
+      const frame = document.getElementById("frame");
+      const projectId = need("project");
+      const record = { states: [], issues: [], dropped: 0 };
+      window.__playHost = record;
+
+      frame.setAttribute("sandbox", need("sandbox"));
+      frame.setAttribute("allow", need("allow"));
+      const saves = localPlaySaves(projectId);
+      const server = createHostServer({
+        iframe: frame,
+        release: { id: need("release"), gameId: need("game"), projectId },
+        saves: () => saves,
+        describe: () => saves.describe,
+        mode: "site",
+        prefs: localPlayPrefs(projectId),
+        onState: (s) => {
+          record.states.push(s.jamsState);
+          if (s.issue) record.issues.push(s.issue.message);
+        },
+      });
+      Object.defineProperty(record, "dropped", { get: () => server.dropped });
+      frame.src = need("frame");
+    </script>
+  </body>
+</html>

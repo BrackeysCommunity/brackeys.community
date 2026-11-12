@@ -150,7 +150,16 @@ const TEST_SUPPORT = "@jams/engine-testing";
  * runs under plain type stripping, which reach engine entries by relative path
  * to an entry's `index.ts`, since neither has tsconfig paths.
  */
-const SERVICE_SHARED = ["src/lib/scene/", "src/arcade/sim-kit/"];
+const SERVICE_SHARED = [
+  "src/lib/scene/",
+  "src/arcade/sim-kit/",
+  "src/lib/engine/limits.ts",
+  "src/lib/engine/quota.ts",
+  "src/lib/engine/storage-keys.ts",
+  "src/lib/engine/collect-plan.ts",
+  "src/lib/engine/release-audit.ts",
+  "src/lib/format-bytes.ts",
+];
 
 /** Rapier is injected by the host, so no engine file imports it as a value. */
 const RAPIER_VALUE_ALLOWLIST: string[] = [];

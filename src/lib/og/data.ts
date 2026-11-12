@@ -17,9 +17,10 @@ import {
   type OgKind,
   type OgStat,
 } from "@/lib/og/card";
+import { shareableGame } from "@/lib/og/game";
 import { ogName } from "@/lib/og/glyphs";
 import { censorText } from "@/lib/profanity";
-import { streamStoredImage } from "@/lib/profile-project-image-storage";
+import { getProfileProjectImageUrl, streamStoredImage } from "@/lib/profile-project-image-storage";
 import { isServableImageKey } from "@/lib/stored-image-keys";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
 import { client } from "@/orpc/client";
@@ -498,6 +499,26 @@ export async function teamCard(handle: string): Promise<OgCardInput | null> {
       coverSource(team.bannerUrl ?? team.avatarUrl),
       team.bannerUrl ? "panel" : "circle",
     ),
+  };
+}
+
+/** A public hosted game, titled and covered by its showcase project when it has one; null otherwise, so unlisted and private games get the not-found card. */
+export async function gameCard(projectId: string): Promise<OgCardInput | null> {
+  const game = await shareableGame(projectId);
+  if (!game) return null;
+
+  const team = ogName(game.teamName);
+  const stats: OgStat[] = [{ value: `v${game.version}`, label: "Version" }];
+  if (team) stats.push({ value: team, label: "Team" });
+
+  const cover = (await getProfileProjectImageUrl(game.imageKey)) ?? coverSource(game.imageUrl);
+  return {
+    kind: "game",
+    eyebrow: "Play in your browser",
+    title: censorText(game.title),
+    subtitle: censorText(emojiTokensToNames(game.description ?? "")) || null,
+    stats,
+    art: await fetchArt(cover, "panel"),
   };
 }
 

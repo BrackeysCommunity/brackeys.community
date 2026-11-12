@@ -286,6 +286,10 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "import-failed",
   "quota-exceeded",
   "project-id-taken",
+  "asset-not-trashed",
+  // releases
+  "release-immutable",
+  "release-forbidden",
   // input
   "binding-unknown",
   "player-unknown",

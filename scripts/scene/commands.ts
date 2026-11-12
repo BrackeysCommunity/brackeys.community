@@ -24,6 +24,16 @@ import { GAME_BUILD_USAGE, gameBuild } from "./tools/game-build";
 import { GAME_EXPORT_USAGE, gameExport } from "./tools/game-export";
 import { GAME_MANIFEST_USAGE, gameManifest, replayRelease } from "./tools/game-manifest";
 import { GAME_NEW_FLAGS, gameNew } from "./tools/game-new";
+import {
+  GAME_RELEASE_CREATE_USAGE,
+  GAME_RELEASE_LIST_USAGE,
+  GAME_RELEASE_PROMOTE_USAGE,
+  GAME_RELEASE_ROLLBACK_USAGE,
+  gameReleaseCreate,
+  gameReleaseList,
+  gameReleasePromote,
+  gameReleaseRollback,
+} from "./tools/game-release";
 import { grid } from "./tools/grid";
 import { input } from "./tools/input";
 import { list } from "./tools/list";
@@ -86,7 +96,7 @@ function liveReadFlags(flags: ParsedArgs["flags"]) {
   return { live: flags.live === true, url: str(flags.url), token: str(flags.token) };
 }
 
-/** Commands named by two words: `project show`, `assets import`. */
+/** Commands named by two words (`project show`, `assets import`), or three (`game release create`). */
 export const COMMAND_GROUPS = ["project", "assets", "game"] as const;
 
 const DEFINITIONS = {
@@ -652,6 +662,70 @@ const DEFINITIONS = {
     maxPositionals: 1,
     run: ({ positionals: [path] }, ctx) => gameManifest({ path }, ctx),
   },
+  "game release create": {
+    usage: GAME_RELEASE_CREATE_USAGE,
+    summary:
+      "build a project (or take --from's build), pull the hosted project's docs and blobs first with --hosted, and upload it to its hosted project on the site as a new release, on preview unless --channel none; sends only the files the site lacks, four at a time, a dropped file again; prints the version, size, play URL, release storage, releases kept, the next removal and a warning: line for any quota at or over 80%",
+    values: ["target", "channel", "from", "token", "url"],
+    switches: ["hosted", "allow-over-budget"],
+    maxPositionals: 1,
+    run: ({ positionals: [project], flags }, ctx) =>
+      gameReleaseCreate(
+        {
+          project,
+          hosted: flags.hosted === true,
+          target: str(flags.target),
+          channel: str(flags.channel),
+          from: str(flags.from),
+          allowOverBudget: flags["allow-over-budget"] === true,
+          token: str(flags.token),
+          url: str(flags.url),
+        },
+        ctx,
+      ),
+  },
+  "game release list": {
+    usage: GAME_RELEASE_LIST_USAGE,
+    summary:
+      "a hosted project's releases, newest first, with their size, channels, jam pins and removal dates",
+    values: ["token", "url"],
+    switches: [],
+    maxPositionals: 1,
+    run: ({ positionals: [project], flags }, ctx) =>
+      gameReleaseList({ project, token: str(flags.token), url: str(flags.url) }, ctx),
+  },
+  "game release promote": {
+    usage: GAME_RELEASE_PROMOTE_USAGE,
+    summary:
+      "point a hosted project's preview channel at a version; production is refused for agent tokens, and the refusal names the game's page",
+    values: ["channel", "token", "url"],
+    switches: [],
+    maxPositionals: 2,
+    run: ({ positionals: [project, version], flags }, ctx) =>
+      gameReleasePromote(
+        {
+          project,
+          version,
+          channel: str(flags.channel),
+          token: str(flags.token),
+          url: str(flags.url),
+        },
+        ctx,
+      ),
+  },
+  "game release rollback": {
+    usage: GAME_RELEASE_ROLLBACK_USAGE,
+    summary:
+      "point a hosted project's preview channel back at the release it named before; production is moved by a person on the game's page",
+    values: ["channel", "token", "url"],
+    switches: [],
+    maxPositionals: 1,
+    run: ({ positionals: [project], flags }, ctx) =>
+      gameReleaseRollback(
+        { project, channel: str(flags.channel), token: str(flags.token), url: str(flags.url) },
+        ctx,
+      ),
+  },
 } satisfies Record<string, Command>;
 
 export type CommandName = keyof typeof DEFINITIONS;
@@ -739,8 +813,12 @@ export async function runCli(
     (COMMAND_GROUPS as readonly string[]).includes(first) &&
     after[0] !== undefined &&
     !after[0].startsWith("-");
-  const name = grouped ? `${first} ${after[0]}` : first;
-  const rest = grouped ? after.slice(1) : after;
+  const pair = grouped ? `${first} ${after[0]}` : first;
+  // A third word names the command when the three do (`game release create`).
+  const triple = grouped && after[1] !== undefined ? `${pair} ${after[1]}` : undefined;
+  const three = triple !== undefined && Object.hasOwn(COMMANDS, triple);
+  const name = three ? triple : pair;
+  const rest = three ? after.slice(2) : grouped ? after.slice(1) : after;
   if (!name || name === "help" || name === "--help" || name === "-h") {
     return {
       exitCode: name ? 0 : 2,
@@ -749,8 +827,14 @@ export async function runCli(
     };
   }
   if (!Object.hasOwn(COMMANDS, name)) {
-    const guess = closest(name, COMMAND_NAMES);
-    const hint = guess ? `; did you mean "${guess}"?` : "";
+    const under = COMMAND_NAMES.filter((n) => n.startsWith(`${name} `));
+    const guess = under.length > 0 ? undefined : closest(name, COMMAND_NAMES);
+    const hint =
+      under.length > 0
+        ? `; it takes one of: ${under.join(", ")}`
+        : guess
+          ? `; did you mean "${guess}"?`
+          : "";
     return {
       exitCode: 2,
       stdout: "",

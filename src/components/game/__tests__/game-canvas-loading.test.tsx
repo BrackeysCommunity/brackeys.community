@@ -21,6 +21,57 @@ vi.mock("../editor-host", async () => {
   return { SiteSceneEditor: () => <div>package editor</div> };
 });
 
+/** A game the room builds through a stand-in `createGame`, whose events the test fires. */
+const played = vi.hoisted(() => ({
+  handlers: new Map<string, Set<(payload: never) => void>>(),
+  started: [] as string[],
+  emit(event: string, payload: unknown) {
+    for (const h of played.handlers.get(event) ?? []) h(payload as never);
+  },
+}));
+vi.mock("@jams/engine", async (original) => {
+  const real = await original<typeof import("@jams/engine")>();
+  const { Store } = await import("@tanstack/store");
+  return {
+    ...real,
+    createGame: async () => ({
+      on: (event: string, handler: (payload: never) => void) => {
+        played.started.push(`on ${event}`);
+        let set = played.handlers.get(event);
+        if (!set) played.handlers.set(event, (set = new Set()));
+        set.add(handler);
+      },
+      off: (event: string, handler: (payload: never) => void) =>
+        played.handlers.get(event)?.delete(handler),
+      start: () => played.started.push("start"),
+      destroy: () => {},
+      resize: () => {},
+      getStore: () => new Store({ phase: "running", fps: 60, debugMode: "off" }),
+      input: { bindings: () => ({}) },
+      flow: { restart: async () => ({ ok: true }) },
+    }),
+  };
+});
+vi.mock("../hosted-games", async (original) => {
+  const real = await original<typeof import("../hosted-games")>();
+  const modules = {
+    game: { id: "mirror", actions: [] },
+    registry: {},
+    ui: null,
+    flow: { list: () => [], scene: () => null },
+    prefabs: {},
+    project: { engine: {} },
+    assets: null,
+  };
+  const game = {
+    id: "mirror",
+    name: "Mirror",
+    load: async () => modules,
+    debugLayers: async () => [],
+  };
+  return { ...real, hostedGame: (id: string) => (id === "mirror" ? game : real.hostedGame(id)) };
+});
+
 const { GameCanvas } = await import("../GameCanvas");
 const { GameCanvasLoading } = await import("../game-canvas-loading");
 
@@ -68,6 +119,32 @@ describe("GameCanvas while the editor loads", () => {
     );
     expect(staticImports).toEqual(["react"]);
   });
+});
+
+describe("GameCanvas playing", () => {
+  it("mirrors the renderer's state on the root element from before start, and clears it on unmount", async () => {
+    const { unmount } = render(<GameCanvas roomId="lobby-1" gameId="mirror" />);
+    await waitFor(() => expect(played.started).toContain("start"));
+    const listening = played.started.indexOf("on render:fallback");
+    expect(listening).toBeGreaterThanOrEqual(0);
+    expect(listening).toBeLessThan(played.started.indexOf("start"));
+
+    const { dataset } = document.documentElement;
+    played.emit("render:fallback", { from: "webgpu", reason: "init" });
+    expect(dataset.jamsRenderFallback).toBe("init");
+    played.emit("render:lost", { backend: "webgl" });
+    expect(dataset.jamsRender).toBe("lost");
+    played.emit("render:restored", { backend: "webgl", rebuilt: true });
+    expect(dataset.jamsRender).toBe("rebuilt");
+    played.emit("render:lost", { backend: "webgl" });
+    played.emit("render:restored", { backend: "webgl", rebuilt: false });
+    expect(dataset.jamsRender).toBe("restored");
+
+    unmount();
+    expect(dataset.jamsRender).toBeUndefined();
+    expect(dataset.jamsRenderFallback).toBeUndefined();
+    expect([...played.handlers.values()].every((set) => set.size === 0)).toBe(true);
+  }, 20_000);
 });
 
 describe("GameCanvasLoading", () => {

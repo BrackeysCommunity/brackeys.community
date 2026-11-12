@@ -19,7 +19,6 @@ import {
   projectUsage,
   projectView,
   referencedTrash,
-  UNLIMITED_QUOTA,
   type AssetEntry,
   type AssetId,
   type AssetKey,
@@ -46,6 +45,7 @@ import {
   SYNC_CLOSE,
   syncClose,
 } from "../../../../src/lib/canvas/sync-channels.ts";
+import { siteQuotaPolicy } from "../../../../src/lib/engine/quota.ts";
 import { PROJECT_DOC_LIMITS } from "../../../../src/lib/scene/limits.ts";
 import {
   applyProjectDuties,
@@ -484,7 +484,7 @@ export interface ProjectKindOptions {
   now: () => number;
   metrics: SyncMetrics;
   telemetry?: { captureException(error: unknown, properties?: Record<string, unknown>): void };
-  /** Checked before a new doc entry gets its row; everything fits by default. */
+  /** Checked before a new doc entry gets its row; the site's quotas by default. */
   quota?: QuotaPolicy;
   /** The kinds this instance knows; the engine's by default. */
   kinds?: KindRegistry;
@@ -527,7 +527,7 @@ export function createProjectKind(options: ProjectKindOptions): ProjectKind {
   const { store, now, metrics } = options;
   const kinds = options.kinds ?? ENGINE_KINDS;
   const registry = createRegistry(null);
-  const quota = options.quota ?? UNLIMITED_QUOTA;
+  const quota = options.quota ?? siteQuotaPolicy();
   const limits = options.limits ?? PROJECT_DOC_LIMITS;
   /** Positive answers only: a blob or row once seen stays. */
   const knownBlobs = new Map<string, Set<Sha256>>();

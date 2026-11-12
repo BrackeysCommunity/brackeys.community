@@ -36,6 +36,7 @@ import {
   teams,
   type JamWatchIntent,
 } from "@/db/schema";
+import { playableGamesByItchGame } from "@/lib/engine/playable-game";
 import { EVENTS } from "@/lib/event-taxonomy";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { captureServerEvent } from "@/lib/posthog-server";
@@ -605,15 +606,29 @@ export const listJamEntries = os
       db.select({ count: count() }).from(itchJamEntries).where(where),
     ]);
 
-    const membersByEntryId = await matchMembersToEntries(entries);
+    const [membersByEntryId, gamesByGameId] = await Promise.all([
+      matchMembersToEntries(entries),
+      // Signed out, like every caller of this public read.
+      playableGamesByItchGame(
+        db,
+        entries.map((entry) => entry.gameId),
+        { userId: null },
+        { jamId: input.jamId },
+      ),
+    ]);
 
     return {
-      entries: entries.map((entry) => ({
-        ...entry,
-        // Members of this community who worked on the entry. Usually empty —
-        // most of any jam's field are strangers to us.
-        members: membersByEntryId.get(entry.entryId) ?? [],
-      })),
+      entries: entries.map((entry) => {
+        const game = gamesByGameId.get(entry.gameId);
+        return {
+          ...entry,
+          // Members of this community who worked on the entry. Usually empty —
+          // most of any jam's field are strangers to us.
+          members: membersByEntryId.get(entry.entryId) ?? [],
+          // A hosted build of this entry anyone can play: its jam version, else production.
+          game: game && (game.playable || game.jamVersion !== undefined) ? game : null,
+        };
+      }),
       total: totalRow?.count ?? 0,
     };
   });

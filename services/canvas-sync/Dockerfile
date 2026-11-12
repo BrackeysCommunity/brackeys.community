@@ -40,6 +40,15 @@ COPY src/lib/scene/doc-bytes.ts ./src/lib/scene/doc-bytes.ts
 COPY src/lib/scene/ids.ts ./src/lib/scene/ids.ts
 COPY src/lib/scene/limits.ts ./src/lib/scene/limits.ts
 COPY src/lib/scene/project-bytes.ts ./src/lib/scene/project-bytes.ts
+# Hosted games: the quotas, the object keys and the collector's plan, each
+# import-free (or relative-only) so the service needs nothing else.
+COPY src/lib/engine/limits.ts ./src/lib/engine/limits.ts
+COPY src/lib/engine/quota.ts ./src/lib/engine/quota.ts
+COPY src/lib/engine/storage-keys.ts ./src/lib/engine/storage-keys.ts
+COPY src/lib/engine/collect-plan.ts ./src/lib/engine/collect-plan.ts
+COPY src/lib/engine/release-audit.ts ./src/lib/engine/release-audit.ts
+COPY src/lib/format-bytes.ts ./src/lib/format-bytes.ts
+COPY src/lib/legal-meta.ts ./src/lib/legal-meta.ts
 # The scene, project and asset kinds read and seed their docs through the engine. Whole
 # directories, so a new file inside one of them ships without a new line.
 COPY packages/engine/scene ./packages/engine/scene

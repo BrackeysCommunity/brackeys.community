@@ -7,15 +7,22 @@ and survives zone migrations.
 
 ## Origin policy (implemented in `vite.config.ts`)
 
-| Path                        | Cache-Control                                                    | Why                                                                                                                                                             |
-| --------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/assets/**`                | `public, max-age=31536000, immutable`                            | Content-hashed bundles; URL changes on every deploy. Cloudflare edge-caches these.                                                                              |
-| files in `public/`          | `public, max-age=86400, stale-while-revalidate=604800`           | Unhashed, root-served (logos, favicon, manifest, robots). Rules are generated from the directory listing at build time, so new files are covered automatically. |
-| `/api/**`                   | `no-store`                                                       | Per-user JSON (oRPC, better-auth, uploads).                                                                                                                     |
-| `/api/public/**`            | `no-store`, then `public, max-age=0, s-maxage=<n>` per procedure | The public RPC tier — GET, no cookies read, identical response for every caller. Caching is opt-in per procedure; see the section below.                        |
-| `/images/**`                | `public, max-age=31536000, immutable`                            | Stable proxy for MinIO uploads (`src/routes/images.$.ts`). Keys are nanoid-unique per upload; replacements mint a new key, so URLs never change content.        |
-| `/api/notifications/stream` | `no-cache, no-transform`                                         | SSE; `no-transform` keeps proxies from buffering the stream.                                                                                                    |
-| `/**` (SSR documents)       | `private, no-cache`                                              | Pages embed the viewer's session, so shared caches must never hold them. `no-cache` (vs `no-store`) still allows browser revalidation and bfcache.              |
+The hosted-game rules live in `src/lib/engine/frame-route-rules.ts`, which
+`vite.config.ts` spreads, so a unit test can read them without a build.
+
+| Path                        | Cache-Control                                                    | Why                                                                                                                                                                   |
+| --------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/assets/**`                | `public, max-age=31536000, immutable`                            | Content-hashed bundles; URL changes on every deploy. Cloudflare edge-caches these.                                                                                    |
+| files in `public/`          | `public, max-age=86400, stale-while-revalidate=604800`           | Unhashed, root-served (logos, favicon, manifest, robots). Rules are generated from the directory listing at build time, so new files are covered automatically.       |
+| `/api/**`                   | `no-store`                                                       | Per-user JSON (oRPC, better-auth, uploads).                                                                                                                           |
+| `/api/public/**`            | `no-store`, then `public, max-age=0, s-maxage=<n>` per procedure | The public RPC tier — GET, no cookies read, identical response for every caller. Caching is opt-in per procedure; see the section below.                              |
+| `/images/**`                | `public, max-age=31536000, immutable`                            | Stable proxy for MinIO uploads (`src/routes/images.$.ts`). Keys are nanoid-unique per upload; replacements mint a new key, so URLs never change content.              |
+| `/frames/**`                | `public, max-age=31536000, immutable`                            | Public and unlisted game releases (`src/routes/frames.$.ts`). The release id is a hash of the manifest, which names every file's hash, so a URL's bytes never change. |
+| `/frames-private/**`        | `private, max-age=3600`                                          | Private and team releases behind a 12-hour viewer token in the path. Per viewer, so never at the edge.                                                                |
+| `/games/*/play/**`          | (CSP only) `frame-ancestors 'self'`                              | The play page frames the release; only the site may frame the play page itself. Inherits `/**`'s `private, no-cache`.                                                 |
+| `/games/*/embed/**`         | (CSP only) `frame-ancestors *`                                   | The embed page exists to be framed anywhere. Inherits `/**`'s `private, no-cache`.                                                                                    |
+| `/api/notifications/stream` | `no-cache, no-transform`                                         | SSE; `no-transform` keeps proxies from buffering the stream.                                                                                                          |
+| `/**` (SSR documents)       | `private, no-cache`                                              | Pages embed the viewer's session, so shared caches must never hold them. `no-cache` (vs `no-store`) still allows browser revalidation and bfcache.                    |
 
 Two Nitro/h3 sharp edges encoded in the config comments:
 
@@ -50,11 +57,18 @@ just make the edge honor them:
    for cache, respect origin TTL.
 4. **Optional Cache Rule — bypass `/api/*`:** belt-and-braces; origin already
    says `no-store` and Cloudflare wouldn't cache these paths anyway.
-5. **Never add a blanket "Cache Everything" rule** (or an Edge TTL
+5. **Cache Rule — game release files:**
+   `(starts_with(http.request.uri.path, "/frames/"))` → Eligible for cache,
+   respect origin TTL. Releases ship `.json`, `.wasm`, `.html` and audio,
+   none of which are in Cloudflare's default extension list; without the
+   rule those files pass through to origin (correct, just uncached). Don't
+   widen it to `/frames-private/`: those responses are per viewer and say
+   `private`.
+6. **Never add a blanket "Cache Everything" rule** (or an Edge TTL
    "Override origin" on HTML) — documents are session-personalized. If
    anonymous-HTML edge caching is ever wanted, it needs a rule that bypasses
    on the better-auth session cookie.
-6. Image Transformations are enabled on jams.team and brackeys.community
+7. Image Transformations are enabled on jams.team and brackeys.community
    (`/cdn-cgi/image/…` — see `src/lib/itch-image.ts`); transformed variants
    are cached at the edge by Cloudflare automatically.
 
@@ -102,6 +116,32 @@ for keys under the three upload namespaces (`profile-projects/`,
   that already have it, and at the edge until Cloudflare evicts it. If that
   ever matters, purge the URL (and its `/cdn-cgi/image/` variants) in the
   zone, or shorten the edge TTL with `s-maxage`.
+
+## Game release files (`/frames/<releaseId>/<path>`)
+
+The frame route (`src/routes/frames.$.ts`) streams a release's files from
+MinIO with the type from the release's file table, `nosniff` and the frame
+CSP on every response. Everything under a release id is immutable, so the
+edge holds it for a year once the Cache Rule above is in place.
+
+- **Errors are never cached immutable.** Route-rule headers apply to 2xx
+  only, so a 404, 403 or 410 gets Nitro's `no-cache`.
+- **Takedown.** Hiding a release, or the collector removing it, makes the
+  origin answer `410` at once, and the play page stops framing it. Edge
+  copies are purged by URL for the release's five shell files
+  (`index.html`, `release.json`, `credits.html`, `sw.js`,
+  `app.webmanifest`) through Cloudflare's `POST /zones/<id>/purge_cache`
+  with `files`, best effort and logged, when `CLOUDFLARE_ZONE_ID` and
+  `CLOUDFLARE_PURGE_TOKEN` are set. Purge by prefix is Enterprise-only;
+  without its shell a release can't boot, and the hashed chunks left at the
+  edge are inert outside the frame. With either variable unset, staff are
+  told edge copies may persist until Cloudflare evicts them, as with
+  deleted images.
+- **Private releases** (`/frames-private/<releaseId>/<token>/<path>`) are
+  `private, max-age=3600`: a browser may keep them, the edge never does.
+  A takedown reaches them at the origin on the next request.
+- **Compression** is Cloudflare's; the origin never compresses, so
+  `content-length` and `Range` stay exact.
 
 ## The public API tier (`/api/public/rpc/*`)
 

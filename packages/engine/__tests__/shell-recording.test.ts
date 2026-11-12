@@ -638,6 +638,68 @@ describe("recording a session's TickInputs", () => {
     expect(replay.matches, replay.divergence ?? "").toBe(true);
   });
 
+  /** A game counting its loads in `persist`, noting the value each load found. */
+  function countingGame() {
+    type Plays = { plays: number };
+    const found: number[] = [];
+    const def: GameDefinition<TestGameSnapshot> = {
+      ...testGame,
+      persist: {
+        initial: () => ({ plays: 0 }),
+        schema: z.strictObject({ plays: z.number().int().min(0) }),
+      },
+      createRuntime(ctx) {
+        const inner = testGame.createRuntime(ctx);
+        return {
+          ...inner,
+          onLoad(scene) {
+            inner.onLoad?.(scene);
+            const { plays } = ctx.persist.value as Plays;
+            found.push(plays);
+            ctx.persist.set({ plays: plays + 1 });
+          },
+        };
+      },
+    };
+    return { def, found, plays: (r: RunRecording) => (r.start.persist as Plays).plays };
+  }
+
+  it("replays in the browser from the recording's persistent value, not the instance's", async () => {
+    const { def, found, plays } = countingGame();
+    const game = await editing(def);
+    const doc = yard();
+    const first = session(game, doc);
+    const later = session(game, doc);
+    expect(plays(later)).toBeGreaterThan(plays(first));
+
+    const replayed: RunRecording[] = [];
+    game.on("play:recorded", (r) => replayed.push(r));
+    found.length = 0;
+    expect(game.replay(doc, first)).toMatchObject({ ok: true });
+    expect(found).toEqual([plays(first)]);
+    game.step(100);
+    expect(replayed).toHaveLength(1);
+    expect(replayed[0]!.start.persist).toEqual(first.start.persist);
+    expect(replayed[0]!.end).toBe(first.end);
+  });
+
+  it("refuses a replay whose start.persist the game's schema rejects, keeping the instance's value", async () => {
+    const { def, found, plays } = countingGame();
+    const game = await editing(def);
+    const doc = yard();
+    const rec = session(game, doc);
+    const bad: RunRecording = { ...rec, start: { ...rec.start, persist: { plays: -1 } } };
+    const report = game.replay(doc, bad);
+    expect(report).toMatchObject({ ok: false });
+    expect(report.ok ? "" : report.error).toMatch(
+      /start\.persist doesn't match the game's persist schema/,
+    );
+    found.length = 0;
+    const next = session(game, doc);
+    expect(found[0]).toBe(plays(next));
+    expect(plays(next)).toBeGreaterThan(plays(rec));
+  });
+
   /** The seat game, also noting the order and offsets of the actions each tick hands `beforeStep`. */
   function orderGame(subTick: boolean) {
     const { game: seatDef } = seatGame();

@@ -5,6 +5,8 @@ import {
   layoutToDoc,
   readLog,
   readProjectLog,
+  SEED_STALE_CODE,
+  SEED_STALE_REASON,
   seedProjectDoc,
 } from "@jams/engine/collab";
 import { createRegistry } from "@jams/engine/game";
@@ -21,7 +23,12 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 import { z } from "zod";
 
-import { agentOrigin, openProjectClient, ProjectClientError } from "../project-client";
+import {
+  agentOrigin,
+  openProjectClient,
+  ProjectClientError,
+  seedStaleError,
+} from "../project-client";
 
 const cardLayout: DocLayout = { as: "map", rest: { as: "atomic" } };
 const card = defineAssetKind({
@@ -210,6 +217,40 @@ describe("openProjectClient", () => {
     const b = await client.session.open("asset:p.b");
     expect(layoutFromDoc(b.doc, cardLayout)).toEqual({ v: 1, title: "b" });
     await client.close();
+  });
+
+  it("ends on a seed-stale close after sync: every later call fails, telling the caller to rerun", async () => {
+    const h = await serve();
+    const client = await openProjectClient({
+      url: h.url,
+      project: "p",
+      registry,
+      kinds,
+      timeoutMs: 3_000,
+    });
+    await client.session.open("asset:p.a");
+    await until(() => h.server.hocuspocus.getConnectionsCount() > 0, "the client to connect");
+    for (const connection of serverDoc(h, "asset:p.a").getConnections())
+      connection.close({ code: SEED_STALE_CODE, reason: SEED_STALE_REASON });
+    await until(
+      () => h.server.hocuspocus.getConnectionsCount() === 0,
+      "the client to drop its socket rather than reattach",
+    );
+
+    const stale = seedStaleError("asset:p.a");
+    expect(stale.message).toMatch(/Run the command again/);
+    const batch = {
+      v: 1 as const,
+      ops: [{ op: "editAsset" as const, id: "b", edits: [{ set: "/title", value: "b!" }] }],
+    };
+    await expect(client.apply(batch)).rejects.toEqual(stale);
+    await expect(client.trial(batch)).rejects.toEqual(stale);
+    await expect(client.session.open("asset:p.b")).rejects.toEqual(stale);
+    await expect(client.pushed()).rejects.toEqual(stale);
+    const closed = await client.close().catch((e: unknown) => e);
+    expect(closed).toBeInstanceOf(ProjectClientError);
+    expect(closed).toEqual(stale);
+    expect(h.loaded).not.toContain("asset:p.b");
   });
 
   it("fails fast when nothing listens at the url", async () => {

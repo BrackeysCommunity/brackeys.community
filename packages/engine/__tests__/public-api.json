@@ -1,5 +1,5 @@
 {
-  "version": "0.14.0",
+  "version": "0.14.1",
   "entries": {
     ".": [
       "DEFAULT_INDEXED_DB_NAME",
@@ -49,6 +49,7 @@
       "selectSession",
       "selectSim",
       "selectTick",
+      "snapshotRemapStore",
       "spriteGeometry",
       "viewportFor",
       "watchView"
@@ -1158,12 +1159,35 @@
       "zipFiles"
     ],
     "./standalone": [
+      "HOST_DOWNLOAD_MAX_BYTES",
+      "HOST_HANDSHAKE_TIMEOUT_MS",
+      "HOST_MESSAGE_MAX_BYTES",
+      "HOST_PROTOCOL_VERSION",
+      "HOST_REQUESTS",
+      "HostRequestError",
       "StandaloneBootError",
       "bootStandalone",
+      "channelSaveStore",
+      "connectHost",
       "fetchReleaseTexts",
+      "frameMessageSchema",
+      "frameReadySchema",
+      "hostHandshakeSchema",
+      "hostIssueSchema",
+      "hostMessageBytes",
+      "hostMessageSchema",
+      "hostRequested",
+      "hostSavesSchema",
       "manifestRuntimeView",
       "manifestView",
-      "showBootError"
+      "mirrorRenderState",
+      "saveLimitsSchema",
+      "saveModeSchema",
+      "saveSummarySchema",
+      "saveWriteResultSchema",
+      "showBootError",
+      "welcomeSchema",
+      "withinHostMessageCap"
     ]
   },
   "issueCodes": [
@@ -1172,6 +1196,7 @@
     "asset-in-use",
     "asset-kind",
     "asset-missing",
+    "asset-not-trashed",
     "asset-too-large",
     "bad-id",
     "bad-shape",
@@ -1219,6 +1244,8 @@
     "ref-child-unknown",
     "ref-not-found",
     "ref-type",
+    "release-forbidden",
+    "release-immutable",
     "save-slot-limit",
     "save-store-failed",
     "save-too-large",
@@ -1277,6 +1304,7 @@
     "editScene",
     "importAsset",
     "moveAsset",
+    "purgeAsset",
     "renameAsset",
     "replaceContent",
     "restoreAsset",
@@ -1441,6 +1469,20 @@
       "rate",
       "time"
     ],
+    "game release create": [
+      "allow-over-budget",
+      "channel",
+      "from",
+      "hosted",
+      "json",
+      "project",
+      "target",
+      "token",
+      "url"
+    ],
+    "game release list": ["json", "project", "token", "url"],
+    "game release promote": ["channel", "json", "project", "token", "url"],
+    "game release rollback": ["channel", "json", "project", "token", "url"],
     "grid": ["diagonals", "fov", "from", "json", "project", "to"],
     "input": ["json", "player", "project"],
     "list": ["json", "project"],
@@ -1501,6 +1543,10 @@
     "game_build",
     "game_manifest",
     "game_new",
+    "game_release_create",
+    "game_release_list",
+    "game_release_promote",
+    "game_release_rollback",
     "project_tree",
     "scene_apply_ops",
     "scene_check",

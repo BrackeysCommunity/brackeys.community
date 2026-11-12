@@ -2767,6 +2767,10 @@ describe("runCli", () => {
       "game build",
       "game export",
       "game manifest",
+      "game release create",
+      "game release list",
+      "game release promote",
+      "game release rollback",
     ]);
   });
 

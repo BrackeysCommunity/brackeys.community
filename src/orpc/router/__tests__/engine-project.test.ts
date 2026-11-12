@@ -23,6 +23,8 @@ import { base64ToBytes } from "@/lib/canvas/encoding";
 import { verifyCanvasToken } from "@/lib/canvas/token";
 import { fakeMinio } from "@/lib/engine/__tests__/fake-minio";
 import { engineRoutes, PNG, upload } from "@/lib/engine/__tests__/harness";
+import { PROJECT_QUOTA } from "@/lib/engine/limits";
+import { siteQuotaPolicy } from "@/lib/engine/quota";
 import { readProjectState } from "@/lib/scene/project-bytes";
 import {
   createAgentToken,
@@ -31,6 +33,7 @@ import {
   deleteHostedProject,
   getProjectBundle,
   getProjectSyncToken,
+  getProjectUsage,
   listAgentTokens,
   revokeAgentToken,
 } from "@/orpc/router/engine-project";
@@ -49,10 +52,12 @@ vi.mock("@/lib/guild-sync", () => ({
   refreshDiscordProfileThrottled: async () => {},
   syncDiscordProfile: async () => ({ guildRolesSynced: false }),
 }));
-const flags = vi.hoisted(() => ({ enabled: true }));
+const flags = vi.hoisted(() => ({ enabled: true, games: true }));
 vi.mock("@/lib/posthog-server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/posthog-server")>()),
-  isServerFlagEnabled: async (flag: string) => flag === "engine-projects" && flags.enabled,
+  isServerFlagEnabled: async (flag: string) =>
+    (flag === "engine-projects" && flags.enabled) ||
+    (flag === "engine-games-enabled" && flags.games),
 }));
 const redis = vi.hoisted(() => ({ published: [] as { channel: string; message: unknown }[] }));
 vi.mock("@/lib/redis", () => ({
@@ -84,7 +89,7 @@ vi.mock("@/lib/engine/quota", async (importOriginal) => {
     ...actual,
     ENGINE_QUOTA: {
       check: (...args: Parameters<QuotaPolicy["check"]>) =>
-        (quota.policy ?? actual.UNLIMITED_QUOTA).check(...args),
+        (quota.policy ?? actual.ENGINE_QUOTA).check(...args),
     },
   };
 });
@@ -97,6 +102,7 @@ let db: TestDb;
 beforeEach(async () => {
   ({ db } = (await import("@/db")) as unknown as { db: TestDb });
   flags.enabled = true;
+  flags.games = true;
   quota.policy = null;
   minio.current = fakeMinio();
   redis.published.length = 0;
@@ -166,6 +172,10 @@ const everyProcedure = async () => {
     [
       "getProjectBundle",
       (who: string | null) => call(getProjectBundle, { projectId: PROJECT }, asUser(who)),
+    ],
+    [
+      "getProjectUsage",
+      (who: string | null) => call(getProjectUsage, { projectId: PROJECT }, asUser(who)),
     ],
     // Last: it deletes the project the others use.
     [
@@ -428,6 +438,80 @@ describe("createHostedProject", () => {
     expect(
       await db.select().from(engineProjects).where(eq(engineProjects.projectId, "seeded")),
     ).toEqual([]);
+  });
+});
+
+describe("getProjectUsage", () => {
+  it("answers the stored usage and a line per quota against the site's numbers", async () => {
+    await db.insert(engineBlobs).values({
+      projectId: PROJECT,
+      sha256: await sha256(PNG),
+      byteSize: PNG.byteLength,
+      contentType: "image/png",
+      storageKey: "engine-assets/kitchen/x",
+    });
+    await db.insert(sceneDocs).values({
+      sceneId: `${PROJECT}.level-1`,
+      projectId: PROJECT,
+      byteSize: 30,
+    });
+    const { usage, lines } = await call(getProjectUsage, { projectId: PROJECT }, asUser("staff"));
+    expect(usage).toMatchObject({
+      blobBytes: PNG.byteLength,
+      liveBlobBytes: PNG.byteLength,
+      docs: 1,
+      docBytes: 30,
+      releases: 0,
+      largestRelease: null,
+      nextCollection: [],
+    });
+    expect(lines.map((l) => l.quota)).toEqual([
+      "assetBytes",
+      "docs",
+      "docBytes",
+      "releaseBytes",
+      "releaseStorageBytes",
+      "jamPins",
+      "releasesPerDay",
+    ]);
+    expect(lines[0]).toMatchObject({
+      used: PNG.byteLength,
+      max: PROJECT_QUOTA.assetBytes,
+      level: "ok",
+    });
+  });
+
+  it("refuses with engine-games-enabled off, and a missing project", async () => {
+    await expect(
+      call(getProjectUsage, { projectId: "nope" }, asUser("staff")),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    flags.games = false;
+    await expect(
+      call(getProjectUsage, { projectId: PROJECT }, asUser("staff")),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("the site's quota by default", () => {
+  it("holds a seed to the document count", async () => {
+    await expect(
+      call(createHostedProject, { bundle: bundleFor("seeded") }, asUser("staff")),
+    ).resolves.toBeTruthy();
+    const docs = PROJECT_QUOTA.docs;
+    quota.policy = {
+      check: (usage, add) => siteQuotaPolicy().check({ ...usage, docs: docs - 1 }, add),
+    };
+    await expect(
+      call(createHostedProject, { bundle: bundleFor("another") }, asUser("staff")),
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      data: {
+        code: "quota-exceeded",
+        limit: "docs",
+        max: docs,
+        hint: "Delete scenes, prefabs or data you don't use, then empty the trash.",
+      },
+    });
   });
 });
 

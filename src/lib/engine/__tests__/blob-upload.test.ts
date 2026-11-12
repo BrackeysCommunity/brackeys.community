@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { engineBlobs } from "@/db/schema";
 import type { TestDb } from "@/test/db";
 
-import { ENGINE_BLOB_KINDS, ENGINE_BLOB_UPLOADS_PER_DAY } from "../limits";
 import { ENGINE_BLOB_CACHE_CONTROL } from "../routes";
+import { ENGINE_BLOB_KINDS, ENGINE_BLOB_UPLOADS_PER_DAY } from "../upload-limits";
 import { fakeMinio } from "./fake-minio";
 import { engineRoutes, PNG, PROJECT, read, seedEngine, upload } from "./harness";
 

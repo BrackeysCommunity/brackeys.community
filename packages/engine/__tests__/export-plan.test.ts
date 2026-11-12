@@ -15,22 +15,31 @@ import { ITCH_LIMITS } from "../export/itch";
 import { finishExport, type BuiltCode, type ExportInput, type ExportPlan } from "../export/plan";
 import { renderServiceWorker, serviceWorkerCacheName } from "../export/service-worker";
 import { renderWebManifest } from "../export/web-manifest";
-import { createRegistry, defineEntityType, defineGame, withProject } from "../game/define";
+import { defineEntityType, defineGame } from "../game/define";
 import { assetField, pointField } from "../game/fields";
-import type { GameDefinition } from "../game/types";
 import { stableJson } from "../project/canonical";
 import { sha256 } from "../project/hash";
 import { parseProjectFile } from "../project/project-file";
 import {
+  ENGINE_FORMATS,
   formatReleaseManifest,
   RELEASE_FILE,
   releaseSnapshot,
   type ReleaseManifest,
 } from "../project/release";
-import { heldProject, type HeldFile } from "../project/runtime-view";
+import type { HeldFile } from "../project/runtime-view";
 import type { AssetSidecar } from "../project/sidecar";
-import { jsonValues, snapshotProject } from "../project/snapshot";
+import { snapshotProject } from "../project/snapshot";
 import type { ProjectFile } from "../project/types";
+import {
+  CC0,
+  FREE_PROJECT,
+  heldInput,
+  png,
+  physicsFreeFiles,
+  scene,
+  type HeldFiles,
+} from "./fixtures/held-project";
 import { testGame } from "./fixtures/test-game";
 
 const engineDir = fileURLToPath(new URL("../scenes/", import.meta.url));
@@ -38,7 +47,7 @@ const engineDir = fileURLToPath(new URL("../scenes/", import.meta.url));
 const SIDECAR = ".asset.json";
 
 /** Every file under `dir` as a host holds it: docs by their JSON, binaries by their sidecars. */
-function readHeld(dir: string): { files: HeldFile[]; texts: Map<string, string> } {
+function readHeld(dir: string): HeldFiles {
   const files: HeldFile[] = [];
   const texts = new Map<string, string>();
   const walk = (at: string) => {
@@ -77,118 +86,6 @@ const ENGINE_PROJECT: ProjectFile = {
   game: null,
 };
 
-/** The export input of `files`: the project read as held files, its doc texts by id, a snapshot of it. */
-async function inputOf(
-  project: ProjectFile,
-  held: { files: HeldFile[]; texts: Map<string, string> },
-  game: GameDefinition,
-  target: ExportInput["target"] = "web",
-): Promise<ExportInput> {
-  const { view, kinds } = heldProject(held.files, createRegistry(game), {
-    projectId: project.id,
-    name: project.name,
-  });
-  const texts = new Map<string, string>();
-  for (const entry of view.byId.values())
-    if (entry.sha256 === undefined) {
-      const text = held.texts.get(entry.path);
-      if (text !== undefined) texts.set(entry.id, text);
-    }
-  const values = jsonValues(texts);
-  const settings = [...view.byId.values()].find((e) => e.kind === "game-settings");
-  const engine = ((settings && (values.get(settings.id) as { engine?: object })?.engine) ??
-    {}) as Record<string, unknown>;
-  return {
-    project,
-    view,
-    texts,
-    kinds,
-    registry: withProject(createRegistry(game), view, values),
-    game,
-    engine,
-    target,
-    snapshot: await snapshotProject(view, texts, view.state.build),
-  };
-}
-
-const png = (
-  id: string,
-  sha: string,
-  bytes: number,
-  size: number,
-  licence?: AssetSidecar["licence"],
-): AssetSidecar => ({
-  kind: "asset-sidecar",
-  v: 1,
-  key: `key-${id}`,
-  id,
-  sha256: sha,
-  bytes,
-  meta: { format: "png", width: size, height: size },
-  ...(licence ? { licence } : {}),
-});
-
-const scene = (name: string, assets: string[] = []) => ({
-  v: 4,
-  name,
-  bounds: [0, 0, 6.4, 3.84],
-  settings: { physics: "none" },
-  ...(assets.length > 0 ? { assets } : {}),
-  entities: [{ id: "start", type: "marker", at: [1, 1], tags: ["spawn"] }],
-});
-
-const CC0 = { spdx: "CC0-1.0", author: "Test authors" };
-
-/** A physics-free project: two listed scenes, two unlisted ones, a checks file and its input script, three textures. */
-function physicsFreeFiles(): { files: HeldFile[]; texts: Map<string, string> } {
-  const docs: Record<string, unknown> = {
-    "scene-list.json": {
-      kind: "scene-list",
-      v: 1,
-      start: "yard",
-      scenes: [{ scene: "yard", title: "Yard" }, { scene: "hall" }],
-    },
-    "game-settings.json": { kind: "game-settings", v: 2, engine: {}, game: {} },
-    "yard.json": scene("yard", ["tiles"]),
-    "hall.json": scene("hall", ["rocks", "tiles"]),
-    "cellar.json": scene("cellar"),
-    "attic.json": scene("attic", ["unused"]),
-    "yard.checks.json": {
-      v: 3,
-      checks: [
-        {
-          id: "down",
-          kind: "reaches",
-          result: "script-end",
-          expect: { scene: "cellar" },
-          script: "walk.script.json",
-        },
-      ],
-    },
-    "walk.script.json": { v: 2, scene: "yard", steps: [{ wait: 1 }] },
-  };
-  const texts = new Map<string, string>();
-  const files: HeldFile[] = [];
-  for (const [path, json] of Object.entries(docs)) {
-    texts.set(path, `${JSON.stringify(json, null, 2)}\n`);
-    files.push({ path, json });
-  }
-  files.push(
-    { path: "art/tiles.png", sidecar: png("tiles", "a".repeat(64), 300, 16, CC0) },
-    { path: "art/rocks.png", sidecar: png("rocks", "b".repeat(64), 200, 16) },
-    { path: "art/unused.png", sidecar: png("unused", "c".repeat(64), 100, 16, CC0) },
-  );
-  return { files, texts };
-}
-
-const FREE_PROJECT: ProjectFile = {
-  kind: "project",
-  v: 1,
-  id: "free",
-  name: "Free",
-  game: null,
-};
-
 const builtCode = (rapier: BuiltCode["rapier"] = null): BuiltCode => ({
   files: [
     { path: "code/main-abc123.js", sha256: "d".repeat(64), bytes: 1000, role: "code" },
@@ -208,7 +105,7 @@ const builtCode = (rapier: BuiltCode["rapier"] = null): BuiltCode => ({
 describe("the content plan over the engine project", () => {
   let input: ExportInput;
   beforeAll(async () => {
-    input = await inputOf(ENGINE_PROJECT, readHeld(engineDir), testGame);
+    input = await heldInput(ENGINE_PROJECT, readHeld(engineDir), testGame);
   });
 
   it("ships the listed scenes in list order, the sublevel marked, each with its physics", async () => {
@@ -283,7 +180,7 @@ describe("the content plan over the engine project", () => {
 describe("the content plan over a physics-free project", () => {
   let input: ExportInput;
   beforeAll(async () => {
-    input = await inputOf(FREE_PROJECT, physicsFreeFiles(), testGame);
+    input = await heldInput(FREE_PROJECT, physicsFreeFiles(), testGame);
   });
 
   it("ships listed scenes and what they reach; unlisted scenes, checks, scripts and unused art stay out", async () => {
@@ -346,7 +243,7 @@ describe("the content plan over a physics-free project", () => {
     };
     held.texts.set("hall.json", `${JSON.stringify(hall, null, 2)}\n`);
     held.files = held.files.map((f) => (f.path === "hall.json" ? { path: f.path, json: hall } : f));
-    const plan = await planContent(await inputOf(FREE_PROJECT, held, doorGame));
+    const plan = await planContent(await heldInput(FREE_PROJECT, held, doorGame));
     const unlisted = plan.issues.filter((i) => i.code === "scene-unlisted" && i.got === "attic");
     expect(unlisted).toHaveLength(1);
     expect(unlisted[0]).toMatchObject({ severity: "warn", entityIds: ["hall", "attic"] });
@@ -440,14 +337,14 @@ describe("the content plan over a physics-free project", () => {
 
   it("gives the same plan for the same input", async () => {
     const a = await planContent(input);
-    const b = await planContent(await inputOf(FREE_PROJECT, physicsFreeFiles(), testGame));
+    const b = await planContent(await heldInput(FREE_PROJECT, physicsFreeFiles(), testGame));
     expect(stableJson(b)).toBe(stableJson(a));
   });
 });
 
 describe("icons", () => {
   it("falls back to the default, with export-asset-missing at warn, for an icon that isn't a PNG of its size", async () => {
-    const input = await inputOf(
+    const input = await heldInput(
       { ...FREE_PROJECT, export: { icons: { "192": "tiles" } } },
       physicsFreeFiles(),
       testGame,
@@ -469,7 +366,7 @@ describe("icons", () => {
   it("ships a texture of exactly the size as the icon", async () => {
     const held = physicsFreeFiles();
     held.files.push({ path: "art/icon.png", sidecar: png("icon", "9".repeat(64), 900, 512) });
-    const input = await inputOf(
+    const input = await heldInput(
       { ...FREE_PROJECT, export: { icons: { "512": "icon" } } },
       held,
       testGame,
@@ -486,7 +383,7 @@ describe("icons", () => {
   it("ships a named icon as an asset of the release: pinned by its snapshot, credited, written once", async () => {
     const held = physicsFreeFiles();
     held.files.push({ path: "art/icon.png", sidecar: png("icon", "9".repeat(64), 900, 512, CC0) });
-    const input = await inputOf(
+    const input = await heldInput(
       { ...FREE_PROJECT, export: { icons: { "512": "icon" } } },
       held,
       testGame,
@@ -548,7 +445,7 @@ const DEFAULT_512_SHA = "c81a988cf3330850c57e52de4cc64f3c6855af499c3eaa30fd31bbf
 describe("finishExport", () => {
   let input: ExportInput;
   beforeAll(async () => {
-    input = await inputOf(FREE_PROJECT, physicsFreeFiles(), testGame);
+    input = await heldInput(FREE_PROJECT, physicsFreeFiles(), testGame);
   });
 
   it("joins the content and the code into a manifest that holds together", async () => {
@@ -560,6 +457,7 @@ describe("finishExport", () => {
     expect(m.build.target).toBe("web");
     expect(m.flow.start).toBe("yard");
     expect(m.game).toEqual({ id: testGame.id, configHash: null, saveVersion: null });
+    expect(m.engine.formats).toEqual(ENGINE_FORMATS);
     expect(m.credits.code.map((c) => c.package)).toEqual(["pixi.js", "zod"]);
     expect(m.budget.over).toEqual([]);
     expect(m.budget.measured.wasmBytes).toBe(0);
@@ -591,6 +489,25 @@ describe("finishExport", () => {
       input.view.state.build,
     );
     expect(manifest.project.snapshot).toBe(pinned.hash);
+    const fromRelease = releaseSnapshot(manifest);
+    for (const id of shipped) expect(fromRelease.assets[id], id).toEqual(pinned.assets[id]);
+  });
+
+  it("refuses a shipped blob whose entry records no size, rather than shipping it as 0 bytes", async () => {
+    const byId = new Map(input.view.byId);
+    const { bytes: _, ...sizeless } = byId.get("rocks")!;
+    byId.set("rocks", sizeless);
+    const hosted = { ...input, view: { ...input.view, byId } };
+    const content = await planContent(hosted);
+    expect(content.assets.rocks).toBeUndefined();
+    expect(content.issues).toContainEqual(
+      expect.objectContaining({
+        code: "asset-missing",
+        severity: "error",
+        entityIds: ["rocks"],
+        message: expect.stringContaining("records no size") as string,
+      }),
+    );
   });
 
   it("plans no service worker or web manifest with the PWA off", async () => {
@@ -620,7 +537,7 @@ describe("finishExport", () => {
 
   it("gives a byte-identical manifest for the same input", async () => {
     const a = await finishExport(await planContent(input), builtCode(), input);
-    const again = await inputOf(FREE_PROJECT, physicsFreeFiles(), testGame);
+    const again = await heldInput(FREE_PROJECT, physicsFreeFiles(), testGame);
     const b = await finishExport(await planContent(again), builtCode(), again);
     expect(formatReleaseManifest(b.manifest)).toBe(formatReleaseManifest(a.manifest));
     expect(stableJson(b.files.map((f) => [f.path, f.role]))).toBe(
@@ -721,7 +638,7 @@ describe("the shell renderers", () => {
   let plan: ExportPlan;
   let m: ReleaseManifest;
   beforeAll(async () => {
-    input = await inputOf(FREE_PROJECT, physicsFreeFiles(), testGame);
+    input = await heldInput(FREE_PROJECT, physicsFreeFiles(), testGame);
     plan = await finishExport(await planContent(input), builtCode(), input);
     m = plan.manifest;
   });
@@ -969,7 +886,7 @@ describe("the shell renderers", () => {
   });
 
   it("renders the same text for the same manifest", async () => {
-    const again = await inputOf(FREE_PROJECT, physicsFreeFiles(), testGame);
+    const again = await heldInput(FREE_PROJECT, physicsFreeFiles(), testGame);
     const b = await finishExport(await planContent(again), builtCode(), again);
     for (const path of ["index.html", "credits.html", "sw.js", "app.webmanifest"])
       expect(textOf(b, path), path).toBe(textOf(plan, path));

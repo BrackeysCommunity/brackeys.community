@@ -4,6 +4,7 @@ import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  allRuns,
   buildName,
   checkRequests,
   CONTEXT_LOSS_BUILD,
@@ -11,14 +12,17 @@ import {
   distinctColours,
   exportSmokeOk,
   exportSmokeReport,
+  hostRuns,
   judgeCanvasChange,
   judgeControlHit,
   judgeDrawn,
+  judgeHost,
   judgeRun,
   launchFailures,
   pickReachCell,
   pixelHash,
   plannedRuns,
+  renderRestore,
   requestScope,
   RESTORE_AFTER_MS,
   runOutcome,
@@ -26,6 +30,7 @@ import {
   type BuildOutcome,
   type ContextLossProbe,
   type ExportSmokeReport,
+  type HostProbe,
   type Image,
   type PlannedRun,
   type RunObservation,
@@ -323,6 +328,55 @@ describe("plannedRuns", () => {
   });
 });
 
+describe("hostRuns", () => {
+  const browsers = ["chromium", "firefox", "webkit"] as const;
+
+  it("frames tactics-web once in every browser", () => {
+    expect(hostRuns(SMOKE_BUILDS, browsers)).toEqual(
+      browsers.map((browser) => ({ build: "tactics-web", mount: "/", browser, kind: "host" })),
+    );
+  });
+
+  it("puts each browser's host run after that browser's other runs", () => {
+    expect(allRuns(SMOKE_BUILDS, browsers)).toEqual(
+      browsers.flatMap((b) => [...plannedRuns(SMOKE_BUILDS, [b]), ...hostRuns(SMOKE_BUILDS, [b])]),
+    );
+    const firefox = allRuns(SMOKE_BUILDS, browsers).filter((r) => r.browser === "firefox");
+    expect(firefox.at(-1)?.kind).toBe("host");
+  });
+});
+
+const RELEASE = "r-1";
+const goodHost: HostProbe = {
+  handshakes: 1,
+  hello: { engine: "0.14.1", release: RELEASE, game: "tactics" },
+  states: ["loading", "ready"],
+  requests: [],
+  invalid: 0,
+};
+
+describe("judgeHost", () => {
+  it("fails a run whose probe never ran", () => {
+    expect(judgeHost(undefined, RELEASE)).toEqual(["the host probe didn't run"]);
+  });
+
+  it("passes one handshake, the build's hello and a ready state", () => {
+    expect(judgeHost(goodHost, RELEASE)).toEqual([]);
+  });
+
+  it("gives one reason for each thing that went wrong", () => {
+    const bad: Partial<HostProbe>[] = [
+      { handshakes: 2 },
+      { hello: null },
+      { hello: { engine: "0.14.1", release: "r-2", game: "tactics" } },
+      { states: ["loading", "error"] },
+      { states: ["loading"] },
+      { invalid: 1 },
+    ];
+    for (const over of bad) expect(judgeHost({ ...goodHost, ...over }, RELEASE)).toHaveLength(1);
+  });
+});
+
 const platformerPlay = { game: "platformer", before: "a", after: "b", colours: 12 } as const;
 
 const observed = (over: Partial<RunObservation> = {}): RunObservation => ({
@@ -339,7 +393,7 @@ const observed = (over: Partial<RunObservation> = {}): RunObservation => ({
 
 const restoredLoss: ContextLossProbe = {
   extension: true,
-  overlayShown: true,
+  lost: true,
   restored: true,
   restoreMs: 40,
   rebuilt: false,
@@ -392,13 +446,29 @@ describe("judgeRun", () => {
     const reasons = judgeRun(
       "context-loss",
       observed({
-        contextLoss: { ...restoredLoss, overlayShown: false, restored: false, colours: 1 },
+        contextLoss: { ...restoredLoss, lost: false, restored: false, colours: 1 },
       }),
     );
     expect(reasons).toHaveLength(3);
     expect(reasons[0]).toMatch(/render:lost/);
     expect(reasons[1]).toMatch(/render:restored/);
     expect(reasons[2]).toMatch(/after the restore, the canvas is one flat colour/);
+  });
+
+  it("reads a restore from data-jams-render: restored in place, rebuilt, or still lost", () => {
+    expect(renderRestore("restored")).toEqual({ restored: true, rebuilt: false });
+    expect(renderRestore("rebuilt")).toEqual({ restored: true, rebuilt: true });
+    expect(renderRestore("lost")).toEqual({ restored: false, rebuilt: false });
+    expect(renderRestore(undefined)).toEqual({ restored: false, rebuilt: false });
+  });
+
+  it("fails a host run whose frame registered a service worker", () => {
+    expect(
+      judgeRun("host", observed({ serviceWorkers: 1, host: goodHost, release: RELEASE })),
+    ).toContain("1 service worker(s) registered in a frame with a host");
+    expect(
+      judgeRun("host", observed({ serviceWorkers: 0, host: goodHost, release: RELEASE })),
+    ).toEqual([]);
   });
 
   it("carries the play check's own verdict last", () => {

@@ -1,0 +1,309 @@
+// @vitest-environment jsdom
+import { ORPCError } from "@orpc/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+
+import type { PlayPayload } from "@/lib/engine/game-play";
+import type { HostServerOptions } from "@/lib/engine/host-server";
+
+const calls = vi.hoisted(() => ({
+  getGamePlay: vi.fn(),
+  reportGame: vi.fn(),
+}));
+const gate = vi.hoisted(() => ({ flagBlocks: false, allowed: true }));
+const auth = vi.hoisted(() => ({
+  user: null as null | { id: string; name: string; image: string | null },
+  signIn: vi.fn(),
+}));
+const hosts = vi.hoisted(() => ({ created: [] as HostServerOptions[] }));
+
+vi.mock("@/orpc/client", () => {
+  const fn = (name: string) => (calls as Record<string, (input: unknown) => unknown>)[name];
+  return {
+    client: new Proxy({}, { get: (_t, name: string) => (input: unknown) => fn(name)?.(input) }),
+    orpc: new Proxy(
+      {},
+      {
+        get: (_t, name: string) => ({
+          // oxlint-disable-next-line eslint-tanstack-query/exhaustive-deps -- a stand-in for the oRPC utils
+          queryOptions: ({ input }: { input: unknown }) => ({
+            queryKey: [name, input],
+            queryFn: () => fn(name)?.(input),
+          }),
+        }),
+      },
+    ),
+  };
+});
+vi.mock("@/lib/auth-client", () => ({
+  authClient: { useSession: () => ({ data: auth.user ? { user: auth.user } : null }) },
+  signInWithDiscord: auth.signIn,
+}));
+vi.mock("@/lib/hooks/use-flag", () => ({
+  useFlag: () => !gate.flagBlocks,
+  useFlagBlocks: (key: string) => key === "engine-games-enabled" && gate.flagBlocks,
+}));
+vi.mock("@/lib/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/lib/engine/guard", () => ({ engineGamesAllowed: () => gate.allowed }));
+vi.mock("@/lib/engine/host-server", () => ({
+  createHostServer: (opts: HostServerOptions) => {
+    hosts.created.push(opts);
+    return { notifySavesChanged: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() };
+  },
+}));
+vi.mock("@/components/canvas/shell/SiteMenu", () => ({
+  SiteMenu: () => <button type="button">Site menu</button>,
+}));
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  Link: ({
+    children,
+    params,
+    to,
+    ...rest
+  }: {
+    children?: ReactNode;
+    params?: Record<string, string>;
+    to?: string;
+  }) => (
+    <a {...rest} href={(to ?? "").replace(/\$(\w+)/g, (_m, key: string) => params?.[key] ?? "")}>
+      {children}
+    </a>
+  ),
+  useRouter: () => ({ history: { back: vi.fn() } }),
+  useRouterState: () => "/games/tactics/play/latest",
+}));
+
+const { PlayChrome, PlayPage, PLAY_UNAVAILABLE_MESSAGE, SIGN_IN_MESSAGE } =
+  await import("../PlayChrome");
+const { EmbedFrame, EMBED_SAVES_DESCRIBE } = await import("../EmbedFrame");
+const { Route: PlayIndexRoute } = await import("@/routes/games_.$projectId.play.index");
+
+function payload(patch: Partial<PlayPayload> = {}): PlayPayload {
+  return {
+    projectId: "tactics",
+    title: "Tactics",
+    version: 7,
+    channel: "production",
+    release: {
+      id: "a".repeat(64),
+      gameId: "tactics",
+      engineVersion: "0.14.1",
+      createdAt: "2026-11-10T12:00:00.000Z",
+    },
+    frameUrl: `https://play.example.test/frames/${"a".repeat(64)}/index.html?host=jams`,
+    visibility: "public",
+    saveMode: "site",
+    connectOrigins: [],
+    online: false,
+    viewer: { signedIn: false },
+    ...patch,
+  };
+}
+
+function wrap(node: ReactNode) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>);
+}
+
+beforeEach(() => {
+  calls.getGamePlay.mockReset();
+  calls.reportGame.mockReset();
+  auth.signIn.mockReset();
+  auth.user = null;
+  gate.flagBlocks = false;
+  gate.allowed = true;
+  hosts.created.length = 0;
+});
+afterEach(cleanup);
+
+describe("the play page", () => {
+  it("asks before signing in, then returns to the play URL", async () => {
+    const user = userEvent.setup();
+    wrap(<PlayChrome play={payload()} version="latest" />);
+
+    await user.click(screen.getByRole("button", { name: /Sign in to keep your saves/ }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain(SIGN_IN_MESSAGE);
+    expect(auth.signIn).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() =>
+      expect(auth.signIn).toHaveBeenCalledWith("game", {
+        callbackURL: "/games/tactics/play/latest",
+      }),
+    );
+  });
+
+  it("shows the viewer's avatar and Report when signed in, not the sign-in button", async () => {
+    auth.user = { id: "u1", name: "Carol", image: null };
+    calls.reportGame.mockResolvedValue({ ok: true });
+    const user = userEvent.setup();
+    wrap(<PlayChrome play={payload()} version="7" />);
+
+    expect(screen.queryByRole("button", { name: /Sign in to keep your saves/ })).toBeNull();
+    expect(screen.getByText("C")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Report" }));
+    await user.type(await screen.findByPlaceholderText("Reason"), "stolen art");
+    await user.click(screen.getByRole("button", { name: "REPORT" }));
+    await waitFor(() =>
+      expect(calls.reportGame).toHaveBeenCalledWith({
+        projectId: "tactics",
+        version: 7,
+        reason: "stolen art",
+      }),
+    );
+  });
+
+  it("has no Report for a signed-out viewer", () => {
+    wrap(<PlayChrome play={payload()} version="latest" />);
+    expect(screen.queryByRole("button", { name: "Report" })).toBeNull();
+  });
+
+  it("frames the release with the title, version and a link to the game page", () => {
+    wrap(<PlayChrome play={payload({ channel: "preview" })} version="preview" />);
+    const frame = screen.getByTitle("Tactics");
+    expect(frame.getAttribute("src")).toBe(payload().frameUrl);
+    expect(screen.getByText("v7")).toBeTruthy();
+    expect(screen.getByText("PREVIEW")).toBeTruthy();
+    expect(screen.getByLabelText("Game page").getAttribute("href")).toBe("/games/tactics");
+    expect(hosts.created).toHaveLength(1);
+  });
+
+  it("fullscreens the iframe element", async () => {
+    const requestFullscreen = vi.fn(() => Promise.resolve());
+    Object.defineProperty(HTMLIFrameElement.prototype, "requestFullscreen", {
+      configurable: true,
+      value: requestFullscreen,
+    });
+    const user = userEvent.setup();
+    wrap(<PlayChrome play={payload()} version="latest" />);
+    await user.click(screen.getByRole("button", { name: "Full screen" }));
+    expect(requestFullscreen).toHaveBeenCalledOnce();
+    expect(requestFullscreen.mock.contexts[0]).toBe(screen.getByTitle("Tactics"));
+    delete (HTMLIFrameElement.prototype as { requestFullscreen?: unknown }).requestFullscreen;
+  });
+
+  it("shows the reason for a hidden release instead of a frame", async () => {
+    calls.getGamePlay.mockRejectedValue(
+      new ORPCError("NOT_FOUND", { message: "Not found.", data: { reason: "hidden" } }),
+    );
+    wrap(<PlayPage projectId="tactics" version="latest" />);
+    expect(await screen.findByText(PLAY_UNAVAILABLE_MESSAGE.hidden)).toBeTruthy();
+    expect(screen.queryByTitle("Tactics")).toBeNull();
+  });
+
+  it("shows the reason for a collected release", async () => {
+    calls.getGamePlay.mockRejectedValue(
+      new ORPCError("NOT_FOUND", { message: "Not found.", data: { reason: "collected" } }),
+    );
+    wrap(<PlayPage projectId="tactics" version="2" />);
+    expect(await screen.findByText(PLAY_UNAVAILABLE_MESSAGE.collected)).toBeTruthy();
+  });
+
+  it("reads a refused release the same as a missing one", async () => {
+    calls.getGamePlay.mockRejectedValue(
+      new ORPCError("NOT_FOUND", { message: "Not found.", data: { reason: "forbidden" } }),
+    );
+    wrap(<PlayPage projectId="tactics" version="latest" />);
+    expect(await screen.findByText(PLAY_UNAVAILABLE_MESSAGE.unavailable)).toBeTruthy();
+  });
+
+  it("renders the 404 without asking when the flag is off", () => {
+    gate.flagBlocks = true;
+    wrap(<PlayPage projectId="tactics" version="latest" />);
+    expect(screen.getByText("Page not found")).toBeTruthy();
+    expect(calls.getGamePlay).not.toHaveBeenCalled();
+  });
+
+  it("renders the 404 on production", () => {
+    gate.allowed = false;
+    wrap(<PlayPage projectId="tactics" version="latest" />);
+    expect(screen.getByText("Page not found")).toBeTruthy();
+    expect(calls.getGamePlay).not.toHaveBeenCalled();
+  });
+
+  it("asks for latest, preview and numbers, and nothing else", async () => {
+    calls.getGamePlay.mockResolvedValue(payload());
+    for (const version of ["latest", "preview", "12"]) {
+      const view = wrap(<PlayPage projectId="tactics" version={version} />);
+      await screen.findByTitle("Tactics");
+      view.unmount();
+    }
+    expect(calls.getGamePlay.mock.calls.map(([input]) => input)).toEqual([
+      { projectId: "tactics", version: "latest" },
+      { projectId: "tactics", version: "preview" },
+      { projectId: "tactics", version: "12" },
+    ]);
+    wrap(<PlayPage projectId="tactics" version="v2" />);
+    expect(screen.getByText("Page not found")).toBeTruthy();
+    expect(calls.getGamePlay).toHaveBeenCalledTimes(3);
+  });
+
+  it("redirects /play to /play/latest", () => {
+    const beforeLoad = PlayIndexRoute.options.beforeLoad as (ctx: unknown) => void;
+    let thrown: unknown;
+    try {
+      beforeLoad({ params: { projectId: "tactics" } });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toMatchObject({
+      options: {
+        to: "/games/$projectId/play/$version",
+        params: { projectId: "tactics", version: "latest" },
+        replace: true,
+      },
+    });
+  });
+});
+
+describe("the embed page", () => {
+  it("has no actions beyond Open on the site, in a new tab", async () => {
+    auth.user = { id: "u1", name: "Carol", image: null };
+    calls.getGamePlay.mockResolvedValue(payload({ visibility: "unlisted" }));
+    wrap(<EmbedFrame projectId="tactics" version="latest" />);
+    await screen.findByTitle("Tactics");
+
+    expect(screen.queryAllByRole("button")).toEqual([]);
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]?.textContent).toMatch(/^Open on /);
+    expect(links[0]?.getAttribute("target")).toBe("_blank");
+    expect(links[0]?.getAttribute("href")).toMatch(/\/games\/tactics\/play\/latest$/);
+  });
+
+  it("tells the frame its saves stay with the embedding page", async () => {
+    calls.getGamePlay.mockResolvedValue(payload());
+    wrap(<EmbedFrame projectId="tactics" version="7" />);
+    await screen.findByTitle("Tactics");
+    expect(hosts.created[0]?.describe()).toBe(EMBED_SAVES_DESCRIBE);
+  });
+
+  it("refuses private and team games and the preview", async () => {
+    calls.getGamePlay.mockResolvedValue(payload({ visibility: "private" }));
+    const view = wrap(<EmbedFrame projectId="tactics" version="latest" />);
+    expect(await screen.findByText(PLAY_UNAVAILABLE_MESSAGE.unavailable)).toBeTruthy();
+    expect(screen.queryByTitle("Tactics")).toBeNull();
+    view.unmount();
+
+    calls.getGamePlay.mockClear();
+    wrap(<EmbedFrame projectId="tactics" version="preview" />);
+    expect(screen.getByText(PLAY_UNAVAILABLE_MESSAGE.unavailable)).toBeTruthy();
+    expect(calls.getGamePlay).not.toHaveBeenCalled();
+    expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+
+  it("shows a hidden release's reason with no actions", async () => {
+    calls.getGamePlay.mockRejectedValue(
+      new ORPCError("NOT_FOUND", { message: "Not found.", data: { reason: "hidden" } }),
+    );
+    wrap(<EmbedFrame projectId="tactics" version="latest" />);
+    expect(await screen.findByText(PLAY_UNAVAILABLE_MESSAGE.hidden)).toBeTruthy();
+    expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+});

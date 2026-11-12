@@ -378,4 +378,18 @@ describe("the entry and the package reader", () => {
     expect(packageOfModule("\0vite/preload-helper")).toBeNull();
     expect(thirdPartyOf([`${modulesDir}/zod/a.js`, `${modulesDir}/zod/b.js`])).toHaveLength(1);
   });
+
+  it("counts the build's own modules as no package, even with the project staged inside node_modules", () => {
+    const stage = `${modulesDir}/.game-new/demo`;
+    const own = [`${stage}/index.ts`, `${stage}/ui/hud.ts?v=1`, `\0${stage}/virtual.ts`];
+    expect(thirdPartyOf(own).map((l) => l.package)).toEqual([".game-new"]);
+    expect(thirdPartyOf(own, [stage])).toEqual([]);
+    expect(thirdPartyOf(own, [`${stage}/`, `${stage}/ui`])).toEqual([]);
+    expect(
+      thirdPartyOf(
+        [...own, `${modulesDir}/zod/a.js`, `${stage}/node_modules/kit/i.js`],
+        [stage],
+      ).map((l) => `${l.package}@${l.version}`),
+    ).toEqual(["kit@unknown", "zod@4.0.0"]);
+  });
 });

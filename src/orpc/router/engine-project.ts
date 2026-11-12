@@ -12,6 +12,7 @@ import {
   revokeAgentToken as markAgentTokenRevoked,
 } from "@/lib/engine/agent-token";
 import { reserveHostedProject as reserveProjectId } from "@/lib/engine/bundle";
+import { assertEngineGames } from "@/lib/engine/guard-server";
 import {
   createHostedProject as seedFromBundle,
   deleteHostedProject as softDeleteProject,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/engine/hosted";
 import { engineProjectsEnabled, isEngineProjectId, liveEngineProject } from "@/lib/engine/projects";
 import { signProjectSyncToken } from "@/lib/engine/sync-token";
+import { projectUsageReport } from "@/lib/engine/usage";
 import { requireStaff } from "@/orpc/middleware/auth";
 
 /**
@@ -181,4 +183,13 @@ export const getProjectBundle = engineStaff
     const wire = await readHostedProjectWire(input.projectId);
     if (!wire) throw NO_PROJECT();
     return wire;
+  });
+
+/** What the project stores against its quotas, each with its line; behind `engine-games-enabled` too. */
+export const getProjectUsage = engineStaff
+  .input(z.object({ projectId: projectIdSchema }))
+  .handler(async ({ context, input }) => {
+    await assertEngineGames({ userId: context.user.id });
+    if (!(await liveEngineProject(input.projectId))) throw NO_PROJECT();
+    return projectUsageReport(input.projectId);
   });

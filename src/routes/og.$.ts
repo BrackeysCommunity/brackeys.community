@@ -128,6 +128,8 @@ export async function resolveCard(target: string) {
     }
     case "canvas":
       return data.canvasCard(id);
+    case "game":
+      return data.gameCard(id);
     default:
       return null;
   }

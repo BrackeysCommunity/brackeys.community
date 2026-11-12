@@ -267,18 +267,10 @@ export function createTacticsHud(ctx: UiContext<TacticsFlowSlice>): UiHandle {
   side.append(card, log);
 
   // Save sits in the top bar's free right-hand column, apart from the orders.
-  const tools = el("div");
+  const tools = el("div", CLS.tools);
   tools.setAttribute("role", "group");
   tools.setAttribute("aria-label", "Game");
   tools.hidden = true;
-  Object.assign(tools.style, {
-    gridColumn: "3",
-    justifySelf: "end",
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-    pointerEvents: "auto",
-  });
   const saveButton = el("button", CLS.button);
   saveButton.type = "button";
   saveButton.textContent = "Save";

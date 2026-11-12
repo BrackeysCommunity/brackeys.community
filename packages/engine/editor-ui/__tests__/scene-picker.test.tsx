@@ -186,12 +186,14 @@ async function openMenu(label: string) {
   return screen.findAllByRole("menuitemradio");
 }
 
-const undoButton = () =>
+const historyButton = (name: "Undo" | "Redo") => () =>
   waitFor(() => {
-    const button = screen.getByRole("button", { name: "Undo" }) as HTMLButtonElement;
+    const button = screen.getByRole("button", { name }) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
     return button;
   });
+const undoButton = historyButton("Undo");
+const redoButton = historyButton("Redo");
 
 const listValue = (session: ProjectSession) =>
   layoutFromDoc(session.get("asset:p.list")!.doc, listLayout) as unknown as SceneListFile;
@@ -332,18 +334,62 @@ describe("ScenePicker", () => {
       fireEvent.keyDown(items[3]!, { key: "Escape" });
     });
 
-    // Undone in the scene it made, the batch empties the doc under the editor, which stays up.
+    // Undone in the scene it made, the editor goes back to the scene it was made from.
     await act(async () => {
       fireEvent.click(await undoButton());
     });
     expect(session.view().byId.has("level-two")).toBe(false);
     expect(listValue(session).scenes.map((e) => e.scene)).toEqual(["yard", "cellar", "attic"]);
     expect(session.canUndo()).toBe(false);
-    expect(screen.getByRole("button", { name: "Scene: level-two" })).toBeTruthy();
+    await trigger("The Yard");
+    expect(onSceneChange).toHaveBeenLastCalledWith("yard");
     expect(notify.error).not.toHaveBeenCalled();
-    await act(async () => void session.redo());
+
+    // Redone from there, the new scene is back and the editor opens it again.
+    await act(async () => {
+      fireEvent.click(await redoButton());
+    });
     expect(session.view().byId.has("level-two")).toBe(true);
     await trigger("Level Two");
+    expect(onSceneChange).toHaveBeenLastCalledWith("level-two");
+  }, 20_000);
+
+  it("on an undo of a New scene… made elsewhere, returns to the scene it was made from", async () => {
+    const { host, sessions, onSceneChange } = fakeProject();
+    render(<SceneEditor host={host} game={pickerGame} project="p" scene="yard" rapier={rapier} />);
+    const items = await openMenu("The Yard");
+    await act(async () => {
+      fireEvent.click(items[2]!);
+    });
+    await openMenu("Attic");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: "New scene…" }));
+    });
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Den" } });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+    });
+    await trigger("Den");
+    const session = sessions[0]!;
+    // By way of another scene, so the scene it was last opened from isn't the one it was made from.
+    const rows = await openMenu("Den");
+    await act(async () => {
+      fireEvent.click(rows[1]!);
+    });
+    await trigger("cellar");
+    const again = await openMenu("cellar");
+    await act(async () => {
+      fireEvent.click(again[3]!);
+    });
+    await trigger("Den");
+
+    await act(async () => {
+      fireEvent.click(await undoButton());
+    });
+    expect(session.view().byId.has("den")).toBe(false);
+    await trigger("Attic");
+    expect(onSceneChange).toHaveBeenLastCalledWith("attic");
   }, 20_000);
 
   it("on an undo of a New scene… from another scene, switches to the new scene first, then undoes it", async () => {
@@ -375,6 +421,7 @@ describe("ScenePicker", () => {
     });
     expect(existedAtSwitch).toEqual([true]);
     await waitFor(() => expect(session.view().byId.has("loft")).toBe(false));
+    await trigger("The Yard");
     await waitFor(() =>
       expect(
         screen.getAllByRole("status").some((s) => s.textContent?.includes("Undid New scene Loft")),

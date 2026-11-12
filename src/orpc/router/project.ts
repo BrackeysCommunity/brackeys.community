@@ -20,6 +20,7 @@ import {
   teamProjects,
   teams,
 } from "@/db/schema";
+import { playableGames } from "@/lib/engine/playable-game";
 import { externalUrlSchema, optionalExternalUrlSchema } from "@/lib/external-url";
 import { recordModerationAction } from "@/lib/moderation-audit";
 import { canOverride, type ModOverride } from "@/lib/moderation-policy";
@@ -73,6 +74,7 @@ async function buildProjectDetail(project: typeof projects.$inferSelect) {
     profileAnchor,
     teamAnchor,
     openPostRow,
+    games,
   ] = await Promise.all([
     db
       .select({
@@ -179,6 +181,8 @@ async function buildProjectDetail(project: typeof projects.$inferSelect) {
       .from(collabPosts)
       .where(and(eq(collabPosts.projectId, project.id), eq(collabPosts.status, "recruiting")))
       .then((rows) => rows[0]),
+    // Signed out, like every caller of this public read.
+    playableGames(db, [project.id], { userId: null }),
   ]);
 
   const contributors = contributorRows.map(({ discordUsername, username, ...row }) => ({
@@ -258,6 +262,7 @@ async function buildProjectDetail(project: typeof projects.$inferSelect) {
     teams: teamShelf,
     jamRecord,
     openPostCount: Number(openPostRow?.count ?? 0),
+    game: games.get(project.id) ?? null,
   };
 }
 

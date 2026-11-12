@@ -5,6 +5,7 @@ import {
   CubeIcon,
   EyeIcon,
   Flag02Icon,
+  GameController01Icon,
   Image01Icon,
   MessageMultiple01Icon,
   ScrollIcon,
@@ -19,6 +20,7 @@ import { motion } from "framer-motion";
 import { z } from "zod";
 
 import { AdminBans } from "@/components/admin/AdminBans";
+import { AdminEngineGames } from "@/components/admin/AdminEngineGames";
 import { AdminEntryFlags } from "@/components/admin/AdminEntryFlags";
 import { AdminForumPosts } from "@/components/admin/AdminForumPosts";
 import { AdminImageFlags } from "@/components/admin/AdminImageFlags";
@@ -33,9 +35,10 @@ import { AdminTeams } from "@/components/admin/AdminTeams";
 import { AdminHero } from "@/components/admin/AdminUI";
 // From the standalone module, not the pane components: `validateSearch`
 // runs in the route shell, which the client entry preloads for everyone.
-import { SPOTLIGHT_PANES, TAXONOMY_PANES } from "@/components/admin/panes";
+import { ENGINE_GAMES_SECTION, SPOTLIGHT_PANES, TAXONOMY_PANES } from "@/components/admin/panes";
 import { Badge } from "@/components/ui/badge";
 import { MicroLabel, Text } from "@/components/ui/typography";
+import { engineGamesAllowed } from "@/lib/engine/guard";
 import { useReducedMotion } from "@/lib/hooks/use-app-settings";
 import { useFlag } from "@/lib/hooks/use-flag";
 import { EASE_OUT } from "@/lib/motion";
@@ -48,6 +51,7 @@ const SECTIONS = [
   "reports",
   "entry-flags",
   "image-flags",
+  ENGINE_GAMES_SECTION,
   "proposals",
   "comments",
   "forum",
@@ -92,6 +96,11 @@ const SECTION_META: Record<View, { label: string; hint: string; icon: IconSvgEle
   reports: { label: "Reports", hint: "Flagged posts, comments, teams", icon: Flag02Icon },
   "entry-flags": { label: "Entry flags", hint: "Scanner detections to review", icon: EyeIcon },
   "image-flags": { label: "Upload flags", hint: "Flagged member uploads", icon: Image01Icon },
+  [ENGINE_GAMES_SECTION]: {
+    label: "Games",
+    hint: "Game reports, public reviews, flagged images",
+    icon: GameController01Icon,
+  },
   proposals: { label: "Proposals", hint: "Mod edits awaiting an admin", icon: CheckListIcon },
   comments: { label: "Comments", hint: "Newest across the site", icon: BubbleChatIcon },
   forum: { label: "Forum", hint: "Newest posts, hide, pin", icon: MessageMultiple01Icon },
@@ -131,6 +140,10 @@ export const Route = createFileRoute("/admin")({
  * its section runs, so opening that section is a cache hit rather than a
  * second round trip.
  */
+function useEngineGamesSection(): boolean {
+  return useFlag("engine-games-enabled") && engineGamesAllowed();
+}
+
 function useQueueCounts(): Partial<Record<View, number>> {
   const commentReports = useQuery(
     orpc.listCommentReports.queryOptions({ input: { includeResolved: false } }),
@@ -164,6 +177,11 @@ function useQueueCounts(): Partial<Record<View, number>> {
       input: { includeResolved: false, page: 1, pageSize: 20 },
     }),
   );
+  const gamesOn = useEngineGamesSection();
+  const gameQueue = useQuery({
+    ...orpc.listGameModerationQueue.queryOptions({ input: { includeResolved: false } }),
+    enabled: gamesOn,
+  });
 
   const open =
     (commentReports.data?.filter((r) => r.resolvedAt == null).length ?? 0) +
@@ -175,6 +193,10 @@ function useQueueCounts(): Partial<Record<View, number>> {
     reports: open,
     "entry-flags": entryFlags.data?.flagCount ?? 0,
     "image-flags": imageFlags.data?.total ?? 0,
+    [ENGINE_GAMES_SECTION]: gamesOn
+      ? (gameQueue.data?.reports.filter((r) => r.resolvedAt == null).length ?? 0) +
+        (gameQueue.data?.reviews.length ?? 0)
+      : 0,
     proposals: pendingProposals.data?.total ?? 0,
     taxonomy: skillRequests.data?.total ?? 0,
   };
@@ -219,6 +241,7 @@ function AdminRoute() {
 
 function AdminNav({ section, counts }: { section: View; counts: Partial<Record<View, number>> }) {
   const forumOn = useFlag("forum-enabled");
+  const gamesOn = useEngineGamesSection();
   return (
     <nav
       aria-label="Admin sections"
@@ -227,7 +250,9 @@ function AdminNav({ section, counts }: { section: View; counts: Partial<Record<V
       // pane beside it keeps its scroll position either way.
       className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto border-b border-muted/30 px-1 lg:sticky lg:top-4 lg:mx-0 lg:max-h-[calc(100vh-2rem)] lg:flex-col lg:overflow-x-visible lg:overflow-y-auto lg:border-r lg:border-b-0 lg:px-0 lg:pr-2"
     >
-      {SECTIONS.filter((id) => id !== "forum" || forumOn).map((id) => {
+      {SECTIONS.filter(
+        (id) => (id !== "forum" || forumOn) && (id !== ENGINE_GAMES_SECTION || gamesOn),
+      ).map((id) => {
         const meta = SECTION_META[id];
         // Every row links to /admin, so the router calls them all active —
         // the search param is what distinguishes them.
@@ -297,6 +322,7 @@ function AdminPane({
   skillRequestCount: number;
 }) {
   const reduced = useReducedMotion();
+  const gamesOn = useEngineGamesSection();
 
   return (
     <motion.div
@@ -309,6 +335,7 @@ function AdminPane({
       {section === "reports" && <AdminReportQueue isAdmin={isAdmin} />}
       {section === "entry-flags" && <AdminEntryFlags />}
       {section === "image-flags" && <AdminImageFlags />}
+      {section === ENGINE_GAMES_SECTION && gamesOn && <AdminEngineGames />}
       {section === "proposals" && <AdminProposals isAdmin={isAdmin} />}
       {section === "comments" && <AdminRecentComments />}
       {section === "forum" && <AdminForumPosts />}

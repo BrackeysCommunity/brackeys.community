@@ -4,6 +4,8 @@ import { componentEmbed } from "@/lib/discord-embed";
 import {
   collabLinkPreview,
   type CollabPreviewSource,
+  gameLinkPreview,
+  type GamePreviewSource,
   homeLinkPreview,
   jamLinkPreview,
   type JamPreviewSource,
@@ -14,6 +16,9 @@ import {
 } from "@/lib/discord-link-preview";
 
 const ORIGIN = "https://jams.team";
+
+const guard = vi.hoisted(() => ({ allowed: true }));
+vi.mock("@/lib/engine/guard", () => ({ engineGamesAllowed: () => guard.allowed }));
 
 vi.mock("@/env", () => ({
   env: { VITE_CF_IMAGES: "1" },
@@ -276,6 +281,49 @@ describe("teamLinkPreview", () => {
     const root = teamLinkPreview(crew({ name: "Ｘ".repeat(100) }), {
       skills: Array.from({ length: 20 }, (_, i) => `Skill number ${i}`),
     });
+    expect(componentEmbed(root)).toHaveLength(1);
+  });
+});
+
+describe("gameLinkPreview", () => {
+  function game(overrides: Partial<GamePreviewSource> = {}): GamePreviewSource {
+    return { projectId: "lantern-keep", title: "Lantern Keep", visibility: "public", ...overrides };
+  }
+
+  it("links the game page, shows the game's card and offers Play", () => {
+    const root = gameLinkPreview(game(), { blurb: "A tactics game about *lighthouses*." });
+    expect(root!.components[0]).toEqual({
+      type: 10,
+      content: `## [Lantern Keep](${ORIGIN}/games/lantern-keep)`,
+    });
+    expect(root!.components[1]).toEqual({
+      type: 10,
+      content: "A tactics game about \\*lighthouses\\*.",
+    });
+    expect(galleryOf(root)).toEqual([`${ORIGIN}/og/game/lantern-keep.png?v=3&embed`]);
+    expect(buttonsOf(root)).toEqual([
+      { label: "Play on jams.team", url: `${ORIGIN}/games/lantern-keep/play` },
+      { label: "View the game", url: `${ORIGIN}/games/lantern-keep` },
+    ]);
+  });
+
+  it("sends nothing for an unlisted, team or private game", () => {
+    for (const visibility of ["unlisted", "team", "private"]) {
+      expect(gameLinkPreview(game({ visibility }))).toBeNull();
+    }
+  });
+
+  it("sends nothing where the deployment hosts no games", () => {
+    guard.allowed = false;
+    try {
+      expect(gameLinkPreview(game())).toBeNull();
+    } finally {
+      guard.allowed = true;
+    }
+  });
+
+  it("stays inside the payload budget with a long title and blurb", () => {
+    const root = gameLinkPreview(game({ title: "Ｘ".repeat(100) }), { blurb: "x".repeat(400) });
     expect(componentEmbed(root)).toHaveLength(1);
   });
 });

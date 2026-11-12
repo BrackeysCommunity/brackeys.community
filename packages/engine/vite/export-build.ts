@@ -234,11 +234,37 @@ function readPackage(dir: string, name: string): ThirdPartyLicence {
   };
 }
 
-/** Every package the chunks' module ids reach, with its version, licence and notice; sorted, one per name and version. */
-export function thirdPartyOf(moduleIds: Iterable<string>): ThirdPartyLicence[] {
+/**
+ * The package a module id belongs to, unless it is the build's own code: a
+ * module under one of `own` (the build root, the game's and UI's module
+ * dirs) belongs to a package only through a `node_modules` below that dir,
+ * so a project staged inside some `node_modules` path isn't a dependency.
+ */
+function dependencyOfModule(
+  id: string,
+  own: readonly string[],
+): { dir: string; name: string } | null {
+  const path = posixPath((id.startsWith("\0") ? id.slice(1) : id).split("?")[0]!);
+  const base = own
+    .map((dir) => posixPath(dir).replace(/\/+$/, ""))
+    .filter((dir) => dir !== "" && path.startsWith(`${dir}/`))
+    .sort((a, b) => b.length - a.length)[0];
+  if (base !== undefined && !path.slice(base.length).includes(NODE_MODULES)) return null;
+  return packageOfModule(id);
+}
+
+/**
+ * Every package the chunks' module ids reach, with its version, licence and
+ * notice; sorted, one per name and version. Modules under `own` are the
+ * build's code, not a package.
+ */
+export function thirdPartyOf(
+  moduleIds: Iterable<string>,
+  own: readonly string[] = [],
+): ThirdPartyLicence[] {
   const dirs = new Map<string, string>();
   for (const id of moduleIds) {
-    const pkg = packageOfModule(id);
+    const pkg = dependencyOfModule(id, own);
     if (pkg && !dirs.has(pkg.dir)) dirs.set(pkg.dir, pkg.name);
   }
   const found = new Map<string, ThirdPartyLicence>();
@@ -256,6 +282,7 @@ async function builtCode(
   chunks: readonly Chunk[],
   assets: readonly Asset[],
   rapier: ExportBuildOptions["rapier"] | null,
+  own: readonly string[],
 ): Promise<BuiltCode> {
   const files: BuiltCode["files"][number][] = [];
   for (const c of chunks)
@@ -284,7 +311,7 @@ async function builtCode(
     files,
     entry: entry.fileName,
     rapier: rapier === null ? null : rapierBuild(rapier, chunks, files),
-    thirdParty: thirdPartyOf(moduleIds),
+    thirdParty: thirdPartyOf(moduleIds, own),
   };
 }
 
@@ -409,19 +436,19 @@ export function createExportBuild(opts: ExportBuildOptions): ExportPluginLike {
         const { chunks, assets } = readBundle(bundle);
         const maps = assets.filter((a) => a.fileName.endsWith(".map"));
         if (maps.length > 0) throw new Error(`an export ships no sourcemaps: ${maps[0]!.fileName}`);
+        const own = [
+          ...(root ? [root] : []),
+          dirOf(opts.modules.game.path),
+          ...(opts.modules.ui ? [dirOf(opts.modules.ui.path)] : []),
+        ];
         const dirs = machineDirs(
-          [
-            ...(root ? [root] : []),
-            ...(typeof outDir === "string" ? [outDir] : []),
-            dirOf(opts.modules.game.path),
-            ...(opts.modules.ui ? [dirOf(opts.modules.ui.path)] : []),
-          ],
+          [...own, ...(typeof outDir === "string" ? [outDir] : [])],
           chunks.flatMap((c) => Object.keys(c.moduleLengths)),
         );
         const leak = leakedPath(chunks, assets, dirs);
         if (leak) throw new Error(`an export carries no absolute path: ${leak}`);
 
-        const code = await builtCode(chunks, assets, plan.needsRapier ? opts.rapier : null);
+        const code = await builtCode(chunks, assets, plan.needsRapier ? opts.rapier : null, own);
         const result = await finishExport(plan, code, opts.input, opts.budget);
         const built = new Set(code.files.map((f) => f.path));
         const missing: string[] = [];

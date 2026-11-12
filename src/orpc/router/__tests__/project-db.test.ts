@@ -2,7 +2,19 @@ import { call } from "@orpc/server";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { projectContributors, projectTeams, projects, teamMembers, teams } from "@/db/schema";
+import {
+  engineProjects,
+  engineReleaseChannels,
+  engineReleaseJamLinks,
+  engineReleases,
+  itchJams,
+  projectContributors,
+  projectTeams,
+  projects,
+  teamMembers,
+  teams,
+} from "@/db/schema";
+import { playableGames } from "@/lib/engine/playable-game";
 import {
   addProjectContributor,
   getProject,
@@ -23,6 +35,19 @@ vi.mock("@/lib/auth", async () => {
   const { fakeAuthModule } = await import("@/test/orpc");
   return fakeAuthModule();
 });
+
+const games = vi.hoisted(() => ({
+  env: "staging" as "production" | "staging" | "development",
+  flag: vi.fn(async (_flag: string, _id: string) => true),
+}));
+vi.mock("@/lib/deploy-env", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/deploy-env")>()),
+  deployEnv: () => games.env,
+}));
+vi.mock("@/lib/posthog-server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/posthog-server")>()),
+  isServerFlagEnabled: games.flag,
+}));
 
 /**
  * The project router mints and edits canonical rows, and its writes are all
@@ -64,6 +89,11 @@ async function seedTeam(ownerId: string) {
 beforeEach(async () => {
   ({ db } = (await import("@/db")) as unknown as { db: TestDb });
   const { developerProfiles, user } = await import("@/db/schema");
+  games.env = "staging";
+  games.flag.mockReset();
+  games.flag.mockResolvedValue(true);
+  await db.delete(engineProjects);
+  await db.delete(itchJams);
   await db.delete(projects);
   await db.delete(teams);
   await db.delete(developerProfiles);
@@ -365,5 +395,161 @@ describe("listProjectsForGames", () => {
       asUser(null),
     );
     expect(found.map((p) => p.sourceGameId)).toEqual([101]);
+  });
+});
+
+const hex = (n: number) => n.toString(16).padStart(64, "0");
+let releaseSeq = 100;
+
+/** A hosted game linked to `showcaseProjectId`, with releases v1..`releases` and production on `production`. */
+async function seedGame(opts: {
+  projectId: string;
+  showcaseProjectId: string;
+  visibility?: "private" | "team" | "unlisted" | "public";
+  releases?: number;
+  production?: number | null;
+}) {
+  const { projectId, releases = 1, production = 1 } = opts;
+  await db.insert(engineProjects).values({
+    projectId,
+    name: projectId,
+    visibility: opts.visibility ?? "public",
+    showcaseProjectId: opts.showcaseProjectId,
+  });
+  const ids: string[] = [];
+  for (let version = 1; version <= releases; version++) {
+    const id = hex(releaseSeq++);
+    ids.push(id);
+    await db.insert(engineReleases).values({
+      id,
+      projectId,
+      version,
+      manifest: "{}",
+      manifestBytes: 2,
+      totalBytes: 100,
+      fileCount: 1,
+      engineVersion: "0.14.1",
+      gameId: "fixture",
+      snapshot: hex(1),
+      buildHash: hex(2),
+      target: "web",
+      firstPromotedAt: production !== null && version <= production ? new Date() : null,
+    });
+  }
+  if (production !== null) {
+    await db
+      .insert(engineReleaseChannels)
+      .values({ projectId, channel: "production", releaseId: ids[production - 1]! });
+  }
+  return ids;
+}
+
+describe("game", () => {
+  it("adds the linked game to the project payload when production is public", async () => {
+    const project = await seedProject();
+    await seedGame({ projectId: "linked-game", showcaseProjectId: project.id });
+
+    const detail = await call(getProject, { idOrSlug: project.slug }, asUser(null));
+    expect(detail?.game).toEqual({ projectId: "linked-game", playable: true });
+    expect(games.flag).toHaveBeenCalledWith("engine-games-enabled", expect.any(String));
+  });
+
+  it("is null without a link, and not playable without production", async () => {
+    const plain = await seedProject();
+    expect((await call(getProject, { idOrSlug: plain.slug }, asUser(null)))?.game).toBeNull();
+
+    const unreleased = await seedProject();
+    await seedGame({ projectId: "no-live", showcaseProjectId: unreleased.id, production: null });
+    expect((await call(getProject, { idOrSlug: unreleased.slug }, asUser(null)))?.game).toEqual({
+      projectId: "no-live",
+      playable: false,
+    });
+  });
+
+  it("never shows a private, team or hidden game, nor a hidden or collected production", async () => {
+    const rows = await Promise.all(Array.from({ length: 6 }, () => seedProject()));
+    const [priv, team, hiddenGame, hiddenRelease, collected, unlisted] = rows.map((r) => r.id) as [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+    ];
+    await seedGame({ projectId: "priv", showcaseProjectId: priv, visibility: "private" });
+    await seedGame({ projectId: "team", showcaseProjectId: team, visibility: "team" });
+    await seedGame({ projectId: "hidden-game", showcaseProjectId: hiddenGame });
+    await db
+      .update(engineProjects)
+      .set({ hiddenAt: new Date() })
+      .where(eq(engineProjects.projectId, "hidden-game"));
+    const [hiddenId] = await seedGame({
+      projectId: "hidden-rel",
+      showcaseProjectId: hiddenRelease,
+    });
+    await db
+      .update(engineReleases)
+      .set({ hiddenAt: new Date() })
+      .where(eq(engineReleases.id, hiddenId!));
+    const [collectedId] = await seedGame({ projectId: "collected", showcaseProjectId: collected });
+    await db
+      .update(engineReleases)
+      .set({ collectedAt: new Date() })
+      .where(eq(engineReleases.id, collectedId!));
+    await seedGame({ projectId: "unlisted", showcaseProjectId: unlisted, visibility: "unlisted" });
+
+    const found = await playableGames(
+      db,
+      [priv, team, hiddenGame, hiddenRelease, collected, unlisted],
+      {
+        userId: null,
+      },
+    );
+    expect(Object.fromEntries(found)).toEqual({
+      [hiddenRelease]: { projectId: "hidden-rel", playable: false },
+      [collected]: { projectId: "collected", playable: false },
+      [unlisted]: { projectId: "unlisted", playable: true },
+    });
+  });
+
+  it("carries the version pinned to the asked-for jam", async () => {
+    const project = await seedProject();
+    const [v1] = await seedGame({
+      projectId: "jam-game",
+      showcaseProjectId: project.id,
+      releases: 2,
+      production: 2,
+    });
+    await db.insert(itchJams).values([
+      { jamId: 7101, slug: "pinned-jam", title: "Pinned Jam", status: "over" },
+      { jamId: 7102, slug: "other-jam", title: "Other Jam", status: "over" },
+    ]);
+    await db.insert(engineReleaseJamLinks).values({
+      projectId: "jam-game",
+      jamId: 7101,
+      releaseId: v1!,
+    });
+
+    const pinned = await playableGames(db, [project.id], { userId: null }, { jamId: 7101 });
+    expect(pinned.get(project.id)).toEqual({
+      projectId: "jam-game",
+      playable: true,
+      jamVersion: 1,
+    });
+    const other = await playableGames(db, [project.id], { userId: null }, { jamId: 7102 });
+    expect(other.get(project.id)).toEqual({ projectId: "jam-game", playable: true });
+  });
+
+  it("shows nothing on production or with the flag off", async () => {
+    const project = await seedProject();
+    await seedGame({ projectId: "closed-game", showcaseProjectId: project.id });
+
+    games.env = "production";
+    expect((await call(getProject, { idOrSlug: project.slug }, asUser(null)))?.game).toBeNull();
+    expect(games.flag).not.toHaveBeenCalled();
+
+    games.env = "staging";
+    games.flag.mockResolvedValue(false);
+    expect((await call(getProject, { idOrSlug: project.slug }, asUser(null)))?.game).toBeNull();
   });
 });

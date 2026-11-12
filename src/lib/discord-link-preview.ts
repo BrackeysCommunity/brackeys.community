@@ -29,6 +29,7 @@ import {
 import { collabRateLine, type CollabRateSource } from "@/lib/format-rate";
 import { itchImageUrl, itchOriginalUrl } from "@/lib/itch-image";
 import { jamSlug, jamUrl } from "@/lib/jam-links";
+import { gamePagePath, gamePlayPath, isShareableVisibility } from "@/lib/og/game-links";
 import { profileSlug } from "@/lib/profile-links";
 import { DEFAULT_OG_EMBED_CARD, ogCardPath, SITE_NAME } from "@/lib/site-meta";
 import { teamSlug } from "@/lib/team-links";
@@ -313,6 +314,39 @@ export function teamLinkPreview(
       actionRow([
         linkButton(team.recruiting ? "View team and open roles" : "View team", url),
         linkButton("All teams", siteUrl("/teams")),
+      ]),
+    ],
+    { accent: ACCENT_BLURPLE },
+  );
+}
+
+export interface GamePreviewSource {
+  projectId: string;
+  title: string;
+  visibility: string;
+}
+
+/**
+ * A hosted game's preview: the linked title, its blurb, the game's card and
+ * a Play button. Public games only — an unlisted link is meant for whoever
+ * was handed it, so it unfurls as nothing rather than advertising the game.
+ */
+export function gameLinkPreview(
+  game: GamePreviewSource,
+  { blurb }: { blurb?: string | null } = {},
+): Container | null {
+  if (!isShareableVisibility(game.visibility)) return null;
+  const url = siteUrl(gamePagePath(game.projectId));
+
+  return container(
+    [
+      textDisplay(`## ${mdLink(game.title, url)}`),
+      blurb ? textDisplay(mdEscape(blurb)) : null,
+      mediaGallery([{ url: cardImage("game", game.projectId), description: game.title }]),
+      separator(),
+      actionRow([
+        linkButton(`Play on ${SITE_NAME}`, siteUrl(gamePlayPath(game.projectId))),
+        linkButton("View the game", url),
       ]),
     ],
     { accent: ACCENT_BLURPLE },

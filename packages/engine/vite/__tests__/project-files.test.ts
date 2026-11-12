@@ -1121,6 +1121,23 @@ describe("write-back: the registry", () => {
     });
   });
 
+  it("a purge drops the entry's trashed text from the cache index", async () => {
+    const s = await session();
+    const key = s.entry("far-script")!.key;
+    s.apply([{ op: "deleteAsset", id: "far-script", force: true }]);
+    await s.adapter.storeProject(s.project);
+    const index = async () =>
+      JSON.parse(await readFile(join(project.cacheDir, "trash.json"), "utf8")) as Record<
+        string,
+        string
+      >;
+    expect(Object.keys(await index())).toContain(key);
+
+    s.apply([{ op: "purgeAsset", id: "far-script" }]);
+    await s.adapter.storeProject(s.project);
+    expect(Object.keys(await index())).not.toContain(key);
+  });
+
   it("restore after a restart reads the trash from the cache dir", async () => {
     const s = await session();
     s.apply([{ op: "deleteAsset", id: "settings", force: true }]);

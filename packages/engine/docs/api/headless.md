@@ -2694,7 +2694,7 @@ _function_ in `runtime/save-state.ts`
 Loads `file`'s scene into `runtime` fresh, through the entry it was
 reached by, and puts back what it saved, between ticks. The save's
 `persist` is judged by `persistProblem` against the game's schema first,
-in production too. Progress depth: the fresh load, the game's `restore`
+in production too; a game that declares no persist takes only null. Progress depth: the fresh load, the game's `restore`
 with the saved data, then `persist` and the play clock. World depth puts
 the world back between the load and the game's `restore` (sublevels,
 spawns, destroys, counters, enabled flags, the tick, poses and each

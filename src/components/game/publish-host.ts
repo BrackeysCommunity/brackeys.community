@@ -1,0 +1,362 @@
+import type {
+  EditorPublishHost,
+  GameSettingsView,
+  PublishChannel,
+  PublishWording,
+  ReleaseView,
+  UsageLevel,
+  UsageLineView,
+  UsageView,
+} from "@jams/engine/editor-ui";
+import type { ProjectId, Sha256 } from "@jams/engine/project";
+import { ORPCError } from "@orpc/client";
+
+import { engineGamesAllowed } from "@/lib/engine/guard";
+import {
+  BLOB_GRACE_DAYS,
+  CONNECT_ORIGINS_MAX,
+  FRAME_TOKEN_HOURS,
+  PROJECT_QUOTA,
+  RELEASE_GRACE_DAYS,
+  SITE_SAVE_EXPIRY_DAYS,
+  SITE_SAVE_LIMITS,
+} from "@/lib/engine/limits";
+import { usageNotice, type UsageLine } from "@/lib/engine/quota";
+import type { StoredUsage } from "@/lib/engine/usage";
+import { formatBytes, formatCount } from "@/lib/format-bytes";
+import { SITE } from "@/lib/legal-meta";
+
+/** The flag the editor's Publish panel and Usage section open behind, with the production guard. */
+export const ENGINE_GAMES_FLAG = "engine-games-enabled";
+
+/** Whether this viewer and deployment may see publishing at all. */
+export const publishAllowed = (flag: (name: string) => boolean): boolean =>
+  flag(ENGINE_GAMES_FLAG) && engineGamesAllowed();
+
+type SiteClient = (typeof import("@/orpc/client"))["client"];
+
+/** The procedures the publish host calls; the site's oRPC client by default. */
+export type PublishRpc = Pick<
+  SiteClient,
+  | "getProjectUsage"
+  | "listReleases"
+  | "promoteRelease"
+  | "rollbackRelease"
+  | "getGameSettings"
+  | "setGameSettings"
+>;
+
+/** A refusal from the site, its message for people and its hint for developers. */
+export class PublishHostError extends Error {
+  readonly code: string;
+  readonly hint: string | undefined;
+  constructor(message: string, code: string, hint?: string) {
+    super(message);
+    this.name = "PublishHostError";
+    this.code = code;
+    this.hint = hint;
+  }
+}
+
+/** An oRPC refusal as the host's error; anything else passes through. */
+export function publishError(error: unknown): unknown {
+  if (!(error instanceof ORPCError)) return error;
+  const data = (error.data ?? {}) as { code?: unknown; message?: unknown; hint?: unknown };
+  const message = typeof data.message === "string" ? data.message : error.message;
+  const code = typeof data.code === "string" ? data.code : String(error.code);
+  return new PublishHostError(message, code, typeof data.hint === "string" ? data.hint : undefined);
+}
+
+async function call<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    throw publishError(error);
+  }
+}
+
+// ─── The words ───────────────────────────────────────────
+
+const site = SITE.name;
+const bytes = formatBytes;
+const n = formatCount;
+
+/** "3 Dec 2026", in UTC as every jam and release date is. */
+export const utcDate = (at: Date | string): string =>
+  new Date(at).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
+const iso = (at: Date | string): string => new Date(at).toISOString();
+
+/** The Publish panel's sentences, every number from `limits.ts`. */
+export function publishWording(project: ProjectId, team: string | null = null): PublishWording {
+  return {
+    command: `vp run scene game release create ${project}`,
+    noRelease:
+      "Releases are built on your machine and uploaded. Run this in the project's repository:",
+    token: "It needs an agent token with write access:",
+    visibility: {
+      private: "Private: only publishers and staff can play.",
+      team: `Team: everyone on ${team ?? "the project's team"} can play.`,
+      unlisted: "Unlisted: anyone with the link can play; it isn't listed anywhere.",
+      public:
+        "Public: listed on the project, team and jam pages. The first time a game goes public, staff review it; until then it stays unlisted.",
+    },
+    saveModes: {
+      site: `On ${site} (players who sign in get ${n(SITE_SAVE_LIMITS.maxSlots)} saves of ${bytes(SITE_SAVE_LIMITS.maxBytes)}, deleted after ${n(SITE_SAVE_EXPIRY_DAYS)} days unused)`,
+      own: "On its own servers (list them under Connects to)",
+      none: "Nowhere",
+    },
+    connectsTo: `Origins this game may contact, up to ${n(CONNECT_ORIGINS_MAX)}. They are shown on the game page.`,
+    privateLinks: `A private or team release opens through a link that works for ${n(FRAME_TOKEN_HOURS)} hours.`,
+  };
+}
+
+/** "v2 will be removed on 3 Dec 2026. …" */
+export const removalText = (version: number, at: Date | string): string =>
+  `v${version} will be removed on ${utcDate(at)}. Pin it to a jam or move a channel to it to keep it.`;
+
+/** The confirmation Empty trash asks. */
+export const emptyTrashConfirm = (assets: number, trashBytes: number): string =>
+  `Permanently delete ${n(assets)} ${assets === 1 ? "asset" : "assets"} in the trash (${bytes(trashBytes)})? This can't be undone.`;
+
+/** The cleanup rules under the usage rows. */
+export const USAGE_FOOTER = `These limits are per project. Cleanup runs every day: old releases ${n(RELEASE_GRACE_DAYS)} days after they leave the ${n(PROJECT_QUOTA.releasesKept)} newest, replaced asset versions after ${n(BLOB_GRACE_DAYS)} days. Pinned releases are never removed.`;
+
+const LEVEL_RANK: Readonly<Record<UsageLevel, number>> = { ok: 0, warn: 1, full: 2 };
+
+const worse = (a: UsageLevel, b: UsageLevel): UsageLevel => (LEVEL_RANK[b] > LEVEL_RANK[a] ? b : a);
+
+/** The stored usage `getProjectUsage` answers with. */
+export type UsageReportInput = {
+  usage: StoredUsage;
+  lines: readonly UsageLine[];
+};
+
+const CHANNEL_ORDER: readonly PublishChannel[] = ["production", "preview"];
+
+/** "production, preview, 1 jam version"; channels by name when the release list gave them. */
+function pinnedText(
+  usage: StoredUsage,
+  channels: readonly PublishChannel[] | null,
+): string | undefined {
+  const parts: string[] = [];
+  if (channels) parts.push(...CHANNEL_ORDER.filter((c) => channels.includes(c)));
+  else if (usage.pinned.channels > 0)
+    parts.push(
+      `${n(usage.pinned.channels)} ${usage.pinned.channels === 1 ? "channel" : "channels"}`,
+    );
+  if (usage.pinned.jams > 0)
+    parts.push(
+      `${n(usage.pinned.jams)} ${usage.pinned.jams === 1 ? "jam version" : "jam versions"}`,
+    );
+  return parts.length > 0 ? `Pinned: ${parts.join(", ")}` : undefined;
+}
+
+/**
+ * The Usage section's and the Publish panel's rows: one per quota, each
+ * written with its numbers, the asset breakdown under asset storage, the
+ * nearly-full or full notice, the trash and the cleanup rules. `channels`
+ * names the pinned channels when the release list answered.
+ */
+export function usageView(
+  report: UsageReportInput,
+  channels: readonly PublishChannel[] | null = null,
+): UsageView {
+  const { usage } = report;
+  const byQuota = new Map(report.lines.map((l) => [l.quota, l] as const));
+  const row = (
+    quota: UsageLine["quota"],
+    text: (l: UsageLine) => string,
+    detail?: string,
+  ): UsageLineView | null => {
+    const l = byQuota.get(quota);
+    if (!l) return null;
+    return {
+      quota,
+      text: text(l),
+      used: l.used,
+      max: l.max,
+      ratio: l.ratio,
+      level: l.level,
+      ...(detail !== undefined ? { detail } : {}),
+    };
+  };
+
+  const docs = byQuota.get("docs");
+  const docBytes = byQuota.get("docBytes");
+  const documents: UsageLineView | null =
+    docs && docBytes
+      ? (() => {
+          const governing = docBytes.ratio > docs.ratio ? docBytes : docs;
+          return {
+            quota: "docs",
+            text: `Documents: ${n(docs.used)} of ${n(docs.max)} · ${bytes(docBytes.used)} of ${bytes(docBytes.max)}`,
+            used: governing.used,
+            max: governing.max,
+            ratio: governing.ratio,
+            level: worse(docs.level, docBytes.level),
+          };
+        })()
+      : null;
+
+  const kept = PROJECT_QUOTA.releasesKept;
+  const pinned = pinnedText(usage, channels);
+  const keptRow: UsageLineView = {
+    quota: "releasesKept",
+    text: `Releases kept: ${n(usage.keptReleases)} of ${n(kept)} (plus pinned)`,
+    used: usage.keptReleases,
+    max: kept,
+    ratio: usage.keptReleases / kept,
+    // Releases past the newest are cleaned up, never refused, so this row never warns.
+    level: "ok",
+    ...(pinned !== undefined ? { detail: pinned } : {}),
+  };
+
+  const lines = [
+    row(
+      "assetBytes",
+      (l) => `Asset storage: ${bytes(l.used)} of ${bytes(l.max)}`,
+      `${bytes(usage.liveBlobBytes)} in use · ${bytes(usage.trashBytes)} in the trash · ${bytes(usage.historyBytes)} replaced versions (deleted ${n(BLOB_GRACE_DAYS)} days after replacement)`,
+    ),
+    documents,
+    row("releaseStorageBytes", (l) => `Release storage: ${bytes(l.used)} of ${bytes(l.max)}`),
+    row("releaseBytes", (l) =>
+      usage.largestRelease
+        ? `Largest release: v${usage.largestRelease.version}, ${bytes(l.used)} of ${bytes(l.max)} per release`
+        : `Largest release: none yet, up to ${bytes(l.max)} per release`,
+    ),
+    keptRow,
+    row("jamPins", (l) => `Jam versions: ${n(l.used)} of ${n(l.max)}`),
+    row("releasesPerDay", (l) => `Today: ${n(l.used)} of ${n(l.max)} releases`),
+  ].filter((l): l is UsageLineView => l !== null);
+
+  const level = lines.reduce<UsageLevel>((at, l) => worse(at, l.level), "ok");
+  const notice = level === "ok" ? null : { level, text: usageNotice(level) ?? "" };
+  const trash =
+    usage.trashBytes > 0 || usage.trashAssets > 0
+      ? {
+          assets: usage.trashAssets,
+          bytes: usage.trashBytes,
+          confirm: emptyTrashConfirm(usage.trashAssets, usage.trashBytes),
+        }
+      : null;
+  return { lines, notice, trash, footer: USAGE_FOOTER };
+}
+
+// ─── Releases and settings ───────────────────────────────
+
+/** What `listReleases` answers with per release, dates as the wire carries them. */
+export type ReleaseSummaryInput = {
+  version: number;
+  id: string;
+  createdAt: Date | string;
+  totalBytes: number;
+  engineVersion: string;
+  channels: readonly PublishChannel[];
+  jams: readonly { title: string }[];
+  firstPromotedAt: Date | string | null;
+  collectedAt: Date | string | null;
+  hidden: { reason: string | null } | null;
+  removalAt: Date | string | null;
+  playUrl: string;
+};
+
+export function releaseView(r: ReleaseSummaryInput): ReleaseView {
+  return {
+    version: r.version,
+    id: r.id as Sha256,
+    createdAt: iso(r.createdAt),
+    bytes: r.totalBytes,
+    engine: r.engineVersion,
+    channels: r.channels,
+    jams: r.jams.map((j) => j.title),
+    firstPromotedAt: r.firstPromotedAt === null ? null : iso(r.firstPromotedAt),
+    removal:
+      r.removalAt === null
+        ? null
+        : { at: iso(r.removalAt), text: removalText(r.version, r.removalAt) },
+    hidden: r.hidden === null ? null : (r.hidden.reason ?? "Hidden by staff."),
+    collected: r.collectedAt !== null,
+    playUrl: r.playUrl,
+  };
+}
+
+export type SitePublishHostOptions = {
+  project: ProjectId;
+  /** The project's team by name; null for a personal project. */
+  team?: string | null;
+  /** Opens the site's agent token dialog for this project. */
+  openTokenDialog: () => void;
+  /** Default: the site's oRPC client, loaded on the first call. */
+  rpc?: PublishRpc | (() => Promise<PublishRpc>);
+};
+
+const siteRpc = (): Promise<PublishRpc> => import("@/orpc/client").then((m) => m.client);
+
+/**
+ * jams.team as the editor's publisher: the project's usage, releases and
+ * channels, and its game settings, over the site's oRPC procedures, with
+ * every sentence that states a site number written here. A refusal comes
+ * back as a `PublishHostError` carrying the site's message and hint.
+ */
+export function sitePublishHost(opts: SitePublishHostOptions): EditorPublishHost {
+  const { project } = opts;
+  const team = opts.team ?? null;
+  const source = opts.rpc ?? siteRpc;
+  const rpc = typeof source === "function" ? source : () => Promise.resolve(source);
+  const projectId = project;
+
+  return {
+    project,
+    async usage() {
+      const api = await rpc();
+      const [report, releases] = await Promise.all([
+        call(() => api.getProjectUsage({ projectId })),
+        call(() => api.listReleases({ projectId })).catch(() => null),
+      ]);
+      const channels = releases
+        ? [...new Set(releases.flatMap((r) => r.channels as readonly PublishChannel[]))]
+        : null;
+      return usageView(report, channels);
+    },
+    async releases() {
+      const api = await rpc();
+      const list = await call(() => api.listReleases({ projectId }));
+      return list.map((r) => releaseView(r));
+    },
+    async promote(version, channel) {
+      const api = await rpc();
+      return call(() => api.promoteRelease({ projectId, version, channel }));
+    },
+    async rollback(channel, to) {
+      const api = await rpc();
+      return call(() =>
+        api.rollbackRelease({ projectId, channel, ...(to !== undefined ? { to } : {}) }),
+      );
+    },
+    async settings(): Promise<GameSettingsView> {
+      const api = await rpc();
+      const saved = await call(() => api.getGameSettings({ projectId }));
+      return { ...saved, team };
+    },
+    async setSettings(patch): Promise<GameSettingsView> {
+      const api = await rpc();
+      const { connectOrigins, ...rest } = patch;
+      const saved = await call(() =>
+        api.setGameSettings({
+          projectId,
+          ...rest,
+          ...(connectOrigins ? { connectOrigins: [...connectOrigins] } : {}),
+        }),
+      );
+      return { ...saved, team };
+    },
+    openTokenDialog: () => opts.openTokenDialog(),
+    wording: publishWording(project, team),
+  };
+}

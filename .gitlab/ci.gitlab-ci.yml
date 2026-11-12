@@ -376,3 +376,48 @@ engine-export-smoke:
         - vite.config.ts
         - package.json
         - bun.lock
+
+engine-play-smoke:
+  stage: test
+  image: mcr.microsoft.com/playwright:v1.64.1-noble
+  timeout: 45 minutes
+  before_script:
+    - npm i -g bun
+    - bun install --frozen-lockfile
+  script:
+    - bun scripts/engine-smoke/play-frame.ts --browsers chromium,firefox,webkit
+  artifacts:
+    when: always
+    paths:
+      - engine-play-smoke.json
+    expire_in: 1 month
+  rules:
+    - !reference [.skip-version-bump, rules]
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        - packages/engine/**/*
+        - src/games/**/*
+        - src/lib/engine/**/*
+        - src/components/games/**/*
+        - src/db/schema.ts
+        - src/test/db*.ts
+        - drizzle/**/*
+        - scripts/engine-smoke/**/*
+        - scripts/scene/**/*
+        - package.json
+        - bun.lock
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - packages/engine/**/*
+        - src/games/**/*
+        - src/lib/engine/**/*
+        - src/components/games/**/*
+        - src/db/schema.ts
+        - src/test/db*.ts
+        - drizzle/**/*
+        - scripts/engine-smoke/**/*
+        - scripts/scene/**/*
+        - package.json
+        - bun.lock

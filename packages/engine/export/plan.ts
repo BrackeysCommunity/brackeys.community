@@ -1,4 +1,3 @@
-import { SAVE_VERSION } from "../game/save-file";
 import type { GameDefinition, Registry } from "../game/types";
 import { sha256 } from "../project/hash";
 import type { KindRegistry } from "../project/kinds";
@@ -6,6 +5,7 @@ import { byCodeUnit } from "../project/kinds/define";
 import {
   checkReleaseManifest,
   CREDITS_FILE,
+  ENGINE_FORMATS,
   formatReleaseManifest,
   INDEX_HTML_FILE,
   RELEASE_FILE,
@@ -31,11 +31,9 @@ import type {
 } from "../project/types";
 import { projectView } from "../project/view";
 import { AGENT_SURFACE_VERSION } from "../scene/agent-surface";
-import { INPUT_SCRIPT_VERSION } from "../scene/input-script";
 import { makeIssue } from "../scene/issues";
-import { RECORDING_VERSION } from "../scene/recording-schema";
-import { SCENE_FORMAT_VERSION, type SceneIssue } from "../scene/types";
-import { COLLAB_LAYOUT_VERSION, ENGINE_VERSION, REPLAY_ACROSS_PLATFORMS } from "../version";
+import type { SceneIssue } from "../scene/types";
+import { ENGINE_VERSION, REPLAY_ACROSS_PLATFORMS } from "../version";
 import { budgetIssues, measureBudget, resolveExportBudget } from "./budget";
 import { renderCredits } from "./credits";
 import { renderIndexHtml } from "./html";
@@ -244,14 +242,7 @@ export async function finishExport(
       engine: {
         version: ENGINE_VERSION,
         agentSurface: AGENT_SURFACE_VERSION,
-        formats: {
-          scene: SCENE_FORMAT_VERSION,
-          prefab: SCENE_FORMAT_VERSION,
-          recording: RECORDING_VERSION,
-          inputScript: INPUT_SCRIPT_VERSION,
-          save: SAVE_VERSION,
-          collabLayout: COLLAB_LAYOUT_VERSION,
-        },
+        formats: { ...ENGINE_FORMATS },
       },
       game: {
         id: input.game.id,

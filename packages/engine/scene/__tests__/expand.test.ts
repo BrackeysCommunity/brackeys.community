@@ -871,7 +871,7 @@ describe("expandScene: instance by instance", () => {
     ["fake yard", fakeYard(), fakeOps, yardPrefabs("fake")],
     ["test-game yard on a grid", testGameYard(), testGameRegistry, yardPrefabs("test-game")],
     ["three-level rooms", rooms(), engine, roomLib],
-    ...(["engine-yard", "grid-yard", "kitchen-sink"] as const).map(
+    ...(["engine-yard", "grid-annex", "grid-yard", "kitchen-sink"] as const).map(
       (name): [string, SceneDefinition, Registry, PrefabLibrary] => [
         `project ${name}`,
         readJson(new URL(`${name}.json`, scenesDir)) as SceneDefinition,

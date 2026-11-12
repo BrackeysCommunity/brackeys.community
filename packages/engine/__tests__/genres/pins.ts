@@ -43,8 +43,8 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "saved-physics-none": "4ce46f44f64a27fd",
   },
   "tower-defense": {
-    default: "ea1f21e098681a71",
-    "saved-mid-wave": "ea1f21e098681a71",
+    default: "b039a55159fd6798",
+    "saved-mid-wave": "b039a55159fd6798",
   },
   "turn-tactics": {
     default: "355be025a7f4aeda",

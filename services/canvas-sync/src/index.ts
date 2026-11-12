@@ -484,6 +484,58 @@ export async function startServer(options: ServerOptions): Promise<SyncServer> {
   };
 }
 
+/** The daily cleanup of hosted games' storage, in this process beside the docs it reads. */
+async function startCollector(
+  config: import("./config.ts").Config,
+  db: ServiceDb,
+  prefix: string,
+  telemetry: ServiceTelemetry,
+  server: SyncServer,
+): Promise<() => Promise<void>> {
+  const {
+    collectorAllowed,
+    redisCollectorLock,
+    runCollector,
+    soloCollectorLock,
+    startCollectorTimer,
+  } = await import("./engine/collector.ts");
+  if (!collectorAllowed(config.RAILWAY_ENVIRONMENT_NAME)) {
+    console.log("[boot] engine collector off on production");
+    return async () => {};
+  }
+  const { minioObjectStore } = await import("./engine/object-store.ts");
+  const { documentName } = await import("../../../src/lib/canvas/sync-channels.ts");
+  const objects = minioObjectStore(config);
+  let redis: import("ioredis").default | null = null;
+  if (config.REDIS_URL) {
+    const { default: IORedis } = await import("ioredis");
+    redis = new IORedis(config.REDIS_URL, { maxRetriesPerRequest: 1, connectTimeout: 2000 });
+    redis.on("error", (error: Error) => console.warn(`[redis:collector] ${error.message}`));
+  }
+  const lock = redis ? redisCollectorLock(redis, prefix, config.INSTANCE_ID) : soloCollectorLock;
+  const stop = startCollectorTimer((shouldStop) =>
+    runCollector({
+      db,
+      objects,
+      lock,
+      mode: config.ENGINE_COLLECTOR_MODE,
+      telemetry,
+      shouldStop,
+      liveProject(projectId) {
+        const doc = server.hocuspocus.documents.get(documentName("project", projectId));
+        return doc ? Y.encodeStateAsUpdate(doc) : null;
+      },
+    }),
+  );
+  console.log(
+    `[boot] engine collector daily at 03:30 UTC in ${config.ENGINE_COLLECTOR_MODE} mode${objects ? "" : ", no bucket configured"}`,
+  );
+  return async () => {
+    await stop();
+    redis?.disconnect();
+  };
+}
+
 async function main() {
   const { config } = await import("./config.ts");
   const { createDb } = await import("./db.ts");
@@ -527,10 +579,13 @@ async function main() {
   });
   console.log(`[boot] canvas-sync ${config.INSTANCE_ID} listening on ${server.port} (${prefix})`);
 
+  const stopCollector = await startCollector(config, db, prefix, telemetry, server);
+
   const shutdown = async (signal: string) => {
     console.log(
       `[shutdown] ${signal}: ${server.hocuspocus.getConnectionsCount()} connection(s), ${server.hocuspocus.getDocumentsCount()} document(s)`,
     );
+    await stopCollector();
     await server.stop(config.SHUTDOWN_TIMEOUT_MS);
     await pool.end().catch(() => {});
     console.log("[shutdown] done");

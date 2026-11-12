@@ -19,30 +19,39 @@ import { isAllowedProfileProjectImageType } from "@/lib/image-upload-policy";
 import { requestUploadScan } from "@/lib/media-scan";
 import { bestEffort } from "@/lib/posthog-server";
 
-import { authorizeAgentToken, exchangeAgentToken, type AgentExchangeRefusal } from "./agent-token";
+import { exchangeAgentToken, type AgentExchangeRefusal } from "./agent-token";
 import { minioContentStore, type SiteContentStore } from "./content-store";
 import {
   createHostedProject,
   readHostedProjectWire,
   type CreateHostedProjectInput,
 } from "./hosted";
+import { checkQuota, ENGINE_QUOTA, quotaExceededResponse } from "./quota";
+import {
+  bearer,
+  decodeSegment,
+  gateEngineRequest,
+  methodNotAllowed,
+  parseJson,
+  readBody,
+  type GateRefusal,
+  type ReadSession,
+} from "./route-gate";
+import { AGENT_SYNC_TOKEN_PATH, BLOBS_PATH, BUNDLE_PATH } from "./route-paths";
 import {
   agentSyncTokenAllowed,
   ENGINE_BLOB_MAX_BYTES,
   ENGINE_BUNDLE_MAX_BYTES,
   engineBlobUploadAllowed,
   type BlobKindLookup,
-} from "./limits";
-import { engineProjectsEnabled, isEngineStaff, liveEngineProject } from "./projects";
-import { checkQuota, ENGINE_QUOTA, quotaExceededResponse, storedProjectUsage } from "./quota";
-import { AGENT_SYNC_TOKEN_PATH, BLOBS_PATH, BUNDLE_PATH } from "./route-paths";
+} from "./upload-limits";
+import { storedProjectUsage } from "./usage";
 
 /** Blobs never change under their hash; only the project's members may cache them. */
 export const ENGINE_BLOB_CACHE_CONTROL = "private, max-age=31536000, immutable";
 
 export type EngineRouteDeps = {
-  /** The caller's session, a banned one already treated as signed out. */
-  readSession: (request: Request) => Promise<{ user: { id: string } } | null>;
+  readSession: ReadSession;
   kinds: BlobKindLookup;
   quota?: QuotaPolicy;
   store?: (projectId: string) => SiteContentStore;
@@ -57,15 +66,6 @@ const refuseIssue = (status: number, issue: SceneIssue) =>
 
 const NOT_FOUND = () => refuse(404, "Not found.");
 
-/** A path segment decoded, or null when its percent-escapes are malformed. */
-function decodeSegment(segment: string): string | null {
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return null;
-  }
-}
-
 /**
  * The engine's HTTP routes under `/api/engine/`: blob upload and read, and
  * bundle read and seed, for a hosted project; and the agent token exchange.
@@ -77,38 +77,19 @@ export function createEngineRoutes(deps: EngineRouteDeps) {
   const store = deps.store ?? ((projectId: string) => minioContentStore(projectId));
   const quota = deps.quota ?? ENGINE_QUOTA;
 
-  /**
-   * Signed in as staff with the flag on, or a bearer agent token for this
-   * project (with write access when `need` is write); and the project live
-   * unless `live` is false (a session creating a free id). The caller acts
-   * as the session's user or the token's creator.
-   */
+  /** M11's gate: `gateEngineRequest`'s refusal answered as `{ message }`. */
   async function gate(
     request: Request,
     projectId: string,
     need: SyncAccess,
     live = true,
   ): Promise<{ refusal: Response } | { userId: string }> {
-    const secret = bearer(request);
-    if (secret) {
-      const authorized = await authorizeAgentToken(secret);
-      if (!authorized.ok) return { refusal: agentRefusal(authorized) };
-      const { token } = authorized;
-      if (token.projectId !== projectId) {
-        return { refusal: refuse(403, "That agent token is for another project.") };
-      }
-      if (need === "write" && token.access !== "write") {
-        return { refusal: refuse(403, "That agent token is read-only.") };
-      }
-      return { userId: token.createdById };
-    }
-    const session = await deps.readSession(request);
-    if (!session) return { refusal: refuse(401, "Authentication required.") };
-    const userId = session.user.id;
-    if (!(await isEngineStaff(userId))) return { refusal: refuse(403, "Staff access required.") };
-    if (!(await engineProjectsEnabled(userId))) return { refusal: NOT_FOUND() };
-    if (live && !(await liveEngineProject(projectId))) return { refusal: NOT_FOUND() };
-    return { userId };
+    const gated = await gateEngineRequest(request, projectId, need, {
+      readSession: deps.readSession,
+      live,
+    });
+    if (!gated.ok) return { refusal: gateRefusal(gated.refusal) };
+    return { userId: gated.actor.userId };
   }
 
   async function uploadBlob(request: Request, projectId: string): Promise<Response> {
@@ -316,21 +297,13 @@ const seedBody = z.object({
   code: z.record(z.string(), z.unknown()).optional(),
 });
 
-function parseJson(bytes: Uint8Array): unknown {
-  try {
-    return JSON.parse(new TextDecoder().decode(bytes));
-  } catch {
-    return null;
-  }
-}
-
 function bundleProjectId(bundle: unknown): unknown {
   const project = (bundle as { project?: unknown } | null)?.project;
   return (project as { id?: unknown } | null | undefined)?.id;
 }
 
-const methodNotAllowed = (allow: string) =>
-  new Response("Method Not Allowed", { status: 405, headers: { Allow: allow } });
+const gateRefusal = ({ status, message, headers }: GateRefusal) =>
+  Response.json({ message }, { status, headers: headers ?? {} });
 
 function agentRefusal(refusal: AgentExchangeRefusal): Response {
   return Response.json(
@@ -342,43 +315,12 @@ function agentRefusal(refusal: AgentExchangeRefusal): Response {
   );
 }
 
-function bearer(request: Request): string | null {
-  const header = request.headers.get("authorization");
-  const match = header ? /^Bearer\s+(\S+)$/i.exec(header) : null;
-  return match?.[1] ?? null;
-}
-
 async function blobRow(projectId: string, hash: string) {
   const [row] = await db
     .select({ storageKey: engineBlobs.storageKey, byteSize: engineBlobs.byteSize })
     .from(engineBlobs)
     .where(and(eq(engineBlobs.projectId, projectId), eq(engineBlobs.sha256, hash)));
   return row ?? null;
-}
-
-/** The body, or "too-large" as soon as it passes `max` bytes, without reading the rest. */
-async function readBody(request: Request, max: number): Promise<Uint8Array | "too-large"> {
-  if (!request.body) return new Uint8Array(0);
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > max) {
-      await reader.cancel().catch(() => {});
-      return "too-large";
-    }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(size);
-  let at = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, at);
-    at += chunk.byteLength;
-  }
-  return bytes;
 }
 
 /** The request's type when the kind accepts it, else the kind's first: a blob is never stored as a type its kind doesn't name. */

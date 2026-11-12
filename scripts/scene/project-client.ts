@@ -10,6 +10,7 @@ import {
   docToPrefab,
   docToScene,
   isPrefabDoc,
+  isSeedStaleClose,
   layoutFromDoc,
   sessionPrefabSource,
   type AwarenessLike,
@@ -126,9 +127,24 @@ export type ProjectClient = {
   ): Promise<ProjectApplyResult>;
   /** Resolves once the server has acknowledged every local change, in every doc opened. */
   pushed(): Promise<void>;
-  /** Waits for the push, then closes every doc and the socket; tears down even when the push times out. */
+  /**
+   * Waits for the push, then closes every doc and the socket; tears down even
+   * when the push times out. Rejects with `seedStaleError` when a doc was
+   * reseeded under the client: from then on every call fails with it.
+   */
   close(): Promise<void>;
 };
+
+/**
+ * The server reseeded `doc` (a lost cache, a reset row) while the client held
+ * it: its copy came from the old seed, and reattaching would merge nothing it
+ * can trust, so the command ends and is run again on the new seed.
+ */
+export function seedStaleError(doc: string): ProjectClientError {
+  return new ProjectClientError(
+    `The server reset ${doc} while this command had it open, so its copy is out of date; nothing more was sent. Run the command again.`,
+  );
+}
 
 async function until(check: () => boolean, ms: number, what: string): Promise<void> {
   const end = Date.now() + ms;
@@ -206,6 +222,20 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
   const pool = new Map<string, Promise<OpenedDoc>>();
   const opened: string[] = [];
   let ended = false;
+  /** Set once a doc was reseeded under the client: every call after fails with it. */
+  let fatal: ProjectClientError | null = null;
+  /** The opens still waiting for their first sync, rejected at once when the client fails. */
+  const waiting = new Set<(error: ProjectClientError) => void>();
+  const failClient = (error: ProjectClientError) => {
+    if (fatal || ended) return;
+    fatal = error;
+    for (const reject of [...waiting]) reject(error);
+    // Every doc shares the socket: destroying it stops each provider reattaching.
+    socket.destroy();
+  };
+  const alive = () => {
+    if (fatal) throw fatal;
+  };
 
   const unsynced = () => [...providers].some((p) => p.hasUnsyncedChanges);
 
@@ -215,15 +245,17 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
       const doc = new Y.Doc();
       let synced = false;
       let timer: ReturnType<typeof setTimeout> | undefined = undefined;
-      const fail = (message: string) => {
+      const fail = (error: ProjectClientError) => {
         if (synced) return;
+        waiting.delete(fail);
         clearTimeout(timer);
         providers.delete(provider);
         provider.destroy();
         doc.destroy();
-        reject(new ProjectClientError(message));
+        reject(error);
       };
-      const refuse = (why: string) => fail(`The server refused ${name}: ${why}.`);
+      const refuse = (why: string) =>
+        fail(new ProjectClientError(`The server refused ${name}: ${why}.`));
       const token = opts.token;
       const provider = new HocuspocusProvider({
         websocketProvider: socket,
@@ -233,25 +265,36 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
         onSynced: ({ state }) => {
           if (!state || synced) return;
           const awareness = provider.awareness;
-          if (!awareness) return fail(`${name} synced without an awareness.`);
+          if (!awareness)
+            return fail(new ProjectClientError(`${name} synced without an awareness.`));
           synced = true;
+          waiting.delete(fail);
           clearTimeout(timer);
           resolve({ doc, awareness, close() {} });
         },
         onAuthenticationFailed: ({ reason }) => refuse(reason || "authentication failed"),
         onClose: ({ event }) => {
-          if (event.code >= 4000) refuse(event.reason || `close code ${event.code}`);
+          if (isSeedStaleClose(event.code, event.reason)) {
+            const error = seedStaleError(name);
+            fail(error);
+            failClient(error);
+          } else if (event.code >= 4000) refuse(event.reason || `close code ${event.code}`);
         },
       });
       providers.add(provider);
+      waiting.add(fail);
       provider.attach();
       timer = setTimeout(
-        () => fail(`Timed out after ${timeoutMs}ms waiting for ${name} to sync.`),
+        () =>
+          fail(
+            new ProjectClientError(`Timed out after ${timeoutMs}ms waiting for ${name} to sync.`),
+          ),
         timeoutMs,
       );
     });
 
   const openDoc: OpenDoc = (name) => {
+    if (fatal) return Promise.reject(fatal);
     if (ended) return Promise.reject(new ProjectClientError("The project client is closed."));
     let pending = pool.get(name);
     if (!pending) {
@@ -303,7 +346,14 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
   };
 
   const pushed = () =>
-    until(() => !unsynced(), timeoutMs, "the server to acknowledge every change");
+    until(
+      () => {
+        alive();
+        return !unsynced();
+      },
+      timeoutMs,
+      "the server to acknowledge every change",
+    );
 
   return {
     url,
@@ -311,11 +361,13 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
     session,
     opened,
     async apply(batch, applyOpts) {
+      alive();
       const result = await applyProjectBatch(session, batch, origin, applyOpts);
       if (result.ok) await pushed();
       return result;
     },
     async trial(batch, { store, ...applyOpts } = {}) {
+      alive();
       const scratch = await createProjectSession({
         ...sessionOptions,
         ...(store ? { store } : {}),
@@ -333,9 +385,10 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
     pushed,
     async close() {
       if (ended) return;
+      const failed = fatal;
       ended = true;
       try {
-        await pushed();
+        if (!failed) await pushed();
       } finally {
         prefabSource?.destroy();
         session.destroy();
@@ -347,6 +400,7 @@ export async function openProjectClient(opts: ProjectClientOptions): Promise<Pro
         pool.clear();
         socket.destroy();
       }
+      if (failed) throw failed;
     },
   };
 }

@@ -13,6 +13,7 @@ import { requestUploadScan } from "@/lib/media-scan";
 import { bestEffort } from "@/lib/posthog-server";
 import { buildProfileProjectImageObjectKey } from "@/lib/stored-image-keys";
 import { STORED_IMAGE_ROUTE_PREFIX } from "@/lib/stored-image-urls";
+import { streamStoredObject, type StoredObjectSource } from "@/lib/stored-object-stream";
 
 export class ProfileProjectImageUploadError extends Error {
   status: number;
@@ -172,6 +173,58 @@ export async function resolveTeamBannerUrl(team: {
   return presigned ?? team.bannerUrl;
 }
 
+/** The bucket calls streaming needs; the site's MinIO client has them. */
+export type StoredObjectClient = {
+  statObject(
+    bucket: string,
+    key: string,
+  ): Promise<{ size: number; etag?: string; metaData?: Record<string, unknown> }>;
+  getObject(bucket: string, key: string): Promise<Readable>;
+  getPartialObject(bucket: string, key: string, offset: number, length?: number): Promise<Readable>;
+};
+
+/**
+ * Objects in the site's bucket, for `streamStoredObject`. A missing object
+ * (or no bucket configured) stats and streams as null.
+ */
+export function minioObjectSource(
+  opts: { client?: StoredObjectClient; bucket?: string } = {},
+): StoredObjectSource {
+  const client = (): StoredObjectClient => opts.client ?? getMinioClient();
+  const bucketName = () => opts.bucket ?? env.MINIO_BUCKET;
+  return {
+    async stat(key) {
+      const bucket = bucketName();
+      if (!bucket) return null;
+      try {
+        const stat = await client().statObject(bucket, key);
+        const contentType = stat.metaData?.["content-type"];
+        return {
+          size: stat.size,
+          ...(stat.etag ? { etag: stat.etag } : {}),
+          ...(typeof contentType === "string" ? { contentType } : {}),
+        };
+      } catch (error) {
+        if (isMissingObject(error)) return null;
+        throw error;
+      }
+    },
+    async stream(key, range) {
+      const bucket = bucketName();
+      if (!bucket) return null;
+      try {
+        const body = range
+          ? await client().getPartialObject(bucket, key, range.start, range.end - range.start + 1)
+          : await client().getObject(bucket, key);
+        return Readable.toWeb(body) as unknown as ReadableStream<Uint8Array>;
+      } catch (error) {
+        if (isMissingObject(error)) return null;
+        throw error;
+      }
+    },
+  };
+}
+
 /**
  * Serve a stored object for the `/images/<key>` route. The immutable
  * cache-control on 200s is also enforced by the `/images/**` route rule in
@@ -183,42 +236,12 @@ export async function streamStoredImage(
   request: Request,
   opts: { cacheControl?: string } = {},
 ): Promise<Response> {
-  const bucket = env.MINIO_BUCKET;
-  if (!bucket) {
-    return new Response("Not Found", { status: 404 });
-  }
-
-  let stat;
   try {
-    stat = await getMinioClient().statObject(bucket, objectKey);
+    return await streamStoredObject(objectKey, request, {
+      source: minioObjectSource(),
+      ...(opts.cacheControl ? { cacheControl: opts.cacheControl } : {}),
+    });
   } catch {
-    return new Response("Not Found", { status: 404 });
-  }
-
-  const headers = new Headers({
-    "cache-control": opts.cacheControl ?? "public, max-age=31536000, immutable",
-  });
-  const contentType = stat.metaData?.["content-type"];
-  if (contentType) headers.set("content-type", contentType);
-  const etag = stat.etag ? `"${stat.etag}"` : null;
-  if (etag) headers.set("etag", etag);
-
-  const ifNoneMatch = request.headers.get("if-none-match");
-  if (etag && ifNoneMatch && ifNoneMatch.replace(/^W\//, "") === etag) {
-    return new Response(null, { status: 304, headers });
-  }
-
-  if (request.method === "HEAD") {
-    headers.set("content-length", String(stat.size));
-    return new Response(null, { headers });
-  }
-
-  try {
-    const objectStream = await getMinioClient().getObject(bucket, objectKey);
-    headers.set("content-length", String(stat.size));
-    return new Response(Readable.toWeb(objectStream) as unknown as BodyInit, { headers });
-  } catch (error) {
-    console.error("Failed to stream stored image", { objectKey, error });
     return new Response("Not Found", { status: 404 });
   }
 }

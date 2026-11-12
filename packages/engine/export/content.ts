@@ -251,10 +251,21 @@ async function releaseAsset(
     };
   }
   if (entry.sha256 === undefined) return null;
+  // The size becomes the build file's row and the release's pin, so a guessed one would disagree with the bytes shipped.
+  if (entry.bytes === undefined) {
+    issues.push(
+      makeIssue("asset-missing", {
+        message: `"${entry.id}" (${entry.path}) ships, but its entry records no size for blob ${entry.sha256}`,
+        entityIds: [entry.id],
+        got: entry.id,
+      }),
+    );
+    return null;
+  }
   return {
     ...common,
     sha256: entry.sha256,
-    bytes: entry.bytes ?? 0,
+    bytes: entry.bytes,
     storage: "blob",
     file: blobFile(entry, entry.sha256),
     ...(entry.meta && Object.keys(entry.meta).length > 0

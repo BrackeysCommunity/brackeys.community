@@ -12,20 +12,37 @@
  * so the raw URL 404s at origin. Both are recorded on the scan row so a
  * dismiss can put everything back. Nothing here is deleted until a human
  * confirms.
+ *
+ * A hosted game's images are the exception: a blob or release file is
+ * stored once per project by its hash and shared by every release and scene
+ * that lists it, so it never moves. Quarantine stamps the object row and
+ * hides every release of the project that lists the hash instead; a dismiss
+ * clears both.
  */
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 
 import {
   canvasAttachments,
   collabPostImages,
+  engineReleaseFiles,
+  engineReleaseObjects,
+  engineReleases,
   forumPostImages,
   forumPosts,
   imageScans,
+  type ImageScanStatus,
   profileProjects,
   projects,
   teamProjects,
   teams,
 } from "../db/schema";
+import { writeAudit } from "./engine/release-audit";
+import {
+  ENGINE_ASSETS_PREFIX,
+  ENGINE_RELEASES_PREFIX,
+  engineAssetKey,
+  engineReleaseObjectKey,
+} from "./engine/storage-keys";
 
 // Same convention as notify-core: the caller's drizzle handle, whatever
 // driver it was built on.
@@ -69,6 +86,8 @@ export type DetachedRefs = {
   teamProjects: string[];
   /** Attachment ids stamped quarantined; the key stays, the object moves. */
   canvasAttachments: string[];
+  /** Hosted game releases this image hid; a dismiss unhides only these. */
+  engineReleases: string[];
 };
 
 const EMPTY_REFS: DetachedRefs = {
@@ -80,6 +99,7 @@ const EMPTY_REFS: DetachedRefs = {
   profileProjects: [],
   teamProjects: [],
   canvasAttachments: [],
+  engineReleases: [],
 };
 
 function mergeRefs(a: DetachedRefs, b: DetachedRefs): DetachedRefs {
@@ -104,6 +124,7 @@ function mergeRefs(a: DetachedRefs, b: DetachedRefs): DetachedRefs {
     profileProjects: [...new Set([...a.profileProjects, ...b.profileProjects])],
     teamProjects: [...new Set([...a.teamProjects, ...b.teamProjects])],
     canvasAttachments: [...new Set([...a.canvasAttachments, ...b.canvasAttachments])],
+    engineReleases: [...new Set([...a.engineReleases, ...b.engineReleases])],
   };
 }
 
@@ -119,6 +140,7 @@ function refsFrom(value: unknown): DetachedRefs {
     profileProjects: Array.isArray(v.profileProjects) ? v.profileProjects : [],
     teamProjects: Array.isArray(v.teamProjects) ? v.teamProjects : [],
     canvasAttachments: Array.isArray(v.canvasAttachments) ? v.canvasAttachments : [],
+    engineReleases: Array.isArray(v.engineReleases) ? v.engineReleases : [],
   };
 }
 
@@ -282,6 +304,229 @@ export async function reattachImageKey(
     );
 }
 
+/** What publishers are told while a flagged image keeps their release hidden. */
+export const ENGINE_QUARANTINE_REASON = "An image in this release is waiting for review.";
+
+const SHA256 = /^[0-9a-f]{64}$/;
+/** A scan in either state keeps the releases listing its image hidden: under review, or confirmed. */
+const HELD: ImageScanStatus[] = ["quarantined", "purged"];
+
+/** A hosted game's stored object: a project blob or a release file, by hash. */
+export type EngineObjectRef = {
+  projectId: string;
+  sha256: string;
+  source: "blob" | "release";
+};
+
+/** The project and hash an engine key names, or null for every other key. */
+export function engineObjectOf(objectKey: string): EngineObjectRef | null {
+  const [prefix, projectId, sha256, ...rest] = objectKey.split("/");
+  if (rest.length > 0 || !projectId || !sha256 || !SHA256.test(sha256)) return null;
+  if (prefix === ENGINE_ASSETS_PREFIX) return { projectId, sha256, source: "blob" };
+  if (prefix === ENGINE_RELEASES_PREFIX) return { projectId, sha256, source: "release" };
+  return null;
+}
+
+const keyOf = (projectId: string, sha256: string, source: string) =>
+  source === "blob" ? engineAssetKey(projectId, sha256) : engineReleaseObjectKey(projectId, sha256);
+
+/**
+ * Hides every kept release of the project that lists the hash and isn't
+ * hidden already, each audited as the site's own hide. Returns the ids the
+ * image now holds hidden. A release staff hid for another reason keeps that
+ * reason, and isn't the image's to unhide later.
+ */
+async function hideReleasesListing(
+  db: DbHandle,
+  ref: EngineObjectRef,
+  objectKey: string,
+): Promise<string[]> {
+  const now = new Date();
+  if (ref.source === "release") {
+    await db
+      .update(engineReleaseObjects)
+      .set({ quarantinedAt: now })
+      .where(
+        and(
+          eq(engineReleaseObjects.projectId, ref.projectId),
+          eq(engineReleaseObjects.sha256, ref.sha256),
+          isNull(engineReleaseObjects.quarantinedAt),
+        ),
+      );
+  }
+  const listing: Array<{ releaseId: string }> = await db
+    .selectDistinct({ releaseId: engineReleaseFiles.releaseId })
+    .from(engineReleaseFiles)
+    .where(
+      and(
+        eq(engineReleaseFiles.projectId, ref.projectId),
+        eq(engineReleaseFiles.sha256, ref.sha256),
+      ),
+    );
+  if (listing.length === 0) return [];
+  const hidden: Array<{ id: string }> = await db
+    .update(engineReleases)
+    .set({ hiddenAt: now, hiddenById: null, hiddenReason: ENGINE_QUARANTINE_REASON })
+    .where(
+      and(
+        inArray(
+          engineReleases.id,
+          listing.map((r) => r.releaseId),
+        ),
+        isNull(engineReleases.hiddenAt),
+        isNull(engineReleases.collectedAt),
+      ),
+    )
+    .returning({ id: engineReleases.id });
+  for (const { id } of hidden) {
+    await writeAudit(db, {
+      projectId: ref.projectId,
+      actor: { kind: "system" },
+      action: "hide",
+      releaseId: id,
+      at: now,
+      detail: { reason: ENGINE_QUARANTINE_REASON, objectKey },
+    });
+  }
+  // Releases another image already holds are this one's too, so the last
+  // dismiss of the two is the one that shows them.
+  const held: Array<{ id: string }> = await db
+    .select({ id: engineReleases.id })
+    .from(engineReleases)
+    .where(
+      and(
+        inArray(
+          engineReleases.id,
+          listing.map((r) => r.releaseId),
+        ),
+        eq(engineReleases.hiddenReason, ENGINE_QUARANTINE_REASON),
+        isNull(engineReleases.hiddenById),
+      ),
+    );
+  return [...new Set([...hidden.map((r) => r.id), ...held.map((r) => r.id)])];
+}
+
+/**
+ * Unhides the releases this image hid, unless staff have since hidden one
+ * for another reason or it still lists another image under review.
+ */
+async function showReleasesHiddenBy(
+  db: DbHandle,
+  ref: EngineObjectRef,
+  objectKey: string,
+  releaseIds: readonly string[],
+): Promise<string[]> {
+  if (ref.source === "release") {
+    await db
+      .update(engineReleaseObjects)
+      .set({ quarantinedAt: null })
+      .where(
+        and(
+          eq(engineReleaseObjects.projectId, ref.projectId),
+          eq(engineReleaseObjects.sha256, ref.sha256),
+        ),
+      );
+  }
+  if (releaseIds.length === 0) return [];
+
+  const files: Array<{ releaseId: string; sha256: string; source: string }> = await db
+    .select({
+      releaseId: engineReleaseFiles.releaseId,
+      sha256: engineReleaseFiles.sha256,
+      source: engineReleaseFiles.source,
+    })
+    .from(engineReleaseFiles)
+    .where(inArray(engineReleaseFiles.releaseId, [...releaseIds]));
+  const keysOf = new Map<string, string[]>();
+  for (const f of files) {
+    const keys = keysOf.get(f.releaseId) ?? [];
+    keys.push(keyOf(ref.projectId, f.sha256, f.source));
+    keysOf.set(f.releaseId, keys);
+  }
+  const allKeys = [...new Set([...keysOf.values()].flat())];
+  const underReview: Array<{ objectKey: string }> =
+    allKeys.length === 0
+      ? []
+      : await db
+          .select({ objectKey: imageScans.objectKey })
+          .from(imageScans)
+          .where(
+            and(
+              inArray(imageScans.objectKey, allKeys),
+              inArray(imageScans.status, HELD),
+              ne(imageScans.objectKey, objectKey),
+            ),
+          );
+  const stillHeld = new Set(underReview.map((r) => r.objectKey));
+  const free = releaseIds.filter((id) => !(keysOf.get(id) ?? []).some((key) => stillHeld.has(key)));
+  if (free.length === 0) return [];
+
+  const now = new Date();
+  const shown: Array<{ id: string }> = await db
+    .update(engineReleases)
+    .set({ hiddenAt: null, hiddenById: null, hiddenReason: null })
+    .where(
+      and(
+        inArray(engineReleases.id, free),
+        eq(engineReleases.hiddenReason, ENGINE_QUARANTINE_REASON),
+        isNull(engineReleases.hiddenById),
+      ),
+    )
+    .returning({ id: engineReleases.id });
+  for (const { id } of shown) {
+    await writeAudit(db, {
+      projectId: ref.projectId,
+      actor: { kind: "system" },
+      action: "unhide",
+      releaseId: id,
+      at: now,
+      detail: { objectKey },
+    });
+  }
+  return shown.map((r) => r.id);
+}
+
+/**
+ * Which of `hashes` a project holds back: a release file stamped
+ * quarantined, or a blob whose scan is quarantined or confirmed. A release
+ * that lists one should be hidden from the start.
+ */
+export async function engineHashesUnderReview(
+  db: DbHandle,
+  projectId: string,
+  hashes: readonly string[],
+): Promise<Set<string>> {
+  if (hashes.length === 0) return new Set();
+  const objects: Array<{ sha256: string }> = await db
+    .select({ sha256: engineReleaseObjects.sha256 })
+    .from(engineReleaseObjects)
+    .where(
+      and(
+        eq(engineReleaseObjects.projectId, projectId),
+        inArray(engineReleaseObjects.sha256, [...hashes]),
+        isNotNull(engineReleaseObjects.quarantinedAt),
+      ),
+    );
+  const blobs: Array<{ objectKey: string }> = await db
+    .select({ objectKey: imageScans.objectKey })
+    .from(imageScans)
+    .where(
+      and(
+        inArray(
+          imageScans.objectKey,
+          hashes.map((h) => engineAssetKey(projectId, h)),
+        ),
+        inArray(imageScans.status, HELD),
+      ),
+    );
+  const held = new Set(objects.map((o) => o.sha256));
+  for (const b of blobs) {
+    const sha256 = engineObjectOf(b.objectKey)?.sha256;
+    if (sha256) held.add(sha256);
+  }
+  return held;
+}
+
 type ScanRow = { status: string; detached: unknown };
 
 async function readScan(db: DbHandle, objectKey: string): Promise<ScanRow | null> {
@@ -308,6 +553,17 @@ export async function quarantineImage(
   const scan = await readScan(db, objectKey);
   if (!scan || scan.status === "cleared" || scan.status === "purged") return null;
 
+  const engine = engineObjectOf(objectKey);
+  if (engine) {
+    const hidden = await hideReleasesListing(db, engine, objectKey);
+    const refs = mergeRefs(refsFrom(scan.detached), { ...EMPTY_REFS, engineReleases: hidden });
+    await db
+      .update(imageScans)
+      .set({ status: "quarantined", detached: refs })
+      .where(eq(imageScans.objectKey, objectKey));
+    return refs;
+  }
+
   const refs = mergeRefs(refsFrom(scan.detached), await detachImageKey(db, objectKey));
   // Recorded before the move: if the move fails and the job retries, the
   // references are already safe and the retry only has the move left.
@@ -327,7 +583,12 @@ export async function restoreImage(
 ): Promise<boolean> {
   const scan = await readScan(db, objectKey);
   if (!scan) return false;
-  if (scan.status === "quarantined") {
+  const engine = engineObjectOf(objectKey);
+  if (engine) {
+    if (scan.status === "quarantined") {
+      await showReleasesHiddenBy(db, engine, objectKey, refsFrom(scan.detached).engineReleases);
+    }
+  } else if (scan.status === "quarantined") {
     await store.move(quarantineKey(objectKey), objectKey);
     await reattachImageKey(db, objectKey, refsFrom(scan.detached));
   }
@@ -346,6 +607,24 @@ export async function purgeImage(
 ): Promise<boolean> {
   const scan = await readScan(db, objectKey);
   if (!scan) return false;
+  const engine = engineObjectOf(objectKey);
+  if (engine) {
+    // The bytes stay: other releases and the project's scenes may list the
+    // same hash, and the collector removes objects nothing lists. Every
+    // release listing it stays hidden.
+    const refs =
+      scan.status === "quarantined"
+        ? refsFrom(scan.detached)
+        : mergeRefs(refsFrom(scan.detached), {
+            ...EMPTY_REFS,
+            engineReleases: await hideReleasesListing(db, engine, objectKey),
+          });
+    await db
+      .update(imageScans)
+      .set({ status: "purged", detached: refs })
+      .where(eq(imageScans.objectKey, objectKey));
+    return true;
+  }
   if (scan.status !== "quarantined") {
     // A confirm on an image that was only flagged (below the quarantine
     // threshold) still takes it down — that is what confirming means.

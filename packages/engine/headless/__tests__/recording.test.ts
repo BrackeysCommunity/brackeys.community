@@ -300,6 +300,23 @@ describe("staleness by runHash", () => {
     expect(replayed(rec, yard, { library: prefabLibrary([prefab(0)]) }).stale).toBe(false);
     expect(replayed(rec, yard, { library: prefabLibrary([prefab(1)]) }).stale).toBe(true);
   });
+
+  it("stays fresh when only a project doc's $schema pointer moves", () => {
+    const mapped = (schema: string, deadzone = 0.2): ProjectRuntimeView => ({
+      ...view(),
+      inputMap: { $schema: schema, kind: "input-map", v: 1, deadzone } as never,
+    });
+    const rec = played(toGoal, { project: mapped("../project/input-map.schema.json") }).recording;
+    const moved = replayed(rec, yard, {
+      project: mapped("../../packages/engine/project/input-map.schema.json"),
+    });
+    expect(moved.stale).toBe(false);
+    expect(moved.recording.runHash).toBe(rec.runHash);
+    const rebound = replayed(rec, yard, {
+      project: mapped("../project/input-map.schema.json", 0.3),
+    });
+    expect(rebound.stale).toBe(true);
+  });
 });
 
 describe("recordings from another platform", () => {

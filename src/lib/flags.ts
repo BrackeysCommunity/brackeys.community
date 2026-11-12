@@ -46,6 +46,14 @@ export const FEATURE_FLAGS = {
    */
   "engine-projects": false,
   /**
+   * Games published on the site: releases, the play, embed and game pages,
+   * the frame routes, the editor's Publish panel and Usage section, and the
+   * release CLI's routes. Enforced server-side by `assertEngineGames` on
+   * every procedure and route, on top of the staff gate, and never on
+   * production while `engineGamesAllowed()` says so.
+   */
+  "engine-games-enabled": false,
+  /**
    * The game room's display menu: the viewer picks the fit and virtual size
    * the site passes to the engine as its resolution policy. Off, the room
    * plays at the project's and the game's resolution.

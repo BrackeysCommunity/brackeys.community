@@ -1,12 +1,47 @@
-import { describe, expect, it } from "vite-plus/test";
+import { call } from "@orpc/server";
+import { describe, expect, it, vi } from "vite-plus/test";
 
+import { db as mockedDb } from "@/db";
+import {
+  engineProjects,
+  engineReleaseChannels,
+  engineReleaseJamLinks,
+  engineReleases,
+  itchJamEntries,
+  itchJams,
+  projects,
+} from "@/db/schema";
 import router from "@/orpc/router";
 import {
+  listJamEntries,
   monthWindowRange,
   RECENT_ENTRIES_MAX_JAMS,
   RECENT_ENTRIES_MAX_LIMIT,
   recentEntriesQuery,
 } from "@/orpc/router/jam";
+import type { TestDb } from "@/test/db";
+import { asUser } from "@/test/orpc";
+
+vi.mock("@/db", async () => {
+  const { createTestDb } = await import("@/test/db");
+  return { db: await createTestDb() } as unknown as typeof import("@/db");
+});
+vi.mock("@/lib/auth", async () => {
+  const { fakeAuthModule } = await import("@/test/orpc");
+  return fakeAuthModule();
+});
+
+const flag = vi.hoisted(() => vi.fn(async (_flag: string, _id: string) => true));
+vi.mock("@/lib/deploy-env", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/deploy-env")>()),
+  deployEnv: () => "staging",
+}));
+vi.mock("@/lib/posthog-server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/posthog-server")>()),
+  isServerFlagEnabled: flag,
+}));
+
+const db = mockedDb as unknown as TestDb;
 
 describe("jam router surface", () => {
   it("registers the recent-entries procedure alongside the existing ones", () => {
@@ -123,5 +158,89 @@ describe("listRecentEntries input", () => {
   it("rejects a per-jam limit beyond the display cap", async () => {
     const result = await parse({ jamIds: [1], limit: RECENT_ENTRIES_MAX_LIMIT + 1 });
     expect("issues" in result && result.issues).toBeTruthy();
+  });
+});
+
+describe("jam entries' game", () => {
+  const release = (id: string, projectId: string, version: number) => ({
+    id,
+    projectId,
+    version,
+    manifest: "{}",
+    manifestBytes: 2,
+    totalBytes: 100,
+    fileCount: 1,
+    engineVersion: "0.14.1",
+    gameId: "fixture",
+    snapshot: "b".repeat(64),
+    buildHash: "c".repeat(64),
+    target: "web",
+    firstPromotedAt: new Date(),
+  });
+
+  it("gives an entry whose itch game resolves to a linked game its jam version", async () => {
+    await db.insert(itchJams).values([
+      { jamId: 8101, slug: "entries-jam", title: "Entries Jam", status: "over" },
+      { jamId: 8102, slug: "later-jam", title: "Later Jam", status: "over" },
+    ]);
+    const entry = (entryId: number, jamId: number, gameId: number, gameTitle: string) => ({
+      entryId,
+      jamId,
+      gameId,
+      gameTitle,
+      rateUrl: `https://itch.io/jam/x/rate/${gameId}`,
+      gameUrl: `https://someone.itch.io/${gameId}`,
+      authorName: "someone",
+    });
+    await db
+      .insert(itchJamEntries)
+      .values([
+        entry(1, 8101, 501, "Hosted"),
+        entry(2, 8101, 502, "Showcase only"),
+        entry(3, 8101, 503, "Stranger"),
+        entry(4, 8102, 501, "Hosted"),
+      ]);
+    const [hosted, showcaseOnly] = await db
+      .insert(projects)
+      .values([
+        { slug: "hosted-entry", title: "Hosted", source: "itchio", sourceGameId: 501 },
+        { slug: "showcase-entry", title: "Showcase only", source: "itchio", sourceGameId: 502 },
+      ])
+      .returning({ id: projects.id });
+    await db.insert(engineProjects).values([
+      { projectId: "hosted", name: "Hosted", visibility: "public", showcaseProjectId: hosted!.id },
+      {
+        projectId: "unreleased",
+        name: "Unreleased",
+        visibility: "public",
+        showcaseProjectId: showcaseOnly!.id,
+      },
+    ]);
+    const v1 = "d".repeat(64);
+    const v2 = "e".repeat(64);
+    await db.insert(engineReleases).values([release(v1, "hosted", 1), release(v2, "hosted", 2)]);
+    await db
+      .insert(engineReleaseChannels)
+      .values({ projectId: "hosted", channel: "production", releaseId: v2 });
+    await db
+      .insert(engineReleaseJamLinks)
+      .values({ projectId: "hosted", jamId: 8101, releaseId: v1 });
+
+    const games = async (jamId: number) =>
+      Object.fromEntries(
+        (await call(listJamEntries, { jamId, sortBy: "title" }, asUser(null))).entries.map((e) => [
+          e.gameTitle,
+          e.game,
+        ]),
+      );
+    expect(await games(8101)).toEqual({
+      Hosted: { projectId: "hosted", playable: true, jamVersion: 1 },
+      "Showcase only": null,
+      Stranger: null,
+    });
+    expect(await games(8102)).toEqual({ Hosted: { projectId: "hosted", playable: true } });
+
+    flag.mockResolvedValue(false);
+    expect(await games(8101)).toEqual({ Hosted: null, "Showcase only": null, Stranger: null });
   });
 });

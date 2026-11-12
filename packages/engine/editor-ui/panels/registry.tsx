@@ -2,6 +2,7 @@ import {
   AlertCircleIcon,
   Folder01Icon,
   ListViewIcon,
+  Rocket01Icon,
   Route01Icon,
   Settings02Icon,
   SlidersHorizontalIcon,
@@ -14,7 +15,7 @@ import type { ReactNode } from "react";
 import type { EditorSession, Ref, SceneIssue } from "../../editor/index";
 import type { AssetKey } from "../../project/index";
 import type { EditorControls } from "../frame/keys";
-import type { EditorNotify } from "../host";
+import type { EditorNotify, EditorPublishHost } from "../host";
 import { Skeleton, Text } from "../kit/index";
 import type { PanelId } from "../layout/model";
 import { useEditorStore } from "../session/use-editor-store";
@@ -26,6 +27,7 @@ import { EditorOutliner } from "./EditorOutliner";
 import { EditorProject, useSelectedAsset } from "./EditorProject";
 import { LoadRunPanel } from "./LoadRunPanel";
 import { ProblemsPanel } from "./ProblemsPanel";
+import { PublishPanel } from "./publish/PublishPanel";
 import type { CaptureBinding } from "./settings/InputPanel";
 import { ProjectSettings } from "./settings/ProjectSettings";
 
@@ -42,7 +44,10 @@ export type PanelControls = Pick<
   | "playFrom"
   | "frame"
 > &
-  Partial<Pick<EditorControls, "game">>;
+  Partial<Pick<EditorControls, "game">> & {
+    /** The host's publishing, when it publishes the project's releases. */
+    publish?: EditorPublishHost;
+  };
 
 /** What a panel's tab and body are drawn with. */
 export type PanelContext = {
@@ -290,6 +295,7 @@ export const PANELS: readonly PanelDef[] = [
           project={controls.project}
           notify={controls.notify}
           capture={captureOf(controls.game)}
+          publish={controls.publish}
         />
       ) : (
         <Text as="p" size="xs" variant="muted" className="je-panel-empty">
@@ -299,6 +305,20 @@ export const PANELS: readonly PanelDef[] = [
     skeleton: rows(5),
   },
 ];
+
+/** Releases, channels and usage before publishing; only among a host's panels when it publishes. */
+export const PUBLISH_PANEL: PanelDef = {
+  id: "publish",
+  title: "Publish",
+  icon: Rocket01Icon,
+  render: ({ controls }) => <PublishPanel publish={controls.publish} notify={controls.notify} />,
+  skeleton: rows(4),
+};
+
+/** The panels for a host: `PANELS`, and the Publish panel when it publishes. */
+export function editorPanels(host: { publish?: EditorPublishHost }): readonly PanelDef[] {
+  return host.publish ? [...PANELS, PUBLISH_PANEL] : PANELS;
+}
 
 /** The running game's binding capture. */
 function captureOf(game: PanelControls["game"]): CaptureBinding | null {

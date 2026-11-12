@@ -12,6 +12,7 @@ export const CLS = {
   button: "tactics-hud-button",
   top: "tactics-hud-top",
   side: "tactics-hud-side",
+  tools: "tactics-hud-tools",
   log: "tactics-hud-log",
   live: "tactics-hud-live",
 } as const;
@@ -87,6 +88,16 @@ const css = `
   gap: 8px;
   align-items: start;
 }
+/* Its display is a class rule, not inline, so [hidden] still hides it without a host stylesheet's help. */
+.${CLS.tools} {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+}
+.${CLS.tools}[hidden] { display: none; }
 .${CLS.side} { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
 .${CLS.head} {
   grid-column: 2;

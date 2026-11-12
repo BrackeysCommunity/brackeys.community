@@ -25,16 +25,21 @@ const WRITE_VERBS = [
   "add",
   "approve",
   "ban",
+  // `beginRelease` opens an upload.
+  "begin",
   "block",
   "cancel",
   "clear",
   "close",
+  // `commitRelease` records a release.
+  "commit",
   "create",
   "delete",
   "dismiss",
   "edit",
   "extend",
   "feature",
+  "hide",
   "import",
   "invite",
   "leave",
@@ -46,6 +51,7 @@ const WRITE_VERBS = [
   "open",
   // `moveCanvas` renames or moves a canvas to a new path.
   "move",
+  "promote",
   "propose",
   // `refreshGuildMembership` re-asks Discord and rewrites the cached answer.
   "refresh",
@@ -61,6 +67,7 @@ const WRITE_VERBS = [
   "restore",
   "respond",
   "revoke",
+  "rollback",
   // `saveCanvas` merges the editor's update into the stored state.
   "save",
   "set",
@@ -73,6 +80,7 @@ const WRITE_VERBS = [
   "transfer",
   "unban",
   "unblock",
+  "unhide",
   "unlink",
   "update",
   // `verifyWebsite` stamps the profile row on a pass and clears it on a

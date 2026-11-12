@@ -18,6 +18,7 @@ import {
 } from "@/db/schema";
 import { siteUrl } from "@/env";
 import { forumPostParam } from "@/lib/forum-posts";
+import { gameSitemapCount, gameSitemapUrls } from "@/lib/og/game";
 import { ANONYMOUS_FLAG_DISTINCT_ID, isServerFlagEnabled } from "@/lib/posthog-server";
 import { profileSlug } from "@/lib/profile-links";
 import { profileStubJoin } from "@/orpc/profile-projection";
@@ -33,6 +34,7 @@ export const SITEMAP_SECTIONS = [
   "teams",
   "collab",
   "forum",
+  "games",
 ] as const;
 
 export type SitemapSection = (typeof SITEMAP_SECTIONS)[number];
@@ -94,6 +96,8 @@ function sectionCountQuery(section: SitemapSection) {
               .where(liveForumPostFilter())
           : [{ count: 0 }],
       );
+    case "games":
+      return gameSitemapCount().then((count) => [{ count }]);
   }
 }
 
@@ -256,6 +260,8 @@ async function sectionUrls(section: SitemapSection, page: number): Promise<Sitem
         })),
       ];
     }
+    case "games":
+      return gameSitemapUrls(page, SITEMAP_PAGE_SIZE);
   }
 }
 

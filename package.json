@@ -30,6 +30,7 @@
     "engine:smoke": "bun scripts/engine-smoke/smoke.ts",
     "engine:smoke:browser": "bun scripts/engine-smoke/browser.ts",
     "engine:smoke:export": "bun scripts/engine-smoke/export.ts",
+    "engine:smoke:play": "bun scripts/engine-smoke/play-frame.ts",
     "engine:typecheck:strict": "tsc -p packages/engine/tsconfig.strict.json",
     "engine:api-report": "bun scripts/engine-api-report.ts",
     "engine:api-docs": "bun scripts/engine-api-docs.ts",

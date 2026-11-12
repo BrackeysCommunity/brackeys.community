@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,16 +23,52 @@ const EXCEPTED = (path: string) =>
 const ROOTED = /(?<![\w./-])(?:\.\/)?src\/engine(?![\w-])/;
 /** A relative path whose `../` steps may land in the old home. */
 const RELATIVE = /((?:\.\.\/)+)((?:src\/)?engine)(?![\w-])/g;
+/** Text just before a module specifier, which resolves against its own file only. */
+const SPECIFIER_BEFORE = /(?:\bfrom|\bimport|\b(?:import|require)\s*\()\s*["'`]$/;
+/** Text just after a `new URL(path, import.meta.url)` path. */
+const META_URL_AFTER = /^[^"'`]*["'`]\s*,\s*import\.meta\.url\b/;
+
+/**
+ * Where a relative path may be resolved from. An import or an
+ * `import.meta.url` URL resolves against its file's directory; any other
+ * relative path (a list a test joins onto `src/arcade`, a doc's link) may be
+ * written against any directory above it, so each one up to the root counts.
+ */
+function bases(fileDir: string, line: string, match: RegExpExecArray | RegExpMatchArray): string[] {
+  const at = match.index ?? 0;
+  if (
+    SPECIFIER_BEFORE.test(line.slice(0, at)) ||
+    META_URL_AFTER.test(line.slice(at + match[0].length))
+  )
+    return [fileDir];
+  const dirs = [fileDir];
+  for (let dir = fileDir; dir !== REPO && dir !== dirname(dir); ) {
+    dir = dirname(dir);
+    dirs.push(dir);
+  }
+  return dirs;
+}
+
+/**
+ * Whether a directory between the file and the root has its own `src/engine`
+ * (`services/canvas-sync/`), which a root-style `src/engine` in that file names.
+ */
+function ownsSrcEngine(fileDir: string): boolean {
+  for (let dir = fileDir; dir !== REPO && dir !== dirname(dir); dir = dirname(dir))
+    if (existsSync(join(dir, "src", "engine"))) return true;
+  return false;
+}
 
 /** Each `line: text` in `text` (the contents of repo file `path`) that names the old home. */
 function oldEnginePaths(path: string, text: string): string[] {
   const from = dirname(join(REPO, path));
+  const rooted = !ownsSrcEngine(from);
   const hits: string[] = [];
   text.split("\n").forEach((line, i) => {
-    const relative = [...line.matchAll(RELATIVE)].some(
-      (m) => resolve(from, `${m[1]}${m[2]}`) === OLD_HOME,
+    const relative = [...line.matchAll(RELATIVE)].some((m) =>
+      bases(from, line, m).some((base) => resolve(base, `${m[1]}${m[2]}`) === OLD_HOME),
     );
-    if (relative || ROOTED.test(line)) hits.push(`${i + 1}: ${line.trim()}`);
+    if (relative || (rooted && ROOTED.test(line))) hits.push(`${i + 1}: ${line.trim()}`);
   });
   return hits;
 }
@@ -69,6 +105,26 @@ describe("oldEnginePaths", () => {
     );
   });
 
+  it("finds a path list written relative to a directory above its file", () => {
+    expect(
+      oldEnginePaths(
+        "src/arcade/sim-kit/__tests__/determinism-guard.test.ts",
+        'const GUARDED = ["sim-kit", "../engine/sim-kit", "en-prison/sim"];',
+      ),
+    ).toHaveLength(1);
+    expect(oldEnginePaths("src/arcade/README.md", "see `../engine/sim-kit`")).toHaveLength(1);
+  });
+
+  it("resolves imports and import.meta.url paths against their own file only", () => {
+    expect(oldEnginePaths("src/arcade/sim-kit/index.ts", 'from "../engine/sim-kit"')).toEqual([]);
+    expect(
+      oldEnginePaths("src/arcade/sim-kit/a.ts", 'await import("../engine/sim-kit/index.ts")'),
+    ).toEqual([]);
+    expect(
+      oldEnginePaths("src/arcade/sim-kit/a.ts", 'new URL("../engine/x", import.meta.url)'),
+    ).toEqual([]);
+  });
+
   it("leaves the new home and other directories named engine alone", () => {
     expect(oldEnginePaths("package.json", '"cd packages/engine && vp pack"')).toEqual([]);
     expect(
@@ -78,6 +134,9 @@ describe("oldEnginePaths", () => {
       oldEnginePaths("services/canvas-sync/README.md", "`services/canvas-sync/src/engine/`"),
     ).toEqual([]);
     expect(oldEnginePaths("src/lib/scene/ids.ts", 'from "../engine/bundle"')).toEqual([]);
+    expect(
+      oldEnginePaths("services/canvas-sync/README.md", "(`src/engine/collector.ts`, a timer)"),
+    ).toEqual([]);
     expect(oldEnginePaths("src/a.ts", 'import "./src/engines"')).toEqual([]);
   });
 });

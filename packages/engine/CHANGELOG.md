@@ -7,6 +7,156 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.14.1] — unreleased
+
+The release jams.team hosts games on: a typed channel between a released
+game in a sandboxed frame and the page that frames it, the codes a site's
+release routes refuse with, and the editor's seam for publishing. It also
+closes 0.14.0's leftovers: export and standalone tidy-ups, a replay that
+restores its recorded persist, a runHash that ignores schema pointers, a
+seed-stale close that ends a live client, and engine UI that takes the
+pointer itself outside the site's stylesheet.
+
+### Added
+
+- `./standalone`: the `jams-host` channel's protocol (`HOST_PROTOCOL_VERSION`
+  1, `HOST_MESSAGE_MAX_BYTES` 64 KiB, `HOST_DOWNLOAD_MAX_BYTES` 16 MiB,
+  `HOST_HANDSHAKE_TIMEOUT_MS`), its zod schemas (`frameReadySchema`,
+  `hostHandshakeSchema`, `frameMessageSchema`, `hostMessageSchema`,
+  `welcomeSchema`, `HOST_REQUESTS` and the save, limits and issue schemas
+  they use), `hostMessageBytes`, `withinHostMessageCap`, `connectHost`,
+  `hostRequested`, the `HostChannel` type and `channelSaveStore`.
+  `StandaloneGame.host` is the channel, or null.
+- `connectHost` opens the `jams-host` channel. On `?host=jams` it posts
+  `jams:frame-ready` to the parent, keeps the first `jams:host` port and
+  says `hello`. It resolves null without a parent or with no port and
+  `welcome` within 2 s (`HOST_HANDSHAKE_TIMEOUT_MS`). Every page message is
+  validated; invalid ones are dropped and counted on `HostChannel.dropped`,
+  never thrown. Requests reject with the new `HostRequestError`, whose
+  `issue` is the page's own, or `save-store-failed` when the channel closes
+  or the page's result isn't the method's.
+- `channelSaveStore(channel)`: kind `host`; `describe` and `limits` come
+  from `welcome` and update on `saves.changed`. A write the page refuses
+  returns the page's issue unchanged.
+- `.`: `snapshotRemapStore(initial, save)`: `load` reads the host's snapshot
+  (null unless it is a v1 state), then the latest change. `save` hands the
+  latest state back 500 ms after the last change.
+- `bootStandalone` with a host: saves go to `channelSaveStore` and remaps to
+  `snapshotRemapStore` (posting `prefs.save { store: 'remap' }`). No service
+  worker registers and the install prompt is off. `state` reports loading,
+  ready, or error with the first issue. The page's `pause`/`resume` pause
+  the game, and resume only undoes a pause the page caused. A game's own
+  `saves.store` still wins. Without `?host=jams`, or with no answer in 2 s,
+  it behaves as 0.14.0.
+- `./editor-ui`: the publishing seam, `EditorHost.publish`
+  (`EditorPublishHost` with `UsageView`, `ReleaseView`, `GameSettingsView`,
+  `PublishWording` and their parts); the Publish panel and the project
+  settings' Usage section show only for a host that publishes.
+- `purgeAsset` project op: deletes a trashed asset and its hash history for
+  good, so its blobs become unreferenced; anything not in the trash is
+  refused with `asset-not-trashed`. It has no inverse: a batch with a purge
+  is written with an untracked origin and is on no undo stack.
+  `ProjectBatchCheck` reports the removed keys as `purged`, and
+  `writeProjectState` now removes entries and history the new state no
+  longer has.
+- Issue codes `asset-not-trashed`, `release-immutable`, `release-forbidden`;
+  `quota-exceeded` documents its `limit` names.
+- README: §Saves (where saves live and how big they can be), §Publishing on
+  jams.team (releases, limits, cleanup, sandbox), and §Export's itch.io
+  line.
+- `.`: the `render:failed { backend }` event, emitted when rebuilding the
+  renderer after a lost GPU context fails; nothing draws again and
+  `render:restored` never follows.
+- `mirrorRenderState(game, root?)` (`./standalone`): mirrors
+  `render:lost`/`render:restored`/`render:failed` on the root element's
+  `data-jams-render` (`lost`, `restored`, `rebuilt`, `failed`) and `render:fallback`'s reason on
+  `data-jams-render-fallback`; `bootStandalone` and the site's game room
+  call it, and the export smoke reads it instead of the lost overlay.
+- The editor's project settings gain a Usage section when the host
+  publishes (`EditorHost.publish`). It shows one bar per `UsageView` line
+  with the host's caption, the asset breakdown, the nearly-full and full
+  notices and the cleanup rules, and an Empty trash button. That button asks
+  through the editor's confirm, using the host's `trash.confirm` text, then
+  deletes every trashed asset for good in one `purgeAsset` batch.
+- The editor's Publish panel (shown only when the host supplies `publish`):
+  the release command with a copy button and Create one (the host's token
+  dialog) while the project has no release; the usage lines and the
+  nearly-full or full notice; Production and Preview, with Promote (asks
+  first) and Roll back production; the release list (version, short id,
+  size, engine, upload time, channels, jam pins, hidden and removed states,
+  Play); the Removed soon forecast; visibility, Where this game saves and
+  Connects to, saved through `publish.setSettings` with pending feedback,
+  the host's toasts and an inline error when the host refuses.
+
+### Changed
+
+- `game manifest` and `game build` print the wasm line once, in the
+  summary, in place of the `physics rapier|none` line; `game manifest
+--json` gains `wasm` (the same data `game build` returns).
+- `runHash` no longer covers a project doc's `$schema` (the game-settings
+  and input-map file-location pointer), so moving a schema file stales no
+  recording or save; every recorded `runHash` is re-pinned once: tactics
+  `fixtures/level-1.recording.json` ba18737a27e39b3b -> 715ae3af7674ba20,
+  tactics `fixtures/level-2.save.json` and
+  `scripts/scene/examples/newer.save.json` ef28c8e6400352cb ->
+  5b3561382e3af67f, the engine project's `saves/grid-yard.save.json`
+  233dd275d5b5e95e -> 5939d1cf13bf8952 (re-saved with `vp run scene save`,
+  so its `engine` field reads 0.14.0 and its sidecar sha256 moved).
+- `EditorProjectLink.openScene` takes `{ madeFrom }`; undoing New scene…
+  returns the editor to the scene it was made from (else the scene it came
+  from) instead of leaving it on the deleted, empty scene.
+
+### Fixed
+
+- An export refuses a shipped blob whose entry records no size with
+  `asset-missing`, instead of shipping it as `bytes: 0` (a hosted view could
+  hit this, and the release's snapshot then disagreed with
+  `snapshotProject`).
+- The export build's credits no longer list the project's own modules as a
+  third-party package when the project sits inside a `node_modules` path
+  (the `game new` stage).
+- `GameInstance.replay` puts the recording's `start.persist` into the
+  instance's persist cell before the load, as a headless replay does, and
+  refuses (ok: false, the value kept) a `start.persist` the game's persist
+  schema rejects.
+- `restoreSave` refuses a save holding a non-null `persist` for a game that
+  declares no `persist` (`schema` at `/persist`).
+- Scene CLI: a seed-stale close after sync ends a live project client with a
+  fatal `ProjectClientError` telling the caller to rerun, instead of
+  reattaching for the rest of the command.
+- The standalone boot error panel takes the pointer itself (`pointer-events: auto`),
+  so Reload stays clickable whatever the page sets around `root`.
+- editor-ui: a number field's scrub or an angle dial that is mid-drag when the
+  field turns disabled (the doc went read-only) is dropped, its preview cleared,
+  and never commits; the dial marks itself `data-disabled` in place of an
+  `aria-disabled` its `presentation` role doesn't support.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 16, and every committed JSON Schema's
+  `x-agent-surface` with it.
+- Issue codes `asset-not-trashed`, `release-immutable` and
+  `release-forbidden`; `quota-exceeded`'s summary names a hosted project's
+  quotas.
+- The project op `purgeAsset` (`project-ops.schema.json`).
+- `game release create|list|promote|rollback` (scene CLI): build or take
+  `--from`'s build, upload to the hosted project over the release routes
+  with an agent token (`--hosted` pulls the hosted project first), preview
+  only; production refusals print the game's page.
+- MCP: `game_release_create`, `game_release_list`, `game_release_promote`,
+  `game_release_rollback`, over `game release …`. They use the agent token
+  and site from the server's environment (`JAMS_AGENT_TOKEN`,
+  `JAMS_AGENT_SITE`), never from tool arguments, and return the release
+  summary, never file bytes. Production is refused (`release-forbidden`)
+  with the game page's URL.
+
+### Internal
+
+- The shooter and tower-defense genre probes give their bullets and bolts
+  the `lifetime` behavior instead of emit-form timers; the tower-defense
+  probe's digest moves from `ea1f21e098681a71` to `b039a55159fd6798` (a
+  lifetime ends before its tick's timers), the shooter's is unchanged.
+
 ## [0.14.0] — unreleased
 
 Standalone web export: any game builds into a static bundle that runs on

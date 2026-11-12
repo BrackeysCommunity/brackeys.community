@@ -1875,7 +1875,8 @@ through `applyOpsToDoc` (ops that write prefabs through
 docs. `changeAssetId` writes the entry, the prefab header of a prefab,
 and every referrer the same way. A batch that wrote two or more docs
 also appends one project log entry naming each doc's entry. When
-`origin` is the session's, the batch is one undo step.
+`origin` is the session's, the batch is one undo step, unless it purges
+an asset: then it is on no undo stack.
 
 ```ts
 declare function applyProjectBatch(session: ProjectSession, batch: ProjectOpBatch, origin: DocOrigin, opts?: ProjectApplyOptions): Promise<ProjectApplyResult>;
@@ -3151,7 +3152,8 @@ _function_ in `collab/project-doc.ts`
 
 Writes `next`'s registry where it differs from `prev` (the state `doc`
 held when `next` was computed from it): changed entries field by field,
-and history entries past `prev`'s. Call inside the batch's transaction.
+history entries past `prev`'s, and the removal of an entry or history
+`next` no longer has (a purge). Call inside the batch's transaction.
 
 ```ts
 declare function writeProjectState(doc: Y.Doc, prev: ProjectState, next: ProjectState): void;

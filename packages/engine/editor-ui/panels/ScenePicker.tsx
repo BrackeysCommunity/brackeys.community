@@ -290,8 +290,8 @@ export function ScenePicker({
 /**
  * Asks for the new scene's name, and whether to add it to the scene list
  * (offered while the project has one this build may write). Create applies
- * one batch, beside the open scene, says so and opens the new scene; a
- * refusal stays in the dialog.
+ * one batch, beside the open scene, says so and opens the new scene (an
+ * undo of it returns to this one); a refusal stays in the dialog.
  */
 export function NewSceneDialog({
   project,
@@ -325,7 +325,7 @@ export function NewSceneDialog({
       return false;
     }
     notify?.success(`Created ${name.trim()}`);
-    openScene?.(made.id);
+    openScene?.(made.id, near ? { madeFrom: near } : {});
     return true;
   };
 

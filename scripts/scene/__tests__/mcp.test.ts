@@ -2,7 +2,7 @@
 import { createHash } from "node:crypto";
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { HocuspocusProvider } from "@hocuspocus/provider";
@@ -19,6 +19,10 @@ import * as Y from "yjs";
 import { z } from "zod";
 
 import { platformerGame } from "../../../src/games/platformer";
+import {
+  plannedRelease,
+  type PlannedRelease,
+} from "../../../src/lib/engine/__tests__/release-fixture";
 import type { ToolContext } from "../context";
 import { REPO_ROOT } from "../default-context";
 import { AGENT_SITE_ENV, AGENT_TOKEN_ENV } from "../hosted";
@@ -101,6 +105,10 @@ describe("scene MCP server", () => {
       "game_build",
       "game_manifest",
       "game_new",
+      "game_release_create",
+      "game_release_list",
+      "game_release_promote",
+      "game_release_rollback",
       "project_tree",
       "scene_apply_ops",
       "scene_check",
@@ -122,9 +130,19 @@ describe("scene MCP server", () => {
       asset_apply_ops: true,
       game_new: false,
     };
+    const releases: Record<string, { readOnlyHint: boolean; idempotentHint?: boolean }> = {
+      game_release_create: { readOnlyHint: false, idempotentHint: true },
+      game_release_list: { readOnlyHint: true },
+      game_release_promote: { readOnlyHint: false, idempotentHint: false },
+      game_release_rollback: { readOnlyHint: false, idempotentHint: false },
+    };
     for (const t of tools) {
       expect(t.inputSchema.properties, t.name).toHaveProperty("project");
-      if (t.name === "game_build") {
+      if (t.name in releases) {
+        expect(t.annotations, t.name).toMatchObject({ ...releases[t.name], openWorldHint: true });
+        for (const arg of ["token", "url", "site", "dryRun"])
+          expect(t.inputSchema.properties, t.name).not.toHaveProperty(arg);
+      } else if (t.name === "game_build") {
         expect(t.annotations).toMatchObject({
           readOnlyHint: false,
           destructiveHint: true,
@@ -1602,6 +1620,10 @@ describe("game_build and game_manifest", () => {
       expect(built.isError).toBe(false);
       expect(built.structuredContent.exitCode).toBe(0);
       expect(built.structuredContent).toHaveProperty("summary");
+      const wasmLines = (summary: unknown) => String(summary).match(/\bwasm: .*/g);
+      expect(wasmLines(built.structuredContent.summary)).toEqual([
+        "wasm: 0 B (no listed scene uses Rapier)",
+      ]);
       expect(Array.isArray(built.structuredContent.issues)).toBe(true);
       expect(built.content.map((c) => c.type)).toEqual(["text"]);
       const json = JSON.stringify(built.structuredContent);
@@ -1615,6 +1637,10 @@ describe("game_build and game_manifest", () => {
       expect(checked.isError).toBe(false);
       expect(checked.structuredContent.exitCode).toBe(0);
       expect(checked.structuredContent).toHaveProperty("summary");
+      expect(wasmLines(checked.structuredContent.summary)).toEqual(
+        wasmLines(built.structuredContent.summary),
+      );
+      expect(checked.structuredContent.wasm).toEqual(built.structuredContent.wasm);
       expect(checked.structuredContent.manifest).toMatchObject({
         kind: "release",
         v: 1,
@@ -1646,4 +1672,282 @@ describe("game_build and game_manifest", () => {
       );
     },
   );
+});
+
+describe("game releases", () => {
+  const SITE = "https://staging.example.test";
+  const SECRET = "jat_mcpReleaseTokenThatStaysHome";
+  const PROJECT = "fixture";
+  const ENV = { [AGENT_TOKEN_ENV]: SECRET, [AGENT_SITE_ENV]: SITE };
+  const tool = (name: string) => MCP_TOOLS.find((t) => t.name === name)!;
+  let releaseRoot: string;
+  let buildDir: string;
+  let planned: PlannedRelease;
+  let projects: ToolContext["projects"];
+
+  type Release = { version: number; id: string; totalBytes: number; fileCount: number };
+  type FakeSite = {
+    fetch: typeof fetch;
+    requests: { method: string; url: string; auth: string | null; body: string | null }[];
+    preview: number | null;
+    production: number | null;
+    releases: Release[];
+  };
+
+  const apiError = (status: number, code: string, message: string, hint?: string) =>
+    Response.json({ code, message, ...(hint === undefined ? {} : { hint }) }, { status });
+
+  const line = (quota: string, used: number, max: number) => ({
+    quota,
+    used,
+    max,
+    ratio: used / max,
+    level: used / max >= 1 ? "full" : used / max >= 0.8 ? "warn" : "ok",
+  });
+
+  /** The site's release routes for one project and one agent token, in memory. */
+  function fakeSite(): FakeSite {
+    const held = new Set<string>();
+    let upload: { id: string; releaseId: string; text: string; missing: Set<string> } | null = null;
+    const site: FakeSite = {
+      requests: [],
+      preview: null,
+      production: null,
+      releases: [],
+      fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(
+          typeof input === "string" ? input : input instanceof URL ? input : input.url,
+        );
+        const method = init?.method ?? "GET";
+        const auth = new Headers(init?.headers).get("authorization");
+        const body =
+          typeof init?.body === "string"
+            ? init.body
+            : init?.body instanceof Uint8Array
+              ? `<${init.body.byteLength} bytes>`
+              : null;
+        site.requests.push({ method, url: url.href, auth, body });
+        if (url.origin !== SITE) return apiError(404, "not-found", "Not found.");
+        if (auth !== `Bearer ${SECRET}`)
+          return apiError(401, "release-forbidden", "That agent token isn't valid.");
+        const base = `/api/engine/projects/${PROJECT}/releases`;
+        const json = () => JSON.parse(body ?? "{}") as Record<string, unknown>;
+        const usageNow = () => [
+          line("releaseStorageBytes", 430 * 1_048_576, 512 * 1_048_576),
+          line("releasesPerDay", 1, 20),
+        ];
+        if (url.pathname === base && method === "POST") {
+          const { manifest } = json() as { manifest: string };
+          const parsed = JSON.parse(manifest) as {
+            build: { files: { path: string; sha256: string; bytes: number }[] };
+          };
+          const missing = parsed.build.files.filter((f) => !held.has(f.sha256));
+          upload = {
+            id: "up-1",
+            releaseId: planned.releaseId,
+            text: manifest,
+            missing: new Set(missing.map((f) => f.sha256)),
+          };
+          return Response.json({
+            uploadId: upload.id,
+            releaseId: upload.releaseId,
+            version: null,
+            missing,
+            usage: { before: usageNow(), after: usageNow() },
+          });
+        }
+        if (url.pathname === base && method === "GET") {
+          return Response.json({
+            releases: site.releases.map((r) => ({
+              ...r,
+              createdAt: "2026-11-12T00:00:00.000Z",
+              engineVersion: planned.manifest.engine.version,
+              target: "web",
+              channels: [
+                ...(site.preview === r.version ? ["preview"] : []),
+                ...(site.production === r.version ? ["production"] : []),
+              ],
+              jams: [],
+              firstPromotedAt: null,
+              collectedAt: null,
+              hidden: null,
+              audience: "publishers",
+              removalAt: null,
+              playUrl: `${SITE}/games/${PROJECT}/play/${r.version}`,
+            })),
+          });
+        }
+        const put = /^\/api\/engine\/releases\/uploads\/([^/]+)\/files\/([0-9a-f]{64})$/.exec(
+          url.pathname,
+        );
+        if (put && method === "PUT") {
+          if (upload?.id !== put[1]) return apiError(404, "not-found", "No such upload.");
+          held.add(put[2]!);
+          upload.missing.delete(put[2]!);
+          return new Response(null, { status: 204 });
+        }
+        if (url.pathname === `${base}/commit` && method === "POST") {
+          if (upload === null) return apiError(404, "not-found", "No such upload.");
+          if (upload.missing.size > 0)
+            return apiError(409, "release-files-missing", `${upload.missing.size} files missing.`);
+          const total = planned.manifest.build.files.reduce((n, f) => n + f.bytes, 0);
+          const version = site.releases.length + 1;
+          site.releases.unshift({
+            version,
+            id: upload.releaseId,
+            totalBytes: total,
+            fileCount: planned.manifest.build.files.length,
+          });
+          site.preview = version;
+          return Response.json(
+            {
+              releaseId: upload.releaseId,
+              version,
+              created: true,
+              playUrl: `${SITE}/games/${PROJECT}/play/${version}`,
+            },
+            { status: 201 },
+          );
+        }
+        const move = /\/releases\/(?:(\d+)\/(promote|rollback)|(rollback))$/.exec(url.pathname);
+        if (move && method === "POST" && url.pathname.startsWith(base)) {
+          const { channel } = json() as { channel: string };
+          if (channel === "production")
+            return apiError(
+              403,
+              "release-forbidden",
+              "Production releases are moved by a person on the game's page.",
+              `${SITE}/games/${PROJECT}`,
+            );
+          const from = site.preview;
+          const to = move[1] !== undefined ? Number(move[1]) : (from ?? 1) - 1;
+          site.preview = to;
+          return Response.json({ from, to });
+        }
+        return apiError(404, "not-found", "Not found.");
+      }) as typeof globalThis.fetch,
+    };
+    return site;
+  }
+
+  const ctxFor = (site: FakeSite, env: Record<string, string> = ENV): ToolContext => ({
+    projects,
+    loadRapier: loadCompatRapier,
+    env,
+    fetch: site.fetch,
+  });
+
+  const run = async (name: string, input: Record<string, unknown>, ctx: ToolContext) =>
+    (await runMcpTool(tool(name), input, ctx)) as Called;
+
+  beforeAll(async () => {
+    releaseRoot = await mkdtemp(join(tmpdir(), "scene-mcp-release-"));
+    projects = [await tempProject(join(releaseRoot, PROJECT), { id: PROJECT })];
+    planned = await plannedRelease({ projectId: PROJECT });
+    buildDir = join(releaseRoot, "build");
+    await mkdir(buildDir, { recursive: true });
+    await writeFile(join(buildDir, "release.json"), planned.text);
+    for (const [path, bytes] of planned.files) {
+      await mkdir(dirname(join(buildDir, path)), { recursive: true });
+      await writeFile(join(buildDir, path), bytes);
+    }
+  });
+
+  afterAll(async () => {
+    await rm(releaseRoot, { recursive: true, force: true });
+  });
+
+  it("asks for the agent token and site in the server's environment, sending nothing", async () => {
+    for (const [env, says] of [
+      [{ [AGENT_SITE_ENV]: SITE }, AGENT_TOKEN_ENV],
+      [{ [AGENT_TOKEN_ENV]: SECRET }, AGENT_SITE_ENV],
+      [{ [AGENT_TOKEN_ENV]: SECRET, [AGENT_SITE_ENV]: "ftp://example.test" }, AGENT_SITE_ENV],
+    ] as const) {
+      const site = fakeSite();
+      for (const [name, input] of [
+        ["game_release_create", { id: PROJECT, from: buildDir }],
+        ["game_release_list", { id: PROJECT }],
+        ["game_release_promote", { id: PROJECT, version: 1, channel: "preview" }],
+        ["game_release_rollback", { id: PROJECT, channel: "preview" }],
+      ] as const) {
+        const r = await run(name, input, ctxFor(site, env));
+        expect(r, name).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
+        expect(JSON.stringify(r), name).toContain(says);
+      }
+      expect(site.requests).toEqual([]);
+    }
+  });
+
+  it("creates a release and returns its summary, never a file's bytes", async () => {
+    const site = fakeSite();
+    const r = await run("game_release_create", { id: PROJECT, from: buildDir }, ctxFor(site));
+    expect(r.isError, JSON.stringify(r)).toBe(false);
+    expect(r.structuredContent.exitCode).toBe(0);
+    expect(site.preview).toBe(1);
+    const json = JSON.stringify(r);
+    expect(json).toContain(`${SITE}/games/${PROJECT}/play/1`);
+    expect(json).toContain(planned.releaseId.slice(0, 6));
+    expect(r.structuredContent).toMatchObject({
+      version: 1,
+      releaseId: planned.releaseId,
+      playUrl: `${SITE}/games/${PROJECT}/play/1`,
+      gamePage: `${SITE}/games/${PROJECT}`,
+    });
+    const summary = String(r.structuredContent.summary);
+    expect(summary).toMatch(
+      new RegExp(`^Released ${PROJECT} v1 \\(${planned.releaseId.slice(0, 6)}`),
+    );
+    expect(summary).toContain("release storage");
+    expect(summary).toMatch(/^warning: release storage is 83% full/m);
+    expect(json).not.toContain(SECRET);
+    expect(json).not.toContain("export {};");
+    for (const bytes of planned.files.values())
+      if (bytes.byteLength >= 16) expect(json).not.toContain(Buffer.from(bytes).toString("base64"));
+    expect(json.length).toBeLessThan(16_384);
+    for (const req of site.requests) {
+      expect(new URL(req.url).origin).toBe(SITE);
+      expect(req.auth).toBe(`Bearer ${SECRET}`);
+    }
+    expect(site.requests.some((q) => q.method === "PUT")).toBe(true);
+
+    const listed = await run("game_release_list", { id: PROJECT }, ctxFor(site));
+    expect(listed.isError, JSON.stringify(listed)).toBe(false);
+    expect(JSON.stringify(listed)).toContain(planned.releaseId.slice(0, 6));
+  });
+
+  it("refuses production and names the game's page, moving nothing", async () => {
+    const site = fakeSite();
+    site.releases = [
+      { version: 2, id: "b".repeat(64), totalBytes: 10, fileCount: 1 },
+      { version: 1, id: "a".repeat(64), totalBytes: 10, fileCount: 1 },
+    ];
+    site.preview = 2;
+    for (const [name, input] of [
+      ["game_release_promote", { id: PROJECT, version: 1, channel: "production" }],
+      ["game_release_rollback", { id: PROJECT, channel: "production" }],
+      ["game_release_create", { id: PROJECT, from: buildDir, channel: "production" }],
+    ] as const) {
+      const r = await run(name, input, ctxFor(site));
+      expect(r.isError, name).toBe(true);
+      expect(r.structuredContent.exitCode, name).toBeGreaterThanOrEqual(1);
+      const json = JSON.stringify(r);
+      expect(json, name).toMatch(/production/i);
+      if (name !== "game_release_create") {
+        expect(json, name).toContain("release-forbidden");
+        expect(json, name).toContain(`${SITE}/games/${PROJECT}`);
+      }
+      expect(json, name).not.toContain(SECRET);
+    }
+    expect(site.production).toBe(null);
+    expect(site.preview).toBe(2);
+    expect(site.releases).toHaveLength(2);
+
+    const promoted = await run(
+      "game_release_promote",
+      { id: PROJECT, version: 1, channel: "preview" },
+      ctxFor(site),
+    );
+    expect(promoted.isError, JSON.stringify(promoted)).toBe(false);
+    expect(site.preview).toBe(1);
+  });
 });

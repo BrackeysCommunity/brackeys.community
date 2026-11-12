@@ -116,6 +116,7 @@ export {
 export {
   browserRemapStore,
   memoryRemapStore,
+  snapshotRemapStore,
   type RemapState,
   type RemapStore,
 } from "./input/remap";

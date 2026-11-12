@@ -6,7 +6,6 @@ import {
   DEFAULT_BUILD_TARGET,
   DEFAULT_ZIP_TARGET,
   exportTargetNames,
-  formatBytes,
   planContent,
   type ExportInput,
   type ExportPlan,
@@ -17,7 +16,6 @@ import {
   projectView,
   RELEASE_FILE,
   releaseId,
-  type ReleaseManifest,
   type ReleaseTarget,
 } from "@jams/engine/project";
 import { closest, type SceneIssue } from "@jams/engine/scene";
@@ -75,40 +73,6 @@ export const defaultBuildOut = (id: string, target: string) => join("dist", "gam
 export const bundleReportDir = (out: string) => `${resolve(out)}.bundle-report`;
 
 const isError = (i: SceneIssue) => i.severity === "error";
-
-/** What a build ships of Rapier, as the summary's wasm line and as data. */
-export type WasmReport = {
-  line: string;
-  data: {
-    bytes: number;
-    package: string | null;
-    version: string | null;
-    /** `-compat` carries its wasm inside the code, so `bytes` is 0 and the code is larger. */
-    inlined: boolean;
-    scenes: string[];
-  };
-};
-
-/**
- * The wasm line, printed either way: the bytes are the budget's measured
- * `wasmBytes`, the scenes those the manifest records as Rapier.
- */
-export function wasmOf(m: ReleaseManifest): WasmReport {
-  const bytes = m.budget.measured.wasmBytes;
-  const scenes = m.flow.scenes.filter((s) => s.physics === "rapier").map((s) => s.id);
-  const rapier = m.build.rapier;
-  if (!rapier)
-    return {
-      line: `wasm: ${formatBytes(bytes)} (no listed scene uses Rapier)`,
-      data: { bytes, package: null, version: null, inlined: false, scenes },
-    };
-  const inlined = rapier.file === null;
-  const where = inlined ? ` inlined in the code (${formatBytes(rapier.bytes)})` : "";
-  return {
-    line: `wasm: ${formatBytes(bytes)} (${rapier.package} ${rapier.version}${where}, scenes: ${scenes.join(", ")})`,
-    data: { bytes, package: rapier.package, version: rapier.version, inlined, scenes },
-  };
-}
 
 /** A finished build: where it is and what it holds. */
 export type BuiltGame = {
@@ -326,11 +290,9 @@ export async function buildGame(
     (i) => isError(i) && !(input.allowOverBudget && i.code === "export-over-budget"),
   );
   const summary = manifestSummary(finished.manifest);
-  const wasmLine = wasmOf(finished.manifest);
   const text = [
     `${id} ${target}: wrote ${shownPath(out)} (release ${release})`,
     ...summary.lines,
-    `  ${wasmLine.line}`,
     `  bundle report ${shownPath(report)}`,
     ...finished.issues.map(issueLine),
     ...(overBudget
@@ -352,7 +314,6 @@ export async function buildGame(
         report,
         release,
         ...summary.data,
-        wasm: wasmLine.data,
         overBudget,
         issues: finished.issues,
       },

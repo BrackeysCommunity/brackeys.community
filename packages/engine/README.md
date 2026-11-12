@@ -524,7 +524,8 @@ seat's input, enough to replay the run tick for tick:
   decoder the recorder, replays, headless runs and the shell share.
 - **`runHash`** hashes what the run ran: the expanded scene, the resolved
   clock and the project's settings, engine block, tables, prefab library
-  and input map. A replay is `stale` when it differs; `sceneHash` is kept
+  and input map. A doc's `$schema` isn't covered, so moving a schema file
+  stales nothing. A replay is `stale` when it differs; `sceneHash` is kept
   and shown.
 - **Platforms.** `platform` names the `arch`, the `runtime` and the
   Rapier `flavour` (`rapier2d`, `rapier2d-compat`,
@@ -1997,13 +1998,16 @@ duplicate id or path), `checkProjectBatch` for project ops, and
 - **Project ops** (`project-ops:v1`): `createAsset`, `importAsset`,
   `renameAsset`, `moveAsset`, `deleteAsset` (refused with `asset-in-use`
   while something names it, unless `force`), `restoreAsset`,
-  `changeAssetId` (rewrites every reference in one batch, a material's
-  bulk keys such as `solid:bouncy` and instance overrides included),
+  `purgeAsset` (deletes a trashed asset and its replaced versions for
+  good; anything else is `asset-not-trashed`), `changeAssetId` (rewrites
+  every reference in one batch, a material's bulk keys such as
+  `solid:bouncy` and instance overrides included),
   `setImport`, `replaceContent`, `setLicence`, `editAsset` (JSON pointer
   edits, with `@<id>` for a keyed item) and `editScene` (scene ops). A
   scene's checks file follows it through `moveAsset` and `renameAsset`,
   and counts as a referrer when the scene is deleted. One batch is one
-  undo step across every doc it writes.
+  undo step across every doc it writes, except a batch with a
+  `purgeAsset`, which has no inverse and is on no undo stack.
 - **Doc names.** `project:<id>` is the registry, `scene:<project>.<key>`
   a scene and `asset:<project>.<key>` any other doc kind
   (`docNameOf`, `parseDocName`).
@@ -2054,11 +2058,11 @@ what to do next:
   `quota-exceeded`, naming the limit, what is used and the maximum. The
   per-project numbers come with plan 55's publishing work; until then
   hosted projects run under `UNLIMITED_QUOTA`.
-- **Cleanup:** deleted assets go to the trash and stay restorable.
-  `unreferencedBlobs` names the content-hash blobs nothing references: not
-  a live or trashed asset's bytes, not in an asset's hash history within
-  the grace period, and not pinned by a snapshot. Only those may be
-  collected.
+- **Cleanup:** deleted assets go to the trash and stay restorable until
+  a `purgeAsset` removes one with its hash history. `unreferencedBlobs`
+  names the content-hash blobs nothing references: not a live or
+  trashed asset's bytes, not in an asset's hash history within the grace
+  period, and not pinned by a snapshot. Only those may be collected.
 
 ## Sprites and rendering
 
@@ -4398,10 +4402,12 @@ that was playing. A game that declares none reads null.
   every `loadScene`, flow change, sublevel attach and Play-from-here. It is
   reset to `initial()` by `game.flow.restart()`, replaced by a flow
   request's `persist` before the next load, and set to the saved value when
-  a save loads.
+  a save loads. A save holding a persistent value for a game that declares
+  none is refused (`schema` at `/persist`).
 - **Not in any digest by itself.** A game whose run branches on it puts
   what matters in `snapshot()`. Recordings carry it at their start
-  (`start.persist`), and a replay sets it before the load.
+  (`start.persist`), and a replay sets it before the load, in the browser
+  (`GameInstance.replay`) as headlessly.
 - **Headless:** `PlayState.persist` reaches `play.outcome` and the game's
   predicates, `until: { persist: … }` waits on it, and runtimes that should
   share one value take the same cell from `createPersistCell(initial,
@@ -4443,6 +4449,38 @@ cellar in the harbour's `onLoad` and detaches it with the last letter; the
 second game attaches `cellar` when a unit steps on level 2's stair cell.
 
 ## Saves
+
+**Where saves live, and how big they can be.** A game's saves go to the
+first store that applies: the game's own (`saves.store`), then the
+host's (`GameConfig.saves`, which jams.team sets), then the player's
+browser (IndexedDB, else `localStorage`, else memory).
+
+**Bring your own save backend for anything beyond small saves.** It is
+the recommended path: you choose the size, the retention and the
+accounts, and no host's limits apply. Implement `SaveStore` (five
+methods and a `describe` sentence that tells players where their saves
+live and for how long) and return it from `saves.store`. On jams.team,
+also list your backend's origin under "Connects to" in the game's
+settings, or the game's sandbox blocks the request.
+
+| Store                          | Per save   | Saves per game | Kept                                                  |
+| ------------------------------ | ---------- | -------------- | ----------------------------------------------------- |
+| Engine default (any store)     | 64 KB      | 8              | —                                                     |
+| The browser (raised by a game) | up to 1 MB | up to 64       | until the player clears the site's data               |
+| jams.team, signed in           | 32 KB      | 4              | 180 days after last use; 1 MB per player across games |
+| jams.team, signed out          | 32 KB      | 4              | in that browser until the player clears its site data |
+| Your own backend               | yours      | yours          | yours                                                 |
+
+A store may be stricter than your game's limits, never looser: on
+jams.team a save over 32 KB is refused with `save-too-large` before it
+is sent, whatever `saves.limits` says. Keep `snapshot()` small (ids and
+counters, not derived data); a progress save is usually under 1 KB.
+Sizes in this README count in 1,024s: a KB is 1,024 bytes and an MB is
+1,024 KB.
+
+**Preferences stay in the browser.** Key bindings, volumes, mutes,
+language, captions and latency calibration are never part of a save and
+are never uploaded, on jams.team or anywhere.
 
 A save is a `save:v1` file at one of two depths:
 
@@ -5575,6 +5613,10 @@ and a fixed 1980-01-01 time, so two exports of one build are equal bytes on
 every runtime. Nothing is uploaded: create the itch.io page as an HTML
 game and upload the zip yourself.
 
+itch.io takes at most 1,000 files, 500 MB extracted and 200 MB per file
+(checked by `game export --zip`); a jams.team release may have more files
+than itch.io accepts.
+
 ```ts itch-zip.ts
 import { checkItchLayout, ITCH_LIMITS, zipFiles } from "@jams/engine/export";
 
@@ -5615,6 +5657,45 @@ game:export <id> --zip` pack first as a Vite Task dependency; a direct
 is missing or older than the source, one pack at a time. A test that
 builds a game needs a timeout long enough for one pack (up to 10 minutes).
 
+## Publishing on jams.team
+
+`vp run scene game release create <project>` builds the game, uploads
+what jams.team doesn't already have, and puts the new release on the
+game's **preview** channel. A person with the publisher role promotes it
+to **production** on the game's page; agents and tokens can't.
+
+A release is immutable: its id is the SHA-256 of its `release.json`, and
+every file is stored and served by its hash, so a new version uploads
+only what changed. Each release gets the next version number (v1, v2,
+…), which never changes.
+
+**Limits per project, enforced by jams.team:**
+
+| Limit            | Number                                                                                    |
+| ---------------- | ----------------------------------------------------------------------------------------- |
+| Release size     | 100 MB, 2,000 files, 32 MB per file (every file counts, including audio that loads later) |
+| Release storage  | 512 MB across the project's releases (files shared between releases count once)           |
+| Releases kept    | the 10 newest, plus the live preview and production releases and up to 8 jam versions     |
+| Releases per day | 20                                                                                        |
+| Asset storage    | 256 MB of uploaded assets, including the trash and replaced versions                      |
+| Documents        | 1,000 documents and 64 MB of document data                                                |
+
+You see usage against each limit in the editor (Project settings →
+Usage) and before every publish, with a warning at 80%; an upload that
+would pass a limit is refused before any file is sent, with a message
+that names the limit and what to do.
+
+**Cleanup, automatically, every day:** a release that is neither among
+the 10 newest nor pinned (live on a channel, or a jam version) is
+removed 14 days after it was published; its version number and history
+stay. A replaced version of an asset is deleted 30 days after it was
+replaced, unless a kept release uses it. Assets in the trash stay, and
+count toward asset storage, until you empty the trash.
+
+**The game runs sandboxed.** It can load only its own files, and connect
+only to them and to up to 4 origins you list under "Connects to".
+Builds need `@jams/engine` 0.14.1 or newer.
+
 ## Graphics loss
 
 A browser can take a page's GPU context away at any time: a driver reset,
@@ -5643,7 +5724,16 @@ so the game neither goes on blind nor stays a black canvas.
 | ----------------- | ---------------------------------------------- | ----------------------------------------------------------------- |
 | `render:lost`     | `{ backend }`                                  | the context was lost; the game is paused                          |
 | `render:restored` | `{ backend, rebuilt }`                         | drawing resumed, in place (`rebuilt: false`) or on a new renderer |
+| `render:failed`   | `{ backend }`                                  | the rebuild after a loss failed; nothing draws again              |
 | `render:fallback` | `{ from: "webgpu", reason: "init" \| "lost" }` | WebGL from here on; for `init`, emitted when the game starts      |
+
+- **On the page.** `mirrorRenderState(game, root?)` from `./standalone`
+  writes the events onto `root` (default `<html>`): `data-jams-render` is
+  `lost`, then `restored`, `rebuilt` or `failed`, and `data-jams-render-fallback` is
+  the fallback's reason. `bootStandalone` calls it, so a page, its tests or
+  a smoke read the renderer's state without listening. Call it before
+  `start()` to see an `init` fallback; the function it returns stops and
+  clears both attributes.
 
 ```ts graphics-loss.ts
 import { createGame, type GameInstance } from "@jams/engine";

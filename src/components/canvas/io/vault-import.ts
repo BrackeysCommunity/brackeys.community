@@ -21,9 +21,10 @@ import {
 } from "@/lib/canvas/json-canvas";
 import { CANVAS_IMPORT_LIMITS, CANVAS_LIMITS } from "@/lib/canvas/limits";
 import { basename, joinPath, pathKey, pathKind, pathTitle, repairPath } from "@/lib/canvas/paths";
+import { formatBytes } from "@/lib/format-bytes";
 
 import { dataUrlBytes, excalidrawToCanvas, isExcalidrawPath, parseExcalidraw } from "./excalidraw";
-import { formatBytes, isMarkdownPath, placeLoneNote, placeReferencedNote } from "./markdown-seam";
+import { isMarkdownPath, placeLoneNote, placeReferencedNote } from "./markdown-seam";
 
 export interface VaultEntry {
   path: string;

@@ -68,14 +68,14 @@ export function tokenAdmits(
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 
-function toBase64Url(bytes: Uint8Array): string {
+export function toBase64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 /** Null for anything that isn't base64url. */
-function fromBase64Url(text: string): Uint8Array<ArrayBuffer> | null {
+export function fromBase64Url(text: string): Uint8Array<ArrayBuffer> | null {
   if (!/^[A-Za-z0-9_-]*$/.test(text)) return null;
   const padded = text
     .replace(/-/g, "+")
@@ -93,7 +93,8 @@ function fromBase64Url(text: string): Uint8Array<ArrayBuffer> | null {
 
 const keys = new Map<string, Promise<CryptoKey>>();
 
-function hmacKey(secret: string): Promise<CryptoKey> {
+/** An HMAC-SHA256 key for `secret`, imported once per process. */
+export function hmacKey(secret: string): Promise<CryptoKey> {
   let key = keys.get(secret);
   if (!key) {
     key = crypto.subtle.importKey(

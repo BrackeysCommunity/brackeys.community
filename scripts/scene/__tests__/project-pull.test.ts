@@ -5,29 +5,17 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { applyOpsToDoc, readProject } from "@jams/engine/collab";
-import {
-  memoryContentStore,
-  PROJECT_FILE,
-  type CodeModuleInfo,
-  type ContentStore,
-  type ProjectBundle,
-} from "@jams/engine/project";
+import { memoryContentStore, PROJECT_FILE } from "@jams/engine/project";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import * as Y from "yjs";
 
 import { tacticsGame } from "../../../src/games/tactics";
-import { bundleProjectState } from "../../../src/lib/engine/bundle";
-import { prepareLoadedState } from "../../../src/lib/scene/doc-bytes";
-import {
-  emptyProjectState,
-  seedAssetState,
-  seedProjectState,
-} from "../../../src/lib/scene/project-bytes";
 import { runCli } from "../commands";
 import type { ToolContext } from "../context";
 import { openProject, type ProjectHandle } from "../projects";
 import { loadCompatRapier } from "../rapier-compat";
 import { tempProject } from "./fixtures";
+import { hostedSite } from "./fixtures/hosted-site";
 
 vi.mock("@/db", () => ({ db: {} }));
 
@@ -44,18 +32,6 @@ const DOT = Buffer.from(
   "base64",
 );
 
-/**
- * A project the site hosts, in memory as the site keeps it: absent while
- * the id is reserved and empty; once pushed, the registry and doc rows
- * `seedHostedProject` writes, each doc laid out as the service lays out
- * its seed on first load (a material left unloaded, with its seed only).
- */
-type Hosted = {
-  registry: Y.Doc;
-  docs: Map<string, { prefix: "scene" | "asset"; kind: string; doc: Y.Doc | null; seed: string }>;
-  game: string | null;
-};
-
 /** The ids the site has reserved, with the names it gave them. */
 const RESERVED: Record<string, string> = { [PROJECT]: "Deck", tactics: "Tactics" };
 
@@ -63,111 +39,14 @@ let root: string;
 let deck: string;
 let project: ProjectHandle;
 let ctx: ToolContext;
-const hostedProjects = new Map<string, Hosted>();
+const site = hostedSite({
+  token: TOKEN,
+  reserved: RESERVED,
+  handle: (id) => ctx.projects.find((p) => p.file.id === id)!,
+});
+const { requests, uploads } = site;
+const hostedProjects = site.projects;
 const deckHosted = () => hostedProjects.get(PROJECT)!;
-let blobs: ContentStore = memoryContentStore();
-const requests: { method: string; path: string; auth: string | null }[] = [];
-const uploads: { kind: string | null; type: string | null }[] = [];
-
-const b64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
-
-/**
- * What `seedHostedProject` does with a pushed bundle, judged as
- * `bundleProjectState` judges it with the kinds of the project's game.
- */
-async function seed(
-  id: string,
-  body: { bundle: ProjectBundle; game: string | null; code: Record<string, CodeModuleInfo> },
-) {
-  const handle = ctx.projects.find((p) => p.file.id === id)!;
-  const derived = await bundleProjectState(body.bundle, {
-    store: blobs,
-    kinds: handle.kinds,
-    registry: handle.registry,
-    code: body.code,
-  });
-  if (!derived.ok) return Response.json({ problems: derived.problems }, { status: 400 });
-  const registry = new Y.Doc();
-  Y.applyUpdate(registry, seedProjectState(derived.state));
-  const env = { registry: handle.registry, project: null };
-  const docs: Hosted["docs"] = new Map();
-  for (const d of derived.docs) {
-    let doc: Y.Doc | null = null;
-    if (d.kind !== "material") {
-      doc = new Y.Doc();
-      Y.applyUpdate(
-        doc,
-        d.prefix === "scene"
-          ? prepareLoadedState(`${id}.${d.key}`, null, d.seed).state
-          : seedAssetState({
-              project: id,
-              key: d.key,
-              kind: d.kind,
-              seed: d.seed,
-              kinds: handle.kinds,
-              env,
-            }),
-      );
-    }
-    docs.set(d.key, { prefix: d.prefix, kind: d.kind, doc, seed: d.seed });
-  }
-  hostedProjects.set(id, { registry, docs, game: body.game });
-  return Response.json({ projectId: id, docs: docs.size, warnings: [] }, { status: 201 });
-}
-
-/** The site's bundle and blob routes for each reserved project, for the one agent token. */
-const fakeSite = (async (input: RequestInfo | URL, init?: RequestInit) => {
-  const url = new URL(typeof input === "string" ? input : input instanceof URL ? input : input.url);
-  const headers = new Headers(init?.headers);
-  const auth = headers.get("authorization");
-  const method = init?.method ?? "GET";
-  requests.push({ method, path: url.pathname, auth });
-  if (auth !== `Bearer ${TOKEN}`)
-    return Response.json({ message: "That agent token isn't valid." }, { status: 401 });
-  const id = /^\/api\/engine\/projects\/([^/]+)\//.exec(url.pathname)?.[1];
-  const name = id === undefined ? undefined : RESERVED[id];
-  if (id === undefined || name === undefined)
-    return Response.json({ message: "Not found." }, { status: 404 });
-  const base = `/api/engine/projects/${id}`;
-  const hosted = hostedProjects.get(id);
-  if (url.pathname === `${base}/bundle`) {
-    if (method === "POST") {
-      if (hosted) return Response.json({ message: "exists" }, { status: 409 });
-      return seed(id, JSON.parse(init?.body as string));
-    }
-    const registry = hosted
-      ? Y.encodeStateAsUpdate(hosted.registry)
-      : seedProjectState(emptyProjectState(id, name));
-    const docs = [...(hosted?.docs ?? [])].map(([key, d]) => ({
-      prefix: d.prefix,
-      key,
-      kind: d.kind,
-      state: d.doc ? b64(Y.encodeStateAsUpdate(d.doc)) : null,
-      seed: d.doc ? null : d.seed,
-    }));
-    return Response.json({
-      projectId: id,
-      name,
-      game: hosted?.game ?? null,
-      project: b64(registry),
-      docs,
-      blobs: [],
-    });
-  }
-  if (url.pathname === `${base}/blobs` && method === "POST") {
-    uploads.push({ kind: headers.get("x-asset-kind"), type: headers.get("content-type") });
-    const bytes = new Uint8Array(init?.body as Uint8Array);
-    const sha = await blobs.put(bytes, headers.get("x-expect-sha256") ?? undefined);
-    return Response.json({ sha256: sha, bytes: bytes.byteLength }, { status: 201 });
-  }
-  const blob = new RegExp(`^${base}/blobs/([0-9a-f]{64})$`).exec(url.pathname);
-  if (blob) {
-    const bytes = await blobs.get(blob[1]!);
-    if (!bytes) return Response.json({ message: "Not found." }, { status: 404 });
-    return new Response(method === "HEAD" ? null : new Uint8Array(bytes));
-  }
-  return Response.json({ message: "Not found." }, { status: 404 });
-}) as typeof fetch;
 
 /** Every file under `dir` but the project file, by relative path. */
 async function tree(dir: string): Promise<Record<string, string>> {
@@ -207,7 +86,7 @@ beforeAll(async () => {
   await writeFile(join(root, "dot.png"), DOT);
   await writeFile(join(root, "rubber.json"), JSON.stringify(RUBBER));
   project = await tempProject(deck, { id: PROJECT });
-  ctx = { projects: [project], loadRapier: loadCompatRapier, fetch: fakeSite, env: {} };
+  ctx = { projects: [project], loadRapier: loadCompatRapier, fetch: site.fetch, env: {} };
   const setUp = [
     ["fmt"],
     ["assets", "import", join(root, "dot.png"), "--path", "art/"],
@@ -378,8 +257,8 @@ describe("project pull", () => {
   it("fails without writing when the site lacks a blob's bytes", async () => {
     const out = join(root, "no-blob");
     await mkdir(out);
-    const held = blobs;
-    blobs = memoryContentStore();
+    const held = site.blobs;
+    site.blobs = memoryContentStore();
     try {
       const r = await pull("--out", out);
       expect(r.exitCode).toBe(1);
@@ -387,7 +266,7 @@ describe("project pull", () => {
       expect([...(r.data.missing as string[])].sort()).toEqual(missing.sort());
       expect(await readdir(out)).toEqual([]);
     } finally {
-      blobs = held;
+      site.blobs = held;
     }
   });
 });
@@ -455,7 +334,7 @@ describe("a game's project, hosted and pulled back", () => {
       const sidecar = JSON.parse(await readFile(join(tactics, `${png}.asset.json`), "utf8")) as {
         sha256: string;
       };
-      expect(await blobs.has(sidecar.sha256), `${png} is on the site`).toBe(true);
+      expect(await site.blobs.has(sidecar.sha256), `${png} is on the site`).toBe(true);
     }
     for (const q of requests.slice(sent))
       expect(q.path).toMatch(/^\/api\/engine\/projects\/tactics\//);

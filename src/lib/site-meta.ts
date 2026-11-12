@@ -74,7 +74,8 @@ export type OgCardKind =
   | "board"
   | "forum"
   | "category"
-  | "canvas";
+  | "canvas"
+  | "game";
 
 export interface HeadMetaTag {
   title?: string;

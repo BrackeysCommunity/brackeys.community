@@ -63,7 +63,41 @@ const ROLES = [
   "data",
 ] as const satisfies readonly ReleaseFile["role"][];
 
-/** What a manifest says, as summary lines and the same as data: scenes and physics, bytes per role, the budget, credits. */
+/** What a build ships of Rapier, as the summary's wasm line and as data. */
+export type WasmReport = {
+  line: string;
+  data: {
+    bytes: number;
+    package: string | null;
+    version: string | null;
+    /** `-compat` carries its wasm inside the code, so `bytes` is 0 and the code is larger. */
+    inlined: boolean;
+    scenes: string[];
+  };
+};
+
+/**
+ * The wasm line, printed for every build: the bytes are the budget's
+ * measured `wasmBytes`, the scenes those the manifest records as Rapier.
+ */
+export function wasmOf(m: ReleaseManifest): WasmReport {
+  const bytes = m.budget.measured.wasmBytes;
+  const scenes = m.flow.scenes.filter((s) => s.physics === "rapier").map((s) => s.id);
+  const rapier = m.build.rapier;
+  if (!rapier)
+    return {
+      line: `wasm: ${formatBytes(bytes)} (no listed scene uses Rapier)`,
+      data: { bytes, package: null, version: null, inlined: false, scenes },
+    };
+  const inlined = rapier.file === null;
+  const where = inlined ? ` inlined in the code (${formatBytes(rapier.bytes)})` : "";
+  return {
+    line: `wasm: ${formatBytes(bytes)} (${rapier.package} ${rapier.version}${where}, scenes: ${scenes.join(", ")})`,
+    data: { bytes, package: rapier.package, version: rapier.version, inlined, scenes },
+  };
+}
+
+/** What a manifest says, as summary lines and the same as data: scenes and physics, the wasm line, bytes per role, the budget, credits. */
 export function manifestSummary(m: ReleaseManifest): {
   lines: string[];
   data: Record<string, unknown>;
@@ -78,6 +112,7 @@ export function manifestSummary(m: ReleaseManifest): {
     ...(s.sublevel ? { sublevel: true } : {}),
   }));
   const rapier = m.build.rapier;
+  const wasm = wasmOf(m);
   const { limits, measured, over } = m.budget;
   const budgetText = (["codeBytes", "firstLoadBytes", "totalBytes"] as const)
     .map((k) => `${k} ${formatBytes(measured[k])} of ${formatBytes(limits[k])}`)
@@ -94,9 +129,7 @@ export function manifestSummary(m: ReleaseManifest): {
           `${s.id} (${[...(s.start ? ["start"] : []), ...(s.sublevel ? ["sublevel"] : []), s.physics].join(", ")})`,
       )
       .join(", ")}`,
-    rapier
-      ? `  physics rapier: ${rapier.package} ${rapier.version}, ${rapier.file ? `${rapier.file} ${formatBytes(rapier.bytes)}` : `inlined ${formatBytes(rapier.bytes)}`}`
-      : "  physics none: no wasm",
+    `  ${wasm.line}`,
     `  files ${m.build.files.length} + ${RELEASE_FILE}, ${formatBytes(total)}: ${ROLES.filter(
       (r) => bytes[r] !== undefined,
     )
@@ -118,6 +151,7 @@ export function manifestSummary(m: ReleaseManifest): {
       snapshot: m.project.snapshot,
       scenes,
       rapier,
+      wasm: wasm.data,
       files: m.build.files.length,
       bytes: { ...bytes, total },
       budget: m.budget,

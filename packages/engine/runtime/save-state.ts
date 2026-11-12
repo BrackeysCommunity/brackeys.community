@@ -200,7 +200,7 @@ const sameSublevels = (a: readonly SublevelInfo[], b: readonly SublevelInfo[]) =
  * Loads `file`'s scene into `runtime` fresh, through the entry it was
  * reached by, and puts back what it saved, between ticks. The save's
  * `persist` is judged by `persistProblem` against the game's schema first,
- * in production too. Progress depth: the fresh load, the game's `restore`
+ * in production too; a game that declares no persist takes only null. Progress depth: the fresh load, the game's `restore`
  * with the saved data, then `persist` and the play clock. World depth puts
  * the world back between the load and the game's `restore` (sublevels,
  * spawns, destroys, counters, enabled flags, the tick, poses and each
@@ -232,7 +232,16 @@ export function restoreSave(
   if (file.depth === "world" && !world) {
     return failed(makeIssue("schema", { message: "a world save holds `world`", path: "/world" }));
   }
-  const persistBad = persistProblem(file.persist, ctx.registry.game?.persist?.schema);
+  const declared = ctx.registry.game?.persist;
+  if (!declared && file.persist !== null) {
+    return failed(
+      makeIssue("schema", {
+        message: `the save holds a persistent value, but "${gameId}" declares no persist`,
+        path: "/persist",
+      }),
+    );
+  }
+  const persistBad = persistProblem(file.persist, declared?.schema);
   if (persistBad) {
     return failed(
       makeIssue("schema", {

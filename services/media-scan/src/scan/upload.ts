@@ -244,6 +244,8 @@ async function describeOwner(
       return { label: "a canvas", url: "/canvases" };
     case "engine_blob":
       return { label: "an engine project", url: null };
+    case "engine_release_file":
+      return { label: "a game release", url: null };
   }
 }
 

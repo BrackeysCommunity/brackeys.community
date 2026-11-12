@@ -199,19 +199,59 @@ isn't a blob (`services/canvas-sync/src/engine/`): `project:<project>`
   `revoked:project:<id>:<user>`, and a token minted before it is refused on any
   of the project's docs.
 
+## The collector
+
+Once a day at 03:30 UTC (`src/engine/collector.ts`, a timer in this process)
+the collector cleans up hosted games' storage, one project at a time:
+
+1. **Releases** beyond the 10 newest, unpinned by a channel or a jam and
+   older than 14 days: `collected_at` set, `manifest` and file rows dropped,
+   an audit row (`collect`, system). The record stays.
+2. **Orphan release files:** `engine_release_objects` no release file row and
+   no open upload lists, stored more than 24 hours ago.
+3. **Blobs** nothing references: the registry (the live doc if this instance
+   holds it, else the row) and every kept release's snapshot are what keep a
+   blob. Referenced ones get `last_referenced_at` = now; unreferenced ones go
+   after 30 quiet days.
+4. **Uploads** expired and uncommitted (their files go with step 2 a day on).
+5. **Deleted projects** 30 days after `deleted_at`: every object under
+   `engine-assets/<project>/` and `engine-releases/<project>/` and every
+   object its rows name, then the row (the tables cascade).
+
+Each run plans everything first and logs every deletion (`[collector] would
+delete …` or `[collector] deleting …`), then ends with counts and bytes per
+step in the log and in PostHog (`engine_collector.run`), and the heartbeat row
+`itch.tier_heartbeats` / `engine-collector` (`last_error` names projects that
+failed; one failure never stops the run). Objects go before their rows, so a
+run that stops halfway leaves at worst a row naming a missing object, which the
+next run clears.
+
+- **Report mode is the default.** `ENGINE_COLLECTOR_MODE=report` deletes
+  nothing: it logs the plan and only stamps `last_referenced_at` on blobs still
+  in use. Set `delete` once a report run's log has been read.
+- **Without the bucket** (`MINIO_*` unset) releases and expired uploads are
+  still collected in `delete` mode; every object deletion, and the row behind
+  it, is only reported.
+- **One runner:** with `REDIS_URL` the run takes
+  `<prefix>:engine:collector:lock` (`SET NX EX 3600`), so of several replicas
+  one runs; the lock lapses after its hour. Without Redis the instance runs alone.
+- **Off on production** until hosted games open there, as the web app's guard.
+
 ## Environment
 
-| Variable                   | Notes                                                                            |
-| -------------------------- | -------------------------------------------------------------------------------- |
-| `DATABASE_URL`             | The app database (same one the web app uses).                                    |
-| `REDIS_URL`                | Optional locally. Needed wherever revokes, applies or a second instance matter.  |
-| `CANVAS_SYNC_SECRET`       | At least 16 characters; identical on Web.                                        |
-| `PORT`                     | Railway sets it; 1234 locally.                                                   |
-| `RAILWAY_ENVIRONMENT_NAME` | Railway sets it; prefixes every Redis key and channel (`staging:canvas-sync:…`). |
-| `POSTHOG_KEY`              | Optional; errors and the minute metrics go to PostHog.                           |
-| `INSTANCE_ID`              | Optional; defaults to hostname-pid. Names this instance in Redis.                |
-| `STORE_DEBOUNCE_MS`        | Optional override of the 2s store debounce.                                      |
-| `SHUTDOWN_TIMEOUT_MS`      | Optional, default 25000: how long SIGTERM waits for stores.                      |
+| Variable                                                                 | Notes                                                                                                     |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                           | The app database (same one the web app uses).                                                             |
+| `REDIS_URL`                                                              | Optional locally. Needed wherever revokes, applies or a second instance matter.                           |
+| `CANVAS_SYNC_SECRET`                                                     | At least 16 characters; identical on Web.                                                                 |
+| `PORT`                                                                   | Railway sets it; 1234 locally.                                                                            |
+| `RAILWAY_ENVIRONMENT_NAME`                                               | Railway sets it; prefixes every Redis key and channel (`staging:canvas-sync:…`).                          |
+| `POSTHOG_KEY`                                                            | Optional; errors and the minute metrics go to PostHog.                                                    |
+| `INSTANCE_ID`                                                            | Optional; defaults to hostname-pid. Names this instance in Redis.                                         |
+| `STORE_DEBOUNCE_MS`                                                      | Optional override of the 2s store debounce.                                                               |
+| `SHUTDOWN_TIMEOUT_MS`                                                    | Optional, default 25000: how long SIGTERM waits for stores.                                               |
+| `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET` | The web app's uploads bucket, for the collector. Optional: without them it only reports object deletions. |
+| `ENGINE_COLLECTOR_MODE`                                                  | `report` (default: log the plan, delete nothing) or `delete`.                                             |
 
 Web needs `CANVAS_SYNC_SECRET` and `CANVAS_SYNC_URL` (`wss://…`, returned with each
 token, so there's no build-time variable). With either unset, or the flag off, the

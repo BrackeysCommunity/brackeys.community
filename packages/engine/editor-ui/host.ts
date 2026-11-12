@@ -47,6 +47,8 @@ export type EditorHost = {
   findScene?: (scene: string) => Promise<SceneHome | null>;
   /** The tree, inspector and licence fields take no edits. */
   readOnly?: boolean;
+  /** Releases, channels and usage for the open project; without it the Publish panel and the Usage section aren't shown. */
+  publish?: EditorPublishHost;
 };
 
 export type EditorIdentityInput = { name: string; avatarUrl?: string | null };
@@ -68,6 +70,115 @@ export type EditorCue = "press" | "toggle" | "tab" | "drop" | "error";
 export type EditorStorage = {
   get(key: string): string | null;
   set(key: string, value: string): void;
+};
+
+// ─── Publishing ──────────────────────────────────────────
+
+/**
+ * A host that publishes the project's releases. Every sentence that states
+ * one of the host's own numbers (a quota, a save cap, a link's lifetime, a
+ * cleanup grace) arrives already written, so the editor carries none of
+ * them.
+ */
+export type EditorPublishHost = {
+  /** The project these calls act on. */
+  project: ProjectId;
+  usage(): Promise<UsageView>;
+  /** Newest first. */
+  releases(): Promise<readonly ReleaseView[]>;
+  promote(version: number, channel: PublishChannel): Promise<PointerMove>;
+  /** Back to the channel's previous release, or to `to`. */
+  rollback(channel: PublishChannel, to?: number): Promise<PointerMove>;
+  settings(): Promise<GameSettingsView>;
+  setSettings(patch: GameSettingsPatch): Promise<GameSettingsView>;
+  /** Opens the host's agent token dialog, for the release command. */
+  openTokenDialog(): void;
+  wording: PublishWording;
+};
+
+export type PublishChannel = "preview" | "production";
+export type GameVisibility = "private" | "team" | "unlisted" | "public";
+export type GameSaveMode = "site" | "own" | "none";
+export type UsageLevel = "ok" | "warn" | "full";
+
+/** One quota's row: its line already written ("Release storage: 120 MB of 512 MB"), and where it stands. */
+export type UsageLineView = {
+  quota: string;
+  text: string;
+  used: number;
+  max: number;
+  /** used / max. */
+  ratio: number;
+  level: UsageLevel;
+  /** A second line under the row, such as asset storage's breakdown. */
+  detail?: string;
+};
+
+export type UsageView = {
+  lines: readonly UsageLineView[];
+  /** The nearly-full or full line, when a quota is at either. */
+  notice: { level: Exclude<UsageLevel, "ok">; text: string } | null;
+  /** The trash's assets, with the confirmation that emptying it asks; null when it is empty. */
+  trash: { assets: number; bytes: number; confirm: string } | null;
+  /** The cleanup rules, under the rows. */
+  footer: string;
+};
+
+export type ReleaseView = {
+  version: number;
+  /** The release id: the SHA-256 of its `release.json`. */
+  id: Sha256;
+  /** ISO 8601, UTC. */
+  createdAt: string;
+  bytes: number;
+  engine: string;
+  channels: readonly PublishChannel[];
+  /** The jams this release is pinned to, by title. */
+  jams: readonly string[];
+  /** When it was first on production; null for a preview-only release. ISO 8601, UTC. */
+  firstPromotedAt: string | null;
+  /** When the cleanup removes it unless pinned, with the sentence saying so; null when it is kept. */
+  removal: { at: string; text: string } | null;
+  /** Why staff hid it; null when it isn't hidden. */
+  hidden: string | null;
+  /** Its files are gone; the record stays. */
+  collected: boolean;
+  playUrl: string;
+};
+
+/** A channel's pointer before and after a promote or a rollback, by version. */
+export type PointerMove = { from: number | null; to: number };
+
+export type GameSettingsView = {
+  visibility: GameVisibility;
+  /** Public was asked for and waits for staff review; the game stays unlisted meanwhile. */
+  reviewPending: boolean;
+  saveMode: GameSaveMode;
+  connectOrigins: readonly string[];
+  online: boolean;
+  /** The project's team, by name; null for a personal project, which can't be team-only. */
+  team: string | null;
+};
+
+export type GameSettingsPatch = {
+  visibility?: GameVisibility;
+  saveMode?: GameSaveMode;
+  connectOrigins?: readonly string[];
+  online?: boolean;
+};
+
+/** The Publish panel's sentences that carry a host's numbers, written by the host. */
+export type PublishWording = {
+  /** The command that builds and uploads a release of this project. */
+  command: string;
+  /** Shown before the command while the project has no release. */
+  noRelease: string;
+  /** The agent token line beside the command. */
+  token: string;
+  visibility: Readonly<Record<GameVisibility, string>>;
+  saveModes: Readonly<Record<GameSaveMode, string>>;
+  connectsTo: string;
+  privateLinks: string;
 };
 
 // ─── Defaults ────────────────────────────────────────────
