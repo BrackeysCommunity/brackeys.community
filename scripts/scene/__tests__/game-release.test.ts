@@ -262,11 +262,16 @@ describe("game release create", () => {
     expect(failed.text).toContain("socket hang up");
     expect(fake.requests.some((r) => r.path.endsWith("/commit"))).toBe(false);
 
+    // The failed run stops starting files once one gives up, so how many others landed depends on timing.
+    const lacking = [...new Set(release.manifest.build.files.map((f) => f.sha256))].filter(
+      (hash) => !fake.stored.has(hash),
+    );
+    expect(lacking).toContain(victim!.sha256);
     const before = fake.puts.length;
     const resumed = await gameReleaseCreate({ ...fromBuild, from: build }, ctxFor(fake), noWait);
     expect(resumed.exitCode).toBe(0);
-    expect(fake.puts.slice(before)).toEqual([victim!.sha256]);
-    expect(resumed.data).toMatchObject({ uploaded: { files: 1 } });
+    expect(fake.puts.slice(before).sort()).toEqual([...lacking].sort());
+    expect(resumed.data).toMatchObject({ uploaded: { files: lacking.length } });
   });
 
   it("prints an amber warning: line for each quota at or over 80%", async () => {

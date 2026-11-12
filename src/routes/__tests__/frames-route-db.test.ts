@@ -197,6 +197,22 @@ describe("the public prefix", () => {
     expect(new Uint8Array(await image.arrayBuffer())).toEqual(png);
   });
 
+  it("serves release.json from the release row, the release id as its etag", async () => {
+    const response = await get(`/frames/${PUBLIC}/release.json`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json");
+    expect(response.headers.get("etag")).toBe(`"${PUBLIC}"`);
+    expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(await response.text()).toBe("{}");
+    expectFrameHeaders(response, `${PLAY}/frames/${PUBLIC}/`);
+
+    const again = await get(`/frames/${PUBLIC}/release.json`, {
+      headers: { "if-none-match": `"${PUBLIC}"` },
+    });
+    expect(again.status).toBe(304);
+    expect((await get(`/frames/${PRIVATE}/release.json`)).status).toBe(404);
+  });
+
   it("adds the sync origin to the CSP only for an online project", async () => {
     await db
       .update(engineProjects)

@@ -1,4 +1,4 @@
-import type { ReleaseFile } from "@jams/engine/project";
+import { RELEASE_FILE, type ReleaseFile } from "@jams/engine/project";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db as appDb } from "@/db";
@@ -10,7 +10,7 @@ import {
   engineReleases,
 } from "@/db/schema";
 import { siteOrigin as appSiteOrigin } from "@/env";
-import { streamStoredObject } from "@/lib/stored-object-stream";
+import { streamStoredObject, type StoredObjectSource } from "@/lib/stored-object-stream";
 
 import { frameBase, frameCsp, playOrigin as appPlayOrigin } from "./frame-csp";
 import { onPlayHost, playHost as playHostOf } from "./frame-route-rules";
@@ -158,6 +158,29 @@ async function readRelease(
     connectOrigins: row.connectOrigins,
     online: row.online,
     files,
+  };
+}
+
+/**
+ * A release's `release.json`, the text its id hashes: kept on the release row
+ * rather than as a stored file, and read only when a frame asks for it, so the
+ * release cache holds no manifests.
+ */
+async function readManifest(
+  db: Pick<ReleaseDb, "select">,
+  releaseId: string,
+): Promise<StoredObjectSource | null> {
+  const [row] = await db
+    .select({ manifest: engineReleases.manifest })
+    .from(engineReleases)
+    .where(eq(engineReleases.id, releaseId))
+    .limit(1);
+  if (row?.manifest == null) return null;
+  const bytes = new TextEncoder().encode(row.manifest);
+  return {
+    stat: async () => ({ size: bytes.byteLength }),
+    stream: async (_key, range) =>
+      new Response(range ? bytes.slice(range.start, range.end + 1) : bytes).body,
   };
 }
 
@@ -315,12 +338,26 @@ export function createFrameRoute(
     if (release.collected) return refuse(410, "This version of the game was removed");
     if (release.hidden) return refuse(410, "This version of the game isn't available");
 
+    const cacheControl = prefix === "frames" ? PUBLIC_CACHE : PRIVATE_CACHE;
+    if (parsed.path === RELEASE_FILE) {
+      const manifest = await readManifest(deps.db ?? appDb, parsed.releaseId);
+      if (!manifest) return notFound();
+      const manifestHeaders = headers(release);
+      manifestHeaders.set("etag", `"${parsed.releaseId}"`);
+      manifestHeaders.set("cache-control", cacheControl);
+      return streamStoredObject(RELEASE_FILE, request, {
+        source: manifest,
+        contentType: "application/json",
+        headers: manifestHeaders,
+      });
+    }
+
     const file = release.files.get(parsed.path);
     if (!file) return notFound();
 
     const fileHeaders = headers(release);
     fileHeaders.set("etag", `"${file.sha256}"`);
-    fileHeaders.set("cache-control", prefix === "frames" ? PUBLIC_CACHE : PRIVATE_CACHE);
+    fileHeaders.set("cache-control", cacheControl);
     const response = await streamStoredObject(file.storageKey, request, {
       source: deps.store,
       contentType: file.contentType,
