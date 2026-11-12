@@ -25,7 +25,7 @@ import { randomKey, type KeyGen } from "./keys";
 import { CONTENT_MAP } from "./layout";
 import { appendLog } from "./log";
 import { PREFAB_HEADER_KEY } from "./prefab-doc";
-import { projectBuildMap, readProject } from "./project-doc";
+import { projectAssetsMap, projectBuildMap, readProject } from "./project-doc";
 import { appendProjectLog } from "./project-log";
 import { contentLogKey } from "./revert";
 import {
@@ -244,6 +244,9 @@ function skewIssue(
 
 type Held = { handle: SessionDoc & { readOnly: boolean; issue?: CodeSkewIssue }; uses: number };
 
+/** What undo says of a step whose asset was purged since. */
+const PERMANENTLY_DELETED = "Permanently deleted";
+
 /** The origin an undo's or redo's history rows are written with: no undo manager tracks it, so undo never takes them back. */
 const HISTORY_ORIGIN = Symbol("undo-history");
 
@@ -340,6 +343,17 @@ export async function createProjectSession(opts: ProjectSessionOptions): Promise
   });
   closers.set(name, () => root.close());
   coordinator.attach(name, root.doc);
+  // An entry gone from the assets map was purged (an undo's removal isn't one): no step brings it back.
+  const assets = projectAssetsMap(root.doc);
+  const onPurge = (event: Y.YMapEvent<Y.Map<unknown>>, tr: Y.Transaction) => {
+    if (tr.origin instanceof Y.UndoManager) return;
+    for (const change of event.changes.keys.values()) {
+      if (change.action !== "delete") continue;
+      coordinator.refuseStale(name, PERMANENTLY_DELETED);
+      return;
+    }
+  };
+  assets.observe(onPurge);
 
   const state = () => readProject(root.doc);
   const view = () => projectView(state(), opts.kinds);
@@ -479,7 +493,7 @@ export async function createProjectSession(opts: ProjectSessionOptions): Promise
     } finally {
       for (const off of unwatch) off();
     }
-    if (done) logStep(done, how, keys);
+    if (done && done.refused === undefined) logStep(done, how, keys);
     sweep();
     emit({ type: "history" });
     return done;
@@ -610,6 +624,7 @@ export async function createProjectSession(opts: ProjectSessionOptions): Promise
       if (destroyed) return;
       destroyed = true;
       projectBuildMap(root.doc).unobserve(onBuild);
+      assets.unobserve(onPurge);
       root.doc.off("afterAllTransactions", onSettled);
       coordinator.destroy();
       for (const docName of [...held.keys()].reverse()) {

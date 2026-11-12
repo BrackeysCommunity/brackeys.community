@@ -14,6 +14,16 @@ export function unplayable(release: ReleaseView): string | null {
 /** The first twelve hex digits of a release id, as the CLI prints it. */
 export const shortId = (id: string): string => id.slice(0, 12);
 
+/** What a promote of `version` to production asks, as the game page asks it. */
+export const promoteMessage = (version: number): string =>
+  `Players will get v${version} the next time they open the game. You can roll back at any time.`;
+
+/** What a rollback of production to `version` asks, as the game page asks it. */
+export const rollbackMessage = (version: number, live: number | null): string =>
+  live === null
+    ? `Players get v${version} again the next time they open the game.`
+    : `Players get v${version} again the next time they open the game. v${live} stays in the list.`;
+
 /** A button that moves production to `version`, after asking. */
 export function PromoteButton({
   version,
@@ -31,7 +41,7 @@ export function PromoteButton({
   return (
     <Confirm
       title={`Promote v${version} to production?`}
-      message={`Players will get v${version} the next time they open the game. You can roll back at any time.`}
+      message={promoteMessage(version)}
       confirmText="Promote"
       onConfirm={onPromote}
     >
@@ -114,7 +124,7 @@ function ReleaseRow({
         </Text>
       ) : null}
       <div className="je-insp-row" data-gap="tight">
-        {!release.collected ? (
+        {blocked === null ? (
           <Button
             size="xs"
             variant="ghost"

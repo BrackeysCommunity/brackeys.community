@@ -486,6 +486,7 @@ type OverflowScene = {
   label: string;
   onNewScene: () => void;
   onProjectSettings: (() => void) | null;
+  onPublish: (() => void) | null;
 };
 
 /**
@@ -578,6 +579,7 @@ function OverflowMenu({
                   rows={scene.rows}
                   onNewScene={scene.onNewScene}
                   onProjectSettings={scene.onProjectSettings}
+                  onPublish={scene.onPublish}
                 />
               </MenuSubContent>
             </MenuSub>
@@ -634,6 +636,7 @@ export function EditorToolbar({
 
   const picker = useScenePicker(project);
   const openSettings = usePanelOpener("settings");
+  const openPublish = usePanelOpener("publish");
   const sceneLabel = picker?.label ?? null;
   const [creating, setCreating] = useState(false);
   const ppm = pxPerMetreOf(session.registry);
@@ -680,6 +683,7 @@ export function EditorToolbar({
                 ...picker,
                 onNewScene: () => setCreating(true),
                 onProjectSettings: openSettings,
+                onPublish: openPublish,
               }
             : null
         }
@@ -697,6 +701,7 @@ export function EditorToolbar({
             label={picker.label}
             onNewScene={() => setCreating(true)}
             onProjectSettings={openSettings}
+            onPublish={openPublish}
           />
           {!host || tools.length > 0 ? <Divider /> : null}
         </>

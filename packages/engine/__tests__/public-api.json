@@ -1031,6 +1031,7 @@
       "fontMetaSchema",
       "fontSettingsSchema",
       "formatAssetDoc",
+      "formatBytes",
       "formatProjectFile",
       "formatProjectSnapshot",
       "formatReleaseManifest",

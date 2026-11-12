@@ -11,10 +11,26 @@ import type {
   ReleaseView,
   UsageView,
 } from "../../host";
-import { Button, IconButton, Input, MicroLabel, Radio, Skeleton, Text } from "../../kit/index";
+import { formatDay } from "../../kit/format";
+import {
+  Button,
+  Confirm,
+  IconButton,
+  Input,
+  MicroLabel,
+  Radio,
+  Skeleton,
+  Text,
+} from "../../kit/index";
 import type { Pending } from "../../pending/pending";
 import { PendingProvider, useBusy, useOwnOrSharedPending } from "../../pending/use-pending";
-import { channelScope, PromoteButton, ReleaseList, unplayable } from "./ReleaseList";
+import {
+  channelScope,
+  PromoteButton,
+  ReleaseList,
+  rollbackMessage,
+  unplayable,
+} from "./ReleaseList";
 
 const SETTINGS_SCOPE = "publish:settings";
 
@@ -70,16 +86,6 @@ const silentNotify: EditorNotify = Object.assign(() => undefined, {
   warning: () => undefined,
   error: () => undefined,
 });
-
-/** A date as "12 Nov 2026", in UTC like every release date. */
-function dayOf(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
 
 /** The project's releases, channels and usage before publishing; nothing while the host doesn't publish. */
 export function PublishPanel({
@@ -290,7 +296,7 @@ function Channels({
       <MicroLabel>Channels</MicroLabel>
       <Text as="p" size="xs" tabular>
         {production
-          ? `Production: v${production.version}${production.firstPromotedAt ? ` (live since ${dayOf(production.firstPromotedAt)})` : ""}`
+          ? `Production: v${production.version}${production.firstPromotedAt ? ` (first live ${formatDay(production.firstPromotedAt)})` : ""}`
           : "Production: none yet"}
       </Text>
       <Text as="p" size="xs" tabular>
@@ -306,14 +312,16 @@ function Channels({
           />
         ) : null}
         {back ? (
-          <Button
-            size="xs"
-            variant="outline"
-            busyScope={channelScope("production")}
-            onClick={() => void onRollback(back.version)}
+          <Confirm
+            title={`Roll back to v${back.version}?`}
+            message={rollbackMessage(back.version, production?.version ?? null)}
+            confirmText="Roll back"
+            onConfirm={() => onRollback(back.version)}
           >
-            Roll back production to v{back.version}
-          </Button>
+            <Button size="xs" variant="outline" busyScope={channelScope("production")}>
+              Roll back production to v{back.version}
+            </Button>
+          </Confirm>
         ) : null}
       </div>
     </div>
@@ -335,11 +343,12 @@ function RemovedSoon({ releases }: { releases: readonly ReleaseView[] }) {
   );
 }
 
-/** "https://api.example.com/x" → "https://api.example.com"; null for anything but an http(s) URL. */
+/** "https://api.example.com/x" → "https://api.example.com"; null for anything but an https or wss URL. */
 export function originOf(text: string): string | null {
   try {
     const url = new URL(text.trim());
-    return url.protocol === "https:" || url.protocol === "http:" ? url.origin : null;
+    if ((url.protocol !== "https:" && url.protocol !== "wss:") || !url.host) return null;
+    return `${url.protocol}//${url.host.toLowerCase()}`;
   } catch {
     return null;
   }
@@ -402,11 +411,18 @@ function GameSettings({ publish, pending }: { publish: EditorPublishHost; pendin
         value={view.saveMode}
         text={publish.wording.saveModes}
         disabled={busy}
+        unavailable={(mode) => mode === "own" && view.connectOrigins.length === 0}
         onPick={(saveMode) => void save({ saveMode }, "Changing where the game saves")}
       />
+      {view.saveMode !== "own" && view.connectOrigins.length === 0 ? (
+        <Text as="p" size="xs" variant="muted">
+          To save on the game's own servers, add the save server under Connects to first.
+        </Text>
+      ) : null}
       <ConnectsTo
         view={view}
         text={publish.wording.connectsTo}
+        max={publish.wording.connectOriginsMax}
         disabled={busy}
         onChange={(connectOrigins) => save({ connectOrigins }, "Changing the game's origins")}
       />
@@ -460,21 +476,25 @@ function ChoiceGroup<T extends string>({
 function ConnectsTo({
   view,
   text,
+  max,
   disabled,
   onChange,
 }: {
   view: GameSettingsView;
   text: string;
+  max: number;
   disabled: boolean;
   onChange: (origins: readonly string[]) => Promise<boolean>;
 }) {
   const [draft, setDraft] = useState("");
   const [invalid, setInvalid] = useState(false);
+  const full = view.connectOrigins.length >= max;
   const add = async () => {
     const origin = originOf(draft);
     if (!origin) return setInvalid(true);
     setInvalid(false);
     if (view.connectOrigins.includes(origin)) return setDraft("");
+    if (view.connectOrigins.length >= max) return;
     if (await onChange([...view.connectOrigins, origin])) setDraft("");
   };
   return (
@@ -523,14 +543,15 @@ function ConnectsTo({
           variant="outline"
           type="submit"
           busyScope={SETTINGS_SCOPE}
-          disabled={!draft.trim()}
+          disabled={!draft.trim() || full}
+          {...(full ? { tooltip: `A game connects to at most ${max} origins` } : {})}
         >
           Add
         </Button>
       </form>
       {invalid ? (
         <Text as="p" size="xs" variant="danger">
-          An origin is an http or https address, such as https://api.example.com.
+          An origin is an https:// or wss:// address, such as https://api.example.com.
         </Text>
       ) : null}
     </div>

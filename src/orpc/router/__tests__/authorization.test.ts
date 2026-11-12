@@ -123,13 +123,6 @@ const PUBLIC_PROCEDURES = new Set([
   "getStaffStatus",
   // The only procedure that sees a *banned* session rather than an anonymous one.
   "getBanStatus",
-  // Hosted games' play and game pages and reports answer signed-out callers;
-  // assertEngineGames refuses them while the flag or the guard is off, the
-  // audience rules decide inside, and reportGame refuses a signed-out caller in
-  // its handler.
-  "getGamePlay",
-  "getGamePage",
-  "reportGame",
 ]);
 
 /** Procedures that must refuse even a plain authenticated non-staff user. */
@@ -233,6 +226,9 @@ const STAFF_PROCEDURES = new Set([
   "unlinkGameShowcase",
   "getGameSettings",
   "setGameSettings",
+  "getGamePlay",
+  "getGamePage",
+  "reportGame",
 ]);
 
 const AUTH_REQUIRING = new Set<unknown>([

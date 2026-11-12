@@ -229,7 +229,7 @@ export function connectHost(opts: ConnectHostOptions): Promise<HostChannel | nul
     };
     const timer = globalThis.setTimeout(() => finish(null), timeoutMs);
     const onMessage = (event: MessageEvent) => {
-      if (channel || (event.source !== null && event.source !== parent)) return;
+      if (channel || event.source !== parent) return;
       const port = event.ports[0];
       if (!port || !hostHandshakeSchema.safeParse(event.data).success) return;
       win.removeEventListener("message", onMessage);

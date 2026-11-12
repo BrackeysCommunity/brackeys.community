@@ -99,6 +99,12 @@ function GameHeader({ page }: { page: GamePageView }) {
               ) : null}
             </div>
           ) : null}
+          {page.hidden && page.publisher ? (
+            <Text as="p" size="sm" variant="danger" role="status">
+              Staff hid this game, so nobody can play it
+              {page.hidden.reason ? `: ${page.hidden.reason}` : "."}
+            </Text>
+          ) : null}
 
           <Heading as="h1" className="text-3xl leading-tight md:text-4xl">
             {page.title}
@@ -238,13 +244,6 @@ export function GamePage({
       <Section id="saves" title="SAVES AND PRIVACY">
         <SaveNotice mode={page.saveMode} connectOrigins={page.connectOrigins} />
       </Section>
-
-      {page.hidden && page.publisher ? (
-        <Text as="p" size="sm" role="status">
-          Staff hid this game, so nobody can play it
-          {page.hidden.reason ? `: ${page.hidden.reason}` : "."}
-        </Text>
-      ) : null}
 
       {page.credits || missing > 0 ? (
         <Section id="credits" title="CREDITS">

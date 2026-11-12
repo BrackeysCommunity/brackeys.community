@@ -14,6 +14,7 @@ import {
   engineReleasesPath,
 } from "../../../src/lib/engine/route-paths";
 import { formatBytes, formatCount } from "../../../src/lib/format-bytes";
+import { releaseDay } from "../../../src/lib/jam-links";
 import { failure, issueLine, usage, type ToolContext, type ToolResult } from "../context";
 import {
   AGENT_SITE_ENV,
@@ -236,15 +237,6 @@ function answerFailure(error: unknown, extra: Record<string, unknown> = {}): Too
     return error.exitCode === 2 ? usage(error.message) : failure(error.message, extra);
   throw error;
 }
-
-/** "26 Nov 2026", in UTC as every jams date is. */
-const utcDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
 
 const shortId = (id: string) => `${id.slice(0, 6)}…`;
 const plural = (n: number, one: string, many = `${one}s`) =>
@@ -543,7 +535,7 @@ async function release(
           `  Storage:  ${formatBytes(storage.used)} of ${formatBytes(storage.max)} release storage · ${formatCount(kept)} of ${formatCount(PROJECT_QUOTA.releasesKept)} releases kept`,
         ]
       : []),
-    `  Removal:  ${removal ? `v${removal.version} on ${utcDate(removal.at)} (not pinned)` : "none due"}`,
+    `  Removal:  ${removal ? `v${removal.version} on ${releaseDay(removal.at)} (not pinned)` : "none due"}`,
     `Promote it to production on the game's page: ${gamePage}`,
     ...warnings.map((w) => amber(w, env)),
   ].join("\n");
@@ -576,9 +568,9 @@ async function release(
 // ─── list ────────────────────────────────────────────────
 
 function stateOf(r: ReleaseListEntry): string {
-  if (r.collectedAt !== null) return `removed ${utcDate(r.collectedAt)}`;
+  if (r.collectedAt !== null) return `removed ${releaseDay(r.collectedAt)}`;
   if (r.hidden) return `hidden${r.hidden.reason ? `: ${r.hidden.reason}` : ""}`;
-  if (r.removalAt !== null) return `removal ${utcDate(r.removalAt)}`;
+  if (r.removalAt !== null) return `removal ${releaseDay(r.removalAt)}`;
   return "kept";
 }
 

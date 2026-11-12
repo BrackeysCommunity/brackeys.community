@@ -34,6 +34,9 @@ const V3 = "3".repeat(64);
 const IMAGE_KEY = engineReleaseObjectKey(PROJECT, IMAGE);
 
 let db: TestDb;
+/** The releases each takedown purged from the edge, in order. */
+let purged: string[] = [];
+const takedown = { purge: async (releaseId: string) => void purged.push(releaseId) };
 
 /** Records every bucket call; a hosted game's image must never reach it. */
 function recordingStore(): ImageObjectStore & { calls: string[] } {
@@ -88,6 +91,7 @@ async function seedScan(objectKey: string, ownerType: "engine_blob" | "engine_re
 }
 
 beforeEach(async () => {
+  purged = [];
   db = await createTestDb();
   await seedUser(db, "owner");
   await seedUser(db, "staff");
@@ -181,7 +185,7 @@ describe("engineObjectOf", () => {
 describe("a flagged release image", () => {
   it("hides every release listing it, stamps the object, and never moves it", async () => {
     const store = recordingStore();
-    const refs = await quarantineImage(db, store, IMAGE_KEY);
+    const refs = await quarantineImage(db, store, IMAGE_KEY, takedown);
 
     expect(store.calls).toEqual([]);
     expect(refs?.engineReleases.sort()).toEqual([V1, V2]);
@@ -193,6 +197,7 @@ describe("a flagged release image", () => {
     expect(await quarantinedAt(IMAGE)).toBeInstanceOf(Date);
     expect(await quarantinedAt(SCRIPT)).toBeNull();
     expect(await scanStatus(IMAGE_KEY)).toBe("quarantined");
+    expect([...purged].sort()).toEqual([V1, V2]);
     const rows = await audit();
     expect(rows).toHaveLength(2);
     expect(
@@ -205,14 +210,15 @@ describe("a flagged release image", () => {
 
   it("is idempotent when the job retries", async () => {
     const store = recordingStore();
-    await quarantineImage(db, store, IMAGE_KEY);
+    await quarantineImage(db, store, IMAGE_KEY, takedown);
     await db
       .update(imageScans)
       .set({ status: "scanned" })
       .where(eq(imageScans.objectKey, IMAGE_KEY));
-    const again = await quarantineImage(db, store, IMAGE_KEY);
+    const again = await quarantineImage(db, store, IMAGE_KEY, takedown);
     expect(again?.engineReleases.sort()).toEqual([V1, V2]);
     expect(await audit()).toHaveLength(2);
+    expect(purged).toHaveLength(2);
   });
 
   it("leaves a release staff hid for another reason as it was", async () => {
@@ -221,8 +227,9 @@ describe("a flagged release image", () => {
       .set({ hiddenAt: new Date(), hiddenById: "staff", hiddenReason: "Reported for spam." })
       .where(eq(engineReleases.id, V1));
     const store = recordingStore();
-    const refs = await quarantineImage(db, store, IMAGE_KEY);
+    const refs = await quarantineImage(db, store, IMAGE_KEY, takedown);
     expect(refs?.engineReleases).toEqual([V2]);
+    expect(purged).toEqual([V2]);
 
     await restoreImage(db, store, IMAGE_KEY);
     expect(await releases()).toEqual({ 1: "Reported for spam.", 2: null, 3: null });
@@ -230,7 +237,7 @@ describe("a flagged release image", () => {
 
   it("dismissing restores the releases and clears the stamp, still without moving it", async () => {
     const store = recordingStore();
-    await quarantineImage(db, store, IMAGE_KEY);
+    await quarantineImage(db, store, IMAGE_KEY, takedown);
     expect(await restoreImage(db, store, IMAGE_KEY)).toBe(true);
 
     expect(store.calls).toEqual([]);
@@ -259,8 +266,8 @@ describe("a flagged release image", () => {
     });
     await seedScan(otherKey, "engine_release_file");
     const store = recordingStore();
-    await quarantineImage(db, store, IMAGE_KEY);
-    await quarantineImage(db, store, otherKey);
+    await quarantineImage(db, store, IMAGE_KEY, takedown);
+    await quarantineImage(db, store, otherKey, takedown);
 
     await restoreImage(db, store, IMAGE_KEY);
     expect(await releases()).toEqual({ 1: ENGINE_QUARANTINE_REASON, 2: null, 3: null });
@@ -273,7 +280,7 @@ describe("a flagged release image", () => {
     const blobKey = engineAssetKey(PROJECT, BLOB);
     await seedScan(blobKey, "engine_blob");
     const store = recordingStore();
-    const refs = await quarantineImage(db, store, blobKey);
+    const refs = await quarantineImage(db, store, blobKey, takedown);
 
     expect(store.calls).toEqual([]);
     expect(refs?.engineReleases).toEqual([V2]);
@@ -289,10 +296,12 @@ describe("a flagged release image", () => {
 
   it("confirming keeps the bytes (shared by hash) and the releases hidden", async () => {
     const store = recordingStore();
-    await quarantineImage(db, store, IMAGE_KEY);
-    expect(await purgeImage(db, store, IMAGE_KEY)).toBe(true);
+    await quarantineImage(db, store, IMAGE_KEY, takedown);
+    expect(await purgeImage(db, store, IMAGE_KEY, takedown)).toBe(true);
 
     expect(store.calls).toEqual([]);
+    // Purged once, when the quarantine hid them.
+    expect(purged).toHaveLength(2);
     expect(await scanStatus(IMAGE_KEY)).toBe("purged");
     expect(await releases()).toEqual({
       1: ENGINE_QUARANTINE_REASON,
@@ -302,10 +311,22 @@ describe("a flagged release image", () => {
     expect(await engineHashesUnderReview(db, PROJECT, [IMAGE, SCRIPT])).toEqual(new Set([IMAGE]));
   });
 
+  it("a takedown whose edge purge fails still hides the releases", async () => {
+    const store = recordingStore();
+    const refs = await quarantineImage(db, store, IMAGE_KEY, {
+      purge: async () => {
+        throw new Error("Cloudflare is down");
+      },
+    });
+    expect(refs?.engineReleases.sort()).toEqual([V1, V2]);
+    expect(await scanStatus(IMAGE_KEY)).toBe("quarantined");
+  });
+
   it("confirming an image that was only flagged hides its releases too", async () => {
     const store = recordingStore();
-    await purgeImage(db, store, IMAGE_KEY);
+    await purgeImage(db, store, IMAGE_KEY, takedown);
     expect(store.calls).toEqual([]);
+    expect([...purged].sort()).toEqual([V1, V2]);
     expect(await releases()).toEqual({
       1: ENGINE_QUARANTINE_REASON,
       2: ENGINE_QUARANTINE_REASON,

@@ -170,13 +170,47 @@ export function contentTypeFor(path: string, role: Role): string | null {
   }
 }
 
-/** The first file of a list the site refuses (its type, or a path differing from another only in case); null when every file is taken. */
+/** The role each kind of path is served under; no path fits two. */
+const ROLES: readonly Role[] = [
+  "shell",
+  "worker",
+  "code",
+  "style",
+  "wasm",
+  "icon",
+  "data",
+  "asset",
+];
+
+/** The type a path is served with under whichever role takes it; null when none does. */
+export function contentTypeOfPath(path: string): string | null {
+  for (const role of ROLES) {
+    const type = contentTypeFor(path, role);
+    if (type !== null) return type;
+  }
+  return null;
+}
+
+/** The hash a `data/<sha256>.json` or `assets/<sha256><ext>` name carries; null for other roles. */
+const nameHashOf = (file: Pick<ReleaseFile, "path" | "role">): string | null => {
+  if (file.role !== "data" && file.role !== "asset") return null;
+  const name = file.path.slice(file.path.indexOf("/") + 1);
+  return name.slice(0, 64);
+};
+
+/**
+ * The first file of a list the site refuses: its type, a path differing
+ * from another only in case, or a content-named file whose name isn't its
+ * SHA-256. Null when every file is taken.
+ */
 export function refusedReleaseFile(
-  files: readonly Pick<ReleaseFile, "path" | "role">[],
+  files: readonly Pick<ReleaseFile, "path" | "role" | "sha256">[],
 ): string | null {
   const seen = new Set<string>();
   for (const file of files) {
     if (contentTypeFor(file.path, file.role) === null) return file.path;
+    const named = nameHashOf(file);
+    if (named !== null && named !== file.sha256) return file.path;
     const folded = file.path.toLowerCase();
     if (seen.has(folded)) return file.path;
     seen.add(folded);

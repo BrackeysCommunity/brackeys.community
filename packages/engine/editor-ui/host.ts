@@ -178,6 +178,8 @@ export type PublishWording = {
   visibility: Readonly<Record<GameVisibility, string>>;
   saveModes: Readonly<Record<GameSaveMode, string>>;
   connectsTo: string;
+  /** How many origins the game may list under Connects to. */
+  connectOriginsMax: number;
   privateLinks: string;
 };
 

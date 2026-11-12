@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { frameBase, frameCsp, playOrigin } from "../frame-csp";
+import { FRAME_SANDBOX } from "../frame-sandbox";
 
 const RELEASE = "c".repeat(64);
 const BASE = `https://play.example.test/frames/${RELEASE}/`;
@@ -37,7 +38,26 @@ describe("frameCsp", () => {
     expect(csp).not.toContain("'self'");
   });
 
+  it("lets an embeddable frame sit under any ancestor, and a private one only under the site", () => {
+    const embeddable = directives(
+      frameCsp({ base: BASE, siteOrigin: SITE, connect: [], syncOrigin: null, embeddable: true }),
+    );
+    expect(embeddable.get("frame-ancestors")).toEqual(["*"]);
+    const privateBase = frameBase(RELEASE, "tok", "https://play.example.test");
+    const notEmbeddable = directives(
+      frameCsp({
+        base: privateBase,
+        siteOrigin: SITE,
+        connect: [],
+        syncOrigin: null,
+        embeddable: false,
+      }),
+    );
+    expect(notEmbeddable.get("frame-ancestors")).toEqual([SITE]);
+  });
+
   it("carries the iframe's sandbox", () => {
+    expect(d.get("sandbox")).toEqual(FRAME_SANDBOX.split(" "));
     expect(d.get("sandbox")).toEqual([
       "allow-scripts",
       "allow-pointer-lock",

@@ -1,6 +1,22 @@
+import {
+  CREDITS_FILE,
+  INDEX_HTML_FILE,
+  RELEASE_FILE,
+  SERVICE_WORKER_FILE,
+  WEB_MANIFEST_FILE,
+} from "@jams/engine/project";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { NOT_CONFIGURED, purgeShell, purgeUrls, shellUrls } from "../cloudflare-purge";
+import {
+  configuredPlayOrigin,
+  NO_ORIGIN,
+  NOT_CONFIGURED,
+  purgeShell,
+  purgeUrls,
+  SHELL_FILES,
+  shellUrls,
+} from "../cloudflare-purge";
+import { frameBase } from "../engine/frame-csp";
 
 const RELEASE = "a".repeat(64);
 const PLAY = "https://play.example.test";
@@ -26,6 +42,37 @@ describe("shellUrls", () => {
       `${PLAY}/frames/${RELEASE}/sw.js`,
       `${PLAY}/frames/${RELEASE}/app.webmanifest`,
     ]);
+  });
+
+  it("names the engine's shell files under the frame route's public base", () => {
+    expect([...SHELL_FILES]).toEqual([
+      INDEX_HTML_FILE,
+      RELEASE_FILE,
+      CREDITS_FILE,
+      SERVICE_WORKER_FILE,
+      WEB_MANIFEST_FILE,
+    ]);
+    const base = frameBase(RELEASE, undefined, PLAY);
+    for (const url of shellUrls(RELEASE, PLAY)) expect(url.startsWith(base)).toBe(true);
+  });
+});
+
+describe("configuredPlayOrigin", () => {
+  it("reads the play origin, then the site's, from the environment", () => {
+    try {
+      vi.stubEnv("ENGINE_PLAY_ORIGIN", "https://play.example.test/");
+      vi.stubEnv("VITE_SITE_ORIGIN", "https://site.example.test");
+      expect(configuredPlayOrigin()).toBe("https://play.example.test");
+      vi.stubEnv("ENGINE_PLAY_ORIGIN", "");
+      expect(configuredPlayOrigin()).toBe("https://site.example.test");
+      vi.stubEnv("VITE_SITE_ORIGIN", "");
+      vi.stubEnv("APP_URL", "https://app.example.test");
+      expect(configuredPlayOrigin()).toBe("https://app.example.test");
+      vi.stubEnv("APP_URL", "");
+      expect(configuredPlayOrigin()).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 
@@ -63,6 +110,21 @@ describe("purgeShell", () => {
     }
     expect(calls).toHaveLength(0);
     expect(log).toHaveBeenCalledWith(`[cloudflare-purge] ${NOT_CONFIGURED}`, { urls: 5 });
+  });
+
+  it("is a no-op that says so when no frame origin is known", async () => {
+    const { fetch, calls } = fakeFetch();
+    const log = vi.fn();
+    const result = await purgeShell(RELEASE, {
+      zoneId: "zone-1",
+      token: "secret-token",
+      fetch,
+      log,
+      origin: null,
+    });
+    expect(result).toEqual({ purged: false, reason: NO_ORIGIN });
+    expect(calls).toHaveLength(0);
+    expect(log).toHaveBeenCalledWith(`[cloudflare-purge] ${NO_ORIGIN}`, { releaseId: RELEASE });
   });
 
   it("reads the zone and token from the environment by default", async () => {

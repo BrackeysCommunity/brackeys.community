@@ -12,7 +12,12 @@ import {
 
 import { SITE } from "@/lib/legal-meta";
 
-import { SITE_SAVE_LIMITS } from "./limits";
+import {
+  HOST_DOWNLOAD_INTERVAL_SECONDS,
+  HOST_PREFS_WRITES_PER_SECOND,
+  HOST_SAVE_REQUESTS_PER_SECOND,
+  SITE_SAVE_LIMITS,
+} from "./limits";
 import { prefsRefusal, siteSaveRefusal } from "./local-saves";
 
 export type SaveMode = "site" | "own" | "none";
@@ -24,6 +29,8 @@ export type HostServerOptions = {
   saves: () => SaveStore;
   describe: () => string;
   mode: SaveMode;
+  /** The project plays online; `welcome` tells the frame. Default false. */
+  online?: boolean;
   prefs: {
     load(): { remap: unknown; prefs: unknown };
     save(store: "remap" | "prefs", value: unknown): void;
@@ -50,9 +57,9 @@ export const HOST_NO_SITE_SAVES_MESSAGE = `This game doesn't save to ${SITE.name
 
 /** How often each kind of message may arrive: `max` within `windowMs`. */
 export const HOST_RATES = {
-  saves: { max: 20, windowMs: 1_000 },
-  prefs: { max: 10, windowMs: 1_000 },
-  download: { max: 1, windowMs: 10_000 },
+  saves: { max: HOST_SAVE_REQUESTS_PER_SECOND, windowMs: 1_000 },
+  prefs: { max: HOST_PREFS_WRITES_PER_SECOND, windowMs: 1_000 },
+  download: { max: 1, windowMs: HOST_DOWNLOAD_INTERVAL_SECONDS * 1_000 },
 } as const;
 
 type RateName = keyof typeof HOST_RATES;
@@ -153,7 +160,7 @@ export function createHostServer(opts: HostServerOptions): HostServer {
           player: opts.player?.() ?? { signedIn: false, name: null },
           saves: savesNow(),
           prefs: opts.prefs.load(),
-          online: false,
+          online: opts.online ?? false,
         };
       },
     },

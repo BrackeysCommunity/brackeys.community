@@ -42,6 +42,8 @@ export type PointerMoveInput = {
   actor: AuditActor;
   action: "promote" | "rollback";
   detail?: Record<string, unknown>;
+  /** The caller's clock: the pointer's `updated_at`, `first_promoted_at` and the audit row's time. */
+  at: Date;
 };
 
 /** The release ids the channel named before and after; `moved` is false when it already named this one. */
@@ -67,7 +69,7 @@ export async function movePointer(tx: ReleaseDb, input: PointerMoveInput): Promi
   if (from === release) return { from, to: release, moved: false };
 
   const by = actor.kind === "system" ? null : actor.userId;
-  const now = new Date();
+  const now = input.at;
   await tx
     .insert(engineReleaseChannels)
     .values({ projectId: project, channel, releaseId: release, updatedById: by, updatedAt: now })
@@ -96,6 +98,7 @@ export async function movePointer(tx: ReleaseDb, input: PointerMoveInput): Promi
     fromRelease: from,
     toRelease: release,
     ...(input.detail ? { detail: input.detail } : {}),
+    at: now,
   });
   return { from, to: release, moved: true };
 }
@@ -288,7 +291,7 @@ export async function promote(
   input: { projectId: string; version: number; channel: ReleaseChannel; actor: Actor },
   deps: ChannelDeps = {},
 ): Promise<{ from: number | null; to: number }> {
-  const { db } = resolved(deps);
+  const { db, now } = resolved(deps);
   const { projectId, version, channel, actor } = input;
   const project = await liveProject(db, projectId);
   await assertMayMove(db, actor, project, "promote", channel);
@@ -302,6 +305,7 @@ export async function promote(
       release: release.id,
       actor,
       action: "promote",
+      at: now(),
     });
     return { from: await versionOf(tx, moved.from), to: version };
   });
@@ -317,7 +321,7 @@ export async function rollback(
   input: { projectId: string; channel: ReleaseChannel; to?: number; actor: Actor },
   deps: ChannelDeps = {},
 ): Promise<{ from: number; to: number }> {
-  const { db } = resolved(deps);
+  const { db, now } = resolved(deps);
   const { projectId, channel, actor } = input;
   const project = await liveProject(db, projectId);
   await assertMayMove(db, actor, project, "rollback", channel);
@@ -353,6 +357,7 @@ export async function rollback(
       release: target.id,
       actor,
       action: "rollback",
+      at: now(),
     });
     return { from: (await versionOf(tx, moved.from)) ?? target.version, to: target.version };
   });

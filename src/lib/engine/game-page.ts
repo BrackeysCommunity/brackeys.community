@@ -12,6 +12,7 @@ import {
   projects,
   teams,
 } from "@/db/schema";
+import { jamDayMonth } from "@/lib/jam-links";
 import {
   getProfileProjectImageUrl,
   resolveTeamAvatarUrl,
@@ -120,11 +121,7 @@ const ONCE_LIVE = {
   jamPinned: false,
 } as const;
 
-/** "26 Nov", UTC like every jam date. */
-const dayMonth = (at: Date) =>
-  at.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
-
-export const removalNotice = (at: Date): string => `Removed on ${dayMonth(at)} unless pinned`;
+export const removalNotice = (at: Date): string => `Removed on ${jamDayMonth(at)} unless pinned`;
 
 const isPrivate = (visibility: GameVisibility) => visibility === "private" || visibility === "team";
 

@@ -19,6 +19,7 @@ import {
   engineReleaseUploads,
   itchTierHeartbeats,
 } from "../../../../src/db/schema.ts";
+import { purgeShell } from "../../../../src/lib/cloudflare-purge.ts";
 import {
   blobsDue,
   nextCollectorRun,
@@ -43,7 +44,9 @@ import type { CollectorObjectStore } from "./object-store.ts";
  * what is stored and logs it; in `report` mode that is all it does.
  *
  * Deletions go object first, then row, so a run that stops halfway leaves
- * at worst a row naming a missing object, which the next run removes.
+ * at worst a row naming a missing object, which the next run removes. Each
+ * one runs under the project's row lock, the lock commits and pointer moves
+ * take, after checking again that nothing came to name it since the plan.
  */
 
 export type CollectorMode = "report" | "delete";
@@ -153,6 +156,12 @@ export interface CollectorOptions {
   shouldStop?: () => boolean;
   /** Awaited between projects, so a run gives live editing the event loop. */
   pause?: () => Promise<void>;
+  /**
+   * Takes a collected release's shell off the edge; default the Cloudflare
+   * purge, which logs when it isn't configured. Best effort: the origin
+   * already answers 410.
+   */
+  purge?: (releaseId: string) => Promise<unknown>;
 }
 
 const HOUR_MS = 3_600_000;
@@ -330,6 +339,15 @@ async function planProject(
 
 // ─── Acting ──────────────────────────────────────────────
 
+/** Locks the project row, as a release commit and a pointer move do. */
+async function lockProject(tx: CollectorTx, projectId: string): Promise<void> {
+  await tx
+    .select({ projectId: engineProjects.projectId })
+    .from(engineProjects)
+    .where(eq(engineProjects.projectId, projectId))
+    .for("update");
+}
+
 /** Collects one release unless a pointer or a jam came to name it since the plan. */
 async function collectRelease(
   db: CollectorDb,
@@ -338,6 +356,7 @@ async function collectRelease(
   now: Date,
 ): Promise<boolean> {
   return db.transaction(async (tx: CollectorTx) => {
+    await lockProject(tx, projectId);
     const collected = await tx
       .update(engineReleases)
       .set({ collectedAt: now, manifest: null })
@@ -366,7 +385,7 @@ async function collectRelease(
 
 /** Whether a release file row or an open upload names `sha256` now. */
 async function stillListed(
-  db: CollectorDb,
+  db: CollectorTx,
   projectId: string,
   sha256: string,
   now: Date,
@@ -390,6 +409,30 @@ async function stillListed(
   return inFlightHashes(open.map((u) => u.manifest)).has(sha256);
 }
 
+/**
+ * Removes a stored object and its row under the project's lock, unless a
+ * release file or an open upload names its hash again, or `stillDue` says
+ * the row no longer qualifies. True when it was removed.
+ */
+async function removeUnlisted(
+  db: CollectorDb,
+  objects: CollectorObjectStore,
+  target: { projectId: string; sha256: string; storageKey: string; now: Date },
+  row: {
+    stillDue: (tx: CollectorTx) => Promise<boolean>;
+    remove: (tx: CollectorTx) => Promise<unknown>;
+  },
+): Promise<boolean> {
+  const { projectId, sha256, storageKey, now } = target;
+  return db.transaction(async (tx: CollectorTx) => {
+    await lockProject(tx, projectId);
+    if (!(await row.stillDue(tx)) || (await stillListed(tx, projectId, sha256, now))) return false;
+    await objects.remove(storageKey);
+    await row.remove(tx);
+    return true;
+  });
+}
+
 // ─── The run ─────────────────────────────────────────────
 
 const emptyTotals = (): CollectorTotals =>
@@ -403,6 +446,7 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
   const clock = options.now ?? (() => new Date());
   const log = options.log ?? ((line: string) => console.log(line));
   const pause = options.pause ?? (() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+  const purge = options.purge ?? ((releaseId: string) => purgeShell(releaseId));
 
   let acquired: boolean;
   try {
@@ -475,8 +519,14 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
             target: release.id,
             bytes: release.bytes,
           } as const;
-          if (plan(action, false) && !(await collectRelease(db, projectId, release, now)))
+          if (!plan(action, false)) continue;
+          if (!(await collectRelease(db, projectId, release, now))) {
             log(`[collector] kept ${release.id}: it was pinned after the plan`);
+            continue;
+          }
+          await purge(release.id).catch((error: unknown) => {
+            log(`[collector] edge purge of ${release.id} failed: ${message(error)}`);
+          });
         }
 
         for (const orphan of project.orphans) {
@@ -487,20 +537,20 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
             bytes: orphan.bytes,
           } as const;
           if (!plan(action, true)) continue;
-          if (await stillListed(db, projectId, orphan.sha256, now)) {
-            log(`[collector] kept ${orphan.storageKey}: a release lists it again`);
-            continue;
-          }
-          await objects!.remove(orphan.storageKey);
-          await db
-            .delete(engineReleaseObjects)
-            .where(
-              and(
-                eq(engineReleaseObjects.projectId, projectId),
-                eq(engineReleaseObjects.sha256, orphan.sha256),
-                sql`not exists (select 1 from ${engineReleaseFiles} where ${engineReleaseFiles.projectId} = ${engineReleaseObjects.projectId} and ${engineReleaseFiles.sha256} = ${engineReleaseObjects.sha256})`,
-              ),
-            );
+          const objectRow = and(
+            eq(engineReleaseObjects.projectId, projectId),
+            eq(engineReleaseObjects.sha256, orphan.sha256),
+          );
+          const removed = await removeUnlisted(
+            db,
+            objects!,
+            { projectId, sha256: orphan.sha256, storageKey: orphan.storageKey, now },
+            {
+              stillDue: async () => true,
+              remove: (tx) => tx.delete(engineReleaseObjects).where(objectRow),
+            },
+          );
+          if (!removed) log(`[collector] kept ${orphan.storageKey}: a release lists it again`);
         }
 
         // Bookkeeping, not deletion: a blob referenced today starts its grace from today.
@@ -520,19 +570,24 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
             bytes: blob.bytes,
           } as const;
           if (!plan(action, true)) continue;
-          await objects!.remove(blob.storageKey);
-          await db
-            .delete(engineBlobs)
-            .where(
-              and(
-                eq(engineBlobs.projectId, projectId),
-                eq(engineBlobs.sha256, blob.sha256),
-                or(
-                  isNull(engineBlobs.lastReferencedAt),
-                  lte(engineBlobs.lastReferencedAt, blobCutoff),
-                ),
-              ),
-            );
+          const quiet = and(
+            eq(engineBlobs.projectId, projectId),
+            eq(engineBlobs.sha256, blob.sha256),
+            or(isNull(engineBlobs.lastReferencedAt), lte(engineBlobs.lastReferencedAt, blobCutoff)),
+          );
+          const removed = await removeUnlisted(
+            db,
+            objects!,
+            { projectId, sha256: blob.sha256, storageKey: blob.storageKey, now },
+            {
+              stillDue: async (tx) =>
+                (await tx.select({ sha256: engineBlobs.sha256 }).from(engineBlobs).where(quiet))
+                  .length > 0,
+              remove: (tx) => tx.delete(engineBlobs).where(quiet),
+            },
+          );
+          if (!removed)
+            log(`[collector] kept ${blob.storageKey}: it was referenced or listed after the plan`);
         }
 
         for (const id of project.uploads) {

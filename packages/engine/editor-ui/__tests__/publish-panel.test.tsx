@@ -57,7 +57,7 @@ const usage: UsageView = {
   ],
   notice: {
     level: "warn",
-    text: "Nearly full. Old releases are removed 14 days after they leave your 10 newest.",
+    text: "Nearly full. Releases outside your 10 newest are removed 14 days after publishing unless pinned.",
   },
   trash: null,
   footer: "These limits are per project.",
@@ -119,6 +119,7 @@ function host(over: Partial<FakePublish> = {}): FakePublish {
         none: "Nowhere",
       },
       connectsTo: "Origins this game may contact, up to 4. They are shown on the game page.",
+      connectOriginsMax: 4,
       privateLinks: "A private or team release opens through a link that works for 12 hours.",
     },
     ...over,
@@ -188,7 +189,7 @@ describe("PublishPanel", () => {
   it("names each channel's release and hides the command once one exists", async () => {
     mount(host({ releases: vi.fn(async () => channels()) }));
     const block = await screen.findByLabelText("Channels");
-    expect(within(block).getByText("Production: v6 (live since 2 Nov 2026)")).toBeTruthy();
+    expect(within(block).getByText("Production: v6 (first live 2 Nov 2026)")).toBeTruthy();
     expect(within(block).getByText("Preview: v7")).toBeTruthy();
     expect(within(block).getByRole("button", { name: "Roll back production to v5" })).toBeTruthy();
     expect(screen.queryByText("vp run scene game release create p-1")).toBeNull();
@@ -213,11 +214,35 @@ describe("PublishPanel", () => {
     await waitFor(() => expect(publish.releases).toHaveBeenCalledTimes(2));
   });
 
-  it("rolls production back to the release it was on before", async () => {
+  it("asks before rolling production back to the release it was on before", async () => {
     const publish = host({ releases: vi.fn(async () => channels()) });
     mount(publish);
     fireEvent.click(await screen.findByRole("button", { name: "Roll back production to v5" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).getByText(
+        "Players get v5 again the next time they open the game. v6 stays in the list.",
+      ),
+    ).toBeTruthy();
+    expect(publish.rollback).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Roll back" }));
     await waitFor(() => expect(publish.rollback).toHaveBeenCalledWith("production", 5));
+  });
+
+  it("offers Play only for a release that can be played", async () => {
+    mount(
+      host({
+        releases: vi.fn(async () => [
+          release(3, { hidden: "Reported art." }),
+          release(2, { collected: true }),
+          release(1),
+        ]),
+      }),
+    );
+    const list = await screen.findByRole("list", { name: "Releases" });
+    expect(within(list).queryByLabelText("Play v3")).toBeNull();
+    expect(within(list).queryByLabelText("Play v2")).toBeNull();
+    expect(within(list).getByLabelText("Play v1")).toBeTruthy();
   });
 
   it("reports a refused promote through the host's toasts", async () => {
@@ -323,7 +348,10 @@ describe("PublishPanel", () => {
     const field = await screen.findByLabelText("Origin to add");
     fireEvent.change(field, { target: { value: "ftp://nope" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
-    expect(await screen.findByText(/An origin is an http or https address/)).toBeTruthy();
+    expect(await screen.findByText(/An origin is an https:\/\/ or wss:\/\/ address/)).toBeTruthy();
+    fireEvent.change(field, { target: { value: "http://api.example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(await screen.findByText(/An origin is an https:\/\/ or wss:\/\/ address/)).toBeTruthy();
     expect(setSettings).not.toHaveBeenCalled();
 
     fireEvent.change(field, { target: { value: "https://api.example.com/v1/scores" } });
@@ -334,6 +362,37 @@ describe("PublishPanel", () => {
     expect(
       await screen.findByRole("button", { name: "Remove https://api.example.com" }),
     ).toBeTruthy();
+  });
+
+  it("takes a wss origin and stops adding at the host's maximum", async () => {
+    const setSettings = vi.fn(async (patch) => ({
+      ...settings,
+      connectOrigins: patch.connectOrigins ?? [],
+    })) satisfies EditorPublishHost["setSettings"];
+    const three = ["https://a.example.com", "https://b.example.com", "https://c.example.com"];
+    mount(
+      host({ settings: vi.fn(async () => ({ ...settings, connectOrigins: three })), setSettings }),
+    );
+    const field = await screen.findByLabelText("Origin to add");
+    fireEvent.change(field, { target: { value: "wss://Sync.Example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() =>
+      expect(setSettings).toHaveBeenCalledWith({
+        connectOrigins: [...three, "wss://sync.example.com"],
+      }),
+    );
+    await screen.findByRole("button", { name: "Remove wss://sync.example.com" });
+    fireEvent.change(field, { target: { value: "https://d.example.com" } });
+    expect(screen.getByRole("button", { name: "Add" })).toHaveProperty("disabled", true);
+  });
+
+  it("keeps saving on the game's own servers unavailable until an origin is listed", async () => {
+    mount(host());
+    const saves = await screen.findByRole("radiogroup", { name: "Where this game saves" });
+    expect(
+      within(saves).getByLabelText("On its own servers (list them under Connects to)"),
+    ).toHaveProperty("disabled", true);
+    expect(screen.getByText(/add the save server under Connects to first/)).toBeTruthy();
   });
 
   it("fails the usage on its own without hiding the channels", async () => {

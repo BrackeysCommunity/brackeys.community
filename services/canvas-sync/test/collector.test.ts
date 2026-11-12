@@ -138,6 +138,9 @@ if (TEST_DATABASE_URL) {
       await end();
     });
 
+    /** The releases the last runs purged from the edge, in order. */
+    const purged: string[] = [];
+
     function collector(
       projects: string[],
       options: Partial<CollectorOptions> & { at: Date; lines?: string[] },
@@ -153,6 +156,7 @@ if (TEST_DATABASE_URL) {
         log: (line) => lines?.push(line),
         projects,
         pause: async () => {},
+        purge: async (releaseId) => void purged.push(releaseId),
         ...rest,
       });
     }
@@ -333,9 +337,11 @@ if (TEST_DATABASE_URL) {
       expect(unshared.length).toBeGreaterThan(0);
       expect(shared.length).toBeGreaterThan(0);
 
+      purged.length = 0;
       const run = await collector([projectId], { objects: store, at: T0 });
       if (!run.ran) throw new Error("the run didn't take the lock");
       expect(run.failures).toEqual([]);
+      expect(purged).toEqual([first.releaseId]);
 
       const collected = await releaseRow(first.releaseId);
       expect(collected?.collectedAt?.getTime()).toBe(T0.getTime());
@@ -429,6 +435,64 @@ if (TEST_DATABASE_URL) {
       expect(later.ran && later.actions.map((a) => a.target)).toEqual([
         engineAssetKey(projectId, recent),
       ]);
+    }, 60_000);
+
+    it("keeps a due blob that a release committed after the plan serves", async () => {
+      const projectId = newProjectId();
+      const store = new MemoryObjectStore();
+      await seedProject(projectId);
+      const blob = hex("4");
+      const key = await seedBlob(store, projectId, blob, at(-40 * DAY));
+      const release = await plannedRelease({ projectId });
+      // A begin and commit landing between the plan and the blob's removal: begin counted
+      // the blob as held, so the release serves it as one of its files.
+      let committed = false;
+      const racing = new Proxy(db, {
+        get(target, prop) {
+          const value = Reflect.get(target, prop, target);
+          if (prop !== "transaction" || committed)
+            return typeof value === "function" ? value.bind(target) : value;
+          return async (...args: Parameters<typeof db.transaction>) => {
+            committed = true;
+            await db.insert(engineReleases).values({
+              id: release.releaseId,
+              projectId,
+              version: 1,
+              manifest: release.text,
+              manifestBytes: new TextEncoder().encode(release.text).length,
+              totalBytes: 10,
+              fileCount: 1,
+              engineVersion: release.manifest.engine.version,
+              gameId: release.manifest.game.id,
+              snapshot: release.manifest.project.snapshot,
+              buildHash: release.manifest.build.hash,
+              target: release.manifest.build.target,
+              createdAt: T0,
+            });
+            await db.insert(engineReleaseFiles).values({
+              releaseId: release.releaseId,
+              projectId,
+              path: `assets/${blob}.png`,
+              sha256: blob,
+              bytes: 10,
+              role: "asset",
+              source: "blob",
+            });
+            return target.transaction(...args);
+          };
+        },
+      });
+      const lines: string[] = [];
+
+      const run = await collector([projectId], { db: racing, objects: store, at: T0, lines });
+      expect(run.ran && run.failures).toEqual([]);
+      expect(committed).toBe(true);
+      expect(run.ran && run.actions).toEqual([
+        { step: "blobs", projectId, target: key, bytes: 10 },
+      ]);
+      expect(store.has(key)).toBe(true);
+      expect(await blobRow(projectId, blob)).toBeDefined();
+      expect(lines.some((l) => l.startsWith(`[collector] kept ${key}`))).toBe(true);
     }, 60_000);
 
     it("removes an expired upload, and its objects a day later", async () => {

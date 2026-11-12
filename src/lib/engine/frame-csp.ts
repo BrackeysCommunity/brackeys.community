@@ -1,8 +1,6 @@
 import { siteOrigin } from "@/env";
 
-/** The sandbox the play page puts on its iframe; the CSP repeats it so a frame URL opened directly is just as sandboxed. */
-export const FRAME_SANDBOX =
-  "allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox";
+import { FRAME_SANDBOX } from "./frame-sandbox";
 
 /** An origin as CSP wants it (`scheme://host[:port]`), or null for anything else. */
 function originOf(value: string, schemes: readonly string[]): string | null {
@@ -22,12 +20,19 @@ function originOf(value: string, schemes: readonly string[]): string | null {
  * token) rather than `'self'`, whose meaning in an opaque-origin sandbox can't be relied on.
  * Scripts get no `'unsafe-inline'`: the exported HTML has no inline script. Connect origins
  * that aren't plain `https:`/`wss:` origins are dropped, so a stored value can't add a directive.
+ * The sandbox repeats the iframe's, so a frame URL opened directly is just as sandboxed.
+ *
+ * `frame-ancestors` is checked against every ancestor up to the top-level page, so an
+ * `embeddable` frame (a public or unlisted release, which the embed page frames on other
+ * sites) admits any ancestor; the sandbox and the opaque origin are what keep it inert.
+ * A private or team release admits only the site.
  */
 export function frameCsp(opts: {
   base: string;
   siteOrigin: string;
   connect: readonly string[];
   syncOrigin: string | null;
+  embeddable?: boolean;
 }): string {
   const base = opts.base;
   if (!/^https?:\/\/[^\s;,'"]+\/$/.test(base) || !originOf(base, ["http:", "https:"])) {
@@ -52,7 +57,7 @@ export function frameCsp(opts: {
     "manifest-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",
-    `frame-ancestors ${ancestor}`,
+    `frame-ancestors ${opts.embeddable ? "*" : ancestor}`,
   ].join("; ");
 }
 

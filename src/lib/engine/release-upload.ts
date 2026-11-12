@@ -21,6 +21,7 @@ import {
   engineReleaseObjects,
   engineReleases,
   engineReleaseUploads,
+  imageScans,
   teamMembers,
 } from "@/db/schema";
 import { siteUrl } from "@/env";
@@ -57,7 +58,14 @@ import {
   ReleaseError,
   type ReleaseApiError,
 } from "./release-errors";
-import { checkLeadingBytes, contentTypeFor, type ReleaseObjectStore } from "./release-storage";
+import {
+  checkLeadingBytes,
+  contentTypeFor,
+  contentTypeOfPath,
+  LEADING_BYTES,
+  refusedReleaseFile,
+  type ReleaseObjectStore,
+} from "./release-storage";
 import { engineReleaseObjectKey } from "./storage-keys";
 import { releaseUsageReport, storedUsage, type StoredUsage, type UsageReport } from "./usage";
 
@@ -219,32 +227,27 @@ export function indexHtmlLoadsEntry(html: string, entry: string): boolean {
   return src !== null && hrefPath(src) === entry;
 }
 
-const ROLES: readonly ReleaseFile["role"][] = [
-  "shell",
-  "worker",
-  "code",
-  "style",
-  "wasm",
-  "icon",
-  "data",
-  "asset",
-];
+const INDEX_HTML = "index.html";
 
-/** The type a path is served with under whichever role takes it; each path fits one role at most. */
-const contentTypeOfPath = (path: string): string | null => {
-  for (const role of ROLES) {
-    const type = contentTypeFor(path, role);
-    if (type !== null) return type;
-  }
+/**
+ * Why the site won't serve these bytes at `path`, or null: its first bytes
+ * aren't what its extension says, or it is an `index.html` that loads
+ * anything but the build's entry. Every stored file passes this, whether it
+ * was sent with this upload or the project held it already.
+ */
+function fileBytesRefusal(path: string, body: Uint8Array, entry: string): ReleaseApiError | null {
+  if (contentTypeOfPath(path) === null || !checkLeadingBytes(path, body))
+    return releaseFileType(path);
+  if (path === INDEX_HTML && !indexHtmlLoadsEntry(new TextDecoder().decode(body), entry))
+    return {
+      ...releaseFileType(path),
+      hint: "index.html may hold one script: a module loading the build's entry, with no inline script.",
+    };
   return null;
-};
+}
 
-/** `data/<sha256>.json` and `assets/<sha256><ext>` are named by their content. */
-const nameHashOf = (file: ReleaseFile): string | null => {
-  if (file.role !== "data" && file.role !== "asset") return null;
-  const name = file.path.slice(file.path.indexOf("/") + 1);
-  return name.slice(0, 64);
-};
+/** Whether the bytes check needs the whole file rather than its first bytes. */
+const needsWholeFile = (path: string) => path === INDEX_HTML || path.endsWith(".json");
 
 async function liveProject(db: ReleaseDb, projectId: string): Promise<ProjectRow> {
   const [row] = await db
@@ -320,16 +323,24 @@ function releaseSize(manifest: ReleaseManifest, manifestBytes: number) {
   return { totalBytes: total, largestFile: largest };
 }
 
+/** A stored object the project holds: the type it was stored as, and where. */
+type HeldObject = { contentType: string; storageKey: string };
+
+type Held = { objects: Map<string, HeldObject>; blobs: Map<string, HeldObject> };
+
 /** The hashes the project already holds, as release objects and as blobs. */
 async function heldHashes(db: ReleaseDb, projectId: string, hashes: readonly string[]) {
   const unique = [...new Set(hashes)];
-  const objects = new Set<string>();
-  const blobs = new Set<string>();
+  const held: Held = { objects: new Map(), blobs: new Map() };
   for (let i = 0; i < unique.length; i += FILE_ROWS_PER_INSERT) {
     const chunk = unique.slice(i, i + FILE_ROWS_PER_INSERT);
     const [o, b] = await Promise.all([
       db
-        .select({ sha256: engineReleaseObjects.sha256 })
+        .select({
+          sha256: engineReleaseObjects.sha256,
+          contentType: engineReleaseObjects.contentType,
+          storageKey: engineReleaseObjects.storageKey,
+        })
         .from(engineReleaseObjects)
         .where(
           and(
@@ -338,21 +349,99 @@ async function heldHashes(db: ReleaseDb, projectId: string, hashes: readonly str
           ),
         ),
       db
-        .select({ sha256: engineBlobs.sha256 })
+        .select({
+          sha256: engineBlobs.sha256,
+          contentType: engineBlobs.contentType,
+          storageKey: engineBlobs.storageKey,
+        })
         .from(engineBlobs)
         .where(and(eq(engineBlobs.projectId, projectId), inArray(engineBlobs.sha256, chunk))),
     ]);
-    for (const row of o) objects.add(row.sha256);
-    for (const row of b) blobs.add(row.sha256);
+    for (const { sha256, ...row } of o) held.objects.set(sha256, row);
+    for (const { sha256, ...row } of b) held.blobs.set(sha256, row);
   }
-  return { objects, blobs };
+  return held;
+}
+
+/** Where a listed file is served from: the project's blob when it holds one, else the release object. */
+function servedFrom(held: Held, sha256: string) {
+  const blob = held.blobs.get(sha256);
+  if (blob) return { source: "blob" as const, ...blob };
+  const object = held.objects.get(sha256);
+  return object ? { source: "release" as const, ...object } : null;
+}
+
+const CHECK_CONCURRENCY = 8;
+
+async function readStored(
+  store: ReleaseObjectStore,
+  key: string,
+  bytes: number | null,
+): Promise<Uint8Array | null> {
+  const stream = await store.stream(
+    key,
+    bytes === null || bytes === 0 ? undefined : { start: 0, end: bytes - 1 },
+  );
+  return stream ? new Uint8Array(await new Response(stream).arrayBuffer()) : null;
+}
+
+/**
+ * Holds every listed file to the checks a file sent with this upload gets,
+ * by path rather than by hash: a hash the project held under one path (or
+ * as a blob, which nothing type-checked) may be listed under another. A
+ * release object stored under the type this path is served with passed
+ * these checks when it was stored; `index.html` and every other file are
+ * read back from the store and checked again. Returns the stored keys of
+ * the images that no scan has seen as an image.
+ */
+async function checkListedFiles(
+  db: ReleaseDb,
+  store: ReleaseObjectStore,
+  manifest: ReleaseManifest,
+  held: Held,
+): Promise<string[]> {
+  const toRead: { file: ReleaseFile; key: string }[] = [];
+  const images = new Map<string, boolean>();
+  for (const file of manifest.build.files) {
+    const type = contentTypeFor(file.path, file.role);
+    const served = servedFrom(held, file.sha256);
+    if (type === null) refuse(releaseFileType(file.path));
+    if (!served) refuse(releaseFilesMissing(1));
+    const checked = served.source === "release" && served.contentType === type;
+    if (!checked || file.path === INDEX_HTML) toRead.push({ file, key: served.storageKey });
+    if (type.startsWith("image/"))
+      images.set(served.storageKey, (images.get(served.storageKey) ?? false) || checked);
+  }
+
+  for (let i = 0; i < toRead.length; i += CHECK_CONCURRENCY) {
+    await Promise.all(
+      toRead.slice(i, i + CHECK_CONCURRENCY).map(async ({ file, key }) => {
+        const body = await readStored(
+          store,
+          key,
+          needsWholeFile(file.path) ? null : Math.min(LEADING_BYTES, file.bytes),
+        );
+        if (!body) refuse(releaseFilesMissing(1));
+        const refusal = fileBytesRefusal(file.path, body, manifest.build.entry);
+        if (refusal) refuse(refusal);
+      }),
+    );
+  }
+
+  const unseen = [...images].filter(([, scanned]) => !scanned).map(([key]) => key);
+  const scanned = new Set<string>();
+  for (let i = 0; i < unseen.length; i += FILE_ROWS_PER_INSERT) {
+    const rows = await db
+      .select({ objectKey: imageScans.objectKey })
+      .from(imageScans)
+      .where(inArray(imageScans.objectKey, unseen.slice(i, i + FILE_ROWS_PER_INSERT)));
+    for (const row of rows) scanned.add(row.objectKey);
+  }
+  return unseen.filter((key) => !scanned.has(key));
 }
 
 /** Each file the project holds neither as a release object nor as a blob, once per hash. */
-function missingFiles(
-  files: readonly ReleaseFile[],
-  held: { objects: ReadonlySet<string>; blobs: ReadonlySet<string> },
-): MissingFile[] {
+function missingFiles(files: readonly ReleaseFile[], held: Held): MissingFile[] {
   const seen = new Set<string>();
   const out: MissingFile[] = [];
   for (const { path, sha256, bytes } of files) {
@@ -447,18 +536,8 @@ export async function beginRelease(
   const error = issues.find((i) => i.severity === "error");
   if (error) refuse(issueError(error));
 
-  const seenPaths = new Set<string>();
-  for (const file of manifest.build.files) {
-    const folded = file.path.toLowerCase();
-    const named = nameHashOf(file);
-    if (
-      contentTypeFor(file.path, file.role) === null ||
-      seenPaths.has(folded) ||
-      (named !== null && named !== file.sha256)
-    )
-      refuse(releaseFileType(file.path));
-    seenPaths.add(folded);
-  }
+  const refused = refusedReleaseFile(manifest.build.files);
+  if (refused !== null) refuse(releaseFileType(refused));
 
   const held = await heldHashes(
     db,
@@ -563,15 +642,8 @@ export async function putReleaseFile(
       hint: "Upload the build's own files unchanged.",
     });
   const contentType = contentTypeOfPath(path);
-  if (contentType === null || !checkLeadingBytes(path, input.body)) refuse(releaseFileType(path));
-  if (path === "index.html") {
-    const { build } = parsedManifest(upload.manifest);
-    if (!indexHtmlLoadsEntry(new TextDecoder().decode(input.body), build.entry))
-      refuse({
-        ...releaseFileType(path),
-        hint: "index.html may hold one script: a module loading the build's entry, with no inline script.",
-      });
-  }
+  const refusal = fileBytesRefusal(path, input.body, parsedManifest(upload.manifest).build.entry);
+  if (contentType === null || refusal) refuse(refusal ?? releaseFileType(path));
   if (
     !(await rateLimit("engine-release-file", input.actor.userId, RELEASE_FILE_PUTS_PER_HOUR, 3600))
   )
@@ -598,17 +670,20 @@ export async function putReleaseFile(
 }
 
 /**
- * Records the release once every file has arrived. Under a lock on the
- * project row: the next version, the release and its file rows, the
+ * Records the release once every file has arrived and every listed file,
+ * held or sent, passes the per-file checks. Under a lock on the project
+ * row, the one the collector takes before it removes anything: every file
+ * still stored, the next version, the release and its file rows, the
  * preview pointer (unless the upload said `none`), the audit rows, and the
- * upload marked committed. The same release committed again answers its
- * existing version with `created: false`.
+ * upload marked committed; then images no scan has seen go to the scan.
+ * The same release committed again answers its existing version with
+ * `created: false`.
  */
 export async function commitRelease(
   deps: ReleaseDeps,
   input: { uploadId: string; actor: Actor },
 ): Promise<CommitResult> {
-  const { db, now } = resolved(deps);
+  const { db, now, scan } = resolved(deps);
   const { actor } = input;
   const upload = await openUpload(deps, db, input.uploadId, actor);
   const projectId = upload.projectId;
@@ -642,11 +717,12 @@ export async function commitRelease(
   const issues = await checkReleaseManifest(manifest, files, { measureBudget });
   const error = issues.find((i) => i.severity === "error");
   if (error) refuse(issueError(error));
+  const unscanned = await checkListedFiles(db, deps.store, manifest, held);
 
   const manifestBytes = new TextEncoder().encode(upload.manifest).byteLength;
   const size = releaseSize(manifest, manifestBytes);
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     await tx
       .select({ projectId: engineProjects.projectId })
       .from(engineProjects)
@@ -661,6 +737,17 @@ export async function commitRelease(
         .where(eq(engineReleaseUploads.id, upload.id));
       return answer(existing.version, false);
     }
+
+    // The collector may have removed an object since it was counted, under this same lock.
+    const stillHeld = await heldHashes(
+      tx,
+      projectId,
+      manifest.build.files.map((f) => f.sha256),
+    );
+    const gone = new Set(
+      manifest.build.files.filter((f) => !servedFrom(stillHeld, f.sha256)).map((f) => f.sha256),
+    ).size;
+    if (gone > 0) refuse(releaseFilesMissing(gone));
 
     const stored = await storedUsage(tx, projectId, at);
     const quota = checkReleaseQuota(stored, {
@@ -702,7 +789,7 @@ export async function commitRelease(
       sha256: f.sha256,
       bytes: f.bytes,
       role: f.role,
-      source: held.blobs.has(f.sha256) ? "blob" : "release",
+      source: servedFrom(stillHeld, f.sha256)!.source,
     }));
     for (let i = 0; i < rows.length; i += FILE_ROWS_PER_INSERT)
       await tx.insert(engineReleaseFiles).values(rows.slice(i, i + FILE_ROWS_PER_INSERT));
@@ -722,6 +809,7 @@ export async function commitRelease(
         release: id,
         actor,
         action: "promote",
+        at,
       });
     await tx
       .update(engineReleaseUploads)
@@ -729,4 +817,8 @@ export async function commitRelease(
       .where(eq(engineReleaseUploads.id, upload.id));
     return answer(version, true);
   });
+  if (result.created)
+    for (const objectKey of unscanned)
+      await scan({ objectKey, projectId, uploaderId: actor.userId });
+  return result;
 }

@@ -25,7 +25,7 @@ import {
 } from "../../editor/index";
 import type { RapierModule } from "../../index";
 import type { AssetKey } from "../../project/index";
-import { hostPeerColor, type EditorHost } from "../host";
+import { hostPeerColor, type EditorHost, type EditorPublishHost } from "../host";
 import { cx, KitProvider, useKit } from "../kit/index";
 import { useIsomorphicLayoutEffect, useWindowSize } from "../kit/ssr";
 import {
@@ -54,7 +54,13 @@ import { EditorStatusBar } from "../panels/EditorStatusBar";
 import { EditorToolbar } from "../panels/EditorToolbar";
 import { PeerColorProvider } from "../panels/peer-faces";
 import { PrefabHeader } from "../panels/PrefabHeader";
-import { createPanelContext, PANELS, type PanelContext, type PanelDef } from "../panels/registry";
+import {
+  createPanelContext,
+  editorPanels,
+  PANELS,
+  type PanelContext,
+  type PanelDef,
+} from "../panels/registry";
 import { createLoadedRunStore } from "../session/loaded-run";
 import { useEditorStore } from "../session/use-editor-store";
 import { usePhysicalIssues } from "../session/use-physical-issues";
@@ -856,7 +862,14 @@ export type EditorChrome = Pick<
  */
 export function editorChrome(
   props: EditorChromeProps,
-  { dev = false }: { dev?: boolean } = {},
+  {
+    dev = false,
+    publish,
+  }: {
+    dev?: boolean;
+    /** The host's publishing: the Publish panel and the project settings' Usage section. */
+    publish?: EditorPublishHost;
+  } = {},
 ): EditorChrome {
   const { session, host, game, notify } = props;
   const editorKeys = game.registry.game?.editorKeys;
@@ -899,7 +912,10 @@ export function editorChrome(
         <CodeSkewNotice host={host} />
       </EditMode>
     ),
-    panels: { context: { controls, physical, pickedAsset } },
+    panels: {
+      defs: editorPanels(publish ? { publish } : {}),
+      context: { controls: publish ? { ...controls, publish } : controls, physical, pickedAsset },
+    },
     mode: session.store,
     dock: <EditorDock {...controls} />,
     status: (

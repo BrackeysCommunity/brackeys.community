@@ -11,6 +11,8 @@ export type UndoneStep = {
   /** The docs the step changed, in write order. */
   docs: string[];
   selection?: StepSelection;
+  /** Why nothing was undone or redone: the step's changes are gone for good (it leaves the stack). */
+  refused?: string;
 };
 
 export type UndoCoordinator = {
@@ -25,6 +27,12 @@ export type UndoCoordinator = {
    * adds no step.
    */
   commit(step: { docs: string[]; label: string; selection?: StepSelection }): void;
+  /**
+   * Marks every step on either stack that wrote `docName`: one that later
+   * finds nothing left to change is answered as refused with `reason`
+   * instead of being skipped for the step below it.
+   */
+  refuseStale(docName: string, reason: string): void;
   /** Undoes this client's last step in every doc it wrote, newest doc first. */
   undo(): UndoneStep | null;
   redo(): UndoneStep | null;
@@ -50,7 +58,7 @@ type RootType = Y.Doc["share"] extends Map<string, infer T> ? T : never;
 
 /** How many of a doc manager's stack items one step owns. */
 type Part = { doc: string; items: number };
-type Step = { label: string; parts: Part[]; selection?: StepSelection };
+type Step = { label: string; parts: Part[]; selection?: StepSelection; refused?: string };
 
 type Attached = {
   doc: Y.Doc;
@@ -168,7 +176,10 @@ export function createUndoCoordinator(
         if (items > 0) moved.push({ doc: part.doc, items });
       }
       rebase();
-      if (moved.length === 0) continue;
+      if (moved.length === 0) {
+        if (step.refused === undefined) continue;
+        return { label: step.label, docs: [], refused: step.refused };
+      }
       if (from === "undo") moved.reverse();
       const next: Step = { ...step, parts: moved };
       target.push(next);
@@ -246,6 +257,10 @@ export function createUndoCoordinator(
     },
     detach,
     commit,
+    refuseStale(docName, reason) {
+      for (const s of [...undoStack, ...redoStack])
+        if (s.parts.some((p) => p.doc === docName)) s.refused = reason;
+    },
     undo: () => move("undo"),
     redo: () => move("redo"),
     peekUndo: () => peek("undo"),

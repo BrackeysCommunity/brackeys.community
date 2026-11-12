@@ -6,6 +6,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   checkLeadingBytes,
   contentTypeFor,
+  contentTypeOfPath,
   memoryReleaseStore,
   minioReleaseStoreFor,
   refusedReleaseFile,
@@ -124,16 +125,41 @@ describe("contentTypeFor and checkLeadingBytes", () => {
 });
 
 describe("refusedReleaseFile", () => {
+  const sha256 = "0".repeat(64);
   it("names the first refused file, or a path differing from another only in case", () => {
-    const shell = { path: "index.html", role: "shell" } as const;
-    expect(refusedReleaseFile([shell, { path: "code/a.js", role: "code" }])).toBeNull();
-    expect(refusedReleaseFile([shell, { path: "about.html", role: "shell" }])).toBe("about.html");
+    const shell = { path: "index.html", role: "shell", sha256 } as const;
+    expect(refusedReleaseFile([shell, { path: "code/a.js", role: "code", sha256 }])).toBeNull();
+    expect(refusedReleaseFile([shell, { path: "about.html", role: "shell", sha256 }])).toBe(
+      "about.html",
+    );
     expect(
       refusedReleaseFile([
-        { path: "code/A.js", role: "code" },
-        { path: "code/a.js", role: "code" },
+        { path: "code/A.js", role: "code", sha256 },
+        { path: "code/a.js", role: "code", sha256 },
       ]),
     ).toBe("code/a.js");
+  });
+
+  it("refuses a content-named file whose name isn't its hash", () => {
+    const asset = { path: `assets/${hash}.png`, role: "asset" } as const;
+    expect(refusedReleaseFile([{ ...asset, sha256: hash }])).toBeNull();
+    expect(refusedReleaseFile([{ ...asset, sha256 }])).toBe(asset.path);
+    expect(
+      refusedReleaseFile([{ path: `data/${hash}.json`, role: "data", sha256: hash }]),
+    ).toBeNull();
+    expect(refusedReleaseFile([{ path: `data/${hash}.json`, role: "data", sha256 }])).toBe(
+      `data/${hash}.json`,
+    );
+  });
+});
+
+describe("contentTypeOfPath", () => {
+  it("serves each path under the one role that takes it", () => {
+    expect(contentTypeOfPath("index.html")).toBe("text/html");
+    expect(contentTypeOfPath("sw.js")).toBe("text/javascript");
+    expect(contentTypeOfPath(`assets/${hash}.png`)).toBe("image/png");
+    expect(contentTypeOfPath(`assets/${hash}.txt`)).toBe("text/plain");
+    expect(contentTypeOfPath("about.html")).toBeNull();
   });
 });
 

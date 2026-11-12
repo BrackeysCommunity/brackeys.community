@@ -394,9 +394,9 @@ Refers to [`BuiltCode`](#builtcode), [`ContentPlan`](#contentplan), [`ExportInpu
 
 ## `formatBytes`
 
-_function_ in `export/budget.ts`
+_function_ in `project/format-bytes.ts`
 
-A byte count as people read it: `512 B`, `14 KB`, `2.3 MB`.
+A byte count as people read it, KiB-based as the engine measures: `512 B`, `14 KB`, `2.3 MB`.
 
 ```ts
 declare function formatBytes(bytes: number): string;

@@ -119,10 +119,11 @@ type FakeOptions = {
 
 const open: MessagePort[] = [];
 
-/** Dispatches a window message from the parent, carrying `ports`. */
-function postToFrame(data: unknown, ports: MessagePort[] = []) {
+/** Dispatches a window message from `source` (default the parent), carrying `ports`. */
+function postToFrame(data: unknown, ports: MessagePort[] = [], source: unknown = window.parent) {
   const event = new MessageEvent("message", { data });
   Object.defineProperty(event, "ports", { value: ports });
+  Object.defineProperty(event, "source", { value: source });
   window.dispatchEvent(event);
 }
 
@@ -262,6 +263,18 @@ describe("connectHost", () => {
     await expect(connectHost({ hello: HELLO, timeoutMs: 500 })).resolves.toBeNull();
     fakeParent({ answer: () => ({ type: "pause" }) });
     await expect(connectHost({ hello: HELLO, timeoutMs: 100 })).resolves.toBeNull();
+  });
+
+  it("takes the handshake only from the parent window, never a sourceless or foreign one", async () => {
+    const page = fakeParent({ silent: true });
+    const pending = connectHost({ hello: HELLO, timeoutMs: 200 });
+    for (const source of [null, window, {}]) {
+      const { port1, port2 } = new MessageChannel();
+      open.push(port1, port2);
+      postToFrame({ type: "jams:host", protocol: 1 }, [port2], source);
+    }
+    await expect(pending).resolves.toBeNull();
+    expect(page.readyPosts).toHaveLength(1);
   });
 
   it("ignores every window message but the first valid jams:host with a port", async () => {

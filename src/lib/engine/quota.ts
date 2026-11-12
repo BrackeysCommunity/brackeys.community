@@ -49,7 +49,7 @@ export type SiteQuotaRefusal = {
 
 export type SiteQuotaVerdict = { ok: true } | SiteQuotaRefusal;
 
-/** M11's `QuotaPolicy`, whose refusals also carry the hint. */
+/** The engine's `QuotaPolicy`, whose refusals also carry the hint. */
 export type SiteQuotaPolicy = {
   check(usage: ProjectUsage, add: Partial<ProjectUsage>): SiteQuotaVerdict;
 };
@@ -114,7 +114,7 @@ export function quotaWords(input: QuotaWordsInput): { message: string; hint: str
     case "releaseStorageBytes":
       return {
         message: `This release adds ${formatBytes(input.adding)}, and the project's releases already use ${formatBytes(input.used)} of ${formatBytes(input.max)}.`,
-        hint: `Old releases are removed ${RELEASE_GRACE_DAYS} days after they leave the ${PROJECT_QUOTA.releasesKept} newest. Unpin jam versions you no longer need, or wait for the next cleanup.`,
+        hint: `Releases outside the ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned. Unpin jam versions you no longer need, or wait for the next cleanup.`,
       };
     case "jamPins":
       return {
@@ -143,7 +143,7 @@ export function usageNotice(level: UsageLine["level"]): string | null {
     case "ok":
       return null;
     case "warn":
-      return `Nearly full. Old releases are removed ${RELEASE_GRACE_DAYS} days after they leave your ${PROJECT_QUOTA.releasesKept} newest; unpin jam versions you no longer need.`;
+      return `Nearly full. Releases outside your ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned; unpin jam versions you no longer need.`;
     case "full":
       return "Full. New releases are refused until releases are removed or unpinned.";
   }

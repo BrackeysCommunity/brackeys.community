@@ -126,17 +126,28 @@ edge holds it for a year once the Cache Rule above is in place.
 
 - **Errors are never cached immutable.** Route-rule headers apply to 2xx
   only, so a 404, 403 or 410 gets Nitro's `no-cache`.
-- **Takedown.** Hiding a release, or the collector removing it, makes the
-  origin answer `410` at once, and the play page stops framing it. Edge
-  copies are purged by URL for the release's five shell files
+- **Takedown.** A hidden or collected release answers `410` at origin and
+  the play page stops framing it. A staff hide drops it from that web
+  process's frame-route cache at once; other web processes, and every
+  other takedown (a confirmed flagged image, the media-scan worker's
+  quarantine auto-hide, the canvas-sync collector), reach that cache when
+  its ten-minute entry expires.
+- **Edge purge.** Every takedown purges the release's five shell files
   (`index.html`, `release.json`, `credits.html`, `sw.js`,
-  `app.webmanifest`) through Cloudflare's `POST /zones/<id>/purge_cache`
-  with `files`, best effort and logged, when `CLOUDFLARE_ZONE_ID` and
-  `CLOUDFLARE_PURGE_TOKEN` are set. Purge by prefix is Enterprise-only;
-  without its shell a release can't boot, and the hashed chunks left at the
-  edge are inert outside the frame. With either variable unset, staff are
-  told edge copies may persist until Cloudflare evicts them, as with
-  deleted images.
+  `app.webmanifest`) by URL through Cloudflare's
+  `POST /zones/<id>/purge_cache` with `files`: staff hide and unhide in the
+  web app, the quarantine auto-hide and a confirm (`src/lib/image-quarantine.ts`,
+  for each release it newly hides), and the collector (each release it
+  collects). All of them call `src/lib/cloudflare-purge.ts`, which is
+  import-free so both services copy it. It is best effort and logged, and
+  runs only in a process that has `CLOUDFLARE_ZONE_ID`,
+  `CLOUDFLARE_PURGE_TOKEN` and a frame origin (`ENGINE_PLAY_ORIGIN`, else
+  `VITE_SITE_ORIGIN` or `APP_URL`) set; web, media-scan and canvas-sync
+  each need them. Purge by prefix is Enterprise-only; without its shell a
+  release can't boot, and the hashed chunks left at the edge are inert
+  outside the frame. Where purging isn't configured the call logs that edge
+  copies stay until Cloudflare evicts them, and staff are told so on a
+  hide, as with deleted images.
 - **Private releases** (`/frames-private/<releaseId>/<token>/<path>`) are
   `private, max-age=3600`: a browser may keep them, the edge never does.
   A takedown reaches them at the origin on the next request.

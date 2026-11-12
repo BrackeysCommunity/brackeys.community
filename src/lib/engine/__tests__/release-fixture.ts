@@ -159,7 +159,9 @@ function filler(index: number, size: number): Uint8Array {
 /**
  * A small release planned in memory through `./export`, with a hand-made
  * build standing in for the bundler: every file's real bytes, so its hashes
- * check, and the manifest text an upload begins with.
+ * check, and the manifest text an upload begins with. A real game build
+ * (tactics, bundled) goes through the same upload calls in the play-frame
+ * smoke (`scripts/engine-smoke/play-adapter.ts`).
  */
 export async function plannedRelease(opts: PlannedReleaseOptions = {}): Promise<PlannedRelease> {
   const project: ProjectFile = {

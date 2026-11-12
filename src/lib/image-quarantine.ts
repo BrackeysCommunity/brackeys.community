@@ -16,8 +16,8 @@
  * A hosted game's images are the exception: a blob or release file is
  * stored once per project by its hash and shared by every release and scene
  * that lists it, so it never moves. Quarantine stamps the object row and
- * hides every release of the project that lists the hash instead; a dismiss
- * clears both.
+ * hides every release of the project that lists the hash instead, and purges
+ * each newly hidden release's shell from the edge; a dismiss clears both.
  */
 import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 
@@ -36,6 +36,7 @@ import {
   teamProjects,
   teams,
 } from "../db/schema";
+import { purgeShell } from "./cloudflare-purge";
 import { writeAudit } from "./engine/release-audit";
 import {
   ENGINE_ASSETS_PREFIX,
@@ -304,6 +305,21 @@ export async function reattachImageKey(
     );
 }
 
+/** How a takedown reaches the edge; default the Cloudflare shell purge, which logs when it isn't configured. */
+export type TakedownDeps = { purge?: (releaseId: string) => Promise<unknown> };
+
+/** Best effort: the origin already answers 410 for a hidden release. */
+async function purgeHidden(deps: TakedownDeps, releaseIds: readonly string[]): Promise<void> {
+  const purge = deps.purge ?? ((releaseId: string) => purgeShell(releaseId));
+  for (const releaseId of releaseIds) {
+    try {
+      await purge(releaseId);
+    } catch (error) {
+      console.warn("[image-quarantine] edge purge failed", { releaseId, error });
+    }
+  }
+}
+
 /** What publishers are told while a flagged image keeps their release hidden. */
 export const ENGINE_QUARANTINE_REASON = "An image in this release is waiting for review.";
 
@@ -333,14 +349,14 @@ const keyOf = (projectId: string, sha256: string, source: string) =>
 /**
  * Hides every kept release of the project that lists the hash and isn't
  * hidden already, each audited as the site's own hide. Returns the ids the
- * image now holds hidden. A release staff hid for another reason keeps that
- * reason, and isn't the image's to unhide later.
+ * image now holds hidden, and those this call hid. A release staff hid for
+ * another reason keeps that reason, and isn't the image's to unhide later.
  */
 async function hideReleasesListing(
   db: DbHandle,
   ref: EngineObjectRef,
   objectKey: string,
-): Promise<string[]> {
+): Promise<{ held: string[]; hidden: string[] }> {
   const now = new Date();
   if (ref.source === "release") {
     await db
@@ -363,7 +379,7 @@ async function hideReleasesListing(
         eq(engineReleaseFiles.sha256, ref.sha256),
       ),
     );
-  if (listing.length === 0) return [];
+  if (listing.length === 0) return { held: [], hidden: [] };
   const hidden: Array<{ id: string }> = await db
     .update(engineReleases)
     .set({ hiddenAt: now, hiddenById: null, hiddenReason: ENGINE_QUARANTINE_REASON })
@@ -403,7 +419,10 @@ async function hideReleasesListing(
         isNull(engineReleases.hiddenById),
       ),
     );
-  return [...new Set([...hidden.map((r) => r.id), ...held.map((r) => r.id)])];
+  return {
+    held: [...new Set([...hidden.map((r) => r.id), ...held.map((r) => r.id)])],
+    hidden: hidden.map((r) => r.id),
+  };
 }
 
 /**
@@ -549,18 +568,20 @@ export async function quarantineImage(
   db: DbHandle,
   store: ImageObjectStore,
   objectKey: string,
+  takedown: TakedownDeps = {},
 ): Promise<DetachedRefs | null> {
   const scan = await readScan(db, objectKey);
   if (!scan || scan.status === "cleared" || scan.status === "purged") return null;
 
   const engine = engineObjectOf(objectKey);
   if (engine) {
-    const hidden = await hideReleasesListing(db, engine, objectKey);
-    const refs = mergeRefs(refsFrom(scan.detached), { ...EMPTY_REFS, engineReleases: hidden });
+    const { held, hidden } = await hideReleasesListing(db, engine, objectKey);
+    const refs = mergeRefs(refsFrom(scan.detached), { ...EMPTY_REFS, engineReleases: held });
     await db
       .update(imageScans)
       .set({ status: "quarantined", detached: refs })
       .where(eq(imageScans.objectKey, objectKey));
+    await purgeHidden(takedown, hidden);
     return refs;
   }
 
@@ -604,6 +625,7 @@ export async function purgeImage(
   db: DbHandle,
   store: ImageObjectStore,
   objectKey: string,
+  takedown: TakedownDeps = {},
 ): Promise<boolean> {
   const scan = await readScan(db, objectKey);
   if (!scan) return false;
@@ -612,17 +634,16 @@ export async function purgeImage(
     // The bytes stay: other releases and the project's scenes may list the
     // same hash, and the collector removes objects nothing lists. Every
     // release listing it stays hidden.
-    const refs =
-      scan.status === "quarantined"
-        ? refsFrom(scan.detached)
-        : mergeRefs(refsFrom(scan.detached), {
-            ...EMPTY_REFS,
-            engineReleases: await hideReleasesListing(db, engine, objectKey),
-          });
+    const hid =
+      scan.status === "quarantined" ? null : await hideReleasesListing(db, engine, objectKey);
+    const refs = hid
+      ? mergeRefs(refsFrom(scan.detached), { ...EMPTY_REFS, engineReleases: hid.held })
+      : refsFrom(scan.detached);
     await db
       .update(imageScans)
       .set({ status: "purged", detached: refs })
       .where(eq(imageScans.objectKey, objectKey));
+    if (hid) await purgeHidden(takedown, hid.hidden);
     return true;
   }
   if (scan.status !== "quarantined") {

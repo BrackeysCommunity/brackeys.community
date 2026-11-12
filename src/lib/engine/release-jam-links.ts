@@ -9,6 +9,7 @@ import {
   projectJamLinks,
 } from "@/db/schema";
 import { siteUrl } from "@/env";
+import { releaseDay } from "@/lib/jam-links";
 
 import { checkJamPinQuota } from "./quota";
 import { canDo, roleOf, type GameRole, type GameVisibility } from "./release-access";
@@ -53,14 +54,6 @@ function notFound(message: string): never {
   return refuse({ code: "not-found", message }, 404);
 }
 
-const utcDate = (at: Date) =>
-  at.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-
 export function jamLinkNotListed(): ReleaseApiError {
   return {
     code: "release-forbidden",
@@ -80,7 +73,7 @@ export function jamLinkGameHidden(): ReleaseApiError {
 export function jamVersionFrozen(title: string, endedAt: Date): ReleaseApiError {
   return {
     code: "release-forbidden",
-    message: `${title} ended on ${utcDate(endedAt)}, so its jam version can't change.`,
+    message: `${title} ended on ${releaseDay(endedAt)}, so its jam version can't change.`,
     hint: "After a jam ends, only staff can change the version submitted to it.",
   };
 }

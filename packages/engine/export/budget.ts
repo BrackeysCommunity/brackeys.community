@@ -1,3 +1,4 @@
+import { formatBytes } from "../project/format-bytes";
 import type { ExportBudget, ExportBudgetReport, ReleaseFile } from "../project/release";
 import type { AssetId } from "../project/types";
 import { makeIssue } from "../scene/issues";
@@ -43,12 +44,7 @@ export function resolveExportBudget(
   return limits;
 }
 
-/** A byte count as people read it: `512 B`, `14 KB`, `2.3 MB`. */
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < MiB) return `${Math.round(bytes / 1024)} KB`;
-  return `${Math.round((bytes / MiB) * 10) / 10} MB`;
-}
+export { formatBytes };
 
 function isCode(file: ReleaseFile): boolean {
   return file.role === "code" || file.role === "style";

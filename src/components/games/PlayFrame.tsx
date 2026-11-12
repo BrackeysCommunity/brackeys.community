@@ -1,19 +1,15 @@
-import { Download01Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, Download01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useEffectEvent, useRef, useState, type Ref } from "react";
 
 import { Button } from "@/components/ui/button";
+import { FRAME_ALLOW, FRAME_SANDBOX } from "@/lib/engine/frame-sandbox";
 import {
   createHostServer,
   type HostServer,
   type HostServerOptions,
 } from "@/lib/engine/host-server";
 import { cn } from "@/lib/utils";
-
-/** No `allow-same-origin`, forms, top navigation, modals or downloads: game code is untrusted. */
-export const PLAY_FRAME_SANDBOX =
-  "allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox";
-export const PLAY_FRAME_ALLOW = "fullscreen; gamepad; autoplay; screen-wake-lock";
 
 type DownloadOffer = { name: string; contentType: string; bytes: ArrayBuffer };
 
@@ -24,6 +20,8 @@ export type PlayFrameProps = {
   title: string;
   release: HostServerOptions["release"];
   saveMode: HostServerOptions["mode"];
+  /** The project plays online, as the host channel's `welcome` tells the frame. */
+  online?: boolean;
   saves: HostServerOptions["saves"];
   describe: HostServerOptions["describe"];
   prefs: HostServerOptions["prefs"];
@@ -67,6 +65,7 @@ export function PlayFrame({
   title,
   release,
   saveMode,
+  online = false,
   saves,
   describe,
   prefs,
@@ -122,6 +121,7 @@ export function PlayFrame({
       saves: () => latest().saves(),
       describe: () => latest().describe(),
       mode: saveMode,
+      online,
       prefs: {
         load: () => latest().prefs.load(),
         save: (store, value) => latest().prefs.save(store, value),
@@ -148,7 +148,7 @@ export function PlayFrame({
       announce(null);
       setOffer(null);
     };
-  }, [frameUrl, releaseId, gameId, projectId, saveMode]);
+  }, [frameUrl, releaseId, gameId, projectId, saveMode, online]);
 
   useEffect(() => {
     const onVisibility = () => setHidden(document.hidden);
@@ -174,27 +174,35 @@ export function PlayFrame({
       <iframe
         ref={setIframe}
         src={frameUrl}
-        sandbox={PLAY_FRAME_SANDBOX}
-        allow={PLAY_FRAME_ALLOW}
+        sandbox={FRAME_SANDBOX}
+        allow={FRAME_ALLOW}
         referrerPolicy="no-referrer"
         title={title}
         onLoad={focusFrame}
         className="block size-full border-0 bg-black"
       />
       {offer && offerDownloads ? (
-        <Button
-          size="sm"
-          variant="secondary"
-          className="absolute right-3 bottom-3"
-          tooltip={safeFileName(offer.name)}
-          onClick={(e) => {
-            e.stopPropagation();
-            saveToDisk(offer);
-          }}
-        >
-          <HugeiconsIcon icon={Download01Icon} data-icon="inline-start" />
-          Download recording
-        </Button>
+        // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- keeps the offer's clicks from refocusing the frame
+        <div className="absolute right-3 bottom-3 flex gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button
+            size="sm"
+            variant="secondary"
+            tooltip={safeFileName(offer.name)}
+            onClick={() => saveToDisk(offer)}
+          >
+            <HugeiconsIcon icon={Download01Icon} data-icon="inline-start" />
+            Download recording
+          </Button>
+          <Button
+            size="icon-sm"
+            variant="secondary"
+            tooltip="Dismiss"
+            aria-label="Dismiss the recording"
+            onClick={() => setOffer(null)}
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={14} />
+          </Button>
+        </div>
       ) : null}
     </div>
   );

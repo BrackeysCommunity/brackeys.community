@@ -1712,6 +1712,12 @@ type UndoCoordinator = {
     pinned(): readonly string[];
     redo(): UndoneStep | null;
     redoLabel(): string | undefined;
+    /**
+     * Marks every step on either stack that wrote `docName`: one that later
+     * finds nothing left to change is answered as refused with `reason`
+     * instead of being skipped for the step below it.
+     */
+    refuseStale(docName: string, reason: string): void;
     /** Undoes this client's last step in every doc it wrote, newest doc first. */
     undo(): UndoneStep | null;
     undoLabel(): string | undefined;
@@ -1729,6 +1735,8 @@ type UndoneStep = {
     /** The docs the step changed, in write order. */
     docs: string[];
     label: string;
+    /** Why nothing was undone or redone: the step's changes are gone for good (it leaves the stack). */
+    refused?: string;
     selection?: StepSelection;
 };
 ```

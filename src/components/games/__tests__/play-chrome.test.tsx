@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 import { ORPCError } from "@orpc/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { PlayPayload } from "@/lib/engine/game-play";
 import type { HostServerOptions } from "@/lib/engine/host-server";
+import { pageTitle } from "@/lib/site-meta";
 
 const calls = vi.hoisted(() => ({
   getGamePlay: vi.fn(),
@@ -174,6 +175,29 @@ describe("the play page", () => {
     expect(hosts.created).toHaveLength(1);
   });
 
+  it("names the tab after the game and version, and puts it back on leaving", () => {
+    document.title = "Before";
+    const view = wrap(<PlayChrome play={payload({ online: true })} version="latest" />);
+    expect(document.title).toBe(pageTitle("Tactics v7"));
+    expect(hosts.created[0]?.online).toBe(true);
+    view.unmount();
+    expect(document.title).toBe("Before");
+  });
+
+  it("lets the player dismiss a recording the game offers", async () => {
+    wrap(<PlayChrome play={payload()} version="latest" />);
+    act(() => {
+      hosts.created[0]?.onDownload?.({
+        name: "match.jamsrec",
+        contentType: "application/json",
+        bytes: new TextEncoder().encode("{}").buffer,
+      });
+    });
+    expect(screen.getByRole("button", { name: /download recording/i })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss the recording" }));
+    expect(screen.queryByRole("button", { name: /download recording/i })).toBeNull();
+  });
+
   it("fullscreens the iframe element", async () => {
     const requestFullscreen = vi.fn(() => Promise.resolve());
     Object.defineProperty(HTMLIFrameElement.prototype, "requestFullscreen", {
@@ -275,6 +299,15 @@ describe("the embed page", () => {
     expect(links[0]?.textContent).toMatch(/^Open on /);
     expect(links[0]?.getAttribute("target")).toBe("_blank");
     expect(links[0]?.getAttribute("href")).toMatch(/\/games\/tactics\/play\/latest$/);
+  });
+
+  it("keeps its link in a bar outside the frame and names the tab after the game", async () => {
+    calls.getGamePlay.mockResolvedValue(payload());
+    wrap(<EmbedFrame projectId="tactics" version="latest" />);
+    const frame = await screen.findByTitle("Tactics");
+    const link = screen.getByRole("link");
+    expect(frame.parentElement?.contains(link)).toBe(false);
+    expect(document.title).toBe(pageTitle("Tactics v7"));
   });
 
   it("tells the frame its saves stay with the embedding page", async () => {

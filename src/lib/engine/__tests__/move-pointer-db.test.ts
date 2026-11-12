@@ -16,6 +16,7 @@ const PROJECT = "kitchen";
 const V1 = "1".repeat(64);
 const V2 = "2".repeat(64);
 const person = { kind: "user", userId: "staff" } as const;
+const AT = new Date("2026-11-12T15:00:00Z");
 
 let db: TestDb;
 
@@ -72,6 +73,7 @@ describe("movePointer", () => {
         release: V1,
         actor: person,
         action: "promote",
+        at: AT,
       }),
     );
     expect(first).toEqual({ from: null, to: V1, moved: true });
@@ -84,6 +86,7 @@ describe("movePointer", () => {
         release: V2,
         actor: { kind: "agent", userId: "staff" },
         action: "promote",
+        at: AT,
       }),
     );
     expect(second).toEqual({ from: V1, to: V2, moved: true });
@@ -107,15 +110,17 @@ describe("movePointer", () => {
       release: V1,
       actor: person,
       action: "promote",
+      at: AT,
     });
     const stamped = await promotedAt(V1);
-    expect(stamped).toBeInstanceOf(Date);
+    expect(stamped).toEqual(AT);
     await movePointer(db, {
       project: PROJECT,
       channel: "production",
       release: V2,
       actor: person,
       action: "promote",
+      at: AT,
     });
     await movePointer(db, {
       project: PROJECT,
@@ -123,6 +128,7 @@ describe("movePointer", () => {
       release: V1,
       actor: person,
       action: "rollback",
+      at: AT,
       detail: { reason: "a test" },
     });
     expect(await promotedAt(V1)).toEqual(stamped);
@@ -133,7 +139,13 @@ describe("movePointer", () => {
   });
 
   it("leaves a channel already on the release alone, with no audit row", async () => {
-    const move = { project: PROJECT, channel: "preview", release: V1, actor: person } as const;
+    const move = {
+      project: PROJECT,
+      channel: "preview",
+      release: V1,
+      actor: person,
+      at: AT,
+    } as const;
     await movePointer(db, { ...move, action: "promote" });
     expect(await movePointer(db, { ...move, action: "promote" })).toEqual({
       from: V1,
@@ -152,6 +164,7 @@ describe("movePointer", () => {
           release: V1,
           actor: person,
           action: "promote",
+          at: AT,
         });
         throw new Error("the caller's next step failed");
       }),

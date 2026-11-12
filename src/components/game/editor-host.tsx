@@ -261,6 +261,7 @@ export function useSiteEditorHost({
             project: hostedProject,
             team: hostedTeam,
             openTokenDialog: () => openTokenDialog.current?.(),
+            notify: siteNotify,
           })
         : undefined,
     [hostedProject, hostedTeam, gamesOn, openTokenDialog],
@@ -506,6 +507,41 @@ type ProjectSceneEditorProps = {
   onProjectChange: (id: string, opts?: { scene?: string }) => void;
 };
 
+/**
+ * The open project as a hosted game this viewer publishes: once the site
+ * answers for its settings, which only its publishers may read. Undefined
+ * while publishing is off, while asking, and for a project the site doesn't
+ * host. The project's team isn't read here, so the Team choice waits for it.
+ */
+export function useHostedGame(
+  projectId: string,
+  read: (projectId: string) => Promise<unknown> = (id) =>
+    import("@/orpc/client").then(({ client }) => client.getGameSettings({ projectId: id })),
+): SiteEditorHostOptions["hosted"] {
+  const flags = useFlags();
+  const on = publishAllowed((name) => (flags as Partial<Record<string, boolean>>)[name] ?? false);
+  const [hosted, setHosted] = useState<{ project: string; team: null } | undefined>(undefined);
+  const readRef = useRef(read);
+  useEffect(() => {
+    readRef.current = read;
+  });
+  useEffect(() => {
+    setHosted(undefined);
+    if (!on) return;
+    let live = true;
+    readRef.current(projectId).then(
+      () => {
+        if (live) setHosted({ project: projectId, team: null });
+      },
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [projectId, on]);
+  return hosted;
+}
+
 function LoadedSceneEditor({
   roomId,
   project,
@@ -519,12 +555,14 @@ function LoadedSceneEditor({
   const editor = useRef<SceneEditorHandle | null>(null);
   const editing = scene ?? modules.defaultScene;
   const [debug] = useState(() => debugFor(project));
+  const hosted = useHostedGame(project.id);
   const host = useSiteEditorHost({
     title: ready ? (editing ?? roomId) : roomId,
     onSceneChange,
     onProjectChange,
     onProjectSettings: () => editor.current?.openPanel("settings"),
     ...(projectNames ? { projectNames } : {}),
+    ...(hosted ? { hosted } : {}),
   });
   return (
     <SceneEditor

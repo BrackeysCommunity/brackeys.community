@@ -169,7 +169,9 @@ function expectFrameHeaders(response: Response, base?: string) {
   const csp = response.headers.get("content-security-policy") ?? "";
   expect(csp).toContain("sandbox allow-scripts");
   if (base) expect(csp).toContain(`script-src ${base} 'wasm-unsafe-eval'`);
-  expect(csp).toContain(`frame-ancestors ${SITE}`);
+  // A public or unlisted frame may sit under the embed page on any site; a private one only under ours.
+  const privatePrefix = csp.includes(`${PLAY}/frames-private/`);
+  expect(csp).toContain(`frame-ancestors ${privatePrefix ? SITE : "*"}`);
   expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/);
   return csp;
 }

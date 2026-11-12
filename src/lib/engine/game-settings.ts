@@ -1,8 +1,9 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db as siteDb } from "@/db";
-import { engineProjects } from "@/db/schema";
+import { engineProjects, engineReleases } from "@/db/schema";
 import { siteOrigin } from "@/env";
+import { purgeShell, type PurgeResult } from "@/lib/cloudflare-purge";
 import { SITE } from "@/lib/legal-meta";
 
 import { playOrigin } from "./frame-csp";
@@ -37,6 +38,9 @@ export type GameSettings = {
   online: boolean;
 };
 
+/** A change's answer: the settings, and why old public copies may stay at the edge when a purge didn't happen. */
+export type SavedGameSettings = GameSettings & { edgeNote?: string };
+
 export type GameSettingsDeps = {
   db?: ReleaseTxDb;
   now?: () => Date;
@@ -44,6 +48,8 @@ export type GameSettingsDeps = {
   siteOrigins?: () => readonly string[];
   /** Drops the project's releases from the frame route's cache; default this process's. */
   forget?: (projectId: string) => void;
+  /** Purges a release's shell files at the edge; default Cloudflare when configured. */
+  purge?: (releaseId: string) => Promise<PurgeResult>;
 };
 
 const SETTINGS_INVALID = "game-settings-invalid";
@@ -200,6 +206,28 @@ export async function readGameSettings(
   return settingsOf(row);
 }
 
+const isPrivate = (visibility: GameVisibility) => visibility === "private" || visibility === "team";
+
+/** The edge copies of a project's public-prefix shells, purged; the first reason one wasn't, or null. */
+async function purgePublicShells(
+  db: ReleaseTxDb,
+  projectId: string,
+  purge: (releaseId: string) => Promise<PurgeResult>,
+): Promise<string | null> {
+  const rows = await db
+    .select({ id: engineReleases.id })
+    .from(engineReleases)
+    .where(and(eq(engineReleases.projectId, projectId), isNull(engineReleases.collectedAt)));
+  let note: string | null = null;
+  for (const { id } of rows) {
+    const result = await purge(id).catch(
+      (): PurgeResult => ({ purged: false, reason: "The edge purge failed." }),
+    );
+    if (!result.purged) note ??= result.reason;
+  }
+  return note;
+}
+
 const sameList = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((value, i) => value === b[i]);
 
@@ -209,15 +237,18 @@ const sameList = (a: readonly string[], b: readonly string[]) =>
  * each with the values before and after. A first `public` stays `unlisted`
  * and asks staff for the one-time review; once approved, `public` is
  * immediate. Choosing anything else while that review waits withdraws it.
+ * Moving from public or unlisted to private or team purges the project's
+ * public shells at the edge; when that can't happen, `edgeNote` says why.
  */
 export async function setGameSettings(
   input: { projectId: string; patch: GameSettingsPatch; actor: Actor },
   deps: GameSettingsDeps = {},
-): Promise<GameSettings> {
+): Promise<SavedGameSettings> {
   const db = deps.db ?? (siteDb as unknown as ReleaseTxDb);
   const now = deps.now ?? (() => new Date());
   const siteOrigins = deps.siteOrigins ?? (() => [siteOrigin(), playOrigin()]);
   const forget = deps.forget ?? forgetProjectReleases;
+  const purge = deps.purge ?? ((releaseId: string) => purgeShell(releaseId));
   const { projectId, patch, actor } = input;
 
   const live = and(eq(engineProjects.projectId, projectId), isNull(engineProjects.deletedAt));
@@ -233,7 +264,7 @@ export async function setGameSettings(
     ...(touchesSettings || patch.visibility === undefined ? (["settings"] as const) : []),
   ]);
 
-  const { settings, changed } = await db.transaction(async (tx) => {
+  const { settings, changed, wentPrivate } = await db.transaction(async (tx) => {
     const [row] = await tx.select(settingsColumns).from(engineProjects).where(live).for("update");
     if (!row) notFound(projectId);
 
@@ -286,7 +317,8 @@ export async function setGameSettings(
       settingsAfter.online = after.online;
     }
     const settingsChanged = Object.keys(settingsAfter).length > 0;
-    if (!visibilityChanged && !settingsChanged) return { settings: before, changed: false };
+    if (!visibilityChanged && !settingsChanged)
+      return { settings: before, changed: false, wentPrivate: false };
 
     await tx
       .update(engineProjects)
@@ -321,10 +353,16 @@ export async function setGameSettings(
         detail: { before: settingsBefore, after: settingsAfter },
       });
     }
-    return { settings: after, changed: true };
+    return {
+      settings: after,
+      changed: true,
+      wentPrivate: !isPrivate(before.visibility) && isPrivate(after.visibility),
+    };
   });
 
   // Visibility and connect origins shape what the frame route serves and its CSP.
   if (changed) forget(projectId);
-  return settings;
+  if (!wentPrivate) return settings;
+  const note = await purgePublicShells(db, projectId, purge);
+  return note === null ? settings : { ...settings, edgeNote: note };
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { STORAGE_PREFIX, type EditorStorage } from "../host";
 import { useBrowserState } from "../kit/ssr";
@@ -14,11 +14,17 @@ const DEFAULT_PANELS: readonly PanelId[] = [
   ...DEFAULT_LAYOUT.right.groups.flatMap((g) => g.panels),
 ];
 
+/** `DEFAULT_LAYOUT` with each of `known` it lacks in its home group, and only `known`. */
+function defaultFor(known: readonly PanelId[]): EditorLayout {
+  if (known === DEFAULT_PANELS) return DEFAULT_LAYOUT;
+  return parseLayout(DEFAULT_LAYOUT, known) ?? DEFAULT_LAYOUT;
+}
+
 export type LayoutState = {
   layout: EditorLayout;
   /** Applies an edit from `layout/model`; stored once the changes settle. */
   update: (edit: (layout: EditorLayout) => EditorLayout) => void;
-  /** Back to `DEFAULT_LAYOUT`. */
+  /** Back to `DEFAULT_LAYOUT`, holding the frame's panels. */
   reset: () => void;
 };
 
@@ -31,11 +37,27 @@ export function useLayout(
   storage: EditorStorage | null,
   known: readonly PanelId[] = DEFAULT_PANELS,
 ): LayoutState {
-  const stored = useRef<EditorLayout>(DEFAULT_LAYOUT);
+  const knownKey = known.join("\n");
+  const fallback = useMemo(() => defaultFor(known), [known]);
+  const stored = useRef<EditorLayout>(fallback);
   const [layout, setLayout] = useBrowserState(() => {
-    stored.current = readStored(storage, LAYOUT_KEY, DEFAULT_LAYOUT, (v) => parseLayout(v, known));
+    stored.current = readStored(storage, LAYOUT_KEY, fallback, (v) => parseLayout(v, known));
     return stored.current;
-  }, DEFAULT_LAYOUT);
+  }, fallback);
+  const knownWas = useRef(knownKey);
+  useEffect(() => {
+    if (knownWas.current === knownKey) return;
+    knownWas.current = knownKey;
+    // A panel that arrives late (the host's Publish panel, once the editor is up)
+    // goes where the viewer left it, or to its home group.
+    setLayout((now) => {
+      const from =
+        now === stored.current ? readStored(storage, LAYOUT_KEY, fallback, (v) => v) : now;
+      const next = parseLayout(from, known) ?? now;
+      if (now === stored.current) stored.current = next;
+      return next;
+    });
+  }, [knownKey, known, storage, fallback, setLayout]);
   const unsaved = useRef<EditorLayout | null>(null);
   const target = useRef(storage);
   useEffect(() => {
@@ -65,6 +87,6 @@ export function useLayout(
   );
 
   const update = useCallback<LayoutState["update"]>((edit) => setLayout(edit), [setLayout]);
-  const reset = useCallback(() => setLayout(DEFAULT_LAYOUT), [setLayout]);
+  const reset = useCallback(() => setLayout(fallback), [setLayout, fallback]);
   return { layout, update, reset };
 }

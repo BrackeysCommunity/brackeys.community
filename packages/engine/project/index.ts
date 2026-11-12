@@ -207,6 +207,7 @@ export {
   type ProjectSnapshot,
   type SnapshotAsset,
 } from "./snapshot";
+export { formatBytes } from "./format-bytes";
 export {
   projectUsage,
   UNLIMITED_QUOTA,

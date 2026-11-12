@@ -36,6 +36,7 @@ import type { PlayRefusal } from "@/lib/engine/release-access";
 import { useFlagBlocks } from "@/lib/hooks/use-flag";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { SITE } from "@/lib/legal-meta";
+import { pageTitle } from "@/lib/site-meta";
 import { toast } from "@/lib/toast";
 import { client, orpc } from "@/orpc/client";
 
@@ -119,6 +120,19 @@ export function useLocalPlayStores(projectId: string, describe: (stored: string)
     },
     prefs,
   };
+}
+
+/** The tab's title once a release loads: its game and version, so tabs and history tell games apart. */
+export function usePlayTitle(play: Pick<PlayPayload, "title" | "version"> | undefined): void {
+  const title = play ? pageTitle(`${play.title} v${play.version}`) : null;
+  useEffect(() => {
+    if (title === null) return;
+    const before = document.title;
+    document.title = title;
+    return () => {
+      document.title = before;
+    };
+  }, [title]);
 }
 
 /**
@@ -214,6 +228,7 @@ export function PlayChrome({ play, version }: { play: PlayPayload; version: stri
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const hostRef = useRef<HostServer | null>(null);
   const { projectId } = play;
+  usePlayTitle(play);
 
   const stores = useLocalPlayStores(projectId, (stored) =>
     signedIn ? SIGNED_IN_BROWSER_DESCRIBE : stored,
@@ -331,6 +346,7 @@ export function PlayChrome({ play, version }: { play: PlayPayload; version: stri
         title={play.title}
         release={{ id: play.release.id, gameId: play.release.gameId, projectId }}
         saveMode={play.saveMode}
+        online={play.online}
         saves={stores.saves}
         describe={stores.describe}
         prefs={stores.prefs}

@@ -177,7 +177,15 @@ describe("promote", () => {
       .select({ version: engineReleases.version, at: engineReleases.firstPromotedAt })
       .from(engineReleases)
       .orderBy(asc(engineReleases.version));
-    expect(stamps.map((s) => s.at !== null)).toEqual([false, true, true]);
+    expect(stamps.map((s) => s.at?.getTime() ?? null)).toEqual([
+      null,
+      NOW.getTime(),
+      NOW.getTime(),
+    ]);
+    // Every move is stamped with the caller's clock, not the database's.
+    expect(rows.every((r) => r.at.getTime() === NOW.getTime())).toBe(true);
+    const pointers = await db.select().from(engineReleaseChannels);
+    expect(pointers.every((p) => p.updatedAt.getTime() === NOW.getTime())).toBe(true);
   });
 
   it("changes nothing when the channel already names the release", async () => {

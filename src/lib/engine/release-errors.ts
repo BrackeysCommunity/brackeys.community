@@ -2,6 +2,7 @@ import type { SceneIssue } from "@jams/engine/scene";
 import { ORPCError } from "@orpc/client";
 
 import { formatCount } from "@/lib/format-bytes";
+import { releaseDay } from "@/lib/jam-links";
 import { SITE } from "@/lib/legal-meta";
 
 import {
@@ -223,19 +224,10 @@ export function releaseHidden(version: number, reason: string | null): ReleaseAp
   };
 }
 
-/** UTC, the jams dates rule: "3 Dec 2026". */
-const utcDate = (at: Date) =>
-  at.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-
 export function releaseRemoved(version: number, removedAt: Date): ReleaseApiError {
   return {
     code: "release-immutable",
-    message: `v${version} was removed on ${utcDate(removedAt)}; its files are gone.`,
+    message: `v${version} was removed on ${releaseDay(removedAt)}; its files are gone.`,
     hint: `Releases outside the ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned.`,
   };
 }

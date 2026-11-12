@@ -107,6 +107,7 @@ export function projectHistory(
     const done = how === "undo" ? project.undo() : project.redo();
     if (!done) return false;
     opts.onUndone?.(done, how);
+    if (done.refused !== undefined) return true;
     return done.selection?.doc === docName ? done.selection : true;
   };
   return {

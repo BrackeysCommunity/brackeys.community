@@ -13,6 +13,7 @@ import { siteOrigin as appSiteOrigin } from "@/env";
 import { streamStoredObject } from "@/lib/stored-object-stream";
 
 import { frameBase, frameCsp, playOrigin as appPlayOrigin } from "./frame-csp";
+import { onPlayHost, playHost as playHostOf } from "./frame-route-rules";
 import { verifyFrameToken } from "./frame-token";
 import { engineGamesAllowed } from "./guard";
 import type { ReleaseDb } from "./release-audit";
@@ -234,14 +235,6 @@ const syncOriginFromEnv = (): string | null => {
   }
 };
 
-const hostOf = (origin: string): string | null => {
-  try {
-    return new URL(origin).host.toLowerCase();
-  } catch {
-    return null;
-  }
-};
-
 const prefixOf = (pathname: string): FramePrefix =>
   pathname.startsWith("/frames-private/") ? "frames-private" : "frames";
 
@@ -250,12 +243,16 @@ const PRIVATE_CACHE = "private, max-age=3600";
 
 /**
  * The `/frames/…` and `/frames-private/…` handler; without `prefix` it reads
- * the prefix from the request's path. It can't see the viewer's session or
- * flags (frames run on an opaque origin and public files are edge-cached),
- * so it gates on the deployment, the release's state and visibility, and the
- * private prefix's token; the play page is the gate for everything else.
+ * the prefix from the request's path. It gates on the deployment, the
+ * release's state and visibility, and the private prefix's token, but not on
+ * `engine-games-enabled`: that flag is per person, and a frame request carries
+ * no person (it comes from an opaque origin with no cookies, and public files
+ * are edge-cached for everyone), so checking the signed-out answer would shut
+ * frames to the people the flag is on for. A frame URL names a release id
+ * only the flag-gated play and embed pages and procedures hand out.
  * Every response carries the frame's CSP, so a file opened directly runs in
- * the same sandbox.
+ * the same sandbox; a public or unlisted release's admits any ancestor, so
+ * the embed page can frame it on other sites.
  */
 export function createFrameRoute(
   deps: FrameRouteDeps,
@@ -265,13 +262,8 @@ export function createFrameRoute(
   const origin = deps.playOrigin ?? appPlayOrigin;
   const site = deps.siteOrigin ?? appSiteOrigin;
   const sync = deps.syncOrigin ?? syncOriginFromEnv;
-  const playHost = (() => {
-    const configured =
-      deps.playHostOrigin === undefined
-        ? process.env.ENGINE_PLAY_ORIGIN?.trim()
-        : deps.playHostOrigin;
-    return configured ? hostOf(configured) : null;
-  })();
+  const playHost =
+    deps.playHostOrigin === undefined ? playHostOf() : playHostOf(deps.playHostOrigin);
 
   return async (request, given) => {
     const url = new URL(request.url);
@@ -288,6 +280,7 @@ export function createFrameRoute(
           siteOrigin: site(),
           connect: release?.connectOrigins ?? [],
           syncOrigin: release?.online ? sync() : null,
+          embeddable: prefix === "frames",
         }),
         "x-content-type-options": "nosniff",
         "referrer-policy": "no-referrer",
@@ -303,7 +296,7 @@ export function createFrameRoute(
     const notFound = () => refuse(404, "Not Found");
 
     if (!allowed()) return notFound();
-    if (playHost !== null && url.host.toLowerCase() !== playHost) return notFound();
+    if (playHost !== null && !onPlayHost(url, playHost)) return notFound();
     if (!parsed) return notFound();
 
     const release = await loadRelease(parsed.releaseId, {

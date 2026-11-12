@@ -11,12 +11,13 @@ import {
   engineReleaseObjects,
   engineReleases,
   engineReleaseUploads,
+  imageScans,
 } from "@/db/schema";
 import { seedUser, type TestDb } from "@/test/db";
 
 import { PROJECT_QUOTA } from "../limits";
 import { ReleaseError } from "../release-errors";
-import { memoryReleaseStore } from "../release-storage";
+import { memoryReleaseStore, type ReleaseObjectStore } from "../release-storage";
 import {
   beginRelease,
   commitRelease,
@@ -50,11 +51,13 @@ const outsider: Actor = { kind: "user", userId: "outsider" };
 let clock = NOW;
 let allow = true;
 let store = memoryReleaseStore();
+/** What the upload reads and writes through; `store` unless a case wraps it. */
+let served: ReleaseObjectStore = store;
 const scanned: string[] = [];
 
 const deps = (): ReleaseDeps => ({
   db: db as unknown as ReleaseTxDb,
-  store,
+  store: served,
   now: () => clock,
   rateLimit: async () => allow,
   scan: async ({ objectKey }) => {
@@ -94,7 +97,10 @@ async function putAll(
 async function publish(r: Planned, actor: Actor = staff) {
   const begun = await begin(r, actor);
   await putAll(r, begun.uploadId, begun.missing, actor);
-  return { begun, committed: await commitRelease(deps(), { uploadId: begun.uploadId, actor }) };
+  const put = scanned.length;
+  const committed = await commitRelease(deps(), { uploadId: begun.uploadId, actor });
+  /** The scans the commit sent, for files no put had sent. */
+  return { begun, committed, commitScans: scanned.slice(put) };
 }
 
 /** The refusal's API body, or a failure when the call went through. */
@@ -119,6 +125,38 @@ const pointer = async (channel: "preview" | "production") =>
 
 const hex = (n: number) => n.toString(16).padStart(64, "0");
 
+const textureOf = (r: Planned) => r.manifest.build.files.find((f) => f.path.startsWith("assets/"))!;
+
+/** Stores the release's texture as a project blob, as the editor's import leaves it. */
+async function holdTextureAsBlob(r: Planned, bytes?: Uint8Array) {
+  const texture = textureOf(r);
+  const key = `engine-assets/${PROJECT}/${texture.sha256}`;
+  const { engineBlobs } = await import("@/db/schema");
+  await db.insert(engineBlobs).values({
+    projectId: PROJECT,
+    sha256: texture.sha256,
+    byteSize: texture.bytes,
+    contentType: "image/png",
+    storageKey: key,
+  });
+  await store.put(key, bytes ?? r.files.get(texture.path)!, "image/png");
+  return { texture, key };
+}
+
+/** A release object an earlier release stored under another path's type, as `put` leaves it. */
+async function holdAsReleaseObject(sha256: string, bytes: Uint8Array, contentType: string) {
+  const key = `engine-releases/${PROJECT}/${sha256}`;
+  await db.insert(engineReleaseObjects).values({
+    projectId: PROJECT,
+    sha256,
+    bytes: bytes.length,
+    contentType,
+    storageKey: key,
+  });
+  await store.put(key, bytes, contentType);
+  return key;
+}
+
 beforeAll(async () => {
   await seedUser(db, "staff", { guildRoles: ["Staff"] });
   await seedUser(db, "member");
@@ -129,6 +167,7 @@ beforeEach(async () => {
   clock = NOW;
   allow = true;
   store = memoryReleaseStore();
+  served = store;
   scanned.length = 0;
   await db.delete(engineProjects);
   await db
@@ -180,16 +219,8 @@ describe("beginRelease", () => {
 
   it("counts the project's blobs as held: a texture already uploaded isn't missing", async () => {
     const r = await release();
-    const texture = r.manifest.build.files.find((f) => f.path.startsWith("assets/"))!;
-    const { engineBlobs } = await import("@/db/schema");
-    await db.insert(engineBlobs).values({
-      projectId: PROJECT,
-      sha256: texture.sha256,
-      byteSize: texture.bytes,
-      contentType: "image/png",
-      storageKey: `engine-assets/${PROJECT}/${texture.sha256}`,
-    });
-    const { begun, committed } = await publish(r);
+    const { texture, key } = await holdTextureAsBlob(r);
+    const { begun, committed, commitScans } = await publish(r);
     expect(begun.missing.map((f) => f.path)).not.toContain(texture.path);
     const [row] = await db
       .select({ source: engineReleaseFiles.source })
@@ -197,6 +228,17 @@ describe("beginRelease", () => {
       .where(eq(engineReleaseFiles.path, texture.path));
     expect(row?.source).toBe("blob");
     expect(committed.created).toBe(true);
+    // No scan has seen the blob, so the release sends it.
+    expect(commitScans).toEqual([key]);
+  });
+
+  it("doesn't scan a held blob again once a scan has it", async () => {
+    const r = await release();
+    const { key } = await holdTextureAsBlob(r);
+    await db
+      .insert(imageScans)
+      .values({ objectKey: key, ownerType: "engine_blob", ownerId: PROJECT, uploaderId: "member" });
+    expect((await publish(r)).commitScans).toEqual([]);
   });
 
   const cases: [string, () => Promise<{ text: string } & Partial<Planned>>, string, string?][] = [
@@ -476,6 +518,99 @@ describe("commitRelease", () => {
     expect(await pointer("preview")).toBeNull();
     const audit = await db.select().from(engineReleaseAudit);
     expect(audit.map((a) => a.action)).toEqual(["create"]);
+  });
+
+  it("checks and scans a held hash relisted as an image under its new path", async () => {
+    const r = await release();
+    const texture = textureOf(r);
+    // An earlier release listed these bytes as assets/<hash>.txt: no signature check, no scan.
+    const key = await holdAsReleaseObject(texture.sha256, r.files.get(texture.path)!, "text/plain");
+    const { begun, committed, commitScans } = await publish(r);
+    expect(begun.missing.map((f) => f.sha256)).not.toContain(texture.sha256);
+    expect(committed.created).toBe(true);
+    expect(commitScans).toEqual([key]);
+  });
+
+  it("refuses a held hash whose bytes aren't what its new path says", async () => {
+    const r = await release();
+    const texture = textureOf(r);
+    await holdAsReleaseObject(
+      texture.sha256,
+      new TextEncoder().encode("just some text"),
+      "text/plain",
+    );
+    const begun = await begin(r);
+    await putAll(r, begun.uploadId, begun.missing);
+    const put = scanned.length;
+    const body = await refusal(() =>
+      commitRelease(deps(), { uploadId: begun.uploadId, actor: staff }),
+    );
+    expect(body).toMatchObject({ code: "release-file-type" });
+    expect(body.message).toContain(texture.path);
+    expect(await db.select().from(engineReleases)).toEqual([]);
+    expect(scanned.length).toBe(put);
+  });
+
+  it("refuses a blob-sourced texture whose bytes aren't an image", async () => {
+    const r = await release();
+    await holdTextureAsBlob(r, new TextEncoder().encode("<script>alert(1)</script>"));
+    const begun = await begin(r);
+    await putAll(r, begun.uploadId, begun.missing);
+    expect(
+      await refusal(() => commitRelease(deps(), { uploadId: begun.uploadId, actor: staff })),
+    ).toMatchObject({ code: "release-file-type" });
+  });
+
+  it("runs the index.html rule on an index.html the project already held as code", async () => {
+    const r = await release();
+    const index = r.manifest.build.files.find((f) => f.path === "index.html")!;
+    // Bytes first sent as code/<x>.js, now listed as the shell.
+    await holdAsReleaseObject(
+      index.sha256,
+      new TextEncoder().encode("<script>alert(1)</script>"),
+      "text/javascript",
+    );
+    const begun = await begin(r);
+    expect(begun.missing.map((f) => f.path)).not.toContain("index.html");
+    await putAll(r, begun.uploadId, begun.missing);
+    const body = await refusal(() =>
+      commitRelease(deps(), { uploadId: begun.uploadId, actor: staff }),
+    );
+    expect(body).toMatchObject({ code: "release-file-type" });
+    expect(body.message).toContain("index.html");
+  });
+
+  it("refuses when a held blob is removed before the commit's lock", async () => {
+    const r = await release();
+    const { key } = await holdTextureAsBlob(r);
+    const begun = await begin(r);
+    await putAll(r, begun.uploadId, begun.missing);
+    // The collector removes the blob, under the project lock, once the checks have read it.
+    const { engineBlobs } = await import("@/db/schema");
+    served = {
+      ...store,
+      async stream(k, range) {
+        const stream = await store.stream(k, range);
+        if (k === key) {
+          await db.delete(engineBlobs);
+          await store.remove(k);
+        }
+        return stream;
+      },
+    };
+    expect(
+      await refusal(() => commitRelease(deps(), { uploadId: begun.uploadId, actor: staff })),
+    ).toMatchObject({ code: "release-files-missing" });
+    expect(await db.select().from(engineReleases)).toEqual([]);
+  });
+
+  it("stamps the create and promote audit rows and the pointer with the commit's clock", async () => {
+    clock = new Date(NOW.getTime() + 5 * 60_000);
+    await publish(await release());
+    const audit = await db.select().from(engineReleaseAudit);
+    expect(audit.map((a) => a.at.getTime())).toEqual([clock.getTime(), clock.getTime()]);
+    const [channel] = await db.select().from(engineReleaseChannels);
+    expect(channel?.updatedAt.getTime()).toBe(clock.getTime());
   });
 
   it("refuses an expired upload's files and commit", async () => {

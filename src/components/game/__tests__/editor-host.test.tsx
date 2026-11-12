@@ -63,6 +63,7 @@ const {
   SITE_PROJECTS,
   siteIdentity,
   SiteSceneEditor,
+  useHostedGame,
   useSiteEditorHost,
 } = await import("../editor-host");
 const { hostedGame, hostedGames } = await import("../hosted-games");
@@ -279,6 +280,41 @@ describe("the site's publish host in the editor", () => {
       label: "Releases from the editor",
       ttlHours: 24,
     });
+  });
+});
+
+describe("useHostedGame", () => {
+  const withFlags =
+    (patch: Partial<FeatureFlagValues>) =>
+    ({ children }: { children: React.ReactNode }) => (
+      <ServerFlagsContext value={{ ...FEATURE_FLAGS, ...patch }}>{children}</ServerFlagsContext>
+    );
+
+  it("names the open project hosted once the site answers for its settings", async () => {
+    const read = vi.fn(async () => ({}));
+    const { result } = renderHook(() => useHostedGame("demo", read), {
+      wrapper: withFlags({ "engine-games-enabled": true }),
+    });
+    await waitFor(() => expect(result.current).toEqual({ project: "demo", team: null }));
+    expect(read).toHaveBeenCalledWith("demo");
+  });
+
+  it("leaves a project the site refuses or doesn't host unpublished", async () => {
+    const read = vi.fn(async () => {
+      throw new Error('There is no hosted project "demo".');
+    });
+    const { result } = renderHook(() => useHostedGame("demo", read), {
+      wrapper: withFlags({ "engine-games-enabled": true }),
+    });
+    await waitFor(() => expect(read).toHaveBeenCalled());
+    expect(result.current).toBeUndefined();
+  });
+
+  it("asks nothing while engine-games-enabled is off", () => {
+    const read = vi.fn(async () => ({}));
+    const { result } = renderHook(() => useHostedGame("demo", read), { wrapper: withFlags({}) });
+    expect(read).not.toHaveBeenCalled();
+    expect(result.current).toBeUndefined();
   });
 });
 

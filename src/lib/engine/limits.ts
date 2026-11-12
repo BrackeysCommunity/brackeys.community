@@ -10,6 +10,12 @@ export const SITE_SAVE_ACCOUNT_BYTES = 1_048_576;
 export const SITE_SAVE_EXPIRY_DAYS = 180;
 export const SAVE_WRITES_PER_HOUR = 120;
 export const SAVE_READS_PER_HOUR = 600;
+/** Save requests a game frame may send the play page a second. */
+export const HOST_SAVE_REQUESTS_PER_SECOND = 20;
+/** Preference writes a game frame may send the play page a second. */
+export const HOST_PREFS_WRITES_PER_SECOND = 10;
+/** A game frame may offer the play page one download this often. */
+export const HOST_DOWNLOAD_INTERVAL_SECONDS = 10;
 /** One preferences store (remaps, or the other preferences), kept in this browser only. */
 export const PREFS_MAX_BYTES = 16_384;
 

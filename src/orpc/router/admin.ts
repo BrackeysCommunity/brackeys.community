@@ -34,6 +34,7 @@ import {
   collabRoles,
   commentReports,
   developerProfiles,
+  engineProjects,
   entryFlags,
   imageFlags,
   imageScans,
@@ -2361,40 +2362,53 @@ async function imageOwnerRefs(
     .map(Number)
     .filter((id) => Number.isInteger(id));
   const attachmentIds = idsOf("canvas_attachment");
+  const engineIds = idsOf("engine_blob", "engine_release_file");
 
-  const [teamRows, postRows, projectRows, profiles, forumRows, attachmentRows] = await Promise.all([
-    teamIds.length > 0
-      ? db
-          .select({ id: teams.id, name: teams.name, slug: teams.slug })
-          .from(teams)
-          .where(inArray(teams.id, teamIds))
-      : Promise.resolve([]),
-    postIds.length > 0
-      ? db
-          .select({ id: collabPosts.id, title: collabPosts.title })
-          .from(collabPosts)
-          .where(inArray(collabPosts.id, postIds))
-      : Promise.resolve([]),
-    projectIds.length > 0
-      ? db
-          .select({ id: projects.id, title: projects.title, slug: projects.slug })
-          .from(projects)
-          .where(inArray(projects.id, projectIds))
-      : Promise.resolve([]),
-    profilesByIds(profileIds),
-    forumPostIds.length > 0
-      ? db
-          .select({ id: forumPosts.id, title: forumPosts.title, excerpt: forumPosts.excerpt })
-          .from(forumPosts)
-          .where(inArray(forumPosts.id, forumPostIds))
-      : Promise.resolve([]),
-    attachmentIds.length > 0
-      ? db
-          .select({ id: canvasAttachments.id, path: canvasAttachments.path })
-          .from(canvasAttachments)
-          .where(inArray(canvasAttachments.id, attachmentIds))
-      : Promise.resolve([]),
-  ]);
+  const [teamRows, postRows, projectRows, profiles, forumRows, attachmentRows, engineRows] =
+    await Promise.all([
+      teamIds.length > 0
+        ? db
+            .select({ id: teams.id, name: teams.name, slug: teams.slug })
+            .from(teams)
+            .where(inArray(teams.id, teamIds))
+        : Promise.resolve([]),
+      postIds.length > 0
+        ? db
+            .select({ id: collabPosts.id, title: collabPosts.title })
+            .from(collabPosts)
+            .where(inArray(collabPosts.id, postIds))
+        : Promise.resolve([]),
+      projectIds.length > 0
+        ? db
+            .select({ id: projects.id, title: projects.title, slug: projects.slug })
+            .from(projects)
+            .where(inArray(projects.id, projectIds))
+        : Promise.resolve([]),
+      profilesByIds(profileIds),
+      forumPostIds.length > 0
+        ? db
+            .select({ id: forumPosts.id, title: forumPosts.title, excerpt: forumPosts.excerpt })
+            .from(forumPosts)
+            .where(inArray(forumPosts.id, forumPostIds))
+        : Promise.resolve([]),
+      attachmentIds.length > 0
+        ? db
+            .select({ id: canvasAttachments.id, path: canvasAttachments.path })
+            .from(canvasAttachments)
+            .where(inArray(canvasAttachments.id, attachmentIds))
+        : Promise.resolve([]),
+      engineIds.length > 0
+        ? db
+            .select({
+              id: engineProjects.projectId,
+              name: engineProjects.name,
+              showcaseTitle: projects.title,
+            })
+            .from(engineProjects)
+            .leftJoin(projects, eq(projects.id, engineProjects.showcaseProjectId))
+            .where(inArray(engineProjects.projectId, engineIds))
+        : Promise.resolve([]),
+    ]);
 
   const refs = new Map<string, ImageOwnerRef>();
   for (const p of forumRows) {
@@ -2409,6 +2423,9 @@ async function imageOwnerRefs(
   }
   for (const p of projectRows) {
     refs.set(`project:${p.id}`, { label: p.title, href: `/projects/${p.slug}` });
+  }
+  for (const g of engineRows) {
+    refs.set(`engine:${g.id}`, { label: g.showcaseTitle ?? g.name, href: `/games/${g.id}` });
   }
   for (const [id, p] of profiles) {
     refs.set(`profile:${id}`, {

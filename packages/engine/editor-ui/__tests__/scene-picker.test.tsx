@@ -34,7 +34,12 @@ import {
   type SceneListFile,
 } from "../../project/index";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/index";
-import type { EditorHost, ProjectConnection, ProjectConnectionState } from "../host";
+import type {
+  EditorHost,
+  EditorPublishHost,
+  ProjectConnection,
+  ProjectConnectionState,
+} from "../host";
 import { newSceneBatch, sceneIdFor, scenePickerRows } from "../panels/ScenePicker";
 import { SceneEditor } from "../SceneEditor";
 import { useWarmDocs, WARM_DOC_MS } from "../session/use-project-session";
@@ -442,6 +447,69 @@ describe("ScenePicker", () => {
         screen.getByRole("tab", { name: "Project settings" }).getAttribute("aria-selected"),
       ).toBe("true"),
     );
+  }, 20_000);
+
+  it("opens Publish from the toolbar for a host that publishes, and adds the Usage section", async () => {
+    const { host } = fakeProject();
+    const publish: EditorPublishHost = {
+      project: "p",
+      usage: async () => ({ lines: [], notice: null, trash: null, footer: "Cleanup runs daily." }),
+      releases: async () => [],
+      promote: vi.fn(),
+      rollback: vi.fn(),
+      settings: async () => ({
+        visibility: "private",
+        reviewPending: false,
+        saveMode: "site",
+        connectOrigins: [],
+        online: false,
+        team: null,
+      }),
+      setSettings: vi.fn(),
+      openTokenDialog: vi.fn(),
+      wording: {
+        command: "vp run scene game release create p",
+        noRelease: "Run this:",
+        token: "",
+        visibility: { private: "Private", team: "Team", unlisted: "Unlisted", public: "Public" },
+        saveModes: { site: "Site", own: "Own", none: "Nowhere" },
+        connectsTo: "",
+        connectOriginsMax: 4,
+        privateLinks: "",
+      },
+    };
+    render(
+      <SceneEditor
+        host={{ ...host, publish }}
+        game={pickerGame}
+        project="p"
+        scene="yard"
+        rapier={rapier}
+      />,
+    );
+    await openMenu("The Yard");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: "Publish…" }));
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Publish" }).getAttribute("aria-selected")).toBe(
+        "true",
+      ),
+    );
+    expect(await screen.findByText("vp run scene game release create p")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("tab", { name: "Project settings" }));
+    });
+    expect(await screen.findByRole("tab", { name: "Usage" })).toBeTruthy();
+  }, 20_000);
+
+  it("offers no Publish entry for a host that doesn't publish", async () => {
+    const { host } = fakeProject();
+    render(<SceneEditor host={host} game={pickerGame} project="p" scene="yard" rapier={rapier} />);
+    await openMenu("The Yard");
+    expect(screen.queryByRole("menuitem", { name: "Publish…" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Publish" })).toBeNull();
   }, 20_000);
 
   it("refuses a name another asset holds, in the dialog", async () => {

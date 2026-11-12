@@ -77,7 +77,7 @@ export function createEngineRoutes(deps: EngineRouteDeps) {
   const store = deps.store ?? ((projectId: string) => minioContentStore(projectId));
   const quota = deps.quota ?? ENGINE_QUOTA;
 
-  /** M11's gate: `gateEngineRequest`'s refusal answered as `{ message }`. */
+  /** `gateEngineRequest`'s refusal answered as `{ message }`. */
   async function gate(
     request: Request,
     projectId: string,

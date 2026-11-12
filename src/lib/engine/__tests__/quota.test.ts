@@ -202,7 +202,9 @@ describe("checkReleaseQuota", () => {
     expect(storage.message).toBe(
       `This release adds 30 MB, and the project's releases already use 498 MB of ${formatBytes(PROJECT_QUOTA.releaseStorageBytes)}.`,
     );
-    expect(storage.hint).toContain(`${RELEASE_GRACE_DAYS} days after they leave the 10 newest`);
+    expect(storage.hint).toContain(
+      `outside the 10 newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned`,
+    );
     const day = refused(check({ today: 20 }));
     expect(day.message).toBe(
       `This project has published ${PROJECT_QUOTA.releasesPerDay} releases today, the most per day.`,
@@ -286,7 +288,7 @@ describe("usageLines", () => {
   it("states the nearly-full and full notices from the limits", () => {
     expect(usageNotice("ok")).toBeNull();
     expect(usageNotice("warn")).toBe(
-      `Nearly full. Old releases are removed ${RELEASE_GRACE_DAYS} days after they leave your ${PROJECT_QUOTA.releasesKept} newest; unpin jam versions you no longer need.`,
+      `Nearly full. Releases outside your ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned; unpin jam versions you no longer need.`,
     );
     expect(usageNotice("full")).toBe(
       "Full. New releases are refused until releases are removed or unpinned.",

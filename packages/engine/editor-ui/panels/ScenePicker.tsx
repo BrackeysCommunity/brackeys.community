@@ -197,12 +197,15 @@ export function SceneMenuItems({
   rows,
   onNewScene,
   onProjectSettings,
+  onPublish,
 }: {
   project: EditorProjectLink;
   rows: readonly ScenePickerRow[];
   onNewScene: () => void;
   /** Adds "Project settings…", for a frame with the settings panel. */
   onProjectSettings?: (() => void) | null;
+  /** Adds "Publish…", for a frame whose host publishes. */
+  onPublish?: (() => void) | null;
 }) {
   const { session, scene, openScene } = project;
   const listed = rows.filter((r) => r.listed);
@@ -241,6 +244,7 @@ export function SceneMenuItems({
       {onProjectSettings ? (
         <MenuItem onClick={onProjectSettings}>Project settings…</MenuItem>
       ) : null}
+      {onPublish ? <MenuItem onClick={onPublish}>Publish…</MenuItem> : null}
     </>
   );
 }
@@ -252,12 +256,14 @@ export function ScenePicker({
   label,
   onNewScene,
   onProjectSettings,
+  onPublish,
 }: {
   project: EditorProjectLink;
   rows: readonly ScenePickerRow[];
   label: string;
   onNewScene: () => void;
   onProjectSettings?: (() => void) | null;
+  onPublish?: (() => void) | null;
 }) {
   return (
     <Menu>
@@ -281,6 +287,7 @@ export function ScenePicker({
           rows={rows}
           onNewScene={onNewScene}
           onProjectSettings={onProjectSettings}
+          onPublish={onPublish}
         />
       </MenuContent>
     </Menu>

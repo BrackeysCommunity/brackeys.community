@@ -45,7 +45,7 @@ function saveOfBytes(slot: string, bytes: number): string {
  * carries neither `source`, `origin` nor ports, so each side's post is
  * stood in for by the event a browser would deliver: the frame's to its
  * parent from its own window on the opaque origin, the page's to the frame
- * with the transferred port.
+ * from its parent with the transferred port.
  */
 type Rig = {
   iframe: HTMLIFrameElement;
@@ -76,6 +76,7 @@ function rig(over: Partial<HostServerOptions> = {}): Rig {
       queueMicrotask(() => {
         const event = new MessageEvent("message", { data });
         Object.defineProperty(event, "ports", { value: transfer });
+        Object.defineProperty(event, "source", { value: frameView.parent });
         frame.dispatchEvent(event);
       });
     },
@@ -155,6 +156,11 @@ describe("the handshake", () => {
     });
     expect(channel.welcome.player).toEqual({ signedIn: false, name: null });
     expect(channel.welcome.online).toBe(false);
+  });
+
+  it("tells an online project's frame it may go online", async () => {
+    const channel = await rig({ online: true }).connect();
+    expect(channel.welcome.online).toBe(true);
   });
 
   it("ignores a frame-ready from another window or a named origin", async () => {

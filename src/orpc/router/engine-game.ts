@@ -13,23 +13,43 @@ import { orpcRefusals } from "@/lib/engine/release-errors";
 import { reportGame as fileReport } from "@/lib/engine/release-moderation";
 import type { Actor } from "@/lib/engine/release-upload";
 import { viewerOf } from "@/lib/engine/viewer";
-import { authMiddleware, requireStaff } from "@/orpc/middleware/auth";
+import { requireStaff } from "@/orpc/middleware/auth";
 
 /**
- * A hosted game's pages and settings. Playing, the game page and reports
- * are open to anyone the game's audience admits, signed in or not; the
- * rest are staff only. Every procedure is behind `engine-games-enabled`
- * and the production guard.
+ * A hosted game's pages and settings. Every procedure is staff only and
+ * behind `engine-games-enabled` and the production guard; inside that,
+ * the game's audience rules still decide what a viewer may play or see.
  */
-const gameReader = os.use(authMiddleware).use(async ({ context, next }) => {
-  await assertEngineGames({ userId: context.user?.id ?? null });
-  return next();
-});
-
 const gameStaff = os.use(requireStaff).use(async ({ context, next }) => {
   await assertEngineGames({ userId: context.user.id });
   return next();
 });
+
+const NOT_FOUND = (reason?: string) =>
+  new ORPCError("NOT_FOUND", { message: "Not found.", ...(reason ? { data: { reason } } : {}) });
+
+/**
+ * `gameStaff` for the play and game pages, where a caller the staff gate
+ * refuses reads as not found, the same as a missing game or a closed site.
+ */
+const gameReader = os
+  .use(async ({ next }) => {
+    let admitted = false;
+    try {
+      return await next({ context: { admit: () => void (admitted = true) } });
+    } catch (error) {
+      const refused =
+        error instanceof ORPCError && (error.code === "UNAUTHORIZED" || error.code === "FORBIDDEN");
+      if (!admitted && refused) throw NOT_FOUND();
+      throw error;
+    }
+  })
+  .use(requireStaff)
+  .use(async ({ context, next }) => {
+    context.admit();
+    await assertEngineGames({ userId: context.user.id });
+    return next();
+  });
 
 const projectId = z
   .string()
@@ -37,14 +57,11 @@ const projectId = z
 
 const person = (userId: string): Actor => ({ kind: "user", userId });
 
-const NOT_FOUND = (reason?: string) =>
-  new ORPCError("NOT_FOUND", { message: "Not found.", ...(reason ? { data: { reason } } : {}) });
-
 /** The play page's frame and release for `latest`, `preview` or a version number. */
 export const getGamePlay = gameReader
   .input(z.object({ projectId, version: z.string().regex(/^(latest|preview|[1-9]\d{0,8})$/) }))
   .handler(async ({ context, input }) => {
-    const viewer = await viewerOf(context.user?.id ?? null, input.projectId);
+    const viewer = await viewerOf(context.user.id, input.projectId);
     const resolved = await orpcRefusals(() => resolvePlay({ ...input, viewer }));
     if (!resolved.ok) throw NOT_FOUND(resolved.reason);
     return resolved.play;
@@ -54,7 +71,7 @@ export const getGamePlay = gameReader
 export const getGamePage = gameReader
   .input(z.object({ projectId }))
   .handler(async ({ context, input }) => {
-    const viewer = await viewerOf(context.user?.id ?? null, input.projectId);
+    const viewer = await viewerOf(context.user.id, input.projectId);
     const page = await orpcRefusals(() => gamePage({ ...input, viewer }));
     if (!page) throw NOT_FOUND();
     return page;
@@ -106,7 +123,7 @@ export const setGameSettings = gameStaff
   });
 
 /** A signed-in player's report on a game or one of its versions. */
-export const reportGame = gameReader
+export const reportGame = gameStaff
   .input(
     z.object({
       projectId,
@@ -115,16 +132,12 @@ export const reportGame = gameReader
     }),
   )
   .handler(({ context, input }) => {
-    const reporterId = context.user?.id;
-    if (!reporterId) {
-      throw new ORPCError("UNAUTHORIZED", { message: "Sign in to report a game." });
-    }
     return orpcRefusals(() =>
       fileReport({
         projectId: input.projectId,
         reason: input.reason,
         ...(input.version !== undefined ? { version: input.version } : {}),
-        reporterId,
+        reporterId: context.user.id,
       }),
     );
   });

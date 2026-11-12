@@ -1,12 +1,4 @@
-import {
-  CREDITS_FILE,
-  INDEX_HTML_FILE,
-  RELEASE_FILE,
-  SERVICE_WORKER_FILE,
-  WEB_MANIFEST_FILE,
-} from "@jams/engine/project";
-
-import { frameBase, playOrigin } from "@/lib/engine/frame-csp";
+// Import-free, so canvas-sync's collector and media-scan's quarantine copy it as it is.
 
 /** What a purge did: sent, or why not (unconfigured, or the API refused). */
 export type PurgeResult = { purged: true; urls: number } | { purged: false; reason: string };
@@ -18,20 +10,22 @@ export type PurgeDeps = {
   token?: string | null;
   fetch?: typeof fetch;
   log?: (message: string, context?: Record<string, unknown>) => void;
-  /** Where frames are served from; default `playOrigin()`. */
-  origin?: string;
+  /** Where frames are served from; default `configuredPlayOrigin()`. */
+  origin?: string | null;
 };
 
 /**
- * The files a release can't boot without. Every other file of a build is
- * named by its hash and inert outside the frame, so a takedown purges these.
+ * The files a release can't boot without: the engine's `INDEX_HTML_FILE`,
+ * `RELEASE_FILE`, `CREDITS_FILE`, `SERVICE_WORKER_FILE` and
+ * `WEB_MANIFEST_FILE`. Every other file of a build is named by its hash and
+ * inert outside the frame, so a takedown purges these.
  */
 export const SHELL_FILES = [
-  INDEX_HTML_FILE,
-  RELEASE_FILE,
-  CREDITS_FILE,
-  SERVICE_WORKER_FILE,
-  WEB_MANIFEST_FILE,
+  "index.html",
+  "release.json",
+  "credits.html",
+  "sw.js",
+  "app.webmanifest",
 ] as const;
 
 /** Cloudflare takes at most this many URLs in one purge on every plan below Enterprise. */
@@ -40,14 +34,27 @@ const URLS_PER_REQUEST = 30;
 export const NOT_CONFIGURED =
   "Edge purge isn't configured (CLOUDFLARE_ZONE_ID, CLOUDFLARE_PURGE_TOKEN): edge copies stay until the CDN evicts them.";
 
-/** A release's shell URLs on the public frame prefix; private releases are never cached at the edge. */
-export function shellUrls(releaseId: string, origin: string = playOrigin()): string[] {
-  const base = frameBase(releaseId, undefined, origin);
-  return SHELL_FILES.map((file) => `${base}${file}`);
-}
+export const NO_ORIGIN =
+  "Edge purge has no frame origin (ENGINE_PLAY_ORIGIN, VITE_SITE_ORIGIN or APP_URL): edge copies stay until the CDN evicts them.";
 
 const env = (name: string) =>
   typeof process !== "undefined" ? process.env[name]?.trim() || null : null;
+
+/**
+ * The origin public frames are served from, read the way `playOrigin()`
+ * reads it (`ENGINE_PLAY_ORIGIN`, else the site's origin) but from the
+ * process environment alone, so the services see the same value. Null
+ * when none is set: there is nothing at the edge to purge.
+ */
+export function configuredPlayOrigin(): string | null {
+  const origin = env("ENGINE_PLAY_ORIGIN") ?? env("VITE_SITE_ORIGIN") ?? env("APP_URL");
+  return origin ? origin.replace(/\/+$/, "") : null;
+}
+
+/** A release's shell URLs on the public frame prefix (`frameBase` without a token); private releases are never cached at the edge. */
+export function shellUrls(releaseId: string, origin: string): string[] {
+  return SHELL_FILES.map((file) => `${origin}/frames/${releaseId}/${file}`);
+}
 
 /**
  * Purges `urls` from Cloudflare's cache when `CLOUDFLARE_ZONE_ID` and
@@ -98,6 +105,14 @@ export async function purgeUrls(
 }
 
 /** Purges one release's five shell files from the edge. */
-export function purgeShell(releaseId: string, deps: PurgeDeps = {}): Promise<PurgeResult> {
-  return purgeUrls(shellUrls(releaseId, deps.origin), deps);
+export async function purgeShell(releaseId: string, deps: PurgeDeps = {}): Promise<PurgeResult> {
+  const origin = deps.origin === undefined ? configuredPlayOrigin() : deps.origin;
+  if (!origin) {
+    (deps.log ?? ((message, context) => console.warn(message, context ?? {})))(
+      `[cloudflare-purge] ${NO_ORIGIN}`,
+      { releaseId },
+    );
+    return { purged: false, reason: NO_ORIGIN };
+  }
+  return purgeUrls(shellUrls(releaseId, origin), deps);
 }

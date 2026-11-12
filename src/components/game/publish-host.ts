@@ -1,4 +1,5 @@
 import type {
+  EditorNotify,
   EditorPublishHost,
   GameSettingsView,
   PublishChannel,
@@ -24,6 +25,7 @@ import {
 import { usageNotice, type UsageLine } from "@/lib/engine/quota";
 import type { StoredUsage } from "@/lib/engine/usage";
 import { formatBytes, formatCount } from "@/lib/format-bytes";
+import { releaseDay } from "@/lib/jam-links";
 import { SITE } from "@/lib/legal-meta";
 
 /** The flag the editor's Publish panel and Usage section open behind, with the production guard. */
@@ -81,15 +83,6 @@ const site = SITE.name;
 const bytes = formatBytes;
 const n = formatCount;
 
-/** "3 Dec 2026", in UTC as every jam and release date is. */
-export const utcDate = (at: Date | string): string =>
-  new Date(at).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-
 const iso = (at: Date | string): string => new Date(at).toISOString();
 
 /** The Publish panel's sentences, every number from `limits.ts`. */
@@ -112,20 +105,21 @@ export function publishWording(project: ProjectId, team: string | null = null): 
       none: "Nowhere",
     },
     connectsTo: `Origins this game may contact, up to ${n(CONNECT_ORIGINS_MAX)}. They are shown on the game page.`,
+    connectOriginsMax: CONNECT_ORIGINS_MAX,
     privateLinks: `A private or team release opens through a link that works for ${n(FRAME_TOKEN_HOURS)} hours.`,
   };
 }
 
 /** "v2 will be removed on 3 Dec 2026. …" */
 export const removalText = (version: number, at: Date | string): string =>
-  `v${version} will be removed on ${utcDate(at)}. Pin it to a jam or move a channel to it to keep it.`;
+  `v${version} will be removed on ${releaseDay(at)}. Pin it to a jam or move a channel to it to keep it.`;
 
 /** The confirmation Empty trash asks. */
 export const emptyTrashConfirm = (assets: number, trashBytes: number): string =>
   `Permanently delete ${n(assets)} ${assets === 1 ? "asset" : "assets"} in the trash (${bytes(trashBytes)})? This can't be undone.`;
 
 /** The cleanup rules under the usage rows. */
-export const USAGE_FOOTER = `These limits are per project. Cleanup runs every day: old releases ${n(RELEASE_GRACE_DAYS)} days after they leave the ${n(PROJECT_QUOTA.releasesKept)} newest, replaced asset versions after ${n(BLOB_GRACE_DAYS)} days. Pinned releases are never removed.`;
+export const USAGE_FOOTER = `These limits are per project. Cleanup runs every day: releases outside the ${n(PROJECT_QUOTA.releasesKept)} newest ${n(RELEASE_GRACE_DAYS)} days after publishing, replaced asset versions after ${n(BLOB_GRACE_DAYS)} days. Pinned releases are never removed.`;
 
 const LEVEL_RANK: Readonly<Record<UsageLevel, number>> = { ok: 0, warn: 1, full: 2 };
 
@@ -292,6 +286,8 @@ export type SitePublishHostOptions = {
   team?: string | null;
   /** Opens the site's agent token dialog for this project. */
   openTokenDialog: () => void;
+  /** Where a change's side notes go, such as old copies left at the edge; default nowhere. */
+  notify?: EditorNotify;
   /** Default: the site's oRPC client, loaded on the first call. */
   rpc?: PublishRpc | (() => Promise<PublishRpc>);
 };
@@ -347,13 +343,18 @@ export function sitePublishHost(opts: SitePublishHostOptions): EditorPublishHost
     async setSettings(patch): Promise<GameSettingsView> {
       const api = await rpc();
       const { connectOrigins, ...rest } = patch;
-      const saved = await call(() =>
+      const { edgeNote, ...saved } = await call(() =>
         api.setGameSettings({
           projectId,
           ...rest,
           ...(connectOrigins ? { connectOrigins: [...connectOrigins] } : {}),
         }),
       );
+      if (edgeNote) {
+        opts.notify?.warning("Old public copies may stay cached for a while", {
+          description: edgeNote,
+        });
+      }
       return { ...saved, team };
     },
     openTokenDialog: () => opts.openTokenDialog(),

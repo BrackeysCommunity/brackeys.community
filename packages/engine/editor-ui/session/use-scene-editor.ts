@@ -509,6 +509,12 @@ export function useSceneEditor({
       flowRef.current.scenes.find((e) => e.scene === scene.id)?.title ?? scene.name;
     // A step the peek didn't foresee still opens its scene once taken, and the status bar says so.
     const onUndone = (step: UndoneStep, how: "undo" | "redo") => {
+      if (step.refused !== undefined) {
+        say(step.refused, {
+          description: `${step.label} can't be ${how === "undo" ? "undone" : "redone"}: its asset was deleted from the trash.`,
+        });
+        return;
+      }
       if (step.docs.includes(ready.name)) return;
       const verb = how === "undo" ? "Undid" : "Redid";
       const other = sceneOfStep(ready.session, step.docs);

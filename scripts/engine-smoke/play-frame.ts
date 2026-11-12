@@ -13,6 +13,9 @@
  * - `saves`, tactics: Start, End turn, Save on turn 2 through the host into
  *   the host origin's IndexedDB; the host page reloads, the menu offers
  *   Continue with the host's own save note, and Continue lands on turn 2;
+ * - `embed`, tactics: a page on a third origin frames the host page, as
+ *   another site frames the embed page, and the frame still reaches "ready"
+ *   and draws: a public release's CSP admits every ancestor;
  * - `sandbox`, tactics: inside the frame `self.origin` is "null",
  *   `document.cookie` and `localStorage` throw, a fetch to the host's `/api/`
  *   and to the platformer's release directory are refused before reaching
@@ -30,14 +33,14 @@
  */
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 
 import type { Browser, BrowserContext, BrowserType, Frame, Page } from "playwright";
 
-import { PLAY_FRAME_ALLOW, PLAY_FRAME_SANDBOX } from "../../src/components/games/PlayFrame";
+import { FRAME_ALLOW, FRAME_SANDBOX } from "../../src/lib/engine/frame-sandbox";
 import { LOCAL_SAVES_DB, SIGNED_OUT_SAVES_DESCRIBE } from "../../src/lib/engine/local-saves";
 import {
   installCommand,
@@ -57,7 +60,7 @@ import { serveStatic, type StaticServer } from "./static-server";
 export const PLAY_GAMES = ["tactics", "platformer"] as const;
 export type PlayGame = (typeof PLAY_GAMES)[number];
 
-export type PlayRunKind = "play" | "saves" | "sandbox";
+export type PlayRunKind = "play" | "embed" | "saves" | "sandbox";
 
 export type PlannedPlayRun = { game: PlayGame; kind: PlayRunKind; browser: BrowserName };
 
@@ -65,6 +68,7 @@ export type PlannedPlayRun = { game: PlayGame; kind: PlayRunKind; browser: Brows
 export const PLAY_RUNS: readonly { game: PlayGame; kind: PlayRunKind }[] = [
   { game: "platformer", kind: "play" },
   { game: "tactics", kind: "play" },
+  { game: "tactics", kind: "embed" },
   { game: "tactics", kind: "saves" },
   { game: "tactics", kind: "sandbox" },
 ];
@@ -79,6 +83,16 @@ export const plannedPlayRuns = (browsers: readonly BrowserName[]): PlannedPlayRu
   browsers.flatMap((browser) => PLAY_RUNS.map((run) => ({ ...run, browser })));
 
 export const HOST_PAGE_FILE = "play-host.html";
+/** The embed run's page on a third origin, standing in for another site that embeds the game. */
+export const EMBEDDER_FILE = "embedder.html";
+const EMBEDDER_HTML = `<!doctype html>
+<meta charset="utf-8" />
+<title>Another site</title>
+<iframe id="embed" style="width: 960px; height: 600px; border: 0"></iframe>
+<script>
+  document.getElementById("embed").src = new URLSearchParams(location.search).get("src");
+</script>
+`;
 /** The release's page as the play page frames it. */
 export const FRAME_ENTRY = "index.html?host=jams";
 /** Marks the sandbox run's own requests: judged by whether a server saw them, never by the request log. */
@@ -99,6 +113,8 @@ export type PlayScope = {
   hostOrigin: string;
   /** The host bundle's paths, each starting with "/". */
   hostFiles: ReadonlySet<string>;
+  /** The embed run's outer page, without its query. */
+  embedder?: string;
 };
 
 export type PlayRequestScope = "release" | "host-page" | "local" | "outside";
@@ -122,6 +138,7 @@ export function playRequestScope(url: string, scope: PlayScope): PlayRequestScop
   if (path.startsWith(scope.release)) return "release";
   if (parsed.origin === scope.hostOrigin && scope.hostFiles.has(parsed.pathname))
     return "host-page";
+  if (scope.embedder !== undefined && path === scope.embedder) return "host-page";
   if (parsed.pathname === FAVICON) return "local";
   return "outside";
 }
@@ -274,7 +291,7 @@ export function judgePlayRun(kind: PlayRunKind, o: PlayObservation): string[] {
   if (csp) reasons.push(csp);
   reasons.push(...judgeHost(o.host));
   if (o.render === "lost") reasons.push('the frame\'s data-jams-render reads "lost"');
-  if (kind === "play") {
+  if (kind === "play" || kind === "embed") {
     const flat = o.colours === null ? "the canvas wasn't read" : judgeDrawn(o.colours);
     if (flat) reasons.push(flat);
   }
@@ -438,6 +455,8 @@ type Hosted = {
 
 type Stage = {
   host: StaticServer;
+  /** A third origin, for the embed run's outer page. */
+  embedder: StaticServer;
   hostFiles: ReadonlySet<string>;
   frames: HandlerServer;
   releases: ReadonlyMap<PlayGame, Hosted>;
@@ -450,11 +469,15 @@ function hostPageUrl(stage: Stage, hosted: Hosted): string {
     release: hosted.release.releaseId,
     game: hosted.release.gameId,
     project: hosted.release.projectId,
-    sandbox: PLAY_FRAME_SANDBOX,
-    allow: PLAY_FRAME_ALLOW,
+    sandbox: FRAME_SANDBOX,
+    allow: FRAME_ALLOW,
   });
   return `${stage.host.url}${HOST_PAGE_FILE}?${q}`;
 }
+
+/** Another site's page framing the host page, as a site embedding the game frames the embed page. */
+const embedderUrl = (stage: Stage, hosted: Hosted): string =>
+  `${stage.embedder.url}${EMBEDDER_FILE}?${new URLSearchParams({ src: hostPageUrl(stage, hosted) })}`;
 
 /** Records every CSP violation on `window.__playSmokeCsp`, in every frame, before the page's own scripts. */
 async function recordViolations(context: BrowserContext): Promise<void> {
@@ -479,8 +502,8 @@ const violationsIn = (frame: Frame): Promise<CspViolation[]> =>
     ...((window as unknown as { __playSmokeCsp?: CspViolation[] }).__playSmokeCsp ?? []),
   ]);
 
-const hostProbe = (page: Page): Promise<HostProbe> =>
-  page.evaluate(() => {
+const hostProbe = (host: Frame): Promise<HostProbe> =>
+  host.evaluate(() => {
     const r = (window as unknown as { __playHost?: HostProbe }).__playHost;
     return r
       ? { states: [...r.states], issues: [...r.issues], dropped: r.dropped }
@@ -498,11 +521,19 @@ function pageErrors(page: Page): Promise<never> {
 /** Opens the host page and hands back the release's frame once it is attached. */
 async function openHosted(page: Page, url: string): Promise<Frame> {
   await page.goto(url);
-  return attachedFrame(page);
+  return attachedFrame(page.mainFrame());
 }
 
-async function attachedFrame(page: Page): Promise<Frame> {
-  const frame = await (await page.waitForSelector("iframe#frame")).contentFrame();
+/** Opens another site's page framing the host page; hands back the host page's frame and the release's. */
+async function openEmbedded(page: Page, url: string): Promise<{ host: Frame; frame: Frame }> {
+  await page.goto(url);
+  const host = await (await page.waitForSelector("iframe#embed")).contentFrame();
+  if (!host) throw new Error("the embedding page's iframe has no frame");
+  return { host, frame: await attachedFrame(host) };
+}
+
+async function attachedFrame(host: Frame): Promise<Frame> {
+  const frame = await (await host.waitForSelector("iframe#frame")).contentFrame();
   if (!frame) throw new Error("the host page's iframe has no frame");
   return frame;
 }
@@ -591,7 +622,7 @@ async function saveAndContinue(page: Page, first: Frame): Promise<SavesProbe> {
   if (note !== SAVED_NOTE) return probe;
 
   await page.reload();
-  const frame = await attachedFrame(page);
+  const frame = await attachedFrame(page.mainFrame());
   await waitReady(frame);
   const resume = frame.locator(
     '.tactics-menu button[data-action="continue"][aria-disabled="false"]',
@@ -711,10 +742,12 @@ async function runOne(
   const hosted = stage.releases.get(planned.game);
   const other = stage.releases.get(OTHER_RELEASE_GAME[planned.game]);
   if (!hosted || !other) throw new Error(`nothing hosts ${planned.game}`);
+  const embedded = planned.kind === "embed";
   const scope: PlayScope = {
     release: hosted.dir,
     hostOrigin: stage.host.origin,
     hostFiles: stage.hostFiles,
+    ...(embedded ? { embedder: `${stage.embedder.url}${EMBEDDER_FILE}` } : {}),
   };
   const context = await browser.newContext();
   const requests: string[] = [];
@@ -732,11 +765,13 @@ async function runOne(
     page.setDefaultTimeout(PAGE_TIMEOUT_MS);
     const errors = pageErrors(page);
     const work = async (): Promise<PlayObservation> => {
-      const frame = await openHosted(page, hostPageUrl(stage, hosted));
+      const { host, frame } = embedded
+        ? await openEmbedded(page, embedderUrl(stage, hosted))
+        : { host: page.mainFrame(), frame: await openHosted(page, hostPageUrl(stage, hosted)) };
       await waitReady(frame);
       const violations = await violationsIn(frame);
       const render = await renderState(frame);
-      const colours = planned.kind === "play" ? await canvasColours(frame) : null;
+      const colours = planned.kind === "play" || embedded ? await canvasColours(frame) : null;
       const saves = planned.kind === "saves" ? await saveAndContinue(page, frame) : undefined;
       const sandbox =
         planned.kind === "sandbox"
@@ -746,7 +781,7 @@ async function runOne(
         requests,
         scope,
         violations,
-        host: await hostProbe(page),
+        host: await hostProbe(host),
         render,
         colours,
         ...(saves ? { saves } : {}),
@@ -879,13 +914,18 @@ async function main(): Promise<number> {
     servers.push(host);
     const frames = await site.serveFrames(smokeSite, host.origin);
     servers.push(frames);
+    const embedderDir = join(tmp, "embedder");
+    mkdirSync(embedderDir);
+    writeFileSync(join(embedderDir, EMBEDDER_FILE), EMBEDDER_HTML);
+    const embedder = await serveStatic({ dir: embedderDir });
+    servers.push(embedder);
     console.log(
       `serving the host page at ${host.url}${HOST_PAGE_FILE}, frames at ${frames.origin}`,
     );
     const releases = new Map<PlayGame, Hosted>();
     for (const [game, release] of published)
       releases.set(game, { release, dir: site.releaseDir(frames, release.releaseId) });
-    const stage: Stage = { host, hostFiles, frames, releases };
+    const stage: Stage = { host, embedder, hostFiles, frames, releases };
 
     for (const name of browsers) {
       const mine = planned.filter((p) => p.browser === name);

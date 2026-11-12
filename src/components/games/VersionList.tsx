@@ -27,21 +27,15 @@ import { TimeAgo } from "@/components/ui/time-ago";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import type { GamePageVersion } from "@/lib/engine/game-page";
+import { readItchIssuesHeader, ITCH_ISSUES_HEADER } from "@/lib/engine/release-zip-header";
 import { engineReleaseZipPath } from "@/lib/engine/route-paths";
 import { formatBytes } from "@/lib/format-bytes";
+import { releaseDay } from "@/lib/jam-links";
 import { toast } from "@/lib/toast";
 import { client } from "@/orpc/client";
 
 /** A version as the list shows it; a release id, when the payload carries it, names the version's zip. */
 export type GameVersion = GamePageVersion & { id?: string };
-
-const MONTH = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
-
-/** "12 Nov 2026", in UTC. */
-export function releaseDate(iso: string): string {
-  const date = new Date(iso);
-  return `${date.getUTCDate()} ${MONTH.format(date)} ${date.getUTCFullYear()}`;
-}
 
 /** `v7 · 12 Nov 2026 · 38 MB · engine 0.14.3` */
 export function versionLine(
@@ -49,7 +43,7 @@ export function versionLine(
 ): string {
   return [
     `v${version.version}`,
-    releaseDate(version.createdAt),
+    releaseDay(version.createdAt),
     formatBytes(version.bytes),
     `engine ${version.engineVersion}`,
   ].join(" · ");
@@ -75,6 +69,70 @@ const errorText = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
 
 type MenuDialog = "promote" | "rollback" | "jam" | null;
+
+/** The file name a zip response's Content-Disposition gives, else `fallback`. */
+function attachmentName(response: Response, fallback: string): string {
+  const named = /filename="([^"]+)"/.exec(response.headers.get("content-disposition") ?? "");
+  return named?.[1] ?? fallback;
+}
+
+function saveBlob(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.rel = "noopener";
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
+/**
+ * Builds and saves a version's zip, saying so while the server packs it,
+ * then what itch.io will make of its layout, so the publisher hears before
+ * uploading it there.
+ */
+export async function downloadReleaseZip(
+  input: { projectId: string; version: number; releaseId: string },
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  const v = input.version;
+  const pending = toast.loading(`Building the v${v} zip…`, {
+    description: "Large games take a moment to pack.",
+  });
+  try {
+    const response = await fetcher(engineReleaseZipPath(input.releaseId), {
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { message?: unknown } | null;
+      throw new Error(
+        typeof body?.message === "string"
+          ? body.message
+          : `The zip didn't build (${response.status}).`,
+      );
+    }
+    const issues = readItchIssuesHeader(response.headers.get(ITCH_ISSUES_HEADER));
+    saveBlob(await response.blob(), attachmentName(response, `${input.projectId}-v${v}.zip`));
+    toast.dismiss(pending);
+    if (issues && issues.count > 0) {
+      const more = issues.count - issues.messages.length;
+      toast.warning(
+        `v${v}'s zip has ${issues.count === 1 ? "1 thing" : `${issues.count} things`} to fix before itch.io takes it`,
+        {
+          description: [...issues.messages, ...(more > 0 ? [`…and ${more} more.`] : [])].join(" "),
+          duration: Number.POSITIVE_INFINITY,
+        },
+      );
+    } else {
+      toast.success(`v${v}'s zip is downloading.`);
+    }
+  } catch (error) {
+    toast.dismiss(pending);
+    toast.error(errorText(error, "The zip didn't download. Try again."));
+  }
+}
 
 type PublisherMenuProps = {
   projectId: string;
@@ -141,7 +199,7 @@ function PublisherMenu({ projectId, version, liveVersion, onChanged }: Publisher
           ) : null}
           {zip ? (
             <DropdownMenuItem
-              render={<a href={engineReleaseZipPath(zip)} download aria-label="Download zip" />}
+              onClick={() => void downloadReleaseZip({ projectId, version: v, releaseId: zip })}
             >
               <HugeiconsIcon icon={Download04Icon} size={14} />
               Download zip
@@ -153,8 +211,8 @@ function PublisherMenu({ projectId, version, liveVersion, onChanged }: Publisher
       <Confirm
         open={dialog === "promote"}
         onOpenChange={close}
-        title={`Promote v${v}?`}
-        message={`Players get v${v} the next time they open the game.`}
+        title={`Promote v${v} to production?`}
+        message={`Players will get v${v} the next time they open the game. You can roll back at any time.`}
         confirmText="Promote"
         onConfirm={() =>
           run(

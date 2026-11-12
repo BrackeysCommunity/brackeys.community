@@ -306,7 +306,12 @@ export function panelGroup(
  * selecting it in a shorter bottom group grows the group to this (still
  * bounded by the column when drawn), and the viewer can shrink it again.
  */
-const PANEL_HEIGHTS: Readonly<Partial<Record<PanelId, number>>> = { settings: 480 };
+const PANEL_HEIGHTS: Readonly<Partial<Record<PanelId, number>>> = { settings: 480, publish: 480 };
+
+/** Where a panel only some hosts have starts, beside the project's other panels. */
+const OPTIONAL_HOMES: Readonly<Partial<Record<PanelId, { side: Side; group: 0 | 1 }>>> = {
+  publish: { side: "left", group: 1 },
+};
 
 export const selectTab = (layout: EditorLayout, panel: PanelId): EditorLayout => {
   const at = panelGroup(layout, panel);
@@ -449,7 +454,8 @@ export const parseLayout = (raw: unknown, known: readonly PanelId[]): EditorLayo
   for (const panel of known) {
     if (seen.has(panel)) continue;
     seen.add(panel);
-    const home = panelGroup(DEFAULT_LAYOUT, panel) ?? { side: "right" as const, group: 1 as const };
+    const home = panelGroup(DEFAULT_LAYOUT, panel) ??
+      OPTIONAL_HOMES[panel] ?? { side: "right" as const, group: 1 as const };
     const column = groups[home.side];
     const into = column[Math.min(home.group, column.length - 1)];
     if (into) into.panels.push(panel);

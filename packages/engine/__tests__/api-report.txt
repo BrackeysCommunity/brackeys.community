@@ -1517,6 +1517,7 @@ fontKind
 fontMetaSchema
 fontSettingsSchema
 formatAssetDoc
+formatBytes
 formatProjectFile
 formatProjectSnapshot
 formatReleaseManifest
@@ -2811,12 +2812,14 @@ type UndoCoordinator = {
     pinned(): readonly string[];
     redo(): UndoneStep | null;
     redoLabel(): string | undefined;
+    refuseStale(docName: string, reason: string): void;
     undo(): UndoneStep | null;
     undoLabel(): string | undefined;
 };
 type UndoneStep = {
     docs: string[];
     label: string;
+    refused?: string;
     selection?: StepSelection;
 };
 declare function createUndoCoordinator(origin: DocOrigin, opts?: {
@@ -3264,6 +3267,7 @@ type ProjectTransport = (url: string) => ProjectSocket;
 type PublishChannel = "preview" | "production";
 type PublishWording = {
     command: string;
+    connectOriginsMax: number;
     connectsTo: string;
     noRelease: string;
     privateLinks: string;
@@ -4766,7 +4770,6 @@ type BudgetContributor = {
 };
 declare const DEFAULT_EXPORT_BUDGET: ExportBudget;
 declare function budgetIssues(report: ExportBudgetReport, files: readonly ReleaseFile[], content: BudgetContent): SceneIssue[];
-declare function formatBytes(bytes: number): string;
 declare function measureBudget(files: readonly ReleaseFile[], content: BudgetContent, limits: ExportBudget): ExportBudgetReport;
 declare function resolveExportBudget(...overrides: readonly (Partial<ExportBudget> | undefined)[]): ExportBudget;
 
@@ -7314,6 +7317,9 @@ type DocName = {
 type DocNameKind = DocName["kind"];
 declare function docNameOf(ref: DocName): string;
 declare function parseDocName(name: string): DocName | null;
+
+## project/format-bytes.ts
+declare function formatBytes(bytes: number): string;
 
 ## project/hash.ts
 declare function isSha256(s: string): s is Sha256;

@@ -59,7 +59,8 @@ lint:
 # The root preload graph is what every visitor downloads before anything is
 # interactive, and it has grown twice now between the passes that measured
 # it (plan 15, then plan 40 §4). Nothing else in the pipeline builds, so
-# this job is the only place the manifest exists to be checked.
+# this job is the only place the manifest and the built route rules exist
+# to be checked.
 preload-budget:
   stage: check
   image: oven/bun:latest
@@ -71,6 +72,8 @@ preload-budget:
     - ENGINE_BUNDLE_REPORT=.engine-bundle bun run build
     - bun scripts/measure-preload-graph.ts --check
     - bun scripts/engine-bundle-check.ts --report .engine-bundle
+    # The hosted-game route rules as the built server applies them.
+    - bun src/lib/engine/__tests__/frame-route-output-check.ts
   rules:
     - !reference [.skip-version-bump, rules]
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'

@@ -75,11 +75,11 @@ function hero(game: PlayableGame | null, patch: Partial<ProjectRow> = {}) {
 }
 
 describe("the project page's CTA", () => {
-  it("plays in the browser when the linked game is playable", () => {
+  it("plays in the browser when the linked game is playable, keeping the itch link beside it", () => {
     hero(playable);
     expect(buttonHref(/play in browser/i)).toBe("/games/lantern-game/play/latest");
-    expect(screen.queryByRole("button", { name: /itch/i })).toBeNull();
-    expect(screen.queryByText("someone.itch.io")).toBeNull();
+    expect(buttonHref(/play on itch\.io/i)).toBe(ITCH_URL);
+    expect(screen.getByText("someone.itch.io")).toBeTruthy();
   });
 
   it("keeps the itch link when the game isn't playable", () => {
@@ -98,6 +98,7 @@ describe("the project page's CTA", () => {
     hero(playable, { restrictedAt: new Date("2026-11-01T00:00:00.000Z") });
     expect(buttonHref(/play in browser/i)).toBe("/games/lantern-game/play/latest");
     expect(screen.queryByText(/no longer public on itch/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /itch/i })).toBeNull();
   });
 });
 

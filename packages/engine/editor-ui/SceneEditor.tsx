@@ -393,9 +393,16 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
     );
   }, [game, built, editorSession]);
 
+  const publish = host.publish;
   const chrome = useMemo(
-    () => (editing.editor ? editorChrome({ ...editing.editor, notify }, { dev: true }) : null),
-    [editing.editor, notify],
+    () =>
+      editing.editor
+        ? editorChrome(
+            { ...editing.editor, notify },
+            { dev: true, ...(publish ? { publish } : {}) },
+          )
+        : null,
+    [editing.editor, notify, publish],
   );
 
   const announced = useRef(false);

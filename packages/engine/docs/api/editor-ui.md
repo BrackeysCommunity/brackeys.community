@@ -614,6 +614,8 @@ The Publish panel's sentences that carry a host's numbers, written by the host.
 type PublishWording = {
     /** The command that builds and uploads a release of this project. */
     command: string;
+    /** How many origins the game may list under Connects to. */
+    connectOriginsMax: number;
     connectsTo: string;
     /** Shown before the command while the project has no release. */
     noRelease: string;

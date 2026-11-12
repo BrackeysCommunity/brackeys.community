@@ -14,6 +14,14 @@ const calls = vi.hoisted(() => ({
   listJams: vi.fn(),
 }));
 const gate = vi.hoisted(() => ({ flagBlocks: false, allowed: true }));
+const toasts = vi.hoisted(() => ({
+  loading: vi.fn(() => "pending"),
+  dismiss: vi.fn(),
+  success: vi.fn(),
+  warning: vi.fn(),
+  error: vi.fn(),
+}));
+vi.mock("@/lib/toast", () => ({ toast: Object.assign(vi.fn(), toasts) }));
 
 vi.mock("@/orpc/client", () => {
   const fn = (name: string) => (calls as Record<string, (input: unknown) => unknown>)[name];
@@ -61,7 +69,8 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 
 const { GamePage, missingLicencesLine } = await import("../GamePage");
 type GamePageView = import("../GamePage").GamePageView;
-const { releaseDate, versionLine } = await import("../VersionList");
+const { downloadReleaseZip, versionLine } = await import("../VersionList");
+const { releaseDay } = await import("@/lib/jam-links");
 const { embedSnippet } = await import("../EmbedSnippet");
 const { gamePageHead } = await import("@/routes/games.$projectId");
 
@@ -162,6 +171,7 @@ function wrap(node: ReactNode) {
 
 beforeEach(() => {
   for (const call of Object.values(calls)) call.mockReset();
+  for (const fn of Object.values(toasts)) fn.mockClear();
   calls.listJams.mockResolvedValue({
     jams: [
       {
@@ -274,6 +284,23 @@ describe("the game page", () => {
     expect(screen.queryByRole("button", { name: "Play v6" })).toBeNull();
   });
 
+  it("gives a publisher staff's reason under the HIDDEN BY STAFF badge", () => {
+    wrap(
+      <GamePage
+        page={publisherPage({ hidden: { reason: "Reported art." } })}
+        onChanged={() => {}}
+      />,
+    );
+    const header = document.querySelector<HTMLElement>("[data-header-hero]")!;
+    expect(within(header).getByText("HIDDEN BY STAFF")).toBeTruthy();
+    expect(within(header).getByRole("status").textContent).toBe(
+      "Staff hid this game, so nobody can play it: Reported art.",
+    );
+    cleanup();
+    wrap(<GamePage page={page({ hidden: { reason: "Reported art." } })} onChanged={() => {}} />);
+    expect(screen.queryByText(/Staff hid this game/)).toBeNull();
+  });
+
   it("shows a publisher the preview-only version and when it goes", () => {
     wrap(<GamePage page={publisherPage()} onChanged={() => {}} />);
     expect(versionRows()).toEqual(["8", "7", "6"]);
@@ -329,8 +356,8 @@ describe("the game page", () => {
 
   it("dates every version in UTC", () => {
     // Late on the 30th in UTC is already the 1st east of it, and the 31st's evening west of it.
-    expect(releaseDate("2026-11-30T23:30:00.000Z")).toBe("30 Nov 2026");
-    expect(releaseDate("2026-12-01T00:30:00.000Z")).toBe("1 Dec 2026");
+    expect(releaseDay("2026-11-30T23:30:00.000Z")).toBe("30 Nov 2026");
+    expect(releaseDay("2026-12-01T00:30:00.000Z")).toBe("1 Dec 2026");
     expect(
       versionLine({
         version: 3,
@@ -443,12 +470,78 @@ describe("the publisher menu", () => {
     );
   });
 
-  it("downloads a version's zip from the release route", async () => {
+  it("downloads a version's zip from the release route, saying so while it builds", async () => {
     const user = userEvent.setup();
-    wrap(<GamePage page={publisherPage()} onChanged={() => {}} />);
-    await user.click(screen.getByRole("button", { name: "Actions for v7" }));
-    const zip = await screen.findByRole("menuitem", { name: /Download zip/ });
-    expect(zip.getAttribute("href")).toBe(`/api/engine/releases/${"a".repeat(64)}/zip`);
+    const fetch = vi.fn(
+      async () =>
+        new Response(new Uint8Array([80, 75]), {
+          headers: { "content-disposition": 'attachment; filename="tactics-v7.zip"' },
+        }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const saved: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+      function (this: HTMLAnchorElement) {
+        saved.push(this.download);
+      },
+    );
+    URL.createObjectURL = vi.fn(() => "blob:zip");
+    URL.revokeObjectURL = vi.fn();
+    try {
+      wrap(<GamePage page={publisherPage()} onChanged={() => {}} />);
+      await user.click(screen.getByRole("button", { name: "Actions for v7" }));
+      await user.click(await screen.findByRole("menuitem", { name: /Download zip/ }));
+      expect(toasts.loading).toHaveBeenCalledWith("Building the v7 zip…", expect.anything());
+      await waitFor(() => expect(toasts.success).toHaveBeenCalledWith("v7's zip is downloading."));
+      expect(fetch).toHaveBeenCalledWith(
+        `/api/engine/releases/${"a".repeat(64)}/zip`,
+        expect.anything(),
+      );
+      expect(saved).toEqual(["tactics-v7.zip"]);
+      expect(toasts.dismiss).toHaveBeenCalledWith("pending");
+    } finally {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("shows the itch.io layout issues the zip route sends, and its refusals", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(new Uint8Array([80, 75]), {
+            headers: {
+              "x-jams-itch-issues": JSON.stringify({
+                count: 3,
+                messages: ["index.html isn't at the zip's root.", "The zip has 1,200 files."],
+              }),
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          Response.json({ message: "Only the game's publishers can do this." }, { status: 403 }),
+        ),
+    );
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    URL.createObjectURL = vi.fn(() => "blob:zip");
+    URL.revokeObjectURL = vi.fn();
+    try {
+      const release = { projectId: "tactics", version: 7, releaseId: "a".repeat(64) };
+      await downloadReleaseZip(release);
+      expect(toasts.warning).toHaveBeenCalledWith(
+        "v7's zip has 3 things to fix before itch.io takes it",
+        expect.objectContaining({
+          description: "index.html isn't at the zip's root. The zip has 1,200 files. …and 1 more.",
+        }),
+      );
+      await downloadReleaseZip(release);
+      expect(toasts.error).toHaveBeenCalledWith("Only the game's publishers can do this.");
+    } finally {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    }
   });
 
   it("offers only the actions the payload gives each version", async () => {
@@ -471,11 +564,24 @@ describe("the game page's head", () => {
     head.meta.find((tag) => tag.name === "robots")?.content ?? null;
   const image = (head: ReturnType<typeof gamePageHead>) =>
     head.meta.find((tag) => tag.property === "og:image")?.content ?? "";
+  const embed = (head: ReturnType<typeof gamePageHead>) =>
+    ("scripts" in head ? head.scripts : []).find((s) => s.id === "discord:component-embed");
 
-  it("indexes a public game and gives it the game card", () => {
+  it("indexes a public game and gives it the game card and the Discord preview", () => {
     const head = gamePageHead("tactics", page());
     expect(robots(head)).toBeNull();
     expect(image(head)).toContain("/og/game/tactics.png");
+    const preview = embed(head);
+    expect(preview?.type).toBe("application/json");
+    expect(preview?.children).toContain("Tactics");
+    expect(preview?.children).toContain("Move, then strike.");
+    expect(preview?.children).toContain("/games/tactics");
+  });
+
+  it("sends no Discord preview for a game staff hid", () => {
+    const head = gamePageHead("tactics", page({ hidden: { reason: "Reported." } }));
+    expect(embed(head)).toBeUndefined();
+    expect(robots(head)).toBe("noindex, follow");
   });
 
   it("sends noindex and no game card for unlisted, team and private games", () => {
@@ -486,6 +592,7 @@ describe("the game page's head", () => {
       );
       expect(robots(head)).toBe("noindex, follow");
       expect(image(head)).not.toContain("/og/game/");
+      expect(embed(head)).toBeUndefined();
     }
   });
 

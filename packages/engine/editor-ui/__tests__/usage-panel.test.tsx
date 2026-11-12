@@ -140,6 +140,7 @@ function publishWith(usage: () => UsageView): EditorPublishHost {
       visibility: { private: "", team: "", unlisted: "", public: "" },
       saveModes: { site: "", own: "", none: "" },
       connectsTo: "",
+      connectOriginsMax: 4,
       privateLinks: "",
     },
   };

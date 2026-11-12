@@ -50,8 +50,21 @@ pointer itself outside the site's stylesheet.
   it behaves as 0.14.0.
 - `./editor-ui`: the publishing seam, `EditorHost.publish`
   (`EditorPublishHost` with `UsageView`, `ReleaseView`, `GameSettingsView`,
-  `PublishWording` and their parts); the Publish panel and the project
-  settings' Usage section show only for a host that publishes.
+  `PublishWording` and their parts, with `PublishWording.connectOriginsMax`,
+  the most origins Connects to takes); the Publish panel and the project
+  settings' Usage section show only for a host that publishes. `SceneEditor`
+  adds the Publish panel to the frame's panels (left column, bottom group,
+  beside Project settings, also for a layout stored before it existed) and a
+  Publish… item to the toolbar's scene menu.
+- `UndoneStep.refused` and `UndoCoordinator.refuseStale(doc, reason)`: a
+  step that wrote `doc` and later finds nothing left to change is answered
+  as refused (and leaves the stack) instead of being skipped for the step
+  below it. A project session marks its steps so when an asset entry is
+  purged, so undoing "Delete X" after Empty trash reports "Permanently
+  deleted" through the editor's notices and undoes nothing else.
+- `./project`: `formatBytes`, import-free, the same function
+  `./export`'s `formatBytes` is, so a site and its services format sizes as
+  the engine does from one definition.
 - `purgeAsset` project op: deletes a trashed asset and its hash history for
   good, so its blobs become unreferenced; anything not in the trash is
   refused with `asset-not-trashed`. It has no inverse: a batch with a purge
@@ -86,7 +99,13 @@ pointer itself outside the site's stylesheet.
   size, engine, upload time, channels, jam pins, hidden and removed states,
   Play); the Removed soon forecast; visibility, Where this game saves and
   Connects to, saved through `publish.setSettings` with pending feedback,
-  the host's toasts and an inline error when the host refuses.
+  the host's toasts and an inline error when the host refuses. Rolling
+  production back asks first, as Promote does; Production reads "first
+  live {date}" (a rollback leaves a release's first promotion as its only
+  date); Play shows only for a release that can be played (not hidden, not
+  removed); Connects to takes https:// and wss:// origins as the site does
+  and stops at `wording.connectOriginsMax`; "On its own servers" waits until
+  an origin is listed.
 
 ### Changed
 
@@ -108,6 +127,8 @@ pointer itself outside the site's stylesheet.
 
 ### Fixed
 
+- `connectHost` takes `jams:host` only from the parent window; a message
+  with no `source` is ignored like any other window's.
 - An export refuses a shipped blob whose entry records no size with
   `asset-missing`, instead of shipping it as `bytes: 0` (a hosted view could
   hit this, and the release's snapshot then disagreed with

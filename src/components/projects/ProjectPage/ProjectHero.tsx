@@ -39,7 +39,8 @@ import type { ProjectJamAppearance, ProjectRow } from "./types";
  * on purpose (itch hosts tools, asset packs, soundtracks; our members also
  * ship libraries and websites itch never sees), and a sample pack with a
  * "PLAY" button is the games-first bias leaking back in. A linked game
- * with a release to play here is the exception: then the CTA plays it.
+ * with a release to play here is the exception: then the CTA plays it, and
+ * the external link stays beside it as a secondary button.
  */
 export function ProjectHero({
   project,
@@ -72,7 +73,7 @@ export function ProjectHero({
   // record — but its provider links are dead for anonymous visitors, so we
   // don't offer them. Same semantics as the library sync's URL probe.
   const restricted = project.restrictedAt != null;
-  const showCta = !game && project.url != null && !restricted;
+  const showCta = project.url != null && !restricted;
   const ctaHost = showCta ? externalUrlHost(project.url) : null;
 
   return (
@@ -139,9 +140,11 @@ export function ProjectHero({
                 size="sm"
                 className="tracking-widest"
               />
-            ) : showCta ? (
+            ) : null}
+            {showCta ? (
               <Button
                 size="sm"
+                variant={game ? "outline" : "default"}
                 className="tracking-widest"
                 nativeButton={false}
                 render={
@@ -156,7 +159,7 @@ export function ProjectHero({
                 {ctaLabel}
                 <HugeiconsIcon icon={LinkSquare01Icon} size={12} />
               </Button>
-            ) : restricted ? (
+            ) : restricted && !game ? (
               <MicroLabel>THIS PROJECT'S PAGE IS NO LONGER PUBLIC ON ITCH.IO</MicroLabel>
             ) : null}
 

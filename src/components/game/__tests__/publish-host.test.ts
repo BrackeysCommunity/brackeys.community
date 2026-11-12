@@ -107,7 +107,7 @@ describe("the usage rows", () => {
       ["releasesPerDay", "Today: 3 of 20 releases", undefined],
     ]);
     expect(view.footer).toBe(
-      "These limits are per project. Cleanup runs every day: old releases 14 days after they leave the 10 newest, replaced asset versions after 30 days. Pinned releases are never removed.",
+      "These limits are per project. Cleanup runs every day: releases outside the 10 newest 14 days after publishing, replaced asset versions after 30 days. Pinned releases are never removed.",
     );
   });
 
@@ -124,7 +124,7 @@ describe("the usage rows", () => {
     expect(view.lines.find((l) => l.quota === "releaseStorageBytes")?.level).toBe("warn");
     expect(view.notice).toEqual({
       level: "warn",
-      text: "Nearly full. Old releases are removed 14 days after they leave your 10 newest; unpin jam versions you no longer need.",
+      text: "Nearly full. Releases outside your 10 newest are removed 14 days after publishing unless pinned; unpin jam versions you no longer need.",
     });
   });
 
@@ -337,6 +337,27 @@ describe("the site's publish host", () => {
       connectOrigins: ["https://api.example.test"],
     });
     expect(saved).toMatchObject({ reviewPending: true, team: "Bit Bakers" });
+  });
+
+  it("says when going private left old public copies at the edge, and keeps the note out of the view", async () => {
+    const rpc = fakeRpc({
+      setGameSettings: vi.fn(async () => ({
+        visibility: "private",
+        reviewPending: false,
+        saveMode: "site",
+        connectOrigins: [],
+        online: false,
+        edgeNote: "Edge purge isn't configured.",
+      })),
+    });
+    const warning = vi.fn();
+    const notify = Object.assign(vi.fn(), { success: vi.fn(), warning, error: vi.fn() });
+    const host = sitePublishHost({ project: "demo", openTokenDialog: vi.fn(), rpc, notify });
+    const saved = await host.setSettings({ visibility: "private" });
+    expect(saved).not.toHaveProperty("edgeNote");
+    expect(warning).toHaveBeenCalledWith("Old public copies may stay cached for a while", {
+      description: "Edge purge isn't configured.",
+    });
   });
 
   it("opens the site's token dialog", () => {

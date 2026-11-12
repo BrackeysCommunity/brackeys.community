@@ -126,6 +126,14 @@ export function jamDateLong(date: Date | string): string {
   return jamDate(date, { day: "numeric", month: "short", year: "numeric" }, "en-GB");
 }
 
+/** "12 Nov 2026": a release's day, in the same UTC form as a jam's. */
+export const releaseDay = (date: Date | string): string => jamDateLong(date);
+
+/** "26 Nov", in UTC: a near date named without its year. */
+export function jamDayMonth(date: Date | string): string {
+  return jamDate(date, { day: "numeric", month: "short" }, "en-GB");
+}
+
 /** "14 Feb 2026 – 23 Feb 2026", degrading to "Starts …" / "Ends …". */
 export function jamDateRange(
   startsAt: Date | string | null,

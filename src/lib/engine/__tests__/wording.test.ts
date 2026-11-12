@@ -92,6 +92,9 @@ const SITE_CONSTANTS: Record<string, Constant> = {
   RELEASE_BEGINS_PER_HOUR: countOf(LIMITS.RELEASE_BEGINS_PER_HOUR),
   GAME_REPORTS_PER_DAY: countOf(LIMITS.GAME_REPORTS_PER_DAY),
   RELEASE_MANIFEST_MAX_BYTES: bytesOf(LIMITS.RELEASE_MANIFEST_MAX_BYTES),
+  HOST_SAVE_REQUESTS_PER_SECOND: countOf(LIMITS.HOST_SAVE_REQUESTS_PER_SECOND),
+  HOST_PREFS_WRITES_PER_SECOND: countOf(LIMITS.HOST_PREFS_WRITES_PER_SECOND),
+  HOST_DOWNLOAD_INTERVAL_SECONDS: countOf(LIMITS.HOST_DOWNLOAD_INTERVAL_SECONDS),
 };
 
 const ENGINE_CONSTANTS: Record<string, Constant> = {
@@ -121,6 +124,9 @@ const UNSTATED: Record<string, string> = {
   RELEASE_BEGINS_PER_HOUR: "a rate defence; its refusal says too many uploads this hour",
   ORPHAN_FILE_GRACE_HOURS: "cleans up files no release lists, nothing a person published",
   RELEASE_MANIFEST_MAX_BYTES: "a request guard; the release size is the stated limit",
+  HOST_SAVE_REQUESTS_PER_SECOND: "a rate defence; its refusal says too many save requests",
+  HOST_PREFS_WRITES_PER_SECOND: "a rate defence against a frame flooding the page",
+  HOST_DOWNLOAD_INTERVAL_SECONDS: "a rate defence against a frame flooding the page",
 };
 
 /** Engine constants the hosting copy must state; the export budget is stated in README §Budgets. */
@@ -599,7 +605,7 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
   {
     states: ["RELEASE_GRACE_DAYS", "PROJECT_QUOTA.releasesKept", "BLOB_GRACE_DAYS"],
     source: "the publish wording",
-    phrase: `old releases ${C("RELEASE_GRACE_DAYS")} days after they leave the ${C("PROJECT_QUOTA.releasesKept")} newest, replaced asset versions after ${C("BLOB_GRACE_DAYS")} days`,
+    phrase: `releases outside the ${C("PROJECT_QUOTA.releasesKept")} newest ${C("RELEASE_GRACE_DAYS")} days after publishing, replaced asset versions after ${C("BLOB_GRACE_DAYS")} days`,
   },
   // The save menu and the host
   {
@@ -631,7 +637,7 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
   {
     states: ["RELEASE_GRACE_DAYS", "PROJECT_QUOTA.releasesKept"],
     source: "quota.ts's messages",
-    phrase: `Old releases are removed ${C("RELEASE_GRACE_DAYS")} days after they leave your ${C("PROJECT_QUOTA.releasesKept")} newest`,
+    phrase: `Releases outside your ${C("PROJECT_QUOTA.releasesKept")} newest are removed ${C("RELEASE_GRACE_DAYS")} days after publishing unless pinned`,
   },
   {
     states: ["UPLOAD_SESSION_HOURS"],

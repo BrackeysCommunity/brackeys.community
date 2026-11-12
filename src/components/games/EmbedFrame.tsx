@@ -16,6 +16,7 @@ import {
   useEngineGamesBlocked,
   useLocalPlayStores,
   usePlayQuery,
+  usePlayTitle,
   type PlayUnavailableReason,
 } from "./PlayChrome";
 import { PlayFrame } from "./PlayFrame";
@@ -72,6 +73,8 @@ export function EmbedFrame({ projectId, version }: { projectId: string; version:
   const query = usePlayQuery(projectId, version, !blocked && valid);
   const stores = useLocalPlayStores(projectId, () => EMBED_SAVES_DESCRIBE);
   const href = siteUrl(playPath(projectId, valid ? version : "latest"));
+  const embeddable = query.data && EMBEDDABLE.has(query.data.visibility) ? query.data : undefined;
+  usePlayTitle(embeddable);
 
   if (blocked || !valid) return <EmbedUnavailable reason="unavailable" href={href} />;
   if (query.isPending) {
@@ -89,19 +92,27 @@ export function EmbedFrame({ projectId, version }: { projectId: string; version:
   if (!EMBEDDABLE.has(play.visibility))
     return <EmbedUnavailable reason="unavailable" href={href} />;
 
+  // The link sits in its own bar under the frame, so it never covers a corner the game draws in.
   return (
-    <div className="relative h-full w-full bg-black">
+    <div className="flex h-full w-full flex-col bg-black">
       <PlayFrame
+        className="min-h-0 flex-1"
         frameUrl={play.frameUrl}
         title={play.title}
         release={{ id: play.release.id, gameId: play.release.gameId, projectId }}
         saveMode={play.saveMode}
+        online={play.online}
         saves={stores.saves}
         describe={stores.describe}
         prefs={stores.prefs}
         offerDownloads={false}
       />
-      <OpenOnSite href={href} className="absolute top-2 right-2 opacity-80 hover:opacity-100" />
+      <div className="flex shrink-0 items-center justify-between gap-2 bg-background px-2 py-1">
+        <Text as="p" size="md" className="min-w-0 truncate">
+          {play.title}
+        </Text>
+        <OpenOnSite href={href} className="shrink-0" />
+      </div>
     </div>
   );
 }
