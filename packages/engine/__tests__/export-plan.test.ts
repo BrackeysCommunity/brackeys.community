@@ -504,9 +504,12 @@ describe("finishExport", () => {
     expect(missing).toEqual([
       expect.objectContaining({
         severity: "error",
-        entityIds: ["rocks"],
+        entityIds: ["hall"],
         got: "rocks",
-        message: expect.stringContaining("records no size") as string,
+        path: "/assets/0",
+        message: expect.stringContaining(
+          'names texture "rocks", whose entry records no size',
+        ) as string,
       }),
     ]);
   });

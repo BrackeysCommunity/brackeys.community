@@ -10,8 +10,7 @@ import { Confirm } from "@/components/ui/confirm";
 import { Empty } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TimeAgo } from "@/components/ui/time-ago";
-import { SimpleTooltip } from "@/components/ui/tooltip";
+import { Spinner } from "@/components/ui/spinner";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
@@ -20,11 +19,14 @@ import {
   SITE_SAVE_EXPIRY_DAYS,
   SITE_SAVE_LIMITS,
 } from "@/lib/engine/limits";
+import { usageLevel } from "@/lib/engine/quota";
 import type { AccountGameSaves, AccountSave } from "@/lib/engine/save-api";
+import { SaveTime, saveTitle } from "@/lib/engine/save-labels";
 import { deleteAccountSave, fetchAccountSaves, fetchSaveText } from "@/lib/engine/save-store";
 import { formatBytes } from "@/lib/format-bytes";
 import { SITE } from "@/lib/legal-meta";
 import { toast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 
 import { useGameSavesSettings } from "./settings-tabs";
 import { SettingsSection, SignedOutNotice } from "./SettingsUI";
@@ -40,15 +42,6 @@ export const SAVES_ZIP_NAME = "game-saves.zip";
 /** Where a save sits inside the download. */
 export const saveZipPath = (projectId: string, slot: string): string =>
   `${projectId}/${slot}.save.json`;
-
-const saveTitle = (save: AccountSave): string => save.meta.title?.trim() || `Slot ${save.slot}`;
-
-const utcDate = (iso: string): string =>
-  `${new Date(iso).toLocaleString("en-US", {
-    timeZone: "UTC",
-    dateStyle: "medium",
-    timeStyle: "short",
-  })} UTC`;
 
 const errorText = (error: unknown, fallback: string): string =>
   error instanceof Error && error.message ? error.message : fallback;
@@ -119,7 +112,9 @@ function AccountSavesList() {
     );
   }
 
-  const percent = data.maxBytes > 0 ? Math.min(100, (data.usedBytes / data.maxBytes) * 100) : 0;
+  const ratio = data.maxBytes > 0 ? data.usedBytes / data.maxBytes : 0;
+  const percent = Math.min(100, ratio * 100);
+  const level = usageLevel(ratio);
 
   return (
     <div className="flex flex-col gap-4">
@@ -130,6 +125,8 @@ function AccountSavesList() {
           </MicroLabel>
           <Progress
             value={percent}
+            data-level={level}
+            className={cn(BAR_TONE[level])}
             aria-label={`Saves use ${formatBytes(data.usedBytes)} of ${formatBytes(data.maxBytes)}`}
           />
         </div>
@@ -146,6 +143,13 @@ function AccountSavesList() {
     </div>
   );
 }
+
+/** The bar turns amber from the quotas' warning share and red once full. */
+const BAR_TONE = {
+  ok: "",
+  warn: "[&_[data-slot=progress-indicator]]:bg-warning",
+  full: "[&_[data-slot=progress-indicator]]:bg-destructive",
+} as const;
 
 function DownloadSaves({ games }: { games: readonly AccountGameSaves[] }) {
   const [busy, setBusy] = useState(false);
@@ -197,10 +201,15 @@ function DownloadSaves({ games }: { games: readonly AccountGameSaves[] }) {
       variant="outline"
       size="sm"
       disabled={busy || count === 0}
+      aria-busy={busy || undefined}
       onClick={() => void download()}
     >
-      <HugeiconsIcon icon={Download01Icon} data-icon="inline-start" />
-      Download my saves
+      {busy ? (
+        <Spinner data-icon="inline-start" className="size-3.5" />
+      ) : (
+        <HugeiconsIcon icon={Download01Icon} data-icon="inline-start" />
+      )}
+      {busy ? "Preparing…" : "Download my saves"}
     </Button>
   );
 }
@@ -270,7 +279,7 @@ function SaveRow({
   save: AccountSave;
   onChange: () => unknown;
 }) {
-  const title = saveTitle(save);
+  const title = saveTitle(save.meta, save.slot);
 
   const remove = async () => {
     try {
@@ -291,11 +300,7 @@ function SaveRow({
         <MicroLabel as="span" className="flex flex-wrap gap-x-2">
           <span>{formatBytes(save.bytes)}</span>
           <span aria-hidden>·</span>
-          <SimpleTooltip content={utcDate(save.usedAt)}>
-            <time dateTime={save.usedAt}>
-              Last used <TimeAgo date={save.usedAt} />
-            </time>
-          </SimpleTooltip>
+          <SaveTime label="Last used" date={save.usedAt} showDay />
         </MicroLabel>
       </div>
       <Confirm

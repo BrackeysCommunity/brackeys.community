@@ -46,13 +46,12 @@ describe("siteSaveStore", () => {
     expect(store.kind).toBe("host");
     expect(store.limits).toEqual(SITE_SAVE_LIMITS);
     expect(store.describe).toBe(SIGNED_IN_SAVES_DESCRIBE);
-    expect(store.mode).toBeNull();
     expect(siteSaveStore("p1", { describe: "Until the list answers." }).describe).toBe(
       "Until the list answers.",
     );
   });
 
-  it("lists through the project's route and takes its describe, limits and mode", async () => {
+  it("lists through the project's route and takes its describe and limits", async () => {
     const { fetch, calls } = fakeFetch(() =>
       json({
         saves: [summary],
@@ -68,7 +67,6 @@ describe("siteSaveStore", () => {
     ]);
     expect(store.describe).toBe(HOST_NO_SITE_SAVES_MESSAGE);
     expect(store.limits).toEqual({ maxBytes: 1_000, maxSlots: 2 });
-    expect(store.mode).toBe("own");
   });
 
   it("lists nothing when the route refuses or the request fails", async () => {
@@ -81,6 +79,31 @@ describe("siteSaveStore", () => {
       fetch: fakeFetch(() => Promise.reject(new TypeError("Failed to fetch"))).fetch,
     });
     expect(await offline.list("g")).toEqual([]);
+  });
+
+  it("loads the list, or throws when the route refuses or the request fails", async () => {
+    const answer = {
+      saves: [summary],
+      limits: { maxBytes: 1_000, maxSlots: 2 },
+      describe: SIGNED_IN_SAVES_DESCRIBE,
+      mode: "site",
+    };
+    const store = siteSaveStore("p1", { fetch: fakeFetch(() => json(answer)).fetch });
+    expect(await store.load()).toEqual(answer);
+    expect(store.limits).toEqual({ maxBytes: 1_000, maxSlots: 2 });
+
+    const refused = siteSaveStore("p1", {
+      fetch: fakeFetch(() => json(saveSignedOut(), 401)).fetch,
+    });
+    const error = await refused.load().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ReleaseError);
+    expect((error as ReleaseError).status).toBe(401);
+    expect((error as ReleaseError).body).toEqual(saveSignedOut());
+
+    const offline = siteSaveStore("p1", {
+      fetch: fakeFetch(() => Promise.reject(new TypeError("Failed to fetch"))).fetch,
+    });
+    await expect(offline.load()).rejects.toThrow("Failed to fetch");
   });
 
   it("reads a slot's text, and null for an empty slot or a failure", async () => {

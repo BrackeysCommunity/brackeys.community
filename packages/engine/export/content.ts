@@ -1,6 +1,12 @@
 import { flowIssue } from "../game/flow";
 import { resolveTime } from "../game/time";
-import { blobContent, projectBundle, sceneBundle, type AssetBundle } from "../project/bundle";
+import {
+  blobContent,
+  projectBundle,
+  sceneBundle,
+  unsizedIds,
+  type AssetBundle,
+} from "../project/bundle";
 import { sha256 } from "../project/hash";
 import { byCodeUnit } from "../project/kinds/define";
 import { engineResolution, gameSettingsEntries } from "../project/kinds/game-settings";
@@ -216,6 +222,7 @@ async function releaseAsset(
   entry: AssetEntry,
   input: ExportInput,
   issues: SceneIssue[],
+  unsized: ReadonlySet<AssetId>,
 ): Promise<ReleaseAsset | null> {
   const storage = input.kinds.get(entry.kind)?.storage;
   const common = {
@@ -254,6 +261,7 @@ async function releaseAsset(
   // The size becomes the build file's row and the release's pin, so a guessed one would disagree with the bytes shipped.
   const content = blobContent(entry);
   if (!content) {
+    if (unsized.has(entry.id)) return null;
     issues.push(
       makeIssue("asset-missing", {
         message: `"${entry.id}" (${entry.path}) ships, but its entry records no size for blob ${entry.sha256}`,
@@ -395,8 +403,9 @@ export async function planContent(input: ExportInput): Promise<ContentPlan> {
   );
 
   const assets: Record<AssetId, ReleaseAsset> = {};
+  const unsized = unsizedIds(issues);
   for (const id of ids) {
-    const asset = await releaseAsset(input.view.byId.get(id)!, input, issues);
+    const asset = await releaseAsset(input.view.byId.get(id)!, input, issues, unsized);
     const iconPath = iconOnly.get(id);
     if (asset) assets[id] = iconPath === undefined ? asset : { ...asset, file: iconPath };
   }

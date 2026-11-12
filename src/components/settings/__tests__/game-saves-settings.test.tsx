@@ -145,7 +145,7 @@ describe("Settings → Game saves", () => {
     expect(within(moon).getByText(/2 saves · 14 KB/)).toBeTruthy();
     const times = moon.querySelectorAll("time");
     expect(times[0]?.getAttribute("dateTime")).toBe("2026-11-10T10:00:00.000Z");
-    expect(times[0]?.textContent).toMatch(/^Last used /);
+    expect(times[0]?.textContent).toMatch(/^Last used .* · Nov 10, 2026 UTC$/);
 
     const tactics = screen.getByRole("region", { name: "Tiny Tactics" });
     expect(within(tactics).getByText("Turn 14")).toBeTruthy();
@@ -153,6 +153,44 @@ describe("Settings → Game saves", () => {
     expect(screen.getByText("44 KB of 1 MB used")).toBeTruthy();
     const bar = screen.getByRole("progressbar");
     expect(Number(bar.getAttribute("aria-valuenow"))).toBeCloseTo((45_056 / 1_048_576) * 100);
+  });
+
+  it.each([
+    [0.5, "ok"],
+    [0.8, "warn"],
+    [1, "full"],
+  ])("colours the total's bar at %s of the cap as %s", async (share, level) => {
+    saves.fetchAccountSaves.mockResolvedValue({
+      ...ACCOUNT,
+      usedBytes: Math.round(ACCOUNT.maxBytes * share),
+    });
+    renderPane();
+    await screen.findByText("Moon Miner");
+    expect(screen.getByRole("progressbar").getAttribute("data-level")).toBe(level);
+  });
+
+  it("says it's preparing the download while the saves load", async () => {
+    Object.assign(URL, { createObjectURL: () => "blob:saves", revokeObjectURL: vi.fn() });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    let finish: () => void = () => {};
+    const waiting = new Promise<void>((resolve) => (finish = resolve));
+    saves.fetchSaveText.mockImplementation(async () => {
+      await waiting;
+      return "{}";
+    });
+    const user = userEvent.setup();
+    renderPane();
+    await screen.findByText("Moon Miner");
+
+    await user.click(screen.getByRole("button", { name: /download my saves/i }));
+    const busy = await screen.findByRole("button", { name: /preparing/i });
+    expect(busy.getAttribute("aria-busy")).toBe("true");
+    expect(busy.hasAttribute("disabled")).toBe(true);
+    finish();
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledWith("Downloaded 3 saves."));
+    expect(
+      screen.getByRole("button", { name: /download my saves/i }).hasAttribute("aria-busy"),
+    ).toBe(false);
   });
 
   it("shows a skeleton while loading and an empty state with no saves", async () => {

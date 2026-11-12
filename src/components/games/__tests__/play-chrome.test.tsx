@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import type { PlayPayload } from "@/lib/engine/game-play";
 import type { HostServerOptions } from "@/lib/engine/host-server";
-import { localPlaySaves } from "@/lib/engine/local-saves";
+import { localPlaySaves, SIGNED_OUT_SAVES_DESCRIBE } from "@/lib/engine/local-saves";
 import { pageTitle } from "@/lib/site-meta";
 
 const calls = vi.hoisted(() => ({
@@ -209,6 +209,49 @@ describe("the play page", () => {
       }),
     );
     expect(auth.signIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers a plain Sign in for a game that doesn't save to the site", async () => {
+    for (const saveMode of ["own", "none"] as const) {
+      const user = userEvent.setup();
+      const view = wrap(
+        <PlayChrome
+          play={payload({ saveMode, connectOrigins: ["https://saves.example.test"] })}
+          version="latest"
+        />,
+      );
+      expect(screen.queryByRole("button", { name: /keep your saves/ })).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
+      const dialog = await screen.findByRole("alertdialog");
+      expect(dialog.textContent).toContain("Sign in?");
+      expect(dialog.textContent).not.toContain("keep your saves");
+      expect(dialog.textContent).toContain(SIGN_IN_MESSAGE);
+      await user.click(screen.getByRole("button", { name: "CANCEL" }));
+      await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+
+      await user.click(screen.getByRole("button", { name: "Site menu" }));
+      await user.click(await screen.findByRole("menuitem", { name: "Sign in with Discord" }));
+      expect((await screen.findByRole("alertdialog")).textContent).not.toContain("keep your saves");
+      view.unmount();
+    }
+    expect(auth.signIn).not.toHaveBeenCalled();
+  });
+
+  it("puts the one Saves paragraph under the Saves menu, not the save menu's sentence too", async () => {
+    const user = userEvent.setup();
+    wrap(<PlayChrome play={payload()} version="latest" />);
+
+    await user.click(screen.getByRole("button", { name: "Saves" }));
+    const notice = await waitFor(() => {
+      const el = document.querySelector("[data-save-mode='site']");
+      if (!el) throw new Error("no save notice");
+      return el;
+    });
+    const body = notice.textContent ?? "";
+    expect(body).toContain("Signed out, saves stay in this browser until you clear its site data.");
+    expect(body).not.toContain(SIGNED_OUT_SAVES_DESCRIBE);
+    expect(body.match(/clear its site data/g)).toHaveLength(1);
   });
 
   it("leaves the site menu's Sign in immediate on pages that don't ask first", async () => {

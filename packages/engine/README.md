@@ -2222,7 +2222,9 @@ export async function startWithArt(
   asset's own references followed (an atlas brings its texture). Only
   textures are entries (`{ id, kind, sha256, bytes }`, sorted by id, each
   once); an atlas's frames are already in its meta. Anything unresolvable
-  is `asset-missing`. `projectBundle(view, settings, kinds, registry)` is
+  is `asset-missing`, and so is a texture whose entry records a hash but no
+  size: it's left out of the bundle, and the export refuses it once, at the
+  reference the bundle reported. `projectBundle(view, settings, kinds, registry)` is
   the `game-settings` doc's, loaded once and kept resident. `vp run scene
 bundle <scene>` prints one.
 - **The loader.** `createAssetLoader({ project, url, budgetBytes? })`

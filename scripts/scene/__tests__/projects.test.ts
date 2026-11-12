@@ -62,7 +62,7 @@ describe("discoverProjects over the repo", () => {
   });
 
   it("finds nothing for globs that match no project file", async () => {
-    expect(await discoverProjects(ROOT, ["scripts/**/jams.project.json"])).toEqual([]);
+    expect(await discoverProjects(ROOT, ["scripts/scene/**/jams.project.json"])).toEqual([]);
   });
 });
 

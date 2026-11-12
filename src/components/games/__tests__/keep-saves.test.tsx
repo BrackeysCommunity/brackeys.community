@@ -7,11 +7,13 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { SITE_SAVE_LIMITS } from "@/lib/engine/limits";
+import { ReleaseError } from "@/lib/engine/release-errors";
+import type { SiteSaveStore } from "@/lib/engine/save-store";
 
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("@/lib/toast", () => ({ toast: toasts }));
 
-const { KeepSavesDialog, keepSavesDeclinedKey, REPLACE_ACCOUNT_SAVE } =
+const { KeepSavesDialog, keepSavesDeclinedKey, keptMessage, REPLACE_ACCOUNT_SAVE } =
   await import("../KeepSavesDialog");
 
 const GAME = "tactics";
@@ -42,7 +44,16 @@ async function localWith(...slots: string[]): Promise<SaveStore> {
   return store;
 }
 
-function fakeSite(opts: { account?: string[]; refuse?: Record<string, string> } = {}) {
+function fakeSite(
+  opts: {
+    account?: string[];
+    refuse?: Record<string, string>;
+    /** The account's list fails this way. */
+    listFails?: Error;
+    /** Each write waits for this before it answers. */
+    gate?: Promise<void>;
+  } = {},
+) {
   const written = new Map<string, string>();
   const account: SaveSummary[] = (opts.account ?? []).map((slot) => ({
     slot,
@@ -54,13 +65,24 @@ function fakeSite(opts: { account?: string[]; refuse?: Record<string, string> } 
     },
     bytes: 100,
   }));
-  const store: SaveStore = {
+  const load = () =>
+    opts.listFails
+      ? Promise.reject(opts.listFails)
+      : Promise.resolve({
+          saves: account,
+          limits: SITE_SAVE_LIMITS,
+          describe: "On your account.",
+          mode: "site" as const,
+        });
+  const store: SiteSaveStore = {
     kind: "host",
     describe: "On your account.",
     limits: SITE_SAVE_LIMITS,
-    list: () => Promise.resolve(account),
+    load,
+    list: async () => (opts.listFails ? [] : account),
     read: () => Promise.resolve(null),
-    write(_game, slot, text) {
+    async write(_game, slot, text) {
+      await opts.gate;
       const message = opts.refuse?.[slot];
       if (message !== undefined) {
         return Promise.resolve({ ok: false, issue: makeIssue("save-too-large", { message }) });
@@ -73,7 +95,7 @@ function fakeSite(opts: { account?: string[]; refuse?: Record<string, string> } 
   return { store, written };
 }
 
-function show(local: SaveStore, site: SaveStore, signIn = "session-1") {
+function show(local: SaveStore, site: SiteSaveStore, signIn = "session-1") {
   const onClaimed = vi.fn();
   const view = render(
     <KeepSavesDialog
@@ -184,11 +206,52 @@ describe("Keep your saves", () => {
   });
 
   it("asks nothing when this browser holds no saves", async () => {
-    const list = vi.fn(() => Promise.resolve([] as SaveSummary[]));
-    show(memorySaveStore(), { ...fakeSite().store, list });
+    const site = fakeSite().store;
+    const load = vi.fn(() => site.load());
+    show(memorySaveStore(), { ...site, load });
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(list).not.toHaveBeenCalled();
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["refused", new ReleaseError({ code: "save-store-failed", message: "Too often." }, 429)],
+    ["unreachable", new TypeError("Failed to fetch")],
+  ])("asks nothing and uploads nothing when the account's list is %s", async (_name, error) => {
+    const local = await localWith("a");
+    const site = fakeSite({ account: ["a"], listFails: error });
+    const load = vi.fn(() => site.store.load());
+    show(local, { ...site.store, load });
+    await waitFor(() => expect(load).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(site.written.size).toBe(0);
+    expect((await local.list(GAME)).map((s) => s.slot)).toEqual(["a"]);
+    // Not a decline: the next load asks again.
+    expect(sessionStorage.getItem(keepSavesDeclinedKey(PROJECT))).toBeNull();
+  });
+
+  it("locks the ticks while uploading and says which saves moved when some are refused", async () => {
+    const user = userEvent.setup();
+    const local = await localWith("a", "b", "c");
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const site = fakeSite({ refuse: { b: "Too large." }, gate });
+    show(local, site.store);
+
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Keep 3 saves" }));
+    await waitFor(() => expect(box(dialog, "Save c").hasAttribute("data-disabled")).toBe(true));
+    await user.click(box(dialog, "Save c"));
+    release();
+
+    await screen.findByRole("alert");
+    expect(toasts.success).toHaveBeenCalledWith(keptMessage(2));
+    expect(keptMessage(2)).toBe("2 saves moved to your account.");
+    expect([...site.written.keys()]).toEqual(["a", "c"]);
+    expect(within(dialog).queryByText("Save a")).toBeNull();
+    expect(within(dialog).queryByText("Save c")).toBeNull();
+    expect(box(dialog, "Save b").hasAttribute("data-disabled")).toBe(false);
   });
 
   it("still asks when this tab's storage refuses", async () => {

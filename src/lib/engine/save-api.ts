@@ -33,7 +33,7 @@ import { formatBytes } from "@/lib/format-bytes";
 import { SITE } from "@/lib/legal-meta";
 
 import type { GameSaveMode } from "./game-settings";
-import { HOST_NO_SITE_SAVES_MESSAGE } from "./host-server";
+import { HOST_NO_SITE_SAVES_HINT, HOST_NO_SITE_SAVES_MESSAGE } from "./host-server";
 import {
   SAVE_READS_PER_HOUR,
   SAVE_WRITES_PER_HOUR,
@@ -41,7 +41,7 @@ import {
   SITE_SAVE_EXPIRY_DAYS,
   SITE_SAVE_LIMITS,
 } from "./limits";
-import { siteSaveRefusal } from "./local-saves";
+import { SIGNED_IN_SAVES_DESCRIBE, siteSaveRefusal } from "./local-saves";
 import { canPlay, type GameVisibility, type Viewer } from "./release-access";
 import { issueError, ReleaseError, type ReleaseApiError } from "./release-errors";
 import type { ReleaseObjectStore } from "./release-storage";
@@ -132,8 +132,7 @@ const HOUR_SECONDS = 3_600;
 /** The longest title a save's meta may carry. */
 export const SAVE_TITLE_MAX = 80;
 
-/** What a signed-in player's save menu says on the play page. */
-export const SIGNED_IN_SAVES_DESCRIBE = `Saved to your ${site} account: up to ${SITE_SAVE_LIMITS.maxSlots} saves of ${formatBytes(SITE_SAVE_LIMITS.maxBytes)} for this game. Saves you don't use for ${SITE_SAVE_EXPIRY_DAYS} days are deleted.`;
+export { SIGNED_IN_SAVES_DESCRIBE };
 
 export function saveSignedOut(): ReleaseApiError {
   return { code: "save-forbidden", message: `Sign in to save to your ${site} account.` };
@@ -143,7 +142,7 @@ export function saveNotSite(): ReleaseApiError {
   return {
     code: "save-forbidden",
     message: HOST_NO_SITE_SAVES_MESSAGE,
-    hint: "Its publisher set it to save on its own servers or not at all.",
+    hint: HOST_NO_SITE_SAVES_HINT,
   };
 }
 
@@ -395,12 +394,36 @@ export async function readSave(deps: SaveApiDeps, input: SlotInput): Promise<str
   return stream ? await new Response(stream).text() : null;
 }
 
-/** Writes a save after every check in order; the object, then the row (`written_at = used_at = now`). */
+const SAVE_NOT_TEXT: ReleaseApiError = {
+  code: "schema",
+  message: "A save file is JSON text in UTF-8.",
+};
+
+/**
+ * The save text: strict UTF-8 within the per-save cap, or null when it
+ * isn't. A body over the cap is decoded leniently (replacing a cut
+ * character never shortens it), since the size check refuses it either way.
+ */
+function decodeSave(bytes: Uint8Array): string | null {
+  if (bytes.byteLength > SITE_SAVE_LIMITS.maxBytes) return new TextDecoder().decode(bytes);
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Writes a save after every check in order: access, slot, rate, size, then
+ * the file itself. The body is the request's text, or its bytes, which
+ * the caller may cut one byte past the per-save cap. Under the slot's row lock, the object, then the row
+ * (`written_at = used_at = now`).
+ */
 export async function putSave(
   deps: SaveApiDeps,
-  input: SlotInput & { text: string },
+  input: SlotInput & ({ text: string } | { body: Uint8Array }),
 ): Promise<SavePutResult> {
-  const { viewer, projectId, slot, text } = input;
+  const { viewer, projectId, slot } = input;
   const userId = signedInUser(viewer);
 
   const target = await loadSaveTarget(deps.db, projectId);
@@ -419,6 +442,10 @@ export async function putSave(
     HOUR_SECONDS,
   );
   if (!allowed) refuse(saveWritesRateLimited(), STATUS.rate);
+
+  const text = "text" in input ? input.text : decodeSave(input.body);
+  // A body that isn't UTF-8 decoded within the cap, so its size passes.
+  if (text === null) refuse(SAVE_NOT_TEXT, STATUS.schema);
 
   // Size alone: with no slots held the count can't refuse.
   const tooLarge = await siteSaveRefusal({ slot, text }, async () => []);
@@ -450,6 +477,13 @@ export async function putSave(
       .where(eq(user.id, userId))
       .for("no key update");
     if (!account) refuse(saveSignedOut(), STATUS.signedOut);
+    // A delete or the collector's expiry of this slot waits for the row, so
+    // neither removes the object this write puts.
+    await tx
+      .select({ slot: engineSaves.slot })
+      .from(engineSaves)
+      .where(slotKey(userId, projectId, slot))
+      .for("update");
 
     const held = await tx
       .select({
@@ -490,12 +524,25 @@ export async function putSave(
   return { bytes: bytes.byteLength };
 }
 
-/** Deletes a save's object, then its row; an empty slot is not an error. */
+/**
+ * Deletes a save under its row lock: the object, then the row. An empty
+ * slot is not an error, and a slot with no row is left alone, since a write
+ * putting its first object there holds no row to wait on yet.
+ */
 export async function removeSave(deps: SaveApiDeps, input: SlotInput): Promise<void> {
   const userId = signedInUser(input.viewer);
   if (!SLOT_PATTERN.test(input.slot)) return;
-  await deps.store.remove(engineSaveKey(userId, input.projectId, input.slot));
-  await deps.db.delete(engineSaves).where(slotKey(userId, input.projectId, input.slot));
+  const key = slotKey(userId, input.projectId, input.slot);
+  await deps.db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ slot: engineSaves.slot })
+      .from(engineSaves)
+      .where(key)
+      .for("update");
+    if (!row) return;
+    await deps.store.remove(engineSaveKey(userId, input.projectId, input.slot));
+    await tx.delete(engineSaves).where(key);
+  });
 }
 
 /**

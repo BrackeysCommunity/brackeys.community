@@ -454,6 +454,13 @@ describe("reads", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("leaves a slot with no row alone, as a first write's object has none yet", async () => {
+    const key = engineSaveKey(player, GAME_A, "one");
+    await store.put(key, new TextEncoder().encode("{}"), "application/json");
+    await removeSave(deps(), { viewer: viewer(player), projectId: GAME_A, slot: "one" });
+    expect(store.objects.has(key)).toBe(true);
+  });
+
   it("groups the account's saves by game with each game's title", async () => {
     await put(player, GAME_B, "z", saveText("z", { game: GAME_B }));
     await put(player, GAME_A, "one", saveText("one"));

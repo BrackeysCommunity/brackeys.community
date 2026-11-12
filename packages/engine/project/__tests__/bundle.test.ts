@@ -8,7 +8,7 @@ import { expandScene } from "../../scene/expand";
 import { parseScene } from "../../scene/parse";
 import { parsePrefab, prefabLibrary } from "../../scene/prefab";
 import type { Prefab, SceneDefinition } from "../../scene/types";
-import { blobContent, projectBundle, sceneBundle } from "../bundle";
+import { blobContent, projectBundle, sceneBundle, unsizedIds } from "../bundle";
 import { createKindRegistry } from "../kinds";
 import type { AssetEntry, ProjectState } from "../types";
 import { projectView } from "../view";
@@ -233,18 +233,29 @@ describe("sceneBundle", () => {
     );
   });
 
-  it("leaves out a texture with a hash but no size, raising nothing the release raises again", () => {
+  it("leaves out a texture with a hash but no size, as asset-missing saying so", () => {
     const sizeless = entries.map((e) => {
       if (e.id !== "sky-art") return e;
       const { bytes: _, ...rest } = e;
       return rest;
     });
+    const sha = entries.find((e) => e.id === "sky-art")!.sha256!;
     const r = bundleOf(
       scene({ assets: ["sky-art", "statue-art"] }),
       projectView(state(sizeless), kinds),
     );
     expect(ids(r)).toEqual(["statue-art"]);
-    expect(r.issues).toEqual([]);
+    expect(r.issues).toEqual([
+      expect.objectContaining({
+        code: "asset-missing",
+        severity: "error",
+        path: "/assets/0",
+        got: "sky-art",
+        message: `assets.0 names texture "sky-art", whose entry records no size for blob ${sha}`,
+        detail: { unsized: sha },
+      }),
+    ]);
+    expect([...unsizedIds(r.issues)]).toEqual(["sky-art"]);
   });
 });
 

@@ -37,9 +37,7 @@ export function bundleOf(name: string, entries: Iterable<BundleEntry>): AssetBun
 
 /**
  * A blob's content as a bundle or a release pins it: its hash with its
- * size, or null while the entry lacks either. An entry with a hash and no
- * size has bytes somewhere but no size to pin; the release refuses it, once,
- * as the asset it ships, so a bundle leaves it out without a second issue.
+ * size, or null while the entry lacks either.
  */
 export function blobContent(
   entry: Pick<AssetEntry, "sha256" | "bytes">,
@@ -47,6 +45,30 @@ export function blobContent(
   return entry.sha256 !== undefined && entry.bytes !== undefined
     ? { sha256: entry.sha256, bytes: entry.bytes }
     : null;
+}
+
+/**
+ * The `asset-missing` a bundle raises for a texture whose entry records a
+ * hash but no size: its bytes exist, but there's no size to pin. Carries
+ * `detail.unsized`, the hash, so the export can tell it from other issues.
+ */
+function unsizedIssue({ site, where, entityIds }: Source, sha256: Sha256): SceneIssue {
+  return makeIssue("asset-missing", {
+    message: `${where} names texture "${site.id}", whose entry records no size for blob ${sha256}`,
+    path: site.pointer,
+    entityIds,
+    got: site.id,
+    detail: { unsized: sha256 },
+  });
+}
+
+/** The ids of the textures `issues` already raise as recorded with no size. */
+export function unsizedIds(issues: readonly SceneIssue[]): Set<AssetId> {
+  const ids = new Set<AssetId>();
+  for (const i of issues)
+    if (i.code === "asset-missing" && typeof i.detail?.unsized === "string" && i.got !== undefined)
+      ids.add(i.got);
+  return ids;
 }
 
 /** A reference to resolve: `where` names its field for a message, `entityIds` its owner. */
@@ -112,7 +134,11 @@ function resolve(
     if (live.kind === TEXTURE_KIND) {
       const content = blobContent(live);
       if (!content) {
-        if (live.sha256 === undefined) issues.push(missingIssue(view, source));
+        issues.push(
+          live.sha256 === undefined
+            ? missingIssue(view, source)
+            : unsizedIssue(source, live.sha256),
+        );
         continue;
       }
       entries.set(live.id, { id: live.id, kind: live.kind, ...content });
@@ -140,8 +166,8 @@ const headerSources = (assets: readonly unknown[] | undefined, label: string, id
  * own references followed. Entries are the textures among them, sorted by
  * id, each once. A reference no live asset of its kinds resolves, or a
  * texture with no content, is `asset-missing` with the closest live id; a
- * texture whose entry has a hash but no size is left out, for the release
- * to refuse once (`blobContent`).
+ * texture whose entry records a hash but no size is left out and is
+ * `asset-missing` too, saying so.
  */
 export function sceneBundle(
   scene: ExpandedScene,

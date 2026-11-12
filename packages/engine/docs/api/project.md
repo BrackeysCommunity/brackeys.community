@@ -4730,8 +4730,8 @@ behavior's default names counts), its settings' asset fields, and the
 own references followed. Entries are the textures among them, sorted by
 id, each once. A reference no live asset of its kinds resolves, or a
 texture with no content, is `asset-missing` with the closest live id; a
-texture whose entry has a hash but no size is left out, for the release
-to refuse once (`blobContent`).
+texture whose entry records a hash but no size is left out and is
+`asset-missing` too, saying so.
 
 ```ts
 declare function sceneBundle(scene: ExpandedScene, def: SceneDefinition, prefabs: PrefabLibrary, view: ProjectView, kinds: KindRegistry, registry: Registry): {

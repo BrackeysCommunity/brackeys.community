@@ -3,12 +3,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Confirm } from "@/components/ui/confirm";
-import { TimeAgo } from "@/components/ui/time-ago";
-import { SimpleTooltip } from "@/components/ui/tooltip";
 import { MicroLabel, Text } from "@/components/ui/typography";
-import { claimSaves, planClaim, type ClaimRow } from "@/lib/engine/claim-saves";
+import { claimSaves, planClaim, type ClaimResult, type ClaimRow } from "@/lib/engine/claim-saves";
 import { SITE_SAVE_LIMITS } from "@/lib/engine/limits";
-import { formatDate } from "@/lib/format-date";
+import { SaveTime, saveTitle } from "@/lib/engine/save-labels";
+import type { SiteSaveStore } from "@/lib/engine/save-store";
 import { toast } from "@/lib/toast";
 
 /** Where a decline is remembered: this tab, for the sign-in that declined. */
@@ -16,6 +15,10 @@ export const keepSavesDeclinedKey = (projectId: string): string =>
   `jams-play:${projectId}:keep-saves-declined`;
 
 export const REPLACE_ACCOUNT_SAVE = "Replace the account's save";
+
+/** Some of the ticked saves moved and the rest were refused. */
+export const keptMessage = (kept: number): string =>
+  kept === 1 ? "1 save moved to your account." : `${kept} saves moved to your account.`;
 
 function declined(projectId: string, signIn: string): boolean {
   try {
@@ -35,31 +38,17 @@ function decline(projectId: string, signIn: string): void {
 
 const limitsOf = (store: SaveStore): SaveLimits => ({ ...SITE_SAVE_LIMITS, ...store.limits });
 
-const saveTitle = (save: SaveSummary): string => save.meta.title?.trim() || `Slot ${save.slot}`;
-
-const utcDate = (ms: number): string =>
-  `${formatDate(new Date(ms), {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })} UTC`;
-
-function SavedAt({ label, save }: { label: string; save: SaveSummary }) {
-  const date = new Date(save.meta.savedAt);
-  return (
-    <SimpleTooltip content={utcDate(save.meta.savedAt)}>
-      <time dateTime={date.toISOString()}>
-        {label} <TimeAgo date={date} />
-      </time>
-    </SimpleTooltip>
-  );
-}
-
 type Row = ClaimRow & { message?: string };
 
-function ClaimRowItem({ row, onTick }: { row: Row; onTick: (ticked: boolean) => void }) {
+function ClaimRowItem({
+  row,
+  disabled,
+  onTick,
+}: {
+  row: Row;
+  disabled: boolean;
+  onTick: (ticked: boolean) => void;
+}) {
   const id = `keep-save-${row.slot}`;
   return (
     <li className="flex items-start gap-3 py-2">
@@ -67,20 +56,21 @@ function ClaimRowItem({ row, onTick }: { row: Row; onTick: (ticked: boolean) => 
         id={id}
         className="mt-0.5"
         checked={row.ticked}
+        disabled={disabled}
         onCheckedChange={(checked) => onTick(!!checked)}
       />
       <label htmlFor={id} className="flex min-w-0 flex-1 flex-col gap-0.5">
         <Text size="sm" className="truncate">
-          {saveTitle(row.local)}
+          {saveTitle(row.local.meta, row.slot)}
         </Text>
         <MicroLabel as="span" className="flex flex-wrap gap-x-2">
           <span className="truncate">Scene {row.local.meta.scene}</span>
           <span aria-hidden>·</span>
-          <SavedAt label={row.account ? "This browser" : "Saved"} save={row.local} />
+          <SaveTime label={row.account ? "This browser" : "Saved"} date={row.local.meta.savedAt} />
           {row.account ? (
             <>
               <span aria-hidden>·</span>
-              <SavedAt label="Your account" save={row.account} />
+              <SaveTime label="Your account" date={row.account.meta.savedAt} />
             </>
           ) : null}
         </MicroLabel>
@@ -110,7 +100,7 @@ export type KeepSavesDialogProps = {
   /** This browser's saves for the project. */
   local: SaveStore;
   /** The account's saves for the project. */
-  site: SaveStore;
+  site: SiteSaveStore;
   /** Some saves reached the account; the host tells the frame. */
   onClaimed: () => void;
 };
@@ -118,7 +108,8 @@ export type KeepSavesDialogProps = {
 /**
  * "Keep your saves": once signed in, offers this browser's saves for the
  * project to the account. Declining keeps them here and asks again on the
- * next sign-in.
+ * next sign-in. An account list that doesn't load asks nothing until the
+ * next load, since every slot would read as free.
  */
 export function KeepSavesDialog({
   projectId,
@@ -132,6 +123,7 @@ export function KeepSavesDialog({
   const [rows, setRows] = useState<Row[] | null>(null);
   const [open, setOpen] = useState(false);
   const [free, setFree] = useState(0);
+  const [claiming, setClaiming] = useState(false);
   const finished = useRef(false);
 
   useEffect(() => {
@@ -140,7 +132,12 @@ export function KeepSavesDialog({
     void (async () => {
       const mine = await local.list(gameId);
       if (!live || mine.length === 0) return;
-      const theirs = await site.list(gameId);
+      let theirs: readonly SaveSummary[];
+      try {
+        theirs = (await site.load()).saves;
+      } catch {
+        return;
+      }
       if (!live) return;
       const limits = limitsOf(site);
       finished.current = false;
@@ -163,7 +160,13 @@ export function KeepSavesDialog({
     );
 
   const keep = async () => {
-    const results = await claimSaves(rows, local, site, gameId);
+    setClaiming(true);
+    let results: ClaimResult[];
+    try {
+      results = await claimSaves(rows, local, site, gameId);
+    } finally {
+      setClaiming(false);
+    }
     const refused = new Map<string, string>();
     let kept = 0;
     for (const result of results) {
@@ -178,10 +181,11 @@ export function KeepSavesDialog({
       );
       return;
     }
+    if (kept > 0) toast.success(keptMessage(kept));
     const uploaded = new Set(results.filter((r) => r.ok).map((r) => r.slot));
     setFree((n) => Math.max(0, n - kept));
-    setRows(
-      rows
+    setRows((current) =>
+      (current ?? [])
         .filter((row) => !uploaded.has(row.slot))
         .map((row) => {
           const message = refused.get(row.slot);
@@ -208,7 +212,12 @@ export function KeepSavesDialog({
           </p>
           <ul aria-label="Saves in this browser" className="divide-y divide-border">
             {rows.map((row) => (
-              <ClaimRowItem key={row.slot} row={row} onTick={(next) => tick(row.slot, next)} />
+              <ClaimRowItem
+                key={row.slot}
+                row={row}
+                disabled={claiming}
+                onTick={(next) => tick(row.slot, next)}
+              />
             ))}
           </ul>
         </>

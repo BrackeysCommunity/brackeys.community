@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => {
     selectQueue: [] as unknown[][],
     updateSet: vi.fn(),
     deleteError: null as Error | null,
+    bucketObjects: [] as string[],
   };
 });
 
@@ -71,6 +72,7 @@ vi.mock("@/db/schema", () => {
     canvasMembers: table("canvas_members", ["canvasId", "userId"]),
     comments: table("comments", ["authorId", "content", "deletedAt"]),
     developerProfiles: table("developer_profiles", ["id", "discordId"]),
+    engineSaves: table("engine_saves", ["userId", "projectId", "slot"]),
     linkedAccounts: table("linked_accounts", ["profileId"]),
     profileProjects: table("profile_projects", ["profileId", "imageKey"]),
     profileUrlStubs: table("profile_url_stubs", ["profileId"]),
@@ -83,8 +85,21 @@ vi.mock("@/lib/discord", () => ({
   purgeGuildMemberCache: vi.fn(async () => undefined),
 }));
 
+// A bucket is configured, so every call below runs the save sweep first and
+// its `engine_saves` select takes the first queue entry.
+vi.mock("@/env", () => ({ env: { MINIO_BUCKET: "test-bucket" } }));
+
 vi.mock("@/lib/profile-project-image-storage", () => ({
   removeProfileProjectImageFromStorage: vi.fn(async () => undefined),
+  isMissingObject: () => false,
+  getMinioClient: () => ({
+    listObjectsV2: async function* (_bucket: string, prefix: string) {
+      for (const name of mocks.bucketObjects) if (name.startsWith(prefix)) yield { name };
+    },
+    removeObject: async (_bucket: string, key: string) => {
+      mocks.calls.push(`remove:${key}`);
+    },
+  }),
 }));
 
 import { cleanupUserData } from "../account-deletion";
@@ -94,11 +109,51 @@ beforeEach(() => {
   mocks.selectQueue.length = 0;
   mocks.updateSet.mockClear();
   mocks.deleteError = null;
+  mocks.bucketObjects.length = 0;
+});
+
+describe("cleanupUserData save sweep", () => {
+  it("removes the player's save objects before any row is touched", async () => {
+    mocks.bucketObjects.push(
+      "engine-saves/u1/kitchen/auto",
+      "engine-saves/u1/gone/auto",
+      "engine-saves/u10/kitchen/auto",
+    );
+    mocks.selectQueue.push(
+      [{ projectId: "kitchen", slot: "auto" }],
+      [{ discordId: null }],
+      [],
+      [{ id: "c1", deletedAt: null }],
+    );
+    await cleanupUserData("u1");
+
+    expect(mocks.calls.slice(0, 2)).toEqual([
+      "remove:engine-saves/u1/kitchen/auto",
+      "remove:engine-saves/u1/gone/auto",
+    ]);
+    expect(mocks.calls.filter((c) => c.startsWith("remove:"))).toHaveLength(2);
+    expect(mocks.calls).toContain("delete:developer_profiles");
+  });
+
+  it("sweeps saves even when the user has no profile row", async () => {
+    mocks.bucketObjects.push("engine-saves/ghost/kitchen/auto");
+    mocks.selectQueue.push([], []);
+    await cleanupUserData("ghost");
+    expect(mocks.calls).toEqual(["remove:engine-saves/ghost/kitchen/auto"]);
+  });
+
+  it("skips the bucket when told there are no save objects", async () => {
+    mocks.bucketObjects.push("engine-saves/u1/kitchen/auto");
+    mocks.selectQueue.push([{ discordId: null }], []);
+    await cleanupUserData("u1", { saveObjects: null });
+    expect(mocks.calls.some((c) => c.startsWith("remove:"))).toBe(false);
+    expect(mocks.calls).toContain("delete:developer_profiles");
+  });
 });
 
 describe("cleanupUserData comment redaction", () => {
   it("redacts the user's comments before deleting the profile row", async () => {
-    mocks.selectQueue.push([{ discordId: null }], []);
+    mocks.selectQueue.push([], [{ discordId: null }], []);
     await cleanupUserData("u1");
 
     const updateIdx = mocks.calls.indexOf("update:comments");
@@ -109,7 +164,7 @@ describe("cleanupUserData comment redaction", () => {
   });
 
   it("blanks content and tombstones via COALESCE so earlier deletes keep their stamps", async () => {
-    mocks.selectQueue.push([{ discordId: null }], []);
+    mocks.selectQueue.push([], [{ discordId: null }], []);
     await cleanupUserData("u1");
 
     expect(mocks.updateSet).toHaveBeenCalledWith(
@@ -122,7 +177,7 @@ describe("cleanupUserData comment redaction", () => {
   });
 
   it("deletes personal canvases and their versions before the profile row", async () => {
-    mocks.selectQueue.push([{ discordId: null }], [], [{ id: "c1", deletedAt: null }]);
+    mocks.selectQueue.push([], [{ discordId: null }], [], [{ id: "c1", deletedAt: null }]);
     await cleanupUserData("u1");
 
     const versionsIdx = mocks.calls.indexOf("delete:doc_versions");
@@ -133,7 +188,7 @@ describe("cleanupUserData comment redaction", () => {
   });
 
   it("does nothing when the user has no profile row", async () => {
-    mocks.selectQueue.push([]);
+    mocks.selectQueue.push([], []);
     await cleanupUserData("ghost");
     expect(mocks.calls).toEqual([]);
   });

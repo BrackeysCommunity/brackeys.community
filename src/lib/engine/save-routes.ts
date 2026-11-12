@@ -39,11 +39,6 @@ const EMPTY_SLOT: ReleaseApiError = {
   code: "not-found",
   message: "There is no save in this slot.",
 };
-const NOT_TEXT: ReleaseApiError = {
-  code: "schema",
-  message: "A save file is JSON text in UTF-8.",
-};
-
 const SIGNED_OUT: SaveViewer = { userId: null, staff: false, teamRole: null, isCreator: false };
 
 function noStore(response: Response): Response {
@@ -82,20 +77,6 @@ async function readCapped(request: Request, cap: number): Promise<Uint8Array> {
   }
   await reader.cancel().catch(() => {});
   return bytes;
-}
-
-/**
- * The save text: strict UTF-8 within the cap, or null when it isn't. A
- * body at the cap is decoded leniently (replacing a cut character never
- * shortens it), since the save API refuses it for its size either way.
- */
-function decodeSave(bytes: Uint8Array): string | null {
-  if (bytes.byteLength >= PUT_READ_CAP) return new TextDecoder().decode(bytes);
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch {
-    return null;
-  }
 }
 
 type Caller = { ok: true; userId: string } | { ok: false; response: Response };
@@ -185,15 +166,14 @@ export function createSaveRoutes(
   async function write(request: Request, projectId: string, slot: string): Promise<Response> {
     const who = await caller(request, projectId);
     if (!who.ok) return who.response;
-    const text = decodeSave(await readCapped(request, PUT_READ_CAP));
-    if (text === null) return refuse(NOT_TEXT, 422);
+    const body = await readCapped(request, PUT_READ_CAP);
     return answer(async () =>
       Response.json(
         await putSave(saveDeps(), {
           viewer: await viewer(who.userId, projectId),
           projectId,
           slot,
-          text,
+          body,
         }),
       ),
     );

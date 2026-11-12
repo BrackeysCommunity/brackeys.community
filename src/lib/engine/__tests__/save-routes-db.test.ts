@@ -308,6 +308,51 @@ describe("save routes", () => {
     expect(await response.json()).toMatchObject({ code: "schema" });
   });
 
+  it("judges access, the slot and the rate before a body that isn't UTF-8", async () => {
+    const notText = (slot: string) =>
+      send(
+        call(engineSavePath(PROJECT, slot), {
+          method: "PUT",
+          user: "player",
+          body: new Uint8Array([0x7b, 0xff, 0xfe, 0x7d]),
+        }),
+      );
+    const counted: string[] = [];
+    routes = createSaveRoutes({
+      readSession: async (request) => {
+        const id = request.headers.get("x-test-user");
+        return id ? { user: { id } } : null;
+      },
+      saves: {
+        store,
+        rateLimit: async (bucket) => {
+          counted.push(bucket);
+          return true;
+        },
+        now: () => NOW,
+      },
+    });
+
+    const badSlot = await notText("Bad-Slot");
+    expect(badSlot.status).toBe(422);
+    expect(((await badSlot.json()) as { message: string }).message).toBe(
+      '"Bad-Slot" isn\'t a save slot.',
+    );
+    expect(counted).toEqual([]);
+    expect((await notText("one")).status).toBe(422);
+    expect(counted).toHaveLength(1);
+
+    await db
+      .update(engineProjects)
+      .set({ saveMode: "own" })
+      .where(eq(engineProjects.projectId, PROJECT));
+    forgetProjectReleases(PROJECT);
+    const own = await notText("one");
+    expect(own.status).toBe(403);
+    expect(await own.json()).toMatchObject({ code: "save-forbidden" });
+    expect(counted).toHaveLength(1);
+  });
+
   it("passes the save API's refusals through with their status", async () => {
     const otherGame = await put("one", saveText("one", null, "another-game"));
     expect(otherGame.status).toBe(422);

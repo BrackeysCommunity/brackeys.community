@@ -7,11 +7,11 @@ import { ISSUE_CODES, makeIssue, type IssueCode, type SceneIssue } from "@jams/e
 
 import { SITE } from "@/lib/legal-meta";
 
-import type { GameSaveMode } from "./game-settings";
 import { SITE_SAVE_LIMITS } from "./limits";
+import { SIGNED_IN_SAVES_DESCRIBE } from "./local-saves";
 import { ReleaseError, type ReleaseApiError } from "./release-errors";
 import { engineProjectSavesPath, engineSavePath, ENGINE_SAVES_PATH } from "./route-paths";
-import { SIGNED_IN_SAVES_DESCRIBE, type AccountSaves, type SaveList } from "./save-api";
+import type { AccountSaves, SaveList } from "./save-api";
 
 export type SaveFetchOptions = {
   /** Default the page's `fetch`, same-origin with the session cookie. */
@@ -23,11 +23,14 @@ export type SiteSaveStoreOptions = SaveFetchOptions & {
   describe?: string;
 };
 
-/** The site store, with what the game's last list said about its saves. */
+/** The site store, with the caps the game's last list answered. */
 export type SiteSaveStore = SaveStore & {
   readonly limits: SaveLimits;
-  /** The game's save mode as the last list answered it, or null before one has. */
-  readonly mode: GameSaveMode | null;
+  /**
+   * The game's list as `list` reads it, but a failure throws (the API's
+   * refusal as a `ReleaseError`) instead of reading as an empty account.
+   */
+  load(): Promise<SaveList>;
 };
 
 /** A save that never reached the site: the request itself failed. */
@@ -77,7 +80,7 @@ async function ensureOk(response: Response): Promise<Response> {
 
 /**
  * A `SaveStore` of kind `host` over the save routes for one project. Every
- * call is caught: a list or read that fails is empty, a write that fails is
+ * `SaveStore` call is caught: a list or read that fails is empty, a write that fails is
  * the API's refusal as an issue, its message unchanged, and one that never
  * reached the site is `save-store-failed`. Saves are kept by project, whatever
  * game id a call names; the API checks it against the production release.
@@ -85,7 +88,14 @@ async function ensureOk(response: Response): Promise<Response> {
 export function siteSaveStore(projectId: string, opts?: SiteSaveStoreOptions): SiteSaveStore {
   let describe = opts?.describe ?? SIGNED_IN_SAVES_DESCRIBE;
   let limits: SaveLimits = { ...SITE_SAVE_LIMITS };
-  let mode: GameSaveMode | null = null;
+
+  const load = async (): Promise<SaveList> => {
+    const response = await ensureOk(await request(opts, engineProjectSavesPath(projectId)));
+    const body = (await response.json()) as SaveList;
+    describe = body.describe;
+    limits = { maxBytes: body.limits.maxBytes, maxSlots: body.limits.maxSlots };
+    return body;
+  };
 
   return {
     kind: "host",
@@ -95,18 +105,10 @@ export function siteSaveStore(projectId: string, opts?: SiteSaveStoreOptions): S
     get limits() {
       return limits;
     },
-    get mode() {
-      return mode;
-    },
+    load,
     async list(): Promise<readonly SaveSummary[]> {
       try {
-        const response = await request(opts, engineProjectSavesPath(projectId));
-        if (!response.ok) return [];
-        const body = (await response.json()) as SaveList;
-        describe = body.describe;
-        limits = { maxBytes: body.limits.maxBytes, maxSlots: body.limits.maxSlots };
-        mode = body.mode;
-        return body.saves;
+        return (await load()).saves;
       } catch {
         return [];
       }

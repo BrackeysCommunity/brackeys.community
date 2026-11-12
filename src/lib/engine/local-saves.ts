@@ -9,10 +9,12 @@ import { makeIssue, type SceneIssue } from "@jams/engine/scene";
 import { formatBytes } from "@/lib/format-bytes";
 import { SITE } from "@/lib/legal-meta";
 
-import { PREFS_MAX_BYTES, SITE_SAVE_LIMITS } from "./limits";
+import { PREFS_MAX_BYTES, SITE_SAVE_EXPIRY_DAYS, SITE_SAVE_LIMITS } from "./limits";
 
 /** What a signed-out player's save menu says on the play page. */
 export const SIGNED_OUT_SAVES_DESCRIBE = `Saves stay in this browser on ${SITE.name} until you clear its site data. Sign in to keep them on your account.`;
+/** What a signed-in player's save menu says on the play page. */
+export const SIGNED_IN_SAVES_DESCRIBE = `Saved to your ${SITE.name} account: up to ${SITE_SAVE_LIMITS.maxSlots} saves of ${formatBytes(SITE_SAVE_LIMITS.maxBytes)} for this game. Saves you don't use for ${SITE_SAVE_EXPIRY_DAYS} days are deleted.`;
 
 /** The IndexedDB database signed-out saves live in, one key range per project. */
 export const LOCAL_SAVES_DB = "jams-play-saves";

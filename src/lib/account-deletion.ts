@@ -83,11 +83,15 @@ function minioSaveObjectStore(): SaveObjectStore | null {
   };
 }
 
+/** `saveObjects` defaults to the site's bucket; `null` means there are no save objects. */
 export async function cleanupUserData(
   userId: string,
   opts: { saveObjects?: SaveObjectStore | null } = {},
 ): Promise<void> {
-  await removeSaveObjects(userId, opts.saveObjects ?? minioSaveObjectStore());
+  await removeSaveObjects(
+    userId,
+    opts.saveObjects === undefined ? minioSaveObjectStore() : opts.saveObjects,
+  );
 
   const [profile] = await db
     .select({ discordId: developerProfiles.discordId })

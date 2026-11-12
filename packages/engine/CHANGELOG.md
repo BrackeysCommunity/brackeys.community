@@ -38,9 +38,12 @@ also closes 0.14.1's leftovers: host requests that time out, and one
   pending until close. `hello` stays bounded by `welcomeTimeoutMs`; a reply
   after the timeout is dropped.
 - `sceneBundle` and `projectBundle` leave out a texture whose entry records a
-  hash but no size without raising `asset-missing`; the export refuses it
-  once, as the shipped asset (`"<id>" (<path>) ships, but its entry records
-no size for blob <sha>`), instead of twice.
+  hash but no size and raise `asset-missing` at the reference
+  (`<field> names texture "<id>", whose entry records no size for blob
+<sha>`, with `detail.unsized` the hash) instead of "no content to fetch".
+  The export reports it once: it skips its own `"<id>" (<path>) ships, but
+its entry records no size` for a texture a bundle already raised, and
+  raises that one only for a shipped blob no bundle reached.
 
 ### Agent surface
 

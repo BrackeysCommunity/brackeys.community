@@ -215,21 +215,25 @@ export function PlayPage({ projectId, version }: { projectId: string; version: s
   return <PlayChrome play={query.data} version={version} />;
 }
 
-const SIGN_IN_LABEL = "Sign in to keep your saves";
+/** Only a game that saves to the site promises to keep saves on sign-in. */
+export const signInLabel = (mode: PlayPayload["saveMode"]): string =>
+  mode === "site" ? "Sign in to keep your saves" : "Sign in";
 
 /** Asks before signing in, since the reload restarts the game; raised by the chrome's button and the site menu's item. */
 function SignInConfirm({
+  label,
   callbackURL,
   open,
   onOpenChange,
 }: {
+  label: string;
   callbackURL: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   return (
     <Confirm
-      title={`${SIGN_IN_LABEL}?`}
+      title={`${label}?`}
       message={SIGN_IN_MESSAGE}
       confirmText="Sign in"
       open={open}
@@ -241,16 +245,24 @@ function SignInConfirm({
   );
 }
 
-function SignInButton({ phone, onClick }: { phone: boolean; onClick: () => void }) {
+function SignInButton({
+  label,
+  phone,
+  onClick,
+}: {
+  label: string;
+  phone: boolean;
+  onClick: () => void;
+}) {
   return (
     <Button
       size="sm"
       variant="outline"
       onClick={onClick}
-      {...(phone ? { tooltip: SIGN_IN_LABEL, "aria-label": SIGN_IN_LABEL } : {})}
+      {...(phone && label !== "Sign in" ? { tooltip: label, "aria-label": label } : {})}
     >
       <HugeiconsIcon icon={Login01Icon} data-icon="inline-start" />
-      {phone ? "Sign in" : SIGN_IN_LABEL}
+      {phone ? "Sign in" : label}
     </Button>
   );
 }
@@ -319,11 +331,7 @@ export function PlayChrome({ play, version }: { play: PlayPayload; version: stri
           <HugeiconsIcon icon={FloppyDiskIcon} size={16} />
         </PopoverTrigger>
         <PopoverContent align="end" sideOffset={8} className="w-80">
-          <SaveNotice
-            mode={play.saveMode}
-            connectOrigins={play.connectOrigins}
-            saveMenu={stores.describe()}
-          />
+          <SaveNotice mode={play.saveMode} connectOrigins={play.connectOrigins} />
         </PopoverContent>
       </Popover>
       <Button
@@ -363,7 +371,7 @@ export function PlayChrome({ play, version }: { play: PlayPayload; version: stri
           </span>
         </SimpleTooltip>
       ) : (
-        <SignInButton phone={phone} onClick={askSignIn} />
+        <SignInButton label={signInLabel(play.saveMode)} phone={phone} onClick={askSignIn} />
       )}
     </>
   );
@@ -408,6 +416,7 @@ export function PlayChrome({ play, version }: { play: PlayPayload; version: stri
       )}
       {signedIn ? null : (
         <SignInConfirm
+          label={signInLabel(play.saveMode)}
           callbackURL={playPath(projectId, version)}
           open={signInAsked}
           onOpenChange={setSignInAsked}
