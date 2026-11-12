@@ -125,7 +125,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
 
   it("holds each hosted game's scene-list.json as a scene-list asset of its own project", async () => {
     const games = ctx.projects.filter((p) => p.dir.startsWith(join(ROOT, "src/games")));
-    expect(games.map((p) => p.file.id).sort()).toEqual(["platformer", "tactics"]);
+    expect(games.map((p) => p.file.id).sort()).toEqual(["platformer", "stress", "tactics"]);
     for (const project of games) {
       const id = project.file.id;
       expect(existsSync(join(project.dir, "scene-list.json")), id).toBe(true);
@@ -311,7 +311,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
     ]) {
       const result = await run();
       expect(result.exitCode).toBe(2);
-      expect(result.text).toContain("(projects: engine, platformer, tactics)");
+      expect(result.text).toContain("(projects: engine, platformer, stress, tactics)");
     }
     const typo = await projectShow({ project: "platformr" }, ctx);
     expect(typo.exitCode).toBe(2);

@@ -1,0 +1,11 @@
+{
+  "kind": "prefab",
+  "v": 4,
+  "game": "stress",
+  "id": "stress-one-way-latch",
+  "base": "stress-latch",
+  "overrides": {
+    "bar.oneWay": true
+  },
+  "entities": []
+}

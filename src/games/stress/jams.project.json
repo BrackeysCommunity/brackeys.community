@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../packages/engine/project/project.schema.json",
+  "kind": "project",
+  "v": 1,
+  "id": "stress",
+  "name": "Stress",
+  "game": { "module": "./index.ts", "export": "stressGame" },
+  "ui": { "module": "./ui/index.ts", "export": "mountStressHud" },
+  "assets": ["scenes/**", "game-settings.json", "input-map.json", "scene-list.json"],
+  "code": ["**/*.ts", "!**/__tests__/**"]
+}

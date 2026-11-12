@@ -44,6 +44,7 @@ describe("the projects' scenes", () => {
     expect(SCENES.map((s) => [s.project.file.id, s.scenes.length > 0])).toEqual([
       ["engine", true],
       ["platformer", true],
+      ["stress", true],
       ["tactics", true],
     ]);
   });

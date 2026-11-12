@@ -15,8 +15,8 @@ describe("the dev collab server's schemas", () => {
       engineSourceRunner,
     );
     const hashes = module.devSchemaHashes;
-    expect(Object.keys(hashes)).toEqual(["engine", "platformer", "tactics"]);
-    for (const id of ["platformer", "tactics"]) {
+    expect(Object.keys(hashes)).toEqual(["engine", "platformer", "stress", "tactics"]);
+    for (const id of ["platformer", "stress", "tactics"]) {
       expect(hashes[id]).toHaveProperty("scene");
       expect(hashes[id]).toHaveProperty("prefab");
       expect(hashes[id]).toHaveProperty("recording");

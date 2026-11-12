@@ -32,9 +32,9 @@ const exists = (path: string) =>
   );
 
 describe("discoverProjects over the repo", () => {
-  it("finds the three homes: the engine's scenes, the platformer and tactics", async () => {
+  it("finds the four homes: the engine's scenes, the platformer, stress and tactics", async () => {
     const projects = await discoverProjects(ROOT);
-    expect(projects.map((p) => p.file.id)).toEqual(["engine", "platformer", "tactics"]);
+    expect(projects.map((p) => p.file.id)).toEqual(["engine", "platformer", "stress", "tactics"]);
 
     const [engine, platformer] = projects as [ProjectHandle, ProjectHandle, ProjectHandle];
     expect(engine.dir).toBe(join(ROOT, "packages/engine/scenes"));
@@ -57,6 +57,7 @@ describe("discoverProjects over the repo", () => {
     expect(projects.map((p) => p.cacheDir)).toEqual([
       join(ROOT, "node_modules/.cache/jams-engine/engine"),
       join(ROOT, "node_modules/.cache/jams-engine/platformer"),
+      join(ROOT, "node_modules/.cache/jams-engine/stress"),
       join(ROOT, "node_modules/.cache/jams-engine/tactics"),
     ]);
   });

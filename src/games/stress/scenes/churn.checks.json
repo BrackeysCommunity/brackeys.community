@@ -1,0 +1,7 @@
+{
+  "v": 3,
+  "checks": [
+    { "id": "valid", "kind": "valid" },
+    { "id": "steps", "kind": "reaches", "expect": { "counts": { "destroyed": 2880, "pellets": 16, "spawned": 4800 } }, "result": "script-end", "script": { "steps": [{ "wait": 600 }], "v": 2 } }
+  ]
+}

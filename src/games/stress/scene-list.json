@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../packages/engine/project/scene-list.schema.json",
+  "kind": "scene-list",
+  "v": 1,
+  "start": "combined",
+  "scenes": [
+    { "scene": "pile", "title": "Pile (rigid bodies)" },
+    { "scene": "movers", "title": "Movers (followers)" },
+    { "scene": "field", "title": "Field (sensors)" },
+    { "scene": "wall", "title": "Wall (sprites)" },
+    { "scene": "rooms", "title": "Rooms (prefabs)" },
+    { "scene": "terrain", "title": "Terrain (static, CCD)" },
+    { "scene": "churn", "title": "Churn (spawns)" },
+    { "scene": "crowd", "title": "Crowd (game code)" },
+    { "scene": "combined", "title": "Combined" }
+  ]
+}

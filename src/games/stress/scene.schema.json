@@ -1,0 +1,3153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:scene:stress:v4",
+  "x-agent-surface": 17,
+  "title": "jams engine scene for stress, format v4",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "Path or URI of this file's JSON Schema, for editors. Ignored by the engine.",
+      "type": "string"
+    },
+    "v": {
+      "type": "number",
+      "const": 4,
+      "description": "Scene format version. Files are migrated up on load and always saved at the current version."
+    },
+    "game": {
+      "type": "string",
+      "const": "stress",
+      "description": "The game whose registered types this scene uses.",
+      "title": "Game"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+      "description": "Scene name, same rules as an id; matches the file name without .json.",
+      "title": "Name"
+    },
+    "bounds": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "description": "minX, m.",
+          "unit": "m"
+        },
+        {
+          "type": "number",
+          "description": "minY, m (top; y is down).",
+          "unit": "m"
+        },
+        {
+          "type": "number",
+          "description": "maxX, m.",
+          "unit": "m"
+        },
+        {
+          "type": "number",
+          "description": "maxY, m (bottom).",
+          "unit": "m"
+        }
+      ],
+      "description": "World rectangle [minX, minY, maxX, maxY] in metres; y is down. Limits the camera; anything outside it is flagged.",
+      "title": "Bounds",
+      "unit": "m"
+    },
+    "settings": {
+      "description": "Scene-wide settings: the engine's, then the game's.",
+      "title": "Settings",
+      "type": "object",
+      "properties": {
+        "gravity": {
+          "description": "World gravity [x, y] in m/s²; y is down. Omitted: the project's, else the game's default.",
+          "title": "Gravity",
+          "unit": "m/s²",
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number",
+              "description": "x, m/s²; positive pulls right.",
+              "unit": "m/s²"
+            },
+            {
+              "type": "number",
+              "description": "y, m/s²; positive pulls down.",
+              "unit": "m/s²"
+            }
+          ]
+        },
+        "physics": {
+          "description": "The physics world: \"rapier\" simulates bodies, \"none\" runs without one. Omitted resolves through the project and game defaults to \"rapier\".",
+          "title": "Physics",
+          "type": "string",
+          "enum": ["rapier", "none"]
+        },
+        "grid": {
+          "description": "The scene's one cell grid, square or hex; the hex parameters match Tiled's. Omitted: the game's world grid, else none.",
+          "title": "Grid",
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "square",
+                  "description": "Square (or rectangular) cells."
+                },
+                "cell": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "description": "w, m.",
+                      "unit": "m"
+                    },
+                    {
+                      "type": "number",
+                      "description": "h, m.",
+                      "unit": "m"
+                    }
+                  ],
+                  "description": "Cell size [w, h], m; positive, each a whole number of px at the game's px per metre.",
+                  "unit": "m"
+                },
+                "origin": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "description": "x, m.",
+                      "unit": "m"
+                    },
+                    {
+                      "type": "number",
+                      "description": "y, m.",
+                      "unit": "m"
+                    }
+                  ],
+                  "description": "Where cell 0, 0 starts, world m; each a whole number of px at the game's px per metre. Omitted means 0, 0.",
+                  "unit": "m"
+                }
+              },
+              "required": ["kind", "cell"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "hex",
+                  "description": "Hexagonal cells, parameterized like Tiled's."
+                },
+                "cell": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "description": "w, m.",
+                      "unit": "m"
+                    },
+                    {
+                      "type": "number",
+                      "description": "h, m.",
+                      "unit": "m"
+                    }
+                  ],
+                  "description": "The hex's bounding box [w, h], m (Tiled's tilewidth, tileheight, over px per metre); positive, each a whole number of px at the game's px per metre.",
+                  "unit": "m"
+                },
+                "side": {
+                  "type": "number",
+                  "description": "The length of the flat sides, m (Tiled's hexsidelength over px per metre): from 0 to the cell's size on the stagger axis, a whole number of px at the game's px per metre.",
+                  "unit": "m"
+                },
+                "stagger": {
+                  "type": "string",
+                  "enum": ["x", "y"],
+                  "description": "Which axis is staggered (Tiled's staggeraxis)."
+                },
+                "index": {
+                  "type": "string",
+                  "enum": ["odd", "even"],
+                  "description": "Whether odd or even rows (or columns) are shifted (Tiled's staggerindex)."
+                },
+                "origin": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "description": "x, m.",
+                      "unit": "m"
+                    },
+                    {
+                      "type": "number",
+                      "description": "y, m.",
+                      "unit": "m"
+                    }
+                  ],
+                  "description": "Where cell 0, 0 starts, world m; each a whole number of px at the game's px per metre. Omitted means 0, 0.",
+                  "unit": "m"
+                }
+              },
+              "required": ["kind", "cell", "side", "stagger", "index"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "view": {
+          "description": "How the scene is projected to the screen; reserved, only orthogonal exists.",
+          "title": "View",
+          "type": "object",
+          "properties": {
+            "projection": {
+              "type": "string",
+              "const": "orthogonal",
+              "description": "The only projection there is so far."
+            }
+          },
+          "required": ["projection"],
+          "additionalProperties": false
+        },
+        "crowd": {
+          "description": "Agents the game walks over the scene's walk areas; default 0.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20000
+        },
+        "spawnRate": {
+          "description": "Multiplies every spawner's rate in this scene; default 1.",
+          "type": "number",
+          "minimum": 0
+        },
+        "spawnCap": {
+          "description": "Multiplies every spawner's cap in this scene; default 1.",
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "assets": {
+      "description": "Asset ids only game code names, so they count as used: sorted, each once.",
+      "title": "Assets",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      }
+    },
+    "groups": {
+      "description": "Groups by id. An entity or instance whose `group` names one stores its geometry relative to the group's `at`.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/Group"
+      }
+    },
+    "instances": {
+      "description": "Prefab instances, each a copy of a prefab file placed at `at`.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Instance"
+      }
+    },
+    "solid": {
+      "description": "Static ground shapes, absolute metres; `solid:<material>` for a material. Entries have no id; ops refer to them as ~solid:<index>.",
+      "type": "array",
+      "items": {
+        "description": "Collider shape. Absolute world metres; y is down. Any tag, including chain for outlines.",
+        "title": "Shape",
+        "group": "geometry",
+        "$ref": "#/$defs/ShapeTuple"
+      }
+    },
+    "solid:bouncy": {
+      "description": "Static ground shapes, absolute metres; `solid:<material>` for a material. Material bouncy: Bouncy rubber. Entries have no id; ops refer to them as ~solid:bouncy:<index>.",
+      "type": "array",
+      "items": {
+        "description": "Collider shape. Absolute world metres; y is down. Any tag, including chain for outlines.",
+        "title": "Shape",
+        "group": "geometry",
+        "$ref": "#/$defs/ShapeTuple"
+      }
+    },
+    "entities": {
+      "description": "Entities with stable ids: anything that moves, has parameters, or is referenced.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Entity"
+      }
+    }
+  },
+  "required": ["v", "game", "name", "bounds"],
+  "additionalProperties": false,
+  "description": "A jams engine scene. Lengths are metres with y pointing down; the game's px per metre draws them. Simple static geometry lives in the bulk arrays; everything else is an entity.",
+  "$defs": {
+    "Group": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number",
+              "description": "x, m.",
+              "unit": "m"
+            },
+            {
+              "type": "number",
+              "description": "y, m; y is down.",
+              "unit": "m"
+            }
+          ],
+          "description": "The group's origin in world metres. Members store their geometry relative to it, so moving the group is one edit here.",
+          "unit": "m",
+          "title": "Origin",
+          "group": "geometry"
+        },
+        "rot": {
+          "description": "Quarter turns clockwise (y down), applied after `flip`. Omitted means 0.",
+          "title": "Rotation",
+          "group": "geometry",
+          "type": "number",
+          "enum": [1, 2, 3]
+        },
+        "flip": {
+          "description": "Mirror x in the local frame, before `rot`. Omitted means not mirrored.",
+          "title": "Mirror",
+          "group": "geometry",
+          "type": "boolean",
+          "const": true
+        },
+        "name": {
+          "description": "Display label for the editor's outliner. No runtime effect.",
+          "title": "Name",
+          "group": "identity",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      },
+      "required": ["at"],
+      "additionalProperties": false,
+      "description": "A group of entities and instances that move together around a local origin."
+    },
+    "Instance": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+          "title": "Id",
+          "group": "identity"
+        },
+        "prefab": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "description": "The prefab placed here: the file prefabs/<prefab>.json beside the scene.",
+          "title": "Prefab",
+          "group": "identity"
+        },
+        "name": {
+          "description": "Display label for the editor's outliner. No runtime effect.",
+          "title": "Name",
+          "group": "identity",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "layer": {
+          "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+          "title": "Layer",
+          "group": "identity",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "enum": ["terrain", "decor", "gameplay", "editor"]
+        },
+        "group": {
+          "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+          "title": "Group",
+          "group": "identity",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+        },
+        "off": {
+          "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+          "title": "Disabled",
+          "group": "identity",
+          "type": "boolean"
+        },
+        "z": {
+          "description": "Added to the z of every child, an integer in [-10000, 10000]. Omitted means 0.",
+          "title": "Z",
+          "group": "identity",
+          "type": "integer",
+          "minimum": -10000,
+          "maximum": 10000
+        },
+        "at": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number",
+              "description": "x, m.",
+              "unit": "m"
+            },
+            {
+              "type": "number",
+              "description": "y, m; y is down.",
+              "unit": "m"
+            }
+          ],
+          "description": "Where the prefab's origin lands, in world metres (relative to the group's origin when in a group).",
+          "unit": "m",
+          "title": "Position",
+          "group": "geometry"
+        },
+        "rot": {
+          "description": "Quarter turns clockwise (y down), applied after `flip`. Omitted means 0.",
+          "title": "Rotation",
+          "group": "geometry",
+          "type": "number",
+          "enum": [1, 2, 3]
+        },
+        "flip": {
+          "description": "Mirror x in the local frame, before `rot`. Omitted means not mirrored.",
+          "title": "Mirror",
+          "group": "geometry",
+          "type": "boolean",
+          "const": true
+        },
+        "params": {
+          "description": "Values of the prefab's exposed parameters, by name.",
+          "title": "Parameters",
+          "group": "overrides",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "overrides": {
+          "description": "Child fields that differ from the prefab, keyed `<childId>.<field.path>` (`door.path.speed`, `~solid:0.shape`). Values are in the prefab's own frame, before `at`.",
+          "title": "Overrides",
+          "group": "overrides",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^(?:[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47})*(?:\\/~[a-z0-9][a-z0-9-]{0,47}(?::[a-z0-9][a-z0-9-]{0,47})?:(?:0|[1-9][0-9]*))?|~[a-z0-9][a-z0-9-]{0,47}(?::[a-z0-9][a-z0-9-]{0,47})?:(?:0|[1-9][0-9]*))\\.(?:behaviors\\.(?:[a-z0-9][a-z0-9-]{0,47}\\/)?[a-z0-9][a-z0-9-]{0,47}|[A-Za-z_$][A-Za-z0-9_$]*|0|[1-9][0-9]*)(?:\\.(?:behaviors\\.(?:[a-z0-9][a-z0-9-]{0,47}\\/)?[a-z0-9][a-z0-9-]{0,47}|[A-Za-z_$][A-Za-z0-9_$]*|0|[1-9][0-9]*))*$"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": ["id", "prefab", "at"],
+      "additionalProperties": false,
+      "description": "One placement of a prefab. Its children load with ids `<id>/<childId>`, mirrored by `flip`, turned by `rot` and moved by `at`."
+    },
+    "ShapeTuple": {
+      "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?] | [\"circle\", cx, cy, r] | [\"capsule\", cx, cy, halfLen, r, rotDeg?] | [\"poly\", x1, y1, x2, y2, x3, y3, ...] | [\"chain\", x1, y1, x2, y2, ...]. Metres, y is down; rotDeg in degrees.",
+      "unit": "m",
+      "oneOf": [
+        {
+          "title": "box",
+          "description": "Axis-aligned box (a Rapier cuboid) by centre and half-extents, optionally rotated about its centre.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "box"
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Half-width; the box is 2*hw wide."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Half-height; the box is 2*hh tall."
+            },
+            {
+              "type": "number",
+              "unit": "deg",
+              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+            }
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 6
+        },
+        {
+          "title": "circle",
+          "description": "Circle (a Rapier ball) by centre and radius.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "circle"
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Radius."
+            }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        },
+        {
+          "title": "capsule",
+          "description": "Capsule, vertical before rotation: a segment of half-length halfLen through the centre, swept by radius r.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "capsule"
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Half the length of the inner segment."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Radius."
+            },
+            {
+              "type": "number",
+              "unit": "deg",
+              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+            }
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 6
+        },
+        {
+          "title": "poly",
+          "description": "Convex polygon as flat x, y pairs (at least 3 points). Points are absolute; the loader centres the body on their centroid. Concave outlines must be split or drawn as a chain.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "poly"
+            }
+          ],
+          "items": {
+            "type": "number",
+            "unit": "m"
+          },
+          "minItems": 7
+        },
+        {
+          "title": "chain",
+          "description": "Open polyline as flat x, y pairs (at least 2 points), for static terrain. Allowed on solid and sensor only.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "chain"
+            }
+          ],
+          "items": {
+            "type": "number",
+            "unit": "m"
+          },
+          "minItems": 5
+        }
+      ]
+    },
+    "Entity": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "solid",
+              "description": "Static ground, walls and platforms: collides from every side, or from above only.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "shape": {
+              "description": "Collider shape. Absolute world metres; y is down. Any tag, including chain for outlines.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/ShapeTuple"
+            },
+            "material": {
+              "description": "Surface material. bouncy: Bouncy rubber.",
+              "title": "Material",
+              "group": "surface",
+              "type": "string",
+              "enum": ["bouncy"]
+            },
+            "oneWay": {
+              "title": "One-way",
+              "group": "surface",
+              "anyOf": [
+                {
+                  "type": "boolean",
+                  "const": true
+                },
+                {
+                  "type": "string",
+                  "enum": ["up", "right", "down", "left"]
+                }
+              ],
+              "description": "The one side actors collide with: they pass through from every other side and land on this one. `true` is \"up\": they pass up through it and land on top."
+            },
+            "attach": {
+              "description": "A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.",
+              "title": "Attached to",
+              "group": "motion",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47}){0,8}$"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Height, m.",
+                          "unit": "m"
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                },
+                "occupant": {
+                  "type": "object",
+                  "properties": {
+                    "blocks": {
+                      "description": "Whether its cell is impassable to paths while it stands there; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Stands on the grid cell under its pose, where paths and game code see it.",
+                  "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
+                }
+              },
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "shape"],
+          "additionalProperties": false,
+          "description": "solid: Static ground, walls and platforms: collides from every side, or from above only."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "sensor",
+              "description": "Trigger volume with no collision response; raises sensor:enter and sensor:exit when something overlaps it.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "shape": {
+              "description": "Trigger shape. Absolute world metres; y is down.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/ShapeTuple"
+            },
+            "tags": {
+              "description": "Labels a game reads off the sensor's events.",
+              "title": "Tags",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              }
+            },
+            "attach": {
+              "description": "A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.",
+              "title": "Attached to",
+              "group": "motion",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47}){0,8}$"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Height, m.",
+                          "unit": "m"
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                },
+                "occupant": {
+                  "type": "object",
+                  "properties": {
+                    "blocks": {
+                      "description": "Whether its cell is impassable to paths while it stands there; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Stands on the grid cell under its pose, where paths and game code see it.",
+                  "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
+                }
+              },
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "shape"],
+          "additionalProperties": false,
+          "description": "sensor: Trigger volume with no collision response; raises sensor:enter and sensor:exit when something overlaps it."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "marker",
+              "description": "A named point with tags; what it means is up to the game.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "at": {
+              "description": "Marker position. Absolute world metres; y is down.",
+              "title": "Position",
+              "$ref": "#/$defs/Pt"
+            },
+            "tags": {
+              "description": "Labels a game reads, e.g. spawn or checkpoint.",
+              "title": "Tags",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              }
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Height, m.",
+                          "unit": "m"
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                },
+                "occupant": {
+                  "type": "object",
+                  "properties": {
+                    "blocks": {
+                      "description": "Whether its cell is impassable to paths while it stands there; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Stands on the grid cell under its pose, where paths and game code see it.",
+                  "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
+                }
+              },
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "at"],
+          "additionalProperties": false,
+          "description": "marker: A named point with tags; what it means is up to the game."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "prop",
+              "description": "Dynamic physics object that can be pushed and stood on.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "shape": {
+              "description": "Starting collider shape. Absolute world metres; y is down. Not chain.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/BodyShape"
+            },
+            "density": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Density in kg/m²; heavier props are harder to push.",
+              "title": "Density",
+              "group": "body"
+            },
+            "restitution": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Bounciness: 0 doesn't bounce, 1 keeps all its speed.",
+              "title": "Restitution",
+              "group": "body"
+            },
+            "friction": {
+              "description": "Surface friction; omitted uses the material's, else the physics default.",
+              "title": "Friction",
+              "group": "body",
+              "placeholder": "from material",
+              "type": "number",
+              "minimum": 0
+            },
+            "material": {
+              "description": "Surface material. bouncy: Bouncy rubber.",
+              "title": "Material",
+              "group": "surface",
+              "type": "string",
+              "enum": ["bouncy"]
+            },
+            "gravityScale": {
+              "description": "Multiplies the world's gravity on this body: 0 floats, -1 falls up; default 1.",
+              "title": "Gravity scale",
+              "group": "body",
+              "default": 1,
+              "type": "number"
+            },
+            "linearDamping": {
+              "description": "Slows the body's motion over time; default 0.",
+              "title": "Linear damping",
+              "group": "body",
+              "default": 0,
+              "type": "number",
+              "minimum": 0
+            },
+            "angularDamping": {
+              "description": "Slows the body's spin over time; default 0.",
+              "title": "Angular damping",
+              "group": "body",
+              "default": 0,
+              "type": "number",
+              "minimum": 0
+            },
+            "fixedRotation": {
+              "description": "When true, the body never turns.",
+              "title": "Fixed rotation",
+              "group": "body",
+              "default": false,
+              "type": "boolean"
+            },
+            "ccd": {
+              "description": "Continuous collision detection: when true, a fast body can't pass through thin colliders between steps.",
+              "title": "CCD",
+              "group": "body",
+              "default": false,
+              "type": "boolean"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Height, m.",
+                          "unit": "m"
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                },
+                "occupant": {
+                  "type": "object",
+                  "properties": {
+                    "blocks": {
+                      "description": "Whether its cell is impassable to paths while it stands there; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Stands on the grid cell under its pose, where paths and game code see it.",
+                  "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
+                }
+              },
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "shape", "density", "restitution"],
+          "additionalProperties": false,
+          "description": "prop: Dynamic physics object that can be pushed and stood on."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "follower",
+              "description": "Kinematic body that follows a waypoint path.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "shape": {
+              "description": "Collider shape LOCAL to the current path point, usually centred on 0, 0 (e.g. [\"box\", 0, 0, 0.4, 0.06]). Not chain.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/BodyShape"
+            },
+            "path": {
+              "$ref": "#/$defs/Path"
+            },
+            "material": {
+              "description": "Surface material. bouncy: Bouncy rubber.",
+              "title": "Material",
+              "group": "surface",
+              "type": "string",
+              "enum": ["bouncy"]
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Height, m.",
+                          "unit": "m"
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                },
+                "occupant": {
+                  "type": "object",
+                  "properties": {
+                    "blocks": {
+                      "description": "Whether its cell is impassable to paths while it stands there; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Stands on the grid cell under its pose, where paths and game code see it.",
+                  "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
+                }
+              },
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "shape", "path"],
+          "additionalProperties": false,
+          "description": "follower: Kinematic body that follows a waypoint path."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "decor",
+              "description": "A picture with no body: drawn by its sprite, never collides.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "at": {
+              "description": "Where the sprite's pose is. Absolute world metres; y is down.",
+              "title": "Position",
+              "$ref": "#/$defs/Pt"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Height, m.",
+                          "unit": "m"
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                },
+                "occupant": {
+                  "type": "object",
+                  "properties": {
+                    "blocks": {
+                      "description": "Whether its cell is impassable to paths while it stands there; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Stands on the grid cell under its pose, where paths and game code see it.",
+                  "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
+                }
+              },
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "at"],
+          "additionalProperties": false,
+          "description": "decor: A picture with no body: drawn by its sprite, never collides."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "nav",
+              "description": "A walkable area, or a hole in one, for navigation without physics or a grid.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "shape": {
+              "description": "A simple polygon, concave allowed. Absolute world metres; y is down.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/Polygon"
+            },
+            "mode": {
+              "description": "walk (default) or a hole cut out of the walk area it lies in.",
+              "title": "Mode",
+              "type": "string",
+              "enum": ["walk", "block"]
+            },
+            "tags": {
+              "description": "Labels a game reads, e.g. a room name.",
+              "title": "Tags",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+              }
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Height, m.",
+                          "unit": "m"
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                },
+                "occupant": {
+                  "type": "object",
+                  "properties": {
+                    "blocks": {
+                      "description": "Whether its cell is impassable to paths while it stands there; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Stands on the grid cell under its pose, where paths and game code see it.",
+                  "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
+                }
+              },
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "shape"],
+          "additionalProperties": false,
+          "description": "nav: A walkable area, or a hole in one, for navigation without physics or a grid."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "note",
+              "description": "Editor note: text pinned to a point. Never loaded into the game.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "at": {
+              "description": "Where the note shows, absolute world metres.",
+              "title": "Position",
+              "$ref": "#/$defs/Pt"
+            },
+            "text": {
+              "type": "string",
+              "description": "The note, for whoever edits the scene next.",
+              "title": "Text"
+            }
+          },
+          "required": ["id", "type", "at", "text"],
+          "additionalProperties": false,
+          "description": "note: Editor note: text pinned to a point. Never loaded into the game."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "spawner",
+              "description": "Emits short-lived pellets: `rate` a second, at most `cap` alive at once.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "at": {
+              "description": "Where pellets appear.",
+              "title": "Position",
+              "$ref": "#/$defs/Pt"
+            },
+            "rate": {
+              "description": "Pellets a second; default 30.",
+              "title": "Rate",
+              "type": "number",
+              "minimum": 0
+            },
+            "cap": {
+              "description": "The most of its pellets alive at once; default 200.",
+              "title": "Cap",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "lifeMs": {
+              "description": "How long a pellet lives, ms; default 3000.",
+              "title": "Lifetime",
+              "unit": "ms",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "pellet": {
+              "description": "The pellet's collider; default ball.",
+              "title": "Pellet",
+              "type": "string",
+              "enum": ["ball", "box", "capsule"]
+            },
+            "size": {
+              "description": "A pellet's width, m; default 0.16.",
+              "title": "Pellet size",
+              "unit": "m",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "spread": {
+              "description": "Pellets appear up to this far left or right of the spawner, m; default 0.5.",
+              "title": "Spread",
+              "unit": "m",
+              "type": "number",
+              "minimum": 0
+            },
+            "ccd": {
+              "description": "Whether its pellets use continuous collision detection.",
+              "title": "CCD",
+              "type": "boolean"
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Height, m.",
+                          "unit": "m"
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                },
+                "occupant": {
+                  "type": "object",
+                  "properties": {
+                    "blocks": {
+                      "description": "Whether its cell is impassable to paths while it stands there; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Stands on the grid cell under its pose, where paths and game code see it.",
+                  "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
+                }
+              },
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "at"],
+          "additionalProperties": false,
+          "description": "spawner: Emits short-lived pellets: `rate` a second, at most `cap` alive at once."
+        }
+      ],
+      "description": "An entity with a stable id. `type` picks the registered type and which fields apply."
+    },
+    "Pt": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "description": "x, m.",
+          "unit": "m"
+        },
+        {
+          "type": "number",
+          "description": "y, m; y is down.",
+          "unit": "m"
+        }
+      ],
+      "description": "A point [x, y] in world metres; y is down.",
+      "unit": "m"
+    },
+    "BodyShape": {
+      "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?] | [\"circle\", cx, cy, r] | [\"capsule\", cx, cy, halfLen, r, rotDeg?] | [\"poly\", x1, y1, x2, y2, x3, y3, ...]. Metres, y is down; rotDeg in degrees.",
+      "unit": "m",
+      "oneOf": [
+        {
+          "title": "box",
+          "description": "Axis-aligned box (a Rapier cuboid) by centre and half-extents, optionally rotated about its centre.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "box"
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Half-width; the box is 2*hw wide."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Half-height; the box is 2*hh tall."
+            },
+            {
+              "type": "number",
+              "unit": "deg",
+              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+            }
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 6
+        },
+        {
+          "title": "circle",
+          "description": "Circle (a Rapier ball) by centre and radius.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "circle"
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Radius."
+            }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        },
+        {
+          "title": "capsule",
+          "description": "Capsule, vertical before rotation: a segment of half-length halfLen through the centre, swept by radius r.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "capsule"
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Half the length of the inner segment."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Radius."
+            },
+            {
+              "type": "number",
+              "unit": "deg",
+              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+            }
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 6
+        },
+        {
+          "title": "poly",
+          "description": "Convex polygon as flat x, y pairs (at least 3 points). Points are absolute; the loader centres the body on their centroid. Concave outlines must be split or drawn as a chain.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "poly"
+            }
+          ],
+          "items": {
+            "type": "number",
+            "unit": "m"
+          },
+          "minItems": 7
+        }
+      ]
+    },
+    "Path": {
+      "type": "object",
+      "properties": {
+        "pts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Pt"
+          },
+          "description": "Waypoints in absolute world metres. The entity's shape is centred on each point in turn. At least 2, no repeats.",
+          "title": "Waypoints"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["ping_pong", "loop"],
+          "description": "ping_pong: travel to the last point, then back. loop: after the last point, travel back to the first along the closing segment.",
+          "title": "Mode"
+        },
+        "speed": {
+          "type": "number",
+          "description": "Travel speed along the path, m/s; must be > 0.",
+          "title": "Speed",
+          "unit": "m/s"
+        },
+        "pauseMs": {
+          "description": "How long it waits at each waypoint, in milliseconds. Omitted means 0.",
+          "title": "Pause",
+          "unit": "ms",
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": ["pts", "mode", "speed"],
+      "additionalProperties": false,
+      "description": "A waypoint path with linear segments.",
+      "title": "Path",
+      "group": "motion"
+    },
+    "Polygon": {
+      "description": "A simple polygon: [\"poly\", x1, y1, x2, y2, x3, y3, ...], concave allowed. Metres, y is down.",
+      "unit": "m",
+      "oneOf": [
+        {
+          "title": "poly",
+          "description": "Simple polygon as flat x, y pairs (at least 3 points), convex or concave; its edges may not cross. Points are absolute.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "poly"
+            }
+          ],
+          "items": {
+            "type": "number",
+            "unit": "m"
+          },
+          "minItems": 7
+        }
+      ]
+    }
+  }
+}

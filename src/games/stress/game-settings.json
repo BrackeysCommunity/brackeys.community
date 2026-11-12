@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../packages/engine/project/game-settings.schema.json",
+  "kind": "game-settings",
+  "v": 2,
+  "engine": {},
+  "game": {
+    "crowdScale": 1,
+    "spawnCapScale": 1,
+    "spawnRateScale": 1
+  }
+}

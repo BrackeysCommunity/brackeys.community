@@ -1,0 +1,23 @@
+{
+  "kind": "prefab",
+  "v": 4,
+  "game": "stress",
+  "id": "stress-room",
+  "params": {
+    "doorSpeed": { "description": "How fast the doorway's panel slides, in m/s.", "targets": ["door-1/panel.path.speed"] }
+  },
+  "bulk": {
+    "solid": [
+      ["box", 0, 0.1, 3, 0.1],
+      ["box", -2.9, -1, 0.1, 1],
+      ["box", 2.9, -1, 0.1, 1]
+    ]
+  },
+  "instances": [
+    { "id": "door-1", "prefab": "stress-doorway", "z": 2, "at": [-1.5, 0] },
+    { "id": "latch-1", "prefab": "stress-latch", "at": [1.5, 0] }
+  ],
+  "entities": [
+    { "id": "lamp", "type": "marker", "z": 1, "at": [0, -2], "tags": ["light"] }
+  ]
+}

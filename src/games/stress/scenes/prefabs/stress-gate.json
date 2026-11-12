@@ -1,0 +1,10 @@
+{
+  "kind": "prefab",
+  "v": 4,
+  "game": "stress",
+  "id": "stress-gate",
+  "entities": [
+    { "id": "bar", "type": "solid", "shape": ["box", 0, -0.1, 0.6, 0.1] },
+    { "id": "mark", "type": "marker", "at": [0, -0.6], "tags": ["gate"] }
+  ]
+}

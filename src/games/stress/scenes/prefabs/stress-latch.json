@@ -1,0 +1,10 @@
+{
+  "kind": "prefab",
+  "v": 4,
+  "game": "stress",
+  "id": "stress-latch",
+  "entities": [
+    { "id": "bar", "type": "solid", "shape": ["box", 0, -0.1, 0.4, 0.1] },
+    { "id": "catch", "type": "marker", "at": [0, -0.5], "tags": ["latch"] }
+  ]
+}

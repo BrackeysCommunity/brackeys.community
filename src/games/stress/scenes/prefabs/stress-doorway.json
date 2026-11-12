@@ -1,0 +1,16 @@
+{
+  "kind": "prefab",
+  "v": 4,
+  "game": "stress",
+  "id": "stress-doorway",
+  "params": {
+    "speed": { "default": 0.4, "description": "How fast the panel slides, in m/s.", "targets": ["panel.path.speed"] }
+  },
+  "instances": [
+    { "id": "latch", "prefab": "stress-latch", "at": [0.7, 0] }
+  ],
+  "entities": [
+    { "id": "panel", "type": "follower", "shape": ["box", 0, 0, 0.08, 0.4], "path": { "pts": [[0, -0.4], [0, -1.2]], "mode": "ping_pong", "speed": 0.4 } },
+    { "id": "frame", "type": "marker", "at": [0, -0.6], "tags": ["door"] }
+  ]
+}

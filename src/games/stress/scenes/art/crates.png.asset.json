@@ -1,0 +1,14 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "6zzwzaj8qbnu",
+  "id": "stress-crates-texture",
+  "sha256": "46c3cf55cabd51b20309501e0ac6fdaf45e940341e3d7cb93a52bb995366baa7",
+  "bytes": 96,
+  "meta": { "format": "png", "height": 16, "width": 32 },
+  "licence": {
+    "spdx": "CC0-1.0",
+    "author": "The @jams/engine authors",
+    "source": "Copied from the engine project's art: solid colours written by a zlib PNG writer."
+  }
+}

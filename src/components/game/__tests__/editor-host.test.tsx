@@ -127,6 +127,7 @@ const PROJECT_LISTING = {
   projects: [
     { id: "engine", name: "Engine", game: null },
     { id: "platformer", name: "Platformer", game: "platformer" },
+    { id: "stress", name: "Stress", game: "stress" },
     { id: "tactics", name: "Tactics", game: "tactics" },
   ],
 };
@@ -439,6 +440,7 @@ describe("SiteSceneEditor", () => {
         process.cwd(),
         [
           "src/games/platformer/jams.project.json",
+          "src/games/stress/jams.project.json",
           "src/games/tactics/jams.project.json",
           "packages/engine/scenes/jams.project.json",
         ],
@@ -473,6 +475,7 @@ describe("SiteSceneEditor", () => {
     // Each project goes by its id until the listing answers.
     expect(projectChoices({})).toEqual([
       { id: "platformer", name: "platformer" },
+      { id: "stress", name: "stress" },
       { id: "tactics", name: "tactics" },
       { id: "engine", name: "engine" },
     ]);
@@ -480,6 +483,7 @@ describe("SiteSceneEditor", () => {
     await waitFor(() =>
       expect(lastEditor().host.projects).toEqual([
         { id: "platformer", name: "Platformer" },
+        { id: "stress", name: "stress" },
         { id: "tactics", name: "tactics" },
         { id: "engine", name: "Engine Room" },
       ]),
@@ -509,6 +513,7 @@ describe("SiteSceneEditor", () => {
     await waitFor(() =>
       expect(lastEditor().host.projects).toEqual([
         { id: "platformer", name: "Platformer" },
+        { id: "stress", name: "Stress" },
         { id: "tactics", name: "Tactics" },
         { id: "engine", name: "Engine" },
       ]),

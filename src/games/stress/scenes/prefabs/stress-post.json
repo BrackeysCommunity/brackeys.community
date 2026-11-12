@@ -1,0 +1,13 @@
+{
+  "kind": "prefab",
+  "v": 4,
+  "game": "stress",
+  "id": "stress-post",
+  "params": {
+    "mark": { "description": "What the cap marks: a peak post's cap is also tagged peak.", "map": { "cap.tags": { "peak": ["top", "peak"] } }, "targets": ["cap.tags"] }
+  },
+  "entities": [
+    { "id": "pole", "type": "solid", "shape": ["box", 0, -0.6, 0.1, 0.6] },
+    { "id": "cap", "type": "marker", "at": [0, -1.3], "tags": ["top"] }
+  ]
+}
