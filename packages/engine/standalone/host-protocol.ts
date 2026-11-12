@@ -22,6 +22,13 @@ export const HOST_DOWNLOAD_MAX_BYTES = 16 * 1024 * 1024;
 /** How long the frame waits for the page's `jams:host` before it plays without one. */
 export const HOST_HANDSHAKE_TIMEOUT_MS = 2_000;
 
+/**
+ * How long the frame waits for `welcome` once the page has answered with its
+ * port: a page that is there may be slow to answer `hello` (a cold browser
+ * opening its save store), and giving up then would drop its saves.
+ */
+export const HOST_WELCOME_TIMEOUT_MS = 30_000;
+
 const protocol = z.literal(HOST_PROTOCOL_VERSION);
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/);
 const slot = z.string().regex(SLOT_PATTERN);

@@ -127,6 +127,11 @@ pointer itself outside the site's stylesheet.
 
 ### Fixed
 
+- A framed game keeps its host when the page is slow to answer `hello`:
+  `connectHost` gives up after `timeoutMs` only while no port has arrived,
+  then waits `welcomeTimeoutMs` (`HOST_WELCOME_TIMEOUT_MS`, 30 s) for
+  `welcome`. A cold browser opening its save store took longer than 2 s,
+  and the game played without the page's saves.
 - A game plays without pads where the page's permissions policy withholds
   `gamepad`: `navigator.getGamepads()` throws there (WebKit, in an
   opaque-origin sandbox) and the shell now reads that as no pads.

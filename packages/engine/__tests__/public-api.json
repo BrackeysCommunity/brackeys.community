@@ -1165,6 +1165,7 @@
       "HOST_MESSAGE_MAX_BYTES",
       "HOST_PROTOCOL_VERSION",
       "HOST_REQUESTS",
+      "HOST_WELCOME_TIMEOUT_MS",
       "HostRequestError",
       "StandaloneBootError",
       "bootStandalone",

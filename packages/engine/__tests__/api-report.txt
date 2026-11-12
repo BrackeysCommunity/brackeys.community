@@ -2001,6 +2001,7 @@ HOST_HANDSHAKE_TIMEOUT_MS
 HOST_MESSAGE_MAX_BYTES
 HOST_PROTOCOL_VERSION
 HOST_REQUESTS
+HOST_WELCOME_TIMEOUT_MS
 HostChannel
 HostEvents
 HostMessage
@@ -13233,6 +13234,7 @@ type ConnectHostOptions = {
         release: Sha256;
     };
     timeoutMs?: number;
+    welcomeTimeoutMs?: number;
     window?: Window;
 };
 type HostChannel = {
@@ -13354,6 +13356,7 @@ declare const HOST_REQUESTS: {
         }, z.core.$strip>;
     };
 };
+declare const HOST_WELCOME_TIMEOUT_MS = 30000;
 type HostEvents = {
     "saves.changed": HostSaves;
     pause: undefined;

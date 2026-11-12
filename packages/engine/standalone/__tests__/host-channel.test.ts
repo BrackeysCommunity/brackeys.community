@@ -20,7 +20,12 @@ import { ENGINE_VERSION } from "../../version";
 import { bootStandalone, type StandaloneGame } from "../boot";
 import { StandaloneBootError } from "../errors";
 import { connectHost, HostRequestError, type HostChannel } from "../host-channel";
-import { HOST_HANDSHAKE_TIMEOUT_MS, type HostSaves, type HostWelcome } from "../host-protocol";
+import {
+  HOST_HANDSHAKE_TIMEOUT_MS,
+  HOST_WELCOME_TIMEOUT_MS,
+  type HostSaves,
+  type HostWelcome,
+} from "../host-protocol";
 
 vi.mock("../../renderer", () => ({
   createRenderer: async () => ({
@@ -262,7 +267,27 @@ describe("connectHost", () => {
     });
     await expect(connectHost({ hello: HELLO, timeoutMs: 500 })).resolves.toBeNull();
     fakeParent({ answer: () => ({ type: "pause" }) });
-    await expect(connectHost({ hello: HELLO, timeoutMs: 100 })).resolves.toBeNull();
+    await expect(
+      connectHost({ hello: HELLO, timeoutMs: 100, welcomeTimeoutMs: 100 }),
+    ).resolves.toBeNull();
+  });
+
+  it("waits past the handshake timeout for a welcome once the page's port arrived", async () => {
+    expect(HOST_WELCOME_TIMEOUT_MS).toBe(30_000);
+    let helloId: number | undefined;
+    const page = fakeParent({
+      answer: (m) => {
+        if (m.type !== "hello") return undefined;
+        helloId = m.id;
+        return { type: "pause" };
+      },
+    });
+    const pending = connectHost({ hello: HELLO, timeoutMs: 100 });
+    await new Promise((done) => setTimeout(done, 300));
+    page.send({ type: "reply", id: helloId, ok: true, result: welcomeOf() });
+    const channel = await pending;
+    expect(channel).not.toBeNull();
+    channels.push(channel!);
   });
 
   it("takes the handshake only from the parent window, never a sourceless or foreign one", async () => {

@@ -4,6 +4,7 @@ import type { SceneIssue } from "../scene/types";
 import {
   frameMessageSchema,
   HOST_HANDSHAKE_TIMEOUT_MS,
+  HOST_WELCOME_TIMEOUT_MS,
   HOST_PROTOCOL_VERSION,
   HOST_REQUESTS,
   hostHandshakeSchema,
@@ -43,8 +44,10 @@ export type HostChannel = {
 export type ConnectHostOptions = {
   /** What the frame says in `hello`. */
   hello: { engine: string; release: Sha256; game: string };
-  /** How long to wait for the page's port and its `welcome`; default `HOST_HANDSHAKE_TIMEOUT_MS`. */
+  /** How long to wait for the page's port; default `HOST_HANDSHAKE_TIMEOUT_MS`. */
   timeoutMs?: number;
+  /** How long to wait for `welcome` once the port arrived; default `HOST_WELCOME_TIMEOUT_MS`. */
+  welcomeTimeoutMs?: number;
   /** The frame's window; default the global one. */
   window?: Window;
 };
@@ -201,7 +204,8 @@ function openChannel(port: MessagePort): HostChannel & { setWelcome(w: HostWelco
  * Opens the channel to the page that frames this game: posts
  * `jams:frame-ready` to the parent window, keeps the port of the first
  * `jams:host` it answers with, then sends `hello`. Resolves null when the
- * frame has no parent, or no port and `welcome` arrive within `timeoutMs`;
+ * frame has no parent, no port arrives within `timeoutMs`, or no `welcome`
+ * within `welcomeTimeoutMs` after it;
  * the game then plays as a plain standalone build. Every other window
  * message is ignored.
  */
@@ -227,12 +231,17 @@ export function connectHost(opts: ConnectHostOptions): Promise<HostChannel | nul
         resolve(null);
       }
     };
-    const timer = globalThis.setTimeout(() => finish(null), timeoutMs);
+    let timer = globalThis.setTimeout(() => finish(null), timeoutMs);
     const onMessage = (event: MessageEvent) => {
       if (channel || event.source !== parent) return;
       const port = event.ports[0];
       if (!port || !hostHandshakeSchema.safeParse(event.data).success) return;
       win.removeEventListener("message", onMessage);
+      globalThis.clearTimeout(timer);
+      timer = globalThis.setTimeout(
+        () => finish(null),
+        opts.welcomeTimeoutMs ?? HOST_WELCOME_TIMEOUT_MS,
+      );
       const opened = openChannel(port);
       channel = opened;
       opened.request("hello", opts.hello).then(finish, () => finish(null));
