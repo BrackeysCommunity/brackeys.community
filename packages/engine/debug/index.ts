@@ -4,12 +4,16 @@ import type { Container } from "pixi.js";
 import type { Viewport } from "../camera";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { EngineContext } from "../game/types";
+import type { RunTiming } from "../runtime/timing";
 import { setDebugMode } from "../store";
 import type { ToolRouter } from "../tool-router";
 import type { GameStoreState, Vec2 } from "../types";
 import { createDebugPanel, type DebugPanel } from "./debug-panel";
 import { gridLayer } from "./grid-overlay";
 import { physicsLayer } from "./physics-wireframes";
+import { createTimingReadout } from "./timing-readout";
+
+export { TIMING_ATTRIBUTE, TIMING_STORAGE_KEY } from "./timing-readout";
 
 /** The loaded scene's world, as the physics wireframes and the grid read it. */
 export type DebugSceneSource = Pick<EngineContext, "physics" | "geometry" | "tags" | "registry"> &
@@ -90,6 +94,13 @@ export type DebugDeps = Omit<DebugLayerHost, "pxPerMetre"> & {
   router: ToolRouter;
   /** The game's layers, shown after the engine's. */
   layers?: readonly DebugLayerFactory[];
+  /**
+   * The shell's timing collector. With it, `localStorage["debug-timing"] =
+   * "1"` switches timing on while the game runs (and off again when
+   * removed), and the report is kept as JSON in a
+   * `<script type="application/json" data-jams-timing>` on the page.
+   */
+  timing?: RunTiming;
 };
 
 /** Creates the debug overlay. Hosts only call it in dev builds. */
@@ -117,6 +128,7 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay {
   }
 
   const panel: DebugPanel = createDebugPanel(router, modes, applyMode);
+  const readout = deps.timing ? createTimingReadout(deps.timing) : null;
 
   function setPhysics(source: DebugSceneSource | null): void {
     scene = source;
@@ -125,10 +137,12 @@ export function createDebugOverlay(deps: DebugDeps): DebugOverlay {
   function update(tick: DebugTick): void {
     const frame: DebugFrame = { ...tick, scene };
     for (let i = 0; i < shown; i++) layers[i]?.update(frame);
+    readout?.update();
   }
 
   function destroy(): void {
     panel.destroy();
+    readout?.destroy();
     for (const layer of layers) layer?.destroy();
     layers.fill(null);
     shown = 0;

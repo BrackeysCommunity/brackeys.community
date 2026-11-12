@@ -31,6 +31,7 @@ import type {
 import type { Vec2 } from "../types";
 import type { BehaviorHost } from "./behaviors";
 import type { RuntimeContacts } from "./contacts";
+import type { EntityTable } from "./entity-table";
 import type { RuntimeEventBus } from "./events";
 import type { RuntimeQueryIndex } from "./query-index";
 import { spawnPoseOf, type GeometryFields } from "./spawn-pose";
@@ -45,7 +46,7 @@ export type LifecycleDeps = {
   systems: ReadonlyMap<EntityTypeName, SceneSystem>;
   behaviors: BehaviorHost;
   /** The entity table: live entities, loaded and spawned, in spawn order. */
-  entities: Map<string, RuntimeEntity>;
+  entities: EntityTable;
   events: RuntimeEventBus;
   timers: RuntimeTimers;
   query: RuntimeQueryIndex;
@@ -274,12 +275,13 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     raise(ENTITY_ENABLED, e);
   }
 
-  const live = (id: string) => entities.has(id) || childrenOf(id).length > 0;
+  const live = (id: string) => entities.has(id) || entities.hasUnder(id);
 
   /** The live entities under instance id `id` (`id/…`, at any depth), in spawn order. */
   function childrenOf(id: string): RuntimeEntity[] {
-    const prefix = `${id}/`;
     const out: RuntimeEntity[] = [];
+    if (!entities.hasUnder(id)) return out;
+    const prefix = `${id}/`;
     for (const [key, e] of entities) if (key.startsWith(prefix)) out.push(e);
     return out;
   }

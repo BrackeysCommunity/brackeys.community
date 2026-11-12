@@ -314,6 +314,7 @@ export function runPlaytest<S = unknown, G = unknown>(
       persist,
       ...(flow ? { flow: { scene: seg.id, entry: seg.entry, library: flow } } : {}),
       ...(saved ? { fromSave: saved.file } : {}),
+      ...(opts.timing ? { timing: opts.timing } : {}),
     });
     if (!started.ok)
       return blockedRun(

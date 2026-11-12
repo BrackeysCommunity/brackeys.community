@@ -16,6 +16,7 @@ import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
 import type { EntityTypeName, ExpandedScene, PrefabLibrary, RuntimeEntity } from "../scene/types";
 import type { InputAction, RapierModule, Vec2 } from "../types";
+import type { RunTiming, TimingReport } from "./timing";
 
 export type ReconcileReport = { ok: true } | { ok: false; error: string; entityId?: string };
 
@@ -97,6 +98,12 @@ export type RuntimeStats = {
   perType: Record<EntityTypeName, number>;
   /** Each built behavior system's live attachments; zeros left out. */
   behaviors: Record<BehaviorName, number>;
+  /**
+   * Where the steps' wall time went, by part: only for a runtime made with
+   * `SceneRuntimeOptions.timing`, while that collector is enabled. The one
+   * field of the stats that differs between two runs of the same input.
+   */
+  timing?: TimingReport;
 };
 
 export type SceneRuntime = {
@@ -181,6 +188,12 @@ export type SceneRuntimeOptions = {
   scenes?: SceneLibrary | (() => SceneLibrary);
   /** The persistent value; without one the runtime keeps its own, from the game's `persist.initial()`. */
   persist?: PersistCell;
+  /**
+   * Times each step's parts into the collector's `tick` scope, on the
+   * collector's clock, and reports them as `RuntimeStats.timing`. Without
+   * one the runtime reads no clock in a step.
+   */
+  timing?: RunTiming;
 };
 
 /** The runtime plus the parts the shell and a game's tools drive directly. */

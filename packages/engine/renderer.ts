@@ -27,12 +27,17 @@ export type RendererHooks = {
   rebuilt?: () => void;
   /** Where the lost overlay goes; none is shown without one. */
   layer?: () => HTMLElement | null;
+  /** Around each render Pixi runs: `begin` before it walks the stage, `end` once it has drawn. */
+  draw?: { begin(): void; end(): void };
 };
 
 /** How long a lost WebGL context may take to come back before the renderer is rebuilt. */
 export const CONTEXT_RESTORE_MS = 3000;
 
 type WebGpuDevice = { lost?: Promise<{ reason?: string }> };
+
+/** Pixi's runners around `renderer.render`; each calls the method of its own name on what was added. */
+type RenderRunners = Record<"prerender" | "postrender", { add(item: object): unknown }>;
 
 function backendOf(app: Application): RenderBackend {
   return (app.renderer as { name?: string } | undefined)?.name === "webgpu" ? "webgpu" : "webgl";
@@ -93,6 +98,12 @@ export async function createRenderer(
       autoDensity: true,
       antialias: resolution.antialias ?? true,
     });
+    if (hooks.draw) {
+      const { runners } = (next.renderer ?? {}) as { runners?: Partial<RenderRunners> };
+      const { draw } = hooks;
+      runners?.prerender?.add({ prerender: () => draw.begin() });
+      runners?.postrender?.add({ postrender: () => draw.end() });
+    }
     return next;
   }
 

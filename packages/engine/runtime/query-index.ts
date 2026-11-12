@@ -12,7 +12,7 @@ import {
 import { createSpatialHash } from "../scene/spatial-hash";
 import type { Aabb, EntityTypeName, Pt, RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
-import type { Pose } from "./poses";
+import { isWatched, type Pose } from "./poses";
 import { spawnPoseOf, type GeometryFields } from "./spawn-pose";
 
 /** A runtime's query index: `EngineContext.query` plus what the lifecycle tells it. */
@@ -76,7 +76,9 @@ const isConcave = (s: ShapeObj | undefined) =>
  * Entities by type, tag, area, point and nearness, over the pose index and
  * each entity's shape: never the physics or geometry world, so both
  * backends answer alike. Extents refresh lazily, for the entities whose
- * pose changed since they were last computed.
+ * pose changed since they were last computed: from the first area query
+ * on, a pose index that reports its writes names them, and one that
+ * doesn't has every entity looked at.
  */
 export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
   const slots = new Map<string, Slot>();
@@ -85,6 +87,16 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
   const hash = createSpatialHash<string>();
   const geometry = new Map<EntityTypeName, { fields: GeometryFields; tags: string[] }>();
   let nextSeq = 0;
+  /** Entities to look at before the next area query; kept only while `tracking`. */
+  const stale = new Set<string>();
+  let tracking = false;
+  const poses = ctx.poses;
+  const watched = isWatched(poses);
+  if (isWatched(poses)) {
+    poses.watch((id) => {
+      if (tracking && slots.has(id)) stale.add(id);
+    });
+  }
 
   function fieldsOf(type: EntityTypeName) {
     let f = geometry.get(type);
@@ -139,7 +151,16 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
   }
 
   function refreshAll(): void {
-    for (const slot of slots.values()) refreshed(slot);
+    if (!tracking) {
+      for (const slot of slots.values()) refreshed(slot);
+      tracking = watched;
+      return;
+    }
+    for (const id of stale) {
+      const slot = slots.get(id);
+      if (slot) refreshed(slot);
+    }
+    stale.clear();
   }
 
   function matches(slot: Slot, sel: EntitySelector | undefined): boolean {
@@ -265,6 +286,7 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
         extent: null,
       };
       slots.set(e.id, slot);
+      if (tracking) stale.add(e.id);
       join(byType, e.type, e.id);
       for (const tag of tags) join(byTag, tag, e.id);
     },
@@ -273,6 +295,7 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
       if (!slot) return;
       unindex(slot);
       slots.delete(id);
+      stale.delete(id);
       hash.remove(id);
     },
     enabledChanged(id, enabled) {
@@ -285,6 +308,8 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
       byTag.clear();
       hash.clear();
       geometry.clear();
+      stale.clear();
+      tracking = false;
       nextSeq = 0;
     },
   };

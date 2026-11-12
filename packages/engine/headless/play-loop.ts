@@ -28,6 +28,7 @@ import { playWorld, preparePlay } from "../runtime/play-session";
 import { inputAction } from "../runtime/recorder";
 import { createSceneRuntime } from "../runtime/runtime";
 import { restoreSave } from "../runtime/save-state";
+import type { RunTiming } from "../runtime/timing";
 import type { LoadReport, PersistCell, SceneRuntimeHandle } from "../runtime/types";
 import { makeIssue } from "../scene/issues";
 import type {
@@ -144,6 +145,8 @@ export type StartOptions = {
   flow?: FlowIdentity;
   /** Start where this save left off (`restoreSave`) instead of at the scene's fresh load. */
   fromSave?: SaveFile;
+  /** Times each step's parts into this collector. */
+  timing?: RunTiming;
 };
 
 /**
@@ -187,6 +190,7 @@ export function startRun(
     ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
     ...(opts.persist ? { persist: opts.persist } : {}),
     ...(opts.flow ? { scenes: opts.flow.library } : {}),
+    ...(opts.timing ? { timing: opts.timing } : {}),
   });
   const load = loadAs(runtime, opts.scene, opts.play, opts.flow);
   if (!load.ok) {

@@ -2,6 +2,7 @@ import type { Collider, RigidBody } from "@dimforge/rapier2d";
 
 import type { ColliderTags } from "../game/types";
 import type { PhysicsWorld } from "../physics";
+import type { Pose } from "../runtime/poses";
 import type { Vec2 } from "../types";
 
 /**
@@ -33,14 +34,16 @@ export type AttachmentHub = {
   unhost(hostId: string): void;
   /**
    * Call after the host's body moved (`snap` when it jumped there): each
-   * collider riding it has `moved` called, to re-pose its entity.
+   * collider riding it has `moved` called, to re-pose its entity. `at` is
+   * the body's translation and rotation when the caller has just read them,
+   * passed on so riders don't read them again.
    */
-  moved(hostId: string, snap?: boolean): void;
+  moved(hostId: string, snap?: boolean, at?: Readonly<Pose>): void;
   attach(
     entityId: string,
     hostId: string,
     make: (host: AttachmentHost) => Collider,
-    moved?: (host: AttachmentHost, snap: boolean) => void,
+    moved?: (host: AttachmentHost, snap: boolean, at?: Readonly<Pose>) => void,
   ): Attachment;
   /** The ids attached to a host. */
   attachedTo(hostId: string): string[];
@@ -51,7 +54,7 @@ type Request = {
   entityId: string;
   hostId: string;
   make: (host: AttachmentHost) => Collider;
-  moved?: (host: AttachmentHost, snap: boolean) => void;
+  moved?: (host: AttachmentHost, snap: boolean, at?: Readonly<Pose>) => void;
   collider: Collider | null;
 };
 
@@ -83,10 +86,10 @@ export function createAttachmentHub(
         r.collider = null;
       }
     },
-    moved(hostId, snap = false) {
+    moved(hostId, snap = false, at) {
       const host = hosts.get(hostId);
       if (!host) return;
-      for (const r of requests.get(hostId) ?? []) if (r.collider) r.moved?.(host, snap);
+      for (const r of requests.get(hostId) ?? []) if (r.collider) r.moved?.(host, snap, at);
     },
     attach(entityId, hostId, make, moved) {
       physics(entityId);

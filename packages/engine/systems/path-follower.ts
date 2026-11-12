@@ -281,18 +281,22 @@ export function createFollowerSystem(
     if (drawn) ctx.view?.pose(f.entity.id, at.x, at.y, 0);
   }
 
-  /** Writes a follower's pose from its body, to the pose index and its visual. */
+  /**
+   * Writes a follower's pose from its body, to the pose index and its
+   * visual, then re-poses what rides it from the same read.
+   */
   function poseBody(f: Follower, snap: boolean): void {
     const t = f.body.translation();
-    const p = composePose(t.x, t.y, f.body.rotation(), f.offset);
+    const at = { x: t.x, y: t.y, rot: f.body.rotation() };
+    const p = composePose(at.x, at.y, at.rot, f.offset);
     ctx.poses.set(f.entity.id, p.x, p.y, p.rot, snap ? { snap } : undefined);
-    table.pose(f.entity.id);
+    table.poseAt(f.entity.id, at);
+    ctx.attachments.moved(f.entity.id, snap, at);
   }
 
   /** Poses every enabled follower and what rides it; `snap` after a jump (reset, seek). */
   const follow = (snap = false) => {
     for (const f of table.owned.values()) if (!disabled.has(f.entity.id)) poseBody(f, snap);
-    for (const id of table.owned.keys()) if (!disabled.has(id)) ctx.attachments.moved(id, snap);
     for (const f of bodiless.values()) if (!disabled.has(f.entity.id)) poseBodiless(f, snap);
   };
 
@@ -433,10 +437,8 @@ export function createFollowerSystem(
       } else if (m.handle !== null) ctx.geometry?.setEnabled(m.handle, true);
       if (drawn)
         drawEntity(ctx, type, m.entity, opts.layer ?? entityDrawLayer(ctx, m.entity, "body"));
-      if ("body" in m) {
-        poseBody(m, true);
-        ctx.attachments.moved(id, true);
-      } else poseBodiless(m, true);
+      if ("body" in m) poseBody(m, true);
+      else poseBodiless(m, true);
     },
     clear() {
       for (const id of [...bodiless.keys()]) despawn(id);
@@ -468,7 +470,6 @@ export function createFollowerSystem(
         place(m, m.prevPos, true);
         physicsOf(ctx, type.type, id).physics.world.propagateModifiedBodyPositionsToColliders();
         poseBody(m, true);
-        ctx.attachments.moved(id, true);
       } else poseBodiless(m, true);
     },
     seek(ms) {

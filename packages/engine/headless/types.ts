@@ -2,6 +2,7 @@ import type { SceneLibrary } from "../game/flow";
 import type { SaveDepth, SaveFile } from "../game/save-file";
 import type { GameCommand, GameDefinition, GameOutcome, Registry } from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
+import type { RunTiming } from "../runtime/timing";
 import type { LoadReport, RuntimeStats, SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import type { ExpandedScene, SceneIssue } from "../scene/types";
 import type { RapierModule } from "../types";
@@ -20,6 +21,8 @@ export type HeadlessRuntimeOptions = {
   flow?: SceneLibrary;
   /** Start from this save instead of the scene's fresh load. */
   fromSave?: SaveFile;
+  /** Times each step's parts into this collector; `stats().timing` reports them. */
+  timing?: RunTiming;
 };
 
 /** A headless runtime; `save` captures the world as `captureSave` does. */
@@ -53,6 +56,12 @@ export type ProbeOptions<S = unknown> = ProbeInput & {
   scene: ExpandedScene;
   /** The project the scene runs in: its `engine.tickRate` sets the clock before the game's. */
   project?: ProjectRuntimeView | null;
+  /**
+   * Times each step's parts into this collector, reported as
+   * `stats.timing`: wall time, so the one part of the report two runs of
+   * the same input don't share. Without it the report holds no timing.
+   */
+  timing?: RunTiming;
 };
 
 export type ProbeReport<S = unknown> = {

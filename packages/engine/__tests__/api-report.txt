@@ -369,6 +369,8 @@ DebugOverlayFactory
 DebugSceneSource
 DebugTick
 ENGINE_DEBUG_LAYERS
+TIMING_ATTRIBUTE
+TIMING_STORAGE_KEY
 createDebugOverlay
 debugModes
 
@@ -1245,6 +1247,7 @@ RunRecorder
 RunRecording
 RunRecordingV1
 RunRecordingV2
+RunTiming
 RuntimeRequests
 RuntimeStats
 SENSOR_ENTER
@@ -1268,6 +1271,10 @@ StepResult
 StreamTables
 SystemEvent
 TickInput
+TimingBucket
+TimingReport
+TimingScope
+TimingSpan
 UntilClause
 ValidatePhysicalOptions
 analogActions
@@ -1279,6 +1286,7 @@ compiledPointer
 createHeadlessRuntime
 createPersistCell
 createRunRecorder
+createRunTiming
 decodeStreams
 defaultFuzzMacro
 defaultSeed
@@ -2950,6 +2958,7 @@ type DebugDeps = Omit<DebugLayerHost, "pxPerMetre"> & {
     pxPerMetre?: number;
     router: ToolRouter;
     store: Store<GameStoreState>;
+    timing?: RunTiming;
 };
 type DebugFrame = {
     dtMs: number;
@@ -2984,6 +2993,10 @@ type DebugTick = Omit<DebugFrame, "scene">;
 declare const ENGINE_DEBUG_LAYERS: readonly DebugLayerFactory[];
 declare function createDebugOverlay(deps: DebugDeps): DebugOverlay;
 declare function debugModes(layers: readonly DebugLayerFactory[]): string[];
+
+## debug/timing-readout.ts
+declare const TIMING_ATTRIBUTE = "data-jams-timing";
+declare const TIMING_STORAGE_KEY = "debug-timing";
 
 ## editor-ui/SceneEditor.ts
 declare function SceneEditor(props: SceneEditorProps): ReactElement;
@@ -6210,6 +6223,7 @@ interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
     seek?(ms: number): void;
     size(): number;
     beforeStep?(dtMs: number): void;
+    beforePhysics?(): void;
     afterStep?(dtMs: number): void;
     ready?(ids: readonly string[]): void;
     disable?(id: string): void;
@@ -6655,6 +6669,7 @@ type PlaytestOptions<S = unknown, G = unknown> = {
     registry?: Registry;
     scene: SceneDefinition;
     script: CompiledInputScript | InputScript<G> | InputScriptV2<G>;
+    timing?: RunTiming;
 };
 type PlaytestOutcomeReport = {
     at: Vec2 | null;
@@ -6826,6 +6841,7 @@ type HeadlessRuntimeOptions = {
     rapier?: RapierModule | null;
     registry?: Registry;
     scene?: ExpandedScene;
+    timing?: RunTiming;
 };
 type ProbeInput = {
     commands?: readonly (readonly [
@@ -6847,6 +6863,7 @@ type ProbeOptions<S = unknown> = ProbeInput & {
     rapier?: RapierModule | null;
     registry?: Registry;
     scene: ExpandedScene;
+    timing?: RunTiming;
 };
 type ProbeReport<S = unknown> = {
     blocked?: PlaytestBlocked;
@@ -9513,6 +9530,35 @@ interface SpaceQuery {
 ## runtime/spawn-pose.ts
 declare function spawnPose(e: RuntimeEntity, registry: Registry): Pose;
 
+## runtime/timing.ts
+type RunTiming = {
+    enabled: boolean;
+    report(): TimingReport;
+    reset(): void;
+    scope(name: string): TimingScope;
+};
+type TimingBucket = {
+    calls: number;
+    maxMs: number;
+    totalMs: number;
+};
+type TimingReport = {
+    draw?: TimingSpan;
+    frame?: TimingSpan;
+    shell?: TimingSpan;
+    tick: TimingSpan;
+};
+type TimingScope = {
+    begin(): boolean;
+    end(): void;
+    lap(part: string): void;
+};
+type TimingSpan = TimingBucket & {
+    parts: Record<string, TimingBucket>;
+    unattributedMs: number;
+};
+declare function createRunTiming(now: () => number): RunTiming;
+
 ## runtime/types.ts
 type AssetReloadError = {
     entityId: string;
@@ -9562,6 +9608,7 @@ type RuntimeStats = {
     entities: number;
     perType: Record<EntityTypeName, number>;
     tags: number;
+    timing?: TimingReport;
 };
 declare const SENSOR_ENTER = "sensor:enter";
 declare const SENSOR_EXIT = "sensor:exit";
@@ -9596,6 +9643,7 @@ type SceneRuntimeOptions = {
     registry?: Registry;
     sampling?: "linear" | "nearest";
     scenes?: (() => SceneLibrary) | SceneLibrary;
+    timing?: RunTiming;
     view: SceneView | null;
 };
 type StepEvent = {
@@ -13589,11 +13637,11 @@ type AttachmentHost = {
     type: string;
 };
 type AttachmentHub = {
-    attach(entityId: string, hostId: string, make: (host: AttachmentHost) => Collider, moved?: (host: AttachmentHost, snap: boolean) => void): Attachment;
+    attach(entityId: string, hostId: string, make: (host: AttachmentHost) => Collider, moved?: (host: AttachmentHost, snap: boolean, at?: Readonly<Pose>) => void): Attachment;
     attachedTo(hostId: string): string[];
     clear(): void;
     host(hostId: string, type: string, body: RigidBody, origin: Vec2): void;
-    moved(hostId: string, snap?: boolean): void;
+    moved(hostId: string, snap?: boolean, at?: Readonly<Pose>): void;
     unhost(hostId: string): void;
 };
 
@@ -13833,6 +13881,7 @@ type GameConfig = {
     saves?: SaveStore;
     scene?: ExpandedScene | SceneDefinition;
     targetFPS: number;
+    timing?: boolean;
 };
 type GameEventMap = {
     "flow:change": {

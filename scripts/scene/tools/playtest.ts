@@ -26,6 +26,7 @@ import {
 import { projectRuntime, type ProjectHandle } from "../projects";
 import { projectSceneLibrary } from "./flow";
 import { eventsReport, eventTypes, rapierFor, rounded } from "./step";
+import { timingGroups, timingLines, wallTiming } from "./timing";
 
 export type PlaytestInput = {
   scene?: string;
@@ -40,10 +41,12 @@ export type PlaytestInput = {
   flow?: boolean;
   /** A save fixture (`.save.json`) to start from instead of the scene's fresh load. */
   fromSave?: string;
+  /** Time each tick's parts on the wall clock: `timing` beside the report, and a block in the text. */
+  timing?: boolean;
 };
 
 const USAGE =
-  "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file]";
+  "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file] [--timing]";
 
 /** `x,y` as two finite numbers, or null. */
 export function parsePoint(text: string): [number, number] | null {
@@ -231,6 +234,7 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
   }
 
   const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
+  const timing = input.timing ? wallTiming() : null;
   const run = runPlaytest({
     rapier: await rapierFor(ctx, loaded.def, registry, project?.engine),
     game: registry.game,
@@ -243,23 +247,29 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
     ...(ctx.rapierFlavour ? { platform: { flavour: ctx.rapierFlavour } } : {}),
     ...(flow ? { flow } : {}),
     ...(save ? { fromSave: { file: save.file, sha256: save.sha256 } } : {}),
+    ...(timing ? { timing } : {}),
   });
   const game = registry.game?.id ?? null;
   if (run.blocked) return blockedResult(run, game);
   if (input.record) await writeFile(input.record, `${JSON.stringify(run.recording)}\n`, "utf8");
   const runs = game ? `game ${game}` : "no game";
   const printed = eventsReport(run.events, run.truncated, types);
+  const timed = timing?.report();
   return {
     exitCode: 0,
     data: {
       game,
       ...run,
+      ...(timed ? { timing: { ...timed, groups: timingGroups(timed) } } : {}),
       events: printed.events,
       ...(printed.lifecycle ? { lifecycle: printed.lifecycle } : {}),
       ...(migratedFrom === undefined ? {} : { scriptMigratedFrom: migratedFrom }),
       ...(save ? { fromSave: { path: save.path, slot: save.file.slot, sha256: save.sha256 } } : {}),
     },
-    text: reportText(run, runs, [...flowLines(run, save), ...printed.lines], migratedFrom),
+    text: [
+      reportText(run, runs, [...flowLines(run, save), ...printed.lines], migratedFrom),
+      ...(timed ? timingLines(timed) : []),
+    ].join("\n"),
   };
 };
 

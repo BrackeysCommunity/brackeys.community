@@ -223,12 +223,12 @@ const DEFINITIONS = {
       newScene({ name, game: str(flags.game), from: str(flags.from) }, ctx),
   },
   step: {
-    usage: `step <scene|file|-> ${STEP_FLAGS} [--legal]`,
+    usage: `step <scene|file|-> ${STEP_FLAGS}`,
     summary:
-      "run the headless runtime and report events and the game's final snapshot, with spawns and destroys counted per type; --events type,… prints only those event types; --command and --elapse repeat; --command tick@seat:name sends from a seat (default 0), judged against the project input map's seats, else the game's; both are stepped on their ticks, each tick's @elapsed first, then its commands in flag order; --legal prints the commands legal after the last tick (at most 64, marked truncated beyond), for a game that lists them; --json carries them as legal/legalTruncated",
+      "run the headless runtime and report events and the game's final snapshot, with spawns and destroys counted per type; --events type,… prints only those event types; --command and --elapse repeat; --command tick@seat:name sends from a seat (default 0), judged against the project input map's seats, else the game's; both are stepped on their ticks, each tick's @elapsed first, then its commands in flag order; --legal prints the commands legal after the last tick (at most 64, marked truncated beyond), for a game that lists them; --json carries them as legal/legalTruncated; --timing times each tick's parts on the wall clock (the Rapier world step, each type system's beforeStep and afterStep, each behavior, the game's hooks, contacts, timers, events, lifecycle): a block of total, share, mean and worst per part, and stats.timing in --json, the one part of the report that differs between runs",
     values: ["ticks", "hold", "inputs", "command", "elapse", "events", "game"],
     repeatable: ["command", "elapse"],
-    switches: ["legal"],
+    switches: ["legal", "timing"],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) => {
       const input: StepInput = {
@@ -241,6 +241,7 @@ const DEFINITIONS = {
         events: str(flags.events),
         game: str(flags.game),
         legal: flags.legal === true,
+        timing: flags.timing === true,
       };
       return step(input, ctx);
     },
@@ -266,11 +267,11 @@ const DEFINITIONS = {
   },
   playtest: {
     usage:
-      "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file]",
+      "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file] [--timing]",
     summary:
-      "play an input script headless (actions, waits, game commands, time away), v1 or v2 (steps or tracks per seat, set/pointer/join/leave): the outcome, steps, events with spawns and destroys counted per type, and focus trail; a game that lists its commands (GamePlayDef.commands) prints how many are legal after the last tick (legal/legalTruncated in --json); --at is in metres; --events type,… prints only those event types; --flow follows scene requests through the scene list, --from-save starts from a save fixture; exit 1 when blocked",
+      "play an input script headless (actions, waits, game commands, time away), v1 or v2 (steps or tracks per seat, set/pointer/join/leave): the outcome, steps, events with spawns and destroys counted per type, and focus trail; a game that lists its commands (GamePlayDef.commands) prints how many are legal after the last tick (legal/legalTruncated in --json); --at is in metres; --events type,… prints only those event types; --flow follows scene requests through the scene list, --from-save starts from a save fixture; --timing times each tick's parts on the wall clock, as step's does (timing in --json, never in the recording); exit 1 when blocked",
     values: ["script", "at", "events", "game", "record", "from-save"],
-    switches: ["flow"],
+    switches: ["flow", "timing"],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) =>
       playtest(
@@ -283,6 +284,7 @@ const DEFINITIONS = {
           record: str(flags.record),
           flow: flags.flow === true,
           fromSave: str(flags["from-save"]),
+          timing: flags.timing === true,
         },
         ctx,
       ),

@@ -90,6 +90,14 @@ export type GameConfig = {
   /** The game's debug layers, shown after the engine's as F3 cycles; dev builds only, like `debug`. */
   debugLayers?: readonly DebugLayerFactory[];
   /**
+   * Time where each tick and frame goes from the start: `runtime().stats().timing`
+   * reports the runtime's step by part, the shell's tick around it, the
+   * frame's work before the draw and Pixi's draw call. Default off, when
+   * no tick or frame reads a clock for it; a dev host's debug overlay can
+   * switch it on while the game runs.
+   */
+  timing?: boolean;
+  /**
    * Loads the Rapier module: `() => import("@dimforge/rapier2d")` in a browser,
    * or `@dimforge/rapier2d-compat` (cast) after its `init()` in Bun or Node.
    * `createGame` awaits it only when the game's default physics (or the

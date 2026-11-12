@@ -65,6 +65,14 @@ export {
   type TickInput,
 } from "../input/stream";
 export { defaultSeed } from "../runtime/seed";
+export {
+  createRunTiming,
+  type RunTiming,
+  type TimingBucket,
+  type TimingReport,
+  type TimingScope,
+  type TimingSpan,
+} from "../runtime/timing";
 export type { RapierModule } from "../types";
 export type { ProjectRuntimeView } from "../project/runtime-view";
 export { assetInfo, type AssetInfo } from "../project/asset-info";

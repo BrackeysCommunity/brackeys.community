@@ -57,6 +57,7 @@ export function createHeadlessRuntime(
     ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
     ...(opts.persist ? { persist: opts.persist } : {}),
     ...(library ? { scenes: library } : {}),
+    ...(opts.timing ? { timing: opts.timing } : {}),
   });
   const handle = Object.assign(runtime, {
     save: (saveOpts: Parameters<NonNullable<HeadlessRuntime["save"]>>[0]) =>
@@ -157,6 +158,7 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): Pr
     registry,
     project: opts.project,
     prefabs: runLibrary(opts),
+    ...(opts.timing ? { timing: opts.timing } : {}),
   });
   try {
     const load = runtime.load(opts.scene);

@@ -9,6 +9,7 @@ import type {
 } from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
+import type { RunTiming } from "../runtime/timing";
 import type { LoadReport, StepEvent } from "../runtime/types";
 import type { AnalogSet, CountMatch, ExistsMatch, ScriptPointer } from "../scene/input-script";
 import type { RecordingCommand, RecordingStream, RunRecording } from "../scene/recording-schema";
@@ -209,6 +210,12 @@ export type PlaytestOptions<S = unknown, G = unknown> = {
   project?: ProjectRuntimeView | null;
   /** The listed scenes: with it the run follows flow requests on the same script; without it a request ends the run as `flow`. */
   flow?: SceneLibrary;
+  /**
+   * Times each step's parts into this collector, across every scene the
+   * run visits; the caller reads its `report()`. Nothing of it reaches the
+   * run's report or recording.
+   */
+  timing?: RunTiming;
 };
 
 /** How one scene's part of a run ended: the request that left it (`flow`, with `to`), or the run's own end. */

@@ -25,6 +25,12 @@ export interface PoseIndex {
   readonly size: number;
 }
 
+/** A pose index that tells its watchers each id it writes or removes, so an index over it refreshes only what moved. */
+export type WatchedPoseIndex = PoseIndex & { watch(fn: (id: string) => void): void };
+
+export const isWatched = (poses: PoseIndex): poses is WatchedPoseIndex =>
+  typeof (poses as Partial<WatchedPoseIndex>).watch === "function";
+
 type Entry = { cur: Readonly<Pose>; prev: Readonly<Pose>; at: number };
 
 /**
@@ -32,9 +38,16 @@ type Entry = { cur: Readonly<Pose>; prev: Readonly<Pose>; at: number };
  * first `set` in a tick moves the current pose to `prev`, and an entry not
  * written since before the previous tick reads its current pose as `prev`.
  */
-export function createPoseIndex(tick: () => number): PoseIndex {
+export function createPoseIndex(tick: () => number): WatchedPoseIndex {
   const entries = new Map<string, Entry>();
+  const watchers: ((id: string) => void)[] = [];
+  const wrote = (id: string) => {
+    for (const fn of watchers) fn(id);
+  };
   return {
+    watch(fn) {
+      watchers.push(fn);
+    },
     get: (id) => entries.get(id)?.cur,
     prev(id) {
       const entry = entries.get(id);
@@ -47,14 +60,15 @@ export function createPoseIndex(tick: () => number): PoseIndex {
       const pose = Object.freeze({ x, y, rot: rot ?? entry?.cur.rot ?? 0 });
       if (!entry || opts?.snap) {
         entries.set(id, { cur: pose, prev: pose, at: t });
-        return;
+      } else {
+        if (entry.at !== t) entry.prev = entry.cur;
+        entry.cur = pose;
+        entry.at = t;
       }
-      if (entry.at !== t) entry.prev = entry.cur;
-      entry.cur = pose;
-      entry.at = t;
+      wrote(id);
     },
     remove(id) {
-      entries.delete(id);
+      if (entries.delete(id)) wrote(id);
     },
     has: (id) => entries.has(id),
     ids: () => entries.keys(),

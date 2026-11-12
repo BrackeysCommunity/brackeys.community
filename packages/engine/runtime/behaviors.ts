@@ -15,6 +15,7 @@ import { schemaRefSites } from "../project/refs";
 import type { AssetId } from "../project/types";
 import type { RuntimeEntity } from "../scene/types";
 import { ENGINE_BEHAVIOR_SYSTEMS } from "./behaviors/index";
+import type { TimingScope } from "./timing";
 import type { AssetReloadError } from "./types";
 
 /**
@@ -35,7 +36,8 @@ export type BehaviorHost = {
    * of updated. A throw detaches `e` from every system, then rethrows.
    */
   update(e: RuntimeEntity, prev: RuntimeEntity): void;
-  step(dtMs: number): void;
+  /** Each system's `step`, in registration order; with `timing`, a lap `behavior.<name>` after each. */
+  step(dtMs: number, timing?: Pick<TimingScope, "lap"> | null): void;
   render(alpha: number): void;
   reset(): void;
   seek(ms: number): void;
@@ -108,6 +110,7 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     built.push({ name, system });
     byName.set(name, system);
   }
+  const stepParts = built.map(({ name }) => `behavior.${name}`);
 
   /** Detaches `id` from every built system, in reverse; each `detach` is idempotent. */
   function detachEverywhere(id: string): void {
@@ -193,8 +196,13 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
         }
       });
     },
-    step(dtMs) {
-      for (const { system } of built) system.step?.(dtMs);
+    step(dtMs, timing) {
+      for (let i = 0; i < built.length; i++) {
+        const { system } = built[i]!;
+        if (!system.step) continue;
+        system.step(dtMs);
+        timing?.lap(stepParts[i]!);
+      }
     },
     render(alpha) {
       for (const { system } of built) system.render?.(alpha);

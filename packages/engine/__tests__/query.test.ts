@@ -146,6 +146,50 @@ describe("area, point and nearest queries", () => {
   });
 });
 
+describe("area queries between moves", () => {
+  it("sees a move, an addition, a removal and a dropped pose after its first query", () => {
+    const { index, poses, add } = filled();
+    const here: Aabb = { minX: 290, minY: 290, maxX: 310, maxY: 310 };
+    expect(index.inArea(here)).toEqual([]);
+
+    poses.set("flag", 300, 300);
+    expect(index.inArea(here)).toEqual(["flag"]);
+    expect(index.at({ x: 60, y: 80 })).toEqual([]);
+
+    add({ id: "late", type: "solid", shape: box(300, 300, 5, 5) });
+    expect(index.inArea(here)).toEqual(["flag", "late"]);
+    expect(index.nearest({ x: 300, y: 300 }, { type: "solid", maxDist: 20 })).toBe("late");
+
+    index.removed("late");
+    poses.remove("flag");
+    expect(index.inArea(here)).toEqual([]);
+    expect(index.at({ x: 60, y: 80 })).toEqual(["flag"]);
+  });
+
+  it("answers the same over a pose index that doesn't report its writes", () => {
+    const registry = createRegistry();
+    const inner = createPoseIndex(() => 0);
+    const poses: PoseIndex = {
+      get: (id) => inner.get(id),
+      prev: (id) => inner.prev(id),
+      set: (id, x, y, rot, opts) => inner.set(id, x, y, rot, opts),
+      remove: (id) => inner.remove(id),
+      has: (id) => inner.has(id),
+      ids: () => inner.ids(),
+      get size() {
+        return inner.size;
+      },
+    };
+    const index = createQueryIndex({ registry, poses } as unknown as EngineContext);
+    index.added({ id: "crate", type: "solid", shape: box(0, 0, 5, 5) });
+    poses.set("crate", 0, 0, 0, { snap: true });
+    expect(index.at({ x: 100, y: 0 })).toEqual([]);
+    poses.set("crate", 100, 0);
+    expect(index.at({ x: 100, y: 0 })).toEqual(["crate"]);
+    expect(index.at({ x: 0, y: 0 })).toEqual([]);
+  });
+});
+
 describe("extents", () => {
   it("is a point at the pose without a shape, the shape at spawn while unmoved", () => {
     const { index, poses } = filled();

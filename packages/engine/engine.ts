@@ -94,6 +94,7 @@ import {
   type ProjectOption,
 } from "./runtime/runtime";
 import { captureSave, restoreSave } from "./runtime/save-state";
+import { createRunTiming } from "./runtime/timing";
 import type { AssetReloadError, LoadReport, SceneRuntimeHandle, StepResult } from "./runtime/types";
 import {
   createSaveSlots,
@@ -209,6 +210,13 @@ export async function createGame(
   /** The loop exists; a context lost before then pauses it as it's made. */
   let loopReady = false;
 
+  /** Off unless `cfg.timing` or the debug overlay switches it on; every runtime this instance builds steps under it. */
+  const timing = createRunTiming(() => performance.now());
+  timing.enabled = cfg.timing ?? false;
+  const shellTiming = timing.scope("shell");
+  const frameTiming = timing.scope("frame");
+  const drawTiming = timing.scope("draw");
+
   const renderer = await createRenderer(canvas, cfg, resolution, {
     lost: (backend) => {
       gpuLost = true;
@@ -234,6 +242,7 @@ export async function createGame(
     },
     rebuilt: () => assets?.loader.reupload?.(),
     layer: () => flowLayer(),
+    draw: { begin: () => void drawTiming.begin(), end: () => drawTiming.end() },
   });
 
   // World metres to the policy's virtual px; nothing on the simulation side reads it.
@@ -452,6 +461,7 @@ export async function createGame(
       store,
       router,
       layers: cfg.debugLayers,
+      timing,
     });
   }
 
@@ -601,6 +611,7 @@ export async function createGame(
       project,
       prefabs: () => prefabs,
       persist,
+      timing,
       ...(cfg.flow ? { scenes: flowLibrary } : {}),
       ...(resolution.sampling ? { sampling: resolution.sampling } : {}),
     });
@@ -1242,6 +1253,7 @@ export async function createGame(
         return;
       }
       const playing = loaded !== null && getMode() === "play";
+      if (playing) shellTiming.begin();
       if (playing) sampleDevices();
       sampled = false;
       const polled = takeInput(store.state.tick);
@@ -1270,9 +1282,12 @@ export async function createGame(
           mouseWorld = { x: pointerNow.x, y: pointerNow.y };
         }
         loaded.attachment?.onTick?.(dt, mouseWorld);
+        shellTiming.lap("input");
         const result = loaded.runtime.step(dt, tickInput);
+        shellTiming.lap("step");
         incrementTick(store);
         events.emit("scene:step", result);
+        shellTiming.lap("listeners");
         const requests = loaded.runtime.takeRequests();
         // A replay re-runs the game's save requests; it never writes the player's saves.
         if (!replaying) saveRequested(saves, requests.saves, reportSave);
@@ -1284,10 +1299,13 @@ export async function createGame(
           if (finished && replaying) pause();
         }
         if (requests.flow) flowRequested(requests.flow, result.tick, verdict);
+        shellTiming.lap("session");
       }
 
       shellTick(dt, mouseWorld);
       events.emit("game:tick", { tick: store.state.tick });
+      shellTiming.lap("camera");
+      shellTiming.end();
     },
 
     onIdle(dt: number) {
@@ -1299,18 +1317,24 @@ export async function createGame(
     },
 
     onRender(alpha: number) {
+      frameTiming.begin();
       // A frame's look at the devices ends with it; the next frame reads them afresh.
       sampled = false;
       pollFrame();
+      frameTiming.lap("input");
       if (loaded) {
         // Paused or editing, nothing steps, so visuals sit at their latest poses (an idle
         // turns or event game gets alpha 1 from the loop).
         const a = loop.isPaused() || getMode() === "edit" ? 1 : alpha;
         const { position, zoom } = camera.getState();
         loaded.view.frame?.({ alpha: a, camera: { x: position.x, y: position.y, zoom } });
+        frameTiming.lap("view.frame");
         loaded.runtime.render(a);
+        frameTiming.lap("behaviors.render");
       }
       setFPS(store, loop.getFPS());
+      frameTiming.lap("store");
+      frameTiming.end();
     },
   });
 

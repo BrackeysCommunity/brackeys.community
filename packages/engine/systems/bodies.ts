@@ -25,6 +25,7 @@ import { aabb, translateShape } from "../scene/shape-geometry";
 import type { Aabb, RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
 import type { Attachment, AttachmentHost } from "./attachments";
+import { colliderCandidates } from "./sensor-candidates";
 
 export type SolidEntity = RuntimeEntity<{
   shape: ShapeObj;
@@ -210,9 +211,17 @@ export function createBodyTable<T extends OwnedBody>(
   const placed = new Map<string, { at: Vec2; handle: number | null }>();
   const disabled = new Set<string>();
   const posesView = opts.view !== false;
+  /**
+   * The pose `poseAll` wrote for each body asleep when it wrote it. A body
+   * asleep then and now hasn't moved since, so while nothing else wrote its
+   * pose it is skipped: asking Rapier whether a body sleeps costs a tenth of
+   * reading where it is.
+   */
+  const resting = new Map<string, Readonly<Pose> | undefined>();
 
   function despawn(id: string): void {
     disabled.delete(id);
+    resting.delete(id);
     const p = placed.get(id);
     if (p) {
       removeGeometryCollider(ctx, p.handle);
@@ -229,21 +238,26 @@ export function createBodyTable<T extends OwnedBody>(
     offsets.delete(id);
   }
 
+  const drawsPoses = () => posesView && ctx.view !== null;
+
   function poseView(id: string, body: RigidBody): void {
-    if (!posesView || !ctx.view) return;
+    if (!drawsPoses()) return;
     const t = body.translation();
-    ctx.view.pose(id, t.x, t.y, body.rotation());
+    ctx.view!.pose(id, t.x, t.y, body.rotation());
   }
 
   /** Writes the entity's pose from its body to the pose index, and to the view when there is one. */
   function poseBody(id: string, body: RigidBody, snap: boolean): void {
     const offset = offsets.get(id);
+    const view = drawsPoses();
+    if (!offset && !view) return;
+    const t = body.translation();
+    const rot = body.rotation();
     if (offset) {
-      const t = body.translation();
-      const p = composePose(t.x, t.y, body.rotation(), offset);
+      const p = composePose(t.x, t.y, rot, offset);
       ctx.poses.set(id, p.x, p.y, p.rot, snap ? { snap } : undefined);
     }
-    poseView(id, body);
+    if (view) ctx.view!.pose(id, t.x, t.y, rot);
   }
 
   return {
@@ -347,9 +361,23 @@ export function createBodyTable<T extends OwnedBody>(
       const entry = owned.get(id);
       if (entry) poseView(id, entry.body);
     },
-    /** Poses every entity to its body, in the pose index and the view; `snap` after a jump. */
+    /** `pose` for a body whose translation and rotation the caller has just read. */
+    poseAt: (id: string, at: Readonly<Pose>): void => {
+      if (drawsPoses() && owned.has(id)) ctx.view!.pose(id, at.x, at.y, at.rot);
+    },
+    /**
+     * Poses every entity to its body, in the pose index and the view; `snap`
+     * after a jump. A body that slept through the step is left as it was.
+     */
     poseAll: (snap = false): void => {
-      for (const [id, { body }] of owned) if (!disabled.has(id)) poseBody(id, body, snap);
+      for (const [id, { body }] of owned) {
+        if (disabled.has(id)) continue;
+        const asleep = body.isSleeping();
+        if (asleep && !snap && resting.has(id) && resting.get(id) === ctx.poses.get(id)) continue;
+        poseBody(id, body, snap);
+        if (asleep) resting.set(id, ctx.poses.get(id));
+        else resting.delete(id);
+      }
     },
   };
 }
@@ -419,13 +447,20 @@ export function createRiders<
     );
   }
 
-  function pose(r: Rider<E>, snap: boolean, host = r.attachment.host()): void {
+  /** Poses a rider where its host's body is: `at` when the host just read it, else read now. */
+  function pose(r: Rider<E>, snap: boolean, host = r.attachment.host(), at?: Readonly<Pose>): void {
     if (!host || !r.local || !r.offset) return;
-    const t = host.body.translation();
-    const rot = host.body.rotation();
-    const p = composePose(t.x, t.y, rot, r.offset);
+    let x: number, y: number, rot: number;
+    if (at) ({ x, y, rot } = at);
+    else {
+      const t = host.body.translation();
+      x = t.x;
+      y = t.y;
+      rot = host.body.rotation();
+    }
+    const p = composePose(x, y, rot, r.offset);
     ctx.poses.set(r.entity.id, p.x, p.y, p.rot, snap ? { snap } : undefined);
-    if (!disabled.has(r.entity.id)) ctx.view?.pose(r.entity.id, t.x, t.y, rot);
+    if (!disabled.has(r.entity.id)) ctx.view?.pose(r.entity.id, x, y, rot);
   }
 
   function add(e: E, hostId: string): void {
@@ -445,8 +480,8 @@ export function createRiders<
       pose(rider, true, host);
       return collider;
     };
-    rider.attachment = ctx.attachments.attach(e.id, hostId, make, (host, snap) =>
-      pose(rider, snap, host),
+    rider.attachment = ctx.attachments.attach(e.id, hostId, make, (host, snap, at) =>
+      pose(rider, snap, host, at),
     );
     riders.set(e.id, rider);
     if (!rider.attachment.collider()) draw(e, e.shape);
@@ -846,6 +881,15 @@ export function createPropSystem(
 
 // ─── Sensor ──────────────────────────────────────────────
 
+const sameColliders = (a: readonly Collider[] | undefined, b: readonly Collider[]): boolean =>
+  a !== undefined && a.length === b.length && a.every((collider, i) => collider === b[i]);
+
+/**
+ * From this many sensors up, each one tests only the colliders near it;
+ * below, finding those costs more than testing every pair.
+ */
+const CANDIDATES_MIN_SENSORS = 32;
+
 /** Raises `sensor:enter` / `sensor:exit` after each step for every collider that starts or stops overlapping. */
 export type SensorSystem = SceneSystem<SensorEntity> & { afterStep(dtMs: number): void };
 
@@ -903,6 +947,12 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
    * overlaps are taken at `afterStep` instead.
    */
   const placedSensors = new Map<string, PlacedSensor>();
+  /**
+   * The colliders as the coming step finds them, and who is near whom:
+   * Rapier tests overlaps where bodies stand when a step starts, so that is
+   * where a sensor's candidates are taken, not where the step leaves them.
+   */
+  let stepStart: { colliders: Collider[]; near: (c: Collider) => number[] } | null = null;
   const records = new Map<string, SensorEntity>();
   const draw = (e: SensorEntity) => drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "terrain"));
   const riders = createRiders<SensorEntity>(ctx, type, {
@@ -1104,20 +1154,35 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
     beforeStep() {
       if (placedSensors.size > 0) takePlaced();
     },
+    beforePhysics() {
+      stepStart = null;
+      if (table.owned.size + riders.riders.size < CANDIDATES_MIN_SENSORS) return;
+      const colliders = physicsOf(ctx, type.type).physics.world.colliders.getAll();
+      const sensors: Collider[] = [];
+      for (const sensor of table.owned.values()) sensors.push(sensor.collider);
+      for (const r of riders.riders.values()) {
+        const collider = r.attachment.collider();
+        if (collider) sensors.push(collider);
+      }
+      stepStart = { colliders, near: colliderCandidates(colliders, sensors) };
+    },
     afterStep() {
       if (placedSensors.size > 0) raisePlaced();
       if (table.owned.size === 0 && riders.riders.size === 0) return;
       // Pairwise checks rather than `intersectionPairsWith`, whose wasm callback fails under Node test runners.
       const { physics } = physicsOf(ctx, type.type);
       const colliders = physics.world.colliders.getAll();
+      const candidates = sameColliders(stepStart?.colliders, colliders) ? stepStart!.near : null;
+      stepStart = null;
       const check = (id: string, collider: Collider, before: Overlaps): Overlaps => {
         const now: Overlaps = new Map();
-        for (const other of colliders) {
-          if (other === collider) continue;
-          if (physics.world.intersectionPair(collider, other)) {
+        const test = (other: Collider) => {
+          if (other !== collider && physics.world.intersectionPair(collider, other)) {
             now.set(other.handle, ctx.tags.get(other.handle)?.entityId);
           }
-        }
+        };
+        if (candidates) for (const i of candidates(collider)) test(colliders[i]!);
+        else for (const other of colliders) test(other);
         diff(id, before, now, (handle) => positionOf(id, handle, collider));
         return now;
       };

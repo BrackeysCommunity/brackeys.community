@@ -11,6 +11,7 @@ import {
   type SceneSystem,
 } from "../game/types";
 import { createBehaviorHost } from "../runtime/behaviors";
+import { EntityTable } from "../runtime/entity-table";
 import { createLifecycle } from "../runtime/lifecycle";
 import { createSceneRuntime } from "../runtime/runtime";
 import { ENTITY_DESTROYED, ENTITY_SPAWNED, type StepEvent } from "../runtime/types";
@@ -178,7 +179,7 @@ describe("runtime ids", () => {
     const registry = createRegistry(game);
     const rt = createSceneRuntime({ rapier: undefined, view: null, game });
     expect(rt.load(scene([])).ok).toBe(true);
-    const entities = new Map<string, RuntimeEntity>();
+    const entities = new EntityTable();
     const system = rt.ctx.system("crate")!;
     const lifecycle = createLifecycle({
       ctx: rt.ctx,

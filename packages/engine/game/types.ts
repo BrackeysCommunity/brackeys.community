@@ -174,6 +174,12 @@ export interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
   size(): number;
   /** Before the game's `beforeStep`, in spawn order. */
   beforeStep?(dtMs: number): void;
+  /**
+   * After the game's `beforeStep` and right before the physics step, in
+   * spawn order: the last look at the world the step starts from. Not
+   * called without a physics world.
+   */
+  beforePhysics?(): void;
   /** After the physics step, in spawn order, before the game's `afterStep`. */
   afterStep?(dtMs: number): void;
   /**

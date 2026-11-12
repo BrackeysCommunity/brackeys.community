@@ -31,6 +31,7 @@ import {
 } from "../context";
 import { projectRuntime, type ProjectHandle } from "../projects";
 import { blockedText } from "./playtest";
+import { timingGroups, timingLines, wallTiming } from "./timing";
 
 export type StepInput = {
   scene?: string;
@@ -46,10 +47,12 @@ export type StepInput = {
   events?: string;
   /** Print the commands legal after the last tick, for a game that lists them. */
   legal?: boolean;
+  /** Time each tick's parts on the wall clock: `stats.timing`, and a block in the text. */
+  timing?: boolean;
 };
 
 export const STEP_FLAGS =
-  "[--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]]… [--elapse tick:ms]… [--events type,…] [--game id] [--legal]";
+  "[--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]]… [--elapse tick:ms]… [--events type,…] [--game id] [--legal] [--timing]";
 const STEP_USAGE = `step ${STEP_FLAGS}`;
 
 const DEFAULT_TICKS = 120;
@@ -371,7 +374,9 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     hold,
     inputs,
     commands,
+    ...(input.timing ? { timing: wallTiming() } : {}),
   });
+  const { timing } = report.stats;
   const hash = sceneHashWith(loaded.def, loaded.prefabs);
   const printed = eventsReport(report.events, report.truncated, types);
   const data = {
@@ -380,6 +385,9 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     sceneHash: hash,
     pxPerMetre: pxPerMetreOf(registry),
     ...report,
+    ...(timing
+      ? { stats: { ...report.stats, timing: { ...timing, groups: timingGroups(timing) } } }
+      : {}),
     events: printed.events,
     ...(printed.lifecycle ? { lifecycle: printed.lifecycle } : {}),
     commands: commands.map(([tick, c]) =>
@@ -420,6 +428,7 @@ export const step: Tool<StepInput> = async (input, ctx) => {
           `  outcome t${report.outcome.tick} ${report.outcome.result}${report.outcome.cause ? `: ${report.outcome.cause}` : ""}`,
         ]
       : []),
+    ...(timing ? timingLines(timing) : []),
   ];
   return { exitCode: 0, data, text: lines.join("\n") };
 };

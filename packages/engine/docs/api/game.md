@@ -85,22 +85,24 @@ respawns, attach when it (re)appears. One per runtime. `attach` throws
 
 ```ts
 type AttachmentHub = {
-    attach(entityId: string, hostId: string, make: (host: AttachmentHost) => Collider, moved?: (host: AttachmentHost, snap: boolean) => void): Attachment;
+    attach(entityId: string, hostId: string, make: (host: AttachmentHost) => Collider, moved?: (host: AttachmentHost, snap: boolean, at?: Readonly<Pose>) => void): Attachment;
     /** The ids attached to a host. */
     attachedTo(hostId: string): string[];
     clear(): void;
     host(hostId: string, type: string, body: RigidBody, origin: Vec2): void;
     /**
      * Call after the host's body moved (`snap` when it jumped there): each
-     * collider riding it has `moved` called, to re-pose its entity.
+     * collider riding it has `moved` called, to re-pose its entity. `at` is
+     * the body's translation and rotation when the caller has just read them,
+     * passed on so riders don't read them again.
      */
-    moved(hostId: string, snap?: boolean): void;
+    moved(hostId: string, snap?: boolean, at?: Readonly<Pose>): void;
     /** Call before removing the host's body; the colliders go with it and wait for the next `host`. */
     unhost(hostId: string): void;
 };
 ```
 
-Refers to [`Attachment`](#attachment).
+Refers to [`Attachment`](#attachment), [`Pose`](#pose).
 
 ## `BASE_FIELDS`
 
@@ -3760,6 +3762,12 @@ interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
     size(): number;
     /** Before the game's `beforeStep`, in spawn order. */
     beforeStep?(dtMs: number): void;
+    /**
+     * After the game's `beforeStep` and right before the physics step, in
+     * spawn order: the last look at the world the step starts from. Not
+     * called without a physics world.
+     */
+    beforePhysics?(): void;
     /** After the physics step, in spawn order, before the game's `afterStep`. */
     afterStep?(dtMs: number): void;
     /**

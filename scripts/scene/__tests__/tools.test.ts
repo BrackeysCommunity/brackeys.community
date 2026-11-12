@@ -1563,6 +1563,66 @@ describe("legal commands", () => {
   });
 });
 
+describe("--timing", () => {
+  type Bucket = { calls: number; totalMs: number; maxMs: number };
+  type Timing = {
+    tick: Bucket & { unattributedMs: number; parts: Record<string, Bucket> };
+    groups: Record<"physics" | "engine" | "game" | "unattributed", number>;
+  };
+
+  it("step --timing adds the tick's parts to the stats and the text, and nothing else", async () => {
+    const plain = await step({ scene: "engine-yard", ticks: "40" }, ctx);
+    const timed = await step({ scene: "engine-yard", ticks: "40", timing: true }, ctx);
+    expect(timed.exitCode, timed.text).toBe(0);
+    expect(plain.text).not.toContain("timing");
+    expect("timing" in (plain.data as { stats: object }).stats).toBe(false);
+
+    const data = timed.data as { stats: { timing: Timing } };
+    const { timing, ...stats } = data.stats;
+    expect({ ...data, stats }).toEqual(plain.data);
+    expect(timed.text.startsWith(`${plain.text}\n  timing (wall clock): 40 ticks in `)).toBe(true);
+
+    const { tick, groups } = timing;
+    expect(tick.calls).toBe(40);
+    expect(tick.parts["physics.step"]).toMatchObject({ calls: 40 });
+    expect(Object.keys(tick.parts)).toContain("system.follower.beforeStep");
+    const covered = Object.values(tick.parts).reduce((sum, part) => sum + part.totalMs, 0);
+    expect(covered).toBeLessThanOrEqual(tick.totalMs + 0.01);
+    expect(groups.physics).toBe(tick.parts["physics.step"]!.totalMs);
+    expect(groups.game).toBe(0);
+    expect(groups.physics + groups.engine + groups.unattributed).toBeCloseTo(tick.totalMs, 1);
+    for (const line of ["    physics.step ", "    unattributed ", "    by group: physics "])
+      expect(timed.text).toContain(line);
+
+    const cli = await runCli(["step", "engine-yard", "--ticks", "5", "--timing", "--json"], ctx);
+    expect(cli.exitCode, cli.stderr).toBe(0);
+    expect(JSON.parse(cli.stdout).stats.timing.tick.calls).toBe(5);
+  });
+
+  it("times the game's hooks as the game's", async () => {
+    const timed = await step(
+      { scene: "engine-yard", ticks: "10", game: avatarGame.id, timing: true },
+      ctx,
+    );
+    const { tick, groups } = (timed.data as { stats: { timing: Timing } }).stats.timing;
+    expect(tick.parts["game.snapshot"]).toMatchObject({ calls: 10 });
+    expect(groups.game).toBeGreaterThan(0);
+  });
+
+  it("playtest --timing reports beside the run, whose recording is the untimed one's", async () => {
+    const plain = await playtest({ scene: "test-yard", script: HOP_LEFT }, ctx);
+    const timed = await playtest({ scene: "test-yard", script: HOP_LEFT, timing: true }, ctx);
+    expect(timed.exitCode, timed.text).toBe(0);
+    const { timing, ...run } = timed.data as { timing: Timing; ticks: number };
+    expect(run).toEqual(plain.data);
+    expect(timing.tick.calls).toBe(run.ticks);
+    expect(timing.groups.game).toBeGreaterThan(0);
+    expect(timed.text.startsWith(`${plain.text}\n  timing (wall clock): ${run.ticks} ticks`)).toBe(
+      true,
+    );
+  });
+});
+
 /** The avatar game with play hooks: it wins when the avatar enters `zone`. */
 const goalGame = defineGame({
   ...avatarGame,
@@ -2791,7 +2851,8 @@ describe("runCli", () => {
     expect(help).toContain(
       'game new <id> [--name "Title"] [--preset top-down|grid|turns] [--physics none|rapier] [--gravity x,y] [--time fixed|turns|event] [--rate n] [--grid square|hex|none] [--cell n] [--px-per-metre n] [--dir src/games] [--dry-run]',
     );
-    expect(help).toMatch(/step <scene\|file\|-> .*\[--legal\]/);
+    expect(help).toMatch(/step <scene\|file\|-> .*\[--legal\] \[--timing\]\n/);
+    expect(help).toMatch(/playtest <scene\|file\|-> .*\[--timing\]\n/);
     const bare = await runCli(["game", "new"], ctx);
     expect(bare.exitCode).toBe(2);
     expect(bare.stderr).toContain("game new <id> [--name");

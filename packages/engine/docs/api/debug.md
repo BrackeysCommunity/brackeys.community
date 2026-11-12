@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`DEBUG_OFF`](#debug_off) · [`DebugDeps`](#debugdeps) · [`DebugFrame`](#debugframe) · [`DebugLayer`](#debuglayer) · [`DebugLayerFactory`](#debuglayerfactory) · [`DebugLayerHost`](#debuglayerhost) · [`DebugOverlay`](#debugoverlay) · [`DebugOverlayFactory`](#debugoverlayfactory) · [`DebugSceneSource`](#debugscenesource) · [`DebugTick`](#debugtick) · [`ENGINE_DEBUG_LAYERS`](#engine_debug_layers) · [`createDebugOverlay`](#createdebugoverlay) · [`debugModes`](#debugmodes)
+[`DEBUG_OFF`](#debug_off) · [`DebugDeps`](#debugdeps) · [`DebugFrame`](#debugframe) · [`DebugLayer`](#debuglayer) · [`DebugLayerFactory`](#debuglayerfactory) · [`DebugLayerHost`](#debuglayerhost) · [`DebugOverlay`](#debugoverlay) · [`DebugOverlayFactory`](#debugoverlayfactory) · [`DebugSceneSource`](#debugscenesource) · [`DebugTick`](#debugtick) · [`ENGINE_DEBUG_LAYERS`](#engine_debug_layers) · [`TIMING_ATTRIBUTE`](#timing_attribute) · [`TIMING_STORAGE_KEY`](#timing_storage_key) · [`createDebugOverlay`](#createdebugoverlay) · [`debugModes`](#debugmodes)
 
 ## `DEBUG_OFF`
 
@@ -25,6 +25,13 @@ type DebugDeps = Omit<DebugLayerHost, "pxPerMetre"> & {
     /** The shell's router; F3 registers on it above every tool. */
     router: ToolRouter;
     store: Store<GameStoreState>;
+    /**
+     * The shell's timing collector. With it, `localStorage["debug-timing"] =
+     * "1"` switches timing on while the game runs (and off again when
+     * removed), and the report is kept as JSON in a
+     * `<script type="application/json" data-jams-timing>` on the page.
+     */
+    timing?: RunTiming;
 };
 ```
 
@@ -157,6 +164,26 @@ declare const ENGINE_DEBUG_LAYERS: readonly DebugLayerFactory[];
 ```
 
 Refers to [`DebugLayerFactory`](#debuglayerfactory).
+
+## `TIMING_ATTRIBUTE`
+
+_const_ in `debug/timing-readout.ts`
+
+Marks the readout: a `<script type="application/json">` in the body whose text is the `TimingReport`.
+
+```ts
+declare const TIMING_ATTRIBUTE = "data-jams-timing";
+```
+
+## `TIMING_STORAGE_KEY`
+
+_const_ in `debug/timing-readout.ts`
+
+`localStorage` key: `"1"` switches timing on, anything else leaves it as the host set it.
+
+```ts
+declare const TIMING_STORAGE_KEY = "debug-timing";
+```
 
 ## `createDebugOverlay`
 

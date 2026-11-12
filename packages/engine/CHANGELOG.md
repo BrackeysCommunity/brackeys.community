@@ -22,9 +22,61 @@ also closes 0.14.1's leftovers: host requests that time out, and one
   documents it beside the store's own codes.
 - `HOST_REQUEST_TIMEOUT_MS` (30 s) from `@jams/engine/standalone`, and
   `ConnectHostOptions.requestTimeoutMs` to set it per channel.
+- Per-part tick timing, off unless asked for. `createRunTiming(now)` from
+  `@jams/engine/headless` makes a collector on the caller's clock
+  (`RunTiming`, with `TimingScope`, `TimingReport`, `TimingSpan` and
+  `TimingBucket`); `timing` on `ProbeOptions`, `PlaytestOptions` and
+  `HeadlessRuntimeOptions` hands it to the runtime, which then times each
+  step's parts: `input`, `system.<type>.beforeStep`, `.beforePhysics` and
+  `.afterStep`, `game.beforeStep`, `game.afterStep` and `game.snapshot`, `physics.step`
+  (the Rapier world step), `contacts`, `behavior.<name>`, `timers`,
+  `events`, `lifecycle` and, with a view, `view.commit`.
+  `RuntimeStats.timing` reports them (per part `calls`, `totalMs` and
+  `maxMs`, the worst tick) beside the ticks' total and `unattributedMs`.
+  Without a collector a step reads no clock; timing never enters a
+  recording, a save or a hash.
+- `GameConfig.timing` switches the same collection on in the browser shell,
+  where `runtime().stats().timing` also carries `shell` (the shell's whole
+  tick, the runtime's step being its part `step`), `frame` (the frame's
+  work before the draw) and `draw` (Pixi's render call on the CPU).
+- `DebugDeps.timing`, which `createGame` passes its debug overlay: with
+  `localStorage["debug-timing"]` set to `"1"` (`TIMING_STORAGE_KEY`) the
+  overlay switches timing on while the game runs and keeps the report as
+  JSON in a `<script type="application/json" data-jams-timing>`
+  (`TIMING_ATTRIBUTE`), refreshed about twice a second.
+
+- `SceneSystem.beforePhysics()`, an optional hook the runtime calls after
+  the game's `beforeStep` and right before the physics step, in spawn
+  order: the last look at the world the step starts from. Not called
+  without a physics world.
 
 ### Changed
 
+- The sensor system no longer tests every sensor against every collider.
+  From 32 sensors up it notes where the colliders stand in `beforePhysics`
+  (where Rapier tests overlaps) and each sensor tests only the colliders
+  near it, so a step costs about one read per collider instead of one test
+  per sensor per collider. A collider whose collision groups can't meet
+  any sensor's is never a candidate, and its position isn't read. The
+  events and their order are unchanged.
+- A body asleep at the last pose sync and asleep now is left as it was:
+  props (and every type built on the engine's body table) ask Rapier
+  whether the body sleeps instead of reading where it is, and keep its
+  pose-index entry (the same object, `prev` equal to `get`) and its visual
+  while nothing else wrote its pose. A sleeping body moved without waking
+  it (`setTranslation(v, false)`) keeps its old pose until it wakes.
+- A follower reads its body once per tick for its own pose, its visual
+  and its riders: `AttachmentHub.moved(hostId, snap?, at?)` passes the
+  host body's pose to each rider's `moved` callback as `at`, and riders
+  pose from it instead of reading the body again.
+- Claiming a spawn id no longer walks every live entity. The runtime's
+  entity table counts the ids under each instance id, so `ctx.spawn`
+  without an explicit id, `ctx.exists` and `ctx.enabled` answer for an id
+  with nothing under it without a scan.
+- `ctx.query`'s `inArea`, `at` and `nearest` no longer look at every entity
+  on each call: after the first, they refresh only the entities whose pose
+  was written since the last one. A `PoseIndex` of your own that doesn't
+  report its writes is still scanned whole.
 - `SaveSlots` re-reads a store's limits on every save: `SaveSlots.limits` is
   a getter over `effectiveSaveLimits(game, store)`, so a host's limits
   changing after sign-in, a claim or a save-mode change apply to the next
@@ -45,11 +97,25 @@ also closes 0.14.1's leftovers: host requests that time out, and one
 its entry records no size` for a texture a bundle already raised, and
   raises that one only for a shipped blob no bundle reached.
 
+### Fixed
+
+- The inspector, and every panel reading the document through
+  `useEditorDoc`, follows an edit at once under the React Compiler. The
+  compiler cached `session.getDoc()` and `session.getResolved()` for as long
+  as `session` was the same object, so a panel re-rendered on a change but
+  kept showing the document from the last selection change. The document,
+  its resolved view and the prefab library are now read through
+  `useSyncExternalStore`.
+
 ### Agent surface
 
 - `AGENT_SURFACE_VERSION` is 17, and every committed JSON Schema's
   `x-agent-surface` with it.
 - Issue code `save-forbidden` (error, "The host refused this save.").
+- `scene step --timing` and `scene playtest --timing` print where each
+  tick's wall time went, by part and by group (`physics`, `engine`, `game`),
+  and carry it in `--json` as `stats.timing` and `timing`; the rest of
+  either report is unchanged by the flag.
 
 ## [0.14.1] — unreleased
 

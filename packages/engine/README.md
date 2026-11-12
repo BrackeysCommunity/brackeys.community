@@ -430,6 +430,19 @@ tuning (`report.configHash`) give the same report. `createHeadlessRuntime`
 gives the runtime itself, with `step(dtMs, actions)`, `snapshot()`,
 `stats()` and the entity-level `add`, `update` and `remove`.
 
+To see where the ticks' time goes, hand a run a collector on your clock:
+`timing: createRunTiming(() => performance.now())` on `runProbe`,
+`runPlaytest` or `createHeadlessRuntime`. The runtime then times each
+step's parts (the Rapier world step, each type system's `beforeStep` and
+`afterStep`, each behavior, the game's hooks, contacts, timers, events and
+lifecycle) and `stats().timing` reports them as a `TimingReport`: per part
+its calls, total and worst tick, beside the ticks' own total and what no
+part covers. Without a collector a step reads no clock, and timing is
+never part of a recording, a save or a hash; it is the one field of a
+report that two runs don't share. `createGame`'s `timing: true` does the
+same in the browser and adds the shell's tick, the frame and Pixi's draw
+call. The scene CLI prints it with `step --timing`.
+
 ### Playtests and fuzz
 
 `runPlaytest` starts a world the way the editor's Play does and plays an

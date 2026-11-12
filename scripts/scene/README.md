@@ -73,9 +73,9 @@ tactics game's: a turn game on a grid, driven by commands) and `engine-yard`
 | `apply <scene> --ops <file\|-> [--dry-run] [--base hash] [--live …]`                                                                                                                                                                      | yes, unless dry run      | the `ApplyResult`: diff, inverse, created ids, ref remap, issues and the new `sceneHash`                                                                                                                                                                                                                                                                                           |
 | `diff <a> (<b> \| --git <rev> \| --ops <file\|->)`                                                                                                                                                                                        | no                       | `changes`: what changed from the first side to the second, entity by entity                                                                                                                                                                                                                                                                                                        |
 | `new <name> [--game id] [--from scene]`                                                                                                                                                                                                   | yes                      | writes a new scene from the game's template, or a copy of `--from` under the new name, as a `createAsset` (an id or path another asset holds is refused)                                                                                                                                                                                                                           |
-| `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]] [--elapse tick:ms] [--events type,…] [--game id] [--legal]`                                                                           | no                       | a headless probe: events by entity id, spawns and destroys per type, the game's final snapshot, runtime stats; `--command` and `--elapse` repeat; `--legal` lists the commands legal after the last tick ([Legal commands](#legal-commands))                                                                                                                                       |
+| `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]] [--elapse tick:ms] [--events type,…] [--game id] [--legal] [--timing]`                                                                | no                       | a headless probe: events by entity id, spawns and destroys per type, the game's final snapshot, runtime stats; `--command` and `--elapse` repeat; `--legal` lists the commands legal after the last tick ([Legal commands](#legal-commands)); `--timing` times each tick's parts ([Timing](#timing))                                                                               |
 | `grid <scene> [--from c,r\|ref] [--to c,r\|ref] [--fov c,r:radius] [--diagonals]`                                                                                                                                                         | no                       | the scene's grid as text: walls, a path between two cells or entities, what a cell sees; exit 1 with no path; see [World models](#grids-and-connected)                                                                                                                                                                                                                             |
-| `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file]`                                                                                                       | with --record            | a headless run of a v1 or v2 input script (`--at` in metres): outcome, steps, events, spawns and destroys per type, focus trail, `recording`, and a `legal` count for a game that lists its commands; `--flow` follows scene requests (`segments`), `--from-save` starts from a save fixture; exit 1 when blocked                                                                  |
+| `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file] [--timing]`                                                                                            | with --record            | a headless run of a v1 or v2 input script (`--at` in metres): outcome, steps, events, spawns and destroys per type, focus trail, `recording`, and a `legal` count for a game that lists its commands; `--flow` follows scene requests (`segments`), `--from-save` starts from a save fixture; `--timing` as `step`'s; exit 1 when blocked                                          |
 | `replay <scene\|file\|-> --run <file\|-> [--game id] [--releases <dir>]`                                                                                                                                                                  | no                       | replays a run recording (or a playtest report's) headless, with the recorded engine, physics and platform and `migratedFrom 1` for a v1 file; `--releases` also names the build under the directory the run was made on (see [Game builds](#game-builds)); exit 1 when it ends differently                                                                                         |
 | `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id] [--from-save file]`                                                                                                                                              | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second, and for a game that lists its commands how many it sent; takes no script; `--from-save` starts every rollout from a save fixture                                                                                                                                                  |
 | `save <scene\|file> --script <file\|-> --at <tick> --out <file>.save.json [--depth world\|progress] [--now ms] [--flow]`                                                                                                                  | yes                      | runs the script to the tick and writes a `save:v1` fixture there (inside a project, as a `save` asset); refused with `save-unsupported` and its causes; `--flow` follows scene requests through the scene list; see [Saves](#saves)                                                                                                                                                |
@@ -173,7 +173,8 @@ ticks before it.
 
 `step` and `playtest` count spawns and destroys per entity type, and
 `--events type,…` prints only those event types; see
-[Lifecycle](#lifecycle).
+[Lifecycle](#lifecycle). `--timing` adds where each tick's wall time went
+(`stats.timing`); see [Timing](#timing).
 
 `apply` writes only when the batch applied and left no error-severity
 issue. `step --inputs` takes a JSON array of `[tick, action, 0|1]` edges;
@@ -524,6 +525,79 @@ vp run scene replay test-yard --run hop.json
 A scene that changed since the recording is a `warning stale: …` line, not
 a failure by itself. What a recording holds, and how a v1 file replays, is
 in [Recordings v2](#recordings-v2).
+
+### Timing
+
+`step --timing` and `playtest --timing` time each tick on the wall clock
+and say where it went. Without the flag the runtime reads no clock and the
+report is the same on every run; with it, the timing is the one part that
+differs, and nothing of it reaches the events, the snapshot, a hash or a
+recording.
+
+```sh
+vp run scene step engine-yard --ticks 120 --timing
+vp run scene playtest test-yard --script scripts/scene/examples/hop-left.json --timing
+```
+
+```text
+  timing (wall clock): 120 ticks in 4.8 ms, mean 0.040 ms, worst 1.071 ms
+    physics.step                     2.1 ms  43.2%  mean   0.017  worst   0.331  ×120
+    system.prop.afterStep            0.7 ms  14.4%  mean   0.006  worst   0.137  ×120
+    …
+    unattributed                     0.1 ms   1.6%
+    by group: physics 43.2%, engine 55.2%, game 0.0%, unattributed 1.6%
+```
+
+Each row is one part of the tick, by total: its share of the ticks' total,
+its mean per tick, the most it took in one tick, and how often it ran. The
+parts, in the order a tick runs them:
+
+| Part                                                  | What it times                                                                                 |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `input`                                               | the tick's input applied to `ctx.input`, and its seat events                                  |
+| `system.<type>.beforeStep`, `system.<type>.afterStep` | one entity type's system hook (`system.prop.afterStep` copies the props' poses out of Rapier) |
+| `game.beforeStep`, `game.afterStep`, `game.snapshot`  | the game module's hooks                                                                       |
+| `system.<type>.beforePhysics`                         | a system's last look before the world step (the sensor system's, from 32 sensors up)          |
+| `physics.step`                                        | the Rapier world step; absent in a scene without physics                                      |
+| `contacts`                                            | reading the watched contact pairs                                                             |
+| `behavior.<name>`                                     | one behavior system's `step`                                                                  |
+| `timers`, `events`, `lifecycle`                       | due timers, event dispatch, and the end-of-tick destroys and enables                          |
+
+`unattributed` is the total less the parts. `by group` adds them up three
+ways: `physics` is `physics.step`, `game` the `game.*` parts, `engine` the
+rest. A part is charged everything that ran inside it: a game hook's
+`ctx.space` query counts as the game's, a timer's or an event's handler as
+`timers` or `events`, and a system's own calls into Rapier (a sensor's
+overlap tests, a pose read) as that system's, so `physics` is the world
+step alone, not all the time spent in Rapier's wasm.
+
+`--json` carries it as `stats.timing` for `step` and `timing` for
+`playtest`: `{ tick: { calls, totalMs, maxMs, unattributedMs, parts: {
+<part>: { calls, totalMs, maxMs } } }, groups: { physics, engine, game,
+unattributed } }`, times in ms. `tick.calls` is the ticks timed, a part's
+`maxMs` its worst tick, and the first ticks carry the JIT's warm-up.
+
+In a browser the tick has one more part, `view.commit` (the tick's poses
+handed to the view), and the shell times three more spans: `shell`
+(its whole tick: `input`, `step` (the runtime's, the `tick` span), the
+`scene:step` `listeners`, the play `session` and recording, the `camera`
+and store), `frame` (what it does each rendered frame before the draw:
+`input`, `view.frame`, `behaviors.render`, `store`) and `draw` (Pixi's
+render call on the CPU; the GPU's own time is not in it). A host turns it
+on with `GameConfig.timing` and reads `game.runtime().stats().timing`. In a
+dev host that passes the debug overlay (the site's editor does), switch it
+on from the page while the game runs and read it back as JSON, refreshed
+about twice a second:
+
+```js
+localStorage.setItem("debug-timing", "1");
+JSON.parse(document.querySelector("script[data-jams-timing]").textContent);
+localStorage.removeItem("debug-timing");
+```
+
+Setting the flag starts the numbers afresh. A browser's clock is coarse
+(0.1 ms in Chrome, 1 ms in Firefox), so read totals and means over many
+ticks, not a single part's `maxMs`.
 
 ## Physical validation
 

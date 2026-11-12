@@ -329,6 +329,47 @@ describe("the runtime's pose index", () => {
     rt.destroy();
   });
 
+  it("a sleeping prop keeps its pose entry until it wakes or something else writes it", () => {
+    const rt = loaded([
+      { id: "floor", type: "solid", shape: box(0, 200, 500, 20) },
+      { id: "crate", type: "prop", shape: box(0, 170, 10, 10), density: 1, restitution: 0 },
+    ]);
+    const body = rt.ctx.physics!.world.getCollider(rt.ctx.tags.handlesOf("crate")[0]!)!.parent()!;
+    const bodyPose = () => ({ ...body.translation(), rot: body.rotation() });
+    for (let i = 0; i < 1200 && !body.isSleeping(); i++) rt.step(DT, []);
+    expect(body.isSleeping()).toBe(true);
+    rt.step(DT, []);
+    const resting = rt.ctx.poses.get("crate");
+    expect(resting).toEqual(bodyPose());
+    for (let i = 0; i < 10; i++) {
+      rt.step(DT, []);
+      expect(rt.ctx.poses.get("crate")).toBe(resting);
+      expect(rt.ctx.poses.prev("crate")).toBe(resting);
+    }
+
+    rt.ctx.poses.set("crate", 999, 999, 0);
+    rt.step(DT, []);
+    expect(rt.ctx.poses.get("crate")).toEqual(resting);
+
+    body.applyImpulse({ x: 0, y: -2000 }, true);
+    rt.step(DT, []);
+    expect(rt.ctx.poses.get("crate")).toEqual(bodyPose());
+    expect(rt.ctx.poses.get("crate")!.y).toBeLessThan(resting!.y);
+    rt.destroy();
+  });
+
+  it("riders take their host's pose from the read the host passes on", () => {
+    const rt = loaded([
+      { id: "lift", type: "follower", shape: box(0, 0, 40, 8), path: path([400, 600], [800, 600]) },
+      { id: "plank", type: "solid", attach: "lift", shape: box(500, 590, 60, 4) },
+    ]);
+    rt.ctx.attachments.moved("lift", false, { x: 10, y: 20, rot: 0 });
+    expect(rt.ctx.poses.get("plank")).toEqual({ x: 110, y: 10, rot: 0 });
+    rt.ctx.attachments.moved("lift");
+    expect(rt.ctx.poses.get("plank")).toEqual({ x: 500, y: 590, rot: 0 });
+    rt.destroy();
+  });
+
   it("an attached entity added mid-run starts where its host has carried it", () => {
     const rt = loaded([
       { id: "lift", type: "follower", shape: box(0, 0, 40, 8), path: path([400, 600], [800, 600]) },

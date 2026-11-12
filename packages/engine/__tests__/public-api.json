@@ -679,6 +679,7 @@
       "createHeadlessRuntime",
       "createPersistCell",
       "createRunRecorder",
+      "createRunTiming",
       "decodeStreams",
       "defaultFuzzMacro",
       "defaultSeed",
@@ -883,7 +884,14 @@
       "vectorField",
       "withProject"
     ],
-    "./debug": ["DEBUG_OFF", "ENGINE_DEBUG_LAYERS", "createDebugOverlay", "debugModes"],
+    "./debug": [
+      "DEBUG_OFF",
+      "ENGINE_DEBUG_LAYERS",
+      "TIMING_ATTRIBUTE",
+      "TIMING_STORAGE_KEY",
+      "createDebugOverlay",
+      "debugModes"
+    ],
     "./sim-kit": [
       "FP_HALF",
       "FP_MAX_SAFE",
@@ -1500,7 +1508,8 @@
       "json",
       "project",
       "record",
-      "script"
+      "script",
+      "timing"
     ],
     "project pull": ["check", "json", "out", "project", "token", "url"],
     "project push": ["create", "dry-run", "json", "project", "token", "url"],
@@ -1534,7 +1543,8 @@
       "json",
       "legal",
       "project",
-      "ticks"
+      "ticks",
+      "timing"
     ],
     "textconv": ["json", "project"],
     "validate": ["json", "physical", "project"]

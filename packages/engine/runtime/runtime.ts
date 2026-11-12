@@ -46,6 +46,7 @@ import { createBehaviorHost, type BehaviorHost } from "./behaviors";
 import type { SpriteSystem } from "./behaviors/sprite";
 import { castSpawn } from "./cast";
 import { createContacts, type RuntimeContacts, type SavedTouch } from "./contacts";
+import { EntityTable } from "./entity-table";
 import { createEventBus, EVENT_PASS_LIMIT } from "./events";
 import {
   createSublevels,
@@ -243,7 +244,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
 
   const systems = new Map<EntityTypeName, SceneSystem>();
   /** Loaded entities in the scene's order: load's, then adds appended. */
-  const byId = new Map<string, RuntimeEntity>();
+  const byId = new EntityTable();
 
   let tick = 0;
   /**
@@ -446,6 +447,11 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     systems.set(name, systemFactoryOf(type)(ctx, type));
   }
   const ordered = [...systems.values()];
+  /** With a collector, each step is one span of its `tick` scope, split at the laps `step` takes. */
+  const tickTiming = opts.timing?.scope("tick") ?? null;
+  const beforeStepParts = [...systems.keys()].map((type) => `system.${type}.beforeStep`);
+  const beforePhysicsParts = [...systems.keys()].map((type) => `system.${type}.beforePhysics`);
+  const afterStepParts = [...systems.keys()].map((type) => `system.${type}.afterStep`);
   const behaviors = createBehaviorHost(ctx, registry);
   host = behaviors;
   const sprites = behaviors.system<SpriteSystem>(SPRITE.name);
@@ -792,23 +798,55 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     engineEvents = [];
     gameEvents = [];
     raised = [];
+    const timed = tickTiming?.begin() ? tickTiming : null;
     const tickInput = tickInputOf(given, commands, t);
 
     stepping = true;
     try {
       for (const event of input.update(tickInput)) ctx.emit(event);
-      for (const system of ordered) system.beforeStep?.(dtMs);
-      inGame(() => game?.beforeStep?.(dtMs, tickInput.actions, tickInput.commands));
-      ctx.physics?.step();
-      for (const system of ordered) system.afterStep?.(dtMs);
+      timed?.lap("input");
+      for (let i = 0; i < ordered.length; i++) {
+        const system = ordered[i]!;
+        if (!system.beforeStep) continue;
+        system.beforeStep(dtMs);
+        timed?.lap(beforeStepParts[i]!);
+      }
+      if (game?.beforeStep) {
+        inGame(() => game.beforeStep!(dtMs, tickInput.actions, tickInput.commands));
+        timed?.lap("game.beforeStep");
+      }
+      if (ctx.physics) {
+        for (let i = 0; i < ordered.length; i++) {
+          const system = ordered[i]!;
+          if (!system.beforePhysics) continue;
+          system.beforePhysics();
+          timed?.lap(beforePhysicsParts[i]!);
+        }
+        ctx.physics.step();
+        timed?.lap("physics.step");
+      }
+      for (let i = 0; i < ordered.length; i++) {
+        const system = ordered[i]!;
+        if (!system.afterStep) continue;
+        system.afterStep(dtMs);
+        timed?.lap(afterStepParts[i]!);
+      }
       contacts.read();
-      behaviors.step(dtMs);
+      timed?.lap("contacts");
+      behaviors.step(dtMs, timed);
       timers.run();
+      timed?.lap("timers");
       const delivered = events.dispatch(raised, 0);
-      inGame(() => game?.afterStep?.(dtMs, [...engineEvents, ...gameEvents]));
+      timed?.lap("events");
+      if (game?.afterStep) {
+        inGame(() => game.afterStep!(dtMs, [...engineEvents, ...gameEvents]));
+        timed?.lap("game.afterStep");
+      }
       lifecycle.flush();
+      timed?.lap("lifecycle");
       const second = { delivered: 0 };
       let next = events.dispatch(raised, delivered, second);
+      timed?.lap("events");
       for (let flushes = 1; lifecycle.pending(); flushes++) {
         if (flushes >= EVENT_PASS_LIMIT) {
           throw new EngineError(
@@ -817,17 +855,26 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
           );
         }
         lifecycle.flush();
+        timed?.lap("lifecycle");
         next = events.dispatch(raised, next, second);
+        timed?.lap("events");
       }
     } finally {
       stepping = false;
     }
-    sprites?.settle();
-    ctx.view?.commit?.(t);
+    if (sprites || ctx.view?.commit) {
+      sprites?.settle();
+      ctx.view?.commit?.(t);
+      timed?.lap("view.commit");
+    }
 
     tick++;
     playClock.ticks++;
-    return { tick: t, events: [...engineEvents, ...gameEvents], game: snapshot() };
+    const result: StepResult = { tick: t, events: [...engineEvents, ...gameEvents], game: null };
+    result.game = snapshot();
+    if (game) timed?.lap("game.snapshot");
+    timed?.end();
+    return result;
   }
 
   function snapshot(): unknown {
@@ -849,6 +896,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       entities: byId.size,
       perType,
       behaviors: behaviors.stats(),
+      ...(opts.timing?.enabled ? { timing: opts.timing.report() } : {}),
     };
   }
 
