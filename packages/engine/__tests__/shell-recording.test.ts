@@ -574,12 +574,14 @@ describe("recording a session's TickInputs", () => {
   });
   it("names the release it plays from, and none without one", async () => {
     const release = "5e".repeat(32);
+    const project = { id: "yard", snapshot: "a1".repeat(32) };
+    const manifest = { project: { ...project, name: "Yard" } } as ReleaseManifest;
     const game = await createGame(document.querySelector("canvas")!, {
       game: testGame,
       registry,
       rapier: async () => rapier,
       scene: yard(),
-      release: { id: release, manifest: {} as ReleaseManifest },
+      release: { id: release, manifest },
     });
     games.push(game);
     const recorded: RunRecording[] = [];
@@ -588,6 +590,7 @@ describe("recording a session's TickInputs", () => {
     game.step(2);
     game.stop();
     expect(recorded[0]?.release).toBe(release);
+    expect(recorded[0]?.project).toEqual(project);
     expect(parseRecording(JSON.stringify(recorded[0]))).toMatchObject({ ok: true });
 
     const plain = session(await editing(), yard());

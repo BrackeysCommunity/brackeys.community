@@ -38,6 +38,7 @@ const css = `
   font-family: inherit;
   font-size: 14px;
   line-height: 1.4;
+  pointer-events: auto;
 }
 .${MENU_CLS.panel} {
   min-width: min(320px, 100%);
