@@ -2,8 +2,8 @@ import { afterAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 
 import * as Y from "yjs";
 
-import { SEED_STALE_REASON } from "../../../src/engine/collab/seed-identity.ts";
-import { EMPTY_SCENE_TEMPLATE } from "../../../src/engine/scene/create.ts";
+import { SEED_STALE_REASON } from "../../../packages/engine/collab/seed-identity.ts";
+import { EMPTY_SCENE_TEMPLATE } from "../../../packages/engine/scene/create.ts";
 import { syncEnvPrefix } from "../../../src/lib/canvas/sync-channels.ts";
 import { startServer, type SyncServer } from "../src/index.ts";
 import { createRedisExtension, redisChannels } from "../src/redis.ts";

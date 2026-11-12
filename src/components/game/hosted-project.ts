@@ -1,4 +1,4 @@
-import { buildAtFrom, COLLAB_LAYOUT_VERSION } from "@jams/engine/collab";
+import { buildAtFrom, COLLAB_LAYOUT_VERSION, isSeedStaleClose } from "@jams/engine/collab";
 import {
   blobContentStore,
   connectProjectSession,
@@ -28,8 +28,14 @@ export const ENGINE_PROJECTS_FLAG = "engine-projects";
 /** Project tokens from the site's `getProjectSyncToken`. */
 export const mintWithOrpc: MintProjectToken = (request) => client.getProjectSyncToken(request);
 
-/** What a canvas-sync close means for a doc: revoked and too large stop it, anything else retries. */
+/**
+ * What a canvas-sync close means for a doc: revoked and too large stop it;
+ * a copy from before the server reseeded the doc reloads the project from
+ * the server's state, since retrying would send the same copy again;
+ * anything else retries.
+ */
 export function syncCloseReason(code: number | null, reason?: string): CloseReason {
+  if (isSeedStaleClose(code, reason)) return "reload";
   const sync = syncCloseCode({ code: code ?? undefined, reason });
   if (sync === SYNC_CLOSE.revoked) return "revoked";
   if (sync === SYNC_CLOSE.tooLarge) return "too-large";

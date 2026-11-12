@@ -1,0 +1,838 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:release:v1",
+  "x-agent-surface": 15,
+  "title": "jams engine release manifest, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The release manifest JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "release",
+      "description": "Always \"release\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Release manifest format version."
+    },
+    "engine": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ENGINE_VERSION of the build."
+        },
+        "agentSurface": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "AGENT_SURFACE_VERSION of the build."
+        },
+        "formats": {
+          "type": "object",
+          "properties": {
+            "scene": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The scene format version."
+            },
+            "prefab": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The prefab format version."
+            },
+            "recording": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The recording format version."
+            },
+            "inputScript": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The input script format version."
+            },
+            "save": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The save file format version."
+            },
+            "collabLayout": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The collab layout version."
+            }
+          },
+          "required": ["scene", "prefab", "recording", "inputScript", "save", "collabLayout"],
+          "additionalProperties": false,
+          "description": "The format versions a reader of this build's files must accept."
+        }
+      },
+      "required": ["version", "agentSurface", "formats"],
+      "additionalProperties": false,
+      "description": "The engine that built it."
+    },
+    "game": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "description": "The game's id."
+        },
+        "configHash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The game's configHash; null when it declares none."
+        },
+        "saveVersion": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The game's save version."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The game's save version; null when it has no saves."
+        }
+      },
+      "required": ["id", "configHash", "saveVersion"],
+      "additionalProperties": false,
+      "description": "The game the build plays."
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "description": "The project's id."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The project's name."
+        },
+        "snapshot": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The project snapshot's hash; releaseSnapshot rebuilds it."
+        },
+        "snapshotEngine": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The engine version that took the snapshot."
+        },
+        "build": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "description": "An asset kind: an engine kind's name, or `<game>/<kind>` for a game's."
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "The kind's schema hash."
+          },
+          "description": "The snapshot's per-kind schema hashes."
+        }
+      },
+      "required": ["id", "name", "snapshot", "snapshotEngine", "build"],
+      "additionalProperties": false,
+      "description": "The project the build was made from."
+    },
+    "build": {
+      "type": "object",
+      "properties": {
+        "hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the stable JSON of the code, style and wasm files as [path, sha256] pairs, sorted by path."
+        },
+        "target": {
+          "type": "string",
+          "enum": ["web", "itch", "desktop", "mobile"],
+          "description": "The target the build was made for."
+        },
+        "rapier": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "package": {
+                  "type": "string",
+                  "enum": ["@dimforge/rapier2d", "@dimforge/rapier2d-compat"],
+                  "description": "The Rapier package bundled."
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Its version."
+                },
+                "file": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The wasm file."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The wasm file; null for -compat, which inlines it."
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "The wasm's size in bytes."
+                }
+              },
+              "required": ["package", "version", "file", "bytes"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Rapier as built; null when no listed scene needs it."
+        },
+        "entry": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The entry script index.html loads."
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Relative to release.json; \"/\" separated, no \"..\"."
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "SHA-256 of the file's bytes."
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "The file's size in bytes."
+              },
+              "role": {
+                "type": "string",
+                "enum": ["code", "style", "wasm", "shell", "worker", "icon", "asset", "data"],
+                "description": "What the file is: what budgets and caches count it as."
+              }
+            },
+            "required": ["path", "sha256", "bytes", "role"],
+            "additionalProperties": false,
+            "description": "One file of the build; release.json itself is never listed."
+          },
+          "description": "Every file of the build, sorted by path."
+        }
+      },
+      "required": ["hash", "target", "rapier", "entry", "files"],
+      "additionalProperties": false,
+      "description": "The program and the files of the build."
+    },
+    "time": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["fixed", "turns", "event"],
+          "description": "The game's time model."
+        },
+        "rate": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Ticks per second."
+        },
+        "catchUp": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "maxMs": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "The longest time caught up, in ms."
+                }
+              },
+              "required": ["maxMs"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How far the clock catches up after a pause; null for none."
+        },
+        "wakeOnPointerMove": {
+          "type": "boolean",
+          "description": "Whether a pointer move wakes an event clock."
+        }
+      },
+      "required": ["kind", "rate", "catchUp", "wakeOnPointerMove"],
+      "additionalProperties": false,
+      "description": "The game's resolved time model, without the derived tickMs."
+    },
+    "replay": {
+      "type": "object",
+      "properties": {
+        "acrossPlatforms": {
+          "type": "boolean",
+          "description": "REPLAY_ACROSS_PLATFORMS of the build."
+        }
+      },
+      "required": ["acrossPlatforms"],
+      "additionalProperties": false,
+      "description": "What replays of this build may assume."
+    },
+    "flow": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "description": "The scene the game starts in; one of `scenes`."
+        },
+        "scenes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                "description": "The scene's asset id."
+              },
+              "title": {
+                "description": "Its title in the scene list.",
+                "type": "string",
+                "minLength": 1
+              },
+              "sublevel": {
+                "description": "Listed as a sublevel in the scene list.",
+                "type": "boolean",
+                "const": true
+              },
+              "physics": {
+                "type": "string",
+                "enum": ["rapier", "none"],
+                "description": "Whether the scene needs Rapier."
+              },
+              "prefabs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                  "description": "An asset id."
+                },
+                "description": "Prefabs its expansion uses, by id, sorted."
+              },
+              "bundle": {
+                "type": "object",
+                "properties": {
+                  "entries": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "An asset id."
+                    },
+                    "description": "The blobs, by asset id, sorted."
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Their total size in bytes."
+                  }
+                },
+                "required": ["entries", "bytes"],
+                "additionalProperties": false,
+                "description": "The blobs to fetch before its first frame."
+              }
+            },
+            "required": ["id", "physics", "prefabs", "bundle"],
+            "additionalProperties": false,
+            "description": "A listed scene."
+          },
+          "description": "The listed scenes, in list order."
+        }
+      },
+      "required": ["start", "scenes"],
+      "additionalProperties": false,
+      "description": "The scene list: only listed scenes ship."
+    },
+    "projectBundle": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+            "description": "An asset id."
+          },
+          "description": "The blobs, by asset id, sorted."
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Their total size in bytes."
+        }
+      },
+      "required": ["entries", "bytes"],
+      "additionalProperties": false,
+      "description": "The blobs resident for the whole run."
+    },
+    "assets": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+        "description": "An asset id."
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The asset's registry key, which never changes."
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "description": "An asset kind: an engine kind's name, or `<game>/<kind>` for a game's."
+          },
+          "path": {
+            "type": "string",
+            "description": "The asset's project-relative POSIX path in the project the build was made from."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "A doc's SHA-256 of its canonical text, a blob's of its bytes."
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The size of the asset's file in the build."
+          },
+          "storage": {
+            "type": "string",
+            "enum": ["doc", "blob"],
+            "description": "Whether the asset is a doc or a blob."
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Its file in the build: `data/<sha256>.json` or `assets/<sha256><ext>`."
+          },
+          "name": {
+            "description": "Display name; absent means the path's stem.",
+            "type": "string",
+            "minLength": 1
+          },
+          "meta": {
+            "description": "A blob's inspected facts (an atlas's frames, a texture's size).",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "import": {
+            "description": "A blob's import settings.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "licence": {
+            "type": "object",
+            "properties": {
+              "spdx": {
+                "description": "An SPDX id (\"CC-BY-4.0\") or \"proprietary\".",
+                "type": "string",
+                "minLength": 1
+              },
+              "author": {
+                "description": "Who made it.",
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "description": "Where it came from: a URL or a description.",
+                "type": "string",
+                "minLength": 1
+              },
+              "attribution": {
+                "description": "The exact credit line the licence asks for; the credits page prints it.",
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false,
+            "description": "The asset's licence and credit."
+          }
+        },
+        "required": ["key", "kind", "path", "sha256", "bytes", "storage", "file"],
+        "additionalProperties": false,
+        "description": "A shipped asset: its snapshot entry plus where its bytes are in the build."
+      },
+      "description": "Every shipped asset by id, docs and blobs."
+    },
+    "credits": {
+      "type": "object",
+      "properties": {
+        "assets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "assets": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                  "description": "An asset id."
+                },
+                "description": "Assets sharing this exact licence, sorted."
+              },
+              "spdx": {
+                "description": "An SPDX id (\"CC-BY-4.0\") or \"proprietary\".",
+                "type": "string",
+                "minLength": 1
+              },
+              "author": {
+                "description": "Who made them.",
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "description": "Where they came from.",
+                "type": "string",
+                "minLength": 1
+              },
+              "attribution": {
+                "description": "The exact credit line the licence asks for.",
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["assets"],
+            "additionalProperties": false,
+            "description": "One licence and the shipped assets that carry it."
+          },
+          "description": "The shipped assets grouped by identical licence."
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+            "description": "An asset id."
+          },
+          "description": "Shipped assets with no licence recorded."
+        },
+        "code": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "package": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The npm package name."
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Its version in the build."
+              },
+              "licence": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Its package.json `license` field, an SPDX expression."
+              },
+              "notice": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Its LICENSE file's text; null when the package ships none."
+              }
+            },
+            "required": ["package", "version", "licence", "notice"],
+            "additionalProperties": false,
+            "description": "A package bundled into the code."
+          },
+          "description": "The packages bundled into the code."
+        }
+      },
+      "required": ["assets", "missing", "code"],
+      "additionalProperties": false,
+      "description": "What the credits page prints."
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "limits": {
+          "type": "object",
+          "properties": {
+            "codeBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The codeBytes limit."
+            },
+            "firstLoadBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The firstLoadBytes limit."
+            },
+            "totalBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The totalBytes limit."
+            },
+            "fileBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The fileBytes limit."
+            }
+          },
+          "required": ["codeBytes", "firstLoadBytes", "totalBytes", "fileBytes"],
+          "additionalProperties": false,
+          "description": "The size budgets the build was held to, in bytes."
+        },
+        "measured": {
+          "type": "object",
+          "properties": {
+            "codeBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "JS and CSS, without wasm."
+            },
+            "wasmBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The wasm files."
+            },
+            "firstLoadBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "What the first frame waits for."
+            },
+            "assetBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The blob files."
+            },
+            "dataBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "The doc texts."
+            },
+            "totalBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Every listed file."
+            },
+            "largestFile": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "The largest file's path."
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Its size."
+                }
+              },
+              "required": ["path", "bytes"],
+              "additionalProperties": false,
+              "description": "The largest file of the build."
+            }
+          },
+          "required": [
+            "codeBytes",
+            "wasmBytes",
+            "firstLoadBytes",
+            "assetBytes",
+            "dataBytes",
+            "totalBytes",
+            "largestFile"
+          ],
+          "additionalProperties": false,
+          "description": "The build's sizes by role, in bytes."
+        },
+        "over": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["codeBytes", "firstLoadBytes", "totalBytes", "fileBytes"]
+          },
+          "description": "The budgets exceeded, in the order of `limits`; empty when within all."
+        }
+      },
+      "required": ["limits", "measured", "over"],
+      "additionalProperties": false,
+      "description": "The build's sizes against its budgets."
+    },
+    "pwa": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The installed app's name."
+            },
+            "shortName": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Its short name."
+            },
+            "display": {
+              "type": "string",
+              "enum": ["fullscreen", "standalone", "minimal-ui"],
+              "description": "The web app manifest's display mode."
+            },
+            "orientation": {
+              "type": "string",
+              "enum": ["any", "landscape", "portrait"],
+              "description": "The web app manifest's orientation."
+            },
+            "themeColor": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The theme colour, a CSS colour."
+            },
+            "background": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The background colour, a CSS colour."
+            },
+            "icons": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The icon's file."
+                  },
+                  "size": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "const": 192
+                      },
+                      {
+                        "type": "number",
+                        "const": 512
+                      }
+                    ],
+                    "description": "Its size in pixels."
+                  }
+                },
+                "required": ["file", "size"],
+                "additionalProperties": false,
+                "description": "One icon."
+              },
+              "description": "The app's icons."
+            }
+          },
+          "required": [
+            "name",
+            "shortName",
+            "display",
+            "orientation",
+            "themeColor",
+            "background",
+            "icons"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The web app manifest's inputs; null for targets that install no web app."
+    }
+  },
+  "required": [
+    "kind",
+    "v",
+    "engine",
+    "game",
+    "project",
+    "build",
+    "time",
+    "replay",
+    "flow",
+    "projectBundle",
+    "assets",
+    "credits",
+    "budget",
+    "pwa"
+  ],
+  "additionalProperties": false,
+  "description": "A build's manifest (release.json): what it ships, which engine and game built it, the project snapshot it pins and its sizes."
+}

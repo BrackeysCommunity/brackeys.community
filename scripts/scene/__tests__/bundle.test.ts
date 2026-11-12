@@ -11,9 +11,9 @@ import type { ToolContext } from "../context";
 import { loadCompatRapier } from "../rapier-compat";
 import { tempProject } from "./fixtures";
 
-const ENGINE_SCENES = fileURLToPath(new URL("../../../src/engine/scenes", import.meta.url));
+const ENGINE_SCENES = fileURLToPath(new URL("../../../packages/engine/scenes", import.meta.url));
 const FIXTURES = fileURLToPath(
-  new URL("../../../src/engine/project/__tests__/fixtures", import.meta.url),
+  new URL("../../../packages/engine/project/__tests__/fixtures", import.meta.url),
 );
 
 let root: string;

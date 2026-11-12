@@ -2,7 +2,8 @@
  * The title and result screens: a panel of plain DOM over the canvas,
  * shown while the menu or result scene is loaded. Start and Back to menu
  * send the scene's one command; the game asks for the next scene itself.
- * Continue loads the newest save through the instance's slots.
+ * Continue loads the newest save through the instance's slots. Credits
+ * opens the host's credits page (`UiContext.links.credits`) where it has one.
  * Nothing here is built, and the instance isn't read, while a level plays.
  */
 import type { GameInstance, SaveSummary, UiActionEvent, UiContext, UiHandle } from "@jams/engine";
@@ -60,6 +61,7 @@ const css = `
   background: #2f6cf0;
   color: #fff;
   cursor: pointer;
+  text-decoration: none;
 }
 .${MENU_CLS.button}[data-kind="secondary"] { background: transparent; }
 .${MENU_CLS.button}[aria-disabled="true"] { opacity: 0.45; cursor: default; }
@@ -177,6 +179,8 @@ export function createTacticsMenu(
     const actions = el("div", MENU_CLS.actions);
     primary = button(next ? "Start" : "Play again", "start", flow.next !== null);
     actions.append(primary, continueButton(flow));
+    const credits = ctx.links?.credits;
+    if (credits) actions.append(creditsLink(credits));
     panel.append(title, line, actions);
     if (saved.newest) {
       const where = el("p", MENU_CLS.save, `Last save: ${saveTitle(saved.newest)}`);
@@ -211,6 +215,17 @@ export function createTacticsMenu(
       void resume(newest.slot);
     });
     return b;
+  }
+
+  /** The build's credits page, in a new tab so the game keeps its place. */
+  function creditsLink(href: string): HTMLAnchorElement {
+    const a = el("a", MENU_CLS.button, "Credits");
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.dataset.kind = "secondary";
+    a.dataset.action = "credits";
+    return a;
   }
 
   async function resume(slot: string): Promise<void> {

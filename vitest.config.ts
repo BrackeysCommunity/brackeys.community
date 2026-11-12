@@ -3,7 +3,7 @@ import { fileURLToPath, URL } from "node:url";
 import wasm from "vite-plugin-wasm";
 import { defineConfig } from "vite-plus";
 
-const engineRoot = fileURLToPath(new URL("./src/engine", import.meta.url));
+const engineRoot = fileURLToPath(new URL("./packages/engine", import.meta.url));
 
 export default defineConfig({
   plugins: [wasm()],
@@ -28,6 +28,7 @@ export default defineConfig({
   test: {
     include: [
       "src/**/__tests__/**/*.test.{ts,tsx}",
+      "packages/**/__tests__/**/*.test.{ts,tsx}",
       "scripts/scene/**/__tests__/**/*.test.ts",
       "scripts/engine-readme/**/__tests__/**/*.test.ts",
       "scripts/engine-smoke/__tests__/**/*.test.ts",

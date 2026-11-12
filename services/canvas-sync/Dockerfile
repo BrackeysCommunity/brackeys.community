@@ -1,6 +1,7 @@
-# Build context = repo root (so we can read src/db/schema.ts and the shared
-# src/lib modules). In Railway, leave "Root Directory" unset and set
-# "Dockerfile Path" to services/canvas-sync/Dockerfile.
+# Build context = repo root (so we can read src/db/schema.ts, the shared
+# src/lib modules and the engine in packages/engine). In Railway, leave
+# "Root Directory" unset and set "Dockerfile Path" to
+# services/canvas-sync/Dockerfile.
 
 FROM oven/bun:1.4-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS deps
 WORKDIR /app
@@ -21,8 +22,9 @@ COPY services/canvas-sync/src ./services/canvas-sync/src
 # Shared with the web app so the schema, the token, the channel names, the
 # limits and the doc rules have one source of truth. This list is the
 # service's whole view of the repo root: every file src/ reaches through
-# `../../../src/` must be here, and none of them may import through `@/`
-# (src/lib/__tests__/service-image-manifest.test.ts checks both).
+# `../../../src/` or `../../../packages/` must be here, and none of them may
+# import through `@/` (src/lib/__tests__/service-image-manifest.test.ts
+# checks both).
 COPY src/db/schema.ts ./src/db/schema.ts
 COPY src/db/service-client.ts ./src/db/service-client.ts
 COPY src/lib/service-config.ts ./src/lib/service-config.ts
@@ -40,11 +42,11 @@ COPY src/lib/scene/limits.ts ./src/lib/scene/limits.ts
 COPY src/lib/scene/project-bytes.ts ./src/lib/scene/project-bytes.ts
 # The scene, project and asset kinds read and seed their docs through the engine. Whole
 # directories, so a new file inside one of them ships without a new line.
-COPY src/engine/scene ./src/engine/scene
-COPY src/engine/collab ./src/engine/collab
-COPY src/engine/game ./src/engine/game
-COPY src/engine/project ./src/engine/project
-COPY src/engine/version.ts ./src/engine/version.ts
+COPY packages/engine/scene ./packages/engine/scene
+COPY packages/engine/collab ./packages/engine/collab
+COPY packages/engine/game ./packages/engine/game
+COPY packages/engine/project ./packages/engine/project
+COPY packages/engine/version.ts ./packages/engine/version.ts
 
 # The copied root files import bare specifiers (yjs, drizzle-orm, zod,
 # fractional-indexing, posthog-node), which resolve up from /app — not from

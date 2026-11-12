@@ -1,10 +1,17 @@
 {
-  "$schema": "../../engine/project/project.schema.json",
+  "$schema": "../../../packages/engine/project/project.schema.json",
   "kind": "project",
   "v": 1,
   "id": "platformer",
   "name": "Platformer",
   "game": { "module": "./index.ts", "export": "platformerGame" },
   "assets": ["scenes/**", "scene-list.json"],
-  "code": ["**/*.ts", "!**/__tests__/**"]
+  "code": ["**/*.ts", "!**/__tests__/**"],
+  "export": {
+    "shortName": "Platformer",
+    "themeColor": "#1a1a2e",
+    "background": "#1a1a2e",
+    "display": "fullscreen",
+    "rapier": "standard"
+  }
 }

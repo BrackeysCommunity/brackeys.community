@@ -37,7 +37,7 @@ describe("discoverProjects over the repo", () => {
     expect(projects.map((p) => p.file.id)).toEqual(["engine", "platformer", "tactics"]);
 
     const [engine, platformer] = projects as [ProjectHandle, ProjectHandle, ProjectHandle];
-    expect(engine.dir).toBe(join(ROOT, "src/engine/scenes"));
+    expect(engine.dir).toBe(join(ROOT, "packages/engine/scenes"));
     expect(engine.file.game).toBeNull();
     expect(engine.game).toBeNull();
     expect(engine.registry.id).toBe(ENGINE_REGISTRY_ID);

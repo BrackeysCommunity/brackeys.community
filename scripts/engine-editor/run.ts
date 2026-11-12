@@ -1,7 +1,7 @@
 /**
  * The engine's scene editor without the site: a Vite dev server for this
  * directory's page with `./vite`'s collab server over the engine project
- * (`src/engine/scenes`: the kitchen sink and the engine yard).
+ * (`packages/engine/scenes`: the kitchen sink and the engine yard).
  *
  *   vp run engine:editor [--in-place] [--port <n>] [--host <name>] [--open]
  *
@@ -23,7 +23,7 @@ import { createServer, runnerImport, type ViteDevServer } from "vite-plus";
 const CONFIG = fileURLToPath(new URL("./vite.config.ts", import.meta.url));
 
 /** The engine project as the repo holds it. */
-export const REPO_SCENES = fileURLToPath(new URL("../../src/engine/scenes", import.meta.url));
+export const REPO_SCENES = fileURLToPath(new URL("../../packages/engine/scenes", import.meta.url));
 
 export type EngineScenes = {
   /** The project directory the collab server edits. */

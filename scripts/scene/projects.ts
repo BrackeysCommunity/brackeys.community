@@ -34,7 +34,11 @@ export type ProjectHandle = {
   cacheDir: string;
 };
 
-export const DEFAULT_PROJECT_GLOBS: readonly string[] = [`src/**/${PROJECT_FILE}`];
+/** Where projects live: the site's games under `src/`, the engine's own under `packages/`. */
+export const DEFAULT_PROJECT_GLOBS: readonly string[] = [
+  `src/**/${PROJECT_FILE}`,
+  `packages/**/${PROJECT_FILE}`,
+];
 
 /** One project file that couldn't become a project: its path relative to the root and why. */
 export type ProjectProblem = { file: string; message: string; issues?: SceneIssue[] };

@@ -8,7 +8,7 @@ import type { InlineConfig } from "vite-plus";
 
 const PAGE_DIR = fileURLToPath(new URL(".", import.meta.url));
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
-const ENGINE = fileURLToPath(new URL("../../src/engine/", import.meta.url));
+const ENGINE = fileURLToPath(new URL("../../packages/engine/", import.meta.url));
 
 /** Vite's own port is never this one: the owner's tooling holds it. */
 export const RESERVED_PORT = 42069;

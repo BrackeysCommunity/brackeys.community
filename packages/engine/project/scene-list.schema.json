@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:scene-list:v1",
+  "x-agent-surface": 15,
+  "title": "jams engine scene list, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The scene-list JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "scene-list",
+      "description": "Always \"scene-list\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Scene-list format version."
+    },
+    "start": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The scene a new game starts in: a listed scene that isn't a sublevel."
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "scene": {
+            "type": "string",
+            "description": "A scene's asset id."
+          },
+          "title": {
+            "description": "What menus and the editor's picker call it.",
+            "type": "string"
+          },
+          "sublevel": {
+            "description": "Attached beside a main scene through `ctx.flow.attach`, never loaded alone.",
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": ["scene"],
+        "additionalProperties": false,
+        "description": "One listed scene."
+      },
+      "description": "Every scene flow may load or attach, in the order menus and the picker show them."
+    }
+  },
+  "required": ["kind", "v", "start", "scenes"],
+  "additionalProperties": false,
+  "description": "The project's scene list, at most one per project: the start scene and every scene flow may load, co-edited per entry."
+}

@@ -9,9 +9,15 @@ import {
   type SceneSource,
   type TransitionRunner,
 } from "@jams/engine";
-import { cellKey, type LibraryScene, type SceneLibrary } from "@jams/engine/game";
+import {
+  cellKey,
+  type GameDefinition,
+  type LibraryScene,
+  type SceneLibrary,
+} from "@jams/engine/game";
 import {
   loadHeadless,
+  playWorld,
   replayRecording,
   runPlaytest,
   type InputScriptStepV2,
@@ -35,6 +41,8 @@ import {
   initialProgress,
   TACTICS_OPENED,
   tacticsGame,
+  worldBoard,
+  type TacticsGridData,
   type TacticsProgress,
   type TacticsRunSnapshot,
 } from "..";
@@ -47,7 +55,7 @@ const init = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@dimforge/rapier2d-compat", () => ({ init, default: { init } }));
 
 // The shell's Pixi renderer, stood in for so the shell runs under jsdom.
-vi.mock("../../../engine/renderer", () => ({
+vi.mock("../../../../packages/engine/renderer", () => ({
   createRenderer: async () => ({
     app: {},
     worldContainer: new Container(),
@@ -95,16 +103,17 @@ async function playFrom(
   scene: string,
   steps: InputScriptStepV2[],
   flow: SceneLibrary | null = library(),
+  game: GameDefinition<TacticsRunSnapshot> = tacticsGame,
 ): Promise<PlaytestReport<TacticsRunSnapshot>> {
   const loaded = await loadHeadless({
     files: { scene: json(`../scenes/${scene}.json`), prefabs: [...prefabs.values()] },
-    registry,
+    registry: game === tacticsGame ? registry : createRegistry(game),
     project: tacticsProjectView(),
   });
   const run = runPlaytest<TacticsRunSnapshot>({
     ...loaded,
     rapier: null,
-    game: tacticsGame,
+    game,
     script: { v: 2, seed: 1, maxTicks: 8000, steps },
     ...(flow ? { flow } : {}),
   });
@@ -241,6 +250,31 @@ describe("the second game's flow, headless", () => {
   });
 });
 
+/** The game, keeping the board its world held at the last snapshot. */
+function boardKept(): { game: GameDefinition<TacticsRunSnapshot>; board: () => TacticsGridData } {
+  let board: TacticsGridData | null = null;
+  const game: GameDefinition<TacticsRunSnapshot> = {
+    ...tacticsGame,
+    createRuntime(ctx) {
+      const rt = tacticsGame.createRuntime!(ctx);
+      return {
+        ...rt,
+        snapshot() {
+          board = worldBoard(playWorld(ctx)).grid;
+          return rt.snapshot();
+        },
+      };
+    },
+  };
+  return {
+    game,
+    board: () => {
+      if (!board) throw new Error("no snapshot taken");
+      return board;
+    },
+  };
+}
+
 describe("level 2's stair", () => {
   const onStair: InputScriptStepV2[] = [
     { command: "move", args: { unit: "blue-knight-2/unit", to: [3, 5] } },
@@ -248,17 +282,19 @@ describe("level 2's stair", () => {
   ];
 
   it("attaches the cellar two rows under the board when a unit steps on it", async () => {
-    const r = await playFrom("level-2", onStair);
+    const kept = boardKept();
+    const r = await playFrom("level-2", onStair, library(), kept.game);
     const final = r.final!;
+    const grid = kept.board();
     expect(final.units["cellar:guard/unit"]).toMatchObject({
       side: "red",
       class: "knight",
       cell: [8, 6],
     });
-    expect([final.grid.cols, final.grid.rows]).toEqual([12, 8]);
+    expect([grid.cols, grid.rows]).toEqual([12, 8]);
     // The cellar's pillar walls its cell, and its rubble costs a move.
-    expect(final.grid.walls).toContain(cellKey([2, 7]));
-    expect(final.grid.costs).toContainEqual([cellKey([4, 6]), 10]);
+    expect(grid.walls).toContain(cellKey([2, 7]));
+    expect(grid.costs).toContainEqual([cellKey([4, 6]), 10]);
     expect(r.events.filter((e) => e.type === TACTICS_OPENED)).toEqual([
       expect.objectContaining({
         entityId: "stair",
@@ -299,9 +335,10 @@ describe("level 2's stair", () => {
   });
 
   it("stays shut where the run has no scene list", async () => {
-    const r = await playFrom("level-2", onStair, null);
+    const kept = boardKept();
+    const r = await playFrom("level-2", onStair, null, kept.game);
     expect(Object.keys(r.final!.units)).not.toContain("cellar:guard/unit");
-    expect([r.final!.grid.cols, r.final!.grid.rows]).toEqual([12, 6]);
+    expect([kept.board().cols, kept.board().rows]).toEqual([12, 6]);
   });
 });
 

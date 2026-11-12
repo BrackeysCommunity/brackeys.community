@@ -77,7 +77,7 @@ describe("the projects' scenes", () => {
 
   it("the frozen format fixtures are left alone by oxfmt too", () => {
     for (const probe of [
-      "src/engine/scene/__tests__/fixtures/v1/engine-yard.json",
+      "packages/engine/scene/__tests__/fixtures/v1/engine-yard.json",
       "src/games/platformer/__tests__/fixtures/v1/test-yard.json",
     ])
       expect(
@@ -92,7 +92,7 @@ describe("grid-yard, the engine's physics-free scene", () => {
     const loadRapier = vi.fn(() => Promise.reject(new Error("grid-yard loaded Rapier")));
     return { ctx: { projects: PROJECTS, loadRapier } satisfies ToolContext, loadRapier };
   };
-  const file = join(ROOT, "src/engine/scenes/grid-yard.json");
+  const file = join(ROOT, "packages/engine/scenes/grid-yard.json");
   const def = () => {
     const text = readFileSync(file, "utf8");
     const judged = judgeScene(ctx, text);

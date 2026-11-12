@@ -72,7 +72,7 @@ export type GameNewInput = {
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 /** Where a game is written to be imported and judged before anything lands in `--dir`: gitignored, and inside the repo so its imports resolve. */
 export const GAME_NEW_STAGE = join(REPO_ROOT, "node_modules", ".game-new");
-const ENGINE_DIR = join(REPO_ROOT, "src", "engine");
+const ENGINE_DIR = join(REPO_ROOT, "packages", "engine");
 const DEFAULT_DIR = "src/games";
 
 const TIME_KINDS = ["fixed", "turns", "event"] as const;
@@ -189,7 +189,8 @@ const docIssue = (
 
 /**
  * Every file of the game `options` describes, for `projectDir`: the
- * templates' sources, then what only the game itself can give. The sources
+ * templates' sources (the scene list `scene-list.json`, starting at `main`,
+ * among them), then what only the game itself can give. The sources
  * are written to a stage under `node_modules/.game-new/`, the game module
  * is imported from there and its registry builds the scene schema, the
  * input-script schema and `scenes/main.json` (the game's template, through
@@ -255,8 +256,8 @@ const shown = (path: string) => {
 /**
  * Writes a new game project from a preset into `<dir>/<id>/`: the project
  * file, the game and UI modules, one scene with checks and a winning input
- * script, a game-settings and an input-map doc, the generated schemas and
- * a test. Refused, with nothing written, for an id outside `ID_PATTERN`
+ * script, a scene list (`scene-list.json`) listing that scene as its start,
+ * a game-settings and an input-map doc, the generated schemas and a test. Refused, with nothing written, for an id outside `ID_PATTERN`
  * (`schema`), an id a discovered project holds or a directory that exists
  * (`project-id-taken`), and a scene with error issues. `--dry-run` lists
  * the files and writes none.

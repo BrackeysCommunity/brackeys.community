@@ -13,7 +13,7 @@ import type { ToolContext } from "../context";
 import { loadCompatRapier } from "../rapier-compat";
 import { tempProject } from "./fixtures";
 
-const ENGINE_SCENES = fileURLToPath(new URL("../../../src/engine/scenes", import.meta.url));
+const ENGINE_SCENES = fileURLToPath(new URL("../../../packages/engine/scenes", import.meta.url));
 const SITE = "https://staging.example.test";
 const TOKEN = "jat_pushDryRunSecret";
 const PROJECT = "deck";

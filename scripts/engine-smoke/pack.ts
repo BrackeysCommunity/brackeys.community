@@ -14,7 +14,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-export const ENGINE = join(REPO, "src/engine");
+export const ENGINE = join(REPO, "packages/engine");
 /**
  * The repo's own `vp`. A script started as `bun <file>` rather than through
  * `bun run` has no `node_modules/.bin` on its PATH, and CI images ship no global `vp`.

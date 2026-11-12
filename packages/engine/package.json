@@ -1,0 +1,127 @@
+{
+  "name": "@jams/engine",
+  "version": "0.14.0",
+  "private": true,
+  "files": [
+    "dist",
+    "editor-ui/style.css",
+    "scene/*.schema.json",
+    "project/*.schema.json",
+    "docs/",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./scene": {
+      "types": "./dist/scene.d.mts",
+      "import": "./dist/scene.mjs"
+    },
+    "./editor": {
+      "types": "./dist/editor.d.mts",
+      "import": "./dist/editor.mjs"
+    },
+    "./editor-ui": {
+      "types": "./dist/editor-ui.d.mts",
+      "import": "./dist/editor-ui.mjs"
+    },
+    "./editor-ui/style.css": "./editor-ui/style.css",
+    "./collab": {
+      "types": "./dist/collab.d.mts",
+      "import": "./dist/collab.mjs"
+    },
+    "./headless": {
+      "types": "./dist/headless.d.mts",
+      "import": "./dist/headless.mjs"
+    },
+    "./game": {
+      "types": "./dist/game.d.mts",
+      "import": "./dist/game.mjs"
+    },
+    "./debug": {
+      "types": "./dist/debug.d.mts",
+      "import": "./dist/debug.mjs"
+    },
+    "./sim-kit": {
+      "types": "./dist/sim-kit.d.mts",
+      "import": "./dist/sim-kit.mjs"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.mts",
+      "import": "./dist/vite.mjs"
+    },
+    "./project": {
+      "types": "./dist/project.d.mts",
+      "import": "./dist/project.mjs"
+    },
+    "./export": {
+      "types": "./dist/export.d.mts",
+      "import": "./dist/export.mjs"
+    },
+    "./standalone": {
+      "types": "./dist/standalone.d.mts",
+      "import": "./dist/standalone.mjs"
+    },
+    "./schemas/scene.schema.json": "./scene/scene.schema.json",
+    "./schemas/ops.schema.json": "./scene/ops.schema.json",
+    "./schemas/input-script.schema.json": "./scene/input-script.schema.json",
+    "./schemas/recording.schema.json": "./scene/recording.schema.json",
+    "./schemas/fragment.schema.json": "./scene/fragment.schema.json",
+    "./schemas/prefab.schema.json": "./scene/prefab.schema.json",
+    "./schemas/project.schema.json": "./project/project.schema.json",
+    "./schemas/asset-sidecar.schema.json": "./project/asset-sidecar.schema.json",
+    "./schemas/project-ops.schema.json": "./project/project-ops.schema.json",
+    "./schemas/material.schema.json": "./project/material.schema.json",
+    "./schemas/game-settings.schema.json": "./project/game-settings.schema.json",
+    "./schemas/input-map.schema.json": "./project/input-map.schema.json",
+    "./schemas/scene-list.schema.json": "./project/scene-list.schema.json",
+    "./schemas/save.schema.json": "./project/save.schema.json",
+    "./schemas/data-table.schema.json": "./project/data-table.schema.json",
+    "./schemas/project-snapshot.schema.json": "./project/project-snapshot.schema.json",
+    "./schemas/release.schema.json": "./project/release.schema.json",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.2.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@hugeicons/core-free-icons": "^3.1.1",
+    "@hugeicons/react": "^1.1.5"
+  },
+  "peerDependencies": {
+    "@dimforge/rapier2d": "^0.19.3",
+    "@dimforge/rapier2d-compat": "^0.19.3",
+    "@hocuspocus/provider": "^4.7.0",
+    "@hocuspocus/server": "^4.7.0",
+    "@tanstack/store": ">=0.8.1 <0.9.0",
+    "fractional-indexing": "^4.0.0",
+    "pixi.js": "^8.17.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "yjs": "^13.6.33",
+    "zod": "^4.1.11"
+  },
+  "peerDependenciesMeta": {
+    "@dimforge/rapier2d-compat": {
+      "optional": true
+    },
+    "@hocuspocus/provider": {
+      "optional": true
+    },
+    "@hocuspocus/server": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  }
+}

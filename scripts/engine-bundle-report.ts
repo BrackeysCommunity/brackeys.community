@@ -17,16 +17,21 @@ export type ReportedChunk = {
 export type BundleReportOptions = {
   /** Where each environment's report goes: `<dir>/<environment>.json`. */
   dir: string;
-  /** A module id suffix and the code appended to it, so the check can prove it catches a leak. */
+  /**
+   * A module id suffix and the code appended to it, so the check can prove it
+   * catches a leak. Defaults to `ENGINE_BUNDLE_INJECT` (JSON), which is how the
+   * check reaches builds it starts through a CLI, such as `game build`.
+   */
   inject?: { into: string; code: string };
 };
 
 /**
  * Writes every chunk's module ids per build environment, for
  * `scripts/engine-bundle-check.ts`. The root config adds it only when
- * `ENGINE_BUNDLE_REPORT` names an output directory.
+ * `ENGINE_BUNDLE_REPORT` names an output directory; `game build` always adds
+ * it, beside the export.
  */
-export function engineBundleReport({ dir, inject }: BundleReportOptions): Plugin {
+export function engineBundleReport({ dir, inject = injectFromEnv() }: BundleReportOptions): Plugin {
   return {
     name: "engine-bundle-report",
     enforce: "pre",
@@ -54,4 +59,9 @@ export function engineBundleReport({ dir, inject }: BundleReportOptions): Plugin
       writeFileSync(file, JSON.stringify({ chunks }, null, 1));
     },
   };
+}
+
+function injectFromEnv(): BundleReportOptions["inject"] {
+  const raw = process.env.ENGINE_BUNDLE_INJECT;
+  return raw ? (JSON.parse(raw) as BundleReportOptions["inject"]) : undefined;
 }

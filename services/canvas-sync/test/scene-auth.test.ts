@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bu
 
 import * as Y from "yjs";
 
-import { COLLAB_LAYOUT_VERSION } from "../../../src/engine/collab/types.ts";
+import { COLLAB_LAYOUT_VERSION } from "../../../packages/engine/collab/types.ts";
 import { documentName, SYNC_CLOSE } from "../../../src/lib/canvas/sync-channels.ts";
 import { signCanvasToken } from "../../../src/lib/canvas/token.ts";
 import { startServer, type SyncServer } from "../src/index.ts";

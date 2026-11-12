@@ -31,7 +31,7 @@ import { tempProject } from "./fixtures";
 
 vi.mock("@/db", () => ({ db: {} }));
 
-const ENGINE_SCENES = fileURLToPath(new URL("../../../src/engine/scenes", import.meta.url));
+const ENGINE_SCENES = fileURLToPath(new URL("../../../packages/engine/scenes", import.meta.url));
 const TACTICS = fileURLToPath(new URL("../../../src/games/tactics", import.meta.url));
 const SITE = "https://staging.example.test";
 const TOKEN = "jat_pullTestSecret";

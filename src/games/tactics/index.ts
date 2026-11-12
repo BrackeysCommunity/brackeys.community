@@ -82,6 +82,7 @@ export const tacticsGame = defineGame<TacticsRunSnapshot>({
 export { TACTICS_ACTIONS } from "./actions";
 export { parseTacticsCommand, TACTICS_COMMANDS, type TacticsCommand } from "./commands";
 export { TACTICS_PLAY } from "./play";
+export { TACTICS_HELD_FILES, type TacticsHeldPath } from "./project-files";
 export {
   createTacticsRuntime,
   initialProgress,

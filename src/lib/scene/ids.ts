@@ -6,7 +6,7 @@
  * `@/` imports.
  */
 // The scene entry by relative path: the service image has no tsconfig paths.
-import { ENGINE_REGISTRY_ID } from "../../engine/scene/index.ts";
+import { ENGINE_REGISTRY_ID } from "../../../packages/engine/scene/index.ts";
 import { parseProjectKey } from "../canvas/sync-channels.ts";
 
 export interface SceneId {

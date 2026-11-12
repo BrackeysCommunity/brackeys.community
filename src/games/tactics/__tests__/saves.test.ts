@@ -17,6 +17,7 @@ import {
   createHeadlessRuntime,
   loadHeadless,
   memorySaveStore,
+  playWorld,
   runPlaytest,
   type InputScriptV2,
 } from "@jams/engine/headless";
@@ -32,7 +33,13 @@ import {
 } from "@jams/engine/scene";
 import { afterAll, describe, expect, it, vi } from "vite-plus/test";
 
-import { TACTICS_AUTOSAVE_SLOT, tacticsBoard, tacticsGame, type TacticsRunSnapshot } from "..";
+import {
+  TACTICS_AUTOSAVE_SLOT,
+  tacticsBoard,
+  tacticsGame,
+  worldBoard,
+  type TacticsRunSnapshot,
+} from "..";
 import { legal } from "../rules";
 import sceneList from "../scene-list.json";
 import { tacticsProjectView } from "./pins";
@@ -84,27 +91,28 @@ const KNIGHT = "blue-knight-2/unit";
 const STAIR: [number, number] = [3, 5];
 const STAIR_TURN = 2;
 
+type Run = { rt: ReturnType<typeof createHeadlessRuntime>; frames: unknown[] };
+
 /**
- * Blue's orders for this tick, read from the snapshot alone so every run
- * gives the same ones: on turn 2 a knight takes the stair, opening the
- * cellar; otherwise the first legal attack, else the turn ends. Blue
+ * Blue's orders for this tick, read from the snapshot and the world alone so
+ * every run gives the same ones: on turn 2 a knight takes the stair, opening
+ * the cellar; otherwise the first legal attack, else the turn ends. Blue
  * holds out to turn 7.
  */
-function blueOrders(s: TacticsRunSnapshot): GameCommand[] {
+function blueOrders(s: TacticsRunSnapshot, rt: Run["rt"]): GameCommand[] {
   if (s.screen || s.next || s.result !== null || s.side !== "blue" || s.phase !== "orders")
     return [];
   if (s.turn === STAIR_TURN && s.units[KNIGHT] && !s.units[KNIGHT].moved)
     return [{ name: "move", args: { unit: KNIGHT, to: STAIR } }];
-  const attack = legal(s, s.classes, tacticsBoard(s.grid)).find((c) => c.name === "attack");
+  const { grid, classes } = worldBoard(playWorld(rt.ctx));
+  const attack = legal(s, classes, tacticsBoard(grid)).find((c) => c.name === "attack");
   return [attack ?? { name: "end-turn" }];
 }
-
-type Run = { rt: ReturnType<typeof createHeadlessRuntime>; frames: unknown[] };
 
 /** One tick with blue's orders; the frame holds its tick, events, snapshot and every pose. */
 function tick(run: Run): TacticsRunSnapshot {
   const { rt } = run;
-  const commands = blueOrders(rt.snapshot() as TacticsRunSnapshot);
+  const commands = blueOrders(rt.snapshot() as TacticsRunSnapshot, rt);
   const result = rt.step(rt.ctx.time.tickMs, [], commands);
   const poses = [...rt.ctx.poses.ids()].sort().map((id) => {
     const p = rt.ctx.poses.get(id)!;

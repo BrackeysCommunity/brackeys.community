@@ -47,7 +47,7 @@ describe("the tactics page run", () => {
           /^\.\.\/\.\.\/\.\.\/src\/games\/tactics(\/__tests__\/(pins|fixtures\/level-1\.recording\.json))?$/,
         );
     }
-    expect(sources.some((s) => s.includes("src/engine"))).toBe(false);
+    expect(sources.some((s) => s.includes("packages/engine"))).toBe(false);
     expect(sources).not.toContain("@dimforge/rapier2d-compat");
   });
 

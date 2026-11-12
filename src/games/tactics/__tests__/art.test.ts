@@ -24,6 +24,8 @@ import { describe, expect, it } from "vite-plus/test";
 import { tacticsGame } from "..";
 import {
   CELL_PX,
+  ICON_SIZES,
+  iconFile,
   makeArt,
   TERRAIN_KINDS,
   terrainFile,
@@ -54,8 +56,12 @@ const IDS: Record<string, string> = {
   "art/units.json": "units",
   "art/tiles.png": "tiles",
   "art/tile-wall.png": "tile-wall",
+  "art/tile-river.png": "tile-river",
   "art/tile-marsh.png": "tile-marsh",
+  "art/tile-rubble.png": "tile-rubble",
   "art/tile-thicket.png": "tile-thicket",
+  "art/icon-192.png": "icon-192",
+  "art/icon-512.png": "icon-512",
 };
 const idAt = (path: string) => IDS[path];
 
@@ -69,7 +75,7 @@ function paletteImage(png: Uint8Array): { width: number; height: number; pixels:
   const data = new DataView(png.buffer, png.byteOffset, png.byteLength);
   let width = 0;
   let height = 0;
-  const idat: number[] = [];
+  const idatParts: Uint8Array[] = [];
   for (let at = 8; at < png.length; ) {
     const length = data.getUint32(at);
     const type = String.fromCharCode(...png.subarray(at + 4, at + 8));
@@ -79,23 +85,35 @@ function paletteImage(png: Uint8Array): { width: number; height: number; pixels:
       height = data.getUint32(at + 12);
       expect([body[8], body[9]], "an 8-bit palette image").toEqual([8, 3]);
     }
-    if (type === "IDAT") idat.push(...body);
+    if (type === "IDAT") idatParts.push(body);
     at += 12 + length;
   }
-  const raw: number[] = [];
+  const idat = concat(idatParts);
+  const rawParts: Uint8Array[] = [];
   for (let at = 2, last = 0; !last; ) {
     last = idat[at]! & 1;
     expect(idat[at]! >> 1, "a stored deflate block").toBe(0);
     const len = idat[at + 1]! | (idat[at + 2]! << 8);
-    raw.push(...idat.slice(at + 5, at + 5 + len));
+    rawParts.push(idat.subarray(at + 5, at + 5 + len));
     at += 5 + len;
   }
+  const raw = concat(rawParts);
   const pixels = new Uint8Array(width * height);
   for (let y = 0; y < height; y++) {
     expect(raw[y * (width + 1)], "no row filter").toBe(0);
-    pixels.set(raw.slice(y * (width + 1) + 1, (y + 1) * (width + 1)), y * width);
+    pixels.set(raw.subarray(y * (width + 1) + 1, (y + 1) * (width + 1)), y * width);
   }
   return { width, height, pixels };
+}
+
+function concat(parts: readonly Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
 }
 
 describe("make-art.ts", () => {
@@ -103,7 +121,11 @@ describe("make-art.ts", () => {
     const art = makeArt();
     expect([...art.keys()].sort()).toEqual(
       [
+        "icon-192.png",
+        "icon-512.png",
         "tile-marsh.png",
+        "tile-river.png",
+        "tile-rubble.png",
         "tile-thicket.png",
         "tile-wall.png",
         "tiles.png",
@@ -210,8 +232,8 @@ describe("drawing", () => {
     expect(tiles).toMatchObject({ ok: true, meta: { width: 2 * CELL_PX, height: 2 * CELL_PX } });
   });
 
-  it("draws walls, marsh and thicket as one opaque board cell each", () => {
-    expect([...TERRAIN_KINDS].sort()).toEqual(["marsh", "thicket", "wall"]);
+  it("draws walls, river, marsh, rubble and thicket as one opaque board cell each", () => {
+    expect([...TERRAIN_KINDS].sort()).toEqual(["marsh", "river", "rubble", "thicket", "wall"]);
     for (const kind of TERRAIN_KINDS) {
       const file = terrainFile(kind);
       const result = inspectEntry(
@@ -231,6 +253,75 @@ describe("drawing", () => {
     }
     // The unit sheet's sprites stand on a transparent cell, so the reading above can see one.
     expect(paletteImage(bytesOf("../art/units.png")).pixels.includes(TRANSPARENT)).toBe(true);
+  });
+});
+
+describe("the app icons", () => {
+  const project = JSON.parse(textOf("../jams.project.json")) as {
+    export?: { icons?: Record<string, string> };
+  };
+
+  it("are the export block's icons: an opaque PNG of exactly each size, sampled nearest", () => {
+    expect(ICON_SIZES).toEqual([192, 512]);
+    for (const size of ICON_SIZES) {
+      const file = iconFile(size);
+      const id = project.export?.icons?.[String(size)];
+      expect(id, `export.icons.${size}`).toBe(`icon-${size}`);
+      expect(sidecar(file).id).toBe(id);
+      expect(sidecar(file).import?.filter).toBe("nearest");
+      const result = inspectEntry(
+        textureKind as BlobKindDef,
+        { path: `art/${file}` },
+        bytesOf(`../art/${file}`),
+        idAt,
+      );
+      expect(result, file).toMatchObject({
+        ok: true,
+        meta: { format: "png", width: size, height: size },
+      });
+      expect(sidecar(file).meta).toEqual((result as { meta: unknown }).meta);
+      const { pixels } = paletteImage(bytesOf(`../art/${file}`));
+      expect(pixels.indexOf(TRANSPARENT), `${file} has a see-through pixel`).toBe(-1);
+    }
+  });
+
+  it("keep the knight inside a maskable icon's safe zone", () => {
+    for (const size of ICON_SIZES) {
+      const { width, pixels } = paletteImage(bytesOf(`../art/${iconFile(size)}`));
+      const ground = pixels[0]!;
+      const margin = size / 8;
+      for (let y = 0; y < size; y++)
+        for (let x = 0; x < size; x++) {
+          const inside = x >= margin && x < size - margin && y >= margin && y < size - margin;
+          if (!inside) expect(pixels[y * width + x], `${size} at ${x},${y}`).toBe(ground);
+        }
+      expect(pixels.some((p) => p !== ground)).toBe(true);
+    }
+  });
+});
+
+describe("level 2 and the cellar", () => {
+  const sprites = (id: string) => {
+    const scene = parseScene(textOf(`../scenes/${id}.json`), registry);
+    if (!scene.ok) throw new Error(scene.issues.map((i) => i.message).join("\n"));
+    return new Map(
+      (scene.def.entities ?? []).map((e) => [
+        e.id,
+        (e.behaviors as { sprite?: { asset?: string } } | undefined)?.sprite?.asset,
+      ]),
+    );
+  };
+
+  it("draws the river and the rubble with their own tiles", () => {
+    const level2 = sprites("level-2");
+    expect([level2.get("river-north"), level2.get("river-south")]).toEqual([
+      "tile-river",
+      "tile-river",
+    ]);
+    expect(level2.get("thicket")).toBe("tile-thicket");
+    const cellar = sprites("cellar");
+    expect(cellar.get("rubble")).toBe("tile-rubble");
+    expect(cellar.get("pillar")).toBe("tile-wall");
   });
 });
 

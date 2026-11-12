@@ -1,5 +1,5 @@
-import type { KindRegistry } from "../../../src/engine/project/index.ts";
-import { PREFAB_KIND } from "../../../src/engine/scene/index.ts";
+import type { KindRegistry } from "../../../packages/engine/project/index.ts";
+import { PREFAB_KIND } from "../../../packages/engine/scene/index.ts";
 import { CANVAS_LIMITS, SYNC_LIMITS } from "../../../src/lib/canvas/limits.ts";
 import {
   SYNC_CLOSE,

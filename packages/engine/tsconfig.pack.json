@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": [],
+    "noUncheckedIndexedAccess": true,
+    "paths": {}
+  },
+  "include": [
+    "index.ts",
+    "scene/index.ts",
+    "editor/index.ts",
+    "editor-ui/index.ts",
+    "collab/index.ts",
+    "headless/index.ts",
+    "game/index.ts",
+    "debug/index.ts",
+    "sim-kit/index.ts",
+    "project/index.ts",
+    "export/index.ts",
+    "standalone/index.ts"
+  ]
+}

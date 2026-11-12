@@ -10,7 +10,7 @@ import type { ToolContext } from "../context";
 import { textconv } from "../tools/textconv";
 
 const ENGINE_YARD = fileURLToPath(
-  new URL("../../../src/engine/scenes/engine-yard.json", import.meta.url),
+  new URL("../../../packages/engine/scenes/engine-yard.json", import.meta.url),
 );
 const ctx = {} as ToolContext;
 

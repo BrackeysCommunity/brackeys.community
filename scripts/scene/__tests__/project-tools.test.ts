@@ -72,7 +72,8 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
     ];
     const size = async (list: string[]) => {
       let bytes = 0;
-      for (const f of list) bytes += (await readFile(join(ROOT, "src/engine/scenes", f))).length;
+      for (const f of list)
+        bytes += (await readFile(join(ROOT, "packages/engine/scenes", f))).length;
       return bytes;
     };
     expect(data(engine)).toMatchObject({
@@ -80,7 +81,7 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
       project: "engine",
       name: "Engine",
       game: null,
-      dir: join(ROOT, "src/engine/scenes"),
+      dir: join(ROOT, "packages/engine/scenes"),
       assets: 24,
       counts: {
         atlas: 2,
@@ -286,13 +287,13 @@ describe("project tools over the two homes", { timeout: 60_000 }, () => {
     for (const [id, asset] of Object.entries(snap.assets)) {
       if (blobs.includes(id))
         expect(asset.sha256, id).toBe(
-          await sha256(await readFile(join(ROOT, "src/engine/scenes", asset.path))),
+          await sha256(await readFile(join(ROOT, "packages/engine/scenes", asset.path))),
         );
       else expect(asset.sha256, id).toBe(await sha256(loaded.texts.get(id)!));
     }
     for (const id of ["kitchen-sink", "engine-yard", "grid-yard", "grid-annex"])
       expect(snap.assets[id]!.sha256).toBe(
-        await sha256(await readFile(join(ROOT, "src/engine/scenes", `${id}.json`), "utf8")),
+        await sha256(await readFile(join(ROOT, "packages/engine/scenes", `${id}.json`), "utf8")),
       );
 
     const printed = await projectSnapshot({ project: "platformer", out: "-" }, ctx);

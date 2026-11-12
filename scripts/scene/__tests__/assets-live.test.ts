@@ -37,8 +37,8 @@ import { loadCompatRapier } from "../rapier-compat";
 import { tempProject } from "./fixtures";
 
 const repoPath = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
-const ENGINE_SCENES = repoPath("src/engine/scenes");
-const FIXTURES = repoPath("src/engine/project/__tests__/fixtures");
+const ENGINE_SCENES = repoPath("packages/engine/scenes");
+const FIXTURES = repoPath("packages/engine/project/__tests__/fixtures");
 
 const PROJECT = "deck";
 const HUMAN: DocOrigin = { kind: "user", userId: "ada", name: "Ada" };

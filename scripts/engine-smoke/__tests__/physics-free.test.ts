@@ -145,7 +145,9 @@ describe("the browser pages", () => {
     expect(sources.length).toBeGreaterThan(0);
     for (const source of sources)
       expect(source, source).toMatch(/^(@jams\/engine(\/[a-z-]+)?|\.\.?\/[\w./-]+)$/);
-    expect(sources.some((s) => s.includes("src/engine") || s.includes("__tests__"))).toBe(false);
+    expect(sources.some((s) => s.includes("packages/engine") || s.includes("__tests__"))).toBe(
+      false,
+    );
     expect(sources).not.toContain("@dimforge/rapier2d-compat");
     expect(sources).not.toContain("./run");
   });

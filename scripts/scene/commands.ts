@@ -20,6 +20,9 @@ import { diff } from "./tools/diff";
 import { flow } from "./tools/flow";
 import { fmt } from "./tools/fmt";
 import { fuzz } from "./tools/fuzz";
+import { GAME_BUILD_USAGE, gameBuild } from "./tools/game-build";
+import { GAME_EXPORT_USAGE, gameExport } from "./tools/game-export";
+import { GAME_MANIFEST_USAGE, gameManifest, replayRelease } from "./tools/game-manifest";
 import { GAME_NEW_FLAGS, gameNew } from "./tools/game-new";
 import { grid } from "./tools/grid";
 import { input } from "./tools/input";
@@ -275,14 +278,18 @@ const DEFINITIONS = {
       ),
   },
   replay: {
-    usage: "replay <scene|file|-> --run <file|-> [--game id]",
+    usage: "replay <scene|file|-> --run <file|-> [--game id] [--releases <dir>]",
     summary:
-      "replay a run recording (or a playtest report's) headless: the recorded engine version and physics, `migratedFrom 1` for a v1 file, the platform line (recorded vs replayed) and recording-other-platform; exit 1 when it ends differently",
-    values: ["run", "game"],
+      "replay a run recording (or a playtest report's) headless: the recorded engine version and physics, `migratedFrom 1` for a v1 file, the platform line (recorded vs replayed) and recording-other-platform; with --releases, the release among those builds the run was made on; exit 1 when it ends differently",
+    values: ["run", "game", "releases"],
     switches: [],
     maxPositionals: 1,
-    run: ({ positionals: [scene], flags }, ctx) =>
-      replay({ scene, run: str(flags.run), game: str(flags.game) }, ctx),
+    run: ({ positionals: [scene], flags }, ctx) => {
+      const releases = str(flags.releases);
+      return releases === undefined
+        ? replay({ scene, run: str(flags.run), game: str(flags.game) }, ctx)
+        : replayRelease({ scene, run: str(flags.run), game: str(flags.game), releases }, ctx);
+    },
   },
   fuzz: {
     usage:
@@ -307,11 +314,11 @@ const DEFINITIONS = {
   },
   save: {
     usage:
-      "save <scene|file> --script <file|-> --at <tick> --out <file>.save.json [--depth world|progress] [--now ms]",
+      "save <scene|file> --script <file|-> --at <tick> --out <file>.save.json [--depth world|progress] [--now ms] [--flow]",
     summary:
-      "run an input script to a tick and write a save fixture there (save:v1, world depth by default; the slot is the file's stem): inside a project it is imported as a save asset with its sidecar, or replaces the fixture already at that path; a world save that can't be taken is refused with save-unsupported and each cause; a run that ends before the tick saves nothing; meta.savedAt is --now (epoch ms, default 0), so saving the same run twice writes the same bytes",
+      "run an input script to a tick and write a save fixture there (save:v1, world depth by default; the slot is the file's stem): inside a project it is imported as a save asset with its sidecar, or replaces the fixture already at that path; a world save that can't be taken is refused with save-unsupported and each cause; a run that ends before the tick saves nothing; meta.savedAt is --now (epoch ms, default 0), so saving the same run twice writes the same bytes; --flow follows scene requests through the project's scene list, so the save holds the scene, entry and persist the run reached",
     values: ["script", "at", "out", "depth", "now"],
-    switches: [],
+    switches: ["flow"],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) =>
       save(
@@ -322,6 +329,7 @@ const DEFINITIONS = {
           out: str(flags.out),
           depth: str(flags.depth),
           now: str(flags.now),
+          flow: flags.flow === true,
         },
         ctx,
       ),
@@ -602,6 +610,47 @@ const DEFINITIONS = {
         },
         ctx,
       ),
+  },
+  "game build": {
+    usage: GAME_BUILD_USAGE,
+    summary:
+      "build a project into a static bundle under dist/: the listed scenes and their assets, the code, release.json, credits and, for the web target, the PWA files; prints the scenes and their physics, bytes per role, the wasm line, the size budgets and credits gaps; the bundle report is written beside the build at <out>.bundle-report/client.json; export-over-budget writes the build and exits 1 unless --allow-over-budget; a target with no row is export-target-unsupported",
+    values: ["target", "out", "rapier"],
+    switches: ["allow-over-budget"],
+    maxPositionals: 1,
+    run: ({ positionals: [id], flags }, ctx) =>
+      gameBuild(
+        {
+          id,
+          target: str(flags.target),
+          out: str(flags.out),
+          rapier: str(flags.rapier),
+          allowOverBudget: flags["allow-over-budget"] === true,
+        },
+        ctx,
+      ),
+  },
+  "game export": {
+    usage: GAME_EXPORT_USAGE,
+    summary:
+      "build a project and zip it (stored, sorted, fixed times, so two zips of one build are equal); the itch target checks itch.io's HTML5 layout (export-itch-layout); nothing is uploaded",
+    values: ["target", "out"],
+    switches: ["zip"],
+    maxPositionals: 1,
+    run: ({ positionals: [id], flags }, ctx) =>
+      gameExport(
+        { id, zip: flags.zip === true, target: str(flags.target), out: str(flags.out) },
+        ctx,
+      ),
+  },
+  "game manifest": {
+    usage: GAME_MANIFEST_USAGE,
+    summary:
+      "parse and check a release manifest, with the build's files and their hashes when given its directory, and print its summary: the release id, engine, target, scenes, files and budget",
+    values: [],
+    switches: [],
+    maxPositionals: 1,
+    run: ({ positionals: [path] }, ctx) => gameManifest({ path }, ctx),
   },
 } satisfies Record<string, Command>;
 

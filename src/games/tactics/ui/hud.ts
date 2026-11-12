@@ -12,7 +12,7 @@ import {
   type UiContext,
   type UiHandle,
 } from "@jams/engine";
-import { cellKey, type Cell, type CellKey } from "@jams/engine/game";
+import { cellKey, keycapLabel, type Cell, type CellKey } from "@jams/engine/game";
 
 import { turnSaveTitle, type TacticsFlowSlice } from "../runtime";
 import type { TacticsSlice } from "../types";
@@ -82,24 +82,9 @@ export function bannerText(slice: TacticsSlice | null): string {
 
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-const KEY_NAMES: Readonly<Record<string, string>> = {
-  Escape: "Esc",
-  Space: "Space",
-  Enter: "Enter",
-  ArrowUp: "↑",
-  ArrowDown: "↓",
-  ArrowLeft: "←",
-  ArrowRight: "→",
-};
-
-/** A `KeyboardEvent.code` as a key cap: KeyF is "F", Digit1 is "1", Escape is "Esc". */
-export function keyCap(code: string): string {
-  return KEY_NAMES[code] ?? code.replace(/^(Key|Digit|Numpad)/, "");
-}
-
 /** The first key bound to `action`, as a key cap; null when only pads or the pointer give it. */
 export function actionKey(bindings: ActionBindings, action: string): string | null {
-  for (const b of bindings[action] ?? []) if (b.device === "key") return keyCap(b.code);
+  for (const b of bindings[action] ?? []) if (b.device === "key") return keycapLabel(b.code);
   return null;
 }
 

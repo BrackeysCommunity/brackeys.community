@@ -12,7 +12,7 @@ import { loadCompatRapier } from "../rapier-compat";
 import { tempProject } from "./fixtures";
 
 const FIXTURES = fileURLToPath(
-  new URL("../../../src/engine/project/__tests__/fixtures", import.meta.url),
+  new URL("../../../packages/engine/project/__tests__/fixtures", import.meta.url),
 );
 
 let root: string;

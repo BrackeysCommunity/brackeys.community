@@ -18,6 +18,7 @@ import {
   seedProjectDoc,
   sequentialKeys,
 } from "@jams/engine/collab";
+import { DEFAULT_EXPORT_BUDGET, exportTargetNames, ITCH_LIMITS } from "@jams/engine/export";
 import { createRegistry } from "@jams/engine/game";
 import { createKindRegistry, ENGINE_ASSET_KINDS, type AssetEntry } from "@jams/engine/project";
 import type { SceneDefinition } from "@jams/engine/scene";
@@ -35,7 +36,7 @@ import {
 } from "../format-reference";
 
 /**
- * Keeps `src/engine/README.md` honest: the format reference is the
+ * Keeps `packages/engine/README.md` honest: the format reference is the
  * generator's output, and every `ts` block is a file in `examples/` that `vp
  * check` type-checks against the engine's public entries. After changing
  * either on purpose, run `UPDATE_README=1 vp test run scripts/engine-readme`.
@@ -43,7 +44,7 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "../../..");
-const README = join(REPO, "src/engine/README.md");
+const README = join(REPO, "packages/engine/README.md");
 const EXAMPLES = join(HERE, "../examples");
 const update = process.env.UPDATE_README === "1";
 
@@ -305,11 +306,11 @@ describe("the co-editing example", () => {
 /** A DOM to drive the browser-side examples in, without switching this file's environment; jsdom ships no types. */
 type Dom = { window: Window & typeof globalThis };
 const JSDOM_MODULE = "jsdom";
-async function dom(html: string): Promise<Dom> {
+async function dom(html: string, url?: string): Promise<Dom> {
   const { JSDOM } = (await import(/* @vite-ignore */ JSDOM_MODULE)) as {
-    JSDOM: new (html: string) => Dom;
+    JSDOM: new (html: string, opts?: { url?: string }) => Dom;
   };
-  return new JSDOM(html);
+  return new JSDOM(html, url ? { url } : {});
 }
 
 describe("the input examples run", () => {
@@ -621,5 +622,289 @@ describe("the scene flow and save examples run", () => {
     expect(await continueNewest({ saves: saves(0) })).toBeNull();
     await continueNewest({ saves: saves(3) });
     expect(loaded).toEqual(["slot-1"]);
+  });
+});
+
+/** The README's text from heading `name` to the next heading of the same depth. */
+function readmeSection(name: string): string {
+  const readme = readFileSync(README, "utf8");
+  const depth = /^#+/.exec(name)![0];
+  const start = readme.indexOf(`\n${name}\n`);
+  expect(start, name).toBeGreaterThan(-1);
+  const next = readme.slice(start + name.length + 2).search(new RegExp(`\n${depth} `));
+  return next === -1 ? readme.slice(start) : readme.slice(start, start + name.length + 2 + next);
+}
+
+/** A Markdown table's body rows, each cell trimmed and its backticks taken out. */
+function tableRows(markdown: string, header: string): string[][] {
+  const at = markdown.indexOf(header);
+  expect(at, header).toBeGreaterThan(-1);
+  const lines = markdown.slice(at).split("\n");
+  const rows: string[][] = [];
+  for (const line of lines.slice(2)) {
+    if (!line.startsWith("|")) break;
+    rows.push(
+      line
+        .slice(1, -1)
+        .split(/(?<!\\)\|/)
+        .map((c) => c.trim().replace(/`/g, "")),
+    );
+  }
+  return rows;
+}
+
+describe("the export section", () => {
+  const MiB = 1024 * 1024;
+
+  it("lists the targets the table builds, and the reserved ones as unbuilt", () => {
+    const rows = tableRows(readmeSection("### Targets"), "| Target");
+    const built = rows.filter((r) => r[3]!.startsWith("yes")).map((r) => r[0]);
+    expect(built).toEqual(exportTargetNames());
+    expect(rows.filter((r) => !r[3]!.startsWith("yes")).map((r) => r[0])).toEqual([
+      "desktop",
+      "mobile",
+    ]);
+  });
+
+  it("states the budgets' numbers as DEFAULT_EXPORT_BUDGET has them", () => {
+    const rows = tableRows(readmeSection("### Budgets"), "| Budget");
+    const stated = Object.fromEntries(
+      rows.map((r) => [r[0], Number(/^(\d+) MiB$/.exec(r[1]!)?.[1]) * MiB]),
+    );
+    expect(stated).toEqual(DEFAULT_EXPORT_BUDGET);
+  });
+
+  it("states itch.io's limits as ITCH_LIMITS has them", () => {
+    const rows = tableRows(readmeSection("### itch.io"), "| Limit");
+    const stated = Object.fromEntries(
+      rows.map((r) => {
+        const bytes = /\(([\d,]+) bytes\)/.exec(r[1]!)?.[1] ?? /^([\d,]+)/.exec(r[1]!)![1]!;
+        return [r[0], Number(bytes.replace(/,/g, ""))];
+      }),
+    );
+    expect(stated).toEqual(ITCH_LIMITS);
+  });
+
+  it("carries the size line verbatim, and names the site only as SITE does", () => {
+    const section = readmeSection("## Export");
+    expect(section).toContain(
+      "A build's size is reported against its budget before anything is uploaded; jams.team's own limits are stated in its publish flow.",
+    );
+    expect(section).toContain("Not from `file://`: use a static server or a wrapper.");
+    expect(section).toContain("An installed game keeps its saves in the same browser store");
+    expect(readFileSync(README, "utf8")).not.toMatch(/(?<!git\.)\bbrackeys\.(community|dev)\b/i);
+  });
+});
+
+describe("the export examples run", () => {
+  /** The layout block's lines as patterns over a build's paths. */
+  const LAYOUT = [
+    /^index\.html$/,
+    /^release\.json$/,
+    /^app\.webmanifest$/,
+    /^sw\.js$/,
+    /^credits\.html$/,
+    /^code\/[\w.-]+\.(js|css|wasm)$/,
+    /^data\/[0-9a-f]{64}\.json$/,
+    /^assets\/[0-9a-f]{64}\.\w+$/,
+    /^icons\/icon-(192|512)\.png$/,
+  ];
+
+  it("export-targets.ts reads web and itch from their rows", async () => {
+    const { targetRows } = await import("../examples/export-targets");
+    expect(targetRows()).toEqual({
+      rows: [
+        { name: "web", pwa: true, layoutChecked: false },
+        { name: "itch", pwa: false, layoutChecked: true },
+      ],
+      desktop: null,
+      zipDefault: "itch",
+    });
+  });
+
+  it("export-plan.ts plans the lane in the documented layout, a PWA only on the web", async () => {
+    const { planLane } = await import("../examples/export-plan");
+    const web = await planLane("web");
+    expect(web.needsRapier).toBe(false);
+    expect(web.issues).toEqual(["warn licence-missing"]);
+    for (const line of web.files) {
+      const path = line.split(" ")[0]!;
+      expect(
+        LAYOUT.some((p) => p.test(path)),
+        path,
+      ).toBe(true);
+    }
+    const roles = (files: string[]) =>
+      files.map((f) => f.split(" ")).filter(([p]) => !/^(assets|data)\//.test(p!));
+    expect(roles(web.files)).toEqual([
+      ["app.webmanifest", "shell"],
+      ["code/main-1a2b3c.js", "code"],
+      ["credits.html", "shell"],
+      ["icons/icon-192.png", "icon"],
+      ["icons/icon-512.png", "icon"],
+      ["index.html", "shell"],
+      ["sw.js", "worker"],
+    ]);
+    expect(web.files.filter((f) => f.startsWith("data/"))).toHaveLength(3);
+    expect(web.files.filter((f) => f.startsWith("assets/"))).toHaveLength(2);
+    const m = web.plan.manifest;
+    expect(m.build.rapier).toBeNull();
+    expect(m.flow.scenes.map((s) => [s.id, s.physics])).toEqual([["lane", "none"]]);
+    expect(m.pwa).toMatchObject({ name: "Lane Walk", shortName: "Lane", display: "fullscreen" });
+    expect(m.credits).toEqual({
+      assets: [{ assets: ["moss"], spdx: "CC0-1.0", author: "Ada" }],
+      missing: ["lamp"],
+      code: [{ package: "zod", version: "4.1.12", licence: "MIT", notice: "MIT License…" }],
+    });
+
+    const itch = await planLane("itch");
+    expect(itch.plan.manifest.pwa).toBeNull();
+    expect(itch.files.some((f) => /^(sw\.js|app\.webmanifest) /.test(f))).toBe(false);
+
+    const desktop = await planLane("desktop");
+    expect(desktop.issues).toContain("error export-target-unsupported");
+  });
+
+  it("export-plan.ts's shell pages hold no script of their own and no outside URL", async () => {
+    const { planLane } = await import("../examples/export-plan");
+    const { plan } = await planLane("web");
+    const text = (path: string) => {
+      const source = plan.files.find((f) => f.path === path)?.source;
+      return source?.kind === "text" ? source.text : "";
+    };
+    const index = text("index.html");
+    expect(index).toContain('<html lang="en">');
+    expect(index).toContain("<title>Lane Walk</title>");
+    expect(index).toContain('<link rel="manifest" href="app.webmanifest">');
+    expect(index.match(/<script/g)).toHaveLength(1);
+    expect(index).toContain('<script type="module" src="code/main-1a2b3c.js"></script>');
+    const credits = text("credits.html");
+    expect(credits).not.toContain("<script");
+    expect(credits).toContain("No licence recorded");
+    expect(credits).toContain("Made with @jams/engine");
+    for (const page of [index, credits]) expect(page).not.toMatch(/https?:\/\//);
+    expect(text("sw.js")).toContain(
+      `jams-lane-${plan.manifest.build.hash.slice(0, 12)}-${plan.manifest.project.snapshot.slice(0, 12)}`,
+    );
+  });
+
+  it("release-manifest.ts reads the lane's release back, refuses a changed hash and finds its release", async () => {
+    const { laneRelease } = await import("../examples/release-manifest");
+    expect(await laneRelease()).toEqual({
+      sameId: true,
+      read: [],
+      tampered: ["hash-mismatch"],
+      byId: true,
+      bySnapshot: true,
+      elsewhere: null,
+    });
+  });
+
+  it("export-budget.ts resolves overrides and names what puts the lane over", async () => {
+    const { budgets, tightLane } = await import("../examples/export-budget");
+    expect(budgets()).toEqual({
+      defaults: ["codeBytes 4 MB", "firstLoadBytes 16 MB", "totalBytes 100 MB", "fileBytes 32 MB"],
+      limits: ["codeBytes 4 MB", "firstLoadBytes 16 MB", "totalBytes 50 MB", "fileBytes 8 MB"],
+    });
+    const tight = await tightLane();
+    expect(tight.over).toEqual(["firstLoadBytes"]);
+    expect(tight.files).toBe(12);
+    expect(tight.messages).toHaveLength(1);
+    expect(tight.messages[0]).toMatch(
+      /^firstLoadBytes 5 KB over 4 KB: assets\/a{64}\.png 2 KB \(moss\), .*\. Lower the asset's size or raise export\.budget\.firstLoadBytes\.$/,
+    );
+  });
+
+  it("itch-zip.ts passes a root build, refuses a nested one and zips the same bytes in any order", async () => {
+    const { itchUpload } = await import("../examples/itch-zip");
+    const r = itchUpload();
+    expect(r.limits).toEqual(ITCH_LIMITS);
+    expect(r.issues).toEqual([]);
+    expect(r.nested).toEqual([
+      `index.html is at "lane/index.html"; itch.io needs it at the zip's root, not in a folder`,
+      `"lane/.DS_Store" is a dotfile or in a dot folder; itch.io builds ship neither`,
+    ]);
+    expect(r.zipBytes).toBeGreaterThan(0);
+    expect(r.sameZip).toBe(true);
+  });
+
+  it("standalone-page.ts shows a refused boot's code and a Reload button", async () => {
+    const { playLane } = await import("../examples/standalone-page");
+    const { window } = await dom(`<div id="game"></div>`, "https://games.example.test/lane/");
+    const root = window.document.getElementById("game")!;
+    const asked: string[] = [];
+    const notFound = async (url: string) => {
+      asked.push(url);
+      return new Response("not here", { status: 404 });
+    };
+    const game = await playLane(root, notFound as unknown as typeof fetch);
+    expect(game).toBeNull();
+    expect(asked).toEqual(["https://games.example.test/lane/release.json"]);
+    expect(window.document.documentElement.dataset.jamsState).toBe("error");
+    const alert = root.querySelector<HTMLElement>("[role=alert]")!;
+    expect(alert.dataset.jamsError).toBe("export-asset-missing");
+    expect(alert.querySelector("code")?.textContent).toBe("export-asset-missing");
+    expect(alert.querySelector("button")?.textContent).toBe("Reload");
+    expect(root.querySelector("[title]")).toBeNull();
+    expect(root.querySelector("canvas")).toBeNull();
+  });
+
+  it("standalone-page.ts shows Install only while the browser offers it, and links the credits", async () => {
+    const { laneMenu } = await import("../examples/standalone-page");
+    const { window } = await dom(`<div></div>`, "https://games.example.test/lane/");
+    let offered = false;
+    let prompted = 0;
+    const game = {
+      get install() {
+        return offered ? async () => (prompted++, (offered = false), true) : null;
+      },
+      credits: "credits.html",
+    } as unknown as Parameters<typeof laneMenu>[0];
+    const menu = laneMenu(game, window.document);
+    const [install, credits] = [menu.querySelector("button")!, menu.querySelector("a")!];
+    expect(install.hidden).toBe(true);
+    expect(credits.getAttribute("href")).toBe("credits.html");
+    offered = true;
+    window.dispatchEvent(new window.Event("beforeinstallprompt"));
+    await Promise.resolve();
+    expect(install.hidden).toBe(false);
+    install.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(prompted).toBe(1);
+    expect(install.hidden).toBe(true);
+  });
+});
+
+describe("the graphics loss example runs", () => {
+  it("graphics-loss.ts's overlay shows a status line and takes it away", async () => {
+    const { restoringCard } = await import("../examples/graphics-loss");
+    const { window } = await dom(`<div id="layer"></div>`);
+    const layer = window.document.getElementById("layer")!;
+    const shown = restoringCard(layer);
+    expect(layer.querySelector("[role=status]")?.textContent).toContain("paused");
+    shown.destroy();
+    expect(layer.querySelector("[role=status]")).toBeNull();
+  });
+
+  it("graphics-loss.ts logs a loss, a rebuild on WebGL and the fallback", async () => {
+    const { watchGraphics } = await import("../examples/graphics-loss");
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const game = {
+      on: (event: string, handler: (payload: unknown) => void) => void handlers.set(event, handler),
+    } as unknown as Parameters<typeof watchGraphics>[0];
+    const lines: string[] = [];
+    watchGraphics(game, (line) => lines.push(line));
+    handlers.get("render:lost")!({ backend: "webgpu" });
+    handlers.get("render:fallback")!({ from: "webgpu", reason: "lost" });
+    handlers.get("render:restored")!({ backend: "webgl", rebuilt: true });
+    handlers.get("render:lost")!({ backend: "webgl" });
+    handlers.get("render:restored")!({ backend: "webgl", rebuilt: false });
+    expect(lines).toEqual([
+      "lost webgpu: paused",
+      "webgpu lost: WebGL from here on",
+      "back on webgl, rebuilt: resumed",
+      "lost webgl: paused",
+      "back on webgl: resumed",
+    ]);
   });
 });

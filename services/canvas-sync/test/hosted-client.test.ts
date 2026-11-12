@@ -3,6 +3,7 @@ import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { docNameOf, memoryContentStore } from "../../../packages/engine/project/index.ts";
 import { runCli } from "../../../scripts/scene/commands.ts";
 import type { ToolContext } from "../../../scripts/scene/context.ts";
 import {
@@ -14,7 +15,6 @@ import { MCP_TOOLS, runMcpTool } from "../../../scripts/scene/mcp-tools.ts";
 import { openLiveProject } from "../../../scripts/scene/project-client.ts";
 import { openProject } from "../../../scripts/scene/projects.ts";
 import { loadCompatRapier } from "../../../scripts/scene/rapier-compat.ts";
-import { docNameOf, memoryContentStore } from "../../../src/engine/project/index.ts";
 import { emptyProjectState } from "../../../src/lib/scene/project-bytes.ts";
 import { startServer, type SyncServer } from "../src/index.ts";
 import {
@@ -41,7 +41,7 @@ const READ_AGENT = "jat_hostedClientReadOnly";
 const PROJECT = "hosted-demo";
 const AGENT = "agent-1";
 const OWNER = "ada";
-const ENGINE_YARD = new URL("../../../src/engine/scenes/engine-yard.json", import.meta.url);
+const ENGINE_YARD = new URL("../../../packages/engine/scenes/engine-yard.json", import.meta.url);
 
 /** A 1×1 PNG. */
 const DOT = Buffer.from(

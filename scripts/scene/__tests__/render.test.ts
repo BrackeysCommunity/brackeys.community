@@ -25,11 +25,11 @@ beforeAll(async () => {
   await mkdir(dirs.engine);
   await mkdir(dirs.platformer);
   await copyFile(
-    repoFile("src/engine/scenes/engine-yard.json"),
+    repoFile("packages/engine/scenes/engine-yard.json"),
     join(dirs.engine, "engine-yard.json"),
   );
   await copyFile(
-    repoFile("src/engine/scene/__tests__/fixtures/sprites.json"),
+    repoFile("packages/engine/scene/__tests__/fixtures/sprites.json"),
     join(dirs.engine, "sprites.json"),
   );
   await copyFile(

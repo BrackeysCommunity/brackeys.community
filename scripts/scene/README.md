@@ -3,7 +3,7 @@
 Read, check, edit and step scenes, and manage a project's assets, from a
 terminal or an agent. The CLI works on **projects**: every
 `jams.project.json` under `src/` (`src/games/platformer/` holds the
-platformer's, `src/games/tactics/` the tactics game's, `src/engine/scenes/`
+platformer's, `src/games/tactics/` the tactics game's, `packages/engine/scenes/`
 the engine's, whose scenes name no game), found by `discoverProjects` in
 `projects.ts`; `game new` scaffolds another ([New games](#new-games)). It is built only from the
 engine's public entries (`@jams/engine/scene`, `/headless`, `/game`,
@@ -61,46 +61,49 @@ tactics game's: a turn game on a grid, driven by commands) and `engine-yard`
 
 ## Commands
 
-| Command                                                                                                                                                                                                                                   | Writes                   | What it returns                                                                                                                                                                                                                                                                                                   |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list`                                                                                                                                                                                                                                    | no                       | every scene with its `game`, `sceneHash`, issue counts, entity counts per type and bounds, `clashes`                                                                                                                                                                                                              |
-| `show <scene\|file\|-> [--ref id] [--type t] [--near x,y,r]`                                                                                                                                                                              | no                       | entities and bulk entries with their ref, type, raw shape, world AABB and top span, plus `sceneHash`, the time model and the physics backend                                                                                                                                                                      |
-| `schema [scene\|ops\|script\|checks\|recording\|fragment\|prefab\|project\|asset-sidecar\|project-ops\|project-snapshot\|save\|material\|game-settings\|data-table\|<doc kind>] [--game id]`                                              | no                       | a JSON Schema the engine serves (`urn:jams-engine:<kind>[:<game>]:v<n>`): a game's scene, ops, script, checks, fragment, prefab and doc kinds; the recording, project and save schemas                                                                                                                            |
-| `codes`                                                                                                                                                                                                                                   | no                       | `agentSurface` and every issue code with its severity, summary, hint and fixability, grouped by owner                                                                                                                                                                                                             |
-| `flow [--project p]`                                                                                                                                                                                                                      | no                       | each project's scene list: its start, every listed scene's title, sublevel tag, physics and bundle bytes, the scenes it leaves out, and its issues; exit 1 on an error; see [Flow](#flow)                                                                                                                         |
-| `validate <scene\|file\|-> [--physical]`                                                                                                                                                                                                  | no                       | `SceneIssue[]` with JSON Pointer paths and line numbers; `--physical` adds the physics world's; exit 1 on errors                                                                                                                                                                                                  |
-| `fmt [asset] [--check]`                                                                                                                                                                                                                   | yes, unless check        | rewrites a doc asset (or every one) in its kind's canonical form; `--check` exits 1 when one isn't canonical                                                                                                                                                                                                      |
-| `apply <scene> --ops <file\|-> [--dry-run] [--base hash] [--live …]`                                                                                                                                                                      | yes, unless dry run      | the `ApplyResult`: diff, inverse, created ids, ref remap, issues and the new `sceneHash`                                                                                                                                                                                                                          |
-| `diff <a> (<b> \| --git <rev> \| --ops <file\|->)`                                                                                                                                                                                        | no                       | `changes`: what changed from the first side to the second, entity by entity                                                                                                                                                                                                                                       |
-| `new <name> [--game id] [--from scene]`                                                                                                                                                                                                   | yes                      | writes a new scene from the game's template, or a copy of `--from` under the new name, as a `createAsset` (an id or path another asset holds is refused)                                                                                                                                                          |
-| `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]] [--elapse tick:ms] [--events type,…] [--game id] [--legal]`                                                                           | no                       | a headless probe: events by entity id, spawns and destroys per type, the game's final snapshot, runtime stats; `--command` and `--elapse` repeat; `--legal` lists the commands legal after the last tick ([Legal commands](#legal-commands))                                                                      |
-| `grid <scene> [--from c,r\|ref] [--to c,r\|ref] [--fov c,r:radius] [--diagonals]`                                                                                                                                                         | no                       | the scene's grid as text: walls, a path between two cells or entities, what a cell sees; exit 1 with no path; see [World models](#grids-and-connected)                                                                                                                                                            |
-| `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file]`                                                                                                       | with --record            | a headless run of a v1 or v2 input script (`--at` in metres): outcome, steps, events, spawns and destroys per type, focus trail, `recording`, and a `legal` count for a game that lists its commands; `--flow` follows scene requests (`segments`), `--from-save` starts from a save fixture; exit 1 when blocked |
-| `replay <scene\|file\|-> --run <file\|-> [--game id]`                                                                                                                                                                                     | no                       | replays a run recording (or a playtest report's) headless, with the recorded engine, physics and platform and `migratedFrom 1` for a v1 file; exit 1 when it ends differently                                                                                                                                     |
-| `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id] [--from-save file]`                                                                                                                                              | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second, and for a game that lists its commands how many it sent; takes no script; `--from-save` starts every rollout from a save fixture                                                                                 |
-| `save <scene\|file> --script <file\|-> --at <tick> --out <file>.save.json [--depth world\|progress] [--now ms]`                                                                                                                           | yes                      | runs the script to the tick and writes a `save:v1` fixture there (inside a project, as a `save` asset); refused with `save-unsupported` and its causes; see [Saves](#saves)                                                                                                                                       |
-| `input [--project p] [--player n] [--json]`                                                                                                                                                                                               | no                       | each seat's resolved bindings per action, layer by layer (the input map's, then the game's), which one the seat uses, and their issues; loads no Rapier; see [Input v2](#input-v2)                                                                                                                                |
-| `check <scene\|file> [--checks file] [--only id] [--game id]`                                                                                                                                                                             | no                       | runs `<scene>.checks.json`; each check passes, fails or is skipped; exit 1 when one fails                                                                                                                                                                                                                         |
-| `render <scene\|file\|-> [--out file] [--ascii] [view flags…]`                                                                                                                                                                            | with --out               | a schematic PNG or SVG of the scene, or `--ascii` a character map; see [Rendering](#rendering)                                                                                                                                                                                                                    |
-| `textconv <file>`                                                                                                                                                                                                                         | no                       | a scene as one sorted line per header field, bulk entry and entity, for `git diff`                                                                                                                                                                                                                                |
-| `bundle <scene>`                                                                                                                                                                                                                          | no                       | the texture blobs a scene loads (sorted, deduplicated, with bytes and a total); `asset-missing` issues with a did-you-mean, exit 1 on them                                                                                                                                                                        |
-| `project show`                                                                                                                                                                                                                            | no                       | the project's id, name, game, live assets by kind, code modules, file problems and storage usage                                                                                                                                                                                                                  |
-| `project tree`                                                                                                                                                                                                                            | no                       | folders, live assets and read-only code modules, as the editor's tree panel shows them                                                                                                                                                                                                                            |
-| `project refs [id]`                                                                                                                                                                                                                       | no                       | what an asset names and what names it; without an id, every dangling reference; exit 1 on dangling ones                                                                                                                                                                                                           |
-| `project snapshot [--out file\|-]`                                                                                                                                                                                                        | with --out               | every live asset pinned by SHA-256; its `hash` is what a file batch's `base` names                                                                                                                                                                                                                                |
-| `project pull <project> --url https://site [--out dir] [--check]`                                                                                                                                                                         | unless --check           | every file the hosted project changes (added, changed, removed); exit 1 with `--check` when one would                                                                                                                                                                                                             |
-| `project push <dir> --create --url https://site [--dry-run]`                                                                                                                                                                              | the site, unless dry run | the files, docs and uploads a new hosted project was seeded with; with `--dry-run`, the docs it would seed and the binaries it would upload                                                                                                                                                                       |
-| `assets list [--kind k] [--trash] [--live]`                                                                                                                                                                                               | no                       | each live (or trashed) asset: project, path, kind, id, key, name, bytes, hash                                                                                                                                                                                                                                     |
-| `assets info <id> [--frame f]`                                                                                                                                                                                                            | no                       | an asset's kind, hash and bytes; a texture's size, pivot, nine-slice and filter; an atlas's frames, tags and texture; `--frame` for one frame's size and pivot                                                                                                                                                    |
-| `assets import <file> [--path p] [--id id] [--kind k] [--settings json]`                                                                                                                                                                  | yes, unless dry run      | bytes to the content store, then `importAsset` (a doc kind's JSON: `createAsset`); the file, sidecar and entry                                                                                                                                                                                                    |
-| `assets rename <id> [--name text] [--file name.ext]`                                                                                                                                                                                      | yes, unless dry run      | `renameAsset`: the display name and the file name in place; the id stays                                                                                                                                                                                                                                          |
-| `assets move <id...> --to <folder/>`                                                                                                                                                                                                      | yes, unless dry run      | `moveAsset`, sidecars included                                                                                                                                                                                                                                                                                    |
-| `assets delete <id> [--force]`                                                                                                                                                                                                            | yes, unless dry run      | `deleteAsset` to the trash; `asset-in-use` while something names it, unless `--force`                                                                                                                                                                                                                             |
-| `assets restore <id>`                                                                                                                                                                                                                     | yes, unless dry run      | `restoreAsset` from the trash                                                                                                                                                                                                                                                                                     |
-| `assets change-id <id> <new-id>`                                                                                                                                                                                                          | yes, unless dry run      | `changeAssetId`: the new id and every reference to it, in every doc, as one batch                                                                                                                                                                                                                                 |
-| `assets set-import <id> --set <json\|key=value,…>`                                                                                                                                                                                        | yes, unless dry run      | `setImport` per field (`null` resets one); meta is re-inspected                                                                                                                                                                                                                                                   |
-| `assets apply --ops <file\|->`                                                                                                                                                                                                            | yes, unless dry run      | any project op batch (`schema project-ops`), which may span docs                                                                                                                                                                                                                                                  |
-| `game new <id> [--name "Title"] [--preset top-down\|grid\|turns] [--physics none\|rapier] [--gravity x,y] [--time fixed\|turns\|event] [--rate n] [--grid square\|hex\|none] [--cell n] [--px-per-metre n] [--dir src/games] [--dry-run]` | yes, unless dry run      | a new game project from a preset: its files, its scene's issues, the URLs that open it on the dev site and the playtest command; see [New games](#new-games)                                                                                                                                                      |
+| Command                                                                                                                                                                                                                                   | Writes                   | What it returns                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list`                                                                                                                                                                                                                                    | no                       | every scene with its `game`, `sceneHash`, issue counts, entity counts per type and bounds, `clashes`                                                                                                                                                                                                                                                                               |
+| `show <scene\|file\|-> [--ref id] [--type t] [--near x,y,r]`                                                                                                                                                                              | no                       | entities and bulk entries with their ref, type, raw shape, world AABB and top span, plus `sceneHash`, the time model and the physics backend                                                                                                                                                                                                                                       |
+| `schema [scene\|ops\|script\|checks\|recording\|fragment\|prefab\|project\|asset-sidecar\|project-ops\|project-snapshot\|save\|material\|game-settings\|data-table\|<doc kind>] [--game id]`                                              | no                       | a JSON Schema the engine serves (`urn:jams-engine:<kind>[:<game>]:v<n>`): a game's scene, ops, script, checks, fragment, prefab and doc kinds; the recording, project and save schemas                                                                                                                                                                                             |
+| `codes`                                                                                                                                                                                                                                   | no                       | `agentSurface` and every issue code with its severity, summary, hint and fixability, grouped by owner                                                                                                                                                                                                                                                                              |
+| `flow [--project p]`                                                                                                                                                                                                                      | no                       | each project's scene list: its start, every listed scene's title, sublevel tag, physics and bundle bytes, the scenes it leaves out, and its issues; exit 1 on an error; see [Flow](#flow)                                                                                                                                                                                          |
+| `validate <scene\|file\|-> [--physical]`                                                                                                                                                                                                  | no                       | `SceneIssue[]` with JSON Pointer paths and line numbers; `--physical` adds the physics world's; exit 1 on errors                                                                                                                                                                                                                                                                   |
+| `fmt [asset] [--check]`                                                                                                                                                                                                                   | yes, unless check        | rewrites a doc asset (or every one) in its kind's canonical form; `--check` exits 1 when one isn't canonical                                                                                                                                                                                                                                                                       |
+| `apply <scene> --ops <file\|-> [--dry-run] [--base hash] [--live …]`                                                                                                                                                                      | yes, unless dry run      | the `ApplyResult`: diff, inverse, created ids, ref remap, issues and the new `sceneHash`                                                                                                                                                                                                                                                                                           |
+| `diff <a> (<b> \| --git <rev> \| --ops <file\|->)`                                                                                                                                                                                        | no                       | `changes`: what changed from the first side to the second, entity by entity                                                                                                                                                                                                                                                                                                        |
+| `new <name> [--game id] [--from scene]`                                                                                                                                                                                                   | yes                      | writes a new scene from the game's template, or a copy of `--from` under the new name, as a `createAsset` (an id or path another asset holds is refused)                                                                                                                                                                                                                           |
+| `step <scene\|file\|-> [--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]] [--elapse tick:ms] [--events type,…] [--game id] [--legal]`                                                                           | no                       | a headless probe: events by entity id, spawns and destroys per type, the game's final snapshot, runtime stats; `--command` and `--elapse` repeat; `--legal` lists the commands legal after the last tick ([Legal commands](#legal-commands))                                                                                                                                       |
+| `grid <scene> [--from c,r\|ref] [--to c,r\|ref] [--fov c,r:radius] [--diagonals]`                                                                                                                                                         | no                       | the scene's grid as text: walls, a path between two cells or entities, what a cell sees; exit 1 with no path; see [World models](#grids-and-connected)                                                                                                                                                                                                                             |
+| `playtest <scene\|file\|-> --script <file\|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file]`                                                                                                       | with --record            | a headless run of a v1 or v2 input script (`--at` in metres): outcome, steps, events, spawns and destroys per type, focus trail, `recording`, and a `legal` count for a game that lists its commands; `--flow` follows scene requests (`segments`), `--from-save` starts from a save fixture; exit 1 when blocked                                                                  |
+| `replay <scene\|file\|-> --run <file\|-> [--game id] [--releases <dir>]`                                                                                                                                                                  | no                       | replays a run recording (or a playtest report's) headless, with the recorded engine, physics and platform and `migratedFrom 1` for a v1 file; `--releases` also names the build under the directory the run was made on (see [Game builds](#game-builds)); exit 1 when it ends differently                                                                                         |
+| `fuzz <scene\|file\|-> [--seed s] [--rollouts n] [--ticks n] [--game id] [--from-save file]`                                                                                                                                              | no                       | seeded random rollouts: entities reached in N of M runs, first ticks, results, ticks per second, and for a game that lists its commands how many it sent; takes no script; `--from-save` starts every rollout from a save fixture                                                                                                                                                  |
+| `save <scene\|file> --script <file\|-> --at <tick> --out <file>.save.json [--depth world\|progress] [--now ms] [--flow]`                                                                                                                  | yes                      | runs the script to the tick and writes a `save:v1` fixture there (inside a project, as a `save` asset); refused with `save-unsupported` and its causes; `--flow` follows scene requests through the scene list; see [Saves](#saves)                                                                                                                                                |
+| `input [--project p] [--player n] [--json]`                                                                                                                                                                                               | no                       | each seat's resolved bindings per action, layer by layer (the input map's, then the game's), which one the seat uses, and their issues; loads no Rapier; see [Input v2](#input-v2)                                                                                                                                                                                                 |
+| `check <scene\|file> [--checks file] [--only id] [--game id]`                                                                                                                                                                             | no                       | runs `<scene>.checks.json`; each check passes, fails or is skipped; exit 1 when one fails                                                                                                                                                                                                                                                                                          |
+| `render <scene\|file\|-> [--out file] [--ascii] [view flags…]`                                                                                                                                                                            | with --out               | a schematic PNG or SVG of the scene, or `--ascii` a character map; see [Rendering](#rendering)                                                                                                                                                                                                                                                                                     |
+| `textconv <file>`                                                                                                                                                                                                                         | no                       | a scene as one sorted line per header field, bulk entry and entity, for `git diff`                                                                                                                                                                                                                                                                                                 |
+| `bundle <scene>`                                                                                                                                                                                                                          | no                       | the texture blobs a scene loads (sorted, deduplicated, with bytes and a total); `asset-missing` issues with a did-you-mean, exit 1 on them                                                                                                                                                                                                                                         |
+| `project show`                                                                                                                                                                                                                            | no                       | the project's id, name, game, live assets by kind, code modules, file problems and storage usage                                                                                                                                                                                                                                                                                   |
+| `project tree`                                                                                                                                                                                                                            | no                       | folders, live assets and read-only code modules, as the editor's tree panel shows them                                                                                                                                                                                                                                                                                             |
+| `project refs [id]`                                                                                                                                                                                                                       | no                       | what an asset names and what names it; without an id, every dangling reference; exit 1 on dangling ones                                                                                                                                                                                                                                                                            |
+| `project snapshot [--out file\|-]`                                                                                                                                                                                                        | with --out               | every live asset pinned by SHA-256; its `hash` is what a file batch's `base` names                                                                                                                                                                                                                                                                                                 |
+| `project pull <project> --url https://site [--out dir] [--check]`                                                                                                                                                                         | unless --check           | every file the hosted project changes (added, changed, removed); exit 1 with `--check` when one would                                                                                                                                                                                                                                                                              |
+| `project push <dir> --create --url https://site [--dry-run]`                                                                                                                                                                              | the site, unless dry run | the files, docs and uploads a new hosted project was seeded with; with `--dry-run`, the docs it would seed and the binaries it would upload                                                                                                                                                                                                                                        |
+| `assets list [--kind k] [--trash] [--live]`                                                                                                                                                                                               | no                       | each live (or trashed) asset: project, path, kind, id, key, name, bytes, hash                                                                                                                                                                                                                                                                                                      |
+| `assets info <id> [--frame f]`                                                                                                                                                                                                            | no                       | an asset's kind, hash and bytes; a texture's size, pivot, nine-slice and filter; an atlas's frames, tags and texture; `--frame` for one frame's size and pivot                                                                                                                                                                                                                     |
+| `assets import <file> [--path p] [--id id] [--kind k] [--settings json]`                                                                                                                                                                  | yes, unless dry run      | bytes to the content store, then `importAsset` (a doc kind's JSON: `createAsset`); the file, sidecar and entry                                                                                                                                                                                                                                                                     |
+| `assets rename <id> [--name text] [--file name.ext]`                                                                                                                                                                                      | yes, unless dry run      | `renameAsset`: the display name and the file name in place; the id stays                                                                                                                                                                                                                                                                                                           |
+| `assets move <id...> --to <folder/>`                                                                                                                                                                                                      | yes, unless dry run      | `moveAsset`, sidecars included                                                                                                                                                                                                                                                                                                                                                     |
+| `assets delete <id> [--force]`                                                                                                                                                                                                            | yes, unless dry run      | `deleteAsset` to the trash; `asset-in-use` while something names it, unless `--force`                                                                                                                                                                                                                                                                                              |
+| `assets restore <id>`                                                                                                                                                                                                                     | yes, unless dry run      | `restoreAsset` from the trash                                                                                                                                                                                                                                                                                                                                                      |
+| `assets change-id <id> <new-id>`                                                                                                                                                                                                          | yes, unless dry run      | `changeAssetId`: the new id and every reference to it, in every doc, as one batch                                                                                                                                                                                                                                                                                                  |
+| `assets set-import <id> --set <json\|key=value,…>`                                                                                                                                                                                        | yes, unless dry run      | `setImport` per field (`null` resets one); meta is re-inspected                                                                                                                                                                                                                                                                                                                    |
+| `assets apply --ops <file\|->`                                                                                                                                                                                                            | yes, unless dry run      | any project op batch (`schema project-ops`), which may span docs                                                                                                                                                                                                                                                                                                                   |
+| `game new <id> [--name "Title"] [--preset top-down\|grid\|turns] [--physics none\|rapier] [--gravity x,y] [--time fixed\|turns\|event] [--rate n] [--grid square\|hex\|none] [--cell n] [--px-per-metre n] [--dir src/games] [--dry-run]` | yes, unless dry run      | a new game project from a preset: its files, its scene's issues, the URLs that open it on the dev site and the playtest command; see [New games](#new-games)                                                                                                                                                                                                                       |
+| `game build <id> [--target web\|itch] [--out dist/games/<id>/<target>] [--rapier standard\|compat] [--allow-over-budget]`                                                                                                                 | yes, under `dist/`       | a static build of the project: the listed scenes and what they reach, the code, `release.json`, credits and for `web` the PWA files; prints scenes and physics, bytes per role, the budget, credits gaps and the wasm line; the bundle report beside it; exit 1 on an error issue (over budget: written, and accepted with `--allow-over-budget`); see [Game builds](#game-builds) |
+| `game export <id> --zip [--target itch\|web] [--out dist/games/<id>-<target>.zip]`                                                                                                                                                        | yes, under `dist/`       | builds, then zips the build (stored, sorted, fixed times); the `itch` target checks itch.io's HTML5 layout; nothing is uploaded                                                                                                                                                                                                                                                    |
+| `game manifest <dir\|release.json>`                                                                                                                                                                                                       | no                       | parses and checks a release manifest, with the build's files and their hashes when given its directory, and prints its summary; exit 1 when it doesn't hold together                                                                                                                                                                                                               |
 
 The `assets` writers and `apply` also take `--dry-run`, `--live`, `--url`,
 `--token`, `--agent` and `--on-behalf-of`; the `assets` writers take `--base` (see
@@ -439,7 +442,7 @@ one: validation errors block, and `at` (or `--at x,y`, which overrides it)
 is cast down onto the first surface with the game's spawn shape and refused
 inside a solid. `schema script --game <id>` is the reference; a script's
 `$schema` points at the committed `src/games/<id>/input-script.schema.json`
-(the engine's is `src/engine/scene/input-script.schema.json`).
+(the engine's is `packages/engine/scene/input-script.schema.json`).
 
 - Scripts are `"v": 2`; analog values, the pointer, seats and per-seat
   tracks are in [Scripts v2](#scripts-v2).
@@ -856,7 +859,7 @@ exactly one walk area, or two walk areas that overlap is `nav-invalid`:
 
 A running game spawns, destroys, enables and disables entities, and places
 prefabs (the engine README's
-[Entity lifecycle](../../src/engine/README.md#entity-lifecycle)). What it
+[Entity lifecycle](../../packages/engine/README.md#entity-lifecycle)). What it
 spawns has a runtime id, `<name>#<n>` from a counter per type or prefab
 name (`drop#3`), or an explicit `<name>#<label>` (`drop#first`); a placed
 prefab's children are `<id>/<child>` (`twin-spout#1/left`). Runtime ids are
@@ -1002,7 +1005,7 @@ checks.
 ## Input v2
 
 A game binds its actions by device, and a run records every seat's input.
-The engine README's [Input](../../src/engine/README.md#input) is the API;
+The engine README's [Input](../../packages/engine/README.md#input) is the API;
 this is what files and commands hold. The examples run on the engine
 README's duel game (`scripts/engine-readme/examples/duel-game.ts`): two
 seats race to a flag on a physics-free `field`, each steering a `move`
@@ -1254,6 +1257,9 @@ input stream per seat plus a system stream, indexing the `actions` and
   `project`, and `runHash`: a hash of the expanded scene, the clock and the
   project's settings, tables and input map. A replay is `stale` when
   `runHash` differs; `sceneHash` is still shown.
+- `release`: the id of the exported build the run was played in, written
+  only by a game that plays from a release; `replay --releases <dir>`
+  finds that build ([Game builds](#game-builds)).
 
 `replay` prints the recording's platform. When the engine doesn't vouch
 for replays across CPU architectures, a Rapier recording made on another
@@ -1292,7 +1298,7 @@ and the editor offers "Create scene list". The tactics game's:
 
 ```json
 {
-  "$schema": "../../engine/project/scene-list.schema.json",
+  "$schema": "../../../packages/engine/project/scene-list.schema.json",
   "kind": "scene-list",
   "v": 1,
   "start": "menu",
@@ -1444,7 +1450,7 @@ vp run scene playtest level-2 --script scripts/scene/examples/take-stair.json --
 ## Saves
 
 A save is a `save:v1` file (`schema save`,
-`src/engine/project/save.schema.json`,
+`packages/engine/project/save.schema.json`,
 `urn:jams-engine:save:v1`): the game and its `saves.version`, the engine
 version, the slot, `meta` (`playTicks`, `savedAt`, the scene), the
 `depth`, the persistent state, the scene (`id`, `runHash`, the attached
@@ -1577,6 +1583,150 @@ vp run scene render test-yard --out /tmp/test-yard.png
 vp run scene render engine-yard --around lift --scale 2 --overlay report.json --out lift.png
 ```
 
+## Game builds
+
+`game build <id>` turns a game's project into a static site that plays
+without the jams.team site, the editor or a dev server: every scene the
+scene list holds, the prefabs, docs and blobs they reach, the game's code
+and its UI, and `release.json`, the manifest that pins all of it. Only a
+project with a game module builds. Output goes under `dist/` (gitignored):
+
+```sh
+vp run scene game build tactics
+vp run scene game manifest dist/games/tactics/web
+vp run scene game export tactics --zip
+vp run scene game manifest dist/games/tactics/itch --json
+```
+
+`--target` picks a row of the engine's target table (`EXPORT_TARGETS`),
+and the usage line lists the rows, so it grows with the table:
+
+| Target | Default for         | Ships besides the game                                                                   | Checked against                        |
+| ------ | ------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------- |
+| `web`  | `game build`        | `sw.js` and `app.webmanifest` (offline play and install), unless `export.pwa` is `false` | the size budgets                       |
+| `itch` | `game export --zip` | nothing: no service worker, since itch.io serves the game from its own nested path       | the budgets and itch.io's HTML5 layout |
+
+Any other target (`desktop`, `mobile`) is a release target this engine
+version doesn't build. It is refused with `export-target-unsupported`
+while planning, before the bundler runs or anything is written:
+
+```sh expect=export-target-unsupported
+vp run scene game build tactics --target desktop --json
+```
+
+**What a build holds.** A build directory is the same for every target:
+
+```text
+dist/games/tactics/web/
+  index.html            the page: <div id="game"> and one module script
+  credits.html          every shipped blob's licence, and the code packages'
+  release.json          the manifest (schema release:v1)
+  code/<name>-<hash>.js the entry, its chunks and styles, named by content hash
+  data/<sha256>.json    each shipped doc's canonical text
+  assets/<sha256>.png   each shipped blob, named by its content hash
+  icons/icon-192.png    the app icons: export.icons, else the engine's default
+  icons/icon-512.png
+  sw.js                 web only: the service worker
+  app.webmanifest       web only: the web app manifest
+```
+
+A Rapier scene in the list adds the wasm: as its own `code/` file behind a
+dynamic import with the standard package, or inlined into the code with
+`game build platformer --rapier compat` (the project file's `export.rapier`
+sets the default). A list with no Rapier scene ships no wasm at all. No file
+depends on the clock or the machine, so two builds of one snapshot are
+equal byte for byte. Serve the directory from any static server: the page
+doesn't play from `file://`.
+
+**What it prints.** One line per part of the plan, the same lines `game
+manifest` prints, then the wasm line and where the bundle report went:
+
+```text
+tactics web: wrote dist/games/tactics/web (release <sha256>)
+  game tactics, engine 0.14.0 (agent surface 15), target web, snapshot <sha256>
+  scenes menu (start, none), level-1 (none), level-2 (none), result (none), cellar (sublevel, none)
+  physics none: no wasm
+  files <n> + release.json, <bytes>: code …, shell …, worker …, icon …, asset …, data …
+  budget codeBytes … of 4 MB, firstLoadBytes … of 16 MB, totalBytes … of 100 MB, largest file <path> … of 32 MB
+  credits <n> licence groups, <n> code packages; every asset has a licence
+  wasm: 0 B (no listed scene uses Rapier)
+  bundle report dist/games/tactics/web.bundle-report
+```
+
+`--json` has the same as data (`release`, `scenes`, `bytes` per role,
+`budget`, `credits`, `wasm`, `issues`). The bundle report
+(`<out>.bundle-report/client.json`) sits beside the build, never in it,
+for `scripts/engine-bundle-check.ts --export <dir>`, which fails a build
+that holds editor or dev-only code.
+
+**Budgets.** Every build is measured against four limits, which the
+project file's `export.budget` overrides field by field: `codeBytes` (JS
+and CSS without wasm, 4 MiB), `firstLoadBytes` (the code, the wasm when a
+scene needs it, the project bundle and the start scene's bundle: what the
+first frame waits for, 16 MiB), `totalBytes` (100 MiB) and `fileBytes` (any
+one file, 32 MiB). A build over one is still written, and fails with
+`export-over-budget` naming the largest contributors;
+`game build tactics --allow-over-budget` accepts it. The budget is reported
+before anything is uploaded anywhere; jams.team's own limits are stated in
+its publish flow.
+
+**Credits.** A shipped blob with no licence recorded still ships, with a
+`licence-missing` warning, and `credits.html` lists it under "No licence
+recorded". Record one with a `setLicence` op through `assets apply`.
+`export.icons` names a 192 and a 512 texture; one that isn't a PNG of
+exactly that size falls back to the default icon with
+`export-asset-missing` at warn.
+
+**The project file's `export` block** (`schema project`; every field has a
+default): `shortName`, `icons`, `themeColor`, `background`, `display`
+(`fullscreen`, `standalone` or `minimal-ui`), `orientation`, `budget`,
+`rapier` and `pwa`.
+
+**`game export --zip`** builds (target `itch` unless `--target` says
+otherwise) into `game build`'s directory, then zips it to
+`dist/games/<id>-<target>.zip` (or `--out`): stored, sorted, with fixed
+times, so two zips of one build are equal. For `itch` it checks itch.io's
+HTML5 layout over the files, `export-itch-layout` for each failure: at most
+1,000 files, 500 MB in all, 200 MB for any one file, 240 characters for a
+path, `index.html` at the root, no `__MACOSX` folder or dotfiles. Nothing is
+uploaded; the zip is what you upload to itch.io as an HTML5 game.
+
+**`game manifest <dir|release.json>`** reads a build back: it parses the
+manifest, checks it the way every host does before it plays (the start
+listed, every named file in `build.files`, the build and snapshot hashes,
+the budget recomputed) and prints its summary. Given the build's directory,
+it also hashes every file against `build.files` (`export-asset-missing` for
+one that's gone, `hash-mismatch` for one that changed) and names files the
+manifest doesn't list. Exit 1 when it doesn't hold together:
+
+```sh
+vp run scene game manifest dist/games/tactics/web/release.json
+```
+
+**`replay --releases <dir>`** replays a run as `replay` does, then names the
+build under `<dir>` it was made on (`findRelease`): the one whose release id
+the recording carries (an exported game's runs carry it), else one with the
+recording's snapshot and engine version. A run recorded by the CLI carries
+neither, so the line says which of the builds it searched none matches; the
+replay still decides the exit code:
+
+```sh
+vp run scene playtest level-1 --script src/games/tactics/scenes/level-1.script.json --record tactics-run.json
+vp run scene replay level-1 --run tactics-run.json --releases dist/games
+```
+
+**The packed engine.** An export bundles `@jams/engine` as a consumer
+installs it: the build resolves `node_modules/@jams/engine` (the workspace
+link) to `packages/engine/dist`, not to the source the site and the CLI
+import. `vp run game:build <id> [flags]` and `vp run game:export <id> --zip
+[flags]` pack first, as a Vite Task dependency on `engine:pack`. A direct
+`game build` (or the MCP `game_build`) packs on its own when
+`packages/engine/dist` is missing or older than the source
+(`scripts/scene/engine-dist.ts`), one pack at a time through a lock
+directory, so parallel builds wait for one pack rather than racing. A
+test that builds a game needs a timeout long enough for one pack (up to
+10 minutes).
+
 ## Live edits
 
 While `vp dev` runs, every project is also a set of shared documents on the
@@ -1668,7 +1818,7 @@ live doc's canonical text, uploads each binary, then has the site seed
 every doc from the bundle, as `createHostedProject` does.
 
 ```sh
-vp run scene project push src/engine/scenes --create --url https://staging.example --dry-run
+vp run scene project push packages/engine/scenes --create --url https://staging.example --dry-run
 ```
 
 `--dry-run` checks the files as a push does (a doc that doesn't parse, or a
@@ -1708,6 +1858,8 @@ functions as the CLI (it never spawns it), versioned with the engine
 | `asset_refs`      | `project refs`     | `id`; without one, every dangling reference                                                                                                                                                                                                                                                                                                       |
 | `asset_import`    | `assets import`    | writes; `file` (a local path), `path`, `id`, `kind`, `settings`                                                                                                                                                                                                                                                                                   |
 | `asset_apply_ops` | `assets apply`     | writes; `ops` inline or a path; `base` on files; edits input maps (`/actions/@<action>/bindings`) and scene lists (`/scenes/@<scene>`, `/start`)                                                                                                                                                                                                  |
+| `game_build`      | `game build`       | builds into `out` (default dist/games/<id>/<target>); `id`, `target`, `out`, `rapier` (`standard`/`compat`), `allowOverBudget`; returns the plan summary and issues, never file bytes                                                                                                                                                             |
+| `game_manifest`   | `game manifest`    | `path`: a build directory, a `release.json` or an inline manifest; returns the validated manifest and its summary                                                                                                                                                                                                                                 |
 | `game_new`        | `game new`         | writes; the CLI's inputs (`gravity` as `[x, y]`, `rate`, `cell` and `pxPerMetre` as numbers); returns the files, issues, `urls` and the playtest command                                                                                                                                                                                          |
 
 Each result is the command's `--json` output as compact JSON in a text block
@@ -1718,7 +1870,8 @@ Every tool takes `project`, which scopes it as `--project` does. The writers
 `scene_apply_ops`, `asset_import`, `asset_apply_ops` and `game_new` write only with
 `dryRun: false` (it defaults to `true`); every other tool is annotated
 read-only, and `asset_apply_ops`, whose batches can delete assets and replace
-content, destructive. `asset_import`'s `settings` is an object or the
+content, destructive. `game_build` writes its build (annotated destructive and
+idempotent, with no `dryRun`). `asset_import`'s `settings` is an object or the
 `key=value` pairs `--settings` takes.
 
 **Live mode.** With `live: true` (and `url`, default the dev server's), the
@@ -2620,6 +2773,19 @@ the other three:
 | `save-unsupported`    | error    | A world save can't be taken: the scene runs on Rapier, a function timer or coroutine is pending, or the game has no `restore` (`detail.causes`).                                  | take a progress save, or remove each cause                                             |
 | `save-store-failed`   | warn     | The save store threw or refused a read or a write; the game keeps running.                                                                                                        | read the store's `describe`, and try again or use another store                        |
 
+Game builds add these; [Game builds](#game-builds) has a build that
+reports `export-target-unsupported`. The rest come from a build of a
+project or a check of one (`game build`, `game export --zip`, `game
+manifest`):
+
+| Code                        | Severity | Meaning                                                                                                                                          | Fix                                                                              |
+| --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `export-asset-missing`      | error    | A file a build or its manifest names isn't there; at warn, an `export.icons` texture that isn't a PNG of its size, replaced by the default icon. | build again; for an icon, name a 192×192 or 512×512 PNG texture, or drop it      |
+| `export-over-budget`        | error    | A build is over a size budget (code, first load, total or one file); it is still written, and the message names the largest contributors.        | shrink what it names, raise `export.budget`, or build with `--allow-over-budget` |
+| `export-itch-layout`        | error    | An `itch` build breaks itch.io's HTML5 layout: too many files, too large, a long path, no root `index.html`, or a dotfile.                       | remove or shrink what the message names                                          |
+| `export-target-unsupported` | error    | `--target` names a release target this engine version doesn't build; the message lists the ones it does.                                         | build `web` or `itch`                                                            |
+| `licence-missing`           | warn     | A shipped blob has no licence recorded; it ships, listed under "No licence recorded" on the credits page.                                        | record it with a `setLicence` op (`assets apply`)                                |
+
 ## The agent surface version
 
 Issue codes, op names, the JSON Schema `$id`s, these commands and their
@@ -2662,6 +2828,10 @@ trusting codes or flags.
   imports the MCP SDK.
 - `raster.ts`: SVG to PNG for `render`, with resvg-wasm and the site's Rubik
   files from `src/lib/og/assets/`; the engine stays font-free.
+- `tools/game-build.ts`, `game-export.ts` and `game-manifest.ts` are
+  `game build`, `game export` and `game manifest`, and `replay --releases`
+  (`replayRelease` in `game-manifest.ts`); `engine-dist.ts` packs the
+  engine a build bundles.
 - `examples/`: the op batches, input list, input scripts, checks file,
   save fixture and image this README uses.
 - `__tests__/`: the tools against temp projects (`fixtures.ts`), with the
@@ -2670,5 +2840,5 @@ trusting codes or flags.
 
 Adding or renaming a command, flag, op, issue code or schema id is an agent
 surface change: bump `AGENT_SURFACE_VERSION`, update
-`src/engine/CHANGELOG.md`, regenerate `src/engine/__tests__/public-api.json`,
-and re-pin the hash in `src/engine/scene/__tests__/agent-surface.test.ts`.
+`packages/engine/CHANGELOG.md`, regenerate `packages/engine/__tests__/public-api.json`,
+and re-pin the hash in `packages/engine/scene/__tests__/agent-surface.test.ts`.

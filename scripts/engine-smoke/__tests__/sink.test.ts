@@ -9,8 +9,8 @@ import { createKindRegistry, projectView, sceneBundle } from "@jams/engine/proje
 import { expandScene, sceneSprites } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
-import { devAssetUrl } from "../../../src/engine/editor-ui/connect/dev";
-import { drawnEntities } from "../../../src/engine/scene/render-geometry";
+import { devAssetUrl } from "../../../packages/engine/editor-ui/connect/dev";
+import { drawnEntities } from "../../../packages/engine/scene/render-geometry";
 import { answerSinkRequest, loadSinkProject, type SinkProject } from "../browser/project";
 import { loadRapier } from "../browser/run";
 import {
@@ -27,7 +27,7 @@ import { parseSinkScene, sinkPrefabs } from "../browser/sink-prefabs";
 import { smokeGame } from "../game";
 import { REPO } from "../pack";
 
-const SCENES = join(REPO, "src/engine/scenes");
+const SCENES = join(REPO, "packages/engine/scenes");
 
 let sink: SinkProject;
 

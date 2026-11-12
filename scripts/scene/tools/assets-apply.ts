@@ -1,13 +1,20 @@
-import { readProject } from "@jams/engine/collab";
+import { randomKey, readProject } from "@jams/engine/collab";
 import {
+  checkProjectBatch,
+  checksKind,
+  inputScriptKind,
   memoryContentStore,
   projectView,
+  SCENE_LIST_KIND,
+  sceneListIssues,
+  type AssetId,
   type ContentStore,
   type ProjectApplyResult,
   type ProjectOpBatch,
   type ProjectView,
   type Sha256,
 } from "@jams/engine/project";
+import type { SceneIssue } from "@jams/engine/scene";
 import {
   applyProjectBatchToFiles,
   createProjectFileAdapter,
@@ -37,7 +44,7 @@ import {
   ProjectClientError,
 } from "../project-client";
 import { locateInProjects, type ProjectHandle } from "../projects";
-import { loadProject } from "./project-show";
+import { loadProject, type LoadedProject } from "./project-show";
 
 /** The flags every writer takes. */
 export type WriterFlags = {
@@ -203,6 +210,66 @@ export async function runProjectBatch(
   return liveBatch(ctx, flags, plan);
 }
 
+/** The kinds whose docs decide what `sceneListIssues` finds. */
+const FLOW_KINDS: ReadonlySet<string> = new Set([
+  SCENE_LIST_KIND,
+  checksKind.kind,
+  inputScriptKind.kind,
+]);
+
+/** Whether the batch creates, writes, moves or removes a scene list, a checks file or an input script. */
+function touchesFlow(loaded: LoadedProject, batch: ProjectOpBatch, written: Set<string>): boolean {
+  if (written.size > 0) return true;
+  return batch.ops.some((op) => {
+    if (op.op === "createAsset") return FLOW_KINDS.has(op.kind);
+    const rec = op as { id?: unknown; ids?: unknown };
+    const ids = [rec.id, ...(Array.isArray(rec.ids) ? rec.ids : [])];
+    return ids.some((id) => {
+      const entry = typeof id === "string" ? loaded.view.byId.get(id) : undefined;
+      return entry !== undefined && FLOW_KINDS.has(entry.kind);
+    });
+  });
+}
+
+/**
+ * `scene-unlisted` as the batch would leave the project, for a batch that
+ * touches a scene list, a checks file or an input script:
+ * `sceneListIssues` over the registry and doc values `checkProjectBatch`
+ * gives, the docs it doesn't touch as the files hold them. Issues the
+ * trial already reported are left out.
+ */
+function sceneListAfter(
+  loaded: LoadedProject,
+  batch: ProjectOpBatch,
+  reported: readonly SceneIssue[],
+): SceneIssue[] {
+  const check = checkProjectBatch(loaded.state, loaded.values, batch, {
+    registry: loaded.registry,
+    kinds: loaded.project.kinds,
+    now: 0,
+    by: "disk",
+    newKey: randomKey,
+  });
+  if (!check.ok) return [];
+  const view = projectView(check.state, loaded.project.kinds);
+  const written = new Set(
+    check.written.filter((key) => FLOW_KINDS.has(view.byKey.get(key)?.kind ?? "")),
+  );
+  if (!touchesFlow(loaded, batch, written)) return [];
+  const values = new Map<AssetId, unknown>(loaded.values);
+  for (const [key, value] of check.values) {
+    const entry = view.byKey.get(key);
+    if (entry) values.set(entry.id, value);
+  }
+  const seen = new Set(reported.map((i) => `${i.code} ${i.message}`));
+  return sceneListIssues(view, values).filter((i) => !seen.has(`${i.code} ${i.message}`));
+}
+
+const withIssues = <R extends Extract<ProjectApplyResult, { ok: true }>>(
+  result: R,
+  extra: readonly SceneIssue[],
+): R => (extra.length === 0 ? result : { ...result, issues: [...result.issues, ...extra] });
+
 async function fileBatch(ctx: ToolContext, flags: WriterFlags, plan: BatchPlan) {
   const project = await fileTarget(ctx, plan);
   if (isToolResult(project)) return project;
@@ -229,10 +296,11 @@ async function fileBatch(ctx: ToolContext, flags: WriterFlags, plan: BatchPlan) 
 
   const trial = await applyProjectBatchToFiles(files, batch, { ...opts, dryRun: true });
   if (!trial.ok) return failedResult(head, trial, true);
-  if (flags.dryRun) return report(head, batch, trial, false);
+  const unlisted = sceneListAfter(loaded, batch, trial.issues);
+  if (flags.dryRun) return report(head, batch, withIssues(trial, unlisted), false);
   const applied = await applyProjectBatchToFiles(files, batch, opts);
   if (!applied.ok) return failedResult(head, applied, true);
-  return report(head, batch, applied, true);
+  return report(head, batch, withIssues(applied, unlisted), true);
 }
 
 async function liveBatch(ctx: ToolContext, flags: WriterFlags, plan: BatchPlan) {

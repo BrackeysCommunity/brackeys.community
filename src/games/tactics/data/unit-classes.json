@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../engine/project/data-table.schema.json",
+  "$schema": "../../../../packages/engine/project/data-table.schema.json",
   "kind": "data-table",
   "v": 2,
   "table": "unit-class",

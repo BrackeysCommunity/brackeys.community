@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 
+import { docToPrefab, docToScene, layoutFromDoc } from "../../../packages/engine/collab/index.ts";
+import type { QuotaPolicy } from "../../../packages/engine/project/index.ts";
+import { createRegistry } from "../../../packages/engine/scene/index.ts";
 import { openProjectClient, type ProjectClient } from "../../../scripts/scene/project-client.ts";
-import { docToPrefab, docToScene, layoutFromDoc } from "../../../src/engine/collab/index.ts";
-import type { QuotaPolicy } from "../../../src/engine/project/index.ts";
-import { createRegistry } from "../../../src/engine/scene/index.ts";
 import {
   emptyProjectState,
   ENGINE_KINDS,

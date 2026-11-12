@@ -282,13 +282,13 @@ publish-release:
 
 # ── Engine releases ──────────────────────────────────────────────────────────
 #
-# `@jams/engine` (src/engine) has its own semver and tags `engine-vX.Y.Z`. The
+# `@jams/engine` (packages/engine) has its own semver and tags `engine-vX.Y.Z`. The
 # site's rules above only match `vX.Y.Z`, so an engine tag never migrates,
 # deploys or publishes the site, and `auto-tag` reads only the root
 # package.json, so nothing cuts an engine tag automatically: a maintainer
 # pushes it by hand on a commit that is on `main`. The tag checks and packs
 # the package and attaches the tarball to a GitLab release; nothing goes to a
-# package registry. `src/engine/__tests__/release-tags.test.ts` keeps the two
+# package registry. `packages/engine/__tests__/release-tags.test.ts` keeps the two
 # tag rules apart.
 
 .engine-release:
@@ -309,9 +309,9 @@ engine-pack:
     - bun install --frozen-lockfile
   script:
     - |
-      ENGINE_VERSION=$(bun -p 'require("./src/engine/package.json").version')
+      ENGINE_VERSION=$(bun -p 'require("./packages/engine/package.json").version')
       if [ "$ENGINE_VERSION" != "${CI_COMMIT_TAG#engine-v}" ]; then
-        echo "✗ src/engine/package.json is $ENGINE_VERSION but the tag is $CI_COMMIT_TAG"
+        echo "✗ packages/engine/package.json is $ENGINE_VERSION but the tag is $CI_COMMIT_TAG"
         exit 1
       fi
     - git fetch --quiet origin main
@@ -324,7 +324,7 @@ engine-pack:
     - bun run engine:pack:check
     - bun run engine:smoke
     # The repo-local `vp` has no `pm` command; `bun pm pack` is what it would run.
-    - (cd src/engine && bun pm pack --destination "$CI_PROJECT_DIR")
+    - (cd packages/engine && bun pm pack --destination "$CI_PROJECT_DIR")
     - ls -l jams-engine-*.tgz
     # The release notes are the version's CHANGELOG section.
     - |
@@ -332,7 +332,7 @@ engine-pack:
         index($0, "## [" v "]") == 1 { on = 1; next }
         on && /^## \[/ { exit }
         on { print }
-      ' src/engine/CHANGELOG.md > engine-notes.md
+      ' packages/engine/CHANGELOG.md > engine-notes.md
       test -s engine-notes.md || { echo "✗ CHANGELOG.md has no [$ENGINE_VERSION] section"; exit 1; }
     - echo "ENGINE_PACK_JOB_ID=$CI_JOB_ID" > engine-release.env
     - echo "ENGINE_VERSION=$ENGINE_VERSION" >> engine-release.env

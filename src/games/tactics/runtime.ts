@@ -162,16 +162,12 @@ export type StairEntity = EntityOf<typeof STAIR_TYPE>;
 type Stair = { id: string; cell: Cell; sublevel: string; offset: [number, number] };
 
 /**
- * What the runtime reports each tick: the rules' snapshot plus the board and
- * the class table the run loaded. `play.commands` reads both from the world
- * (`worldBoard`), not from here; they stay in the snapshot because the
- * golden recording's end digest hashes it. A level's snapshot carries
- * `screen` and `next` only when they apply, so a level played on its own
- * digests as it always has.
+ * What the runtime reports each tick: the rules' snapshot and where the run
+ * is. The board and the class table are the world's and the project's, read
+ * with `worldBoard`, not carried here. A level's snapshot carries `screen`
+ * and `next` only when they apply.
  */
 export type TacticsRunSnapshot = TacticsSnapshot & {
-  grid: TacticsGridData;
-  classes: UnitClasses;
   /** Set on the menu and result scenes; absent on a level. */
   screen?: Exclude<TacticsScreen, "level">;
   /** The scene this scene asked for once it ended; absent until then. */
@@ -220,14 +216,6 @@ const runSnapshotSchema = z.object({
     }),
   ),
   result: z.enum(["won", "lost"]).nullable(),
-  grid: z.object({
-    cols: z.number().int().min(0),
-    rows: z.number().int().min(0),
-    cell: z.number().positive(),
-    walls: z.array(z.number().int()),
-    costs: z.array(z.tuple([z.number().int(), z.number()])),
-  }),
-  classes: z.record(z.string(), classSchema),
   screen: z.enum(["menu", "result"]).optional(),
   next: z.string().optional(),
   walk: z
@@ -735,6 +723,9 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     });
     walk = null;
     log = [];
+    classes = unitClasses(ctx.project);
+    boardStale = true;
+    freshBoard();
     if (screen === "level" && !worldHolds(s)) {
       note("the save kept no board, so the level starts again");
       return;
@@ -742,13 +733,9 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     // A save's text sorts its keys, and the rules walk units in record order: put back the run's own orders.
     const units = inOrder(s.units, ctx.query.select({ type: UNIT_TYPE.type }));
     state = { turn: s.turn, side: s.side, phase: s.phase, units, result: s.result };
-    grid = s.grid;
-    board = tacticsBoard(grid);
-    classes = inOrder(s.classes, Object.keys(classes));
     next = s.next ?? null;
     const open = new Set(ctx.flow.sublevels().map((l) => l.label));
     stairs = stairs.filter((st) => !open.has(st.sublevel));
-    boardStale = false;
     pending = orders;
     aiWait = s.ai?.wait ?? 0;
     autosaved = s.turn;
@@ -803,8 +790,6 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
       freshBoard();
       return {
         ...state,
-        grid,
-        classes,
         ...(screen !== "level" ? { screen } : {}),
         ...(next !== null ? { next } : {}),
         ...(walk?.on

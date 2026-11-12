@@ -2,6 +2,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { exportTargetNames } from "@jams/engine/export";
+import { RELEASE_FILE } from "@jams/engine/project";
 import { checksPathOf, SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { z } from "zod";
 
@@ -36,6 +38,8 @@ import { codes } from "./tools/codes";
 import { diff } from "./tools/diff";
 import { flow } from "./tools/flow";
 import { fuzz } from "./tools/fuzz";
+import { gameBuild } from "./tools/game-build";
+import { gameManifest } from "./tools/game-manifest";
 import { gameNew } from "./tools/game-new";
 import { list } from "./tools/list";
 import { playtest } from "./tools/playtest";
@@ -80,6 +84,13 @@ export type McpCallResult = {
 };
 
 const READ: McpAnnotations = { readOnlyHint: true, openWorldHint: false };
+/** Writes a build over its output directory; the same inputs give the same bytes. */
+const BUILD: McpAnnotations = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: true,
+  openWorldHint: false,
+};
 const WRITE: McpAnnotations = {
   readOnlyHint: false,
   destructiveHint: false,
@@ -289,6 +300,38 @@ type Rendered = {
 };
 
 const opt = <T>(v: T | undefined, f: (v: T) => string) => (v === undefined ? undefined : f(v));
+
+/**
+ * A build's report without the contents of any file: byte arrays are
+ * dropped, and a planned file's `source` keeps its kind and hash but not
+ * its text. Paths, hashes and byte counts stay.
+ */
+export function withoutFileBytes(value: unknown): unknown {
+  if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer) return undefined;
+  if (Array.isArray(value)) return value.map(withoutFileBytes);
+  if (typeof value !== "object" || value === null) return value;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (k === "source" && typeof v === "object" && v !== null && "kind" in v) {
+      const { text: _text, bytes: _bytes, ...rest } = v as Record<string, unknown>;
+      out[k] = withoutFileBytes(rest);
+      continue;
+    }
+    const kept = withoutFileBytes(v);
+    if (kept !== undefined) out[k] = kept;
+  }
+  return out;
+}
+
+/** A build tool's result for an agent: its report without file contents, and the printed summary when the report has none. */
+function buildReport(result: ToolResult): ToolResult {
+  const data = withoutFileBytes(result.data);
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return { ...result, data };
+  return {
+    ...result,
+    data: "summary" in data || "error" in data ? data : { ...data, summary: result.text },
+  };
+}
 
 // ─── Tools ───────────────────────────────────────────────
 
@@ -780,6 +823,73 @@ export const MCP_TOOLS: readonly McpTool[] = [
         },
         ctx,
       ),
+  }),
+  defineTool({
+    name: "game_build",
+    title: "Build a game",
+    description:
+      "Build a project into a static bundle (`game build`): the listed scenes and their assets, the code, `release.json`, credits and, for the web target, the PWA files, written under `out` (default dist/games/<id>/<target>), replacing what was there. Returns the plan's summary (the scenes and their physics, bytes per role, the wasm line, the size budgets, credits gaps), the issues and the output directory, never a file's contents. Two builds of one project are byte-identical. A target with no row is `export-target-unsupported`; `export-over-budget` writes the build with exitCode 1 unless `allowOverBudget`. exitCode 1 on an error-severity issue. Check the result with `game_manifest` on `out`.",
+    annotations: BUILD,
+    input: {
+      id: z.string().describe("The project's id, as `scene_list` shows it."),
+      target: z
+        .string()
+        .optional()
+        .describe(`A release target: one of ${exportTargetNames().join(", ")}. Default \`web\`.`),
+      out: z
+        .string()
+        .optional()
+        .describe("The output directory; default dist/games/<id>/<target>."),
+      rapier: z
+        .enum(["standard", "compat"])
+        .optional()
+        .describe(
+          "The Rapier build a Rapier scene ships: its own wasm file, or -compat's inlined one.",
+        ),
+      allowOverBudget: z
+        .boolean()
+        .optional()
+        .describe("Exit 0 on `export-over-budget`; the build is written either way."),
+    },
+    run: async (i, ctx) =>
+      buildReport(
+        await gameBuild(
+          {
+            id: i.id,
+            target: i.target,
+            out: i.out,
+            rapier: i.rapier,
+            allowOverBudget: i.allowOverBudget === true,
+          },
+          ctx,
+        ),
+      ),
+  }),
+  defineTool({
+    name: "game_manifest",
+    title: "Check a release manifest",
+    description: `Parse and check a release manifest (\`game manifest\`, schema \`release:v1\`): given a build directory, against its files and their hashes; given a \`${RELEASE_FILE}\` or an inline manifest, on its own. Returns the validated manifest, its summary (the release id, engine, target, scenes, files and budget) and the issues. exitCode 1 on an error-severity issue.`,
+    annotations: READ,
+    input: {
+      path: z
+        .union([z.string(), z.record(z.string(), z.unknown())])
+        .describe(`A build directory or a \`${RELEASE_FILE}\`, or an inline manifest.`),
+    },
+    run: async (i, ctx) => {
+      const tmp = scratch();
+      try {
+        const path = await tmp.payload(RELEASE_FILE, i.path);
+        const result = await gameManifest({ path }, ctx);
+        if (typeof i.path === "string") return buildReport(result);
+        const unscratched = (text: string) => text.replaceAll(path, "-");
+        if (typeof result.data === "object" && result.data !== null)
+          for (const [k, v] of Object.entries(result.data))
+            if (typeof v === "string") (result.data as Record<string, unknown>)[k] = unscratched(v);
+        return buildReport({ ...result, text: unscratched(result.text) });
+      } finally {
+        await tmp.close();
+      }
+    },
   }),
 ];
 

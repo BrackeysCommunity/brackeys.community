@@ -1,5 +1,5 @@
 {
-  "$schema": "../../engine/project/project.schema.json",
+  "$schema": "../../../packages/engine/project/project.schema.json",
   "kind": "project",
   "v": 1,
   "id": "demo",

@@ -62,7 +62,7 @@ function sceneFolder(project: ProjectHandle, scenes: readonly SceneFile[]): stri
 
 /** The scene schema of gameless scenes: the engine's own. */
 const ENGINE_SCENE_SCHEMA = fileURLToPath(
-  new URL("../../../src/engine/scene/scene.schema.json", import.meta.url),
+  new URL("../../../packages/engine/scene/scene.schema.json", import.meta.url),
 );
 
 const exists = (file: string) =>

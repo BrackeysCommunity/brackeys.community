@@ -30,3 +30,6 @@ docs/plans
 docs/game-drafts
 docs/research
 brackeys-vault/
+
+# Export smoke report (CI artifact)
+engine-export-smoke.json

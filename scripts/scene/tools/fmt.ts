@@ -3,7 +3,10 @@ import { join } from "node:path";
 
 import {
   formatAssetDoc,
+  inputMapEntries,
+  kindInputMap,
   parseAssetDoc,
+  projectView,
   type AssetEntry,
   type DocKindDef,
   type KindEnv,
@@ -31,7 +34,11 @@ type DocAsset = {
   entry: AssetEntry;
   def: DocKindDef;
   file: string;
-  /** The project's kind env: its registry and its prefabs, which an older scene or prefab migrates through. */
+  /**
+   * The project's kind env: its registry and its prefabs, which an older
+   * scene or prefab migrates through, and its input map, whose seats a
+   * script's tracks are judged by.
+   */
   env: KindEnv;
 };
 
@@ -45,6 +52,17 @@ async function docAssets(project: ProjectHandle): Promise<DocAsset[]> {
   const { registry } = project;
   const prefab = prefabLookup(await prefabsOf({ project }, registry, scan));
   const env: KindEnv = { registry, project: null, prefab };
+  const view = projectView(scan.state, project.kinds);
+  const [mapEntry] = inputMapEntries(view);
+  const mapDef = mapEntry && project.kinds.get(mapEntry.kind);
+  if (mapEntry && mapDef?.storage === "doc") {
+    const parsed = await readFile(join(project.dir, ...mapEntry.path.split("/")), "utf8").then(
+      (text) => parseAssetDoc(mapDef, text, env),
+      () => null,
+    );
+    const value = parsed?.ok ? parsed.value : undefined;
+    env.inputMap = kindInputMap(view, (id) => (id === mapEntry.id ? value : undefined), registry);
+  }
   const out: DocAsset[] = [];
   for (const entry of Object.values(scan.state.assets)) {
     const def = project.kinds.get(entry.kind);

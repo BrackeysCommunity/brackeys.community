@@ -8,9 +8,9 @@ import {
   SEED_STALE_REASON,
   SeedStaleError,
   seedsOf,
-} from "../../../../src/engine/collab/seed-identity.ts";
-import { DATA_TABLE_VERSION } from "../../../../src/engine/project/kinds/data-table.ts";
-import { SCENE_FORMAT_VERSION } from "../../../../src/engine/scene/types.ts";
+} from "../../../../packages/engine/collab/seed-identity.ts";
+import { DATA_TABLE_VERSION } from "../../../../packages/engine/project/kinds/data-table.ts";
+import { SCENE_FORMAT_VERSION } from "../../../../packages/engine/scene/types.ts";
 import { emptyProjectState, seedProjectState } from "../../../../src/lib/scene/project-bytes.ts";
 import { createSceneKind } from "../scene/kind.ts";
 import { MemorySceneStore } from "../scene/store.ts";

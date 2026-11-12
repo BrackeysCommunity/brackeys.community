@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 
-import type { AssetEntry } from "../../../src/engine/project/types.ts";
+import type { AssetEntry } from "../../../packages/engine/project/types.ts";
 import { documentName, SYNC_CLOSE } from "../../../src/lib/canvas/sync-channels.ts";
 import { emptyProjectState } from "../../../src/lib/scene/project-bytes.ts";
 import { startServer, type SyncServer } from "../src/index.ts";

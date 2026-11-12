@@ -4,11 +4,10 @@
  * mounts it. Everything the page needs is imported when it
  * mounts.
  */
-import { DEFAULT_SCENE } from "../../src/games/engine-editor";
+import { ENGINE_START_SCENE } from "../../src/games/engine-editor";
 
-export { DEFAULT_SCENE } from "../../src/games/engine-editor";
-
-const sceneOf = (url: URL): string => url.searchParams.get("scene") || DEFAULT_SCENE;
+/** The scene the page opens: the URL's `?scene=`, else the project's start scene. */
+const sceneOf = (url: URL): string => url.searchParams.get("scene") || ENGINE_START_SCENE;
 
 /** Mounts the editor in `element`; the URL's `?scene=` follows the scene it opens. */
 export async function mountEngineEditor(element: HTMLElement) {

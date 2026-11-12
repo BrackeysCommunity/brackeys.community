@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:input-map:v1",
+  "x-agent-surface": 15,
+  "title": "jams engine input map, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The input-map JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "input-map",
+      "description": "Always \"input-map\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Input-map format version."
+    },
+    "players": {
+      "description": "The project's seats and how devices take them; omitted: the game's.",
+      "type": "object",
+      "properties": {
+        "max": {
+          "type": "number",
+          "description": "Seats, a whole number from 1 to 8."
+        },
+        "join": {
+          "type": "string",
+          "enum": ["auto", "press", "host"],
+          "description": "auto: seat 0 owns keyboard, pointer and touch, and pads take free seats in connection order; press: a device's first press takes the lowest free seat; host: the host assigns devices."
+        }
+      },
+      "required": ["max", "join"],
+      "additionalProperties": false
+    },
+    "deadzone": {
+      "description": "Radial stick deadzone, 0…1; omitted: the game's.",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "actions": {
+      "description": "Bindings per action; an action the map omits keeps the game's.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "One of the game's actions."
+          },
+          "kind": {
+            "description": "The action's kind as the game declares it; omitted: the game's.",
+            "type": "string",
+            "enum": ["button", "axis", "vector"]
+          },
+          "bindings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "device": {
+                  "type": "string",
+                  "description": "\"key\", \"pad\", \"pointer\" or \"touch\"."
+                }
+              },
+              "required": ["device"],
+              "additionalProperties": {},
+              "description": "One binding: a key by `KeyboardEvent.code` ({ device: \"key\", code, axis?, value?, player? }), a pad button, stick or axis, a pointer button, or a touch control by id."
+            },
+            "description": "Every binding of the action; replaces the game's whole."
+          }
+        },
+        "required": ["action", "bindings"],
+        "additionalProperties": false,
+        "description": "One action's bindings."
+      }
+    },
+    "touch": {
+      "description": "On-screen controls for touch devices.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The control's id, which touch bindings name."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["button", "stick", "dpad"],
+            "description": "What the control is."
+          },
+          "action": {
+            "type": "string",
+            "description": "The game action it drives."
+          },
+          "at": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number",
+                "description": "x, a fraction of the canvas's shorter side from its left edge."
+              },
+              {
+                "type": "number",
+                "description": "y, a fraction of the canvas's shorter side from its top edge."
+              }
+            ],
+            "description": "Where its centre sits, in fractions of the canvas's shorter side from its top-left corner."
+          },
+          "radius": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Its radius, a fraction of the canvas's shorter side."
+          },
+          "label": {
+            "description": "Text drawn on a button.",
+            "type": "string"
+          }
+        },
+        "required": ["id", "kind", "action", "at", "radius"],
+        "additionalProperties": false,
+        "description": "One on-screen control."
+      }
+    }
+  },
+  "required": ["kind", "v"],
+  "additionalProperties": false,
+  "description": "The project's input map, at most one file per project: seats, stick deadzone, bindings per action and on-screen controls. Each action listed replaces the game's bindings for it whole."
+}

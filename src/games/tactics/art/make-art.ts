@@ -1,9 +1,11 @@
 /**
  * Generates the tactics game's art: `units.png` with its Aseprite JSON
  * (`units.json`, the hash export), `tiles.png` (the grass) and one
- * `tile-<kind>.png` per obstacle (walls, marsh, thicket). Each picture is pixel art
- * drawn on a 16 px grid and written at 3 px per art pixel, so one 48 px cell
- * is one metre at the game's px per metre. The PNGs are palette images whose
+ * `tile-<kind>.png` per obstacle (walls, river, marsh, rubble, thicket), and
+ * the installed app's `icon-192.png` and `icon-512.png`. Each picture is
+ * pixel art drawn on a 16 px grid; the board's art is written at 3 px per
+ * art pixel, so one 48 px cell is one metre at the game's px per metre, and
+ * each icon at the largest whole scale that keeps its margin. The PNGs are palette images whose
  * zlib stream uses stored blocks only, so the bytes are the same on every
  * runtime; rerunning this reproduces the committed files exactly.
  *
@@ -391,6 +393,44 @@ const THICKET = [
   "eqqqkkqqqqqqqqqq",
 ];
 
+const RIVER = [
+  "eeeeeeeeeeeeeeee",
+  "ewwwwwwwwwwwwwww",
+  "ewwffwwwwwwwwwww",
+  "ewwwwffwwwwwwlww",
+  "ewwwwwwwwwwwllww",
+  "edwwwwwwwwwwwwwd",
+  "eddwwwwwwwwwwwdd",
+  "ewwwwwwwwffwwwww",
+  "ewwwwwwwwwwffwww",
+  "ewlwwwwwwwwwwwww",
+  "ewllwwwwwwwwwwww",
+  "ewwwwwwwwwwwwwww",
+  "edwwwwffwwwwwwwd",
+  "eddwwwwwffwwwwdd",
+  "ewwwwwwwwwwwwwww",
+  "ewwwwwwwwwwwwwww",
+];
+
+const RUBBLE = [
+  "eeeeeeeeeeeeeeee",
+  "ebbbbbbbbbbbbbbb",
+  "ebbossobbbbbbbbb",
+  "ebossllsobbbboob",
+  "ebosssssobbbosso",
+  "ebbooooobbbbosso",
+  "ebbbbbbbbbbbboob",
+  "ebbbbboosobbbbbb",
+  "ebbbbossllobbbbb",
+  "ebbbbosssssobbbb",
+  "ebbbbbooooobbbbb",
+  "ebboobbbbbbbboob",
+  "ebosloobbbbbosso",
+  "ebossssobbbbbsob",
+  "ebboooobbbbbbbbb",
+  "ebbbbbbbbbbbbbbb",
+];
+
 type TerrainArt = {
   map: readonly string[];
   palette: readonly Rgb[];
@@ -404,10 +444,20 @@ const TERRAIN: Readonly<Record<string, TerrainArt>> = {
     palette: [0x000000, 0x257179, 0x333c57, 0x566c86, 0x94b0c2, 0x29366f],
     key: { e: 1, m: 2, s: 3, l: 4, d: 5 },
   },
+  river: {
+    map: RIVER,
+    palette: [0x000000, 0x257179, 0x29366f, 0x3b5dc9, 0x73eff7, 0x41a6f6],
+    key: { e: 1, d: 2, w: 3, f: 4, l: 5 },
+  },
   marsh: {
     map: MARSH,
     palette: [0x000000, 0x257179, 0x5a6b3c, 0x29366f, 0x41a6f6, 0xa7f070],
     key: { e: 1, b: 2, w: 3, h: 4, r: 5 },
+  },
+  rubble: {
+    map: RUBBLE,
+    palette: [0x000000, 0x257179, 0x8b5a2b, 0x333c57, 0x566c86, 0x94b0c2],
+    key: { e: 1, b: 2, o: 3, s: 4, l: 5 },
   },
   thicket: {
     map: THICKET,
@@ -428,6 +478,43 @@ function terrainTile({ map, palette, key }: TerrainArt): Picture {
   return pic;
 }
 
+// ─── The app icons ───────────────────────────────────────
+
+/** The sizes of the installed app's icons, px; the project's `export.icons` names each. */
+export const ICON_SIZES = [192, 512] as const;
+
+/** The file an icon of `size` is written to. */
+export const iconFile = (size: number) => `icon-${size}.png`;
+
+/** The icons' ground, behind the knight: no pixel is transparent. */
+const ICON_GROUND = UNIT_PALETTE.length;
+
+/**
+ * The blue knight on an opaque ground, scaled by a whole number so its art
+ * pixels stay square, centred with a margin of at least an eighth of the
+ * icon on every side, inside a maskable icon's safe zone.
+ */
+function iconPicture(size: number): Picture {
+  const palette = [...UNIT_PALETTE, 0x29366f];
+  const pixels = new Uint8Array(size * size).fill(ICON_GROUND);
+  const scale = Math.floor((size * 3) / 4 / ART_CELL);
+  const at = Math.floor((size - ART_CELL * scale) / 2);
+  const key: Readonly<Record<string, number>> = { ...INKS, ...SIDE_INKS.blue };
+  KNIGHT.forEach((line, ay) => {
+    for (let ax = 0; ax < ART_CELL; ax++) {
+      const index = key[line[ax] ?? "."];
+      if (index === undefined) continue;
+      for (let dy = 0; dy < scale; dy++)
+        pixels.fill(
+          index,
+          (at + ay * scale + dy) * size + at + ax * scale,
+          (at + ay * scale + dy) * size + at + (ax + 1) * scale,
+        );
+    }
+  });
+  return { width: size, height: size, palette, pixels };
+}
+
 // ─── Output ──────────────────────────────────────────────
 
 /** The art files by name, as they sit in `art/`. */
@@ -440,6 +527,7 @@ export function makeArt(): ReadonlyMap<string, Uint8Array> {
     ...Object.entries(TERRAIN).map(
       ([kind, art]) => [terrainFile(kind), encodePng(terrainTile(art))] as const,
     ),
+    ...ICON_SIZES.map((size) => [iconFile(size), encodePng(iconPicture(size))] as const),
   ]);
 }
 

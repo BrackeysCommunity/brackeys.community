@@ -1,8 +1,8 @@
 import { resolveBindings } from "@jams/engine";
-import type { ActionDef } from "@jams/engine/game";
+import { keycapLabel, type ActionDef } from "@jams/engine/game";
 import { describe, expect, it } from "vite-plus/test";
 
-import { controlsHint, keyLabel } from "../controls-hint";
+import { controlsHint } from "../controls-hint";
 import { hostedGame } from "../hosted-games";
 
 async function hosted(id: string) {
@@ -82,14 +82,21 @@ describe("controlsHint", () => {
     ]);
   });
 
-  it("reads key codes as keycaps", () => {
-    expect(["KeyQ", "Digit3", "ControlRight", "Numpad4", "Escape", "Tab"].map(keyLabel)).toEqual([
-      "Q",
-      "3",
-      "Ctrl",
-      "Num 4",
-      "Esc",
-      "Tab",
-    ]);
+  it("reads its keys by the engine's keycap rule", () => {
+    const codes = ["KeyQ", "Digit3", "ControlRight", "Numpad4", "Escape", "Tab"];
+    const actions: ActionDef[] = [
+      {
+        action: "act",
+        description: "Act.",
+        bindings: [
+          ...codes.map((code) => ({ device: "key" as const, code })),
+          { device: "pointer", button: "secondary" },
+        ],
+      },
+    ];
+    const bindings = resolveBindings({ game: actions }).bindings();
+    const hint = controlsHint({ actions, bindings, ownUi: false });
+    expect(hint?.[0]?.keys).toEqual([...codes.map(keycapLabel), "Right-click"]);
+    expect(hint?.[0]?.keys).toEqual(["Q", "3", "Ctrl", "Num 4", "Esc", "Tab", "Right-click"]);
   });
 });

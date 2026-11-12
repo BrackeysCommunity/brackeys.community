@@ -158,10 +158,9 @@ describe("level-1.json", () => {
     });
     expect(report.load.ok).toBe(true);
     const final = report.final!;
-    expect(final.grid).toMatchObject({ cols: 12, rows: 8, cell: 1 });
-    expect(final.grid.walls.length).toBeGreaterThan(0);
-    expect(final.grid.costs.length).toBeGreaterThan(0);
-    expect(Object.keys(final.classes).sort()).toEqual(["archer", "knight", "scout"]);
+    // The board and the class table are the world's, never the snapshot's.
+    expect(final).not.toHaveProperty("grid");
+    expect(final).not.toHaveProperty("classes");
     expect(final).toMatchObject({ turn: 1, side: "blue", phase: "orders", result: null });
     const legal = report.legal!;
     expect(legal.at(-1)).toEqual({ name: "end-turn" });
@@ -178,7 +177,11 @@ describe("level-1.json", () => {
     });
     const world = playWorld(rt.ctx);
     const snapshot = rt.snapshot() as TacticsRunSnapshot;
-    expect(worldBoard(world)).toEqual({ grid: snapshot.grid, classes: snapshot.classes });
+    const { grid, classes } = worldBoard(world);
+    expect(grid).toMatchObject({ cols: 12, rows: 8, cell: 1 });
+    expect(grid.walls.length).toBeGreaterThan(0);
+    expect(grid.costs.length).toBeGreaterThan(0);
+    expect(Object.keys(classes)).toEqual(["knight", "archer", "scout"]);
     const legal = tacticsGame.play!.commands!({ tick: -1, snapshot, events: [], world });
     expect(legal.filter((c) => c.name === "move").length).toBeGreaterThan(0);
 
@@ -346,7 +349,7 @@ describe("every listed scene", () => {
     return p.prefab;
   });
 
-  it("draws each wall as stone and each rough patch as a terrain tile, tiled to its shape", () => {
+  it("draws each wall as stone, the river as water and each rough patch as a terrain tile, tiled to its shape", () => {
     let drawn = 0;
     for (const { scene: id } of list) {
       const result = parseScene(read(`../scenes/${id}.json`), registry);
@@ -359,7 +362,12 @@ describe("every listed scene", () => {
         const sprite = (e.behaviors as { sprite?: { asset?: string } }).sprite;
         expect(e.layer, `${id}/${e.id}`).toBe("decor");
         expect(sprite, `${id}/${e.id}`).toEqual({
-          asset: e.type === "solid" ? "tile-wall" : sprite?.asset,
+          asset:
+            e.type !== "solid"
+              ? sprite?.asset
+              : e.id.startsWith("river-")
+                ? "tile-river"
+                : "tile-wall",
           size: [hw * 2, hh * 2],
           tile: true,
         });

@@ -20,8 +20,6 @@
     "sublevels": []
   },
   "data": {
-    "classes": { "archer": { "attack": 3, "hp": 6, "move": 2, "range": [2, 3], "sight": true }, "knight": { "attack": 4, "hp": 10, "move": 3, "range": [1, 1], "sight": false }, "scout": { "attack": 2, "hp": 5, "move": 5, "range": [1, 1], "sight": false } },
-    "grid": { "cell": 1, "cols": 12, "costs": [[2199041081346, 20], [2199041081347, 20]], "rows": 6, "walls": [2199036887040, 2199036887041, 2199036887044, 2199036887045] },
     "phase": "orders",
     "result": null,
     "side": "blue",

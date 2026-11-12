@@ -1,5 +1,5 @@
 /**
- * The scene format reference in `src/engine/README.md`, generated from the
+ * The scene format reference in `packages/engine/README.md`, generated from the
  * engine registry's JSON Schema so the README can't drift from the format.
  * `readme.test.ts` checks it; `UPDATE_README=1` rewrites it.
  */

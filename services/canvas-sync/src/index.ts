@@ -2,7 +2,7 @@ import { type Extension, Hocuspocus } from "@hocuspocus/server";
 import crossws from "crossws/adapters/bun";
 import * as Y from "yjs";
 
-import type { KindRegistry, QuotaPolicy } from "../../../src/engine/project/index.ts";
+import type { KindRegistry, QuotaPolicy } from "../../../packages/engine/project/index.ts";
 import { CANVAS_LIMITS, SYNC_LIMITS } from "../../../src/lib/canvas/limits.ts";
 import {
   type ApplyMessage,

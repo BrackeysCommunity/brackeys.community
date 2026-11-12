@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { PREFAB_KIND, SCENE_FORMAT_VERSION } from "../../../../src/engine/scene/index.ts";
+import { PREFAB_KIND, SCENE_FORMAT_VERSION } from "../../../../packages/engine/scene/index.ts";
 import type { CanvasTokenClaims } from "../../../../src/lib/canvas/token.ts";
 import { COLLAB_LAYOUT_VERSION } from "../../../../src/lib/scene/project-bytes.ts";
 import { SyncMetrics } from "../telemetry.ts";

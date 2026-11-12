@@ -8,10 +8,10 @@ import {
   LEGACY_Z_FIELD,
   Z_FIELD,
   type LogEntry,
-} from "../../../src/engine/collab/types.ts";
-import type { AssetEntry } from "../../../src/engine/project/types.ts";
-import { formatPrefab } from "../../../src/engine/scene/format.ts";
-import type { Prefab, SceneDefinition } from "../../../src/engine/scene/types.ts";
+} from "../../../packages/engine/collab/types.ts";
+import type { AssetEntry } from "../../../packages/engine/project/types.ts";
+import { formatPrefab } from "../../../packages/engine/scene/format.ts";
+import type { Prefab, SceneDefinition } from "../../../packages/engine/scene/types.ts";
 import { documentName } from "../../../src/lib/canvas/sync-channels.ts";
 import { seedState } from "../../../src/lib/scene/doc-bytes.ts";
 import {

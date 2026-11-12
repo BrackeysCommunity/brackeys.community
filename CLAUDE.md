@@ -109,7 +109,7 @@ consolidated; new copies undo that.
 | Hover hint on a control                                     | `Button tooltip="…"`, or `SimpleTooltip` from `@/components/ui/tooltip`            | a native `title` attribute                         |
 | Site name, domain, contact addresses                        | `SITE` / `CONTACT` from `@/lib/legal-meta`; `siteUrl()` for links                  | a domain literal (`domain-literals.test.ts` fails) |
 | Logo mark, wordmark                                         | `BrandMark` / `Wordmark` from `@/components/ui/brand-mark`                         | an inline `mask-image` or gradient span            |
-| UI primitives inside `src/engine/editor-ui/`                | the editor's kit (`editor-ui/kit/*`)                                               | `@/components/ui`                                  |
+| UI primitives inside `packages/engine/editor-ui/`           | the editor's kit (`editor-ui/kit/*`)                                               | `@/components/ui`                                  |
 
 **Monospace:** `font-mono` is reserved for the command-center surfaces,
 `Badge size="label"`, and `MicroLabel`. Everything else uses the sans and
@@ -139,11 +139,11 @@ what is actually relevant to a current dev
 Levels and their assets live in **projects**: a folder with a `jams.project.json` naming
 the project's id, its game module (or `null`) and the globs of its asset and code files.
 The platformer's is `src/games/platformer/` (levels in `scenes/`); the engine's gameless one
-is `src/engine/scenes/` (the engine yard, the kitchen sink, the physics-free grid yard, its prefabs, a material, the
-game settings and a data table). Every scene, prefab, checks file, input script, material,
-game-settings doc, data table and binary (texture, atlas, font, audio, recording) under a
-project's globs is an asset whose id survives renames and moves; binaries carry a
-`<file>.asset.json` sidecar the CLI writes.
+is `packages/engine/scenes/` (the engine yard, the kitchen sink, the physics-free grid yard,
+its prefabs, a material, the game settings and a data table). Every scene, prefab, checks
+file, input script, material, game-settings doc, data table and binary (texture, atlas,
+font, audio, recording) under a project's globs is an asset whose id survives renames and
+moves; binaries carry a `<file>.asset.json` sidecar the CLI writes.
 
 Change them through `vp run scene`, never by hand: `list`, `show`, `schema`, `codes`,
 `validate`, `fmt`, `apply`, `step` for scenes; `vp run scene project show|tree|refs|snapshot|pull|push`
@@ -152,3 +152,8 @@ for a project (`pull` and `push` talk to a hosted project through `--url`);
 for its assets (`--dry-run` first). An id two projects hold needs `--project <id>`. The
 workflow and conventions are in `scripts/scene/README.md`; the `scene-editing` skill loads
 them.
+
+The engine is the workspace package `@jams/engine` in `packages/engine/`. The site, tests
+and the scene CLI import its source through `tsconfig.json` paths; a game export bundles
+the packed `dist` through `node_modules/@jams/engine`, so `vp run game:build <id>` packs
+it first (`vp run scene game build` packs too when `dist` is older than the source).

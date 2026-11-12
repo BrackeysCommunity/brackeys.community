@@ -29,9 +29,9 @@ import { tempProject } from "./fixtures";
 
 const ENGINE = createRegistry();
 const ENGINE_YARD = fileURLToPath(
-  new URL("../../../src/engine/scenes/engine-yard.json", import.meta.url),
+  new URL("../../../packages/engine/scenes/engine-yard.json", import.meta.url),
 );
-const ENGINE_SCENES = fileURLToPath(new URL("../../../src/engine/scenes", import.meta.url));
+const ENGINE_SCENES = fileURLToPath(new URL("../../../packages/engine/scenes", import.meta.url));
 
 let root: string;
 let server: ListeningSceneCollab;

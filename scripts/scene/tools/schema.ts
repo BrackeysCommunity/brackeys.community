@@ -40,7 +40,10 @@ const kindSchema =
 /** The `save:v1` schema: saves are a blob kind, so this is the committed file. */
 const saveSchema = (): Record<string, unknown> =>
   JSON.parse(
-    readFileSync(new URL("../../../src/engine/project/save.schema.json", import.meta.url), "utf8"),
+    readFileSync(
+      new URL("../../../packages/engine/project/save.schema.json", import.meta.url),
+      "utf8",
+    ),
   );
 
 export const SCHEMAS = {

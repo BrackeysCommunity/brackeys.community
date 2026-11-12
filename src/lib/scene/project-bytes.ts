@@ -40,7 +40,7 @@ import {
   type LogEntry,
   type ProjectLogEntry,
   type ProjectWriter,
-} from "../../engine/collab/index.ts";
+} from "../../../packages/engine/collab/index.ts";
 import {
   createKindRegistry,
   docNameOf,
@@ -61,7 +61,7 @@ import {
   type ProjectId,
   type ProjectState,
   type Sha256,
-} from "../../engine/project/index.ts";
+} from "../../../packages/engine/project/index.ts";
 import {
   createRegistry,
   formatPrefab,
@@ -70,7 +70,7 @@ import {
   SCENE_FORMAT_VERSION,
   type Prefab,
   type SceneDefinition,
-} from "../../engine/scene/index.ts";
+} from "../../../packages/engine/scene/index.ts";
 import { liftReachable } from "./doc-bytes";
 
 const SEED_ORIGIN: DocOrigin = { kind: "migration" };

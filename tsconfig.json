@@ -23,10 +23,10 @@
     "noUncheckedSideEffectImports": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@jams/engine": ["./src/engine/index.ts"],
-      "@jams/engine/editor-ui/style.css": ["./src/engine/editor-ui/style.css"],
-      "@jams/engine/*": ["./src/engine/*/index.ts"],
-      "@jams/engine-testing": ["./src/engine/__tests__/testing.ts"]
+      "@jams/engine": ["./packages/engine/index.ts"],
+      "@jams/engine/editor-ui/style.css": ["./packages/engine/editor-ui/style.css"],
+      "@jams/engine/*": ["./packages/engine/*/index.ts"],
+      "@jams/engine-testing": ["./packages/engine/__tests__/testing.ts"]
     }
   }
 }

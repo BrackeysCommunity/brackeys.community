@@ -24,7 +24,7 @@ import { rapierFor, rounded } from "./step";
 
 export type ReplayInput = { scene?: string; run?: string; game?: string };
 
-const USAGE = "replay <scene|file|-> --run <file|-> [--game id]";
+const USAGE = "replay <scene|file|-> --run <file|-> [--game id] [--releases <dir>]";
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);

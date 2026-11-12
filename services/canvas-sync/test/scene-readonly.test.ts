@@ -2,7 +2,11 @@ import { afterAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 
 import * as Y from "yjs";
 
-import { LEGACY_BULK_FIELD, LEGACY_Z_FIELD, Z_FIELD } from "../../../src/engine/collab/types.ts";
+import {
+  LEGACY_BULK_FIELD,
+  LEGACY_Z_FIELD,
+  Z_FIELD,
+} from "../../../packages/engine/collab/types.ts";
 import { seedState, type SceneFormat } from "../../../src/lib/scene/doc-bytes.ts";
 import { startServer, type SyncServer } from "../src/index.ts";
 import type { SceneReadOnlyNotice } from "../src/scene/kind.ts";

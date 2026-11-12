@@ -1,0 +1,735 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:recording:v2",
+  "x-agent-surface": 15,
+  "title": "jams engine run recording, format v2",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The recording JSON Schema this file follows.",
+      "type": "string"
+    },
+    "v": {
+      "type": "number",
+      "const": 2,
+      "description": "Recording format version."
+    },
+    "engine": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "The engine version that recorded it."
+        },
+        "physics": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The physics build, e.g. `rapier 0.19.3`; null for a run without physics."
+        }
+      },
+      "required": ["version", "physics"],
+      "additionalProperties": false,
+      "description": "What recorded it; a replay on another version or build warns."
+    },
+    "platform": {
+      "type": "object",
+      "properties": {
+        "arch": {
+          "type": "string",
+          "description": "The CPU architecture (`arm64`, `x64`), or `unknown`, which never warns."
+        },
+        "runtime": {
+          "type": "string",
+          "description": "The JavaScript runtime and its version, or `unknown`."
+        },
+        "flavour": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The Rapier package (`rapier2d-compat`, …); null without one."
+        }
+      },
+      "required": ["arch", "runtime", "flavour"],
+      "additionalProperties": false,
+      "description": "Where it was recorded."
+    },
+    "game": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The game's id; null for an engine-only registry."
+    },
+    "scene": {
+      "type": "string",
+      "description": "The scene's `name`."
+    },
+    "sceneHash": {
+      "type": "string",
+      "description": "The scene's canonical hash when recorded; shown beside a replay, and judges staleness for a recording migrated from v1."
+    },
+    "runHash": {
+      "type": "string",
+      "description": "A hash of what the run ran: the expanded scene, the clock and the project's data. A replay is stale when it differs; empty for a recording migrated from v1."
+    },
+    "project": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The project's id."
+            },
+            "snapshot": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The project snapshot's hash when recorded; null when the host didn't know it."
+            }
+          },
+          "required": ["id", "snapshot"],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The project the run was played in; null without one."
+    },
+    "release": {
+      "description": "The release the run was played from, its manifest's id; omitted for a run outside a release.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "configHash": {
+      "type": "string",
+      "description": "What the run depends on besides the scene: engine version, tick rate, the game and its tuning."
+    },
+    "time": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["fixed", "turns", "event"],
+          "description": "The game's time model."
+        },
+        "rate": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 240,
+          "description": "Ticks per second."
+        }
+      },
+      "required": ["kind", "rate"],
+      "additionalProperties": false,
+      "description": "The clock the run stepped on."
+    },
+    "seed": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "description": "The seed `EngineContext.random` was given: the run's own, or the default for its game and scene."
+    },
+    "start": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "description": "Where play was asked to start, before the cast onto the ground; omitted for the game's spawn.",
+          "$ref": "#/$defs/Pt"
+        },
+        "timeOffsetMs": {
+          "description": "Time-driven entities (followers) were advanced by this much before tick 0.",
+          "type": "number",
+          "minimum": 0
+        },
+        "game": {
+          "description": "The game's play options, as its `play.options` schema defines them."
+        },
+        "persist": {
+          "description": "`EngineContext.persist` as the scene loaded, set before the load on replay; written when the game declares `persist`.",
+          "$ref": "#/$defs/__schema0"
+        },
+        "entry": {
+          "description": "The entry the flow request that loaded this scene named, read in `onLoad` as `EngineContext.flow.entry`.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "How the play world started."
+    },
+    "players": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The seat."
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["keyboard", "pointer", "touch"]
+                },
+                {
+                  "type": "string",
+                  "pattern": "^pad:\\d+$"
+                }
+              ],
+              "description": "A device: `keyboard`, `pointer`, `touch` or `pad:<n>`, n in connection order."
+            },
+            "description": "The devices it held."
+          }
+        },
+        "required": ["index", "devices"],
+        "additionalProperties": false,
+        "description": "A seat that played."
+      },
+      "description": "The seats that played and their devices."
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "The action names seat events index into, in the order they were first used."
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "The command names `c` events index into, in the order they were first used."
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "anyOf": [
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "The tick, or the tick plus a sub-tick fraction in thousandths (`120.375`) when the game records offsets."
+                },
+                {
+                  "type": "string",
+                  "const": "b",
+                  "description": "A button edge."
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Index into `actions`."
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "const": 0
+                    },
+                    {
+                      "type": "number",
+                      "const": 1
+                    }
+                  ],
+                  "description": "1 for down, 0 for up."
+                }
+              ],
+              "description": "A button went down or up."
+            },
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "The tick, or the tick plus a sub-tick fraction in thousandths (`120.375`) when the game records offsets."
+                },
+                {
+                  "type": "string",
+                  "const": "a",
+                  "description": "An axis value."
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Index into `actions`."
+                },
+                {
+                  "type": "integer",
+                  "minimum": -1000,
+                  "maximum": 1000,
+                  "description": "The axis value × 1000, −1000…1000."
+                }
+              ],
+              "description": "An axis changed."
+            },
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "The tick, or the tick plus a sub-tick fraction in thousandths (`120.375`) when the game records offsets."
+                },
+                {
+                  "type": "string",
+                  "const": "v",
+                  "description": "A vector value."
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Index into `actions`."
+                },
+                {
+                  "type": "integer",
+                  "minimum": -1000,
+                  "maximum": 1000,
+                  "description": "x × 1000, in the unit disc."
+                },
+                {
+                  "type": "integer",
+                  "minimum": -1000,
+                  "maximum": 1000,
+                  "description": "y × 1000, in the unit disc; y is down."
+                }
+              ],
+              "description": "A vector changed."
+            },
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "The tick, or the tick plus a sub-tick fraction in thousandths (`120.375`) when the game records offsets."
+                },
+                {
+                  "type": "string",
+                  "const": "p",
+                  "description": "A pointer sample."
+                },
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "x in world metres × 10,000.",
+                  "unit": "m/10000"
+                },
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "y in world metres × 10,000; y is down.",
+                  "unit": "m/10000"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "The buttons held: bit 0 primary, 1 secondary, 2 middle."
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "const": 0
+                    },
+                    {
+                      "type": "number",
+                      "const": 1
+                    }
+                  ],
+                  "description": "1 while the pointer is over the game, 0 after it left."
+                }
+              ],
+              "description": "The seat's pointer, written only when it changed."
+            },
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "The tick, or the tick plus a sub-tick fraction in thousandths (`120.375`) when the game records offsets."
+                },
+                {
+                  "type": "string",
+                  "const": "c",
+                  "description": "A command."
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Index into `commands`."
+                },
+                {
+                  "description": "Its arguments, as parsed; absent for none."
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 4,
+              "description": "A command the seat stepped."
+            }
+          ],
+          "description": "One seat input event."
+        },
+        "description": "One seat's events, oldest first."
+      },
+      "description": "Per seat, by seat index."
+    },
+    "system": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "description": "The tick, or the tick plus a sub-tick fraction in thousandths (`120.375`) when the game records offsets."
+              },
+              {
+                "type": "string",
+                "const": "w",
+                "description": "Wall time away (`@elapsed`)."
+              },
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "The ms that passed."
+              }
+            ],
+            "description": "Time passed while the game wasn't running."
+          },
+          {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "description": "The tick, or the tick plus a sub-tick fraction in thousandths (`120.375`) when the game records offsets."
+              },
+              {
+                "type": "string",
+                "const": "j",
+                "description": "A join."
+              },
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "The seat."
+              },
+              {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["keyboard", "pointer", "touch"]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^pad:\\d+$"
+                  }
+                ],
+                "description": "The device it took."
+              }
+            ],
+            "description": "A seat took a device."
+          },
+          {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "description": "The tick, or the tick plus a sub-tick fraction in thousandths (`120.375`) when the game records offsets."
+              },
+              {
+                "type": "string",
+                "const": "l",
+                "description": "A leave."
+              },
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "The seat."
+              },
+              {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["keyboard", "pointer", "touch"]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^pad:\\d+$"
+                  }
+                ],
+                "description": "The device it gave up."
+              }
+            ],
+            "description": "A seat gave up a device."
+          }
+        ],
+        "description": "One system event."
+      },
+      "description": "Wall time away, joins and leaves, oldest first; merged before the seats."
+    },
+    "ticks": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Ticks simulated."
+    },
+    "outcome": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string",
+          "description": "An engine result (`timeout`, `script-end`, `stuck`, `quit`, `flow`) or one the game declares."
+        },
+        "tick": {
+          "type": "integer",
+          "minimum": -1,
+          "maximum": 9007199254740991,
+          "description": "The last tick simulated."
+        },
+        "at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Pt"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The game's focus then; null without one."
+        },
+        "cause": {
+          "description": "Why, in a sentence.",
+          "type": "string"
+        },
+        "entityId": {
+          "description": "The entity the outcome names.",
+          "type": "string"
+        }
+      },
+      "required": ["result", "tick", "at"],
+      "additionalProperties": false,
+      "description": "How the run ended."
+    },
+    "markers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tick": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The tick that raised it."
+          },
+          "type": {
+            "type": "string",
+            "description": "The event type."
+          },
+          "at": {
+            "description": "Where.",
+            "$ref": "#/$defs/Pt"
+          },
+          "entityId": {
+            "description": "The entity it names.",
+            "type": "string"
+          },
+          "other": {
+            "description": "The other entity it names.",
+            "type": "string"
+          }
+        },
+        "required": ["tick", "type", "at"],
+        "additionalProperties": false,
+        "description": "An event worth showing on the ghost."
+      },
+      "description": "Events the game marks (`play.markers`; every event but `entity:*` when it names none), capped."
+    },
+    "trail": {
+      "description": "The game's focus over the run, for the ghost.",
+      "type": "object",
+      "properties": {
+        "every": {
+          "type": "number",
+          "const": 4,
+          "description": "Ticks between samples."
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Pt"
+          },
+          "description": "The focus after ticks 0, 4, 8, …; a tick without a focus is left out."
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "True when the cap cut the trail short."
+        }
+      },
+      "required": ["every", "pts", "truncated"],
+      "additionalProperties": false
+    },
+    "end": {
+      "type": "string",
+      "description": "A digest of the game's snapshot after the last tick, which a replay must reproduce."
+    },
+    "next": {
+      "description": "The flow request that ended this scene's part of a run, whose next scene has its own recording; a replay ends here without following it.",
+      "type": "object",
+      "properties": {
+        "scene": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+          "description": "The scene the request went to."
+        },
+        "entry": {
+          "description": "The entry it named.",
+          "type": "string"
+        }
+      },
+      "required": ["scene"],
+      "additionalProperties": false
+    },
+    "fromSave": {
+      "description": "The save the run began by loading, instead of the scene's fresh load.",
+      "type": "object",
+      "properties": {
+        "slot": {
+          "type": "string",
+          "description": "The save's slot."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The save file's hash; a replay needs the fixture with this hash."
+        }
+      },
+      "required": ["slot", "sha256"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "v",
+    "engine",
+    "platform",
+    "game",
+    "scene",
+    "sceneHash",
+    "runHash",
+    "project",
+    "configHash",
+    "time",
+    "seed",
+    "start",
+    "players",
+    "actions",
+    "commands",
+    "inputs",
+    "system",
+    "ticks",
+    "outcome",
+    "markers",
+    "end"
+  ],
+  "additionalProperties": false,
+  "description": "A recorded run: how it started and every seat's input, enough to replay it tick for tick, plus what the ghost draws (trail and markers) and how it ended.",
+  "$defs": {
+    "Pt": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "description": "x in world metres.",
+          "unit": "m"
+        },
+        {
+          "type": "number",
+          "description": "y in world metres; y is down.",
+          "unit": "m"
+        }
+      ]
+    },
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -7,12 +7,12 @@ import {
   type UiActionEvent,
   type UiHandle,
 } from "@jams/engine";
-import { cellKey, type GameCommand } from "@jams/engine/game";
+import { cellKey, keycapLabel, type GameCommand } from "@jams/engine/game";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import inputMap from "../input-map.json";
 import type { TacticsSlice, TacticsSnapshot, UnitState } from "../types";
-import { actionKey, keyCap, playerLogLine } from "../ui/hud";
+import { actionKey, playerLogLine } from "../ui/hud";
 import { mountTacticsHud } from "../ui/index";
 import { CLASSES, snapshot, unit } from "./fixtures";
 
@@ -250,13 +250,12 @@ describe("the HUD's text helpers", () => {
     expect(playerLogLine("something else", nameOf)).toBe("something else");
   });
 
-  it("turns key codes into caps and skips non-key bindings", () => {
-    expect([keyCap("KeyF"), keyCap("Digit2"), keyCap("Escape"), keyCap("ArrowUp")]).toEqual([
-      "F",
-      "2",
-      "Esc",
-      "↑",
-    ]);
+  it("names an action's first key by the engine's keycap rule and skips non-key bindings", () => {
+    const keyed = (code: string) => actionKey({ x: [{ device: "key", code }] }, "x");
+    expect(["KeyF", "Digit2", "Escape", "ArrowUp", "Numpad4", "ShiftLeft"].map(keyed)).toEqual(
+      ["KeyF", "Digit2", "Escape", "ArrowUp", "Numpad4", "ShiftLeft"].map(keycapLabel),
+    );
+    expect(keyed("KeyF")).toBe("F");
     expect(actionKey(BINDINGS, "cancel")).toBe("Esc");
     expect(actionKey({ x: [{ device: "pad", button: "south" }] } as never, "x")).toBeNull();
     expect(actionKey(BINDINGS, "nothing")).toBeNull();

@@ -6,11 +6,14 @@ import { join, relative } from "node:path";
 import type { HocuspocusProvider } from "@hocuspocus/provider";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { applyOpsToDoc } from "../../../src/engine/collab/apply";
-import { createRegistry } from "../../../src/engine/game/index";
-import { docNameOf } from "../../../src/engine/project/doc-names";
-import { connect, pushed, until } from "../../../src/engine/vite/__tests__/dev-server-fixture";
-import { createProjectFileAdapter, readFileProject } from "../../../src/engine/vite/project-files";
+import { applyOpsToDoc } from "../../../packages/engine/collab/apply";
+import { createRegistry } from "../../../packages/engine/game/index";
+import { docNameOf } from "../../../packages/engine/project/doc-names";
+import { connect, pushed, until } from "../../../packages/engine/vite/__tests__/dev-server-fixture";
+import {
+  createProjectFileAdapter,
+  readFileProject,
+} from "../../../packages/engine/vite/project-files";
 import { engineScenes, REPO_SCENES, startEngineEditor, type EngineEditor } from "../run";
 
 /** Every file under `dir` with its content hash, by relative path. */

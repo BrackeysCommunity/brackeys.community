@@ -19,8 +19,8 @@
       "drizzle-orm": ["../../node_modules/drizzle-orm"],
       "drizzle-orm/*": ["../../node_modules/drizzle-orm/*"],
       "pg": ["../../node_modules/@types/pg"],
-      "@jams/engine": ["../../src/engine/index.ts"],
-      "@jams/engine/*": ["../../src/engine/*/index.ts"]
+      "@jams/engine": ["../../packages/engine/index.ts"],
+      "@jams/engine/*": ["../../packages/engine/*/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "../../src/db/schema.ts"]

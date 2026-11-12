@@ -9,9 +9,12 @@ import type {
 } from "@hocuspocus/server";
 import * as Y from "yjs";
 
-import { assertSameSeed, stampSeedState } from "../../../../src/engine/collab/seed-identity.ts";
-import type { KindRegistry } from "../../../../src/engine/project/index.ts";
-import { PREFAB_KIND, SCENE_FORMAT_VERSION } from "../../../../src/engine/scene/index.ts";
+import {
+  assertSameSeed,
+  stampSeedState,
+} from "../../../../packages/engine/collab/seed-identity.ts";
+import type { KindRegistry } from "../../../../packages/engine/project/index.ts";
+import { PREFAB_KIND, SCENE_FORMAT_VERSION } from "../../../../packages/engine/scene/index.ts";
 import { SYNC_LIMITS } from "../../../../src/lib/canvas/limits.ts";
 import { documentName, SYNC_CLOSE, syncClose } from "../../../../src/lib/canvas/sync-channels.ts";
 import type { CanvasTokenClaims } from "../../../../src/lib/canvas/token.ts";

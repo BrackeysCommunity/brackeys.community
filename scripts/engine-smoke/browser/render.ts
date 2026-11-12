@@ -9,7 +9,7 @@ import { createAssetLoader, createGame, type GameInstance } from "@jams/engine";
 import { createRegistry, withProject } from "@jams/engine/game";
 import { createKindRegistry, projectView, runtimeView } from "@jams/engine/project";
 
-import { devAssetUrl } from "../../../src/engine/editor-ui/connect/dev";
+import { devAssetUrl } from "../../../packages/engine/editor-ui/connect/dev";
 import type { RenderProbe } from "../browser-compare";
 import { smokeGame } from "../game";
 import { readProbe } from "./pixels";

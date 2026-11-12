@@ -20,7 +20,7 @@ import { useStore } from "@tanstack/react-store";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { CanvasShell } from "@/components/canvas/shell/CanvasShell";
-import { DEFAULT_SCENE as ENGINE_DEFAULT_SCENE } from "@/games/engine-editor";
+import { ENGINE_START_SCENE } from "@/games/engine-editor";
 import { activeUserStore, type ActiveUserProfile } from "@/lib/active-user-store";
 import { presenceColor } from "@/lib/canvas/presence";
 import type { FeatureFlagValues } from "@/lib/flags";
@@ -68,7 +68,7 @@ const fromHosted = (hosted: HostedGame): SiteProject => ({
 
 const ENGINE_PROJECT: SiteProject = {
   id: "engine",
-  load: () => Promise.resolve({ game: null, ui: null, defaultScene: ENGINE_DEFAULT_SCENE }),
+  load: () => Promise.resolve({ game: null, ui: null, defaultScene: ENGINE_START_SCENE }),
 };
 
 /** Every game the site hosts, then the gameless engine project. */

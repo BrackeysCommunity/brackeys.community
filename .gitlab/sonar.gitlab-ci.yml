@@ -23,6 +23,7 @@ build-sonar:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
         - src/**/*
+        - packages/**/*
         - services/**/*
         - scripts/**/*
         - public/**/*
@@ -36,6 +37,7 @@ build-sonar:
     - if: $CI_COMMIT_BRANCH == 'main'
       changes:
         - src/**/*
+        - packages/**/*
         - services/**/*
         - scripts/**/*
         - public/**/*

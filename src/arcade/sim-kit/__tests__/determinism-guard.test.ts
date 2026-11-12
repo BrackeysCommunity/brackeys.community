@@ -27,7 +27,7 @@ const ROOT = new URL("../../", import.meta.url).pathname;
  * Tests excepted. The kit itself lives in the engine; `sim-kit/` here is its
  * re-export.
  */
-const GUARDED = ["sim-kit", "../engine/sim-kit", "en-prison/sim"];
+const GUARDED = ["sim-kit", "../../packages/engine/sim-kit", "en-prison/sim"];
 
 type Ban = { pattern: RegExp; why: string };
 

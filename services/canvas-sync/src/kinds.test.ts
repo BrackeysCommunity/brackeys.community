@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { Extension, onAuthenticatePayload } from "@hocuspocus/server";
 
-import { SCENE_FORMAT_VERSION } from "../../../src/engine/scene/types.ts";
+import { SCENE_FORMAT_VERSION } from "../../../packages/engine/scene/types.ts";
 import { SYNC_CLOSE } from "../../../src/lib/canvas/sync-channels.ts";
 import {
   signCanvasToken,

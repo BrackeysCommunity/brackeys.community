@@ -6,6 +6,20 @@ import * as encoding from "lib0/encoding";
 import * as Y from "yjs";
 
 import {
+  BULK_FIELD,
+  DOC_MAPS,
+  LEGACY_BULK_FIELD,
+  LEGACY_Z_FIELD,
+  Z_FIELD,
+  type ProjectLogEntry,
+} from "../../../packages/engine/collab/types.ts";
+import type { AssetEntry, ProjectState } from "../../../packages/engine/project/types.ts";
+import {
+  SCENE_FORMAT_VERSION,
+  type Prefab,
+  type SceneDefinition,
+} from "../../../packages/engine/scene/types.ts";
+import {
   canvasDocs,
   canvases,
   engineAssetDocs,
@@ -13,20 +27,6 @@ import {
   sceneDocs,
   user,
 } from "../../../src/db/schema.ts";
-import {
-  BULK_FIELD,
-  DOC_MAPS,
-  LEGACY_BULK_FIELD,
-  LEGACY_Z_FIELD,
-  Z_FIELD,
-  type ProjectLogEntry,
-} from "../../../src/engine/collab/types.ts";
-import type { AssetEntry, ProjectState } from "../../../src/engine/project/types.ts";
-import {
-  SCENE_FORMAT_VERSION,
-  type Prefab,
-  type SceneDefinition,
-} from "../../../src/engine/scene/types.ts";
 import { documentName, SYNC_CLOSE, syncCloseCode } from "../../../src/lib/canvas/sync-channels.ts";
 import { signCanvasToken, type SyncAccess } from "../../../src/lib/canvas/token.ts";
 import { sceneSnapshot, seedState } from "../../../src/lib/scene/doc-bytes.ts";

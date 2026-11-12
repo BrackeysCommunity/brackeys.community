@@ -4,8 +4,8 @@ import {
   UNLIMITED_QUOTA,
   type AssetEntry,
   type ProjectState,
-} from "../../../../src/engine/project/index.ts";
-import { createRegistry } from "../../../../src/engine/scene/index.ts";
+} from "../../../../packages/engine/project/index.ts";
+import { createRegistry } from "../../../../packages/engine/scene/index.ts";
 import {
   applyProjectDuties,
   emptyProjectState,

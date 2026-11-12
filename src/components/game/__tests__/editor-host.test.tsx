@@ -224,7 +224,7 @@ describe("SiteSceneEditor", () => {
 
   it("offers the hosted games' projects, then the engine's, each with the game its file names", async () => {
     const platformer = projectFile("src/games/platformer/jams.project.json");
-    const engine = projectFile("src/engine/scenes/jams.project.json");
+    const engine = projectFile("packages/engine/scenes/jams.project.json");
     const hosted = hostedGames().map((g) => g.id);
     expect(hosted).toContain(platformer.id);
     expect(SITE_PROJECTS.map(({ id }) => id)).toEqual([...hosted, engine.id]);
@@ -235,7 +235,14 @@ describe("SiteSceneEditor", () => {
       ui: null,
       defaultScene: "test-yard",
     });
-    expect(opened.at(-1)).toEqual({ game: null, ui: null, defaultScene: "kitchen-sink" });
+    // The engine project opens its scene list's start, as a hosted game's does.
+    const engineList = JSON.parse(
+      readFileSync("packages/engine/scenes/scene-list.json", "utf8"),
+    ) as {
+      start: string;
+    };
+    expect(engineList.start).toBe("engine-yard");
+    expect(opened.at(-1)).toEqual({ game: null, ui: null, defaultScene: engineList.start });
   });
 
   it("shows the editor's loading frame while the project's game loads", () => {
@@ -305,7 +312,7 @@ describe("SiteSceneEditor", () => {
 
   it("opens the engine project from ?project=engine, its scenes by name or id", async () => {
     const { rerender } = render(<SiteSceneEditor roomId="lobby-1" project="engine" />);
-    expect(await editorUp()).toMatchObject({ project: "engine", scene: "kitchen-sink" });
+    expect(await editorUp()).toMatchObject({ project: "engine", scene: "engine-yard" });
     expect(lastEditor().game).toBeNull();
     expect(lastEditor().host.readOnly).toBeUndefined();
     for (const scene of ["grid-yard", "engine-yard", "kitchen-sink", "7c1d2e3f"]) {
@@ -325,7 +332,7 @@ describe("SiteSceneEditor", () => {
         [
           "src/games/platformer/jams.project.json",
           "src/games/tactics/jams.project.json",
-          "src/engine/scenes/jams.project.json",
+          "packages/engine/scenes/jams.project.json",
         ],
         { cacheDirOf: (id) => join(cache, id) },
       );

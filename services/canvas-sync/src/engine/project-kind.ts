@@ -8,14 +8,11 @@ import type {
 import { and, eq, inArray, isNull, like } from "drizzle-orm";
 import * as Y from "yjs";
 
+import { projectAssetsMap, readEntry } from "../../../../packages/engine/collab/index.ts";
 import {
-  engineAssetDocs,
-  engineBlobs,
-  engineProjects,
-  sceneDocs,
-} from "../../../../src/db/schema.ts";
-import { projectAssetsMap, readEntry } from "../../../../src/engine/collab/index.ts";
-import { assertSameSeed, stampSeedState } from "../../../../src/engine/collab/seed-identity.ts";
+  assertSameSeed,
+  stampSeedState,
+} from "../../../../packages/engine/collab/seed-identity.ts";
 import {
   buildRefIndex,
   compareEntries,
@@ -30,8 +27,18 @@ import {
   type ProjectState,
   type QuotaPolicy,
   type Sha256,
-} from "../../../../src/engine/project/index.ts";
-import { createRegistry, ID_PATTERN, type Registry } from "../../../../src/engine/scene/index.ts";
+} from "../../../../packages/engine/project/index.ts";
+import {
+  createRegistry,
+  ID_PATTERN,
+  type Registry,
+} from "../../../../packages/engine/scene/index.ts";
+import {
+  engineAssetDocs,
+  engineBlobs,
+  engineProjects,
+  sceneDocs,
+} from "../../../../src/db/schema.ts";
 import {
   documentName,
   parseDocumentName,

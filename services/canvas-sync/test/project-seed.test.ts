@@ -3,10 +3,10 @@ import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bu
 import { and, eq } from "drizzle-orm";
 import * as Y from "yjs";
 
+import { SEED_STALE_REASON } from "../../../packages/engine/collab/seed-identity.ts";
+import { DATA_TABLE_VERSION } from "../../../packages/engine/project/kinds/data-table.ts";
+import type { AssetEntry, ProjectState } from "../../../packages/engine/project/types.ts";
 import { engineAssetDocs, engineBlobs, engineProjects, sceneDocs } from "../../../src/db/schema.ts";
-import { SEED_STALE_REASON } from "../../../src/engine/collab/seed-identity.ts";
-import { DATA_TABLE_VERSION } from "../../../src/engine/project/kinds/data-table.ts";
-import type { AssetEntry, ProjectState } from "../../../src/engine/project/types.ts";
 import { documentName, syncEnvPrefix } from "../../../src/lib/canvas/sync-channels.ts";
 import {
   emptyProjectState,

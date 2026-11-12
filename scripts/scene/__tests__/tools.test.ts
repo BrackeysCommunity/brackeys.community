@@ -5,6 +5,7 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { RigidBody } from "@dimforge/rapier2d";
+import { DEFAULT_ZIP_TARGET, exportTargetNames } from "@jams/engine/export";
 import { defineGame, parseSaveFile } from "@jams/engine/game";
 import type { RapierModule } from "@jams/engine/headless";
 import {
@@ -56,13 +57,13 @@ import { tempProject } from "./fixtures";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
 const TEST_YARD = repoFile("src/games/platformer/scenes/test-yard.json");
-const ENGINE_YARD = repoFile("src/engine/scenes/engine-yard.json");
-const ENGINE_YARD_CHECKS = repoFile("src/engine/scenes/engine-yard.checks.json");
+const ENGINE_YARD = repoFile("packages/engine/scenes/engine-yard.json");
+const ENGINE_YARD_CHECKS = repoFile("packages/engine/scenes/engine-yard.checks.json");
 /** The engine yard frozen at format v3, in px. */
-const ENGINE_YARD_V3 = repoFile("src/engine/scene/__tests__/fixtures/v3/engine-yard.json");
-const ENGINE_SCENES = repoFile("src/engine/scenes");
+const ENGINE_YARD_V3 = repoFile("packages/engine/scene/__tests__/fixtures/v3/engine-yard.json");
+const ENGINE_SCENES = repoFile("packages/engine/scenes");
 /** The nested-prefab fixtures as v3 (px) files, for the commands that migrate them. */
-const PREFAB_FIXTURES = repoFile("src/engine/scene/__tests__/fixtures/prefabs-v3");
+const PREFAB_FIXTURES = repoFile("packages/engine/scene/__tests__/fixtures/prefabs-v3");
 const NEW_OPS = [
   "transform",
   "setZ",
@@ -733,7 +734,7 @@ describe("new", () => {
       name: "blank",
       bounds: [0, 0, 19.2, 10.8],
     });
-    expect(join(engineDir, def.$schema!)).toBe(repoFile("src/engine/scene/scene.schema.json"));
+    expect(join(engineDir, def.$schema!)).toBe(repoFile("packages/engine/scene/scene.schema.json"));
     expect((await newScene({ name: "blank-2" }, ctx)).exitCode).toBe(1);
   });
 
@@ -1591,7 +1592,7 @@ async function goalCtx(): Promise<ToolContext> {
 
 const HOP_LEFT = repoFile("scripts/scene/examples/hop-left.json");
 /** Recordings frozen at format v1, with the scenes they were made on. */
-const V1_RECORDINGS = repoFile("src/engine/headless/__tests__/fixtures/recordings/v1");
+const V1_RECORDINGS = repoFile("packages/engine/headless/__tests__/fixtures/recordings/v1");
 
 describe("playtest", () => {
   type Played = {
@@ -2763,6 +2764,9 @@ describe("runCli", () => {
       "assets set-import",
       "assets apply",
       "game new",
+      "game build",
+      "game export",
+      "game manifest",
     ]);
   });
 
@@ -2797,6 +2801,29 @@ describe("runCli", () => {
     );
     expect(help).toMatch(/playtest <scene\|file\|-> .*\[--flow\] \[--from-save file\]/);
     expect(help).toMatch(/fuzz <scene\|file\|-> .*\[--from-save file\]/);
+  });
+
+  it("shows game build, export and manifest, and replay --releases, in the help", async () => {
+    const help = (await runCli(["help"], ctx)).stdout;
+    const targets = exportTargetNames();
+    const zipTargets = [DEFAULT_ZIP_TARGET, ...targets.filter((t) => t !== DEFAULT_ZIP_TARGET)];
+    expect(help).toContain(
+      `game build <id> [--target ${targets.join("|")}] [--out dist/games/<id>/<target>] [--rapier standard|compat] [--allow-over-budget]`,
+    );
+    expect(help).toContain(
+      `game export <id> --zip [--target ${zipTargets.join("|")}] [--out dist/games/<id>-<target>.zip]`,
+    );
+    expect(help).toContain("game manifest <dir|release.json>");
+    expect(help).toContain("replay <scene|file|-> --run <file|-> [--game id] [--releases <dir>]");
+    const bare = await runCli(["game", "build"], ctx);
+    expect(bare.exitCode).toBe(2);
+    expect(bare.stderr).toContain("game build <id>");
+    const unzipped = await runCli(["game", "export", "tactics"], ctx);
+    expect(unzipped.exitCode).toBe(2);
+    expect(unzipped.stderr).toContain("game export <id> --zip");
+    const noPath = await runCli(["game", "manifest"], ctx);
+    expect(noPath.exitCode).toBe(2);
+    expect(noPath.stderr).toContain("game manifest <dir|release.json>");
   });
 
   it("takes grid's flags", async () => {

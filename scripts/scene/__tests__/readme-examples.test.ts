@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { exportTargetNames } from "@jams/engine/export";
+import type { ReleaseTarget } from "@jams/engine/project";
 import { formatPrefab, formatScene, type SceneDefinition } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
@@ -16,9 +18,13 @@ import { walkerGame } from "../../engine-readme/examples/walker-game";
 import { corridor } from "../../engine-readme/examples/walker-playtest";
 import { COMMAND_GROUPS, COMMANDS, runCli, type CommandName } from "../commands";
 import type { ToolContext } from "../context";
+import { REPO_ROOT } from "../default-context";
+import { ensurePackedEngine } from "../engine-dist";
 import { GAME_PRESETS } from "../game-templates";
-import { openProject } from "../projects";
+import { DEFAULT_PROJECT_GLOBS, discoverProjects, openProject } from "../projects";
 import { loadCompatRapier } from "../rapier-compat";
+import { defaultBuildOut, ZIP_TARGET } from "../tools/game-build";
+import { defaultZipOut, gameExport } from "../tools/game-export";
 import { cardGame } from "./card-game";
 import { tempProject } from "./fixtures";
 
@@ -79,8 +85,32 @@ function split(argv: readonly string[]): [string | undefined, string[]] {
   return [first, argv.slice(1)];
 }
 
+const flagValue = (argv: readonly string[], flag: string) => {
+  const i = argv.indexOf(flag);
+  return i >= 0 ? argv[i + 1] : undefined;
+};
+
+/** A target `game build` refuses while planning, before it packs or writes anything. */
+const unbuiltTarget = (argv: readonly string[]) => {
+  const target = flagValue(argv, "--target");
+  return target !== undefined && !exportTargetNames().includes(target as ReleaseTarget);
+};
+
+/**
+ * Commands that read or write a game build: a build packs the engine and
+ * runs Vite, so they run once, in document order, in "game builds in the
+ * docs".
+ */
+function needsBuild(argv: string[]): boolean {
+  const [name, rest] = split(argv);
+  if (name === "game build" || name === "game export") return !unbuiltTarget(argv);
+  if (name === "game manifest") return true;
+  return name === "replay" && rest.includes("--releases");
+}
+
 /** Commands that write nothing and need no dev server, as invoked. */
 function isPure(argv: string[]): boolean {
+  if (needsBuild(argv)) return false;
   const [name, rest] = split(argv);
   if (rest.includes("--live") || name === "project pull" || name === "project push") return false;
   if (name === "fmt") return rest.includes("--check");
@@ -230,6 +260,15 @@ const FLOW_LISTED = [
   "save-slot-limit",
   "save-store-failed",
 ];
+/** The codes game builds added, each in the issue table; the CLI reproduces the first before it builds. */
+const EXPORT_CODES = ["export-target-unsupported"];
+const EXPORT_LISTED = [
+  ...EXPORT_CODES,
+  "export-asset-missing",
+  "export-over-budget",
+  "export-itch-layout",
+  "licence-missing",
+];
 const LIFECYCLE_EVENTS = [
   "entity:spawned",
   "entity:destroyed",
@@ -268,7 +307,7 @@ async function projectsIn(base: string): Promise<ToolContext> {
     duel: join(base, duelGame.id),
     tactics: join(base, tacticsGame.id),
   };
-  await cp(repoFile("src/engine/scenes"), dirs.engine, { recursive: true });
+  await cp(repoFile("packages/engine/scenes"), dirs.engine, { recursive: true });
   await mkdir(dirs.platformer);
   await mkdir(dirs.card);
   await writeFile(join(dirs.card, "card-table.json"), formatScene(CARD_TABLE).text);
@@ -350,8 +389,10 @@ describe("scene commands in the docs", () => {
 
     if (example.fenced && isPure(example.argv) && !example.argv.some(placeholder)) {
       const { expect: code } = example;
-      // `game new` imports and judges the game it generates; `flow` opens and bundles every listed scene.
-      const timeout = name === "game new" || name === "flow" ? 60_000 : undefined;
+      // `game new` imports and judges the game it generates; `flow` opens and bundles every
+      // listed scene, and so does `game build` planning before it refuses a target.
+      const timeout =
+        name === "game new" || name === "flow" || name === "game build" ? 60_000 : undefined;
       it(
         `${example.doc}: ${example.line} ${code ? `reports ${code}` : "runs"}`,
         async () => {
@@ -669,4 +710,139 @@ describe("op batches in the docs", () => {
     expect(row("scene_playtest")).toContain("`fromSave`");
     expect(row("asset_apply_ops")).toContain("scene lists");
   });
+});
+
+/** The README's Game builds section. */
+const buildSection = (() => {
+  const text = texts[0]!;
+  return text.slice(text.indexOf("## Game builds"), text.indexOf("## Live edits"));
+})();
+/** Its fenced examples that run, in document order: the builds, the reads of them, and the run a replay finds them for. */
+const buildSteps = examples(DOCS[0]!, buildSection).filter(
+  (e) => e.fenced && !e.expect && (needsBuild(e.argv) || isPure(e.argv)),
+);
+
+describe("game build docs", () => {
+  const used = (name: string, test: (argv: string[]) => boolean = () => true) =>
+    buildSteps.some((e) => split(e.argv)[0] === name && test(e.argv));
+
+  it("builds, zips, reads a build and its release.json, and replays against the builds", () => {
+    expect(used("game build")).toBe(true);
+    expect(used("game export", (a) => a.includes("--zip"))).toBe(true);
+    expect(
+      used("game manifest", (a) => a[2]!.startsWith("dist/") && !a[2]!.endsWith(".json")),
+    ).toBe(true);
+    expect(used("game manifest", (a) => a[2]!.endsWith("/release.json"))).toBe(true);
+    expect(used("replay", (a) => a.includes("--releases"))).toBe(true);
+    const replays = buildSteps.filter((e) => split(e.argv)[0] === "replay");
+    const recorded = buildSteps.map((e) => flagValue(e.argv, "--record"));
+    for (const e of replays) expect(recorded).toContain(flagValue(e.argv, "--run"));
+  });
+
+  it("reproduces export-target-unsupported, and lists the five export codes in the issue table", () => {
+    const expected = new Set(all.flat().map((e) => e.expect));
+    expect(EXPORT_CODES.filter((code) => !expected.has(code))).toEqual([]);
+    for (const code of EXPORT_LISTED)
+      expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+  });
+
+  it("lists every target the engine builds in the target table", () => {
+    for (const target of exportTargetNames())
+      expect(buildSection).toMatch(new RegExp(`^\\| \`${target}\` +\\|`, "m"));
+  });
+
+  it("documents game build, export and manifest, and replay --releases, in the commands table", () => {
+    const table = texts[0]!.slice(
+      texts[0]!.indexOf("## Commands"),
+      texts[0]!.indexOf("## Projects and assets"),
+    );
+    for (const name of ["game build", "game export", "game manifest", "replay"] as const) {
+      const row = table.split("\n").find((l) => l.startsWith(`| \`${name} `));
+      expect(row, name).toBeDefined();
+      const { values, switches }: { values: readonly string[]; switches: readonly string[] } =
+        COMMANDS[name];
+      for (const flag of [...values, ...switches].filter((f) => f !== "project"))
+        expect(row, `${name} --${flag}`).toContain(`--${flag}`);
+    }
+  });
+});
+
+/** A Vite build of a whole game: well past the default timeout, bounded by the build itself. */
+const BUILD_MS = 300_000;
+/** Packing the engine first (bounded by its own pack timeout), then discovering the repo's projects. */
+const PACK_MS = 720_000;
+
+describe("game builds in the docs", () => {
+  let dist: string;
+  let builds: ToolContext;
+
+  beforeAll(async () => {
+    const unpacked = await ensurePackedEngine();
+    if (unpacked) throw new Error(unpacked);
+    dist = await mkdtemp(join(tmpdir(), "scene-readme-builds-"));
+    // A build imports the game's modules, so it builds the repo's own projects, never copies.
+    const projects = await discoverProjects(REPO_ROOT, DEFAULT_PROJECT_GLOBS, {
+      cacheDirOf: (id) => join(dist, ".cache", id),
+    });
+    builds = { projects, loadRapier: loadCompatRapier, rapierFlavour: "rapier2d-compat" };
+  }, PACK_MS);
+
+  afterAll(async () => {
+    if (dist) await rm(dist, { recursive: true, force: true });
+  });
+
+  /** `dist/…` arguments, and the default outputs, in the scratch directory. */
+  const inDist = (argv: readonly string[]) =>
+    inRoot(argv).map((a) => (a.startsWith("dist/") ? join(dist, a) : a));
+
+  async function run(argv: string[]) {
+    const [name] = split(argv);
+    const id = argv[2]!;
+    const target = flagValue(argv, "--target");
+    if (name === "game export") {
+      // The CLI builds the zip's input in `game build`'s default directory; keep it in scratch too.
+      const t = target ?? ZIP_TARGET;
+      const out = flagValue(argv, "--out") ?? defaultZipOut(id, t);
+      const r = await gameExport(
+        {
+          id,
+          zip: argv.includes("--zip"),
+          target,
+          out: join(dist, out),
+          buildOut: join(dist, defaultBuildOut(id, t)),
+        },
+        builds,
+      );
+      return { exitCode: r.exitCode, text: r.text, data: r.data as Record<string, unknown> };
+    }
+    const mapped = inDist(argv).filter((a) => a !== "--json");
+    if (name === "game build" && !argv.includes("--out"))
+      mapped.push("--out", join(dist, defaultBuildOut(id, target ?? "web")));
+    const r = await runCli([...mapped, "--json"], builds);
+    return {
+      exitCode: r.exitCode,
+      text: r.stdout + r.stderr,
+      data: JSON.parse(r.stdout) as Record<string, unknown>,
+    };
+  }
+
+  for (const step of buildSteps) {
+    const [name] = split(step.argv);
+    const building = name === "game build" || name === "game export";
+    it(
+      `${step.doc}: ${step.line} runs`,
+      async () => {
+        const r = await run(step.argv);
+        expect(r.exitCode, `${step.line}\n${r.text}`).toBe(0);
+        if (name === "game manifest")
+          expect(r.data, r.text).toMatchObject({
+            ok: true,
+            filesChecked: !step.argv[2]!.endsWith(".json"),
+            unlisted: [],
+          });
+        if (name === "replay") expect(r.data.releasesSearched, r.text).toBeGreaterThan(0);
+      },
+      building ? BUILD_MS : 60_000,
+    );
+  }
 });

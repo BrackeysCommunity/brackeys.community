@@ -27,6 +27,7 @@ lint:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
         - src/**/*
+        - packages/**/*
         - services/**/*
         - scripts/**/*
         - public/**/*
@@ -40,6 +41,7 @@ lint:
     - if: $CI_COMMIT_BRANCH == 'main' && $CI_COMMIT_TITLE !~ /^Merge branch/
       changes:
         - src/**/*
+        - packages/**/*
         - services/**/*
         - scripts/**/*
         - public/**/*
@@ -74,6 +76,7 @@ preload-budget:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
         - src/**/*
+        - packages/**/*
         - scripts/measure-preload-graph.ts
         - scripts/engine-bundle-*.ts
         - package.json
@@ -84,6 +87,7 @@ preload-budget:
     - if: $CI_COMMIT_BRANCH == 'main'
       changes:
         - src/**/*
+        - packages/**/*
         - scripts/measure-preload-graph.ts
         - scripts/engine-bundle-*.ts
         - package.json
@@ -116,6 +120,7 @@ test:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
         - src/**/*
+        - packages/**/*
         - services/**/*
         - scripts/**/*
         - public/**/*
@@ -129,6 +134,7 @@ test:
     - if: $CI_COMMIT_BRANCH == 'main'
       changes:
         - src/**/*
+        - packages/**/*
         - services/**/*
         - scripts/**/*
         - public/**/*
@@ -178,6 +184,7 @@ canvas-sync-test:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
         - src/**/*
+        - packages/**/*
         - services/canvas-sync/**/*
         - drizzle/**/*
         - package.json
@@ -187,6 +194,7 @@ canvas-sync-test:
     - if: $CI_COMMIT_BRANCH == 'main'
       changes:
         - src/**/*
+        - packages/**/*
         - services/canvas-sync/**/*
         - drizzle/**/*
         - package.json
@@ -197,8 +205,9 @@ canvas-sync-test:
 # unused-peer check on the packed tarball, then the smoke test (the tarball
 # installed outside the repo, `dist/headless` under Bun with `-compat`, and a
 # jsdom host on `dist`), and the API report of the packed `.d.mts` files
-# against `src/engine/__tests__/api-report.txt`. The root `test` job only ever
-# sees the source.
+# against `packages/engine/__tests__/api-report.txt`, and the API reference
+# (`packages/engine/docs/api/*.md`) against the same types. The root `test` job
+# only ever sees the source.
 engine-package:
   stage: test
   # Node for `vp test` in the smoke test's jsdom consumer, as in `test`.
@@ -210,10 +219,11 @@ engine-package:
     - bun run engine:typecheck:strict
     - bun run engine:pack:check
     - bun scripts/engine-api-report.ts --check
+    - bun scripts/engine-api-docs.ts --check
     - bun run engine:smoke
     # The determinism probe's digests on this image; `test` checks them against
     # the pinned ones under Node, and this artifact keeps Bun's for the record.
-    - bun src/engine/__tests__/probes/determinism-probe.ts | tee determinism-probe.json
+    - bun packages/engine/__tests__/probes/determinism-probe.ts | tee determinism-probe.json
   artifacts:
     paths:
       - determinism-probe.json
@@ -222,8 +232,10 @@ engine-package:
     - !reference [.skip-version-bump, rules]
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
-        - src/engine/**/*
+        - packages/engine/**/*
         - scripts/engine-smoke/**/*
+        - scripts/engine-api/**/*
+        - scripts/engine-api-docs.ts
         - scripts/engine-api-report.ts
         - package.json
         - bun.lock
@@ -231,8 +243,10 @@ engine-package:
       when: never
     - if: $CI_COMMIT_BRANCH == 'main'
       changes:
-        - src/engine/**/*
+        - packages/engine/**/*
         - scripts/engine-smoke/**/*
+        - scripts/engine-api/**/*
+        - scripts/engine-api-docs.ts
         - scripts/engine-api-report.ts
         - package.json
         - bun.lock
@@ -268,6 +282,7 @@ engine-verify:
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
         - src/**/*
+        - packages/**/*
         - services/**/*
         - scripts/**/*
         - package.json
@@ -280,6 +295,7 @@ engine-verify:
     - if: $CI_COMMIT_BRANCH == 'main'
       changes:
         - src/**/*
+        - packages/**/*
         - services/**/*
         - scripts/**/*
         - package.json
@@ -307,7 +323,7 @@ engine-browser-smoke:
     - !reference [.skip-version-bump, rules]
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
       changes:
-        - src/engine/**/*
+        - packages/engine/**/*
         - scripts/engine-smoke/**/*
         - package.json
         - bun.lock
@@ -315,7 +331,42 @@ engine-browser-smoke:
       when: never
     - if: $CI_COMMIT_BRANCH == 'main'
       changes:
-        - src/engine/**/*
+        - packages/engine/**/*
         - scripts/engine-smoke/**/*
+        - package.json
+        - bun.lock
+
+engine-export-smoke:
+  stage: test
+  image: mcr.microsoft.com/playwright:v1.64.1-noble
+  timeout: 45 minutes
+  before_script:
+    - npm i -g bun
+    - bun install --frozen-lockfile
+  script:
+    - bun scripts/engine-smoke/export.ts --browsers chromium,firefox,webkit
+  artifacts:
+    when: always
+    paths:
+      - engine-export-smoke.json
+    expire_in: 1 month
+  rules:
+    - !reference [.skip-version-bump, rules]
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
+        - packages/engine/**/*
+        - src/games/**/*
+        - scripts/engine-smoke/**/*
+        - scripts/engine-bundle-check.ts
+        - package.json
+        - bun.lock
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH == 'main'
+      changes:
+        - packages/engine/**/*
+        - src/games/**/*
+        - scripts/engine-smoke/**/*
+        - scripts/engine-bundle-check.ts
         - package.json
         - bun.lock

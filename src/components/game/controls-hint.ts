@@ -1,5 +1,5 @@
 import type { ActionBindings } from "@jams/engine";
-import type { ActionDef, Binding } from "@jams/engine/game";
+import { bindingKeyLabel, type ActionDef, type Binding } from "@jams/engine/game";
 
 /** One line of a hosted game's controls hint: an action and the keys and buttons that drive it. */
 export type ControlsHintEntry = {
@@ -10,62 +10,16 @@ export type ControlsHintEntry = {
   keys: readonly string[];
 };
 
-const NAMED_KEYS: Readonly<Record<string, string>> = {
-  ArrowLeft: "←",
-  ArrowRight: "→",
-  ArrowUp: "↑",
-  ArrowDown: "↓",
-  Escape: "Esc",
-  Backquote: "`",
-  Minus: "-",
-  Equal: "=",
-  BracketLeft: "[",
-  BracketRight: "]",
-  Backslash: "\\",
-  Semicolon: ";",
-  Quote: "'",
-  Comma: ",",
-  Period: ".",
-  Slash: "/",
-};
-
-const POINTER_LABELS: Readonly<Record<string, string>> = {
-  primary: "Click",
-  secondary: "Right-click",
-  middle: "Middle-click",
-};
-
-/** What a key's `KeyboardEvent.code` reads as on a keycap: `KeyA` is "A", `ShiftLeft` is "Shift". */
-export function keyLabel(code: string): string {
-  const named = NAMED_KEYS[code];
-  if (named !== undefined) return named;
-  const letter = /^Key([A-Z])$/.exec(code);
-  if (letter) return letter[1]!;
-  const digit = /^Digit(\d)$/.exec(code);
-  if (digit) return digit[1]!;
-  const numpad = /^Numpad(.+)$/.exec(code);
-  if (numpad) return `Num ${numpad[1]}`;
-  const side = /^(Shift|Control|Alt|Meta)(?:Left|Right)$/.exec(code);
-  if (side) return side[1] === "Control" ? "Ctrl" : side[1]!;
-  return code;
-}
-
 /** Four keys that read better as one name when an action binds all of them. */
 const CLUSTERS: readonly { name: string; members: readonly string[] }[] = [
   { name: "Arrows", members: ["↑", "←", "↓", "→"] },
   { name: "WASD", members: ["W", "A", "S", "D"] },
 ];
 
-function bindingLabel(binding: Binding): string | null {
-  if (binding.device === "key") return keyLabel(binding.code);
-  if (binding.device === "pointer") return POINTER_LABELS[binding.button] ?? null;
-  return null;
-}
-
 function keysOf(bindings: readonly Binding[]): string[] {
   const labels: string[] = [];
   for (const binding of bindings) {
-    const label = bindingLabel(binding);
+    const label = bindingKeyLabel(binding);
     if (label !== null && !labels.includes(label)) labels.push(label);
   }
   let keys = labels;

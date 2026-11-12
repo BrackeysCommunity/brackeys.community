@@ -3,14 +3,13 @@ import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bu
 import { eq } from "drizzle-orm";
 import * as Y from "yjs";
 
-import { engineAssetDocs, engineBlobs, engineProjects } from "../../../src/db/schema.ts";
 import {
   assignZ,
   compareZ,
   CONTENT_MAP,
   KEYED_ITEM,
   KEYED_Z,
-} from "../../../src/engine/collab/index.ts";
+} from "../../../packages/engine/collab/index.ts";
 import {
   formatAssetDoc,
   INPUT_MAP_KIND,
@@ -20,9 +19,10 @@ import {
   sceneListKind,
   type InputMapFile,
   type SceneListFile,
-} from "../../../src/engine/project/index.ts";
-import type { AssetEntry, ProjectState } from "../../../src/engine/project/types.ts";
-import { SCENE_FORMAT_VERSION } from "../../../src/engine/scene/types.ts";
+} from "../../../packages/engine/project/index.ts";
+import type { AssetEntry, ProjectState } from "../../../packages/engine/project/types.ts";
+import { SCENE_FORMAT_VERSION } from "../../../packages/engine/scene/types.ts";
+import { engineAssetDocs, engineBlobs, engineProjects } from "../../../src/db/schema.ts";
 import {
   assetDocValue,
   emptyProjectState,

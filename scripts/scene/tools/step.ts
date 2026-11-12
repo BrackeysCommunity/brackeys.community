@@ -293,6 +293,10 @@ export function eventsReport(
   };
 }
 
+/** `@2 name {args}`: a command as the report prints it, its seat when not 0. */
+const commandText = (c: GameCommand) =>
+  `${c.player ? `@${c.player} ` : ""}${c.name}${c.args === undefined ? "" : ` ${JSON.stringify(c.args)}`}`;
+
 /** The `--legal` lines: each legal command after the last tick (with its seat, when not 0), or why there are none. */
 function legalLines(
   registry: Registry,
@@ -304,10 +308,7 @@ function legalLines(
   if (legal.length === 0) return ["  legal: none"];
   return [
     `  legal (${legal.length}${truncated ? ", truncated" : ""}):`,
-    ...legal.map(
-      (c) =>
-        `    ${c.player ? `@${c.player} ` : ""}${c.name}${c.args === undefined ? "" : ` ${JSON.stringify(c.args)}`}`,
-    ),
+    ...legal.map((c) => `    ${commandText(c)}`),
   ];
 }
 
@@ -382,7 +383,11 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     events: printed.events,
     ...(printed.lifecycle ? { lifecycle: printed.lifecycle } : {}),
     commands: commands.map(([tick, c]) =>
-      c.args === undefined ? [tick, c.name] : [tick, c.name, c.args],
+      c.player
+        ? [tick, c.name, c.args ?? null, c.player]
+        : c.args === undefined
+          ? [tick, c.name]
+          : [tick, c.name, c.args],
     ),
   };
 
@@ -406,10 +411,7 @@ export const step: Tool<StepInput> = async (input, ctx) => {
   const lines = [
     `${loaded.name} ${hash} ${runs} config ${report.configHash}: ${report.ticks} ticks at ${report.tickRate}Hz; ${unitsNote(registry)}`,
     `  final ${rounded(report.final)}`,
-    ...commands.map(
-      ([tick, c]) =>
-        `  t${tick} command ${c.name}${c.args === undefined ? "" : ` ${JSON.stringify(c.args)}`}`,
-    ),
+    ...commands.map(([tick, c]) => `  t${tick} command ${commandText(c)}`),
     ...printed.lines,
     ...(report.truncated ? ["  (events truncated)"] : []),
     ...(input.legal ? legalLines(registry, report.legal, report.legalTruncated === true) : []),

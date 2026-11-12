@@ -1,5 +1,5 @@
 {
-  "$schema": "../../engine/project/project.schema.json",
+  "$schema": "../../../packages/engine/project/project.schema.json",
   "kind": "project",
   "v": 1,
   "id": "tactics",
@@ -14,5 +14,11 @@
     "input-map.json",
     "scene-list.json"
   ],
-  "code": ["**/*.ts", "!**/__tests__/**"]
+  "code": ["**/*.ts", "!**/__tests__/**"],
+  "export": {
+    "shortName": "Tactics",
+    "icons": { "192": "icon-192", "512": "icon-512" },
+    "themeColor": "#29366f",
+    "background": "#1a1c2c"
+  }
 }

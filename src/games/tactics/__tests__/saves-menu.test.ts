@@ -20,7 +20,7 @@ const init = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@dimforge/rapier2d-compat", () => ({ init, default: { init } }));
 
 // The shell's Pixi renderer, stood in for so the shell runs under jsdom.
-vi.mock("../../../engine/renderer", () => ({
+vi.mock("../../../../packages/engine/renderer", () => ({
   createRenderer: async () => ({
     app: {},
     worldContainer: new Container(),

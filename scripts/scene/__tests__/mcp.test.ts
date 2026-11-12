@@ -20,6 +20,7 @@ import { z } from "zod";
 
 import { platformerGame } from "../../../src/games/platformer";
 import type { ToolContext } from "../context";
+import { REPO_ROOT } from "../default-context";
 import { AGENT_SITE_ENV, AGENT_TOKEN_ENV } from "../hosted";
 import { createSceneMcpServer, MCP_SERVER_NAME } from "../mcp";
 import {
@@ -28,19 +29,21 @@ import {
   MCP_TOOLS,
   runMcpTool,
   toMcpResult,
+  withoutFileBytes,
 } from "../mcp-tools";
+import { discoverProjects } from "../projects";
 import { loadCompatRapier } from "../rapier-compat";
 import { flow as flowTool } from "../tools/flow";
 import { tempProject } from "./fixtures";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
-const ENGINE_YARD = repoFile("src/engine/scenes/engine-yard.json");
-const ENGINE_YARD_CHECKS = repoFile("src/engine/scenes/engine-yard.checks.json");
+const ENGINE_YARD = repoFile("packages/engine/scenes/engine-yard.json");
+const ENGINE_YARD_CHECKS = repoFile("packages/engine/scenes/engine-yard.checks.json");
 const TEST_YARD = repoFile("src/games/platformer/scenes/test-yard.json");
 const HOP_LEFT = repoFile("scripts/scene/examples/hop-left.json");
 const DOT = repoFile("scripts/scene/examples/dot.png");
-const SPRITES = repoFile("src/engine/scene/__tests__/fixtures/sprites.json");
-const V1_RECORDINGS = "src/engine/headless/__tests__/fixtures/recordings/v1";
+const SPRITES = repoFile("packages/engine/scene/__tests__/fixtures/sprites.json");
+const V1_RECORDINGS = "packages/engine/headless/__tests__/fixtures/recordings/v1";
 const V1_ENGINE_YARD = repoFile(`${V1_RECORDINGS}/scenes/engine-yard.json`);
 const V1_SETTLES = repoFile(`${V1_RECORDINGS}/engine-yard.settles.recording.json`);
 
@@ -95,6 +98,8 @@ describe("scene MCP server", () => {
       "asset_apply_ops",
       "asset_import",
       "asset_refs",
+      "game_build",
+      "game_manifest",
       "game_new",
       "project_tree",
       "scene_apply_ops",
@@ -119,7 +124,15 @@ describe("scene MCP server", () => {
     };
     for (const t of tools) {
       expect(t.inputSchema.properties, t.name).toHaveProperty("project");
-      if (t.name in writers) {
+      if (t.name === "game_build") {
+        expect(t.annotations).toMatchObject({
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: true,
+          openWorldHint: false,
+        });
+        expect(t.inputSchema.properties).not.toHaveProperty("dryRun");
+      } else if (t.name in writers) {
         expect(t.annotations, t.name).toMatchObject({
           readOnlyHint: false,
           destructiveHint: writers[t.name],
@@ -437,7 +450,7 @@ describe("scene MCP server", () => {
       "crates.png",
       "crates.png.asset.json",
     ])
-      await copyFile(repoFile(`src/engine/scenes/art/${name}`), join(art, name));
+      await copyFile(repoFile(`packages/engine/scenes/art/${name}`), join(art, name));
     const def = JSON.parse(await readFile(ENGINE_YARD, "utf8"));
     await writeFile(file, JSON.stringify({ ...def, name: "sprite-yard" }));
     const pic = (sprite: Record<string, unknown>) => ({
@@ -1525,4 +1538,112 @@ describe("live docs", { timeout: 60_000 }, () => {
     });
     expect(r).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
   });
+});
+
+describe("game_build and game_manifest", () => {
+  const BUILD_TIMEOUT = 300_000;
+  let buildRoot: string;
+  let gameClient: Client;
+  const callGame = async (name: string, args: Record<string, unknown>) =>
+    (await gameClient.callTool({ name, arguments: args })) as Called;
+
+  beforeAll(async () => {
+    buildRoot = await mkdtemp(join(tmpdir(), "scene-mcp-build-"));
+    const projects = (await discoverProjects(REPO_ROOT)).filter((p) => p.file.id === "tactics");
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await createSceneMcpServer({ projects, loadRapier: loadCompatRapier }).connect(serverSide);
+    gameClient = new Client({ name: "scene-mcp-build-test", version: "0" });
+    await gameClient.connect(clientSide);
+  });
+
+  afterAll(async () => {
+    await gameClient.close();
+    await rm(buildRoot, { recursive: true, force: true });
+  });
+
+  it("drops file contents from a report and keeps paths, hashes and sizes", () => {
+    const report = {
+      summary: { scenes: 1 },
+      issues: [],
+      plan: {
+        files: [
+          { path: "index.html", role: "shell", source: { kind: "text", text: "<!doctype html>" } },
+          {
+            path: "icons/icon-192.png",
+            role: "icon",
+            source: { kind: "bytes", bytes: new Uint8Array(3) },
+          },
+          { path: "a.png", role: "asset", source: { kind: "blob", sha256: "ab" } },
+        ],
+      },
+      manifest: { build: { files: [{ path: "a.png", sha256: "ab", bytes: 12, role: "asset" }] } },
+      raw: Buffer.from("png"),
+    };
+    expect(withoutFileBytes(report)).toEqual({
+      summary: { scenes: 1 },
+      issues: [],
+      plan: {
+        files: [
+          { path: "index.html", role: "shell", source: { kind: "text" } },
+          { path: "icons/icon-192.png", role: "icon", source: { kind: "bytes" } },
+          { path: "a.png", role: "asset", source: { kind: "blob", sha256: "ab" } },
+        ],
+      },
+      manifest: { build: { files: [{ path: "a.png", sha256: "ab", bytes: 12, role: "asset" }] } },
+    });
+  });
+
+  it(
+    "builds tactics, returning the plan summary and issues and no file bytes, and validates its manifest",
+    { timeout: BUILD_TIMEOUT },
+    async () => {
+      const out = join(buildRoot, "tactics-web");
+      const built = await callGame("game_build", { id: "tactics", out });
+      expect(built.isError).toBe(false);
+      expect(built.structuredContent.exitCode).toBe(0);
+      expect(built.structuredContent).toHaveProperty("summary");
+      expect(Array.isArray(built.structuredContent.issues)).toBe(true);
+      expect(built.content.map((c) => c.type)).toEqual(["text"]);
+      const json = JSON.stringify(built.structuredContent);
+      expect(json).not.toMatch(/<!doctype/i);
+      expect(json).not.toMatch(/"0":\d+,"1":\d+/);
+      expect(json.length).toBeLessThan(256 * 1024);
+
+      const manifestText = await readFile(join(out, "release.json"), "utf8");
+
+      const checked = await callGame("game_manifest", { path: out });
+      expect(checked.isError).toBe(false);
+      expect(checked.structuredContent.exitCode).toBe(0);
+      expect(checked.structuredContent).toHaveProperty("summary");
+      expect(checked.structuredContent.manifest).toMatchObject({
+        kind: "release",
+        v: 1,
+        project: { id: "tactics" },
+        build: { target: "web", rapier: null },
+      });
+
+      const inline = await callGame("game_manifest", { path: JSON.parse(manifestText) });
+      expect(inline.structuredContent.exitCode).toBe(0);
+      expect(JSON.stringify(inline.structuredContent)).not.toContain(tmpdir());
+
+      const broken = await callGame("game_manifest", { path: { kind: "release", v: 1 } });
+      expect(broken.structuredContent.exitCode).toBeGreaterThan(0);
+    },
+  );
+
+  it(
+    "reports a target this engine doesn't build before bundling anything",
+    { timeout: BUILD_TIMEOUT },
+    async () => {
+      const r = await callGame("game_build", {
+        id: "tactics",
+        target: "desktop",
+        out: join(buildRoot, "tactics-desktop"),
+      });
+      expect(r.structuredContent.exitCode).toBe(1);
+      expect((r.structuredContent.issues as { code: string }[]).map((i) => i.code)).toContain(
+        "export-target-unsupported",
+      );
+    },
+  );
 });

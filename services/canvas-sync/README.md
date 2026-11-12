@@ -160,8 +160,8 @@ canvases are. Rows live in `canvas.scene_docs`, keyed by the scene id
 ## Projects and assets
 
 A hosted `@jams/engine` project is one registry doc and one doc per asset that
-isn't a blob (`src/engine/`): `project:<project>` (`engine_projects.state`),
-its scenes (`scene:<project>.<key>`, above) and every other doc kind
+isn't a blob (`services/canvas-sync/src/engine/`): `project:<project>`
+(`engine_projects.state`), its scenes (`scene:<project>.<key>`, above) and every other doc kind
 (`asset:<project>.<key>`, `engine_asset_docs`, prefabs included). Blobs live in
 `engine_blobs` and the content store; the registry holds their hashes.
 

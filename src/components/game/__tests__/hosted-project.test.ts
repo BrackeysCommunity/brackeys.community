@@ -1,4 +1,10 @@
-import { COLLAB_LAYOUT_VERSION, type AwarenessLike, type DocOrigin } from "@jams/engine/collab";
+import {
+  COLLAB_LAYOUT_VERSION,
+  SEED_STALE_CODE,
+  SEED_STALE_REASON,
+  type AwarenessLike,
+  type DocOrigin,
+} from "@jams/engine/collab";
 import {
   connectProjectSession,
   type MintProjectToken,
@@ -86,6 +92,12 @@ describe("syncCloseReason", () => {
   it("reads the code from a refused authentication's reason", () => {
     expect(syncCloseReason(null, syncClose(SYNC_CLOSE.revoked, "gone").reason)).toBe("revoked");
     expect(syncCloseReason(null, syncClose(SYNC_CLOSE.tooLarge).reason)).toBe("too-large");
+  });
+
+  it("reloads on a seed-stale close rather than retrying the same copy, by its code or its reason", () => {
+    expect(syncCloseReason(SEED_STALE_CODE)).toBe("reload");
+    expect(syncCloseReason(1000, SEED_STALE_REASON)).toBe("reload");
+    expect(syncCloseReason(null, SEED_STALE_REASON)).toBe("reload");
   });
 
   it("retries everything else", () => {
@@ -223,5 +235,21 @@ describe("hostedProject", () => {
     opened[0]!.events.closed(SYNC_CLOSE.tooLarge, true);
     await vi.waitFor(() => expect(link.getState().stopped).toEqual({ "project:p": "too-large" }));
     await vi.waitFor(() => expect(link.getState().status).toBe("failed"));
+  });
+
+  it("opens the project again from the server's state on a seed-stale close, stopping nothing", async () => {
+    const { transport, urls, opened } = fakeTransport();
+    const link = hostedProject({ transport, flag: () => true, mint: async () => answer }).connect({
+      project: "p",
+      registry,
+      origin,
+    });
+    cleanups.push(() => link.destroy());
+    await vi.waitFor(() => expect(opened).toHaveLength(1));
+    opened[0]!.events.closed(1000, true, SEED_STALE_REASON);
+    await vi.waitFor(() => expect(opened).toHaveLength(2));
+    expect(opened[1]!.name).toBe("project:p");
+    expect(urls).toEqual([answer.url, answer.url]);
+    expect(link.getState()).toMatchObject({ stopped: {}, status: "connecting", error: null });
   });
 });

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bu
 
 import * as Y from "yjs";
 
-import { Z_FIELD } from "../../../src/engine/collab/types.ts";
+import { Z_FIELD } from "../../../packages/engine/collab/types.ts";
 import { startServer, type SyncServer } from "../src/index.ts";
 import { MemorySceneStore } from "../src/scene/store.ts";
 import {

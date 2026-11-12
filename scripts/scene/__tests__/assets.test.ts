@@ -14,9 +14,9 @@ import { devContentStore, ProjectClientError, readLiveScene } from "../project-c
 import { loadCompatRapier } from "../rapier-compat";
 import { tempProject } from "./fixtures";
 
-const ENGINE_SCENES = fileURLToPath(new URL("../../../src/engine/scenes", import.meta.url));
+const ENGINE_SCENES = fileURLToPath(new URL("../../../packages/engine/scenes", import.meta.url));
 const FIXTURES = fileURLToPath(
-  new URL("../../../src/engine/project/__tests__/fixtures", import.meta.url),
+  new URL("../../../packages/engine/project/__tests__/fixtures", import.meta.url),
 );
 
 /** A 1×1 PNG. */
@@ -571,6 +571,53 @@ describe("assets on files", { timeout: 60_000 }, () => {
     const imported = await run("assets", "import", join(root, "big.png"), "--dry-run");
     expect(imported.data).toMatchObject({ created: ["big"], written: false });
     expect(await tree(root)).toEqual(after);
+  });
+
+  it("apply reports scene-unlisted for a checks or scene-list edit, --dry-run included", async () => {
+    const assets = (await run("assets", "list")).data.assets as { id: string; path: string }[];
+    const idAt = (path: string) => assets.find((a) => a.path === path)!.id;
+    const checks = idAt("engine-yard.checks.json");
+    const list = idAt("scene-list.json");
+    const ops = join(root, "ops.json");
+    const apply = async (edits: { id: string; edits: unknown[] }, ...flags: string[]) => {
+      await writeFile(ops, JSON.stringify({ v: 1, ops: [{ op: "editAsset", ...edits }] }));
+      return run("assets", "apply", "--ops", ops, ...flags);
+    };
+    const unlisted = (data: Data) =>
+      (data.issues as { code: string; got?: string }[])
+        .filter((i) => i.code === "scene-unlisted")
+        .map((i) => i.got);
+    const toAnnex = {
+      insert: "/checks/-",
+      value: {
+        id: "to-annex",
+        kind: "reaches",
+        result: "script-end",
+        expect: { scene: "grid-annex" },
+        script: { v: 2, steps: [{ wait: 1 }] },
+      },
+    };
+
+    const before = await tree(deck);
+    const dry = await apply({ id: checks, edits: [toAnnex] }, "--dry-run");
+    expect(dry.exitCode, JSON.stringify(dry.data)).toBe(0);
+    expect(dry.data).toMatchObject({ dryRun: true, written: false });
+    expect(unlisted(dry.data)).toEqual(["grid-annex"]);
+    expect(await tree(deck)).toEqual(before);
+
+    const sublevel = { set: "/scenes/1/sublevel", value: true };
+    const listDry = await apply({ id: list, edits: [sublevel] }, "--dry-run");
+    expect(listDry.exitCode, JSON.stringify(listDry.data)).toBe(0);
+    expect(unlisted(listDry.data)).toEqual(["kitchen-sink", "kitchen-sink"]);
+    expect(await tree(deck)).toEqual(before);
+
+    const written = await apply({ id: checks, edits: [toAnnex] });
+    expect(written.exitCode, JSON.stringify(written.data)).toBe(0);
+    expect(written.data).toMatchObject({ written: true });
+    expect(unlisted(written.data)).toEqual(["grid-annex"]);
+
+    const rename = await run("assets", "rename", "gate", "--name", "Gate", "--dry-run");
+    expect(unlisted(rename.data)).toEqual([]);
   });
 
   it("an id two projects hold needs --project, which exits 2 when it names no project", async () => {

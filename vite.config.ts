@@ -253,6 +253,20 @@ const config = defineConfig({
       // see: https://github.com/mugnavo/tanstarter-plus/issues/8
       tasks: false,
     },
+    tasks: {
+      // An export bundles the packed engine (`node_modules/@jams/engine/dist`),
+      // so these pack it first: `vp run game:build <id> [flags]`.
+      "game:build": {
+        command: "bun scripts/scene/cli.ts game build",
+        dependsOn: ["engine:pack"],
+        cache: false,
+      },
+      "game:export": {
+        command: "bun scripts/scene/cli.ts game export",
+        dependsOn: ["engine:pack"],
+        cache: false,
+      },
+    },
   },
 
   // Oxfmt - https://oxc.rs/docs/guide/usage/formatter/config.html
@@ -281,22 +295,24 @@ const config = defineConfig({
       ".output",
       "dist",
       // Written by the engine's formatScene, which owns their layout.
-      "src/engine/scenes/**",
+      "packages/engine/scenes/**",
       "src/games/*/scenes/**",
       "src/games/*/input-map.json",
       "src/games/*/game-settings.json",
       "src/games/*/scene-list.json",
       "src/games/*/data/**",
-      "src/engine/__tests__/fixtures/*.json",
-      "src/engine/scene/__tests__/fixtures/prefabs/**",
+      "packages/engine/__tests__/fixtures/*.json",
+      "packages/engine/scene/__tests__/fixtures/prefabs/**",
       // Frozen copies of each scene format version, compared byte for byte.
-      "src/engine/scene/__tests__/fixtures/v*/**",
+      "packages/engine/scene/__tests__/fixtures/v*/**",
       "src/games/*/__tests__/fixtures/v*/**",
-      "src/engine/headless/__tests__/fixtures/recordings/v*/**/*.json",
+      "packages/engine/headless/__tests__/fixtures/recordings/v*/**/*.json",
       // Frozen asset files, compared byte for byte with the engine's formatter.
-      "src/engine/collab/__tests__/fixtures/*.json",
+      "packages/engine/collab/__tests__/fixtures/*.json",
       // Written by the engine's formatSaveFile, which owns their layout.
       "**/*.save.json",
+      // Written by scripts/engine-api-docs.ts, which owns their layout; --check compares them byte for byte.
+      "packages/engine/docs/api/**",
     ],
   },
 
@@ -401,7 +417,7 @@ const config = defineConfig({
     tsconfigPaths: true,
     alias: {
       "@jams/engine/editor-ui/style.css": fileURLToPath(
-        new URL("./src/engine/editor-ui/style.css", import.meta.url),
+        new URL("./packages/engine/editor-ui/style.css", import.meta.url),
       ),
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },

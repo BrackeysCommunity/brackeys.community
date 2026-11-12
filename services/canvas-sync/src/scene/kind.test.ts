@@ -3,8 +3,8 @@ import { describe, expect, it } from "bun:test";
 import type { onLoadDocumentPayload } from "@hocuspocus/server";
 import * as Y from "yjs";
 
-import { stampSeedState } from "../../../../src/engine/collab/seed-identity.ts";
-import { SCENE_FORMAT_VERSION } from "../../../../src/engine/scene/types.ts";
+import { stampSeedState } from "../../../../packages/engine/collab/seed-identity.ts";
+import { SCENE_FORMAT_VERSION } from "../../../../packages/engine/scene/types.ts";
 import { signCanvasToken, verifyCanvasToken } from "../../../../src/lib/canvas/token.ts";
 import { seedState, stateSchemaVersion } from "../../../../src/lib/scene/doc-bytes.ts";
 import { COLLAB_LAYOUT_VERSION } from "../../../../src/lib/scene/project-bytes.ts";

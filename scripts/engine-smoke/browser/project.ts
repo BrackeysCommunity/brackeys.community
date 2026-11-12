@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 /**
  * The runner's side of the render run, under Bun: the engine project read
- * from `src/engine/scenes` through the dev server's own file scan, and the
+ * from `packages/engine/scenes` through the dev server's own file scan, and the
  * preview middleware that serves its blobs by hash on the dev route
  * (`/__project/<id>/blob/<sha256>`) with the dev server's handler, plus the
  * registry and doc values the page builds its project view from.
@@ -19,7 +19,7 @@ import {
   handleProjectRequest,
   type ProjectResponse,
   type ProjectSource,
-} from "../../../src/engine/vite/handler";
+} from "../../../packages/engine/vite/handler";
 import { SINK_DATA_ROUTE } from "./sink";
 
 /** What the page needs to build the project view, runtime view and registry: the scan's registry and every doc asset's JSON. */

@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it, setDefaultTimeout } from "bun:test";
 
 import * as Y from "yjs";
 
-import { KEYED_ITEM, KEYED_Z } from "../../../src/engine/collab/layout.ts";
+import { KEYED_ITEM, KEYED_Z } from "../../../packages/engine/collab/layout.ts";
 import {
   createKindRegistry,
   dataTableKind,
@@ -10,7 +10,7 @@ import {
   ENGINE_ASSET_KINDS,
   formatAssetDoc,
   materialKind,
-} from "../../../src/engine/project/index.ts";
+} from "../../../packages/engine/project/index.ts";
 import { SYNC_CLOSE } from "../../../src/lib/canvas/sync-channels.ts";
 import { ASSET_DOC_LIMITS } from "../../../src/lib/scene/limits.ts";
 import { MemoryAssetDocStore } from "../src/engine/doc-store.ts";

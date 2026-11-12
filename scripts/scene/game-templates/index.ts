@@ -155,7 +155,7 @@ export const generatedJson = (value: unknown): string => `${printJson(value, "",
 export type RenderPaths = {
   /** The project's directory, absolute. */
   projectDir: string;
-  /** `src/engine`, absolute. */
+  /** `packages/engine`, absolute. */
   engineDir: string;
 };
 

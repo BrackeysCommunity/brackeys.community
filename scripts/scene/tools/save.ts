@@ -26,6 +26,7 @@ import {
 import { putBlob } from "../hosted";
 import { projectRuntime, scanProject, type ProjectHandle } from "../projects";
 import { runProjectBatch } from "./assets-apply";
+import { projectSceneLibrary } from "./flow";
 import { blockedResult, projectRef, readPlaytestScript } from "./playtest";
 import { rapierFor } from "./step";
 
@@ -39,10 +40,12 @@ export type SaveInput = {
   depth?: string;
   /** `meta.savedAt` in epoch ms, as the flag's text or a number; default 0, so a fixture's bytes depend only on the run. */
   now?: string | number;
+  /** Follow flow requests through the project's scene list, so the save holds the scene, entry and persist the run reached. */
+  flow?: boolean;
 };
 
 const USAGE =
-  "save <scene|file> --script <file|-> --at <tick> --out <file>.save.json [--depth world|progress] [--now ms]";
+  "save <scene|file> --script <file|-> --at <tick> --out <file>.save.json [--depth world|progress] [--now ms] [--flow]";
 
 const DEPTHS: readonly SaveDepth[] = ["world", "progress"];
 
@@ -143,7 +146,9 @@ async function writeFixture(
  * save fixture there (`captureSave`, `formatSaveFile`): world depth by
  * default, refused as `save-unsupported` with each cause `worldSaveBlockers`
  * names; progress depth on request. The slot is the file's stem. A run that
- * ends before the tick saves nothing.
+ * ends before the tick saves nothing. With `flow` the run follows flow
+ * requests through the project's scene list, as `playtest --flow` does, and
+ * the save is of the scene it is in at the tick.
  */
 export const save: Tool<SaveInput> = async (input, ctx) => {
   if (!input.script || !input.out || input.at === undefined) return usage(`scene ${USAGE}`);
@@ -153,7 +158,12 @@ export const save: Tool<SaveInput> = async (input, ctx) => {
   const depth = (input.depth ?? "world") as SaveDepth;
   if (!DEPTHS.includes(depth))
     return usage(`--depth is world or progress; got ${JSON.stringify(input.depth)}`);
-  const now = input.now === undefined ? 0 : Number(input.now);
+  const now =
+    typeof input.now === "string"
+      ? /^\d+$/.test(input.now)
+        ? Number(input.now)
+        : Number.NaN
+      : (input.now ?? 0);
   if (!Number.isSafeInteger(now) || now < 0)
     return usage(`--now takes a time in epoch milliseconds, 0 or more; got ${input.now}`);
   const name = basename(input.out);
@@ -171,6 +181,16 @@ export const save: Tool<SaveInput> = async (input, ctx) => {
   const read = await readPlaytestScript(ctx, input.script, loaded.def.name, registry);
   if (!read.ok) return read.result;
 
+  let flow;
+  if (input.flow) {
+    if (!loaded.project)
+      return usage("--flow follows the scene list of the scene's project; this scene is in none");
+    const library = await projectSceneLibrary(ctx, loaded.project);
+    if (!library)
+      return failure(`project "${loaded.project.file.id}" has no scene list for --flow to follow`);
+    flow = library;
+  }
+
   const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
   let captured: ReturnType<typeof captureSave> | null = null;
   const run = runPlaytest({
@@ -182,6 +202,7 @@ export const save: Tool<SaveInput> = async (input, ctx) => {
     project,
     script: { ...read.script, maxTicks: at },
     projectRef: projectRef(loaded.project),
+    ...(flow ? { flow } : {}),
     onEnd: (runtime) => {
       captured = captureSave(runtime, { depth, slot, now });
     },
@@ -210,6 +231,7 @@ export const save: Tool<SaveInput> = async (input, ctx) => {
       ok: true,
       game,
       scene: file.scene.id,
+      ...(file.scene.entry !== undefined ? { entry: file.scene.entry } : {}),
       slot,
       depth: file.depth,
       tick: at,

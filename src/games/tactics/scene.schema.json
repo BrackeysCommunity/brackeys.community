@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:scene:tactics:v4",
-  "x-agent-surface": 14,
+  "x-agent-surface": 15,
   "title": "jams engine scene for tactics, format v4",
   "type": "object",
   "properties": {

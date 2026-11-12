@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:project:v1",
+  "x-agent-surface": 15,
+  "title": "jams engine project file, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The project JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "project",
+      "description": "Always \"project\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Project file format version."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+      "description": "The project's id: the first half of its scene and asset doc names, unique on the site."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The project's display name."
+    },
+    "game": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "module": {
+              "type": "string",
+              "pattern": "^\\.\\.?\\/[^\\\\]+$",
+              "description": "The module, relative to this file (\"./index.ts\")."
+            },
+            "export": {
+              "type": "string",
+              "pattern": "^[A-Za-z_$][\\w$]*$",
+              "description": "The name the module exports the GameDefinition under."
+            }
+          },
+          "required": ["module", "export"],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The module that exports the game's definition; null for an engine-only project."
+    },
+    "ui": {
+      "description": "The module that exports the game's DOM UI (a MountUi), mounted over the canvas by hosts; the CLI never imports it.",
+      "type": "object",
+      "properties": {
+        "module": {
+          "type": "string",
+          "pattern": "^\\.\\.?\\/[^\\\\]+$",
+          "description": "The module, relative to this file (\"./ui/index.ts\")."
+        },
+        "export": {
+          "type": "string",
+          "pattern": "^[A-Za-z_$][\\w$]*$",
+          "description": "The name the module exports the MountUi function under."
+        }
+      },
+      "required": ["module", "export"],
+      "additionalProperties": false
+    },
+    "assets": {
+      "default": ["**"],
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "description": "A POSIX glob relative to the project root; a leading \"!\" excludes."
+      },
+      "description": "Globs of files that may be assets."
+    },
+    "code": {
+      "default": ["**/*.ts", "**/*.tsx"],
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "description": "A POSIX glob relative to the project root; a leading \"!\" excludes."
+      },
+      "description": "Globs of code modules the project tree lists read-only."
+    },
+    "ignore": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "description": "A POSIX glob relative to the project root; a leading \"!\" excludes."
+      },
+      "description": "Extra excludes beside the fixed ones: *.schema.json, *.asset.json, jams.project.json, __tests__, node_modules and dist."
+    },
+    "export": {
+      "type": "object",
+      "properties": {
+        "shortName": {
+          "description": "The installed app's short name; default the project's name.",
+          "type": "string",
+          "minLength": 1
+        },
+        "icons": {
+          "description": "The app icons by size, as texture asset ids checked by meta; a missing or wrong one falls back to the engine's default.",
+          "type": "object",
+          "properties": {
+            "192": {
+              "description": "A texture asset id: a 192×192 PNG.",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "512": {
+              "description": "A texture asset id: a 512×512 PNG.",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "themeColor": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "The browser's theme colour, as #rrggbb."
+        },
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "The page and splash background, as #rrggbb."
+        },
+        "display": {
+          "description": "The installed app's display mode; default \"fullscreen\".",
+          "type": "string",
+          "enum": ["fullscreen", "standalone", "minimal-ui"]
+        },
+        "orientation": {
+          "description": "The installed app's orientation; default from the resolution policy's aspect.",
+          "type": "string",
+          "enum": ["any", "landscape", "portrait"]
+        },
+        "budget": {
+          "description": "Overrides of the engine's default size budgets.",
+          "type": "object",
+          "properties": {
+            "codeBytes": {
+              "description": "JS and CSS, without wasm, in bytes.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "firstLoadBytes": {
+              "description": "What the first frame waits for, in bytes.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "totalBytes": {
+              "description": "The whole build, in bytes.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "fileBytes": {
+              "description": "Any one file, in bytes.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "additionalProperties": false
+        },
+        "rapier": {
+          "description": "The Rapier package a build ships when a listed scene needs it; \"compat\" inlines the wasm. Default \"standard\".",
+          "type": "string",
+          "enum": ["standard", "compat"]
+        },
+        "pwa": {
+          "description": "false: no service worker or web manifest, even for the web target. Default true.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "description": "How `game build` exports the project. Every field has a default."
+    }
+  },
+  "required": ["kind", "v", "id", "name", "game"],
+  "additionalProperties": false,
+  "description": "A project's root file (jams.project.json): its id, its game and UI modules and which files are assets and code. Kept in git, never co-edited."
+}

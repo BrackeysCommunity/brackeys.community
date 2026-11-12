@@ -4,5 +4,10 @@
  * dev server and the scene CLI judge them.
  */
 
-/** The scene an editor on the engine project opens when the URL names none. */
-export const DEFAULT_SCENE = "kitchen-sink";
+/**
+ * The scene an editor on the engine project opens when the URL names none:
+ * the `start` of `packages/engine/scenes/scene-list.json`, as a hosted game's
+ * editor opens its own. Games may not import the engine's files, so the
+ * editor-host test holds the two equal.
+ */
+export const ENGINE_START_SCENE = "engine-yard";

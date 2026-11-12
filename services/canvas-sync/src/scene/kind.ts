@@ -9,13 +9,16 @@ import type {
 } from "@hocuspocus/server";
 import * as Y from "yjs";
 
-import { assertSameSeed, stampSeedState } from "../../../../src/engine/collab/seed-identity.ts";
+import {
+  assertSameSeed,
+  stampSeedState,
+} from "../../../../packages/engine/collab/seed-identity.ts";
 import {
   createRegistry,
   sceneGameOf,
   type Migration,
   type Registry,
-} from "../../../../src/engine/scene/index.ts";
+} from "../../../../packages/engine/scene/index.ts";
 import { SYNC_LIMITS } from "../../../../src/lib/canvas/limits.ts";
 import { documentName, SYNC_CLOSE, syncClose } from "../../../../src/lib/canvas/sync-channels.ts";
 import {

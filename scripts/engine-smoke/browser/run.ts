@@ -11,8 +11,8 @@ import { createRegistry } from "@jams/engine/game";
 import { runProbe, type ProbeInput, type RapierModule } from "@jams/engine/headless";
 import { expandScene, hashText, parseSceneOrThrow } from "@jams/engine/scene";
 
-import parityInputs from "../../../src/engine/__tests__/fixtures/parity-inputs.json";
-import engineYard from "../../../src/engine/scenes/engine-yard.json";
+import parityInputs from "../../../packages/engine/__tests__/fixtures/parity-inputs.json";
+import engineYard from "../../../packages/engine/scenes/engine-yard.json";
 import { smokeGame } from "../game";
 
 export const SMOKE_TICKS = 120;

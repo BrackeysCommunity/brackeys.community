@@ -13,8 +13,8 @@ import {
   readDoc,
   sceneToDoc,
   sequentialKeys,
-} from "../../engine/collab/index.ts";
-import type { SceneOrigin } from "../../engine/collab/index.ts";
+} from "../../../packages/engine/collab/index.ts";
+import type { SceneOrigin } from "../../../packages/engine/collab/index.ts";
 import {
   EMPTY_SCENE_TEMPLATE,
   formatScene,
@@ -25,7 +25,7 @@ import {
   type Migration,
   type SceneDefinition,
   type SceneIssue,
-} from "../../engine/scene/index.ts";
+} from "../../../packages/engine/scene/index.ts";
 import { parseSceneId, sceneGame } from "./ids";
 
 export interface SceneFormat {
