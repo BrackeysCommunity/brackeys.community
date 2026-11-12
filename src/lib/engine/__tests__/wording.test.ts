@@ -505,9 +505,8 @@ async function sources(): Promise<Source[]> {
       name: "the save notice",
       text: tidy(
         [
-          savesSentence("site", []),
-          savesSentence("own", ["https://saves.example.com"]),
-          savesSentence("none", []),
+          savesSentence("own", ["https://saves.example.com"], false),
+          savesSentence("none", [], false),
           PREFS_SENTENCE,
           connectsToSentence(["https://saves.example.com"]) ?? "",
         ].join("\n"),
@@ -774,16 +773,11 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
     source: "the privacy notice's game paragraphs",
     phrase: `until ${C("SITE_SAVE_EXPIRY_DAYS")} days after you last used them`,
   },
-  // The signed-in save menu and the save notice
+  // The signed-in save menu, which the save notice repeats
   {
     states: ["SITE_SAVE_LIMITS.maxSlots", "SITE_SAVE_LIMITS.maxBytes", "SITE_SAVE_EXPIRY_DAYS"],
     source: "the signed-in save menu",
     phrase: `Saved to your ${SITE.name} account: up to ${C("SITE_SAVE_LIMITS.maxSlots")} saves of ${C("SITE_SAVE_LIMITS.maxBytes")} for this game. Saves you don't use for ${C("SITE_SAVE_EXPIRY_DAYS")} days are deleted.`,
-  },
-  {
-    states: ["SITE_SAVE_LIMITS.maxSlots", "SITE_SAVE_LIMITS.maxBytes", "SITE_SAVE_EXPIRY_DAYS"],
-    source: "the save notice",
-    phrase: `Signed in, this game saves to your ${SITE.name} account: up to ${C("SITE_SAVE_LIMITS.maxSlots")} saves of ${C("SITE_SAVE_LIMITS.maxBytes")}, deleted after ${C("SITE_SAVE_EXPIRY_DAYS")} days you don't use them.`,
   },
   // The save API
   {

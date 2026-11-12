@@ -662,9 +662,23 @@ async function waitActivated(page: Page): Promise<void> {
   );
 }
 
-async function clickCentre(page: Page, target: Locator): Promise<void> {
-  const box = await target.boundingBox();
-  if (!box) throw new Error("the cell to click has no box on the page");
+/**
+ * Clicks the centre of `target`, a HUD cell, once it's laid out. The HUD
+ * swaps a cell's element when its highlight changes, so a box read between
+ * the locator resolving and the element going reads again until the page
+ * timeout.
+ */
+async function clickCentre(page: Page, target: Locator, what: string): Promise<void> {
+  const until = performance.now() + PAGE_TIMEOUT_MS;
+  let box: Awaited<ReturnType<Locator["boundingBox"]>> = null;
+  while (!box) {
+    const left = until - performance.now();
+    if (left <= 0) throw new Error(`${what} has no box on the page after ${PAGE_TIMEOUT_MS} ms`);
+    await target.waitFor({ state: "visible", timeout: left }).catch(() => {
+      throw new Error(`${what} isn't shown on the page after ${PAGE_TIMEOUT_MS} ms`);
+    });
+    box = await target.boundingBox({ timeout: Math.max(1, until - performance.now()) });
+  }
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
@@ -742,20 +756,32 @@ async function playTactics(
 ): Promise<{ probe: PlayProbe; reason: string | null }> {
   await clickControl(frame.getByRole("button", { name: "Start", exact: true }), "Start");
   const cursor = frame.locator('[data-highlight="cursor"][data-cell]').first();
-  await cursor.waitFor({ state: "attached" });
+  await cursor.waitFor({ state: "visible", timeout: PAGE_TIMEOUT_MS });
   await hudMode(frame, "idle");
   const [unitCell] = await highlighted(frame, "cursor");
   if (!unitCell) throw new Error("the HUD shows no cursor cell after Start");
   if (!unitCell.clear) throw new Error(`a HUD panel covers the first unit's cell ${unitCell.cell}`);
-  await clickCentre(page, cursor);
+  await clickCentre(
+    page,
+    frame.locator(`[data-highlight="cursor"][data-cell="${unitCell.cell}"]`).first(),
+    `the cursor on the first unit's cell ${unitCell.cell}`,
+  );
   await hudMode(frame, "selected");
   const card = frame.locator(".tactics-hud-card");
   const unit = (await card.getAttribute("data-unit")) ?? "";
   const to = pickReachCell(unitCell.cell, await highlighted(frame, "reach"));
   if (!to) throw new Error(`no clear reachable cell for ${unit || "the unit"} at ${unitCell.cell}`);
-  await clickCentre(page, frame.locator(`[data-highlight="reach"][data-cell="${to}"]`).first());
+  await clickCentre(
+    page,
+    frame.locator(`[data-highlight="reach"][data-cell="${to}"]`).first(),
+    `the reachable cell ${to}`,
+  );
   await hudMode(frame, "target");
-  await clickCentre(page, frame.locator(`[data-highlight="target"][data-cell="${to}"]`).first());
+  await clickCentre(
+    page,
+    frame.locator(`[data-highlight="target"][data-cell="${to}"]`).first(),
+    `the target cell ${to}`,
+  );
   const status = await frame
     .waitForFunction(
       (id) => {

@@ -141,8 +141,7 @@ describe("the play page's saves", () => {
     expect(opts.player?.()).toEqual({ signedIn: true, name: "Carol" });
 
     const notice = await openSaves();
-    expect(notice).toContain("Signed in, this game saves to your");
-    expect(notice).toContain(SIGNED_IN_SAVES_DESCRIBE);
+    expect(notice).toContain(`Saves. ${SIGNED_IN_SAVES_DESCRIBE} Key bindings`);
     expect(notice).not.toContain(SIGNED_OUT_SAVES_DESCRIBE);
   });
 
@@ -157,7 +156,7 @@ describe("the play page's saves", () => {
     expect(opts.player?.()).toEqual({ signedIn: false, name: null });
 
     const notice = await openSaves();
-    expect(notice).toContain(SIGNED_OUT_SAVES_DESCRIBE);
+    expect(notice).toContain(`Saves. ${SIGNED_OUT_SAVES_DESCRIBE} Key bindings`);
     expect(notice).not.toContain(SIGNED_IN_SAVES_DESCRIBE);
   });
 

@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import type { SaveStore } from "@jams/engine";
 import { formatSaveFile } from "@jams/engine/game";
 import { ORPCError } from "@orpc/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import type { PlayPayload } from "@/lib/engine/game-play";
 import type { HostServerOptions } from "@/lib/engine/host-server";
 import { localPlaySaves, SIGNED_OUT_SAVES_DESCRIBE } from "@/lib/engine/local-saves";
+import type { SiteSaveStore } from "@/lib/engine/save-store";
 import { pageTitle } from "@/lib/site-meta";
 
 const calls = vi.hoisted(() => ({
@@ -69,19 +69,30 @@ vi.mock("@/lib/engine/host-server", () => ({
     };
   },
 }));
-vi.mock("@/lib/engine/save-store", () => ({
-  siteSaveStore: (): SaveStore => ({
-    kind: "host",
-    describe: "Saved to your account.",
-    list: () => Promise.resolve([]),
-    read: () => Promise.resolve(null),
-    write: (_game, slot, text) => {
-      hosts.siteWrites.push(slot);
-      return Promise.resolve({ ok: true, bytes: text.length });
-    },
-    remove: () => Promise.resolve(),
-  }),
-}));
+vi.mock("@/lib/engine/save-store", async () => {
+  const { SITE_SAVE_LIMITS } = await import("@/lib/engine/limits");
+  return {
+    siteSaveStore: (): SiteSaveStore => ({
+      kind: "host",
+      describe: "Saved to your account.",
+      limits: SITE_SAVE_LIMITS,
+      load: () =>
+        Promise.resolve({
+          saves: [],
+          limits: SITE_SAVE_LIMITS,
+          describe: "Saved to your account.",
+          mode: "site",
+        }),
+      list: () => Promise.resolve([]),
+      read: () => Promise.resolve(null),
+      write: (_game, slot, text) => {
+        hosts.siteWrites.push(slot);
+        return Promise.resolve({ ok: true, bytes: text.length });
+      },
+      remove: () => Promise.resolve(),
+    }),
+  };
+});
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
   Link: ({
@@ -238,7 +249,7 @@ describe("the play page", () => {
     expect(auth.signIn).not.toHaveBeenCalled();
   });
 
-  it("puts the one Saves paragraph under the Saves menu, not the save menu's sentence too", async () => {
+  it("puts the one Saves paragraph under the Saves menu, with only the signed-out sentence", async () => {
     const user = userEvent.setup();
     wrap(<PlayChrome play={payload()} version="latest" />);
 
@@ -249,8 +260,8 @@ describe("the play page", () => {
       return el;
     });
     const body = notice.textContent ?? "";
-    expect(body).toContain("Signed out, saves stay in this browser until you clear its site data.");
-    expect(body).not.toContain(SIGNED_OUT_SAVES_DESCRIBE);
+    expect(body).toContain(`Saves. ${SIGNED_OUT_SAVES_DESCRIBE}`);
+    expect(body).not.toContain("Signed in");
     expect(body.match(/clear its site data/g)).toHaveLength(1);
   });
 

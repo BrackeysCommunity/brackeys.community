@@ -321,7 +321,7 @@ describe("the game page", () => {
   });
 
   it.each([
-    ["site", /saves to your .* account: up to 4 saves of 32 KB, deleted after 180 days/],
+    ["site", /Saves stay in this browser on .* until you clear its site data\./],
     ["own", /keeps its saves on its own servers \(https:\/\/saves\.example\.com\)/],
     ["none", /This game doesn't save progress\./],
   ] as const)("states where saves go for the %s mode", (mode, sentence) => {
@@ -334,6 +334,13 @@ describe("the game page", () => {
     const notice = document.querySelector(`[data-save-mode="${mode}"]`);
     expect(notice?.textContent).toMatch(sentence);
     expect(notice?.textContent).toContain("stay in this browser and are never uploaded");
+  });
+
+  it("tells a signed-in viewer a site game saves to their account", () => {
+    wrap(<GamePage page={page({ viewer: { signedIn: true } })} onChanged={() => {}} />);
+    const notice = document.querySelector('[data-save-mode="site"]');
+    expect(notice?.textContent).toMatch(/Saved to your .* account: up to 4 saves of 32 KB/);
+    expect(notice?.textContent).not.toContain("clear its site data");
   });
 
   it("lists the origins the game connects to, and none when it declares none", () => {

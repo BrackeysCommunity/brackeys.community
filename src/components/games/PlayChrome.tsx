@@ -331,7 +331,11 @@ export function PlayChrome({ play, version }: { play: PlayPayload; version: stri
           <HugeiconsIcon icon={FloppyDiskIcon} size={16} />
         </PopoverTrigger>
         <PopoverContent align="end" sideOffset={8} className="w-80">
-          <SaveNotice mode={play.saveMode} connectOrigins={play.connectOrigins} />
+          <SaveNotice
+            mode={play.saveMode}
+            connectOrigins={play.connectOrigins}
+            signedIn={signedIn}
+          />
         </PopoverContent>
       </Popover>
       <Button

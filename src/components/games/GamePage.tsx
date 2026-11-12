@@ -242,7 +242,11 @@ export function GamePage({
       </Section>
 
       <Section id="saves" title="SAVES AND PRIVACY">
-        <SaveNotice mode={page.saveMode} connectOrigins={page.connectOrigins} />
+        <SaveNotice
+          mode={page.saveMode}
+          connectOrigins={page.connectOrigins}
+          signedIn={page.viewer.signedIn}
+        />
       </Section>
 
       {page.credits || missing > 0 ? (
