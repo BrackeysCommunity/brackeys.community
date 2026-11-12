@@ -7,4 +7,4 @@ export const FRAME_SANDBOX =
   "allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox";
 
 /** The iframe's `allow`: what a game may ask the browser for. */
-export const FRAME_ALLOW = "fullscreen; gamepad; autoplay; screen-wake-lock";
+export const FRAME_ALLOW = "fullscreen *; gamepad *; autoplay *; screen-wake-lock *";

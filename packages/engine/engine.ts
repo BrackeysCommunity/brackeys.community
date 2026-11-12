@@ -37,6 +37,7 @@ import {
 } from "./input/bindings";
 import {
   createGamepadReader,
+  readBrowserGamepads,
   type GamepadPoll,
   type GamepadView,
   type PadBinding,
@@ -689,7 +690,7 @@ export async function createGame(
   const padPresent = (device: DeviceId): boolean => {
     if (!device.startsWith("pad:")) return true;
     const index = Number(device.slice(4));
-    return typeof navigator !== "undefined" && navigator.getGamepads?.()?.[index] != null;
+    return readBrowserGamepads()[index] != null;
   };
 
   /**

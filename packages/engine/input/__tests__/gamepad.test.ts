@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { createGamepadReader, type PadSnapshot } from "../gamepad";
+import { createGamepadReader, readBrowserGamepads, type PadSnapshot } from "../gamepad";
 
 type PadInit = {
   index?: number;
@@ -237,5 +237,20 @@ describe("createGamepadReader", () => {
     reader.destroy();
     expect(reader.frame.pads()).toEqual([]);
     expect(reader.pollFrame().changes).toEqual([]);
+  });
+});
+
+describe("readBrowserGamepads", () => {
+  it("is no pads where the permissions policy makes getGamepads throw", () => {
+    vi.stubGlobal("navigator", {
+      getGamepads: () => {
+        throw new DOMException("Permission policy 'Gamepad' check failed", "SecurityError");
+      },
+    });
+    try {
+      expect(readBrowserGamepads()).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -75,7 +75,9 @@ describe("PlayFrame", () => {
       "allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox",
     );
     expect(iframe.getAttribute("sandbox")).not.toContain("allow-same-origin");
-    expect(iframe.getAttribute("allow")).toBe("fullscreen; gamepad; autoplay; screen-wake-lock");
+    expect(iframe.getAttribute("allow")).toBe(
+      "fullscreen *; gamepad *; autoplay *; screen-wake-lock *",
+    );
     expect(iframe.getAttribute("referrerpolicy")).toBe("no-referrer");
   });
 

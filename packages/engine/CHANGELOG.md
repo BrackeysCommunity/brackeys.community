@@ -127,6 +127,9 @@ pointer itself outside the site's stylesheet.
 
 ### Fixed
 
+- A game plays without pads where the page's permissions policy withholds
+  `gamepad`: `navigator.getGamepads()` throws there (WebKit, in an
+  opaque-origin sandbox) and the shell now reads that as no pads.
 - A released game boots under a CSP without `'unsafe-eval'`, as jams.team
   frames it: `./standalone` installs Pixi's eval-free shader and uniform
   sync (`pixi.js/unsafe-eval`), where Pixi otherwise refused to start.

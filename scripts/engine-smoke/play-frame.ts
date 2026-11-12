@@ -510,9 +510,21 @@ const hostProbe = (host: Frame): Promise<HostProbe> =>
       : { states: [], issues: [], dropped: 0 };
   });
 
+/**
+ * WebKit reports the sandbox refusing the frame's top navigation (the
+ * sandbox probe's own attempt) as a page error even though the frame catches it.
+ */
+const SANDBOX_REFUSED_TOP_NAVIGATION =
+  /The frame attempting navigation of the top-level window is sandboxed/;
+
 function pageErrors(page: Page): Promise<never> {
   const failed = new Promise<never>((_, reject) => {
-    page.once("pageerror", (err) => reject(new Error(`uncaught in the host page: ${err.message}`)));
+    const onError = (err: Error) => {
+      if (SANDBOX_REFUSED_TOP_NAVIGATION.test(err.message)) return;
+      page.off("pageerror", onError);
+      reject(new Error(`uncaught in the host page: ${err.message}`));
+    };
+    page.on("pageerror", onError);
   });
   failed.catch(() => {});
   return failed;

@@ -97,9 +97,23 @@ const ZERO: Vec2 = { x: 0, y: 0 };
 const LT = PAD_BUTTONS.indexOf("lt");
 const RT = PAD_BUTTONS.indexOf("rt");
 
+/**
+ * The browser's pads, or none. `getGamepads()` throws where the page's
+ * permissions policy withholds `gamepad` (an embed that doesn't grant it,
+ * WebKit in an opaque-origin sandbox); a game there plays without pads.
+ */
+export function readBrowserGamepads(): readonly (PadSnapshot | null)[] {
+  if (typeof navigator === "undefined" || typeof navigator.getGamepads !== "function") return [];
+  try {
+    return navigator.getGamepads() ?? [];
+  } catch {
+    return [];
+  }
+}
+
 function browserGamepads(): (() => readonly (PadSnapshot | null)[]) | null {
   if (typeof navigator === "undefined" || typeof navigator.getGamepads !== "function") return null;
-  return () => navigator.getGamepads();
+  return readBrowserGamepads;
 }
 
 const finite = (v: number | undefined): number => (v !== undefined && Number.isFinite(v) ? v : 0);
