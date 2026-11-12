@@ -56,6 +56,8 @@ function fakeGame(
     start: vi.fn(),
     destroy: vi.fn(),
     resize: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
     getStore: () => new Store({ ...state, debugMode: "off" }),
     input: { bindings: () => bindings },
     flow: {

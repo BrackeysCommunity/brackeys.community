@@ -158,6 +158,10 @@ describe("storedUsage: assets and docs", () => {
   });
 
   it("is zero for a project with nothing stored", async () => {
+    await db
+      .update(engineProjects)
+      .set({ state: null })
+      .where(eq(engineProjects.projectId, PROJECT));
     await db.delete(engineBlobs);
     await db.delete(sceneDocs);
     await db.delete(engineAssetDocs);
