@@ -502,7 +502,33 @@ const violationsIn = (frame: Frame): Promise<CspViolation[]> =>
     ...((window as unknown as { __playSmokeCsp?: CspViolation[] }).__playSmokeCsp ?? []),
   ]);
 
-const hostProbe = (host: Frame): Promise<HostProbe> =>
+/** How long closing a context or browser may take: WebKit can hang closing one, and the run's result is already in hand. */
+const CLOSE_MS = 15_000;
+
+async function closeWithin(closing: Promise<void>, what: string): Promise<void> {
+  await withTimeout(closing, CLOSE_MS, `closing ${what}`).catch((err) =>
+    console.error(err instanceof Error ? err.message : String(err)),
+  );
+}
+
+/** How long the host page may take to hear a state the frame already shows: the port's delivery is async. */
+const HOST_HEARS_MS = 10_000;
+
+/** What the host page heard, once it has heard `ready` or `HOST_HEARS_MS` has passed. */
+async function hostProbe(host: Frame): Promise<HostProbe> {
+  await host
+    .waitForFunction(
+      () =>
+        (window as unknown as { __playHost?: HostProbe }).__playHost?.states.includes("ready") ===
+        true,
+      null,
+      { timeout: HOST_HEARS_MS },
+    )
+    .catch(() => {});
+  return readHostProbe(host);
+}
+
+const readHostProbe = (host: Frame): Promise<HostProbe> =>
   host.evaluate(() => {
     const r = (window as unknown as { __playHost?: HostProbe }).__playHost;
     return r
@@ -817,7 +843,7 @@ async function runOne(
       failed: [...new Set(failed)],
     };
   } finally {
-    await context.close().catch(() => {});
+    await closeWithin(context.close(), `${planned.browser}'s context`);
   }
 }
 
@@ -865,7 +891,7 @@ async function main(): Promise<number> {
   const open = new Set<Browser>();
   let smokeSite: SmokeSite | undefined;
   const cleanup = async () => {
-    await Promise.allSettled([...open].map((b) => b.close()));
+    await Promise.allSettled([...open].map((b) => closeWithin(b.close(), "a browser")));
     open.clear();
     await Promise.allSettled(servers.splice(0).map((s) => s.close()));
     await smokeSite?.db.$client.close().catch(() => {});
@@ -964,7 +990,7 @@ async function main(): Promise<number> {
         }
       } finally {
         open.delete(browser);
-        await browser.close().catch(() => {});
+        await closeWithin(browser.close(), name);
       }
     }
   } catch (err) {
