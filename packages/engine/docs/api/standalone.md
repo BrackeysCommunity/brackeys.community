@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ConnectHostOptions`](#connecthostoptions) · [`FetchText`](#fetchtext) · [`FrameMessage`](#framemessage) · [`HOST_DOWNLOAD_MAX_BYTES`](#host_download_max_bytes) · [`HOST_HANDSHAKE_TIMEOUT_MS`](#host_handshake_timeout_ms) · [`HOST_MESSAGE_MAX_BYTES`](#host_message_max_bytes) · [`HOST_PROTOCOL_VERSION`](#host_protocol_version) · [`HOST_REQUESTS`](#host_requests) · [`HostChannel`](#hostchannel) · [`HostEvents`](#hostevents) · [`HostMessage`](#hostmessage) · [`HostRequestError`](#hostrequesterror) · [`HostRequestMethod`](#hostrequestmethod) · [`HostRequestParams`](#hostrequestparams) · [`HostRequestResult`](#hostrequestresult) · [`HostSaves`](#hostsaves) · [`HostWelcome`](#hostwelcome) · [`RenderState`](#renderstate) · [`StandaloneBootError`](#standalonebooterror) · [`StandaloneGame`](#standalonegame) · [`StandaloneOptions`](#standaloneoptions) · [`bootStandalone`](#bootstandalone) · [`channelSaveStore`](#channelsavestore) · [`connectHost`](#connecthost) · [`fetchReleaseTexts`](#fetchreleasetexts) · [`frameMessageSchema`](#framemessageschema) · [`frameReadySchema`](#framereadyschema) · [`hostHandshakeSchema`](#hosthandshakeschema) · [`hostIssueSchema`](#hostissueschema) · [`hostMessageBytes`](#hostmessagebytes) · [`hostMessageSchema`](#hostmessageschema) · [`hostRequested`](#hostrequested) · [`hostSavesSchema`](#hostsavesschema) · [`manifestRuntimeView`](#manifestruntimeview) · [`manifestView`](#manifestview) · [`mirrorRenderState`](#mirrorrenderstate) · [`saveLimitsSchema`](#savelimitsschema) · [`saveModeSchema`](#savemodeschema) · [`saveSummarySchema`](#savesummaryschema) · [`saveWriteResultSchema`](#savewriteresultschema) · [`showBootError`](#showbooterror) · [`welcomeSchema`](#welcomeschema) · [`withinHostMessageCap`](#withinhostmessagecap)
+[`ConnectHostOptions`](#connecthostoptions) · [`FetchText`](#fetchtext) · [`FrameMessage`](#framemessage) · [`HOST_DOWNLOAD_MAX_BYTES`](#host_download_max_bytes) · [`HOST_HANDSHAKE_TIMEOUT_MS`](#host_handshake_timeout_ms) · [`HOST_MESSAGE_MAX_BYTES`](#host_message_max_bytes) · [`HOST_PROTOCOL_VERSION`](#host_protocol_version) · [`HOST_REQUESTS`](#host_requests) · [`HOST_WELCOME_TIMEOUT_MS`](#host_welcome_timeout_ms) · [`HostChannel`](#hostchannel) · [`HostEvents`](#hostevents) · [`HostMessage`](#hostmessage) · [`HostRequestError`](#hostrequesterror) · [`HostRequestMethod`](#hostrequestmethod) · [`HostRequestParams`](#hostrequestparams) · [`HostRequestResult`](#hostrequestresult) · [`HostSaves`](#hostsaves) · [`HostWelcome`](#hostwelcome) · [`RenderState`](#renderstate) · [`StandaloneBootError`](#standalonebooterror) · [`StandaloneGame`](#standalonegame) · [`StandaloneOptions`](#standaloneoptions) · [`bootStandalone`](#bootstandalone) · [`channelSaveStore`](#channelsavestore) · [`connectHost`](#connecthost) · [`fetchReleaseTexts`](#fetchreleasetexts) · [`frameMessageSchema`](#framemessageschema) · [`frameReadySchema`](#framereadyschema) · [`hostHandshakeSchema`](#hosthandshakeschema) · [`hostIssueSchema`](#hostissueschema) · [`hostMessageBytes`](#hostmessagebytes) · [`hostMessageSchema`](#hostmessageschema) · [`hostRequested`](#hostrequested) · [`hostSavesSchema`](#hostsavesschema) · [`manifestRuntimeView`](#manifestruntimeview) · [`manifestView`](#manifestview) · [`mirrorRenderState`](#mirrorrenderstate) · [`saveLimitsSchema`](#savelimitsschema) · [`saveModeSchema`](#savemodeschema) · [`saveSummarySchema`](#savesummaryschema) · [`saveWriteResultSchema`](#savewriteresultschema) · [`showBootError`](#showbooterror) · [`welcomeSchema`](#welcomeschema) · [`withinHostMessageCap`](#withinhostmessagecap)
 
 ## `ConnectHostOptions`
 
@@ -16,8 +16,10 @@ type ConnectHostOptions = {
         game: string;
         release: Sha256;
     };
-    /** How long to wait for the page's port and its `welcome`; default `HOST_HANDSHAKE_TIMEOUT_MS`. */
+    /** How long to wait for the page's port; default `HOST_HANDSHAKE_TIMEOUT_MS`. */
     timeoutMs?: number;
+    /** How long to wait for `welcome` once the port arrived; default `HOST_WELCOME_TIMEOUT_MS`. */
+    welcomeTimeoutMs?: number;
     /** The frame's window; default the global one. */
     window?: Window;
 };
@@ -192,6 +194,18 @@ declare const HOST_REQUESTS: {
         }, z.core.$strip>;
     };
 };
+```
+
+## `HOST_WELCOME_TIMEOUT_MS`
+
+_const_ in `standalone/host-protocol.ts`
+
+How long the frame waits for `welcome` once the page has answered with its
+port: a page that is there may be slow to answer `hello` (a cold browser
+opening its save store), and giving up then would drop its saves.
+
+```ts
+declare const HOST_WELCOME_TIMEOUT_MS = 30000;
 ```
 
 ## `HostChannel`
@@ -439,7 +453,8 @@ _function_ in `standalone/host-channel.ts`
 Opens the channel to the page that frames this game: posts
 `jams:frame-ready` to the parent window, keeps the port of the first
 `jams:host` it answers with, then sends `hello`. Resolves null when the
-frame has no parent, or no port and `welcome` arrive within `timeoutMs`;
+frame has no parent, no port arrives within `timeoutMs`, or no `welcome`
+within `welcomeTimeoutMs` after it;
 the game then plays as a plain standalone build. Every other window
 message is ignored.
 
