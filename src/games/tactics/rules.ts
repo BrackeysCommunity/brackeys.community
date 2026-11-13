@@ -207,12 +207,14 @@ export function rollDamage(
 
 export type Applied = { snapshot: TacticsSnapshot; log: string[] };
 
-const resultOf = (units: Readonly<Record<string, UnitState>>): TacticsSnapshot["result"] => {
+/** How a board with these units stands: won or lost once a side has none left, open otherwise or with no units at all. */
+export function resultOf(units: Readonly<Record<string, UnitState>>): TacticsSnapshot["result"] {
   const sides = new Set(Object.values(units).map((u) => u.side));
+  if (sides.size === 0) return null;
   if (!sides.has("red")) return "won";
   if (!sides.has("blue")) return "lost";
   return null;
-};
+}
 
 /**
  * The snapshot after a command, and what to log about it; null when the

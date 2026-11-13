@@ -36,6 +36,7 @@ GameStoreState
 IDENTITY_2D
 InputAction
 InputBinding
+LIVE_CHECK_AGAIN_TICKS
 LIVE_DEFAULTS
 LiveContext
 LiveDeclaration
@@ -106,6 +107,7 @@ UiContext
 UiHandle
 Vec2
 acceptedTimings
+acceptedTimingsWords
 applyPt
 applyVec
 bindText
@@ -121,6 +123,7 @@ createLoadingOverlay
 createPixiView
 createTouchControls
 createUiLayer
+diffWords
 dihedral
 dihedralOf
 drawSprite
@@ -977,6 +980,7 @@ KEY_CODES
 KEY_TO_CODE
 KinematicMotion
 LIFETIME
+LIVE_CHECK_AGAIN_TICKS
 LIVE_DEFAULTS
 LibraryScene
 LifetimeBlock
@@ -1074,6 +1078,7 @@ SIDES
 SIDE_VIEW_CONTROLLER
 SLOT_MAX_LENGTH
 SLOT_PATTERN
+SLOT_RULE
 SPAWNER
 SPAWNER_SPAWNED
 SPRITE
@@ -1350,7 +1355,6 @@ ProjectSnapshot
 RECORDING_VERSION
 REPLAY_ACROSS_PLATFORMS
 RapierModule
-RecordedLoad
 RecorderOptions
 RecordingCommand
 RecordingEnd
@@ -1454,6 +1458,7 @@ AUDIO_KIND
 AssetBundle
 AssetEntry
 AssetFile
+AssetFiles
 AssetId
 AssetInfo
 AssetKey
@@ -1688,6 +1693,7 @@ keyedItemPointer
 kindInputMap
 liveCompat
 liveCompatKey
+liveFiles
 materialKind
 materialSchema
 mayBeAssetFile
@@ -5987,6 +5993,7 @@ type SeatInput = {
 declare function inputFor(ctx: EngineContext, entityId: string): SeatInput;
 
 ## game/live.ts
+declare const LIVE_CHECK_AGAIN_TICKS = 60;
 declare const LIVE_DEFAULTS: {
     readonly checkAt: readonly [
         0.25,
@@ -6025,10 +6032,12 @@ type SwapSide = {
 type SwapStrategy = "reconcile" | "reload";
 type SwapTiming = "boundary" | "next-load" | "now";
 declare function acceptedTimings(live: Pick<LiveDeclaration, "timings"> | undefined): SwapTiming[];
+declare function acceptedTimingsWords(live: Pick<LiveDeclaration, "timings"> | undefined): string;
 declare function clampTiming(live: LiveDeclaration | undefined, wanted: SwapTiming): {
     clamped: boolean;
     timing: SwapTiming;
 };
+declare function diffWords(diff: SceneDiff): string;
 declare const swapStrategyFor: (diff: Pick<SceneDiff, "header">, wanted?: "auto" | SwapStrategy) => SwapStrategy;
 declare const timingWords: (t: SwapTiming) => string;
 declare const versionName: (scene: AssetId, version: Sha256 | null) => string;
@@ -6273,6 +6282,7 @@ declare const SAVE_SCHEMA_ID = "urn:jams-engine:save:v1";
 declare const SAVE_VERSION = 1;
 declare const SLOT_MAX_LENGTH = 32;
 declare const SLOT_PATTERN: RegExp;
+declare const SLOT_RULE = "lowercase letters, digits and dashes, 1\u201332 characters, starting with a letter or digit";
 type SaveDepth = "progress" | "world";
 type SaveFile = {
     $schema?: string;
@@ -9586,6 +9596,11 @@ declare function rewriteRefs<J>(value: J, sites: readonly RefSite[], from: Asset
 declare function schemaRefSites(shape: z.ZodRawShape, value: unknown, pointer: JsonPointer): RefSite[];
 
 ## project/release-assets.ts
+type AssetFiles = {
+    blob(path: string, hash: Sha256): string;
+    doc(hash: Sha256): string;
+};
+declare const liveFiles: AssetFiles;
 declare const utf8Bytes: (text: string) => number;
 
 ## project/release.ts
@@ -10413,7 +10428,6 @@ declare function composePose(x: number, y: number, rot: number, offset: Pose): P
 declare function relativePose(pose: Pose, frame: Pose): Pose;
 
 ## runtime/recorder.ts
-type RecordedLoad = Omit<RecordedSwap, "strategy" | "timing">;
 type RecorderOptions = RecordingHost & {
     entry?: null | string;
     fromSave?: {

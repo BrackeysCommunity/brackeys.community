@@ -2,7 +2,7 @@
 import type { InputAction, RapierModule } from "@jams/engine";
 import type { GameDefinition, SceneLibrary } from "@jams/engine/game";
 import { createHeadlessRuntime, swapCheck } from "@jams/engine/headless";
-import { createRegistry, expandScene } from "@jams/engine/scene";
+import { createRegistry, expandScene, type SceneOp } from "@jams/engine/scene";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { platformerGame, PLAYER_HEIGHT, PLAYER_TYPE, type PlayerSnapshot } from "..";
@@ -35,6 +35,16 @@ const withoutOnSwap: GameDefinition<PlayerSnapshot> = {
   },
 };
 
+/** A platform clear of every moving body, moved down by `PLATFORM_DROP`, and a solid added in open air. */
+const PLATFORM = "~solid:5";
+const PLATFORM_AT = { x: 5, y: 8.4 } as const;
+const PLATFORM_DROP = 0.3;
+const OPEN_AIR = { x: 24, y: 6 } as const;
+const MOVE_AND_ADD: SceneOp[] = [
+  { op: "move", refs: [PLATFORM], by: [0, PLATFORM_DROP] },
+  { op: "addBulk", key: "solid", shapes: [["box", OPEN_AIR.x, OPEN_AIR.y, 0.5, 0.1]] },
+];
+
 const scripts = [
   { name: "stand", script: { v: 1 as const, scene: SCENE, steps: [{ wait: 240 }] } },
   {
@@ -46,9 +56,11 @@ const scripts = [
 describe("the platformer goes live", () => {
   let rapier: RapierModule;
   let fixture: LiveFixture;
+  let moved: LiveFixture;
   beforeAll(async () => {
     rapier = await import("@dimforge/rapier2d");
     fixture = await testYardVersion();
+    moved = await testYardVersion(MOVE_AND_ADD);
   });
 
   function play(game: GameDefinition<PlayerSnapshot> = platformerGame) {
@@ -98,6 +110,59 @@ describe("the platformer goes live", () => {
       expect(playerInSolidIssues(rt.ctx)).toEqual([]);
     } finally {
       rt.destroy();
+    }
+  });
+
+  it("moves a platform and adds a solid in the Rapier world, leaving the rest of the run as it was", () => {
+    type Run = ReturnType<typeof play>;
+    const added = `~solid:${(fixture.release.solid as unknown[]).length}`;
+    const collidersOf = ({ rt }: Run, id: string) =>
+      rt.ctx.tags.handlesOf(id).map((h) => {
+        const at = rt.ctx.physics!.world.getCollider(h)!.translation();
+        return [at.x, at.y];
+      });
+    /** Every pose but the edited two's, and the player, on each of `n` more ticks. */
+    const untouched = (run: Run, n: number) =>
+      Array.from({ length: n }, () => {
+        run.step();
+        const poses = [...run.rt.ctx.poses.ids()]
+          .filter((id) => id !== PLATFORM && id !== added)
+          .sort()
+          .map((id) => {
+            const p = run.rt.ctx.poses.get(id)!;
+            return [id, p.x, p.y, p.rot];
+          });
+        return JSON.stringify([run.rt.ctx.tick, run.player(), poses]);
+      });
+
+    /** A single collider at `at`, to Rapier's f32. */
+    const expectOneAt = (run: Run, id: string, at: { x: number; y: number }) => {
+      const colliders = collidersOf(run, id);
+      expect(colliders).toHaveLength(1);
+      expect(colliders[0]![0]).toBeCloseTo(at.x, 5);
+      expect(colliders[0]![1]).toBeCloseTo(at.y, 5);
+    };
+
+    const swapped = play();
+    const still = play();
+    try {
+      swapped.step(30);
+      still.step(30);
+      expectOneAt(swapped, PLATFORM, PLATFORM_AT);
+      expect(collidersOf(swapped, added)).toEqual([]);
+
+      expect(swapped.rt.live.stage(moved.version)).toEqual({ ok: true });
+      swapped.rt.live.activate(SCENE, moved.version.id, "now");
+      const after = untouched(swapped, 120);
+      expect(swapped.rt.ctx.live.version).toBe(moved.version.id);
+      expectOneAt(swapped, PLATFORM, { x: PLATFORM_AT.x, y: PLATFORM_AT.y + PLATFORM_DROP });
+      expectOneAt(swapped, added, OPEN_AIR);
+      expect(swapped.rt.ctx.query.at(OPEN_AIR)).toContain(added);
+
+      expect(after).toEqual(untouched(still, 120));
+    } finally {
+      swapped.rt.destroy();
+      still.rt.destroy();
     }
   });
 

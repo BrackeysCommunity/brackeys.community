@@ -48,10 +48,17 @@ import { parseArgs } from "node:util";
 import { inflateSync } from "node:zlib";
 
 import { LIVE_DEFAULTS, type SwapTiming } from "@jams/engine/game";
-import type { ReleaseManifest, SceneVersion, Sha256 } from "@jams/engine/project";
-import type { LiveSnapshot } from "@jams/engine/standalone";
+import {
+  liveFiles as liveAssetFiles,
+  type ReleaseManifest,
+  type SceneVersion,
+  type Sha256,
+} from "@jams/engine/project";
+import type { SceneIssue } from "@jams/engine/scene";
+import type { LiveSnapshot, LiveStateMessage } from "@jams/engine/standalone";
 import type { Browser, BrowserContext, BrowserType, Frame, Locator, Page } from "playwright";
 
+import { SCENE_VERSION_FILE } from "../scene/tools/replay";
 import {
   installCommand,
   isMissingBrowser,
@@ -148,8 +155,6 @@ export const LIVE_BUILD = "platformer-web";
 export const LIVE_EDIT_FILE = join(REPO, "scripts/engine-smoke/fixtures/live/move-cheese.json");
 /** The timing the stub's pointer asks for. */
 export const LIVE_TIMING: SwapTiming = "now";
-/** Where a release serves its live files, beside `release.json`. */
-export const LIVE_DIR = "live";
 /** How long the frame may take to report the version applied: its own preparation deadline, and a beat for the report to cross. */
 export const LIVE_APPLY_TIMEOUT_MS = LIVE_DEFAULTS.preloadTimeoutMs + 10_000;
 /** How long the frame may take to offer its recording once asked. */
@@ -410,14 +415,8 @@ export function renderRestore(state: string | undefined): { restored: boolean; r
 }
 
 /** One `live.state` report the stub heard, without its `type`. */
-export type LiveStateSeen = {
-  scene: string;
-  version: string | null;
-  status: string;
-  timing?: string;
-  strategy?: string;
-  tick?: number;
-  issue?: { code: string; message: string };
+export type LiveStateSeen = Omit<LiveStateMessage, "issue"> & {
+  issue?: Pick<SceneIssue, "code" | "message">;
 };
 
 /** One `download` the frame offered: its name, type and size. */
@@ -603,7 +602,7 @@ export function fetchedVersion(
   mount: string,
   version: Sha256,
 ): boolean {
-  const want = `${mount}${LIVE_DIR}/${version}.json`;
+  const want = `${mount}${liveAssetFiles.doc(version)}`;
   return requests.some((url) => {
     try {
       const u = new URL(url);
@@ -635,7 +634,7 @@ export function judgeLive(
     reasons.push(`the frame's hello doesn't list the "live" feature`);
   if (!fetchedVersion(requests.urls, requests.origin, requests.mount, probe.version))
     reasons.push(
-      `the frame never fetched ${requests.mount}${LIVE_DIR}/${probe.version}.json from its own directory`,
+      `the frame never fetched ${requests.mount}${liveAssetFiles.doc(probe.version)} from its own directory`,
     );
   const mine = (host?.live ?? []).filter(
     (s) => s.scene === probe.scene && s.version === probe.version,
@@ -1009,10 +1008,10 @@ export function liveFiles(fixture: Pick<LiveFixture, "id" | "versionText" | "tex
   build: Map<string, string>;
   versions: Map<string, string>;
 } {
-  const build = new Map([[`${LIVE_DIR}/${fixture.id}.json`, fixture.versionText]]);
-  const versions = new Map([["scene-version.json", fixture.versionText]]);
+  const build = new Map([[liveAssetFiles.doc(fixture.id), fixture.versionText]]);
+  const versions = new Map([[SCENE_VERSION_FILE, fixture.versionText]]);
   for (const [sha, text] of fixture.texts) {
-    build.set(`${LIVE_DIR}/${sha}.json`, text);
+    build.set(liveAssetFiles.doc(sha), text);
     versions.set(`${sha}.json`, text);
   }
   return { build, versions };

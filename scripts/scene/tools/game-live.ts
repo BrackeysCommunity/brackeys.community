@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 
 import {
+  diffWords,
   swapStrategyFor,
   timingWords,
   utf8Bytes,
@@ -14,6 +14,7 @@ import { clampTiming, type SwapStrategy } from "@jams/engine/game";
 import { swapCheck, type SwapCheckOptions, type SwapCheckReport } from "@jams/engine/headless";
 import {
   buildSceneVersion,
+  byCodeUnit,
   formatBytes,
   formatSceneVersion,
   inputScriptKind,
@@ -22,6 +23,7 @@ import {
   readSceneVersion,
   releaseId,
   SCENE_KIND_NAME,
+  SCENE_VERSION_VERSION,
   type ReleaseManifest,
   type SceneVersion,
   type Sha256,
@@ -32,7 +34,6 @@ import {
   diffExpanded,
   liveIssue,
   makeIssue,
-  parseChecks,
   parseInputScript,
   type ExpandedScene,
   type PrefabLibrary,
@@ -53,14 +54,9 @@ import {
 } from "../context";
 import { agentSiteFrom, AGENT_SITE_ENV, isHostedUrl } from "../hosted";
 import { hostedCodeProject, ProjectClientError } from "../project-client";
-import {
-  projectById,
-  projectRuntime,
-  unknownProjectMessage,
-  type ProjectHandle,
-} from "../projects";
-import { checksFileLines } from "./check";
-import { clearOut, exportInputOf } from "./game-build";
+import { projectRuntime, type ProjectHandle } from "../projects";
+import { readChecksFile } from "./check";
+import { clearOut, exportInputOf, projectOf } from "./game-build";
 import { readReleaseAt, shownPath } from "./game-manifest";
 import { projectPull, type ProjectPullInput } from "./project-pull";
 import { readVersionAt, SCENE_VERSION_FILE } from "./replay";
@@ -208,11 +204,6 @@ function idsByHash(version: SceneVersion): Map<Sha256, string> {
   return ids;
 }
 
-/** The project `id` names, or the usage error listing the projects. */
-function projectFor(ctx: ToolContext, id: string): ProjectHandle | ToolResult {
-  return projectById(ctx.projects, id) ?? usage(unknownProjectMessage(ctx.projects, id));
-}
-
 /**
  * Builds one scene's version from the project's files (or, with `--hosted`,
  * from a pull of the hosted project over a temporary copy of them) and
@@ -250,7 +241,7 @@ export async function gameLiveBuild(
       if ("result" in copy) return copy.result;
       handle = { ...local, dir: copy.dir };
       from = new URL(site).origin;
-    } else handle = projectFor(ctx, input.project);
+    } else handle = projectOf(ctx, input.project, "game live build");
     if (isToolResult(handle)) return handle;
 
     const built = await buildFrom(handle, input.scene, "game live build");
@@ -344,7 +335,7 @@ async function releaseBase(
     return { skip: `${name}'s files aren't beside it (${own?.file ?? scene} is missing)` };
   const asVersion: SceneVersion = {
     kind: "scene-version",
-    v: 1,
+    v: SCENE_VERSION_VERSION,
     project: manifest.project.id,
     scene,
     compat: liveCompat(manifest),
@@ -376,7 +367,7 @@ function scriptsOf(
   const issues: SceneIssue[] = [];
   const entries = [...input.view.byId.values()]
     .filter((e) => e.kind === inputScriptKind.kind)
-    .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    .sort((a, b) => byCodeUnit(a.path, b.path));
   for (const entry of entries) {
     const text = input.texts.get(entry.id);
     if (text === undefined) continue;
@@ -402,16 +393,10 @@ function scriptsOf(
   return { scripts, issues };
 }
 
-/** `12 changed, 3 added, 1 removed (players' worlds update in place)`. */
+/** `12 entities changed, 3 added, 1 removed (players' worlds update in place)`. */
 function changesText(diff: ReturnType<typeof diffExpanded>, strategy: SwapStrategy): string {
-  const parts = [
-    ...(diff.changed.length > 0 ? [`${diff.changed.length} changed`] : []),
-    ...(diff.added.length > 0 ? [`${diff.added.length} added`] : []),
-    ...(diff.removed.length > 0 ? [`${diff.removed.length} removed`] : []),
-    ...(diff.header ? ["the scene's header changed"] : []),
-  ];
   const how = strategy === "reload" ? "players' worlds reload" : "players' worlds update in place";
-  return `${parts.length > 0 ? parts.join(", ") : "nothing changed"} (${how})`;
+  return `${diffWords(diff)} (${how})`;
 }
 
 /** `3 runs over level-1.script.json passed; checks 4 passed` and the issues under it. */
@@ -457,7 +442,7 @@ export async function gameLiveCheck(
   if (!input.project || !input.scene) return usage(GAME_LIVE_CHECK_USAGE);
   const { scene } = input;
   const env = ctx.env ?? process.env;
-  const handle = projectFor(ctx, input.project);
+  const handle = projectOf(ctx, input.project, "game live check");
   if (isToolResult(handle)) return handle;
 
   let release: { manifest: ReleaseManifest; id: Sha256; file: string } | null = null;
@@ -618,21 +603,7 @@ async function checksOf(
 ): Promise<NonNullable<SwapCheckOptions["checks"]> | ToolResult | null> {
   const entry = built.input.view.byId.get(scene);
   if (!entry) return null;
-  const file = checksPathOf(join(built.handle.dir, entry.path));
-  let text: string;
-  try {
-    text = await readFile(file, "utf8");
-  } catch (e) {
-    if ((e as { code?: string }).code === "ENOENT") return null;
-    throw e;
-  }
-  const parsed = parseChecks(text, built.input.registry);
-  if (!parsed.ok)
-    return {
-      exitCode: 1,
-      data: { ok: false, scene, checks: file, issues: parsed.issues },
-      text: checksFileLines(shownPath(file), parsed.issues).join("\n"),
-    };
-  const dir = dirname(file);
-  return { file: parsed.file, readFile: (path) => readFileSync(resolve(dir, path), "utf8") };
+  return readChecksFile(checksPathOf(join(built.handle.dir, entry.path)), built.input.registry, {
+    scene,
+  });
 }

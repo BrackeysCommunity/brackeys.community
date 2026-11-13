@@ -16,6 +16,7 @@ import {
   LIVE_PLAY_SOURCES,
   LIVE_PLAY_TOOLTIP,
 } from "../panels/EditorPlayBar";
+import { LIVE_PLAY_IDLE } from "../panels/EditorStatusBar";
 
 afterEach(() => {
   cleanup();
@@ -73,6 +74,8 @@ describe("the Live in Play toggle", () => {
   it("stays focusable but inert where the scene can't take live updates, its reason reachable", () => {
     const { onLivePlay, toggle, text } = bar(UNAVAILABLE);
     expect(toggle.getAttribute("aria-disabled")).toBe("true");
+    // The kit's disabled look, which `.je-switch[data-disabled]` draws.
+    expect(toggle.hasAttribute("data-disabled")).toBe(true);
     expect(toggle.tabIndex).toBe(0);
     const reason = document.getElementById(toggle.getAttribute("aria-describedby") ?? "");
     expect(reason?.textContent).toBe(UNAVAILABLE);
@@ -92,5 +95,30 @@ describe("the Live in Play toggle", () => {
     const rule = /\.je-live-toggle \{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(rule).toContain("white-space: nowrap");
     expect(rule).toContain("flex-shrink: 0");
+    // The unavailable switch looks disabled through the kit's own rule alone.
+    expect(css).not.toMatch(/\[data-unavailable\] \.je-switch/);
+  });
+
+  it("says Live in Play is waiting for edits while it is on, and offers no Restart for what it applies", () => {
+    const host = new Store({
+      sceneChanged: true,
+      livePlay: { on: true, unavailable: null, status: null, checks: [] },
+    });
+    const controls = {
+      game: { getStore: () => createGameStore(), resume: vi.fn(), pause: vi.fn(), step: vi.fn() },
+      host,
+      keymap: { chordOf: () => undefined },
+      onStop: vi.fn(),
+      onRestart: vi.fn(),
+      onLivePlay: vi.fn(),
+    } as unknown as EditorControls;
+    render(<EditorPlayBar {...controls} />);
+    expect(screen.getByText(LIVE_PLAY_IDLE)).toBeTruthy();
+    expect(screen.queryByText("Scene changed")).toBeNull();
+    act(() =>
+      host.setState((s) => ({ ...s, livePlay: { ...s.livePlay, on: false, status: null } })),
+    );
+    expect(screen.queryByText(LIVE_PLAY_IDLE)).toBeNull();
+    expect(screen.getByText("Scene changed")).toBeTruthy();
   });
 });

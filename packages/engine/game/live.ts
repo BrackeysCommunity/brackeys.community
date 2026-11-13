@@ -72,6 +72,34 @@ export function acceptedTimings(live: Pick<LiveDeclaration, "timings"> | undefin
   return listed.includes("next-load") ? [...listed] : ["next-load", ...listed];
 }
 
+/**
+ * The timings a game accepts as the words after "this game accepts ",
+ * strongest first: `only next load`, or `boundary and next load`.
+ */
+export function acceptedTimingsWords(live: Pick<LiveDeclaration, "timings"> | undefined): string {
+  const accepted = acceptedTimings(live);
+  const takes = (["now", "boundary", "next-load"] as const).filter((t) => accepted.includes(t));
+  const last = timingWords(takes.at(-1)!);
+  return takes.length === 1
+    ? `only ${last}`
+    : `${takes.slice(0, -1).map(timingWords).join(", ")} and ${last}`;
+}
+
+/**
+ * What a swap's diff changed, in plain words: `3 entities changed, 1 added,
+ * 1 removed`, `the scene's header changed`, or `nothing changed`.
+ */
+export function diffWords(diff: SceneDiff): string {
+  const { changed, added, removed } = diff;
+  const parts: string[] = [];
+  if (changed.length > 0)
+    parts.push(`${changed.length} ${changed.length === 1 ? "entity" : "entities"} changed`);
+  if (added.length > 0) parts.push(`${added.length} added`);
+  if (removed.length > 0) parts.push(`${removed.length} removed`);
+  if (parts.length > 0) return parts.join(", ");
+  return diff.header ? "the scene's header changed" : "nothing changed";
+}
+
 /** How a version is named where the host's numbers aren't known: `level-1@<first 12 hex>`, or the release's own. */
 export const versionName = (scene: AssetId, version: Sha256 | null): string =>
   version === null ? `${scene}'s release version` : `${scene}@${version.slice(0, 12)}`;

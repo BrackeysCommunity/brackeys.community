@@ -256,9 +256,6 @@ export function recordedSwap(swap: SceneSwap): RecordedSwap {
   };
 }
 
-/** A recorded swap without its timing and strategy. */
-export type RecordedLoad = Omit<RecordedSwap, "timing" | "strategy">;
-
 /** Lifecycle events, which a game spawning bullets raises by the thousand, mark only when named. */
 const LIFECYCLE_PREFIX = "entity:";
 

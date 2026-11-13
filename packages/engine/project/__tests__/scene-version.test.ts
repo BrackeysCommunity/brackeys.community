@@ -291,6 +291,15 @@ describe("the canonical text", () => {
       expect(read.ok, file).toBe(false);
       if (!read.ok) expect(read.issues[0]?.path).toBe("/assets/level-1/file");
     }
+    const tiles = Object.entries(base.version.assets).find(([, a]) => a.path === "art/tiles.png");
+    expect(tiles).toBeDefined();
+    const [id, asset] = tiles!;
+    const v = edited(base.version, (m) => {
+      m.assets[id]!.file = `live/${asset.sha256}.jpg`;
+    });
+    const read = parseSceneVersion(formatSceneVersion(v));
+    expect(read.ok, "a blob's extension is its path's").toBe(false);
+    if (!read.ok) expect(read.issues[0]?.path).toBe(`/assets/${id}/file`);
   });
 
   it("refuses another kind, a newer v and bad JSON", () => {

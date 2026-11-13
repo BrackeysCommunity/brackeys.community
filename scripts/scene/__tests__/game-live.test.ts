@@ -294,7 +294,7 @@ describe("game live check", () => {
       gameLiveCheck({ project: "tactics", scene: SCENE, from }, live),
     );
     expect(r.exitCode, r.text).toBe(0);
-    expect(r.text).toContain("  Changes:  1 changed (players' worlds update in place)");
+    expect(r.text).toContain("  Changes:  1 entity changed (players' worlds update in place)");
     expect(dataOf(r)).toMatchObject({
       diff: { changed: ["marsh"], added: [], removed: [], header: false },
       swapCheck: { ok: true },

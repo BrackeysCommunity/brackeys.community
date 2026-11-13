@@ -5,6 +5,7 @@ import { Container } from "pixi.js";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { worldDigest } from "../../__tests__/fixtures/live-version";
 import {
   createProjectSession,
   memoryDocHost,
@@ -22,6 +23,7 @@ import type { SceneRuntimeHandle } from "../../runtime/types";
 import { makeIssue, SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/index";
 import { EditorFrame, editorChrome, type EditorFrameHandle } from "../frame/EditorFrame";
 import { LIVE_PLAY_KEY, LIVE_PLAY_TOOLTIP } from "../panels/EditorPlayBar";
+import { LIVE_PLAY_IDLE } from "../panels/EditorStatusBar";
 import {
   editorIdentity,
   LIVE_PLAY_APPLYING,
@@ -271,12 +273,12 @@ describe("Live in Play", () => {
     expect(t.world()?.ctx.live.version).toBe(t.game.live.current("hall"));
     expect(t.status()).toMatchObject({
       tone: "applied",
-      text: "Live update applied (reconcile, 1 changed)",
+      text: "Live update applied: 1 added",
     });
-    expect(screen.getByText("Live update applied (reconcile, 1 changed)")).toBeTruthy();
+    expect(screen.getByText("Live update applied: 1 added")).toBeTruthy();
     expect(toast.success).toHaveBeenCalledWith(
       "Live update applied",
-      expect.objectContaining({ description: "(reconcile, 1 changed)" }),
+      expect.objectContaining({ description: "1 added" }),
     );
     // The edit reached the game, so Restart isn't offered.
     expect(screen.queryByText("Scene changed")).toBeNull();
@@ -291,7 +293,9 @@ describe("Live in Play", () => {
     act(() => t.game.step());
     expect(t.log).toEqual(["onSwap reload now"]);
     expect(t.world()?.ctx.bounds).toEqual([0, 0, 12, 10]);
-    expect(t.status()?.text).toMatch(/^Live update applied \(reload, /);
+    expect(t.status()?.text).toBe(
+      "Live update applied: the scene reloaded (the scene's header changed)",
+    );
   });
 
   it("shows a failing onSwap's issue, and Play carries on", async () => {
@@ -329,7 +333,7 @@ describe("Live in Play", () => {
     t.addMarker("hazard");
     await t.staged();
     act(() => t.game.step());
-    expect(t.status()?.text).toBe("Live update applied (reconcile, 1 changed) · 1 check issue");
+    expect(t.status()?.text).toBe("Live update applied: 1 added · 1 check issue");
     expect(t.live.host.state.livePlay?.checks.map((i) => i.message)).toEqual([
       "hazard under the spawn",
     ]);
@@ -399,6 +403,70 @@ describe("Live in Play", () => {
     act(() => t.game.step(swap.tick + 1));
     expect(t.world()?.ctx.live.version).toBe(swap.version);
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("says it is waiting for edits while on with no update under way", async () => {
+    const t = await setup();
+    t.play();
+    expect(screen.queryByText(LIVE_PLAY_IDLE)).toBeNull();
+    fireEvent.click(t.toggle());
+    expect(screen.getByText(LIVE_PLAY_IDLE)).toBeTruthy();
+    t.addMarker("well");
+    await vi.waitFor(() => expect(screen.queryByText(LIVE_PLAY_IDLE)).toBeNull(), {
+      timeout: 2_000,
+    });
+    fireEvent.click(t.toggle());
+    expect(screen.queryByText(LIVE_PLAY_IDLE)).toBeNull();
+  });
+
+  it("applies an edit that landed while it was off as soon as it is turned on", async () => {
+    const t = await setup();
+    t.play();
+    t.addMarker("well");
+    expect(screen.getByText("Scene changed")).toBeTruthy();
+    fireEvent.click(t.toggle());
+    // No new edit needed: the waiting one starts building at once.
+    expect(t.status()?.text).toBe(LIVE_PLAY_APPLYING);
+    expect(screen.queryByText("Scene changed")).toBeNull();
+    await t.staged();
+    act(() => t.game.step());
+    expect(t.world()?.get("well")).toBeDefined();
+    expect(t.status()?.tone).toBe("applied");
+    // The game has every edit, so turning it off offers no Restart.
+    fireEvent.click(t.toggle());
+    expect(t.live.host.state.sceneChanged).toBe(false);
+    expect(screen.queryByText("Scene changed")).toBeNull();
+    // An edit after that is one the game lacks.
+    t.addMarker("pond");
+    expect(screen.getByText("Scene changed")).toBeTruthy();
+  });
+
+  it("restarts on the latest doc, not on the version it last applied, so the run replays the same", async () => {
+    const t = await setup();
+    t.play();
+    fireEvent.click(t.toggle());
+    t.addMarker("well");
+    await t.staged();
+    act(() => t.game.step());
+    const applied = t.game.live.current("hall");
+    expect(applied).not.toBeNull();
+    // Restart inside the next edit's debounce: that edit hasn't gone live yet.
+    t.addMarker("pond");
+    act(() => t.live.restart());
+    expect(t.world()?.get("pond")).toBeDefined();
+    expect(t.world()?.ctx.live.version).toBeNull();
+    act(() => t.game.step(4));
+    const ran = worldDigest(t.world()!);
+    act(() => t.live.stop());
+    const recording = t.game.recording()!;
+    expect(recording.sceneVersion).toBeUndefined();
+
+    let replayed = false;
+    act(() => void (replayed = t.live.replay(recording)));
+    expect(replayed).toBe(true);
+    act(() => t.game.step(4));
+    expect(t.world()?.get("pond")).toBeDefined();
+    expect(worldDigest(t.world()!)).toBe(ran);
   });
 
   it("holds the game's clamp and says when the update will apply", async () => {

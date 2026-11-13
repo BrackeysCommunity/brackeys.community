@@ -955,22 +955,26 @@ export async function createGame(
   /**
    * A replay's live versions: the swaps it applies before their ticks, and
    * the version the scene's loads used before it, put back when the replay
-   * ends.
+   * ends, as is the one of each sublevel scene a recorded swap activated.
    */
   type ReplayLive = {
     scene: AssetId;
     swaps: ReturnType<typeof createSwapReplay>;
     before: PreparedVersion | null;
+    others: Map<AssetId, PreparedVersion | null>;
   };
   let replayLive: ReplayLive | null = null;
 
-  /** Gives the scene back the version its loads used before the replay. */
+  /** Gives each scene the replay moved back the version its loads used before it. */
   function endReplayLive(): void {
     const r = replayLive;
     if (!r) return;
     replayLive = null;
-    if (r.before) liveLayer.stage(r.before);
-    liveLayer.activate(r.scene, r.before?.id ?? null, "next-load");
+    const back = new Map(r.others).set(r.scene, r.before);
+    for (const [scene, before] of back) {
+      if (before) liveLayer.stage(before);
+      liveLayer.activate(scene, before?.id ?? null, "next-load");
+    }
   }
 
   /** A recording's version through the host's `versions`, read for play. */
@@ -989,9 +993,17 @@ export async function createGame(
     scene: AssetId,
     swaps: readonly RecordedSwap[],
     versions: ((id: Sha256) => StagedVersion | null) | undefined,
+    others: ReplayLive["others"],
   ): ReplayLive["swaps"] {
     return createSwapReplay({
-      live: liveLayer,
+      live: {
+        stage: (prepared) => liveLayer.stage(prepared),
+        activate(id, version, timing) {
+          if (id !== scene && !others.has(id)) others.set(id, liveLayer.sceneFor(id));
+          return liveLayer.activate(id, version, timing);
+        },
+        apply: (id, prepared, applyOpts) => liveLayer.apply(id, prepared, applyOpts),
+      },
       swaps,
       scene: () => scene,
       resolve(id, running, _at, tick) {
@@ -1050,6 +1062,8 @@ export async function createGame(
     const bundle = bundleFor(prepared.scene, doc, defPrefabs, view);
     const report = startPlay(prepared.scene, bundle, opts);
     if (!report.ok) endReplayLive();
+    // Play runs the doc it was given, which is the active version only when it is that version's scene.
+    else if (!replayed) liveLayer.loadedDoc(prepared.hash);
     if (report.ok && loaded) {
       session = recordSession(loaded.runtime, doc.name, prepared, opts, persistAtLoad, replay);
       if (replay && loop.isPaused()) resume();
@@ -1126,9 +1140,10 @@ export async function createGame(
     }
     const scene = start?.version.scene ?? doc.name;
     const swaps = recording.swaps ?? [];
+    const others: ReplayLive["others"] = new Map();
     const live: ReplayLive | null =
       start || swaps.length > 0 || liveLayer.sceneFor(scene)
-        ? { scene, swaps: replaySwapsOf(scene, swaps, opts.versions), before: null }
+        ? { scene, swaps: replaySwapsOf(scene, swaps, opts.versions, others), before: null, others }
         : null;
     const recorded = recording.start.persist;
     const before = recorded !== undefined ? persist.value : undefined;
@@ -2314,6 +2329,8 @@ export async function createGame(
   /** After the layer swapped a version into the running scene: the recording, the scene's bundle and the camera's bounds follow it. */
   function swappedIn(swap: SceneSwap): void {
     session?.swap(recordedSwap(swap));
+    // A sublevel scene's version, which its next attach uses: nothing in the running scene changed.
+    if (swap.timing === "next-load") return;
     const scene = loaded?.runtime.scene();
     if (!loaded || !scene) return;
     const listed = liveLayer.sceneFor(swap.scene) ?? flowSource?.scene(swap.scene) ?? null;

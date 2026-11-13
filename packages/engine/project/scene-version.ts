@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { createRegistry } from "../game/define";
-import { ID_PATTERN } from "../game/fields";
 import type { GameDefinition, Registry } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
 import { expandScene } from "../scene/expand";
@@ -22,7 +21,7 @@ import { validateScene } from "../scene/validate";
 import { ENGINE_VERSION } from "../version";
 import { namedPrefabs, sceneBundle, unsizedIds } from "./bundle";
 import { stableJson } from "./canonical";
-import { sha256, SHA256_PATTERN } from "./hash";
+import { sha256 } from "./hash";
 import { createKindRegistry, type KindRegistry } from "./kinds";
 import { byCodeUnit } from "./kinds/define";
 import { sceneKind } from "./kinds/scene";
@@ -41,16 +40,25 @@ import {
   type ReleaseManifest,
   type ReleaseScene,
 } from "./release";
-import { liveFiles, reachedAssets, releaseAssetOf, releaseSceneEntry } from "./release-assets";
+import {
+  assetMissing,
+  LIVE_DIR,
+  liveFiles,
+  reachedAssets,
+  releaseAssetOf,
+  releaseSceneEntry,
+} from "./release-assets";
 import { runtimeView } from "./runtime-view";
 import {
   jsonValues,
   PROJECT_SNAPSHOT_VERSION,
   snapshotHash,
   snapshotView,
+  withId,
   type ProjectSnapshot,
 } from "./snapshot";
 import type { AssetId, AssetKindName, ProjectId, ProjectView, Sha256 } from "./types";
+import { formatField, idField, sha256Field } from "./zod-fields";
 
 /** The scene version record's format, the `v` every one carries. */
 export const SCENE_VERSION_VERSION = 1;
@@ -159,17 +167,13 @@ export type CheckSceneVersionOptions = {
 
 // ─── Schema ──────────────────────────────────────────────
 
-const sha256Field = (description: string) => z.string().regex(SHA256_PATTERN).describe(description);
-const idField = (description: string) => z.string().regex(ID_PATTERN).describe(description);
-const format = (description: string) => z.number().int().positive().describe(description);
-
 /** `live/<sha256>.json` for a doc, `live/<sha256><ext>` for a blob. */
-const LIVE_FILE_PATTERN = /^live\/[0-9a-f]{64}(\.[A-Za-z0-9]+)*$/;
+const LIVE_FILE_PATTERN = new RegExp(`^${LIVE_DIR}\\/[0-9a-f]{64}(\\.[A-Za-z0-9]+)*$`);
 
-const liveFileProblem = (a: { sha256: string; storage: string; file: string }): string | null => {
-  if (!a.file.startsWith(`live/${a.sha256}`)) return "isn't named by the asset's sha256";
-  if (a.storage === "doc" && a.file !== `live/${a.sha256}.json`) return "a doc's file is .json";
-  return null;
+/** Why `a.file` isn't the file `liveFiles` names for it; null when it is. */
+const liveFileProblem = (a: Pick<ReleaseAsset, "sha256" | "storage" | "path" | "file">) => {
+  const expected = a.storage === "doc" ? liveFiles.doc(a.sha256) : liveFiles.blob(a.path, a.sha256);
+  return a.file === expected ? null : `isn't "${expected}", the file named by its sha256`;
 };
 
 const versionAssetSchema = releaseAssetSchema
@@ -196,8 +200,8 @@ const versionSchema = z
       .strictObject({
         formats: z
           .strictObject({
-            scene: format("The scene format version."),
-            prefab: format("The prefab format version."),
+            scene: formatField("The scene format version."),
+            prefab: formatField("The prefab format version."),
           })
           .describe("The formats of the code that checked the version."),
         build: z
@@ -620,9 +624,6 @@ export function findSceneVersion<V extends { id: Sha256; version: SceneVersion }
 
 // ─── Reading one for play ────────────────────────────────
 
-const withId = (id: AssetId, issues: readonly SceneIssue[]): SceneIssue[] =>
-  issues.map((i) => ({ ...i, entityIds: [id, ...i.entityIds] }));
-
 const isError = (i: SceneIssue) => i.severity === "error";
 
 /** Parses prefab `id` from `text` into `into`; its issues go to `issues`, under its id. */
@@ -765,9 +766,6 @@ export function readSceneVersion(
 
 // ─── Building one ────────────────────────────────────────
 
-const missing = (message: string, id: AssetId): SceneIssue =>
-  makeIssue("asset-missing", { message, entityIds: [id], got: id });
-
 /** The scene `opts.scene` as Play reads it from the project, its prefabs read from `opts.texts` as instances reach them. */
 function readProjectScene(
   opts: BuildSceneVersionOptions,
@@ -784,7 +782,9 @@ function readProjectScene(
     if (view.byId.get(next)?.kind !== PREFAB_KIND) return undefined;
     const prefabText = opts.texts.get(next);
     if (prefabText === undefined) {
-      issues.push(missing(`scene "${id}" reaches prefab "${next}", which has no text given`, next));
+      issues.push(
+        assetMissing(`scene "${id}" reaches prefab "${next}", which has no text given`, next),
+      );
       return undefined;
     }
     return readPrefab(next, prefabText, registry, prefabs, issues);
@@ -819,7 +819,7 @@ export async function buildSceneVersion(
     return {
       ok: false,
       issues: [
-        missing(
+        assetMissing(
           sceneEntry?.kind === sceneKind.kind
             ? `scene "${id}" has no text given`
             : `the project has no live scene "${id}"${sceneEntry ? `; "${id}" is a ${sceneEntry.kind}` : ""}`,

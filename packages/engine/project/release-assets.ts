@@ -35,11 +35,18 @@ export const releaseFiles: AssetFiles = {
   blob: (path, hash) => blobFileIn("assets", path, hash),
 };
 
+/** The directory a scene version's files go in, next to release.json. */
+export const LIVE_DIR = "live";
+
 /** A scene version's files: `live/<sha256>.json` and `live/<sha256><ext>`. */
 export const liveFiles: AssetFiles = {
-  doc: (hash) => `live/${hash}.json`,
-  blob: (path, hash) => blobFileIn("live", path, hash),
+  doc: (hash) => `${LIVE_DIR}/${hash}.json`,
+  blob: (path, hash) => blobFileIn(LIVE_DIR, path, hash),
 };
+
+/** `asset-missing` for asset `id`, which names it as what was missing. */
+export const assetMissing = (message: string, id: AssetId): SceneIssue =>
+  makeIssue("asset-missing", { message, entityIds: [id], got: id });
 
 /**
  * Every live doc and blob `roots` reach through `index`'s references, the
@@ -105,7 +112,7 @@ export async function releaseAssetOf(
       ? { licence: structuredClone(entry.licence) }
       : {};
   const missing = (message: string): null => {
-    opts.issues.push(makeIssue("asset-missing", { message, entityIds: [entry.id], got: entry.id }));
+    opts.issues.push(assetMissing(message, entry.id));
     return null;
   };
   if (opts.kinds.get(entry.kind)?.storage === "doc") {

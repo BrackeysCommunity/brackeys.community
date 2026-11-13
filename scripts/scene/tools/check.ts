@@ -1,9 +1,16 @@
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { dirname, relative, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
+import type { Registry } from "@jams/engine/game";
 import { runChecks, type CheckResult } from "@jams/engine/headless";
-import { checksPathOf, closest, parseChecks, type SceneIssue } from "@jams/engine/scene";
+import {
+  checksPathOf,
+  closest,
+  parseChecks,
+  type ChecksFile,
+  type SceneIssue,
+} from "@jams/engine/scene";
 
 import {
   failure,
@@ -18,6 +25,7 @@ import {
   type ToolResult,
 } from "../context";
 import { projectRuntime } from "../projects";
+import { shownPath } from "./game-manifest";
 import { rapierFor } from "./step";
 
 export type CheckInput = { scene?: string; checks?: string; only?: string; game?: string };
@@ -54,26 +62,12 @@ export const check: Tool<CheckInput> = async (input, ctx) => {
 
   const file = await checksFileFor(ctx, scene, input.checks);
   if (typeof file !== "string") return file.result;
-  const shown = relative(process.cwd(), file) || file;
-  let text: string;
-  try {
-    text = await readFile(file, "utf8");
-  } catch (e) {
-    if ((e as { code?: string }).code === "ENOENT")
-      return failure(`No checks file at ${shown}.`, { checks: file });
-    throw e;
-  }
+  const shown = shownPath(file);
+  const read = await readChecksFile(file, registry, { scene, game });
+  if (read === null) return failure(`No checks file at ${shown}.`, { checks: file });
+  if (isToolResult(read)) return read;
 
-  const parsed = parseChecks(text, registry);
-  if (!parsed.ok) {
-    return {
-      exitCode: 1,
-      data: { ok: false, scene, game, checks: file, issues: parsed.issues },
-      text: checksFileLines(shown, parsed.issues).join("\n"),
-    };
-  }
-
-  let checks = parsed.file.checks;
+  let checks = read.file.checks;
   if (input.only !== undefined) {
     const ids = checks.map((c) => c.id);
     checks = checks.filter((c) => c.id === input.only);
@@ -85,7 +79,6 @@ export const check: Tool<CheckInput> = async (input, ctx) => {
     }
   }
 
-  const dir = dirname(file);
   const project = loaded.project ? await projectRuntime(loaded.project, registry) : null;
   const report = runChecks({
     rapier: await rapierFor(ctx, def, registry, project?.engine),
@@ -93,8 +86,8 @@ export const check: Tool<CheckInput> = async (input, ctx) => {
     scene: def,
     prefabs: loaded.prefabs,
     registry,
-    checks: { ...parsed.file, checks },
-    readFile: (path) => readFileSync(resolve(dir, path), "utf8"),
+    checks: { ...read.file, checks },
+    readFile: read.readFile,
   });
   const failed = report.results.filter((r) => !r.pass).length;
   const skipped = report.results.filter((r) => r.skipped !== undefined).length;
@@ -110,8 +103,39 @@ export const check: Tool<CheckInput> = async (input, ctx) => {
   };
 };
 
+/** A parsed checks file and the reader for the files it names, relative to it. */
+export type ReadChecks = { file: ChecksFile; readFile: (path: string) => string };
+
+/**
+ * The checks file at `file` parsed for `registry`, with a reader that
+ * resolves the paths it names beside it; null when there is no file. One
+ * that doesn't read is the failing result, its data carrying `data`.
+ */
+export async function readChecksFile(
+  file: string,
+  registry: Registry,
+  data: Record<string, unknown> = {},
+): Promise<ReadChecks | ToolResult | null> {
+  let text: string;
+  try {
+    text = await readFile(file, "utf8");
+  } catch (e) {
+    if ((e as { code?: string }).code === "ENOENT") return null;
+    throw e;
+  }
+  const parsed = parseChecks(text, registry);
+  if (!parsed.ok)
+    return {
+      exitCode: 1,
+      data: { ok: false, ...data, checks: file, issues: parsed.issues },
+      text: checksFileLines(shownPath(file), parsed.issues).join("\n"),
+    };
+  const dir = dirname(file);
+  return { file: parsed.file, readFile: (path) => readFileSync(resolve(dir, path), "utf8") };
+}
+
 /** A checks file that doesn't read, as the CLI prints it: the file, then each issue with its line and hint. */
-export function checksFileLines(
+function checksFileLines(
   shown: string,
   issues: readonly Pick<SceneIssue, "path" | "line" | "message" | "hint">[],
 ): string[] {

@@ -10,7 +10,7 @@ import type { GameDefinition, Registry } from "../game/types";
 import { stableJson } from "../project/canonical";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
-import { preparedVersion, type LiveLayer, type PreparedVersion } from "../runtime/live";
+import { errorText, preparedVersion, type LiveLayer, type PreparedVersion } from "../runtime/live";
 import { gamePersistCell } from "../runtime/persist";
 import { resolveGame } from "../runtime/runtime";
 import type { SceneRuntimeHandle } from "../runtime/types";
@@ -71,7 +71,6 @@ export type SwapCheckReport = {
   checks?: ChecksReport;
 };
 
-const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 const isError = (issues: readonly SceneIssue[]) => issues.some((i) => i.severity === "error");
 
 type Played = { ok: true; ticks: number } | { ok: false; issues: SceneIssue[] };
@@ -419,7 +418,6 @@ function swapRun(
         code: "live-swap-failed",
         scene: o.scene,
         cause: `the run ended before tick ${swap.tick}, where the swap was due`,
-        phase: "swap",
       }),
     ]);
   else if (strategy && !secondDone && runtime.ctx.tick > swap.tick)

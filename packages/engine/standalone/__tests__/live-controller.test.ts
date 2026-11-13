@@ -624,7 +624,7 @@ describe("the live controller in a hosted frame", () => {
     });
   });
 
-  it("takes a sublevel's version at its first attach after the next load, and says applied then", async () => {
+  it("takes a sublevel's version at its next attach in the same run, and says applied then", async () => {
     const b = fresh();
     const v = await publish(
       b,
@@ -641,18 +641,15 @@ describe("the live controller in a hosted frame", () => {
 
     page.send({ type: "live.update", live: await snapshot(b, [entry(v, "now")]) });
     await vi.waitFor(() => expect(statuses(page, "hall")).toEqual(["staging", "ready"]));
-    // Attached under the running scene, it waits for a later attach.
+    // Attached under the running scene, it waits for its next attach.
     expect(states(page).at(-1)).toMatchObject({ status: "ready", timing: "next-load" });
     expect(game.instance.live.pending()).toEqual([]);
-    flow().detach("side");
     game.instance.step();
-    attach();
-    game.instance.step();
-    // The run attaches the scenes it loaded with.
     expect(hallFlag()).toBe(false);
     expect(statuses(page, "hall")).toEqual(["staging", "ready"]);
 
-    await game.instance.flow.restart();
+    flow().detach("side");
+    game.instance.step();
     attach();
     game.instance.step();
     expect(hallFlag()).toBe(true);

@@ -1,13 +1,15 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, matchesGlob, relative } from "node:path";
 
 import type { ExportInput } from "../../export/plan";
 import { createRegistry, withProject } from "../../game/define";
 import type { GameDefinition } from "../../game/types";
-import { heldProject, type HeldFile } from "../../project/runtime-view";
+import { projectPathMatcher } from "../../project/asset-files";
+import { parseProjectFile } from "../../project/project-file";
+import { heldProject, type HeldFile, type ProjectRuntimeView } from "../../project/runtime-view";
 import type { AssetSidecar } from "../../project/sidecar";
 import { jsonValues, snapshotProject } from "../../project/snapshot";
-import type { ProjectFile } from "../../project/types";
+import { PROJECT_FILE, type ProjectFile } from "../../project/types";
 import type { SceneDefinition } from "../../scene/types";
 
 /** A project as a host holds it: docs by their JSON, binaries by their sidecars, and each doc's text by path. */
@@ -15,8 +17,11 @@ export type HeldFiles = { files: HeldFile[]; texts: Map<string, string> };
 
 const SIDECAR = ".asset.json";
 
-/** Every file under `dir` as a host holds it: docs by their JSON and text, binaries by their sidecars. */
-export function readHeld(dir: string): HeldFiles {
+/**
+ * Every file under `dir` (only the paths `keep` takes, when given) as a
+ * host holds it: docs by their JSON and text, binaries by their sidecars.
+ */
+export function readHeld(dir: string, keep?: (path: string) => boolean): HeldFiles {
   const files: HeldFile[] = [];
   const texts = new Map<string, string>();
   const walk = (at: string) => {
@@ -27,7 +32,7 @@ export function readHeld(dir: string): HeldFiles {
         continue;
       }
       const path = relative(dir, full).split("\\").join("/");
-      if (path.endsWith(SIDECAR) || path === "jams.project.json") continue;
+      if (path.endsWith(SIDECAR) || path === PROJECT_FILE || (keep && !keep(path))) continue;
       let sidecar: AssetSidecar | null = null;
       try {
         sidecar = JSON.parse(readFileSync(full + SIDECAR, "utf8")) as AssetSidecar;
@@ -140,7 +145,32 @@ export async function heldInput(
   game: GameDefinition,
   target: ExportInput["target"] = "web",
 ): Promise<ExportInput> {
-  const { view, kinds } = heldProject(held.files, createRegistry(game), {
+  return (await heldRead(project, held, game, target)).input;
+}
+
+/**
+ * The project whose `jams.project.json` is in `dir`, read from disk as a
+ * host holds it (the files its asset globs take), judged by `game`: its
+ * export input and the runtime view a game plays it with.
+ */
+export async function projectInput(
+  dir: string,
+  game: GameDefinition,
+  target: ExportInput["target"] = "web",
+): Promise<{ input: ExportInput; runtime: ProjectRuntimeView }> {
+  const parsed = parseProjectFile(JSON.parse(readFileSync(join(dir, PROJECT_FILE), "utf8")));
+  if (!parsed.ok) throw new Error(`${dir}: ${parsed.issues.map((i) => i.message).join("; ")}`);
+  const { isAsset } = projectPathMatcher(parsed.file, matchesGlob);
+  return heldRead(parsed.file, readHeld(dir, isAsset), game, target);
+}
+
+async function heldRead(
+  project: ProjectFile,
+  held: HeldFiles,
+  game: GameDefinition,
+  target: ExportInput["target"],
+): Promise<{ input: ExportInput; runtime: ProjectRuntimeView }> {
+  const { view, kinds, runtime } = heldProject(held.files, createRegistry(game), {
     projectId: project.id,
     name: project.name,
   });
@@ -155,14 +185,17 @@ export async function heldInput(
   const engine = ((settings && (values.get(settings.id) as { engine?: object })?.engine) ??
     {}) as Record<string, unknown>;
   return {
-    project,
-    view,
-    texts,
-    kinds,
-    registry: withProject(createRegistry(game), view, values),
-    game,
-    engine,
-    target,
-    snapshot: await snapshotProject(view, texts, view.state.build),
+    input: {
+      project,
+      view,
+      texts,
+      kinds,
+      registry: withProject(createRegistry(game), view, values),
+      game,
+      engine,
+      target,
+      snapshot: await snapshotProject(view, texts, view.state.build),
+    },
+    runtime,
   };
 }

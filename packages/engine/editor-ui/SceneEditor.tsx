@@ -76,6 +76,21 @@ const PHASE_LABEL: Record<Exclude<BootPhase, "connecting">, string> = {
 
 const REBUILD_LABEL = "Rebuilding the game";
 
+/** How long the scene, or its materials and prefabs, may take to open before the editor says it couldn't. */
+export const OPEN_TIMEOUT_MS = 30_000;
+
+/** The phases that wait on the scene server sending docs, which it may never do. */
+const OPENING: ReadonlySet<BootPhase> = new Set(["scene", "assets"]);
+
+/** What the boot status says once the scene has taken longer than `OPEN_TIMEOUT_MS` to open. */
+function openStalled(scene: string | undefined, project: string) {
+  return {
+    label: `Couldn't open ${scene ?? "the scene"} in project ${project}`,
+    working: false,
+    error: `The scene server hasn't sent it in ${OPEN_TIMEOUT_MS / 1000} s. The editor keeps asking; reload the page to start over.`,
+  };
+}
+
 /** What the editor is doing while its panels can't be used yet, and whether it is still at it. */
 function bootStatus(
   phase: BootPhase,
@@ -424,9 +439,21 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   const shown = chrome ?? (rebuilding ? kept : null);
   const inert = !chrome && shown !== null;
 
+  const phase = editing.phase;
+  const [stalled, setStalled] = useState<BootPhase | null>(null);
+  useEffect(() => {
+    if (!phase || !OPENING.has(phase)) return;
+    const timer = setTimeout(() => setStalled(phase), OPEN_TIMEOUT_MS);
+    return () => {
+      clearTimeout(timer);
+      setStalled(null);
+    };
+  }, [phase]);
   const booting =
-    !shown && (editing.phase || buildFailed)
-      ? bootStatus(editing.phase ?? "game", editing.status ?? "connecting", buildFailed)
+    !shown && (phase || buildFailed)
+      ? stalled !== null && stalled === phase && !buildFailed
+        ? openStalled(scene, project)
+        : bootStatus(phase ?? "game", editing.status ?? "connecting", buildFailed)
       : null;
   const activity = inert ? REBUILD_LABEL : booting?.working ? booting.label : null;
   useEffect(() => {

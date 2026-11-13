@@ -29,7 +29,7 @@ import { z } from "zod";
 
 import { nextEnemyUnit, enemyOrders } from "./ai";
 import { parseTacticsCommand, type TacticsCommand } from "./commands";
-import { applyCommand, isLegal, occupancy, reachField } from "./rules";
+import { applyCommand, isLegal, occupancy, reachField, resultOf } from "./rules";
 import {
   ROUGH_TYPE,
   STEP_COST,
@@ -316,13 +316,6 @@ export function boardData(
 }
 
 const isRough = (e: RuntimeEntity | undefined): e is RoughEntity => e?.type === ROUGH_TYPE.type;
-
-/** How a board with these units stands: won or lost once a side has none left, open otherwise or with no units at all. */
-function standingResult(units: Readonly<Record<string, UnitState>>): TacticsSnapshot["result"] {
-  const sides = new Set(Object.values(units).map((u) => u.side));
-  if (sides.size === 0) return null;
-  return !sides.has("red") ? "won" : !sides.has("blue") ? "lost" : null;
-}
 
 /** The board and class table a run's world holds now, as `play.commands` reads them. */
 export function worldBoard(world: PlayWorld): { grid: TacticsGridData; classes: UnitClasses } {
@@ -659,7 +652,7 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
       if (e.type === UNIT_TYPE.type) units[e.id] = unitState(e as UnitEntity);
       else if (e.type === STAIR_TYPE.type) stairs.push(stairOf(e as StairEntity));
     }
-    const result = standingResult(units);
+    const result = resultOf(units);
     state = { ...INITIAL, units, result, phase: result === null ? "orders" : "over" };
     autosaved = null;
     changed();
@@ -835,7 +828,7 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     freshBoard();
     state = { ...state, units: reindexUnits(swap) };
     cutWalk();
-    const result = state.result ?? standingResult(state.units);
+    const result = state.result ?? resultOf(state.units);
     if (result !== null) {
       state = { ...state, result, phase: "over" };
       if (walk) walk.resume = "over";

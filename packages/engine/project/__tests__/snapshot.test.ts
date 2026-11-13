@@ -410,6 +410,36 @@ describe("snapshotScene", () => {
       ["asset-missing", "kitchen-sink"],
     ]);
   });
+
+  it("fetches each prefab once, through nesting and bases, and stops at a nested one with no text", async () => {
+    const f = await fixture();
+    const snap = await snapshotProject(...args(f));
+    const store = await storeOf(f.texts);
+    const prefabOf = new Map<string, string>();
+    for (const id of PREFAB_IDS) prefabOf.set(await sha256(f.texts.get(id)!), id);
+    const fetched: string[] = [];
+    const counting: ContentStore = {
+      ...store,
+      get: (hash) => {
+        const id = prefabOf.get(hash);
+        if (id) fetched.push(id);
+        return store.get(hash);
+      },
+    };
+    await snapshotScene(snap, "kitchen-sink", counting, registry);
+    expect(fetched.sort()).toEqual(PREFAB_IDS);
+
+    // The latch is reached only as the doorway's nested instance and the one-way latch's base.
+    const noLatch = new Map(f.texts);
+    noLatch.delete("latch");
+    const error = await snapshotScene(snap, "kitchen-sink", await storeOf(noLatch), registry).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(SnapshotError);
+    expect((error as SnapshotError).issues.map((i) => [i.code, i.entityIds[0]])).toEqual([
+      ["asset-missing", "latch"],
+    ]);
+  });
 });
 
 describe("a snapshot's materials", () => {

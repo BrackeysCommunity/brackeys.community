@@ -26,7 +26,7 @@ import {
   releaseSceneEntry,
 } from "../project/release-assets";
 import { RUNTIME_VIEW_KINDS } from "../project/runtime-view";
-import { jsonValues } from "../project/snapshot";
+import { jsonValues, withId } from "../project/snapshot";
 import type { AssetEntry, AssetId, ProjectExport } from "../project/types";
 import { defaultPhysics, expandScene } from "../scene/expand";
 import { makeIssue } from "../scene/issues";
@@ -38,9 +38,6 @@ import { iconFile, planIcons } from "./icons";
 import type { ContentPlan, ExportInput } from "./plan";
 import { exportTarget, exportTargetNames } from "./targets";
 
-const withAsset = (id: AssetId, issues: readonly SceneIssue[]): SceneIssue[] =>
-  issues.map((i) => (i.entityIds[0] === id ? i : { ...i, entityIds: [id, ...i.entityIds] }));
-
 /** Each live prefab read from its text by id, parsed once and only when a scene reaches it. */
 function prefabReader(input: ExportInput, issues: SceneIssue[]) {
   const read = new Map<AssetId, Prefab | null>();
@@ -49,7 +46,7 @@ function prefabReader(input: ExportInput, issues: SceneIssue[]) {
       const entry = input.view.byId.get(id);
       const text = entry?.kind === prefabKind.kind ? input.texts.get(id) : undefined;
       const parsed = text === undefined ? null : parsePrefab(text, input.registry);
-      if (parsed && !parsed.ok) issues.push(...withAsset(id, parsed.issues));
+      if (parsed && !parsed.ok) issues.push(...withId(id, parsed.issues));
       read.set(id, parsed?.ok ? parsed.prefab : null);
     }
     return read.get(id) ?? undefined;
@@ -93,7 +90,7 @@ function planScene(
   }
   const parsed = parseScene(text, input.registry, { prefab: prefabs.get });
   if (!parsed.ok) {
-    issues.push(...withAsset(entry.scene, parsed.issues));
+    issues.push(...withId(entry.scene, parsed.issues));
     return fallback();
   }
   const def = parsed.def;
@@ -104,7 +101,7 @@ function planScene(
     const named = namedPrefabs(expanded.entities, input.registry, prefabs.get);
     const reach = new Map([...library, ...named]);
     const read = sceneBundle(expanded, def, reach, input.view, input.kinds, input.registry);
-    issues.push(...withAsset(entry.scene, read.issues));
+    issues.push(...withId(entry.scene, read.issues));
     bundle = read.bundle;
   } catch (error) {
     issues.push(

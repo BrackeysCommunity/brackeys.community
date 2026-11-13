@@ -132,6 +132,11 @@
     font-weight: inherit;
   }
 
+  .je-root :where(code):where(:not(.je-host *)) {
+    font-family: var(--je-font-mono);
+    font-size: inherit;
+  }
+
   .je-root :where(ol, ul):where(:not(.je-host *)) {
     list-style: none;
   }
@@ -1980,11 +1985,6 @@
   }
 
   .je-live-toggle[data-unavailable] {
-    cursor: not-allowed;
-  }
-
-  .je-live-toggle[data-unavailable] .je-switch {
-    opacity: 0.5;
     cursor: not-allowed;
   }
 

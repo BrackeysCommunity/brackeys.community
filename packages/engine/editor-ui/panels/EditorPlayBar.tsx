@@ -161,7 +161,7 @@ export function EditorPlayBar({
 /**
  * The Live in Play switch: off by default, the viewer's last choice taken
  * again at each Play. Its label toggles it too. Where the scene or game can't
- * take live updates it stays focusable but inert, so its hint, which gives the
+ * take live updates it is disabled but focusable, so its hint, which gives the
  * reason, opens from the keyboard as well as on hover.
  */
 function LiveInPlayToggle({
@@ -190,10 +190,10 @@ function LiveInPlayToggle({
         <span className="je-live-toggle" data-unavailable="">
           <Switch
             aria-label="Live in Play"
-            aria-disabled
             aria-describedby={reasonId}
             checked={on}
-            readOnly
+            disabled
+            focusableWhenDisabled
           />
           {label}
           <span id={reasonId} className="je-sr-only">

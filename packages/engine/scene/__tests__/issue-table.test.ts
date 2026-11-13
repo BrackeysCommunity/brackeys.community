@@ -990,15 +990,25 @@ describe("the engine's issue table", () => {
       liveIssue({ code: "live-scene-unlisted", release: "v7", scene: "level-9" }),
       liveIssue({ code: "live-physics", release: "v7", scene: "level-1" }),
       liveIssue({ code: "live-asset-conflict", scene: "level-1", asset: "hero.png" }),
-      liveIssue({ code: "live-swap-failed", scene: "level-1", cause: "onSwap threw: boom" }),
+      liveIssue({
+        code: "live-swap-failed",
+        scene: "level-1",
+        cause: "onSwap threw: boom",
+        phase: "onSwap",
+      }),
       liveIssue({ code: "live-timing-unsupported", version: "level-1@4", accepted: [] }),
       liveIssue({ code: "scene-version-removed", version: "level-1@3", tick: 40 }),
+      liveIssue({ code: "live-swap-failed", scene: "level-1", cause: "timed out", phase: "stage" }),
+      liveIssue({ code: "live-swap-failed", scene: "level-1", cause: "the run ended early" }),
+      liveIssue({ code: "live-timing-unsupported", version: "level-1@4", accepted: ["now"] }),
     ];
     for (const issue of issues) {
       expect(issue.severity).toBe(ISSUE_CODES[issue.code as EngineIssueCode].severity);
-      expect(issue.hint?.length, issue.code).toBeGreaterThan(0);
+      // The game rule has no hint: the code's default is the build rule's.
+      if (issue !== issues[2]) expect(issue.hint?.length, issue.code).toBeGreaterThan(0);
       expect(issue.message).not.toMatch(/[{}]/);
     }
+    expect(issues[2]!.hint).toBeUndefined();
     expect(issues.map((i) => i.message)).toEqual([
       "level-1@4 was made for another build of the game: its entity types or data kinds differ from v7's.",
       "level-1@4 uses scene format 3; v7 reads format 2.",
@@ -1009,6 +1019,9 @@ describe("the engine's issue table", () => {
       "The update to level-1 couldn't be applied while playing; it will load next time.",
       "This game accepts only next load; level-1@4 will reach players then.",
       "This replay needs level-1@3, which was removed.",
+      "The update to level-1 couldn't be staged; the scene keeps the version it runs.",
+      "The update to level-1 couldn't be applied while playing.",
+      "This game accepts now and next load; level-1@4 will reach players then.",
     ]);
     expect(issues[0]!.detail).toEqual({ rule: "build" });
     expect(issues[6]!.hint).toBe("onSwap threw: boom");

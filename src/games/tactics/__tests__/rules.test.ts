@@ -9,6 +9,7 @@ import {
   legal,
   reachCells,
   reachField,
+  resultOf,
   rollDamage,
   targetsFrom,
 } from "../rules";
@@ -123,6 +124,17 @@ describe("attacks", () => {
     expect(done.snapshot.phase).toBe("over");
     expect(done.log).toEqual(["k hits t for 4", "t falls", "blue wins"]);
     expect(legal(done.snapshot, CLASSES, board())).toEqual([]);
+  });
+});
+
+describe("resultOf", () => {
+  it("is won or lost once a side is gone, open while both stand or with no units at all", () => {
+    expect(resultOf({ k: unit("blue", "knight", [0, 0]) })).toBe("won");
+    expect(resultOf({ t: unit("red", "knight", [0, 0]) })).toBe("lost");
+    expect(
+      resultOf({ k: unit("blue", "knight", [0, 0]), t: unit("red", "knight", [1, 0]) }),
+    ).toBeNull();
+    expect(resultOf({})).toBeNull();
   });
 });
 

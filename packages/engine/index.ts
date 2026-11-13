@@ -73,7 +73,10 @@ export type { ExpandedScene, RuntimeEntity } from "./scene/types";
 export type { GameCommand, GameDefinition, LiveContext, Registry } from "./game/types";
 export {
   acceptedTimings,
+  acceptedTimingsWords,
   clampTiming,
+  diffWords,
+  LIVE_CHECK_AGAIN_TICKS,
   LIVE_DEFAULTS,
   swapStrategyFor,
   timingWords,

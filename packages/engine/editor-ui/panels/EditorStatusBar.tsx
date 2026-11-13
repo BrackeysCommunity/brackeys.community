@@ -209,14 +209,27 @@ const LIVE_TONES: Readonly<Record<LivePlayStatus["tone"], TextTone>> = {
   failed: "danger",
 };
 
+/** Live in Play's status line while it is on and no update is under way. */
+export const LIVE_PLAY_IDLE = "Live in Play: waiting for edits";
+
 /**
- * Live in Play's status line while playing: the update staging, then how it
- * was applied, when it will apply under the game's timings, or why it
- * wasn't. Nothing while Live in Play is off or before the first edit.
+ * Live in Play's status line while playing: waiting for edits, the update
+ * staging, then how it was applied, when it will apply under the game's
+ * timings, or why it wasn't. Nothing while Live in Play is off.
  */
 export function LiveInPlayStatus({ host }: { host: ReadableStore<EditorHostState> }) {
+  const on = useStoreValue(host, (s) => s.livePlay?.on ?? false);
   const status = useStoreValue(host, (s) => (s.livePlay?.on ? s.livePlay.status : null));
-  if (!status) return null;
+  if (!on) return null;
+  if (!status) {
+    return (
+      <Island role="status" className="je-scene-changed je-live-status" data-live="idle">
+        <Text size="sm" variant="muted" ellipsis>
+          {LIVE_PLAY_IDLE}
+        </Text>
+      </Island>
+    );
+  }
   // A failure or a wait can outrun the island: its hint holds the whole reason.
   const detail =
     status.tone === "failed" || status.tone === "waiting" ? statusDetail(status) : null;

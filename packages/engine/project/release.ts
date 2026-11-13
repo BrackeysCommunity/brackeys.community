@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { ID_PATTERN } from "../game/fields";
 import { SAVE_VERSION } from "../game/save-file";
 import type { TimeKind } from "../game/time";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
@@ -11,7 +10,7 @@ import { RECORDING_VERSION, type RunRecording } from "../scene/recording-schema"
 import { SCENE_FORMAT_VERSION, type SceneIssue } from "../scene/types";
 import { COLLAB_LAYOUT_VERSION } from "../version";
 import { canonicalJson, stableJson } from "./canonical";
-import { sha256, SHA256_PATTERN } from "./hash";
+import { sha256 } from "./hash";
 import type { DocLayout } from "./kinds";
 import { byCodeUnit } from "./kinds/define";
 import { readJsonDocument, zodSceneIssues } from "./project-file";
@@ -32,6 +31,7 @@ import type {
   Sha256,
 } from "./types";
 import { assetPathProblem } from "./view";
+import { formatField, idField, kindNameField, sha256Field } from "./zod-fields";
 
 /** The release manifest format version, the `v` every `release.json` carries. */
 export const RELEASE_VERSION = 1;
@@ -242,15 +242,8 @@ export type ReleaseRecordingRef = Pick<RunRecording, "project" | "engine"> & {
 
 // ─── Schema ──────────────────────────────────────────────
 
-const sha256Field = (description: string) => z.string().regex(SHA256_PATTERN).describe(description);
-const idField = (description: string) => z.string().regex(ID_PATTERN).describe(description);
 const count = (description: string) => z.number().int().nonnegative().describe(description);
-const format = (description: string) => z.number().int().positive().describe(description);
 const buildPath = (description: string) => z.string().min(1).describe(description);
-const kindName = z
-  .string()
-  .min(1)
-  .describe("An asset kind: an engine kind's name, or `<game>/<kind>` for a game's.");
 const idList = (description: string) => z.array(idField("An asset id.")).describe(description);
 const bundleSchema = (description: string) =>
   z
@@ -275,7 +268,7 @@ const fileSchema = z
 const assetSchema = z
   .strictObject({
     key: z.string().min(1).describe("The asset's registry key, which never changes."),
-    kind: kindName,
+    kind: kindNameField,
     path: z
       .string()
       .refine((p) => assetPathProblem(p) === null, { message: "not a project-relative path" })
@@ -351,12 +344,12 @@ const manifestSchema = z
         agentSurface: count("AGENT_SURFACE_VERSION of the build."),
         formats: z
           .strictObject({
-            scene: format("The scene format version."),
-            prefab: format("The prefab format version."),
-            recording: format("The recording format version."),
-            inputScript: format("The input script format version."),
-            save: format("The save file format version."),
-            collabLayout: format("The collab layout version."),
+            scene: formatField("The scene format version."),
+            prefab: formatField("The prefab format version."),
+            recording: formatField("The recording format version."),
+            inputScript: formatField("The input script format version."),
+            save: formatField("The save file format version."),
+            collabLayout: formatField("The collab layout version."),
           })
           .describe("The format versions a reader of this build's files must accept."),
       })
@@ -369,7 +362,7 @@ const manifestSchema = z
           .min(1)
           .nullable()
           .describe("The game's configHash; null when it declares none."),
-        saveVersion: format("The game's save version.")
+        saveVersion: formatField("The game's save version.")
           .nullable()
           .describe("The game's save version; null when it has no saves."),
       })
@@ -381,7 +374,7 @@ const manifestSchema = z
         snapshot: sha256Field("The project snapshot's hash; releaseSnapshot rebuilds it."),
         snapshotEngine: z.string().min(1).describe("The engine version that took the snapshot."),
         build: z
-          .record(kindName, sha256Field("The kind's schema hash."))
+          .record(kindNameField, sha256Field("The kind's schema hash."))
           .describe("The snapshot's per-kind schema hashes."),
       })
       .describe("The project the build was made from."),
@@ -413,7 +406,7 @@ const manifestSchema = z
     time: z
       .strictObject({
         kind: z.enum(["fixed", "turns", "event"]).describe("The game's time model."),
-        rate: format("Ticks per second."),
+        rate: formatField("Ticks per second."),
         catchUp: z
           .strictObject({ maxMs: count("The longest time caught up, in ms.") })
           .nullable()

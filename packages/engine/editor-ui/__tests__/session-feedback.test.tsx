@@ -33,7 +33,7 @@ import { EditorFrame, editorChrome } from "../frame/EditorFrame";
 import type { EditorHost, EditorNotify, ProjectConnection, ProjectConnectionState } from "../host";
 import { createPending, type Pending } from "../pending/pending";
 import { PendingProvider } from "../pending/use-pending";
-import { SceneEditor } from "../SceneEditor";
+import { OPEN_TIMEOUT_MS, SceneEditor } from "../SceneEditor";
 import {
   editorIdentity,
   openLiveEditor,
@@ -286,6 +286,28 @@ describe("booting", () => {
     await waitFor(() => outliner().getByRole("button", { name: /ledge/ }), { timeout: 10_000 });
     expect(skeletons(container)).toBe(0);
     expect(status()).not.toMatch(/Opening|Building|Connecting/);
+  }, 40_000);
+
+  it("says it couldn't open the scene once it takes too long, and opens it if it comes after all", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const held = { "scene:p.yard": gate() };
+      const { host } = gatedProject(held);
+      render(<SceneEditor host={host} game={yardGame} project="p" scene="yard" rapier={rapier} />);
+      await waitFor(() => expect(status()).toContain("Opening the scene"), PHASE_WAIT);
+      act(() => void vi.advanceTimersByTime(OPEN_TIMEOUT_MS - 1_000));
+      expect(status()).toContain("Opening the scene");
+      act(() => void vi.advanceTimersByTime(1_000));
+      expect(status()).toContain("Couldn't open yard in project p");
+      expect(status()).toContain("The scene server hasn't sent it in 30 s");
+      expect(status()).not.toContain("Opening the scene");
+
+      held["scene:p.yard"].open();
+      await waitFor(() => outliner().getByRole("button", { name: /ledge/ }), { timeout: 10_000 });
+      expect(status()).not.toContain("Couldn't open");
+    } finally {
+      vi.useRealTimers();
+    }
   }, 40_000);
 });
 

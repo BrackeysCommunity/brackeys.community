@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { defineGame, parseSaveFile, SLOT_MAX_LENGTH } from "@jams/engine/game";
+import { defineGame, parseSaveFile, SLOT_MAX_LENGTH, SLOT_RULE } from "@jams/engine/game";
 import { SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
@@ -179,14 +179,12 @@ describe("scene save --flow", { timeout: 60_000 }, () => {
     expect(existsSync(out)).toBe(false);
   });
 
-  it("names the slot rule, with its length from SLOT_MAX_LENGTH", async () => {
+  it("names the slot rule as SLOT_RULE words it", async () => {
     const slot = "a".repeat(SLOT_MAX_LENGTH + 1);
     const out = join(root, "out", `${slot}.save.json`);
     const r = await save({ scene: "grid-yard", script, at: "5", out }, ctx);
     expect(r.exitCode).toBe(2);
-    expect(r.text).toContain(
-      `lowercase letters, digits and dashes, 1–${SLOT_MAX_LENGTH} characters; got "${slot}"`,
-    );
+    expect(r.text).toContain(`${SLOT_RULE}; got "${slot}"`);
     expect(existsSync(out)).toBe(false);
   });
 

@@ -1,13 +1,12 @@
 import { z } from "zod";
 
 import { withProject } from "../game/define";
-import { ID_PATTERN } from "../game/fields";
 import type { Registry } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
 import { makeIssue } from "../scene/issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
 import { parseScene } from "../scene/parse";
-import { parsePrefab, prefabsUsedBy } from "../scene/prefab";
+import { parsePrefab, prefabsUsedBy, reachPrefabs } from "../scene/prefab";
 import {
   PREFAB_KIND,
   type Prefab,
@@ -18,7 +17,7 @@ import {
 import { ENGINE_VERSION } from "../version";
 import { stableJson } from "./canonical";
 import type { ContentStore } from "./content-store";
-import { isSha256, sha256, SHA256_PATTERN } from "./hash";
+import { isSha256, sha256 } from "./hash";
 import { parseAssetDoc, type DocKindDef, type KindEnv, type KindRegistry } from "./kinds";
 import { byCodeUnit } from "./kinds/define";
 import { MATERIAL_KIND } from "./kinds/material";
@@ -43,6 +42,7 @@ import type {
   Sha256,
 } from "./types";
 import { assetPathProblem, projectView } from "./view";
+import { idField, kindNameField, sha256Field } from "./zod-fields";
 
 /** The snapshot format version, the `v` every snapshot carries. */
 export const PROJECT_SNAPSHOT_VERSION = 1;
@@ -93,17 +93,10 @@ export class SnapshotError extends Error {
   }
 }
 
-const sha256Field = (description: string) => z.string().regex(SHA256_PATTERN).describe(description);
-
-const kindName = z
-  .string()
-  .min(1)
-  .describe("An asset kind: an engine kind's name, or `<game>/<kind>` for a game's.");
-
 const snapshotAssetSchema = z
   .strictObject({
     key: z.string().min(1).describe("The asset's registry key, which never changes."),
-    kind: kindName,
+    kind: kindNameField,
     path: z
       .string()
       .refine((p) => assetPathProblem(p) === null, { message: "not a project-relative path" })
@@ -138,7 +131,7 @@ export const projectSnapshotSchema = z
     $schema: z.string().optional().describe("The project snapshot JSON Schema this file follows."),
     kind: z.literal("project-snapshot").describe('Always "project-snapshot".'),
     v: z.literal(PROJECT_SNAPSHOT_VERSION).describe("Snapshot format version."),
-    project: z.string().regex(ID_PATTERN).describe("The id of the project it pins."),
+    project: idField("The id of the project it pins."),
     engine: z.string().min(1).describe("The engine version that wrote it."),
     at: z
       .number()
@@ -146,10 +139,10 @@ export const projectSnapshotSchema = z
       .nonnegative()
       .describe("When it was taken, in ms since the epoch; not part of `hash`."),
     build: z
-      .record(kindName, sha256Field("The kind's schema hash."))
+      .record(kindNameField, sha256Field("The kind's schema hash."))
       .describe("Each kind's schema hash in the newest build that wrote the project."),
     assets: z
-      .record(z.string().regex(ID_PATTERN).describe("An asset id."), snapshotAssetSchema)
+      .record(idField("An asset id."), snapshotAssetSchema)
       .describe("Every live asset by id."),
     hash: sha256Field(
       "SHA-256 of the key-sorted JSON of every field but `at` and `$schema`: equal content gives an equal hash.",
@@ -356,8 +349,9 @@ export function snapshotView(snapshot: ProjectSnapshot, kinds: KindRegistry): Pr
   );
 }
 
-const withId = (id: AssetId, issues: readonly SceneIssue[]): SceneIssue[] =>
-  issues.map((i) => ({ ...i, entityIds: [id, ...i.entityIds] }));
+/** `issues` under asset `id`: each one's `entityIds` starting with it, unless it already does. */
+export const withId = (id: AssetId, issues: readonly SceneIssue[]): SceneIssue[] =>
+  issues.map((i) => (i.entityIds[0] === id ? i : { ...i, entityIds: [id, ...i.entityIds] }));
 
 /** Each text parsed as JSON, by id; a text that isn't JSON is left out. */
 export function jsonValues(texts: ReadonlyMap<AssetId, string>): Map<AssetId, unknown> {
@@ -522,15 +516,30 @@ export async function snapshotScene(
   if (!parsed.ok) throw new SnapshotError(withId(sceneId, parsed.issues));
   const def = parsed.def;
   const prefabs = new Map<string, Prefab>();
-  const pending = prefabsUsedBy(def);
-  for (let id = pending.shift(); id !== undefined; id = pending.shift()) {
-    if (prefabs.has(id)) continue;
-    const asset = assetOf(snapshot, id, PREFAB_KIND, `scene "${sceneId}" reaches prefab`);
-    const read = parsePrefab(await textOf(store, id, asset), pinned);
-    if (!read.ok) throw new SnapshotError(withId(id, read.issues));
-    prefabs.set(id, read.prefab);
-    if (typeof read.prefab.base === "string") pending.push(read.prefab.base);
-    for (const nested of read.prefab.instances ?? []) pending.push(nested.prefab);
+  const texts = new Map<AssetId, string>();
+  // The store is async and the walk isn't: each round fetches what the last one reached.
+  for (let roots = prefabsUsedBy(def); roots.length > 0; ) {
+    for (const id of roots) {
+      if (texts.has(id)) continue;
+      const asset = assetOf(snapshot, id, PREFAB_KIND, `scene "${sceneId}" reaches prefab`);
+      texts.set(id, await textOf(store, id, asset));
+    }
+    const next: AssetId[] = [];
+    reachPrefabs(
+      roots,
+      (id) => {
+        const text = texts.get(id);
+        if (text === undefined) {
+          next.push(id);
+          return undefined;
+        }
+        const read = parsePrefab(text, pinned);
+        if (!read.ok) throw new SnapshotError(withId(id, read.issues));
+        return read.prefab;
+      },
+      prefabs,
+    );
+    roots = next;
   }
   return { def, prefabs, registry: pinned };
 }

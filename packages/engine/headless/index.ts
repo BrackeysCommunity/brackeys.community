@@ -125,7 +125,6 @@ export {
   createRunRecorder,
   recordedSwap,
   REPLAY_ACROSS_PLATFORMS,
-  type RecordedLoad,
   type RecorderOptions,
   type RecordingEnd,
   type RecordingHost,

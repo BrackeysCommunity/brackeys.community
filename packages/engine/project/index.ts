@@ -268,6 +268,7 @@ export {
   type ReleaseTarget,
   type ThirdPartyLicence,
 } from "./release";
+export { liveFiles, type AssetFiles } from "./release-assets";
 export {
   buildSceneVersion,
   checkSceneVersion,

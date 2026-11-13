@@ -16,19 +16,15 @@ import { browserArch, createGame } from "../engine";
 import { createRegistry, defineGame } from "../game/define";
 import type { GameCommand, GameDefinition } from "../game/types";
 import { replayRecording } from "../headless/recording";
-import { sha256 } from "../project/hash";
-import { ENGINE_FORMATS, type ReleaseManifest } from "../project/release";
-import { sceneVersionId, type SceneVersion } from "../project/scene-version";
-import { formatScene } from "../scene/format";
-import { hashText } from "../scene/hash";
+import type { ReleaseManifest } from "../project/release";
 import { parseSceneOrThrow } from "../scene/parse";
 import { parseRecording, type RunRecording } from "../scene/recording-schema";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
 import engineYardJson from "../scenes/engine-yard.json";
 import type { ToolEvent } from "../tool-router";
-import type { GameEventMap, GameInstance, RapierModule, StagedVersion } from "../types";
-import { ENGINE_VERSION } from "../version";
+import type { GameEventMap, GameInstance, RapierModule } from "../types";
 import { loadCompatRapier } from "./fixtures/compat-rapier";
+import { oneSceneVersion } from "./fixtures/live-version";
 import { testGame, type TestGameSnapshot } from "./fixtures/test-game";
 
 vi.mock("../renderer", () => ({
@@ -870,39 +866,6 @@ describe("live versions in a play session", () => {
     entities: markers.map((id, i) => ({ id, type: "marker", at: [1 + i, 1] })),
   });
 
-  /** `hall` with a `well` marker added, as a host hands it to `stage`. */
-  async function wellVersion(): Promise<StagedVersion> {
-    const text = formatScene(hall(["start", "well"])).text;
-    const sha = await sha256(text);
-    const version: SceneVersion = {
-      kind: "scene-version",
-      v: 1,
-      project: "p",
-      scene: "hall",
-      compat: {
-        formats: { scene: ENGINE_FORMATS.scene, prefab: ENGINE_FORMATS.prefab },
-        build: {},
-        game: { id: liveGame.id, configHash: liveGame.configHash ?? null },
-      },
-      engine: ENGINE_VERSION,
-      base: null,
-      entry: { id: "hall", physics: "none", prefabs: [], bundle: { entries: [], bytes: 0 } },
-      sceneHash: hashText(text),
-      assets: {
-        hall: {
-          key: "k-hall",
-          kind: "scene",
-          path: "scenes/hall.json",
-          sha256: sha,
-          bytes: text.length,
-          storage: "doc",
-          file: `live/${sha}.json`,
-        },
-      },
-    };
-    return { id: await sceneVersionId(version), version, texts: new Map([[sha, text]]) };
-  }
-
   async function livePlay() {
     const game = await createGame(document.querySelector("canvas")!, {
       game: liveGame,
@@ -915,7 +878,7 @@ describe("live versions in a play session", () => {
     const failed: GameEventMap["live:failed"][] = [];
     game.on("play:recorded", (r) => recorded.push(r));
     game.on("live:failed", (f) => failed.push(f));
-    const v = await wellVersion();
+    const v = await oneSceneVersion(hall(["start", "well"]), liveGame);
     expect(await game.live.stage(v)).toEqual({ ok: true });
     const versions = (id: string) => (id === v.id ? v : null);
     return { game, recorded, failed, v, versions };

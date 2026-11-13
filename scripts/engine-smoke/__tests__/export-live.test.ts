@@ -25,7 +25,6 @@ import {
   fetchedVersion,
   judgeLive,
   judgeRun,
-  LIVE_DIR,
   LIVE_RUN_TIMEOUT_MS,
   LIVE_TIMING,
   liveFiles,
@@ -124,7 +123,7 @@ describe("the fixture version", () => {
     const shipped = new Set(Object.values(manifest.assets).map((a) => a.sha256));
     const scene = fixture.version.assets[fixture.scene]!;
     expect(scene.storage).toBe("doc");
-    expect(scene.file).toBe(`${LIVE_DIR}/${scene.sha256}.json`);
+    expect(scene.file).toBe(`live/${scene.sha256}.json`);
     expect(shipped.has(scene.sha256)).toBe(false);
     expect(fixture.texts.has(scene.sha256)).toBe(true);
   });
@@ -132,9 +131,9 @@ describe("the fixture version", () => {
   it("writes the overlay's files under live/ and the replay's versions directory", async () => {
     const files = liveFiles(fixture);
     expect([...files.build.keys()].sort()).toEqual(
-      [fixture.id, ...fixture.texts.keys()].map((h) => `${LIVE_DIR}/${h}.json`).sort(),
+      [fixture.id, ...fixture.texts.keys()].map((h) => `live/${h}.json`).sort(),
     );
-    expect(files.build.get(`${LIVE_DIR}/${fixture.id}.json`)).toBe(fixture.versionText);
+    expect(files.build.get(`live/${fixture.id}.json`)).toBe(fixture.versionText);
     for (const [path, text] of files.build) {
       const named = /^live\/([0-9a-f]{64})\.json$/.exec(path)?.[1];
       expect(await sha256(text)).toBe(named);

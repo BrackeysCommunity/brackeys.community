@@ -3,11 +3,10 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry, defineGame } from "../game/define";
 import { clampTiming, type LiveDeclaration, type SwapTiming } from "../game/live";
-import type { SceneVersion } from "../project/scene-version";
-import { createLiveLayer, type PreparedVersion } from "../runtime/live";
-import { expandScene } from "../scene/expand";
+import { createLiveLayer } from "../runtime/live";
 import { ISSUE_CODES } from "../scene/issues";
 import type { SceneDefinition } from "../scene/types";
+import { preparedOf } from "./fixtures/live-version";
 
 const SHA = "c".repeat(64);
 const TIMINGS: readonly SwapTiming[] = ["next-load", "boundary", "now"];
@@ -49,13 +48,7 @@ function layerFor(listed: readonly SwapTiming[] | undefined) {
   });
   const registry = createRegistry(game);
   const layer = createLiveLayer({ game, runtime: () => null });
-  const prepared: PreparedVersion = {
-    id: SHA,
-    version: { scene: "level-1", sceneHash: "h" } as SceneVersion,
-    def: DEF,
-    scene: expandScene(DEF, registry),
-    prefabs: new Map(),
-  };
+  const prepared = preparedOf(SHA, DEF, registry, "level-1");
   return { live, layer, prepared };
 }
 

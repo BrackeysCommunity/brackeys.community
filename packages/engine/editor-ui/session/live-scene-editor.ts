@@ -53,7 +53,7 @@ import {
   type SceneSwap,
   type SwapTiming,
 } from "../../game/index";
-import { acceptedTimings, LIVE_CHECK_AGAIN_TICKS, timingWords } from "../../game/live";
+import { acceptedTimingsWords, diffWords, LIVE_CHECK_AGAIN_TICKS } from "../../game/live";
 import type {
   GameInstance,
   PlayOptions,
@@ -77,6 +77,7 @@ import {
   type ProjectView,
   type Sha256,
 } from "../../project/index";
+import { errorText } from "../../runtime/live";
 import type { SceneRuntimeHandle } from "../../runtime/types";
 import {
   liveIssue,
@@ -145,9 +146,9 @@ export type LivePlayStatus = {
 /** The pending feedback and status line while a live update stages. */
 export const LIVE_PLAY_APPLYING = "Applying live update…";
 
-/** Where a run that played live versions this editor didn't build can be replayed. */
+/** Why a run that played live versions this editor didn't build can't replay here. */
 export const LIVE_VERSIONS_ELSEWHERE =
-  "Replay it with `vp run scene replay --versions <dir>`, which reads the versions it played.";
+  "That version was built outside this editor, so the run replays only where it is kept.";
 
 export type EditorIdentity = {
   origin: Extract<SceneOrigin, { kind: "user" }>;
@@ -491,7 +492,7 @@ export function projectRegistry(
               ? "The art couldn't reload"
               : "The project's edits couldn't apply";
             if (release) release({ error: err, errorTitle });
-            else warnReload(err instanceof Error ? err.message : String(err));
+            else warnReload(errorText(err));
           });
       };
       // The message can arrive before the doc update that carries its hash.
@@ -625,24 +626,14 @@ function withVariantBase(
 /** When a clamped live update reaches the game, and the timings the game takes. */
 function clampedText(timing: SwapTiming, live: LiveDeclaration | undefined): string {
   const when = timing === "next-load" ? "at the next load" : "at the game's next boundary";
-  const accepted = acceptedTimings(live);
-  const takes = (["now", "boundary", "next-load"] as const).filter((t) => accepted.includes(t));
-  const list =
-    takes.length === 1
-      ? `only ${timingWords(takes[0]!)}`
-      : `${takes.slice(0, -1).map(timingWords).join(", ")} and ${timingWords(takes.at(-1)!)}`;
-  return `Live update applies ${when}: this game accepts ${list}`;
+  return `Live update applies ${when}: this game accepts ${acceptedTimingsWords(live)}`;
 }
 
-/** "(reconcile, 3 changed)": how the swap went and how many entities it touched. */
+/** What a swap changed, and that the scene reloaded when it did. */
 function swapSummary(swap: SceneSwap): string {
-  const { added, removed, changed, header } = swap.diff;
-  const n = added.length + removed.length + changed.length;
-  const what = n > 0 ? `${n} changed` : header ? "the header changed" : "nothing changed";
-  return `(${swap.strategy}, ${what})`;
+  const what = diffWords(swap.diff);
+  return swap.strategy === "reload" ? `the scene reloaded (${what})` : what;
 }
-
-const errorOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
 /** The canonical text of a project doc as its file would hold it; null for a kind with no text. */
 function docText(project: ProjectSession, entry: AssetEntry, doc: Y.Doc): string | null {
@@ -730,6 +721,8 @@ function createLivePlay({
   }
 
   const active = () => on && playing && !replaying && unavailable() === null;
+
+  const docHash = () => sceneHashWith(readDoc(doc).def, session.getPrefabs());
 
   function cancel() {
     if (timer !== null) clearTimeout(timer);
@@ -865,7 +858,7 @@ function createLivePlay({
       if (ticket !== run) return;
       fail(
         "Live update not applied",
-        liveIssue({ code: "live-swap-failed", scene, cause: errorOf(err), phase: "stage" }),
+        liveIssue({ code: "live-swap-failed", scene, cause: errorText(err), phase: "stage" }),
       );
     } finally {
       release();
@@ -904,7 +897,7 @@ function createLivePlay({
     try {
       return [...declared.check(ctx)];
     } catch (err) {
-      const cause = `the game's live check threw: ${errorOf(err)}`;
+      const cause = `the game's live check threw: ${errorText(err)}`;
       return [liveIssue({ code: "live-swap-failed", scene, cause, phase: "swap" })];
     }
   }
@@ -939,11 +932,22 @@ function createLivePlay({
     failure = null;
     const n = checkIssues.length;
     const counted = n > 0 ? ` · ${n === 1 ? "1 check issue" : `${n} check issues`}` : "";
-    set({
-      status: { tone: "applied", text: `Live update applied ${swapSummary(swap)}${counted}` },
-      checks: problems(),
+    const summary = swapSummary(swap);
+    // Restart is offered only for edits the game still lacks.
+    const behind = docHash() !== runningHash;
+    host.setState((s) => ({
+      ...s,
+      sceneChanged: behind,
+      livePlay: {
+        ...(s.livePlay ?? initial()),
+        status: { tone: "applied", text: `Live update applied: ${summary}${counted}` },
+        checks: problems(),
+      },
+    }));
+    notify.success("Live update applied", {
+      id: "live-play",
+      description: summary.charAt(0).toUpperCase() + summary.slice(1),
     });
-    notify.success("Live update applied", { id: "live-play", description: swapSummary(swap) });
     offRecheck?.();
     recheckLater(swap);
   };
@@ -984,6 +988,8 @@ function createLivePlay({
       // Off, nothing waiting reaches the game; what already swapped in keeps running.
       if (!on) deactivate();
       set({ on, status: null });
+      // Edits that landed while it was off go in at once.
+      if (on && host.state.sceneChanged) void flush();
     },
     /** Play started, on `def` with `prefabs`, or on a recording. */
     entered(def: SceneDefinition, recording: boolean) {
@@ -996,6 +1002,11 @@ function createLivePlay({
       const reason = unavailable();
       if (reason !== null) on = false;
       set({ on, unavailable: reason, status: null, checks: [] });
+    },
+    /** Before Restart plays the latest doc: that run starts on the doc, not on a version this activated. */
+    restarting() {
+      cancel();
+      deactivate();
     },
     /** Play restarted on the latest doc: what runs is that doc again. */
     restarted(def: SceneDefinition) {
@@ -1417,6 +1428,7 @@ export function openLiveEditor({
     },
     restart() {
       if (!playing) return;
+      livePlay.restarting();
       const played = launch(started, replayed);
       if (played) livePlay.restarted(played);
     },

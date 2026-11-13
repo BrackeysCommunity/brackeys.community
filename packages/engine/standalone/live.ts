@@ -2,6 +2,7 @@ import { LIVE_DEFAULTS, type SwapTiming } from "../game/live";
 import { sha256 } from "../project/hash";
 import { byCodeUnit } from "../project/kinds/define";
 import type { ReleaseAsset, ReleaseManifest } from "../project/release";
+import { liveFiles } from "../project/release-assets";
 import { checkSceneVersion, parseSceneVersion, type SceneVersion } from "../project/scene-version";
 import type { AssetId, Sha256 } from "../project/types";
 import type { SceneRuntimeHandle } from "../runtime/types";
@@ -170,12 +171,13 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
         work.then(resolve, reject).finally(() => signal.removeEventListener("abort", stop));
       });
 
-    const text = await guard(opts.fetchText(`live/${id}.json`));
+    const file = liveFiles.doc(id);
+    const text = await guard(opts.fetchText(file));
     const got = await guard(sha256(text));
     if (got !== id)
       return refuse(
         makeIssue("hash-mismatch", {
-          message: `"live/${id}.json" hashes to ${got}, not the version id ${name} names; a stale cache served another file`,
+          message: `"${file}" hashes to ${got}, not the version id ${name} names; a stale cache served another file`,
           entityIds: [scene],
           expected: id,
           got,

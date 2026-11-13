@@ -17,6 +17,7 @@ import {
   saveFileSchema,
   SLOT_MAX_LENGTH,
   SLOT_PATTERN,
+  SLOT_RULE,
   type SaveFile,
   type SaveGameData,
 } from "../save-file";
@@ -265,8 +266,11 @@ describe("size", () => {
 });
 
 describe("slot names", () => {
-  it("are lowercase letters, digits and dashes, 1–32 characters, not starting with a dash", () => {
+  it("are what SLOT_RULE says: lowercase letters, digits and dashes, 1–32 characters, not starting with a dash", () => {
     expect(SLOT_MAX_LENGTH).toBe(32);
+    expect(SLOT_RULE).toBe(
+      "lowercase letters, digits and dashes, 1–32 characters, starting with a letter or digit",
+    );
     for (const ok of ["a", "slot-1", "0", "auto", "a".repeat(SLOT_MAX_LENGTH)])
       expect(SLOT_PATTERN.test(ok)).toBe(true);
     for (const bad of [

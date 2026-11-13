@@ -22,7 +22,9 @@ export const SAVE_VERSION = 1;
 export const SAVE_SCHEMA_ID = `urn:jams-engine:save:v${SAVE_VERSION}`;
 /** The longest slot name, in characters. */
 export const SLOT_MAX_LENGTH = 32;
-/** A slot name: lowercase letters, digits and dashes, 1–`SLOT_MAX_LENGTH` characters, starting with a letter or digit. */
+/** What a slot name is, in the words every message about one uses. */
+export const SLOT_RULE = `lowercase letters, digits and dashes, 1–${SLOT_MAX_LENGTH} characters, starting with a letter or digit`;
+/** A slot name, as `SLOT_RULE` words it. */
 export const SLOT_PATTERN = new RegExp(`^[a-z0-9][a-z0-9-]{0,${SLOT_MAX_LENGTH - 1}}$`);
 
 /** A `schema` issue at `/slot` when `slot` isn't a slot name, else null. */
@@ -30,7 +32,7 @@ export function slotNameIssue(slot: string): SceneIssue | null {
   return SLOT_PATTERN.test(slot)
     ? null
     : makeIssue("schema", {
-        message: `"${slot}" isn't a slot name: use lowercase letters, digits and dashes, 1–${SLOT_MAX_LENGTH} characters`,
+        message: `"${slot}" isn't a slot name: use ${SLOT_RULE}`,
         path: "/slot",
         got: slot,
       });
@@ -280,10 +282,7 @@ export const saveFileSchema: z.ZodType<SaveFile> = z
       .describe("The project snapshot it was played from; null without one."),
     slot: z
       .string()
-      .regex(
-        SLOT_PATTERN,
-        `a slot is lowercase letters, digits and dashes, 1–${SLOT_MAX_LENGTH} characters`,
-      )
+      .regex(SLOT_PATTERN, `a slot is ${SLOT_RULE}`)
       .describe("The slot it was saved to."),
     meta: metaSchema,
     depth: z.enum(["progress", "world"]).describe("`progress`, or `world` to continue exactly."),

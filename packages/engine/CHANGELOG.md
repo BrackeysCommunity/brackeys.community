@@ -27,10 +27,19 @@ for it.
   check and `game live check` choose reconcile or reload by),
   `versionName(scene, version)` (`level-1@<12 hex>`, or the release's
   own), `timingWords(timing)` and `acceptedTimings(live)` (how a timing
-  reads, and the timings a game takes, `next-load` first), and
-  `utf8Bytes(text)`.
+  reads, and the timings a game takes, `next-load` first),
+  `acceptedTimingsWords(live)` (those timings as the words after "this
+  game accepts ": `only next load`, `boundary and next load`, strongest
+  first; the editor and `live-timing-unsupported` word them with it),
+  `diffWords(diff)` (`3 entities changed, 1 added, 1 removed`, `the
+scene's header changed` or `nothing changed`; the editor's and the CLI's
+  swap summaries), and `utf8Bytes(text)`.
+- `@jams/engine/game` and `.`: `LIVE_CHECK_AGAIN_TICKS` (60), how long
+  after a swap the game's `live.check` runs a second time.
 - `GameDefinition.live`, `GameRuntime.onSwap(swap)` and `ctx.live`
-  (`version`, null for the release's own scene, and `boundary(label?)`).
+  (`version`, null for the release's own scene, and `boundary(label?)`,
+  which counts only inside a step: one from `onLoad`, `onSwap` or between
+  ticks marks nothing).
 - `GameInstance.live` (`stage`, `activate`, `current`, `pending`, `pin`,
   `unpin`) and `StagedVersion`; `GameInstance.replay` takes
   `{ versions? }`; `GameEventMap` gains `live:swapped` and `live:failed`.
@@ -112,8 +121,10 @@ for it.
   reconcile, so what `onSwap` changed outside the diff before it threw (a
   pose, a draw from `ctx.random`) stays changed. A version of a scene
   attached as a sublevel of the one playing comes back from `activate` as
-  `next-load`, clamped: a run attaches the scenes it loaded with, so the
-  sublevel takes it at its first attach after the next load.
+  `next-load`, clamped: the attached sublevel keeps running as it is, and
+  its next attach, in the same run or a later one, uses the version. An
+  attach reads a scene's active version once it moved since the running
+  scene's load; until then, the library the run loaded with.
 - `liveSceneSource(base, live)` and `LiveSceneVersions` (`.`): a
   `SceneSource` that answers `scene(id)` with the scene's active live
   version (`live.sceneFor(id)`) before `base`'s, with `list` and `start`
@@ -157,8 +168,11 @@ for it.
   live version and no swap writes neither.
 - Recordings write `sceneVersion` (the live version a segment started on,
   omitted for the release's own scene) and `swaps` (each applied swap's
-  tick, version, strategy, timing, sceneHash and runHash, in order). A run
-  without swaps writes the same bytes as before. `recordedSwap(swap)`
+  tick, version, strategy, timing, sceneHash and runHash, in order). A
+  version of another listed scene activated during the segment is written
+  there too, as a `next-load` entry at its tick, so a replay activates it
+  before the attach that used it. A run without swaps writes the same
+  bytes as before. `recordedSwap(swap)`
   (`./headless`) turns a `SceneSwap` into its recorded entry.
 - `replayRecording` takes `versions` (id -> `StagedVersion | null`; look
   one up with `findSceneVersion`): a segment's `sceneVersion` is read with
@@ -185,8 +199,13 @@ for it.
   strategy or run hash reported stale (a dev warning). A version the host
   can't give ends the replay with `scene-version-removed` (at the start it
   doesn't start; at a swap it stops on that tick, `detail.tick`, reported
-  on `live:failed`). The scene's own live version comes back at Stop.
-  Play's session recordings carry `sceneVersion` from `ctx.live.version`.
+  on `live:failed`). The scene's own live version comes back at Stop, as
+  does that of each scene a recorded `next-load` entry activated. Play's
+  session recordings carry `sceneVersion` from `ctx.live.version`.
+  `GameInstance.play(doc)` runs the doc as its own unless it is the active
+  version's scene (the same scene hash): `ctx.live.version` is null, the
+  recording has no `sceneVersion`, and the next swap's `from` names the
+  doc's scene hash, whatever version the scene's loads use.
 - `bootStandalone` in a hosted frame says `features: ["live"]` in
   `hello`. It stages `welcome.live` before `flow.restart()`: the start
   scene waits for its own version, up to 60 s, and starts on the release's
@@ -201,7 +220,7 @@ for it.
   everything under one 60 s deadline, then activates at the pointer's
   timing. It reports `staging`, `ready`, `waiting`, `applied`, `refused`
   and `failed`, with one staging per scene at a time; a sublevel's version
-  is `applied` at its first attach after the next load. A scene that
+  is `applied` at its next attach. A scene that
   leaves the snapshot goes back to the release's own. New:
   `LiveController.settled(scene)`, and `LiveControllerOptions.files`, the
   blob overlay that the standalone loader's URL function reads.
@@ -211,7 +230,8 @@ for it.
   staged and activated `now` on the running game, through the same stage,
   swap and onSwap path a live update takes; nothing is uploaded. The play
   bar's status line says "Applying live update…", then "Live update
-  applied (reconcile, 3 changed)", when a clamped timing will apply, or
+  applied: 3 entities changed" (or "the scene reloaded (…)"), when a
+  clamped timing will apply, or
   the issue, whose whole text a hint holds. A header edit reloads with
   capture and restore. The game's `live.check` runs right after the swap
   and 60 ticks later; its issues, and the last failed update's until one
@@ -237,6 +257,13 @@ for it.
   follower or sensor.
 - `FramePanels.reveal` and `EditorControls.reveal`: bring refs a panel
   selects into the canvas's view.
+- `@jams/engine/game`: `SLOT_RULE`, what a slot name is in the words every
+  message about one uses (`slotNameIssue`, the save envelope's `slot`,
+  `vp run scene save`'s `--out`): lowercase letters, digits and dashes,
+  1–`SLOT_MAX_LENGTH` characters, starting with a letter or digit.
+- `@jams/engine/project`: `liveFiles` and `AssetFiles`, a scene version's
+  file layout (`live/<sha256>.json`, `live/<sha256><ext>`) as the export,
+  the standalone loader and the smoke share it.
 - `castSpawn` and `CastResult` are exported from `@jams/engine/game`: a
   game's `onSwap` settles an actor the way play from here settles a start,
   carried along gravity onto the first non-sensor collider and refused
@@ -320,7 +347,11 @@ for it.
 - Issue codes `live-incompatible`, `live-scene-unlisted`, `live-physics`,
   `live-asset-conflict`, `live-swap-failed` and `scene-version-removed`
   (errors) and `live-timing-unsupported` (warn). `live-incompatible` with
-  `detail.rule: "game"` carries no hint. The swap check's script for
+  `detail.rule: "game"` carries no hint. `live-swap-failed` words a
+  staging failure (`detail.phase: "stage"`) as the scene keeping the
+  version it runs, and only a refused swap step or a throwing `onSwap`
+  as loading next time; the swap check's run that ended before the swap
+  has no phase. The swap check's script for
   another scene carries the playtest's hint.
 - The recording schema's `sceneVersion` and `swaps`.
 - The scene schema's spawner `fields`; the input-script schema's `nav`

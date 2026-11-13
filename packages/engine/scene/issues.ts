@@ -1,4 +1,4 @@
-import { acceptedTimings, timingWords, type SwapTiming } from "../game/live";
+import { acceptedTimingsWords, type SwapTiming } from "../game/live";
 import type { AssetId } from "../project/types";
 import type { MigrationRefusal } from "./migrate";
 import type { EngineIssueCode, IssueCode, IssueCodeInfo, SceneIssue } from "./types";
@@ -571,7 +571,7 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
   "live-swap-failed": {
     severity: "error",
     summary:
-      "A new version of a scene couldn't be applied while playing: staging failed, a swap step refused, or the game's `onSwap` threw. The old version keeps running and the new one loads next time; `detail.phase` names the step.",
+      "A new version of a scene couldn't be staged or applied while playing; `detail.phase` names the step. Staging failed (`stage`): the scene keeps the version it runs. A swap step refused (`swap`) or the game's `onSwap` threw (`onSwap`): the old version keeps running and the new one loads next time.",
     hint: "The issue's own hint is the onSwap error or the step that refused.",
     fixable: false,
   },
@@ -634,6 +634,18 @@ export type LiveIssueInput =
       kept?: { newest: number; days: number };
     };
 
+/**
+ * A failed staging keeps the version the scene runs; a failed swap step
+ * has already made the new version the one the scene's next load uses.
+ * Without a phase nothing is promised.
+ */
+function swapFailedMessage(scene: AssetId, phase: "stage" | "swap" | "onSwap" | undefined): string {
+  if (phase === "stage")
+    return `The update to ${scene} couldn't be staged; the scene keeps the version it runs.`;
+  if (phase === undefined) return `The update to ${scene} couldn't be applied while playing.`;
+  return `The update to ${scene} couldn't be applied while playing; it will load next time.`;
+}
+
 /** A live-level issue with its message and hint worded and its values filled in. */
 export function liveIssue(input: LiveIssueInput): SceneIssue {
   switch (input.code) {
@@ -675,7 +687,7 @@ export function liveIssue(input: LiveIssueInput): SceneIssue {
       });
     case "live-swap-failed":
       return makeIssue(input.code, {
-        message: `The update to ${input.scene} couldn't be applied while playing; it will load next time.`,
+        message: swapFailedMessage(input.scene, input.phase),
         hint: input.cause,
         entityIds: [input.scene],
         ...(input.phase || input.reason || input.entityId !== undefined
@@ -688,12 +700,10 @@ export function liveIssue(input: LiveIssueInput): SceneIssue {
             }
           : {}),
       });
-    case "live-timing-unsupported": {
-      const accepted = acceptedTimings({ timings: input.accepted });
+    case "live-timing-unsupported":
       return makeIssue(input.code, {
-        message: `This game accepts only ${accepted.map(timingWords).join(" or ")}; ${input.version} will reach players then.`,
+        message: `This game accepts ${acceptedTimingsWords({ timings: input.accepted })}; ${input.version} will reach players then.`,
       });
-    }
     case "scene-version-removed":
       return makeIssue(input.code, {
         message: `This replay needs ${input.version}, which was removed${input.removedOn ? ` on ${input.removedOn}` : ""}.`,

@@ -2,7 +2,13 @@ import { createColliderTags } from "../collider-tags";
 import { SPRITE } from "../game/behaviors/sprite";
 import { DEFAULT_GRAVITY } from "../game/defaults";
 import { createRegistry } from "../game/define";
-import { flowIssue, type FlowRequest, type SceneLibrary, type SublevelInfo } from "../game/flow";
+import {
+  flowIssue,
+  type FlowRequest,
+  type LibraryScene,
+  type SceneLibrary,
+  type SublevelInfo,
+} from "../game/flow";
 import { physicsOf, PhysicsRequiredError } from "../game/physics-of";
 import { sublevelLabelOf } from "../game/runtime-ids";
 import { SAVE_RANDOM_KEY, type SavedSystems, type WorldState } from "../game/save-file";
@@ -112,7 +118,9 @@ function sameValue(a: unknown, b: unknown): boolean {
   );
 }
 
-const errorOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
+/** A thrown value as message text: an `Error`'s message, else the value as a string. */
+export const errorText = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
 
 /** The key a runtime keeps what world saves reach under on its context. */
 export const SAVE_HOST: unique symbol = Symbol("save host");
@@ -142,6 +150,15 @@ export type SaveHost = {
   restoreWorld(world: WorldState, sublevels: readonly SublevelInfo[]): SceneIssue | null;
   /** Ticks played under the runtime's persist cell, across its scenes. */
   playClock(): PlayClock;
+};
+
+/**
+ * The `live` option as the runtime reads it. A live layer's hooks also
+ * answer `sublevel`: the scene an attach of `id` uses in place of the run's
+ * library's when its active version moved since the load, else null.
+ */
+type RuntimeLive = NonNullable<SceneRuntimeOptions["live"]> & {
+  sublevel?(id: AssetId): LibraryScene | null;
 };
 
 export function saveHostOf(ctx: EngineContext): SaveHost | undefined {
@@ -312,7 +329,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   let flowEntry: string | null = null;
   /** The scene library the loaded scene's run keeps, read once at its load. */
   let runScenes: SceneLibrary | null = null;
-  const live = opts.live ?? { version: () => null, boundary: () => {} };
+  const live: RuntimeLive = opts.live ?? { version: () => null, boundary: () => {} };
   const ctx: EngineContext = {
     get rapier() {
       return onRapier ? (rapier ?? null) : null;
@@ -491,7 +508,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   const sublevels = createSublevels({
     ctx,
     registry,
-    library: () => runScenes,
+    library: attachLibrary,
     main: () => mainScene,
     holds: (label) => lifecycle.holdsSublevel(label),
     place(entities) {
@@ -524,6 +541,20 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   Object.defineProperty(ctx, FLOW_LOADER, { value: flowLoader });
   Object.defineProperty(ctx, SAVE_REGISTRY, { value: saveRegistry });
   const game: GameRuntime | null = gameDef ? gameDef.createRuntime(ctx) : null;
+
+  /** The run's library, with each scene whose live version moved since the load as the live layer has it now. */
+  function attachLibrary(): SceneLibrary | null {
+    const library = runScenes;
+    if (!library || !live.sublevel) return library;
+    let scenes: Map<AssetId, LibraryScene> | null = null;
+    for (const { scene } of library.list) {
+      const moved = live.sublevel(scene);
+      if (!moved) continue;
+      scenes ??= new Map(library.scenes);
+      scenes.set(scene, moved);
+    }
+    return scenes ? { list: library.list, scenes } : library;
+  }
 
   function inGame<T>(hook: () => T): T {
     inGameHook = true;
@@ -713,7 +744,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     } catch (err) {
       if (byId.size === 0) for (const e of spawned.reverse()) leaving(e);
       unload();
-      const report: Extract<LoadReport, { ok: false }> = { ok: false, error: errorOf(err) };
+      const report: Extract<LoadReport, { ok: false }> = { ok: false, error: errorText(err) };
       const entityId = current ?? (err instanceof PhysicsRequiredError ? err.entityId : undefined);
       if (entityId !== undefined) report.entityId = entityId;
       if (err instanceof PhysicsRequiredError) report.reason = "physics-required";
@@ -739,7 +770,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       } catch (err) {
         for (let i = spawned.length - 1; i >= 0; i--) despawnEntity(spawned[i]!);
         ctx.physics?.refreshQueries();
-        return { ok: false, error: errorOf(err), entityId: e.id };
+        return { ok: false, error: errorText(err), entityId: e.id };
       }
       spawned.push(e);
     }
@@ -797,7 +828,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
           if (off[i]) lifecycle.keepDisabled(change.prev);
         }
         ctx.physics?.refreshQueries();
-        return { ok: false, error: errorOf(err), entityId: e.id };
+        return { ok: false, error: errorText(err), entityId: e.id };
       }
     }
     for (const { e } of changes) byId.set(e.id, e);
@@ -1081,7 +1112,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     const code =
       err instanceof EngineError && Object.hasOwn(ISSUE_CODES, err.code) ? err.code : "schema";
     return makeIssue(code as IssueCode, {
-      message: `the save can't be restored: ${what}: ${errorOf(err)}`,
+      message: `the save can't be restored: ${what}: ${errorText(err)}`,
       entityIds: entityId ? [entityId] : [],
     });
   }
@@ -1265,7 +1296,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       project = next;
       return behaviors.reloadAssets(changed).map(({ entityId, error, reattached }) => ({
         entityId,
-        error: errorOf(error),
+        error: errorText(error),
         reattached,
       }));
     },

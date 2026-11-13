@@ -86,7 +86,8 @@ export type BuiltGame = {
 /** A build's outcome: the tool result, and the build when one was written. */
 export type GameBuildOutcome = { result: ToolResult; built: BuiltGame | null };
 
-function projectOf(
+/** The project `id` names, or the usage error listing the projects (with a guess). */
+export function projectOf(
   ctx: ToolContext,
   id: string | undefined,
   cmd: string,

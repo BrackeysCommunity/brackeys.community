@@ -20,10 +20,13 @@ import { sceneHashWith } from "../scene/prefab";
 import type { RecordedSwap } from "../scene/recording-schema";
 import type { ExpandedScene, PrefabLibrary, SceneDefinition, SceneIssue } from "../scene/types";
 import type { GameEventMap, GameLive, StagedVersion } from "../types";
+import { flowLoaderOf } from "./flow";
 import { runHash } from "./play-session";
 import { LOAD_GENERATION } from "./pool";
-import { saveHostOf } from "./runtime";
+import { errorText, saveHostOf } from "./runtime";
 import type { SceneRuntimeHandle } from "./types";
+
+export { errorText } from "./runtime";
 
 /** A staged version as the layer keeps it: read, validated and expanded once. */
 export type PreparedVersion = {
@@ -92,8 +95,8 @@ export type LiveApplyResult = { ok: true; swap: SceneSwap } | { ok: false; issue
  * `activate`'s answer: the timing it got, and the issue when it didn't get
  * what was asked (`live-timing-unsupported` for a clamp, `live-swap-failed`
  * for a version that isn't staged). A scene attached as a sublevel of the
- * one playing takes a version only at its next attach, so `boundary` and
- * `now` come back as `next-load`, clamped, with no issue.
+ * one playing takes a version at its next attach, so `boundary` and `now`
+ * come back as `next-load`, clamped, with no issue.
  */
 export type LiveActivation = { timing: SwapTiming; clamped: boolean; issue?: SceneIssue };
 
@@ -107,8 +110,22 @@ export type LiveLayer = Pick<GameLive, "current" | "pending" | "pin" | "unpin"> 
   /** Keeps a read version resident for its scene; a newer one replaces one not yet activated. */
   stage(prepared: PreparedVersion): { ok: true } | { ok: false; issue: SceneIssue };
   activate(scene: AssetId, version: Sha256 | null, timing: SwapTiming): LiveActivation;
-  /** What the runtime's `ctx.live` reads. */
-  readonly hooks: { version(): Sha256 | null; boundary(label?: string): void };
+  /**
+   * What the runtime's `ctx.live` reads, and `sublevel`, which an attach
+   * reads: the scene's active version (or the release's own) once that moved
+   * since the running scene's load, else null for the run's library's.
+   */
+  readonly hooks: {
+    version(): Sha256 | null;
+    boundary(label?: string): void;
+    sublevel(id: AssetId): LibraryScene | null;
+  };
+  /**
+   * The load just made played a definition of the host's own (Play of an
+   * editor's doc) whose scene hash is `sceneHash`: the run's version is the
+   * scene's active one when that is the same scene, else null.
+   */
+  loadedDoc(sceneHash: string): void;
   /** Drops `scene`'s waiting boundary or now swap, keeping its active version: a load has left the scene. */
   dropPending(scene: AssetId): void;
   /** After each tick the host stepped; nothing swaps while paused or while a scene change runs. */
@@ -121,7 +138,12 @@ export type LiveLayer = Pick<GameLive, "current" | "pending" | "pin" | "unpin"> 
   apply(scene: AssetId, prepared: PreparedVersion | null, opts: LiveApplyOptions): LiveApplyResult;
   /** The active version's definition and prefabs for a load or sublevel attach of `id`; null for the release's own. */
   sceneFor(id: AssetId): PreparedVersion | null;
-  /** Calls `fn` after each applied swap; returns the unsubscribe. */
+  /**
+   * Calls `fn` after each applied swap, and when a version of a listed scene
+   * other than the one playing is activated during a run (timing
+   * `next-load`, nothing changed yet): the run's next attach of that scene
+   * uses it, so a recording holds it to replay. Returns the unsubscribe.
+   */
   onApplied(fn: (swap: SceneSwap) => void): () => void;
 };
 
@@ -135,8 +157,6 @@ type Target = {
 
 type Pending = { prepared: PreparedVersion | null; timing: SwapTiming };
 
-const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
-
 export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
   const live = opts.game?.live;
   /** Read but not yet activated, one per scene. */
@@ -147,9 +167,15 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
   const listeners = new Set<(swap: SceneSwap) => void>();
   let pinned = false;
   let marked = false;
-  /** The main scene the runtime plays and its version, as of the load `seen` names. */
-  let running: { scene: AssetId; version: PreparedVersion | null } | null = null;
+  /**
+   * The main scene the runtime plays and its version, as of the load `seen`
+   * names; `sceneHash` when the load played a definition of the host's own.
+   */
+  let running: { scene: AssetId; version: PreparedVersion | null; sceneHash?: string } | null =
+    null;
   let seen: { runtime: SceneRuntimeHandle; generation: number } | null = null;
+  /** Scenes whose active version changed since the running scene's load: an attach of one reads it. */
+  const moved = new Set<AssetId>();
 
   const generationOf = (rt: SceneRuntimeHandle): number =>
     (rt.ctx as { [LOAD_GENERATION]?: () => number })[LOAD_GENERATION]?.() ?? 0;
@@ -176,6 +202,7 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
     running =
       rt.scene() !== null && scene !== null ? { scene, version: active.get(scene) ?? null } : null;
     pending.clear();
+    moved.clear();
     return rt;
   }
 
@@ -185,6 +212,7 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
   }
 
   function setActive(scene: AssetId, prepared: PreparedVersion | null): void {
+    if ((active.get(scene)?.id ?? null) !== (prepared?.id ?? null)) moved.add(scene);
     if (prepared) active.set(scene, prepared);
     else active.delete(scene);
   }
@@ -228,19 +256,60 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
     prefabs: p.prefabs,
   });
 
+  /** The main scene as it loaded and the prefabs the run froze. */
+  function loadedOf(rt: SceneRuntimeHandle): { main: ExpandedScene; library: PrefabLibrary } {
+    const host = saveHostOf(rt.ctx);
+    return { main: host?.mainScene() ?? rt.scene()!, library: host?.prefabs() ?? new Map() };
+  }
+
   /** The side a swap leaves: the running version's hashes, or the release's own. */
   function fromSide(rt: SceneRuntimeHandle, scene: AssetId): SceneSwap["from"] {
-    const host = saveHostOf(rt.ctx);
-    const main = host?.mainScene() ?? rt.scene()!;
-    const library = host?.prefabs() ?? new Map();
-    const version = running?.scene === scene ? running.version : null;
-    const own = version ? null : opts.release?.(scene);
+    const { main, library } = loadedOf(rt);
+    const playing = running?.scene === scene ? running : null;
+    const version = playing?.version ?? null;
+    const own = version || playing?.sceneHash ? null : opts.release?.(scene);
     const sceneHash = version
       ? version.version.sceneHash
-      : own
-        ? sceneHashWith(own.def, own.prefabs)
-        : hashText(stableJson(main));
+      : (playing?.sceneHash ??
+        (own ? sceneHashWith(own.def, own.prefabs) : hashText(stableJson(main))));
     return { version: version?.id ?? null, sceneHash, runHash: hashRun(rt, main, library) };
+  }
+
+  /**
+   * After `scene`, listed but not the one playing, took `prepared` during a
+   * run: the listeners hear it as a `next-load` swap that changed nothing
+   * yet, which the run's next attach of the scene uses.
+   */
+  function activatedOff(
+    rt: SceneRuntimeHandle,
+    scene: AssetId,
+    prepared: PreparedVersion,
+    before: PreparedVersion | null,
+  ): void {
+    if (
+      !flowLoaderOf(rt.ctx)
+        ?.current()
+        ?.list.some((e) => e.scene === scene)
+    )
+      return;
+    const { main, library } = loadedOf(rt);
+    const runHash = hashRun(rt, main, library);
+    const own = before ? null : opts.release?.(scene);
+    const swap: SceneSwap = {
+      scene,
+      from: {
+        version: before?.id ?? null,
+        sceneHash: before?.version.sceneHash ?? (own ? sceneHashWith(own.def, own.prefabs) : ""),
+        runHash,
+      },
+      to: { version: prepared.id, sceneHash: prepared.version.sceneHash, runHash },
+      strategy: "reload",
+      carried: "all",
+      diff: { added: [], removed: [], changed: [], header: false },
+      timing: "next-load",
+      tick: rt.ctx.tick,
+    };
+    for (const fn of [...listeners]) fn(swap);
   }
 
   /** Whether `scene` is attached as a sublevel of the scene playing. */
@@ -261,10 +330,10 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
     applyOpts: LiveApplyOptions,
   ): LiveApplyResult {
     const version = prepared?.id ?? null;
+    const rt = sync();
     setActive(scene, prepared);
     const refuse = (cause: string, phase: "swap" | "onSwap") =>
       failed(scene, version, liveIssue({ code: "live-swap-failed", scene, cause, phase }));
-    const rt = sync();
     if (!rt || running?.scene !== scene) return refuse(`${scene} isn't the scene playing`, "swap");
     let target: Target | null;
     try {
@@ -324,7 +393,7 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
       return { ok: true };
     },
     activate(scene, version, timing) {
-      sync();
+      const rt = sync();
       const game = clampTiming(live, timing);
       const out: LiveActivation = game.clamped
         ? {
@@ -353,12 +422,15 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
         prepared = found;
       }
       if (staged.get(scene)?.id === version) staged.delete(scene);
+      const before = active.get(scene) ?? null;
       setActive(scene, prepared);
       pending.delete(scene);
       const swaps = clamp.timing !== "next-load";
       if (swaps && running?.scene === scene && (running.version?.id ?? null) !== version) {
         pending.set(scene, { prepared, timing: clamp.timing });
       }
+      if (rt && running && running.scene !== scene && prepared && before?.id !== prepared.id)
+        activatedOff(rt, scene, prepared, before);
       return out;
     },
     current: (scene) => active.get(scene)?.id ?? null,
@@ -368,13 +440,14 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
         return { scene, version: p.prepared?.id ?? null, timing: p.timing };
       }),
     pin(versions) {
+      sync();
       pinned = true;
       pending.clear();
       for (const [scene, version] of Object.entries(versions)) {
         const found = [staged.get(scene), active.get(scene)].find((p) => p?.id === version);
         if (!found) continue;
         if (staged.get(scene) === found) staged.delete(scene);
-        active.set(scene, found);
+        setActive(scene, found);
       }
     },
     unpin() {
@@ -389,8 +462,29 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
         return running?.version?.id ?? null;
       },
       boundary: () => {
-        marked = true;
+        const rt = opts.runtime();
+        if (rt && saveHostOf(rt.ctx)?.stepping()) marked = true;
       },
+      sublevel(id) {
+        sync();
+        if (!moved.has(id)) return null;
+        return active.get(id) ?? opts.release?.(id) ?? null;
+      },
+    },
+    loadedDoc(sceneHash) {
+      const rt = opts.runtime();
+      if (!rt) return;
+      seen = { runtime: rt, generation: generationOf(rt) };
+      const scene = sceneIdOf(rt);
+      const version = scene === null ? undefined : active.get(scene);
+      running =
+        rt.scene() === null || scene === null
+          ? null
+          : version?.version.sceneHash === sceneHash
+            ? { scene, version }
+            : { scene, version: null, sceneHash };
+      pending.clear();
+      moved.clear();
     },
     afterTick({ paused, changing }) {
       const boundary = marked;
@@ -460,10 +554,10 @@ const strategyWord = (s: SwapStrategy) => (s === "reload" ? "reloaded" : "reconc
  * Replays a recording's swaps, the one way the shell and headless replays
  * do it: before each tick, every swap recorded for it goes through the live
  * layer with its recorded timing and strategy. A `next-load` swap only
- * stages and activates, since the load that used it is in the recording
- * already. A swap whose tick already passed, that doesn't apply, or that
- * ran with another strategy or run hash is stale; a version the host can't
- * give stops the replay.
+ * stages and activates: a load that used it is in the recording already,
+ * and a sublevel's next attach in the replay reads it. A swap whose tick
+ * already passed, that doesn't apply, or that ran with another strategy or
+ * run hash is stale; a version the host can't give stops the replay.
  */
 export function createSwapReplay(opts: SwapReplayOptions): {
   before(tick: number): SwapReplayStop | null;

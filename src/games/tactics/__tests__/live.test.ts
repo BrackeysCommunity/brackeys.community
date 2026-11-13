@@ -1,12 +1,12 @@
 // @vitest-environment node
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import type { StagedVersion } from "@jams/engine";
+import { projectInput } from "@jams/engine-testing";
+import type { ExportInput } from "@jams/engine/export";
 import {
   cellKey,
-  withProject,
   type Cell,
   type GameCommand,
   type GameDefinition,
@@ -19,16 +19,7 @@ import {
   swapCheck,
   type InputScriptV2,
 } from "@jams/engine/headless";
-import {
-  buildSceneVersion,
-  heldProject,
-  parseSidecar,
-  sceneListFlow,
-  snapshotProject,
-  type HeldFile,
-  type ProjectSnapshot,
-  type ProjectView,
-} from "@jams/engine/project";
+import { buildSceneVersion, sceneListFlow } from "@jams/engine/project";
 import {
   createRegistry,
   expandScene,
@@ -111,75 +102,13 @@ const poseCell = (rt: Run, id: string): Cell => {
 };
 
 const GAME_DIR = fileURLToPath(here("../"));
-/** The project's asset folders and files, as `jams.project.json` lists them. */
-const ASSET_ROOTS = [
-  "scenes",
-  "data",
-  "art",
-  "game-settings.json",
-  "input-map.json",
-  "scene-list.json",
-];
 
-type ProjectInput = {
-  view: ProjectView;
-  /** Each doc's text, by asset id. */
-  texts: Map<string, string>;
-  snapshot: ProjectSnapshot;
-  game: GameDefinition<TacticsRunSnapshot>;
-  registry: ReturnType<typeof createRegistry>;
-};
+let input: ExportInput;
 
-/** The game's project as the scene CLI reads it from disk: its docs, and its binaries by sidecar. */
-async function readProject(): Promise<ProjectInput> {
-  const files: HeldFile[] = [];
-  const byPath = new Map<string, string>();
-  const add = (path: string) => {
-    if (path.endsWith(".asset.json")) return;
-    const car = `${join(GAME_DIR, path)}.asset.json`;
-    const parsed = existsSync(car) ? parseSidecar(JSON.parse(readFileSync(car, "utf8"))) : null;
-    const sidecar = parsed?.ok ? parsed.sidecar : null;
-    if (sidecar?.sha256 !== undefined) files.push({ path, sidecar });
-    else if (path.endsWith(".json")) {
-      const text = readFileSync(join(GAME_DIR, path), "utf8");
-      byPath.set(path, text);
-      files.push({ path, json: JSON.parse(text), sidecar });
-    }
-  };
-  const walk = (path: string) => {
-    const full = join(GAME_DIR, path);
-    if (!statSync(full).isDirectory()) return add(path);
-    for (const name of readdirSync(full).sort())
-      walk(relative(GAME_DIR, join(full, name)).split("\\").join("/"));
-  };
-  for (const root of ASSET_ROOTS) walk(root);
-  const held = heldProject(files, registry, { projectId: "tactics", name: "Tactics" });
-  const texts = new Map<string, string>();
-  const values = new Map<string, unknown>();
-  for (const entry of held.view.byId.values()) {
-    const text = byPath.get(entry.path);
-    if (text === undefined) continue;
-    texts.set(entry.id, text);
-    values.set(entry.id, JSON.parse(text));
-  }
-  return {
-    view: held.view,
-    texts,
-    snapshot: await snapshotProject(held.view, texts, held.view.state.build),
-    game: tacticsGame,
-    registry: withProject(createRegistry(tacticsGame), held.view, values),
-  };
-}
-
-let input: ProjectInput;
-
-/** Level 1 with `add` appended to its entities, built into a version from the project's files. */
-async function versionWith(add: readonly EntityDef[]): Promise<StagedVersion> {
+/** Level 1 as `level` (as committed when omitted), built into a version from the project's files. */
+async function versionOf(level?: SceneDefinition): Promise<StagedVersion> {
   const texts = new Map(input.texts);
-  if (add.length > 0) {
-    const def = JSON.parse(input.texts.get(SCENE)!) as SceneDefinition;
-    texts.set(SCENE, formatScene({ ...def, entities: [...(def.entities ?? []), ...add] }).text);
-  }
+  if (level) texts.set(SCENE, formatScene(level).text);
   const built = await buildSceneVersion({
     view: input.view,
     texts,
@@ -192,6 +121,14 @@ async function versionWith(add: readonly EntityDef[]): Promise<StagedVersion> {
   return { id: built.id, version: built.version, texts: built.texts };
 }
 
+const level1 = () => JSON.parse(input.texts.get(SCENE)!) as SceneDefinition;
+
+/** Level 1 with `add` appended to its entities. */
+function versionWith(add: readonly EntityDef[]): Promise<StagedVersion> {
+  const def = level1();
+  return versionOf({ ...def, entities: [...(def.entities ?? []), ...add] });
+}
+
 /** A one-cell wall like the fixture's, on `cell`. */
 const wallOn = (cell: Cell): EntityDef => ({
   ...EDIT.add[0]!,
@@ -200,7 +137,7 @@ const wallOn = (cell: Cell): EntityDef => ({
 });
 
 beforeAll(async () => {
-  input = await readProject();
+  ({ input } = await projectInput(GAME_DIR, tacticsGame));
 });
 
 describe("tactics live levels", () => {
@@ -254,40 +191,28 @@ describe("tactics live levels", () => {
   });
 
   it("re-indexes a unit the new version moves, and adds one it places", async () => {
-    const level = JSON.parse(input.texts.get(SCENE)!) as SceneDefinition;
-    const moved = {
-      ...level,
-      instances: (level.instances ?? []).map((i) =>
-        i.id === "blue-archer" ? { ...i, at: [2.5, 4.5] as [number, number] } : i,
-      ),
-    } as SceneDefinition;
+    const level = level1();
     const placed = {
       id: "red-scout",
       prefab: "knight",
       at: [9.5, 1.5] as [number, number],
       params: { side: "red" },
     };
-    const texts = new Map(input.texts);
-    texts.set(
-      SCENE,
-      formatScene({ ...moved, instances: [...(moved.instances ?? []), placed] } as SceneDefinition)
-        .text,
-    );
-    const built = await buildSceneVersion({
-      view: input.view,
-      texts,
-      build: input.snapshot.build,
-      game: input.game,
-      registry: input.registry,
-      scene: SCENE,
-    });
-    if (!built.ok) throw new Error(JSON.stringify(built.issues, null, 2));
+    const version = await versionOf({
+      ...level,
+      instances: [
+        ...(level.instances ?? []).map((i) =>
+          i.id === "blue-archer" ? { ...i, at: [2.5, 4.5] as [number, number] } : i,
+        ),
+        placed,
+      ],
+    } as SceneDefinition);
     const rt = start(anyTick);
     try {
-      rt.live.stage({ id: built.id, version: built.version, texts: built.texts });
-      rt.live.activate(SCENE, built.id, "now");
+      rt.live.stage(version);
+      rt.live.activate(SCENE, version.id, "now");
       const s = step(rt);
-      expect(rt.ctx.live.version).toBe(built.id);
+      expect(rt.ctx.live.version).toBe(version.id);
       expect(s.units["blue-archer/unit"]!.cell).toEqual(poseCell(rt, "blue-archer/unit"));
       expect(s.units["red-scout/unit"]).toMatchObject({
         side: "red",
@@ -323,7 +248,7 @@ describe("tactics live levels", () => {
   });
 
   it("passes the swap check on the fixture version", async () => {
-    const from = await versionWith([]);
+    const from = await versionOf();
     const to = await versionWith(EDIT.add);
     expect(to.id).not.toBe(from.id);
     const report = swapCheck({

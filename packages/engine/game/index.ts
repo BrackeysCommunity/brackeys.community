@@ -92,6 +92,7 @@ export {
   saveFileSchema,
   SLOT_MAX_LENGTH,
   SLOT_PATTERN,
+  SLOT_RULE,
   type ParseSaveResult,
   type SavedSystems,
   type SavedTimer,
@@ -280,6 +281,7 @@ export type {
 } from "./types";
 export {
   clampTiming,
+  LIVE_CHECK_AGAIN_TICKS,
   LIVE_DEFAULTS,
   type LiveDeclaration,
   type SceneDiff,
