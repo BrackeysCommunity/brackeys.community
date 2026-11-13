@@ -150,6 +150,30 @@ describe("force-area", () => {
     rt.destroy();
   });
 
+  it("takes nothing in a group the game doesn't declare, and keeps stepping", () => {
+    const entities = [
+      area("odd", { force: [2, 0], affects: { groups: ["ghost"] } }, ["box", 0, 0, 3, 3]),
+      area("mixed", { force: [0, 2], affects: { groups: ["ghost", "dynamic"] } }, [
+        "box",
+        10,
+        0,
+        3,
+        3,
+      ]),
+      crate("crate", [0, 0]),
+      crate("other", [10, 0]),
+    ];
+    const issues = validateScene(scene(entities, "rapier"), registry);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.every((i) => i.severity === "warn")).toBe(true);
+    const rt = load(entities);
+    steps(rt, 30);
+    expect(rt.ctx.bodies.velocity("crate")).toEqual({ x: 0, y: 0 });
+    expect(rt.ctx.bodies.velocity("other").y).toBeGreaterThan(0.5);
+    expect(areas(rt).sample({ x: 0, y: 0 }, "crate")).toEqual({ x: 0, y: 0 });
+    rt.destroy();
+  });
+
   it("lifts only the characters affects takes: by tag and by collision group", () => {
     const character = (
       id: string,

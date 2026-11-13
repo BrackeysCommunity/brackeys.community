@@ -3320,7 +3320,8 @@ its README has the batches, and its tests run each).
   alike. A joint on a character or a nav agent holds its motion body. A
   revolute or prismatic joint's `limits` go low, then high. A collider's
   `group` the game doesn't declare is a `schema` error naming the nearest
-  one; a force area's `affects.groups` entry is the same as a warning. A
+  one; a force area's `affects.groups` entry is the same as a warning,
+  and the area takes nothing in that group. A
   type based on a primitive with no system of its own also refuses what
   that primitive refuses (`behavior-forbidden`). A character on a
   dynamic body is `character-body-kind`, since the controller and the

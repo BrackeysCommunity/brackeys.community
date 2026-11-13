@@ -208,6 +208,26 @@ describe("EditorInspector: standard behaviors", () => {
     expect(screen.getByText("Joint needs another entity in the scene to link to.")).toBeTruthy();
   });
 
+  it("disables behaviors that conflict with a top-down character, naming it in each item", async () => {
+    const walker: EntityDef = {
+      ...hero,
+      behaviors: { collider: { shape: ["box", 0, 0, 0.25, 0.25] }, "character-top-down": {} },
+    };
+    const { dispatch } = setup(["hero"], room(walker, crate));
+    const items = await openMenu();
+    for (const name of ["character-side-view", "nav-agent", "path-follow"]) {
+      const item = items.find((i) => i.getAttribute("data-behavior") === name)!;
+      expect(item.getAttribute("aria-disabled"), name).toBe("true");
+      expect(item.textContent).toContain("Can't share an entity with Character (top-down).");
+      await act(async () => {
+        fireEvent.click(item);
+      });
+    }
+    expect(dispatch).not.toHaveBeenCalled();
+    const sprite = items.find((i) => i.getAttribute("data-behavior") === "sprite")!;
+    expect(sprite.getAttribute("aria-disabled")).not.toBe("true");
+  });
+
   it("picks a character's move and jump from the game's actions", async () => {
     const { dispatch, entity } = setup(
       ["hero"],

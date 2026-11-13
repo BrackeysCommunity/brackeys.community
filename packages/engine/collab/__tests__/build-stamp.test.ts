@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildAtFrom, stampWins } from "../build-stamp";
+import { buildAtFrom, devPageBuildAt, stampWins } from "../build-stamp";
 
 describe("buildAtFrom", () => {
   it("reads digits, dates and positive numbers, and anything else as 0", () => {
@@ -22,5 +22,39 @@ describe("stampWins", () => {
     expect(stampWins(100, "c".repeat(64), stamp)).toBe(true);
     expect(stampWins(100, "a".repeat(64), stamp)).toBe(false);
     expect(stampWins(100, stamp.hash, stamp), "a stamp never beats itself").toBe(false);
+  });
+});
+
+describe("devPageBuildAt", () => {
+  const server = 1_700_000_000_000;
+  const hash = (c: string) => c.repeat(64);
+
+  it("is the page's load time, never earlier than the server's build", () => {
+    expect(devPageBuildAt(String(server), server + 5_000)).toBe(server + 5_000);
+    expect(devPageBuildAt(String(server), server - 5_000)).toBe(server);
+    expect(devPageBuildAt(undefined, server)).toBe(server);
+    expect(devPageBuildAt("junk", 0)).toBe(0);
+  });
+
+  it("lets a tab loaded later outrank an older tab of the same server, whatever the hashes", () => {
+    const older = {
+      hash: hash("f"),
+      buildAt: devPageBuildAt(String(server), server + 1_000),
+      engine: "0.0.0",
+    };
+    const fresh = devPageBuildAt(String(server), server + 60_000);
+    expect(stampWins(fresh, hash("0"), older)).toBe(true);
+    const freshStamp = { hash: hash("0"), buildAt: fresh, engine: "0.0.0" };
+    expect(stampWins(older.buildAt, older.hash, freshStamp)).toBe(false);
+    const reloaded = devPageBuildAt(String(server), server + 120_000);
+    expect(
+      stampWins(reloaded, hash("f"), freshStamp),
+      "reloading the older tab brings it level",
+    ).toBe(true);
+  });
+
+  it("still outranks the dev server's own stamp, one ms before its build", () => {
+    const serverStamp = { hash: hash("f"), buildAt: server - 1, engine: "0.0.0" };
+    expect(stampWins(devPageBuildAt(String(server), server), hash("0"), serverStamp)).toBe(true);
   });
 });

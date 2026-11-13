@@ -2659,6 +2659,10 @@
     color: var(--je-muted-fg);
   }
 
+  .je-insp-range > .je-insp-number {
+    min-width: 72px;
+  }
+
   .je-insp-dial {
     position: relative;
     flex-shrink: 0;

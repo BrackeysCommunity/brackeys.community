@@ -164,7 +164,7 @@ type Ctx = {
   def: SceneDefinition;
   /** For one instance child: its scene instance, its id there, and the override keys naming it. */
   overrides?: { instance: string; child: string; keys: string[] };
-  /** For one instance child: the paths on it (`behaviors.character.maxSpeed`) each param its instance sets feeds. */
+  /** For one instance child: the paths on it (`behaviors.character-side-view.maxSpeed`) each param its instance sets feeds. */
   params?: readonly { name: string; paths: readonly string[] }[];
   /** Builds the batch for an edit instead of `modelBatch`; it's written against the document. */
   edit?: (field: ModelField, input: unknown) => Edit;
@@ -517,6 +517,7 @@ function TagsField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const tags = Array.isArray(field.value) ? (field.value as string[]) : [];
+  const left = w.options?.filter((o) => !tags.includes(o)) ?? [];
   const listOf = (cur: unknown) => (Array.isArray(cur) ? (cur as string[]) : []);
   const save = (next: (cur: string[]) => string[]) => {
     const problem = commitEach(ctx, field, (cur) => {
@@ -548,25 +549,25 @@ function TagsField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           </Button>
         ))}
         {w.options ? (
-          <Select
-            value=""
-            onValueChange={(v) => {
-              if (typeof v === "string" && v) save((cur) => [...new Set([...cur, v])]);
-            }}
-          >
-            <SelectTrigger size="sm" aria-label={field.path} className="je-insp-tag-input">
-              <SelectValue>{w.placeholder ?? "Add"}</SelectValue>
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              {w.options
-                .filter((o) => !tags.includes(o))
-                .map((o) => (
+          left.length > 0 ? (
+            <Select
+              value=""
+              onValueChange={(v) => {
+                if (typeof v === "string" && v) save((cur) => [...new Set([...cur, v])]);
+              }}
+            >
+              <SelectTrigger size="sm" aria-label={field.path} className="je-insp-tag-input">
+                <SelectValue>{w.placeholder ?? "Add"}</SelectValue>
+              </SelectTrigger>
+              <SelectContent alignItemWithTrigger={false}>
+                {left.map((o) => (
                   <SelectItem key={o} value={o}>
                     {o}
                   </SelectItem>
                 ))}
-            </SelectContent>
-          </Select>
+              </SelectContent>
+            </Select>
+          ) : null
         ) : (
           <Input
             aria-label={field.path}
@@ -825,20 +826,19 @@ function RangeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     });
   return (
     <FieldRow field={field}>
-      <div className="je-insp-row" data-gap="tight" data-align="start">
+      <div className="je-insp-row je-insp-wrap je-insp-range" data-gap="tight" data-align="start">
         {(["low", "high"] as const).map((name, i) => (
-          <Fragment key={name}>
-            <span className="je-insp-line je-insp-suffix">{i === 0 ? "min" : "max"}</span>
-            <NumberInput
-              label={`${field.path}.${name}`}
-              value={at?.[i]}
-              mixed={field.mixed}
-              step={w.step}
-              bigStep={w.bigStep}
-              decimals={w.decimals}
-              onCommit={end(i as 0 | 1)}
-            />
-          </Fragment>
+          <NumberInput
+            key={name}
+            label={`${field.path}.${name}`}
+            value={at?.[i]}
+            mixed={field.mixed}
+            step={w.step}
+            bigStep={w.bigStep}
+            decimals={w.decimals}
+            suffix={i === 0 ? "min" : "max"}
+            onCommit={end(i as 0 | 1)}
+          />
         ))}
         {w.unit ? <UnitSuffix unit={w.unit} /> : null}
       </div>

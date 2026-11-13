@@ -19,3 +19,14 @@ export function buildAtFrom(raw: unknown): number {
 export function stampWins(buildAt: number, hash: Sha256, than: BuildStamp): boolean {
   return buildAt > than.buildAt || (buildAt === than.buildAt && hash > than.hash);
 }
+
+/**
+ * A dev page's build time: when it loaded, never earlier than its server's
+ * build. Every page one dev server serves shares that server's build time, so
+ * without this a tab opened before an engine edit could outrank a fresh one on
+ * hash order alone, and reloading it couldn't help. With it the page loaded
+ * last wins, and a tab turned read-only catches up by reloading.
+ */
+export function devPageBuildAt(serverBuildAt: unknown, loadedAt: number): number {
+  return Math.max(buildAtFrom(serverBuildAt), buildAtFrom(loadedAt));
+}

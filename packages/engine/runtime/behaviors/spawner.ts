@@ -256,7 +256,10 @@ export const createSpawnerSystem: BehaviorSystemFactory = (
       for (const s of [...spawners.values()]) if (spawners.get(s.id) === s) tick(s, dtMs);
     },
     reset() {
-      for (const s of spawners.values()) s.owed = 0;
+      for (const s of spawners.values()) {
+        s.owed = 0;
+        s.burst = s.block.burst > 0;
+      }
     },
     seek(ms) {
       const ticks = wholeTicksIn(ms, ctx.time).ticks;

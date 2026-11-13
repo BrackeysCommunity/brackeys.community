@@ -14,7 +14,6 @@ import {
 import { EngineError, type EngineContext, type JsonValue } from "../../game/types";
 import { parseShape } from "../../scene/shapes";
 import type { RuntimeEntity, ShapeObj } from "../../scene/types";
-import { geometryColliders } from "../geometry-world";
 import type { Pose } from "../poses";
 import { SENSOR_ENTER, SENSOR_EXIT, type StepEvent } from "../types";
 
@@ -165,21 +164,21 @@ export const createForceAreaSystem: BehaviorSystemFactory = (
       const c = ctx.physics.world.getCollider(handle);
       return c?.isEnabled() ? c.collisionGroups() : 0;
     }
-    const c = ctx.geometry ? geometryColliders(ctx.geometry).get(handle) : undefined;
-    return c?.enabled ? c.groups : 0;
+    return ctx.geometry?.groups(handle) ?? 0;
   }
 
   /**
    * Whether `affects` takes `id`: in one of its collision groups and carrying
-   * one of its tags, each when given. `tagged` is the set of entities with
-   * one of the tags, for a loop over many; without it `id`'s own tags are
-   * looked up.
+   * one of its tags, each when given. A group the game doesn't declare takes
+   * nothing. `tagged` is the set of entities with one of the tags, for a loop
+   * over many; without it `id`'s own tags are looked up.
    */
   function takes(area: Area, id: string, tagged?: Set<string> | null): boolean {
     const { groups, tags } = area.block.affects ?? {};
     if (groups) {
       let want = 0;
-      for (const g of groups) want |= ctx.registry.collisionGroups(g) >>> 16;
+      const known = ctx.registry.collisionGroupNames;
+      for (const g of groups) if (known.includes(g)) want |= ctx.registry.collisionGroups(g) >>> 16;
       const member = ctx.tags.handlesOf(id).some((h) => ((groupsOf(h) >>> 16) & want) !== 0);
       if (!member) return false;
     }

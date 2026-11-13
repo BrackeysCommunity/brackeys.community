@@ -351,6 +351,43 @@ describe("the spawner behavior", () => {
     rt.destroy();
   });
 
+  it("resets to t = 0: what it owes is dropped and the burst comes again, within the cap", () => {
+    // 24 a second is 0.4 a tick at 60 Hz: the burst on tick 0, one more on ticks 2 and 4, then the cap.
+    const block = { type: "dot", rate: 24, cap: 4, burst: 2 };
+    const perTick = (s: ReturnType<typeof setup>, ticks: number) => {
+      const counts: number[] = [];
+      for (let i = 0; i < ticks; i++) {
+        const before = s.spawned.length;
+        s.steps(1);
+        counts.push(s.spawned.length - before);
+      }
+      return counts;
+    };
+    const fresh = setup([spawner("s", block)]);
+    const expected = perTick(fresh, 20);
+    expect(expected.slice(0, 5)).toEqual([2, 0, 1, 0, 1]);
+    fresh.rt.destroy();
+
+    const run = setup([spawner("s", block)]);
+    run.steps(4);
+    expect(run.system.save!("s")).toMatchObject({ owed: expect.closeTo(0.6, 9) });
+    for (const id of run.system.live("s")) run.ctx.destroy(id);
+    run.system.reset!();
+    expect(run.system.save!("s")).toMatchObject({ owed: 0, burst: true });
+    expect(perTick(run, 20)).toEqual(expected);
+    expect(run.system.live("s")).toHaveLength(4);
+    run.rt.destroy();
+
+    // Three live when it resets: the burst is cut to the one free slot, then the cap holds.
+    const held = setup([spawner("s", block)]);
+    held.steps(4);
+    expect(held.system.live("s")).toHaveLength(3);
+    held.system.reset!();
+    expect(perTick(held, 30)).toEqual([1, ...Array<number>(29).fill(0)]);
+    expect(held.system.live("s")).toHaveLength(4);
+    held.rt.destroy();
+  });
+
   it("runs a seek before tick 0 as stepping would, keeping only what is still alive", () => {
     const plain = setup([spawner("s", { type: "dot", rate: 30, cap: 1000, burst: 2 })], {
       timeOffsetMs: 1000,

@@ -1,3 +1,4 @@
+import { devPageBuildAt } from "../../collab/build-stamp";
 import type { AssetUrl } from "../../index";
 import { createKindRegistry, type ProjectId } from "../../project/index";
 import type { EditorHost, HocuspocusModule, SceneHome } from "../host";
@@ -25,6 +26,9 @@ const pageOrigin = (origin?: string): PageOrigin | null => {
   const loc = (globalThis as { location?: PageOrigin }).location;
   return loc ?? null;
 };
+
+/** When this page loaded the dev host, which ranks its build stamps against other tabs'. */
+const PAGE_LOADED_AT = Date.now();
 
 const isSecure = (protocol: string) => protocol === "https:" || protocol === "wss:";
 
@@ -137,7 +141,7 @@ export function devProjectHost(opts: {
         store: blobContentStore(blobs),
         transport,
         url: url ?? devCollabUrl(),
-        ...(opts.buildAt !== undefined ? { buildAt: opts.buildAt } : {}),
+        buildAt: devPageBuildAt(opts.buildAt, PAGE_LOADED_AT),
       });
       return { ...link, blobs };
     },

@@ -25,6 +25,8 @@ peer range that excludes the release that draws nothing on Apple GPUs.
   after the type systems' `beforePhysics`, before the physics step (without
   physics, right after the behaviors' `beforeStep`). With timing on, the
   host laps `behavior.<name>.beforeStep` and `behavior.<name>.beforePhysics`.
+- `GeometryWorld.groups(handle)`: a geometry collider's packed collision
+  groups, 0 while it is disabled or removed.
 - `BehaviorDef.conflicts`: behaviors the same entity must not also carry,
   reported as `behavior-conflict`.
 - `ctx.bodies` (`BodyControl`, from `@jams/engine/game`): any entity's body
@@ -183,7 +185,7 @@ actorId, passes?)` to drop them when the actor goes (with `passes`, the
   `inverse-square` (past 1 m) falloff, plus `drag` against velocity;
   `affects` limits it by collision group and tag, groups read off either
   world (a `groups` entry the game doesn't declare is a `schema`
-  warning).
+  warning, and the area takes nothing in it).
   `ForceAreaSystem.sample(point, entityId?)` returns the summed
   acceleration of every area containing the point (drag aside) for
   kinematic controllers; with an entity, only the areas whose `affects`
@@ -359,7 +361,8 @@ actorId, passes?)` to drop them when the actor goes (with `passes`, the
   `widget: "type"`, and every sprite field a `group`.
 - A collider `group` or force-area `affects.groups` entry the game doesn't
   declare is reported as `schema` (an error for the collider, a warning
-  for the force area), with the declared groups as `expected`.
+  for the force area, which plays and takes nothing in that group), with
+  the declared groups as `expected`.
 
 ## [0.14.2] — unreleased
 

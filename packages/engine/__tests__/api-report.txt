@@ -10001,6 +10001,7 @@ interface GeometryWorld {
     setEnabled(handle: number, enabled: boolean): void;
     remove(handle: number): void;
     shape(handle: number): ShapeObj | undefined;
+    groups(handle: number): number;
     handles(): IterableIterator<number>;
     clear(): void;
     readonly size: number;

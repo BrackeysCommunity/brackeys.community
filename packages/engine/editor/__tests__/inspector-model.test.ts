@@ -1175,7 +1175,7 @@ describe("standard behavior fields", () => {
       { kind: "revolute", limits: [-Math.PI / 4, Math.PI / 2] },
       "limits",
     );
-    expect(limits.widget).toMatchObject({ kind: "range", unit: "deg", step: 1, bigStep: 15 });
+    expect(limits.widget).toMatchObject({ kind: "range", unit: "°", step: 1, bigStep: 15 });
     expect(limits.value).toEqual([-45, 90]);
     expect(limits.group).toBe("limits");
     const edit = modelOps(limits, [-30, 60], [lookupRef(def, "hero")!]);
@@ -1195,7 +1195,7 @@ describe("standard behavior fields", () => {
     const motor = { velocity: Math.PI, maxForce: 5 };
     const revolute = jointField({ kind: "revolute", motor }, "motor.velocity");
     expect(jointField({ kind: "revolute", motor }, "motor").field.group).toBe("motor");
-    expect(revolute.field.widget).toMatchObject({ kind: "number", unit: "deg/s" });
+    expect(revolute.field.widget).toMatchObject({ kind: "number", unit: "°/s" });
     expect(revolute.field.value).toBe(180);
     const edit = modelOps(revolute.field, "+=90", [lookupRef(revolute.def, "hero")!]);
     expect(edit.ok && edit.ops[0]).toMatchObject({
@@ -1380,6 +1380,44 @@ describe("standard behavior fields", () => {
     expect(options.filter((o) => o.category === undefined).map((o) => o.name)).toEqual([]);
     expect(options.find((o) => o.name === "joint")?.category).toBe("physics");
     expect(options.find((o) => o.name === "sprite")?.category).toBe("visual");
+  });
+
+  it("disables adding a behavior that conflicts with one the entity carries, naming it", () => {
+    const def = at({ collider: { shape: ["box", 0, 0, 0.25, 0.25] }, "character-top-down": {} });
+    const options = buildInspectorModel(engine, [lookupRef(def, "hero")!], { def }).addBehaviors;
+    const note = (name: string) => options.find((o) => o.name === name)?.unavailable;
+    for (const name of ["character-side-view", "nav-agent", "path-follow"])
+      expect(note(name)).toBe("Can't share an entity with Character (top-down).");
+    expect(note("sprite")).toBeUndefined();
+  });
+
+  it("gives a param whose target the prefab leaves unset that field's default", () => {
+    const runner: Prefab = {
+      kind: "prefab",
+      v: SCENE_FORMAT_VERSION,
+      id: "runner",
+      entities: [
+        {
+          id: "hero",
+          type: "marker",
+          at: [0, 0],
+          behaviors: { ...body, "character-side-view": {} },
+        },
+      ],
+      params: {
+        maxSpeed: {
+          description: "Top speed.",
+          targets: ["hero.behaviors.character-side-view.maxSpeed"],
+        },
+      },
+    };
+    const scene: SceneDefinition = {
+      ...at({}),
+      instances: [{ id: "r", prefab: "runner", at: [0, 0] }],
+    };
+    const m = instanceParamsModel(scene, "r", engine, prefabLibrary([runner]))!;
+    expect(m.params[0]!.field).toMatchObject({ path: "params.maxSpeed", defaultValue: 6 });
+    expect(m.params[0]!.field.value).toBeUndefined();
   });
 
   it("keeps a field the kind doesn't take while the block sets it, so it can be cleared", () => {

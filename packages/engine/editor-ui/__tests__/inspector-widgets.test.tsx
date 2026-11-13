@@ -366,7 +366,7 @@ describe("the inspector's behavior edits", () => {
     expect([...row.querySelectorAll(".je-insp-suffix")].map((s) => s.textContent)).toEqual([
       "min",
       "max",
-      "deg",
+      "°",
     ]);
     type("behaviors.joint.limits.low", "30");
     expect(block("joint").limits).toEqual([Math.PI / 6, Math.PI / 6]);
@@ -394,6 +394,22 @@ describe("the inspector's behavior edits", () => {
     expect(
       screen.getByLabelText("behaviors.force-area.affects.tags").getAttribute("placeholder"),
     ).toBe("Add a tag");
+  });
+
+  it("drops the group picker once every group is added, keeping each to remove", () => {
+    const groups = createRegistry().collisionGroupNames;
+    open(
+      yard({
+        collider: { shape: ["box", 0, 0, 1, 1], sensor: true },
+        body: undefined,
+        "force-area": { force: [0, -20], affects: { groups: [...groups] } },
+      }),
+    );
+    expect(
+      screen.queryByRole("combobox", { name: "behaviors.force-area.affects.groups" }),
+    ).toBeNull();
+    expect(screen.queryByLabelText("behaviors.force-area.affects.groups")).toBeNull();
+    for (const g of groups) expect(screen.getByLabelText(`Remove tag ${g}`)).toBeTruthy();
   });
 });
 

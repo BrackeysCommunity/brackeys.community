@@ -908,7 +908,7 @@ type FieldWidget = {
     min?: number;
     /**
      * Shown in `unit` as the stored value times this (a `rad/s` field as
-     * `deg/s`): the row's value and default are shown values, and what is
+     * `°/s`): the row's value and default are shown values, and what is
      * typed is divided back.
      */
     scale?: number;

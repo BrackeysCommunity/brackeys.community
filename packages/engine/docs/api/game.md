@@ -2290,6 +2290,11 @@ interface GeometryWorld {
     remove(handle: number): void;
     /** The world-space shape now. */
     shape(handle: number): ShapeObj | undefined;
+    /**
+     * Packed like Rapier's `InteractionGroups`: membership in the high 16 bits,
+     * filter in the low. 0 while the collider is disabled or gone.
+     */
+    groups(handle: number): number;
     /** In insertion order. */
     handles(): IterableIterator<number>;
     clear(): void;

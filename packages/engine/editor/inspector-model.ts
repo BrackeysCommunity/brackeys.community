@@ -7,6 +7,7 @@ import {
   type RegisteredBehavior,
 } from "../game/behaviors";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
+import { behaviorsConflict } from "../game/define";
 import { assetKindsOf, CHILD_REF_PATTERN, SIDES } from "../game/fields";
 import type { BehaviorRules, InspectorWidgetDef, RegisteredType, Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
@@ -116,7 +117,7 @@ export type FieldWidget =
       decimals?: number;
       /**
        * Shown in `unit` as the stored value times this (a `rad/s` field as
-       * `deg/s`): the row's value and default are shown values, and what is
+       * `°/s`): the row's value and default are shown values, and what is
        * typed is divided back.
        */
       scale?: number;
@@ -403,8 +404,8 @@ function unitOf(meta: FieldMeta, ctx: Ctx): string | undefined {
 
 /** The unit a field shows in, and the factor from stored to shown: radians show as degrees. */
 function shownUnit(unit: string | undefined): { unit?: string; scale?: number } {
-  if (unit === "rad") return { unit: "deg", scale: 180 / Math.PI };
-  if (unit === "rad/s") return { unit: "deg/s", scale: 180 / Math.PI };
+  if (unit === "rad") return { unit: "°", scale: 180 / Math.PI };
+  if (unit === "rad/s") return { unit: "°/s", scale: 180 / Math.PI };
   return unit === undefined ? {} : { unit };
 }
 
@@ -494,7 +495,7 @@ function widgetFor(
       ...(unit ? { unit } : {}),
       ...(scale ? { scale } : {}),
       step: length?.step ?? 1,
-      bigStep: length?.bigStep ?? (unit === "deg" ? 15 : 10),
+      bigStep: length?.bigStep ?? (scale ? 15 : 10),
       decimals: length?.decimals ?? 2,
     };
   }
@@ -1193,11 +1194,30 @@ function fixAdded(
   }
 }
 
+/** Why `adding` can't join what `s` carries: the first carried behavior one of them conflicts with. */
+function conflictNote(
+  registry: Registry,
+  s: BehaviorState,
+  adding: readonly BehaviorName[],
+): string | undefined {
+  for (const carried of s.carried) {
+    const held = registry.behaviors.get(carried);
+    if (!held) continue;
+    for (const n of adding) {
+      const b = registry.behaviors.get(n);
+      if (b && behaviorsConflict(b, held))
+        return `Can't share an entity with ${held.inspector?.label ?? carried}.`;
+    }
+  }
+  return undefined;
+}
+
 /**
  * The blocks one target gains when `name` is added: it and the behaviors it
  * requires, each from `addedBlock`, a required reference seeded with the
  * nearest entity that suits it, and the validation fixes that apply to
- * them. `unavailable` when a reference has nothing to name.
+ * them. `unavailable` when one of them conflicts with a carried behavior
+ * or a reference has nothing to name.
  */
 function addedBlocks(
   registry: Registry,
@@ -1210,7 +1230,7 @@ function addedBlocks(
     blocks[n] = addedBlock(registry, s, n, registry.behaviors.get(n)!);
   const self = s.target.entity;
   const extra: EntityDef[] = [];
-  let unavailable: string | undefined;
+  let unavailable = conflictNote(registry, s, Object.keys(blocks));
   for (const n of Object.keys(blocks)) {
     for (const field of requiredRefs(registry, s, n)) {
       if (blocks[n]![field] !== undefined) continue;
@@ -1676,7 +1696,11 @@ function paramField(
     ? describeField(info.field, info.schema, info.root, entityCtx(registry, info.type))
     : describeField(path, z.unknown(), root, entityCtx(registry, undefined));
   const field = moveField(base, info?.field ?? path, path, root);
-  const fallback = param.default ?? (info ? valueAt(info.root, info.field) : undefined);
+  const scale = "scale" in field.widget ? field.widget.scale : undefined;
+  const shown = (v: unknown) => (scale ? scaled(v, (n) => tidy(n * scale)) : v);
+  field.value = shown(field.value);
+  const stored = param.default ?? (info ? valueAt(info.root, info.field) : undefined);
+  const fallback = stored !== undefined ? shown(stored) : base.defaultValue;
   field.name = name;
   field.title = name;
   field.description = param.description;
