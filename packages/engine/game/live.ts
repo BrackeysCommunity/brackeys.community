@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { AssetId, Sha256 } from "../project/types";
 import { plural } from "../scene/plural";
+import { hashId } from "../scene/short-id";
 import type { SceneIssue } from "../scene/types";
 import type { EngineContext } from "./types";
 
@@ -129,16 +130,41 @@ export function preloadDeadline(outer?: AbortSignal): {
 /** How many ticks after a swap the game's `live.check` runs a second time. */
 export const LIVE_CHECK_AGAIN_TICKS = 60;
 
+/**
+ * Every timing's words: `short` in a row or message (`next load`), `label`
+ * on the choice that picks it, `arrival` as a sentence ends.
+ */
+export const SWAP_TIMING_WORDS: Readonly<
+  Record<SwapTiming, Readonly<{ short: string; label: string; arrival: string }>>
+> = Object.freeze({
+  "next-load": {
+    short: "next load",
+    label: "Next time the level loads",
+    arrival: "the next time the level loads",
+  },
+  boundary: {
+    short: "boundary",
+    label: "At the next safe moment the game marks",
+    arrival: "at the next safe moment",
+  },
+  now: { short: "now", label: "Now, while they play", arrival: "now" },
+});
+
 /** How a timing reads in a message: `next load`, `boundary` or `now`. */
-export const timingWords = (t: SwapTiming): string => (t === "next-load" ? "next load" : t);
+export const timingWords = (t: SwapTiming): string => SWAP_TIMING_WORDS[t].short;
 
 /** When players get a moved version, as a sentence ends: `the next time the level loads`, `at the next safe moment`, `now`. */
-export const arrivalWords = (t: SwapTiming): string =>
-  t === "next-load"
-    ? "the next time the level loads"
-    : t === "boundary"
-      ? "at the next safe moment"
-      : "now";
+export const arrivalWords = (t: SwapTiming): string => SWAP_TIMING_WORDS[t].arrival;
+
+/** What a promote of release `version` to production asks first, in the editor and on the game page. */
+export const releasePromoteMessage = (version: number): string =>
+  `Players will get v${version} the next time they open the game. You can roll back at any time.`;
+
+/** What a rollback of production to release `version` asks first; `live` is the release it leaves. */
+export const releaseRollbackMessage = (version: number, live: number | null): string =>
+  live === null
+    ? `Players get v${version} again the next time they open the game.`
+    : `Players get v${version} again the next time they open the game. v${live} stays in the list.`;
 
 /** The timings a game accepts, `next-load` first: the ones it lists, and `next-load`, which every game takes. */
 export function acceptedTimings(live: Pick<LiveDeclaration, "timings"> | undefined): SwapTiming[] {
@@ -175,7 +201,7 @@ export function diffWords(diff: SceneDiff): string {
 
 /** How a version is named where the host's numbers aren't known: `level-1@<first 12 hex>`, or the release's own. */
 export const versionName = (scene: AssetId, version: Sha256 | null): string =>
-  version === null ? `${scene}'s release version` : `${scene}@${version.slice(0, 12)}`;
+  version === null ? `${scene}'s release version` : `${scene}@${hashId(version)}`;
 
 /** How a host's numbered scene version is named: `level-1@4`, grouped as `level-1@1,000`. */
 export const sceneVersionName = (scene: string, number: number): string =>

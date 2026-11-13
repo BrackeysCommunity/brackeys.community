@@ -310,7 +310,8 @@ export function sceneVersionId(version: SceneVersion): Promise<Sha256> {
 
 /**
  * What a host's data limit counts for a version: its `scene-version.json`
- * (`text`) plus every doc it carries, each hash once. Blobs are the
+ * (`text`) plus every doc it carries (the scene, its prefabs and the docs
+ * they use, such as materials and tables), each hash once. Blobs are the
  * project's own uploads and don't count.
  */
 export function sceneVersionDataBytes(text: string, version: SceneVersion): number {

@@ -284,6 +284,8 @@ export {
   clampTiming,
   LIVE_CHECK_AGAIN_TICKS,
   LIVE_DEFAULTS,
+  releasePromoteMessage,
+  releaseRollbackMessage,
   sceneVersionName,
   SWAP_TIMINGS,
   swapTimingSchema,

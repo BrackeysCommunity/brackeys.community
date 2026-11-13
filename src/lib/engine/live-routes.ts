@@ -15,6 +15,7 @@ import {
   promoteScene,
   rollbackScene,
 } from "./live-versions";
+import { versionNumberInput } from "./projects";
 import { releaseChannel } from "./release-access";
 import { engineRoutes, type ReleaseRouteDeps } from "./release-routes";
 import {
@@ -61,8 +62,6 @@ export const liveBeginInput = z.object({
   note: z.string().trim().max(BEGIN_BODY_MAX_BYTES).optional(),
 });
 
-const versionNumber = z.number().int().min(1);
-
 /** A move's body after the project, scene and number, read the same way by the procedure and the route. */
 export const livePromoteInput = z.object({
   channel: releaseChannel,
@@ -70,7 +69,7 @@ export const livePromoteInput = z.object({
 });
 export const liveRollbackInput = z.object({
   channel: releaseChannel,
-  to: versionNumber.optional(),
+  to: versionNumberInput.optional(),
   timing: liveTiming.optional(),
 });
 export const liveClearInput = z.object({

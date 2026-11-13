@@ -1,15 +1,13 @@
 import "@/polyfill";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { auth } from "@/lib/auth";
-import { isActiveBan } from "@/lib/ban-state";
 import { onForumPost } from "@/lib/forum-live";
 import {
   ANONYMOUS_FLAG_DISTINCT_ID,
-  captureServerException,
   isServerFlagEnabled,
   withErrorReporting,
 } from "@/lib/posthog-server";
+import { readRouteSession } from "@/lib/route-session";
 import { sseResponse } from "@/lib/sse";
 
 /**
@@ -18,11 +16,8 @@ import { sseResponse } from "@/lib/sse";
  * off for gets the same 404 as every other forum surface.
  */
 async function handle({ request }: { request: Request }) {
-  const session = await auth.api.getSession({ headers: request.headers }).catch((err: unknown) => {
-    captureServerException(err, { scope: "forum_stream.session_read" });
-    return null;
-  });
-  const userId = session?.user && !isActiveBan(session.user) ? session.user.id : null;
+  const session = await readRouteSession(request, "forum_stream.session_read");
+  const userId = session?.user.id ?? null;
   if (!(await isServerFlagEnabled("forum-enabled", userId ?? ANONYMOUS_FLAG_DISTINCT_ID))) {
     return new Response("Not found", { status: 404 });
   }

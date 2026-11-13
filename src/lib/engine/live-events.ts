@@ -1,5 +1,7 @@
 import { createBroadcast } from "@/lib/live-broadcast";
+import { sseResponse } from "@/lib/sse";
 
+import { LIVE_STREAM_MINUTES } from "./limits";
 import { releaseChannel, type ReleaseChannel } from "./release-access";
 
 /** A move on a channel's live state: its release or a scene pointer. Play pages refetch when `rev` grows. */
@@ -23,3 +25,23 @@ export const engineLive = createBroadcast<EngineLiveEvent>({
   parse: parseEngineLiveEvent,
   localWithoutRedis: true,
 });
+
+/**
+ * One channel's moves as server-sent events, for a caller already let in:
+ * an `event: live` with `{"channel","rev"}` each time its release or a scene
+ * pointer moves, closed after `LIVE_STREAM_MINUTES` (`EventSource` reconnects).
+ */
+export function liveStreamResponse(
+  request: Request,
+  projectId: string,
+  channel: ReleaseChannel,
+): Response {
+  return sseResponse(request, {
+    maxMs: LIVE_STREAM_MINUTES * 60_000,
+    subscribe: (send) =>
+      engineLive.listen((event) => {
+        if (event.projectId !== projectId || event.channel !== channel) return;
+        send("live", { channel: event.channel, rev: event.rev });
+      }),
+  });
+}

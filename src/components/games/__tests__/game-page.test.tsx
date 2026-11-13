@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { releasePromoteMessage, releaseRollbackMessage } from "@jams/engine/game";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -453,7 +454,7 @@ describe("live levels on the game page", () => {
     const row = screen
       .getByRole("list", { name: "Versions" })
       .querySelector('[data-version="7"] [data-live-levels]');
-    expect(row?.textContent).toBe("v7 · Live · with updated levels: The ford (12m ago)");
+    expect(row?.textContent).toBe("With updated levels: The ford (12m ago)");
     expect(
       screen.getByRole("list", { name: "Versions" }).querySelectorAll("[data-live-levels]"),
     ).toHaveLength(1);
@@ -467,14 +468,14 @@ describe("live levels on the game page", () => {
       />,
     );
     expect(document.querySelector("[data-live-levels]")?.textContent).toBe(
-      "v7 · Live · with updated levels: The ford (12m ago), Cave (3h ago)",
+      "With updated levels: The ford (12m ago), Cave (3h ago)",
     );
   });
 
   it("has no live row when production plays its release's own levels", () => {
     wrap(<GamePage page={page()} onChanged={() => {}} />);
     expect(document.querySelector("[data-live-levels]")).toBeNull();
-    expect(screen.queryByText(/with updated levels/)).toBeNull();
+    expect(screen.queryByText(/with updated levels/i)).toBeNull();
   });
 
   it("shows publishers a blocked update, linking to the Publish panel in the editor", () => {
@@ -519,6 +520,7 @@ describe("the publisher menu", () => {
     await user.click(screen.getByRole("button", { name: "Actions for v8" }));
     expect(screen.queryByRole("menuitem", { name: /Roll back/ })).toBeNull();
     await user.click(await screen.findByRole("menuitem", { name: /Promote/ }));
+    expect(await screen.findByText(releasePromoteMessage(8))).toBeTruthy();
     expect(calls.promoteRelease).not.toHaveBeenCalled();
     await user.click(await screen.findByRole("button", { name: "Promote" }));
 
@@ -538,6 +540,7 @@ describe("the publisher menu", () => {
     await user.click(screen.getByRole("button", { name: "Actions for v6" }));
     expect(screen.queryByRole("menuitem", { name: /Promote/ })).toBeNull();
     await user.click(await screen.findByRole("menuitem", { name: /Roll back to this/ }));
+    expect(await screen.findByText(releaseRollbackMessage(6, 7))).toBeTruthy();
     await user.click(await screen.findByRole("button", { name: "Roll back" }));
 
     await waitFor(() =>

@@ -317,12 +317,12 @@ export function checkReleaseQuota(
 export type StoredLiveUsage = { releaseStorageBytes: number };
 
 export type LiveQuotaInput = {
-  /** The version file, the scene's text and its prefabs' texts. */
+  /** `sceneVersionDataBytes`: the version file and every doc it carries (the scene, its prefabs and the docs they use). */
   dataBytes: number;
   /** What storing the version adds: its texts the project doesn't hold yet. */
   addsBytes: number;
-  /** Scene versions the project has published today (UTC), before this one. */
-  today: number;
+  /** Scene versions the project has published today (UTC), before this one; null for one already stored, which adds none. */
+  today: number | null;
 };
 
 /**
@@ -349,7 +349,7 @@ export function checkLiveQuota(
       adding: version.addsBytes,
       adds: "scene version",
     });
-  if (version.today + 1 > LIVE_LIMITS.versionsPerDay)
+  if (version.today !== null && version.today + 1 > LIVE_LIMITS.versionsPerDay)
     return refuse({
       limit: "liveVersionsPerDay",
       used: version.today,

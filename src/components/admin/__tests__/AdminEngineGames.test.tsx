@@ -37,6 +37,7 @@ vi.mock("@/orpc/client", () => {
   return { client, orpc: new Proxy({}, { get: (_t, name: string) => procedure(name) }) };
 });
 vi.mock("@tanstack/react-router", () => ({
+  createLink: <C,>(component: C) => component,
   Link: ({
     children,
     params,
@@ -356,8 +357,8 @@ describe("AdminEngineGames", { timeout: 20_000 }, () => {
       );
       expect(screen.getByText("PREVIEW")).toBeTruthy();
       expect(screen.getByText("PRODUCTION")).toBeTruthy();
-      expect(screen.getByText(`compat ${"d".repeat(12)}`)).toBeTruthy();
-      expect(screen.getByText(/12 applied · 5 failed/)).toBeTruthy();
+      expect(screen.getByText(`compat ${"d".repeat(6)}…`)).toBeTruthy();
+      expect(screen.getByText("Players' reports: 12 updated fine · 5 failed")).toBeTruthy();
       expect(screen.getByText("BLOCKED")).toBeTruthy();
       expect(screen.getByText(/Blocked automatically/)).toBeTruthy();
       expect(screen.getByText(/5 of 12 players' games failed/)).toBeTruthy();

@@ -61,6 +61,20 @@ const VERSION_NUMBER = /^[1-9]\d{0,8}$/;
 
 const refused = (reason: PlayRefusal): PlayResolution => ({ ok: false, reason });
 
+/** The play page's moving version names: `latest` plays production, `preview` plays preview. */
+const PLAY_VERSIONS = { production: "latest", preview: "preview" } as const;
+
+/** The play page's version name for `channel`. */
+export const playVersionOf = (channel: ReleaseChannel): "latest" | "preview" =>
+  PLAY_VERSIONS[channel];
+
+/** The channel a play version name follows, or null for a version number or anything else. */
+export function channelOfPlayVersion(version: string): ReleaseChannel | null {
+  if (version === PLAY_VERSIONS.production) return "production";
+  if (version === PLAY_VERSIONS.preview) return "preview";
+  return null;
+}
+
 const isPrivate = (visibility: string) => visibility === "private" || visibility === "team";
 
 async function channelPointer(
@@ -137,10 +151,57 @@ const releaseColumns = {
  * release (hidden, collected, its files) is `resolveRelease`'s, so the page
  * never frames what the frame would refuse. A refusal carries its reason,
  * never a URL.
+ *
+ * The live state always names the payload's release, so the page follows
+ * its channel. A channel that moves between the pointer read and the live
+ * read is resolved once more; one that moves again gets an empty state at
+ * rev 0 over the payload's release, so the page's first event or poll sees
+ * the move and offers the reload.
  */
 export async function resolvePlay(
   input: { projectId: string; version: string; viewer: Viewer },
   deps: PlayDeps = {},
+): Promise<PlayResolution> {
+  const first = await resolveOnce(input, deps);
+  if (!movedMidRead(first)) return first;
+  const again = await resolveOnce(input, deps);
+  if (!movedMidRead(again)) return again;
+  const { play } = again;
+  return {
+    ok: true,
+    play: {
+      ...play,
+      live: {
+        channel: play.live.channel,
+        rev: 0,
+        release: play.release.id,
+        scenes: [],
+        removed: [],
+      },
+    },
+  };
+}
+
+/** The play a channel's moving name resolves to: `latest` for production, `preview` for preview. */
+export const resolveChannelPlay = (
+  input: { projectId: string; channel: ReleaseChannel; viewer: Viewer },
+  deps: PlayDeps = {},
+): Promise<PlayResolution> =>
+  resolvePlay(
+    { projectId: input.projectId, version: playVersionOf(input.channel), viewer: input.viewer },
+    deps,
+  );
+
+const movedMidRead = (
+  resolved: PlayResolution,
+): resolved is { ok: true; play: PlayPayload & { live: LiveSnapshot } } =>
+  resolved.ok &&
+  resolved.play.live !== null &&
+  resolved.play.live.release !== resolved.play.release.id;
+
+async function resolveOnce(
+  input: { projectId: string; version: string; viewer: Viewer },
+  deps: PlayDeps,
 ): Promise<PlayResolution> {
   const db = deps.db ?? (siteDb as unknown as ReleaseDb);
   const now = deps.now ?? (() => new Date());
@@ -168,8 +229,9 @@ export async function resolvePlay(
   let channel: ReleaseChannel | null = null;
   let pointer: { releaseId: string; rev: number } | null = null;
   let releaseFilter;
-  if (version === "latest" || version === "preview") {
-    channel = version === "latest" ? "production" : "preview";
+  const moving = channelOfPlayVersion(version);
+  if (moving !== null) {
+    channel = moving;
     if (channel === "preview" && role === "player") return refused("not-found");
     pointer = await channelPointer(db, projectId, channel);
     if (pointer === null) return refused("not-found");

@@ -41,13 +41,11 @@ import {
 } from "@/db/schema";
 import { frameBase } from "@/lib/engine/frame-csp";
 import { createFrameRoute } from "@/lib/engine/frame-route";
-import { resolvePlay, type PlayPayload } from "@/lib/engine/game-play";
+import { resolveChannelPlay, resolvePlay, type PlayPayload } from "@/lib/engine/game-play";
 import type { SaveMode } from "@/lib/engine/host-server";
-import { LIVE_STREAM_MINUTES } from "@/lib/engine/limits";
-import { engineLive } from "@/lib/engine/live-events";
+import { liveStreamResponse } from "@/lib/engine/live-events";
 import { moveScenePointer } from "@/lib/engine/live-pointers";
-import { beginSceneVersion, commitSceneVersion } from "@/lib/engine/live-upload";
-import type { Viewer } from "@/lib/engine/release-access";
+import { releaseChannel, type ReleaseChannel, type Viewer } from "@/lib/engine/release-access";
 import { promote } from "@/lib/engine/release-channels";
 import { memoryReleaseStore, type ReleaseObjectStore } from "@/lib/engine/release-storage";
 import {
@@ -58,10 +56,11 @@ import {
   type ReleaseDeps,
   type ReleaseTxDb,
 } from "@/lib/engine/release-upload";
-import type { ReadSession } from "@/lib/engine/route-gate";
+import { decodeSegment, type ReadSession } from "@/lib/engine/route-gate";
+import { LIVE_STREAM_PATH } from "@/lib/engine/route-paths";
 import { createSaveRoutes } from "@/lib/engine/save-routes";
+import { uploadSceneVersion } from "@/lib/engine/scene-version-upload";
 import { engineReleaseObjectKey } from "@/lib/engine/storage-keys";
-import { sseResponse } from "@/lib/sse";
 import { createTestDb, seedUser, type TestDb } from "@/test/db";
 
 import { contentType, resolveRequestPath, type ServedRequest } from "./static-server";
@@ -350,26 +349,11 @@ export async function publishSceneVersion(
   projectId: string,
   version: SmokeSceneVersion,
 ): Promise<PublishedSceneVersion> {
-  const begun = await beginSceneVersion(site.deps, {
-    projectId,
-    version: version.versionText,
-    channel: "none",
-    actor: SMOKE_PUBLISHER,
-  });
-  for (const file of begun.missing) {
-    const text = version.texts.get(file.sha256);
-    if (text === undefined) throw new Error(`the version doesn't carry the text ${file.sha256}`);
-    await putReleaseFile(site.deps, {
-      uploadId: begun.uploadId,
-      sha256: file.sha256,
-      body: new TextEncoder().encode(text),
-      actor: SMOKE_PUBLISHER,
-    });
-  }
-  const committed = await commitSceneVersion(site.deps, {
-    uploadId: begun.uploadId,
-    actor: SMOKE_PUBLISHER,
-  });
+  const { begun, committed } = await uploadSceneVersion(
+    site.deps,
+    { projectId, version: version.versionText, channel: "none", actor: SMOKE_PUBLISHER },
+    version,
+  );
   return {
     versionId: committed.versionId,
     number: committed.number,
@@ -480,28 +464,30 @@ export async function smokePlay(
   return resolved.ok ? resolved.play : null;
 }
 
-const PLAY_VERSION_OF = { production: "latest", preview: "preview" } as const;
+/** Whether the smoke's player may play `channel`, by the rule `getGameLive` and the stream route ask. */
+const smokeChannelPlay = (
+  site: SmokeSite,
+  input: { projectId: string; channel: ReleaseChannel; playOrigin: string },
+) =>
+  resolveChannelPlay(
+    { projectId: input.projectId, channel: input.channel, viewer: SMOKE_PLAYER_VIEWER },
+    { db: site.deps.db, playOrigin: input.playOrigin },
+  );
 
 /** A channel's live state, as `getGameLive` answers a play page that heard its rev move. */
 export async function smokeLive(
   site: SmokeSite,
-  input: { projectId: string; channel: "production" | "preview"; playOrigin: string },
+  input: { projectId: string; channel: ReleaseChannel; playOrigin: string },
 ): Promise<LiveSnapshot | null> {
-  const play = await smokePlay(site, {
-    projectId: input.projectId,
-    version: PLAY_VERSION_OF[input.channel],
-    playOrigin: input.playOrigin,
-  });
-  return play?.live ?? null;
+  const resolved = await smokeChannelPlay(site, input);
+  return resolved.ok ? resolved.play.live : null;
 }
 
-/** The site's live stream path, `engineLiveStreamPath` without its query. */
-const LIVE_STREAM = /^\/api\/engine\/live\/([^/]+)\/stream$/;
-
 /**
- * The live stream as the site's stream route answers it, for the projects
- * the smoke's player may play: an `event: live` with `{"channel","rev"}`
- * each time the channel moves. Null for any other path.
+ * The live stream at the site's path, answered by the site's own
+ * `liveStreamResponse` for the projects the smoke's player may play; the
+ * smoke's player stands in for the stream route's staff gate. Null for any
+ * other path.
  */
 async function liveStream(
   site: SmokeSite,
@@ -509,25 +495,14 @@ async function liveStream(
   playOrigin: string,
 ): Promise<Response | null> {
   const url = new URL(request.url);
-  const match = LIVE_STREAM.exec(url.pathname);
+  const match = LIVE_STREAM_PATH.exec(url.pathname);
   if (!match) return null;
-  const projectId = decodeURIComponent(match[1] ?? "");
-  const channel = url.searchParams.get("channel");
-  if (channel !== "production" && channel !== "preview") return noStoreText(404, "not found\n");
-  const play = await smokePlay(site, {
-    projectId,
-    version: PLAY_VERSION_OF[channel],
-    playOrigin,
-  });
-  if (!play) return noStoreText(404, "not found\n");
-  return sseResponse(request, {
-    maxMs: LIVE_STREAM_MINUTES * 60_000,
-    subscribe: (send) =>
-      engineLive.listen((event) => {
-        if (event.projectId !== projectId || event.channel !== channel) return;
-        send("live", { channel: event.channel, rev: event.rev });
-      }),
-  });
+  const projectId = decodeSegment(match[1] ?? "");
+  const channel = releaseChannel.safeParse(url.searchParams.get("channel"));
+  if (projectId === null || !channel.success) return noStoreText(404, "not found\n");
+  const play = await smokeChannelPlay(site, { projectId, channel: channel.data, playOrigin });
+  if (!play.ok) return noStoreText(404, "not found\n");
+  return liveStreamResponse(request, projectId, channel.data);
 }
 
 // ─── The test player ─────────────────────────────────────
@@ -642,9 +617,9 @@ async function playReads(
     return play ? noStoreJson(play) : noStoreText(404, "not found\n");
   }
   if (url.pathname === SMOKE_LIVE_PATH) {
-    const channel = url.searchParams.get("channel");
-    if (channel !== "production" && channel !== "preview") return noStoreText(404, "not found\n");
-    return noStoreJson(await smokeLive(site, { projectId, channel, playOrigin }));
+    const channel = releaseChannel.safeParse(url.searchParams.get("channel"));
+    if (!channel.success) return noStoreText(404, "not found\n");
+    return noStoreJson(await smokeLive(site, { projectId, channel: channel.data, playOrigin }));
   }
   return liveStream(site, request, playOrigin);
 }

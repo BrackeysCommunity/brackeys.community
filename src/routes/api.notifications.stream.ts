@@ -2,6 +2,7 @@ import "@/polyfill";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { auth } from "@/lib/auth";
+import { subscribeOnReady } from "@/lib/live-broadcast";
 import { bestEffort, captureServerException, withErrorReporting } from "@/lib/posthog-server";
 import {
   presenceChannel,
@@ -38,7 +39,6 @@ async function handle({ request }: { request: Request }) {
   return sseResponse(request, {
     onHeartbeat: () => void refreshConnection(userId, connectionId).catch(() => {}),
     async subscribe(_send, sendRaw) {
-      let closed = false;
       // Presence and pub/sub are best-effort: with Redis down the stream
       // stays open for heartbeats (the inbox still polls), it just loses
       // live push until the socket comes back.
@@ -48,25 +48,15 @@ async function handle({ request }: { request: Request }) {
 
       // Each payload is already the event's JSON; the client parses it.
       subscriber.on("message", (_channel, message) => sendRaw("notification", message));
-      // Subscribe on every `ready`, not once up front: with the offline
-      // queue off, a subscribe issued while the socket is still connecting
-      // rejects, and ioredis only re-subscribes channels that had already
-      // succeeded. Re-issuing on (re)connect is what lets the session
-      // recover; the client's own error handler reports the outage.
-      const subscribe = () => {
-        if (closed) return;
-        subscriber.subscribe(channel).catch((err: unknown) => {
-          console.warn("[notifications_stream.subscribe] deferred to reconnect", {
-            user_id: userId,
-            err,
-          });
+      const stopSubscribing = subscribeOnReady(subscriber, channel, (err) => {
+        console.warn("[notifications_stream.subscribe] deferred to reconnect", {
+          user_id: userId,
+          err,
         });
-      };
-      subscriber.on("ready", subscribe);
-      if (subscriber.status === "ready") subscribe();
+      });
 
       return () => {
-        closed = true;
+        stopSubscribing();
         void (async () => {
           await subscriber.unsubscribe(channel).catch(() => {});
           await subscriber.quit().catch(() => {});

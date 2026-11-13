@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 
+import { releasePromoteMessage } from "../../../game/live";
 import type { AssetId } from "../../../project/index";
 import { shortId } from "../../../scene/short-id";
 import type { PublishChannel, ReleaseView } from "../../host";
@@ -25,15 +26,11 @@ export function unplayable(release: ReleaseView): string | null {
   return null;
 }
 
-/** What a promote of `version` to production asks, as the game page asks it. */
-export const promoteMessage = (version: number): string =>
-  `Players will get v${version} the next time they open the game. You can roll back at any time.`;
-
-/** What a rollback of production to `version` asks, as the game page asks it. */
-export const rollbackMessage = (version: number, live: number | null): string =>
-  live === null
-    ? `Players get v${version} again the next time they open the game.`
-    : `Players get v${version} again the next time they open the game. v${live} stays in the list.`;
+/** The release promote and rollback questions, shared with the game page. */
+export {
+  releasePromoteMessage as promoteMessage,
+  releaseRollbackMessage as rollbackMessage,
+} from "../../../game/live";
 
 /** A live scene on production that a release promote replaces; `fits` when it may be kept over the new release. */
 export type ReplacedScene = {
@@ -98,7 +95,7 @@ export function PromoteButton({
         reading !== "idle" ? (
           <div className="je-insp-stack" data-gap="tight">
             <Text as="p" size="sm" variant="muted">
-              {promoteMessage(version)}
+              {releasePromoteMessage(version)}
             </Text>
             {reading === "loading" ? (
               <Skeleton style={{ height: 16 }} />
@@ -109,11 +106,11 @@ export function PromoteButton({
             )}
           </div>
         ) : scenes.length === 0 ? (
-          promoteMessage(version)
+          releasePromoteMessage(version)
         ) : (
           <div className="je-insp-stack" data-gap="tight">
             <Text as="p" size="sm" variant="muted">
-              {promoteMessage(version)}
+              {releasePromoteMessage(version)}
             </Text>
             <Text as="p" size="sm">
               {replacesMessage(version, scenes)}

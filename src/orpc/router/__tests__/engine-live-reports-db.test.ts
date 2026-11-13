@@ -200,7 +200,8 @@ describe("reports", () => {
     const rows = await reportRows(v.id);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ userId: "editor", channel: "production", outcome: "failed" });
-    expect(await versionRow(v.id)).toMatchObject({ reportsOk: 1, reportsFailed: 1 });
+    // The counters count the player once, by their latest outcome.
+    expect(await versionRow(v.id)).toMatchObject({ reportsOk: 0, reportsFailed: 1 });
 
     await call(
       reportLiveState,
@@ -208,6 +209,36 @@ describe("reports", () => {
       asUser("staff"),
     );
     expect((await reportRows(v.id)).map((r) => r.userId).sort()).toEqual(["editor", "staff"]);
+
+    const refused = { projectId: PROJECT, versionId: v.id, channel: "production" };
+    expect(
+      await refusal(() =>
+        call(
+          reportLiveState,
+          { ...refused, outcome: "failed", issueCode: "Not A Code" } as never,
+          asUser("staff"),
+        ),
+      ),
+    ).toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("leaves the counters alone when a player repeats a report", async () => {
+    const v = await liveVersion();
+    for (let i = 0; i < 5; i++) await report(v.id, "player-3", "failed");
+    await report(v.id, "player-4", "applied");
+    await report(v.id, "player-4", "applied");
+    expect(await versionRow(v.id)).toMatchObject({ reportsOk: 1, reportsFailed: 1 });
+
+    await report(v.id, "player-3", "applied");
+    expect(await versionRow(v.id)).toMatchObject({ reportsOk: 2, reportsFailed: 0 });
+  });
+
+  it("ignores a report on a version no pointer on the channel names", async () => {
+    const old = await liveVersion();
+    await liveVersion();
+    expect(await report(old.id, "player-5", "failed")).toBeNull();
+    expect(await versionRow(old.id)).toMatchObject({ reportsOk: 0, reportsFailed: 0 });
+    expect(await reportRows(old.id)).toEqual([]);
   });
 
   it("refuses a player's report on preview, which only the game's makers play", async () => {
@@ -220,8 +251,14 @@ describe("reports", () => {
 
   it("drops the 31st report in an hour without a word", async () => {
     const v = await liveVersion();
-    for (let i = 0; i < 31; i++) expect(await report(v.id, "player-2", "applied")).toBeNull();
+    const anonId = "00000000-0000-4000-8000-0000000000aa";
+    for (let i = 0; i < 31; i++) expect(await report(v.id, null, "applied", { anonId })).toBeNull();
     expect((await versionRow(v.id)).reportsOk).toBe(30);
+
+    shared.hits.clear();
+    for (let i = 0; i < 30; i++) await report(v.id, "player-2", "applied");
+    expect(await report(v.id, "player-2", "failed")).toBeNull();
+    expect(await reportRows(v.id)).toEqual([expect.objectContaining({ outcome: "applied" })]);
   });
 
   it("counts anonymous reports only in the counters, and never blocks on them", async () => {

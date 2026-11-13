@@ -933,6 +933,8 @@
       "refField",
       "registerBody",
       "relativePose",
+      "releasePromoteMessage",
+      "releaseRollbackMessage",
       "resolveTime",
       "restoreOverlaps",
       "runtimeId",

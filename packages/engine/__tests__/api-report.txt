@@ -1267,6 +1267,8 @@ readPathPlace
 refField
 registerBody
 relativePose
+releasePromoteMessage
+releaseRollbackMessage
 resolveTime
 restoreOverlaps
 runtimeId
@@ -6189,6 +6191,8 @@ declare function clampTiming(live: LiveDeclaration | undefined, wanted: SwapTimi
     timing: SwapTiming;
 };
 declare function diffWords(diff: SceneDiff): string;
+declare const releasePromoteMessage: (version: number) => string;
+declare const releaseRollbackMessage: (version: number, live: null | number) => string;
 declare const sceneVersionName: (scene: string, number: number) => string;
 declare const swapStrategyFor: (diff: Pick<SceneDiff, "header">, wanted?: "auto" | SwapStrategy) => SwapStrategy;
 declare const swapTimingSchema: z.ZodEnum<{

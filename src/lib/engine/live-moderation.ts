@@ -305,12 +305,39 @@ async function runBreaker(
 }
 
 /**
+ * Moves one count on a version's report counters: up on `to`'s side, and
+ * down on `from`'s when the player had reported before (null: they hadn't).
+ */
+async function countReport(
+  db: ReleaseDb,
+  versionId: string,
+  from: boolean | null,
+  to: boolean,
+): Promise<void> {
+  if (from === to) return;
+  const { reportsOk: ok, reportsFailed: failed } = engineSceneVersions;
+  await db
+    .update(engineSceneVersions)
+    .set({
+      ...(to ? { reportsFailed: sql`${failed} + 1` } : { reportsOk: sql`${ok} + 1` }),
+      ...(from === null
+        ? {}
+        : from
+          ? { reportsFailed: sql`greatest(${failed} - 1, 0)` }
+          : { reportsOk: sql`greatest(${ok} - 1, 0)` }),
+    })
+    .where(eq(engineSceneVersions.id, versionId));
+}
+
+/**
  * A play page's report of what its frame did with a version, once per
  * version per page load. At most `LIVE_REPORTS_PER_HOUR` an hour per
- * player (or anonymous id); over that it is dropped without a word. Every
- * report bumps the version's counters, a signed-in one keeps its player's
- * latest outcome (one row per version and player, the last channel
- * winning), and the breaker runs over the signed-in rows for the channel.
+ * player (or anonymous id); over that it is dropped without a word, as is
+ * a report on a version no pointer on the channel names. A signed-in
+ * report keeps its player's latest outcome (one row per version and
+ * player, the last channel winning) and the counters count that player
+ * once, by that outcome; an anonymous one only bumps a counter. The
+ * breaker runs over the signed-in rows for the channel.
  */
 export async function reportLiveOutcome(
   input: LiveReport,
@@ -334,18 +361,15 @@ export async function reportLiveOutcome(
       ),
     );
   if (!version) return notHere();
+  if (!(await pointedOn(db, version.id)).includes(input.channel)) return null;
 
   const at = now();
   const failed = isFailedOutcome(input.outcome);
-  await db
-    .update(engineSceneVersions)
-    .set(
-      failed
-        ? { reportsFailed: sql`${engineSceneVersions.reportsFailed} + 1` }
-        : { reportsOk: sql`${engineSceneVersions.reportsOk} + 1` },
-    )
-    .where(eq(engineSceneVersions.id, version.id));
-  if (input.userId === null) return null;
+  const userId = input.userId;
+  if (userId === null) {
+    await countReport(db, version.id, null, failed);
+    return null;
+  }
 
   const row = {
     channel: input.channel,
@@ -353,13 +377,27 @@ export async function reportLiveOutcome(
     issueCode: input.issueCode ?? null,
     at,
   };
-  await db
-    .insert(engineLiveReports)
-    .values({ versionId: version.id, userId: input.userId, ...row })
-    .onConflictDoUpdate({
-      target: [engineLiveReports.versionId, engineLiveReports.userId],
-      set: row,
-    });
+  await db.transaction(async (tx) => {
+    const [first] = await tx
+      .insert(engineLiveReports)
+      .values({ versionId: version.id, userId, ...row })
+      .onConflictDoNothing()
+      .returning({ outcome: engineLiveReports.outcome });
+    if (first) return countReport(tx, version.id, null, failed);
+    const [before] = await tx
+      .select({ outcome: engineLiveReports.outcome })
+      .from(engineLiveReports)
+      .where(and(eq(engineLiveReports.versionId, version.id), eq(engineLiveReports.userId, userId)))
+      .for("update");
+    await tx
+      .insert(engineLiveReports)
+      .values({ versionId: version.id, userId, ...row })
+      .onConflictDoUpdate({
+        target: [engineLiveReports.versionId, engineLiveReports.userId],
+        set: row,
+      });
+    await countReport(tx, version.id, before ? isFailedOutcome(before.outcome) : null, failed);
+  });
 
   if (failed)
     await runBreaker(

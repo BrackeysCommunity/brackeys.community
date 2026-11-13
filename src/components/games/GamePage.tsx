@@ -1,6 +1,6 @@
 import { Flag02Icon, PlayIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { createLink, Link } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { MediaCardImage } from "@/components/ui/media-card";
 import { ReportDialog } from "@/components/ui/report-dialog";
 import { Section } from "@/components/ui/section";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { Heading, Link as TextLink, Text } from "@/components/ui/typography";
+import { Heading, Link as TextLink, RouterTextLink, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import type { GamePageBlockedScene, GamePagePayload } from "@/lib/engine/game-page";
@@ -49,9 +49,6 @@ export function blockedSceneLine(blocked: Pick<GamePageBlockedScene, "title" | "
     ? `${blocked.title} update blocked (${blocked.reason})`
     : `${blocked.title} update blocked`;
 }
-
-/** The typography link as a typed router link: `TextLink as="router"` takes no route params. */
-const RouterTextLink = createLink(TextLink);
 
 /** Publishers only: each blocked level update, linking to the editor's Publish panel for its scene. */
 function BlockedScenes({

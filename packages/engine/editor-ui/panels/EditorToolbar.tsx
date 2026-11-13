@@ -1,6 +1,7 @@
 import {
   ArrowDown01Icon,
   CircleIcon,
+  CloudUploadIcon,
   Cursor01Icon,
   CursorMove01Icon,
   CursorPointer01Icon,
@@ -10,7 +11,6 @@ import {
   PlayIcon,
   Redo02Icon,
   RotateClockwiseIcon,
-  Rocket01Icon,
   Route01Icon,
   SquareIcon,
   Undo02Icon,
@@ -599,6 +599,9 @@ function OverflowMenu({
 /** Publish scene's hint in the toolbar. */
 export const PUBLISH_SCENE_TOOLTIP = "Publish this scene live, over the channel's release";
 
+/** Publish scene's icon: one level sent up live, apart from the Publish panel's releases. */
+export const PUBLISH_SCENE_ICON = CloudUploadIcon;
+
 const NO_SNAP: Snap | null = null;
 const NO_OPTION: ToolOption | null = null;
 
@@ -794,7 +797,7 @@ export function EditorToolbar({
         <>
           <Divider />
           <IconButton
-            icon={Rocket01Icon}
+            icon={PUBLISH_SCENE_ICON}
             label="Publish scene"
             tooltip={PUBLISH_SCENE_TOOLTIP}
             onClick={() => setPublishing(true)}

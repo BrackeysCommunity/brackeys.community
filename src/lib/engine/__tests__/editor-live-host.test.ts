@@ -434,7 +434,7 @@ describe("the pointers and the reads", () => {
       hidden: "Hidden by staff.",
       removal: {
         at: "2026-11-30T23:30:00.000Z",
-        text: "level-1@1 will be removed on 30 Nov 2026 unless a channel points at it.",
+        text: "level-1@1 will be removed on 30 Nov 2026. Point a channel at it to keep it.",
       },
     });
   });
@@ -504,7 +504,7 @@ describe("the live wording", () => {
       "Blocked by a publisher.",
     );
     expect(liveRemovalText("level-1", 1, "2026-12-31T23:30:00Z")).toBe(
-      "level-1@1 will be removed on 31 Dec 2026 unless a channel points at it.",
+      "level-1@1 will be removed on 31 Dec 2026. Point a channel at it to keep it.",
     );
     expect(liveRemovalText("level-1", 1000, "2026-12-31T23:30:00Z")).toMatch(/^level-1@1,000 /);
     expect(liveUsageText({ kept: 12, bytes: 409_600 })).toBe(

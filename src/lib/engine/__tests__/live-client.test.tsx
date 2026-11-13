@@ -9,6 +9,7 @@ import {
   type LiveClientOptions,
   type LiveProcedures,
 } from "../live-client";
+import { LIVE_ISSUE_CODE } from "../live-outcomes";
 import { disposeHostRigs, hostRig, RIG_RELEASE } from "./host-rig";
 
 const RELEASE = RIG_RELEASE.id;
@@ -223,12 +224,27 @@ describe("the poll", () => {
     expect(procedures.live).toHaveBeenCalledTimes(3);
   });
 
-  it("takes over when the stream closes with an error", async () => {
+  it("keeps polling behind an open stream that hears nothing", async () => {
+    vi.useFakeTimers();
+    const next = snapshot({ rev: 2, scenes: [entry("level-1", V1, "now")] });
+    const host = fakeHost();
+    const procedures = fakeProcedures(() => next);
+    client({ host, procedures });
+    stream().emit("open");
+
+    await vi.advanceTimersByTimeAsync(LIVE_POLL_SECONDS * 1_000);
+    expect(procedures.live).toHaveBeenCalledTimes(1);
+    expect(host.sendLive).toHaveBeenCalledWith(next);
+
+    setVisibility("hidden");
+    await vi.advanceTimersByTimeAsync(LIVE_POLL_SECONDS * 3_000);
+    expect(procedures.live).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the state at once when the stream closes with an error, and polls on", async () => {
     vi.useFakeTimers();
     const procedures = fakeProcedures();
     client({ host: fakeHost(), procedures });
-    await vi.advanceTimersByTimeAsync(LIVE_POLL_SECONDS * 1_000);
-    expect(procedures.live).not.toHaveBeenCalled();
 
     stream().fail();
     await flush();
@@ -347,6 +363,25 @@ describe("what the frame reports", () => {
         issueCode: "live-incompatible",
       }),
     ]);
+  });
+
+  it("leaves out an issue code the router would refuse", async () => {
+    const host = fakeHost();
+    const c = client({ host });
+    host.state({
+      scene: "level-1",
+      version: V1,
+      status: "failed",
+      issue: { code: "Not A Code", severity: "error", message: "No." },
+    } as unknown as LiveStateMessage);
+    await flush();
+    expect(LIVE_ISSUE_CODE.test("Not A Code")).toBe(false);
+    expect(c.procedures.report).toHaveBeenCalledWith({
+      projectId: RIG_RELEASE.projectId,
+      versionId: V1,
+      channel: "production",
+      outcome: "failed",
+    });
   });
 
   it("takes an applied swap's timing from the snapshot when the frame leaves it out", async () => {

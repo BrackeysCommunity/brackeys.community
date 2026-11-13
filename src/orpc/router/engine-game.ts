@@ -4,7 +4,7 @@ import * as z from "zod";
 
 import { createShowcase, linkShowcase, unlinkShowcase } from "@/lib/engine/engine-showcase";
 import { gamePage } from "@/lib/engine/game-page";
-import { resolvePlay } from "@/lib/engine/game-play";
+import { resolveChannelPlay, resolvePlay } from "@/lib/engine/game-play";
 import { readGameSettings, setGameSettings as writeSettings } from "@/lib/engine/game-settings";
 import { assertEngineGames } from "@/lib/engine/guard-server";
 import { CONNECT_ORIGINS_MAX } from "@/lib/engine/limits";
@@ -74,10 +74,7 @@ export const getGameLive = gameReader
   .input(z.object({ projectId, channel: releaseChannel }))
   .handler(async ({ context, input }) => {
     const viewer = await viewerOf(context.user.id, input.projectId);
-    const version = input.channel === "production" ? "latest" : "preview";
-    const resolved = await orpcRefusals(() =>
-      resolvePlay({ projectId: input.projectId, version, viewer }),
-    );
+    const resolved = await orpcRefusals(() => resolveChannelPlay({ ...input, viewer }));
     if (!resolved.ok) throw NOT_FOUND(resolved.reason);
     return resolved.play.live;
   });

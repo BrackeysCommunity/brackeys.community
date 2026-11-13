@@ -3,7 +3,13 @@ import { call } from "@orpc/server";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { CONNECT_ORIGINS_MAX } from "@/lib/engine/limits";
-import { getGamePage, getGamePlay, reportGame, setGameSettings } from "@/orpc/router/engine-game";
+import {
+  getGameLive,
+  getGamePage,
+  getGamePlay,
+  reportGame,
+  setGameSettings,
+} from "@/orpc/router/engine-game";
 import { asUser } from "@/test/orpc";
 
 vi.mock("@/db", () => ({ db: {} }));
@@ -33,6 +39,10 @@ vi.mock("@/lib/engine/game-play", () => ({
     state.calls.push("play");
     return { ok: true, play: { frame: "f" } };
   },
+  resolveChannelPlay: async () => {
+    state.calls.push("live");
+    return { ok: true, play: { live: null } };
+  },
 }));
 vi.mock("@/lib/engine/game-page", () => ({
   gamePage: async () => {
@@ -59,6 +69,7 @@ vi.mock("@/lib/engine/game-settings", async (importOriginal) => {
 });
 
 const PLAY = { projectId: "kitchen", version: "latest" };
+const LIVE = { projectId: "kitchen", channel: "production" } as const;
 
 async function codeOf(run: Promise<unknown>): Promise<string> {
   try {
@@ -84,7 +95,8 @@ describe("hosted game procedures are staff only", () => {
     await expect(
       call(reportGame, { projectId: "kitchen", reason: "broken" }, asUser("staff")),
     ).resolves.toEqual({ ok: true });
-    expect(state.calls).toEqual(["play", "page", "report"]);
+    await expect(call(getGameLive, LIVE, asUser("staff"))).resolves.toBeNull();
+    expect(state.calls).toEqual(["play", "page", "report", "live"]);
   });
 
   it("reads as not found to signed-out and non-staff viewers of the play and game pages", async () => {
@@ -93,6 +105,7 @@ describe("hosted game procedures are staff only", () => {
       expect(await codeOf(call(getGamePage, { projectId: "kitchen" }, asUser(viewer)))).toBe(
         "NOT_FOUND",
       );
+      expect(await codeOf(call(getGameLive, LIVE, asUser(viewer)))).toBe("NOT_FOUND");
     }
     expect(state.calls).toEqual([]);
   });

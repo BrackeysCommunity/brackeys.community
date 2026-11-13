@@ -1,7 +1,15 @@
 import { Cancel01Icon, Copy01Icon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { arrivalWords, sceneVersionName, timingWords, type SwapTiming } from "../../../game/live";
+import {
+  acceptedTimings,
+  arrivalWords,
+  sceneVersionName,
+  SWAP_TIMINGS,
+  timingWords,
+  type LiveDeclaration,
+  type SwapTiming,
+} from "../../../game/live";
 import {
   checkSceneVersion,
   parseReleaseManifest,
@@ -47,6 +55,7 @@ import {
   type PromoteReplaces,
   type ReplacedScene,
 } from "./ReleaseList";
+import { TIMING_TEXT, TIMING_UNDECLARED } from "./ScenePublishDialog";
 
 const SETTINGS_SCOPE = "publish:settings";
 
@@ -111,12 +120,15 @@ export function PublishPanel({
   publish,
   notify,
   sceneTitle,
+  gameLive,
 }: {
   publish: EditorPublishHost | undefined;
   /** Where copies and failures outside a pending task are said; the editor's toasts. */
   notify?: EditorNotify;
   /** Names the live scenes' rows by title; without it they go by their version name alone. */
   sceneTitle?: SceneTitleOf;
+  /** The game's live declaration: the timings a promote may pick. Next load only without it. */
+  gameLive?: Pick<LiveDeclaration, "timings">;
 }) {
   if (!publish) return null;
   return (
@@ -125,6 +137,7 @@ export function PublishPanel({
       publish={publish}
       notify={notify ?? silentNotify}
       sceneTitle={sceneTitle ?? noTitle}
+      gameLive={gameLive}
     />
   );
 }
@@ -136,10 +149,12 @@ function PublishBody({
   publish,
   notify,
   sceneTitle,
+  gameLive,
 }: {
   publish: EditorPublishHost;
   notify: EditorNotify;
   sceneTitle: SceneTitleOf;
+  gameLive: Pick<LiveDeclaration, "timings"> | undefined;
 }) {
   const pending = useOwnOrSharedPending(notify);
   const live = publish.live;
@@ -238,6 +253,7 @@ function PublishBody({
                   versions={liveVersions}
                   releases={releases.value}
                   sceneTitle={sceneTitle}
+                  timings={acceptedTimings(gameLive)}
                   pending={pending}
                   onRetry={reloadLive}
                   onMoved={reloadLive}
@@ -503,6 +519,7 @@ function LiveScenes({
   versions,
   releases,
   sceneTitle,
+  timings,
   pending,
   onRetry,
   onMoved,
@@ -511,6 +528,8 @@ function LiveScenes({
   versions: Loaded<readonly LiveVersionView[]>;
   releases: readonly ReleaseView[];
   sceneTitle: SceneTitleOf;
+  /** The timings the game accepts, next load first. */
+  timings: readonly SwapTiming[];
   pending: Pending;
   onRetry: () => void;
   onMoved: () => void;
@@ -550,9 +569,7 @@ function LiveScenes({
               role="list"
               aria-label={`Live on ${channel}`}
             >
-              <Text as="p" size="xs" bold>
-                {CHANNEL_TITLE[channel]}
-              </Text>
+              <MicroLabel as="div">{CHANNEL_TITLE[channel]}</MicroLabel>
               {here.map((row) => (
                 <LiveSceneRow
                   key={`${row.version.scene}:${channel}`}
@@ -575,15 +592,14 @@ function LiveScenes({
       )}
       {saved.length > 0 ? (
         <div className="je-insp-stack" data-gap="tight" role="list" aria-label="Not live yet">
-          <Text as="p" size="xs" bold>
-            Not live yet
-          </Text>
+          <MicroLabel as="div">Not live yet</MicroLabel>
           {saved.map((version) => (
             <SavedVersionRow
               key={version.id}
               version={version}
               live={live}
               title={sceneTitle(version.scene)}
+              timings={timings}
               publisher={publisher}
               pending={pending}
               onMoved={onMoved}
@@ -621,8 +637,8 @@ export function notLiveYet(versions: readonly LiveVersionView[]): LiveVersionVie
 
 /**
  * The cleanup forecast, one line per scene: a version's own sentence, or
- * for several "3 versions of The ford will be removed from 20 Nov 2026 …",
- * dated by the first to go.
+ * for several "3 versions of The ford will be removed, the first on
+ * 20 Nov 2026. …", dated by the first to go.
  */
 export function removalForecast(
   versions: readonly LiveVersionView[],
@@ -641,15 +657,75 @@ export function removalForecast(
     const first = list.reduce((a, b) => ((b.removal?.at ?? "") < (a.removal?.at ?? "") ? b : a));
     return {
       scene,
-      text: `${list.length} versions of ${titleOf(scene)} will be removed from ${formatDay(first.removal?.at ?? "")} unless a channel points at them.`,
+      text: `${list.length} versions of ${titleOf(scene)} will be removed, the first on ${formatDay(first.removal?.at ?? "")}. Point a channel at one to keep it.`,
     };
   });
 }
+
+/**
+ * A version's hidden reason and its block, said the same in both lists:
+ * Unblock asks first, and a version production plays needs a publisher.
+ */
+function HoldLines({
+  version,
+  name,
+  publisher,
+  scope,
+  held,
+  onUnblock,
+}: {
+  version: LiveVersionView;
+  name: string;
+  publisher: boolean;
+  /** The busy scope Unblock runs under. */
+  scope: string;
+  /** Another move on the row is running. */
+  held: boolean;
+  onUnblock: () => Promise<boolean>;
+}) {
+  const locked = !publisher && version.pointers.some((p) => p.channel === "production");
+  return (
+    <>
+      {version.hidden !== null ? (
+        <Text as="p" size="xs" variant="danger">
+          {version.hidden}
+        </Text>
+      ) : null}
+      {version.blocked ? (
+        <div className="je-insp-row je-insp-wrap" data-gap="tight" data-align="start">
+          <Text size="xs" variant="danger" className="je-insp-grow">
+            {version.blocked.text}
+          </Text>
+          <Confirm
+            title={`Unblock ${name}?`}
+            message={unblockMessage(name)}
+            confirmText="Unblock"
+            onConfirm={onUnblock}
+          >
+            <Button
+              size="xs"
+              variant="outline"
+              busyScope={scope}
+              disabled={locked || held}
+              {...(locked ? { tooltip: PUBLISHERS_ONLY } : {})}
+            >
+              Unblock
+            </Button>
+          </Confirm>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** The tooltip on a not-live version's Promote to preview: preview takes it at the next load. */
+const PREVIEW_ARRIVAL = `Your team gets it on preview ${arrivalWords("next-load")}.`;
 
 function SavedVersionRow({
   version,
   live,
   title,
+  timings,
   publisher,
   pending,
   onMoved,
@@ -657,6 +733,7 @@ function SavedVersionRow({
   version: LiveVersionView;
   live: EditorLiveHost;
   title: string | undefined;
+  timings: readonly SwapTiming[];
   publisher: boolean;
   pending: Pending;
   onMoved: () => void;
@@ -664,9 +741,9 @@ function SavedVersionRow({
   const { scene, number } = version;
   const name = sceneVersionName(scene, number);
   const called = title ?? scene;
-  const timing: SwapTiming = "next-load";
+  const [timing, setTiming] = useState<SwapTiming>("next-load");
   const movable = version.blocked === null && version.hidden === null;
-  const promote = async (channel: PublishChannel) => {
+  const promote = async (channel: PublishChannel, at: SwapTiming) => {
     const result = await pending.run(
       {
         label: `Promoting ${name} to ${channel}`,
@@ -675,7 +752,20 @@ function SavedVersionRow({
           liveOnText(sceneVersionName(scene, moved.to ?? number), channel),
         error: `Couldn't promote ${name}`,
       },
-      () => live.promote(scene, number, channel, timing),
+      () => live.promote(scene, number, channel, at),
+    );
+    onMoved();
+    return result.ok;
+  };
+  const unblock = async () => {
+    const result = await pending.run(
+      {
+        label: `Unblocking ${name}`,
+        scope: liveScope(scene, "preview"),
+        success: () => `${name} is unblocked.`,
+        error: `Couldn't unblock ${name}`,
+      },
+      () => live.unblock(scene, number),
     );
     onMoved();
     return result.ok;
@@ -701,21 +791,52 @@ function SavedVersionRow({
         {name} · <TimeAgo date={version.createdAt} />
         {version.createdBy ? ` · ${version.createdBy}` : ""}
       </Text>
+      <HoldLines
+        version={version}
+        name={name}
+        publisher={publisher}
+        scope={liveScope(scene, "preview")}
+        held={false}
+        onUnblock={unblock}
+      />
       {movable ? (
         <div className="je-insp-row je-insp-wrap" data-gap="tight">
           <Button
             size="xs"
             variant="outline"
             busyScope={liveScope(scene, "preview")}
-            onClick={() => void promote("preview")}
+            tooltip={PREVIEW_ARRIVAL}
+            onClick={() => void promote("preview", "next-load")}
           >
             Promote to preview
           </Button>
           <Confirm
             title={`Promote ${name} to production?`}
-            message={productionConfirmText(name, timing)}
+            message={
+              timings.length > 1 ? (
+                <div className="je-insp-stack" data-gap="tight">
+                  <Text as="p" size="sm" variant="muted">
+                    {productionConfirmText(name, timing)}
+                  </Text>
+                  <ChoiceGroup
+                    legend="When players get it"
+                    name={`promote-timing-${scene}`}
+                    choices={SWAP_TIMINGS}
+                    value={timing}
+                    disabled={false}
+                    unavailable={(t) => !timings.includes(t)}
+                    hint={() => TIMING_UNDECLARED}
+                    label={(t) => TIMING_TEXT[t]}
+                    onPick={setTiming}
+                  />
+                </div>
+              ) : (
+                productionConfirmText(name, timing)
+              )
+            }
             confirmText="Promote"
-            onConfirm={() => promote("production")}
+            onOpenChange={(open) => open && setTiming("next-load")}
+            onConfirm={() => promote("production", timing)}
           >
             <Button
               size="xs"
@@ -764,7 +885,6 @@ function LiveSceneRow({
   const promoting = useBusy(liveScope(scene, "production")) !== undefined;
   const locked = channel === "production" && !publisher;
   const lockedTip = locked ? { tooltip: PUBLISHERS_ONLY } : {};
-  const unblockLocked = !publisher && version.pointers.some((p) => p.channel === "production");
 
   const act = async <T,>(
     label: string,
@@ -838,41 +958,21 @@ function LiveSceneRow({
         {name} · {timingWords(timing)} · <TimeAgo date={pointer.since} />
         {pointer.by ? ` · ${pointer.by}` : ""}
       </Text>
-      {version.hidden !== null ? (
-        <Text as="p" size="xs" variant="danger">
-          {version.hidden}
-        </Text>
-      ) : null}
-      {version.blocked ? (
-        <div className="je-insp-row je-insp-wrap" data-gap="tight" data-align="start">
-          <Text size="xs" variant="danger" className="je-insp-grow">
-            {version.blocked.text}
-          </Text>
-          <Confirm
-            title={`Unblock ${name}?`}
-            message={unblockMessage(name)}
-            confirmText="Unblock"
-            onConfirm={() =>
-              act(
-                `Unblocking ${name}`,
-                `Couldn't unblock ${name}`,
-                () => `${name} is unblocked.`,
-                () => live.unblock(scene, number),
-              )
-            }
-          >
-            <Button
-              size="xs"
-              variant="outline"
-              busyScope={scope}
-              disabled={unblockLocked || promoting}
-              {...(unblockLocked ? { tooltip: PUBLISHERS_ONLY } : {})}
-            >
-              Unblock
-            </Button>
-          </Confirm>
-        </div>
-      ) : null}
+      <HoldLines
+        version={version}
+        name={name}
+        publisher={publisher}
+        scope={scope}
+        held={promoting}
+        onUnblock={() =>
+          act(
+            `Unblocking ${name}`,
+            `Couldn't unblock ${name}`,
+            () => `${name} is unblocked.`,
+            () => live.unblock(scene, number),
+          )
+        }
+      />
       <div className="je-insp-row je-insp-wrap" data-gap="tight">
         {canPromote ? (
           <Confirm
@@ -891,7 +991,7 @@ function LiveSceneRow({
           >
             <Button
               size="xs"
-              variant="default"
+              variant="outline"
               busyScope={liveScope(scene, "production")}
               disabled={!publisher || rowBusy}
               {...(!publisher ? { tooltip: PUBLISHERS_ONLY } : {})}

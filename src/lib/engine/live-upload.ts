@@ -112,7 +112,7 @@ function blobNotStored(asset: ReleaseAsset): ReleaseApiError {
   return {
     code: "asset-missing",
     message: `Upload ${name} to the project first: the editor does this when you add the file.`,
-    hint: "A scene version sends only its scene and prefab texts; its images, sounds and fonts are the project's own uploads.",
+    hint: "A scene version sends only its texts (the scene, its prefabs and the docs they use); its images, sounds and fonts are the project's own uploads.",
   };
 }
 
@@ -284,17 +284,23 @@ function liveUsageReport(stored: StoredUsage, addsBytes: number, adds: boolean):
 
 // ─── begin ───────────────────────────────────────────────
 
+/** Whose hourly begins a publish counts against: an agent token's own, else its person's. */
+const beginBucket = (actor: Actor): string =>
+  actor.kind === "agent" && actor.agentTokenId ? `token:${actor.agentTokenId}` : actor.userId;
+
 /**
  * Checks a scene version against its channel's release and every quota,
  * stores the upload and lists the texts the site doesn't hold yet. The
  * texts then go up through `putReleaseFile`, as a release's files do. In
- * order: the caller may publish, the hourly begin limit and the day's
- * versions; the version's size, parse, canonical text and id; its project
- * and game; the compatibility rules against the target release (all but
- * the carried references, which need the texts); every blob stored for
- * the project; the data cap and release storage; then what the project
- * already holds. The caller has checked the production guard,
- * `engine-games-enabled` and staff.
+ * order: the caller may publish, the hourly begin limit (per person, or per
+ * agent token) and the note; the version's size, parse, canonical text and
+ * id; its project and game; whether the project already holds it (a
+ * removed one is refused) and, for a new one, the day's versions; the
+ * compatibility rules against the target release (all but the carried
+ * references, which need the texts); every blob stored for the project;
+ * then the data cap and release storage. A version already stored answers
+ * its number and adds nothing to the day. The caller has checked the
+ * production guard, `engine-games-enabled` and staff.
  */
 export async function beginSceneVersion(
   deps: ReleaseDeps,
@@ -304,24 +310,18 @@ export async function beginSceneVersion(
   const { projectId, actor } = input;
   const at = now();
 
-  // 1. Who, how often, how many today.
+  // 1. Who, how often, the note.
   const project = await liveProject(db, projectId);
   await assertMayUpload(deps, db, actor, project, "live-publish");
-  if (!(await rateLimit("engine-live-begin", actor.userId, LIVE_LIMITS.beginsPerHour, 3600)))
+  if (!(await rateLimit("engine-live-begin", beginBucket(actor), LIVE_LIMITS.beginsPerHour, 3600)))
     refuse(releaseRateLimited("scene-begins"));
-  const stored = await storedUsage(db, projectId, at);
-  const today = checkLiveQuota(stored, { dataBytes: 0, addsBytes: 0, today: stored.liveToday });
-  if (!today.ok) quotaRefusal(today);
   if (input.note !== undefined && [...input.note].length > LIVE_LIMITS.noteChars)
     refuse(noteTooLong([...input.note].length));
 
   // 2. The version file: size, parse, canonical text, id.
+  const stored = await storedUsage(db, projectId, at);
   const versionBytes = utf8Bytes(input.version);
-  const fits = checkLiveQuota(stored, {
-    dataBytes: versionBytes,
-    addsBytes: 0,
-    today: stored.liveToday,
-  });
+  const fits = checkLiveQuota(stored, { dataBytes: versionBytes, addsBytes: 0, today: null });
   if (!fits.ok) quotaRefusal(fits);
   const version = parsedVersion(input.version);
   if (formatSceneVersion(version) !== input.version) refuse(releaseNotCanonical("scene-version"));
@@ -333,16 +333,25 @@ export async function beginSceneVersion(
   if (project.game !== null && version.compat.game.id !== project.game)
     refuse(releaseProjectMismatch("game", projectId, version.compat.game.id, "scene-version"));
 
-  // 4. The target release's rules, but the carried references.
-  const release = await targetRelease(db, projectId, input.channel);
+  // 4. What the project already holds; a new version must fit the day's count.
   const existing = await storedVersion(db, projectId, versionId);
+  if (existing?.collectedAt)
+    refuse(
+      sceneVersionRemoved(sceneVersionName(version.scene, existing.number), existing.collectedAt),
+    );
+  const today = existing ? null : stored.liveToday;
+  const day = checkLiveQuota(stored, { dataBytes: 0, addsBytes: 0, today });
+  if (!day.ok) quotaRefusal(day);
+
+  // 5. The target release's rules, but the carried references.
+  const release = await targetRelease(db, projectId, input.channel);
   const number = existing?.number ?? (await nextNumber(db, projectId, version.scene));
   const issues = checkSceneVersion(release.manifest, version, undefined, {
     names: { version: sceneVersionName(version.scene, number), release: `v${release.version}` },
   });
   refuseErrors(issues);
 
-  // 5. Every blob stored for the project, under a name the site serves.
+  // 6. Every blob stored for the project, under a name the site serves.
   const files = versionFiles(version, versionId, input.version);
   const held = await heldHashes(
     db,
@@ -355,7 +364,7 @@ export async function beginSceneVersion(
     if (parseLivePath(asset.file) === null) refuse(releaseFileType(asset.path));
   }
 
-  // 6. The data cap and release storage.
+  // 7. The data cap and release storage.
   const missing = docAssets(version)
     .filter((a, i, all) => all.findIndex((b) => b.sha256 === a.sha256) === i)
     .filter((a) => !held.objects.has(a.sha256))
@@ -365,15 +374,9 @@ export async function beginSceneVersion(
   const quota = checkLiveQuota(stored, {
     dataBytes: sceneVersionDataBytes(input.version, version),
     addsBytes,
-    today: stored.liveToday,
+    today,
   });
   if (!quota.ok) quotaRefusal(quota);
-
-  // 7. What the project already holds.
-  if (existing?.collectedAt)
-    refuse(
-      sceneVersionRemoved(sceneVersionName(version.scene, existing.number), existing.collectedAt),
-    );
 
   // 8. The upload.
   const [upload] = await db

@@ -1,10 +1,14 @@
-import { ID_PATTERN } from "@jams/engine/scene";
 import { os } from "@orpc/server";
 import * as z from "zod";
 
 import { assertEngineGames } from "@/lib/engine/guard-server";
 import { RELEASE_MANIFEST_MAX_BYTES } from "@/lib/engine/limits";
-import { engineProjectIdInput as projectId } from "@/lib/engine/projects";
+import {
+  engineProjectIdInput as projectId,
+  moderationReasonInput as reason,
+  sceneIdInput as scene,
+  versionNumberInput as version,
+} from "@/lib/engine/projects";
 import { releaseChannel as channel } from "@/lib/engine/release-access";
 import {
   getRelease as readRelease,
@@ -41,8 +45,6 @@ export const releaseStaff = os.use(requireStaff).use(async ({ context, next }) =
   await assertEngineGames({ userId: context.user.id });
   return next();
 });
-
-const version = z.number().int().min(1);
 
 const person = (userId: string): Actor => ({ kind: "user", userId });
 const staff = (userId: string): Actor => ({ kind: "staff", userId });
@@ -83,8 +85,6 @@ export const getRelease = releaseStaff
     orpcRefusals(() => readRelease({ ...input, actor: actorOf(context) })),
   );
 
-const scene = z.string().regex(ID_PATTERN, "A scene id is lowercase letters, digits and dashes.");
-
 /** Points a channel at a release; its live scenes go but `keepScenes`, which a publisher may keep. */
 export const promoteRelease = releaseStaff
   .input(z.object({ projectId, version, channel, keepScenes: z.array(scene).optional() }))
@@ -120,9 +120,7 @@ export const unlinkReleaseJam = releaseStaff
 
 /** Hides one version, or the whole game without one, with the reason its publishers see. */
 export const hideRelease = releaseStaff
-  .input(
-    z.object({ projectId, version: version.optional(), reason: z.string().trim().min(1).max(500) }),
-  )
+  .input(z.object({ projectId, version: version.optional(), reason }))
   .handler(({ context, input }) =>
     orpcRefusals(() =>
       hide({
@@ -168,7 +166,7 @@ export const resolveGameReport = releaseStaff
     z.object({
       reportId: z.number().int().min(1),
       action: z.enum(["hide-release", "hide-project", "dismiss"]),
-      reason: z.string().trim().min(1).max(500).optional(),
+      reason: reason.optional(),
     }),
   )
   .handler(({ context, input }) =>

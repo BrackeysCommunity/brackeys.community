@@ -1,5 +1,4 @@
 import { isSha256 } from "@jams/engine/project";
-import { ID_PATTERN } from "@jams/engine/scene";
 import * as z from "zod";
 
 import {
@@ -10,7 +9,7 @@ import {
   unblockSceneVersion as unblock,
   unhideSceneVersion as unhide,
 } from "@/lib/engine/live-moderation";
-import { LIVE_OUTCOMES } from "@/lib/engine/live-outcomes";
+import { LIVE_ISSUE_CODE, LIVE_OUTCOMES } from "@/lib/engine/live-outcomes";
 import {
   liveBeginInput,
   liveClearInput,
@@ -31,7 +30,12 @@ import {
   promoteScene,
   rollbackScene,
 } from "@/lib/engine/live-versions";
-import { engineProjectIdInput as projectId } from "@/lib/engine/projects";
+import {
+  engineProjectIdInput as projectId,
+  moderationReasonInput as reason,
+  sceneIdInput as scene,
+  versionNumberInput as number,
+} from "@/lib/engine/projects";
 import { releaseChannel as channel } from "@/lib/engine/release-access";
 import { orpcRefusals } from "@/lib/engine/release-errors";
 import { uploadIdInput } from "@/lib/engine/route-gate";
@@ -59,10 +63,7 @@ export type {
 
 export type { SceneVersionQueueItem } from "@/lib/engine/live-moderation";
 
-const scene = z.string().regex(ID_PATTERN, "A scene id is lowercase letters, digits and dashes.");
-const number = z.number().int().min(1);
 const sha256 = z.string().refine(isSha256, "A SHA-256 is 64 lowercase hex digits.");
-const reason = z.string().trim().min(1).max(500);
 
 /** Checks a scene version against its channel's release and every quota, and lists the texts the site doesn't hold yet. */
 export const beginSceneVersion = releaseStaff
@@ -194,10 +195,7 @@ export const reportLiveState = gameReader
       versionId: sha256,
       channel,
       outcome: z.enum(LIVE_OUTCOMES),
-      issueCode: z
-        .string()
-        .regex(/^[a-z0-9][a-z0-9-]{0,63}$/)
-        .optional(),
+      issueCode: z.string().regex(LIVE_ISSUE_CODE).optional(),
     }),
   )
   .handler(({ context, input }) =>

@@ -7,6 +7,7 @@ import {
   Undo02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { releasePromoteMessage, releaseRollbackMessage } from "@jams/engine/game";
 import { Link } from "@tanstack/react-router";
 import { Fragment, useState } from "react";
 
@@ -66,17 +67,15 @@ function badgesOf(version: GameVersion): { key: string; label: string }[] {
   return out;
 }
 
-/** "v7 · Live · with updated levels: The ford (12m ago)": the levels production plays from live versions. */
-export function LiveLevelsLine({
-  version,
-  scenes,
-}: {
-  version: number;
-  scenes: readonly GamePageLiveScene[];
-}) {
+/**
+ * "With updated levels: The ford (12m ago)": the levels production plays
+ * from live versions, under the live version's row, which already names
+ * the version and carries the LIVE badge.
+ */
+export function LiveLevelsLine({ scenes }: { scenes: readonly GamePageLiveScene[] }) {
   return (
     <Text as="span" size="xs" variant="muted" data-live-levels="">
-      v{version} · Live · with updated levels:{" "}
+      With updated levels:{" "}
       {scenes.map((s, i) => (
         <Fragment key={s.scene}>
           {i > 0 ? ", " : null}
@@ -222,7 +221,7 @@ function PublisherMenu({ projectId, version, liveVersion, onChanged }: Publisher
         open={dialog === "promote"}
         onOpenChange={close}
         title={`Promote v${v} to production?`}
-        message={`Players will get v${v} the next time they open the game. You can roll back at any time.`}
+        message={releasePromoteMessage(v)}
         confirmText="Promote"
         onConfirm={() =>
           run(
@@ -236,11 +235,7 @@ function PublisherMenu({ projectId, version, liveVersion, onChanged }: Publisher
         open={dialog === "rollback"}
         onOpenChange={close}
         title={`Roll back to v${v}?`}
-        message={
-          liveVersion === null
-            ? `Players get v${v} again the next time they open the game.`
-            : `Players get v${v} again the next time they open the game. v${liveVersion} stays in the list.`
-        }
+        message={releaseRollbackMessage(v, liveVersion)}
         confirmText="Roll back"
         onConfirm={() =>
           run(
@@ -325,7 +320,7 @@ export function VersionList({
                 {version.hidden?.reason ? <> · Hidden: {version.hidden.reason}</> : null}
               </Text>
               {version.version === liveVersion && liveScenes.length > 0 ? (
-                <LiveLevelsLine version={version.version} scenes={liveScenes} />
+                <LiveLevelsLine scenes={liveScenes} />
               ) : null}
             </span>
             {badgesOf(version).map((badge) => (

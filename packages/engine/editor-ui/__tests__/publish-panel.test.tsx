@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi, type Mock } from "vite-plus/test";
 
+import type { SwapTiming } from "../../game/live";
 import type { AssetId, ProjectId, Sha256 } from "../../project/index";
 import type {
   EditorLiveHost,
@@ -49,6 +50,16 @@ vi.mock("../../project/index", async (importOriginal) => {
 });
 
 afterEach(cleanup);
+
+/**
+ * Opens the Confirm behind `trigger`. A just-mounted trigger ignores clicks until base-ui wires
+ * it, which it shows by announcing its dialog; a click before that is lost.
+ */
+async function ask(trigger: HTMLElement): Promise<HTMLElement> {
+  await waitFor(() => expect(trigger.getAttribute("aria-haspopup")).toBe("dialog"));
+  fireEvent.click(trigger);
+  return screen.findByRole("alertdialog");
+}
 
 const DAY = 86_400_000;
 
@@ -232,9 +243,9 @@ describe("PublishPanel", () => {
   it("asks before promoting, then moves production and says so", async () => {
     const publish = host({ releases: vi.fn(async () => channels()) });
     const { notify } = mount(publish);
-    fireEvent.click(await screen.findByRole("button", { name: "Promote v7 to production" }));
-
-    const dialog = await screen.findByRole("alertdialog");
+    const dialog = await ask(
+      await screen.findByRole("button", { name: "Promote v7 to production" }),
+    );
     expect(
       within(dialog).getByText(
         "Players will get v7 the next time they open the game. You can roll back at any time.",
@@ -251,8 +262,9 @@ describe("PublishPanel", () => {
   it("asks before rolling production back to the release it was on before", async () => {
     const publish = host({ releases: vi.fn(async () => channels()) });
     mount(publish);
-    fireEvent.click(await screen.findByRole("button", { name: "Roll back production to v5" }));
-    const dialog = await screen.findByRole("alertdialog");
+    const dialog = await ask(
+      await screen.findByRole("button", { name: "Roll back production to v5" }),
+    );
     expect(
       within(dialog).getByText(
         "Players get v5 again the next time they open the game. v6 stays in the list.",
@@ -287,9 +299,10 @@ describe("PublishPanel", () => {
       }),
     });
     const { notify } = mount(publish);
-    fireEvent.click(await screen.findByRole("button", { name: "Promote v7 to production" }));
     fireEvent.click(
-      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Promote" }),
+      within(
+        await ask(await screen.findByRole("button", { name: "Promote v7 to production" })),
+      ).getByRole("button", { name: "Promote" }),
     );
     await waitFor(() =>
       expect(notify.error).toHaveBeenCalledWith("Couldn't promote v7", {
@@ -446,7 +459,7 @@ describe("PublishPanel", () => {
 const MINUTE = 60_000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 const BLOCKED = "5 of 12 players' games failed after this update.";
-const FORECAST = "level-1@1 will be removed on 20 Nov 2026 unless a channel points at it.";
+const FORECAST = "level-1@1 will be removed on 20 Nov 2026. Point a channel at it to keep it.";
 
 function liveVersion(scene: string, number: number, over: Partial<LiveVersionView> = {}) {
   return {
@@ -509,7 +522,11 @@ function liveHost(over: Partial<FakeLive> = {}, publisher = true): FakeLive {
 
 const titles = (scene: AssetId) => (scene === "level-1" ? "The ford" : undefined);
 
-function mountLive(live: FakeLive | undefined, over: Partial<FakePublish> = {}) {
+function mountLive(
+  live: FakeLive | undefined,
+  over: Partial<FakePublish> = {},
+  gameLive?: { timings: SwapTiming[] },
+) {
   const notify = notifier();
   const publish = host({
     releases: vi.fn(async () => channels()),
@@ -518,7 +535,12 @@ function mountLive(live: FakeLive | undefined, over: Partial<FakePublish> = {}) 
   });
   render(
     <KitProvider host={{}}>
-      <PublishPanel publish={publish} notify={notify} sceneTitle={titles} />
+      <PublishPanel
+        publish={publish}
+        notify={notify}
+        sceneTitle={titles}
+        {...(gameLive ? { gameLive } : {})}
+      />
     </KitProvider>,
   );
   return { publish, notify };
@@ -578,8 +600,7 @@ describe("PublishPanel's live scenes", () => {
     const live = liveHost();
     const { notify } = mountLive(live);
     const row = await rowOf("preview", "level-1@4");
-    fireEvent.click(within(row).getByRole("button", { name: "Stop" }));
-    const dialog = await screen.findByRole("alertdialog");
+    const dialog = await ask(within(row).getByRole("button", { name: "Stop" }));
     expect(
       within(dialog).getByText(
         "Players go back to v7's version of The ford the next time the level loads.",
@@ -599,8 +620,7 @@ describe("PublishPanel's live scenes", () => {
   it("names production's release in the Stop question there", async () => {
     mountLive(liveHost());
     const row = await rowOf("production", "cave@2");
-    fireEvent.click(within(row).getByRole("button", { name: "Stop" }));
-    const dialog = await screen.findByRole("alertdialog");
+    const dialog = await ask(within(row).getByRole("button", { name: "Stop" }));
     expect(
       within(dialog).getByText("Players go back to v6's version of cave at the next safe moment."),
     ).toBeTruthy();
@@ -612,8 +632,7 @@ describe("PublishPanel's live scenes", () => {
     const row = await rowOf("production", "level-1@3");
     expect(within(row).getByText("blocked")).toBeTruthy();
     expect(within(row).getByText(BLOCKED)).toBeTruthy();
-    fireEvent.click(within(row).getByRole("button", { name: "Unblock" }));
-    const dialog = await screen.findByRole("alertdialog");
+    const dialog = await ask(within(row).getByRole("button", { name: "Unblock" }));
     expect(within(dialog).getByText("Players will get level-1@3 again.")).toBeTruthy();
     expect(live.unblock).not.toHaveBeenCalled();
     fireEvent.click(within(dialog).getByRole("button", { name: "Unblock" }));
@@ -645,8 +664,7 @@ describe("PublishPanel's live scenes", () => {
     const live = liveHost();
     const { notify } = mountLive(live);
     const row = await rowOf("preview", "level-1@4");
-    fireEvent.click(within(row).getByRole("button", { name: "Promote to production" }));
-    const dialog = await screen.findByRole("alertdialog");
+    const dialog = await ask(within(row).getByRole("button", { name: "Promote to production" }));
     expect(
       within(dialog).getByText(
         "Players will get level-1@4 the next time the level loads. You can roll back or stop it at any time.",
@@ -707,6 +725,83 @@ describe("PublishPanel's live scenes", () => {
     );
   });
 
+  it("asks for the timing when promoting a not-live version to production", async () => {
+    const saved = liveVersion("level-1", 5);
+    const live = liveHost({ list: vi.fn(async () => [saved, ...liveVersions()]) });
+    mountLive(live, {}, { timings: ["boundary"] });
+    const row = within(await screen.findByRole("list", { name: "Not live yet" })).getByRole(
+      "listitem",
+    );
+    const dialog = await ask(within(row).getByRole("button", { name: "Promote to production" }));
+    const when = within(dialog).getByRole("radiogroup", { name: "When players get it" });
+    expect(within(when).getByLabelText("Next time the level loads")).toHaveProperty(
+      "checked",
+      true,
+    );
+    expect(within(when).getByLabelText("Now, while they play")).toHaveProperty("disabled", true);
+    fireEvent.click(within(when).getByLabelText("At the next safe moment the game marks"));
+    expect(
+      within(dialog).getByText(
+        "Players will get level-1@5 at the next safe moment. You can roll back or stop it at any time.",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Promote" }));
+    await waitFor(() =>
+      expect(live.promote).toHaveBeenCalledWith("level-1", 5, "production", "boundary"),
+    );
+  });
+
+  it("promotes a not-live version at next load when the game takes nothing else", async () => {
+    const saved = liveVersion("level-1", 5);
+    const live = liveHost({ list: vi.fn(async () => [saved, ...liveVersions()]) });
+    mountLive(live);
+    const row = within(await screen.findByRole("list", { name: "Not live yet" })).getByRole(
+      "listitem",
+    );
+    const dialog = await ask(within(row).getByRole("button", { name: "Promote to production" }));
+    expect(within(dialog).queryByRole("radiogroup")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Promote" }));
+    await waitFor(() =>
+      expect(live.promote).toHaveBeenCalledWith("level-1", 5, "production", "next-load"),
+    );
+  });
+
+  it("says why a not-live version is blocked or hidden, and offers Unblock", async () => {
+    const blocked = liveVersion("level-1", 5, { blocked: { by: "system", text: BLOCKED } });
+    const hidden = liveVersion("cave", 3, { hidden: "Spoils the ending." });
+    const live = liveHost({ list: vi.fn(async () => [blocked, hidden, ...liveVersions()]) }, false);
+    mountLive(live);
+    const list = await screen.findByRole("list", { name: "Not live yet" });
+    const [first, second] = within(list).getAllByRole("listitem");
+    const blockedRow = [first, second].find((r) => r?.textContent?.includes("level-1@5"))!;
+    const hiddenRow = [first, second].find((r) => r?.textContent?.includes("cave@3"))!;
+    expect(within(hiddenRow).getByText("Spoils the ending.")).toBeTruthy();
+    expect(within(hiddenRow).queryByRole("button")).toBeNull();
+    expect(within(blockedRow).getByText(BLOCKED)).toBeTruthy();
+    expect(within(blockedRow).queryByRole("button", { name: /Promote/ })).toBeNull();
+    const unblock = within(blockedRow).getByRole("button", { name: "Unblock" });
+    expect(unblock).toHaveProperty("disabled", false);
+    const dialog = await ask(unblock);
+    expect(within(dialog).getByText("Players will get level-1@5 again.")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Unblock" }));
+    await waitFor(() => expect(live.unblock).toHaveBeenCalledWith("level-1", 5));
+  });
+
+  it("draws every per-row Promote to production as an outline button", async () => {
+    const saved = liveVersion("level-1", 5);
+    mountLive(liveHost({ list: vi.fn(async () => [saved, ...liveVersions()]) }));
+    const preview = await rowOf("preview", "level-1@4");
+    const notLive = within(await screen.findByRole("list", { name: "Not live yet" })).getByRole(
+      "listitem",
+    );
+    for (const row of [preview, notLive])
+      expect(
+        within(row)
+          .getByRole("button", { name: "Promote to production" })
+          .getAttribute("data-variant"),
+      ).toBe("outline");
+  });
+
   it("lists no version older than one a channel plays as not live yet", async () => {
     mountLive(liveHost());
     await rowOf("preview", "level-1@4");
@@ -723,7 +818,7 @@ describe("PublishPanel's live scenes", () => {
     await waitFor(() =>
       expect(
         within(section).getByText(
-          "2 versions of The ford will be removed from 20 Nov 2026 unless a channel points at them.",
+          "2 versions of The ford will be removed, the first on 20 Nov 2026. Point a channel at one to keep it.",
         ),
       ).toBeTruthy(),
     );
@@ -737,9 +832,10 @@ describe("PublishPanel's live scenes", () => {
     });
     mountLive(live);
     const row = await rowOf("production", "level-1@3");
-    fireEvent.click(within(row).getByRole("button", { name: "Unblock" }));
     fireEvent.click(
-      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Unblock" }),
+      within(await ask(within(row).getByRole("button", { name: "Unblock" }))).getByRole("button", {
+        name: "Unblock",
+      }),
     );
     await waitFor(() => expect(live.unblock).toHaveBeenCalled());
     const held = (name: string) =>
@@ -795,8 +891,7 @@ describe("PublishPanel's live scenes", () => {
     const live = liveHost();
     mountLive(live);
     const row = await rowOf("production", "cave@2");
-    fireEvent.click(within(row).getByRole("button", { name: "Roll back" }));
-    const dialog = await screen.findByRole("alertdialog");
+    const dialog = await ask(within(row).getByRole("button", { name: "Roll back" }));
     expect(
       within(dialog).getByText(
         "Players go back to what production played before cave@2 at the next safe moment: an earlier version of cave, or the release's own.",
@@ -857,8 +952,9 @@ describe("the release promote's live scenes", () => {
   });
 
   const openPromote = async () => {
-    fireEvent.click(await screen.findByRole("button", { name: "Promote v7 to production" }));
-    const dialog = await screen.findByRole("alertdialog");
+    const dialog = await ask(
+      await screen.findByRole("button", { name: "Promote v7 to production" }),
+    );
     await waitFor(() =>
       expect(dialog.textContent).toContain(
         "Promoting v7 replaces these live scenes: The ford (level-1@3), cave (cave@2).",
@@ -914,8 +1010,9 @@ describe("the release promote's live scenes", () => {
           }),
       );
     mountLive(liveHost({ list, base }));
-    fireEvent.click(await screen.findByRole("button", { name: "Promote v7 to production" }));
-    const dialog = await screen.findByRole("alertdialog");
+    const dialog = await ask(
+      await screen.findByRole("button", { name: "Promote v7 to production" }),
+    );
     await waitFor(() =>
       expect(within(dialog).getByRole("button", { name: "Promote" })).toHaveProperty(
         "disabled",
@@ -932,8 +1029,9 @@ describe("the release promote's live scenes", () => {
 
   it("asks as before when nothing is live on production", async () => {
     mountLive(liveHost({ list: vi.fn(async () => []) }));
-    fireEvent.click(await screen.findByRole("button", { name: "Promote v7 to production" }));
-    const dialog = await screen.findByRole("alertdialog");
+    const dialog = await ask(
+      await screen.findByRole("button", { name: "Promote v7 to production" }),
+    );
     expect(
       within(dialog).getByText(
         "Players will get v7 the next time they open the game. You can roll back at any time.",

@@ -4,7 +4,7 @@ import type { LiveSnapshot, LiveStateMessage } from "@jams/engine/standalone";
 
 import type { HostServer } from "./host-server";
 import { LIVE_CRASH_WINDOW_SECONDS, LIVE_POLL_SECONDS } from "./limits";
-import type { LiveOutcome } from "./live-outcomes";
+import { LIVE_ISSUE_CODE, type LiveOutcome } from "./live-outcomes";
 import type { ReleaseChannel as LiveChannel } from "./release-access";
 import { engineLiveStreamPath } from "./route-paths";
 
@@ -47,7 +47,6 @@ export type LiveClientOptions = {
   procedures?: LiveProcedures;
 };
 
-const ISSUE_CODE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const OUTCOMES: Partial<Record<LiveStateMessage["status"], LiveOutcome>> = {
   applied: "applied",
   refused: "refused",
@@ -71,8 +70,10 @@ const contentOf = (s: LiveSnapshot) =>
 
 /**
  * The play page's side of live levels. It follows the channel's stream and
- * reads the live state once per new rev, or polls while the page is visible
- * when there is no working stream. A new release is offered as a reload and
+ * reads the live state once per new rev, and polls while the page is visible
+ * behind it: an open stream can still hear nothing (its Redis subscriber
+ * down, a proxy that buffers), which the page can't tell from a quiet
+ * channel. A new release is offered as a reload and
  * never sent; any other change goes to the frame. What the frame reports is
  * forwarded once per version, applied `boundary` and `now` swaps are
  * surfaced, and a hidden version the frame runs reloads it. A frame that
@@ -181,7 +182,7 @@ export function createLiveClient(opts: LiveClientOptions): LiveClient {
         versionId: version,
         channel,
         outcome,
-        ...(code && ISSUE_CODE.test(code) ? { issueCode: code } : {}),
+        ...(code && LIVE_ISSUE_CODE.test(code) ? { issueCode: code } : {}),
       })
       .catch(() => {
         // A report that doesn't arrive changes nothing the player sees.
@@ -202,21 +203,17 @@ export function createLiveClient(opts: LiveClientOptions): LiveClient {
 
   const stopStates = host.onLiveState(onLiveState);
 
-  let timer: ReturnType<typeof setInterval> | null = null;
-  const onVisibility = () => {
+  const fetchIfVisible = () => {
     if (document.visibilityState === "visible") void fetchState();
   };
-  function startPolling(): void {
-    if (disposed || timer !== null) return;
-    timer = setInterval(() => {
-      if (document.visibilityState === "visible") void fetchState();
-    }, LIVE_POLL_SECONDS * 1_000);
-    document.addEventListener("visibilitychange", onVisibility);
-  }
+  let timer: ReturnType<typeof setInterval> | null = setInterval(
+    fetchIfVisible,
+    LIVE_POLL_SECONDS * 1_000,
+  );
+  document.addEventListener("visibilitychange", fetchIfVisible);
 
   let source: EventSource | null = null;
-  if (typeof EventSource === "undefined") startPolling();
-  else {
+  if (typeof EventSource !== "undefined") {
     source = new EventSource(engineLiveStreamPath(projectId, channel));
     let interrupted = false;
     source.addEventListener("live", (message) => {
@@ -240,7 +237,6 @@ export function createLiveClient(opts: LiveClientOptions): LiveClient {
       if (source?.readyState !== EventSource.CLOSED) return;
       source.close();
       source = null;
-      startPolling();
       void fetchState();
     });
   }
@@ -254,7 +250,7 @@ export function createLiveClient(opts: LiveClientOptions): LiveClient {
       source = null;
       if (timer !== null) clearInterval(timer);
       timer = null;
-      document.removeEventListener("visibilitychange", onVisibility);
+      document.removeEventListener("visibilitychange", fetchIfVisible);
       stopStates();
     },
   };

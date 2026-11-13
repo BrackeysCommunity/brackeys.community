@@ -6,6 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { db as mockedDb } from "@/db";
 import {
   engineProjects,
+  engineReleaseChannels,
   engineReleaseJamLinks,
   engineReleases,
   engineSceneChannels,
@@ -15,11 +16,18 @@ import {
   teams,
 } from "@/db/schema";
 import { forgetProjectReleases } from "@/lib/engine/frame-route";
-import { forgetLiveSnapshots, resolvePlay, type PlayDeps } from "@/lib/engine/game-play";
+import {
+  channelOfPlayVersion,
+  forgetLiveSnapshots,
+  playVersionOf,
+  resolvePlay,
+  type PlayDeps,
+} from "@/lib/engine/game-play";
 import { engineLive } from "@/lib/engine/live-events";
 import { moveScenePointer } from "@/lib/engine/live-pointers";
 import type { Viewer } from "@/lib/engine/release-access";
 import type { ReleaseDb } from "@/lib/engine/release-audit";
+import { promote } from "@/lib/engine/release-channels";
 import { memoryReleaseStore } from "@/lib/engine/release-storage";
 import type { Actor } from "@/lib/engine/release-upload";
 import { PUBLIC_PROCEDURE_NAMES } from "@/orpc/public-procedures";
@@ -143,6 +151,39 @@ function countingDb(tables: unknown[]): ReleaseDb {
     query.from = (table) => {
       tables.push(table);
       return from(table);
+    };
+    return query;
+  };
+  return { ...(db as unknown as ReleaseDb), select } as unknown as ReleaseDb;
+}
+
+/**
+ * The site's db, where each channel pointer read answers what it read and
+ * then promotes the next of `moves` to production, as a promote landing
+ * between the play's pointer read and its live read would.
+ */
+function movingDb(moves: number[]): ReleaseDb {
+  type Query = { from: (table: unknown) => Query; then: PromiseLike<unknown>["then"] };
+  const real = db as unknown as { select: (fields?: Record<string, unknown>) => Query };
+  const select = (fields?: Record<string, unknown>) => {
+    const query = real.select(fields);
+    const from = query.from.bind(query);
+    query.from = (table) => {
+      const built = from(table);
+      const pointerRead =
+        table === engineReleaseChannels && Object.keys(fields ?? {}).join() === "releaseId,rev";
+      const version = pointerRead ? moves.shift() : undefined;
+      if (version === undefined) return built;
+      const then = built.then.bind(built);
+      built.then = (ok, fail) =>
+        then(async (rows) => {
+          await promote(
+            { projectId: PROJECT, version, channel: "production", actor: publisherActor },
+            { db: deps().db, now: () => NOW },
+          );
+          return rows;
+        }).then(ok, fail);
+      return built;
     };
     return query;
   };
@@ -302,6 +343,53 @@ describe("the play payload's live state", () => {
     expect(pointerQueries()).toBe(1);
     await play("latest", anonymous, { db: counted, now: () => new Date(NOW.getTime() + 5_000) });
     expect(pointerQueries()).toBe(2);
+  });
+});
+
+describe("a channel that moves while the play resolves", () => {
+  let second: PlannedRelease;
+  beforeAll(async () => {
+    second = await plannedRelease({
+      projectId: PROJECT,
+      gameId: GAME,
+      engineVersion: "0.14.1",
+      hallVariant: 2,
+    });
+  });
+
+  it("names the channel's moving versions both ways", () => {
+    expect(playVersionOf("production")).toBe("latest");
+    expect(playVersionOf("preview")).toBe("preview");
+    expect(channelOfPlayVersion("latest")).toBe("production");
+    expect(channelOfPlayVersion("preview")).toBe("preview");
+    expect(channelOfPlayVersion("1")).toBeNull();
+    expect(channelOfPlayVersion("production")).toBeNull();
+  });
+
+  it("resolves once more, so the payload and its live state name the same release", async () => {
+    const shipped = await uploadRelease(deps(), second, { actor: publisherActor });
+    const resolved = await play("latest", anonymous, { db: movingDb([shipped.version]) });
+    if (!resolved.ok) throw new Error(`refused: ${resolved.reason}`);
+    expect(resolved.play.release.id).toBe(shipped.releaseId);
+    expect(resolved.play.live).toMatchObject({
+      channel: "production",
+      release: shipped.releaseId,
+      rev: await liveRev(PROJECT, "production"),
+    });
+  });
+
+  it("gives an empty state at rev 0 over the payload's release when it moves again", async () => {
+    const shipped = await uploadRelease(deps(), second, { actor: publisherActor });
+    const resolved = await play("latest", anonymous, { db: movingDb([shipped.version, 1]) });
+    if (!resolved.ok) throw new Error(`refused: ${resolved.reason}`);
+    expect(resolved.play.release.id).toBe(shipped.releaseId);
+    expect(resolved.play.live).toEqual({
+      channel: "production",
+      rev: 0,
+      release: shipped.releaseId,
+      scenes: [],
+      removed: [],
+    });
   });
 });
 

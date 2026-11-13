@@ -91,6 +91,9 @@ export const engineLiveMovePath = (projectId: string, scene: string, move: "roll
 export const engineLiveStreamPath = (projectId: string, channel: "preview" | "production") =>
   `/api/engine/live/${encodeURIComponent(projectId)}/stream?channel=${channel}`;
 
+/** Matches the live stream path without its query: the encoded project id. */
+export const LIVE_STREAM_PATH = /^\/api\/engine\/live\/([^/]+)\/stream$/;
+
 /** Matches the live path: the encoded project id. */
 export const LIVE_PATH = /^\/api\/engine\/projects\/([^/]+)\/live$/;
 export const LIVE_COMMIT_PATH = /^\/api\/engine\/projects\/([^/]+)\/live\/commit$/;

@@ -8,6 +8,7 @@ import { LIVE_LIMITS } from "@/lib/engine/limits";
 import { createLiveRoutes } from "@/lib/engine/live-routes";
 import { putReleaseFile, type ReleaseTxDb } from "@/lib/engine/release-upload";
 import { engineLivePath } from "@/lib/engine/route-paths";
+import { putSceneTexts } from "@/lib/engine/scene-version-upload";
 import { beginSceneVersion, commitSceneVersion } from "@/orpc/router/engine-live";
 import { beginRelease, commitRelease } from "@/orpc/router/engine-release";
 import { seedUser, type TestDb } from "@/test/db";
@@ -93,18 +94,19 @@ describe("the live upload procedures", () => {
   it("let staff begin and commit a version to preview, audited as staff", async () => {
     const release = await plannedRelease({ projectId: PROJECT });
     const staff = { kind: "staff", userId: "staff" } as const;
-    const put = (uploadId: string, sha256: string, body: Uint8Array) =>
-      putReleaseFile(
-        { db: db as unknown as ReleaseTxDb, store: shared.store!, scan: async () => {} },
-        { uploadId, sha256, body, actor: staff },
-      );
+    const deps = { db: db as unknown as ReleaseTxDb, store: shared.store!, scan: async () => {} };
     const shipped = await call(
       beginRelease,
       { projectId: PROJECT, manifest: release.text, channel: "preview" },
       asUser("staff"),
     );
     for (const file of shipped.missing)
-      await put(shipped.uploadId, file.sha256, release.files.get(file.path)!);
+      await putReleaseFile(deps, {
+        uploadId: shipped.uploadId,
+        sha256: file.sha256,
+        body: release.files.get(file.path)!,
+        actor: staff,
+      });
     await call(commitRelease, { uploadId: shipped.uploadId }, asUser("staff"));
 
     const hall = await fixtureVersion(release, {
@@ -119,12 +121,7 @@ describe("the live upload procedures", () => {
       asUser("staff"),
     );
     expect(begun).toMatchObject({ versionId: hall.id, number: null });
-    for (const file of begun.missing)
-      await put(
-        begun.uploadId,
-        file.sha256,
-        new TextEncoder().encode(hall.texts.get(file.sha256)!),
-      );
+    await putSceneTexts(deps, hall, begun, staff);
     const committed = await call(commitSceneVersion, { uploadId: begun.uploadId }, asUser("staff"));
     expect(committed).toEqual({
       versionId: hall.id,

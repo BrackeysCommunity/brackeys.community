@@ -8,6 +8,9 @@ export const LIVE_OUTCOMES = ["applied", "refused", "failed", "crashed"] as cons
 
 export type LiveOutcome = (typeof LIVE_OUTCOMES)[number];
 
+/** An issue code a report may carry; the page drops any other, which the router would refuse. */
+export const LIVE_ISSUE_CODE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
 /**
  * Whether the player's game failed with the version: what `reports_failed`
  * and the breaker count. A refused version never ran, so the game went on

@@ -10,8 +10,6 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { collabPosts, forumPosts, projects, teamMembers, teams } from "@/db/schema";
 import { canViewReferenceDocs, isReferenceDocsPath } from "@/lib/api-reference-gate";
-import { auth } from "@/lib/auth";
-import { isActiveBan } from "@/lib/ban-state";
 import { insertCanvasAttachment } from "@/lib/canvas-persistence";
 import { CANVAS_IMAGE_UPLOADS_PER_DAY } from "@/lib/canvas/limits";
 import { checkPath, repairPath } from "@/lib/canvas/paths";
@@ -37,6 +35,7 @@ import {
 } from "@/lib/profile-project-image-storage";
 import { loadProjectForEditor } from "@/lib/project-editors";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { readRouteSession } from "@/lib/route-session";
 import { resolveUserRoles } from "@/lib/staff-roles";
 import {
   buildCanvasImageObjectKey,
@@ -62,21 +61,7 @@ async function imageUploadAllowed(userId: string): Promise<boolean> {
   return checkRateLimit("image-upload", userId, 50, 86400);
 }
 
-/**
- * These handlers sit outside the oRPC middleware chain, so the ban check
- * has to happen here too — a banned session reads as anonymous, matching
- * `authMiddleware`.
- */
-async function readUploadSession(request: Request) {
-  // Reported before degrading to anonymous: an auth outage would otherwise
-  // read as a surge of 401s from logged-out visitors.
-  const session = await auth.api.getSession({ headers: request.headers }).catch((err: unknown) => {
-    captureServerException(err, { scope: "uploads.session_read" });
-    return null;
-  });
-  if (!session || isActiveBan(session.user)) return null;
-  return session;
-}
+const readUploadSession = (request: Request) => readRouteSession(request, "uploads.session_read");
 
 const UPLOAD_LIMIT_RESPONSE = () =>
   Response.json({ message: "Too many uploads today — try again tomorrow." }, { status: 429 });

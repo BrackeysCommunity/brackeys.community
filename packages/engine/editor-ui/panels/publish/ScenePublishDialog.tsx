@@ -10,6 +10,7 @@ import {
   clampTiming,
   diffWords,
   sceneVersionName,
+  SWAP_TIMING_WORDS,
   SWAP_TIMINGS,
   swapStrategyFor,
   type SwapTiming,
@@ -61,7 +62,12 @@ import {
 } from "../../session/open-scene-version";
 import type { EditorProjectLink } from "../../session/use-scene-editor";
 import { ChoiceGroup } from "./ChoiceGroup";
-import { LIVE_CHANNELS, liveOnText, productionConfirmText, PUBLISHERS_ONLY } from "./live-wording";
+import {
+  LIVE_CHANNELS,
+  liveOnText,
+  PRODUCTION_PUBLISHERS_ONLY,
+  productionConfirmText,
+} from "./live-wording";
 
 // ─── Wording ─────────────────────────────────────────────
 
@@ -70,11 +76,10 @@ export const WHERE_TEXT: Readonly<Record<PublishChannel, string>> = {
   production: "Production: players get it.",
 };
 
-export const TIMING_TEXT: Readonly<Record<SwapTiming, string>> = {
-  "next-load": "Next time the level loads",
-  boundary: "At the next safe moment the game marks",
-  now: "Now, while they play",
-};
+/** Each timing's label on the choice that picks it. */
+export const TIMING_TEXT = Object.freeze(
+  Object.fromEntries(SWAP_TIMINGS.map((t) => [t, SWAP_TIMING_WORDS[t].label])),
+) as Readonly<Record<SwapTiming, string>>;
 
 /** The tooltip on a timing the game doesn't list. */
 export const TIMING_UNDECLARED =
@@ -388,6 +393,7 @@ export function ScenePublishDialog({
   const [refusal, setRefusal] = useState<PublishRefusal | null>(null);
   const [confirming, setConfirming] = useState(false);
   const noteId = useId();
+  const checksId = useId();
   const run = useRef(0);
 
   // Docs the checks opened stay open until the dialog closes, so each build doesn't reopen them.
@@ -588,7 +594,7 @@ export function ScenePublishDialog({
             value={channel}
             disabled={busy}
             unavailable={(c) => c === "production" && !publisher}
-            hint={() => PUBLISHERS_ONLY}
+            hint={() => PRODUCTION_PUBLISHERS_ONLY}
             label={(c) => {
               const on = releaseOf(c);
               return (
@@ -640,45 +646,49 @@ export function ScenePublishDialog({
             />
           </label>
 
-          <div
-            className="je-insp-stack"
-            data-gap="tight"
-            role="list"
-            aria-label="Checks"
-            aria-live="polite"
-          >
-            <MicroLabel as="div">Checks</MicroLabel>
-            {baseFailed ? (
-              <div className="je-insp-row je-insp-wrap" data-gap="tight" role="listitem">
-                <Text size="xs" variant="danger" className="je-insp-grow">
+          <div className="je-insp-stack" data-gap="tight">
+            <MicroLabel as="div" id={checksId}>
+              Checks
+            </MicroLabel>
+            <div
+              className="je-insp-stack"
+              data-gap="tight"
+              role="list"
+              aria-labelledby={checksId}
+              aria-live="polite"
+            >
+              {baseFailed ? (
+                <div className="je-insp-row je-insp-wrap" data-gap="tight" role="listitem">
+                  <Text size="xs" variant="danger" className="je-insp-grow">
+                    {unavailable}
+                  </Text>
+                  <Button size="xs" variant="outline" disabled={busy} onClick={retry}>
+                    Try again
+                  </Button>
+                </div>
+              ) : unavailable ? (
+                <Text as="p" size="xs" variant="danger" role="listitem">
                   {unavailable}
                 </Text>
-                <Button size="xs" variant="outline" disabled={busy} onClick={retry}>
-                  Try again
-                </Button>
-              </div>
-            ) : unavailable ? (
-              <Text as="p" size="xs" variant="danger" role="listitem">
-                {unavailable}
-              </Text>
-            ) : current ? (
-              current.lines.map((line) => (
-                <Text
-                  key={line.id}
-                  as="p"
-                  size="xs"
-                  variant={line.tone}
-                  role="listitem"
-                  data-check={line.id}
-                >
-                  {line.text}
+              ) : current ? (
+                current.lines.map((line) => (
+                  <Text
+                    key={line.id}
+                    as="p"
+                    size="xs"
+                    variant={line.tone}
+                    role="listitem"
+                    data-check={line.id}
+                  >
+                    {line.text}
+                  </Text>
+                ))
+              ) : (
+                <Text as="p" size="xs" variant="muted" role="listitem">
+                  Checking…
                 </Text>
-              ))
-            ) : (
-              <Text as="p" size="xs" variant="muted" role="listitem">
-                Checking…
-              </Text>
-            )}
+              )}
+            </div>
           </div>
 
           {progress ? (

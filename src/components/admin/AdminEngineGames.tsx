@@ -1,4 +1,5 @@
 import { sceneVersionName } from "@jams/engine/game";
+import { shortId } from "@jams/engine/scene";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -655,13 +656,13 @@ function SceneVersionRow({
           </Text>
           <SimpleTooltip content={`Compatibility key ${version.compatKey}`} maxWidth={320}>
             <Text size="xs" variant="muted" tabIndex={0}>
-              compat {version.compatKey.slice(0, 12)}
+              compat {shortId(version.compatKey)}
             </Text>
           </SimpleTooltip>
         </div>
 
         <Text size="xs" variant="muted">
-          Players reported {reports.ok} applied · {reports.failed} failed
+          Players' reports: {reports.ok} updated fine · {reports.failed} failed
         </Text>
 
         {blocked != null ? (

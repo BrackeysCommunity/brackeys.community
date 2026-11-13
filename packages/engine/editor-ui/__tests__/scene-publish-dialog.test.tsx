@@ -16,7 +16,7 @@ import {
 import { appendLog } from "../../collab/log";
 import { createEditorSession, createKeymap, type EditorSession } from "../../editor/index";
 import { createRegistry, defineGame } from "../../game/index";
-import type { SwapTiming } from "../../game/live";
+import { SWAP_TIMING_WORDS, type SwapTiming } from "../../game/live";
 import {
   createKindRegistry,
   formatReleaseManifest,
@@ -36,19 +36,19 @@ import type {
   LiveVersionView,
   PublishChannel,
 } from "../host";
-import { EditorToolbar, PUBLISH_SCENE_TOOLTIP } from "../panels/EditorToolbar";
-import { productionConfirmText, PUBLISHERS_ONLY } from "../panels/publish/live-wording";
+import { EditorToolbar, PUBLISH_SCENE_ICON, PUBLISH_SCENE_TOOLTIP } from "../panels/EditorToolbar";
+import { PRODUCTION_PUBLISHERS_ONLY, productionConfirmText } from "../panels/publish/live-wording";
 import {
   EDITORS_UNCHECKED,
   editedSinceText,
   IN_PLACE,
   REBUILT,
   ScenePublishDialog,
-  TIMING_TEXT,
   TIMING_UNDECLARED,
   TODAY_UNCHECKED,
   WHERE_TEXT,
 } from "../panels/publish/ScenePublishDialog";
+import { PUBLISH_PANEL } from "../panels/registry";
 import { prefabsReady } from "../session/live-scene-editor";
 import {
   buildOpenSceneVersion,
@@ -267,10 +267,10 @@ const publishButton = () => screen.getByRole("button", { name: "Publish" });
 describe("Publish scene", () => {
   it("offers only the game's declared timings, the others disabled and saying why", async () => {
     await setup({ timings: ["boundary"] });
-    expect(radio(TIMING_TEXT["next-load"]).disabled).toBe(false);
-    expect(radio(TIMING_TEXT["next-load"]).checked).toBe(true);
-    expect(radio(TIMING_TEXT.boundary).disabled).toBe(false);
-    const now = radio(TIMING_TEXT.now);
+    expect(radio(SWAP_TIMING_WORDS["next-load"].label).disabled).toBe(false);
+    expect(radio(SWAP_TIMING_WORDS["next-load"].label).checked).toBe(true);
+    expect(radio(SWAP_TIMING_WORDS.boundary.label).disabled).toBe(false);
+    const now = radio(SWAP_TIMING_WORDS.now.label);
     expect(now.disabled).toBe(true);
     expect(now.getAttribute("aria-description")).toBe(TIMING_UNDECLARED);
     fireEvent.focus(now.closest("label")!);
@@ -290,7 +290,8 @@ describe("Publish scene", () => {
     expect(screen.getByText(WHERE_TEXT.preview, { exact: false })).toBeTruthy();
     const production = radio(/^Production/);
     expect(production.disabled).toBe(true);
-    expect(production.getAttribute("aria-description")).toBe(PUBLISHERS_ONLY);
+    expect(production.getAttribute("aria-description")).toBe(PRODUCTION_PUBLISHERS_ONLY);
+    expect(PRODUCTION_PUBLISHERS_ONLY).toBe("Only publishers can choose this.");
     // The suffix takes the choice's own size.
     expect((await screen.findByText("· on v8")).getAttribute("data-size")).toBe("xs");
   });
@@ -298,7 +299,7 @@ describe("Publish scene", () => {
   it("asks a publisher before Production, and publishes only on yes", async () => {
     const { publish, success, onClose } = await setup({ publisher: true, timings: ["now"] });
     fireEvent.click(radio(/^Production/));
-    fireEvent.click(radio(TIMING_TEXT.now));
+    fireEvent.click(radio(SWAP_TIMING_WORDS.now.label));
     await checkLine("fits").then((text) => expect(text).toBe("Fits v7"));
     await waitFor(() => expect(publishButton().hasAttribute("disabled")).toBe(false));
     fireEvent.click(publishButton());
@@ -384,6 +385,14 @@ describe("Publish scene", () => {
     expect(publishButton().hasAttribute("disabled")).toBe(true);
   });
 
+  it("labels the Checks list by its heading, every child of the list a list item", async () => {
+    await setup();
+    await checkLine("data");
+    const list = screen.getByRole("list", { name: "Checks" });
+    expect(list.children.length).toBeGreaterThan(0);
+    for (const child of list.children) expect(child.getAttribute("role")).toBe("listitem");
+  });
+
   it("names who edited the scene since its newest version, from the doc's log", async () => {
     const createdAt = new Date(Date.now() - 60_000).toISOString();
     const { sceneDoc, editor } = await setup({
@@ -445,7 +454,7 @@ describe("Publish scene", () => {
     expect(alert.textContent).toContain("Publish again tomorrow.");
     expect(onClose).not.toHaveBeenCalled();
 
-    fireEvent.click(radio(TIMING_TEXT.boundary));
+    fireEvent.click(radio(SWAP_TIMING_WORDS.boundary.label));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 
@@ -566,5 +575,9 @@ describe("the toolbar's Publish scene entry", () => {
   it("isn't there without host.publish.live", () => {
     toolbar();
     expect(screen.queryByRole("button", { name: "Publish scene" })).toBeNull();
+  });
+
+  it("has an icon of its own, not the Publish panel's", () => {
+    expect(PUBLISH_SCENE_ICON).not.toBe(PUBLISH_PANEL.icon);
   });
 });

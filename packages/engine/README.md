@@ -6160,13 +6160,13 @@ levels.
 
 **Limits per project, enforced by jams.team:**
 
-| Limit            | Number                                                                              |
-| ---------------- | ----------------------------------------------------------------------------------- |
-| Data per version | 2 MB: the scene, its prefabs and the version file (art is the project's own assets) |
-| Versions per day | 100                                                                                 |
-| Versions kept    | the 5 newest of each scene, plus every version a channel points at                  |
-| Storage          | part of the project's 512 MB of release storage                                     |
-| A channel's size | the release plus its live levels' new files stay within 100 MB                      |
+| Limit            | Number                                                                                                                             |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Data per version | 2 MB: the scene, its prefabs, the docs they use and the version file (materials and tables count; art is the project's own assets) |
+| Versions per day | 100                                                                                                                                |
+| Versions kept    | the 5 newest of each scene, plus every version a channel points at                                                                 |
+| Storage          | part of the project's 512 MB of release storage                                                                                    |
+| A channel's size | the release plus its live levels' new files stay within 100 MB                                                                     |
 
 A version that is neither among its scene's 5 newest nor on a channel
 is removed 14 days after it was published.

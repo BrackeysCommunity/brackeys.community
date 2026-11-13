@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { createBroadcast } from "@/lib/live-broadcast";
+import { createBroadcast, subscribeOnReady } from "@/lib/live-broadcast";
 
 type Handler = (...args: string[]) => void;
 
@@ -282,5 +282,53 @@ describe("createBroadcast with its own wire format, delivering here", () => {
     }
     expect(subscribed).toEqual(["test:note"]);
     expect(heard).toEqual([{ ids: ["c"] }]);
+  });
+});
+
+describe("subscribeOnReady", () => {
+  function connectingClient(failFirst = false) {
+    const ready: Array<() => void> = [];
+    let fails = failFirst ? 1 : 0;
+    const client = {
+      status: "connecting",
+      subscribed: [] as string[],
+      on(event: string, fn: () => void) {
+        if (event === "ready") ready.push(fn);
+      },
+      async subscribe(channel: string) {
+        if (fails-- > 0) throw new Error("Stream isn't writeable");
+        client.subscribed.push(channel);
+      },
+      becomeReady() {
+        client.status = "ready";
+        for (const fn of ready) fn();
+      },
+    };
+    return client;
+  }
+
+  it("waits for ready, subscribes on every ready, and stops on the stop", async () => {
+    const client = connectingClient();
+    const stop = subscribeOnReady(client, "ch");
+    expect(client.subscribed).toEqual([]);
+    client.becomeReady();
+    client.becomeReady();
+    await Promise.resolve();
+    expect(client.subscribed).toEqual(["ch", "ch"]);
+    stop();
+    client.becomeReady();
+    await Promise.resolve();
+    expect(client.subscribed).toEqual(["ch", "ch"]);
+  });
+
+  it("subscribes at once to a ready client, and hands a failure to onError", async () => {
+    const client = connectingClient(true);
+    client.status = "ready";
+    const onError = vi.fn();
+    subscribeOnReady(client, "ch", onError);
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    client.becomeReady();
+    await Promise.resolve();
+    expect(client.subscribed).toEqual(["ch"]);
   });
 });

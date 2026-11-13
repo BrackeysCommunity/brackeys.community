@@ -1,4 +1,10 @@
-import { preloadDeadline, raceSignal, withinPreloadWords, type SwapTiming } from "../game/live";
+import {
+  preloadDeadline,
+  raceSignal,
+  sceneVersionName,
+  withinPreloadWords,
+  type SwapTiming,
+} from "../game/live";
 import { byCodeUnit } from "../project/kinds/define";
 import type { ReleaseAsset, ReleaseManifest } from "../project/release";
 import { liveFiles } from "../project/release-assets";
@@ -233,7 +239,7 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
     tracks.set(scene, t);
     report({ scene, version: entry.version, status: "staging" });
     const deadline = preloadDeadline(abort.signal);
-    const name = `${scene}@${entry.number}`;
+    const name = sceneVersionName(scene, entry.number);
     const timedOut = () =>
       stageIssue(scene, `${name} didn't fetch, check and preload ${withinPreloadWords()}`);
     t.done = prepare(entry, name, deadline.signal)

@@ -4,12 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { db as siteDb } from "@/db";
 import { engineReleaseChannels } from "@/db/schema";
 
-import {
-  beginSceneVersion,
-  commitSceneVersion,
-  type BeginSceneInput,
-  type BeginSceneResult,
-} from "../live-upload";
+import type { BeginSceneInput } from "../live-upload";
 import { promote, type ReleaseChannel } from "../release-channels";
 import { ReleaseError, type ReleaseApiError } from "../release-errors";
 import type { ReleaseObjectStore } from "../release-storage";
@@ -21,6 +16,7 @@ import {
   type ReleaseDeps,
   type ReleaseTxDb,
 } from "../release-upload";
+import { uploadSceneVersion as uploadVersion } from "../scene-version-upload";
 import type { FixtureVersion } from "./fixtures/live/scene-versions";
 import type { PlannedRelease } from "./release-fixture";
 
@@ -67,40 +63,14 @@ export async function uploadRelease(
   return committed;
 }
 
-/** Sends the texts a scene upload's begin listed as missing. */
-export async function putSceneTexts(
-  deps: ReleaseDeps,
-  v: FixtureVersion,
-  begun: Pick<BeginSceneResult, "uploadId" | "missing">,
-  actor: Actor,
-) {
-  for (const { sha256 } of begun.missing) {
-    const text = v.texts.get(sha256);
-    if (text === undefined) throw new Error(`the fixture version has no text ${sha256}`);
-    await putReleaseFile(deps, {
-      uploadId: begun.uploadId,
-      sha256,
-      body: new TextEncoder().encode(text),
-      actor,
-    });
-  }
-}
+export { putSceneTexts } from "../scene-version-upload";
 
 /** `v` uploaded to its project and committed: begin, its missing texts, commit. */
-export async function uploadSceneVersion(
+export const uploadSceneVersion = (
   deps: ReleaseDeps,
   v: FixtureVersion,
   opts: Omit<BeginSceneInput, "projectId" | "version">,
-) {
-  const begun = await beginSceneVersion(deps, {
-    projectId: v.version.project,
-    version: v.text,
-    ...opts,
-  });
-  await putSceneTexts(deps, v, begun, opts.actor);
-  const committed = await commitSceneVersion(deps, { uploadId: begun.uploadId, actor: opts.actor });
-  return { begun, committed };
-}
+) => uploadVersion(deps, { projectId: v.version.project, version: v.text, ...opts }, v);
 
 /**
  * What a call was refused with: a release refusal's body and status, an oRPC

@@ -178,7 +178,7 @@ describe("outcome reports", () => {
     await report(id, "refused");
     expect(await versionRow(id)).toMatchObject({ reportsOk: 1, reportsFailed: 0 });
     await report(id, "failed");
-    expect(await versionRow(id)).toMatchObject({ reportsOk: 1, reportsFailed: 1 });
+    expect(await versionRow(id)).toMatchObject({ reportsOk: 0, reportsFailed: 1 });
   });
 });
 

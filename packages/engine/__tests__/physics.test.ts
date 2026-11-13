@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { ColliderDesc as RapierColliderDesc, RigidBody } from "@dimforge/rapier2d";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import type { SceneView } from "../context";
@@ -181,6 +182,133 @@ describe("the collider index", () => {
     body.setTranslation({ x: 20, y: 0 }, false);
     pw.refreshQueries();
     expect(near(pw, box(19, -1, 21, 1))).toEqual([wall.handle]);
+    pw.destroy();
+  });
+
+  it("finds a collider added through the raw world after one removed through it", () => {
+    const pw = createPhysicsWorld(rapier);
+    const far = pw.world.createCollider(rapier.ColliderDesc.cuboid(1, 1).setTranslation(-50, 0));
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.fixed().setTranslation(-80, 0));
+    pw.addCollider(rapier.ColliderDesc.cuboid(1, 1), body);
+    expect(near(pw, box(-51, -1, -49, 1))).toEqual([far.handle]);
+    pw.world.removeCollider(far, true);
+    const added = pw.world.createCollider(rapier.ColliderDesc.ball(1).setTranslation(30, 0));
+    expect(near(pw, box(29, -1, 31, 1))).toEqual([added.handle]);
+    expect(near(pw, box(-51, -1, -49, 1))).toEqual([]);
+    pw.world.removeRigidBody(body);
+    const second = pw.world.createCollider(rapier.ColliderDesc.ball(1).setTranslation(60, 0));
+    expect(near(pw, box(59, -1, 61, 1))).toEqual([second.handle]);
+    expect(near(pw, box(-81, -1, -79, 1))).toEqual([]);
+    pw.destroy();
+  });
+
+  it("finds every collider a full scan finds, over seeded boxes and mixed shapes and bodies", () => {
+    let seed = 0x5eed;
+    const rand = () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const between = (lo: number, hi: number) => lo + rand() * (hi - lo);
+    const { ColliderDesc, RigidBodyDesc } = rapier;
+    const shapes: (() => RapierColliderDesc)[] = [
+      () => ColliderDesc.cuboid(between(0.1, 3), between(0.1, 3)),
+      () => ColliderDesc.roundCuboid(between(0.1, 2), between(0.1, 2), between(0.05, 0.5)),
+      () => ColliderDesc.capsule(between(0.1, 2), between(0.1, 1)),
+      () => ColliderDesc.ball(between(0.1, 2)),
+      () => ColliderDesc.convexHull(new Float32Array([-1, -1, 2, -0.5, 1.5, 1.5, -0.5, 2]))!,
+      () =>
+        ColliderDesc.roundConvexHull(new Float32Array([-1, 0, 1, -1, 0.5, 1]), between(0.05, 0.4))!,
+      () => ColliderDesc.polyline(new Float32Array([-4, 0, -1, 1.5, 2, -1, 5, 0.5])),
+      () =>
+        ColliderDesc.trimesh(
+          new Float32Array([0, 0, 3, 0, 0, 2, 3, 2]),
+          new Uint32Array([0, 1, 2, 1, 3, 2]),
+        ),
+      () => ColliderDesc.segment({ x: -2, y: 0 }, { x: 3, y: 1 }),
+      () => ColliderDesc.triangle({ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 2 }),
+    ];
+    const anyShape = () => shapes[Math.floor(rand() * shapes.length)]!();
+    const spot = () => ({ x: between(-60, 60), y: between(-30, 30) });
+    const pw = createPhysicsWorld(rapier);
+    const fixedBodies: RigidBody[] = [];
+    for (let i = 0; i < 120; i++) {
+      const { x, y } = spot();
+      const desc = anyShape().setRotation(between(-Math.PI, Math.PI));
+      if (i % 4 === 0) pw.addCollider(desc.setTranslation(x, y));
+      else {
+        const body = pw.addRigidBody(
+          RigidBodyDesc.fixed().setTranslation(x, y).setRotation(between(-Math.PI, Math.PI)),
+        );
+        pw.addCollider(desc.setTranslation(between(-1, 1), between(-1, 1)), body);
+        fixedBodies.push(body);
+      }
+    }
+    const kinematic: RigidBody[] = [];
+    for (let i = 0; i < 15; i++) {
+      const { x, y } = spot();
+      const body = pw.addRigidBody(RigidBodyDesc.kinematicPositionBased().setTranslation(x, y));
+      pw.addCollider(anyShape().setRotation(between(-1, 1)), body);
+      kinematic.push(body);
+    }
+    for (let i = 0; i < 30; i++) {
+      const { x, y } = spot();
+      const body = pw.addRigidBody(RigidBodyDesc.dynamic().setTranslation(x, y - 40));
+      const shape = [shapes[0]!, shapes[2]!, shapes[3]!, shapes[4]!][i % 4]!;
+      pw.addCollider(shape().setDensity(1), body);
+    }
+    const Cuboid = rapier.Cuboid;
+    const check = (stage: string) => {
+      for (let q = 0; q < 200; q++) {
+        const c = spot();
+        const hw = between(0.01, 12);
+        const hh = between(0.01, 12);
+        const probe = new Cuboid(hw, hh);
+        const full: number[] = [];
+        pw.world.colliders.forEach((col) => {
+          if (col.intersectsShape(probe, c, 0)) full.push(col.handle);
+        });
+        const pad = 1e-5 + 1e-6 * (Math.max(Math.abs(c.x), Math.abs(c.y)) + 12);
+        const found = new Set(
+          pw
+            .collidersNear(box(c.x - hw - pad, c.y - hh - pad, c.x + hw + pad, c.y + hh + pad))
+            .map((col) => col.handle),
+        );
+        const missed = full.filter((h) => !found.has(h));
+        expect(missed, `${stage}, box ${q}`).toEqual([]);
+      }
+    };
+
+    check("before a step");
+    for (const body of kinematic) body.setNextKinematicTranslation(spot());
+    for (let i = 0; i < 30; i++) pw.step();
+    check("after steps");
+
+    for (const body of fixedBodies.slice(0, 20)) {
+      body.setTranslation(spot(), false);
+      body.setRotation(between(-Math.PI, Math.PI), false);
+      pw.moved(body);
+    }
+    const resized = fixedBodies[25]!.collider(0);
+    if (resized.shapeType() === rapier.ShapeType.Ball) resized.setRadius(8);
+    else resized.setHalfExtents({ x: 9, y: 9 });
+    pw.moved(resized);
+    const turned = fixedBodies[30]!;
+    turned.setBodyType(rapier.RigidBodyType.Dynamic, true);
+    pw.moved(turned);
+    check("after code moved fixed bodies");
+
+    const removed = fixedBodies[40]!;
+    pw.world.removeRigidBody(removed);
+    pw.world.createCollider(anyShape().setTranslation(spot().x, spot().y));
+    check("after a raw remove and add");
+
+    for (const body of kinematic) body.setNextKinematicTranslation(spot());
+    for (let i = 0; i < 30; i++) pw.step();
+    check("after more steps");
+    pw.refreshQueries();
+    check("after a query refresh");
     pw.destroy();
   });
 });

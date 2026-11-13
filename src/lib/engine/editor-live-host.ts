@@ -74,9 +74,9 @@ export async function hostCall<T>(run: () => Promise<T>): Promise<T> {
 
 const n = formatCount;
 
-/** "level-1@1 will be removed on 3 Dec 2026 unless a channel points at it.", the date in UTC. */
+/** "level-1@1 will be removed on 3 Dec 2026. Point a channel at it to keep it.", the date in UTC. */
 export const liveRemovalText = (scene: AssetId, number: number, at: Date | string): string =>
-  `${sceneVersionName(scene, number)} will be removed on ${releaseDay(at)} unless a channel points at it.`;
+  `${sceneVersionName(scene, number)} will be removed on ${releaseDay(at)}. Point a channel at it to keep it.`;
 
 /** Why a version is blocked, said beside its blocked badge: the breaker's count, or the reason a person gave. */
 export function liveBlockedText(

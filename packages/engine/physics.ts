@@ -108,6 +108,7 @@ export function createPhysicsWorld(
   world.timestep = cfg.timestep;
 
   const index = createColliderIndex(world, rapier);
+  trackRawChanges(world, index);
 
   // Sensor overlaps are read back with world.intersectionPair rather than an
   // EventQueue, so stepping never calls back into JS.
@@ -167,9 +168,7 @@ export function createPhysicsWorld(
   }
 
   function addCollider(desc: ColliderDesc, body?: RigidBody): Collider {
-    const collider = world.createCollider(desc, body);
-    index.place(collider);
-    return collider;
+    return world.createCollider(desc, body);
   }
 
   function createCharacterController(
@@ -206,12 +205,10 @@ export function createPhysicsWorld(
   }
 
   function removeRigidBody(body: RigidBody): void {
-    for (let i = 0; i < body.numColliders(); i++) index.forget(body.collider(i).handle);
     world.removeRigidBody(body);
   }
 
   function removeCollider(collider: Collider): void {
-    index.forget(collider.handle);
     world.removeCollider(collider, true);
   }
 
@@ -315,6 +312,32 @@ export function rapierColliderBounds(
   }
 }
 
+/**
+ * Route the raw world's collider and body adds and removes through the
+ * collider index, so a remove and an add made past the wrapper (which leave
+ * the collider count unchanged) can't leave it missing the new collider.
+ */
+function trackRawChanges(world: World, index: ColliderIndex): void {
+  const createCollider = world.createCollider.bind(world);
+  const removeCollider = world.removeCollider.bind(world);
+  const removeRigidBody = world.removeRigidBody.bind(world);
+  world.createCollider = (desc, parent) => {
+    const collider = createCollider(desc, parent);
+    index.place(collider);
+    return collider;
+  };
+  world.removeCollider = (collider, wakeUp) => {
+    index.forget(collider.handle);
+    removeCollider(collider, wakeUp);
+  };
+  world.removeRigidBody = (body) => {
+    for (let i = 0; i < body.numColliders(); i++) index.forget(body.collider(i).handle);
+    removeRigidBody(body);
+  };
+}
+
+type ColliderIndex = ReturnType<typeof createColliderIndex>;
+
 /** The collider index's cell side: the median fixed collider's longer side, within these, m. */
 const MIN_INDEX_CELL = 0.5;
 const MAX_INDEX_CELL = 64;
@@ -325,9 +348,9 @@ const MAX_INDEX_CELL = 64;
  * fixed one) sit in a spatial hash whose cell fits their median size,
  * re-read when added, marked `moved`, and after a step that follows a
  * `moved`; colliders on bodies that move are read as they stand at each
- * query, so no system has to report them. A collider added or removed
- * straight through the Rapier world shows as a count that no longer
- * matches, and the index builds again.
+ * query, so no system has to report them. A collider the index never
+ * heard of shows as a count that no longer matches, and the index builds
+ * again.
  */
 function createColliderIndex(world: World, rapier: RapierModule) {
   let settled: SpatialHash<number> | null = null;

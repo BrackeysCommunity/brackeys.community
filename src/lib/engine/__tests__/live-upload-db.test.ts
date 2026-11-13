@@ -46,13 +46,26 @@ const TOKEN = "00000000-0000-4000-8000-000000000001";
 const staff: Actor = { kind: "user", userId: "staff" };
 const agent: Actor = { kind: "agent", userId: "member", agentTokenId: TOKEN };
 const outsider: Actor = { kind: "user", userId: "outsider" };
+const member: Actor = { kind: "user", userId: "member" };
 
 let clock = NOW;
 let allow = true;
+/** Scene publishes begun this hour, by the limiter's key. */
+let begins = new Map<string, number>();
 let store = memoryReleaseStore();
 let release: PlannedRelease;
 
-const deps = () => uploadDeps(store, { now: () => clock, rateLimit: async () => allow });
+const deps = () =>
+  uploadDeps(store, {
+    now: () => clock,
+    rateLimit: async (bucket, key, limit) => {
+      if (!allow) return false;
+      if (bucket !== "engine-live-begin") return true;
+      const n = (begins.get(key) ?? 0) + 1;
+      begins.set(key, n);
+      return n <= limit;
+    },
+  });
 
 const encode = (text: string) => new TextEncoder().encode(text);
 const hex = (n: number) => n.toString(16).padStart(64, "0");
@@ -121,6 +134,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   clock = NOW;
   allow = true;
+  begins = new Map();
   store = memoryReleaseStore();
   await db.delete(engineProjects);
   await db
@@ -395,6 +409,19 @@ describe("beginSceneVersion", () => {
     expect(limited.message).toContain(String(LIVE_LIMITS.beginsPerHour));
   });
 
+  it("counts an agent token's begins apart from its creator's", async () => {
+    const v = await edited("hall");
+    const limited = { code: "release-rate-limited", status: 429 };
+    begins.set(`token:${TOKEN}`, LIVE_LIMITS.beginsPerHour);
+    expect(await refusal(() => begin(v, { actor: agent }))).toMatchObject(limited);
+    await expect(begin(v, { actor: member })).resolves.toMatchObject({ number: null });
+
+    begins.delete(`token:${TOKEN}`);
+    begins.set("member", LIVE_LIMITS.beginsPerHour);
+    expect(await refusal(() => begin(v, { actor: member }))).toMatchObject(limited);
+    await expect(begin(v, { actor: agent })).resolves.toMatchObject({ number: null });
+  });
+
   it("refuses when no release is on preview", async () => {
     await db.delete(engineReleaseChannels);
     expect(await refusal(async () => begin(await edited("hall")))).toMatchObject({
@@ -565,6 +592,34 @@ describe("commitSceneVersion", () => {
     expect((await publish(first)).committed).toMatchObject({ number: 1, created: false });
     expect(await previewPointer("hall")).toMatchObject({ versionId: first.id });
     expect(await db.select().from(engineSceneVersions)).toHaveLength(2);
+  });
+
+  it("answers an identical publish past the day's count with its number, created: false", async () => {
+    const first = await edited("hall", 4);
+    await publish(first);
+    await db.insert(engineSceneVersions).values(
+      Array.from({ length: LIVE_LIMITS.versionsPerDay - 1 }, (_, i) => ({
+        id: hex(3000 + i),
+        projectId: PROJECT,
+        sceneId: "cellar",
+        number: i + 1,
+        descriptor: "{}",
+        compatKey: hex(1),
+        physics: "none",
+        sceneHash: hex(2),
+        dataBytes: 10,
+        createdAt: NOW,
+      })),
+    );
+    const again = await publish(first);
+    expect(again.begun).toMatchObject({ versionId: first.id, number: 1, missing: [] });
+    expect(again.committed).toMatchObject({ number: 1, created: false });
+
+    expect(await refusal(async () => begin(await edited("hall", 5)))).toMatchObject({
+      code: "quota-exceeded",
+      limit: "liveVersionsPerDay",
+      used: LIVE_LIMITS.versionsPerDay,
+    });
   });
 
   it("lets an agent token publish to preview, recorded as the agent acting for its creator", async () => {

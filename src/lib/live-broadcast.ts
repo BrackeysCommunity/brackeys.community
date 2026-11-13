@@ -44,6 +44,29 @@ export type BroadcastSubscriber = {
   subscribe(channel: string): Promise<unknown>;
 };
 
+/**
+ * Subscribes `client` to `channel` now if it is ready and again on every
+ * `ready`, not once up front: with the offline queue off, a subscribe issued
+ * while the socket is connecting rejects, and ioredis re-subscribes only
+ * channels that had already succeeded. Answers the stop, after which a
+ * reconnect subscribes nothing.
+ */
+export function subscribeOnReady(
+  client: BroadcastSubscriber,
+  channel: string,
+  onError: (err: unknown) => void = () => {},
+): () => void {
+  let stopped = false;
+  const subscribe = () => {
+    if (!stopped) void client.subscribe(channel).catch(onError);
+  };
+  client.on("ready", subscribe);
+  if (client.status === "ready") subscribe();
+  return () => {
+    stopped = true;
+  };
+}
+
 /** Redis clients in place of the broadcast's own, which it opens only when `REDIS_URL` is set. */
 export type BroadcastRedis = {
   subscriber?: () => Promise<BroadcastSubscriber>;
@@ -128,11 +151,7 @@ export function createBroadcast<T>(opts: BroadcastOptions<T>): Broadcast<T> {
         const event = decode(message);
         if (event !== null) fanOut(slotFor(name), event, name);
       });
-      // Re-subscribe on every `ready`: with the offline queue off, a
-      // subscribe issued during a reconnect rejects.
-      const subscribe = () => void client.subscribe(channel).catch(() => {});
-      client.on("ready", subscribe);
-      if (client.status === "ready") subscribe();
+      subscribeOnReady(client, channel);
       return client;
     });
     try {

@@ -17,7 +17,7 @@ import { seedUser, type TestDb } from "@/test/db";
 import { plannedRelease, type PlannedRelease } from "../../lib/engine/__tests__/release-fixture";
 import { uploadDeps, uploadRelease } from "../../lib/engine/__tests__/upload-rig";
 import { forgetProjectReleases } from "../../lib/engine/frame-route";
-import { resolvePlay } from "../../lib/engine/game-play";
+import { resolveChannelPlay } from "../../lib/engine/game-play";
 import { LIVE_STREAM_MINUTES } from "../../lib/engine/limits";
 import { engineLive } from "../../lib/engine/live-events";
 import type { Viewer } from "../../lib/engine/release-access";
@@ -46,7 +46,7 @@ vi.mock("@/lib/posthog-server", async (importOriginal) => ({
 }));
 vi.mock("@/lib/engine/game-play", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/engine/game-play")>();
-  return { ...original, resolvePlay: vi.fn(original.resolvePlay) };
+  return { ...original, resolveChannelPlay: vi.fn(original.resolveChannelPlay) };
 });
 
 import { Route } from "../api.engine.live.$projectId.stream";
@@ -178,9 +178,9 @@ describe("engine live stream: who may listen", () => {
   it("needs an editor for preview: past the staff gate, the play rule decides", async () => {
     const real = (
       await vi.importActual<typeof import("@/lib/engine/game-play")>("@/lib/engine/game-play")
-    ).resolvePlay;
+    ).resolveChannelPlay;
     const as =
-      (viewer: Viewer): typeof resolvePlay =>
+      (viewer: Viewer): typeof resolveChannelPlay =>
       (input, deps) =>
         real({ ...input, viewer }, deps);
     const player: Viewer = { userId: "outsider", staff: false, teamRole: null, isCreator: false };
@@ -191,26 +191,26 @@ describe("engine live stream: who may listen", () => {
       isCreator: false,
     };
 
-    vi.mocked(resolvePlay).mockImplementationOnce(as(player));
+    vi.mocked(resolveChannelPlay).mockImplementationOnce(as(player));
     await expectNotFound("staff", "preview");
 
-    vi.mocked(resolvePlay).mockImplementationOnce(as(editor));
+    vi.mocked(resolveChannelPlay).mockImplementationOnce(as(editor));
     const preview = await open("staff", "preview");
     expect(preview.response.status).toBe(200);
     preview.close();
 
-    vi.mocked(resolvePlay).mockImplementationOnce(as(player));
+    vi.mocked(resolveChannelPlay).mockImplementationOnce(as(player));
     const production = await open("staff", "production");
     expect(production.response.status).toBe(200);
     production.close();
   });
 
-  it("asks the play page's rule with the channel's version", async () => {
-    vi.mocked(resolvePlay).mockClear();
+  it("asks the play page's rule for the channel", async () => {
+    vi.mocked(resolveChannelPlay).mockClear();
     (await open("staff", "production")).close();
     (await open("staff", "preview")).close();
-    expect(vi.mocked(resolvePlay).mock.calls.map(([input]) => input.version)).toEqual([
-      "latest",
+    expect(vi.mocked(resolveChannelPlay).mock.calls.map(([input]) => input.channel)).toEqual([
+      "production",
       "preview",
     ]);
   });

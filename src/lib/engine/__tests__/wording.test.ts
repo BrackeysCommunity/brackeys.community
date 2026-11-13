@@ -452,7 +452,6 @@ beforeAll(() => {
   const since = new Date(Date.now() - 12.5 * 60_000).toISOString();
   const row = render(
     createElement(LiveLevelsLine, {
-      version: 7,
       scenes: [{ scene: "ford", title: "The ford", number: 4, since }],
     }),
   ).container;
@@ -782,7 +781,7 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
   {
     states: ["LIVE_LIMITS.versionDataBytes"],
     source: "README §Live levels",
-    phrase: `Data per version ${C("LIVE_LIMITS.versionDataBytes")}: the scene, its prefabs and the version file`,
+    phrase: `Data per version ${C("LIVE_LIMITS.versionDataBytes")}: the scene, its prefabs, the docs they use and the version file`,
   },
   {
     states: ["LIVE_LIMITS.versionsPerDay"],
@@ -1063,7 +1062,7 @@ const STATED_IN_SOURCE: { states: string; file: string; template: string }[] = [
   },
   {
     states: "LIVE_LIMITS.beginsPerHour",
-    file: "src/lib/engine/live-upload.ts",
+    file: "src/lib/engine/release-errors.ts",
     template:
       "You've started ${formatCount(LIVE_LIMITS.beginsPerHour)} scene publishes this hour, the most per hour.",
   },

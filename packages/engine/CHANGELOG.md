@@ -32,22 +32,31 @@ follow-ups the engine's live levels left.
   editor's release list and the CLI's release and live lines share.
 - `@jams/engine/game`: `sceneVersionName(scene, number)`, how a host's
   numbered scene version is named (`level-1@4`, grouped as
-  `level-1@1,000`), the one rule the editor, the site and the CLI share;
+  `level-1@1,000`), the one rule the editor, the site, the CLI and the
+  standalone frame's preload issues share;
   `arrivalWords(timing)`, when players get a moved version as a sentence
   ends (`the next time the level loads`, `at the next safe moment`,
-  `now`), shared by the production confirms and a host's Stop sentence;
-  and `versionName`, until now on `.` only.
+  `now`), shared by the production confirms and a host's Stop sentence,
+  and read with `timingWords` and the Publish scene timing labels from
+  one table of each timing's words; `releasePromoteMessage(version)` and
+  `releaseRollbackMessage(version, live)`, the questions a release
+  promote and rollback ask first, shared by the editor's Publish panel
+  and a host's game page; and `versionName`, until now on `.` only.
 - `@jams/engine/project`: `sceneVersionDataBytes(text, version)`, what a
   host's data limit counts for a scene version (its `scene-version.json`
-  plus each carried doc once), the one rule the editor's Data line, the
-  CLI and a host's refusal share; and `utf8Bytes`, until now on `.` only.
+  plus each doc it carries once: the scene, its prefabs and the docs they
+  use, such as materials and tables), the one rule the editor's Data
+  line, the CLI and a host's refusal share; the README's Data per version
+  row says the same. And `utf8Bytes`, until now on `.` only.
   `@jams/engine/game`: `SWAP_TIMINGS` and `swapTimingSchema`, so a host's
   and the CLI's timing inputs read the engine's list.
 - `@jams/engine/editor-ui`: Live scenes lists each scene's newest version
   no channel plays, when it is newer than every version one does
   (published on no channel, or saved by a production publish whose move
   was refused), under 'Not live yet' with Promote to preview and, for
-  publishers, Promote to production.
+  publishers, Promote to production, which asks first and offers the
+  timings the game declares (the others disabled); a blocked one shows
+  its reason with Unblock, which asks first, as a live row does.
 - `@jams/engine/editor-ui`: `EditorLiveHost.onPublished(listener)`,
   optional: the host calls it after each publish that went through, and
   the Publish panel's Live scenes list reloads on it, so a version
@@ -146,15 +155,19 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
   closes instead of being reopened on every build. When the host can't
   say today's count or the scene's versions, the checks say so; a channel
   whose base doesn't load offers Try again. Production's choice reads
-  'Production: players get it.', its publishers-only hint staying on the
-  disabled choice, and the release beside each choice takes the choice's
-  size.
+  'Production: players get it.', with 'Only publishers can choose this.'
+  on the disabled choice, and the release beside each choice takes the
+  choice's size. The Checks list is labelled by its heading, which sits
+  outside the list.
 - `@jams/engine/editor-ui`: Live scenes says a scene's cleanup forecast in
-  one line ('3 versions of The ford will be removed from 20 Nov 2026
-  unless a channel points at them.'); Unblock holds the row's other moves
+  one line ('3 versions of The ford will be removed, the first on
+  20 Nov 2026. Point a channel at one to keep it.'); Unblock holds the row's other moves
   while it runs, and a preview row's Promote holds its Roll back and Stop;
   the game's settings show only to publishers when the host's live role
   says so.
+- `@jams/engine/editor-ui`: the toolbar's Publish scene button has its own
+  icon (a cloud upload), apart from the Publish panel's rocket, which
+  manages releases.
 
 ### Fixed
 
@@ -215,7 +228,9 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
   `checkPointerTarget`), block, unblock, hide, unhide, the staff queue and
   players' reports.
 - Site only: a scene version's commit checks the day's count and release
-  storage again under the project's lock; a rollback without `to` goes
+  storage again under the project's lock; begin counts its hourly limit
+  per person and per agent token, and a version the project already holds
+  answers its number without counting against the day; a rollback without `to` goes
   back past a release move that cleared or restored the scene; a
   timing-only move keeps the pointer's `updated_at`, which the breaker's
   window starts from; the version list reads every stored version but only

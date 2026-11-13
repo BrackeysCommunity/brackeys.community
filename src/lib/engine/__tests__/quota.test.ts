@@ -315,6 +315,11 @@ describe("checkLiveQuota", () => {
     );
   });
 
+  it("skips the day's count for a version already stored", () => {
+    expect(check({ today: null })).toEqual({ ok: true });
+    expect(refused(check({ today: null, dataBytes: 3 * MiB })).limit).toBe("liveVersionBytes");
+  });
+
   it("words the day's count from the limit", () => {
     const verdict = refused(check({ today: LIVE_LIMITS.versionsPerDay }));
     expect(verdict).toMatchObject({ limit: "liveVersionsPerDay", used: 100, max: 100 });

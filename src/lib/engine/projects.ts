@@ -16,6 +16,17 @@ export const engineProjectIdInput = z
   .string()
   .refine(isEngineProjectId, "A project id is lowercase letters, digits and dashes.");
 
+/** A scene id in a procedure's input. */
+export const sceneIdInput = z
+  .string()
+  .regex(ID_PATTERN, "A scene id is lowercase letters, digits and dashes.");
+
+/** A release's or scene version's number. */
+export const versionNumberInput = z.number().int().min(1);
+
+/** The reason staff give for a hide, a block or a report's resolution. */
+export const moderationReasonInput = z.string().trim().min(1).max(500);
+
 /** A hosted project that hasn't been deleted, or null. */
 export async function liveEngineProject(
   projectId: string,
