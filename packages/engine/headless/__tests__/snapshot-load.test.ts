@@ -108,6 +108,7 @@ const ENGINE_FLOW = {
     { scene: "engine-yard", title: "Engine yard" },
     { scene: "kitchen-sink", title: "Kitchen sink" },
     { scene: "grid-yard", title: "Grid yard" },
+    { scene: "behavior-yard", title: "Behavior yard" },
     { scene: "grid-annex", sublevel: true, title: "Grid annex" },
   ],
 };

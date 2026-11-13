@@ -379,6 +379,8 @@ Aabb
 ApplyOptions
 ApplyResult
 AssetDrop
+BehaviorGizmo
+BehaviorMarks
 BehaviorOption
 BehaviorSectionId
 BehaviorSectionInfo
@@ -403,6 +405,7 @@ DropPreview
 ENGINE_KEYS
 ENGINE_TOOL_IDS
 EditGeometry
+EditPose
 EditableSpatialIndex
 EditorCommand
 EditorKeyEvent
@@ -419,6 +422,7 @@ EngineToolId
 EntityDef
 EntityTypeName
 EnumOption
+FORCE_PX
 FieldWidget
 GameEditorDef
 GameKeyBinding
@@ -522,12 +526,16 @@ ToolModifiers
 ToolOption
 ToolOverlay
 ToolPointerEvent
+VELOCITY_PX
 WHEEL_ZOOM
 applyLevels
 applyToPrefabBatch
 asProjectBatch
 attachBatch
 attachFieldOf
+behaviorGizmo
+behaviorHandles
+behaviorMarks
 boundsCheck
 boxTool
 buildInspectorModel
@@ -559,6 +567,7 @@ deleteVertices
 dirSigns
 docRefs
 dragAngle
+dragBehaviorHandle
 dragHandle
 dragInsertVertex
 dragInsertWaypoint
@@ -807,6 +816,8 @@ Attachment
 AttachmentHub
 BASE_FIELDS
 BEHAVIOR_NAME_PATTERN
+BODY
+BODY_KINDS
 BODY_SHAPE_TYPES
 BasePrimitive
 BehaviorBlock
@@ -818,18 +829,36 @@ BehaviorSystemFactory
 Binding
 BindingContext
 BindingProblem
+BodyBlock
+BodyControl
+BodyEntry
+BodyKind
 BulkKeyInfo
+CAMERA_TARGET
+CHARACTER_JUMPED
+CHARACTER_LANDED
+CHARACTER_LEFT_GROUND
+CHARACTER_SIDE_VIEW
+CHARACTER_TOP_DOWN
 CHILD_REF_PATTERN
+COLLIDER
 COMMAND_NAME_PATTERN
 CONTACT_END
 CONTACT_START
+CameraTargetBlock
 Cell
 CellBounds
 CellKey
 CharacterControllerOptions
+CharacterIntent
+CharacterSideViewBlock
+CharacterSystem
+CharacterTopDownBlock
 CheckEnv
 CheckKindDef
 CheckVerdict
+ColliderBlock
+ColliderSystem
 ColliderTag
 ColliderTags
 CommandDef
@@ -837,6 +866,7 @@ ContactSelector
 Contacts
 CoroutineYield
 CreateRegistryOptions
+DEFAULT_ACTIONS
 DEFAULT_GRAVITY
 DEFAULT_LAYERS
 DEFAULT_LENGTH_UNIT
@@ -876,6 +906,7 @@ EntitySelector
 EntityTypeDef
 EventBus
 EventSubscribeOptions
+FORCE_AREA
 FieldEnv
 FlowContext
 FlowField
@@ -883,6 +914,8 @@ FlowRequest
 FlowUse
 FollowerOptions
 FollowerSystem
+ForceAreaBlock
+ForceAreaSystem
 FrameRect
 GRID_STEP_SAVE_OWNER
 GameAttachment
@@ -914,6 +947,11 @@ InspectorWidgetDef
 InstantiateOptions
 InstantiateResult
 IssueCodeDef
+JOINT
+JOINT_KINDS
+JointBlock
+JointKind
+JointSystem
 JsonValue
 KEY_CODES
 KEY_TO_CODE
@@ -933,6 +971,11 @@ MaterialDef
 MotionBody
 MotionBodyOptions
 MotionResult
+NAV_AGENT
+NAV_ARRIVED
+NAV_BLOCKED
+NavAgentBlock
+NavAgentSystem
 NavEntity
 NavIssue
 NavMesh
@@ -941,8 +984,12 @@ NavSystem
 OCCUPANT
 Occupancy
 OccupantBlock
+OverlapTracker
+Overlaps
 PAD_AXES
 PAD_BUTTONS
+PATH_FOLLOW
+PLAYER_INPUT
 PLAYER_JOINED
 PLAYER_LEFT
 POINTER_BUTTONS
@@ -950,6 +997,10 @@ PRIMITIVE_TYPES
 PadAxis
 PadButton
 ParseSaveResult
+ParseShapeResult
+PathFollowBlock
+PathFollowSystem
+PathPlace
 PathSchema
 PersistContext
 PhysicalCheck
@@ -966,6 +1017,8 @@ PlayStart
 PlayState
 PlayWorld
 PlayerInfo
+PlayerInputBlock
+PlayerInputSystem
 PlayersDef
 PointerButton
 PointerKind
@@ -993,7 +1046,10 @@ SENSOR_ENTER
 SENSOR_EXIT
 SIDES
 SIDE_VIEW_CONTROLLER
+SLOT_MAX_LENGTH
 SLOT_PATTERN
+SPAWNER
+SPAWNER_SPAWNED
 SPRITE
 SPRITE_FALLBACK_SIZE
 SUBLEVEL_ID_PATTERN
@@ -1016,8 +1072,14 @@ SceneTemplate
 SceneValidator
 SceneView
 ScriptPredicate
+SeatInput
 SensorSystem
 Side
+SideViewController
+SideViewEnv
+SideViewIntent
+SideViewOptions
+SideViewResult
 SolidOptions
 SolidSystem
 SpaceCastHit
@@ -1026,6 +1088,8 @@ SpaceHit
 SpaceQuery
 SpawnInput
 SpawnShape
+SpawnerBlock
+SpawnerSystem
 SpriteAssetInfo
 SpriteBlock
 SpriteGeometry
@@ -1054,6 +1118,7 @@ VisualOptions
 WaypointMode
 WaypointState
 WorldState
+advanceAlongPath
 advanceWaypoint
 angleField
 assetField
@@ -1069,6 +1134,7 @@ cellKey
 cellOf
 clamp
 clampVec2
+composePose
 createDataSystem
 createDecorSystem
 createFollowerSystem
@@ -1077,12 +1143,14 @@ createMarkerSystem
 createMotionBody
 createNavSystem
 createOccupancy
+createOverlapTracker
 createPlacementTool
 createPool
 createPropSystem
 createRegistry
 createSensorCollider
 createSensorSystem
+createSideViewController
 createSolidSystem
 createTopDownController
 declaredBindings
@@ -1107,6 +1175,7 @@ gridPlace
 gridRoute
 inCellBounds
 initialWaypointState
+inputFor
 interpolatePosition
 isNavSystem
 isPolygonField
@@ -1114,6 +1183,7 @@ isRuntimeId
 isUiAction
 keycapLabel
 keysProblems
+kinematicBodyEntry
 lengthUnitOf
 lerp
 lerpVec2
@@ -1123,9 +1193,13 @@ mirrorField
 navContains
 navNearest
 navPath
+oneWayPasses
 parseRuntimeId
 parseSaveFile
+parseShape
 parseSublevelId
+pathPosition
+pathWaypoints
 physicsOf
 playersProblems
 pointField
@@ -1135,14 +1209,22 @@ polygonField
 posedBodyDesc
 primitiveFields
 pxPerMetreOf
+rapierBodyEntry
+readPathPlace
 refField
+registerBody
+relativePose
 resolveTime
+restoreOverlaps
 runtimeId
 sameCell
 saveFileBytes
 saveFileSchema
+saveOverlaps
+savePathPlace
 scaleLengths
 sceneGrid
+seekAlongPath
 shapeColliderDesc
 shapeField
 shapePose
@@ -1156,6 +1238,7 @@ tickRateProblem
 ticksFor
 traceShape
 vectorField
+wholeTicksIn
 withProject
 
 ## @jams/engine/headless
@@ -3776,6 +3859,66 @@ declare function roundShape(s: ShapeObj, pxPerMetre: number): ShapeObj;
 declare function shapeBatch(t: GizmoTarget, world: ShapeObj, pxPerMetre: number, label?: string): OpBatch | null;
 declare function shapeSet(t: GizmoTarget, world: ShapeObj, pxPerMetre: number): Record<string, unknown> | null;
 
+## editor/gizmos/behavior-marks.ts
+type BehaviorMarks = {
+    arrows: {
+        from: Pt;
+        to: Pt;
+    }[];
+    lines: {
+        from: Pt;
+        to: Pt;
+    }[];
+    outlines: {
+        sensor: boolean;
+        shape: ShapeObj;
+    }[];
+    rings: {
+        at: Pt;
+        inward?: boolean;
+        r: number;
+    }[];
+};
+declare function behaviorMarks(committed: BehaviorGizmo, scale: number, handles?: readonly GizmoHandle[], opts?: {
+    shift?: Pt;
+}): BehaviorMarks;
+
+## editor/gizmos/behavior-target.ts
+type BehaviorGizmo = {
+    collider?: {
+        local: ShapeObj;
+        sensor: boolean;
+        world: ShapeObj;
+    };
+    force?: {
+        force: Pt;
+        kind: "directional";
+    } | {
+        kind: "point";
+        strength: number;
+    };
+    joint?: {
+        anchorA: Pt;
+        anchorB?: Pt;
+        to?: {
+            pose: EditPose;
+            ref: Ref;
+        };
+    };
+    pose: EditPose;
+    spawner?: {
+        spread: number;
+        velocity?: Pt;
+    };
+};
+type EditPose = {
+    at: Pt;
+    rotDeg: number;
+};
+declare const FORCE_PX = 4;
+declare const VELOCITY_PX = 16;
+declare function behaviorGizmo(def: SceneDefinition, registry: Registry, ref: Ref, geometry?: EditGeometry): BehaviorGizmo | undefined;
+
 ## editor/gizmos/drag.ts
 type Box = Extract<ShapeObj, {
     type: "box";
@@ -3785,6 +3928,7 @@ type Capsule = Extract<ShapeObj, {
 }>;
 declare function capsuleLength(c: Capsule, to: Pt, pxPerMetre: number): Capsule;
 declare function dragAngle(pivot: Pt, from: Pt, to: Pt): number;
+declare function dragBehaviorHandle(t: GizmoTarget, handleId: string, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
 declare function dragHandle(t: GizmoTarget, handleId: string, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
 declare function moveTarget(t: GizmoTarget, from: Pt, to: Pt, opts: DragOptions): GizmoEdit;
 declare function radiusTo(s: Extract<ShapeObj, {
@@ -3842,6 +3986,7 @@ declare const RESIZE_DIRS: readonly [
 ];
 type ResizeDir = (typeof RESIZE_DIRS)[number];
 declare const STALK_PX = 24;
+declare function behaviorHandles(b: BehaviorGizmo, scale: number): GizmoHandle[];
 declare function dirSigns(dir: ResizeDir): Pt;
 declare function hitHandle(handles: readonly GizmoHandle[], p: Pt, scale: number, tolPx?: number): GizmoHandle | undefined;
 declare function resizeCursor([x, y]: Pt): string;
@@ -3876,6 +4021,7 @@ declare const readSize: (w: number, h: number, pxPerMetre: number) => string;
 ## editor/gizmos/target.ts
 type GizmoTarget = {
     at?: Pt;
+    behaviors?: BehaviorGizmo;
     bulk: boolean;
     local?: ShapeObj;
     path?: {
@@ -3951,10 +4097,12 @@ declare function createHistory({ cap, coalesceMs, now }?: HistoryOptions): Histo
 
 ## editor/inspector-model.ts
 type BehaviorOption = {
+    adds?: string[];
     batch: OpBatch;
     description: string;
     label: string;
     name: BehaviorName;
+    unavailable?: string;
 };
 type BehaviorSectionId = `behaviors:${BehaviorName}`;
 type BehaviorSectionInfo = {
@@ -3968,6 +4116,7 @@ type EnumOption = {
 };
 type FieldWidget = {
     accepts: EntityTypeName[];
+    any?: true;
     kind: "entity-ref";
     multiple: boolean;
 } | {
@@ -4091,6 +4240,7 @@ type ModelEdit = {
 };
 type ModelField = Omit<InspectorRow, "children"> & {
     children?: ModelField[];
+    group?: string;
     section: ModelSectionId;
 };
 type ModelSectionId = BehaviorSectionId | InspectorSectionId;
@@ -4108,7 +4258,9 @@ type ShapeConversion = {
     to: ShapeType;
     tuple: ShapeTuple;
 };
-declare function buildInspectorModel(registry: Registry, targets: readonly RefTarget[]): InspectorModel;
+declare function buildInspectorModel(registry: Registry, targets: readonly RefTarget[], opts?: {
+    def?: SceneDefinition;
+}): InspectorModel;
 declare function instanceParamsModel(def: SceneDefinition, ref: Ref, registry: Registry, prefabs: PrefabLibrary): InstanceParamsModel | null;
 declare function instanceTransformModel(def: SceneDefinition, ref: Ref, prefabs: PrefabLibrary): InstanceTransformModel | null;
 declare function instanceZBatch(model: InstanceTransformModel, text: string): {
@@ -4933,6 +5085,7 @@ declare const BEHAVIORS_FIELD = "behaviors";
 declare const BEHAVIOR_NAME_PATTERN: RegExp;
 type BehaviorBlock = Readonly<Record<string, unknown>>;
 type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
+    conflicts?: readonly BehaviorName[];
     description: string;
     fields: ((env: FieldEnv) => F) | F;
     inspector?: {
@@ -4951,6 +5104,8 @@ interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
     attach(entityId: string, block: B, entity: RuntimeEntity): void;
     detach(entityId: string): void;
     update?(entityId: string, block: B, prev: B, entity: RuntimeEntity): void;
+    beforeStep?(dtMs: number): void;
+    beforePhysics?(): void;
     step?(dtMs: number): void;
     render?(alpha: number): void;
     reset?(): void;
@@ -4971,6 +5126,257 @@ type RegisteredBehavior = BehaviorDef & {
 };
 declare function defineBehavior<F extends z.ZodRawShape>(def: BehaviorDef<F>): BehaviorDef<F>;
 
+## game/behaviors/body.ts
+declare const BODY: BehaviorDef<{
+    angularDamping: z.ZodOptional<z.ZodNumber>;
+    ccd: z.ZodOptional<z.ZodBoolean>;
+    fixedRotation: z.ZodOptional<z.ZodBoolean>;
+    gravityScale: z.ZodOptional<z.ZodNumber>;
+    kind: z.ZodDefault<z.ZodEnum<{
+        dynamic: "dynamic";
+        kinematic: "kinematic";
+        static: "static";
+    }>>;
+    linearDamping: z.ZodOptional<z.ZodNumber>;
+}>;
+declare const BODY_KINDS: readonly [
+    "dynamic",
+    "kinematic",
+    "static"
+];
+type BodyBlock = z.infer<z.ZodObject<typeof bodyFields>>;
+type BodyKind = (typeof BODY_KINDS)[number];
+declare const bodyFields: {
+    angularDamping: z.ZodOptional<z.ZodNumber>;
+    ccd: z.ZodOptional<z.ZodBoolean>;
+    fixedRotation: z.ZodOptional<z.ZodBoolean>;
+    gravityScale: z.ZodOptional<z.ZodNumber>;
+    kind: z.ZodDefault<z.ZodEnum<{
+        dynamic: "dynamic";
+        kinematic: "kinematic";
+        static: "static";
+    }>>;
+    linearDamping: z.ZodOptional<z.ZodNumber>;
+};
+
+## game/behaviors/camera-target.ts
+declare const CAMERA_TARGET: BehaviorDef<{
+    seat: z.ZodOptional<z.ZodNumber>;
+    weight: z.ZodDefault<z.ZodNumber>;
+}>;
+type CameraTargetBlock = z.infer<z.ZodObject<typeof cameraTargetFields>>;
+declare const cameraTargetFields: {
+    seat: z.ZodOptional<z.ZodNumber>;
+    weight: z.ZodDefault<z.ZodNumber>;
+};
+
+## game/behaviors/character-side-view.ts
+declare const CHARACTER_SIDE_VIEW: BehaviorDef<{
+    accel: z.ZodDefault<z.ZodNumber>;
+    airControl: z.ZodDefault<z.ZodNumber>;
+    coyoteMs: z.ZodDefault<z.ZodNumber>;
+    decel: z.ZodDefault<z.ZodNumber>;
+    gravityScale: z.ZodDefault<z.ZodNumber>;
+    jump: z.ZodDefault<z.ZodString>;
+    jumpBufferMs: z.ZodDefault<z.ZodNumber>;
+    jumpCut: z.ZodDefault<z.ZodNumber>;
+    jumpHeight: z.ZodDefault<z.ZodNumber>;
+    maxFallSpeed: z.ZodDefault<z.ZodNumber>;
+    maxSlopeDeg: z.ZodDefault<z.ZodNumber>;
+    maxSpeed: z.ZodDefault<z.ZodNumber>;
+    move: z.ZodDefault<z.ZodString>;
+    pushDynamic: z.ZodDefault<z.ZodBoolean>;
+    snapToGround: z.ZodDefault<z.ZodNumber>;
+    stepHeight: z.ZodDefault<z.ZodNumber>;
+}>;
+type CharacterSideViewBlock = z.infer<z.ZodObject<typeof characterSideViewFields>>;
+declare const characterSideViewFields: {
+    accel: z.ZodDefault<z.ZodNumber>;
+    airControl: z.ZodDefault<z.ZodNumber>;
+    coyoteMs: z.ZodDefault<z.ZodNumber>;
+    decel: z.ZodDefault<z.ZodNumber>;
+    gravityScale: z.ZodDefault<z.ZodNumber>;
+    jump: z.ZodDefault<z.ZodString>;
+    jumpBufferMs: z.ZodDefault<z.ZodNumber>;
+    jumpCut: z.ZodDefault<z.ZodNumber>;
+    jumpHeight: z.ZodDefault<z.ZodNumber>;
+    maxFallSpeed: z.ZodDefault<z.ZodNumber>;
+    maxSlopeDeg: z.ZodDefault<z.ZodNumber>;
+    maxSpeed: z.ZodDefault<z.ZodNumber>;
+    move: z.ZodDefault<z.ZodString>;
+    pushDynamic: z.ZodDefault<z.ZodBoolean>;
+    snapToGround: z.ZodDefault<z.ZodNumber>;
+    stepHeight: z.ZodDefault<z.ZodNumber>;
+};
+
+## game/behaviors/character-top-down.ts
+declare const CHARACTER_TOP_DOWN: BehaviorDef<{
+    accel: z.ZodDefault<z.ZodNumber>;
+    decel: z.ZodDefault<z.ZodNumber>;
+    maxSpeed: z.ZodDefault<z.ZodNumber>;
+    move: z.ZodDefault<z.ZodString>;
+    pushDynamic: z.ZodDefault<z.ZodBoolean>;
+}>;
+type CharacterIntent = {
+    jump?: boolean;
+    move: Vec2;
+};
+type CharacterSystem<B extends BehaviorBlock = BehaviorBlock> = BehaviorSystem<B> & {
+    grounded(entityId: string): boolean;
+    launch(entityId: string, velocity: Vec2): void;
+    setIntent(entityId: string, intent: CharacterIntent): void;
+    velocity(entityId: string): Vec2;
+};
+type CharacterTopDownBlock = z.infer<z.ZodObject<typeof characterTopDownFields>>;
+declare const characterTopDownFields: {
+    accel: z.ZodDefault<z.ZodNumber>;
+    decel: z.ZodDefault<z.ZodNumber>;
+    maxSpeed: z.ZodDefault<z.ZodNumber>;
+    move: z.ZodDefault<z.ZodString>;
+    pushDynamic: z.ZodDefault<z.ZodBoolean>;
+};
+
+## game/behaviors/collider.ts
+declare const COLLIDER: BehaviorDef<{
+    density: z.ZodDefault<z.ZodNumber>;
+    friction: z.ZodOptional<z.ZodNumber>;
+    group: z.ZodOptional<z.ZodString>;
+    material: z.ZodOptional<z.ZodEnum<{
+        [x: string]: string;
+    }>> | z.ZodOptional<z.ZodNever>;
+    restitution: z.ZodOptional<z.ZodNumber>;
+    sensor: z.ZodDefault<z.ZodBoolean>;
+    shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
+}>;
+type ColliderBlock = z.infer<z.ZodObject<ReturnType<typeof colliderFields>>>;
+type ColliderSystem = BehaviorSystem<ColliderBlock> & {
+    has(entityId: string): boolean;
+    rebuild(entityId: string): void;
+};
+declare const colliderFields: (env: FieldEnv) => {
+    density: z.ZodDefault<z.ZodNumber>;
+    friction: z.ZodOptional<z.ZodNumber>;
+    group: z.ZodOptional<z.ZodString>;
+    material: z.ZodOptional<z.ZodEnum<{
+        [x: string]: string;
+    }>> | z.ZodOptional<z.ZodNever>;
+    restitution: z.ZodOptional<z.ZodNumber>;
+    sensor: z.ZodDefault<z.ZodBoolean>;
+    shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
+};
+
+## game/behaviors/force-area.ts
+declare const FORCE_AREA: BehaviorDef<{
+    affects: z.ZodOptional<z.ZodObject<{
+        groups: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        tags: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    }, z.core.$strict>>;
+    drag: z.ZodDefault<z.ZodNumber>;
+    falloff: z.ZodDefault<z.ZodEnum<{
+        "inverse-square": "inverse-square";
+        linear: "linear";
+        none: "none";
+    }>>;
+    force: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    kind: z.ZodDefault<z.ZodEnum<{
+        directional: "directional";
+        point: "point";
+    }>>;
+    strength: z.ZodOptional<z.ZodNumber>;
+}>;
+type ForceAreaBlock = z.infer<z.ZodObject<typeof forceAreaFields>>;
+type ForceAreaSystem = BehaviorSystem<ForceAreaBlock> & {
+    sample(point: Vec2): Vec2;
+};
+declare const forceAreaFields: {
+    affects: z.ZodOptional<z.ZodObject<{
+        groups: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        tags: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    }, z.core.$strict>>;
+    drag: z.ZodDefault<z.ZodNumber>;
+    falloff: z.ZodDefault<z.ZodEnum<{
+        "inverse-square": "inverse-square";
+        linear: "linear";
+        none: "none";
+    }>>;
+    force: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    kind: z.ZodDefault<z.ZodEnum<{
+        directional: "directional";
+        point: "point";
+    }>>;
+    strength: z.ZodOptional<z.ZodNumber>;
+};
+
+## game/behaviors/joint.ts
+declare const JOINT: BehaviorDef<{
+    anchorA: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    anchorB: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    axis: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    collide: z.ZodDefault<z.ZodBoolean>;
+    damping: z.ZodOptional<z.ZodNumber>;
+    kind: z.ZodEnum<{
+        prismatic: "prismatic";
+        revolute: "revolute";
+        rope: "rope";
+        spring: "spring";
+        weld: "weld";
+    }>;
+    length: z.ZodOptional<z.ZodNumber>;
+    limits: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    motor: z.ZodOptional<z.ZodObject<{
+        maxForce: z.ZodNumber;
+        velocity: z.ZodNumber;
+    }, z.core.$strict>>;
+    stiffness: z.ZodOptional<z.ZodNumber>;
+    to: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+}>;
+declare const JOINT_KINDS: readonly [
+    "revolute",
+    "prismatic",
+    "rope",
+    "weld",
+    "spring"
+];
+type JointBlock = z.infer<z.ZodObject<typeof jointFields>>;
+type JointKind = (typeof JOINT_KINDS)[number];
+type JointSystem = BehaviorSystem<JointBlock> & {
+    joined(entityId: string): boolean;
+};
+declare const jointFields: {
+    anchorA: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    anchorB: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    axis: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    collide: z.ZodDefault<z.ZodBoolean>;
+    damping: z.ZodOptional<z.ZodNumber>;
+    kind: z.ZodEnum<{
+        prismatic: "prismatic";
+        revolute: "revolute";
+        rope: "rope";
+        spring: "spring";
+        weld: "weld";
+    }>;
+    length: z.ZodOptional<z.ZodNumber>;
+    limits: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    motor: z.ZodOptional<z.ZodObject<{
+        maxForce: z.ZodNumber;
+        velocity: z.ZodNumber;
+    }, z.core.$strict>>;
+    stiffness: z.ZodOptional<z.ZodNumber>;
+    to: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+};
+
 ## game/behaviors/lifetime.ts
 declare const LIFETIME: BehaviorDef<{
     ms: z.ZodOptional<z.ZodNumber>;
@@ -4990,6 +5396,36 @@ declare const lifetimeFields: {
     ticks: z.ZodOptional<z.ZodNumber>;
 };
 
+## game/behaviors/nav-agent.ts
+declare const NAV_AGENT: BehaviorDef<{
+    arrive: z.ZodDefault<z.ZodNumber>;
+    radius: z.ZodDefault<z.ZodNumber>;
+    repathTicks: z.ZodDefault<z.ZodNumber>;
+    separation: z.ZodDefault<z.ZodNumber>;
+    speed: z.ZodDefault<z.ZodNumber>;
+    to: z.ZodOptional<z.ZodUnion<readonly [
+        z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>,
+        z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>
+    ]>>;
+}>;
+type NavAgentBlock = z.infer<z.ZodObject<typeof navAgentFields>>;
+type NavAgentSystem = BehaviorSystem<NavAgentBlock> & {
+    path(entityId: string): null | readonly Vec2[];
+    setDestination(entityId: string, to: Vec2 | string): void;
+    stop(entityId: string): void;
+};
+declare const navAgentFields: {
+    arrive: z.ZodDefault<z.ZodNumber>;
+    radius: z.ZodDefault<z.ZodNumber>;
+    repathTicks: z.ZodDefault<z.ZodNumber>;
+    separation: z.ZodDefault<z.ZodNumber>;
+    speed: z.ZodDefault<z.ZodNumber>;
+    to: z.ZodOptional<z.ZodUnion<readonly [
+        z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>,
+        z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>
+    ]>>;
+};
+
 ## game/behaviors/occupant.ts
 declare const OCCUPANT: BehaviorDef<{
     blocks: z.ZodOptional<z.ZodBoolean>;
@@ -4997,6 +5433,84 @@ declare const OCCUPANT: BehaviorDef<{
 type OccupantBlock = z.infer<z.ZodObject<typeof occupantFields>>;
 declare const occupantFields: {
     blocks: z.ZodOptional<z.ZodBoolean>;
+};
+
+## game/behaviors/path-follow.ts
+declare const PATH_FOLLOW: BehaviorDef<{
+    path: z.ZodObject<{
+        mode: z.ZodEnum<{
+            loop: "loop";
+            ping_pong: "ping_pong";
+        }>;
+        pauseMs: z.ZodOptional<z.ZodNumber>;
+        pts: z.ZodArray<z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>>;
+        speed: z.ZodNumber;
+    }, z.core.$strict>;
+}>;
+type PathFollowBlock = z.infer<z.ZodObject<typeof pathFollowFields>>;
+type PathFollowSystem = BehaviorSystem<PathFollowBlock> & {
+    frameDelta(entityId: string): Vec2 | null;
+    position(entityId: string): Vec2 | null;
+};
+declare const pathFollowFields: {
+    path: z.ZodObject<{
+        mode: z.ZodEnum<{
+            loop: "loop";
+            ping_pong: "ping_pong";
+        }>;
+        pauseMs: z.ZodOptional<z.ZodNumber>;
+        pts: z.ZodArray<z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>>;
+        speed: z.ZodNumber;
+    }, z.core.$strict>;
+};
+
+## game/behaviors/player-input.ts
+declare const PLAYER_INPUT: BehaviorDef<{
+    seat: z.ZodDefault<z.ZodNumber>;
+}>;
+type PlayerInputBlock = z.infer<z.ZodObject<typeof playerInputFields>>;
+declare const playerInputFields: {
+    seat: z.ZodDefault<z.ZodNumber>;
+};
+
+## game/behaviors/spawner.ts
+declare const SPAWNER: BehaviorDef<{
+    active: z.ZodDefault<z.ZodBoolean>;
+    burst: z.ZodDefault<z.ZodNumber>;
+    cap: z.ZodDefault<z.ZodNumber>;
+    lifeMs: z.ZodOptional<z.ZodNumber>;
+    prefab: z.ZodOptional<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
+    rate: z.ZodDefault<z.ZodNumber>;
+    spread: z.ZodDefault<z.ZodNumber>;
+    type: z.ZodOptional<z.ZodString>;
+    velocity: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+}>;
+type SpawnerBlock = z.infer<z.ZodObject<ReturnType<typeof spawnerFields>>>;
+type SpawnerSystem = BehaviorSystem<SpawnerBlock> & {
+    live(entityId: string): readonly string[];
+};
+declare const spawnerFields: (env: FieldEnv) => {
+    active: z.ZodDefault<z.ZodBoolean>;
+    burst: z.ZodDefault<z.ZodNumber>;
+    cap: z.ZodDefault<z.ZodNumber>;
+    lifeMs: z.ZodOptional<z.ZodNumber>;
+    prefab: z.ZodOptional<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
+    rate: z.ZodDefault<z.ZodNumber>;
+    spread: z.ZodDefault<z.ZodNumber>;
+    type: z.ZodOptional<z.ZodString>;
+    velocity: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
 };
 
 ## game/behaviors/sprite.ts
@@ -5101,6 +5615,7 @@ declare const COMMAND_NAME_PATTERN: RegExp;
 declare const ENGINE_COMMANDS: Readonly<Record<"@elapsed", CommandDef>>;
 
 ## game/defaults.ts
+declare const DEFAULT_ACTIONS: readonly ActionDef[];
 declare const DEFAULT_GRAVITY: [
     number,
     number
@@ -5320,6 +5835,22 @@ type PadButton = (typeof PAD_BUTTONS)[number] | number;
 type PointerButton = (typeof POINTER_BUTTONS)[number];
 declare const pointerBit: (button: PointerButton) => number;
 
+## game/input-for.ts
+interface PlayerInputSystem extends BehaviorSystem<PlayerInputBlock> {
+    seatOf(entityId: string): null | number;
+    inputFor(entityId: string): SeatInput | undefined;
+}
+type SeatInput = {
+    held(action: string): boolean;
+    pointer(): PointerState | null;
+    pressed(action: string): boolean;
+    readonly seat: null | number;
+    released(action: string): boolean;
+    value(action: string): number;
+    vector(action: string): Vec2;
+};
+declare function inputFor(ctx: EngineContext, entityId: string): SeatInput;
+
 ## game/physics-of.ts
 declare class PhysicsRequiredError extends EngineError {
     readonly what: string;
@@ -5355,6 +5886,12 @@ declare const PRIMITIVES: {
     };
     follower: {
         ascii: string;
+        behaviors: {
+            readonly forbidden: readonly [
+                "body",
+                "collider"
+            ];
+        };
         description: string;
         fields: (env: FieldEnv) => {
             material: z.ZodOptional<z.ZodEnum<{
@@ -5430,6 +5967,12 @@ declare const PRIMITIVES: {
     };
     prop: {
         ascii: string;
+        behaviors: {
+            readonly forbidden: readonly [
+                "body",
+                "collider"
+            ];
+        };
         description: string;
         fields: (env: FieldEnv) => {
             angularDamping: z.ZodOptional<z.ZodNumber>;
@@ -5455,6 +5998,12 @@ declare const PRIMITIVES: {
     };
     sensor: {
         ascii: string;
+        behaviors: {
+            readonly forbidden: readonly [
+                "body",
+                "collider"
+            ];
+        };
         description: string;
         fields: {
             attach: z.ZodOptional<z.ZodString>;
@@ -5471,6 +6020,12 @@ declare const PRIMITIVES: {
     };
     solid: {
         ascii: string;
+        behaviors: {
+            readonly forbidden: readonly [
+                "body",
+                "collider"
+            ];
+        };
         bulk: {
             description: string;
             form: "shape";
@@ -5531,6 +6086,7 @@ type ParseSaveResult = {
 declare const SAVE_RANDOM_KEY = "@random";
 declare const SAVE_SCHEMA_ID = "urn:jams-engine:save:v1";
 declare const SAVE_VERSION = 1;
+declare const SLOT_MAX_LENGTH = 32;
 declare const SLOT_PATTERN: RegExp;
 type SaveDepth = "progress" | "world";
 type SaveFile = {
@@ -5648,6 +6204,10 @@ declare function resolveTime(sources: {
 }): ResolvedTime;
 declare function tickRateProblem(rate: unknown): null | string;
 declare function ticksFor(ms: number, time: Pick<ResolvedTime, "rate">): number;
+declare function wholeTicksIn(ms: number, time: Pick<ResolvedTime, "rate">): {
+    restMs: number;
+    ticks: number;
+};
 
 ## game/types.ts
 type ActionDef = InputBinding & {
@@ -5687,6 +6247,19 @@ type Binding = {
     device: "pad";
     stick: "left" | "right";
 };
+interface BodyControl {
+    has(id: string): boolean;
+    kind(id: string): "dynamic" | "kinematic" | "static" | null;
+    velocity(id: string): Vec2;
+    setVelocity(id: string, v: Vec2): void;
+    angularVelocity(id: string): number;
+    setAngularVelocity(id: string, w: number): void;
+    applyImpulse(id: string, impulse: Vec2, at?: Vec2): void;
+    applyForce(id: string, force: Vec2, at?: Vec2): void;
+    applyTorque(id: string, torque: number): void;
+    mass(id: string): number;
+    wake(id: string): void;
+}
 type BulkKeyInfo = {
     field: "at" | "shape";
     form: BulkForm;
@@ -5764,6 +6337,7 @@ declare const ENGINE_PREDICATES: readonly [
     "tick",
     "exists",
     "count",
+    "near",
     "scene",
     "persist"
 ];
@@ -5809,6 +6383,7 @@ type EngineContext = {
     query: EntityQuery;
     random: Rng;
     rapier: RapierModule | null;
+    readonly bodies: BodyControl;
     readonly grid: RuntimeGrid | null;
     readonly nav: RuntimeNav | null;
     readonly play: PlayStart | null;
@@ -6143,6 +6718,7 @@ type PlayWorld = {
         enabled?: boolean;
     }): boolean;
     get?(id: string): RuntimeEntity | undefined;
+    pose?(id: string): Readonly<Pose> | undefined;
     readonly grid?: RuntimeGrid | null;
     readonly project?: ProjectRuntimeView | null;
     select?(sel?: EntitySelector): readonly string[];
@@ -6745,6 +7321,7 @@ type UntilClause = {
     count?: CountMatch;
     event?: EventMatch;
     exists?: ExistsMatch;
+    near?: NearMatch;
     persist?: PersistMatch;
     scene?: AssetId;
     tick?: number;
@@ -7086,6 +7663,47 @@ declare function createGridStepper(ctx: EngineContext, entityId: string, opts: {
     occupy?: boolean;
     start: Cell;
 }): GridStepper;
+
+## motion/side-view.ts
+interface SideViewController {
+    velocity(): Vec2;
+    grounded(): boolean;
+    step(dtMs: number, intent: SideViewIntent, env?: SideViewEnv): SideViewResult;
+    launch(v: Vec2): void;
+    save(): JsonValue;
+    restore(state: JsonValue): void;
+    destroy(): void;
+}
+type SideViewEnv = {
+    accel?: Vec2;
+    carrier?: Vec2;
+};
+type SideViewIntent = {
+    jump: boolean;
+    jumpHeld: boolean;
+    move: number;
+};
+type SideViewOptions = Pick<MotionBodyOptions, "group" | "shape"> & {
+    accel: number;
+    airControl: number;
+    coyoteMs: number;
+    decel: number;
+    gravityScale: number;
+    jumpBufferMs: number;
+    jumpCut: number;
+    jumpHeight: number;
+    maxFallSpeed: number;
+    maxSlopeDeg?: number;
+    maxSpeed: number;
+    snapToGround?: number;
+    stepHeight?: number;
+};
+type SideViewResult = MotionResult & {
+    grounded: boolean;
+    jumped: boolean;
+    landed: boolean;
+};
+declare function createSideViewController(ctx: EngineContext, body: MotionBody, opts: SideViewOptions): SideViewController;
 
 ## motion/top-down.ts
 interface TopDownController {
@@ -9309,6 +9927,29 @@ declare function viewportFor(policy: ResolutionPolicy, canvas: {
     width: number;
 }): ResolutionViewport;
 
+## runtime/bodies-control.ts
+type BodyEntry = {
+    addForce(force: Vec2, at?: Vec2): void;
+    addTorque(torque: number): void;
+    angularVelocity(): number;
+    applyImpulse(impulse: Vec2, at?: Vec2): void;
+    mass(): number;
+    readonly kind: BodyKind;
+    resetForces(): void;
+    setAngularVelocity(w: number): void;
+    setVelocity(v: Vec2): void;
+    velocity(): Vec2;
+    wake(): void;
+};
+type BodyKind = "dynamic" | "kinematic" | "static";
+declare function kinematicBodyEntry(id: string, motion: {
+    setVelocity?(v: Vec2): void;
+    velocity(): Vec2;
+    wake?(): void;
+}): BodyEntry;
+declare function rapierBodyEntry(id: string, body: RigidBody, kind: "dynamic" | "static"): BodyEntry;
+declare function registerBody(ctx: EngineContext, id: string, entry: BodyEntry): () => void;
+
 ## runtime/geometry-world.ts
 type GeometryColliderDesc = {
     body: "kinematic" | "static";
@@ -9379,7 +10020,7 @@ type PreparedPlay = {
     issues: SceneIssue[];
     ok: false;
 };
-declare function playWorld(ctx: Pick<EngineContext, "enabled" | "exists" | "get" | "grid" | "project" | "query">): PlayWorld;
+declare function playWorld(ctx: Pick<EngineContext, "enabled" | "exists" | "get" | "grid" | "poses" | "project" | "query">): PlayWorld;
 declare function preparePlay(doc: SceneDefinition, registry: Registry, opts?: {
     dev?: boolean;
     engine?: Readonly<Record<string, unknown>>;
@@ -9411,6 +10052,8 @@ interface PoseIndex {
     ids(): IterableIterator<string>;
     readonly size: number;
 }
+declare function composePose(x: number, y: number, rot: number, offset: Pose): Pose;
+declare function relativePose(pose: Pose, frame: Pose): Pose;
 
 ## runtime/recorder.ts
 type RecorderOptions = RecordingHost & {
@@ -9512,6 +10155,7 @@ type SpaceFilter = {
     exclude?: readonly string[];
     group?: string;
     sensors?: boolean;
+    skip?: ReadonlySet<number>;
     types?: readonly string[];
 };
 type SpaceHit = {
@@ -9565,6 +10209,9 @@ type AssetReloadError = {
     error: string;
     reattached: boolean;
 };
+declare const CHARACTER_JUMPED = "character:jumped";
+declare const CHARACTER_LANDED = "character:landed";
+declare const CHARACTER_LEFT_GROUND = "character:left-ground";
 declare const CONTACT_END = "contact:end";
 declare const CONTACT_START = "contact:start";
 declare const ENTITY_DESTROYED = "entity:destroyed";
@@ -9582,6 +10229,8 @@ type LoadReport = {
     ok: false;
     reason?: LoadFailureReason;
 };
+declare const NAV_ARRIVED = "nav:arrived";
+declare const NAV_BLOCKED = "nav:blocked";
 declare const PLAYER_JOINED = "player:joined";
 declare const PLAYER_LEFT = "player:left";
 type PersistCell = {
@@ -9612,6 +10261,7 @@ type RuntimeStats = {
 };
 declare const SENSOR_ENTER = "sensor:enter";
 declare const SENSOR_EXIT = "sensor:exit";
+declare const SPAWNER_SPAWNED = "spawner:spawned";
 type SceneRuntime = {
     add: (entities: RuntimeEntity[]) => ReconcileReport;
     busy: () => boolean;
@@ -9720,7 +10370,7 @@ declare function memorySaveStore(): SaveStore;
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 17;
+declare const AGENT_SURFACE_VERSION = 18;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -10078,6 +10728,11 @@ type MigrateInputScriptResult = {
     issue: ScriptIssue;
     ok: false;
 };
+type NearMatch = {
+    id: string;
+    to: Pt | string;
+    within: number;
+};
 type ParseInputScriptResult<G = unknown> = {
     issues: (ScriptIssue & {
         line?: number;
@@ -10123,6 +10778,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
         tracks: z.ZodOptional<z.ZodArray<z.ZodUnknown>>;
         v: z.ZodLiteral<2>;
     }, z.core.$strict>;
+    near: z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>;
     pointer: z.ZodObject<{
         at: z.ZodTuple<[
             z.ZodNumber,
@@ -10201,6 +10857,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                         }, z.core.$strict>
                     ]>>;
                     exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                    near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
                     persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
                     scene: z.ZodOptional<z.ZodString>;
                     tick: z.ZodOptional<z.ZodNumber>;
@@ -10246,6 +10903,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                         }, z.core.$strict>
                     ]>>;
                     exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                    near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
                     persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
                     scene: z.ZodOptional<z.ZodString>;
                     tick: z.ZodOptional<z.ZodNumber>;
@@ -10355,6 +11013,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                         }, z.core.$strict>
                     ]>>;
                     exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                    near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
                     persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
                     scene: z.ZodOptional<z.ZodString>;
                     tick: z.ZodOptional<z.ZodNumber>;
@@ -10446,6 +11105,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                             }, z.core.$strict>
                         ]>>;
                         exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                        near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
                         persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
                         scene: z.ZodOptional<z.ZodString>;
                         tick: z.ZodOptional<z.ZodNumber>;
@@ -10491,6 +11151,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                             }, z.core.$strict>
                         ]>>;
                         exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                        near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
                         persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
                         scene: z.ZodOptional<z.ZodString>;
                         tick: z.ZodOptional<z.ZodNumber>;
@@ -10600,6 +11261,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                             }, z.core.$strict>
                         ]>>;
                         exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                        near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
                         persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
                         scene: z.ZodOptional<z.ZodString>;
                         tick: z.ZodOptional<z.ZodNumber>;
@@ -10700,6 +11362,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                     }, z.core.$strict>
                 ]>>;
                 exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
                 persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
                 scene: z.ZodOptional<z.ZodString>;
                 tick: z.ZodOptional<z.ZodNumber>;
@@ -10829,6 +11492,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                     }, z.core.$strict>
                 ]>>;
                 exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
                 persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
                 scene: z.ZodOptional<z.ZodString>;
                 tick: z.ZodOptional<z.ZodNumber>;
@@ -10880,6 +11544,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                     }, z.core.$strict>
                 ]>>;
                 exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
                 persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
                 scene: z.ZodOptional<z.ZodString>;
                 tick: z.ZodOptional<z.ZodNumber>;
@@ -10935,6 +11600,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                         }, z.core.$strict>
                     ]>>;
                     exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                    near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
                     persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
                     scene: z.ZodOptional<z.ZodString>;
                     tick: z.ZodOptional<z.ZodNumber>;
@@ -10980,6 +11646,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                         }, z.core.$strict>
                     ]>>;
                     exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                    near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
                     persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
                     scene: z.ZodOptional<z.ZodString>;
                     tick: z.ZodOptional<z.ZodNumber>;
@@ -11089,6 +11756,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                         }, z.core.$strict>
                     ]>>;
                     exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+                    near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
                     persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
                     scene: z.ZodOptional<z.ZodString>;
                     tick: z.ZodOptional<z.ZodNumber>;
@@ -11149,6 +11817,7 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
             }, z.core.$strict>
         ]>>;
         exists: z.ZodOptional<z.ZodType<ExistsMatch, unknown, z.core.$ZodTypeInternals<ExistsMatch, unknown>>>;
+        near: z.ZodOptional<z.ZodType<NearMatch, unknown, z.core.$ZodTypeInternals<NearMatch, unknown>>>;
         persist: z.ZodOptional<z.ZodType<PersistMatch, unknown, z.core.$ZodTypeInternals<PersistMatch, unknown>>>;
         scene: z.ZodOptional<z.ZodString>;
         tick: z.ZodOptional<z.ZodNumber>;
@@ -12649,11 +13318,16 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "behavior-unknown",
     "behavior-forbidden",
     "behavior-missing",
+    "behavior-conflict",
+    "character-body-kind",
     "grid-invalid",
     "ref-child-unknown",
     "physics-required",
     "physics-skipped",
     "nav-invalid",
+    "nav-missing",
+    "joint-ref-type",
+    "joint-self",
     "follower-hits-solid",
     "solid-overlap",
     "grid-unreachable",
@@ -12682,6 +13356,8 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "player-unknown",
     "spawn-id-invalid",
     "prefab-not-spawnable",
+    "body-missing",
+    "body-not-dynamic",
     "recording-other-platform",
     "scene-unlisted",
     "start-scene-missing",
@@ -13646,6 +14322,10 @@ type AttachmentHub = {
 };
 
 ## systems/bodies.ts
+type OverlapTracker = {
+    diff(id: string, before: Overlaps, now: Overlaps, at: (handle: number) => Vec2): void;
+};
+type Overlaps = Map<number, string | undefined>;
 type PropEntity = RuntimeEntity<{
     angularDamping?: number;
     ccd?: boolean;
@@ -13658,6 +14338,10 @@ type PropEntity = RuntimeEntity<{
     restitution: number;
     shape: ShapeObj;
 }>;
+type SavedOverlap = [
+    entityId: string,
+    nth: number
+];
 type SensorEntity = RuntimeEntity<{
     attach?: string;
     shape: ShapeObj;
@@ -13680,6 +14364,7 @@ type SolidSystem = SceneSystem<SolidEntity> & {
     gateOneWay(actorBottomY: number, dropping: boolean): void;
     gateOneWaySides(actor: Aabb, passing: boolean): void;
     isHidden(id: string): boolean;
+    passesOneWay(actorId: string, actor: Aabb, passing: boolean): void;
     position(id: string): Vec2 | null;
 };
 type SurfaceDefaults = {
@@ -13691,6 +14376,7 @@ type VisualOptions = {
     layer?: ViewLayer;
 };
 declare function bodyLocalShape(shape: ShapeObj): ShapeObj;
+declare function createOverlapTracker(ctx: EngineContext): OverlapTracker;
 declare function createPropSystem(ctx: EngineContext, type: RegisteredType): SceneSystem<PropEntity>;
 declare function createSensorSystem(ctx: EngineContext, type: RegisteredType): SensorSystem;
 declare function createSolidSystem(ctx: EngineContext, type: RegisteredType, opts?: SolidOptions): SolidSystem;
@@ -13702,6 +14388,9 @@ declare function drawEntity(ctx: Pick<EngineContext, "registry" | "view">, type:
     shape: ShapeObj;
     z?: number;
 }, layer: ViewLayer, shape?: ShapeObj): void;
+declare function oneWayPasses(ctx: EngineContext, actorId: string): ReadonlySet<number>;
+declare function restoreOverlaps(tags: ColliderTags, saved: JsonValue | undefined): Overlaps;
+declare function saveOverlaps(tags: ColliderTags, overlaps: Overlaps): SavedOverlap[];
 
 ## systems/data.ts
 type DataSystem<E extends RuntimeEntity = RuntimeEntity> = SceneSystem<E> & {
@@ -13757,6 +14446,11 @@ type FollowerSystem = SceneSystem<FollowerEntity> & {
     frameDelta(id: string): Vec2 | null;
     position(id: string): Vec2 | null;
 };
+type PathPlace = {
+    frameDelta: Vec2;
+    prevPos: Vec2;
+    state: WaypointState;
+};
 type WaypointMode = "loop" | "ping_pong";
 type WaypointState = {
     currentIndex: number;
@@ -13765,11 +14459,20 @@ type WaypointState = {
     pauseRemainingMs: number;
     t: number;
 };
+declare function advanceAlongPath(state: WaypointState, waypoints: Vec2[], path: PathDef, dtMs: number): WaypointState;
 declare function advanceWaypoint(state: WaypointState, waypoints: Vec2[], speed: number, dtMs: number, pauseMs: number, mode: WaypointMode): WaypointState;
 declare function carrierDelta(ctx: EngineContext, handle: number): Vec2 | null;
 declare function createFollowerSystem(ctx: EngineContext, type: RegisteredType, opts?: FollowerOptions): FollowerSystem;
 declare function initialWaypointState(): WaypointState;
 declare function interpolatePosition(a: Vec2, b: Vec2, t: number): Vec2;
+declare function pathPosition(waypoints: readonly Vec2[], state: WaypointState): Vec2;
+declare function pathWaypoints(path: Pick<PathDef, "pts">): Vec2[];
+declare function readPathPlace(state: JsonValue, waypoints: readonly Vec2[]): PathPlace | null;
+declare function savePathPlace(m: PathPlace): JsonValue;
+declare function seekAlongPath(state: WaypointState, waypoints: Vec2[], path: PathDef, ms: number, time: {
+    rate: number;
+    tickMs: number;
+}): WaypointState;
 
 ## tool-router.ts
 type PointerKind = "mouse" | "pen" | "touch";
@@ -14146,7 +14849,7 @@ type UiHandle = {
 
 ## version.ts
 declare const COLLAB_LAYOUT_VERSION = 3;
-declare const ENGINE_VERSION = "0.14.2";
+declare const ENGINE_VERSION = "0.14.3";
 declare const REPLAY_ACROSS_PLATFORMS = true;
 
 ## vite/apply-files.ts

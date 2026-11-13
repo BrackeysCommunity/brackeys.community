@@ -214,6 +214,20 @@ describe("Keep your saves", () => {
     expect(load).not.toHaveBeenCalled();
   });
 
+  it("asks nothing when this browser's saves can't be listed", async () => {
+    const local: SaveStore = {
+      ...memorySaveStore(),
+      list: () => Promise.reject(new DOMException("The database is closed.", "InvalidStateError")),
+    };
+    const site = fakeSite().store;
+    const load = vi.fn(() => site.load());
+    show(local, { ...site, load });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(load).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(keepSavesDeclinedKey(PROJECT))).toBeNull();
+  });
+
   it.each([
     ["refused", new ReleaseError({ code: "save-store-failed", message: "Too often." }, 429)],
     ["unreachable", new TypeError("Failed to fetch")],

@@ -77,18 +77,29 @@ const problems = (fn: () => unknown): string[] => {
 
 const refused = (over: Partial<GameDefinition>) => problems(() => createRegistry(game(over)));
 
+/** The engine's behaviors, in registration order. */
+const STANDARD = [
+  "sprite",
+  "occupant",
+  "lifetime",
+  "collider",
+  "body",
+  "player-input",
+  "path-follow",
+  "force-area",
+  "character-top-down",
+  "character-side-view",
+  "nav-agent",
+  "joint",
+  "spawner",
+  "camera-target",
+];
+
 describe("behavior registration", () => {
   it("registers the engine's behaviors, then the game's in order", () => {
-    expect(ENGINE_BEHAVIORS.map((b) => b.name)).toEqual(["sprite", "occupant", "lifetime"]);
+    expect(ENGINE_BEHAVIORS.map((b) => b.name)).toEqual(STANDARD);
     const r = createRegistry(game());
-    expect(r.behaviorNames).toEqual([
-      "sprite",
-      "occupant",
-      "lifetime",
-      "fake/tint",
-      "fake/wobble",
-      "fake/kinds",
-    ]);
+    expect(r.behaviorNames).toEqual([...STANDARD, "fake/tint", "fake/wobble", "fake/kinds"]);
     expect([...r.behaviors.keys()]).toEqual(r.behaviorNames);
     expect(r.behaviors.get("sprite")).toMatchObject({
       origin: "engine",
@@ -99,7 +110,7 @@ describe("behavior registration", () => {
     expect(r.behaviors.get("occupant")?.visualOnly).toBeUndefined();
     const reg = r.behaviors.get("fake/wobble")!;
     expect(reg.origin).toBe("fake");
-    expect(reg.index).toBe(4);
+    expect(reg.index).toBe(STANDARD.length + 1);
     expect(reg.requires).toEqual(["fake/tint"]);
     expect(Object.keys(reg.shape)).toEqual(["amount"]);
   });
@@ -112,12 +123,8 @@ describe("behavior registration", () => {
   });
 
   it("has only the engine's without a game, and the primitives registry has none of the game's", () => {
-    expect(createRegistry().behaviorNames).toEqual(["sprite", "occupant", "lifetime"]);
-    expect(createRegistry(game()).primitives.behaviorNames).toEqual([
-      "sprite",
-      "occupant",
-      "lifetime",
-    ]);
+    expect(createRegistry().behaviorNames).toEqual(STANDARD);
+    expect(createRegistry(game()).primitives.behaviorNames).toEqual(STANDARD);
   });
 
   it("defineBehavior is the identity", () => {
@@ -233,18 +240,15 @@ describe("behavior refusals", () => {
 describe("behaviorRules", () => {
   it("allows every behavior, in registration order, on a type without rules", () => {
     const r = createRegistry(game());
-    for (const type of ["post", "solid", "marker"]) {
+    const all = [...STANDARD, "fake/tint", "fake/wobble", "fake/kinds"];
+    for (const type of ["post", "marker"]) {
       const rules = r.behaviorRules(type);
-      expect(rules.allowed).toEqual([
-        "sprite",
-        "occupant",
-        "lifetime",
-        "fake/tint",
-        "fake/wobble",
-        "fake/kinds",
-      ]);
+      expect(rules.allowed).toEqual(all);
       expect(rules.required.size).toBe(0);
     }
+    expect(r.behaviorRules("solid").allowed).toEqual(
+      all.filter((b) => b !== "body" && b !== "collider"),
+    );
   });
 
   it("gives types that don't load, and unknown types, none", () => {
@@ -267,13 +271,7 @@ describe("behaviorRules", () => {
         ],
       }),
     );
-    expect(r.behaviorRules("some").allowed).toEqual([
-      "sprite",
-      "occupant",
-      "lifetime",
-      "fake/tint",
-      "fake/wobble",
-    ]);
+    expect(r.behaviorRules("some").allowed).toEqual([...STANDARD, "fake/tint", "fake/wobble"]);
     expect(r.behaviorRules("only").allowed).toEqual(["fake/tint"]);
     expect(r.behaviorRules("none").allowed).toEqual([]);
     expect(r.behaviorRules("none").defaults.size).toBe(0);
@@ -295,10 +293,9 @@ describe("behaviorRules", () => {
     );
     const rules = r.behaviorRules("lit");
     expect([...rules.required]).toEqual([["fake/tint", { color: "#ff0000", alpha: 0.5 }]]);
+    const engine = createRegistry().behaviorRules("marker").defaults;
     expect(Object.fromEntries(rules.defaults)).toEqual({
-      sprite: {},
-      occupant: {},
-      lifetime: {},
+      ...Object.fromEntries(STANDARD.map((b) => [b, engine.get(b)])),
       "fake/tint": { color: "#ff0000", alpha: 0.5 },
       "fake/wobble": { amount: 3 },
       "fake/kinds": {},
@@ -324,13 +321,7 @@ describe("the test game's behaviors", () => {
   const r = createRegistry(testGame);
 
   it("registers glow and spin, prefixed with the game id", () => {
-    expect(r.behaviorNames).toEqual([
-      "sprite",
-      "occupant",
-      "lifetime",
-      "test-game/glow",
-      "test-game/spin",
-    ]);
+    expect(r.behaviorNames).toEqual([...STANDARD, "test-game/glow", "test-game/spin"]);
     expect(r.behaviors.get(GLOW.name)?.system).toBeUndefined();
     expect(typeof r.behaviors.get(SPIN.name)?.system).toBe("function");
   });

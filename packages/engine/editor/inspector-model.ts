@@ -2,10 +2,11 @@ import { z } from "zod";
 
 import { BEHAVIORS_FIELD, type BehaviorName, type RegisteredBehavior } from "../game/behaviors";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
-import { assetKindsOf, SIDES } from "../game/fields";
+import { assetKindsOf, CHILD_REF_PATTERN, SIDES } from "../game/fields";
 import type { BehaviorRules, InspectorWidgetDef, RegisteredType, Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import type { AssetKindName } from "../project/types";
+import { bulkKeysOf } from "../scene/expand";
 import { splitFieldPath } from "../scene/field-path";
 import { sceneHash } from "../scene/hash";
 import { childEntity, resolvePrefab, splitOverridePath } from "../scene/resolve";
@@ -14,6 +15,7 @@ import { aabb, boxCorners, convexHull, isConvex } from "../scene/shape-geometry"
 import { parseShape, SHAPE_TYPES, shapeToTuple } from "../scene/shapes";
 import {
   PREFAB_MAX_DEPTH,
+  type EntityDef,
   type EntityTypeName,
   type FieldPath,
   type InstanceDef,
@@ -35,9 +37,12 @@ import {
   snapToPixel,
   type LengthUnitName,
 } from "../scene/units";
+import { validateScene } from "../scene/validate";
+import { editPose } from "./gizmos/behavior-target";
 import { numberBounds } from "./inspector";
 import { nestedInstanceOf, prefabInstances } from "./prefab-commands";
 import { referableEntities, type RefTarget } from "./refs";
+import { entityGeometry } from "./spatial-index";
 
 // ─── Sections ────────────────────────────────────────────
 
@@ -126,8 +131,12 @@ export type FieldWidget =
     }
   | { kind: "points"; min?: number }
   | { kind: "tags" }
-  /** A combobox of ids whose type (or base) is in `accepts` (`refCandidates`), plus an eyedropper. */
-  | { kind: "entity-ref"; accepts: EntityTypeName[]; multiple: boolean }
+  /**
+   * A combobox of ids whose type (or base) is in `accepts` (`refCandidates`),
+   * plus an eyedropper. With `any`, every entity but the selection: a
+   * behavior's reference, which names no types (`accepts` is empty).
+   */
+  | { kind: "entity-ref"; accepts: EntityTypeName[]; multiple: boolean; any?: true }
   /** A tag switcher over `types`; `shapeConversions` says which switches are lossless. */
   | { kind: "shape"; types: ShapeType[] }
   /** Mode, speed, pause and the point list, as `children`. */
@@ -180,6 +189,8 @@ export type InspectorRow = {
 /** An inspector row placed in a section of the scene inspector. */
 export type ModelField = Omit<InspectorRow, "children"> & {
   section: ModelSectionId;
+  /** A behavior field's `meta.group` (`jump`, `surface`): the sub-heading the inspector puts it under. */
+  group?: string;
   children?: ModelField[];
 };
 
@@ -204,8 +215,15 @@ export type BehaviorOption = {
   name: BehaviorName;
   label: string;
   description: string;
-  /** One update per target that lacks the block. */
+  /**
+   * One update per target that lacks the block. It also adds the behaviors
+   * it requires that a target lacks, each from its own template.
+   */
   batch: OpBatch;
+  /** The required behaviors `batch` adds alongside it, by label. */
+  adds?: string[];
+  /** Why it can't be added yet (a reference with nothing in the scene to name); `batch` would fail. */
+  unavailable?: string;
 };
 
 export type InspectorModel = {
@@ -309,12 +327,37 @@ export function lengthStep(
     : { step: 0.01, bigStep: 0.1, decimals: 2 };
 }
 
-function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): FieldWidget {
+/** A string field holding an entity id or an instance child's ref (`refField`). */
+function isChildRef(inner: z.core.$ZodType): boolean {
+  if (!(inner instanceof z.ZodString)) return false;
+  const patterns = (inner._zod.bag as { patterns?: Set<RegExp> }).patterns;
+  return [...(patterns ?? [])].some((p) => p.source === CHILD_REF_PATTERN.source);
+}
+
+/** A select over the game's actions a behavior can read (`ui` ones never reach the simulation). */
+function actionChoice(registry: Registry): FieldWidget {
+  const options = registry.actions
+    .filter((a) => a.ui !== true)
+    .map((a) => ({
+      value: a.action,
+      label: a.kind && a.kind !== "button" ? `${a.action} (${a.kind})` : a.action,
+    }));
+  return { kind: "select", options };
+}
+
+function widgetFor(
+  schema: z.ZodType,
+  name: string,
+  top: boolean,
+  ctx: Ctx,
+  value?: unknown,
+): FieldWidget {
   const meta = fieldMeta(schema);
   if (typeof meta.widget === "string") {
     const widget = ctx.registry?.widgets.get(meta.widget);
     if (widget) return { kind: "custom", id: meta.widget, widget };
     if (meta.widget === "color") return { kind: "color" };
+    if (meta.widget === "action" && ctx.registry) return actionChoice(ctx.registry);
   }
   const assetKinds = assetKindsOf(schema);
   if (assetKinds) return { kind: "asset", kinds: [...assetKinds] };
@@ -329,6 +372,7 @@ function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): Fie
     ...(isLengthUnit(meta.unit) ? lengthStep(meta.unit, ctx.ppm) : {}),
   });
   if (kind === "point") return point(true);
+  if (kind === "vector") return point(false);
   if (kind === "path") return { kind: "path" };
   if (kind === "side") return choice(SIDES);
 
@@ -340,6 +384,7 @@ function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): Fie
       ? meta.accepts.filter((t): t is string => typeof t === "string")
       : undefined;
   if (accepts) return { kind: "entity-ref", accepts, multiple: inner instanceof z.ZodArray };
+  if (isChildRef(inner)) return { kind: "entity-ref", accepts: [], multiple: false, any: true };
   if (isNumberPair(schema, inner)) return point(false);
 
   if (inner instanceof z.ZodNumber) {
@@ -384,6 +429,15 @@ function widgetFor(schema: z.ZodType, name: string, top: boolean, ctx: Ctx): Fie
     if (unwrapSchema(element) instanceof z.ZodString) return { kind: "tags" };
   }
   if (inner instanceof z.ZodObject) return { kind: "object" };
+  if (inner instanceof z.ZodUnion) {
+    // A point or an entity (`nav-agent.to`): the editor for the form the value holds, an entity when unset.
+    const options = inner.options as z.ZodType[];
+    const at = options.find((o) => fieldKind(o) === "vector" || fieldKind(o) === "point");
+    if (at && options.some((o) => isChildRef(unwrapSchema(o))))
+      return Array.isArray(value)
+        ? widgetFor(at, name, top, ctx)
+        : { kind: "entity-ref", accepts: [], multiple: false, any: true };
+  }
   return { kind: "readonly", format: "json" };
 }
 
@@ -455,7 +509,8 @@ export function describeRow(
 ): InspectorRow {
   const name = path.slice(path.lastIndexOf(".") + 1);
   const meta = fieldMeta(schema);
-  const widget = widgetFor(schema, name, !path.includes("."), ctx);
+  const value = fieldValue(schema, root, path);
+  const widget = widgetFor(schema, name, !path.includes("."), ctx, value);
   const row: InspectorRow = {
     path,
     name,
@@ -467,7 +522,7 @@ export function describeRow(
       (ctx.entity ? path === "id" : name === "id") ||
       widget.kind === "readonly" ||
       (widget.kind === "custom" && widget.widget.kind === "readonly"),
-    value: fieldValue(schema, root, path),
+    value,
     mixed: false,
     schema,
   };
@@ -572,6 +627,8 @@ type BehaviorState = {
   written: string[];
   /** Required and written, registered ones in registration order, then unknown ones. */
   carried: BehaviorName[];
+  /** The entity's schema, built once: block fields as it validates them. */
+  schema: z.ZodObject | undefined;
 };
 
 function writtenBlocks(entity: Record<string, unknown>): Record<string, unknown> {
@@ -590,12 +647,12 @@ function behaviorState(registry: Registry, target: RefTarget): BehaviorState | n
     ...registry.behaviorNames.filter((n) => has.has(n)),
     ...written.filter((n) => !registry.behaviors.has(n)).sort(),
   ];
-  return { target, rules, written, carried };
+  return { target, rules, written, carried, schema: entitySchemaFor(registry, target.entity.type) };
 }
 
 /** A block's fields as the entity schema validates them (optional where a default exists), else the behavior's own. */
-function blockShape(registry: Registry, type: EntityTypeName, name: BehaviorName): z.ZodRawShape {
-  const slot = entitySchemaFor(registry, type)?.shape[BEHAVIORS_FIELD];
+function blockShape(registry: Registry, s: BehaviorState, name: BehaviorName): z.ZodRawShape {
+  const slot = s.schema?.shape[BEHAVIORS_FIELD];
   const slotObj = slot && unwrapSchema(slot);
   const block = slotObj instanceof z.ZodObject ? slotObj.shape[name] : undefined;
   const blockObj = block && unwrapSchema(block);
@@ -612,19 +669,19 @@ function behaviorFields(registry: Registry, s: BehaviorState, name: BehaviorName
     return [describeField(`${BEHAVIORS_FIELD}.${name}`, z.unknown(), entity, ctx, { forced })];
   const defaults = s.rules.defaults.get(name) ?? {};
   return linkFrames(
-    orderedFields(blockShape(registry, entity.type, name), b.inspector?.order ?? []).map(
-      ([k, schema]) => {
-        const f = describeField(`${BEHAVIORS_FIELD}.${name}.${k}`, schema, entity, ctx, {
-          forced,
-        });
-        const d = defaults[k];
-        if (d !== undefined) {
-          f.defaultValue = d;
-          f.optional = true;
-        }
-        return f;
-      },
-    ),
+    orderedFields(blockShape(registry, s, name), b.inspector?.order ?? []).map(([k, schema]) => {
+      const f = describeField(`${BEHAVIORS_FIELD}.${name}.${k}`, schema, entity, ctx, {
+        forced,
+      });
+      const group = fieldMeta(schema).group;
+      if (typeof group === "string") f.group = group;
+      const d = defaults[k];
+      if (d !== undefined) {
+        f.defaultValue = d;
+        f.optional = true;
+      }
+      return f;
+    }),
   );
 }
 
@@ -669,9 +726,9 @@ function addedBlock(
   s: BehaviorState,
   name: BehaviorName,
   b: RegisteredBehavior,
-) {
+): Record<string, unknown> {
   const defaults = s.rules.defaults.get(name) ?? {};
-  const shape = blockShape(registry, s.target.entity.type, name);
+  const shape = blockShape(registry, s, name);
   const block = (base: Record<string, unknown>) => ({
     ...base,
     ...seedBlock(shape, { ...defaults, ...base }),
@@ -682,6 +739,163 @@ function addedBlock(
   );
   const withTemplate = block(kept);
   return b.refine?.({ ...defaults, ...withTemplate }) === undefined ? withTemplate : block({});
+}
+
+/** `name` and every behavior it requires, transitively, that `s` lacks and its type allows, in registration order. */
+function withRequires(registry: Registry, s: BehaviorState, name: BehaviorName): BehaviorName[] {
+  const need = new Set<BehaviorName>();
+  const visit = (n: BehaviorName) => {
+    if (need.has(n) || s.carried.includes(n) || !s.rules.allowed.includes(n)) return;
+    const b = registry.behaviors.get(n);
+    if (!b) return;
+    need.add(n);
+    for (const r of b.requires ?? []) visit(r);
+  };
+  visit(name);
+  return registry.behaviorNames.filter((n) => need.has(n));
+}
+
+/** `def` with only `entities`: its header (settings, bounds), no other entries. */
+function sceneWith(def: SceneDefinition | undefined, entities: EntityDef[]): SceneDefinition {
+  if (!def) return { v: 1, name: "add", bounds: [-1e4, -1e4, 1e4, 1e4], entities };
+  const header: SceneDefinition = { ...def, entities };
+  delete header.instances;
+  for (const k of bulkKeysOf(def)) delete header[k];
+  return header;
+}
+
+const withBlocks = (e: EntityDef, blocks: Record<BehaviorName, Record<string, unknown>>) => ({
+  ...e,
+  [BEHAVIORS_FIELD]: { ...writtenBlocks(e), ...blocks },
+});
+
+/** A block field that names another entity and must be set: no default, not optional. */
+function requiredRefs(registry: Registry, s: BehaviorState, name: BehaviorName): string[] {
+  const shape = blockShape(registry, s, name);
+  const defaults = s.rules.defaults.get(name) ?? {};
+  return Object.entries(shape)
+    .filter(
+      ([k, f]) =>
+        f._zod.optin !== "optional" && defaults[k] === undefined && isChildRef(unwrapSchema(f)),
+    )
+    .map(([k]) => k);
+}
+
+/** How many of the nearest entities Add tries for a reference before giving up. */
+const REF_TRIES = 8;
+
+/**
+ * The nearest entity in `def` that `field` of `name`'s block may name, as
+ * the scene's validation judges it with the block added; undefined when
+ * none of the nearest few will do.
+ */
+function seedRef(
+  registry: Registry,
+  def: SceneDefinition,
+  self: EntityDef,
+  blocks: Record<BehaviorName, Record<string, unknown>>,
+  name: BehaviorName,
+  field: string,
+): string | undefined {
+  const poseOf = (e: EntityDef) => {
+    const t = registry.types.get(e.type);
+    return t ? editPose(entityGeometry(t, e), e).at : undefined;
+  };
+  const from = poseOf(self) ?? [0, 0];
+  const near = (def.entities ?? [])
+    .filter((e) => e.id !== self.id && registry.types.has(e.type))
+    .map((e) => {
+      const at = poseOf(e);
+      return { e, d: at ? (at[0] - from[0]) ** 2 + (at[1] - from[1]) ** 2 : Infinity };
+    })
+    .sort((a, b) => a.d - b.d)
+    .slice(0, REF_TRIES);
+  const pointer = `/entities/0/${BEHAVIORS_FIELD}/${name}/${field}`;
+  for (const { e } of near) {
+    const tried = { ...blocks, [name]: { ...blocks[name], [field]: e.id } };
+    const issues = validateScene(sceneWith(def, [withBlocks(self, tried), e]), registry);
+    if (!issues.some((i) => i.path === pointer)) return e.id;
+  }
+  return undefined;
+}
+
+/**
+ * The fixes the scene's validation offers for the blocks being added, as
+ * the entity holds them alone in the scene (a force area's collider made a
+ * sensor): each sets fields of an added block on the entity itself. Merged
+ * into `blocks` until none is left, a few rounds at most.
+ */
+function fixAdded(
+  registry: Registry,
+  def: SceneDefinition | undefined,
+  self: EntityDef,
+  blocks: Record<BehaviorName, Record<string, unknown>>,
+  extra: EntityDef[],
+): void {
+  for (let round = 0; round < 3; round++) {
+    let fixed = false;
+    for (const issue of validateScene(
+      sceneWith(def, [withBlocks(self, blocks), ...extra]),
+      registry,
+    )) {
+      const ops = issue.fix?.ops ?? [];
+      const sets = ops.flatMap((op) =>
+        op.op === "update" && op.ref === self.id && !op.unset && op.set
+          ? Object.entries(op.set)
+          : [],
+      );
+      if (sets.length === 0 || sets.length !== ops.length) continue;
+      const targets = sets.map(([path, value]) => {
+        const [root, name, ...rest] = path.split(".");
+        return root === BEHAVIORS_FIELD && name && blocks[name] && rest.length === 1
+          ? { name, key: rest[0]!, value }
+          : null;
+      });
+      if (targets.some((t) => t === null)) continue;
+      for (const t of targets) {
+        if (same(blocks[t!.name]![t!.key], t!.value)) continue;
+        blocks[t!.name]![t!.key] = structuredClone(t!.value);
+        fixed = true;
+      }
+    }
+    if (!fixed) return;
+  }
+}
+
+/**
+ * The blocks one target gains when `name` is added: it and the behaviors it
+ * requires, each from `addedBlock`, a required reference seeded with the
+ * nearest entity that suits it, and the validation fixes that apply to
+ * them. `unavailable` when a reference has nothing to name.
+ */
+function addedBlocks(
+  registry: Registry,
+  s: BehaviorState,
+  name: BehaviorName,
+  def: SceneDefinition | undefined,
+): { blocks: Record<BehaviorName, Record<string, unknown>>; unavailable?: string } {
+  const blocks: Record<BehaviorName, Record<string, unknown>> = {};
+  for (const n of withRequires(registry, s, name))
+    blocks[n] = addedBlock(registry, s, n, registry.behaviors.get(n)!);
+  const self = s.target.entity;
+  const extra: EntityDef[] = [];
+  let unavailable: string | undefined;
+  for (const n of Object.keys(blocks)) {
+    for (const field of requiredRefs(registry, s, n)) {
+      if (blocks[n]![field] !== undefined) continue;
+      const id = def ? seedRef(registry, def, self, blocks, n, field) : undefined;
+      if (id === undefined) {
+        const title = registry.behaviors.get(n)?.inspector?.label ?? n;
+        unavailable ??= `${title} needs another entity in the scene to link to.`;
+        continue;
+      }
+      blocks[n]![field] = id;
+      const other = def?.entities?.find((e) => e.id === id);
+      if (other) extra.push(other);
+    }
+  }
+  fixAdded(registry, def, self, blocks, extra);
+  return unavailable ? { blocks, unavailable } : { blocks };
 }
 
 function removeBatch(states: readonly BehaviorState[], name: BehaviorName, title: string) {
@@ -696,7 +910,11 @@ function removeBatch(states: readonly BehaviorState[], name: BehaviorName, title
   return { label: `Remove ${title} from ${who}`, ops };
 }
 
-function addOptions(registry: Registry, states: readonly BehaviorState[]): BehaviorOption[] {
+function addOptions(
+  registry: Registry,
+  states: readonly BehaviorState[],
+  def: SceneDefinition | undefined,
+): BehaviorOption[] {
   const [first, ...rest] = states;
   if (!first) return [];
   const out: BehaviorOption[] = [];
@@ -706,17 +924,26 @@ function addOptions(registry: Registry, states: readonly BehaviorState[]): Behav
     const lacking = states.filter((s) => !s.carried.includes(name));
     if (lacking.length === 0) continue;
     const label = b.inspector?.label ?? name;
-    const ops: SceneOp[] = lacking.map((s) => ({
-      op: "update",
-      ref: s.target.ref,
-      set: { [`${BEHAVIORS_FIELD}.${name}`]: addedBlock(registry, s, name, b) },
-    }));
+    const adds = new Set<string>();
+    let unavailable: string | undefined;
+    const ops: SceneOp[] = lacking.map((s) => {
+      const added = addedBlocks(registry, s, name, def);
+      unavailable ??= added.unavailable;
+      for (const n of Object.keys(added.blocks))
+        if (n !== name) adds.add(registry.behaviors.get(n)?.inspector?.label ?? n);
+      const set = Object.fromEntries(
+        Object.entries(added.blocks).map(([n, block]) => [`${BEHAVIORS_FIELD}.${n}`, block]),
+      );
+      return { op: "update", ref: s.target.ref, set };
+    });
     const who = lacking.length === 1 ? lacking[0]!.target.ref : `${lacking.length} entities`;
     out.push({
       name,
       label,
       description: b.description,
       batch: { label: `Add ${label} to ${who}`, ops },
+      ...(adds.size > 0 ? { adds: [...adds] } : {}),
+      ...(unavailable ? { unavailable } : {}),
     });
   }
   return out;
@@ -755,14 +982,19 @@ function shared(lists: readonly ModelField[][]): ModelField[] {
  * `.describe()`, drawn by the widget its Zod kind (or a game's
  * `meta.widget`) calls for, and sectioned by `meta.group` or, without one,
  * by kind. Each behavior every target carries gets its own section,
- * `behaviors:<name>`, with its fields in `inspector.order` and a Remove
- * batch; `addBehaviors` lists the rest the types allow. With several
+ * `behaviors:<name>`, with its fields in `inspector.order` (each with its
+ * `meta.group`) and a Remove batch; `addBehaviors` lists the rest the types
+ * allow, each adding what it requires too. With several
  * targets only the fields they share are shown, and a field whose values
  * differ is `mixed`. Pure: the site renders it.
  */
 export function buildInspectorModel(
   registry: Registry,
   targets: readonly RefTarget[],
+  opts: {
+    /** The scene the targets are in (the resolved view): Add behavior seeds a reference from it. */
+    def?: SceneDefinition;
+  } = {},
 ): InspectorModel {
   const maybe = targets.map((t) => behaviorState(registry, t));
   const states = maybe.every((s) => s !== null) ? maybe : [];
@@ -803,7 +1035,7 @@ export function buildInspectorModel(
     refs: targets.map((t) => t.ref),
     types,
     sections,
-    addBehaviors: addOptions(registry, states),
+    addBehaviors: addOptions(registry, states, opts.def),
   };
 }
 

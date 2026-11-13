@@ -821,7 +821,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: "game_new",
     title: "Scaffold a game",
     description:
-      "Write a new game project under `dir` (default src/games) from a preset: `top-down` (a motion body steered by `move`, fixed 60 Hz), `grid` (a grid stepper, event-stepped) or `turns` (one `step { dir }` command, its legal list from `GamePlayDef.commands`); physics none, gravity [0, 0], every world and time field written, scenes in metres. It writes the project file, the game and UI modules (a framework-free HUD), `scenes/main.json` with its checks and an input script that wins, game-settings and input-map docs, the generated schemas and a test. Refused, writing nothing, for an id outside the id pattern (`schema`), an id a project holds or a directory that exists (`project-id-taken`), or a scene with error issues. A dry run unless dryRun is false; either way the result lists every file, the issues, the URLs that open it on the dev site and the playtest command.",
+      "Write a new game project under `dir` (default src/games) from a preset: `top-down` (a hero of standard behaviors, `collider`, `character-top-down`, `player-input` and `camera-target`, walked by `move`; physics none, gravity [0, 0]), `side-view` (the same with `character-side-view`, run by `move` and jumping on `jump`; Rapier, gravity [0, 20]), `grid` (a grid stepper, event-stepped) or `turns` (one `step { dir }` command, its legal list from `GamePlayDef.commands`); every world and time field written (the behavior presets on a fixed 60 Hz clock), scenes in metres. The behavior presets' input scripts wait on `until.near` and their reaches check expects the hero near the goal. It writes the project file, the game and UI modules (a framework-free HUD), `scenes/main.json` with its checks and an input script that wins, game-settings and input-map docs, the generated schemas and a test. Refused, writing nothing, for an id outside the id pattern (`schema`), an id a project holds or a directory that exists (`project-id-taken`), or a scene with error issues. A dry run unless dryRun is false; either way the result lists every file, the issues, the URLs that open it on the dev site and the playtest command.",
     annotations: WRITE,
     input: {
       id: z.string().describe("The project's id, also its game's id and its directory's name."),
@@ -830,11 +830,16 @@ export const MCP_TOOLS: readonly McpTool[] = [
         .enum(GAME_PRESETS)
         .optional()
         .describe("What the game starts as; default `top-down`."),
-      physics: z.enum(["none", "rapier"]).optional().describe("Over the preset's `none`."),
+      physics: z
+        .enum(["none", "rapier"])
+        .optional()
+        .describe("Over the preset's: `rapier` for `side-view`, else `none`."),
       gravity: z
         .tuple([z.number(), z.number()])
         .optional()
-        .describe("[x, y] in m/s², y down; over the preset's [0, 0]."),
+        .describe(
+          "[x, y] in m/s², y down; over the preset's: [0, 20] for `side-view`, else [0, 0].",
+        ),
       time: z
         .enum(["fixed", "turns", "event"])
         .optional()
@@ -843,12 +848,16 @@ export const MCP_TOOLS: readonly McpTool[] = [
       grid: z
         .enum(["square", "hex", "none"])
         .optional()
-        .describe("The world grid; `grid` and `turns` step on a square one, `top-down` has none."),
+        .describe(
+          "The world grid; `grid` and `turns` step on a square one, `top-down` and `side-view` have none.",
+        ),
       cell: z.number().optional().describe("The grid cell's size in metres; default 1."),
       pxPerMetre: z
         .number()
         .optional()
-        .describe("px per metre (`world.lengthUnit`); over the preset's 100 (top-down) or 32."),
+        .describe(
+          "px per metre (`world.lengthUnit`); over the preset's 100 (top-down, side-view) or 32.",
+        ),
       dir: z.string().optional().describe("The directory the project goes in; default src/games."),
       dryRun: z.boolean().default(true).describe("List the files without writing them."),
     },

@@ -326,6 +326,7 @@ export function PlayChrome({ play, version }: { play: PlayPayload; version: stri
     <>
       <Popover>
         <PopoverTrigger
+          disabled={sessionPending}
           render={<Button variant="ghost" size="icon" tooltip="Saves" aria-label="Saves" />}
         >
           <HugeiconsIcon icon={FloppyDiskIcon} size={16} />

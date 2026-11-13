@@ -162,8 +162,8 @@ describe("compileInputScript", () => {
       'unknown action "rigt"; did you mean "right"? (actions: left, right, push)',
     ]);
     expect(
-      issues(compileInputScript({ v: 1, steps: [{ press: "jump" }] }, engine))[0]!.message,
-    ).toBe('unknown action "jump" (actions: none)');
+      issues(compileInputScript({ v: 1, steps: [{ press: "dash" }] }, engine))[0]!.message,
+    ).toBe('unknown action "dash" (actions: move, jump)');
   });
 
   it("suggests keys and predicates, and names what a step is missing", () => {

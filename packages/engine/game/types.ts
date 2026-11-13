@@ -12,7 +12,7 @@ import type { ResolutionPolicy } from "../resolution";
 import type { GeometryWorld } from "../runtime/geometry-world";
 import type { RuntimeGrid } from "../runtime/grid";
 import type { RuntimeNav } from "../runtime/nav";
-import type { PoseIndex } from "../runtime/poses";
+import type { Pose, PoseIndex } from "../runtime/poses";
 import type { SpaceQuery } from "../runtime/space";
 import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import type { SaveStore } from "../saves/store";
@@ -329,7 +329,8 @@ export type EngineContext = {
   /**
    * Seeded at each load from `PlayOptions.seed`, else from the game's and
    * the scene's names; `fork(label)` gives a system its own stream. Engine
-   * systems and behaviors never draw from it.
+   * systems and behaviors never draw from it, except the `spawner`
+   * behavior, which takes a fork per entity.
    */
   random: Rng;
   /** Entities by type, tag, area, point and distance, read from poses and shapes. */
@@ -343,7 +344,33 @@ export type EngineContext = {
   /** State that survives scene changes (`GameDefinition.persist`); its value is null when the game declares none. */
   persist: PersistContext;
   saves: SavesContext;
+  /** Moves bodies by entity id, whichever system owns them. */
+  readonly bodies: BodyControl;
 };
+
+/**
+ * Every owner of a body registers it here by entity id. An id with no body
+ * throws `EngineError` `body-missing`; a force, torque or impulse on a
+ * kinematic or static body, a velocity write on a static body or a follower
+ * (its path sets its velocity), and an angular velocity write on a kinematic
+ * body throw `body-not-dynamic`. A static or kinematic body's mass is
+ * Infinity. With `world.physics: "none"` only kinematic bodies exist.
+ */
+export interface BodyControl {
+  has(id: string): boolean;
+  kind(id: string): "dynamic" | "kinematic" | "static" | null;
+  velocity(id: string): Vec2;
+  setVelocity(id: string, v: Vec2): void;
+  angularVelocity(id: string): number;
+  setAngularVelocity(id: string, w: number): void;
+  /** Applied once, at the centre of mass or at a world point. */
+  applyImpulse(id: string, impulse: Vec2, at?: Vec2): void;
+  /** Held for this tick's physics step only; call it each tick to sustain it. */
+  applyForce(id: string, force: Vec2, at?: Vec2): void;
+  applyTorque(id: string, torque: number): void;
+  mass(id: string): number;
+  wake(id: string): void;
+}
 
 // ─── Lifecycle ───────────────────────────────────────────
 
@@ -833,7 +860,15 @@ export type EngineRunResult = (typeof ENGINE_RUN_RESULTS)[number];
 export type RunResult = EngineRunResult | (string & {});
 
 /** `until` predicates the engine provides; a game's predicates can't take these names. */
-export const ENGINE_PREDICATES = ["event", "tick", "exists", "count", "scene", "persist"] as const;
+export const ENGINE_PREDICATES = [
+  "event",
+  "tick",
+  "exists",
+  "count",
+  "near",
+  "scene",
+  "persist",
+] as const;
 
 /** What a game's outcome hook and script predicates see after each tick. */
 export type PlayState<S = unknown> = {
@@ -855,6 +890,8 @@ export type PlayWorld = {
   count(sel: EntitySelector): number;
   /** Live entities in spawn order (`EngineContext.query.select`); absent where the host doesn't build the world with `playWorld`. */
   select?(sel?: EntitySelector): readonly string[];
+  /** A live entity's pose after the tick (`EngineContext.poses`); absent as `select` is. */
+  pose?(id: string): Readonly<Pose> | undefined;
   /** A live entity (`EngineContext.get`); absent as `select` is. */
   get?(id: string): RuntimeEntity | undefined;
   /** The loaded scene's grid (`EngineContext.grid`), null without one; absent as `select` is. */

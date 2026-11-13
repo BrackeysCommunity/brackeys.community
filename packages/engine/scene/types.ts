@@ -257,11 +257,16 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "behavior-unknown",
   "behavior-forbidden",
   "behavior-missing",
+  "behavior-conflict",
+  "character-body-kind",
   "grid-invalid",
   "ref-child-unknown",
   "physics-required",
   "physics-skipped",
   "nav-invalid",
+  "nav-missing",
+  "joint-ref-type",
+  "joint-self",
   // physical
   "follower-hits-solid",
   "solid-overlap",
@@ -296,6 +301,8 @@ export const ENGINE_ISSUE_CODE_LIST = [
   // runtime
   "spawn-id-invalid",
   "prefab-not-spawnable",
+  "body-missing",
+  "body-not-dynamic",
   // replay
   "recording-other-platform",
   // flow

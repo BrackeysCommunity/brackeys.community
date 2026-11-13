@@ -43,7 +43,7 @@ describe("scenes/main.json", () => {
     expect(validateScene(parsed.def, registry).filter((i) => i.severity !== "info")).toEqual([]);
   });
 
-  it("passes its checks: the input script wins headless", () => {
+  it("passes its checks: the input script wins headless, the hero near the goal", () => {
     if (!parsed.ok) throw new Error("scenes/main.json doesn't parse");
     const checks = parseChecks(read("scenes/main.checks.json"), registry);
     if (!checks.ok) throw new Error(JSON.stringify(checks.issues));

@@ -28,6 +28,8 @@ export type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
   system?: BehaviorSystemFactory;
   /** Behaviors the same entity must also carry (`anim` requires `sprite`); `behavior-missing` otherwise. */
   requires?: readonly BehaviorName[];
+  /** Behaviors the same entity must not also carry; `behavior-conflict` otherwise. */
+  conflicts?: readonly BehaviorName[];
   /** Never changes simulation state: built only with a view, never headless. */
   visualOnly?: boolean;
   inspector?: { label?: string; order?: readonly string[] };
@@ -66,6 +68,13 @@ export interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
   detach(entityId: string): void;
   /** The block changed; without it the host detaches and attaches. */
   update?(entityId: string, block: B, prev: B, entity: RuntimeEntity): void;
+  /** Each tick, after the game's `beforeStep`, before the type systems' `beforePhysics`. */
+  beforeStep?(dtMs: number): void;
+  /**
+   * Each tick, after the type systems' `beforePhysics`, before the physics
+   * step; without physics, right after the behaviors' `beforeStep`.
+   */
+  beforePhysics?(): void;
   /** Each tick, after the type systems' `afterStep`, before the game's. */
   step?(dtMs: number): void;
   /** Each rendered frame, after `view.frame`; only for visual behaviors, never headless. */

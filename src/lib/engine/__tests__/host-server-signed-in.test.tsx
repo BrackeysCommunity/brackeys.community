@@ -1,56 +1,33 @@
 // @vitest-environment jsdom
 import type { SaveLimits, SaveSummary } from "@jams/engine";
-import { formatSaveFile, type SaveFile } from "@jams/engine/game";
-import {
-  channelSaveStore,
-  connectHost,
-  HostRequestError,
-  type HostChannel,
-} from "@jams/engine/standalone";
+import { channelSaveStore } from "@jams/engine/standalone";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
-  createHostServer,
   HOST_NO_SITE_SAVES_HINT,
   HOST_NO_SITE_SAVES_MESSAGE,
-  type HostServer,
   type HostServerOptions,
   type SaveMode,
 } from "../host-server";
 import { SITE_SAVE_LIMITS } from "../limits";
-import { localPlayPrefs, localPlaySaves, SIGNED_OUT_SAVES_DESCRIBE } from "../local-saves";
+import {
+  localPlaySaves,
+  SIGNED_IN_SAVES_DESCRIBE,
+  SIGNED_OUT_SAVES_DESCRIBE,
+} from "../local-saves";
 import { apiErrorResponse, type ReleaseApiError } from "../release-errors";
 import { engineProjectSavesPath, engineSavePath } from "../route-paths";
-import {
-  saveAccountFull,
-  saveNotSite,
-  saveWritesRateLimited,
-  SIGNED_IN_SAVES_DESCRIBE,
-} from "../save-api";
+import { saveAccountFull, saveNotSite, saveWritesRateLimited } from "../save-api";
 import { siteSaveStore } from "../save-store";
+import {
+  disposeHostRigs,
+  hostRig as rig,
+  refusal,
+  RIG_RELEASE as RELEASE,
+  rigSaveText as saveText,
+} from "./host-rig";
 
-const RELEASE = { id: "e".repeat(64), gameId: "tactics", projectId: "proj-1" };
-const HELLO = { engine: "0.14.2", release: RELEASE.id, game: RELEASE.gameId };
 const PLAYER = { signedIn: true, name: "Ada" };
-
-function saveText(slot: string, data: unknown = null): string {
-  const file: SaveFile = {
-    kind: "save",
-    v: 1,
-    game: RELEASE.gameId,
-    gameVersion: 1,
-    engine: "0.14.2",
-    release: null,
-    project: null,
-    slot,
-    meta: { scene: "one", savedAt: 0, playTicks: 0 },
-    depth: "progress",
-    persist: null,
-    scene: { id: "one", runHash: "", sublevels: [] },
-    data: data as SaveFile["data"],
-  };
-  return formatSaveFile(file);
-}
 
 const bytesOf = (text: string) => new TextEncoder().encode(text).length;
 
@@ -111,64 +88,6 @@ function fakeApi() {
   return api;
 }
 
-type Rig = { server: HostServer; connect(): Promise<HostChannel> };
-
-const cleanups: (() => void)[] = [];
-
-/**
- * The page's host and a framed game in one jsdom document over a real
- * `MessageChannel`. jsdom's postMessage carries neither `source`, `origin`
- * nor ports, so each side's post is delivered as the event a browser would.
- */
-function rig(opts: Omit<HostServerOptions, "iframe" | "release" | "prefs">): Rig {
-  const iframe = document.createElement("iframe");
-  document.body.append(iframe);
-  const frame = iframe.contentWindow!;
-  const frameView = {
-    parent: {
-      postMessage(data: unknown) {
-        const event = new MessageEvent("message", { data, origin: "null" });
-        Object.defineProperty(event, "source", { value: frame });
-        window.dispatchEvent(event);
-      },
-    },
-    addEventListener: frame.addEventListener.bind(frame),
-    removeEventListener: frame.removeEventListener.bind(frame),
-  } as unknown as Window;
-  Object.defineProperty(frame, "postMessage", {
-    configurable: true,
-    value(data: unknown, _target: string, transfer: MessagePort[] = []) {
-      queueMicrotask(() => {
-        const event = new MessageEvent("message", { data });
-        Object.defineProperty(event, "ports", { value: transfer });
-        Object.defineProperty(event, "source", { value: frameView.parent });
-        frame.dispatchEvent(event);
-      });
-    },
-  });
-  const server = createHostServer({
-    iframe,
-    release: RELEASE,
-    prefs: localPlayPrefs(RELEASE.projectId),
-    ...opts,
-  });
-  const channels: HostChannel[] = [];
-  cleanups.push(() => {
-    for (const c of channels) c.close();
-    server.dispose();
-    iframe.remove();
-  });
-  return {
-    server,
-    async connect() {
-      const channel = await connectHost({ hello: HELLO, window: frameView, timeoutMs: 2_000 });
-      if (!channel) throw new Error("the page didn't answer");
-      channels.push(channel);
-      return channel;
-    },
-  };
-}
-
 /** A signed-in play page: the site store over the fake API, as the page builds it after sign-in reloads it. */
 function signedIn(api: ReturnType<typeof fakeApi>, mode: HostServerOptions["mode"] = "site") {
   const store = api.store();
@@ -180,21 +99,12 @@ function signedIn(api: ReturnType<typeof fakeApi>, mode: HostServerOptions["mode
   });
 }
 
-const refusal = async (p: Promise<unknown>) => {
-  const error = await p.then(
-    () => null,
-    (e: unknown) => e,
-  );
-  expect(error).toBeInstanceOf(HostRequestError);
-  return (error as HostRequestError).issue;
-};
-
 beforeEach(() => {
   localStorage.clear();
 });
 
 afterEach(() => {
-  for (const c of cleanups.splice(0)) c();
+  disposeHostRigs();
   vi.restoreAllMocks();
 });
 

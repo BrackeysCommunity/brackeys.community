@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { GLOW, SPIN, testGame } from "../../__tests__/fixtures/test-game";
 import { defineBehavior } from "../../game/behaviors";
-import { createRegistry, defineEntityType, defineGame } from "../../game/define";
+import { createRegistry, defineEntityType, defineGame, ENGINE_BEHAVIORS } from "../../game/define";
 import { assetField, pointField, shapeField, tagsField } from "../../game/fields";
 import { applyOps } from "../../scene/ops";
 import { prefabLibrary } from "../../scene/prefab";
@@ -832,9 +832,7 @@ describe("behavior sections", () => {
     ]);
     expect(glow.behavior).toEqual({ name: GLOW.name, description: GLOW.description });
     expect(m.addBehaviors.map((o) => [o.name, o.label])).toEqual([
-      ["sprite", "sprite"],
-      ["occupant", "occupant"],
-      ["lifetime", "lifetime"],
+      ...ENGINE_BEHAVIORS.map((b) => [b.name, b.inspector?.label ?? b.name]),
       [SPIN.name, SPIN.name],
     ]);
   });
@@ -857,6 +855,22 @@ describe("behavior sections", () => {
     ]);
   });
 
+  it("edits a nav-agent's destination as an entity, or as a point when it holds one", () => {
+    const walkers: SceneDefinition = {
+      ...doc,
+      entities: [
+        { id: "a", type: "marker", at: [1, 1], behaviors: { "nav-agent": {} } },
+        { id: "b", type: "marker", at: [2, 2], behaviors: { "nav-agent": { to: "a" } } },
+        { id: "c", type: "marker", at: [3, 3], behaviors: { "nav-agent": { to: [4, 5] } } },
+      ],
+    };
+    const to = (ref: string) => field(of(games, walkers, ref), "behaviors.nav-agent.to");
+    const picker = { kind: "entity-ref", accepts: [], multiple: false, any: true };
+    expect(to("a")).toMatchObject({ widget: picker, value: undefined, optional: true });
+    expect(to("b")).toMatchObject({ widget: picker, value: "a" });
+    expect(to("c")).toMatchObject({ widget: { kind: "point", pick: false }, value: [4, 5] });
+  });
+
   it("reads written values, and keeps the type's own fields out of the behaviors key", () => {
     const m = of(games, doc, "lamp-2");
     expect(m.sections.map((s) => s.title)).toEqual(["Identity", "Transform", "Glow", SPIN.name]);
@@ -866,7 +880,7 @@ describe("behavior sections", () => {
       defaultValue: 30,
     });
     expect(fields(m).some((f) => f.path === "behaviors")).toBe(false);
-    expect(m.addBehaviors.map((o) => o.name)).toEqual(["sprite", "occupant", "lifetime"]);
+    expect(m.addBehaviors.map((o) => o.name)).toEqual(ENGINE_BEHAVIORS.map((b) => b.name));
     expect(of(games, doc, "spot").sections.at(-1)!.fields[0]).toMatchObject({
       value: 45,
       defaultValue: 90,
@@ -901,17 +915,16 @@ describe("behavior sections", () => {
     const m = of(games, doc, "lamp", "spot");
     expect(m.sections.some((s) => s.id.startsWith("behaviors:"))).toBe(false);
     expect(m.addBehaviors.map((o) => o.name)).toEqual([
-      "sprite",
-      "occupant",
-      "lifetime",
+      ...ENGINE_BEHAVIORS.map((b) => b.name),
       GLOW.name,
       SPIN.name,
     ]);
-    expect(m.addBehaviors[3]!.batch).toEqual({
+    const offered = (name: string) => m.addBehaviors.find((o) => o.name === name)!.batch;
+    expect(offered(GLOW.name)).toEqual({
       label: "Add Glow to spot",
       ops: [{ op: "update", ref: "spot", set: { [`behaviors.${GLOW.name}`]: {} } }],
     });
-    const add = m.addBehaviors[4]!.batch;
+    const add = offered(SPIN.name);
     expect(add).toEqual({
       label: `Add ${SPIN.name} to lamp`,
       ops: [{ op: "update", ref: "lamp", set: { [`behaviors.${SPIN.name}`]: {} } }],

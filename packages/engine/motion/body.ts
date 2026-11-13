@@ -4,8 +4,10 @@ import { TOP_DOWN_CONTROLLER } from "../game/defaults";
 import { physicsOf } from "../game/physics-of";
 import type { ColliderTag, EngineContext, JsonValue } from "../game/types";
 import { shapeColliderDesc } from "../physics";
+import { kinematicBodyEntry, registerBody } from "../runtime/bodies-control";
 import type { SpaceCastHit, SpaceFilter } from "../runtime/space";
 import type { ShapeObj } from "../scene/types";
+import { computeMovementSkipping, oneWayPasses } from "../systems/bodies";
 import type { Vec2 } from "../types";
 
 /** State an object game code made for an entity holds, for a world save. */
@@ -128,6 +130,7 @@ function rapierBackend(
   ctx.tags.set(collider.handle, tag);
   const controller: KinematicCharacterController =
     physics.createCharacterController(TOP_DOWN_CONTROLLER);
+  const skip = oneWayPasses(ctx, entityId);
   // The controller still splits moves along `up`, and at a slide limit of a
   // right angle it drops the "downward" part of a slide along a vertical
   // wall. A top-down body has no up: every slope climbs and every one slides.
@@ -138,11 +141,13 @@ function rapierBackend(
     handle: collider.handle,
     move(_from, delta, slide) {
       controller.setSlideEnabled(slide);
-      controller.computeColliderMovement(
+      computeMovementSkipping(
+        controller,
         collider,
         new rapier.Vector2(delta.x, delta.y),
         rapier.QueryFilterFlags.EXCLUDE_SENSORS,
         collider.collisionGroups(),
+        skip,
       );
       const m = controller.computedMovement();
       const len = Math.sqrt(dot(delta, delta));
@@ -203,7 +208,7 @@ function geometryBackend(
     pose: { x: at.x, y: at.y, rot: 0 },
   });
   ctx.tags.set(handle, tag);
-  const filter: SpaceFilter = { exclude: [entityId], group };
+  const filter: SpaceFilter = { exclude: [entityId], group, skip: oneWayPasses(ctx, entityId) };
 
   return {
     handle,
@@ -246,7 +251,12 @@ function geometryBackend(
   };
 }
 
-/** Rapier: a kinematic position-based body with a TOP_DOWN_CONTROLLER character controller; geometry: a kinematic collider, sweep and slide. */
+/**
+ * Rapier: a kinematic position-based body with a TOP_DOWN_CONTROLLER
+ * character controller; geometry: a kinematic collider, sweep and slide.
+ * It answers `ctx.bodies` as a kinematic body, its stored velocity read
+ * and written there.
+ */
 export function createMotionBody(
   ctx: EngineContext,
   entity: { id: string; type: string },
@@ -322,8 +332,17 @@ export function createMotionBody(
       if (destroyed) return;
       destroyed = true;
       unregister?.();
+      unregisterBody();
       backend.destroy();
     },
   };
+  const unregisterBody = registerBody(
+    ctx,
+    entity.id,
+    kinematicBodyEntry(entity.id, {
+      velocity: () => body.velocity(),
+      setVelocity: (v) => body.setVelocity(v),
+    }),
+  );
   return body;
 }

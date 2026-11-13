@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
-import { SIGNED_IN_SAVES_DESCRIBE } from "@/lib/engine/save-api";
+import { SIGNED_IN_SAVES_DESCRIBE } from "@/lib/engine/local-saves";
 
 import {
   judgeClaim,

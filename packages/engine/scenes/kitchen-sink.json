@@ -64,6 +64,18 @@
     { "id": "upright", "type": "prop", "shape": ["box", 3.12, 1.4, 0.1, 0.1], "density": 1, "fixedRotation": true, "restitution": 0 },
     { "id": "about-sides", "type": "note", "at": [2, 0.6], "text": "One-way sides and body fields: side-wall is one-way from the left, so an actor passes it moving left and stops on its left face; upright starts half past its top and slides off without turning (fixedRotation)." },
     { "id": "spark", "type": "decor", "layer": "decor", "at": [13.4, 10.4], "behaviors": { "lifetime": { "ticks": 30 }, "sprite": { "asset": "crates", "frame": "crate-1", "size": [0.24, 0.24] } } },
-    { "id": "about-lifetime", "type": "note", "at": [12.6, 9.6], "text": "Lifetime: spark is a decor whose lifetime block destroys it 30 ticks after load; the fades check expects the lamp to remain the one decor left." }
+    { "id": "about-lifetime", "type": "note", "at": [12.6, 9.6], "text": "Lifetime: spark is a decor whose lifetime block destroys it 30 ticks after load; the fades check expects the lamp to remain the one decor left." },
+    { "id": "std-collider", "type": "marker", "at": [14.7, 3], "behaviors": { "collider": { "shape": ["box", 0, 0, 1.5, 0.1] } } },
+    { "id": "std-body", "type": "marker", "at": [13.6, 2.6], "behaviors": { "body": {}, "collider": { "shape": ["box", 0, 0, 0.15, 0.15] } } },
+    { "id": "std-side-view", "type": "marker", "at": [14.2, 2.5], "behaviors": { "character-side-view": {}, "collider": { "shape": ["box", 0, 0, 0.1, 0.2] } } },
+    { "id": "std-top-down", "type": "marker", "at": [14.8, 2.6], "behaviors": { "character-top-down": {}, "collider": { "shape": ["circle", 0, 0, 0.15] } } },
+    { "id": "std-player-input", "type": "marker", "at": [15.4, 2.6], "behaviors": { "player-input": {} } },
+    { "id": "std-joint", "type": "marker", "at": [16.5, 3.1], "behaviors": { "body": {}, "collider": { "shape": ["box", 0, 0, 0.1, 0.1] }, "joint": { "anchorA": [-0.5, 0], "anchorB": [1.3, 0.1], "kind": "revolute", "to": "std-collider" } } },
+    { "id": "std-force-area", "type": "marker", "at": [13.6, 1.6], "behaviors": { "collider": { "sensor": true, "shape": ["box", 0, 0, 0.3, 0.3] }, "force-area": { "force": [0, -15] } } },
+    { "id": "std-path-follow", "type": "marker", "at": [12.8, 1], "behaviors": { "path-follow": { "path": { "mode": "ping_pong", "pts": [[12.8, 1], [15.6, 1]], "speed": 0.6 } } } },
+    { "id": "std-spawner", "type": "marker", "at": [15.6, 1.8], "behaviors": { "spawner": { "cap": 2, "rate": 0.5, "type": "marker" } } },
+    { "id": "std-nav-agent", "type": "marker", "at": [19.6, 5], "behaviors": { "nav-agent": {} } },
+    { "id": "std-camera-target", "type": "marker", "at": [12, 6], "behaviors": { "camera-target": {} } },
+    { "id": "about-behaviors", "type": "note", "at": [12.6, 0.4], "text": "Standard behaviors, one entity each: std-collider is the static shelf; on it std-body falls and rests, std-side-view stands, std-top-down floats and std-player-input binds seat 0; std-joint swings on a hinge to the shelf's end; std-force-area pushes up with nothing inside; std-path-follow ping-pongs above; std-spawner places up to two markers; std-nav-agent waits on floor-plan; std-camera-target is what Play's camera follows." }
   ]
 }

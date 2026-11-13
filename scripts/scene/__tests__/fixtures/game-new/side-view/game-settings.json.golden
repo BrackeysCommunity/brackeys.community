@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../packages/engine/project/game-settings.schema.json",
+  "kind": "game-settings",
+  "v": 2,
+  "engine": {},
+  "game": {}
+}

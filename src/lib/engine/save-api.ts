@@ -16,7 +16,7 @@
 // here, from `limits.ts`, and the wording suite reads them from here.
 
 import type { SaveLimits, SaveSummary } from "@jams/engine";
-import { parseSaveFile, SLOT_PATTERN } from "@jams/engine/game";
+import { parseSaveFile, SLOT_MAX_LENGTH, SLOT_PATTERN } from "@jams/engine/game";
 import type { SceneIssue } from "@jams/engine/scene";
 import { and, asc, eq, isNull } from "drizzle-orm";
 
@@ -132,8 +132,6 @@ const HOUR_SECONDS = 3_600;
 /** The longest title a save's meta may carry. */
 export const SAVE_TITLE_MAX = 80;
 
-export { SIGNED_IN_SAVES_DESCRIBE };
-
 export function saveSignedOut(): ReleaseApiError {
   return { code: "save-forbidden", message: `Sign in to save to your ${site} account.` };
 }
@@ -208,7 +206,7 @@ export function saveBadSlot(slot: string): ReleaseApiError {
   return {
     code: "schema",
     message: `"${slot}" isn't a save slot.`,
-    hint: "A slot is lowercase letters, digits and dashes, 1–32 characters, starting with a letter or digit.",
+    hint: `A slot is lowercase letters, digits and dashes, up to ${SLOT_MAX_LENGTH} characters, starting with a letter or digit.`,
   };
 }
 
@@ -415,9 +413,9 @@ function decodeSave(bytes: Uint8Array): string | null {
 
 /**
  * Writes a save after every check in order: access, slot, rate, size, then
- * the file itself. The body is the request's text, or its bytes, which
- * the caller may cut one byte past the per-save cap. Under the slot's row lock, the object, then the row
- * (`written_at = used_at = now`).
+ * the file itself. The body is the request's text, or its bytes, which the
+ * caller may cut one byte past the per-save cap. Under the slot's row lock,
+ * the object, then the row (`written_at = used_at = now`).
  */
 export async function putSave(
   deps: SaveApiDeps,
@@ -444,7 +442,7 @@ export async function putSave(
   if (!allowed) refuse(saveWritesRateLimited(), STATUS.rate);
 
   const text = "text" in input ? input.text : decodeSave(input.body);
-  // A body that isn't UTF-8 decoded within the cap, so its size passes.
+  // Only a body within the cap is decoded strictly, so this one would pass the size check.
   if (text === null) refuse(SAVE_NOT_TEXT, STATUS.schema);
 
   // Size alone: with no slots held the count can't refuse.

@@ -44,6 +44,7 @@ import { createAttachmentHub } from "../systems/attachments";
 import type { InputAction } from "../types";
 import { createBehaviorHost, type BehaviorHost } from "./behaviors";
 import type { SpriteSystem } from "./behaviors/sprite";
+import { createBodyControl, type RuntimeBodyControl } from "./bodies-control";
 import { castSpawn } from "./cast";
 import { createContacts, type RuntimeContacts, type SavedTouch } from "./contacts";
 import { EntityTable } from "./entity-table";
@@ -290,6 +291,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   let query: RuntimeQueryIndex;
   let contacts: RuntimeContacts;
   let lifecycle: Lifecycle;
+  let bodies: RuntimeBodyControl;
   const forks = createForkBook();
   let random = forks.root(runRandom(registry, ""));
   const saveRegistry = createSaveRegistry();
@@ -428,7 +430,11 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         saveRequests.push({ slot, ...saveOpts });
       },
     },
+    get bodies() {
+      return bodies;
+    },
   };
+  bodies = createBodyControl(ctx);
   timers = createTimers(ctx);
   query = createQueryIndex(ctx);
   contacts = createContacts(ctx);
@@ -537,6 +543,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     for (const e of [...byId.values()].reverse()) leaving(e);
     behaviors.clear();
     for (let i = ordered.length - 1; i >= 0; i--) ordered[i]!.clear();
+    bodies.reset();
     for (const id of [...ctx.poses.ids()]) ctx.poses.remove(id);
     timers.reset();
     saveRegistry.clear();
@@ -815,6 +822,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         inGame(() => game.beforeStep!(dtMs, tickInput.actions, tickInput.commands));
         timed?.lap("game.beforeStep");
       }
+      behaviors.beforeStep(dtMs, timed);
       if (ctx.physics) {
         for (let i = 0; i < ordered.length; i++) {
           const system = ordered[i]!;
@@ -822,9 +830,12 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
           system.beforePhysics();
           timed?.lap(beforePhysicsParts[i]!);
         }
+        behaviors.beforePhysics(timed);
+        bodies.flush();
         ctx.physics.step();
         timed?.lap("physics.step");
-      }
+        bodies.clear();
+      } else behaviors.beforePhysics(timed);
       for (let i = 0; i < ordered.length; i++) {
         const system = ordered[i]!;
         if (!system.afterStep) continue;

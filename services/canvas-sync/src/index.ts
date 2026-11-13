@@ -495,6 +495,7 @@ async function startCollector(
   const {
     collectorAllowed,
     redisCollectorLock,
+    redisReleaseNotice,
     runCollector,
     soloCollectorLock,
     startCollectorTimer,
@@ -513,6 +514,7 @@ async function startCollector(
     redis.on("error", (error: Error) => console.warn(`[redis:collector] ${error.message}`));
   }
   const lock = redis ? redisCollectorLock(redis, prefix, config.INSTANCE_ID) : soloCollectorLock;
+  const announce = redis ? redisReleaseNotice(redis) : undefined;
   const stop = startCollectorTimer((shouldStop) =>
     runCollector({
       db,
@@ -521,6 +523,7 @@ async function startCollector(
       mode: config.ENGINE_COLLECTOR_MODE,
       telemetry,
       shouldStop,
+      announce,
       liveProject(projectId) {
         const doc = server.hocuspocus.documents.get(documentName("project", projectId));
         return doc ? Y.encodeStateAsUpdate(doc) : null;

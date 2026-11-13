@@ -589,7 +589,7 @@ const DEFINITIONS = {
   "game new": {
     usage: `game new <id> ${GAME_NEW_FLAGS}`,
     summary:
-      "scaffold a game project under --dir (default src/games) from a preset (top-down, grid or turns): project file, game and UI modules, a scene with checks and a winning input script, game settings, an input map, the generated schemas and a test, with every world and time field written; refused, writing nothing, for an id outside the id pattern (schema), a taken id or an existing directory (project-id-taken), or a scene with error issues; prints the /game/dev URLs and the playtest command; --dry-run lists the files and writes none",
+      "scaffold a game project under --dir (default src/games) from a preset (top-down or side-view, a hero built from the standard behaviors; grid or turns): project file, game and UI modules, a scene with checks and a winning input script, game settings, an input map, the generated schemas and a test, with every world and time field written; refused, writing nothing, for an id outside the id pattern (schema), a taken id or an existing directory (project-id-taken), or a scene with error issues; prints the /game/dev URLs and the playtest command; --dry-run lists the files and writes none",
     values: [
       "name",
       "preset",

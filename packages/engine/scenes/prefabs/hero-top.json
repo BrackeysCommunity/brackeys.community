@@ -1,0 +1,11 @@
+{
+  "kind": "prefab",
+  "v": 4,
+  "id": "hero-top",
+  "params": {
+    "maxSpeed": { "description": "Top walking speed, m/s.", "targets": ["hero.behaviors.character-top-down.maxSpeed"] }
+  },
+  "entities": [
+    { "id": "hero", "type": "marker", "at": [0, 0], "behaviors": { "camera-target": {}, "character-top-down": {}, "collider": { "shape": ["circle", 0, 0, 0.25] }, "player-input": {}, "sprite": { "asset": "hero", "frame": "hero-1", "size": [0.5, 0.5] } } }
+  ]
+}

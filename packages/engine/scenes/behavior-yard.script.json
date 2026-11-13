@@ -1,0 +1,15 @@
+{
+  "$schema": "../scene/input-script.schema.json",
+  "v": 2,
+  "scene": "behavior-yard",
+  "maxTicks": 900,
+  "steps": [
+    { "hold": ["jump"], "max": 90, "set": { "move": [1, 0] }, "until": { "event": { "entityId": "runner/hero", "other": "ledge", "type": "character:landed" } } },
+    { "max": 400, "set": { "move": [1, 0] }, "until": { "event": { "entityId": "runner/hero", "other": "floor-b", "type": "character:landed" } } },
+    { "hold": [], "max": 400, "until": { "tick": 276 } },
+    { "max": 60, "set": { "move": [1, 0] }, "until": { "event": { "entityId": "runner/hero", "other": "ferry", "type": "character:landed" } } },
+    { "hold": [], "max": 400, "until": { "tick": 440 } },
+    { "for": 6, "hold": ["jump"], "set": { "move": [1, 0] } },
+    { "max": 120, "set": { "move": [1, 0] }, "until": { "event": { "entityId": "goal", "other": "runner/hero", "type": "sensor:enter" } } }
+  ]
+}

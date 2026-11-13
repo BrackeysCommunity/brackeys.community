@@ -9,8 +9,13 @@ import { checksFile, scriptFile, sceneTemplateOf } from "./scene";
 import { testFile } from "./tests";
 import { hudFile, uiIndexFile } from "./ui";
 
-export const GAME_PRESETS = ["top-down", "grid", "turns"] as const;
+export const GAME_PRESETS = ["top-down", "side-view", "grid", "turns"] as const;
 export type GamePreset = (typeof GAME_PRESETS)[number];
+
+/** The presets whose hero is built from the engine's standard behaviors, with no movement code. */
+export const BEHAVIOR_PRESETS: readonly GamePreset[] = ["top-down", "side-view"];
+export const onBehaviors = (options: Pick<GameOptions, "preset">): boolean =>
+  BEHAVIOR_PRESETS.includes(options.preset);
 
 /** The world grid a game declares: square or hex cells `cell` metres across. */
 export type GameGrid = { kind: "square" | "hex"; cell: number };
@@ -35,6 +40,14 @@ export const PRESET_OPTIONS: Readonly<Record<GamePreset, Omit<GameOptions, "id" 
     preset: "top-down",
     physics: "none",
     gravity: [0, 0],
+    time: { kind: "fixed", rate: 60 },
+    grid: null,
+    lengthUnit: 100,
+  },
+  "side-view": {
+    preset: "side-view",
+    physics: "rapier",
+    gravity: [0, 20],
     time: { kind: "fixed", rate: 60 },
     grid: null,
     lengthUnit: 100,

@@ -77,6 +77,9 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "crates-texture",
       "hero",
       "hero-texture",
+      "behavior-yard-checks",
+      "behavior-yard",
+      "behavior-yard-script",
       "cards",
       "engine-yard-checks",
       "engine-yard",
@@ -88,8 +91,11 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "kitchen-sink-checks",
       "kitchen-sink",
       "bouncy",
+      "crate",
       "doorway",
       "gate",
+      "hero-side",
+      "hero-top",
       "latch",
       "one-way-latch",
       "post",
@@ -97,7 +103,7 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "grid-yard-save",
       "scene-list",
     ]);
-    expect((await run("assets", "list", "--kind", "prefab")).data.assets).toHaveLength(6);
+    expect((await run("assets", "list", "--kind", "prefab")).data.assets).toHaveLength(9);
     expect((await run("assets", "list", "--trash")).data.assets).toEqual([]);
   });
 
@@ -316,7 +322,10 @@ describe("assets on files", { timeout: 60_000 }, () => {
       expect(gate).toMatchObject({ id: "gate", entities: [bar] });
       expect(ids((await run("assets", "list", "--kind", "prefab")).data)).toEqual([
         "gate",
+        "crate",
         "doorway",
+        "hero-side",
+        "hero-top",
         "latch",
         "one-way-latch",
         "post",

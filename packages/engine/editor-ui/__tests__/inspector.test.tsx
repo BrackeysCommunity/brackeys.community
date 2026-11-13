@@ -132,6 +132,22 @@ const entity = (session: ReturnType<typeof setup>["session"], id: string) =>
 
 afterEach(cleanup);
 
+/** The engine's behaviors a sensor may add, in registration order: it refuses `body` and `collider`. */
+const SENSOR_ENGINE_ITEMS = [
+  "SpriteDraws a texture or an atlas frame at the entity's pose.",
+  "OccupantStands on the grid cell under its pose, where paths and game code see it.",
+  "LifetimeDestroys or disables the entity a time after it spawns or is enabled.",
+  "Player inputBinds the entity to an input seat: behaviors on it read that player's actions through inputFor.",
+  "Path followMoves the entity along a waypoint path; with a kinematic body it carries what stands on it.",
+  "Force areaPushes the dynamic bodies inside the entity's sensor collider: one way, or toward or away from a point.",
+  "Character (top-down)Walks the entity in the plane from its seat's move action or an intent from code: a kinematic controller stopped and slid along by walls.",
+  "Character (side view)Runs and jumps the entity under gravity from its seat's move and jump actions or an intent from code, with coyote time, jump buffering and one-way platforms.",
+  "Nav agentWalks the entity through the scene's walk areas to a point or another entity, kept apart from other agents; raises nav:arrived and nav:blocked.",
+  "JointLinks the entity's body to another entity's: a hinge, a slider, a rope, a weld or a spring. Needs physics.",
+  "SpawnerSpawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones; raises spawner:spawned for each.",
+  "Camera targetMarks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
+];
+
 describe("EditorInspector", () => {
   it.each(["prop", "context"] as const)("takes no edits when read-only (through its %s)", (how) => {
     const { session, dispatch } = setup(["bell"], how);
@@ -354,14 +370,12 @@ describe("EditorInspector", () => {
     });
     const items = await screen.findAllByRole("menuitem");
     expect(items.map((i) => i.textContent)).toEqual([
-      "SpriteDraws a texture or an atlas frame at the entity's pose.",
-      "OccupantStands on the grid cell under its pose, where paths and game code see it.",
-      "LifetimeDestroys or disables the entity a time after it spawns or is enabled.",
+      ...SENSOR_ENGINE_ITEMS,
       "HumA low hum it gives off.",
       "SignWords written on it.",
     ]);
     await act(async () => {
-      fireEvent.click(items[3]!);
+      fireEvent.click(items.find((i) => i.textContent?.startsWith("Hum"))!);
     });
     expect(dispatch).toHaveBeenCalledOnce();
     expect(entity(session, "zone").behaviors).toEqual({ "panels/hum": {} });
@@ -377,9 +391,7 @@ describe("EditorInspector", () => {
       fireEvent.click(screen.getByRole("button", { name: "Add behavior" }));
     });
     expect((await screen.findAllByRole("menuitem")).map((i) => i.textContent)).toEqual([
-      "SpriteDraws a texture or an atlas frame at the entity's pose.",
-      "OccupantStands on the grid cell under its pose, where paths and game code see it.",
-      "LifetimeDestroys or disables the entity a time after it spawns or is enabled.",
+      ...SENSOR_ENGINE_ITEMS,
       "SignWords written on it.",
     ]);
   });

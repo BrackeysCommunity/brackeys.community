@@ -274,13 +274,14 @@ export function createSessionRecording(opts: SessionRecordingOptions): SessionRe
  * whatever `ctx` holds at the time of the read.
  */
 export function playWorld(
-  ctx: Pick<EngineContext, "exists" | "enabled" | "query" | "get" | "grid" | "project">,
+  ctx: Pick<EngineContext, "exists" | "enabled" | "query" | "get" | "poses" | "grid" | "project">,
 ): PlayWorld {
   return {
     exists: (id, opts) => (opts?.enabled === false ? ctx.exists(id) : ctx.enabled(id)),
     count: (sel) => ctx.query.count(sel),
     select: (sel) => ctx.query.select(sel),
     get: (id) => ctx.get(id),
+    pose: (id) => ctx.poses.get(id),
     get grid() {
       return ctx.grid;
     },

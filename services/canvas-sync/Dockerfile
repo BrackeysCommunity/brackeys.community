@@ -49,6 +49,7 @@ COPY src/lib/engine/storage-keys.ts ./src/lib/engine/storage-keys.ts
 COPY src/lib/engine/collect-plan.ts ./src/lib/engine/collect-plan.ts
 COPY src/lib/engine/release-audit.ts ./src/lib/engine/release-audit.ts
 COPY src/lib/cloudflare-purge.ts ./src/lib/cloudflare-purge.ts
+COPY src/lib/image-quarantine.ts ./src/lib/image-quarantine.ts
 COPY src/lib/format-bytes.ts ./src/lib/format-bytes.ts
 COPY src/lib/legal-meta.ts ./src/lib/legal-meta.ts
 # The scene, project and asset kinds read and seed their docs through the engine. Whole

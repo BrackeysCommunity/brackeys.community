@@ -5,6 +5,9 @@
  * `UPDATE_GENRE_PINS=1 vp test packages/engine/__tests__/genres/genres.test.ts`.
  */
 export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  "behavior-yard": {
+    default: "563aa42fc6eb9152",
+  },
   "grid-puzzle": {
     default: "8df0c7714f456fd0",
     "gravity-sideways": "8df0c7714f456fd0",
@@ -36,6 +39,11 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "physics-none": "86e51bdec7fc2f87",
     "saved-physics-none": "86e51bdec7fc2f87",
   },
+  "side-view-behaviors": {
+    default: "ba49ed303de8181f",
+    "saved-mid-jump": "ba49ed303de8181f",
+    "saved-on-the-lift": "ba49ed303de8181f",
+  },
   "top-down": {
     default: "5c0663a93c32f428",
     "gravity-sideways": "5c0663a93c32f428",
@@ -50,5 +58,10 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     default: "355be025a7f4aeda",
     "gravity-sideways": "355be025a7f4aeda",
     "saved-mid-walk": "355be025a7f4aeda",
+  },
+  "versus-behaviors": {
+    default: "5d5b88a286a37749",
+    "saved-after-the-leave": "5d5b88a286a37749",
+    "saved-mid-run": "5d5b88a286a37749",
   },
 };

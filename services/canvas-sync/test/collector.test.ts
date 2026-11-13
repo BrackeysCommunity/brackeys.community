@@ -25,6 +25,11 @@ import {
   engineReleaseObjectKey,
   engineSaveKey,
 } from "../../../src/lib/engine/storage-keys.ts";
+import {
+  ENGINE_RELEASE_NOTICE_CHANNEL,
+  type EngineReleaseNotice,
+  parseEngineReleaseNotice,
+} from "../../../src/lib/image-quarantine.ts";
 import { emptyProjectState, seedProjectState } from "../../../src/lib/scene/project-bytes.ts";
 import {
   COLLECTOR_LOCK_SECONDS,
@@ -32,6 +37,7 @@ import {
   type CollectorDb,
   type CollectorOptions,
   redisCollectorLock,
+  redisReleaseNotice,
   runCollector,
   soloCollectorLock,
   startCollectorTimer,
@@ -112,6 +118,37 @@ describe("the collector's lock", () => {
     });
     expect(run).toEqual({ ran: false, reason: "lock-failed" });
   }, 5_000);
+});
+
+describe("the collector's release notice", () => {
+  const redis = new FakeRedis();
+  const clients: IORedis[] = [];
+  beforeAll(async () => {
+    await redis.start();
+  });
+  afterAll(async () => {
+    for (const c of clients) c.disconnect();
+    await redis.stop();
+  });
+
+  it("reaches a subscriber on the frame cache's channel as a notice it parses", async () => {
+    const publisher = new IORedis(redis.url, { maxRetriesPerRequest: 1 });
+    const subscriber = new IORedis(redis.url, { maxRetriesPerRequest: 1 });
+    clients.push(publisher, subscriber);
+    const heard = new Promise<[string, string]>((resolve) =>
+      subscriber.on("message", (channel: string, message: string) => resolve([channel, message])),
+    );
+    await subscriber.subscribe(ENGINE_RELEASE_NOTICE_CHANNEL);
+
+    await redisReleaseNotice(publisher)({ releaseIds: [hex("a"), hex("b")], projectIds: [] });
+
+    const [channel, message] = await heard;
+    expect(channel).toBe(ENGINE_RELEASE_NOTICE_CHANNEL);
+    expect(parseEngineReleaseNotice(message)).toEqual({
+      releaseIds: [hex("a"), hex("b")],
+      projectIds: [],
+    });
+  }, 15_000);
 });
 
 describe("the collector's timer", () => {
@@ -412,6 +449,74 @@ if (TEST_DATABASE_URL) {
       // Nothing more to do the next day.
       const again = await collector([projectId], { objects: store, at: at(DAY) });
       expect(again.ran && again.actions).toEqual([]);
+    }, 60_000);
+
+    it("announces the releases it collected once, after their files are gone", async () => {
+      const projectId = newProjectId();
+      const store = new MemoryObjectStore();
+      await seedProject(projectId);
+      const releases = await twelveReleases(store, projectId);
+      const [first] = releases as [PlannedRelease];
+      const others = new Set(releases.slice(1).flatMap((r) => [...filesOf(r)]));
+      const unshared = [...filesOf(first)].filter((h) => !others.has(h));
+      expect(unshared.length).toBeGreaterThan(0);
+
+      const notices: EngineReleaseNotice[] = [];
+      /** What was still stored, and whether the row was collected, when each notice went out. */
+      const seen: { stored: number; collected: boolean }[] = [];
+      const announce = async (notice: EngineReleaseNotice) => {
+        notices.push(notice);
+        seen.push({
+          stored: unshared.filter((h) => store.has(engineReleaseObjectKey(projectId, h))).length,
+          collected: (await releaseRow(first.releaseId))?.collectedAt != null,
+        });
+      };
+
+      const report = await collector([projectId], {
+        objects: store,
+        at: T0,
+        mode: "report",
+        announce,
+      });
+      expect(report.ran && report.actions.length).toBeGreaterThan(0);
+      expect(notices).toEqual([]);
+
+      const run = await collector([projectId], { objects: store, at: T0, announce });
+      expect(run.ran && run.failures).toEqual([]);
+      expect(notices).toEqual([{ releaseIds: [first.releaseId], projectIds: [] }]);
+      expect(seen).toEqual([{ stored: 0, collected: true }]);
+
+      // Nothing collected the next day, so nothing announced.
+      await collector([projectId], { objects: store, at: at(DAY), announce });
+      expect(notices).toHaveLength(1);
+    }, 60_000);
+
+    it("a release notice that fails leaves the run a success", async () => {
+      const projectId = newProjectId();
+      const store = new MemoryObjectStore();
+      await seedProject(projectId);
+      const [first] = (await twelveReleases(store, projectId)) as [PlannedRelease];
+
+      const lines: string[] = [];
+      const run = await collector([projectId], {
+        objects: store,
+        at: T0,
+        lines,
+        announce: async () => {
+          throw new Error("connection refused");
+        },
+      });
+      if (!run.ran) throw new Error("the run didn't take the lock");
+      expect(run.failures).toEqual([]);
+      expect((await releaseRow(first.releaseId))?.collectedAt?.getTime()).toBe(T0.getTime());
+      expect(lines.join("\n")).toContain(
+        "release notice for 1 release(s) failed: connection refused",
+      );
+      const [beat] = await db
+        .select()
+        .from(itchTierHeartbeats)
+        .where(eq(itchTierHeartbeats.tier, COLLECTOR_TIER));
+      expect(beat?.lastError).toBeNull();
     }, 60_000);
 
     it("deletes an orphan blob after the grace and keeps a pinned snapshot's blob", async () => {

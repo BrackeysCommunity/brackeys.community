@@ -2789,6 +2789,7 @@
 
   .je-insp-behavior-menu {
     min-width: 192px;
+    max-width: min(320px, calc(100vw - 32px));
     padding: 4px;
   }
 
@@ -2796,6 +2797,26 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
+    padding-block: 6px;
+    white-space: normal;
+  }
+
+  .je-insp-behavior-item[data-unavailable] {
+    opacity: 0.6;
+  }
+
+  .je-insp-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .je-insp-group + .je-insp-group {
+    margin-top: 6px;
+  }
+
+  .je-insp-group-title {
+    padding-top: 2px;
   }
 
   .je-insp-actions {

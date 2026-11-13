@@ -1,7 +1,9 @@
+import { PATH_FOLLOW } from "../game/behaviors/path-follow";
 import { physicsOf } from "../game/physics-of";
 import { wholeTicksIn } from "../game/time";
 import type { EngineContext, JsonValue, RegisteredType, SceneSystem } from "../game/types";
 import { shapeColliderDesc } from "../physics";
+import { kinematicBodyEntry, registerBody, type BodyEntry } from "../runtime/bodies-control";
 import { composePose, type Pose } from "../runtime/poses";
 import { colliderLive } from "../runtime/space";
 import { shapeSpawnPose } from "../runtime/spawn-pose";
@@ -153,8 +155,52 @@ export function initialWaypointState(): WaypointState {
   return { currentIndex: 0, nextIndex: 1, t: 0, direction: 1, pauseRemainingMs: 0 };
 }
 
-/** A follower's place on its path as plain JSON, for a world save. */
-function saveMotion(m: Motion): JsonValue {
+/** Where something is on its path: the waypoint clock, where it was after the last advance, and how far that advance moved it. */
+export type PathPlace = { state: WaypointState; prevPos: Vec2; frameDelta: Vec2 };
+
+/** A path's points as vectors. */
+export function pathWaypoints(path: Pick<PathDef, "pts">): Vec2[] {
+  return path.pts.map(([x, y]) => ({ x, y }));
+}
+
+/** Advances `state` by `dtMs` at the path's speed, pause and mode. */
+export function advanceAlongPath(
+  state: WaypointState,
+  waypoints: Vec2[],
+  path: PathDef,
+  dtMs: number,
+): WaypointState {
+  return advanceWaypoint(state, waypoints, path.speed, dtMs, path.pauseMs ?? 0, path.mode);
+}
+
+/**
+ * Advances `state` by `ms` as stepping would: whole ticks of `time.tickMs`,
+ * then the rest in one advance.
+ */
+export function seekAlongPath(
+  state: WaypointState,
+  waypoints: Vec2[],
+  path: PathDef,
+  ms: number,
+  time: { rate: number; tickMs: number },
+): WaypointState {
+  const { ticks, restMs } = wholeTicksIn(ms, time);
+  let at = state;
+  for (let i = 0; i < ticks; i++) at = advanceAlongPath(at, waypoints, path, time.tickMs);
+  return restMs > 0 ? advanceAlongPath(at, waypoints, path, restMs) : at;
+}
+
+/** Where `state` puts it on its path. */
+export function pathPosition(waypoints: readonly Vec2[], state: WaypointState): Vec2 {
+  return interpolatePosition(
+    waypointAt(waypoints, state.currentIndex),
+    waypointAt(waypoints, state.nextIndex),
+    state.t,
+  );
+}
+
+/** A place on a path as plain JSON, for a world save. */
+export function savePathPlace(m: PathPlace): JsonValue {
   const { currentIndex, nextIndex, t, direction, pauseRemainingMs } = m.state;
   return {
     state: [currentIndex, nextIndex, t, direction, pauseRemainingMs],
@@ -166,11 +212,8 @@ function saveMotion(m: Motion): JsonValue {
 const finite = (v: JsonValue | undefined): v is number =>
   typeof v === "number" && Number.isFinite(v);
 
-/** Reads `saveMotion`'s output back; null when it doesn't fit `waypoints`. */
-function readMotion(
-  state: JsonValue,
-  waypoints: readonly Vec2[],
-): Pick<Motion, "state" | "prevPos" | "frameDelta"> | null {
+/** Reads `savePathPlace`'s output back; null when it doesn't fit `waypoints`. */
+export function readPathPlace(state: JsonValue, waypoints: readonly Vec2[]): PathPlace | null {
   if (typeof state !== "object" || state === null || Array.isArray(state)) return null;
   const { state: s, prev, delta } = state;
   if (!Array.isArray(s) || !Array.isArray(prev) || !Array.isArray(delta)) return null;
@@ -206,29 +249,29 @@ export type FollowerSystem = SceneSystem<FollowerEntity> & {
   position(id: string): Vec2 | null;
 };
 
-const isFollowerSystem = (system: SceneSystem | undefined): system is FollowerSystem =>
-  typeof (system as Partial<FollowerSystem> | undefined)?.frameDelta === "function";
+const hasFrameDelta = (system: unknown): system is { frameDelta(id: string): Vec2 | null } =>
+  typeof (system as { frameDelta?: unknown } | undefined)?.frameDelta === "function";
 
 /**
  * How far the body carrying a collider moved in the last step: its
  * follower's `frameDelta` (an attached collider's carrier, else its own
- * entity's), or null when the body isn't a follower's.
+ * entity's), or the `path-follow` behavior's for a body it moves; null when
+ * neither moves it.
  */
 export function carrierDelta(ctx: EngineContext, handle: number): Vec2 | null {
   const tag = ctx.tags.get(handle);
   if (!tag) return null;
   const carrier = tag.carrier ?? tag;
   const system = ctx.system(carrier.type);
-  return isFollowerSystem(system) ? system.frameDelta(carrier.entityId) : null;
+  if (hasFrameDelta(system)) return system.frameDelta(carrier.entityId);
+  const riding = typeof ctx.behavior === "function" ? ctx.behavior(PATH_FOLLOW.name) : undefined;
+  return hasFrameDelta(riding) ? riding.frameDelta(carrier.entityId) : null;
 }
 
 /** Where a follower is on its path. */
-type Motion = {
+type Motion = PathPlace & {
   entity: FollowerEntity;
   waypoints: Vec2[];
-  state: WaypointState;
-  prevPos: Vec2;
-  frameDelta: Vec2;
   /** The entity's pose in the path point's frame. */
   offset: Pose;
 };
@@ -250,6 +293,9 @@ type BodilessFollower = Motion & { handle: number | null };
  * A disabled follower's path clock keeps running, but it has no collider
  * (its body's riders lose theirs with it), no visual and posts no poses;
  * enabling it snaps it to where its path is now.
+ *
+ * Each follower answers `ctx.bodies` as a kinematic body whose velocity is
+ * what its path moved it by in the last step; its path alone sets it.
  */
 export function createFollowerSystem(
   ctx: EngineContext,
@@ -257,9 +303,15 @@ export function createFollowerSystem(
   opts: FollowerOptions = {},
 ): FollowerSystem {
   const drawn = opts.draw !== false;
-  const table = createBodyTable<Follower>(ctx, { view: drawn });
+  const entryOf = (id: string, f: Motion & { body?: OwnedBody["body"] }): BodyEntry =>
+    kinematicBodyEntry(id, {
+      velocity: () => ({ x: f.frameDelta.x * ctx.time.rate, y: f.frameDelta.y * ctx.time.rate }),
+      wake: () => f.body?.wakeUp(),
+    });
+  const table = createBodyTable<Follower>(ctx, { view: drawn, body: entryOf });
   const groups = ctx.registry.collisionGroups("static");
   const bodiless = new Map<string, BodilessFollower>();
+  const unregisterBodiless = new Map<string, () => void>();
   const disabled = new Set<string>();
   /** Riders' colliders a disabled follower switched off with its body, by follower id. */
   const parked = new Map<string, number[]>();
@@ -301,17 +353,10 @@ export function createFollowerSystem(
   };
 
   function advance(f: Motion, dtMs: number): void {
-    const { path } = f.entity;
-    f.state = advanceWaypoint(f.state, f.waypoints, path.speed, dtMs, path.pauseMs ?? 0, path.mode);
+    f.state = advanceAlongPath(f.state, f.waypoints, f.entity.path, dtMs);
   }
 
-  function poseOf(f: Motion): Vec2 {
-    return interpolatePosition(
-      waypointAt(f.waypoints, f.state.currentIndex),
-      waypointAt(f.waypoints, f.state.nextIndex),
-      f.state.t,
-    );
-  }
+  const poseOf = (f: Motion): Vec2 => pathPosition(f.waypoints, f.state);
 
   /** Switches back on the riders' colliders its disable switched off, for riders still enabled. */
   function unpark(id: string): void {
@@ -330,6 +375,8 @@ export function createFollowerSystem(
     if (f) {
       removeGeometryCollider(ctx, f.handle);
       bodiless.delete(id);
+      unregisterBodiless.get(id)?.();
+      unregisterBodiless.delete(id);
       if (drawn) ctx.view?.remove(id);
       return;
     }
@@ -348,7 +395,7 @@ export function createFollowerSystem(
   return {
     spawn(e) {
       despawn(e.id);
-      const waypoints = e.path.pts.map(([x, y]) => ({ x, y }));
+      const waypoints = pathWaypoints(e.path);
       const start = waypoints[0];
       if (!start || waypoints.length < 2)
         throw new Error(`${type.type} ${e.id} needs at least 2 path points`);
@@ -370,6 +417,7 @@ export function createFollowerSystem(
           ),
         };
         bodiless.set(e.id, f);
+        unregisterBodiless.set(e.id, registerBody(ctx, e.id, entryOf(e.id, f)));
         if (drawn) drawEntity(ctx, type, e, opts.layer ?? entityDrawLayer(ctx, e, "body"));
         poseBodiless(f, true);
         return;
@@ -458,11 +506,11 @@ export function createFollowerSystem(
     /** Its path clock, so a restored follower resumes its phase. */
     save(id) {
       const m = bodiless.get(id) ?? table.owned.get(id);
-      return m ? saveMotion(m) : undefined;
+      return m ? savePathPlace(m) : undefined;
     },
     restore(id, state) {
       const m = bodiless.get(id) ?? table.owned.get(id);
-      const read = m ? readMotion(state, m.waypoints) : null;
+      const read = m ? readPathPlace(state, m.waypoints) : null;
       if (!m || !read) return;
       Object.assign(m, read);
       if (disabled.has(id)) return;
@@ -473,11 +521,8 @@ export function createFollowerSystem(
       } else poseBodiless(m, true);
     },
     seek(ms) {
-      const { tickMs } = ctx.time;
-      const { ticks, restMs } = wholeTicksIn(ms, ctx.time);
       for (const f of motions()) {
-        for (let i = 0; i < ticks; i++) advance(f, tickMs);
-        if (restMs > 0) advance(f, restMs);
+        f.state = seekAlongPath(f.state, f.waypoints, f.entity.path, ms, ctx.time);
         const pos = poseOf(f);
         f.prevPos = pos;
         f.frameDelta = { x: 0, y: 0 };

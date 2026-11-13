@@ -159,7 +159,7 @@
     },
     "packages/engine": {
       "name": "@jams/engine",
-      "version": "0.14.2",
+      "version": "0.14.3",
       "dependencies": {
         "@base-ui/react": "^1.2.0",
         "@dnd-kit/core": "^6.3.1",
@@ -173,7 +173,7 @@
         "@hocuspocus/server": "^4.7.0",
         "@tanstack/store": ">=0.8.1 <0.9.0",
         "fractional-indexing": "^4.0.0",
-        "pixi.js": "^8.17.1",
+        "pixi.js": "^8.23.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "yjs": "^13.6.33",

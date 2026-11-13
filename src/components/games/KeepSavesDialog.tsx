@@ -108,8 +108,8 @@ export type KeepSavesDialogProps = {
 /**
  * "Keep your saves": once signed in, offers this browser's saves for the
  * project to the account. Declining keeps them here and asks again on the
- * next sign-in. An account list that doesn't load asks nothing until the
- * next load, since every slot would read as free.
+ * next sign-in. A list that doesn't load asks nothing until the next load:
+ * this browser's, or the account's, where every slot would read as free.
  */
 export function KeepSavesDialog({
   projectId,
@@ -130,10 +130,11 @@ export function KeepSavesDialog({
     if (declined(projectId, signIn)) return;
     let live = true;
     void (async () => {
-      const mine = await local.list(gameId);
-      if (!live || mine.length === 0) return;
+      let mine: readonly SaveSummary[];
       let theirs: readonly SaveSummary[];
       try {
+        mine = await local.list(gameId);
+        if (!live || mine.length === 0) return;
         theirs = (await site.load()).saves;
       } catch {
         return;

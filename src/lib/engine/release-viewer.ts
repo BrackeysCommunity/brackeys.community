@@ -21,7 +21,7 @@ export async function releaseViewer(
   project: ProjectRow,
 ): Promise<Viewer> {
   const [staff, membership] = await Promise.all([
-    isEngineStaff(userId),
+    isEngineStaff(userId, db),
     project.teamId === null
       ? Promise.resolve([])
       : db

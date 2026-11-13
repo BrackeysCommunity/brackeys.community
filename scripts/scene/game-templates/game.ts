@@ -1,35 +1,45 @@
 import type { SceneTemplate } from "@jams/engine/game";
 
-import { importLine, type GameGrid, type GameNames, type GameOptions } from ".";
+import { importLine, onBehaviors, type GameGrid, type GameNames, type GameOptions } from ".";
 
 /** A number as code writes it. */
 const num = (n: number): string => String(n);
+
+/** An object key as code writes it: bare when it is an identifier, else quoted. */
+const key = (k: string): string => (/^[A-Za-z_$][\w$]*$/.test(k) ? k : JSON.stringify(k));
 
 /** A JSON-like value as a TS literal on one line: double quotes, spaces inside braces. */
 function literal(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(literal).join(", ")}]`;
   if (value !== null && typeof value === "object") {
-    const entries = Object.entries(value).map(([k, v]) => `${k}: ${literal(v)}`);
+    const entries = Object.entries(value).map(([k, v]) => `${key(k)}: ${literal(v)}`);
     return entries.length === 0 ? "{}" : `{ ${entries.join(", ")} }`;
   }
   return typeof value === "string" ? JSON.stringify(value) : num(value as number);
 }
 
 /**
- * A literal as an item of a list at `indent`, as `vp fmt` prints it: on one
- * line when it fits the print width, else an object one key per line.
+ * `value` as `vp fmt` prints it, starting `used` columns into a line at
+ * `indent` with `tail` columns after it: on one line when it fits the print
+ * width, else an object one key per line, each value printed the same way.
  */
-function item(value: unknown, indent: string): string[] {
-  const one = `${indent}${literal(value)},`;
-  if (one.length <= 100 || Array.isArray(value) || value === null || typeof value !== "object")
-    return [one];
+function printed(value: unknown, indent: string, used: number, tail: number): string {
+  const one = literal(value);
+  if (used + one.length + tail <= 100 || value === null || typeof value !== "object") return one;
   const inner = `${indent}  `;
-  return [
-    `${indent}{`,
-    ...Object.entries(value).map(([k, v]) => `${inner}${k}: ${literal(v)},`),
-    `${indent}},`,
-  ];
+  if (Array.isArray(value))
+    return `[\n${value.map((v) => `${inner}${printed(v, inner, inner.length, 1)},`).join("\n")}\n${indent}]`;
+  const lines = Object.entries(value).map(([k, v]) => {
+    const head = `${inner}${key(k)}: `;
+    return `${head}${printed(v, inner, head.length, 1)},`;
+  });
+  return `{\n${lines.join("\n")}\n${indent}}`;
 }
+
+/** A literal as an item of a list at `indent`, as `vp fmt` prints it. */
+const item = (value: unknown, indent: string): string[] => [
+  `${indent}${printed(value, indent, indent.length, 1)},`,
+];
 
 /** The `grid` a game's `world` declares. */
 function gridLiteral(grid: GameGrid): string {
@@ -38,7 +48,7 @@ function gridLiteral(grid: GameGrid): string {
   return `{ kind: "hex", cell: ${cell}, side: ${num(grid.cell / 2)}, stagger: "y", index: "odd" }`;
 }
 
-const isGridPreset = (options: GameOptions) => options.preset !== "top-down";
+const isGridPreset = (options: GameOptions) => !onBehaviors(options);
 
 /** `index.ts`: the game definition, every world and time field written out. */
 export function indexFile(options: GameOptions, names: GameNames): string {
@@ -52,9 +62,11 @@ export function indexFile(options: GameOptions, names: GameNames): string {
   const what =
     options.preset === "top-down"
       ? "steers a hero round a wall"
-      : turns
-        ? "steps a hero cell by cell, one `step` command at a time,"
-        : "steps a hero cell by cell";
+      : options.preset === "side-view"
+        ? "runs and jumps a hero up a ledge"
+        : turns
+          ? "steps a hero cell by cell, one `step` command at a time,"
+          : "steps a hero cell by cell";
   const pxPerCell = options.grid ? options.grid.cell * options.lengthUnit : null;
   return [
     `import { defineGame } from "@jams/engine/game";`,
@@ -111,10 +123,11 @@ export function indexFile(options: GameOptions, names: GameNames): string {
 export function typesFile(options: GameOptions, names: GameNames): string {
   const grid = isGridPreset(options);
   const turns = options.preset === "turns";
+  const behaviors = onBehaviors(options);
   return [
     `import type { Vec2 } from "@jams/engine";`,
     `import { defineEntityType, pointField${grid ? ", type Cell" : ""} } from "@jams/engine/game";`,
-    `import { z } from "zod";`,
+    ...(behaviors ? [] : [`import { z } from "zod";`]),
     ``,
     `export const GAME_ID = ${JSON.stringify(names.id)};`,
     ``,
@@ -125,24 +138,37 @@ export function typesFile(options: GameOptions, names: GameNames): string {
     `export const GOAL_TAG = "goal";`,
     ``,
     `export const HERO = "hero";`,
-    `/** The hero's width and height when its entity doesn't give one, m. */`,
-    `export const HERO_SIZE = 0.5;`,
-    ``,
-    `/** Where the hero starts; the game makes its body there. */`,
-    `export const heroType = defineEntityType({`,
-    `  type: HERO,`,
-    `  description: "Where the hero starts; the game moves it.",`,
-    `  base: "marker",`,
-    `  fields: {`,
-    `    at: pointField(${JSON.stringify(grid ? "The cell the hero starts on, by its centre." : "Where the hero starts.")}),`,
-    `    size: z`,
-    `      .number()`,
-    `      .positive()`,
-    `      .optional()`,
-    `      .describe(\`The hero's width and height, m; default \${HERO_SIZE}.\`)`,
-    `      .meta({ unit: "m" }),`,
-    `  },`,
-    `});`,
+    ...(behaviors
+      ? [
+          ``,
+          `/** The hero: its behaviors (a collider, a character, player input and a camera target) move it. */`,
+          `export const heroType = defineEntityType({`,
+          `  type: HERO,`,
+          `  description: "The hero, moved by its character behavior from the player's input.",`,
+          `  base: "marker",`,
+          `  fields: { at: pointField("Where the hero starts.") },`,
+          `});`,
+        ]
+      : [
+          `/** The hero's width and height when its entity doesn't give one, m. */`,
+          `export const HERO_SIZE = 0.5;`,
+          ``,
+          `/** Where the hero starts; the game makes its body there. */`,
+          `export const heroType = defineEntityType({`,
+          `  type: HERO,`,
+          `  description: "Where the hero starts; the game moves it.",`,
+          `  base: "marker",`,
+          `  fields: {`,
+          `    at: pointField(${JSON.stringify(grid ? "The cell the hero starts on, by its centre." : "Where the hero starts.")}),`,
+          `    size: z`,
+          `      .number()`,
+          `      .positive()`,
+          `      .optional()`,
+          `      .describe(\`The hero's width and height, m; default \${HERO_SIZE}.\`)`,
+          `      .meta({ unit: "m" }),`,
+          `  },`,
+          `});`,
+        ]),
     ``,
     ...(turns
       ? [
@@ -177,6 +203,30 @@ export function typesFile(options: GameOptions, names: GameNames): string {
 /** `actions.ts`: `move` (a vector) and the HUD's UI-only `pause`. */
 export function actionsFile(options: GameOptions): string {
   const turns = options.preset === "turns";
+  const side = options.preset === "side-view";
+  // A side-view hero runs on x alone, which leaves up for the jump.
+  const moveBindings = [
+    `      key("ArrowLeft", "x", -1),`,
+    `      key("ArrowRight", "x", 1),`,
+    `      key("ArrowUp", "y", -1),`,
+    `      key("ArrowDown", "y", 1),`,
+    `      key("KeyA", "x", -1),`,
+    `      key("KeyD", "x", 1),`,
+    `      key("KeyW", "y", -1),`,
+    `      key("KeyS", "y", 1),`,
+    `      pad("dpad-left", "x", -1),`,
+    `      pad("dpad-right", "x", 1),`,
+    `      pad("dpad-up", "y", -1),`,
+    `      pad("dpad-down", "y", 1),`,
+    `      { device: "pad", stick: "left" },`,
+  ].filter((line) => !side || !line.includes(`"y"`));
+  const moveDescription = turns
+    ? "Step the hero one cell."
+    : isGridPreset(options)
+      ? "Walk the hero cell by cell."
+      : side
+        ? "Run the hero left and right."
+        : "Steer the hero.";
   return [
     `import type { ActionDef, Binding, PadButton } from "@jams/engine/game";`,
     ``,
@@ -195,29 +245,33 @@ export function actionsFile(options: GameOptions): string {
     ``,
     turns
       ? `/** Both actions are UI-only: the HUD sends \`move\` on as \`step\` commands, all the simulation hears. */`
-      : `/** \`move\` steers the hero; \`pause\` is UI-only, the HUD's, and never reaches the simulation. */`,
+      : side
+        ? `/** \`move\` runs the hero and \`jump\` jumps; \`pause\` is UI-only, the HUD's, and never reaches the simulation. */`
+        : `/** \`move\` steers the hero; \`pause\` is UI-only, the HUD's, and never reaches the simulation. */`,
     `export const ACTIONS: readonly ActionDef[] = [`,
     `  {`,
     `    action: "move",`,
     `    kind: "vector",`,
     ...(turns ? [`    ui: true,`] : []),
     `    bindings: [`,
-    `      key("ArrowLeft", "x", -1),`,
-    `      key("ArrowRight", "x", 1),`,
-    `      key("ArrowUp", "y", -1),`,
-    `      key("ArrowDown", "y", 1),`,
-    `      key("KeyA", "x", -1),`,
-    `      key("KeyD", "x", 1),`,
-    `      key("KeyW", "y", -1),`,
-    `      key("KeyS", "y", 1),`,
-    `      pad("dpad-left", "x", -1),`,
-    `      pad("dpad-right", "x", 1),`,
-    `      pad("dpad-up", "y", -1),`,
-    `      pad("dpad-down", "y", 1),`,
-    `      { device: "pad", stick: "left" },`,
+    ...moveBindings,
     `    ],`,
-    `    description: ${JSON.stringify(turns ? "Step the hero one cell." : isGridPreset(options) ? "Walk the hero cell by cell." : "Steer the hero.")},`,
+    `    description: ${JSON.stringify(moveDescription)},`,
     `  },`,
+    ...(side
+      ? [
+          `  {`,
+          `    action: "jump",`,
+          `    bindings: [`,
+          `      { device: "key", code: "Space" },`,
+          `      { device: "key", code: "ArrowUp" },`,
+          `      { device: "key", code: "KeyW" },`,
+          `      { device: "pad", button: "south" },`,
+          `    ],`,
+          `    description: "Jump; let go early for a lower jump.",`,
+          `  },`,
+        ]
+      : []),
     `  {`,
     `    action: "pause",`,
     `    ui: true,`,

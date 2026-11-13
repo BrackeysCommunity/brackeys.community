@@ -14,7 +14,7 @@ import {
 } from "../runtime/recorder";
 import { resolveGame } from "../runtime/runtime";
 import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
-import type { CountMatch, ExistsMatch } from "../scene/input-script";
+import type { CountMatch, ExistsMatch, NearMatch } from "../scene/input-script";
 import { makeIssue } from "../scene/issues";
 import type { RecordingCommand, RunRecording } from "../scene/recording-schema";
 import type { PrefabLibrary, Pt, SceneDefinition, SceneIssue } from "../scene/types";
@@ -82,6 +82,28 @@ function existsHolds(match: ExistsMatch, state: PlayState): boolean {
   return state.world.exists(match.id, match.enabled === false ? { enabled: false } : undefined);
 }
 
+/**
+ * Entity `id`'s pose is within `within` metres of `to`, a point or another
+ * entity's pose. A missing pose on either side doesn't hold, as does a
+ * world that reads no poses.
+ */
+function nearHolds(match: NearMatch, state: PlayState): boolean {
+  const world = state.world;
+  const at = world.pose?.(match.id);
+  if (!at) return false;
+  let tx: number;
+  let ty: number;
+  if (typeof match.to === "string") {
+    const other = world.pose?.(match.to);
+    if (!other) return false;
+    tx = other.x;
+    ty = other.y;
+  } else [tx, ty] = match.to;
+  const dx = at.x - tx;
+  const dy = at.y - ty;
+  return dx * dx + dy * dy <= match.within * match.within;
+}
+
 function countHolds(match: CountMatch, state: PlayState): boolean {
   const { min, max, eq, ...sel } = match;
   const n = state.world.count(sel);
@@ -116,7 +138,7 @@ function persistHolds(match: PersistMatch, state: PlayState): boolean {
 
 /**
  * Whether every key of `until` holds on `state` (AND): the engine's `event`,
- * `tick`, `exists`, `count`, `scene` (the main scene is `scene`, the run's
+ * `tick`, `exists`, `count`, `near`, `scene` (the main scene is `scene`, the run's
  * listed id for it; never without one) and `persist`, then `registry`'s
  * game predicates. A key no predicate answers doesn't hold. `reaches` checks
  * judge `expect` with it too.
@@ -135,6 +157,7 @@ export function untilHolds(
     else if (key === "tick") holds = state.tick >= (arg as number);
     else if (key === "exists") holds = existsHolds(arg as ExistsMatch, state);
     else if (key === "count") holds = countHolds(arg as CountMatch, state);
+    else if (key === "near") holds = nearHolds(arg as NearMatch, state);
     else if (key === "scene") holds = scene !== null && arg === scene;
     else if (key === "persist") holds = persistHolds(arg as PersistMatch, state);
     else holds = predicates[key]?.test(arg, state) ?? false;

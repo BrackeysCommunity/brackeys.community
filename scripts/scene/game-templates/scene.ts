@@ -9,7 +9,7 @@ import {
   type ChecksFile,
 } from "@jams/engine/scene";
 
-import type { GameNames, GameOptions } from ".";
+import { onBehaviors, type GameNames, type GameOptions } from ".";
 
 type Box = ["box", number, number, number, number];
 
@@ -28,6 +28,21 @@ function layout(pxPerMetre: number) {
   };
 }
 
+/** Where the top-down goal's centre is, and the two corners the hero turns at to pass under the wall. */
+const TOP_DOWN_GOAL: [number, number] = [6.75, 1.5];
+const TOP_DOWN_TURNS: { down: [number, number]; right: [number, number] } = {
+  down: [1.5, 4.9],
+  right: [6.75, 4.9],
+};
+
+/** The side-view floor's top, the hero's half height and its start on the floor. */
+const SIDE_FLOOR = 4.6;
+const SIDE_HALF_HEIGHT = 0.4;
+const SIDE_START: [number, number] = [1.5, SIDE_FLOOR - SIDE_HALF_HEIGHT];
+/** Where the side-view hero takes off for the ledge, and the goal's centre on it. */
+const SIDE_TAKE_OFF: [number, number] = [3.5, SIDE_START[1]];
+const SIDE_GOAL: [number, number] = [6.75, 3.5];
+
 /**
  * The top-down room, 8 × 6 m: a wall down the middle from the top leaves a
  * gap at the bottom, the hero starts top-left and the goal is top-right.
@@ -44,8 +59,50 @@ function topDownTemplate(pxPerMetre: number): SceneTemplate {
       box(4, 2.1, 0.1, 1.9),
     ],
     entities: [
-      { id: "hero", type: "hero", at: [m(1.5), m(1.5)] },
-      { id: "goal", type: "sensor", shape: box(6.75, 1.5, 0.9, 0.5), tags: ["goal"] },
+      {
+        id: "hero",
+        type: "hero",
+        at: [m(1.5), m(1.5)],
+        behaviors: {
+          collider: { shape: box(0, 0, 0.25, 0.25) },
+          "character-top-down": { maxSpeed: 3, accel: 20, decel: 16 },
+          "player-input": {},
+          "camera-target": {},
+        },
+      },
+      { id: "goal", type: "sensor", shape: box(...TOP_DOWN_GOAL, 0.9, 0.5), tags: ["goal"] },
+    ],
+  };
+}
+
+/**
+ * The side-view room, 8 × 5 m under gravity: the hero starts on the floor at
+ * the left, and the goal sits on a 0.6 m ledge at the right, a jump up.
+ */
+function sideViewTemplate(pxPerMetre: number): SceneTemplate {
+  const { m, box } = layout(pxPerMetre);
+  return {
+    bounds: [0, 0, m(8), m(5)],
+    solid: [
+      box(4, 0.1, 4, 0.1),
+      box(4, SIDE_FLOOR + 0.2, 4, 0.2),
+      box(0.1, 2.4, 0.1, 2.2),
+      box(7.9, 2.4, 0.1, 2.2),
+      box(6.4, SIDE_FLOOR - 0.3, 1.4, 0.3),
+    ],
+    entities: [
+      {
+        id: "hero",
+        type: "hero",
+        at: [m(SIDE_START[0]), m(SIDE_START[1])],
+        behaviors: {
+          collider: { shape: box(0, 0, 0.2, SIDE_HALF_HEIGHT) },
+          "character-side-view": {},
+          "player-input": {},
+          "camera-target": {},
+        },
+      },
+      { id: "goal", type: "sensor", shape: box(...SIDE_GOAL, 0.5, 0.5), tags: ["goal"] },
     ],
   };
 }
@@ -94,12 +151,15 @@ function gridTemplate(cell: number, pxPerMetre: number): SceneTemplate {
 /** What a new scene of the game starts with, and what `scenes/main.json` holds. */
 export function sceneTemplateOf(options: GameOptions): SceneTemplate {
   if (options.preset === "top-down") return topDownTemplate(options.lengthUnit);
+  if (options.preset === "side-view") return sideViewTemplate(options.lengthUnit);
   return gridTemplate(options.grid?.cell ?? 1, options.lengthUnit);
 }
 
 /** `scenes/main.checks.json`: the scene validates, a path joins hero and goal on the grid, and the script wins. */
 export function checksFile(options: GameOptions): string {
-  const connected = options.preset !== "top-down" && options.physics === "none";
+  const connected = !onBehaviors(options) && options.physics === "none";
+  const goal = options.preset === "side-view" ? SIDE_GOAL : TOP_DOWN_GOAL;
+  const m = (n: number) => snapToPixel(n, options.lengthUnit);
   const file: ChecksFile = {
     v: CHECKS_FORMAT_VERSION,
     checks: [
@@ -107,7 +167,15 @@ export function checksFile(options: GameOptions): string {
       ...(connected
         ? [{ id: "goal-connected", kind: "connected", from: "hero", to: ["goal"] }]
         : []),
-      { id: "goal-reached", kind: "reaches", script: "main.script.json", result: "won" },
+      {
+        id: "goal-reached",
+        kind: "reaches",
+        script: "main.script.json",
+        result: "won",
+        ...(onBehaviors(options)
+          ? { expect: { near: { id: "hero", to: [m(goal[0]), m(goal[1])], within: 1 } } }
+          : {}),
+      },
     ],
   };
   return formatChecks(file);
@@ -116,11 +184,21 @@ export function checksFile(options: GameOptions): string {
 /** The steps that walk the hero from its start to the goal, preset by preset. */
 function stepsOf(options: GameOptions, names: GameNames): unknown[] {
   const reached = { event: `${names.id}:reached` };
+  const m = (n: number) => snapToPixel(n, options.lengthUnit);
+  const near = ([x, y]: [number, number], within: number) => ({
+    near: { id: "hero", to: [m(x), m(y)], within },
+  });
   if (options.preset === "top-down") {
     return [
-      { set: { move: [0, 1] }, for: 75 },
-      { set: { move: [1, 0] }, for: 120 },
+      { set: { move: [0, 1] }, until: near(TOP_DOWN_TURNS.down, 0.2), max: 240 },
+      { set: { move: [1, 0] }, until: near(TOP_DOWN_TURNS.right, 0.5), max: 240 },
       { set: { move: [0, -1] }, until: reached, max: 240 },
+    ];
+  }
+  if (options.preset === "side-view") {
+    return [
+      { set: { move: [1, 0] }, until: near(SIDE_TAKE_OFF, 0.25), max: 240 },
+      { hold: ["jump"], set: { move: [1, 0] }, until: reached, max: 240 },
     ];
   }
   const [hc] = HERO_CELL;

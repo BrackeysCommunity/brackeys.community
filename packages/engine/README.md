@@ -30,7 +30,7 @@ dependencies, used only by `./editor-ui`.
 
 | Peer                        | Range            | Needed for                                                               |
 | --------------------------- | ---------------- | ------------------------------------------------------------------------ |
-| `pixi.js`                   | `^8.17.1`        | the browser shell and `./debug`; the host owns the canvas                |
+| `pixi.js`                   | `^8.23.0`        | the browser shell and `./debug`; the host owns the canvas                |
 | `@dimforge/rapier2d`        | `^0.19.3`        | physics; the host injects it (below), the engine imports only its types  |
 | `@dimforge/rapier2d-compat` | `^0.19.3`        | optional: the flavour to inject under Bun or Node                        |
 | `@tanstack/store`           | `>=0.8.1 <0.9.0` | the shell's and the editor's stores                                      |
@@ -2236,8 +2236,9 @@ export async function startWithArt(
   textures are entries (`{ id, kind, sha256, bytes }`, sorted by id, each
   once); an atlas's frames are already in its meta. Anything unresolvable
   is `asset-missing`, and so is a texture whose entry records a hash but no
-  size: it's left out of the bundle, and the export refuses it once, at the
-  reference the bundle reported. `projectBundle(view, settings, kinds, registry)` is
+  size, reported at its reference with the hash as `detail.unsized`: it's
+  left out of the bundle, and the export refuses it once, at that reference
+  rather than again at the blob. `projectBundle(view, settings, kinds, registry)` is
   the `game-settings` doc's, loaded once and kept resident. `vp run scene
 bundle <scene>` prints one.
 - **The loader.** `createAssetLoader({ project, url, budgetBytes? })`
@@ -2299,7 +2300,10 @@ the message; a hosted project picks up new art when a scene next loads.
   updates each block that changed, attaches the new ones and detaches the
   removed ones; a system without `update` is detached and attached again.
   A behavior that throws on attach rolls the whole call back, as a type
-  system's failed spawn does. Each behavior's `step` runs after the type
+  system's failed spawn does. A behavior's `beforeStep` runs after the
+  game's, and its `beforePhysics` after the type systems', both before the
+  physics step ([The tick order with behaviors](#the-tick-order-with-behaviors)).
+  Each behavior's `step` runs after the type
   systems' `afterStep` and the contacts, before the timers and the game's
   `afterStep` (so the game sees what behaviors did); after the tick the
   sprites re-pose (so a pose the game wrote draws this tick), then
@@ -3219,6 +3223,314 @@ export function walkAround() {
 }
 ```
 
+## Standard behaviors
+
+Every registry, a game's or a gameless project's, holds eleven gameplay
+behaviors next to `sprite`, `occupant` and `lifetime`, so a level gets a
+playable hero, physics props and moving parts from data alone. A behavior
+belongs here when a second, unrelated game would use it unchanged; health,
+damage, inventory, score and abilities stay in games. Each one is built on
+`./game`'s public API and nothing else, so a game's own behavior can do
+whatever the engine's do ([Write your own controller](#write-your-own-controller)).
+
+| Behavior              | What it is                                                                                                                                                   | Fields (defaults)                                                                                                                                                                                                                                                                                                     | Requires                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `collider`            | A collision shape: static on its own, moved by a `body` beside it, or a trigger that raises `sensor:enter` and `sensor:exit` as the `sensor` type does.      | `shape` (local to the entity's pose, not a chain), `sensor` (false), `material`, `group`, `density` (1 kg/m²), `friction`, `restitution` (from the material)                                                                                                                                                          | —                                                                                                     |
+| `body`                | Makes the collider a physics body.                                                                                                                           | `kind` (`dynamic`, `kinematic` or `static`), `gravityScale` (1), `linearDamping` (0), `angularDamping` (0), `fixedRotation` (false), `ccd` (false)                                                                                                                                                                    | `collider`; a dynamic body needs physics                                                              |
+| `player-input`        | Binds the entity to a seat; behaviors on it read that player through `inputFor`.                                                                             | `seat` (0)                                                                                                                                                                                                                                                                                                            | —                                                                                                     |
+| `character-top-down`  | Walks in the plane: a kinematic controller, stopped and slid along by walls.                                                                                 | `maxSpeed` (4 m/s), `accel` (40 m/s²), `decel` (40 m/s²), `pushDynamic` (false), `move` (the action, `"move"`)                                                                                                                                                                                                        | `collider`; a `body` only if kinematic; not with `character-side-view`                                |
+| `character-side-view` | Runs and jumps under gravity, with coyote time, a jump buffer, a variable jump height, slopes, steps and one-way platforms; rides moving platforms.          | `maxSpeed` (6), `accel` (60), `decel` (70), `airControl` (0.6), `jumpHeight` (1.2 m), `gravityScale` (1), `maxFallSpeed` (15 m/s), `coyoteMs` (100), `jumpBufferMs` (100), `jumpCut` (0.5), `maxSlopeDeg` (50), `stepHeight` (0.04 m), `snapToGround` (0.04 m), `pushDynamic` (true), `move` and `jump` (the actions) | `collider`; a `body` only if kinematic; not with `character-top-down`                                 |
+| `camera-target`       | Data only: with no `cameraTarget()` from the game, the camera follows the weighted centre of the entities carrying it.                                       | `weight` (1), `seat` (omitted: every view)                                                                                                                                                                                                                                                                            | —                                                                                                     |
+| `spawner`             | Spawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones.                                                                     | `type` or `prefab` (exactly one), `rate` (1 /s), `cap` (10), `burst` (0), `lifeMs` (omitted: they stay), `spread` (0 m), `velocity` (for a dynamic body), `active` (true)                                                                                                                                             | —                                                                                                     |
+| `nav-agent`           | Walks the scene's walk areas to a point or after an entity, kept apart from other agents; through a motion body when it has a `collider`, else by pose.      | `speed` (1.2 m/s), `arrive` (0.12 m), `radius` (0.3 m), `separation` (1.5), `repathTicks` (180), `to` (a point or an entity's id it walks to from the start; none)                                                                                                                                                    | a `nav` walk area in the scene (`nav-missing` otherwise)                                              |
+| `path-follow`         | Moves the entity along a waypoint path, with the `follower` type's path; with a kinematic `body` it carries what stands on it.                               | `path` (`pts`, `mode`, `speed`, as a follower's)                                                                                                                                                                                                                                                                      | —                                                                                                     |
+| `force-area`          | Pushes the dynamic bodies inside its collider one way, or toward or away from its pose; the two characters add the same acceleration while they stand in it. | `kind` (`directional`), `force` (directional, m/s²) or `strength` (point, m/s²), `falloff` (`none`, `linear` or `inverse-square`), `drag` (0 /s), `affects` (`groups`, `tags`)                                                                                                                                        | `collider` with `sensor: true`; pushing bodies needs physics                                          |
+| `joint`               | Links the entity's body to another entity's: a hinge, a slider, a rope, a weld or a spring.                                                                  | `kind`, `to` (the other entity), `anchorA`, `anchorB`, `axis` (prismatic), `limits` and `motor` (revolute and prismatic), `length` (rope and spring), `stiffness` (100) and `damping` (1) (spring), `collide` (false)                                                                                                 | `body`, and physics; `to` names an entity with a body (`joint-ref-type`), never itself (`joint-self`) |
+
+`solid`, `sensor`, `prop` and `follower` already own a body, so they
+forbid `collider` and `body`: put the blocks on a `marker`, or on a game
+type that allows them. A side-view hero is a marker with four blocks, and a
+barrel it can push is a marker with two:
+
+```json
+{
+  "id": "hero",
+  "type": "marker",
+  "at": [3, 9.6],
+  "behaviors": {
+    "collider": { "shape": ["box", 0, 0, 0.15, 0.3] },
+    "character-side-view": { "maxSpeed": 5, "jumpHeight": 1.5 },
+    "player-input": {},
+    "camera-target": {}
+  }
+}
+```
+
+```json
+{
+  "id": "barrel",
+  "type": "marker",
+  "at": [6, 9],
+  "behaviors": { "collider": { "shape": ["circle", 0, 0, 0.25], "density": 2 }, "body": {} }
+}
+```
+
+The hero plays with no code. A registry built without a game has two
+actions, `move` (a vector on WASD, the arrow keys, the left stick and the
+d-pad) and `jump` (Space, or the pad's south button), and the characters
+read those names by default; a game's `actions` replace both, so a game
+that names its own sets the character's `move` and `jump` fields to them.
+The barrel needs a scene with physics, since its body is dynamic. The scene
+CLI makes both through ops
+([Standard behaviors](../../scripts/scene/README.md#standard-behaviors) in
+its README has the batches, and its tests run each).
+
+- **Checks.** A missing `requires` is `behavior-missing` and both
+  characters on one entity are `behavior-conflict`. A character on a
+  dynamic body is `character-body-kind`, since the controller and the
+  solver would both move it; its fix makes the body kinematic. A dynamic
+  `body` or a `joint` in a scene without physics is `physics-required`.
+- **Systems.** `ctx.behavior(name)` gives each one's system:
+  `CharacterSystem` (`setIntent(id, { move, jump? })` drives an entity with
+  no `player-input`, from that tick until the next call; `velocity`,
+  `grounded`, `launch(id, v)`), `NavAgentSystem` (`setDestination(id, to)`,
+  `to` a point or an entity id; `stop`, `path`), `SpawnerSystem` (`live(id)`),
+  `ForceAreaSystem` (`sample(point)`, the acceleration the areas give
+  there), `PathFollowSystem` (`position`), `JointSystem` (`joined`) and
+  `ColliderSystem` (`has`). A gameless scene's nav agents stand still until
+  code gives them a destination.
+- **Events**, in `step` and `playtest` reports as any other:
+
+| Event                   | When                                                               | `entityId`    | `other`                     |
+| ----------------------- | ------------------------------------------------------------------ | ------------- | --------------------------- |
+| `character:jumped`      | a side-view jump starts, on the ground or in coyote time           | the character | —                           |
+| `character:left-ground` | a side-view character leaves the ground: a jump, a launch, a ledge | the character | —                           |
+| `character:landed`      | a side-view character lands                                        | the character | what it landed on           |
+| `nav:arrived`           | an agent reaches its destination                                   | the agent     | the entity it followed      |
+| `nav:blocked`           | an agent gives up; `data.reason` is `no-path`, `stuck` or `gone`   | the agent     | the entity it followed      |
+| `spawner:spawned`       | a spawner makes a spawn, `at` where it appeared                    | the spawner   | the new id (also `data.id`) |
+
+- **Saves.** Every one that keeps state writes it into a world save and
+  reads it back, so a restored run goes on as the saved one did; the
+  spawner draws from `ctx.random.fork("spawner:<id>")`, and no other one
+  draws at all. World saves still refuse scenes on Rapier
+  ([Saves](#saves)), so a save mid-jump or mid-path is taken on the
+  geometry backend.
+
+### The tick order with behaviors
+
+Behaviors have two hooks before the physics step, `beforeStep(dtMs)` and
+`beforePhysics()`, beside `step` after it. Each tick runs:
+
+1. the tick's input;
+2. the type systems' `beforeStep`, in spawn order;
+3. the game's `beforeStep`, with the tick's actions and commands;
+4. the behaviors' `beforeStep`, in registration order (the characters,
+   `nav-agent`, `path-follow`, `force-area` and `spawner` act here);
+5. the type systems' `beforePhysics`, then the behaviors' (`joint` acts
+   here); without physics, only the behaviors';
+6. the tick's forces handed to the bodies, the physics step, and the forces
+   dropped;
+7. the type systems' `afterStep`, then contacts;
+8. the behaviors' `step`;
+9. the timers, the events, the game's `afterStep`, and the end-of-tick flush
+   ([Entity lifecycle](#entity-lifecycle) has the rest).
+
+Registration order is the engine's behaviors (`sprite`, `occupant`,
+`lifetime`, `collider`, `body`, `player-input`, `path-follow`,
+`force-area`, `character-top-down`, `character-side-view`, `nav-agent`,
+`joint`, `spawner`, `camera-target`), then the game's. Because behaviors
+run after the game's `beforeStep`, an intent the game sets there, or an
+entity it moves there, is acted on in the same tick; what the game reads
+there is still the last tick's, so read a controller's result in
+`afterStep`.
+
+### Moving bodies: `ctx.bodies`
+
+`ctx.bodies` (`BodyControl`) moves any body by entity id, whichever system
+owns it: the `prop` and `follower` types, the `body` behavior and motion
+bodies (the characters' too) all register theirs.
+
+- `has(id)`, `kind(id)` (`"dynamic"`, `"kinematic"`, `"static"` or null),
+  `velocity` and `setVelocity` (m/s), `angularVelocity` and
+  `setAngularVelocity` (rad/s), `mass` (kg; Infinity for a kinematic or
+  static body) and `wake`.
+- `applyImpulse(id, impulse, at?)` changes the velocity at once, through
+  the centre of mass or at a world point. `applyForce(id, force, at?)` and
+  `applyTorque(id, torque)` hold for this tick's physics step only: they are
+  summed through the tick, handed to the body after the behaviors'
+  `beforePhysics`, and dropped after the step, so call them every tick to
+  sustain one. A save between ticks therefore never holds a force.
+- An id with no body throws `EngineError` `body-missing`. A force, torque
+  or impulse on a kinematic or static body, a velocity on a static body or
+  a follower, and an angular velocity on a kinematic body throw
+  `body-not-dynamic`. Without physics, only kinematic bodies exist.
+
+**Nothing gates forces by behavior.** `ctx.bodies` checks the body's kind
+and nothing else: it never asks whether the entity carries a character, a
+`player-input` or anything of the game's. An entity with a `collider`, a
+dynamic `body`, a `player-input` and a game's own behavior that pushes it
+from the seat's input is a supported shape, and so is the same entity in a
+force area, on a joint, or spawned by a spawner. The one refusal is two
+things positioning one body: a character on a dynamic body
+(`character-body-kind`). A thruster that steers a dynamic body by force,
+with no character anywhere:
+
+```ts thruster-behavior.ts
+import {
+  defineBehavior,
+  defineGame,
+  inputFor,
+  type BehaviorSystem,
+  type EngineContext,
+} from "@jams/engine/game";
+import { z } from "zod";
+
+/** The thruster's system, with the ships it pushes in attach order. */
+export type ThrusterSystem = BehaviorSystem & { ships(): readonly string[] };
+
+/** Pushes a dynamic body along its seat's move action: physics movement, no character. */
+export const thruster = defineBehavior({
+  name: "thruster-game/thruster",
+  description: "Pushes the entity's dynamic body along its seat's move action.",
+  fields: {
+    force: z.number().positive().default(2).describe("Force at full stick, N; default 2."),
+  },
+  requires: ["body"],
+  system(ctx): ThrusterSystem {
+    const force = new Map<string, number>();
+    return {
+      attach(id, block) {
+        force.set(id, Number(block.force));
+      },
+      detach(id) {
+        force.delete(id);
+      },
+      // Before the physics step, which takes the force and drops it after.
+      beforeStep() {
+        for (const [id, f] of force) {
+          const move = inputFor(ctx, id).vector("move");
+          if (move.x !== 0 || move.y !== 0)
+            ctx.bodies.applyForce(id, { x: move.x * f, y: move.y * f });
+        }
+      },
+      clear() {
+        force.clear();
+      },
+      size: () => force.size,
+      ships: () => [...force.keys()],
+    };
+  },
+});
+
+export type ThrusterSnapshot = {
+  ships: { id: string; at: [number, number]; v: [number, number] }[];
+};
+
+export const thrusterGame = defineGame<ThrusterSnapshot>({
+  id: "thruster-game",
+  types: [],
+  behaviors: [thruster],
+  actions: [
+    {
+      action: "move",
+      kind: "vector",
+      bindings: [
+        { device: "pad", stick: "left" },
+        { device: "key", code: "ArrowLeft", axis: "x", value: -1 },
+        { device: "key", code: "ArrowRight", axis: "x" },
+        { device: "key", code: "ArrowUp", axis: "y", value: -1 },
+        { device: "key", code: "ArrowDown", axis: "y" },
+      ],
+      description: "Thrust.",
+    },
+  ],
+  world: { gravity: [0, 0] },
+  // Dynamic bodies overlap sensors, so a force area over a ship pushes it too.
+  collisionGroups: { dynamic: { collidesWith: ["sensor"] } },
+  createRuntime(ctx: EngineContext) {
+    return {
+      snapshot() {
+        const ships = ctx.behavior<ThrusterSystem>(thruster.name)?.ships() ?? [];
+        return {
+          ships: ships.map((id) => {
+            const p = ctx.poses.get(id);
+            const v = ctx.bodies.velocity(id);
+            return { id, at: [p?.x ?? 0, p?.y ?? 0], v: [v.x, v.y] };
+          }),
+        };
+      },
+    };
+  },
+});
+```
+
+A ship is a marker that carries it beside the engine's blocks:
+
+```json
+{
+  "id": "ship",
+  "type": "marker",
+  "at": [2, 2],
+  "behaviors": {
+    "collider": { "shape": ["circle", 0, 0, 0.2] },
+    "body": { "linearDamping": 0.5 },
+    "player-input": {},
+    "thruster-game/thruster": { "force": 3 }
+  }
+}
+```
+
+### Write your own controller
+
+The characters are one way to move an entity, not the only one: they use
+nothing a game can't. A controller of the game's own is a behavior whose
+system makes a motion body when an entity attaches and moves it from the
+seat's input in `beforeStep`; the motion body slides along walls, writes
+the pose and registers with `ctx.bodies` as kinematic. Since it builds its
+own body, the entity carries no `collider`. Register it in
+`GameDefinition.behaviors` like any game behavior:
+
+```ts own-controller.ts
+import { createMotionBody, defineBehavior, inputFor, type MotionBody } from "@jams/engine/game";
+import { z } from "zod";
+
+/** A controller of the game's own: a motion body its seat's move action walks at one speed. */
+export const stroll = defineBehavior({
+  name: "stroll-game/stroll",
+  description: "Walks the entity at one speed from its seat's move action.",
+  fields: { speed: z.number().positive().default(3).describe("Walking speed, m/s; default 3.") },
+  system(ctx) {
+    const walkers = new Map<string, { body: MotionBody; speed: number }>();
+    const circle = { type: "circle", cx: 0, cy: 0, r: 0.2 } as const;
+    return {
+      attach(id, block) {
+        const at = ctx.poses.get(id) ?? { x: 0, y: 0 };
+        const body = createMotionBody(ctx, ctx.get(id)!, at, { shape: circle });
+        walkers.set(id, { body, speed: Number(block.speed) });
+      },
+      detach(id) {
+        walkers.get(id)?.body.destroy();
+        walkers.delete(id);
+      },
+      // After the game's beforeStep and before the physics step.
+      beforeStep(dtMs) {
+        for (const [id, { body, speed }] of walkers) {
+          const move = inputFor(ctx, id).vector("move");
+          const d = (speed * dtMs) / 1000;
+          body.move({ x: move.x * d, y: move.y * d });
+        }
+      },
+      clear() {
+        for (const { body } of walkers.values()) body.destroy();
+        walkers.clear();
+      },
+      size: () => walkers.size,
+    };
+  },
+});
+```
+
 ## Entity lifecycle
 
 A scene's entities are only where a run starts: game code spawns,
@@ -3258,7 +3570,9 @@ table, queries and events alike.
   are sought with the rest; timers made in `onLoad` start at tick 0.
 - **The tick order.** Each `step` runs: the type systems' `beforeStep`
   (spawn order); the game's `beforeStep` with the tick's actions and
-  commands; the physics step; the type systems' `afterStep` (sensors raise
+  commands; the behaviors' `beforeStep`; the type systems' and then the
+  behaviors' `beforePhysics`; the tick's forces handed to the bodies, the
+  physics step, and the forces dropped; the type systems' `afterStep` (sensors raise
   their enters and exits here); contacts, for the pairs the game watches;
   each behavior's `step`; the timers that fall due; the **first dispatch**,
   delivering every event raised so far this tick to its subscribers; the

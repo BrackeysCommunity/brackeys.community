@@ -55,6 +55,9 @@ export function elapsedCommand(ms: number, catchUp: { maxMs: number }): GameComm
 /** The `exists` predicate: an id, holding while it exists and is enabled; `enabled: false` holds for a disabled one too. */
 export type ExistsMatch = string | { id: string; enabled?: false };
 
+/** The `near` predicate: holds while entity `id`'s pose is within `within` metres of a point or of another entity's pose. */
+export type NearMatch = { id: string; to: Pt | string; within: number };
+
 /** The `count` predicate: an entity selector, and the bounds the number it matches must keep. */
 export type CountMatch = EntitySelector & { min?: number; max?: number; eq?: number };
 
@@ -201,7 +204,7 @@ const persistMatch: z.ZodType<PersistMatch> = z
   )
   .meta({ id: "PersistMatch" });
 
-/** The engine's `exists` and `count` predicates, over `registry`'s entity types. */
+/** The engine's `exists`, `count` and `near` predicates, over `registry`'s entity types. */
 function worldPredicates(registry: Registry) {
   const names = registry.typeNames;
   const typeName = (names.length > 0 ? z.enum(names as [string, ...string[]]) : z.never())
@@ -278,7 +281,33 @@ function worldPredicates(registry: Registry) {
     .meta({ id: "CountMatch" });
   const checked: z.ZodType<CountMatch> = count;
 
-  return { exists, count: checked, countKeys: Object.keys(count.shape) };
+  const near: z.ZodType<NearMatch> = z
+    .strictObject({
+      id: z.string().min(1).describe("The entity whose pose is measured, e.g. `hero`."),
+      to: z
+        .union([
+          z
+            .tuple([
+              z.number().describe("x in world metres.").meta({ unit: "m" }),
+              z.number().describe("y in world metres; y is down.").meta({ unit: "m" }),
+            ])
+            .describe("A point [x, y] in world metres.")
+            .meta({ unit: "m" }),
+          z.string().min(1).describe("Another entity's id: its pose, as it moves."),
+        ])
+        .describe("A point in world metres, or another entity's id."),
+      within: z
+        .number()
+        .positive()
+        .describe("The distance it holds within, m.")
+        .meta({ unit: "m" }),
+    })
+    .describe(
+      "Holds while the entity's pose is within `within` metres of a point or of another entity's pose.",
+    )
+    .meta({ id: "NearMatch" });
+
+  return { exists, count: checked, near, countKeys: Object.keys(count.shape) };
 }
 
 /** A point in world metres, `[x, y]`, y down. */
@@ -397,8 +426,7 @@ function refuseUiAction(registry: Registry) {
  */
 function actionSchema(registry: Registry): z.ZodType<string> {
   const names = registry.actionNames;
-  if (names.length === 0)
-    return z.never().describe("An action name; this registry has no game, so it declares none.");
+  if (names.length === 0) return z.never().describe("An action name; this game declares none.");
   const enumOf = (list: readonly string[]) => z.enum(list as [string, ...string[]]);
   const ui = names.filter((n) => isUiAction(registry, n));
   if (ui.length === 0)
@@ -499,7 +527,7 @@ function buildInputScriptSchemas(registry: Registry, seats: number) {
     .describe("Holds on a tick that raised a matching event.")
     .meta({ id: "EventMatch" });
 
-  const { exists, count, countKeys } = worldPredicates(registry);
+  const { exists, count, near, countKeys } = worldPredicates(registry);
 
   const predicates = registry.game?.play?.predicates ?? {};
   const until = z
@@ -514,6 +542,7 @@ function buildInputScriptSchemas(registry: Registry, seats: number) {
         .describe("Holds once this absolute tick (from 0) is reached or passed."),
       exists: exists.optional(),
       count: count.optional(),
+      near: near.optional(),
       scene: z
         .string()
         .regex(ID_PATTERN, "a scene's asset id: lowercase letters, digits and dashes")
@@ -800,6 +829,7 @@ function buildInputScriptSchemas(registry: Registry, seats: number) {
     until,
     exists,
     count,
+    near,
     /** The keys a `count` predicate takes, for "did you mean". */
     countKeys,
   };

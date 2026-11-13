@@ -56,14 +56,15 @@ import { parseArgs } from "node:util";
 
 import type { Browser, BrowserContext, BrowserType, Frame, Page } from "playwright";
 
-import type { TestDb } from "@/test/db";
-
 import type { ClaimResult } from "../../src/lib/engine/claim-saves";
 import { FRAME_ALLOW, FRAME_SANDBOX } from "../../src/lib/engine/frame-sandbox";
 import type { SaveMode } from "../../src/lib/engine/host-server";
-import { LOCAL_SAVES_DB, SIGNED_OUT_SAVES_DESCRIBE } from "../../src/lib/engine/local-saves";
+import {
+  LOCAL_SAVES_DB,
+  SIGNED_IN_SAVES_DESCRIBE,
+  SIGNED_OUT_SAVES_DESCRIBE,
+} from "../../src/lib/engine/local-saves";
 import { ENGINE_SAVES_PATH } from "../../src/lib/engine/route-paths";
-import { SIGNED_IN_SAVES_DESCRIBE } from "../../src/lib/engine/save-api";
 import { engineSourceAlias } from "../engine-source-alias";
 import {
   installCommand,
@@ -1270,49 +1271,6 @@ function stopOnSignals(cleanup: () => Promise<void>): void {
   }
 }
 
-/** What the smoke uses of Bun's runtime plugins: virtual modules. */
-type BunRuntime = {
-  plugin(p: {
-    name: string;
-    setup(build: {
-      module(
-        specifier: string,
-        load: () => { exports: Record<string, unknown>; loader: "object" },
-      ): void;
-    }): void;
-  }): void;
-};
-
-/**
- * Points the site's own singletons at the smoke's, as the site's DB tests
- * mock them: `@/db` is the smoke's PGlite database, and the server flags
- * read `engine-games-enabled` as on. Code that reaches past what the smoke
- * injects (the staff lookup, the games gate) then never touches a real
- * database or PostHog. Runs before any module that imports either loads.
- */
-async function useSmokeSingletons(): Promise<TestDb> {
-  const bun = (globalThis as { Bun?: BunRuntime }).Bun;
-  if (!bun) throw new Error("the play smoke's browser processes run under Bun");
-  const { createTestDb } = await import("../../src/test/db");
-  const db = await createTestDb();
-  const flags = await import("../../src/lib/posthog-server");
-  const isServerFlagEnabled: typeof flags.isServerFlagEnabled = async (flag, distinctId) =>
-    flag === "engine-games-enabled" || flags.isServerFlagEnabled(flag, distinctId);
-  bun.plugin({
-    name: "play-smoke-site",
-    setup(build) {
-      build.module("@/db", () => ({ exports: { db }, loader: "object" }));
-      build.module("@/lib/posthog-server", () => ({
-        exports: { ...flags, isServerFlagEnabled },
-        loader: "object",
-      }));
-    },
-  });
-  const seen = (await import("@/db")) as { db: unknown };
-  if (seen.db !== db) throw new Error("@/db isn't the smoke's database");
-  return db;
-}
-
 const errorText = (err: unknown): string =>
   err instanceof Error ? (err.stack ?? err.message) : String(err);
 
@@ -1327,7 +1285,6 @@ async function runBrowser(
   reportFile: string,
   ci: boolean,
 ): Promise<number> {
-  const db = await useSmokeSingletons();
   const site = await import("./play-adapter");
   const playwright = await import("playwright");
   const types: Record<BrowserName, BrowserType> = {
@@ -1353,7 +1310,7 @@ async function runBrowser(
   const mine = plannedPlayRuns([name]);
   const report: PlayBrowserReport = { browser: name, published: {}, runs: [] };
   try {
-    smokeSite = await site.createSmokeSite(db);
+    smokeSite = await site.createSmokeSite();
     const declared = await site.serveSaveStub();
     servers.push(declared);
     const undeclared = await site.serveSaveStub();

@@ -38,6 +38,45 @@ export function oneWaySideOf(own: unknown, typeWide: unknown): Side | null {
 }
 
 /**
+ * How a physics body moves, beside its shape and surface: what the `prop`
+ * type and the `body` behavior share.
+ */
+export const BODY_FIELDS = {
+  gravityScale: z
+    .number()
+    .optional()
+    .describe("Multiplies the world's gravity on this body: 0 floats, -1 falls up; default 1.")
+    .meta({ title: "Gravity scale", group: "body", default: 1 }),
+  linearDamping: z
+    .number()
+    .min(0)
+    .optional()
+    .describe("Slows the body's motion over time; default 0.")
+    .meta({ title: "Linear damping", group: "body", default: 0 }),
+  angularDamping: z
+    .number()
+    .min(0)
+    .optional()
+    .describe("Slows the body's spin over time; default 0.")
+    .meta({ title: "Angular damping", group: "body", default: 0 }),
+  fixedRotation: z
+    .boolean()
+    .optional()
+    .describe("When true, the body never turns.")
+    .meta({ title: "Fixed rotation", group: "body", default: false }),
+  ccd: z
+    .boolean()
+    .optional()
+    .describe(
+      "Continuous collision detection: when true, a fast body can't pass through thin colliders between steps.",
+    )
+    .meta({ title: "CCD", group: "body", default: false }),
+} satisfies z.ZodRawShape;
+
+/** Their system already owns a body, so these types refuse the behaviors that would add one. */
+const OWNS_BODY = { forbidden: ["body", "collider"] } as const;
+
+/**
  * The engine's own entity types, as schema. Their systems are the runtime's
  * (`runtime/primitives.ts`), so this module stays loadable on a server.
  */
@@ -64,6 +103,7 @@ export const PRIMITIVES = {
       materials: true,
       description: "Static ground shapes, absolute metres; `solid:<material>` for a material.",
     },
+    behaviors: OWNS_BODY,
     style: { fill: 0x445566, stroke: 0x8899aa, alpha: 0.8 },
     ascii: "#",
   },
@@ -79,6 +119,7 @@ export const PRIMITIVES = {
         "A path follower's id: the collider rides that follower's body, keeping its offset from the follower's first path point.",
       ),
     },
+    behaviors: OWNS_BODY,
     style: { fill: 0x44cc88, stroke: 0x44cc88, alpha: 0.3 },
     ascii: "s",
   },
@@ -116,36 +157,9 @@ export const PRIMITIVES = {
         .describe("Surface friction; omitted uses the material's, else the physics default.")
         .meta({ title: "Friction", group: "body", placeholder: "from material" }),
       material: materialField(env),
-      gravityScale: z
-        .number()
-        .optional()
-        .describe("Multiplies the world's gravity on this body: 0 floats, -1 falls up; default 1.")
-        .meta({ title: "Gravity scale", group: "body", default: 1 }),
-      linearDamping: z
-        .number()
-        .min(0)
-        .optional()
-        .describe("Slows the body's motion over time; default 0.")
-        .meta({ title: "Linear damping", group: "body", default: 0 }),
-      angularDamping: z
-        .number()
-        .min(0)
-        .optional()
-        .describe("Slows the body's spin over time; default 0.")
-        .meta({ title: "Angular damping", group: "body", default: 0 }),
-      fixedRotation: z
-        .boolean()
-        .optional()
-        .describe("When true, the body never turns.")
-        .meta({ title: "Fixed rotation", group: "body", default: false }),
-      ccd: z
-        .boolean()
-        .optional()
-        .describe(
-          "Continuous collision detection: when true, a fast body can't pass through thin colliders between steps.",
-        )
-        .meta({ title: "CCD", group: "body", default: false }),
+      ...BODY_FIELDS,
     }),
+    behaviors: OWNS_BODY,
     style: { fill: 0xaa7744, stroke: 0xddaa77, alpha: 0.9 },
     ascii: "p",
   },
@@ -160,6 +174,7 @@ export const PRIMITIVES = {
       path: PathSchema,
       material: materialField(env),
     }),
+    behaviors: OWNS_BODY,
     style: { fill: 0x6677aa, stroke: 0xffffff, alpha: 0.8 },
     ascii: "F",
   },

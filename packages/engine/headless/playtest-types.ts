@@ -11,7 +11,13 @@ import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
 import type { RunTiming } from "../runtime/timing";
 import type { LoadReport, StepEvent } from "../runtime/types";
-import type { AnalogSet, CountMatch, ExistsMatch, ScriptPointer } from "../scene/input-script";
+import type {
+  AnalogSet,
+  CountMatch,
+  ExistsMatch,
+  NearMatch,
+  ScriptPointer,
+} from "../scene/input-script";
 import type { RecordingCommand, RecordingStream, RunRecording } from "../scene/recording-schema";
 import type {
   EntityTypeName,
@@ -52,7 +58,7 @@ export type PersistMatch = { pointer: string; eq?: JsonValue; gte?: number; lte?
 
 /**
  * When a step ends early: every key must hold (AND). `event`, `tick` (an
- * absolute tick, reached or passed), `exists`, `count`, `scene` and
+ * absolute tick, reached or passed), `exists`, `count`, `near`, `scene` and
  * `persist` are the engine's; the rest are the game's `play.predicates`.
  */
 export type UntilClause = {
@@ -62,6 +68,8 @@ export type UntilClause = {
   exists?: ExistsMatch;
   /** The number of entities matching a selector keeps `min`, `max` or `eq`. */
   count?: CountMatch;
+  /** The entity's pose is within `within` metres of a point or another entity's pose. */
+  near?: NearMatch;
   /** Holds once the main scene is this scene. */
   scene?: AssetId;
   persist?: PersistMatch;

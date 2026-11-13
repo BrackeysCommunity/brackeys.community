@@ -965,19 +965,55 @@ describe("package boundary", () => {
     violations(found);
   });
 
-  it("never draws from ctx.random in engine systems, primitives or behaviors", () => {
+  it("never draws from ctx.random in engine systems, primitives or behaviors, but the spawner's fork", () => {
     const reads = [/\bctx\s*\??\.\s*random\b/, /\{[^}]*\brandom\b[^}]*\}\s*=\s*ctx\b/];
+    /** The spawner takes its own stream per entity, and never draws from the shared one. */
+    const fork = /\bctx\s*\.\s*random\s*\.\s*fork\s*\(/g;
     const files = sourceFiles.filter((f) => /^(systems|runtime\/behaviors)\//.test(rel(f)));
     expect(files.length).toBeGreaterThan(0);
     const bad: string[] = [];
     for (const file of files) {
+      const path = rel(file);
       stripComments(readFileSync(file, "utf8"))
         .split("\n")
         .forEach((line, i) => {
-          if (reads.some((re) => re.test(line))) bad.push(`${rel(file)}:${i + 1}: ${line.trim()}`);
+          const read = path === "runtime/behaviors/spawner.ts" ? line.replace(fork, "") : line;
+          if (reads.some((re) => re.test(read))) bad.push(`${path}:${i + 1}: ${line.trim()}`);
         });
     }
     violations(bad);
+  });
+
+  it("builds the standard behaviors on what a game can import: ./game's modules, its own schema and motion/", () => {
+    const index = join(ENGINE, "game/index.ts");
+    const reexported = new Set(
+      importsOf(index).flatMap((imp) => {
+        const target = resolveRelative(index, imp.spec);
+        return target ? [rel(target)] : [];
+      }),
+    );
+    const own = ["sprite.ts", "lifetime.ts", "occupant.ts", "index.ts"];
+    const files = sourceFiles.filter((f) => {
+      const path = rel(f);
+      return path.startsWith("runtime/behaviors/") && !own.includes(path.slice(18));
+    });
+    expect(files.length).toBeGreaterThan(0);
+    const refused = (file: string, source: string): string[] => {
+      const path = rel(file);
+      const schema = `game/behaviors/${path.slice(18)}`;
+      return importsIn(source).flatMap((imp) => {
+        if (!imp.spec.startsWith(".")) return [];
+        const target = rel(resolveRelative(file, imp.spec) ?? resolve(dirname(file), imp.spec));
+        return reexported.has(target) || target === schema || target.startsWith("motion/")
+          ? []
+          : [`${path}:${imp.line} imports ${target}`];
+      });
+    };
+    violations(files.flatMap((f) => refused(f, readFileSync(f, "utf8"))));
+    const probe = join(ENGINE, "runtime/behaviors/joint.ts");
+    expect(
+      refused(probe, 'import { createSceneRuntime } from "../runtime";\nimport "../../physics";'),
+    ).toEqual(["runtime/behaviors/joint.ts:1 imports runtime/runtime.ts"]);
   });
 
   it("is consumed by the site only through @jams/engine entries and game entries", () => {

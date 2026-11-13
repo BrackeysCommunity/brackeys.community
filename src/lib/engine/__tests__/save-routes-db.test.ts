@@ -2,9 +2,8 @@ import { formatSaveFile, type SaveFile } from "@jams/engine/game";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { db as mockedDb } from "@/db";
 import { engineProjects, engineSaves } from "@/db/schema";
-import { seedUser, type TestDb } from "@/test/db";
+import { createTestDb, seedUser, type TestDb } from "@/test/db";
 
 import { forgetProjectReleases } from "../frame-route";
 import { SITE_SAVE_LIMITS } from "../limits";
@@ -30,6 +29,8 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/polyfill", () => ({}));
+// The site's own `db` is a separate, empty database: the routes under test
+// get theirs injected, and only the site's dispatch reads this one.
 vi.mock("@/db", async () => {
   const { createTestDb } = await import("@/test/db");
   return { db: await createTestDb() } as unknown as typeof import("@/db");
@@ -50,7 +51,7 @@ vi.mock("@/lib/profile-project-image-storage", async (importOriginal) => ({
 vi.mock("@/lib/media-scan", () => ({ requestUploadScan: async () => {} }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => true }));
 
-const db = mockedDb as unknown as TestDb;
+let db: TestDb;
 
 const PROJECT = "save-routes";
 const GAME = "save-game";
@@ -136,7 +137,25 @@ async function publishProduction() {
   );
 }
 
+function routesWith(deps: Partial<Parameters<typeof createSaveRoutes>[0]> = {}) {
+  return createSaveRoutes({
+    readSession: async (request) => {
+      const id = request.headers.get("x-test-user");
+      return id ? { user: { id } } : null;
+    },
+    ...deps,
+    saves: {
+      db: db as unknown as ReleaseTxDb,
+      store,
+      rateLimit: async () => true,
+      now: () => NOW,
+      ...deps.saves,
+    },
+  });
+}
+
 beforeAll(async () => {
+  db = await createTestDb();
   await seedUser(db, "creator");
   await seedUser(db, "player");
   await db.insert(engineProjects).values({
@@ -161,13 +180,7 @@ beforeEach(async () => {
     .set({ saveMode: "site" })
     .where(eq(engineProjects.projectId, PROJECT));
   forgetProjectReleases(PROJECT);
-  routes = createSaveRoutes({
-    readSession: async (request) => {
-      const id = request.headers.get("x-test-user");
-      return id ? { user: { id } } : null;
-    },
-    saves: { store, rateLimit: async () => true, now: () => NOW },
-  });
+  routes = routesWith();
 });
 
 describe("save routes", () => {
@@ -270,6 +283,36 @@ describe("save routes", () => {
     expect(await db.select().from(engineSaves)).toEqual([]);
   });
 
+  it("asks an injected gamesOpen instead of the flag, closed reading as no route", async () => {
+    const asked: string[] = [];
+    let open = false;
+    routes = routesWith({
+      gamesOpen: async (userId) => {
+        asked.push(userId);
+        return open;
+      },
+    });
+    for (const path of [ENGINE_SAVES_PATH, engineProjectSavesPath(PROJECT)]) {
+      const response = await send(call(path, { user: "player" }));
+      expect(response.status).toBe(404);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(await response.json()).toMatchObject({ code: "not-found" });
+    }
+    expect((await put("one", saveText("one"))).status).toBe(404);
+    expect(await db.select().from(engineSaves)).toEqual([]);
+    expect(asked).toEqual(["player", "player", "player"]);
+
+    const signedOut = await send(call(engineProjectSavesPath(PROJECT)));
+    expect(signedOut.status).toBe(401);
+    expect(asked).toHaveLength(3);
+
+    state.games = false;
+    open = true;
+    expect((await put("one", saveText("one"))).status).toBe(200);
+    const listed = await send(call(engineProjectSavesPath(PROJECT), { user: "player" }));
+    expect(listed.status).toBe(200);
+  });
+
   it("accepts a save at the cap and refuses one byte over", async () => {
     const atCap = await put("one", saveOfBytes("one", SITE_SAVE_LIMITS.maxBytes));
     expect(atCap.status).toBe(200);
@@ -318,18 +361,12 @@ describe("save routes", () => {
         }),
       );
     const counted: string[] = [];
-    routes = createSaveRoutes({
-      readSession: async (request) => {
-        const id = request.headers.get("x-test-user");
-        return id ? { user: { id } } : null;
-      },
+    routes = routesWith({
       saves: {
-        store,
         rateLimit: async (bucket) => {
           counted.push(bucket);
           return true;
         },
-        now: () => NOW,
       },
     });
 

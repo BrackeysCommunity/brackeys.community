@@ -180,6 +180,20 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Add the required behavior's block (an empty block takes its defaults), or remove the behavior that needs it.",
     fixable: true,
   },
+  "behavior-conflict": {
+    severity: "error",
+    summary:
+      "An entity carries two behaviors that can't share it, such as both character controllers.",
+    hint: "Unset one of the two blocks with update; keep the one whose movement the entity should have.",
+    fixable: false,
+  },
+  "character-body-kind": {
+    severity: "error",
+    summary:
+      "A character behavior is on an entity whose body is dynamic: the controller and the physics solver would both move it.",
+    hint: 'Set the body\'s `kind` to "kinematic" (the fix does), or unset the body block; a character needs no body of its own.',
+    fixable: true,
+  },
   "grid-invalid": {
     severity: "error",
     summary: "A grid setting, grid value or grid placement is invalid.",
@@ -211,6 +225,25 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     summary:
       "A nav polygon intersects itself, a block polygon isn't inside exactly one walk area, or two walk areas overlap.",
     hint: "Redraw the polygon without crossings, move the block inside one walk area, or inset the walk areas so they only share edges.",
+    fixable: false,
+  },
+  "nav-missing": {
+    severity: "warn",
+    summary: "An entity carries `nav-agent`, but the scene has no walk area for it to walk.",
+    hint: "Add a `nav` entity (mode walk) covering where the agent should go, or unset the agent's nav-agent block.",
+    fixable: false,
+  },
+  "joint-ref-type": {
+    severity: "error",
+    summary:
+      "A joint's `to` names an entity with no body to hold: no `body` or `collider` block and not a solid, prop or follower, or only a sensor.",
+    hint: "Point `to` at an entity with a body or a collider that isn't a sensor, or give that entity a `collider` block.",
+    fixable: false,
+  },
+  "joint-self": {
+    severity: "error",
+    summary: "A joint's `to` names the entity that carries it.",
+    hint: "Point `to` at the other entity the joint links to.",
     fixable: false,
   },
   "follower-hits-solid": {
@@ -376,6 +409,19 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     severity: "error",
     summary: "A binding's seat or a seats declaration is past the seats there are.",
     hint: "Seats are 0 to `players.max` − 1, at most 8.",
+    fixable: false,
+  },
+  "body-missing": {
+    severity: "error",
+    summary: "`ctx.bodies` was asked about an entity id that has no body.",
+    hint: "Give the entity a `body` and `collider`, or use a type that owns a body (prop, follower); check `ctx.bodies.has(id)` before moving one that may have none.",
+    fixable: false,
+  },
+  "body-not-dynamic": {
+    severity: "error",
+    summary:
+      "A force, torque or impulse went through `ctx.bodies` to a kinematic or static body, which forces don't move.",
+    hint: 'Set the body\'s `kind` to "dynamic", or move a kinematic body with `setVelocity`; check `ctx.bodies.kind(id)` first.',
     fixable: false,
   },
   "spawn-id-invalid": {

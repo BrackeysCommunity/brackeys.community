@@ -26,6 +26,7 @@ import {
   GAME_PRESETS,
   gameNames,
   generatedJson,
+  onBehaviors,
   PRESET_OPTIONS,
   renderSources,
   titleOf,
@@ -38,7 +39,7 @@ import { parsePoint } from "./playtest";
 
 /** `game new`'s flags after the id. */
 export const GAME_NEW_FLAGS =
-  '[--name "Title"] [--preset top-down|grid|turns] [--physics none|rapier] [--gravity x,y] [--time fixed|turns|event] [--rate n] [--grid square|hex|none] [--cell n] [--px-per-metre n] [--dir src/games] [--dry-run]';
+  '[--name "Title"] [--preset top-down|side-view|grid|turns] [--physics none|rapier] [--gravity x,y] [--time fixed|turns|event] [--rate n] [--grid square|hex|none] [--cell n] [--px-per-metre n] [--dir src/games] [--dry-run]';
 
 const USAGE = `game new <id> ${GAME_NEW_FLAGS}`;
 
@@ -47,7 +48,7 @@ export type GameNewInput = {
   id?: string;
   /** The project's display name. */
   name?: string;
-  /** `top-down` (default), `grid` or `turns`. */
+  /** `top-down` (default), `side-view`, `grid` or `turns`. */
   preset?: string;
   /** `none` or `rapier`, over the preset's. */
   physics?: string;
@@ -122,7 +123,7 @@ export function gameOptionsFrom(id: string, input: GameNewInput): GameOptions | 
   if (input.grid !== undefined) {
     if (input.grid !== "square" && input.grid !== "hex" && input.grid !== "none")
       return `--grid takes square, hex or none; got ${JSON.stringify(input.grid)}`;
-    if (preset !== "top-down" && input.grid !== "square")
+    if (!onBehaviors(options) && input.grid !== "square")
       return `--grid ${input.grid}: the ${preset} preset steps on a square grid`;
     options.grid =
       input.grid === "none" ? null : { kind: input.grid, cell: options.grid?.cell ?? 1 };

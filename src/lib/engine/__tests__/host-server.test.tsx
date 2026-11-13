@@ -1,146 +1,31 @@
 // @vitest-environment jsdom
-import { formatSaveFile, type SaveFile } from "@jams/engine/game";
-import { connectHost, HostRequestError, type HostChannel } from "@jams/engine/standalone";
+import type { HostRequestError } from "@jams/engine/standalone";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 
-import {
-  createHostServer,
-  HOST_NO_SITE_SAVES_MESSAGE,
-  HOST_THROTTLED_MESSAGE,
-  type HostServer,
-  type HostServerOptions,
-} from "../host-server";
+import { HOST_NO_SITE_SAVES_MESSAGE, HOST_THROTTLED_MESSAGE } from "../host-server";
 import { SITE_SAVE_LIMITS } from "../limits";
-import { localPlayPrefs, localPlaySaves, SIGNED_OUT_SAVES_DESCRIBE } from "../local-saves";
-
-const RELEASE = { id: "e".repeat(64), gameId: "tactics", projectId: "proj-1" };
-const HELLO = { engine: "0.14.1", release: RELEASE.id, game: RELEASE.gameId };
-
-function saveText(slot: string, data: unknown = null): string {
-  const file: SaveFile = {
-    kind: "save",
-    v: 1,
-    game: RELEASE.gameId,
-    gameVersion: 1,
-    engine: "0.14.1",
-    release: null,
-    project: null,
-    slot,
-    meta: { scene: "one", savedAt: 0, playTicks: 0 },
-    depth: "progress",
-    persist: null,
-    scene: { id: "one", runHash: "", sublevels: [] },
-    data: data as SaveFile["data"],
-  };
-  return formatSaveFile(file);
-}
+import { localPlaySaves, SIGNED_OUT_SAVES_DESCRIBE } from "../local-saves";
+import {
+  disposeHostRigs,
+  hostRig as rig,
+  refusal,
+  RIG_RELEASE as RELEASE,
+  rigSaveText as saveText,
+} from "./host-rig";
 
 function saveOfBytes(slot: string, bytes: number): string {
   const base = saveText(slot, "");
   return saveText(slot, "x".repeat(bytes - new TextEncoder().encode(base).length));
 }
 
-/**
- * The page and a framed game in one jsdom document. jsdom's postMessage
- * carries neither `source`, `origin` nor ports, so each side's post is
- * stood in for by the event a browser would deliver: the frame's to its
- * parent from its own window on the opaque origin, the page's to the frame
- * from its parent with the transferred port.
- */
-type Rig = {
-  iframe: HTMLIFrameElement;
-  frame: Window;
-  server: HostServer;
-  /** What the page posted to the frame's window, with its target. */
-  toFrame: { data: unknown; target: string; ports: number }[];
-  /** The frame's end of the last port the page handed over. */
-  framePort: () => MessagePort;
-  /** Dispatches a window message on the page as if from `source` on `origin`. */
-  toPage(data: unknown, source: unknown, origin: string): void;
-  connect(): Promise<HostChannel>;
-};
-
-const rigs: Rig[] = [];
-
-function rig(over: Partial<HostServerOptions> = {}): Rig {
-  const iframe = document.createElement("iframe");
-  document.body.append(iframe);
-  const frame = iframe.contentWindow!;
-  const toFrame: Rig["toFrame"] = [];
-  let lastPort: MessagePort | null = null;
-  Object.defineProperty(frame, "postMessage", {
-    configurable: true,
-    value(data: unknown, target: string, transfer: MessagePort[] = []) {
-      toFrame.push({ data, target, ports: transfer.length });
-      lastPort = transfer[0] ?? null;
-      queueMicrotask(() => {
-        const event = new MessageEvent("message", { data });
-        Object.defineProperty(event, "ports", { value: transfer });
-        Object.defineProperty(event, "source", { value: frameView.parent });
-        frame.dispatchEvent(event);
-      });
-    },
-  });
-  const toPage = (data: unknown, source: unknown, origin: string) => {
-    const event = new MessageEvent("message", { data, origin });
-    Object.defineProperty(event, "source", { value: source });
-    window.dispatchEvent(event);
-  };
-  const frameView = {
-    parent: { postMessage: (data: unknown) => toPage(data, frame, "null") },
-    addEventListener: frame.addEventListener.bind(frame),
-    removeEventListener: frame.removeEventListener.bind(frame),
-  } as unknown as Window;
-  const server = createHostServer({
-    iframe,
-    release: RELEASE,
-    saves: () => localPlaySaves(RELEASE.projectId),
-    describe: () => SIGNED_OUT_SAVES_DESCRIBE,
-    mode: "site",
-    prefs: localPlayPrefs(RELEASE.projectId),
-    ...over,
-  });
-  const r: Rig = {
-    iframe,
-    frame,
-    server,
-    toFrame,
-    framePort: () => lastPort!,
-    toPage,
-    async connect() {
-      const channel = await connectHost({ hello: HELLO, window: frameView, timeoutMs: 2_000 });
-      if (!channel) throw new Error("the page didn't answer");
-      channels.push(channel);
-      return channel;
-    },
-  };
-  rigs.push(r);
-  return r;
-}
-
-const channels: HostChannel[] = [];
-
 beforeEach(() => {
   localStorage.clear();
 });
 
 afterEach(() => {
-  for (const c of channels.splice(0)) c.close();
-  for (const r of rigs.splice(0)) {
-    r.server.dispose();
-    r.iframe.remove();
-  }
+  disposeHostRigs();
   vi.restoreAllMocks();
 });
-
-const refusal = async (p: Promise<unknown>) => {
-  const error = await p.then(
-    () => null,
-    (e: unknown) => e,
-  );
-  expect(error).toBeInstanceOf(HostRequestError);
-  return (error as HostRequestError).issue;
-};
 
 describe("the handshake", () => {
   it("answers its own frame on the opaque origin with a port, targeting *", async () => {

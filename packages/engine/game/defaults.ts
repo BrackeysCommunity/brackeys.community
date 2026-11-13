@@ -3,6 +3,7 @@
  * imports, so the canvas-sync image can carry it.
  */
 import type { CharacterControllerOptions } from "../physics";
+import type { ActionDef, Binding } from "./types";
 
 /** World gravity, m/s²; y is down. */
 export const DEFAULT_GRAVITY: [number, number] = [0, 12];
@@ -34,3 +35,47 @@ export const TOP_DOWN_CONTROLLER: CharacterControllerOptions = {
   snapToGround: null,
   pushDynamic: false,
 };
+
+const moveKey = (code: string, axis: "x" | "y", value: number): Binding => ({
+  device: "key",
+  code,
+  axis,
+  value,
+});
+
+/**
+ * The actions a registry built without a game has, so the standard
+ * behaviors can be played in a project with no game module. A game's own
+ * `actions` replace them.
+ */
+export const DEFAULT_ACTIONS: readonly ActionDef[] = Object.freeze([
+  {
+    action: "move",
+    kind: "vector",
+    description: "Move: WASD, the arrow keys, the left stick or the d-pad.",
+    bindings: [
+      moveKey("KeyA", "x", -1),
+      moveKey("KeyD", "x", 1),
+      moveKey("KeyW", "y", -1),
+      moveKey("KeyS", "y", 1),
+      moveKey("ArrowLeft", "x", -1),
+      moveKey("ArrowRight", "x", 1),
+      moveKey("ArrowUp", "y", -1),
+      moveKey("ArrowDown", "y", 1),
+      { device: "pad", stick: "left" },
+      { device: "pad", button: "dpad-left", axis: "x", value: -1 },
+      { device: "pad", button: "dpad-right", axis: "x", value: 1 },
+      { device: "pad", button: "dpad-up", axis: "y", value: -1 },
+      { device: "pad", button: "dpad-down", axis: "y", value: 1 },
+    ],
+  },
+  {
+    action: "jump",
+    kind: "button",
+    description: "Jump: Space or the pad's south button.",
+    bindings: [
+      { device: "key", code: "Space" },
+      { device: "pad", button: "south" },
+    ],
+  },
+]);

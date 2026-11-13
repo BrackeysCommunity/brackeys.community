@@ -26,6 +26,8 @@ export type SaveRouteDeps = {
   readSession: ReadSession;
   /** The save API's store, limiter and clock; default the site's bucket, Redis and clock. */
   saves?: Partial<SaveApiDeps>;
+  /** Whether games are open to this signed-in caller; default `engineGamesOpen`. */
+  gamesOpen?: (userId: string) => Promise<boolean>;
 };
 
 /**
@@ -92,6 +94,7 @@ type Caller = { ok: true; userId: string } | { ok: false; response: Response };
 export function createSaveRoutes(
   deps: SaveRouteDeps,
 ): (request: Request) => Promise<Response | null> {
+  const gamesOpen = deps.gamesOpen ?? engineGamesOpen;
   const saveDeps = (): SaveApiDeps => ({
     db: deps.saves?.db ?? (siteDb as unknown as ReleaseTxDb),
     store: deps.saves?.store ?? minioReleaseStore,
@@ -121,7 +124,7 @@ export function createSaveRoutes(
       );
       return { ok: false, response: refuse(refusal ?? NOT_FOUND, refusal ? undefined : 404) };
     }
-    if (!(await engineGamesOpen(session.user.id))) {
+    if (!(await gamesOpen(session.user.id))) {
       return { ok: false, response: refuse(NOT_FOUND, 404) };
     }
     return { ok: true, userId: session.user.id };

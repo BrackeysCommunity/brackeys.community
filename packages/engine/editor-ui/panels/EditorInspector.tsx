@@ -59,7 +59,7 @@ import {
   type SceneDefinition,
   type ShapeTuple,
 } from "../../editor/index";
-import { lengthStep } from "../../editor/inspector-model";
+import { fieldTitle, lengthStep } from "../../editor/inspector-model";
 import { pxPerMetreOf } from "../../game/units";
 import { snapToPixel } from "../../scene/units";
 import { STORAGE_PREFIX } from "../host";
@@ -513,7 +513,12 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const [error, setError] = useState<string | null>(null);
   const anchor = useComboboxAnchor();
   const prefabs = useEditorPrefabs(ctx.session);
-  const candidates = refCandidates(ctx.def, ctx.session.registry, w.accepts, prefabs);
+  const self = new Set(ctx.targets.map((t) => t.ref));
+  const candidates = w.any
+    ? refCandidates(ctx.def, ctx.session.registry, ctx.session.registry.typeNames, prefabs).filter(
+        (id) => !self.has(id),
+      )
+    : refCandidates(ctx.def, ctx.session.registry, w.accepts, prefabs);
   const values = field.mixed
     ? []
     : Array.isArray(field.value)
@@ -522,7 +527,7 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         ? [field.value]
         : [];
   const dangling = values.filter((v) => !candidates.includes(v));
-  const accepts = w.accepts.join(" or ");
+  const accepts = w.any ? "entity" : w.accepts.join(" or ");
   const problem =
     error ??
     (dangling.length > 0
@@ -1062,7 +1067,34 @@ function BehaviorSection({
   );
 }
 
-/** The behaviors the selection's types allow and it doesn't all carry yet; picking one adds it in one batch. */
+/**
+ * A behavior section's fields under their `meta.group` sub-headings, groups
+ * in the order their first field comes; one group shows no heading.
+ */
+function groupedFields(section: InspectorSectionModel, render: (f: ModelField) => ReactNode) {
+  const groups = new Map<string, ModelField[]>();
+  for (const f of section.fields) {
+    const key = f.group ?? "";
+    groups.set(key, [...(groups.get(key) ?? []), f]);
+  }
+  if (groups.size < 2) return section.fields.map(render);
+  return [...groups].map(([group, fields]) => (
+    <div key={group} className="je-insp-group" data-group={group || undefined}>
+      {group ? (
+        <MicroLabel as="p" className="je-insp-group-title">
+          {fieldTitle(group)}
+        </MicroLabel>
+      ) : null}
+      {fields.map(render)}
+    </div>
+  ));
+}
+
+/**
+ * The behaviors the selection's types allow and it doesn't all carry yet;
+ * picking one adds it, and what it requires, in one batch. One that can't be
+ * added yet is dimmed, and picking it says why.
+ */
 function AddBehaviorMenu({ options, ctx }: { options: InspectorModel["addBehaviors"]; ctx: Ctx }) {
   const [error, setError] = useState<string | null>(null);
   return (
@@ -1080,10 +1112,15 @@ function AddBehaviorMenu({ options, ctx }: { options: InspectorModel["addBehavio
             <MenuItem
               key={o.name}
               className="je-insp-behavior-item"
-              onClick={() => setError(dispatch(ctx, o.batch))}
+              data-behavior={o.name}
+              data-unavailable={o.unavailable === undefined ? undefined : ""}
+              onClick={() => setError(o.unavailable ?? dispatch(ctx, o.batch))}
             >
               <span>{behaviorTitle(o.label, o.name)}</span>
               <span className="je-insp-muted">{o.description}</span>
+              {o.adds ? (
+                <span className="je-insp-muted">Also adds {o.adds.join(", ")}.</span>
+              ) : null}
             </MenuItem>
           ))}
         </MenuContent>
@@ -1171,7 +1208,7 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
     );
   }
 
-  const model = buildInspectorModel(session.registry, targets);
+  const model = buildInspectorModel(session.registry, targets, { def: view });
   const child = targets.length === 1 ? childOverrides(doc, targets[0]!.ref) : null;
   const byPath = fieldsByPath(model.sections.flatMap((s) => s.fields));
   const ctx: Ctx = {
@@ -1221,12 +1258,13 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
         </p>
       ) : null}
       {model.sections.map((section) => {
-        const fields = section.fields.map((field) => (
+        const fieldView = (field: ModelField) => (
           <FieldView key={`${scope}:${field.path}`} field={field} ctx={ctx} />
-        ));
+        );
+        const fields = section.fields.map(fieldView);
         return section.behavior ? (
           <BehaviorSection key={`${scope}:${section.id}`} section={section} ctx={ctx}>
-            {fields}
+            {groupedFields(section, fieldView)}
           </BehaviorSection>
         ) : (
           <Section key={section.id} id={section.id} title={section.title}>

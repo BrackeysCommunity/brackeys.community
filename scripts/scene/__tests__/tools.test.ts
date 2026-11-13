@@ -1374,7 +1374,7 @@ describe("step", () => {
     const avatarTypo = await step({ scene: "engine-yard", hold: "rght", game: avatarGame.id }, ctx);
     expect(avatarTypo.text).toContain('did you mean "right"');
     expect((await step({ scene: "engine-yard", hold: "right" }, ctx)).text).toContain(
-      "actions: none",
+      "actions: move, jump",
     );
 
     await writeFile(join(root, "typo-in.json"), JSON.stringify([[5, "jmup", 1]]));
@@ -2849,7 +2849,7 @@ describe("runCli", () => {
   it("shows game new's flags and step's --legal in the help", async () => {
     const help = (await runCli(["help"], ctx)).stdout;
     expect(help).toContain(
-      'game new <id> [--name "Title"] [--preset top-down|grid|turns] [--physics none|rapier] [--gravity x,y] [--time fixed|turns|event] [--rate n] [--grid square|hex|none] [--cell n] [--px-per-metre n] [--dir src/games] [--dry-run]',
+      'game new <id> [--name "Title"] [--preset top-down|side-view|grid|turns] [--physics none|rapier] [--gravity x,y] [--time fixed|turns|event] [--rate n] [--grid square|hex|none] [--cell n] [--px-per-metre n] [--dir src/games] [--dry-run]',
     );
     expect(help).toMatch(/step <scene\|file\|-> .*\[--legal\] \[--timing\]\n/);
     expect(help).toMatch(/playtest <scene\|file\|-> .*\[--timing\]\n/);
@@ -3214,13 +3214,19 @@ describe("scene flow", { timeout: 60_000 }, () => {
       issues: [],
     });
     const rows = Object.fromEntries(engine!.scenes.map((s) => [s.scene, s]));
-    expect(Object.keys(rows)).toEqual(["engine-yard", "kitchen-sink", "grid-yard", "grid-annex"]);
+    expect(Object.keys(rows)).toEqual([
+      "engine-yard",
+      "kitchen-sink",
+      "grid-yard",
+      "behavior-yard",
+      "grid-annex",
+    ]);
     expect(rows["engine-yard"]).toMatchObject({ start: true, physics: "rapier" });
     expect(rows["grid-yard"]).toMatchObject({ start: false, physics: "none" });
     expect(rows["kitchen-sink"]!.bundle!.bytes).toBeGreaterThan(0);
     for (const row of engine!.scenes) expect(row.bundle?.bytes).toEqual(expect.any(Number));
     expect(r.text.split("\n")[0]).toBe(
-      "engine: scene list scene-list.json, start engine-yard, 4 listed",
+      "engine: scene list scene-list.json, start engine-yard, 5 listed",
     );
     expect(r.text).toMatch(
       /^ {2}engine-yard {2}start {2}physics rapier {2}bundle \d+ blobs? \d+ B/m,
@@ -3245,7 +3251,7 @@ describe("scene flow", { timeout: 60_000 }, () => {
     const r = await flow({}, engineCtx);
     expect(r.exitCode).toBe(1);
     const [engine] = (r.data as Flowed).projects;
-    expect(engine!.unlisted).toEqual(["grid-annex", "kitchen-sink"]);
+    expect(engine!.unlisted).toEqual(["behavior-yard", "grid-annex", "kitchen-sink"]);
     expect(engine!.scenes.find((s) => s.scene === "ghost")).toMatchObject({
       physics: null,
       bundle: null,
@@ -3255,7 +3261,7 @@ describe("scene flow", { timeout: 60_000 }, () => {
     expect(codes).toContain("error start-scene-missing");
     expect(codes).toContain("error asset-missing");
     expect(codes).toContain("warn scene-unlisted");
-    expect(r.text).toContain("not listed: grid-annex, kitchen-sink");
+    expect(r.text).toContain("not listed: behavior-yard, grid-annex, kitchen-sink");
     expect(r.text).toMatch(/^ {2}ghost {2}doesn't open$/m);
   });
 

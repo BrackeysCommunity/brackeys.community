@@ -29,6 +29,9 @@ vi.mock("@/lib/engine/host-server", () => ({
   },
 }));
 
+const downloads = vi.hoisted(() => ({ downloadBlob: vi.fn<(name: string, blob: Blob) => void>() }));
+vi.mock("@/lib/download", () => downloads);
+
 const { PlayFrame } = await import("../PlayFrame");
 
 const FRAME_URL = "https://play.example.test/frames/rel-1/index.html?host=jams";
@@ -56,6 +59,7 @@ let hidden = false;
 
 beforeEach(() => {
   fakes.created.length = 0;
+  downloads.downloadBlob.mockReset();
   hidden = false;
   Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
 });
@@ -170,11 +174,6 @@ describe("PlayFrame", () => {
   });
 
   it("offers a Download recording button once the frame sends a download", () => {
-    const createObjectURL = vi.fn(() => "blob:recording");
-    const revokeObjectURL = vi.fn();
-    Object.assign(URL, { createObjectURL, revokeObjectURL });
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-
     render(<PlayFrame {...props()} />);
     expect(screen.queryByRole("button", { name: /download recording/i })).toBeNull();
 
@@ -188,11 +187,11 @@ describe("PlayFrame", () => {
     const button = screen.getByRole("button", { name: /download recording/i });
     fireEvent.click(button);
 
-    expect(createObjectURL).toHaveBeenCalledTimes(1);
-    expect(click).toHaveBeenCalledTimes(1);
-    const anchor = click.mock.contexts[0] as HTMLAnchorElement;
-    expect(anchor.download).toBe("_match.jamsrec");
-    expect(anchor.href).toBe("blob:recording");
+    expect(downloads.downloadBlob).toHaveBeenCalledTimes(1);
+    const [name, blob] = downloads.downloadBlob.mock.calls[0]!;
+    expect(name).toBe("_match.jamsrec");
+    expect(blob.type).toBe("application/json");
+    expect(blob.size).toBe(2);
   });
 
   it("ignores download offers when it offers no downloads", () => {

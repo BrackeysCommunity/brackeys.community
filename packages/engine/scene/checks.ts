@@ -228,7 +228,7 @@ function buildChecksSchemas(registry: Registry, strictScript: boolean, players?:
         expect: inputScriptSchemasFor(registry)
           .until.optional()
           .describe(
-            "Conditions that must all hold on the run's last tick, keyed as a script step's `until` (`event`, `tick`, `exists`, `count` and the game's predicates); the verdict names the first that fails.",
+            "Conditions that must all hold on the run's last tick, keyed as a script step's `until` (`event`, `tick`, `exists`, `count`, `near` and the game's predicates); the verdict names the first that fails.",
           ),
       })
       .describe(

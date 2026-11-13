@@ -115,6 +115,7 @@ describe("the content plan over the engine project", () => {
       "engine-yard",
       "kitchen-sink",
       "grid-yard",
+      "behavior-yard",
       "grid-annex",
     ]);
     expect(plan.scenes.find((s) => s.id === "grid-annex")?.sublevel).toBe(true);
@@ -142,6 +143,24 @@ describe("the content plan over the engine project", () => {
     }
     expect(sink.bundle.entries.length).toBeGreaterThan(0);
     expect(Object.keys(plan.assets)).toEqual(Object.keys(plan.assets).sort());
+  });
+
+  it("refuses a shipped atlas whose entry records no size once, at the blob", async () => {
+    const byId = new Map(input.view.byId);
+    const { bytes: _, ...sizeless } = byId.get("hero")!;
+    byId.set("hero", sizeless);
+    const content = await planContent({ ...input, view: { ...input.view, byId } });
+    expect(content.assets.hero).toBeUndefined();
+    expect(content.issues.filter((i) => i.code === "asset-missing")).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        entityIds: ["hero"],
+        got: "hero",
+        message: expect.stringContaining(
+          '"hero" (art/hero.json) ships, but its entry records no size',
+        ) as string,
+      }),
+    ]);
   });
 
   it("plans the engine project with no error, and a release that holds together", async () => {

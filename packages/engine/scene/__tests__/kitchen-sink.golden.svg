@@ -57,6 +57,17 @@
 <g data-ref="start" data-type="marker" class="spawn"><path d="M760 1140V1090.5L787 1101.75L760 1113" fill="#ffcc44" fill-opacity="0.85" stroke="#ffcc44" stroke-width="3.38"/><circle cx="760" cy="1140" r="6.75" fill="#ffcc44"/></g>
 <g data-ref="shelf-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1440" cy="680" r="11.25"/><path d="M1422 680H1458M1440 662V698"/></g>
 <g data-ref="wing-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="3220" cy="480" r="11.25"/><path d="M3202 480H3238M3220 462V498"/></g>
+<g data-ref="std-collider" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1470" cy="300" r="11.25"/><path d="M1452 300H1488M1470 282V318"/></g>
+<g data-ref="std-body" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1360" cy="260" r="11.25"/><path d="M1342 260H1378M1360 242V278"/></g>
+<g data-ref="std-side-view" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1420" cy="250" r="11.25"/><path d="M1402 250H1438M1420 232V268"/></g>
+<g data-ref="std-top-down" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1480" cy="260" r="11.25"/><path d="M1462 260H1498M1480 242V278"/></g>
+<g data-ref="std-player-input" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1540" cy="260" r="11.25"/><path d="M1522 260H1558M1540 242V278"/></g>
+<g data-ref="std-joint" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1650" cy="310" r="11.25"/><path d="M1632 310H1668M1650 292V328"/></g>
+<g data-ref="std-force-area" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1360" cy="160" r="11.25"/><path d="M1342 160H1378M1360 142V178"/></g>
+<g data-ref="std-path-follow" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1280" cy="100" r="11.25"/><path d="M1262 100H1298M1280 82V118"/></g>
+<g data-ref="std-spawner" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1560" cy="180" r="11.25"/><path d="M1542 180H1578M1560 162V198"/></g>
+<g data-ref="std-nav-agent" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1960" cy="500" r="11.25"/><path d="M1942 500H1978M1960 482V518"/></g>
+<g data-ref="std-camera-target" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1200" cy="600" r="11.25"/><path d="M1182 600H1218M1200 582V618"/></g>
 <g data-ref="post-1/cap" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1640" cy="1030" r="11.25"/><path d="M1622 1030H1658M1640 1012V1048"/></g>
 <g data-ref="post-2/cap" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1760" cy="1030" r="11.25"/><path d="M1742 1030H1778M1760 1012V1048"/></g>
 <g data-ref="room-1/lamp" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="2720" cy="700" r="11.25"/><path d="M2702 700H2738M2720 682V718"/></g>
@@ -137,6 +148,17 @@
 <text x="780.25" y="1119.75" font-size="24.75" text-anchor="start">start</text>
 <text x="1460.25" y="659.75" font-size="24.75" text-anchor="start">shelf-mark</text>
 <text x="3240.25" y="459.75" font-size="24.75" text-anchor="start">wing-mark</text>
+<text x="1490.25" y="279.75" font-size="24.75" text-anchor="start">std-collider</text>
+<text x="1380.25" y="239.75" font-size="24.75" text-anchor="start">std-body</text>
+<text x="1440.25" y="229.75" font-size="24.75" text-anchor="start">std-side-view</text>
+<text x="1500.25" y="239.75" font-size="24.75" text-anchor="start">std-top-down</text>
+<text x="1560.25" y="239.75" font-size="24.75" text-anchor="start">std-player-input</text>
+<text x="1670.25" y="289.75" font-size="24.75" text-anchor="start">std-joint</text>
+<text x="1380.25" y="139.75" font-size="24.75" text-anchor="start">std-force-area</text>
+<text x="1300.25" y="79.75" font-size="24.75" text-anchor="start">std-path-follow</text>
+<text x="1580.25" y="159.75" font-size="24.75" text-anchor="start">std-spawner</text>
+<text x="1980.25" y="479.75" font-size="24.75" text-anchor="start">std-nav-agent</text>
+<text x="1220.25" y="579.75" font-size="24.75" text-anchor="start">std-camera-target</text>
 <text x="1660.25" y="1009.75" font-size="24.75" text-anchor="start">post-1/cap</text>
 <text x="1780.25" y="1009.75" font-size="24.75" text-anchor="start">post-2/cap</text>
 <text x="2740.25" y="679.75" font-size="24.75" text-anchor="start">room-1/lamp</text>

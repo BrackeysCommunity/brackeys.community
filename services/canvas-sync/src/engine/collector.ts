@@ -35,6 +35,10 @@ import {
 import { writeAudit } from "../../../../src/lib/engine/release-audit.ts";
 import { engineProjectPrefixes, engineSaveKey } from "../../../../src/lib/engine/storage-keys.ts";
 import { formatBytes } from "../../../../src/lib/format-bytes.ts";
+import {
+  engineReleaseNoticePublisher,
+  type EngineReleaseNotice,
+} from "../../../../src/lib/image-quarantine.ts";
 import { readProjectState } from "../../../../src/lib/scene/project-bytes.ts";
 import type { ServiceTelemetry } from "../../../../src/lib/service-telemetry.ts";
 import type { CollectorObjectStore } from "./object-store.ts";
@@ -131,6 +135,13 @@ export function redisCollectorLock(
   };
 }
 
+/** Announces collected releases on Redis's release-notice channel, which every web process's frame cache hears. */
+export function redisReleaseNotice(client: {
+  publish(channel: string, message: string): Promise<unknown>;
+}): (notice: EngineReleaseNotice) => Promise<void> {
+  return engineReleaseNoticePublisher(client);
+}
+
 /**
  * Whether this deployment collects at all: not on production until hosted
  * games open there, as the web app's own guard says; lift both together.
@@ -165,6 +176,13 @@ export interface CollectorOptions {
    * already answers 410.
    */
   purge?: (releaseId: string) => Promise<unknown>;
+  /**
+   * Tells every web process's frame cache which releases this run collected,
+   * once, after their files are gone; `redisReleaseNotice` in production,
+   * nothing by default. Best effort: a cache that misses it reads the
+   * release again when its entry expires.
+   */
+  announce?: (notice: EngineReleaseNotice) => Promise<unknown>;
 }
 
 const HOUR_MS = 3_600_000;
@@ -472,6 +490,7 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
   const actions: CollectorAction[] = [];
   const totals = emptyTotals();
   const failures: { projectId: string; error: string }[] = [];
+  const collected: string[] = [];
   let touched = 0;
   let projects = 0;
   log(
@@ -527,6 +546,7 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
             log(`[collector] kept ${release.id}: it was pinned after the plan`);
             continue;
           }
+          collected.push(release.id);
           await purge(release.id).catch((error: unknown) => {
             log(`[collector] edge purge of ${release.id} failed: ${message(error)}`);
           });
@@ -779,6 +799,15 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
   }
 
   async function finish(): Promise<CollectorRun> {
+    if (collected.length > 0 && options.announce) {
+      try {
+        await options.announce({ releaseIds: collected, projectIds: [] });
+      } catch (error) {
+        log(
+          `[collector] release notice for ${collected.length} release(s) failed: ${message(error)}`,
+        );
+      }
+    }
     const end = clock();
     const summary = COLLECTOR_STEPS.map(
       (step) => `${step} ${totals[step].count} (${formatBytes(totals[step].bytes)})`,

@@ -1,0 +1,20 @@
+{
+  "v": 1,
+  "label": "Expose the runner's top speed as a parameter",
+  "ops": [
+    {
+      "op": "editScene",
+      "id": "runner",
+      "ops": [
+        {
+          "op": "exposeParam",
+          "name": "maxSpeed",
+          "param": {
+            "description": "Top running speed, m/s.",
+            "targets": ["hero.behaviors.character-side-view.maxSpeed"]
+          }
+        }
+      ]
+    }
+  ]
+}

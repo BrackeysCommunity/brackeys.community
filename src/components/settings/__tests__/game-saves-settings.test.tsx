@@ -16,7 +16,10 @@ const saves = vi.hoisted(() => ({
 const gate = vi.hoisted(() => ({ flag: true, allowed: true, signedIn: true }));
 const toasts = vi.hoisted(() => ({ success: vi.fn(), warning: vi.fn(), error: vi.fn() }));
 
+const downloads = vi.hoisted(() => ({ downloadBlob: vi.fn<(name: string, blob: Blob) => void>() }));
+
 vi.mock("@/lib/engine/save-store", () => saves);
+vi.mock("@/lib/download", () => downloads);
 vi.mock("@/lib/toast", () => ({ toast: Object.assign(vi.fn(), toasts) }));
 vi.mock("@/lib/hooks/use-flag", () => ({
   useFlag: (key: string) => key === "engine-games-enabled" && gate.flag,
@@ -170,8 +173,6 @@ describe("Settings → Game saves", () => {
   });
 
   it("says it's preparing the download while the saves load", async () => {
-    Object.assign(URL, { createObjectURL: () => "blob:saves", revokeObjectURL: vi.fn() });
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     let finish: () => void = () => {};
     const waiting = new Promise<void>((resolve) => (finish = resolve));
     saves.fetchSaveText.mockImplementation(async () => {
@@ -269,28 +270,18 @@ describe("Settings → Game saves", () => {
   });
 
   it("downloads a zip of the save texts named <game>/<slot>.save.json", async () => {
-    const blobs: Blob[] = [];
-    const create = vi.fn((blob: Blob) => {
-      blobs.push(blob);
-      return "blob:saves";
-    });
-    Object.assign(URL, { createObjectURL: create, revokeObjectURL: vi.fn() });
-    let downloaded = "";
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
-      function (this: HTMLAnchorElement) {
-        downloaded = this.download;
-      },
-    );
     const user = userEvent.setup();
     renderPane();
     await screen.findByText("Moon Miner");
 
     await user.click(screen.getByRole("button", { name: /download my saves/i }));
-    await waitFor(() => expect(blobs).toHaveLength(1));
-    expect(downloaded).toBe(SAVES_ZIP_NAME);
+    await waitFor(() => expect(downloads.downloadBlob).toHaveBeenCalledTimes(1));
+    const [name, zip] = downloads.downloadBlob.mock.calls[0]!;
+    expect(name).toBe(SAVES_ZIP_NAME);
+    expect(zip.type).toBe("application/zip");
     expect(saves.fetchSaveText).toHaveBeenCalledTimes(3);
 
-    const entries = unzipSync(await readBlob(blobs[0]!));
+    const entries = unzipSync(await readBlob(zip));
     const decoded = Object.fromEntries(
       Object.entries(entries).map(([path, bytes]) => [path, new TextDecoder().decode(bytes)]),
     );
@@ -303,12 +294,6 @@ describe("Settings → Game saves", () => {
   });
 
   it("a save that doesn't load is left out of the zip and named in the toast", async () => {
-    const blobs: Blob[] = [];
-    Object.assign(URL, {
-      createObjectURL: (blob: Blob) => (blobs.push(blob), "blob:saves"),
-      revokeObjectURL: vi.fn(),
-    });
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     saves.fetchSaveText.mockImplementation(async (projectId: string, slot: string) => {
       if (slot === "slot-2") throw new Error("network");
       return projectId === "tiny-tactics" ? null : "{}";
@@ -318,10 +303,9 @@ describe("Settings → Game saves", () => {
     await screen.findByText("Moon Miner");
 
     await user.click(screen.getByRole("button", { name: /download my saves/i }));
-    await waitFor(() => expect(blobs).toHaveLength(1));
-    expect(Object.keys(unzipSync(await readBlob(blobs[0]!)))).toEqual([
-      "moon-miner/auto.save.json",
-    ]);
+    await waitFor(() => expect(downloads.downloadBlob).toHaveBeenCalledTimes(1));
+    const [, zip] = downloads.downloadBlob.mock.calls[0]!;
+    expect(Object.keys(unzipSync(await readBlob(zip)))).toEqual(["moon-miner/auto.save.json"]);
     expect(toasts.warning).toHaveBeenCalledWith("Downloaded 1 of 3 saves. 2 didn't load.");
   });
 

@@ -1,0 +1,13 @@
+{
+  "label": "Give the crate a body the hero can push",
+  "ops": [
+    {
+      "op": "update",
+      "ref": "crate",
+      "set": {
+        "behaviors.collider": { "shape": ["box", 0, 0, 0.25, 0.25], "density": 0.5 },
+        "behaviors.body": { "kind": "dynamic", "fixedRotation": true }
+      }
+    }
+  ]
+}

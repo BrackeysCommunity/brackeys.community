@@ -14,7 +14,7 @@ import {
   DEFAULT_SAVE_LIMITS,
   MAX_BROWSER_SAVE_LIMITS,
   parseSaveFile,
-  SLOT_PATTERN,
+  SLOT_MAX_LENGTH,
 } from "@jams/engine/game";
 import { cleanup, render } from "@testing-library/react";
 import { createElement } from "react";
@@ -40,7 +40,8 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 const { HOST_NO_SITE_SAVES_MESSAGE, HOST_THROTTLED_MESSAGE } = await import("../host-server");
-const { prefsRefusal, SIGNED_OUT_SAVES_DESCRIBE, siteSaveRefusal } = await import("../local-saves");
+const { prefsRefusal, SIGNED_IN_SAVES_DESCRIBE, SIGNED_OUT_SAVES_DESCRIBE, siteSaveRefusal } =
+  await import("../local-saves");
 const { emptyTrashConfirm, publishWording, removalText, USAGE_FOOTER, usageView } =
   await import("@/components/game/publish-host");
 const { TermsDocument } = await import("@/components/legal/TermsDocument");
@@ -123,6 +124,7 @@ const ENGINE_CONSTANTS: Record<string, Constant> = {
   "ITCH_LIMITS.maxFiles": countOf(ITCH_LIMITS.maxFiles),
   "ITCH_LIMITS.maxTotalBytes": { kind: "bytes", text: decimalMb(ITCH_LIMITS.maxTotalBytes) },
   "ITCH_LIMITS.maxFileBytes": { kind: "bytes", text: decimalMb(ITCH_LIMITS.maxFileBytes) },
+  SLOT_MAX_LENGTH: countOf(SLOT_MAX_LENGTH),
 };
 
 /** Every number `save-api.ts` exports; the suite fails when one is missing here. */
@@ -161,6 +163,7 @@ const ENGINE_STATED = [
   "ITCH_LIMITS.maxFiles",
   "ITCH_LIMITS.maxTotalBytes",
   "ITCH_LIMITS.maxFileBytes",
+  "SLOT_MAX_LENGTH",
 ];
 
 // ─── Numbers in text ─────────────────────────────────────
@@ -371,12 +374,6 @@ const SAVE_API_MESSAGES: Record<string, () => ERRORS.ReleaseApiError[]> = {
 /** What `save-api.ts` exports besides its messages. */
 const SAVE_API_RULES = ["saveAccess", "saveWriteBucket"];
 
-/**
- * The slot length a slot refusal states. The engine keeps it only inside
- * `SLOT_PATTERN`, so the suite checks the phrase against the pattern.
- */
-const SLOT_LENGTH_PHRASE = "1–32 characters";
-
 const words = (m: { message: string; hint?: string }): string =>
   [m.message, m.hint ?? ""].join(" ");
 
@@ -496,9 +493,7 @@ async function sources(): Promise<Source[]> {
     {
       name: "the signed-in save menu",
       text: tidy(
-        [SAVE_API.SIGNED_IN_SAVES_DESCRIBE, SAVE_UNREACHABLE_MESSAGE, SAVE_FAILED_MESSAGE].join(
-          "\n",
-        ),
+        [SIGNED_IN_SAVES_DESCRIBE, SAVE_UNREACHABLE_MESSAGE, SAVE_FAILED_MESSAGE].join("\n"),
       ),
     },
     {
@@ -553,7 +548,6 @@ async function sources(): Promise<Source[]> {
           .join("\n"),
       ),
       given: givenOf(SAVE_API.SAVE_TITLE_MAX + 1),
-      prose: [SLOT_LENGTH_PHRASE],
     },
     {
       name: "engine-showcase.ts's messages",
@@ -790,6 +784,11 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
     source: "save-api.ts's messages",
     phrase: `${SITE.name} keeps titles of up to ${C("SAVE_TITLE_MAX")}.`,
   },
+  {
+    states: ["SLOT_MAX_LENGTH"],
+    source: "save-api.ts's messages",
+    phrase: `A slot is lowercase letters, digits and dashes, up to ${C("SLOT_MAX_LENGTH")} characters`,
+  },
   // Quota and release messages
   {
     states: ["PROJECT_QUOTA.releasesPerDay"],
@@ -854,12 +853,6 @@ const MESSAGE_FILES = [
   "src/components/games/SaveNotice.tsx",
 ];
 
-/** Numbers typed into a message on purpose, each checked against what it states. */
-const TYPED: { file: string; raw: string; why: string }[] = [
-  { file: "src/lib/engine/save-api.ts", raw: "1", why: SLOT_LENGTH_PHRASE },
-  { file: "src/lib/engine/save-api.ts", raw: "32", why: SLOT_LENGTH_PHRASE },
-];
-
 /** The literal parts of every string in a file that reads as a sentence. */
 function sentenceLiterals(path: string): { at: number; text: string }[] {
   const file = ts.createSourceFile(path, readRepo(path), ts.ScriptTarget.Latest, true);
@@ -900,14 +893,6 @@ describe("the wording suite", () => {
       .filter(([, value]) => typeof value === "number")
       .map(([name]) => name);
     expect(numbers.sort()).toEqual(Object.keys(SAVE_API_CONSTANTS).sort());
-  });
-
-  it("states the slot length the engine's slot pattern holds", () => {
-    const [shortest, longest] = SLOT_LENGTH_PHRASE.match(/\d+/g)!.map(Number);
-    expect(SLOT_PATTERN.test("a".repeat(shortest!))).toBe(true);
-    expect(SLOT_PATTERN.test("")).toBe(false);
-    expect(SLOT_PATTERN.test("a".repeat(longest!))).toBe(true);
-    expect(SLOT_PATTERN.test("a".repeat(longest! + 1))).toBe(false);
   });
 
   it("reads numbers as copy writes them, and flags one no constant has", () => {
@@ -1007,22 +992,15 @@ describe("the wording suite", () => {
 
   it("never types a number into a message: every one is interpolated", () => {
     const typed: string[] = [];
-    const used = new Set<(typeof TYPED)[number]>();
     for (const path of MESSAGE_FILES) {
       const literals = sentenceLiterals(path);
       expect(literals.length, `${path} has sentences`).toBeGreaterThan(0);
       for (const literal of literals) {
-        for (const token of tokens(literal.text)) {
-          const known = TYPED.find(
-            (t) => t.file === path && t.raw === token.raw && literal.text.includes(t.why),
-          );
-          if (known) used.add(known);
-          else typed.push(`${path}:${literal.at}: "${token.raw}"`);
-        }
+        for (const token of tokens(literal.text))
+          typed.push(`${path}:${literal.at}: "${token.raw}"`);
       }
     }
     expect(typed).toEqual([]);
-    expect(TYPED.filter((t) => !used.has(t))).toEqual([]);
   });
 
   it("names the abuse address for appeals in the terms", () => {

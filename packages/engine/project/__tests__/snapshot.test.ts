@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
@@ -56,10 +56,8 @@ const sinkDef = (): SceneDefinition => {
   return { ...parsed.def, entities: parsed.def.entities?.map(({ behaviors: _, ...e }) => e) };
 };
 /** Every prefab of the engine's home, which the kitchen sink reaches through instances, nesting and bases. */
-const PREFAB_IDS = readdirSync(new URL("prefabs/", scenes))
-  .filter((f) => f.endsWith(".json"))
-  .map((f) => f.slice(0, -".json".length))
-  .sort();
+/** The prefabs the kitchen sink reaches; the behavior yard's name art this synthetic project doesn't hold. */
+const PREFAB_IDS = ["doorway", "gate", "latch", "one-way-latch", "post", "room"];
 const prefabDef = (id: string): Prefab => {
   const parsed = parsePrefab(read(`prefabs/${id}.json`), registry);
   if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));

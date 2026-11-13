@@ -361,6 +361,7 @@ export async function serveHostSite(site: SmokeSite, dir: string): Promise<HostS
   const saveRoutes = createSaveRoutes({
     readSession,
     saves: { db: site.deps.db, store: site.store, rateLimit: async () => true },
+    gamesOpen: async () => true,
   });
   const server = await serveHandler(async (request) => {
     const saved = await saveRoutes(request);

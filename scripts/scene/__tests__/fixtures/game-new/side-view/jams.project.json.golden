@@ -1,0 +1,11 @@
+{
+  "$schema": "../../../packages/engine/project/project.schema.json",
+  "kind": "project",
+  "v": 1,
+  "id": "demo",
+  "name": "Demo",
+  "game": { "module": "./index.ts", "export": "demoGame" },
+  "ui": { "module": "./ui/index.ts", "export": "mountDemoHud" },
+  "assets": ["scenes/**", "game-settings.json", "input-map.json", "scene-list.json"],
+  "code": ["**/*.ts", "!**/__tests__/**"]
+}

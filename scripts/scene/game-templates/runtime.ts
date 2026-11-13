@@ -1,4 +1,4 @@
-import { importLine, type GameOptions } from ".";
+import { importLine, onBehaviors, type GameOptions } from ".";
 
 /** The lines every preset's runtime shares: finding the goals and the hero, its body, the goal check and the slice. */
 const SHARED = {
@@ -35,67 +35,58 @@ const SHARED = {
   ],
 };
 
-function topDownRuntime(): string {
-  const s = SHARED;
+/**
+ * A behavior preset's runtime: no movement code. The hero's `collider`,
+ * character, `player-input` and `camera-target` behaviors walk it and the
+ * camera follows; the game finds the goals and declares the win.
+ */
+function behaviorRuntime(): string {
   return [
-    `import type { Vec2 } from "@jams/engine";`,
-    `import {`,
-    `  createMotionBody,`,
-    `  createTopDownController,`,
-    `  SENSOR_ENTER,`,
-    `  type EngineContext,`,
-    `  type GameRuntime,`,
-    `  type MotionBody,`,
-    `  type TopDownController,`,
-    `} from "@jams/engine/game";`,
+    `import { SENSOR_ENTER, type EngineContext, type GameRuntime } from "@jams/engine/game";`,
     ``,
-    `import { GOAL_TAG, HERO, HERO_SIZE, REACHED, type Slice, type Snapshot } from "./types";`,
+    `import { GOAL_TAG, HERO, REACHED, type Slice, type Snapshot } from "./types";`,
     ``,
-    `/** The hero's top speed, m/s, and how fast it gets there and stops, m/s². */`,
-    `const TUNING = { maxSpeed: 3, accel: 20, decel: 16 };`,
-    ``,
-    `/** Steers the hero with \`move\` and raises \`REACHED\` when it enters a goal. */`,
+    `/** Raises \`REACHED\` when the hero enters a goal; the hero's behaviors move it. */`,
     `export function createRuntime(ctx: EngineContext): GameRuntime<Snapshot> {`,
-    `  let body: MotionBody | null = null;`,
-    `  let controller: TopDownController | null = null;`,
     `  let heroId: string | null = null;`,
     `  let goals = new Set<string>();`,
-    `  let intent: Vec2 = { x: 0, y: 0 };`,
+    `  let moving = false;`,
     `  let reached = false;`,
     `  let slice: Slice = { reached };`,
     ``,
     `  return {`,
     `    onLoad(scene) {`,
-    ...s.findGoals,
-    `      const [x, y] = start.at as [number, number];`,
-    ...s.makeBody,
-    `      body = createMotionBody(ctx, start, ctx.play?.at ?? { x, y }, { shape });`,
-    `      controller = createTopDownController(body, TUNING);`,
-    `      heroId = start.id;`,
+    `      goals = new Set(`,
+    `        scene.entities`,
+    `          .filter(`,
+    `            (e) => e.type === "sensor" && (e.tags as string[] | undefined)?.includes(GOAL_TAG),`,
+    `          )`,
+    `          .map((e) => e.id),`,
+    `      );`,
+    `      heroId = scene.entities.find((e) => e.type === HERO)?.id ?? null;`,
     `    },`,
     `    onUnload() {`,
-    `      body = null;`,
-    `      controller = null;`,
     `      heroId = null;`,
     `      goals.clear();`,
-    `      intent = { x: 0, y: 0 };`,
+    `      moving = false;`,
     `      reached = false;`,
     `    },`,
-    `    beforeStep(dtMs, actions) {`,
-    `      for (const a of actions) {`,
-    `        if (a.action === "move") intent = a.pressed ? { x: a.x ?? 0, y: a.y ?? 0 } : { x: 0, y: 0 };`,
-    `      }`,
-    `      controller?.step(dtMs, reached ? { x: 0, y: 0 } : intent);`,
+    `    beforeStep(_dtMs, actions) {`,
+    `      for (const a of actions) if (a.action === "move") moving = a.pressed;`,
     `    },`,
-    ...s.afterStep,
-    `    // An event clock keeps ticking while the hero moves.`,
+    ...SHARED.afterStep,
+    `    // An event clock keeps ticking while \`move\` is held or the hero still moves.`,
     `    busy() {`,
-    `      const v = controller?.velocity();`,
-    `      return intent.x !== 0 || intent.y !== 0 || (v !== undefined && (v.x !== 0 || v.y !== 0));`,
+    `      if (moving) return true;`,
+    `      if (heroId === null || !ctx.bodies.has(heroId)) return false;`,
+    `      const v = ctx.bodies.velocity(heroId);`,
+    `      return v.x !== 0 || v.y !== 0;`,
     `    },`,
-    `    cameraTarget: () => body?.position() ?? null,`,
-    `    snapshot: () => ({ at: body?.position() ?? null, reached }),`,
-    ...s.slice,
+    `    snapshot() {`,
+    `      const pose = heroId === null ? undefined : ctx.poses.get(heroId);`,
+    `      return { at: pose ? { x: pose.x, y: pose.y } : null, reached };`,
+    `    },`,
+    ...SHARED.slice,
     `  };`,
     `}`,
     ``,
@@ -247,5 +238,5 @@ function gridRuntime(options: GameOptions): string {
 
 /** `runtime.ts`: the game's per-scene state, per preset. */
 export function runtimeFile(options: GameOptions): string {
-  return options.preset === "top-down" ? topDownRuntime() : gridRuntime(options);
+  return onBehaviors(options) ? behaviorRuntime() : gridRuntime(options);
 }

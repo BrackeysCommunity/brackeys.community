@@ -8,6 +8,7 @@ import { SITE } from "@/lib/legal-meta";
 import { seedUser, type TestDb } from "@/test/db";
 
 import { SITE_SAVE_ACCOUNT_BYTES, SITE_SAVE_LIMITS } from "../limits";
+import { SIGNED_IN_SAVES_DESCRIBE } from "../local-saves";
 import type { Viewer } from "../release-access";
 import { ReleaseError } from "../release-errors";
 import { memoryReleaseStore } from "../release-storage";
@@ -20,7 +21,6 @@ import {
   removeSave,
   SAVE_READ_BUCKET,
   saveAccess,
-  SIGNED_IN_SAVES_DESCRIBE,
   type SaveApiDeps,
 } from "../save-api";
 import { engineSaveKey } from "../storage-keys";

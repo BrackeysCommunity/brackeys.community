@@ -1,0 +1,15 @@
+{
+  "label": "Make the spawn marker a playable side-view hero",
+  "ops": [
+    {
+      "op": "update",
+      "ref": "spawn",
+      "set": {
+        "behaviors.collider": { "shape": ["box", 0, 0, 0.2, 0.4] },
+        "behaviors.character-side-view": { "maxSpeed": 5, "jumpHeight": 1.2 },
+        "behaviors.player-input": { "seat": 0 },
+        "behaviors.camera-target": {}
+      }
+    }
+  ]
+}

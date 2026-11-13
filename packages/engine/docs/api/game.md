@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ACTION_KINDS`](#action_kinds) · [`ActionDef`](#actiondef) · [`ActionKind`](#actionkind) · [`AssetIdSchema`](#assetidschema) · [`AssetKindDef`](#assetkinddef) · [`Attachment`](#attachment) · [`AttachmentHub`](#attachmenthub) · [`BASE_FIELDS`](#base_fields) · [`BEHAVIOR_NAME_PATTERN`](#behavior_name_pattern) · [`BODY_SHAPE_TYPES`](#body_shape_types) · [`BasePrimitive`](#baseprimitive) · [`BehaviorBlock`](#behaviorblock) · [`BehaviorDef`](#behaviordef) · [`BehaviorName`](#behaviorname) · [`BehaviorRules`](#behaviorrules) · [`BehaviorSystem`](#behaviorsystem) · [`BehaviorSystemFactory`](#behaviorsystemfactory) · [`Binding`](#binding) · [`BindingContext`](#bindingcontext) · [`BindingProblem`](#bindingproblem) · [`BulkKeyInfo`](#bulkkeyinfo) · [`CHILD_REF_PATTERN`](#child_ref_pattern) · [`COMMAND_NAME_PATTERN`](#command_name_pattern) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`Cell`](#cell) · [`CellBounds`](#cellbounds) · [`CellKey`](#cellkey) · [`CharacterControllerOptions`](#charactercontrolleroptions) · [`CheckEnv`](#checkenv) · [`CheckKindDef`](#checkkinddef) · [`CheckVerdict`](#checkverdict) · [`ColliderTag`](#collidertag) · [`ColliderTags`](#collidertags) · [`CommandDef`](#commanddef) · [`ContactSelector`](#contactselector) · [`Contacts`](#contacts) · [`CoroutineYield`](#coroutineyield) · [`CreateRegistryOptions`](#createregistryoptions) · [`DEFAULT_GRAVITY`](#default_gravity) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_LENGTH_UNIT`](#default_length_unit) · [`DEFAULT_PHYSICS`](#default_physics) · [`DEFAULT_ROTATE_STEP`](#default_rotate_step) · [`DEFAULT_SAVE_LIMITS`](#default_save_limits) · [`DEFAULT_SPAWN_CAST`](#default_spawn_cast) · [`DEFAULT_TICK_RATE`](#default_tick_rate) · [`DEFAULT_TIME`](#default_time) · [`DRAW_LAYERS`](#draw_layers) · [`DataSystem`](#datasystem) · [`DecorEntity`](#decorentity) · [`Delay`](#delay) · [`DeviceId`](#deviceid) · [`DrawLayer`](#drawlayer) · [`ENGINE_CHECK_KINDS`](#engine_check_kinds) · [`ENGINE_COLLISION_GROUPS`](#engine_collision_groups) · [`ENGINE_COMMANDS`](#engine_commands) · [`ENGINE_PREDICATES`](#engine_predicates) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`ENGINE_RUN_RESULTS`](#engine_run_results) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EditorToolDef`](#editortooldef) · [`EngineCheckKind`](#enginecheckkind) · [`EngineCollisionGroup`](#enginecollisiongroup) · [`EngineContext`](#enginecontext) · [`EngineError`](#engineerror) · [`EngineRunResult`](#enginerunresult) · [`EngineToolId`](#enginetoolid) · [`EntityOf`](#entityof) · [`EntityQuery`](#entityquery) · [`EntitySelector`](#entityselector) · [`EntityTypeDef`](#entitytypedef) · [`EventBus`](#eventbus) · [`EventSubscribeOptions`](#eventsubscribeoptions) · [`FieldEnv`](#fieldenv) · [`FlowContext`](#flowcontext) · [`FlowField`](#flowfield) · [`FlowRequest`](#flowrequest) · [`FlowUse`](#flowuse) · [`FollowerOptions`](#followeroptions) · [`FollowerSystem`](#followersystem) · [`FrameRect`](#framerect) · [`GRID_STEP_SAVE_OWNER`](#grid_step_save_owner) · [`GameAttachment`](#gameattachment) · [`GameCommand`](#gamecommand) · [`GameDefinition`](#gamedefinition) · [`GameEditorDef`](#gameeditordef) · [`GameInputDef`](#gameinputdef) · [`GameKeyBinding`](#gamekeybinding) · [`GameOutcome`](#gameoutcome) · [`GamePersistDef`](#gamepersistdef) · [`GamePlayDef`](#gameplaydef) · [`GameRuntime`](#gameruntime) · [`GameSavesDef`](#gamesavesdef) · [`GameShell`](#gameshell) · [`GameTableDef`](#gametabledef) · [`GameWorldDef`](#gameworlddef) · [`GeometryColliderDesc`](#geometrycolliderdesc) · [`GeometryWorld`](#geometryworld) · [`GridFieldInfo`](#gridfieldinfo) · [`GridGeometry`](#gridgeometry) · [`GridPath`](#gridpath) · [`GridPathOptions`](#gridpathoptions) · [`GridPlace`](#gridplace) · [`GridSettings`](#gridsettings) · [`GridStepper`](#gridstepper) · [`ID_PATTERN`](#id_pattern) · [`InputState`](#inputstate) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstantiateOptions`](#instantiateoptions) · [`InstantiateResult`](#instantiateresult) · [`IssueCodeDef`](#issuecodedef) · [`JsonValue`](#jsonvalue) · [`KEY_CODES`](#key_codes) · [`KEY_TO_CODE`](#key_to_code) · [`LIFETIME`](#lifetime) · [`LibraryScene`](#libraryscene) · [`LifetimeBlock`](#lifetimeblock) · [`LoadFailureReason`](#loadfailurereason) · [`MAX_BROWSER_SAVE_LIMITS`](#max_browser_save_limits) · [`MAX_TICK_RATE`](#max_tick_rate) · [`MIN_TICK_RATE`](#min_tick_rate) · [`MOTION_SAVE_OWNER`](#motion_save_owner) · [`Macro`](#macro) · [`MacroRandom`](#macrorandom) · [`MarkerEntity`](#markerentity) · [`MarkerSystem`](#markersystem) · [`MaterialDef`](#materialdef) · [`MotionBody`](#motionbody) · [`MotionBodyOptions`](#motionbodyoptions) · [`MotionResult`](#motionresult) · [`NavEntity`](#naventity) · [`NavIssue`](#navissue) · [`NavMesh`](#navmesh) · [`NavPolygon`](#navpolygon) · [`NavSystem`](#navsystem) · [`OCCUPANT`](#occupant) · [`Occupancy`](#occupancy) · [`OccupantBlock`](#occupantblock) · [`PAD_AXES`](#pad_axes) · [`PAD_BUTTONS`](#pad_buttons) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`POINTER_BUTTONS`](#pointer_buttons) · [`PRIMITIVE_TYPES`](#primitive_types) · [`PadAxis`](#padaxis) · [`PadButton`](#padbutton) · [`ParseSaveResult`](#parsesaveresult) · [`PathSchema`](#pathschema) · [`PersistContext`](#persistcontext) · [`PhysicalCheck`](#physicalcheck) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicsRequiredError`](#physicsrequirederror) · [`PhysicsWorld`](#physicsworld) · [`PlacementCheck`](#placementcheck) · [`PlacementDraw`](#placementdraw) · [`PlacementGhost`](#placementghost) · [`PlacementTool`](#placementtool) · [`PlacementToolOptions`](#placementtooloptions) · [`PlayStart`](#playstart) · [`PlayState`](#playstate) · [`PlayWorld`](#playworld) · [`PlayerInfo`](#playerinfo) · [`PlayersDef`](#playersdef) · [`PointerButton`](#pointerbutton) · [`PointerKind`](#pointerkind) · [`PointerState`](#pointerstate) · [`Pool`](#pool) · [`Pose`](#pose) · [`PoseIndex`](#poseindex) · [`PrimitiveType`](#primitivetype) · [`ProjectMaterialDef`](#projectmaterialdef) · [`ProjectRuntimeView`](#projectruntimeview) · [`PtSchema`](#ptschema) · [`RUNTIME_ID_PATTERN`](#runtime_id_pattern) · [`RegisteredBehavior`](#registeredbehavior) · [`RegisteredType`](#registeredtype) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolvedTime`](#resolvedtime) · [`RunResult`](#runresult) · [`RuntimeGrid`](#runtimegrid) · [`RuntimeNav`](#runtimenav) · [`SAVE_RANDOM_KEY`](#save_random_key) · [`SAVE_SCHEMA_ID`](#save_schema_id) · [`SAVE_VERSION`](#save_version) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`SIDES`](#sides) · [`SIDE_VIEW_CONTROLLER`](#side_view_controller) · [`SLOT_PATTERN`](#slot_pattern) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SUBLEVEL_ID_PATTERN`](#sublevel_id_pattern) · [`SaveDepth`](#savedepth) · [`SaveFile`](#savefile) · [`SaveGameData`](#savegamedata) · [`SaveLimits`](#savelimits) · [`SaveLimitsStore`](#savelimitsstore) · [`SaveMeta`](#savemeta) · [`SaveRequest`](#saverequest) · [`SavedSystems`](#savedsystems) · [`SavedTimer`](#savedtimer) · [`SavesContext`](#savescontext) · [`SceneLayerDef`](#scenelayerdef) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`SceneSystem`](#scenesystem) · [`SceneTemplate`](#scenetemplate) · [`SceneValidator`](#scenevalidator) · [`SceneView`](#sceneview) · [`ScriptPredicate`](#scriptpredicate) · [`SensorSystem`](#sensorsystem) · [`Side`](#side) · [`SolidOptions`](#solidoptions) · [`SolidSystem`](#solidsystem) · [`SpaceCastHit`](#spacecasthit) · [`SpaceFilter`](#spacefilter) · [`SpaceHit`](#spacehit) · [`SpaceQuery`](#spacequery) · [`SpawnInput`](#spawninput) · [`SpawnShape`](#spawnshape) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`Style`](#style) · [`SublevelInfo`](#sublevelinfo) · [`SublevelOptions`](#subleveloptions) · [`SublevelResult`](#sublevelresult) · [`SystemFactory`](#systemfactory) · [`TOOL_PRIORITY`](#tool_priority) · [`TOP_DOWN_CONTROLLER`](#top_down_controller) · [`TimeKind`](#timekind) · [`TimeModel`](#timemodel) · [`TimerAction`](#timeraction) · [`Timers`](#timers) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TopDownController`](#topdowncontroller) · [`TopDownOptions`](#topdownoptions) · [`TransitionSpec`](#transitionspec) · [`ViewLayer`](#viewlayer) · [`ViewLayerHandle`](#viewlayerhandle) · [`VisualOptions`](#visualoptions) · [`WaypointMode`](#waypointmode) · [`WaypointState`](#waypointstate) · [`WorldState`](#worldstate) · [`advanceWaypoint`](#advancewaypoint) · [`angleField`](#anglefield) · [`assetField`](#assetfield) · [`assetKindsOf`](#assetkindsof) · [`bindingKeyLabel`](#bindingkeylabel) · [`bindingProblems`](#bindingproblems) · [`bodyLocalShape`](#bodylocalshape) · [`bodyShapeField`](#bodyshapefield) · [`boundsCells`](#boundscells) · [`buildNavMesh`](#buildnavmesh) · [`carrierDelta`](#carrierdelta) · [`cellKey`](#cellkey-1) · [`cellOf`](#cellof) · [`clamp`](#clamp) · [`clampVec2`](#clampvec2) · [`createDataSystem`](#createdatasystem) · [`createDecorSystem`](#createdecorsystem) · [`createFollowerSystem`](#createfollowersystem) · [`createGridStepper`](#creategridstepper) · [`createMarkerSystem`](#createmarkersystem) · [`createMotionBody`](#createmotionbody) · [`createNavSystem`](#createnavsystem) · [`createOccupancy`](#createoccupancy) · [`createPlacementTool`](#createplacementtool) · [`createPool`](#createpool) · [`createPropSystem`](#createpropsystem) · [`createRegistry`](#createregistry) · [`createSensorCollider`](#createsensorcollider) · [`createSensorSystem`](#createsensorsystem) · [`createSolidSystem`](#createsolidsystem) · [`createTopDownController`](#createtopdowncontroller) · [`declaredBindings`](#declaredbindings) · [`defineBehavior`](#definebehavior) · [`defineEntityType`](#defineentitytype) · [`defineGame`](#definegame) · [`degToRad`](#degtorad) · [`distanceVec2`](#distancevec2) · [`drawEntity`](#drawentity) · [`drawShape`](#drawshape) · [`effectiveSaveLimits`](#effectivesavelimits) · [`fieldOfView`](#fieldofview) · [`findPath`](#findpath) · [`flowField`](#flowfield-1) · [`flowIssue`](#flowissue) · [`formatSaveFile`](#formatsavefile) · [`gridField`](#gridfield) · [`gridFieldInfo`](#gridfieldinfo-1) · [`gridGeometry`](#gridgeometry-1) · [`gridMissingIssue`](#gridmissingissue) · [`gridPlace`](#gridplace-1) · [`gridRoute`](#gridroute) · [`inCellBounds`](#incellbounds) · [`initialWaypointState`](#initialwaypointstate) · [`interpolatePosition`](#interpolateposition) · [`isNavSystem`](#isnavsystem) · [`isPolygonField`](#ispolygonfield) · [`isRuntimeId`](#isruntimeid) · [`isUiAction`](#isuiaction) · [`keycapLabel`](#keycaplabel) · [`keysProblems`](#keysproblems) · [`lengthUnitOf`](#lengthunitof) · [`lerp`](#lerp) · [`lerpVec2`](#lerpvec2) · [`lineOfSight`](#lineofsight) · [`materialField`](#materialfield) · [`mirrorField`](#mirrorfield) · [`navContains`](#navcontains) · [`navNearest`](#navnearest) · [`navPath`](#navpath) · [`parseRuntimeId`](#parseruntimeid) · [`parseSaveFile`](#parsesavefile) · [`parseSublevelId`](#parsesublevelid) · [`physicsOf`](#physicsof) · [`playersProblems`](#playersproblems) · [`pointField`](#pointfield) · [`pointerBit`](#pointerbit) · [`pointerButtonLabel`](#pointerbuttonlabel) · [`polygonField`](#polygonfield) · [`posedBodyDesc`](#posedbodydesc) · [`primitiveFields`](#primitivefields) · [`pxPerMetreOf`](#pxpermetreof) · [`refField`](#reffield) · [`resolveTime`](#resolvetime) · [`runtimeId`](#runtimeid) · [`sameCell`](#samecell) · [`saveFileBytes`](#savefilebytes) · [`saveFileSchema`](#savefileschema) · [`scaleLengths`](#scalelengths) · [`sceneGrid`](#scenegrid) · [`shapeColliderDesc`](#shapecolliderdesc) · [`shapeField`](#shapefield) · [`shapePose`](#shapepose) · [`sideField`](#sidefield) · [`spawnPose`](#spawnpose) · [`spriteGeometry`](#spritegeometry-1) · [`styleOf`](#styleof) · [`sublevelId`](#sublevelid) · [`tagsField`](#tagsfield) · [`tickRateProblem`](#tickrateproblem) · [`ticksFor`](#ticksfor) · [`traceShape`](#traceshape) · [`vectorField`](#vectorfield) · [`withProject`](#withproject)
+[`ACTION_KINDS`](#action_kinds) · [`ActionDef`](#actiondef) · [`ActionKind`](#actionkind) · [`AssetIdSchema`](#assetidschema) · [`AssetKindDef`](#assetkinddef) · [`Attachment`](#attachment) · [`AttachmentHub`](#attachmenthub) · [`BASE_FIELDS`](#base_fields) · [`BEHAVIOR_NAME_PATTERN`](#behavior_name_pattern) · [`BODY`](#body) · [`BODY_KINDS`](#body_kinds) · [`BODY_SHAPE_TYPES`](#body_shape_types) · [`BasePrimitive`](#baseprimitive) · [`BehaviorBlock`](#behaviorblock) · [`BehaviorDef`](#behaviordef) · [`BehaviorName`](#behaviorname) · [`BehaviorRules`](#behaviorrules) · [`BehaviorSystem`](#behaviorsystem) · [`BehaviorSystemFactory`](#behaviorsystemfactory) · [`Binding`](#binding) · [`BindingContext`](#bindingcontext) · [`BindingProblem`](#bindingproblem) · [`BodyBlock`](#bodyblock) · [`BodyControl`](#bodycontrol) · [`BodyEntry`](#bodyentry) · [`BodyKind`](#bodykind) · [`BulkKeyInfo`](#bulkkeyinfo) · [`CAMERA_TARGET`](#camera_target) · [`CHARACTER_JUMPED`](#character_jumped) · [`CHARACTER_LANDED`](#character_landed) · [`CHARACTER_LEFT_GROUND`](#character_left_ground) · [`CHARACTER_SIDE_VIEW`](#character_side_view) · [`CHARACTER_TOP_DOWN`](#character_top_down) · [`CHILD_REF_PATTERN`](#child_ref_pattern) · [`COLLIDER`](#collider) · [`COMMAND_NAME_PATTERN`](#command_name_pattern) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraTargetBlock`](#cameratargetblock) · [`Cell`](#cell) · [`CellBounds`](#cellbounds) · [`CellKey`](#cellkey) · [`CharacterControllerOptions`](#charactercontrolleroptions) · [`CharacterIntent`](#characterintent) · [`CharacterSideViewBlock`](#charactersideviewblock) · [`CharacterSystem`](#charactersystem) · [`CharacterTopDownBlock`](#charactertopdownblock) · [`CheckEnv`](#checkenv) · [`CheckKindDef`](#checkkinddef) · [`CheckVerdict`](#checkverdict) · [`ColliderBlock`](#colliderblock) · [`ColliderSystem`](#collidersystem) · [`ColliderTag`](#collidertag) · [`ColliderTags`](#collidertags) · [`CommandDef`](#commanddef) · [`ContactSelector`](#contactselector) · [`Contacts`](#contacts) · [`CoroutineYield`](#coroutineyield) · [`CreateRegistryOptions`](#createregistryoptions) · [`DEFAULT_ACTIONS`](#default_actions) · [`DEFAULT_GRAVITY`](#default_gravity) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_LENGTH_UNIT`](#default_length_unit) · [`DEFAULT_PHYSICS`](#default_physics) · [`DEFAULT_ROTATE_STEP`](#default_rotate_step) · [`DEFAULT_SAVE_LIMITS`](#default_save_limits) · [`DEFAULT_SPAWN_CAST`](#default_spawn_cast) · [`DEFAULT_TICK_RATE`](#default_tick_rate) · [`DEFAULT_TIME`](#default_time) · [`DRAW_LAYERS`](#draw_layers) · [`DataSystem`](#datasystem) · [`DecorEntity`](#decorentity) · [`Delay`](#delay) · [`DeviceId`](#deviceid) · [`DrawLayer`](#drawlayer) · [`ENGINE_CHECK_KINDS`](#engine_check_kinds) · [`ENGINE_COLLISION_GROUPS`](#engine_collision_groups) · [`ENGINE_COMMANDS`](#engine_commands) · [`ENGINE_PREDICATES`](#engine_predicates) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`ENGINE_RUN_RESULTS`](#engine_run_results) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EditorToolDef`](#editortooldef) · [`EngineCheckKind`](#enginecheckkind) · [`EngineCollisionGroup`](#enginecollisiongroup) · [`EngineContext`](#enginecontext) · [`EngineError`](#engineerror) · [`EngineRunResult`](#enginerunresult) · [`EngineToolId`](#enginetoolid) · [`EntityOf`](#entityof) · [`EntityQuery`](#entityquery) · [`EntitySelector`](#entityselector) · [`EntityTypeDef`](#entitytypedef) · [`EventBus`](#eventbus) · [`EventSubscribeOptions`](#eventsubscribeoptions) · [`FORCE_AREA`](#force_area) · [`FieldEnv`](#fieldenv) · [`FlowContext`](#flowcontext) · [`FlowField`](#flowfield) · [`FlowRequest`](#flowrequest) · [`FlowUse`](#flowuse) · [`FollowerOptions`](#followeroptions) · [`FollowerSystem`](#followersystem) · [`ForceAreaBlock`](#forceareablock) · [`ForceAreaSystem`](#forceareasystem) · [`FrameRect`](#framerect) · [`GRID_STEP_SAVE_OWNER`](#grid_step_save_owner) · [`GameAttachment`](#gameattachment) · [`GameCommand`](#gamecommand) · [`GameDefinition`](#gamedefinition) · [`GameEditorDef`](#gameeditordef) · [`GameInputDef`](#gameinputdef) · [`GameKeyBinding`](#gamekeybinding) · [`GameOutcome`](#gameoutcome) · [`GamePersistDef`](#gamepersistdef) · [`GamePlayDef`](#gameplaydef) · [`GameRuntime`](#gameruntime) · [`GameSavesDef`](#gamesavesdef) · [`GameShell`](#gameshell) · [`GameTableDef`](#gametabledef) · [`GameWorldDef`](#gameworlddef) · [`GeometryColliderDesc`](#geometrycolliderdesc) · [`GeometryWorld`](#geometryworld) · [`GridFieldInfo`](#gridfieldinfo) · [`GridGeometry`](#gridgeometry) · [`GridPath`](#gridpath) · [`GridPathOptions`](#gridpathoptions) · [`GridPlace`](#gridplace) · [`GridSettings`](#gridsettings) · [`GridStepper`](#gridstepper) · [`ID_PATTERN`](#id_pattern) · [`InputState`](#inputstate) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstantiateOptions`](#instantiateoptions) · [`InstantiateResult`](#instantiateresult) · [`IssueCodeDef`](#issuecodedef) · [`JOINT`](#joint) · [`JOINT_KINDS`](#joint_kinds) · [`JointBlock`](#jointblock) · [`JointKind`](#jointkind) · [`JointSystem`](#jointsystem) · [`JsonValue`](#jsonvalue) · [`KEY_CODES`](#key_codes) · [`KEY_TO_CODE`](#key_to_code) · [`LIFETIME`](#lifetime) · [`LibraryScene`](#libraryscene) · [`LifetimeBlock`](#lifetimeblock) · [`LoadFailureReason`](#loadfailurereason) · [`MAX_BROWSER_SAVE_LIMITS`](#max_browser_save_limits) · [`MAX_TICK_RATE`](#max_tick_rate) · [`MIN_TICK_RATE`](#min_tick_rate) · [`MOTION_SAVE_OWNER`](#motion_save_owner) · [`Macro`](#macro) · [`MacroRandom`](#macrorandom) · [`MarkerEntity`](#markerentity) · [`MarkerSystem`](#markersystem) · [`MaterialDef`](#materialdef) · [`MotionBody`](#motionbody) · [`MotionBodyOptions`](#motionbodyoptions) · [`MotionResult`](#motionresult) · [`NAV_AGENT`](#nav_agent) · [`NAV_ARRIVED`](#nav_arrived) · [`NAV_BLOCKED`](#nav_blocked) · [`NavAgentBlock`](#navagentblock) · [`NavAgentSystem`](#navagentsystem) · [`NavEntity`](#naventity) · [`NavIssue`](#navissue) · [`NavMesh`](#navmesh) · [`NavPolygon`](#navpolygon) · [`NavSystem`](#navsystem) · [`OCCUPANT`](#occupant) · [`Occupancy`](#occupancy) · [`OccupantBlock`](#occupantblock) · [`OverlapTracker`](#overlaptracker) · [`Overlaps`](#overlaps) · [`PAD_AXES`](#pad_axes) · [`PAD_BUTTONS`](#pad_buttons) · [`PATH_FOLLOW`](#path_follow) · [`PLAYER_INPUT`](#player_input) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`POINTER_BUTTONS`](#pointer_buttons) · [`PRIMITIVE_TYPES`](#primitive_types) · [`PadAxis`](#padaxis) · [`PadButton`](#padbutton) · [`ParseSaveResult`](#parsesaveresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathFollowBlock`](#pathfollowblock) · [`PathFollowSystem`](#pathfollowsystem) · [`PathPlace`](#pathplace) · [`PathSchema`](#pathschema) · [`PersistContext`](#persistcontext) · [`PhysicalCheck`](#physicalcheck) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicsRequiredError`](#physicsrequirederror) · [`PhysicsWorld`](#physicsworld) · [`PlacementCheck`](#placementcheck) · [`PlacementDraw`](#placementdraw) · [`PlacementGhost`](#placementghost) · [`PlacementTool`](#placementtool) · [`PlacementToolOptions`](#placementtooloptions) · [`PlayStart`](#playstart) · [`PlayState`](#playstate) · [`PlayWorld`](#playworld) · [`PlayerInfo`](#playerinfo) · [`PlayerInputBlock`](#playerinputblock) · [`PlayerInputSystem`](#playerinputsystem) · [`PlayersDef`](#playersdef) · [`PointerButton`](#pointerbutton) · [`PointerKind`](#pointerkind) · [`PointerState`](#pointerstate) · [`Pool`](#pool) · [`Pose`](#pose) · [`PoseIndex`](#poseindex) · [`PrimitiveType`](#primitivetype) · [`ProjectMaterialDef`](#projectmaterialdef) · [`ProjectRuntimeView`](#projectruntimeview) · [`PtSchema`](#ptschema) · [`RUNTIME_ID_PATTERN`](#runtime_id_pattern) · [`RegisteredBehavior`](#registeredbehavior) · [`RegisteredType`](#registeredtype) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolvedTime`](#resolvedtime) · [`RunResult`](#runresult) · [`RuntimeGrid`](#runtimegrid) · [`RuntimeNav`](#runtimenav) · [`SAVE_RANDOM_KEY`](#save_random_key) · [`SAVE_SCHEMA_ID`](#save_schema_id) · [`SAVE_VERSION`](#save_version) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`SIDES`](#sides) · [`SIDE_VIEW_CONTROLLER`](#side_view_controller) · [`SLOT_MAX_LENGTH`](#slot_max_length) · [`SLOT_PATTERN`](#slot_pattern) · [`SPAWNER`](#spawner) · [`SPAWNER_SPAWNED`](#spawner_spawned) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SUBLEVEL_ID_PATTERN`](#sublevel_id_pattern) · [`SaveDepth`](#savedepth) · [`SaveFile`](#savefile) · [`SaveGameData`](#savegamedata) · [`SaveLimits`](#savelimits) · [`SaveLimitsStore`](#savelimitsstore) · [`SaveMeta`](#savemeta) · [`SaveRequest`](#saverequest) · [`SavedSystems`](#savedsystems) · [`SavedTimer`](#savedtimer) · [`SavesContext`](#savescontext) · [`SceneLayerDef`](#scenelayerdef) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`SceneSystem`](#scenesystem) · [`SceneTemplate`](#scenetemplate) · [`SceneValidator`](#scenevalidator) · [`SceneView`](#sceneview) · [`ScriptPredicate`](#scriptpredicate) · [`SeatInput`](#seatinput) · [`SensorSystem`](#sensorsystem) · [`Side`](#side) · [`SideViewController`](#sideviewcontroller) · [`SideViewEnv`](#sideviewenv) · [`SideViewIntent`](#sideviewintent) · [`SideViewOptions`](#sideviewoptions) · [`SideViewResult`](#sideviewresult) · [`SolidOptions`](#solidoptions) · [`SolidSystem`](#solidsystem) · [`SpaceCastHit`](#spacecasthit) · [`SpaceFilter`](#spacefilter) · [`SpaceHit`](#spacehit) · [`SpaceQuery`](#spacequery) · [`SpawnInput`](#spawninput) · [`SpawnShape`](#spawnshape) · [`SpawnerBlock`](#spawnerblock) · [`SpawnerSystem`](#spawnersystem) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`Style`](#style) · [`SublevelInfo`](#sublevelinfo) · [`SublevelOptions`](#subleveloptions) · [`SublevelResult`](#sublevelresult) · [`SystemFactory`](#systemfactory) · [`TOOL_PRIORITY`](#tool_priority) · [`TOP_DOWN_CONTROLLER`](#top_down_controller) · [`TimeKind`](#timekind) · [`TimeModel`](#timemodel) · [`TimerAction`](#timeraction) · [`Timers`](#timers) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TopDownController`](#topdowncontroller) · [`TopDownOptions`](#topdownoptions) · [`TransitionSpec`](#transitionspec) · [`ViewLayer`](#viewlayer) · [`ViewLayerHandle`](#viewlayerhandle) · [`VisualOptions`](#visualoptions) · [`WaypointMode`](#waypointmode) · [`WaypointState`](#waypointstate) · [`WorldState`](#worldstate) · [`advanceAlongPath`](#advancealongpath) · [`advanceWaypoint`](#advancewaypoint) · [`angleField`](#anglefield) · [`assetField`](#assetfield) · [`assetKindsOf`](#assetkindsof) · [`bindingKeyLabel`](#bindingkeylabel) · [`bindingProblems`](#bindingproblems) · [`bodyLocalShape`](#bodylocalshape) · [`bodyShapeField`](#bodyshapefield) · [`boundsCells`](#boundscells) · [`buildNavMesh`](#buildnavmesh) · [`carrierDelta`](#carrierdelta) · [`cellKey`](#cellkey-1) · [`cellOf`](#cellof) · [`clamp`](#clamp) · [`clampVec2`](#clampvec2) · [`composePose`](#composepose) · [`createDataSystem`](#createdatasystem) · [`createDecorSystem`](#createdecorsystem) · [`createFollowerSystem`](#createfollowersystem) · [`createGridStepper`](#creategridstepper) · [`createMarkerSystem`](#createmarkersystem) · [`createMotionBody`](#createmotionbody) · [`createNavSystem`](#createnavsystem) · [`createOccupancy`](#createoccupancy) · [`createOverlapTracker`](#createoverlaptracker) · [`createPlacementTool`](#createplacementtool) · [`createPool`](#createpool) · [`createPropSystem`](#createpropsystem) · [`createRegistry`](#createregistry) · [`createSensorCollider`](#createsensorcollider) · [`createSensorSystem`](#createsensorsystem) · [`createSideViewController`](#createsideviewcontroller) · [`createSolidSystem`](#createsolidsystem) · [`createTopDownController`](#createtopdowncontroller) · [`declaredBindings`](#declaredbindings) · [`defineBehavior`](#definebehavior) · [`defineEntityType`](#defineentitytype) · [`defineGame`](#definegame) · [`degToRad`](#degtorad) · [`distanceVec2`](#distancevec2) · [`drawEntity`](#drawentity) · [`drawShape`](#drawshape) · [`effectiveSaveLimits`](#effectivesavelimits) · [`fieldOfView`](#fieldofview) · [`findPath`](#findpath) · [`flowField`](#flowfield-1) · [`flowIssue`](#flowissue) · [`formatSaveFile`](#formatsavefile) · [`gridField`](#gridfield) · [`gridFieldInfo`](#gridfieldinfo-1) · [`gridGeometry`](#gridgeometry-1) · [`gridMissingIssue`](#gridmissingissue) · [`gridPlace`](#gridplace-1) · [`gridRoute`](#gridroute) · [`inCellBounds`](#incellbounds) · [`initialWaypointState`](#initialwaypointstate) · [`inputFor`](#inputfor) · [`interpolatePosition`](#interpolateposition) · [`isNavSystem`](#isnavsystem) · [`isPolygonField`](#ispolygonfield) · [`isRuntimeId`](#isruntimeid) · [`isUiAction`](#isuiaction) · [`keycapLabel`](#keycaplabel) · [`keysProblems`](#keysproblems) · [`kinematicBodyEntry`](#kinematicbodyentry) · [`lengthUnitOf`](#lengthunitof) · [`lerp`](#lerp) · [`lerpVec2`](#lerpvec2) · [`lineOfSight`](#lineofsight) · [`materialField`](#materialfield) · [`mirrorField`](#mirrorfield) · [`navContains`](#navcontains) · [`navNearest`](#navnearest) · [`navPath`](#navpath) · [`oneWayPasses`](#onewaypasses) · [`parseRuntimeId`](#parseruntimeid) · [`parseSaveFile`](#parsesavefile) · [`parseShape`](#parseshape) · [`parseSublevelId`](#parsesublevelid) · [`pathPosition`](#pathposition) · [`pathWaypoints`](#pathwaypoints) · [`physicsOf`](#physicsof) · [`playersProblems`](#playersproblems) · [`pointField`](#pointfield) · [`pointerBit`](#pointerbit) · [`pointerButtonLabel`](#pointerbuttonlabel) · [`polygonField`](#polygonfield) · [`posedBodyDesc`](#posedbodydesc) · [`primitiveFields`](#primitivefields) · [`pxPerMetreOf`](#pxpermetreof) · [`rapierBodyEntry`](#rapierbodyentry) · [`readPathPlace`](#readpathplace) · [`refField`](#reffield) · [`registerBody`](#registerbody) · [`relativePose`](#relativepose) · [`resolveTime`](#resolvetime) · [`restoreOverlaps`](#restoreoverlaps) · [`runtimeId`](#runtimeid) · [`sameCell`](#samecell) · [`saveFileBytes`](#savefilebytes) · [`saveFileSchema`](#savefileschema) · [`saveOverlaps`](#saveoverlaps) · [`savePathPlace`](#savepathplace) · [`scaleLengths`](#scalelengths) · [`sceneGrid`](#scenegrid) · [`seekAlongPath`](#seekalongpath) · [`shapeColliderDesc`](#shapecolliderdesc) · [`shapeField`](#shapefield) · [`shapePose`](#shapepose) · [`sideField`](#sidefield) · [`spawnPose`](#spawnpose) · [`spriteGeometry`](#spritegeometry-1) · [`styleOf`](#styleof) · [`sublevelId`](#sublevelid) · [`tagsField`](#tagsfield) · [`tickRateProblem`](#tickrateproblem) · [`ticksFor`](#ticksfor) · [`traceShape`](#traceshape) · [`vectorField`](#vectorfield) · [`wholeTicksIn`](#wholeticksin) · [`withProject`](#withproject)
 
 ## `ACTION_KINDS`
 
@@ -129,6 +129,41 @@ _const_ in `game/behaviors.ts`
 declare const BEHAVIOR_NAME_PATTERN: RegExp;
 ```
 
+## `BODY`
+
+_const_ in `game/behaviors/body.ts`
+
+```ts
+declare const BODY: BehaviorDef<{
+    angularDamping: z.ZodOptional<z.ZodNumber>;
+    ccd: z.ZodOptional<z.ZodBoolean>;
+    fixedRotation: z.ZodOptional<z.ZodBoolean>;
+    gravityScale: z.ZodOptional<z.ZodNumber>;
+    kind: z.ZodDefault<z.ZodEnum<{
+        dynamic: "dynamic";
+        kinematic: "kinematic";
+        static: "static";
+    }>>;
+    linearDamping: z.ZodOptional<z.ZodNumber>;
+}>;
+```
+
+Refers to [`BehaviorDef`](#behaviordef).
+
+## `BODY_KINDS`
+
+_const_ in `game/behaviors/body.ts`
+
+What moves a body: forces and contacts, code alone, or nothing.
+
+```ts
+declare const BODY_KINDS: readonly [
+    "dynamic",
+    "kinematic",
+    "static"
+];
+```
+
 ## `BODY_SHAPE_TYPES`
 
 _const_ in `game/fields.ts`
@@ -167,6 +202,8 @@ _type_ in `game/behaviors.ts`
 
 ```ts
 type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
+    /** Behaviors the same entity must not also carry; `behavior-conflict` otherwise. */
+    conflicts?: readonly BehaviorName[];
     /** One sentence for the JSON Schema, `codes`, `show` and the inspector. */
     description: string;
     /** The block's fields; a function when one depends on the registry or the project (an asset enum). */
@@ -238,6 +275,13 @@ interface BehaviorSystem<B extends BehaviorBlock = BehaviorBlock> {
     detach(entityId: string): void;
     /** The block changed; without it the host detaches and attaches. */
     update?(entityId: string, block: B, prev: B, entity: RuntimeEntity): void;
+    /** Each tick, after the game's `beforeStep`, before the type systems' `beforePhysics`. */
+    beforeStep?(dtMs: number): void;
+    /**
+     * Each tick, after the type systems' `beforePhysics`, before the physics
+     * step; without physics, right after the behaviors' `beforeStep`.
+     */
+    beforePhysics?(): void;
     /** Each tick, after the type systems' `afterStep`, before the game's. */
     step?(dtMs: number): void;
     /** Each rendered frame, after `view.frame`; only for visual behaviors, never headless. */
@@ -342,6 +386,81 @@ type BindingProblem = {
 };
 ```
 
+## `BodyBlock`
+
+_type_ in `game/behaviors/body.ts`
+
+A `body` block as an entity carries it, defaults applied.
+
+```ts
+type BodyBlock = z.infer<z.ZodObject<typeof bodyFields>>;
+```
+
+## `BodyControl`
+
+_interface_ in `game/types.ts`
+
+Every owner of a body registers it here by entity id. An id with no body
+throws `EngineError` `body-missing`; a force, torque or impulse on a
+kinematic or static body, a velocity write on a static body or a follower
+(its path sets its velocity), and an angular velocity write on a kinematic
+body throw `body-not-dynamic`. A static or kinematic body's mass is
+Infinity. With `world.physics: "none"` only kinematic bodies exist.
+
+```ts
+interface BodyControl {
+    has(id: string): boolean;
+    kind(id: string): "dynamic" | "kinematic" | "static" | null;
+    velocity(id: string): Vec2;
+    setVelocity(id: string, v: Vec2): void;
+    angularVelocity(id: string): number;
+    setAngularVelocity(id: string, w: number): void;
+    /** Applied once, at the centre of mass or at a world point. */
+    applyImpulse(id: string, impulse: Vec2, at?: Vec2): void;
+    /** Held for this tick's physics step only; call it each tick to sustain it. */
+    applyForce(id: string, force: Vec2, at?: Vec2): void;
+    applyTorque(id: string, torque: number): void;
+    mass(id: string): number;
+    wake(id: string): void;
+}
+```
+
+## `BodyEntry`
+
+_type_ in `runtime/bodies-control.ts`
+
+What a body's owner hands `ctx.bodies` when it registers the body. Only a
+dynamic entry is ever asked for an impulse, a force or a torque.
+
+```ts
+type BodyEntry = {
+    /** Held until `resetForces`. */
+    addForce(force: Vec2, at?: Vec2): void;
+    addTorque(torque: number): void;
+    /** rad/s. */
+    angularVelocity(): number;
+    applyImpulse(impulse: Vec2, at?: Vec2): void;
+    mass(): number;
+    readonly kind: BodyKind;
+    resetForces(): void;
+    setAngularVelocity(w: number): void;
+    setVelocity(v: Vec2): void;
+    /** m/s. */
+    velocity(): Vec2;
+    wake(): void;
+};
+```
+
+## `BodyKind`
+
+_type_ in `game/behaviors/body.ts`
+
+```ts
+type BodyKind = (typeof BODY_KINDS)[number];
+```
+
+Refers to [`BODY_KINDS`](#body_kinds).
+
 ## `BulkKeyInfo`
 
 _type_ in `game/types.ts`
@@ -357,6 +476,92 @@ type BulkKeyInfo = {
 };
 ```
 
+## `CAMERA_TARGET`
+
+_const_ in `game/behaviors/camera-target.ts`
+
+```ts
+declare const CAMERA_TARGET: BehaviorDef<{
+    seat: z.ZodOptional<z.ZodNumber>;
+    weight: z.ZodDefault<z.ZodNumber>;
+}>;
+```
+
+Refers to [`BehaviorDef`](#behaviordef).
+
+## `CHARACTER_JUMPED`
+
+_const_ in `runtime/types.ts`
+
+A character's jump started, on the ground or in coyote time.
+
+```ts
+declare const CHARACTER_JUMPED = "character:jumped";
+```
+
+## `CHARACTER_LANDED`
+
+_const_ in `runtime/types.ts`
+
+A character landed: `entityId` the character, `other` what it landed on.
+
+```ts
+declare const CHARACTER_LANDED = "character:landed";
+```
+
+## `CHARACTER_LEFT_GROUND`
+
+_const_ in `runtime/types.ts`
+
+A character left the ground, by a jump, a launch or a ledge.
+
+```ts
+declare const CHARACTER_LEFT_GROUND = "character:left-ground";
+```
+
+## `CHARACTER_SIDE_VIEW`
+
+_const_ in `game/behaviors/character-side-view.ts`
+
+```ts
+declare const CHARACTER_SIDE_VIEW: BehaviorDef<{
+    accel: z.ZodDefault<z.ZodNumber>;
+    airControl: z.ZodDefault<z.ZodNumber>;
+    coyoteMs: z.ZodDefault<z.ZodNumber>;
+    decel: z.ZodDefault<z.ZodNumber>;
+    gravityScale: z.ZodDefault<z.ZodNumber>;
+    jump: z.ZodDefault<z.ZodString>;
+    jumpBufferMs: z.ZodDefault<z.ZodNumber>;
+    jumpCut: z.ZodDefault<z.ZodNumber>;
+    jumpHeight: z.ZodDefault<z.ZodNumber>;
+    maxFallSpeed: z.ZodDefault<z.ZodNumber>;
+    maxSlopeDeg: z.ZodDefault<z.ZodNumber>;
+    maxSpeed: z.ZodDefault<z.ZodNumber>;
+    move: z.ZodDefault<z.ZodString>;
+    pushDynamic: z.ZodDefault<z.ZodBoolean>;
+    snapToGround: z.ZodDefault<z.ZodNumber>;
+    stepHeight: z.ZodDefault<z.ZodNumber>;
+}>;
+```
+
+Refers to [`BehaviorDef`](#behaviordef).
+
+## `CHARACTER_TOP_DOWN`
+
+_const_ in `game/behaviors/character-top-down.ts`
+
+```ts
+declare const CHARACTER_TOP_DOWN: BehaviorDef<{
+    accel: z.ZodDefault<z.ZodNumber>;
+    decel: z.ZodDefault<z.ZodNumber>;
+    maxSpeed: z.ZodDefault<z.ZodNumber>;
+    move: z.ZodDefault<z.ZodString>;
+    pushDynamic: z.ZodDefault<z.ZodBoolean>;
+}>;
+```
+
+Refers to [`BehaviorDef`](#behaviordef).
+
 ## `CHILD_REF_PATTERN`
 
 _const_ in `game/fields.ts`
@@ -366,6 +571,26 @@ An id, or `<instance>/<child>` at any depth: what a reference field may name.
 ```ts
 declare const CHILD_REF_PATTERN: RegExp;
 ```
+
+## `COLLIDER`
+
+_const_ in `game/behaviors/collider.ts`
+
+```ts
+declare const COLLIDER: BehaviorDef<{
+    density: z.ZodDefault<z.ZodNumber>;
+    friction: z.ZodOptional<z.ZodNumber>;
+    group: z.ZodOptional<z.ZodString>;
+    material: z.ZodOptional<z.ZodEnum<{
+        [x: string]: string;
+    }>> | z.ZodOptional<z.ZodNever>;
+    restitution: z.ZodOptional<z.ZodNumber>;
+    sensor: z.ZodDefault<z.ZodBoolean>;
+    shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
+}>;
+```
+
+Refers to [`BehaviorDef`](#behaviordef).
 
 ## `COMMAND_NAME_PATTERN`
 
@@ -393,6 +618,16 @@ A watched pair started touching: `entityId` the watched side, `other` the other,
 
 ```ts
 declare const CONTACT_START = "contact:start";
+```
+
+## `CameraTargetBlock`
+
+_type_ in `game/behaviors/camera-target.ts`
+
+A `camera-target` block as an entity carries it, defaults applied.
+
+```ts
+type CameraTargetBlock = z.infer<z.ZodObject<typeof cameraTargetFields>>;
 ```
 
 ## `Cell`
@@ -459,6 +694,62 @@ type CharacterControllerOptions = {
 };
 ```
 
+## `CharacterIntent`
+
+_type_ in `game/behaviors/character-top-down.ts`
+
+What a character is asked to do this tick when no seat drives it.
+
+```ts
+type CharacterIntent = {
+    /** Side view: held to jump, released early for a lower one. */
+    jump?: boolean;
+    /** Unit disc; a side-view character reads only `x`. */
+    move: Vec2;
+};
+```
+
+## `CharacterSideViewBlock`
+
+_type_ in `game/behaviors/character-side-view.ts`
+
+A `character-side-view` block as an entity carries it, defaults applied.
+
+```ts
+type CharacterSideViewBlock = z.infer<z.ZodObject<typeof characterSideViewFields>>;
+```
+
+## `CharacterSystem`
+
+_type_ in `game/behaviors/character-top-down.ts`
+
+Both character behaviors' systems.
+
+```ts
+type CharacterSystem<B extends BehaviorBlock = BehaviorBlock> = BehaviorSystem<B> & {
+    /** Standing on something; a top-down character always is. */
+    grounded(entityId: string): boolean;
+    /** Sets its velocity at once, m/s: a bounce pad, a knockback. */
+    launch(entityId: string, velocity: Vec2): void;
+    /** Drives an entity that carries no `player-input`, from this tick until the next call. */
+    setIntent(entityId: string, intent: CharacterIntent): void;
+    /** m/s. */
+    velocity(entityId: string): Vec2;
+};
+```
+
+Refers to [`BehaviorBlock`](#behaviorblock), [`BehaviorSystem`](#behaviorsystem), [`CharacterIntent`](#characterintent).
+
+## `CharacterTopDownBlock`
+
+_type_ in `game/behaviors/character-top-down.ts`
+
+A `character-top-down` block as an entity carries it, defaults applied.
+
+```ts
+type CharacterTopDownBlock = z.infer<z.ZodObject<typeof characterTopDownFields>>;
+```
+
 ## `CheckEnv`
 
 _type_ in `game/types.ts`
@@ -510,6 +801,34 @@ type CheckVerdict = {
     pass: boolean;
 };
 ```
+
+## `ColliderBlock`
+
+_type_ in `game/behaviors/collider.ts`
+
+A `collider` block as an entity carries it, defaults applied.
+
+```ts
+type ColliderBlock = z.infer<z.ZodObject<ReturnType<typeof colliderFields>>>;
+```
+
+## `ColliderSystem`
+
+_type_ in `game/behaviors/collider.ts`
+
+The `collider` behavior's system. It owns the entity's physics body and
+collider for its `collider` and `body` blocks both.
+
+```ts
+type ColliderSystem = BehaviorSystem<ColliderBlock> & {
+    /** Whether `entityId` carries an attached collider. */
+    has(entityId: string): boolean;
+    /** Builds the entity's body and collider again from its current blocks. */
+    rebuild(entityId: string): void;
+};
+```
+
+Refers to [`BehaviorSystem`](#behaviorsystem), [`ColliderBlock`](#colliderblock).
 
 ## `ColliderTag`
 
@@ -639,6 +958,20 @@ type CreateRegistryOptions = {
 ```
 
 Refers to [`FieldEnv`](#fieldenv), [`ProjectMaterialDef`](#projectmaterialdef).
+
+## `DEFAULT_ACTIONS`
+
+_const_ in `game/defaults.ts`
+
+The actions a registry built without a game has, so the standard
+behaviors can be played in a project with no game module. A game's own
+`actions` replace them.
+
+```ts
+declare const DEFAULT_ACTIONS: readonly ActionDef[];
+```
+
+Refers to [`ActionDef`](#actiondef).
 
 ## `DEFAULT_GRAVITY`
 
@@ -857,6 +1190,7 @@ declare const ENGINE_PREDICATES: readonly [
     "tick",
     "exists",
     "count",
+    "near",
     "scene",
     "persist"
 ];
@@ -1043,11 +1377,14 @@ type EngineContext = {
     /**
      * Seeded at each load from `PlayOptions.seed`, else from the game's and
      * the scene's names; `fork(label)` gives a system its own stream. Engine
-     * systems and behaviors never draw from it.
+     * systems and behaviors never draw from it, except the `spawner`
+     * behavior, which takes a fork per entity.
      */
     random: Rng;
     /** Null while the loaded scene runs without physics; `physicsOf` reads both or throws. */
     rapier: RapierModule | null;
+    /** Moves bodies by entity id, whichever system owns them. */
+    readonly bodies: BodyControl;
     /** Present when the loaded scene's resolved settings have a grid. */
     readonly grid: RuntimeGrid | null;
     /** Present when the loaded scene has walk areas. */
@@ -1099,7 +1436,7 @@ type EngineContext = {
 };
 ```
 
-Refers to [`AttachmentHub`](#attachmenthub), [`BehaviorName`](#behaviorname), [`BehaviorSystem`](#behaviorsystem), [`ColliderTags`](#collidertags), [`Contacts`](#contacts), [`EntityQuery`](#entityquery), [`EventBus`](#eventbus), [`FlowContext`](#flowcontext), [`GeometryWorld`](#geometryworld), [`InputState`](#inputstate), [`InstantiateOptions`](#instantiateoptions), [`InstantiateResult`](#instantiateresult), [`PersistContext`](#persistcontext), [`PhysicsWorld`](#physicsworld), [`PlayStart`](#playstart), [`PoseIndex`](#poseindex), [`ProjectRuntimeView`](#projectruntimeview), [`Registry`](#registry), [`ResolvedTime`](#resolvedtime), [`RuntimeGrid`](#runtimegrid), [`RuntimeNav`](#runtimenav), [`SavesContext`](#savescontext), [`SceneSystem`](#scenesystem), [`SceneView`](#sceneview), [`SpaceQuery`](#spacequery), [`SpawnInput`](#spawninput), [`StepEvent`](#stepevent), [`Timers`](#timers).
+Refers to [`AttachmentHub`](#attachmenthub), [`BehaviorName`](#behaviorname), [`BehaviorSystem`](#behaviorsystem), [`BodyControl`](#bodycontrol), [`ColliderTags`](#collidertags), [`Contacts`](#contacts), [`EntityQuery`](#entityquery), [`EventBus`](#eventbus), [`FlowContext`](#flowcontext), [`GeometryWorld`](#geometryworld), [`InputState`](#inputstate), [`InstantiateOptions`](#instantiateoptions), [`InstantiateResult`](#instantiateresult), [`PersistContext`](#persistcontext), [`PhysicsWorld`](#physicsworld), [`PlayStart`](#playstart), [`PoseIndex`](#poseindex), [`ProjectRuntimeView`](#projectruntimeview), [`Registry`](#registry), [`ResolvedTime`](#resolvedtime), [`RuntimeGrid`](#runtimegrid), [`RuntimeNav`](#runtimenav), [`SavesContext`](#savescontext), [`SceneSystem`](#scenesystem), [`SceneView`](#sceneview), [`SpaceQuery`](#spacequery), [`SpawnInput`](#spawninput), [`StepEvent`](#stepevent), [`Timers`](#timers).
 
 ## `EngineError`
 
@@ -1296,6 +1633,36 @@ type EventSubscribeOptions = {
 };
 ```
 
+## `FORCE_AREA`
+
+_const_ in `game/behaviors/force-area.ts`
+
+```ts
+declare const FORCE_AREA: BehaviorDef<{
+    affects: z.ZodOptional<z.ZodObject<{
+        groups: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        tags: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    }, z.core.$strict>>;
+    drag: z.ZodDefault<z.ZodNumber>;
+    falloff: z.ZodDefault<z.ZodEnum<{
+        "inverse-square": "inverse-square";
+        linear: "linear";
+        none: "none";
+    }>>;
+    force: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    kind: z.ZodDefault<z.ZodEnum<{
+        directional: "directional";
+        point: "point";
+    }>>;
+    strength: z.ZodOptional<z.ZodNumber>;
+}>;
+```
+
+Refers to [`BehaviorDef`](#behaviordef).
+
 ## `FieldEnv`
 
 _type_ in `game/types.ts`
@@ -1417,6 +1784,29 @@ type FollowerSystem = SceneSystem<FollowerEntity> & {
 ```
 
 Refers to [`SceneSystem`](#scenesystem).
+
+## `ForceAreaBlock`
+
+_type_ in `game/behaviors/force-area.ts`
+
+A `force-area` block as an entity carries it, defaults applied.
+
+```ts
+type ForceAreaBlock = z.infer<z.ZodObject<typeof forceAreaFields>>;
+```
+
+## `ForceAreaSystem`
+
+_type_ in `game/behaviors/force-area.ts`
+
+```ts
+type ForceAreaSystem = BehaviorSystem<ForceAreaBlock> & {
+    /** The summed acceleration every area containing `point` gives, m/s²: what a kinematic controller adds. */
+    sample(point: Vec2): Vec2;
+};
+```
+
+Refers to [`BehaviorSystem`](#behaviorsystem), [`ForceAreaBlock`](#forceareablock).
 
 ## `FrameRect`
 
@@ -2113,6 +2503,89 @@ _type_ in `game/types.ts`
 type IssueCodeDef = IssueCodeInfo;
 ```
 
+## `JOINT`
+
+_const_ in `game/behaviors/joint.ts`
+
+```ts
+declare const JOINT: BehaviorDef<{
+    anchorA: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    anchorB: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    axis: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    collide: z.ZodDefault<z.ZodBoolean>;
+    damping: z.ZodOptional<z.ZodNumber>;
+    kind: z.ZodEnum<{
+        prismatic: "prismatic";
+        revolute: "revolute";
+        rope: "rope";
+        spring: "spring";
+        weld: "weld";
+    }>;
+    length: z.ZodOptional<z.ZodNumber>;
+    limits: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    motor: z.ZodOptional<z.ZodObject<{
+        maxForce: z.ZodNumber;
+        velocity: z.ZodNumber;
+    }, z.core.$strict>>;
+    stiffness: z.ZodOptional<z.ZodNumber>;
+    to: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+}>;
+```
+
+Refers to [`BehaviorDef`](#behaviordef).
+
+## `JOINT_KINDS`
+
+_const_ in `game/behaviors/joint.ts`
+
+Rapier's joint constructors, by what they do.
+
+```ts
+declare const JOINT_KINDS: readonly [
+    "revolute",
+    "prismatic",
+    "rope",
+    "weld",
+    "spring"
+];
+```
+
+## `JointBlock`
+
+_type_ in `game/behaviors/joint.ts`
+
+A `joint` block as an entity carries it, defaults applied.
+
+```ts
+type JointBlock = z.infer<z.ZodObject<typeof jointFields>>;
+```
+
+## `JointKind`
+
+_type_ in `game/behaviors/joint.ts`
+
+```ts
+type JointKind = (typeof JOINT_KINDS)[number];
+```
+
+Refers to [`JOINT_KINDS`](#joint_kinds).
+
+## `JointSystem`
+
+_type_ in `game/behaviors/joint.ts`
+
+```ts
+type JointSystem = BehaviorSystem<JointBlock> & {
+    /** Whether the entity's joint exists now: both bodies are live and enabled. */
+    joined(entityId: string): boolean;
+};
+```
+
+Refers to [`BehaviorSystem`](#behaviorsystem), [`JointBlock`](#jointblock).
+
 ## `JsonValue`
 
 _type_ in `game/types.ts`
@@ -2375,6 +2848,73 @@ type MotionResult = {
 
 Refers to [`SpaceCastHit`](#spacecasthit).
 
+## `NAV_AGENT`
+
+_const_ in `game/behaviors/nav-agent.ts`
+
+```ts
+declare const NAV_AGENT: BehaviorDef<{
+    arrive: z.ZodDefault<z.ZodNumber>;
+    radius: z.ZodDefault<z.ZodNumber>;
+    repathTicks: z.ZodDefault<z.ZodNumber>;
+    separation: z.ZodDefault<z.ZodNumber>;
+    speed: z.ZodDefault<z.ZodNumber>;
+    to: z.ZodOptional<z.ZodUnion<readonly [
+        z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>,
+        z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>
+    ]>>;
+}>;
+```
+
+Refers to [`BehaviorDef`](#behaviordef).
+
+## `NAV_ARRIVED`
+
+_const_ in `runtime/types.ts`
+
+A nav agent reached its destination: `entityId` the agent, `other` the entity it followed.
+
+```ts
+declare const NAV_ARRIVED = "nav:arrived";
+```
+
+## `NAV_BLOCKED`
+
+_const_ in `runtime/types.ts`
+
+A nav agent gave up: `data.reason` is `no-path`, `stuck` or `gone`.
+
+```ts
+declare const NAV_BLOCKED = "nav:blocked";
+```
+
+## `NavAgentBlock`
+
+_type_ in `game/behaviors/nav-agent.ts`
+
+A `nav-agent` block as an entity carries it, defaults applied.
+
+```ts
+type NavAgentBlock = z.infer<z.ZodObject<typeof navAgentFields>>;
+```
+
+## `NavAgentSystem`
+
+_type_ in `game/behaviors/nav-agent.ts`
+
+```ts
+type NavAgentSystem = BehaviorSystem<NavAgentBlock> & {
+    /** The waypoints left on its route, world m; null with no destination. */
+    path(entityId: string): null | readonly Vec2[];
+    /** Walks to a point, world m, or follows an entity by id; raises nav:arrived or nav:blocked. */
+    setDestination(entityId: string, to: Vec2 | string): void;
+    /** Stops where it is and forgets its destination. */
+    stop(entityId: string): void;
+};
+```
+
+Refers to [`BehaviorSystem`](#behaviorsystem), [`NavAgentBlock`](#navagentblock).
+
 ## `NavEntity`
 
 _type_ in `systems/nav.ts`
@@ -2498,6 +3038,35 @@ An `occupant` block as an entity carries it.
 type OccupantBlock = z.infer<z.ZodObject<typeof occupantFields>>;
 ```
 
+## `OverlapTracker`
+
+_type_ in `systems/bodies.ts`
+
+Raises a sensor's `sensor:enter` and `sensor:exit` from what overlapped it before and now.
+
+```ts
+type OverlapTracker = {
+    /**
+     * Enter for each handle in `now` and not `before`, then exit for each in
+     * `before` and not `now`, each at `at(handle)`, with the handle's entity
+     * as `other`.
+     */
+    diff(id: string, before: Overlaps, now: Overlaps, at: (handle: number) => Vec2): void;
+};
+```
+
+Refers to [`Overlaps`](#overlaps).
+
+## `Overlaps`
+
+_type_ in `systems/bodies.ts`
+
+Overlapping collider handle → the entity id its tag names.
+
+```ts
+type Overlaps = Map<number, string | undefined>;
+```
+
 ## `PAD_AXES`
 
 _const_ in `game/input-codes.ts`
@@ -2540,6 +3109,41 @@ declare const PAD_BUTTONS: readonly [
     "home"
 ];
 ```
+
+## `PATH_FOLLOW`
+
+_const_ in `game/behaviors/path-follow.ts`
+
+```ts
+declare const PATH_FOLLOW: BehaviorDef<{
+    path: z.ZodObject<{
+        mode: z.ZodEnum<{
+            loop: "loop";
+            ping_pong: "ping_pong";
+        }>;
+        pauseMs: z.ZodOptional<z.ZodNumber>;
+        pts: z.ZodArray<z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>>;
+        speed: z.ZodNumber;
+    }, z.core.$strict>;
+}>;
+```
+
+Refers to [`BehaviorDef`](#behaviordef).
+
+## `PLAYER_INPUT`
+
+_const_ in `game/behaviors/player-input.ts`
+
+```ts
+declare const PLAYER_INPUT: BehaviorDef<{
+    seat: z.ZodDefault<z.ZodNumber>;
+}>;
+```
+
+Refers to [`BehaviorDef`](#behaviordef).
 
 ## `PLAYER_JOINED`
 
@@ -2633,6 +3237,61 @@ type ParseSaveResult = {
 ```
 
 Refers to [`SaveFile`](#savefile).
+
+## `ParseShapeResult`
+
+_type_ in `scene/shapes.ts`
+
+```ts
+type ParseShapeResult = {
+    issue: SceneIssue;
+    ok: false;
+} | {
+    ok: true;
+    shape: ShapeObj;
+};
+```
+
+## `PathFollowBlock`
+
+_type_ in `game/behaviors/path-follow.ts`
+
+A `path-follow` block as an entity carries it.
+
+```ts
+type PathFollowBlock = z.infer<z.ZodObject<typeof pathFollowFields>>;
+```
+
+## `PathFollowSystem`
+
+_type_ in `game/behaviors/path-follow.ts`
+
+```ts
+type PathFollowSystem = BehaviorSystem<PathFollowBlock> & {
+    /** How far the entity's body moved in the last beforeStep, for carrying riders; null when this behavior moves no body of it. */
+    frameDelta(entityId: string): Vec2 | null;
+    /** Where the entity is on its path now, world m; null for one not attached. */
+    position(entityId: string): Vec2 | null;
+};
+```
+
+Refers to [`BehaviorSystem`](#behaviorsystem), [`PathFollowBlock`](#pathfollowblock).
+
+## `PathPlace`
+
+_type_ in `systems/path-follower.ts`
+
+Where something is on its path: the waypoint clock, where it was after the last advance, and how far that advance moved it.
+
+```ts
+type PathPlace = {
+    frameDelta: Vec2;
+    prevPos: Vec2;
+    state: WaypointState;
+};
+```
+
+Refers to [`WaypointState`](#waypointstate).
 
 ## `PathSchema`
 
@@ -2936,6 +3595,8 @@ type PlayWorld = {
     }): boolean;
     /** A live entity (`EngineContext.get`); absent as `select` is. */
     get?(id: string): RuntimeEntity | undefined;
+    /** A live entity's pose after the tick (`EngineContext.poses`); absent as `select` is. */
+    pose?(id: string): Readonly<Pose> | undefined;
     /** The loaded scene's grid (`EngineContext.grid`), null without one; absent as `select` is. */
     readonly grid?: RuntimeGrid | null;
     /** The run's project view (`EngineContext.project`), null without one; absent as `select` is. */
@@ -2945,7 +3606,7 @@ type PlayWorld = {
 };
 ```
 
-Refers to [`EntitySelector`](#entityselector), [`ProjectRuntimeView`](#projectruntimeview), [`RuntimeGrid`](#runtimegrid).
+Refers to [`EntitySelector`](#entityselector), [`Pose`](#pose), [`ProjectRuntimeView`](#projectruntimeview), [`RuntimeGrid`](#runtimegrid).
 
 ## `PlayerInfo`
 
@@ -2962,6 +3623,37 @@ type PlayerInfo = {
 ```
 
 Refers to [`DeviceId`](#deviceid).
+
+## `PlayerInputBlock`
+
+_type_ in `game/behaviors/player-input.ts`
+
+A `player-input` block as an entity carries it, defaults applied.
+
+```ts
+type PlayerInputBlock = z.infer<z.ZodObject<typeof playerInputFields>>;
+```
+
+## `PlayerInputSystem`
+
+_interface_ in `game/input-for.ts`
+
+The `player-input` behavior's system, as `ctx.behavior("player-input")` gives it.
+
+```ts
+interface PlayerInputSystem extends BehaviorSystem<PlayerInputBlock> {
+    /** The seat the entity's block names, joined or not; null when it carries none. */
+    seatOf(entityId: string): null | number;
+    /**
+     * The entity's view, made once per attached entity, reading its seat at
+     * each call: nothing held while the seat hasn't joined. Undefined when the
+     * entity carries no `player-input`.
+     */
+    inputFor(entityId: string): SeatInput | undefined;
+}
+```
+
+Refers to [`BehaviorSystem`](#behaviorsystem), [`PlayerInputBlock`](#playerinputblock), [`SeatInput`](#seatinput).
 
 ## `PlayersDef`
 
@@ -3411,14 +4103,57 @@ declare const SIDE_VIEW_CONTROLLER: CharacterControllerOptions;
 
 Refers to [`CharacterControllerOptions`](#charactercontrolleroptions).
 
+## `SLOT_MAX_LENGTH`
+
+_const_ in `game/save-file.ts`
+
+The longest slot name, in characters.
+
+```ts
+declare const SLOT_MAX_LENGTH = 32;
+```
+
 ## `SLOT_PATTERN`
 
 _const_ in `game/save-file.ts`
 
-A slot name: lowercase letters, digits and dashes, 1–32 characters, starting with a letter or digit.
+A slot name: lowercase letters, digits and dashes, 1–`SLOT_MAX_LENGTH` characters, starting with a letter or digit.
 
 ```ts
 declare const SLOT_PATTERN: RegExp;
+```
+
+## `SPAWNER`
+
+_const_ in `game/behaviors/spawner.ts`
+
+```ts
+declare const SPAWNER: BehaviorDef<{
+    active: z.ZodDefault<z.ZodBoolean>;
+    burst: z.ZodDefault<z.ZodNumber>;
+    cap: z.ZodDefault<z.ZodNumber>;
+    lifeMs: z.ZodOptional<z.ZodNumber>;
+    prefab: z.ZodOptional<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
+    rate: z.ZodDefault<z.ZodNumber>;
+    spread: z.ZodDefault<z.ZodNumber>;
+    type: z.ZodOptional<z.ZodString>;
+    velocity: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+}>;
+```
+
+Refers to [`BehaviorDef`](#behaviordef).
+
+## `SPAWNER_SPAWNED`
+
+_const_ in `runtime/types.ts`
+
+A spawner made a spawn: `entityId` the spawner, `other` and `data.id` the new id, `at` where it appeared.
+
+```ts
+declare const SPAWNER_SPAWNED = "spawner:spawned";
 ```
 
 ## `SPRITE`
@@ -3884,6 +4619,29 @@ type ScriptPredicate<S = unknown> = {
 
 Refers to [`PlayState`](#playstate).
 
+## `SeatInput`
+
+_type_ in `game/input-for.ts`
+
+One seat's input this tick, as `ctx.input` gives it for that seat.
+
+```ts
+type SeatInput = {
+    held(action: string): boolean;
+    pointer(): PointerState | null;
+    /** Went down this tick. */
+    pressed(action: string): boolean;
+    /** The seat read, or null when the entity carries no `player-input` or its seat hasn't joined. */
+    readonly seat: null | number;
+    released(action: string): boolean;
+    /** An axis's value, or 0/1 for a button. */
+    value(action: string): number;
+    vector(action: string): Vec2;
+};
+```
+
+Refers to [`PointerState`](#pointerstate).
+
 ## `SensorSystem`
 
 _type_ in `systems/bodies.ts`
@@ -3907,6 +4665,108 @@ A side of an entity; it turns and flips with instance transforms.
 ```ts
 type Side = "down" | "left" | "right" | "up";
 ```
+
+## `SideViewController`
+
+_interface_ in `motion/side-view.ts`
+
+```ts
+interface SideViewController {
+    velocity(): Vec2;
+    grounded(): boolean;
+    step(dtMs: number, intent: SideViewIntent, env?: SideViewEnv): SideViewResult;
+    /** Sets the velocity and leaves the ground, as a jump would without spending one. */
+    launch(v: Vec2): void;
+    save(): JsonValue;
+    restore(state: JsonValue): void;
+    /** Drops it from world saves; the body is the caller's to destroy. */
+    destroy(): void;
+}
+```
+
+Refers to [`JsonValue`](#jsonvalue), [`SideViewEnv`](#sideviewenv), [`SideViewIntent`](#sideviewintent), [`SideViewResult`](#sideviewresult).
+
+## `SideViewEnv`
+
+_type_ in `motion/side-view.ts`
+
+```ts
+type SideViewEnv = {
+    /** An outside acceleration this tick (a force area's), m/s². */
+    accel?: Vec2;
+    /** What it stands on moved by this much this tick, m. */
+    carrier?: Vec2;
+};
+```
+
+## `SideViewIntent`
+
+_type_ in `motion/side-view.ts`
+
+```ts
+type SideViewIntent = {
+    /** Pressed this tick. */
+    jump: boolean;
+    /** Held this tick; releasing it while rising cuts the jump. */
+    jumpHeld: boolean;
+    /** −1 to 1; a larger one is clamped. */
+    move: number;
+};
+```
+
+## `SideViewOptions`
+
+_type_ in `motion/side-view.ts`
+
+```ts
+type SideViewOptions = Pick<MotionBodyOptions, "group" | "shape"> & {
+    /** m/s² toward the intended speed. */
+    accel: number;
+    /** The share of `accel` and `decel` it has in the air, 0–1. */
+    airControl: number;
+    /** How long after leaving the ground a jump still works, ms. */
+    coyoteMs: number;
+    /** m/s² back to rest when there is no intent. */
+    decel: number;
+    /** Multiplies `ctx.gravity.y`; 0 floats. */
+    gravityScale: number;
+    /** How long a jump press is kept for the next time a jump is allowed, ms. */
+    jumpBufferMs: number;
+    /** The share of the upward speed kept when the jump is released early, 0–1. */
+    jumpCut: number;
+    /** m: how high a full jump rises. */
+    jumpHeight: number;
+    /** m/s, > 0. */
+    maxFallSpeed: number;
+    /** The steepest slope it walks up, degrees; default `SIDE_VIEW_CONTROLLER`'s. */
+    maxSlopeDeg?: number;
+    /** m/s along the ground. */
+    maxSpeed: number;
+    /** How far down it sticks to the ground, m; 0 never snaps. Default `SIDE_VIEW_CONTROLLER`'s. */
+    snapToGround?: number;
+    /** The tallest step it climbs without jumping, m; 0 climbs none. Default `SIDE_VIEW_CONTROLLER`'s. */
+    stepHeight?: number;
+};
+```
+
+Refers to [`MotionBodyOptions`](#motionbodyoptions).
+
+## `SideViewResult`
+
+_type_ in `motion/side-view.ts`
+
+```ts
+type SideViewResult = MotionResult & {
+    /** On walkable ground at the end of the tick. */
+    grounded: boolean;
+    /** A jump started this tick. */
+    jumped: boolean;
+    /** Grounded now and not at the start of the tick. */
+    landed: boolean;
+};
+```
+
+Refers to [`MotionResult`](#motionresult).
 
 ## `SolidOptions`
 
@@ -3943,6 +4803,13 @@ type SolidSystem = SceneSystem<SolidEntity> & {
      */
     gateOneWaySides(actor: Aabb, passing: boolean): void;
     isHidden(id: string): boolean;
+    /**
+     * Gates the one-way entities for the actor `actorId` alone, by the rule
+     * `gateOneWaySides` uses: the colliders it passes go into
+     * `oneWayPasses(ctx, actorId)` for its own sweeps to skip, and the world is
+     * left as it is, so every other actor and body still meets them.
+     */
+    passesOneWay(actorId: string, actor: Aabb, passing: boolean): void;
     /** Where the entity's body is now; a hidden one-way body is off-world. */
     position(id: string): Vec2 | null;
 };
@@ -3975,6 +4842,8 @@ type SpaceFilter = {
     group?: string;
     /** Include sensors (default false). */
     sensors?: boolean;
+    /** Collider handles to skip: an actor's `oneWayPasses`. */
+    skip?: ReadonlySet<number>;
     /** Only colliders whose tag's type is one of these. */
     types?: readonly string[];
 };
@@ -4062,6 +4931,29 @@ type SpawnShape = ({
     cast?: "gravity" | "none" | Pt;
 };
 ```
+
+## `SpawnerBlock`
+
+_type_ in `game/behaviors/spawner.ts`
+
+A `spawner` block as an entity carries it, defaults applied.
+
+```ts
+type SpawnerBlock = z.infer<z.ZodObject<ReturnType<typeof spawnerFields>>>;
+```
+
+## `SpawnerSystem`
+
+_type_ in `game/behaviors/spawner.ts`
+
+```ts
+type SpawnerSystem = BehaviorSystem<SpawnerBlock> & {
+    /** The runtime ids of its spawns still alive, oldest first; an instance counts once, by its id. */
+    live(entityId: string): readonly string[];
+};
+```
+
+Refers to [`BehaviorSystem`](#behaviorsystem), [`SpawnerBlock`](#spawnerblock).
 
 ## `SpriteAssetInfo`
 
@@ -4549,6 +5441,18 @@ type WorldState = {
 
 Refers to [`DeviceId`](#deviceid), [`InstantiateOptions`](#instantiateoptions), [`SavedSystems`](#savedsystems), [`SavedTimer`](#savedtimer), [`SpawnInput`](#spawninput).
 
+## `advanceAlongPath`
+
+_function_ in `systems/path-follower.ts`
+
+Advances `state` by `dtMs` at the path's speed, pause and mode.
+
+```ts
+declare function advanceAlongPath(state: WaypointState, waypoints: Vec2[], path: PathDef, dtMs: number): WaypointState;
+```
+
+Refers to [`WaypointState`](#waypointstate).
+
 ## `advanceWaypoint`
 
 _function_ in `systems/path-follower.ts`
@@ -4684,7 +5588,8 @@ _function_ in `systems/path-follower.ts`
 
 How far the body carrying a collider moved in the last step: its
 follower's `frameDelta` (an attached collider's carrier, else its own
-entity's), or null when the body isn't a follower's.
+entity's), or the `path-follow` behavior's for a body it moves; null when
+neither moves it.
 
 ```ts
 declare function carrierDelta(ctx: EngineContext, handle: number): Vec2 | null;
@@ -4732,6 +5637,18 @@ Clamp a Vec2 component-wise between min and max Vec2s
 declare function clampVec2(v: Vec2, min: Vec2, max: Vec2): Vec2;
 ```
 
+## `composePose`
+
+_function_ in `runtime/poses.ts`
+
+A body-local `offset` placed on a body at `x, y` turned `rot` radians: the world pose it rides to.
+
+```ts
+declare function composePose(x: number, y: number, rot: number, offset: Pose): Pose;
+```
+
+Refers to [`Pose`](#pose).
+
 ## `createDataSystem`
 
 _function_ in `systems/data.ts`
@@ -4772,6 +5689,9 @@ and its geometry collider, follow the path all the same.
 A disabled follower's path clock keeps running, but it has no collider
 (its body's riders lose theirs with it), no visual and posts no poses;
 enabling it snaps it to where its path is now.
+
+Each follower answers `ctx.bodies` as a kinematic body whose velocity is
+what its path moved it by in the last step; its path alone sets it.
 
 ```ts
 declare function createFollowerSystem(ctx: EngineContext, type: RegisteredType, opts?: FollowerOptions): FollowerSystem;
@@ -4819,7 +5739,10 @@ Refers to [`EngineContext`](#enginecontext), [`MarkerSystem`](#markersystem), [`
 
 _function_ in `motion/body.ts`
 
-Rapier: a kinematic position-based body with a TOP_DOWN_CONTROLLER character controller; geometry: a kinematic collider, sweep and slide.
+Rapier: a kinematic position-based body with a TOP_DOWN_CONTROLLER
+character controller; geometry: a kinematic collider, sweep and slide.
+It answers `ctx.bodies` as a kinematic body, its stored velocity read
+and written there.
 
 ```ts
 declare function createMotionBody(ctx: EngineContext, entity: {
@@ -4852,6 +5775,16 @@ declare function createOccupancy(): Occupancy;
 ```
 
 Refers to [`Occupancy`](#occupancy).
+
+## `createOverlapTracker`
+
+_function_ in `systems/bodies.ts`
+
+```ts
+declare function createOverlapTracker(ctx: EngineContext): OverlapTracker;
+```
+
+Refers to [`EngineContext`](#enginecontext), [`OverlapTracker`](#overlaptracker).
 
 ## `createPlacementTool`
 
@@ -4906,13 +5839,16 @@ _function_ in `game/define.ts`
 
 Merges the engine's primitives with a game's types, materials, actions,
 collision groups and issue codes, and the project's materials over the
-game's, and the engine's behaviors then the game's. Throws
+game's, and the engine's behaviors then the game's. Without a game the
+actions are `DEFAULT_ACTIONS`. Throws
 `RegistryError` listing every problem: duplicate or reserved names, bulk
 keys or codes, a type without a system, a spawn-only type that never
 loads or has a bulk form, a spawn order that misses or
 repeats a type, unknown groups, a game behavior outside the game's
-namespace, a behavior `template` its fields or `refine` refuse, behavior
-rules naming unknown behaviors or failing their schemas, a grid field without a point `at`, a `time.rate` the clock can't run
+namespace, a behavior `template` its fields or `refine` refuse, a
+behavior's `requires` or `conflicts` naming an unknown behavior, behavior
+rules naming unknown behaviors, failing their schemas or requiring two
+that conflict, a grid field without a point `at`, a `time.rate` the clock can't run
 (`tick-rate-invalid`), an unknown `time.kind` or a `time.catchUp.maxMs` that
 isn't a whole number ≥ 0, world defaults the scene settings would refuse, and
 `world.gridWalls` naming a type that is unknown or never loads, and input
@@ -4949,6 +5885,31 @@ declare function createSensorSystem(ctx: EngineContext, type: RegisteredType): S
 ```
 
 Refers to [`EngineContext`](#enginecontext), [`RegisteredType`](#registeredtype), [`SensorSystem`](#sensorsystem).
+
+## `createSideViewController`
+
+_function_ in `motion/side-view.ts`
+
+Run and jump under gravity, down being +y: the speed along the ground
+turns toward `move × maxSpeed` at `accel` (or eases to rest at `decel`),
+scaled by `airControl` off the ground; a jump rises `jumpHeight` under
+`ctx.gravity.y × gravityScale`, falls no faster than `maxFallSpeed`, and
+keeps `jumpCut` of its upward speed when released early. A jump works for
+`coyoteMs` after leaving the ground, and a press is kept `jumpBufferMs`
+for the landing. It walks up slopes to `maxSlopeDeg`, climbs steps to
+`stepHeight` and sticks to ground within `snapToGround` below it.
+
+Both backends follow one rule: `ctx.space` sweeps of `shape` find how far
+each move goes and what it meets, then the body moves that far, so
+grounding is one downward sweep. The
+velocity lives on the body; it and the timers are in `save`, and a world
+save keeps them under the `side-view` owner.
+
+```ts
+declare function createSideViewController(ctx: EngineContext, body: MotionBody, opts: SideViewOptions): SideViewController;
+```
+
+Refers to [`EngineContext`](#enginecontext), [`MotionBody`](#motionbody), [`SideViewController`](#sideviewcontroller), [`SideViewOptions`](#sideviewoptions).
 
 ## `createSolidSystem`
 
@@ -5264,6 +6225,18 @@ declare function initialWaypointState(): WaypointState;
 
 Refers to [`WaypointState`](#waypointstate).
 
+## `inputFor`
+
+_function_ in `game/input-for.ts`
+
+The seat's input for an entity carrying `player-input`, else a view that reads as nothing held.
+
+```ts
+declare function inputFor(ctx: EngineContext, entityId: string): SeatInput;
+```
+
+Refers to [`EngineContext`](#enginecontext), [`SeatInput`](#seatinput).
+
 ## `interpolatePosition`
 
 _function_ in `systems/path-follower.ts`
@@ -5354,6 +6327,25 @@ declare function keysProblems(def: {
 ```
 
 Refers to [`Binding`](#binding), [`BindingProblem`](#bindingproblem).
+
+## `kinematicBodyEntry`
+
+_function_ in `runtime/bodies-control.ts`
+
+A kinematic body whose owner moves it: `velocity` reads what the owner
+reports, and `setVelocity`, when the owner takes one, writes what it
+moves by. It never turns, and forces don't move it, so its mass is
+infinite.
+
+```ts
+declare function kinematicBodyEntry(id: string, motion: {
+    setVelocity?(v: Vec2): void;
+    velocity(): Vec2;
+    wake?(): void;
+}): BodyEntry;
+```
+
+Refers to [`BodyEntry`](#bodyentry).
 
 ## `lengthUnitOf`
 
@@ -5461,6 +6453,21 @@ declare function navPath(mesh: NavMesh, from: Pt, to: Pt): Pt[] | null;
 
 Refers to [`NavMesh`](#navmesh).
 
+## `oneWayPasses`
+
+_function_ in `systems/bodies.ts`
+
+The handles of the one-way colliders `actorId` passes through, from every
+solid system's last `passesOneWay` for it: what its sweeps skip (a
+`SpaceFilter`'s `skip`). The same live set for the actor on this context,
+empty for an actor no system gated.
+
+```ts
+declare function oneWayPasses(ctx: EngineContext, actorId: string): ReadonlySet<number>;
+```
+
+Refers to [`EngineContext`](#enginecontext).
+
 ## `parseRuntimeId`
 
 _function_ in `game/runtime-ids.ts`
@@ -5488,6 +6495,18 @@ declare function parseSaveFile(text: string, game?: Pick<GameDefinition, "id" | 
 
 Refers to [`GameDefinition`](#gamedefinition), [`ParseSaveResult`](#parsesaveresult).
 
+## `parseShape`
+
+_function_ in `scene/shapes.ts`
+
+Accepts a tuple, a `ShapeObj`, or `{ type: "rect", left, top, right, bottom }`.
+
+```ts
+declare function parseShape(input: unknown, path?: string): ParseShapeResult;
+```
+
+Refers to [`ParseShapeResult`](#parseshaperesult).
+
 ## `parseSublevelId`
 
 _function_ in `game/runtime-ids.ts`
@@ -5499,6 +6518,28 @@ declare function parseSublevelId(id: string): null | {
     id: string;
     label: string;
 };
+```
+
+## `pathPosition`
+
+_function_ in `systems/path-follower.ts`
+
+Where `state` puts it on its path.
+
+```ts
+declare function pathPosition(waypoints: readonly Vec2[], state: WaypointState): Vec2;
+```
+
+Refers to [`WaypointState`](#waypointstate).
+
+## `pathWaypoints`
+
+_function_ in `systems/path-follower.ts`
+
+A path's points as vectors.
+
+```ts
+declare function pathWaypoints(path: Pick<PathDef, "pts">): Vec2[];
 ```
 
 ## `physicsOf`
@@ -5608,6 +6649,30 @@ declare function pxPerMetreOf(registry: Registry): number;
 
 Refers to [`Registry`](#registry).
 
+## `rapierBodyEntry`
+
+_function_ in `runtime/bodies-control.ts`
+
+A dynamic or static Rapier body; a static one answers reads and refuses writes.
+
+```ts
+declare function rapierBodyEntry(id: string, body: RigidBody, kind: "dynamic" | "static"): BodyEntry;
+```
+
+Refers to [`BodyEntry`](#bodyentry).
+
+## `readPathPlace`
+
+_function_ in `systems/path-follower.ts`
+
+Reads `savePathPlace`'s output back; null when it doesn't fit `waypoints`.
+
+```ts
+declare function readPathPlace(state: JsonValue, waypoints: readonly Vec2[]): PathPlace | null;
+```
+
+Refers to [`JsonValue`](#jsonvalue), [`PathPlace`](#pathplace).
+
 ## `refField`
 
 _function_ in `game/fields.ts`
@@ -5619,6 +6684,32 @@ say which types it may name.
 ```ts
 declare function refField(description: string): z.ZodType<string>;
 ```
+
+## `registerBody`
+
+_function_ in `runtime/bodies-control.ts`
+
+Registers `id`'s body with the context's `ctx.bodies`; the returned call
+unregisters it. A context without one (a bare test context) registers
+nothing.
+
+```ts
+declare function registerBody(ctx: EngineContext, id: string, entry: BodyEntry): () => void;
+```
+
+Refers to [`BodyEntry`](#bodyentry), [`EngineContext`](#enginecontext).
+
+## `relativePose`
+
+_function_ in `runtime/poses.ts`
+
+`pose` in the frame `frame` is posed at: what a body-local offset is for a body placed at `frame`.
+
+```ts
+declare function relativePose(pose: Pose, frame: Pose): Pose;
+```
+
+Refers to [`Pose`](#pose).
 
 ## `resolveTime`
 
@@ -5636,6 +6727,16 @@ declare function resolveTime(sources: {
 ```
 
 Refers to [`ResolvedTime`](#resolvedtime), [`TimeModel`](#timemodel).
+
+## `restoreOverlaps`
+
+_function_ in `systems/bodies.ts`
+
+```ts
+declare function restoreOverlaps(tags: ColliderTags, saved: JsonValue | undefined): Overlaps;
+```
+
+Refers to [`ColliderTags`](#collidertags), [`JsonValue`](#jsonvalue), [`Overlaps`](#overlaps).
 
 ## `runtimeId`
 
@@ -5681,6 +6782,28 @@ declare const saveFileSchema: z.ZodType<SaveFile>;
 
 Refers to [`SaveFile`](#savefile).
 
+## `saveOverlaps`
+
+_function_ in `systems/bodies.ts`
+
+```ts
+declare function saveOverlaps(tags: ColliderTags, overlaps: Overlaps): SavedOverlap[];
+```
+
+Refers to [`ColliderTags`](#collidertags), [`Overlaps`](#overlaps).
+
+## `savePathPlace`
+
+_function_ in `systems/path-follower.ts`
+
+A place on a path as plain JSON, for a world save.
+
+```ts
+declare function savePathPlace(m: PathPlace): JsonValue;
+```
+
+Refers to [`JsonValue`](#jsonvalue), [`PathPlace`](#pathplace).
+
 ## `scaleLengths`
 
 _function_ in `game/units.ts`
@@ -5707,6 +6830,22 @@ declare function sceneGrid(scene: ExpandedScene, registry: Registry, wallTypes?:
 ```
 
 Refers to [`Registry`](#registry), [`RuntimeGrid`](#runtimegrid).
+
+## `seekAlongPath`
+
+_function_ in `systems/path-follower.ts`
+
+Advances `state` by `ms` as stepping would: whole ticks of `time.tickMs`,
+then the rest in one advance.
+
+```ts
+declare function seekAlongPath(state: WaypointState, waypoints: Vec2[], path: PathDef, ms: number, time: {
+    rate: number;
+    tickMs: number;
+}): WaypointState;
+```
+
+Refers to [`WaypointState`](#waypointstate).
 
 ## `shapeColliderDesc`
 
@@ -5869,6 +7008,21 @@ A direction or offset [dx, dy]: turned and mirrored with its entity, never trans
 ```ts
 declare function vectorField(description: string): z.ZodType<Pt>;
 ```
+
+## `wholeTicksIn`
+
+_function_ in `game/time.ts`
+
+The whole ticks that fit in `ms` (rounded down) and the ms left over: what a seek runs.
+
+```ts
+declare function wholeTicksIn(ms: number, time: Pick<ResolvedTime, "rate">): {
+    restMs: number;
+    ticks: number;
+};
+```
+
+Refers to [`ResolvedTime`](#resolvedtime).
 
 ## `withProject`
 

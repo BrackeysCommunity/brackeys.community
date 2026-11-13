@@ -1,0 +1,9 @@
+{
+  "$schema": "../input-script.schema.json",
+  "v": 2,
+  "scene": "main",
+  "steps": [
+    { "max": 240, "set": { "move": [1, 0] }, "until": { "near": { "id": "hero", "to": [3.5, 4.2], "within": 0.25 } } },
+    { "hold": ["jump"], "max": 240, "set": { "move": [1, 0] }, "until": { "event": "demo:reached" } }
+  ]
+}

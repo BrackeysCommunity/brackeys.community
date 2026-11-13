@@ -2,8 +2,7 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { SIGNED_OUT_SAVES_DESCRIBE } from "@/lib/engine/local-saves";
-import { SIGNED_IN_SAVES_DESCRIBE } from "@/lib/engine/save-api";
+import { SIGNED_IN_SAVES_DESCRIBE, SIGNED_OUT_SAVES_DESCRIBE } from "@/lib/engine/local-saves";
 import { SITE } from "@/lib/legal-meta";
 
 import { SaveNotice } from "../SaveNotice";

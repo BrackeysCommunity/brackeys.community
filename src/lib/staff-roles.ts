@@ -1,8 +1,12 @@
 import { eq } from "drizzle-orm";
+import type { PgAsyncDatabase } from "drizzle-orm/pg-core";
 
 import { db } from "@/db";
 import { developerProfiles } from "@/db/schema";
 import { applyRoleOverrides } from "@/lib/discord";
+
+/** Any Postgres handle that can select: the site's `db`, a transaction, a test database. */
+export type RolesDb = Pick<PgAsyncDatabase<any, any>, "select">;
 
 /**
  * A user's effective role names: the guild roles cached at their last
@@ -19,8 +23,11 @@ import { applyRoleOverrides } from "@/lib/discord";
  *
  * Null when the user has no profile row at all.
  */
-export async function resolveUserRoles(userId: string): Promise<string[] | null> {
-  const [profile] = await db
+export async function resolveUserRoles(
+  userId: string,
+  handle: RolesDb = db,
+): Promise<string[] | null> {
+  const [profile] = await handle
     .select({
       guildRoles: developerProfiles.guildRoles,
       discordId: developerProfiles.discordId,

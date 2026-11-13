@@ -27,7 +27,7 @@ Bump it whenever one of those lists changes; `codes --json` and the
 published JSON Schemas carry it.
 
 ```ts
-declare const AGENT_SURFACE_VERSION = 17;
+declare const AGENT_SURFACE_VERSION = 18;
 ```
 
 ## `Aabb`
@@ -541,11 +541,16 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "behavior-unknown",
     "behavior-forbidden",
     "behavior-missing",
+    "behavior-conflict",
+    "character-body-kind",
     "grid-invalid",
     "ref-child-unknown",
     "physics-required",
     "physics-skipped",
     "nav-invalid",
+    "nav-missing",
+    "joint-ref-type",
+    "joint-self",
     "follower-hits-solid",
     "solid-overlap",
     "grid-unreachable",
@@ -574,6 +579,8 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "player-unknown",
     "spawn-id-invalid",
     "prefab-not-spawnable",
+    "body-missing",
+    "body-not-dynamic",
     "recording-other-platform",
     "scene-unlisted",
     "start-scene-missing",
@@ -3549,13 +3556,16 @@ _function_ in `game/define.ts`
 
 Merges the engine's primitives with a game's types, materials, actions,
 collision groups and issue codes, and the project's materials over the
-game's, and the engine's behaviors then the game's. Throws
+game's, and the engine's behaviors then the game's. Without a game the
+actions are `DEFAULT_ACTIONS`. Throws
 `RegistryError` listing every problem: duplicate or reserved names, bulk
 keys or codes, a type without a system, a spawn-only type that never
 loads or has a bulk form, a spawn order that misses or
 repeats a type, unknown groups, a game behavior outside the game's
-namespace, a behavior `template` its fields or `refine` refuse, behavior
-rules naming unknown behaviors or failing their schemas, a grid field without a point `at`, a `time.rate` the clock can't run
+namespace, a behavior `template` its fields or `refine` refuse, a
+behavior's `requires` or `conflicts` naming an unknown behavior, behavior
+rules naming unknown behaviors, failing their schemas or requiring two
+that conflict, a grid field without a point `at`, a `time.rate` the clock can't run
 (`tick-rate-invalid`), an unknown `time.kind` or a `time.catchUp.maxMs` that
 isn't a whole number ≥ 0, world defaults the scene settings would refuse, and
 `world.gridWalls` naming a type that is unknown or never loads, and input

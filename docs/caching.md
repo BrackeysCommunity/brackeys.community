@@ -128,11 +128,12 @@ edge holds it for a year once the Cache Rule above is in place.
   only, so a 404, 403 or 410 gets Nitro's `no-cache`.
 - **Takedown.** A hidden or collected release answers `410` at origin and
   the play page stops framing it. A staff hide or unhide, a flagged image's
-  quarantine, dismiss or confirm, and a game settings change announce the
-  release (or project) on Redis's `engine:release-changes` channel, and
-  every web process drops it from its frame-route cache at once; the
-  canvas-sync collector doesn't announce, so a collected release, like a
-  missed notice, reaches that cache when its ten-minute entry expires.
+  quarantine, dismiss or confirm, a game settings change and the
+  canvas-sync collector (the releases each run collected, once their files
+  are gone) announce the release (or project) on Redis's
+  `engine:release-changes` channel, and every web process drops it from
+  its frame-route cache at once. A missed notice, or one that failed to
+  publish, reaches that cache when its ten-minute entry expires.
 - **Edge purge.** Every takedown purges the release's five shell files
   (`index.html`, `release.json`, `credits.html`, `sw.js`,
   `app.webmanifest`) by URL through Cloudflare's

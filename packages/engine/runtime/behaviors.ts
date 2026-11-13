@@ -36,6 +36,10 @@ export type BehaviorHost = {
    * of updated. A throw detaches `e` from every system, then rethrows.
    */
   update(e: RuntimeEntity, prev: RuntimeEntity): void;
+  /** Each system's `beforeStep`, in registration order; with `timing`, a lap `behavior.<name>.beforeStep` after each. */
+  beforeStep(dtMs: number, timing?: Pick<TimingScope, "lap"> | null): void;
+  /** Each system's `beforePhysics`, in registration order; with `timing`, a lap `behavior.<name>.beforePhysics` after each. */
+  beforePhysics(timing?: Pick<TimingScope, "lap"> | null): void;
   /** Each system's `step`, in registration order; with `timing`, a lap `behavior.<name>` after each. */
   step(dtMs: number, timing?: Pick<TimingScope, "lap"> | null): void;
   render(alpha: number): void;
@@ -111,6 +115,8 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
     byName.set(name, system);
   }
   const stepParts = built.map(({ name }) => `behavior.${name}`);
+  const beforeStepParts = built.map(({ name }) => `behavior.${name}.beforeStep`);
+  const beforePhysicsParts = built.map(({ name }) => `behavior.${name}.beforePhysics`);
 
   /** Detaches `id` from every built system, in reverse; each `detach` is idempotent. */
   function detachEverywhere(id: string): void {
@@ -195,6 +201,22 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
           }
         }
       });
+    },
+    beforeStep(dtMs, timing) {
+      for (let i = 0; i < built.length; i++) {
+        const { system } = built[i]!;
+        if (!system.beforeStep) continue;
+        system.beforeStep(dtMs);
+        timing?.lap(beforeStepParts[i]!);
+      }
+    },
+    beforePhysics(timing) {
+      for (let i = 0; i < built.length; i++) {
+        const { system } = built[i]!;
+        if (!system.beforePhysics) continue;
+        system.beforePhysics();
+        timing?.lap(beforePhysicsParts[i]!);
+      }
     },
     step(dtMs, timing) {
       for (let i = 0; i < built.length; i++) {

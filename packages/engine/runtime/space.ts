@@ -26,6 +26,8 @@ export type SpaceFilter = {
   group?: string;
   /** Only colliders whose tag's type is one of these. */
   types?: readonly string[];
+  /** Collider handles to skip: an actor's `oneWayPasses`. */
+  skip?: ReadonlySet<number>;
 };
 export type SpaceHit = { handle: number; tag: ColliderTag; at: Vec2 };
 export type SpaceCastHit = SpaceHit & { toi: number; normal: Vec2 };
@@ -66,6 +68,7 @@ function admitter(tags: ColliderTags, registry: Registry, filter: SpaceFilter, s
   return (c: Candidate): ColliderTag | undefined => {
     if (c.sensor && !sensors) return undefined;
     if (c.groups === 0 || (group !== null && !interacts(group, c.groups))) return undefined;
+    if (filter.skip?.has(c.handle)) return undefined;
     const tag = tags.get(c.handle);
     if (!tag) return undefined;
     if (filter.exclude?.includes(tag.entityId)) return undefined;

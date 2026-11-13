@@ -2,6 +2,7 @@ import type { Registry } from "../../game/types";
 import { aabb } from "../../scene/shape-geometry";
 import type { Aabb, Pt, Ref, SceneDefinition, ShapeObj } from "../../scene/types";
 import { geometryOfRef } from "../spatial-index";
+import { behaviorGizmo, type BehaviorGizmo } from "./behavior-target";
 
 /** One selected entity as the gizmos edit it, read from the document. */
 export type GizmoTarget = {
@@ -18,6 +19,8 @@ export type GizmoTarget = {
   pointField?: string;
   /** The path the shape rides, waypoints in world metres. */
   path?: { field: string; pts: Pt[]; loop: boolean };
+  /** Its collider, joint, force area and spawner, when it carries any. */
+  behaviors?: BehaviorGizmo;
 };
 
 /** `ref`'s editable geometry in `def`; `undefined` when it isn't there or has no shape or point. */
@@ -28,7 +31,8 @@ export function gizmoTarget(
 ): GizmoTarget | undefined {
   const g = geometryOfRef(def, registry, ref);
   if (!g) return undefined;
-  const base = { ref, type: g.type, bulk: g.bulk };
+  const behaviors = g.bulk ? undefined : behaviorGizmo(def, registry, ref, g);
+  const base = { ref, type: g.type, bulk: g.bulk, ...(behaviors ? { behaviors } : {}) };
   if (g.shape && g.local && g.shapeField) {
     return {
       ...base,

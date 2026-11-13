@@ -1,4 +1,13 @@
-import type { Collider, ColliderDesc, RigidBody, RigidBodyDesc } from "@dimforge/rapier2d";
+import type {
+  Collider,
+  ColliderDesc,
+  InteractionGroups,
+  KinematicCharacterController,
+  QueryFilterFlags,
+  RigidBody,
+  RigidBodyDesc,
+  Vector,
+} from "@dimforge/rapier2d";
 
 import { createSensorCollider } from "../collisions";
 import type { ViewLayer } from "../context";
@@ -16,6 +25,7 @@ import type {
   Side,
 } from "../game/types";
 import { posedBodyDesc, shapeColliderDesc, shapePose } from "../physics";
+import { rapierBodyEntry, registerBody, type BodyEntry } from "../runtime/bodies-control";
 import type { GeometryColliderDesc } from "../runtime/geometry-world";
 import { composePose, relativePose, type Pose } from "../runtime/poses";
 import type { SpaceHit } from "../runtime/space";
@@ -201,12 +211,17 @@ export function removeGeometryCollider(
  * entities have no visuals to pose. While the scene has no physics an
  * entity is `placed` instead: drawn and posed where its shape is, with a
  * collider in the geometry world when the runtime has one.
+ *
+ * Each body it adds answers `ctx.bodies` under its entity id, as `body`
+ * says: a dynamic or static Rapier body, or the entry the owner makes for
+ * it. Placed entities have no body and don't.
  */
 export function createBodyTable<T extends OwnedBody>(
   ctx: EngineContext,
-  opts: { view?: boolean } = {},
+  opts: { view?: boolean; body: "dynamic" | "static" | ((id: string, owned: T) => BodyEntry) },
 ) {
   const owned = new Map<string, T>();
+  const unregisters = new Map<string, () => void>();
   const offsets = new Map<string, Pose>();
   const placed = new Map<string, { at: Vec2; handle: number | null }>();
   const disabled = new Set<string>();
@@ -231,6 +246,8 @@ export function createBodyTable<T extends OwnedBody>(
     }
     const entry = owned.get(id);
     if (!entry) return;
+    unregisters.get(id)?.();
+    unregisters.delete(id);
     ctx.tags.delete(entry.collider.handle);
     physicsOf(ctx, "a body", id).physics.removeRigidBody(entry.body);
     ctx.view?.remove(id);
@@ -267,6 +284,10 @@ export function createBodyTable<T extends OwnedBody>(
       ctx.tags.set(entry.collider.handle, tag);
       owned.set(e.id, entry);
       offsets.set(e.id, bodyOffset(e, local));
+      const { body } = opts;
+      const control =
+        typeof body === "function" ? body(e.id, entry) : rapierBodyEntry(e.id, entry.body, body);
+      unregisters.set(e.id, registerBody(ctx, e.id, control));
     },
     /**
      * Re-poses a fixed body for `e`'s shape and swaps its collider for the
@@ -567,6 +588,13 @@ export type SolidSystem = SceneSystem<SolidEntity> & {
   gateOneWaySides(actor: Aabb, passing: boolean): void;
   /** `gateOneWaySides` for the `"up"` solids alone, by the actor's bottom edge; other sides are left as they are. */
   gateOneWay(actorBottomY: number, dropping: boolean): void;
+  /**
+   * Gates the one-way entities for the actor `actorId` alone, by the rule
+   * `gateOneWaySides` uses: the colliders it passes go into
+   * `oneWayPasses(ctx, actorId)` for its own sweeps to skip, and the world is
+   * left as it is, so every other actor and body still meets them.
+   */
+  passesOneWay(actorId: string, actor: Aabb, passing: boolean): void;
   isHidden(id: string): boolean;
   /** Where the entity's body is now; a hidden one-way body is off-world. */
   position(id: string): Vec2 | null;
@@ -574,6 +602,74 @@ export type SolidSystem = SceneSystem<SolidEntity> & {
 
 /** m. */
 const ONE_WAY_TOLERANCE = 0.04;
+
+/** The key a context keeps each actor's one-way passes under. */
+const ONE_WAY_PASSES: unique symbol = Symbol("one-way passes");
+
+type PassesHolder = EngineContext & { [ONE_WAY_PASSES]?: Map<string, Set<number>> };
+
+function passesOf(ctx: EngineContext, actorId: string): Set<number> {
+  const holder = ctx as PassesHolder;
+  let all = holder[ONE_WAY_PASSES];
+  if (!all) {
+    all = new Map();
+    Object.defineProperty(holder, ONE_WAY_PASSES, { value: all });
+  }
+  let passes = all.get(actorId);
+  if (!passes) {
+    passes = new Set();
+    all.set(actorId, passes);
+  }
+  return passes;
+}
+
+/**
+ * The handles of the one-way colliders `actorId` passes through, from every
+ * solid system's last `passesOneWay` for it: what its sweeps skip (a
+ * `SpaceFilter`'s `skip`). The same live set for the actor on this context,
+ * empty for an actor no system gated.
+ */
+export function oneWayPasses(ctx: EngineContext, actorId: string): ReadonlySet<number> {
+  return passesOf(ctx, actorId);
+}
+
+/**
+ * A character controller's move that leaves out the colliders in `skip`.
+ * Rapier's filter callbacks don't reach JS from every wasm loader, so a
+ * collider in `skip` the move meets has its collision groups lifted to 0 and
+ * the move is run again; each gets its groups back before this returns, so
+ * no step and no other query sees the change. With `skip` empty it is the
+ * one plain call.
+ */
+export function computeMovementSkipping(
+  controller: KinematicCharacterController,
+  collider: Collider,
+  delta: Vector,
+  filterFlags: QueryFilterFlags,
+  filterGroups: InteractionGroups,
+  skip: ReadonlySet<number>,
+): void {
+  controller.computeColliderMovement(collider, delta, filterFlags, filterGroups);
+  if (skip.size === 0) return;
+  const lifted: { collider: Collider; groups: InteractionGroups }[] = [];
+  for (;;) {
+    let more = false;
+    for (let i = 0; i < controller.numComputedCollisions(); i++) {
+      const hit = controller.computedCollision(i)?.collider;
+      if (!hit || !skip.has(hit.handle) || lifted.some((l) => l.collider.handle === hit.handle))
+        continue;
+      lifted.push({ collider: hit, groups: hit.collisionGroups() });
+      hit.setCollisionGroups(0);
+      more = true;
+    }
+    if (!more) break;
+    controller.computeColliderMovement(collider, delta, filterFlags, filterGroups);
+  }
+  for (let i = lifted.length - 1; i >= 0; i--) {
+    const l = lifted[i]!;
+    l.collider.setCollisionGroups(l.groups);
+  }
+}
 /** Where a hidden one-way body waits, m: far outside any scene. */
 const HIDDEN_Y = -999.99;
 
@@ -603,7 +699,7 @@ export function createSolidSystem(
   type: RegisteredType,
   opts: SolidOptions = {},
 ): SolidSystem {
-  const table = createBodyTable<SolidBody>(ctx);
+  const table = createBodyTable<SolidBody>(ctx, { body: "static" });
   const physicsFor = (id: string) => physicsOf(ctx, type.type, id);
   const group = opts.group ?? "static";
   const groups = ctx.registry.collisionGroups(group);
@@ -618,6 +714,8 @@ export function createSolidSystem(
   const gated = new Set<string>();
   /** Each live entity's record, to redraw it on enable. */
   const records = new Map<string, SolidEntity>();
+  /** The handles this system put in each actor's `oneWayPasses`, to take back out. */
+  const passed = new Map<string, Set<number>>();
   const riders = createRiders<SolidEntity>(ctx, type, {
     layer: (e) => opts.layer ?? entityDrawLayer(ctx, e, "terrain"),
     draw: opts.draw !== false,
@@ -673,6 +771,7 @@ export function createSolidSystem(
   }
 
   function despawn(id: string): void {
+    forgetPasses(ctx.tags.handlesOf(id));
     gated.delete(id);
     placedOneWay.delete(id);
     records.delete(id);
@@ -733,6 +832,7 @@ export function createSolidSystem(
       if (e) draw(e);
     },
     clear() {
+      forgetPasses(null);
       riders.clear();
       gated.clear();
       placedOneWay.clear();
@@ -743,6 +843,7 @@ export function createSolidSystem(
       for (const [id, solid] of table.owned) setHidden(id, solid, false);
       for (const [id, solid] of placedOneWay) setPlacedHidden(id, solid, false);
       for (const id of [...gated]) gate(id, false);
+      forgetPasses(null);
     },
     size: () => table.size() + riders.riders.size,
     /** A one-way solid's gate, while it lets actors through. */
@@ -760,6 +861,22 @@ export function createSolidSystem(
       if (riders.riders.has(id)) gate(id, hidden);
     },
     gateOneWaySides: (actor, passing) => gateSides(actor, passing, null),
+    passesOneWay(actorId, actor, passing) {
+      const all = passesOf(ctx, actorId);
+      let mine = passed.get(actorId);
+      if (!mine) {
+        mine = new Set();
+        passed.set(actorId, mine);
+      }
+      for (const handle of mine) all.delete(handle);
+      mine.clear();
+      eachOneWay(null, (_id, side, box, handle) => {
+        const passes = passing || !onOneWaySide(side, box, actor);
+        if (!passes || handle === undefined) return;
+        mine.add(handle);
+        all.add(handle);
+      });
+    },
     gateOneWay(actorBottomY, dropping) {
       const edge = { minX: 0, minY: actorBottomY, maxX: 0, maxY: actorBottomY };
       gateSides(edge, dropping, "up");
@@ -770,21 +887,34 @@ export function createSolidSystem(
 
   /** Gates each one-way solid, or each of side `only`: hidden unless the actor is on its side and not passing. */
   function gateSides(actor: Aabb, passing: boolean, only: Side | null): void {
-    const hiddenFor = (side: Side | null, box: Aabb): boolean | null => {
-      if (!side || (only !== null && side !== only)) return null;
-      return passing || !onOneWaySide(side, box, actor);
-    };
-    for (const [id, solid] of table.owned) {
-      const hidden = hiddenFor(solid.oneWay, solid.box);
-      if (hidden !== null) setHidden(id, solid, hidden);
-    }
-    for (const [id, solid] of placedOneWay) {
-      const hidden = hiddenFor(solid.side, solid.box);
-      if (hidden !== null) setPlacedHidden(id, solid, hidden);
-    }
+    eachOneWay(only, (id, side, box) => {
+      const hidden = passing || !onOneWaySide(side, box, actor);
+      const solid = table.owned.get(id);
+      if (solid) return setHidden(id, solid, hidden);
+      const placed = placedOneWay.get(id);
+      if (placed) return setPlacedHidden(id, placed, hidden);
+      gate(id, hidden);
+    });
+  }
+
+  /**
+   * Visits each one-way solid, or each of side `only`, with its side, its
+   * box where it is now and its collider's handle: the solids this system
+   * owns, then those in the geometry world, then the attached ones.
+   */
+  function eachOneWay(
+    only: Side | null,
+    visit: (id: string, side: Side, box: Aabb, handle: number | undefined) => void,
+  ): void {
+    const takes = (side: Side | null): side is Side => !!side && (only === null || side === only);
+    for (const [id, solid] of table.owned)
+      if (takes(solid.oneWay)) visit(id, solid.oneWay, solid.box, solid.collider.handle);
+    for (const [id, solid] of placedOneWay)
+      if (takes(solid.side)) visit(id, solid.side, solid.box, solid.handle);
     for (const r of riders.riders.values()) {
+      const side = sideOf(r.entity);
       const host = r.attachment.host();
-      if (!host || !r.local) continue;
+      if (!takes(side) || !host || !r.local) continue;
       const t = host.body.translation();
       const b = aabb(r.local);
       const box = {
@@ -793,8 +923,20 @@ export function createSolidSystem(
         maxX: t.x + b.maxX,
         maxY: t.y + b.maxY,
       };
-      const hidden = hiddenFor(sideOf(r.entity), box);
-      if (hidden !== null) gate(r.entity.id, hidden);
+      visit(r.entity.id, side, box, r.attachment.collider()?.handle);
+    }
+  }
+
+  /** Takes `handles` (all of them, for null) back out of every actor's `oneWayPasses`. */
+  function forgetPasses(handles: readonly number[] | null): void {
+    for (const [actorId, mine] of passed) {
+      const all = passesOf(ctx, actorId);
+      for (const handle of handles ?? mine) {
+        if (!mine.has(handle)) continue;
+        all.delete(handle);
+        if (handles) mine.delete(handle);
+      }
+      if (!handles) mine.clear();
     }
   }
 
@@ -831,7 +973,7 @@ export function createPropSystem(
   ctx: EngineContext,
   type: RegisteredType,
 ): SceneSystem<PropEntity> {
-  const table = createBodyTable(ctx);
+  const table = createBodyTable(ctx, { body: "dynamic" });
   const groups = ctx.registry.collisionGroups("dynamic");
   const records = new Map<string, PropEntity>();
 
@@ -894,7 +1036,36 @@ const CANDIDATES_MIN_SENSORS = 32;
 export type SensorSystem = SceneSystem<SensorEntity> & { afterStep(dtMs: number): void };
 
 /** Overlapping collider handle → the entity id its tag names. */
-type Overlaps = Map<number, string | undefined>;
+export type Overlaps = Map<number, string | undefined>;
+
+/** Raises a sensor's `sensor:enter` and `sensor:exit` from what overlapped it before and now. */
+export type OverlapTracker = {
+  /**
+   * Enter for each handle in `now` and not `before`, then exit for each in
+   * `before` and not `now`, each at `at(handle)`, with the handle's entity
+   * as `other`.
+   */
+  diff(id: string, before: Overlaps, now: Overlaps, at: (handle: number) => Vec2): void;
+};
+
+export function createOverlapTracker(ctx: EngineContext): OverlapTracker {
+  function raise(kind: string, id: string, at: Vec2, other?: string) {
+    const event: Omit<StepEvent, "tick"> = { type: kind, entityId: id, at };
+    if (other !== undefined) event.other = other;
+    ctx.emit(event);
+  }
+
+  return {
+    diff(id, before, now, at) {
+      for (const [handle, other] of now) {
+        if (!before.has(handle)) raise(SENSOR_ENTER, id, at(handle), other);
+      }
+      for (const [handle, other] of before) {
+        if (!now.has(handle)) raise(SENSOR_EXIT, id, at(handle), other);
+      }
+    },
+  };
+}
 type SensorBody = OwnedBody & { inside: Overlaps };
 type PlacedSensor = {
   handle: number;
@@ -910,7 +1081,7 @@ type PlacedSensor = {
  */
 type SavedOverlap = [entityId: string, nth: number];
 
-function saveOverlaps(tags: ColliderTags, overlaps: Overlaps): SavedOverlap[] {
+export function saveOverlaps(tags: ColliderTags, overlaps: Overlaps): SavedOverlap[] {
   const saved: SavedOverlap[] = [];
   for (const [handle, entityId] of overlaps) {
     if (entityId === undefined) continue;
@@ -923,7 +1094,7 @@ function saveOverlaps(tags: ColliderTags, overlaps: Overlaps): SavedOverlap[] {
   return saved;
 }
 
-function restoreOverlaps(tags: ColliderTags, saved: JsonValue | undefined): Overlaps {
+export function restoreOverlaps(tags: ColliderTags, saved: JsonValue | undefined): Overlaps {
   const overlaps: Overlaps = new Map();
   if (!Array.isArray(saved)) return overlaps;
   for (const item of saved) {
@@ -937,7 +1108,7 @@ function restoreOverlaps(tags: ColliderTags, saved: JsonValue | undefined): Over
 }
 
 export function createSensorSystem(ctx: EngineContext, type: RegisteredType): SensorSystem {
-  const table = createBodyTable<SensorBody>(ctx);
+  const table = createBodyTable<SensorBody>(ctx, { body: "static" });
   const physicsFor = (id: string) => physicsOf(ctx, type.type, id);
   const inside = new Map<string, Overlaps>();
   /**
@@ -968,21 +1139,7 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
     return t ? { x: t.x, y: t.y } : { x: 0, y: 0 };
   }
 
-  function raise(kind: string, id: string, at: Vec2, other?: string) {
-    const event: Omit<StepEvent, "tick"> = { type: kind, entityId: id, at };
-    if (other !== undefined) event.other = other;
-    ctx.emit(event);
-  }
-
-  /** Enter for each handle in `now` and not `before`, then exit for each in `before` and not `now`. */
-  function diff(id: string, before: Overlaps, now: Overlaps, at: (handle: number) => Vec2): void {
-    for (const [handle, other] of now) {
-      if (!before.has(handle)) raise(SENSOR_ENTER, id, at(handle), other);
-    }
-    for (const [handle, other] of before) {
-      if (!now.has(handle)) raise(SENSOR_EXIT, id, at(handle), other);
-    }
-  }
+  const tracker = createOverlapTracker(ctx);
 
   /**
    * Where a geometry collider's body would be on Rapier: its entity's
@@ -1034,7 +1191,7 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
       const hits = sensor.next;
       if (!hits) continue;
       const now: Overlaps = new Map([...hits].map(([h, hit]) => [h, hit.tag.entityId]));
-      diff(id, sensor.inside, now, (h) => originOf(hits.get(h), h));
+      tracker.diff(id, sensor.inside, now, (h) => originOf(hits.get(h), h));
       sensor.inside = now;
       sensor.next = null;
     }
@@ -1183,7 +1340,7 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
         };
         if (candidates) for (const i of candidates(collider)) test(colliders[i]!);
         else for (const other of colliders) test(other);
-        diff(id, before, now, (handle) => positionOf(id, handle, collider));
+        tracker.diff(id, before, now, (handle) => positionOf(id, handle, collider));
         return now;
       };
       for (const [id, sensor] of table.owned) {

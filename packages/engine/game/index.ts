@@ -33,6 +33,29 @@ export {
 } from "./behaviors/sprite";
 export { OCCUPANT, type OccupantBlock } from "./behaviors/occupant";
 export { LIFETIME, type LifetimeBlock } from "./behaviors/lifetime";
+export { COLLIDER, type ColliderBlock, type ColliderSystem } from "./behaviors/collider";
+export { BODY, BODY_KINDS, type BodyBlock, type BodyKind } from "./behaviors/body";
+export { PLAYER_INPUT, type PlayerInputBlock } from "./behaviors/player-input";
+export {
+  CHARACTER_TOP_DOWN,
+  type CharacterIntent,
+  type CharacterSystem,
+  type CharacterTopDownBlock,
+} from "./behaviors/character-top-down";
+export { CHARACTER_SIDE_VIEW, type CharacterSideViewBlock } from "./behaviors/character-side-view";
+export { CAMERA_TARGET, type CameraTargetBlock } from "./behaviors/camera-target";
+export { SPAWNER, type SpawnerBlock, type SpawnerSystem } from "./behaviors/spawner";
+export { NAV_AGENT, type NavAgentBlock, type NavAgentSystem } from "./behaviors/nav-agent";
+export { PATH_FOLLOW, type PathFollowBlock, type PathFollowSystem } from "./behaviors/path-follow";
+export { FORCE_AREA, type ForceAreaBlock, type ForceAreaSystem } from "./behaviors/force-area";
+export {
+  JOINT,
+  JOINT_KINDS,
+  type JointBlock,
+  type JointKind,
+  type JointSystem,
+} from "./behaviors/joint";
+export { inputFor, type PlayerInputSystem, type SeatInput } from "./input-for";
 export {
   isRuntimeId,
   parseRuntimeId,
@@ -67,6 +90,7 @@ export {
   SAVE_VERSION,
   saveFileBytes,
   saveFileSchema,
+  SLOT_MAX_LENGTH,
   SLOT_PATTERN,
   type ParseSaveResult,
   type SavedSystems,
@@ -109,6 +133,7 @@ export {
 export { DEFAULT_LAYERS, type SceneLayerDef } from "../scene/layers";
 export { primitiveFields } from "./primitives";
 export {
+  DEFAULT_ACTIONS,
   DEFAULT_GRAVITY,
   DEFAULT_LENGTH_UNIT,
   DEFAULT_PHYSICS,
@@ -124,6 +149,7 @@ export {
   resolveTime,
   tickRateProblem,
   ticksFor,
+  wholeTicksIn,
   type ResolvedTime,
   type TimeKind,
   type TimeModel,
@@ -170,6 +196,7 @@ export type {
   BasePrimitive,
   Binding,
   BehaviorRules,
+  BodyControl,
   BulkKeyInfo,
   CheckEnv,
   CheckKindDef,
@@ -247,6 +274,7 @@ export type {
 export { createPool } from "../runtime/pool";
 export type { AssetKindDef } from "../project/kinds";
 export type { ProjectRuntimeView } from "../project/runtime-view";
+export { composePose, relativePose } from "../runtime/poses";
 export type { Pose, PoseIndex } from "../runtime/poses";
 export { spawnPose } from "../runtime/spawn-pose";
 
@@ -257,15 +285,22 @@ export { createSensorCollider } from "../collisions";
 export { degToRad, posedBodyDesc, shapeColliderDesc, shapePose } from "../physics";
 export type { CharacterControllerOptions, PhysicsWorld } from "../physics";
 export {
+  advanceAlongPath,
   advanceWaypoint,
   initialWaypointState,
   interpolatePosition,
+  pathPosition,
+  pathWaypoints,
+  readPathPlace,
+  savePathPlace,
+  seekAlongPath,
 } from "../systems/path-follower";
 export { carrierDelta, createFollowerSystem } from "../systems/path-follower";
 export type { Attachment, AttachmentHub } from "../systems/attachments";
 export type {
   FollowerOptions,
   FollowerSystem,
+  PathPlace,
   WaypointMode,
   WaypointState,
 } from "../systems/path-follower";
@@ -279,13 +314,28 @@ export { createNavSystem, isNavSystem } from "../systems/nav";
 export type { NavEntity, NavPolygon, NavSystem } from "../systems/nav";
 export {
   bodyLocalShape,
+  createOverlapTracker,
   createPropSystem,
   createSensorSystem,
   createSolidSystem,
   drawEntity,
+  oneWayPasses,
+  restoreOverlaps,
+  saveOverlaps,
   styleOf,
 } from "../systems/bodies";
-export type { SensorSystem, SolidOptions, SolidSystem, VisualOptions } from "../systems/bodies";
+export type {
+  OverlapTracker,
+  Overlaps,
+  SensorSystem,
+  SolidOptions,
+  SolidSystem,
+  VisualOptions,
+} from "../systems/bodies";
+export { kinematicBodyEntry, rapierBodyEntry, registerBody } from "../runtime/bodies-control";
+export type { BodyEntry } from "../runtime/bodies-control";
+export { parseShape } from "../scene/shapes";
+export type { ParseShapeResult } from "../scene/shapes";
 export { drawShape, traceShape } from "../render/draw-shape";
 export { clamp, clampVec2, distanceVec2, lerp, lerpVec2 } from "../math";
 export type {
@@ -326,11 +376,17 @@ export {
 export {
   createGridStepper,
   createMotionBody,
+  createSideViewController,
   createTopDownController,
   type GridStepper,
   type MotionBody,
   type MotionBodyOptions,
   type MotionResult,
+  type SideViewController,
+  type SideViewEnv,
+  type SideViewIntent,
+  type SideViewOptions,
+  type SideViewResult,
   type TopDownController,
   type TopDownOptions,
 } from "../motion/index";
@@ -344,15 +400,21 @@ export {
 } from "../nav/index";
 export {
   CONTACT_END,
+  CHARACTER_JUMPED,
+  CHARACTER_LANDED,
+  CHARACTER_LEFT_GROUND,
   CONTACT_START,
   ENTITY_DESTROYED,
   ENTITY_DISABLED,
   ENTITY_ENABLED,
   ENTITY_SPAWNED,
+  NAV_ARRIVED,
+  NAV_BLOCKED,
   PLAYER_JOINED,
   PLAYER_LEFT,
   SENSOR_ENTER,
   SENSOR_EXIT,
+  SPAWNER_SPAWNED,
 } from "../runtime/types";
 export {
   TOOL_PRIORITY,

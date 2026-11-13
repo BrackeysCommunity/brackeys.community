@@ -1,0 +1,7 @@
+{
+  "v": 3,
+  "checks": [
+    { "id": "valid", "kind": "valid" },
+    { "id": "goal-reached", "kind": "reaches", "expect": { "near": { "id": "hero", "to": [6.75, 3.5], "within": 1 } }, "result": "won", "script": "main.script.json" }
+  ]
+}

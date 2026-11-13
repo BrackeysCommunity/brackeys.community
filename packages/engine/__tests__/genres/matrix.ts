@@ -11,7 +11,11 @@ export type GenreMatrixRow = {
 
 /** Plan 53's genre coverage matrix: every row and the milestones that deliver it. */
 export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
-  platformer: { genre: "Platformer", deliveredBy: "M13, M14, M22, M23, M25", probes: [] },
+  platformer: {
+    genre: "Platformer",
+    deliveredBy: "M13, M14, M22, M23, M25",
+    probes: ["behavior-yard", "side-view-behaviors"],
+  },
   "top-down": {
     genre: "Top-down action / RPG",
     deliveredBy: "M13, M14, M18, M23, M25, M11",
@@ -72,7 +76,7 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
   "local-multiplayer": {
     genre: "Local multiplayer",
     deliveredBy: "M16, M22",
-    probes: ["local-versus"],
+    probes: ["local-versus", "versus-behaviors"],
   },
   "online-multiplayer": { genre: "Online multiplayer", deliveredBy: "M27", probes: [] },
 };

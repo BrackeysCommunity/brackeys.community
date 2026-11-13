@@ -7,6 +7,253 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.14.3] — unreleased
+
+The standard behavior library: bodies, colliders, input seats, character
+controllers, camera targets, spawners, nav agents, path following, force
+areas and joints are behaviors any loadable entity can carry, so a
+designer builds a playable entity in the inspector and a project with no
+game module plays. Game code reaches every body through `ctx.bodies`, and
+nothing gates forces or input by which behaviors an entity carries. It
+also closes 0.14.2's leftovers: one stated slot length, and the pixi.js
+peer range that excludes the release that draws nothing on Apple GPUs.
+
+### Added
+
+- `BehaviorSystem.beforeStep(dtMs)` and `BehaviorSystem.beforePhysics()`:
+  each tick a behavior system can act after the game's `beforeStep` and
+  after the type systems' `beforePhysics`, before the physics step (without
+  physics, right after the behaviors' `beforeStep`). With timing on, the
+  host laps `behavior.<name>.beforeStep` and `behavior.<name>.beforePhysics`.
+- `BehaviorDef.conflicts`: behaviors the same entity must not also carry,
+  reported as `behavior-conflict`.
+- `ctx.bodies` (`BodyControl`, from `@jams/engine/game`): any entity's body
+  by id, whichever system owns it. Asking about an id with no body throws
+  `body-missing`; a force, torque or impulse on a body that isn't dynamic,
+  a velocity write on a static body or a follower, and an angular velocity
+  write on a kinematic body throw `body-not-dynamic`.
+- The eleven standard behaviors, registered with their schemas: `collider`,
+  `body`, `player-input`, `path-follow`, `force-area`,
+  `character-top-down`, `character-side-view`, `nav-agent`, `joint`,
+  `spawner` and `camera-target` (`COLLIDER`, `BODY`, `PLAYER_INPUT`,
+  `PATH_FOLLOW`, `FORCE_AREA`, `CHARACTER_TOP_DOWN`, `CHARACTER_SIDE_VIEW`,
+  `NAV_AGENT`, `JOINT`, `SPAWNER`, `CAMERA_TARGET`, with `BODY_KINDS`,
+  `JOINT_KINDS`, each block's type and the system interfaces). `body`,
+  `character-*` and `force-area` require `collider`, `joint` requires
+  `body`, and the two character controllers conflict.
+- `player-input` behavior system: `{ seat }` (default 0) binds an entity to
+  an input seat, so one entity is player 2 by a field. Its system
+  (`PlayerInputSystem`, from `ctx.behavior("player-input")`) keeps
+  `seatOf(entityId)` and one cached view per carrier, dropped on detach.
+- `inputFor(ctx, entityId)` returns the seat's `SeatInput` over `ctx.input`
+  for an entity carrying `player-input`. When the entity carries none, its
+  seat has not joined, its seat has left, or it is disabled, the view reads
+  as nothing held and `seat` is null. A block update moves the entity to its
+  new seat from the next tick. Repeat calls for one entity return the same
+  view, with no allocation.
+- `collider` behavior: a collision shape on any entity, local to the
+  entity's pose. Without a `body` it is a fixed body; with `sensor: true` it
+  raises `sensor:enter` and `sensor:exit` as the `sensor` type does. It
+  takes `material`, `group` (default: dynamic on a dynamic body, sensor for
+  a sensor, else static), `density`, and `friction` and `restitution` (its
+  own win over the material's). Without physics, fixed and kinematic
+  colliders go to the geometry world.
+- `body` behavior: makes an entity's collider a dynamic, kinematic or static
+  body, with the prop's body fields (`gravityScale`, `linearDamping`,
+  `angularDamping`, `fixedRotation`, `ccd`). A dynamic body writes the
+  entity's pose after each step and is `physics-required` in a
+  `physics: "none"` world. A kinematic body moves at the velocity
+  `ctx.bodies.setVelocity` gives it, on either backend. Both register with
+  `ctx.bodies` and keep their velocity through disable/enable and world
+  saves.
+- `camera-target` (data only): the shell follows the weighted centre of the
+  entities carrying it.
+- `spawner` behavior system: spawns `type` entities (through `ctx.spawn`) or
+  `prefab` instances (through `ctx.instantiate`) at `rate` a second up to
+  `cap` live, plus `burst` on its first active tick, at the entity's pose
+  plus a random offset within `spread` drawn from
+  `ctx.random.fork("spawner:<id>")`; sets `velocity` (turned with the
+  entity) on spawns with a dynamic body through `ctx.bodies`; `lifeMs` gives
+  a type's spawn a `lifetime` block and a prefab instance a lifetime as a
+  whole; counts its live spawns back from `entity:destroyed` (an instance
+  counts once, by its id, until its last child goes); raises
+  `spawner:spawned` (`SPAWNER_SPAWNED`: `entityId` the spawner, `other` and
+  `data.id` the new id, `at` where it appeared); world saves hold
+  `{ owed, live, left?, burst? }`; seeks before tick 0 run as stepping
+  would. A prefab the run can't place throws `prefab-not-spawnable`.
+- `createSideViewController(ctx, body, opts)` (motion, exported from
+  `@jams/engine/game`): runs and jumps a motion body under
+  `ctx.gravity.y × gravityScale`, with `maxSpeed`, `accel`, `decel`,
+  `airControl`, `jumpHeight`, `maxFallSpeed`, `coyoteMs`, `jumpBufferMs` and
+  `jumpCut`, plus slopes, steps and snap from `SIDE_VIEW_CONTROLLER`
+  overridden by `maxSlopeDeg`, `stepHeight` and `snapToGround`.
+  `step(dtMs, { move, jump, jumpHeld }, { carrier?, accel? })` returns the
+  motion result with `grounded`, `landed` and `jumped`. It works the same on
+  both backends, keeps its velocity and timers in `save`/`restore` and in
+  world saves (owner `side-view`), and has `launch` and `destroy`.
+- Body and overlap helpers for a game's own systems: `registerBody`,
+  `rapierBodyEntry`, `kinematicBodyEntry` and `BodyEntry` register a body
+  with `ctx.bodies` the way the engine's systems do; `createOverlapTracker`,
+  `saveOverlaps`, `restoreOverlaps`, `Overlaps` and `OverlapTracker` track
+  and save sensor overlaps; `parseShape`, `composePose`, `relativePose` and
+  `wholeTicksIn` are public too.
+- `SLOT_MAX_LENGTH` (`@jams/engine/game`), the longest slot name (32
+  characters). `SLOT_PATTERN` and the slot messages are built from it, so a
+  host can state the limit without copying the number.
+- `DEFAULT_ACTIONS`: the `move` (vector) and `jump` (button) actions a
+  registry built without a game has.
+- `SolidSystem.passesOneWay(actorId, actor, passing)`: one-way gating for
+  one actor alone. The solids it passes go into `oneWayPasses(ctx,
+actorId)`, which motion bodies and side-view controllers skip in their
+  own sweeps and moves; the world, and every other actor and dynamic body,
+  still meets them. `gateOneWay` and `gateOneWaySides` still gate the whole
+  world.
+- `SpaceFilter.skip`: collider handles a query leaves out.
+- `oneWayPasses(ctx, actorId)` (`@jams/engine/game`): the one-way colliders
+  an actor passes, for a game's own sweeps.
+- `character-top-down` behavior system: the entity's `collider` shape
+  becomes a kinematic motion body (`createMotionBody`) walked by
+  `createTopDownController` from its seat's `move` action (`inputFor`), or
+  from the last `CharacterSystem.setIntent` when it carries no
+  `player-input`; a seat that leaves stops it at `decel`. A `force-area` it
+  stands in adds `sample(pos)` as acceleration (held back by
+  `accel`/`decel`, so only a stronger area moves it), `launch` sets its
+  velocity, `grounded` is always true, and with `pushDynamic` it gives each
+  dynamic body it runs into the impulse that matches its speed into it. On
+  a dynamic `body` it is refused with `character-body-kind`; a kinematic
+  `body` is its own. While attached it takes its collider's own body out of
+  the world (through `ColliderSystem.disable`) and puts it back on detach.
+  Its world save is its motion body's plus the last `setIntent`.
+- `character-side-view` runs an entity with `collider` and `player-input`
+  (or `setIntent` from code): it walks, and jumps with coyote time, a jump
+  buffer and a jump cut, over slopes, steps and ground snap, through
+  `createSideViewController`. It rides followers and kinematic
+  `path-follow` bodies, passes one-way solids per character (rising or
+  holding down), takes force areas' `sample` as acceleration, pushes
+  dynamic bodies with `pushDynamic`, and raises `character:jumped`,
+  `character:left-ground` and `character:landed` (`CHARACTER_JUMPED`,
+  `CHARACTER_LEFT_GROUND`, `CHARACTER_LANDED`; `other` is the ground's
+  entity). Its motion body stands in for the collider system's body on
+  that entity, so `ctx.bodies` sees it as kinematic. A dynamic `body` is
+  refused at runtime with `character-body-kind`.
+- `path-follow` moves any entity along a waypoint path with the follower
+  type's rules: a kinematic `body` on it is moved by its velocity before
+  physics, so it carries what stands on it and `carrierDelta` answers for
+  its collider; anything else has its pose written. It supports `reset`,
+  `seek` and saves (its place on the path), and
+  `PathFollowSystem.frameDelta(id)` says how far it moved the body last
+  tick. `systems/path-follower` exports `advanceAlongPath`,
+  `seekAlongPath`, `pathPosition`, `pathWaypoints`, `savePathPlace`,
+  `readPathPlace` and `PathPlace`; `carrierDelta` also answers for bodies
+  `path-follow` moves.
+- `nav-agent` walks: `setDestination(id, point | entityId)` plans over
+  `ctx.nav`, steps toward each waypoint at `speed`, keeps `radius` from
+  other agents by `separation` (side-stepping one met head-on), re-plans
+  toward a followed entity every `repathTicks` (staggered by attach
+  order), and ends with `nav:arrived` or `nav:blocked` (`NAV_ARRIVED`,
+  `NAV_BLOCKED`; `data.reason` `no-path`, `stuck` or `gone`); `stop(id)`
+  ends a walk silently. An entity with a solid `collider` moves through a
+  motion body of that shape, otherwise by pose; both stay on the walk
+  areas. World saves keep the destination, route and timers.
+- `force-area` pushes the dynamic bodies inside its sensor collider through
+  `ctx.bodies`: `directional` gives `force` (m/s², turned with the entity)
+  times the body's mass, `point` gives `strength` toward its pose with
+  `none`, `linear` (to zero at the collider's farthest point) or
+  `inverse-square` (past 1 m) falloff, plus `drag` against velocity;
+  `affects` limits it by collision group and tag.
+  `ForceAreaSystem.sample(point)` returns the summed acceleration of every
+  area containing the point (drag aside) for kinematic controllers. A
+  world save keeps what is inside each area. Its collider must be a sensor:
+  validation reports `schema` with a fix, and attach refuses it.
+- `joint` behavior: links an entity's body to the body of the entity its
+  `to` names, as a `revolute`, `prismatic`, `rope`, `weld` or `spring`
+  joint. Joints are made after every body of the load, removed while
+  either end is destroyed or disabled, and made again when both are back or
+  either is rebuilt. A motor drives the relative speed with at most
+  `maxForce`. A missing `anchorB` holds `to` at the point under `anchorA`
+  when the joint is first made. Spring stiffness defaults to 100 N/m and
+  damping to 1 N·s/m. Refusals: `joint-self`, `joint-ref-type`, and
+  `physics-required` in a scene without physics.
+- `until.near` in the input-script and checks schemas: the entity's pose
+  within `within` metres of a point or another entity's pose.
+- `nav-agent`'s optional `to`: a point, world m, or an entity's id it walks
+  to from the start, so a scene with no code gives an agent a destination;
+  omitted, it waits for `setDestination`. A world save taken after it
+  arrives keeps it from walking there again on restore.
+- `PlayWorld.pose(id)`: a live entity's pose after the tick, for game
+  predicates and outcomes.
+- Editor: Add behavior also adds the behaviors one requires, each from its
+  template; seeds a joint's `to` with the nearest entity that can hold it;
+  and applies the scene's own fixes to the blocks it adds (a force area's
+  new collider becomes a sensor). An option that can't be added yet says
+  why (`BehaviorOption.adds`, `BehaviorOption.unavailable`);
+  `buildInspectorModel` takes `{ def }`.
+- Editor: behavior gizmos on the selected entity: the collider's shape
+  handles (writing `behaviors.collider.shape` in the entity's frame), joint
+  anchors with a line to `to`, a force area's arrow or strength ring, and a
+  spawner's spread ring and velocity arrow (`behaviorGizmo`,
+  `behaviorHandles`, `dragBehaviorHandle`, `behaviorMarks`,
+  `GizmoTarget.behaviors`, `FORCE_PX`, `VELOCITY_PX`).
+- Inspector: behavior fields carry `ModelField.group` and show under group
+  headings; `meta.widget: "action"` fields are a select over the game's
+  actions; vector fields are x/y fields with their unit; a `refField` in a
+  block is an entity picker (`entity-ref` with `any`).
+- The engine project gains behavior-yard, a gameless side-view and
+  top-down yard built only from the standard behaviors (hero-side and
+  hero-top prefabs with exposed `maxSpeed`/`jumpHeight` params, a spawner
+  of body crates, a path-follow ferry, a force-area updraft, a three-link
+  joint chain, a nav-agent on a walk area sent to a drop point, a one-way
+  ledge), with a checks file and an input script that play the side hero
+  to a sensor; kitchen-sink carries one entity per standard behavior.
+
+### Changed
+
+- The `pixi.js` peer range is `^8.23.0` (was `^8.17.1`): Pixi 8.17's
+  WebGPU renderer draws nothing in Chrome 157 on Apple GPUs.
+- `solid`, `sensor`, `prop` and `follower` refuse the `body` and
+  `collider` behaviors (`behavior-forbidden`): their systems already own a
+  body.
+- A registry with no game has the `move` and `jump` actions, and the shell
+  binds them in a gameless project.
+- `ENGINE_PREDICATES` gains `near`.
+- Prop and follower bodies answer `ctx.bodies`: props as dynamic bodies
+  (velocity, impulses, forces, torques, mass, wake by entity id), solids and
+  sensors as static, followers and motion bodies as kinematic. Forces and
+  torques are summed per tick, handed to Rapier before the step and cleared
+  after it, so a force lasts one step.
+- When a game names no camera target (no `cameraTarget()`, or it returns
+  `undefined`), the shell's camera follows the weight-averaged pose of the
+  live, enabled `camera-target` entities in a play world, with the camera's
+  usual smoothing; a game's `cameraTarget()` returning a point or `null`
+  still wins.
+- A nav agent's separation looks only at entities of its agents' types, so
+  a crowd on large walk areas no longer tests every polygon it overlaps.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 18, and every committed JSON Schema's
+  `x-agent-surface` with it.
+- Issue codes `behavior-conflict` (error), `character-body-kind` (error,
+  fixable), `nav-missing` (warn), `joint-ref-type` (error), `joint-self`
+  (error), `body-missing` (error) and `body-not-dynamic` (error).
+- Every scene, prefab and fragment schema offers the eleven behavior
+  blocks on each loadable type that allows them; the input-script and
+  checks schemas take `until.near`; a gameless registry's `Action` enum
+  lists `move` and `jump`.
+- `until.near` `{ id, to: [x, y] | entityId, within }` is evaluated: it
+  holds while the entity's pose is within `within` metres of the point or
+  the other entity's pose, in playtest steps, a `reaches` check's `expect`
+  and any game predicate or outcome given the tick's state (fuzz included),
+  with or without a game. `PlayWorld.pose(id)` reads a live entity's pose.
+  `game new` gains `--preset side-view` (Rapier, gravity [0, 20]); it and
+  `top-down` now build the hero from `collider`, the character behavior,
+  `player-input` and `camera-target`, with no movement code, and their
+  scripts and reaches checks wait on `near`. The `scene-editing` skill has
+  three tested behavior batches.
+- `player-input` action fields are titled by their action ("Move action",
+  "Jump action") instead of "Action"; `nav-agent` gains `to` in every
+  schema that offers it.
+
 ## [0.14.2] — unreleased
 
 The patch jams.team's player saves stand on: a host can refuse a save in

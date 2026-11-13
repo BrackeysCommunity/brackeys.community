@@ -1,6 +1,5 @@
 import type { Vec2 } from "@jams/engine";
 import { defineEntityType, pointField } from "@jams/engine/game";
-import { z } from "zod";
 
 export const GAME_ID = "demo";
 
@@ -11,23 +10,13 @@ export const REACHED = `${GAME_ID}:reached`;
 export const GOAL_TAG = "goal";
 
 export const HERO = "hero";
-/** The hero's width and height when its entity doesn't give one, m. */
-export const HERO_SIZE = 0.5;
 
-/** Where the hero starts; the game makes its body there. */
+/** The hero: its behaviors (a collider, a character, player input and a camera target) move it. */
 export const heroType = defineEntityType({
   type: HERO,
-  description: "Where the hero starts; the game moves it.",
+  description: "The hero, moved by its character behavior from the player's input.",
   base: "marker",
-  fields: {
-    at: pointField("Where the hero starts."),
-    size: z
-      .number()
-      .positive()
-      .optional()
-      .describe(`The hero's width and height, m; default ${HERO_SIZE}.`)
-      .meta({ unit: "m" }),
-  },
+  fields: { at: pointField("Where the hero starts.") },
 });
 
 export type Snapshot = {

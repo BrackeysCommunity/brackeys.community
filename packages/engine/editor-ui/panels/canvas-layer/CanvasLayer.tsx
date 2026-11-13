@@ -19,6 +19,7 @@ import { Button, useKit } from "../../kit/index";
 import { runOverlay, type LoadedRun } from "../../session/loaded-run";
 import { useStoreValue } from "../../session/use-store-value";
 import { carriesAsset, readAssetDrag } from "../project-tree/tree-rows";
+import { BehaviorMarks } from "./BehaviorMarks";
 import { EditLayerNotes, EditLayers, useEditLayerDrawing, useExpandedScene } from "./EditLayers";
 import { OneWayMarks } from "./OneWayMarks";
 import { RunMarks } from "./RunMarks";
@@ -215,7 +216,8 @@ function withDropGhost(overlay: ToolOverlay, ghost: DropPreview | null): ToolOve
  * The editor's layer over the game canvas, in edit mode: the tool host's
  * overlay (selection outlines as previewed, handles, the marquee, guides,
  * paths, placement ghosts and the drag readout), the View menu's grid,
- * occupancy and nav layers, one-way solids' landing faces, a loaded run, and
+ * occupancy and nav layers, one-way solids' landing faces, the selected
+ * entity's behavior gizmo (collider, joint, force, spawn), a loaded run, and
  * the fix the host offers after a commit. Only the offer takes the pointer;
  * assets dragged from the project tree drop on the canvas beneath.
  */
@@ -263,6 +265,7 @@ export function CanvasLayer({
         <EditLayers drawing={layers} transform={transform} />
         <OneWayMarks session={session} scene={scene} view={view} transform={transform} />
         {run ? <RunMarks overlay={run} view={view} transform={transform} /> : null}
+        <BehaviorMarks session={session} view={view} transform={transform} overlay={overlay} />
         <ToolOverlayMarks overlay={overlay} view={view} transform={transform} />
       </svg>
       <ToolOverlayLabels overlay={overlay} view={view} />

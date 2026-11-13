@@ -1,0 +1,9 @@
+{
+  "v": 3,
+  "checks": [
+    { "id": "valid", "kind": "valid", "physical": true },
+    { "id": "reaches-goal", "kind": "reaches", "expect": { "count": { "eq": 6, "tag": "crate" }, "event": { "entityId": "goal", "other": "runner/hero", "type": "sensor:enter" }, "exists": "runner/hero", "near": { "id": "runner/hero", "to": "goal", "within": 1 } }, "result": "script-end", "script": "behavior-yard.script.json" },
+    { "id": "chain-holds", "kind": "reaches", "expect": { "count": { "eq": 6, "tag": "crate" }, "exists": "link-3" }, "result": "script-end", "script": { "scene": "behavior-yard", "steps": [{ "wait": 600 }], "v": 2 } },
+    { "id": "courier-arrives", "kind": "reaches", "expect": { "event": { "entityId": "courier", "type": "nav:arrived" } }, "result": "script-end", "script": { "scene": "behavior-yard", "steps": [{ "hold": [], "max": 900, "until": { "event": { "entityId": "courier", "type": "nav:arrived" } } }], "v": 2 } }
+  ]
+}

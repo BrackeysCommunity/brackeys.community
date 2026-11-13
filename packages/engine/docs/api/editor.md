@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`Aabb`](#aabb) · [`ApplyOptions`](#applyoptions) · [`ApplyResult`](#applyresult) · [`AssetDrop`](#assetdrop) · [`BehaviorOption`](#behavioroption) · [`BehaviorSectionId`](#behaviorsectionid) · [`BehaviorSectionInfo`](#behaviorsectioninfo) · [`BulkEntry`](#bulkentry) · [`BulkKey`](#bulkkey) · [`CLOSE_PX`](#close_px) · [`COARSE_NUDGE_STEPS`](#coarse_nudge_steps) · [`CreateVariant`](#createvariant) · [`DEFAULT_CELL`](#default_cell) · [`DEFAULT_DRAW_TYPE`](#default_draw_type) · [`DEFAULT_SNAP`](#default_snap) · [`DRAG_THRESHOLD_PX`](#drag_threshold_px) · [`DRAW_TYPE_COMMAND`](#draw_type_command) · [`DispatchOptions`](#dispatchoptions) · [`DocApplyResult`](#docapplyresult) · [`DragOptions`](#dragoptions) · [`DrawToolKind`](#drawtoolkind) · [`DrawToolOptions`](#drawtooloptions) · [`DrawTypeOption`](#drawtypeoption) · [`DropOptions`](#dropoptions) · [`DropPreview`](#droppreview) · [`ENGINE_KEYS`](#engine_keys) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`EditGeometry`](#editgeometry) · [`EditableSpatialIndex`](#editablespatialindex) · [`EditorCommand`](#editorcommand) · [`EditorKeyEvent`](#editorkeyevent) · [`EditorMode`](#editormode) · [`EditorSession`](#editorsession) · [`EditorSessionEvent`](#editorsessionevent) · [`EditorSessionOptions`](#editorsessionoptions) · [`EditorStoreState`](#editorstorestate) · [`EditorTool`](#editortool) · [`EditorToolContext`](#editortoolcontext) · [`EditorToolDef`](#editortooldef) · [`EngineKeyBinding`](#enginekeybinding) · [`EngineToolId`](#enginetoolid) · [`EntityDef`](#entitydef) · [`EntityTypeName`](#entitytypename) · [`EnumOption`](#enumoption) · [`FieldWidget`](#fieldwidget) · [`GameEditorDef`](#gameeditordef) · [`GameKeyBinding`](#gamekeybinding) · [`GesturePreview`](#gesturepreview) · [`GesturePreviewOptions`](#gesturepreviewoptions) · [`GizmoEdit`](#gizmoedit) · [`GizmoHandle`](#gizmohandle) · [`GizmoTarget`](#gizmotarget) · [`HANDLE_HIT_PX`](#handle_hit_px) · [`HANDLE_PX`](#handle_px) · [`HandleKind`](#handlekind) · [`History`](#history) · [`HistoryEntry`](#historyentry) · [`HistoryOptions`](#historyoptions) · [`INSPECTOR_SECTIONS`](#inspector_sections) · [`INSTANCES_ROW`](#instances_row) · [`IndexEntry`](#indexentry) · [`InspectorField`](#inspectorfield) · [`InspectorModel`](#inspectormodel) · [`InspectorRow`](#inspectorrow) · [`InspectorSectionId`](#inspectorsectionid) · [`InspectorSectionModel`](#inspectorsectionmodel) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstanceParamsModel`](#instanceparamsmodel) · [`InstanceTransformModel`](#instancetransformmodel) · [`KeyContext`](#keycontext) · [`KeyMatch`](#keymatch) · [`KeyScope`](#keyscope) · [`Keymap`](#keymap) · [`LogEntry`](#logentry) · [`MIN_POINTS`](#min_points) · [`MIN_WAYPOINTS`](#min_waypoints) · [`MULTI_CLICK_MS`](#multi_click_ms) · [`MULTI_CLICK_PX`](#multi_click_px) · [`ModelEdit`](#modeledit) · [`ModelField`](#modelfield) · [`ModelSectionId`](#modelsectionid) · [`NumberBounds`](#numberbounds) · [`OpBatch`](#opbatch) · [`OutlineRow`](#outlinerow) · [`OverlayTone`](#overlaytone) · [`PICK_TOL_PX`](#pick_tol_px) · [`POINT_PICK_PX`](#point_pick_px) · [`ParamModel`](#parammodel) · [`ParseFragmentResult`](#parsefragmentresult) · [`PasteOptions`](#pasteoptions) · [`PasteResult`](#pasteresult) · [`PeerPresence`](#peerpresence) · [`PickLayers`](#picklayers) · [`PickOptions`](#pickoptions) · [`PlacedTemplate`](#placedtemplate) · [`PlacementCheck`](#placementcheck) · [`PlacementEditorToolOptions`](#placementeditortooloptions) · [`PlacementTemplate`](#placementtemplate) · [`PointShape`](#pointshape) · [`PrefabIsolation`](#prefabisolation) · [`PrefabIsolationOptions`](#prefabisolationoptions) · [`PreviewRuntime`](#previewruntime) · [`Pt`](#pt) · [`QuarterTurnTargets`](#quarterturntargets) · [`RESIZE_DIRS`](#resize_dirs) · [`Ref`](#ref) · [`RefTarget`](#reftarget) · [`Registry`](#registry) · [`ResizeDir`](#resizedir) · [`RevertResult`](#revertresult) · [`SECTION_TITLES`](#section_titles) · [`SNAP_PX`](#snap_px) · [`SNAP_REACH_PX`](#snap_reach_px) · [`SNAP_STEPS`](#snap_steps) · [`STALK_PX`](#stalk_px) · [`SceneChange`](#scenechange) · [`SceneDefinition`](#scenedefinition) · [`SceneFragment`](#scenefragment) · [`SceneHash`](#scenehash) · [`SceneIssue`](#sceneissue) · [`SceneOp`](#sceneop) · [`SceneOrigin`](#sceneorigin) · [`ScenePresence`](#scenepresence) · [`SelectMode`](#selectmode) · [`SessionHistory`](#sessionhistory) · [`SettingsRowsOptions`](#settingsrowsoptions) · [`SettingsSection`](#settingssection) · [`ShapeConversion`](#shapeconversion) · [`ShapeObj`](#shapeobj) · [`ShapeSlot`](#shapeslot) · [`ShapeTuple`](#shapetuple) · [`SnapGuide`](#snapguide) · [`SnapMoveInput`](#snapmoveinput) · [`SnapMoveResult`](#snapmoveresult) · [`SnapSettings`](#snapsettings) · [`SnapTarget`](#snaptarget) · [`SpatialIndex`](#spatialindex) · [`SpatialIndexOptions`](#spatialindexoptions) · [`StrokeFit`](#strokefit) · [`ToolHost`](#toolhost) · [`ToolHostOptions`](#toolhostoptions) · [`ToolKeyEvent`](#toolkeyevent) · [`ToolLayers`](#toollayers) · [`ToolModifiers`](#toolmodifiers) · [`ToolOption`](#tooloption) · [`ToolOverlay`](#tooloverlay) · [`ToolPointerEvent`](#toolpointerevent) · [`WHEEL_ZOOM`](#wheel_zoom) · [`applyLevels`](#applylevels) · [`applyToPrefabBatch`](#applytoprefabbatch) · [`asProjectBatch`](#asprojectbatch) · [`attachBatch`](#attachbatch) · [`attachFieldOf`](#attachfieldof) · [`boundsCheck`](#boundscheck) · [`boxTool`](#boxtool) · [`buildInspectorModel`](#buildinspectormodel) · [`buildOutline`](#buildoutline) · [`builtinTools`](#builtintools) · [`bulkGeometry`](#bulkgeometry) · [`capsuleLength`](#capsulelength) · [`childOverrides`](#childoverrides) · [`circleTool`](#circletool) · [`convertToChainFix`](#converttochainfix) · [`copySelection`](#copyselection) · [`createDrawTool`](#createdrawtool) · [`createEditorSession`](#createeditorsession) · [`createEditorStore`](#createeditorstore) · [`createGesturePreview`](#creategesturepreview) · [`createHistory`](#createhistory) · [`createKeymap`](#createkeymap) · [`createPenTool`](#createpentool) · [`createPrefabBatch`](#createprefabbatch) · [`createSpatialIndex`](#createspatialindex) · [`createToolHost`](#createtoolhost) · [`createVariantBatch`](#createvariantbatch) · [`cutSelection`](#cutselection) · [`cycleHit`](#cyclehit) · [`defaultLayer`](#defaultlayer) · [`defineEditorTool`](#defineeditortool) · [`deleteBatch`](#deletebatch) · [`deleteVertices`](#deletevertices) · [`dirSigns`](#dirsigns) · [`docRefs`](#docrefs) · [`dragAngle`](#dragangle) · [`dragHandle`](#draghandle) · [`dragInsertVertex`](#draginsertvertex) · [`dragInsertWaypoint`](#draginsertwaypoint) · [`dragSelection`](#dragselection) · [`dragVertex`](#dragvertex) · [`dragWaypoint`](#dragwaypoint) · [`drawBatch`](#drawbatch) · [`drawTypeOptions`](#drawtypeoptions) · [`drawnShape`](#drawnshape) · [`dropBatch`](#dropbatch) · [`dropFragment`](#dropfragment) · [`dropPreview`](#droppreview-1) · [`duplicateSelection`](#duplicateselection) · [`entityGeometry`](#entitygeometry) · [`expandRefs`](#expandrefs) · [`fieldOp`](#fieldop) · [`flipBatch`](#flipbatch) · [`formatMetres`](#formatmetres) · [`fragmentBounds`](#fragmentbounds) · [`fragmentOf`](#fragmentof) · [`geometryOfRef`](#geometryofref) · [`gizmoTarget`](#gizmotarget-1) · [`groupBatch`](#groupbatch) · [`hierarchyDown`](#hierarchydown) · [`hierarchyUp`](#hierarchyup) · [`hitHandle`](#hithandle) · [`insertVertex`](#insertvertex) · [`inspectorFields`](#inspectorfields) · [`instanceOfRef`](#instanceofref) · [`instanceParamsModel`](#instanceparamsmodel-1) · [`instanceTransformModel`](#instancetransformmodel-1) · [`instanceZBatch`](#instancezbatch) · [`instancesOf`](#instancesof) · [`isBulkRef`](#isbulkref) · [`isFollowerType`](#isfollowertype) · [`isolationBounds`](#isolationbounds) · [`judgeConcave`](#judgeconcave) · [`keyChord`](#keychord) · [`labelFor`](#labelfor) · [`lock45`](#lock45) · [`lookupRef`](#lookupref) · [`marqueeSelect`](#marqueeselect) · [`modelBatch`](#modelbatch) · [`modelOps`](#modelops) · [`moveBatch`](#movebatch) · [`moveTarget`](#movetarget) · [`moveVertex`](#movevertex) · [`nestedInstanceOf`](#nestedinstanceof) · [`nextFreeId`](#nextfreeid) · [`nextGroupName`](#nextgroupname) · [`normDeg`](#normdeg) · [`normalizeChord`](#normalizechord) · [`nudgeBatch`](#nudgebatch) · [`nudgeDelta`](#nudgedelta) · [`numberBounds`](#numberbounds-1) · [`onePixel`](#onepixel) · [`openPrefabIsolation`](#openprefabisolation) · [`outlineOrder`](#outlineorder) · [`overridePathsOf`](#overridepathsof) · [`panTool`](#pantool) · [`paramBatch`](#parambatch) · [`parseFragment`](#parsefragment) · [`parseRelative`](#parserelative) · [`pasteFragment`](#pastefragment) · [`pathBatch`](#pathbatch) · [`penTool`](#pentool) · [`pickAt`](#pickat) · [`pixelSize`](#pixelsize) · [`placedShape`](#placedshape) · [`placementEditorTool`](#placementeditortool) · [`pointBatch`](#pointbatch) · [`projectHistory`](#projecthistory) · [`prune`](#prune) · [`quarterTurnTargets`](#quarterturntargets-1) · [`radiusTo`](#radiusto) · [`readAngle`](#readangle) · [`readDelta`](#readdelta) · [`readLength`](#readlength) · [`readPoint`](#readpoint) · [`readRadius`](#readradius) · [`readShapeSize`](#readshapesize) · [`readSize`](#readsize) · [`rebasePath`](#rebasepath) · [`refCandidates`](#refcandidates) · [`referableEntities`](#referableentities) · [`remap`](#remap) · [`removeVertices`](#removevertices) · [`removeWaypoints`](#removewaypoints) · [`resizeBox`](#resizebox) · [`resizeCursor`](#resizecursor) · [`revertAllBatch`](#revertallbatch) · [`revertFieldBatch`](#revertfieldbatch) · [`rotateByHandle`](#rotatebyhandle) · [`rotateSelectionBatch`](#rotateselectionbatch) · [`rotateTargetsBatch`](#rotatetargetsbatch) · [`rotateTool`](#rotatetool) · [`rotationPivot`](#rotationpivot) · [`roundPt`](#roundpt) · [`roundShape`](#roundshape) · [`select`](#select) · [`selectAllRefs`](#selectallrefs) · [`selectTool`](#selecttool) · [`selectionBounds`](#selectionbounds) · [`selectionBox`](#selectionbox) · [`selectionHandles`](#selectionhandles) · [`setHover`](#sethover) · [`settingsEdit`](#settingsedit) · [`settingsRows`](#settingsrows) · [`settingsValue`](#settingsvalue) · [`shapeBatch`](#shapebatch) · [`shapeConversions`](#shapeconversions) · [`shapeEdit`](#shapeedit) · [`shapeHandles`](#shapehandles) · [`shapePivot`](#shapepivot) · [`shapeSet`](#shapeset) · [`shapeSlots`](#shapeslots) · [`snapAngle`](#snapangle) · [`snapDraggedPoint`](#snapdraggedpoint) · [`snapMove`](#snapmove) · [`snapPoint`](#snappoint) · [`snapToGrid`](#snaptogrid) · [`strokeFit`](#strokefit-1) · [`strokeShape`](#strokeshape) · [`takesConcave`](#takesconcave) · [`targetBox`](#targetbox) · [`targetHandles`](#targethandles) · [`targetsOf`](#targetsof) · [`toolKeyEventOf`](#toolkeyeventof) · [`turnBatch`](#turnbatch) · [`ungroupBatch`](#ungroupbatch) · [`unpackBatch`](#unpackbatch) · [`vertexHandles`](#vertexhandles) · [`waypointHandles`](#waypointhandles) · [`waypointsTool`](#waypointstool) · [`withShapeSlot`](#withshapeslot) · [`zOrderBatch`](#zorderbatch)
+[`Aabb`](#aabb) · [`ApplyOptions`](#applyoptions) · [`ApplyResult`](#applyresult) · [`AssetDrop`](#assetdrop) · [`BehaviorGizmo`](#behaviorgizmo) · [`BehaviorMarks`](#behaviormarks) · [`BehaviorOption`](#behavioroption) · [`BehaviorSectionId`](#behaviorsectionid) · [`BehaviorSectionInfo`](#behaviorsectioninfo) · [`BulkEntry`](#bulkentry) · [`BulkKey`](#bulkkey) · [`CLOSE_PX`](#close_px) · [`COARSE_NUDGE_STEPS`](#coarse_nudge_steps) · [`CreateVariant`](#createvariant) · [`DEFAULT_CELL`](#default_cell) · [`DEFAULT_DRAW_TYPE`](#default_draw_type) · [`DEFAULT_SNAP`](#default_snap) · [`DRAG_THRESHOLD_PX`](#drag_threshold_px) · [`DRAW_TYPE_COMMAND`](#draw_type_command) · [`DispatchOptions`](#dispatchoptions) · [`DocApplyResult`](#docapplyresult) · [`DragOptions`](#dragoptions) · [`DrawToolKind`](#drawtoolkind) · [`DrawToolOptions`](#drawtooloptions) · [`DrawTypeOption`](#drawtypeoption) · [`DropOptions`](#dropoptions) · [`DropPreview`](#droppreview) · [`ENGINE_KEYS`](#engine_keys) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`EditGeometry`](#editgeometry) · [`EditPose`](#editpose) · [`EditableSpatialIndex`](#editablespatialindex) · [`EditorCommand`](#editorcommand) · [`EditorKeyEvent`](#editorkeyevent) · [`EditorMode`](#editormode) · [`EditorSession`](#editorsession) · [`EditorSessionEvent`](#editorsessionevent) · [`EditorSessionOptions`](#editorsessionoptions) · [`EditorStoreState`](#editorstorestate) · [`EditorTool`](#editortool) · [`EditorToolContext`](#editortoolcontext) · [`EditorToolDef`](#editortooldef) · [`EngineKeyBinding`](#enginekeybinding) · [`EngineToolId`](#enginetoolid) · [`EntityDef`](#entitydef) · [`EntityTypeName`](#entitytypename) · [`EnumOption`](#enumoption) · [`FORCE_PX`](#force_px) · [`FieldWidget`](#fieldwidget) · [`GameEditorDef`](#gameeditordef) · [`GameKeyBinding`](#gamekeybinding) · [`GesturePreview`](#gesturepreview) · [`GesturePreviewOptions`](#gesturepreviewoptions) · [`GizmoEdit`](#gizmoedit) · [`GizmoHandle`](#gizmohandle) · [`GizmoTarget`](#gizmotarget) · [`HANDLE_HIT_PX`](#handle_hit_px) · [`HANDLE_PX`](#handle_px) · [`HandleKind`](#handlekind) · [`History`](#history) · [`HistoryEntry`](#historyentry) · [`HistoryOptions`](#historyoptions) · [`INSPECTOR_SECTIONS`](#inspector_sections) · [`INSTANCES_ROW`](#instances_row) · [`IndexEntry`](#indexentry) · [`InspectorField`](#inspectorfield) · [`InspectorModel`](#inspectormodel) · [`InspectorRow`](#inspectorrow) · [`InspectorSectionId`](#inspectorsectionid) · [`InspectorSectionModel`](#inspectorsectionmodel) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstanceParamsModel`](#instanceparamsmodel) · [`InstanceTransformModel`](#instancetransformmodel) · [`KeyContext`](#keycontext) · [`KeyMatch`](#keymatch) · [`KeyScope`](#keyscope) · [`Keymap`](#keymap) · [`LogEntry`](#logentry) · [`MIN_POINTS`](#min_points) · [`MIN_WAYPOINTS`](#min_waypoints) · [`MULTI_CLICK_MS`](#multi_click_ms) · [`MULTI_CLICK_PX`](#multi_click_px) · [`ModelEdit`](#modeledit) · [`ModelField`](#modelfield) · [`ModelSectionId`](#modelsectionid) · [`NumberBounds`](#numberbounds) · [`OpBatch`](#opbatch) · [`OutlineRow`](#outlinerow) · [`OverlayTone`](#overlaytone) · [`PICK_TOL_PX`](#pick_tol_px) · [`POINT_PICK_PX`](#point_pick_px) · [`ParamModel`](#parammodel) · [`ParseFragmentResult`](#parsefragmentresult) · [`PasteOptions`](#pasteoptions) · [`PasteResult`](#pasteresult) · [`PeerPresence`](#peerpresence) · [`PickLayers`](#picklayers) · [`PickOptions`](#pickoptions) · [`PlacedTemplate`](#placedtemplate) · [`PlacementCheck`](#placementcheck) · [`PlacementEditorToolOptions`](#placementeditortooloptions) · [`PlacementTemplate`](#placementtemplate) · [`PointShape`](#pointshape) · [`PrefabIsolation`](#prefabisolation) · [`PrefabIsolationOptions`](#prefabisolationoptions) · [`PreviewRuntime`](#previewruntime) · [`Pt`](#pt) · [`QuarterTurnTargets`](#quarterturntargets) · [`RESIZE_DIRS`](#resize_dirs) · [`Ref`](#ref) · [`RefTarget`](#reftarget) · [`Registry`](#registry) · [`ResizeDir`](#resizedir) · [`RevertResult`](#revertresult) · [`SECTION_TITLES`](#section_titles) · [`SNAP_PX`](#snap_px) · [`SNAP_REACH_PX`](#snap_reach_px) · [`SNAP_STEPS`](#snap_steps) · [`STALK_PX`](#stalk_px) · [`SceneChange`](#scenechange) · [`SceneDefinition`](#scenedefinition) · [`SceneFragment`](#scenefragment) · [`SceneHash`](#scenehash) · [`SceneIssue`](#sceneissue) · [`SceneOp`](#sceneop) · [`SceneOrigin`](#sceneorigin) · [`ScenePresence`](#scenepresence) · [`SelectMode`](#selectmode) · [`SessionHistory`](#sessionhistory) · [`SettingsRowsOptions`](#settingsrowsoptions) · [`SettingsSection`](#settingssection) · [`ShapeConversion`](#shapeconversion) · [`ShapeObj`](#shapeobj) · [`ShapeSlot`](#shapeslot) · [`ShapeTuple`](#shapetuple) · [`SnapGuide`](#snapguide) · [`SnapMoveInput`](#snapmoveinput) · [`SnapMoveResult`](#snapmoveresult) · [`SnapSettings`](#snapsettings) · [`SnapTarget`](#snaptarget) · [`SpatialIndex`](#spatialindex) · [`SpatialIndexOptions`](#spatialindexoptions) · [`StrokeFit`](#strokefit) · [`ToolHost`](#toolhost) · [`ToolHostOptions`](#toolhostoptions) · [`ToolKeyEvent`](#toolkeyevent) · [`ToolLayers`](#toollayers) · [`ToolModifiers`](#toolmodifiers) · [`ToolOption`](#tooloption) · [`ToolOverlay`](#tooloverlay) · [`ToolPointerEvent`](#toolpointerevent) · [`VELOCITY_PX`](#velocity_px) · [`WHEEL_ZOOM`](#wheel_zoom) · [`applyLevels`](#applylevels) · [`applyToPrefabBatch`](#applytoprefabbatch) · [`asProjectBatch`](#asprojectbatch) · [`attachBatch`](#attachbatch) · [`attachFieldOf`](#attachfieldof) · [`behaviorGizmo`](#behaviorgizmo-1) · [`behaviorHandles`](#behaviorhandles) · [`behaviorMarks`](#behaviormarks-1) · [`boundsCheck`](#boundscheck) · [`boxTool`](#boxtool) · [`buildInspectorModel`](#buildinspectormodel) · [`buildOutline`](#buildoutline) · [`builtinTools`](#builtintools) · [`bulkGeometry`](#bulkgeometry) · [`capsuleLength`](#capsulelength) · [`childOverrides`](#childoverrides) · [`circleTool`](#circletool) · [`convertToChainFix`](#converttochainfix) · [`copySelection`](#copyselection) · [`createDrawTool`](#createdrawtool) · [`createEditorSession`](#createeditorsession) · [`createEditorStore`](#createeditorstore) · [`createGesturePreview`](#creategesturepreview) · [`createHistory`](#createhistory) · [`createKeymap`](#createkeymap) · [`createPenTool`](#createpentool) · [`createPrefabBatch`](#createprefabbatch) · [`createSpatialIndex`](#createspatialindex) · [`createToolHost`](#createtoolhost) · [`createVariantBatch`](#createvariantbatch) · [`cutSelection`](#cutselection) · [`cycleHit`](#cyclehit) · [`defaultLayer`](#defaultlayer) · [`defineEditorTool`](#defineeditortool) · [`deleteBatch`](#deletebatch) · [`deleteVertices`](#deletevertices) · [`dirSigns`](#dirsigns) · [`docRefs`](#docrefs) · [`dragAngle`](#dragangle) · [`dragBehaviorHandle`](#dragbehaviorhandle) · [`dragHandle`](#draghandle) · [`dragInsertVertex`](#draginsertvertex) · [`dragInsertWaypoint`](#draginsertwaypoint) · [`dragSelection`](#dragselection) · [`dragVertex`](#dragvertex) · [`dragWaypoint`](#dragwaypoint) · [`drawBatch`](#drawbatch) · [`drawTypeOptions`](#drawtypeoptions) · [`drawnShape`](#drawnshape) · [`dropBatch`](#dropbatch) · [`dropFragment`](#dropfragment) · [`dropPreview`](#droppreview-1) · [`duplicateSelection`](#duplicateselection) · [`entityGeometry`](#entitygeometry) · [`expandRefs`](#expandrefs) · [`fieldOp`](#fieldop) · [`flipBatch`](#flipbatch) · [`formatMetres`](#formatmetres) · [`fragmentBounds`](#fragmentbounds) · [`fragmentOf`](#fragmentof) · [`geometryOfRef`](#geometryofref) · [`gizmoTarget`](#gizmotarget-1) · [`groupBatch`](#groupbatch) · [`hierarchyDown`](#hierarchydown) · [`hierarchyUp`](#hierarchyup) · [`hitHandle`](#hithandle) · [`insertVertex`](#insertvertex) · [`inspectorFields`](#inspectorfields) · [`instanceOfRef`](#instanceofref) · [`instanceParamsModel`](#instanceparamsmodel-1) · [`instanceTransformModel`](#instancetransformmodel-1) · [`instanceZBatch`](#instancezbatch) · [`instancesOf`](#instancesof) · [`isBulkRef`](#isbulkref) · [`isFollowerType`](#isfollowertype) · [`isolationBounds`](#isolationbounds) · [`judgeConcave`](#judgeconcave) · [`keyChord`](#keychord) · [`labelFor`](#labelfor) · [`lock45`](#lock45) · [`lookupRef`](#lookupref) · [`marqueeSelect`](#marqueeselect) · [`modelBatch`](#modelbatch) · [`modelOps`](#modelops) · [`moveBatch`](#movebatch) · [`moveTarget`](#movetarget) · [`moveVertex`](#movevertex) · [`nestedInstanceOf`](#nestedinstanceof) · [`nextFreeId`](#nextfreeid) · [`nextGroupName`](#nextgroupname) · [`normDeg`](#normdeg) · [`normalizeChord`](#normalizechord) · [`nudgeBatch`](#nudgebatch) · [`nudgeDelta`](#nudgedelta) · [`numberBounds`](#numberbounds-1) · [`onePixel`](#onepixel) · [`openPrefabIsolation`](#openprefabisolation) · [`outlineOrder`](#outlineorder) · [`overridePathsOf`](#overridepathsof) · [`panTool`](#pantool) · [`paramBatch`](#parambatch) · [`parseFragment`](#parsefragment) · [`parseRelative`](#parserelative) · [`pasteFragment`](#pastefragment) · [`pathBatch`](#pathbatch) · [`penTool`](#pentool) · [`pickAt`](#pickat) · [`pixelSize`](#pixelsize) · [`placedShape`](#placedshape) · [`placementEditorTool`](#placementeditortool) · [`pointBatch`](#pointbatch) · [`projectHistory`](#projecthistory) · [`prune`](#prune) · [`quarterTurnTargets`](#quarterturntargets-1) · [`radiusTo`](#radiusto) · [`readAngle`](#readangle) · [`readDelta`](#readdelta) · [`readLength`](#readlength) · [`readPoint`](#readpoint) · [`readRadius`](#readradius) · [`readShapeSize`](#readshapesize) · [`readSize`](#readsize) · [`rebasePath`](#rebasepath) · [`refCandidates`](#refcandidates) · [`referableEntities`](#referableentities) · [`remap`](#remap) · [`removeVertices`](#removevertices) · [`removeWaypoints`](#removewaypoints) · [`resizeBox`](#resizebox) · [`resizeCursor`](#resizecursor) · [`revertAllBatch`](#revertallbatch) · [`revertFieldBatch`](#revertfieldbatch) · [`rotateByHandle`](#rotatebyhandle) · [`rotateSelectionBatch`](#rotateselectionbatch) · [`rotateTargetsBatch`](#rotatetargetsbatch) · [`rotateTool`](#rotatetool) · [`rotationPivot`](#rotationpivot) · [`roundPt`](#roundpt) · [`roundShape`](#roundshape) · [`select`](#select) · [`selectAllRefs`](#selectallrefs) · [`selectTool`](#selecttool) · [`selectionBounds`](#selectionbounds) · [`selectionBox`](#selectionbox) · [`selectionHandles`](#selectionhandles) · [`setHover`](#sethover) · [`settingsEdit`](#settingsedit) · [`settingsRows`](#settingsrows) · [`settingsValue`](#settingsvalue) · [`shapeBatch`](#shapebatch) · [`shapeConversions`](#shapeconversions) · [`shapeEdit`](#shapeedit) · [`shapeHandles`](#shapehandles) · [`shapePivot`](#shapepivot) · [`shapeSet`](#shapeset) · [`shapeSlots`](#shapeslots) · [`snapAngle`](#snapangle) · [`snapDraggedPoint`](#snapdraggedpoint) · [`snapMove`](#snapmove) · [`snapPoint`](#snappoint) · [`snapToGrid`](#snaptogrid) · [`strokeFit`](#strokefit-1) · [`strokeShape`](#strokeshape) · [`takesConcave`](#takesconcave) · [`targetBox`](#targetbox) · [`targetHandles`](#targethandles) · [`targetsOf`](#targetsof) · [`toolKeyEventOf`](#toolkeyeventof) · [`turnBatch`](#turnbatch) · [`ungroupBatch`](#ungroupbatch) · [`unpackBatch`](#unpackbatch) · [`vertexHandles`](#vertexhandles) · [`waypointHandles`](#waypointhandles) · [`waypointsTool`](#waypointstool) · [`withShapeSlot`](#withshapeslot) · [`zOrderBatch`](#zorderbatch)
 
 ## `Aabb`
 
@@ -77,6 +77,83 @@ type AssetDrop = {
 };
 ```
 
+## `BehaviorGizmo`
+
+_type_ in `editor/gizmos/behavior-target.ts`
+
+The parts of an entity's standard behaviors its gizmos draw and edit, in
+world metres unless a field says otherwise.
+
+```ts
+type BehaviorGizmo = {
+    /** The `collider` block's shape, as written and placed at the pose; `sensor` when it is a trigger. */
+    collider?: {
+        local: ShapeObj;
+        sensor: boolean;
+        world: ShapeObj;
+    };
+    force?: {
+        force: Pt;
+        kind: "directional";
+    } | {
+        kind: "point";
+        strength: number;
+    };
+    joint?: {
+        anchorA: Pt;
+        /** Only when the block writes `anchorB`. */
+        anchorB?: Pt;
+        /** The entity `to` names, at its pose; absent when it names nothing in the scene. */
+        to?: {
+            pose: EditPose;
+            ref: Ref;
+        };
+    };
+    pose: EditPose;
+    /** `velocity` is local to the pose, m/s. */
+    spawner?: {
+        spread: number;
+        velocity?: Pt;
+    };
+};
+```
+
+Refers to [`EditPose`](#editpose), [`Pt`](#pt), [`Ref`](#ref), [`ShapeObj`](#shapeobj).
+
+## `BehaviorMarks`
+
+_type_ in `editor/gizmos/behavior-marks.ts`
+
+What a selected entity's behavior gizmo draws, world metres; the host draws it under the handles.
+
+```ts
+type BehaviorMarks = {
+    /** A force area's direction, a spawner's velocity. */
+    arrows: {
+        from: Pt;
+        to: Pt;
+    }[];
+    /** A joint, from its anchor to the other entity's (or its pose). */
+    lines: {
+        from: Pt;
+        to: Pt;
+    }[];
+    /** The collider's shape. */
+    outlines: {
+        sensor: boolean;
+        shape: ShapeObj;
+    }[];
+    /** A spawner's spread; a point force area's strength, `inward` when it pulls. */
+    rings: {
+        at: Pt;
+        inward?: boolean;
+        r: number;
+    }[];
+};
+```
+
+Refers to [`Pt`](#pt), [`ShapeObj`](#shapeobj).
+
 ## `BehaviorOption`
 
 _type_ in `editor/inspector-model.ts`
@@ -85,11 +162,18 @@ A behavior the Add behavior menu offers, with the batch that adds it.
 
 ```ts
 type BehaviorOption = {
-    /** One update per target that lacks the block. */
+    /** The required behaviors `batch` adds alongside it, by label. */
+    adds?: string[];
+    /**
+     * One update per target that lacks the block. It also adds the behaviors
+     * it requires that a target lacks, each from its own template.
+     */
     batch: OpBatch;
     description: string;
     label: string;
     name: BehaviorName;
+    /** Why it can't be added yet (a reference with nothing in the scene to name); `batch` would fail. */
+    unavailable?: string;
 };
 ```
 
@@ -414,6 +498,21 @@ type EditGeometry = {
 ```
 
 Refers to [`Pt`](#pt), [`ShapeObj`](#shapeobj).
+
+## `EditPose`
+
+_type_ in `editor/gizmos/behavior-target.ts`
+
+Where an entity's blocks are posed: what `shape`, `anchorA`, `force` and `velocity` are local to.
+
+```ts
+type EditPose = {
+    at: Pt;
+    rotDeg: number;
+};
+```
+
+Refers to [`Pt`](#pt).
 
 ## `EditableSpatialIndex`
 
@@ -767,6 +866,16 @@ type EnumOption = {
 };
 ```
 
+## `FORCE_PX`
+
+_const_ in `editor/gizmos/behavior-target.ts`
+
+Screen px of arrow per m/s² of a force area's `force`, and of ring radius per m/s² of its `strength`.
+
+```ts
+declare const FORCE_PX = 4;
+```
+
 ## `FieldWidget`
 
 _type_ in `editor/inspector-model.ts`
@@ -776,6 +885,7 @@ How the site draws a field; the engine only describes it.
 ```ts
 type FieldWidget = {
     accepts: EntityTypeName[];
+    any?: true;
     kind: "entity-ref";
     multiple: boolean;
 } | {
@@ -985,6 +1095,8 @@ One selected entity as the gizmos edit it, read from the document.
 type GizmoTarget = {
     /** A point entity's position, when it has no shape. */
     at?: Pt;
+    /** Its collider, joint, force area and spawner, when it carries any. */
+    behaviors?: BehaviorGizmo;
     bulk: boolean;
     /** The shape as the document holds it: local to the path's first point when there is a path. */
     local?: ShapeObj;
@@ -1003,7 +1115,7 @@ type GizmoTarget = {
 };
 ```
 
-Refers to [`Pt`](#pt), [`Ref`](#ref), [`ShapeObj`](#shapeobj).
+Refers to [`BehaviorGizmo`](#behaviorgizmo), [`Pt`](#pt), [`Ref`](#ref), [`ShapeObj`](#shapeobj).
 
 ## `HANDLE_HIT_PX`
 
@@ -1503,6 +1615,8 @@ An inspector row placed in a section of the scene inspector.
 ```ts
 type ModelField = Omit<InspectorRow, "children"> & {
     children?: ModelField[];
+    /** A behavior field's `meta.group` (`jump`, `surface`): the sub-heading the inspector puts it under. */
+    group?: string;
     section: ModelSectionId;
 };
 ```
@@ -2999,6 +3113,16 @@ type ToolPointerEvent = ToolModifiers & {
 
 Refers to [`Pt`](#pt), [`ToolModifiers`](#toolmodifiers).
 
+## `VELOCITY_PX`
+
+_const_ in `editor/gizmos/behavior-target.ts`
+
+Screen px of arrow per m/s of a spawner's `velocity`.
+
+```ts
+declare const VELOCITY_PX = 16;
+```
+
 ## `WHEEL_ZOOM`
 
 _const_ in `editor/tool-host.ts`
@@ -3083,6 +3207,55 @@ declare function attachFieldOf(registry: Registry, type: EntityTypeName): null |
 
 Refers to [`EntityTypeName`](#entitytypename), [`Registry`](#registry).
 
+## `behaviorGizmo`
+
+_function_ in `editor/gizmos/behavior-target.ts`
+
+The behavior gizmo of the entity `ref` in `def` (the resolved view):
+undefined when it carries none of `collider`, `joint`, `force-area` or
+`spawner`, or is a bulk row.
+
+```ts
+declare function behaviorGizmo(def: SceneDefinition, registry: Registry, ref: Ref, geometry?: EditGeometry): BehaviorGizmo | undefined;
+```
+
+Refers to [`BehaviorGizmo`](#behaviorgizmo), [`EditGeometry`](#editgeometry), [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
+
+## `behaviorHandles`
+
+_function_ in `editor/gizmos/handles.ts`
+
+A behavior gizmo's handles, ids prefixed by the behavior: the collider's
+shape handles (no move: the entity's own moves it), the joint's anchors,
+the force area's arrow tip or strength ring, the spawner's spread ring
+and velocity tip. A force is drawn `FORCE_PX` screen px per m/s², a
+velocity `VELOCITY_PX` per m/s; the spread is its radius in metres.
+
+```ts
+declare function behaviorHandles(b: BehaviorGizmo, scale: number): GizmoHandle[];
+```
+
+Refers to [`BehaviorGizmo`](#behaviorgizmo), [`GizmoHandle`](#gizmohandle).
+
+## `behaviorMarks`
+
+_function_ in `editor/gizmos/behavior-marks.ts`
+
+What `b` draws at screen scale `scale` (px per metre): the collider's
+outline, a line from the joint's anchor to the other entity's (or its
+pose), the force area's arrow or strength ring, the spawner's spread ring
+and velocity arrow. `handles` are the host's handles this frame: one of
+`b`'s that isn't where the document puts it is being dragged, and its
+mark follows it. `shift` is how far a previewed move has taken the entity.
+
+```ts
+declare function behaviorMarks(committed: BehaviorGizmo, scale: number, handles?: readonly GizmoHandle[], opts?: {
+    shift?: Pt;
+}): BehaviorMarks;
+```
+
+Refers to [`BehaviorGizmo`](#behaviorgizmo), [`BehaviorMarks`](#behaviormarks), [`GizmoHandle`](#gizmohandle), [`Pt`](#pt).
+
 ## `boundsCheck`
 
 _function_ in `editor/placement.ts`
@@ -3115,16 +3288,20 @@ walked into field descriptors, titled by `meta.title`, explained by
 `.describe()`, drawn by the widget its Zod kind (or a game's
 `meta.widget`) calls for, and sectioned by `meta.group` or, without one,
 by kind. Each behavior every target carries gets its own section,
-`behaviors:<name>`, with its fields in `inspector.order` and a Remove
-batch; `addBehaviors` lists the rest the types allow. With several
+`behaviors:<name>`, with its fields in `inspector.order` (each with its
+`meta.group`) and a Remove batch; `addBehaviors` lists the rest the types
+allow, each adding what it requires too. With several
 targets only the fields they share are shown, and a field whose values
 differ is `mixed`. Pure: the site renders it.
 
 ```ts
-declare function buildInspectorModel(registry: Registry, targets: readonly RefTarget[]): InspectorModel;
+declare function buildInspectorModel(registry: Registry, targets: readonly RefTarget[], opts?: {
+    /** The scene the targets are in (the resolved view): Add behavior seeds a reference from it. */
+    def?: SceneDefinition;
+}): InspectorModel;
 ```
 
-Refers to [`InspectorModel`](#inspectormodel), [`RefTarget`](#reftarget), [`Registry`](#registry).
+Refers to [`InspectorModel`](#inspectormodel), [`RefTarget`](#reftarget), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
 
 ## `buildOutline`
 
@@ -3529,6 +3706,22 @@ declare function dragAngle(pivot: Pt, from: Pt, to: Pt): number;
 ```
 
 Refers to [`Pt`](#pt).
+
+## `dragBehaviorHandle`
+
+_function_ in `editor/gizmos/drag.ts`
+
+One drag of a behavior gizmo's handle (`behaviorHandles` names them): the
+collider's shape handles write `behaviors.collider.shape` in the pose's
+frame; the joint's anchors, the force area's `force` or `strength`, and
+the spawner's `spread` and `velocity` each write their field. `null` for a
+handle `t` doesn't have.
+
+```ts
+declare function dragBehaviorHandle(t: GizmoTarget, handleId: string, from: Pt, to: Pt, opts: DragOptions): GizmoEdit | null;
+```
+
+Refers to [`DragOptions`](#dragoptions), [`GizmoEdit`](#gizmoedit), [`GizmoTarget`](#gizmotarget), [`Pt`](#pt).
 
 ## `dragHandle`
 
@@ -5299,7 +5492,8 @@ _function_ in `editor/gizmos/handles.ts`
 
 Every handle of one selected target. Normally its shape's handles (or a
 point's move handle), with its path's waypoints drawn under them, so
-waypoint 0 sits beneath the move handle. In sub-object mode a path's
+waypoint 0 sits beneath the move handle, and its behaviors' handles
+under both, so the entity's own win where they meet. In sub-object mode a path's
 waypoints and inserts, or else a poly's or chain's vertices and inserts.
 
 ```ts

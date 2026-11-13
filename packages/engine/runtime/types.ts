@@ -65,6 +65,18 @@ export type StepEvent = {
 /** Engine event types. */
 export const SENSOR_ENTER = "sensor:enter";
 export const SENSOR_EXIT = "sensor:exit";
+/** A spawner made a spawn: `entityId` the spawner, `other` and `data.id` the new id, `at` where it appeared. */
+export const SPAWNER_SPAWNED = "spawner:spawned";
+/** A character landed: `entityId` the character, `other` what it landed on. */
+export const CHARACTER_LANDED = "character:landed";
+/** A character left the ground, by a jump, a launch or a ledge. */
+export const CHARACTER_LEFT_GROUND = "character:left-ground";
+/** A character's jump started, on the ground or in coyote time. */
+export const CHARACTER_JUMPED = "character:jumped";
+/** A nav agent reached its destination: `entityId` the agent, `other` the entity it followed. */
+export const NAV_ARRIVED = "nav:arrived";
+/** A nav agent gave up: `data.reason` is `no-path`, `stuck` or `gone`. */
+export const NAV_BLOCKED = "nav:blocked";
 /** An entity spawned inside a step, at its spawn pose. */
 export const ENTITY_SPAWNED = "entity:spawned";
 /** An entity destroyed at the end of a tick, at its last pose. */

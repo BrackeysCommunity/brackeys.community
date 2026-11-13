@@ -9,8 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import type { PlayPayload } from "@/lib/engine/game-play";
 import type { HostServerOptions } from "@/lib/engine/host-server";
 import { SITE_SAVE_LIMITS } from "@/lib/engine/limits";
-import { SIGNED_OUT_SAVES_DESCRIBE } from "@/lib/engine/local-saves";
-import { SIGNED_IN_SAVES_DESCRIBE } from "@/lib/engine/save-api";
+import { SIGNED_IN_SAVES_DESCRIBE, SIGNED_OUT_SAVES_DESCRIBE } from "@/lib/engine/local-saves";
 
 const auth = vi.hoisted(() => ({
   user: null as null | { id: string; name: string; image: string | null },
@@ -39,7 +38,7 @@ vi.mock("@/lib/engine/host-server", () => ({
   },
 }));
 vi.mock("@/lib/engine/save-store", async () => {
-  const { SIGNED_IN_SAVES_DESCRIBE: describe } = await import("@/lib/engine/save-api");
+  const { SIGNED_IN_SAVES_DESCRIBE: describe } = await import("@/lib/engine/local-saves");
   return {
     siteSaveStore: (projectId: string): SaveStore => {
       const store: SaveStore = {
@@ -158,6 +157,22 @@ describe("the play page's saves", () => {
     const notice = await openSaves();
     expect(notice).toContain(`Saves. ${SIGNED_OUT_SAVES_DESCRIBE} Key bindings`);
     expect(notice).not.toContain(SIGNED_IN_SAVES_DESCRIBE);
+  });
+
+  it("keeps the Saves menu shut until the session says which sentence is true", async () => {
+    auth.pending = true;
+    const view = wrap(<PlayChrome play={payload()} version="latest" />);
+    const button = screen.getByRole("button", { name: "Saves" });
+    expect(button.hasAttribute("disabled") || button.getAttribute("aria-disabled") === "true").toBe(
+      true,
+    );
+    await userEvent.click(button);
+    expect(document.querySelector("[data-save-mode]")).toBeNull();
+
+    auth.pending = false;
+    auth.user = { id: "u1", name: "Carol", image: null };
+    view.rerender(<PlayChrome play={payload()} version="latest" />);
+    expect(await openSaves()).toContain(`Saves. ${SIGNED_IN_SAVES_DESCRIBE}`);
   });
 
   it("waits for the session before it starts the game", () => {

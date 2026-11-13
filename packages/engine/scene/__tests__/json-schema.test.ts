@@ -271,9 +271,7 @@ describe("behaviors", () => {
 
   it("lists a type's allowed behaviors, closed to any other name", () => {
     expect(Object.keys(slot("token").properties!)).toEqual([
-      "sprite",
-      "occupant",
-      "lifetime",
+      ...createRegistry().behaviorNames,
       tint.name,
       tag.name,
     ]);

@@ -7,10 +7,12 @@ import { DEFAULT_LAYERS } from "../../scene/layers";
 import { parseScene } from "../../scene/parse";
 import { sceneSchemaFor } from "../../scene/schema";
 import { defineBehavior } from "../behaviors";
+import { DEFAULT_ACTIONS } from "../defaults";
 import {
   createRegistry,
   defineEntityType,
   defineGame,
+  ENGINE_BEHAVIORS,
   isSpawnOnly,
   placeableTypes,
   RegistryError,
@@ -77,6 +79,7 @@ describe("createRegistry play hooks", () => {
       "tick",
       "exists",
       "count",
+      "near",
       "scene",
       "persist",
       "grounded",
@@ -294,7 +297,7 @@ describe("createRegistry", () => {
       ["nav"],
     ]);
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid"]);
-    expect(r.actionNames).toEqual([]);
+    expect(r.actionNames).toEqual(["move", "jump"]);
   });
 
   it("registers a game's types after the primitives", () => {
@@ -502,6 +505,126 @@ describe("createRegistry", () => {
     expect(problems(() => createRegistry(game({ id: "Bad Id", issues: {} })))[0]).toMatch(
       /game id "Bad Id" must match/,
     );
+  });
+});
+
+describe("createRegistry behavior conflicts and default actions", () => {
+  const plain = (name: string, over: Record<string, unknown> = {}) =>
+    defineBehavior({ name, description: "A behavior.", fields: {}, ...over });
+
+  it("registers the standard behaviors after the first three, in attach order", () => {
+    expect(createRegistry().behaviorNames).toEqual([
+      "sprite",
+      "occupant",
+      "lifetime",
+      "collider",
+      "body",
+      "player-input",
+      "path-follow",
+      "force-area",
+      "character-top-down",
+      "character-side-view",
+      "nav-agent",
+      "joint",
+      "spawner",
+      "camera-target",
+    ]);
+    expect(ENGINE_BEHAVIORS.map((b) => b.name)).toEqual(createRegistry().behaviorNames);
+    expect(createRegistry().behaviors.get("character-top-down")?.conflicts).toEqual([
+      "character-side-view",
+    ]);
+  });
+
+  it("refuses a conflict naming an unknown behavior, itself or one it requires", () => {
+    expect(
+      problems(() =>
+        createRegistry(
+          game({
+            behaviors: [
+              plain("fake/a", { conflicts: ["fake/ghost"] }),
+              plain("fake/b", { conflicts: ["fake/b"] }),
+              plain("fake/c", { requires: ["fake/a"], conflicts: ["fake/a"] }),
+            ],
+          }),
+        ),
+      ),
+    ).toEqual([
+      'behavior "fake/a" conflicts with unknown behavior "fake/ghost"',
+      'behavior "fake/b" conflicts with itself',
+      'behavior "fake/c" both requires and conflicts with "fake/a"',
+    ]);
+    expect(
+      problems(() =>
+        createRegistry(game({ behaviors: [plain("fake/a", { conflicts: ["sprite"] })] })),
+      ),
+    ).toEqual([]);
+  });
+
+  it("refuses a type that requires two behaviors that conflict", () => {
+    const both = defineEntityType({
+      type: "both",
+      description: "Two controllers.",
+      base: "marker",
+      fields: { at: pointField("Where.") },
+      behaviors: { required: { "fake/a": {}, "fake/b": {} } },
+    });
+    expect(
+      problems(() =>
+        createRegistry(
+          game({
+            types: [crate, flag, both],
+            behaviors: [plain("fake/a"), plain("fake/b", { conflicts: ["fake/a"] })],
+          }),
+        ),
+      ),
+    ).toEqual(['type "both" requires "fake/a" and "fake/b", which conflict']);
+  });
+
+  it("gives a registry without a game the default actions, and a game only its own", () => {
+    const bare = createRegistry();
+    expect(bare.actions).toBe(DEFAULT_ACTIONS);
+    expect(DEFAULT_ACTIONS.map((a) => [a.action, a.kind])).toEqual([
+      ["move", "vector"],
+      ["jump", "button"],
+    ]);
+    for (const a of DEFAULT_ACTIONS)
+      for (const b of a.bindings ?? [])
+        expect(bindingProblems(b, { kind: a.kind ?? "button", max: 1 }), JSON.stringify(b)).toEqual(
+          [],
+        );
+    const codes = DEFAULT_ACTIONS[0]!.bindings!.flatMap((b) =>
+      b.device === "key" ? [b.code] : [],
+    );
+    expect(codes).toEqual([
+      "KeyA",
+      "KeyD",
+      "KeyW",
+      "KeyS",
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown",
+    ]);
+    expect(DEFAULT_ACTIONS[1]!.bindings).toEqual([
+      { device: "key", code: "Space" },
+      { device: "pad", button: "south" },
+    ]);
+    const withGame = createRegistry(game());
+    expect(withGame.actionNames).toEqual(["push"]);
+    expect(createRegistry(game({ actions: [] })).actionNames).toEqual([]);
+    expect(withGame.primitives.actionNames).toEqual(["move", "jump"]);
+  });
+
+  it("forbids body and collider on the four types that own a body", () => {
+    const r = createRegistry();
+    for (const type of ["solid", "sensor", "prop", "follower"]) {
+      const allowed = r.behaviorRules(type).allowed;
+      expect(allowed, type).not.toContain("body");
+      expect(allowed, type).not.toContain("collider");
+      expect(allowed, type).toContain("sprite");
+    }
+    expect(r.behaviorRules("marker").allowed).toContain("body");
+    expect(r.behaviorRules("decor").allowed).toContain("collider");
   });
 });
 

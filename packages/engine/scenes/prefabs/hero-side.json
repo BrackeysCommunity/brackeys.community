@@ -1,0 +1,12 @@
+{
+  "kind": "prefab",
+  "v": 4,
+  "id": "hero-side",
+  "params": {
+    "jumpHeight": { "description": "How high a full jump rises, m.", "targets": ["hero.behaviors.character-side-view.jumpHeight"] },
+    "maxSpeed": { "description": "Top running speed, m/s.", "targets": ["hero.behaviors.character-side-view.maxSpeed"] }
+  },
+  "entities": [
+    { "id": "hero", "type": "marker", "at": [0, 0], "behaviors": { "camera-target": {}, "character-side-view": {}, "collider": { "shape": ["box", 0, 0, 0.2, 0.4] }, "player-input": {}, "sprite": { "asset": "hero", "frame": "hero-0", "size": [0.4, 0.8] } } }
+  ]
+}

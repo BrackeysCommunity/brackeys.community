@@ -167,7 +167,7 @@ const poseCalls = (calls: ViewCall[], id: string) =>
 
 describe("the sprite behavior", () => {
   it("is the engine's first behavior, visual-only, with a system", () => {
-    expect(ENGINE_BEHAVIORS).toEqual([SPRITE, OCCUPANT, LIFETIME]);
+    expect(ENGINE_BEHAVIORS.slice(0, 3)).toEqual([SPRITE, OCCUPANT, LIFETIME]);
     expect(SPRITE.visualOnly).toBe(true);
     expect(ENGINE_BEHAVIOR_SYSTEMS.sprite).toBe(createSpriteSystem);
   });

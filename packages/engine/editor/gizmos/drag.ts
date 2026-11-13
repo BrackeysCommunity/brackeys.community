@@ -1,12 +1,23 @@
 import { rotateShape, translateShape } from "../../scene/shape-geometry";
-import type { Pt, ShapeObj } from "../../scene/types";
-import { roundLength } from "../../scene/units";
-import { onePixel, pixelSize, snapAngle, snapMove, snapPoint } from "../snap";
+import { shapeToTuple } from "../../scene/shapes";
+import type { OpBatch, Pt, ShapeObj } from "../../scene/types";
+import { roundLength, snapToPixel } from "../../scene/units";
+import { onePixel, pixelSize, roundPt, snapAngle, snapMove, snapPoint } from "../snap";
 import type { SnapSettings } from "../tools";
 import { moveBatch, normDeg, roundShape } from "./batch";
-import { shapeEdit, type DragOptions, type GizmoEdit } from "./edit";
+import {
+  FORCE_PX,
+  isBehaviorHandle,
+  ringHandle,
+  shapeToPose,
+  vectorTip,
+  VELOCITY_PX,
+  worldToPose,
+  type BehaviorGizmo,
+} from "./behavior-target";
+import { shapeEdit, snapDraggedPoint, type DragOptions, type GizmoEdit } from "./edit";
 import { dirSigns, RESIZE_DIRS, shapePivot, type ResizeDir } from "./handles";
-import { readAngle, readDelta, readRadius, readLength } from "./readout";
+import { readAngle, readDelta, readPoint, readRadius, readLength } from "./readout";
 import { targetBox, type GizmoTarget } from "./target";
 import { dragInsertVertex, dragVertex } from "./vertices";
 import { dragInsertWaypoint, dragWaypoint, rebasePath } from "./waypoints";
@@ -170,6 +181,7 @@ export function dragHandle(
   to: Pt,
   opts: DragOptions,
 ): GizmoEdit | null {
+  if (isBehaviorHandle(handleId)) return dragBehaviorHandle(t, handleId, from, to, opts);
   const [kind, arg] = splitId(handleId);
   const n = arg === undefined ? NaN : Number(arg);
   const s = t.shape;
@@ -220,4 +232,170 @@ export function dragHandle(
     default:
       return null;
   }
+}
+
+// ─── Behavior gizmos ─────────────────────────────────────
+
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** One `update` setting `path` on `t` to `value`; `null` when it already holds `current`. */
+function behaviorBatch(
+  t: GizmoTarget,
+  path: string,
+  value: unknown,
+  current: unknown,
+  label: string,
+): OpBatch | null {
+  return same(value, current)
+    ? null
+    : { label, ops: [{ op: "update", ref: t.ref, set: { [path]: value } }] };
+}
+
+/** `v` to a multiple of `step` (1, 0.1, 0.01), with no float residue and no negative zero. */
+function roundTo(v: number, step: number): number {
+  const decimals = Math.max(0, Math.round(-Math.log10(step)));
+  return Number((Math.round(v / step) * step).toFixed(decimals)) + 0;
+}
+
+/**
+ * A vector drawn `px` screen px per unit from the pose, with its tip
+ * dragged by the pointer's offset: back in the pose's frame, its angle
+ * snapped like a rotation and its length to `step` (mod: free, and to
+ * `fine`).
+ */
+function draggedVector(
+  b: BehaviorGizmo,
+  tip: Pt,
+  from: Pt,
+  to: Pt,
+  px: number,
+  steps: { step: number; fine: number },
+  opts: DragOptions,
+): Pt {
+  const at: Pt = [tip[0] + to[0] - from[0], tip[1] + to[1] - from[1]];
+  const [lx, ly] = worldToPose(b.pose, at);
+  const len = (Math.hypot(lx, ly) * opts.scale) / px;
+  const free = opts.mods.mod;
+  const deg = snapAngle(Math.atan2(ly, lx) / DEG, opts.snap, free || opts.mods.shift);
+  const mag = roundTo(len, free ? steps.fine : steps.step);
+  return [
+    roundTo(mag * Math.cos(deg * DEG), steps.fine),
+    roundTo(mag * Math.sin(deg * DEG), steps.fine),
+  ];
+}
+
+/** A ring's radius, metres, after its handle at `start` moved by the pointer's offset. */
+function draggedRadius(b: BehaviorGizmo, start: Pt, from: Pt, to: Pt): number {
+  const at: Pt = [start[0] + to[0] - from[0], start[1] + to[1] - from[1]];
+  return Math.hypot(at[0] - b.pose.at[0], at[1] - b.pose.at[1]);
+}
+
+const readVector = ([x, y]: Pt, unit: string) => `${roundTo(x, 0.01)}, ${roundTo(y, 0.01)} ${unit}`;
+
+/**
+ * One drag of a behavior gizmo's handle (`behaviorHandles` names them): the
+ * collider's shape handles write `behaviors.collider.shape` in the pose's
+ * frame; the joint's anchors, the force area's `force` or `strength`, and
+ * the spawner's `spread` and `velocity` each write their field. `null` for a
+ * handle `t` doesn't have.
+ */
+export function dragBehaviorHandle(
+  t: GizmoTarget,
+  handleId: string,
+  from: Pt,
+  to: Pt,
+  opts: DragOptions,
+): GizmoEdit | null {
+  const b = t.behaviors;
+  if (!b) return null;
+  const ppm = opts.pxPerMetre;
+  const colon = handleId.indexOf(":");
+  const behavior = handleId.slice(0, colon);
+  const part = handleId.slice(colon + 1);
+  const field = (name: string) => `behaviors.${behavior}.${name}`;
+
+  if (behavior === "collider") {
+    const c = b.collider;
+    const [kind] = splitId(part);
+    if (!c || !["resize", "rotate", "radius", "length"].includes(kind)) return null;
+    const edit = dragHandle(
+      { ref: t.ref, type: t.type, bulk: false, shape: c.world },
+      part,
+      from,
+      to,
+      opts,
+    );
+    if (!edit?.shape) return null;
+    const local = roundShape(shapeToPose(b.pose, edit.shape), ppm);
+    return {
+      batch: behaviorBatch(
+        t,
+        field("shape"),
+        shapeToTuple(local),
+        shapeToTuple(c.local),
+        `Edit ${t.ref} collider`,
+      ),
+      readout: edit.readout,
+      shape: edit.shape,
+    };
+  }
+
+  if (behavior === "joint" && b.joint && (part === "anchorA" || part === "anchorB")) {
+    const pose = part === "anchorA" ? b.pose : b.joint.to?.pose;
+    const start = part === "anchorA" ? b.joint.anchorA : b.joint.anchorB;
+    if (!pose || !start) return null;
+    const { at, guides } = snapDraggedPoint(t, start, from, to, opts);
+    const local = roundPt(worldToPose(pose, at), ppm);
+    const current = roundPt(worldToPose(pose, start), ppm);
+    return {
+      batch: behaviorBatch(t, field(part), local, current, `Move ${t.ref} joint anchor`),
+      readout: readPoint(local, ppm),
+      at,
+      guides,
+    };
+  }
+
+  if (behavior === "force-area" && b.force) {
+    if (part === "force" && b.force.kind === "directional") {
+      const tip = vectorTip(b, b.force.force, FORCE_PX, opts.scale);
+      const next = draggedVector(b, tip, from, to, FORCE_PX, { step: 1, fine: 0.01 }, opts);
+      return {
+        batch: behaviorBatch(t, field("force"), next, b.force.force, `Set ${t.ref} force`),
+        readout: readVector(next, "m/s²"),
+      };
+    }
+    if (part === "strength" && b.force.kind === "point") {
+      const start = ringHandle(b, (Math.abs(b.force.strength) * FORCE_PX) / opts.scale, opts.scale);
+      const mag = (draggedRadius(b, start, from, to) * opts.scale) / FORCE_PX;
+      const sign = b.force.strength < 0 ? -1 : 1;
+      const next = sign * roundTo(mag, opts.mods.mod ? 0.01 : 1) + 0;
+      return {
+        batch: behaviorBatch(t, field("strength"), next, b.force.strength, `Set ${t.ref} strength`),
+        readout: `${next} m/s²`,
+      };
+    }
+    return null;
+  }
+
+  if (behavior === "spawner" && b.spawner) {
+    if (part === "spread") {
+      const r0 = b.spawner.spread;
+      const start = ringHandle(b, r0, opts.scale);
+      const next = snapToPixel(draggedRadius(b, start, from, to), ppm);
+      return {
+        batch: behaviorBatch(t, field("spread"), next, r0, `Set ${t.ref} spread`),
+        readout: readRadius(next, ppm),
+      };
+    }
+    if (part === "velocity" && b.spawner.velocity) {
+      const v = b.spawner.velocity;
+      const tip = vectorTip(b, v, VELOCITY_PX, opts.scale);
+      const next = draggedVector(b, tip, from, to, VELOCITY_PX, { step: 0.1, fine: 0.01 }, opts);
+      return {
+        batch: behaviorBatch(t, field("velocity"), next, v, `Set ${t.ref} spawn velocity`),
+        readout: readVector(next, "m/s"),
+      };
+    }
+  }
+  return null;
 }

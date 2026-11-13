@@ -1,6 +1,13 @@
 import { aabb, centroid } from "../../scene/shape-geometry";
 import type { Aabb, Pt, ShapeObj } from "../../scene/types";
 import type { GizmoHandle } from "../tools";
+import {
+  FORCE_PX,
+  ringHandle,
+  vectorTip,
+  VELOCITY_PX,
+  type BehaviorGizmo,
+} from "./behavior-target";
 import type { GizmoTarget } from "./target";
 
 /** A handle's drawn side, screen px. */
@@ -133,9 +140,57 @@ export function waypointHandles(
 }
 
 /**
+ * A behavior gizmo's handles, ids prefixed by the behavior: the collider's
+ * shape handles (no move: the entity's own moves it), the joint's anchors,
+ * the force area's arrow tip or strength ring, the spawner's spread ring
+ * and velocity tip. A force is drawn `FORCE_PX` screen px per m/s², a
+ * velocity `VELOCITY_PX` per m/s; the spread is its radius in metres.
+ */
+export function behaviorHandles(b: BehaviorGizmo, scale: number): GizmoHandle[] {
+  const out: GizmoHandle[] = [];
+  if (b.collider) {
+    for (const h of shapeHandles(b.collider.world, scale))
+      if (h.kind !== "move") out.push({ ...h, id: `collider:${h.id}` });
+  }
+  if (b.spawner) {
+    out.push(
+      handle("spawner:spread", "radius", ringHandle(b, b.spawner.spread, scale), "ew-resize"),
+    );
+    if (b.spawner.velocity)
+      out.push(
+        handle(
+          "spawner:velocity",
+          "length",
+          vectorTip(b, b.spawner.velocity, VELOCITY_PX, scale),
+          "move",
+        ),
+      );
+  }
+  if (b.force?.kind === "directional")
+    out.push(
+      handle("force-area:force", "length", vectorTip(b, b.force.force, FORCE_PX, scale), "move"),
+    );
+  if (b.force?.kind === "point")
+    out.push(
+      handle(
+        "force-area:strength",
+        "radius",
+        ringHandle(b, (Math.abs(b.force.strength) * FORCE_PX) / scale, scale),
+        "ew-resize",
+      ),
+    );
+  if (b.joint) {
+    out.push(handle("joint:anchorA", "vertex", b.joint.anchorA, "move"));
+    if (b.joint.anchorB) out.push(handle("joint:anchorB", "vertex", b.joint.anchorB, "move"));
+  }
+  return out;
+}
+
+/**
  * Every handle of one selected target. Normally its shape's handles (or a
  * point's move handle), with its path's waypoints drawn under them, so
- * waypoint 0 sits beneath the move handle. In sub-object mode a path's
+ * waypoint 0 sits beneath the move handle, and its behaviors' handles
+ * under both, so the entity's own win where they meet. In sub-object mode a path's
  * waypoints and inserts, or else a poly's or chain's vertices and inserts.
  */
 export function targetHandles(
@@ -147,8 +202,9 @@ export function targetHandles(
     return t.shape ? vertexHandles(t.shape) : [];
   }
   const path = t.path ? waypointHandles(t.path.pts, { inserts: false }) : [];
-  if (t.shape) return [...path, ...shapeHandles(t.shape, opts.scale)];
-  return t.at ? [handle("move", "move", t.at, "move")] : [];
+  const behaviors = t.behaviors ? behaviorHandles(t.behaviors, opts.scale) : [];
+  if (t.shape) return [...behaviors, ...path, ...shapeHandles(t.shape, opts.scale)];
+  return t.at ? [...behaviors, handle("move", "move", t.at, "move")] : behaviors;
 }
 
 /** A multi-selection's one gizmo: move at the box's centre and a rotate stalk above it. No resize. */

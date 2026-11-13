@@ -7,6 +7,7 @@ import type * as Y from "yjs";
 import { siteUrl } from "@/env";
 import { docToJsonCanvas, type JsonCanvas } from "@/lib/canvas/json-canvas";
 import { basename, pathTitle } from "@/lib/canvas/paths";
+import { downloadBlob } from "@/lib/download";
 import { client } from "@/orpc/client";
 
 import { runCanvasIo } from "./canvas-io-client";
@@ -52,23 +53,13 @@ async function loadEntities(canvas: JsonCanvas): Promise<ExportEntities> {
   return found;
 }
 
-function download(name: string, blob: Blob) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  // Some browsers start the download after this tick.
-  setTimeout(() => URL.revokeObjectURL(url), 1_000);
-}
-
 export async function downloadCanvasFile(path: string, canvas: JsonCanvas) {
   const file = canvasFileForObsidian(canvas, await loadEntities(canvas));
-  download(basename(path), new Blob([serializeCanvas(file)], { type: "application/json" }));
+  downloadBlob(basename(path), new Blob([serializeCanvas(file)], { type: "application/json" }));
 }
 
 export function downloadMarkdown(path: string, doc: Y.Doc) {
-  download(`${pathTitle(path)}.md`, new Blob([canvasMarkdown(doc)], { type: "text/markdown" }));
+  downloadBlob(`${pathTitle(path)}.md`, new Blob([canvasMarkdown(doc)], { type: "text/markdown" }));
 }
 
 /** The zip, built in the worker; returns what was left out of it. */
@@ -81,7 +72,7 @@ export async function downloadVaultZip(
   const entities = await loadEntities(docToJsonCanvas(doc));
   const built = buildVaultExport(doc, { canvasPath: path, attachments, entities });
   const { zip, leftOut } = await runCanvasIo("export", { files: built.files }, onProgress);
-  download(
+  downloadBlob(
     `${pathTitle(path)}.zip`,
     new Blob([zip as Uint8Array<ArrayBuffer>], { type: "application/zip" }),
   );

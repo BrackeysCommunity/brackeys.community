@@ -384,6 +384,36 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
   "behavior-unknown": () => validated(carrying(LAMP.type, { "test-game/spn": {} }), behaving),
   "behavior-forbidden": () => validated(carrying(PLAIN.type, { "test-game/spin": {} }), behaving),
   "behavior-missing": () => validated(carrying("marker", { "test-game/halo": {} }), behaving),
+  "behavior-conflict": () =>
+    validated(
+      scene({}, [
+        {
+          id: "hero",
+          type: "marker",
+          at: [1, 1],
+          behaviors: {
+            collider: { shape: ["box", 0, 0, 0.2, 0.2] },
+            "character-top-down": {},
+            "character-side-view": {},
+          },
+        },
+      ]),
+    ),
+  "character-body-kind": () =>
+    validated(
+      scene({}, [
+        {
+          id: "hero",
+          type: "marker",
+          at: [1, 1],
+          behaviors: {
+            collider: { shape: ["box", 0, 0, 0.2, 0.2] },
+            body: { kind: "dynamic" },
+            "character-side-view": {},
+          },
+        },
+      ]),
+    ),
   "grid-invalid": () =>
     validated(
       scene({
@@ -455,6 +485,41 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
         { id: "bowtie", type: "nav", shape: ["poly", 100, 100, 300, 300, 300, 100, 100, 300] },
       ]),
     ),
+  "nav-missing": () =>
+    validated(
+      scene({}, [{ id: "walker", type: "marker", at: [1, 1], behaviors: { "nav-agent": {} } }]),
+    ),
+  "joint-ref-type": () =>
+    validated(
+      scene({}, [
+        { id: "post", type: "marker", at: [2, 1] },
+        {
+          id: "link",
+          type: "marker",
+          at: [1, 1],
+          behaviors: {
+            collider: { shape: ["box", 0, 0, 0.2, 0.2] },
+            body: {},
+            joint: { kind: "revolute", to: "post" },
+          },
+        },
+      ]),
+    ),
+  "joint-self": () =>
+    validated(
+      scene({}, [
+        {
+          id: "link",
+          type: "marker",
+          at: [1, 1],
+          behaviors: {
+            collider: { shape: ["box", 0, 0, 0.2, 0.2] },
+            body: {},
+            joint: { kind: "weld", to: "link" },
+          },
+        },
+      ]),
+    ),
   "grid-unreachable": () => {
     const def = scene(
       {
@@ -509,6 +574,9 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
   // Runtime refusals are thrown as `EngineError`s by `ctx.spawn` and `ctx.instantiate`, not reported by the scene tools.
   "spawn-id-invalid": null,
   "prefab-not-spawnable": null,
+  // Thrown as `EngineError`s by `ctx.bodies`, not reported by the scene tools.
+  "body-missing": null,
+  "body-not-dynamic": null,
   "scene-unlisted": () => {
     const checks = {
       v: 3,
@@ -729,6 +797,26 @@ describe("the engine's issue table", () => {
     if (!applied.ok) return;
     expect(applied.def.settings?.physics).toBe("rapier");
     expect(validated(applied.def).map((i) => i.code)).not.toContain("physics-required");
+  });
+
+  it("character-body-kind: its fix makes the body kinematic and clears the code", () => {
+    const def = scene({}, [
+      {
+        id: "hero",
+        type: "marker",
+        at: [1, 1],
+        behaviors: {
+          collider: { shape: ["box", 0, 0, 0.2, 0.2] },
+          body: {},
+          "character-top-down": {},
+        },
+      },
+    ]);
+    const [issue] = validated(def).filter((i) => i.code === "character-body-kind");
+    const applied = applyOps(def, issue!.fix!, engine);
+    expect(applied.ok, JSON.stringify(applied)).toBe(true);
+    if (!applied.ok) return;
+    expect(validated(applied.def).map((i) => i.code)).not.toContain("character-body-kind");
   });
 
   it("every code any tool emits on the fixtures is registered, with a hint", async () => {

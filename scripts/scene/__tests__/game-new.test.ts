@@ -32,7 +32,17 @@ const GOLDEN_DIR = join(REPO, "src", "games", "demo");
 const SUBPROCESS_MS = 300_000;
 const SCHEMA_FILES = ["scene.schema.json", "input-script.schema.json"];
 
-const ID: Record<GamePreset, string> = { "top-down": "rover", grid: "crates", turns: "steps" };
+const ID: Record<GamePreset, string> = {
+  "top-down": "rover",
+  "side-view": "leaper",
+  grid: "crates",
+  turns: "steps",
+};
+/** The behaviors each behavior preset's hero carries in place of movement code. */
+const HERO_BEHAVIORS: Partial<Record<GamePreset, string[]>> = {
+  "top-down": ["camera-target", "character-top-down", "collider", "player-input"],
+  "side-view": ["camera-target", "character-side-view", "collider", "player-input"],
+};
 const EMPTY = { projects: [], loadRapier: loadCompatRapier } satisfies ToolContext;
 
 let projects: ProjectHandle[] = [];
@@ -200,13 +210,34 @@ describe("game new writes a project that passes the repo's checks", () => {
         const index = await readFile(join(GAMES, id, "index.ts"), "utf8");
         const options = gameOptionsFrom(id, { preset });
         if (typeof options === "string") throw new Error(options);
-        expect(index).toContain(`physics: "none",`);
-        expect(index).toContain(`gravity: [0, 0],`);
+        expect(index).toContain(`physics: "${options.physics}",`);
+        expect(index).toContain(`gravity: [${options.gravity.join(", ")}],`);
         expect(index).toContain(`lengthUnit: ${options.lengthUnit},`);
         expect(index).toContain(`time: { kind: "${options.time.kind}", rate: 60 },`);
-        if (preset !== "top-down")
-          expect(index).toContain(`grid: { kind: "square", cell: [1, 1] },`);
+        if (options.grid) expect(index).toContain(`grid: { kind: "square", cell: [1, 1] },`);
       });
+
+      const behaviors = HERO_BEHAVIORS[preset];
+      if (behaviors)
+        it("builds its hero from standard behaviors, and its script walks it to a near", async () => {
+          const read = (path: string) => readFile(join(GAMES, id, path), "utf8");
+          const scene = JSON.parse(await read("scenes/main.json")) as {
+            entities: { id: string; behaviors?: Record<string, unknown> }[];
+          };
+          const hero = scene.entities.find((e) => e.id === "hero");
+          expect(Object.keys(hero?.behaviors ?? {}).sort()).toEqual(behaviors);
+          const code = await Promise.all(["runtime.ts", "types.ts", "index.ts"].map(read));
+          for (const text of code)
+            expect(text).not.toMatch(/createMotionBody|Controller|HERO_SIZE/);
+          const script = JSON.parse(await read("scenes/main.script.json")) as {
+            steps: { until?: { near?: { id: string } } }[];
+          };
+          expect(script.steps.some((step) => step.until?.near?.id === "hero")).toBe(true);
+          const checks = JSON.parse(await read("scenes/main.checks.json")) as {
+            checks: { kind: string; expect?: { near?: unknown } }[];
+          };
+          expect(checks.checks.find((c) => c.kind === "reaches")?.expect?.near).toBeDefined();
+        });
     });
   }
 });
@@ -313,11 +344,30 @@ describe("game new's refusals and flags", () => {
     ["top-down on Rapier with gravity", { physics: "rapier", gravity: "0,9.8" }],
     ["grid at 0.5 m cells and 48 px per metre", { preset: "grid", cell: "0.5", pxPerMetre: "48" }],
     ["turns on an event clock", { preset: "turns", time: "event" }],
+    ["side-view on the geometry backend", { preset: "side-view", physics: "none" }],
+    ["side-view on an event clock", { preset: "side-view", time: "event" }],
   ])("plans %s with no error issues", async (_name, flags) => {
     const options = gameOptionsFrom("variant", flags);
     if (typeof options === "string") throw new Error(options);
     const plan = await planGame(options, join(dir(), "variant"));
     expect(plan.issues.filter((i) => i.severity === "error")).toEqual([]);
+  });
+
+  it("plays a side-view hero to its goal on the geometry backend too", async () => {
+    const out = await gameNew(
+      { id: "flat-leaper", preset: "side-view", physics: "none", dir: dir() },
+      EMPTY,
+    );
+    expect(out.exitCode, out.text).toBe(0);
+    const found = await discoverProjects(dir(), ["flat-leaper/jams.project.json"]);
+    const ctx: ToolContext = {
+      projects: found,
+      project: "flat-leaper",
+      loadRapier: loadCompatRapier,
+    };
+    const played = await check({ scene: "main" }, ctx);
+    expect(played.exitCode, played.text).toBe(0);
+    expect(played.text).toContain("expect holds (near)");
   });
 
   it("projectIdTaken points at the new project file's id", () => {

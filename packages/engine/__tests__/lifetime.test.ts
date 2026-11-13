@@ -87,7 +87,11 @@ function setup(entities: RuntimeEntity[], opts: { rate?: number; timeOffsetMs?: 
 
 describe("the lifetime behavior", () => {
   it("is the engine's third behavior, with its system mapped", () => {
-    expect(ENGINE_BEHAVIORS.map((b) => b.name)).toEqual(["sprite", "occupant", "lifetime"]);
+    expect(ENGINE_BEHAVIORS.map((b) => b.name).slice(0, 3)).toEqual([
+      "sprite",
+      "occupant",
+      "lifetime",
+    ]);
     expect(ENGINE_BEHAVIORS[2]).toBe(LIFETIME);
     expect(LIFETIME.visualOnly).toBeUndefined();
     expect(ENGINE_BEHAVIOR_SYSTEMS.lifetime).toBe(createLifetimeSystem);

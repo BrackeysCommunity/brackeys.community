@@ -49,6 +49,7 @@ const TACTICS = join(REPO, "src", "games", "tactics");
 const REPO_PROJECTS = ["engine", "platformer", "tactics"] as const;
 const PRESET_ID: Record<GamePreset, string> = {
   "top-down": "sync-rover",
+  "side-view": "sync-leaper",
   grid: "sync-crates",
   turns: "sync-steps",
 };

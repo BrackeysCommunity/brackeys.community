@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useEffectEvent, useRef, useState, type Ref } from "react";
 
 import { Button } from "@/components/ui/button";
+import { downloadBlob } from "@/lib/download";
 import { FRAME_ALLOW, FRAME_SANDBOX } from "@/lib/engine/frame-sandbox";
 import {
   createHostServer,
@@ -50,15 +51,7 @@ function safeFileName(name: string): string {
 
 function saveToDisk(offer: DownloadOffer): void {
   const type = MIME.test(offer.contentType) ? offer.contentType : "application/octet-stream";
-  const url = URL.createObjectURL(new Blob([offer.bytes], { type }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = safeFileName(offer.name);
-  a.rel = "noopener";
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  downloadBlob(safeFileName(offer.name), new Blob([offer.bytes], { type }));
 }
 
 /** The sandboxed game frame and the play page's end of its host channel. */

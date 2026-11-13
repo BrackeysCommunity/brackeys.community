@@ -23,11 +23,22 @@ import {
   type BehaviorName,
   type RegisteredBehavior,
 } from "./behaviors";
+import { BODY } from "./behaviors/body";
+import { CAMERA_TARGET } from "./behaviors/camera-target";
+import { CHARACTER_SIDE_VIEW } from "./behaviors/character-side-view";
+import { CHARACTER_TOP_DOWN } from "./behaviors/character-top-down";
+import { COLLIDER } from "./behaviors/collider";
+import { FORCE_AREA } from "./behaviors/force-area";
+import { JOINT } from "./behaviors/joint";
 import { LIFETIME } from "./behaviors/lifetime";
+import { NAV_AGENT } from "./behaviors/nav-agent";
 import { OCCUPANT } from "./behaviors/occupant";
+import { PATH_FOLLOW } from "./behaviors/path-follow";
+import { PLAYER_INPUT } from "./behaviors/player-input";
+import { SPAWNER } from "./behaviors/spawner";
 import { SPRITE } from "./behaviors/sprite";
 import { COMMAND_NAME_PATTERN, ENGINE_COMMANDS } from "./commands";
-import { DEFAULT_TIME } from "./defaults";
+import { DEFAULT_ACTIONS, DEFAULT_TIME } from "./defaults";
 import { ID_PATTERN, isAttachField, RESERVED_FIELDS, SIDES } from "./fields";
 import {
   ACTION_KINDS,
@@ -138,8 +149,31 @@ export type CreateRegistryOptions = {
 
 const noAssets: FieldEnv["assets"] = () => [];
 
-/** The engine's own behaviors, registered before a game's. */
-export const ENGINE_BEHAVIORS: readonly BehaviorDef[] = Object.freeze([SPRITE, OCCUPANT, LIFETIME]);
+/** The engine's own behaviors, registered before a game's; the order is the attach and step order. */
+export const ENGINE_BEHAVIORS: readonly BehaviorDef[] = Object.freeze([
+  SPRITE,
+  OCCUPANT,
+  LIFETIME,
+  COLLIDER,
+  BODY,
+  PLAYER_INPUT,
+  PATH_FOLLOW,
+  FORCE_AREA,
+  CHARACTER_TOP_DOWN,
+  CHARACTER_SIDE_VIEW,
+  NAV_AGENT,
+  JOINT,
+  SPAWNER,
+  CAMERA_TARGET,
+]);
+
+/** Whether behaviors `a` and `b` may not share an entity: either names the other in `conflicts`. */
+export function behaviorsConflict(
+  a: Pick<BehaviorDef, "name" | "conflicts">,
+  b: Pick<BehaviorDef, "name" | "conflicts">,
+): boolean {
+  return (a.conflicts?.includes(b.name) ?? false) || (b.conflicts?.includes(a.name) ?? false);
+}
 
 /** A behavior's own field defaults: each field whose schema parses `undefined` to a value. */
 function shapeDefaults(shape: z.ZodRawShape): Record<string, unknown> {
@@ -233,6 +267,14 @@ function checkTypeBehaviors(
   const forbidden = rules.forbidden === "all" ? [] : (rules.forbidden ?? []);
   for (const b of forbidden)
     if (!behaviors.has(b)) problem(`type "${name}" forbids unknown behavior "${b}"`);
+  required.forEach((b, i) => {
+    const def = behaviors.get(b);
+    for (const other of required.slice(i + 1)) {
+      const otherDef = behaviors.get(other);
+      if (def && otherDef && behaviorsConflict(def, otherDef))
+        problem(`type "${name}" requires "${b}" and "${other}", which conflict`);
+    }
+  });
   for (const b of required) {
     if (forbidden.includes(b)) problem(`type "${name}" both requires and forbids "${b}"`);
     for (const dep of behaviors.get(b)?.requires ?? []) {
@@ -344,13 +386,16 @@ export function placeableTypes(registry: Registry): EntityTypeName[] {
 /**
  * Merges the engine's primitives with a game's types, materials, actions,
  * collision groups and issue codes, and the project's materials over the
- * game's, and the engine's behaviors then the game's. Throws
+ * game's, and the engine's behaviors then the game's. Without a game the
+ * actions are `DEFAULT_ACTIONS`. Throws
  * `RegistryError` listing every problem: duplicate or reserved names, bulk
  * keys or codes, a type without a system, a spawn-only type that never
  * loads or has a bulk form, a spawn order that misses or
  * repeats a type, unknown groups, a game behavior outside the game's
- * namespace, a behavior `template` its fields or `refine` refuse, behavior
- * rules naming unknown behaviors or failing their schemas, a grid field without a point `at`, a `time.rate` the clock can't run
+ * namespace, a behavior `template` its fields or `refine` refuse, a
+ * behavior's `requires` or `conflicts` naming an unknown behavior, behavior
+ * rules naming unknown behaviors, failing their schemas or requiring two
+ * that conflict, a grid field without a point `at`, a `time.rate` the clock can't run
  * (`tick-rate-invalid`), an unknown `time.kind` or a `time.catchUp.maxMs` that
  * isn't a whole number ≥ 0, world defaults the scene settings would refuse, and
  * `world.gridWalls` naming a type that is unknown or never loads, and input
@@ -440,6 +485,13 @@ export function createRegistry(
   for (const b of behaviors.values()) {
     for (const dep of b.requires ?? []) {
       if (!behaviors.has(dep)) problem(`behavior "${b.name}" requires unknown behavior "${dep}"`);
+    }
+    for (const other of b.conflicts ?? []) {
+      if (!behaviors.has(other))
+        problem(`behavior "${b.name}" conflicts with unknown behavior "${other}"`);
+      else if (other === b.name) problem(`behavior "${b.name}" conflicts with itself`);
+      else if (b.requires?.includes(other))
+        problem(`behavior "${b.name}" both requires and conflicts with "${other}"`);
     }
   }
   const behaviorNames = [...behaviors.keys()];
@@ -582,9 +634,10 @@ export function createRegistry(
   }
   const bulkByKey = new Map(bulkKeys.map((b) => [b.key, b]));
 
-  // actions
-  const actionNames = (game?.actions ?? []).map((a) => a.action);
-  const uiActionNames = (game?.actions ?? []).filter((a) => a.ui === true).map((a) => a.action);
+  // actions: the game's alone, or the defaults without a game
+  const actions = game ? (game.actions ?? []) : DEFAULT_ACTIONS;
+  const actionNames = actions.map((a) => a.action);
+  const uiActionNames = actions.filter((a) => a.ui === true).map((a) => a.action);
   const seenActions = new Set<string>();
   for (const a of actionNames) {
     if (seenActions.has(a)) problem(`action "${a}" is declared twice`);
@@ -741,7 +794,7 @@ export function createRegistry(
     bulkKey: (key) => bulkByKey.get(key),
     materials,
     materialNames,
-    actions: game?.actions ?? [],
+    actions,
     actionNames,
     uiActionNames,
     collisionGroups(name) {

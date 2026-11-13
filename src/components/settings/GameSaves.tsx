@@ -14,6 +14,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { MicroLabel, Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { authClient } from "@/lib/auth-client";
+import { downloadBlob } from "@/lib/download";
 import {
   SITE_SAVE_ACCOUNT_BYTES,
   SITE_SAVE_EXPIRY_DAYS,
@@ -45,21 +46,6 @@ export const saveZipPath = (projectId: string, slot: string): string =>
 
 const errorText = (error: unknown, fallback: string): string =>
   error instanceof Error && error.message ? error.message : fallback;
-
-function saveToDisk(name: string, bytes: Uint8Array): void {
-  const url = URL.createObjectURL(
-    new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/zip" }),
-  );
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.rel = "noopener";
-  document.body.append(a);
-  a.click();
-  a.remove();
-  // Some browsers start the download after this tick.
-  setTimeout(() => URL.revokeObjectURL(url), 1_000);
-}
 
 /** The route's pane: the section while hosted games are on, else the 404. */
 export function GameSavesPage() {
@@ -180,7 +166,10 @@ function DownloadSaves({ games }: { games: readonly AccountGameSaves[] }) {
         toast.error("Your saves didn't download. Try again.");
         return;
       }
-      saveToDisk(SAVES_ZIP_NAME, zipFiles(files));
+      downloadBlob(
+        SAVES_ZIP_NAME,
+        new Blob([zipFiles(files) as Uint8Array<ArrayBuffer>], { type: "application/zip" }),
+      );
       const missed = wanted.length - files.length;
       if (missed > 0) {
         toast.warning(

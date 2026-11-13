@@ -55,6 +55,7 @@ describe("input-script.schema.json", () => {
       "tick",
       "exists",
       "count",
+      "near",
       "scene",
       "persist",
       "past",
@@ -67,6 +68,7 @@ describe("input-script.schema.json", () => {
       "tick",
       "exists",
       "count",
+      "near",
       "scene",
       "persist",
     ]);

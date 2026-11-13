@@ -1,9 +1,17 @@
 import { z } from "zod";
 
 import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
+import { BODY } from "../game/behaviors/body";
+import { CHARACTER_SIDE_VIEW } from "../game/behaviors/character-side-view";
+import { CHARACTER_TOP_DOWN } from "../game/behaviors/character-top-down";
+import { COLLIDER } from "../game/behaviors/collider";
+import { FORCE_AREA, forceAreaSensorMessage } from "../game/behaviors/force-area";
+import { JOINT } from "../game/behaviors/joint";
+import { NAV_AGENT } from "../game/behaviors/nav-agent";
 import { OCCUPANT } from "../game/behaviors/occupant";
+import { SPAWNER } from "../game/behaviors/spawner";
 import { SPRITE } from "../game/behaviors/sprite";
-import { isSpawnOnly, placeableTypes } from "../game/define";
+import { behaviorsConflict, isSpawnOnly, placeableTypes } from "../game/define";
 import { ID_PATTERN, isPolygonField } from "../game/fields";
 import { flowIssue, type SceneLibrary } from "../game/flow";
 import { physicsNeeds } from "../game/primitives";
@@ -459,6 +467,8 @@ export function validateScene(
     const type = r.types.get(e.type);
     if (type) checkBehaviors(r, type, e, jsonPointer(["entities", i]), push, batch);
   });
+  checkJoints(r, entities, push, batch);
+  checkSpawners(r, entities, push);
 
   // grid fields need a grid to size their cells; a prefab view has no
   // settings, and the scene placing it sizes its cells instead
@@ -489,6 +499,7 @@ export function validateScene(
         );
       checkPhysics(r, def, push, fix);
     }
+    checkNavAgents(r, entities, push);
     if (!isPlainObject(grid)) {
       entities.forEach((e, i) => {
         if (e.off || !(OCCUPANT.name in behaviorBlocks(r, e.type, e[BEHAVIORS_FIELD]))) return;
@@ -736,6 +747,20 @@ function checkPhysics(r: Registry, def: SceneDefinition, push: Push, fix: () => 
   (def.entities ?? []).forEach((e, i) => {
     const type = r.types.get(e.type);
     if (e.off || !type) return;
+    const blocks = behaviorBlocks(r, e.type, e[BEHAVIORS_FIELD]);
+    for (const [name, what] of [
+      [BODY.name, "a dynamic body"],
+      [JOINT.name, "a joint"],
+    ] as const) {
+      const block = blocks[name];
+      if (!block || (name === BODY.name && block.kind !== "dynamic")) continue;
+      push("physics-required", {
+        message: message(`${e.id} has ${what}, which needs physics`),
+        path: jsonPointer(["entities", i, BEHAVIORS_FIELD, name]),
+        entityIds: [e.id],
+        fix: fix(),
+      });
+    }
     for (const { field } of physicsNeeds(type, e)) {
       push("physics-required", {
         message: message(
@@ -746,6 +771,108 @@ function checkPhysics(r: Registry, def: SceneDefinition, push: Push, fix: () => 
         path: jsonPointer(field === undefined ? ["entities", i] : ["entities", i, field]),
         entityIds: [e.id],
         fix: fix(),
+      });
+    }
+  });
+}
+
+/** `nav-missing` on each entity carrying `nav-agent` in a scene with no walk area. */
+function checkNavAgents(r: Registry, entities: readonly EntityDef[], push: Push): void {
+  const walks = entities.some(
+    (e) => !e.off && isNavType(r.types.get(e.type)) && e.mode !== "block",
+  );
+  if (walks) return;
+  entities.forEach((e, i) => {
+    if (e.off || !(NAV_AGENT.name in behaviorBlocks(r, e.type, e[BEHAVIORS_FIELD]))) return;
+    push("nav-missing", {
+      message: `${e.id} has the ${NAV_AGENT.name} behavior, but the scene has no walk area for it to walk`,
+      path: jsonPointer(["entities", i, BEHAVIORS_FIELD, NAV_AGENT.name]),
+      entityIds: [e.id],
+    });
+  });
+}
+
+/** `unknown-type` on a spawner whose `type` isn't a registered type that loads; spawn-only types are fine. */
+function checkSpawners(r: Registry, entities: readonly EntityDef[], push: Push): void {
+  entities.forEach((e, i) => {
+    const type = behaviorBlocks(r, e.type, e[BEHAVIORS_FIELD])[SPAWNER.name]?.type;
+    if (typeof type !== "string" || (r.types.get(type) && r.types.get(type)!.loads !== false))
+      return;
+    const loadable = r.typeNames.filter((t) => r.types.get(t)?.loads !== false);
+    const guess = closest(type, loadable);
+    push("unknown-type", {
+      message: `${e.id}'s spawner spawns "${type}", which ${r.types.has(type) ? "never loads" : "isn't a registered type"}${guess ? `; did you mean "${guess}"?` : ""}`,
+      path: jsonPointer(["entities", i, BEHAVIORS_FIELD, SPAWNER.name, "type"]),
+      entityIds: [e.id],
+      expected: loadable.join(" | "),
+      got: type,
+    });
+  });
+}
+
+/** The types whose own system makes a body a joint can hold. */
+const BODY_TYPES: readonly string[] = ["solid", "prop", "follower"];
+
+/** Whether a joint can hold `e`: it carries a body, or a collider that isn't a sensor, or its type owns a body. */
+function holdsJoint(r: Registry, e: EntityDef): boolean {
+  const blocks = behaviorBlocks(r, e.type, e[BEHAVIORS_FIELD]);
+  if (blocks[BODY.name]) return true;
+  const collider = blocks[COLLIDER.name];
+  if (collider) return collider.sensor !== true;
+  const type = r.types.get(e.type);
+  return (
+    BODY_TYPES.includes(e.type) || (type?.base !== undefined && BODY_TYPES.includes(type.base))
+  );
+}
+
+/**
+ * Each joint's `to` against the scene: `joint-self` when it names the
+ * entity carrying it, `dangling-ref` when it names nothing, `joint-ref-type`
+ * when what it names has no body to hold. Inside an instance, `to` may name
+ * a sibling by its id within the prefab.
+ */
+function checkJoints(
+  r: Registry,
+  entities: readonly EntityDef[],
+  push: Push,
+  batch: MakeBatch,
+): void {
+  const byId = new Map(entities.map((e) => [e.id, e]));
+  entities.forEach((e, i) => {
+    const joint = behaviorBlocks(r, e.type, e[BEHAVIORS_FIELD])[JOINT.name];
+    const to = joint?.to;
+    if (typeof to !== "string") return;
+    const path = jsonPointer(["entities", i, BEHAVIORS_FIELD, JOINT.name, "to"]);
+    const slash = e.id.lastIndexOf("/");
+    const sibling = slash < 0 ? undefined : `${e.id.slice(0, slash)}/${to}`;
+    const targetId = byId.has(to) ? to : sibling !== undefined && byId.has(sibling) ? sibling : to;
+    if (targetId === e.id) {
+      push("joint-self", {
+        message: `${e.id}'s joint links ${e.id} to itself`,
+        path,
+        entityIds: [e.id],
+        got: to,
+      });
+      return;
+    }
+    const target = byId.get(targetId);
+    if (!target) {
+      push("dangling-ref", {
+        message: `${e.id}.${BEHAVIORS_FIELD}.${JOINT.name}.to names "${to}", which doesn't exist`,
+        path,
+        entityIds: [e.id],
+        fix: batch(
+          `Unset ${e.id}'s ${JOINT.name} block`,
+          [{ op: "update", ref: e.id, unset: [`${BEHAVIORS_FIELD}.${JOINT.name}`] }],
+          [e.id],
+        ),
+      });
+    } else if (!holdsJoint(r, target)) {
+      push("joint-ref-type", {
+        message: `${e.id}'s joint links to ${target.id}, a ${target.type} with no body to hold: give it a body or a collider that isn't a sensor`,
+        path,
+        entityIds: [e.id, target.id],
+        got: target.type,
       });
     }
   });
@@ -789,7 +916,9 @@ type MakeBatch = (label: string, ops: SceneOp[], refs: Ref[]) => OpBatch;
 /**
  * An entity's behavior blocks against the registry and its type's rules:
  * `behavior-unknown`, `behavior-forbidden`, `behavior-missing` (a carried
- * behavior's `requires`, counting the type's required blocks), and `schema`
+ * behavior's `requires`, counting the type's required blocks),
+ * `behavior-conflict` once per carried pair that conflicts,
+ * `character-body-kind` for a character on a dynamic body, and `schema`
  * for a block's fields once the type's defaults are under them.
  */
 function checkBehaviors(
@@ -873,6 +1002,78 @@ function checkBehaviors(
               [e.id],
             )
           : undefined,
+      });
+    }
+  }
+
+  order.forEach((name, i) => {
+    const behavior = registry.behaviors.get(name)!;
+    for (const other of order.slice(i + 1)) {
+      if (!behaviorsConflict(behavior, registry.behaviors.get(other)!)) continue;
+      const written = other in blocks ? other : name;
+      push("behavior-conflict", {
+        message: `${e.id} carries "${name}" and "${other}", which can't share an entity`,
+        path: pointer(written),
+        entityIds: [e.id],
+        got: written,
+      });
+    }
+  });
+
+  const character = [CHARACTER_TOP_DOWN.name, CHARACTER_SIDE_VIEW.name].find((n) => carried.has(n));
+  if (character && carried.has(BODY.name)) {
+    const written = blocks[BODY.name];
+    const body: Record<string, unknown> = {
+      ...(rules.required.get(BODY.name) ?? rules.defaults.get(BODY.name)),
+      ...(isPlainObject(written) ? written : {}),
+    };
+    if (body.kind === "dynamic") {
+      const own = isPlainObject(written) && written.kind !== undefined;
+      push("character-body-kind", {
+        message: `${e.id} has a ${character} on a dynamic body: the controller and the physics solver would both move it`,
+        path: own ? pointer(BODY.name, "kind") : pointer(BODY.name),
+        entityIds: [e.id],
+        expected: "kinematic",
+        got: "dynamic",
+        fix: batch(
+          `Make ${e.id}'s body kinematic`,
+          [
+            {
+              op: "update",
+              ref: e.id,
+              set: { [`${BEHAVIORS_FIELD}.${BODY.name}.kind`]: "kinematic" },
+            },
+          ],
+          [e.id],
+        ),
+      });
+    }
+  }
+
+  if (carried.has(FORCE_AREA.name) && carried.has(COLLIDER.name)) {
+    const written = blocks[COLLIDER.name];
+    const collider: Record<string, unknown> = {
+      ...(rules.required.get(COLLIDER.name) ?? rules.defaults.get(COLLIDER.name)),
+      ...(isPlainObject(written) ? written : {}),
+    };
+    if (collider.sensor !== true) {
+      push("schema", {
+        message: forceAreaSensorMessage(e.id),
+        path: isPlainObject(written) ? pointer(COLLIDER.name, "sensor") : pointer(FORCE_AREA.name),
+        entityIds: [e.id],
+        expected: "true",
+        got: showValue(collider.sensor ?? false),
+        fix: batch(
+          `Make ${e.id}'s collider a sensor`,
+          [
+            {
+              op: "update",
+              ref: e.id,
+              set: { [`${BEHAVIORS_FIELD}.${COLLIDER.name}.sensor`]: true },
+            },
+          ],
+          [e.id],
+        ),
       });
     }
   }

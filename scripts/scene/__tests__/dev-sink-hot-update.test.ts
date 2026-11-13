@@ -20,6 +20,13 @@ describe("the dev server's hot updates", () => {
       expect(data(at("src/games/platformer/scene-list.json"))).toBe(true);
       expect(data(at("packages/engine/scenes/kitchen-sink.json"))).toBe(true);
       expect(data(at("packages/engine/scenes/grid-annex.json.asset.json"))).toBe(true);
+      expect(data(at("src/games/tactics/art/tiles.png"))).toBe(true);
+      expect(data(at("src/games/tactics/art/tiles.png.asset.json"))).toBe(true);
+      expect(data(at("src/games/tactics/art/make-art.ts"))).toBe(false);
+      expect(data(at("src/games/platformer/scene.schema.json"))).toBe(false);
+      expect(data(at("src/games/platformer/jams.project.json"))).toBe(false);
+      expect(data(at("packages/engine/scenes/jams.project.json"))).toBe(false);
+      expect(data(at("packages/engine/scene/scene.schema.json"))).toBe(false);
       expect(data(at("src/games/platformer/index.ts"))).toBe(false);
       expect(data(at("src/components/game/GameCanvas.tsx"))).toBe(false);
       expect(data(at("src/styles.css"))).toBe(false);

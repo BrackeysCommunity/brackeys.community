@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { engineProjects } from "@/db/schema";
 import { isStaffMember } from "@/lib/discord";
 import { isServerFlagEnabled } from "@/lib/posthog-server";
-import { resolveUserRoles } from "@/lib/staff-roles";
+import { resolveUserRoles, type RolesDb } from "@/lib/staff-roles";
 
 export const isEngineProjectId = (id: unknown): id is string =>
   typeof id === "string" && ID_PATTERN.test(id);
@@ -32,6 +32,6 @@ export function engineProjectsEnabled(userId: string): Promise<boolean> {
 }
 
 /** The staff gate for callers outside the oRPC chain (routes, agent exchanges): `requireStaff`'s predicate. */
-export async function isEngineStaff(userId: string): Promise<boolean> {
-  return isStaffMember(await resolveUserRoles(userId));
+export async function isEngineStaff(userId: string, handle: RolesDb = db): Promise<boolean> {
+  return isStaffMember(await resolveUserRoles(userId, handle));
 }

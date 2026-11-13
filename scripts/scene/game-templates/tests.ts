@@ -1,8 +1,11 @@
-import type { GameNames, GameOptions } from ".";
+import { onBehaviors, type GameNames, type GameOptions } from ".";
 
 /** `__tests__/game.test.ts`: the schemas are current, the scene validates and its checks pass headless. */
 export function testFile(options: GameOptions, names: GameNames): string {
   const rapier = options.physics === "rapier";
+  const wins = onBehaviors(options)
+    ? "the input script wins headless, the hero near the goal"
+    : "the input script wins headless";
   return [
     `// @vitest-environment node`,
     `import { readFileSync, writeFileSync } from "node:fs";`,
@@ -49,7 +52,7 @@ export function testFile(options: GameOptions, names: GameNames): string {
     `    expect(validateScene(parsed.def, registry).filter((i) => i.severity !== "info")).toEqual([]);`,
     `  });`,
     ``,
-    `  it("passes its checks: the input script wins headless", ${rapier ? "async " : ""}() => {`,
+    `  it("passes its checks: ${wins}", ${rapier ? "async " : ""}() => {`,
     `    if (!parsed.ok) throw new Error("scenes/main.json doesn't parse");`,
     `    const checks = parseChecks(read("scenes/main.checks.json"), registry);`,
     `    if (!checks.ok) throw new Error(JSON.stringify(checks.issues));`,

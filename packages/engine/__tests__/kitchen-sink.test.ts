@@ -35,6 +35,7 @@ import { ATLAS_KIND } from "../project/kinds/atlas";
 import { DATA_TABLE_KIND } from "../project/kinds/data-table";
 import { GAME_SETTINGS_KIND } from "../project/kinds/game-settings";
 import { INPUT_MAP_KIND } from "../project/kinds/input-map";
+import { inputScriptKind } from "../project/kinds/input-script";
 import { MATERIAL_KIND } from "../project/kinds/material";
 import { SAVE_KIND } from "../project/kinds/save";
 import { SCENE_LIST_KIND, type SceneListEntry } from "../project/kinds/scene-list";
@@ -985,6 +986,7 @@ describe("the engine project", () => {
         MATERIAL_KIND,
         GAME_SETTINGS_KIND,
         INPUT_MAP_KIND,
+        inputScriptKind.kind,
         SCENE_LIST_KIND,
         DATA_TABLE_KIND,
         TEXTURE_KIND,

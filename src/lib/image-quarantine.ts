@@ -336,6 +336,15 @@ export function formatEngineReleaseNotice(notice: EngineReleaseNotice): string {
   return JSON.stringify({ releaseIds: notice.releaseIds, projectIds: notice.projectIds });
 }
 
+/** Announces notices through any Redis client; a rejected publish rejects, for the caller to log. */
+export function engineReleaseNoticePublisher(client: {
+  publish(channel: string, message: string): Promise<unknown>;
+}): (notice: EngineReleaseNotice) => Promise<void> {
+  return async (notice) => {
+    await client.publish(ENGINE_RELEASE_NOTICE_CHANNEL, formatEngineReleaseNotice(notice));
+  };
+}
+
 /**
  * How a takedown reaches the edge and the site's frame caches. `purge`
  * takes a release's shell and the listed `files` (release paths) off the

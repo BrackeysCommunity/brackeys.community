@@ -2302,7 +2302,7 @@ Refers to [`TimingBucket`](#timingbucket).
 _type_ in `headless/playtest-types.ts`
 
 When a step ends early: every key must hold (AND). `event`, `tick` (an
-absolute tick, reached or passed), `exists`, `count`, `scene` and
+absolute tick, reached or passed), `exists`, `count`, `near`, `scene` and
 `persist` are the engine's; the rest are the game's `play.predicates`.
 
 ```ts
@@ -2313,6 +2313,8 @@ type UntilClause = {
     event?: EventMatch;
     /** True while the entity exists and is enabled; `{ id, enabled: false }` while it exists at all. */
     exists?: ExistsMatch;
+    /** The entity's pose is within `within` metres of a point or another entity's pose. */
+    near?: NearMatch;
     persist?: PersistMatch;
     /** Holds once the main scene is this scene. */
     scene?: AssetId;
@@ -2713,7 +2715,7 @@ selections go through the query index, and the grid and project are
 whatever `ctx` holds at the time of the read.
 
 ```ts
-declare function playWorld(ctx: Pick<EngineContext, "enabled" | "exists" | "get" | "grid" | "project" | "query">): PlayWorld;
+declare function playWorld(ctx: Pick<EngineContext, "enabled" | "exists" | "get" | "grid" | "poses" | "project" | "query">): PlayWorld;
 ```
 
 ## `pointerAt`
@@ -3002,7 +3004,7 @@ declare function unknownActionError(action: string, actionNames: readonly string
 _function_ in `headless/playtest.ts`
 
 Whether every key of `until` holds on `state` (AND): the engine's `event`,
-`tick`, `exists`, `count`, `scene` (the main scene is `scene`, the run's
+`tick`, `exists`, `count`, `near`, `scene` (the main scene is `scene`, the run's
 listed id for it; never without one) and `persist`, then `registry`'s
 game predicates. A key no predicate answers doesn't hold. `reaches` checks
 judge `expect` with it too.

@@ -352,6 +352,48 @@ describe("scene MCP server", () => {
     },
   );
 
+  it("game_new offers side-view; scene_schema and scene_codes carry the standard behaviors as they are", async () => {
+    const { tools } = await client.listTools();
+    const gameNew = tools.find((t) => t.name === "game_new")!;
+    const preset = (gameNew.inputSchema.properties as Record<string, { enum?: string[] }>).preset;
+    expect(preset?.enum).toEqual(["top-down", "side-view", "grid", "turns"]);
+
+    const behaviors = [
+      "collider",
+      "body",
+      "player-input",
+      "character-top-down",
+      "character-side-view",
+      "camera-target",
+      "spawner",
+      "nav-agent",
+      "path-follow",
+      "force-area",
+      "joint",
+    ];
+    for (const which of ["scene", "prefab"]) {
+      const out = await call("scene_schema", { which });
+      expect(out.structuredContent.exitCode).toBe(0);
+      const text = JSON.stringify(out.structuredContent);
+      for (const name of behaviors) expect(text, `${which}: ${name}`).toContain(`"${name}"`);
+    }
+
+    const listed = await call("scene_codes");
+    const engine = (
+      listed.structuredContent.codes as Record<string, Record<string, { hint?: string }>>
+    ).engine!;
+    for (const code of [
+      "behavior-conflict",
+      "character-body-kind",
+      "nav-missing",
+      "body-missing",
+      "body-not-dynamic",
+      "joint-ref-type",
+      "joint-self",
+    ])
+      expect(engine[code]?.hint, code).toBeTruthy();
+  });
+
   it("shows a project's tree and an asset's references", async () => {
     const ambiguous = await call("project_tree");
     expect(ambiguous).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });

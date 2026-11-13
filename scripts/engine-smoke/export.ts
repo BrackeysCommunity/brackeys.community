@@ -674,8 +674,9 @@ async function clickCentre(page: Page, target: Locator, what: string): Promise<v
   while (!box) {
     const left = until - performance.now();
     if (left <= 0) throw new Error(`${what} has no box on the page after ${PAGE_TIMEOUT_MS} ms`);
-    await target.waitFor({ state: "visible", timeout: left }).catch(() => {
-      throw new Error(`${what} isn't shown on the page after ${PAGE_TIMEOUT_MS} ms`);
+    await target.waitFor({ state: "visible", timeout: left }).catch((cause: unknown) => {
+      if (!(cause instanceof Error && cause.name === "TimeoutError")) throw cause;
+      throw new Error(`${what} isn't shown on the page after ${PAGE_TIMEOUT_MS} ms`, { cause });
     });
     box = await target.boundingBox({ timeout: Math.max(1, until - performance.now()) });
   }

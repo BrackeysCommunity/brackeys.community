@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import {
   ENGINE_RELEASE_NOTICE_CHANNEL,
+  engineReleaseNoticePublisher,
   type ImageObjectStore,
   parseEngineReleaseNotice,
   quarantineImage,
@@ -117,6 +118,22 @@ describe("the frame cache's release notice", () => {
     });
 
     expect((await load())?.hidden).toBe(true);
+  });
+
+  it("drops a release the canvas-sync collector collected", async () => {
+    expect((await load())?.collected).toBe(false);
+
+    await db.update(engineReleases).set({ collectedAt: NOW, manifest: null });
+    await db.delete(engineReleaseFiles);
+    expect((await load())?.collected).toBe(false);
+    await engineReleaseNoticePublisher({ publish: redis.publish })({
+      releaseIds: [RELEASE],
+      projectIds: [],
+    });
+
+    const loaded = await load();
+    expect(loaded?.collected).toBe(true);
+    expect(loaded?.files.size).toBe(0);
   });
 
   it("without the notice, the cached answer stands until its TTL", async () => {
