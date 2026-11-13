@@ -34,7 +34,7 @@ import { tickInputOf, type SeatChange, type TickInput } from "../input/stream";
 import { SAVE_REGISTRY, type SaveEntry, type SaveRegistry } from "../motion/body";
 import { createPhysicsWorld, type PhysicsWorld } from "../physics";
 import type { ProjectRuntimeView } from "../project/runtime-view";
-import type { AssetId } from "../project/types";
+import type { AssetId, Sha256 } from "../project/types";
 import { errorText, ISSUE_CODES, makeIssue } from "../scene/issues";
 import type {
   Bounds,
@@ -65,6 +65,7 @@ import {
 import { createGeometryWorld, type GeometryWorld } from "./geometry-world";
 import { createGridState, gridWallTypes, type GridState } from "./grid";
 import { createLifecycle, type Lifecycle } from "./lifecycle";
+import { overlayLibrary } from "./live";
 import { runtimeNav } from "./nav";
 import { gamePersistCell, playClockOf, type PlayClock } from "./persist";
 import { LOAD_GENERATION } from "./pool";
@@ -155,6 +156,8 @@ export type SaveHost = {
  */
 type RuntimeLive = NonNullable<SceneRuntimeOptions["live"]> & {
   sublevel?(id: AssetId): LibraryScene | null;
+  /** While a load of `scene` runs, before it has its scene: the version that load plays. */
+  loading?(scene: AssetId): Sha256 | null;
 };
 
 export function saveHostOf(ctx: EngineContext): SaveHost | undefined {
@@ -450,7 +453,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     },
     live: {
       get version() {
-        return live.version();
+        // Inside a load (the game's `onLoad`) the host's runtime may still be the one before.
+        const loading = loadedScene === null && mainScene ? (flowScene ?? mainScene.name) : null;
+        return loading !== null && live.loading ? live.loading(loading) : live.version();
       },
       boundary: (label) => live.boundary(label),
     },
@@ -542,14 +547,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   function attachLibrary(): SceneLibrary | null {
     const library = runScenes;
     if (!library || !live.sublevel) return library;
-    let scenes: Map<AssetId, LibraryScene> | null = null;
-    for (const { scene } of library.list) {
-      const moved = live.sublevel(scene);
-      if (!moved) continue;
-      scenes ??= new Map(library.scenes);
-      scenes.set(scene, moved);
-    }
-    return scenes ? { list: library.list, scenes } : library;
+    return overlayLibrary(library, (id) => live.sublevel?.(id) ?? null);
   }
 
   function inGame<T>(hook: () => T): T {

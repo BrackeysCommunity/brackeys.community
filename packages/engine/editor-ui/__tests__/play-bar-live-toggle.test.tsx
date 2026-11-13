@@ -72,6 +72,53 @@ describe("the Live in Play toggle", () => {
     expect(hint?.textContent).toBe(`${LIVE_PLAY_TOOLTIP}. ${LIVE_PLAY_SOURCES}`);
   });
 
+  it("keeps its hint shut once flipped, so the status above the bar stays readable, until the pointer leaves", () => {
+    const { onLivePlay, toggle } = bar();
+    const label = toggle.closest("label")!;
+    vi.useFakeTimers();
+    const rest = () => {
+      act(() => {
+        fireEvent.pointerEnter(label, { pointerType: "mouse" });
+        fireEvent.mouseEnter(label);
+        fireEvent.pointerMove(label, { pointerType: "mouse" });
+        fireEvent.mouseMove(label);
+      });
+      act(() => void vi.advanceTimersByTime(HINT_DELAY_MS + 50));
+      return document.querySelector(".je-hint");
+    };
+    expect(rest()?.textContent).toBe(`${LIVE_PLAY_TOOLTIP}. ${LIVE_PLAY_SOURCES}`);
+    act(() => {
+      fireEvent.pointerDown(label, { pointerType: "mouse" });
+      fireEvent.click(label);
+    });
+    expect(onLivePlay).toHaveBeenLastCalledWith(true);
+    expect(rest()).toBeNull();
+    act(() => {
+      fireEvent.pointerLeave(label, { pointerType: "mouse" });
+      fireEvent.mouseLeave(label);
+    });
+    expect(rest()).not.toBeNull();
+  });
+
+  it("keeps its hint shut once flipped from the keyboard, until focus leaves", () => {
+    const { onLivePlay, toggle } = bar();
+    focusForHint(toggle);
+    expect(document.querySelector(".je-hint")).not.toBeNull();
+    act(() => {
+      fireEvent.keyDown(toggle, { key: " " });
+      fireEvent.keyUp(toggle, { key: " " });
+    });
+    act(() => void vi.advanceTimersByTime(HINT_DELAY_MS + 50));
+    expect(onLivePlay).toHaveBeenLastCalledWith(true);
+    expect(document.querySelector(".je-hint")).toBeNull();
+    act(() => toggle.blur());
+    act(() => void vi.advanceTimersByTime(HINT_DELAY_MS + 50));
+    focusForHint(toggle);
+    expect(document.querySelector(".je-hint")?.textContent).toBe(
+      `${LIVE_PLAY_TOOLTIP}. ${LIVE_PLAY_SOURCES}`,
+    );
+  });
+
   it("stays focusable but inert where the scene can't take live updates, its reason reachable", () => {
     const { onLivePlay, toggle, text } = bar(UNAVAILABLE);
     expect(toggle.getAttribute("aria-disabled")).toBe("true");

@@ -24,10 +24,9 @@ import {
   buildSceneVersion,
   checkSceneVersion,
   formatSceneVersion,
-  liveCompat,
   parseSceneVersion,
+  readReleaseScene,
   readSceneVersion,
-  releaseSceneVersion,
   sceneVersionId,
   sceneVersionOptions,
   type BuildSceneVersionOptions,
@@ -124,24 +123,22 @@ describe("buildSceneVersion over the engine project", () => {
     });
   });
 
-  it("reads the release's own scene as a version it carries", () => {
-    const own = releaseSceneVersion(release, SINK)!;
-    expect(own).toMatchObject({
-      project: release.project.id,
-      scene: SINK,
-      compat: liveCompat(release),
-      base: null,
-      entry: release.flow.scenes.find((s) => s.id === SINK),
-      assets: release.assets,
-    });
+  it("reads the release's own scene by the reader a version is read by", () => {
     const texts = new Map<string, string>();
     for (const a of Object.values(release.assets))
       if (a.storage === "doc") texts.set(a.sha256, releaseTexts.get(a.file)!);
-    const read = readSceneVersion(own, texts, input.registry, input.game, {
+    const read = readReleaseScene(release, SINK, texts, input.registry, input.game, {
       engine: input.engine,
     });
-    expect(read.ok, JSON.stringify(!read.ok && read.issues)).toBe(true);
-    expect(releaseSceneVersion(release, "no-such-level")).toBeNull();
+    if (!read?.ok) throw new Error(JSON.stringify(read?.issues));
+    const entry = release.flow.scenes.find((s) => s.id === SINK)!;
+    expect(read.scene.entities.length).toBeGreaterThan(0);
+    expect([...read.prefabs.keys()]).toEqual(expect.arrayContaining([...entry.prefabs]));
+    expect(
+      readReleaseScene(release, "no-such-level", texts, input.registry, input.game),
+    ).toBeNull();
+    const otherGame = { ...input.game!, id: "another-game" };
+    expect(readReleaseScene(release, SINK, texts, input.registry, otherGame)?.ok).toBe(false);
   });
 
   it("carries an atlas's texture with the atlas", async () => {

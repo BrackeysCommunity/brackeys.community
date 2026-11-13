@@ -110,6 +110,11 @@ export const shortId = (id: string): string => `${id.slice(0, 6)}…`;
 export const plural = (n: number, one: string, many = `${one}s`): string =>
   `${formatCount(n)} ${n === 1 ? one : many}`;
 
+/** Amber on a terminal that takes colour; plain everywhere else (pipes, `--json`, MCP). */
+export function amber(text: string, env: Readonly<Record<string, string | undefined>>): string {
+  return process.stdout.isTTY && env.NO_COLOR === undefined ? `\x1b[33m${text}\x1b[0m` : text;
+}
+
 // ─── Projects in scope ───────────────────────────────────
 
 /** The projects names resolve in: the `--project` one, else all of them. */

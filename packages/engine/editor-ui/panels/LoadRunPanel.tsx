@@ -3,7 +3,8 @@ import { useId, useMemo, useState } from "react";
 
 import type { EditorSession } from "../../editor/index";
 import { resolveTime, type Registry, type TimeKind } from "../../game/index";
-import type { PlayOptions } from "../../index";
+import type { PlayOptions, StagedVersion } from "../../index";
+import type { Sha256 } from "../../project/index";
 import type { EditorNotify } from "../host";
 import {
   Badge,
@@ -62,6 +63,57 @@ function runTimes(recording: LoadedRun["recording"], kind: TimeKind) {
   return {
     length: `${recording.ticks} steps`,
     at: (tick: number) => `step ${tick}`,
+  };
+}
+
+/** Looks up a live version this editor holds: Live in Play's `liveVersion`. */
+export type HeldVersion = (id: Sha256) => StagedVersion | null;
+
+/**
+ * What Replay does with the live versions a run played, checked against the
+ * versions this editor holds when `held` is given: null for a run that
+ * played none. `blocked` when the run starts on a version it lacks; `stopsAt`
+ * the time of the first one it reaches and lacks.
+ */
+function liveReplay(
+  recording: LoadedRun["recording"],
+  held: HeldVersion | undefined,
+  at: (tick: number) => string,
+): { text: string; caveat: boolean; blocked: boolean; stopsAt: string | null } | null {
+  const swaps = recording.swaps ?? [];
+  if (recording.sceneVersion === undefined && swaps.length === 0) return null;
+  if (!held) {
+    return {
+      text: "This run played live versions of the scene. Replay needs the ones Live in Play built in this editor, and stops where the run reached a version this editor doesn't have.",
+      caveat: true,
+      blocked: false,
+      stopsAt: null,
+    };
+  }
+  const missing = (id: Sha256 | null) => id !== null && held(id) === null;
+  if (recording.sceneVersion !== undefined && missing(recording.sceneVersion)) {
+    return {
+      text: "This run starts on a live version of the scene this editor doesn't have, so it can't replay here.",
+      caveat: true,
+      blocked: true,
+      stopsAt: null,
+    };
+  }
+  const gone = swaps.find((swap) => missing(swap.version));
+  if (gone) {
+    const when = at(gone.tick);
+    return {
+      text: `Replay stops at ${when}: the run reached a live version of the scene this editor doesn't have.`,
+      caveat: true,
+      blocked: false,
+      stopsAt: when,
+    };
+  }
+  return {
+    text: "This run played live versions of the scene that this editor holds, so Replay plays all of it.",
+    caveat: false,
+    blocked: false,
+    stopsAt: null,
   };
 }
 
@@ -166,12 +218,14 @@ function RunSummary({
   run,
   stale,
   timeKind,
+  held,
   onPlayFrom,
   onReplay,
 }: {
   run: LoadedRun;
   stale: boolean;
   timeKind: TimeKind;
+  held: HeldVersion | undefined;
   onPlayFrom: (opts: PlayOptions) => void;
   onReplay: (run: LoadedRun) => void;
 }) {
@@ -179,6 +233,7 @@ function RunSummary({
   const times = runTimes(recording, timeKind);
   const { outcome } = recording;
   const markers = recording.markers.slice(0, MAX_EVENTS);
+  const live = liveReplay(recording, held, times.at);
   return (
     <div className="je-run-summary">
       <div className="je-run-head">
@@ -198,17 +253,28 @@ function RunSummary({
           differently.
         </p>
       ) : null}
-      {recording.sceneVersion !== undefined || (recording.swaps?.length ?? 0) > 0 ? (
+      {live?.caveat ? (
+        <p role="status" className="je-run-stale">
+          {live.text}
+        </p>
+      ) : live ? (
         <Text as="p" size="xs" variant="muted">
-          This run played live versions of the scene. Replay needs the ones Live in Play built in
-          this editor, and stops where the run reached a version this editor doesn't have.
+          {live.text}
         </Text>
       ) : null}
       <div className="je-run-actions">
         <Button
           size="xs"
+          disabled={live?.blocked}
+          focusableWhenDisabled={live?.blocked}
           onClick={() => onReplay(run)}
-          tooltip="Play this run's recorded input again, then hold on its last frame"
+          tooltip={
+            live?.blocked
+              ? "This editor doesn't have the live version the run starts on"
+              : live?.stopsAt
+                ? `Play this run's recorded input again until ${live.stopsAt}, then hold there`
+                : "Play this run's recorded input again, then hold on its last frame"
+          }
         >
           Replay
         </Button>
@@ -252,19 +318,24 @@ function RunSummary({
  * file or pasted. It notes when the scene, or a prefab it places, changed
  * since, and offers **Replay** and **Play from its start**. Its summary
  * stays in view while the markers scroll, so a long run never grows the
- * panel. Outside an editor it reads files through a `Pending` of its own.
+ * panel. With `liveVersion` it says whether Replay plays all of a run that
+ * played live versions or where it stops. Outside an editor it reads files
+ * through a `Pending` of its own.
  */
 export function LoadRunPanel({
   session,
   run,
   onPlayFrom,
   onReplay,
+  liveVersion,
   notify,
 }: {
   session: EditorSession;
   run: Store<LoadedRun | null>;
   onPlayFrom: (opts: PlayOptions) => void;
   onReplay: (run: LoadedRun) => void;
+  /** The live versions this editor holds; without it the panel can't tell whether a replay plays through. */
+  liveVersion?: HeldVersion;
   notify: EditorNotify;
 }) {
   const loaded = useStoreValue(run);
@@ -301,6 +372,7 @@ export function LoadRunPanel({
             run={loaded}
             stale={stale}
             timeKind={resolveTime({ game: session.registry.time }).kind}
+            held={liveVersion}
             onPlayFrom={onPlayFrom}
             onReplay={onReplay}
           />

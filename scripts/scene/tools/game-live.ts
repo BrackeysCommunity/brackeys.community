@@ -1,5 +1,5 @@
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 
 import {
   diffWords,
@@ -11,7 +11,12 @@ import {
 } from "@jams/engine";
 import type { ExportInput } from "@jams/engine/export";
 import { clampTiming, type SwapStrategy } from "@jams/engine/game";
-import { swapCheck, type SwapCheckOptions, type SwapCheckReport } from "@jams/engine/headless";
+import {
+  fileSchemaIssue,
+  swapCheck,
+  type SwapCheckOptions,
+  type SwapCheckReport,
+} from "@jams/engine/headless";
 import {
   buildSceneVersion,
   byCodeUnit,
@@ -19,9 +24,9 @@ import {
   formatSceneVersion,
   inputScriptKind,
   prefabKind,
+  readReleaseScene,
   readSceneVersion,
   releaseId,
-  releaseSceneVersion,
   SCENE_KIND_NAME,
   sceneVersionOptions,
   type ReleaseManifest,
@@ -34,7 +39,6 @@ import {
   diffExpanded,
   isErrorIssue,
   liveIssue,
-  makeIssue,
   parseInputScript,
   type ExpandedScene,
   type PrefabLibrary,
@@ -43,6 +47,7 @@ import {
 } from "@jams/engine/scene";
 
 import {
+  amber,
   failure,
   isToolResult,
   issueLine,
@@ -53,7 +58,7 @@ import {
   type ToolContext,
   type ToolResult,
 } from "../context";
-import { agentSiteFrom, AGENT_SITE_ENV, isHostedUrl } from "../hosted";
+import { agentSiteFrom, AGENT_SITE_ENV, hostedProjectCopy, isHostedUrl } from "../hosted";
 import { hostedCodeProject, ProjectClientError } from "../project-client";
 import { projectRuntime, type ProjectHandle } from "../projects";
 import { readChecksFile } from "./check";
@@ -93,42 +98,6 @@ export const GAME_LIVE_CHECK_USAGE =
 /** Where `game live build` writes when `--out` is left out, relative to the working directory. */
 export const defaultLiveOut = (project: string, scene: string) =>
   join("dist", "live", project, scene);
-
-/** Amber on a terminal that takes colour; plain everywhere else (pipes, `--json`, MCP). */
-export function amber(text: string, env: Readonly<Record<string, string | undefined>>): string {
-  return process.stdout.isTTY && env.NO_COLOR === undefined ? `\x1b[33m${text}\x1b[0m` : text;
-}
-
-/**
- * A copy of `local`'s files with the hosted project's docs and blobs pulled
- * over them, in a dot directory beside the project so the game code's
- * relative imports and package resolution reach what they reach from the
- * checkout. The caller removes `dir`.
- */
-export async function hostedProjectCopy(
-  local: ProjectHandle,
-  site: string,
-  token: string | undefined,
-  ctx: ToolContext,
-  pull: Tool<ProjectPullInput> = projectPull,
-  label = "hosted",
-): Promise<{ dir: string } | { dir: string; result: ToolResult }> {
-  const dir = await mkdtemp(join(dirname(local.dir), `.${basename(local.dir)}-${label}-`));
-  await cp(local.dir, dir, {
-    recursive: true,
-    filter: (src) => {
-      const name = basename(src);
-      return (
-        src === local.dir || !(name === "node_modules" || name === "dist" || name.startsWith("."))
-      );
-    },
-  });
-  const pulled = await pull(
-    { id: local.file.id, url: site, out: dir, ...(token === undefined ? {} : { token }) },
-    ctx,
-  );
-  return pulled.exitCode === 0 ? { dir } : { dir, result: pulled };
-}
 
 // ─── Building ────────────────────────────────────────────
 
@@ -227,7 +196,14 @@ export async function gameLiveBuild(
           return e.exitCode === 2 ? usage(e.message) : failure(e.message);
         throw e;
       }
-      const copy = await hostedProjectCopy(local, site, input.token, ctx, deps.pull, "live");
+      const copy = await hostedProjectCopy(
+        local,
+        site,
+        input.token,
+        ctx,
+        deps.pull ?? projectPull,
+        "live",
+      );
       temps.push(copy.dir);
       if ("result" in copy) return copy.result;
       handle = { ...local, dir: copy.dir };
@@ -299,9 +275,9 @@ type Base = {
 };
 
 /**
- * The release's own scene, read as a version the release carries, so the
- * one reader (`readSceneVersion`) parses, validates and expands it against
- * the release's assets. `skip` says why there is none to swap from.
+ * The release's own scene, read by the one reader a version is read by
+ * (`readReleaseScene`), against the release's assets. `skip` says why there
+ * is none to swap from.
  */
 async function releaseBase(
   manifest: ReleaseManifest,
@@ -310,8 +286,8 @@ async function releaseBase(
   scene: string,
   name: string,
 ): Promise<Base | { issues: SceneIssue[] } | { skip: string }> {
-  const asVersion = releaseSceneVersion(manifest, scene);
-  if (!asVersion) return { skip: `${name} doesn't list ${scene}` };
+  const entry = manifest.flow.scenes.find((s) => s.id === scene);
+  if (!entry) return { skip: `${name} doesn't list ${scene}` };
   const texts = new Map<Sha256, string>();
   for (const a of Object.values(manifest.assets)) {
     if (a.storage !== "doc" || (a.kind !== SCENE_KIND_NAME && a.kind !== prefabKind.kind)) continue;
@@ -324,15 +300,16 @@ async function releaseBase(
   const own = manifest.assets[scene];
   if (!own || !texts.has(own.sha256))
     return { skip: `${name}'s files aren't beside it (${own?.file ?? scene} is missing)` };
-  const read = readSceneVersion(asVersion, texts, input.registry, input.game, {
+  const read = readReleaseScene(manifest, scene, texts, input.registry, input.game, {
     engine: input.engine,
   });
+  if (!read) return { skip: `${name} doesn't list ${scene}` };
   if (!read.ok) return { issues: read.issues };
   return {
     name,
     from: { def: read.def, prefabs: read.prefabs },
     scene: read.scene,
-    physics: asVersion.entry.physics,
+    physics: entry.physics,
   };
 }
 
@@ -362,12 +339,7 @@ function scriptsOf(
       named = undefined;
     }
     if (named === scene)
-      issues.push(
-        makeIssue("schema", {
-          message: `${entry.path} doesn't read: ${parsed.issues.map((i) => `${i.path || "/"} ${i.message}`).join("; ")}`,
-          entityIds: [entry.id],
-        }),
-      );
+      issues.push(...parsed.issues.map((i) => fileSchemaIssue(entry.path, i, [entry.id])));
   }
   return { scripts, issues };
 }

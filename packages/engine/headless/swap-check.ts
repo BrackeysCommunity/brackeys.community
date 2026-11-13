@@ -165,12 +165,12 @@ export function swapCheck(opts: SwapCheckOptions): SwapCheckReport {
   for (const { name, script } of opts.scripts) {
     const compiled = compilePlaytestScript(script, registry, opts.project);
     if (!compiled.ok) {
-      for (const s of compiled.issues) issues.push(scriptProblem(name, s));
+      for (const s of compiled.issues) issues.push(fileSchemaIssue(name, s));
       continue;
     }
     const otherScene = scriptSceneIssue(compiled.script, fromDef.name);
     if (otherScene) {
-      issues.push(scriptProblem(name, otherScene));
+      issues.push(fileSchemaIssue(name, otherScene));
       continue;
     }
     const play = playScript({
@@ -225,14 +225,23 @@ export function swapCheck(opts: SwapCheckOptions): SwapCheckReport {
   return report(checks);
 }
 
-/** A script that can't be played on the scene, as a `schema` issue naming the script. */
-function scriptProblem(name: string, s: ScriptIssue): SceneIssue {
+/**
+ * An issue in a script or checks file as a `schema` scene issue naming the
+ * file (or script) and keeping its pointer, line, hint and expected/got.
+ */
+export function fileSchemaIssue(
+  file: string,
+  issue: Pick<ScriptIssue, "path" | "message" | "expected" | "got" | "hint"> & { line?: number },
+  entityIds?: readonly string[],
+): SceneIssue {
   return makeIssue("schema", {
-    message: `${name}: ${s.message}`,
-    path: s.path,
-    ...(s.expected !== undefined ? { expected: s.expected } : {}),
-    ...(s.got !== undefined ? { got: s.got } : {}),
-    ...(s.hint !== undefined ? { hint: s.hint } : {}),
+    message: `${file}: ${issue.message}`,
+    path: issue.path,
+    ...(issue.line === undefined ? {} : { line: issue.line }),
+    ...(issue.hint === undefined ? {} : { hint: issue.hint }),
+    ...(issue.expected === undefined ? {} : { expected: issue.expected }),
+    ...(issue.got === undefined ? {} : { got: issue.got }),
+    ...(entityIds === undefined ? {} : { entityIds: [...entityIds] }),
   });
 }
 

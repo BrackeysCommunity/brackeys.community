@@ -325,33 +325,6 @@ export function liveCompat(manifest: ReleaseManifest): LiveCompat {
   };
 }
 
-/**
- * The release's own `scene` read as a version the release carries: its flow
- * entry and the release's assets and compatibility, no base, and a zero
- * scene hash. For `readSceneVersion` only: its files are the release's own
- * paths, which the version schema refuses, so it is never written or
- * hashed. Null when the release doesn't list the scene.
- */
-export function releaseSceneVersion(
-  manifest: ReleaseManifest,
-  scene: AssetId,
-): SceneVersion | null {
-  const entry = manifest.flow.scenes.find((s) => s.id === scene);
-  if (!entry) return null;
-  return {
-    kind: "scene-version",
-    v: SCENE_VERSION_VERSION,
-    project: manifest.project.id,
-    scene,
-    compat: liveCompat(manifest),
-    engine: manifest.engine.version,
-    base: null,
-    entry,
-    sceneHash: "0".repeat(16),
-    assets: manifest.assets,
-  };
-}
-
 /** One hash of `compat`: two releases a version fits equally have the same key. */
 export function liveCompatKey(compat: LiveCompat): Promise<Sha256> {
   const { formats, build, game } = compat;
@@ -783,6 +756,40 @@ export function readSceneVersion(
     return t === undefined ? undefined : readPrefab(pid, t, registry, prefabs, read.issues);
   };
   return withNamedPrefabs(read, registry, get);
+}
+
+/**
+ * The release's own `scene` read for play by the same reader as a version
+ * (`readSceneVersion`): its flow entry's scene and prefabs from `texts` (the
+ * release's doc texts, by hash), validated against the release's assets and
+ * expanded, a release made for another game refused. Null when the release
+ * doesn't list the scene.
+ */
+export function readReleaseScene(
+  manifest: ReleaseManifest,
+  scene: AssetId,
+  texts: ReadonlyMap<Sha256, string>,
+  registry: Registry,
+  game: GameDefinition | null,
+  opts: { engine?: Readonly<Record<string, unknown>> } = {},
+): SceneVersionRead | null {
+  const entry = manifest.flow.scenes.find((s) => s.id === scene);
+  if (!entry) return null;
+  // Read as a version the release carries. Its files are the release's own
+  // paths, which the version schema refuses, so it never leaves this function.
+  const own: SceneVersion = {
+    kind: "scene-version",
+    v: SCENE_VERSION_VERSION,
+    project: manifest.project.id,
+    scene,
+    compat: liveCompat(manifest),
+    engine: manifest.engine.version,
+    base: null,
+    entry,
+    sceneHash: "0".repeat(16),
+    assets: manifest.assets,
+  };
+  return readSceneVersion(own, texts, registry, game, opts);
 }
 
 // ─── Building one ────────────────────────────────────────

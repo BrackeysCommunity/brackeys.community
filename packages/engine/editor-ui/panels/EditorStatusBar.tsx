@@ -3,6 +3,7 @@ import type { Store } from "@tanstack/store";
 import { useEffect, useReducer, type ReactNode } from "react";
 
 import type { EditorSession } from "../../editor/index";
+import { plural } from "../../scene/plural";
 import { Activity, saveState, SaveState } from "../frame/Activity";
 import { Island, useBottomRow } from "../frame/EditorFrame";
 import { Hint, Icon, Spinner, Text, type TextTone } from "../kit/index";
@@ -13,8 +14,6 @@ import { useEditorStore } from "../session/use-editor-store";
 import type { SceneNotice } from "../session/use-scene-editor";
 import { useStoreValue, type ReadableStore } from "../session/use-store-value";
 import { distinctPeople, PeerFaces } from "./peer-faces";
-
-const plural = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
 
 // The status's widths, matching the stylesheet: the island's padding and
 // border, the row's own padding, its gaps, a 12 px glyph, a face and the dot.
@@ -104,8 +103,8 @@ export function EditorStatusBar({
   const others = distinctPeople(peers).length;
   const save = saveState(connection, unsynced);
   const here = others === 0 ? "Just you" : plural(others, "other here", "others here");
-  const errorText = plural(errors, "error", "errors");
-  const warningText = plural(warnings, "warning", "warnings");
+  const errorText = plural(errors, "error");
+  const warningText = plural(warnings, "warning");
 
   const full =
     W.island +
@@ -246,7 +245,12 @@ export function LiveInPlayStatus({ host }: { host: ReadableStore<EditorHostState
     <Island role="status" className="je-scene-changed je-live-status" data-live={status.tone}>
       {status.tone === "busy" ? <Spinner size={12} label={null} /> : null}
       {detail ? (
-        <Hint content={detail} maxWidth={360} hoverable>
+        <Hint
+          content={detail}
+          tone={status.tone === "failed" ? "error" : "default"}
+          maxWidth={360}
+          hoverable
+        >
           {line}
         </Hint>
       ) : (

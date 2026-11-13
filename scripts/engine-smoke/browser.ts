@@ -63,6 +63,7 @@ import { loadSinkProject, sinkPreviewPlugin, type SinkProject } from "./browser/
 import { loadRapier, runSmokeDigest } from "./browser/run";
 import { INSIDE_COLOUR, INSIDE_POINT, OUTSIDE_POINT, SINK_SCENE } from "./browser/sink";
 import { runTactics, type TacticsProbe } from "./browser/tactics";
+import { closeWithin } from "./export";
 import { ENGINE, REPO, run, VP } from "./pack";
 
 const PAGE_DIR = join(REPO, "scripts/engine-smoke/browser");
@@ -84,7 +85,7 @@ let editorScenes: EngineScenes | null = null;
 const open = new Set<Browser>();
 
 async function cleanup(): Promise<void> {
-  await Promise.allSettled([...open].map((b) => b.close()));
+  await Promise.allSettled([...open].map((b) => closeWithin(b.close(), "a browser")));
   open.clear();
   const closing = server;
   server = null;
@@ -315,7 +316,7 @@ async function runEditor(browser: Browser, name: BrowserName, url: string): Prom
       reason: err instanceof Error ? err.message : String(err),
     };
   } finally {
-    await context.close().catch(() => {});
+    await closeWithin(context.close(), `${name}'s editor context`);
   }
 }
 
@@ -343,7 +344,7 @@ async function runIn(
     return { ...engine, editor: await runEditor(browser, name, editorUrl) };
   } finally {
     open.delete(browser);
-    await browser.close().catch(() => {});
+    await closeWithin(browser.close(), name);
   }
 }
 

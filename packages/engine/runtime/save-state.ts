@@ -7,7 +7,7 @@ import {
   type SaveFile,
 } from "../game/save-file";
 import type { JsonValue } from "../game/types";
-import { makeIssue } from "../scene/issues";
+import { errorText, makeIssue } from "../scene/issues";
 import { locatePointer } from "../scene/parse";
 import type { SceneIssue } from "../scene/types";
 import { ENGINE_VERSION } from "../version";
@@ -302,7 +302,7 @@ export function restoreLoaded(runtime: SceneRuntimeHandle, file: SaveFile): Scen
     runtime.game?.restore?.(structuredClone(file.data));
   } catch (err) {
     return makeIssue("schema", {
-      message: `the game's restore refused the save's data: ${err instanceof Error ? err.message : String(err)}`,
+      message: `the game's restore refused the save's data: ${errorText(err)}`,
       path: "/data",
     });
   }
@@ -310,7 +310,7 @@ export function restoreLoaded(runtime: SceneRuntimeHandle, file: SaveFile): Scen
     ctx.persist.set(file.persist);
   } catch (err) {
     return makeIssue("schema", {
-      message: `the save's persist was refused: ${err instanceof Error ? err.message : String(err)}`,
+      message: `the save's persist was refused: ${errorText(err)}`,
       path: "/persist",
     });
   }

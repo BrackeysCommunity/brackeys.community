@@ -37,9 +37,10 @@ for it.
 - `@jams/engine/game` and `.`: `LIVE_CHECK_AGAIN_TICKS` (60), how long
   after a swap the game's `live.check` runs a second time.
 - `GameDefinition.live`, `GameRuntime.onSwap(swap)` and `ctx.live`
-  (`version`, null for the release's own scene, and `boundary(label?)`,
-  which counts only inside a step: one from `onLoad`, `onSwap` or between
-  ticks marks nothing).
+  (`version`, null for the release's own scene, and the version the load
+  plays inside its `onLoad`, and `boundary(label?)`, which counts only
+  inside a step: one from `onLoad`, `onSwap` or between ticks marks
+  nothing).
 - `GameInstance.live` (`stage`, `activate`, `current`, `pending`, `pin`,
   `unpin`) and `StagedVersion`; `GameInstance.replay` takes
   `{ versions? }`; `GameEventMap` gains `live:swapped` and `live:failed`.
@@ -175,9 +176,15 @@ for it.
   `next-load` entry at its tick that names it as `sublevel`, so a replay moves
   it before the attach that used it. The shell's session recordings also
   start with an entry for each other listed scene that runs a live
-  version, and its replays start those scenes on the release's own. A run without
+  version, and its replays start those scenes on the release's own. A
+  scene moved after the load but before the first step follows an entry
+  for the version it had at the load, so a replay's load attaches what the
+  recorded load did. A run without
   swaps writes the same bytes as before. `recordedSwap(swap)`
   (`./headless`) turns a `SceneSwap` into its recorded entry.
+- `@jams/engine/headless`: `fileSchemaIssue(file, issue, entityIds?)`, a
+  script or checks file's issue as a `schema` scene issue naming the file
+  (the swap check, `game new` and `game live check` word them with it).
 - `replayRecording` takes `versions` (id -> `StagedVersion | null`; look
   one up with `findSceneVersion`): a segment's `sceneVersion` is read with
   `readSceneVersion` and played instead of the release's scene, and each
@@ -270,8 +277,9 @@ for it.
 - `@jams/engine/project`: `sceneVersionOptions(input, scene, { texts?, release? })`
   and `SceneVersionSource`, `buildSceneVersion`'s options from a project
   read for export (its view, texts, game, registry and snapshot's build);
-  `releaseSceneVersion(manifest, scene)`, the release's own scene as a
-  version it carries, for `readSceneVersion` (null when unlisted).
+  `readReleaseScene(manifest, scene, texts, registry, game, { engine? })`,
+  the release's own scene read for play by `readSceneVersion` against the
+  release's assets (null when the release doesn't list it).
 - `@jams/engine/scene`: `isErrorIssue(issue)`, whether an issue is an
   error.
 - `@jams/engine/project`: `liveFiles` and `AssetFiles`, a scene version's

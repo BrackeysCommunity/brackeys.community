@@ -1,5 +1,5 @@
 import { Tooltip } from "@base-ui/react/tooltip";
-import type { ReactElement, ReactNode } from "react";
+import { useEffect, useRef, type ReactElement, type ReactNode } from "react";
 
 import { usePortalContainer } from "./context";
 import { cx } from "./cx";
@@ -20,6 +20,8 @@ export type HintProps = {
   delay?: number;
   /** Holds the hint open (an error to read). */
   open?: boolean;
+  /** Shuts the hint and keeps it shut, the trigger still live, so feedback it would cover stays readable. */
+  closed?: boolean;
   className?: string;
   /** The trigger itself: its element gets the hover and focus handlers, so no second button wraps it. */
   children: ReactElement;
@@ -35,14 +37,26 @@ export function Hint({
   disabled = false,
   delay = HINT_DELAY_MS,
   open,
+  closed = false,
   className,
   children,
 }: HintProps) {
   const container = usePortalContainer();
+  const actions = useRef<Tooltip.Root.Actions>(null);
+  useEffect(() => {
+    if (closed) actions.current?.close();
+  }, [closed]);
   if (disabled || content == null || content === false || content === "") return children;
   return (
     <Tooltip.Provider delay={delay} closeDelay={0}>
-      <Tooltip.Root disableHoverablePopup={!hoverable} open={open}>
+      <Tooltip.Root
+        disableHoverablePopup={!hoverable}
+        open={open}
+        actionsRef={actions}
+        onOpenChange={(next, details) => {
+          if (next && closed) details.cancel();
+        }}
+      >
         <Tooltip.Trigger render={children} />
         <Tooltip.Portal container={container}>
           <Tooltip.Positioner side={side} sideOffset={8} className="je-positioner">

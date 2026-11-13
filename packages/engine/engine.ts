@@ -91,10 +91,13 @@ import { loadListed } from "./runtime/flow";
 import {
   createLiveLayer,
   createSwapReplay,
+  liveLibrary,
+  liveSwapLog,
   preparedVersion,
   recordedVersion,
   stageIssue,
   unlistedStageIssue,
+  type LiveSwapLog,
   type PreparedVersion,
 } from "./runtime/live";
 import { gamePersistCell, persistProblem, playClockOf } from "./runtime/persist";
@@ -600,16 +603,20 @@ export async function createGame(
 
   type BuiltRuntime = { runtime: SceneRuntimeHandle; view: PixiView; container: Container };
 
-  /** The listed scenes as the flow source holds them, for a runtime's flow loads and attaches. */
+  /**
+   * The host's listed scenes with each one's active live version in its
+   * place, by the rule headless runs read theirs by: a runtime's flow loads
+   * and attaches read it.
+   */
   function flowLibrary(): SceneLibrary {
-    const source = flowSource!;
+    const source = cfg.flow!.source;
     const list = source.list();
     const scenes = new Map<AssetId, LibraryScene>();
     for (const entry of list) {
       const listed = source.scene(entry.scene);
       if (listed) scenes.set(entry.scene, listed);
     }
-    return { list, scenes };
+    return liveLibrary({ list, scenes }, liveLayer);
   }
 
   function buildRuntime(name: string): BuiltRuntime {
@@ -938,6 +945,8 @@ export async function createGame(
 
   /** The session's recording while playing; after Stop, `lastRecording` keeps what it finished. */
   let session: SessionRecording | null = null;
+  /** How `session` writes its live swaps, made with it. */
+  let sessionSwaps: { session: SessionRecording; log: LiveSwapLog } | null = null;
   let lastRecording: RunRecording | null = null;
 
   /** The host's own project ref, else the released project's when this instance plays a release. */
@@ -1104,9 +1113,11 @@ export async function createGame(
     const persistAtLoad = persist.value;
     const view = start ? liveView(start.version) : assetView();
     const bundle = bundleFor(prepared.scene, doc, defPrefabs, view);
-    const report = startPlay(prepared.scene, bundle, opts);
-    if (!report.ok) endReplayLive();
     // Play runs the doc it was given, which is the active version only when it is that version's scene.
+    if (!replayed) liveLayer.loadingDoc(prepared.hash);
+    const report = startPlay(prepared.scene, bundle, opts);
+    liveLayer.loadingDoc(null);
+    if (!report.ok) endReplayLive();
     else if (!replayed) liveLayer.loadedDoc(prepared.hash);
     if (report.ok && loaded) {
       session = recordSession(loaded.runtime, doc.name, prepared, opts, persistAtLoad, replay);
@@ -1145,7 +1156,9 @@ export async function createGame(
       ...(replay ? { replay: replay.recording } : {}),
     });
     // The other listed scenes' live versions, which this load's sublevels attach.
-    for (const swap of liveLayer.liveSublevels()) recording.swap(recordedSwap(swap));
+    const log = liveSwapLog(runtime.ctx.tick, liveLayer.liveSublevels());
+    for (const swap of log.start) recording.swap(recordedSwap(swap));
+    sessionSwaps = { session: recording, log };
     return recording;
   }
 
@@ -2356,7 +2369,10 @@ export async function createGame(
 
   /** After the layer swapped a version into the running scene: the recording, the scene's bundle and the camera's bounds follow it. */
   function swappedIn(swap: SceneSwap): void {
-    session?.swap(recordedSwap(swap));
+    if (session) {
+      const log = sessionSwaps?.session === session ? sessionSwaps.log : null;
+      for (const s of log ? log.next(swap) : [swap]) session.swap(recordedSwap(s));
+    }
     // A sublevel scene's version, which its next attach uses: nothing in the running scene changed.
     if (swap.timing === "next-load") return;
     const scene = loaded?.runtime.scene();

@@ -997,11 +997,22 @@ function PhysicalWatch({
   const issues = usePhysicalIssues(session, rapier);
   const checks = useStoreValue(host, (s) => s.livePlay?.checks ?? null);
   useEffect(
-    () => store.setState(() => (checks && checks.length > 0 ? [...issues, ...checks] : issues)),
+    () =>
+      store.setState(() =>
+        checks && checks.length > 0 ? [...issues, ...checks.map(fromLivePlay)] : issues,
+      ),
     [issues, checks, store],
   );
   return null;
 }
+
+/** How the problems panel opens a problem the last Live in Play run found, so it does not read as one in the doc. */
+export const LIVE_PLAY_PROBLEM = "Last Live in Play run";
+
+const fromLivePlay = (issue: SceneIssue): SceneIssue => ({
+  ...issue,
+  message: `${LIVE_PLAY_PROBLEM}: ${issue.message}`,
+});
 
 function EditMode({ session, children }: { session: EditorSession; children: ReactNode }) {
   const mode = useEditorStore(session, (s) => s.mode);

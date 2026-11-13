@@ -21,7 +21,12 @@ import type { GameInstance } from "../../index";
 import { createKindRegistry, prefabKind, sceneKind, type AssetEntry } from "../../project/index";
 import type { SceneRuntimeHandle } from "../../runtime/types";
 import { makeIssue, SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/index";
-import { EditorFrame, editorChrome, type EditorFrameHandle } from "../frame/EditorFrame";
+import {
+  EditorFrame,
+  editorChrome,
+  LIVE_PLAY_PROBLEM,
+  type EditorFrameHandle,
+} from "../frame/EditorFrame";
 import { LIVE_PLAY_KEY, LIVE_PLAY_TOOLTIP } from "../panels/EditorPlayBar";
 import { LIVE_PLAY_IDLE } from "../panels/EditorStatusBar";
 import {
@@ -356,7 +361,9 @@ describe("Live in Play", () => {
       { timeout: 2_000 },
     );
     expect(hint.textContent).toContain("boom can't be migrated");
-    expect(toast.error).toHaveBeenCalledWith("Live update failed", expect.anything());
+    // Its hint reads as the error the danger line is, and the line is the one place it shows.
+    expect(hint.closest(".je-hint")?.getAttribute("data-tone")).toBe("error");
+    expect(toast.error).not.toHaveBeenCalled();
 
     const tick = t.world()!.ctx.tick;
     act(() => t.game.step(3));
@@ -379,7 +386,7 @@ describe("Live in Play", () => {
     expect(t.live.host.state.livePlay?.checks).toHaveLength(1);
     act(() => t.frame.current?.openPanel("problems"));
     const problems = await screen.findByRole("region", { name: "Problems" });
-    expect(problems.textContent).toContain("hazard under the spawn");
+    expect(problems.textContent).toContain(`${LIVE_PLAY_PROBLEM}: hazard under the spawn`);
     // Stop puts the scene back on the release's own, and the next Play starts clean.
     expect(t.game.live.current("hall")).toBeNull();
     t.play();
@@ -440,6 +447,31 @@ describe("Live in Play", () => {
     expect(t.live.host.state.livePlay?.checks).toEqual([]);
   });
 
+  it("drops the last run's checks and failure from the problems panel once the scene changes after Stop", async () => {
+    const t = await setup();
+    t.play();
+    fireEvent.click(t.toggle());
+    t.addMarker("hazard");
+    await t.staged();
+    act(() => t.game.step());
+    t.addMarker("boom");
+    await t.staged();
+    act(() => t.game.step());
+    expect(t.status()?.tone).toBe("failed");
+    act(() => t.live.stop());
+    expect(t.live.host.state.livePlay?.checks.map((i) => i.code)).toEqual([
+      "live-swap-failed",
+      "live-swap-failed",
+    ]);
+    act(() => t.frame.current?.openPanel("problems"));
+    const problems = await screen.findByRole("region", { name: "Problems" });
+    expect(problems.textContent).toContain(`${LIVE_PLAY_PROBLEM}: hazard under the spawn`);
+
+    t.edit([{ op: "remove", refs: ["hazard"] }]);
+    expect(t.live.host.state.livePlay?.checks).toEqual([]);
+    await vi.waitFor(() => expect(problems.textContent).not.toContain(LIVE_PLAY_PROBLEM));
+  });
+
   it("replays a Live in Play run with the versions it built", async () => {
     const t = await setup();
     t.play();
@@ -452,6 +484,8 @@ describe("Live in Play", () => {
     const recording = t.game.recording();
     expect(recording?.swaps).toHaveLength(1);
     const swap = recording!.swaps![0]!;
+    expect(t.live.liveVersion(swap.version!)?.id).toBe(swap.version);
+    expect(t.live.liveVersion("f".repeat(64))).toBeNull();
     let replayed = false;
     act(() => void (replayed = t.live.replay(recording!)));
     expect(replayed).toBe(true);

@@ -33,6 +33,7 @@ import { Store } from "@tanstack/store";
 import { describe, expect, it } from "vite-plus/test";
 import type * as Y from "yjs";
 
+import { liveAppliedText } from "../../../packages/engine/editor-ui/session/live-scene-editor";
 import { SITE } from "../../../src/lib/legal-meta";
 import { loadCompatRapier } from "../../scene/rapier-compat";
 import { GAME_LIVE_BUILD_USAGE, GAME_LIVE_CHECK_USAGE } from "../../scene/tools/game-live";
@@ -992,6 +993,14 @@ describe("the live levels section", () => {
     expect(text).toContain(
       '("Apply edits to the running game, the way players get a live update")',
     );
+  });
+
+  it("quotes Live in Play's status lines as the editor words them", () => {
+    const text = flat();
+    const diff = { added: [], removed: [], changed: ["crate"], header: false };
+    const header = { added: [], removed: [], changed: [], header: true };
+    expect(text).toContain(`("${liveAppliedText({ strategy: "reconcile", diff }, 0)}")`);
+    expect(text).toContain(`("${liveAppliedText({ strategy: "reload", diff: header }, 0)}")`);
   });
 
   it("names the site only as SITE does, with no URL", () => {

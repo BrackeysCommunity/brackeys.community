@@ -1,6 +1,6 @@
 import { NextIcon, PauseIcon, PlayIcon, StopIcon } from "@hugeicons/core-free-icons";
 import type { Store } from "@tanstack/store";
-import { useEffect, useId } from "react";
+import { useEffect, useId, useState } from "react";
 
 import type { GameStoreState } from "../../types";
 import { Island } from "../frame/EditorFrame";
@@ -158,7 +158,9 @@ export function EditorPlayBar({
  * The Live in Play switch: off by default, the viewer's last choice taken
  * again at each Play. Its label toggles it too. Where the scene or game can't
  * take live updates it is disabled but focusable, so its hint, which gives the
- * reason, opens from the keyboard as well as on hover.
+ * reason, opens from the keyboard as well as on hover. Once flipped, its hint
+ * stays shut until the pointer or focus leaves, so the status it would cover
+ * above the bar can be read.
  */
 function LiveInPlayToggle({
   host,
@@ -172,6 +174,7 @@ function LiveInPlayToggle({
   const reasonId = useId();
   const on = useStoreValue(host, (s) => s.livePlay?.on ?? false);
   const unavailable = useStoreValue(host, (s) => s.livePlay?.unavailable ?? null);
+  const [flipped, setFlipped] = useState(false);
   useEffect(() => {
     if (readStored(storage, LIVE_PLAY_KEY, false, storedFlag)) onChange(true);
   }, [storage, onChange]);
@@ -200,13 +203,19 @@ function LiveInPlayToggle({
     );
   }
   return (
-    <Hint content={`${LIVE_PLAY_TOOLTIP}. ${LIVE_PLAY_SOURCES}`}>
-      <label className="je-live-toggle" htmlFor={id}>
+    <Hint content={`${LIVE_PLAY_TOOLTIP}. ${LIVE_PLAY_SOURCES}`} closed={flipped}>
+      <label
+        className="je-live-toggle"
+        htmlFor={id}
+        onPointerLeave={() => setFlipped(false)}
+        onBlur={() => setFlipped(false)}
+      >
         <Switch
           id={id}
           aria-label="Live in Play"
           checked={on}
           onCheckedChange={(next) => {
+            setFlipped(true);
             writeStored(storage, LIVE_PLAY_KEY, next);
             onChange(next);
           }}

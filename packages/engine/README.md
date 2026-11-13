@@ -6237,11 +6237,13 @@ plays the release as built.
   update"). While it is on, each edit, once 300 ms pass without another,
   is built into a version in memory (nothing is uploaded), staged and
   activated `now`: the play bar's status line says how it applied ("Live
-  update applied (reconcile, 1 changed)") or why it didn't, and
-  `live.check`'s issues (right after the swap and 60 ticks later) and the
-  last failed update show in the problems panel. A bounds or settings edit reloads
-  with capture and restore, as players would get it. Off, Play keeps the
-  world it started with.
+  update applied: 1 entity changed") or why it didn't. `live.check`'s
+  issues (right after the swap and 60 ticks later) and the last failed
+  update show in the problems panel as the last Live in Play run's, until
+  the scene changes. A bounds or settings edit reloads with capture and
+  restore, as players would get it ("Live update applied: the scene
+  reloaded (the scene's header changed)"). Off, Play keeps the world it
+  started with.
 
 ```text
 vp run scene game live build <project> <scene> [--hosted] [--out <dir>] [--json]

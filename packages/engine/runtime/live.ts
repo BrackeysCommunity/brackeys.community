@@ -184,7 +184,16 @@ export type LiveLayer = Pick<GameLive, "current" | "pending" | "pin" | "unpin"> 
     version(): Sha256 | null;
     boundary(label?: string): void;
     sublevel(id: AssetId): LibraryScene | null;
+    /** While a load of `scene` runs (the game's `onLoad`), the version that load plays. */
+    loading(scene: AssetId): Sha256 | null;
   };
+  /**
+   * The load about to run plays a definition of the host's own (Play of an
+   * editor's doc) whose scene hash is `sceneHash`; null once it ran. While it
+   * runs, its version is the scene's active one only when that is the same
+   * scene.
+   */
+  loadingDoc(sceneHash: string | null): void;
   /**
    * The load just made played a definition of the host's own (Play of an
    * editor's doc) whose scene hash is `sceneHash`: the run's version is the
@@ -248,6 +257,14 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
   let seen: { runtime: SceneRuntimeHandle; generation: number } | null = null;
   /** Scenes whose active version changed since the running scene's load: an attach of one reads it. */
   const moved = new Set<AssetId>();
+  /** The scene hash of the host's own definition the load in progress plays, from `loadingDoc`. */
+  let docLoad: string | null = null;
+
+  /** The version a load of `scene` plays: its active one, unless the load plays `docHash`, a definition of the host's own that isn't it. */
+  function playedBy(scene: AssetId, docHash: string | null): PreparedVersion | null {
+    const version = active.get(scene) ?? null;
+    return docHash === null || version?.version.sceneHash === docHash ? version : null;
+  }
 
   const generationOf = (rt: SceneRuntimeHandle): number =>
     (rt.ctx as { [LOAD_GENERATION]?: () => number })[LOAD_GENERATION]?.() ?? 0;
@@ -559,17 +576,22 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
         if (!moved.has(id)) return null;
         return active.get(id) ?? opts.release?.(id) ?? null;
       },
+      loading: (scene) => playedBy(scene, docLoad)?.id ?? null,
+    },
+    loadingDoc(sceneHash) {
+      docLoad = sceneHash;
     },
     loadedDoc(sceneHash) {
+      docLoad = null;
       const rt = opts.runtime();
       if (!rt) return;
       seen = { runtime: rt, generation: generationOf(rt) };
       const scene = sceneIdOf(rt);
-      const version = scene === null ? undefined : active.get(scene);
+      const version = scene === null ? null : playedBy(scene, sceneHash);
       running =
         rt.scene() === null || scene === null
           ? null
-          : version?.version.sceneHash === sceneHash
+          : version
             ? { scene, version }
             : { scene, version: null, sceneHash };
       pending.clear();
@@ -605,16 +627,59 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
   };
 }
 
-/** `base` with each listed scene's active live version in place of its own definition. */
-export function liveLibrary(base: SceneLibrary, layer: Pick<LiveLayer, "sceneFor">): SceneLibrary {
+/**
+ * `base` with each listed scene `over` answers in its own's place: `base`
+ * itself when it answers none. The one rule a live version reaches a run's
+ * library by, for loads and sublevel attaches alike.
+ */
+export function overlayLibrary(
+  base: SceneLibrary,
+  over: (id: AssetId) => LibraryScene | null,
+): SceneLibrary {
   let scenes: Map<AssetId, LibraryScene> | null = null;
   for (const { scene } of base.list) {
-    const active = layer.sceneFor(scene);
-    if (!active) continue;
+    const found = over(scene);
+    if (!found) continue;
     scenes ??= new Map(base.scenes);
-    scenes.set(scene, { def: active.def, prefabs: active.prefabs });
+    scenes.set(scene, found);
   }
   return scenes ? { list: base.list, scenes } : base;
+}
+
+/** `base` with each listed scene's active live version in place of its own definition. */
+export function liveLibrary(base: SceneLibrary, layer: Pick<LiveLayer, "sceneFor">): SceneLibrary {
+  return overlayLibrary(base, (id) => {
+    const active = layer.sceneFor(id);
+    return active && { def: active.def, prefabs: active.prefabs };
+  });
+}
+
+/** The swaps a recording writes, in order, for a run whose load ran at the log's start tick. */
+export type LiveSwapLog = {
+  /** The versions the load's sublevels attach: the layer's `liveSublevels()` at the load. */
+  readonly start: readonly SceneSwap[];
+  /** What to write for an applied swap: the swap, after the entry for its scene's version at the load when it is a sublevel's first move before the first step. */
+  next(swap: SceneSwap): SceneSwap[];
+};
+
+/**
+ * The one way a recording writes a run's live swaps, so a replay's `atLoad`
+ * takes exactly what the recorded load used. A move of another listed scene
+ * at `startTick`, after the load but before the first step, would read as
+ * one the load used; it follows an entry for the version that scene had at
+ * the load (the release's own when none), which `atLoad` takes instead.
+ */
+export function liveSwapLog(startTick: number, atLoad: readonly SceneSwap[]): LiveSwapLog {
+  const started = new Set(atLoad.map((s) => s.scene));
+  return {
+    start: atLoad,
+    next(swap) {
+      if (swap.timing !== "next-load" || swap.tick !== startTick || started.has(swap.scene))
+        return [swap];
+      started.add(swap.scene);
+      return [{ ...swap, to: swap.from }, swap];
+    },
+  };
 }
 
 /**
@@ -678,9 +743,9 @@ const strategyWord = (s: SwapStrategy) => (s === "reload" ? "reloaded" : "reconc
  *
  * `atLoad`, before the replay's load, takes the swaps the recording starts
  * with: the leading `sublevel` swaps at the start tick, one per scene,
- * which the recorded load's `onLoad` attaches read. A sublevel activated
- * after the recorded load but before its first step reads the same, and
- * replays as if the load had used it.
+ * which the recorded load's `onLoad` attaches read. A sublevel moved after
+ * the recorded load but before its first step follows the entry for the
+ * version it had at the load (`liveSwapLog`), so it replays after the load.
  */
 export function createSwapReplay(opts: SwapReplayOptions): {
   atLoad(tick: number): SwapReplayStop | null;

@@ -1,5 +1,4 @@
 import { preloadDeadline, raceSignal, withinPreloadWords, type SwapTiming } from "../game/live";
-import { sha256 } from "../project/hash";
 import { byCodeUnit } from "../project/kinds/define";
 import type { ReleaseAsset, ReleaseManifest } from "../project/release";
 import { liveFiles } from "../project/release-assets";
@@ -10,7 +9,7 @@ import type { SceneRuntimeHandle } from "../runtime/types";
 import { errorText, firstError, leadIssue, makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
 import type { GameEventMap, GameInstance } from "../types";
-import { fetchDocTexts } from "./data";
+import { fetchDocTexts, verifiedText } from "./data";
 import { StandaloneBootError } from "./errors";
 import type { LiveSceneEntry, LiveSnapshot, LiveStateMessage } from "./host-protocol";
 
@@ -61,6 +60,10 @@ type Prepared = { ok: true } | { ok: false; issue: SceneIssue };
 
 /** Why a preparation stopped early, besides its deadline: a newer snapshot, or the controller's end. */
 type StopReason = "superseded" | "disposed";
+
+/** A live file that doesn't hash to its pin: `about` names what it was, `pin` what it should have hashed to. */
+const staleCache = (file: string, about: string, got: Sha256, pin: string) =>
+  `"${file}"${about} hashes to ${got}, not ${pin}; a stale cache served another file`;
 
 /**
  * Follows the page's live snapshots: for each scene whose version differs
@@ -156,25 +159,27 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
     return (rt?.ctx.flow.sublevels() ?? []).filter((s) => s.scene === scene).map((s) => s.label);
   }
 
-  /** Fetches and checks `entry`'s version and the docs it carries, then stages it. */
-  async function prepare(entry: LiveSceneEntry, signal: AbortSignal): Promise<Prepared> {
+  /** Fetches and checks `entry`'s version (`name`) and the docs it carries, then stages it. */
+  async function prepare(
+    entry: LiveSceneEntry,
+    name: string,
+    signal: AbortSignal,
+  ): Promise<Prepared> {
     const { scene, version: id } = entry;
-    const name = `${scene}@${entry.number}`;
     const refuse = (issue: SceneIssue): Prepared => ({ ok: false, issue });
     const guard = <T>(work: Promise<T>): Promise<T> => raceSignal(work, signal);
 
+    // A mismatch throws, and the staging reports its issue.
     const file = liveFiles.doc(id);
-    const text = await guard(opts.fetchText(file));
-    const got = await guard(sha256(text));
-    if (got !== id)
-      return refuse(
-        makeIssue("hash-mismatch", {
-          message: `"${file}" hashes to ${got}, not the version id ${name} names; a stale cache served another file`,
-          entityIds: [scene],
-          expected: id,
-          got,
-        }),
-      );
+    const text = await guard(
+      opts
+        .fetchText(file)
+        .then((fetched) =>
+          verifiedText(fetched, id, scene, (got) =>
+            staleCache(file, "", got, `the version id ${name} names`),
+          ),
+        ),
+    );
     const parsed = parseSceneVersion(text);
     if (!parsed.ok) {
       return refuse(leadIssue(parsed.issues) ?? stageIssue(scene, `${name} didn't parse`));
@@ -195,7 +200,6 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
     );
     if (incompatible) return refuse(incompatible);
 
-    // A mismatch throws, and the staging reports its issue.
     const texts = await guard(docTexts(version, name));
     for (const asset of Object.values(version.assets))
       if (asset.storage === "blob") opts.files?.set(asset.sha256, fileOf(asset));
@@ -209,8 +213,7 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
   async function docTexts(version: SceneVersion, name: string): Promise<Map<Sha256, string>> {
     const byId = await fetchDocTexts(version.assets, (file) => opts.fetchText(file), {
       file: fileOf,
-      mismatch: (file, id, got, pin) =>
-        `"${file}" (${id}, carried by ${name}) hashes to ${got}, not ${pin}; a stale cache served another file`,
+      mismatch: (file, id, got, pin) => staleCache(file, ` (${id}, carried by ${name})`, got, pin),
     });
     const texts = new Map<Sha256, string>();
     for (const [id, text] of byId) texts.set(version.assets[id]!.sha256, text);
@@ -230,12 +233,10 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
     tracks.set(scene, t);
     report({ scene, version: entry.version, status: "staging" });
     const deadline = preloadDeadline(abort.signal);
+    const name = `${scene}@${entry.number}`;
     const timedOut = () =>
-      stageIssue(
-        scene,
-        `${scene}@${entry.number} didn't fetch, check and preload ${withinPreloadWords()}`,
-      );
-    t.done = prepare(entry, deadline.signal)
+      stageIssue(scene, `${name} didn't fetch, check and preload ${withinPreloadWords()}`);
+    t.done = prepare(entry, name, deadline.signal)
       .catch((error: unknown): Prepared => {
         if (deadline.signal.aborted) return { ok: false, issue: timedOut() };
         if (error instanceof StandaloneBootError && error.issues[0])
@@ -334,9 +335,19 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
   instance.on("flow:change", onLoad);
   instance.on("scene:step", onStep);
 
+  /** Waits for `scene`'s preparation, and for each newer one a snapshot started meanwhile. */
+  async function settled(scene: AssetId): Promise<void> {
+    for (let t = tracks.get(scene); t; ) {
+      await t.done;
+      const next = tracks.get(scene);
+      if (next === t) return;
+      t = next;
+    }
+  }
+
   return {
     update,
-    settled: (scene) => tracks.get(scene)?.done ?? Promise.resolve(),
+    settled,
     dispose() {
       if (disposed) return;
       disposed = true;

@@ -34,7 +34,7 @@ import {
   type SceneIssue,
 } from "../../scene/types";
 import type { RapierModule, StagedVersion } from "../../types";
-import { swapCheck } from "../swap-check";
+import { fileSchemaIssue, swapCheck } from "../swap-check";
 
 const GAME = "probe";
 const HERO = "probe-hero";
@@ -183,6 +183,31 @@ const versionOf = (def: SceneDefinition, game: GameDefinition) =>
 const release = { def: yard(), prefabs: new Map() };
 const scripts = [{ name: "stand", script: SCRIPT }];
 const codes = (issues: readonly SceneIssue[]) => issues.map((i) => i.code);
+
+describe("fileSchemaIssue", () => {
+  it("is a schema issue naming the file, keeping the pointer, line, hint, expected, got and entities", () => {
+    expect(
+      fileSchemaIssue(
+        "level-1.script.json",
+        { path: "/steps/2", message: "unknown action", line: 9, expected: "jump", got: "jmp" },
+        ["level-1-script"],
+      ),
+    ).toMatchObject({
+      code: "schema",
+      severity: "error",
+      message: "level-1.script.json: unknown action",
+      path: "/steps/2",
+      line: 9,
+      expected: "jump",
+      got: "jmp",
+      entityIds: ["level-1-script"],
+    });
+    const plain = fileSchemaIssue("main.checks.json", { path: "", message: "bad" });
+    expect(plain).not.toHaveProperty("line");
+    expect(plain).not.toHaveProperty("expected");
+    expect(plain.entityIds).toEqual([]);
+  });
+});
 
 describe("swapCheck", () => {
   it("reports through the game's live.check a version that removes the floor under the spawn", async () => {

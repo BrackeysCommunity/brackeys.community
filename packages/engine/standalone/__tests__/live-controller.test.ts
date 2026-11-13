@@ -289,6 +289,75 @@ describe("the live controller in a hosted frame", () => {
     expect(server.paths).toContain(`live/${v.version.assets.yard!.sha256}.json`);
   });
 
+  /** Two versions of the start scene: the welcome's, then one with a second flag a later snapshot moves to. */
+  async function startVersions(b: Build) {
+    const first = await publish(
+      b,
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      "yard",
+    );
+    const def = flagged("yard", ["tiles"]);
+    const second = await publish(
+      b,
+      withHeldDoc(physicsFreeFiles(), "yard.json", {
+        ...def,
+        entities: [...(def.entities ?? []), { id: "flag2", type: "marker", at: [3, 1] }],
+      }),
+      "yard",
+    );
+    return {
+      first,
+      second,
+      welcome: welcomeOf({ live: await snapshot(b, [entry(first, "now")]) }),
+      moved: await snapshot(b, [entry(second, "now", 2)]),
+    };
+  }
+
+  /** The start scene's first load ran `v`: applied at next-load, no swap, before any step. */
+  async function expectFirstLoad(page: FakePage, game: StandaloneGame, v: Published) {
+    expect(game.instance.flow.current()).toBe("yard");
+    expect(game.instance.live.current("yard")).toBe(v.id);
+    expect(game.instance.runtime()?.get("flag2")).toBeDefined();
+    const ofV = () => states(page).filter((m) => m.version === v.id);
+    await vi.waitFor(() =>
+      expect(ofV().map((m) => m.status)).toEqual(["staging", "ready", "applied"]),
+    );
+    expect(ofV().at(-1)).toMatchObject({ timing: "next-load" });
+  }
+
+  it("applies a live.update the page sent right after its welcome, while the frame booted", async () => {
+    const b = fresh();
+    const { first, second, welcome, moved } = await startVersions(b);
+    const page: FakePage = fakeParent({
+      welcome,
+      answer: (m) => {
+        if (m.type !== "hello") return undefined;
+        queueMicrotask(() => page.send({ type: "live.update", live: moved }));
+        return { type: "reply", id: m.id, ok: true, result: welcome };
+      },
+    });
+    const game = await boot(serve(b));
+    await expectFirstLoad(page, game, second);
+    // The welcome's version was superseded before it staged.
+    expect(states(page).filter((m) => m.version === first.id)).toMatchObject([
+      { status: "staging" },
+    ]);
+  });
+
+  it("loads the start scene with the version a live.update named while the welcome's was staging", async () => {
+    const b = fresh();
+    const { first, second, welcome, moved } = await startVersions(b);
+    const page = fakeParent({ welcome });
+    const server = serve(b);
+    const open = server.hold(`live/${first.id}.json`);
+    const booting = boot(server);
+    await vi.waitFor(() => expect(statuses(page, "yard")).toEqual(["staging"]));
+    page.send({ type: "live.update", live: moved });
+    const game = await booting;
+    open();
+    await expectFirstLoad(page, game, second);
+  });
+
   it("stages and applies a live.update, reporting each step", async () => {
     const b = fresh();
     const v = await publish(

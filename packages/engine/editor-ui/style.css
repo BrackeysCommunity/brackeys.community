@@ -1449,7 +1449,8 @@
     touch-action: none;
   }
 
-  .je-editor-connecting {
+  /* Compounded with .je-island so its start alignment beats the island's centring. */
+  .je-island.je-editor-connecting {
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;

@@ -4,6 +4,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { tickRateProblem, type GameDefinition } from "@jams/engine/game";
+import { fileSchemaIssue } from "@jams/engine/headless";
 import {
   createRegistry,
   createScene,
@@ -167,27 +168,6 @@ export function checkProjectId(
 /** What `planGame` gives: every file, and the issues of its scene, checks and script. */
 export type GamePlan = { files: GameFile[]; issues: SceneIssue[] };
 
-/** A checks or script issue as a scene issue of `code`, keeping its pointer, line and hint. */
-const docIssue = (
-  file: string,
-  i: {
-    path: string;
-    message: string;
-    line?: number;
-    hint?: string;
-    expected?: string;
-    got?: string;
-  },
-): SceneIssue =>
-  makeIssue("schema", {
-    message: `${file}: ${i.message}`,
-    path: i.path,
-    ...(i.line === undefined ? {} : { line: i.line }),
-    ...(i.hint === undefined ? {} : { hint: i.hint }),
-    ...(i.expected === undefined ? {} : { expected: i.expected }),
-    ...(i.got === undefined ? {} : { got: i.got }),
-  });
-
 /**
  * Every file of the game `options` describes, for `projectDir`: the
  * templates' sources (the scene list `scene-list.json`, starting at `main`,
@@ -222,9 +202,11 @@ export async function planGame(options: GameOptions, projectDir: string): Promis
       : [...parsed.issues];
     const text = (path: string) => sources.find((f) => f.path === path)!.text;
     const checks = parseChecks(text("scenes/main.checks.json"), registry);
-    if (!checks.ok) issues.push(...checks.issues.map((i) => docIssue("main.checks.json", i)));
+    if (!checks.ok)
+      issues.push(...checks.issues.map((i) => fileSchemaIssue("main.checks.json", i)));
     const script = parseInputScript(text("scenes/main.script.json"), registry);
-    if (!script.ok) issues.push(...script.issues.map((i) => docIssue("main.script.json", i)));
+    if (!script.ok)
+      issues.push(...script.issues.map((i) => fileSchemaIssue("main.script.json", i)));
 
     const files = [
       ...sources,

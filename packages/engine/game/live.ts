@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { AssetId, Sha256 } from "../project/types";
+import { plural } from "../scene/plural";
 import type { SceneIssue } from "../scene/types";
 import type { EngineContext } from "./types";
 
@@ -157,8 +158,7 @@ export function acceptedTimingsWords(live: Pick<LiveDeclaration, "timings"> | un
 export function diffWords(diff: SceneDiff): string {
   const { changed, added, removed } = diff;
   const parts: string[] = [];
-  if (changed.length > 0)
-    parts.push(`${changed.length} ${changed.length === 1 ? "entity" : "entities"} changed`);
+  if (changed.length > 0) parts.push(`${plural(changed.length, "entity", "entities")} changed`);
   if (added.length > 0) parts.push(`${added.length} added`);
   if (removed.length > 0) parts.push(`${removed.length} removed`);
   if (parts.length > 0) return parts.join(", ");

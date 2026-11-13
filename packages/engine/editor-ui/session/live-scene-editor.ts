@@ -98,6 +98,7 @@ import {
   type SceneIssue,
 } from "../../scene/index";
 import { errorText, isErrorIssue, leadIssue } from "../../scene/issues";
+import { plural } from "../../scene/plural";
 import type { SceneDocStatus } from "../connect/scene-doc";
 import { frameInView } from "../frame/visible-rect";
 import { defaultPeerColor, guestName, type EditorNotify } from "../host";
@@ -158,8 +159,11 @@ export type LivePlayStatus = {
 /** The pending feedback and status line while a live update stages. */
 export const LIVE_PLAY_APPLYING = "Applying live update…";
 
-/** How the status line and its toast open when an edit didn't become a live update. */
+/** How the status line opens when an edit didn't become a live update. */
 export const LIVE_PLAY_NOT_APPLIED = "Live update not applied";
+
+/** How the status line opens when an update swapped into the running game. */
+export const LIVE_PLAY_APPLIED = "Live update applied";
 
 /**
  * How long the status line says how an update with no check issues applied
@@ -279,6 +283,8 @@ export type LiveEditor = {
   restart: () => void;
   /** Turns Live in Play on or off (`host.state.livePlay`); it stays off where it's unavailable. */
   setLivePlay: (on: boolean) => void;
+  /** A live version Live in Play built and this editor still holds, for replaying a run that played it; null for any other. */
+  liveVersion: (id: Sha256) => StagedVersion | null;
   destroy: () => void;
 };
 
@@ -298,8 +304,6 @@ export function editorIdentity(
     user: { id, name, color: peerColor(id) },
   };
 }
-
-const plural = (n: number, word: string) => (n === 1 ? `1 ${word}` : `${n} ${word}s`);
 
 /** Why Play didn't start: the scene's errors, a start inside a solid, or a load that failed. */
 function playRefused(notify: EditorNotify, report: Extract<PlayReport, { ok: false }>): void {
@@ -654,10 +658,18 @@ function clampedText(timing: SwapTiming, live: LiveDeclaration | undefined): str
   return `Live update applies ${when}: this game accepts ${acceptedTimingsWords(live)}`;
 }
 
-/** What a swap changed, and that the scene reloaded when it did. */
-function swapSummary(swap: SceneSwap): string {
+/**
+ * The status line of an update that swapped in: what it changed, that the
+ * scene reloaded when it did, and how many issues the game's live check found.
+ */
+export function liveAppliedText(
+  swap: Pick<SceneSwap, "strategy" | "diff">,
+  checkIssues: number,
+): string {
   const what = diffWords(swap.diff);
-  return swap.strategy === "reload" ? `the scene reloaded (${what})` : what;
+  const summary = swap.strategy === "reload" ? `the scene reloaded (${what})` : what;
+  const counted = checkIssues > 0 ? ` · ${plural(checkIssues, "check issue")}` : "";
+  return `${LIVE_PLAY_APPLIED}: ${summary}${counted}`;
 }
 
 /** The canonical text of a project doc as its file would hold it; null for a kind with no text. */
@@ -776,11 +788,11 @@ function createLivePlay({
 
   const problems = (): SceneIssue[] => [...checkIssues, ...(failure ? [failure] : [])];
 
+  // Updates run only while playing with Live in Play on, so the play bar's status line is in view: no toast repeats it.
   function fail(prefix: string, issue: SceneIssue) {
     const why = issue.hint ?? issue.message;
     failure = issue;
     set({ status: { tone: "failed", text: `${prefix}: ${why}`, issue }, checks: problems() });
-    notify.error(prefix, { id: "live-play", description: issue.message });
   }
 
   function keep(version: StagedVersion) {
@@ -914,6 +926,12 @@ function createLivePlay({
   }
 
   function changed() {
+    // After Stop the last run's checks describe a scene that is no longer there once it changes.
+    if (!playing && (checkIssues.length > 0 || failure)) {
+      checkIssues = [];
+      failure = null;
+      set({ checks: [] });
+    }
     if (!active()) return;
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(() => void flush(), LIVE_DEFAULTS.livePlayDebounceMs);
@@ -951,14 +969,9 @@ function createLivePlay({
     checkIssues = mergeIssues([], checksAfter(LIVE_CHECK_RIGHT_AFTER));
     failure = null;
     const n = checkIssues.length;
-    const counted = n > 0 ? ` · ${n === 1 ? "1 check issue" : `${n} check issues`}` : "";
-    const summary = swapSummary(swap);
     // Restart is offered only for edits the game still lacks.
     const behind = docHash() !== runningHash;
-    const status: LivePlayStatus = {
-      tone: "applied",
-      text: `Live update applied: ${summary}${counted}`,
-    };
+    const status: LivePlayStatus = { tone: "applied", text: liveAppliedText(swap, n) };
     host.setState((s) => ({
       ...s,
       sceneChanged: behind,
@@ -1040,7 +1053,7 @@ function createLivePlay({
       runningHash = sceneHashWith(def, session.getPrefabs());
       set({ status: null });
     },
-    /** Stop: the run's checks stay for the problems panel until the next Play. */
+    /** Stop: the run's checks stay for the problems panel until the scene or a prefab changes, or the next Play. */
     left() {
       cancel();
       playing = false;
@@ -1459,6 +1472,7 @@ export function openLiveEditor({
       if (played) livePlay.restarted(played);
     },
     setLivePlay: (on) => livePlay.setOn(on),
+    liveVersion: livePlay.version,
     destroy() {
       opening++;
       livePlay.destroy();

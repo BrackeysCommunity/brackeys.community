@@ -34,6 +34,7 @@ import { ENGINE_VERSION } from "../version";
 import { fetchReleaseTexts, fetchText, releaseUrl, type FetchText } from "./data";
 import { renderBootError, StandaloneBootError } from "./errors";
 import { connectHost, hostRequested, type HostChannel } from "./host-channel";
+import type { LiveSnapshot } from "./host-protocol";
 import { createLiveController, type LiveController } from "./live";
 import { manifestRuntimeView, manifestView } from "./manifest-view";
 
@@ -421,6 +422,12 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
         ...(win ? { window: win } : {}),
       });
     }
+    // The page sends each snapshot once: one that arrives before the controller exists waits for it.
+    let early: LiveSnapshot | null = null;
+    let onLive = (snapshot: LiveSnapshot) => {
+      early = snapshot;
+    };
+    host?.on("live.update", (snapshot) => onLive(snapshot));
     // A hosted frame has an opaque origin: no worker, and storage only through the page.
     if (host) {
       prompt?.stop();
@@ -496,13 +503,11 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
         files: liveFiles,
       });
       live = controller;
+      for (const snapshot of [channel.welcome.live, early])
+        if (snapshot) controller.update(snapshot);
+      onLive = (snapshot) => controller.update(snapshot);
       // The start scene's first load uses its live version: loading the release's own and swapping it a moment later would flash.
-      const first = channel.welcome.live;
-      if (first) {
-        controller.update(first);
-        await controller.settled(manifest.flow.start);
-      }
-      channel.on("live.update", (snapshot) => controller.update(snapshot));
+      await controller.settled(manifest.flow.start);
     }
     instance.start();
     const started = await instance.flow.restart();

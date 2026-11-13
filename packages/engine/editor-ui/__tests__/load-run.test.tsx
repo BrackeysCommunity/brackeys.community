@@ -15,6 +15,7 @@ import {
 import { createEditorSession } from "../../editor/index";
 import { createRegistry } from "../../game/index";
 import { runPlaytest, type PlaytestReport, type RapierModule } from "../../headless/index";
+import type { StagedVersion } from "../../index";
 import {
   parsePrefab,
   parseSceneOrThrow,
@@ -25,8 +26,9 @@ import {
   type PrefabLibrary,
   type SceneDefinition,
 } from "../../scene/index";
+import type { RecordedSwap } from "../../scene/recording-schema";
 import type { EditorNotify } from "../host";
-import { LoadRunPanel } from "../panels/LoadRunPanel";
+import { LoadRunPanel, type HeldVersion } from "../panels/LoadRunPanel";
 import {
   createLoadedRunStore,
   parseRun,
@@ -168,7 +170,12 @@ describe("loaded-run", () => {
 });
 
 describe("LoadRunPanel", () => {
-  function setup(def: SceneDefinition = yard, prefabs?: PrefabSource, reg = registry) {
+  function setup(
+    def: SceneDefinition = yard,
+    prefabs?: PrefabSource,
+    reg = registry,
+    liveVersion?: HeldVersion,
+  ) {
     const session = createEditorSession({
       doc: sceneToDoc(def, { key: sequentialKeys("t") }),
       origin: ada,
@@ -186,6 +193,7 @@ describe("LoadRunPanel", () => {
         run={store}
         onPlayFrom={onPlayFrom}
         onReplay={onReplay}
+        {...(liveVersion ? { liveVersion } : {})}
         notify={notify}
       />,
     );
@@ -338,6 +346,60 @@ describe("LoadRunPanel", () => {
     fireEvent.click(within(toolbar).getByRole("button", { name: "Clear" }));
     expect(store.state).toBeNull();
     expect(within(toolbar).queryByRole("button", { name: "Clear" })).toBeNull();
+  });
+
+  it("says whether Replay plays all of a run's live versions, or where it stops, by the versions this editor holds", () => {
+    const [kept, lost] = ["a".repeat(64), "b".repeat(64)];
+    const liveVersion: HeldVersion = (id) =>
+      id === kept ? ({ id } as unknown as StagedVersion) : null;
+    const swap = (tick: number, version: string | null): RecordedSwap => ({
+      tick,
+      version,
+      strategy: "reconcile",
+      timing: "now",
+      sceneHash: "h",
+      runHash: "r",
+    });
+    const { store, onReplay } = setup(yard, undefined, registry, liveVersion);
+    const show = (patch: Partial<typeof report.recording>) =>
+      act(() =>
+        store.setState(() => ({ recording: { ...report.recording, ...patch }, name: "run" })),
+      );
+    const panel = within(screen.getByRole("region", { name: "Run" }));
+    const replay = () => panel.getByRole("button", { name: "Replay" });
+
+    show({ swaps: [swap(30, kept), swap(60, null)] });
+    expect(panel.queryByRole("status")).toBeNull();
+    expect(panel.getByText(/that this editor holds, so Replay plays all of it/)).toBeTruthy();
+    expect(replay()).toHaveProperty("disabled", false);
+
+    show({ swaps: [swap(30, kept), swap(90, lost)] });
+    const stops = panel.getByRole("status");
+    expect(stops.className).toBe("je-run-stale");
+    expect(stops.textContent).toBe(
+      "Replay stops at 1.5s: the run reached a live version of the scene this editor doesn't have.",
+    );
+    fireEvent.click(replay());
+    expect(onReplay).toHaveBeenCalledTimes(1);
+
+    show({ sceneVersion: lost, swaps: [] });
+    expect(panel.getByRole("status").textContent).toContain("can't replay here");
+    expect(replay().getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(replay());
+    expect(onReplay).toHaveBeenCalledTimes(1);
+  });
+
+  it("notes a run's live versions as the stale note does when it can't check them", () => {
+    const { store } = setup();
+    act(() =>
+      store.setState(() => ({
+        recording: { ...report.recording, sceneVersion: "c".repeat(64) },
+        name: "run",
+      })),
+    );
+    const note = within(screen.getByRole("region", { name: "Run" })).getByRole("status");
+    expect(note.className).toBe("je-run-stale");
+    expect(note.textContent).toContain("Replay needs the ones Live in Play built in this editor");
   });
 
   it("shows a file being read as busy with no PendingProvider above it", async () => {

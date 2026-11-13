@@ -26,6 +26,7 @@ import { expandScene } from "../scene/expand";
 import { formatScene } from "../scene/format";
 import { inputScriptSchemasFor, migrateInputScript, navCommand } from "../scene/input-script";
 import { jsonPointer, lineAt, makeIssue } from "../scene/issues";
+import { plural } from "../scene/plural";
 import { parseChildRef } from "../scene/resolve";
 import type { PrefabLibrary, Ref, SceneDefinition, SceneIssue, Severity } from "../scene/types";
 import { validateScene } from "../scene/validate";
@@ -83,7 +84,6 @@ type RunEnv = CheckEnv & { library?: PrefabLibrary };
 /** The fields every check has; a game kind's `arg` gets the rest. */
 const HEAD_KEYS: readonly string[] = ["id", "kind", "skip"];
 const RANK: Record<Severity, number> = { info: 0, warn: 1, error: 2 };
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 function tally(issues: readonly SceneIssue[]): string {
   const n = (s: Severity) => issues.filter((i) => i.severity === s).length;

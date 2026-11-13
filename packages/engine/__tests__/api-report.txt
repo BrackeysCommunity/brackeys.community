@@ -1418,6 +1418,7 @@ createRunTiming
 decodeStreams
 defaultFuzzMacro
 defaultSeed
+fileSchemaIssue
 fuzz
 gamePersistCell
 heldEdges
@@ -1729,6 +1730,7 @@ readGifSize
 readJpegSize
 readPngSize
 readPointer
+readReleaseScene
 readSceneVersion
 readWebpSize
 recordingKind
@@ -1739,7 +1741,6 @@ releaseBuildHash
 releaseId
 releaseJsonSchema
 releaseManifestSchema
-releaseSceneVersion
 releaseSnapshot
 rewriteRefs
 rowSchemaOf
@@ -7644,6 +7645,9 @@ type SwapCheckRun = {
     strategy: SwapStrategy;
     tick: number;
 };
+declare function fileSchemaIssue(file: string, issue: Pick<ScriptIssue, "expected" | "got" | "hint" | "message" | "path"> & {
+    line?: number;
+}, entityIds?: readonly string[]): SceneIssue;
 declare function swapCheck(opts: SwapCheckOptions): SwapCheckReport;
 
 ## headless/types.ts
@@ -9906,10 +9910,12 @@ declare function parseSceneVersion(text: string): {
     ok: true;
     version: SceneVersion;
 };
+declare function readReleaseScene(manifest: ReleaseManifest, scene: AssetId, texts: ReadonlyMap<Sha256, string>, registry: Registry, game: GameDefinition | null, opts?: {
+    engine?: Readonly<Record<string, unknown>>;
+}): SceneVersionRead | null;
 declare function readSceneVersion(version: SceneVersion, texts: ReadonlyMap<Sha256, string>, registry: Registry, game: GameDefinition | null, opts?: {
     engine?: Readonly<Record<string, unknown>>;
 }): SceneVersionRead;
-declare function releaseSceneVersion(manifest: ReleaseManifest, scene: AssetId): SceneVersion | null;
 declare function sceneVersionId(version: SceneVersion): Promise<Sha256>;
 declare function sceneVersionJsonSchema(): Record<string, unknown>;
 declare function sceneVersionOptions(input: SceneVersionSource, scene: AssetId, opts?: {

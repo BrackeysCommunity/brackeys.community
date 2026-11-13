@@ -1,7 +1,6 @@
 // @vitest-environment node
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { inflateSync } from "node:zlib";
 
@@ -17,6 +16,7 @@ import { renderServiceWorker, serviceWorkerCacheName } from "../export/service-w
 import { renderWebManifest } from "../export/web-manifest";
 import { defineEntityType, defineGame } from "../game/define";
 import { assetField, pointField } from "../game/fields";
+import { ENGINE_DIR, ENGINE_PROJECT } from "../project/__tests__/fixtures/scene-version/held-files";
 import { stableJson } from "../project/canonical";
 import { sha256 } from "../project/hash";
 import { parseProjectFile } from "../project/project-file";
@@ -27,64 +27,17 @@ import {
   releaseSnapshot,
   type ReleaseManifest,
 } from "../project/release";
-import type { HeldFile } from "../project/runtime-view";
-import type { AssetSidecar } from "../project/sidecar";
 import { snapshotProject } from "../project/snapshot";
-import type { ProjectFile } from "../project/types";
 import {
   CC0,
   FREE_PROJECT,
   heldInput,
   png,
   physicsFreeFiles,
+  readHeld,
   scene,
-  type HeldFiles,
 } from "./fixtures/held-project";
 import { testGame } from "./fixtures/test-game";
-
-const engineDir = fileURLToPath(new URL("../scenes/", import.meta.url));
-
-const SIDECAR = ".asset.json";
-
-/** Every file under `dir` as a host holds it: docs by their JSON, binaries by their sidecars. */
-function readHeld(dir: string): HeldFiles {
-  const files: HeldFile[] = [];
-  const texts = new Map<string, string>();
-  const walk = (at: string) => {
-    for (const name of readdirSync(at).sort()) {
-      const full = join(at, name);
-      if (statSync(full).isDirectory()) {
-        walk(full);
-        continue;
-      }
-      const path = relative(dir, full).split("\\").join("/");
-      if (path.endsWith(SIDECAR) || path === "jams.project.json") continue;
-      let sidecar: AssetSidecar | null = null;
-      try {
-        sidecar = JSON.parse(readFileSync(full + SIDECAR, "utf8")) as AssetSidecar;
-      } catch {
-        sidecar = null;
-      }
-      if (!path.endsWith(".json")) {
-        files.push({ path, sidecar });
-        continue;
-      }
-      const text = readFileSync(full, "utf8");
-      texts.set(path, text);
-      files.push({ path, json: JSON.parse(text), sidecar });
-    }
-  };
-  walk(dir);
-  return { files, texts };
-}
-
-const ENGINE_PROJECT: ProjectFile = {
-  kind: "project",
-  v: 1,
-  id: "engine",
-  name: "Engine",
-  game: null,
-};
 
 const builtCode = (rapier: BuiltCode["rapier"] = null): BuiltCode => ({
   files: [
@@ -105,7 +58,7 @@ const builtCode = (rapier: BuiltCode["rapier"] = null): BuiltCode => ({
 describe("the content plan over the engine project", () => {
   let input: ExportInput;
   beforeAll(async () => {
-    input = await heldInput(ENGINE_PROJECT, readHeld(engineDir), testGame);
+    input = await heldInput(ENGINE_PROJECT, readHeld(ENGINE_DIR), testGame);
   });
 
   it("ships the listed scenes in list order, the sublevel marked, each with its physics", async () => {

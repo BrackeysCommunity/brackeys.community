@@ -65,5 +65,6 @@ describe("the shared live check", () => {
     expect(liveRecheckAt(10)).toBe(10 + LIVE_CHECK_AGAIN_TICKS);
     expect(LIVE_CHECK_RIGHT_AFTER).toBe("right after the swap");
     expect(afterSwapWords(3)).toBe("3 ticks after the swap");
+    expect(afterSwapWords(1)).toBe("1 tick after the swap");
   });
 });

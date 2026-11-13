@@ -9,7 +9,7 @@ import type { SceneLibrary } from "../../game/flow";
 import type { SwapTiming } from "../../game/live";
 import type { GameDefinition, GameRuntime, Registry, SceneSystem } from "../../game/types";
 import { findSceneVersion } from "../../project/scene-version";
-import { preparedVersion } from "../../runtime/live";
+import { liveSwapLog, preparedVersion } from "../../runtime/live";
 import { createRunRecorder, recordedSwap } from "../../runtime/recorder";
 import { expandScene } from "../../scene/expand";
 import { parseRecording, type RunRecording } from "../../scene/recording-schema";
@@ -43,7 +43,13 @@ type Walker = RuntimeEntity<{ at: Pt; speed: number }>;
  * so a swap moves the end digest; `cellarAtLoad` attaches the cellar in `onLoad`.
  */
 function swapGame(
-  opts: { restartAt?: number; physics?: "none" | "rapier"; cellarAtLoad?: boolean } = {},
+  opts: {
+    restartAt?: number;
+    physics?: "none" | "rapier";
+    cellarAtLoad?: boolean;
+    /** Gets `ctx.live.version` as each `onLoad` reads it. */
+    versionAtLoad?: (version: string | null) => void;
+  } = {},
 ): GameDefinition {
   return defineGame({
     id: GAME,
@@ -90,6 +96,7 @@ function swapGame(
       let score = 0;
       const runtime: GameRuntime<{ score: number; xs: [string, number][] }> = {
         onLoad() {
+          opts.versionAtLoad?.(ctx.live.version);
           if (opts.cellarAtLoad) ctx.flow.attach(CELLAR, { label: "low" });
         },
         afterStep() {
@@ -187,6 +194,8 @@ function recordRun(
     library?: SceneLibrary;
     /** Versions of other listed scenes active before the load, recorded as the shell records them. */
     sublevels?: readonly StagedVersion[];
+    /** Versions of other listed scenes activated after the load, before the first step. */
+    afterLoad?: readonly StagedVersion[];
   } = {},
 ): RunRecording {
   const def = on.def ?? yard();
@@ -225,8 +234,17 @@ function recordRun(
     time: runtime.ctx.time,
     players: runtime.ctx.input.players(),
   });
-  for (const swap of live.liveSublevels()) recorder.swap(recordedSwap(swap));
-  live.onApplied((swap) => recorder.swap(recordedSwap(swap)));
+  const log = liveSwapLog(runtime.ctx.tick, live.liveSublevels());
+  for (const swap of log.start) recorder.swap(recordedSwap(swap));
+  live.onApplied((swap) => {
+    for (const s of log.next(swap)) recorder.swap(recordedSwap(s));
+  });
+  for (const v of on.afterLoad ?? []) {
+    const read = preparedVersion(v, registry, game);
+    if (!read.ok) throw new Error(JSON.stringify(read.issues));
+    live.stage(read.prepared);
+    live.activate(v.version.scene, v.id, "next-load");
+  }
   try {
     const end = runLoop({
       runtime,
@@ -468,6 +486,89 @@ describe("replaying a run whose onLoad attaches a sublevel on a live version", (
       code: "scene-version-removed",
       path: "/swaps/0/version",
     });
+  });
+});
+
+describe("replaying a run whose sublevel moved after its onLoad attach, before the first step", () => {
+  let game: GameDefinition;
+  let registry: Registry;
+  let deeper: StagedVersion;
+  let recording: RunRecording;
+
+  beforeAll(async () => {
+    game = swapGame({ cellarAtLoad: true });
+    registry = createRegistry(game);
+    deeper = await versionOf(
+      cellar((def) => {
+        def.entities!.push({ id: "c2", type: WALKER, at: [2, 6], speed: 3 });
+      }),
+      game,
+    );
+    recording = recordRun(game, registry, [], { library: cellarLibrary(), afterLoad: [deeper] });
+  });
+
+  it("records the release's own cellar the load attached, then the move", () => {
+    expect(recording.swaps).toEqual([
+      expect.objectContaining({ tick: 0, sublevel: CELLAR, version: null }),
+      expect.objectContaining({ tick: 0, sublevel: CELLAR, version: deeper.id }),
+    ]);
+  });
+
+  it("attaches the release's own cellar in the replay's onLoad, as the run did", () => {
+    const report = replayed(
+      replayRecording({
+        game,
+        registry,
+        scene: yard(),
+        flow: cellarLibrary(),
+        recording,
+        versions: (id) => findSceneVersion(id, [deeper]),
+      }),
+    );
+    expect(report.divergence).toBeNull();
+    expect(report.matches).toBe(true);
+    expect(report.stale).toBe(false);
+    expect(report.recording.swaps).toEqual(recording.swaps);
+    const { xs } = report.final as { xs: [string, number][] };
+    expect(xs.map(([id]) => id)).not.toContain("low:c2");
+  });
+});
+
+describe("ctx.live.version in onLoad", () => {
+  it("is the version a flow load plays, and the one a replay starts on", async () => {
+    const seen: (string | null)[] = [];
+    const game = swapGame({ restartAt: 5, versionAtLoad: (v) => seen.push(v) });
+    const registry = createRegistry(game);
+    const v1 = await versionOf(yard(faster), game);
+    const rt = createHeadlessRuntime({
+      game,
+      registry,
+      scene: expandScene(yard(), registry),
+      flow: libraryOf(yard()),
+    });
+    try {
+      expect(rt.live.stage(v1)).toEqual({ ok: true });
+      rt.live.activate(SCENE, v1.id, "next-load");
+      for (let i = 0; i < 6; i++) rt.step(rt.ctx.time.tickMs, []);
+      expect(rt.ctx.live.version).toBe(v1.id);
+    } finally {
+      rt.destroy();
+    }
+    expect(seen).toEqual([null, v1.id]);
+
+    seen.length = 0;
+    const plainGame = swapGame();
+    const plain = recordRun(plainGame, createRegistry(plainGame), []);
+    const { swaps: _, ...start } = plain;
+    replayRecording({
+      game,
+      registry,
+      scene: yard(),
+      flow: libraryOf(yard()),
+      recording: { ...start, sceneVersion: v1.id, ticks: 3 },
+      versions: (id) => findSceneVersion(id, [v1]),
+    });
+    expect(seen[0]).toBe(v1.id);
   });
 });
 

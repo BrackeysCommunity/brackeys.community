@@ -16,6 +16,7 @@ import {
 import { formatBytes, formatCount } from "../../../src/lib/format-bytes";
 import { releaseDay } from "../../../src/lib/jam-links";
 import {
+  amber,
   failure,
   isToolResult,
   issueLine,
@@ -29,6 +30,7 @@ import {
   AGENT_SITE_ENV,
   agentSiteFrom,
   HostedError,
+  hostedProjectCopy,
   hostedSite,
   isHostedUrl,
   requireAgentToken,
@@ -37,7 +39,6 @@ import {
 import { hostedCodeProject, ProjectClientError } from "../project-client";
 import type { ProjectHandle } from "../projects";
 import { buildGame, type GameBuildInput, type GameBuildOutcome } from "./game-build";
-import { amber, hostedProjectCopy } from "./game-live";
 import { checkManifestAt } from "./game-manifest";
 import { projectPull, type ProjectPullInput } from "./project-pull";
 

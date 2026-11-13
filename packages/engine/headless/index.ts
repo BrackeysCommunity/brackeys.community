@@ -20,6 +20,7 @@ export type {
 } from "./types";
 export { memorySaveStore } from "../saves/store";
 export {
+  fileSchemaIssue,
   swapCheck,
   type SwapCheckOptions,
   type SwapCheckReport,

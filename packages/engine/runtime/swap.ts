@@ -6,7 +6,7 @@ import type { SaveDepth, SaveFile } from "../game/save-file";
 import type { EngineContext, GameRuntime, JsonValue, Registry } from "../game/types";
 import { sameValue } from "../project/canonical";
 import { diffExpanded } from "../scene/expanded-diff";
-import { liveIssue } from "../scene/issues";
+import { errorText, liveIssue } from "../scene/issues";
 import type { ExpandedScene, PrefabLibrary, RuntimeEntity } from "../scene/types";
 import type { SpawnRecord } from "./lifecycle";
 import type { Pose } from "./poses";
@@ -337,7 +337,7 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
       }
     }
   } catch (err) {
-    refused = { cause: err instanceof Error ? err.message : String(err) };
+    refused = { cause: errorText(err) };
   }
   if (refused) {
     if (exact) return reload(host, next, opts.prefabs, diff, was, refuse, { file: exact, refused });

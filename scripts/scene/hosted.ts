@@ -1,3 +1,6 @@
+import { cp, mkdtemp } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
+
 import { COLLAB_LAYOUT_VERSION } from "@jams/engine/collab";
 import {
   ContentStoreError,
@@ -15,6 +18,9 @@ import {
   engineBlobPath,
   engineBundlePath,
 } from "../../src/lib/engine/route-paths";
+import type { Tool, ToolContext, ToolResult } from "./context";
+import type { ProjectHandle } from "./projects";
+import type { ProjectPullInput } from "./tools/project-pull";
 
 export { AGENT_SYNC_TOKEN_PATH };
 
@@ -713,4 +719,35 @@ export async function seedHostedBundle(
     ...(payload.problems ? { problems: payload.problems } : {}),
     ...(payload.issue ? { issue: payload.issue } : {}),
   };
+}
+
+/**
+ * A copy of `local`'s files with the hosted project's docs and blobs pulled
+ * over them by `pull`, in a dot directory beside the project so the game
+ * code's relative imports and package resolution reach what they reach from
+ * the checkout. The caller removes `dir`.
+ */
+export async function hostedProjectCopy(
+  local: ProjectHandle,
+  site: string,
+  token: string | undefined,
+  ctx: ToolContext,
+  pull: Tool<ProjectPullInput>,
+  label = "hosted",
+): Promise<{ dir: string } | { dir: string; result: ToolResult }> {
+  const dir = await mkdtemp(join(dirname(local.dir), `.${basename(local.dir)}-${label}-`));
+  await cp(local.dir, dir, {
+    recursive: true,
+    filter: (src) => {
+      const name = basename(src);
+      return (
+        src === local.dir || !(name === "node_modules" || name === "dist" || name.startsWith("."))
+      );
+    },
+  });
+  const pulled = await pull(
+    { id: local.file.id, url: site, out: dir, ...(token === undefined ? {} : { token }) },
+    ctx,
+  );
+  return pulled.exitCode === 0 ? { dir } : { dir, result: pulled };
 }

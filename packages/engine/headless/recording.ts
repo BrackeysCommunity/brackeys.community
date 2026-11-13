@@ -8,6 +8,7 @@ import type { AssetId, Sha256 } from "../project/types";
 import type { FlowIdentity } from "../runtime/flow";
 import {
   createSwapReplay,
+  liveSwapLog,
   preparedVersion,
   recordedVersion,
   stageIssue,
@@ -465,8 +466,11 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
       projectRef: opts.projectRef,
     });
     // The other listed scenes' live versions, which this load's sublevels attach, as the shell records them.
-    for (const swap of live.liveSublevels()) recorder.swap(recordedSwap(swap));
-    live.onApplied((swap) => recorder.swap(recordedSwap(swap)));
+    const swapLog = liveSwapLog(runtime.ctx.tick, live.liveSublevels());
+    for (const swap of swapLog.start) recorder.swap(recordedSwap(swap));
+    live.onApplied((swap) => {
+      for (const s of swapLog.next(swap)) recorder.swap(recordedSwap(s));
+    });
 
     let stopped: SceneIssue[] = [];
     /** Applies every swap recorded before the tick about to step, through the live layer as the recorded run did. */

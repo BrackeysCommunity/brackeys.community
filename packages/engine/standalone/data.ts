@@ -97,19 +97,34 @@ export async function fetchDocTexts(
     docs.map(async (id): Promise<[AssetId, string]> => {
       const asset = assets[id]!;
       const file = opts.file(asset);
-      const text = await byFile.get(file)!;
-      const got = await sha256(text);
-      if (got !== asset.sha256)
-        throw new StandaloneBootError([
-          makeIssue("hash-mismatch", {
-            message: opts.mismatch(file, id, got, asset.sha256),
-            entityIds: [id],
-            expected: asset.sha256,
-            got,
-          }),
-        ]);
+      const text = await verifiedText(await byFile.get(file)!, asset.sha256, id, (got) =>
+        opts.mismatch(file, id, got, asset.sha256),
+      );
       return [id, text];
     }),
   );
   return new Map(texts);
+}
+
+/**
+ * `text` when it hashes to `pin`; else `hash-mismatch` on `entityId`,
+ * thrown as a `StandaloneBootError` worded by `mismatch`.
+ */
+export async function verifiedText(
+  text: string,
+  pin: Sha256,
+  entityId: string,
+  mismatch: (got: Sha256) => string,
+): Promise<string> {
+  const got = await sha256(text);
+  if (got !== pin)
+    throw new StandaloneBootError([
+      makeIssue("hash-mismatch", {
+        message: mismatch(got),
+        entityIds: [entityId],
+        expected: pin,
+        got,
+      }),
+    ]);
+  return text;
 }
