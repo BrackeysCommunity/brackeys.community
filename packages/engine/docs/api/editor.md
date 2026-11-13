@@ -894,6 +894,7 @@ How the site draws a field; the engine only describes it.
 type FieldWidget = {
     accepts: EntityTypeName[];
     any?: true;
+    either?: true;
     kind: "entity-ref";
     multiple: boolean;
 } | {
@@ -925,6 +926,7 @@ type FieldWidget = {
 } | {
     bigStep?: number;
     decimals?: number;
+    either?: true;
     kind: "point";
     pick: boolean;
     step?: number;

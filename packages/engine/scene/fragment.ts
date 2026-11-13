@@ -14,6 +14,7 @@ import {
   resolveScene,
 } from "./resolve";
 import {
+  builtFor,
   geometryFields,
   InstanceSchema,
   sceneGameOf,
@@ -161,6 +162,10 @@ function fragmentRegistry(game: string | undefined, registry: Registry): Registr
  * exactly as a scene of that registry holds them.
  */
 export function fragmentSchemaFor(registry: Registry): z.ZodObject {
+  return builtFor(registry, "fragment", () => buildFragmentSchema(registry));
+}
+
+function buildFragmentSchema(registry: Registry): z.ZodObject {
   const scene = sceneSchemaFor(registry).shape;
   const bulk: Record<string, z.ZodType> = {};
   for (const { key } of registry.bulkKeys) bulk[key] = scene[key] as z.ZodType;

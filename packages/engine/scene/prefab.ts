@@ -10,7 +10,7 @@ import { jsonPointer, makeIssue } from "./issues";
 import { migrate, MIGRATIONS } from "./migrate";
 import { migrateEnvOf, parseScene, type ParseOptions } from "./parse";
 import { paramMapProblem } from "./prefab-params";
-import { InstanceSchema, OVERRIDE_PATH } from "./schema";
+import { builtFor, InstanceSchema, OVERRIDE_PATH } from "./schema";
 import {
   PREFAB_KIND,
   SCENE_FORMAT_VERSION,
@@ -117,6 +117,10 @@ const VariantHeaderSchema = z.strictObject(variantHeader);
  * prefabs, its id, and the game's contract.
  */
 export function prefabSchemaFor(registry: Registry): z.ZodObject {
+  return builtFor(registry, "prefab", () => buildPrefabSchema(registry));
+}
+
+function buildPrefabSchema(registry: Registry): z.ZodObject {
   const fragment = fragmentSchemaFor(registry).shape;
   return z
     .strictObject({

@@ -1606,6 +1606,7 @@
                       "default": 1
                     },
                     "seat": {
+                      "placeholder": "every view",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 7,
@@ -2626,6 +2627,7 @@
                       "default": 1
                     },
                     "seat": {
+                      "placeholder": "every view",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 7,
@@ -3884,6 +3886,7 @@
                       "default": 1
                     },
                     "seat": {
+                      "placeholder": "every view",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 7,
@@ -4956,6 +4959,7 @@
                       "default": 1
                     },
                     "seat": {
+                      "placeholder": "every view",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 7,
@@ -5970,6 +5974,7 @@
                       "default": 1
                     },
                     "seat": {
+                      "placeholder": "every view",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 7,
@@ -7219,6 +7224,7 @@
                       "default": 1
                     },
                     "seat": {
+                      "placeholder": "every view",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 7,
@@ -8484,6 +8490,7 @@
                       "default": 1
                     },
                     "seat": {
+                      "placeholder": "every view",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 7,
@@ -9847,6 +9854,7 @@
                       "default": 1
                     },
                     "seat": {
+                      "placeholder": "every view",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 7,

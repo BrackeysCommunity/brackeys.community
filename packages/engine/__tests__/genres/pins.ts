@@ -6,7 +6,7 @@
  */
 export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   "behavior-yard": {
-    default: "563aa42fc6eb9152",
+    default: "db3eec27538cd4a6",
   },
   "grid-puzzle": {
     default: "8df0c7714f456fd0",

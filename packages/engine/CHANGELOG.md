@@ -260,7 +260,7 @@ actorId, passes?)` to drop them when the actor goes (with `passes`, the
   a select over the game's actions; vector fields are x/y fields with their
   unit; a `refField` in a block is an entity picker (`entity-ref` with
   `any`), and a point-or-entity field (`nav-agent`'s `to`) edits whichever
-  it holds. Joint, body and force-area fields carry their units (N/m,
+  it holds (its `point` or `entity-ref` widget carries `either`). Joint, body and force-area fields carry their units (N/m,
   N·s/m, /s) and plain titles ("Other anchor", "Max force"), and seat
   fields sit in their behavior's group. `meta.units` gives a field's unit
   by another block field's value (`{ kind: { revolute: "rad", prismatic:
@@ -318,9 +318,18 @@ actorId, passes?)` to drop them when the actor goes (with `passes`, the
   still wins.
 - A nav agent's separation looks only at entities of its agents' types, so
   a crowd on large walk areas no longer tests every polygon it overlaps.
+- A registry's scene, fragment, prefab, entity and spawn schemas are built
+  once per registry. With the eleven behavior blocks on every type,
+  rebuilding them on each parse made every scene CLI command three to four
+  times slower.
 
 ### Fixed
 
+- A nav agent following an entity its block names takes its staggered place
+  in the `repathTicks` period once the name resolves, as an agent sent by
+  `setDestination` does, instead of every such agent re-planning on one
+  tick. The behavior-yard genre pin moved for it (its courier follows
+  `drop-point`); no other pin or golden trace did.
 - Play starts on the game's own view: the camera takes zoom 1 and snaps to
   its target, where an editor zoomed out past the scene's bounds held it on
   the bounds' centre. Stop restores the editor camera as before.

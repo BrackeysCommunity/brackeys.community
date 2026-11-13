@@ -217,6 +217,16 @@ function behaviorsSchema(registry: Registry, t: RegisteredType): z.ZodType {
   return needed ? slot : slot.optional();
 }
 
+/** Schemas built from a registry, which never changes once built, so each is built once per registry. */
+const built = new WeakMap<Registry, Map<string, unknown>>();
+
+export function builtFor<T>(registry: Registry, key: string, build: () => T): T {
+  let byKey = built.get(registry);
+  if (!byKey) built.set(registry, (byKey = new Map()));
+  if (!byKey.has(key)) byKey.set(key, build());
+  return byKey.get(key) as T;
+}
+
 const { id: idField, ...editorFields } = BASE_FIELDS;
 
 function typeSchema(
@@ -242,7 +252,9 @@ function typeSchema(
  */
 export function entitySchemaFor(registry: Registry, type: EntityTypeName): z.ZodObject | undefined {
   const t = registry.types.get(type);
-  return t && !isSpawnOnly(registry, type) ? typeSchema(registry, t) : undefined;
+  return t && !isSpawnOnly(registry, type)
+    ? builtFor(registry, `entity:${type}`, () => typeSchema(registry, t))
+    : undefined;
 }
 
 const SpawnIdSchema = z
@@ -260,7 +272,9 @@ const SpawnIdSchema = z
  */
 export function spawnSchemaFor(registry: Registry, type: EntityTypeName): z.ZodObject | undefined {
   const t = registry.types.get(type);
-  return t && t.loads !== false ? typeSchema(registry, t, SpawnIdSchema) : undefined;
+  return t && t.loads !== false
+    ? builtFor(registry, `spawn:${type}`, () => typeSchema(registry, t, SpawnIdSchema))
+    : undefined;
 }
 
 /** Why a scene can't name `type`, worded once for parse, ops and validate. */
@@ -410,9 +424,11 @@ export const InstanceSchema = z
  * `game` key.
  */
 export function sceneSchemaFor(registry: Registry): z.ZodObject {
-  const types = placeableTypes(registry).map((name) =>
-    typeSchema(registry, registry.types.get(name)!),
-  );
+  return builtFor(registry, "scene", () => buildSceneSchema(registry));
+}
+
+function buildSceneSchema(registry: Registry): z.ZodObject {
+  const types = placeableTypes(registry).map((name) => entitySchemaFor(registry, name)!);
   const entity = z
     .discriminatedUnion(
       "type",
