@@ -1,7 +1,7 @@
 import { sha256 } from "../project/hash";
 import { byCodeUnit } from "../project/kinds/define";
-import type { ReleaseManifest } from "../project/release";
-import type { AssetId } from "../project/types";
+import type { ReleaseAsset, ReleaseManifest } from "../project/release";
+import type { AssetId, Sha256 } from "../project/types";
 import { makeIssue } from "../scene/issues";
 import { StandaloneBootError } from "./errors";
 
@@ -64,23 +64,45 @@ export async function fetchReleaseTexts(
   base: URL,
   fetchFn: FetchText,
 ): Promise<Map<AssetId, string>> {
-  const docs = Object.keys(m.assets)
+  return fetchDocTexts(m.assets, (file) => fetchText(base, file, fetchFn), {
+    file: (asset) => asset.file,
+    mismatch: (file, id, got, pin) =>
+      `"${file}" (${id}) hashes to ${got}, not ${pin} as release.json pins it; reload to fetch this build's copy`,
+  });
+}
+
+/**
+ * Every doc of `assets`, by id: each file `opts.file` names is fetched once,
+ * all in parallel, and its text checked against the asset's sha256. A text
+ * that doesn't is `hash-mismatch`, thrown as a `StandaloneBootError` worded
+ * by `opts.mismatch`.
+ */
+export async function fetchDocTexts(
+  assets: Readonly<Record<AssetId, ReleaseAsset>>,
+  fetch: (file: string) => Promise<string>,
+  opts: {
+    file(asset: ReleaseAsset): string;
+    mismatch(file: string, id: AssetId, got: Sha256, pin: Sha256): string;
+  },
+): Promise<Map<AssetId, string>> {
+  const docs = Object.keys(assets)
     .sort(byCodeUnit)
-    .filter((id) => m.assets[id]!.storage === "doc");
+    .filter((id) => assets[id]!.storage === "doc");
   const byFile = new Map<string, Promise<string>>();
   for (const id of docs) {
-    const { file } = m.assets[id]!;
-    if (!byFile.has(file)) byFile.set(file, fetchText(base, file, fetchFn));
+    const file = opts.file(assets[id]!);
+    if (!byFile.has(file)) byFile.set(file, fetch(file));
   }
   const texts = await Promise.all(
     docs.map(async (id): Promise<[AssetId, string]> => {
-      const asset = m.assets[id]!;
-      const text = await byFile.get(asset.file)!;
+      const asset = assets[id]!;
+      const file = opts.file(asset);
+      const text = await byFile.get(file)!;
       const got = await sha256(text);
       if (got !== asset.sha256)
         throw new StandaloneBootError([
           makeIssue("hash-mismatch", {
-            message: `"${asset.file}" (${id}) hashes to ${got}, not ${asset.sha256} as release.json pins it; reload to fetch this build's copy`,
+            message: opts.mismatch(file, id, got, asset.sha256),
             entityIds: [id],
             expected: asset.sha256,
             got,

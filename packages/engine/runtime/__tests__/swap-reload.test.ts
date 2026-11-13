@@ -2,13 +2,12 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
+import { runDigest, steps, swapped, worldDigest } from "../../__tests__/fixtures/live-version";
 import { createRegistry, defineGame } from "../../game/define";
 import { pointField } from "../../game/fields";
 import type { LibraryScene, SceneLibrary } from "../../game/flow";
 import type { GameDefinition, GameRuntime, Registry, SceneSystem } from "../../game/types";
-import { stableJson } from "../../project/canonical";
 import { expandScene } from "../../scene/expand";
-import { hashText } from "../../scene/hash";
 import type {
   Bounds,
   EntityDef,
@@ -21,9 +20,8 @@ import type {
 } from "../../scene/types";
 import type { RapierModule } from "../../types";
 import { loadListed } from "../flow";
-import { createSceneRuntime, saveHostOf } from "../runtime";
+import { createSceneRuntime } from "../runtime";
 import { captureSave, restoreSave } from "../save-state";
-import type { SceneRuntimeHandle, StepResult, SwapReport } from "../types";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -31,6 +29,9 @@ beforeAll(async () => {
 });
 
 type Entities = EntityDef[];
+
+/** Set by a test: every latch refuses to spawn, so no version with one loads. */
+const jammed = { all: false };
 type Walker = RuntimeEntity<{ at: Pt; speed: number }>;
 type Latch = RuntimeEntity<{ at: Pt; label: string }>;
 type Snap = { score: number; pulses: number };
@@ -99,7 +100,7 @@ function reloadGame(
           const ids = new Set<string>();
           return {
             spawn(e) {
-              if (e.label === "jam") throw new Error("this latch is jammed");
+              if (e.label === "jam" || jammed.all) throw new Error("this latch is jammed");
               ids.add(e.id);
               ctx.poses.set(e.id, e.at[0], e.at[1], 0, { snap: true });
             },
@@ -194,41 +195,7 @@ function loaded(game: GameDefinition<Snap>, def: SceneDefinition) {
   return made;
 }
 
-const steps = (rt: SceneRuntimeHandle, n: number): StepResult[] =>
-  Array.from({ length: n }, () => rt.step(rt.ctx.time.tickMs, []));
-
-/** Every live entity's pose, flag and saved state, the game's state, the counters, timers and the random stream. */
-function digest(rt: SceneRuntimeHandle): string {
-  const world = saveHostOf(rt.ctx)!.captureWorld();
-  const ids = [...rt.ctx.poses.ids()].sort();
-  return stableJson({
-    entities: ids.map((id) => {
-      const p = rt.ctx.poses.get(id)!;
-      return [id, rt.ctx.enabled(id), p.x, p.y, p.rot, world.systems[id] ?? null];
-    }),
-    game: rt.snapshot(),
-    persist: rt.ctx.persist.value,
-    counters: world.counters,
-    random: world.random,
-    tick: world.tick,
-    timers: world.timers,
-    destroyed: [...world.destroyed].sort(),
-    spawned: world.spawned,
-  });
-}
-
-/** Each tick's events, the game's snapshot and the digest, hashed. */
-function run(rt: SceneRuntimeHandle, n: number): string {
-  const frames = steps(rt, n).map((r) => [r.tick, r.events, r.game, digest(rt)]);
-  return hashText(JSON.stringify(frames));
-}
-
-function swapped(report: SwapReport): Extract<SwapReport, { ok: true }> {
-  if (!report.ok) throw new Error(report.issue.hint ?? report.issue.message);
-  return report;
-}
-
-/** M18's guarantee on `next`: `old` run `ticks`, saved at world depth, restored onto a fresh runtime of `next`. */
+/** The capture-and-restore guarantee on `next`: `old` run `ticks`, saved at world depth, restored onto a fresh runtime of `next`. */
 function restoredOnto(
   game: GameDefinition<Snap>,
   old: SceneDefinition,
@@ -269,8 +236,8 @@ describe("SceneRuntime.swap reloads", () => {
     expect(calls).toEqual({ loads: 2, restored: [saved], swaps: 0 });
 
     const b = restoredOnto(reloadGame("none"), yard(), wider, 30);
-    expect(digest(a.rt)).toBe(digest(b));
-    expect(run(a.rt, 300)).toBe(run(b, 300));
+    expect(worldDigest(a.rt)).toBe(worldDigest(b));
+    expect(runDigest(a.rt, 300)).toBe(runDigest(b, 300));
   });
 
   it("an asked-for reload with the header unchanged carries the world too", () => {
@@ -283,7 +250,7 @@ describe("SceneRuntime.swap reloads", () => {
     );
     expect(report).toMatchObject({ strategy: "reload", carried: "world" });
     expect(report.diff.header).toBe(false);
-    expect(run(a.rt, 120)).toBe(run(b.rt, 120));
+    expect(runDigest(a.rt, 120)).toBe(runDigest(b.rt, 120));
   });
 
   it("falls through to a reload when a reconcile step refuses", () => {
@@ -303,8 +270,8 @@ describe("SceneRuntime.swap reloads", () => {
     expect((a.rt.ctx.get("gate") as Latch).label).toBe("open");
 
     const b = restoredOnto(reloadGame("none"), yard(), relabelled, 30);
-    expect(digest(a.rt)).toBe(digest(b));
-    expect(run(a.rt, 300)).toBe(run(b, 300));
+    expect(worldDigest(a.rt)).toBe(worldDigest(b));
+    expect(runDigest(a.rt, 300)).toBe(runDigest(b, 300));
   });
 
   it("undo after a world-depth reload brings back the captured world", () => {
@@ -318,8 +285,8 @@ describe("SceneRuntime.swap reloads", () => {
     report.undo();
     expect(a.rt.ctx.bounds).toEqual([0, 0, 40, 10]);
     expect(a.rt.scene()).toEqual(scene);
-    expect(digest(a.rt)).toBe(digest(b.rt));
-    expect(run(a.rt, 120)).toBe(run(b.rt, 120));
+    expect(worldDigest(a.rt)).toBe(worldDigest(b.rt));
+    expect(runDigest(a.rt, 120)).toBe(runDigest(b.rt, 120));
     report.undo();
     expect(a.rt.ctx.tick).toBe(b.rt.ctx.tick);
   });
@@ -335,6 +302,7 @@ describe("SceneRuntime.swap reloads", () => {
     const report = swapped(a.rt.swap(expand(heavier, a.registry), { prefabs: PREFABS }));
     expect(report).toMatchObject({ strategy: "reload", carried: "progress" });
     expect(report.diff.header).toBe(true);
+    expect(a.rt.ctx.tick).toBe(30);
     expect(calls).toEqual({ loads: 2, restored: [saved], swaps: 0 });
     expect(a.rt.snapshot()).toEqual(saved);
     expect(a.rt.ctx.persist.value).toEqual({ runs: 3 });
@@ -344,10 +312,45 @@ describe("SceneRuntime.swap reloads", () => {
     expect(a.rt.ctx.poses.get("w1")).toMatchObject({ x: 1, y: 1 });
 
     steps(a.rt, 10);
+    expect(a.rt.ctx.tick).toBe(40);
     report.undo();
+    expect(a.rt.ctx.tick).toBe(40);
     expect(a.rt.ctx.gravity).toEqual({ x: 0, y: 9.8 });
     expect(a.rt.snapshot()).toEqual(saved);
     expect(calls.restored).toEqual([saved, saved]);
+  });
+
+  it("reloads a Rapier scene at progress depth when a reconcile update refuses", () => {
+    const calls: Calls = { loads: 0, restored: [], swaps: 0 };
+    const game = reloadGame("rapier", calls);
+    const a = loaded(game, yard("rapier"));
+    steps(a.rt, 30);
+    const saved = a.rt.snapshot();
+    const relabelled = yard("rapier", {
+      edit: (es) => Object.assign(es.find((e) => e.id === "gate")!, { label: "open" }),
+    });
+    const report = swapped(a.rt.swap(expand(relabelled, a.registry), { prefabs: PREFABS }));
+    expect(report).toMatchObject({ strategy: "reload", carried: "progress" });
+    expect(report.diff).toEqual({ added: [], removed: [], changed: ["gate"], header: false });
+    expect((a.rt.ctx.get("gate") as Latch).label).toBe("open");
+    expect(a.rt.ctx.tick).toBe(30);
+    expect(calls).toEqual({ loads: 2, restored: [saved], swaps: 0 });
+  });
+
+  it("keeps the running world when a Rapier reconcile can't spawn an added entity", () => {
+    const a = loaded(reloadGame("rapier"), yard("rapier"));
+    steps(a.rt, 30);
+    const scene = a.rt.scene();
+    const jammed = yard("rapier", {
+      edit: (es) => void es.push({ id: "jam", type: "latch", at: [6, 6], label: "jam" }),
+    });
+    const report = a.rt.swap(expand(jammed, a.registry), { prefabs: PREFABS });
+    expect(report.ok).toBe(false);
+    if (report.ok) return;
+    expect(report.issue.detail).toMatchObject({ reason: "refused", entityId: "jam" });
+    expect(a.rt.scene()).toEqual(scene);
+    expect(a.rt.ctx.exists("walker#1")).toBe(true);
+    expect(a.rt.ctx.tick).toBe(30);
   });
 
   it("a world capture goes back as progress onto a version that now runs on Rapier", () => {
@@ -401,7 +404,22 @@ describe("SceneRuntime.swap reloads", () => {
     });
     expect(report.issue.hint).toContain("this latch is jammed");
     expect(a.rt.ctx.bounds).toEqual([0, 0, 40, 10]);
-    expect(digest(a.rt)).toBe(digest(b.rt));
-    expect(run(a.rt, 60)).toBe(run(b.rt, 60));
+    expect(worldDigest(a.rt)).toBe(worldDigest(b.rt));
+    expect(runDigest(a.rt, 60)).toBe(runDigest(b.rt, 60));
+  });
+
+  it("says so when putting the old version back fails too", () => {
+    const a = loaded(reloadGame("none"), yard());
+    steps(a.rt, 10);
+    jammed.all = true;
+    try {
+      const report = a.rt.swap(expand(wider, a.registry), { prefabs: PREFABS });
+      expect(report.ok).toBe(false);
+      if (report.ok) return;
+      expect(report.issue.hint).toContain("this latch is jammed");
+      expect(report.issue.hint).toContain("putting the old version back failed too");
+    } finally {
+      jammed.all = false;
+    }
   });
 });

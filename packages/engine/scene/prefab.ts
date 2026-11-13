@@ -454,6 +454,37 @@ export function prefabsUsedBy(def: SceneDefinition, prefabs?: PrefabLibrary): st
 }
 
 /**
+ * Every prefab `roots` reach through `get`, each read once: the roots,
+ * then their variant bases and nested instances in turn. One `get` doesn't
+ * have reaches nothing further. Added to `into` when given (a library
+ * built up over several walks; a prefab already there isn't read again).
+ */
+export function reachPrefabs(
+  roots: Iterable<string>,
+  get: (id: string) => Prefab | undefined,
+  into: Map<string, Prefab> = new Map(),
+): Map<string, Prefab> {
+  const pending = [...roots];
+  const tried = new Set<string>();
+  for (let id = pending.shift(); id !== undefined; id = pending.shift()) {
+    if (into.has(id) || tried.has(id)) continue;
+    tried.add(id);
+    const prefab = get(id);
+    if (!prefab) continue;
+    into.set(id, prefab);
+    if (typeof prefab.base === "string") pending.push(prefab.base);
+    for (const nested of prefab.instances ?? []) pending.push(nested.prefab);
+  }
+  return into;
+}
+
+/** The prefab library a scene expands with: every prefab its instances reach through `get` (`reachPrefabs`). */
+export const prefabLibraryFor = (
+  def: SceneDefinition,
+  get: (id: string) => Prefab | undefined,
+): PrefabLibrary => reachPrefabs(prefabsUsedBy(def), get);
+
+/**
  * The scene's hash with every prefab it reaches (`prefabsUsedBy`): what a
  * recording or a cache keys on, so editing a prefab, nested ones included,
  * marks it stale. A scene with no instances hashes as `sceneHash` does.

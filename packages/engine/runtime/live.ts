@@ -1,5 +1,11 @@
 import type { LibraryScene } from "../game/flow";
-import { clampTiming, type SceneSwap, type SwapStrategy, type SwapTiming } from "../game/live";
+import {
+  clampTiming,
+  versionName,
+  type SceneSwap,
+  type SwapStrategy,
+  type SwapTiming,
+} from "../game/live";
 import type { ResolvedTime } from "../game/time";
 import type { GameDefinition, Registry } from "../game/types";
 import { stableJson } from "../project/canonical";
@@ -11,6 +17,7 @@ import { expandScene } from "../scene/expand";
 import { hashText } from "../scene/hash";
 import { liveIssue } from "../scene/issues";
 import { sceneHashWith } from "../scene/prefab";
+import type { RecordedSwap } from "../scene/recording-schema";
 import type { ExpandedScene, PrefabLibrary, SceneDefinition, SceneIssue } from "../scene/types";
 import type { GameEventMap, GameLive, StagedVersion } from "../types";
 import { runHash } from "./play-session";
@@ -84,7 +91,9 @@ export type LiveApplyResult = { ok: true; swap: SceneSwap } | { ok: false; issue
 /**
  * `activate`'s answer: the timing it got, and the issue when it didn't get
  * what was asked (`live-timing-unsupported` for a clamp, `live-swap-failed`
- * for a version that isn't staged).
+ * for a version that isn't staged). A scene attached as a sublevel of the
+ * one playing takes a version only at its next attach, so `boundary` and
+ * `now` come back as `next-load`, clamped, with no issue.
  */
 export type LiveActivation = { timing: SwapTiming; clamped: boolean; issue?: SceneIssue };
 
@@ -125,10 +134,6 @@ type Target = {
 };
 
 type Pending = { prepared: PreparedVersion | null; timing: SwapTiming };
-
-/** How an issue names a version when the host's numbers aren't known. */
-const versionName = (scene: AssetId, version: Sha256 | null) =>
-  version === null ? `${scene}'s release version` : `${scene}@${version.slice(0, 12)}`;
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -238,6 +243,13 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
     return { version: version?.id ?? null, sceneHash, runHash: hashRun(rt, main, library) };
   }
 
+  /** Whether `scene` is attached as a sublevel of the scene playing. */
+  const attached = (scene: AssetId): boolean =>
+    opts
+      .runtime()
+      ?.ctx.flow.sublevels()
+      .some((s) => s.scene === scene) ?? false;
+
   function failed(scene: AssetId, version: Sha256 | null, issue: SceneIssue): LiveApplyResult {
     emit("live:failed", { scene, version, issue });
     return { ok: false, issue };
@@ -291,9 +303,14 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
       for (const id of rt.ctx.query.select({ enabled: false })) {
         if (!before.has(id) && rt.ctx.exists(id)) rt.ctx.destroy(id);
       }
-      report.undo();
+      let cause = errorText(err);
+      try {
+        report.undo();
+      } catch (undoErr) {
+        cause += `; ${errorText(undoErr)}`;
+      }
       settle(rt);
-      return refuse(errorText(err), "onSwap");
+      return refuse(cause, "onSwap");
     }
     running = { scene, version: prepared };
     emit("live:swapped", swap);
@@ -307,17 +324,23 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
       return { ok: true };
     },
     activate(scene, version, timing) {
-      const clamp = clampTiming(live, timing);
-      const out: LiveActivation = clamp.clamped
+      sync();
+      const game = clampTiming(live, timing);
+      const out: LiveActivation = game.clamped
         ? {
-            ...clamp,
+            ...game,
             issue: liveIssue({
               code: "live-timing-unsupported",
               version: versionName(scene, version),
               accepted: live?.timings ?? [],
             }),
           }
-        : clamp;
+        : { ...game };
+      if (out.timing !== "next-load" && running?.scene !== scene && attached(scene)) {
+        out.timing = "next-load";
+        out.clamped = true;
+      }
+      const clamp = { timing: out.timing, clamped: out.clamped };
       if (pinned) return out;
       let prepared: PreparedVersion | null = null;
       if (version !== null) {
@@ -329,7 +352,6 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
         }
         prepared = found;
       }
-      sync();
       if (staged.get(scene)?.id === version) staged.delete(scene);
       setActive(scene, prepared);
       pending.delete(scene);
@@ -388,6 +410,112 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
     onApplied(fn) {
       listeners.add(fn);
       return () => void listeners.delete(fn);
+    },
+  };
+}
+
+/**
+ * The version `id` a recording names, through the host's `versions`:
+ * `scene-version-removed` (with the swap's `tick`) when the host has none,
+ * or gives another.
+ */
+export function recordedVersion(
+  versions: ((id: Sha256) => StagedVersion | null) | undefined,
+  scene: AssetId,
+  id: Sha256,
+  tick?: number,
+): { ok: true; staged: StagedVersion } | { ok: false; issue: SceneIssue } {
+  const staged = versions?.(id) ?? null;
+  if (staged?.id === id) return { ok: true, staged };
+  const issue = liveIssue({
+    code: "scene-version-removed",
+    version: versionName(scene, id),
+    ...(tick !== undefined ? { tick } : {}),
+  });
+  return { ok: false, issue };
+}
+
+export type SwapReplayOptions = {
+  live: Pick<LiveLayer, "stage" | "activate" | "apply">;
+  swaps: readonly RecordedSwap[];
+  /** The scene playing now, which a swap back to the release's own applies to. */
+  scene(): AssetId;
+  /** A recorded version read for play, or the issues that stop the replay; `at` is the swap's index. */
+  resolve(
+    id: Sha256,
+    scene: AssetId,
+    at: number,
+    tick: number,
+  ): { ok: true; prepared: PreparedVersion } | { ok: false; issues: SceneIssue[] };
+  /** Called for each swap the replay can't make as recorded: from its tick on, the run is stale. */
+  stale(tick: number, why: string): void;
+};
+
+/** Where a replay stopped: the swap's index, tick and version, and why. */
+export type SwapReplayStop = { at: number; tick: number; version: Sha256; issues: SceneIssue[] };
+
+const strategyWord = (s: SwapStrategy) => (s === "reload" ? "reloaded" : "reconciled");
+
+/**
+ * Replays a recording's swaps, the one way the shell and headless replays
+ * do it: before each tick, every swap recorded for it goes through the live
+ * layer with its recorded timing and strategy. A `next-load` swap only
+ * stages and activates, since the load that used it is in the recording
+ * already. A swap whose tick already passed, that doesn't apply, or that
+ * ran with another strategy or run hash is stale; a version the host can't
+ * give stops the replay.
+ */
+export function createSwapReplay(opts: SwapReplayOptions): {
+  before(tick: number): SwapReplayStop | null;
+} {
+  const { live, swaps } = opts;
+  let next = 0;
+  return {
+    before(tick) {
+      for (; next < swaps.length && swaps[next]!.tick <= tick; next++) {
+        const at = next;
+        const entry = swaps[at]!;
+        if (entry.tick < tick) {
+          opts.stale(
+            entry.tick,
+            `the run never stepped tick ${entry.tick}, where a swap was recorded`,
+          );
+          continue;
+        }
+        const running = opts.scene();
+        let target: PreparedVersion | null = null;
+        if (entry.version !== null) {
+          const found = opts.resolve(entry.version, running, at, entry.tick);
+          if (!found.ok) {
+            next++;
+            return { at, tick: entry.tick, version: entry.version, issues: found.issues };
+          }
+          target = found.prepared;
+        }
+        const scene = target?.version.scene ?? running;
+        if (entry.timing === "next-load") {
+          if (target) live.stage(target);
+          live.activate(scene, entry.version, "next-load");
+          continue;
+        }
+        const applied = live.apply(scene, target, {
+          timing: entry.timing,
+          strategy: entry.strategy,
+          tick: entry.tick,
+        });
+        if (!applied.ok) opts.stale(entry.tick, `the swap didn't apply: ${applied.issue.message}`);
+        else if (applied.swap.strategy !== entry.strategy)
+          opts.stale(
+            entry.tick,
+            `the swap ${strategyWord(applied.swap.strategy)} where the recorded run ${strategyWord(entry.strategy)}`,
+          );
+        else if (applied.swap.to.runHash !== entry.runHash)
+          opts.stale(
+            entry.tick,
+            `what the run runs after the swap changed since it was recorded (run hash ${entry.runHash}, now ${applied.swap.to.runHash})`,
+          );
+      }
+      return null;
     },
   };
 }

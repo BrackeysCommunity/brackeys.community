@@ -4,11 +4,11 @@ import { createRegistry } from "../game/define";
 import { ID_PATTERN } from "../game/fields";
 import type { GameDefinition, Registry } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
-import { expandScene, scenePhysics } from "../scene/expand";
+import { expandScene } from "../scene/expand";
 import { jsonPointer, lineAt, liveIssue, makeIssue, type LiveIssueInput } from "../scene/issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
 import { parseScene, pointerLines } from "../scene/parse";
-import { parsePrefab, prefabsUsedBy, sceneHashWith } from "../scene/prefab";
+import { parsePrefab, prefabLibraryFor, sceneHashWith } from "../scene/prefab";
 import {
   PREFAB_KIND,
   type ExpandedScene,
@@ -20,7 +20,7 @@ import {
 } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import { ENGINE_VERSION } from "../version";
-import { blobContent, namedPrefabs, sceneBundle, unsizedIds } from "./bundle";
+import { namedPrefabs, sceneBundle, unsizedIds } from "./bundle";
 import { stableJson } from "./canonical";
 import { sha256, SHA256_PATTERN } from "./hash";
 import { createKindRegistry, type KindRegistry } from "./kinds";
@@ -41,6 +41,7 @@ import {
   type ReleaseManifest,
   type ReleaseScene,
 } from "./release";
+import { liveFiles, reachedAssets, releaseAssetOf, releaseSceneEntry } from "./release-assets";
 import { runtimeView } from "./runtime-view";
 import {
   jsonValues,
@@ -49,7 +50,7 @@ import {
   snapshotView,
   type ProjectSnapshot,
 } from "./snapshot";
-import type { AssetEntry, AssetId, AssetKindName, ProjectId, ProjectView, Sha256 } from "./types";
+import type { AssetId, AssetKindName, ProjectId, ProjectView, Sha256 } from "./types";
 
 /** The scene version record's format, the `v` every one carries. */
 export const SCENE_VERSION_VERSION = 1;
@@ -764,16 +765,6 @@ export function readSceneVersion(
 
 // ─── Building one ────────────────────────────────────────
 
-const utf8Bytes = (text: string): number => new TextEncoder().encode(text).length;
-
-/** `live/<sha256><ext>`: a blob's file under a version, its extension the one its path ends in. */
-function liveBlobFile(path: string, hash: Sha256): string {
-  const name = path.slice(path.lastIndexOf("/") + 1);
-  const dot = name.lastIndexOf(".");
-  const ext = dot > 0 ? name.slice(dot).toLowerCase() : "";
-  return `live/${hash}${/^\.[a-z0-9]+$/.test(ext) ? ext : ""}`;
-}
-
 const missing = (message: string, id: AssetId): SceneIssue =>
   makeIssue("asset-missing", { message, entityIds: [id], got: id });
 
@@ -788,22 +779,16 @@ function readProjectScene(
   if (!parsed.ok) return { ok: false, issues: withId(id, parsed.issues) };
   const issues: SceneIssue[] = [];
   const prefabs = new Map<string, Prefab>();
-  const pending = prefabsUsedBy(parsed.def);
-  const seen = new Set<AssetId>();
-  for (let next = pending.shift(); next !== undefined; next = pending.shift()) {
-    if (seen.has(next)) continue;
-    seen.add(next);
+  prefabLibraryFor(parsed.def, (next) => {
     // A prefab the project doesn't have is the validation's to name.
-    if (view.byId.get(next)?.kind !== PREFAB_KIND) continue;
+    if (view.byId.get(next)?.kind !== PREFAB_KIND) return undefined;
     const prefabText = opts.texts.get(next);
     if (prefabText === undefined) {
       issues.push(missing(`scene "${id}" reaches prefab "${next}", which has no text given`, next));
-      continue;
+      return undefined;
     }
-    const prefab = readPrefab(next, prefabText, registry, prefabs, issues);
-    if (typeof prefab?.base === "string") pending.push(prefab.base);
-    for (const nested of prefab?.instances ?? []) pending.push(nested.prefab);
-  }
+    return readPrefab(next, prefabText, registry, prefabs, issues);
+  });
   const read = settleScene(id, parsed.def, text, prefabs, registry, view, engine, issues);
   if (!read.ok) return read;
   const get = (pid: AssetId): Prefab | undefined => {
@@ -812,97 +797,6 @@ function readProjectScene(
     return t === undefined ? undefined : readPrefab(pid, t, registry, prefabs, read.issues);
   };
   return withNamedPrefabs(read, registry, get);
-}
-
-/**
- * Every live asset `roots` reach through the project's references, the
- * roots included: docs and blobs only, and no scene but the version's own,
- * since the release lists the others. Sorted by id.
- */
-function carriedIds(
-  opts: BuildSceneVersionOptions,
-  kinds: KindRegistry,
-  values: ReadonlyMap<AssetId, unknown>,
-  roots: readonly AssetId[],
-): AssetId[] {
-  const { view, registry, scene } = opts;
-  const index = buildRefIndex(view, values, kinds, { registry, project: view });
-  const seen = new Set<AssetId>();
-  const pending = [...roots];
-  for (let id = pending.shift(); id !== undefined; id = pending.shift()) {
-    const entry = view.byId.get(id);
-    if (seen.has(id) || !entry) continue;
-    const storage = kinds.get(entry.kind)?.storage;
-    if (storage !== "doc" && storage !== "blob") continue;
-    if (entry.kind === sceneKind.kind && id !== scene) continue;
-    seen.add(id);
-    for (const site of index.targets(id)) pending.push(site.id);
-  }
-  return [...seen].sort(byCodeUnit);
-}
-
-/** `entry` as the version carries it: a doc by its text's hash, a blob by its content; null, with an issue, when it has neither. */
-async function carriedAsset(
-  entry: AssetEntry,
-  kinds: KindRegistry,
-  texts: ReadonlyMap<AssetId, string>,
-  issues: SceneIssue[],
-  unsized: ReadonlySet<AssetId>,
-): Promise<{ asset: ReleaseAsset; text?: string } | null> {
-  const common = {
-    key: entry.key,
-    kind: entry.kind,
-    path: entry.path,
-    ...(entry.name !== undefined ? { name: entry.name } : {}),
-  };
-  const licence =
-    entry.licence && Object.keys(entry.licence).length > 0
-      ? { licence: structuredClone(entry.licence) }
-      : {};
-  if (kinds.get(entry.kind)?.storage === "doc") {
-    const text = texts.get(entry.id);
-    if (text === undefined) {
-      issues.push(
-        missing(`"${entry.id}" (${entry.path}) is carried, but no text was given for it`, entry.id),
-      );
-      return null;
-    }
-    const hash = await sha256(text);
-    const asset: ReleaseAsset = {
-      ...common,
-      sha256: hash,
-      bytes: utf8Bytes(text),
-      storage: "doc",
-      file: `live/${hash}.json`,
-      ...licence,
-    };
-    return { asset, text };
-  }
-  const content = blobContent(entry);
-  if (!content) {
-    if (!unsized.has(entry.id))
-      issues.push(
-        missing(
-          `"${entry.id}" (${entry.path}) is carried, but its entry records no ${entry.sha256 === undefined ? "content hash" : "size"}`,
-          entry.id,
-        ),
-      );
-    return null;
-  }
-  const asset: ReleaseAsset = {
-    ...common,
-    ...content,
-    storage: "blob",
-    file: liveBlobFile(entry.path, content.sha256),
-    ...(entry.meta && Object.keys(entry.meta).length > 0
-      ? { meta: structuredClone(entry.meta) }
-      : {}),
-    ...(entry.import && Object.keys(entry.import).length > 0
-      ? { import: structuredClone(entry.import) }
-      : {}),
-    ...licence,
-  };
-  return { asset };
 }
 
 /**
@@ -943,25 +837,35 @@ export async function buildSceneVersion(
   const kinds = createKindRegistry(registry.game);
   const bundle = sceneBundle(read.scene, read.def, read.prefabs, view, kinds, registry);
   issues.push(...withId(id, bundle.issues));
-  const listed = projectData.flow?.scenes.find((s) => s.scene === id);
-  const entry: ReleaseScene = {
-    id,
-    ...(listed?.title !== undefined ? { title: listed.title } : {}),
-    ...(listed?.sublevel ? { sublevel: true as const } : {}),
-    physics: scenePhysics(read.def, registry, projectData.engine),
-    prefabs: prefabsUsedBy(read.def, read.prefabs),
-    bundle: {
-      entries: bundle.bundle.entries.map((e) => e.id),
-      bytes: bundle.bundle.bytes,
-    },
-  };
+  const listed = projectData.flow?.scenes.find((s) => s.scene === id) ?? { scene: id };
+  const entry = releaseSceneEntry(
+    listed,
+    read.def,
+    read.prefabs,
+    bundle.bundle,
+    registry,
+    projectData.engine,
+  );
 
   const roots = [id, ...entry.prefabs, ...entry.bundle.entries];
   const assets: Record<AssetId, ReleaseAsset> = {};
   const carriedTexts = new Map<Sha256, string>();
   const unsized = unsizedIds(issues);
-  for (const carried of carriedIds(opts, kinds, values, roots)) {
-    const made = await carriedAsset(view.byId.get(carried)!, kinds, opts.texts, issues, unsized);
+  const index = buildRefIndex(view, values, kinds, { registry, project: view });
+  // No scene but the version's own: the release lists the others.
+  for (const carried of reachedAssets(view, kinds, index, roots, (s) => s === id)) {
+    const made = await releaseAssetOf(view.byId.get(carried)!, {
+      kinds,
+      texts: opts.texts,
+      files: liveFiles,
+      unsized,
+      issues,
+      missing: {
+        text: (e) => `"${e.id}" (${e.path}) is carried, but no text was given for it`,
+        blob: (e) =>
+          `"${e.id}" (${e.path}) is carried, but its entry records no ${e.sha256 === undefined ? "content hash" : "size"}`,
+      },
+    });
     if (!made) continue;
     assets[carried] = made.asset;
     if (made.text !== undefined) carriedTexts.set(made.asset.sha256, made.text);

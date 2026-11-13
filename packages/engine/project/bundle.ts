@@ -2,7 +2,7 @@ import type { Registry } from "../game/types";
 import { closest } from "../scene/did-you-mean";
 import { expandInstance } from "../scene/expand";
 import { jsonPointer, makeIssue, pointerSegments } from "../scene/issues";
-import { prefabsUsedBy } from "../scene/prefab";
+import { prefabsUsedBy, reachPrefabs } from "../scene/prefab";
 import {
   PREFAB_KIND,
   type ExpandedScene,
@@ -190,14 +190,6 @@ function walkNamedPrefabs(
   get: (id: AssetId) => Prefab | undefined,
 ): { named: NamedPrefab[]; library: Map<string, Prefab> } {
   const library = new Map<string, Prefab>();
-  const reach = (id: string): void => {
-    if (library.has(id)) return;
-    const prefab = get(id);
-    if (!prefab) return;
-    library.set(id, prefab);
-    if (typeof prefab.base === "string") reach(prefab.base);
-    for (const nested of prefab.instances ?? []) reach(nested.prefab);
-  };
   const pending: { id: AssetId; from: Source }[] = [];
   const queue = (e: RuntimeEntity, from?: Source) => {
     for (const source of entitySources(registry, e))
@@ -211,7 +203,7 @@ function walkNamedPrefabs(
     const { id, from } = next;
     if (seen.has(id)) continue;
     seen.add(id);
-    reach(id);
+    reachPrefabs([id], get, library);
     if (!library.has(id)) continue;
     let children: RuntimeEntity[];
     try {

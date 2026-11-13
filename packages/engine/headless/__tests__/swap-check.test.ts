@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
 import { heldInput } from "../../__tests__/fixtures/held-project";
+import { oneSceneVersion } from "../../__tests__/fixtures/live-version";
 import { testGame } from "../../__tests__/fixtures/test-game";
 import type { ExportInput } from "../../export/plan";
 import { defineGame } from "../../game/define";
@@ -17,17 +18,9 @@ import {
   ENGINE_PROJECT,
   readHeld,
 } from "../../project/__tests__/fixtures/scene-version/held-files";
-import { sha256 } from "../../project/hash";
-import { ENGINE_FORMATS } from "../../project/release";
-import {
-  buildSceneVersion,
-  readSceneVersion,
-  sceneVersionId,
-  type SceneVersion,
-} from "../../project/scene-version";
+import { buildSceneVersion, readSceneVersion } from "../../project/scene-version";
 import type { ChecksFile } from "../../scene/checks";
 import { formatScene } from "../../scene/format";
-import { sceneHashWith } from "../../scene/prefab";
 import {
   SCENE_FORMAT_VERSION,
   type EntityDef,
@@ -176,38 +169,9 @@ function yard(edit: (entities: EntityDef[], def: SceneDefinition) => void = () =
   return def;
 }
 
-/** A version of the yard as a host fetched it: its canonical text, hash-checked, by hash. */
-async function versionOf(def: SceneDefinition, game: GameDefinition): Promise<StagedVersion> {
-  const text = formatScene(def).text;
-  const sha = await sha256(text);
-  const version: SceneVersion = {
-    kind: "scene-version",
-    v: 1,
-    project: "probe-project",
-    scene: SCENE,
-    compat: {
-      formats: { scene: ENGINE_FORMATS.scene, prefab: ENGINE_FORMATS.prefab },
-      build: {},
-      game: { id: game.id, configHash: game.configHash ?? null },
-    },
-    engine: "0.14.4",
-    base: null,
-    entry: { id: SCENE, physics: "none", prefabs: [], bundle: { entries: [], bytes: 0 } },
-    sceneHash: sceneHashWith(def, new Map()),
-    assets: {
-      [SCENE]: {
-        key: "k-yard",
-        kind: "scene",
-        path: "scenes/probe-yard.json",
-        sha256: sha,
-        bytes: new TextEncoder().encode(text).length,
-        storage: "doc",
-        file: `live/${sha}.json`,
-      },
-    },
-  };
-  return { id: await sceneVersionId(version), version, texts: new Map([[sha, text]]) };
-}
+/** A version of the yard as a host fetched it. */
+const versionOf = (def: SceneDefinition, game: GameDefinition) =>
+  oneSceneVersion(def, game, { scene: SCENE, path: "scenes/probe-yard.json" });
 
 const release = { def: yard(), prefabs: new Map() };
 const scripts = [{ name: "stand", script: SCRIPT }];

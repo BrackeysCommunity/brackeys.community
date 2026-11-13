@@ -1,14 +1,14 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
+import { preparedOf } from "../../__tests__/fixtures/live-version";
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import type { SceneSwap } from "../../game/live";
-import type { SceneVersion } from "../../project/scene-version";
 import { expandScene } from "../../scene/expand";
 import { parseRecording, type RecordedSwap, type RunRecording } from "../../scene/recording-schema";
 import type { SceneDefinition } from "../../scene/types";
-import { createLiveLayer, type PreparedVersion } from "../live";
+import { createLiveLayer } from "../live";
 import { createSessionRecording, playWorld } from "../play-session";
 import { createRunRecorder, recordedSwap, type RecorderOptions } from "../recorder";
 import { createSceneRuntime } from "../runtime";
@@ -77,7 +77,6 @@ describe("the recorder's live keys", () => {
       "trail",
     ]);
     const nulled = createRunRecorder(options({ sceneVersion: null }));
-    nulled.loaded({ tick: 4, version: null, sceneHash: "h0", runHash: "r0" });
     expect(JSON.stringify(nulled.finish(END, null))).toBe(JSON.stringify(plain));
   });
 
@@ -110,22 +109,6 @@ describe("the recorder's live keys", () => {
     roundTrips(rec);
   });
 
-  it("records a load inside the segment as a next-load reload only when it ran another version", () => {
-    const recorder = createRunRecorder(options({ sceneVersion: V1 }));
-    recorder.loaded({ tick: 2, version: V1, sceneHash: "s2", runHash: "r2" });
-    recorder.loaded({ tick: 5, version: V2, sceneHash: "s5", runHash: "r5" });
-    recorder.loaded({ tick: 6, version: V2, sceneHash: "s6", runHash: "r6" });
-    recorder.swap(swapAt(7, V1));
-    recorder.loaded({ tick: 8, version: null, sceneHash: "s8", runHash: "r8" });
-    const rec = recorder.finish(END, null);
-    expect(rec.swaps).toEqual([
-      swapAt(5, V2, { strategy: "reload", timing: "next-load" }),
-      swapAt(7, V1),
-      swapAt(8, null, { strategy: "reload", timing: "next-load" }),
-    ]);
-    roundTrips(rec);
-  });
-
   it("shares no swap with a recording it already finished", () => {
     const recorder = createRunRecorder(options());
     recorder.swap(swapAt(1, V1));
@@ -142,12 +125,6 @@ const DEF: SceneDefinition = {
   settings: { physics: "none" },
   entities: [{ id: "start", type: "marker", at: [1, 1] }],
 };
-
-function prepare(id: string, def: SceneDefinition): PreparedVersion {
-  const version = { scene: "yard", sceneHash: `hash-${id.slice(0, 4)}` } as SceneVersion;
-  const prefabs = new Map();
-  return { id, version, def, scene: expandScene(def, registry, { prefabs }), prefabs };
-}
 
 describe("a Play's session recording of a swap", () => {
   it("records the live layer's applied swap with its tick, and finishes with the start's version", () => {
@@ -182,7 +159,7 @@ describe("a Play's session recording of a swap", () => {
       ...DEF,
       entities: [{ id: "start", type: "marker", at: [3, 1] }],
     };
-    const applied = layer.apply("yard", prepare(V1, moved), { timing: "now" });
+    const applied = layer.apply("yard", preparedOf(V1, moved, registry), { timing: "now" });
     expect(applied.ok).toBe(true);
     for (let i = 0; i < 3; i++) step();
     const rec = session.stop()!;
@@ -200,7 +177,6 @@ describe("a Play's session recording of a swap", () => {
       },
     ]);
     session.swap(swapAt(9, null));
-    session.loaded({ tick: 9, version: null, sceneHash: "s", runHash: "r" });
     expect(session.done!.swaps).toHaveLength(1);
     roundTrips(rec);
   });

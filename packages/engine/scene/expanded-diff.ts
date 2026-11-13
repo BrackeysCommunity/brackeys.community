@@ -24,6 +24,10 @@ export function diffEntities(
 
 const headerOf = (s: ExpandedScene) => ({ name: s.name, bounds: s.bounds, settings: s.settings });
 
+/** Whether the name, bounds or settings differ: what a swap or an edit world reloads for. */
+export const headerChanged = (prev: ExpandedScene, next: ExpandedScene): boolean =>
+  !sameValue(headerOf(prev), headerOf(next));
+
 /**
  * What changed between two expansions of a scene: `added` and `changed` in
  * `next`'s order, `removed` in `prev`'s, and `header` when the name, bounds
@@ -35,6 +39,6 @@ export function diffExpanded(prev: ExpandedScene, next: ExpandedScene): SceneDif
     added: added.map((e) => e.id),
     removed,
     changed: changed.map((e) => e.id),
-    header: !sameValue(headerOf(prev), headerOf(next)),
+    header: headerChanged(prev, next),
   };
 }

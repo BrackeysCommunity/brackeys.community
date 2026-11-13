@@ -72,8 +72,12 @@ export type {
 export type { ExpandedScene, RuntimeEntity } from "./scene/types";
 export type { GameCommand, GameDefinition, LiveContext, Registry } from "./game/types";
 export {
+  acceptedTimings,
   clampTiming,
   LIVE_DEFAULTS,
+  swapStrategyFor,
+  timingWords,
+  versionName,
   type LiveDeclaration,
   type SceneDiff,
   type SceneSwap,
@@ -82,6 +86,7 @@ export {
   type SwapTiming,
 } from "./game/live";
 export type { PlayOptions } from "./headless/playtest-types";
+export { utf8Bytes } from "./project/release-assets";
 export type { RunRecording } from "./scene/recording-schema";
 export {
   createPixiView,

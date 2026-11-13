@@ -105,6 +105,7 @@ UiActionEvent
 UiContext
 UiHandle
 Vec2
+acceptedTimings
 applyPt
 applyVec
 bindText
@@ -147,6 +148,10 @@ selectSim
 selectTick
 snapshotRemapStore
 spriteGeometry
+swapStrategyFor
+timingWords
+utf8Bytes
+versionName
 viewportFor
 watchView
 
@@ -6019,10 +6024,14 @@ type SwapSide = {
 };
 type SwapStrategy = "reconcile" | "reload";
 type SwapTiming = "boundary" | "next-load" | "now";
+declare function acceptedTimings(live: Pick<LiveDeclaration, "timings"> | undefined): SwapTiming[];
 declare function clampTiming(live: LiveDeclaration | undefined, wanted: SwapTiming): {
     clamped: boolean;
     timing: SwapTiming;
 };
+declare const swapStrategyFor: (diff: Pick<SceneDiff, "header">, wanted?: "auto" | SwapStrategy) => SwapStrategy;
+declare const timingWords: (t: SwapTiming) => string;
+declare const versionName: (scene: AssetId, version: Sha256 | null) => string;
 
 ## game/physics-of.ts
 declare class PhysicsRequiredError extends EngineError {
@@ -9576,6 +9585,9 @@ declare function referencedTrash(view: ProjectView, index: RefIndex): AssetKey[]
 declare function rewriteRefs<J>(value: J, sites: readonly RefSite[], from: AssetId, to: AssetId, layout?: DocLayout): J;
 declare function schemaRefSites(shape: z.ZodRawShape, value: unknown, pointer: JsonPointer): RefSite[];
 
+## project/release-assets.ts
+declare const utf8Bytes: (text: string) => number;
+
 ## project/release.ts
 declare const CREDITS_FILE = "credits.html";
 type CheckReleaseOptions = {
@@ -10443,7 +10455,6 @@ type RecordingHost = {
 };
 type RunRecorder = {
     finish(end: RecordingEnd, final: unknown): RunRecording;
-    loaded(load: RecordedLoad): void;
     swap(entry: RecordedSwap): void;
     tick(state: PlayState, input: TickInput, focus: Vec2 | null): void;
 };

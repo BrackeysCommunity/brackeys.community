@@ -2801,7 +2801,7 @@ _type_ in `game/live.ts`
 
 ```ts
 type LiveDeclaration = {
-    /** Invariants the swap check (and Live in Play) runs right after a swap and 60 ticks later. */
+    /** Invariants the swap check and Live in Play run right after a swap and `LIVE_CHECK_AGAIN_TICKS` later. */
     check?(ctx: EngineContext): readonly SceneIssue[];
     /** "next-load" is always allowed; list "boundary" and "now" to accept them. */
     timings: readonly SwapTiming[];

@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
-import type { StagedVersion } from "@jams/engine";
+import { timingWords, versionName, type StagedVersion } from "@jams/engine";
 import {
   parseRecording,
   replayRecording,
@@ -161,9 +161,6 @@ export async function readVersionAt(
 
 const isMissing = (e: unknown) => (e as { code?: string }).code === "ENOENT";
 
-/** `level-1@9a3f12a4b5c6`: a version as a line names it. */
-export const versionName = (scene: string, id: Sha256) => `${scene}@${id.slice(0, 12)}`;
-
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 
@@ -189,7 +186,7 @@ export function replayText(scene: string, r: ReplayReport, recorded: Recorded | 
       : []),
     ...(r.recording.swaps ?? []).map(
       (w) =>
-        `  swap t${w.tick} to ${w.version === null ? "the release's scene" : versionName(r.recording.scene, w.version)} (${w.strategy}, ${w.timing === "next-load" ? "next load" : w.timing})`,
+        `  swap t${w.tick} to ${w.version === null ? "the release's scene" : versionName(r.recording.scene, w.version)} (${w.strategy}, ${timingWords(w.timing)})`,
     ),
     ...r.warnings.map((w) => `  warning ${w}`),
     ...r.issues.map(issueLine),

@@ -31,7 +31,6 @@ import {
   emptyTick,
   gameTime,
   recordingTicks,
-  type RecordedLoad,
   type RecorderOptions,
   type RecordingEnd,
 } from "./recorder";
@@ -181,8 +180,6 @@ export type SessionRecording = {
   requested(req: Pick<FlowRequest, "to" | "entry">): RunRecording | null;
   /** After a swap was applied between ticks; ignored once the recording finished. */
   swap(entry: RecordedSwap): void;
-  /** After a load inside the Play that didn't finish it (`RunRecorder.loaded`); ignored once finished. */
-  loaded(load: RecordedLoad): void;
   /** Finishes it as `quit` unless it already finished; null when it had. */
   stop(): RunRecording | null;
   /** The finished recording, else what `stop()` would give now, without finishing it. */
@@ -263,9 +260,6 @@ export function createSessionRecording(opts: SessionRecordingOptions): SessionRe
     },
     swap(entry) {
       if (!done) recorder.swap(entry);
-    },
-    loaded(load) {
-      if (!done) recorder.loaded(load);
     },
     stop() {
       if (done) return null;

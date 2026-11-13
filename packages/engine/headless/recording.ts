@@ -1,5 +1,4 @@
 import type { SceneLibrary } from "../game/flow";
-import type { SwapStrategy } from "../game/live";
 import { parseSaveFile, type SaveFile } from "../game/save-file";
 import type { ResolvedTime } from "../game/time";
 import { EngineError, type GameDefinition, type Registry } from "../game/types";
@@ -7,7 +6,12 @@ import type { TickInput } from "../input/stream";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, Sha256 } from "../project/types";
 import type { FlowIdentity } from "../runtime/flow";
-import { preparedVersion, type PreparedVersion } from "../runtime/live";
+import {
+  createSwapReplay,
+  preparedVersion,
+  recordedVersion,
+  type PreparedVersion,
+} from "../runtime/live";
 import { gamePersistCell } from "../runtime/persist";
 import {
   createRunRecorder,
@@ -24,7 +28,7 @@ import {
 } from "../runtime/recorder";
 import { resolveGame, saveHostOf } from "../runtime/runtime";
 import { checkCommand } from "../scene/input-script";
-import { liveIssue, makeIssue } from "../scene/issues";
+import { makeIssue } from "../scene/issues";
 import {
   parseRecording,
   type RecordingPlatform,
@@ -342,15 +346,9 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     scene: AssetId,
     tick?: number,
   ): { ok: true; prepared: PreparedVersion } | { ok: false; issues: SceneIssue[] } => {
-    const staged = opts.versions?.(id) ?? null;
-    if (staged?.id === id) return preparedVersion(staged, registry, game, engine);
-    const version = `${scene}@${id.slice(0, 12)}`;
-    const removed = liveIssue({
-      code: "scene-version-removed",
-      version,
-      ...(tick !== undefined ? { tick } : {}),
-    });
-    return { ok: false, issues: [{ ...removed, path }] };
+    const found = recordedVersion(opts.versions, scene, id, tick);
+    if (found.ok) return preparedVersion(found.staged, registry, game, engine);
+    return { ok: false, issues: [{ ...found.issue, path }] };
   };
 
   let flow = replayIdentity(opts, rec);
@@ -446,64 +444,26 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     live.onApplied((swap) => recorder.swap(recordedSwap(swap)));
 
     const swaps = rec.swaps ?? [];
-    let nextSwap = 0;
     let stopped: SceneIssue[] = [];
     let staleFrom: number | undefined;
     const swapWarnings: string[] = [];
-    const staleAt = (tick: number, why: string) => {
-      staleFrom ??= tick;
-      swapWarnings.push(`stale from tick ${tick}: ${why}`);
-    };
-    const strategyWord = (s: SwapStrategy) => (s === "reload" ? "reloaded" : "reconciled");
+    const replaySwaps = createSwapReplay({
+      live,
+      swaps,
+      scene: () => saveHostOf(runtime.ctx)?.sceneId() ?? runName,
+      resolve: (id, scene, at, tick) => resolveVersion(id, `/swaps/${at}/version`, scene, tick),
+      stale(tick, why) {
+        staleFrom ??= tick;
+        swapWarnings.push(`stale from tick ${tick}: ${why}`);
+      },
+    });
     /** Applies every swap recorded before the tick about to step, through the live layer as the recorded run did. */
     const beforeTick = (): string | null => {
-      const now = runtime.ctx.tick;
-      for (; nextSwap < swaps.length && swaps[nextSwap]!.tick <= now; nextSwap++) {
-        const at = nextSwap;
-        const entry = swaps[at]!;
-        if (entry.tick < now) {
-          staleAt(
-            entry.tick,
-            `the run never stepped tick ${entry.tick}, where a swap was recorded`,
-          );
-          continue;
-        }
-        const running = saveHostOf(runtime.ctx)?.sceneId() ?? runName;
-        let target: PreparedVersion | null = null;
-        if (entry.version !== null) {
-          const found = resolveVersion(entry.version, `/swaps/${at}/version`, running, entry.tick);
-          if (!found.ok) {
-            stopped = found.issues;
-            nextSwap++;
-            const first = found.issues.find((i) => i.severity === "error") ?? found.issues[0];
-            return `the swap at tick ${entry.tick} can't be replayed: ${first?.message ?? "its version didn't read"}`;
-          }
-          target = found.prepared;
-        }
-        const scene = target?.version.scene ?? running;
-        if (entry.timing === "next-load") {
-          if (target) live.stage(target);
-          live.activate(scene, entry.version, "next-load");
-          continue;
-        }
-        const applied = live.apply(scene, target, {
-          timing: entry.timing,
-          strategy: entry.strategy,
-          tick: entry.tick,
-        });
-        if (!applied.ok) staleAt(entry.tick, `the swap didn't apply: ${applied.issue.message}`);
-        else if (applied.swap.strategy !== entry.strategy)
-          staleAt(
-            entry.tick,
-            `the swap ${strategyWord(applied.swap.strategy)} where the recorded run ${strategyWord(entry.strategy)}`,
-          );
-        else if (applied.swap.to.runHash !== entry.runHash)
-          staleAt(
-            entry.tick,
-            `what the run runs after the swap changed since it was recorded (run hash ${entry.runHash}, now ${applied.swap.to.runHash})`,
-          );
-      }
-      return null;
+      const stop = replaySwaps.before(runtime.ctx.tick);
+      if (!stop) return null;
+      stopped = stop.issues;
+      const first = stop.issues.find((i) => i.severity === "error") ?? stop.issues[0];
+      return `the swap at tick ${stop.tick} can't be replayed: ${first?.message ?? "its version didn't read"}`;
     };
 
     let end: ReturnType<typeof runLoop>;

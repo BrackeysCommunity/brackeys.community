@@ -76,6 +76,8 @@ export const PLATFORMER_LIVE_ISSUES = {
 
 /** How far apart the spots a swap tries for a stuck player are; under half the player box, so no gap it fits is skipped. */
 const FREE_STEP = PLAYER_HEIGHT / 4;
+/** How many `FREE_STEP`s out a swap looks (eight player heights); a player boxed in past that stays stuck for `live.check` to report. */
+export const FREE_RINGS = 32;
 /** Up first, then either side, then down. */
 const FREE_DIRECTIONS: readonly Vec2[] = [
   { x: 0, y: -1 },
@@ -129,10 +131,10 @@ export function playerInSolidIssues(ctx: EngineContext): SceneIssue[] {
 
 /**
  * Where the stuck `player` comes to rest from the nearest spot with room for
- * its box, tried outward in `FREE_STEP`s within the bounds and settled as a
- * play start is (`castSpawn`); null when nothing nearby is free. Its own
- * collider is gated off meanwhile, so neither the overlap test nor the cast
- * sees it.
+ * its box, tried outward in `FREE_STEP`s up to `FREE_RINGS` within the bounds
+ * and settled as a play start is (`castSpawn`); null when nothing that near is
+ * free. Its own collider is gated off meanwhile, so neither the overlap test
+ * nor the cast sees it.
  */
 function restFor(ctx: EngineContext, player: PlayerEntity): Vec2 | null {
   const shape = PLATFORMER_PLAY.spawnShape;
@@ -143,7 +145,7 @@ function restFor(ctx: EngineContext, player: PlayerEntity): Vec2 | null {
   const groups = collider.collisionGroups();
   collider.setCollisionGroups(0);
   try {
-    for (let d = FREE_STEP; ; d += FREE_STEP) {
+    for (let ring = 1, d = FREE_STEP; ring <= FREE_RINGS; ring++, d += FREE_STEP) {
       let inBounds = false;
       for (const dir of FREE_DIRECTIONS) {
         const at = { x: from.x + dir.x * d, y: from.y + dir.y * d };
@@ -154,6 +156,7 @@ function restFor(ctx: EngineContext, player: PlayerEntity): Vec2 | null {
       }
       if (!inBounds) return null;
     }
+    return null;
   } finally {
     collider.setCollisionGroups(groups);
   }

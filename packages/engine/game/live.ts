@@ -43,7 +43,7 @@ export type SceneSwap = {
 export type LiveDeclaration = {
   /** "next-load" is always allowed; list "boundary" and "now" to accept them. */
   timings: readonly SwapTiming[];
-  /** Invariants the swap check (and Live in Play) runs right after a swap and 60 ticks later. */
+  /** Invariants the swap check and Live in Play run right after a swap and `LIVE_CHECK_AGAIN_TICKS` later. */
   check?(ctx: EngineContext): readonly SceneIssue[];
 };
 
@@ -59,6 +59,28 @@ export const LIVE_DEFAULTS: {
   checkAt: Object.freeze([0.25, 0.5, 0.75] as const),
   checkTicks: 120,
 });
+
+/** How many ticks after a swap the game's `live.check` runs a second time. */
+export const LIVE_CHECK_AGAIN_TICKS = 60;
+
+/** How a timing reads in a message: `next load`, `boundary` or `now`. */
+export const timingWords = (t: SwapTiming): string => (t === "next-load" ? "next load" : t);
+
+/** The timings a game accepts, `next-load` first: the ones it lists, and `next-load`, which every game takes. */
+export function acceptedTimings(live: Pick<LiveDeclaration, "timings"> | undefined): SwapTiming[] {
+  const listed = live?.timings ?? [];
+  return listed.includes("next-load") ? [...listed] : ["next-load", ...listed];
+}
+
+/** How a version is named where the host's numbers aren't known: `level-1@<first 12 hex>`, or the release's own. */
+export const versionName = (scene: AssetId, version: Sha256 | null): string =>
+  version === null ? `${scene}'s release version` : `${scene}@${version.slice(0, 12)}`;
+
+/** The strategy a swap of `diff` takes: reload when the header changed or a reload is asked for, else reconcile. */
+export const swapStrategyFor = (
+  diff: Pick<SceneDiff, "header">,
+  wanted?: "auto" | SwapStrategy,
+): SwapStrategy => (diff.header || wanted === "reload" ? "reload" : "reconcile");
 
 /**
  * The timing a game gets when `wanted` is asked for: `next-load` is always

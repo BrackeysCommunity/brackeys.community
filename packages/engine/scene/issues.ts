@@ -1,4 +1,4 @@
-import type { SwapTiming } from "../game/live";
+import { acceptedTimings, timingWords, type SwapTiming } from "../game/live";
 import type { AssetId } from "../project/types";
 import type { MigrationRefusal } from "./migrate";
 import type { EngineIssueCode, IssueCode, IssueCodeInfo, SceneIssue } from "./types";
@@ -591,9 +591,6 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
   },
 };
 
-/** How a timing reads in a message. */
-const timingWords = (t: SwapTiming) => (t === "next-load" ? "next load" : t);
-
 /**
  * The facts a live-level issue's wording needs. A version is named as its
  * scene and number (`level-1@4`) and a release as its version (`v7`);
@@ -654,11 +651,12 @@ export function liveIssue(input: LiveIssueInput): SceneIssue {
           hint: "Publish a release made with the newer engine.",
           detail,
         });
-      return makeIssue(input.code, {
+      // No hint: the code's default is the build rule's, which would mislead here.
+      const { hint: _, ...issue } = makeIssue(input.code, {
         message: `${input.version} belongs to another game or game configuration.`,
-        hint: "Publish it from the game and configuration the release was built with.",
         detail,
       });
+      return issue;
     }
     case "live-scene-unlisted":
       return makeIssue(input.code, {
@@ -691,9 +689,7 @@ export function liveIssue(input: LiveIssueInput): SceneIssue {
           : {}),
       });
     case "live-timing-unsupported": {
-      const accepted = input.accepted.includes("next-load")
-        ? input.accepted
-        : ["next-load" as const, ...input.accepted];
+      const accepted = acceptedTimings({ timings: input.accepted });
       return makeIssue(input.code, {
         message: `This game accepts only ${accepted.map(timingWords).join(" or ")}; ${input.version} will reach players then.`,
       });

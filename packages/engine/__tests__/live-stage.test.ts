@@ -10,16 +10,13 @@ import type { GameDefinition } from "../game/types";
 import type { AssetBundle } from "../project/bundle";
 import { sha256 } from "../project/hash";
 import { createKindRegistry } from "../project/kinds";
-import { ENGINE_FORMATS, type ReleaseAsset } from "../project/release";
-import { sceneVersionId, type SceneVersion } from "../project/scene-version";
+import { type ReleaseAsset } from "../project/release";
 import { projectView } from "../project/view";
 import type { AssetLoader } from "../render/asset-loader";
 import type { SceneRuntimeHandle } from "../runtime/types";
-import { formatScene } from "../scene/format";
-import { hashText } from "../scene/hash";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
 import type { GameInstance, SceneSource, StagedVersion } from "../types";
-import { ENGINE_VERSION } from "../version";
+import { oneSceneVersion } from "./fixtures/live-version";
 
 vi.mock("../renderer", () => ({
   createRenderer: async () => ({
@@ -89,48 +86,20 @@ async function textureAsset(texture: string): Promise<ReleaseAsset> {
   };
 }
 
+/** A version of `id` carrying `def` and the textures its sprites draw, as a host hands it to `stage`. */
 async function versionOf(def: SceneDefinition, id: string): Promise<StagedVersion> {
-  const text = formatScene(def).text;
-  const sha = await sha256(text);
   const textures = (def.entities ?? []).flatMap((e) => {
     const sprite = (e.behaviors as { sprite?: { asset?: string } } | undefined)?.sprite;
     return sprite?.asset ? [sprite.asset] : [];
   });
-  const assets: Record<string, ReleaseAsset> = {
-    [id]: {
-      key: `k-${id}`,
-      kind: "scene",
-      path: `scenes/${id}.json`,
-      sha256: sha,
-      bytes: text.length,
-      storage: "doc",
-      file: `live/${sha}.json`,
-    },
-  };
+  const assets: Record<string, ReleaseAsset> = {};
   for (const t of textures) assets[t] = await textureAsset(t);
   const entries = [...textures].sort();
-  const version: SceneVersion = {
-    kind: "scene-version",
-    v: 1,
-    project: "p",
+  return oneSceneVersion(def, game, {
     scene: id,
-    compat: {
-      formats: { scene: ENGINE_FORMATS.scene, prefab: ENGINE_FORMATS.prefab },
-      build: {},
-      game: { id: game.id, configHash: game.configHash ?? null },
-    },
-    engine: ENGINE_VERSION,
-    base: null,
-    entry: {
-      id,
-      physics: "none",
-      prefabs: [],
-      bundle: { entries, bytes: entries.length * 100 },
-    },
-    sceneHash: hashText(text),
     assets,
-  };
-  return { id: await sceneVersionId(version), version, texts: new Map([[sha, text]]) };
+    bundle: { entries, bytes: entries.length * 100 },
+  });
 }
 
 /**
@@ -313,5 +282,22 @@ describe("staging a version", () => {
     expect(t.held.get(tiles)).toBe(2);
     expect(t.held.has(moss)).toBe(false);
     expect(t.held.get(glow)).toBe(2);
+  });
+
+  it("keeps a version's textures held through an activation ignored while pinned", async () => {
+    const t = await started();
+    const tiles = await pixels("tiles");
+    const v = await versionOf(drawn("hall", ["tiles"]), "hall");
+    t.game.live.pin({});
+    expect(await t.game.live.stage(v)).toEqual({ ok: true });
+    t.game.live.activate("hall", v.id, "now");
+    expect(t.game.live.current("hall")).toBeNull();
+    expect(t.held.get(tiles)).toBe(1);
+
+    t.game.live.unpin();
+    t.game.live.activate("hall", v.id, "now");
+    t.game.step();
+    expect(world(t.game)?.ctx.live.version).toBe(v.id);
+    expect(t.held.get(tiles)).toBe(2);
   });
 });

@@ -18,14 +18,13 @@ import {
 
 import {
   createKeymap,
-  type Aabb,
   type EditorSession,
   type Keymap,
   type Ref as SceneRef,
   type SceneIssue,
 } from "../../editor/index";
 import { outlineBounds } from "../../editor/tool-host";
-import type { GameInstance, RapierModule } from "../../index";
+import type { RapierModule } from "../../index";
 import type { AssetKey } from "../../project/index";
 import { hostPeerColor, type EditorHost, type EditorPublishHost } from "../host";
 import { cx, KitProvider, useKit } from "../kit/index";
@@ -79,7 +78,7 @@ import {
 } from "./keys";
 import { PanelGroup } from "./PanelGroup";
 import { Rail, type RailPanel } from "./Rail";
-import { frameInView, setVisibleArea, type VisibleArea } from "./visible-rect";
+import { frameInView, revealInView, setVisibleArea, type VisibleArea } from "./visible-rect";
 
 export type { EditorChromeProps, EditorControls } from "./keys";
 
@@ -415,46 +414,6 @@ const RevealContext = createContext<((refs: readonly SceneRef[]) => boolean) | n
  */
 export function useCanvasReveal(): ((refs: readonly SceneRef[]) => boolean) | null {
   return useContext(RevealContext);
-}
-
-type PanningGame = Pick<GameInstance, "screenToWorld" | "panBy" | "getStore">;
-
-/**
- * Pans `game`, never zooming, so `rect` sits in the middle of the visible
- * part of the canvas when any of it lies outside that part; true when it
- * panned. An area with nothing visible counts as the whole canvas.
- */
-export function revealInView(game: PanningGame, rect: Aabb, area: VisibleArea): boolean {
-  const { width, height, insets } = area;
-  const shows = width - insets.left - insets.right > 0 && height - insets.top - insets.bottom > 0;
-  const seen = shows
-    ? {
-        left: insets.left,
-        top: insets.top,
-        right: width - insets.right,
-        bottom: height - insets.bottom,
-      }
-    : { left: 0, top: 0, right: width, bottom: height };
-  const { scale } = game.getStore().state.camera;
-  const origin = game.screenToWorld({ x: 0, y: 0 });
-  const box = {
-    left: (rect.minX - origin.x) * scale,
-    top: (rect.minY - origin.y) * scale,
-    right: (rect.maxX - origin.x) * scale,
-    bottom: (rect.maxY - origin.y) * scale,
-  };
-  if (
-    box.left >= seen.left &&
-    box.right <= seen.right &&
-    box.top >= seen.top &&
-    box.bottom <= seen.bottom
-  )
-    return false;
-  game.panBy({
-    x: (seen.left + seen.right - box.left - box.right) / 2,
-    y: (seen.top + seen.bottom - box.top - box.bottom) / 2,
-  });
-  return true;
 }
 
 /** The frame's `openPanel` for chrome outside the panels (the dock), with the panels it can open. */
@@ -936,13 +895,6 @@ export function editorChrome(
   const physical = new Store<readonly SceneIssue[]>([]);
   const pickedAsset = new Store<AssetKey | null>(null);
   const tools = createToolHostCell();
-  let readVisible: ReadVisibleArea | null = null;
-  const watchVisible = (read: ReadVisibleArea) => {
-    readVisible = read;
-    return () => {
-      if (readVisible === read) readVisible = null;
-    };
-  };
   const boundsOf = (refs: readonly SceneRef[]) => {
     const asset = tools.state ? hostAsset(tools.state) : undefined;
     return outlineBounds(session.getResolved(), refs, {
@@ -975,8 +927,7 @@ export function editorChrome(
     },
     reveal(refs) {
       const box = boundsOf(refs);
-      const area = readVisible?.() ?? null;
-      return box !== null && area !== null && revealInView(game, box, area);
+      return box !== null && revealInView(game, box);
     },
   };
   return {
@@ -1011,7 +962,7 @@ export function editorChrome(
     overlay: (
       <EditMode session={session}>
         <PhysicalWatch session={session} rapier={controls.rapier} host={host} store={physical} />
-        <VisibleAreaOf game={game} watch={watchVisible} />
+        <VisibleAreaOf game={game} />
         <EditorCanvasOverlay session={session} store={game.getStore()} />
         <EditorCanvasLayer {...controls} />
       </EditMode>
@@ -1019,22 +970,9 @@ export function editorChrome(
   };
 }
 
-type ReadVisibleArea = () => VisibleArea | null;
-
-/**
- * Keeps framing and revealing on `game` inside the canvas the columns leave
- * visible; `watch` is handed the frame's reader and returns its release.
- */
-function VisibleAreaOf({
-  game,
-  watch,
-}: {
-  game: object;
-  watch: (read: ReadVisibleArea) => () => void;
-}) {
+/** Keeps framing and revealing on `game` inside the canvas the columns leave visible. */
+function VisibleAreaOf({ game }: { game: object }) {
   useVisibleArea(game);
-  const read = useContext(VisibleAreaContext);
-  useEffect(() => watch(read), [watch, read]);
   return null;
 }
 

@@ -239,13 +239,6 @@ export type RunRecorder = {
   tick(state: PlayState, input: TickInput, focus: Vec2 | null): void;
   /** After a swap was applied between ticks; written to `swaps` in the order given. */
   swap(entry: RecordedSwap): void;
-  /**
-   * After a load that ran inside this segment rather than starting a new one
-   * (game code loading its own scene again, say): when it ran another version
-   * than the one playing, it is written as a `next-load` swap with the
-   * `reload` strategy, since the load replaced the whole world.
-   */
-  loaded(load: RecordedLoad): void;
   /** The recording so far, ended as `end` with the game's snapshot after its last tick. */
   finish(end: RecordingEnd, final: unknown): RunRecording;
 };
@@ -263,7 +256,7 @@ export function recordedSwap(swap: SceneSwap): RecordedSwap {
   };
 }
 
-/** A load inside a segment as `RunRecorder.loaded` takes it: a swap without its timing and strategy. */
+/** A recorded swap without its timing and strategy. */
 export type RecordedLoad = Omit<RecordedSwap, "timing" | "strategy">;
 
 /** Lifecycle events, which a game spawning bullets raises by the thousand, mark only when named. */
@@ -340,12 +333,9 @@ export function createRunRecorder(opts: RecorderOptions): RunRecorder {
   if (opts.entry != null) start.entry = opts.entry;
   const seed = opts.start.seed ?? defaultSeed(game?.id ?? null, opts.scene);
   const swaps: RecordedSwap[] = [];
-  /** The version playing now: the start's, then each swap's. */
-  let playing: Sha256 | null = opts.sceneVersion ?? null;
   const record = (e: RecordedSwap) => {
     const { tick, version, strategy, timing, sceneHash, runHash } = e;
     swaps.push({ tick, version, strategy, timing, sceneHash, runHash });
-    playing = version;
   };
 
   return {
@@ -392,10 +382,6 @@ export function createRunRecorder(opts: RecorderOptions): RunRecorder {
       }
     },
     swap: record,
-    loaded(load) {
-      if (load.version === playing) return;
-      record({ ...load, strategy: "reload", timing: "next-load" });
-    },
     finish(end, final) {
       const focus = play?.focus && final !== null ? play.focus(final) : null;
       const outcome: RunRecording["outcome"] = {

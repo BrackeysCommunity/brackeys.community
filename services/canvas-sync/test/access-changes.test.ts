@@ -151,6 +151,9 @@ describe.skipIf(!TEST_DATABASE_URL)("every access change closes or updates live 
     expect(await until(() => reader.nodes.has("from-alice"))).toBe(true);
     await sleep(600);
     expect(alice.nodes.has("from-bob")).toBe(false);
+    expect(
+      await until(async () => (await storedNodeIds(db, canvasId)).includes("from-alice")),
+    ).toBe(true);
     expect(await storedNodeIds(db, canvasId)).toEqual(["from-alice"]);
     expect(alice.closes).toEqual([]);
   });

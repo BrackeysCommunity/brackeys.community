@@ -943,8 +943,8 @@ type MakeBatch = (label: string, ops: SceneOp[], refs: Ref[]) => OpBatch;
  * `behavior-conflict` once per carried pair that conflicts,
  * `character-body-kind` for a character on a dynamic body, a
  * `behavior-conflict` warning for a `path-follow` that can't move what it
- * carries (`pathFollowFixed`), and `schema` for a block's fields once the
- * type's defaults are under them.
+ * carries (`pathFollowFixed`) and doesn't already conflict, and `schema` for
+ * a block's fields once the type's defaults are under them.
  */
 function checkBehaviors(
   registry: Registry,
@@ -1031,10 +1031,12 @@ function checkBehaviors(
     }
   }
 
+  const conflicted = new Set<BehaviorName>();
   order.forEach((name, i) => {
     const behavior = registry.behaviors.get(name)!;
     for (const other of order.slice(i + 1)) {
       if (!behaviorsConflict(behavior, registry.behaviors.get(other)!)) continue;
+      conflicted.add(name).add(other);
       const written = other in blocks ? other : name;
       push("behavior-conflict", {
         message: `${e.id} carries "${name}" and "${other}", which can't share an entity`,
@@ -1075,7 +1077,7 @@ function checkBehaviors(
     }
   }
 
-  if (carried.has(PATH_FOLLOW.name)) {
+  if (carried.has(PATH_FOLLOW.name) && !conflicted.has(PATH_FOLLOW.name)) {
     const written = blocks[BODY.name];
     const body = carried.has(BODY.name)
       ? {

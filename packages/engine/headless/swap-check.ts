@@ -1,5 +1,11 @@
 import type { SceneLibrary } from "../game/flow";
-import { LIVE_DEFAULTS, type LiveDeclaration, type SwapStrategy } from "../game/live";
+import {
+  LIVE_CHECK_AGAIN_TICKS,
+  LIVE_DEFAULTS,
+  swapStrategyFor,
+  type LiveDeclaration,
+  type SwapStrategy,
+} from "../game/live";
 import type { GameDefinition, Registry } from "../game/types";
 import { stableJson } from "../project/canonical";
 import type { ProjectRuntimeView } from "../project/runtime-view";
@@ -15,7 +21,7 @@ import type { ExpandedScene, PrefabLibrary, SceneDefinition, SceneIssue } from "
 import type { RapierModule, StagedVersion } from "../types";
 import { scriptSource } from "./compile-input-script";
 import { prepareRun, runBlocked, runLoop, startRun, type InputSource } from "./play-loop";
-import { compilePlaytestScript, untilHolds } from "./playtest";
+import { compilePlaytestScript, scriptSceneIssue, untilHolds } from "./playtest";
 import type {
   CompiledInputScript,
   InputScript,
@@ -64,9 +70,6 @@ export type SwapCheckReport = {
   /** `checks` run against `to`, when given. */
   checks?: ChecksReport;
 };
-
-/** The second `live.check` runs this many ticks after the swap, or at the run's end when that comes sooner. */
-const SECOND_CHECK_TICKS = 60;
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 const isError = (issues: readonly SceneIssue[]) => issues.some((i) => i.severity === "error");
@@ -149,9 +152,7 @@ export function swapCheck(opts: SwapCheckOptions): SwapCheckReport {
     issues.push(...prepared.blocked.issues);
     return report();
   }
-  const planned: SwapStrategy = diffExpanded(prepared.scene, to.scene).header
-    ? "reload"
-    : "reconcile";
+  const planned = swapStrategyFor(diffExpanded(prepared.scene, to.scene));
 
   for (const { name, script } of opts.scripts) {
     const compiled = compilePlaytestScript(script, registry, opts.project);
@@ -159,15 +160,9 @@ export function swapCheck(opts: SwapCheckOptions): SwapCheckReport {
       for (const s of compiled.issues) issues.push(scriptProblem(name, s));
       continue;
     }
-    if (compiled.script.scene !== undefined && compiled.script.scene !== fromDef.name) {
-      issues.push(
-        scriptProblem(name, {
-          path: "/scene",
-          message: `the script is for scene ${JSON.stringify(compiled.script.scene)}, not ${JSON.stringify(fromDef.name)}`,
-          expected: JSON.stringify(fromDef.name),
-          got: JSON.stringify(compiled.script.scene),
-        }),
-      );
+    const otherScene = scriptSceneIssue(compiled.script, fromDef.name);
+    if (otherScene) {
+      issues.push(scriptProblem(name, otherScene));
       continue;
     }
     const play = playScript({
@@ -382,7 +377,8 @@ function swapRun(
   let strategy: SwapStrategy | null = null;
   let swapped = false;
   let secondDone = false;
-  const secondAt = swap.tick + Math.min(SECOND_CHECK_TICKS, swap.afterTicks);
+  // The second check runs at the run's end when that comes sooner.
+  const secondAt = swap.tick + Math.min(LIVE_CHECK_AGAIN_TICKS, swap.afterTicks);
   const beforeTick = (): string | null => {
     const now = runtime.ctx.tick;
     if (!swapped && now === swap.tick) {

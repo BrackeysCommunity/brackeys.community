@@ -8,19 +8,14 @@ import { defineGame } from "../game/define";
 import type { LibraryScene } from "../game/flow";
 import type { LiveDeclaration, SceneSwap } from "../game/live";
 import type { GameDefinition } from "../game/types";
-import { sha256 } from "../project/hash";
 import { createKindRegistry } from "../project/kinds";
-import { ENGINE_FORMATS, type ReleaseAsset } from "../project/release";
-import { sceneVersionId, type SceneVersion } from "../project/scene-version";
 import { projectView } from "../project/view";
 import type { AssetLoader } from "../render/asset-loader";
 import type { SceneRuntimeHandle } from "../runtime/types";
-import { formatScene } from "../scene/format";
-import { hashText } from "../scene/hash";
 import { liveIssue } from "../scene/issues";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
 import type { GameEventMap, GameInstance, SceneSource, StagedVersion } from "../types";
-import { ENGINE_VERSION } from "../version";
+import { oneSceneVersion } from "./fixtures/live-version";
 
 vi.mock("../renderer", () => ({
   createRenderer: async () => ({
@@ -94,36 +89,8 @@ function source(): SceneSource {
 }
 
 /** A version of `id` with a `well` marker added, as a host hands it to `stage`. */
-async function wellVersion(game: GameDefinition, id = "hall"): Promise<StagedVersion> {
-  const text = formatScene(scene(id, ["start", "well"])).text;
-  const sha = await sha256(text);
-  const asset: ReleaseAsset = {
-    key: `k-${id}`,
-    kind: "scene",
-    path: `scenes/${id}.json`,
-    sha256: sha,
-    bytes: text.length,
-    storage: "doc",
-    file: `live/${sha}.json`,
-  };
-  const version: SceneVersion = {
-    kind: "scene-version",
-    v: 1,
-    project: "p",
-    scene: id,
-    compat: {
-      formats: { scene: ENGINE_FORMATS.scene, prefab: ENGINE_FORMATS.prefab },
-      build: {},
-      game: { id: game.id, configHash: game.configHash ?? null },
-    },
-    engine: ENGINE_VERSION,
-    base: null,
-    entry: { id, physics: "none", prefabs: [], bundle: { entries: [], bytes: 0 } },
-    sceneHash: hashText(text),
-    assets: { [id]: asset },
-  };
-  return { id: await sceneVersionId(version), version, texts: new Map([[sha, text]]) };
-}
+const wellVersion = (game: GameDefinition, id = "hall"): Promise<StagedVersion> =>
+  oneSceneVersion(scene(id, ["start", "well"]), game, { scene: id });
 
 const loader = {
   load: async () => ({ failed: [] }),

@@ -57,6 +57,13 @@ describe("behavior-conflict between behaviors that position the entity", () => {
     expect(hits[0]!.message).toContain(`"${b}"`);
   });
 
+  it("reports a path-follow that already conflicts once, without the fixed-collider warning", () => {
+    const behaviors = { ...POSITIONERS["character-top-down"], ...POSITIONERS["path-follow"] };
+    expect(conflicts(behaviors).map((i) => i.severity ?? "error")).toEqual(["error"]);
+    const alone = conflicts({ collider: { shape: box }, "path-follow": { path } });
+    expect(alone.map((i) => i.severity)).toEqual(["warn"]);
+  });
+
   it("still takes a positioning behavior beside a body, a player-input and a camera target", () => {
     for (const name of Object.keys(POSITIONERS)) {
       const behaviors = {

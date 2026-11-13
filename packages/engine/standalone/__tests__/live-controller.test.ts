@@ -23,6 +23,7 @@ import {
 } from "../../project/scene-version";
 import type { Sha256 } from "../../project/types";
 import type { AssetLoader } from "../../render/asset-loader";
+import type { SceneRuntimeHandle } from "../../runtime/types";
 import type { SceneDefinition } from "../../scene/types";
 import { bootStandalone, type StandaloneGame } from "../boot";
 import type { LiveSceneEntry, LiveSnapshot } from "../host-protocol";
@@ -621,5 +622,41 @@ describe("the live controller in a hosted frame", () => {
       version: sub.id,
       issue: { code: "live-scene-unlisted", severity: "error" },
     });
+  });
+
+  it("takes a sublevel's version at its first attach after the next load, and says applied then", async () => {
+    const b = fresh();
+    const v = await publish(
+      b,
+      withDoc(physicsFreeFiles(), "hall.json", flagged("hall", ["rocks", "tiles"])),
+      "hall",
+    );
+    const page = fakeParent();
+    const game = await boot(serve(b));
+    const flow = () => (game.instance.runtime() as SceneRuntimeHandle).ctx.flow;
+    const attach = () =>
+      expect(flow().attach("hall", { label: "side", at: [10, 0] }).ok).toBe(true);
+    const hallFlag = () => game.instance.runtime()?.get("side:flag") !== undefined;
+    attach();
+
+    page.send({ type: "live.update", live: await snapshot(b, [entry(v, "now")]) });
+    await vi.waitFor(() => expect(statuses(page, "hall")).toEqual(["staging", "ready"]));
+    // Attached under the running scene, it waits for a later attach.
+    expect(states(page).at(-1)).toMatchObject({ status: "ready", timing: "next-load" });
+    expect(game.instance.live.pending()).toEqual([]);
+    flow().detach("side");
+    game.instance.step();
+    attach();
+    game.instance.step();
+    // The run attaches the scenes it loaded with.
+    expect(hallFlag()).toBe(false);
+    expect(statuses(page, "hall")).toEqual(["staging", "ready"]);
+
+    await game.instance.flow.restart();
+    attach();
+    game.instance.step();
+    expect(hallFlag()).toBe(true);
+    await vi.waitFor(() => expect(statuses(page, "hall")).toEqual(["staging", "ready", "applied"]));
+    expect(states(page).at(-1)).toMatchObject({ version: v.id, timing: "next-load" });
   });
 });

@@ -6,12 +6,11 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
 import { engineYard } from "../../__tests__/fixtures/engine-yard.expanded";
+import { runDigest, steps, swapped, worldDigest } from "../../__tests__/fixtures/live-version";
 import { createRegistry, defineGame } from "../../game/define";
 import { pointField } from "../../game/fields";
 import type { GameDefinition, GameRuntime, Registry, SceneSystem } from "../../game/types";
-import { stableJson } from "../../project/canonical";
 import { expandScene } from "../../scene/expand";
-import { hashText } from "../../scene/hash";
 import { parseScene } from "../../scene/parse";
 import type {
   EntityDef,
@@ -25,7 +24,7 @@ import type {
 import type { RapierModule } from "../../types";
 import { readPrefabFiles } from "../../vite/project-files";
 import { createSceneRuntime, saveHostOf } from "../runtime";
-import type { SceneRuntimeHandle, StepResult, SwapReport } from "../types";
+import type { SceneRuntimeHandle } from "../types";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -168,39 +167,6 @@ function physicsFree(withRestore = true) {
   return { rt, registry };
 }
 
-const steps = (rt: SceneRuntimeHandle, n: number): StepResult[] =>
-  Array.from({ length: n }, () => rt.step(rt.ctx.time.tickMs, []));
-
-/** Every live entity's pose, flag and saved state, the game's state, the counters and the random stream. */
-function digest(rt: SceneRuntimeHandle, skip: readonly string[] = []): string {
-  const world = saveHostOf(rt.ctx)!.captureWorld();
-  const ids = [...rt.ctx.poses.ids()].filter((id) => !skip.includes(id)).sort();
-  return stableJson({
-    entities: ids.map((id) => {
-      const p = rt.ctx.poses.get(id)!;
-      return [id, rt.ctx.enabled(id), p.x, p.y, p.rot, world.systems[id] ?? null];
-    }),
-    game: rt.snapshot(),
-    counters: world.counters,
-    random: world.random,
-    tick: world.tick,
-    timers: world.timers,
-    destroyed: world.destroyed.filter((id) => !skip.includes(id)).sort(),
-    spawned: world.spawned,
-  });
-}
-
-/** Each tick's events, the game's snapshot and every entity's pose and flag, hashed. */
-function run(rt: SceneRuntimeHandle, n: number, skip: readonly string[] = []): string {
-  const frames = steps(rt, n).map((r) => [r.tick, r.events, r.game, digest(rt, skip)]);
-  return hashText(JSON.stringify(frames));
-}
-
-function swapped(report: SwapReport): Extract<SwapReport, { ok: true }> {
-  if (!report.ok) throw new Error(report.issue.hint ?? report.issue.message);
-  return report;
-}
-
 describe("SceneRuntime.swap reconciles a physics-free scene", () => {
   const edits = both(patch("w2", { speed: 3 }), drop("post"), (es) =>
     es.push({ id: "flag", type: "marker", at: [6, 6] }),
@@ -222,7 +188,7 @@ describe("SceneRuntime.swap reconciles a physics-free scene", () => {
     });
     expect(a.rt.ctx.exists("walker#1")).toBe(true);
     const skip = ["w2", "post", "flag"];
-    expect(run(a.rt, 60, skip)).toBe(run(b.rt, 60, skip));
+    expect(runDigest(a.rt, 60, skip)).toBe(runDigest(b.rt, 60, skip));
     expect(a.rt.ctx.exists("post")).toBe(false);
     expect(a.rt.ctx.exists("flag")).toBe(true);
   });
@@ -307,20 +273,20 @@ describe("SceneRuntime.swap reconciles a physics-free scene", () => {
     );
     report.undo();
     expect(a.rt.scene()).toEqual(before);
-    expect(digest(a.rt)).toBe(digest(b.rt));
-    expect(run(a.rt, 120)).toBe(run(b.rt, 120));
+    expect(worldDigest(a.rt)).toBe(worldDigest(b.rt));
+    expect(runDigest(a.rt, 120)).toBe(runDigest(b.rt, 120));
     expect(a.rt.ctx.instantiate("beacon", [1, 1]).entities).toHaveLength(1);
   });
 
   it("undo without a world save puts the digest back by the inverse reconcile", () => {
     const { rt, registry } = physicsFree(false);
     steps(rt, 30);
-    const before = digest(rt);
+    const before = worldDigest(rt);
     const scene = rt.scene();
     const report = swapped(rt.swap(expand(yard(edits), registry), { prefabs: NEW_PREFABS }));
-    expect(digest(rt)).not.toBe(before);
+    expect(worldDigest(rt)).not.toBe(before);
     report.undo();
-    expect(digest(rt)).toBe(before);
+    expect(worldDigest(rt)).toBe(before);
     expect(rt.scene()).toEqual(scene);
     expect(rt.ctx.instantiate("beacon", [1, 1]).entities).toHaveLength(1);
   });
@@ -345,29 +311,29 @@ describe("SceneRuntime.swap reconciles a physics-free scene", () => {
     });
     expect(report.issue.hint).toContain("this walker refuses to spawn");
     expect(a.rt.scene()).toEqual(scene);
-    expect(digest(a.rt)).toBe(digest(b.rt));
-    expect(run(a.rt, 120)).toBe(run(b.rt, 120));
+    expect(worldDigest(a.rt)).toBe(worldDigest(b.rt));
+    expect(runDigest(a.rt, 120)).toBe(runDigest(b.rt, 120));
     expect(a.rt.ctx.instantiate("beacon", [1, 1]).entities).toHaveLength(1);
   });
 
   it("refuses an add by the inverse reconcile when the world can't be saved", () => {
     const { rt, registry } = physicsFree(false);
     steps(rt, 30);
-    const before = digest(rt);
+    const before = worldDigest(rt);
     const scene = rt.scene();
     const refused = both(edits, (es) =>
       es.push({ id: "bad", type: "walker", at: [1, 8], speed: -1 }),
     );
     const report = rt.swap(expand(yard(refused), registry), { prefabs: NEW_PREFABS });
     expect(report.ok).toBe(false);
-    expect(digest(rt)).toBe(before);
+    expect(worldDigest(rt)).toBe(before);
     expect(rt.scene()).toEqual(scene);
   });
 
   it("leaves a header change and an asked-for reload to the reload strategy", () => {
     const { rt, registry } = physicsFree();
     steps(rt, 10);
-    const before = digest(rt);
+    const before = worldDigest(rt);
     const wider = { ...yard(), bounds: [0, 0, 50, 10] as [number, number, number, number] };
     for (const report of [
       rt.swap(expand(wider, registry), { prefabs: OLD_PREFABS }),
@@ -375,7 +341,7 @@ describe("SceneRuntime.swap reconciles a physics-free scene", () => {
     ]) {
       expect(swapped(report)).toMatchObject({ strategy: "reload", carried: "world" });
     }
-    expect(digest(rt)).toBe(before);
+    expect(worldDigest(rt)).toBe(before);
   });
 });
 
@@ -426,13 +392,13 @@ describe("SceneRuntime.swap reconciles a Rapier scene", () => {
     );
     expect(report.diff.changed).toEqual(["drop-point"]);
     for (const id of crates) expect(a.ctx.exists(id)).toBe(true);
-    expect(run(a, 60, ["drop-point"])).toBe(run(b, 60, ["drop-point"]));
+    expect(runDigest(a, 60, ["drop-point"])).toBe(runDigest(b, 60, ["drop-point"]));
   });
 
   it("moves a platform and adds a solid in the Rapier world, and undo puts the digest back", () => {
     const rt = yardRuntime();
     steps(rt, 30);
-    const before = digest(rt);
+    const before = worldDigest(rt);
     expect(colliderAt(rt, "ledge")).toEqual([[8, 10.5]]);
     const report = swapped(
       rt.swap(
@@ -453,7 +419,7 @@ describe("SceneRuntime.swap reconciles a Rapier scene", () => {
     expect(colliderAt(rt, "step")).toEqual([[12, 10]]);
     expect(rt.ctx.query.at({ x: 12, y: 10 })).toContain("step");
     steps(rt, 10);
-    const later = digest(rt);
+    const later = worldDigest(rt);
     expect(later).not.toBe(before);
 
     const fresh = yardRuntime();
@@ -462,7 +428,7 @@ describe("SceneRuntime.swap reconciles a Rapier scene", () => {
       fresh.swap(edited(patch("ledge", { shape: ["box", 9, 9.5, 1, 0.1] })), { prefabs }),
     );
     report2.undo();
-    expect(digest(fresh)).toBe(before);
+    expect(worldDigest(fresh)).toBe(before);
     expect(colliderAt(fresh, "ledge")).toEqual([[8, 10.5]]);
   });
 

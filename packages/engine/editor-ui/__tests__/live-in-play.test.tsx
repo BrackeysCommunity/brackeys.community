@@ -15,6 +15,7 @@ import {
 } from "../../collab/index";
 import { createGame } from "../../engine";
 import { createRegistry, defineGame, type LiveDeclaration, type SceneSwap } from "../../game/index";
+import { LIVE_CHECK_AGAIN_TICKS } from "../../game/live";
 import type { GameInstance } from "../../index";
 import { createKindRegistry, prefabKind, sceneKind, type AssetEntry } from "../../project/index";
 import type { SceneRuntimeHandle } from "../../runtime/types";
@@ -42,6 +43,9 @@ vi.mock("../../renderer", () => ({
 
 const toast = Object.assign(vi.fn(), { error: vi.fn(), warning: vi.fn(), success: vi.fn() });
 
+/** The tick of each time the game's live check ran. */
+const checkRuns: number[] = [];
+
 /**
  * A physics-free game whose `onSwap` logs each swap and refuses one that
  * brings a `boom`, and whose live check flags a `hazard`.
@@ -54,10 +58,12 @@ function liveGame(log: string[], live: LiveDeclaration) {
     world: { physics: "none" },
     live: {
       ...live,
-      check: (ctx) =>
-        ctx.exists("hazard")
+      check: (ctx) => {
+        checkRuns.push(ctx.tick);
+        return ctx.exists("hazard")
           ? [makeIssue("live-swap-failed", { message: "hazard under the spawn", entityIds: [] })]
-          : [],
+          : [];
+      },
     },
     createRuntime(ctx) {
       return {
@@ -114,6 +120,7 @@ beforeEach(() => {
     // No storage: the toggle starts off either way.
   }
   for (const fn of [toast, toast.error, toast.warning, toast.success]) fn.mockReset();
+  checkRuns.length = 0;
   vi.stubGlobal("requestAnimationFrame", () => 0);
   vi.stubGlobal("cancelAnimationFrame", () => {});
   vi.stubGlobal(
@@ -297,7 +304,16 @@ describe("Live in Play", () => {
     expect(t.world()?.get("boom")).toBeUndefined();
     expect(t.status()).toMatchObject({ tone: "failed" });
     expect(t.status()?.text).toBe("Live update failed: boom can't be migrated");
-    expect(screen.getByText("Live update failed: boom can't be migrated")).toBeTruthy();
+    const line = screen.getByText("Live update failed: boom can't be migrated");
+    // Cut short in its island, the line takes focus for the hint that holds all of it.
+    expect(line.getAttribute("tabindex")).toBe("0");
+    act(() => line.focus());
+    const hint = await screen.findByText(
+      /couldn't be applied while playing/,
+      {},
+      { timeout: 2_000 },
+    );
+    expect(hint.textContent).toContain("boom can't be migrated");
     expect(toast.error).toHaveBeenCalledWith("Live update failed", expect.anything());
 
     const tick = t.world()!.ctx.tick;
@@ -326,6 +342,63 @@ describe("Live in Play", () => {
     expect(t.game.live.current("hall")).toBeNull();
     t.play();
     expect(t.live.host.state.livePlay?.checks).toEqual([]);
+  });
+
+  it("runs the live check again 60 ticks after the swap, keeping each issue once", async () => {
+    const t = await setup();
+    t.play();
+    fireEvent.click(t.toggle());
+    t.addMarker("hazard");
+    await t.staged();
+    act(() => t.game.step());
+    expect(checkRuns).toHaveLength(1);
+    act(() => t.game.step(LIVE_CHECK_AGAIN_TICKS - 1));
+    expect(checkRuns).toHaveLength(1);
+    act(() => t.game.step());
+    expect(checkRuns).toHaveLength(2);
+    expect(checkRuns[1]! - checkRuns[0]!).toBe(LIVE_CHECK_AGAIN_TICKS);
+    expect(t.live.host.state.livePlay?.checks.map((i) => i.message)).toEqual([
+      "hazard under the spawn",
+    ]);
+    act(() => t.game.step(LIVE_CHECK_AGAIN_TICKS));
+    expect(checkRuns).toHaveLength(2);
+  });
+
+  it("keeps a failed update's issue for the problems panel after Stop, until one applies", async () => {
+    const t = await setup();
+    t.play();
+    fireEvent.click(t.toggle());
+    t.addMarker("boom");
+    await t.staged();
+    act(() => t.game.step());
+    const failed = () =>
+      t.live.host.state.livePlay?.checks.filter((i) => i.code === "live-swap-failed") ?? [];
+    expect(failed().map((i) => i.hint)).toEqual(["boom can't be migrated"]);
+    act(() => t.live.stop());
+    expect(failed()).toHaveLength(1);
+    t.play();
+    expect(t.live.host.state.livePlay?.checks).toEqual([]);
+  });
+
+  it("replays a Live in Play run with the versions it built", async () => {
+    const t = await setup();
+    t.play();
+    fireEvent.click(t.toggle());
+    t.addMarker("well");
+    await t.staged();
+    act(() => t.game.step());
+    act(() => t.game.step(3));
+    act(() => t.live.stop());
+    const recording = t.game.recording();
+    expect(recording?.swaps).toHaveLength(1);
+    const swap = recording!.swaps![0]!;
+    let replayed = false;
+    act(() => void (replayed = t.live.replay(recording!)));
+    expect(replayed).toBe(true);
+    expect(t.world()?.ctx.live.version).toBeNull();
+    act(() => t.game.step(swap.tick + 1));
+    expect(t.world()?.ctx.live.version).toBe(swap.version);
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("holds the game's clamp and says when the update will apply", async () => {

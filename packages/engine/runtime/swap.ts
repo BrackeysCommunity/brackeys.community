@@ -1,6 +1,6 @@
 import type { RigidBody } from "@dimforge/rapier2d";
 
-import type { SceneDiff } from "../game/live";
+import { swapStrategyFor, type SceneDiff } from "../game/live";
 import { isRuntimeId } from "../game/runtime-ids";
 import type { SaveDepth, SaveFile } from "../game/save-file";
 import type { EngineContext, GameRuntime, JsonValue, Registry } from "../game/types";
@@ -39,7 +39,7 @@ export type SwapHost = {
   /**
    * Loads a scene fresh as the main scene with `library` frozen, under the
    * flow identity and play options the main scene has now: they hold for
-   * every call, after a failed load too.
+   * every call, after a failed load too. The load starts on `tick`.
    */
   freshLoader(): FreshLoad;
   /**
@@ -56,7 +56,7 @@ export type SwapHost = {
 
 export type SwapOptions = { prefabs: PrefabLibrary; strategy?: "auto" | "reload" };
 
-export type FreshLoad = (scene: ExpandedScene, library: PrefabLibrary) => LoadReport;
+export type FreshLoad = (scene: ExpandedScene, library: PrefabLibrary, tick: number) => LoadReport;
 
 /** A Rapier body of an entity as it was: where it was and how it moved. */
 type BodyState = { x: number; y: number; rot: number; vx: number; vy: number; w: number };
@@ -82,16 +82,18 @@ function bodiesOf(ctx: EngineContext, id: string): RigidBody[] {
   return out;
 }
 
+function bodyState(body: RigidBody): BodyState {
+  const at = body.translation();
+  const v = body.linvel();
+  return { x: at.x, y: at.y, rot: body.rotation(), vx: v.x, vy: v.y, w: body.angvel() };
+}
+
 function keep(host: SwapHost, e: RuntimeEntity): Kept {
   const pose = host.ctx.poses.get(e.id) ?? null;
   return {
     pose: pose ? { x: pose.x, y: pose.y, rot: pose.rot } : null,
     states: structuredClone(host.saveEntity(e)),
-    bodies: bodiesOf(host.ctx, e.id).map((body) => {
-      const at = body.translation();
-      const v = body.linvel();
-      return { x: at.x, y: at.y, rot: body.rotation(), vx: v.x, vy: v.y, w: body.angvel() };
-    }),
+    bodies: bodiesOf(host.ctx, e.id).map(bodyState),
   };
 }
 
@@ -105,17 +107,7 @@ function putBack(host: SwapHost, e: RuntimeEntity, kept: Kept): void {
 function motionOf(ctx: EngineContext): Map<number, BodyState> {
   const out = new Map<number, BodyState>();
   ctx.physics?.world.bodies.forEach((body) => {
-    if (body.isFixed()) return;
-    const at = body.translation();
-    const v = body.linvel();
-    out.set(body.handle, {
-      x: at.x,
-      y: at.y,
-      rot: body.rotation(),
-      vx: v.x,
-      vy: v.y,
-      w: body.angvel(),
-    });
+    if (!body.isFixed()) out.set(body.handle, bodyState(body));
   });
   return out;
 }
@@ -221,15 +213,19 @@ function asProgress(file: SaveFile): SaveFile {
   return out;
 }
 
-/** Loads `scene` fresh with `library` and puts `file` back on it: null when both ran. */
+/**
+ * Loads `scene` fresh with `library`, starting on `tick`, and puts `file`
+ * back on it (a world capture's own tick wins): null when both ran.
+ */
 function loadAndRestore(
   host: SwapHost,
   loadFresh: FreshLoad,
   scene: ExpandedScene,
   library: PrefabLibrary,
   file: SaveFile,
+  tick: number,
 ): Refusal | null {
-  const loaded = loadFresh(scene, library);
+  const loaded = loadFresh(scene, library, tick);
   if (!loaded.ok) {
     return {
       cause: `loading it fresh failed: ${loaded.error}`,
@@ -257,7 +253,7 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
   const was: Previous = { version, library, loadFresh: host.freshLoader() };
   const running = runningVersion(host, scene, version);
   const diff = diffExpanded(running.scene, next);
-  if (diff.header || opts.strategy === "reload") {
+  if (swapStrategyFor(diff, opts.strategy) === "reload") {
     return reload(host, next, opts.prefabs, diff, was, refuse, null);
   }
 
@@ -312,6 +308,8 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
   }
 
   let refused: Refusal | null = null;
+  /** An update refused: a system that can't change the entity in place, which a fresh spawn may still build. */
+  let updateRefused = false;
   const refusal = (what: string, report: Extract<ReconcileReport, { ok: false }>) => ({
     cause: `${what} "${report.entityId ?? "?"}" was refused: ${report.error}`,
     ...(report.entityId !== undefined ? { entityId: report.entityId } : {}),
@@ -324,8 +322,10 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
     else {
       applied.added = true;
       const update = host.update(changed.map((c) => c.to));
-      if (!update.ok) refused = refusal("updating", update);
-      else {
+      if (!update.ok) {
+        refused = refusal("updating", update);
+        updateRefused = true;
+      } else {
         applied.updated = true;
         for (const c of changed) {
           if (moved(host.registry, c.e, c.to)) continue;
@@ -340,10 +340,12 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
     refused = { cause: err instanceof Error ? err.message : String(err) };
   }
   if (refused) {
-    // A reload can be undone exactly only from a world capture; without
-    // one, the inverse reconcile keeps the running world instead.
     if (exact) return reload(host, next, opts.prefabs, diff, was, refuse, { file: exact, refused });
     inverse(motion);
+    // Without a world capture the reload carries progress. A refused add or
+    // a throw would refuse again in the fresh load and lose the world, so
+    // only a refused update reloads; the others keep the inverse's world.
+    if (updateRefused) return reload(host, next, opts.prefabs, diff, was, refuse, { refused });
     return refuse(refused.cause, {
       reason: "refused",
       ...(refused.entityId !== undefined ? { entityId: refused.entityId } : {}),
@@ -369,7 +371,7 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
       if (undone || host.generation() !== generation || host.save.stepping()) return;
       undone = true;
       if (exact && ctx.tick === swapTick) {
-        loadAndRestore(host, was.loadFresh, version, library, exact);
+        rolledBack(loadAndRestore(host, was.loadFresh, version, library, exact, swapTick));
         return;
       }
       inverse(motionOf(ctx));
@@ -382,10 +384,11 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
  * `worldSaveBlockers` names nothing, else at progress depth; `next` loaded
  * fresh with `prefabs` as its library, which runs the game's `onLoad`; then
  * the capture restored in a save restore's order, which runs its `restore`.
- * A world capture goes back as progress onto a scene that now runs on
- * Rapier. `after` is the world capture of a reconcile that refused, whose
- * refusal is reported when the reload fails too. On a failure the old
- * version is loaded again and the capture put back.
+ * The tick carries on at every depth. A world capture goes back as
+ * progress onto a scene that now runs on Rapier. `after` is a reconcile
+ * that refused, with its world capture when it took one; its refusal is
+ * reported when the reload fails too. On a failure the old version is
+ * loaded again and the capture put back.
  */
 function reload(
   host: SwapHost,
@@ -394,7 +397,7 @@ function reload(
   diff: SceneDiff,
   was: Previous,
   refuse: Refuse,
-  after: { file: SaveFile; refused: Refusal } | null,
+  after: { file?: SaveFile; refused: Refusal } | null,
 ): SwapReport {
   let file = after?.file ?? null;
   if (!file) {
@@ -411,17 +414,21 @@ function reload(
   const before = file;
   const onto =
     before.depth === "world" && next.settings.physics === "rapier" ? asProgress(before) : before;
-  const failed = loadAndRestore(host, was.loadFresh, next, prefabs, onto);
+  // Read before the load: a failed one unloads, which zeroes the tick.
+  const tick = host.ctx.tick;
+  const failed = loadAndRestore(host, was.loadFresh, next, prefabs, onto, tick);
   if (failed) {
-    if (host.save.mainScene() !== was.version) {
-      loadAndRestore(host, was.loadFresh, was.version, was.library, before);
-    }
+    const back =
+      host.save.mainScene() !== was.version
+        ? loadAndRestore(host, was.loadFresh, was.version, was.library, before, tick)
+        : null;
     const why: Refusal = after
       ? {
           cause: `${after.refused.cause}; reloading instead failed too: ${failed.cause}`,
           ...(after.refused.entityId !== undefined ? { entityId: after.refused.entityId } : {}),
         }
       : failed;
+    if (back) why.cause += `; putting the old version back failed too: ${back.cause}`;
     return refuse(why.cause, {
       reason: "refused",
       ...(why.entityId !== undefined ? { entityId: why.entityId } : {}),
@@ -438,9 +445,16 @@ function reload(
     undo() {
       if (undone || host.generation() !== generation || host.save.stepping()) return;
       undone = true;
-      loadAndRestore(host, was.loadFresh, was.version, was.library, before);
+      rolledBack(
+        loadAndRestore(host, was.loadFresh, was.version, was.library, before, host.ctx.tick),
+      );
     },
   };
+}
+
+/** An undo that couldn't put the old version back throws its cause, so the caller can say so. */
+function rolledBack(failed: Refusal | null): void {
+  if (failed) throw new Error(`putting the old version back failed: ${failed.cause}`);
 }
 
 /** A taken entity back as it was: switched off again when it was off, its state restored. */

@@ -1,6 +1,6 @@
 import { NextIcon, PauseIcon, PlayIcon, StopIcon } from "@hugeicons/core-free-icons";
 import type { Store } from "@tanstack/store";
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 
 import type { GameStoreState } from "../../types";
 import { Island } from "../frame/EditorFrame";
@@ -17,6 +17,10 @@ export const LIVE_PLAY_KEY = `${STORAGE_PREFIX}live-in-play`;
 
 export const LIVE_PLAY_TOOLTIP =
   "Apply edits to the running game, the way players get a live update";
+
+/** Where those edits come from, since the editing panels are hidden while you play. */
+export const LIVE_PLAY_SOURCES =
+  "While you play, they come from other editors, agents and the files on disk.";
 
 const storedFlag = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null);
 
@@ -82,7 +86,7 @@ export function EditorPlayBar({
       <Badge size="label" variant="secondary">
         {ended ? "Ended" : "Playing"} · Esc to stop
       </Badge>
-      <Island role="toolbar" aria-label="Play controls">
+      <Island role="toolbar" aria-label="Play controls" className="je-play-controls">
         <IconButton
           icon={paused ? PlayIcon : PauseIcon}
           label={paused ? "Resume" : "Pause"}
@@ -156,8 +160,9 @@ export function EditorPlayBar({
 
 /**
  * The Live in Play switch: off by default, the viewer's last choice taken
- * again at each Play; disabled, with the reason in its hint, where the scene
- * or game can't take live updates.
+ * again at each Play. Its label toggles it too. Where the scene or game can't
+ * take live updates it stays focusable but inert, so its hint, which gives the
+ * reason, opens from the keyboard as well as on hover.
  */
 function LiveInPlayToggle({
   host,
@@ -167,27 +172,51 @@ function LiveInPlayToggle({
   onChange: (on: boolean) => void;
 }) {
   const { storage } = useKit();
+  const id = useId();
+  const reasonId = useId();
   const on = useStoreValue(host, (s) => s.livePlay?.on ?? false);
   const unavailable = useStoreValue(host, (s) => s.livePlay?.unavailable ?? null);
   useEffect(() => {
     if (readStored(storage, LIVE_PLAY_KEY, false, storedFlag)) onChange(true);
   }, [storage, onChange]);
+  const label = (
+    <Text size="sm" variant={unavailable !== null ? "muted" : "primary"} aria-hidden>
+      Live in Play
+    </Text>
+  );
+  if (unavailable !== null) {
+    return (
+      <Hint content={unavailable}>
+        <span className="je-live-toggle" data-unavailable="">
+          <Switch
+            aria-label="Live in Play"
+            aria-disabled
+            aria-describedby={reasonId}
+            checked={on}
+            readOnly
+          />
+          {label}
+          <span id={reasonId} className="je-sr-only">
+            {unavailable}
+          </span>
+        </span>
+      </Hint>
+    );
+  }
   return (
-    <Hint content={unavailable ?? LIVE_PLAY_TOOLTIP}>
-      <span className="je-live-toggle">
+    <Hint content={`${LIVE_PLAY_TOOLTIP}. ${LIVE_PLAY_SOURCES}`}>
+      <label className="je-live-toggle" htmlFor={id}>
         <Switch
+          id={id}
           aria-label="Live in Play"
           checked={on}
-          disabled={unavailable !== null}
           onCheckedChange={(next) => {
             writeStored(storage, LIVE_PLAY_KEY, next);
             onChange(next);
           }}
         />
-        <Text size="sm" variant={unavailable !== null ? "muted" : "primary"} aria-hidden>
-          Live in Play
-        </Text>
-      </span>
+        {label}
+      </label>
     </Hint>
   );
 }

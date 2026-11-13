@@ -158,8 +158,15 @@ export async function exportInputOf(
   };
 }
 
-/** Empties `out` for a build: refused when it holds files that aren't an earlier build's. */
-async function clearOut(out: string): Promise<ToolResult | null> {
+/**
+ * Empties `out` for a build (`marker` is the file only an earlier one
+ * holds, `noun` what it is): refused when it holds files and no `marker`.
+ */
+export async function clearOut(
+  out: string,
+  marker: string = RELEASE_FILE,
+  noun = "build",
+): Promise<ToolResult | null> {
   let entries: string[];
   try {
     if (!(await stat(out)).isDirectory())
@@ -169,9 +176,9 @@ async function clearOut(out: string): Promise<ToolResult | null> {
     if ((error as { code?: string }).code === "ENOENT") return null;
     throw error;
   }
-  if (entries.length > 0 && !entries.includes(RELEASE_FILE))
+  if (entries.length > 0 && !entries.includes(marker))
     return failure(
-      `--out ${shownPath(out)} holds files and no ${RELEASE_FILE}, so it isn't an earlier build; pick an empty or new directory`,
+      `--out ${shownPath(out)} holds files and no ${marker}, so it isn't an earlier ${noun}; pick an empty or new directory`,
     );
   await rm(out, { recursive: true, force: true });
   return null;

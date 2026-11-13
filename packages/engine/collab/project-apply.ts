@@ -369,7 +369,7 @@ const failAt = (
  * `refs` read it; undefined for kinds neither reads and for a scene doc not
  * yet seeded.
  */
-export function docValue(handle: SessionDoc): unknown {
+export function docValue(handle: Pick<SessionDoc, "doc" | "kind" | "layout">): unknown {
   if (handle.layout) return layoutFromDoc(handle.doc, handle.layout);
   if (handle.kind === SCENE_KIND_NAME)
     return docMeta(handle.doc) ? docToScene(handle.doc) : undefined;

@@ -25,6 +25,7 @@ import {
   type ProjectScan,
 } from "@jams/engine/vite";
 
+import { formatCount } from "../../src/lib/format-bytes";
 import {
   locateInProjects,
   projectById,
@@ -101,6 +102,13 @@ export const failure = (message: string, extra: Record<string, unknown> = {}): T
 
 export const isToolResult = (v: unknown): v is ToolResult =>
   typeof v === "object" && v !== null && "exitCode" in v;
+
+/** An id's first six characters, for a line that names a release or version: `3fa9c2…`. */
+export const shortId = (id: string): string => `${id.slice(0, 6)}…`;
+
+/** `1 run`, `1,204 runs`: a count and its noun. */
+export const plural = (n: number, one: string, many = `${one}s`): string =>
+  `${formatCount(n)} ${n === 1 ? one : many}`;
 
 // ─── Projects in scope ───────────────────────────────────
 

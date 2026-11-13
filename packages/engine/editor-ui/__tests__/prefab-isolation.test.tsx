@@ -131,6 +131,8 @@ async function join(host: Host, who: string) {
   await prefabsReady(project);
   const scene = await project.open("scene:p.posts");
   const fake = fakeWorldGame(registry);
+  // The outliner reveals what it selects; the double's camera sits at the origin at scale 1.
+  fake.game.screenToWorld = (at) => ({ ...at });
   const live = openLiveEditor({
     game: fake.game,
     doc: scene.doc,

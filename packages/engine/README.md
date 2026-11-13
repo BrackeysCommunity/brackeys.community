@@ -6204,7 +6204,10 @@ plays the release as built.
   `reload`), what was `carried`, the `diff` (`added`, `removed` and
   `changed` entity ids, and `header` when the bounds, name or settings
   changed), the `timing` and the `tick`. If it throws, the swap is undone
-  and the version waits for the next load.
+  and the version waits for the next load. On a scene that can't be
+  captured at world depth (any Rapier scene) the undo is the inverse
+  reconcile: what the hook changed outside the diff before it threw (a
+  pose, a draw from `ctx.random`) stays, so throw before changing anything.
 - **`GameInstance.live`** (`GameLive`) is the host's side: `stage(v)` makes
   a fetched `StagedVersion` resident (validated, expanded, its bundle
   preloaded within 60 seconds); `activate(scene, version, timing)` picks
@@ -6232,9 +6235,10 @@ plays the release as built.
   ("Apply edits to the running game, the way players get a live
   update"). While it is on, each edit, once 300 ms pass without another,
   is built into a version in memory (nothing is uploaded), staged and
-  activated `now`: the status bar says how it applied ("Live update
-  applied (reconcile, 1 changed)") or why it didn't, and `live.check`'s
-  issues show in the problems panel. A bounds or settings edit reloads
+  activated `now`: the play bar's status line says how it applied ("Live
+  update applied (reconcile, 1 changed)") or why it didn't, and
+  `live.check`'s issues (right after the swap and 60 ticks later) and the
+  last failed update show in the problems panel. A bounds or settings edit reloads
   with capture and restore, as players would get it. Off, Play keeps the
   world it started with.
 

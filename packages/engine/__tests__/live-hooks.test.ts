@@ -5,15 +5,15 @@ import { z } from "zod";
 import { createRegistry, defineGame } from "../game/define";
 import { pointField } from "../game/fields";
 import type { SceneSwap } from "../game/live";
-import type { GameDefinition, GameRuntime, Registry, SceneSystem } from "../game/types";
-import { stableJson } from "../project/canonical";
+import type { GameDefinition, GameRuntime, SceneSystem } from "../game/types";
 import type { SceneVersion } from "../project/scene-version";
-import { createLiveLayer, type LiveLayer, type PreparedVersion } from "../runtime/live";
-import { createSceneRuntime, saveHostOf } from "../runtime/runtime";
+import { createLiveLayer, type LiveLayer } from "../runtime/live";
+import { createSceneRuntime } from "../runtime/runtime";
 import type { SceneRuntimeHandle } from "../runtime/types";
 import { expandScene } from "../scene/expand";
 import type { EntityDef, Pt, RuntimeEntity, SceneDefinition } from "../scene/types";
-import type { GameEventMap } from "../types";
+import type { GameEventMap, RapierModule } from "../types";
+import { preparedOf, worldDigest } from "./fixtures/live-version";
 
 type Walker = RuntimeEntity<{ at: Pt; speed: number }>;
 type Stride = { x: number; steps: number; speed: number };
@@ -24,10 +24,13 @@ const V2 = "2".repeat(64);
 /** What the game's `onSwap` does in a test; reset by each `world()`. */
 type Hook = (swap: SceneSwap, ctx: SceneRuntimeHandle["ctx"]) => void;
 
-function liveGame(hook: { current: Hook | null }): GameDefinition {
+function liveGame(
+  hook: { current: Hook | null },
+  physics: "none" | "rapier" = "none",
+): GameDefinition {
   return defineGame({
     id: "live-yard",
-    world: { physics: "none" },
+    world: { physics },
     actions: [],
     live: { timings: ["next-load", "boundary", "now"] },
     types: [
@@ -87,7 +90,10 @@ function liveGame(hook: { current: Hook | null }): GameDefinition {
   });
 }
 
-function yard(edit: (entities: EntityDef[]) => void = () => {}): SceneDefinition {
+function yard(
+  edit: (entities: EntityDef[]) => void = () => {},
+  physics: "none" | "rapier" = "none",
+): SceneDefinition {
   const entities: EntityDef[] = [
     { id: "w1", type: "walker", at: [1, 1], speed: 1 },
     { id: "w2", type: "walker", at: [2, 2], speed: 1 },
@@ -99,7 +105,7 @@ function yard(edit: (entities: EntityDef[]) => void = () => {}): SceneDefinition
     name: "yard",
     game: "live-yard",
     bounds: [0, 0, 40, 10],
-    settings: { physics: "none", gravity: [0, 0] },
+    settings: { physics, gravity: [0, 0] },
     entities,
   };
 }
@@ -108,28 +114,24 @@ const withW3 = (es: EntityDef[]) => void es.push({ id: "w3", type: "walker", at:
 const fasterW1 = (es: EntityDef[]) => void (es[0] = { ...es[0]!, speed: 2 } as EntityDef);
 const noPost = (es: EntityDef[]) => void es.splice(2, 1);
 
-function prepare(id: string, def: SceneDefinition, registry: Registry): PreparedVersion {
-  const version = { scene: "yard", sceneHash: `hash-${id.slice(0, 4)}` } as SceneVersion;
-  const prefabs = new Map();
-  return { id, version, def, scene: expandScene(def, registry, { prefabs }), prefabs };
-}
-
 type Emitted = { [K in "live:swapped" | "live:failed"]: { event: K; payload: GameEventMap[K] } };
 
-function world() {
+/** The yard running under a live layer; on Rapier, `rapier` is the module. */
+function world(rapier: RapierModule | null = null) {
+  const physics = rapier ? "rapier" : "none";
   const hook: { current: Hook | null } = { current: null };
-  const game = liveGame(hook);
+  const game = liveGame(hook, physics);
   const registry = createRegistry(game);
   const emitted: Emitted[keyof Emitted][] = [];
   let rt: SceneRuntimeHandle | null = null;
   const layer: LiveLayer = createLiveLayer({
     game,
     runtime: () => rt,
-    release: (id) => (id === "yard" ? { def: yard(), prefabs: new Map() } : null),
+    release: (id) => (id === "yard" ? { def: yard(undefined, physics), prefabs: new Map() } : null),
     emit: (event, payload) => void emitted.push({ event, payload } as Emitted[typeof event]),
   });
-  rt = createSceneRuntime({ rapier: null, view: null, game, registry, live: layer.hooks });
-  expect(rt.load(expandScene(yard(), registry)).ok).toBe(true);
+  rt = createSceneRuntime({ rapier, view: null, game, registry, live: layer.hooks });
+  expect(rt.load(expandScene(yard(undefined, physics), registry)).ok).toBe(true);
   const handle = rt;
   const tick = (n = 1, state = { paused: false, changing: false }) => {
     for (let i = 0; i < n; i++) {
@@ -138,24 +140,6 @@ function world() {
     }
   };
   return { rt: handle, registry, layer, hook, emitted, tick };
-}
-
-/** Every live entity's pose, flag and saved state, the game's state, the counters and the random stream. */
-function digest(rt: SceneRuntimeHandle): string {
-  const saved = saveHostOf(rt.ctx)!.captureWorld();
-  const ids = [...rt.ctx.poses.ids()].sort();
-  return stableJson({
-    entities: ids.map((id) => {
-      const p = rt.ctx.poses.get(id)!;
-      return [id, rt.ctx.enabled(id), p.x, p.y, saved.systems[id] ?? null];
-    }),
-    game: rt.snapshot(),
-    counters: saved.counters,
-    random: saved.random,
-    tick: saved.tick,
-    destroyed: [...saved.destroyed].sort(),
-    spawned: saved.spawned,
-  });
 }
 
 describe("the live layer's onSwap", () => {
@@ -167,7 +151,7 @@ describe("the live layer's onSwap", () => {
     layer.onApplied((swap) => void applied.push(swap));
     tick(10);
 
-    const next = prepare(
+    const next = preparedOf(
       V1,
       yard((es) => (withW3(es), fasterW1(es), noPost(es))),
       registry,
@@ -209,7 +193,7 @@ describe("the live layer's onSwap", () => {
     hook.current = (swap) => void seen.push(swap);
     tick(10);
     const wider = { ...yard(), bounds: [0, 0, 50, 10] as SceneDefinition["bounds"] };
-    layer.stage(prepare(V1, wider, registry));
+    layer.stage(preparedOf(V1, wider, registry));
     layer.activate("yard", V1, "now");
     tick();
     expect(seen).toHaveLength(1);
@@ -223,20 +207,20 @@ describe("the live layer's onSwap", () => {
     hook.current = (_swap, ctx) =>
       void ctx.spawn({ id: "walker#runner", type: "walker", at: [0, 4], speed: 1 });
     tick(10);
-    layer.stage(prepare(V1, yard(withW3), registry));
+    layer.stage(preparedOf(V1, yard(withW3), registry));
     layer.activate("yard", V1, "now");
     tick();
     expect(rt.ctx.exists("walker#runner")).toBe(true);
     const before = rt.ctx.poses.get("walker#runner")!.x;
     tick(30);
     expect(rt.ctx.poses.get("walker#runner")!.x).toBeGreaterThan(before);
-    expect(digest(rt)).toContain("walker#runner");
+    expect(worldDigest(rt)).toContain("walker#runner");
   });
 
   it("swaps back to the release's own scene with version null", () => {
     const { rt, registry, layer, tick } = world();
     tick(5);
-    layer.stage(prepare(V1, yard(withW3), registry));
+    layer.stage(preparedOf(V1, yard(withW3), registry));
     layer.activate("yard", V1, "now");
     tick();
     expect(rt.ctx.exists("w3")).toBe(true);
@@ -265,7 +249,7 @@ describe("a throwing onSwap", () => {
         ctx.random.below(100);
         throw new Error("the door moved");
       };
-      a.layer.stage(prepare(V1, def as SceneDefinition, a.registry));
+      a.layer.stage(preparedOf(V1, def as SceneDefinition, a.registry));
       a.layer.activate("yard", V1, "now");
       a.rt.step(a.rt.ctx.time.tickMs, []);
       b.rt.step(b.rt.ctx.time.tickMs, []);
@@ -273,11 +257,11 @@ describe("a throwing onSwap", () => {
 
       expect(a.rt.ctx.exists("walker#ghost")).toBe(false);
       expect(a.rt.ctx.exists("w3")).toBe(false);
-      expect(digest(a.rt)).toBe(digest(b.rt));
+      expect(worldDigest(a.rt)).toBe(worldDigest(b.rt));
       expect(a.rt.ctx.bounds).toEqual([0, 0, 40, 10]);
       a.tick(60);
       b.tick(60);
-      expect(digest(a.rt)).toBe(digest(b.rt));
+      expect(worldDigest(a.rt)).toBe(worldDigest(b.rt));
 
       expect(a.emitted).toHaveLength(1);
       const [failed] = a.emitted;
@@ -304,12 +288,34 @@ describe("a throwing onSwap", () => {
     });
   }
 
+  it("on Rapier, undoes a throwing onSwap by the inverse reconcile, which keeps what onSwap changed outside the diff", async () => {
+    const rapier = (await import("@dimforge/rapier2d")) as RapierModule;
+    const a = world(rapier);
+    a.tick(30);
+    a.hook.current = (_swap, ctx) => {
+      ctx.spawn({ id: "walker#ghost", type: "walker", at: [0, 6], speed: 1 });
+      ctx.poses.set("w2", 9, 9, 0, { snap: true });
+      throw new Error("the door moved");
+    };
+    a.layer.stage(preparedOf(V1, yard(withW3, "rapier"), a.registry));
+    a.layer.activate("yard", V1, "now");
+    a.rt.step(a.rt.ctx.time.tickMs, []);
+    a.layer.afterTick({ paused: false, changing: false });
+
+    expect(a.emitted.map((e) => e.event)).toEqual(["live:failed"]);
+    expect(a.rt.ctx.exists("walker#ghost")).toBe(false);
+    expect(a.rt.ctx.exists("w3")).toBe(false);
+    expect(a.rt.ctx.live.version).toBeNull();
+    // Without a world capture nothing puts back a pose onSwap moved.
+    expect(a.rt.ctx.poses.get("w2")).toMatchObject({ x: 9, y: 9 });
+  });
+
   it("reports a swap the runtime refused without running onSwap", () => {
     const { rt, registry, layer, hook, emitted, tick } = world();
     let ran = false;
     hook.current = () => void (ran = true);
     tick(5);
-    const prepared = prepare(V1, yard(), registry);
+    const prepared = preparedOf(V1, yard(), registry);
     const unknown = { id: "w9", type: "nope", at: [1, 1] } as RuntimeEntity;
     prepared.scene = { ...prepared.scene, entities: [...prepared.scene.entities, unknown] };
     layer.stage(prepared);
@@ -327,7 +333,7 @@ describe("the live layer's timings and pin", () => {
   it("swaps a boundary after the tick that called ctx.live.boundary(), not before", () => {
     const { rt, registry, layer, tick } = world();
     tick(5);
-    layer.stage(prepare(V1, yard(withW3), registry));
+    layer.stage(preparedOf(V1, yard(withW3), registry));
     expect(layer.activate("yard", V1, "boundary")).toEqual({ timing: "boundary", clamped: false });
     tick(15);
     expect(rt.ctx.tick).toBe(20);
@@ -340,16 +346,19 @@ describe("the live layer's timings and pin", () => {
   it("leaves the running world alone for next-load and for a scene that isn't running", () => {
     const { rt, registry, layer, tick } = world();
     tick(5);
-    const before = digest(rt);
-    layer.stage(prepare(V1, yard(withW3), registry));
-    layer.stage({ ...prepare(V2, yard(), registry), version: { scene: "cave" } as SceneVersion });
+    const before = worldDigest(rt);
+    layer.stage(preparedOf(V1, yard(withW3), registry));
+    layer.stage({
+      ...preparedOf(V2, yard(), registry),
+      version: { scene: "cave" } as SceneVersion,
+    });
     expect(layer.activate("yard", V1, "next-load")).toEqual({
       timing: "next-load",
       clamped: false,
     });
     expect(layer.activate("cave", V2, "now")).toEqual({ timing: "now", clamped: false });
     expect(layer.pending()).toEqual([]);
-    expect(digest(rt)).toBe(before);
+    expect(worldDigest(rt)).toBe(before);
     expect(layer.current("yard")).toBe(V1);
     expect(layer.current("cave")).toBe(V2);
     expect(rt.ctx.live.version).toBeNull();
@@ -358,7 +367,7 @@ describe("the live layer's timings and pin", () => {
   it("waits while paused or while a scene change runs", () => {
     const { rt, registry, layer, tick } = world();
     tick(2);
-    layer.stage(prepare(V1, yard(withW3), registry));
+    layer.stage(preparedOf(V1, yard(withW3), registry));
     layer.activate("yard", V1, "now");
     tick(3, { paused: true, changing: false });
     tick(3, { paused: false, changing: true });
@@ -373,7 +382,7 @@ describe("the live layer's timings and pin", () => {
     let swaps = 0;
     hook.current = () => void swaps++;
     tick(2);
-    layer.stage(prepare(V1, yard(withW3), registry));
+    layer.stage(preparedOf(V1, yard(withW3), registry));
     layer.activate("yard", V1, "boundary");
     expect(layer.pending()).toHaveLength(1);
     const next = layer.sceneFor("yard")!;
@@ -390,8 +399,8 @@ describe("the live layer's timings and pin", () => {
       code: "live-swap-failed",
       detail: { phase: "stage" },
     });
-    layer.stage(prepare(V1, yard(withW3), registry));
-    layer.stage(prepare(V2, yard(fasterW1), registry));
+    layer.stage(preparedOf(V1, yard(withW3), registry));
+    layer.stage(preparedOf(V2, yard(fasterW1), registry));
     expect(layer.activate("yard", V1, "now").issue?.code).toBe("live-swap-failed");
     expect(layer.activate("yard", V2, "next-load").issue).toBeUndefined();
     expect(layer.current("yard")).toBe(V2);
@@ -400,10 +409,10 @@ describe("the live layer's timings and pin", () => {
   it("ignores activations while pinned and queues nothing, and uses the pinned versions", () => {
     const { rt, registry, layer, tick } = world();
     tick(2);
-    layer.stage(prepare(V1, yard(withW3), registry));
+    layer.stage(preparedOf(V1, yard(withW3), registry));
     layer.pin({ yard: V1 });
     expect(layer.current("yard")).toBe(V1);
-    layer.stage(prepare(V2, yard(fasterW1), registry));
+    layer.stage(preparedOf(V2, yard(fasterW1), registry));
     expect(layer.activate("yard", V2, "now")).toEqual({ timing: "now", clamped: false });
     expect(layer.pending()).toEqual([]);
     expect(layer.current("yard")).toBe(V1);
@@ -421,9 +430,9 @@ describe("the live layer's timings and pin", () => {
     const order: string[] = [];
     layer.onApplied((swap) => void order.push(swap.scene));
     tick();
-    layer.stage(prepare(V1, yard(withW3), registry));
+    layer.stage(preparedOf(V1, yard(withW3), registry));
     layer.activate("yard", V1, "now");
-    layer.stage(prepare(V2, yard(fasterW1), registry));
+    layer.stage(preparedOf(V2, yard(fasterW1), registry));
     layer.activate("yard", V2, "now");
     expect(layer.pending()).toEqual([{ scene: "yard", version: V2, timing: "now" }]);
     tick();

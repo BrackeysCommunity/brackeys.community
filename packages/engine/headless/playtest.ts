@@ -52,6 +52,7 @@ import type {
   PlaytestRun,
   PlaytestSegment,
   PlayOptions,
+  ScriptIssue,
   UntilClause,
 } from "./playtest-types";
 
@@ -230,6 +231,21 @@ export function compilePlaytestScript(
   );
 }
 
+/** The issue when `script` names a scene other than `name`, the one playing; null when it fits. */
+export function scriptSceneIssue(
+  script: Pick<CompiledInputScript, "scene">,
+  name: string,
+): ScriptIssue | null {
+  if (script.scene === undefined || script.scene === name) return null;
+  return {
+    path: "/scene",
+    message: `the script is for scene ${JSON.stringify(script.scene)}, not ${JSON.stringify(name)}`,
+    expected: JSON.stringify(name),
+    got: JSON.stringify(script.scene),
+    hint: "Change or remove the script's `scene` to run it here.",
+  };
+}
+
 /**
  * Plays an input script on a scene headless, starting the run the way the
  * editor's Play does (validation errors block, the document is cloned and
@@ -263,22 +279,8 @@ export function runPlaytest<S = unknown, G = unknown>(
     if (!compiled.ok) return blockedRun("script", name, [], compiled.issues);
     script = compiled.script;
   }
-  if (script.scene !== undefined && script.scene !== name) {
-    return blockedRun(
-      "script",
-      name,
-      [],
-      [
-        {
-          path: "/scene",
-          message: `the script is for scene ${JSON.stringify(script.scene)}, not ${JSON.stringify(name)}`,
-          expected: JSON.stringify(name),
-          got: JSON.stringify(script.scene),
-          hint: "Change or remove the script's `scene` to run it here.",
-        },
-      ],
-    );
-  }
+  const otherScene = scriptSceneIssue(script, name);
+  if (otherScene) return blockedRun("script", name, [], [otherScene]);
 
   const flow = opts.flow ?? null;
   const prepare = (def: SceneDefinition, prefabs?: PrefabLibrary, library?: PrefabLibrary) =>

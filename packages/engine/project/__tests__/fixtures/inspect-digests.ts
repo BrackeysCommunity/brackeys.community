@@ -13,9 +13,11 @@ import { textureKind } from "../../kinds/texture";
 const DIR = new URL("./", import.meta.url);
 const FOLDER = "art";
 
-/** Every fixture file, by name, in name order. */
+/** Every fixture file, by name, in name order; subfolders hold other tests' fixtures. */
 export function fixtureFiles(): string[] {
-  return readdirSync(DIR)
+  return readdirSync(DIR, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
     .filter((name) => !name.endsWith(".ts") && !name.endsWith(".md"))
     .sort();
 }

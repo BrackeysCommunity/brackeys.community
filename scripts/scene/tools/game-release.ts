@@ -15,7 +15,16 @@ import {
 } from "../../../src/lib/engine/route-paths";
 import { formatBytes, formatCount } from "../../../src/lib/format-bytes";
 import { releaseDay } from "../../../src/lib/jam-links";
-import { failure, issueLine, usage, type ToolContext, type ToolResult } from "../context";
+import {
+  failure,
+  isToolResult,
+  issueLine,
+  plural,
+  shortId,
+  usage,
+  type ToolContext,
+  type ToolResult,
+} from "../context";
 import {
   AGENT_SITE_ENV,
   agentSiteFrom,
@@ -205,9 +214,6 @@ function accessFor(
   }
 }
 
-const isResult = (v: unknown): v is ToolResult =>
-  typeof v === "object" && v !== null && "exitCode" in v;
-
 /** The game's page on the site: where production is moved. */
 const gamePageOf = (site: HostedSite, projectId: string) =>
   new URL(`/games/${encodeURIComponent(projectId)}`, site.origin).toString();
@@ -238,10 +244,6 @@ function answerFailure(error: unknown, extra: Record<string, unknown> = {}): Too
     return error.exitCode === 2 ? usage(error.message) : failure(error.message, extra);
   throw error;
 }
-
-const shortId = (id: string) => `${id.slice(0, 6)}…`;
-const plural = (n: number, one: string, many = `${one}s`) =>
-  `${formatCount(n)} ${n === 1 ? one : many}`;
 
 /** One `warning:` line per quota at or over 80% once the release is stored. */
 export function quotaWarnings(lines: readonly UsageLine[]): string[] {
@@ -371,7 +373,7 @@ export async function gameReleaseCreate(
   deps: GameReleaseDeps = {},
 ): Promise<ToolResult> {
   const access = accessFor(input, ctx, GAME_RELEASE_CREATE_USAGE);
-  if (isResult(access)) return access;
+  if (isToolResult(access)) return access;
   const { site, projectId } = access;
   const channel = input.channel ?? "preview";
   if (channel !== "preview" && channel !== "none")
@@ -420,7 +422,7 @@ export async function gameReleaseCreate(
       if (built.result.exitCode !== 0 || !built.built) return built.result;
       build = await readBuild(built.built.out, input.allowOverBudget);
     }
-    if (isResult(build)) return build;
+    if (isToolResult(build)) return build;
     return await release(site, projectId, build, channel, deps, ctx.env ?? process.env);
   } catch (error) {
     return answerFailure(error, { project: projectId });
@@ -534,7 +536,7 @@ export async function gameReleaseList(
   ctx: ToolContext,
 ): Promise<ToolResult> {
   const access = accessFor(input, ctx, GAME_RELEASE_LIST_USAGE);
-  if (isResult(access)) return access;
+  if (isToolResult(access)) return access;
   const { site, projectId } = access;
   let releases: ReleaseListEntry[];
   try {
@@ -625,13 +627,13 @@ export async function gameReleasePromote(
   ctx: ToolContext,
 ): Promise<ToolResult> {
   const access = accessFor(input, ctx, GAME_RELEASE_PROMOTE_USAGE);
-  if (isResult(access)) return access;
+  if (isToolResult(access)) return access;
   const { site, projectId } = access;
   const version = Number(input.version);
   if (input.version === undefined || !Number.isSafeInteger(version) || version < 1)
     return usage(GAME_RELEASE_PROMOTE_USAGE);
   const channel = channelOf(input.channel, GAME_RELEASE_PROMOTE_USAGE);
-  if (isResult(channel)) return channel;
+  if (isToolResult(channel)) return channel;
   try {
     const answer = await postJson<{ from: number | null; to: number }>(
       site,
@@ -650,10 +652,10 @@ export async function gameReleaseRollback(
   ctx: ToolContext,
 ): Promise<ToolResult> {
   const access = accessFor(input, ctx, GAME_RELEASE_ROLLBACK_USAGE);
-  if (isResult(access)) return access;
+  if (isToolResult(access)) return access;
   const { site, projectId } = access;
   const channel = channelOf(input.channel, GAME_RELEASE_ROLLBACK_USAGE);
-  if (isResult(channel)) return channel;
+  if (isToolResult(channel)) return channel;
   try {
     const answer = await postJson<{ from: number; to: number }>(
       site,

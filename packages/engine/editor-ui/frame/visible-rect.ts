@@ -45,10 +45,12 @@ function coverable({ width, height, insets }: VisibleArea): CanvasInsets {
 
 export type FramingGame = Pick<GameInstance, "frame" | "panBy">;
 
+export type PanningGame = Pick<GameInstance, "screenToWorld" | "panBy" | "getStore">;
+
 const areas = new WeakMap<object, () => VisibleArea | null>();
 
 /**
- * Tells `frameInView` where `game`'s canvas is visible; the frame keeps it
+ * Tells `frameInView` and `revealInView` where `game`'s canvas is visible; the frame keeps it
  * current while mounted. Returns the unregister.
  */
 export function setVisibleArea(game: object, read: () => VisibleArea | null): () => void {
@@ -72,4 +74,42 @@ export function frameInView(game: FramingGame, rect: Aabb): void {
   const fit = visibleFrame(rect, area);
   game.frame(fit.rect);
   if (Math.abs(fit.pan.x) >= 0.5 || Math.abs(fit.pan.y) >= 0.5) game.panBy(fit.pan);
+}
+
+/**
+ * Pans `game`, never zooming, so `rect` sits in the middle of the part of the
+ * canvas the chrome leaves visible when any of it lies outside that part; true
+ * when it panned. Without a frame mounted there is nothing to measure, so it
+ * leaves the view alone.
+ */
+export function revealInView(game: PanningGame, rect: Aabb): boolean {
+  const area = areas.get(game)?.() ?? null;
+  if (!area) return false;
+  const insets = coverable(area);
+  const seen = {
+    left: insets.left,
+    top: insets.top,
+    right: area.width - insets.right,
+    bottom: area.height - insets.bottom,
+  };
+  const { scale } = game.getStore().state.camera;
+  const origin = game.screenToWorld({ x: 0, y: 0 });
+  const box = {
+    left: (rect.minX - origin.x) * scale,
+    top: (rect.minY - origin.y) * scale,
+    right: (rect.maxX - origin.x) * scale,
+    bottom: (rect.maxY - origin.y) * scale,
+  };
+  if (
+    box.left >= seen.left &&
+    box.right <= seen.right &&
+    box.top >= seen.top &&
+    box.bottom <= seen.bottom
+  )
+    return false;
+  game.panBy({
+    x: (seen.left + seen.right - box.left - box.right) / 2,
+    y: (seen.top + seen.bottom - box.top - box.bottom) / 2,
+  });
+  return true;
 }

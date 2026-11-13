@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
+
 import type { ExportInput } from "../../export/plan";
 import { createRegistry, withProject } from "../../game/define";
 import type { GameDefinition } from "../../game/types";
@@ -9,6 +12,40 @@ import type { SceneDefinition } from "../../scene/types";
 
 /** A project as a host holds it: docs by their JSON, binaries by their sidecars, and each doc's text by path. */
 export type HeldFiles = { files: HeldFile[]; texts: Map<string, string> };
+
+const SIDECAR = ".asset.json";
+
+/** Every file under `dir` as a host holds it: docs by their JSON and text, binaries by their sidecars. */
+export function readHeld(dir: string): HeldFiles {
+  const files: HeldFile[] = [];
+  const texts = new Map<string, string>();
+  const walk = (at: string) => {
+    for (const name of readdirSync(at).sort()) {
+      const full = join(at, name);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+        continue;
+      }
+      const path = relative(dir, full).split("\\").join("/");
+      if (path.endsWith(SIDECAR) || path === "jams.project.json") continue;
+      let sidecar: AssetSidecar | null = null;
+      try {
+        sidecar = JSON.parse(readFileSync(full + SIDECAR, "utf8")) as AssetSidecar;
+      } catch {
+        sidecar = null;
+      }
+      if (!path.endsWith(".json")) {
+        files.push({ path, sidecar });
+        continue;
+      }
+      const text = readFileSync(full, "utf8");
+      texts.set(path, text);
+      files.push({ path, json: JSON.parse(text), sidecar });
+    }
+  };
+  walk(dir);
+  return { files, texts };
+}
 
 export const CC0 = { spdx: "CC0-1.0", author: "Test authors" };
 

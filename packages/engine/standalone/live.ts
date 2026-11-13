@@ -1,12 +1,14 @@
 import { LIVE_DEFAULTS, type SwapTiming } from "../game/live";
 import { sha256 } from "../project/hash";
 import { byCodeUnit } from "../project/kinds/define";
-import type { ReleaseManifest } from "../project/release";
+import type { ReleaseAsset, ReleaseManifest } from "../project/release";
 import { checkSceneVersion, parseSceneVersion, type SceneVersion } from "../project/scene-version";
 import type { AssetId, Sha256 } from "../project/types";
+import type { SceneRuntimeHandle } from "../runtime/types";
 import { liveIssue, makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
 import type { GameEventMap, GameInstance } from "../types";
+import { fetchDocTexts } from "./data";
 import { StandaloneBootError } from "./errors";
 import type { LiveSceneEntry, LiveSnapshot, LiveStateMessage } from "./host-protocol";
 
@@ -54,8 +56,6 @@ type Track = {
 };
 
 type Prepared = { ok: true } | { ok: false; issue: SceneIssue };
-
-const LIVE_BLOB_FILE = /^live\/([0-9a-f]{64})(\.[a-z0-9]+)?$/;
 
 /** Why a preparation stopped early: its deadline, a newer snapshot, or the controller's end. */
 type StopReason = "deadline" | "superseded" | "disposed";
@@ -142,9 +142,19 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
         report({ scene, version: t.version, status: "waiting", timing: "boundary" });
       return;
     }
+    const playing = instance.flow.current() === scene;
     // A swap timing with nothing pending on the scene playing means it already runs this version.
-    if (out.timing !== "next-load" && instance.flow.current() === scene)
-      applied(scene, t, { timing: out.timing });
+    if (out.timing !== "next-load" && playing) applied(scene, t, { timing: out.timing });
+    // Off the main scene, a run attaches the scenes it loaded with, so a sublevel takes the version at its first attach after the next load.
+    else if (!playing) attaches.set(scene, { track: t, loaded: false });
+  }
+
+  /** Activated versions of scenes not playing, waiting for an attach as a sublevel, and whether a load has run since. */
+  const attaches = new Map<AssetId, { track: Track; loaded: boolean }>();
+
+  function isAttached(scene: AssetId): boolean {
+    const rt = instance.runtime() as SceneRuntimeHandle | null;
+    return rt?.ctx.flow.sublevels().some((s) => s.scene === scene) ?? false;
   }
 
   /** Fetches and checks `entry`'s version and the docs it carries, then stages it. */
@@ -192,80 +202,26 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
     );
     if (incompatible) return refuse(incompatible);
 
-    const blobs = blobFiles(version, name);
-    if (!blobs.ok) return blobs;
+    // A mismatch throws, and the staging reports its issue.
     const texts = await guard(docTexts(version, name));
-    if (!texts.ok) return texts;
-    for (const [hash, file] of blobs.files) opts.files?.set(hash, file);
-    return instance.live.stage({ id, version, texts: texts.texts }, { signal });
+    for (const asset of Object.values(version.assets))
+      if (asset.storage === "blob") opts.files?.set(asset.sha256, fileOf(asset));
+    return instance.live.stage({ id, version, texts }, { signal });
   }
 
-  /** Where each blob the version carries loads from: the release's own file, or its `live/` one. */
-  function blobFiles(
-    version: SceneVersion,
-    name: string,
-  ): { ok: true; files: Map<Sha256, string> } | { ok: false; issue: SceneIssue } {
-    const files = new Map<Sha256, string>();
-    for (const id of Object.keys(version.assets).sort(byCodeUnit)) {
-      const asset = version.assets[id]!;
-      if (asset.storage !== "blob") continue;
-      const own = shipped.get(asset.sha256);
-      if (own !== undefined) {
-        files.set(asset.sha256, own);
-        continue;
-      }
-      if (LIVE_BLOB_FILE.exec(asset.file)?.[1] !== asset.sha256)
-        return {
-          ok: false,
-          issue: makeIssue("schema", {
-            message: `${name} names "${asset.file}" for ${id}, not a live/ file of its hash`,
-            path: `/assets/${id}/file`,
-            entityIds: [id],
-            expected: `live/${asset.sha256}<ext>`,
-            got: asset.file,
-          }),
-        };
-      files.set(asset.sha256, asset.file);
-    }
-    return { ok: true, files };
-  }
+  /** Where a carried asset loads from: the release's own file when it ships the hash, else the version's `live/` one. */
+  const fileOf = (asset: ReleaseAsset): string => shipped.get(asset.sha256) ?? asset.file;
 
-  /** Every doc the version carries, by hash: from the release's `data/` when it ships the hash, else `live/`. */
-  async function docTexts(
-    version: SceneVersion,
-    name: string,
-  ): Promise<{ ok: true; texts: Map<Sha256, string> } | { ok: false; issue: SceneIssue }> {
-    const docs = new Map<Sha256, { id: AssetId; file: string }>();
-    for (const id of Object.keys(version.assets).sort(byCodeUnit)) {
-      const asset = version.assets[id]!;
-      if (asset.storage !== "doc" || docs.has(asset.sha256)) continue;
-      docs.set(asset.sha256, {
-        id,
-        file: shipped.get(asset.sha256) ?? `live/${asset.sha256}.json`,
-      });
-    }
-    const read = await Promise.all(
-      [...docs].map(async ([hash, { id, file }]) => {
-        const text = await opts.fetchText(file);
-        const got = await sha256(text);
-        return { hash, id, file, text, got };
-      }),
-    );
+  /** Every doc the version carries, by hash, each hash-checked. */
+  async function docTexts(version: SceneVersion, name: string): Promise<Map<Sha256, string>> {
+    const byId = await fetchDocTexts(version.assets, (file) => opts.fetchText(file), {
+      file: fileOf,
+      mismatch: (file, id, got, pin) =>
+        `"${file}" (${id}, carried by ${name}) hashes to ${got}, not ${pin}; a stale cache served another file`,
+    });
     const texts = new Map<Sha256, string>();
-    for (const { hash, id, file, text, got } of read) {
-      if (got !== hash)
-        return {
-          ok: false,
-          issue: makeIssue("hash-mismatch", {
-            message: `"${file}" (${id}, carried by ${name}) hashes to ${got}, not ${hash}; a stale cache served another file`,
-            entityIds: [id],
-            expected: hash,
-            got,
-          }),
-        };
-      texts.set(hash, text);
-    }
-    return { ok: true, texts };
+    for (const [id, text] of byId) texts.set(version.assets[id]!.sha256, text);
+    return texts;
   }
 
   function stage(entry: LiveSceneEntry): void {
@@ -365,13 +321,29 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
     report({ scene, version, status: "failed", issue });
   };
   const onLoad = ({ to }: GameEventMap["flow:change"]) => {
+    attaches.delete(to);
+    for (const w of attaches.values()) w.loaded = true;
     const t = tracks.get(to);
     if (t?.phase !== "activated" || instance.live.current(to) !== t.version) return;
     applied(to, t, { timing: "next-load" });
   };
+  /** After each step: a waiting sublevel attached since a load runs its active version. */
+  const onStep = () => {
+    for (const [scene, w] of attaches) {
+      const t = w.track;
+      if (tracks.get(scene) !== t || t.phase !== "activated") {
+        attaches.delete(scene);
+        continue;
+      }
+      if (!w.loaded || !isAttached(scene)) continue;
+      attaches.delete(scene);
+      if (instance.live.current(scene) === t.version) applied(scene, t, { timing: "next-load" });
+    }
+  };
   instance.on("live:swapped", onSwapped);
   instance.on("live:failed", onFailed);
   instance.on("flow:change", onLoad);
+  instance.on("scene:step", onStep);
 
   return {
     update,
@@ -384,6 +356,8 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
       instance.off("live:swapped", onSwapped);
       instance.off("live:failed", onFailed);
       instance.off("flow:change", onLoad);
+      instance.off("scene:step", onStep);
+      attaches.clear();
     },
   };
 }

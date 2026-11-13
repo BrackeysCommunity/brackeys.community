@@ -172,10 +172,11 @@ type ReadManifest = {
   files?: Map<string, Sha256>;
 };
 
-async function readManifestAt(path: string): Promise<ReadManifest> {
+async function readManifestAt(path: string, withFiles: boolean): Promise<ReadManifest> {
   if (!(await stat(path)).isDirectory()) return { file: path, text: await readFile(path, "utf8") };
   const file = join(path, RELEASE_FILE);
   const text = await readFile(file, "utf8");
+  if (!withFiles) return { file, text };
   const files = new Map<string, Sha256>();
   for (const rel of await filesUnder(path))
     if (rel !== RELEASE_FILE)
@@ -186,20 +187,20 @@ async function readManifestAt(path: string): Promise<ReadManifest> {
 const isMissing = (error: unknown) => (error as { code?: string }).code === "ENOENT";
 
 /**
- * Checks a manifest the way every reader does (`checkReleaseManifest`, the
- * budget recomputed), with its directory's files and their hashes when
- * given one. Its issues; and the files the directory holds that the
- * manifest doesn't list.
+ * The release manifest at `path` (a build directory or its `release.json`),
+ * parsed: with `withFiles`, a directory's files by path and hash too. A
+ * missing file or one that isn't a manifest is the tool's answer.
  */
-export async function checkManifestAt(
+export async function readReleaseAt(
   path: string,
+  withFiles = false,
 ): Promise<
-  | { ok: true; file: string; manifest: ReleaseManifest; issues: SceneIssue[]; unlisted: string[] }
+  | { ok: true; file: string; manifest: ReleaseManifest; files?: Map<string, Sha256> }
   | { ok: false; result: ToolResult }
 > {
   let read: ReadManifest;
   try {
-    read = await readManifestAt(path);
+    read = await readManifestAt(path, withFiles);
   } catch (error) {
     if (isMissing(error)) return { ok: false, result: failure(`Not found: ${path}.`) };
     throw error;
@@ -217,7 +218,29 @@ export async function checkManifestAt(
         ].join("\n"),
       },
     };
-  const { manifest } = parsed;
+  return {
+    ok: true,
+    file: read.file,
+    manifest: parsed.manifest,
+    ...(read.files ? { files: read.files } : {}),
+  };
+}
+
+/**
+ * Checks a manifest the way every reader does (`checkReleaseManifest`, the
+ * budget recomputed), with its directory's files and their hashes when
+ * given one. Its issues; and the files the directory holds that the
+ * manifest doesn't list.
+ */
+export async function checkManifestAt(
+  path: string,
+): Promise<
+  | { ok: true; file: string; manifest: ReleaseManifest; issues: SceneIssue[]; unlisted: string[] }
+  | { ok: false; result: ToolResult }
+> {
+  const read = await readReleaseAt(path, true);
+  if (!read.ok) return read;
+  const { manifest } = read;
   const issues = await checkReleaseManifest(manifest, read.files, { measureBudget });
   const listed = new Set(manifest.build.files.map((f) => f.path));
   const unlisted = read.files ? [...read.files.keys()].filter((p) => !listed.has(p)) : [];

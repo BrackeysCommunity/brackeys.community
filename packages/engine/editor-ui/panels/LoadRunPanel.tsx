@@ -198,6 +198,12 @@ function RunSummary({
           differently.
         </p>
       ) : null}
+      {recording.sceneVersion !== undefined || (recording.swaps?.length ?? 0) > 0 ? (
+        <Text as="p" size="xs" variant="muted">
+          This run played live versions of the scene. Replay finds the ones this editor's Live in
+          Play built; for the others, replay it with <code>vp run scene replay --versions</code>.
+        </Text>
+      ) : null}
       <div className="je-run-actions">
         <Button
           size="xs"

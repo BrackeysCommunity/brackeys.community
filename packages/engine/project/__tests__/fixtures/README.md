@@ -26,7 +26,8 @@ to the public domain under [CC0-1.0](https://creativecommons.org/publicdomain/ze
 
 `inspect-digests.ts` runs every blob kind over these files and digests the results;
 `inspect-digests-cli.ts` prints those digests, for the determinism test to compare
-under Bun.
+under Bun. They read only the files at this level; subfolders such as
+`scene-version/` hold other tests' fixtures.
 
 Readers only look at headers and JSON; the pixel and sample data are never
 decoded, so the files only need to be valid enough for real tools to open.

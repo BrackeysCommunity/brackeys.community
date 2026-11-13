@@ -2,19 +2,16 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
+import { oneSceneVersion } from "../../__tests__/fixtures/live-version";
 import { createRegistry, defineGame } from "../../game/define";
 import { pointField } from "../../game/fields";
 import type { SceneLibrary } from "../../game/flow";
 import type { SwapTiming } from "../../game/live";
 import type { GameDefinition, GameRuntime, Registry, SceneSystem } from "../../game/types";
-import { sha256 } from "../../project/hash";
-import { ENGINE_FORMATS } from "../../project/release";
-import { findSceneVersion, sceneVersionId, type SceneVersion } from "../../project/scene-version";
+import { findSceneVersion } from "../../project/scene-version";
 import { preparedVersion } from "../../runtime/live";
 import { createRunRecorder, recordedSwap } from "../../runtime/recorder";
 import { expandScene } from "../../scene/expand";
-import { formatScene } from "../../scene/format";
-import { sceneHashWith } from "../../scene/prefab";
 import { parseRecording, type RunRecording } from "../../scene/recording-schema";
 import {
   SCENE_FORMAT_VERSION,
@@ -23,7 +20,7 @@ import {
   type RuntimeEntity,
   type SceneDefinition,
 } from "../../scene/types";
-import type { StagedVersion } from "../../types";
+import type { RapierModule, StagedVersion } from "../../types";
 import { createHeadlessRuntime } from "../headless";
 import { prepareRun, runLoop, startRun } from "../play-loop";
 import { replayRecording, type ReplayReport, type ReplayRun } from "../recording";
@@ -42,10 +39,10 @@ const BOUNDARY_TICK = 300;
 type Walker = RuntimeEntity<{ at: Pt; speed: number }>;
 
 /** Walkers that step right at their speed, and a score drawn from `ctx.random`, so a swap moves the end digest. */
-function swapGame(opts: { restartAt?: number } = {}): GameDefinition {
+function swapGame(opts: { restartAt?: number; physics?: "none" | "rapier" } = {}): GameDefinition {
   return defineGame({
     id: GAME,
-    world: { physics: "none" },
+    world: { physics: opts.physics ?? "none" },
     actions: [],
     live: { timings: ["next-load", "boundary", "now"] },
     types: [
@@ -133,38 +130,9 @@ const wider = (def: SceneDefinition) => {
   def.entities!.push({ id: "w3", type: WALKER, at: [3, 3] });
 };
 
-/** A version of the yard as a host fetched it: its canonical text, hash-checked, by hash. */
-async function versionOf(def: SceneDefinition, game: GameDefinition): Promise<StagedVersion> {
-  const text = formatScene(def).text;
-  const sha = await sha256(text);
-  const version: SceneVersion = {
-    kind: "scene-version",
-    v: 1,
-    project: "swap-project",
-    scene: SCENE,
-    compat: {
-      formats: { scene: ENGINE_FORMATS.scene, prefab: ENGINE_FORMATS.prefab },
-      build: {},
-      game: { id: game.id, configHash: game.configHash ?? null },
-    },
-    engine: "0.14.4",
-    base: null,
-    entry: { id: SCENE, physics: "none", prefabs: [], bundle: { entries: [], bytes: 0 } },
-    sceneHash: sceneHashWith(def, new Map()),
-    assets: {
-      [SCENE]: {
-        key: "k-yard",
-        kind: "scene",
-        path: "scenes/yard.json",
-        sha256: sha,
-        bytes: new TextEncoder().encode(text).length,
-        storage: "doc",
-        file: `live/${sha}.json`,
-      },
-    },
-  };
-  return { id: await sceneVersionId(version), version, texts: new Map([[sha, text]]) };
-}
+/** A version of the yard as a host fetched it. */
+const versionOf = (def: SceneDefinition, game: GameDefinition, physics?: "none" | "rapier") =>
+  oneSceneVersion(def, game, physics ? { physics } : {});
 
 const libraryOf = (def: SceneDefinition): SceneLibrary => ({
   list: [{ scene: SCENE }],
@@ -182,12 +150,14 @@ function recordRun(
   game: GameDefinition,
   registry: Registry,
   activations: readonly Activation[],
+  on: { def?: SceneDefinition; rapier?: RapierModule } = {},
 ): RunRecording {
-  const def = yard();
+  const def = on.def ?? yard();
+  const rapier = on.rapier ?? null;
   const prepared = prepareRun(def, registry);
   if (!prepared.ok) throw new Error(JSON.stringify(prepared.blocked));
   const started = startRun({
-    rapier: null,
+    rapier,
     game,
     registry,
     scene: prepared.scene,
@@ -197,7 +167,7 @@ function recordRun(
   if (!started.ok) throw new Error(JSON.stringify(started.load));
   const { runtime, live } = started;
   const recorder = createRunRecorder({
-    rapier: null,
+    rapier,
     game,
     registry,
     scene: def.name,
@@ -467,5 +437,52 @@ describe("HeadlessRuntime.live", () => {
     } finally {
       rt.destroy();
     }
+  });
+});
+
+describe("replaying a Rapier run whose swap reloads at progress depth", () => {
+  let rapier: RapierModule;
+  beforeAll(async () => {
+    rapier = await import("@dimforge/rapier2d");
+  });
+
+  /** The yard on Rapier, over a floor; `gravity` changes its header. */
+  const onRapier = (gravity: Pt = [0, 9.8]) =>
+    yard((def) => {
+      def.settings = { physics: "rapier", gravity };
+      def.entities!.push({ id: "floor", type: "solid", shape: ["box", 20, 9, 20, 1] });
+    });
+
+  it("keeps the tick, records the swap on it, and replays to the same end digest", async () => {
+    const game = swapGame({ physics: "rapier" });
+    const registry = createRegistry(game);
+    const def = onRapier();
+    const heavier = await versionOf(onRapier([0, 20]), game, "rapier");
+    const recording = recordRun(
+      game,
+      registry,
+      [{ at: NOW_AT - 1, version: heavier, timing: "now" }],
+      { def, rapier },
+    );
+    expect(recording.swaps?.map((s) => [s.tick, s.strategy])).toEqual([[NOW_AT, "reload"]]);
+    expect(recording.ticks).toBe(TICKS);
+    expect(recording.outcome.tick).toBe(TICKS - 1);
+
+    const report = replayed(
+      replayRecording({
+        game,
+        registry,
+        scene: def,
+        flow: libraryOf(def),
+        recording,
+        rapier,
+        versions: (id) => findSceneVersion(id, [heavier]),
+      }),
+    );
+    expect(report.divergence).toBeNull();
+    expect(report.matches).toBe(true);
+    expect(report.stale).toBe(false);
+    expect(report.recording.end).toBe(recording.end);
+    expect(report.recording.swaps).toEqual(recording.swaps);
   });
 });

@@ -617,11 +617,13 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     return cast.ok ? { ...start, at: cast.at } : { error: cast.error };
   }
 
+  /** `startTick`: where `ctx.tick` starts, for a swap's reload that keeps the run's tick; default 0. */
   function load(
     next: ExpandedScene,
     playOpts?: PlayOptions,
     flow?: FlowIdentity,
     library?: PrefabLibrary,
+    startTick = 0,
   ): LoadReport {
     if (destroyed) return { ok: false, error: "runtime destroyed" };
     const started = now();
@@ -637,6 +639,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     }
 
     unload();
+    tick = startTick;
     mainScene = next;
     versionPrefabs = library ?? null;
     lastPlay = playOpts;
@@ -1158,13 +1161,17 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
    * play options, taken now so a load that fails and unloads can still be
    * followed by another under the same identity.
    */
-  function freshLoader(): (scene: ExpandedScene, library?: PrefabLibrary) => LoadReport {
+  function freshLoader(): (
+    scene: ExpandedScene,
+    library?: PrefabLibrary,
+    tick?: number,
+  ) => LoadReport {
     const identity =
       flowScene !== null && runScenes
         ? { scene: flowScene, entry: flowEntry, library: runScenes }
         : undefined;
     const playOpts = lastPlay;
-    return (scene, library) => load(scene, playOpts, identity, library);
+    return (scene, library, at) => load(scene, playOpts, identity, library, at);
   }
 
   const saveHost: SaveHost = {
@@ -1201,7 +1208,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     generation: () => lifecycle.generation,
     freshLoader: () => {
       const loadFresh = freshLoader();
-      return (scene, library) => loadFresh(scene, new Map(library));
+      return (scene, library, at) => loadFresh(scene, new Map(library), at);
     },
     setVersion(scene, library) {
       mainScene = scene;

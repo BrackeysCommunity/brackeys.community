@@ -1,15 +1,12 @@
 import { flowIssue } from "../game/flow";
 import { resolveTime } from "../game/time";
 import {
-  blobContent,
   namedPrefabs,
   projectBundle,
   sceneBundle,
   unsizedIds,
   type AssetBundle,
 } from "../project/bundle";
-import { sha256 } from "../project/hash";
-import { byCodeUnit } from "../project/kinds/define";
 import { engineResolution, gameSettingsEntries } from "../project/kinds/game-settings";
 import { prefabKind } from "../project/kinds/prefab";
 import { sceneKind } from "../project/kinds/scene";
@@ -21,29 +18,25 @@ import {
 } from "../project/kinds/scene-list";
 import { buildRefIndex, type RefIndex } from "../project/refs";
 import type { ReleaseAsset, ReleaseManifest, ReleaseScene } from "../project/release";
+import {
+  listedFields,
+  reachedAssets,
+  releaseAssetOf,
+  releaseFiles,
+  releaseSceneEntry,
+} from "../project/release-assets";
 import { RUNTIME_VIEW_KINDS } from "../project/runtime-view";
 import { jsonValues } from "../project/snapshot";
 import type { AssetEntry, AssetId, ProjectExport } from "../project/types";
-import { defaultPhysics, expandScene, scenePhysics } from "../scene/expand";
+import { defaultPhysics, expandScene } from "../scene/expand";
 import { makeIssue } from "../scene/issues";
 import { locatePointer, parseScene } from "../scene/parse";
-import { parsePrefab, prefabsUsedBy } from "../scene/prefab";
+import { parsePrefab, prefabLibraryFor } from "../scene/prefab";
 import type { Prefab, PrefabLibrary, SceneDefinition, SceneIssue } from "../scene/types";
 import { assetCredits } from "./credits";
 import { iconFile, planIcons } from "./icons";
 import type { ContentPlan, ExportInput } from "./plan";
 import { exportTarget, exportTargetNames } from "./targets";
-
-/** `data/<sha256>.json`: where a doc's canonical text ships. */
-const dataFile = (hash: string): string => `data/${hash}.json`;
-
-/** `assets/<sha256><ext>`: where a blob ships, its extension the one its path ends in. */
-function blobFile(entry: Pick<AssetEntry, "path">, hash: string): string {
-  const name = entry.path.slice(entry.path.lastIndexOf("/") + 1);
-  const dot = name.lastIndexOf(".");
-  const ext = dot > 0 ? name.slice(dot).toLowerCase() : "";
-  return `assets/${hash}${/^\.[a-z0-9]+$/.test(ext) ? ext : ""}`;
-}
 
 const withAsset = (id: AssetId, issues: readonly SceneIssue[]): SceneIssue[] =>
   issues.map((i) => (i.entityIds[0] === id ? i : { ...i, entityIds: [id, ...i.entityIds] }));
@@ -62,19 +55,7 @@ function prefabReader(input: ExportInput, issues: SceneIssue[]) {
     return read.get(id) ?? undefined;
   };
   /** The prefabs `def` reaches, nested ones and variant bases included. */
-  const library = (def: SceneDefinition): PrefabLibrary => {
-    const lib = new Map<string, Prefab>();
-    const pending = prefabsUsedBy(def);
-    for (let id = pending.shift(); id !== undefined; id = pending.shift()) {
-      if (lib.has(id)) continue;
-      const prefab = get(id);
-      if (!prefab) continue;
-      lib.set(id, prefab);
-      if (typeof prefab.base === "string") pending.push(prefab.base);
-      for (const nested of prefab.instances ?? []) pending.push(nested.prefab);
-    }
-    return lib;
-  };
+  const library = (def: SceneDefinition): PrefabLibrary => prefabLibraryFor(def, get);
   return { get, library };
 }
 
@@ -88,14 +69,9 @@ function planScene(
   issues: SceneIssue[],
 ): PlannedScene {
   const empty: AssetBundle = { name: entry.scene, entries: [], bytes: 0 };
-  const base = {
-    id: entry.scene,
-    ...(entry.title !== undefined ? { title: entry.title } : {}),
-    ...(entry.sublevel ? { sublevel: true as const } : {}),
-  };
   const fallback = (): PlannedScene => ({
     release: {
-      ...base,
+      ...listedFields(entry),
       physics: defaultPhysics(input.registry, input.engine),
       prefabs: [],
       bundle: { entries: [], bytes: 0 },
@@ -139,12 +115,7 @@ function planScene(
     );
   }
   return {
-    release: {
-      ...base,
-      physics: scenePhysics(def, input.registry, input.engine),
-      prefabs: prefabsUsedBy(def, library),
-      bundle: { entries: bundle.entries.map((e) => e.id), bytes: bundle.bytes },
-    },
+    release: releaseSceneEntry(entry, def, library, bundle, input.registry, input.engine),
     bundle,
   };
 }
@@ -156,27 +127,12 @@ function planScene(
  * only when listed, and code never does; checks, input scripts,
  * recordings and saves aren't reached from these, and the trash isn't live.
  */
-function shippedIds(
+const shippedIds = (
   input: ExportInput,
   index: RefIndex,
   roots: readonly AssetId[],
   listed: ReadonlySet<AssetId>,
-): AssetId[] {
-  const ships = (entry: AssetEntry | undefined): entry is AssetEntry => {
-    if (!entry) return false;
-    const storage = input.kinds.get(entry.kind)?.storage;
-    if (storage !== "doc" && storage !== "blob") return false;
-    return entry.kind !== sceneKind.kind || listed.has(entry.id);
-  };
-  const seen = new Set<AssetId>();
-  const pending = [...roots];
-  for (let id = pending.shift(); id !== undefined; id = pending.shift()) {
-    if (seen.has(id) || !ships(input.view.byId.get(id))) continue;
-    seen.add(id);
-    for (const site of index.targets(id)) pending.push(site.id);
-  }
-  return [...seen].sort(byCodeUnit);
-}
+): AssetId[] => reachedAssets(input.view, input.kinds, index, roots, (id) => listed.has(id));
 
 /**
  * `scene-unlisted` (warn) for each reference out of a shipped asset to a
@@ -219,74 +175,28 @@ function unlistedReferences(
   return issues;
 }
 
-const utf8Bytes = (text: string): number => new TextEncoder().encode(text).length;
-
+/** `entry` as the release ships it, under `data/` or `assets/`. */
 async function releaseAsset(
   entry: AssetEntry,
   input: ExportInput,
   issues: SceneIssue[],
   unsized: ReadonlySet<AssetId>,
 ): Promise<ReleaseAsset | null> {
-  const storage = input.kinds.get(entry.kind)?.storage;
-  const common = {
-    key: entry.key,
-    kind: entry.kind,
-    path: entry.path,
-    ...(entry.name !== undefined ? { name: entry.name } : {}),
-  };
-  const licence =
-    entry.licence && Object.keys(entry.licence).length > 0
-      ? { licence: structuredClone(entry.licence) }
-      : {};
-  if (storage === "doc") {
-    const text = input.texts.get(entry.id);
-    if (text === undefined) {
-      issues.push(
-        makeIssue("asset-missing", {
-          message: `"${entry.id}" (${entry.path}) ships, but the export has no canonical text for it`,
-          entityIds: [entry.id],
-          got: entry.id,
-        }),
-      );
-      return null;
-    }
-    const hash = await sha256(text);
-    return {
-      ...common,
-      sha256: hash,
-      bytes: utf8Bytes(text),
-      storage: "doc",
-      file: dataFile(hash),
-      ...licence,
-    };
-  }
-  if (entry.sha256 === undefined) return null;
-  // The size becomes the build file's row and the release's pin, so a guessed one would disagree with the bytes shipped.
-  const content = blobContent(entry);
-  if (!content) {
-    if (unsized.has(entry.id)) return null;
-    issues.push(
-      makeIssue("asset-missing", {
-        message: `"${entry.id}" (${entry.path}) ships, but its entry records no size for blob ${entry.sha256}`,
-        entityIds: [entry.id],
-        got: entry.id,
-      }),
-    );
-    return null;
-  }
-  return {
-    ...common,
-    ...content,
-    storage: "blob",
-    file: blobFile(entry, entry.sha256),
-    ...(entry.meta && Object.keys(entry.meta).length > 0
-      ? { meta: structuredClone(entry.meta) }
-      : {}),
-    ...(entry.import && Object.keys(entry.import).length > 0
-      ? { import: structuredClone(entry.import) }
-      : {}),
-    ...licence,
-  };
+  const made = await releaseAssetOf(entry, {
+    kinds: input.kinds,
+    texts: input.texts,
+    files: releaseFiles,
+    unsized,
+    issues,
+    missing: {
+      text: (e) => `"${e.id}" (${e.path}) ships, but the export has no canonical text for it`,
+      blob: (e) =>
+        e.sha256 === undefined
+          ? null
+          : `"${e.id}" (${e.path}) ships, but its entry records no size for blob ${e.sha256}`,
+    },
+  });
+  return made?.asset ?? null;
 }
 
 /**

@@ -2,6 +2,7 @@ import { createRegistry } from "../game/define";
 import type { GameDefinition } from "../game/types";
 import { byCodeUnit } from "../project/kinds/define";
 import type { ReleaseManifest } from "../project/release";
+import { assetEntryOf } from "../project/release-assets";
 import { runtimeView, type ProjectRuntimeView } from "../project/runtime-view";
 import { jsonValues } from "../project/snapshot";
 import type {
@@ -14,9 +15,6 @@ import type {
 } from "../project/types";
 import { projectView } from "../project/view";
 
-/** Every entry was created by the release, at its snapshot's time. */
-const created = () => ({ at: 0, by: "release" });
-
 /**
  * A ProjectView over the manifest's assets (entries get `created: { at: 0, by: "release" }`).
  * Blobs carry their hash, size, import settings and meta, as a snapshot's view does;
@@ -26,19 +24,7 @@ export function manifestView(m: ReleaseManifest): ProjectView {
   const assets: Record<AssetKey, AssetEntry> = {};
   for (const id of Object.keys(m.assets).sort(byCodeUnit)) {
     const a = m.assets[id]!;
-    const blob = a.storage === "blob";
-    assets[a.key] = {
-      key: a.key,
-      id,
-      kind: a.kind,
-      path: a.path,
-      ...(a.name !== undefined ? { name: a.name } : {}),
-      ...(blob ? { sha256: a.sha256, bytes: a.bytes } : {}),
-      ...(blob && a.import ? { import: structuredClone(a.import) } : {}),
-      ...(blob && a.meta ? { meta: structuredClone(a.meta) } : {}),
-      ...(a.licence ? { licence: { ...a.licence } } : {}),
-      created: created(),
-    };
+    assets[a.key] = assetEntryOf(id, a, { at: 0, by: "release" });
   }
   const build: Record<AssetKindName, BuildStamp> = {};
   for (const kind of Object.keys(m.project.build).sort(byCodeUnit))

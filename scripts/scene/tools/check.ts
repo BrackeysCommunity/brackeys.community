@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 
 import { runChecks, type CheckResult } from "@jams/engine/headless";
-import { checksPathOf, closest, parseChecks } from "@jams/engine/scene";
+import { checksPathOf, closest, parseChecks, type SceneIssue } from "@jams/engine/scene";
 
 import {
   failure,
@@ -69,13 +69,7 @@ export const check: Tool<CheckInput> = async (input, ctx) => {
     return {
       exitCode: 1,
       data: { ok: false, scene, game, checks: file, issues: parsed.issues },
-      text: [
-        `${shown}: invalid checks file`,
-        ...parsed.issues.map(
-          (i) =>
-            `  error ${i.path || "/"}${i.line !== undefined ? `:${i.line}` : ""} ${i.message}${i.hint ? `\n    hint: ${i.hint}` : ""}`,
-        ),
-      ].join("\n"),
+      text: checksFileLines(shown, parsed.issues).join("\n"),
     };
   }
 
@@ -115,3 +109,17 @@ export const check: Tool<CheckInput> = async (input, ctx) => {
     ].join("\n"),
   };
 };
+
+/** A checks file that doesn't read, as the CLI prints it: the file, then each issue with its line and hint. */
+export function checksFileLines(
+  shown: string,
+  issues: readonly Pick<SceneIssue, "path" | "line" | "message" | "hint">[],
+): string[] {
+  return [
+    `${shown}: invalid checks file`,
+    ...issues.map(
+      (i) =>
+        `  error ${i.path || "/"}${i.line !== undefined ? `:${i.line}` : ""} ${i.message}${i.hint ? `\n    hint: ${i.hint}` : ""}`,
+    ),
+  ];
+}

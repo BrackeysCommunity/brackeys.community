@@ -6,7 +6,7 @@ Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regene
 
 | Entry | Exports |
 | --- | --- |
-| [`@jams/engine`](index.md) | 147 |
+| [`@jams/engine`](index.md) | 152 |
 | [`@jams/engine/collab`](collab.md) | 218 |
 | [`@jams/engine/debug`](debug.md) | 15 |
 | [`@jams/engine/editor`](editor.md) | 329 |

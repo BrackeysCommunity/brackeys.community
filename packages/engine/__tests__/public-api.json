@@ -12,6 +12,7 @@
       "SPRITE",
       "SPRITE_FALLBACK_SIZE",
       "TOOL_PRIORITY",
+      "acceptedTimings",
       "applyPt",
       "applyVec",
       "bindText",
@@ -54,6 +55,10 @@
       "selectTick",
       "snapshotRemapStore",
       "spriteGeometry",
+      "swapStrategyFor",
+      "timingWords",
+      "utf8Bytes",
+      "versionName",
       "viewportFor",
       "watchView"
     ],

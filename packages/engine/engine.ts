@@ -77,6 +77,7 @@ import type { KindRegistry } from "./project/kinds";
 import { engineResolution } from "./project/kinds/game-settings";
 import { TEXTURE_KIND } from "./project/kinds/texture";
 import type { ReleaseAsset } from "./project/release";
+import { assetEntryOf } from "./project/release-assets";
 import type { ProjectRuntimeView } from "./project/runtime-view";
 import type { SceneVersion } from "./project/scene-version";
 import type { AssetEntry, AssetId, ProjectView, Sha256 } from "./project/types";
@@ -87,7 +88,13 @@ import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
 import type { CameraTarget, CameraTargetSystem } from "./runtime/behaviors/camera-target";
 import { loadListed } from "./runtime/flow";
-import { createLiveLayer, preparedVersion, type PreparedVersion } from "./runtime/live";
+import {
+  createLiveLayer,
+  createSwapReplay,
+  preparedVersion,
+  recordedVersion,
+  type PreparedVersion,
+} from "./runtime/live";
 import { gamePersistCell, persistProblem, playClockOf } from "./runtime/persist";
 import {
   createSessionRecording,
@@ -946,15 +953,13 @@ export async function createGame(
   }
 
   /**
-   * A replay's live versions: the swaps it applies before their ticks, where
-   * it resolves their versions, and the version the scene's loads used before
-   * it, put back when the replay ends.
+   * A replay's live versions: the swaps it applies before their ticks, and
+   * the version the scene's loads used before it, put back when the replay
+   * ends.
    */
   type ReplayLive = {
     scene: AssetId;
-    swaps: readonly RecordedSwap[];
-    next: number;
-    versions: ((id: Sha256) => StagedVersion | null) | undefined;
+    swaps: ReturnType<typeof createSwapReplay>;
     before: PreparedVersion | null;
   };
   let replayLive: ReplayLive | null = null;
@@ -968,64 +973,50 @@ export async function createGame(
     liveLayer.activate(r.scene, r.before?.id ?? null, "next-load");
   }
 
-  /** A recording's version through the host's `versions`: gone when the host has none, or another. */
+  /** A recording's version through the host's `versions`, read for play. */
   function replayVersion(
     scene: AssetId,
     id: Sha256,
-    versions: ReplayLive["versions"],
+    versions: ((id: Sha256) => StagedVersion | null) | undefined,
     tick?: number,
   ): { ok: true; prepared: PreparedVersion } | { ok: false; issue: SceneIssue } {
-    const v = versions?.(id) ?? null;
-    if (!v || v.id !== id) {
-      const version = `${scene}@${id.slice(0, 12)}`;
-      return {
-        ok: false,
-        issue: liveIssue({
-          code: "scene-version-removed",
-          version,
-          ...(tick !== undefined ? { tick } : {}),
-        }),
-      };
-    }
-    return prepareVersion(v);
+    const found = recordedVersion(versions, scene, id, tick);
+    return found.ok ? prepareVersion(found.staged) : found;
+  }
+
+  /** The swaps a replay of `recording` applies, through the live layer as a headless replay does. */
+  function replaySwapsOf(
+    scene: AssetId,
+    swaps: readonly RecordedSwap[],
+    versions: ((id: Sha256) => StagedVersion | null) | undefined,
+  ): ReplayLive["swaps"] {
+    return createSwapReplay({
+      live: liveLayer,
+      swaps,
+      scene: () => scene,
+      resolve(id, running, _at, tick) {
+        const found = replayVersion(running, id, versions, tick);
+        return found.ok ? found : { ok: false, issues: [found.issue] };
+      },
+      stale(tick, why) {
+        if (cfg.dev) console.warn(`[replay] stale from tick ${tick}: ${why}`);
+      },
+    });
   }
 
   /**
-   * Before a replay steps `tick`: applies the swaps recorded for it through
-   * the live layer with their recorded strategies. False when the replay
-   * stopped here (a version it can't have, or a swap that didn't apply),
-   * holding this frame as a replay's last.
+   * Before a replay steps `tick`: applies the swaps recorded for it. False
+   * when the replay stopped here (a version it can't have), holding this
+   * frame as a replay's last.
    */
   function replaySwaps(tick: number): boolean {
     const r = replayLive;
     if (!r || !session?.replaying) return true;
-    while (r.next < r.swaps.length && r.swaps[r.next]!.tick <= tick) {
-      const entry = r.swaps[r.next++]!;
-      let prepared: PreparedVersion | null = null;
-      if (entry.version !== null) {
-        const found = replayVersion(r.scene, entry.version, r.versions, tick);
-        if (!found.ok) {
-          events.emit("live:failed", {
-            scene: r.scene,
-            version: entry.version,
-            issue: found.issue,
-          });
-          return stopReplay();
-        }
-        prepared = found.prepared;
-      }
-      const out = liveLayer.apply(r.scene, prepared, {
-        timing: entry.timing,
-        strategy: entry.strategy,
-        tick,
-      });
-      if (!out.ok) return stopReplay();
-      if (cfg.dev && out.swap.strategy !== entry.strategy)
-        console.warn(
-          `[replay] stale from tick ${tick}: the swap ran as ${out.swap.strategy}, recorded as ${entry.strategy}`,
-        );
-    }
-    return true;
+    const stop = r.swaps.before(tick);
+    if (!stop) return true;
+    const issue = stop.issues[0];
+    if (issue) events.emit("live:failed", { scene: r.scene, version: stop.version, issue });
+    return stopReplay();
   }
 
   function stopReplay(): false {
@@ -1097,12 +1088,20 @@ export async function createGame(
     });
   }
 
-  /** With `recording.flow`, a scene the flow loads outside the editor's Play is recorded until the next load. */
+  /** The session `recordFlowLoad` started, which ends on its own after `FLOW_RECORDING_LIMIT_MS`. */
+  let flowSession: SessionRecording | null = null;
+
+  /**
+   * With `recording.flow`, a scene the flow loads outside the editor's Play
+   * is recorded until the next load, or for `FLOW_RECORDING_LIMIT_MS` of
+   * play, so a long stay keeps a bounded input log.
+   */
   function recordFlowLoad(listed: LibraryScene, persistAtLoad: JsonValue | undefined): void {
     if (!cfg.recording?.flow || !loaded || store.state.session) return;
     const prepared = preparePlay(listed.def, registry, { prefabs: listed.prefabs, project });
     if (!prepared.ok) return;
     session = recordSession(loaded.runtime, listed.def.name, prepared, {}, persistAtLoad);
+    flowSession = session;
   }
 
   function play(doc: SceneDefinition, opts: PlayOptions = {}): PlayReport {
@@ -1129,7 +1128,7 @@ export async function createGame(
     const swaps = recording.swaps ?? [];
     const live: ReplayLive | null =
       start || swaps.length > 0 || liveLayer.sceneFor(scene)
-        ? { scene, swaps, next: 0, versions: opts.versions, before: null }
+        ? { scene, swaps: replaySwapsOf(scene, swaps, opts.versions), before: null }
         : null;
     const recorded = recording.start.persist;
     const before = recorded !== undefined ? persist.value : undefined;
@@ -1494,6 +1493,8 @@ export async function createGame(
           finishRecording(finished);
           // A replay holds its last frame until Stop, so the end state can be looked at.
           if (finished && replaying) pause();
+          const limit = Math.ceil(FLOW_RECORDING_LIMIT_MS / loaded.runtime.ctx.time.tickMs);
+          if (session === flowSession && result.tick + 1 >= limit) finishRecording(session.stop());
         }
         if (requests.flow) flowRequested(requests.flow, result.tick, verdict);
         // After the flow request, so a change it started holds the swap; a replay applies only its own.
@@ -2355,7 +2356,8 @@ export async function createGame(
     },
     activate(scene, version, timing) {
       const out = liveLayer.activate(scene, version, timing);
-      if (out.issue?.code !== "live-swap-failed" && liveStaged.get(scene) === version)
+      // Pinned, the layer keeps the version staged, and so does its hold here.
+      if (liveStaged.get(scene) === version && liveLayer.current(scene) === version)
         liveStaged.delete(scene);
       pruneLive();
       return out;
@@ -2767,6 +2769,9 @@ function warnHostBindings(list: readonly InputBinding[], resolved: ResolvedBindi
   }
 }
 
+/** How much of a scene's run `recording.flow` keeps: half an hour of play. */
+const FLOW_RECORDING_LIMIT_MS = 30 * 60_000;
+
 /**
  * `base` with `carried` in place of the project's own entries of the same id
  * or key: the view a live version's loads resolve their assets through.
@@ -2782,19 +2787,8 @@ function overlaidView(
   for (const [key, e] of Object.entries(base.state.assets)) {
     if (!ids.has(e.id) && !keys.has(e.key)) entries[key] = e;
   }
-  for (const [id, a] of Object.entries(carried)) {
-    const blob = a.storage === "blob";
-    entries[a.key] = {
-      key: a.key,
-      id,
-      kind: a.kind,
-      path: a.path,
-      ...(blob ? { sha256: a.sha256, bytes: a.bytes } : {}),
-      ...(blob && a.import ? { import: { ...a.import } } : {}),
-      ...(blob && a.meta ? { meta: structuredClone(a.meta) } : {}),
-      created: { at: 0, by: "" },
-    };
-  }
+  for (const [id, a] of Object.entries(carried))
+    entries[a.key] = assetEntryOf(id, a, { at: 0, by: "live" });
   const view = projectView({ ...base.state, assets: entries }, kinds);
   return base.engine ? { ...view, engine: base.engine } : view;
 }

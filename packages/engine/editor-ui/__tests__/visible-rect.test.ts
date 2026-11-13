@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { frameInView, setVisibleArea, visibleFrame, type VisibleArea } from "../frame/visible-rect";
+import {
+  frameInView,
+  revealInView,
+  setVisibleArea,
+  visibleFrame,
+  type VisibleArea,
+} from "../frame/visible-rect";
 
 const rect = { minX: 0, minY: 0, maxX: 60, maxY: 40 };
 
@@ -114,5 +120,65 @@ describe("frameInView", () => {
     frameInView(g, rect);
     expect(g.panBy).toHaveBeenCalledWith({ x: 200, y: 0 });
     offNew();
+  });
+});
+
+describe("revealInView", () => {
+  const panning = (scale = 1, origin = { x: 0, y: 0 }) => ({
+    panBy: vi.fn(),
+    screenToWorld: vi.fn(() => origin),
+    getStore: () => ({ state: { camera: { scale } } }),
+  });
+  const reveal = (g: ReturnType<typeof panning>, at: typeof rect) =>
+    revealInView(g as unknown as Parameters<typeof revealInView>[0], at);
+  const columns: VisibleArea = {
+    width: 1000,
+    height: 500,
+    insets: { left: 300, right: 100, top: 0, bottom: 0 },
+  };
+
+  it("leaves the view alone without a visible area", () => {
+    const g = panning();
+    expect(reveal(g, rect)).toBe(false);
+    expect(g.panBy).not.toHaveBeenCalled();
+  });
+
+  it("leaves a rect already in the visible part where it is", () => {
+    const g = panning();
+    const off = setVisibleArea(g, () => columns);
+    expect(reveal(g, { minX: 400, minY: 100, maxX: 500, maxY: 200 })).toBe(false);
+    expect(g.panBy).not.toHaveBeenCalled();
+    off();
+  });
+
+  it("pans a rect under a column to the visible part's centre", () => {
+    const g = panning();
+    const off = setVisibleArea(g, () => columns);
+    expect(reveal(g, rect)).toBe(true);
+    // The visible part spans x 300..900, y 0..500; the rect's centre is (30, 20).
+    expect(g.panBy).toHaveBeenCalledWith({ x: 600 - 30, y: 250 - 20 });
+    off();
+  });
+
+  it("measures the rect in screen px through the camera", () => {
+    const g = panning(2, { x: 10, y: 10 });
+    const off = setVisibleArea(g, () => columns);
+    // At scale 2 from (10, 10) the rect covers screen x -20..100, y -20..60.
+    expect(reveal(g, rect)).toBe(true);
+    expect(g.panBy).toHaveBeenCalledWith({ x: 600 - 40, y: 250 - 20 });
+    off();
+  });
+
+  it("ignores insets on an axis they would cover entirely, like framing", () => {
+    const g = panning();
+    const off = setVisibleArea(g, () => ({
+      width: 400,
+      height: 300,
+      insets: { left: 300, right: 200, top: 30, bottom: 0 },
+    }));
+    // Across, the whole 0..400 counts; down, the top bar still covers 0..30.
+    expect(reveal(g, rect)).toBe(true);
+    expect(g.panBy).toHaveBeenCalledWith({ x: 200 - 30, y: 165 - 20 });
+    off();
   });
 });

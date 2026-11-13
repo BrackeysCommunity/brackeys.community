@@ -1428,7 +1428,7 @@ type RapierModule = typeof _$_dimforge_rapier2d0;
 
 _type_ in `runtime/recorder.ts`
 
-A load inside a segment as `RunRecorder.loaded` takes it: a swap without its timing and strategy.
+A recorded swap without its timing and strategy.
 
 ```ts
 type RecordedLoad = Omit<RecordedSwap, "strategy" | "timing">;
@@ -1703,13 +1703,6 @@ _type_ in `runtime/recorder.ts`
 type RunRecorder = {
     /** The recording so far, ended as `end` with the game's snapshot after its last tick. */
     finish(end: RecordingEnd, final: unknown): RunRecording;
-    /**
-     * After a load that ran inside this segment rather than starting a new one
-     * (game code loading its own scene again, say): when it ran another version
-     * than the one playing, it is written as a `next-load` swap with the
-     * `reload` strategy, since the load replaced the whole world.
-     */
-    loaded(load: RecordedLoad): void;
     /** After a swap was applied between ticks; written to `swaps` in the order given. */
     swap(entry: RecordedSwap): void;
     /** After each simulated tick, with the input it stepped, in the order the runtime took it. */
@@ -1717,7 +1710,7 @@ type RunRecorder = {
 };
 ```
 
-Refers to [`RecordedLoad`](#recordedload), [`RecordingEnd`](#recordingend), [`RunRecording`](#runrecording), [`TickInput`](#tickinput).
+Refers to [`RecordingEnd`](#recordingend), [`RunRecording`](#runrecording), [`TickInput`](#tickinput).
 
 ## `RunRecording`
 

@@ -12,6 +12,7 @@ import { docToScene, sceneToDoc } from "../collab/convert";
 import { docToPrefab, prefabToDoc } from "../collab/prefab-doc";
 import { LIFETIME, type LifetimeBlock } from "../game/behaviors/lifetime";
 import { OCCUPANT } from "../game/behaviors/occupant";
+import type { SpawnerBlock, SpawnerSystem } from "../game/behaviors/spawner";
 import { SPRITE, type SpriteBlock } from "../game/behaviors/sprite";
 import { createRegistry, defineGame, ENGINE_BEHAVIORS, withProject } from "../game/define";
 import { parseSaveFile } from "../game/save-file";
@@ -45,7 +46,7 @@ import { snapshotProject } from "../project/snapshot";
 import type { AssetEntry, AssetId, ProjectView } from "../project/types";
 import { projectView } from "../project/view";
 import { createSceneRuntime } from "../runtime/runtime";
-import { ENTITY_DESTROYED, SENSOR_ENTER } from "../runtime/types";
+import { ENTITY_DESTROYED, SENSOR_ENTER, SPAWNER_SPAWNED, type StepEvent } from "../runtime/types";
 import { parseChecks, type ChecksFile, type ReachesCheck } from "../scene/checks";
 import { expandScene } from "../scene/expand";
 import { formatPrefab, formatScene } from "../scene/format";
@@ -56,7 +57,7 @@ import { paramTargetValues } from "../scene/prefab-params";
 import { drawnEntities, oneWayEdge } from "../scene/render-geometry";
 import { resolvePrefab, valueAtPath } from "../scene/resolve";
 import { SHAPE_TYPES } from "../scene/shapes";
-import type { PrefabLibrary, Pt, RuntimeEntity, SceneDefinition } from "../scene/types";
+import type { PrefabLibrary, Pt, RuntimeEntity, SceneDefinition, ShapeObj } from "../scene/types";
 import { sublevelIssue, validateScene } from "../scene/validate";
 import type { SolidSystem } from "../systems/bodies";
 import type { RapierModule } from "../types";
@@ -799,6 +800,47 @@ describe("kitchen-sink.json", () => {
       ).toBe(true);
       expect(Math.max(...loose.get(id)!.map(Math.abs)), id).toBeGreaterThan(0.3);
     }
+  });
+
+  it("has a spawner that spawns a shape type by type with fields, each spawn's box at the spawn point with a collider there", () => {
+    const shaped = entities().flatMap((e) => {
+      const block = (e.behaviors as Record<string, unknown> | undefined)?.spawner as
+        | SpawnerBlock
+        | undefined;
+      return block?.type !== undefined && block.fields?.shape !== undefined
+        ? [[e, block] as const]
+        : [];
+    });
+    expect(shaped.map(([e]) => e.id)).toEqual(["std-spawner"]);
+    const [[source, block]] = shaped as [(typeof shaped)[number]];
+    const [form, ox, oy, hw, hh] = block.fields!.shape as [string, number, number, number, number];
+    expect(form).toBe("box");
+    const rt = createSceneRuntime({ rapier, view: null, game: null, registry: engine });
+    expect(rt.load(expanded()).ok).toBe(true);
+    const spawned: StepEvent[] = [];
+    for (let i = 0; i < 300; i++)
+      for (const e of rt.step(rt.ctx.time.tickMs, []).events)
+        if (e.type === SPAWNER_SPAWNED) spawned.push(e);
+    expect(spawned).toHaveLength(block.cap);
+    expect(rt.ctx.behavior<SpawnerSystem>("spawner")!.live(source.id)).toEqual(
+      spawned.map((e) => e.other),
+    );
+    const [sx, sy] = source.at as Pt;
+    for (const e of spawned) {
+      expect(e.at).toEqual({ x: sx, y: sy });
+      const spawn = rt.ctx.get(e.other!)!;
+      expect(spawn.type).toBe(block.type);
+      expect(spawn).not.toHaveProperty("at");
+      const box = spawn.shape as Extract<ShapeObj, { type: "box" }>;
+      expect([box.type, box.hw, box.hh]).toEqual(["box", hw, hh]);
+      expect(box.cx).toBeCloseTo(sx + ox, 5);
+      expect(box.cy).toBeCloseTo(sy + oy, 5);
+      const [handle] = rt.ctx.tags.handlesOf(e.other!);
+      const at = rt.ctx.physics!.world.getCollider(handle!)!.translation();
+      expect(at.x).toBeCloseTo(sx + ox, 5);
+      expect(at.y).toBeCloseTo(sy + oy, 5);
+    }
+    rt.destroy();
   });
 
   it("is canonical, and formatting is idempotent", () => {

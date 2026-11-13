@@ -469,7 +469,9 @@ describe("checkSceneVersion", () => {
       expect(where(issues)).toEqual(want);
       for (const issue of issues) {
         expect(issue.severity).toBe("error");
-        expect(issue.hint?.length).toBeGreaterThan(0);
+        // Every refusal says what to do, except a version made for another game.
+        if (issue.detail?.rule === "game") expect(issue.hint).toBeUndefined();
+        else expect(issue.hint?.length).toBeGreaterThan(0);
         expect(issue.line, issue.code).toBeTypeOf("number");
         expect(issue.message.length).toBeGreaterThan(0);
       }

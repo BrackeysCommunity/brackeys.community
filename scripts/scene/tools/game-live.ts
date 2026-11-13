@@ -1,8 +1,14 @@
 import { readFileSync } from "node:fs";
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 
-import type { StagedVersion } from "@jams/engine";
+import {
+  swapStrategyFor,
+  timingWords,
+  utf8Bytes,
+  versionName,
+  type StagedVersion,
+} from "@jams/engine";
 import type { ExportInput } from "@jams/engine/export";
 import { clampTiming, type SwapStrategy } from "@jams/engine/game";
 import { swapCheck, type SwapCheckOptions, type SwapCheckReport } from "@jams/engine/headless";
@@ -12,10 +18,8 @@ import {
   formatSceneVersion,
   inputScriptKind,
   liveCompat,
-  parseReleaseManifest,
   prefabKind,
   readSceneVersion,
-  RELEASE_FILE,
   releaseId,
   SCENE_KIND_NAME,
   type ReleaseManifest,
@@ -38,7 +42,10 @@ import {
 
 import {
   failure,
+  isToolResult,
   issueLine,
+  plural,
+  shortId,
   usage,
   type Tool,
   type ToolContext,
@@ -52,10 +59,11 @@ import {
   unknownProjectMessage,
   type ProjectHandle,
 } from "../projects";
-import { exportInputOf } from "./game-build";
-import { shownPath } from "./game-manifest";
+import { checksFileLines } from "./check";
+import { clearOut, exportInputOf } from "./game-build";
+import { readReleaseAt, shownPath } from "./game-manifest";
 import { projectPull, type ProjectPullInput } from "./project-pull";
-import { readVersionAt, SCENE_VERSION_FILE, versionName } from "./replay";
+import { readVersionAt, SCENE_VERSION_FILE } from "./replay";
 
 export type GameLiveBuildInput = {
   project?: string;
@@ -90,11 +98,6 @@ export const defaultLiveOut = (project: string, scene: string) =>
   join("dist", "live", project, scene);
 
 const isError = (i: SceneIssue) => i.severity === "error";
-const isResult = (v: unknown): v is ToolResult =>
-  typeof v === "object" && v !== null && "exitCode" in v;
-const shortId = (id: string) => `${id.slice(0, 6)}…`;
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const utf8Bytes = (text: string) => new TextEncoder().encode(text).length;
 
 /** Amber on a terminal that takes colour; plain everywhere else (pipes, `--json`, MCP). */
 export function amber(text: string, env: Readonly<Record<string, string | undefined>>): string {
@@ -165,7 +168,7 @@ async function buildFrom(
   release?: ReleaseManifest,
 ): Promise<Built | ToolResult> {
   const input = await exportInputOf(handle, "web");
-  if (isResult(input)) return input;
+  if (isToolResult(input)) return input;
   const missing = sceneOf(input, scene, cmd);
   if (missing) return missing;
   const built = await buildSceneVersion({
@@ -203,25 +206,6 @@ function idsByHash(version: SceneVersion): Map<Sha256, string> {
   for (const [id, a] of Object.entries(version.assets))
     if (a.storage === "doc") ids.set(a.sha256, id);
   return ids;
-}
-
-/** Empties `out` for a version: refused when it holds files that aren't an earlier version's. */
-async function clearOut(out: string): Promise<ToolResult | null> {
-  let entries: string[];
-  try {
-    if (!(await stat(out)).isDirectory())
-      return failure(`--out ${shownPath(out)} isn't a directory`);
-    entries = await readdir(out);
-  } catch (error) {
-    if ((error as { code?: string }).code === "ENOENT") return null;
-    throw error;
-  }
-  if (entries.length > 0 && !entries.includes(SCENE_VERSION_FILE))
-    return failure(
-      `--out ${shownPath(out)} holds files and no ${SCENE_VERSION_FILE}, so it isn't an earlier version; pick an empty or new directory`,
-    );
-  await rm(out, { recursive: true, force: true });
-  return null;
 }
 
 /** The project `id` names, or the usage error listing the projects. */
@@ -267,13 +251,13 @@ export async function gameLiveBuild(
       handle = { ...local, dir: copy.dir };
       from = new URL(site).origin;
     } else handle = projectFor(ctx, input.project);
-    if (isResult(handle)) return handle;
+    if (isToolResult(handle)) return handle;
 
     const built = await buildFrom(handle, input.scene, "game live build");
-    if (isResult(built)) return built;
+    if (isToolResult(built)) return built;
     const { version, id } = built;
     const out = resolve(input.out ?? defaultLiveOut(input.project, input.scene));
-    const cleared = await clearOut(out);
+    const cleared = await clearOut(out, SCENE_VERSION_FILE, "version");
     if (cleared) return cleared;
     await mkdir(out, { recursive: true });
     const { versionText, texts, dataBytes } = sizesOf(built);
@@ -382,36 +366,6 @@ async function releaseBase(
   };
 }
 
-/**
- * The release `path` names (a build directory or its `release.json`): its
- * manifest, id and file. Its files are read only as the swap check needs
- * them; `game manifest` checks a build against its files.
- */
-async function readRelease(
-  path: string,
-): Promise<{ manifest: ReleaseManifest; id: Sha256; file: string } | ToolResult> {
-  let file = path;
-  let text: string;
-  try {
-    if ((await stat(path)).isDirectory()) file = join(path, RELEASE_FILE);
-    text = await readFile(file, "utf8");
-  } catch (e) {
-    if ((e as { code?: string }).code === "ENOENT") return failure(`Not found: ${file}.`);
-    throw e;
-  }
-  const parsed = parseReleaseManifest(text);
-  if (!parsed.ok)
-    return {
-      exitCode: 1,
-      data: { ok: false, against: file, issues: parsed.issues },
-      text: [
-        `--against ${shownPath(file)}: not a release manifest`,
-        ...parsed.issues.map(issueLine),
-      ].join("\n"),
-    };
-  return { manifest: parsed.manifest, id: await releaseId(parsed.manifest), file };
-}
-
 /** The scene's input scripts in the project, by path, read for its game and seats; one naming the scene that doesn't read is an error. */
 function scriptsOf(
   input: ExportInput,
@@ -504,17 +458,17 @@ export async function gameLiveCheck(
   const { scene } = input;
   const env = ctx.env ?? process.env;
   const handle = projectFor(ctx, input.project);
-  if (isResult(handle)) return handle;
+  if (isToolResult(handle)) return handle;
 
   let release: { manifest: ReleaseManifest; id: Sha256; file: string } | null = null;
   if (input.against !== undefined) {
-    const read = await readRelease(resolve(input.against));
-    if (isResult(read)) return read;
-    release = read;
+    const read = await readReleaseAt(resolve(input.against));
+    if (!read.ok) return read.result;
+    release = { manifest: read.manifest, id: await releaseId(read.manifest), file: read.file };
   }
 
   const built = await buildFrom(handle, scene, "game live check", release?.manifest);
-  if (isResult(built)) return built;
+  if (isToolResult(built)) return built;
   const { version, id, texts } = built;
   const issues = [...built.issues];
   const lines: string[] = [];
@@ -527,7 +481,6 @@ export async function gameLiveCheck(
 
   const game = built.input.game;
   const { timing, clamped } = clampTiming(game.live, "now");
-  const timingWords = timing === "next-load" ? "next load" : timing;
   if (clamped)
     warnings.push(
       liveIssue({
@@ -541,7 +494,7 @@ export async function gameLiveCheck(
     // A build stops on its own errors, so an error here is the release check's.
     const fits = issues.some(isError) ? "doesn't fit " : "";
     lines.push(
-      `  Fits:     ${fits}release ${shortId(release.id)} (${shownPath(release.file)}) · timing: ${timingWords}`,
+      `  Fits:     ${fits}release ${shortId(release.id)} (${shownPath(release.file)}) · timing: ${timingWords(timing)}`,
     );
   }
 
@@ -592,8 +545,7 @@ export async function gameLiveCheck(
   let diff: ReturnType<typeof diffExpanded> | null = null;
   if (base && to.ok) {
     diff = diffExpanded(base.scene, to.scene);
-    const strategy: SwapStrategy = diff.header ? "reload" : "reconcile";
-    lines.push(`  Changes:  ${changesText(diff, strategy)}`);
+    lines.push(`  Changes:  ${changesText(diff, swapStrategyFor(diff))}`);
     if (timing === "next-load") {
       swapSkipped = "this game takes new versions only at the next load";
       lines.push(`  Swaps:    not checked: ${swapSkipped}`);
@@ -602,7 +554,7 @@ export async function gameLiveCheck(
       const found = scriptsOf(built.input, scene, project.inputMap?.players);
       issues.push(...found.issues);
       const checks = await checksOf(built, scene);
-      if (isResult(checks)) return checks;
+      if (isToolResult(checks)) return checks;
       const rapier =
         base.physics === "rapier" || version.entry.physics === "rapier"
           ? await ctx.loadRapier()
@@ -679,12 +631,7 @@ async function checksOf(
     return {
       exitCode: 1,
       data: { ok: false, scene, checks: file, issues: parsed.issues },
-      text: [
-        `${shownPath(file)}: invalid checks file`,
-        ...parsed.issues.map(
-          (i) => `  error ${i.path || "/"}${i.line !== undefined ? `:${i.line}` : ""} ${i.message}`,
-        ),
-      ].join("\n"),
+      text: checksFileLines(shownPath(file), parsed.issues).join("\n"),
     };
   const dir = dirname(file);
   return { file: parsed.file, readFile: (path) => readFileSync(resolve(dir, path), "utf8") };

@@ -1953,6 +1953,11 @@
     gap: 8px;
   }
 
+  .je-play-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
   .je-play-scales {
     display: flex;
     align-items: center;
@@ -1966,9 +1971,21 @@
 
   .je-live-toggle {
     display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 6px;
-    padding: 0 6px;
+    padding: 0 4px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .je-live-toggle[data-unavailable] {
+    cursor: not-allowed;
+  }
+
+  .je-live-toggle[data-unavailable] .je-switch {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .je-live-status {

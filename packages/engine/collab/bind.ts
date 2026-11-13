@@ -2,7 +2,7 @@ import type * as Y from "yjs";
 
 import type { Registry } from "../game/types";
 import { bulkKeysOf, expandScene } from "../scene/expand";
-import { diffEntities, diffExpanded } from "../scene/expanded-diff";
+import { diffEntities, headerChanged } from "../scene/expanded-diff";
 import { resolveScene } from "../scene/resolve";
 import {
   RESERVED_SCENE_KEYS,
@@ -183,20 +183,9 @@ export function bindSceneDoc(
   }
 
   function apply(next: ExpandedScene): void {
-    const diff = diffExpanded(current, next);
-    if (diff.header) runtime.load(next);
-    else {
-      const pick = (ids: readonly string[]) => {
-        const want = new Set(ids);
-        return next.entities.filter((e) => want.has(e.id));
-      };
-      const changes = {
-        added: pick(diff.added),
-        removed: [...diff.removed],
-        changed: pick(diff.changed),
-      };
-      if (!runChanges(runtime, changes)) runtime.load(next);
-    }
+    if (headerChanged(current, next)) runtime.load(next);
+    else if (!runChanges(runtime, diffEntities(current.entities, next.entities)))
+      runtime.load(next);
     current = next;
   }
 

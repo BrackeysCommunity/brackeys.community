@@ -1,11 +1,11 @@
 import { Alert02Icon, AlertCircleIcon } from "@hugeicons/core-free-icons";
 import type { Store } from "@tanstack/store";
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, type ReactNode } from "react";
 
 import type { EditorSession } from "../../editor/index";
 import { Activity, saveState, SaveState } from "../frame/Activity";
 import { Island, useBottomRow } from "../frame/EditorFrame";
-import { Icon, Spinner, Text, type TextTone } from "../kit/index";
+import { Hint, Icon, Spinner, Text, type TextTone } from "../kit/index";
 import { ACTIVITY_DELAY_MS, type PendingTask } from "../pending/pending";
 import { usePendingTasks } from "../pending/use-pending";
 import type { EditorHostState, LivePlayStatus } from "../session/live-scene-editor";
@@ -217,12 +217,37 @@ const LIVE_TONES: Readonly<Record<LivePlayStatus["tone"], TextTone>> = {
 export function LiveInPlayStatus({ host }: { host: ReadableStore<EditorHostState> }) {
   const status = useStoreValue(host, (s) => (s.livePlay?.on ? s.livePlay.status : null));
   if (!status) return null;
+  // A failure or a wait can outrun the island: its hint holds the whole reason.
+  const detail =
+    status.tone === "failed" || status.tone === "waiting" ? statusDetail(status) : null;
+  const line = (
+    <Text size="sm" variant={LIVE_TONES[status.tone]} ellipsis {...(detail ? { tabIndex: 0 } : {})}>
+      {status.text}
+    </Text>
+  );
   return (
     <Island role="status" className="je-scene-changed je-live-status" data-live={status.tone}>
       {status.tone === "busy" ? <Spinner size={12} label={null} /> : null}
-      <Text size="sm" variant={LIVE_TONES[status.tone]} ellipsis>
-        {status.text}
-      </Text>
+      {detail ? (
+        <Hint content={detail} maxWidth={360} hoverable>
+          {line}
+        </Hint>
+      ) : (
+        line
+      )}
     </Island>
+  );
+}
+
+/** The status's text, and its issue's message when the text doesn't already say it. */
+function statusDetail(status: LivePlayStatus): ReactNode {
+  const message = status.issue?.message;
+  if (!message || status.text.includes(message)) return status.text;
+  return (
+    <>
+      {status.text}
+      <br />
+      {message}
+    </>
   );
 }
