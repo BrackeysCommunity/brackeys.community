@@ -18,18 +18,17 @@ import { seedUser, type TestDb } from "@/test/db";
 
 import { LIVE_LIMITS } from "../limits";
 import { beginSceneVersion, commitSceneVersion } from "../live-upload";
-import { ReleaseError } from "../release-errors";
 import { memoryReleaseStore } from "../release-storage";
-import {
-  beginRelease,
-  commitRelease,
-  putReleaseFile,
-  type Actor,
-  type ReleaseDeps,
-  type ReleaseTxDb,
-} from "../release-upload";
+import { commitRelease, putReleaseFile, type Actor } from "../release-upload";
 import { fixtureVersion, withVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
+import {
+  putSceneTexts,
+  refusal,
+  uploadDeps,
+  uploadRelease,
+  uploadSceneVersion,
+} from "./upload-rig";
 
 vi.mock("@/db", async () => {
   const { createTestDb } = await import("@/test/db");
@@ -53,33 +52,10 @@ let allow = true;
 let store = memoryReleaseStore();
 let release: PlannedRelease;
 
-const deps = (): ReleaseDeps => ({
-  db: db as unknown as ReleaseTxDb,
-  store,
-  now: () => clock,
-  rateLimit: async () => allow,
-  scan: async () => {},
-});
+const deps = () => uploadDeps(store, { now: () => clock, rateLimit: async () => allow });
 
 const encode = (text: string) => new TextEncoder().encode(text);
 const hex = (n: number) => n.toString(16).padStart(64, "0");
-
-/** The fixture release, published to preview the way a person would. */
-async function publishRelease() {
-  const begun = await beginRelease(deps(), {
-    projectId: PROJECT,
-    manifest: release.text,
-    actor: staff,
-  });
-  for (const f of begun.missing)
-    await putReleaseFile(deps(), {
-      uploadId: begun.uploadId,
-      sha256: f.sha256,
-      body: release.files.get(f.path)!,
-      actor: staff,
-    });
-  await commitRelease(deps(), { uploadId: begun.uploadId, actor: staff });
-}
 
 type BeginOptions = { actor?: Actor; channel?: "preview" | "none"; note?: string };
 
@@ -92,39 +68,12 @@ const begin = (v: FixtureVersion, opts: BeginOptions = {}) =>
     ...(opts.note !== undefined ? { note: opts.note } : {}),
   });
 
-async function putTexts(
-  v: FixtureVersion,
-  uploadId: string,
-  missing: { sha256: string }[],
-  actor = staff,
-) {
-  for (const { sha256: hash } of missing)
-    await putReleaseFile(deps(), {
-      uploadId,
-      sha256: hash,
-      body: encode(v.texts.get(hash)!),
-      actor,
-    });
-}
-
-async function publish(v: FixtureVersion, opts: BeginOptions = {}) {
-  const actor = opts.actor ?? staff;
-  const begun = await begin(v, opts);
-  await putTexts(v, begun.uploadId, begun.missing, actor);
-  const committed = await commitSceneVersion(deps(), { uploadId: begun.uploadId, actor });
-  return { begun, committed };
-}
-
-/** The refusal's API body, or a failure when the call went through. */
-async function refusal(run: () => Promise<unknown>) {
-  try {
-    await run();
-  } catch (error) {
-    if (error instanceof ReleaseError) return { ...error.body, status: error.status };
-    throw error;
-  }
-  throw new Error("the call wasn't refused");
-}
+const publish = (v: FixtureVersion, opts: BeginOptions = {}) =>
+  uploadSceneVersion(deps(), v, {
+    channel: opts.channel ?? "preview",
+    actor: opts.actor ?? staff,
+    ...(opts.note !== undefined ? { note: opts.note } : {}),
+  });
 
 /** A marker moved, so the scene's text differs from the release's. */
 const moved =
@@ -186,7 +135,7 @@ beforeEach(async () => {
     tokenSha256: "f".repeat(64),
     expiresAt: new Date(NOW.getTime() + 24 * HOUR),
   });
-  await publishRelease();
+  await uploadRelease(deps(), release, { actor: staff });
 });
 
 describe("beginSceneVersion", () => {
@@ -631,7 +580,7 @@ describe("commitSceneVersion", () => {
   it("refuses an expired upload", async () => {
     const v = await edited("hall");
     const begun = await begin(v);
-    await putTexts(v, begun.uploadId, begun.missing);
+    await putSceneTexts(deps(), v, begun, staff);
     clock = new Date(NOW.getTime() + 25 * HOUR);
     expect(
       await refusal(() => commitSceneVersion(deps(), { uploadId: begun.uploadId, actor: staff })),

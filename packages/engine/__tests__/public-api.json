@@ -835,6 +835,7 @@
       "advanceAlongPath",
       "advanceWaypoint",
       "angleField",
+      "arrivalWords",
       "assetField",
       "assetKindsOf",
       "bindingKeyLabel",
@@ -941,6 +942,7 @@
       "savePathPlace",
       "scaleLengths",
       "sceneGrid",
+      "sceneVersionName",
       "scopedRef",
       "seekAlongPath",
       "shapeColliderDesc",
@@ -956,6 +958,7 @@
       "ticksFor",
       "traceShape",
       "vectorField",
+      "versionName",
       "wholeTicksIn",
       "withProject"
     ],

@@ -12,6 +12,7 @@ import {
 import type { ExportInput } from "@jams/engine/export";
 import {
   clampTiming,
+  sceneVersionName,
   type GameDefinition,
   type SwapStrategy,
   type SwapTiming,
@@ -64,7 +65,6 @@ import {
   engineLivePromotePath,
 } from "../../../src/lib/engine/route-paths";
 import { formatCount } from "../../../src/lib/format-bytes";
-import { releaseDay } from "../../../src/lib/jam-links";
 import {
   amber,
   failure,
@@ -90,6 +90,7 @@ import {
   call,
   channelPlayUrl,
   gamePageOf,
+  keptState,
   postJson,
   quotaWarnings,
   refusalResult,
@@ -721,9 +722,6 @@ const SWAP_TIMINGS: readonly SwapTiming[] = ["next-load", "boundary", "now"];
 const timingOf = (value: string | undefined): SwapTiming | null =>
   SWAP_TIMINGS.find((t) => t === value) ?? null;
 
-/** `level-1@4`, as the site names a scene's versions. */
-const labelOf = (scene: string, number: number) => `${scene}@${formatCount(number)}`;
-
 /**
  * Production is refused here, before any request, with the site's own
  * refusal: agent tokens act on preview only, and a person moves production
@@ -764,7 +762,7 @@ async function siteBase(
     });
     if (!read.ok) return { issues: read.issues };
     return {
-      name: labelOf(scene, answer.live.number),
+      name: sceneVersionName(scene, answer.live.number),
       from: { id: answer.live.versionId, version: parsed.version, texts },
       scene: read.scene,
       physics: parsed.version.entry.physics,
@@ -967,7 +965,7 @@ export async function gameLivePublish(
       deps,
     );
 
-    const name = labelOf(scene, committed.number);
+    const name = sceneVersionName(scene, committed.number);
     const today = todayOf(first.usage.after);
     if (today.text) lines.push(`  Today:    ${today.text}`);
     const quotaLines = quotaWarnings(first.usage.after);
@@ -1044,14 +1042,6 @@ export type SceneVersionListEntry = {
   removalAt: string | null;
 };
 
-function versionState(v: SceneVersionListEntry): string {
-  if (v.collectedAt !== null) return `removed ${releaseDay(v.collectedAt)}`;
-  if (v.hidden) return `hidden${v.hidden.reason ? `: ${v.hidden.reason}` : ""}`;
-  if (v.blocked) return `blocked${v.blocked.reason ? `: ${v.blocked.reason}` : ""}`;
-  if (v.removalAt !== null) return `removal ${releaseDay(v.removalAt)}`;
-  return "kept";
-}
-
 /** The hosted project's scene versions (one scene's with `<scene>`), newest first: size, where each is live, its state and note. */
 export async function gameLiveList(
   input: GameLiveListInput,
@@ -1072,13 +1062,13 @@ export async function gameLiveList(
   const what = input.scene === undefined ? projectId : `${projectId} ${input.scene}`;
   const lines = versions.map((v) =>
     [
-      `  ${labelOf(v.scene, v.number)}`,
+      `  ${sceneVersionName(v.scene, v.number)}`,
       shortId(v.id),
       formatBytes(v.dataBytes),
       v.pointers.length > 0
         ? v.pointers.map((p) => `${p.channel} (${timingWords(p.timing)})`).join(", ")
         : "-",
-      versionState(v),
+      keptState(v),
       ...(v.note ? [JSON.stringify(v.note)] : []),
     ].join("  "),
   );
@@ -1138,7 +1128,7 @@ function movedScene(
 }
 
 const wasOf = (scene: string, from: number | null) =>
-  from === null ? "the release's scene" : labelOf(scene, from);
+  from === null ? "the release's scene" : sceneVersionName(scene, from);
 
 /** Points the hosted project's preview at version `<n>` of a scene; production is refused here. */
 export async function gameLivePromote(
@@ -1169,7 +1159,7 @@ export async function gameLivePromote(
     return movedScene(
       access,
       scene,
-      `preview now plays ${labelOf(scene, answer.to)} (was ${wasOf(scene, answer.from)}) · timing: ${timingWords(answer.timing)}`,
+      `preview now plays ${sceneVersionName(scene, answer.to)} (was ${wasOf(scene, answer.from)}) · timing: ${timingWords(answer.timing)}`,
       { from: answer.from, to: answer.to, timing: { wanted, timing: answer.timing, clamped } },
       game && clamped ? [clampedWarning(game, scene)] : [],
       ctx.env ?? process.env,
@@ -1229,7 +1219,7 @@ export async function gameLiveClear(
     return movedScene(
       access,
       scene,
-      `preview stopped ${labelOf(scene, answer.from)}; players get the release's scene at their next load`,
+      `preview stopped ${sceneVersionName(scene, answer.from)}; players get the release's scene at their next load`,
       { from: answer.from, to: null },
       [],
       ctx.env ?? process.env,

@@ -9,9 +9,9 @@ import type { SyncAccess } from "@/lib/canvas/token";
 
 import { PROJECT_QUOTA, RELEASE_MANIFEST_MAX_BYTES } from "./limits";
 import { quotaWords } from "./quota";
-import { canDo, type GameAction } from "./release-access";
-import { listReleases, promote, rollback, type ReleaseChannel } from "./release-channels";
-import { apiErrorResponse, releaseForbidden, type ReleaseApiError } from "./release-errors";
+import { canDo, releaseChannel, type GameAction, type ReleaseChannel } from "./release-access";
+import { listReleases, promote, rollback } from "./release-channels";
+import { apiErrorResponse, releaseForbidden } from "./release-errors";
 import { minioReleaseStore } from "./release-storage";
 import { beginRelease, commitRelease, putReleaseFile, type ReleaseDeps } from "./release-upload";
 import { releaseZipResponse } from "./release-zip";
@@ -22,7 +22,12 @@ import {
   gateResponse,
   jsonBody,
   methodNotAllowed,
+  NO_STORE,
+  notFound,
   readBody,
+  SMALL_BODY_MAX_BYTES,
+  unknownUpload,
+  uploadIdInput,
   type ReadSession,
 } from "./route-gate";
 import {
@@ -36,22 +41,34 @@ import {
 
 export type ReleaseRouteDeps = {
   readSession: ReadSession;
-  /** The upload protocol's store, clock and scan; default the site's bucket and queue. */
+  /** The upload protocol's store, clock, limiter and scan; default the site's bucket and queue. */
   release?: Partial<ReleaseDeps>;
 };
 
+/**
+ * What the release and live routes share: the gate behind
+ * `engine-games-enabled` and the production guard, and the upload
+ * protocol's deps.
+ */
+export function engineRoutes(deps: ReleaseRouteDeps) {
+  return {
+    gate: (request: Request, projectId: string, need: SyncAccess) =>
+      gateEngineRequest(request, projectId, need, { readSession: deps.readSession, games: true }),
+    releaseDeps: (): ReleaseDeps => ({
+      ...deps.release,
+      store: deps.release?.store ?? minioReleaseStore,
+    }),
+  };
+}
+
 /** Room for a 1 MiB manifest escaped inside a JSON string, and the rest of the body. */
 const BEGIN_BODY_MAX_BYTES = 4 * RELEASE_MANIFEST_MAX_BYTES;
-const SMALL_BODY_MAX_BYTES = 4_096;
 
 const beginBody = z.object({
   manifest: z.string().max(RELEASE_MANIFEST_MAX_BYTES),
   channel: z.enum(["preview", "none"]).default("preview"),
 });
-const commitBody = z.object({ uploadId: z.string().min(1).max(64) });
-const moveBody = z.object({ channel: z.enum(["preview", "production"]) });
-
-const NOT_FOUND: ReleaseApiError = { code: "not-found", message: "Not found." };
+const moveBody = z.object({ channel: releaseChannel });
 
 /**
  * The release routes under `/api/engine/`: begin, the file `PUT`, commit,
@@ -64,13 +81,7 @@ const NOT_FOUND: ReleaseApiError = { code: "not-found", message: "Not found." };
 export function createReleaseRoutes(
   deps: ReleaseRouteDeps,
 ): (request: Request) => Promise<Response | null> {
-  const releaseDeps = (): ReleaseDeps => ({
-    ...deps.release,
-    store: deps.release?.store ?? minioReleaseStore,
-  });
-
-  const gate = (request: Request, projectId: string, need: SyncAccess) =>
-    gateEngineRequest(request, projectId, need, { readSession: deps.readSession, games: true });
+  const { gate, releaseDeps } = engineRoutes(deps);
 
   async function begin(request: Request, projectId: string): Promise<Response> {
     const gated = await gate(request, projectId, "write");
@@ -85,7 +96,7 @@ export function createReleaseRoutes(
     return answer(async () =>
       Response.json(
         await beginRelease(releaseDeps(), { projectId, ...body.body, actor: gated.actor }),
-        { headers: { "cache-control": "no-store" } },
+        { headers: NO_STORE },
       ),
     );
   }
@@ -96,7 +107,7 @@ export function createReleaseRoutes(
     return answer(async () =>
       Response.json(
         { releases: await listReleases({ projectId, actor: gated.actor }) },
-        { headers: { "cache-control": "no-store" } },
+        { headers: NO_STORE },
       ),
     );
   }
@@ -110,13 +121,10 @@ export function createReleaseRoutes(
     return row ?? null;
   }
 
-  const unknownUpload = () =>
-    apiErrorResponse({ code: "not-found", message: "There is no upload with this id." }, 404);
-
   async function commit(request: Request, projectId: string): Promise<Response> {
     const gated = await gate(request, projectId, "write");
     if (!gated.ok) return gateResponse(gated);
-    const body = await jsonBody(request, SMALL_BODY_MAX_BYTES, commitBody, "{ uploadId }");
+    const body = await jsonBody(request, SMALL_BODY_MAX_BYTES, uploadIdInput, "{ uploadId }");
     if (!body.ok) return body.response;
     const upload = await uploadOf(body.body.uploadId);
     if (upload?.projectId !== projectId) return unknownUpload();
@@ -134,7 +142,7 @@ export function createReleaseRoutes(
     if (!upload) return unknownUpload();
     const gated = await gate(request, upload.projectId, "write");
     if (!gated.ok) return gateResponse(gated);
-    if (!isSha256(hash)) return apiErrorResponse(NOT_FOUND, 404);
+    if (!isSha256(hash)) return notFound();
 
     const max = PROJECT_QUOTA.releaseFileBytes;
     const path = upload.missing.find((file) => file.sha256 === hash)?.path ?? hash;
@@ -185,7 +193,7 @@ export function createReleaseRoutes(
     const { actor } = gated;
     return answer(async () => {
       if (kind === "promote") {
-        if (version === null) return apiErrorResponse(NOT_FOUND, 404);
+        if (version === null) return notFound();
         return Response.json(await promote({ projectId, version, channel, actor }));
       }
       return Response.json(
@@ -195,12 +203,12 @@ export function createReleaseRoutes(
   }
 
   async function zip(request: Request, releaseId: string): Promise<Response> {
-    if (!isSha256(releaseId)) return apiErrorResponse(NOT_FOUND, 404);
+    if (!isSha256(releaseId)) return notFound();
     const [release] = await db
       .select({ projectId: engineReleases.projectId })
       .from(engineReleases)
       .where(eq(engineReleases.id, releaseId));
-    if (!release) return apiErrorResponse(NOT_FOUND, 404);
+    if (!release) return notFound();
     const gated = await gate(request, release.projectId, "read");
     if (!gated.ok) return gateResponse(gated);
     if (gated.actor.kind === "agent" && !canDo("agent", "download-zip")) {
@@ -219,7 +227,7 @@ export function createReleaseRoutes(
     const releases = RELEASES_PATH.exec(pathname);
     if (releases) {
       const projectId = projectOf(releases);
-      if (projectId === null) return apiErrorResponse(NOT_FOUND, 404);
+      if (projectId === null) return notFound();
       if (method === "POST") return begin(request, projectId);
       if (method === "GET") return list(request, projectId);
       return methodNotAllowed("GET, POST");
@@ -227,7 +235,7 @@ export function createReleaseRoutes(
     const committing = RELEASE_COMMIT_PATH.exec(pathname);
     if (committing) {
       const projectId = projectOf(committing);
-      if (projectId === null) return apiErrorResponse(NOT_FOUND, 404);
+      if (projectId === null) return notFound();
       if (method !== "POST") return methodNotAllowed("POST");
       return commit(request, projectId);
     }
@@ -236,7 +244,7 @@ export function createReleaseRoutes(
       const projectId = projectOf(moving);
       const version = Number(moving[2]);
       if (projectId === null || !Number.isSafeInteger(version) || version < 1) {
-        return apiErrorResponse(NOT_FOUND, 404);
+        return notFound();
       }
       if (method !== "POST") return methodNotAllowed("POST");
       return move(request, projectId, moving[3] === "rollback" ? "rollback" : "promote", version);
@@ -244,14 +252,14 @@ export function createReleaseRoutes(
     const rollingBack = RELEASE_ROLLBACK_PATH.exec(pathname);
     if (rollingBack) {
       const projectId = projectOf(rollingBack);
-      if (projectId === null) return apiErrorResponse(NOT_FOUND, 404);
+      if (projectId === null) return notFound();
       if (method !== "POST") return methodNotAllowed("POST");
       return move(request, projectId, "rollback", null);
     }
     const file = RELEASE_FILE_PATH.exec(pathname);
     if (file) {
       const uploadId = decodeSegment(file[1] ?? "");
-      if (uploadId === null) return apiErrorResponse(NOT_FOUND, 404);
+      if (uploadId === null) return notFound();
       if (method !== "PUT") return methodNotAllowed("PUT");
       return putFile(request, uploadId, file[2] ?? "");
     }

@@ -1,13 +1,5 @@
 import type { SwapTiming } from "@jams/engine/game";
-import {
-  checkSceneVersion,
-  parseReleaseManifest,
-  parseSceneVersion,
-  type AssetId,
-  type ReleaseManifest,
-  type SceneVersion,
-  type Sha256,
-} from "@jams/engine/project";
+import { parseSceneVersion, type AssetId, type Sha256 } from "@jams/engine/project";
 import { and, count, desc, eq, inArray, isNull, max } from "drizzle-orm";
 
 import { db as siteDb } from "@/db";
@@ -15,7 +7,6 @@ import {
   developerProfiles,
   engineLiveReports,
   engineReleaseAudit,
-  engineReleaseChannels,
   engineReleases,
   engineSceneChannels,
   engineSceneVersionFiles,
@@ -24,16 +15,21 @@ import {
 import { memberName } from "@/lib/member-name";
 
 import { sceneVersionForecast } from "./collect-plan";
+import { LIVE_OUTCOMES, type LiveOutcome } from "./live-outcomes";
 import {
+  channelRelease,
+  DEFAULT_SWAP_TIMING,
   moveScenePointer,
   sceneVersionLabel as label,
+  sceneVersionMisfit,
+  type ChannelRelease,
   type LiveChannel,
   type ScenePointerMoved,
 } from "./live-pointers";
 import { effectiveLive, type LivePointerRow, type LiveSnapshot } from "./live-state";
 import { roleOf, type GameRole, type Viewer } from "./release-access";
 import type { Actor, ReleaseDb } from "./release-audit";
-import { issueError, releaseForbidden, type ReleaseApiError } from "./release-errors";
+import { releaseForbidden, type ReleaseApiError } from "./release-errors";
 import type { ReleaseObjectStore } from "./release-storage";
 import {
   heldHashes,
@@ -47,7 +43,7 @@ import {
 } from "./release-upload";
 import { releaseViewer, type ProjectRow } from "./release-viewer";
 
-export type { LiveChannel };
+export { channelRelease, type ChannelRelease, type LiveChannel };
 
 /** A pointer at a version: where, how players get it, since when and who moved it. */
 export type SceneVersionPointer = {
@@ -97,7 +93,7 @@ export type SceneVersionDetail = SceneVersionSummary & {
   sceneHash: Sha256;
   files: SceneVersionFile[];
   /** Signed-in players' latest outcomes, by outcome. */
-  outcomes: Readonly<Record<"applied" | "refused" | "failed" | "crashed", number>>;
+  outcomes: Readonly<Record<LiveOutcome, number>>;
   /** Whether it fits each kept release, newest first, with the first issue when it doesn't. */
   compat: { version: number; releaseId: Sha256; fits: boolean; issue: ReleaseApiError | null }[];
 };
@@ -164,51 +160,6 @@ async function readableProject(
 }
 
 // ─── A channel's live state ─────────────────────────────
-
-/** A channel's release as the live reads use it, its manifest read. */
-export type ChannelRelease = {
-  id: Sha256;
-  version: number;
-  manifestText: string;
-  manifest: ReleaseManifest;
-  liveCompatKey: string;
-  rev: number;
-};
-
-/** The release `channel` plays, unless it was collected or its manifest is gone; null when there is none. */
-export async function channelRelease(
-  db: ReleaseDb,
-  projectId: string,
-  channel: LiveChannel,
-): Promise<ChannelRelease | null> {
-  const [row] = await db
-    .select({
-      id: engineReleases.id,
-      version: engineReleases.version,
-      manifest: engineReleases.manifest,
-      liveCompatKey: engineReleases.liveCompatKey,
-      rev: engineReleaseChannels.liveRev,
-    })
-    .from(engineReleaseChannels)
-    .innerJoin(engineReleases, eq(engineReleases.id, engineReleaseChannels.releaseId))
-    .where(
-      and(
-        eq(engineReleaseChannels.projectId, projectId),
-        eq(engineReleaseChannels.channel, channel),
-        isNull(engineReleases.collectedAt),
-      ),
-    );
-  const parsed = row?.manifest ? parseReleaseManifest(row.manifest) : null;
-  if (!row?.manifest || !parsed?.ok) return null;
-  return {
-    id: row.id,
-    version: row.version,
-    manifestText: row.manifest,
-    manifest: parsed.manifest,
-    liveCompatKey: row.liveCompatKey,
-    rev: row.rev,
-  };
-}
 
 /** The channel's scene pointers joined to their versions, as `effectiveLive` reads them. */
 export async function channelPointers(
@@ -416,36 +367,24 @@ export async function listSceneVersions(
   });
 }
 
-const OUTCOMES = ["applied", "refused", "failed", "crashed"] as const;
-
 /** Whether `version` fits each kept release of the project, newest first, with the first error when it doesn't. */
 async function compatPerRelease(
   db: ReleaseDb,
   projectId: string,
-  version: SceneVersion,
-  number: number,
+  version: { scene: AssetId; number: number; descriptor: string; compatKey: string },
 ): Promise<SceneVersionDetail["compat"]> {
   const releases = await db
     .select({
       id: engineReleases.id,
       version: engineReleases.version,
       manifest: engineReleases.manifest,
+      liveCompatKey: engineReleases.liveCompatKey,
     })
     .from(engineReleases)
     .where(and(eq(engineReleases.projectId, projectId), isNull(engineReleases.collectedAt)))
     .orderBy(desc(engineReleases.version));
   return releases.map((r) => {
-    const parsed = r.manifest ? parseReleaseManifest(r.manifest) : null;
-    let issue: ReleaseApiError | null = {
-      code: "schema",
-      message: `v${r.version}'s release.json can't be read.`,
-    };
-    if (parsed?.ok) {
-      const error = checkSceneVersion(parsed.manifest, version, undefined, {
-        names: { version: label(version.scene, number), release: `v${r.version}` },
-      }).find((i) => i.severity === "error");
-      issue = error ? issueError(error) : null;
-    }
+    const issue = sceneVersionMisfit(version, r);
     return { version: r.version, releaseId: r.id, fits: issue === null, issue };
   });
 }
@@ -488,7 +427,6 @@ export async function getSceneVersion(
       .groupBy(engineLiveReports.outcome),
   ]);
 
-  const parsed = stored?.descriptor ? parseSceneVersion(stored.descriptor) : null;
   const byOutcome = new Map(outcomes.map((o) => [o.outcome, o.n]));
   return {
     ...summary,
@@ -501,9 +439,17 @@ export async function getSceneVersion(
           source: f.source as SceneVersionFile["source"],
         })),
     outcomes: Object.fromEntries(
-      OUTCOMES.map((o) => [o, byOutcome.get(o) ?? 0]),
+      LIVE_OUTCOMES.map((o) => [o, byOutcome.get(o) ?? 0]),
     ) as SceneVersionDetail["outcomes"],
-    compat: parsed?.ok ? await compatPerRelease(db, projectId, parsed.version, number) : [],
+    compat:
+      stored?.descriptor && !summary.collectedAt
+        ? await compatPerRelease(db, projectId, {
+            scene,
+            number,
+            descriptor: stored.descriptor,
+            compatKey: summary.compatKey,
+          })
+        : [],
   };
 }
 
@@ -624,7 +570,7 @@ export async function promoteScene(
   deps: ReleaseDeps,
   input: MoveInput & { number: number; timing?: SwapTiming },
 ): Promise<{ from: number | null; to: number; timing: SwapTiming }> {
-  const timing = input.timing ?? DEFAULT_TIMING;
+  const timing = input.timing ?? DEFAULT_SWAP_TIMING;
   const moved = await moveScenePointer(deps, {
     ...moveOf(input),
     to: { number: input.number },
@@ -646,7 +592,7 @@ export async function rollbackScene(
   return moveScenePointer(deps, {
     ...moveOf(input),
     to: input.to === undefined ? "previous" : { number: input.to },
-    timing: input.timing ?? DEFAULT_TIMING,
+    timing: input.timing ?? DEFAULT_SWAP_TIMING,
     action: "scene-rollback",
   });
 }
@@ -659,13 +605,11 @@ export async function clearScene(
   const moved = await moveScenePointer(deps, {
     ...moveOf(input),
     to: null,
-    timing: input.timing ?? DEFAULT_TIMING,
+    timing: input.timing ?? DEFAULT_SWAP_TIMING,
     action: "scene-clear",
   });
   return { from: playing(moved.from, input) };
 }
-
-const DEFAULT_TIMING: SwapTiming = "next-load";
 
 const moveOf = ({ projectId, scene, channel, actor }: MoveInput) => ({
   projectId,

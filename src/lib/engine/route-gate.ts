@@ -1,11 +1,11 @@
-import type * as z from "zod";
+import * as z from "zod";
 
 import type { SyncAccess } from "@/lib/canvas/token";
 
 import { authorizeAgentToken } from "./agent-token";
 import { engineGamesOpen } from "./guard-server";
 import { engineProjectsEnabled, isEngineStaff, liveEngineProject } from "./projects";
-import { apiErrorResponse, ReleaseError } from "./release-errors";
+import { apiErrorResponse, ReleaseError, type ReleaseApiError } from "./release-errors";
 import type { Actor } from "./release-upload";
 
 /** The caller's session, a banned one already treated as signed out. */
@@ -128,6 +128,21 @@ export function parseJson(bytes: Uint8Array): unknown {
 }
 
 // ─── The release API's transport ─────────────────────────
+
+/** A body that carries no file: a commit's id or a move. */
+export const SMALL_BODY_MAX_BYTES = 4_096;
+
+export const NO_STORE = { "cache-control": "no-store" };
+
+const NOT_FOUND_ERROR: ReleaseApiError = { code: "not-found", message: "Not found." };
+
+export const notFound = () => apiErrorResponse(NOT_FOUND_ERROR, 404);
+
+/** A commit's body, for releases and scene versions alike. */
+export const uploadIdInput = z.object({ uploadId: z.string().min(1).max(64) });
+
+export const unknownUpload = () =>
+  apiErrorResponse({ code: "not-found", message: "There is no upload with this id." }, 404);
 
 /** A request body the route can't read, as the release API's `schema` error. */
 export const badBody = (message: string, status = 400) =>

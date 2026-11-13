@@ -1,3 +1,4 @@
+import { isSha256 } from "@jams/engine/project";
 import { ID_PATTERN } from "@jams/engine/scene";
 import * as z from "zod";
 
@@ -9,10 +10,10 @@ import {
   unblockSceneVersion as unblock,
   unhideSceneVersion as unhide,
 } from "@/lib/engine/live-moderation";
+import { LIVE_OUTCOMES } from "@/lib/engine/live-outcomes";
 import {
   liveBeginInput,
   liveClearInput,
-  liveCommitInput,
   livePromoteInput,
   liveRollbackInput,
 } from "@/lib/engine/live-routes";
@@ -30,8 +31,10 @@ import {
   promoteScene,
   rollbackScene,
 } from "@/lib/engine/live-versions";
-import { isEngineProjectId } from "@/lib/engine/projects";
+import { engineProjectIdInput as projectId } from "@/lib/engine/projects";
+import { releaseChannel as channel } from "@/lib/engine/release-access";
 import { orpcRefusals } from "@/lib/engine/release-errors";
+import { uploadIdInput } from "@/lib/engine/route-gate";
 
 import { gameReader } from "./engine-game";
 import { actorOf, deps, releaseStaff } from "./engine-release";
@@ -56,13 +59,9 @@ export type {
 
 export type { SceneVersionQueueItem } from "@/lib/engine/live-moderation";
 
-const projectId = z
-  .string()
-  .refine(isEngineProjectId, "A project id is lowercase letters, digits and dashes.");
 const scene = z.string().regex(ID_PATTERN, "A scene id is lowercase letters, digits and dashes.");
 const number = z.number().int().min(1);
-const channel = z.enum(["preview", "production"]);
-const sha256 = z.string().regex(/^[0-9a-f]{64}$/, "A SHA-256 is 64 lowercase hex digits.");
+const sha256 = z.string().refine(isSha256, "A SHA-256 is 64 lowercase hex digits.");
 const reason = z.string().trim().min(1).max(500);
 
 /** Checks a scene version against its channel's release and every quota, and lists the texts the site doesn't hold yet. */
@@ -75,7 +74,7 @@ export const beginSceneVersion = releaseStaff
 
 /** Records the version once its texts have arrived, and moves preview to it unless the upload said not to. */
 export const commitSceneVersion = releaseStaff
-  .input(liveCommitInput)
+  .input(uploadIdInput)
   .handler(
     ({ context, input }): Promise<CommitSceneResult> =>
       orpcRefusals(() => commit(deps(), { ...input, actor: actorOf(context) })),
@@ -194,7 +193,7 @@ export const reportLiveState = gameReader
       projectId,
       versionId: sha256,
       channel,
-      outcome: z.enum(["applied", "refused", "failed", "crashed"]),
+      outcome: z.enum(LIVE_OUTCOMES),
       issueCode: z
         .string()
         .regex(/^[a-z0-9][a-z0-9-]{0,63}$/)

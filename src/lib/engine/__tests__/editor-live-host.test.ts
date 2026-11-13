@@ -1,4 +1,4 @@
-import type { LivePublishProgress } from "@jams/engine/editor-ui";
+import type { LivePublished, LivePublishProgress } from "@jams/engine/editor-ui";
 import { ORPCError } from "@orpc/client";
 import { describe, expect, it, vi } from "vite-plus/test";
 
@@ -192,13 +192,18 @@ describe("publishing a scene version", () => {
       }),
     });
     const progress: LivePublishProgress[] = [];
-    const published = await hostOver(rpc, fakeFetch(calls)).publish(
+    const host = hostOver(rpc, fakeFetch(calls));
+    const heard: LivePublished[] = [];
+    const unsubscribe = host.onPublished!((p) => heard.push(p));
+    const published = await host.publish(
       "{version}",
       texts,
       { channel: "production", timing: "now" },
       (p) => progress.push(p),
     );
     expect(calls).toEqual(["begin", "put bb", "put cc", "commit", "promote"]);
+    expect(heard).toEqual([published]);
+    unsubscribe();
     expect(rpc.beginSceneVersion).toHaveBeenCalledWith({
       projectId: "demo",
       version: "{version}",
@@ -230,9 +235,13 @@ describe("publishing a scene version", () => {
         });
       }),
     });
-    const refused = await hostOver(rpc, fakeFetch(calls))
+    const host = hostOver(rpc, fakeFetch(calls));
+    const heard = vi.fn();
+    host.onPublished!(heard);
+    const refused = await host
       .publish("{version}", texts, { channel: "preview", timing: "next-load" })
       .catch((e: unknown) => e);
+    expect(heard).not.toHaveBeenCalled();
     expect(refused).toBeInstanceOf(PublishHostError);
     expect(refused).toMatchObject({
       code: "quota-exceeded",
@@ -390,7 +399,7 @@ describe("the pointers and the reads", () => {
       pointers: [
         { channel: "preview", timing: "next-load", since: "2026-11-12T09:30:00.000Z", by: "Jo" },
       ],
-      blocked: { by: "system", text: "Blocked: 5 of 12 players' games failed after this update." },
+      blocked: { by: "system", text: "5 of 12 players' games failed after this update." },
       removal: null,
       collected: false,
     });
@@ -463,10 +472,14 @@ describe("the live wording", () => {
   it("writes the badge, the forecast in UTC and Usage's live line", () => {
     expect(
       liveBlockedText({ by: "user", reason: "Softlocks at the gate." }, { ok: 0, failed: 0 }),
-    ).toBe("Blocked: Softlocks at the gate.");
+    ).toBe("Softlocks at the gate.");
+    expect(liveBlockedText({ by: "user", reason: null }, { ok: 0, failed: 0 })).toBe(
+      "Blocked by a publisher.",
+    );
     expect(liveRemovalText("level-1", 1, "2026-12-31T23:30:00Z")).toBe(
       "level-1@1 will be removed on 31 Dec 2026. Point a channel at it to keep it.",
     );
+    expect(liveRemovalText("level-1", 1000, "2026-12-31T23:30:00Z")).toMatch(/^level-1@1,000 /);
     expect(liveUsageText({ kept: 12, bytes: 409_600 })).toBe(
       "of which live scenes: 400 KB in 12 versions. Each scene keeps its 5 newest versions plus those on a channel; others go 14 days after publishing.",
     );

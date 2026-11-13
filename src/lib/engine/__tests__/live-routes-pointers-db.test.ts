@@ -4,17 +4,9 @@ import type { TestDb } from "@/test/db";
 
 import { createAgentToken } from "../agent-token";
 import { createLiveRoutes } from "../live-routes";
-import { beginSceneVersion, commitSceneVersion } from "../live-upload";
 import type { SceneVersionSummary } from "../live-versions";
-import { promote } from "../release-channels";
 import { memoryReleaseStore, type ReleaseObjectStore } from "../release-storage";
-import {
-  beginRelease,
-  commitRelease,
-  putReleaseFile,
-  type Actor,
-  type ReleaseDeps,
-} from "../release-upload";
+import type { Actor } from "../release-upload";
 import {
   engineLiveBasePath,
   engineLiveMovePath,
@@ -24,6 +16,7 @@ import {
 import { fixtureVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
 import { PROJECT, seedEngine } from "./harness";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
+import { uploadDeps, uploadRelease, uploadSceneVersion } from "./upload-rig";
 
 vi.mock("@/db", async () => {
   const { createTestDb } = await import("@/test/db");
@@ -58,8 +51,6 @@ let release: PlannedRelease;
 let writer: string;
 let reader: string;
 
-const deps = (): ReleaseDeps => ({ store, scan: async () => {} });
-
 /** A version of the hall with its start marker at `x`, committed by staff; `channel: "none"` leaves preview alone. */
 async function publishHall(x: number, channel: "preview" | "none"): Promise<FixtureVersion> {
   const hall = await fixtureVersion(release, {
@@ -68,20 +59,7 @@ async function publishHall(x: number, channel: "preview" | "none"): Promise<Fixt
       (scene.entities as { at: number[] }[])[0]!.at = [x, 2];
     },
   });
-  const begun = await beginSceneVersion(deps(), {
-    projectId: PROJECT,
-    version: hall.text,
-    channel,
-    actor: staff,
-  });
-  for (const file of begun.missing)
-    await putReleaseFile(deps(), {
-      uploadId: begun.uploadId,
-      sha256: file.sha256,
-      body: new TextEncoder().encode(hall.texts.get(file.sha256)!),
-      actor: staff,
-    });
-  await commitSceneVersion(deps(), { uploadId: begun.uploadId, actor: staff });
+  await uploadSceneVersion(uploadDeps(store), hall, { channel, actor: staff });
   return hall;
 }
 
@@ -97,20 +75,7 @@ beforeAll(async () => {
     release: { store },
   });
   release = await plannedRelease({ projectId: PROJECT });
-  const begun = await beginRelease(deps(), {
-    projectId: PROJECT,
-    manifest: release.text,
-    actor: staff,
-  });
-  for (const file of begun.missing)
-    await putReleaseFile(deps(), {
-      uploadId: begun.uploadId,
-      sha256: file.sha256,
-      body: release.files.get(file.path)!,
-      actor: staff,
-    });
-  await commitRelease(deps(), { uploadId: begun.uploadId, actor: staff });
-  await promote({ projectId: PROJECT, version: 1, channel: "production", actor: staff });
+  await uploadRelease(uploadDeps(store), release, { actor: staff, promoteTo: "production" });
   await publishHall(3, "preview");
   await publishHall(5, "none");
 

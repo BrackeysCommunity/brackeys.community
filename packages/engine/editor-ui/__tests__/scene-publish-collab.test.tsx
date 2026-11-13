@@ -29,8 +29,9 @@ import { AGENT_SURFACE_VERSION } from "../../scene/agent-surface";
 import { SCENE_FORMAT_VERSION } from "../../scene/index";
 import { ENGINE_VERSION } from "../../version";
 import type { EditorLiveHost, LivePublished } from "../host";
-import { buildOpenSceneVersion, ScenePublishDialog } from "../panels/publish/ScenePublishDialog";
+import { ScenePublishDialog } from "../panels/publish/ScenePublishDialog";
 import { prefabsReady } from "../session/live-scene-editor";
+import { buildOpenSceneVersion } from "../session/open-scene-version";
 import type { EditorProjectLink } from "../session/use-scene-editor";
 
 const game = defineGame({

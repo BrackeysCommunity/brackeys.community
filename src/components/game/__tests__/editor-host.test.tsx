@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { EditorHost } from "@jams/engine/editor-ui";
+import type { EditorHost, SceneEditorHandle } from "@jams/engine/editor-ui";
 import { createRegistry, type GameDefinition } from "@jams/engine/game";
 import { createKindRegistry, type KindRegistry } from "@jams/engine/project";
 import {
@@ -29,9 +29,14 @@ const fakes = vi.hoisted(() => ({
   editor: vi.fn(),
   navigate: vi.fn(),
   createAgentToken: vi.fn(),
+  getGameSettings: vi.fn(),
+  /** The fake editor's panels as its frame has them laid out. */
+  laidOut: new Set<string>(),
 }));
 
-vi.mock("@/orpc/client", () => ({ client: { createAgentToken: fakes.createAgentToken } }));
+vi.mock("@/orpc/client", () => ({
+  client: { createAgentToken: fakes.createAgentToken, getGameSettings: fakes.getGameSettings },
+}));
 
 vi.mock("@/lib/sound", async (original) => ({
   ...(await original<typeof import("@/lib/sound")>()),
@@ -48,13 +53,24 @@ vi.mock("@/components/canvas/shell/SiteMenu", () => ({
     </nav>
   ),
 }));
-vi.mock("@jams/engine/editor-ui", async (original) => ({
-  ...(await original<typeof import("@jams/engine/editor-ui")>()),
-  SceneEditor: (props: { host: EditorHost; onReady?: () => void }) => {
-    fakes.editor(props);
-    return <div className="je-root">{props.host.chrome?.topLeft}</div>;
-  },
-}));
+vi.mock("@jams/engine/editor-ui", async (original) => {
+  const { useEffect, useState } = await import("react");
+  return {
+    ...(await original<typeof import("@jams/engine/editor-ui")>()),
+    SceneEditor: (props: { host: EditorHost; onReady?: () => void }) => {
+      fakes.editor(props);
+      // As the frame does: a panel the host brings late is laid out a commit later.
+      const publish = props.host.publish !== undefined;
+      const [laidOut, setLaidOut] = useState(false);
+      useEffect(() => setLaidOut(publish), [publish]);
+      useEffect(() => {
+        if (laidOut) fakes.laidOut.add("publish");
+        else fakes.laidOut.delete("publish");
+      }, [laidOut]);
+      return <div className="je-root">{props.host.chrome?.topLeft}</div>;
+    },
+  };
+});
 
 const {
   DEFAULT_PROJECT,
@@ -76,7 +92,7 @@ type EditorProps = {
   project: string;
   scene: string;
   ui: unknown;
-  onReady(): void;
+  onReady(handle?: SceneEditorHandle): void;
 };
 const lastEditor = () => fakes.editor.mock.lastCall![0] as EditorProps;
 /** The editor's props once the project's game has loaded and it rendered for `project`. */
@@ -407,6 +423,56 @@ describe("SiteSceneEditor", () => {
     expect(screen.getByRole("heading", { name: "lobby-1" })).toBeTruthy();
     act(() => props.onReady());
     expect(screen.getByRole("heading", { name: "test-yard" })).toBeTruthy();
+  });
+
+  describe("?panel=publish", () => {
+    const gamesOn = ({ children }: { children: React.ReactNode }) => (
+      <ServerFlagsContext value={{ ...FEATURE_FLAGS, "engine-games-enabled": true }}>
+        {children}
+      </ServerFlagsContext>
+    );
+    /** The editor's handle, its `openPanel` taking only a panel the frame has laid out. */
+    const handle = () => {
+      const opened: string[] = [];
+      const openPanel = vi.fn((id: string) => {
+        if (fakes.laidOut.has(id)) opened.push(id);
+      });
+      return { opened, openPanel, resetLayout: vi.fn(), game: () => null };
+    };
+
+    it("opens the Publish panel once the editor is up and the site says the viewer publishes, then drops it", async () => {
+      let answer!: (settings: { team: string | null }) => void;
+      fakes.getGameSettings.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+      render(<SiteSceneEditor roomId="dev" project="engine" panel="publish" />, {
+        wrapper: gamesOn,
+      });
+      const editor = handle();
+      const props = await editorUp("engine");
+      act(() => props.onReady(editor));
+      expect(lastEditor().host.publish).toBeUndefined();
+      expect(editor.openPanel).not.toHaveBeenCalled();
+
+      await act(async () => answer({ team: null }));
+      await waitFor(() => expect(editor.openPanel).toHaveBeenCalled());
+      expect(lastEditor().host.publish?.project).toBe("engine");
+      expect(editor.openPanel).toHaveBeenCalledTimes(1);
+      expect(editor.opened).toEqual(["publish"]);
+      const to = lastNavigation();
+      expect(to.replace).toBe(true);
+      expect(
+        to.search({ edit: 1, project: "engine", scene: "kitchen-sink", panel: "publish" }),
+      ).toEqual({ edit: 1, project: "engine", scene: "kitchen-sink" });
+    });
+
+    it("leaves the panels alone while the viewer can't publish", async () => {
+      render(<SiteSceneEditor roomId="dev" project="engine" panel="publish" />);
+      const editor = handle();
+      const props = await editorUp("engine");
+      act(() => props.onReady(editor));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(editor.openPanel).not.toHaveBeenCalled();
+      expect(fakes.getGameSettings).not.toHaveBeenCalled();
+    });
   });
 
   it("follows the scene the editor opened instead in the room's ?scene=, replacing the entry", async () => {

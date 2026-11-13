@@ -5,6 +5,8 @@ import { PROJECT_QUOTA } from "../limits";
 import {
   extraBytesOf,
   pointerTargetVerdict,
+  sceneVersionLabel,
+  sceneVersionMisfit,
   type PointerTargetFacts,
   type PointerTargetVersion,
 } from "../live-pointers";
@@ -113,7 +115,7 @@ describe("pointerTargetVerdict", () => {
       error: {
         code: "live-blocked",
         message: "hall@3 is blocked: Softlocks",
-        hint: "Unblock it on the game's page, or publish a fixed version.",
+        hint: "Unblock it in the editor's Publish panel (the game's page links to it), or publish a fixed version.",
       },
     });
     const byBreaker = refusal(
@@ -183,6 +185,32 @@ describe("pointerTargetVerdict", () => {
       error: { code: "quota-exceeded", limit: "releaseBytes", used: max + 1, max },
     });
     expect(over.reason).toMatch(/^it would take preview past /);
+  });
+});
+
+describe("sceneVersionMisfit", () => {
+  const fit = (v = version(), r = facts().release) =>
+    sceneVersionMisfit({ ...v, descriptor: v.descriptor! }, r);
+
+  it("finds nothing wrong with a version built for the release", () => {
+    expect(fit()).toBeNull();
+  });
+
+  it("names the reason the move gives, for a release that takes no live scenes or another compat key", () => {
+    const r = facts().release;
+    expect(fit(version(), { ...r, liveCompatKey: "" })).toMatchObject({
+      code: "live-incompatible",
+    });
+    expect(fit(version({ compatKey: "0".repeat(64) }))).toEqual(
+      refusal(facts({ version: version({ compatKey: "0".repeat(64) }) })).error,
+    );
+  });
+});
+
+describe("sceneVersionLabel", () => {
+  it("names a version by scene and grouped number", () => {
+    expect(sceneVersionLabel("level-1", 4)).toBe("level-1@4");
+    expect(sceneVersionLabel("level-1", 1000)).toBe("level-1@1,000");
   });
 });
 

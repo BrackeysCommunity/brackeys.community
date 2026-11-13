@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { LIVE_BLOCK } from "../limits";
 import { type LiveReportRow, shouldBlock } from "../live-breaker";
+import { isFailedOutcome, LIVE_OUTCOMES } from "../live-outcomes";
 
 const since = new Date("2026-11-01T12:00:00Z");
 const minutes = (n: number) => new Date(since.getTime() + n * 60_000);
@@ -74,5 +75,16 @@ describe("shouldBlock", () => {
 
   it("ignores rows stamped after now", () => {
     expect(shouldBlock(rows(5, 0, minutes(20)), since, minutes(10)).block).toBe(false);
+  });
+});
+
+describe("isFailedOutcome", () => {
+  it("counts failed and crashed games, not a refused or applied version", () => {
+    expect(LIVE_OUTCOMES.filter(isFailedOutcome)).toEqual(["failed", "crashed"]);
+  });
+
+  it("doesn't count refused players toward a block", () => {
+    const refused = rows(5, 0).map((r) => ({ ...r, outcome: "refused" }));
+    expect(shouldBlock(refused, since, now)).toEqual({ block: false, failed: 0, total: 5 });
   });
 });

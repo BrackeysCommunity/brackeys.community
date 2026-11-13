@@ -7,7 +7,6 @@ import {
   engineLiveReports,
   engineProjects,
   engineReleaseAudit,
-  engineReleaseChannels,
   engineSceneVersionFiles,
   engineSceneVersions,
   teamMembers,
@@ -18,6 +17,13 @@ import { asUser } from "@/test/orpc";
 
 import { fixtureVersion } from "../../../lib/engine/__tests__/fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "../../../lib/engine/__tests__/release-fixture";
+import {
+  liveRev,
+  refusal,
+  uploadDeps,
+  uploadRelease,
+  uploadSceneVersion,
+} from "../../../lib/engine/__tests__/upload-rig";
 import { createFrameRoute } from "../../../lib/engine/frame-route";
 import { engineLive } from "../../../lib/engine/live-events";
 import {
@@ -29,18 +35,9 @@ import {
   unblockSceneVersion as unblockLib,
   type LiveOutcome,
 } from "../../../lib/engine/live-moderation";
-import { beginSceneVersion, commitSceneVersion } from "../../../lib/engine/live-upload";
 import { channelLive, promoteScene } from "../../../lib/engine/live-versions";
 import type { Actor } from "../../../lib/engine/release-audit";
-import { promote } from "../../../lib/engine/release-channels";
-import { ReleaseError } from "../../../lib/engine/release-errors";
-import {
-  beginRelease,
-  commitRelease,
-  putReleaseFile,
-  type ReleaseDeps,
-  type ReleaseTxDb,
-} from "../../../lib/engine/release-upload";
+import type { ReleaseTxDb } from "../../../lib/engine/release-upload";
 import {
   blockSceneVersion,
   hideSceneVersion,
@@ -101,12 +98,7 @@ const editor: Actor = { kind: "user", userId: "editor" };
 let release: PlannedRelease;
 let clock = new Date();
 const tick = (ms = 1000) => (clock = new Date(clock.getTime() + ms));
-const deps = (): ReleaseDeps => ({
-  db: db as unknown as ReleaseTxDb,
-  store: shared.store!,
-  scan: async () => {},
-  now: () => clock,
-});
+const deps = () => uploadDeps(shared.store!, { now: () => clock });
 const libDeps = () => ({ db: db as unknown as ReleaseTxDb, now: () => clock });
 
 let edits = 0;
@@ -120,20 +112,10 @@ async function liveVersion(): Promise<{ id: string; number: number }> {
       (scene.entities as { at: number[] }[])[0]!.at = [at, 2];
     },
   });
-  const begun = await beginSceneVersion(deps(), {
-    projectId: PROJECT,
-    version: built.text,
+  const { committed } = await uploadSceneVersion(deps(), built, {
     channel: "preview",
     actor: staff,
   });
-  for (const file of begun.missing)
-    await putReleaseFile(deps(), {
-      uploadId: begun.uploadId,
-      sha256: file.sha256,
-      body: new TextEncoder().encode(built.texts.get(file.sha256)!),
-      actor: staff,
-    });
-  const committed = await commitSceneVersion(deps(), { uploadId: begun.uploadId, actor: staff });
   const number = committed.number;
   await promoteScene(deps(), {
     projectId: PROJECT,
@@ -183,26 +165,6 @@ async function lastAudit(versionId: string) {
   return row!;
 }
 
-async function liveRev(channel: "preview" | "production") {
-  const [row] = await db
-    .select({ rev: engineReleaseChannels.liveRev })
-    .from(engineReleaseChannels)
-    .where(
-      and(eq(engineReleaseChannels.projectId, PROJECT), eq(engineReleaseChannels.channel, channel)),
-    );
-  return row!.rev;
-}
-
-async function refusal(run: () => Promise<unknown>) {
-  try {
-    await run();
-    return null;
-  } catch (error) {
-    if (error instanceof ReleaseError) return error.body;
-    return { code: (error as { code?: string }).code };
-  }
-}
-
 beforeAll(async () => {
   for (const id of ["pub", "owner", "editor", ...PLAYERS]) await seedUser(db, id);
   await seedUser(db, "staff", { guildRoles: ["Staff"] });
@@ -220,20 +182,7 @@ beforeAll(async () => {
   });
 
   release = await plannedRelease({ projectId: PROJECT });
-  const shipped = await beginRelease(deps(), {
-    projectId: PROJECT,
-    manifest: release.text,
-    actor: staff,
-  });
-  for (const file of shipped.missing)
-    await putReleaseFile(deps(), {
-      uploadId: shipped.uploadId,
-      sha256: file.sha256,
-      body: release.files.get(file.path)!,
-      actor: staff,
-    });
-  await commitRelease(deps(), { uploadId: shipped.uploadId, actor: staff });
-  await promote({ projectId: PROJECT, version: 1, channel: "production", actor: staff });
+  await uploadRelease(deps(), release, { actor: staff, promoteTo: "production" });
 });
 
 let announced: ReturnType<typeof vi.spyOn>;
@@ -340,8 +289,8 @@ describe("the breaker", () => {
       channel: "production",
       sceneId: "hall",
     });
-    expect(await liveRev("production")).toBe(audit.id);
-    expect(await liveRev("preview")).toBe(audit.id);
+    expect(await liveRev(PROJECT, "production")).toBe(audit.id);
+    expect(await liveRev(PROJECT, "preview")).toBe(audit.id);
     expect(announced).toHaveBeenCalledWith({
       projectId: PROJECT,
       channel: "production",
@@ -387,7 +336,7 @@ describe("the breaker", () => {
     });
     const blocked = await lastAudit(v.id);
     expect(blocked).toMatchObject({ action: "scene-block", actorKind: "staff" });
-    expect(await liveRev("production")).toBe(blocked.id);
+    expect(await liveRev(PROJECT, "production")).toBe(blocked.id);
 
     await call(
       unblockSceneVersion,

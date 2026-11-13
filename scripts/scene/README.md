@@ -2512,8 +2512,9 @@ a version before it gives up on it and keeps the one it has.
 an update within 30 minutes of it going live (failing includes crashing
 within 10 seconds of the swap), and that is at least 25% of the signed-in
 players who reported, the site blocks the version: players get the
-release's level at their next load, and the game's page says why. A person
-unblocks it there once it's fixed, or you publish a new version.
+release's level at their next load, and the game's page says why. A
+publisher unblocks it in the editor's Publish panel (the blocked line on
+the game's page opens it) once it's fixed, or you publish a new version.
 
 ## MCP
 

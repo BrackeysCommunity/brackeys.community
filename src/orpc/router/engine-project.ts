@@ -19,7 +19,11 @@ import {
   readHostedProjectWire,
   type CreateHostedProjectInput,
 } from "@/lib/engine/hosted";
-import { engineProjectsEnabled, isEngineProjectId, liveEngineProject } from "@/lib/engine/projects";
+import {
+  engineProjectIdInput as projectIdSchema,
+  engineProjectsEnabled,
+  liveEngineProject,
+} from "@/lib/engine/projects";
 import { signProjectSyncToken } from "@/lib/engine/sync-token";
 import { projectUsageReport } from "@/lib/engine/usage";
 import { requireStaff } from "@/orpc/middleware/auth";
@@ -35,10 +39,6 @@ const engineStaff = os.use(requireStaff).use(async ({ context, next }) => {
   }
   return next();
 });
-
-const projectIdSchema = z
-  .string()
-  .refine(isEngineProjectId, "A project id is lowercase letters, digits and dashes.");
 
 const NO_PROJECT = () => new ORPCError("NOT_FOUND", { message: "No such project." });
 

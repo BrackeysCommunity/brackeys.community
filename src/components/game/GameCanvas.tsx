@@ -21,6 +21,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { MicroLabel } from "@/components/ui/typography";
+import type { EditorLinkPanel } from "@/lib/engine/route-paths";
 import { useFlag } from "@/lib/hooks/use-flag";
 
 import { controlsHint, type ControlsHintEntry } from "./controls-hint";
@@ -53,15 +54,24 @@ type GameCanvasProps = {
   project?: string;
   /** The project scene the editor opens, by id or name; default the project's start scene. Play always starts there. */
   scene?: string;
+  /** An editor panel to open once the editor has it. */
+  panel?: EditorLinkPanel;
 };
 
-export function GameCanvas({ roomId, gameId, edit = false, project, scene }: GameCanvasProps) {
+export function GameCanvas({
+  roomId,
+  gameId,
+  edit = false,
+  project,
+  scene,
+  panel,
+}: GameCanvasProps) {
   const hosted = hostedGame(gameId ?? DEFAULT_GAME);
   if (edit && SiteSceneEditor && (hosted || project !== undefined)) {
     const editing = project ?? gameId;
     return (
       <Suspense fallback={<EditorLoading roomId={roomId} />}>
-        <SiteSceneEditor roomId={roomId} project={editing} scene={scene} />
+        <SiteSceneEditor roomId={roomId} project={editing} scene={scene} panel={panel} />
       </Suspense>
     );
   }

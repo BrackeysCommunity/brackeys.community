@@ -1,32 +1,28 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type * as Y from "yjs";
 
 import type { ProjectSession } from "../../../collab/index";
 import { readLog } from "../../../collab/log";
-import { docValue } from "../../../collab/project-apply";
 import { actorLabel, type LogEntry } from "../../../collab/types";
 import type { EditorSession } from "../../../editor/index";
 import {
   acceptedTimings,
   clampTiming,
   diffWords,
+  sceneVersionName,
   SWAP_TIMINGS,
   swapStrategyFor,
   type SwapTiming,
 } from "../../../game/live";
 import type { GameDefinition, Registry } from "../../../game/types";
 import {
-  buildSceneVersion,
   checkSceneVersion,
-  formatAssetDoc,
   formatSceneVersion,
   parseReleaseManifest,
   parseSceneVersion,
   readReleaseScene,
   readSceneVersion,
-  type AssetEntry,
   type AssetId,
-  type BuildSceneVersionResult,
   type SceneVersion,
   type SceneVersionRead,
   type Sha256,
@@ -51,27 +47,23 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Hint,
   MicroLabel,
   Progress,
-  Radio,
   Text,
   Textarea,
   type TextTone,
 } from "../../kit/index";
+import { buildOpenSceneVersion } from "../../session/open-scene-version";
 import type { EditorProjectLink } from "../../session/use-scene-editor";
+import { ChoiceGroup } from "./ChoiceGroup";
+import { LIVE_CHANNELS, liveOnText, productionConfirmText, PUBLISHERS_ONLY } from "./live-wording";
 
 // ─── Wording ─────────────────────────────────────────────
-
-const CHANNELS: readonly PublishChannel[] = ["preview", "production"];
 
 export const WHERE_TEXT: Readonly<Record<PublishChannel, string>> = {
   preview: "Preview: your team sees it on the preview link.",
   production: "Production: players get it. Only publishers can choose this.",
 };
-
-/** The tooltip on Production for an editor who isn't a publisher. */
-export const PUBLISHERS_ONLY = "Only publishers can choose this.";
 
 export const TIMING_TEXT: Readonly<Record<SwapTiming, string>> = {
   "next-load": "Next time the level loads",
@@ -83,101 +75,11 @@ export const TIMING_TEXT: Readonly<Record<SwapTiming, string>> = {
 export const TIMING_UNDECLARED =
   "This game doesn't accept this timing (GameDefinition.live.timings).";
 
-/** When players get a version, as the production confirm says it. */
-const CONFIRM_WHEN: Readonly<Record<SwapTiming, string>> = {
-  "next-load": "next time the level loads",
-  boundary: "at the next safe moment",
-  now: "now",
-};
-
 export const IN_PLACE = "Players' worlds update in place.";
 export const REBUILT =
   "The bounds or settings changed, so players' worlds are rebuilt and their state restored.";
 
-/** A scene version as the host numbers it: `level-1@4`. */
-export const numberedVersion = (scene: AssetId, number: number): string => `${scene}@${number}`;
-
-/** The production confirm's question. */
-export const productionConfirmText = (version: string, timing: SwapTiming): string =>
-  `Players will get ${version} ${CONFIRM_WHEN[timing]}. You can roll back or stop it at any time.`;
-
-/** The toast after a publish. */
-export const publishedText = (version: string, channel: PublishChannel | null): string =>
-  channel ? `${version} is live on ${channel}.` : `${version} is published.`;
-
 const capitalised = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
-
-// ─── Building the open scene ─────────────────────────────
-
-/** The canonical text of a project doc as its file would hold it; null for a kind with no text. */
-function docText(project: ProjectSession, entry: AssetEntry, doc: Y.Doc): string | null {
-  const def = project.kinds.get(entry.kind);
-  if (def?.storage !== "doc") return null;
-  const name = project.docNameFor(entry);
-  const layout = name ? project.get(name)?.layout : undefined;
-  try {
-    const value = docValue({ doc, kind: entry.kind, ...(layout ? { layout } : {}) });
-    return value === undefined ? null : formatAssetDoc(def, value);
-  } catch {
-    return null;
-  }
-}
-
-/** Every open project doc's text by asset id, `scene`'s from `doc`. */
-function openTexts(project: ProjectSession, scene: AssetId, doc: Y.Doc): Map<AssetId, string> {
-  const out = new Map<AssetId, string>();
-  for (const entry of project.view().byId.values()) {
-    const name = project.docNameFor(entry);
-    const from = entry.id === scene ? doc : name ? project.get(name)?.doc : undefined;
-    if (!from) continue;
-    const text = docText(project, entry, from);
-    if (text !== null) out.set(entry.id, text);
-  }
-  return out;
-}
-
-/**
- * `buildSceneVersion` over `doc` as it is now and the project's docs,
- * opening the docs it reaches that nobody has open (a few rounds deep) and
- * letting them go again after.
- */
-export async function buildOpenSceneVersion(
-  project: ProjectSession,
-  scene: AssetId,
-  doc: Y.Doc,
-  registry: Registry,
-  game: GameDefinition,
-): Promise<BuildSceneVersionResult> {
-  const opened: string[] = [];
-  try {
-    for (let round = 0; ; round++) {
-      const result = await buildSceneVersion({
-        view: project.view(),
-        texts: openTexts(project, scene, doc),
-        build: project.hashes,
-        game,
-        registry,
-        scene,
-      });
-      if (result.ok || round >= 4) return result;
-      const closed = result.issues
-        .filter((i) => i.code === "asset-missing")
-        .flatMap((i) => i.entityIds)
-        .map((id) => project.view().byId.get(id))
-        .map((entry) => (entry ? project.docNameFor(entry) : null))
-        .filter((name): name is string => !!name && !project.get(name) && !opened.includes(name));
-      if (closed.length === 0) return result;
-      await Promise.all(
-        closed.map((name) => {
-          opened.push(name);
-          return project.open(name).catch(() => {});
-        }),
-      );
-    }
-  } finally {
-    for (const name of opened) if (project.get(name)) project.release(name);
-  }
-}
 
 // ─── The checks ──────────────────────────────────────────
 
@@ -301,7 +203,7 @@ export type PublishCheckInput = {
 export async function publishChecks(input: PublishCheckInput): Promise<PublishChecks> {
   const { project, scene, doc, registry, game, base, usage, last, live } = input;
   const lines: PublishCheck[] = [];
-  const next = numberedVersion(scene, (base.latest ?? 0) + 1);
+  const next = sceneVersionName(scene, (base.latest ?? 0) + 1);
   const made = await buildOpenSceneVersion(project, scene, doc, registry, game);
   let built: BuiltSceneVersion | null = null;
 
@@ -369,7 +271,7 @@ export async function publishChecks(input: PublishCheckInput): Promise<PublishCh
 
   const since = editedSinceText(
     readLog(doc),
-    last ? { name: numberedVersion(scene, last.number), at: Date.parse(last.createdAt) } : null,
+    last ? { name: sceneVersionName(scene, last.number), at: Date.parse(last.createdAt) } : null,
   );
   if (since) lines.push({ id: "editors", text: since, tone: "muted" });
 
@@ -477,7 +379,7 @@ export function ScenePublishDialog({
   useEffect(() => {
     if (!scene) return;
     let alive = true;
-    for (const c of CHANNELS)
+    for (const c of LIVE_CHANNELS)
       live.base(scene, c).then(
         (value) => alive && setBases((b) => ({ ...b, [c]: { value } })),
         (error: unknown) =>
@@ -527,13 +429,16 @@ export function ScenePublishDialog({
       live,
     }).then(
       (checks) => {
-        if (ticket === run.current) setChecked({ channel: baseView.channel, checks });
+        if (ticket !== run.current) return;
+        setChecked({ channel: baseView.channel, checks });
+        setRefusal(null);
       },
       (error: unknown) => {
         if (ticket !== run.current) return;
         const text = refusalOf(error).message;
         const lines: PublishCheck[] = [{ id: "fits", text, tone: "danger", blocks: true }];
         setChecked({ channel: baseView.channel, checks: { built: null, lines, blocked: text } });
+        setRefusal(null);
       },
     );
   }, [scene, game, baseView, usage, last, live, project.session, session.doc, registry, rev]);
@@ -548,7 +453,7 @@ export function ScenePublishDialog({
   const busy = phase !== null;
   const current = checked?.channel === channel ? checked.checks : null;
   const blocked = unavailable ?? (current ? current.blocked : "Checking…");
-  const nextName = scene ? numberedVersion(scene, (baseView?.latest ?? 0) + 1) : "";
+  const nextName = scene ? sceneVersionName(scene, (baseView?.latest ?? 0) + 1) : "";
 
   const publish = async () => {
     if (!scene || !game || !baseView) return;
@@ -567,10 +472,8 @@ export function ScenePublishDialog({
         live,
       });
       setChecked({ channel: baseView.channel, checks: fresh });
-      if (!fresh.built || fresh.blocked) {
-        setRefusal({ message: fresh.blocked ?? "The scene doesn't build." });
-        return;
-      }
+      // A blocking check is already a line of the Checks list.
+      if (!fresh.built || fresh.blocked) return;
       const trimmed = note.trim();
       const published = await live.publish(
         fresh.built.text,
@@ -578,7 +481,7 @@ export function ScenePublishDialog({
         { channel, timing, ...(trimmed ? { note: trimmed } : {}) },
         (progress) => setPhase(progress),
       );
-      notify?.success(publishedText(numberedVersion(scene, published.number), published.channel));
+      notify?.success(liveOnText(sceneVersionName(scene, published.number), published.channel));
       onClose();
     } catch (error) {
       setRefusal(refusalOf(error));
@@ -615,51 +518,43 @@ export function ScenePublishDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="je-publish-scene-group" role="radiogroup" aria-label="Where">
-            <MicroLabel as="div">Where</MicroLabel>
-            {CHANNELS.map((c) => {
-              const locked = c === "production" && !publisher;
+          <ChoiceGroup
+            legend="Where"
+            name="publish-scene-channel"
+            choices={LIVE_CHANNELS}
+            value={channel}
+            disabled={busy}
+            unavailable={(c) => c === "production" && !publisher}
+            hint={() => PUBLISHERS_ONLY}
+            label={(c) => {
               const on = releaseOf(c);
               return (
-                <Choice
-                  key={c}
-                  name="publish-scene-channel"
-                  value={c}
-                  checked={channel === c}
-                  disabled={locked || busy}
-                  hint={locked ? PUBLISHERS_ONLY : null}
-                  onPick={() => setChannel(c)}
-                >
+                <>
                   {WHERE_TEXT[c]}
                   {on ? <Text variant="muted"> · {on}</Text> : null}
-                </Choice>
+                </>
               );
-            })}
-          </div>
+            }}
+            onPick={(c) => {
+              setChannel(c);
+              setRefusal(null);
+            }}
+          />
 
-          <div
-            className="je-publish-scene-group"
-            role="radiogroup"
-            aria-label="When players get it"
-          >
-            <MicroLabel as="div">When players get it</MicroLabel>
-            {SWAP_TIMINGS.map((t) => {
-              const undeclared = !accepted.includes(t);
-              return (
-                <Choice
-                  key={t}
-                  name="publish-scene-timing"
-                  value={t}
-                  checked={timing === t}
-                  disabled={undeclared || busy}
-                  hint={undeclared ? TIMING_UNDECLARED : null}
-                  onPick={() => setTiming(t)}
-                >
-                  {TIMING_TEXT[t]}
-                </Choice>
-              );
-            })}
-          </div>
+          <ChoiceGroup
+            legend="When players get it"
+            name="publish-scene-timing"
+            choices={SWAP_TIMINGS}
+            value={timing}
+            disabled={busy}
+            unavailable={(t) => !accepted.includes(t)}
+            hint={() => TIMING_UNDECLARED}
+            label={(t) => TIMING_TEXT[t]}
+            onPick={(t) => {
+              setTiming(t);
+              setRefusal(null);
+            }}
+          />
 
           <label htmlFor={noteId} className="je-run-field">
             <MicroLabel>Note</MicroLabel>
@@ -670,12 +565,16 @@ export function ScenePublishDialog({
               maxLength={live.wording.noteMaxChars}
               placeholder={live.wording.notePlaceholder}
               disabled={busy}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => {
+                setNote(e.target.value);
+                setRefusal(null);
+              }}
             />
           </label>
 
           <div
-            className="je-publish-scene-group"
+            className="je-insp-stack"
+            data-gap="tight"
             role="list"
             aria-label="Checks"
             aria-live="polite"
@@ -706,7 +605,7 @@ export function ScenePublishDialog({
           </div>
 
           {progress ? (
-            <div className="je-publish-scene-progress" role="status">
+            <div className="je-insp-stack" data-gap="tight" role="status">
               <Progress
                 value={progress.value === null ? null : Math.round(progress.value * 100)}
                 label={progress.text}
@@ -718,7 +617,7 @@ export function ScenePublishDialog({
           ) : null}
 
           {refusal ? (
-            <div role="alert" className="je-publish-scene-refusal">
+            <div role="alert" className="je-insp-stack" data-gap="tight">
               <Text as="p" size="xs" variant="danger">
                 {refusal.message}
               </Text>
@@ -757,46 +656,4 @@ export function ScenePublishDialog({
       />
     </>
   );
-}
-
-/** One radio of a group; a disabled one says why on hover and focus. */
-function Choice({
-  name,
-  value,
-  checked,
-  disabled,
-  hint,
-  onPick,
-  children,
-}: {
-  name: string;
-  value: string;
-  checked: boolean;
-  disabled: boolean;
-  hint: string | null;
-  onPick: () => void;
-  children: ReactNode;
-}) {
-  const row = (
-    <label
-      className="je-insp-row"
-      data-align="start"
-      data-gap="tight"
-      data-disabled={disabled ? "" : undefined}
-      tabIndex={disabled && hint ? 0 : undefined}
-    >
-      <Radio
-        name={name}
-        value={value}
-        checked={checked}
-        disabled={disabled}
-        onChange={onPick}
-        {...(disabled && hint ? { "aria-description": hint } : {})}
-      />
-      <Text size="xs" variant={disabled ? "muted" : "primary"}>
-        {children}
-      </Text>
-    </label>
-  );
-  return hint ? <Hint content={hint}>{row}</Hint> : row;
 }

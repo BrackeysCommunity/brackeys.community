@@ -1,3 +1,4 @@
+import { sceneVersionName } from "@jams/engine/game";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -123,7 +124,7 @@ function EngineGamesQueue() {
     onSuccess: (_result, input) => {
       invalidate();
       toast.success(
-        `${input.scene}@${input.number} hidden. Pages running it reload, and its publishers see the reason.`,
+        `${sceneVersionName(input.scene, input.number)} hidden. Pages running it reload, and its publishers see the reason.`,
       );
     },
     onError: toastMutationError("admin.scene_version_hide"),
@@ -132,7 +133,7 @@ function EngineGamesQueue() {
     mutationFn: (input: SceneVersionRef & { reason: string }) => client.unhideSceneVersion(input),
     onSuccess: (_result, input) => {
       invalidate();
-      toast.success(`${input.scene}@${input.number} is back.`);
+      toast.success(`${sceneVersionName(input.scene, input.number)} is back.`);
     },
     onError: toastMutationError("admin.scene_version_unhide"),
   });
@@ -613,7 +614,7 @@ function SceneVersionRow({
   onHide: () => Promise<void>;
   onUnhide: () => Promise<void>;
 }) {
-  const name = `${version.scene}@${version.number}`;
+  const name = sceneVersionName(version.scene, version.number);
   const { hidden, blocked, reports } = version;
 
   return (

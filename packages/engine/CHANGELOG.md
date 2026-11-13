@@ -30,6 +30,17 @@ follow-ups the engine's live levels left.
 - `@jams/engine/scene`: `shortId` and `SHORT_ID_LENGTH`, a release or
   scene version id's first six characters (`3fa9c2…`), the one rule the
   editor's release list and the CLI's release and live lines share.
+- `@jams/engine/game`: `sceneVersionName(scene, number)`, how a host's
+  numbered scene version is named (`level-1@4`, grouped as
+  `level-1@1,000`), the one rule the editor, the site and the CLI share;
+  `arrivalWords(timing)`, when players get a moved version as a sentence
+  ends (`the next time the level loads`, `at the next safe moment`,
+  `now`), shared by the production confirms and a host's Stop sentence;
+  and `versionName`, until now on `.` only.
+- `@jams/engine/editor-ui`: `EditorLiveHost.onPublished(listener)`,
+  optional: the host calls it after each publish that went through, and
+  the Publish panel's Live scenes list reloads on it, so a version
+  published from the toolbar shows there at once.
 - `castSpawn(ctx, at, shape, opts?)` takes `opts.exclude`, entity ids
   whose colliders neither block the start nor stop the cast; the
   platformer's swap rescue now passes its player instead of gating the
@@ -104,6 +115,19 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
   whose name differs from its id.
 - `selectionBounds` redocumented as the outline/gizmo box; framing uses
   `frameBounds`.
+- `@jams/engine/editor-ui`: a Live scenes row reads like a release row:
+  the scene's title with its badges (blocked, hidden, removed soon,
+  removed), then `level-1@4 · next load · 12m ago · Jo` muted; a hidden
+  version shows staff's reason, and a hidden or removed one offers no
+  Promote. Roll back on production asks first. The blocked line gives the
+  reason after the badge, without repeating "Blocked". The production
+  confirm reads 'Players will get level-1@4 the next time the level
+  loads.' The release promote holds its Promote button while it reads
+  the live scenes it replaces, and says so when it can't read them.
+- `@jams/engine/editor-ui`: the Publish scene dialog clears a refusal
+  when Where, When or the note changes or the checks run again, and no
+  longer repeats a blocking check as a refusal. It and Live in Play build
+  the open scene through one helper.
 
 ### Fixed
 
@@ -112,8 +136,10 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
   can't start without; it said the replay would stop at 0.0s. The panel
   and the replay now share one rule for where a replay stops (`replayGap`
   beside `createSwapReplay`).
-- `parseRecording` refuses `swaps` out of tick order or at or after
-  `ticks` (path `/swaps/i/tick`).
+- `parseRecording` refuses `swaps` out of tick order or past `ticks`
+  (path `/swaps/i/tick`). A swap at `ticks` itself stays valid: a swap
+  lands after its tick's step, so Stop, `recording.request` or a crash
+  right after one writes it there, and a replay ends before it.
 - `setMode('play')` with no scene loaded remembers the editor camera, so a
   later Play and Stop no longer leave the follow camera in edit mode.
 - Tactics: a walk whose next cell the grid refuses ends on the cell the

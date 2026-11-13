@@ -1,6 +1,6 @@
 import { Flag02Icon, PlayIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Link } from "@tanstack/react-router";
+import { createLink, Link } from "@tanstack/react-router";
 
 import { NotFoundPage } from "@/components/layout/NotFoundPage";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
 import type { GamePageBlockedScene, GamePagePayload } from "@/lib/engine/game-page";
 import { engineGamesAllowed } from "@/lib/engine/guard";
+import { EDITOR_ROOM, editorSearch } from "@/lib/engine/route-paths";
 import { useFlagBlocks } from "@/lib/hooks/use-flag";
 import { profileLinkParams } from "@/lib/profile-links";
 import { teamLinkParams } from "@/lib/team-links";
@@ -49,6 +50,9 @@ export function blockedSceneLine(blocked: Pick<GamePageBlockedScene, "title" | "
     : `${blocked.title} update blocked`;
 }
 
+/** The typography link as a typed router link: `TextLink as="router"` takes no route params. */
+const RouterTextLink = createLink(TextLink);
+
 /** Publishers only: each blocked level update, linking to the editor's Publish panel for its scene. */
 function BlockedScenes({
   projectId,
@@ -61,24 +65,21 @@ function BlockedScenes({
     <ul aria-label="Blocked level updates" className="flex flex-col gap-1">
       {blocked.map((b) => (
         <li key={`${b.scene}@${b.number}`}>
-          <Text as="span" size="sm" variant="warning">
-            <Link
-              to="/game/$roomId"
-              params={{ roomId: EDITOR_ROOM }}
-              search={{ edit: 1, project: projectId, scene: b.scene }}
-              className="underline underline-offset-2"
-            >
-              {blockedSceneLine(b)}
-            </Link>
-          </Text>
+          <RouterTextLink
+            to="/game/$roomId"
+            params={{ roomId: EDITOR_ROOM }}
+            search={editorSearch(projectId, { scene: b.scene, panel: "publish" })}
+            size="sm"
+            variant="danger"
+            underline
+          >
+            {blockedSceneLine(b)}
+          </RouterTextLink>
         </li>
       ))}
     </ul>
   );
 }
-
-/** The room the editor opens a hosted project in, as the scene CLI's links name it. */
-const EDITOR_ROOM = "dev";
 
 /** True when hosted games are off for this viewer or this deployment. */
 function useGamesBlocked(): boolean {

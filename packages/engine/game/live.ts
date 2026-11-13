@@ -132,6 +132,14 @@ export const LIVE_CHECK_AGAIN_TICKS = 60;
 /** How a timing reads in a message: `next load`, `boundary` or `now`. */
 export const timingWords = (t: SwapTiming): string => (t === "next-load" ? "next load" : t);
 
+/** When players get a moved version, as a sentence ends: `the next time the level loads`, `at the next safe moment`, `now`. */
+export const arrivalWords = (t: SwapTiming): string =>
+  t === "next-load"
+    ? "the next time the level loads"
+    : t === "boundary"
+      ? "at the next safe moment"
+      : "now";
+
 /** The timings a game accepts, `next-load` first: the ones it lists, and `next-load`, which every game takes. */
 export function acceptedTimings(live: Pick<LiveDeclaration, "timings"> | undefined): SwapTiming[] {
   const listed = live?.timings ?? [];
@@ -168,6 +176,10 @@ export function diffWords(diff: SceneDiff): string {
 /** How a version is named where the host's numbers aren't known: `level-1@<first 12 hex>`, or the release's own. */
 export const versionName = (scene: AssetId, version: Sha256 | null): string =>
   version === null ? `${scene}'s release version` : `${scene}@${version.slice(0, 12)}`;
+
+/** How a host's numbered scene version is named: `level-1@4`, grouped as `level-1@1,000`. */
+export const sceneVersionName = (scene: string, number: number): string =>
+  `${scene}@${number.toLocaleString("en-US")}`;
 
 /** The strategy a swap of `diff` takes: reload when the header changed or a reload is asked for, else reconcile. */
 export const swapStrategyFor = (

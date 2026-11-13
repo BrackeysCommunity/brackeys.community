@@ -4,7 +4,8 @@ import * as z from "zod";
 
 import { assertEngineGames } from "@/lib/engine/guard-server";
 import { RELEASE_MANIFEST_MAX_BYTES } from "@/lib/engine/limits";
-import { isEngineProjectId } from "@/lib/engine/projects";
+import { engineProjectIdInput as projectId } from "@/lib/engine/projects";
+import { releaseChannel as channel } from "@/lib/engine/release-access";
 import {
   getRelease as readRelease,
   listReleases as readReleases,
@@ -26,6 +27,7 @@ import {
   commitRelease as commit,
   type Actor,
 } from "@/lib/engine/release-upload";
+import { uploadIdInput } from "@/lib/engine/route-gate";
 import { requireStaff } from "@/orpc/middleware/auth";
 
 /**
@@ -40,11 +42,7 @@ export const releaseStaff = os.use(requireStaff).use(async ({ context, next }) =
   return next();
 });
 
-const projectId = z
-  .string()
-  .refine(isEngineProjectId, "A project id is lowercase letters, digits and dashes.");
 const version = z.number().int().min(1);
-const channel = z.enum(["preview", "production"]);
 
 const person = (userId: string): Actor => ({ kind: "user", userId });
 const staff = (userId: string): Actor => ({ kind: "staff", userId });
@@ -68,7 +66,7 @@ export const beginRelease = releaseStaff
 
 /** Records the release once its files have arrived, and moves preview to it unless the upload said not to. */
 export const commitRelease = releaseStaff
-  .input(z.object({ uploadId: z.string().min(1).max(64) }))
+  .input(uploadIdInput)
   .handler(({ context, input }) =>
     orpcRefusals(() => commit(deps(), { ...input, actor: actorOf(context) })),
   );

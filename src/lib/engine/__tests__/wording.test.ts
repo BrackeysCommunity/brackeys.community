@@ -36,10 +36,11 @@ vi.mock("@/env", async (importOriginal) => ({
   env: { VITE_DEPLOY_ENV: "staging" },
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children, ...rest }: { to: string; children?: unknown }) =>
-    createElement("a", { href: to, ...rest }, children as never),
-}));
+vi.mock("@tanstack/react-router", () => {
+  const Link = ({ to, children, ...rest }: { to: string; children?: unknown }) =>
+    createElement("a", { href: to, ...rest }, children as never);
+  return { Link, createLink: () => Link };
+});
 
 const { HOST_NO_SITE_SAVES_MESSAGE, HOST_THROTTLED_MESSAGE } = await import("../host-server");
 const { prefsRefusal, SIGNED_IN_SAVES_DESCRIBE, SIGNED_OUT_SAVES_DESCRIBE, siteSaveRefusal } =

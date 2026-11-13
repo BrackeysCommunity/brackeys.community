@@ -239,6 +239,12 @@ export type EditorLiveHost = {
   /** Publishers may choose production, `now` there, and keep live scenes over a release. */
   role(): { publisher: boolean };
   wording: LiveWording;
+  /**
+   * Calls `listener` after each `publish` that went through, whichever view
+   * started it, so the Live scenes list can show the new version; returns
+   * the unsubscribe. Without it the list refreshes on its own moves only.
+   */
+  onPublished?(listener: (published: LivePublished) => void): () => void;
 };
 
 export type LivePublishOptions = {

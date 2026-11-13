@@ -242,6 +242,41 @@ describe("refreshQueries", () => {
     b.destroy();
   });
 
+  it("leaves a kinematic body's pending target pending, and its next step bit-exact", () => {
+    function platform(pw: ReturnType<typeof createPhysicsWorld>) {
+      const body = pw.addRigidBody(
+        rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(0, 0),
+      );
+      pw.addCollider(rapier.ColliderDesc.cuboid(1, 0.1), body);
+      const crate = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(0, -0.35));
+      pw.addCollider(rapier.ColliderDesc.cuboid(0.2, 0.2), crate);
+      pw.step();
+      body.setNextKinematicTranslation({ x: 0.5, y: 0 });
+      return { body, crate };
+    }
+    const pose = ({ body, crate }: ReturnType<typeof platform>) => [
+      body.translation(),
+      body.linvel(),
+      crate.translation(),
+      crate.linvel(),
+    ];
+    const a = createPhysicsWorld(rapier);
+    const b = createPhysicsWorld(rapier);
+    const pa = platform(a);
+    const pb = platform(b);
+    a.refreshQueries();
+    expect(pa.body.translation()).toEqual({ x: 0, y: 0 });
+    expect(pa.body.nextTranslation()).toEqual({ x: 0.5, y: 0 });
+    for (let i = 0; i < 10; i++) {
+      a.step();
+      b.step();
+      expect(pose(pa)).toEqual(pose(pb));
+    }
+    expect(pa.body.translation()).toEqual({ x: 0.5, y: 0 });
+    a.destroy();
+    b.destroy();
+  });
+
   it("lets a character controller see a collider added since the last step", () => {
     const pw = createPhysicsWorld(rapier);
     const body = pw.addRigidBody(

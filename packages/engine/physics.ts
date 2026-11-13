@@ -120,13 +120,28 @@ export function createPhysicsWorld(
     world.gravity = new rapier.Vector2(gravity.x, gravity.y);
   }
 
-  // Rapier updates its broad phase only inside a step, so this steps by zero.
-  // A zero step still runs the solver, which throws jointed bodies' velocities
-  // off (a chain's links reach about 1000 m/s): each dynamic body gets its own back.
+  // Rapier 0.19 updates its broad phase only inside a step and exposes no
+  // other way to update it, so this steps by zero. A zero step still runs the
+  // solver, which throws jointed bodies' velocities off (a chain's links reach
+  // about 1000 m/s): each dynamic body gets its own back. It also moves a
+  // kinematic body to its pending target, which would leave the next real step
+  // with nothing to move and the body with no velocity: each such body goes
+  // back to its pose with the target still pending. Its colliders stay where
+  // the target puts them until that step, as queries saw them before. A
+  // restored rotation round-trips through an angle, so it may differ in the
+  // last bit.
   function refreshQueries(): void {
     const kept: { body: RigidBody; v: Vector; w: number }[] = [];
+    const pending: { body: RigidBody; t: Vector; r: number; nt: Vector; nr: number }[] = [];
     world.bodies.forEach((body) => {
       if (body.isDynamic()) kept.push({ body, v: body.linvel(), w: body.angvel() });
+      else if (body.bodyType() === rapier.RigidBodyType.KinematicPositionBased) {
+        const t = body.translation();
+        const nt = body.nextTranslation();
+        const r = body.rotation();
+        const nr = body.nextRotation();
+        if (t.x !== nt.x || t.y !== nt.y || r !== nr) pending.push({ body, t, r, nt, nr });
+      }
     });
     const dt = world.timestep;
     world.timestep = 0;
@@ -136,6 +151,13 @@ export function createPhysicsWorld(
       const now = body.linvel();
       if (now.x !== v.x || now.y !== v.y) body.setLinvel(v, false);
       if (body.angvel() !== w) body.setAngvel(w, false);
+    }
+    for (const { body, t, r, nt, nr } of pending) {
+      const turned = body.rotation() !== r;
+      body.setTranslation(t, false);
+      if (turned) body.setRotation(r, false);
+      body.setNextKinematicTranslation(nt);
+      if (turned) body.setNextKinematicRotation(nr);
     }
     index.rebuild();
   }

@@ -23,6 +23,7 @@ import {
 } from "./release-access";
 import type { ReleaseDb } from "./release-audit";
 import type { ReleaseChannel } from "./release-channels";
+import { ttlLru } from "./ttl-lru";
 
 /** What the play page needs: the frame URL, the release, where saves go and what the frame may reach. */
 export type PlayPayload = {
@@ -88,7 +89,10 @@ const LIVE_CACHE_TTL_MS = 5_000;
  * caller in this process: a burst of pages after a move loads the pointers
  * once. A pending load is kept too, so concurrent misses share it.
  */
-const liveCache = new Map<string, { at: number; snapshot: Promise<LiveSnapshot | null> }>();
+const liveCache = ttlLru<string, Promise<LiveSnapshot | null>>({
+  max: LIVE_CACHE_MAX,
+  ttlMs: LIVE_CACHE_TTL_MS,
+});
 
 /** Empties this process's live snapshot cache. */
 export function forgetLiveSnapshots(): void {
@@ -102,25 +106,16 @@ function channelSnapshot(
   now: number,
 ): Promise<LiveSnapshot | null> {
   const key = `${input.projectId}/${input.channel}/${input.rev}/${input.releaseId}`;
-  const cached = liveCache.get(key);
-  liveCache.delete(key);
-  if (cached && now - cached.at < LIVE_CACHE_TTL_MS) {
-    liveCache.set(key, cached);
-    return cached.snapshot;
-  }
+  const cached = liveCache.get(key, now);
+  if (cached) return cached;
   const snapshot = channelLive(db, input.projectId, input.channel).then((live) => {
     const current = live?.snapshot.release === input.releaseId && live.snapshot.rev === input.rev;
     // A move between the two reads: answer with what's there now, but don't file it under the old rev.
     if (!current) liveCache.delete(key);
     return live?.snapshot ?? null;
   });
-  liveCache.set(key, { at: now, snapshot });
+  liveCache.set(key, snapshot, now);
   snapshot.catch(() => liveCache.delete(key));
-  while (liveCache.size > LIVE_CACHE_MAX) {
-    const oldest = liveCache.keys().next().value;
-    if (oldest === undefined) break;
-    liveCache.delete(oldest);
-  }
   return snapshot;
 }
 

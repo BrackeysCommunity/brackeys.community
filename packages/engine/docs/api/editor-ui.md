@@ -187,6 +187,12 @@ type EditorLiveHost = {
     clear(scene: AssetId, channel: PublishChannel, timing?: SwapTiming): Promise<LiveMove>;
     /** Newest first; one scene's with `scene`. */
     list(scene?: AssetId): Promise<readonly LiveVersionView[]>;
+    /**
+     * Calls `listener` after each `publish` that went through, whichever view
+     * started it, so the Live scenes list can show the new version; returns
+     * the unsubscribe. Without it the list refreshes on its own moves only.
+     */
+    onPublished?(listener: (published: LivePublished) => void): () => void;
     promote(scene: AssetId, version: number, channel: PublishChannel, timing: SwapTiming): Promise<LiveMove>;
     /**
      * Begins the upload of `versionText` (a canonical `scene-version.json`),

@@ -1,5 +1,6 @@
 import { ID_PATTERN } from "@jams/engine/scene";
 import { and, eq, isNull } from "drizzle-orm";
+import * as z from "zod";
 
 import { db } from "@/db";
 import { engineProjects } from "@/db/schema";
@@ -9,6 +10,11 @@ import { resolveUserRoles, type RolesDb } from "@/lib/staff-roles";
 
 export const isEngineProjectId = (id: unknown): id is string =>
   typeof id === "string" && ID_PATTERN.test(id);
+
+/** A project id in a procedure's input. */
+export const engineProjectIdInput = z
+  .string()
+  .refine(isEngineProjectId, "A project id is lowercase letters, digits and dashes.");
 
 /** A hosted project that hasn't been deleted, or null. */
 export async function liveEngineProject(

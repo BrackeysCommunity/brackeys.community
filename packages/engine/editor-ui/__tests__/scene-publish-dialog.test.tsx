@@ -37,12 +37,10 @@ import type {
   PublishChannel,
 } from "../host";
 import { EditorToolbar, PUBLISH_SCENE_TOOLTIP } from "../panels/EditorToolbar";
+import { productionConfirmText, PUBLISHERS_ONLY } from "../panels/publish/live-wording";
 import {
-  buildOpenSceneVersion,
   editedSinceText,
   IN_PLACE,
-  productionConfirmText,
-  PUBLISHERS_ONLY,
   REBUILT,
   ScenePublishDialog,
   TIMING_TEXT,
@@ -50,6 +48,7 @@ import {
   WHERE_TEXT,
 } from "../panels/publish/ScenePublishDialog";
 import { prefabsReady } from "../session/live-scene-editor";
+import { buildOpenSceneVersion } from "../session/open-scene-version";
 import type { EditorProjectLink } from "../session/use-scene-editor";
 
 const jo: SceneOrigin = { kind: "user", userId: "jo", name: "Jo" };
@@ -435,6 +434,9 @@ describe("Publish scene", () => {
     expect(alert.textContent).toContain("Today's 100 versions are used.");
     expect(alert.textContent).toContain("Publish again tomorrow.");
     expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(radio(TIMING_TEXT.boundary));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 });
 

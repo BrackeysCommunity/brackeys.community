@@ -5,7 +5,9 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { db as mockedDb } from "@/db";
 import { engineProjects, engineReleaseAudit, engineReleaseUploads } from "@/db/schema";
 import { LIVE_LIMITS } from "@/lib/engine/limits";
+import { createLiveRoutes } from "@/lib/engine/live-routes";
 import { putReleaseFile, type ReleaseTxDb } from "@/lib/engine/release-upload";
+import { engineLivePath } from "@/lib/engine/route-paths";
 import { beginSceneVersion, commitSceneVersion } from "@/orpc/router/engine-live";
 import { beginRelease, commitRelease } from "@/orpc/router/engine-release";
 import { seedUser, type TestDb } from "@/test/db";
@@ -176,14 +178,40 @@ describe("the live upload procedures", () => {
     expect(hits.size).toBe(0);
   });
 
-  it("refuse a note longer than the limit before the upload runs", async () => {
+  it("answer a note longer than the limit with the upload's note refusal", async () => {
     const note = "n".repeat(LIVE_LIMITS.noteChars + 1);
+    const refused = await refusal(() =>
+      call(beginSceneVersion, { projectId: PROJECT, version: "{}", note }, asUser("staff")),
+    );
+    expect(refused).toMatchObject({ code: "BAD_REQUEST", data: { code: "schema" } });
+    expect(refused?.data).toMatchObject({
+      message: expect.stringContaining(`${LIVE_LIMITS.noteChars + 1} characters`),
+    });
+  });
+
+  it("count a note's characters, not its UTF-16 units", async () => {
+    const note = "\u{1F3AE}".repeat(150);
+    expect(note.length).toBeGreaterThan(LIVE_LIMITS.noteChars);
+    const refused = await refusal(() =>
+      call(beginSceneVersion, { projectId: PROJECT, version: "{}", note }, asUser("staff")),
+    );
+    expect(refused?.data).toMatchObject({ message: expect.not.stringContaining("note") });
+  });
+
+  it("answer a version over the data cap with the quota refusal", async () => {
+    const used = LIVE_LIMITS.versionDataBytes + 1;
     expect(
       await refusal(() =>
-        call(beginSceneVersion, { projectId: PROJECT, version: "{}", note }, asUser("staff")),
+        call(beginSceneVersion, { projectId: PROJECT, version: "x".repeat(used) }, asUser("staff")),
       ),
-    ).toMatchObject({ code: "BAD_REQUEST" });
-    expect(hits.size).toBe(0);
+    ).toMatchObject({
+      data: {
+        code: "quota-exceeded",
+        limit: "liveVersionBytes",
+        used,
+        max: LIVE_LIMITS.versionDataBytes,
+      },
+    });
   });
 
   it("refuse the begin past the hour's limit as rate limited", async () => {
@@ -194,6 +222,29 @@ describe("the live upload procedures", () => {
     expect(await refusal(() => begin("staff"))).toMatchObject({
       code: "TOO_MANY_REQUESTS",
       data: { code: "release-rate-limited" },
+    });
+  });
+});
+
+describe("the live begin route", () => {
+  it("answers a version over the data cap with the quota refusal", async () => {
+    const routes = createLiveRoutes({
+      readSession: async () => ({ user: { id: "staff" } }),
+      release: { store: shared.store! },
+    });
+    const used = LIVE_LIMITS.versionDataBytes + 1;
+    const response = await routes(
+      new Request(`https://site.test${engineLivePath(PROJECT)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ version: "x".repeat(used) }),
+      }),
+    );
+    expect(response?.status).toBe(413);
+    expect(await response?.json()).toMatchObject({
+      code: "quota-exceeded",
+      limit: "liveVersionBytes",
+      used,
     });
   });
 });

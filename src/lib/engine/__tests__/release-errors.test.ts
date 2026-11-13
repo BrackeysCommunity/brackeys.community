@@ -49,7 +49,7 @@ describe("release errors", () => {
     expect(breaker).toEqual({
       code: "live-blocked",
       message: "level-1@4 is blocked: 5 of 12 players' games failed after it.",
-      hint: "Unblock it on the game's page, or publish a fixed version.",
+      hint: "Unblock it in the editor's Publish panel (the game's page links to it), or publish a fixed version.",
     });
     expect(
       liveBlocked({ scene: "level-1", number: 1200 }, { failed: 1500, total: 2000 }).message,

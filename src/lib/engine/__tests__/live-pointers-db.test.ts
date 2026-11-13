@@ -6,7 +6,6 @@ import {
   engineAgentTokens,
   engineProjects,
   engineReleaseAudit,
-  engineReleaseChannels,
   engineReleases,
   engineSceneChannels,
   engineSceneVersions,
@@ -23,20 +22,11 @@ import {
   restoreScenePointers,
   type ScenePointerMove,
 } from "../live-pointers";
-import { beginSceneVersion, commitSceneVersion } from "../live-upload";
-import { promote } from "../release-channels";
-import { ReleaseError } from "../release-errors";
 import { memoryReleaseStore } from "../release-storage";
-import {
-  beginRelease,
-  commitRelease,
-  putReleaseFile,
-  type Actor,
-  type ReleaseDeps,
-  type ReleaseTxDb,
-} from "../release-upload";
+import type { Actor } from "../release-upload";
 import { fixtureVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
+import { liveRev, refusal, uploadDeps, uploadRelease, uploadSceneVersion } from "./upload-rig";
 
 vi.mock("@/db", async () => {
   const { createTestDb } = await import("@/test/db");
@@ -58,34 +48,7 @@ const agent: Actor = { kind: "agent", userId: "editor", agentTokenId: TOKEN };
 let store = memoryReleaseStore();
 let release: PlannedRelease;
 
-const deps = (): ReleaseDeps => ({
-  db: db as unknown as ReleaseTxDb,
-  store,
-  now: () => NOW,
-  rateLimit: async () => true,
-  scan: async () => {},
-});
-
-/** The fixture release on preview, then promoted to production. */
-async function publishRelease() {
-  const begun = await beginRelease(deps(), {
-    projectId: PROJECT,
-    manifest: release.text,
-    actor: publisher,
-  });
-  for (const f of begun.missing)
-    await putReleaseFile(deps(), {
-      uploadId: begun.uploadId,
-      sha256: f.sha256,
-      body: release.files.get(f.path)!,
-      actor: publisher,
-    });
-  const { version } = await commitRelease(deps(), { uploadId: begun.uploadId, actor: publisher });
-  await promote(
-    { projectId: PROJECT, version, channel: "production", actor: publisher },
-    { db: db as unknown as ReleaseTxDb, now: () => NOW },
-  );
-}
+const deps = () => uploadDeps(store, { now: () => NOW });
 
 const moved =
   (x: number) =>
@@ -98,22 +61,8 @@ const edited = (scene: "hall" | "yard", x = 4) =>
   fixtureVersion(release, { scene, edit: moved(x) });
 
 /** Publishes `v` on no channel, so only the moves under test touch the pointers. */
-async function publish(v: FixtureVersion): Promise<number> {
-  const begun = await beginSceneVersion(deps(), {
-    projectId: PROJECT,
-    version: v.text,
-    channel: "none",
-    actor: publisher,
-  });
-  for (const { sha256 } of begun.missing)
-    await putReleaseFile(deps(), {
-      uploadId: begun.uploadId,
-      sha256,
-      body: new TextEncoder().encode(v.texts.get(sha256)!),
-      actor: publisher,
-    });
-  return (await commitSceneVersion(deps(), { uploadId: begun.uploadId, actor: publisher })).number;
-}
+const publish = async (v: FixtureVersion): Promise<number> =>
+  (await uploadSceneVersion(deps(), v, { channel: "none", actor: publisher })).committed.number;
 
 type Move = Omit<ScenePointerMove, "projectId" | "to" | "actor" | "action" | "timing"> & {
   to: ScenePointerMove["to"] | "previous";
@@ -131,16 +80,6 @@ const move = (m: Move) =>
     ...m,
   });
 
-async function refusal(run: () => Promise<unknown>) {
-  try {
-    await run();
-  } catch (error) {
-    if (error instanceof ReleaseError) return { ...error.body, status: error.status };
-    throw error;
-  }
-  throw new Error("the call wasn't refused");
-}
-
 const pointers = () =>
   db
     .select({
@@ -157,14 +96,6 @@ const sceneMoves = async () =>
   (await db.select().from(engineReleaseAudit).orderBy(asc(engineReleaseAudit.id))).filter((a) =>
     ["scene-promote", "scene-rollback", "scene-clear"].includes(a.action),
   );
-
-const liveRev = async (channel: "preview" | "production") =>
-  (
-    await db
-      .select({ rev: engineReleaseChannels.liveRev })
-      .from(engineReleaseChannels)
-      .where(eq(engineReleaseChannels.channel, channel))
-  )[0]?.rev;
 
 const versionId = async (scene: string, number: number) =>
   (
@@ -203,7 +134,7 @@ beforeEach(async () => {
     tokenSha256: "f".repeat(64),
     expiresAt: new Date(NOW.getTime() + 86_400_000),
   });
-  await publishRelease();
+  await uploadRelease(deps(), release, { actor: publisher, promoteTo: "production" });
 });
 
 afterEach(() => {
@@ -215,7 +146,7 @@ describe("moveScenePointer", () => {
     const v = await edited("hall");
     expect(await publish(v)).toBe(1);
     const before = await sceneMoves();
-    const previewRev = await liveRev("preview");
+    const previewRev = await liveRev(PROJECT, "preview");
 
     expect(
       await move({ scene: "hall", channel: "production", to: { number: 1 }, timing: "now" }),
@@ -245,8 +176,8 @@ describe("moveScenePointer", () => {
       actorId: "pub",
       detail: { from: null, to: 1, timing: "now" },
     });
-    expect(await liveRev("production")).toBe(row.id);
-    expect(await liveRev("preview")).toBe(previewRev);
+    expect(await liveRev(PROJECT, "production")).toBe(row.id);
+    expect(await liveRev(PROJECT, "preview")).toBe(previewRev);
     expect(announced).toHaveBeenCalledWith({
       projectId: PROJECT,
       channel: "production",

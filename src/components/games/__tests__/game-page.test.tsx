@@ -49,31 +49,34 @@ vi.mock("@/components/layout/NotFoundPage", () => ({
   NotFoundPage: () => <p>Not found</p>,
 }));
 vi.mock("@/lib/engine/guard", () => ({ engineGamesAllowed: () => gate.allowed }));
-vi.mock("@tanstack/react-router", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
-  Link: ({
-    children,
-    params,
-    to,
-    search,
-    ...rest
-  }: {
-    children?: ReactNode;
-    params?: Record<string, string>;
-    search?: Record<string, string | number>;
-    to?: string;
-  }) => {
+type LinkStandInProps = {
+  children?: ReactNode;
+  params?: Record<string, string>;
+  search?: Record<string, string | number>;
+  to?: string;
+};
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+  const hrefOf = ({ to, params, search }: LinkStandInProps) => {
     const path = (to ?? "").replace(/\$(\w+)/g, (_m, key: string) => params?.[key] ?? "");
     const query = search
       ? `?${new URLSearchParams(Object.entries(search).map(([k, v]) => [k, String(v)]))}`
       : "";
-    return (
-      <a {...rest} href={path + query}>
+    return path + query;
+  };
+  return {
+    ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+    Link: ({ children, params, to, search, ...rest }: LinkStandInProps) => (
+      <a {...rest} href={hrefOf({ to, params, search })}>
         {children}
       </a>
-    );
-  },
-}));
+    ),
+    createLink:
+      (Anchor: React.ComponentType<Record<string, unknown>>) =>
+      ({ params, to, search, ...rest }: LinkStandInProps & Record<string, unknown>) => (
+        <Anchor {...rest} href={hrefOf({ to, params, search })} />
+      ),
+  };
+});
 
 const { GamePage, blockedSceneLine, missingLicencesLine } = await import("../GamePage");
 type GamePageView = import("../GamePage").GamePageView;
@@ -479,7 +482,10 @@ describe("live levels on the game page", () => {
     const link = screen.getByRole("link", {
       name: "The ford update blocked (5 of 12 players' games failed after this update)",
     });
-    expect(link.getAttribute("href")).toBe("/game/dev?edit=1&project=tactics&scene=ford");
+    expect(link.getAttribute("href")).toBe(
+      "/game/dev?edit=1&project=tactics&scene=ford&panel=publish",
+    );
+    expect(link.className).toContain("text-destructive");
     expect(
       within(screen.getByRole("list", { name: "Blocked level updates" })).getAllByRole("listitem"),
     ).toHaveLength(1);

@@ -18,8 +18,6 @@ import type { SceneIssue } from "@jams/engine/scene";
 import { and, desc, eq, isNull, max } from "drizzle-orm";
 
 import {
-  engineProjects,
-  engineReleaseChannels,
   engineReleaseObjects,
   engineReleases,
   engineReleaseUploads,
@@ -32,6 +30,9 @@ import { parseLivePath } from "./frame-route";
 import { LIVE_LIMITS, UPLOAD_SESSION_HOURS } from "./limits";
 import {
   announceLiveMove,
+  channelRelease,
+  DEFAULT_SWAP_TIMING,
+  lockProject,
   pointScene,
   sceneVersionLabel,
   sceneVersionRemoved,
@@ -99,7 +100,6 @@ export type BeginSceneInput = {
 };
 
 const JSON_TYPE = "application/json";
-const DEFAULT_TIMING: SwapTiming = "next-load";
 
 const utf8Bytes = (text: string) => new TextEncoder().encode(text).byteLength;
 
@@ -170,14 +170,7 @@ function noteTooLong(chars: number): ReleaseApiError {
 
 // ─── Reading what a version is checked against ──────────
 
-type TargetRelease = { id: string; version: number; manifest: ReleaseManifest; totalBytes: number };
-
-const releaseColumns = {
-  id: engineReleases.id,
-  version: engineReleases.version,
-  manifest: engineReleases.manifest,
-  totalBytes: engineReleases.totalBytes,
-};
+type TargetRelease = { id: string; version: number; manifest: ReleaseManifest };
 
 /**
  * The release a scene version is checked against: the one preview plays,
@@ -188,40 +181,27 @@ async function targetRelease(
   projectId: string,
   channel: "preview" | "none",
 ): Promise<TargetRelease> {
-  const onChannel = async (name: "preview" | "production") =>
-    (
-      await db
-        .select(releaseColumns)
-        .from(engineReleaseChannels)
-        .innerJoin(engineReleases, eq(engineReleases.id, engineReleaseChannels.releaseId))
-        .where(
-          and(
-            eq(engineReleaseChannels.projectId, projectId),
-            eq(engineReleaseChannels.channel, name),
-            isNull(engineReleases.collectedAt),
-          ),
-        )
-    )[0];
-  const row =
-    channel === "preview"
-      ? await onChannel("preview")
-      : ((await onChannel("production")) ??
-        (
-          await db
-            .select(releaseColumns)
-            .from(engineReleases)
-            .where(and(eq(engineReleases.projectId, projectId), isNull(engineReleases.collectedAt)))
-            .orderBy(desc(engineReleases.version))
-            .limit(1)
-        )[0]);
-  const parsed = row?.manifest ? parseReleaseManifest(row.manifest) : null;
-  if (!row || !parsed?.ok) return refuse(noRelease(channel), 404);
-  return {
-    id: row.id,
-    version: row.version,
-    manifest: parsed.manifest,
-    totalBytes: row.totalBytes,
-  };
+  const onChannel = await channelRelease(
+    db,
+    projectId,
+    channel === "preview" ? "preview" : "production",
+  );
+  if (onChannel) return onChannel;
+  if (channel === "none") {
+    const [row] = await db
+      .select({
+        id: engineReleases.id,
+        version: engineReleases.version,
+        manifest: engineReleases.manifest,
+      })
+      .from(engineReleases)
+      .where(and(eq(engineReleases.projectId, projectId), isNull(engineReleases.collectedAt)))
+      .orderBy(desc(engineReleases.version))
+      .limit(1);
+    const parsed = row?.manifest ? parseReleaseManifest(row.manifest) : null;
+    if (row && parsed?.ok) return { id: row.id, version: row.version, manifest: parsed.manifest };
+  }
+  return refuse(noRelease(channel), 404);
 }
 
 async function storedVersion(db: ReleaseDb, projectId: string, id: string) {
@@ -289,8 +269,8 @@ const roleOf = (asset: ReleaseAsset): VersionFile["role"] =>
         ? "scene"
         : "doc";
 
-/** The extension a version's file is served under: `.json`, or the blob's own. */
-const extOf = (asset: ReleaseAsset) => asset.file.slice(asset.file.lastIndexOf("/") + 1 + 64);
+/** The extension a version's blob is served under: its own, as its `live/` file names it. */
+const extOf = (asset: ReleaseAsset) => parseLivePath(asset.file)?.ext ?? "";
 
 /**
  * Every file a version lists, once per hash: the version file itself, then
@@ -443,7 +423,7 @@ export async function beginSceneVersion(
       expiresAt: new Date(at.getTime() + UPLOAD_SESSION_HOURS * HOUR_MS),
       kind: "scene",
       sceneId: version.scene,
-      timing: input.timing ?? DEFAULT_TIMING,
+      timing: input.timing ?? DEFAULT_SWAP_TIMING,
       ...(input.note !== undefined ? { note: input.note } : {}),
     })
     .returning({ id: engineReleaseUploads.id });
@@ -563,11 +543,7 @@ export async function commitSceneVersion(
   if (!sceneDoc) return refuse(releaseFilesMissing(1));
 
   const result = await db.transaction(async (tx) => {
-    await tx
-      .select({ projectId: engineProjects.projectId })
-      .from(engineProjects)
-      .where(eq(engineProjects.projectId, projectId))
-      .for("update");
+    await lockProject(tx, projectId);
 
     // The collector may have removed an object since it was counted, under this same lock.
     const stillHeld = await heldHashes(
@@ -637,7 +613,7 @@ export async function commitSceneVersion(
               scene: version.scene,
               channel: "preview",
               to: { number },
-              timing: (upload.timing as SwapTiming | null) ?? DEFAULT_TIMING,
+              timing: (upload.timing as SwapTiming | null) ?? DEFAULT_SWAP_TIMING,
               action: "scene-promote",
               actor,
               at,

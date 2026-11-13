@@ -70,7 +70,7 @@ import { join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import type { SwapTiming } from "@jams/engine/game";
+import { versionName, type SwapTiming } from "@jams/engine/game";
 import { liveFiles, type Sha256 } from "@jams/engine/project";
 import type { Browser, BrowserContext, BrowserType, Frame, Page } from "playwright";
 
@@ -575,8 +575,6 @@ const isLiveFile = (url: string): boolean => {
   }
 };
 
-const shortVersion = (id: string) => id.slice(0, 12);
-
 const issueSuffix = (s: FrameLiveState) =>
   s.issue ? ` (${s.issue.code}: ${s.issue.message})` : "";
 
@@ -600,7 +598,7 @@ function judgeLiveSwap(kind: PlayRunKind, p: LiveRunProbe): string[] {
     reasons.push("no scene version was published");
     return reasons;
   }
-  const short = `${p.published.scene}@${shortVersion(p.published.versionId)}`;
+  const short = versionName(p.published.scene, p.published.versionId);
   const bad = p.states.find((s) => s.status === "refused" || s.status === "failed");
   if (bad) reasons.push(`the frame reported ${short} ${bad.status}${issueSuffix(bad)}`);
   const applied = p.states.find((s) => s.status === "applied");
@@ -2190,7 +2188,7 @@ async function main(): Promise<number> {
       LIVE_FIXTURE_TIMEOUT_MS,
       "building the live scene version",
     );
-    console.log(`live: built ${liveVersion.scene}@${shortVersion(liveVersion.id)}`);
+    console.log(`live: built ${versionName(liveVersion.scene, liveVersion.id)}`);
 
     // Each browser gets its own process, site and servers, so nothing one
     // browser leaves behind reaches the next: on macOS, WebKit timed out

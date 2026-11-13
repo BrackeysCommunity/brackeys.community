@@ -1,3 +1,4 @@
+import { sceneVersionName } from "@jams/engine/game";
 import type { SceneIssue } from "@jams/engine/scene";
 import { ORPCError } from "@orpc/client";
 
@@ -241,7 +242,7 @@ export function liveBlocked(
   version: { scene: string; number: number },
   why: { failed: number; total: number } | { reason: string | null },
 ): ReleaseApiError {
-  const label = `${version.scene}@${formatCount(version.number)}`;
+  const label = sceneVersionName(version.scene, version.number);
   const because =
     "failed" in why
       ? `: ${formatCount(why.failed)} of ${formatCount(why.total)} players' games failed after it.`
@@ -251,7 +252,7 @@ export function liveBlocked(
   return {
     code: "live-blocked",
     message: `${label} is blocked${because}`,
-    hint: "Unblock it on the game's page, or publish a fixed version.",
+    hint: "Unblock it in the editor's Publish panel (the game's page links to it), or publish a fixed version.",
   };
 }
 

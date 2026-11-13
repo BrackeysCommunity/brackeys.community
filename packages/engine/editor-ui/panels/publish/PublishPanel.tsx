@@ -1,7 +1,7 @@
 import { Cancel01Icon, Copy01Icon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { timingWords, type SwapTiming } from "../../../game/live";
+import { arrivalWords, sceneVersionName, timingWords, type SwapTiming } from "../../../game/live";
 import {
   checkSceneVersion,
   parseReleaseManifest,
@@ -30,13 +30,14 @@ import {
   IconButton,
   Input,
   MicroLabel,
-  Radio,
   Skeleton,
   Text,
   TimeAgo,
 } from "../../kit/index";
 import type { Pending } from "../../pending/pending";
 import { PendingProvider, useBusy, useOwnOrSharedPending } from "../../pending/use-pending";
+import { ChoiceGroup } from "./ChoiceGroup";
+import { LIVE_CHANNELS, liveOnText, productionConfirmText, PUBLISHERS_ONLY } from "./live-wording";
 import {
   channelScope,
   PromoteButton,
@@ -145,6 +146,14 @@ function PublishBody({
   const [usage, reloadUsage] = useLoaded(() => publish.usage());
   const [releases, reloadReleases] = useLoaded(() => publish.releases());
   const [liveVersions, reloadLive] = useLoaded(() => (live ? live.list() : noLiveVersions()));
+  useEffect(
+    () =>
+      live?.onPublished?.(() => {
+        reloadLive();
+        reloadUsage();
+      }),
+    [live, reloadLive, reloadUsage],
+  );
 
   const move = async <T extends { to: number }>(
     label: string,
@@ -421,26 +430,14 @@ function RemovedSoon({ releases }: { releases: readonly ReleaseView[] }) {
 
 // ─── Live scenes ─────────────────────────────────────────
 
-const CHANNELS = ["production", "preview"] as const satisfies readonly PublishChannel[];
 const CHANNEL_TITLE = { production: "Production", preview: "Preview" } as const;
-const PUBLISHERS_ONLY = "Only publishers can change production.";
-
-/** `level-1@4`: a scene version as the CLI and the site name it. */
-export const liveName = (scene: AssetId, number: number): string => `${scene}@${number}`;
-
-/** When a production move reaches players, after "Players will get level-1@4 ". */
-const PLAYERS_GET: Readonly<Record<SwapTiming, string>> = {
-  "next-load": "next time the level loads",
-  boundary: "at the next safe moment",
-  now: "now",
-};
-
-/** The question a move of `name` to production asks. */
-export const livePromoteMessage = (name: string, timing: SwapTiming): string =>
-  `Players will get ${name} ${PLAYERS_GET[timing]}. You can roll back or stop it at any time.`;
 
 /** The question Unblock asks. */
 const unblockMessage = (name: string): string => `Players will get ${name} again.`;
+
+/** The question a production Roll back asks: the host goes back to the pointer's previous target. */
+export const liveRollbackMessage = (name: string, scene: string, timing: SwapTiming): string =>
+  `Players go back to what production played before ${name} ${arrivalWords(timing)}: an earlier version of ${scene}, or the release's own.`;
 
 /** The live scenes' pending scope: one per scene and channel, so a row's buttons go busy together. */
 const liveScope = (scene: AssetId, channel: PublishChannel): string =>
@@ -449,7 +446,8 @@ const liveScope = (scene: AssetId, channel: PublishChannel): string =>
 /**
  * Whether the scene version `descriptor` (its `scene-version.json`) may
  * stay live over the release `manifest` (its `release.json`): both read,
- * and the version check finds no error.
+ * and the version check finds no error. This is the manifest half of the
+ * host's rule; the host also refuses a release that takes no live scenes.
  */
 export function stillFits(manifest: string, descriptor: string): boolean {
   const release = parseReleaseManifest(manifest);
@@ -489,7 +487,7 @@ async function replacedScenes(
   return Promise.all(
     onProduction.map(async (v) => ({
       scene: v.scene,
-      name: liveName(v.scene, v.number),
+      name: sceneVersionName(v.scene, v.number),
       title: sceneTitle(v.scene) ?? v.scene,
       fits: await fits(v),
     })),
@@ -537,7 +535,7 @@ function LiveScenes({
           No live scenes. Publish a scene from the editor to update one level without a release.
         </Text>
       ) : (
-        CHANNELS.map((channel) => {
+        LIVE_CHANNELS.map((channel) => {
           const here = rows.filter((r) => r.pointer.channel === channel);
           if (here.length === 0) return null;
           const release = releases.find((r) => r.channels.includes(channel));
@@ -604,7 +602,7 @@ function LiveSceneRow({
 }) {
   const { scene, number } = version;
   const { channel, timing } = pointer;
-  const name = liveName(scene, number);
+  const name = sceneVersionName(scene, number);
   const called = title ?? scene;
   const scope = liveScope(scene, channel);
   const unblockScope = `publish:live:unblock:${name}`;
@@ -626,23 +624,71 @@ function LiveSceneRow({
   const movedWords = (to: number | null, on: PublishChannel) =>
     to === null
       ? `${called} plays the release's version on ${on} again.`
-      : `${liveName(scene, to)} is live on ${on}.`;
+      : liveOnText(sceneVersionName(scene, to), on);
+  const rollBack = () =>
+    act(
+      `Rolling back ${called} on ${channel}`,
+      `Couldn't roll back ${called} on ${channel}`,
+      (moved: { to: number | null }) => movedWords(moved.to, channel),
+      () => live.rollback(scene, channel, { timing }),
+    );
 
   const canPromote =
-    channel === "preview" && version.blocked === null && onProduction?.version.number !== number;
+    channel === "preview" &&
+    version.blocked === null &&
+    version.hidden === null &&
+    !version.collected &&
+    onProduction?.version.number !== number;
+  const rollBackButton = (
+    <Button
+      size="xs"
+      variant="outline"
+      busyScope={scope}
+      disabled={locked}
+      {...lockedTip}
+      {...(channel === "production" ? {} : { onClick: () => void rollBack() })}
+    >
+      Roll back
+    </Button>
+  );
 
   return (
     <div role="listitem" className="je-insp-stack" data-gap="tight">
-      <Text as="p" size="xs" tabular>
-        {title ? `${title} · ` : ""}
-        {name} · {timingWords(timing)} · <TimeAgo date={pointer.since} />
-        {pointer.by ? ` · ${pointer.by}` : ""}
-      </Text>
-      {version.blocked ? (
-        <div className="je-insp-row je-insp-wrap" data-gap="tight" data-align="start">
+      <div className="je-insp-row je-insp-wrap" data-gap="tight">
+        <Text size="sm" bold>
+          {called}
+        </Text>
+        {version.blocked ? (
           <Badge size="label" variant="destructive">
             blocked
           </Badge>
+        ) : null}
+        {version.hidden !== null ? (
+          <Badge size="label" variant="destructive">
+            hidden
+          </Badge>
+        ) : null}
+        {version.collected ? (
+          <Badge size="label" variant="ghost">
+            removed
+          </Badge>
+        ) : version.removal ? (
+          <Badge size="label" variant="warning">
+            removed soon
+          </Badge>
+        ) : null}
+      </div>
+      <Text as="p" size="xs" variant="muted" tabular>
+        {name} · {timingWords(timing)} · <TimeAgo date={pointer.since} />
+        {pointer.by ? ` · ${pointer.by}` : ""}
+      </Text>
+      {version.hidden !== null ? (
+        <Text as="p" size="xs" variant="danger">
+          {version.hidden}
+        </Text>
+      ) : null}
+      {version.blocked ? (
+        <div className="je-insp-row je-insp-wrap" data-gap="tight" data-align="start">
           <Text size="xs" variant="danger" className="je-insp-grow">
             {version.blocked.text}
           </Text>
@@ -676,7 +722,7 @@ function LiveSceneRow({
         {canPromote ? (
           <Confirm
             title={`Promote ${name} to production?`}
-            message={livePromoteMessage(name, timing)}
+            message={productionConfirmText(name, timing)}
             confirmText="Promote"
             onConfirm={() =>
               act(
@@ -699,23 +745,18 @@ function LiveSceneRow({
             </Button>
           </Confirm>
         ) : null}
-        <Button
-          size="xs"
-          variant="outline"
-          busyScope={scope}
-          disabled={locked}
-          {...lockedTip}
-          onClick={() =>
-            void act(
-              `Rolling back ${called} on ${channel}`,
-              `Couldn't roll back ${called} on ${channel}`,
-              (moved: { to: number | null }) => movedWords(moved.to, channel),
-              () => live.rollback(scene, channel, { timing }),
-            )
-          }
-        >
-          Roll back
-        </Button>
+        {channel === "production" ? (
+          <Confirm
+            title={`Roll back ${called} on production?`}
+            message={liveRollbackMessage(name, called, timing)}
+            confirmText="Roll back"
+            onConfirm={rollBack}
+          >
+            {rollBackButton}
+          </Confirm>
+        ) : (
+          rollBackButton
+        )}
         <Confirm
           title={`Stop ${name} on ${channel}?`}
           message={
@@ -791,7 +832,7 @@ function GameSettings({ publish, pending }: { publish: EditorPublishHost; pendin
         name={`${publish.project}:visibility`}
         choices={VISIBILITIES}
         value={view.visibility}
-        text={publish.wording.visibility}
+        label={(v) => publish.wording.visibility[v]}
         disabled={busy}
         unavailable={(v) => v === "team" && view.team === null}
         onPick={(visibility) => void save({ visibility }, "Changing who can play")}
@@ -809,7 +850,7 @@ function GameSettings({ publish, pending }: { publish: EditorPublishHost; pendin
         name={`${publish.project}:save-mode`}
         choices={SAVE_MODES}
         value={view.saveMode}
-        text={publish.wording.saveModes}
+        label={(mode) => publish.wording.saveModes[mode]}
         disabled={busy}
         unavailable={(mode) => mode === "own" && view.connectOrigins.length === 0}
         onPick={(saveMode) => void save({ saveMode }, "Changing where the game saves")}
@@ -831,44 +872,6 @@ function GameSettings({ publish, pending }: { publish: EditorPublishHost; pendin
           Not saved: {saveError}
         </Text>
       ) : null}
-    </div>
-  );
-}
-
-function ChoiceGroup<T extends string>({
-  legend,
-  name,
-  choices,
-  value,
-  text,
-  disabled,
-  unavailable,
-  onPick,
-}: {
-  legend: string;
-  name: string;
-  choices: readonly T[];
-  value: T;
-  text: Readonly<Record<T, string>>;
-  disabled: boolean;
-  unavailable?: (choice: T) => boolean;
-  onPick: (choice: T) => void;
-}) {
-  return (
-    <div className="je-insp-stack" data-gap="tight" role="radiogroup" aria-label={legend}>
-      <MicroLabel as="div">{legend}</MicroLabel>
-      {choices.map((choice) => (
-        <label key={choice} className="je-insp-row" data-align="start" data-gap="tight">
-          <Radio
-            name={name}
-            value={choice}
-            checked={value === choice}
-            disabled={disabled || unavailable?.(choice)}
-            onChange={() => onPick(choice)}
-          />
-          <Text size="xs">{text[choice]}</Text>
-        </label>
-      ))}
     </div>
   );
 }

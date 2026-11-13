@@ -8,7 +8,8 @@ import { resolvePlay } from "@/lib/engine/game-play";
 import { readGameSettings, setGameSettings as writeSettings } from "@/lib/engine/game-settings";
 import { assertEngineGames } from "@/lib/engine/guard-server";
 import { CONNECT_ORIGINS_MAX } from "@/lib/engine/limits";
-import { isEngineProjectId } from "@/lib/engine/projects";
+import { engineProjectIdInput as projectId } from "@/lib/engine/projects";
+import { releaseChannel } from "@/lib/engine/release-access";
 import { orpcRefusals } from "@/lib/engine/release-errors";
 import { reportGame as fileReport } from "@/lib/engine/release-moderation";
 import type { Actor } from "@/lib/engine/release-upload";
@@ -51,10 +52,6 @@ export const gameReader = os
     return next();
   });
 
-const projectId = z
-  .string()
-  .refine(isEngineProjectId, "A project id is lowercase letters, digits and dashes.");
-
 const person = (userId: string): Actor => ({ kind: "user", userId });
 
 /** The play page's frame and release for `latest`, `preview` or a version number. */
@@ -74,7 +71,7 @@ export const getGamePlay = gameReader
  * `preview`. It stays on the private RPC mount, which is never cached.
  */
 export const getGameLive = gameReader
-  .input(z.object({ projectId, channel: z.enum(["production", "preview"]) }))
+  .input(z.object({ projectId, channel: releaseChannel }))
   .handler(async ({ context, input }) => {
     const viewer = await viewerOf(context.user.id, input.projectId);
     const version = input.channel === "production" ? "latest" : "preview";

@@ -6,8 +6,9 @@ import { isActiveBan } from "@/lib/ban-state";
 import { resolvePlay } from "@/lib/engine/game-play";
 import { engineGamesOpen } from "@/lib/engine/guard-server";
 import { LIVE_STREAM_MINUTES } from "@/lib/engine/limits";
-import { engineLive, type EngineLiveEvent } from "@/lib/engine/live-events";
+import { engineLive } from "@/lib/engine/live-events";
 import { isEngineProjectId } from "@/lib/engine/projects";
+import { releaseChannel, type ReleaseChannel } from "@/lib/engine/release-access";
 import { viewerOf } from "@/lib/engine/viewer";
 import { captureServerException, withErrorReporting } from "@/lib/posthog-server";
 import { sseResponse } from "@/lib/sse";
@@ -15,13 +16,10 @@ import { sseResponse } from "@/lib/sse";
 const notFound = () => new Response("Not found", { status: 404 });
 
 /** The play page's version name for a channel, so the stream admits whoever that page admits. */
-const PLAY_VERSION: Record<EngineLiveEvent["channel"], string> = {
+const PLAY_VERSION: Record<ReleaseChannel, string> = {
   production: "latest",
   preview: "preview",
 };
-
-const channelOf = (raw: string | null): EngineLiveEvent["channel"] | null =>
-  raw === "production" || raw === "preview" ? raw : null;
 
 /**
  * One channel's moves for a hosted game: an `event: live` with
@@ -32,8 +30,9 @@ const channelOf = (raw: string | null): EngineLiveEvent["channel"] | null =>
  */
 async function handle({ request, params }: { request: Request; params: { projectId: string } }) {
   const { projectId } = params;
-  const channel = channelOf(new URL(request.url).searchParams.get("channel"));
-  if (channel === null || !isEngineProjectId(projectId)) return notFound();
+  const parsed = releaseChannel.safeParse(new URL(request.url).searchParams.get("channel"));
+  if (!parsed.success || !isEngineProjectId(projectId)) return notFound();
+  const channel = parsed.data;
 
   const session = await auth.api.getSession({ headers: request.headers }).catch((err: unknown) => {
     captureServerException(err, { scope: "engine_live_stream.session_read" });

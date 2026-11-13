@@ -921,6 +921,25 @@ describe("live versions in a play session", () => {
     expect(t.game.live.current("hall")).toBe(t.v.id);
   });
 
+  it("writes a parseable recording when Stop comes right after a swap", async () => {
+    const t = await livePlay();
+    expect(t.game.play(hall())).toMatchObject({ ok: true });
+    t.game.step(10);
+    t.game.live.activate("hall", t.v.id, "now");
+    t.game.step(1);
+    t.game.stop();
+    const rec = t.recorded.at(-1)!;
+    expect(rec.ticks).toBe(11);
+    expect(rec.swaps).toEqual([expect.objectContaining({ tick: 11, version: t.v.id })]);
+    expect(parseRecording(JSON.stringify(rec))).toMatchObject({ ok: true });
+
+    t.game.live.activate("hall", null, "next-load");
+    expect(t.game.replay(hall(), rec, { versions: t.versions })).toMatchObject({ ok: true });
+    t.game.step(30);
+    expect(t.recorded.at(-1)!.end).toBe(rec.end);
+    expect(t.failed).toEqual([]);
+  });
+
   it("records the version a Play started on, and replays on it in place of the doc", async () => {
     const t = await livePlay();
     nowSwap(t);

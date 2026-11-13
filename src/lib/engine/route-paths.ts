@@ -119,3 +119,32 @@ export const SAVES_PATH = /^\/api\/engine\/saves$/;
 export const PROJECT_SAVES_PATH = /^\/api\/engine\/saves\/([^/]+)$/;
 /** The encoded project id and slot. */
 export const SAVE_SLOT_PATH = /^\/api\/engine\/saves\/([^/]+)\/([^/]+)$/;
+
+/** The game room the editor opens a project in, as the game page and the scene CLI link it. */
+export const EDITOR_ROOM = "dev";
+
+/** The editor panels a link can open through the room's `?panel=`. */
+export const EDITOR_LINK_PANELS = ["publish"] as const;
+export type EditorLinkPanel = (typeof EDITOR_LINK_PANELS)[number];
+export const isEditorLinkPanel = (value: unknown): value is EditorLinkPanel =>
+  (EDITOR_LINK_PANELS as readonly unknown[]).includes(value);
+
+/** The editor room's search for a project: `scene` opens that scene, `panel` that panel once it's there. */
+export const editorSearch = (
+  projectId: string,
+  opts: { scene?: string; panel?: EditorLinkPanel } = {},
+) => ({
+  edit: 1 as const,
+  project: projectId,
+  ...(opts.scene === undefined ? {} : { scene: opts.scene }),
+  ...(opts.panel === undefined ? {} : { panel: opts.panel }),
+});
+
+/** `/game/dev?edit=1&project=<id>[&scene=<scene>][&panel=<panel>]`. */
+export const editorPath = (
+  projectId: string,
+  opts: { scene?: string; panel?: EditorLinkPanel } = {},
+): string => {
+  const query = Object.entries(editorSearch(projectId, opts)).map(([k, v]) => [k, String(v)]);
+  return `/game/${EDITOR_ROOM}?${new URLSearchParams(query)}`;
+};

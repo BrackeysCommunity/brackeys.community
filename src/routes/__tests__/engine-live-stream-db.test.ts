@@ -15,21 +15,14 @@ import { engineProjects, teamMembers, teams } from "@/db/schema";
 import { seedUser, type TestDb } from "@/test/db";
 
 import { plannedRelease, type PlannedRelease } from "../../lib/engine/__tests__/release-fixture";
+import { uploadDeps, uploadRelease } from "../../lib/engine/__tests__/upload-rig";
 import { forgetProjectReleases } from "../../lib/engine/frame-route";
 import { resolvePlay } from "../../lib/engine/game-play";
 import { LIVE_STREAM_MINUTES } from "../../lib/engine/limits";
 import { engineLive } from "../../lib/engine/live-events";
 import type { Viewer } from "../../lib/engine/release-access";
-import { promote } from "../../lib/engine/release-channels";
 import { memoryReleaseStore } from "../../lib/engine/release-storage";
-import {
-  beginRelease,
-  commitRelease,
-  putReleaseFile,
-  type Actor,
-  type ReleaseDeps,
-  type ReleaseTxDb,
-} from "../../lib/engine/release-upload";
+import type { Actor } from "../../lib/engine/release-upload";
 
 const state = vi.hoisted(() => ({ userId: null as string | null, flag: true }));
 
@@ -73,30 +66,6 @@ const GET = (Route as unknown as { options: { server: { handlers: { GET: Handler
 const store = memoryReleaseStore();
 let v1: PlannedRelease;
 let v2: PlannedRelease;
-
-const uploadDeps = (): ReleaseDeps => ({
-  db: db as unknown as ReleaseTxDb,
-  store,
-  now: () => NOW,
-  rateLimit: async () => true,
-  scan: async () => {},
-});
-
-async function publish(planned: PlannedRelease) {
-  const begun = await beginRelease(uploadDeps(), {
-    projectId: PROJECT,
-    manifest: planned.text,
-    actor: creator,
-  });
-  for (const file of begun.missing)
-    await putReleaseFile(uploadDeps(), {
-      uploadId: begun.uploadId,
-      sha256: file.sha256,
-      body: planned.files.get(file.path)!,
-      actor: creator,
-    });
-  return commitRelease(uploadDeps(), { uploadId: begun.uploadId, actor: creator });
-}
 
 type Open = { response: Response; read: () => Promise<string>; close: () => void };
 
@@ -172,12 +141,9 @@ beforeAll(async () => {
     teamId: "team-1",
     visibility: "unlisted",
   });
-  await publish(v1);
-  await promote(
-    { projectId: PROJECT, version: 1, channel: "production", actor: creator },
-    { db: db as unknown as ReleaseTxDb, now: () => NOW },
-  );
-  await publish(v2);
+  const deps = uploadDeps(store, { now: () => NOW });
+  await uploadRelease(deps, v1, { actor: creator, promoteTo: "production" });
+  await uploadRelease(deps, v2, { actor: creator });
 });
 
 afterAll(() => {

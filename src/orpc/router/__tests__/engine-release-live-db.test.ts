@@ -6,25 +6,15 @@ import { db as mockedDb } from "@/db";
 import {
   engineProjects,
   engineReleaseAudit,
-  engineReleaseChannels,
   engineSceneChannels,
   engineSceneVersions,
   teamMembers,
   teams,
 } from "@/db/schema";
 import { engineLive, type EngineLiveEvent } from "@/lib/engine/live-events";
-import { beginSceneVersion, commitSceneVersion } from "@/lib/engine/live-upload";
 import { promote, rollback, type ReleaseChannel } from "@/lib/engine/release-channels";
-import { ReleaseError } from "@/lib/engine/release-errors";
 import { memoryReleaseStore } from "@/lib/engine/release-storage";
-import {
-  beginRelease,
-  commitRelease,
-  putReleaseFile,
-  type Actor,
-  type ReleaseDeps,
-  type ReleaseTxDb,
-} from "@/lib/engine/release-upload";
+import type { Actor } from "@/lib/engine/release-upload";
 import { promoteRelease, rollbackRelease } from "@/orpc/router/engine-release";
 import { seedUser, type TestDb } from "@/test/db";
 import { asUser } from "@/test/orpc";
@@ -34,6 +24,13 @@ import {
   type FixtureVersion,
 } from "../../../lib/engine/__tests__/fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "../../../lib/engine/__tests__/release-fixture";
+import {
+  liveRev,
+  refusal,
+  uploadDeps,
+  uploadRelease,
+  uploadSceneVersion,
+} from "../../../lib/engine/__tests__/upload-rig";
 
 vi.mock("@/db", async () => {
   const { createTestDb } = await import("@/test/db");
@@ -74,33 +71,9 @@ let first: PlannedRelease;
 /** v2, a later build of the same game with the hall moved. */
 let second: PlannedRelease;
 
-const deps = (): ReleaseDeps => ({
-  db: db as unknown as ReleaseTxDb,
-  store,
-  now: () => NOW,
-  rateLimit: async () => true,
-  scan: async () => {},
-});
+const deps = () => uploadDeps(store, { now: () => NOW });
 
-const encode = (text: string) => new TextEncoder().encode(text);
 const hex = (n: number) => n.toString(16).padStart(64, "0");
-
-async function publishRelease(release: PlannedRelease, channel: "preview" | "none") {
-  const begun = await beginRelease(deps(), {
-    projectId: PROJECT,
-    manifest: release.text,
-    channel,
-    actor: staff,
-  });
-  for (const f of begun.missing)
-    await putReleaseFile(deps(), {
-      uploadId: begun.uploadId,
-      sha256: f.sha256,
-      body: release.files.get(f.path)!,
-      actor: staff,
-    });
-  await commitRelease(deps(), { uploadId: begun.uploadId, actor: staff });
-}
 
 /** A version of `scene` with its first marker moved, published to preview. */
 async function publishScene(scene: "hall" | "yard"): Promise<FixtureVersion> {
@@ -110,34 +83,8 @@ async function publishScene(scene: "hall" | "yard"): Promise<FixtureVersion> {
       (json.entities as { at: number[] }[])[0]!.at = [4, 1];
     },
   });
-  const begun = await beginSceneVersion(deps(), {
-    projectId: PROJECT,
-    version: v.text,
-    channel: "preview",
-    actor: staff,
-  });
-  for (const { sha256 } of begun.missing)
-    await putReleaseFile(deps(), {
-      uploadId: begun.uploadId,
-      sha256,
-      body: encode(v.texts.get(sha256)!),
-      actor: staff,
-    });
-  await commitSceneVersion(deps(), { uploadId: begun.uploadId, actor: staff });
+  await uploadSceneVersion(deps(), v, { channel: "preview", actor: staff });
   return v;
-}
-
-/** The refusal's API body, from the library's error or the procedure's oRPC error. */
-async function refusal(run: () => Promise<unknown>): Promise<{ code?: string; message?: string }> {
-  try {
-    await run();
-  } catch (error) {
-    if (error instanceof ReleaseError) return error.body;
-    const data = (error as { data?: { code?: string; message?: string } }).data;
-    if (data?.code) return data;
-    throw error;
-  }
-  throw new Error("the call wasn't refused");
 }
 
 const pointers = async (channel: ReleaseChannel) =>
@@ -156,19 +103,6 @@ const releaseMoves = async () =>
   (await db.select().from(engineReleaseAudit).orderBy(asc(engineReleaseAudit.id))).filter(
     (a) => a.action === "promote" || a.action === "rollback",
   );
-
-const liveRev = async (channel: ReleaseChannel) =>
-  (
-    await db
-      .select({ rev: engineReleaseChannels.liveRev })
-      .from(engineReleaseChannels)
-      .where(
-        and(
-          eq(engineReleaseChannels.projectId, PROJECT),
-          eq(engineReleaseChannels.channel, channel),
-        ),
-      )
-  )[0]?.rev;
 
 const promoteSecond = (keepScenes?: string[]) =>
   call(
@@ -207,8 +141,8 @@ beforeEach(async () => {
     teamId: TEAM,
     createdById: "pub",
   });
-  await publishRelease(first, "preview");
-  await publishRelease(second, "none");
+  await uploadRelease(deps(), first, { actor: staff, channel: "preview" });
+  await uploadRelease(deps(), second, { actor: staff, channel: "none" });
   hall = await publishScene("hall");
   yard = await publishScene("yard");
   heard = [];
@@ -228,7 +162,7 @@ describe("promoting a release", () => {
     expect(move).toMatchObject({ action: "promote", channel: "preview" });
     expect(move.detail).toMatchObject({ scenes: { hall: hall.id, yard: yard.id } });
     expect(move.detail).not.toHaveProperty("kept");
-    expect(await liveRev("preview")).toBe(move.id);
+    expect(await liveRev(PROJECT, "preview")).toBe(move.id);
     expect(heard).toEqual([{ projectId: PROJECT, channel: "preview", rev: move.id }]);
   });
 
@@ -238,7 +172,7 @@ describe("promoting a release", () => {
     expect(await pointers("preview")).toEqual({ hall: hall.id });
     const move = (await releaseMoves()).at(-1)!;
     expect(move.detail).toMatchObject({ scenes: { yard: yard.id }, kept: { hall: hall.id } });
-    expect(await liveRev("preview")).toBe(move.id);
+    expect(await liveRev(PROJECT, "preview")).toBe(move.id);
   });
 
   it("refuses to keep a scene the new release can't take, and changes nothing", async () => {
@@ -253,7 +187,7 @@ describe("promoting a release", () => {
       .set({ descriptor: JSON.stringify(descriptor), compatKey: hex(1) })
       .where(eq(engineSceneVersions.id, yard.id));
     const before = await releaseMoves();
-    const rev = await liveRev("preview");
+    const rev = await liveRev(PROJECT, "preview");
 
     expect(await refusal(() => promoteSecond(["hall", "yard"]))).toMatchObject({
       code: "live-incompatible",
@@ -261,7 +195,7 @@ describe("promoting a release", () => {
 
     expect(await pointers("preview")).toEqual({ hall: hall.id, yard: yard.id });
     expect(await releaseMoves()).toEqual(before);
-    expect(await liveRev("preview")).toBe(rev);
+    expect(await liveRev(PROJECT, "preview")).toBe(rev);
     expect(heard).toEqual([]);
   });
 
@@ -316,7 +250,7 @@ describe("rolling a release back", () => {
     expect(await pointers("preview")).toEqual({ hall: hall.id });
     const move = (await releaseMoves()).at(-1)!;
     expect(move).toMatchObject({ action: "rollback", channel: "preview" });
-    expect(await liveRev("preview")).toBe(move.id);
+    expect(await liveRev(PROJECT, "preview")).toBe(move.id);
     expect(heard).toEqual([{ projectId: PROJECT, channel: "preview", rev: move.id }]);
   });
 

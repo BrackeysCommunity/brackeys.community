@@ -1169,6 +1169,7 @@ WorldState
 advanceAlongPath
 advanceWaypoint
 angleField
+arrivalWords
 assetField
 assetKindsOf
 bindingKeyLabel
@@ -1275,6 +1276,7 @@ saveOverlaps
 savePathPlace
 scaleLengths
 sceneGrid
+sceneVersionName
 scopedRef
 seekAlongPath
 shapeColliderDesc
@@ -1290,6 +1292,7 @@ tickRateProblem
 ticksFor
 traceShape
 vectorField
+versionName
 wholeTicksIn
 withProject
 
@@ -3362,6 +3365,7 @@ type EditorLiveHost = {
     base(scene: AssetId, channel: PublishChannel): Promise<LiveBaseView>;
     clear(scene: AssetId, channel: PublishChannel, timing?: SwapTiming): Promise<LiveMove>;
     list(scene?: AssetId): Promise<readonly LiveVersionView[]>;
+    onPublished?(listener: (published: LivePublished) => void): () => void;
     promote(scene: AssetId, version: number, channel: PublishChannel, timing: SwapTiming): Promise<LiveMove>;
     publish(versionText: string, texts: Readonly<Record<Sha256, string>>, opts: LivePublishOptions, onProgress?: (progress: LivePublishProgress) => void): Promise<LivePublished>;
     role(): {
@@ -6170,11 +6174,13 @@ type SwapStrategy = "reconcile" | "reload";
 type SwapTiming = "boundary" | "next-load" | "now";
 declare function acceptedTimings(live: Pick<LiveDeclaration, "timings"> | undefined): SwapTiming[];
 declare function acceptedTimingsWords(live: Pick<LiveDeclaration, "timings"> | undefined): string;
+declare const arrivalWords: (t: SwapTiming) => string;
 declare function clampTiming(live: LiveDeclaration | undefined, wanted: SwapTiming): {
     clamped: boolean;
     timing: SwapTiming;
 };
 declare function diffWords(diff: SceneDiff): string;
+declare const sceneVersionName: (scene: string, number: number) => string;
 declare const swapStrategyFor: (diff: Pick<SceneDiff, "header">, wanted?: "auto" | SwapStrategy) => SwapStrategy;
 declare const timingWords: (t: SwapTiming) => string;
 declare const versionName: (scene: AssetId, version: Sha256 | null) => string;

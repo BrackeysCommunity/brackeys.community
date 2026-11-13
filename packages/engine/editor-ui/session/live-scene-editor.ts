@@ -29,7 +29,6 @@ import {
   type SessionPrefabSource,
   type UndoneStep,
 } from "../../collab/index";
-import { docValue } from "../../collab/project-apply";
 import {
   createEditorSession,
   createVariantBatch,
@@ -64,8 +63,6 @@ import type {
   StagedVersion,
 } from "../../index";
 import {
-  buildSceneVersion,
-  formatAssetDoc,
   MATERIAL_KIND,
   parseDocName,
   prefabKind,
@@ -74,7 +71,6 @@ import {
   stableJson,
   type AssetEntry,
   type AssetId,
-  type BuildSceneVersionResult,
   type ProjectRuntimeView,
   type ProjectView,
   type Sha256,
@@ -105,6 +101,7 @@ import type { SceneDocStatus } from "../connect/scene-doc";
 import { frameInView } from "../frame/visible-rect";
 import { defaultPeerColor, guestName, type EditorNotify } from "../host";
 import { createPending, type Pending } from "../pending/pending";
+import { buildOpenSceneVersion } from "./open-scene-version";
 
 /** The pending scope of opening the prefab an instance (`ref`) places: its outliner row and Open prefab button. */
 export const openPrefabScope = (ref: Ref): string => `prefab:open:${ref}`;
@@ -675,20 +672,6 @@ export function liveAppliedText(
   return `${LIVE_PLAY_APPLIED}: ${summary}${counted}`;
 }
 
-/** The canonical text of a project doc as its file would hold it; null for a kind with no text. */
-function docText(project: ProjectSession, entry: AssetEntry, doc: Y.Doc): string | null {
-  const def = project.kinds.get(entry.kind);
-  if (def?.storage !== "doc") return null;
-  const name = project.docNameFor(entry);
-  const layout = name ? project.get(name)?.layout : undefined;
-  try {
-    const value = docValue({ doc, kind: entry.kind, ...(layout ? { layout } : {}) });
-    return value === undefined ? null : formatAssetDoc(def, value);
-  } catch {
-    return null;
-  }
-}
-
 /** How many versions Live in Play keeps for replaying its runs; the oldest go first. */
 const KEPT_VERSIONS = 32;
 
@@ -829,53 +812,15 @@ function createLivePlay({
     }
   }
 
-  /** Every project doc's text by asset id, the scene's from the editor's own doc. */
-  function texts(p: ProjectSession): Map<AssetId, string> {
-    const out = new Map<AssetId, string>();
-    for (const entry of p.view().byId.values()) {
-      const name = p.docNameFor(entry);
-      const from = entry.id === scene ? doc : name ? p.get(name)?.doc : undefined;
-      if (!from) continue;
-      const text = docText(p, entry, from);
-      if (text !== null) out.set(entry.id, text);
-    }
-    return out;
-  }
-
-  /** Builds the version, opening the docs it reaches that the editor hasn't open, a few rounds deep. */
-  async function build(p: ProjectSession, def: GameDefinition): Promise<BuildSceneVersionResult> {
-    const tried = new Set<string>();
-    for (let round = 0; ; round++) {
-      const result = await buildSceneVersion({
-        view: p.view(),
-        texts: texts(p),
-        build: p.hashes,
-        game: def,
-        registry: game.registry,
-        scene,
-      });
-      if (result.ok || round >= 4) return result;
-      const closed = result.issues
-        .filter((i) => i.code === "asset-missing")
-        .flatMap((i) => i.entityIds)
-        .map((id) => p.view().byId.get(id))
-        .map((entry) => (entry ? p.docNameFor(entry) : null))
-        .filter((name): name is string => !!name && !p.get(name) && !tried.has(name));
-      if (closed.length === 0) return result;
-      await Promise.all(
-        closed.map((name) => {
-          tried.add(name);
-          return p.open(name).then(
-            () => {
-              if (playing) held.add(name);
-              else p.release(name);
-            },
-            () => {},
-          );
-        }),
-      );
-    }
-  }
+  /** Builds the version; the docs it opens stay held until Play ends. */
+  const build = (p: ProjectSession, def: GameDefinition) =>
+    buildOpenSceneVersion(p, scene, doc, game.registry, def, {
+      keep: (name) => {
+        if (!playing) return false;
+        held.add(name);
+        return true;
+      },
+    });
 
   async function applyOnce(ticket: number): Promise<void> {
     const p = project;

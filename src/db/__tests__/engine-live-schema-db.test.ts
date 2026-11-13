@@ -237,7 +237,7 @@ describe("engine_live_reports", () => {
   });
 });
 
-describe("plan 55's tables, for live scenes", () => {
+describe("releases, channels, uploads and the audit, for live scenes", () => {
   it("default a release's compat key to empty, and refuse anything but empty or 64 hex", async () => {
     const [made] = await db.insert(engineReleases).values(release).returning();
     expect(made?.liveCompatKey).toBe("");

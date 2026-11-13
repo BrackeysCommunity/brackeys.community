@@ -22,6 +22,7 @@ import {
   type SceneIssue,
 } from "@jams/engine/scene";
 
+import { EDITOR_ROOM, editorPath } from "../../../src/lib/engine/route-paths";
 import { failure, issueLine, usage, type Tool, type ToolContext } from "../context";
 import {
   GAME_PRESETS,
@@ -278,7 +279,8 @@ export const gameNew: Tool<GameNewInput> = async (input, ctx) => {
   const dryRun = input.dryRun === true;
   if (!dryRun) await writeFiles(projectDir, plan.files);
   const paths = plan.files.map((f) => join(projectDir, ...f.path.split("/")));
-  const play = `/game/dev?game=${id}`;
+  const play = `/game/${EDITOR_ROOM}?game=${id}`;
+  const edit = editorPath(id);
   const playtest = `vp run scene playtest main --project ${id} --script ${shown(join(projectDir, "scenes", "main.script.json"))}`;
   const hosted = resolve(REPO_ROOT, DEFAULT_DIR) === dir;
   const g = options.grid ? `, ${options.grid.kind} grid ${options.grid.cell} m` : "";
@@ -293,7 +295,7 @@ export const gameNew: Tool<GameNewInput> = async (input, ctx) => {
       written: !dryRun,
       files: paths,
       issues: plan.issues,
-      urls: { play, edit: `/game/dev?edit=1&project=${id}` },
+      urls: { play, edit },
       playtest,
     },
     text: [
@@ -301,7 +303,7 @@ export const gameNew: Tool<GameNewInput> = async (input, ctx) => {
       ...paths.map((p) => `  ${shown(p)}`),
       ...plan.issues.map(issueLine),
       `play:     ${play}`,
-      `edit:     /game/dev?edit=1&project=${id}`,
+      `edit:     ${edit}`,
       `playtest: ${playtest}`,
       ...(hosted ? [] : [`note: the site hosts games under ${DEFAULT_DIR} only`]),
     ].join("\n"),

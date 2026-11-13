@@ -23,7 +23,7 @@ import { base64ToBytes } from "@/lib/canvas/encoding";
 import { verifyCanvasToken } from "@/lib/canvas/token";
 import { fakeMinio } from "@/lib/engine/__tests__/fake-minio";
 import { engineRoutes, PNG, upload } from "@/lib/engine/__tests__/harness";
-import { PROJECT_QUOTA } from "@/lib/engine/limits";
+import { LIVE_LIMITS, PROJECT_QUOTA } from "@/lib/engine/limits";
 import { siteQuotaPolicy } from "@/lib/engine/quota";
 import { readProjectState } from "@/lib/scene/project-bytes";
 import {
@@ -473,12 +473,14 @@ describe("getProjectUsage", () => {
       "releaseStorageBytes",
       "jamPins",
       "releasesPerDay",
+      "liveVersionsPerDay",
     ]);
     expect(lines[0]).toMatchObject({
       used: PNG.byteLength,
       max: PROJECT_QUOTA.assetBytes,
       level: "ok",
     });
+    expect(lines.at(-1)).toMatchObject({ used: 0, max: LIVE_LIMITS.versionsPerDay, level: "ok" });
   });
 
   it("refuses with engine-games-enabled off, and a missing project", async () => {

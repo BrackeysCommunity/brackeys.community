@@ -1,6 +1,8 @@
 // The collector's plan, pure, so the root suite tests it and canvas-sync
-// copies it. Its only import is `limits.ts`, which the image copies too.
+// copies it. It imports `limits.ts` and the engine's project entry by
+// relative path, both of which the image copies too.
 
+import { byCodeUnit } from "../../../packages/engine/project/index.ts";
 import {
   BLOB_GRACE_DAYS,
   LIVE_LIMITS,
@@ -115,7 +117,7 @@ function versionsBeyondKept(rows: readonly SceneVersionRow[], pointed: readonly 
   }
   const pinned = new Set(pointed);
   return [...byScene.keys()]
-    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    .sort(byCodeUnit)
     .flatMap((scene) =>
       beyondKept(byScene.get(scene)!, LIVE_LIMITS.keptPerScene, pinned, (r) => r.number),
     );

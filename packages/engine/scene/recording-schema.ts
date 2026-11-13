@@ -729,10 +729,11 @@ function v2Problem(rec: RunRecordingV2): ParseRecordingResult | null {
         ["swaps", i, "tick"],
         `swaps are in tick order, but ${tick} follows ${previous.tick}`,
       );
-    if (tick >= rec.ticks)
+    // A swap right after the last tick simulated (Stop, or a crash in the next step) has tick == ticks.
+    if (tick > rec.ticks)
       return fail(
         ["swaps", i, "tick"],
-        `a swap runs before a tick the run simulated, but ${tick} isn't below \`ticks\` (${rec.ticks})`,
+        `a swap runs at most right after the run's last tick, but ${tick} is past \`ticks\` (${rec.ticks})`,
       );
   }
   return null;

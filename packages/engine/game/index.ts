@@ -280,9 +280,12 @@ export type {
   Timers,
 } from "./types";
 export {
+  arrivalWords,
   clampTiming,
   LIVE_CHECK_AGAIN_TICKS,
   LIVE_DEFAULTS,
+  sceneVersionName,
+  versionName,
   type LiveDeclaration,
   type SceneDiff,
   type SceneSwap,

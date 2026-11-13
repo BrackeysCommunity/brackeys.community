@@ -21,7 +21,14 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { announceReleaseChange } from "./frame-cache-notice";
 import { LIVE_REPORTS_PER_HOUR } from "./limits";
 import { shouldBlock } from "./live-breaker";
-import { announceLiveMove, sceneVersionLabel, type LiveChannel } from "./live-pointers";
+import { isFailedOutcome, type LiveOutcome } from "./live-outcomes";
+import {
+  announceLiveMove,
+  lockProject,
+  sceneVersionLabel,
+  setLiveRev,
+  type LiveChannel,
+} from "./live-pointers";
 import { actorRole, type LiveReadDeps } from "./live-versions";
 import { canDo, canPlay, refusalFor, roleOf, type GameVisibility } from "./release-access";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
@@ -43,7 +50,7 @@ export type LiveModerationDeps = LiveReadDeps & {
   forgetProject?: (projectId: string) => void;
 };
 
-export type LiveOutcome = "applied" | "refused" | "failed" | "crashed";
+export type { LiveOutcome };
 
 /** A play page's report of what its frame did with a version. */
 export type LiveReport = {
@@ -136,9 +143,10 @@ async function pointedOn(db: ReleaseDb, versionId: string): Promise<LiveChannel[
 }
 
 /**
- * Inside the caller's transaction: stores the audit row's id as `live_rev`
- * on every channel whose pointer names the version, and answers those
- * channels for the caller to announce once it commits.
+ * Inside the caller's transaction, which holds the project's lock: stores
+ * the audit row's id as `live_rev` on every channel whose pointer names the
+ * version, and answers those channels for the caller to announce once it
+ * commits.
  */
 async function bumpPointedChannels(
   tx: ReleaseDb,
@@ -147,16 +155,7 @@ async function bumpPointedChannels(
   rev: number,
 ): Promise<LiveChannel[]> {
   const channels = await pointedOn(tx, versionId);
-  if (channels.length > 0)
-    await tx
-      .update(engineReleaseChannels)
-      .set({ liveRev: rev })
-      .where(
-        and(
-          eq(engineReleaseChannels.projectId, projectId),
-          inArray(engineReleaseChannels.channel, channels),
-        ),
-      );
+  await setLiveRev(tx, projectId, channels, rev);
   return channels;
 }
 
@@ -287,6 +286,7 @@ async function runBreaker(
 
   const reason = breakerReason(verdict.failed, verdict.total);
   const moved = await db.transaction(async (tx) => {
+    await lockProject(tx, input.projectId);
     const [blocked] = await tx
       .update(engineSceneVersions)
       .set({ blockedAt: now, blockedBy: "system", blockedById: null, blockReason: reason })
@@ -346,13 +346,13 @@ export async function reportLiveOutcome(
   if (!version) return notHere();
 
   const at = now();
-  const ok = input.outcome === "applied";
+  const failed = isFailedOutcome(input.outcome);
   await db
     .update(engineSceneVersions)
     .set(
-      ok
-        ? { reportsOk: sql`${engineSceneVersions.reportsOk} + 1` }
-        : { reportsFailed: sql`${engineSceneVersions.reportsFailed} + 1` },
+      failed
+        ? { reportsFailed: sql`${engineSceneVersions.reportsFailed} + 1` }
+        : { reportsOk: sql`${engineSceneVersions.reportsOk} + 1` },
     )
     .where(eq(engineSceneVersions.id, version.id));
   if (input.userId === null) return null;
@@ -371,7 +371,7 @@ export async function reportLiveOutcome(
       set: row,
     });
 
-  if (input.outcome === "failed" || input.outcome === "crashed")
+  if (failed)
     await runBreaker(
       db,
       {
@@ -416,6 +416,7 @@ export async function blockSceneVersion(
   const reason = input.reason?.trim() || null;
   const at = now();
   const moved = await db.transaction(async (tx) => {
+    await lockProject(tx, input.projectId);
     await tx
       .update(engineSceneVersions)
       .set({
@@ -450,6 +451,7 @@ export async function unblockSceneVersion(
   if (!version.blockedAt) return null;
   const at = now();
   const moved = await db.transaction(async (tx) => {
+    await lockProject(tx, input.projectId);
     await tx
       .update(engineSceneVersions)
       .set({ blockedAt: null, blockedBy: null, blockedById: null, blockReason: null })
@@ -504,6 +506,7 @@ export async function hideSceneVersion(
   if (version.hiddenAt) return null;
   const at = now();
   const moved = await db.transaction(async (tx) => {
+    await lockProject(tx, input.projectId);
     await tx
       .update(engineSceneVersions)
       .set({ hiddenAt: at, hiddenById: input.actor.userId, hiddenReason: reason })
@@ -535,6 +538,7 @@ export async function unhideSceneVersion(
   if (!version.hiddenAt) return null;
   const at = now();
   const moved = await db.transaction(async (tx) => {
+    await lockProject(tx, input.projectId);
     await tx
       .update(engineSceneVersions)
       .set({ hiddenAt: null, hiddenById: null, hiddenReason: null })

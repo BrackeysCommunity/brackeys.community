@@ -4,7 +4,6 @@ import * as z from "zod";
 
 import { db } from "@/db";
 import { engineReleaseUploads } from "@/db/schema";
-import type { SyncAccess } from "@/lib/canvas/token";
 
 import { LIVE_LIMITS } from "./limits";
 import { beginSceneVersion, commitSceneVersion } from "./live-upload";
@@ -15,18 +14,20 @@ import {
   promoteScene,
   rollbackScene,
 } from "./live-versions";
-import { apiErrorResponse, type ReleaseApiError } from "./release-errors";
-import { minioReleaseStore } from "./release-storage";
-import type { ReleaseDeps } from "./release-upload";
+import { releaseChannel } from "./release-access";
+import { engineRoutes, type ReleaseRouteDeps } from "./release-routes";
 import {
   answer,
-  decodeSegment,
-  gateEngineRequest,
-  gateResponse,
   badBody,
+  decodeSegment,
+  gateResponse,
   jsonBody,
   methodNotAllowed,
-  type ReadSession,
+  NO_STORE,
+  notFound,
+  SMALL_BODY_MAX_BYTES,
+  unknownUpload,
+  uploadIdInput,
 } from "./route-gate";
 import {
   LIVE_BASE_PATH,
@@ -36,49 +37,45 @@ import {
   LIVE_PROMOTE_PATH,
 } from "./route-paths";
 
-export type LiveRouteDeps = {
-  readSession: ReadSession;
-  /** The upload protocol's store, clock and limiter, which the reads and moves share; default the site's own. */
-  release?: Partial<ReleaseDeps>;
-};
+export type LiveRouteDeps = ReleaseRouteDeps;
 
 /** How players get a pointer move: on their next load, at the next scene boundary, or now. */
 export const liveTiming = z.enum(["next-load", "boundary", "now"]);
 
-/** `begin`'s input after the project, read the same way by the procedure and the route. */
+/** Room for a full version escaped inside a JSON string, and the rest of the body. */
+const BEGIN_BODY_MAX_BYTES = 4 * LIVE_LIMITS.versionDataBytes;
+
+/**
+ * `begin`'s input after the project, read the same way by the procedure and
+ * the route. The strings are bounded only by the body cap: the upload checks
+ * the version's bytes and the note's characters, with the quota and note
+ * refusals.
+ */
 export const liveBeginInput = z.object({
-  /** The canonical `scene-version.json`; the upload checks its bytes again with its own message. */
-  version: z.string().max(LIVE_LIMITS.versionDataBytes),
+  /** The canonical `scene-version.json`. */
+  version: z.string().max(BEGIN_BODY_MAX_BYTES),
   channel: z.enum(["preview", "none"]).default("preview"),
   /** The preview move's timing; the upload defaults it to `next-load`. */
   timing: liveTiming.optional(),
-  note: z.string().trim().max(LIVE_LIMITS.noteChars).optional(),
+  note: z.string().trim().max(BEGIN_BODY_MAX_BYTES).optional(),
 });
 
-export const liveCommitInput = z.object({ uploadId: z.string().min(1).max(64) });
-
-const liveChannel = z.enum(["preview", "production"]);
 const versionNumber = z.number().int().min(1);
 
 /** A move's body after the project, scene and number, read the same way by the procedure and the route. */
 export const livePromoteInput = z.object({
-  channel: liveChannel,
+  channel: releaseChannel,
   timing: liveTiming.default("next-load"),
 });
 export const liveRollbackInput = z.object({
-  channel: liveChannel,
+  channel: releaseChannel,
   to: versionNumber.optional(),
   timing: liveTiming.optional(),
 });
-export const liveClearInput = z.object({ channel: liveChannel, timing: liveTiming.optional() });
-
-/** Room for a full version escaped inside a JSON string, and the rest of the body. */
-const BEGIN_BODY_MAX_BYTES = 4 * LIVE_LIMITS.versionDataBytes;
-const SMALL_BODY_MAX_BYTES = 4_096;
-
-const NOT_FOUND: ReleaseApiError = { code: "not-found", message: "Not found." };
-
-const NO_STORE = { "cache-control": "no-store" };
+export const liveClearInput = z.object({
+  channel: releaseChannel,
+  timing: liveTiming.optional(),
+});
 
 /**
  * The live scene routes under `/api/engine/projects/<id>/live` for the
@@ -94,13 +91,7 @@ const NO_STORE = { "cache-control": "no-store" };
 export function createLiveRoutes(
   deps: LiveRouteDeps,
 ): (request: Request) => Promise<Response | null> {
-  const releaseDeps = (): ReleaseDeps => ({
-    ...deps.release,
-    store: deps.release?.store ?? minioReleaseStore,
-  });
-
-  const gate = (request: Request, projectId: string, need: SyncAccess) =>
-    gateEngineRequest(request, projectId, need, { readSession: deps.readSession, games: true });
+  const { gate, releaseDeps } = engineRoutes(deps);
 
   async function begin(request: Request, projectId: string): Promise<Response> {
     const gated = await gate(request, projectId, "write");
@@ -115,7 +106,7 @@ export function createLiveRoutes(
     return answer(async () =>
       Response.json(
         await beginSceneVersion(releaseDeps(), { projectId, ...body.body, actor: gated.actor }),
-        { headers: { "cache-control": "no-store" } },
+        { headers: NO_STORE },
       ),
     );
   }
@@ -138,14 +129,9 @@ export function createLiveRoutes(
   async function commit(request: Request, projectId: string): Promise<Response> {
     const gated = await gate(request, projectId, "write");
     if (!gated.ok) return gateResponse(gated);
-    const body = await jsonBody(request, SMALL_BODY_MAX_BYTES, liveCommitInput, "{ uploadId }");
+    const body = await jsonBody(request, SMALL_BODY_MAX_BYTES, uploadIdInput, "{ uploadId }");
     if (!body.ok) return body.response;
-    if (!(await sceneUploadOf(body.body.uploadId, projectId))) {
-      return apiErrorResponse(
-        { code: "not-found", message: "There is no upload with this id." },
-        404,
-      );
-    }
+    if (!(await sceneUploadOf(body.body.uploadId, projectId))) return unknownUpload();
     return answer(async () => {
       const result = await commitSceneVersion(releaseDeps(), {
         uploadId: body.body.uploadId,
@@ -176,14 +162,15 @@ export function createLiveRoutes(
   async function base(request: Request, projectId: string, scene: string): Promise<Response> {
     const gated = await gate(request, projectId, "read");
     if (!gated.ok) return gateResponse(gated);
-    const channel = liveChannelOf(new URL(request.url).searchParams.get("channel"));
-    if (!channel) return badQuery('?channel="preview" | "production"');
+    const channel = releaseChannel.safeParse(new URL(request.url).searchParams.get("channel"));
+    if (!channel.success) return badQuery('?channel="preview" | "production"');
     return answer(async () =>
       Response.json(
-        await liveBase({ projectId, scene, channel, actor: gated.actor }, releaseDeps()),
-        {
-          headers: NO_STORE,
-        },
+        await liveBase(
+          { projectId, scene, channel: channel.data, actor: gated.actor },
+          releaseDeps(),
+        ),
+        { headers: NO_STORE },
       ),
     );
   }
@@ -256,7 +243,7 @@ export function createLiveRoutes(
     const versions = LIVE_PATH.exec(pathname);
     if (versions) {
       const projectId = decodeSegment(versions[1] ?? "");
-      if (projectId === null) return apiErrorResponse(NOT_FOUND, 404);
+      if (projectId === null) return notFound();
       if (method === "POST") return begin(request, projectId);
       if (method === "GET") return list(request, projectId);
       return methodNotAllowed("GET, POST");
@@ -264,14 +251,14 @@ export function createLiveRoutes(
     const committing = LIVE_COMMIT_PATH.exec(pathname);
     if (committing) {
       const projectId = decodeSegment(committing[1] ?? "");
-      if (projectId === null) return apiErrorResponse(NOT_FOUND, 404);
+      if (projectId === null) return notFound();
       if (method !== "POST") return methodNotAllowed("POST");
       return commit(request, projectId);
     }
     const based = LIVE_BASE_PATH.exec(pathname);
     if (based) {
       const target = sceneTarget(based);
-      if (!target) return apiErrorResponse(NOT_FOUND, 404);
+      if (!target) return notFound();
       if (method !== "GET") return methodNotAllowed("GET");
       return base(request, target.projectId, target.scene);
     }
@@ -280,7 +267,7 @@ export function createLiveRoutes(
       const target = sceneTarget(promoting);
       const number = Number(promoting[3]);
       if (!target || !Number.isSafeInteger(number) || number < 1) {
-        return apiErrorResponse(NOT_FOUND, 404);
+        return notFound();
       }
       if (method !== "POST") return methodNotAllowed("POST");
       return promote(request, target.projectId, target.scene, number);
@@ -288,7 +275,7 @@ export function createLiveRoutes(
     const moving = LIVE_MOVE_PATH.exec(pathname);
     if (moving) {
       const target = sceneTarget(moving);
-      if (!target) return apiErrorResponse(NOT_FOUND, 404);
+      if (!target) return notFound();
       if (method !== "POST") return methodNotAllowed("POST");
       return move(
         request,
@@ -307,11 +294,6 @@ function sceneTarget(match: RegExpExecArray): { projectId: string; scene: string
   const scene = decodeSegment(match[2] ?? "");
   if (projectId === null || scene === null || !ID_PATTERN.test(scene)) return null;
   return { projectId, scene };
-}
-
-function liveChannelOf(value: string | null): "preview" | "production" | null {
-  const parsed = liveChannel.safeParse(value);
-  return parsed.success ? parsed.data : null;
 }
 
 const badQuery = (shape: string) => badBody(`Send ${shape} in the query.`);

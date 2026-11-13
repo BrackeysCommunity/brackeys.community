@@ -42,6 +42,7 @@ const OTHER_COMPAT_HASH = "5".repeat(64);
 const OTHER_PROJECT_HASH = "6".repeat(64);
 const COLLECTED_HASH = "7".repeat(64);
 const SHARED_HASH = "8".repeat(64);
+const RELEASE_PNG_HASH = "9".repeat(63) + "a";
 
 const sceneText = new TextEncoder().encode('{"entities":[]}');
 const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
@@ -92,12 +93,13 @@ async function seedRelease(
 
 let nextVersion = 1;
 
-/** A version of `scene` listing a text, and a blob when `blob` is given. */
+/** A version of `scene` listing a text, and a blob when `blob` is given: the project's own, or with `blobAs: "release"` a release upload's object. */
 async function seedVersion(
   projectId: string,
   opts: {
     text: string;
     blob?: string;
+    blobAs?: "blob" | "release";
     compatKey?: string;
     hiddenAt?: Date;
     blockedAt?: Date;
@@ -142,7 +144,28 @@ async function seedVersion(
       source: "release",
     },
   ];
-  if (opts.blob) {
+  if (opts.blob && opts.blobAs === "release") {
+    await db
+      .insert(engineReleaseObjects)
+      .values({
+        projectId,
+        sha256: opts.blob,
+        bytes: png.byteLength,
+        contentType: "image/png",
+        storageKey: engineReleaseObjectKey(projectId, opts.blob),
+      })
+      .onConflictDoNothing();
+    await store.put(engineReleaseObjectKey(projectId, opts.blob), png, "application/octet-stream");
+    files.push({
+      versionId: id,
+      projectId,
+      sha256: opts.blob,
+      bytes: png.byteLength,
+      role: "blob",
+      ext: ".png",
+      source: "release",
+    });
+  } else if (opts.blob) {
     await db
       .insert(engineBlobs)
       .values({
@@ -238,6 +261,14 @@ describe("the live prefix", () => {
     expect(blob.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
     expect(new Uint8Array(await blob.arrayBuffer())).toEqual(png);
     expectReleaseHeaders(blob, base);
+  });
+
+  it("serves a blob a release upload brought in, held only as a release object", async () => {
+    await seedVersion("open-game", { text: SCENE_HASH, blob: RELEASE_PNG_HASH, blobAs: "release" });
+    const response = await get(live(PUBLIC, `${RELEASE_PNG_HASH}.png`));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(png);
   });
 
   it("answers 404 for a hash another project lists", async () => {

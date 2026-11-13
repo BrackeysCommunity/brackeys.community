@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi, type Mock } from "vite-plus/test";
 
+import { arrivalWords } from "../../game/live";
 import type { AssetId, ProjectId, Sha256 } from "../../project/index";
 import type {
   EditorLiveHost,
@@ -9,12 +10,14 @@ import type {
   EditorPublishHost,
   GameSettingsView,
   LiveBaseView,
+  LivePublished,
   LiveVersionView,
   ReleaseView,
   UsageView,
 } from "../host";
 import { KitProvider } from "../kit/index";
 import { PublishPanel } from "../panels/publish/PublishPanel";
+import { REPLACES_UNREAD } from "../panels/publish/ReleaseList";
 import { editorPanels } from "../panels/registry";
 
 // The Keep list asks the version check whether a live scene fits the new
@@ -442,7 +445,7 @@ describe("PublishPanel", () => {
 
 const MINUTE = 60_000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
-const BLOCKED = "Blocked: 5 of 12 players' games failed after this update.";
+const BLOCKED = "5 of 12 players' games failed after this update.";
 const FORECAST = "level-1@1 will be removed on 20 Nov 2026. Point a channel at it to keep it.";
 
 function liveVersion(scene: string, number: number, over: Partial<LiveVersionView> = {}) {
@@ -481,12 +484,6 @@ const liveVersions = (): LiveVersionView[] => [
   }),
 ];
 
-const PLAYERS_GET = {
-  "next-load": "the next time the level loads",
-  boundary: "at the next safe moment",
-  now: "now",
-} as const;
-
 type FakeLive = {
   [K in keyof EditorLiveHost]: EditorLiveHost[K] extends (...args: infer A) => infer R
     ? Mock<(...args: A) => R>
@@ -519,7 +516,7 @@ function liveHost(over: Partial<FakeLive> = {}, publisher = true): FakeLive {
       data: (bytes) => `Data: ${bytes} of 2 MB`,
       today: (count) => `Today: ${count} of 100 versions`,
       stopConfirm: ({ release, scene, timing }) =>
-        `Players go back to v${release}'s version of ${scene} ${PLAYERS_GET[timing]}.`,
+        `Players go back to v${release}'s version of ${scene} ${arrivalWords(timing)}.`,
     },
     ...over,
   };
@@ -566,10 +563,10 @@ describe("PublishPanel's live scenes", () => {
       channelBlock.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     const preview = await rowOf("preview", "level-1@4");
-    expect(preview.querySelector("p")?.textContent).toBe(
-      "The ford · level-1@4 · next load · 12m ago · Jo",
-    );
+    expect(within(preview).getByText("The ford")).toBeTruthy();
+    expect(preview.querySelector("p")?.textContent).toBe("level-1@4 · next load · 12m ago · Jo");
     const cave = await rowOf("production", "cave@2");
+    expect(within(cave).getByText("cave")).toBeTruthy();
     expect(cave.querySelector("p")?.textContent).toBe("cave@2 · boundary · 2m ago");
     expect(
       within(screen.getByRole("list", { name: "Live on production" })).getAllByRole("listitem"),
@@ -667,7 +664,7 @@ describe("PublishPanel's live scenes", () => {
     const dialog = await screen.findByRole("alertdialog");
     expect(
       within(dialog).getByText(
-        "Players will get level-1@4 next time the level loads. You can roll back or stop it at any time.",
+        "Players will get level-1@4 the next time the level loads. You can roll back or stop it at any time.",
       ),
     ).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "Promote" }));
@@ -702,6 +699,79 @@ describe("PublishPanel's live scenes", () => {
     mountLive(liveHost());
     const section = await screen.findByLabelText("Live scenes");
     await waitFor(() => expect(within(section).getByText(FORECAST)).toBeTruthy());
+  });
+
+  it("shows a hidden version's badge and staff's reason, and offers no Promote for it", async () => {
+    const hidden = liveVersion("level-1", 4, {
+      pointers: [{ channel: "preview", timing: "next-load", since: ago(MINUTE), by: "Jo" }],
+      hidden: "Spoils the ending.",
+    });
+    mountLive(liveHost({ list: vi.fn(async () => [hidden]) }));
+    const row = await rowOf("preview", "level-1@4");
+    expect(within(row).getByText("hidden")).toBeTruthy();
+    expect(within(row).getByText("Spoils the ending.")).toBeTruthy();
+    expect(within(row).queryByRole("button", { name: "Promote to production" })).toBeNull();
+  });
+
+  it("marks a version due for cleanup, and a removed one, as the release rows do", async () => {
+    mountLive(
+      liveHost({
+        list: vi.fn(async () => [
+          liveVersion("level-1", 4, {
+            pointers: [{ channel: "preview", timing: "next-load", since: ago(MINUTE), by: null }],
+            removal: { at: "2026-11-20T00:00:00.000Z", text: FORECAST },
+          }),
+          liveVersion("cave", 2, {
+            pointers: [{ channel: "preview", timing: "next-load", since: ago(MINUTE), by: null }],
+            collected: true,
+          }),
+        ]),
+      }),
+    );
+    expect(within(await rowOf("preview", "level-1@4")).getByText("removed soon")).toBeTruthy();
+    const removed = await rowOf("preview", "cave@2");
+    expect(within(removed).getByText("removed")).toBeTruthy();
+    expect(within(removed).queryByRole("button", { name: "Promote to production" })).toBeNull();
+  });
+
+  it("asks before rolling production back, and moves it only on yes", async () => {
+    const live = liveHost();
+    mountLive(live);
+    const row = await rowOf("production", "cave@2");
+    fireEvent.click(within(row).getByRole("button", { name: "Roll back" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(dialog).getByText(
+        "Players go back to what production played before cave@2 at the next safe moment: an earlier version of cave, or the release's own.",
+      ),
+    ).toBeTruthy();
+    expect(live.rollback).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Roll back" }));
+    await waitFor(() =>
+      expect(live.rollback).toHaveBeenCalledWith("cave", "production", { timing: "boundary" }),
+    );
+  });
+
+  it("lists a version published elsewhere in the editor when the host says so", async () => {
+    const heard = new Set<(published: LivePublished) => void>();
+    const live = liveHost({
+      onPublished: vi.fn((listener: (published: LivePublished) => void) => {
+        heard.add(listener);
+        return () => heard.delete(listener);
+      }),
+    });
+    mountLive(live);
+    await rowOf("preview", "level-1@4");
+    expect(live.list).toHaveBeenCalledTimes(1);
+    for (const listener of heard)
+      listener({
+        versionId: "05".padEnd(64, "c") as Sha256,
+        scene: "level-1",
+        number: 5,
+        created: true,
+        channel: "preview",
+      });
+    await waitFor(() => expect(live.list).toHaveBeenCalledTimes(2));
   });
 });
 
@@ -773,6 +843,34 @@ describe("the release promote's live scenes", () => {
     const dialog = await openPromote();
     expect(within(dialog).queryByRole("switch")).toBeNull();
     expect(within(dialog).queryByText(/still fits/)).toBeNull();
+  });
+
+  it("holds Promote while the live scenes load, and says when they couldn't be read", async () => {
+    let fail: (error: Error) => void = () => {};
+    const list = vi
+      .fn<EditorLiveHost["list"]>(async () => onProduction())
+      .mockImplementationOnce(async () => onProduction())
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            fail = reject;
+          }),
+      );
+    mountLive(liveHost({ list, base }));
+    fireEvent.click(await screen.findByRole("button", { name: "Promote v7 to production" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await waitFor(() =>
+      expect(within(dialog).getByRole("button", { name: "Promote" })).toHaveProperty(
+        "disabled",
+        true,
+      ),
+    );
+    fail(new Error("offline"));
+    await waitFor(() => expect(within(dialog).getByText(REPLACES_UNREAD)).toBeTruthy());
+    expect(within(dialog).getByRole("button", { name: "Promote" })).toHaveProperty(
+      "disabled",
+      false,
+    );
   });
 
   it("asks as before when nothing is live on production", async () => {

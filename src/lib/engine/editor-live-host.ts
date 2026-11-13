@@ -8,8 +8,9 @@ import type {
   LiveWording,
   PublishChannel,
 } from "@jams/engine/editor-ui";
-import type { SwapTiming } from "@jams/engine/game";
+import { arrivalWords, sceneVersionName, type SwapTiming } from "@jams/engine/game";
 import type { AssetId, ProjectId, Sha256 } from "@jams/engine/project";
+import { plural } from "@jams/engine/scene";
 import { ORPCError } from "@orpc/client";
 
 import { formatBytes, formatCount } from "@/lib/format-bytes";
@@ -62,32 +63,23 @@ export async function hostCall<T>(run: () => Promise<T>): Promise<T> {
 
 const n = formatCount;
 
-/** "level-1@4". */
-const versionLabel = (scene: AssetId, number: number): string => `${scene}@${n(number)}`;
-
-const TIMING_PHRASES: Readonly<Record<SwapTiming, string>> = {
-  "next-load": "the next time the level loads",
-  boundary: "at the next safe moment",
-  now: "now",
-};
-
 /** "level-1@1 will be removed on 3 Dec 2026. …", the date in UTC. */
 export const liveRemovalText = (scene: AssetId, number: number, at: Date | string): string =>
-  `${versionLabel(scene, number)} will be removed on ${releaseDay(at)}. Point a channel at it to keep it.`;
+  `${sceneVersionName(scene, number)} will be removed on ${releaseDay(at)}. Point a channel at it to keep it.`;
 
-/** The blocked badge: the breaker's count, or the reason a person gave. */
+/** Why a version is blocked, said beside its blocked badge: the breaker's count, or the reason a person gave. */
 export function liveBlockedText(
   blocked: { by: "system" | "user"; reason: string | null },
   reports: { ok: number; failed: number },
 ): string {
   if (blocked.by === "system")
-    return `Blocked: ${n(reports.failed)} of ${n(reports.ok + reports.failed)} players' games failed after this update.`;
-  return blocked.reason ? `Blocked: ${blocked.reason}` : "Blocked by hand.";
+    return `${n(reports.failed)} of ${n(reports.ok + reports.failed)} players' games failed after this update.`;
+  return blocked.reason ?? "Blocked by a publisher.";
 }
 
 /** Usage's line under release storage: what the live scenes hold, and how long they're kept. */
 export const liveUsageText = (versions: { kept: number; bytes: number }): string =>
-  `of which live scenes: ${formatBytes(versions.bytes)} in ${n(versions.kept)} ${versions.kept === 1 ? "version" : "versions"}. Each scene keeps its ${n(LIVE_LIMITS.keptPerScene)} newest versions plus those on a channel; others go ${n(RELEASE_GRACE_DAYS)} days after publishing.`;
+  `of which live scenes: ${formatBytes(versions.bytes)} in ${plural(versions.kept, "version", "versions", n)}. Each scene keeps its ${n(LIVE_LIMITS.keptPerScene)} newest versions plus those on a channel; others go ${n(RELEASE_GRACE_DAYS)} days after publishing.`;
 
 /** The Publish scene dialog's and Live scenes' sentences, every number from `limits.ts`. */
 export function liveWording(): LiveWording {
@@ -101,13 +93,14 @@ export function liveWording(): LiveWording {
     today: (count) =>
       `Today: ${quotaAmount("liveVersionsPerDay", count)} of ${quotaAmount("liveVersionsPerDay", LIVE_LIMITS.versionsPerDay)} versions`,
     stopConfirm: ({ release, scene, timing }) =>
-      `Players go back to v${n(release)}'s version of ${scene} ${TIMING_PHRASES[timing]}.`,
+      `Players go back to v${n(release)}'s version of ${scene} ${arrivalWords(timing)}.`,
   };
 }
 
 // ─── Views ───────────────────────────────────────────────
 
-const iso = (at: Date | string): string => new Date(at).toISOString();
+/** A wire date as ISO 8601, UTC. */
+export const iso = (at: Date | string): string => new Date(at).toISOString();
 
 /** What `listSceneVersions` answers with per version, dates as the wire carries them. */
 export type SceneVersionSummaryInput = {
@@ -239,6 +232,11 @@ export function editorLiveHost(opts: EditorLiveHostOptions): EditorLiveHost {
   const { project: projectId, rpc } = opts;
   const publisher = opts.publisher ?? true;
   const send: SendText = opts.fetch ?? ((path, init) => fetch(path, init));
+  const listeners = new Set<(published: LivePublished) => void>();
+  const announce = (published: LivePublished): LivePublished => {
+    for (const listener of listeners) listener(published);
+    return published;
+  };
 
   return {
     async base(scene, channel) {
@@ -286,7 +284,7 @@ export function editorLiveHost(opts: EditorLiveHostOptions): EditorLiveHost {
         created: committed.created,
         channel: committed.liveOn,
       };
-      if (!production) return published;
+      if (!production) return announce(published);
 
       onProgress?.({ step: "promote" });
       await hostCall(() =>
@@ -298,7 +296,7 @@ export function editorLiveHost(opts: EditorLiveHostOptions): EditorLiveHost {
           timing,
         }),
       );
-      return { ...published, channel: "production" };
+      return announce({ ...published, channel: "production" });
     },
 
     async list(scene) {
@@ -362,5 +360,12 @@ export function editorLiveHost(opts: EditorLiveHostOptions): EditorLiveHost {
     role: () => ({ publisher }),
 
     wording: liveWording(),
+
+    onPublished(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
   };
 }

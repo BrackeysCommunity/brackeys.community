@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { ENGINE_START_SCENE } from "@/games/engine-editor";
 import { activeUserStore, type ActiveUserProfile } from "@/lib/active-user-store";
 import { presenceColor } from "@/lib/canvas/presence";
+import type { EditorLinkPanel } from "@/lib/engine/route-paths";
 import type { FeatureFlagValues } from "@/lib/flags";
 import { useFlags } from "@/lib/hooks/use-flag";
 import { play, type SoundName } from "@/lib/sound";
@@ -409,6 +410,8 @@ export type SiteSceneEditorProps = {
   project?: string;
   /** The project scene to open, by id or name; default the project's own. */
   scene?: string;
+  /** A panel to open once the editor has it, then dropped from the route; Publish waits for the site to say this viewer publishes. */
+  panel?: EditorLinkPanel;
   /** Default: the room's route follows, its `?scene=` set to the scene the editor opened. */
   onSceneChange?: (id: string) => void;
 };
@@ -434,7 +437,13 @@ function patchSearch(prev: Search, patch: Search): Search {
  * scene as a new history entry. Projects go by their files' names, from the
  * dev server's listing.
  */
-export function SiteSceneEditor({ roomId, project, scene, onSceneChange }: SiteSceneEditorProps) {
+export function SiteSceneEditor({
+  roomId,
+  project,
+  scene,
+  panel,
+  onSceneChange,
+}: SiteSceneEditorProps) {
   const known = project === undefined ? null : siteProject(project);
   const chosen = known ?? siteProject(DEFAULT_PROJECT)!;
   const unknown = project !== undefined && known === null ? project : null;
@@ -466,6 +475,8 @@ export function SiteSceneEditor({ roomId, project, scene, onSceneChange }: SiteS
       roomId={roomId}
       project={chosen}
       scene={unknown === null ? scene : undefined}
+      panel={panel}
+      onPanelOpened={() => go({ panel: undefined }, true)}
       projectNames={names ?? undefined}
       onSceneChange={onSceneChange ?? ((id) => go({ scene: id }, true))}
       onProjectChange={(id, opts) =>
@@ -502,6 +513,8 @@ type ProjectSceneEditorProps = {
   roomId: string;
   project: SiteProject;
   scene: string | undefined;
+  panel?: EditorLinkPanel;
+  onPanelOpened?: () => void;
   projectNames: ProjectNames | undefined;
   onSceneChange: (id: string) => void;
   onProjectChange: (id: string, opts?: { scene?: string }) => void;
@@ -548,6 +561,8 @@ function LoadedSceneEditor({
   roomId,
   project,
   scene,
+  panel,
+  onPanelOpened,
   projectNames,
   onSceneChange,
   onProjectChange,
@@ -566,6 +581,21 @@ function LoadedSceneEditor({
     ...(projectNames ? { projectNames } : {}),
     ...(hosted ? { hosted } : {}),
   });
+  const due = ready && (panel !== "publish" || host.publish !== undefined) ? panel : undefined;
+  const [opening, setOpening] = useState<{ panel: EditorLinkPanel } | null>(null);
+  useEffect(() => {
+    // oxlint-disable-next-line react-hooks-js/set-state-in-effect -- the frame lays out a panel the host brings late (Publish) in an effect of its own, so it opens a commit later
+    if (due !== undefined) setOpening({ panel: due });
+  }, [due]);
+  const openedRef = useRef(onPanelOpened);
+  useEffect(() => {
+    openedRef.current = onPanelOpened;
+  });
+  useEffect(() => {
+    if (opening === null) return;
+    editor.current?.openPanel(opening.panel);
+    openedRef.current?.();
+  }, [opening]);
   return (
     <SceneEditor
       host={host}

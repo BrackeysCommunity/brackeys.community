@@ -8,6 +8,7 @@ import {
   Badge,
   Button,
   MicroLabel,
+  Skeleton,
   Switch,
   Text,
   TimeAgo,
@@ -68,6 +69,7 @@ export function PromoteButton({
   variant?: "default" | "outline";
 }) {
   const [scenes, setScenes] = useState<readonly ReplacedScene[]>([]);
+  const [reading, setReading] = useState<"idle" | "loading" | "failed">("idle");
   const [keep, setKeep] = useState<ReadonlySet<AssetId>>(new Set());
   const asked = useRef(0);
   const onOpenChange = (open: boolean) => {
@@ -75,12 +77,16 @@ export function PromoteButton({
     const id = ++asked.current;
     setScenes([]);
     setKeep(new Set());
+    setReading("loading");
     replaces.read().then(
       (read) => {
-        if (id === asked.current) setScenes(read);
+        if (id !== asked.current) return;
+        setScenes(read);
+        setReading("idle");
       },
-      // Without the list the promote still asks; the host replaces the live scenes either way.
-      () => undefined,
+      () => {
+        if (id === asked.current) setReading("failed");
+      },
     );
   };
   const kept = scenes.filter((s) => keep.has(s.scene) && s.fits).map((s) => s.scene);
@@ -89,7 +95,20 @@ export function PromoteButton({
     <Confirm
       title={`Promote v${version} to production?`}
       message={
-        scenes.length === 0 ? (
+        reading !== "idle" ? (
+          <div className="je-insp-stack" data-gap="tight">
+            <Text as="p" size="sm" variant="muted">
+              {promoteMessage(version)}
+            </Text>
+            {reading === "loading" ? (
+              <Skeleton style={{ height: 16 }} />
+            ) : (
+              <Text as="p" size="sm" variant="muted">
+                {REPLACES_UNREAD}
+              </Text>
+            )}
+          </div>
+        ) : scenes.length === 0 ? (
           promoteMessage(version)
         ) : (
           <div className="je-insp-stack" data-gap="tight">
@@ -127,6 +146,7 @@ export function PromoteButton({
         )
       }
       confirmText="Promote"
+      confirmDisabled={reading === "loading"}
       onOpenChange={onOpenChange}
       onConfirm={() => onPromote(kept)}
     >
@@ -136,6 +156,9 @@ export function PromoteButton({
     </Confirm>
   );
 }
+
+/** Said in the promote question when the live scenes it replaces couldn't be read. */
+export const REPLACES_UNREAD = "Couldn't check the live scenes this replaces.";
 
 /** "Promoting v8 replaces these live scenes: The ford (level-1@4)." */
 const replacesMessage = (version: number, scenes: readonly ReplacedScene[]): string =>

@@ -563,10 +563,24 @@ async function release(
 
 // ─── list ────────────────────────────────────────────────
 
-function stateOf(r: ReleaseListEntry): string {
-  if (r.collectedAt !== null) return `removed ${releaseDay(r.collectedAt)}`;
-  if (r.hidden) return `hidden${r.hidden.reason ? `: ${r.hidden.reason}` : ""}`;
-  if (r.removalAt !== null) return `removal ${releaseDay(r.removalAt)}`;
+type Withheld = { reason: string | null } | null;
+
+/**
+ * A listed release's or scene version's state: `removed <day>`, `hidden`,
+ * `blocked` (scene versions), `removal <day>` or `kept`, with any reason.
+ */
+export function keptState(entry: {
+  collectedAt: string | null;
+  hidden: Withheld;
+  blocked?: Withheld;
+  removalAt: string | null;
+}): string {
+  const withReason = (word: string, why: Withheld) =>
+    `${word}${why?.reason ? `: ${why.reason}` : ""}`;
+  if (entry.collectedAt !== null) return `removed ${releaseDay(entry.collectedAt)}`;
+  if (entry.hidden) return withReason("hidden", entry.hidden);
+  if (entry.blocked) return withReason("blocked", entry.blocked);
+  if (entry.removalAt !== null) return `removal ${releaseDay(entry.removalAt)}`;
   return "kept";
 }
 
@@ -594,7 +608,7 @@ export async function gameReleaseList(
       plural(r.fileCount, "file"),
       r.target,
       pins.length > 0 ? pins.join(", ") : "-",
-      stateOf(r),
+      keptState(r),
     ].join("  ");
   });
   return {

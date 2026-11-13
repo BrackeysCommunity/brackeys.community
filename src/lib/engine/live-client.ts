@@ -4,12 +4,9 @@ import type { LiveSnapshot, LiveStateMessage } from "@jams/engine/standalone";
 
 import type { HostServer } from "./host-server";
 import { LIVE_CRASH_WINDOW_SECONDS, LIVE_POLL_SECONDS } from "./limits";
+import type { LiveOutcome } from "./live-outcomes";
+import type { ReleaseChannel as LiveChannel } from "./release-access";
 import { engineLiveStreamPath } from "./route-paths";
-
-type LiveChannel = "preview" | "production";
-
-/** What the frame did with a version, as the page reports it. */
-export type LiveOutcome = "applied" | "refused" | "failed" | "crashed";
 
 /** The two procedures the loop calls; the site's oRPC client unless a test stands in. */
 export type LiveProcedures = {

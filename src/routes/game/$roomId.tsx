@@ -2,14 +2,22 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { GameCanvasLoading } from "@/components/game/game-canvas-loading";
 import { GameCanvas } from "@/components/game/GameCanvas";
+import { isEditorLinkPanel, type EditorLinkPanel } from "@/lib/engine/route-paths";
 
 /**
  * `game` names the hosted game the room plays, by project id (default the
  * platformer), kept as written so an id the site doesn't host renders the
  * not-found page; `project` names the project `?edit=1` opens, by id
- * (default the hosted game `game` names), and `scene` its scene, by id or name.
+ * (default the hosted game `game` names), `scene` its scene, by id or name,
+ * and `panel` an editor panel to open once the editor has it.
  */
-type GameSearch = { game?: string; edit?: 1; project?: string; scene?: string };
+type GameSearch = {
+  game?: string;
+  edit?: 1;
+  project?: string;
+  scene?: string;
+  panel?: EditorLinkPanel;
+};
 
 const SCENE_ID = /^[A-Za-z0-9][\w.-]{0,127}$/;
 // The engine's ID_PATTERN, spelled out: this module loads with every page, the engine with none.
@@ -28,6 +36,7 @@ export const Route = createFileRoute("/game/$roomId")({
     ...(typeof search.scene === "string" && SCENE_ID.test(search.scene)
       ? { scene: search.scene }
       : {}),
+    ...(isEditorLinkPanel(search.panel) ? { panel: search.panel } : {}),
   }),
   ssr: false,
   pendingComponent: GameRoomPending,
@@ -42,8 +51,15 @@ function GameRoomPending() {
 
 function GameRoom() {
   const { roomId } = Route.useParams();
-  const { game, edit, project, scene } = Route.useSearch();
+  const { game, edit, project, scene, panel } = Route.useSearch();
   return (
-    <GameCanvas roomId={roomId} gameId={game} edit={edit === 1} project={project} scene={scene} />
+    <GameCanvas
+      roomId={roomId}
+      gameId={game}
+      edit={edit === 1}
+      project={project}
+      scene={scene}
+      panel={panel}
+    />
   );
 }

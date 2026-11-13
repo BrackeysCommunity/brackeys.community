@@ -1,11 +1,13 @@
-import type { SwapTiming } from "@jams/engine/game";
+import { sceneVersionName, type SwapTiming } from "@jams/engine/game";
 import {
   checkSceneVersion,
   parseReleaseManifest,
   parseSceneVersion,
   type AssetId,
+  type ReleaseManifest,
+  type Sha256,
 } from "@jams/engine/project";
-import { and, desc, eq, inArray, ne, notInArray, sum } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, notInArray, sql, sum } from "drizzle-orm";
 
 import {
   engineProjects,
@@ -25,13 +27,13 @@ import { gamePagePath } from "@/lib/og/game-links";
 import { LIVE_LIMITS } from "./limits";
 import { engineLive } from "./live-events";
 import { checkLiveChannelQuota, quotaAmount } from "./quota";
-import { refusalFor, roleOf, type GameRole } from "./release-access";
+import { refusalFor, roleOf, type GameRole, type ReleaseChannel } from "./release-access";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
 import { issueError, liveBlocked, type ReleaseApiError } from "./release-errors";
 import { liveProject, notFound, refuse, resolveDeps, type ReleaseDeps } from "./release-upload";
 import { releaseViewer, type ProjectRow } from "./release-viewer";
 
-export type LiveChannel = "preview" | "production";
+export type LiveChannel = ReleaseChannel;
 
 export type ScenePointerMove = {
   projectId: string;
@@ -69,11 +71,11 @@ export type PointerTargetVerdict =
       reason: string;
     };
 
-const DEFAULT_TIMING: SwapTiming = "next-load";
+/** The timing a pointer move takes when none is given. */
+export const DEFAULT_SWAP_TIMING: SwapTiming = "next-load";
 
 /** `level-1@3`: how a scene version is named to people. */
-export const sceneVersionLabel = (scene: AssetId, number: number): string =>
-  `${scene}@${formatCount(number)}`;
+export const sceneVersionLabel = sceneVersionName;
 
 // ─── The refusals ────────────────────────────────────────
 
@@ -179,10 +181,44 @@ function blockedError(v: PointerTargetVersion): ReleaseApiError {
 }
 
 /**
+ * Why a scene version doesn't fit a release, or null when it does: the
+ * release takes live scenes at all, `checkSceneVersion` finds no error, and
+ * the version was built for the release's compat key. Moves and the
+ * version's detail both ask this.
+ */
+export function sceneVersionMisfit(
+  v: Pick<PointerTargetVersion, "scene" | "number" | "compatKey"> & { descriptor: string },
+  release: Pick<PointerTargetRelease, "version" | "manifest" | "liveCompatKey">,
+): ReleaseApiError | null {
+  const label = sceneVersionLabel(v.scene, v.number);
+  const releaseName = `v${formatCount(release.version)}`;
+  const manifest = release.manifest === null ? null : parseReleaseManifest(release.manifest);
+  if (!manifest?.ok || release.liveCompatKey === "") return releaseTakesNoLive(release.version);
+  const parsed = parseSceneVersion(v.descriptor);
+  if (!parsed.ok) {
+    const [issue] = parsed.issues;
+    return issue
+      ? issueError(issue)
+      : { code: "schema", message: `${label} isn't a scene version.` };
+  }
+  const error = checkSceneVersion(manifest.manifest, parsed.version, undefined, {
+    names: { version: label, release: releaseName },
+  }).find((i) => i.severity === "error");
+  if (error) return issueError(error);
+  if (v.compatKey !== release.liveCompatKey)
+    return {
+      code: "live-incompatible",
+      message: `${label} was built for another release than ${releaseName}.`,
+      hint: "Publish the scene again from the project as the release has it.",
+    };
+  return null;
+}
+
+/**
  * The pure half of `checkPointerTarget`: the version exists and isn't
- * collected, hidden or blocked, fits the release (`checkSceneVersion`,
- * and a release that takes live scenes at all), and the release's size
- * plus every pointer's extra bytes stays within a release's size.
+ * collected, hidden or blocked, fits the release (`sceneVersionMisfit`),
+ * and the release's size plus every pointer's extra bytes stays within a
+ * release's size.
  */
 export function pointerTargetVerdict(facts: PointerTargetFacts): PointerTargetVerdict {
   const { version: v, release, channel } = facts;
@@ -208,34 +244,8 @@ export function pointerTargetVerdict(facts: PointerTargetFacts): PointerTargetVe
     return no("hidden", sceneVersionHidden(label, v.hiddenReason), "staff have hidden it");
   if (v.blockedAt) return no("blocked", blockedError(v), "it's blocked");
 
-  const releaseName = `v${formatCount(release.version)}`;
-  const incompatible = `it doesn't fit ${releaseName}`;
-  const manifest = release.manifest === null ? null : parseReleaseManifest(release.manifest);
-  if (!manifest?.ok || release.liveCompatKey === "")
-    return no("incompatible", releaseTakesNoLive(release.version), incompatible);
-  const parsed = parseSceneVersion(v.descriptor);
-  if (!parsed.ok) {
-    const [issue] = parsed.issues;
-    return no(
-      "incompatible",
-      issue ? issueError(issue) : { code: "schema", message: `${label} isn't a scene version.` },
-      incompatible,
-    );
-  }
-  const error = checkSceneVersion(manifest.manifest, parsed.version, undefined, {
-    names: { version: label, release: releaseName },
-  }).find((i) => i.severity === "error");
-  if (error) return no("incompatible", issueError(error), incompatible);
-  if (v.compatKey !== release.liveCompatKey)
-    return no(
-      "incompatible",
-      {
-        code: "live-incompatible",
-        message: `${label} was built for another release than ${releaseName}.`,
-        hint: "Publish the scene again from the project as the release has it.",
-      },
-      incompatible,
-    );
+  const misfit = sceneVersionMisfit({ ...v, descriptor: v.descriptor }, release);
+  if (misfit) return no("incompatible", misfit, `it doesn't fit v${formatCount(release.version)}`);
 
   const size = checkLiveChannelQuota(
     channel,
@@ -267,31 +277,45 @@ const releaseColumns = {
   totalBytes: engineReleases.totalBytes,
 };
 
-type ChannelRelease = PointerTargetRelease & { id: string };
+/** A channel's release as the live reads use it, its manifest read. */
+export type ChannelRelease = {
+  id: Sha256;
+  version: number;
+  manifestText: string;
+  manifest: ReleaseManifest;
+  liveCompatKey: string;
+  totalBytes: number;
+  /** The channel's `live_rev`. */
+  rev: number;
+};
 
-async function channelRelease(
+/** The release `channel` plays, unless it was collected or its manifest is gone; null when there is none. */
+export async function channelRelease(
   db: ReleaseDb,
   projectId: string,
   channel: LiveChannel,
 ): Promise<ChannelRelease | null> {
   const [row] = await db
-    .select(releaseColumns)
+    .select({ ...releaseColumns, rev: engineReleaseChannels.liveRev })
     .from(engineReleaseChannels)
     .innerJoin(engineReleases, eq(engineReleases.id, engineReleaseChannels.releaseId))
     .where(
       and(
         eq(engineReleaseChannels.projectId, projectId),
         eq(engineReleaseChannels.channel, channel),
+        isNull(engineReleases.collectedAt),
       ),
     );
-  return row ?? null;
+  const parsed = row?.manifest ? parseReleaseManifest(row.manifest) : null;
+  if (!row?.manifest || !parsed?.ok) return null;
+  return { ...row, manifestText: row.manifest, manifest: parsed.manifest };
 }
 
 async function releaseById(
   db: ReleaseDb,
   projectId: string,
   id: string,
-): Promise<ChannelRelease | null> {
+): Promise<(PointerTargetRelease & { id: string }) | null> {
   const [row] = await db
     .select(releaseColumns)
     .from(engineReleases)
@@ -336,7 +360,9 @@ export async function checkPointerTarget(
   const { projectId, channel, scene } = input;
   const release =
     input.release === undefined
-      ? await channelRelease(tx, projectId, channel)
+      ? await channelRelease(tx, projectId, channel).then(
+          (r) => r && { ...r, manifest: r.manifestText },
+        )
       : await releaseById(tx, projectId, input.release);
   if (!release) return refuse(noChannelRelease(channel), 404);
 
@@ -393,7 +419,8 @@ export async function checkPointerTarget(
 
 // ─── Moving one pointer ─────────────────────────────────
 
-async function lockProject(tx: ReleaseDb, projectId: string): Promise<void> {
+/** Locks the project row, so pointer moves, commits and moderation on one project run one at a time. */
+export async function lockProject(tx: ReleaseDb, projectId: string): Promise<void> {
   await tx
     .select({ projectId: engineProjects.projectId })
     .from(engineProjects)
@@ -445,6 +472,29 @@ const pointerWhere = (projectId: string, channel: LiveChannel, scene: AssetId) =
     eq(engineSceneChannels.channel, channel),
     eq(engineSceneChannels.sceneId, scene),
   );
+
+/**
+ * Inside the caller's transaction, which holds the project's lock: stores
+ * `rev` (the move's audit id) as the channels' `live_rev`, never lowering
+ * it, since play pages ignore a rev at or below one they've seen.
+ */
+export async function setLiveRev(
+  tx: ReleaseDb,
+  projectId: string,
+  channels: readonly LiveChannel[],
+  rev: number,
+): Promise<void> {
+  if (channels.length === 0) return;
+  await tx
+    .update(engineReleaseChannels)
+    .set({ liveRev: sql`greatest(${engineReleaseChannels.liveRev}, ${rev})` })
+    .where(
+      and(
+        eq(engineReleaseChannels.projectId, projectId),
+        inArray(engineReleaseChannels.channel, [...channels]),
+      ),
+    );
+}
 
 /** What a pointer move did: `rev` is its audit id, the channel's new `live_rev`, or null when nothing moved. */
 export type ScenePointerResult = ScenePointerMoved & { rev: number | null };
@@ -527,15 +577,7 @@ export async function pointScene(
     detail: { from, to, timing },
     at,
   });
-  await tx
-    .update(engineReleaseChannels)
-    .set({ liveRev: rev })
-    .where(
-      and(
-        eq(engineReleaseChannels.projectId, projectId),
-        eq(engineReleaseChannels.channel, channel),
-      ),
-    );
+  await setLiveRev(tx, projectId, [channel], rev);
   return { from, to, rev };
 }
 
@@ -663,7 +705,7 @@ export async function restoreScenePointers(
     }
     const set = {
       versionId,
-      timing: DEFAULT_TIMING,
+      timing: DEFAULT_SWAP_TIMING,
       extraBytes: verdict.extraBytes,
       updatedById: input.actor?.userId ?? null,
       updatedAt: at,

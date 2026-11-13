@@ -3615,27 +3615,14 @@
   }
 }
 
-/* ─── Publish scene ─── */
+/* ─── Publish scene and the publish panels' choices ─── */
 
 @layer jams-editor {
   .je-dialog.je-publish-scene {
     width: min(440px, calc(100% - 32px));
   }
 
-  .je-publish-scene-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .je-publish-scene-group label[data-disabled] {
+  [role="radiogroup"] label[data-disabled] {
     cursor: not-allowed;
-  }
-
-  .je-publish-scene-progress,
-  .je-publish-scene-refusal {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
   }
 }

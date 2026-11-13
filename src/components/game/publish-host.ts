@@ -14,6 +14,7 @@ import type { ProjectId, Sha256 } from "@jams/engine/project";
 import {
   editorLiveHost,
   hostCall,
+  iso,
   liveUsageText,
   type LiveRpc,
   type SendText,
@@ -74,8 +75,6 @@ const rowLabel = (quota: UsageLine["quota"]): string => {
 /** "12 MB of 64 MB" in the quota's own unit. */
 const ofMax = (l: UsageLine): string =>
   `${quotaAmount(l.quota, l.used)} of ${quotaAmount(l.quota, l.max)}`;
-
-const iso = (at: Date | string): string => new Date(at).toISOString();
 
 /** The Publish panel's sentences, every number from `limits.ts`. */
 export function publishWording(project: ProjectId, team: string | null = null): PublishWording {

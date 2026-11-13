@@ -2,9 +2,14 @@
 // viewer. Every transport (procedures, HTTP routes, the frame route, the
 // zip route, the CLI) asks these and never re-derives them.
 
+import * as z from "zod";
+
 import { releaseForbidden, type ReleaseApiError } from "./release-errors";
 
-export type ReleaseChannel = "preview" | "production";
+/** A hosted game's channels, as every input and query names them. */
+export const releaseChannel = z.enum(["preview", "production"]);
+
+export type ReleaseChannel = z.infer<typeof releaseChannel>;
 
 export type GameVisibility = "private" | "team" | "unlisted" | "public";
 

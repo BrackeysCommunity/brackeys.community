@@ -6,7 +6,6 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { db as mockedDb } from "@/db";
 import {
   engineProjects,
-  engineReleaseChannels,
   engineReleaseJamLinks,
   engineReleases,
   engineSceneChannels,
@@ -19,19 +18,10 @@ import { forgetProjectReleases } from "@/lib/engine/frame-route";
 import { forgetLiveSnapshots, resolvePlay, type PlayDeps } from "@/lib/engine/game-play";
 import { engineLive } from "@/lib/engine/live-events";
 import { moveScenePointer } from "@/lib/engine/live-pointers";
-import { beginSceneVersion, commitSceneVersion } from "@/lib/engine/live-upload";
 import type { Viewer } from "@/lib/engine/release-access";
 import type { ReleaseDb } from "@/lib/engine/release-audit";
-import { promote } from "@/lib/engine/release-channels";
 import { memoryReleaseStore } from "@/lib/engine/release-storage";
-import {
-  beginRelease,
-  commitRelease,
-  putReleaseFile,
-  type Actor,
-  type ReleaseDeps,
-  type ReleaseTxDb,
-} from "@/lib/engine/release-upload";
+import type { Actor } from "@/lib/engine/release-upload";
 import { PUBLIC_PROCEDURE_NAMES } from "@/orpc/public-procedures";
 import { getGameLive } from "@/orpc/router/engine-game";
 import { seedUser, type TestDb } from "@/test/db";
@@ -42,6 +32,12 @@ import {
   type FixtureVersion,
 } from "../../../lib/engine/__tests__/fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "../../../lib/engine/__tests__/release-fixture";
+import {
+  liveRev,
+  uploadDeps,
+  uploadRelease,
+  uploadSceneVersion,
+} from "../../../lib/engine/__tests__/upload-rig";
 
 vi.mock("@/db", async () => {
   const { createTestDb } = await import("@/test/db");
@@ -92,13 +88,7 @@ let release: PlannedRelease;
 let hall: FixtureVersion;
 let yard: FixtureVersion;
 
-const deps = (): ReleaseDeps => ({
-  db: db as unknown as ReleaseTxDb,
-  store,
-  now: () => NOW,
-  rateLimit: async () => true,
-  scan: async () => {},
-});
+const deps = () => uploadDeps(store, { now: () => NOW });
 
 const playDeps = (over: Partial<PlayDeps> = {}): PlayDeps => ({
   now: () => NOW,
@@ -115,46 +105,9 @@ const liveOf = async (version: string, who: Viewer) => {
   return resolved.play.live;
 };
 
-const encode = (text: string) => new TextEncoder().encode(text);
-
-/** Release v1, on preview and production. */
-async function publishRelease() {
-  const begun = await beginRelease(deps(), {
-    projectId: PROJECT,
-    manifest: release.text,
-    actor: publisherActor,
-  });
-  for (const f of begun.missing)
-    await putReleaseFile(deps(), {
-      uploadId: begun.uploadId,
-      sha256: f.sha256,
-      body: release.files.get(f.path)!,
-      actor: publisherActor,
-    });
-  await commitRelease(deps(), { uploadId: begun.uploadId, actor: publisherActor });
-  await promote(
-    { projectId: PROJECT, version: 1, channel: "production", actor: publisherActor },
-    { db: db as unknown as ReleaseTxDb, now: () => NOW },
-  );
-}
-
 /** Publishes `v` to preview, which points preview's pointer at it. */
-async function publishScene(v: FixtureVersion) {
-  const begun = await beginSceneVersion(deps(), {
-    projectId: PROJECT,
-    version: v.text,
-    channel: "preview",
-    actor: publisherActor,
-  });
-  for (const { sha256 } of begun.missing)
-    await putReleaseFile(deps(), {
-      uploadId: begun.uploadId,
-      sha256,
-      body: encode(v.texts.get(sha256)!),
-      actor: publisherActor,
-    });
-  await commitSceneVersion(deps(), { uploadId: begun.uploadId, actor: publisherActor });
-}
+const publishScene = (v: FixtureVersion) =>
+  uploadSceneVersion(deps(), v, { channel: "preview", actor: publisherActor });
 
 const toProduction = (scene: string) =>
   moveScenePointer(deps(), {
@@ -166,19 +119,6 @@ const toProduction = (scene: string) =>
     action: "scene-promote",
     actor: publisherActor,
   });
-
-const liveRev = async (channel: "preview" | "production") =>
-  (
-    await db
-      .select({ rev: engineReleaseChannels.liveRev })
-      .from(engineReleaseChannels)
-      .where(
-        and(
-          eq(engineReleaseChannels.projectId, PROJECT),
-          eq(engineReleaseChannels.channel, channel),
-        ),
-      )
-  )[0]!.rev;
 
 const sinceOf = async (channel: "preview" | "production", scene: string) =>
   (
@@ -243,7 +183,7 @@ beforeEach(async () => {
     createdById: "pub",
     visibility: "public",
   });
-  await publishRelease();
+  await uploadRelease(deps(), release, { actor: publisherActor, promoteTo: "production" });
   await publishScene(hall);
   await publishScene(yard);
   await toProduction("hall");
@@ -276,7 +216,7 @@ describe("the play payload's live state", () => {
   it("gives latest production's snapshot, to anyone who may play it", async () => {
     const expected = {
       channel: "production",
-      rev: await liveRev("production"),
+      rev: await liveRev(PROJECT, "production"),
       release: release.releaseId,
       scenes: [
         {
@@ -300,7 +240,7 @@ describe("the play payload's live state", () => {
       const live = await liveOf("preview", who);
       expect(live).toMatchObject({
         channel: "preview",
-        rev: await liveRev("preview"),
+        rev: await liveRev(PROJECT, "preview"),
         release: release.releaseId,
       });
       expect(live!.scenes.map((s) => [s.scene, s.version])).toEqual([

@@ -17,8 +17,10 @@ import { collectionForecast } from "./collect-plan";
 import {
   announceLiveMove,
   checkPointerTarget,
+  lockProject,
   resetScenePointers,
   restoreScenePointers,
+  setLiveRev,
 } from "./live-pointers";
 import {
   canPlay,
@@ -220,12 +222,7 @@ export async function movePointer(tx: ReleaseDb, input: PointerMoveInput): Promi
     },
     at: now,
   });
-  await tx
-    .update(engineReleaseChannels)
-    .set({ liveRev: rev })
-    .where(
-      and(eq(engineReleaseChannels.projectId, project), eq(engineReleaseChannels.channel, channel)),
-    );
+  await setLiveRev(tx, project, [channel], rev);
   return { from, to: release, moved: true, rev, ...back };
 }
 
@@ -384,15 +381,6 @@ async function releaseById(db: ReleaseDb, id: string): Promise<ReleaseRef> {
 function assertMovable(release: ReleaseRef): void {
   if (release.collectedAt) refuse(releaseRemoved(release.version, release.collectedAt));
   if (release.hiddenAt) refuse(releaseHidden(release.version, release.hiddenReason));
-}
-
-/** Locks the project row, so pointer moves and commits on one project run one at a time. */
-async function lockProject(tx: ReleaseDb, projectId: string): Promise<void> {
-  await tx
-    .select({ projectId: engineProjects.projectId })
-    .from(engineProjects)
-    .where(eq(engineProjects.projectId, projectId))
-    .for("update");
 }
 
 async function pointerOf(

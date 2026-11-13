@@ -13,11 +13,12 @@ import { createAgentToken } from "../agent-token";
 import { createLiveRoutes } from "../live-routes";
 import { createReleaseRoutes } from "../release-routes";
 import { memoryReleaseStore, type ReleaseObjectStore } from "../release-storage";
-import { beginRelease, commitRelease, putReleaseFile, type Actor } from "../release-upload";
+import type { Actor } from "../release-upload";
 import { engineLiveCommitPath, engineLivePath, engineReleaseFilePath } from "../route-paths";
 import { fixtureVersion } from "./fixtures/live/scene-versions";
 import { PROJECT, seedEngine } from "./harness";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
+import { uploadDeps, uploadRelease } from "./upload-rig";
 
 vi.mock("@/db", async () => {
   const { createTestDb } = await import("@/test/db");
@@ -75,17 +76,8 @@ const send = async (request: Request) => (await routes(request))!;
 
 /** `release` uploaded and committed by staff, which puts it on preview. */
 async function releaseOnPreview() {
-  const deps = { store, scan: async () => {} };
   const actor: Actor = { kind: "staff", userId: "staff" };
-  const begun = await beginRelease(deps, { projectId: PROJECT, manifest: release.text, actor });
-  for (const file of begun.missing)
-    await putReleaseFile(deps, {
-      uploadId: begun.uploadId,
-      sha256: file.sha256,
-      body: release.files.get(file.path)!,
-      actor,
-    });
-  await commitRelease(deps, { uploadId: begun.uploadId, actor });
+  await uploadRelease(uploadDeps(store), release, { actor });
 }
 
 const secretFor = async (projectId: string, access: "read" | "write" = "write") =>

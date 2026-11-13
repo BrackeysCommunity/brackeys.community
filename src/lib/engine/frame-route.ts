@@ -1,4 +1,4 @@
-import { RELEASE_FILE, type ReleaseFile } from "@jams/engine/project";
+import { isSha256, liveFiles, RELEASE_FILE, type ReleaseFile } from "@jams/engine/project";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db as appDb } from "@/db";
@@ -21,6 +21,7 @@ import { engineGamesAllowed } from "./guard";
 import { liveFileVisible } from "./live-state";
 import type { ReleaseDb } from "./release-audit";
 import { contentTypeFor, type ReleaseObjectStore } from "./release-storage";
+import { ttlLru } from "./ttl-lru";
 
 /** Which prefix a frame request came in on. */
 export type FramePrefix = "frames" | "frames-private";
@@ -82,7 +83,7 @@ const FRAME_TOKEN_CHARS = /^[A-Za-z0-9_.-]{1,1024}$/;
  * processes hear of it through the release notice; one that misses the
  * notice sees it within the TTL.
  */
-const releaseCache = new Map<string, { at: number; release: LoadedRelease }>();
+const releaseCache = ttlLru<string, LoadedRelease>({ max: CACHE_MAX, ttlMs: CACHE_TTL_MS });
 
 /** Drops a release from this process's cache, after it's hidden, unhidden or collected. */
 export function forgetRelease(releaseId: string): void {
@@ -94,9 +95,7 @@ export function forgetRelease(releaseId: string): void {
  * the project, or one of its scene versions, is hidden or unhidden.
  */
 export function forgetProjectReleases(projectId: string): void {
-  for (const [id, entry] of releaseCache) {
-    if (entry.release.projectId === projectId) releaseCache.delete(id);
-  }
+  releaseCache.deleteWhere((release) => release.projectId === projectId);
   forgetLiveFiles(projectId);
 }
 
@@ -109,24 +108,27 @@ const LIVE_CACHE_MAX = 10_000;
  * Listed and hidden answers, by project, compat key and file; an unknown
  * hash isn't kept, so a version committed after a probe serves at once.
  */
-const liveCache = new Map<string, { at: number; projectId: string; lookup: LiveLookup }>();
+const liveCache = ttlLru<string, { projectId: string; lookup: LiveLookup }>({
+  max: LIVE_CACHE_MAX,
+  ttlMs: CACHE_TTL_MS,
+});
 
 /** Drops a project's cached `live/` lookups, so a hidden version's files answer 410 at once. */
 export function forgetLiveFiles(projectId: string): void {
-  for (const [key, entry] of liveCache) {
-    if (entry.projectId === projectId) liveCache.delete(key);
-  }
+  liveCache.deleteWhere((entry) => entry.projectId === projectId);
 }
-
-const LIVE_PATH = /^live\/([0-9a-f]{64})(\.[a-z0-9]+)$/;
 
 /** The hash, extension and served type a `live/…` path names; null for anything the prefix doesn't serve. */
 export function parseLivePath(
   path: string,
 ): { sha256: string; ext: string; contentType: string } | null {
-  const match = LIVE_PATH.exec(path);
-  if (!match) return null;
-  const [, sha256 = "", ext = ""] = match;
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  const dot = name.indexOf(".");
+  const sha256 = name.slice(0, dot);
+  if (dot < 0 || !isSha256(sha256)) return null;
+  const ext = name.slice(dot);
+  const named = ext === ".json" ? liveFiles.doc(sha256) : liveFiles.blob(name, sha256);
+  if (path !== named) return null;
   // The asset row's table, which has `.json` too: scene, prefab and version texts.
   const contentType = contentTypeFor(`assets/${sha256}${ext}`, "asset");
   return contentType ? { sha256, ext, contentType } : null;
@@ -152,9 +154,10 @@ async function readLiveFile(
       .where(match(engineBlobs))
       .limit(1),
   ]);
-  // Texts are release objects; blobs, `.json` atlases included, are the project's own.
-  const storageKey =
-    input.ext === ".json" ? (text?.storageKey ?? blob?.storageKey) : blob?.storageKey;
+  // Texts are release objects and blobs the project's own, but a blob a release
+  // upload brought in is a release object too.
+  const [first, second] = input.ext === ".json" ? [text, blob] : [blob, text];
+  const storageKey = first?.storageKey ?? second?.storageKey;
   return storageKey ? { status: "ok", storageKey } : { status: "none" };
 }
 
@@ -165,20 +168,11 @@ async function lookupLiveFile(
   now: number,
 ): Promise<LiveLookup> {
   const key = `${input.projectId}/${input.compatKey}/${input.sha256}${input.ext}`;
-  const cached = liveCache.get(key);
-  liveCache.delete(key);
-  if (cached && now - cached.at < CACHE_TTL_MS) {
-    liveCache.set(key, cached);
-    return cached.lookup;
-  }
+  const cached = liveCache.get(key, now);
+  if (cached) return cached.lookup;
   const lookup = await readLiveFile(db, input);
   if (lookup.status === "none") return lookup;
-  liveCache.set(key, { at: now, projectId: input.projectId, lookup });
-  while (liveCache.size > LIVE_CACHE_MAX) {
-    const oldest = liveCache.keys().next().value;
-    if (oldest === undefined) break;
-    liveCache.delete(oldest);
-  }
+  liveCache.set(key, { projectId: input.projectId, lookup }, now);
   return lookup;
 }
 
@@ -307,22 +301,12 @@ export async function loadRelease(
   if (!RELEASE_ID.test(releaseId)) return null;
   void listenForReleaseNotices();
   const now = (opts.now ?? (() => new Date()))().getTime();
-  const cached = releaseCache.get(releaseId);
-  if (cached && now - cached.at < CACHE_TTL_MS) {
-    releaseCache.delete(releaseId);
-    releaseCache.set(releaseId, cached);
-    return cached.release;
-  }
-  releaseCache.delete(releaseId);
+  const cached = releaseCache.get(releaseId, now);
+  if (cached) return cached;
 
   const release = await readRelease(opts.db ?? appDb, releaseId);
   if (!release) return null;
-  releaseCache.set(releaseId, { at: now, release });
-  while (releaseCache.size > CACHE_MAX) {
-    const oldest = releaseCache.keys().next().value;
-    if (oldest === undefined) break;
-    releaseCache.delete(oldest);
-  }
+  releaseCache.set(releaseId, release, now);
   return release;
 }
 
@@ -481,9 +465,9 @@ export function createFrameRoute(
     };
 
     // A scene version's file, served beside the release it fits.
-    if (parsed.path.startsWith("live/")) {
-      const live = parseLivePath(parsed.path);
-      if (!live || release.liveCompatKey === "") return refuse(404, "Not Found", release);
+    const live = parseLivePath(parsed.path);
+    if (live) {
+      if (release.liveCompatKey === "") return refuse(404, "Not Found", release);
       const lookup = await lookupLiveFile(
         deps.db ?? appDb,
         {

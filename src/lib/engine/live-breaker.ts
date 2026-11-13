@@ -1,4 +1,5 @@
 import { LIVE_BLOCK } from "./limits";
+import { isFailedOutcome } from "./live-outcomes";
 
 /** One signed-in player's latest outcome with a version on a channel. */
 export type LiveReportRow = { userId: string; outcome: string; at: Date };
@@ -28,8 +29,7 @@ export function shouldBlock(
   }
   const total = latest.size;
   let failed = 0;
-  for (const row of latest.values())
-    if (row.outcome === "failed" || row.outcome === "crashed") failed++;
+  for (const row of latest.values()) if (isFailedOutcome(row.outcome)) failed++;
   const block = failed >= LIVE_BLOCK.players && failed >= LIVE_BLOCK.ratio * total;
   return { block, failed, total };
 }
