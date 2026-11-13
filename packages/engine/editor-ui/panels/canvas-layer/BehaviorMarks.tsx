@@ -178,6 +178,7 @@ export function BehaviorMarks({
               cx={num(p[0])}
               cy={num(p[1])}
               r={dot}
+              stroke="none"
               style={{ fill: "var(--je-info)" }}
             />
           ))}

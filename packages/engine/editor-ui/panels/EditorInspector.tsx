@@ -280,12 +280,12 @@ const committer = (ctx: Ctx, field: ModelField) => (input: unknown) =>
 function commitEach(
   ctx: Ctx,
   field: ModelField,
-  next: (current: unknown) => unknown,
+  next: (current: unknown, target: RefTarget) => unknown,
 ): string | null {
   const ops: OpBatch["ops"] = [];
   let base: string | undefined;
   for (const t of ctx.targets) {
-    const value = next(valueAt(t, field.path));
+    const value = next(valueAt(t, field.path), t);
     if (value instanceof EditError) return value.message;
     const edit = batchFor(ctx, field, value, [t]);
     if (!edit.ok) return edit.error;
@@ -1116,6 +1116,57 @@ function FieldView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   );
 }
 
+const FORMS = { entity: "Entity", point: "Point" } as const;
+
+/**
+ * A field taking a point or an entity: a switch between the two over the
+ * editor for the form its value holds. Switching to a point starts it at
+ * each target's own position; switching to an entity unsets it.
+ */
+function EitherField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
+  const [error, setError] = useState<string | null>(null);
+  const form = field.widget.kind === "point" ? "point" : "entity";
+  const switchTo = (next: string) => {
+    if (next === form) return;
+    setError(
+      next === "point"
+        ? commitEach(ctx, field, (_, t) => {
+            const at = valueAt(t, "at");
+            return Array.isArray(at) ? [...(at as number[])] : [0, 0];
+          })
+        : commitField(ctx, field, undefined),
+    );
+  };
+  const inner = { ...field, title: FORMS[form] };
+  return (
+    <div className="je-insp-stack">
+      <FieldRow field={field} error={error}>
+        <SegmentedControl
+          size="xs"
+          aria-label={`${field.path} form`}
+          value={form}
+          onChange={switchTo}
+        >
+          {(Object.keys(FORMS) as (keyof typeof FORMS)[]).map((f) => (
+            <SegmentedControl.Item key={f} value={f}>
+              {FORMS[f]}
+            </SegmentedControl.Item>
+          ))}
+        </SegmentedControl>
+      </FieldRow>
+      {form === "point" ? (
+        <PointField
+          field={inner}
+          ppm={ppmOf(ctx)}
+          commitEach={(next) => commitEach(ctx, field, next)}
+        />
+      ) : (
+        <RefField field={inner} ctx={ctx} />
+      )}
+    </div>
+  );
+}
+
 function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const w = field.widget;
   if (field.readonly && w.kind !== "custom")
@@ -1126,6 +1177,8 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         ppm={ppmOf(ctx)}
       />
     );
+  if ((w.kind === "point" || w.kind === "entity-ref") && w.either)
+    return <EitherField field={field} ctx={ctx} />;
   switch (w.kind) {
     case "number":
       return <NumberField field={field} commit={committer(ctx, field)} />;

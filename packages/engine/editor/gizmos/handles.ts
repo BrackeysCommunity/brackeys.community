@@ -150,9 +150,14 @@ export function behaviorHandles(b: BehaviorGizmo, scale: number): GizmoHandle[] 
   const out: GizmoHandle[] = [];
   const anchors = b.joint ? jointAnchorHandles(b) : [];
   if (b.collider) {
+    const arrows = arrowTips(b, scale);
     for (const h of shapeHandles(b.collider.world, scale))
       if (h.kind !== "move" && !(isEdgeResize(h) && anchors.some((a) => covers(a.at, h.at, scale))))
-        out.push({ ...h, id: `collider:${h.id}` });
+        out.push({
+          ...h,
+          id: `collider:${h.id}`,
+          ...(h.kind === "rotate" ? { at: clearOfArrows(b, h.at, arrows, scale) } : {}),
+        });
   }
   if (b.spawner) {
     out.push(
@@ -189,6 +194,55 @@ export function behaviorHandles(b: BehaviorGizmo, scale: number): GizmoHandle[] 
     out.push(...anchors);
   }
   return out;
+}
+
+/** Screen px an arrow's shaft keeps clear of the collider's rotate handle. */
+const ARROW_CLEAR_PX = 2 * HANDLE_PX;
+
+/** The tips of the arrows `b` draws from its pose: the force area's force and the spawner's velocity. */
+function arrowTips(b: BehaviorGizmo, scale: number): Pt[] {
+  const tips: Pt[] = [];
+  if (b.force?.kind === "directional") tips.push(vectorTip(b, b.force.force, FORCE_PX, scale));
+  if (b.spawner?.velocity) tips.push(vectorTip(b, b.spawner.velocity, VELOCITY_PX, scale));
+  return tips;
+}
+
+/** World distance from `p` to the segment `a`–`b`. */
+function segmentDistance(p: Pt, a: Pt, b: Pt): number {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  const t =
+    len2 > 0 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2)) : 0;
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+}
+
+/**
+ * The collider's rotate handle, moved off any arrow drawn through it. A box
+ * or capsule takes its stalk on the other side of the pivot (its preview
+ * reads the corners or the length handle). Any other shape's preview reads
+ * the turn from the rotate handle's angle about the pivot, so it keeps that
+ * angle and moves out past the arrow's tip.
+ */
+function clearOfArrows(b: BehaviorGizmo, at: Pt, tips: readonly Pt[], scale: number): Pt {
+  const clear = ARROW_CLEAR_PX / scale;
+  const hit = (p: Pt) => tips.some((tip) => segmentDistance(p, b.pose.at, tip) < clear);
+  const shape = b.collider?.world;
+  if (!shape || !hit(at)) return at;
+  const pivot = shapePivot(shape);
+  if (shape.type === "box" || shape.type === "capsule") {
+    const flipped: Pt = [2 * pivot[0] - at[0], 2 * pivot[1] - at[1]];
+    if (!hit(flipped)) return flipped;
+  }
+  const dx = at[0] - pivot[0];
+  const dy = at[1] - pivot[1];
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return at;
+  const [ux, uy] = [dx / len, dy / len];
+  let reach = len;
+  for (const tip of tips)
+    reach = Math.max(reach, (tip[0] - pivot[0]) * ux + (tip[1] - pivot[1]) * uy + STALK_PX / scale);
+  return [pivot[0] + ux * reach, pivot[1] + uy * reach];
 }
 
 /** Screen px a stacked anchor's handle moves aside: past the hit box of the one it covered. */

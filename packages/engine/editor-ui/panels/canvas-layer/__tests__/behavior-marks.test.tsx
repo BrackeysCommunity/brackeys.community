@@ -124,6 +124,12 @@ describe("BehaviorMarks", () => {
     expect(path).not.toBeNull();
     expect(path!.querySelector("path")!.getAttribute("d")).toBe("M10 5 L12 5");
     expect(path!.querySelectorAll("[data-waypoint]")).toHaveLength(2);
+    for (const dot of path!.querySelectorAll("[data-waypoint]")) {
+      const unscaled =
+        dot.getAttribute("stroke") === "none" ||
+        dot.getAttribute("vector-effect") === "non-scaling-stroke";
+      expect(unscaled).toBe(true);
+    }
   });
 
   it("moves the path with the entity while a move previews", () => {

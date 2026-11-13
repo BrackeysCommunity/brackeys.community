@@ -17,6 +17,9 @@ import {
   type HostedGameGlobs,
 } from "../hosted-games";
 
+/** Loading every hosted game parses all its scenes (the stress game's run to megabytes). */
+const LOAD_EVERY_GAME_MS = 30_000;
+
 const json = (path: string): unknown => JSON.parse(readFileSync(path, "utf8"));
 
 const boardGame = defineGame({
@@ -242,19 +245,23 @@ describe("hostedGamesFrom", () => {
     await expect(board!.load()).rejects.toThrow();
   });
 
-  it("starts each site game at the start its own scene list names", async () => {
-    const games = hostedGames();
-    expect(games.map((g) => g.id)).toEqual(expect.arrayContaining(["platformer", "tactics"]));
-    for (const hosted of games) {
-      const file = `src/games/${hosted.id}/scene-list.json`;
-      expect(existsSync(file), file).toBe(true);
-      const { start } = json(file) as { start: string };
-      const { flow } = await hosted.load();
-      expect(flow.start(), hosted.id).toBe(start);
-      expect(flow.scene(start)?.def, hosted.id).toBeDefined();
-    }
-    expect((await hostedGame("platformer")!.load()).flow.start()).toBe("test-yard");
-  });
+  it(
+    "starts each site game at the start its own scene list names",
+    async () => {
+      const games = hostedGames();
+      expect(games.map((g) => g.id)).toEqual(expect.arrayContaining(["platformer", "tactics"]));
+      for (const hosted of games) {
+        const file = `src/games/${hosted.id}/scene-list.json`;
+        expect(existsSync(file), file).toBe(true);
+        const { start } = json(file) as { start: string };
+        const { flow } = await hosted.load();
+        expect(flow.start(), hosted.id).toBe(start);
+        expect(flow.scene(start)?.def, hosted.id).toBeDefined();
+      }
+      expect((await hostedGame("platformer")!.load()).flow.start()).toBe("test-yard");
+    },
+    LOAD_EVERY_GAME_MS,
+  );
 
   it("warns about and skips a project whose game or UI module isn't at the standard path", () => {
     const warn = vi.fn();

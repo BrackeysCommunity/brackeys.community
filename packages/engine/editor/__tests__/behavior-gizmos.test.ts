@@ -12,7 +12,7 @@ import {
   shapeToWorld,
   VELOCITY_PX,
 } from "../gizmos/behavior-target";
-import { targetHandles } from "../gizmos/handles";
+import { HANDLE_PX, targetHandles } from "../gizmos/handles";
 import { dragHandle, type DragOptions } from "../gizmos/index";
 import { gizmoTarget, type GizmoTarget } from "../gizmos/target";
 import { DEFAULT_SNAP } from "../tools";
@@ -141,6 +141,70 @@ describe("behavior gizmo handles", () => {
       5 + (2 * VELOCITY_PX) / SCALE,
       5,
     ]);
+  });
+
+  it("links a joint inside an instance to its instance's entity before a top-level one", () => {
+    const link = (id: string, x: number, joint?: Record<string, unknown>): EntityDef => ({
+      id,
+      type: "marker",
+      at: [x, 5],
+      behaviors: { collider: { shape: ["box", 0, 0, 0.25, 0.25] }, ...(joint ? { joint } : {}) },
+    });
+    const def = scene(
+      link("link-1", 1),
+      link("c/link-1", 4),
+      link("c/link-2", 6, { kind: "revolute", to: "link-1" }),
+      link("a/y", 10),
+      link("a/b/x", 12, { kind: "revolute", to: "y" }),
+    );
+    expect(targetOf(def, "c/link-2").behaviors!.joint!.to).toEqual({
+      ref: "c/link-1",
+      pose: { at: [4, 5], rotDeg: 0 },
+    });
+    expect(targetOf(def, "a/b/x").behaviors!.joint!.to?.ref).toBe("a/y");
+    const top = scene(link("link-1", 1), link("c/link-2", 6, { kind: "revolute", to: "link-1" }));
+    expect(targetOf(top, "c/link-2").behaviors!.joint!.to?.ref).toBe("link-1");
+  });
+
+  it("keeps a box collider's rotate handle off a force arrow drawn up through it", () => {
+    const def = scene(
+      marker({
+        collider: { shape: ["box", 0, 0, 0.25, 0.25], sensor: true },
+        "force-area": { force: [0, -20] },
+      }),
+    );
+    const t = targetOf(def);
+    const tip = handleAt(t, "force-area:force");
+    const rotate = handleAt(t, "collider:rotate");
+    const apart = Math.max(Math.abs(tip[0] - rotate[0]), Math.abs(tip[1] - rotate[1])) * SCALE;
+    expect(apart).toBeGreaterThanOrEqual(HANDLE_PX);
+    expect(rotate[1]).toBeGreaterThan(5);
+    const turned = drag(def, "collider:rotate", [4, 5], rotate).ops;
+    expect(turned).toEqual([
+      {
+        op: "update",
+        ref: "m",
+        set: { "behaviors.collider.shape": ["box", 0, 0, 0.25, 0.25, 90] },
+      },
+    ]);
+  });
+
+  it("moves a poly collider's rotate handle out past a force arrow, keeping its angle", () => {
+    const def = scene(
+      marker({
+        collider: { shape: ["poly", -0.25, -0.25, 0.25, -0.25, 0, 0.25], sensor: true },
+        "force-area": { force: [0, -20] },
+      }),
+    );
+    const t = targetOf(def);
+    const tip = handleAt(t, "force-area:force");
+    const rotate = handleAt(t, "collider:rotate");
+    expect(rotate[0]).toBeCloseTo(tip[0]);
+    expect(tip[1] - rotate[1]).toBeGreaterThanOrEqual(HANDLE_PX / SCALE);
+    const handles = targetHandles(t, { scale: SCALE });
+    expect(behaviorMarks(t.behaviors!, SCALE, handles).outlines[0]!.shape).toEqual(
+      t.behaviors!.collider!.world,
+    );
   });
 
   it("keeps a zero spread's handle a reach away from the move handle", () => {

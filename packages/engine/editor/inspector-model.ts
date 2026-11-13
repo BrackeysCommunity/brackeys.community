@@ -145,7 +145,8 @@ export type FieldWidget =
   /**
    * Paired x and y fields; a metric one steps and shows as an `m` number
    * does. `pick` adds a pick-in-canvas crosshair: a scene point has one, a
-   * plain number pair (a setting's gravity) doesn't.
+   * plain number pair (a setting's gravity) doesn't. `either` as an
+   * entity-ref's.
    */
   | {
       kind: "point";
@@ -154,6 +155,7 @@ export type FieldWidget =
       step?: number;
       bigStep?: number;
       decimals?: number;
+      either?: true;
     }
   | { kind: "points"; min?: number }
   /**
@@ -165,8 +167,16 @@ export type FieldWidget =
    * A combobox of ids whose type (or base) is in `accepts` (`refCandidates`),
    * plus an eyedropper. With `any`, every entity but the selection: a
    * behavior's reference, which names no types (`accepts` is empty).
+   * `either`: the field takes a point or an entity (`nav-agent.to`), and
+   * this widget is the form its value holds; the other is a switch away.
    */
-  | { kind: "entity-ref"; accepts: EntityTypeName[]; multiple: boolean; any?: true }
+  | {
+      kind: "entity-ref";
+      accepts: EntityTypeName[];
+      multiple: boolean;
+      any?: true;
+      either?: true;
+    }
   /** A tag switcher over `types`; `shapeConversions` says which switches are lossless. */
   | { kind: "shape"; types: ShapeType[] }
   /** Mode, speed, pause and the point list, as `children`. */
@@ -547,10 +557,12 @@ function widgetFor(
     // A point or an entity (`nav-agent.to`): the editor for the form the value holds, an entity when unset.
     const options = inner.options as z.ZodType[];
     const at = options.find((o) => fieldKind(o) === "vector" || fieldKind(o) === "point");
-    if (at && options.some((o) => isChildRef(unwrapSchema(o))))
-      return Array.isArray(value)
-        ? widgetFor(at, name, top, ctx)
-        : { kind: "entity-ref", accepts: [], multiple: false, any: true };
+    if (at && options.some((o) => isChildRef(unwrapSchema(o)))) {
+      if (!Array.isArray(value))
+        return { kind: "entity-ref", accepts: [], multiple: false, any: true, either: true };
+      const point = widgetFor(at, name, top, ctx);
+      return point.kind === "point" ? { ...point, either: true } : point;
+    }
   }
   return { kind: "readonly", format: "json" };
 }

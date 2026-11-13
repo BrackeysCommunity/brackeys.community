@@ -56,6 +56,7 @@ describe("the site's game route", () => {
     ]);
   });
 
+  // Loading every hosted game parses all its scenes, megabytes for the stress game.
   it("names no listed scene of any hosted game as a string literal", async () => {
     const ids = new Set<string>();
     for (const game of hostedGames()) {
@@ -67,5 +68,5 @@ describe("the site's game route", () => {
     expect(files.length).toBeGreaterThan(0);
     const found = files.flatMap((file) => literalsNaming(file, readFileSync(file, "utf8"), ids));
     expect(found).toEqual([]);
-  });
+  }, 30_000);
 });

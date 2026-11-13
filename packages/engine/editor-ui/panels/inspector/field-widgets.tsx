@@ -677,7 +677,7 @@ export function PointField({
     });
   return (
     <FieldRow field={field} scope={scope}>
-      <div className="je-insp-row" data-gap="tight" data-align="start">
+      <div className="je-insp-row je-insp-wrap je-insp-pair" data-gap="tight" data-align="start">
         {(["x", "y"] as const).map((name, i) => (
           <NumberInput
             key={name}

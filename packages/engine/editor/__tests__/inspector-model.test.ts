@@ -889,11 +889,11 @@ describe("behavior sections", () => {
       ],
     };
     const to = (ref: string) => field(of(games, walkers, ref), "behaviors.nav-agent.to");
-    const picker = { kind: "entity-ref", accepts: [], multiple: false, any: true };
+    const picker = { kind: "entity-ref", accepts: [], multiple: false, any: true, either: true };
     expect(to("a")).toMatchObject({ widget: picker, value: undefined, optional: true });
     expect(to("b")).toMatchObject({ widget: picker, value: "a" });
     expect(to("c")).toMatchObject({
-      widget: { kind: "point", pick: true, unit: "m" },
+      widget: { kind: "point", pick: true, unit: "m", either: true },
       value: [4, 5],
     });
   });

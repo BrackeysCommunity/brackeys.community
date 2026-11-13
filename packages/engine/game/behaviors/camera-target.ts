@@ -20,7 +20,9 @@ const cameraTargetFields = {
   seat: seatField(
     "The seat whose view follows it, for split screens; omitted, every view does.",
     "camera",
-  ).optional(),
+  )
+    .optional()
+    .meta({ placeholder: "every view" }),
 };
 
 /** A `camera-target` block as an entity carries it, defaults applied. */

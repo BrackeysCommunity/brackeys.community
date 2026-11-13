@@ -251,6 +251,9 @@ const flush = () => act(() => new Promise((r) => setTimeout(r, 0)));
 // ─── Boot ────────────────────────────────────────────────
 
 describe("booting", () => {
+  // Each phase waits on a real Yjs round trip; a loaded CI runner can take longer than waitFor's 1 s default.
+  const PHASE_WAIT = { timeout: 5_000 };
+
   it("draws the frame with skeleton panels at once and names each phase until the scene is up", async () => {
     const held = {
       connect: gate(),
@@ -266,24 +269,24 @@ describe("booting", () => {
 
     expect(screen.getAllByRole("tab").length).toBeGreaterThan(0);
     expect(skeletons(container)).toBeGreaterThan(0);
-    await waitFor(() => expect(status()).toContain("Connecting to the scene server"));
+    await waitFor(() => expect(status()).toContain("Connecting to the scene server"), PHASE_WAIT);
 
     held.connect.open();
-    await waitFor(() => expect(status()).toContain("Opening the scene"));
+    await waitFor(() => expect(status()).toContain("Opening the scene"), PHASE_WAIT);
     expect(skeletons(container)).toBeGreaterThan(0);
 
     held["scene:p.yard"].open();
-    await waitFor(() => expect(status()).toContain("Opening materials and prefabs"));
+    await waitFor(() => expect(status()).toContain("Opening materials and prefabs"), PHASE_WAIT);
 
     held["asset:p.bouncy"].open();
-    await waitFor(() => expect(status()).toContain("Building the game"));
+    await waitFor(() => expect(status()).toContain("Building the game"), PHASE_WAIT);
     expect(skeletons(container)).toBeGreaterThan(0);
 
     gameGate.open();
     await waitFor(() => outliner().getByRole("button", { name: /ledge/ }), { timeout: 10_000 });
     expect(skeletons(container)).toBe(0);
     expect(status()).not.toMatch(/Opening|Building|Connecting/);
-  }, 20_000);
+  }, 40_000);
 });
 
 // ─── Rebuild ─────────────────────────────────────────────

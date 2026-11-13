@@ -209,8 +209,8 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
   "physics-required": {
     severity: "error",
     summary:
-      'An entity needs physics (its type requires it, or it rides a follower with `attach`), but the scene\'s resolved physics is `"none"`.',
-    hint: "Set `settings.physics` to `\"rapier\"` (or drop it so the project's or game's default applies), or remove the entity or its `attach`.",
+      'An entity needs physics (its type requires it, it carries a dynamic `body` or a `joint`, or it rides a follower with `attach`), but the scene\'s resolved physics is `"none"`.',
+    hint: "Set `settings.physics` to `\"rapier\"` (or drop it so the project's or game's default applies), or remove the entity or its `attach`, make its `body` kinematic, or remove its `joint`.",
     fixable: true,
   },
   "physics-skipped": {

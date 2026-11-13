@@ -16,6 +16,7 @@ import { inputFor, type PlayerInputSystem } from "../../game/input-for";
 import { EngineError, type EngineContext, type JsonValue } from "../../game/types";
 import { createMotionBody, type MotionBody } from "../../motion/body";
 import { createSideViewController, type SideViewController } from "../../motion/side-view";
+import { aabb, translateShape } from "../../scene/shape-geometry";
 import { parseShape } from "../../scene/shapes";
 import type { Aabb, RuntimeEntity, ShapeObj } from "../../scene/types";
 import { oneWayPasses, type SolidSystem } from "../../systems/bodies";
@@ -61,54 +62,6 @@ type Character = {
   /** Drops its `ctx.bodies` entry. */
   release: () => void;
 };
-
-/** The box around a local shape, m. */
-function boundsOf(shape: ShapeObj): Aabb {
-  const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-  const add = (x: number, y: number, r = 0) => {
-    box.minX = Math.min(box.minX, x - r);
-    box.minY = Math.min(box.minY, y - r);
-    box.maxX = Math.max(box.maxX, x + r);
-    box.maxY = Math.max(box.maxY, y + r);
-  };
-  switch (shape.type) {
-    case "circle":
-      add(shape.cx, shape.cy, shape.r);
-      break;
-    case "box": {
-      const a = (shape.rotDeg * Math.PI) / 180;
-      const c = Math.cos(a);
-      const s = Math.sin(a);
-      for (const [x, y] of [
-        [-shape.hw, -shape.hh],
-        [shape.hw, -shape.hh],
-        [shape.hw, shape.hh],
-        [-shape.hw, shape.hh],
-      ] as const)
-        add(shape.cx + x * c - y * s, shape.cy + x * s + y * c);
-      break;
-    }
-    case "capsule": {
-      const a = (shape.rotDeg * Math.PI) / 180;
-      const dx = -Math.sin(a) * shape.halfLen;
-      const dy = Math.cos(a) * shape.halfLen;
-      add(shape.cx - dx, shape.cy - dy, shape.r);
-      add(shape.cx + dx, shape.cy + dy, shape.r);
-      break;
-    }
-    case "poly":
-    case "chain":
-      for (const [x, y] of shape.pts) add(x, y);
-      break;
-  }
-  return box;
-}
-
-function placed(shape: ShapeObj, at: Vec2): ShapeObj {
-  if (shape.type === "poly" || shape.type === "chain")
-    return { type: shape.type, pts: shape.pts.map(([x, y]) => [x + at.x, y + at.y]) };
-  return { ...shape, cx: shape.cx + at.x, cy: shape.cy + at.y };
-}
 
 function readSaved(state: JsonValue): {
   intent: CharacterIntent | null;
@@ -289,7 +242,7 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
       block,
       collider,
       shape,
-      box: boundsOf(shape),
+      box: aabb(shape),
       filter,
       view,
       body,
@@ -349,7 +302,8 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
   function ride(c: Character, by: Vec2, carrierId: string): void {
     const len = Math.sqrt(by.x * by.x + by.y * by.y);
     const filter = { ...c.filter, exclude: [c.id, carrierId] };
-    const hit = c.view.space.sweep(placed(c.shape, c.body.position()), by, filter);
+    const at = c.body.position();
+    const hit = c.view.space.sweep(translateShape(c.shape, [at.x, at.y]), by, filter);
     const travel = hit ? Math.max(0, hit.toi * len - SKIN) : len;
     if (travel <= 0) return;
     c.body.setEnabled(false);

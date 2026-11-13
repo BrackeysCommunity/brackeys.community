@@ -3,7 +3,7 @@ import { COLLIDER } from "../../game/behaviors/collider";
 import { FORCE_AREA } from "../../game/behaviors/force-area";
 import { JOINT } from "../../game/behaviors/joint";
 import { SPAWNER } from "../../game/behaviors/spawner";
-import type { Registry } from "../../game/types";
+import { scopedRef, type Registry } from "../../game/types";
 import { behaviorBlocks } from "../../scene/expand";
 import { geometryPose, shapeAtPose, translateShape, turnBy } from "../../scene/shape-geometry";
 import { parseShape } from "../../scene/shapes";
@@ -183,18 +183,16 @@ export function behaviorGizmo(
   return out;
 }
 
-/** What a joint's `to` names: an entity by id, or inside an instance a sibling by its id within the prefab. */
+/** The entity a joint's `to` names, scoped like the runtime's (`scopedRef`). */
 function jointTarget(
   def: SceneDefinition,
   registry: Registry,
   self: Ref,
   to: string,
 ): { ref: Ref; pose: EditPose } | undefined {
-  const slash = self.lastIndexOf("/");
   const ids = new Set((def.entities ?? []).map((e) => e.id));
-  const sibling = slash < 0 ? undefined : `${self.slice(0, slash)}/${to}`;
-  const ref = ids.has(to) ? to : sibling !== undefined && ids.has(sibling) ? sibling : undefined;
-  if (ref === undefined || ref === self) return undefined;
+  const ref = scopedRef(self, to, (id) => ids.has(id));
+  if (!ids.has(ref) || ref === self) return undefined;
   const pose = refPose(def, registry, ref);
   return pose && { ref, pose };
 }

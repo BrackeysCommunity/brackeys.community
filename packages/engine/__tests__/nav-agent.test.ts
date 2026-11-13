@@ -13,6 +13,7 @@ import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import { hashText } from "../scene/hash";
 import type { ExpandedScene, RuntimeEntity, SceneDefinition } from "../scene/types";
 import { validateScene } from "../scene/validate";
+import { seedFromString } from "../sim-kit/rng";
 
 const ARRIVED = "nav:arrived";
 const BLOCKED = "nav:blocked";
@@ -289,6 +290,101 @@ describe("the nav-agent behavior", () => {
     expect(types).not.toContain(ARRIVED);
     whole.destroy();
     resumed.destroy();
+  });
+
+  it("keeps a game-set target naming its entity across a restore, though a sibling shares the name", () => {
+    const game = navGame();
+    const registry = createRegistry(game);
+    const entities: RuntimeEntity[] = [
+      ...ROOM,
+      agent("pack/agent", [1, 5], { repathTicks: 20 }),
+      { id: "hero", type: "marker", at: [11, 9] },
+      { id: "pack/hero", type: "marker", at: [11, 1] },
+    ];
+    const open = (fromSave?: Parameters<typeof createHeadlessRuntime>[0]["fromSave"]) =>
+      createHeadlessRuntime({
+        game,
+        registry,
+        scene: scene(entities),
+        ...(fromSave ? { fromSave } : {}),
+      });
+    const arrivals = (rt: SceneRuntimeHandle) => {
+      const out: string[] = [];
+      for (let i = 0; i < 900; i++)
+        for (const e of rt.step(rt.ctx.time.tickMs, []).events)
+          if (e.type === ARRIVED) out.push(`${rt.ctx.tick} ${e.other}`);
+      return out;
+    };
+    const whole = open();
+    whole.ctx.behavior<NavAgentSystem>("nav-agent")!.setDestination("pack/agent", "hero");
+    for (let i = 0; i < 30; i++) whole.step(whole.ctx.time.tickMs, []);
+    const saved = whole.save({ depth: "world", slot: "mid", now: 0 });
+    if (!saved.ok) throw new Error(saved.issue.message);
+    expect(saved.file.world!.systems["pack/agent"]?.["nav-agent"]).not.toHaveProperty("scope");
+    const after = arrivals(whole);
+    expect(after).toEqual([expect.stringMatching(/ hero$/)]);
+    const resumed = open(saved.file);
+    expect(arrivals(resumed)).toEqual(after);
+    whole.destroy();
+    resumed.destroy();
+  });
+
+  it("resolves a block target saved before its first tick against its instance after the restore", () => {
+    const game = navGame();
+    const registry = createRegistry(game);
+    const entities: RuntimeEntity[] = [
+      ...ROOM,
+      agent("pack/agent", [1, 5], { to: "hero" }),
+      { id: "hero", type: "marker", at: [11, 9] },
+      { id: "pack/hero", type: "marker", at: [11, 1] },
+    ];
+    const open = (fromSave?: Parameters<typeof createHeadlessRuntime>[0]["fromSave"]) =>
+      createHeadlessRuntime({
+        game,
+        registry,
+        scene: scene(entities),
+        ...(fromSave ? { fromSave } : {}),
+      });
+    const whole = open();
+    const saved = whole.save({ depth: "world", slot: "start", now: 0 });
+    if (!saved.ok) throw new Error(saved.issue.message);
+    expect(saved.file.world!.systems["pack/agent"]?.["nav-agent"]).toMatchObject({
+      target: "hero",
+      scope: true,
+    });
+    const resumed = open(saved.file);
+    const others: string[] = [];
+    for (let i = 0; i < 900; i++)
+      for (const e of resumed.step(resumed.ctx.time.tickMs, []).events)
+        if (e.type === ARRIVED) others.push(String(e.other));
+    expect(others).toEqual(["pack/hero"]);
+    whole.destroy();
+    resumed.destroy();
+  });
+
+  it("staggers the repaths of agents following their block's target by entity id", () => {
+    const repathTicks = 30;
+    const ids = ["f0", "f1", "f2", "f3", "f4", "f5"];
+    const game = navGame();
+    const rt = createHeadlessRuntime({
+      game,
+      registry: createRegistry(game),
+      scene: scene([
+        { id: "floor", type: "nav", shape: box(0, 0, 40, 10) },
+        agent("lead", [30, 5], { speed: 0.5 }),
+        ...ids.map((id, i) => agent(id, [1, 1 + i], { to: "lead", repathTicks, speed: 0.5 })),
+      ]),
+    });
+    rt.step(rt.ctx.time.tickMs, []);
+    const saved = rt.save({ depth: "world", slot: "one", now: 0 });
+    if (!saved.ok) throw new Error(saved.issue.message);
+    const due = ids.map((id) => {
+      const state = saved.file.world!.systems[id]?.["nav-agent"] as { repathIn?: number };
+      expect(state.repathIn).toBe(repathTicks - (seedFromString(id) % repathTicks));
+      return state.repathIn;
+    });
+    expect(new Set(due).size).toBeGreaterThan(1);
+    rt.destroy();
   });
 
   it("refuses a destination for an entity without the behavior", () => {

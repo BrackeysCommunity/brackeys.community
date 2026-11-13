@@ -419,6 +419,42 @@ describe("EditorInspector", () => {
     expect(input("behaviors.lifetime.ticks").value).toBe("60");
   });
 
+  it("switches a nav agent's destination between an entity and a point", () => {
+    const def = scene();
+    def.entities!.push({
+      id: "walker",
+      type: "marker",
+      at: [3, 4],
+      behaviors: { "nav-agent": {}, "camera-target": {} },
+    });
+    const { session } = setup(["walker"], undefined, def);
+    const navOf = () =>
+      (entity(session, "walker").behaviors as Record<string, unknown>)["nav-agent"];
+    const nav = screen.getByRole("region", { name: "Nav agent" });
+    const form = within(nav).getByRole("group", { name: "behaviors.nav-agent.to form" });
+    const pressed = () =>
+      within(form)
+        .getAllByRole("button")
+        .filter((b) => b.getAttribute("aria-pressed") === "true")
+        .map((b) => b.textContent);
+    expect(pressed()).toEqual(["Entity"]);
+    expect(within(nav).getByRole("combobox")).toBeTruthy();
+
+    fireEvent.click(within(form).getByRole("button", { name: "Point" }));
+    expect(navOf()).toEqual({ to: [3, 4] });
+    expect(pressed()).toEqual(["Point"]);
+    expect(input("behaviors.nav-agent.to.x").value).toBe("3");
+    fireEvent.change(input("behaviors.nav-agent.to.y"), { target: { value: "6" } });
+    fireEvent.keyDown(input("behaviors.nav-agent.to.y"), { key: "Enter" });
+    expect(navOf()).toEqual({ to: [3, 6] });
+
+    fireEvent.click(within(form).getByRole("button", { name: "Entity" }));
+    expect(navOf()).toEqual({});
+    expect(pressed()).toEqual(["Entity"]);
+
+    expect(input("behaviors.camera-target.seat").placeholder).toBe("every view");
+  });
+
   it("hints with tooltips, never a native title", () => {
     setup(["bell"]);
     expect(document.querySelectorAll("[title]")).toHaveLength(0);

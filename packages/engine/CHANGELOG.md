@@ -328,6 +328,11 @@ actorId, passes?)` to drop them when the actor goes (with `passes`, the
   build, so a page on that build outranks them: after an engine edit the
   server's hashes are stale, and an equal stamp won by hash alone could hold
   every open editor read-only until the server restarted.
+- A dev editor page ranks its build stamp by when it loaded, never earlier
+  than its server's build. Every tab one dev server serves shared that
+  server's build time, so a tab opened before an engine edit could outrank a
+  fresh one on hash order alone; now the tab loaded last wins, and a tab left
+  read-only catches up by reloading.
 
 ### Agent surface
 

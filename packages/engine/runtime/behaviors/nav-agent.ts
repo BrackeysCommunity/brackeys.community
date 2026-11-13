@@ -234,6 +234,11 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
     a.best = remaining(a, at);
   }
 
+  /** Moves its next plan to its own phase of the `repathTicks` period, so followers don't all plan on one tick. */
+  function stagger(a: Agent): void {
+    a.repathIn = a.block.repathTicks - (a.phase % a.block.repathTicks);
+  }
+
   function raise(a: Agent, type: string, at: Readonly<Vec2>, reason?: BlockedReason): void {
     const target = a.target;
     end(a);
@@ -285,6 +290,7 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       return;
     }
     if (a.to === null && a.target === null) return;
+    const fromBlock = a.scope;
     if (a.scope && a.target !== null) {
       a.target = scopedRef(a.id, a.target, (other) => ctx.exists(other));
       a.scope = false;
@@ -313,6 +319,7 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
           raise(a, NAV_BLOCKED, position(a), a.blocked);
           return;
         }
+        if (fromBlock) stagger(a);
       }
     }
     const at = position(a);
@@ -483,7 +490,7 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       else a.to = { x: to.x, y: to.y };
       a.stuck = 0;
       plan(a);
-      if (a.target !== null) a.repathIn = a.block.repathTicks - (a.phase % a.block.repathTicks);
+      if (a.target !== null) stagger(a);
     },
     stop(id) {
       const a = agents.get(id);
@@ -514,6 +521,8 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       if (a.path) state.path = a.path.map((w) => [w.x, w.y]);
       state.next = a.next;
       if (a.target !== null) state.repathIn = a.repathIn;
+      // A block target not yet resolved against its instance; a game-set one names its entity exactly.
+      if (a.scope) state.scope = true;
       if (Number.isFinite(a.best)) state.best = a.best;
       if (a.stuck > 0) state.stuck = a.stuck;
       if (a.blocked) state.blocked = a.blocked;
@@ -523,7 +532,7 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       const a = agents.get(id);
       if (!a || !isRecord(state)) return;
       end(a);
-      const { order, to, target, path, next, repathIn, best, stuck, blocked } = state;
+      const { order, to, target, scope, path, next, repathIn, best, stuck, blocked } = state;
       if (isCount(order)) {
         a.order = order;
         if (order >= attached) attached = order + 1;
@@ -533,7 +542,7 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       if (point) a.to = point;
       else if (typeof target === "string") {
         a.target = target;
-        a.scope = true;
+        a.scope = scope === true;
       } else return;
       if (Array.isArray(path)) {
         const pts: Vec2[] = [];

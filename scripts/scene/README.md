@@ -1103,13 +1103,16 @@ here is how to place them. `solid`, `sensor`, `prop` and `follower` own a
 body already and forbid `collider` and `body`, so the blocks go on a
 `marker` (or a game type that allows them).
 
-**`schema` lists them.** `schema scene` (and `schema prefab`, `schema
-fragment` and `schema ops`) carries each behavior under an entity's
-`behaviors`, by name: an object whose `title` and `description` say what it
-is, whose `properties` are its fields, each with its `title`,
-`description`, `default` and, where it has one, `unit` (`m`, `m/s`,
-`m/s²`, `ms`, `deg`, `ticks`) and inspector `group`, and with
-`additionalProperties: false`. A game's schema has the same eleven beside
+**`schema` lists them.** `schema scene` (and `schema prefab` and `schema
+fragment`) carries each behavior under an entity's `behaviors`, by name: an
+object whose `title` and `description` say what it is, whose `properties`
+are its fields, each with its `title`, `description`, `default`, its
+`unit` where it has one (`m`, `m/s`, `/s`, `kg/m²`, `N/m` and so on; a
+`joint`'s `limits` and motor `velocity` and `maxForce` give `units` per
+`kind` instead, such as `rad` for a revolute joint and `m` for a prismatic
+one) and inspector `group`, and with `additionalProperties: false`.
+`schema ops` leaves an added entity open; `apply` validates the scene it
+makes. A game's schema has the same eleven beside
 its own. What a block needs of its entity (`requires`, `conflicts`) and
 the rules that span fields (`spawner`'s one of `type` or `prefab`, a point
 `force-area`'s `strength`, a rope `joint`'s `length`) aren't JSON Schema:
@@ -1248,7 +1251,7 @@ it carries what stands on it:
 ```
 
 A gameless scene's nav agents stand still until code gives them a
-destination (`setDestination`). A prefab exposes a controller's field as a
+destination (`setDestination`) or their `to` field names one. A prefab exposes a controller's field as a
 parameter like any other field (see [Parameters](#parameters)): the
 engine project's `hero-side` exposes `jumpHeight` and `maxSpeed`, and
 `behavior-yard`'s `runner` sets one:
