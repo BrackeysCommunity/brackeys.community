@@ -3238,12 +3238,12 @@ whatever the engine's do ([Write your own controller](#write-your-own-controller
 | `collider`            | A collision shape: static on its own, moved by a `body` beside it, or a trigger that raises `sensor:enter` and `sensor:exit` as the `sensor` type does.      | `shape` (local to the entity's pose, not a chain), `sensor` (false), `material`, `group` (see below), `density` (1 kg/m²), `friction`, `restitution` (from the material)                                                                                                                                              | —                                                                                                     |
 | `body`                | Makes the collider a physics body.                                                                                                                           | `kind` (`dynamic`, `kinematic` or `static`), `gravityScale` (1), `linearDamping` (0), `angularDamping` (0), `fixedRotation` (false), `ccd` (false)                                                                                                                                                                    | `collider`; a dynamic body needs physics                                                              |
 | `player-input`        | Binds the entity to a seat; behaviors on it read that player through `inputFor`.                                                                             | `seat` (0)                                                                                                                                                                                                                                                                                                            | —                                                                                                     |
-| `character-top-down`  | Walks in the plane: a kinematic controller, stopped and slid along by walls.                                                                                 | `maxSpeed` (4 m/s), `accel` (40 m/s²), `decel` (40 m/s²), `pushDynamic` (false), `move` (the action, `"move"`)                                                                                                                                                                                                        | `collider`; a `body` only if kinematic; not with `character-side-view`                                |
-| `character-side-view` | Runs and jumps under gravity, with coyote time, a jump buffer, a variable jump height, slopes, steps and one-way platforms; rides moving platforms.          | `maxSpeed` (6), `accel` (60), `decel` (70), `airControl` (0.6), `jumpHeight` (1.2 m), `gravityScale` (1), `maxFallSpeed` (15 m/s), `coyoteMs` (100), `jumpBufferMs` (100), `jumpCut` (0.5), `maxSlopeDeg` (50), `stepHeight` (0.04 m), `snapToGround` (0.04 m), `pushDynamic` (true), `move` and `jump` (the actions) | `collider`; a `body` only if kinematic; not with `character-top-down`                                 |
+| `character-top-down`  | Walks in the plane: a kinematic controller, stopped and slid along by walls.                                                                                 | `maxSpeed` (4 m/s), `accel` (40 m/s²), `decel` (40 m/s²), `pushDynamic` (false), `move` (the action, `"move"`)                                                                                                                                                                                                        | `collider`; a `body` only if kinematic; not with `character-side-view`, `nav-agent` or `path-follow`  |
+| `character-side-view` | Runs and jumps under gravity, with coyote time, a jump buffer, a variable jump height, slopes, steps and one-way platforms; rides moving platforms.          | `maxSpeed` (6), `accel` (60), `decel` (70), `airControl` (0.6), `jumpHeight` (1.2 m), `gravityScale` (1), `maxFallSpeed` (15 m/s), `coyoteMs` (100), `jumpBufferMs` (100), `jumpCut` (0.5), `maxSlopeDeg` (50), `stepHeight` (0.04 m), `snapToGround` (0.04 m), `pushDynamic` (true), `move` and `jump` (the actions) | `collider`; a `body` only if kinematic; not with `character-top-down`, `nav-agent` or `path-follow`   |
 | `camera-target`       | With no `cameraTarget()` from the game, the camera follows the weighted centre of the live entities carrying it, loaded or spawned.                          | `weight` (1), `seat` (omitted: every view)                                                                                                                                                                                                                                                                            | —                                                                                                     |
 | `spawner`             | Spawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones.                                                                     | `type` or `prefab` (exactly one), `rate` (1 /s), `cap` (10), `burst` (0), `lifeMs` (omitted: they stay), `spread` (0 m), `velocity` (for a dynamic body), `active` (true)                                                                                                                                             | —                                                                                                     |
-| `nav-agent`           | Walks the scene's walk areas to a point or after an entity, kept apart from other agents; through a motion body when it has a `collider`, else by pose.      | `speed` (1.2 m/s), `arrive` (0.12 m), `radius` (0.3 m), `separation` (1.5), `repathTicks` (180), `to` (a point or an entity's id it walks to from the start; none)                                                                                                                                                    | a `nav` walk area in the scene (`nav-missing` otherwise)                                              |
-| `path-follow`         | Moves the entity along a waypoint path, with the `follower` type's path; with a kinematic `body` it carries what stands on it.                               | `path` (`pts`, `mode`, `speed`, as a follower's)                                                                                                                                                                                                                                                                      | —                                                                                                     |
+| `nav-agent`           | Walks the scene's walk areas to a point or after an entity, kept apart from other agents; through a motion body when it has a `collider`, else by pose.      | `speed` (1.2 m/s), `arrive` (0.12 m), `radius` (0.3 m), `separation` (1.5), `repathTicks` (180), `to` (a point or an entity's id it walks to from the start; none)                                                                                                                                                    | a `nav` walk area in the scene (`nav-missing` otherwise); not with a character or `path-follow`       |
+| `path-follow`         | Moves the entity along a waypoint path, with the `follower` type's path; with a kinematic `body` it carries what stands on it.                               | `path` (`pts`, `mode`, `speed`, as a follower's)                                                                                                                                                                                                                                                                      | not with a character or `nav-agent`                                                                   |
 | `force-area`          | Pushes the dynamic bodies inside its collider one way, or toward or away from its pose; the two characters add the same acceleration while they stand in it. | `kind` (`directional`), `force` (directional, m/s²) or `strength` (point, m/s²), `falloff` (`none`, `linear` or `inverse-square`), `drag` (0 /s), `affects` (`groups`, `tags`)                                                                                                                                        | `collider` with `sensor: true`; pushing bodies needs physics                                          |
 | `joint`               | Links the entity's body to another entity's: a hinge, a slider, a rope, a weld or a spring.                                                                  | `kind`, `to` (the other entity), `anchorA`, `anchorB`, `axis` (prismatic), `limits` and `motor` (revolute and prismatic), `length` (rope and spring), `stiffness` (100) and `damping` (1) (spring), `collide` (false)                                                                                                 | `body`, and physics; `to` names an entity with a body (`joint-ref-type`), never itself (`joint-self`) |
 
@@ -3302,8 +3302,13 @@ CLI makes both through ops
 ([Standard behaviors](../../scripts/scene/README.md#standard-behaviors) in
 its README has the batches, and its tests run each).
 
-- **Checks.** A missing `requires` is `behavior-missing` and both
-  characters on one entity are `behavior-conflict`. A character on a
+- **Checks.** A missing `requires` is `behavior-missing`. The two
+  characters, `nav-agent` and `path-follow` each move the entity on their
+  own, so an entity carries at most one of the four: any two together are
+  `behavior-conflict`. A joint's `to` holds when it names an entity with a
+  `body`, a `collider` that isn't a sensor, or a type that declares
+  `ownsBody` (`solid`, `prop` and `follower` do, and a type based on one
+  of them); anything else is `joint-ref-type`, here and at load alike. A character on a
   dynamic body is `character-body-kind`, since the controller and the
   solver would both move it; its fix makes the body kinematic. A dynamic
   `body` or a `joint` in a scene without physics is `physics-required`.
@@ -3312,14 +3317,20 @@ its README has the batches, and its tests run each).
   no `player-input`, from that tick until the next call; `velocity`,
   `grounded`, `launch(id, v)`), `NavAgentSystem` (`setDestination(id, to)`,
   `to` a point or an entity id; `stop`, `path`), `SpawnerSystem` (`live(id)`),
-  `ForceAreaSystem` (`sample(point)`, the acceleration the areas give
-  there), `PathFollowSystem` (`position`), `JointSystem` (`joined`) and
-  `ColliderSystem` (`has`). A gameless scene's nav agents stand still until
+  `ForceAreaSystem` (`sample(point, entityId?)`, the acceleration the
+  areas give there; with an entity, only the areas whose `affects` takes
+  it, as the characters ask), `PathFollowSystem` (`position`),
+  `JointSystem` (`joined`) and `ColliderSystem` (`has`, `rebuild`, and
+  `standIn` and `release`, below). A gameless scene's nav agents stand still until
   code gives them a destination, or their `to` names one. A character's or
   an agent's motion body stands in for its collider's own body, which the
-  collider system keeps out of the world (and out of `ctx.bodies`) until
-  the character or agent lets go: then it is built again where the entity
-  stands and answers `ctx.bodies` again.
+  collider system keeps out of the world (and out of `ctx.bodies`) from
+  `standIn(id)` until `release(id)`, across rebuilds and the entity's
+  disables and enables: then it is built again where the entity stands
+  and answers `ctx.bodies` again. A side-view character passes up through
+  an `up` one-way solid while it rises, and down through one while it holds
+  down; a `down`, `left` or `right` one holds it from that side whatever it
+  does.
 - **Events**, in `step` and `playtest` reports as any other:
 
 | Event                   | When                                                               | `entityId`    | `other`                     |
@@ -3555,6 +3566,16 @@ export const stroll = defineBehavior({
   },
 });
 ```
+
+On an entity that carries a `collider` (so the editor, `ctx.tags` and the
+other behaviors see its shape), the controller does what the characters
+do: after making its motion body it calls
+`ctx.behavior<ColliderSystem>("collider")?.standIn(id)`, which keeps the
+collider's own body out of the world, rebuilds and re-enables included,
+and on `detach` it calls `release(id)` while the entity still exists.
+Destroying a motion body forgets its `oneWayPasses`; a controller that
+gates one-way solids with no motion body of its own calls
+`forgetOneWayActor(ctx, id)` when it lets the entity go.
 
 ## Entity lifecycle
 

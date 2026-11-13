@@ -296,7 +296,7 @@ const walk = defineBehavior({
       if (!w) return;
       walkers.delete(id);
       w.body.destroy();
-      colliders()?.enable?.(id);
+      if (ctx.exists(id)) colliders()?.release(id);
     };
     return {
       attach(id, block, entity) {
@@ -317,10 +317,11 @@ const walk = defineBehavior({
           decel: Number(block.decel),
         });
         walkers.set(id, { block, body, controller });
-        // The motion body stands in for the collider system's own.
-        colliders()?.disable?.(id);
+        colliders()?.standIn(id);
       },
       detach,
+      disable: (id) => walkers.get(id)?.body.setEnabled(false),
+      enable: (id) => walkers.get(id)?.body.setEnabled(true),
       beforeStep(dtMs) {
         for (const [id, w] of walkers) w.controller.step(dtMs, inputFor(ctx, id).vector("move"));
       },
@@ -332,7 +333,11 @@ const walk = defineBehavior({
   },
 });
 
-type HeroSnapshot = { at: Pt; v: Pt } | null;
+/** Where the hero is and how fast, and how many of its colliders are in the world. */
+type HeroSnapshot = { at: Pt; v: Pt; here: number } | null;
+
+/** The ticks the hero is disabled for, mid-walk. */
+const OFF = { from: 40, to: 45 };
 
 const walkerGame = defineGame<HeroSnapshot>({
   id: "walker-game",
@@ -348,12 +353,20 @@ const walkerGame = defineGame<HeroSnapshot>({
   ],
   world: { gravity: [0, 0] },
   createRuntime(ctx: EngineContext) {
+    let tick = 0;
     return {
+      beforeStep() {
+        tick++;
+        if (tick === OFF.from) ctx.setEnabled("hero", false);
+        if (tick === OFF.to) ctx.setEnabled("hero", true);
+      },
       snapshot() {
         const p = ctx.poses.get("hero");
         if (!p) return null;
         const v = ctx.bodies.velocity("hero");
-        return { at: [p.x, p.y], v: [v.x, v.y] };
+        const yard = { type: "box", cx: 3, cy: 2, hw: 3, hh: 2, rotDeg: 0 } as const;
+        const here = ctx.space.overlaps(yard).filter((h) => h.tag.entityId === "hero").length;
+        return { at: [p.x, p.y], v: [v.x, v.y], here };
       },
     };
   },
@@ -390,24 +403,29 @@ const WALK_SCRIPT = {
 };
 
 describe("a game-written controller replaces character-top-down", () => {
-  it.each(["rapier", "none"] as const)("walks the same path on %s", (physics) => {
-    const runs = [{ "character-top-down": {} }, { [walk.name]: {} }].map((controller) => {
-      const run = runPlaytest({
-        rapier: physics === "rapier" ? rapier : null,
-        game: walkerGame,
-        scene: yard(controller, physics),
-        script: WALK_SCRIPT,
+  it.each(["rapier", "none"] as const)(
+    "walks the same path on %s, disabled and enabled mid-walk",
+    (physics) => {
+      const runs = [{ "character-top-down": {} }, { [walk.name]: {} }].map((controller) => {
+        const run = runPlaytest({
+          rapier: physics === "rapier" ? rapier : null,
+          game: walkerGame,
+          scene: yard(controller, physics),
+          script: WALK_SCRIPT,
+        });
+        if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.issues)}`);
+        return run;
       });
-      if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run.issues)}`);
-      return run;
-    });
-    const [engine, own] = runs as [PlaytestReport<HeroSnapshot>, PlaytestReport<HeroSnapshot>];
-    // Stopped by the wall: its west face at 2.9, less the hero's radius.
-    expect(engine.final!.at[0]).toBeLessThanOrEqual(2.7 + 1e-6);
-    expect(engine.final!.at[0]).toBeGreaterThan(2.5);
-    expect(engine.final!.at[1]).toBeGreaterThan(1.5);
-    expect(engine.final!.v).toEqual([0, 0]);
-    expect(own.final).toEqual(engine.final);
-    expect(own.recording.end).toBe(engine.recording.end);
-  });
+      const [engine, own] = runs as [PlaytestReport<HeroSnapshot>, PlaytestReport<HeroSnapshot>];
+      // Stopped by the wall: its west face at 2.9, less the hero's radius.
+      expect(engine.final!.at[0]).toBeLessThanOrEqual(2.7 + 1e-6);
+      expect(engine.final!.at[0]).toBeGreaterThan(2.5);
+      expect(engine.final!.at[1]).toBeGreaterThan(1.5);
+      expect(engine.final!.v).toEqual([0, 0]);
+      // The motion body alone: the collider's own body stays out across the disable and enable.
+      expect(engine.final!.here).toBe(1);
+      expect(own.final).toEqual(engine.final);
+      expect(own.recording.end).toBe(engine.recording.end);
+    },
+  );
 });

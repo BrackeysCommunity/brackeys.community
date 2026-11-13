@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 
+import type { BodyStandIn } from "../../runtime/bodies-control";
 import { defineBehavior, type BehaviorSystem } from "../behaviors";
 import { bodyShapeField, ID_PATTERN, materialField } from "../fields";
 import type { FieldEnv } from "../types";
@@ -56,14 +57,17 @@ export type ColliderBlock = z.infer<z.ZodObject<ReturnType<typeof colliderFields
 
 /**
  * The `collider` behavior's system. It owns the entity's physics body and
- * collider for its `collider` and `body` blocks both.
+ * collider for its `collider` and `body` blocks both, and hands the body
+ * over (`standIn`, `release`) to a behavior that moves the entity through a
+ * body of its own.
  */
-export type ColliderSystem = BehaviorSystem<ColliderBlock> & {
-  /** Whether `entityId` carries an attached collider. */
-  has(entityId: string): boolean;
-  /** Builds the entity's body and collider again from its current blocks. */
-  rebuild(entityId: string): void;
-};
+export type ColliderSystem = BehaviorSystem<ColliderBlock> &
+  BodyStandIn & {
+    /** Whether `entityId` carries an attached collider. */
+    has(entityId: string): boolean;
+    /** Builds the entity's body and collider again from its current blocks. */
+    rebuild(entityId: string): void;
+  };
 
 export const COLLIDER = defineBehavior({
   name: "collider",

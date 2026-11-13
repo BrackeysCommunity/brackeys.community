@@ -66,8 +66,12 @@ const forceAreaFields = {
 export type ForceAreaBlock = z.infer<z.ZodObject<typeof forceAreaFields>>;
 
 export type ForceAreaSystem = BehaviorSystem<ForceAreaBlock> & {
-  /** The summed acceleration every area containing `point` gives, m/s²: what a kinematic controller adds. */
-  sample(point: Vec2): Vec2;
+  /**
+   * The summed acceleration every area containing `point` gives, m/s²: what
+   * a kinematic controller adds. With `entityId`, only the areas whose
+   * `affects` takes that entity count, by the rule they push bodies by.
+   */
+  sample(point: Vec2, entityId?: string): Vec2;
 };
 
 /** The refusal of a force area whose collider isn't a sensor, at validation and at attach alike. */

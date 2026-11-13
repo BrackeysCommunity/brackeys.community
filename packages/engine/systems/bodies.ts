@@ -589,10 +589,13 @@ export type SolidSystem = SceneSystem<SolidEntity> & {
   /** `gateOneWaySides` for the `"up"` solids alone, by the actor's bottom edge; other sides are left as they are. */
   gateOneWay(actorBottomY: number, dropping: boolean): void;
   /**
-   * Gates the one-way entities for the actor `actorId` alone, by the rule
-   * `gateOneWaySides` uses: the colliders it passes go into
-   * `oneWayPasses(ctx, actorId)` for its own sweeps to skip, and the world is
-   * left as it is, so every other actor and body still meets them.
+   * Gates the one-way entities for the actor `actorId` alone: each holds it
+   * while it is on that solid's one-way side, and `passing` (rising, or
+   * dropping through) lets it through the `"up"` solids alone, as
+   * `gateOneWay` does; a `"down"`, `"left"` or `"right"` solid goes by side
+   * only. The colliders it passes go into `oneWayPasses(ctx, actorId)` for
+   * its own sweeps to skip, and the world is left as it is, so every other
+   * actor and body still meets them.
    */
   passesOneWay(actorId: string, actor: Aabb, passing: boolean): void;
   isHidden(id: string): boolean;
@@ -634,9 +637,18 @@ function actorPasses(ctx: EngineContext, actorId: string): ActorPasses {
 const passesOf = (ctx: EngineContext, actorId: string): Set<number> =>
   actorPasses(ctx, actorId).all;
 
-/** Forgets an actor that is gone, with every solid system's passes for it. */
-export function forgetOneWayActor(ctx: EngineContext, actorId: string): void {
-  actorsOf(ctx).delete(actorId);
+/**
+ * Forgets an actor that is gone, with every solid system's passes for it.
+ * With `passes` (the set `oneWayPasses` gave), only while that set is still
+ * the actor's: a body made for it since keeps its own.
+ */
+export function forgetOneWayActor(
+  ctx: EngineContext,
+  actorId: string,
+  passes?: ReadonlySet<number>,
+): void {
+  const actors = actorsOf(ctx);
+  if (passes === undefined || actors.get(actorId)?.all === passes) actors.delete(actorId);
 }
 
 /**
@@ -887,7 +899,7 @@ export function createSolidSystem(
       for (const handle of mine) all.delete(handle);
       mine.clear();
       eachOneWay(null, (_id, side, box, handle) => {
-        const passes = passing || !onOneWaySide(side, box, actor);
+        const passes = (passing && side === "up") || !onOneWaySide(side, box, actor);
         if (!passes || handle === undefined) return;
         mine.add(handle);
         all.add(handle);

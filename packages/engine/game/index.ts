@@ -189,6 +189,7 @@ export {
   ENGINE_TOOL_IDS,
   EngineError,
   PRIMITIVE_TYPES,
+  scopedRef,
 } from "./types";
 export type {
   ActionDef,
@@ -319,6 +320,7 @@ export {
   createSensorSystem,
   createSolidSystem,
   drawEntity,
+  forgetOneWayActor,
   oneWayPasses,
   restoreOverlaps,
   saveOverlaps,
@@ -333,7 +335,7 @@ export type {
   VisualOptions,
 } from "../systems/bodies";
 export { kinematicBodyEntry, rapierBodyEntry, registerBody } from "../runtime/bodies-control";
-export type { BodyEntry } from "../runtime/bodies-control";
+export type { BodyEntry, BodyStandIn } from "../runtime/bodies-control";
 export { parseShape } from "../scene/shapes";
 export type { ParseShapeResult } from "../scene/shapes";
 export { drawShape, traceShape } from "../render/draw-shape";

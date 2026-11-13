@@ -7,7 +7,7 @@ import { shapeColliderDesc } from "../physics";
 import { kinematicBodyEntry, registerBody } from "../runtime/bodies-control";
 import type { SpaceCastHit, SpaceFilter } from "../runtime/space";
 import type { ShapeObj } from "../scene/types";
-import { computeMovementSkipping, oneWayPasses } from "../systems/bodies";
+import { computeMovementSkipping, forgetOneWayActor, oneWayPasses } from "../systems/bodies";
 import type { Vec2 } from "../types";
 
 /** State an object game code made for an entity holds, for a world save. */
@@ -66,6 +66,7 @@ export interface MotionBody {
   /** m/s, kept for the controller moving it (`createTopDownController`); a world save keeps it. */
   velocity(): Vec2;
   setVelocity(v: Vec2): void;
+  /** Takes it out of the world and `ctx.bodies`, and forgets the entity's `oneWayPasses`. */
   destroy(): void;
 }
 
@@ -272,6 +273,7 @@ export function createMotionBody(
       ? rapierBackend(ctx, entity.id, at, opts, groups, tag)
       : geometryBackend(ctx, entity.id, at, opts, group, tag);
 
+  const passes = oneWayPasses(ctx, entity.id);
   let pos: Vec2 = { x: at.x, y: at.y };
   let velocity: Vec2 = { x: 0, y: 0 };
   let enabled = true;
@@ -334,6 +336,7 @@ export function createMotionBody(
       unregister?.();
       unregisterBody();
       backend.destroy();
+      forgetOneWayActor(ctx, entity.id, passes);
     },
   };
   const unregisterBody = registerBody(

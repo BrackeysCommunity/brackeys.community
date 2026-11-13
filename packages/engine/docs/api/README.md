@@ -12,7 +12,7 @@ Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regene
 | [`@jams/engine/editor`](editor.md) | 329 |
 | [`@jams/engine/editor-ui`](editor-ui.md) | 57 |
 | [`@jams/engine/export`](export.md) | 40 |
-| [`@jams/engine/game`](game.md) | 433 |
+| [`@jams/engine/game`](game.md) | 436 |
 | [`@jams/engine/headless`](headless.md) | 161 |
 | [`@jams/engine/project`](project.md) | 298 |
 | [`@jams/engine/scene`](scene.md) | 356 |

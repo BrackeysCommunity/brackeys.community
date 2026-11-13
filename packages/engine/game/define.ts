@@ -576,6 +576,7 @@ export function createRegistry(
   }
 
   for (const t of types.values()) {
+    if (t.ownsBody === undefined && t.base && types.get(t.base)?.ownsBody) t.ownsBody = true;
     checkTypeBehaviors(t, behaviors, problem);
     for (const ref of t.refs ?? []) {
       if (!(ref.field in t.shape))

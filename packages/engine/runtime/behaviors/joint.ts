@@ -62,7 +62,11 @@ const inverse = (dynamic: boolean, amount: number): number =>
 export const createJointSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const linked = new Map<string, Linked>();
 
-  /** The body that holds `id`'s first collider that isn't a sensor, in handle order. */
+  /**
+   * The body that holds `id`'s first collider that isn't a sensor, in handle
+   * order: what validation's `joint-ref-type` expects of an entity with a
+   * body, a non-sensor collider, or a type that declares `ownsBody`.
+   */
   function bodyOf(physics: PhysicsWorld, id: string, cached: number | null): RigidBody | null {
     if (cached !== null) {
       const body = physics.world.bodies.get(cached);

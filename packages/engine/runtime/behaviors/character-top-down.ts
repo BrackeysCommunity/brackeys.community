@@ -19,8 +19,6 @@ import {
 } from "../../motion/index";
 import { parseShape } from "../../scene/shapes";
 import type { RuntimeEntity } from "../../scene/types";
-import { forgetOneWayActor } from "../../systems/bodies";
-import type { BodyStandIn } from "../bodies-control";
 
 type Vec = { x: number; y: number };
 
@@ -55,7 +53,7 @@ function bodyKindOf(e: RuntimeEntity): string | null {
  */
 export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const characters = new Map<string, Character>();
-  const colliders = () => ctx.behavior<ColliderSystem & BodyStandIn>(COLLIDER.name);
+  const colliders = () => ctx.behavior<ColliderSystem>(COLLIDER.name);
   const seats = () => ctx.behavior<PlayerInputSystem>(PLAYER_INPUT.name);
 
   function make(e: RuntimeEntity, at: Vec): MotionBody {
@@ -135,7 +133,6 @@ export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineC
     if (!c) return;
     characters.delete(id);
     c.body.destroy();
-    forgetOneWayActor(ctx, id);
     if (ctx.exists(id)) colliders()?.release(id);
   }
 
@@ -167,7 +164,7 @@ export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineC
       for (const [id, c] of characters) {
         if (c.disabled) continue;
         if (forces) {
-          const a = forces.sample(c.body.position());
+          const a = forces.sample(c.body.position(), id);
           if (a.x !== 0 || a.y !== 0) {
             const v = c.body.velocity();
             c.body.setVelocity({ x: v.x + a.x * dt, y: v.y + a.y * dt });

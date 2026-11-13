@@ -1369,8 +1369,10 @@ A missing `requires` (a `body` with no `collider`, a `joint` with no
 `body`) is `behavior-missing`, and a block on a type that owns a body is
 `behavior-forbidden`. Two more codes come from a running game: code that
 moves a body through `ctx.bodies` by an id with no body throws
-`body-missing`, and a force, torque or impulse on a kinematic or static
-body throws `body-not-dynamic`. A playtest or `step` that hits either ends
+`body-missing`, and a write a body doesn't take throws `body-not-dynamic`:
+a force, torque or impulse on a kinematic or static body, a velocity on a
+static body or a follower (its path sets it), or an angular velocity on a
+kinematic body. A playtest or `step` that hits either ends
 `blocked` at stage `run`, the code on its issue.
 
 **Playing them.** The behaviors raise `character:jumped`,
@@ -3222,15 +3224,15 @@ Standard behaviors add these;
 the first five, and a running game throws the last two as an
 `EngineError` from `ctx.bodies`:
 
-| Code                  | Severity | Meaning                                                                                                                           | Fix                                                        |
-| --------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `behavior-conflict`   | error    | An entity carries two behaviors that can't share it, such as both character controllers.                                          | unset one of the two blocks                                |
-| `character-body-kind` | error    | A character behavior is on an entity whose body is dynamic, so the controller and the physics solver would both move it.          | set the body's `kind` to `kinematic` (fix), or unset it    |
-| `nav-missing`         | warn     | An entity carries `nav-agent`, but the scene has no walk area for it to walk.                                                     | add a `nav` walk area, or unset the block                  |
-| `joint-ref-type`      | error    | A joint's `to` names an entity with no body to hold: no `body` or `collider` and not a solid, prop or follower, or only a sensor. | point `to` at an entity with a body or a solid collider    |
-| `joint-self`          | error    | A joint's `to` names the entity that carries it.                                                                                  | point `to` at the other entity                             |
-| `body-missing`        | error    | `ctx.bodies` was asked about an entity id that has no body.                                                                       | give the entity a body, or check `ctx.bodies.has(id)`      |
-| `body-not-dynamic`    | error    | A force, torque or impulse went through `ctx.bodies` to a kinematic or static body, which forces don't move.                      | make the body dynamic, or move a kinematic one by velocity |
+| Code                  | Severity | Meaning                                                                                                                                                                                                                       | Fix                                                                                                                               |
+| --------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `behavior-conflict`   | error    | An entity carries two behaviors that can't share it, such as both character controllers.                                                                                                                                      | unset one of the two blocks                                                                                                       |
+| `character-body-kind` | error    | A character behavior is on an entity whose body is dynamic, so the controller and the physics solver would both move it.                                                                                                      | set the body's `kind` to `kinematic` (fix), or unset it                                                                           |
+| `nav-missing`         | warn     | An entity carries `nav-agent`, but the scene has no walk area for it to walk.                                                                                                                                                 | add a `nav` walk area, or unset the block                                                                                         |
+| `joint-ref-type`      | error    | A joint's `to` names an entity with no body to hold: no `body` or `collider` and not a solid, prop or follower, or only a sensor.                                                                                             | point `to` at an entity with a body or a solid collider                                                                           |
+| `joint-self`          | error    | A joint's `to` names the entity that carries it.                                                                                                                                                                              | point `to` at the other entity                                                                                                    |
+| `body-missing`        | error    | `ctx.bodies` was asked about an entity id that has no body.                                                                                                                                                                   | give the entity a body, or check `ctx.bodies.has(id)`                                                                             |
+| `body-not-dynamic`    | error    | A `ctx.bodies` write went to a body that doesn't take it: a force, torque or impulse to a kinematic or static body, a velocity to a static body or a follower (its path sets it), or an angular velocity to a kinematic body. | check `ctx.bodies.kind(id)` first; push only a dynamic body, move a kinematic one with `setVelocity`, a follower through its path |
 
 ## The agent surface version
 

@@ -597,6 +597,12 @@ export type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
    * draw the landing side.
    */
   oneWay?: true | Side;
+  /**
+   * Its system gives each entity a physics body with a collider that isn't a
+   * sensor, as solid, prop and follower do: a joint's `to` can name it.
+   * Omitted, a type with a `base` takes its base primitive's.
+   */
+  ownsBody?: true;
   inspector?: { label?: string; group?: string; order?: readonly string[] };
   /** Whether the type can load in a scene with physics "none"; default its base primitive's, else "optional". */
   physics?: "required" | "optional";

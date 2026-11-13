@@ -16,7 +16,9 @@ import {
   lengthStep,
   modelBatch,
   modelOps,
+  overlappingKeys,
   paramBatch,
+  paramOverriddenBy,
   parseRelative,
   refCandidates,
   shapeConversions,
@@ -554,6 +556,28 @@ describe("instance parameters", () => {
       widget: { kind: "number", unit: "m/s" },
       defaultValue: 20,
     });
+  });
+
+  it("names the overrides that beat a param's target, at, above or under it", () => {
+    const shadowed: SceneDefinition = {
+      ...placed,
+      instances: [
+        { ...placed.instances![0]!, overrides: { "lift.path": { speed: 9 }, "knob.at": [1, 1] } },
+        {
+          ...placed.instances![1]!,
+          overrides: { "gate-1.params.mode": "on", "gate-1/lift.path.speed": 3 },
+        },
+      ],
+    };
+    const of = (ref: string, name: string) => {
+      const m = instanceParamsModel(shadowed, ref, registry, prefabs)!;
+      return paramOverriddenBy(shadowed, m, m.params.find((p) => p.name === name)!);
+    };
+    expect(of("gate-2", "speed")).toEqual(["lift.path"]);
+    expect(of("gate-2", "mode")).toEqual([]);
+    expect(of("room-1/gate-1", "speed")).toEqual(["gate-1/lift.path.speed"]);
+    expect(of("room-1/gate-1", "mode")).toEqual([]);
+    expect(overlappingKeys(["a.b", "a.bc", "a.b.c", "a"], "a.b")).toEqual(["a.b", "a.b.c", "a"]);
   });
 
   it("is null for a ref that names no instance or a missing prefab", () => {
@@ -1214,6 +1238,26 @@ describe("standard behavior fields", () => {
     expect(
       names(at({ ...sensor, "force-area": { kind: "point", strength: 5 } }), "force-area"),
     ).toEqual(["kind", "strength", "falloff", "drag", "affects"]);
+  });
+
+  it("groups path-follow's path, with units on its speed and pause", () => {
+    const def = at({
+      "path-follow": {
+        path: {
+          pts: [
+            [0, 0],
+            [2, 0],
+          ],
+          mode: "loop",
+          speed: 1,
+        },
+      },
+    });
+    const m = buildInspectorModel(engine, [lookupRef(def, "hero")!], { def });
+    const path = field(m, "behaviors.path-follow.path");
+    expect(path.group).toBe("motion");
+    expect(field(m, "behaviors.path-follow.path.speed").widget).toMatchObject({ unit: "m/s" });
+    expect(field(m, "behaviors.path-follow.path.pauseMs").widget).toMatchObject({ unit: "ms" });
   });
 
   it("starts an added path from the entity, since its waypoints are world metres", () => {

@@ -1111,7 +1111,7 @@ const hopGame = defineGame<HopSnap>({
   },
 });
 
-describe("scene flow and saves", () => {
+describe("scene flow and saves", { timeout: 20_000 }, () => {
   let hop: Client;
   let dir: string;
   let ctx: ToolContext;

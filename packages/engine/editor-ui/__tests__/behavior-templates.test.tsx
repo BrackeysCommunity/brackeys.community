@@ -291,7 +291,7 @@ describe("EditorInspector: standard behavior fields", () => {
     expect(jump.textContent).toBe("jump (default)");
     const kind = within(section("Body")).getByRole("group", { name: "behaviors.body.kind" });
     expect(within(kind).getByText("dynamic").closest(".je-insp-default-choice")).toBeTruthy();
-    expect(within(section("Body")).getByText("dynamic (default)")).toBeTruthy();
+    expect(within(section("Body")).queryByText("dynamic (default)")).toBeNull();
   });
 
   it("leaves off a sub-heading that repeats the section's title", () => {

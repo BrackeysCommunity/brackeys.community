@@ -150,6 +150,48 @@ describe("force-area", () => {
     rt.destroy();
   });
 
+  it("lifts only the characters affects takes: by tag and by collision group", () => {
+    const character = (
+      id: string,
+      at: [number, number],
+      kind: "character-side-view" | "character-top-down",
+      extra: { group?: string; tags?: string[] } = {},
+    ): EntityDef => ({
+      id,
+      type: "marker",
+      at,
+      ...(extra.tags ? { tags: extra.tags } : {}),
+      behaviors: {
+        collider: {
+          shape: ["box", 0, 0, 0.2, 0.2],
+          ...(extra.group ? { group: extra.group } : {}),
+        },
+        [kind]: {},
+      },
+    });
+    for (const kind of ["character-side-view", "character-top-down"] as const) {
+      const rt = load([
+        // Past the top-down character's decel, so it moves too.
+        area("updraft", { force: [0, -60], affects: { tags: ["crate"] } }, ["box", 0, 0, 3, 3]),
+        area("vent", { force: [0, -60], affects: { groups: ["debris"] } }, ["box", 10, 0, 3, 3]),
+        character("hero", [0, 0], kind),
+        character("boxed", [1.5, 0], kind, { tags: ["crate"] }),
+        character("plain", [10, 0], kind),
+        character("scrap", [11.5, 0], kind, { group: "debris" }),
+      ]);
+      expect(areas(rt).sample({ x: 0, y: 0 }, "hero")).toEqual({ x: 0, y: 0 });
+      expect(areas(rt).sample({ x: 0, y: 0 }, "boxed")).toEqual({ x: 0, y: -60 });
+      expect(areas(rt).sample({ x: 0, y: 0 })).toEqual({ x: 0, y: -60 });
+      steps(rt, 5);
+      const y = (id: string) => rt.ctx.poses.get(id)!.y;
+      expect(y("hero"), kind).toBe(0);
+      expect(y("plain"), kind).toBe(0);
+      expect(y("boxed"), kind).toBeLessThan(-0.01);
+      expect(y("scrap"), kind).toBeLessThan(-0.01);
+      rt.destroy();
+    }
+  });
+
   it("samples the acceleration a dynamic body inside feels, summed over overlapping areas", () => {
     const rt = load([
       area("well", { kind: "point", strength: 6, falloff: "linear" }, ["circle", 0, 0, 5]),

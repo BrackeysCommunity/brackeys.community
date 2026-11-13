@@ -141,6 +141,15 @@ function valueSpecifiers(file: string, text = readFileSync(file, "utf8")): strin
   return found;
 }
 
+/** Each file's value specifiers, parsed once for every walk that reaches it. */
+const parsed = new Map<string, string[]>();
+
+function fileSpecifiers(file: string): string[] {
+  let specifiers = parsed.get(file);
+  if (!specifiers) parsed.set(file, (specifiers = valueSpecifiers(file)));
+  return specifiers;
+}
+
 /** Every value-import chain from `entries` that ends in a server-only module. */
 function serverOnlyChains(entries: readonly string[]): string[] {
   const parent = new Map<string, string | undefined>();
@@ -159,7 +168,7 @@ function serverOnlyChains(entries: readonly string[]): string[] {
   };
   while (queue.length > 0) {
     const file = queue.shift()!;
-    for (const specifier of valueSpecifiers(file)) {
+    for (const specifier of fileSpecifiers(file)) {
       if (isServerOnly(specifier)) {
         chains.push([...chainOf(file), specifier].join(" -> "));
         continue;

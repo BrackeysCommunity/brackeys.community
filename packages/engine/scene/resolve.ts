@@ -1,3 +1,4 @@
+import { BEHAVIORS_FIELD } from "../game/behaviors";
 import type { Registry } from "../game/types";
 import { bulkId } from "./bulk-ref";
 import { isInstanceOverrideField, splitChildRef, splitOverridePath } from "./field-path";
@@ -1055,7 +1056,17 @@ function nestedThrough(
 
 type ChildTarget = NonNullable<ReturnType<typeof childTarget>>;
 
-/** The top-level fields of a child that `after` changed, as override set and revert paths. */
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+
+/**
+ * The fields of a child that `after` changed, as override set and revert
+ * paths. A changed behavior field is overridden on its own
+ * (`hero.behaviors.<name>.<field>`), so the instance keeps its prefab's
+ * other blocks and the params aimed at them; a block added or dropped
+ * whole, or one an existing override already covers whole, is overridden
+ * at that level. Every other field is overridden whole.
+ */
 function overrideOps(
   inst: InstanceDef,
   base: LocalChild,
@@ -1069,24 +1080,40 @@ function overrideOps(
     const info = registry.bulkKey(c.key);
     return info ? { [info.field]: c.value } : {};
   };
-  const b = fieldsOf(before);
-  const a = fieldsOf(after);
-  const o = fieldsOf(base);
+  const keys = Object.keys(inst.overrides ?? {});
   const set: Record<string, unknown> = {};
   const revert: string[] = [];
   const same = (x: unknown, y: unknown) => JSON.stringify(x) === JSON.stringify(y);
-  for (const field of new Set([...Object.keys(b), ...Object.keys(a)])) {
-    if (field === "id" || field === "type" || same(a[field], b[field])) continue;
-    const path = `${before.child}.${field}`;
-    if (same(a[field], o[field])) {
-      const keys = Object.keys(inst.overrides ?? {});
-      revert.push(...keys.filter((p) => p === path || p.startsWith(`${path}.`)));
-    } else if (a[field] === undefined) {
+  const leaf = (path: string, a: unknown, o: unknown, label: string) => {
+    if (same(a, o)) revert.push(...keys.filter((p) => p === path || p.startsWith(`${path}.`)));
+    else if (a === undefined)
       refuse(
-        `Can't remove ${before.child}'s ${field} from one instance; edit the prefab.`,
+        `Can't remove ${before.child}'s ${label} from one instance; edit the prefab.`,
         inst.id,
       );
-    } else set[path] = clone(a[field]);
+    else set[path] = clone(a);
+  };
+  /** Descends `depth` more levels while both sides are objects that keep every key the prefab has. */
+  const diff = (path: string, a: unknown, b: unknown, o: unknown, depth: number, label: string) => {
+    if (same(a, b)) return;
+    const deeper =
+      depth > 0 &&
+      !keys.includes(path) &&
+      isPlainObject(a) &&
+      isPlainObject(b) &&
+      Object.keys(b).every((k) => a[k] !== undefined || !isPlainObject(o) || o[k] === undefined);
+    if (!deeper) return leaf(path, a, o, label);
+    const from = isPlainObject(o) ? o : {};
+    for (const k of new Set([...Object.keys(b), ...Object.keys(a)]))
+      diff(`${path}.${k}`, a[k], b[k], from[k], depth - 1, `${label}.${k}`);
+  };
+  const b = fieldsOf(before);
+  const a = fieldsOf(after);
+  const o = fieldsOf(base);
+  for (const field of new Set([...Object.keys(b), ...Object.keys(a)])) {
+    if (field === "id" || field === "type") continue;
+    const depth = before.kind === "entity" && field === BEHAVIORS_FIELD ? 2 : 0;
+    diff(`${before.child}.${field}`, a[field], b[field], o[field], depth, field);
   }
   const ops: SceneOp[] = [];
   if (revert.length > 0) ops.push({ op: "revertOverride", ref: inst.id, paths: revert });

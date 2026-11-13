@@ -833,6 +833,7 @@ BodyBlock
 BodyControl
 BodyEntry
 BodyKind
+BodyStandIn
 BulkKeyInfo
 CAMERA_TARGET
 CHARACTER_JUMPED
@@ -1166,6 +1167,7 @@ fieldOfView
 findPath
 flowField
 flowIssue
+forgetOneWayActor
 formatSaveFile
 gridField
 gridFieldInfo
@@ -1224,6 +1226,7 @@ saveOverlaps
 savePathPlace
 scaleLengths
 sceneGrid
+scopedRef
 seekAlongPath
 shapeColliderDesc
 shapeField
@@ -5261,7 +5264,7 @@ declare const COLLIDER: BehaviorDef<{
     shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
 }>;
 type ColliderBlock = z.infer<z.ZodObject<ReturnType<typeof colliderFields>>>;
-type ColliderSystem = BehaviorSystem<ColliderBlock> & {
+type ColliderSystem = BehaviorSystem<ColliderBlock> & BodyStandIn & {
     has(entityId: string): boolean;
     rebuild(entityId: string): void;
 };
@@ -5301,7 +5304,7 @@ declare const FORCE_AREA: BehaviorDef<{
 }>;
 type ForceAreaBlock = z.infer<z.ZodObject<typeof forceAreaFields>>;
 type ForceAreaSystem = BehaviorSystem<ForceAreaBlock> & {
-    sample(point: Vec2): Vec2;
+    sample(point: Vec2, entityId?: string): Vec2;
 };
 declare const forceAreaFields: {
     affects: z.ZodOptional<z.ZodObject<{
@@ -5929,6 +5932,7 @@ declare const PRIMITIVES: {
             }, z.core.$strict>;
             shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
         };
+        ownsBody: true;
         physics: "optional";
         style: {
             alpha: number;
@@ -6006,6 +6010,7 @@ declare const PRIMITIVES: {
             restitution: z.ZodNumber;
             shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
         };
+        ownsBody: true;
         physics: "required";
         style: {
             alpha: number;
@@ -6058,6 +6063,7 @@ declare const PRIMITIVES: {
             oneWay: z.ZodOptional<z.ZodType<Side | true, unknown, z.core.$ZodTypeInternals<Side | true, unknown>>>;
             shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
         };
+        ownsBody: true;
         physics: "optional";
         style: {
             alpha: number;
@@ -6467,6 +6473,7 @@ type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
     };
     loads?: boolean;
     oneWay?: Side | true;
+    ownsBody?: true;
     physics?: "optional" | "required";
     refs?: {
         field: string;
@@ -6888,6 +6895,7 @@ interface Timers {
     cancel(id: number): void;
     readonly size: number;
 }
+declare function scopedRef(from: string, ref: string, has: (id: string) => boolean): string;
 
 ## game/units.ts
 declare function lengthUnitOf(schema: z.core.$ZodType): LengthUnitName | undefined;
@@ -9960,6 +9968,10 @@ type BodyEntry = {
     wake(): void;
 };
 type BodyKind = "dynamic" | "kinematic" | "static";
+type BodyStandIn = {
+    release(entityId: string): void;
+    standIn(entityId: string): void;
+};
 declare function kinematicBodyEntry(id: string, motion: {
     setVelocity?(v: Vec2): void;
     velocity(): Vec2;
@@ -14406,6 +14418,7 @@ declare function drawEntity(ctx: Pick<EngineContext, "registry" | "view">, type:
     shape: ShapeObj;
     z?: number;
 }, layer: ViewLayer, shape?: ShapeObj): void;
+declare function forgetOneWayActor(ctx: EngineContext, actorId: string, passes?: ReadonlySet<number>): void;
 declare function oneWayPasses(ctx: EngineContext, actorId: string): ReadonlySet<number>;
 declare function restoreOverlaps(tags: ColliderTags, saved: JsonValue | undefined): Overlaps;
 declare function saveOverlaps(tags: ColliderTags, overlaps: Overlaps): SavedOverlap[];

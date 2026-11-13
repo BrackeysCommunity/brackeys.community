@@ -34,7 +34,12 @@ async function setHeader(file: string, assets: string[]) {
   await writeFile(path, `${JSON.stringify({ ...json, assets })}\n`);
 }
 
-beforeEach(async () => {
+/** The running setup: a timed-out one still writes under `root`, so teardown waits for it before removing it. */
+let setUp: Promise<void> = Promise.resolve();
+
+beforeEach(() => (setUp = setUpDeck()));
+
+async function setUpDeck() {
   root = await mkdtemp(join(tmpdir(), "scene-bundle-"));
   deck = join(root, "deck");
   await cp(ENGINE_SCENES, deck, { recursive: true });
@@ -48,9 +53,10 @@ beforeEach(async () => {
     const r = await run(...argv);
     if (r.exitCode !== 0) throw new Error(JSON.stringify(r.data));
   }
-});
+}
 
 afterEach(async () => {
+  await setUp.catch(() => undefined);
   await rm(root, { recursive: true, force: true });
 });
 

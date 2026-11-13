@@ -49,6 +49,7 @@ describe("behavior-yard.json", () => {
       ["reaches-goal", "reaches"],
       ["chain-holds", "reaches"],
       ["courier-arrives", "reaches"],
+      ["ledge-route", "reaches"],
     ]);
     for (const r of report.results) {
       expect(r.skipped, r.id).toBeUndefined();
@@ -78,7 +79,41 @@ describe("behavior-yard.json", () => {
     expect(result?.pass, result?.message).toBe(true);
   });
 
-  it("follows the runner at weight 1 and the walker at 0.25, as its note says", () => {
+  it("gives the runner its exposed jumpHeight, unshadowed by an override", () => {
+    const runner = scene.instances?.find((i) => i.id === "runner");
+    expect(runner?.params).toEqual({ jumpHeight: 2 });
+    const hero = resolveScene(scene, registry, prefabs).entities?.find(
+      (e) => e.id === "runner/hero",
+    );
+    const side = (hero?.behaviors as Record<string, { jumpHeight?: number }> | undefined)?.[
+      "character-side-view"
+    ];
+    expect(side?.jumpHeight).toBe(2);
+    expect(scene.entities?.find((e) => e.id === "about")?.text).toContain("jumpHeight 2");
+  });
+
+  it("fails ledge-route when the runner can't jump high enough to land on the ledge", () => {
+    const ledge = checks.checks.find((c) => c.id === "ledge-route")!;
+    const low = {
+      ...scene,
+      instances: scene.instances?.map((i) =>
+        i.id === "runner" ? { ...i, params: { jumpHeight: 1 } } : i,
+      ),
+    };
+    const report = runChecks({
+      rapier,
+      scene: low,
+      prefabs,
+      registry,
+      checks: { ...checks, checks: [ledge] },
+      readFile: read,
+    });
+    const [result] = report.results;
+    expect(result?.pass).toBe(false);
+    expect(result?.message).toMatch(/expect\.event/);
+  });
+
+  it("follows the runner at weight 1 and the walker at 0.1, as its note says", () => {
     const targets = (resolveScene(scene, registry, prefabs).entities ?? []).flatMap((e) => {
       const behaviors = e.behaviors as
         | Record<string, { weight?: number; seat?: number }>
@@ -88,7 +123,7 @@ describe("behavior-yard.json", () => {
     });
     expect(targets).toEqual([
       ["runner/hero", 1, null],
-      ["walker/hero", 0.25, 1],
+      ["walker/hero", 0.1, 1],
     ]);
     const about = scene.entities?.find((e) => e.id === "about")?.text;
     expect(about).toContain("weighted centre");

@@ -11,6 +11,7 @@ import { scopedRef, type EngineContext, type JsonValue } from "../../game/types"
 import { createMotionBody, type MotionBody } from "../../motion/index";
 import { parseShape } from "../../scene/shapes";
 import type { Aabb, RuntimeEntity } from "../../scene/types";
+import { seedFromString } from "../../sim-kit/rng";
 import { forgetOneWayActor } from "../../systems/bodies";
 import type { BodyStandIn } from "../bodies-control";
 import type { RuntimeNav } from "../nav";
@@ -30,8 +31,10 @@ type Agent = {
   /** Its entity's type. */
   type: string;
   block: NavAgentBlock;
-  /** Its place among the agents attached since the load: what staggers its repaths. */
+  /** Its place in the step order: agents step in the order they attached. */
   order: number;
+  /** Where in each `repathTicks` period it plans again while following, from its id alone so a restore keeps it. */
+  phase: number;
   /** False while the entity is disabled. */
   on: boolean;
   /** A point destination, world m; null when it follows an entity or has none. */
@@ -108,7 +111,7 @@ function clearCorners(path: Vec2[], clearance: number, nav: RuntimeNav): Vec2[] 
 /**
  * The `nav-agent` system: each agent walks its route across `ctx.nav` to a
  * point, or after an entity it plans toward again every `repathTicks`
- * (staggered by attach order), at `speed` and pushed off the agents within
+ * (staggered by entity id), at `speed` and pushed off the agents within
  * its `radius`. Agents step in attach order, so in spawn order. It arrives
  * within `arrive` of a point (within `arrive + radius` of an entity) and
  * raises `nav:arrived`; with no route, or no progress along it for
@@ -116,8 +119,8 @@ function clearCorners(path: Vec2[], clearance: number, nav: RuntimeNav): Vec2[] 
  * with a solid `collider` moves through a motion body of the collider's
  * shape, sliding along what it meets, and the collider system's own copy
  * of the collider leaves the world while it does; any other moves by pose.
- * Both stay on the walk areas. A world save holds the destination, the
- * route and its timers.
+ * Both stay on the walk areas. A world save holds each agent's place in
+ * the step order, its destination, its route and its timers.
  */
 export const createNavAgentSystem: BehaviorSystemFactory = (
   ctx: EngineContext,
@@ -126,6 +129,8 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
   const schema = z.object(def.shape);
   const agents = new Map<string, Agent>();
   let attached = 0;
+  /** A restore set saved step orders, and `agents` is to be put back in that order. */
+  let reorder = false;
   /** How many agents each entity type holds; the separation query looks at those types only. */
   const typeCounts = new Map<string, number>();
   const neighbours: { type: string | string[] } = { type: [] };
@@ -410,6 +415,7 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
         type: entity.type,
         block: withDefaults(block),
         order: attached++,
+        phase: seedFromString(id),
         on: true,
         to: null,
         target: null,
@@ -451,6 +457,12 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
     },
     beforeStep(dtMs) {
       if (agents.size === 0) return;
+      if (reorder) {
+        reorder = false;
+        const sorted = [...agents.values()].sort((a, b) => a.order - b.order);
+        agents.clear();
+        for (const a of sorted) agents.set(a.id, a);
+      }
       const dt = dtMs / 1000;
       for (const a of agents.values()) if (a.on) tick(a, dt);
     },
@@ -474,8 +486,7 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       else a.to = { x: to.x, y: to.y };
       a.stuck = 0;
       plan(a);
-      // Followers spread their repaths across the period by the order they attached in.
-      if (a.target !== null) a.repathIn = a.block.repathTicks - (a.order % a.block.repathTicks);
+      if (a.target !== null) a.repathIn = a.block.repathTicks - (a.phase % a.block.repathTicks);
     },
     stop(id) {
       const a = agents.get(id);
@@ -492,16 +503,17 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       typeCounts.clear();
       neighbours.type = [];
       attached = 0;
+      reorder = false;
     },
     size: () => agents.size,
     save(id) {
       const a = agents.get(id);
       if (!a) return undefined;
-      // Idle, but its block names a destination: saved so a restore doesn't walk it there again.
-      if (a.to === null && a.target === null) return a.block.to !== undefined ? {} : undefined;
+      // Saved idle too: a restore then neither walks it to its block's destination again nor moves it in the step order.
+      if (a.to === null && a.target === null) return { order: a.order };
       const state: { [key: string]: JsonValue } = a.to
-        ? { to: [a.to.x, a.to.y] }
-        : { target: a.target };
+        ? { order: a.order, to: [a.to.x, a.to.y] }
+        : { order: a.order, target: a.target };
       if (a.path) state.path = a.path.map((w) => [w.x, w.y]);
       state.next = a.next;
       if (a.target !== null) state.repathIn = a.repathIn;
@@ -514,7 +526,12 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       const a = agents.get(id);
       if (!a || !isRecord(state)) return;
       end(a);
-      const { to, target, path, next, repathIn, best, stuck, blocked } = state;
+      const { order, to, target, path, next, repathIn, best, stuck, blocked } = state;
+      if (isCount(order)) {
+        a.order = order;
+        if (order >= attached) attached = order + 1;
+        reorder = true;
+      }
       const point = readPoint(to);
       if (point) a.to = point;
       else if (typeof target === "string") {

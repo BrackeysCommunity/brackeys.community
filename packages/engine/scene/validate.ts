@@ -810,19 +810,17 @@ function checkSpawners(r: Registry, entities: readonly EntityDef[], push: Push):
   });
 }
 
-/** The types whose own system makes a body a joint can hold. */
-const BODY_TYPES: readonly string[] = ["solid", "prop", "follower"];
-
-/** Whether a joint can hold `e`: it carries a body, or a collider that isn't a sensor, or its type owns a body. */
+/**
+ * Whether a joint can hold `e`: it carries a body, or a collider that isn't
+ * a sensor, or its registered type declares `ownsBody`. The runtime holds
+ * the same entities, by the non-sensor collider on a body each one has.
+ */
 function holdsJoint(r: Registry, e: EntityDef): boolean {
   const blocks = behaviorBlocks(r, e.type, e[BEHAVIORS_FIELD]);
   if (blocks[BODY.name]) return true;
   const collider = blocks[COLLIDER.name];
   if (collider) return collider.sensor !== true;
-  const type = r.types.get(e.type);
-  return (
-    BODY_TYPES.includes(e.type) || (type?.base !== undefined && BODY_TYPES.includes(type.base))
-  );
+  return r.types.get(e.type)?.ownsBody === true;
 }
 
 /**

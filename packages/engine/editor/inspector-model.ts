@@ -14,7 +14,7 @@ import type { AssetKindName } from "../project/types";
 import { bulkKeysOf } from "../scene/expand";
 import { splitFieldPath } from "../scene/field-path";
 import { sceneHash } from "../scene/hash";
-import { childEntity, resolvePrefab, splitOverridePath } from "../scene/resolve";
+import { CHILD_SEPARATOR, childEntity, resolvePrefab, splitOverridePath } from "../scene/resolve";
 import { entitySchemaFor, fieldKind, InstanceSchema, unwrapSchema } from "../scene/schema";
 import { aabb, boxCorners, convexHull, isConvex } from "../scene/shape-geometry";
 import { parseShape, SHAPE_TYPES, shapeToTuple } from "../scene/shapes";
@@ -1341,6 +1341,28 @@ export type ParamModel = {
   /** The instance sets it (for a nested instance: an override on the scene instance does). */
   set: boolean;
 };
+
+/** The keys among `keys` that are `path`, under it, or above it: the ones that set some of its value. */
+export function overlappingKeys(keys: readonly string[], path: string): string[] {
+  return keys.filter((k) => k === path || k.startsWith(`${path}.`) || path.startsWith(`${k}.`));
+}
+
+/**
+ * The override keys on `model`'s scene instance that set part of what
+ * `param` feeds, so beat it there.
+ */
+export function paramOverriddenBy(
+  def: SceneDefinition,
+  model: InstanceParamsModel,
+  param: ParamModel,
+): OverridePath[] {
+  const inst = def.instances?.find((i) => i.id === model.instance);
+  const keys = Object.keys(inst?.overrides ?? {});
+  const prefix = model.nested !== undefined ? `${model.nested}${CHILD_SEPARATOR}` : "";
+  return keys.filter((k) =>
+    param.targets.some((t) => overlappingKeys([k], `${prefix}${t}`).length),
+  );
+}
 
 export type InstanceParamsModel = {
   ref: Ref;

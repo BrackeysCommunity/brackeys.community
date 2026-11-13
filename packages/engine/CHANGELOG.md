@@ -107,14 +107,19 @@ peer range that excludes the release that draws nothing on Apple GPUs.
 - `DEFAULT_ACTIONS`: the `move` (vector) and `jump` (button) actions a
   registry built without a game has.
 - `SolidSystem.passesOneWay(actorId, actor, passing)`: one-way gating for
-  one actor alone. The solids it passes go into `oneWayPasses(ctx,
+  one actor alone. Each solid holds the actor on its one-way side, and
+  `passing` lets it through the `up` solids alone; `down`, `left` and
+  `right` ones go by side. The solids it passes go into `oneWayPasses(ctx,
 actorId)`, which motion bodies and side-view controllers skip in their
   own sweeps and moves; the world, and every other actor and dynamic body,
   still meets them. `gateOneWay` and `gateOneWaySides` still gate the whole
   world.
 - `SpaceFilter.skip`: collider handles a query leaves out.
 - `oneWayPasses(ctx, actorId)` (`@jams/engine/game`): the one-way colliders
-  an actor passes, for a game's own sweeps.
+  an actor passes, for a game's own sweeps, and `forgetOneWayActor(ctx,
+actorId)` to drop them when the actor goes. A motion body's `destroy`
+  forgets its entity's, so a character, an agent or a game's own
+  controller built on one needs no call.
 - `character-top-down` behavior system: the entity's `collider` shape
   becomes a kinematic motion body (`createMotionBody`) walked by
   `createTopDownController` from its seat's `move` action (`inputFor`), or
@@ -135,8 +140,10 @@ actorId)`, which motion bodies and side-view controllers skip in their
   (or `setIntent` from code): it walks, and jumps with coyote time, a jump
   buffer and a jump cut, over slopes, steps and ground snap, through
   `createSideViewController`. It rides followers and kinematic
-  `path-follow` bodies, passes one-way solids per character (rising or
-  holding down; the passes go with it), takes force areas' `sample` as acceleration, pushes
+  `path-follow` bodies, passes `up` one-way solids per character while it
+  rises or holds down (a `down`, `left` or `right` one holds it from its
+  side; the passes go with it), takes force areas' `sample` for itself as
+  acceleration, pushes
   dynamic bodies with `pushDynamic`, and raises `character:jumped`,
   `character:left-ground` and `character:landed` (`CHARACTER_JUMPED`,
   `CHARACTER_LEFT_GROUND`, `CHARACTER_LANDED`; `other` is the ground's
@@ -171,8 +178,11 @@ actorId)`, which motion bodies and side-view controllers skip in their
   `none`, `linear` (to zero at the collider's farthest point) or
   `inverse-square` (past 1 m) falloff, plus `drag` against velocity;
   `affects` limits it by collision group and tag.
-  `ForceAreaSystem.sample(point)` returns the summed acceleration of every
-  area containing the point (drag aside) for kinematic controllers. A
+  `ForceAreaSystem.sample(point, entityId?)` returns the summed
+  acceleration of every area containing the point (drag aside) for
+  kinematic controllers; with an entity, only the areas whose `affects`
+  takes it, by the rule bodies are pushed by. Both characters pass their
+  own id, so a tag- or group-filtered area leaves the others alone. A
   world save keeps what is inside each area. Its collider must be a sensor:
   validation reports `schema` with a fix, and attach refuses it.
 - `joint` behavior: links an entity's body to the body of the entity its
@@ -186,7 +196,17 @@ actorId)`, which motion bodies and side-view controllers skip in their
   the relative speed with at most `maxForce`. A missing `anchorB` holds `to` at the point under `anchorA`
   when the joint is first made. Spring stiffness defaults to 100 N/m and
   damping to 1 N·s/m. Refusals: `joint-self`, `joint-ref-type`, and
-  `physics-required` in a scene without physics.
+  `physics-required` in a scene without physics. `to` holds an entity with
+  a `body`, a non-sensor `collider`, or a type that declares `ownsBody`.
+- `EntityTypeDef.ownsBody`: the type's system gives each entity a physics
+  body with a collider that isn't a sensor, so a joint's `to` may name it.
+  `solid`, `prop` and `follower` declare it, and a type with a `base`
+  takes its base's.
+- `ColliderSystem.standIn(id)` and `release(id)` (the `BodyStandIn` type,
+  from `@jams/engine/game`): a game's own controller takes an entity's body
+  over from the collider system as the characters and agents do, held
+  across rebuilds and the entity's disables and enables. `scopedRef` is
+  exported too, for a game's own entity references.
 - `until.near` in the input-script and checks schemas: the entity's pose
   within `within` metres of a point or another entity's pose.
 - `nav-agent`'s optional `to`: a point, world m, or an entity's id it walks
@@ -274,6 +294,8 @@ actorId)`, which motion bodies and side-view controllers skip in their
 
 ### Fixed
 
+- nav-agent repath stagger and spawner random fork now survive a world
+  restore.
 - Play starts on the game's own view: the camera takes zoom 1 and snaps to
   its target, where an editor zoomed out past the scene's bounds held it on
   the bounds' centre. Stop restores the editor camera as before.

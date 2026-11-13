@@ -18,9 +18,9 @@ import { createMotionBody, type MotionBody } from "../../motion/body";
 import { createSideViewController, type SideViewController } from "../../motion/side-view";
 import { parseShape } from "../../scene/shapes";
 import type { Aabb, RuntimeEntity, ShapeObj } from "../../scene/types";
-import { forgetOneWayActor, oneWayPasses, type SolidSystem } from "../../systems/bodies";
+import { oneWayPasses, type SolidSystem } from "../../systems/bodies";
 import { carrierDelta } from "../../systems/path-follower";
-import { kinematicBodyEntry, registerBody, type BodyStandIn } from "../bodies-control";
+import { kinematicBodyEntry, registerBody } from "../bodies-control";
 import type { SpaceCastHit, SpaceFilter, SpaceHit, SpaceQuery } from "../space";
 import { CHARACTER_JUMPED, CHARACTER_LANDED, CHARACTER_LEFT_GROUND } from "../types";
 
@@ -139,7 +139,8 @@ function readSaved(state: JsonValue): {
  * Each `beforeStep` it reads the entity's seat through `inputFor` (the move
  * action's x, or an axis's value, and the jump button), or the last
  * `setIntent` when the entity has no `player-input`; gates every solid
- * system's one-way solids for it, passing while it rises or holds down;
+ * system's one-way solids for it, passing up through a platform while it
+ * rises and down through one while it holds down;
  * rides what it stands on by `carrierDelta`; adds the force areas'
  * `sample` as acceleration; and steps. It raises `character:jumped`,
  * `character:left-ground` and `character:landed` (with the ground's entity
@@ -214,7 +215,7 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
 
   /** Takes the entity's body over from the collider system (`standIn`), and its `ctx.bodies` entry onto the controller. */
   function takeOver(c: Character): void {
-    ctx.behavior<ColliderSystem & BodyStandIn>(COLLIDER.name)?.standIn(c.id);
+    ctx.behavior<ColliderSystem>(COLLIDER.name)?.standIn(c.id);
     c.release();
     c.release = registerBody(
       ctx,
@@ -312,8 +313,7 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
     c.release();
     c.controller.destroy();
     c.body.destroy();
-    forgetOneWayActor(ctx, id);
-    if (giveBack) ctx.behavior<ColliderSystem & BodyStandIn>(COLLIDER.name)?.release(id);
+    if (giveBack) ctx.behavior<ColliderSystem>(COLLIDER.name)?.release(id);
   }
 
   /**
@@ -420,7 +420,7 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
     const carrier = ground ? carrierDelta(ctx, ground.handle) : null;
     if (ground && carrier && (carrier.x !== 0 || carrier.y !== 0))
       ride(c, carrier, ground.tag.entityId);
-    const accel = ctx.behavior<ForceAreaSystem>(FORCE_AREA.name)?.sample(at);
+    const accel = ctx.behavior<ForceAreaSystem>(FORCE_AREA.name)?.sample(at, c.id);
     // Its moves travel what the controller's sweeps found clear; out of the
     // world, the body's own move doesn't stop at a one-way solid it passes.
     const through = oneWayPasses(ctx, c.id).size > 0;

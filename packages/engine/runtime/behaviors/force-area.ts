@@ -73,7 +73,8 @@ function farthest(shape: ShapeObj): number {
  * tick pushes every dynamic body there that `affects` takes through
  * `ctx.bodies`: its acceleration times the body's mass, plus `drag`
  * against the body's velocity. `sample` gives the same acceleration, drag
- * aside, at any point, for kinematic controllers to add. A world save holds
+ * aside, at any point, for kinematic controllers to add, filtered by
+ * `affects` for the entity it is asked for. A world save holds
  * what is inside each area.
  */
 export const createForceAreaSystem: BehaviorSystemFactory = (
@@ -154,7 +155,12 @@ export const createForceAreaSystem: BehaviorSystemFactory = (
     return { x: (a * dx) / d, y: (a * dy) / d };
   }
 
-  /** Whether `affects` takes `id`: in one of its collision groups and carrying one of its tags, each when given. */
+  /**
+   * Whether `affects` takes `id`: in one of its collision groups and carrying
+   * one of its tags, each when given. Group membership is read off the
+   * physics world's colliders, so with no physics an area with `groups`
+   * takes nothing.
+   */
   function takes(area: Area, id: string, tagged: Set<string> | null): boolean {
     const groups = area.block.affects?.groups;
     if (groups) {
@@ -170,11 +176,16 @@ export const createForceAreaSystem: BehaviorSystemFactory = (
     return tagged === null || tagged.has(id);
   }
 
+  /** The entities carrying one of `affects.tags`, or null when it names none. */
+  function taggedBy(area: Area): Set<string> | null {
+    const tags = area.block.affects?.tags;
+    return tags ? new Set(tags.flatMap((t) => ctx.query.byTag(t))) : null;
+  }
+
   function push(area: Area, dt: number): void {
     const pose = ctx.poses.get(area.id);
     if (!pose) return;
-    const tags = area.block.affects?.tags;
-    const tagged = tags ? new Set(tags.flatMap((t) => ctx.query.byTag(t))) : null;
+    const tagged = taggedBy(area);
     const drag = Math.min(area.block.drag, 1 / dt);
     for (const id of area.inside) {
       if (ctx.bodies.kind(id) !== "dynamic" || !takes(area, id, tagged)) continue;
@@ -244,13 +255,14 @@ export const createForceAreaSystem: BehaviorSystemFactory = (
       if (Array.isArray(inside))
         for (const other of inside) if (typeof other === "string") area.inside.add(other);
     },
-    sample(point) {
+    sample(point, entityId) {
       const sum = { x: 0, y: 0 };
       if (areas.size === 0) return sum;
       const hits = ctx.space.pointAt(point, { sensors: true });
       if (hits.length === 0) return sum;
       for (const area of areas.values()) {
         if (!area.on || !hits.some((h) => h.tag.entityId === area.id)) continue;
+        if (entityId !== undefined && !takes(area, entityId, taggedBy(area))) continue;
         const pose = ctx.poses.get(area.id);
         if (!pose) continue;
         const a = field(area, pose, point);

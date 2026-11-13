@@ -58,6 +58,9 @@ type AssetLookup = NonNullable<ToolHostOptions["asset"]>;
 
 const hostAssets = new WeakMap<ToolHost, AssetLookup>();
 
+/** Subscribes to the camera's scale behind a host, whose handles sit a set number of screen px apart. */
+const hostZooms = new WeakMap<ToolHost, (onChange: () => void) => () => void>();
+
 /**
  * The project asset lookup `host` sizes sprite boxes with, for previews
  * drawn outside it, such as a drop's ghost; undefined without a project.
@@ -196,6 +199,16 @@ export function useToolHostLifecycle(
         ...(asset ? { asset } : {}),
       });
       hostToWorlds.set(next, toWorld);
+      hostZooms.set(next, (onChange) => {
+        const store = game.getStore();
+        let seen = viewScale(store.state.camera);
+        return store.subscribe(() => {
+          const scale = viewScale(store.state.camera);
+          if (scale === seen) return;
+          seen = scale;
+          onChange();
+        });
+      });
       if (asset) hostAssets.set(next, asset);
       let saved = next.snap();
       unsubscribe = next.subscribe(() => {
@@ -260,8 +273,9 @@ export function useHostValue<T>(
 }
 
 /**
- * Re-renders on every change the host announces, and returns a version that
- * moves with them. Pass the version to whatever reads the host, so a
+ * Re-renders on every change the host announces, and on a zoom, which moves
+ * the handles the overlay spaces in screen px; returns a version that moves
+ * with them. Pass the version to whatever reads the host, so a
  * compiler-memoized render reads it again.
  */
 export function useHostChanges(host: ToolHost | null): number {
@@ -269,8 +283,10 @@ export function useHostChanges(host: ToolHost | null): number {
   useEffect(() => {
     if (!host) return;
     const off = host.subscribe(bump);
+    const offZoom = hostZooms.get(host)?.(bump);
     return () => {
       off();
+      offZoom?.();
     };
   }, [host]);
   return version;

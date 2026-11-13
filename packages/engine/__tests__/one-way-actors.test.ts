@@ -1,7 +1,9 @@
 import type { Collider, KinematicCharacterController, RigidBody } from "@dimforge/rapier2d";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
+import type { CharacterSystem } from "../game/behaviors/character-top-down";
 import type { Side } from "../game/types";
+import { createMotionBody } from "../motion/body";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { SceneRuntimeHandle } from "../runtime/types";
 import type { Aabb, ExpandedScene, RuntimeEntity, ShapeObj } from "../scene/types";
@@ -100,7 +102,7 @@ describe("passesOneWay per actor", () => {
         ).toBe("s");
 
         solids(rt).passesOneWay("held", actorBox(held), true);
-        expect(oneWayPasses(rt.ctx, "held").has(s)).toBe(true);
+        expect(oneWayPasses(rt.ctx, "held").has(s)).toBe(side === "up");
         solids(rt).passesOneWay("through", actorBox(held), false);
         expect(oneWayPasses(rt.ctx, "through").has(s)).toBe(false);
         rt.destroy();
@@ -294,6 +296,107 @@ describe("one-way passes of actors that go", () => {
         rt.step(DT, []);
         expect(actorsKept(rt)).toBe(0);
       }
+      rt.destroy();
+    });
+  }
+});
+
+describe("a side-view character against each side", () => {
+  const FLOOR: RuntimeEntity = { id: "floor", type: "solid", shape: box(0, 1, 8, 0.1) };
+  const HALF = { x: 0.15, y: 0.3 };
+
+  function run(
+    solid: RuntimeEntity,
+    physics: "rapier" | "none",
+    intent: { move: Vec2; jump?: boolean },
+  ): Vec2[] {
+    const rt = load([FLOOR, solid], physics, [0, 10]);
+    const hero = rt.ctx.spawn({
+      type: "marker",
+      at: [0, 1 - 0.1 - HALF.y],
+      behaviors: {
+        collider: { shape: ["box", 0, 0, HALF.x, HALF.y] },
+        "character-side-view": {},
+      },
+    }).id;
+    const chars = rt.ctx.behavior<CharacterSystem>("character-side-view")!;
+    const trail: Vec2[] = [];
+    for (let i = 0; i < 90; i++) {
+      chars.setIntent(hero, intent);
+      rt.step(DT, []);
+      const p = rt.ctx.poses.get(hero)!;
+      trail.push({ x: p.x, y: p.y });
+    }
+    rt.destroy();
+    return trail;
+  }
+
+  for (const physics of BACKENDS) {
+    it(`stops a jump under a down solid (${physics})`, () => {
+      const ceiling: RuntimeEntity = {
+        id: "ceiling",
+        type: "solid",
+        shape: box(0, -0.6, 2, 0.1),
+        oneWay: "down",
+      };
+      const top = Math.min(
+        ...run(ceiling, physics, { move: { x: 0, y: 0 }, jump: true }).map((p) => p.y),
+      );
+      expect(top - HALF.y).toBeGreaterThan(-0.5 - 0.01);
+      const open = { ...ceiling, shape: box(20, -0.6, 2, 0.1) };
+      const free = Math.min(
+        ...run(open, physics, { move: { x: 0, y: 0 }, jump: true }).map((p) => p.y),
+      );
+      expect(free - HALF.y).toBeLessThan(-0.5);
+    });
+
+    for (const side of ["left", "right"] as const) {
+      const dir = side === "left" ? 1 : -1;
+      const wall: RuntimeEntity = {
+        id: "wall",
+        type: "solid",
+        shape: box(dir * 2, -0.5, 0.1, 1.5),
+        oneWay: side,
+      };
+      const face = dir * (2 - 0.1);
+      for (const [how, intent] of [
+        ["walking", { move: { x: dir, y: 0 } }],
+        ["jumping", { move: { x: dir, y: 0 }, jump: true }],
+        ["holding down", { move: { x: dir, y: 1 } }],
+      ] as const) {
+        it(`stops one ${how} into a ${side} solid from its blocking side (${physics})`, () => {
+          const far = Math.max(...run(wall, physics, intent).map((p) => p.x * dir));
+          expect(far).toBeLessThanOrEqual(face * dir - HALF.x + 0.01);
+          expect(far).toBeGreaterThan(face * dir - HALF.x - 0.1);
+        });
+      }
+    }
+  }
+});
+
+describe("a game's motion body and its one-way passes", () => {
+  for (const physics of BACKENDS) {
+    it(`forgets them when it is destroyed, and keeps a newer body's (${physics})`, () => {
+      const rt = load(
+        [{ id: "floor", type: "solid", shape: box(0, 0, 6, 0.1), oneWay: true }],
+        physics,
+      );
+      const entity = { id: "walker", type: "marker" };
+      const opts = { shape: box(0, 0, ACTOR_HALF, ACTOR_HALF) };
+      const old = createMotionBody(rt.ctx, entity, { x: 0, y: 2 }, opts);
+      solids(rt).passesOneWay("walker", actorBox({ x: 0, y: 2 }), false);
+      expect(oneWayPasses(rt.ctx, "walker").size).toBe(1);
+      old.destroy();
+      const kept = oneWayPasses(rt.ctx, "walker");
+      expect(kept.size).toBe(0);
+
+      const first = createMotionBody(rt.ctx, entity, { x: 0, y: 2 }, opts);
+      first.destroy();
+      const second = createMotionBody(rt.ctx, entity, { x: 0, y: 2 }, opts);
+      const passes = oneWayPasses(rt.ctx, "walker");
+      solids(rt).passesOneWay("walker", actorBox({ x: 0, y: 2 }), false);
+      expect(passes.size).toBe(1);
+      second.destroy();
       rt.destroy();
     });
   }

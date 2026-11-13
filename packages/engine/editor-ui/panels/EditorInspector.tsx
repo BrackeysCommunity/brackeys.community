@@ -9,6 +9,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import {
   createContext,
+  Fragment,
   useContext,
   useLayoutEffect,
   useRef,
@@ -37,7 +38,6 @@ import {
   paramBatch,
   refCandidates,
   revertAllBatch,
-  revertFieldBatch,
   shapeConversions,
   shapeSlots,
   turnBatch,
@@ -59,7 +59,12 @@ import {
   type SceneDefinition,
   type ShapeTuple,
 } from "../../editor/index";
-import { fieldTitle, lengthStep } from "../../editor/inspector-model";
+import {
+  fieldTitle,
+  lengthStep,
+  overlappingKeys,
+  paramOverriddenBy,
+} from "../../editor/inspector-model";
 import { BEHAVIOR_CATEGORIES } from "../../game/behaviors";
 import { pxPerMetreOf } from "../../game/units";
 import { snapToPixel } from "../../scene/units";
@@ -151,8 +156,8 @@ type Ctx = {
   session: EditorSession;
   targets: RefTarget[];
   def: SceneDefinition;
-  /** For one instance child: the fields its instance overrides, with the keys behind each. */
-  overrides?: Map<string, string[]>;
+  /** For one instance child: its scene instance, its id there, and the override keys naming it. */
+  overrides?: { instance: string; child: string; keys: string[] };
   /** Builds the batch for an edit instead of `modelBatch`; it's written against the document. */
   edit?: (field: ModelField, input: unknown) => Edit;
   /** Builds one batch for several edits instead of joining `edit`'s, when they can touch one value. */
@@ -740,7 +745,6 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   );
 }
 
-/** Path mode, speed, pause and points, or any object's fields, nested under its title. */
 /**
  * A [low, high] pair: a number field for each end and the unit. Each end is
  * set on every target from that target's own pair (unset reads [0, 0]), in
@@ -781,6 +785,7 @@ function RangeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   );
 }
 
+/** Path mode, speed, pause and points, or any object's fields, nested under its title. */
 function NestedFields({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   return (
     <NestedField field={field}>
@@ -967,11 +972,24 @@ function CustomField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   }
 }
 
-/** One field, drawn by the widget the model chose for it. */
+/**
+ * The override keys that set part of `field` on an instance child: its own
+ * path, one above it or one under it. A field drawn as its children leaves
+ * the marking to them.
+ */
+function overridesOf(field: ModelField, ctx: Ctx): string[] {
+  const o = ctx.overrides;
+  if (!o || (field.children?.length ?? 0) > 0) return [];
+  const local = o.keys.map((k) => k.slice(o.child.length + 1));
+  return overlappingKeys(local, field.path).map((k) => `${o.child}.${k}`);
+}
+
+/** One field, drawn by the widget the model chose for it; bold with a Revert when an override sets it. */
 function FieldView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   if (ctx.drawnBy?.has(field.path)) return null;
-  const top = field.path.split(".")[0]!;
-  if (ctx.overrides?.has(top) && !field.path.includes("."))
+  const keys = overridesOf(field, ctx);
+  const instance = ctx.overrides?.instance;
+  if (keys.length > 0 && instance !== undefined)
     return (
       <div className="je-insp-overridden" data-overridden="">
         <div className="je-insp-grow">
@@ -981,11 +999,16 @@ function FieldView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           size="sm"
           variant="ghost"
           tooltip="Revert to the prefab's value"
-          onClick={() => {
-            const ref = ctx.targets[0]?.ref;
-            if (ref)
-              dispatchSource(ctx.session, revertFieldBatch(ctx.def, ref, top), !!ctx.readOnly);
-          }}
+          onClick={() =>
+            dispatchSource(
+              ctx.session,
+              {
+                label: `Revert ${ctx.targets[0]?.ref ?? instance}'s ${field.path}`,
+                ops: [{ op: "revertOverride", ref: instance, paths: keys }],
+              },
+              !!ctx.readOnly,
+            )
+          }
         >
           Revert
         </Button>
@@ -1337,7 +1360,15 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
     project: project ?? null,
     fields: byPath,
     drawnBy: framesDrawn(byPath),
-    ...(child ? { overrides: child.fields } : {}),
+    ...(child
+      ? {
+          overrides: {
+            instance: child.instance,
+            child: child.child,
+            keys: [...child.fields.values()].flat(),
+          },
+        }
+      : {}),
   };
   const prefabBatch = child || inPrefab ? null : createPrefabBatch(doc, selection, prefabs);
   const typeDefs = model.types.map((t) => session.registry.types.get(t));
@@ -1510,25 +1541,35 @@ function ParamsSection({
   };
   return (
     <Section id="instance:parameters" title="Parameters">
-      {params.map((p) =>
-        p.set ? (
-          <div key={`${model.ref}:${p.name}`} className="je-insp-overridden" data-overridden="">
-            <div className="je-insp-grow">
+      {params.map((p) => {
+        const beaten = paramOverriddenBy(doc, model, p);
+        return (
+          <Fragment key={`${model.ref}:${p.name}`}>
+            {p.set ? (
+              <div className="je-insp-overridden" data-overridden="">
+                <div className="je-insp-grow">
+                  <FieldWidgetView field={p.field} ctx={ctx} />
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  tooltip="Reset to the prefab's value"
+                  onClick={() => setError(commitField(ctx, p.field, undefined))}
+                >
+                  Reset
+                </Button>
+              </div>
+            ) : (
               <FieldWidgetView field={p.field} ctx={ctx} />
-            </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              tooltip="Reset to the prefab's value"
-              onClick={() => setError(commitField(ctx, p.field, undefined))}
-            >
-              Reset
-            </Button>
-          </div>
-        ) : (
-          <FieldWidgetView key={`${model.ref}:${p.name}`} field={p.field} ctx={ctx} />
-        ),
-      )}
+            )}
+            {beaten.length > 0 ? (
+              <p className="je-insp-note" data-param-overridden={p.name}>
+                Overridden by {beaten.join(", ")}
+              </p>
+            ) : null}
+          </Fragment>
+        );
+      })}
       {error ? <p className="je-insp-error">{error}</p> : null}
     </Section>
   );

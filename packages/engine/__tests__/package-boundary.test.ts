@@ -241,6 +241,29 @@ function importsIn(source: string): Import[] {
   return out;
 }
 
+/**
+ * Each `import`/`export … from` statement's named bindings (the source
+ * names, before any `as`), or null for a default or namespace import.
+ */
+function clausesIn(
+  source: string,
+): { spec: string; names: string[] | null; line: number; export: boolean }[] {
+  const src = stripComments(source);
+  const lineOf = (index: number) => src.slice(0, index).split("\n").length;
+  const statement = /^\s*(import|export)\s+(type\s+)?([^;]*?)\s*from\s*["']([^"']+)["']/gms;
+  return [...src.matchAll(statement)].map((m) => {
+    const braced = /^\{([^}]*)\}$/s.exec(m[3]!.trim());
+    const names = braced
+      ? braced[1]!
+          .split(",")
+          .map((s) => s.trim().replace(/^type\s+/, ""))
+          .filter(Boolean)
+          .map((s) => s.split(/\s+as\s+/)[0]!.trim())
+      : null;
+    return { spec: m[4]!, names, line: lineOf(m.index), export: m[1] === "export" };
+  });
+}
+
 function resolveRelative(from: string, spec: string): string | null {
   const base = resolve(dirname(from), spec);
   for (const candidate of [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts")]) {
@@ -984,14 +1007,30 @@ describe("package boundary", () => {
     violations(bad);
   });
 
-  it("builds the standard behaviors on what a game can import: ./game's modules, its own schema and motion/", () => {
-    const index = join(ENGINE, "game/index.ts");
-    const reexported = new Set(
-      importsOf(index).flatMap((imp) => {
-        const target = resolveRelative(index, imp.spec);
-        return target ? [rel(target)] : [];
-      }),
-    );
+  it("builds the standard behaviors on what a game can import: ./game, ./scene and ./sim-kit's exports, its own schema", () => {
+    /** Each module a game's runtime entries re-export from, and the names they take (null: all of it). */
+    const offered = new Map<string, Set<string> | null>();
+    for (const entry of ["./game", "./scene", "./sim-kit"] as const) {
+      const index = join(ENGINE, ENTRIES[entry]);
+      const source = readFileSync(index, "utf8");
+      for (const m of stripComments(source).matchAll(
+        /^\s*export\s+\*\s+from\s*["']([^"']+)["']/gm,
+      )) {
+        const target = resolveRelative(index, m[1]!);
+        if (target) offered.set(rel(target), null);
+      }
+      for (const clause of clausesIn(source)) {
+        const target = resolveRelative(index, clause.spec);
+        if (!clause.export || !target) continue;
+        const key = rel(target);
+        if (offered.get(key) === null) continue;
+        const names = offered.get(key) ?? new Set<string>();
+        for (const name of clause.names ?? []) names.add(name);
+        offered.set(key, names);
+      }
+    }
+    /** motion/index re-exports each motion module, so a name it offers is offered from any of them. */
+    const motion = offered.get("motion/index.ts") ?? new Set<string>();
     const own = ["sprite.ts", "lifetime.ts", "occupant.ts", "index.ts"];
     const files = sourceFiles.filter((f) => {
       const path = rel(f);
@@ -1001,19 +1040,44 @@ describe("package boundary", () => {
     const refused = (file: string, source: string): string[] => {
       const path = rel(file);
       const schema = `game/behaviors/${path.slice(18)}`;
-      return importsIn(source).flatMap((imp) => {
+      const modules = importsIn(source).flatMap((imp) => {
         if (!imp.spec.startsWith(".")) return [];
         const target = rel(resolveRelative(file, imp.spec) ?? resolve(dirname(file), imp.spec));
-        return reexported.has(target) || target === schema || target.startsWith("motion/")
+        return offered.has(target) || target === schema || target.startsWith("motion/")
           ? []
           : [`${path}:${imp.line} imports ${target}`];
       });
+      const names = clausesIn(source).flatMap((clause) => {
+        if (!clause.spec.startsWith(".")) return [];
+        const target = rel(
+          resolveRelative(file, clause.spec) ?? resolve(dirname(file), clause.spec),
+        );
+        if (target === schema || !(offered.has(target) || target.startsWith("motion/"))) return [];
+        const names = target.startsWith("motion/") ? motion : offered.get(target);
+        if (names === null) return [];
+        if (clause.names === null) return [`${path}:${clause.line} imports all of ${target}`];
+        return clause.names
+          .filter((name) => !names?.has(name))
+          .map(
+            (name) =>
+              `${path}:${clause.line} imports ${name} from ${target}, which a game can't import`,
+          );
+      });
+      return [...modules, ...names];
     };
     violations(files.flatMap((f) => refused(f, readFileSync(f, "utf8"))));
     const probe = join(ENGINE, "runtime/behaviors/joint.ts");
     expect(
       refused(probe, 'import { createSceneRuntime } from "../runtime";\nimport "../../physics";'),
     ).toEqual(["runtime/behaviors/joint.ts:1 imports runtime/runtime.ts"]);
+    expect(
+      refused(
+        probe,
+        'import { oneWayPasses, computeMovementSkipping as skip } from "../../systems/bodies";',
+      ),
+    ).toEqual([
+      "runtime/behaviors/joint.ts:1 imports computeMovementSkipping from systems/bodies.ts, which a game can't import",
+    ]);
   });
 
   it("is consumed by the site only through @jams/engine entries and game entries", () => {
