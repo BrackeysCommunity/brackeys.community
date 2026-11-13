@@ -27,6 +27,7 @@ const TICKS = 60;
 const ATTACH = 5;
 const ACTIVATE = 10;
 const DETACH = 20;
+const BACK = 25;
 const REATTACH = 30;
 
 type Post = RuntimeEntity<{ at: Pt }>;
@@ -92,11 +93,14 @@ const library = (): SceneLibrary => ({
 
 type Seen = { tick: number; ids: string[] };
 
-/** Plays the yard headless, activating `version` for the cellar after tick `ACTIVATE`; what each tick holds, and the recording. */
+/** A move of the cellar after tick `at`: activating `version` (null: the release's own), or pinning it. */
+type Move = { at: number; version: StagedVersion | null; pin?: boolean };
+
+/** Plays the yard headless, making each move after its tick; what each tick holds, and the recording. */
 function recordRun(
   game: GameDefinition,
   registry: Registry,
-  version: StagedVersion,
+  moves: readonly Move[],
 ): { recording: RunRecording; seen: Seen[] } {
   const prepared = prepareRun(yard(), registry);
   if (!prepared.ok) throw new Error(JSON.stringify(prepared.blocked));
@@ -136,14 +140,22 @@ function recordRun(
       onTick(state, focus, _edges, _commands, input) {
         recorder.tick(state, input, focus);
         seen.push({ tick: state.tick, ids: [...runtime.ctx.query.select()].sort() });
-        if (state.tick !== ACTIVATE) return;
-        const read = preparedVersion(version, registry, game);
-        if (!read.ok) throw new Error(JSON.stringify(read.issues));
-        expect(live.stage(read.prepared).ok).toBe(true);
-        expect(live.activate("cellar", version.id, "now")).toMatchObject({
-          timing: "next-load",
-          clamped: true,
-        });
+        for (const move of moves) {
+          if (move.at !== state.tick) continue;
+          if (move.version === null) {
+            live.activate("cellar", null, "next-load");
+            continue;
+          }
+          const read = preparedVersion(move.version, registry, game);
+          if (!read.ok) throw new Error(JSON.stringify(read.issues));
+          expect(live.stage(read.prepared).ok).toBe(true);
+          if (move.pin) live.pin({ cellar: move.version.id });
+          else
+            expect(live.activate("cellar", move.version.id, "now")).toMatchObject({
+              timing: "next-load",
+              clamped: true,
+            });
+        }
       },
     });
     return { recording: recorder.finish(end, runtime.snapshot()), seen };
@@ -174,7 +186,7 @@ describe("a sublevel's live version", () => {
     version = await oneSceneVersion(scene("cellar", ["door", "barrel"]), game, {
       scene: "cellar",
     });
-    ({ recording, seen } = recordRun(game, registry, version));
+    ({ recording, seen } = recordRun(game, registry, [{ at: ACTIVATE, version }]));
   });
 
   it("keeps the attached sublevel as it is, and its next attach in the same run uses the version", () => {
@@ -188,6 +200,7 @@ describe("a sublevel's live version", () => {
     expect(recording.swaps).toEqual([
       expect.objectContaining({
         tick: ACTIVATE + 1,
+        sublevel: "cellar",
         version: version.id,
         timing: "next-load",
         sceneHash: version.version.sceneHash,
@@ -203,5 +216,35 @@ describe("a sublevel's live version", () => {
     const unswapped = replay(without);
     if (unswapped.blocked) throw new Error(JSON.stringify(unswapped));
     expect(unswapped.divergence).not.toBeNull();
+  });
+
+  it("records a move back to the release's own, so a reattach after it replays the same", () => {
+    const back = recordRun(game, registry, [
+      { at: ACTIVATE, version },
+      { at: BACK, version: null },
+    ]);
+    const at = (tick: number) => back.seen.find((s) => s.tick === tick)!.ids;
+    expect(at(REATTACH)).toEqual(["low:door", "start"]);
+    expect(back.recording.swaps).toEqual([
+      expect.objectContaining({ tick: ACTIVATE + 1, sublevel: "cellar", version: version.id }),
+      expect.objectContaining({ tick: BACK + 1, sublevel: "cellar", version: null }),
+    ]);
+    expect(parseRecording(back.recording, registry).ok).toBe(true);
+    const run = replay(back.recording);
+    if (run.blocked) throw new Error(JSON.stringify(run));
+    expect(run.divergence).toBeNull();
+    expect(run.recording.swaps).toEqual(back.recording.swaps);
+  });
+
+  it("records a pin of the sublevel's version, and replays to the same end", () => {
+    const pinned = recordRun(game, registry, [{ at: ACTIVATE, version, pin: true }]);
+    expect(pinned.recording.swaps).toEqual([
+      expect.objectContaining({ tick: ACTIVATE + 1, sublevel: "cellar", version: version.id }),
+    ]);
+    const run = replay(pinned.recording);
+    if (run.blocked) throw new Error(JSON.stringify(run));
+    expect(run.divergence).toBeNull();
+    const at = (tick: number) => pinned.seen.find((s) => s.tick === tick)!.ids;
+    expect(at(REATTACH)).toEqual(["low:barrel", "low:door", "start"]);
   });
 });

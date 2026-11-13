@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import type { EditorStorage } from "../host";
-import { isRecord, readStored, storedFlags, writeStored } from "../session/stored";
+import { isRecord, readStored, storedFlag, storedFlags, writeStored } from "../session/stored";
 
 function memory(init: Record<string, string> = {}): EditorStorage & { data: Map<string, string> } {
   const data = new Map(Object.entries(init));
@@ -46,5 +46,12 @@ describe("stored editor state", () => {
     expect(isRecord({})).toBe(true);
     expect(isRecord([])).toBe(false);
     expect(isRecord("x")).toBe(false);
+  });
+
+  it("reads a stored boolean, and nothing else, as a flag", () => {
+    expect(readStored(memory({ k: "true" }), "k", false, storedFlag)).toBe(true);
+    expect(readStored(memory({ k: "false" }), "k", true, storedFlag)).toBe(false);
+    expect(readStored(memory({ k: '"true"' }), "k", false, storedFlag)).toBe(false);
+    expect(storedFlag(1)).toBeNull();
   });
 });

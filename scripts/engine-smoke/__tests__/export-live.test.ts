@@ -27,7 +27,7 @@ import {
   judgeRun,
   LIVE_RUN_TIMEOUT_MS,
   LIVE_TIMING,
-  liveFiles,
+  liveFixtureFiles,
   liveRuns,
   liveSnapshot,
   readRecording,
@@ -129,7 +129,7 @@ describe("the fixture version", () => {
   });
 
   it("writes the overlay's files under live/ and the replay's versions directory", async () => {
-    const files = liveFiles(fixture);
+    const files = liveFixtureFiles(fixture);
     expect([...files.build.keys()].sort()).toEqual(
       [fixture.id, ...fixture.texts.keys()].map((h) => `live/${h}.json`).sort(),
     );

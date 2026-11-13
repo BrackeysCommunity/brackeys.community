@@ -946,7 +946,7 @@ describe("live versions in a play session", () => {
   it("doesn't start a replay whose start version is gone", async () => {
     const t = await livePlay();
     nowSwap(t);
-    t.game.play(hall());
+    expect(t.game.play(hall(["start", "well"]))).toMatchObject({ ok: true });
     t.game.step(5);
     t.game.stop();
     const rec = t.recorded.at(-1)!;

@@ -1,16 +1,12 @@
 // @vitest-environment jsdom
 import { Container } from "pixi.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
-import { createGame } from "../engine";
 import { defineGame } from "../game/define";
-import type { LibraryScene } from "../game/flow";
 import type { SceneSwap } from "../game/live";
-import type { SceneRuntimeHandle } from "../runtime/types";
 import type { RunRecording } from "../scene/recording-schema";
-import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
-import type { GameInstance, SceneSource } from "../types";
-import { oneSceneVersion } from "./fixtures/live-version";
+import { installLiveGames, world } from "./fixtures/live-game";
+import { markerScene, markerSource, oneSceneVersion } from "./fixtures/live-version";
 
 vi.mock("../renderer", () => ({
   createRenderer: async () => ({
@@ -31,52 +27,13 @@ const game = defineGame({
   createRuntime: () => ({ snapshot: () => null }),
 });
 
-const scene = (markers: readonly string[]): SceneDefinition => ({
-  v: SCENE_FORMAT_VERSION,
-  name: "hall",
-  bounds: [0, 0, 10, 10],
-  entities: markers.map((id, i) => ({ id, type: "marker", at: [1 + i, 1] })),
-});
+const scene = (markers: readonly string[]) => markerScene("hall", markers);
 
-function source(): SceneSource {
-  const hall: LibraryScene = { def: scene(["start"]), prefabs: new Map() };
-  return {
-    list: () => [{ scene: "hall" }],
-    start: () => "hall",
-    scene: (id) => (id === "hall" ? hall : null),
-  };
-}
-
-const games: GameInstance[] = [];
-
-beforeEach(() => {
-  vi.useFakeTimers();
-  document.body.appendChild(document.createElement("canvas"));
-  vi.stubGlobal("requestAnimationFrame", () => 0);
-  vi.stubGlobal("cancelAnimationFrame", () => {});
-});
-
-afterEach(() => {
-  for (const g of games.splice(0)) g.destroy();
-  document.body.replaceChildren();
-  vi.unstubAllGlobals();
-  vi.useRealTimers();
-});
-
-const world = (g: GameInstance) => g.runtime() as SceneRuntimeHandle;
+const startedLiveGame = installLiveGames();
 
 describe("Play of a doc while a version is active", () => {
   it("runs a doc that isn't the version as its own: no version in ctx.live, the recording or the next swap's from side", async () => {
-    const g = await createGame(document.querySelector("canvas")!, {
-      game,
-      dev: true,
-      flow: { source: source(), loading: false },
-    });
-    games.push(g);
-    g.start();
-    const restarted = g.flow.restart();
-    await vi.runAllTimersAsync();
-    expect(await restarted).toMatchObject({ ok: true, scene: "hall" });
+    const g = await startedLiveGame(game, { source: markerSource(["hall"]) });
 
     const v1 = await oneSceneVersion(scene(["start", "well"]), game, { scene: "hall" });
     const staging = g.live.stage(v1);
@@ -123,16 +80,7 @@ describe("Play of a doc while a version is active", () => {
   });
 
   it("runs the active version when the doc is that version's scene", async () => {
-    const g = await createGame(document.querySelector("canvas")!, {
-      game,
-      dev: true,
-      flow: { source: source(), loading: false },
-    });
-    games.push(g);
-    g.start();
-    const restarted = g.flow.restart();
-    await vi.runAllTimersAsync();
-    expect(await restarted).toMatchObject({ ok: true, scene: "hall" });
+    const g = await startedLiveGame(game, { source: markerSource(["hall"]) });
     const doc = scene(["start", "well"]);
     const v1 = await oneSceneVersion(doc, game, { scene: "hall" });
     const staging = g.live.stage(v1);

@@ -35,7 +35,7 @@ import { SAVE_REGISTRY, type SaveEntry, type SaveRegistry } from "../motion/body
 import { createPhysicsWorld, type PhysicsWorld } from "../physics";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
-import { ISSUE_CODES, makeIssue } from "../scene/issues";
+import { errorText, ISSUE_CODES, makeIssue } from "../scene/issues";
 import type {
   Bounds,
   EntityTypeName,
@@ -118,9 +118,7 @@ function sameValue(a: unknown, b: unknown): boolean {
   );
 }
 
-/** A thrown value as message text: an `Error`'s message, else the value as a string. */
-export const errorText = (err: unknown): string =>
-  err instanceof Error ? err.message : String(err);
+export { errorText };
 
 /** The key a runtime keeps what world saves reach under on its context. */
 export const SAVE_HOST: unique symbol = Symbol("save host");

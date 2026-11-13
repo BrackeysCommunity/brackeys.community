@@ -72,7 +72,7 @@ import {
   type AssetBundle,
   type BundleEntry,
 } from "./project/bundle";
-import { sameValue } from "./project/canonical";
+import { ownValue, sameValue } from "./project/canonical";
 import type { KindRegistry } from "./project/kinds";
 import { engineResolution } from "./project/kinds/game-settings";
 import { TEXTURE_KIND } from "./project/kinds/texture";
@@ -93,6 +93,8 @@ import {
   createSwapReplay,
   preparedVersion,
   recordedVersion,
+  stageIssue,
+  unlistedStageIssue,
   type PreparedVersion,
 } from "./runtime/live";
 import { gamePersistCell, persistProblem, playClockOf } from "./runtime/persist";
@@ -123,7 +125,7 @@ import {
 import type { SaveWriteResult } from "./saves/store";
 import { defaultPhysics, expandScene, isExpandedScene, scenePhysics } from "./scene/expand";
 import { checkCommand, elapsedCommand } from "./scene/input-script";
-import { liveIssue, makeIssue } from "./scene/issues";
+import { errorText, makeIssue } from "./scene/issues";
 import type { RecordedSwap, RunRecording } from "./scene/recording-schema";
 import type {
   Aabb,
@@ -696,7 +698,7 @@ export async function createGame(
         : expandScene(source, registry, { prefabs, engine: project?.engine });
       return { ok: true, scene };
     } catch (error) {
-      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      return { ok: false, error: errorText(error) };
     }
   }
 
@@ -977,6 +979,12 @@ export async function createGame(
     }
   }
 
+  /** The listed scenes other than `scene` whose loads use a live version. */
+  const liveOffScenes = (scene: AssetId): AssetId[] =>
+    (flowSource?.list() ?? [])
+      .map((e) => e.scene)
+      .filter((s) => s !== scene && liveLayer.sceneFor(s) !== null);
+
   /** A recording's version through the host's `versions`, read for play. */
   function replayVersion(
     scene: AssetId,
@@ -1006,8 +1014,8 @@ export async function createGame(
       },
       swaps,
       scene: () => scene,
-      resolve(id, running, _at, tick) {
-        const found = replayVersion(running, id, versions, tick);
+      resolve(id, of, _at, tick) {
+        const found = replayVersion(of, id, versions, tick);
         return found.ok ? found : { ok: false, issues: [found.issue] };
       },
       stale(tick, why) {
@@ -1027,7 +1035,7 @@ export async function createGame(
     const stop = r.swaps.before(tick);
     if (!stop) return true;
     const issue = stop.issues[0];
-    if (issue) events.emit("live:failed", { scene: r.scene, version: stop.version, issue });
+    if (issue) events.emit("live:failed", { scene: stop.scene, version: stop.version, issue });
     return stopReplay();
   }
 
@@ -1055,6 +1063,11 @@ export async function createGame(
       replayed.before = liveLayer.sceneFor(replayed.scene);
       if (start) liveLayer.stage(start);
       liveLayer.activate(replayed.scene, start?.id ?? null, "next-load");
+      // The other scenes start on the release's own: the recording's own swaps move the ones it ran live.
+      for (const scene of liveOffScenes(replayed.scene)) {
+        replayed.others.set(scene, liveLayer.sceneFor(scene));
+        liveLayer.activate(scene, null, "next-load");
+      }
       replayLive = replayed;
     }
     const persistAtLoad = persist.value;
@@ -1081,7 +1094,7 @@ export async function createGame(
     replay?: { recording: RunRecording },
   ): SessionRecording {
     const sceneVersion = runtime.ctx.live.version;
-    return createSessionRecording({
+    const recording = createSessionRecording({
       rapier: recordingRapier(prepared.scene, rapier),
       game,
       scene,
@@ -1100,6 +1113,9 @@ export async function createGame(
       ...(sceneVersion !== null ? { sceneVersion } : {}),
       ...(replay ? { replay: replay.recording } : {}),
     });
+    // The other listed scenes' live versions, which this load's sublevels attach.
+    for (const swap of liveLayer.liveSublevels()) recording.swap(recordedSwap(swap));
+    return recording;
   }
 
   /** The session `recordFlowLoad` started, which ends on its own after `FLOW_RECORDING_LIMIT_MS`. */
@@ -1142,7 +1158,7 @@ export async function createGame(
     const swaps = recording.swaps ?? [];
     const others: ReplayLive["others"] = new Map();
     const live: ReplayLive | null =
-      start || swaps.length > 0 || liveLayer.sceneFor(scene)
+      start || swaps.length > 0 || liveLayer.sceneFor(scene) || liveOffScenes(scene).length > 0
         ? { scene, swaps: replaySwapsOf(scene, swaps, opts.versions, others), before: null, others }
         : null;
     const recorded = recording.start.persist;
@@ -2230,7 +2246,7 @@ export async function createGame(
   function versionBundle(id: Sha256, version: SceneVersion): AssetBundle {
     const entries: BundleEntry[] = [];
     for (const asset of version.entry.bundle.entries) {
-      const a = Object.hasOwn(version.assets, asset) ? version.assets[asset] : undefined;
+      const a = ownValue(version.assets, asset);
       if (a) entries.push({ id: asset, kind: a.kind, sha256: a.sha256, bytes: a.bytes });
     }
     return bundleOf(`live:${id}`, entries);
@@ -2266,37 +2282,19 @@ export async function createGame(
   }
 
   /** Reads `v` with the game's registry, as every stage and replay does. */
-  function prepareVersion(
-    v: StagedVersion,
-  ): { ok: true; prepared: PreparedVersion } | { ok: false; issue: SceneIssue } {
-    const read = preparedVersion(v, registry, game, project?.engine);
-    if (read.ok) return read;
-    const cause = read.issues.find((i) => i.severity === "error") ?? read.issues[0];
-    const issue =
-      cause ??
-      liveIssue({
-        code: "live-swap-failed",
-        scene: v.version.scene,
-        cause: "it didn't read",
-        phase: "stage",
-      });
-    return { ok: false, issue };
-  }
+  const prepareVersion = (v: StagedVersion) => preparedVersion(v, registry, game, project?.engine);
 
   async function stageLive(
     v: StagedVersion,
     signal?: AbortSignal,
   ): Promise<{ ok: true } | { ok: false; issue: SceneIssue }> {
     const scene = v.version.scene;
-    const refused = (cause: string) => ({
-      ok: false as const,
-      issue: liveIssue({ code: "live-swap-failed", scene, cause, phase: "stage" }),
-    });
+    const refused = (cause: string) => ({ ok: false as const, issue: stageIssue(scene, cause) });
     if (destroyed) return refused("the game was destroyed");
-    if (flowSource && !flowSource.list().some((e) => e.scene === scene))
-      return refused(`${scene} isn't in the game's scene list`);
+    const unlisted = unlistedStageIssue(scene, flowSource?.list());
+    if (unlisted) return { ok: false, issue: unlisted };
     const read = prepareVersion(v);
-    if (!read.ok) return read;
+    if (!read.ok) return { ok: false, issue: read.issue };
     let hold = liveHolds.get(v.id);
     if (!hold) {
       hold = { scene, bundle: assets ? versionBundle(v.id, v.version) : null };

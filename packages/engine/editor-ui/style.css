@@ -1462,6 +1462,22 @@
     color: var(--je-danger);
   }
 
+  /* A boot that stopped short offers Reload beside its status, or under it where the row is narrow. */
+  .je-frame-status:has(> .je-boot-reload) {
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 4px var(--je-gap);
+  }
+
+  .je-frame-status > .je-boot-reload {
+    flex-shrink: 0;
+  }
+
+  .je-session[data-boot="stopped"] .je-skeleton {
+    animation: none;
+    opacity: 0.5;
+  }
+
   .je-session-boot-label {
     display: inline-flex;
     align-items: center;
@@ -1956,6 +1972,11 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
+  }
+
+  /* Each island on a row of the bar takes the row's height, the controls' when they share it. */
+  .je-play-bar > .je-island {
+    align-self: stretch;
   }
 
   .je-play-controls {

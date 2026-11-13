@@ -1,21 +1,15 @@
 // @vitest-environment jsdom
 import { Container } from "pixi.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 
-import { createGame } from "../engine";
 import { defineGame } from "../game/define";
-import type { LibraryScene } from "../game/flow";
 import type { LiveDeclaration, SceneSwap } from "../game/live";
 import type { GameDefinition } from "../game/types";
-import { createKindRegistry } from "../project/kinds";
-import { projectView } from "../project/view";
-import type { AssetLoader } from "../render/asset-loader";
-import type { SceneRuntimeHandle } from "../runtime/types";
 import { liveIssue } from "../scene/issues";
-import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
-import type { GameEventMap, GameInstance, SceneSource, StagedVersion } from "../types";
-import { oneSceneVersion } from "./fixtures/live-version";
+import type { GameEventMap, GameInstance, StagedVersion } from "../types";
+import { installLiveGames, noopLoader, world } from "./fixtures/live-game";
+import { markerScene, markerSource, oneSceneVersion } from "./fixtures/live-version";
 
 vi.mock("../renderer", () => ({
   createRenderer: async () => ({
@@ -26,8 +20,6 @@ vi.mock("../renderer", () => ({
     destroy: () => {},
   }),
 }));
-
-const world = (game: GameInstance) => game.runtime() as SceneRuntimeHandle | null;
 
 /** A physics-free game whose `safe` command marks a live boundary and whose `go` changes scene. */
 function liveGame(log: string[], live?: LiveDeclaration): GameDefinition {
@@ -69,66 +61,11 @@ function liveGame(log: string[], live?: LiveDeclaration): GameDefinition {
 
 const ALL: LiveDeclaration = { timings: ["boundary", "now"] };
 
-const scene = (name: string, markers: readonly string[]): SceneDefinition => ({
-  v: SCENE_FORMAT_VERSION,
-  name,
-  bounds: [0, 0, 10, 10],
-  entities: markers.map((id, i) => ({ id, type: "marker", at: [1 + i, 1] })),
-});
-
-function source(): SceneSource {
-  const scenes = new Map<string, LibraryScene>([
-    ["hall", { def: scene("hall", ["start"]), prefabs: new Map() }],
-    ["yard", { def: scene("yard", ["start"]), prefabs: new Map() }],
-  ]);
-  return {
-    list: () => [{ scene: "hall" }, { scene: "yard" }],
-    start: () => "hall",
-    scene: (id) => scenes.get(id) ?? null,
-  };
-}
-
 /** A version of `id` with a `well` marker added, as a host hands it to `stage`. */
 const wellVersion = (game: GameDefinition, id = "hall"): Promise<StagedVersion> =>
-  oneSceneVersion(scene(id, ["start", "well"]), game, { scene: id });
+  oneSceneVersion(markerScene(id, ["start", "well"]), game, { scene: id });
 
-const loader = {
-  load: async () => ({ failed: [] }),
-  retain() {},
-  release() {},
-  trim() {},
-  stats: () => ({ textures: 0, bytes: 0, resident: [] }),
-  texture: () => null,
-  destroy() {},
-} as unknown as AssetLoader;
-
-const games: GameInstance[] = [];
-let canvas: HTMLCanvasElement;
-
-beforeEach(() => {
-  vi.useFakeTimers();
-  canvas = document.createElement("canvas");
-  document.body.appendChild(canvas);
-  vi.stubGlobal("requestAnimationFrame", () => 0);
-  vi.stubGlobal("cancelAnimationFrame", () => {});
-  vi.stubGlobal(
-    "matchMedia",
-    (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addEventListener() {},
-        removeEventListener() {},
-      }) as unknown as MediaQueryList,
-  );
-});
-
-afterEach(() => {
-  for (const g of games.splice(0)) g.destroy();
-  document.body.replaceChildren();
-  vi.unstubAllGlobals();
-  vi.useRealTimers();
-});
+const startedLiveGame = installLiveGames();
 
 type Live = {
   game: GameInstance;
@@ -142,32 +79,16 @@ type Live = {
 async function started(live?: LiveDeclaration): Promise<Live> {
   const log: string[] = [];
   const def = liveGame(log, live);
-  const kinds = createKindRegistry(def);
-  const view = projectView(
-    {
-      meta: { projectId: "p", layout: 1, name: "P" },
-      assets: {},
-      history: {},
-      code: {},
-      build: {},
-    },
-    kinds,
-  );
-  const game = await createGame(canvas, {
-    game: def,
-    dev: true,
-    assets: { loader, view, kinds },
-    flow: { source: source(), loading: false },
-  });
-  games.push(game);
-  game.start();
   const swaps: SceneSwap[] = [];
   const failed: GameEventMap["live:failed"][] = [];
-  game.on("live:swapped", (s) => swaps.push(s));
-  game.on("live:failed", (f) => failed.push(f));
-  const done = game.flow.restart();
-  await vi.runAllTimersAsync();
-  expect(await done).toMatchObject({ ok: true, scene: "hall" });
+  const game = await startedLiveGame(def, {
+    source: markerSource(["hall", "yard"]),
+    loader: noopLoader(),
+    beforeLoad(g) {
+      g.on("live:swapped", (s) => swaps.push(s));
+      g.on("live:failed", (f) => failed.push(f));
+    },
+  });
   log.length = 0;
   return { game, def, log, swaps, failed };
 }
@@ -190,16 +111,16 @@ describe("next-load", () => {
     expect(t.game.live.pending()).toEqual([]);
 
     t.game.step(3);
-    expect(world(t.game)?.get("well")).toBeUndefined();
-    expect(world(t.game)?.ctx.live.version).toBeNull();
+    expect(world(t.game).get("well")).toBeUndefined();
+    expect(world(t.game).ctx.live.version).toBeNull();
     expect(t.swaps).toEqual([]);
 
     const done = t.game.flow.restart();
     await vi.runAllTimersAsync();
     expect(await done).toMatchObject({ ok: true, scene: "hall" });
     expect(t.log).toContain("load hall with well");
-    expect(world(t.game)?.get("well")).toBeDefined();
-    expect(world(t.game)?.ctx.live.version).toBe(v.id);
+    expect(world(t.game).get("well")).toBeDefined();
+    expect(world(t.game).ctx.live.version).toBe(v.id);
     expect(t.swaps).toEqual([]);
   });
 
@@ -212,7 +133,7 @@ describe("next-load", () => {
     const done = t.game.flow.go("yard");
     await vi.runAllTimersAsync();
     expect(await done).toMatchObject({ ok: true, scene: "yard" });
-    expect(world(t.game)?.get("well")).toBeDefined();
+    expect(world(t.game).get("well")).toBeDefined();
   });
 });
 
@@ -225,7 +146,7 @@ describe("boundary", () => {
     expect(t.swaps).toEqual([]);
     expect(t.game.live.pending()).toEqual([{ scene: "hall", version: v.id, timing: "boundary" }]);
 
-    const tick = world(t.game)!.ctx.tick;
+    const tick = world(t.game).ctx.tick;
     t.log.length = 0;
     t.game.send({ name: "safe", args: {} });
     t.game.step();
@@ -236,7 +157,7 @@ describe("boundary", () => {
     ]);
     expect(t.swaps[0]?.to.version).toBe(v.id);
     expect(t.swaps[0]?.from.version).toBeNull();
-    expect(world(t.game)?.ctx.live.version).toBe(v.id);
+    expect(world(t.game).ctx.live.version).toBe(v.id);
     expect(t.game.live.pending()).toEqual([]);
   });
 });
@@ -248,9 +169,9 @@ describe("now", () => {
     t.game.step();
     const camera = { ...t.game.getStore().state.camera };
     t.game.live.activate("hall", v.id, "now");
-    expect(world(t.game)?.get("well")).toBeUndefined();
+    expect(world(t.game).get("well")).toBeUndefined();
 
-    const tick = world(t.game)!.ctx.tick;
+    const tick = world(t.game).ctx.tick;
     t.log.length = 0;
     t.game.step();
     expect(t.log).toEqual([`tick ${tick} without well`, `onSwap reconcile +well at ${tick + 1}`]);
@@ -260,7 +181,7 @@ describe("now", () => {
       carried: "all",
       diff: { added: ["well"], removed: [], changed: [], header: false },
     });
-    expect(world(t.game)?.get("well")).toBeDefined();
+    expect(world(t.game).get("well")).toBeDefined();
     expect(t.game.getStore().state.camera.zoom).toBe(camera.zoom);
     expect(t.game.getStore().state.camera.position).toEqual(camera.position);
 
@@ -276,11 +197,11 @@ describe("now", () => {
     t.game.pause();
     t.game.step(3);
     expect(t.swaps).toEqual([]);
-    expect(world(t.game)?.get("well")).toBeUndefined();
+    expect(world(t.game).get("well")).toBeUndefined();
     t.game.resume();
     t.game.step();
     expect(t.swaps).toHaveLength(1);
-    expect(world(t.game)?.get("well")).toBeDefined();
+    expect(world(t.game).get("well")).toBeDefined();
   });
 });
 
@@ -296,11 +217,11 @@ describe("a game without live", () => {
     expect(t.game.live.pending()).toEqual([]);
     t.game.step(3);
     expect(t.swaps).toEqual([]);
-    expect(world(t.game)?.get("well")).toBeUndefined();
+    expect(world(t.game).get("well")).toBeUndefined();
 
     await t.game.flow.restart();
     await vi.runAllTimersAsync();
-    expect(world(t.game)?.get("well")).toBeDefined();
+    expect(world(t.game).get("well")).toBeDefined();
   });
 });
 

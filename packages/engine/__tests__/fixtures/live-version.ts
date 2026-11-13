@@ -1,3 +1,4 @@
+import type { LibraryScene } from "../../game/flow";
 import type { GameDefinition, Registry } from "../../game/types";
 import { stableJson } from "../../project/canonical";
 import { sha256 } from "../../project/hash";
@@ -10,9 +11,34 @@ import type { SceneRuntimeHandle, StepResult, SwapReport } from "../../runtime/t
 import { expandScene } from "../../scene/expand";
 import { formatScene } from "../../scene/format";
 import { hashText } from "../../scene/hash";
-import type { SceneDefinition } from "../../scene/types";
-import type { StagedVersion } from "../../types";
+import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/types";
+import type { SceneSource, StagedVersion } from "../../types";
 import { ENGINE_VERSION } from "../../version";
+
+/** A 10×10 scene of `marker` entities named by `markers`, in a row from (1, 1). */
+export const markerScene = (
+  name: string,
+  markers: readonly string[],
+  extra: Omit<Partial<SceneDefinition>, "v" | "name" | "entities"> = {},
+): SceneDefinition => ({
+  v: SCENE_FORMAT_VERSION,
+  name,
+  bounds: [0, 0, 10, 10],
+  ...extra,
+  entities: markers.map((id, i) => ({ id, type: "marker", at: [1 + i, 1] })),
+});
+
+/** A scene list of one `start` marker scene per name, the first its start scene. */
+export function markerSource(names: readonly string[]): SceneSource {
+  const scenes = new Map<string, LibraryScene>(
+    names.map((id) => [id, { def: markerScene(id, ["start"]), prefabs: new Map() }]),
+  );
+  return {
+    list: () => names.map((scene) => ({ scene })),
+    start: () => names[0] ?? null,
+    scene: (id) => scenes.get(id) ?? null,
+  };
+}
 
 export type OneSceneVersionOptions = {
   /** The scene asset it replaces; default the scene's name. */

@@ -1,22 +1,17 @@
 // @vitest-environment jsdom
 import { Container } from "pixi.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
-import { createGame } from "../engine";
 import { defineGame } from "../game/define";
-import type { LibraryScene } from "../game/flow";
 import { LIVE_DEFAULTS } from "../game/live";
 import type { GameDefinition } from "../game/types";
 import type { AssetBundle } from "../project/bundle";
 import { sha256 } from "../project/hash";
-import { createKindRegistry } from "../project/kinds";
 import { type ReleaseAsset } from "../project/release";
-import { projectView } from "../project/view";
-import type { AssetLoader } from "../render/asset-loader";
-import type { SceneRuntimeHandle } from "../runtime/types";
-import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
-import type { GameInstance, SceneSource, StagedVersion } from "../types";
-import { oneSceneVersion } from "./fixtures/live-version";
+import type { SceneDefinition } from "../scene/types";
+import type { StagedVersion } from "../types";
+import { installLiveGames, noopLoader, world } from "./fixtures/live-game";
+import { markerScene, markerSource, oneSceneVersion } from "./fixtures/live-version";
 
 vi.mock("../renderer", () => ({
   createRenderer: async () => ({
@@ -37,16 +32,9 @@ const game: GameDefinition = defineGame({
   createRuntime: () => ({ snapshot: () => null }),
 });
 
-const plain = (name: string): SceneDefinition => ({
-  v: SCENE_FORMAT_VERSION,
-  name,
-  bounds: [0, 0, 10, 10],
-  entities: [{ id: "start", type: "marker", at: [1, 1] }],
-});
-
 /** `name` with one sprite per texture, each texture an asset only the version carries. */
 const drawn = (name: string, textures: readonly string[]): SceneDefinition => ({
-  ...plain(name),
+  ...markerScene(name, []),
   entities: [
     { id: "start", type: "marker", at: [1, 1] },
     ...textures.map((asset, i) => ({
@@ -57,17 +45,6 @@ const drawn = (name: string, textures: readonly string[]): SceneDefinition => ({
     })),
   ],
 });
-
-function source(): SceneSource {
-  const scenes = new Map<string, LibraryScene>(
-    ["hall", "yard"].map((id) => [id, { def: plain(id), prefabs: new Map() }]),
-  );
-  return {
-    list: () => [{ scene: "hall" }, { scene: "yard" }],
-    start: () => "hall",
-    scene: (id) => scenes.get(id) ?? null,
-  };
-}
 
 /** A texture's content hash: what the loader keys it by, whichever version carries it. */
 const pixels = (texture: string) => sha256(`${texture} pixels`);
@@ -117,7 +94,7 @@ function countingLoader() {
       else held.set(e.sha256, n);
     }
   };
-  const loader = {
+  const loader = noopLoader({
     async load(bundle: AssetBundle) {
       loaded.push(...bundle.entries.map((e) => e.sha256));
       if (bundle.entries.some((e) => hang.has(e.sha256))) await new Promise(() => {});
@@ -125,70 +102,20 @@ function countingLoader() {
     },
     retain: (bundle: AssetBundle) => bump(bundle, 1),
     release: (bundle: AssetBundle) => bump(bundle, -1),
-    trim() {},
-    stats: () => ({ textures: 0, bytes: 0, resident: [] }),
-    texture: () => null,
-    destroy() {},
-  };
-  return { loader: loader as unknown as AssetLoader, held, hang, loaded };
+  });
+  return { loader, held, hang, loaded };
 }
 
-const games: GameInstance[] = [];
-let canvas: HTMLCanvasElement;
-
-beforeEach(() => {
-  vi.useFakeTimers();
-  canvas = document.createElement("canvas");
-  document.body.appendChild(canvas);
-  vi.stubGlobal("requestAnimationFrame", () => 0);
-  vi.stubGlobal("cancelAnimationFrame", () => {});
-  vi.stubGlobal(
-    "matchMedia",
-    (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addEventListener() {},
-        removeEventListener() {},
-      }) as unknown as MediaQueryList,
-  );
-});
-
-afterEach(() => {
-  for (const g of games.splice(0)) g.destroy();
-  document.body.replaceChildren();
-  vi.unstubAllGlobals();
-  vi.useRealTimers();
-});
+const startedLiveGame = installLiveGames();
 
 async function started() {
   const counting = countingLoader();
-  const kinds = createKindRegistry(game);
-  const view = projectView(
-    {
-      meta: { projectId: "p", layout: 1, name: "P" },
-      assets: {},
-      history: {},
-      code: {},
-      build: {},
-    },
-    kinds,
-  );
-  const instance = await createGame(canvas, {
-    game,
-    dev: true,
-    assets: { loader: counting.loader, view, kinds },
-    flow: { source: source(), loading: false },
+  const instance = await startedLiveGame(game, {
+    source: markerSource(["hall", "yard"]),
+    loader: counting.loader,
   });
-  games.push(instance);
-  instance.start();
-  const done = instance.flow.restart();
-  await vi.runAllTimersAsync();
-  expect(await done).toMatchObject({ ok: true, scene: "hall" });
   return { game: instance, ...counting };
 }
-
-const world = (g: GameInstance) => g.runtime() as SceneRuntimeHandle | null;
 
 describe("staging a version", () => {
   it("refuses a preload past the timeout, and the scene keeps what it runs", async () => {
@@ -213,7 +140,7 @@ describe("staging a version", () => {
     expect(t.game.live.current("hall")).toBeNull();
     expect(t.held.size).toBe(0);
     t.game.step();
-    expect(world(t.game)?.get("art-0")).toBeUndefined();
+    expect(world(t.game).get("art-0")).toBeUndefined();
   });
 
   it("stops at the caller's signal before the deadline", async () => {
@@ -263,7 +190,7 @@ describe("staging a version", () => {
     expect(await t.game.live.stage(first)).toEqual({ ok: true });
     t.game.live.activate("hall", first.id, "now");
     t.game.step();
-    expect(world(t.game)?.get("art-0")).toBeDefined();
+    expect(world(t.game).get("art-0")).toBeDefined();
     // The running scene's bundle, found through the version's assets, and the version's own hold.
     expect(t.held.get(tiles)).toBe(2);
     expect(t.held.get(moss)).toBe(2);
@@ -277,7 +204,7 @@ describe("staging a version", () => {
 
     t.game.live.activate("hall", second.id, "now");
     t.game.step();
-    expect(world(t.game)?.ctx.live.version).toBe(second.id);
+    expect(world(t.game).ctx.live.version).toBe(second.id);
     // The first version is let go; the shared hash stays with the second.
     expect(t.held.get(tiles)).toBe(2);
     expect(t.held.has(moss)).toBe(false);
@@ -297,7 +224,7 @@ describe("staging a version", () => {
     t.game.live.unpin();
     t.game.live.activate("hall", v.id, "now");
     t.game.step();
-    expect(world(t.game)?.ctx.live.version).toBe(v.id);
+    expect(world(t.game).ctx.live.version).toBe(v.id);
     expect(t.held.get(tiles)).toBe(2);
   });
 });

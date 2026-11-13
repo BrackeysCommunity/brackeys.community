@@ -36,7 +36,6 @@ import {
   docRefs,
   openPrefabIsolation,
   projectHistory,
-  selectionBounds,
   type EditorSession,
   type EditorSessionOptions,
   type OpBatch,
@@ -44,6 +43,7 @@ import {
   type Ref,
   type SessionHistory,
 } from "../../editor/index";
+import { frameBounds, outlineLook } from "../../editor/tool-host";
 import {
   LIVE_DEFAULTS,
   withProject,
@@ -77,11 +77,13 @@ import {
   type ProjectView,
   type Sha256,
 } from "../../project/index";
-import { errorText } from "../../runtime/live";
+import { liveCheckThrew, stageIssue } from "../../runtime/live";
+import { errorText } from "../../runtime/runtime";
 import type { SceneRuntimeHandle } from "../../runtime/types";
 import {
   liveIssue,
   nextFreeId,
+  projectSpriteAssets,
   sceneHashWith,
   type InstanceDef,
   type Prefab,
@@ -89,6 +91,7 @@ import {
   type SceneDefinition,
   type SceneIssue,
 } from "../../scene/index";
+import { isErrorIssue, leadIssue } from "../../scene/issues";
 import type { SceneDocStatus } from "../connect/scene-doc";
 import { frameInView } from "../frame/visible-rect";
 import { defaultPeerColor, guestName, type EditorNotify } from "../host";
@@ -145,6 +148,9 @@ export type LivePlayStatus = {
 
 /** The pending feedback and status line while a live update stages. */
 export const LIVE_PLAY_APPLYING = "Applying live update…";
+
+/** What a replay says when the run reached a live version this editor didn't build. */
+export const LIVE_VERSION_MISSING = "This run played a live version this editor doesn't have";
 
 /** Why a run that played live versions this editor didn't build can't replay here. */
 export const LIVE_VERSIONS_ELSEWHERE =
@@ -278,7 +284,7 @@ const plural = (n: number, word: string) => (n === 1 ? `1 ${word}` : `${n} ${wor
 
 /** Why Play didn't start: the scene's errors, a start inside a solid, or a load that failed. */
 function playRefused(notify: EditorNotify, report: Extract<PlayReport, { ok: false }>): void {
-  const errors = report.issues.filter((i) => i.severity === "error");
+  const errors = report.issues.filter(isErrorIssue);
   if (errors.length > 0) {
     notify.error(`Fix ${plural(errors.length, "error")} before you play`, {
       description: errors[0]!.message,
@@ -652,6 +658,14 @@ function docText(project: ProjectSession, entry: AssetEntry, doc: Y.Doc): string
 /** How many versions Live in Play keeps for replaying its runs; the oldest go first. */
 const KEPT_VERSIONS = 32;
 
+/** Why a replay stopped partway: the tick it reached, then why it lacks the version. */
+function replayStopped(issue: SceneIssue): string {
+  const tick = issue.detail?.tick;
+  return typeof tick === "number"
+    ? `The replay stopped at tick ${tick}. ${LIVE_VERSIONS_ELSEWHERE}`
+    : LIVE_VERSIONS_ELSEWHERE;
+}
+
 type LivePlayOptions = {
   game: EditorGame;
   project: ProjectSession | null;
@@ -808,15 +822,7 @@ function createLivePlay({
       const made = await build(p, definition);
       if (ticket !== run) return;
       if (!made.ok) {
-        const issue =
-          made.issues.find((i) => i.severity === "error") ??
-          made.issues[0] ??
-          liveIssue({
-            code: "live-swap-failed",
-            scene,
-            cause: "the version didn't build",
-            phase: "stage",
-          });
+        const issue = leadIssue(made.issues) ?? stageIssue(scene, "the version didn't build");
         return fail("Live update not applied", issue);
       }
       if (made.version.sceneHash === runningHash) {
@@ -856,10 +862,7 @@ function createLivePlay({
       }
     } catch (err) {
       if (ticket !== run) return;
-      fail(
-        "Live update not applied",
-        liveIssue({ code: "live-swap-failed", scene, cause: errorText(err), phase: "stage" }),
-      );
+      fail("Live update not applied", stageIssue(scene, errorText(err)));
     } finally {
       release();
     }
@@ -889,7 +892,8 @@ function createLivePlay({
     timer = setTimeout(() => void flush(), LIVE_DEFAULTS.livePlayDebounceMs);
   }
 
-  function checksAfter(): SceneIssue[] {
+  /** The game's live check's issues `when` (`right after the swap`, `60 ticks after the swap`). */
+  function checksAfter(when: string): SceneIssue[] {
     const declared = definition?.live;
     // The runtime the game plays is the shell's handle, which carries the context the check reads.
     const ctx = (game.runtime() as SceneRuntimeHandle | null)?.ctx;
@@ -897,8 +901,7 @@ function createLivePlay({
     try {
       return [...declared.check(ctx)];
     } catch (err) {
-      const cause = `the game's live check threw: ${errorText(err)}`;
-      return [liveIssue({ code: "live-swap-failed", scene, cause, phase: "swap" })];
+      return [liveCheckThrew(err, when, scene, game.registry)];
     }
   }
 
@@ -917,7 +920,7 @@ function createLivePlay({
       if (!ctx || ctx.tick < at) return;
       offRecheck?.();
       offRecheck = null;
-      checkIssues = merged(checksAfter());
+      checkIssues = merged(checksAfter(`${ctx.tick - swap.tick} ticks after the swap`));
       set({ checks: problems() });
     };
     game.on("game:tick", onTick);
@@ -928,7 +931,7 @@ function createLivePlay({
     if (swap.scene !== scene || awaiting === null || swap.to.version !== awaiting) return;
     awaiting = null;
     runningHash = swap.to.sceneHash;
-    checkIssues = checksAfter();
+    checkIssues = checksAfter("right after the swap");
     failure = null;
     const n = checkIssues.length;
     const counted = n > 0 ? ` · ${n === 1 ? "1 check issue" : `${n} check issues`}` : "";
@@ -953,6 +956,10 @@ function createLivePlay({
   };
 
   const onFailed = (e: { scene: AssetId; version: Sha256 | null; issue: SceneIssue }) => {
+    if (replaying && e.issue.code === "scene-version-removed") {
+      notify.error(LIVE_VERSION_MISSING, { description: replayStopped(e.issue) });
+      return;
+    }
     if (e.scene !== scene || awaiting === null || e.version !== awaiting) return;
     awaiting = null;
     fail("Live update failed", e.issue);
@@ -1234,7 +1241,9 @@ export function openLiveEditor({
   function show(target: EditorSession, refs: readonly Ref[], isolated?: string) {
     binding.destroy();
     binding = bind(target, isolated);
-    const box = selectionBounds(target.getResolved(), target.registry, refs);
+    const view = project?.view();
+    const look = outlineLook(target.registry, view ? projectSpriteAssets(view) : undefined);
+    const box = frameBounds(target.getResolved(), refs, look);
     if (box) frameInView(game, box);
   }
 
@@ -1355,9 +1364,7 @@ export function openLiveEditor({
       : game.play(scene, opts);
     if (!report.ok) {
       if (recording && report.issues.some((i) => i.code === "scene-version-removed"))
-        notify.error("This run played a live version this editor doesn't have", {
-          description: LIVE_VERSIONS_ELSEWHERE,
-        });
+        notify.error(LIVE_VERSION_MISSING, { description: LIVE_VERSIONS_ELSEWHERE });
       else playRefused(notify, report);
       return null;
     }

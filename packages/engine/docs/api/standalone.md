@@ -632,7 +632,7 @@ that hash, else from `live/`, each hash-checked; stages it within one
 `LIVE_DEFAULTS.preloadTimeoutMs` deadline for the whole preparation; and
 activates it at its timing. Each step goes to `report`: `staging`,
 `ready`, `waiting` (a boundary swap), `applied` (the swap, or the load
-that used it) and `refused` or `failed` with the issue. A scene that
+or sublevel attach that used it) and `refused` or `failed` with the issue. A scene that
 leaves the snapshot goes back to the release's own, at its pointer's
 last timing, or at the next load when the version it ran had failed or
 was removed. One preparation per scene runs at a time; a newer snapshot
@@ -754,9 +754,16 @@ declare const frameMessageSchema: z.ZodDiscriminatedUnion<[
             staging: "staging";
             waiting: "waiting";
         }>;
-        strategy: z.ZodOptional<z.ZodType<SwapStrategy, unknown, z.core.$ZodTypeInternals<SwapStrategy, unknown>>>;
+        strategy: z.ZodOptional<z.ZodEnum<{
+            reconcile: "reconcile";
+            reload: "reload";
+        }>>;
         tick: z.ZodOptional<z.ZodNumber>;
-        timing: z.ZodOptional<z.ZodType<SwapTiming, unknown, z.core.$ZodTypeInternals<SwapTiming, unknown>>>;
+        timing: z.ZodOptional<z.ZodEnum<{
+            "next-load": "next-load";
+            boundary: "boundary";
+            now: "now";
+        }>>;
         type: z.ZodLiteral<"live.state">;
         version: z.ZodNullable<z.ZodString>;
     }, z.core.$strict>
@@ -942,9 +949,16 @@ declare const liveStateMessageSchema: z.ZodObject<{
         staging: "staging";
         waiting: "waiting";
     }>;
-    strategy: z.ZodOptional<z.ZodType<SwapStrategy, unknown, z.core.$ZodTypeInternals<SwapStrategy, unknown>>>;
+    strategy: z.ZodOptional<z.ZodEnum<{
+        reconcile: "reconcile";
+        reload: "reload";
+    }>>;
     tick: z.ZodOptional<z.ZodNumber>;
-    timing: z.ZodOptional<z.ZodType<SwapTiming, unknown, z.core.$ZodTypeInternals<SwapTiming, unknown>>>;
+    timing: z.ZodOptional<z.ZodEnum<{
+        "next-load": "next-load";
+        boundary: "boundary";
+        now: "now";
+    }>>;
     version: z.ZodNullable<z.ZodString>;
 }, z.core.$strict>;
 ```

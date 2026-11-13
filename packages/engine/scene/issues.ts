@@ -571,7 +571,7 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
   "live-swap-failed": {
     severity: "error",
     summary:
-      "A new version of a scene couldn't be staged or applied while playing; `detail.phase` names the step. Staging failed (`stage`): the scene keeps the version it runs. A swap step refused (`swap`) or the game's `onSwap` threw (`onSwap`): the old version keeps running and the new one loads next time.",
+      "A new version of a scene couldn't be staged or applied while playing; `detail.phase` names the step. Staging failed (`stage`): the scene keeps the version it runs. A swap step refused (`swap`) or the game's `onSwap` threw (`onSwap`): the old version keeps running and the new one loads next time. The swap applied, then a step or the game's live check threw (`after`).",
     hint: "The issue's own hint is the onSwap error or the step that refused.",
     fixable: false,
   },
@@ -616,7 +616,7 @@ export type LiveIssueInput =
       scene: AssetId;
       /** The onSwap error or the step that refused: the issue's hint. */
       cause: string;
-      phase?: "stage" | "swap" | "onSwap";
+      phase?: LiveSwapPhase;
       /** `reload` when the swap needs a reload; `refused` when a reconcile step refused. */
       reason?: "reload" | "refused";
       /** The entity whose step refused. */
@@ -635,13 +635,21 @@ export type LiveIssueInput =
     };
 
 /**
+ * Where a live update failed: staging it, a swap step, the game's `onSwap`,
+ * or after the swap applied (a step or the game's live check threw).
+ */
+export type LiveSwapPhase = "stage" | "swap" | "onSwap" | "after";
+
+/**
  * A failed staging keeps the version the scene runs; a failed swap step
  * has already made the new version the one the scene's next load uses.
  * Without a phase nothing is promised.
  */
-function swapFailedMessage(scene: AssetId, phase: "stage" | "swap" | "onSwap" | undefined): string {
+function swapFailedMessage(scene: AssetId, phase: LiveSwapPhase | undefined): string {
   if (phase === "stage")
     return `The update to ${scene} couldn't be staged; the scene keeps the version it runs.`;
+  if (phase === "after")
+    return `The update to ${scene} applied, but the game failed right after it.`;
   if (phase === undefined) return `The update to ${scene} couldn't be applied while playing.`;
   return `The update to ${scene} couldn't be applied while playing; it will load next time.`;
 }
@@ -716,6 +724,19 @@ export function liveIssue(input: LiveIssueInput): SceneIssue {
       });
   }
 }
+
+/** A thrown value as message text: an `Error`'s message, else the value as a string. */
+export const errorText = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
+
+export const isErrorIssue = (issue: SceneIssue): boolean => issue.severity === "error";
+
+export const firstError = (issues: readonly SceneIssue[]): SceneIssue | undefined =>
+  issues.find(isErrorIssue);
+
+/** The issue that stands for `issues`: the first error, else the first issue. */
+export const leadIssue = (issues: readonly SceneIssue[]): SceneIssue | undefined =>
+  firstError(issues) ?? issues[0];
 
 /**
  * A `SceneIssue` with the code's severity and hint filled in. A game's codes

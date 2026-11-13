@@ -1,7 +1,12 @@
 import type { LibraryScene, SceneLibrary } from "../game/flow";
 import type { GameCommand, GameDefinition, GameOutcome, PlayState, Registry } from "../game/types";
 import { applyFlowRequest } from "../runtime/flow";
-import { createLiveLayer, preparedVersion, type LiveLayer } from "../runtime/live";
+import {
+  createLiveLayer,
+  preparedVersion,
+  unlistedStageIssue,
+  type LiveLayer,
+} from "../runtime/live";
 import { playWorld } from "../runtime/play-session";
 import { inputAction, probeConfigHash } from "../runtime/recorder";
 import { createSceneRuntime, resolveGame, type ProjectOption } from "../runtime/runtime";
@@ -15,7 +20,6 @@ import type {
 } from "../runtime/types";
 import { closest } from "../scene/did-you-mean";
 import { uiActionScriptProblem } from "../scene/input-script";
-import { liveIssue } from "../scene/issues";
 import type { PrefabLibrary } from "../scene/types";
 import type { InputAction } from "../types";
 import { legalCommands, startState } from "./legal";
@@ -161,19 +165,10 @@ function headlessLive(
   const { registry, game, library } = run;
   return {
     stage(v) {
-      const scene = v.version.scene;
-      const refused = (cause: string) => ({
-        ok: false as const,
-        issue: liveIssue({ code: "live-swap-failed", scene, cause, phase: "stage" }),
-      });
-      if (library && !library.list.some((e) => e.scene === scene))
-        return refused(`${scene} isn't in the game's scene list`);
+      const unlisted = unlistedStageIssue(v.version.scene, library?.list);
+      if (unlisted) return { ok: false, issue: unlisted };
       const read = preparedVersion(v, registry, game, runtime.ctx.project?.engine);
-      if (!read.ok) {
-        const cause = read.issues.find((i) => i.severity === "error") ?? read.issues[0];
-        return cause ? { ok: false, issue: cause } : refused("it didn't read");
-      }
-      return layer.stage(read.prepared);
+      return read.ok ? layer.stage(read.prepared) : { ok: false, issue: read.issue };
     },
     activate: (scene, version, timing) => layer.activate(scene, version, timing),
     current: (scene) => layer.current(scene),

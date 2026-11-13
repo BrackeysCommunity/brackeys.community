@@ -548,6 +548,8 @@ async function sources(): Promise<Source[]> {
           .join("\n"),
       ),
       given: givenOf(SAVE_API.SAVE_TITLE_MAX + 1),
+      // A slot name's shortest length, which no constant holds.
+      prose: ["digits and dashes, 1–"],
     },
     {
       name: "engine-showcase.ts's messages",
@@ -787,7 +789,7 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
   {
     states: ["SLOT_MAX_LENGTH"],
     source: "save-api.ts's messages",
-    phrase: `A slot is lowercase letters, digits and dashes, up to ${C("SLOT_MAX_LENGTH")} characters`,
+    phrase: `A slot is lowercase letters, digits and dashes, 1–${C("SLOT_MAX_LENGTH")} characters`,
   },
   // Quota and release messages
   {

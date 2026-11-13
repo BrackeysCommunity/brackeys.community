@@ -6,7 +6,7 @@ import type { LibraryScene, SceneListEntry } from "../game/flow";
 import { resolveTime } from "../game/time";
 import type { GameDefinition, Registry } from "../game/types";
 import { browserRemapStore, snapshotRemapStore } from "../input/remap";
-import { stableJson } from "../project/canonical";
+import { ownValue, stableJson } from "../project/canonical";
 import { ContentStoreError, memoryContentStore } from "../project/content-store";
 import { createKindRegistry } from "../project/kinds";
 import {
@@ -25,7 +25,7 @@ import type { AssetId, Sha256 } from "../project/types";
 import { createAssetLoader } from "../render/asset-loader";
 import { browserSaveStore } from "../saves/browser";
 import { channelSaveStore, type SaveStore } from "../saves/store";
-import { makeIssue } from "../scene/issues";
+import { errorText, isErrorIssue, makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
 import type { GameEventMap, GameInstance, RapierModule, SceneSource } from "../types";
 import { mountUi } from "../ui/layer";
@@ -407,7 +407,7 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
       prompt?.stop();
       prompt = null;
     }
-    const held = (await checkReleaseManifest(manifest)).filter((i) => i.severity === "error");
+    const held = (await checkReleaseManifest(manifest)).filter(isErrorIssue);
     if (held.length > 0) throw new StandaloneBootError(held);
 
     const [id, texts] = await Promise.all([
@@ -440,7 +440,7 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
     /** Blob files live versions carry, by hash; the release's own pins come first. */
     const liveFiles = new Map<Sha256, string>();
     const assetUrl = (assetId: AssetId, hash: Sha256): string => {
-      const asset = Object.hasOwn(manifest.assets, assetId) ? manifest.assets[assetId] : undefined;
+      const asset = ownValue(manifest.assets, assetId);
       const file = asset?.sha256 === hash ? asset.file : liveFiles.get(hash);
       return releaseUrl(base, file ?? asset?.file ?? `assets/${hash}`).href;
     };
@@ -541,7 +541,7 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
       root,
       first
         ? { message: first.message, code: first.code }
-        : { message: error instanceof Error ? error.message : String(error), code: null },
+        : { message: errorText(error), code: null },
     );
     throw issues
       ? error instanceof StandaloneBootError

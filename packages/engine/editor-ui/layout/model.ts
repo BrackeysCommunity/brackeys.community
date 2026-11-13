@@ -38,9 +38,11 @@ export const LIMITS = {
   /**
    * The 28 px tab strip plus content. With both groups open, the top one
    * keeps `topShare` of the room they share, however tall the bottom one is
-   * stored, and a bottom one with no stored height starts at `bottomShare`.
+   * stored (a tab like Project settings grows it), so the outliner and the
+   * inspector are never the smaller group; a bottom one with no stored
+   * height starts at `bottomShare`.
    */
-  group: { min: 96, topShare: 0.4, bottomShare: 0.4 },
+  group: { min: 96, topShare: 0.5, bottomShare: 0.4 },
   canvas: { min: 320 },
   phone: 640,
 } as const;

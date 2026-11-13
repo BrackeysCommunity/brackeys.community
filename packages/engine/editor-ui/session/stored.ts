@@ -9,6 +9,9 @@ import type { EditorStorage } from "../host";
 export const isRecord = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 
+/** A stored boolean, else null. */
+export const storedFlag = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null);
+
 /** A stored `{ key: boolean }` map, keeping only its boolean entries. */
 export function storedFlags(v: unknown): Record<string, boolean> | null {
   if (!isRecord(v)) return null;

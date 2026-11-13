@@ -19,15 +19,18 @@ const DEF: SceneDefinition = {
   entities: [{ id: "start", type: "marker", at: [1, 1] }],
 };
 
-/** Every declaration a game can make, as the timings it lists (undefined: no `live` at all). */
-const DECLARED: readonly (readonly SwapTiming[] | undefined)[] = [
-  undefined,
-  [],
-  ["next-load"],
-  ["boundary"],
-  ["now"],
-  ["boundary", "now"],
-  ["next-load", "boundary", "now"],
+/**
+ * Every declaration a game can make, as the timings it lists (undefined: no
+ * `live` at all), and how a clamp's message words what it accepts.
+ */
+const DECLARED: readonly [readonly SwapTiming[] | undefined, string][] = [
+  [undefined, "only next load"],
+  [[], "only next load"],
+  [["next-load"], "only next load"],
+  [["boundary"], "boundary and next load"],
+  [["now"], "now and next load"],
+  [["boundary", "now"], "now, boundary and next load"],
+  [["next-load", "boundary", "now"], "now, boundary and next load"],
 ];
 
 /** The strongest timing the game accepts that is no stronger than `wanted`. */
@@ -53,7 +56,7 @@ function layerFor(listed: readonly SwapTiming[] | undefined) {
 }
 
 describe("activate's timing clamp", () => {
-  for (const listed of DECLARED) {
+  for (const [listed, accepts] of DECLARED) {
     for (const wanted of TIMINGS) {
       const name = listed ? `[${listed.join(", ")}]` : "no live";
       it(`${name} asked for ${wanted}`, () => {
@@ -74,9 +77,8 @@ describe("activate's timing clamp", () => {
           severity: "warn",
           hint: ISSUE_CODES["live-timing-unsupported"].hint,
         });
-        const accepted = ["next load", ...(listed ?? []).filter((t) => t !== "next-load")];
         expect(got.issue!.message).toBe(
-          `This game accepts only ${accepted.join(" or ")}; level-1@${SHA.slice(0, 12)} will reach players then.`,
+          `This game accepts ${accepts}; level-1@${SHA.slice(0, 12)} will reach players then.`,
         );
       });
     }

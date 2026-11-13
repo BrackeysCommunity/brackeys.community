@@ -243,11 +243,16 @@ export type RunRecorder = {
   finish(end: RecordingEnd, final: unknown): RunRecording;
 };
 
-/** An applied swap as a recording holds it: the version and hashes it swapped to, its strategy, timing and tick. */
+/**
+ * An applied swap as a recording holds it: the version and hashes it swapped
+ * to, its strategy, timing and tick, and for a `next-load` swap (a sublevel
+ * scene's version, which its next attach uses) that `sublevel`.
+ */
 export function recordedSwap(swap: SceneSwap): RecordedSwap {
   const { version, sceneHash, runHash } = swap.to;
   return {
     tick: swap.tick,
+    ...(swap.timing === "next-load" ? { sublevel: swap.scene } : {}),
     version,
     strategy: swap.strategy,
     timing: swap.timing,
@@ -331,8 +336,16 @@ export function createRunRecorder(opts: RecorderOptions): RunRecorder {
   const seed = opts.start.seed ?? defaultSeed(game?.id ?? null, opts.scene);
   const swaps: RecordedSwap[] = [];
   const record = (e: RecordedSwap) => {
-    const { tick, version, strategy, timing, sceneHash, runHash } = e;
-    swaps.push({ tick, version, strategy, timing, sceneHash, runHash });
+    const { tick, sublevel, version, strategy, timing, sceneHash, runHash } = e;
+    swaps.push({
+      tick,
+      ...(sublevel !== undefined ? { sublevel } : {}),
+      version,
+      strategy,
+      timing,
+      sceneHash,
+      runHash,
+    });
   };
 
   return {

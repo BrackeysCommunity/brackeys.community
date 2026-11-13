@@ -1852,6 +1852,7 @@ JsonSchemaOptions
 LENGTH_UNITS
 LengthUnitName
 LiveIssueInput
+LiveSwapPhase
 LocalChild
 MAX_SCRIPT_TICKS
 MAX_TOUCH_ROLLOUTS
@@ -12263,7 +12264,7 @@ type LiveIssueInput = {
     cause: string;
     code: "live-swap-failed";
     entityId?: string;
-    phase?: "onSwap" | "stage" | "swap";
+    phase?: LiveSwapPhase;
     reason?: "refused" | "reload";
     scene: AssetId;
 } | {
@@ -12300,6 +12301,7 @@ type LiveIssueInput = {
     tick?: number;
     version: string;
 };
+type LiveSwapPhase = "after" | "onSwap" | "stage" | "swap";
 declare function jsonPointer(segments: readonly (number | string)[]): string;
 declare function liveIssue(input: LiveIssueInput): SceneIssue;
 declare function makeIssue(code: IssueCode, fields: Partial<Omit<SceneIssue, "code">> & {
@@ -13012,6 +13014,7 @@ type RecordedSwap = {
     runHash: string;
     sceneHash: string;
     strategy: SwapStrategy;
+    sublevel?: AssetId;
     tick: number;
     timing: SwapTiming;
     version: Sha256 | null;
@@ -13261,6 +13264,7 @@ declare const runRecordingSchema: z.ZodObject<{
             reconcile: "reconcile";
             reload: "reload";
         }>;
+        sublevel: z.ZodOptional<z.ZodString>;
         tick: z.ZodNumber;
         timing: z.ZodEnum<{
             "next-load": "next-load";
@@ -14709,9 +14713,16 @@ declare const frameMessageSchema: z.ZodDiscriminatedUnion<[
             staging: "staging";
             waiting: "waiting";
         }>;
-        strategy: z.ZodOptional<z.ZodType<SwapStrategy, unknown, z.core.$ZodTypeInternals<SwapStrategy, unknown>>>;
+        strategy: z.ZodOptional<z.ZodEnum<{
+            reconcile: "reconcile";
+            reload: "reload";
+        }>>;
         tick: z.ZodOptional<z.ZodNumber>;
-        timing: z.ZodOptional<z.ZodType<SwapTiming, unknown, z.core.$ZodTypeInternals<SwapTiming, unknown>>>;
+        timing: z.ZodOptional<z.ZodEnum<{
+            "next-load": "next-load";
+            boundary: "boundary";
+            now: "now";
+        }>>;
         type: z.ZodLiteral<"live.state">;
         version: z.ZodNullable<z.ZodString>;
     }, z.core.$strict>
@@ -14796,9 +14807,16 @@ declare const liveStateMessageSchema: z.ZodObject<{
         staging: "staging";
         waiting: "waiting";
     }>;
-    strategy: z.ZodOptional<z.ZodType<SwapStrategy, unknown, z.core.$ZodTypeInternals<SwapStrategy, unknown>>>;
+    strategy: z.ZodOptional<z.ZodEnum<{
+        reconcile: "reconcile";
+        reload: "reload";
+    }>>;
     tick: z.ZodOptional<z.ZodNumber>;
-    timing: z.ZodOptional<z.ZodType<SwapTiming, unknown, z.core.$ZodTypeInternals<SwapTiming, unknown>>>;
+    timing: z.ZodOptional<z.ZodEnum<{
+        "next-load": "next-load";
+        boundary: "boundary";
+        now: "now";
+    }>>;
     version: z.ZodNullable<z.ZodString>;
 }, z.core.$strict>;
 declare const saveLimitsSchema: z.ZodObject<{

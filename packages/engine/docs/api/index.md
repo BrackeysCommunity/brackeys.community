@@ -545,7 +545,12 @@ type GameEventMap = {
     "game:tick": {
         tick: number;
     };
-    /** A version couldn't be staged or applied; the old one keeps running and the new one waits for the next load. */
+    /**
+     * A version couldn't be applied, or a replay can't have one it recorded;
+     * `issue` says what happens next: after a refused swap step or a throwing
+     * `onSwap` the old version keeps running and the new one loads next time,
+     * and `scene-version-removed` stops the replay there.
+     */
     "live:failed": {
         issue: SceneIssue;
         scene: AssetId;

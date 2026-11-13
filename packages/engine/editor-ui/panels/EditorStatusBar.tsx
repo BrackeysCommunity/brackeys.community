@@ -210,10 +210,15 @@ const LIVE_TONES: Readonly<Record<LivePlayStatus["tone"], TextTone>> = {
 };
 
 /** Live in Play's status line while it is on and no update is under way. */
-export const LIVE_PLAY_IDLE = "Live in Play: waiting for edits";
+export const LIVE_PLAY_IDLE = "Live in Play: listening for edits";
+
+/** Whether Live in Play's last update didn't reach the running game: it failed or is waiting. */
+export function livePlayPending(status: LivePlayStatus | null | undefined): boolean {
+  return status?.tone === "failed" || status?.tone === "waiting";
+}
 
 /**
- * Live in Play's status line while playing: waiting for edits, the update
+ * Live in Play's status line while playing: listening for edits, the update
  * staging, then how it was applied, when it will apply under the game's
  * timings, or why it wasn't. Nothing while Live in Play is off.
  */
@@ -231,8 +236,7 @@ export function LiveInPlayStatus({ host }: { host: ReadableStore<EditorHostState
     );
   }
   // A failure or a wait can outrun the island: its hint holds the whole reason.
-  const detail =
-    status.tone === "failed" || status.tone === "waiting" ? statusDetail(status) : null;
+  const detail = livePlayPending(status) ? statusDetail(status) : null;
   const line = (
     <Text size="sm" variant={LIVE_TONES[status.tone]} ellipsis {...(detail ? { tabIndex: 0 } : {})}>
       {status.text}

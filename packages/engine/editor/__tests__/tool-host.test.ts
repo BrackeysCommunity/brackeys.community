@@ -28,7 +28,14 @@ import yard from "../../scenes/engine-yard.json";
 import { createToolRouter, type ToolRouter } from "../../tool-router";
 import { dropBatch, dropPreview, type AssetDrop } from "../asset-drop";
 import { createEditorSession, type EditorSession } from "../session";
-import { createToolHost, type ToolHost, type ToolHostOptions } from "../tool-host";
+import {
+  createToolHost,
+  frameBounds,
+  outlineBounds,
+  outlineLook,
+  type ToolHost,
+  type ToolHostOptions,
+} from "../tool-host";
 import { DEFAULT_SNAP, type EditorToolDef } from "../tools";
 
 const registry = toolRegistry;
@@ -665,6 +672,16 @@ describe("host commands", () => {
     expect(frames.at(-1)).toEqual({ minX: bx, minY: by, maxX: bx, maxY: by });
   });
 
+  it("frames a path's whole route, waypoints its outline leaves out included", () => {
+    const frames: unknown[] = [];
+    const r = rig({ frame: (rect) => void frames.push(rect) });
+    r.session.select(["lift"]);
+    const box = r.host.selectionBounds()!;
+    expect(box.minY).toBeGreaterThan(6);
+    expect(r.host.command("frame")).toBe(true);
+    expect(clean(frames)).toEqual([clean({ ...box, minY: 6 })]);
+  });
+
   it("ignores pointers outside edit mode", () => {
     const r = rig();
     r.session.setMode("play");
@@ -850,5 +867,52 @@ describe("outlines", () => {
       { type: "box", cx: 4, cy: 4, hw: 0.2, hh: 0.1, rotDeg: 0 },
     ]);
     r.ptr("up", 460, 430);
+  });
+});
+
+describe("frameBounds", () => {
+  const gameless = createRegistry();
+  const follow = (id: string, at: [number, number], pts: [number, number][]): EntityDef => ({
+    id,
+    type: "marker",
+    at,
+    behaviors: { "path-follow": { path: { pts, mode: "loop", speed: 1 } } },
+  });
+  const def: SceneDefinition = {
+    v: 1,
+    name: "routes",
+    bounds: [0, 0, 20, 20],
+    entities: [
+      follow(
+        "m",
+        [5, 5],
+        [
+          [5, 5],
+          [9, 5],
+          [9, 2],
+        ],
+      ),
+      follow(
+        "post-1/a",
+        [1, 1],
+        [
+          [1, 1],
+          [1, 12],
+        ],
+      ),
+      { id: "post-1/b", type: "marker", at: [3, 2] },
+      { id: "still", type: "marker", at: [4, 4] },
+    ],
+  };
+  const look = outlineLook(gameless);
+
+  it("grows the outline over a path-follow block's waypoints, an instance's children's too", () => {
+    expect(frameBounds(def, ["m"], look)).toEqual({ minX: 5, minY: 2, maxX: 9, maxY: 5 });
+    expect(frameBounds(def, ["post-1"], look)).toEqual({ minX: 1, minY: 1, maxX: 3, maxY: 12 });
+  });
+
+  it("is the outline's box for what travels no path, and null for nothing", () => {
+    expect(frameBounds(def, ["still"], look)).toEqual(outlineBounds(def, ["still"], look));
+    expect(frameBounds(def, ["missing"], look)).toBeNull();
   });
 });

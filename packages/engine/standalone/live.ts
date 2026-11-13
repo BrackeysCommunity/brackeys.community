@@ -5,8 +5,9 @@ import type { ReleaseAsset, ReleaseManifest } from "../project/release";
 import { liveFiles } from "../project/release-assets";
 import { checkSceneVersion, parseSceneVersion, type SceneVersion } from "../project/scene-version";
 import type { AssetId, Sha256 } from "../project/types";
+import { stageIssue } from "../runtime/live";
 import type { SceneRuntimeHandle } from "../runtime/types";
-import { liveIssue, makeIssue } from "../scene/issues";
+import { errorText, firstError, leadIssue, makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
 import type { GameEventMap, GameInstance } from "../types";
 import { fetchDocTexts } from "./data";
@@ -67,9 +68,6 @@ class Stopped extends Error {
   }
 }
 
-const firstError = (issues: readonly SceneIssue[]): SceneIssue | undefined =>
-  issues.find((i) => i.severity === "error");
-
 /**
  * Follows the page's live snapshots: for each scene whose version differs
  * from what the frame runs, fetches `live/<version>.json` and checks that
@@ -79,7 +77,7 @@ const firstError = (issues: readonly SceneIssue[]): SceneIssue | undefined =>
  * `LIVE_DEFAULTS.preloadTimeoutMs` deadline for the whole preparation; and
  * activates it at its timing. Each step goes to `report`: `staging`,
  * `ready`, `waiting` (a boundary swap), `applied` (the swap, or the load
- * that used it) and `refused` or `failed` with the issue. A scene that
+ * or sublevel attach that used it) and `refused` or `failed` with the issue. A scene that
  * leaves the snapshot goes back to the release's own, at its pointer's
  * last timing, or at the next load when the version it ran had failed or
  * was removed. One preparation per scene runs at a time; a newer snapshot
@@ -146,16 +144,22 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
     const playing = instance.flow.current() === scene;
     // A swap timing with nothing pending on the scene playing means it already runs this version.
     if (out.timing !== "next-load" && playing) applied(scene, t, { timing: out.timing });
-    // Off the main scene, a run attaches the scenes it loaded with, so a sublevel takes the version at its first attach after the next load.
-    else if (!playing) attaches.set(scene, { track: t, loaded: false });
+    // Off the main scene, a sublevel takes the version at its next attach: one attached now keeps what it runs.
+    else if (!playing) attaches.set(scene, { track: t, before: new Set(labelsOf(scene)) });
   }
 
-  /** Activated versions of scenes not playing, waiting for an attach as a sublevel, and whether a load has run since. */
-  const attaches = new Map<AssetId, { track: Track; loaded: boolean }>();
+  /**
+   * Activated versions of scenes not playing, waiting for their next attach
+   * as a sublevel; `before` holds the labels the scene was attached under at
+   * activation, still running what they attached with, until each is
+   * detached or a load clears them.
+   */
+  const attaches = new Map<AssetId, { track: Track; before: Set<string> }>();
 
-  function isAttached(scene: AssetId): boolean {
+  /** The labels `scene` is attached under as a sublevel of the running scene. */
+  function labelsOf(scene: AssetId): string[] {
     const rt = instance.runtime() as SceneRuntimeHandle | null;
-    return rt?.ctx.flow.sublevels().some((s) => s.scene === scene) ?? false;
+    return (rt?.ctx.flow.sublevels() ?? []).filter((s) => s.scene === scene).map((s) => s.label);
   }
 
   /** Fetches and checks `entry`'s version and the docs it carries, then stages it. */
@@ -185,8 +189,7 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
       );
     const parsed = parseSceneVersion(text);
     if (!parsed.ok) {
-      const issue = firstError(parsed.issues) ?? parsed.issues[0];
-      return refuse(issue ?? stageIssue(scene, `${name} didn't parse`));
+      return refuse(leadIssue(parsed.issues) ?? stageIssue(scene, `${name} didn't parse`));
     }
     const version = parsed.version;
     if (version.scene !== scene)
@@ -252,10 +255,7 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
         if (error instanceof Stopped) return { ok: false, issue: timedOut() };
         if (error instanceof StandaloneBootError && error.issues[0])
           return { ok: false, issue: error.issues[0] };
-        return {
-          ok: false,
-          issue: stageIssue(scene, error instanceof Error ? error.message : String(error)),
-        };
+        return { ok: false, issue: stageIssue(scene, errorText(error)) };
       })
       .then((result) => {
         globalThis.clearTimeout(timer);
@@ -324,12 +324,12 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
   };
   const onLoad = ({ to }: GameEventMap["flow:change"]) => {
     attaches.delete(to);
-    for (const w of attaches.values()) w.loaded = true;
+    for (const w of attaches.values()) w.before.clear();
     const t = tracks.get(to);
     if (t?.phase !== "activated" || instance.live.current(to) !== t.version) return;
     applied(to, t, { timing: "next-load" });
   };
-  /** After each step: a waiting sublevel attached since a load runs its active version. */
+  /** After each step: a waiting sublevel attached under a label it didn't hold at activation runs its active version. */
   const onStep = () => {
     for (const [scene, w] of attaches) {
       const t = w.track;
@@ -337,7 +337,9 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
         attaches.delete(scene);
         continue;
       }
-      if (!w.loaded || !isAttached(scene)) continue;
+      const labels = labelsOf(scene);
+      for (const label of w.before) if (!labels.includes(label)) w.before.delete(label);
+      if (labels.every((label) => w.before.has(label))) continue;
       attaches.delete(scene);
       if (instance.live.current(scene) === t.version) applied(scene, t, { timing: "next-load" });
     }
@@ -362,9 +364,4 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
       attaches.clear();
     },
   };
-}
-
-/** A preparation that stopped: `live-swap-failed` in the stage phase, the cause as its hint. */
-function stageIssue(scene: AssetId, cause: string): SceneIssue {
-  return liveIssue({ code: "live-swap-failed", scene, cause, phase: "stage" });
 }

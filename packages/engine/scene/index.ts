@@ -189,7 +189,14 @@ export {
   type SublevelSettings,
   type ValidateOptions,
 } from "./validate";
-export { ISSUE_CODES, jsonPointer, liveIssue, makeIssue, type LiveIssueInput } from "./issues";
+export {
+  ISSUE_CODES,
+  jsonPointer,
+  liveIssue,
+  makeIssue,
+  type LiveIssueInput,
+  type LiveSwapPhase,
+} from "./issues";
 export { diffExpanded } from "./expanded-diff";
 export {
   fragmentJsonSchema,

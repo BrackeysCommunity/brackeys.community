@@ -1,8 +1,13 @@
 import { z } from "zod";
 
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
-import { ID_PATTERN, PtSchema } from "../game/fields";
-import type { SwapStrategy, SwapTiming } from "../game/live";
+import { AssetIdSchema, ID_PATTERN, PtSchema } from "../game/fields";
+import {
+  swapStrategySchema,
+  swapTimingSchema,
+  type SwapStrategy,
+  type SwapTiming,
+} from "../game/live";
 import { MAX_TICK_RATE, MIN_TICK_RATE, type TimeKind } from "../game/time";
 import type { DeviceId, JsonValue, Registry } from "../game/types";
 import { scaleLengths } from "../game/units";
@@ -10,7 +15,7 @@ import { SHA256_PATTERN } from "../project/hash";
 import type { AssetId, Sha256 } from "../project/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { deviceIdSchema } from "./device-id";
-import { jsonPointer } from "./issues";
+import { errorText, jsonPointer } from "./issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "./json-schema";
 import { pxToMetres } from "./units";
 
@@ -30,6 +35,7 @@ const V1_NO_PHYSICS = "none";
 const ELAPSED_COMMAND = "@elapsed";
 
 const tick = (description: string) => z.number().int().min(0).describe(description);
+const sha256 = z.string().regex(SHA256_PATTERN);
 const index = (description: string) => z.number().int().min(0).describe(description);
 const bit = (description: string) => z.union([z.literal(0), z.literal(1)]).describe(description);
 
@@ -260,6 +266,11 @@ export type RunRecordingV2 = {
 export type RecordedSwap = {
   /** The tick the swap ran before (`ctx.tick` at the swap). */
   tick: number;
+  /**
+   * The sublevel scene a `next-load` swap moved, whose next attach in the
+   * run uses `version`; absent for a swap of the scene this segment plays.
+   */
+  sublevel?: AssetId;
   /** null: back to the release's own scene. */
   version: Sha256 | null;
   strategy: SwapStrategy;
@@ -409,9 +420,7 @@ export const runRecordingSchema = z
       })
       .nullable()
       .describe("The project the run was played in; null without one."),
-    release: z
-      .string()
-      .regex(SHA256_PATTERN)
+    release: sha256
       .optional()
       .describe(
         "The release the run was played from, its manifest's id; omitted for a run outside a release.",
@@ -488,16 +497,11 @@ export const runRecordingSchema = z
     fromSave: z
       .strictObject({
         slot: z.string().describe("The save's slot."),
-        sha256: z
-          .string()
-          .regex(SHA256_PATTERN)
-          .describe("The save file's hash; a replay needs the fixture with this hash."),
+        sha256: sha256.describe("The save file's hash; a replay needs the fixture with this hash."),
       })
       .optional()
       .describe("The save the run began by loading, instead of the scene's fresh load."),
-    sceneVersion: z
-      .string()
-      .regex(SHA256_PATTERN)
+    sceneVersion: sha256
       .optional()
       .describe(
         "The live scene version this part of the run started on, its id; omitted for the release's own scene.",
@@ -507,17 +511,16 @@ export const runRecordingSchema = z
         z
           .strictObject({
             tick: tick("The tick the swap ran before."),
-            version: z
-              .string()
-              .regex(SHA256_PATTERN)
+            sublevel: AssetIdSchema.optional().describe(
+              "The sublevel scene a `next-load` swap moved, whose next attach in the run uses the version; omitted for a swap of the scene this part of the run plays.",
+            ),
+            version: sha256
               .nullable()
               .describe("The version swapped in; null for the release's own scene."),
-            strategy: z
-              .enum(["reconcile", "reload"])
-              .describe("Whether entities changed in place or the scene reloaded."),
-            timing: z
-              .enum(["next-load", "boundary", "now"])
-              .describe("The timing the version was activated with."),
+            strategy: swapStrategySchema.describe(
+              "Whether entities changed in place or the scene reloaded.",
+            ),
+            timing: swapTimingSchema.describe("The timing the version was activated with."),
             sceneHash: z.string().describe("The swapped-in scene's hash."),
             runHash: z
               .string()
@@ -731,8 +734,8 @@ export function parseRecording(input: unknown, registry?: RecordingRegistry): Pa
     try {
       raw = JSON.parse(input);
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      return { ok: false, issues: [{ path: "", message: `the text isn't valid JSON: ${detail}` }] };
+      const message = `the text isn't valid JSON: ${errorText(error)}`;
+      return { ok: false, issues: [{ path: "", message }] };
     }
   }
   const v = raw !== null && typeof raw === "object" ? (raw as { v?: unknown }).v : undefined;

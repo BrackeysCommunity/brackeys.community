@@ -215,8 +215,17 @@ describe("minimums", () => {
       const [outliner, settings] = left.groups;
       const room = left.height - FRAME.gap;
       expect(outliner!.height).toBeGreaterThanOrEqual(Math.round(room * LIMITS.group.topShare));
+      expect(outliner!.height).toBeGreaterThanOrEqual(settings!.height);
       expect(outliner!.height + settings!.height).toBe(room);
       expect(settings!.height).toBeGreaterThan(DEFAULT_LAYOUT.left.groups[1]!.size!);
+    }
+  });
+
+  it("never draws the outliner the smaller group, however tall a stored Project group is", () => {
+    const layout = selectTab(resizeSplit(DEFAULT_LAYOUT, "left", 5000), "project");
+    for (const height of [700, 768, 900]) {
+      const [outliner, project] = fitLayout(layout, view(1024, height)).left!.groups;
+      expect(outliner!.height).toBeGreaterThanOrEqual(project!.height);
     }
   });
 
@@ -234,7 +243,7 @@ describe("minimums", () => {
   });
 
   it("bounds the split between the bottom group's minimum and the top group's share", () => {
-    expect(splitRange(600)).toEqual({ min: LIMITS.group.min, max: 360 });
+    expect(splitRange(600)).toEqual({ min: LIMITS.group.min, max: 300 });
     expect(splitRange(150)).toEqual({ min: LIMITS.group.min, max: LIMITS.group.min });
   });
 

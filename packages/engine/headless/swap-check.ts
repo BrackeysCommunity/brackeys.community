@@ -10,13 +10,20 @@ import type { GameDefinition, Registry } from "../game/types";
 import { stableJson } from "../project/canonical";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
-import { errorText, preparedVersion, type LiveLayer, type PreparedVersion } from "../runtime/live";
+import {
+  liveCheckThrew,
+  preparedVersion,
+  stageIssue,
+  thrownSwapIssue,
+  type LiveLayer,
+  type PreparedVersion,
+} from "../runtime/live";
 import { gamePersistCell } from "../runtime/persist";
 import { resolveGame } from "../runtime/runtime";
 import type { SceneRuntimeHandle } from "../runtime/types";
 import type { ChecksFile } from "../scene/checks";
 import { diffExpanded } from "../scene/expanded-diff";
-import { liveIssue, makeIssue } from "../scene/issues";
+import { isErrorIssue, liveIssue, makeIssue } from "../scene/issues";
 import type { ExpandedScene, PrefabLibrary, SceneDefinition, SceneIssue } from "../scene/types";
 import type { RapierModule, StagedVersion } from "../types";
 import { scriptSource } from "./compile-input-script";
@@ -71,7 +78,7 @@ export type SwapCheckReport = {
   checks?: ChecksReport;
 };
 
-const isError = (issues: readonly SceneIssue[]) => issues.some((i) => i.severity === "error");
+const hasErrors = (issues: readonly SceneIssue[]) => issues.some(isErrorIssue);
 
 type Played = { ok: true; ticks: number } | { ok: false; issues: SceneIssue[] };
 
@@ -102,7 +109,7 @@ export function swapCheck(opts: SwapCheckOptions): SwapCheckReport {
   const issues: SceneIssue[] = [];
   const runs: SwapCheckRun[] = [];
   const report = (checks?: ChecksReport): SwapCheckReport => ({
-    ok: !isError(issues) && runs.every((r) => !isError(r.issues)) && checks?.ok !== false,
+    ok: !hasErrors(issues) && runs.every((r) => !hasErrors(r.issues)) && checks?.ok !== false,
     runs,
     issues,
     ...(checks ? { checks } : {}),
@@ -124,12 +131,10 @@ export function swapCheck(opts: SwapCheckOptions): SwapCheckReport {
   } else {
     if (opts.from.version.scene !== scene) {
       issues.push(
-        liveIssue({
-          code: "live-swap-failed",
+        stageIssue(
           scene,
-          cause: `the version swapped from is of ${opts.from.version.scene}, not ${scene}`,
-          phase: "stage",
-        }),
+          `the version swapped from is of ${opts.from.version.scene}, not ${scene}`,
+        ),
       );
       return report();
     }
@@ -227,24 +232,6 @@ function scriptProblem(name: string, s: ScriptIssue): SceneIssue {
   });
 }
 
-/**
- * The issue for an error thrown out of a step or a `live.check`: an
- * `EngineError` keeps its code, as a blocked playtest reports it; anything
- * else is the swap failing.
- */
-function thrownIssue(
-  err: unknown,
-  what: string,
-  scene: AssetId,
-  name: string,
-  registry: Registry,
-): SceneIssue {
-  const blocked = runBlocked(err, name, [], registry);
-  const issue = blocked?.issues[0];
-  if (issue) return { ...issue, message: `${what}: ${issue.message}` };
-  return liveIssue({ code: "live-swap-failed", scene, cause: `${what}: ${errorText(err)}` });
-}
-
 type PlayScriptOptions = {
   game: GameDefinition | null;
   registry: Registry;
@@ -288,16 +275,7 @@ function playScript(o: PlayScriptOptions): PlayOnce {
       const failed = started.load.ok ? "the scene didn't load" : started.load.error;
       return {
         ok: false,
-        issues: started.issue
-          ? [started.issue]
-          : [
-              liveIssue({
-                code: "live-swap-failed",
-                scene: o.scene,
-                cause: failed,
-                phase: "stage",
-              }),
-            ],
+        issues: [started.issue ?? stageIssue(o.scene, failed)],
       };
     }
     const { runtime, live } = started;
@@ -369,7 +347,7 @@ function swapRun(
     try {
       add(declared.check(runtime.ctx));
     } catch (err) {
-      add([thrownIssue(err, `live.check threw ${when}`, o.scene, o.def.name, o.registry)]);
+      add([liveCheckThrew(err, when, o.scene, o.registry)]);
     }
   };
 
@@ -406,9 +384,8 @@ function swapRun(
       live: { beforeTick, afterTick: (state) => live.afterTick(state) },
     });
   } catch (err) {
-    add([
-      thrownIssue(err, `a step threw at tick ${runtime.ctx.tick}`, o.scene, o.def.name, o.registry),
-    ]);
+    const what = `a step threw at tick ${runtime.ctx.tick}`;
+    add([thrownSwapIssue(err, what, o.scene, o.registry, swapped)]);
     swap.done(strategy, issues);
     return { ok: true, ticks: runtime.ctx.tick };
   }

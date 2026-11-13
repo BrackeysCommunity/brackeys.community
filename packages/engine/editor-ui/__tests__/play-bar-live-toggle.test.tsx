@@ -16,7 +16,8 @@ import {
   LIVE_PLAY_SOURCES,
   LIVE_PLAY_TOOLTIP,
 } from "../panels/EditorPlayBar";
-import { LIVE_PLAY_IDLE } from "../panels/EditorStatusBar";
+import { LIVE_PLAY_IDLE, livePlayPending } from "../panels/EditorStatusBar";
+import type { LivePlayStatus } from "../session/live-scene-editor";
 
 afterEach(() => {
   cleanup();
@@ -99,7 +100,7 @@ describe("the Live in Play toggle", () => {
     expect(css).not.toMatch(/\[data-unavailable\] \.je-switch/);
   });
 
-  it("says Live in Play is waiting for edits while it is on, and offers no Restart for what it applies", () => {
+  it("says Live in Play is listening for edits while it is on, and offers no Restart for what it applies", () => {
     const host = new Store({
       sceneChanged: true,
       livePlay: { on: true, unavailable: null, status: null, checks: [] },
@@ -120,5 +121,40 @@ describe("the Live in Play toggle", () => {
     );
     expect(screen.queryByText(LIVE_PLAY_IDLE)).toBeNull();
     expect(screen.getByText("Scene changed")).toBeTruthy();
+  });
+
+  it("offers Restart again when a live update failed or waits, and calls only those pending", () => {
+    const failed: LivePlayStatus = { tone: "failed", text: "Live update not applied: no" };
+    const host = new Store({
+      sceneChanged: true,
+      livePlay: { on: true, unavailable: null, status: failed, checks: [] },
+    });
+    const controls = {
+      game: { getStore: () => createGameStore(), resume: vi.fn(), pause: vi.fn(), step: vi.fn() },
+      host,
+      keymap: { chordOf: () => undefined },
+      onStop: vi.fn(),
+      onRestart: vi.fn(),
+      onLivePlay: vi.fn(),
+    } as unknown as EditorControls;
+    render(<EditorPlayBar {...controls} />);
+    expect(screen.getByText("Scene changed")).toBeTruthy();
+    const waiting: LivePlayStatus = { tone: "waiting", text: "Live update applies later" };
+    act(() => host.setState((s) => ({ ...s, livePlay: { ...s.livePlay, status: waiting } })));
+    expect(screen.getByText("Scene changed")).toBeTruthy();
+    const applied: LivePlayStatus = { tone: "applied", text: "Live update applied" };
+    act(() => host.setState((s) => ({ ...s, livePlay: { ...s.livePlay, status: applied } })));
+    expect(screen.queryByText("Scene changed")).toBeNull();
+
+    expect([failed, waiting].every(livePlayPending)).toBe(true);
+    expect(livePlayPending(applied)).toBe(false);
+    expect(livePlayPending({ tone: "busy", text: "" })).toBe(false);
+    expect(livePlayPending(null)).toBe(false);
+  });
+
+  it("draws every island on a play bar row at the row's height", () => {
+    const css = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
+    const rule = /\.je-play-bar > \.je-island \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule).toContain("align-self: stretch");
   });
 });

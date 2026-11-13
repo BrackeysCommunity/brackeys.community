@@ -3,7 +3,7 @@ import { z } from "zod";
 import { withProject } from "../game/define";
 import type { Registry } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
-import { makeIssue } from "../scene/issues";
+import { isErrorIssue, makeIssue } from "../scene/issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
 import { parseScene } from "../scene/parse";
 import { parsePrefab, prefabsUsedBy, reachPrefabs } from "../scene/prefab";
@@ -15,7 +15,7 @@ import {
   type SceneIssue,
 } from "../scene/types";
 import { ENGINE_VERSION } from "../version";
-import { stableJson } from "./canonical";
+import { ownValue, stableJson } from "./canonical";
 import type { ContentStore } from "./content-store";
 import { isSha256, sha256 } from "./hash";
 import { parseAssetDoc, type DocKindDef, type KindEnv, type KindRegistry } from "./kinds";
@@ -418,12 +418,7 @@ export async function checkSnapshot(
   const values = new Map<AssetId, unknown>();
   for (const [id, def] of docs) {
     const parsed = parseAssetDoc(def, texts.get(id)!, docEnv);
-    issues.push(
-      ...withId(
-        id,
-        parsed.issues.filter((i) => i.severity === "error"),
-      ),
-    );
+    issues.push(...withId(id, parsed.issues.filter(isErrorIssue)));
     if (parsed.ok) values.set(id, parsed.value);
   }
   issues.push(...buildRefIndex(view, values, kinds, docEnv).dangling());
@@ -436,7 +431,7 @@ function assetOf(
   kind: AssetKindName,
   from: string,
 ): SnapshotAsset {
-  const asset = Object.hasOwn(snapshot.assets, id) ? snapshot.assets[id] : undefined;
+  const asset = ownValue(snapshot.assets, id);
   if (!asset)
     throw new SnapshotError([
       makeIssue("asset-missing", {

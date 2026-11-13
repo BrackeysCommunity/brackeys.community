@@ -4943,8 +4943,9 @@ version, or one with a missing step ("no migration from 2 to 3"), is
 save's size is that text's UTF-8 length (`saveFileBytes`). A save whose
 scene changed since (its `runHash`) still loads, with an info issue, since
 refusing every save after a balance tweak would read as data loss. Slot
-names are lowercase letters, digits and dashes, 1–32 characters
-(`SLOT_PATTERN`, `SLOT_MAX_LENGTH`). `meta.savedAt` is the host's clock,
+names follow `SLOT_RULE`, the wording every slot message uses: lowercase
+letters, digits and dashes, starting with a letter or digit, at most
+`SLOT_MAX_LENGTH` characters (`SLOT_PATTERN` checks it). `meta.savedAt` is the host's clock,
 never read inside the simulation. `meta.playTicks` is the play time: every tick played under the
 instance's persist cell (or the headless session's), across scenes and
 runtimes, seeded from the save when one loads and back to 0 on `flow.restart()`.

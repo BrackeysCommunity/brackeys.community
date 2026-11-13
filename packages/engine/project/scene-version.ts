@@ -4,9 +4,16 @@ import { createRegistry } from "../game/define";
 import type { GameDefinition, Registry } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
 import { expandScene } from "../scene/expand";
-import { jsonPointer, lineAt, liveIssue, makeIssue, type LiveIssueInput } from "../scene/issues";
+import {
+  errorText,
+  isErrorIssue,
+  jsonPointer,
+  liveIssue,
+  makeIssue,
+  type LiveIssueInput,
+} from "../scene/issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
-import { parseScene, pointerLines } from "../scene/parse";
+import { parseScene, pointerLines, withIssueLines } from "../scene/parse";
 import { parsePrefab, prefabLibraryFor, sceneHashWith } from "../scene/prefab";
 import {
   PREFAB_KIND,
@@ -20,7 +27,7 @@ import {
 import { validateScene } from "../scene/validate";
 import { ENGINE_VERSION } from "../version";
 import { namedPrefabs, sceneBundle, unsizedIds } from "./bundle";
-import { stableJson } from "./canonical";
+import { ownValue, stableJson } from "./canonical";
 import { sha256 } from "./hash";
 import { createKindRegistry, type KindRegistry } from "./kinds";
 import { byCodeUnit } from "./kinds/define";
@@ -257,21 +264,6 @@ export function sceneVersionJsonSchema(): Record<string, unknown> {
   };
 }
 
-/** Lines from `text` for issues that point into it; none when it isn't JSON. */
-function withLines(text: string, issues: SceneIssue[]): SceneIssue[] {
-  let lines: Map<string, number>;
-  try {
-    lines = pointerLines(text);
-  } catch {
-    return issues;
-  }
-  return issues.map((issue) => {
-    if (issue.path === undefined || issue.line !== undefined) return issue;
-    const line = lineAt(lines, issue.path);
-    return line === undefined ? issue : { ...issue, line };
-  });
-}
-
 /** Reads a scene version's text: bad JSON, a wrong `kind`, a newer `v` or a shape the schema refuses are issues. Never throws. */
 export function parseSceneVersion(
   text: string,
@@ -280,7 +272,7 @@ export function parseSceneVersion(
   if (!read.ok) return read;
   const parsed = versionSchema.safeParse(read.raw);
   if (!parsed.success)
-    return { ok: false, issues: withLines(text, zodSceneIssues(parsed.error, ["project"])) };
+    return { ok: false, issues: withIssueLines(text, zodSceneIssues(parsed.error, ["project"])) };
   return { ok: true, version: parsed.data as SceneVersion };
 }
 
@@ -356,9 +348,6 @@ const named = (input: LiveIssueInput, path: string, extra: Partial<SceneIssue> =
 
 const pointer = (...segments: (string | number)[]) => jsonPointer(segments);
 
-const own = <V>(record: Readonly<Record<string, V>>, key: string): V | undefined =>
-  Object.hasOwn(record, key) ? record[key] : undefined;
-
 /** Rule 1's game half: the version was made for `want`'s game and configuration. */
 function gameIssue(
   version: SceneVersion,
@@ -408,7 +397,7 @@ function compatIssues(m: ReleaseManifest, v: SceneVersion, names: Required<Scene
   }
   if (stableJson(v.compat.build) !== stableJson(want.build)) {
     const kinds = [...new Set([...Object.keys(v.compat.build), ...Object.keys(want.build)])]
-      .filter((k) => own(v.compat.build, k) !== own(want.build, k))
+      .filter((k) => ownValue(v.compat.build, k) !== ownValue(want.build, k))
       .sort(byCodeUnit);
     issues.push(
       named(
@@ -454,7 +443,7 @@ function contentIssues(m: ReleaseManifest, v: SceneVersion, names: Required<Scen
   for (const id of Object.keys(v.assets).sort(byCodeUnit)) {
     if (replaced.has(id)) continue;
     const carried = v.assets[id]!;
-    const shipped = own(m.assets, id);
+    const shipped = ownValue(m.assets, id);
     if (!shipped || (shipped.sha256 === carried.sha256 && shipped.kind === carried.kind)) continue;
     issues.push(
       named(
@@ -489,7 +478,7 @@ function entryIssues(v: SceneVersion): SceneIssue[] {
     expected: string,
   ) => {
     ids.forEach((id, i) => {
-      const asset = own(v.assets, id);
+      const asset = ownValue(v.assets, id);
       if (!asset)
         schema(`${what} "${id}", which the version doesn't carry`, pointer(...at, i), [id]);
       else if (!fits(asset))
@@ -507,12 +496,18 @@ function entryIssues(v: SceneVersion): SceneIssue[] {
         );
     });
   };
-  carried([v.scene], ["scene"], "the version replaces scene", (a) => a.kind === "scene", "a scene");
+  carried(
+    [v.scene],
+    ["scene"],
+    "the version replaces scene",
+    (a) => a.kind === sceneKind.kind,
+    "a scene",
+  );
   carried(
     v.entry.prefabs,
     ["entry", "prefabs"],
     "entry.prefabs names",
-    (a) => a.kind === "prefab",
+    (a) => a.kind === PREFAB_KIND,
     "a prefab",
   );
   carried(
@@ -560,7 +555,7 @@ function carriedRefIssues(
   for (const issue of index.dangling()) {
     const from = issue.entityIds[0];
     const text = from === undefined ? undefined : docs.get(from);
-    issues.push(text === undefined ? issue : (withLines(text, [issue])[0] ?? issue));
+    issues.push(text === undefined ? issue : (withIssueLines(text, [issue])[0] ?? issue));
   }
   return issues;
 }
@@ -586,7 +581,7 @@ export function checkSceneVersion(
     version: opts.names?.version ?? version.scene,
     release: opts.names?.release ?? DEFAULT_RELEASE_NAME,
   };
-  const issues = withLines(formatSceneVersion(version), [
+  const issues = withIssueLines(formatSceneVersion(version), [
     ...compatIssues(manifest, version, names),
     ...contentIssues(manifest, version, names),
     ...entryIssues(version),
@@ -624,8 +619,6 @@ export function findSceneVersion<V extends { id: Sha256; version: SceneVersion }
 
 // ─── Reading one for play ────────────────────────────────
 
-const isError = (i: SceneIssue) => i.severity === "error";
-
 /** Parses prefab `id` from `text` into `into`; its issues go to `issues`, under its id. */
 function readPrefab(
   id: AssetId,
@@ -659,7 +652,7 @@ function settleScene(
   engine: Readonly<Record<string, unknown>> | undefined,
   issues: SceneIssue[],
 ): SceneVersionRead {
-  if (issues.some(isError)) return { ok: false, issues };
+  if (issues.some(isErrorIssue)) return { ok: false, issues };
   const validated = validateScene(def, registry, {
     prefabs,
     engine,
@@ -667,15 +660,14 @@ function settleScene(
     lines: pointerLines(text),
   });
   issues.push(...validated);
-  if (validated.some(isError)) return { ok: false, issues };
+  if (validated.some(isErrorIssue)) return { ok: false, issues };
   try {
     const scene = expandScene(def, registry, { prefabs, engine });
     return { ok: true, def, scene, prefabs, issues };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
     return {
       ok: false,
-      issues: [makeIssue("schema", { message, entityIds: [id] }), ...issues],
+      issues: [makeIssue("schema", { message: errorText(error), entityIds: [id] }), ...issues],
     };
   }
 }
@@ -716,7 +708,7 @@ export function readSceneVersion(
   }
   const issues: SceneIssue[] = [];
   const textOf = (id: AssetId, kind: AssetKindName, at: string): string | undefined => {
-    const asset = own(version.assets, id);
+    const asset = ownValue(version.assets, id);
     const text = asset?.kind === kind ? texts.get(asset.sha256) : undefined;
     if (text === undefined)
       issues.push(
@@ -736,10 +728,10 @@ export function readSceneVersion(
 
   const prefabs = new Map<string, Prefab>();
   version.entry.prefabs.forEach((id, i) => {
-    const text = textOf(id, "prefab", pointer("entry", "prefabs", i));
+    const text = textOf(id, PREFAB_KIND, pointer("entry", "prefabs", i));
     if (text !== undefined) readPrefab(id, text, registry, prefabs, issues);
   });
-  const text = textOf(version.scene, "scene", pointer("scene"));
+  const text = textOf(version.scene, sceneKind.kind, pointer("scene"));
   const parsed = text === undefined ? null : parseScene(text, registry);
   if (parsed && !parsed.ok) issues.push(...withId(version.scene, parsed.issues));
   if (text === undefined || !parsed?.ok) return { ok: false, issues };
@@ -757,8 +749,8 @@ export function readSceneVersion(
   if (!read.ok) return read;
   const get = (pid: AssetId): Prefab | undefined => {
     if (prefabs.has(pid)) return prefabs.get(pid);
-    const asset = own(version.assets, pid);
-    const t = asset?.kind === "prefab" ? texts.get(asset.sha256) : undefined;
+    const asset = ownValue(version.assets, pid);
+    const t = asset?.kind === PREFAB_KIND ? texts.get(asset.sha256) : undefined;
     return t === undefined ? undefined : readPrefab(pid, t, registry, prefabs, read.issues);
   };
   return withNamedPrefabs(read, registry, get);
@@ -870,7 +862,7 @@ export async function buildSceneVersion(
     assets[carried] = made.asset;
     if (made.text !== undefined) carriedTexts.set(made.asset.sha256, made.text);
   }
-  if (issues.some(isError)) return { ok: false, issues };
+  if (issues.some(isErrorIssue)) return { ok: false, issues };
 
   const version: SceneVersion = {
     kind: "scene-version",

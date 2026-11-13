@@ -2,11 +2,10 @@
 import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
-import { oneSceneVersion } from "../../__tests__/fixtures/live-version";
+import { markerScene, oneSceneVersion } from "../../__tests__/fixtures/live-version";
 import { createRegistry, defineGame } from "../../game/define";
 import type { GameDefinition } from "../../game/types";
 import { prepareRun, startRun } from "../../headless/play-loop";
-import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/types";
 import { preparedVersion } from "../live";
 
 /** Marks a boundary in `onLoad`, and in a step when sent `safe`. */
@@ -30,12 +29,7 @@ function boundaryGame(): GameDefinition {
   });
 }
 
-const scene = (markers: readonly string[]): SceneDefinition => ({
-  v: SCENE_FORMAT_VERSION,
-  name: "yard",
-  bounds: [0, 0, 10, 10],
-  entities: markers.map((id, i) => ({ id, type: "marker", at: [1 + i, 1] })),
-});
+const scene = (markers: readonly string[]) => markerScene("yard", markers);
 
 describe("ctx.live.boundary()", () => {
   it("counts only inside a step: one from onLoad or between ticks lets no boundary swap through", async () => {

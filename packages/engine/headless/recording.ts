@@ -28,7 +28,7 @@ import {
 } from "../runtime/recorder";
 import { resolveGame, saveHostOf } from "../runtime/runtime";
 import { checkCommand } from "../scene/input-script";
-import { makeIssue } from "../scene/issues";
+import { errorText, leadIssue, makeIssue } from "../scene/issues";
 import {
   parseRecording,
   type RecordingPlatform,
@@ -411,8 +411,7 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     try {
       fed = recordingTicks(rec, time, game);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return blockedRun("script", runName, [], [scriptIssue("/inputs", message)]);
+      return blockedRun("script", runName, [], [scriptIssue("/inputs", errorText(err))]);
     }
     const inputEnds = rec.outcome.result === "quit" || rec.outcome.result === "script-end";
     const input: InputSource = {
@@ -462,7 +461,7 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
       const stop = replaySwaps.before(runtime.ctx.tick);
       if (!stop) return null;
       stopped = stop.issues;
-      const first = stop.issues.find((i) => i.severity === "error") ?? stop.issues[0];
+      const first = leadIssue(stop.issues);
       return `the swap at tick ${stop.tick} can't be replayed: ${first?.message ?? "its version didn't read"}`;
     };
 

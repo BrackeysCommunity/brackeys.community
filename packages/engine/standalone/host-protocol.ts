@@ -1,8 +1,14 @@
 import { z } from "zod";
 
-import { ID_PATTERN } from "../game/fields";
-import type { SwapStrategy, SwapTiming } from "../game/live";
+import { AssetIdSchema } from "../game/fields";
+import {
+  swapStrategySchema,
+  swapTimingSchema,
+  type SwapStrategy,
+  type SwapTiming,
+} from "../game/live";
 import { SLOT_PATTERN } from "../game/save-file";
+import { SHA256_PATTERN } from "../project/hash";
 import type { AssetId, Sha256 } from "../project/types";
 import type { SceneIssue } from "../scene/types";
 
@@ -41,7 +47,7 @@ export const HOST_WELCOME_TIMEOUT_MS = 30_000;
 export const HOST_REQUEST_TIMEOUT_MS = 30_000;
 
 const protocol = z.literal(HOST_PROTOCOL_VERSION);
-const sha256 = z.string().regex(/^[0-9a-f]{64}$/);
+const sha256 = z.string().regex(SHA256_PATTERN);
 const slot = z.string().regex(SLOT_PATTERN);
 const gameId = z.string().min(1).max(64);
 const requestId = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
@@ -88,10 +94,6 @@ export const saveWriteResultSchema = z.union([
 
 // ─── Live levels ─────────────────────────────────────────
 
-const swapTiming: z.ZodType<SwapTiming> = z.enum(["next-load", "boundary", "now"]);
-const swapStrategy: z.ZodType<SwapStrategy> = z.enum(["reconcile", "reload"]);
-const sceneId = z.string().regex(ID_PATTERN);
-
 /** One scene a channel runs a live version of. */
 export type LiveSceneEntry = {
   scene: AssetId;
@@ -130,10 +132,10 @@ export type LiveStateMessage = {
 };
 
 export const liveSceneEntrySchema: z.ZodType<LiveSceneEntry> = z.object({
-  scene: sceneId,
+  scene: AssetIdSchema,
   version: sha256,
   number: z.number().int().min(1),
-  timing: swapTiming,
+  timing: swapTimingSchema,
   since: z.string().min(1).max(64),
 });
 
@@ -146,11 +148,11 @@ export const liveSnapshotSchema: z.ZodType<LiveSnapshot> = z.object({
 });
 
 export const liveStateMessageSchema = z.strictObject({
-  scene: sceneId,
+  scene: AssetIdSchema,
   version: sha256.nullable(),
   status: z.enum(["staging", "ready", "waiting", "applied", "refused", "failed"]),
-  timing: swapTiming.optional(),
-  strategy: swapStrategy.optional(),
+  timing: swapTimingSchema.optional(),
+  strategy: swapStrategySchema.optional(),
   tick: z.number().int().min(0).optional(),
   issue: hostIssueSchema.optional(),
 });

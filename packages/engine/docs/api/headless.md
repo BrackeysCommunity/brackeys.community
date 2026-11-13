@@ -2936,7 +2936,9 @@ declare function probeConfigHash(game?: GameDefinition | null, time?: Pick<Resol
 
 _function_ in `runtime/recorder.ts`
 
-An applied swap as a recording holds it: the version and hashes it swapped to, its strategy, timing and tick.
+An applied swap as a recording holds it: the version and hashes it swapped
+to, its strategy, timing and tick, and for a `next-load` swap (a sublevel
+scene's version, which its next attach uses) that `sublevel`.
 
 ```ts
 declare function recordedSwap(swap: SceneSwap): RecordedSwap;

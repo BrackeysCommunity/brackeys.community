@@ -46,7 +46,9 @@ type Hero = RuntimeEntity<{ at: Pt; speed: number }>;
 type Floor = RuntimeEntity<{ at: Pt }>;
 
 /** A hero that walks right at its speed over floors; `live.check` reports a hero no floor holds up. */
-function probeGame(opts: { onSwapThrows?: boolean; checked?: number[] } = {}): GameDefinition {
+function probeGame(
+  opts: { onSwapThrows?: boolean; checked?: number[]; checkThrows?: boolean } = {},
+): GameDefinition {
   return defineGame({
     id: GAME,
     world: { physics: "none" },
@@ -55,6 +57,7 @@ function probeGame(opts: { onSwapThrows?: boolean; checked?: number[] } = {}): G
       timings: ["next-load", "boundary", "now"],
       check(ctx) {
         opts.checked?.push(ctx.tick);
+        if (opts.checkThrows) throw new Error("no hero to check");
         const issues: SceneIssue[] = [];
         const floors = ctx.query.select({ type: FLOOR }).map((id) => ctx.poses.get(id)!.x);
         for (const id of ctx.query.select({ type: HERO })) {
@@ -249,6 +252,34 @@ describe("swapCheck", () => {
     expect(run!.tick).toBe(100);
     expect(codes(run!.issues)).toEqual(["live-swap-failed"]);
     expect(run!.issues[0]!.hint).toBe("a step threw at tick 100: the bomb went off");
+    // The swap went in; what failed came after it.
+    expect(run!.issues[0]!.detail).toEqual({ phase: "after" });
+    expect(run!.issues[0]!.message).toBe(
+      `The update to ${run!.issues[0]!.entityIds[0]} applied, but the game failed right after it.`,
+    );
+  });
+
+  it("reports the game's live check throwing as after the swap, with the same wording as Live in Play", async () => {
+    const game = probeGame({ checkThrows: true });
+    const to = await versionOf(
+      yard((es) => void (es[2] = { ...es[2]!, at: [12, 0] })),
+      game,
+    );
+    const report = swapCheck({ game, from: release, to, scripts, at: [0.5] });
+    expect(report.ok).toBe(false);
+    const issues = report.runs[0]!.issues;
+    expect(issues.map((i) => [i.code, i.hint, i.detail])).toEqual([
+      [
+        "live-swap-failed",
+        "live.check threw right after the swap: no hero to check",
+        { phase: "after" },
+      ],
+      [
+        "live-swap-failed",
+        "live.check threw 60 ticks after the swap: no hero to check",
+        { phase: "after" },
+      ],
+    ]);
   });
 
   it("passes a harmless version, and runs the scene's checks against it", async () => {

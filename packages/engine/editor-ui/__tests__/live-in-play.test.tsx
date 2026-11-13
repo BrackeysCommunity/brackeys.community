@@ -27,6 +27,8 @@ import { LIVE_PLAY_IDLE } from "../panels/EditorStatusBar";
 import {
   editorIdentity,
   LIVE_PLAY_APPLYING,
+  LIVE_VERSION_MISSING,
+  LIVE_VERSIONS_ELSEWHERE,
   openLiveEditor,
   prefabsReady,
   type LiveEditor,
@@ -48,6 +50,9 @@ const toast = Object.assign(vi.fn(), { error: vi.fn(), warning: vi.fn(), success
 /** The tick of each time the game's live check ran. */
 const checkRuns: number[] = [];
 
+/** Set by a test: the game's live check throws instead of answering. */
+let checkThrows = false;
+
 /**
  * A physics-free game whose `onSwap` logs each swap and refuses one that
  * brings a `boom`, and whose live check flags a `hazard`.
@@ -62,6 +67,7 @@ function liveGame(log: string[], live: LiveDeclaration) {
       ...live,
       check: (ctx) => {
         checkRuns.push(ctx.tick);
+        if (checkThrows) throw new Error("no spawn to check");
         return ctx.exists("hazard")
           ? [makeIssue("live-swap-failed", { message: "hazard under the spawn", entityIds: [] })]
           : [];
@@ -123,6 +129,7 @@ beforeEach(() => {
   }
   for (const fn of [toast, toast.error, toast.warning, toast.success]) fn.mockReset();
   checkRuns.length = 0;
+  checkThrows = false;
   vi.stubGlobal("requestAnimationFrame", () => 0);
   vi.stubGlobal("cancelAnimationFrame", () => {});
   vi.stubGlobal(
@@ -348,6 +355,24 @@ describe("Live in Play", () => {
     expect(t.live.host.state.livePlay?.checks).toEqual([]);
   });
 
+  it("words a throwing live check as failing after the swap applied, as the swap check does", async () => {
+    checkThrows = true;
+    const t = await setup();
+    t.play();
+    fireEvent.click(t.toggle());
+    t.addMarker("well");
+    await t.staged();
+    act(() => t.game.step());
+    expect(t.status()?.text).toBe("Live update applied: 1 added · 1 check issue");
+    const [issue] = t.live.host.state.livePlay?.checks ?? [];
+    expect(issue).toMatchObject({
+      code: "live-swap-failed",
+      message: "The update to hall applied, but the game failed right after it.",
+      hint: "live.check threw right after the swap: no spawn to check",
+      detail: { phase: "after" },
+    });
+  });
+
   it("runs the live check again 60 ticks after the swap, keeping each issue once", async () => {
     const t = await setup();
     t.play();
@@ -403,6 +428,27 @@ describe("Live in Play", () => {
     act(() => t.game.step(swap.tick + 1));
     expect(t.world()?.ctx.live.version).toBe(swap.version);
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("says why a replay stopped partway, at a version this editor doesn't have", async () => {
+    const t = await setup();
+    t.play();
+    fireEvent.click(t.toggle());
+    t.addMarker("well");
+    await t.staged();
+    act(() => t.game.step());
+    act(() => t.game.step(6));
+    act(() => t.live.stop());
+    const recording = t.game.recording()!;
+    const [swap] = recording.swaps!;
+    const elsewhere = { ...swap!, tick: swap!.tick + 3, version: "f".repeat(64) };
+    let replayed = false;
+    act(() => void (replayed = t.live.replay({ ...recording, swaps: [swap!, elsewhere] })));
+    expect(replayed).toBe(true);
+    act(() => t.game.step(swap!.tick + 6));
+    expect(toast.error).toHaveBeenCalledWith(LIVE_VERSION_MISSING, {
+      description: `The replay stopped at tick ${elsewhere.tick}. ${LIVE_VERSIONS_ELSEWHERE}`,
+    });
   });
 
   it("says it is waiting for edits while on with no update under way", async () => {

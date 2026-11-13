@@ -8,9 +8,9 @@ import type { EditorControls } from "../frame/keys";
 import { STORAGE_PREFIX } from "../host";
 import { Badge, Button, Hint, IconButton, KeyHint, Switch, Text, useKit } from "../kit/index";
 import type { EditorHostState } from "../session/live-scene-editor";
-import { readStored, writeStored } from "../session/stored";
+import { readStored, storedFlag, writeStored } from "../session/stored";
 import { useStoreValue } from "../session/use-store-value";
-import { LiveInPlayStatus } from "./EditorStatusBar";
+import { LiveInPlayStatus, livePlayPending } from "./EditorStatusBar";
 
 /** Where the viewer's Live in Play choice is kept. */
 export const LIVE_PLAY_KEY = `${STORAGE_PREFIX}live-in-play`;
@@ -21,8 +21,6 @@ export const LIVE_PLAY_TOOLTIP =
 /** Where those edits come from, since the editing panels are hidden while you play. */
 export const LIVE_PLAY_SOURCES =
   "While you play, they come from other editors, agents and the files on disk.";
-
-const storedFlag = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null);
 
 /** The time scales `[` and `]` walk through. */
 export const TIME_SCALES = [0.25, 0.5, 1] as const;
@@ -62,13 +60,7 @@ export function EditorPlayBar({
   // While Live in Play applies edits, the game already has them; Restart is offered when one didn't land.
   const sceneChanged = useStoreValue(
     host,
-    (s) =>
-      s.sceneChanged &&
-      !(
-        s.livePlay?.on &&
-        s.livePlay.status?.tone !== "failed" &&
-        s.livePlay.status?.tone !== "waiting"
-      ),
+    (s) => s.sceneChanged && !(s.livePlay?.on && !livePlayPending(s.livePlay.status)),
   );
   const requested = useStoreValue(game.getStore(), flowRequestedScene);
   const ended = useStoreValue(game.getStore(), (s) => (s.session?.outcome ?? null) !== null);

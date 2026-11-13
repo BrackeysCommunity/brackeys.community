@@ -655,5 +655,41 @@ describe("the live controller in a hosted frame", () => {
     expect(hallFlag()).toBe(true);
     await vi.waitFor(() => expect(statuses(page, "hall")).toEqual(["staging", "ready", "applied"]));
     expect(states(page).at(-1)).toMatchObject({ version: v.id, timing: "next-load" });
+    // The run's recording holds the move, so its replay attaches the same hall.
+    expect(game.instance.recording({ running: true })?.swaps).toEqual([
+      expect.objectContaining({ sublevel: "hall", version: v.id, timing: "next-load" }),
+    ]);
+
+    // A recording of the next load starts with the hall version its sublevels attach.
+    expect((await game.instance.flow.restart()).ok).toBe(true);
+    const next = game.instance.recording({ running: true });
+    expect(next?.swaps).toEqual([
+      expect.objectContaining({ tick: 0, sublevel: "hall", version: v.id, timing: "next-load" }),
+    ]);
+  });
+
+  it("says applied when a second copy of a sublevel attaches while the first stays attached", async () => {
+    const b = fresh();
+    const v = await publish(
+      b,
+      withDoc(physicsFreeFiles(), "hall.json", flagged("hall", ["rocks", "tiles"])),
+      "hall",
+    );
+    const page = fakeParent();
+    const game = await boot(serve(b));
+    const flow = () => (game.instance.runtime() as SceneRuntimeHandle).ctx.flow;
+    const flagOf = (label: string) => game.instance.runtime()?.get(`${label}:flag`) !== undefined;
+    expect(flow().attach("hall", { label: "side", at: [10, 0] }).ok).toBe(true);
+
+    page.send({ type: "live.update", live: await snapshot(b, [entry(v, "now")]) });
+    await vi.waitFor(() => expect(statuses(page, "hall")).toEqual(["staging", "ready"]));
+    game.instance.step();
+    expect(statuses(page, "hall")).toEqual(["staging", "ready"]);
+
+    expect(flow().attach("hall", { label: "east", at: [40, 0] }).ok).toBe(true);
+    game.instance.step();
+    expect(flagOf("side")).toBe(false);
+    expect(flagOf("east")).toBe(true);
+    await vi.waitFor(() => expect(statuses(page, "hall")).toEqual(["staging", "ready", "applied"]));
   });
 });

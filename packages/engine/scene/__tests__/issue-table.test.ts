@@ -1001,6 +1001,12 @@ describe("the engine's issue table", () => {
       liveIssue({ code: "live-swap-failed", scene: "level-1", cause: "timed out", phase: "stage" }),
       liveIssue({ code: "live-swap-failed", scene: "level-1", cause: "the run ended early" }),
       liveIssue({ code: "live-timing-unsupported", version: "level-1@4", accepted: ["now"] }),
+      liveIssue({
+        code: "live-swap-failed",
+        scene: "level-1",
+        cause: "live.check threw right after the swap: no hero",
+        phase: "after",
+      }),
     ];
     for (const issue of issues) {
       expect(issue.severity).toBe(ISSUE_CODES[issue.code as EngineIssueCode].severity);
@@ -1022,6 +1028,7 @@ describe("the engine's issue table", () => {
       "The update to level-1 couldn't be staged; the scene keeps the version it runs.",
       "The update to level-1 couldn't be applied while playing.",
       "This game accepts now and next load; level-1@4 will reach players then.",
+      "The update to level-1 applied, but the game failed right after it.",
     ]);
     expect(issues[0]!.detail).toEqual({ rule: "build" });
     expect(issues[6]!.hint).toBe("onSwap threw: boom");

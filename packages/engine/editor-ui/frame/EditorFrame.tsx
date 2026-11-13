@@ -23,7 +23,7 @@ import {
   type Ref as SceneRef,
   type SceneIssue,
 } from "../../editor/index";
-import { outlineBounds } from "../../editor/tool-host";
+import { frameBounds, outlineBounds, outlineLook } from "../../editor/tool-host";
 import type { RapierModule } from "../../index";
 import type { AssetKey } from "../../project/index";
 import { hostPeerColor, type EditorHost, type EditorPublishHost } from "../host";
@@ -895,13 +895,8 @@ export function editorChrome(
   const physical = new Store<readonly SceneIssue[]>([]);
   const pickedAsset = new Store<AssetKey | null>(null);
   const tools = createToolHostCell();
-  const boundsOf = (refs: readonly SceneRef[]) => {
-    const asset = tools.state ? hostAsset(tools.state) : undefined;
-    return outlineBounds(session.getResolved(), refs, {
-      registry: session.registry,
-      ...(asset ? { asset } : {}),
-    });
-  };
+  const look = () =>
+    outlineLook(session.registry, tools.state ? hostAsset(tools.state) : undefined);
   const controls: EditorControls = {
     ...props,
     rapier: props.rapier ?? null,
@@ -920,13 +915,13 @@ export function editorChrome(
     },
     playFrom: (opts) => props.onPlay(opts),
     frame(refs) {
-      const box = boundsOf(refs);
+      const box = frameBounds(session.getResolved(), refs, look());
       if (!box) return false;
       frameInView(game, box);
       return true;
     },
     reveal(refs) {
-      const box = boundsOf(refs);
+      const box = outlineBounds(session.getResolved(), refs, look());
       return box !== null && revealInView(game, box);
     },
   };

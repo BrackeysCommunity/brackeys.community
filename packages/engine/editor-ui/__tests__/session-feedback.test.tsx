@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useMemo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -293,18 +296,32 @@ describe("booting", () => {
     try {
       const held = { "scene:p.yard": gate() };
       const { host } = gatedProject(held);
-      render(<SceneEditor host={host} game={yardGame} project="p" scene="yard" rapier={rapier} />);
+      const { container } = render(
+        <SceneEditor host={host} game={yardGame} project="p" scene="yard" rapier={rapier} />,
+      );
+      const session = container.querySelector<HTMLElement>(".je-session")!;
       await waitFor(() => expect(status()).toContain("Opening the scene"), PHASE_WAIT);
       act(() => void vi.advanceTimersByTime(OPEN_TIMEOUT_MS - 1_000));
       expect(status()).toContain("Opening the scene");
+      expect(session.dataset.boot).toBeUndefined();
+      expect(screen.queryByRole("button", { name: "Reload" })).toBeNull();
       act(() => void vi.advanceTimersByTime(1_000));
       expect(status()).toContain("Couldn't open yard in project p");
-      expect(status()).toContain("The scene server hasn't sent it in 30 s");
+      expect(status()).toContain("The scene server hasn't sent it in 30s");
+      expect(status()).toContain("needs a restart");
       expect(status()).not.toContain("Opening the scene");
+      // The panels' skeletons stop, so the error is the only state on screen, and Reload starts over.
+      expect(session.dataset.boot).toBe("stopped");
+      const css = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
+      const still = /\.je-session\[data-boot="stopped"\] \.je-skeleton \{([^}]*)\}/.exec(css)?.[1];
+      expect(still).toContain("animation: none");
+      expect(screen.getByRole("button", { name: "Reload" })).toBeTruthy();
 
       held["scene:p.yard"].open();
       await waitFor(() => outliner().getByRole("button", { name: /ledge/ }), { timeout: 10_000 });
       expect(status()).not.toContain("Couldn't open");
+      expect(session.dataset.boot).toBeUndefined();
+      expect(screen.queryByRole("button", { name: "Reload" })).toBeNull();
     } finally {
       vi.useRealTimers();
     }

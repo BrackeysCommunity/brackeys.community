@@ -7,17 +7,13 @@ import type { AssetId } from "../project/types";
 import { loadListed } from "../runtime/flow";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { SceneRuntimeHandle } from "../runtime/types";
-import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
+import type { SceneDefinition } from "../scene/types";
 import type { FlowResult, SceneSource } from "../types";
+import { markerScene } from "./fixtures/live-version";
 import { testGame } from "./fixtures/test-game";
 
-const scene = (name: string, markers: readonly string[]): SceneDefinition => ({
-  v: SCENE_FORMAT_VERSION,
-  name,
-  bounds: [0, 0, 10, 10],
-  settings: { physics: "none" },
-  entities: markers.map((id, i) => ({ id, type: "marker", at: [1 + i, 1] })),
-});
+const scene = (name: string, markers: readonly string[]): SceneDefinition =>
+  markerScene(name, markers, { settings: { physics: "none" } });
 
 const listed = (def: SceneDefinition): LibraryScene => ({ def, prefabs: new Map() });
 

@@ -7,7 +7,7 @@ import {
   type SwapTiming,
 } from "../game/live";
 import type { ResolvedTime } from "../game/time";
-import type { GameDefinition, Registry } from "../game/types";
+import { EngineError, type GameDefinition, type Registry } from "../game/types";
 import { stableJson } from "../project/canonical";
 import { byCodeUnit } from "../project/kinds/define";
 import type { ProjectRuntimeView } from "../project/runtime-view";
@@ -15,18 +15,22 @@ import { readSceneVersion, type SceneVersion } from "../project/scene-version";
 import type { AssetId, Sha256 } from "../project/types";
 import { expandScene } from "../scene/expand";
 import { hashText } from "../scene/hash";
-import { liveIssue } from "../scene/issues";
+import { errorText, leadIssue, liveIssue, makeIssue } from "../scene/issues";
 import { sceneHashWith } from "../scene/prefab";
 import type { RecordedSwap } from "../scene/recording-schema";
-import type { ExpandedScene, PrefabLibrary, SceneDefinition, SceneIssue } from "../scene/types";
+import type {
+  ExpandedScene,
+  IssueCode,
+  PrefabLibrary,
+  SceneDefinition,
+  SceneIssue,
+} from "../scene/types";
 import type { GameEventMap, GameLive, StagedVersion } from "../types";
 import { flowLoaderOf } from "./flow";
 import { runHash } from "./play-session";
 import { LOAD_GENERATION } from "./pool";
-import { errorText, saveHostOf } from "./runtime";
+import { saveHostOf } from "./runtime";
 import type { SceneRuntimeHandle } from "./types";
-
-export { errorText } from "./runtime";
 
 /** A staged version as the layer keeps it: read, validated and expanded once. */
 export type PreparedVersion = {
@@ -37,19 +41,80 @@ export type PreparedVersion = {
   prefabs: PrefabLibrary;
 };
 
+/** A staging that stopped: `live-swap-failed` in the stage phase, `cause` as its hint. */
+export function stageIssue(scene: AssetId, cause: string): SceneIssue {
+  return liveIssue({ code: "live-swap-failed", scene, cause, phase: "stage" });
+}
+
+/** The refusal of a version of `scene` when the game's scene list doesn't hold it; null when it does, or there is no list. */
+export function unlistedStageIssue(
+  scene: AssetId,
+  list: readonly { scene: AssetId }[] | null | undefined,
+): SceneIssue | null {
+  if (!list || list.some((e) => e.scene === scene)) return null;
+  return stageIssue(scene, `${scene} isn't in the game's scene list`);
+}
+
+/**
+ * The issue for an error thrown out of a step or the game's `live.check`
+ * around a swap: an `EngineError` keeps its code, as a blocked run reports
+ * it, `what` leading its message; anything else is `live-swap-failed` with
+ * `what` and the error as its hint, in phase `after` once the swap applied.
+ */
+export function thrownSwapIssue(
+  err: unknown,
+  what: string,
+  scene: AssetId,
+  registry: Registry,
+  applied: boolean,
+): SceneIssue {
+  if (err instanceof EngineError) {
+    const code = err.code as IssueCode;
+    const fields = {
+      message: `${what}: ${err.message}`,
+      entityIds: err.entityId ? [err.entityId] : [],
+    };
+    return registry.issueCodes[code]
+      ? makeIssue(code, fields, registry.issueCodes)
+      : { severity: "error", code, ...fields };
+  }
+  const cause = `${what}: ${errorText(err)}`;
+  return liveIssue({
+    code: "live-swap-failed",
+    scene,
+    cause,
+    ...(applied ? { phase: "after" } : {}),
+  });
+}
+
+/** The issue for the game's `live.check` throwing `when` (`right after the swap`, `60 ticks after the swap`). */
+export const liveCheckThrew = (
+  err: unknown,
+  when: string,
+  scene: AssetId,
+  registry: Registry,
+): SceneIssue => thrownSwapIssue(err, `live.check threw ${when}`, scene, registry, true);
+
 /**
  * A fetched version read for play (`readSceneVersion`, with the game's
- * registry) into the form the live layer keeps; the read's issues when it
- * doesn't read.
+ * registry) into the form the live layer keeps. When it doesn't read:
+ * every issue the read found, and `issue`, the one a staging reports.
  */
 export function preparedVersion(
   v: StagedVersion,
   registry: Registry,
   game: GameDefinition | null,
   engine?: Readonly<Record<string, unknown>>,
-): { ok: true; prepared: PreparedVersion } | { ok: false; issues: SceneIssue[] } {
+):
+  | { ok: true; prepared: PreparedVersion }
+  | { ok: false; issue: SceneIssue; issues: SceneIssue[] } {
   const read = readSceneVersion(v.version, v.texts, registry, game, engine ? { engine } : {});
-  if (!read.ok) return { ok: false, issues: read.issues };
+  if (!read.ok)
+    return {
+      ok: false,
+      issue: leadIssue(read.issues) ?? stageIssue(v.version.scene, "it didn't read"),
+      issues: read.issues,
+    };
   return {
     ok: true,
     prepared: {
@@ -138,6 +203,13 @@ export type LiveLayer = Pick<GameLive, "current" | "pending" | "pin" | "unpin"> 
   apply(scene: AssetId, prepared: PreparedVersion | null, opts: LiveApplyOptions): LiveApplyResult;
   /** The active version's definition and prefabs for a load or sublevel attach of `id`; null for the release's own. */
   sceneFor(id: AssetId): PreparedVersion | null;
+  /**
+   * The listed scenes other than the one playing whose loads use a live
+   * version, each as the `next-load` swap that would move it there: what a
+   * recording of this load starts with, so its replay attaches the same
+   * versions.
+   */
+  liveSublevels(): SceneSwap[];
   /**
    * Calls `fn` after each applied swap, and when a version of a listed scene
    * other than the one playing is activated during a run (timing
@@ -275,40 +347,55 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
     return { version: version?.id ?? null, sceneHash, runHash: hashRun(rt, main, library) };
   }
 
-  /**
-   * After `scene`, listed but not the one playing, took `prepared` during a
-   * run: the listeners hear it as a `next-load` swap that changed nothing
-   * yet, which the run's next attach of the scene uses.
-   */
-  function activatedOff(
+  /** A version's scene hash, or the release's own scene's ("" when the host gave no way to read it). */
+  function sceneHashOf(scene: AssetId, version: PreparedVersion | null): string {
+    if (version) return version.version.sceneHash;
+    const own = opts.release?.(scene);
+    return own ? sceneHashWith(own.def, own.prefabs) : "";
+  }
+
+  /** The scenes the running flow lists other than the one playing; none outside a run. */
+  function offScenes(rt: SceneRuntimeHandle | null): AssetId[] {
+    if (!rt || !running) return [];
+    const list = flowLoaderOf(rt.ctx)?.current()?.list ?? [];
+    return list.map((e) => e.scene).filter((s) => s !== running?.scene);
+  }
+
+  /** `scene`, not the one playing, moving from `before` to `prepared` as a `next-load` swap that changed nothing yet. */
+  function offSwap(
     rt: SceneRuntimeHandle,
     scene: AssetId,
-    prepared: PreparedVersion,
+    prepared: PreparedVersion | null,
     before: PreparedVersion | null,
-  ): void {
-    if (
-      !flowLoaderOf(rt.ctx)
-        ?.current()
-        ?.list.some((e) => e.scene === scene)
-    )
-      return;
+  ): SceneSwap {
     const { main, library } = loadedOf(rt);
     const runHash = hashRun(rt, main, library);
-    const own = before ? null : opts.release?.(scene);
-    const swap: SceneSwap = {
+    return {
       scene,
-      from: {
-        version: before?.id ?? null,
-        sceneHash: before?.version.sceneHash ?? (own ? sceneHashWith(own.def, own.prefabs) : ""),
-        runHash,
-      },
-      to: { version: prepared.id, sceneHash: prepared.version.sceneHash, runHash },
+      from: { version: before?.id ?? null, sceneHash: sceneHashOf(scene, before), runHash },
+      to: { version: prepared?.id ?? null, sceneHash: sceneHashOf(scene, prepared), runHash },
       strategy: "reload",
       carried: "all",
       diff: { added: [], removed: [], changed: [], header: false },
       timing: "next-load",
       tick: rt.ctx.tick,
     };
+  }
+
+  /**
+   * After `scene`, listed but not the one playing, moved from `before` to
+   * `prepared` (null: the release's own) during a run: the listeners hear it
+   * as a `next-load` swap, which the run's next attach of the scene uses.
+   */
+  function activatedOff(
+    rt: SceneRuntimeHandle | null,
+    scene: AssetId,
+    prepared: PreparedVersion | null,
+    before: PreparedVersion | null,
+  ): void {
+    if ((before?.id ?? null) === (prepared?.id ?? null)) return;
+    if (!rt || !offScenes(rt).includes(scene)) return;
+    const swap = offSwap(rt, scene, prepared, before);
     for (const fn of [...listeners]) fn(swap);
   }
 
@@ -414,11 +501,11 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
       let prepared: PreparedVersion | null = null;
       if (version !== null) {
         const found = [staged.get(scene), active.get(scene)].find((p) => p?.id === version);
-        if (!found) {
-          const cause = `${versionName(scene, version)} isn't staged`;
-          const issue = liveIssue({ code: "live-swap-failed", scene, cause, phase: "stage" });
-          return { ...clamp, issue };
-        }
+        if (!found)
+          return {
+            ...clamp,
+            issue: stageIssue(scene, `${versionName(scene, version)} isn't staged`),
+          };
         prepared = found;
       }
       if (staged.get(scene)?.id === version) staged.delete(scene);
@@ -429,8 +516,7 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
       if (swaps && running?.scene === scene && (running.version?.id ?? null) !== version) {
         pending.set(scene, { prepared, timing: clamp.timing });
       }
-      if (rt && running && running.scene !== scene && prepared && before?.id !== prepared.id)
-        activatedOff(rt, scene, prepared, before);
+      activatedOff(rt, scene, prepared, before);
       return out;
     },
     current: (scene) => active.get(scene)?.id ?? null,
@@ -440,14 +526,16 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
         return { scene, version: p.prepared?.id ?? null, timing: p.timing };
       }),
     pin(versions) {
-      sync();
+      const rt = sync();
       pinned = true;
       pending.clear();
       for (const [scene, version] of Object.entries(versions)) {
         const found = [staged.get(scene), active.get(scene)].find((p) => p?.id === version);
         if (!found) continue;
         if (staged.get(scene) === found) staged.delete(scene);
+        const before = active.get(scene) ?? null;
         setActive(scene, found);
+        activatedOff(rt, scene, found, before);
       }
     },
     unpin() {
@@ -501,6 +589,14 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
     },
     apply,
     sceneFor: (id) => active.get(id) ?? null,
+    liveSublevels() {
+      const rt = sync();
+      if (!rt) return [];
+      return offScenes(rt).flatMap((scene) => {
+        const version = active.get(scene);
+        return version ? [offSwap(rt, scene, version, null)] : [];
+      });
+    },
     onApplied(fn) {
       listeners.add(fn);
       return () => void listeners.delete(fn);
@@ -534,7 +630,7 @@ export type SwapReplayOptions = {
   swaps: readonly RecordedSwap[];
   /** The scene playing now, which a swap back to the release's own applies to. */
   scene(): AssetId;
-  /** A recorded version read for play, or the issues that stop the replay; `at` is the swap's index. */
+  /** A recorded version of `scene` read for play, or the issues that stop the replay; `at` is the swap's index. */
   resolve(
     id: Sha256,
     scene: AssetId,
@@ -545,8 +641,14 @@ export type SwapReplayOptions = {
   stale(tick: number, why: string): void;
 };
 
-/** Where a replay stopped: the swap's index, tick and version, and why. */
-export type SwapReplayStop = { at: number; tick: number; version: Sha256; issues: SceneIssue[] };
+/** Where a replay stopped: the swap's index, tick, scene and version, and why. */
+export type SwapReplayStop = {
+  at: number;
+  tick: number;
+  scene: AssetId;
+  version: Sha256;
+  issues: SceneIssue[];
+};
 
 const strategyWord = (s: SwapStrategy) => (s === "reload" ? "reloaded" : "reconciled");
 
@@ -555,7 +657,9 @@ const strategyWord = (s: SwapStrategy) => (s === "reload" ? "reloaded" : "reconc
  * do it: before each tick, every swap recorded for it goes through the live
  * layer with its recorded timing and strategy. A `next-load` swap only
  * stages and activates: a load that used it is in the recording already,
- * and a sublevel's next attach in the replay reads it. A swap whose tick
+ * and a sublevel's next attach in the replay reads it (a swap that names
+ * its `sublevel` moves that scene, back to the release's own when its
+ * version is null). A swap whose tick
  * already passed, that doesn't apply, or that ran with another strategy or
  * run hash is stale; a version the host can't give stops the replay.
  */
@@ -576,17 +680,18 @@ export function createSwapReplay(opts: SwapReplayOptions): {
           );
           continue;
         }
-        const running = opts.scene();
+        const named = entry.sublevel ?? opts.scene();
         let target: PreparedVersion | null = null;
         if (entry.version !== null) {
-          const found = opts.resolve(entry.version, running, at, entry.tick);
+          const found = opts.resolve(entry.version, named, at, entry.tick);
           if (!found.ok) {
             next++;
-            return { at, tick: entry.tick, version: entry.version, issues: found.issues };
+            const { tick, version } = entry;
+            return { at, tick, scene: named, version, issues: found.issues };
           }
           target = found.prepared;
         }
-        const scene = target?.version.scene ?? running;
+        const scene = target?.version.scene ?? named;
         if (entry.timing === "next-load") {
           if (target) live.stage(target);
           live.activate(scene, entry.version, "next-load");

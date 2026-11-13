@@ -13,6 +13,10 @@ export function stableJson(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
+/** `record[key]` when `record` holds `key` itself, so a key like `constructor` never reads the prototype. */
+export const ownValue = <V>(record: Readonly<Record<string, V>>, key: string): V | undefined =>
+  Object.hasOwn(record, key) ? record[key] : undefined;
+
 /** Whether two JSON values are equal whatever order their keys were set in. */
 export const sameValue = (a: unknown, b: unknown): boolean => stableJson(a) === stableJson(b);
 

@@ -38,6 +38,7 @@ import {
   zOrderBatch,
 } from "./commands";
 import { createGesturePreview, type PreviewRuntime } from "./gesture";
+import { pathFollowPath } from "./gizmos/behavior-marks";
 import type { KeyContext } from "./keymap";
 import type { EditorSession } from "./session";
 import { roundPt } from "./snap";
@@ -192,6 +193,12 @@ export type OutlineLook = {
   spritePoints?: boolean;
 };
 
+/** The look outlines are drawn and bounded with, sizing sprite boxes by `asset` when given. */
+export const outlineLook = (registry: Registry, asset?: SpriteAssetLookup): OutlineLook => ({
+  registry,
+  ...(asset ? { asset } : {}),
+});
+
 const boxShape = (b: Aabb): ShapeObj => ({
   type: "box",
   cx: (b.minX + b.maxX) / 2,
@@ -296,6 +303,40 @@ export function outlineBounds(
   const marks: OutlineMarks = { outlines: [], points: [] };
   for (const ref of refs) outlinesOfRef(def, ref, "selected", marks, look);
   return marksBounds(marks.outlines, marks.points);
+}
+
+/** The entities `ref` names in `def`: the entity itself, or an instance's children. */
+function entitiesOfRef(def: SceneDefinition, ref: Ref): EntityDef[] {
+  const entities = def.entities ?? [];
+  const own = entities.find((e) => e.id === ref);
+  if (own) return [own];
+  const prefix = `${ref}${CHILD_SEPARATOR}`;
+  return entities.filter((e) => e.id.startsWith(prefix));
+}
+
+/**
+ * The box framing `refs` goes to: their `outlineBounds` grown over the paths
+ * their entities travel (a path field's and a `path-follow` block's
+ * waypoints), so framing a mover shows its whole route.
+ */
+export function frameBounds(
+  def: SceneDefinition,
+  refs: readonly Ref[],
+  look: OutlineLook,
+): Aabb | null {
+  const { registry } = look;
+  const route: Pt[] = [];
+  for (const ref of refs) {
+    for (const e of entitiesOfRef(def, ref)) {
+      const t = registry.types.get(e.type);
+      if (!t) continue;
+      route.push(...(entityGeometry(t, e).pts ?? []));
+      route.push(...(pathFollowPath(def, registry, e.id)?.pts ?? []));
+    }
+  }
+  const box = outlineBounds(def, refs, look);
+  const travelled = ptsBox(route);
+  return box && travelled ? aabbUnion(box, travelled) : (box ?? travelled);
 }
 
 /** The box around a set of marks; `null` for none. */
@@ -619,7 +660,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       case "frame": {
         if (!opts.frame) return false;
         const [minX, minY, maxX, maxY] = def.bounds;
-        opts.frame(host.selectionBounds() ?? { minX, minY, maxX, maxY });
+        opts.frame(frameBounds(def, sel, look()) ?? { minX, minY, maxX, maxY });
         return true;
       }
       case "undo":
@@ -651,7 +692,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     return t.rest.length === 0 && t.instances.length + t.groups.length > 0;
   }
 
-  const look = (): OutlineLook => ({ registry, ...(opts.asset ? { asset: opts.asset } : {}) });
+  const look = (): OutlineLook => outlineLook(registry, opts.asset);
 
   /**
    * The overlay's outlines: the selection's, the shared hover's and the

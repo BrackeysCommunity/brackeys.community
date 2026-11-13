@@ -7,12 +7,8 @@ import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys } from "../../collab/index";
-import {
-  createEditorSession,
-  selectionBounds,
-  type SceneDefinition,
-  type SceneIssue,
-} from "../../editor/index";
+import { createEditorSession, type SceneDefinition, type SceneIssue } from "../../editor/index";
+import { frameBounds, outlineLook } from "../../editor/tool-host";
 import { createRegistry } from "../../game/index";
 import type { AssetKey } from "../../project/index";
 import {
@@ -603,7 +599,11 @@ describe("framing in the editor's frame", () => {
       viewportOf(1440),
     );
     const framed = (game.frame as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
-    const plain = selectionBounds(session.getResolved(), session.registry, issue!.entityIds)!;
+    const plain = frameBounds(
+      session.getResolved(),
+      issue!.entityIds,
+      outlineLook(session.registry),
+    )!;
     const expected = visibleFrame(plain, {
       width: 1440,
       height: 900,
@@ -612,5 +612,69 @@ describe("framing in the editor's frame", () => {
     expect(framed).toEqual(expected.rect);
     expect(panBy).toHaveBeenCalledWith(expected.pan);
     expect(expected.pan.x).toBe((fitted.canvas.left - fitted.canvas.right) / 2);
+  });
+
+  it("frames an entity with its whole path, the way f does", () => {
+    const session = createEditorSession({
+      doc: sceneToDoc(
+        {
+          ...scene,
+          entities: [
+            {
+              id: "rover",
+              type: "marker",
+              at: [400, 600],
+              behaviors: {
+                "path-follow": {
+                  path: {
+                    pts: [
+                      [400, 600],
+                      [1600, 600],
+                      [1600, 300],
+                    ],
+                    mode: "ping_pong",
+                    speed: 1,
+                  },
+                },
+              },
+            },
+          ],
+        },
+        { key: sequentialKeys("t") },
+      ),
+      origin: { kind: "user", userId: "ada", name: "Ada" },
+      name: "layout-yard",
+      registry: createRegistry(),
+      issuesDebounceMs: 0,
+    });
+    const { game } = fakeWorldGame(createRegistry());
+    Object.assign(game, { panBy: vi.fn() });
+    const host = new Store<EditorHostState>({ connection: "live", sceneChanged: false });
+    const chrome = editorChrome({
+      session,
+      host,
+      game,
+      notify,
+      onPlay: vi.fn(),
+      onReplay: vi.fn(),
+      onStop: vi.fn(),
+      onRestart: vi.fn(),
+    });
+    render(
+      <EditorFrame host={{ storage: memoryStorage() }} {...chrome}>
+        <canvas />
+      </EditorFrame>,
+    );
+    let framedOk = false;
+    act(() => {
+      framedOk = chrome.panels!.context.controls.frame(["rover"]);
+    });
+    expect(framedOk).toBe(true);
+    const framed = (game.frame as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
+    const expected = visibleFrame(
+      { minX: 400, minY: 300, maxX: 1600, maxY: 600 },
+      { width: 1440, height: 900, insets: fitLayout(DEFAULT_LAYOUT, viewportOf(1440)).canvas },
+    );
+    expect(framed).toEqual(expected.rect);
   });
 });

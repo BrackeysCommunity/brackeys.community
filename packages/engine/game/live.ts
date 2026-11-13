@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import type { AssetId, Sha256 } from "../project/types";
 import type { SceneIssue } from "../scene/types";
 import type { EngineContext } from "./types";
@@ -11,6 +13,25 @@ export type SwapTiming = "next-load" | "boundary" | "now";
 
 /** Reconcile changes entities in place; reload loads the new version fresh and restores what it can. */
 export type SwapStrategy = "reconcile" | "reload";
+
+/** Every swap timing, weakest first: what each schema and wording reads them from. */
+export const SWAP_TIMINGS = Object.freeze(["next-load", "boundary", "now"] as const);
+export const SWAP_STRATEGIES = Object.freeze(["reconcile", "reload"] as const);
+
+/** Whether `L` lists exactly `T`'s members: the build fails when a timing or strategy is left out. */
+type Lists<T extends string, L extends readonly string[]> = [T] extends [L[number]]
+  ? [L[number]] extends [T]
+    ? true
+    : false
+  : false;
+const listsEvery: [
+  Lists<SwapTiming, typeof SWAP_TIMINGS>,
+  Lists<SwapStrategy, typeof SWAP_STRATEGIES>,
+] = [true, true];
+void listsEvery;
+
+export const swapTimingSchema = z.enum(SWAP_TIMINGS);
+export const swapStrategySchema = z.enum(SWAP_STRATEGIES);
 
 /** What differs between two expanded versions of a scene, by entity id in scene order. */
 export type SceneDiff = {
@@ -78,7 +99,7 @@ export function acceptedTimings(live: Pick<LiveDeclaration, "timings"> | undefin
  */
 export function acceptedTimingsWords(live: Pick<LiveDeclaration, "timings"> | undefined): string {
   const accepted = acceptedTimings(live);
-  const takes = (["now", "boundary", "next-load"] as const).filter((t) => accepted.includes(t));
+  const takes = [...SWAP_TIMINGS].reverse().filter((t) => accepted.includes(t));
   const last = timingWords(takes.at(-1)!);
   return takes.length === 1
     ? `only ${last}`
@@ -121,6 +142,6 @@ export function clampTiming(
 ): { timing: SwapTiming; clamped: boolean } {
   const listed = (t: SwapTiming) => t === "next-load" || (live?.timings.includes(t) ?? false);
   let timing = wanted;
-  while (!listed(timing)) timing = timing === "now" ? "boundary" : "next-load";
+  while (!listed(timing)) timing = SWAP_TIMINGS[SWAP_TIMINGS.indexOf(timing) - 1] ?? "next-load";
   return { timing, clamped: timing !== wanted };
 }

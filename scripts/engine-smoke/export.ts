@@ -49,7 +49,7 @@ import { inflateSync } from "node:zlib";
 
 import { LIVE_DEFAULTS, type SwapTiming } from "@jams/engine/game";
 import {
-  liveFiles as liveAssetFiles,
+  liveFiles,
   type ReleaseManifest,
   type SceneVersion,
   type Sha256,
@@ -602,7 +602,7 @@ export function fetchedVersion(
   mount: string,
   version: Sha256,
 ): boolean {
-  const want = `${mount}${liveAssetFiles.doc(version)}`;
+  const want = `${mount}${liveFiles.doc(version)}`;
   return requests.some((url) => {
     try {
       const u = new URL(url);
@@ -634,7 +634,7 @@ export function judgeLive(
     reasons.push(`the frame's hello doesn't list the "live" feature`);
   if (!fetchedVersion(requests.urls, requests.origin, requests.mount, probe.version))
     reasons.push(
-      `the frame never fetched ${requests.mount}${liveAssetFiles.doc(probe.version)} from its own directory`,
+      `the frame never fetched ${requests.mount}${liveFiles.doc(probe.version)} from its own directory`,
     );
   const mine = (host?.live ?? []).filter(
     (s) => s.scene === probe.scene && s.version === probe.version,
@@ -1004,14 +1004,14 @@ export async function buildLiveFixture(
  * them; in the replay's versions directory, `scene-version.json` and the
  * texts, as `game live build` writes them. Paths relative to each root.
  */
-export function liveFiles(fixture: Pick<LiveFixture, "id" | "versionText" | "texts">): {
+export function liveFixtureFiles(fixture: Pick<LiveFixture, "id" | "versionText" | "texts">): {
   build: Map<string, string>;
   versions: Map<string, string>;
 } {
-  const build = new Map([[liveAssetFiles.doc(fixture.id), fixture.versionText]]);
+  const build = new Map([[liveFiles.doc(fixture.id), fixture.versionText]]);
   const versions = new Map([[SCENE_VERSION_FILE, fixture.versionText]]);
   for (const [sha, text] of fixture.texts) {
-    build.set(liveAssetFiles.doc(sha), text);
+    build.set(liveFiles.doc(sha), text);
     versions.set(`${sha}.json`, text);
   }
   return { build, versions };
@@ -1637,7 +1637,7 @@ async function prepareLive(
     projectDir: join(REPO, "src/games", game),
     cacheDir: join(tmp, "live-cache"),
   });
-  const files = liveFiles(fixture);
+  const files = liveFixtureFiles(fixture);
   const versionsDir = join(tmp, "live-versions");
   writeFiles(out, files.build);
   writeFiles(versionsDir, files.versions);

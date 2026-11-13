@@ -31,9 +31,9 @@ for it.
   `acceptedTimingsWords(live)` (those timings as the words after "this
   game accepts ": `only next load`, `boundary and next load`, strongest
   first; the editor and `live-timing-unsupported` word them with it),
-  `diffWords(diff)` (`3 entities changed, 1 added, 1 removed`, `the
-scene's header changed` or `nothing changed`; the editor's and the CLI's
-  swap summaries), and `utf8Bytes(text)`.
+  `diffWords(diff)` (`3 entities changed, 1 added, 1 removed`,
+  `the scene's header changed` or `nothing changed`; the editor's and the
+  CLI's swap summaries), and `utf8Bytes(text)`.
 - `@jams/engine/game` and `.`: `LIVE_CHECK_AGAIN_TICKS` (60), how long
   after a swap the game's `live.check` runs a second time.
 - `GameDefinition.live`, `GameRuntime.onSwap(swap)` and `ctx.live`
@@ -96,8 +96,8 @@ scene's header changed` or `nothing changed`; the editor's and the CLI's
   `"all"` for a reconcile and `"world"` or `"progress"` for a reload,
   `strategy` is `"reload"`, and `undo()` loads the old version again and
   restores the pre-swap capture at the same depth. A failed reload puts the
-  old version back and reports `live-swap-failed` with `detail.reason:
-"refused"`; when putting it back fails too, the hint says so. An
+  old version back and reports `live-swap-failed` with
+  `detail.reason: "refused"`; when putting it back fails too, the hint says so. An
   `undo()` that can't put the old version back throws with its cause.
 - `GameInstance.live`: `stage(version, { signal })` reads, validates and
   expands a scene version, adds its assets to the loader's view for that
@@ -153,8 +153,9 @@ scene's header changed` or `nothing changed`; the editor's and the CLI's
   strategy auto) at `LIVE_DEFAULTS.checkAt` of each run, steps
   `checkTicks` more, and runs the game's `live.check` right after the swap
   and 60 ticks later. It reports `onSwap` throwing or a swap step refusing
-  (`live-swap-failed`), a step that throws after the swap, and the check's
-  own issues per run as `{ script, at, tick, strategy, issues }`. With
+  (`live-swap-failed`), a step or the check throwing after the swap
+  (`live-swap-failed` in phase `after`, or the `EngineError`'s own code),
+  and the check's own issues per run as `{ script, at, tick, strategy, issues }`. With
   `checks` it runs the scene's checks file against the new version
   (`report.checks`). `issues` holds what kept a version or script from
   playing at all.
@@ -169,10 +170,13 @@ scene's header changed` or `nothing changed`; the editor's and the CLI's
 - Recordings write `sceneVersion` (the live version a segment started on,
   omitted for the release's own scene) and `swaps` (each applied swap's
   tick, version, strategy, timing, sceneHash and runHash, in order). A
-  version of another listed scene activated during the segment is written
-  there too, as a `next-load` entry at its tick, so a replay activates it
-  before the attach that used it. A run without swaps writes the same
-  bytes as before. `recordedSwap(swap)`
+  move of another listed scene during the segment (a version activated or
+  pinned, or back to the release's own) is written there too, as a
+  `next-load` entry at its tick that names it as `sublevel`, so a replay moves
+  it before the attach that used it. The shell's session recordings also
+  start with an entry for each other listed scene that runs a live
+  version, and its replays start those scenes on the release's own. A run without
+  swaps writes the same bytes as before. `recordedSwap(swap)`
   (`./headless`) turns a `SceneSwap` into its recorded entry.
 - `replayRecording` takes `versions` (id -> `StagedVersion | null`; look
   one up with `findSceneVersion`): a segment's `sceneVersion` is read with
@@ -238,7 +242,9 @@ scene's header changed` or `nothing changed`; the editor's and the CLI's
   applies, go to the Problems panel and stay after Stop. A failing onSwap
   is shown and Play carries on. Replaying a run (Load run) passes the
   versions Live in Play built this session; a run with live versions it
-  doesn't have says to replay it with `vp run scene replay --versions`. Editor UI: `EditorHostState.livePlay`,
+  doesn't have says to replay it with `vp run scene replay --versions`,
+  and one that stops at such a version partway says so, with the tick it
+  reached. Editor UI: `EditorHostState.livePlay`,
   `LivePlayState`, `LivePlayStatus`, `EditorProps.onLivePlay`.
 - The spawner takes `fields`, the fields each spawn of its `type` gets;
   their shapes, points and paths are placed at the spawn point, so a shape
@@ -350,10 +356,13 @@ scene's header changed` or `nothing changed`; the editor's and the CLI's
   `detail.rule: "game"` carries no hint. `live-swap-failed` words a
   staging failure (`detail.phase: "stage"`) as the scene keeping the
   version it runs, and only a refused swap step or a throwing `onSwap`
-  as loading next time; the swap check's run that ended before the swap
-  has no phase. The swap check's script for
+  as loading next time; a step or the game's live check throwing after
+  the swap applied is phase `after` (`LiveSwapPhase`, `./scene`), worded
+  as applied; the swap check's run that ended before the swap has no
+  phase. The swap check's script for
   another scene carries the playtest's hint.
-- The recording schema's `sceneVersion` and `swaps`.
+- The recording schema's `sceneVersion` and `swaps` (`swaps[].sublevel`
+  names the scene a `next-load` entry moved).
 - The scene schema's spawner `fields`; the input-script schema's `nav`
   step and the checks schema's `reaches.nav`; the registry's command names
   gain `@nav`.
@@ -361,8 +370,8 @@ scene's header changed` or `nothing changed`; the editor's and the CLI's
   move its entity.
 - `game live build <project> <scene> [--hosted] [--out <dir>]` writes
   `scene-version.json` and a `<sha256>.json` for each text it carries, and
-  prints the id, the data size and the files; `game live check <project>
-<scene> [--against <release dir|release.json>] [--from <version dir>]`
+  prints the id, the data size and the files;
+  `game live check <project> <scene> [--against <release dir|release.json>] [--from <version dir>]`
   checks the version against a release and runs the swap check from the
   release's scene or a built version; with neither flag it only validates
   and prints a warning; `replay --versions <dir>` replays a run's live

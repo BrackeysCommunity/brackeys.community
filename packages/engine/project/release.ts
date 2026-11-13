@@ -6,10 +6,11 @@ import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-sur
 import { INPUT_SCRIPT_VERSION } from "../scene/input-script";
 import { jsonPointer, makeIssue } from "../scene/issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
+import { withIssueLines } from "../scene/parse";
 import { RECORDING_VERSION, type RunRecording } from "../scene/recording-schema";
 import { SCENE_FORMAT_VERSION, type SceneIssue } from "../scene/types";
 import { COLLAB_LAYOUT_VERSION } from "../version";
-import { canonicalJson, stableJson } from "./canonical";
+import { canonicalJson, ownValue, stableJson } from "./canonical";
 import { sha256 } from "./hash";
 import type { DocLayout } from "./kinds";
 import { byCodeUnit } from "./kinds/define";
@@ -513,7 +514,8 @@ export function parseReleaseManifest(text: string): ParseReleaseManifestResult {
   const read = readJsonDocument(text, "release", RELEASE_VERSION, "the release manifest");
   if (!read.ok) return read;
   const parsed = manifestSchema.safeParse(read.raw);
-  if (!parsed.success) return { ok: false, issues: zodSceneIssues(parsed.error) };
+  if (!parsed.success)
+    return { ok: false, issues: withIssueLines(text, zodSceneIssues(parsed.error)) };
   return { ok: true, manifest: parsed.data as ReleaseManifest };
 }
 
@@ -797,7 +799,7 @@ function shippedIssues(
 ): SceneIssue[] {
   const issues: SceneIssue[] = [];
   ids.forEach((id, i) => {
-    const asset = Object.hasOwn(m.assets, id) ? m.assets[id] : undefined;
+    const asset = ownValue(m.assets, id);
     const fits =
       asset !== undefined &&
       (want?.storage === undefined || asset.storage === want.storage) &&

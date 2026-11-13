@@ -7,7 +7,7 @@ import { closest } from "./did-you-mean";
 import { bulkId } from "./expand";
 import { withoutEmptyMaps } from "./format";
 import { GRID_MAX_VALUE, gridProblems } from "./grid";
-import { jsonPointer, lineAt, makeIssue } from "./issues";
+import { errorText, jsonPointer, lineAt, makeIssue } from "./issues";
 import { migrate, type MigrateEnv } from "./migrate";
 import {
   entitySchemaFor,
@@ -143,6 +143,21 @@ export function pointerLines(text: string): Map<string, number> {
   return lines;
 }
 
+/** `issues` with the line in `text` each one's path points at; unchanged when `text` isn't JSON. */
+export function withIssueLines(text: string, issues: readonly SceneIssue[]): SceneIssue[] {
+  let lines: Map<string, number>;
+  try {
+    lines = pointerLines(text);
+  } catch {
+    return [...issues];
+  }
+  return issues.map((issue) => {
+    if (issue.path === undefined || issue.line !== undefined) return issue;
+    const line = lineAt(lines, issue.path);
+    return line === undefined ? issue : { ...issue, line };
+  });
+}
+
 /** The 1-based line of `pointer` (or its nearest ancestor) in `text`. */
 export function locatePointer(text: string, pointer: string): number | undefined {
   try {
@@ -160,7 +175,7 @@ function lineOfOffset(text: string, offset: number): number {
 
 function syntaxIssue(text: string, error: unknown): SceneIssue {
   let offset: number | undefined;
-  let detail = error instanceof Error ? error.message : String(error);
+  let detail = errorText(error);
   try {
     pointerLines(text);
   } catch (e) {
@@ -536,16 +551,11 @@ export function parseScene(
       return { ok: false, issues: [syntaxIssue(input, error)] };
     }
   }
-  let lines: Map<string, number> | undefined;
-  const withLine = (issue: SceneIssue): SceneIssue => {
-    if (text === undefined || issue.path === undefined || issue.line !== undefined) return issue;
-    lines ??= pointerLines(text);
-    const line = lineAt(lines, issue.path);
-    return line === undefined ? issue : { ...issue, line };
-  };
+  const withLines = (issues: SceneIssue[]): SceneIssue[] =>
+    text === undefined ? issues : withIssueLines(text, issues);
 
   const migrated = migrate(raw, undefined, undefined, migrateEnvOf(registry, opts));
-  if (!migrated.ok) return { ok: false, issues: [withLine(migrated.issue)] };
+  if (!migrated.ok) return { ok: false, issues: withLines([migrated.issue]) };
 
   const declared = (migrated.raw as Record<string, unknown>).game;
   if (declared !== undefined && typeof declared !== "string") {
@@ -555,19 +565,21 @@ export function parseScene(
       expected: "string",
       got: describe(declared),
     });
-    return { ok: false, issues: [withLine(issue)] };
+    return { ok: false, issues: withLines([issue]) };
   }
   const game = sceneGameOf(migrated.raw);
   const judge = sceneRegistry(game, registry);
-  if (!judge) return { ok: false, issues: [withLine(unknownGameIssue(game!, registry))] };
+  if (!judge) return { ok: false, issues: withLines([unknownGameIssue(game!, registry)]) };
 
   let schema: z.ZodObject | undefined;
   const scene = () => (schema ??= sceneSchemaFor(judge));
   const result = scene().safeParse(migrated.raw);
   if (!result.success) {
     const ctx: MapContext = { raw: migrated.raw, registry: judge, scene };
-    const issues = result.error.issues.flatMap((i) => mapZodIssue(i, ctx)).map(withLine);
-    return { ok: false, issues };
+    return {
+      ok: false,
+      issues: withLines(result.error.issues.flatMap((i) => mapZodIssue(i, ctx))),
+    };
   }
   const def = withoutEmptyRowMaps(result.data as SceneDefinition);
   return migrated.from === SCENE_FORMAT_VERSION

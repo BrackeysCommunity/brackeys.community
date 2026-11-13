@@ -15,10 +15,15 @@ import type { ProjectId, ProjectRuntimeView } from "../project/index";
 import { mountUi } from "../ui/layer";
 import type { MountUi } from "../ui/types";
 import type { SceneDocStatus, SceneFallback } from "./connect/scene-doc";
-import { editorChrome, type EditorChrome, type EditorFrameHandle } from "./frame/EditorFrame";
+import {
+  editorChrome,
+  Island,
+  type EditorChrome,
+  type EditorFrameHandle,
+} from "./frame/EditorFrame";
 import { EditorBooting, EditorSkeleton } from "./frame/EditorSkeleton";
 import { hostCue, type EditorHost, type NotifyOptions, type SceneHome } from "./host";
-import { createToaster, hostNotify, Toasts } from "./kit/index";
+import { Button, createToaster, hostNotify, Toasts } from "./kit/index";
 import type { PanelId } from "./layout/model";
 import { InspectorReadOnly } from "./panels/EditorInspector";
 import { createPending } from "./pending/pending";
@@ -79,15 +84,17 @@ const REBUILD_LABEL = "Rebuilding the game";
 /** How long the scene, or its materials and prefabs, may take to open before the editor says it couldn't. */
 export const OPEN_TIMEOUT_MS = 30_000;
 
-/** The phases that wait on the scene server sending docs, which it may never do. */
-const OPENING: ReadonlySet<BootPhase> = new Set(["scene", "assets"]);
+/** Whether a phase waits on the scene server sending docs, which it may never do. */
+function isOpening(phase: BootPhase): boolean {
+  return phase === "scene" || phase === "assets";
+}
 
 /** What the boot status says once the scene has taken longer than `OPEN_TIMEOUT_MS` to open. */
 function openStalled(scene: string | undefined, project: string) {
   return {
     label: `Couldn't open ${scene ?? "the scene"} in project ${project}`,
     working: false,
-    error: `The scene server hasn't sent it in ${OPEN_TIMEOUT_MS / 1000} s. The editor keeps asking; reload the page to start over.`,
+    error: `The scene server hasn't sent it in ${OPEN_TIMEOUT_MS / 1000}s. The editor keeps asking. A dev server started before an engine change needs a restart, then a reload.`,
   };
 }
 
@@ -442,7 +449,7 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
   const phase = editing.phase;
   const [stalled, setStalled] = useState<BootPhase | null>(null);
   useEffect(() => {
-    if (!phase || !OPENING.has(phase)) return;
+    if (!phase || !isOpening(phase)) return;
     const timer = setTimeout(() => setStalled(phase), OPEN_TIMEOUT_MS);
     return () => {
       clearTimeout(timer);
@@ -456,6 +463,8 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
         : bootStatus(phase ?? "game", editing.status ?? "connecting", buildFailed)
       : null;
   const activity = inert ? REBUILD_LABEL : booting?.working ? booting.label : null;
+  // Stopped short of an editor: the panels' skeletons stop pulsing, so the error is the only state shown.
+  const stopped = booting !== null && !booting.working;
   useEffect(() => {
     if (!activity) return;
     return pending.hold({ id: "editor:session", label: activity, scope: "editor" });
@@ -469,6 +478,7 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
           style={{ display: "contents" }}
           inert={inert}
           aria-busy={inert || undefined}
+          data-boot={stopped ? "stopped" : undefined}
         >
           <EditorSkeleton
             frameRef={frameRef}
@@ -479,7 +489,24 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
             notify={notify}
             {...shown}
             status={
-              shown ? (shown.status ?? null) : booting ? <EditorBooting {...booting} /> : undefined
+              shown ? (
+                (shown.status ?? null)
+              ) : booting ? (
+                <>
+                  <EditorBooting {...booting} />
+                  {booting.error ? (
+                    <Island className="je-boot-reload">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => window.location.reload()}
+                      >
+                        Reload
+                      </Button>
+                    </Island>
+                  ) : null}
+                </>
+              ) : undefined
             }
             overlay={
               <>

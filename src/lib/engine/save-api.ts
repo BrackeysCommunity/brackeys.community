@@ -16,7 +16,7 @@
 // here, from `limits.ts`, and the wording suite reads them from here.
 
 import type { SaveLimits, SaveSummary } from "@jams/engine";
-import { parseSaveFile, SLOT_MAX_LENGTH, SLOT_PATTERN } from "@jams/engine/game";
+import { parseSaveFile, SLOT_PATTERN, SLOT_RULE } from "@jams/engine/game";
 import type { SceneIssue } from "@jams/engine/scene";
 import { and, asc, eq, isNull } from "drizzle-orm";
 
@@ -206,7 +206,7 @@ export function saveBadSlot(slot: string): ReleaseApiError {
   return {
     code: "schema",
     message: `"${slot}" isn't a save slot.`,
-    hint: `A slot is lowercase letters, digits and dashes, up to ${SLOT_MAX_LENGTH} characters, starting with a letter or digit.`,
+    hint: `A slot is ${SLOT_RULE}.`,
   };
 }
 
