@@ -17,6 +17,7 @@ import {
   type ProgressTone,
   Skeleton,
   Text,
+  type TextTone,
 } from "../../kit/index";
 import { PendingProvider, useOwnOrSharedPending } from "../../pending/use-pending";
 import { useProjectView } from "../EditorProject";
@@ -36,6 +37,13 @@ const BAR_TONE = { ok: "primary", warn: "warning", full: "danger" } as const sat
   UsageLevel,
   ProgressTone
 >;
+
+/** How a usage level reads in a line of text, wherever the editor words one. */
+export const USAGE_TONE = {
+  ok: "muted",
+  warn: "warning",
+  full: "danger",
+} as const satisfies Record<UsageLevel, TextTone>;
 
 /**
  * Purges every trashed entry in one batch. An entry someone restored since
@@ -188,7 +196,7 @@ function Usage({
           <Text
             as="p"
             size="xs"
-            variant={usage.notice.level === "full" ? "danger" : "warning"}
+            variant={USAGE_TONE[usage.notice.level]}
             role={usage.notice.level === "full" ? "alert" : "status"}
             data-level={usage.notice.level}
           >

@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Text } from "@/components/ui/typography";
+import { BLOCKED_BY } from "@/lib/engine/editor-live-host";
 import { engineGamesAllowed } from "@/lib/engine/guard";
 import { useFlag } from "@/lib/hooks/use-flag";
 import { toastMutationError } from "@/lib/mutation-errors";
@@ -667,8 +668,7 @@ function SceneVersionRow({
 
         {blocked != null ? (
           <Text size="sm" className="max-w-prose">
-            {blocked.by === "system" ? "Blocked automatically" : "Blocked by a publisher"}{" "}
-            <TimeAgo date={blocked.at} />
+            {BLOCKED_BY[blocked.by]} <TimeAgo date={blocked.at} />
             {blocked.reason ? <span className="italic">: “{blocked.reason}”</span> : null}
           </Text>
         ) : null}

@@ -12,6 +12,8 @@ import {
   engineReleaseMovePath,
   engineReleaseRollbackPath,
   engineReleasesPath,
+  gamePagePath,
+  gamePlayPath,
 } from "../../../src/lib/engine/route-paths";
 import { formatBytes, formatCount } from "../../../src/lib/format-bytes";
 import { releaseDay } from "../../../src/lib/jam-links";
@@ -221,7 +223,7 @@ export function accessFor(
 
 /** The game's page on the site: where production is moved. */
 export const gamePageOf = (site: HostedSite, projectId: string) =>
-  new URL(`/games/${encodeURIComponent(projectId)}`, site.origin).toString();
+  new URL(gamePagePath(projectId), site.origin).toString();
 
 /** The refusal as the CLI prints it: its code, its message and its hint. */
 export function refusalResult(
@@ -656,7 +658,7 @@ function moveFailure(error: unknown, site: HostedSite, projectId: string): ToolR
 
 /** Where a channel's game plays on the site. */
 export const channelPlayUrl = (site: HostedSite, projectId: string, channel: string) =>
-  new URL(`/games/${encodeURIComponent(projectId)}/play/${channel}`, site.origin).toString();
+  new URL(`${gamePlayPath(projectId)}/${channel}`, site.origin).toString();
 
 function moved(
   site: HostedSite,

@@ -79,9 +79,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-const { GamePage, blockedSceneLine, missingLicencesLine } = await import("../GamePage");
+const { GamePage, missingLicencesLine } = await import("../GamePage");
 type GamePageView = import("../GamePage").GamePageView;
-const { downloadReleaseZip, versionLine } = await import("../VersionList");
+const { blockedSceneLine, downloadReleaseZip, versionLine } = await import("../VersionList");
 const { releaseDay } = await import("@/lib/jam-links");
 const { embedSnippet } = await import("../EmbedSnippet");
 const { gamePageHead } = await import("@/routes/games.$projectId");
@@ -478,8 +478,18 @@ describe("live levels on the game page", () => {
     expect(screen.queryByText(/with updated levels/i)).toBeNull();
   });
 
-  it("shows publishers a blocked update, linking to the Publish panel in the editor", () => {
-    wrap(<GamePage page={publisherPage({ blockedScenes: BLOCKED })} onChanged={() => {}} />);
+  it("shows publishers a blocked update in its channel's row, linking to the Publish panel in the editor", () => {
+    wrap(
+      <GamePage
+        page={publisherPage({
+          blockedScenes: [
+            ...BLOCKED,
+            { scene: "cave", title: "Cave", number: 3, channel: "preview", reason: null },
+          ],
+        })}
+        onChanged={() => {}}
+      />,
+    );
     const link = screen.getByRole("link", {
       name: "The ford update blocked (5 of 12 players' games failed after this update)",
     });
@@ -487,9 +497,16 @@ describe("live levels on the game page", () => {
       "/game/dev?edit=1&project=tactics&scene=ford&panel=publish",
     );
     expect(link.className).toContain("text-destructive");
+    const versions = screen.getByRole("list", { name: "Versions" });
+    const live = versions.querySelector<HTMLElement>('[data-version="7"]')!;
     expect(
-      within(screen.getByRole("list", { name: "Blocked level updates" })).getAllByRole("listitem"),
+      within(within(live).getByRole("list", { name: "Blocked level updates" })).getAllByRole(
+        "listitem",
+      ),
     ).toHaveLength(1);
+    const preview = versions.querySelector<HTMLElement>('[data-version="8"]')!;
+    expect(within(preview).getByRole("link", { name: "Cave update blocked" })).toBeTruthy();
+    expect(screen.getAllByRole("list", { name: "Blocked level updates" })).toHaveLength(2);
   });
 
   it("never shows players a blocked update", () => {
@@ -505,6 +522,8 @@ describe("live levels on the game page", () => {
     );
   });
 });
+
+const SINCE_LIVE = "2026-11-13T10:00:00.000Z";
 
 describe("the publisher menu", () => {
   it("is not there for players", () => {
@@ -530,6 +549,31 @@ describe("the publisher menu", () => {
       version: 8,
       channel: "production",
     });
+  });
+
+  it("lists the live levels a promote replaces, and where to keep them", async () => {
+    const user = userEvent.setup();
+    wrap(
+      <GamePage
+        page={publisherPage({
+          live: {
+            version: 7,
+            playUrl: "/games/tactics/play/7",
+            scenes: [{ scene: "ford", title: "The ford", number: 4, since: SINCE_LIVE }],
+          },
+        })}
+        onChanged={() => {}}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Actions for v8" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Promote/ }));
+    expect(await screen.findByText(releasePromoteMessage(8))).toBeTruthy();
+    expect(
+      screen.getByText("Promoting v8 replaces these live scenes: The ford (ford@4)."),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Publish panel in the editor" }).getAttribute("href"),
+    ).toBe("/game/dev?edit=1&project=tactics&panel=publish");
   });
 
   it("rolls production back to an older version", async () => {

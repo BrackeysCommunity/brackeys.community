@@ -49,6 +49,7 @@ export type ScenePointerMove = {
   channel: LiveChannel;
   /** The version to point at, by number; null takes the pointer off ("Stop"). */
   to: { number: number } | null;
+  /** How players get the version. Ignored when `to` is null: players go back at the removed pointer's timing. */
   timing: SwapTiming;
   action: "scene-promote" | "scene-rollback" | "scene-clear";
   actor: Actor;
@@ -108,7 +109,8 @@ function releaseTakesNoLive(release: number): ReleaseApiError {
   };
 }
 
-function noVersion(scene: AssetId, number: number): ReleaseApiError {
+/** The refusal for a version number the scene doesn't have. */
+export function noVersion(scene: AssetId, number: number): ReleaseApiError {
   return {
     code: "not-found",
     message: `There is no ${sceneVersionName(scene, number)}.`,
@@ -492,7 +494,8 @@ export type ScenePointerResult = ScenePointerMoved & { rev: number | null };
 /**
  * Inside the caller's transaction, which holds the project's lock: moves
  * one scene's pointer, after `checkPointerTarget` for a version, writes
- * one audit row with the timing in its `detail`, and stores that row's id
+ * one audit row with the timing players get in its `detail` (a removed
+ * pointer's own, when it goes back to the release's scene), and stores that row's id
  * as the channel's `live_rev`. A pointer already on that version with that
  * timing is left as it is, with no row. The caller announces `rev`.
  */
@@ -500,7 +503,7 @@ export async function pointScene(
   tx: ReleaseDb,
   move: ScenePointerMove & { at: Date },
 ): Promise<ScenePointerResult> {
-  const { projectId, scene, channel, actor, at, timing } = move;
+  const { projectId, scene, channel, actor, at } = move;
   const [current] = await tx
     .select({
       versionId: engineSceneChannels.versionId,
@@ -515,8 +518,10 @@ export async function pointScene(
   const release = await channelRelease(tx, projectId, channel);
 
   let versionId: string | null = null;
+  let timing = move.timing;
   if (move.to === null) {
     if (!current) return { from, to: null, rev: null };
+    timing = current.timing as SwapTiming;
     await tx.delete(engineSceneChannels).where(pointerWhere(projectId, channel, scene));
   } else {
     const [target] = await tx
@@ -529,7 +534,7 @@ export async function pointScene(
           eq(engineSceneVersions.number, move.to.number),
         ),
       );
-    if (!target) return notFound(noVersion(scene, move.to.number).message);
+    if (!target) return refuse(noVersion(scene, move.to.number), 404);
     versionId = target.id;
     if (current?.versionId === versionId && current.timing === timing)
       return { from, to: move.to.number, rev: null };

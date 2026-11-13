@@ -13,6 +13,7 @@ import type { ProjectId, Sha256 } from "@jams/engine/project";
 
 import {
   editorLiveHost,
+  HIDDEN_BY_STAFF,
   hostCall,
   iso,
   liveUsageText,
@@ -269,7 +270,7 @@ export function releaseView(r: ReleaseSummaryInput): ReleaseView {
       r.removalAt === null
         ? null
         : { at: iso(r.removalAt), text: removalText(r.version, r.removalAt) },
-    hidden: r.hidden === null ? null : (r.hidden.reason ?? "Hidden by staff."),
+    hidden: r.hidden === null ? null : (r.hidden.reason ?? HIDDEN_BY_STAFF),
     collected: r.collectedAt !== null,
     playUrl: r.playUrl,
   };

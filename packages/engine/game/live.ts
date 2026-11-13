@@ -160,6 +160,16 @@ export const arrivalWords = (t: SwapTiming): string => SWAP_TIMING_WORDS[t].arri
 export const releasePromoteMessage = (version: number): string =>
   `Players will get v${version} the next time they open the game. You can roll back at any time.`;
 
+/**
+ * What a promote of release `version` adds when production plays live
+ * scenes it replaces: "Promoting v8 replaces these live scenes: The ford (level-1@4)."
+ */
+export const releaseReplacesMessage = (
+  version: number,
+  scenes: readonly { title: string; name: string }[],
+): string =>
+  `Promoting v${version} replaces these live scenes: ${scenes.map((s) => `${s.title} (${s.name})`).join(", ")}.`;
+
 /** What a rollback of production to release `version` asks first; `live` is the release it leaves. */
 export const releaseRollbackMessage = (version: number, live: number | null): string =>
   live === null
@@ -198,6 +208,12 @@ export function diffWords(diff: SceneDiff): string {
   if (parts.length > 0) return parts.join(", ");
   return diff.header ? "the scene's header changed" : "nothing changed";
 }
+
+/** What each swap strategy means for players, as a clause: `players' worlds update in place`. */
+export const SWAP_STRATEGY_WORDS: Readonly<Record<SwapStrategy, string>> = Object.freeze({
+  reconcile: "players' worlds update in place",
+  reload: "players' worlds are rebuilt and their state restored",
+});
 
 /** How a version is named where the host's numbers aren't known: `level-1@<first 12 hex>`, or the release's own. */
 export const versionName = (scene: AssetId, version: Sha256 | null): string =>

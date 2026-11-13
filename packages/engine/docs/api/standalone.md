@@ -433,6 +433,8 @@ The live versions a channel's release runs now: what the page hands the frame.
 
 ```ts
 type LiveSnapshot = {
+    /** Versions this channel still points at that were blocked: a frame running one goes back to the release's scene at its next load. */
+    blocked?: readonly Sha256[];
     channel: "preview" | "production";
     release: Sha256;
     /** Versions this channel still points at that were hidden: pages running one reload their frame. */

@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   acceptedTimings,
   arrivalWords,
+  releaseRollbackMessage,
   sceneVersionName,
-  SWAP_TIMINGS,
   timingWords,
   type LiveDeclaration,
   type SwapTiming,
@@ -44,18 +44,17 @@ import {
 } from "../../kit/index";
 import type { Pending } from "../../pending/pending";
 import { PendingProvider, useBusy, useOwnOrSharedPending } from "../../pending/use-pending";
-import { ChoiceGroup } from "./ChoiceGroup";
+import { ChoiceGroup, TimingChoice } from "./ChoiceGroup";
 import { LIVE_CHANNELS, liveOnText, productionConfirmText, PUBLISHERS_ONLY } from "./live-wording";
 import {
+  ChannelBadge,
   channelScope,
   PromoteButton,
   ReleaseList,
-  rollbackMessage,
   unplayable,
   type PromoteReplaces,
   type ReplacedScene,
 } from "./ReleaseList";
-import { TIMING_TEXT, TIMING_UNDECLARED } from "./ScenePublishDialog";
 
 const SETTINGS_SCOPE = "publish:settings";
 
@@ -417,7 +416,7 @@ function Channels({
         {back ? (
           <Confirm
             title={`Roll back to v${back.version}?`}
-            message={rollbackMessage(back.version, production?.version ?? null)}
+            message={releaseRollbackMessage(back.version, production?.version ?? null)}
             confirmText="Roll back"
             onConfirm={() => onRollback(back.version)}
           >
@@ -447,8 +446,6 @@ function RemovedSoon({ releases }: { releases: readonly ReleaseView[] }) {
 }
 
 // ─── Live scenes ─────────────────────────────────────────
-
-const CHANNEL_TITLE = { production: "Production", preview: "Preview" } as const;
 
 /** The question Unblock asks. */
 const unblockMessage = (name: string): string => `Players will get ${name} again.`;
@@ -569,7 +566,6 @@ function LiveScenes({
               role="list"
               aria-label={`Live on ${channel}`}
             >
-              <MicroLabel as="div">{CHANNEL_TITLE[channel]}</MicroLabel>
               {here.map((row) => (
                 <LiveSceneRow
                   key={`${row.version.scene}:${channel}`}
@@ -607,11 +603,16 @@ function LiveScenes({
           ))}
         </div>
       ) : null}
-      {forecast.map((line) => (
-        <Text key={line.scene} as="p" size="xs" variant="warning">
-          {line.text}
-        </Text>
-      ))}
+      {forecast.length > 0 ? (
+        <div className="je-insp-stack" data-gap="tight" aria-label="Live scenes removed soon">
+          <MicroLabel as="div">Removed soon</MicroLabel>
+          {forecast.map((line) => (
+            <Text key={line.scene} as="p" size="xs" variant="warning">
+              {line.text}
+            </Text>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -818,15 +819,11 @@ function SavedVersionRow({
                   <Text as="p" size="sm" variant="muted">
                     {productionConfirmText(name, timing)}
                   </Text>
-                  <ChoiceGroup
-                    legend="When players get it"
+                  <TimingChoice
                     name={`promote-timing-${scene}`}
-                    choices={SWAP_TIMINGS}
                     value={timing}
+                    accepted={timings}
                     disabled={false}
-                    unavailable={(t) => !timings.includes(t)}
-                    hint={() => TIMING_UNDECLARED}
-                    label={(t) => TIMING_TEXT[t]}
                     onPick={setTiming}
                   />
                 </div>
@@ -934,6 +931,7 @@ function LiveSceneRow({
         <Text size="sm" bold>
           {called}
         </Text>
+        <ChannelBadge channel={channel} />
         {version.blocked ? (
           <Badge size="label" variant="destructive">
             blocked

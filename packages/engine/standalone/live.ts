@@ -269,7 +269,7 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
     if (last?.channel === live.channel && live.rev < last.rev) return;
     last = { channel: live.channel, rev: live.rev };
     const listed = new Set<AssetId>();
-    const removed = new Set(live.removed);
+    const blockedNow = new Set([...live.removed, ...(live.blocked ?? [])]);
     for (const entry of live.scenes) {
       listed.add(entry.scene);
       const t = tracks.get(entry.scene);
@@ -290,7 +290,7 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
         tracks.delete(scene);
         continue;
       }
-      const blocked = removed.has(t.version) || failedVersions.has(t.version);
+      const blocked = blockedNow.has(t.version) || failedVersions.has(t.version);
       const back: Track = {
         version: null,
         timing: blocked ? "next-load" : t.timing,

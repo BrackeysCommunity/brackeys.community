@@ -61,8 +61,7 @@ const { connectsToSentence, PREFS_SENTENCE, savesSentence } =
 const { PrivacyDocument } = await import("@/components/legal/PrivacyDocument");
 const { LIVE_REMOVED_NOTICE, LIVE_SWAP_TOAST, liveReleaseToast } =
   await import("@/components/games/PlayFrame");
-const { blockedSceneLine } = await import("@/components/games/GamePage");
-const { LiveLevelsLine } = await import("@/components/games/VersionList");
+const { blockedSceneLine, LiveLevelsLine } = await import("@/components/games/VersionList");
 
 const ROOT = resolve(import.meta.dirname, "../../../..");
 const readRepo = (path: string): string => readFileSync(resolve(ROOT, path), "utf8");
@@ -811,7 +810,7 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
   {
     states: ["LIVE_POLL_SECONDS", "LIVE_STREAM_MINUTES", "LIVE_DEFAULTS.preloadTimeoutMs"],
     source: "README §Live levels",
-    phrase: `checks again every ${C("LIVE_POLL_SECONDS")} seconds if its live connection drops (it reconnects every ${C("LIVE_STREAM_MINUTES")} minutes anyway). The game has ${C("LIVE_DEFAULTS.preloadTimeoutMs")} seconds to download, check and prepare a version`,
+    phrase: `checks every ${C("LIVE_POLL_SECONDS")} seconds while it is visible, in case its live connection dropped or stopped hearing (it reconnects every ${C("LIVE_STREAM_MINUTES")} minutes anyway). The game has ${C("LIVE_DEFAULTS.preloadTimeoutMs")} seconds to download, check and prepare a version`,
   },
   {
     states: [

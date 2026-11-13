@@ -1,6 +1,16 @@
 import type { ReactNode } from "react";
 
+import { SWAP_TIMING_WORDS, SWAP_TIMINGS, type SwapTiming } from "../../../game/live";
 import { Hint, MicroLabel, Radio, Text } from "../../kit/index";
+
+/** Each timing's label on the choice that picks it. */
+export const TIMING_TEXT = Object.freeze(
+  Object.fromEntries(SWAP_TIMINGS.map((t) => [t, SWAP_TIMING_WORDS[t].label])),
+) as Readonly<Record<SwapTiming, string>>;
+
+/** The tooltip on a timing the game doesn't list. */
+export const TIMING_UNDECLARED =
+  "This game doesn't accept this timing (GameDefinition.live.timings).";
 
 /**
  * A labelled radio group, one row per choice. A disabled group or an
@@ -71,5 +81,35 @@ export function ChoiceGroup<T extends string>({
         );
       })}
     </div>
+  );
+}
+
+/** "When players get it": every timing, those the game doesn't accept disabled and saying why. */
+export function TimingChoice({
+  name,
+  value,
+  accepted,
+  disabled,
+  onPick,
+}: {
+  name: string;
+  value: SwapTiming;
+  /** The timings the game accepts, next load first. */
+  accepted: readonly SwapTiming[];
+  disabled: boolean;
+  onPick: (timing: SwapTiming) => void;
+}) {
+  return (
+    <ChoiceGroup
+      legend="When players get it"
+      name={name}
+      choices={SWAP_TIMINGS}
+      value={value}
+      disabled={disabled}
+      unavailable={(t) => !accepted.includes(t)}
+      hint={() => TIMING_UNDECLARED}
+      label={(t) => TIMING_TEXT[t]}
+      onPick={onPick}
+    />
   );
 }

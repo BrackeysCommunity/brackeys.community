@@ -10,12 +10,11 @@ import { MediaCardImage } from "@/components/ui/media-card";
 import { ReportDialog } from "@/components/ui/report-dialog";
 import { Section } from "@/components/ui/section";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { Heading, Link as TextLink, RouterTextLink, Text } from "@/components/ui/typography";
+import { Heading, Link as TextLink, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
-import type { GamePageBlockedScene, GamePagePayload } from "@/lib/engine/game-page";
+import type { GamePagePayload } from "@/lib/engine/game-page";
 import { engineGamesAllowed } from "@/lib/engine/guard";
-import { EDITOR_ROOM, editorSearch } from "@/lib/engine/route-paths";
 import { useFlagBlocks } from "@/lib/hooks/use-flag";
 import { profileLinkParams } from "@/lib/profile-links";
 import { teamLinkParams } from "@/lib/team-links";
@@ -41,41 +40,6 @@ export function missingLicencesLine(count: number): string {
   return count === 1
     ? "1 asset has no licence recorded."
     : `${count} assets have no licence recorded.`;
-}
-
-/** "The ford update blocked (5 of 12 players' games failed after this update)" */
-export function blockedSceneLine(blocked: Pick<GamePageBlockedScene, "title" | "reason">): string {
-  return blocked.reason
-    ? `${blocked.title} update blocked (${blocked.reason})`
-    : `${blocked.title} update blocked`;
-}
-
-/** Publishers only: each blocked level update, linking to the editor's Publish panel for its scene. */
-function BlockedScenes({
-  projectId,
-  blocked,
-}: {
-  projectId: string;
-  blocked: readonly GamePageBlockedScene[];
-}) {
-  return (
-    <ul aria-label="Blocked level updates" className="flex flex-col gap-1">
-      {blocked.map((b) => (
-        <li key={`${b.scene}@${b.number}`}>
-          <RouterTextLink
-            to="/game/$roomId"
-            params={{ roomId: EDITOR_ROOM }}
-            search={editorSearch(projectId, { scene: b.scene, panel: "publish" })}
-            size="sm"
-            variant="danger"
-            underline
-          >
-            {blockedSceneLine(b)}
-          </RouterTextLink>
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 /** True when hosted games are off for this viewer or this deployment. */
@@ -274,11 +238,9 @@ export function GamePage({
           publisher={page.publisher}
           liveVersion={page.live?.version ?? null}
           liveScenes={page.live?.scenes}
+          blockedScenes={page.publisher ? page.blockedScenes : []}
           onChanged={onChanged}
         />
-        {page.publisher && page.blockedScenes.length > 0 ? (
-          <BlockedScenes projectId={page.projectId} blocked={page.blockedScenes} />
-        ) : null}
       </Section>
 
       <Section id="saves" title="SAVES AND PRIVACY">

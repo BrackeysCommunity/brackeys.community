@@ -960,7 +960,7 @@ describe("the live levels section", () => {
   it("states the site's limits as the live levels plan gives them", () => {
     expect(Object.fromEntries(tableRows(live(), "| Limit").map((r) => [r[0], r[1]]))).toEqual({
       "Data per version":
-        "2 MB: the scene, its prefabs and the version file (art is the project's own assets)",
+        "2 MB: the scene, its prefabs, the docs they use and the version file (materials and tables count; art is the project's own assets)",
       "Versions per day": "100",
       "Versions kept": "the 5 newest of each scene, plus every version a channel points at",
       Storage: "part of the project's 512 MB of release storage",
@@ -969,7 +969,7 @@ describe("the live levels section", () => {
     const text = flat();
     for (const line of [
       "A version that is neither among its scene's 5 newest nor on a channel is removed 14 days after it was published.",
-      "checks again every 60 seconds if its live connection drops (it reconnects every 60 minutes anyway).",
+      "checks every 60 seconds while it is visible, in case its live connection dropped or stopped hearing (it reconnects every 60 minutes anyway).",
       "If 5 signed-in players' games fail after an update within 30 minutes of it going live (failing includes crashing within 10 seconds of the swap), and that is at least 25% of the signed-in players who reported,",
     ])
       expect(text).toContain(line);

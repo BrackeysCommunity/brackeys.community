@@ -9,14 +9,13 @@ import {
 } from "@/db/schema";
 import type { TestDb } from "@/test/db";
 
-import { createAgentToken } from "../agent-token";
 import { createLiveRoutes } from "../live-routes";
 import { createReleaseRoutes } from "../release-routes";
 import { memoryReleaseStore, type ReleaseObjectStore } from "../release-storage";
 import type { Actor } from "../release-upload";
 import { engineLiveCommitPath, engineLivePath, engineReleaseFilePath } from "../route-paths";
 import { fixtureVersion } from "./fixtures/live/scene-versions";
-import { PROJECT, seedEngine } from "./harness";
+import { call, PROJECT, secretFor, seedEngine, sendTo, testReadSession } from "./harness";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
 import { uploadDeps, uploadRelease } from "./upload-rig";
 
@@ -29,23 +28,18 @@ vi.mock("@/lib/profile-project-image-storage", async (importOriginal) => ({
   getMinioClient: () => null,
 }));
 vi.mock("@/lib/media-scan", () => ({ requestUploadScan: async () => {} }));
-const games = vi.hoisted(() => ({
-  env: "staging" as "production" | "staging" | "development",
-  flag: true,
-}));
 vi.mock("@/lib/deploy-env", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/deploy-env")>()),
-  deployEnv: () => games.env,
+  deployEnv: () => games.deployEnv(),
 }));
 vi.mock("@/lib/posthog-server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/posthog-server")>()),
-  isServerFlagEnabled: async (flag: string) =>
-    flag === "engine-projects" || (flag === "engine-games-enabled" && games.flag),
+  isServerFlagEnabled: (flag: string) => games.isServerFlagEnabled(flag),
 }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => true }));
+const games = await vi.hoisted(async () => (await import("./harness")).gamesGate());
 
 const OTHER = "pantry";
-const ORIGIN = "https://site.test";
 
 let db: TestDb;
 let store: ReleaseObjectStore;
@@ -57,50 +51,21 @@ beforeEach(async () => {
   ({ db } = (await import("@/db")) as unknown as { db: TestDb });
   await seedEngine(db);
   await db.insert(engineProjects).values({ projectId: OTHER, name: "Pantry" });
-  games.env = "staging";
-  games.flag = true;
+  games.reset();
   store = memoryReleaseStore();
-  const deps = {
-    readSession: async (request: Request) => {
-      const id = request.headers.get("x-test-user");
-      return id ? { user: { id } } : null;
-    },
-    release: { store },
-  };
+  const deps = { readSession: testReadSession, release: { store } };
   routes = createLiveRoutes(deps);
   fileRoutes = createReleaseRoutes(deps);
   release ??= await plannedRelease({ projectId: PROJECT });
 });
 
-const send = async (request: Request) => (await routes(request))!;
+const send = sendTo(() => routes);
+const sendToFiles = sendTo(() => fileRoutes);
 
 /** `release` uploaded and committed by staff, which puts it on preview. */
 async function releaseOnPreview() {
   const actor: Actor = { kind: "staff", userId: "staff" };
   await uploadRelease(uploadDeps(store), release, { actor });
-}
-
-const secretFor = async (projectId: string, access: "read" | "write" = "write") =>
-  (await createAgentToken({ projectId, createdById: "staff", access, label: "ci", ttlHours: 1 }))
-    .secret;
-
-function call(
-  path: string,
-  opts: { method?: string; secret?: string; user?: string; json?: unknown; body?: string } = {},
-): Request {
-  const headers = new Headers();
-  if (opts.secret) headers.set("authorization", `Bearer ${opts.secret}`);
-  if (opts.user) headers.set("x-test-user", opts.user);
-  let body = opts.body;
-  if (opts.json !== undefined) {
-    headers.set("content-type", "application/json");
-    body = JSON.stringify(opts.json);
-  }
-  return new Request(`${ORIGIN}${path}`, {
-    method: opts.method ?? (body === undefined ? "GET" : "POST"),
-    headers,
-    ...(body !== undefined ? { body } : {}),
-  });
 }
 
 /** A scene upload of `projectId` that no file has reached yet. */
@@ -147,13 +112,13 @@ describe("live routes", () => {
     expect(versionId).toBe(hall.id);
     expect(missing.length).toBeGreaterThan(0);
     for (const file of missing) {
-      const put = (await fileRoutes(
+      const put = await sendToFiles(
         call(engineReleaseFilePath(uploadId, file.sha256), {
           method: "PUT",
           secret,
           body: hall.texts.get(file.sha256)!,
         }),
-      ))!;
+      );
       expect(put.status).toBe(204);
     }
 
@@ -239,7 +204,8 @@ describe("live routes", () => {
     const secret = await secretFor(PROJECT);
     const uploadId = await openUpload(PROJECT);
     for (const setting of [{ env: "production" as const }, { flag: false }]) {
-      Object.assign(games, { env: "staging", flag: true }, setting);
+      games.reset();
+      Object.assign(games, setting);
       for (const request of [
         call(engineLivePath(PROJECT), { secret, json: { version: "{}" } }),
         call(engineLivePath(PROJECT), { user: "staff", json: { version: "{}" } }),

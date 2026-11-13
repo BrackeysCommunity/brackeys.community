@@ -1096,6 +1096,7 @@ SPAWNER_SPAWNED
 SPRITE
 SPRITE_FALLBACK_SIZE
 SUBLEVEL_ID_PATTERN
+SWAP_STRATEGY_WORDS
 SWAP_TIMINGS
 SaveDepth
 SaveFile
@@ -1268,6 +1269,7 @@ refField
 registerBody
 relativePose
 releasePromoteMessage
+releaseReplacesMessage
 releaseRollbackMessage
 resolveTime
 restoreOverlaps
@@ -3462,9 +3464,9 @@ type LivePublishOptions = {
     timing: SwapTiming;
 };
 type LivePublishProgress = {
-    sent: number;
+    sentBytes: number;
     step: "upload";
-    total: number;
+    totalBytes: number;
 } | {
     step: "begin";
 } | {
@@ -3507,6 +3509,7 @@ type LiveVersionView = {
 type LiveWording = {
     data(bytes: number): string;
     dataMaxBytes: number;
+    level(used: number, max: number): UsageLevel;
     noteMaxChars: number;
     notePlaceholder: string;
     stopConfirm(args: {
@@ -6155,6 +6158,7 @@ type LiveDeclaration = {
     check?(ctx: EngineContext): readonly SceneIssue[];
     timings: readonly SwapTiming[];
 };
+declare const SWAP_STRATEGY_WORDS: Readonly<Record<SwapStrategy, string>>;
 declare const SWAP_TIMINGS: readonly [
     "next-load",
     "boundary",
@@ -6192,6 +6196,10 @@ declare function clampTiming(live: LiveDeclaration | undefined, wanted: SwapTimi
 };
 declare function diffWords(diff: SceneDiff): string;
 declare const releasePromoteMessage: (version: number) => string;
+declare const releaseReplacesMessage: (version: number, scenes: readonly {
+    name: string;
+    title: string;
+}[]) => string;
 declare const releaseRollbackMessage: (version: number, live: null | number) => string;
 declare const sceneVersionName: (scene: string, number: number) => string;
 declare const swapStrategyFor: (diff: Pick<SceneDiff, "header">, wanted?: "auto" | SwapStrategy) => SwapStrategy;
@@ -14801,6 +14809,7 @@ type LiveSceneEntry = {
     version: Sha256;
 };
 type LiveSnapshot = {
+    blocked?: readonly Sha256[];
     channel: "preview" | "production";
     release: Sha256;
     removed: readonly Sha256[];

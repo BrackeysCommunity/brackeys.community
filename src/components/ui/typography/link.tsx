@@ -1,4 +1,4 @@
-import { createLink, Link as RouterLink } from "@tanstack/react-router";
+import { Link as RouterLink } from "@tanstack/react-router";
 import { type ComponentProps, forwardRef } from "react";
 
 type RouterLinkProps = ComponentProps<typeof RouterLink>;
@@ -69,7 +69,7 @@ export type LinkProps = AnchorProps | RouterProps;
 /**
  * Typography-aware link. `as="a"` (default) renders a plain anchor; `as="router"`
  * renders a TanStack Router `<Link>` without route typing, so it takes no route
- * params: use `RouterTextLink` for those. Accepts all `Text` styling props.
+ * params: use `RouterTextLink` from `./router-text-link` for those. Accepts all `Text` styling props.
  */
 const Link = forwardRef<HTMLAnchorElement, LinkProps>((props, ref) => {
   const {
@@ -130,7 +130,4 @@ const Link = forwardRef<HTMLAnchorElement, LinkProps>((props, ref) => {
 });
 Link.displayName = "Link";
 
-/** The typography link as a typed router link: `to`, `params` and `search` are checked against the route tree. */
-const RouterTextLink = createLink(Link);
-
-export { Link, RouterTextLink };
+export { Link };

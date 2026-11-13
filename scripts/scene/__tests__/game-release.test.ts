@@ -11,10 +11,14 @@ import {
   type PlannedRelease,
 } from "../../../src/lib/engine/__tests__/release-fixture";
 import type { UsageLine } from "../../../src/lib/engine/quota";
+import { gamePagePath, gamePlayPath } from "../../../src/lib/engine/route-paths";
 import { runCli } from "../commands";
 import type { ToolContext } from "../context";
+import type { HostedSite } from "../hosted";
 import type { ProjectHandle } from "../projects";
 import {
+  channelPlayUrl,
+  gamePageOf,
   gameReleaseCreate,
   gameReleaseList,
   gameReleasePromote,
@@ -512,5 +516,17 @@ describe("game release promote and rollback", () => {
       ).exitCode,
     ).toBe(2);
     expect(fake.requests).toEqual([]);
+  });
+});
+
+describe("game links", () => {
+  const site = { origin: SITE } as HostedSite;
+
+  it("are the site's game page and channel play paths on the hosted origin", () => {
+    const id = "my game/2";
+    expect(gamePageOf(site, id)).toBe(`${SITE}${gamePagePath(id)}`);
+    expect(gamePageOf(site, id)).toBe(`${SITE}/games/my%20game%2F2`);
+    expect(channelPlayUrl(site, id, "preview")).toBe(`${SITE}${gamePlayPath(id)}/preview`);
+    expect(channelPlayUrl(site, id, "preview")).toBe(`${SITE}/games/my%20game%2F2/play/preview`);
   });
 });

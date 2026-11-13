@@ -38,7 +38,8 @@ export type LivePointerRow = {
 /**
  * The one rule for which pointers apply: those whose version fits the
  * channel's release, names a scene it lists, and isn't collected, hidden
- * or blocked. Hidden versions a pointer still names go in `removed`.
+ * or blocked. Hidden versions a pointer still names go in `removed`, and
+ * blocked ones in `blocked`, so frames running one go back at the next load.
  */
 export function effectiveLive(
   release: LiveRelease,
@@ -49,8 +50,10 @@ export function effectiveLive(
   const listed = new Set(release.scenes);
   const scenes: LiveSceneEntry[] = [];
   const removed = new Set<Sha256>();
+  const blocked = new Set<Sha256>();
   for (const p of pointers) {
     if (p.hiddenAt) removed.add(p.versionId);
+    else if (p.blockedAt) blocked.add(p.versionId);
     if (!pointerApplies(release, listed, p)) continue;
     scenes.push({
       scene: p.scene,
@@ -61,7 +64,14 @@ export function effectiveLive(
     });
   }
   scenes.sort((a, b) => (a.scene < b.scene ? -1 : a.scene > b.scene ? 1 : 0));
-  return { channel, rev, release: release.id, scenes, removed: [...removed].sort() };
+  return {
+    channel,
+    rev,
+    release: release.id,
+    scenes,
+    removed: [...removed].sort(),
+    ...(blocked.size > 0 ? { blocked: [...blocked].sort() } : {}),
+  };
 }
 
 function pointerApplies(

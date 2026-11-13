@@ -2,13 +2,7 @@
 // `./game.ts` holds the database half. Route heads import this one.
 import { engineGamesAllowed } from "@/lib/engine/guard";
 
-export function gamePagePath(projectId: string): string {
-  return `/games/${encodeURIComponent(projectId)}`;
-}
-
-export function gamePlayPath(projectId: string): string {
-  return `${gamePagePath(projectId)}/play`;
-}
+export { gamePagePath, gamePlayPath } from "@/lib/engine/route-paths";
 
 /** Only public games are shared, and none where this deployment hosts no games. */
 export function isShareableVisibility(visibility: string): boolean {

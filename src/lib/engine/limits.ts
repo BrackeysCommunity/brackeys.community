@@ -70,7 +70,7 @@ export const LIVE_LIMITS = {
   noteChars: 200,
   beginsPerHour: 120,
 } as const;
-/** A play page without a working stream asks for the live state this often while visible. */
+/** A play page asks for the live state this often while visible, behind its stream. */
 export const LIVE_POLL_SECONDS = 60;
 /** The live stream closes after this long; the browser reconnects it. */
 export const LIVE_STREAM_MINUTES = 60;

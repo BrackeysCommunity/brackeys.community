@@ -7,7 +7,12 @@ import {
   Undo02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { releasePromoteMessage, releaseRollbackMessage } from "@jams/engine/game";
+import {
+  releasePromoteMessage,
+  releaseReplacesMessage,
+  releaseRollbackMessage,
+  sceneVersionName,
+} from "@jams/engine/game";
 import { Link } from "@tanstack/react-router";
 import { Fragment, useState } from "react";
 
@@ -26,11 +31,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { Text } from "@/components/ui/typography";
+import { RouterTextLink } from "@/components/ui/typography/router-text-link";
 import { Well } from "@/components/ui/well";
 import { downloadBlob } from "@/lib/download";
-import type { GamePageLiveScene, GamePageVersion } from "@/lib/engine/game-page";
+import type {
+  GamePageBlockedScene,
+  GamePageLiveScene,
+  GamePageVersion,
+} from "@/lib/engine/game-page";
 import { readItchIssuesHeader, ITCH_ISSUES_HEADER } from "@/lib/engine/release-zip-header";
-import { engineReleaseZipPath } from "@/lib/engine/route-paths";
+import { EDITOR_ROOM, editorSearch, engineReleaseZipPath } from "@/lib/engine/route-paths";
 import { formatBytes } from "@/lib/format-bytes";
 import { releaseDay } from "@/lib/jam-links";
 import { toast } from "@/lib/toast";
@@ -83,6 +93,79 @@ export function LiveLevelsLine({ scenes }: { scenes: readonly GamePageLiveScene[
         </Fragment>
       ))}
     </Text>
+  );
+}
+
+/** "The ford update blocked (5 of 12 players' games failed after this update)" */
+export function blockedSceneLine(blocked: Pick<GamePageBlockedScene, "title" | "reason">): string {
+  return blocked.reason
+    ? `${blocked.title} update blocked (${blocked.reason})`
+    : `${blocked.title} update blocked`;
+}
+
+/** Publishers only: each blocked level update on a version's channel, linking to the editor's Publish panel for its scene. */
+function BlockedLevelsLine({
+  projectId,
+  blocked,
+}: {
+  projectId: string;
+  blocked: readonly GamePageBlockedScene[];
+}) {
+  return (
+    <ul aria-label="Blocked level updates" className="flex flex-col gap-0.5">
+      {blocked.map((b) => (
+        <li key={`${b.channel}:${b.scene}@${b.number}`}>
+          <RouterTextLink
+            to="/game/$roomId"
+            params={{ roomId: EDITOR_ROOM }}
+            search={editorSearch(projectId, { scene: b.scene, panel: "publish" })}
+            size="xs"
+            variant="danger"
+          >
+            {blockedSceneLine(b)}
+          </RouterTextLink>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * What a promote asks when production plays live levels the new version
+ * replaces: the release question, the levels it drops, and where to keep
+ * the ones that still fit.
+ */
+export function PromoteMessage({
+  projectId,
+  version,
+  replaces,
+}: {
+  projectId: string;
+  version: number;
+  replaces: readonly GamePageLiveScene[];
+}) {
+  if (replaces.length === 0) return releasePromoteMessage(version);
+  const scenes = replaces.map((s) => ({
+    title: s.title,
+    name: sceneVersionName(s.scene, s.number),
+  }));
+  return (
+    <span className="flex flex-col gap-2">
+      <span>{releasePromoteMessage(version)}</span>
+      <span data-promote-replaces="">{releaseReplacesMessage(version, scenes)}</span>
+      <span>
+        To keep the ones that still fit, promote from the{" "}
+        <RouterTextLink
+          to="/game/$roomId"
+          params={{ roomId: EDITOR_ROOM }}
+          search={editorSearch(projectId, { panel: "publish" })}
+          size="sm"
+        >
+          Publish panel in the editor
+        </RouterTextLink>
+        .
+      </span>
+    </span>
   );
 }
 
@@ -147,11 +230,19 @@ type PublisherMenuProps = {
   projectId: string;
   version: GameVersion;
   liveVersion: number | null;
+  /** The live levels production plays over `liveVersion`, which a promote replaces. */
+  liveScenes: readonly GamePageLiveScene[];
   onChanged: () => void;
 };
 
 /** Promote, roll back, link to a jam, download: a publisher's actions on one version. */
-function PublisherMenu({ projectId, version, liveVersion, onChanged }: PublisherMenuProps) {
+function PublisherMenu({
+  projectId,
+  version,
+  liveVersion,
+  liveScenes,
+  onChanged,
+}: PublisherMenuProps) {
   const [dialog, setDialog] = useState<MenuDialog>(null);
   const [jam, setJam] = useState<PickableJam | null>(null);
   const v = version.version;
@@ -221,7 +312,13 @@ function PublisherMenu({ projectId, version, liveVersion, onChanged }: Publisher
         open={dialog === "promote"}
         onOpenChange={close}
         title={`Promote v${v} to production?`}
-        message={releasePromoteMessage(v)}
+        message={
+          <PromoteMessage
+            projectId={projectId}
+            version={v}
+            replaces={v === liveVersion ? [] : liveScenes}
+          />
+        }
         confirmText="Promote"
         onConfirm={() =>
           run(
@@ -282,8 +379,16 @@ type VersionListProps = {
   liveVersion: number | null;
   /** The levels production plays from live versions over `liveVersion`. */
   liveScenes?: readonly GamePageLiveScene[];
+  /** Publishers only: blocked level updates a channel still points at, shown on that channel's version. */
+  blockedScenes?: readonly GamePageBlockedScene[];
   onChanged: () => void;
 };
+
+/** The channels a version is on, read from its LIVE and PREVIEW badges. */
+const channelsOf = (version: GameVersion): GamePageBlockedScene["channel"][] => [
+  ...(version.badges.includes("live") ? (["production"] as const) : []),
+  ...(version.badges.includes("preview") ? (["preview"] as const) : []),
+];
 
 /** The versions this viewer may play, newest first, with a publisher's menu on each. */
 export function VersionList({
@@ -292,6 +397,7 @@ export function VersionList({
   publisher,
   liveVersion,
   liveScenes = [],
+  blockedScenes = [],
   onChanged,
 }: VersionListProps) {
   if (versions.length === 0) {
@@ -321,6 +427,13 @@ export function VersionList({
               </Text>
               {version.version === liveVersion && liveScenes.length > 0 ? (
                 <LiveLevelsLine scenes={liveScenes} />
+              ) : null}
+              {publisher ? (
+                <BlockedOn
+                  projectId={projectId}
+                  channels={channelsOf(version)}
+                  blocked={blockedScenes}
+                />
               ) : null}
             </span>
             {badgesOf(version).map((badge) => (
@@ -353,6 +466,7 @@ export function VersionList({
                 projectId={projectId}
                 version={version}
                 liveVersion={liveVersion}
+                liveScenes={liveScenes}
                 onChanged={onChanged}
               />
             ) : null}
@@ -361,4 +475,17 @@ export function VersionList({
       </ul>
     </Well>
   );
+}
+
+function BlockedOn({
+  projectId,
+  channels,
+  blocked,
+}: {
+  projectId: string;
+  channels: readonly GamePageBlockedScene["channel"][];
+  blocked: readonly GamePageBlockedScene[];
+}) {
+  const here = blocked.filter((b) => channels.includes(b.channel));
+  return here.length > 0 ? <BlockedLevelsLine projectId={projectId} blocked={here} /> : null;
 }

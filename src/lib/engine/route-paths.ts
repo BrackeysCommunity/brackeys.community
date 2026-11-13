@@ -3,6 +3,12 @@
 
 export const AGENT_SYNC_TOKEN_PATH = "/api/engine/agent-sync-token";
 
+/** A hosted game's page: `/games/<id>`. */
+export const gamePagePath = (projectId: string) => `/games/${encodeURIComponent(projectId)}`;
+
+/** Where the game plays: `/games/<id>/play`, then `/<channel or version>` for a pinned one. */
+export const gamePlayPath = (projectId: string) => `${gamePagePath(projectId)}/play`;
+
 /** `/api/engine/projects/<id><rest>`. */
 export const engineProjectPath = (projectId: string, rest = "") =>
   `/api/engine/projects/${encodeURIComponent(projectId)}${rest}`;

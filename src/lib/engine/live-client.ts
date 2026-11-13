@@ -40,6 +40,8 @@ export type LiveClientOptions = {
   host: Pick<HostServer, "sendLive" | "onLiveState">;
   /** The channel's release moved: the page offers a reload. */
   onReleaseMoved(): void;
+  /** The channel came back to the frame's release after a move: the reload offer goes. */
+  onReleaseRestored?(): void;
   /** A version the frame runs was hidden: the page reloads the frame with the notice. */
   onRemoved(): void;
   /** A `boundary` or `now` swap was applied: the page tells the player, briefly. */
@@ -64,9 +66,14 @@ const siteProcedures: LiveProcedures = {
   },
 };
 
-/** What the frame acts on: the release, each scene's version and timing, and what was removed. */
+/** What the frame acts on: the release, each scene's version and timing, and what was removed or blocked. */
 const contentOf = (s: LiveSnapshot) =>
-  JSON.stringify([s.release, s.scenes.map((e) => [e.scene, e.version, e.timing]), s.removed]);
+  JSON.stringify([
+    s.release,
+    s.scenes.map((e) => [e.scene, e.version, e.timing]),
+    s.removed,
+    s.blocked ?? [],
+  ]);
 
 /**
  * The play page's side of live levels. It follows the channel's stream and
@@ -122,7 +129,10 @@ export function createLiveClient(opts: LiveClientOptions): LiveClient {
       }
       return;
     }
-    movedTo = null;
+    if (movedTo !== null) {
+      movedTo = null;
+      opts.onReleaseRestored?.();
+    }
     for (const e of snapshot.scenes) timings.set(`${e.scene}@${e.version}`, e.timing);
 
     const hidden = snapshot.removed.filter((v) => frameRuns(v) && !removedSeen.has(v));

@@ -168,7 +168,7 @@ export function quotaWords(input: QuotaWordsInput): { message: string; hint: str
       return input.adds === "scene version"
         ? {
             message: `This scene version adds ${formatBytes(input.adding)}, and the project's releases already use ${formatBytes(input.used)} of ${formatBytes(input.max)}.`,
-            hint: `Releases outside the ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned, and each scene keeps its ${LIVE_LIMITS.keptPerScene} newest versions plus those on a channel. Unpin jam versions you no longer need, or wait for the next cleanup.`,
+            hint: `Releases outside the ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned, and ${LIVE_KEPT_RULE}. Unpin jam versions you no longer need, or wait for the next cleanup.`,
           }
         : {
             message: `This release adds ${formatBytes(input.adding)}, and the project's releases already use ${formatBytes(input.used)} of ${formatBytes(input.max)}.`,
@@ -405,6 +405,9 @@ export type StoredUsageCounts = {
   /** Scene versions published since midnight UTC. */
   liveToday: number;
 };
+
+/** Which scene versions cleanup keeps, as a clause: "each scene keeps its 10 newest versions plus those on a channel". */
+export const LIVE_KEPT_RULE = `each scene keeps its ${formatCount(LIVE_LIMITS.keptPerScene)} newest versions plus those on a channel`;
 
 /** "full" once nothing more fits, "warn" from `QUOTA_WARN_RATIO`. */
 export function usageLevel(ratio: number): UsageLine["level"] {

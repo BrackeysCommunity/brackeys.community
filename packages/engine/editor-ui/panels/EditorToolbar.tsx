@@ -597,7 +597,7 @@ function OverflowMenu({
 }
 
 /** Publish scene's hint in the toolbar. */
-export const PUBLISH_SCENE_TOOLTIP = "Publish this scene live, over the channel's release";
+export const PUBLISH_SCENE_TOOLTIP = "Publish this level to players without a new release";
 
 /** Publish scene's icon: one level sent up live, apart from the Publish panel's releases. */
 export const PUBLISH_SCENE_ICON = CloudUploadIcon;

@@ -70,10 +70,12 @@ export const livePromoteInput = z.object({
 export const liveRollbackInput = z.object({
   channel: releaseChannel,
   to: versionNumberInput.optional(),
+  /** Ignored when the rollback goes back to the release's scene: players go back at the pointer's timing. */
   timing: liveTiming.optional(),
 });
 export const liveClearInput = z.object({
   channel: releaseChannel,
+  /** Ignored: players go back at the pointer's timing. */
   timing: liveTiming.optional(),
 });
 

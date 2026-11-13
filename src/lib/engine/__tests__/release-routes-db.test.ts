@@ -11,7 +11,6 @@ import {
 import { PROJECT_QUOTA } from "@/lib/engine/limits";
 import type { TestDb } from "@/test/db";
 
-import { createAgentToken } from "../agent-token";
 import { createReleaseRoutes } from "../release-routes";
 import { memoryReleaseStore } from "../release-storage";
 import {
@@ -20,7 +19,7 @@ import {
   engineReleaseMovePath,
   engineReleasesPath,
 } from "../route-paths";
-import { PROJECT, seedEngine } from "./harness";
+import { call, ORIGIN, PROJECT, secretFor, seedEngine, sendTo, testReadSession } from "./harness";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
 
 vi.mock("@/db", async () => {
@@ -32,16 +31,18 @@ vi.mock("@/lib/profile-project-image-storage", async (importOriginal) => ({
   getMinioClient: () => null,
 }));
 vi.mock("@/lib/media-scan", () => ({ requestUploadScan: async () => {} }));
-const flags = vi.hoisted(() => ({ games: true }));
+vi.mock("@/lib/deploy-env", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/deploy-env")>()),
+  deployEnv: () => games.deployEnv(),
+}));
 vi.mock("@/lib/posthog-server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/posthog-server")>()),
-  isServerFlagEnabled: async (flag: string) =>
-    flag === "engine-projects" || (flag === "engine-games-enabled" && flags.games),
+  isServerFlagEnabled: (flag: string) => games.isServerFlagEnabled(flag),
 }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => true }));
+const games = await vi.hoisted(async () => (await import("./harness")).gamesGate());
 
 const OTHER = "pantry";
-const ORIGIN = "https://site.test";
 
 let db: TestDb;
 let routes: ReturnType<typeof createReleaseRoutes>;
@@ -51,41 +52,15 @@ beforeEach(async () => {
   ({ db } = (await import("@/db")) as unknown as { db: TestDb });
   await seedEngine(db);
   await db.insert(engineProjects).values({ projectId: OTHER, name: "Pantry" });
-  flags.games = true;
+  games.reset();
   routes = createReleaseRoutes({
-    readSession: async (request) => {
-      const id = request.headers.get("x-test-user");
-      return id ? { user: { id } } : null;
-    },
+    readSession: testReadSession,
     release: { store: memoryReleaseStore() },
   });
   release ??= await plannedRelease({ projectId: PROJECT, engineVersion: "0.14.1" });
 });
 
-const send = async (request: Request) => (await routes(request))!;
-
-const secretFor = async (projectId: string, access: "read" | "write" = "write") =>
-  (await createAgentToken({ projectId, createdById: "staff", access, label: "ci", ttlHours: 1 }))
-    .secret;
-
-function call(
-  path: string,
-  opts: { method?: string; secret?: string; user?: string; json?: unknown; body?: BodyInit } = {},
-): Request {
-  const headers = new Headers();
-  if (opts.secret) headers.set("authorization", `Bearer ${opts.secret}`);
-  if (opts.user) headers.set("x-test-user", opts.user);
-  let body = opts.body;
-  if (opts.json !== undefined) {
-    headers.set("content-type", "application/json");
-    body = JSON.stringify(opts.json);
-  }
-  return new Request(`${ORIGIN}${path}`, {
-    method: opts.method ?? (body === undefined ? "GET" : "POST"),
-    headers,
-    ...(body !== undefined ? { body, duplex: "half" } : {}),
-  } as RequestInit);
-}
+const send = sendTo(() => routes);
 
 type Missing = { path: string; sha256: string; bytes: number };
 
@@ -236,16 +211,19 @@ describe("release routes", () => {
     expect(noChannel.headers.get("content-type")).toMatch(/json/);
   });
 
-  it("read as not found while engine-games-enabled is off, for a session and a token", async () => {
-    flags.games = false;
+  it("read as not found on production and while engine-games-enabled is off, for a session and a token", async () => {
     const secret = await secretFor(PROJECT);
-    for (const request of [
-      call(engineReleasesPath(PROJECT), { user: "staff" }),
-      call(engineReleasesPath(PROJECT), { secret, json: { manifest: release.text } }),
-    ]) {
-      const response = await send(request);
-      expect(response.status).toBe(404);
-      expect(await response.json()).toEqual({ code: "not-found", message: "Not found." });
+    for (const setting of [{ env: "production" as const }, { flag: false }]) {
+      games.reset();
+      Object.assign(games, setting);
+      for (const request of [
+        call(engineReleasesPath(PROJECT), { user: "staff" }),
+        call(engineReleasesPath(PROJECT), { secret, json: { manifest: release.text } }),
+      ]) {
+        const response = await send(request);
+        expect(response.status).toBe(404);
+        expect(await response.json()).toEqual({ code: "not-found", message: "Not found." });
+      }
     }
   });
 

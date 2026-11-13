@@ -255,7 +255,7 @@ export type LivePublishOptions = {
 
 export type LivePublishProgress =
   | { step: "begin" }
-  | { step: "upload"; sent: number; total: number }
+  | { step: "upload"; sentBytes: number; totalBytes: number }
   | { step: "commit" }
   | { step: "promote" };
 
@@ -337,6 +337,8 @@ export type LiveWording = {
   /** The largest a version's data may be, and the most versions a day, for the checks' levels. */
   dataMaxBytes: number;
   versionsPerDay: number;
+  /** Where `used` of `max` stands, by the host's own warning rule: what tone the checks' Data and Today lines take. */
+  level(used: number, max: number): UsageLevel;
   /** "Data: 14 KB of 2 MB". */
   data(bytes: number): string;
   /** "Today: 6 of 100 versions". */

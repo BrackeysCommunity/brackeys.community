@@ -13,6 +13,7 @@ import type { ExportInput } from "@jams/engine/export";
 import {
   clampTiming,
   sceneVersionName,
+  SWAP_STRATEGY_WORDS,
   SWAP_TIMINGS,
   type GameDefinition,
   type SwapStrategy,
@@ -460,8 +461,7 @@ const clampedWarning = (game: GameDefinition, scene: string) =>
 
 /** `12 entities changed, 3 added, 1 removed (players' worlds update in place)`. */
 function changesText(diff: ReturnType<typeof diffExpanded>, strategy: SwapStrategy): string {
-  const how = strategy === "reload" ? "players' worlds reload" : "players' worlds update in place";
-  return `${diffWords(diff)} (${how})`;
+  return `${diffWords(diff)} (${SWAP_STRATEGY_WORDS[strategy]})`;
 }
 
 /** `3 runs over level-1.script.json passed; checks 4 passed` and the issues under it. */

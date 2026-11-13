@@ -211,6 +211,29 @@ describe("moveScenePointer", () => {
     });
   });
 
+  it("audits a clear or a rollback to the release's scene at the pointer's timing, not the caller's", async () => {
+    await publish(await edited("hall"));
+    await move({ scene: "hall", channel: "preview", to: { number: 1 }, timing: "now" });
+    await move({ scene: "hall", channel: "preview", to: null, action: "scene-clear" });
+    expect((await sceneMoves()).at(-1)).toMatchObject({
+      action: "scene-clear",
+      detail: { from: 1, to: null, timing: "now" },
+    });
+
+    await move({ scene: "hall", channel: "production", to: { number: 1 }, timing: "now" });
+    await move({
+      scene: "hall",
+      channel: "production",
+      to: "previous",
+      action: "scene-rollback",
+      timing: "next-load",
+    });
+    expect((await sceneMoves()).at(-1)).toMatchObject({
+      action: "scene-rollback",
+      detail: { from: 1, to: null, timing: "now" },
+    });
+  });
+
   it("rolls back without `to` to the previous version, then to none", async () => {
     await publish(await edited("hall", 4));
     await publish(await edited("hall", 5));

@@ -75,6 +75,26 @@ describe("effectiveLive", () => {
     );
     expect(live.scenes).toEqual([]);
     expect(live.removed).toEqual([hex("4")]);
+    expect(live.blocked).toEqual([hex("5")]);
+    expect(liveSnapshotSchema.parse(live)).toEqual(live);
+  });
+
+  test("lists every blocked version once, sorted, so frames running one go back at the next load", () => {
+    const live = effectiveLive(
+      release,
+      [
+        pointer("level-2", "9", { blockedAt: at }),
+        pointer("level-1", "8", { blockedAt: at, compatKey: hex("d") }),
+        pointer("level-3", "9", { blockedAt: at }),
+        pointer("level-3", "6", { blockedAt: at, hiddenAt: at }),
+        pointer("level-1", "7"),
+      ],
+      1,
+      "production",
+    );
+    expect(live.scenes.map((s) => s.version)).toEqual([hex("7")]);
+    expect(live.blocked).toEqual([hex("8"), hex("9")]);
+    expect(live.removed).toEqual([hex("6")]);
     expect(liveSnapshotSchema.parse(live)).toEqual(live);
   });
 

@@ -246,6 +246,7 @@ export function PlayFrame({
                   () => gone,
                 ),
               }),
+            onReleaseRestored: () => toast.dismiss(LIVE_RELEASE_TOAST_ID),
             onRemoved: () => {
               toast(LIVE_REMOVED_NOTICE);
               reloadFrame();

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-import { releasePromoteMessage } from "../../../game/live";
+import { releasePromoteMessage, releaseReplacesMessage } from "../../../game/live";
 import type { AssetId } from "../../../project/index";
 import { shortId } from "../../../scene/short-id";
 import type { PublishChannel, ReleaseView } from "../../host";
@@ -19,18 +19,21 @@ import {
 /** The pending scope a promote or rollback of `channel` runs under. */
 export const channelScope = (channel: PublishChannel): string => `publish:channel:${channel}`;
 
+/** Which channel a release or live scene is on, as both lists show it. */
+export function ChannelBadge({ channel }: { channel: PublishChannel }) {
+  return (
+    <Badge size="label" variant={channel === "production" ? "success" : "secondary"}>
+      {channel}
+    </Badge>
+  );
+}
+
 /** What a release can't be moved to a channel for, or null when it can. */
 export function unplayable(release: ReleaseView): string | null {
   if (release.collected) return "Its files have been removed.";
   if (release.hidden !== null) return `Hidden by staff: ${release.hidden}`;
   return null;
 }
-
-/** The release promote and rollback questions, shared with the game page. */
-export {
-  releasePromoteMessage as promoteMessage,
-  releaseRollbackMessage as rollbackMessage,
-} from "../../../game/live";
 
 /** A live scene on production that a release promote replaces; `fits` when it may be kept over the new release. */
 export type ReplacedScene = {
@@ -113,7 +116,7 @@ export function PromoteButton({
               {releasePromoteMessage(version)}
             </Text>
             <Text as="p" size="sm">
-              {replacesMessage(version, scenes)}
+              {releaseReplacesMessage(version, scenes)}
             </Text>
             {keepable.length > 0 ? (
               <div className="je-insp-stack" data-gap="tight" aria-label="Keep">
@@ -156,10 +159,6 @@ export function PromoteButton({
 
 /** Said in the promote question when the live scenes it replaces couldn't be read. */
 export const REPLACES_UNREAD = "Couldn't check the live scenes this replaces.";
-
-/** "Promoting v8 replaces these live scenes: The ford (level-1@4)." */
-const replacesMessage = (version: number, scenes: readonly ReplacedScene[]): string =>
-  `Promoting v${version} replaces these live scenes: ${scenes.map((s) => `${s.title} (${s.name})`).join(", ")}.`;
 
 /** Every release, newest first, with its channels, pins and cleanup date. */
 export function ReleaseList({
@@ -205,13 +204,7 @@ function ReleaseRow({
           v{release.version}
         </Text>
         {release.channels.map((channel) => (
-          <Badge
-            key={channel}
-            size="label"
-            variant={channel === "production" ? "success" : "secondary"}
-          >
-            {channel}
-          </Badge>
+          <ChannelBadge key={channel} channel={channel} />
         ))}
         {release.jams.map((jam) => (
           <Badge key={jam} size="label" variant="outline">

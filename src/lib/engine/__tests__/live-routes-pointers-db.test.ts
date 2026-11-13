@@ -2,7 +2,6 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import type { TestDb } from "@/test/db";
 
-import { createAgentToken } from "../agent-token";
 import { createLiveRoutes } from "../live-routes";
 import type { SceneVersionSummary } from "../live-versions";
 import { memoryReleaseStore, type ReleaseObjectStore } from "../release-storage";
@@ -14,7 +13,7 @@ import {
   engineLivePromotePath,
 } from "../route-paths";
 import { fixtureVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
-import { PROJECT, seedEngine } from "./harness";
+import { call, PROJECT, secretFor, seedEngine, sendTo, testReadSession } from "./harness";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
 import { uploadDeps, uploadRelease, uploadSceneVersion } from "./upload-rig";
 
@@ -27,22 +26,17 @@ vi.mock("@/lib/profile-project-image-storage", async (importOriginal) => ({
   getMinioClient: () => null,
 }));
 vi.mock("@/lib/media-scan", () => ({ requestUploadScan: async () => {} }));
-const games = vi.hoisted(() => ({
-  env: "staging" as "production" | "staging" | "development",
-  flag: true,
-}));
 vi.mock("@/lib/deploy-env", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/deploy-env")>()),
-  deployEnv: () => games.env,
+  deployEnv: () => games.deployEnv(),
 }));
 vi.mock("@/lib/posthog-server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/posthog-server")>()),
-  isServerFlagEnabled: async (flag: string) =>
-    flag === "engine-projects" || (flag === "engine-games-enabled" && games.flag),
+  isServerFlagEnabled: (flag: string) => games.isServerFlagEnabled(flag),
 }));
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => true }));
+const games = await vi.hoisted(async () => (await import("./harness")).gamesGate());
 
-const ORIGIN = "https://site.test";
 const staff: Actor = { kind: "staff", userId: "staff" };
 
 let store: ReleaseObjectStore;
@@ -68,10 +62,7 @@ beforeAll(async () => {
   await seedEngine(db);
   store = memoryReleaseStore();
   routes = createLiveRoutes({
-    readSession: async (request: Request) => {
-      const id = request.headers.get("x-test-user");
-      return id ? { user: { id } } : null;
-    },
+    readSession: testReadSession,
     release: { store },
   });
   release = await plannedRelease({ projectId: PROJECT });
@@ -79,43 +70,13 @@ beforeAll(async () => {
   await publishHall(3, "preview");
   await publishHall(5, "none");
 
-  const token = (access: "read" | "write") =>
-    createAgentToken({
-      projectId: PROJECT,
-      createdById: "staff",
-      access,
-      label: "ci",
-      ttlHours: 1,
-    });
-  writer = (await token("write")).secret;
-  reader = (await token("read")).secret;
+  writer = await secretFor(PROJECT, "write");
+  reader = await secretFor(PROJECT, "read");
 });
 
-beforeEach(() => {
-  games.env = "staging";
-  games.flag = true;
-});
+beforeEach(() => games.reset());
 
-function call(
-  path: string,
-  opts: { method?: string; secret?: string; user?: string; json?: unknown } = {},
-): Request {
-  const headers = new Headers();
-  if (opts.secret) headers.set("authorization", `Bearer ${opts.secret}`);
-  if (opts.user) headers.set("x-test-user", opts.user);
-  let body: string | undefined;
-  if (opts.json !== undefined) {
-    headers.set("content-type", "application/json");
-    body = JSON.stringify(opts.json);
-  }
-  return new Request(`${ORIGIN}${path}`, {
-    method: opts.method ?? (body === undefined ? "GET" : "POST"),
-    headers,
-    ...(body !== undefined ? { body } : {}),
-  });
-}
-
-const send = async (request: Request) => (await routes(request))!;
+const send = sendTo(() => routes);
 
 async function answer(request: Request): Promise<{ status: number; body: unknown }> {
   const response = await send(request);
@@ -229,7 +190,8 @@ describe("live pointer routes", () => {
 
   it("read as not found on production and while engine-games-enabled is off", async () => {
     for (const setting of [{ env: "production" as const }, { flag: false }]) {
-      Object.assign(games, { env: "staging", flag: true }, setting);
+      games.reset();
+      Object.assign(games, setting);
       for (const request of [
         call(engineLivePath(PROJECT), { secret: reader }),
         call(engineLiveBasePath(PROJECT, "hall", "preview"), { user: "staff" }),

@@ -133,9 +133,9 @@ describe("publishing a scene version", () => {
     expect(rpc.commitSceneVersion).toHaveBeenCalledWith({ uploadId: "up-1" });
     expect(progress).toEqual([
       { step: "begin" },
-      { step: "upload", sent: 0, total: 29 },
-      { step: "upload", sent: 14, total: 29 },
-      { step: "upload", sent: 29, total: 29 },
+      { step: "upload", sentBytes: 0, totalBytes: 29 },
+      { step: "upload", sentBytes: 14, totalBytes: 29 },
+      { step: "upload", sentBytes: 29, totalBytes: 29 },
       { step: "commit" },
     ]);
     expect(published).toEqual({
@@ -471,6 +471,11 @@ describe("the live wording", () => {
     const at = (ratio: number, max: number) => Math.round(max * ratio);
     const levels = [0.007, QUOTA_WARN_RATIO, 1];
     expect(levels.map((r) => usageLevel(r))).toEqual(["ok", "warn", "full"]);
+    expect(
+      levels.map((r) => wording.level(at(r, wording.dataMaxBytes), wording.dataMaxBytes)),
+    ).toEqual(["ok", "warn", "full"]);
+    expect(wording.level(80, wording.versionsPerDay)).toBe(usageLevel(QUOTA_WARN_RATIO));
+    expect(wording.level(0, 0)).toBe("full");
     expect(levels.map((r) => wording.data(at(r, wording.dataMaxBytes)))).toEqual([
       "Data: 14 KB of 2 MB",
       "Data: 1.6 MB of 2 MB",

@@ -29,9 +29,9 @@ export async function putSceneTexts(
 }
 
 /**
- * A scene version uploaded and committed as the CLI and the editor's
- * Publish scene do it: begin with `input`, every missing text from
- * `version`, then commit.
+ * Begin with `input`, put each missing text from `version`, commit, all in
+ * process: the server-side sequence the CLI and the editor run over HTTP,
+ * for the smoke adapter and the DB suites.
  */
 export async function uploadSceneVersion(
   deps: ReleaseDeps,

@@ -1,4 +1,3 @@
-import { sceneVersionName } from "@jams/engine/game";
 import type { AssetId, Sha256 } from "@jams/engine/project";
 import { and, desc, eq, inArray, isNull, max, or, sql } from "drizzle-orm";
 
@@ -22,7 +21,13 @@ import { announceReleaseChange } from "./frame-cache-notice";
 import { LIVE_REPORTS_PER_HOUR } from "./limits";
 import { shouldBlock } from "./live-breaker";
 import { breakerReason, isFailedOutcome, type LiveOutcome } from "./live-outcomes";
-import { announceLiveMove, lockProject, setLiveRev, type LiveChannel } from "./live-pointers";
+import {
+  announceLiveMove,
+  lockProject,
+  noVersion,
+  setLiveRev,
+  type LiveChannel,
+} from "./live-pointers";
 import type { LiveReadDeps } from "./live-versions";
 import { canDo, canPlay, refusalFor, roleOf, type GameVisibility } from "./release-access";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
@@ -119,7 +124,7 @@ async function versionByNumber(db: ReleaseDb, projectId: string, scene: AssetId,
         eq(engineSceneVersions.number, number),
       ),
     );
-  return row ?? notFound(`There is no ${sceneVersionName(scene, number)}.`);
+  return row ?? refuse(noVersion(scene, number), 404);
 }
 
 /** The channels whose pointers name the version. */

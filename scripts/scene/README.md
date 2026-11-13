@@ -2489,23 +2489,23 @@ channel, so players get the release's own scene at their next load.
 
 **Limits per project, enforced by the site:**
 
-| Limit             | Number                                                                              |
-| ----------------- | ----------------------------------------------------------------------------------- |
-| Data per version  | 2 MB: the scene, its prefabs and the version file (art is the project's own assets) |
-| Versions per day  | 100 per UTC day                                                                     |
-| Versions kept     | the 5 newest of each scene, plus every version a channel points at                  |
-| Storage           | part of the project's 512 MB of release storage                                     |
-| A channel's size  | the release plus its live scenes' new files stay within 100 MB                      |
-| Note              | 200 characters                                                                      |
-| Publishes started | 120 an hour per person or token                                                     |
+| Limit             | Number                                                                                                                             |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Data per version  | 2 MB: the scene, its prefabs, the docs they use and the version file (materials and tables count; art is the project's own assets) |
+| Versions per day  | 100 per UTC day                                                                                                                    |
+| Versions kept     | the 5 newest of each scene, plus every version a channel points at                                                                 |
+| Storage           | part of the project's 512 MB of release storage                                                                                    |
+| A channel's size  | the release plus its live scenes' new files stay within 100 MB                                                                     |
+| Note              | 200 characters                                                                                                                     |
+| Publishes started | 120 an hour per person or token                                                                                                    |
 
 A version that is neither among its scene's 5 newest nor on a channel is
 removed 14 days after it was published. A publish over a limit is refused
 with `quota-exceeded` and the limit's message and hint.
 
-**Delivery.** The play page hears of a new version at once, and checks
-again every 60 seconds if its live connection drops (it reconnects every
-60 minutes anyway). The game has 60 seconds to download, check and prepare
+**Delivery.** The play page hears of a new version at once, and also
+checks every 60 seconds while it is visible, in case its live connection
+dropped or stopped hearing (it reconnects every 60 minutes anyway). The game has 60 seconds to download, check and prepare
 a version before it gives up on it and keeps the one it has.
 
 **Broken updates are stopped.** If 5 signed-in players' games fail after

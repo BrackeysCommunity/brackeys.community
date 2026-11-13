@@ -115,6 +115,8 @@ export type LiveSnapshot = {
   scenes: readonly LiveSceneEntry[];
   /** Versions this channel still points at that were hidden: pages running one reload their frame. */
   removed: readonly Sha256[];
+  /** Versions this channel still points at that were blocked: a frame running one goes back to the release's scene at its next load. */
+  blocked?: readonly Sha256[];
 };
 
 /** Where a scene's version stands in the frame. */
@@ -145,6 +147,7 @@ export const liveSnapshotSchema: z.ZodType<LiveSnapshot> = z.object({
   release: sha256,
   scenes: z.array(liveSceneEntrySchema),
   removed: z.array(sha256),
+  blocked: z.array(sha256).optional(),
 });
 
 export const liveStateMessageSchema = z.strictObject({

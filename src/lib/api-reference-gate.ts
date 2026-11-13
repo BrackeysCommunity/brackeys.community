@@ -1,7 +1,5 @@
-import { auth } from "@/lib/auth";
-import { isActiveBan } from "@/lib/ban-state";
 import { isStaffMember } from "@/lib/discord";
-import { captureServerException } from "@/lib/posthog-server";
+import { readRouteSession } from "@/lib/route-session";
 import { resolveUserRoles } from "@/lib/staff-roles";
 
 /**
@@ -16,13 +14,8 @@ export function isReferenceDocsPath(pathname: string): boolean {
 }
 
 export async function canViewReferenceDocs(request: Request): Promise<boolean> {
-  // Reported before degrading to the 404: an auth outage locking staff out
-  // of the docs should be visible as what it is.
-  const session = await auth.api.getSession({ headers: request.headers }).catch((err: unknown) => {
-    captureServerException(err, { scope: "api_reference_gate.session_read" });
-    return null;
-  });
-  if (!session || isActiveBan(session.user)) return false;
+  const session = await readRouteSession(request, "api_reference_gate.session_read");
+  if (!session) return false;
 
   const roles = await resolveUserRoles(session.user.id);
   return isStaffMember(roles);

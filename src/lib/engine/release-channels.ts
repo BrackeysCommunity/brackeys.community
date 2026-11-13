@@ -3,7 +3,6 @@ import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db as siteDb } from "@/db";
 import {
-  engineProjects,
   engineReleaseAudit,
   engineReleaseChannels,
   engineReleaseJamLinks,
@@ -27,19 +26,21 @@ import {
   canPlay,
   refusalFor,
   type GameAction,
-  type GameVisibility,
   type ReleaseChannel,
   type Viewer,
 } from "./release-access";
 import { writeAudit, type AuditActor, type ReleaseDb } from "./release-audit";
+import { releaseHidden, releaseRemoved } from "./release-errors";
 import {
-  releaseForbidden,
-  ReleaseError,
-  releaseHidden,
-  releaseRemoved,
-  type ReleaseApiError,
-} from "./release-errors";
-import { actorRole, type Actor, type ReleaseTxDb } from "./release-upload";
+  actorRole,
+  liveProject,
+  notFound,
+  readableProject,
+  refuse,
+  type Actor,
+  type LiveProjectRow,
+  type ReleaseTxDb,
+} from "./release-upload";
 
 export type { ReleaseChannel };
 
@@ -273,15 +274,6 @@ const resolved = (deps: ChannelDeps) => ({
   now: deps.now ?? (() => new Date()),
 });
 
-type Project = {
-  projectId: string;
-  game: string | null;
-  teamId: string | null;
-  createdById: string | null;
-  visibility: GameVisibility;
-  hiddenAt: Date | null;
-};
-
 type ReleaseRef = {
   id: string;
   version: number;
@@ -289,30 +281,6 @@ type ReleaseRef = {
   hiddenAt: Date | null;
   hiddenReason: string | null;
 };
-
-function refuse(body: ReleaseApiError, status?: number): never {
-  throw new ReleaseError(body, status);
-}
-
-function notFound(message: string): never {
-  return refuse({ code: "not-found", message }, 404);
-}
-
-async function liveProject(db: ReleaseDb, projectId: string): Promise<Project> {
-  const [row] = await db
-    .select({
-      projectId: engineProjects.projectId,
-      game: engineProjects.game,
-      teamId: engineProjects.teamId,
-      createdById: engineProjects.createdById,
-      visibility: engineProjects.visibility,
-      hiddenAt: engineProjects.hiddenAt,
-    })
-    .from(engineProjects)
-    .where(and(eq(engineProjects.projectId, projectId), isNull(engineProjects.deletedAt)));
-  if (!row) notFound(`There is no hosted project "${projectId}".`);
-  return { ...row, visibility: row.visibility as GameVisibility };
-}
 
 /**
  * Refuses a move the caller's role can't make: an agent on production is
@@ -322,7 +290,7 @@ async function liveProject(db: ReleaseDb, projectId: string): Promise<Project> {
 async function assertMayMove(
   db: ReleaseDb,
   actor: Actor,
-  project: Project,
+  project: LiveProjectRow,
   kind: "promote" | "rollback",
   channel: ReleaseChannel,
   keepsScenes = false,
@@ -337,11 +305,6 @@ async function assertMayMove(
     const refused = refusalFor(role, action, { gameUrl });
     if (refused) refuse(refused);
   }
-}
-
-/** The release list and its details are for the people who make the game, and its agents. */
-async function assertMayRead(db: ReleaseDb, actor: Actor, project: Project): Promise<void> {
-  if ((await actorRole({}, db, actor, project)) === "player") refuse(releaseForbidden("role"));
 }
 
 const releaseRef = {
@@ -511,7 +474,10 @@ const TEAM_MEMBER: Viewer = {
 const PUBLISHER: Viewer = { userId: "publisher", staff: false, teamRole: null, isCreator: true };
 
 /** The widest audience `canPlay` lets in, so the list and the play page never disagree. */
-function audienceOf(project: Project, release: Parameters<typeof canPlay>[2]): ReleaseAudience {
+function audienceOf(
+  project: LiveProjectRow,
+  release: Parameters<typeof canPlay>[2],
+): ReleaseAudience {
   if (canPlay(ANYONE, project, release).ok)
     return project.visibility === "public" ? "public" : "unlisted";
   if (canPlay(TEAM_MEMBER, project, release).ok) return "team";
@@ -521,7 +487,7 @@ function audienceOf(project: Project, release: Parameters<typeof canPlay>[2]): R
 
 async function summaries(
   db: ReleaseDb,
-  project: Project,
+  project: LiveProjectRow,
   now: Date,
   version?: number,
 ): Promise<ReleaseSummary[]> {
@@ -604,8 +570,7 @@ export async function listReleases(
   deps: ChannelDeps = {},
 ): Promise<ReleaseSummary[]> {
   const { db, now } = resolved(deps);
-  const project = await liveProject(db, input.projectId);
-  await assertMayRead(db, input.actor, project);
+  const project = await readableProject({}, db, input);
   return summaries(db, project, now());
 }
 
@@ -616,8 +581,7 @@ export async function getRelease(
 ): Promise<ReleaseDetail> {
   const { db, now } = resolved(deps);
   const { projectId, version } = input;
-  const project = await liveProject(db, projectId);
-  await assertMayRead(db, input.actor, project);
+  const project = await readableProject({}, db, input);
   const [summary] = await summaries(db, project, now(), version);
   if (!summary) notFound(`There is no v${version} of "${projectId}".`);
 

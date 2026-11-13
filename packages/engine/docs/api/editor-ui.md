@@ -459,9 +459,9 @@ _type_ in `editor-ui/host.ts`
 
 ```ts
 type LivePublishProgress = {
-    sent: number;
+    sentBytes: number;
     step: "upload";
-    total: number;
+    totalBytes: number;
 } | {
     step: "begin";
 } | {
@@ -548,6 +548,8 @@ type LiveWording = {
     data(bytes: number): string;
     /** The largest a version's data may be, and the most versions a day, for the checks' levels. */
     dataMaxBytes: number;
+    /** Where `used` of `max` stands, by the host's own warning rule: what tone the checks' Data and Today lines take. */
+    level(used: number, max: number): UsageLevel;
     /** The longest note, in characters. */
     noteMaxChars: number;
     /** "What changed, for your team (up to 200 characters)". */
@@ -563,6 +565,8 @@ type LiveWording = {
     versionsPerDay: number;
 };
 ```
+
+Refers to [`UsageLevel`](#usagelevel).
 
 ## `MintProjectToken`
 

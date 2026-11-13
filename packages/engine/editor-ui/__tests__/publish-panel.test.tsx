@@ -575,6 +575,9 @@ describe("PublishPanel's live scenes", () => {
     const cave = await rowOf("production", "cave@2");
     expect(within(cave).getByText("cave")).toBeTruthy();
     expect(cave.querySelector("p")?.textContent).toBe("cave@2 · boundary · 2m ago");
+    expect(within(preview).getByText("preview")).toBeTruthy();
+    expect(within(cave).getByText("production")).toBeTruthy();
+    expect(within(section).queryByText("Production")).toBeNull();
     expect(
       within(screen.getByRole("list", { name: "Live on production" })).getAllByRole("listitem"),
     ).toHaveLength(2);
@@ -698,10 +701,11 @@ describe("PublishPanel's live scenes", () => {
     );
   });
 
-  it("lists the forecast with its UTC date", async () => {
+  it("lists the forecast with its UTC date, under its own Removed soon heading", async () => {
     mountLive(liveHost());
-    const section = await screen.findByLabelText("Live scenes");
-    await waitFor(() => expect(within(section).getByText(FORECAST)).toBeTruthy());
+    const soon = await screen.findByLabelText("Live scenes removed soon");
+    expect(within(soon).getByText("Removed soon")).toBeTruthy();
+    await waitFor(() => expect(within(soon).getByText(FORECAST)).toBeTruthy());
   });
 
   it("lists the newest version no channel plays, to promote to preview or production", async () => {

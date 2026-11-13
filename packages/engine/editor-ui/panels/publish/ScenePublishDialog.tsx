@@ -10,8 +10,7 @@ import {
   clampTiming,
   diffWords,
   sceneVersionName,
-  SWAP_TIMING_WORDS,
-  SWAP_TIMINGS,
+  SWAP_STRATEGY_WORDS,
   swapStrategyFor,
   type SwapTiming,
 } from "../../../game/live";
@@ -49,6 +48,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  formatBytes,
   MicroLabel,
   Progress,
   Text,
@@ -61,7 +61,8 @@ import {
   watchProjectDocs,
 } from "../../session/open-scene-version";
 import type { EditorProjectLink } from "../../session/use-scene-editor";
-import { ChoiceGroup } from "./ChoiceGroup";
+import { USAGE_TONE } from "../settings/UsagePanel";
+import { ChoiceGroup, TimingChoice } from "./ChoiceGroup";
 import {
   LIVE_CHANNELS,
   liveOnText,
@@ -76,25 +77,15 @@ export const WHERE_TEXT: Readonly<Record<PublishChannel, string>> = {
   production: "Production: players get it.",
 };
 
-/** Each timing's label on the choice that picks it. */
-export const TIMING_TEXT = Object.freeze(
-  Object.fromEntries(SWAP_TIMINGS.map((t) => [t, SWAP_TIMING_WORDS[t].label])),
-) as Readonly<Record<SwapTiming, string>>;
-
-/** The tooltip on a timing the game doesn't list. */
-export const TIMING_UNDECLARED =
-  "This game doesn't accept this timing (GameDefinition.live.timings).";
-
 /** The checks' lines when the host couldn't say today's count, or the scene's versions. */
 export const TODAY_UNCHECKED =
   "Couldn't check today's count of versions; the site still checks it when you publish.";
 export const EDITORS_UNCHECKED = "Couldn't check who edited the scene since its last version.";
 
-export const IN_PLACE = "Players' worlds update in place.";
-export const REBUILT =
-  "The bounds or settings changed, so players' worlds are rebuilt and their state restored.";
-
 const capitalised = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+export const IN_PLACE = `${capitalised(SWAP_STRATEGY_WORDS.reconcile)}.`;
+export const REBUILT = `The bounds or settings changed, so ${SWAP_STRATEGY_WORDS.reload}.`;
 
 // ─── The checks ──────────────────────────────────────────
 
@@ -180,9 +171,6 @@ export function diffCheck(
   return { id: "diff", text, tone: "muted" };
 }
 
-const levelTone = (used: number, max: number): TextTone =>
-  used > max ? "danger" : used >= max * 0.8 ? "warning" : "muted";
-
 export type PublishCheckInput = {
   project: ProjectSession;
   scene: AssetId;
@@ -265,7 +253,7 @@ export async function publishChecks(input: PublishCheckInput): Promise<PublishCh
     lines.push({
       id: "data",
       text: live.wording.data(bytes),
-      tone: levelTone(bytes, max),
+      tone: USAGE_TONE[live.wording.level(bytes, max)],
       ...(bytes > max ? { blocks: true as const } : {}),
     });
   }
@@ -277,7 +265,7 @@ export async function publishChecks(input: PublishCheckInput): Promise<PublishCh
     lines.push({
       id: "today",
       text: live.wording.today(usage.today),
-      tone: full ? "danger" : levelTone(usage.today, max),
+      tone: full ? "danger" : USAGE_TONE[live.wording.level(usage.today, max)],
       ...(full ? { blocks: true as const } : {}),
     });
   }
@@ -325,8 +313,8 @@ export function progressOf(phase: Phase): { text: string; value: number | null }
       return { text: "Starting the upload…", value: null };
     case "upload":
       return {
-        text: `Uploading ${phase.sent} of ${phase.total} files…`,
-        value: phase.total > 0 ? phase.sent / phase.total : null,
+        text: `Uploading ${formatBytes(phase.sentBytes)} of ${formatBytes(phase.totalBytes)}…`,
+        value: phase.totalBytes > 0 ? phase.sentBytes / phase.totalBytes : null,
       };
     case "commit":
       return { text: "Saving the version…", value: 1 };
@@ -583,7 +571,7 @@ export function ScenePublishDialog({
           <DialogHeader>
             <DialogTitle>Publish {title}</DialogTitle>
             <DialogDescription>
-              One level, live over the channel's release, without a new release.
+              Updates this one level for players of the current release.
             </DialogDescription>
           </DialogHeader>
 
@@ -615,15 +603,11 @@ export function ScenePublishDialog({
             }}
           />
 
-          <ChoiceGroup
-            legend="When players get it"
+          <TimingChoice
             name="publish-scene-timing"
-            choices={SWAP_TIMINGS}
             value={timing}
+            accepted={accepted}
             disabled={busy}
-            unavailable={(t) => !accepted.includes(t)}
-            hint={() => TIMING_UNDECLARED}
-            label={(t) => TIMING_TEXT[t]}
             onPick={(t) => {
               setTiming(t);
               setRefusal(null);

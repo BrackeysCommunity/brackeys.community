@@ -376,6 +376,15 @@ describe("PlayFrame's live levels", () => {
     expect(toasts.dismiss).not.toHaveBeenCalled();
   });
 
+  it("takes the new-version toast back when the channel returns to this release", () => {
+    render(<PlayFrame {...props({ live: SNAPSHOT })} />);
+    act(() => liveClient().opts.onReleaseMoved());
+    const [, options] = toasts.show.mock.calls[0] as [string, { id: string }];
+    expect(toasts.dismiss).not.toHaveBeenCalled();
+    act(() => liveClient().opts.onReleaseRestored?.());
+    expect(toasts.dismiss).toHaveBeenCalledWith(options.id);
+  });
+
   it("names the game's current title in the new-version toast", () => {
     const { rerender } = render(<PlayFrame {...props({ live: SNAPSHOT })} />);
     rerender(<PlayFrame {...props({ live: SNAPSHOT, title: "Tactics Deluxe" })} />);

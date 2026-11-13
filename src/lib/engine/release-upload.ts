@@ -51,7 +51,14 @@ import {
 } from "./limits";
 import { announceLiveMove } from "./live-pointers";
 import { checkReleaseQuota, type SiteQuotaRefusal } from "./quota";
-import { canDo, roleOf, type GameAction, type GameRole, type Viewer } from "./release-access";
+import {
+  canDo,
+  roleOf,
+  type GameAction,
+  type GameRole,
+  type GameVisibility,
+  type Viewer,
+} from "./release-access";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
 import { movePointer, playUrlOf } from "./release-channels";
 import {
@@ -252,18 +259,24 @@ function fileBytesRefusal(path: string, body: Uint8Array, entry: string): Releas
 /** Whether the bytes check needs the whole file rather than its first bytes. */
 const needsWholeFile = (path: string) => path === INDEX_HTML || path.endsWith(".json");
 
+/** A hosted project as the release and live calls read it. */
+export type LiveProjectRow = ProjectRow & { visibility: GameVisibility; hiddenAt: Date | null };
+
 /** The hosted project, not deleted; `not-found` otherwise. */
-export async function liveProject(db: ReleaseDb, projectId: string): Promise<ProjectRow> {
+export async function liveProject(db: ReleaseDb, projectId: string): Promise<LiveProjectRow> {
   const [row] = await db
     .select({
       projectId: engineProjects.projectId,
       game: engineProjects.game,
       teamId: engineProjects.teamId,
       createdById: engineProjects.createdById,
+      visibility: engineProjects.visibility,
+      hiddenAt: engineProjects.hiddenAt,
     })
     .from(engineProjects)
     .where(and(eq(engineProjects.projectId, projectId), isNull(engineProjects.deletedAt)));
-  return row ?? notFound(`There is no hosted project "${projectId}".`);
+  if (!row) notFound(`There is no hosted project "${projectId}".`);
+  return { ...row, visibility: row.visibility as GameVisibility };
 }
 
 /**
@@ -283,6 +296,18 @@ export async function actorRole(
     project,
   );
   return roleOf(viewer, project);
+}
+
+/** The project, when the caller makes the game (or is its agent); its players are refused. */
+export async function readableProject(
+  deps: Pick<ReleaseDeps, "viewer">,
+  db: ReleaseDb,
+  input: { projectId: string; actor: Actor },
+): Promise<LiveProjectRow> {
+  const project = await liveProject(db, input.projectId);
+  if ((await actorRole(deps, db, input.actor, project)) === "player")
+    refuse(releaseForbidden("role"));
+  return project;
 }
 
 /** Refuses unless the actor's role on the project may do `action`: `upload` for a release, `live-publish` for a scene version. */

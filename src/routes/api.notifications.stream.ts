@@ -1,9 +1,8 @@
 import "@/polyfill";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { auth } from "@/lib/auth";
 import { subscribeOnReady } from "@/lib/live-broadcast";
-import { bestEffort, captureServerException, withErrorReporting } from "@/lib/posthog-server";
+import { bestEffort, withErrorReporting } from "@/lib/posthog-server";
 import {
   presenceChannel,
   refreshConnection,
@@ -11,17 +10,12 @@ import {
   unregisterConnection,
 } from "@/lib/presence";
 import { createRedisClient } from "@/lib/redis";
+import { readRouteSession } from "@/lib/route-session";
 import { sseResponse } from "@/lib/sse";
 
 async function handle({ request }: { request: Request }) {
-  // Reported before degrading to a 401: an auth outage would otherwise read
-  // as a surge of logged-out traffic.
-  const session = await auth.api.getSession({ headers: request.headers }).catch((err: unknown) => {
-    captureServerException(err, { scope: "notifications_stream.session_read" });
-    return null;
-  });
-
-  if (!session?.user) {
+  const session = await readRouteSession(request, "notifications_stream.session_read");
+  if (!session) {
     return new Response("Unauthorized", { status: 401 });
   }
 

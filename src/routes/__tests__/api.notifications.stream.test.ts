@@ -18,11 +18,12 @@ type FakeSubscriber = EventEmitter & {
 const state = vi.hoisted(() => ({
   subscriber: undefined as unknown,
   captureServerException: vi.fn(),
+  session: async (): Promise<unknown> => ({ user: { id: "u1" } }),
 }));
 
 vi.mock("@/polyfill", () => ({}));
 vi.mock("@/lib/auth", () => ({
-  auth: { api: { getSession: async () => ({ user: { id: "u1" } }) } },
+  auth: { api: { getSession: () => state.session() } },
 }));
 vi.mock("@/lib/presence", () => ({
   presenceChannel: (userId: string) => `notifications:user:${userId}`,
@@ -118,5 +119,29 @@ describe("/api/notifications/stream subscriber", () => {
     const stream = await open(subscriber);
     close = stream.close;
     expect(subscriber.subscribe).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("/api/notifications/stream session", () => {
+  const signedIn = state.session;
+  afterEach(() => {
+    state.session = signedIn;
+  });
+
+  const status = async () =>
+    (await GET({ request: new Request("https://jams.team/api/notifications/stream") })).status;
+
+  it("refuses a banned user, as every oRPC procedure does", async () => {
+    state.session = async () => ({ user: { id: "u1", bannedAt: new Date(), unbannedAt: null } });
+    expect(await status()).toBe(401);
+  });
+
+  it("refuses when the session can't be read, and reports it under the stream's scope", async () => {
+    const boom = new Error("auth down");
+    state.session = () => Promise.reject(boom);
+    expect(await status()).toBe(401);
+    expect(state.captureServerException).toHaveBeenCalledWith(boom, {
+      scope: "notifications_stream.session_read",
+    });
   });
 });

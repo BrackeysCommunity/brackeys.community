@@ -27,6 +27,8 @@ const auth = vi.hoisted(() => ({
 const hosts = vi.hoisted(() => ({
   created: [] as HostServerOptions[],
   notified: 0,
+  recordingAsked: 0,
+  recordingSent: true,
   siteWrites: [] as string[],
 }));
 
@@ -67,6 +69,10 @@ vi.mock("@/lib/engine/host-server", () => ({
       },
       pause: vi.fn(),
       resume: vi.fn(),
+      requestRecording: () => {
+        hosts.recordingAsked += 1;
+        return hosts.recordingSent;
+      },
       dispose: vi.fn(),
     };
   },
@@ -137,8 +143,14 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   useRouterState: () => "/games/tactics/play/latest",
 }));
 
-const { PlayChrome, PlayPage, PLAY_UNAVAILABLE_MESSAGE, SIGN_IN_MESSAGE } =
-  await import("../PlayChrome");
+const {
+  DOWNLOAD_RUN_LABEL,
+  PlayChrome,
+  PlayPage,
+  PLAY_UNAVAILABLE_MESSAGE,
+  RUN_NOT_READY,
+  SIGN_IN_MESSAGE,
+} = await import("../PlayChrome");
 const { EmbedFrame, EMBED_SAVES_DESCRIBE } = await import("../EmbedFrame");
 const { Route: PlayIndexRoute } = await import("@/routes/games_.$projectId.play.index");
 
@@ -378,6 +390,33 @@ describe("the play page", () => {
     expect(hosts.created[0]?.online).toBe(true);
     view.unmount();
     expect(document.title).toBe("Before");
+  });
+
+  it("asks the frame for this run's recording, which comes back as the download offer", async () => {
+    hosts.recordingAsked = 0;
+    hosts.recordingSent = true;
+    wrap(<PlayChrome play={payload()} version="latest" />);
+    await userEvent.click(screen.getByRole("button", { name: DOWNLOAD_RUN_LABEL }));
+    expect(hosts.recordingAsked).toBe(1);
+    expect(toasts.error).not.toHaveBeenCalled();
+    act(() => {
+      hosts.created[0]?.onDownload?.({
+        name: "hall.recording.json",
+        contentType: "application/json",
+        bytes: new TextEncoder().encode("{}").buffer,
+      });
+    });
+    expect(screen.getByRole("button", { name: /download recording/i })).toBeTruthy();
+  });
+
+  it("says so when the frame can't be asked for its run yet", async () => {
+    hosts.recordingAsked = 0;
+    hosts.recordingSent = false;
+    wrap(<PlayChrome play={payload()} version="latest" />);
+    await userEvent.click(screen.getByRole("button", { name: DOWNLOAD_RUN_LABEL }));
+    expect(hosts.recordingAsked).toBe(1);
+    expect(toasts.error).toHaveBeenCalledWith(RUN_NOT_READY);
+    hosts.recordingSent = true;
   });
 
   it("lets the player dismiss a recording the game offers", async () => {

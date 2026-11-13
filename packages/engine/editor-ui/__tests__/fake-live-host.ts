@@ -16,6 +16,7 @@ export const FAKE_LIVE_WORDING: LiveWording = {
   notePlaceholder: "What changed, for your team (up to 200 characters)",
   dataMaxBytes: 2_000_000,
   versionsPerDay: 100,
+  level: (used, max) => (used >= max ? "full" : used >= max * 0.8 ? "warn" : "ok"),
   data: (bytes) => `Data: ${bytes} B of 2 MB`,
   today: (count) => `Today: ${count} of 100 versions`,
   stopConfirm: ({ release, scene, timing }) =>

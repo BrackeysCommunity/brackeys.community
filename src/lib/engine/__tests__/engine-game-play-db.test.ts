@@ -21,16 +21,10 @@ import type { Viewer } from "../release-access";
 import { promote } from "../release-channels";
 import { ReleaseError } from "../release-errors";
 import { memoryReleaseStore } from "../release-storage";
-import {
-  beginRelease,
-  commitRelease,
-  putReleaseFile,
-  type Actor,
-  type ReleaseDeps,
-  type ReleaseTxDb,
-} from "../release-upload";
+import type { Actor, ReleaseTxDb } from "../release-upload";
 import { viewerOf } from "../viewer";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
+import { uploadDeps, uploadRelease } from "./upload-rig";
 
 vi.mock("@/db", async () => {
   const { createTestDb } = await import("@/test/db");
@@ -64,31 +58,10 @@ let store = memoryReleaseStore();
 let v1: PlannedRelease;
 let v2: PlannedRelease;
 
-const uploadDeps = (): ReleaseDeps => ({
-  db: db as unknown as ReleaseTxDb,
-  store,
-  now: () => NOW,
-  rateLimit: async () => true,
-  scan: async () => {},
-});
-
 const playDeps: PlayDeps = { now: () => NOW, playOrigin: PLAY_ORIGIN };
 
-async function publish(planned: PlannedRelease) {
-  const begun = await beginRelease(uploadDeps(), {
-    projectId: PROJECT,
-    manifest: planned.text,
-    actor: creator,
-  });
-  for (const file of begun.missing)
-    await putReleaseFile(uploadDeps(), {
-      uploadId: begun.uploadId,
-      sha256: file.sha256,
-      body: planned.files.get(file.path)!,
-      actor: creator,
-    });
-  return commitRelease(uploadDeps(), { uploadId: begun.uploadId, actor: creator });
-}
+const publish = (planned: PlannedRelease) =>
+  uploadRelease(uploadDeps(store, { now: () => NOW }), planned, { actor: creator });
 
 async function setProject(values: Partial<typeof engineProjects.$inferInsert>) {
   await db.update(engineProjects).set(values).where(eq(engineProjects.projectId, PROJECT));

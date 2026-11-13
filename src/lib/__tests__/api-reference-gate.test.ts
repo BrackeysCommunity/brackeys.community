@@ -3,6 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn<() => Promise<unknown>>(),
   resolveUserRoles: vi.fn<() => Promise<string[] | null>>(),
+  captureServerException: vi.fn(),
+}));
+
+vi.mock("@/lib/posthog-server", () => ({
+  captureServerException: mocks.captureServerException,
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -73,9 +78,13 @@ describe("canViewReferenceDocs", () => {
     expect(await canViewReferenceDocs(docsRequest())).toBe(true);
   });
 
-  it("treats a session-read failure as anonymous", async () => {
-    mocks.getSession.mockRejectedValue(new Error("boom"));
+  it("treats a session-read failure as anonymous, reporting it under the gate's scope", async () => {
+    const boom = new Error("boom");
+    mocks.getSession.mockRejectedValue(boom);
 
     expect(await canViewReferenceDocs(docsRequest())).toBe(false);
+    expect(mocks.captureServerException).toHaveBeenCalledWith(boom, {
+      scope: "api_reference_gate.session_read",
+    });
   });
 });

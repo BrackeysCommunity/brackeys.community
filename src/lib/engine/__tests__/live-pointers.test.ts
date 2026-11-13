@@ -156,6 +156,61 @@ describe("pointerTargetVerdict", () => {
     });
   });
 
+  const hex = (n: number) => n.toString(16).padStart(64, "0");
+  const misfits: [string, "hall" | "yard", (v: SceneVersion) => void, string][] = [
+    [
+      "a scene the release doesn't list",
+      "hall",
+      (v) => {
+        const asset = v.assets.hall!;
+        v.scene = "cellar";
+        v.entry = { ...v.entry, id: "cellar" };
+        v.assets = { cellar: asset };
+      },
+      "live-scene-unlisted",
+    ],
+    [
+      "a Rapier scene on a physics-free release",
+      "hall",
+      (v) => {
+        v.entry = { ...v.entry, physics: "rapier" };
+      },
+      "live-physics",
+    ],
+    [
+      "a changed texture the release ships under the same id",
+      "yard",
+      (v) => {
+        v.assets = {
+          ...v.assets,
+          tiles: { ...v.assets.tiles!, sha256: hex(5), file: `live/${hex(5)}.png` },
+        };
+      },
+      "live-asset-conflict",
+    ],
+    [
+      "another scene format",
+      "yard",
+      (v) => {
+        v.compat.formats = { ...v.compat.formats, scene: v.compat.formats.scene - 1 };
+      },
+      "live-incompatible",
+    ],
+  ];
+  for (const [what, scene, change, code] of misfits)
+    it(`refuses ${what} at a move with the engine's ${code}`, async () => {
+      const base =
+        scene === "hall" ? fixture : await fixtureVersion(release, { scene, edit: moved });
+      const copy = structuredClone(base.version) as SceneVersion;
+      change(copy);
+      const { text } = await withVersion(copy, base.texts);
+      const verdict = refusal(facts({ scene, version: version({ scene, descriptor: text }) }));
+      expect(verdict).toMatchObject({ why: "incompatible", error: { code } });
+      expect(
+        sceneVersionMisfit({ ...version({ scene }), descriptor: text }, facts().release),
+      ).toEqual(verdict.error);
+    });
+
   it("refuses every version on a release published before live scenes", () => {
     const old = facts().release;
     expect(refusal(facts({ release: { ...old, liveCompatKey: "" } }))).toMatchObject({

@@ -4,13 +4,11 @@ import * as z from "zod";
 
 import { db } from "@/db";
 import { engineReleases, engineReleaseUploads } from "@/db/schema";
-import { siteUrl } from "@/env";
 import type { SyncAccess } from "@/lib/canvas/token";
-import { gamePagePath } from "@/lib/og/game-links";
 
 import { PROJECT_QUOTA, RELEASE_MANIFEST_MAX_BYTES } from "./limits";
 import { quotaWords } from "./quota";
-import { canDo, releaseChannel, type GameAction, type ReleaseChannel } from "./release-access";
+import { canDo, releaseChannel, type ReleaseChannel } from "./release-access";
 import { listReleases, promote, rollback } from "./release-channels";
 import { apiErrorResponse, releaseForbidden } from "./release-errors";
 import { minioReleaseStore } from "./release-storage";
@@ -185,12 +183,6 @@ export function createReleaseRoutes(
     );
     if (!body.ok) return body.response;
     const channel: ReleaseChannel = body.body.channel;
-    const action: GameAction = `${kind}-${channel}`;
-    if (gated.actor.kind === "agent" && !canDo("agent", action)) {
-      return apiErrorResponse(
-        releaseForbidden("agent-production", siteUrl(gamePagePath(projectId))),
-      );
-    }
     const { actor } = gated;
     return answer(async () => {
       if (kind === "promote") {

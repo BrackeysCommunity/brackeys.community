@@ -4,6 +4,7 @@ import {
   FullScreenIcon,
   InformationCircleIcon,
   Login01Icon,
+  VideoReplayIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ORPCError } from "@orpc/client";
@@ -51,6 +52,10 @@ export const playPath = (projectId: string, version: string): string =>
   `/games/${projectId}/play/${version}`;
 
 export const SIGN_IN_MESSAGE = "Signing in reloads the game.";
+
+/** The play page's ask for the frame's recording of this run; the frame answers with a Download recording offer. */
+export const DOWNLOAD_RUN_LABEL = "Download this run";
+export const RUN_NOT_READY = "The game isn't ready to share its run yet. Try again in a moment.";
 
 /** Why the page shows no frame, in words that never say the viewer was refused. */
 export type PlayUnavailableReason = "hidden" | "collected" | "unavailable";
@@ -312,6 +317,10 @@ export function PlayChrome({
     });
   };
 
+  const requestRun = () => {
+    if (!hostRef.current?.requestRecording()) toast.error(RUN_NOT_READY);
+  };
+
   const report = async (reason: string) => {
     try {
       await client.reportGame({ projectId, version: play.version, reason });
@@ -363,6 +372,15 @@ export function PlayChrome({
         onClick={fullscreen}
       >
         <HugeiconsIcon icon={FullScreenIcon} size={16} />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        tooltip={DOWNLOAD_RUN_LABEL}
+        aria-label={DOWNLOAD_RUN_LABEL}
+        onClick={requestRun}
+      >
+        <HugeiconsIcon icon={VideoReplayIcon} size={16} />
       </Button>
       <Button
         variant="ghost"

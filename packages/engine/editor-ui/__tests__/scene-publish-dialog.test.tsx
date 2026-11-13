@@ -34,17 +34,19 @@ import type {
   EditorNotify,
   LiveBaseView,
   LiveVersionView,
+  LiveWording,
   PublishChannel,
 } from "../host";
 import { EditorToolbar, PUBLISH_SCENE_ICON, PUBLISH_SCENE_TOOLTIP } from "../panels/EditorToolbar";
+import { TIMING_UNDECLARED } from "../panels/publish/ChoiceGroup";
 import { PRODUCTION_PUBLISHERS_ONLY, productionConfirmText } from "../panels/publish/live-wording";
 import {
   EDITORS_UNCHECKED,
   editedSinceText,
   IN_PLACE,
+  progressOf,
   REBUILT,
   ScenePublishDialog,
-  TIMING_UNDECLARED,
   TODAY_UNCHECKED,
   WHERE_TEXT,
 } from "../panels/publish/ScenePublishDialog";
@@ -56,7 +58,7 @@ import {
   watchProjectDocs,
 } from "../session/open-scene-version";
 import type { EditorProjectLink } from "../session/use-scene-editor";
-import { fakeLiveHost, type FakeLiveHost } from "./fake-live-host";
+import { FAKE_LIVE_WORDING, fakeLiveHost, type FakeLiveHost } from "./fake-live-host";
 
 const jo: SceneOrigin = { kind: "user", userId: "jo", name: "Jo" };
 
@@ -206,7 +208,7 @@ async function setup(opts: Setup = {}) {
   });
   const publish = vi.fn<EditorLiveHost["publish"]>(async (_text, _texts, o, onProgress) => {
     onProgress?.({ step: "begin" });
-    onProgress?.({ step: "upload", sent: 1, total: 1 });
+    onProgress?.({ step: "upload", sentBytes: 1, totalBytes: 1 });
     onProgress?.({ step: "commit" });
     return {
       versionId: "3".repeat(64),
@@ -334,6 +336,41 @@ describe("Publish scene", () => {
     await waitFor(() => expect(success).toHaveBeenCalledWith("hall@4 is live on preview."));
   });
 
+  it("counts the upload in bytes while a publish of several files runs", async () => {
+    let finish!: () => void;
+    const held = new Promise<void>((resolve) => (finish = resolve));
+    const publish = vi.fn<EditorLiveHost["publish"]>(async (_text, _texts, o, onProgress) => {
+      onProgress?.({ step: "begin" });
+      onProgress?.({ step: "upload", sentBytes: 0, totalBytes: 20_480 });
+      onProgress?.({ step: "upload", sentBytes: 14_336, totalBytes: 20_480 });
+      await held;
+      return {
+        versionId: "3".repeat(64),
+        scene: "hall",
+        number: 4,
+        created: true,
+        channel: o.channel,
+      };
+    });
+    await setup({ live: { publish } });
+    await checkLine("fits");
+    await waitFor(() => expect(publishButton().hasAttribute("disabled")).toBe(false));
+    fireEvent.click(publishButton());
+    expect(await screen.findByText("Uploading 14 KB of 20 KB…")).toBeTruthy();
+    expect(screen.queryByText(/files…/)).toBeNull();
+    finish();
+    await waitFor(() => expect(publish).toHaveBeenCalledTimes(1));
+  });
+
+  it("words each publish step, the upload in bytes", () => {
+    expect(progressOf({ step: "upload", sentBytes: 0, totalBytes: 2_048 })).toEqual({
+      text: "Uploading 0 B of 2 KB…",
+      value: 0,
+    });
+    expect(progressOf({ step: "upload", sentBytes: 0, totalBytes: 0 }).value).toBeNull();
+    expect(progressOf({ step: "commit" }).text).toBe("Saving the version…");
+  });
+
   it("says what changed and that players' worlds update in place", async () => {
     const { editor } = await setup();
     act(() => {
@@ -383,6 +420,19 @@ describe("Publish scene", () => {
     expect(await checkLine("data")).toMatch(/^Data: \d+ B of 2 MB$/);
     expect(await checkLine("today")).toBe("Today: 100 of 100 versions");
     expect(publishButton().hasAttribute("disabled")).toBe(true);
+  });
+
+  it("tones the Data and Today lines by the host's usage level", async () => {
+    const level = vi.fn<LiveWording["level"]>((used, max) =>
+      max === FAKE_LIVE_WORDING.versionsPerDay ? (used >= 6 ? "warn" : "ok") : "ok",
+    );
+    await setup({ live: { wording: { ...FAKE_LIVE_WORDING, level } } });
+    await checkLine("today");
+    expect(document.querySelector('[data-check="today"]')?.getAttribute("data-tone")).toBe(
+      "warning",
+    );
+    expect(document.querySelector('[data-check="data"]')?.getAttribute("data-tone")).toBe("muted");
+    expect(level).toHaveBeenCalledWith(6, FAKE_LIVE_WORDING.versionsPerDay);
   });
 
   it("labels the Checks list by its heading, every child of the list a list item", async () => {

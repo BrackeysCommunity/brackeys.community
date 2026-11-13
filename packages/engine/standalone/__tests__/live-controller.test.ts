@@ -577,6 +577,35 @@ describe("the live controller in a hosted frame", () => {
     expect(hasFlag(game)).toBe(false);
   });
 
+  it("goes back at the next load when the version it ran was blocked", async () => {
+    const b = fresh();
+    const v = await publish(
+      b,
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      "yard",
+    );
+    const page = fakeParent();
+    const game = await boot(serve(b));
+    page.send({ type: "live.update", live: await snapshot(b, [entry(v, "now")]) });
+    await vi.waitFor(() => expect(statuses(page)).toEqual(["staging", "ready"]));
+    game.instance.step();
+    await vi.waitFor(() => expect(statuses(page)).toContain("applied"));
+
+    page.send({ type: "live.update", live: { ...(await snapshot(b, [])), blocked: [v.id] } });
+    await vi.waitFor(() => expect(statuses(page)).toHaveLength(4));
+    expect(states(page)[3]).toMatchObject({ version: null, status: "ready", timing: "next-load" });
+    game.instance.step(2);
+    expect(hasFlag(game)).toBe(true);
+    expect((await game.instance.flow.restart()).ok).toBe(true);
+    await vi.waitFor(() => expect(statuses(page)).toHaveLength(5));
+    expect(states(page)[4]).toMatchObject({
+      version: null,
+      status: "applied",
+      timing: "next-load",
+    });
+    expect(hasFlag(game)).toBe(false);
+  });
+
   it("cancels an older staging when a newer snapshot moves the scene on", async () => {
     const b = fresh();
     const first = await publish(

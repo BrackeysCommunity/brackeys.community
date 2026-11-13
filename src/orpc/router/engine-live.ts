@@ -104,7 +104,7 @@ export const rollbackSceneVersion = releaseStaff
     ),
   );
 
-/** "Stop": the channel plays the release's own scene again. */
+/** "Stop": the channel plays the release's own scene again, at the pointer's timing. */
 export const clearSceneVersion = releaseStaff
   .input(liveClearInput.extend({ projectId, scene }))
   .handler(({ context, input }) =>

@@ -18,7 +18,7 @@ import { releaseDay } from "@/lib/jam-links";
 
 import { LIVE_LIMITS, RELEASE_GRACE_DAYS } from "./limits";
 import { breakerReason } from "./live-outcomes";
-import { quotaAmount } from "./quota";
+import { LIVE_KEPT_RULE, quotaAmount, usageLevel } from "./quota";
 import { engineReleaseFilePath } from "./route-paths";
 
 // ─── Refusals ────────────────────────────────────────────
@@ -78,6 +78,15 @@ const n = formatCount;
 export const liveRemovalText = (scene: AssetId, number: number, at: Date | string): string =>
   `${sceneVersionName(scene, number)} will be removed on ${releaseDay(at)}. Point a channel at it to keep it.`;
 
+/** Who blocked a version, as a line starts: "Blocked automatically", "Blocked by a publisher". */
+export const BLOCKED_BY: Readonly<Record<"system" | "user", string>> = Object.freeze({
+  system: "Blocked automatically",
+  user: "Blocked by a publisher",
+});
+
+/** What a hidden version or release says when staff gave no reason. */
+export const HIDDEN_BY_STAFF = "Hidden by staff.";
+
 /** Why a version is blocked, said beside its blocked badge: the breaker's count, or the reason a person gave. */
 export function liveBlockedText(
   blocked: { by: "system" | "user"; reason: string | null },
@@ -85,12 +94,12 @@ export function liveBlockedText(
 ): string {
   if (blocked.by === "system")
     return `${breakerReason(reports.failed, reports.ok + reports.failed)}.`;
-  return blocked.reason ?? "Blocked by a publisher.";
+  return blocked.reason ?? `${BLOCKED_BY.user}.`;
 }
 
 /** Usage's line under release storage: what the live scenes hold, and how long they're kept. */
 export const liveUsageText = (versions: { kept: number; bytes: number }): string =>
-  `of which live scenes: ${formatBytes(versions.bytes)} in ${plural(versions.kept, "version", "versions", n)}. Each scene keeps its ${n(LIVE_LIMITS.keptPerScene)} newest versions plus those on a channel; others go ${n(RELEASE_GRACE_DAYS)} days after publishing.`;
+  `of which live scenes: ${formatBytes(versions.bytes)} in ${plural(versions.kept, "version", "versions", n)}. ${LIVE_KEPT_RULE.charAt(0).toUpperCase()}${LIVE_KEPT_RULE.slice(1)}; others go ${n(RELEASE_GRACE_DAYS)} days after publishing.`;
 
 /** The Publish scene dialog's and Live scenes' sentences, every number from `limits.ts`. */
 export function liveWording(): LiveWording {
@@ -99,6 +108,7 @@ export function liveWording(): LiveWording {
     notePlaceholder: `What changed, for your team (up to ${n(LIVE_LIMITS.noteChars)} characters)`,
     dataMaxBytes: LIVE_LIMITS.versionDataBytes,
     versionsPerDay: LIVE_LIMITS.versionsPerDay,
+    level: (used, max) => usageLevel(max > 0 ? used / max : 1),
     data: (bytes) =>
       `Data: ${quotaAmount("liveVersionBytes", bytes)} of ${quotaAmount("liveVersionBytes", LIVE_LIMITS.versionDataBytes)}`,
     today: (count) =>
@@ -152,7 +162,7 @@ export function liveVersionView(v: SceneVersionSummaryInput): LiveVersionView {
     })),
     blocked:
       v.blocked === null ? null : { by: v.blocked.by, text: liveBlockedText(v.blocked, v.reports) },
-    hidden: v.hidden === null ? null : (v.hidden.reason ?? "Hidden by staff."),
+    hidden: v.hidden === null ? null : (v.hidden.reason ?? HIDDEN_BY_STAFF),
     collected: v.collectedAt !== null,
     removal:
       v.removalAt === null
@@ -270,9 +280,9 @@ export function editorLiveHost(opts: EditorLiveHostOptions): EditorLiveHost {
         }),
       );
 
-      const total = begun.missing.reduce((sum, m) => sum + m.bytes, 0);
-      let sent = 0;
-      onProgress?.({ step: "upload", sent, total });
+      const totalBytes = begun.missing.reduce((sum, m) => sum + m.bytes, 0);
+      let sentBytes = 0;
+      onProgress?.({ step: "upload", sentBytes, totalBytes });
       for (const missing of begun.missing) {
         const text = texts[missing.sha256];
         if (text === undefined)
@@ -282,8 +292,8 @@ export function editorLiveHost(opts: EditorLiveHostOptions): EditorLiveHost {
             "Build the scene version again from the open scene, then publish it.",
           );
         await putText(send, begun.uploadId, missing.sha256, text);
-        sent += missing.bytes;
-        onProgress?.({ step: "upload", sent, total });
+        sentBytes += missing.bytes;
+        onProgress?.({ step: "upload", sentBytes, totalBytes });
       }
 
       onProgress?.({ step: "commit" });

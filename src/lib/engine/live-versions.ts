@@ -1,4 +1,4 @@
-import { sceneVersionName, type SwapTiming } from "@jams/engine/game";
+import type { SwapTiming } from "@jams/engine/game";
 import { parseSceneVersion, type AssetId, type Sha256 } from "@jams/engine/project";
 import { and, count, desc, eq, inArray, isNotNull, isNull, lte, max, or, sql } from "drizzle-orm";
 
@@ -20,6 +20,7 @@ import {
   channelRelease,
   DEFAULT_SWAP_TIMING,
   moveScenePointer,
+  noVersion,
   sceneVersionMisfit,
   type ChannelRelease,
   type LiveChannel,
@@ -28,13 +29,12 @@ import {
 import { effectiveLive, type LivePointerRow, type LiveSnapshot } from "./live-state";
 import type { Viewer } from "./release-access";
 import type { Actor, ReleaseDb } from "./release-audit";
-import { releaseForbidden, type ReleaseApiError } from "./release-errors";
+import type { ReleaseApiError } from "./release-errors";
 import type { ReleaseObjectStore } from "./release-storage";
 import {
-  actorRole,
   heldHashes,
-  liveProject,
   notFound,
+  readableProject,
   readStored,
   refuse,
   servedFrom,
@@ -130,18 +130,6 @@ export type LiveReadDeps = {
 };
 
 const dbOf = (deps: LiveReadDeps): ReleaseDb => deps.db ?? (siteDb as unknown as ReleaseDb);
-
-/** The project, when the caller makes the game (or is its agent); its players are refused. */
-async function readableProject(
-  deps: LiveReadDeps,
-  db: ReleaseDb,
-  input: { projectId: string; actor: Actor },
-): Promise<ProjectRow> {
-  const project = await liveProject(db, input.projectId);
-  if ((await actorRole(deps, db, input.actor, project)) === "player")
-    refuse(releaseForbidden("role"));
-  return project;
-}
 
 // ─── A channel's live state ─────────────────────────────
 
@@ -436,7 +424,7 @@ export async function getSceneVersion(
   await readableProject(deps, db, input);
   const now = (deps.now ?? (() => new Date()))();
   const [summary] = await summaries(db, projectId, now, { scene, number });
-  if (!summary) notFound(`There is no ${sceneVersionName(scene, number)} in "${projectId}".`);
+  if (!summary) refuse(noVersion(scene, number), 404);
 
   const [[stored], files, outcomes] = await Promise.all([
     db
@@ -620,7 +608,8 @@ export async function promoteScene(
 /**
  * Back to the scene's previous pointer on the channel (or the release's
  * scene), or to version `to`. `from` is null when the release's scene
- * played.
+ * played. Going back to the release's scene ignores `timing`: players go
+ * back at the removed pointer's timing.
  */
 export async function rollbackScene(
   deps: ReleaseDeps,
@@ -634,7 +623,7 @@ export async function rollbackScene(
   });
 }
 
-/** "Stop": the channel plays the release's own scene again. */
+/** "Stop": the channel plays the release's own scene again, at the removed pointer's timing; `timing` is ignored. */
 export async function clearScene(
   deps: ReleaseDeps,
   input: MoveInput & { timing?: SwapTiming },

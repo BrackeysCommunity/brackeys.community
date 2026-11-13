@@ -891,7 +891,7 @@ describe("live scene publishing docs", () => {
 
   it("states every live limit as the site's limits.ts and the engine's LIVE_DEFAULTS set it", () => {
     for (const said of [
-      `${formatBytes(LIVE_LIMITS.versionDataBytes)}: the scene, its prefabs and the version file`,
+      `${formatBytes(LIVE_LIMITS.versionDataBytes)}: the scene, its prefabs, the docs they use and the version file`,
       `${LIVE_LIMITS.versionsPerDay} per UTC day`,
       `the ${LIVE_LIMITS.keptPerScene} newest of each scene`,
       `part of the project's ${formatBytes(PROJECT_QUOTA.releaseStorageBytes)} of release storage`,
@@ -899,7 +899,7 @@ describe("live scene publishing docs", () => {
       `${LIVE_LIMITS.noteChars} characters`,
       `${LIVE_LIMITS.beginsPerHour} an hour per person or token`,
       `removed ${RELEASE_GRACE_DAYS} days after it was published`,
-      `every ${LIVE_POLL_SECONDS} seconds if its live connection drops`,
+      `every ${LIVE_POLL_SECONDS} seconds while it is visible`,
       `reconnects every ${LIVE_STREAM_MINUTES} minutes`,
       `${LIVE_DEFAULTS.preloadTimeoutMs / 1000} seconds to download, check and prepare`,
       `If ${LIVE_BLOCK.players} signed-in players`,

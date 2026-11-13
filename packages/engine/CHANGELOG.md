@@ -25,8 +25,11 @@ follow-ups the engine's live levels left.
   `promote`, `rollback`, `clear`, `unblock`, `usage()`, `role()` and
   `wording`; with its types `LiveBaseView`, `LiveMove`,
   `LivePointerView`, `LivePublished`, `LivePublishOptions`,
-  `LivePublishProgress`, `LiveUsageView`, `LiveVersionView` and
-  `LiveWording` (the host's numbers, written by the host).
+  `LivePublishProgress` (its upload step counts bytes: `sentBytes` of
+  `totalBytes`), `LiveUsageView`, `LiveVersionView` and `LiveWording`
+  (the host's numbers, written by the host, and `level(used, max)`, the
+  host's own warning rule, which tones the Publish scene checks' Data and
+  Today lines as the Usage panel tones its bars).
 - `@jams/engine/scene`: `shortId` and `SHORT_ID_LENGTH`, a release or
   scene version id's first six characters (`3fa9c2…`), the one rule the
   editor's release list and the CLI's release and live lines share.
@@ -41,7 +44,13 @@ follow-ups the engine's live levels left.
   one table of each timing's words; `releasePromoteMessage(version)` and
   `releaseRollbackMessage(version, live)`, the questions a release
   promote and rollback ask first, shared by the editor's Publish panel
-  and a host's game page; and `versionName`, until now on `.` only.
+  and a host's game page; `releaseReplacesMessage(version, scenes)`
+  ('Promoting v8 replaces these live scenes: The ford (level-1@4).'),
+  what a promote adds when production plays live scenes, shared the same
+  way; `SWAP_STRATEGY_WORDS`, what each swap strategy means for players
+  ('players' worlds update in place', 'players' worlds are rebuilt and
+  their state restored'), shared by the Publish scene check and the CLI's
+  Changes line; and `versionName`, until now on `.` only.
 - `@jams/engine/project`: `sceneVersionDataBytes(text, version)`, what a
   host's data limit counts for a scene version (its `scene-version.json`
   plus each doc it carries once: the scene, its prefabs and the docs they
@@ -167,7 +176,24 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
   says so.
 - `@jams/engine/editor-ui`: the toolbar's Publish scene button has its own
   icon (a cloud upload), apart from the Publish panel's rocket, which
-  manages releases.
+  manages releases. Its tooltip reads 'Publish this level to players
+  without a new release', and the dialog's description 'Updates this one
+  level for players of the current release.' While a publish uploads,
+  the dialog reads 'Uploading 14 KB of 20 KB…' (it said files while
+  counting bytes).
+- `@jams/engine/editor-ui`: a Live scenes row shows its channel with the
+  release rows' channel badge instead of a Production or Preview
+  subheading, and the live scenes' cleanup forecast sits under its own
+  'Removed soon' heading, as the releases' does. The Publish scene dialog
+  and the Not live yet promote pick the timing with one shared choice.
+- `@jams/engine/standalone`: `LiveSnapshot` gains optional `blocked`, the
+  versions the channel still points at that were blocked (breaker or
+  publisher). A frame running one puts the scene back to the release's
+  own at its next load, as for a hidden or failed version, instead of at
+  the pointer's timing; frames that never ran it are untouched.
+- The scene CLI's `game live publish` Changes line says players' worlds
+  are rebuilt and their state restored for a header change (it said they
+  reload), in the editor's words.
 
 ### Fixed
 
@@ -242,14 +268,29 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
   removed' for a hidden one); the collector drops scene versions past the
   five kept per scene after the release grace, their texts a day later,
   and reports after 30 days.
-- Site only: play pages follow their channel's live scenes (stream, else a
-  60 s poll), report each version's outcome, and report a crash within
+- Site only: play pages follow their channel's live scenes (the stream,
+  and a 60 s poll while visible, which also covers a stream that stays
+  open but hears nothing), report each version's outcome, and report a crash within
   10 s of a swap; the breaker blocks a version when, within 30 minutes of
   its move, 5 players and at least a quarter of those reporting fail on
   it. The game page names its live
   levels and, for publishers, blocked ones; staff hide and unhide versions
   from the admin queue; the terms and privacy pages say how live updates
   and their reports work.
+- Site only: the live state lists blocked versions a channel still points
+  at (`blocked`), so play pages running one go back at the next load. The
+  play page's Download this run asks the frame for its recording
+  (`recording.request`), which comes back as the Download recording
+  offer; the new-version toast goes away when the channel rolls back to
+  the release the frame runs. The game page's Promote lists the live
+  levels it replaces and links to the editor's Publish panel to keep the
+  ones that fit, and shows each blocked level update in its channel's
+  version row. The blocked and hidden fallbacks and the kept-versions
+  rule are one sentence each across the editor host, publish host, admin
+  queue and quota hints.
+- Site only: the notifications stream and the API reference gate read
+  the session through `readRouteSession`, so a banned user's stream is
+  refused as every oRPC procedure refuses it.
 
 ## [0.14.4] — unreleased
 

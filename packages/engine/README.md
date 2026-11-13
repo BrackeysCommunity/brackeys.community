@@ -6171,10 +6171,11 @@ levels.
 A version that is neither among its scene's 5 newest nor on a channel
 is removed 14 days after it was published.
 
-**Delivery.** The play page hears of a new version at once, and checks
-again every 60 seconds if its live connection drops (it reconnects
-every 60 minutes anyway). The game has 60 seconds to download, check
-and prepare a version before it gives up on it.
+**Delivery.** The play page hears of a new version at once, and also
+checks every 60 seconds while it is visible, in case its live connection
+dropped or stopped hearing (it reconnects every 60 minutes anyway). The
+game has 60 seconds to download, check and prepare a version before it
+gives up on it.
 
 **Broken updates are stopped.** If 5 signed-in players' games fail
 after an update within 30 minutes of it going live (failing includes

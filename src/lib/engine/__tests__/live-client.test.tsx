@@ -114,6 +114,7 @@ function client(over: {
   const spies = {
     procedures: over.procedures ?? fakeProcedures(),
     onReleaseMoved: vi.fn<() => void>(),
+    onReleaseRestored: vi.fn<() => void>(),
     onRemoved: vi.fn<() => void>(),
     onSwapApplied: vi.fn<(swap: AppliedSwap) => void>(),
   };
@@ -270,6 +271,41 @@ describe("what the frame is sent", () => {
     await flush();
     expect(c.onReleaseMoved).toHaveBeenCalledTimes(1);
     expect(host.sendLive).not.toHaveBeenCalled();
+  });
+
+  it("takes back the reload offer when the channel returns to the frame's release", async () => {
+    const host = fakeHost();
+    let release = OTHER_RELEASE;
+    let rev = 1;
+    const c = client({
+      host,
+      procedures: fakeProcedures(() => snapshot({ rev, release })),
+    });
+    stream().live(++rev);
+    await flush();
+    expect(c.onReleaseMoved).toHaveBeenCalledTimes(1);
+    expect(c.onReleaseRestored).not.toHaveBeenCalled();
+    release = RELEASE;
+    stream().live(++rev);
+    await flush();
+    expect(c.onReleaseRestored).toHaveBeenCalledTimes(1);
+    stream().live(++rev);
+    await flush();
+    expect(c.onReleaseRestored).toHaveBeenCalledTimes(1);
+    expect(c.onReleaseMoved).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends the frame the versions a block took off the channel", async () => {
+    const host = fakeHost();
+    const c = client({
+      host,
+      initial: snapshot({ scenes: [entry("level-1", V1, "now")] }),
+      procedures: fakeProcedures(() => snapshot({ rev: 2, scenes: [], blocked: [V1] })),
+    });
+    stream().live(2);
+    await flush();
+    expect(host.sendLive).toHaveBeenCalledWith(expect.objectContaining({ blocked: [V1] }));
+    expect(c.onRemoved).not.toHaveBeenCalled();
   });
 
   it("gives a frame without 'live' no live.update", async () => {
