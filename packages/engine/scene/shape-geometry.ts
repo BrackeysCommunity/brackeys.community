@@ -342,7 +342,8 @@ export function distanceToShape(s: ShapeObj, p: Pt): number {
   }
 }
 
-const rectsOverlap = (a: Aabb, b: Aabb) =>
+/** Whether two boxes share a point; touching counts. */
+export const rectsOverlap = (a: Aabb, b: Aabb) =>
   a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
 
 /** Whether segment `a`→`b` touches `r` (Liang–Barsky clipping). */

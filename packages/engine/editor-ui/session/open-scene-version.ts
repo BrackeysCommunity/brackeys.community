@@ -9,6 +9,7 @@ import {
   type AssetEntry,
   type AssetId,
   type BuildSceneVersionResult,
+  type SceneVersion,
 } from "../../project/index";
 
 /** How many times a build reopens the docs it found missing before giving up. */
@@ -95,4 +96,52 @@ export async function buildOpenSceneVersion(
   } finally {
     for (const name of opened) if (project.get(name) && !opts.keep?.(name)) project.release(name);
   }
+}
+
+/** The names of the project docs `version` carries, the scene's among them, sorted. */
+export function versionDocNames(
+  project: ProjectSession,
+  version: Pick<SceneVersion, "assets">,
+): string[] {
+  const { byId } = project.view();
+  const names = new Set<string>();
+  for (const [id, asset] of Object.entries(version.assets)) {
+    if (asset.storage !== "doc") continue;
+    const entry = byId.get(id);
+    const name = entry ? project.docNameFor(entry) : null;
+    if (name) names.add(name);
+  }
+  return [...names].sort();
+}
+
+/**
+ * Calls `onChange` on every update to the named docs while they are open,
+ * following each through a close and a reopen; returns the unsubscribe.
+ */
+export function watchProjectDocs(
+  project: ProjectSession,
+  names: readonly string[],
+  onChange: () => void,
+): () => void {
+  const bound = new Map<string, Y.Doc>();
+  const bind = (name: string) => {
+    const doc = project.get(name)?.doc;
+    const was = bound.get(name);
+    if (was === doc) return;
+    was?.off("update", onChange);
+    bound.delete(name);
+    if (doc) {
+      doc.on("update", onChange);
+      bound.set(name, doc);
+    }
+  };
+  for (const name of names) bind(name);
+  const off = project.subscribe((e) => {
+    if ((e.type === "open" || e.type === "close") && names.includes(e.doc)) bind(e.doc);
+  });
+  return () => {
+    off();
+    for (const doc of bound.values()) doc.off("update", onChange);
+    bound.clear();
+  };
 }

@@ -54,6 +54,7 @@ import {
   reachedAssets,
   releaseAssetOf,
   releaseSceneEntry,
+  utf8Bytes,
 } from "./release-assets";
 import { runtimeView } from "./runtime-view";
 import {
@@ -305,6 +306,22 @@ export function formatSceneVersion(version: SceneVersion): string {
 /** SHA-256 of `formatSceneVersion`'s text: the version's id. */
 export function sceneVersionId(version: SceneVersion): Promise<Sha256> {
   return sha256(formatSceneVersion(version));
+}
+
+/**
+ * What a host's data limit counts for a version: its `scene-version.json`
+ * (`text`) plus every doc it carries, each hash once. Blobs are the
+ * project's own uploads and don't count.
+ */
+export function sceneVersionDataBytes(text: string, version: SceneVersion): number {
+  const seen = new Set<Sha256>();
+  let bytes = utf8Bytes(text);
+  for (const asset of Object.values(version.assets)) {
+    if (asset.storage !== "doc" || seen.has(asset.sha256)) continue;
+    seen.add(asset.sha256);
+    bytes += asset.bytes;
+  }
+  return bytes;
 }
 
 // ─── Compatibility ───────────────────────────────────────

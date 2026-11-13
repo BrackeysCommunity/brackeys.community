@@ -208,8 +208,10 @@ export type SiteEditorHostOptions = {
    * The hosted project the editor has open, so the Publish panel and the
    * Usage section can act on it; the file-backed dev editor has none.
    * Shown only while `engine-games-enabled` is on and the deployment hosts games.
+   * `publisher`: whether this viewer may move production and change the
+   * game's settings, as the site answered for their role.
    */
-  hosted?: { project: string; team?: string | null };
+  hosted?: { project: string; team?: string | null; publisher?: boolean };
 };
 
 /** jams.team as the editor's host: the site's toasts, sounds, identity, colours, flags and menu. */
@@ -255,6 +257,7 @@ export function useSiteEditorHost({
   const [openTokenDialog] = useState(() => ({ current: null as (() => void) | null }));
   const hostedProject = hosted?.project;
   const hostedTeam = hosted?.team ?? null;
+  const hostedPublisher = hosted?.publisher;
   const publish = useMemo<EditorPublishHost | undefined>(
     () =>
       hostedProject !== undefined && gamesOn
@@ -263,9 +266,10 @@ export function useSiteEditorHost({
             team: hostedTeam,
             openTokenDialog: () => openTokenDialog.current?.(),
             notify: siteNotify,
+            publisher: hostedPublisher ?? false,
           })
         : undefined,
-    [hostedProject, hostedTeam, gamesOn, openTokenDialog],
+    [hostedProject, hostedTeam, hostedPublisher, gamesOn, openTokenDialog],
   );
 
   return useMemo<EditorHost>(
@@ -520,22 +524,45 @@ type ProjectSceneEditorProps = {
   onProjectChange: (id: string, opts?: { scene?: string }) => void;
 };
 
+/** What `useHostedGame` asks the site: the caller's role on the project, and for publishers its team. */
+export type HostedGameRead = (projectId: string) => Promise<{
+  team?: string | null;
+  publisher?: boolean;
+}>;
+
 /**
- * The open project as a hosted game this viewer publishes: once the site
- * answers for its settings, which only its publishers may read, with the
- * team that owns it, which the Team visibility needs. Undefined while
- * publishing is off, while asking, and for a project the site doesn't host.
+ * The game's settings, which only its publishers and staff may read, for
+ * the team that owns it (the Team visibility needs it); when they're
+ * refused, the viewer's role from `getProjectUsage`, so the game's editors
+ * publish to preview. A player, or a project the site doesn't host, gets
+ * the first refusal.
+ */
+const siteHostedGame: HostedGameRead = async (projectId) => {
+  const { client } = await import("@/orpc/client");
+  try {
+    const settings = await client.getGameSettings({ projectId });
+    return { team: settings.team, publisher: true };
+  } catch (error) {
+    const usage = await client.getProjectUsage({ projectId }).catch(() => null);
+    if (usage?.role !== "editor") throw error;
+    return { team: null, publisher: false };
+  }
+};
+
+/**
+ * The open project as a hosted game this viewer makes: once the site
+ * answers for their role (editors publish to preview, publishers
+ * anywhere) and, for publishers, the team that owns it. Undefined while
+ * publishing is off, while asking, and for a project the site doesn't
+ * host or the viewer only plays.
  */
 export function useHostedGame(
   projectId: string,
-  read: (projectId: string) => Promise<{ team?: string | null }> = (id) =>
-    import("@/orpc/client").then(({ client }) => client.getGameSettings({ projectId: id })),
+  read: HostedGameRead = siteHostedGame,
 ): SiteEditorHostOptions["hosted"] {
   const flags = useFlags();
   const on = publishAllowed((name) => (flags as Partial<Record<string, boolean>>)[name] ?? false);
-  const [hosted, setHosted] = useState<{ project: string; team: string | null } | undefined>(
-    undefined,
-  );
+  const [hosted, setHosted] = useState<SiteEditorHostOptions["hosted"]>(undefined);
   const readRef = useRef(read);
   useEffect(() => {
     readRef.current = read;
@@ -545,8 +572,13 @@ export function useHostedGame(
     if (!on) return;
     let live = true;
     readRef.current(projectId).then(
-      (settings) => {
-        if (live) setHosted({ project: projectId, team: settings.team ?? null });
+      (answer) => {
+        if (!live) return;
+        setHosted({
+          project: projectId,
+          team: answer.team ?? null,
+          ...(answer.publisher !== undefined ? { publisher: answer.publisher } : {}),
+        });
       },
       () => {},
     );

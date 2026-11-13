@@ -16,7 +16,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import { activeUserStore, type ActiveUserProfile } from "@/lib/active-user-store";
 import { presenceColor } from "@/lib/canvas/presence";
@@ -344,6 +344,10 @@ describe("useHostedGame", () => {
 });
 
 describe("SiteSceneEditor", () => {
+  // The first load transforms each hosted game's UI, scenes, prefabs and docs; pay it once
+  // here rather than inside whichever test loads a project first.
+  beforeAll(() => Promise.all(SITE_PROJECTS.map((p) => p.load())), 30_000);
+
   const projectFile = (path: string) =>
     JSON.parse(readFileSync(path, "utf8")) as { id: string; name: string };
 

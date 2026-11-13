@@ -13,7 +13,7 @@ import { seedUser, type TestDb } from "@/test/db";
 import { engineLive } from "../live-events";
 import { blockSceneVersion, reportLiveOutcome } from "../live-moderation";
 import { moveScenePointer, setLiveRev } from "../live-pointers";
-import { getSceneVersion } from "../live-versions";
+import { getSceneVersion, listSceneVersions } from "../live-versions";
 import type { ReleaseDb } from "../release-audit";
 import { memoryReleaseStore } from "../release-storage";
 import type { Actor, ReleaseTxDb } from "../release-upload";
@@ -125,6 +125,44 @@ describe("getSceneVersion's fit per release", () => {
     const [only] = await compat(number);
     expect(only).toMatchObject({ fits: false, issue: { code: "live-incompatible" } });
     expect(only?.issue?.message).toBe("hall@1 was built for another release than v1.");
+  });
+});
+
+describe("listSceneVersions", () => {
+  const hex = (n: number) => n.toString(16).padStart(64, "0");
+  const row = (number: number, collected: boolean) => ({
+    id: hex(3000 + number),
+    projectId: PROJECT,
+    sceneId: "cellar",
+    number,
+    descriptor: collected ? null : "{}",
+    compatKey: hex(1),
+    physics: "none",
+    sceneHash: hex(2),
+    dataBytes: 10,
+    createdAt: new Date(NOW.getTime() - (20 - number) * 3_600_000),
+    collectedAt: collected ? NOW : null,
+  });
+
+  it("lists every version still stored, each scene's newest removed ones and every pointer", async () => {
+    const hall = await liveHall();
+    await db
+      .insert(engineSceneVersions)
+      .values(Array.from({ length: 10 }, (_, i) => row(i + 1, i < 8)));
+    const listed = await listSceneVersions({ projectId: PROJECT, actor: publisher }, readDeps());
+    expect(listed.filter((v) => v.scene === "cellar").map((v) => v.number)).toEqual([
+      10, 9, 8, 7, 6, 5, 4,
+    ]);
+    expect(listed.find((v) => v.scene === "hall")).toMatchObject({
+      number: hall.number,
+      pointers: [expect.objectContaining({ channel: "production", timing: "next-load" })],
+    });
+    // One removed long ago is still there to read on its own.
+    const old = await getSceneVersion(
+      { projectId: PROJECT, scene: "cellar", number: 1, actor: publisher },
+      readDeps(),
+    );
+    expect(old).toMatchObject({ number: 1, collectedAt: NOW });
   });
 });
 

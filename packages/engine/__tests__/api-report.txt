@@ -1096,6 +1096,7 @@ SPAWNER_SPAWNED
 SPRITE
 SPRITE_FALLBACK_SIZE
 SUBLEVEL_ID_PATTERN
+SWAP_TIMINGS
 SaveDepth
 SaveFile
 SaveGameData
@@ -1287,6 +1288,7 @@ spawnPose
 spriteGeometry
 styleOf
 sublevelId
+swapTimingSchema
 tagsField
 tickRateProblem
 ticksFor
@@ -1769,6 +1771,7 @@ sceneListEntries
 sceneListFlow
 sceneListIssues
 sceneListKind
+sceneVersionDataBytes
 sceneVersionId
 sceneVersionJsonSchema
 sceneVersionOptions
@@ -1790,6 +1793,7 @@ textureMetaSchema
 textureSettingsSchema
 unreferencedBlobs
 usableInputMap
+utf8Bytes
 validateAssetDoc
 writesPrefabs
 
@@ -6149,6 +6153,11 @@ type LiveDeclaration = {
     check?(ctx: EngineContext): readonly SceneIssue[];
     timings: readonly SwapTiming[];
 };
+declare const SWAP_TIMINGS: readonly [
+    "next-load",
+    "boundary",
+    "now"
+];
 type SceneDiff = {
     added: readonly string[];
     changed: readonly string[];
@@ -6182,6 +6191,11 @@ declare function clampTiming(live: LiveDeclaration | undefined, wanted: SwapTimi
 declare function diffWords(diff: SceneDiff): string;
 declare const sceneVersionName: (scene: string, number: number) => string;
 declare const swapStrategyFor: (diff: Pick<SceneDiff, "header">, wanted?: "auto" | SwapStrategy) => SwapStrategy;
+declare const swapTimingSchema: z.ZodEnum<{
+    "next-load": "next-load";
+    boundary: "boundary";
+    now: "now";
+}>;
 declare const timingWords: (t: SwapTiming) => string;
 declare const versionName: (scene: AssetId, version: Sha256 | null) => string;
 
@@ -10055,6 +10069,7 @@ declare function readReleaseScene(manifest: ReleaseManifest, scene: AssetId, tex
 declare function readSceneVersion(version: SceneVersion, texts: ReadonlyMap<Sha256, string>, registry: Registry, game: GameDefinition | null, opts?: {
     engine?: Readonly<Record<string, unknown>>;
 }): SceneVersionRead;
+declare function sceneVersionDataBytes(text: string, version: SceneVersion): number;
 declare function sceneVersionId(version: SceneVersion): Promise<Sha256>;
 declare function sceneVersionJsonSchema(): Record<string, unknown>;
 declare function sceneVersionOptions(input: SceneVersionSource, scene: AssetId, opts?: {

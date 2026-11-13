@@ -7,7 +7,7 @@ import {
   type ReleaseManifest,
   type Sha256,
 } from "@jams/engine/project";
-import { and, desc, eq, inArray, isNull, ne, notInArray, sql, sum } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, notInArray, or, sql, sum } from "drizzle-orm";
 
 import {
   engineProjects,
@@ -27,11 +27,19 @@ import { gamePagePath } from "@/lib/og/game-links";
 import { LIVE_LIMITS } from "./limits";
 import { engineLive } from "./live-events";
 import { checkLiveChannelQuota, quotaAmount } from "./quota";
-import { refusalFor, roleOf, type GameRole, type ReleaseChannel } from "./release-access";
+import { refusalFor, type ReleaseChannel } from "./release-access";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
+import { scenesBefore } from "./release-channels";
 import { issueError, liveBlocked, type ReleaseApiError } from "./release-errors";
-import { liveProject, notFound, refuse, resolveDeps, type ReleaseDeps } from "./release-upload";
-import { releaseViewer, type ProjectRow } from "./release-viewer";
+import {
+  actorRole,
+  liveProject,
+  notFound,
+  refuse,
+  resolveDeps,
+  type ReleaseDeps,
+} from "./release-upload";
+import type { ProjectRow } from "./release-viewer";
 
 export type LiveChannel = ReleaseChannel;
 
@@ -74,9 +82,6 @@ export type PointerTargetVerdict =
 /** The timing a pointer move takes when none is given. */
 export const DEFAULT_SWAP_TIMING: SwapTiming = "next-load";
 
-/** `level-1@3`: how a scene version is named to people. */
-export const sceneVersionLabel = sceneVersionName;
-
 // ─── The refusals ────────────────────────────────────────
 
 export function sceneVersionRemoved(label: string, removedAt: Date | null): ReleaseApiError {
@@ -106,7 +111,7 @@ function releaseTakesNoLive(release: number): ReleaseApiError {
 function noVersion(scene: AssetId, number: number): ReleaseApiError {
   return {
     code: "not-found",
-    message: `There is no ${sceneVersionLabel(scene, number)}.`,
+    message: `There is no ${sceneVersionName(scene, number)}.`,
   };
 }
 
@@ -190,7 +195,7 @@ export function sceneVersionMisfit(
   v: Pick<PointerTargetVersion, "scene" | "number" | "compatKey"> & { descriptor: string },
   release: Pick<PointerTargetRelease, "version" | "manifest" | "liveCompatKey">,
 ): ReleaseApiError | null {
-  const label = sceneVersionLabel(v.scene, v.number);
+  const label = sceneVersionName(v.scene, v.number);
   const releaseName = `v${formatCount(release.version)}`;
   const manifest = release.manifest === null ? null : parseReleaseManifest(release.manifest);
   if (!manifest?.ok || release.liveCompatKey === "") return releaseTakesNoLive(release.version);
@@ -230,7 +235,7 @@ export function pointerTargetVerdict(facts: PointerTargetFacts): PointerTargetVe
       reason: "that version no longer exists",
       error: { code: "not-found", message: `${facts.scene} has no such version.` },
     };
-  const label = sceneVersionLabel(v.scene, v.number);
+  const label = sceneVersionName(v.scene, v.number);
   const no = (why: PointerRefusal, error: ReleaseApiError, reason: string) =>
     ({ ok: false, why, error, label, reason }) as const;
 
@@ -428,21 +433,6 @@ export async function lockProject(tx: ReleaseDb, projectId: string): Promise<voi
     .for("update");
 }
 
-async function roleFor(
-  deps: ReleaseDeps,
-  db: ReleaseDb,
-  actor: Actor,
-  project: ProjectRow,
-): Promise<GameRole | "agent"> {
-  if (actor.kind === "agent") return "agent";
-  if (actor.kind === "staff") return "staff";
-  const viewer = await (deps.viewer ?? ((id, p) => releaseViewer(db, id, p)))(
-    actor.userId,
-    project,
-  );
-  return roleOf(viewer, project);
-}
-
 /** Refuses a move the caller's role can't make on `channel`: an agent on production is sent to the game's page. */
 async function assertMayMoveScene(
   deps: ReleaseDeps,
@@ -451,7 +441,7 @@ async function assertMayMoveScene(
   project: ProjectRow,
   channel: LiveChannel,
 ): Promise<void> {
-  const refusal = refusalFor(await roleFor(deps, db, actor, project), `live-move-${channel}`, {
+  const refusal = refusalFor(await actorRole(deps, db, actor, project), `live-move-${channel}`, {
     gameUrl: siteUrl(gamePagePath(project.projectId)),
   });
   if (refusal) refuse(refusal);
@@ -545,23 +535,19 @@ export async function pointScene(
       return { from, to: move.to.number, rev: null };
     const verdict = await checkPointerTarget(tx, { projectId, channel, scene, versionId });
     if (!verdict.ok) return refuse(verdict.error);
-    const set = {
-      versionId,
-      timing,
-      extraBytes: verdict.extraBytes,
-      updatedById: actor.userId,
-      updatedAt: at,
-    };
+    // A timing-only change keeps `updated_at`: the breaker's window runs from when the version went live.
+    const stamp = { updatedById: actor.userId, updatedAt: at };
+    const set = { versionId, timing, extraBytes: verdict.extraBytes };
     await tx
       .insert(engineSceneChannels)
-      .values({ projectId, channel, sceneId: scene, ...set })
+      .values({ projectId, channel, sceneId: scene, ...set, ...stamp })
       .onConflictDoUpdate({
         target: [
           engineSceneChannels.projectId,
           engineSceneChannels.channel,
           engineSceneChannels.sceneId,
         ],
-        set,
+        set: current?.versionId === versionId ? set : { ...set, ...stamp },
       });
   }
 
@@ -581,10 +567,14 @@ export async function pointScene(
   return { from, to, rev };
 }
 
+const SCENE_MOVES = ["scene-promote", "scene-rollback", "scene-clear"] as const;
+
 /**
  * The version a scene's pointer on the channel named before its last
  * move, from the audit log: a number, or null for the release's own
- * scene. Rolling back twice returns to where it started.
+ * scene. Its last move is either a scene move (its `detail.from`) or a
+ * release move that cleared or restored it (the channel's scenes before
+ * it). Rolling back twice returns to where it started.
  */
 async function previousPointer(
   tx: ReleaseDb,
@@ -592,22 +582,43 @@ async function previousPointer(
   channel: LiveChannel,
   scene: AssetId,
 ): Promise<number | null> {
+  const nothing = () => notFound(`${scene} has no earlier version on ${channel} to go back to.`);
+  const detail = engineReleaseAudit.detail;
   const [last] = await tx
-    .select({ detail: engineReleaseAudit.detail })
+    .select({ action: engineReleaseAudit.action, detail })
     .from(engineReleaseAudit)
     .where(
       and(
         eq(engineReleaseAudit.projectId, projectId),
         eq(engineReleaseAudit.channel, channel),
-        eq(engineReleaseAudit.sceneId, scene),
-        inArray(engineReleaseAudit.action, ["scene-promote", "scene-rollback", "scene-clear"]),
+        or(
+          and(
+            eq(engineReleaseAudit.sceneId, scene),
+            inArray(engineReleaseAudit.action, [...SCENE_MOVES]),
+          ),
+          and(
+            inArray(engineReleaseAudit.action, ["promote", "rollback"]),
+            sql`(jsonb_exists(${detail} -> 'scenes', ${scene}) or jsonb_exists(${detail} -> 'restored', ${scene}))`,
+          ),
+        ),
       ),
     )
     .orderBy(desc(engineReleaseAudit.id))
     .limit(1);
-  if (!last) return notFound(`${scene} has no earlier version on ${channel} to go back to.`);
-  const previous = (last.detail as { from?: unknown }).from;
-  return typeof previous === "number" ? previous : null;
+  if (!last) return nothing();
+  if ((SCENE_MOVES as readonly string[]).includes(last.action)) {
+    const previous = (last.detail as { from?: unknown } | null)?.from;
+    return typeof previous === "number" ? previous : null;
+  }
+  const versionId = scenesBefore(last.detail)[scene];
+  if (versionId === undefined) return null;
+  const [version] = await tx
+    .select({ number: engineSceneVersions.number })
+    .from(engineSceneVersions)
+    .where(
+      and(eq(engineSceneVersions.id, versionId), eq(engineSceneVersions.projectId, projectId)),
+    );
+  return version ? version.number : nothing();
 }
 
 /**

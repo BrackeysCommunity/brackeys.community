@@ -3,8 +3,9 @@ import type { ReactNode } from "react";
 import { Hint, MicroLabel, Radio, Text } from "../../kit/index";
 
 /**
- * A labelled radio group, one row per choice. An unavailable choice reads
- * muted and, given `hint`, says why on hover and focus.
+ * A labelled radio group, one row per choice. A disabled group or an
+ * unavailable choice reads muted; an unavailable one, given `hint`, says why
+ * on hover and focus.
  */
 export function ChoiceGroup<T extends string>({
   legend,
@@ -29,7 +30,12 @@ export function ChoiceGroup<T extends string>({
   onPick: (choice: T) => void;
 }) {
   return (
-    <div className="je-insp-stack" data-gap="tight" role="radiogroup" aria-label={legend}>
+    <div
+      className="je-insp-stack je-choice-group"
+      data-gap="tight"
+      role="radiogroup"
+      aria-label={legend}
+    >
       <MicroLabel as="div">{legend}</MicroLabel>
       {choices.map((choice) => {
         const off = unavailable?.(choice) ?? false;
@@ -51,7 +57,7 @@ export function ChoiceGroup<T extends string>({
               onChange={() => onPick(choice)}
               {...(why ? { "aria-description": why } : {})}
             />
-            <Text size="xs" variant={off ? "muted" : "primary"}>
+            <Text size="xs" variant={disabled || off ? "muted" : "primary"}>
               {label(choice)}
             </Text>
           </label>

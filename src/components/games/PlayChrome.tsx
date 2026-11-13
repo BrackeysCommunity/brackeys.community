@@ -105,6 +105,12 @@ export function usePlayQuery(projectId: string, version: string, enabled: boolea
   });
 }
 
+/** Fetches the play payload again for the channel's new release, rejecting when it didn't load. */
+export async function reloadPlay(query: Pick<ReturnType<typeof usePlayQuery>, "refetch">) {
+  const result = await query.refetch();
+  if (result.isError) throw result.error;
+}
+
 /** This browser's saves and preferences for a project, and the save menu's sentence. */
 export function useLocalPlayStores(projectId: string, describe: (stored: string) => string) {
   const saves = useMemo(() => localPlaySaves(projectId), [projectId]);
@@ -213,7 +219,7 @@ export function PlayPage({ projectId, version }: { projectId: string; version: s
       </div>
     );
   }
-  return <PlayChrome play={query.data} version={version} onReload={() => void query.refetch()} />;
+  return <PlayChrome play={query.data} version={version} onReload={() => reloadPlay(query)} />;
 }
 
 /** Only a game that saves to the site promises to keep saves on sign-in. */
@@ -276,8 +282,8 @@ export function PlayChrome({
 }: {
   play: PlayPayload;
   version: string;
-  /** Loads the payload again when the channel moves to a new release. */
-  onReload?: () => void;
+  /** Loads the payload again when the channel moves to a new release; rejects when that fails. */
+  onReload?: () => Promise<unknown>;
 }) {
   const phone = useIsMobile();
   const { data: session, isPending: sessionPending } = authClient.useSession();

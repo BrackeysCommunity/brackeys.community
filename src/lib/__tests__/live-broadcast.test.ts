@@ -201,3 +201,86 @@ describe("createBroadcast with Redis", () => {
     expect(bus.clients.filter((client) => client.name === `${name}-subscriber`)).toHaveLength(1);
   });
 });
+
+type Note = { ids: string[] };
+const encodeNote = (note: Note) => `ids=${note.ids.join(",")}`;
+const decodeNote = (message: string): Note | null =>
+  message.startsWith("ids=") ? { ids: message.slice(4).split(",").filter(Boolean) } : null;
+
+describe("createBroadcast with its own wire format, delivering here", () => {
+  const noteBroadcast = (name = uniqueName()) =>
+    createBroadcast<Note>({
+      name,
+      channel: "test:note",
+      encode: encodeNote,
+      decode: decodeNote,
+      deliverHere: true,
+    });
+
+  it("hands an announcement here at once without Redis", async () => {
+    delete process.env.REDIS_URL;
+    const live = noteBroadcast();
+    const heard: Note[] = [];
+    await live.listen((event) => heard.push(event));
+    await live.announce({ ids: ["a"] });
+    expect(heard).toEqual([{ ids: ["a"] }]);
+    expect(bus.clients).toEqual([]);
+  });
+
+  it("hands it here, then publishes it in the wire format", async () => {
+    process.env.REDIS_URL = "redis://test";
+    const live = noteBroadcast();
+    const heard: Note[] = [];
+    await live.listen((event) => heard.push(event));
+    const sent: string[] = [];
+    bus.clients.push({
+      name: "spy",
+      channels: new Set(["test:note"]),
+      handlers: new Map([["message", [(_channel: string, message: string) => sent.push(message)]]]),
+    });
+    await live.announce({ ids: ["a", "b"] });
+    expect(sent).toEqual(["ids=a,b"]);
+    // Once here at once, once more through this instance's subscriber.
+    expect(heard).toEqual([{ ids: ["a", "b"] }, { ids: ["a", "b"] }]);
+  });
+
+  it("publish only publishes", async () => {
+    delete process.env.REDIS_URL;
+    const live = noteBroadcast();
+    const heard = vi.fn();
+    await live.listen(heard);
+    const sent: string[] = [];
+    await live.publish(
+      { ids: ["a"] },
+      { publish: async (_channel, message) => sent.push(message) },
+    );
+    expect(sent).toEqual(["ids=a"]);
+    expect(heard).not.toHaveBeenCalled();
+  });
+
+  it("listens through a given subscriber and drops what decode refuses", async () => {
+    delete process.env.REDIS_URL;
+    const handlers: ((channel: string, message: string) => void)[] = [];
+    const subscribed: string[] = [];
+    const live = noteBroadcast();
+    const heard: Note[] = [];
+    await live.listen((event) => heard.push(event), {
+      subscriber: async () => ({
+        status: "ready",
+        on(event, listener) {
+          if (event === "message") handlers.push(listener);
+        },
+        async subscribe(channel) {
+          subscribed.push(channel);
+        },
+      }),
+    });
+    for (const handler of handlers) {
+      handler("test:note", "nonsense");
+      handler("test:other", "ids=x");
+      handler("test:note", "ids=c");
+    }
+    expect(subscribed).toEqual(["test:note"]);
+    expect(heard).toEqual([{ ids: ["c"] }]);
+  });
+});

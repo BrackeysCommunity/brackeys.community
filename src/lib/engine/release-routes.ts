@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { engineReleases, engineReleaseUploads } from "@/db/schema";
 import { siteUrl } from "@/env";
 import type { SyncAccess } from "@/lib/canvas/token";
+import { gamePagePath } from "@/lib/og/game-links";
 
 import { PROJECT_QUOTA, RELEASE_MANIFEST_MAX_BYTES } from "./limits";
 import { quotaWords } from "./quota";
@@ -187,7 +188,7 @@ export function createReleaseRoutes(
     const action: GameAction = `${kind}-${channel}`;
     if (gated.actor.kind === "agent" && !canDo("agent", action)) {
       return apiErrorResponse(
-        releaseForbidden("agent-production", siteUrl(`/games/${encodeURIComponent(projectId)}`)),
+        releaseForbidden("agent-production", siteUrl(gamePagePath(projectId))),
       );
     }
     const { actor } = gated;

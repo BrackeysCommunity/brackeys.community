@@ -285,6 +285,8 @@ export {
   LIVE_CHECK_AGAIN_TICKS,
   LIVE_DEFAULTS,
   sceneVersionName,
+  SWAP_TIMINGS,
+  swapTimingSchema,
   versionName,
   type LiveDeclaration,
   type SceneDiff,

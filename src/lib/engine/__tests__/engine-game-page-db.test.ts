@@ -31,20 +31,13 @@ import { verifyFrameToken } from "../frame-token";
 import { gamePage, removalNotice, type GamePageDeps } from "../game-page";
 import { engineLive } from "../live-events";
 import { moveScenePointer } from "../live-pointers";
-import { beginSceneVersion, commitSceneVersion } from "../live-upload";
 import type { Viewer } from "../release-access";
 import { promote } from "../release-channels";
 import { memoryReleaseStore } from "../release-storage";
-import {
-  beginRelease,
-  commitRelease,
-  putReleaseFile,
-  type Actor,
-  type ReleaseDeps,
-  type ReleaseTxDb,
-} from "../release-upload";
+import type { Actor, ReleaseDeps, ReleaseTxDb } from "../release-upload";
 import { fixtureVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
+import { uploadDeps, uploadRelease, uploadSceneVersion } from "./upload-rig";
 
 vi.mock("@/db", async () => {
   const { createTestDb } = await import("@/test/db");
@@ -79,35 +72,13 @@ let store = memoryReleaseStore();
 let v1: PlannedRelease;
 let v2: PlannedRelease;
 
-const uploadDeps = (): ReleaseDeps => ({
-  db: db as unknown as ReleaseTxDb,
-  store,
-  now: () => NOW,
-  rateLimit: async () => true,
-  scan: async () => {},
-});
+const deps = (): ReleaseDeps => uploadDeps(store, { now: () => NOW });
 
 const pageDeps: GamePageDeps = {
   db: db as unknown as ReleaseTxDb,
   now: () => NOW,
   playOrigin: PLAY_ORIGIN,
 };
-
-async function publish(planned: PlannedRelease) {
-  const begun = await beginRelease(uploadDeps(), {
-    projectId: PROJECT,
-    manifest: planned.text,
-    actor: creator,
-  });
-  for (const file of begun.missing)
-    await putReleaseFile(uploadDeps(), {
-      uploadId: begun.uploadId,
-      sha256: file.sha256,
-      body: planned.files.get(file.path)!,
-      actor: creator,
-    });
-  return commitRelease(uploadDeps(), { uploadId: begun.uploadId, actor: creator });
-}
 
 async function setProject(values: Partial<typeof engineProjects.$inferInsert>) {
   await db.update(engineProjects).set(values).where(eq(engineProjects.projectId, PROJECT));
@@ -196,12 +167,8 @@ beforeEach(async () => {
     saveMode: "own",
     connectOrigins: ["https://api.example.org"],
   });
-  await publish(v1);
-  await promote(
-    { projectId: PROJECT, version: 1, channel: "production", actor: creator },
-    { db: db as unknown as ReleaseTxDb, now: () => NOW },
-  );
-  await publish(v2);
+  await uploadRelease(deps(), v1, { actor: creator, promoteTo: "production" });
+  await uploadRelease(deps(), v2, { actor: creator });
 });
 
 describe("gamePage: identity", () => {
@@ -473,25 +440,11 @@ describe("gamePage: live levels", () => {
     };
 
   /** Publishes `v` to preview, which points preview's pointer at it. */
-  async function publishScene(v: FixtureVersion) {
-    const begun = await beginSceneVersion(uploadDeps(), {
-      projectId: PROJECT,
-      version: v.text,
-      channel: "preview",
-      actor: creator,
-    });
-    for (const { sha256 } of begun.missing)
-      await putReleaseFile(uploadDeps(), {
-        uploadId: begun.uploadId,
-        sha256,
-        body: new TextEncoder().encode(v.texts.get(sha256)!),
-        actor: creator,
-      });
-    await commitSceneVersion(uploadDeps(), { uploadId: begun.uploadId, actor: creator });
-  }
+  const publishScene = (v: FixtureVersion) =>
+    uploadSceneVersion(deps(), v, { channel: "preview", actor: creator });
 
   const toProduction = (scene: string) =>
-    moveScenePointer(uploadDeps(), {
+    moveScenePointer(deps(), {
       projectId: PROJECT,
       scene,
       channel: "production",

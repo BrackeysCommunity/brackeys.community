@@ -1,3 +1,4 @@
+import { sceneVersionName } from "@jams/engine/game";
 import { liveCompat, liveCompatKey, type SceneVersion } from "@jams/engine/project";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
@@ -5,7 +6,6 @@ import { PROJECT_QUOTA } from "../limits";
 import {
   extraBytesOf,
   pointerTargetVerdict,
-  sceneVersionLabel,
   sceneVersionMisfit,
   type PointerTargetFacts,
   type PointerTargetVersion,
@@ -129,7 +129,7 @@ describe("pointerTargetVerdict", () => {
       }),
     );
     expect(byBreaker.error.message).toBe(
-      "hall@3 is blocked: 6 of 16 players' games failed after it.",
+      "hall@3 is blocked: 6 of 16 players' games failed after this update.",
     );
   });
 
@@ -207,10 +207,10 @@ describe("sceneVersionMisfit", () => {
   });
 });
 
-describe("sceneVersionLabel", () => {
+describe("sceneVersionName", () => {
   it("names a version by scene and grouped number", () => {
-    expect(sceneVersionLabel("level-1", 4)).toBe("level-1@4");
-    expect(sceneVersionLabel("level-1", 1000)).toBe("level-1@1,000");
+    expect(sceneVersionName("level-1", 4)).toBe("level-1@4");
+    expect(sceneVersionName("level-1", 1000)).toBe("level-1@1,000");
   });
 });
 

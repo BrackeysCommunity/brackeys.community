@@ -1,4 +1,4 @@
-import type { SwapTiming } from "@jams/engine/game";
+import { sceneVersionName, type SwapTiming } from "@jams/engine/game";
 import {
   checkSceneVersion,
   formatSceneVersion,
@@ -7,7 +7,9 @@ import {
   parseSceneVersion,
   prefabKind,
   sceneKind,
+  sceneVersionDataBytes,
   sceneVersionId,
+  utf8Bytes,
   type AssetId,
   type ReleaseAsset,
   type ReleaseManifest,
@@ -34,7 +36,6 @@ import {
   DEFAULT_SWAP_TIMING,
   lockProject,
   pointScene,
-  sceneVersionLabel,
   sceneVersionRemoved,
 } from "./live-pointers";
 import { checkLiveQuota, usageLines } from "./quota";
@@ -43,6 +44,9 @@ import {
   issueError,
   releaseFilesMissing,
   releaseFileType,
+  releaseNotCanonical,
+  releaseProjectMismatch,
+  releaseRateLimited,
   releaseUploadExpired,
   type ReleaseApiError,
 } from "./release-errors";
@@ -101,41 +105,7 @@ export type BeginSceneInput = {
 
 const JSON_TYPE = "application/json";
 
-const utf8Bytes = (text: string) => new TextEncoder().encode(text).byteLength;
-
 // ─── The refusals a scene version has of its own ────────
-
-function liveRateLimited(): ReleaseApiError {
-  return {
-    code: "release-rate-limited",
-    message: `You've started ${formatCount(LIVE_LIMITS.beginsPerHour)} scene publishes this hour, the most per hour.`,
-    hint: "Wait a few minutes, then publish again.",
-  };
-}
-
-function versionNotCanonical(): ReleaseApiError {
-  return {
-    code: "release-not-canonical",
-    message:
-      "This scene-version.json isn't the text the engine writes for it, so its version id can't be checked.",
-    hint: "Send the scene version as the engine wrote it; build it again if it was edited.",
-  };
-}
-
-function versionProjectMismatch(
-  field: "project" | "game",
-  want: string,
-  got: string,
-): ReleaseApiError {
-  return {
-    code: "release-project-mismatch",
-    message:
-      field === "project"
-        ? `This scene version is of the project "${got}", not "${want}".`
-        : `This scene version is for the game "${got}"; the project "${want}" hosts another game.`,
-    hint: "Publish from the project's own repository, or to the project the version names.",
-  };
-}
 
 function blobNotStored(asset: ReleaseAsset): ReleaseApiError {
   const name = asset.path.slice(asset.path.lastIndexOf("/") + 1);
@@ -297,10 +267,6 @@ function versionFiles(version: SceneVersion, id: Sha256, text: string): VersionF
   return out;
 }
 
-/** The version file plus every doc it carries: what the live data cap counts. */
-const dataBytesOf = (files: readonly VersionFile[]) =>
-  files.filter((f) => f.storage === "doc").reduce((n, f) => n + f.bytes, 0);
-
 const docAssets = (version: SceneVersion) =>
   Object.values(version.assets).filter((a) => a.storage === "doc");
 
@@ -342,7 +308,7 @@ export async function beginSceneVersion(
   const project = await liveProject(db, projectId);
   await assertMayUpload(deps, db, actor, project, "live-publish");
   if (!(await rateLimit("engine-live-begin", actor.userId, LIVE_LIMITS.beginsPerHour, 3600)))
-    refuse(liveRateLimited());
+    refuse(releaseRateLimited("scene-begins"));
   const stored = await storedUsage(db, projectId, at);
   const today = checkLiveQuota(stored, { dataBytes: 0, addsBytes: 0, today: stored.liveToday });
   if (!today.ok) quotaRefusal(today);
@@ -358,21 +324,21 @@ export async function beginSceneVersion(
   });
   if (!fits.ok) quotaRefusal(fits);
   const version = parsedVersion(input.version);
-  if (formatSceneVersion(version) !== input.version) refuse(versionNotCanonical());
+  if (formatSceneVersion(version) !== input.version) refuse(releaseNotCanonical("scene-version"));
   const versionId = await sceneVersionId(version);
 
   // 3. Its project and game.
   if (version.project !== projectId)
-    refuse(versionProjectMismatch("project", projectId, version.project));
+    refuse(releaseProjectMismatch("project", projectId, version.project, "scene-version"));
   if (project.game !== null && version.compat.game.id !== project.game)
-    refuse(versionProjectMismatch("game", projectId, version.compat.game.id));
+    refuse(releaseProjectMismatch("game", projectId, version.compat.game.id, "scene-version"));
 
   // 4. The target release's rules, but the carried references.
   const release = await targetRelease(db, projectId, input.channel);
   const existing = await storedVersion(db, projectId, versionId);
   const number = existing?.number ?? (await nextNumber(db, projectId, version.scene));
   const issues = checkSceneVersion(release.manifest, version, undefined, {
-    names: { version: sceneVersionLabel(version.scene, number), release: `v${release.version}` },
+    names: { version: sceneVersionName(version.scene, number), release: `v${release.version}` },
   });
   refuseErrors(issues);
 
@@ -397,7 +363,7 @@ export async function beginSceneVersion(
   const addsBytes =
     missing.reduce((n, f) => n + f.bytes, 0) + (held.objects.has(versionId) ? 0 : versionBytes);
   const quota = checkLiveQuota(stored, {
-    dataBytes: dataBytesOf(files),
+    dataBytes: sceneVersionDataBytes(input.version, version),
     addsBytes,
     today: stored.liveToday,
   });
@@ -406,7 +372,7 @@ export async function beginSceneVersion(
   // 7. What the project already holds.
   if (existing?.collectedAt)
     refuse(
-      sceneVersionRemoved(sceneVersionLabel(version.scene, existing.number), existing.collectedAt),
+      sceneVersionRemoved(sceneVersionName(version.scene, existing.number), existing.collectedAt),
     );
 
   // 8. The upload.
@@ -507,14 +473,12 @@ export async function commitSceneVersion(
   const release = await targetRelease(db, projectId, channel);
   const before = await storedVersion(db, projectId, versionId);
   if (before?.collectedAt)
-    refuse(
-      sceneVersionRemoved(sceneVersionLabel(version.scene, before.number), before.collectedAt),
-    );
+    refuse(sceneVersionRemoved(sceneVersionName(version.scene, before.number), before.collectedAt));
   const texts = await carriedTexts(deps, version, held);
   refuseErrors(
     checkSceneVersion(release.manifest, version, texts, {
       names: {
-        version: sceneVersionLabel(
+        version: sceneVersionName(
           version.scene,
           before?.number ?? (await nextNumber(db, projectId, version.scene)),
         ),
@@ -539,6 +503,7 @@ export async function commitSceneVersion(
       .onConflictDoNothing();
   }
   const compatKey = await liveCompatKey(version.compat);
+  const dataBytes = sceneVersionDataBytes(upload.manifest, version);
   const sceneDoc = version.assets[version.scene];
   if (!sceneDoc) return refuse(releaseFilesMissing(1));
 
@@ -559,13 +524,14 @@ export async function commitSceneVersion(
     const existing = await storedVersion(tx, projectId, versionId);
     if (existing?.collectedAt)
       refuse(
-        sceneVersionRemoved(
-          sceneVersionLabel(version.scene, existing.number),
-          existing.collectedAt,
-        ),
+        sceneVersionRemoved(sceneVersionName(version.scene, existing.number), existing.collectedAt),
       );
     let number = existing?.number ?? 0;
     if (!existing) {
+      // Concurrent publishes each passed begin's quotas; the lock lets only those that still fit through.
+      const stored = await storedUsage(tx, projectId, at);
+      const quota = checkLiveQuota(stored, { dataBytes, addsBytes: 0, today: stored.liveToday });
+      if (!quota.ok) quotaRefusal(quota);
       number = await nextNumber(tx, projectId, version.scene);
       await tx.insert(engineSceneVersions).values({
         id: versionId,
@@ -577,7 +543,7 @@ export async function commitSceneVersion(
         baseReleaseId: version.base,
         physics: version.entry.physics,
         sceneHash: sceneDoc.sha256,
-        dataBytes: dataBytesOf(files),
+        dataBytes,
         note: upload.note,
         createdById: actor.userId,
         agentTokenId: actor.kind === "agent" ? (actor.agentTokenId ?? null) : null,

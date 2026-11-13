@@ -1,6 +1,6 @@
-import type { SwapTiming } from "@jams/engine/game";
+import { sceneVersionName, type SwapTiming } from "@jams/engine/game";
 import { parseSceneVersion, type AssetId, type Sha256 } from "@jams/engine/project";
-import { and, count, desc, eq, inArray, isNull, max } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, isNull, lte, max, or, sql } from "drizzle-orm";
 
 import { db as siteDb } from "@/db";
 import {
@@ -20,18 +20,18 @@ import {
   channelRelease,
   DEFAULT_SWAP_TIMING,
   moveScenePointer,
-  sceneVersionLabel as label,
   sceneVersionMisfit,
   type ChannelRelease,
   type LiveChannel,
   type ScenePointerMoved,
 } from "./live-pointers";
 import { effectiveLive, type LivePointerRow, type LiveSnapshot } from "./live-state";
-import { roleOf, type GameRole, type Viewer } from "./release-access";
+import type { Viewer } from "./release-access";
 import type { Actor, ReleaseDb } from "./release-audit";
 import { releaseForbidden, type ReleaseApiError } from "./release-errors";
 import type { ReleaseObjectStore } from "./release-storage";
 import {
+  actorRole,
   heldHashes,
   liveProject,
   notFound,
@@ -41,7 +41,7 @@ import {
   type ReleaseDeps,
   type ReleaseTxDb,
 } from "./release-upload";
-import { releaseViewer, type ProjectRow } from "./release-viewer";
+import type { ProjectRow } from "./release-viewer";
 
 export { channelRelease, type ChannelRelease, type LiveChannel };
 
@@ -130,22 +130,6 @@ export type LiveReadDeps = {
 };
 
 const dbOf = (deps: LiveReadDeps): ReleaseDb => deps.db ?? (siteDb as unknown as ReleaseDb);
-
-/** The caller's role on the project: agents and staff by their kind, a person by the project and its team. */
-export async function actorRole(
-  deps: LiveReadDeps,
-  db: ReleaseDb,
-  actor: Actor,
-  project: ProjectRow,
-): Promise<GameRole | "agent"> {
-  if (actor.kind === "agent") return "agent";
-  if (actor.kind === "staff") return "staff";
-  const viewer = await (deps.viewer ?? ((id, p) => releaseViewer(db, id, p)))(
-    actor.userId,
-    project,
-  );
-  return roleOf(viewer, project);
-}
 
 /** The project, when the caller makes the game (or is its agent); its players are refused. */
 async function readableProject(
@@ -256,18 +240,54 @@ async function namesOf(db: ReleaseDb, ids: readonly (string | null)[]) {
   return new Map(rows.map((r) => [r.id, memberName(r)]));
 }
 
-/** The project's versions (one scene's with `scene`), newest first, with their pointers and removal dates. */
+/** How many removed versions of each scene the list still shows, newest first. */
+const REMOVED_LISTED_PER_SCENE = 5;
+
+/**
+ * The project's versions (one scene's with `scene`), newest first, with
+ * their pointers and removal dates: every version not yet removed, and
+ * each scene's newest removed ones (or the one `number` asks for).
+ */
 async function summaries(
   db: ReleaseDb,
   projectId: string,
   now: Date,
   only: { scene?: AssetId; number?: number } = {},
 ): Promise<SceneVersionSummary[]> {
+  const ofProject = and(
+    eq(engineSceneVersions.projectId, projectId),
+    ...(only.scene !== undefined ? [eq(engineSceneVersions.sceneId, only.scene)] : []),
+  );
+  const removed = db
+    .select({
+      id: engineSceneVersions.id,
+      rank: sql<number>`row_number() over (partition by ${engineSceneVersions.sceneId} order by ${engineSceneVersions.number} desc)`.as(
+        "rank",
+      ),
+    })
+    .from(engineSceneVersions)
+    .where(and(ofProject, isNotNull(engineSceneVersions.collectedAt)))
+    .as("removed");
   const [rows, pointers, moves] = await Promise.all([
     db
       .select(summaryColumns)
       .from(engineSceneVersions)
-      .where(eq(engineSceneVersions.projectId, projectId))
+      .where(
+        and(
+          ofProject,
+          or(
+            isNull(engineSceneVersions.collectedAt),
+            inArray(
+              engineSceneVersions.id,
+              db
+                .select({ id: removed.id })
+                .from(removed)
+                .where(lte(removed.rank, REMOVED_LISTED_PER_SCENE)),
+            ),
+            ...(only.number !== undefined ? [eq(engineSceneVersions.number, only.number)] : []),
+          ),
+        ),
+      )
       .orderBy(desc(engineSceneVersions.createdAt), desc(engineSceneVersions.number)),
     db
       .select({
@@ -281,6 +301,7 @@ async function summaries(
       .from(engineSceneChannels)
       .where(eq(engineSceneChannels.projectId, projectId))
       .orderBy(engineSceneChannels.channel),
+    // Only the latest move of each scene that has a pointer.
     db
       .select({
         channel: engineReleaseAudit.channel,
@@ -289,12 +310,28 @@ async function summaries(
       })
       .from(engineReleaseAudit)
       .where(
-        and(
-          eq(engineReleaseAudit.projectId, projectId),
-          inArray(engineReleaseAudit.action, MOVE_ACTIONS),
+        inArray(
+          engineReleaseAudit.id,
+          db
+            .select({ id: sql<number>`max(${engineReleaseAudit.id})` })
+            .from(engineReleaseAudit)
+            .innerJoin(
+              engineSceneChannels,
+              and(
+                eq(engineSceneChannels.projectId, engineReleaseAudit.projectId),
+                eq(engineSceneChannels.channel, engineReleaseAudit.channel),
+                eq(engineSceneChannels.sceneId, engineReleaseAudit.sceneId),
+              ),
+            )
+            .where(
+              and(
+                eq(engineReleaseAudit.projectId, projectId),
+                inArray(engineReleaseAudit.action, MOVE_ACTIONS),
+              ),
+            )
+            .groupBy(engineReleaseAudit.channel, engineReleaseAudit.sceneId),
         ),
-      )
-      .orderBy(desc(engineReleaseAudit.id)),
+      ),
   ]);
 
   // A pointer's mover is the latest move's actor; an agent's move names nobody.
@@ -399,7 +436,7 @@ export async function getSceneVersion(
   await readableProject(deps, db, input);
   const now = (deps.now ?? (() => new Date()))();
   const [summary] = await summaries(db, projectId, now, { scene, number });
-  if (!summary) notFound(`There is no ${label(scene, number)} in "${projectId}".`);
+  if (!summary) notFound(`There is no ${sceneVersionName(scene, number)} in "${projectId}".`);
 
   const [[stored], files, outcomes] = await Promise.all([
     db

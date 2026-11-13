@@ -455,7 +455,13 @@ describe("getProjectUsage", () => {
       projectId: PROJECT,
       byteSize: 30,
     });
-    const { usage, lines } = await call(getProjectUsage, { projectId: PROJECT }, asUser("staff"));
+    const { usage, lines, role } = await call(
+      getProjectUsage,
+      { projectId: PROJECT },
+      asUser("staff"),
+    );
+    // What the editor's publish host offers the caller: staff publish anywhere.
+    expect(role).toBe("staff");
     expect(usage).toMatchObject({
       blobBytes: PNG.byteLength,
       liveBlobBytes: PNG.byteLength,

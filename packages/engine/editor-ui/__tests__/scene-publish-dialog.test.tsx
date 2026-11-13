@@ -39,17 +39,24 @@ import type {
 import { EditorToolbar, PUBLISH_SCENE_TOOLTIP } from "../panels/EditorToolbar";
 import { productionConfirmText, PUBLISHERS_ONLY } from "../panels/publish/live-wording";
 import {
+  EDITORS_UNCHECKED,
   editedSinceText,
   IN_PLACE,
   REBUILT,
   ScenePublishDialog,
   TIMING_TEXT,
   TIMING_UNDECLARED,
+  TODAY_UNCHECKED,
   WHERE_TEXT,
 } from "../panels/publish/ScenePublishDialog";
 import { prefabsReady } from "../session/live-scene-editor";
-import { buildOpenSceneVersion } from "../session/open-scene-version";
+import {
+  buildOpenSceneVersion,
+  versionDocNames,
+  watchProjectDocs,
+} from "../session/open-scene-version";
 import type { EditorProjectLink } from "../session/use-scene-editor";
+import { fakeLiveHost, type FakeLiveHost } from "./fake-live-host";
 
 const jo: SceneOrigin = { kind: "user", userId: "jo", name: "Jo" };
 
@@ -128,6 +135,10 @@ type Setup = {
   versions?: LiveVersionView[];
   today?: number;
   latest?: number | null;
+  /** How many times preview's base fails before it loads. */
+  baseFails?: number;
+  /** Replaces the fake host's members. */
+  live?: Partial<FakeLiveHost>;
 };
 
 async function setup(opts: Setup = {}) {
@@ -205,26 +216,24 @@ async function setup(opts: Setup = {}) {
       channel: o.channel,
     };
   });
-  const live: EditorLiveHost = {
-    base: vi.fn(async (_scene, channel) => baseOf(channel)),
-    publish,
-    list: vi.fn(async () => opts.versions ?? []),
-    promote: vi.fn(),
-    rollback: vi.fn(),
-    clear: vi.fn(),
-    unblock: vi.fn(),
-    usage: vi.fn(async () => ({ today: opts.today ?? 6, versions: 3, bytes: 4000 })),
-    role: () => ({ publisher: opts.publisher ?? false }),
-    wording: {
-      noteMaxChars: 200,
-      notePlaceholder: "What changed, for your team (up to 200 characters)",
-      dataMaxBytes: 2_000_000,
-      versionsPerDay: 100,
-      data: (bytes) => `Data: ${bytes} B of 2 MB`,
-      today: (count) => `Today: ${count} of 100 versions`,
-      stopConfirm: () => "",
+  let baseFails = opts.baseFails ?? 0;
+  const live = fakeLiveHost(
+    {
+      base: vi.fn<EditorLiveHost["base"]>(async (_scene, channel) => {
+        if (channel === "preview" && baseFails-- > 0) throw new Error("The site didn't answer.");
+        return baseOf(channel);
+      }),
+      publish,
+      list: vi.fn<EditorLiveHost["list"]>(async () => opts.versions ?? []),
+      usage: vi.fn<EditorLiveHost["usage"]>(async () => ({
+        today: opts.today ?? 6,
+        versions: 3,
+        bytes: 4000,
+      })),
+      ...opts.live,
     },
-  };
+    opts.publisher ?? false,
+  );
   const success = vi.fn();
   const notify: EditorNotify = Object.assign(vi.fn(), {
     success,
@@ -242,7 +251,7 @@ async function setup(opts: Setup = {}) {
       onClose={onClose}
     />,
   );
-  return { editor, sceneDoc, live, publish, success, onClose };
+  return { editor, project, sceneDoc, live, publish, success, onClose };
 }
 
 const radio = (name: string | RegExp) => screen.getByRole("radio", { name }) as HTMLInputElement;
@@ -282,7 +291,8 @@ describe("Publish scene", () => {
     const production = radio(/^Production/);
     expect(production.disabled).toBe(true);
     expect(production.getAttribute("aria-description")).toBe(PUBLISHERS_ONLY);
-    expect(await screen.findByText("· on v8")).toBeTruthy();
+    // The suffix takes the choice's own size.
+    expect((await screen.findByText("· on v8")).getAttribute("data-size")).toBe("xs");
   });
 
   it("asks a publisher before Production, and publishes only on yes", async () => {
@@ -437,6 +447,79 @@ describe("Publish scene", () => {
 
     fireEvent.click(radio(TIMING_TEXT.boundary));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
+  it("keeps a refusal on screen while an edit runs the checks again", async () => {
+    const { publish, editor } = await setup();
+    publish.mockRejectedValueOnce({
+      code: "quota-exceeded",
+      message: "Too big.",
+      hint: "Split it.",
+    });
+    await checkLine("fits");
+    await waitFor(() => expect(publishButton().hasAttribute("disabled")).toBe(false));
+    fireEvent.click(publishButton());
+    expect((await screen.findByRole("alert")).textContent).toContain("Too big.");
+    act(() => {
+      editor.dispatch({ label: "Nudge", ops: [{ op: "move", refs: ["flag"], by: [1, 0] }] });
+    });
+    await waitFor(() =>
+      expect(document.querySelector('[data-check="diff"]')?.textContent).toBe(
+        `1 entity changed. ${IN_PLACE}`,
+      ),
+    );
+    expect(screen.getByRole("alert").textContent).toContain("Split it.");
+  });
+
+  it("says when today's count or the scene's versions couldn't be checked", async () => {
+    await setup({
+      live: {
+        usage: vi.fn<EditorLiveHost["usage"]>(async () => {
+          throw new Error("offline");
+        }),
+        list: vi.fn<EditorLiveHost["list"]>(async () => {
+          throw new Error("offline");
+        }),
+      },
+    });
+    expect(await checkLine("today")).toBe(TODAY_UNCHECKED);
+    expect(await checkLine("editors")).toBe(EDITORS_UNCHECKED);
+    await waitFor(() => expect(publishButton().hasAttribute("disabled")).toBe(false));
+  });
+
+  it("loads a channel's base again on Try again", async () => {
+    const { live } = await setup({ baseFails: 1 });
+    const failed = await screen.findByText("The site didn't answer.");
+    expect(publishButton().hasAttribute("disabled")).toBe(true);
+    fireEvent.click(
+      within(failed.closest('[role="listitem"]')!).getByRole("button", {
+        name: "Try again",
+      }),
+    );
+    expect(await checkLine("fits")).toBe("Fits v8");
+    expect(live.base).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe("the docs a version carries", () => {
+  it("are named by the version, and their updates followed until unsubscribed", async () => {
+    const { project, sceneDoc, editor } = await setup();
+    const game = editor.registry.game!;
+    const made = await buildOpenSceneVersion(project, "hall", sceneDoc.doc, editor.registry, game);
+    if (!made.ok) throw new Error(JSON.stringify(made.issues));
+    expect(versionDocNames(project, made.version)).toEqual(["scene:p.hall"]);
+    const changed = vi.fn();
+    const off = watchProjectDocs(project, ["scene:p.hall"], changed);
+    act(() => {
+      editor.dispatch({ label: "Nudge", ops: [{ op: "move", refs: ["flag"], by: [1, 0] }] });
+    });
+    expect(changed).toHaveBeenCalled();
+    off();
+    changed.mockClear();
+    act(() => {
+      editor.dispatch({ label: "Nudge", ops: [{ op: "move", refs: ["flag"], by: [1, 0] }] });
+    });
+    expect(changed).not.toHaveBeenCalled();
   });
 });
 

@@ -3,7 +3,6 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { db as mockedDb } from "@/db";
 import { engineAgentTokens, engineProjects, teamMembers, teams } from "@/db/schema";
-import { beginSceneVersion, commitSceneVersion } from "@/lib/engine/live-upload";
 import {
   getSceneVersion as getVersion,
   listSceneVersions as listVersions,
@@ -11,15 +10,7 @@ import {
   promoteScene,
 } from "@/lib/engine/live-versions";
 import type { Actor } from "@/lib/engine/release-audit";
-import { promote } from "@/lib/engine/release-channels";
-import { ReleaseError } from "@/lib/engine/release-errors";
-import {
-  beginRelease,
-  commitRelease,
-  putReleaseFile,
-  type ReleaseDeps,
-  type ReleaseTxDb,
-} from "@/lib/engine/release-upload";
+import type { ReleaseDeps } from "@/lib/engine/release-upload";
 import {
   clearSceneVersion,
   getLiveBase,
@@ -36,6 +27,12 @@ import {
   type FixtureVersion,
 } from "../../../lib/engine/__tests__/fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "../../../lib/engine/__tests__/release-fixture";
+import {
+  refusal,
+  uploadDeps,
+  uploadRelease,
+  uploadSceneVersion,
+} from "../../../lib/engine/__tests__/upload-rig";
 
 vi.mock("@/db", async () => {
   const { createTestDb } = await import("@/test/db");
@@ -85,11 +82,7 @@ const agent: Actor = { kind: "agent", userId: "editor", agentTokenId: TOKEN };
 
 let release: PlannedRelease;
 let hall: FixtureVersion;
-const deps = (): ReleaseDeps => ({
-  db: db as unknown as ReleaseTxDb,
-  store: shared.store!,
-  scan: async () => {},
-});
+const deps = (): ReleaseDeps => uploadDeps(shared.store!);
 
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
 
@@ -124,20 +117,7 @@ beforeAll(async () => {
   });
 
   release = await plannedRelease({ projectId: PROJECT });
-  const shipped = await beginRelease(deps(), {
-    projectId: PROJECT,
-    manifest: release.text,
-    actor: staff,
-  });
-  for (const file of shipped.missing)
-    await putReleaseFile(deps(), {
-      uploadId: shipped.uploadId,
-      sha256: file.sha256,
-      body: release.files.get(file.path)!,
-      actor: staff,
-    });
-  await commitRelease(deps(), { uploadId: shipped.uploadId, actor: staff });
-  await promote({ projectId: PROJECT, version: 1, channel: "production", actor: staff });
+  await uploadRelease(deps(), release, { actor: staff, promoteTo: "production" });
 
   hall = await fixtureVersion(release, {
     scene: "hall",
@@ -145,49 +125,17 @@ beforeAll(async () => {
       (scene.entities as { at: number[] }[])[0]!.at = [4, 2];
     },
   });
-  const begun = await beginSceneVersion(deps(), {
-    projectId: PROJECT,
-    version: hall.text,
+  await uploadSceneVersion(deps(), hall, {
     channel: "preview",
     note: "Moved the start",
     actor: staff,
   });
-  for (const file of begun.missing)
-    await putReleaseFile(deps(), {
-      uploadId: begun.uploadId,
-      sha256: file.sha256,
-      body: new TextEncoder().encode(hall.texts.get(file.sha256)!),
-      actor: staff,
-    });
-  await commitSceneVersion(deps(), { uploadId: begun.uploadId, actor: staff });
 });
 
 beforeEach(() => {
   games.env = "staging";
   games.flag = true;
 });
-
-/** The oRPC error's code and its release API body, or null when the call went through. */
-async function refusal(run: () => Promise<unknown>) {
-  try {
-    await run();
-    return null;
-  } catch (error) {
-    const e = error as { code?: string; data?: { code?: string; message?: string } };
-    return { code: e.code, data: e.data };
-  }
-}
-
-/** The lib's refusal body, or null when the call went through. */
-async function libRefusal(run: () => Promise<unknown>) {
-  try {
-    await run();
-    return null;
-  } catch (error) {
-    if (error instanceof ReleaseError) return error.body;
-    throw error;
-  }
-}
 
 const hallSha = () => hall.version.assets.hall!.sha256;
 
@@ -253,7 +201,7 @@ describe("the live pointer procedures", () => {
       await refusal(() =>
         call(getSceneVersion, { projectId: PROJECT, scene: "hall", number: 9 }, asUser("staff")),
       ),
-    ).toMatchObject({ code: "NOT_FOUND", data: { code: "not-found" } });
+    ).toMatchObject({ code: "not-found" });
   });
 
   it("give base the release's own texts where no pointer applies, and the pointed version's where one does", async () => {
@@ -334,7 +282,7 @@ describe("the live pointer procedures", () => {
           asUser("staff"),
         ),
       ),
-    ).toMatchObject({ code: "NOT_FOUND", data: { code: "not-found" } });
+    ).toMatchObject({ code: "not-found" });
   });
 
   it("refuse a caller who isn't staff, and a signed-out one", async () => {
@@ -364,24 +312,23 @@ describe("the calls under the procedures, per role", () => {
 
   it("let the game's makers and its agents read, and refuse its players", async () => {
     for (const actor of [staff, publisher, editor, agent])
-      for (const run of reads(actor)) expect(await libRefusal(run)).toBeNull();
+      for (const run of reads(actor)) await run();
     for (const run of reads(player))
-      expect(await libRefusal(run)).toMatchObject({ code: "release-forbidden" });
+      expect(await refusal(run)).toMatchObject({ code: "release-forbidden" });
   });
 
   it("move preview for editors and agents, and production for publishers only", async () => {
-    for (const actor of [editor, agent, publisher])
-      expect(await libRefusal(() => promoteAs(actor, "preview"))).toBeNull();
-    expect(await libRefusal(() => promoteAs(publisher, "production"))).toBeNull();
-    expect(await libRefusal(() => promoteAs(editor, "production"))).toMatchObject({
+    for (const actor of [editor, agent, publisher]) await promoteAs(actor, "preview");
+    await promoteAs(publisher, "production");
+    expect(await refusal(() => promoteAs(editor, "production"))).toMatchObject({
       code: "release-forbidden",
       message: "Only the game's publishers can do this.",
     });
-    expect(await libRefusal(() => promoteAs(agent, "production"))).toMatchObject({
+    expect(await refusal(() => promoteAs(agent, "production"))).toMatchObject({
       code: "release-forbidden",
       message: "Production releases are moved by a person on the game's page.",
     });
-    expect(await libRefusal(() => promoteAs(player, "preview"))).toMatchObject({
+    expect(await refusal(() => promoteAs(player, "preview"))).toMatchObject({
       code: "release-forbidden",
     });
   });

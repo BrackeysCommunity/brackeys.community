@@ -26,6 +26,10 @@
   EventSource, so the client polls. Every live.state the frame reports,
   every swap the client surfaces and every live read is kept on
   window.__playHost.live.
+
+  window.__playHost.requestRecording() asks the frame for its run's
+  recording through the host server; every download the frame offers is
+  kept, decoded, on window.__playHost.downloads.
 -->
 <html lang="en">
   <head>
@@ -75,6 +79,8 @@
         claim: null,
         frameMessages: [],
         storeCalls: [],
+        downloads: [],
+        requestRecording: () => false,
         live: null,
       };
       window.__playHost = record;
@@ -174,8 +180,16 @@
           record.states.push(s.jamsState);
           if (s.issue) record.issues.push(s.issue.message);
         },
+        onDownload: (d) =>
+          record.downloads.push({
+            name: d.name,
+            contentType: d.contentType,
+            bytes: d.bytes.byteLength,
+            text: new TextDecoder().decode(d.bytes),
+          }),
       });
       Object.defineProperty(record, "dropped", { get: () => server.dropped });
+      record.requestRecording = () => server.requestRecording();
 
       // As PlayFrame: only a moving name carries live scenes, and only over the release this frame runs.
       if (record.live && initial && initial.release === need("release")) {

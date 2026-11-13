@@ -6,12 +6,14 @@ import { formatCount } from "../format-bytes";
 import { releaseDay } from "../jam-links";
 import { SITE } from "../legal-meta";
 import {
+  LIVE_LIMITS,
   MIN_HOSTED_ENGINE,
   PROJECT_QUOTA,
   RELEASE_FILE_PUTS_PER_HOUR,
   RELEASE_GRACE_DAYS,
   UPLOAD_SESSION_HOURS,
 } from "./limits";
+import { breakerReason } from "./live-outcomes";
 
 /** The codes only the site's release API answers with; engine codes pass through beside them. */
 export const RELEASE_ERROR_CODES = [
@@ -129,20 +131,40 @@ export function releaseEngineOld(built: string): ReleaseApiError {
   };
 }
 
-export function releaseNotCanonical(): ReleaseApiError {
-  return {
-    code: "release-not-canonical",
-    message:
-      "This release.json isn't the text the engine writes for it, so its release id can't be checked.",
-    hint: "Upload the build's own release.json unchanged; build again if it was edited.",
-  };
+/** What an upload sends: a release's build, or one scene's version. */
+export type UploadKind = "release" | "scene-version";
+
+export function releaseNotCanonical(what: UploadKind = "release"): ReleaseApiError {
+  return what === "release"
+    ? {
+        code: "release-not-canonical",
+        message:
+          "This release.json isn't the text the engine writes for it, so its release id can't be checked.",
+        hint: "Upload the build's own release.json unchanged; build again if it was edited.",
+      }
+    : {
+        code: "release-not-canonical",
+        message:
+          "This scene-version.json isn't the text the engine writes for it, so its version id can't be checked.",
+        hint: "Send the scene version as the engine wrote it; build it again if it was edited.",
+      };
 }
 
 export function releaseProjectMismatch(
   field: "project" | "game",
   want: string,
   got: string,
+  what: UploadKind = "release",
 ): ReleaseApiError {
+  if (what === "scene-version")
+    return {
+      code: "release-project-mismatch",
+      message:
+        field === "project"
+          ? `This scene version is of the project "${got}", not "${want}".`
+          : `This scene version is for the game "${got}"; the project "${want}" hosts another game.`,
+      hint: "Publish from the project's own repository, or to the project the version names.",
+    };
   return {
     code: "release-project-mismatch",
     message:
@@ -177,18 +199,27 @@ export function releaseUploadExpired(): ReleaseApiError {
   };
 }
 
-export function releaseRateLimited(what: "files" | "begins"): ReleaseApiError {
-  return what === "files"
-    ? {
+export function releaseRateLimited(what: "files" | "begins" | "scene-begins"): ReleaseApiError {
+  switch (what) {
+    case "files":
+      return {
         code: "release-rate-limited",
         message: `You've uploaded ${formatCount(RELEASE_FILE_PUTS_PER_HOUR)} release files this hour, the most per hour.`,
         hint: "Wait a few minutes and run the release command again; files already uploaded aren't sent twice.",
-      }
-    : {
+      };
+    case "begins":
+      return {
         code: "release-rate-limited",
         message: "This project has started too many uploads this hour.",
         hint: "Wait a few minutes, then run the release command again.",
       };
+    case "scene-begins":
+      return {
+        code: "release-rate-limited",
+        message: `You've started ${formatCount(LIVE_LIMITS.beginsPerHour)} scene publishes this hour, the most per hour.`,
+        hint: "Wait a few minutes, then publish again.",
+      };
+  }
 }
 
 export function releaseForbidden(
@@ -245,7 +276,7 @@ export function liveBlocked(
   const label = sceneVersionName(version.scene, version.number);
   const because =
     "failed" in why
-      ? `: ${formatCount(why.failed)} of ${formatCount(why.total)} players' games failed after it.`
+      ? `: ${breakerReason(why.failed, why.total)}.`
       : why.reason
         ? `: ${why.reason}`
         : ".";

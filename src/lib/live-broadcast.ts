@@ -3,29 +3,65 @@ import type IORedis from "ioredis";
 import { bestEffort } from "@/lib/posthog-server";
 import { createRedisClient } from "@/lib/redis";
 
-export type BroadcastOptions<T> = {
+/** How announcements travel: JSON through `parse`, or a wire format of the broadcast's own. */
+type BroadcastWire<T> =
+  | {
+      /** An announcement as it arrives, JSON-decoded, or null to drop it. */
+      parse(raw: unknown): T | null;
+      encode?: undefined;
+      decode?: undefined;
+    }
+  | {
+      parse?: undefined;
+      /** An announcement as the channel carries it. */
+      encode(event: T): string;
+      /** A channel message, or null to drop it. */
+      decode(message: string): T | null;
+    };
+
+export type BroadcastOptions<T> = BroadcastWire<T> & {
   /** Names the broadcast's Redis clients and its telemetry, and keys its per-instance state. */
   name: string;
   /** The Redis channel. */
   channel: string;
-  /** An announcement as it arrives, or null to drop it. */
-  parse(raw: unknown): T | null;
   /** Without `REDIS_URL`, fan announcements out on this instance; otherwise they go nowhere. */
   localWithoutRedis?: boolean;
+  /**
+   * `announce` hands the event to this instance's listeners at once, then
+   * publishes it; with Redis they hear it again through the subscriber, so
+   * their listeners must take an event twice.
+   */
+  deliverHere?: boolean;
   /** Fields a failed announce reports with. */
   context?(event: T): Record<string, unknown>;
 };
 
+/** The part of an ioredis client a broadcast's subscriber uses. */
+export type BroadcastSubscriber = {
+  status: string;
+  // biome-ignore lint/suspicious/noExplicitAny: ioredis types each event's listener separately
+  on(event: "message" | "ready", listener: (...args: any[]) => void): unknown;
+  subscribe(channel: string): Promise<unknown>;
+};
+
+/** Redis clients in place of the broadcast's own, which it opens only when `REDIS_URL` is set. */
+export type BroadcastRedis = {
+  subscriber?: () => Promise<BroadcastSubscriber>;
+  publish?: (channel: string, message: string) => Promise<unknown>;
+};
+
 export type Broadcast<T> = {
   /** Best effort: with Redis down nobody hears it, so listeners keep a fallback (a poll, a refetch). */
-  announce(event: T): Promise<void>;
+  announce(event: T, redis?: BroadcastRedis): Promise<void>;
+  /** Only publishes, whatever `deliverHere` and `localWithoutRedis` say. Best effort. */
+  publish(event: T, redis?: BroadcastRedis): Promise<void>;
   /** Listen on this instance; answers the unsubscribe. */
-  listen(fn: (event: T) => void): Promise<() => void>;
+  listen(fn: (event: T) => void, redis?: BroadcastRedis): Promise<() => void>;
 };
 
 type BroadcastSlot = {
   publisher?: Promise<IORedis>;
-  subscriber?: Promise<IORedis>;
+  subscriber?: Promise<BroadcastSubscriber>;
   listeners: Set<(event: unknown) => void>;
 };
 
@@ -58,31 +94,39 @@ function fanOut(slot: BroadcastSlot, event: unknown, name: string): void {
 /**
  * One Redis channel, one publisher and one subscriber per app instance,
  * fanned out in-process to every listener. With Redis, announcements reach
- * listeners only through the subscriber, this instance's included; without
- * `REDIS_URL` they reach this instance's listeners when `localWithoutRedis`
- * is set, and nobody otherwise.
+ * listeners through the subscriber, this instance's included, and also at
+ * once with `deliverHere`; without `REDIS_URL` they reach this instance's
+ * listeners when `localWithoutRedis` or `deliverHere` is set, and nobody
+ * otherwise.
  */
 export function createBroadcast<T>(opts: BroadcastOptions<T>): Broadcast<T> {
   const { name, channel } = opts;
   const scope = `${name.replaceAll("-", "_")}.publish`;
 
-  const deliver = (raw: unknown) => {
-    const event = opts.parse(raw);
-    if (event !== null) fanOut(slotFor(name), event, name);
+  const encode = (event: T): string => (opts.encode ? opts.encode(event) : JSON.stringify(event));
+  const decode = (message: string): T | null => {
+    if (opts.decode) return opts.decode(message);
+    let raw: unknown;
+    try {
+      raw = JSON.parse(message);
+    } catch {
+      return null;
+    }
+    return opts.parse(raw);
+  };
+  /** What a listener here gets: the event as another instance would read it. */
+  const deliverHere = (event: T) => {
+    const heard = opts.decode ? opts.decode(encode(event)) : opts.parse(event);
+    if (heard !== null) fanOut(slotFor(name), heard, name);
   };
 
-  const ensureSubscriber = async (): Promise<void> => {
+  const ensureSubscriber = async (connect: () => Promise<BroadcastSubscriber>): Promise<void> => {
     const slot = slotFor(name);
-    slot.subscriber ??= createRedisClient(`${name}-subscriber`).then((client) => {
+    slot.subscriber ??= connect().then((client) => {
       client.on("message", (from: string, message: string) => {
         if (from !== channel) return;
-        let raw: unknown;
-        try {
-          raw = JSON.parse(message);
-        } catch {
-          return;
-        }
-        deliver(raw);
+        const event = decode(message);
+        if (event !== null) fanOut(slotFor(name), event, name);
       });
       // Re-subscribe on every `ready`: with the offline queue off, a
       // subscribe issued during a reconnect rejects.
@@ -99,26 +143,44 @@ export function createBroadcast<T>(opts: BroadcastOptions<T>): Broadcast<T> {
     }
   };
 
+  const defaultPublish = async (to: string, message: string): Promise<unknown> => {
+    const slot = slotFor(name);
+    slot.publisher ??= createRedisClient(name).catch((err: unknown) => {
+      slot.publisher = undefined;
+      throw err;
+    });
+    return (await slot.publisher).publish(to, message);
+  };
+  const publisherOf = (redis: BroadcastRedis) =>
+    redis.publish ?? (process.env.REDIS_URL ? defaultPublish : null);
+
+  const publish = async (
+    event: T,
+    send: (channel: string, message: string) => Promise<unknown>,
+  ): Promise<void> => {
+    await bestEffort(scope, { channel, ...opts.context?.(event) }, async () => {
+      await send(channel, encode(event));
+    });
+  };
+
   return {
-    async announce(event) {
-      if (!process.env.REDIS_URL) {
-        if (opts.localWithoutRedis) deliver(event);
-        return;
-      }
-      await bestEffort(scope, { channel, ...opts.context?.(event) }, async () => {
-        const slot = slotFor(name);
-        slot.publisher ??= createRedisClient(name).catch((err: unknown) => {
-          slot.publisher = undefined;
-          throw err;
-        });
-        await (await slot.publisher).publish(channel, JSON.stringify(event));
-      });
+    async announce(event, redis = {}) {
+      const send = publisherOf(redis);
+      if (opts.deliverHere || (!send && opts.localWithoutRedis)) deliverHere(event);
+      if (send) await publish(event, send);
     },
-    async listen(fn) {
+    async publish(event, redis = {}) {
+      const send = publisherOf(redis);
+      if (send) await publish(event, send);
+    },
+    async listen(fn, redis = {}) {
       const listener = (event: unknown) => fn(event as T);
       const slot = slotFor(name);
       slot.listeners.add(listener);
-      if (process.env.REDIS_URL) await ensureSubscriber().catch(() => {});
+      const connect =
+        redis.subscriber ??
+        (process.env.REDIS_URL ? () => createRedisClient(`${name}-subscriber`) : null);
+      if (connect) await ensureSubscriber(connect).catch(() => {});
       return () => {
         slot.listeners.delete(listener);
       };

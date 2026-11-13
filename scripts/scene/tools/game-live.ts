@@ -13,6 +13,7 @@ import type { ExportInput } from "@jams/engine/export";
 import {
   clampTiming,
   sceneVersionName,
+  SWAP_TIMINGS,
   type GameDefinition,
   type SwapStrategy,
   type SwapTiming,
@@ -36,6 +37,7 @@ import {
   readSceneVersion,
   releaseId,
   SCENE_KIND_NAME,
+  sceneVersionDataBytes,
   sceneVersionOptions,
   sha256,
   type ReleaseManifest,
@@ -265,7 +267,7 @@ async function sourceOf(
 function sizesOf(built: Pick<Built, "version" | "texts">) {
   const versionText = formatSceneVersion(built.version);
   const texts = [...built.texts].map(([sha, text]) => ({ sha256: sha, bytes: utf8Bytes(text) }));
-  const dataBytes = utf8Bytes(versionText) + texts.reduce((n, t) => n + t.bytes, 0);
+  const dataBytes = sceneVersionDataBytes(versionText, built.version);
   return { versionText, texts, dataBytes };
 }
 
@@ -716,8 +718,6 @@ type LiveCommitAnswer = {
   created: boolean;
   liveOn: "preview" | null;
 };
-
-const SWAP_TIMINGS: readonly SwapTiming[] = ["next-load", "boundary", "now"];
 
 const timingOf = (value: string | undefined): SwapTiming | null =>
   SWAP_TIMINGS.find((t) => t === value) ?? null;

@@ -1,8 +1,17 @@
 export type SseOptions = {
-  /** Starts the events; answers the unsubscribe, called once when the stream ends. */
-  subscribe(send: (event: string, data: unknown) => void): Promise<() => void>;
+  /**
+   * Starts the events; answers the unsubscribe, called once when the stream
+   * ends. `send` writes `data` as JSON; `sendRaw` writes text that already is
+   * the event's data, such as a JSON message off a Redis channel.
+   */
+  subscribe(
+    send: (event: string, data: unknown) => void,
+    sendRaw: (event: string, data: string) => void,
+  ): Promise<() => void>;
   /** A `: ping` comment this often; default 25 seconds. */
   heartbeatMs?: number;
+  /** Runs with every ping, such as to keep a presence key alive. */
+  onHeartbeat?: () => void;
   /** Closes the stream after this long; no limit unless given. */
   maxMs?: number;
 };
@@ -14,6 +23,13 @@ const SSE_HEADERS = {
   "X-Accel-Buffering": "no",
 } as const;
 
+/** One `data:` line per line of text, so a line break can't end the event early. */
+const dataLines = (data: string): string =>
+  data
+    .split(/\r\n|\r|\n/)
+    .map((line) => `data: ${line}`)
+    .join("\n");
+
 /**
  * A `text/event-stream` answer that ends with the request: `: connected`
  * once subscribed, a `: ping` every heartbeat, an optional lifetime
@@ -21,7 +37,7 @@ const SSE_HEADERS = {
  * abort.
  */
 export function sseResponse(request: Request, opts: SseOptions): Response {
-  const { heartbeatMs = 25_000, maxMs } = opts;
+  const { heartbeatMs = 25_000, maxMs, onHeartbeat } = opts;
   const encoder = new TextEncoder();
   let controllerRef: ReadableStreamDefaultController<Uint8Array> | null = null;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
@@ -62,9 +78,10 @@ export function sseResponse(request: Request, opts: SseOptions): Response {
       }
       let stop: () => void;
       try {
-        stop = await opts.subscribe((event, data) => {
-          write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-        });
+        stop = await opts.subscribe(
+          (event, data) => write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+          (event, data) => write(`event: ${event}\n${dataLines(data)}\n\n`),
+        );
       } catch (err) {
         console.warn("[sse] subscribe failed", err);
         cleanup();
@@ -76,7 +93,14 @@ export function sseResponse(request: Request, opts: SseOptions): Response {
       }
       unsubscribe = stop;
       write(`: connected\n\n`);
-      heartbeat = setInterval(() => write(`: ping\n\n`), heartbeatMs);
+      heartbeat = setInterval(() => {
+        write(`: ping\n\n`);
+        try {
+          onHeartbeat?.();
+        } catch (err) {
+          console.warn("[sse] heartbeat hook failed", err);
+        }
+      }, heartbeatMs);
       if (maxMs !== undefined) lifetime = setTimeout(cleanup, maxMs);
     },
     cancel() {

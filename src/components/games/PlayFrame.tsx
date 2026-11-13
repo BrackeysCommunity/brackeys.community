@@ -31,9 +31,10 @@ export type PlayFrameProps = {
   live?: LiveSnapshot | null;
   /**
    * Loads the play payload again, for the channel's new release: the frame
-   * reloads with the new URL. Without it Reload reloads the whole page.
+   * reloads with the new URL, and a rejection offers Reload again. Without it
+   * Reload reloads the whole page.
    */
-  onReload?: () => void;
+  onReload?: () => Promise<unknown>;
   /** The project plays online, as the host channel's `welcome` tells the frame. */
   online?: boolean;
   saves: HostServerOptions["saves"];
@@ -59,6 +60,11 @@ export const LIVE_SWAP_TOAST = "This level was just updated.";
 /** The channel moved to another release, which only a reload can play. */
 export const liveReleaseToast = (title: string): string =>
   `A new version of ${title} is available.`;
+/** While Reload fetches the new release. */
+export const LIVE_RELEASE_LOADING = "Loading the new version…";
+/** Reload couldn't fetch the new release; the game plays on as it was. */
+export const liveReleaseFailedToast = (title: string): string =>
+  `The new version of ${title} didn't load.`;
 /** Shown as the frame reloads off a version staff hid. */
 export const LIVE_REMOVED_NOTICE = "A level in this game was removed by moderators.";
 
@@ -75,6 +81,48 @@ function safeFileName(name: string): string {
 function saveToDisk(offer: DownloadOffer): void {
   const type = MIME.test(offer.contentType) ? offer.contentType : "application/octet-stream";
   downloadBlob(safeFileName(offer.name), new Blob([offer.bytes], { type }));
+}
+
+/**
+ * The new-version toast's Reload: the toast turns into a pending one while the
+ * play reloads, and offers Reload again if that fails. Nothing more shows once
+ * the frame it belongs to has gone.
+ */
+function releaseReloadAction(
+  current: () => { reload: (() => Promise<unknown>) | undefined; title: string },
+  gone: () => boolean,
+) {
+  const action = {
+    label: "Reload",
+    onClick: (event: { preventDefault(): void }) => {
+      const { reload, title } = current();
+      if (!reload) {
+        window.location.reload();
+        return;
+      }
+      // Keeps the toast open: it becomes the pending state.
+      event.preventDefault();
+      toast.loading(LIVE_RELEASE_LOADING, {
+        id: LIVE_RELEASE_TOAST_ID,
+        duration: Number.POSITIVE_INFINITY,
+        action: undefined,
+      });
+      reload().then(
+        () => {
+          if (!gone()) toast.dismiss(LIVE_RELEASE_TOAST_ID);
+        },
+        () => {
+          if (gone()) return;
+          toast.error(liveReleaseFailedToast(title), {
+            id: LIVE_RELEASE_TOAST_ID,
+            duration: Number.POSITIVE_INFINITY,
+            action,
+          });
+        },
+      );
+    },
+  };
+  return action;
 }
 
 /** The sandboxed game frame and the play page's end of its host channel. */
@@ -148,6 +196,7 @@ export function PlayFrame({
     if (!iframe) return;
     const initial = latest().live;
     let liveClient: LiveClient | null = null;
+    let gone = false;
     const server = createHostServer({
       iframe,
       release: { id: releaseId, gameId, projectId },
@@ -192,14 +241,10 @@ export function PlayFrame({
               toast(liveReleaseToast(latest().title), {
                 id: LIVE_RELEASE_TOAST_ID,
                 duration: Number.POSITIVE_INFINITY,
-                action: {
-                  label: "Reload",
-                  onClick: () => {
-                    const reload = latest().onReload;
-                    if (reload) reload();
-                    else window.location.reload();
-                  },
-                },
+                action: releaseReloadAction(
+                  () => ({ reload: latest().onReload, title: latest().title }),
+                  () => gone,
+                ),
               }),
             onRemoved: () => {
               toast(LIVE_REMOVED_NOTICE);
@@ -213,6 +258,7 @@ export function PlayFrame({
     announce(server);
     return () => {
       liveClient?.dispose();
+      gone = true;
       toast.dismiss(LIVE_RELEASE_TOAST_ID);
       serverRef.current = null;
       server.dispose();

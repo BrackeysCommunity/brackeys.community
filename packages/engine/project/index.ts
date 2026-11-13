@@ -268,7 +268,7 @@ export {
   type ReleaseTarget,
   type ThirdPartyLicence,
 } from "./release";
-export { liveFiles, type AssetFiles } from "./release-assets";
+export { liveFiles, utf8Bytes, type AssetFiles } from "./release-assets";
 export {
   buildSceneVersion,
   checkSceneVersion,
@@ -281,6 +281,7 @@ export {
   readSceneVersion,
   SCENE_VERSION_SCHEMA_ID,
   SCENE_VERSION_VERSION,
+  sceneVersionDataBytes,
   sceneVersionId,
   sceneVersionJsonSchema,
   sceneVersionOptions,

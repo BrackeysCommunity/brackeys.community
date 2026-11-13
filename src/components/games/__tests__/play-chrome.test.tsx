@@ -83,12 +83,14 @@ const toasts = vi.hoisted(() => ({
   dismiss: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
+  loading: vi.fn(),
 }));
 vi.mock("@/lib/toast", () => ({
   toast: Object.assign(toasts.show, {
     dismiss: toasts.dismiss,
     success: toasts.success,
     error: toasts.error,
+    loading: toasts.loading,
   }),
 }));
 vi.mock("@/lib/engine/save-store", async () => {
@@ -182,7 +184,9 @@ function saveText(slot: string): string {
 }
 
 function wrap(node: ReactNode) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, retryDelay: 0 } },
+  });
   return render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>);
 }
 
@@ -562,7 +566,10 @@ function lastClient(): LiveClientOptions {
   return opts;
 }
 
-type ToastAction = { action: { label: string; onClick: () => void } };
+type ToastAction = {
+  action: { label: string; onClick: (event: { preventDefault(): void }) => void };
+};
+const reload = (options: ToastAction) => options.action.onClick({ preventDefault: () => {} });
 
 describe("live levels on the play page", () => {
   it("follows latest's live scenes and welcomes the frame with them", async () => {
@@ -618,7 +625,7 @@ describe("live levels on the play page", () => {
         live: liveOn(RELEASE_B),
       }),
     );
-    act(() => options.action.onClick());
+    act(() => reload(options));
     await waitFor(() =>
       expect(screen.getByTitle("Tactics").getAttribute("src")).toBe(frameOf(RELEASE_B)),
     );
@@ -627,17 +634,32 @@ describe("live levels on the play page", () => {
     expect(lastClient().initial.release).toBe(RELEASE_B);
   });
 
-  it("keeps the game it has when the reload for a new release fails", async () => {
+  it("keeps the game it has when the reload for a new release fails, and offers it again", async () => {
     calls.getGamePlay.mockResolvedValue(payload({ live: liveOn(RELEASE_A) }));
     wrap(<PlayPage projectId="tactics" version="latest" />);
     await screen.findByTitle("Tactics");
     act(() => lastClient().onReleaseMoved());
     const [, options] = toasts.show.mock.calls[0] as [string, ToastAction];
     calls.getGamePlay.mockRejectedValue(new Error("offline"));
-    act(() => options.action.onClick());
-    await waitFor(() => expect(calls.getGamePlay).toHaveBeenCalledTimes(2));
-    await new Promise((r) => setTimeout(r, 0));
+    act(() => reload(options));
+    expect(toasts.loading.mock.calls[0]?.[0]).toBe("Loading the new version…");
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledTimes(1));
+    // The first load, then the reload and its two retries.
+    expect(calls.getGamePlay).toHaveBeenCalledTimes(4);
+    expect(toasts.error.mock.calls[0]?.[0]).toBe("The new version of Tactics didn't load.");
     expect(screen.getByTitle("Tactics").getAttribute("src")).toBe(frameOf(RELEASE_A));
+
+    calls.getGamePlay.mockResolvedValue(
+      payload({
+        release: { ...payload().release, id: RELEASE_B },
+        frameUrl: frameOf(RELEASE_B),
+        live: liveOn(RELEASE_B),
+      }),
+    );
+    act(() => reload(toasts.error.mock.calls[0]?.[1] as ToastAction));
+    await waitFor(() =>
+      expect(screen.getByTitle("Tactics").getAttribute("src")).toBe(frameOf(RELEASE_B)),
+    );
   });
 
   it("gives an embed of latest the same live client and Reload", async () => {
@@ -656,7 +678,7 @@ describe("live levels on the play page", () => {
         live: liveOn(RELEASE_B),
       }),
     );
-    act(() => options.action.onClick());
+    act(() => reload(options));
     await waitFor(() =>
       expect(screen.getByTitle("Tactics").getAttribute("src")).toBe(frameOf(RELEASE_B)),
     );

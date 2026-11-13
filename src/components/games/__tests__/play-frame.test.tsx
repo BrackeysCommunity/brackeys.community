@@ -45,11 +45,35 @@ vi.mock("@/lib/engine/live-client", () => ({
   },
 }));
 
-const toasts = vi.hoisted(() => ({ show: vi.fn(), dismiss: vi.fn() }));
-vi.mock("@/lib/toast", () => ({ toast: Object.assign(toasts.show, { dismiss: toasts.dismiss }) }));
+const toasts = vi.hoisted(() => ({
+  show: vi.fn(),
+  dismiss: vi.fn(),
+  loading: vi.fn(),
+  error: vi.fn(),
+}));
+vi.mock("@/lib/toast", () => ({
+  toast: Object.assign(toasts.show, {
+    dismiss: toasts.dismiss,
+    loading: toasts.loading,
+    error: toasts.error,
+  }),
+}));
 
-const { PlayFrame, LIVE_REMOVED_NOTICE, LIVE_SWAP_TOAST, liveReleaseToast } =
-  await import("../PlayFrame");
+const {
+  PlayFrame,
+  LIVE_RELEASE_LOADING,
+  LIVE_REMOVED_NOTICE,
+  LIVE_SWAP_TOAST,
+  liveReleaseFailedToast,
+  liveReleaseToast,
+} = await import("../PlayFrame");
+
+type ToastAction = { label: string; onClick: (event: { preventDefault(): void }) => void };
+const click = (action: ToastAction) => {
+  const preventDefault = vi.fn();
+  action.onClick({ preventDefault });
+  return preventDefault;
+};
 
 const FRAME_URL = "https://play.example.test/frames/rel-1/index.html?host=jams";
 
@@ -79,6 +103,8 @@ beforeEach(() => {
   live.clients.length = 0;
   toasts.show.mockReset();
   toasts.dismiss.mockReset();
+  toasts.loading.mockReset();
+  toasts.error.mockReset();
   downloads.downloadBlob.mockReset();
   hidden = false;
   Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
@@ -282,21 +308,72 @@ describe("PlayFrame's live levels", () => {
     expect(LIVE_SWAP_TOAST).toBe("This level was just updated.");
   });
 
-  it("offers Reload for a new release, which loads the play again", () => {
-    const onReload = vi.fn();
+  it("offers Reload for a new release, which loads the play again", async () => {
+    const onReload = vi.fn(async () => {});
     render(<PlayFrame {...props({ live: SNAPSHOT, onReload })} />);
     act(() => liveClient().opts.onReleaseMoved());
     expect(toasts.show).toHaveBeenCalledTimes(1);
     const [text, options] = toasts.show.mock.calls[0] as [
       string,
-      { action: { label: string; onClick: () => void } },
+      { id: string; action: ToastAction },
     ];
     expect(text).toBe("A new version of Tactics is available.");
     expect(liveReleaseToast("Tactics")).toBe(text);
     expect(options.action.label).toBe("Reload");
     expect(onReload).not.toHaveBeenCalled();
-    options.action.onClick();
+
+    const keptOpen = click(options.action);
     expect(onReload).toHaveBeenCalledTimes(1);
+    expect(keptOpen).toHaveBeenCalled();
+    expect(toasts.loading).toHaveBeenCalledWith(
+      LIVE_RELEASE_LOADING,
+      expect.objectContaining({ id: options.id, action: undefined }),
+    );
+    expect(LIVE_RELEASE_LOADING).toBe("Loading the new version…");
+    await vi.waitFor(() => expect(toasts.dismiss).toHaveBeenCalledWith(options.id));
+    expect(toasts.error).not.toHaveBeenCalled();
+  });
+
+  it("says so when Reload fails, and offers it again", async () => {
+    const onReload = vi.fn<() => Promise<unknown>>().mockRejectedValueOnce(new Error("offline"));
+    onReload.mockResolvedValueOnce(undefined);
+    render(<PlayFrame {...props({ live: SNAPSHOT, onReload })} />);
+    act(() => liveClient().opts.onReleaseMoved());
+    const [, options] = toasts.show.mock.calls[0] as [string, { id: string; action: ToastAction }];
+
+    click(options.action);
+    await vi.waitFor(() => expect(toasts.error).toHaveBeenCalledTimes(1));
+    const [text, failed] = toasts.error.mock.calls[0] as [
+      string,
+      { id: string; duration: number; action: ToastAction },
+    ];
+    expect(text).toBe("The new version of Tactics didn't load.");
+    expect(liveReleaseFailedToast("Tactics")).toBe(text);
+    expect(failed.id).toBe(options.id);
+    expect(failed.duration).toBe(Number.POSITIVE_INFINITY);
+    expect(failed.action.label).toBe("Reload");
+    expect(toasts.dismiss).not.toHaveBeenCalled();
+
+    click(failed.action);
+    expect(onReload).toHaveBeenCalledTimes(2);
+    expect(toasts.loading).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(toasts.dismiss).toHaveBeenCalledWith(options.id));
+  });
+
+  it("stays quiet when Reload settles after the frame went", async () => {
+    let fail!: (error: Error) => void;
+    const onReload = vi.fn(() => new Promise<unknown>((_, reject) => (fail = reject)));
+    const { unmount } = render(<PlayFrame {...props({ live: SNAPSHOT, onReload })} />);
+    act(() => liveClient().opts.onReleaseMoved());
+    const [, options] = toasts.show.mock.calls[0] as [string, { action: ToastAction }];
+    click(options.action);
+    unmount();
+    toasts.dismiss.mockReset();
+    fail(new Error("offline"));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(toasts.error).not.toHaveBeenCalled();
+    expect(toasts.dismiss).not.toHaveBeenCalled();
   });
 
   it("names the game's current title in the new-version toast", () => {

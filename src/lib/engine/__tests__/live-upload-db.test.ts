@@ -347,6 +347,40 @@ describe("beginSceneVersion", () => {
     });
   });
 
+  it("checks the day's count again at commit, so concurrent publishes can't pass it", async () => {
+    await db.insert(engineSceneVersions).values(
+      Array.from({ length: LIVE_LIMITS.versionsPerDay - 1 }, (_, i) => ({
+        id: hex(2000 + i),
+        projectId: PROJECT,
+        sceneId: "cellar",
+        number: i + 1,
+        descriptor: "{}",
+        compatKey: hex(1),
+        physics: "none",
+        sceneHash: hex(2),
+        dataBytes: 10,
+        createdAt: NOW,
+      })),
+    );
+    const hall = await edited("hall");
+    const yard = await edited("yard");
+    const first = await begin(hall);
+    const second = await begin(yard);
+    await putSceneTexts(deps(), hall, first, staff);
+    await putSceneTexts(deps(), yard, second, staff);
+    await expect(
+      commitSceneVersion(deps(), { uploadId: first.uploadId, actor: staff }),
+    ).resolves.toMatchObject({ scene: "hall", number: 1, created: true });
+    expect(
+      await refusal(() => commitSceneVersion(deps(), { uploadId: second.uploadId, actor: staff })),
+    ).toMatchObject({
+      code: "quota-exceeded",
+      limit: "liveVersionsPerDay",
+      used: LIVE_LIMITS.versionsPerDay,
+    });
+    expect(await previewPointer("yard")).toBeNull();
+  });
+
   it("refuses a caller who isn't an editor, one past the hourly limit, and a long note", async () => {
     const v = await edited("hall");
     expect(await refusal(() => begin(v, { actor: outsider }))).toMatchObject({

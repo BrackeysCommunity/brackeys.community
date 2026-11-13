@@ -1,7 +1,10 @@
 import { ORPCError } from "@orpc/client";
 import { os } from "@orpc/server";
+import { eq } from "drizzle-orm";
 import * as z from "zod";
 
+import { db } from "@/db";
+import { engineProjects } from "@/db/schema";
 import { publishProjectRevoke } from "@/lib/canvas-sync-publish";
 import {
   AGENT_TOKEN_MAX_LABEL,
@@ -24,6 +27,9 @@ import {
   engineProjectsEnabled,
   liveEngineProject,
 } from "@/lib/engine/projects";
+import { roleOf } from "@/lib/engine/release-access";
+import type { ReleaseDb } from "@/lib/engine/release-audit";
+import { releaseViewer } from "@/lib/engine/release-viewer";
 import { signProjectSyncToken } from "@/lib/engine/sync-token";
 import { projectUsageReport } from "@/lib/engine/usage";
 import { requireStaff } from "@/orpc/middleware/auth";
@@ -185,11 +191,26 @@ export const getProjectBundle = engineStaff
     return wire;
   });
 
-/** What the project stores against its quotas, each with its line; behind `engine-games-enabled` too. */
+/**
+ * What the project stores against its quotas, each with its line, and the
+ * caller's role on it (what the editor's publish host offers them);
+ * behind `engine-games-enabled` too.
+ */
 export const getProjectUsage = engineStaff
   .input(z.object({ projectId: projectIdSchema }))
   .handler(async ({ context, input }) => {
     await assertEngineGames({ userId: context.user.id });
     if (!(await liveEngineProject(input.projectId))) throw NO_PROJECT();
-    return projectUsageReport(input.projectId);
+    const [project] = await db
+      .select({
+        projectId: engineProjects.projectId,
+        game: engineProjects.game,
+        teamId: engineProjects.teamId,
+        createdById: engineProjects.createdById,
+      })
+      .from(engineProjects)
+      .where(eq(engineProjects.projectId, input.projectId));
+    if (!project) throw NO_PROJECT();
+    const viewer = await releaseViewer(db as unknown as ReleaseDb, context.user.id, project);
+    return { ...(await projectUsageReport(input.projectId)), role: roleOf(viewer, project) };
   });

@@ -33,6 +33,7 @@ import { ScenePublishDialog } from "../panels/publish/ScenePublishDialog";
 import { prefabsReady } from "../session/live-scene-editor";
 import { buildOpenSceneVersion } from "../session/open-scene-version";
 import type { EditorProjectLink } from "../session/use-scene-editor";
+import { fakeLiveHost } from "./fake-live-host";
 
 const game = defineGame({
   id: "livy",
@@ -163,32 +164,16 @@ function holdingHost(manifest: ReleaseManifest) {
     };
     return done;
   });
-  const live: EditorLiveHost = {
-    base: async (_scene, channel) => ({
+  const live = fakeLiveHost({
+    base: vi.fn<EditorLiveHost["base"]>(async (_scene, channel) => ({
       channel,
       release: { id: "2".repeat(64), version: 1, manifest: formatReleaseManifest(manifest) },
       live: null,
       texts: {},
       latest: published.length > 0 ? published.length : null,
-    }),
+    })),
     publish,
-    list: async () => [],
-    promote: vi.fn(),
-    rollback: vi.fn(),
-    clear: vi.fn(),
-    unblock: vi.fn(),
-    usage: async () => ({ today: 0, versions: 0, bytes: 0 }),
-    role: () => ({ publisher: false }),
-    wording: {
-      noteMaxChars: 200,
-      notePlaceholder: "",
-      dataMaxBytes: 2_000_000,
-      versionsPerDay: 100,
-      data: (bytes) => `Data: ${bytes} B`,
-      today: (count) => `Today: ${count}`,
-      stopConfirm: () => "",
-    },
-  };
+  });
   return { live, publish, published, finish: () => finish() };
 }
 

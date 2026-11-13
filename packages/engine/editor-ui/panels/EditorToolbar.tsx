@@ -1,7 +1,6 @@
 import {
   ArrowDown01Icon,
   CircleIcon,
-  CloudUploadIcon,
   Cursor01Icon,
   CursorMove01Icon,
   CursorPointer01Icon,
@@ -11,6 +10,7 @@ import {
   PlayIcon,
   Redo02Icon,
   RotateClockwiseIcon,
+  Rocket01Icon,
   Route01Icon,
   SquareIcon,
   Undo02Icon,
@@ -794,7 +794,7 @@ export function EditorToolbar({
         <>
           <Divider />
           <IconButton
-            icon={CloudUploadIcon}
+            icon={Rocket01Icon}
             label="Publish scene"
             tooltip={PUBLISH_SCENE_TOOLTIP}
             onClick={() => setPublishing(true)}

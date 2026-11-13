@@ -107,13 +107,8 @@ function fakeFetch(
   });
 }
 
-const hostOver = (rpc: LiveRpc, send: SendText, publisher?: boolean) =>
-  editorLiveHost({
-    project: "demo",
-    rpc: () => Promise.resolve(rpc),
-    fetch: send,
-    ...(publisher !== undefined ? { publisher } : {}),
-  });
+const hostOver = (rpc: LiveRpc, send: SendText, publisher = true) =>
+  editorLiveHost({ project: "demo", rpc: () => Promise.resolve(rpc), fetch: send, publisher });
 
 describe("publishing a scene version", () => {
   it("begins, uploads each missing text, then commits, with progress", async () => {
@@ -218,6 +213,38 @@ describe("publishing a scene version", () => {
     });
     expect(progress.at(-1)).toEqual({ step: "promote" });
     expect(published.channel).toBe("production");
+  });
+
+  it("says a production publish whose move was refused was still saved, and announces it", async () => {
+    const calls: string[] = [];
+    const rpc = fakeRpc(calls, {
+      commitSceneVersion: vi.fn(async () => {
+        calls.push("commit");
+        return { versionId: VERSION_ID, scene: "level-1", number: 4, created: true, liveOn: null };
+      }),
+      promoteSceneVersion: vi.fn(async () => {
+        calls.push("promote");
+        throw new ORPCError("CONFLICT", {
+          message: "level-1@4 is blocked.",
+          data: { code: "live-blocked", message: "level-1@4 is blocked." },
+        });
+      }),
+    });
+    const host = hostOver(rpc, fakeFetch(calls));
+    const heard: LivePublished[] = [];
+    host.onPublished!((p) => heard.push(p));
+    await expect(
+      host.publish("{version}", texts, { channel: "production", timing: "now" }),
+    ).rejects.toMatchObject({
+      name: "PublishHostError",
+      code: "live-blocked",
+      message: "level-1@4 was saved but isn't on production: level-1@4 is blocked.",
+      hint: "Promote level-1@4 from Live scenes in the Publish panel, or publish again: the same version isn't stored twice.",
+    });
+    expect(calls).toEqual(["begin", "put bb", "put cc", "commit", "promote"]);
+    expect(heard).toEqual([
+      { versionId: VERSION_ID, scene: "level-1", number: 4, created: true, channel: null },
+    ]);
   });
 
   it("hands a refusal's code, message and hint to the caller, and stops there", async () => {
@@ -407,7 +434,7 @@ describe("the pointers and the reads", () => {
       hidden: "Hidden by staff.",
       removal: {
         at: "2026-11-30T23:30:00.000Z",
-        text: "level-1@1 will be removed on 30 Nov 2026. Point a channel at it to keep it.",
+        text: "level-1@1 will be removed on 30 Nov 2026 unless a channel points at it.",
       },
     });
   });
@@ -423,9 +450,9 @@ describe("the pointers and the reads", () => {
     expect(rpc.getProjectUsage).toHaveBeenCalledWith({ projectId: "demo" });
   });
 
-  it("lets publishers move production unless told otherwise", () => {
+  it("lets the viewer move production as the site said of their role", () => {
     const calls: string[] = [];
-    expect(hostOver(fakeRpc(calls), fakeFetch(calls)).role()).toEqual({ publisher: true });
+    expect(hostOver(fakeRpc(calls), fakeFetch(calls), true).role()).toEqual({ publisher: true });
     expect(hostOver(fakeRpc(calls), fakeFetch(calls), false).role()).toEqual({ publisher: false });
   });
 });
@@ -477,7 +504,7 @@ describe("the live wording", () => {
       "Blocked by a publisher.",
     );
     expect(liveRemovalText("level-1", 1, "2026-12-31T23:30:00Z")).toBe(
-      "level-1@1 will be removed on 31 Dec 2026. Point a channel at it to keep it.",
+      "level-1@1 will be removed on 31 Dec 2026 unless a channel points at it.",
     );
     expect(liveRemovalText("level-1", 1000, "2026-12-31T23:30:00Z")).toMatch(/^level-1@1,000 /);
     expect(liveUsageText({ kept: 12, bytes: 409_600 })).toBe(

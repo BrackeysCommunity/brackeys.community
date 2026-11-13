@@ -283,7 +283,7 @@ export type SitePublishHostOptions = {
   openTokenDialog: () => void;
   /** Where a change's side notes go, such as old copies left at the edge; default nowhere. */
   notify?: EditorNotify;
-  /** Whether this viewer may move production; default true, since only publishers and staff read the settings this host opens behind. */
+  /** Whether this viewer may move production and change the settings, from their role on the project; the editor passes it, the default is for fixtures. */
   publisher?: boolean;
   /** Default: the site's oRPC client, loaded on the first call. */
   rpc?: SitePublishRpc | (() => Promise<SitePublishRpc>);
@@ -370,7 +370,7 @@ export function sitePublishHost(opts: SitePublishHostOptions): EditorPublishHost
     live: editorLiveHost({
       project,
       rpc,
-      ...(opts.publisher !== undefined ? { publisher: opts.publisher } : {}),
+      publisher: opts.publisher ?? true,
       ...(opts.fetch ? { fetch: opts.fetch } : {}),
     }),
   };

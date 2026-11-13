@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi, type Mock } from "vite-plus/test";
 
-import { arrivalWords } from "../../game/live";
 import type { AssetId, ProjectId, Sha256 } from "../../project/index";
 import type {
   EditorLiveHost,
@@ -19,6 +18,7 @@ import { KitProvider } from "../kit/index";
 import { PublishPanel } from "../panels/publish/PublishPanel";
 import { REPLACES_UNREAD } from "../panels/publish/ReleaseList";
 import { editorPanels } from "../panels/registry";
+import { fakeLiveHost, type FakeLiveHost } from "./fake-live-host";
 
 // The Keep list asks the version check whether a live scene fits the new
 // release; these descriptor texts stand for a version that fits and one that doesn't.
@@ -446,7 +446,7 @@ describe("PublishPanel", () => {
 const MINUTE = 60_000;
 const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 const BLOCKED = "5 of 12 players' games failed after this update.";
-const FORECAST = "level-1@1 will be removed on 20 Nov 2026. Point a channel at it to keep it.";
+const FORECAST = "level-1@1 will be removed on 20 Nov 2026 unless a channel points at it.";
 
 function liveVersion(scene: string, number: number, over: Partial<LiveVersionView> = {}) {
   return {
@@ -484,42 +484,27 @@ const liveVersions = (): LiveVersionView[] => [
   }),
 ];
 
-type FakeLive = {
-  [K in keyof EditorLiveHost]: EditorLiveHost[K] extends (...args: infer A) => infer R
-    ? Mock<(...args: A) => R>
-    : EditorLiveHost[K];
-};
+type FakeLive = FakeLiveHost;
 
 function liveHost(over: Partial<FakeLive> = {}, publisher = true): FakeLive {
-  return {
-    base: vi.fn<EditorLiveHost["base"]>(async (scene, channel) => {
-      throw new Error(`no base for ${scene} on ${channel}`);
-    }),
-    publish: vi.fn<EditorLiveHost["publish"]>(async () => {
-      throw new Error("not here");
-    }),
-    list: vi.fn<EditorLiveHost["list"]>(async () => liveVersions()),
-    promote: vi.fn<EditorLiveHost["promote"]>(async (_scene, version) => ({
-      from: 3,
-      to: version,
-    })),
-    rollback: vi.fn<EditorLiveHost["rollback"]>(async () => ({ from: 4, to: null })),
-    clear: vi.fn<EditorLiveHost["clear"]>(async () => ({ from: 4, to: null })),
-    unblock: vi.fn<EditorLiveHost["unblock"]>(async () => undefined),
-    usage: vi.fn<EditorLiveHost["usage"]>(async () => ({ today: 6, versions: 12, bytes: 400_000 })),
-    role: vi.fn<EditorLiveHost["role"]>(() => ({ publisher })),
-    wording: {
-      noteMaxChars: 200,
-      notePlaceholder: "What changed, for your team (up to 200 characters)",
-      dataMaxBytes: 2 * 1024 * 1024,
-      versionsPerDay: 100,
-      data: (bytes) => `Data: ${bytes} of 2 MB`,
-      today: (count) => `Today: ${count} of 100 versions`,
-      stopConfirm: ({ release, scene, timing }) =>
-        `Players go back to v${release}'s version of ${scene} ${arrivalWords(timing)}.`,
+  return fakeLiveHost(
+    {
+      list: vi.fn<EditorLiveHost["list"]>(async () => liveVersions()),
+      promote: vi.fn<EditorLiveHost["promote"]>(async (_scene, version) => ({
+        from: 3,
+        to: version,
+      })),
+      rollback: vi.fn<EditorLiveHost["rollback"]>(async () => ({ from: 4, to: null })),
+      clear: vi.fn<EditorLiveHost["clear"]>(async () => ({ from: 4, to: null })),
+      usage: vi.fn<EditorLiveHost["usage"]>(async () => ({
+        today: 6,
+        versions: 12,
+        bytes: 400_000,
+      })),
+      ...over,
     },
-    ...over,
-  };
+    publisher,
+  );
 }
 
 const titles = (scene: AssetId) => (scene === "level-1" ? "The ford" : undefined);
@@ -699,6 +684,78 @@ describe("PublishPanel's live scenes", () => {
     mountLive(liveHost());
     const section = await screen.findByLabelText("Live scenes");
     await waitFor(() => expect(within(section).getByText(FORECAST)).toBeTruthy());
+  });
+
+  it("lists the newest version no channel plays, to promote to preview or production", async () => {
+    const saved = liveVersion("level-1", 5, { createdBy: "Sam" });
+    const live = liveHost({ list: vi.fn(async () => [saved, ...liveVersions()]) }, false);
+    const { notify } = mountLive(live);
+    const list = await screen.findByRole("list", { name: "Not live yet" });
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows).toHaveLength(1);
+    const row = rows[0]!;
+    expect(within(row).getByText("The ford")).toBeTruthy();
+    expect(row.querySelector("p")?.textContent).toBe("level-1@5 · 1d ago · Sam");
+    const production = within(row).getByRole("button", { name: "Promote to production" });
+    expect(production).toHaveProperty("disabled", true);
+    fireEvent.click(within(row).getByRole("button", { name: "Promote to preview" }));
+    await waitFor(() =>
+      expect(live.promote).toHaveBeenCalledWith("level-1", 5, "preview", "next-load"),
+    );
+    await waitFor(() =>
+      expect(notify.success.mock.calls[0]?.[0]).toBe("level-1@5 is live on preview."),
+    );
+  });
+
+  it("lists no version older than one a channel plays as not live yet", async () => {
+    mountLive(liveHost());
+    await rowOf("preview", "level-1@4");
+    expect(screen.queryByRole("list", { name: "Not live yet" })).toBeNull();
+  });
+
+  it("collapses a scene's removals into one line dated by the first", async () => {
+    const versions = [
+      ...liveVersions(),
+      liveVersion("level-1", 2, { removal: { at: "2026-11-22T00:00:00.000Z", text: "unused" } }),
+    ];
+    mountLive(liveHost({ list: vi.fn(async () => versions) }));
+    const section = await screen.findByLabelText("Live scenes");
+    await waitFor(() =>
+      expect(
+        within(section).getByText(
+          "2 versions of The ford will be removed from 20 Nov 2026 unless a channel points at them.",
+        ),
+      ).toBeTruthy(),
+    );
+    expect(within(section).queryByText(FORECAST)).toBeNull();
+  });
+
+  it("holds a row's other moves while Unblock runs", async () => {
+    let finish = () => {};
+    const live = liveHost({
+      unblock: vi.fn(() => new Promise<void>((resolve) => (finish = resolve))),
+    });
+    mountLive(live);
+    const row = await rowOf("production", "level-1@3");
+    fireEvent.click(within(row).getByRole("button", { name: "Unblock" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Unblock" }),
+    );
+    await waitFor(() => expect(live.unblock).toHaveBeenCalled());
+    const held = (name: string) =>
+      within(row).getByRole("button", { name, hidden: true }).getAttribute("aria-busy") === "true";
+    await waitFor(() => expect(held("Stop")).toBe(true));
+    expect(held("Roll back")).toBe(true);
+    await act(async () => finish());
+  });
+
+  it("shows the game's settings to publishers only", async () => {
+    mountLive(liveHost({}, false));
+    await screen.findByLabelText("Live scenes");
+    expect(screen.queryByLabelText("Game settings")).toBeNull();
+    cleanup();
+    mountLive(liveHost());
+    expect(await screen.findByLabelText("Game settings")).toBeTruthy();
   });
 
   it("shows a hidden version's badge and staff's reason, and offers no Promote for it", async () => {

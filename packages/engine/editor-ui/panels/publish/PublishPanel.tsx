@@ -247,7 +247,9 @@ function PublishBody({
               <ReleaseList releases={releases.value} onPromote={promote} replaces={replaces} />
             </>
           ) : null}
-          <GameSettings publish={publish} pending={pending} />
+          {!live || live.role().publisher ? (
+            <GameSettings publish={publish} pending={pending} />
+          ) : null}
         </div>
       </section>
     </PendingProvider>
@@ -525,7 +527,8 @@ function LiveScenes({
   const rows = versions.value.flatMap((version) =>
     version.pointers.map((pointer): LiveRow => ({ version, pointer })),
   );
-  const due = versions.value.filter((v) => v.removal !== null && !v.collected);
+  const saved = notLiveYet(versions.value);
+  const forecast = removalForecast(versions.value, (scene) => sceneTitle(scene) ?? scene);
   const publisher = live.role().publisher;
   return (
     <div className="je-insp-stack" data-gap="tight" aria-label="Live scenes">
@@ -570,11 +573,162 @@ function LiveScenes({
           );
         })
       )}
-      {due.map((v) => (
-        <Text key={v.id} as="p" size="xs" variant="warning">
-          {v.removal?.text}
+      {saved.length > 0 ? (
+        <div className="je-insp-stack" data-gap="tight" role="list" aria-label="Not live yet">
+          <Text as="p" size="xs" bold>
+            Not live yet
+          </Text>
+          {saved.map((version) => (
+            <SavedVersionRow
+              key={version.id}
+              version={version}
+              live={live}
+              title={sceneTitle(version.scene)}
+              publisher={publisher}
+              pending={pending}
+              onMoved={onMoved}
+            />
+          ))}
+        </div>
+      ) : null}
+      {forecast.map((line) => (
+        <Text key={line.scene} as="p" size="xs" variant="warning">
+          {line.text}
         </Text>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Each scene's newest version no channel points at, when it is newer than
+ * every version a channel plays: published without a channel, or saved by
+ * a production publish whose move was refused. Newest first.
+ */
+export function notLiveYet(versions: readonly LiveVersionView[]): LiveVersionView[] {
+  const pointed = new Map<AssetId, number>();
+  for (const v of versions)
+    if (v.pointers.length > 0) pointed.set(v.scene, Math.max(pointed.get(v.scene) ?? 0, v.number));
+  const newest = new Map<AssetId, LiveVersionView>();
+  for (const v of versions) {
+    if (v.pointers.length > 0 || v.collected) continue;
+    if (v.number <= (pointed.get(v.scene) ?? 0)) continue;
+    const seen = newest.get(v.scene);
+    if (!seen || seen.number < v.number) newest.set(v.scene, v);
+  }
+  return [...newest.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/**
+ * The cleanup forecast, one line per scene: a version's own sentence, or
+ * for several "3 versions of The ford will be removed from 20 Nov 2026 …",
+ * dated by the first to go.
+ */
+export function removalForecast(
+  versions: readonly LiveVersionView[],
+  titleOf: (scene: AssetId) => string,
+): { scene: AssetId; text: string }[] {
+  const due = new Map<AssetId, LiveVersionView[]>();
+  for (const v of versions) {
+    if (v.removal === null || v.collected) continue;
+    const list = due.get(v.scene);
+    if (list) list.push(v);
+    else due.set(v.scene, [v]);
+  }
+  return [...due].map(([scene, list]) => {
+    const [only] = list;
+    if (list.length === 1 && only?.removal) return { scene, text: only.removal.text };
+    const first = list.reduce((a, b) => ((b.removal?.at ?? "") < (a.removal?.at ?? "") ? b : a));
+    return {
+      scene,
+      text: `${list.length} versions of ${titleOf(scene)} will be removed from ${formatDay(first.removal?.at ?? "")} unless a channel points at them.`,
+    };
+  });
+}
+
+function SavedVersionRow({
+  version,
+  live,
+  title,
+  publisher,
+  pending,
+  onMoved,
+}: {
+  version: LiveVersionView;
+  live: EditorLiveHost;
+  title: string | undefined;
+  publisher: boolean;
+  pending: Pending;
+  onMoved: () => void;
+}) {
+  const { scene, number } = version;
+  const name = sceneVersionName(scene, number);
+  const called = title ?? scene;
+  const timing: SwapTiming = "next-load";
+  const movable = version.blocked === null && version.hidden === null;
+  const promote = async (channel: PublishChannel) => {
+    const result = await pending.run(
+      {
+        label: `Promoting ${name} to ${channel}`,
+        scope: liveScope(scene, channel),
+        success: (moved: { to: number | null }) =>
+          liveOnText(sceneVersionName(scene, moved.to ?? number), channel),
+        error: `Couldn't promote ${name}`,
+      },
+      () => live.promote(scene, number, channel, timing),
+    );
+    onMoved();
+    return result.ok;
+  };
+  return (
+    <div role="listitem" className="je-insp-stack" data-gap="tight">
+      <div className="je-insp-row je-insp-wrap" data-gap="tight">
+        <Text size="sm" bold>
+          {called}
+        </Text>
+        {version.blocked ? (
+          <Badge size="label" variant="destructive">
+            blocked
+          </Badge>
+        ) : null}
+        {version.hidden !== null ? (
+          <Badge size="label" variant="destructive">
+            hidden
+          </Badge>
+        ) : null}
+      </div>
+      <Text as="p" size="xs" variant="muted" tabular>
+        {name} · <TimeAgo date={version.createdAt} />
+        {version.createdBy ? ` · ${version.createdBy}` : ""}
+      </Text>
+      {movable ? (
+        <div className="je-insp-row je-insp-wrap" data-gap="tight">
+          <Button
+            size="xs"
+            variant="outline"
+            busyScope={liveScope(scene, "preview")}
+            onClick={() => void promote("preview")}
+          >
+            Promote to preview
+          </Button>
+          <Confirm
+            title={`Promote ${name} to production?`}
+            message={productionConfirmText(name, timing)}
+            confirmText="Promote"
+            onConfirm={() => promote("production")}
+          >
+            <Button
+              size="xs"
+              variant="outline"
+              busyScope={liveScope(scene, "production")}
+              disabled={!publisher}
+              {...(!publisher ? { tooltip: PUBLISHERS_ONLY } : {})}
+            >
+              Promote to production
+            </Button>
+          </Confirm>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -605,7 +759,9 @@ function LiveSceneRow({
   const name = sceneVersionName(scene, number);
   const called = title ?? scene;
   const scope = liveScope(scene, channel);
-  const unblockScope = `publish:live:unblock:${name}`;
+  // A preview row's Promote runs under production's scope: either busy holds the whole row.
+  const rowBusy = useBusy(scope) !== undefined;
+  const promoting = useBusy(liveScope(scene, "production")) !== undefined;
   const locked = channel === "production" && !publisher;
   const lockedTip = locked ? { tooltip: PUBLISHERS_ONLY } : {};
   const unblockLocked = !publisher && version.pointers.some((p) => p.channel === "production");
@@ -644,7 +800,7 @@ function LiveSceneRow({
       size="xs"
       variant="outline"
       busyScope={scope}
-      disabled={locked}
+      disabled={locked || promoting}
       {...lockedTip}
       {...(channel === "production" ? {} : { onClick: () => void rollBack() })}
     >
@@ -702,15 +858,14 @@ function LiveSceneRow({
                 `Couldn't unblock ${name}`,
                 () => `${name} is unblocked.`,
                 () => live.unblock(scene, number),
-                unblockScope,
               )
             }
           >
             <Button
               size="xs"
               variant="outline"
-              busyScope={unblockScope}
-              disabled={unblockLocked}
+              busyScope={scope}
+              disabled={unblockLocked || promoting}
               {...(unblockLocked ? { tooltip: PUBLISHERS_ONLY } : {})}
             >
               Unblock
@@ -738,7 +893,7 @@ function LiveSceneRow({
               size="xs"
               variant="default"
               busyScope={liveScope(scene, "production")}
-              disabled={!publisher}
+              disabled={!publisher || rowBusy}
               {...(!publisher ? { tooltip: PUBLISHERS_ONLY } : {})}
             >
               Promote to production
@@ -775,7 +930,13 @@ function LiveSceneRow({
             )
           }
         >
-          <Button size="xs" variant="outline" busyScope={scope} disabled={locked} {...lockedTip}>
+          <Button
+            size="xs"
+            variant="outline"
+            busyScope={scope}
+            disabled={locked || promoting}
+            {...lockedTip}
+          >
             Stop
           </Button>
         </Confirm>

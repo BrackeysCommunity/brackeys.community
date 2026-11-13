@@ -4,15 +4,17 @@ import { sseResponse } from "@/lib/sse";
 
 const decoder = new TextDecoder();
 
-function harness(opts: { heartbeatMs?: number; maxMs?: number } = {}) {
+function harness(opts: { heartbeatMs?: number; maxMs?: number; onHeartbeat?: () => void } = {}) {
   const abort = new AbortController();
   const request = new Request("http://test/stream", { signal: abort.signal });
   const unsubscribe = vi.fn();
   let send: ((event: string, data: unknown) => void) | undefined;
+  let sendRaw: ((event: string, data: string) => void) | undefined;
   const response = sseResponse(request, {
     ...opts,
-    subscribe: async (fn) => {
+    subscribe: async (fn, raw) => {
       send = fn;
+      sendRaw = raw;
       return unsubscribe;
     },
   });
@@ -34,6 +36,7 @@ function harness(opts: { heartbeatMs?: number; maxMs?: number } = {}) {
     unsubscribe,
     pump,
     send: (event: string, data: unknown) => send?.(event, data),
+    sendRaw: (event: string, data: string) => sendRaw?.(event, data),
     text: () => text,
     done: () => done,
   };
@@ -69,6 +72,37 @@ describe("sseResponse", () => {
     expect(h.text().match(/: ping\n\n/g)).toHaveLength(2);
     h.abort.abort();
     await h.pump;
+  });
+
+  it("writes raw data as it is, one data line per line", async () => {
+    const h = harness();
+    await flush();
+    h.sendRaw("notification", '{"id":1}');
+    h.sendRaw("note", "a\nb");
+    await flush();
+    expect(h.text()).toBe(
+      ': connected\n\nevent: notification\ndata: {"id":1}\n\nevent: note\ndata: a\ndata: b\n\n',
+    );
+    h.abort.abort();
+    await h.pump;
+  });
+
+  it("runs the heartbeat hook with every ping, past one that throws", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const onHeartbeat = vi.fn(() => {
+      if (onHeartbeat.mock.calls.length === 1) throw new Error("presence down");
+    });
+    const h = harness({ heartbeatMs: 1000, onHeartbeat });
+    await flush();
+    expect(onHeartbeat).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(onHeartbeat).toHaveBeenCalledTimes(3);
+    expect(h.text().match(/: ping\n\n/g)).toHaveLength(3);
+    h.abort.abort();
+    await h.pump;
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(onHeartbeat).toHaveBeenCalledTimes(3);
+    warn.mockRestore();
   });
 
   it("pings every 25 seconds by default", async () => {

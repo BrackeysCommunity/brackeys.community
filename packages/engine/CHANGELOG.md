@@ -37,6 +37,17 @@ follow-ups the engine's live levels left.
   ends (`the next time the level loads`, `at the next safe moment`,
   `now`), shared by the production confirms and a host's Stop sentence;
   and `versionName`, until now on `.` only.
+- `@jams/engine/project`: `sceneVersionDataBytes(text, version)`, what a
+  host's data limit counts for a scene version (its `scene-version.json`
+  plus each carried doc once), the one rule the editor's Data line, the
+  CLI and a host's refusal share; and `utf8Bytes`, until now on `.` only.
+  `@jams/engine/game`: `SWAP_TIMINGS` and `swapTimingSchema`, so a host's
+  and the CLI's timing inputs read the engine's list.
+- `@jams/engine/editor-ui`: Live scenes lists each scene's newest version
+  no channel plays, when it is newer than every version one does
+  (published on no channel, or saved by a production publish whose move
+  was refused), under 'Not live yet' with Promote to preview and, for
+  publishers, Promote to production.
 - `@jams/engine/editor-ui`: `EditorLiveHost.onPublished(listener)`,
   optional: the host calls it after each publish that went through, and
   the Publish panel's Live scenes list reloads on it, so a version
@@ -125,9 +136,25 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
   loads.' The release promote holds its Promote button while it reads
   the live scenes it replaces, and says so when it can't read them.
 - `@jams/engine/editor-ui`: the Publish scene dialog clears a refusal
-  when Where, When or the note changes or the checks run again, and no
-  longer repeats a blocking check as a refusal. It and Live in Play build
-  the open scene through one helper.
+  when Where, When or the note changes or Publish is pressed, never when
+  an edit runs the checks again, and no longer repeats a blocking check
+  as a refusal. It and Live in Play build the open scene through one
+  helper.
+- `@jams/engine/editor-ui`: the Publish scene checks run again on a change
+  to the scene, the project doc or any doc the version carries (a prefab
+  edited elsewhere), and the docs they open stay open until the dialog
+  closes instead of being reopened on every build. When the host can't
+  say today's count or the scene's versions, the checks say so; a channel
+  whose base doesn't load offers Try again. Production's choice reads
+  'Production: players get it.', its publishers-only hint staying on the
+  disabled choice, and the release beside each choice takes the choice's
+  size.
+- `@jams/engine/editor-ui`: Live scenes says a scene's cleanup forecast in
+  one line ('3 versions of The ford will be removed from 20 Nov 2026
+  unless a channel points at them.'); Unblock holds the row's other moves
+  while it runs, and a preview row's Promote holds its Roll back and Stop;
+  the game's settings show only to publishers when the host's live role
+  says so.
 
 ### Fixed
 
@@ -187,6 +214,14 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
   rollback and clear (one pointer writer, `pointScene`, checked by
   `checkPointerTarget`), block, unblock, hide, unhide, the staff queue and
   players' reports.
+- Site only: a scene version's commit checks the day's count and release
+  storage again under the project's lock; a rollback without `to` goes
+  back past a release move that cleared or restored the scene; a
+  timing-only move keeps the pointer's `updated_at`, which the breaker's
+  window starts from; the version list reads every stored version but only
+  each scene's five newest removed ones, and each pointer's latest mover;
+  `getProjectUsage` answers the caller's `role`, so a game's editors get
+  the editor's live publishing with production off.
 - Site only: the frame route serves `live/<sha256><ext>` under a release
   whose compat key a kept, unhidden version shares (410 'This level was
   removed' for a hidden one); the collector drops scene versions past the

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type * as Y from "yjs";
 
 import type { ProjectSession } from "../../../collab/index";
@@ -22,6 +22,7 @@ import {
   parseSceneVersion,
   readReleaseScene,
   readSceneVersion,
+  sceneVersionDataBytes,
   type AssetId,
   type SceneVersion,
   type SceneVersionRead,
@@ -53,7 +54,11 @@ import {
   Textarea,
   type TextTone,
 } from "../../kit/index";
-import { buildOpenSceneVersion } from "../../session/open-scene-version";
+import {
+  buildOpenSceneVersion,
+  versionDocNames,
+  watchProjectDocs,
+} from "../../session/open-scene-version";
 import type { EditorProjectLink } from "../../session/use-scene-editor";
 import { ChoiceGroup } from "./ChoiceGroup";
 import { LIVE_CHANNELS, liveOnText, productionConfirmText, PUBLISHERS_ONLY } from "./live-wording";
@@ -62,7 +67,7 @@ import { LIVE_CHANNELS, liveOnText, productionConfirmText, PUBLISHERS_ONLY } fro
 
 export const WHERE_TEXT: Readonly<Record<PublishChannel, string>> = {
   preview: "Preview: your team sees it on the preview link.",
-  production: "Production: players get it. Only publishers can choose this.",
+  production: "Production: players get it.",
 };
 
 export const TIMING_TEXT: Readonly<Record<SwapTiming, string>> = {
@@ -74,6 +79,11 @@ export const TIMING_TEXT: Readonly<Record<SwapTiming, string>> = {
 /** The tooltip on a timing the game doesn't list. */
 export const TIMING_UNDECLARED =
   "This game doesn't accept this timing (GameDefinition.live.timings).";
+
+/** The checks' lines when the host couldn't say today's count, or the scene's versions. */
+export const TODAY_UNCHECKED =
+  "Couldn't check today's count of versions; the site still checks it when you publish.";
+export const EDITORS_UNCHECKED = "Couldn't check who edited the scene since its last version.";
 
 export const IN_PLACE = "Players' worlds update in place.";
 export const REBUILT =
@@ -108,19 +118,6 @@ export type PublishChecks = {
   /** The first blocking line's text; null when Publish may go ahead. */
   blocked: string | null;
 };
-
-/** The version file plus every doc it carries, each once: what the data limit counts. */
-export function versionDataBytes(text: string, version: SceneVersion): number {
-  const encoder = new TextEncoder();
-  const seen = new Set<string>();
-  let bytes = encoder.encode(text).length;
-  for (const asset of Object.values(version.assets)) {
-    if (asset.storage !== "doc" || seen.has(asset.sha256)) continue;
-    seen.add(asset.sha256);
-    bytes += asset.bytes;
-  }
-  return bytes;
-}
 
 /**
  * "Edited since level-1@3 by Jo, Sam.": the people and agents whose edits to
@@ -188,10 +185,13 @@ export type PublishCheckInput = {
   registry: Registry;
   game: GameDefinition;
   base: LiveBaseView;
-  usage: LiveUsageView | null;
-  /** The scene's newest version, for the editors-since line. */
-  last: LiveVersionView | null;
+  /** Today's count; null while it's asked, `failed` when the host couldn't say. */
+  usage: LiveUsageView | "failed" | null;
+  /** The scene's newest version, for the editors-since line; `failed` when the list didn't load. */
+  last: LiveVersionView | "failed" | null;
   live: Pick<EditorLiveHost, "wording">;
+  /** Whether to hold a doc the build opened; the caller releases those it holds. */
+  keep?: (name: string) => boolean;
 };
 
 /**
@@ -201,10 +201,17 @@ export type PublishCheckInput = {
  * the data size, today's count and who edited since the last version.
  */
 export async function publishChecks(input: PublishCheckInput): Promise<PublishChecks> {
-  const { project, scene, doc, registry, game, base, usage, last, live } = input;
+  const { project, scene, doc, registry, game, base, usage, last, live, keep } = input;
   const lines: PublishCheck[] = [];
   const next = sceneVersionName(scene, (base.latest ?? 0) + 1);
-  const made = await buildOpenSceneVersion(project, scene, doc, registry, game);
+  const made = await buildOpenSceneVersion(
+    project,
+    scene,
+    doc,
+    registry,
+    game,
+    keep ? { keep } : {},
+  );
   let built: BuiltSceneVersion | null = null;
 
   if (!made.ok) {
@@ -248,7 +255,7 @@ export async function publishChecks(input: PublishCheckInput): Promise<PublishCh
     const diff = diffCheck(base, built, registry, game);
     if (diff) lines.push(diff);
 
-    const bytes = versionDataBytes(text, made.version);
+    const bytes = sceneVersionDataBytes(text, made.version);
     const max = live.wording.dataMaxBytes;
     lines.push({
       id: "data",
@@ -258,7 +265,8 @@ export async function publishChecks(input: PublishCheckInput): Promise<PublishCh
     });
   }
 
-  if (usage) {
+  if (usage === "failed") lines.push({ id: "today", text: TODAY_UNCHECKED, tone: "muted" });
+  else if (usage) {
     const max = live.wording.versionsPerDay;
     const full = usage.today >= max;
     lines.push({
@@ -269,10 +277,15 @@ export async function publishChecks(input: PublishCheckInput): Promise<PublishCh
     });
   }
 
-  const since = editedSinceText(
-    readLog(doc),
-    last ? { name: sceneVersionName(scene, last.number), at: Date.parse(last.createdAt) } : null,
-  );
+  const since =
+    last === "failed"
+      ? EDITORS_UNCHECKED
+      : editedSinceText(
+          readLog(doc),
+          last
+            ? { name: sceneVersionName(scene, last.number), at: Date.parse(last.createdAt) }
+            : null,
+        );
   if (since) lines.push({ id: "editors", text: since, tone: "muted" });
 
   return { built, lines, blocked: lines.find((l) => l.blocks)?.text ?? null };
@@ -364,8 +377,9 @@ export function ScenePublishDialog({
   );
   const [note, setNote] = useState("");
   const [bases, setBases] = useState<Partial<Record<PublishChannel, Loaded<LiveBaseView>>>>({});
-  const [usage, setUsage] = useState<LiveUsageView | null>(null);
-  const [last, setLast] = useState<LiveVersionView | null>(null);
+  const [usage, setUsage] = useState<LiveUsageView | "failed" | null>(null);
+  const [last, setLast] = useState<LiveVersionView | "failed" | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [rev, setRev] = useState(0);
   const [checked, setChecked] = useState<{ channel: PublishChannel; checks: PublishChecks } | null>(
     null,
@@ -375,6 +389,25 @@ export function ScenePublishDialog({
   const [confirming, setConfirming] = useState(false);
   const noteId = useId();
   const run = useRef(0);
+
+  // Docs the checks opened stay open until the dialog closes, so each build doesn't reopen them.
+  const held = useRef<{ open: boolean; names: Set<string> }>({ open: true, names: new Set() });
+  useEffect(() => {
+    const docs = { open: true, names: new Set<string>() };
+    held.current = docs;
+    const projectSession = project.session;
+    return () => {
+      docs.open = false;
+      for (const name of docs.names) projectSession.release(name);
+      docs.names.clear();
+    };
+  }, [project.session]);
+  const keep = useCallback((name: string) => {
+    const docs = held.current;
+    if (!docs.open) return false;
+    docs.names.add(name);
+    return true;
+  }, []);
 
   useEffect(() => {
     if (!scene) return;
@@ -387,32 +420,61 @@ export function ScenePublishDialog({
       );
     live.usage().then(
       (value) => alive && setUsage(value),
-      () => {},
+      () => alive && setUsage("failed"),
     );
     live.list(scene).then(
       (versions) => alive && setLast(versions[0] ?? null),
-      () => {},
+      () => alive && setLast("failed"),
     );
     return () => {
       alive = false;
     };
-  }, [live, scene]);
+  }, [live, scene, attempt]);
 
+  const retry = () => {
+    setBases({});
+    setUsage(null);
+    setLast(null);
+    setAttempt((a) => a + 1);
+  };
+
+  const base = bases[channel];
+  const baseView = base && "value" in base ? base.value : null;
+  const builtVersion =
+    checked?.channel === channel ? (checked.checks.built?.version ?? null) : null;
+  const watched = useMemo(
+    () => (builtVersion ? versionDocNames(project.session, builtVersion).join("\n") : ""),
+    [project.session, builtVersion],
+  );
+
+  // The checks run again on every change to the scene, the project, or a doc the version carries.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const onUpdate = () => {
       if (timer !== null) clearTimeout(timer);
-      timer = setTimeout(() => setRev((r) => r + 1), CHECKS_DEBOUNCE_MS);
+      timer = setTimeout(() => {
+        timer = null;
+        setRev((r) => r + 1);
+      }, CHECKS_DEBOUNCE_MS);
     };
+    const projectDoc = project.session.projectDoc;
     session.doc.on("update", onUpdate);
+    projectDoc.on("update", onUpdate);
+    const offDocs = watchProjectDocs(
+      project.session,
+      watched === "" ? [] : watched.split("\n"),
+      onUpdate,
+    );
     return () => {
-      if (timer !== null) clearTimeout(timer);
       session.doc.off("update", onUpdate);
+      projectDoc.off("update", onUpdate);
+      offDocs();
+      if (timer === null) return;
+      // A change still waiting its turn gets its run.
+      clearTimeout(timer);
+      setRev((r) => r + 1);
     };
-  }, [session.doc]);
-
-  const base = bases[channel];
-  const baseView = base && "value" in base ? base.value : null;
+  }, [session.doc, project.session, watched]);
 
   useEffect(() => {
     if (!scene || !game || !baseView) return;
@@ -427,21 +489,20 @@ export function ScenePublishDialog({
       usage,
       last,
       live,
+      keep,
     }).then(
       (checks) => {
         if (ticket !== run.current) return;
         setChecked({ channel: baseView.channel, checks });
-        setRefusal(null);
       },
       (error: unknown) => {
         if (ticket !== run.current) return;
         const text = refusalOf(error).message;
         const lines: PublishCheck[] = [{ id: "fits", text, tone: "danger", blocks: true }];
         setChecked({ channel: baseView.channel, checks: { built: null, lines, blocked: text } });
-        setRefusal(null);
       },
     );
-  }, [scene, game, baseView, usage, last, live, project.session, session.doc, registry, rev]);
+  }, [scene, game, baseView, usage, last, live, keep, project.session, session.doc, registry, rev]);
 
   const unavailable = !scene
     ? "This scene isn't in the project's registry."
@@ -450,6 +511,7 @@ export function ScenePublishDialog({
       : base && "error" in base
         ? base.error
         : null;
+  const baseFailed = !!scene && !!game && base !== undefined && "error" in base;
   const busy = phase !== null;
   const current = checked?.channel === channel ? checked.checks : null;
   const blocked = unavailable ?? (current ? current.blocked : "Checking…");
@@ -470,6 +532,7 @@ export function ScenePublishDialog({
         usage,
         last,
         live,
+        keep,
       });
       setChecked({ channel: baseView.channel, checks: fresh });
       // A blocking check is already a line of the Checks list.
@@ -531,7 +594,12 @@ export function ScenePublishDialog({
               return (
                 <>
                   {WHERE_TEXT[c]}
-                  {on ? <Text variant="muted"> · {on}</Text> : null}
+                  {on ? (
+                    <Text size="xs" variant="muted">
+                      {" "}
+                      · {on}
+                    </Text>
+                  ) : null}
                 </>
               );
             }}
@@ -580,7 +648,16 @@ export function ScenePublishDialog({
             aria-live="polite"
           >
             <MicroLabel as="div">Checks</MicroLabel>
-            {unavailable ? (
+            {baseFailed ? (
+              <div className="je-insp-row je-insp-wrap" data-gap="tight" role="listitem">
+                <Text size="xs" variant="danger" className="je-insp-grow">
+                  {unavailable}
+                </Text>
+                <Button size="xs" variant="outline" disabled={busy} onClick={retry}>
+                  Try again
+                </Button>
+              </div>
+            ) : unavailable ? (
               <Text as="p" size="xs" variant="danger" role="listitem">
                 {unavailable}
               </Text>

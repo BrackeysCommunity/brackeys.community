@@ -1,3 +1,4 @@
+import { sceneVersionName } from "@jams/engine/game";
 import type { AssetId, Sha256 } from "@jams/engine/project";
 import { and, desc, eq, inArray, isNull, max, or, sql } from "drizzle-orm";
 
@@ -14,26 +15,19 @@ import {
   projects,
 } from "@/db/schema";
 import { siteUrl } from "@/env";
-import { formatCount } from "@/lib/format-bytes";
 import { gamePagePath } from "@/lib/og/game-links";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 import { announceReleaseChange } from "./frame-cache-notice";
 import { LIVE_REPORTS_PER_HOUR } from "./limits";
 import { shouldBlock } from "./live-breaker";
-import { isFailedOutcome, type LiveOutcome } from "./live-outcomes";
-import {
-  announceLiveMove,
-  lockProject,
-  sceneVersionLabel,
-  setLiveRev,
-  type LiveChannel,
-} from "./live-pointers";
-import { actorRole, type LiveReadDeps } from "./live-versions";
+import { breakerReason, isFailedOutcome, type LiveOutcome } from "./live-outcomes";
+import { announceLiveMove, lockProject, setLiveRev, type LiveChannel } from "./live-pointers";
+import type { LiveReadDeps } from "./live-versions";
 import { canDo, canPlay, refusalFor, roleOf, type GameVisibility } from "./release-access";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
 import { releaseForbidden } from "./release-errors";
-import { liveProject, notFound, refuse, type ReleaseTxDb } from "./release-upload";
+import { actorRole, liveProject, notFound, refuse, type ReleaseTxDb } from "./release-upload";
 import { releaseViewer } from "./release-viewer";
 import { viewerOf } from "./viewer";
 
@@ -105,10 +99,6 @@ export function liveReportKey(userId: string | null, anonId?: string): string {
   return "anon";
 }
 
-/** "5 of 12 players' games failed after this update" */
-export const breakerReason = (failed: number, total: number): string =>
-  `${formatCount(failed)} of ${formatCount(total)} players' games failed after this update`;
-
 const versionColumns = {
   id: engineSceneVersions.id,
   scene: engineSceneVersions.sceneId,
@@ -129,7 +119,7 @@ async function versionByNumber(db: ReleaseDb, projectId: string, scene: AssetId,
         eq(engineSceneVersions.number, number),
       ),
     );
-  return row ?? notFound(`There is no ${sceneVersionLabel(scene, number)}.`);
+  return row ?? notFound(`There is no ${sceneVersionName(scene, number)}.`);
 }
 
 /** The channels whose pointers name the version. */

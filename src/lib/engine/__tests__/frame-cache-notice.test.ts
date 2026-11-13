@@ -55,7 +55,7 @@ let db: TestDb;
 const redis = fakeRedis();
 
 beforeAll(async () => {
-  globalThis.__appReleaseNoticeSubscriber = undefined;
+  globalThis.__appLiveBroadcasts?.delete("engine-release-notice");
   await listenForReleaseNotices({ subscriber: async () => redis.subscriber });
 });
 

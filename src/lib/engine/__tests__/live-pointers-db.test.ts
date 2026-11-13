@@ -242,6 +242,63 @@ describe("moveScenePointer", () => {
     });
   });
 
+  it("rolls back to the version a release move cleared, not the one before it", async () => {
+    await publish(await edited("hall", 4));
+    await publish(await edited("hall", 5));
+    await move({ scene: "hall", channel: "preview", to: { number: 1 } });
+    await move({ scene: "hall", channel: "preview", to: { number: 2 } });
+    const next = await plannedRelease({
+      projectId: PROJECT,
+      gameId: GAME,
+      engineVersion: "0.14.1",
+      hallVariant: 1,
+    });
+    await uploadRelease(deps(), next, { actor: publisher, channel: "preview" });
+    expect(await pointers()).toEqual([]);
+
+    expect(
+      await move({ scene: "hall", channel: "preview", to: "previous", action: "scene-rollback" }),
+    ).toEqual({ from: null, to: 2 });
+  });
+
+  it("keeps a pointer's time when only its timing changes, for the breaker's window", async () => {
+    await publish(await edited("hall", 4));
+    await publish(await edited("hall", 5));
+    await move({ scene: "hall", channel: "preview", to: { number: 1 } });
+    const later = (minutes: number, number: number) =>
+      moveScenePointer(
+        uploadDeps(store, { now: () => new Date(NOW.getTime() + minutes * 60_000) }),
+        {
+          projectId: PROJECT,
+          scene: "hall",
+          channel: "preview",
+          to: { number },
+          timing: "boundary",
+          actor: editor,
+          action: "scene-promote",
+        },
+      );
+    const stamped = async () =>
+      (
+        await db
+          .select({
+            at: engineSceneChannels.updatedAt,
+            by: engineSceneChannels.updatedById,
+            timing: engineSceneChannels.timing,
+          })
+          .from(engineSceneChannels)
+      )[0];
+
+    await later(10, 1);
+    expect(await stamped()).toEqual({ at: NOW, by: "pub", timing: "boundary" });
+    await later(30, 2);
+    expect(await stamped()).toEqual({
+      at: new Date(NOW.getTime() + 30 * 60_000),
+      by: "editor",
+      timing: "boundary",
+    });
+  });
+
   it("refuses a rollback with nothing to go back to", async () => {
     expect(
       await refusal(() =>

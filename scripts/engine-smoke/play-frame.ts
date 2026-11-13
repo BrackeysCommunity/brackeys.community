@@ -40,8 +40,11 @@
  *   edit) is published through `beginSceneVersion`/`commitSceneVersion`
  *   and production is pointed at it with `now`. With the stream the frame
  *   applies it at once; without one (`stream=off`) within one poll
- *   interval. Either way it is a reconcile mid-run, so the player keeps
- *   their position, and the frame read it from its own release's `live/`.
+ *   interval. Either way it is a reconcile mid-run, and the player keeps
+ *   their position: the frame's own run recording, asked for through the
+ *   host server, puts them where they were across the swap's tick, give or
+ *   take one tick's motion. The frame read the version from its own
+ *   release's `live/`.
  *   The stream run also asks the frame route for a version recorded
  *   against another release's compat key and for the version under
  *   another project's release: both 404, while the version itself is served;
@@ -103,7 +106,11 @@ import {
   judgeCanvasChange,
   judgeDrawn,
   pixelHash,
+  readRecording,
+  RECORDING_TIMEOUT_MS,
+  recordingDownload,
   RUN_TIMEOUT_MS,
+  type DownloadSeen,
 } from "./export";
 import { SAVE_SERVER_PARAM } from "./fixtures/own-saves/store";
 import { REPO } from "./pack";
@@ -539,6 +546,8 @@ export type LiveRunProbe = {
   liveRequests: number;
   /** The frame's requests that left its own release's directory. */
   frameOutside: string[];
+  /** The swap runs: where the frame's run recording put the player either side of the swap, once it applied. */
+  position?: PositionProbe;
   route?: LiveRouteProbe;
   /** The pinned run: production's live state named the version while the numbered play ran. */
   pointed?: boolean;
@@ -574,6 +583,104 @@ const isLiveFile = (url: string): boolean => {
     return false;
   }
 };
+
+/** Where the player was either side of a swap, from the trail of the frame's run recording. */
+export type KeptPosition = {
+  /** The tick the swap ran before. */
+  tick: number;
+  /** The trail's last sample before the swap and its first after it, in metres. */
+  before: [number, number];
+  after: [number, number];
+  /** Metres between the two samples. */
+  moved: number;
+  /** Metres the player may move between them: their own motion over the samples' gap, one tick's more, and the trail's rounding. */
+  allowed: number;
+};
+
+/** The player's position across the swap, or why the recording couldn't tell it. */
+export type PositionProbe = KeptPosition | { problem: string };
+
+/** Metres two trail points may be off: each coordinate is rounded to the centimetre. */
+export const TRAIL_ROUNDING_M = 0.02;
+
+type Pt = [number, number];
+
+const isPt = (v: unknown): v is Pt =>
+  Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n));
+
+/** The recording's trail (the game's focus after every `every`th tick), or null when it has none that reads. */
+function readTrail(text: string): { every: number; pts: Pt[]; truncated: boolean } | null {
+  const raw = JSON.parse(text) as { trail?: unknown };
+  const trail = raw.trail as { every?: unknown; pts?: unknown; truncated?: unknown } | undefined;
+  if (
+    !trail ||
+    typeof trail.every !== "number" ||
+    !Number.isInteger(trail.every) ||
+    trail.every < 1 ||
+    !Array.isArray(trail.pts) ||
+    !trail.pts.every(isPt)
+  )
+    return null;
+  return { every: trail.every, pts: trail.pts, truncated: trail.truncated === true };
+}
+
+const distance = (a: Pt, b: Pt) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+/**
+ * Where the frame's run recording (`name`, `text`) put the player either
+ * side of its swap to `version`: the trail samples after the last tick
+ * before the swap and after the first tick it ran before. The player may
+ * move between them by their own motion over that gap (the faster of the
+ * trail's neighbouring steps) plus one tick's.
+ */
+export function positionAcrossSwap(name: string, text: string, version: string): PositionProbe {
+  const read = readRecording(name, text);
+  if (!read.ok) return { problem: read.problem };
+  const short = versionName(read.recording.scene, version);
+  const swap = read.recording.swaps.find((s) => s.version === version);
+  if (!swap) return { problem: `the frame's recording holds no swap to ${short}` };
+  const trail = readTrail(text);
+  if (!trail) return { problem: `the frame's recording has no trail of the player` };
+  const { every, pts } = trail;
+  const ticks = read.recording.ticks;
+  const sampled = ticks > 0 ? Math.floor((ticks - 1) / every) + 1 : 0;
+  if (trail.truncated ? pts.length > sampled : pts.length !== sampled)
+    return {
+      problem: `the frame's recording's trail has ${pts.length} samples over ${ticks} ticks, not ${sampled}: which tick each sample follows is unknown`,
+    };
+  if (swap.tick < 1) return { problem: `the swap to ${short} ran before the run's first tick` };
+  const at = Math.floor((swap.tick - 1) / every);
+  const before = pts[at];
+  const after = pts[at + 1];
+  if (!before || !after)
+    return {
+      problem: `the frame's recording's trail ends before the swap to ${short} at tick ${swap.tick}`,
+    };
+  const prev = pts[at - 1];
+  const next = pts[at + 2];
+  const pace =
+    Math.max(prev ? distance(prev, before) : 0, next ? distance(after, next) : 0) / every;
+  return {
+    tick: swap.tick,
+    before,
+    after,
+    moved: distance(before, after),
+    allowed: (every + 1) * pace + TRAIL_ROUNDING_M,
+  };
+}
+
+const metres = (n: number) => `${n.toFixed(2)} m`;
+
+/** Why the player didn't keep their position across the swap to `short`, or null. */
+function judgePosition(position: PositionProbe | undefined, short: string): string | null {
+  if (!position)
+    return `the frame's run recording wasn't read, so the player's position across ${short} is unknown`;
+  if ("problem" in position) return position.problem;
+  if (position.moved <= position.allowed) return null;
+  const [bx, by] = position.before;
+  const [ax, ay] = position.after;
+  return `the player moved ${metres(position.moved)} across the swap to ${short} at tick ${position.tick}, from (${bx}, ${by}) to (${ax}, ${ay}); their own motion and one tick's allow ${metres(position.allowed)}`;
+}
 
 const issueSuffix = (s: FrameLiveState) =>
   s.issue ? ` (${s.issue.code}: ${s.issue.message})` : "";
@@ -622,6 +729,8 @@ function judgeLiveSwap(kind: PlayRunKind, p: LiveRunProbe): string[] {
       reasons.push(
         `the frame applied ${short} by ${applied.strategy ?? "no strategy"}, not reconcile, so the run didn't keep the player where they were`,
       );
+    const kept = judgePosition(p.position, short);
+    if (kept) reasons.push(kept);
     if (
       !p.swaps.some((s) => s.version === p.published?.versionId && s.timing === LIVE_SMOKE_TIMING)
     )
@@ -1054,7 +1163,7 @@ const violationsIn = (frame: Frame): Promise<CspViolation[]> =>
 export const runTimeoutMs = (kind: PlayRunKind): number => {
   if (kind === "claim") return 2 * RUN_TIMEOUT_MS;
   if (kind === "live-stream" || kind === "live-poll")
-    return RUN_TIMEOUT_MS + liveDeadlineMs(kind) + LIVE_BEAT_MS;
+    return RUN_TIMEOUT_MS + liveDeadlineMs(kind) + LIVE_BEAT_MS + RECORDING_TIMEOUT_MS;
   return RUN_TIMEOUT_MS;
 };
 
@@ -1497,6 +1606,48 @@ async function movePlayer(page: Page, frame: Frame): Promise<string | null> {
   return judgeCanvasChange(before, await canvasHash(frame));
 }
 
+type HostDownload = DownloadSeen & { text: string };
+
+const hostDownloads = (host: Frame) =>
+  host.evaluate(() => [
+    ...((window as unknown as { __playHost?: { downloads: HostDownload[] } }).__playHost
+      ?.downloads ?? []),
+  ]);
+
+/**
+ * Asks the frame for its run's recording through the host server and reads
+ * where it put the player across the swap to `version`.
+ */
+async function framePosition(host: Frame, version: string): Promise<PositionProbe> {
+  const from = (await hostDownloads(host)).length;
+  const asked = await host.evaluate(
+    () =>
+      (
+        window as unknown as { __playHost?: { requestRecording(): boolean } }
+      ).__playHost?.requestRecording() ?? false,
+  );
+  if (!asked) return { problem: "the host page couldn't ask the frame for its run's recording" };
+  await host
+    .waitForFunction(
+      (n) =>
+        ((window as unknown as { __playHost?: { downloads: unknown[] } }).__playHost?.downloads
+          .length ?? 0) > n,
+      from,
+      { timeout: RECORDING_TIMEOUT_MS, polling: 100 },
+    )
+    .catch((cause: unknown) => {
+      if (!(cause instanceof Error && cause.name === "TimeoutError")) throw cause;
+    });
+  const offered = (await hostDownloads(host)).slice(from);
+  const at = recordingDownload(offered);
+  const recording = at === null ? undefined : offered[at];
+  if (!recording)
+    return {
+      problem: `the frame offered no run recording within ${RECORDING_TIMEOUT_MS} ms of the host asking`,
+    };
+  return positionAcrossSwap(recording.name, recording.text, version);
+}
+
 /** Requests the host origin served at `path` (with its query) since request `from`. */
 const servedAt = (server: HandlerServer, path: string, from: number) =>
   server.served.slice(from).filter((r) => r.path === path);
@@ -1585,8 +1736,9 @@ function frameReads(frameRequests: readonly string[], hosted: Hosted, version: S
 /**
  * The swap run: the frame plays v1, the player moves, the version is
  * published and production promoted to it with `now`; then the frame's
- * reports until it applied the version or the run's deadline passed. The
- * stream run then probes the frame route's `live/` files.
+ * reports until it applied the version or the run's deadline passed, and,
+ * once it applied, the frame's run recording for where the player was
+ * across the swap. The stream run then probes the frame route's `live/` files.
  */
 async function liveSwap(
   kind: PlayRunKind,
@@ -1612,6 +1764,7 @@ async function liveSwap(
   const end = await liveRecord(host);
   const states = (end.live?.states ?? []).filter((s) => s.version === published.versionId);
   const applied = states.find((s) => s.status === "applied");
+  const position = applied ? await framePosition(host, published.versionId) : undefined;
   return {
     payloadVersion: start.live?.version ?? null,
     initialScenes: start.live?.initial ? start.live.initial.scenes.length : null,
@@ -1629,6 +1782,7 @@ async function liveSwap(
       .map(({ version, timing }) => ({ version, timing })),
     restarted: end.states.slice(statesBefore).filter((state) => state !== "ready"),
     ...frameReads(frameRequests, hosted, published.versionId),
+    ...(position ? { position } : {}),
     ...(kind === "live-stream"
       ? { route: await probeLiveRoute(stage, hosted, other, published.versionId) }
       : {}),

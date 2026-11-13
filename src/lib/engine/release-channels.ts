@@ -12,6 +12,7 @@ import {
   itchJams,
 } from "@/db/schema";
 import { siteUrl } from "@/env";
+import { gamePagePath, gamePlayPath } from "@/lib/og/game-links";
 
 import { collectionForecast } from "./collect-plan";
 import {
@@ -25,9 +26,7 @@ import {
 import {
   canPlay,
   refusalFor,
-  roleOf,
   type GameAction,
-  type GameRole,
   type GameVisibility,
   type ReleaseChannel,
   type Viewer,
@@ -40,14 +39,13 @@ import {
   releaseRemoved,
   type ReleaseApiError,
 } from "./release-errors";
-import type { Actor, ReleaseTxDb } from "./release-upload";
-import { releaseViewer } from "./release-viewer";
+import { actorRole, type Actor, type ReleaseTxDb } from "./release-upload";
 
 export type { ReleaseChannel };
 
 /** Where version `version` of a hosted game plays. */
 export const playUrlOf = (projectId: string, version: number): string =>
-  siteUrl(`/games/${encodeURIComponent(projectId)}/play/${version}`);
+  siteUrl(`${gamePlayPath(projectId)}/${version}`);
 
 export type PointerMoveInput = {
   project: string;
@@ -316,12 +314,6 @@ async function liveProject(db: ReleaseDb, projectId: string): Promise<Project> {
   return { ...row, visibility: row.visibility as GameVisibility };
 }
 
-async function roleFor(db: ReleaseDb, actor: Actor, project: Project): Promise<GameRole | "agent"> {
-  if (actor.kind === "agent") return "agent";
-  if (actor.kind === "staff") return "staff";
-  return roleOf(await releaseViewer(db, actor.userId, project), project);
-}
-
 /**
  * Refuses a move the caller's role can't make: an agent on production is
  * sent to the game's page. Keeping live scenes over the new release is a
@@ -335,8 +327,8 @@ async function assertMayMove(
   channel: ReleaseChannel,
   keepsScenes = false,
 ): Promise<void> {
-  const role = await roleFor(db, actor, project);
-  const gameUrl = siteUrl(`/games/${encodeURIComponent(project.projectId)}`);
+  const role = await actorRole({}, db, actor, project);
+  const gameUrl = siteUrl(gamePagePath(project.projectId));
   const actions: GameAction[] = [
     `${kind}-${channel}`,
     ...(keepsScenes ? ["live-move-production" as const] : []),
@@ -349,7 +341,7 @@ async function assertMayMove(
 
 /** The release list and its details are for the people who make the game, and its agents. */
 async function assertMayRead(db: ReleaseDb, actor: Actor, project: Project): Promise<void> {
-  if ((await roleFor(db, actor, project)) === "player") refuse(releaseForbidden("role"));
+  if ((await actorRole({}, db, actor, project)) === "player") refuse(releaseForbidden("role"));
 }
 
 const releaseRef = {

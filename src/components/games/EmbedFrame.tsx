@@ -13,6 +13,7 @@ import {
   PLAY_UNAVAILABLE_MESSAGE,
   playPath,
   refusalOf,
+  reloadPlay,
   useEngineGamesBlocked,
   useLocalPlayStores,
   usePlayQuery,
@@ -102,7 +103,7 @@ export function EmbedFrame({ projectId, version }: { projectId: string; version:
         title={play.title}
         release={{ id: play.release.id, gameId: play.release.gameId, projectId }}
         live={play.live}
-        onReload={() => void query.refetch()}
+        onReload={() => reloadPlay(query)}
         saveMode={play.saveMode}
         online={play.online}
         saves={stores.saves}

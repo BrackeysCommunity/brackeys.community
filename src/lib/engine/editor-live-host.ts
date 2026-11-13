@@ -10,13 +10,14 @@ import type {
 } from "@jams/engine/editor-ui";
 import { arrivalWords, sceneVersionName, type SwapTiming } from "@jams/engine/game";
 import type { AssetId, ProjectId, Sha256 } from "@jams/engine/project";
-import { plural } from "@jams/engine/scene";
+import { plural, shortId } from "@jams/engine/scene";
 import { ORPCError } from "@orpc/client";
 
 import { formatBytes, formatCount } from "@/lib/format-bytes";
 import { releaseDay } from "@/lib/jam-links";
 
 import { LIVE_LIMITS, RELEASE_GRACE_DAYS } from "./limits";
+import { breakerReason } from "./live-outcomes";
 import { quotaAmount } from "./quota";
 import { engineReleaseFilePath } from "./route-paths";
 
@@ -50,6 +51,16 @@ export function publishError(error: unknown): unknown {
   return refusalOf(error.data, { message: error.message, code: String(error.code) });
 }
 
+/** A production publish whose version was stored but whose move to production was refused. */
+function savedNotPromoted(name: string, error: unknown): PublishHostError {
+  const why = error instanceof Error ? error.message : String(error);
+  return new PublishHostError(
+    `${name} was saved but isn't on production: ${why}`,
+    error instanceof PublishHostError ? error.code : "live-promote-failed",
+    `Promote ${name} from Live scenes in the Publish panel, or publish again: the same version isn't stored twice.`,
+  );
+}
+
 /** Runs one site call, its refusal turned into a `PublishHostError`. */
 export async function hostCall<T>(run: () => Promise<T>): Promise<T> {
   try {
@@ -63,9 +74,9 @@ export async function hostCall<T>(run: () => Promise<T>): Promise<T> {
 
 const n = formatCount;
 
-/** "level-1@1 will be removed on 3 Dec 2026. …", the date in UTC. */
+/** "level-1@1 will be removed on 3 Dec 2026 unless a channel points at it.", the date in UTC. */
 export const liveRemovalText = (scene: AssetId, number: number, at: Date | string): string =>
-  `${sceneVersionName(scene, number)} will be removed on ${releaseDay(at)}. Point a channel at it to keep it.`;
+  `${sceneVersionName(scene, number)} will be removed on ${releaseDay(at)} unless a channel points at it.`;
 
 /** Why a version is blocked, said beside its blocked badge: the breaker's count, or the reason a person gave. */
 export function liveBlockedText(
@@ -73,7 +84,7 @@ export function liveBlockedText(
   reports: { ok: number; failed: number },
 ): string {
   if (blocked.by === "system")
-    return `${n(reports.failed)} of ${n(reports.ok + reports.failed)} players' games failed after this update.`;
+    return `${breakerReason(reports.failed, reports.ok + reports.failed)}.`;
   return blocked.reason ?? "Blocked by a publisher.";
 }
 
@@ -182,8 +193,8 @@ export type EditorLiveHostOptions = {
   project: ProjectId;
   /** The site's oRPC client, or a loader for it. */
   rpc: () => Promise<LiveRpc>;
-  /** Whether this viewer may move production; the publish host exists only for publishers and staff. */
-  publisher?: boolean;
+  /** Whether this viewer may move production: the project's publishers and staff. */
+  publisher: boolean;
   /** Sends one text to the release file route; default the browser's `fetch` with the session cookie. */
   fetch?: SendText;
 };
@@ -230,7 +241,7 @@ async function putText(
  */
 export function editorLiveHost(opts: EditorLiveHostOptions): EditorLiveHost {
   const { project: projectId, rpc } = opts;
-  const publisher = opts.publisher ?? true;
+  const { publisher } = opts;
   const send: SendText = opts.fetch ?? ((path, init) => fetch(path, init));
   const listeners = new Set<(published: LivePublished) => void>();
   const announce = (published: LivePublished): LivePublished => {
@@ -266,7 +277,7 @@ export function editorLiveHost(opts: EditorLiveHostOptions): EditorLiveHost {
         const text = texts[missing.sha256];
         if (text === undefined)
           throw new PublishHostError(
-            `The site asked for a text this scene version doesn't carry (${missing.sha256.slice(0, 12)}).`,
+            `The site asked for a text this scene version doesn't carry (${shortId(missing.sha256)}).`,
             "live-text-missing",
             "Build the scene version again from the open scene, then publish it.",
           );
@@ -287,15 +298,21 @@ export function editorLiveHost(opts: EditorLiveHostOptions): EditorLiveHost {
       if (!production) return announce(published);
 
       onProgress?.({ step: "promote" });
-      await hostCall(() =>
-        api.promoteSceneVersion({
-          projectId,
-          scene: committed.scene,
-          number: committed.number,
-          channel: "production",
-          timing,
-        }),
-      );
+      try {
+        await hostCall(() =>
+          api.promoteSceneVersion({
+            projectId,
+            scene: committed.scene,
+            number: committed.number,
+            channel: "production",
+            timing,
+          }),
+        );
+      } catch (error) {
+        // The version is stored either way: the lists show it, and the error says so.
+        announce({ ...published, channel: null });
+        throw savedNotPromoted(sceneVersionName(committed.scene, committed.number), error);
+      }
       return announce({ ...published, channel: "production" });
     },
 

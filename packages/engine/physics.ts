@@ -9,7 +9,7 @@ import type {
 } from "@dimforge/rapier2d";
 
 import { DEFAULT_GRAVITY, DEFAULT_TICK_RATE } from "./game/defaults";
-import { signedArea } from "./scene/shape-geometry";
+import { rectsOverlap, signedArea } from "./scene/shape-geometry";
 import { createSpatialHash, type SpatialHash } from "./scene/spatial-hash";
 import type { Aabb, Pt, ShapeObj } from "./scene/types";
 import type { RapierModule, Vec2 } from "./types";
@@ -315,9 +315,6 @@ export function rapierColliderBounds(
   }
 }
 
-const apart = (a: Aabb, b: Aabb) =>
-  a.maxX < b.minX || b.maxX < a.minX || a.maxY < b.minY || b.maxY < a.minY;
-
 /** The collider index's cell side: the median fixed collider's longer side, within these, m. */
 const MIN_INDEX_CELL = 0.5;
 const MAX_INDEX_CELL = 64;
@@ -440,7 +437,7 @@ function createColliderIndex(world: World, rapier: RapierModule) {
         const c = world.getCollider(handle);
         if (!c) continue;
         const b = bounds(c);
-        if (!b || !apart(b, box)) out.push(c);
+        if (!b || rectsOverlap(b, box)) out.push(c);
       }
       return out;
     },

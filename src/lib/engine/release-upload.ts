@@ -266,6 +266,25 @@ export async function liveProject(db: ReleaseDb, projectId: string): Promise<Pro
   return row ?? notFound(`There is no hosted project "${projectId}".`);
 }
 
+/**
+ * The caller's role on the project: agents and staff by their kind, a
+ * person by the project and its team (through `deps.viewer` when given).
+ */
+export async function actorRole(
+  deps: Pick<ReleaseDeps, "viewer">,
+  db: ReleaseDb,
+  actor: Actor,
+  project: ProjectRow,
+): Promise<GameRole | "agent"> {
+  if (actor.kind === "agent") return "agent";
+  if (actor.kind === "staff") return "staff";
+  const viewer = await (deps.viewer ?? ((id, p) => releaseViewer(db, id, p)))(
+    actor.userId,
+    project,
+  );
+  return roleOf(viewer, project);
+}
+
 /** Refuses unless the actor's role on the project may do `action`: `upload` for a release, `live-publish` for a scene version. */
 export async function assertMayUpload(
   deps: ReleaseDeps,
@@ -274,17 +293,7 @@ export async function assertMayUpload(
   project: ProjectRow,
   action: Extract<GameAction, "upload" | "live-publish">,
 ): Promise<void> {
-  let role: GameRole | "agent";
-  if (actor.kind === "agent") role = "agent";
-  else if (actor.kind === "staff") role = "staff";
-  else {
-    const viewer = await (deps.viewer ?? ((id, p) => releaseViewer(db, id, p)))(
-      actor.userId,
-      project,
-    );
-    role = roleOf(viewer, project);
-  }
-  if (!canDo(role, action)) refuse(releaseForbidden("role"));
+  if (!canDo(await actorRole(deps, db, actor, project), action)) refuse(releaseForbidden("role"));
 }
 
 export const actorColumns = (actor: Actor) => ({

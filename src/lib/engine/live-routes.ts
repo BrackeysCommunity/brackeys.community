@@ -1,3 +1,4 @@
+import { swapTimingSchema } from "@jams/engine/game";
 import { ID_PATTERN } from "@jams/engine/scene";
 import { and, eq } from "drizzle-orm";
 import * as z from "zod";
@@ -40,7 +41,7 @@ import {
 export type LiveRouteDeps = ReleaseRouteDeps;
 
 /** How players get a pointer move: on their next load, at the next scene boundary, or now. */
-export const liveTiming = z.enum(["next-load", "boundary", "now"]);
+export const liveTiming = swapTimingSchema;
 
 /** Room for a full version escaped inside a JSON string, and the rest of the body. */
 const BEGIN_BODY_MAX_BYTES = 4 * LIVE_LIMITS.versionDataBytes;

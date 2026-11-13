@@ -3622,7 +3622,7 @@
     width: min(440px, calc(100% - 32px));
   }
 
-  [role="radiogroup"] label[data-disabled] {
+  .je-choice-group label[data-disabled] {
     cursor: not-allowed;
   }
 }

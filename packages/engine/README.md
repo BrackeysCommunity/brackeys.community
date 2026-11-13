@@ -6180,8 +6180,9 @@ and prepare a version before it gives up on it.
 after an update within 30 minutes of it going live (failing includes
 crashing within 10 seconds of the swap), and that is at least 25% of
 the signed-in players who reported, jams.team blocks the version: players
-get the release's level at their next load, and you see why on the
-game's page. Unblock it there once it's fixed, or publish a new version.
+get the release's level at their next load, and the game's page shows
+it as blocked, with why. Unblock it in the editor's Publish panel (the
+game's page links to it) once it's fixed, or publish a fixed version.
 
 Live levels need jams.team's play page: an itch.io zip or a static host
 plays the release as built.
