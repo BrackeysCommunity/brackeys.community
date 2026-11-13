@@ -5,8 +5,11 @@ import { SHA256_PATTERN } from "./hash";
 
 // The schema fields the snapshot, release and scene version files share.
 
-export const sha256Field = (description: string) =>
-  z.string().regex(SHA256_PATTERN).describe(description);
+/** A SHA-256 as 64 lowercase hex characters, described when `description` is given. */
+export const sha256Field = (description?: string) => {
+  const field = z.string().regex(SHA256_PATTERN);
+  return description === undefined ? field : field.describe(description);
+};
 
 export const idField = (description: string) => AssetIdSchema.describe(description);
 

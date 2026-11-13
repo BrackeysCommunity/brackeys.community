@@ -7,18 +7,20 @@ import {
   heldInput,
   physicsFreeFiles,
   png,
+  releaseFiles,
   scene,
+  withHeldDoc,
   type HeldFiles,
 } from "../../__tests__/fixtures/held-project";
 import { testGame } from "../../__tests__/fixtures/test-game";
-import { planContent } from "../../export/content";
-import { finishExport, type BuiltCode, type ExportInput } from "../../export/plan";
 import type { GameDefinition } from "../../game/types";
 import { formatReleaseManifest, releaseId, type ReleaseManifest } from "../../project/release";
+import { liveFiles } from "../../project/release-assets";
 import {
   buildSceneVersion,
   formatSceneVersion,
   sceneVersionId,
+  sceneVersionOptions,
   type SceneVersion,
 } from "../../project/scene-version";
 import type { Sha256 } from "../../project/types";
@@ -95,31 +97,10 @@ const liveGame: GameDefinition = {
   },
 };
 
-const CODE: BuiltCode = {
-  files: [{ path: "code/main-abc123.js", sha256: "d".repeat(64), bytes: 1000, role: "code" }],
-  entry: "code/main-abc123.js",
-  rapier: null,
-  thirdParty: [],
-};
+type Build = { manifest: ReleaseManifest; files: Map<string, string> };
 
-type Build = { manifest: ReleaseManifest; files: Map<string, string>; input: ExportInput };
-
-async function release(): Promise<Build> {
-  const input = await heldInput(FREE_PROJECT, physicsFreeFiles(), liveGame);
-  const plan = await finishExport(await planContent(input), CODE, input);
-  expect(plan.issues.filter((i) => i.severity === "error")).toEqual([]);
-  const files = new Map<string, string>();
-  for (const f of plan.files)
-    files.set(f.path, f.source.kind === "text" ? f.source.text : `<${f.source.kind}>`);
-  return { manifest: plan.manifest, files, input };
-}
-
-/** `held` with the doc at `path` replaced by `json`. */
-function withDoc(held: HeldFiles, path: string, json: unknown): HeldFiles {
-  const texts = new Map(held.texts);
-  texts.set(path, `${JSON.stringify(json, null, 2)}\n`);
-  return { texts, files: held.files.map((f) => (f.path === path ? { path, json } : f)) };
-}
+const release = async (): Promise<Build> =>
+  releaseFiles(await heldInput(FREE_PROJECT, physicsFreeFiles(), liveGame));
 
 const flagged = (name: string, assets: string[] = []): SceneDefinition => {
   const def = scene(name, assets);
@@ -134,15 +115,7 @@ type Published = { id: Sha256; version: SceneVersion; text: string };
 /** Builds a version of `id` from `held` against the release and serves it, and the docs it carries, under live/. */
 async function publish(b: Build, held: HeldFiles, id: string): Promise<Published> {
   const input = await heldInput(FREE_PROJECT, held, liveGame);
-  const built = await buildSceneVersion({
-    view: input.view,
-    texts: input.texts,
-    build: input.snapshot.build,
-    game: liveGame,
-    registry: input.registry,
-    scene: id,
-    release: b.manifest,
-  });
+  const built = await buildSceneVersion(sceneVersionOptions(input, id, { release: b.manifest }));
   if (!built.ok) throw new Error(JSON.stringify(built.issues, null, 2));
   expect(built.issues.filter((i) => i.severity === "error")).toEqual([]);
   return serveVersion(b, built.version, built.texts);
@@ -155,8 +128,8 @@ function serveVersion(
 ): Promise<Published> {
   const text = formatSceneVersion(version);
   return sceneVersionId(version).then((id) => {
-    b.files.set(`live/${id}.json`, text);
-    for (const [sha, t] of texts) b.files.set(`live/${sha}.json`, t);
+    b.files.set(liveFiles.doc(id), text);
+    for (const [sha, t] of texts) b.files.set(liveFiles.doc(sha), t);
     return { id, version, text };
   });
 }
@@ -288,7 +261,7 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const v = await publish(
       b,
-      withDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
       "yard",
     );
     const page = fakeParent({
@@ -320,7 +293,7 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const v = await publish(
       b,
-      withDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
       "yard",
     );
     const page = fakeParent();
@@ -350,7 +323,7 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const v = await publish(
       b,
-      withDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
       "yard",
     );
     const page = fakeParent();
@@ -384,7 +357,7 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const v = await publish(
       b,
-      withDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
       "yard",
     );
     const page = fakeParent();
@@ -406,7 +379,7 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const v = await publish(
       b,
-      withDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
       "yard",
     );
     b.files.set(`live/${v.id}.json`, `${v.text} `);
@@ -427,7 +400,7 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const v = await publish(
       b,
-      withDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
       "yard",
     );
     const doc = v.version.assets.yard!.sha256;
@@ -457,7 +430,7 @@ describe("the live controller in a hosted frame", () => {
 
     // A new texture loads from live/, the release's own from its assets/ files.
     const moss = "9".repeat(64);
-    const held = withDoc(
+    const held = withHeldDoc(
       physicsFreeFiles(),
       "hall.json",
       scene("hall", ["moss", "rocks", "tiles"]),
@@ -480,7 +453,7 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const v = await publish(
       b,
-      withDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
       "yard",
     );
     const page = fakeParent();
@@ -510,7 +483,7 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const v = await publish(
       b,
-      withDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
       "yard",
     );
     const page = fakeParent();
@@ -539,12 +512,12 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const first = await publish(
       b,
-      withDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
       "yard",
     );
     const second = await publish(
       b,
-      withDoc(physicsFreeFiles(), "yard.json", flagged("yard")),
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard")),
       "yard",
     );
     const page = fakeParent();
@@ -571,7 +544,7 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const v = await publish(
       b,
-      withDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
       "yard",
     );
     const page = fakeParent();
@@ -600,7 +573,7 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const v = await publish(
       b,
-      withDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
+      withHeldDoc(physicsFreeFiles(), "yard.json", flagged("yard", ["tiles"])),
       "yard",
     );
     // Rule 4: the release lists yard as a level, so a sublevel version of it can't go live.
@@ -628,7 +601,7 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const v = await publish(
       b,
-      withDoc(physicsFreeFiles(), "hall.json", flagged("hall", ["rocks", "tiles"])),
+      withHeldDoc(physicsFreeFiles(), "hall.json", flagged("hall", ["rocks", "tiles"])),
       "hall",
     );
     const page = fakeParent();
@@ -672,7 +645,7 @@ describe("the live controller in a hosted frame", () => {
     const b = fresh();
     const v = await publish(
       b,
-      withDoc(physicsFreeFiles(), "hall.json", flagged("hall", ["rocks", "tiles"])),
+      withHeldDoc(physicsFreeFiles(), "hall.json", flagged("hall", ["rocks", "tiles"])),
       "hall",
     );
     const page = fakeParent();

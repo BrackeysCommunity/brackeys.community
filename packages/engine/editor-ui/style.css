@@ -1462,11 +1462,16 @@
     color: var(--je-danger);
   }
 
-  /* A boot that stopped short offers Reload beside its status, or under it where the row is narrow. */
+  /* A boot that stopped short offers Reload beside its status, whose error wraps to make room, or under it where the row is narrow. */
   .je-frame-status:has(> .je-boot-reload) {
     flex-wrap: wrap;
     align-items: flex-end;
     gap: 4px var(--je-gap);
+  }
+
+  .je-frame-status:has(> .je-boot-reload) > .je-editor-connecting {
+    flex: 1 1 0;
+    min-width: min(240px, 100%);
   }
 
   .je-frame-status > .je-boot-reload {
@@ -1974,9 +1979,26 @@
     gap: 8px;
   }
 
-  /* Each island on a row of the bar takes the row's height, the controls' when they share it. */
+  /* The controls take their row's height when the chip wraps beside them. */
   .je-play-bar > .je-island {
     align-self: stretch;
+  }
+
+  /* The statuses stack above the controls, out of their row, so one coming, going or changing never moves them. */
+  .je-play-notes {
+    position: absolute;
+    right: var(--je-gap);
+    bottom: calc(100% + var(--je-gap));
+    left: var(--je-gap);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .je-play-notes:empty {
+    display: none;
   }
 
   .je-play-controls {

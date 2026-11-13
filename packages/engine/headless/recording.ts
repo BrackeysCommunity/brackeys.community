@@ -10,6 +10,7 @@ import {
   createSwapReplay,
   preparedVersion,
   recordedVersion,
+  stageIssue,
   type PreparedVersion,
 } from "../runtime/live";
 import { gamePersistCell } from "../runtime/persist";
@@ -27,6 +28,7 @@ import {
   type RecordingHost,
 } from "../runtime/recorder";
 import { resolveGame, saveHostOf } from "../runtime/runtime";
+import type { SceneRuntimeHandle } from "../runtime/types";
 import { checkCommand } from "../scene/input-script";
 import { errorText, leadIssue, makeIssue } from "../scene/issues";
 import {
@@ -376,6 +378,12 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
     { project: opts.project, library },
   );
   if (!prepared.ok) return prepared.blocked;
+
+  const swaps = rec.swaps ?? [];
+  let staleFrom: number | undefined;
+  const swapWarnings: string[] = [];
+  let playing: SceneRuntimeHandle | null = null;
+  let replaySwaps: ReturnType<typeof createSwapReplay> | null = null;
   const started = startRun({
     rapier: opts.rapier,
     game,
@@ -393,6 +401,21 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
       id === startId
         ? { def: opts.scene, prefabs: opts.prefabs ?? new Map() }
         : (opts.flow?.scenes.get(id) ?? null),
+    beforeLoad(live) {
+      replaySwaps = createSwapReplay({
+        live,
+        swaps,
+        scene: () => (playing && saveHostOf(playing.ctx)?.sceneId()) ?? runName,
+        resolve: (id, scene, at, tick) => resolveVersion(id, `/swaps/${at}/version`, scene, tick),
+        stale(tick, why) {
+          staleFrom ??= tick;
+          swapWarnings.push(`stale from tick ${tick}: ${why}`);
+        },
+      });
+      const stop = replaySwaps.atLoad(saved.file?.world?.tick ?? 0);
+      if (!stop) return null;
+      return leadIssue(stop.issues) ?? stageIssue(stop.scene, "its version didn't read");
+    },
   });
   if (!started.ok)
     return blockedRun(
@@ -403,6 +426,7 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
       started.load,
     );
   const { runtime, live } = started;
+  playing = runtime;
   const rapier = recordingRapier(prepared.scene, opts.rapier);
   const time = runtime.ctx.time;
 
@@ -440,25 +464,14 @@ export function replayRecording<S = unknown>(opts: ReplayOptions<S>): ReplayRun<
       platform: opts.platform,
       projectRef: opts.projectRef,
     });
+    // The other listed scenes' live versions, which this load's sublevels attach, as the shell records them.
+    for (const swap of live.liveSublevels()) recorder.swap(recordedSwap(swap));
     live.onApplied((swap) => recorder.swap(recordedSwap(swap)));
 
-    const swaps = rec.swaps ?? [];
     let stopped: SceneIssue[] = [];
-    let staleFrom: number | undefined;
-    const swapWarnings: string[] = [];
-    const replaySwaps = createSwapReplay({
-      live,
-      swaps,
-      scene: () => saveHostOf(runtime.ctx)?.sceneId() ?? runName,
-      resolve: (id, scene, at, tick) => resolveVersion(id, `/swaps/${at}/version`, scene, tick),
-      stale(tick, why) {
-        staleFrom ??= tick;
-        swapWarnings.push(`stale from tick ${tick}: ${why}`);
-      },
-    });
     /** Applies every swap recorded before the tick about to step, through the live layer as the recorded run did. */
     const beforeTick = (): string | null => {
-      const stop = replaySwaps.before(runtime.ctx.tick);
+      const stop = replaySwaps!.before(runtime.ctx.tick);
       if (!stop) return null;
       stopped = stop.issues;
       const first = leadIssue(stop.issues);

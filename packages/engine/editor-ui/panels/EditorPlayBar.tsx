@@ -43,9 +43,10 @@ export function flowRequestedScene(state: Pick<GameStoreState, "session">): stri
 }
 
 /**
- * While playing: the chip, pause, step, time scale, stop, a restart when the
- * scene moved on, and the scene a flow request asked for when one ended Play,
- * which opens it. Once the session has an outcome, Resume and Step are off.
+ * While playing: the chip, pause, step, time scale, stop, and above them the
+ * Live in Play status, a restart when the scene moved on, and the scene a flow
+ * request asked for when one ended Play, which opens it. Once the session has
+ * an outcome, Resume and Step are off.
  */
 export function EditorPlayBar({
   game,
@@ -127,25 +128,28 @@ export function EditorPlayBar({
           Stop
         </Button>
       </Island>
-      <LiveInPlayStatus host={host} />
-      {requested !== null ? (
-        <Island role="status" className="je-scene-changed" data-flow-requested="">
-          Ended: requested {requested}
-          {openRequested ? (
-            <Button size="xs" variant="secondary" onClick={openRequested}>
-              Open {requested}
+      {/* Out of the row's flow, so a status coming or going never moves the controls under the pointer. */}
+      <div className="je-play-notes">
+        <LiveInPlayStatus host={host} />
+        {requested !== null ? (
+          <Island role="status" className="je-scene-changed" data-flow-requested="">
+            Ended: requested {requested}
+            {openRequested ? (
+              <Button size="xs" variant="secondary" onClick={openRequested}>
+                Open {requested}
+              </Button>
+            ) : null}
+          </Island>
+        ) : null}
+        {sceneChanged ? (
+          <Island role="status" className="je-scene-changed">
+            Scene changed
+            <Button size="xs" variant="secondary" onClick={onRestart}>
+              Restart
             </Button>
-          ) : null}
-        </Island>
-      ) : null}
-      {sceneChanged ? (
-        <Island role="status" className="je-scene-changed">
-          Scene changed
-          <Button size="xs" variant="secondary" onClick={onRestart}>
-            Restart
-          </Button>
-        </Island>
-      ) : null}
+          </Island>
+        ) : null}
+      </div>
     </div>
   );
 }

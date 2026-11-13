@@ -28,7 +28,7 @@ import { validateScene } from "../scene/validate";
 import { ENGINE_VERSION } from "../version";
 import { namedPrefabs, sceneBundle, unsizedIds } from "./bundle";
 import { ownValue, stableJson } from "./canonical";
-import { sha256 } from "./hash";
+import { sha256, SHA256_PATTERN } from "./hash";
 import { createKindRegistry, type KindRegistry } from "./kinds";
 import { byCodeUnit } from "./kinds/define";
 import { sceneKind } from "./kinds/scene";
@@ -175,7 +175,9 @@ export type CheckSceneVersionOptions = {
 // ─── Schema ──────────────────────────────────────────────
 
 /** `live/<sha256>.json` for a doc, `live/<sha256><ext>` for a blob. */
-const LIVE_FILE_PATTERN = new RegExp(`^${LIVE_DIR}\\/[0-9a-f]{64}(\\.[A-Za-z0-9]+)*$`);
+const LIVE_FILE_PATTERN = new RegExp(
+  `^${LIVE_DIR}\\/${SHA256_PATTERN.source.slice(1, -1)}(\\.[A-Za-z0-9]+)*$`,
+);
 
 /** Why `a.file` isn't the file `liveFiles` names for it; null when it is. */
 const liveFileProblem = (a: Pick<ReleaseAsset, "sha256" | "storage" | "path" | "file">) => {
@@ -320,6 +322,33 @@ export function liveCompat(manifest: ReleaseManifest): LiveCompat {
     formats: { scene: manifest.engine.formats.scene, prefab: manifest.engine.formats.prefab },
     build: sortedRecord(manifest.project.build),
     game: { id: manifest.game.id, configHash: manifest.game.configHash },
+  };
+}
+
+/**
+ * The release's own `scene` read as a version the release carries: its flow
+ * entry and the release's assets and compatibility, no base, and a zero
+ * scene hash. For `readSceneVersion` only: its files are the release's own
+ * paths, which the version schema refuses, so it is never written or
+ * hashed. Null when the release doesn't list the scene.
+ */
+export function releaseSceneVersion(
+  manifest: ReleaseManifest,
+  scene: AssetId,
+): SceneVersion | null {
+  const entry = manifest.flow.scenes.find((s) => s.id === scene);
+  if (!entry) return null;
+  return {
+    kind: "scene-version",
+    v: SCENE_VERSION_VERSION,
+    project: manifest.project.id,
+    scene,
+    compat: liveCompat(manifest),
+    engine: manifest.engine.version,
+    base: null,
+    entry,
+    sceneHash: "0".repeat(16),
+    assets: manifest.assets,
   };
 }
 
@@ -789,6 +818,33 @@ function readProjectScene(
     return t === undefined ? undefined : readPrefab(pid, t, registry, prefabs, read.issues);
   };
   return withNamedPrefabs(read, registry, get);
+}
+
+/** What `sceneVersionOptions` reads: an export input's view, texts, snapshot, game and registry. */
+export type SceneVersionSource = Pick<
+  BuildSceneVersionOptions,
+  "view" | "texts" | "game" | "registry"
+> & { snapshot: { build: BuildSceneVersionOptions["build"] } };
+
+/**
+ * `buildSceneVersion`'s options for `scene` of a project read for export:
+ * its texts unless `texts` replaces them (an edited scene), its snapshot's
+ * build, and `release` when given.
+ */
+export function sceneVersionOptions(
+  input: SceneVersionSource,
+  scene: AssetId,
+  opts: { texts?: ReadonlyMap<AssetId, string>; release?: ReleaseManifest } = {},
+): BuildSceneVersionOptions {
+  return {
+    view: input.view,
+    texts: opts.texts ?? input.texts,
+    build: input.snapshot.build,
+    game: input.game,
+    registry: input.registry,
+    scene,
+    ...(opts.release ? { release: opts.release } : {}),
+  };
 }
 
 /**

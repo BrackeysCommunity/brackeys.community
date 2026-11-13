@@ -118,8 +118,6 @@ function sameValue(a: unknown, b: unknown): boolean {
   );
 }
 
-export { errorText };
-
 /** The key a runtime keeps what world saves reach under on its context. */
 export const SAVE_HOST: unique symbol = Symbol("save host");
 

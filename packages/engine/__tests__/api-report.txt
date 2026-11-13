@@ -1615,6 +1615,7 @@ SceneListFlow
 SceneVersion
 SceneVersionNames
 SceneVersionRead
+SceneVersionSource
 SceneWrite
 Sha256
 SnapshotAsset
@@ -1738,6 +1739,7 @@ releaseBuildHash
 releaseId
 releaseJsonSchema
 releaseManifestSchema
+releaseSceneVersion
 releaseSnapshot
 rewriteRefs
 rowSchemaOf
@@ -1753,6 +1755,7 @@ sceneListIssues
 sceneListKind
 sceneVersionId
 sceneVersionJsonSchema
+sceneVersionOptions
 sceneVersionSchema
 sceneVersionSnapshot
 schemaRefSites
@@ -2033,6 +2036,7 @@ intersectsRect
 inverseTurn
 invert
 isConvex
+isErrorIssue
 isExpandedScene
 isGridValue
 isIdentityTurn
@@ -9881,6 +9885,11 @@ type SceneVersionRead = {
     issues: SceneIssue[];
     ok: false;
 };
+type SceneVersionSource = Pick<BuildSceneVersionOptions, "game" | "registry" | "texts" | "view"> & {
+    snapshot: {
+        build: BuildSceneVersionOptions["build"];
+    };
+};
 declare function buildSceneVersion(opts: BuildSceneVersionOptions): Promise<BuildSceneVersionResult>;
 declare function checkSceneVersion(manifest: ReleaseManifest, version: SceneVersion, texts?: ReadonlyMap<Sha256, string>, opts?: CheckSceneVersionOptions): SceneIssue[];
 declare function findSceneVersion<V extends {
@@ -9900,8 +9909,13 @@ declare function parseSceneVersion(text: string): {
 declare function readSceneVersion(version: SceneVersion, texts: ReadonlyMap<Sha256, string>, registry: Registry, game: GameDefinition | null, opts?: {
     engine?: Readonly<Record<string, unknown>>;
 }): SceneVersionRead;
+declare function releaseSceneVersion(manifest: ReleaseManifest, scene: AssetId): SceneVersion | null;
 declare function sceneVersionId(version: SceneVersion): Promise<Sha256>;
 declare function sceneVersionJsonSchema(): Record<string, unknown>;
+declare function sceneVersionOptions(input: SceneVersionSource, scene: AssetId, opts?: {
+    release?: ReleaseManifest;
+    texts?: ReadonlyMap<AssetId, string>;
+}): BuildSceneVersionOptions;
 declare const sceneVersionSchema: z.ZodType<SceneVersion>;
 declare function sceneVersionSnapshot(version: SceneVersion): Promise<ProjectSnapshot>;
 
@@ -12302,6 +12316,7 @@ type LiveIssueInput = {
     version: string;
 };
 type LiveSwapPhase = "after" | "onSwap" | "stage" | "swap";
+declare const isErrorIssue: (issue: SceneIssue) => boolean;
 declare function jsonPointer(segments: readonly (number | string)[]): string;
 declare function liveIssue(input: LiveIssueInput): SceneIssue;
 declare function makeIssue(code: IssueCode, fields: Partial<Omit<SceneIssue, "code">> & {

@@ -11,8 +11,8 @@ import {
 import { MAX_TICK_RATE, MIN_TICK_RATE, type TimeKind } from "../game/time";
 import type { DeviceId, JsonValue, Registry } from "../game/types";
 import { scaleLengths } from "../game/units";
-import { SHA256_PATTERN } from "../project/hash";
 import type { AssetId, Sha256 } from "../project/types";
+import { sha256Field } from "../project/zod-fields";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "./agent-surface";
 import { deviceIdSchema } from "./device-id";
 import { errorText, jsonPointer } from "./issues";
@@ -35,7 +35,7 @@ const V1_NO_PHYSICS = "none";
 const ELAPSED_COMMAND = "@elapsed";
 
 const tick = (description: string) => z.number().int().min(0).describe(description);
-const sha256 = z.string().regex(SHA256_PATTERN);
+const sha256 = sha256Field();
 const index = (description: string) => z.number().int().min(0).describe(description);
 const bit = (description: string) => z.union([z.literal(0), z.literal(1)]).describe(description);
 

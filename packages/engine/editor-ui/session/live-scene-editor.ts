@@ -53,7 +53,7 @@ import {
   type SceneSwap,
   type SwapTiming,
 } from "../../game/index";
-import { acceptedTimingsWords, diffWords, LIVE_CHECK_AGAIN_TICKS } from "../../game/live";
+import { acceptedTimingsWords, diffWords } from "../../game/live";
 import type {
   GameInstance,
   PlayOptions,
@@ -77,8 +77,14 @@ import {
   type ProjectView,
   type Sha256,
 } from "../../project/index";
-import { liveCheckThrew, stageIssue } from "../../runtime/live";
-import { errorText } from "../../runtime/runtime";
+import { stageIssue } from "../../runtime/live";
+import {
+  afterSwapWords,
+  LIVE_CHECK_RIGHT_AFTER,
+  liveRecheckAt,
+  mergeIssues,
+  runLiveCheck,
+} from "../../runtime/live-check";
 import type { SceneRuntimeHandle } from "../../runtime/types";
 import {
   liveIssue,
@@ -91,7 +97,7 @@ import {
   type SceneDefinition,
   type SceneIssue,
 } from "../../scene/index";
-import { isErrorIssue, leadIssue } from "../../scene/issues";
+import { errorText, isErrorIssue, leadIssue } from "../../scene/issues";
 import type { SceneDocStatus } from "../connect/scene-doc";
 import { frameInView } from "../frame/visible-rect";
 import { defaultPeerColor, guestName, type EditorNotify } from "../host";
@@ -129,7 +135,10 @@ export type LivePlayState = {
   on: boolean;
   /** Why it can't be turned on for this scene and game; null when it can. */
   unavailable: string | null;
-  /** The status line: what the last live update is doing or did; null before one. */
+  /**
+   * The status line: what the last live update is doing or did; null before
+   * one, and again once a clean apply has shown for `LIVE_PLAY_APPLIED_MS`.
+   */
   status: LivePlayStatus | null;
   /**
    * For the problems panel: the game's `live.check` issues after the last
@@ -148,6 +157,16 @@ export type LivePlayStatus = {
 
 /** The pending feedback and status line while a live update stages. */
 export const LIVE_PLAY_APPLYING = "Applying live update…";
+
+/** How the status line and its toast open when an edit didn't become a live update. */
+export const LIVE_PLAY_NOT_APPLIED = "Live update not applied";
+
+/**
+ * How long the status line says how an update with no check issues applied
+ * before it goes back to listening for edits, so an old apply doesn't read
+ * as a fresh one.
+ */
+export const LIVE_PLAY_APPLIED_MS = 4_000;
 
 /** What a replay says when the run reached a live version this editor didn't build. */
 export const LIVE_VERSION_MISSING = "This run played a live version this editor doesn't have";
@@ -718,6 +737,8 @@ function createLivePlay({
   let failure: SceneIssue | null = null;
   /** Stops the wait for the second live check. */
   let offRecheck: (() => void) | null = null;
+  /** Puts a clean apply's status line back to listening for edits. */
+  let settle: ReturnType<typeof setTimeout> | null = null;
 
   function unavailable(): string | null {
     if (!live || !game.on || !game.off) return "This editor's game doesn't take live updates.";
@@ -745,6 +766,12 @@ function createLivePlay({
     awaiting = null;
     offRecheck?.();
     offRecheck = null;
+    unsettle();
+  }
+
+  function unsettle() {
+    if (settle !== null) clearTimeout(settle);
+    settle = null;
   }
 
   const problems = (): SceneIssue[] => [...checkIssues, ...(failure ? [failure] : [])];
@@ -823,7 +850,7 @@ function createLivePlay({
       if (ticket !== run) return;
       if (!made.ok) {
         const issue = leadIssue(made.issues) ?? stageIssue(scene, "the version didn't build");
-        return fail("Live update not applied", issue);
+        return fail(LIVE_PLAY_NOT_APPLIED, issue);
       }
       if (made.version.sceneHash === runningHash) {
         set({ status: null });
@@ -833,10 +860,10 @@ function createLivePlay({
       keep(version);
       const staged = await live.stage(version);
       if (ticket !== run) return;
-      if (!staged.ok) return fail("Live update not applied", staged.issue);
+      if (!staged.ok) return fail(LIVE_PLAY_NOT_APPLIED, staged.issue);
       const out = live.activate(scene, made.id, "now");
       activated = true;
-      if (out.issue?.code === "live-swap-failed") return fail("Live update not applied", out.issue);
+      if (out.issue?.code === "live-swap-failed") return fail(LIVE_PLAY_NOT_APPLIED, out.issue);
       if (out.timing === "next-load") {
         const text = clampedText(out.timing, definition.live);
         set({ status: { tone: "waiting", text, ...(out.issue ? { issue: out.issue } : {}) } });
@@ -849,7 +876,7 @@ function createLivePlay({
             ? `the game plays this scene as "${playingAs}", not by its id ${scene}`
             : `${scene} isn't the scene playing`;
         return fail(
-          "Live update not applied",
+          LIVE_PLAY_NOT_APPLIED,
           liveIssue({ code: "live-swap-failed", scene, cause, phase: "swap" }),
         );
       }
@@ -862,7 +889,7 @@ function createLivePlay({
       }
     } catch (err) {
       if (ticket !== run) return;
-      fail("Live update not applied", stageIssue(scene, errorText(err)));
+      fail(LIVE_PLAY_NOT_APPLIED, stageIssue(scene, errorText(err)));
     } finally {
       release();
     }
@@ -892,35 +919,25 @@ function createLivePlay({
     timer = setTimeout(() => void flush(), LIVE_DEFAULTS.livePlayDebounceMs);
   }
 
+  // The runtime the game plays is the shell's handle, which carries the context the check reads.
+  const playingCtx = () => (game.runtime() as SceneRuntimeHandle | null)?.ctx ?? null;
+
   /** The game's live check's issues `when` (`right after the swap`, `60 ticks after the swap`). */
   function checksAfter(when: string): SceneIssue[] {
-    const declared = definition?.live;
-    // The runtime the game plays is the shell's handle, which carries the context the check reads.
-    const ctx = (game.runtime() as SceneRuntimeHandle | null)?.ctx;
-    if (!declared?.check || !ctx) return [];
-    try {
-      return [...declared.check(ctx)];
-    } catch (err) {
-      return [liveCheckThrew(err, when, scene, game.registry)];
-    }
+    const ctx = playingCtx();
+    return ctx ? runLiveCheck(definition?.live, ctx, when, scene, game.registry) : [];
   }
 
-  /** The checks' issues with the ones in `more` it doesn't hold yet. */
-  const merged = (more: readonly SceneIssue[]): SceneIssue[] => {
-    const seen = new Set(checkIssues.map((i) => stableJson(i)));
-    return [...checkIssues, ...more.filter((i) => !seen.has(stableJson(i)))];
-  };
-
-  /** Runs the live check again `LIVE_CHECK_AGAIN_TICKS` ticks after the swap's, as the swap check does. */
+  /** Runs the game's live check again at its second tick after `swap`. */
   function recheckLater(swap: SceneSwap) {
     if (!definition?.live?.check || !game.on || !game.off) return;
-    const at = swap.tick + LIVE_CHECK_AGAIN_TICKS;
+    const at = liveRecheckAt(swap.tick);
     const onTick = () => {
-      const ctx = (game.runtime() as SceneRuntimeHandle | null)?.ctx;
+      const ctx = playingCtx();
       if (!ctx || ctx.tick < at) return;
       offRecheck?.();
       offRecheck = null;
-      checkIssues = merged(checksAfter(`${ctx.tick - swap.tick} ticks after the swap`));
+      checkIssues = mergeIssues(checkIssues, checksAfter(afterSwapWords(ctx.tick - swap.tick)));
       set({ checks: problems() });
     };
     game.on("game:tick", onTick);
@@ -931,28 +948,30 @@ function createLivePlay({
     if (swap.scene !== scene || awaiting === null || swap.to.version !== awaiting) return;
     awaiting = null;
     runningHash = swap.to.sceneHash;
-    checkIssues = checksAfter("right after the swap");
+    checkIssues = mergeIssues([], checksAfter(LIVE_CHECK_RIGHT_AFTER));
     failure = null;
     const n = checkIssues.length;
     const counted = n > 0 ? ` · ${n === 1 ? "1 check issue" : `${n} check issues`}` : "";
     const summary = swapSummary(swap);
     // Restart is offered only for edits the game still lacks.
     const behind = docHash() !== runningHash;
+    const status: LivePlayStatus = {
+      tone: "applied",
+      text: `Live update applied: ${summary}${counted}`,
+    };
     host.setState((s) => ({
       ...s,
       sceneChanged: behind,
-      livePlay: {
-        ...(s.livePlay ?? initial()),
-        status: { tone: "applied", text: `Live update applied: ${summary}${counted}` },
-        checks: problems(),
-      },
+      livePlay: { ...(s.livePlay ?? initial()), status, checks: problems() },
     }));
-    notify.success("Live update applied", {
-      id: "live-play",
-      description: summary.charAt(0).toUpperCase() + summary.slice(1),
-    });
     offRecheck?.();
     recheckLater(swap);
+    unsettle();
+    if (n > 0) return;
+    settle = setTimeout(() => {
+      settle = null;
+      if (host.state.livePlay?.status === status) set({ status: null });
+    }, LIVE_PLAY_APPLIED_MS);
   };
 
   const onFailed = (e: { scene: AssetId; version: Sha256 | null; issue: SceneIssue }) => {

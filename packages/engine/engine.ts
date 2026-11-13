@@ -14,7 +14,7 @@ import {
   keysProblems,
   type BindingProblem,
 } from "./game/input-bindings";
-import { LIVE_DEFAULTS, type SceneSwap } from "./game/live";
+import { preloadDeadline, raceSignal, withinPreloadWords, type SceneSwap } from "./game/live";
 import { isRuntimeId } from "./game/runtime-ids";
 import type { SaveFile } from "./game/save-file";
 import { resolveTime, type ResolvedTime } from "./game/time";
@@ -955,28 +955,46 @@ export async function createGame(
   }
 
   /**
-   * A replay's live versions: the swaps it applies before their ticks, and
-   * the version the scene's loads used before it, put back when the replay
-   * ends, as is the one of each sublevel scene a recorded swap activated.
+   * The scenes a replay moved, each with the version its loads used before,
+   * put back when the replay ends; and the versions whose textures stay
+   * resident until then: those it moved away from and those it brought in.
    */
-  type ReplayLive = {
+  type ReplayMoves = {
+    before: Map<AssetId, PreparedVersion | null>;
+    holds: Set<Sha256>;
+  };
+  /** A replay's live versions: its scene, and the swaps it applies before their ticks. */
+  type ReplayLive = ReplayMoves & {
     scene: AssetId;
     swaps: ReturnType<typeof createSwapReplay>;
-    before: PreparedVersion | null;
-    others: Map<AssetId, PreparedVersion | null>;
   };
   let replayLive: ReplayLive | null = null;
 
-  /** Gives each scene the replay moved back the version its loads used before it. */
+  /** Notes the version `scene`'s loads use before the replay moves it. */
+  function replayMoves(r: ReplayMoves, scene: AssetId): void {
+    if (r.before.has(scene)) return;
+    const version = liveLayer.sceneFor(scene);
+    r.before.set(scene, version);
+    if (version) r.holds.add(version.id);
+  }
+
+  /** Keeps `p`'s textures resident through the replay that brings it in, loading them when nothing held them yet. */
+  function replayHolds(r: ReplayMoves, p: PreparedVersion): void {
+    r.holds.add(p.id);
+    const { hold, fresh } = holdLive(p.id, p.version);
+    if (fresh && hold.bundle) void loadBundle(hold.bundle);
+  }
+
+  /** Gives each scene the replay moved back the version its loads used before it, then lets go of what only the replay held. */
   function endReplayLive(): void {
     const r = replayLive;
     if (!r) return;
-    replayLive = null;
-    const back = new Map(r.others).set(r.scene, r.before);
-    for (const [scene, before] of back) {
+    for (const [scene, before] of r.before) {
       if (before) liveLayer.stage(before);
       liveLayer.activate(scene, before?.id ?? null, "next-load");
     }
+    replayLive = null;
+    pruneLive();
   }
 
   /** The listed scenes other than `scene` whose loads use a live version. */
@@ -1001,13 +1019,16 @@ export async function createGame(
     scene: AssetId,
     swaps: readonly RecordedSwap[],
     versions: ((id: Sha256) => StagedVersion | null) | undefined,
-    others: ReplayLive["others"],
+    moves: ReplayMoves,
   ): ReplayLive["swaps"] {
     return createSwapReplay({
       live: {
-        stage: (prepared) => liveLayer.stage(prepared),
+        stage(prepared) {
+          replayHolds(moves, prepared);
+          return liveLayer.stage(prepared);
+        },
         activate(id, version, timing) {
-          if (id !== scene && !others.has(id)) others.set(id, liveLayer.sceneFor(id));
+          replayMoves(moves, id);
           return liveLayer.activate(id, version, timing);
         },
         apply: (id, prepared, applyOpts) => liveLayer.apply(id, prepared, applyOpts),
@@ -1060,15 +1081,25 @@ export async function createGame(
     endReplayLive();
     const replayed = replay?.live ?? null;
     if (replayed) {
-      replayed.before = liveLayer.sceneFor(replayed.scene);
-      if (start) liveLayer.stage(start);
+      replayLive = replayed;
+      replayMoves(replayed, replayed.scene);
+      if (start) {
+        replayHolds(replayed, start);
+        liveLayer.stage(start);
+      }
       liveLayer.activate(replayed.scene, start?.id ?? null, "next-load");
       // The other scenes start on the release's own: the recording's own swaps move the ones it ran live.
       for (const scene of liveOffScenes(replayed.scene)) {
-        replayed.others.set(scene, liveLayer.sceneFor(scene));
+        replayMoves(replayed, scene);
         liveLayer.activate(scene, null, "next-load");
       }
-      replayLive = replayed;
+      // Those its load's sublevels used move before the load, so an attach in `onLoad` reads them; Play loads at tick 0.
+      const stop = replayed.swaps.atLoad(0);
+      if (stop) {
+        endReplayLive();
+        const error = stop.issues[0]?.message ?? `the swap at tick ${stop.tick} didn't read`;
+        return { ok: false, issues: stop.issues, error };
+      }
     }
     const persistAtLoad = persist.value;
     const view = start ? liveView(start.version) : assetView();
@@ -1156,10 +1187,10 @@ export async function createGame(
     }
     const scene = start?.version.scene ?? doc.name;
     const swaps = recording.swaps ?? [];
-    const others: ReplayLive["others"] = new Map();
+    const moves: ReplayMoves = { before: new Map(), holds: new Set() };
     const live: ReplayLive | null =
       start || swaps.length > 0 || liveLayer.sceneFor(scene) || liveOffScenes(scene).length > 0
-        ? { scene, swaps: replaySwapsOf(scene, swaps, opts.versions, others), before: null, others }
+        ? { scene, swaps: replaySwapsOf(scene, swaps, opts.versions, moves), ...moves }
         : null;
     const recorded = recording.start.persist;
     const before = recorded !== undefined ? persist.value : undefined;
@@ -2224,6 +2255,7 @@ export async function createGame(
 
   function liveHeld(scene: AssetId, id: Sha256): boolean {
     return (
+      (replayLive?.holds.has(id) ?? false) ||
       liveStaging.has(id) ||
       liveStaged.get(scene) === id ||
       liveLayer.sceneFor(scene)?.id === id ||
@@ -2231,6 +2263,19 @@ export async function createGame(
       liveLayer.pending().some((p) => p.scene === scene && p.version === id) ||
       (currentScene() === scene && liveLayer.hooks.version() === id)
     );
+  }
+
+  /** `id`'s hold, made and retained when there was none (`fresh`). */
+  function holdLive(id: Sha256, version: SceneVersion): { hold: LiveHold; fresh: boolean } {
+    const held = liveHolds.get(id);
+    if (held) return { hold: held, fresh: false };
+    const hold: LiveHold = {
+      scene: version.scene,
+      bundle: assets ? versionBundle(id, version) : null,
+    };
+    liveHolds.set(id, hold);
+    if (hold.bundle) assets?.loader.retain(hold.bundle);
+    return { hold, fresh: true };
   }
 
   /** Lets go of the versions the layer no longer holds, so their textures may be evicted. */
@@ -2257,27 +2302,17 @@ export async function createGame(
     work: Promise<T>,
     signal: AbortSignal | undefined,
   ): Promise<{ ok: true; value: T } | { ok: false; why: string }> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let onAbort: (() => void) | undefined;
-    const stopped = new Promise<{ ok: false; why: string }>((done) => {
-      timer = setTimeout(
-        () =>
-          done({
-            ok: false,
-            why: `its textures didn't preload within ${LIVE_DEFAULTS.preloadTimeoutMs / 1000} s`,
-          }),
-        LIVE_DEFAULTS.preloadTimeoutMs,
-      );
-      if (!signal) return;
-      onAbort = () => done({ ok: false, why: "its staging was cancelled" });
-      if (signal.aborted) onAbort();
-      else signal.addEventListener("abort", onAbort, { once: true });
-    });
+    const deadline = preloadDeadline(signal);
     try {
-      return await Promise.race([work.then((value) => ({ ok: true as const, value })), stopped]);
+      return { ok: true, value: await raceSignal(work, deadline.signal) };
+    } catch (err) {
+      if (!deadline.signal.aborted) throw err;
+      const why = deadline.timedOut()
+        ? `its textures didn't preload ${withinPreloadWords()}`
+        : "its staging was cancelled";
+      return { ok: false, why };
     } finally {
-      clearTimeout(timer);
-      if (onAbort) signal?.removeEventListener("abort", onAbort);
+      deadline.clear();
     }
   }
 
@@ -2295,12 +2330,7 @@ export async function createGame(
     if (unlisted) return { ok: false, issue: unlisted };
     const read = prepareVersion(v);
     if (!read.ok) return { ok: false, issue: read.issue };
-    let hold = liveHolds.get(v.id);
-    if (!hold) {
-      hold = { scene, bundle: assets ? versionBundle(v.id, v.version) : null };
-      liveHolds.set(v.id, hold);
-      if (hold.bundle) assets?.loader.retain(hold.bundle);
-    }
+    const { hold } = holdLive(v.id, v.version);
     liveView(v.version);
     const textures = hold.bundle ? loadBundle(hold.bundle) : null;
     const loading = Promise.all([physicsFor(v.version.entry.physics), textures]);

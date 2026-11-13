@@ -17,7 +17,7 @@ import {
   LIVE_PLAY_TOOLTIP,
 } from "../panels/EditorPlayBar";
 import { LIVE_PLAY_IDLE, livePlayPending } from "../panels/EditorStatusBar";
-import type { LivePlayStatus } from "../session/live-scene-editor";
+import { LIVE_PLAY_NOT_APPLIED, type LivePlayStatus } from "../session/live-scene-editor";
 
 afterEach(() => {
   cleanup();
@@ -124,7 +124,7 @@ describe("the Live in Play toggle", () => {
   });
 
   it("offers Restart again when a live update failed or waits, and calls only those pending", () => {
-    const failed: LivePlayStatus = { tone: "failed", text: "Live update not applied: no" };
+    const failed: LivePlayStatus = { tone: "failed", text: `${LIVE_PLAY_NOT_APPLIED}: no` };
     const host = new Store({
       sceneChanged: true,
       livePlay: { on: true, unavailable: null, status: failed, checks: [] },

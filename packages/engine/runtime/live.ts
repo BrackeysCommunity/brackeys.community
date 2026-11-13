@@ -1,4 +1,4 @@
-import type { LibraryScene } from "../game/flow";
+import type { LibraryScene, SceneLibrary } from "../game/flow";
 import {
   clampTiming,
   versionName,
@@ -258,7 +258,8 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
   /**
    * Notices a load since the last look: the scene it loaded runs the version
    * that scene's loads use, and a swap still waiting is done, since the load
-   * used the version (or left the scene).
+   * used the version (or left the scene). A look from inside a load (an
+   * `onLoad` attach) is taken again once the load has its scene.
    */
   function sync(): SceneRuntimeHandle | null {
     const rt = opts.runtime();
@@ -269,10 +270,10 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
     }
     const generation = generationOf(rt);
     if (seen?.runtime === rt && seen.generation === generation) return rt;
-    seen = { runtime: rt, generation };
     const scene = sceneIdOf(rt);
-    running =
-      rt.scene() !== null && scene !== null ? { scene, version: active.get(scene) ?? null } : null;
+    const loaded = rt.scene() !== null;
+    seen = loaded ? { runtime: rt, generation } : null;
+    running = loaded && scene !== null ? { scene, version: active.get(scene) ?? null } : null;
     pending.clear();
     moved.clear();
     return rt;
@@ -604,6 +605,18 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
   };
 }
 
+/** `base` with each listed scene's active live version in place of its own definition. */
+export function liveLibrary(base: SceneLibrary, layer: Pick<LiveLayer, "sceneFor">): SceneLibrary {
+  let scenes: Map<AssetId, LibraryScene> | null = null;
+  for (const { scene } of base.list) {
+    const active = layer.sceneFor(scene);
+    if (!active) continue;
+    scenes ??= new Map(base.scenes);
+    scenes.set(scene, { def: active.def, prefabs: active.prefabs });
+  }
+  return scenes ? { list: base.list, scenes } : base;
+}
+
 /**
  * The version `id` a recording names, through the host's `versions`:
  * `scene-version-removed` (with the swap's `tick`) when the host has none,
@@ -662,13 +675,60 @@ const strategyWord = (s: SwapStrategy) => (s === "reload" ? "reloaded" : "reconc
  * version is null). A swap whose tick
  * already passed, that doesn't apply, or that ran with another strategy or
  * run hash is stale; a version the host can't give stops the replay.
+ *
+ * `atLoad`, before the replay's load, takes the swaps the recording starts
+ * with: the leading `sublevel` swaps at the start tick, one per scene,
+ * which the recorded load's `onLoad` attaches read. A sublevel activated
+ * after the recorded load but before its first step reads the same, and
+ * replays as if the load had used it.
  */
 export function createSwapReplay(opts: SwapReplayOptions): {
+  atLoad(tick: number): SwapReplayStop | null;
   before(tick: number): SwapReplayStop | null;
 } {
   const { live, swaps } = opts;
   let next = 0;
+
+  /**
+   * The swap at `at` on `named`: the scene it moves and the version it moves
+   * to (null: the release's own), or where the replay stops when the host
+   * can't give that version.
+   */
+  function targetOf(
+    at: number,
+    named: AssetId,
+  ): { scene: AssetId; target: PreparedVersion | null } | { stop: SwapReplayStop } {
+    const entry = swaps[at]!;
+    if (entry.version === null) return { scene: named, target: null };
+    const found = opts.resolve(entry.version, named, at, entry.tick);
+    if (found.ok) return { scene: found.prepared.version.scene, target: found.prepared };
+    const { tick, version } = entry;
+    return { stop: { at, tick, scene: named, version, issues: found.issues } };
+  }
+
+  /** Stages and activates `target` for `scene`'s next load or attach. */
+  function activateNextLoad(scene: AssetId, target: PreparedVersion | null): void {
+    if (target) live.stage(target);
+    live.activate(scene, target?.id ?? null, "next-load");
+  }
+
   return {
+    atLoad(tick) {
+      const taken = new Set<AssetId>();
+      for (; next < swaps.length; next++) {
+        const entry = swaps[next]!;
+        const named = entry.sublevel;
+        if (entry.tick !== tick || named === undefined || taken.has(named)) break;
+        taken.add(named);
+        const found = targetOf(next, named);
+        if ("stop" in found) {
+          next++;
+          return found.stop;
+        }
+        activateNextLoad(found.scene, found.target);
+      }
+      return null;
+    },
     before(tick) {
       for (; next < swaps.length && swaps[next]!.tick <= tick; next++) {
         const at = next;
@@ -680,21 +740,14 @@ export function createSwapReplay(opts: SwapReplayOptions): {
           );
           continue;
         }
-        const named = entry.sublevel ?? opts.scene();
-        let target: PreparedVersion | null = null;
-        if (entry.version !== null) {
-          const found = opts.resolve(entry.version, named, at, entry.tick);
-          if (!found.ok) {
-            next++;
-            const { tick, version } = entry;
-            return { at, tick, scene: named, version, issues: found.issues };
-          }
-          target = found.prepared;
+        const found = targetOf(at, entry.sublevel ?? opts.scene());
+        if ("stop" in found) {
+          next++;
+          return found.stop;
         }
-        const scene = target?.version.scene ?? named;
+        const { scene, target } = found;
         if (entry.timing === "next-load") {
-          if (target) live.stage(target);
-          live.activate(scene, entry.version, "next-load");
+          activateNextLoad(scene, target);
           continue;
         }
         const applied = live.apply(scene, target, {

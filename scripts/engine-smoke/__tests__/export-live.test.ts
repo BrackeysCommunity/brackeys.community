@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { runInThisContext } from "node:vm";
 import type { MessagePort } from "node:worker_threads";
 
-import { finishExport, planContent, type BuiltCode, type ExportInput } from "@jams/engine/export";
+import type { ExportInput } from "@jams/engine/export";
 import {
   checkSceneVersion,
   PROJECT_FILE,
@@ -17,6 +17,10 @@ import { diffExpanded, expandScene, parseScene } from "@jams/engine/scene";
 import { frameMessageSchema, hostMessageSchema, liveSnapshotSchema } from "@jams/engine/standalone";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
+import {
+  fakeBuiltCode,
+  releaseFiles,
+} from "../../../packages/engine/__tests__/fixtures/held-project";
 import { discoverProjects } from "../../scene/projects";
 import { exportInputOf } from "../../scene/tools/game-build";
 import { readVersionFiles } from "../../scene/tools/replay";
@@ -53,18 +57,6 @@ const SCENE = "test-yard";
 
 // ─── The fixture version ─────────────────────────────────
 
-const WASM = "code/rapier_wasm2d_bg-abc123.wasm";
-/** The platformer's code as the bundler would hash it: its entry and Rapier's wasm. */
-const builtCode: BuiltCode = {
-  files: [
-    { path: "code/main-abc123.js", sha256: "d".repeat(64), bytes: 1000, role: "code" },
-    { path: WASM, sha256: "e".repeat(64), bytes: 2000, role: "wasm" },
-  ],
-  entry: "code/main-abc123.js",
-  rapier: { package: "@dimforge/rapier2d", version: "0.19.3", file: WASM, bytes: 2000 },
-  thirdParty: [],
-};
-
 describe("the fixture version", () => {
   let tmp: string;
   let input: ExportInput;
@@ -80,7 +72,7 @@ describe("the fixture version", () => {
     if ("exitCode" in got) throw new Error(got.text);
     input = got;
     // The release as `game build` writes its manifest; the code files don't reach the version.
-    ({ manifest } = await finishExport(await planContent(input), builtCode, input));
+    ({ manifest } = await releaseFiles(input, fakeBuiltCode({ rapier: true })));
     fixture = await buildLiveFixture(manifest, {
       projectDir: PLATFORMER,
       cacheDir: join(tmp, "cache"),

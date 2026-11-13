@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
-import { heldInput } from "../../__tests__/fixtures/held-project";
+import { heldInput, withHeldDoc } from "../../__tests__/fixtures/held-project";
 import { oneSceneVersion } from "../../__tests__/fixtures/live-version";
 import { testGame } from "../../__tests__/fixtures/test-game";
 import type { ExportInput } from "../../export/plan";
@@ -18,7 +18,11 @@ import {
   ENGINE_PROJECT,
   readHeld,
 } from "../../project/__tests__/fixtures/scene-version/held-files";
-import { buildSceneVersion, readSceneVersion } from "../../project/scene-version";
+import {
+  buildSceneVersion,
+  readSceneVersion,
+  sceneVersionOptions,
+} from "../../project/scene-version";
 import type { ChecksFile } from "../../scene/checks";
 import { formatScene } from "../../scene/format";
 import {
@@ -352,16 +356,9 @@ describe("swapCheck on the kitchen sink", () => {
 
   /** The sink's version built from the engine project's files, its definition edited first. */
   async function sinkVersion(from: ExportInput): Promise<StagedVersion> {
-    const result = await buildSceneVersion({
-      view: from.view,
-      texts: from.texts,
-      build: from.snapshot.build,
-      game: from.game,
-      registry: from.registry,
-      scene: SINK,
-    });
+    const result = await buildSceneVersion(sceneVersionOptions(from, SINK));
     if (!result.ok) throw new Error(JSON.stringify(result.issues, null, 2));
-    return { id: result.id, version: result.version, texts: result.texts };
+    return result;
   }
 
   beforeAll(async () => {
@@ -371,14 +368,9 @@ describe("swapCheck on the kitchen sink", () => {
     const def = JSON.parse(held.texts.get(SINK_PATH)!) as SceneDefinition;
     const lamp = def.entities!.find((e) => e.id === "lamp") as EntityDef & { at: Pt };
     lamp.at = [lamp.at[0] + 0.5, lamp.at[1]];
-    const texts = new Map(held.texts);
-    texts.set(SINK_PATH, formatScene(def).text);
     moved = await heldInput(
       ENGINE_PROJECT,
-      {
-        texts,
-        files: held.files.map((f) => (f.path === SINK_PATH ? { path: f.path, json: def } : f)),
-      },
+      withHeldDoc(held, SINK_PATH, def, formatScene(def).text),
       testGame,
     );
   });

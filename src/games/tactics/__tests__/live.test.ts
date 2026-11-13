@@ -19,7 +19,7 @@ import {
   swapCheck,
   type InputScriptV2,
 } from "@jams/engine/headless";
-import { buildSceneVersion, sceneListFlow } from "@jams/engine/project";
+import { buildSceneVersion, sceneListFlow, sceneVersionOptions } from "@jams/engine/project";
 import {
   createRegistry,
   expandScene,
@@ -109,16 +109,9 @@ let input: ExportInput;
 async function versionOf(level?: SceneDefinition): Promise<StagedVersion> {
   const texts = new Map(input.texts);
   if (level) texts.set(SCENE, formatScene(level).text);
-  const built = await buildSceneVersion({
-    view: input.view,
-    texts,
-    build: input.snapshot.build,
-    game: input.game,
-    registry: input.registry,
-    scene: SCENE,
-  });
+  const built = await buildSceneVersion(sceneVersionOptions(input, SCENE, { texts }));
   if (!built.ok) throw new Error(JSON.stringify(built.issues, null, 2));
-  return { id: built.id, version: built.version, texts: built.texts };
+  return built;
 }
 
 const level1 = () => JSON.parse(input.texts.get(SCENE)!) as SceneDefinition;

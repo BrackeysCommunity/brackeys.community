@@ -1,4 +1,4 @@
-import { LIVE_DEFAULTS, type SwapTiming } from "../game/live";
+import { preloadDeadline, raceSignal, withinPreloadWords, type SwapTiming } from "../game/live";
 import { sha256 } from "../project/hash";
 import { byCodeUnit } from "../project/kinds/define";
 import type { ReleaseAsset, ReleaseManifest } from "../project/release";
@@ -59,14 +59,8 @@ type Track = {
 
 type Prepared = { ok: true } | { ok: false; issue: SceneIssue };
 
-/** Why a preparation stopped early: its deadline, a newer snapshot, or the controller's end. */
-type StopReason = "deadline" | "superseded" | "disposed";
-
-class Stopped extends Error {
-  constructor(readonly reason: StopReason) {
-    super(reason);
-  }
-}
+/** Why a preparation stopped early, besides its deadline: a newer snapshot, or the controller's end. */
+type StopReason = "superseded" | "disposed";
 
 /**
  * Follows the page's live snapshots: for each scene whose version differs
@@ -167,13 +161,7 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
     const { scene, version: id } = entry;
     const name = `${scene}@${entry.number}`;
     const refuse = (issue: SceneIssue): Prepared => ({ ok: false, issue });
-    const guard = <T>(work: Promise<T>): Promise<T> =>
-      new Promise<T>((resolve, reject) => {
-        const stop = () => reject(new Stopped(signal.reason as StopReason));
-        if (signal.aborted) return stop();
-        signal.addEventListener("abort", stop, { once: true });
-        work.then(resolve, reject).finally(() => signal.removeEventListener("abort", stop));
-      });
+    const guard = <T>(work: Promise<T>): Promise<T> => raceSignal(work, signal);
 
     const file = liveFiles.doc(id);
     const text = await guard(opts.fetchText(file));
@@ -241,29 +229,26 @@ export function createLiveController(opts: LiveControllerOptions): LiveControlle
     };
     tracks.set(scene, t);
     report({ scene, version: entry.version, status: "staging" });
-    const timer = globalThis.setTimeout(
-      () => abort.abort("deadline" satisfies StopReason),
-      LIVE_DEFAULTS.preloadTimeoutMs,
-    );
+    const deadline = preloadDeadline(abort.signal);
     const timedOut = () =>
       stageIssue(
         scene,
-        `${scene}@${entry.number} didn't fetch, check and preload within ${LIVE_DEFAULTS.preloadTimeoutMs / 1000} s`,
+        `${scene}@${entry.number} didn't fetch, check and preload ${withinPreloadWords()}`,
       );
-    t.done = prepare(entry, abort.signal)
+    t.done = prepare(entry, deadline.signal)
       .catch((error: unknown): Prepared => {
-        if (error instanceof Stopped) return { ok: false, issue: timedOut() };
+        if (deadline.signal.aborted) return { ok: false, issue: timedOut() };
         if (error instanceof StandaloneBootError && error.issues[0])
           return { ok: false, issue: error.issues[0] };
         return { ok: false, issue: stageIssue(scene, errorText(error)) };
       })
       .then((result) => {
-        globalThis.clearTimeout(timer);
+        deadline.clear();
         t.abort = null;
         if (disposed || tracks.get(scene) !== t) return;
         if (result.ok) return activate(scene, t);
         t.phase = "refused";
-        const issue = abort.signal.reason === "deadline" ? timedOut() : result.issue;
+        const issue = deadline.timedOut() ? timedOut() : result.issue;
         report({ scene, version: t.version, status: "refused", issue });
       });
   }

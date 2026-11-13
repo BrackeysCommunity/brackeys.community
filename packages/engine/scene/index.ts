@@ -190,6 +190,7 @@ export {
   type ValidateOptions,
 } from "./validate";
 export {
+  isErrorIssue,
   ISSUE_CODES,
   jsonPointer,
   liveIssue,

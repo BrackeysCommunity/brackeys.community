@@ -14,8 +14,8 @@ Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regene
 | [`@jams/engine/export`](export.md) | 40 |
 | [`@jams/engine/game`](game.md) | 452 |
 | [`@jams/engine/headless`](headless.md) | 168 |
-| [`@jams/engine/project`](project.md) | 321 |
-| [`@jams/engine/scene`](scene.md) | 362 |
+| [`@jams/engine/project`](project.md) | 324 |
+| [`@jams/engine/scene`](scene.md) | 363 |
 | [`@jams/engine/sim-kit`](sim-kit.md) | 19 |
 | [`@jams/engine/standalone`](standalone.md) | 57 |
 | [`@jams/engine/vite`](vite.md) | 54 |

@@ -19,7 +19,14 @@ import {
   sequentialKeys,
 } from "@jams/engine/collab";
 import { DEFAULT_EXPORT_BUDGET, exportTargetNames, ITCH_LIMITS } from "@jams/engine/export";
-import { clampTiming, createRegistry, LIVE_DEFAULTS, SLOT_MAX_LENGTH } from "@jams/engine/game";
+import {
+  clampTiming,
+  createRegistry,
+  LIVE_DEFAULTS,
+  SLOT_MAX_LENGTH,
+  SLOT_PATTERN,
+  SLOT_RULE,
+} from "@jams/engine/game";
 import { createKindRegistry, ENGINE_ASSET_KINDS, type AssetEntry } from "@jams/engine/project";
 import type { SceneDefinition } from "@jams/engine/scene";
 import { Store } from "@tanstack/store";
@@ -656,12 +663,14 @@ function tableRows(markdown: string, header: string): string[][] {
 }
 
 describe("the saves section", () => {
-  it("states the slot names' length as SLOT_MAX_LENGTH has it", () => {
-    const stated =
-      /Slot\s+names are lowercase letters, digits and dashes, 1–(\d+)\s+characters/.exec(
-        readmeSection("## Saves"),
-      );
-    expect(Number(stated?.[1])).toBe(SLOT_MAX_LENGTH);
+  it("names the slot constants instead of restating their length", () => {
+    const saves = readmeSection("## Saves");
+    const slots = { SLOT_MAX_LENGTH, SLOT_PATTERN, SLOT_RULE };
+    for (const [name, value] of Object.entries(slots)) {
+      expect(value, name).toBeDefined();
+      expect(saves).toContain(`\`${name}\``);
+    }
+    expect(saves).not.toMatch(/\b\d+\s+characters/);
   });
 });
 

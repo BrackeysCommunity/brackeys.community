@@ -28,14 +28,20 @@ export const markerScene = (
   entities: markers.map((id, i) => ({ id, type: "marker", at: [1 + i, 1] })),
 });
 
-/** A scene list of one `start` marker scene per name, the first its start scene. */
-export function markerSource(names: readonly string[]): SceneSource {
+/**
+ * A scene list of one `start` marker scene per entry, the first its start
+ * scene; an entry given as `{ scene, sublevel: true }` is listed as a sublevel.
+ */
+export function markerSource(
+  entries: readonly (string | { scene: string; sublevel: true })[],
+): SceneSource {
+  const list = entries.map((e) => (typeof e === "string" ? { scene: e } : e));
   const scenes = new Map<string, LibraryScene>(
-    names.map((id) => [id, { def: markerScene(id, ["start"]), prefabs: new Map() }]),
+    list.map(({ scene }) => [scene, { def: markerScene(scene, ["start"]), prefabs: new Map() }]),
   );
   return {
-    list: () => names.map((scene) => ({ scene })),
-    start: () => names[0] ?? null,
+    list: () => list.map((e) => ({ ...e })),
+    start: () => list[0]?.scene ?? null,
     scene: (id) => scenes.get(id) ?? null,
   };
 }

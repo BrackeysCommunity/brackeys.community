@@ -81,6 +81,50 @@ export const LIVE_DEFAULTS: {
   checkTicks: 120,
 });
 
+/** The staging deadline as a refusal reads it: `within 60 s`. */
+export const withinPreloadWords = (): string => `within ${LIVE_DEFAULTS.preloadTimeoutMs / 1000} s`;
+
+/** Settles as `work` does, or rejects with `signal`'s reason once it aborts first. */
+export function raceSignal<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return work;
+  return new Promise<T>((resolve, reject) => {
+    const stop = () => reject(signal.reason);
+    if (signal.aborted) return stop();
+    signal.addEventListener("abort", stop, { once: true });
+    work.then(resolve, reject).finally(() => signal.removeEventListener("abort", stop));
+  });
+}
+
+/**
+ * A staging's deadline: `signal` aborts once `LIVE_DEFAULTS.preloadTimeoutMs`
+ * passes (`timedOut()` then true) or as soon as `outer` aborts. `clear`
+ * stops the clock and lets go of `outer`.
+ */
+export function preloadDeadline(outer?: AbortSignal): {
+  signal: AbortSignal;
+  timedOut(): boolean;
+  clear(): void;
+} {
+  const ctl = new AbortController();
+  let late = false;
+  const timer = setTimeout(() => {
+    if (ctl.signal.aborted) return;
+    late = true;
+    ctl.abort("deadline");
+  }, LIVE_DEFAULTS.preloadTimeoutMs);
+  const forward = () => ctl.abort(outer?.reason);
+  if (outer?.aborted) forward();
+  else outer?.addEventListener("abort", forward, { once: true });
+  return {
+    signal: ctl.signal,
+    timedOut: () => late,
+    clear() {
+      clearTimeout(timer);
+      outer?.removeEventListener("abort", forward);
+    },
+  };
+}
+
 /** How many ticks after a swap the game's `live.check` runs a second time. */
 export const LIVE_CHECK_AGAIN_TICKS = 60;
 

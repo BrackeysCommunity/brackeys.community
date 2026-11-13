@@ -1,23 +1,27 @@
 import type { SceneLibrary } from "../game/flow";
 import {
-  LIVE_CHECK_AGAIN_TICKS,
   LIVE_DEFAULTS,
   swapStrategyFor,
   type LiveDeclaration,
   type SwapStrategy,
 } from "../game/live";
 import type { GameDefinition, Registry } from "../game/types";
-import { stableJson } from "../project/canonical";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
 import {
-  liveCheckThrew,
   preparedVersion,
   stageIssue,
   thrownSwapIssue,
   type LiveLayer,
   type PreparedVersion,
 } from "../runtime/live";
+import {
+  afterSwapWords,
+  LIVE_CHECK_RIGHT_AFTER,
+  liveRecheckAt,
+  mergeIssues,
+  runLiveCheck,
+} from "../runtime/live-check";
 import { gamePersistCell } from "../runtime/persist";
 import { resolveGame } from "../runtime/runtime";
 import type { SceneRuntimeHandle } from "../runtime/types";
@@ -332,30 +336,18 @@ function swapRun(
     skipped: (slot) => source.skipped?.(slot),
   };
 
-  const issues: SceneIssue[] = [];
-  const seen = new Set<string>();
+  let issues: SceneIssue[] = [];
   const add = (found: readonly SceneIssue[]) => {
-    for (const issue of found) {
-      const key = stableJson(issue);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      issues.push(issue);
-    }
+    issues = mergeIssues(issues, found);
   };
-  const runCheck = (when: string) => {
-    if (!declared?.check) return;
-    try {
-      add(declared.check(runtime.ctx));
-    } catch (err) {
-      add([liveCheckThrew(err, when, o.scene, o.registry)]);
-    }
-  };
+  const runCheck = (when: string) =>
+    add(runLiveCheck(declared, runtime.ctx, when, o.scene, o.registry));
 
   let strategy: SwapStrategy | null = null;
   let swapped = false;
   let secondDone = false;
   // The second check runs at the run's end when that comes sooner.
-  const secondAt = swap.tick + Math.min(LIVE_CHECK_AGAIN_TICKS, swap.afterTicks);
+  const secondAt = Math.min(liveRecheckAt(swap.tick), swap.tick + swap.afterTicks);
   const beforeTick = (): string | null => {
     const now = runtime.ctx.tick;
     if (!swapped && now === swap.tick) {
@@ -366,10 +358,10 @@ function swapRun(
         return "the swap failed";
       }
       strategy = applied.swap.strategy;
-      runCheck("right after the swap");
-    } else if (swapped && !secondDone && now === secondAt) {
+      runCheck(LIVE_CHECK_RIGHT_AFTER);
+    } else if (swapped && !secondDone && now >= secondAt) {
       secondDone = true;
-      runCheck(`${now - swap.tick} ticks after the swap`);
+      runCheck(afterSwapWords(now - swap.tick));
     }
     return null;
   };
@@ -398,7 +390,7 @@ function swapRun(
       }),
     ]);
   else if (strategy && !secondDone && runtime.ctx.tick > swap.tick)
-    runCheck(`at the run's end, ${runtime.ctx.tick - swap.tick} ticks after the swap`);
+    runCheck(`at the run's end, ${afterSwapWords(runtime.ctx.tick - swap.tick)}`);
   swap.done(strategy, issues);
   return { ok: true, ticks: runtime.ctx.tick };
 }

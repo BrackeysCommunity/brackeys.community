@@ -8,8 +8,8 @@ import {
   type SwapTiming,
 } from "../game/live";
 import { SLOT_PATTERN } from "../game/save-file";
-import { SHA256_PATTERN } from "../project/hash";
 import type { AssetId, Sha256 } from "../project/types";
+import { sha256Field } from "../project/zod-fields";
 import type { SceneIssue } from "../scene/types";
 
 /**
@@ -47,7 +47,7 @@ export const HOST_WELCOME_TIMEOUT_MS = 30_000;
 export const HOST_REQUEST_TIMEOUT_MS = 30_000;
 
 const protocol = z.literal(HOST_PROTOCOL_VERSION);
-const sha256 = z.string().regex(SHA256_PATTERN);
+const sha256 = sha256Field();
 const slot = z.string().regex(SLOT_PATTERN);
 const gameId = z.string().min(1).max(64);
 const requestId = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);

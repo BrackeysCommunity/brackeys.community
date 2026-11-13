@@ -38,8 +38,13 @@ const BOUNDARY_TICK = 300;
 
 type Walker = RuntimeEntity<{ at: Pt; speed: number }>;
 
-/** Walkers that step right at their speed, and a score drawn from `ctx.random`, so a swap moves the end digest. */
-function swapGame(opts: { restartAt?: number; physics?: "none" | "rapier" } = {}): GameDefinition {
+/**
+ * Walkers that step right at their speed, and a score drawn from `ctx.random`,
+ * so a swap moves the end digest; `cellarAtLoad` attaches the cellar in `onLoad`.
+ */
+function swapGame(
+  opts: { restartAt?: number; physics?: "none" | "rapier"; cellarAtLoad?: boolean } = {},
+): GameDefinition {
   return defineGame({
     id: GAME,
     world: { physics: opts.physics ?? "none" },
@@ -84,6 +89,9 @@ function swapGame(opts: { restartAt?: number; physics?: "none" | "rapier" } = {}
     createRuntime(ctx) {
       let score = 0;
       const runtime: GameRuntime<{ score: number; xs: [string, number][] }> = {
+        onLoad() {
+          if (opts.cellarAtLoad) ctx.flow.attach(CELLAR, { label: "low" });
+        },
         afterStep() {
           score += ctx.random.below(10);
           if (ctx.tick === BOUNDARY_TICK) ctx.live.boundary("checkpoint");
@@ -139,6 +147,29 @@ const libraryOf = (def: SceneDefinition): SceneLibrary => ({
   scenes: new Map([[SCENE, { def, prefabs: new Map() }]]),
 });
 
+const CELLAR = "cellar";
+
+/** A sublevel beside the yard: one walker, `c1`, and whatever `edit` adds. */
+function cellar(edit: (def: SceneDefinition) => void = () => {}): SceneDefinition {
+  const def: SceneDefinition = {
+    ...yard(),
+    name: CELLAR,
+    bounds: [0, 0, 10, 10],
+    entities: [{ id: "c1", type: WALKER, at: [1, 5], speed: 1 }],
+  };
+  edit(def);
+  return def;
+}
+
+/** The yard's library with the cellar listed as a sublevel. */
+const cellarLibrary = (): SceneLibrary => ({
+  list: [{ scene: SCENE }, { scene: CELLAR, sublevel: true }],
+  scenes: new Map([
+    [SCENE, { def: yard(), prefabs: new Map() }],
+    [CELLAR, { def: cellar(), prefabs: new Map() }],
+  ]),
+});
+
 type Activation = { at: number; version: StagedVersion; timing: SwapTiming };
 
 /**
@@ -150,7 +181,13 @@ function recordRun(
   game: GameDefinition,
   registry: Registry,
   activations: readonly Activation[],
-  on: { def?: SceneDefinition; rapier?: RapierModule } = {},
+  on: {
+    def?: SceneDefinition;
+    rapier?: RapierModule;
+    library?: SceneLibrary;
+    /** Versions of other listed scenes active before the load, recorded as the shell records them. */
+    sublevels?: readonly StagedVersion[];
+  } = {},
 ): RunRecording {
   const def = on.def ?? yard();
   const rapier = on.rapier ?? null;
@@ -162,7 +199,16 @@ function recordRun(
     registry,
     scene: prepared.scene,
     play: {},
-    flow: { scene: SCENE, entry: null, library: libraryOf(def) },
+    flow: { scene: SCENE, entry: null, library: on.library ?? libraryOf(def) },
+    beforeLoad(live) {
+      for (const v of on.sublevels ?? []) {
+        const read = preparedVersion(v, registry, game);
+        if (!read.ok) throw new Error(JSON.stringify(read.issues));
+        live.stage(read.prepared);
+        live.activate(v.version.scene, v.id, "next-load");
+      }
+      return null;
+    },
   });
   if (!started.ok) throw new Error(JSON.stringify(started.load));
   const { runtime, live } = started;
@@ -179,6 +225,7 @@ function recordRun(
     time: runtime.ctx.time,
     players: runtime.ctx.input.players(),
   });
+  for (const swap of live.liveSublevels()) recorder.swap(recordedSwap(swap));
   live.onApplied((swap) => recorder.swap(recordedSwap(swap)));
   try {
     const end = runLoop({
@@ -361,6 +408,66 @@ describe("replaying a run with live swaps", () => {
     expect(migrated.migratedFrom).toBe(1);
     expect(migrated.recording).not.toHaveProperty("sceneVersion");
     expect(migrated.recording).not.toHaveProperty("swaps");
+  });
+});
+
+describe("replaying a run whose onLoad attaches a sublevel on a live version", () => {
+  let game: GameDefinition;
+  let registry: Registry;
+  let deeper: StagedVersion;
+  let recording: RunRecording;
+  const replay = (rec: unknown, versions?: (id: string) => StagedVersion | null) =>
+    replayRecording({
+      game,
+      registry,
+      scene: yard(),
+      flow: cellarLibrary(),
+      recording: rec,
+      ...(versions ? { versions } : {}),
+    });
+
+  beforeAll(async () => {
+    game = swapGame({ cellarAtLoad: true });
+    registry = createRegistry(game);
+    deeper = await versionOf(
+      cellar((def) => {
+        def.entities!.push({ id: "c2", type: WALKER, at: [2, 6], speed: 3 });
+      }),
+      game,
+    );
+    recording = recordRun(game, registry, [], { library: cellarLibrary(), sublevels: [deeper] });
+  });
+
+  it("records the version the load's sublevel used at tick 0", () => {
+    expect(recording.swaps).toEqual([
+      expect.objectContaining({
+        tick: 0,
+        sublevel: CELLAR,
+        version: deeper.id,
+        timing: "next-load",
+      }),
+    ]);
+  });
+
+  it("attaches that version in the replay's onLoad and replays to the same end", () => {
+    const report = replayed(replay(recording, (id) => findSceneVersion(id, [deeper])));
+    expect(report.divergence).toBeNull();
+    expect(report.matches).toBe(true);
+    expect(report.stale).toBe(false);
+    expect(report.recording.swaps).toEqual(recording.swaps);
+    const { xs } = report.final as { xs: [string, number][] };
+    expect(xs.map(([id]) => id)).toContain("low:c2");
+  });
+
+  it("refuses to load when the version is gone, naming the swap", () => {
+    const run = replay(recording);
+    expect(run.blocked).toBe(true);
+    if (!run.blocked) return;
+    expect(run.stage).toBe("load");
+    expect(run.issues.at(-1)).toMatchObject({
+      code: "scene-version-removed",
+      path: "/swaps/0/version",
+    });
   });
 });
 

@@ -9,10 +9,16 @@ import {
   buildSceneVersion,
   checkSceneVersion,
   readSceneVersion,
-  type BuildSceneVersionOptions,
+  sceneVersionOptions,
   type ReleaseManifest,
 } from "@jams/engine/project";
-import { formatPrefab, formatScene, type Prefab, type SceneDefinition } from "@jams/engine/scene";
+import {
+  formatPrefab,
+  formatScene,
+  isErrorIssue,
+  type Prefab,
+  type SceneDefinition,
+} from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import * as Y from "yjs";
 
@@ -38,15 +44,6 @@ const builtCode: BuiltCode = {
   rapier: RAPIER,
   thirdParty: [],
 };
-
-const optionsOf = (input: ExportInput, scene: string): BuildSceneVersionOptions => ({
-  view: input.view,
-  texts: input.texts,
-  build: input.snapshot.build,
-  game: input.game,
-  registry: input.registry,
-  scene,
-});
 
 /** A doc's canonical text after it crosses the wire, as the editor would build from it. */
 function overTheWire(doc: Y.Doc): Y.Doc {
@@ -86,13 +83,10 @@ describe.each(GAMES)("buildSceneVersion over the %s project", (id) => {
     const plan = await planContent(input);
     expect(plan.scenes.length).toBeGreaterThan(0);
     for (const entry of plan.scenes) {
-      const result = await buildSceneVersion({ ...optionsOf(input, entry.id), release });
+      const result = await buildSceneVersion(sceneVersionOptions(input, entry.id, { release }));
       if (!result.ok) throw new Error(`${entry.id}: ${JSON.stringify(result.issues, null, 2)}`);
       expect(result.version.entry, entry.id).toEqual(entry);
-      expect(
-        result.issues.filter((i) => i.severity === "error"),
-        entry.id,
-      ).toEqual([]);
+      expect(result.issues.filter(isErrorIssue), entry.id).toEqual([]);
       expect(checkSceneVersion(release, result.version, result.texts), entry.id).toEqual([]);
       for (const [asset, a] of Object.entries(result.version.assets))
         expect(a.sha256, `${entry.id} → ${asset}`).toBe(release.assets[asset]?.sha256);
@@ -108,7 +102,7 @@ describe.each(GAMES)("buildSceneVersion over the %s project", (id) => {
     const plan = await planContent(input);
     let atlases = 0;
     for (const entry of plan.scenes) {
-      const result = await buildSceneVersion(optionsOf(input, entry.id));
+      const result = await buildSceneVersion(sceneVersionOptions(input, entry.id));
       if (!result.ok) throw new Error(JSON.stringify(result.issues));
       for (const a of Object.values(result.version.assets)) {
         if (a.kind !== "atlas") continue;
@@ -125,9 +119,9 @@ describe.each(GAMES)("buildSceneVersion over the %s project", (id) => {
     const input = inputs.get(id)!;
     const [first] = (await planContent(input)).scenes;
     const scene = first!.id;
-    const fromFiles = await buildSceneVersion(optionsOf(input, scene));
+    const fromFiles = await buildSceneVersion(sceneVersionOptions(input, scene));
     if (!fromFiles.ok) throw new Error(JSON.stringify(fromFiles.issues));
-    const again = await buildSceneVersion(optionsOf(input, scene));
+    const again = await buildSceneVersion(sceneVersionOptions(input, scene));
     expect(again.ok && again.id).toBe(fromFiles.id);
 
     const texts = new Map(input.texts);
@@ -137,7 +131,7 @@ describe.each(GAMES)("buildSceneVersion over the %s project", (id) => {
       const doc = prefabToDoc(JSON.parse(input.texts.get(prefab)!) as Prefab);
       texts.set(prefab, formatPrefab(docToPrefab(overTheWire(doc))));
     }
-    const fromDocs = await buildSceneVersion({ ...optionsOf(input, scene), texts });
+    const fromDocs = await buildSceneVersion(sceneVersionOptions(input, scene, { texts }));
     expect(fromDocs.ok && fromDocs.id).toBe(fromFiles.id);
   });
 });

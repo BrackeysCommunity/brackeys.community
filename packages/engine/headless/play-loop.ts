@@ -24,7 +24,12 @@ import { mergeTick, qOffset, type SeatChange, type TickInput } from "../input/st
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, Sha256 } from "../project/types";
 import { flowLoaderOf, type FlowIdentity } from "../runtime/flow";
-import { createLiveLayer, type LiveLayer, type PreparedVersion } from "../runtime/live";
+import {
+  createLiveLayer,
+  liveLibrary,
+  type LiveLayer,
+  type PreparedVersion,
+} from "../runtime/live";
 import { playWorld, preparePlay } from "../runtime/play-session";
 import { inputAction } from "../runtime/recorder";
 import { createSceneRuntime } from "../runtime/runtime";
@@ -152,6 +157,12 @@ export type StartOptions = {
   version?: PreparedVersion;
   /** The release's own definition of a scene, which a swap back to it applies; default the flow library's. */
   release?: (id: AssetId) => LibraryScene | null;
+  /**
+   * Before the load, with the run's live layer: a replay activates the
+   * versions the recorded load's sublevels used. An issue returned refuses
+   * the load.
+   */
+  beforeLoad?(live: LiveLayer): SceneIssue | null;
 };
 
 /**
@@ -179,7 +190,8 @@ export function loadAs(
  * destroys the runtime. With `fromSave` the save is restored over the load
  * (what the restore noted, such as a scene changed since the save, in
  * `issues`), and a save that can't be is a failed load carrying the refusal
- * as `issue`. With `version`, that version is the one the scene runs.
+ * as `issue`. With `version`, that version is the one the scene runs; each
+ * listed scene loads and attaches its active version, as the shell's do.
  */
 export function startRun(
   opts: StartOptions,
@@ -198,6 +210,9 @@ export function startRun(
     live.stage(opts.version);
     live.activate(opts.version.version.scene, opts.version.id, "next-load");
   }
+  const refused = opts.beforeLoad?.(live) ?? null;
+  if (refused) return { ok: false, load: { ok: false, error: refused.message }, issue: refused };
+  const flow = opts.flow && { ...opts.flow, library: liveLibrary(opts.flow.library, live) };
   const runtime = createSceneRuntime({
     rapier: opts.rapier,
     view: null,
@@ -207,12 +222,12 @@ export function startRun(
     project: opts.project,
     ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
     ...(opts.persist ? { persist: opts.persist } : {}),
-    ...(opts.flow ? { scenes: opts.flow.library } : {}),
+    ...(library ? { scenes: () => liveLibrary(library, live) } : {}),
     ...(opts.timing ? { timing: opts.timing } : {}),
     live: live.hooks,
   });
   created = runtime;
-  const load = loadAs(runtime, opts.scene, opts.play, opts.flow);
+  const load = loadAs(runtime, opts.scene, opts.play, flow);
   if (!load.ok) {
     runtime.destroy();
     return { ok: false, load };

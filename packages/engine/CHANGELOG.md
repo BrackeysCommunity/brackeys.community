@@ -267,6 +267,13 @@ for it.
   message about one uses (`slotNameIssue`, the save envelope's `slot`,
   `vp run scene save`'s `--out`): lowercase letters, digits and dashes,
   1–`SLOT_MAX_LENGTH` characters, starting with a letter or digit.
+- `@jams/engine/project`: `sceneVersionOptions(input, scene, { texts?, release? })`
+  and `SceneVersionSource`, `buildSceneVersion`'s options from a project
+  read for export (its view, texts, game, registry and snapshot's build);
+  `releaseSceneVersion(manifest, scene)`, the release's own scene as a
+  version it carries, for `readSceneVersion` (null when unlisted).
+- `@jams/engine/scene`: `isErrorIssue(issue)`, whether an issue is an
+  error.
 - `@jams/engine/project`: `liveFiles` and `AssetFiles`, a scene version's
   file layout (`live/<sha256>.json`, `live/<sha256><ext>`) as the export,
   the standalone loader and the smoke share it.
@@ -280,9 +287,10 @@ for it.
   `GameRuntime.onSwap`, `GameInstance.live`, `swapCheck`,
   `game live build/check`, Live in Play) and two runnable examples
   (`ledge-game.ts`, `ledge-live.ts`).
-- The host channel's `recording.request` event: a hosted frame offers its
-  run's recording as a `download` (`<scene>.recording.json`), which
-  replays headless with `replay --versions`.
+- The host channel's `recording.request` event, a fifth addition beside
+  the four live ones: a hosted frame offers its run's recording as a `download`
+  (`<scene>.recording.json`), which replays headless with
+  `replay --versions`; with nothing recorded it sends nothing.
 - `GameConfig.recording.flow`: records the scene flow's run outside the
   editor's Play, one session per scene load (with its `sceneVersion` and
   swaps), ended as `flow` by the next load, or as `quit` after 30 minutes
@@ -292,6 +300,14 @@ for it.
 
 ### Changed
 
+- Decided: when a reconcile step refuses an add and the run can't be
+  captured at world depth, `SceneRuntime.swap` refuses the swap (the live
+  layer keeps the version for the scene's next load) instead of reloading,
+  because the progress-depth reload's fresh load would refuse the same add
+  after losing the running world.
+- Decided: a hosted standalone frame always records each flow scene's run
+  (at most 30 minutes per load), so the page's `recording.request` gets the
+  run from its load; a frame no page hosts records nothing, as before.
 - `bindSceneDoc` and `applyEntityDiff` use the shared expanded-scene diff;
   no behaviour change.
 - The export plan and `buildSceneVersion` build their carried assets,

@@ -86,6 +86,9 @@ function swapGame(withRestore = true): GameDefinition {
     createRuntime(ctx) {
       let score = 0;
       const runtime: GameRuntime<{ score: number }> = {
+        onLoad() {
+          ctx.timers.every(7, { emit: "pulse" });
+        },
         beforeStep() {
           if (ctx.tick === 5) ctx.spawn({ type: "walker", at: [0, 3], speed: 2 });
           if (ctx.tick === 10) ctx.destroy("coin");
@@ -187,6 +190,7 @@ describe("SceneRuntime.swap reconciles a physics-free scene", () => {
       header: false,
     });
     expect(a.rt.ctx.exists("walker#1")).toBe(true);
+    expect(saveHostOf(a.rt.ctx)!.captureWorld().timers).toHaveLength(1);
     const skip = ["w2", "post", "flag"];
     expect(runDigest(a.rt, 60, skip)).toBe(runDigest(b.rt, 60, skip));
     expect(a.rt.ctx.exists("post")).toBe(false);

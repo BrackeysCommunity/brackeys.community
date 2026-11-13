@@ -3,13 +3,17 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { createFlowHost, liveSceneSource, type LiveSceneVersions } from "../flow-host";
 import type { LibraryScene, SceneLibrary } from "../game/flow";
+import { formatSaveFile, parseSaveFile, SAVE_VERSION } from "../game/save-file";
+import type { GameDefinition } from "../game/types";
 import type { AssetId } from "../project/types";
 import { loadListed } from "../runtime/flow";
+import { createLiveLayer, type LiveLayer } from "../runtime/live";
 import { createSceneRuntime } from "../runtime/runtime";
+import { captureSave, restoreSave } from "../runtime/save-state";
 import type { SceneRuntimeHandle } from "../runtime/types";
 import type { SceneDefinition } from "../scene/types";
 import type { FlowResult, SceneSource } from "../types";
-import { markerScene } from "./fixtures/live-version";
+import { markerScene, preparedOf } from "./fixtures/live-version";
 import { testGame } from "./fixtures/test-game";
 
 const scene = (name: string, markers: readonly string[]): SceneDefinition =>
@@ -235,5 +239,70 @@ describe("sublevels through the live source", () => {
     const attached = rt.ctx.flow.attach("cellar", { label: "low" });
     expect(attached.ok).toBe(false);
     if (!attached.ok) expect(attached.issue.code).toBe("sublevel-invalid");
+  });
+});
+
+describe("saves across a version change", () => {
+  const liveTestGame: GameDefinition = {
+    ...testGame,
+    live: { timings: ["next-load", "boundary", "now"] },
+  };
+  const V1 = "1".repeat(64);
+
+  it("a save after a swap is the same save:v1, and loads under the release's own version with an info hash-mismatch", async () => {
+    const base = releaseSource();
+    let rt: SceneRuntimeHandle | null = null;
+    const layer: LiveLayer = createLiveLayer({
+      game: liveTestGame,
+      runtime: () => rt,
+      release: (id) => base.scene(id),
+    });
+    const source = liveSceneSource(base, layer);
+    const handle = createSceneRuntime({
+      rapier: null,
+      view: null,
+      game: liveTestGame,
+      scenes: () => libraryOf(source),
+      live: layer.hooks,
+    });
+    rt = handle;
+    const host = hostOver(source, handle);
+    await host.restart();
+    await host.go("yard");
+    const before = captureSave(handle, { depth: "progress", slot: "before", now: 0 });
+    if (!before.ok) throw new Error(before.issue.message);
+
+    const version = scene("yard", ["start", "well", "bucket"]);
+    expect(layer.stage(preparedOf(V1, version, handle.ctx.registry, "yard"))).toEqual({ ok: true });
+    layer.activate("yard", V1, "now");
+    handle.step(handle.ctx.time.tickMs, [], []);
+    layer.afterTick({ paused: false, changing: false });
+    expect(handle.ctx.live.version).toBe(V1);
+    expect(ids(handle)).toEqual(["start", "well", "bucket"]);
+
+    const saved = captureSave(handle, { depth: "progress", slot: "after", now: 1 });
+    if (!saved.ok) throw new Error(saved.issue.message);
+    const { file } = saved;
+    expect(file.v).toBe(SAVE_VERSION);
+    expect(Object.keys(file).sort()).toEqual(Object.keys(before.file).sort());
+    expect(Object.keys(file.scene).sort()).toEqual(Object.keys(before.file.scene).sort());
+    expect(file.scene.runHash).not.toBe(before.file.scene.runHash);
+    const parsed = parseSaveFile(formatSaveFile(file), liveTestGame);
+    expect(parsed).toEqual({ ok: true, file });
+
+    expect(layer.activate("yard", null, "next-load")).toMatchObject({ timing: "next-load" });
+    const written = structuredClone(file);
+    const restored = restoreSave(handle, file);
+    if (!restored.ok) throw new Error(restored.issue.message);
+    expect(restored.issues).toHaveLength(1);
+    expect(restored.issues[0]).toMatchObject({
+      code: "hash-mismatch",
+      severity: "info",
+      entityIds: ["yard"],
+      detail: { kind: "save", saved: file.scene.runHash, now: before.file.scene.runHash },
+    });
+    expect(ids(handle)).toEqual(["start", "well"]);
+    expect(handle.ctx.live.version).toBeNull();
+    expect(file).toEqual(written);
   });
 });

@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { docToPrefab, docToScene, prefabToDoc, sceneToDoc } from "@jams/engine/collab";
 import { finishExport, planContent, type BuiltCode } from "@jams/engine/export";
 import type { GameDefinition } from "@jams/engine/game";
 import {
@@ -13,11 +12,11 @@ import {
   parseSceneVersion,
   RELEASE_FILE,
   sceneVersionId,
+  sceneVersionOptions,
   sha256,
 } from "@jams/engine/project";
-import { formatPrefab, formatScene, type Prefab, type SceneDefinition } from "@jams/engine/scene";
+import type { SceneDefinition } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
-import * as Y from "yjs";
 
 import { tacticsGame } from "../../../src/games/tactics";
 import { runCli } from "../commands";
@@ -157,7 +156,8 @@ describe("game live build", () => {
     expect(await readFile(join(stray, "notes.txt"), "utf8")).toBe("mine");
   });
 
-  it("gives the id the editor gives for the same content from its docs", async () => {
+  // The editor's docs give buildSceneVersion's id for the same files (build-scene-version.test.ts).
+  it("gives buildSceneVersion's id for the same files, and a new one when they change", async () => {
     const r = await gameLiveBuild(
       { project: "tactics", scene: SCENE, hosted: false, out: join(root, "out", "editor") },
       ctx,
@@ -165,29 +165,8 @@ describe("game live build", () => {
     const { id } = dataOf<{ id: string }>(r);
     const input = await exportInputOf(ctx.projects[0]!, "web");
     if (!("view" in input)) throw new Error(input.text);
-
-    // What the editor holds: each doc after it crosses the wire, formatted back to text.
-    const overTheWire = (doc: Y.Doc) => {
-      const remote = new Y.Doc();
-      Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
-      return remote;
-    };
-    const texts = new Map(input.texts);
-    const scene = sceneToDoc(JSON.parse(input.texts.get(SCENE)!) as SceneDefinition);
-    texts.set(SCENE, formatScene(docToScene(overTheWire(scene))).text);
-    for (const prefab of ["archer", "knight"]) {
-      const doc = prefabToDoc(JSON.parse(input.texts.get(prefab)!) as Prefab);
-      texts.set(prefab, formatPrefab(docToPrefab(overTheWire(doc))));
-    }
-    const editor = await buildSceneVersion({
-      view: input.view,
-      texts,
-      build: input.snapshot.build,
-      game: input.game,
-      registry: input.registry,
-      scene: SCENE,
-    });
-    expect(editor.ok && editor.id).toBe(id);
+    const direct = await buildSceneVersion(sceneVersionOptions(input, SCENE));
+    expect(direct.ok && direct.id).toBe(id);
 
     const changed = await editing(`scenes/${SCENE}.json`, costlierMarsh, () =>
       gameLiveBuild(

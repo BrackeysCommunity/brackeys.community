@@ -278,10 +278,12 @@ export {
   liveCompatKey,
   parseSceneVersion,
   readSceneVersion,
+  releaseSceneVersion,
   SCENE_VERSION_SCHEMA_ID,
   SCENE_VERSION_VERSION,
   sceneVersionId,
   sceneVersionJsonSchema,
+  sceneVersionOptions,
   sceneVersionSchema,
   sceneVersionSnapshot,
   type BuildSceneVersionOptions,
@@ -291,6 +293,7 @@ export {
   type SceneVersion,
   type SceneVersionNames,
   type SceneVersionRead,
+  type SceneVersionSource,
 } from "./scene-version";
 export {
   assetFileEntries,

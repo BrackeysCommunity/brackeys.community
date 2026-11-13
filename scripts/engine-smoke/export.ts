@@ -58,7 +58,7 @@ import type { SceneIssue } from "@jams/engine/scene";
 import type { LiveSnapshot, LiveStateMessage } from "@jams/engine/standalone";
 import type { Browser, BrowserContext, BrowserType, Frame, Locator, Page } from "playwright";
 
-import { SCENE_VERSION_FILE } from "../scene/tools/replay";
+import { versionDirFiles } from "../scene/tools/replay";
 import {
   installCommand,
   isMissingBrowser,
@@ -974,16 +974,10 @@ export async function buildLiveFixture(
   const texts = new Map(input.texts);
   texts.set(id, scene.formatScene(applied.def).text);
 
-  const built = await project.buildSceneVersion({
-    view: input.view,
-    texts,
-    build: input.snapshot.build,
-    game: input.game,
-    registry: input.registry,
-    scene: id,
-    release: manifest,
-  });
-  const errors = built.issues.filter((i) => i.severity === "error");
+  const built = await project.buildSceneVersion(
+    project.sceneVersionOptions(input, id, { texts, release: manifest }),
+  );
+  const errors = built.issues.filter(scene.isErrorIssue);
   if (!built.ok || errors.length > 0)
     throw new Error(
       `the version of ${id} doesn't build: ${(errors.length ? errors : built.issues).map((i) => `${i.code}: ${i.message}`).join("; ")}`,
@@ -1009,12 +1003,8 @@ export function liveFixtureFiles(fixture: Pick<LiveFixture, "id" | "versionText"
   versions: Map<string, string>;
 } {
   const build = new Map([[liveFiles.doc(fixture.id), fixture.versionText]]);
-  const versions = new Map([[SCENE_VERSION_FILE, fixture.versionText]]);
-  for (const [sha, text] of fixture.texts) {
-    build.set(liveFiles.doc(sha), text);
-    versions.set(`${sha}.json`, text);
-  }
-  return { build, versions };
+  for (const [sha, text] of fixture.texts) build.set(liveFiles.doc(sha), text);
+  return { build, versions: versionDirFiles(fixture.versionText, fixture.texts) };
 }
 
 function writeFiles(root: string, files: ReadonlyMap<string, string>): void {

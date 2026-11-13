@@ -1,4 +1,8 @@
 // @vitest-environment jsdom
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { Store } from "@tanstack/store";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createRef } from "react";
@@ -676,5 +680,22 @@ describe("framing in the editor's frame", () => {
       { width: 1440, height: 900, insets: fitLayout(DEFAULT_LAYOUT, viewportOf(1440)).canvas },
     );
     expect(framed).toEqual(expected.rect);
+  });
+});
+
+describe("a boot that stopped short", () => {
+  it("lets its status shrink and wrap so Reload fits beside it, until the row is too narrow", () => {
+    const css = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
+    const row = /\.je-frame-status:has\(> \.je-boot-reload\) \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(row).toContain("flex-wrap: wrap");
+    const connecting =
+      /\.je-frame-status:has\(> \.je-boot-reload\) > \.je-editor-connecting \{([^}]*)\}/.exec(
+        css,
+      )?.[1] ?? "";
+    expect(connecting).toContain("flex: 1 1 0");
+    expect(connecting).toMatch(/min-width: min\(\d+px, 100%\)/);
+    expect(/\.je-frame-status > \.je-boot-reload \{([^}]*)\}/.exec(css)?.[1]).toContain(
+      "flex-shrink: 0",
+    );
   });
 });

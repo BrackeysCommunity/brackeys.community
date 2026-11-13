@@ -12,6 +12,7 @@ import {
 import {
   byCodeUnit,
   findSceneVersion,
+  isSha256,
   parseSceneVersion,
   sceneVersionId,
   sha256,
@@ -48,7 +49,27 @@ const USAGE =
 /** The file `game live build` writes a version to. */
 export const SCENE_VERSION_FILE = "scene-version.json";
 
-const TEXT_FILE = /^([0-9a-f]{64})\.json$/;
+/** The file beside `SCENE_VERSION_FILE` that holds the carried text hashing to `sha`. */
+export const versionTextFile = (sha: Sha256): string => `${sha}.json`;
+
+/** The hash a carried text's file name gives; null for any other file. */
+const textFileHash = (name: string): Sha256 | null => {
+  const sha = name.endsWith(".json") ? name.slice(0, -".json".length) : "";
+  return isSha256(sha) ? sha : null;
+};
+
+/**
+ * A version's directory as `game live build` writes it and `--versions`
+ * reads it: `SCENE_VERSION_FILE` and each carried text, by file name.
+ */
+export function versionDirFiles(
+  versionText: string,
+  texts: ReadonlyMap<Sha256, string>,
+): Map<string, string> {
+  const files = new Map([[SCENE_VERSION_FILE, versionText]]);
+  for (const [sha, text] of texts) files.set(versionTextFile(sha), text);
+  return files;
+}
 
 /** Versions read from files, and the files that couldn't be read as what their name or `kind` says. */
 export type VersionFiles = { versions: StagedVersion[]; problems: string[] };
@@ -77,8 +98,8 @@ export async function readVersionFiles(
   const read: { file: string; text: string }[] = [];
   for (const file of await jsonFilesIn(dir, opts.recursive)) {
     const text = await readFile(file, "utf8");
-    const named = TEXT_FILE.exec(basename(file))?.[1];
-    if (named !== undefined) {
+    const named = textFileHash(basename(file));
+    if (named !== null) {
       if ((await sha256(text)) === named) texts.set(named, text);
       else problems.push(`${file}: its content doesn't hash to its name`);
       continue;

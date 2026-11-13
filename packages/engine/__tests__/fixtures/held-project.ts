@@ -1,15 +1,20 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, matchesGlob, relative } from "node:path";
 
-import type { ExportInput } from "../../export/plan";
+import * as Y from "yjs";
+
+import { planContent } from "../../export/content";
+import { finishExport, type BuiltCode, type ExportInput } from "../../export/plan";
 import { createRegistry, withProject } from "../../game/define";
 import type { GameDefinition } from "../../game/types";
 import { projectPathMatcher } from "../../project/asset-files";
 import { parseProjectFile } from "../../project/project-file";
+import type { ReleaseManifest } from "../../project/release";
 import { heldProject, type HeldFile, type ProjectRuntimeView } from "../../project/runtime-view";
 import type { AssetSidecar } from "../../project/sidecar";
 import { jsonValues, snapshotProject } from "../../project/snapshot";
 import { PROJECT_FILE, type ProjectFile } from "../../project/types";
+import { isErrorIssue } from "../../scene/issues";
 import type { SceneDefinition } from "../../scene/types";
 
 /** A project as a host holds it: docs by their JSON, binaries by their sidecars, and each doc's text by path. */
@@ -50,6 +55,87 @@ export function readHeld(dir: string, keep?: (path: string) => boolean): HeldFil
   };
   walk(dir);
   return { files, texts };
+}
+
+/** A doc's text as a host writes it: two-space JSON and a newline. */
+const docText = (json: unknown) => `${JSON.stringify(json, null, 2)}\n`;
+
+/** Docs by path, held as their JSON and text. */
+export function heldDocs(docs: Readonly<Record<string, unknown>>): HeldFiles {
+  const texts = new Map<string, string>();
+  const files: HeldFile[] = [];
+  for (const [path, json] of Object.entries(docs)) {
+    texts.set(path, docText(json));
+    files.push({ path, json });
+  }
+  return { files, texts };
+}
+
+/** `held` with the doc at `path` replaced by `json`, written as `text` (by default as `heldDocs` writes it). */
+export function withHeldDoc(
+  held: HeldFiles,
+  path: string,
+  json: unknown,
+  text = docText(json),
+): HeldFiles {
+  const texts = new Map(held.texts);
+  texts.set(path, text);
+  return { texts, files: held.files.map((f) => (f.path === path ? { path, json } : f)) };
+}
+
+/** A Y.Doc as the other end of the wire has it, the way an editor builds from it. */
+export function overTheWire(doc: Y.Doc): Y.Doc {
+  const remote = new Y.Doc();
+  Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
+  return remote;
+}
+
+/** The Rapier build `fakeBuiltCode({ rapier: true })` ships. */
+export const FAKE_RAPIER = {
+  package: "@dimforge/rapier2d" as const,
+  version: "0.19.3",
+  file: "code/rapier-0a1b2c.wasm",
+  bytes: 1_400_000,
+};
+
+/** A bundler's output as an export plans it: one entry script, plus Rapier's wasm with `rapier`. */
+export function fakeBuiltCode(opts: { rapier?: boolean } = {}): BuiltCode {
+  const entry = "code/main-abc123.js";
+  return {
+    files: [
+      { path: entry, sha256: "d".repeat(64), bytes: 1000, role: "code" },
+      ...(opts.rapier
+        ? [
+            {
+              path: FAKE_RAPIER.file,
+              sha256: "f".repeat(64),
+              bytes: FAKE_RAPIER.bytes,
+              role: "wasm" as const,
+            },
+          ]
+        : []),
+    ],
+    entry,
+    rapier: opts.rapier ? FAKE_RAPIER : null,
+    thirdParty: [],
+  };
+}
+
+/**
+ * `input` exported with `code`: its manifest and every planned file's text by
+ * path (`<kind>` for a file that isn't text). Throws on an export error.
+ */
+export async function releaseFiles(
+  input: ExportInput,
+  code: BuiltCode = fakeBuiltCode(),
+): Promise<{ manifest: ReleaseManifest; files: Map<string, string> }> {
+  const plan = await finishExport(await planContent(input), code, input);
+  const errors = plan.issues.filter(isErrorIssue);
+  if (errors.length > 0) throw new Error(JSON.stringify(errors, null, 2));
+  const files = new Map<string, string>();
+  for (const f of plan.files)
+    files.set(f.path, f.source.kind === "text" ? f.source.text : `<${f.source.kind}>`);
+  return { manifest: plan.manifest, files };
 }
 
 export const CC0 = { spdx: "CC0-1.0", author: "Test authors" };
@@ -116,12 +202,7 @@ export function physicsFreeFiles(): HeldFiles {
     },
     "walk.script.json": { v: 2, scene: "yard", steps: [{ wait: 1 }] },
   };
-  const texts = new Map<string, string>();
-  const files: HeldFile[] = [];
-  for (const [path, json] of Object.entries(docs)) {
-    texts.set(path, `${JSON.stringify(json, null, 2)}\n`);
-    files.push({ path, json });
-  }
+  const { files, texts } = heldDocs(docs);
   files.push(
     { path: "art/tiles.png", sidecar: png("tiles", "a".repeat(64), 300, 16, CC0) },
     { path: "art/rocks.png", sidecar: png("rocks", "b".repeat(64), 200, 16) },

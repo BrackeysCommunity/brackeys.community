@@ -26,6 +26,7 @@ import { LIVE_PLAY_KEY, LIVE_PLAY_TOOLTIP } from "../panels/EditorPlayBar";
 import { LIVE_PLAY_IDLE } from "../panels/EditorStatusBar";
 import {
   editorIdentity,
+  LIVE_PLAY_APPLIED_MS,
   LIVE_PLAY_APPLYING,
   LIVE_VERSION_MISSING,
   LIVE_VERSIONS_ELSEWHERE,
@@ -283,12 +284,42 @@ describe("Live in Play", () => {
       text: "Live update applied: 1 added",
     });
     expect(screen.getByText("Live update applied: 1 added")).toBeTruthy();
-    expect(toast.success).toHaveBeenCalledWith(
-      "Live update applied",
-      expect.objectContaining({ description: "1 added" }),
-    );
+    // The status line reports a success; only failures toast.
+    expect(toast.success).not.toHaveBeenCalled();
     // The edit reached the game, so Restart isn't offered.
     expect(screen.queryByText("Scene changed")).toBeNull();
+  });
+
+  it("puts a clean apply's line back to listening for edits after a moment, and keeps one with check issues", async () => {
+    const t = await setup();
+    t.play();
+    fireEvent.click(t.toggle());
+    t.addMarker("well");
+    await t.staged();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      act(() => t.game.step());
+      expect(t.status()?.text).toBe("Live update applied: 1 added");
+      act(() => vi.advanceTimersByTime(LIVE_PLAY_APPLIED_MS - 1));
+      expect(t.status()?.tone).toBe("applied");
+      act(() => vi.advanceTimersByTime(1));
+      expect(t.status()).toBeNull();
+      expect(screen.getByText(LIVE_PLAY_IDLE)).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    t.addMarker("hazard");
+    await t.staged();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      act(() => t.game.step());
+      expect(t.status()?.text).toBe("Live update applied: 1 added · 1 check issue");
+      act(() => vi.advanceTimersByTime(LIVE_PLAY_APPLIED_MS * 2));
+      expect(t.status()?.text).toBe("Live update applied: 1 added · 1 check issue");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reloads on a header edit", async () => {

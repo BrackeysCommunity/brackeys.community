@@ -2,20 +2,21 @@
 import { Container } from "pixi.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import {
+  FREE_PROJECT,
+  heldDocs,
+  heldInput,
+  releaseFiles,
+  scene,
+} from "../../__tests__/fixtures/held-project";
 import { testGame } from "../../__tests__/fixtures/test-game";
 import { createGame } from "../../engine";
-import { planContent } from "../../export/content";
-import { finishExport, type BuiltCode, type ExportInput } from "../../export/plan";
-import { createRegistry, withProject } from "../../game/define";
 import type { GameDefinition } from "../../game/types";
 import { snapshotRemapStore, type RemapState } from "../../input/remap";
 import { formatReleaseManifest, releaseId, type ReleaseManifest } from "../../project/release";
-import { heldProject, type HeldFile } from "../../project/runtime-view";
-import { jsonValues, snapshotProject } from "../../project/snapshot";
-import type { ProjectFile } from "../../project/types";
 import { channelSaveStore, memorySaveStore } from "../../saves/store";
 import { makeIssue } from "../../scene/issues";
-import type { SceneDefinition, SceneIssue } from "../../scene/types";
+import type { SceneIssue } from "../../scene/types";
 import { ENGINE_VERSION } from "../../version";
 import { bootStandalone, type StandaloneGame } from "../boot";
 import { StandaloneBootError } from "../errors";
@@ -610,60 +611,16 @@ describe("snapshotRemapStore", () => {
 
 // ─── bootStandalone with a host ──────────────────────────
 
-const yard = (): SceneDefinition =>
-  ({
-    v: 4,
-    name: "yard",
-    bounds: [0, 0, 6.4, 3.84],
-    settings: { physics: "none" },
-    entities: [{ id: "start", type: "marker", at: [1, 1], tags: ["spawn"] }],
-  }) as SceneDefinition;
-
-const PROJECT: ProjectFile = { kind: "project", v: 1, id: "free", name: "Free", game: null };
-
-const CODE: BuiltCode = {
-  files: [{ path: "code/main-abc123.js", sha256: "d".repeat(64), bytes: 1000, role: "code" }],
-  entry: "code/main-abc123.js",
-  rapier: null,
-  thirdParty: [],
-};
-
 type Build = { manifest: ReleaseManifest; files: Map<string, string> };
 
 /** A one-scene, physics-free web build of `game`, planned in memory. */
 async function plannedBuild(game: GameDefinition): Promise<Build> {
-  const docs: Record<string, unknown> = {
+  const held = heldDocs({
     "scene-list.json": { kind: "scene-list", v: 1, start: "yard", scenes: [{ scene: "yard" }] },
     "game-settings.json": { kind: "game-settings", v: 2, engine: {}, game: {} },
-    "yard.json": yard(),
-  };
-  const held: HeldFile[] = Object.entries(docs).map(([path, json]) => ({ path, json }));
-  const { view, kinds } = heldProject(held, createRegistry(game), {
-    projectId: PROJECT.id,
-    name: PROJECT.name,
+    "yard.json": scene("yard"),
   });
-  const texts = new Map<string, string>();
-  for (const entry of view.byId.values()) {
-    const json = docs[entry.path];
-    if (json !== undefined) texts.set(entry.id, `${JSON.stringify(json, null, 2)}\n`);
-  }
-  const input: ExportInput = {
-    project: PROJECT,
-    view,
-    texts,
-    kinds,
-    registry: withProject(createRegistry(game), view, jsonValues(texts)),
-    game,
-    engine: {},
-    target: "web",
-    snapshot: await snapshotProject(view, texts, view.state.build),
-  };
-  const plan = await finishExport(await planContent(input), CODE, input);
-  expect(plan.issues.filter((i) => i.severity === "error")).toEqual([]);
-  const files = new Map<string, string>();
-  for (const f of plan.files)
-    files.set(f.path, f.source.kind === "text" ? f.source.text : `<${f.source.kind}>`);
-  return { manifest: plan.manifest, files };
+  return releaseFiles(await heldInput(FREE_PROJECT, held, game));
 }
 
 function serve(b: Build): typeof fetch {

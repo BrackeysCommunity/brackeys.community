@@ -18,12 +18,12 @@ import {
   formatBytes,
   formatSceneVersion,
   inputScriptKind,
-  liveCompat,
   prefabKind,
   readSceneVersion,
   releaseId,
+  releaseSceneVersion,
   SCENE_KIND_NAME,
-  SCENE_VERSION_VERSION,
+  sceneVersionOptions,
   type ReleaseManifest,
   type SceneVersion,
   type Sha256,
@@ -32,6 +32,7 @@ import {
   checksPathOf,
   closest,
   diffExpanded,
+  isErrorIssue,
   liveIssue,
   makeIssue,
   parseInputScript,
@@ -59,7 +60,7 @@ import { readChecksFile } from "./check";
 import { clearOut, exportInputOf, projectOf } from "./game-build";
 import { readReleaseAt, shownPath } from "./game-manifest";
 import { projectPull, type ProjectPullInput } from "./project-pull";
-import { readVersionAt, SCENE_VERSION_FILE } from "./replay";
+import { readVersionAt, SCENE_VERSION_FILE, versionDirFiles, versionTextFile } from "./replay";
 
 export type GameLiveBuildInput = {
   project?: string;
@@ -92,8 +93,6 @@ export const GAME_LIVE_CHECK_USAGE =
 /** Where `game live build` writes when `--out` is left out, relative to the working directory. */
 export const defaultLiveOut = (project: string, scene: string) =>
   join("dist", "live", project, scene);
-
-const isError = (i: SceneIssue) => i.severity === "error";
 
 /** Amber on a terminal that takes colour; plain everywhere else (pipes, `--json`, MCP). */
 export function amber(text: string, env: Readonly<Record<string, string | undefined>>): string {
@@ -167,15 +166,7 @@ async function buildFrom(
   if (isToolResult(input)) return input;
   const missing = sceneOf(input, scene, cmd);
   if (missing) return missing;
-  const built = await buildSceneVersion({
-    view: input.view,
-    texts: input.texts,
-    build: input.snapshot.build,
-    game: input.game,
-    registry: input.registry,
-    scene,
-    ...(release ? { release } : {}),
-  });
+  const built = await buildSceneVersion(sceneVersionOptions(input, scene, { release }));
   if (!built.ok)
     return {
       exitCode: 1,
@@ -252,20 +243,20 @@ export async function gameLiveBuild(
     if (cleared) return cleared;
     await mkdir(out, { recursive: true });
     const { versionText, texts, dataBytes } = sizesOf(built);
-    await writeFile(join(out, SCENE_VERSION_FILE), versionText);
-    for (const [sha, text] of built.texts) await writeFile(join(out, `${sha}.json`), text);
+    for (const [file, text] of versionDirFiles(versionText, built.texts))
+      await writeFile(join(out, file), text);
 
     const ids = idsByHash(version);
     const files: { file: string; bytes: number; asset?: string }[] = [
       { file: SCENE_VERSION_FILE, bytes: utf8Bytes(versionText) },
       ...texts.map((t) => ({
-        file: `${t.sha256}.json`,
+        file: versionTextFile(t.sha256),
         bytes: t.bytes,
         ...(ids.has(t.sha256) ? { asset: ids.get(t.sha256)! } : {}),
       })),
     ];
     const blobs = Object.values(version.assets).filter((a) => a.storage === "blob").length;
-    const ok = !built.issues.some(isError);
+    const ok = !built.issues.some(isErrorIssue);
     return {
       exitCode: ok ? 0 : 1,
       data: {
@@ -319,8 +310,8 @@ async function releaseBase(
   scene: string,
   name: string,
 ): Promise<Base | { issues: SceneIssue[] } | { skip: string }> {
-  const entry = manifest.flow.scenes.find((s) => s.id === scene);
-  if (!entry) return { skip: `${name} doesn't list ${scene}` };
+  const asVersion = releaseSceneVersion(manifest, scene);
+  if (!asVersion) return { skip: `${name} doesn't list ${scene}` };
   const texts = new Map<Sha256, string>();
   for (const a of Object.values(manifest.assets)) {
     if (a.storage !== "doc" || (a.kind !== SCENE_KIND_NAME && a.kind !== prefabKind.kind)) continue;
@@ -333,18 +324,6 @@ async function releaseBase(
   const own = manifest.assets[scene];
   if (!own || !texts.has(own.sha256))
     return { skip: `${name}'s files aren't beside it (${own?.file ?? scene} is missing)` };
-  const asVersion: SceneVersion = {
-    kind: "scene-version",
-    v: SCENE_VERSION_VERSION,
-    project: manifest.project.id,
-    scene,
-    compat: liveCompat(manifest),
-    engine: manifest.engine.version,
-    base: null,
-    entry,
-    sceneHash: "0".repeat(16),
-    assets: manifest.assets,
-  };
   const read = readSceneVersion(asVersion, texts, input.registry, input.game, {
     engine: input.engine,
   });
@@ -353,7 +332,7 @@ async function releaseBase(
     name,
     from: { def: read.def, prefabs: read.prefabs },
     scene: read.scene,
-    physics: entry.physics,
+    physics: asVersion.entry.physics,
   };
 }
 
@@ -401,7 +380,7 @@ function changesText(diff: ReturnType<typeof diffExpanded>, strategy: SwapStrate
 
 /** `3 runs over level-1.script.json passed; checks 4 passed` and the issues under it. */
 function swapText(report: SwapCheckReport, scripts: readonly string[]): string[] {
-  const failed = report.runs.filter((r) => r.issues.some(isError));
+  const failed = report.runs.filter((r) => r.issues.some(isErrorIssue));
   const over = scripts.length > 0 ? ` over ${scripts.join(", ")}` : "";
   const checks = report.checks;
   const checksFailed = checks?.results.filter((r) => !r.pass) ?? [];
@@ -477,7 +456,7 @@ export async function gameLiveCheck(
 
   if (release) {
     // A build stops on its own errors, so an error here is the release check's.
-    const fits = issues.some(isError) ? "doesn't fit " : "";
+    const fits = issues.some(isErrorIssue) ? "doesn't fit " : "";
     lines.push(
       `  Fits:     ${fits}release ${shortId(release.id)} (${shownPath(release.file)}) · timing: ${timingWords(timing)}`,
     );
@@ -567,7 +546,7 @@ export async function gameLiveCheck(
     );
   }
 
-  const ok = !issues.some(isError) && (swaps?.ok ?? true);
+  const ok = !issues.some(isErrorIssue) && (swaps?.ok ?? true);
   const head = `Checked ${input.project} ${scene} (${shortId(id)}): ${formatBytes(dataBytes)} of data, ${plural(newFiles, release ? "new file" : "file")}.`;
   return {
     exitCode: ok ? 0 : 1,

@@ -2,7 +2,11 @@ import { fileURLToPath } from "node:url";
 
 import type { StagedVersion } from "@jams/engine";
 import { projectInput } from "@jams/engine-testing";
-import { buildSceneVersion, type ProjectRuntimeView } from "@jams/engine/project";
+import {
+  buildSceneVersion,
+  sceneVersionOptions,
+  type ProjectRuntimeView,
+} from "@jams/engine/project";
 import {
   applyOps,
   formatScene,
@@ -50,19 +54,7 @@ export async function testYardVersion(ops: SceneOp[] = STEP_OVER_SPAWN): Promise
   if (!edit.ok) throw new Error(edit.issue.message);
   const texts = new Map(input.texts);
   texts.set(SCENE, formatScene(edit.def).text);
-  const built = await buildSceneVersion({
-    view: input.view,
-    texts,
-    build: input.snapshot.build,
-    game: input.game,
-    registry: input.registry,
-    scene: SCENE,
-  });
+  const built = await buildSceneVersion(sceneVersionOptions(input, SCENE, { texts }));
   if (!built.ok) throw new Error(JSON.stringify(built.issues, null, 2));
-  return {
-    release,
-    version: { id: built.id, version: built.version, texts: built.texts },
-    edited: edit.def,
-    project,
-  };
+  return { release, version: built, edited: edit.def, project };
 }
