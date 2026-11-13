@@ -37,6 +37,7 @@ import {
   LIVE_VERSIONS_ELSEWHERE,
   openLiveEditor,
   prefabsReady,
+  runTimes,
   type LiveEditor,
 } from "../session/live-scene-editor";
 import { fakeWorldGame } from "./fake-world-game";
@@ -512,7 +513,7 @@ describe("Live in Play", () => {
     expect(replayed).toBe(true);
     act(() => t.game.step(swap!.tick + 6));
     expect(toast.error).toHaveBeenCalledWith(LIVE_VERSION_MISSING, {
-      description: `The replay stopped at tick ${elsewhere.tick}. ${LIVE_VERSIONS_ELSEWHERE}`,
+      description: `The replay stopped at ${runTimes(recording, "fixed").at(elsewhere.tick)}. ${LIVE_VERSIONS_ELSEWHERE}`,
     });
   });
 
