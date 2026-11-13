@@ -207,12 +207,29 @@ export function behaviorGeometry(registry: Registry, def: EntityDef): BehaviorGe
     const shape = registry.behaviors.get(behavior)?.shape;
     if (!shape || !isPlainObject(block)) continue;
     for (const [field, schema] of Object.entries(shape)) {
-      const kind = fieldKind(schema);
-      if ((kind === "point" || kind === "path") && block[field] !== undefined)
-        out.push({ behavior, field, kind });
+      const kind = placedKind(schema, block[field]);
+      if (kind) out.push({ behavior, field, kind });
     }
   }
   return out;
+}
+
+/**
+ * Whether `value` is a point or a path a behavior field places with its
+ * entity: the field's own kind, or, for a union (`nav-agent.to`, a point or
+ * an entity), the kind of the point or path arm `value` is.
+ */
+function placedKind(schema: z.core.$ZodType, value: unknown): "point" | "path" | undefined {
+  if (value === undefined) return undefined;
+  const kind = fieldKind(schema);
+  if (kind === "point" || kind === "path") return kind;
+  const inner = unwrapSchema(schema);
+  if (kind !== "value" || !(inner instanceof z.ZodUnion)) return undefined;
+  for (const arm of inner.options) {
+    const k = fieldKind(arm);
+    if ((k === "point" || k === "path") && z.safeParse(arm, value).success) return k;
+  }
+  return undefined;
 }
 
 /** `def`'s behavior points and paths under `t`, in place. */
@@ -304,7 +321,7 @@ export function translateFieldValue(
   const field = segs[0] ?? "";
   const schema = shape && Object.hasOwn(shape, field) ? shape[field] : undefined;
   if (!schema) return value;
-  const kind: string = fieldKind(schema);
+  const kind: string = inBehavior ? (placedKind(schema, value) ?? "value") : fieldKind(schema);
   if (!isGeometryKind(kind) || (inBehavior && kind === "shape")) return value;
   const t = translation(by);
   if (segs.length === 1) {

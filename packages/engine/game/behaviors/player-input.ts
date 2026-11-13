@@ -50,5 +50,5 @@ export const PLAYER_INPUT = defineBehavior({
   description:
     "Binds the entity to an input seat: behaviors on it read that player's actions through inputFor.",
   fields: playerInputFields,
-  inspector: { label: "Player input", order: ["seat"] },
+  inspector: { category: "movement", label: "Player input", order: ["seat"] },
 });

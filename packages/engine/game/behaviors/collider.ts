@@ -26,7 +26,7 @@ const colliderFields = (env: FieldEnv) => ({
     .regex(ID_PATTERN)
     .optional()
     .describe(
-      "The collision group it belongs to, one of the game's; omitted: dynamic on a dynamic body, else static.",
+      "The collision group it belongs to, one of the game's; omitted: sensor for a sensor (dynamic in a project with no game), dynamic on a dynamic body, else static.",
     )
     .meta({ title: "Collision group", group: "collider" }),
   density: z
@@ -71,6 +71,7 @@ export const COLLIDER = defineBehavior({
     "A collision shape on the entity: static on its own, moved by a body beside it, or a trigger with sensor.",
   fields: colliderFields,
   inspector: {
+    category: "physics",
     label: "Collider",
     order: ["shape", "sensor", "group", "material", "density", "friction", "restitution"],
   },

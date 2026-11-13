@@ -11,7 +11,7 @@ import type { NavPolygon } from "../../../systems/nav";
 import type { View } from "./view";
 
 /** The edit overlay's optional layers, each toggled from the toolbar's View menu. */
-export type EditLayer = "grid" | "occupancy" | "nav";
+export type EditLayer = "grid" | "occupancy" | "nav" | "colliders";
 
 export type EditLayers = Readonly<Record<EditLayer, boolean>>;
 
@@ -19,6 +19,7 @@ export const EDIT_LAYERS: readonly { id: EditLayer; label: string; description: 
   { id: "grid", label: "Grid", description: "The scene grid's cells, else the snapping step's" },
   { id: "occupancy", label: "Occupancy", description: "The grid cells the game's walls fill" },
   { id: "nav", label: "Nav", description: "The walk areas, their holes and the nav mesh" },
+  { id: "colliders", label: "Colliders", description: "Every unselected collider, faintly" },
 ];
 
 /** Why each layer would draw nothing in `scene`; a layer that can draw has no entry. */
@@ -33,14 +34,19 @@ export function unavailableLayers(
   return out;
 }
 
-/** Every layer off: the overlay's default. */
-export const NO_EDIT_LAYERS: EditLayers = { grid: false, occupancy: false, nav: false };
+/** The overlay's default: only the faint collider outlines on. */
+export const DEFAULT_EDIT_LAYERS: EditLayers = {
+  grid: false,
+  occupancy: false,
+  nav: false,
+  colliders: true,
+};
 
 /** Stored layer flags over the defaults; null when `v` holds none of them. */
 export function parseEditLayers(v: unknown): EditLayers | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
   const stored = v as Record<string, unknown>;
-  const out = { ...NO_EDIT_LAYERS };
+  const out = { ...DEFAULT_EDIT_LAYERS };
   let any = false;
   for (const { id } of EDIT_LAYERS) {
     const flag = stored[id];

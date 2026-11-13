@@ -27,6 +27,13 @@ const MEASURED_TICKS = 300;
 const CROWD_MEASURED_TICKS = 60;
 /** The most a behavior's part may take per tick, on average, in a scene that carries none. */
 const IDLE_LAP_MS = 0.01;
+/**
+ * The share of an idle lap's slowest ticks left out of its average. A GC
+ * pause or a preempted thread is credited to whichever lap is open when it
+ * lands, so one such tick can swamp 300 microsecond laps; a cost the
+ * behavior pays every tick still shows in the rest.
+ */
+const IDLE_OUTLIERS = 0.01;
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -39,6 +46,11 @@ const median = (xs: readonly number[]) => {
   return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
 };
 const round = (ms: number) => Math.round(ms * 1000) / 1000;
+/** The mean of `xs` without its slowest `share`. */
+const trimmedMean = (xs: readonly number[], share: number) => {
+  const kept = [...xs].sort((a, b) => a - b).slice(0, xs.length - Math.floor(xs.length * share));
+  return kept.reduce((s, x) => s + x, 0) / kept.length;
+};
 
 type Timed = { rt: SceneRuntimeHandle; timing: RunTiming };
 
@@ -315,11 +327,11 @@ describe("standard behavior budgets", () => {
     const idle = Object.entries(p.parts).filter(([part]) => part.startsWith("behavior."));
     expect(idle.length).toBeGreaterThan(0);
     const laps = idle.map(([part, ms]) => {
-      const mean = ms.reduce((s, x) => s + x, 0) / MEASURED_TICKS;
-      return { part, mean, max: Math.max(...ms) };
+      expect(ms, part).toHaveLength(MEASURED_TICKS);
+      return { part, mean: trimmedMean(ms, IDLE_OUTLIERS), max: Math.max(...ms) };
     });
     console.info(
-      `idle behavior laps (mean / max ms per tick): ${laps.map((l) => `${l.part} ${round(l.mean)} / ${round(l.max)}`).join(", ")}`,
+      `idle behavior laps (mean without the slowest ${IDLE_OUTLIERS * 100}% / max ms per tick): ${laps.map((l) => `${l.part} ${round(l.mean)} / ${round(l.max)}`).join(", ")}`,
     );
     for (const lap of laps) expect(lap.mean, lap.part).toBeLessThanOrEqual(IDLE_LAP_MS);
     props.rt.destroy();

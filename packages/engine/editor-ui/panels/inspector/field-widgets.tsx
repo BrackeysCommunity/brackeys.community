@@ -546,6 +546,8 @@ export function OptionsField({
   const unsetNote = fallback ? `${fallback.label} (default)` : unset;
   const note = field.mixed ? MIXED : !set && unsetNote !== undefined ? unsetNote : null;
   if (segmented) {
+    // The tinted default segment already says what an unset field falls back to.
+    const segmentNote = fallback ? null : note;
     return (
       <FieldRow field={field} error={error} scope={scope}>
         <div className="je-insp-row" data-gap="tight">
@@ -566,14 +568,20 @@ export function OptionsField({
               <SegmentedControl.Item
                 key={String(o.value)}
                 value={String(o.value)}
-                tooltip={o.description}
+                tooltip={
+                  o === fallback
+                    ? o.description
+                      ? `${o.description} (default)`
+                      : "Unset: the default"
+                    : o.description
+                }
                 {...(o === fallback ? { className: "je-insp-default-choice" } : {})}
               >
                 {o.label}
               </SegmentedControl.Item>
             ))}
           </SegmentedControl>
-          {note !== null ? <span className="je-insp-muted">{note}</span> : null}
+          {segmentNote !== null ? <span className="je-insp-muted">{segmentNote}</span> : null}
         </div>
       </FieldRow>
     );

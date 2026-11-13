@@ -20,7 +20,13 @@ import { runOverlay, type LoadedRun } from "../../session/loaded-run";
 import { useStoreValue } from "../../session/use-store-value";
 import { carriesAsset, readAssetDrag } from "../project-tree/tree-rows";
 import { BehaviorMarks, ColliderOutlines } from "./BehaviorMarks";
-import { EditLayerNotes, EditLayers, useEditLayerDrawing, useExpandedScene } from "./EditLayers";
+import {
+  EditLayerNotes,
+  EditLayers,
+  useEditLayerDrawing,
+  useEditLayers,
+  useExpandedScene,
+} from "./EditLayers";
 import { OneWayMarks } from "./OneWayMarks";
 import { RunMarks } from "./RunMarks";
 import { hostAsset, hostToWorld, useHostOverlay, useHostValue } from "./tool-host";
@@ -216,7 +222,7 @@ function withDropGhost(overlay: ToolOverlay, ghost: DropPreview | null): ToolOve
  * The editor's layer over the game canvas, in edit mode: the tool host's
  * overlay (selection outlines as previewed, handles, the marquee, guides,
  * paths, placement ghosts and the drag readout), the View menu's grid,
- * occupancy and nav layers, every collider's faint outline, one-way solids'
+ * occupancy, nav and collider-outline layers, one-way solids'
  * landing faces, the selected entity's behavior gizmo (collider, joint,
  * path, force, spawn), a loaded run, and
  * the fix the host offers after a commit. Only the offer takes the pointer;
@@ -251,6 +257,7 @@ export function CanvasLayer({
   const scene = useExpandedScene(session);
   const step = useHostValue(host, (h) => h.snap().step, null);
   const layers = useEditLayerDrawing(session, scene, view, step);
+  const [shown] = useEditLayers(session);
 
   let offerAt: [number, number] | null = null;
   if (host && overlay.offer) {
@@ -264,7 +271,7 @@ export function CanvasLayer({
     <div data-canvas-layer="" className="je-canvas-layer">
       <svg aria-hidden width={view.width} height={view.height} className="je-canvas-svg">
         <EditLayers drawing={layers} transform={transform} />
-        <ColliderOutlines session={session} transform={transform} />
+        {shown.colliders ? <ColliderOutlines session={session} transform={transform} /> : null}
         <OneWayMarks session={session} scene={scene} view={view} transform={transform} />
         {run ? <RunMarks overlay={run} view={view} transform={transform} /> : null}
         <BehaviorMarks session={session} view={view} transform={transform} overlay={overlay} />

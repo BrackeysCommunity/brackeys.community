@@ -102,6 +102,7 @@ export const CHARACTER_SIDE_VIEW = defineBehavior({
   requires: ["collider"],
   conflicts: ["character-top-down", "nav-agent", "path-follow"],
   inspector: {
+    category: "movement",
     label: "Character (side view)",
     order: [
       "maxSpeed",

@@ -80,6 +80,7 @@ export const CHARACTER_TOP_DOWN = defineBehavior({
   requires: ["collider"],
   conflicts: ["character-side-view", "nav-agent", "path-follow"],
   inspector: {
+    category: "movement",
     label: "Character (top-down)",
     order: ["maxSpeed", "accel", "decel", "pushDynamic", "move"],
   },

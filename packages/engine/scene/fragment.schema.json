@@ -702,7 +702,7 @@
                       "type": "integer",
                       "minimum": 1,
                       "maximum": 9007199254740991,
-                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180.",
+                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180: 3 s at 60 ticks a second.",
                       "title": "Repath every",
                       "unit": "ticks",
                       "group": "navigation",
@@ -714,21 +714,9 @@
                       "group": "navigation",
                       "anyOf": [
                         {
-                          "type": "array",
-                          "prefixItems": [
-                            {
-                              "type": "number",
-                              "description": "dx, m.",
-                              "unit": "m"
-                            },
-                            {
-                              "type": "number",
-                              "description": "dy, m; y is down.",
-                              "unit": "m"
-                            }
-                          ],
-                          "unit": "m",
-                          "description": "A point in world metres."
+                          "description": "A point in world metres: placed with the entity, as a path is.",
+                          "title": "Position",
+                          "$ref": "#/$defs/Pt"
                         },
                         {
                           "type": "string",
@@ -822,8 +810,15 @@
                       "description": "prismatic: the slide direction, in this body's frame. Default [1, 0]."
                     },
                     "limits": {
-                      "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
+                      "description": "revolute: this body's angle relative to `to`, radians (the editor shows degrees). prismatic: its travel along axis, m.",
                       "title": "Limits",
+                      "widget": "range",
+                      "units": {
+                        "kind": {
+                          "revolute": "rad",
+                          "prismatic": "m"
+                        }
+                      },
                       "group": "limits",
                       "when": {
                         "kind": ["revolute", "prismatic"]
@@ -843,7 +838,7 @@
                     "motor": {
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
-                      "group": "limits",
+                      "group": "motor",
                       "when": {
                         "kind": ["revolute", "prismatic"]
                       },
@@ -851,13 +846,26 @@
                       "properties": {
                         "velocity": {
                           "type": "number",
-                          "description": "The target speed: rad/s for revolute, m/s for prismatic."
+                          "description": "The target speed: rad/s for revolute (the editor shows deg/s), m/s for prismatic.",
+                          "title": "Velocity",
+                          "units": {
+                            "kind": {
+                              "revolute": "rad/s",
+                              "prismatic": "m/s"
+                            }
+                          }
                         },
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N.",
-                          "title": "Max force"
+                          "description": "The most force it uses, N; torque for revolute, N·m.",
+                          "title": "Max force",
+                          "units": {
+                            "kind": {
+                              "revolute": "N·m",
+                              "prismatic": "N"
+                            }
+                          }
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -1677,7 +1685,7 @@
                       "type": "integer",
                       "minimum": 1,
                       "maximum": 9007199254740991,
-                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180.",
+                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180: 3 s at 60 ticks a second.",
                       "title": "Repath every",
                       "unit": "ticks",
                       "group": "navigation",
@@ -1689,21 +1697,9 @@
                       "group": "navigation",
                       "anyOf": [
                         {
-                          "type": "array",
-                          "prefixItems": [
-                            {
-                              "type": "number",
-                              "description": "dx, m.",
-                              "unit": "m"
-                            },
-                            {
-                              "type": "number",
-                              "description": "dy, m; y is down.",
-                              "unit": "m"
-                            }
-                          ],
-                          "unit": "m",
-                          "description": "A point in world metres."
+                          "description": "A point in world metres: placed with the entity, as a path is.",
+                          "title": "Position",
+                          "$ref": "#/$defs/Pt"
                         },
                         {
                           "type": "string",
@@ -1797,8 +1793,15 @@
                       "description": "prismatic: the slide direction, in this body's frame. Default [1, 0]."
                     },
                     "limits": {
-                      "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
+                      "description": "revolute: this body's angle relative to `to`, radians (the editor shows degrees). prismatic: its travel along axis, m.",
                       "title": "Limits",
+                      "widget": "range",
+                      "units": {
+                        "kind": {
+                          "revolute": "rad",
+                          "prismatic": "m"
+                        }
+                      },
                       "group": "limits",
                       "when": {
                         "kind": ["revolute", "prismatic"]
@@ -1818,7 +1821,7 @@
                     "motor": {
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
-                      "group": "limits",
+                      "group": "motor",
                       "when": {
                         "kind": ["revolute", "prismatic"]
                       },
@@ -1826,13 +1829,26 @@
                       "properties": {
                         "velocity": {
                           "type": "number",
-                          "description": "The target speed: rad/s for revolute, m/s for prismatic."
+                          "description": "The target speed: rad/s for revolute (the editor shows deg/s), m/s for prismatic.",
+                          "title": "Velocity",
+                          "units": {
+                            "kind": {
+                              "revolute": "rad/s",
+                              "prismatic": "m/s"
+                            }
+                          }
                         },
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N.",
-                          "title": "Max force"
+                          "description": "The most force it uses, N; torque for revolute, N·m.",
+                          "title": "Max force",
+                          "units": {
+                            "kind": {
+                              "revolute": "N·m",
+                              "prismatic": "N"
+                            }
+                          }
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -2423,7 +2439,7 @@
                       "not": {}
                     },
                     "group": {
-                      "description": "The collision group it belongs to, one of the game's; omitted: dynamic on a dynamic body, else static.",
+                      "description": "The collision group it belongs to, one of the game's; omitted: sensor for a sensor (dynamic in a project with no game), dynamic on a dynamic body, else static.",
                       "title": "Collision group",
                       "group": "collider",
                       "type": "string",
@@ -2888,7 +2904,7 @@
                       "type": "integer",
                       "minimum": 1,
                       "maximum": 9007199254740991,
-                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180.",
+                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180: 3 s at 60 ticks a second.",
                       "title": "Repath every",
                       "unit": "ticks",
                       "group": "navigation",
@@ -2900,21 +2916,9 @@
                       "group": "navigation",
                       "anyOf": [
                         {
-                          "type": "array",
-                          "prefixItems": [
-                            {
-                              "type": "number",
-                              "description": "dx, m.",
-                              "unit": "m"
-                            },
-                            {
-                              "type": "number",
-                              "description": "dy, m; y is down.",
-                              "unit": "m"
-                            }
-                          ],
-                          "unit": "m",
-                          "description": "A point in world metres."
+                          "description": "A point in world metres: placed with the entity, as a path is.",
+                          "title": "Position",
+                          "$ref": "#/$defs/Pt"
                         },
                         {
                           "type": "string",
@@ -3008,8 +3012,15 @@
                       "description": "prismatic: the slide direction, in this body's frame. Default [1, 0]."
                     },
                     "limits": {
-                      "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
+                      "description": "revolute: this body's angle relative to `to`, radians (the editor shows degrees). prismatic: its travel along axis, m.",
                       "title": "Limits",
+                      "widget": "range",
+                      "units": {
+                        "kind": {
+                          "revolute": "rad",
+                          "prismatic": "m"
+                        }
+                      },
                       "group": "limits",
                       "when": {
                         "kind": ["revolute", "prismatic"]
@@ -3029,7 +3040,7 @@
                     "motor": {
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
-                      "group": "limits",
+                      "group": "motor",
                       "when": {
                         "kind": ["revolute", "prismatic"]
                       },
@@ -3037,13 +3048,26 @@
                       "properties": {
                         "velocity": {
                           "type": "number",
-                          "description": "The target speed: rad/s for revolute, m/s for prismatic."
+                          "description": "The target speed: rad/s for revolute (the editor shows deg/s), m/s for prismatic.",
+                          "title": "Velocity",
+                          "units": {
+                            "kind": {
+                              "revolute": "rad/s",
+                              "prismatic": "m/s"
+                            }
+                          }
                         },
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N.",
-                          "title": "Max force"
+                          "description": "The most force it uses, N; torque for revolute, N·m.",
+                          "title": "Max force",
+                          "units": {
+                            "kind": {
+                              "revolute": "N·m",
+                              "prismatic": "N"
+                            }
+                          }
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -3914,7 +3938,7 @@
                       "type": "integer",
                       "minimum": 1,
                       "maximum": 9007199254740991,
-                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180.",
+                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180: 3 s at 60 ticks a second.",
                       "title": "Repath every",
                       "unit": "ticks",
                       "group": "navigation",
@@ -3926,21 +3950,9 @@
                       "group": "navigation",
                       "anyOf": [
                         {
-                          "type": "array",
-                          "prefixItems": [
-                            {
-                              "type": "number",
-                              "description": "dx, m.",
-                              "unit": "m"
-                            },
-                            {
-                              "type": "number",
-                              "description": "dy, m; y is down.",
-                              "unit": "m"
-                            }
-                          ],
-                          "unit": "m",
-                          "description": "A point in world metres."
+                          "description": "A point in world metres: placed with the entity, as a path is.",
+                          "title": "Position",
+                          "$ref": "#/$defs/Pt"
                         },
                         {
                           "type": "string",
@@ -4034,8 +4046,15 @@
                       "description": "prismatic: the slide direction, in this body's frame. Default [1, 0]."
                     },
                     "limits": {
-                      "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
+                      "description": "revolute: this body's angle relative to `to`, radians (the editor shows degrees). prismatic: its travel along axis, m.",
                       "title": "Limits",
+                      "widget": "range",
+                      "units": {
+                        "kind": {
+                          "revolute": "rad",
+                          "prismatic": "m"
+                        }
+                      },
                       "group": "limits",
                       "when": {
                         "kind": ["revolute", "prismatic"]
@@ -4055,7 +4074,7 @@
                     "motor": {
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
-                      "group": "limits",
+                      "group": "motor",
                       "when": {
                         "kind": ["revolute", "prismatic"]
                       },
@@ -4063,13 +4082,26 @@
                       "properties": {
                         "velocity": {
                           "type": "number",
-                          "description": "The target speed: rad/s for revolute, m/s for prismatic."
+                          "description": "The target speed: rad/s for revolute (the editor shows deg/s), m/s for prismatic.",
+                          "title": "Velocity",
+                          "units": {
+                            "kind": {
+                              "revolute": "rad/s",
+                              "prismatic": "m/s"
+                            }
+                          }
                         },
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N.",
-                          "title": "Max force"
+                          "description": "The most force it uses, N; torque for revolute, N·m.",
+                          "title": "Max force",
+                          "units": {
+                            "kind": {
+                              "revolute": "N·m",
+                              "prismatic": "N"
+                            }
+                          }
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -4882,7 +4914,7 @@
                       "type": "integer",
                       "minimum": 1,
                       "maximum": 9007199254740991,
-                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180.",
+                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180: 3 s at 60 ticks a second.",
                       "title": "Repath every",
                       "unit": "ticks",
                       "group": "navigation",
@@ -4894,21 +4926,9 @@
                       "group": "navigation",
                       "anyOf": [
                         {
-                          "type": "array",
-                          "prefixItems": [
-                            {
-                              "type": "number",
-                              "description": "dx, m.",
-                              "unit": "m"
-                            },
-                            {
-                              "type": "number",
-                              "description": "dy, m; y is down.",
-                              "unit": "m"
-                            }
-                          ],
-                          "unit": "m",
-                          "description": "A point in world metres."
+                          "description": "A point in world metres: placed with the entity, as a path is.",
+                          "title": "Position",
+                          "$ref": "#/$defs/Pt"
                         },
                         {
                           "type": "string",
@@ -5002,8 +5022,15 @@
                       "description": "prismatic: the slide direction, in this body's frame. Default [1, 0]."
                     },
                     "limits": {
-                      "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
+                      "description": "revolute: this body's angle relative to `to`, radians (the editor shows degrees). prismatic: its travel along axis, m.",
                       "title": "Limits",
+                      "widget": "range",
+                      "units": {
+                        "kind": {
+                          "revolute": "rad",
+                          "prismatic": "m"
+                        }
+                      },
                       "group": "limits",
                       "when": {
                         "kind": ["revolute", "prismatic"]
@@ -5023,7 +5050,7 @@
                     "motor": {
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
-                      "group": "limits",
+                      "group": "motor",
                       "when": {
                         "kind": ["revolute", "prismatic"]
                       },
@@ -5031,13 +5058,26 @@
                       "properties": {
                         "velocity": {
                           "type": "number",
-                          "description": "The target speed: rad/s for revolute, m/s for prismatic."
+                          "description": "The target speed: rad/s for revolute (the editor shows deg/s), m/s for prismatic.",
+                          "title": "Velocity",
+                          "units": {
+                            "kind": {
+                              "revolute": "rad/s",
+                              "prismatic": "m/s"
+                            }
+                          }
                         },
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N.",
-                          "title": "Max force"
+                          "description": "The most force it uses, N; torque for revolute, N·m.",
+                          "title": "Max force",
+                          "units": {
+                            "kind": {
+                              "revolute": "N·m",
+                              "prismatic": "N"
+                            }
+                          }
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -5619,7 +5659,7 @@
                       "not": {}
                     },
                     "group": {
-                      "description": "The collision group it belongs to, one of the game's; omitted: dynamic on a dynamic body, else static.",
+                      "description": "The collision group it belongs to, one of the game's; omitted: sensor for a sensor (dynamic in a project with no game), dynamic on a dynamic body, else static.",
                       "title": "Collision group",
                       "group": "collider",
                       "type": "string",
@@ -6084,7 +6124,7 @@
                       "type": "integer",
                       "minimum": 1,
                       "maximum": 9007199254740991,
-                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180.",
+                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180: 3 s at 60 ticks a second.",
                       "title": "Repath every",
                       "unit": "ticks",
                       "group": "navigation",
@@ -6096,21 +6136,9 @@
                       "group": "navigation",
                       "anyOf": [
                         {
-                          "type": "array",
-                          "prefixItems": [
-                            {
-                              "type": "number",
-                              "description": "dx, m.",
-                              "unit": "m"
-                            },
-                            {
-                              "type": "number",
-                              "description": "dy, m; y is down.",
-                              "unit": "m"
-                            }
-                          ],
-                          "unit": "m",
-                          "description": "A point in world metres."
+                          "description": "A point in world metres: placed with the entity, as a path is.",
+                          "title": "Position",
+                          "$ref": "#/$defs/Pt"
                         },
                         {
                           "type": "string",
@@ -6204,8 +6232,15 @@
                       "description": "prismatic: the slide direction, in this body's frame. Default [1, 0]."
                     },
                     "limits": {
-                      "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
+                      "description": "revolute: this body's angle relative to `to`, radians (the editor shows degrees). prismatic: its travel along axis, m.",
                       "title": "Limits",
+                      "widget": "range",
+                      "units": {
+                        "kind": {
+                          "revolute": "rad",
+                          "prismatic": "m"
+                        }
+                      },
                       "group": "limits",
                       "when": {
                         "kind": ["revolute", "prismatic"]
@@ -6225,7 +6260,7 @@
                     "motor": {
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
-                      "group": "limits",
+                      "group": "motor",
                       "when": {
                         "kind": ["revolute", "prismatic"]
                       },
@@ -6233,13 +6268,26 @@
                       "properties": {
                         "velocity": {
                           "type": "number",
-                          "description": "The target speed: rad/s for revolute, m/s for prismatic."
+                          "description": "The target speed: rad/s for revolute (the editor shows deg/s), m/s for prismatic.",
+                          "title": "Velocity",
+                          "units": {
+                            "kind": {
+                              "revolute": "rad/s",
+                              "prismatic": "m/s"
+                            }
+                          }
                         },
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N.",
-                          "title": "Max force"
+                          "description": "The most force it uses, N; torque for revolute, N·m.",
+                          "title": "Max force",
+                          "units": {
+                            "kind": {
+                              "revolute": "N·m",
+                              "prismatic": "N"
+                            }
+                          }
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -6837,7 +6885,7 @@
                       "not": {}
                     },
                     "group": {
-                      "description": "The collision group it belongs to, one of the game's; omitted: dynamic on a dynamic body, else static.",
+                      "description": "The collision group it belongs to, one of the game's; omitted: sensor for a sensor (dynamic in a project with no game), dynamic on a dynamic body, else static.",
                       "title": "Collision group",
                       "group": "collider",
                       "type": "string",
@@ -7302,7 +7350,7 @@
                       "type": "integer",
                       "minimum": 1,
                       "maximum": 9007199254740991,
-                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180.",
+                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180: 3 s at 60 ticks a second.",
                       "title": "Repath every",
                       "unit": "ticks",
                       "group": "navigation",
@@ -7314,21 +7362,9 @@
                       "group": "navigation",
                       "anyOf": [
                         {
-                          "type": "array",
-                          "prefixItems": [
-                            {
-                              "type": "number",
-                              "description": "dx, m.",
-                              "unit": "m"
-                            },
-                            {
-                              "type": "number",
-                              "description": "dy, m; y is down.",
-                              "unit": "m"
-                            }
-                          ],
-                          "unit": "m",
-                          "description": "A point in world metres."
+                          "description": "A point in world metres: placed with the entity, as a path is.",
+                          "title": "Position",
+                          "$ref": "#/$defs/Pt"
                         },
                         {
                           "type": "string",
@@ -7422,8 +7458,15 @@
                       "description": "prismatic: the slide direction, in this body's frame. Default [1, 0]."
                     },
                     "limits": {
-                      "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
+                      "description": "revolute: this body's angle relative to `to`, radians (the editor shows degrees). prismatic: its travel along axis, m.",
                       "title": "Limits",
+                      "widget": "range",
+                      "units": {
+                        "kind": {
+                          "revolute": "rad",
+                          "prismatic": "m"
+                        }
+                      },
                       "group": "limits",
                       "when": {
                         "kind": ["revolute", "prismatic"]
@@ -7443,7 +7486,7 @@
                     "motor": {
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
-                      "group": "limits",
+                      "group": "motor",
                       "when": {
                         "kind": ["revolute", "prismatic"]
                       },
@@ -7451,13 +7494,26 @@
                       "properties": {
                         "velocity": {
                           "type": "number",
-                          "description": "The target speed: rad/s for revolute, m/s for prismatic."
+                          "description": "The target speed: rad/s for revolute (the editor shows deg/s), m/s for prismatic.",
+                          "title": "Velocity",
+                          "units": {
+                            "kind": {
+                              "revolute": "rad/s",
+                              "prismatic": "m/s"
+                            }
+                          }
                         },
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N.",
-                          "title": "Max force"
+                          "description": "The most force it uses, N; torque for revolute, N·m.",
+                          "title": "Max force",
+                          "units": {
+                            "kind": {
+                              "revolute": "N·m",
+                              "prismatic": "N"
+                            }
+                          }
                         }
                       },
                       "required": ["velocity", "maxForce"],

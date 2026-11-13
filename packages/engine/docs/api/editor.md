@@ -174,6 +174,8 @@ type BehaviorOption = {
      * it requires that a target lacks, each from its own template.
      */
     batch: OpBatch;
+    /** The behavior's `inspector.category`: its Add behavior heading; a game's own without one list under Game. */
+    category?: BehaviorCategory;
     description: string;
     label: string;
     name: BehaviorName;
@@ -903,7 +905,20 @@ type FieldWidget = {
     kind: "number";
     max?: number;
     min?: number;
+    /**
+     * Shown in `unit` as the stored value times this (a `rad/s` field as
+     * `deg/s`): the row's value and default are shown values, and what is
+     * typed is divided back.
+     */
+    scale?: number;
     scrub: boolean;
+    step: number;
+    unit?: string;
+} | {
+    bigStep: number;
+    decimals?: number;
+    kind: "range";
+    scale?: number;
     step: number;
     unit?: string;
 } | {

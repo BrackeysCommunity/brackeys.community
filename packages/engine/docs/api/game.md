@@ -208,7 +208,12 @@ type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
     description: string;
     /** The block's fields; a function when one depends on the registry or the project (an asset enum). */
     fields: ((env: FieldEnv) => F) | F;
+    /**
+     * `category` is the editor's Add behavior heading; a behavior without one
+     * lists under Game.
+     */
     inspector?: {
+        category?: "movement" | "physics" | "visual" | "world";
         label?: string;
         order?: readonly string[];
     };
@@ -2866,7 +2871,10 @@ declare const NAV_AGENT: BehaviorDef<{
     separation: z.ZodDefault<z.ZodNumber>;
     speed: z.ZodDefault<z.ZodNumber>;
     to: z.ZodOptional<z.ZodUnion<readonly [
-        z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>,
+        z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>,
         z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>
     ]>>;
 }>;

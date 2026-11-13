@@ -125,4 +125,30 @@ describe("BehaviorMarks", () => {
     expect(path!.querySelector("path")!.getAttribute("d")).toBe("M10 5 L12 5");
     expect(path!.querySelectorAll("[data-waypoint]")).toHaveLength(2);
   });
+
+  it("moves the path with the entity while a move previews", () => {
+    const session = sessionOf(ferry);
+    act(() => session.select(["ferry"]));
+    const { container } = render(
+      <svg>
+        <BehaviorMarks
+          session={session}
+          view={view}
+          transform=""
+          overlay={{ handles: [{ id: "move", kind: "move", at: [11, 6] }] }}
+        />
+      </svg>,
+    );
+    const path = container.querySelector('[data-behavior-mark="path"]')!;
+    expect(path.querySelector("path")!.getAttribute("d")).toBe("M11 6 L13 6");
+    expect(
+      [...path.querySelectorAll("[data-waypoint]")].map((c) => [
+        c.getAttribute("cx"),
+        c.getAttribute("cy"),
+      ]),
+    ).toEqual([
+      ["11", "6"],
+      ["13", "6"],
+    ]);
+  });
 });

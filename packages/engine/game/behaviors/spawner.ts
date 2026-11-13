@@ -82,6 +82,7 @@ export const SPAWNER = defineBehavior({
     "Spawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones; raises spawner:spawned for each.",
   fields: spawnerFields,
   inspector: {
+    category: "world",
     label: "Spawner",
     order: ["type", "prefab", "rate", "cap", "burst", "lifeMs", "spread", "velocity", "active"],
   },

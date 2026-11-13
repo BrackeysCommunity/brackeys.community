@@ -530,9 +530,13 @@ describe("createRegistry behavior conflicts and default actions", () => {
       "camera-target",
     ]);
     expect(ENGINE_BEHAVIORS.map((b) => b.name)).toEqual(createRegistry().behaviorNames);
-    expect(createRegistry().behaviors.get("character-top-down")?.conflicts).toEqual([
-      "character-side-view",
-    ]);
+    const movers = ["character-top-down", "character-side-view", "nav-agent", "path-follow"];
+    const behaviors = createRegistry().behaviors;
+    for (const mover of movers) {
+      expect([...(behaviors.get(mover)?.conflicts ?? [])].sort()).toEqual(
+        movers.filter((m) => m !== mover).sort(),
+      );
+    }
   });
 
   it("refuses a conflict naming an unknown behavior, itself or one it requires", () => {

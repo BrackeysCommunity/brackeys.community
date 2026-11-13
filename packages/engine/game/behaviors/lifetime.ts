@@ -32,4 +32,5 @@ export const LIFETIME = defineBehavior({
     const given = (block.ticks === undefined ? 0 : 1) + (block.ms === undefined ? 0 : 1);
     return given === 1 ? undefined : "lifetime takes exactly one of `ticks` or `ms`";
   },
+  inspector: { category: "world" },
 });

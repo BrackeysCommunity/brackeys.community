@@ -32,7 +32,15 @@ export type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
   conflicts?: readonly BehaviorName[];
   /** Never changes simulation state: built only with a view, never headless. */
   visualOnly?: boolean;
-  inspector?: { label?: string; order?: readonly string[] };
+  /**
+   * `category` is the editor's Add behavior heading; a behavior without one
+   * lists under Game.
+   */
+  inspector?: {
+    label?: string;
+    order?: readonly string[];
+    category?: "physics" | "movement" | "world" | "visual";
+  };
   /**
    * A check across the block's fields that a field shape can't say
    * ("exactly one of `ticks` or `ms`"): the message of a `schema` issue, or
@@ -45,6 +53,16 @@ export type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
    */
   template?: BehaviorBlock;
 };
+
+export type BehaviorCategory = NonNullable<NonNullable<BehaviorDef["inspector"]>["category"]>;
+
+/** The Add behavior menu's headings, in the order it lists them. */
+export const BEHAVIOR_CATEGORIES: readonly BehaviorCategory[] = Object.freeze([
+  "physics",
+  "movement",
+  "world",
+  "visual",
+]);
 
 /** Identity at runtime; types the definition. Names and rules are checked when a registry is built. */
 export function defineBehavior<F extends z.ZodRawShape>(def: BehaviorDef<F>): BehaviorDef<F> {

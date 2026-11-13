@@ -141,6 +141,7 @@ export function BehaviorMarks({
     ? behaviorMarks(target.behaviors, view.scale, handles, { shift })
     : { outlines: [], lines: [], arrows: [], rings: [] };
   const dot = worldPx(view, WAYPOINT_PX);
+  const waypoints = path?.pts.map((p): Pt => [p[0] + shift[0], p[1] + shift[1]]) ?? [];
   return (
     <g
       data-behavior-marks=""
@@ -165,12 +166,12 @@ export function BehaviorMarks({
       {path ? (
         <g data-behavior-mark="path">
           <path
-            d={polylinePath(path.pts, path.closed)}
+            d={polylinePath(waypoints, path.closed)}
             strokeWidth={1.5}
             strokeDasharray="6 4"
             vectorEffect="non-scaling-stroke"
           />
-          {path.pts.map((p, i) => (
+          {waypoints.map((p, i) => (
             <circle
               key={`waypoint-${i}`}
               data-waypoint={i}

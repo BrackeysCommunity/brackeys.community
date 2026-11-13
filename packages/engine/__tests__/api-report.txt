@@ -4100,6 +4100,7 @@ declare function createHistory({ cap, coalesceMs, now }?: HistoryOptions): Histo
 type BehaviorOption = {
     adds?: string[];
     batch: OpBatch;
+    category?: BehaviorCategory;
     description: string;
     label: string;
     name: BehaviorName;
@@ -4128,7 +4129,15 @@ type FieldWidget = {
     kind: "number";
     max?: number;
     min?: number;
+    scale?: number;
     scrub: boolean;
+    step: number;
+    unit?: string;
+} | {
+    bigStep: number;
+    decimals?: number;
+    kind: "range";
+    scale?: number;
     step: number;
     unit?: string;
 } | {
@@ -5085,11 +5094,13 @@ declare function zipFiles(files: readonly {
 declare const BEHAVIORS_FIELD = "behaviors";
 declare const BEHAVIOR_NAME_PATTERN: RegExp;
 type BehaviorBlock = Readonly<Record<string, unknown>>;
+type BehaviorCategory = NonNullable<NonNullable<BehaviorDef["inspector"]>["category"]>;
 type BehaviorDef<F extends z.ZodRawShape = z.ZodRawShape> = {
     conflicts?: readonly BehaviorName[];
     description: string;
     fields: ((env: FieldEnv) => F) | F;
     inspector?: {
+        category?: "movement" | "physics" | "visual" | "world";
         label?: string;
         order?: readonly string[];
     };
@@ -5405,7 +5416,10 @@ declare const NAV_AGENT: BehaviorDef<{
     separation: z.ZodDefault<z.ZodNumber>;
     speed: z.ZodDefault<z.ZodNumber>;
     to: z.ZodOptional<z.ZodUnion<readonly [
-        z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>,
+        z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>,
         z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>
     ]>>;
 }>;
@@ -5422,7 +5436,10 @@ declare const navAgentFields: {
     separation: z.ZodDefault<z.ZodNumber>;
     speed: z.ZodDefault<z.ZodNumber>;
     to: z.ZodOptional<z.ZodUnion<readonly [
-        z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>,
+        z.ZodTuple<[
+            z.ZodNumber,
+            z.ZodNumber
+        ], null>,
         z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>
     ]>>;
 };

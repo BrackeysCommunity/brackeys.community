@@ -2801,7 +2801,11 @@
     white-space: normal;
   }
 
-  .je-insp-behavior-item[data-unavailable] > :not(.je-insp-behavior-note) {
+  .je-insp-behavior-item[data-disabled] {
+    opacity: 1;
+  }
+
+  .je-insp-behavior-item[data-disabled] > :not(.je-insp-behavior-note) {
     opacity: 0.6;
   }
 

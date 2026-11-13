@@ -24,7 +24,7 @@ import { CanvasLayer } from "../CanvasLayer";
 import {
   gridLayerPlan,
   navLayer,
-  NO_EDIT_LAYERS,
+  DEFAULT_EDIT_LAYERS,
   parseEditLayers,
   unavailableLayers,
   viewViewport,
@@ -96,13 +96,20 @@ function expectedWalls(registry: Registry, grid: GridSettings): Cell[] {
 describe("the edit overlay's layer geometry", () => {
   const registry = createRegistry();
 
-  it("reads only stored boolean flags, all off by default", () => {
-    expect(NO_EDIT_LAYERS).toEqual({ grid: false, occupancy: false, nav: false });
+  it("reads only stored boolean flags, all but the colliders off by default", () => {
+    expect(DEFAULT_EDIT_LAYERS).toEqual({
+      grid: false,
+      occupancy: false,
+      nav: false,
+      colliders: true,
+    });
     expect(parseEditLayers({ grid: true, nav: "yes", other: true })).toEqual({
       grid: true,
       occupancy: false,
       nav: false,
+      colliders: true,
     });
+    expect(parseEditLayers({ colliders: false })?.colliders).toBe(false);
     expect(parseEditLayers("grid")).toBeNull();
     expect(parseEditLayers({})).toBeNull();
   });
@@ -307,6 +314,33 @@ describe("the edit overlay's layers", () => {
       ).toBe(nav.triangles.length + 1);
     });
   }
+
+  it("outlines colliders until the View menu turns the Colliders layer off", () => {
+    const crate = {
+      op: "add" as const,
+      entity: {
+        id: "crate",
+        type: "marker",
+        at: [6, 4],
+        behaviors: { collider: { shape: ["box", 0, 0, 0.5, 0.5] } },
+      },
+    };
+    const on = setup(100, memoryStorage());
+    act(() => {
+      on.session.dispatch({ ops: [crate] });
+    });
+    expect(document.querySelector('[data-collider-outlines] [data-ref="crate"]')).toBeTruthy();
+    cleanup();
+    const off = setup(
+      100,
+      memoryStorage({ [EDIT_LAYERS_KEY]: JSON.stringify({ colliders: false }) }),
+    );
+    act(() => {
+      off.session.dispatch({ ops: [crate] });
+    });
+    expect(document.querySelector("[data-collider-outlines]")).toBeNull();
+    expect(document.querySelector("[data-edit-layers]")).toBeNull();
+  });
 
   it("follows the document: a removed wall leaves its cells", () => {
     const storage = memoryStorage({ [EDIT_LAYERS_KEY]: JSON.stringify({ occupancy: true }) });

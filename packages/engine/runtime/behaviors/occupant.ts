@@ -32,6 +32,9 @@ export const createOccupantSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     a.key = key;
   }
 
+  /** Hoisted so a tick's walk allocates nothing. */
+  const follow = (a: Attached, id: string) => place(id, a, false);
+
   function show(id: string, block: OccupantBlock): void {
     const a: Attached = { blocks: block.blocks !== false, key: null };
     attached.set(id, a);
@@ -48,7 +51,8 @@ export const createOccupantSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     update: (id, block) => show(id, block),
     detach: hide,
     step() {
-      for (const [id, a] of attached) place(id, a, false);
+      if (attached.size === 0 || !ctx.grid) return;
+      attached.forEach(follow);
     },
     /** The cell it stands in, which trails its pose until the tick's end. */
     save(id) {

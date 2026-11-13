@@ -82,6 +82,7 @@ export const FORCE_AREA = defineBehavior({
   fields: forceAreaFields,
   requires: ["collider"],
   inspector: {
+    category: "physics",
     label: "Force area",
     order: ["kind", "force", "strength", "falloff", "drag", "affects"],
   },

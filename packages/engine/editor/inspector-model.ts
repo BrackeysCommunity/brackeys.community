@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { BEHAVIORS_FIELD, type BehaviorName, type RegisteredBehavior } from "../game/behaviors";
+import {
+  BEHAVIORS_FIELD,
+  type BehaviorCategory,
+  type BehaviorName,
+  type RegisteredBehavior,
+} from "../game/behaviors";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import { assetKindsOf, CHILD_REF_PATTERN, SIDES } from "../game/fields";
 import type { BehaviorRules, InspectorWidgetDef, RegisteredType, Registry } from "../game/types";
@@ -109,6 +114,25 @@ export type FieldWidget =
       scrub: boolean;
       /** Decimals to show: for an `m` field, the ones one world px needs (`lengthDecimals`). */
       decimals?: number;
+      /**
+       * Shown in `unit` as the stored value times this (a `rad/s` field as
+       * `deg/s`): the row's value and default are shown values, and what is
+       * typed is divided back.
+       */
+      scale?: number;
+    }
+  /**
+   * A [low, high] pair (`meta.widget: "range"`, a joint's limits): two number
+   * fields and a unit, stepping as a number field does. `scale` as a
+   * number field's.
+   */
+  | {
+      kind: "range";
+      unit?: string;
+      scale?: number;
+      step: number;
+      bigStep: number;
+      decimals?: number;
     }
   /** Degrees, a dial plus a field; `snapDeg` is the dial's step. */
   | { kind: "angle"; integer: boolean; snapDeg: number }
@@ -216,6 +240,8 @@ export type BehaviorOption = {
   name: BehaviorName;
   label: string;
   description: string;
+  /** The behavior's `inspector.category`: its Add behavior heading; a game's own without one list under Game. */
+  category?: BehaviorCategory;
   /**
    * One update per target that lacks the block. It also adds the behaviors
    * it requires that a target lacks, each from its own template.
@@ -247,6 +273,7 @@ type FieldMeta = {
   default?: unknown;
   placeholder?: unknown;
   when?: unknown;
+  units?: unknown;
 };
 
 /** The field's metadata, inner wrappers first so an outer `.meta()` wins. */
@@ -291,6 +318,8 @@ export type FieldCtx = {
   type: RegisteredType | undefined;
   ppm: number;
   entity: boolean;
+  /** A behavior block's current value of `key`, its default when unset: what `meta.units` reads. */
+  block?: (key: string) => unknown;
 };
 
 type Ctx = FieldCtx;
@@ -327,6 +356,42 @@ export function lengthStep(
   return unit === "m"
     ? { step: 1 / pxPerMetre, bigStep: 10 / pxPerMetre, decimals: lengthDecimals(pxPerMetre) }
     : { step: 0.01, bigStep: 0.1, decimals: 2 };
+}
+
+/**
+ * The unit a field is in: `meta.units` by a block field's current value
+ * (`{ kind: { revolute: "rad", prismatic: "m" } }`), else `meta.unit`.
+ */
+function unitOf(meta: FieldMeta, ctx: Ctx): string | undefined {
+  if (ctx.block && meta.units !== null && typeof meta.units === "object") {
+    for (const [key, byValue] of Object.entries(meta.units)) {
+      const value = ctx.block(key);
+      const unit =
+        byValue !== null && typeof byValue === "object" && typeof value === "string"
+          ? (byValue as Record<string, unknown>)[value]
+          : undefined;
+      if (typeof unit === "string") return unit;
+    }
+  }
+  return typeof meta.unit === "string" ? meta.unit : undefined;
+}
+
+/** The unit a field shows in, and the factor from stored to shown: radians show as degrees. */
+function shownUnit(unit: string | undefined): { unit?: string; scale?: number } {
+  if (unit === "rad") return { unit: "deg", scale: 180 / Math.PI };
+  if (unit === "rad/s") return { unit: "deg/s", scale: 180 / Math.PI };
+  return unit === undefined ? {} : { unit };
+}
+
+/** A shown number, rid of the float noise a conversion leaves (89.99999999999999°). */
+const tidy = (n: number) => Math.round(n * 1e9) / 1e9;
+
+/** `value` as `scale` converts it, number by number; anything else unchanged. */
+function scaled(value: unknown, by: (n: number) => number): unknown {
+  if (typeof value === "number") return by(value);
+  if (Array.isArray(value) && value.every((v) => typeof v === "number"))
+    return value.map((v: number) => by(v));
+  return value;
 }
 
 /** A string field holding an entity id or an instance child's ref (`refField`). */
@@ -367,11 +432,12 @@ function widgetFor(
     return choice(ctx.registry.layers.map((l) => l.name));
   const kind = fieldKind(schema);
   if (kind === "shape") return { kind: "shape", types: shapeTypesOf(schema) };
+  const declared = unitOf(meta, ctx);
   const point = (pick: boolean): FieldWidget => ({
     kind: "point",
     pick,
-    ...(typeof meta.unit === "string" ? { unit: meta.unit } : {}),
-    ...(isLengthUnit(meta.unit) ? lengthStep(meta.unit, ctx.ppm) : {}),
+    ...(declared !== undefined ? { unit: declared } : {}),
+    ...(isLengthUnit(declared) ? lengthStep(declared, ctx.ppm) : {}),
   });
   if (kind === "point") return point(true);
   if (kind === "vector") return point(false);
@@ -387,26 +453,39 @@ function widgetFor(
       : undefined;
   if (accepts) return { kind: "entity-ref", accepts, multiple: inner instanceof z.ZodArray };
   if (isChildRef(inner)) return { kind: "entity-ref", accepts: [], multiple: false, any: true };
-  if (isNumberPair(schema, inner)) return point(false);
+  const { unit, scale } = shownUnit(declared);
+  if (isNumberPair(schema, inner)) {
+    if (meta.widget !== "range") return point(false);
+    const length = isLengthUnit(unit) ? lengthStep(unit, ctx.ppm) : undefined;
+    return {
+      kind: "range",
+      ...(unit ? { unit } : {}),
+      ...(scale ? { scale } : {}),
+      step: length?.step ?? 1,
+      bigStep: length?.bigStep ?? (unit === "deg" ? 15 : 10),
+      decimals: length?.decimals ?? 2,
+    };
+  }
 
   if (inner instanceof z.ZodNumber) {
     const b = numberBounds(inner);
-    const unit = typeof meta.unit === "string" ? meta.unit : undefined;
-    if (unit === "deg") return { kind: "angle", integer: b.integer, snapDeg: 15 };
+    if (declared === "deg") return { kind: "angle", integer: b.integer, snapDeg: 15 };
     const length = !b.integer && isLengthUnit(unit) ? lengthStep(unit, ctx.ppm) : undefined;
-    const step = length?.step ?? (b.integer || unit === "px" ? 1 : 0.1);
+    const step = length?.step ?? (b.integer || unit === "px" ? 1 : scale ? 1 : 0.1);
     const bigStep = length?.bigStep ?? step * 10;
+    const show = (n: number) => (scale ? tidy(n * scale) : n);
     return {
       kind: "number",
       integer: b.integer,
       ...(unit ? { unit } : {}),
-      ...(b.min !== undefined ? { min: b.min } : {}),
-      ...(b.max !== undefined ? { max: b.max } : {}),
+      ...(b.min !== undefined ? { min: show(b.min) } : {}),
+      ...(b.max !== undefined ? { max: show(b.max) } : {}),
       ...(b.exclusive ? { exclusiveMin: true } : {}),
       step,
       bigStep,
       scrub: unit !== undefined,
-      ...(length ? { decimals: length.decimals } : {}),
+      ...(length ? { decimals: length.decimals } : scale ? { decimals: 2 } : {}),
+      ...(scale ? { scale } : {}),
     };
   }
   if (inner instanceof z.ZodEnum) {
@@ -511,8 +590,11 @@ export function describeRow(
 ): InspectorRow {
   const name = path.slice(path.lastIndexOf(".") + 1);
   const meta = fieldMeta(schema);
-  const value = fieldValue(schema, root, path);
-  const widget = widgetFor(schema, name, !path.includes("."), ctx, value);
+  const stored = fieldValue(schema, root, path);
+  const widget = widgetFor(schema, name, !path.includes("."), ctx, stored);
+  const scale = "scale" in widget ? widget.scale : undefined;
+  const shown = (v: unknown) => (scale ? scaled(v, (n) => tidy(n * scale)) : v);
+  const value = shown(stored);
   const row: InspectorRow = {
     path,
     name,
@@ -528,7 +610,7 @@ export function describeRow(
     mixed: false,
     schema,
   };
-  if (row.optional && meta.default !== undefined) row.defaultValue = meta.default;
+  if (row.optional && meta.default !== undefined) row.defaultValue = shown(meta.default);
   if (typeof meta.placeholder === "string") row.placeholder = meta.placeholder;
   const inner = unwrapSchema(schema);
   if ((widget.kind === "path" || widget.kind === "object") && inner instanceof z.ZodObject) {
@@ -664,11 +746,18 @@ function blockShape(registry: Registry, s: BehaviorState, name: BehaviorName): z
 
 function behaviorFields(registry: Registry, s: BehaviorState, name: BehaviorName): ModelField[] {
   const entity = s.target.entity;
-  const ctx = entityCtx(registry, registry.types.get(entity.type));
   const forced = behaviorSectionId(name);
   const b = registry.behaviors.get(name);
   if (!b)
-    return [describeField(`${BEHAVIORS_FIELD}.${name}`, z.unknown(), entity, ctx, { forced })];
+    return [
+      describeField(
+        `${BEHAVIORS_FIELD}.${name}`,
+        z.unknown(),
+        entity,
+        entityCtx(registry, registry.types.get(entity.type)),
+        { forced },
+      ),
+    ];
   const defaults = s.rules.defaults.get(name) ?? {};
   const shape = blockShape(registry, s, name);
   const written = writtenBlocks(entity)[name];
@@ -681,6 +770,7 @@ function behaviorFields(registry: Registry, s: BehaviorState, name: BehaviorName
     const parsed = field ? z.safeParse(field, undefined) : undefined;
     return parsed?.success ? parsed.data : undefined;
   };
+  const ctx: Ctx = { ...entityCtx(registry, registry.types.get(entity.type)), block: current };
   const applies = ([k, schema]: [string, z.ZodType]) =>
     block[k] !== undefined || fieldApplies(fieldMeta(schema).when, current);
   return linkFrames(
@@ -983,6 +1073,7 @@ function addOptions(
       name,
       label,
       description: b.description,
+      ...(b.inspector?.category ? { category: b.inspector.category } : {}),
       batch: { label: `Add ${label} to ${who}`, ops },
       ...(adds.size > 0 ? { adds: [...adds] } : {}),
       ...(unavailable ? { unavailable } : {}),
@@ -1116,7 +1207,7 @@ function roundMetric(w: FieldWidget, value: unknown): unknown {
   if (!("unit" in w) || !isLengthUnit(w.unit)) return value;
   if (w.kind === "number" && typeof value === "number" && !w.integer) return roundLength(value);
   if (
-    w.kind === "point" &&
+    (w.kind === "point" || w.kind === "range") &&
     Array.isArray(value) &&
     value.length === 2 &&
     value.every((v) => typeof v === "number")
@@ -1126,10 +1217,11 @@ function roundMetric(w: FieldWidget, value: unknown): unknown {
 }
 
 /**
- * What `input` sets `row` to when it now holds `current`: a string typed
- * into a number field parsed by `parseRelative` (against `current`, else
- * the row's default) and rounded when whole, a metric number or point
- * rounded as a file holds it. Not yet checked against the schema.
+ * What `input` sets `row` to when it now holds `current` (as stored): a
+ * string typed into a number field parsed by `parseRelative` (against
+ * `current`, else the row's default) and rounded when whole, a metric
+ * number, point or range rounded as a file holds it. A scaled widget's
+ * input is a shown value, divided back. Not yet checked against the schema.
  */
 export function typedValue(
   row: InspectorRow,
@@ -1137,12 +1229,20 @@ export function typedValue(
   current: unknown,
 ): { ok: true; value: unknown } | { ok: false; error: string } {
   let next = input;
+  const scale = "scale" in row.widget ? row.widget.scale : undefined;
   if (typeof input === "string" && numeric(row.widget)) {
-    next = parseRelative(input, current ?? row.defaultValue);
+    const base =
+      current === undefined
+        ? row.defaultValue
+        : scale && typeof current === "number"
+          ? current * scale
+          : current;
+    next = parseRelative(input, base);
     if (next === undefined)
       return { ok: false, error: `"${input}" isn't a number or a relative edit like +=16` };
     if (row.widget.kind !== "number" || row.widget.integer) next = Math.round(next as number);
   }
+  if (scale) next = scaled(next, (n) => n / scale);
   return { ok: true, value: roundMetric(row.widget, next) };
 }
 

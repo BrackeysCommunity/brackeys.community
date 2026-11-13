@@ -148,9 +148,11 @@ export function waypointHandles(
  */
 export function behaviorHandles(b: BehaviorGizmo, scale: number): GizmoHandle[] {
   const out: GizmoHandle[] = [];
+  const anchors = b.joint ? jointAnchorHandles(b) : [];
   if (b.collider) {
     for (const h of shapeHandles(b.collider.world, scale))
-      if (h.kind !== "move") out.push({ ...h, id: `collider:${h.id}` });
+      if (h.kind !== "move" && !(isEdgeResize(h) && anchors.some((a) => covers(a.at, h.at, scale))))
+        out.push({ ...h, id: `collider:${h.id}` });
   }
   if (b.spawner) {
     out.push(
@@ -179,11 +181,64 @@ export function behaviorHandles(b: BehaviorGizmo, scale: number): GizmoHandle[] 
         "ew-resize",
       ),
     );
-  if (b.joint) {
-    out.push(handle("joint:anchorA", "vertex", b.joint.anchorA, "move"));
-    if (b.joint.anchorB) out.push(handle("joint:anchorB", "vertex", b.joint.anchorB, "move"));
+  if (anchors.length > 0) {
+    const others = [...out.map((h) => h.at), b.pose.at];
+    const [a, other] = anchors;
+    if (a && other && covers(other.at, a.at, scale))
+      a.at = clearSpot(a.at, b.pose.at, [other.at, ...others], scale);
+    out.push(...anchors);
   }
   return out;
+}
+
+/** Screen px a stacked anchor's handle moves aside: past the hit box of the one it covered. */
+const ANCHOR_ASIDE_PX = 2 * HANDLE_HIT_PX + 2;
+
+/** A box's edge-midpoint resize handle: the corners stay, since a previewed resize reads all four. */
+const isEdgeResize = (h: GizmoHandle): boolean =>
+  h.kind === "resize" && h.id.length === "resize:n".length;
+
+/** Whether a handle at `top` hides the centre of one at `under`. */
+const covers = (top: Pt, under: Pt, scale: number): boolean =>
+  Math.max(Math.abs(top[0] - under[0]), Math.abs(top[1] - under[1])) <= HANDLE_HIT_PX / scale;
+
+/**
+ * The joint's anchor handles at their anchors. Where they coincide (a chain
+ * link or hinge pinned to its partner) the caller moves anchorA's aside so
+ * both can be grabbed; a drag moves an anchor by the pointer's travel.
+ */
+function jointAnchorHandles(b: BehaviorGizmo): GizmoHandle[] {
+  if (!b.joint) return [];
+  const out = [handle("joint:anchorA", "vertex", b.joint.anchorA, "move")];
+  if (b.joint.anchorB) out.push(handle("joint:anchorB", "vertex", b.joint.anchorB, "move"));
+  return out;
+}
+
+/**
+ * A spot `ANCHOR_ASIDE_PX` screen px from `at` whose hit box overlaps none
+ * of `taken`: across the line from `at` to `toward` first, then along it.
+ * The first candidate when none is clear.
+ */
+function clearSpot(at: Pt, toward: Pt, taken: readonly Pt[], scale: number): Pt {
+  const dx = toward[0] - at[0];
+  const dy = toward[1] - at[1];
+  const len = Math.hypot(dx, dy);
+  const [ux, uy] = len > 1e-9 ? [dx / len, dy / len] : [1, 0];
+  const dirs: Pt[] = [
+    [uy, -ux],
+    [-uy, ux],
+    [ux, uy],
+    [-ux, -uy],
+  ];
+  const spots = dirs.map(([x, y]): Pt => {
+    const d = ANCHOR_ASIDE_PX / scale / Math.max(Math.abs(x), Math.abs(y));
+    return [at[0] + x * d, at[1] + y * d];
+  });
+  const clear = (p: Pt) =>
+    taken.every(
+      (q) => Math.max(Math.abs(p[0] - q[0]), Math.abs(p[1] - q[1])) >= (2 * HANDLE_HIT_PX) / scale,
+    );
+  return spots.find(clear) ?? spots[0]!;
 }
 
 /**

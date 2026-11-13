@@ -33,6 +33,7 @@ export const BODY = defineBehavior({
   fields: bodyFields,
   requires: ["collider"],
   inspector: {
+    category: "physics",
     label: "Body",
     order: ["kind", "gravityScale", "linearDamping", "angularDamping", "fixedRotation", "ccd"],
   },

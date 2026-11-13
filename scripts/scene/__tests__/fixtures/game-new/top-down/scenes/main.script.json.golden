@@ -3,8 +3,8 @@
   "v": 2,
   "scene": "main",
   "steps": [
-    { "for": 75, "set": { "move": [0, 1] } },
-    { "for": 120, "set": { "move": [1, 0] } },
+    { "max": 240, "set": { "move": [0, 1] }, "until": { "near": { "id": "hero", "to": [1.5, 4.9], "within": 0.2 } } },
+    { "max": 240, "set": { "move": [1, 0] }, "until": { "near": { "id": "hero", "to": [6.75, 4.9], "within": 0.5 } } },
     { "max": 240, "set": { "move": [0, -1] }, "until": { "event": "demo:reached" } }
   ]
 }

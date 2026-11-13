@@ -60,6 +60,7 @@ import {
   type ShapeTuple,
 } from "../../editor/index";
 import { fieldTitle, lengthStep } from "../../editor/inspector-model";
+import { BEHAVIOR_CATEGORIES } from "../../game/behaviors";
 import { pxPerMetreOf } from "../../game/units";
 import { snapToPixel } from "../../scene/units";
 import { STORAGE_PREFIX } from "../host";
@@ -740,6 +741,46 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
 }
 
 /** Path mode, speed, pause and points, or any object's fields, nested under its title. */
+/**
+ * A [low, high] pair: a number field for each end and the unit. Each end is
+ * set on every target from that target's own pair (unset reads [0, 0]), in
+ * the shown unit the model divides back.
+ */
+function RangeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
+  const w = field.widget as Extract<ModelField["widget"], { kind: "range" }>;
+  const scale = w.scale ?? 1;
+  const at = asPt(field.value);
+  const end = (i: 0 | 1) => (text: string) =>
+    commitEach(ctx, field, (cur) => {
+      const stored = asPt(cur);
+      const pair: Pt = stored ? [stored[0] * scale, stored[1] * scale] : [0, 0];
+      const n = resolveNumber(text, pair[i], { integer: false });
+      if (n instanceof EditError) return n;
+      pair[i] = n;
+      return pair;
+    });
+  return (
+    <FieldRow field={field}>
+      <div className="je-insp-row" data-gap="tight" data-align="start">
+        {(["low", "high"] as const).map((name, i) => (
+          <NumberInput
+            key={name}
+            label={`${field.path}.${name}`}
+            value={at?.[i]}
+            mixed={field.mixed}
+            step={w.step}
+            bigStep={w.bigStep}
+            decimals={w.decimals}
+            suffix={name}
+            onCommit={end(i as 0 | 1)}
+          />
+        ))}
+        {w.unit ? <UnitSuffix unit={w.unit} /> : null}
+      </div>
+    </FieldRow>
+  );
+}
+
 function NestedFields({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   return (
     <NestedField field={field}>
@@ -1002,6 +1043,8 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           commitEach={(next) => commitEach(ctx, field, next)}
         />
       );
+    case "range":
+      return <RangeField field={field} ctx={ctx} />;
     case "points":
       return <PointsField field={field} ctx={ctx} />;
     case "tags":
@@ -1142,38 +1185,20 @@ function groupedFields(section: InspectorSectionModel, render: (f: ModelField) =
   ));
 }
 
-/** The Add behavior menu's headings, each with the engine behaviors it lists; a game's own land under Game. */
-const MENU_GROUPS: readonly { title: string; names: readonly string[] }[] = [
-  { title: "Physics", names: ["collider", "body", "joint", "force-area"] },
-  {
-    title: "Movement",
-    names: [
-      "character-top-down",
-      "character-side-view",
-      "path-follow",
-      "nav-agent",
-      "player-input",
-    ],
-  },
-  { title: "World", names: ["spawner", "camera-target", "lifetime", "occupant"] },
-  { title: "Visual", names: ["sprite"] },
-];
-
-/** `options` under the menu's headings, in their order; a game's in the order given; empty headings dropped. */
+/** `options` under their categories' headings, in category order, then a game's own under Game; empty headings dropped. */
 function menuGroups(options: InspectorModel["addBehaviors"]) {
-  const groups = MENU_GROUPS.map(({ title, names }) => ({
-    title,
-    items: names.flatMap((n) => options.filter((o) => o.name === n)),
+  const groups = BEHAVIOR_CATEGORIES.map((category) => ({
+    title: fieldTitle(category),
+    items: options.filter((o) => o.category === category),
   }));
-  const placed = MENU_GROUPS.flatMap((g) => g.names);
-  groups.push({ title: "Game", items: options.filter((o) => !placed.includes(o.name)) });
+  groups.push({ title: "Game", items: options.filter((o) => o.category === undefined) });
   return groups.filter((g) => g.items.length > 0);
 }
 
 /**
  * The behaviors the selection's types allow and it doesn't all carry yet,
  * under headings; picking one adds it, and what it requires, in one batch.
- * One that can't be added yet is dimmed with its reason in the item.
+ * One that can't be added yet is disabled, with its reason in the item.
  */
 function AddBehaviorMenu({ options, ctx }: { options: InspectorModel["addBehaviors"]; ctx: Ctx }) {
   const [error, setError] = useState<string | null>(null);
@@ -1196,8 +1221,8 @@ function AddBehaviorMenu({ options, ctx }: { options: InspectorModel["addBehavio
                   key={o.name}
                   className="je-insp-behavior-item"
                   data-behavior={o.name}
-                  data-unavailable={o.unavailable === undefined ? undefined : ""}
-                  onClick={() => setError(o.unavailable ?? dispatch(ctx, o.batch))}
+                  disabled={o.unavailable !== undefined}
+                  onClick={() => setError(dispatch(ctx, o.batch))}
                 >
                   <span>{behaviorTitle(o.label, o.name)}</span>
                   <Hinted hint={o.description}>

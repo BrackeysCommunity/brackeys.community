@@ -9,6 +9,7 @@ import type { Registry } from "../game/types";
 import { runChecks } from "../headless/run-checks";
 import { parseChecks, type ChecksFile } from "../scene/checks";
 import { parseScene } from "../scene/parse";
+import { resolveScene } from "../scene/resolve";
 import type { PrefabLibrary, SceneDefinition } from "../scene/types";
 import type { RapierModule } from "../types";
 import { readPrefabFiles } from "../vite/project-files";
@@ -75,6 +76,22 @@ describe("behavior-yard.json", () => {
     });
     const [result] = report.results;
     expect(result?.pass, result?.message).toBe(true);
+  });
+
+  it("follows the runner at weight 1 and the walker at 0.25, as its note says", () => {
+    const targets = (resolveScene(scene, registry, prefabs).entities ?? []).flatMap((e) => {
+      const behaviors = e.behaviors as
+        | Record<string, { weight?: number; seat?: number }>
+        | undefined;
+      const block = behaviors?.["camera-target"];
+      return block ? [[e.id, block.weight ?? 1, block.seat ?? null]] : [];
+    });
+    expect(targets).toEqual([
+      ["runner/hero", 1, null],
+      ["walker/hero", 0.25, 1],
+    ]);
+    const about = scene.entities?.find((e) => e.id === "about")?.text;
+    expect(about).toContain("weighted centre");
   });
 
   it("fails reaches-goal when the hero only stands still", () => {

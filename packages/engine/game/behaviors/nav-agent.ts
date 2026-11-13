@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import type { Vec2 } from "../../types";
 import { defineBehavior, type BehaviorSystem } from "../behaviors";
-import { refField, vectorField } from "../fields";
+import { pointField, refField } from "../fields";
 
 const metres = (title: string, fallback: number, description: string) =>
   z
@@ -42,12 +42,12 @@ const navAgentFields = {
     .min(1)
     .default(180)
     .describe(
-      "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180.",
+      "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180: 3 s at 60 ticks a second.",
     )
     .meta({ title: "Repath every", unit: "ticks", group: "navigation" }),
   to: z
     .union([
-      vectorField("A point in world metres."),
+      pointField("A point in world metres: placed with the entity, as a path is."),
       refField("An entity's id: it follows that entity."),
     ])
     .optional()
@@ -76,6 +76,7 @@ export const NAV_AGENT = defineBehavior({
   fields: navAgentFields,
   conflicts: ["character-top-down", "character-side-view", "path-follow"],
   inspector: {
+    category: "movement",
     label: "Nav agent",
     order: ["speed", "arrive", "radius", "separation", "repathTicks", "to"],
   },

@@ -195,11 +195,12 @@ describe("EditorInspector: standard behaviors", () => {
     expect(labels.slice(0, 3)).toEqual(["maxSpeed", "accel", "decel"]);
   });
 
-  it("says why a joint can't be added with nothing to link to, and adds nothing", async () => {
+  it("disables a joint with nothing to link to, says why in the item, and adds nothing", async () => {
     const { dispatch } = setup(["hero"], room(hero));
     const items = await openMenu();
     const joint = items.find((i) => i.getAttribute("data-behavior") === "joint")!;
-    expect(joint.hasAttribute("data-unavailable")).toBe(true);
+    expect(joint.getAttribute("aria-disabled")).toBe("true");
+    expect(joint.hasAttribute("data-disabled")).toBe(true);
     await act(async () => {
       fireEvent.click(joint);
     });
@@ -308,7 +309,7 @@ describe("EditorInspector: standard behavior fields", () => {
       }),
     );
     expect(headings(section("Collider"))).toEqual(["Surface"]);
-    expect(headings(section("Joint"))).toEqual(["Limits"]);
+    expect(headings(section("Joint"))).toEqual([]);
     expect(headings(section("Spawner"))).toEqual(["Placement"]);
     expect(headings(section("Camera target"))).toEqual([]);
     const to = screen.getByRole("combobox", { name: "behaviors.joint.to" }) as HTMLInputElement;

@@ -91,6 +91,7 @@ export const SPRITE = defineBehavior({
   description: "Draws a texture or an atlas frame at the entity's pose.",
   visualOnly: true,
   fields: spriteFields,
+  inspector: { category: "visual" },
 });
 
 /** A frame's rectangle in its texture, px. */

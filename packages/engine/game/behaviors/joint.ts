@@ -36,21 +36,32 @@ const jointFields = {
     .tuple([z.number().describe("The low limit."), z.number().describe("The high limit.")])
     .optional()
     .describe(
-      "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
+      "revolute: this body's angle relative to `to`, radians (the editor shows degrees). prismatic: its travel along axis, m.",
     )
-    .meta({ title: "Limits", group: "limits", when: { kind: ["revolute", "prismatic"] } }),
+    .meta({
+      title: "Limits",
+      widget: "range",
+      units: { kind: { revolute: "rad", prismatic: "m" } },
+      group: "limits",
+      when: { kind: ["revolute", "prismatic"] },
+    }),
   motor: z
     .strictObject({
-      velocity: z.number().describe("The target speed: rad/s for revolute, m/s for prismatic."),
+      velocity: z
+        .number()
+        .describe(
+          "The target speed: rad/s for revolute (the editor shows deg/s), m/s for prismatic.",
+        )
+        .meta({ title: "Velocity", units: { kind: { revolute: "rad/s", prismatic: "m/s" } } }),
       maxForce: z
         .number()
         .positive()
-        .describe("The most force (or torque) it uses, N.")
-        .meta({ title: "Max force" }),
+        .describe("The most force it uses, N; torque for revolute, N·m.")
+        .meta({ title: "Max force", units: { kind: { revolute: "N·m", prismatic: "N" } } }),
     })
     .optional()
     .describe("revolute and prismatic: drives this body's speed relative to `to` toward velocity.")
-    .meta({ title: "Motor", group: "limits", when: { kind: ["revolute", "prismatic"] } }),
+    .meta({ title: "Motor", group: "motor", when: { kind: ["revolute", "prismatic"] } }),
   length: z
     .number()
     .positive()
@@ -91,6 +102,7 @@ export const JOINT = defineBehavior({
   fields: jointFields,
   requires: ["body"],
   inspector: {
+    category: "physics",
     label: "Joint",
     order: [
       "kind",

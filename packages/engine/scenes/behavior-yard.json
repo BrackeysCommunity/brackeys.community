@@ -6,7 +6,7 @@
   "settings": { "gravity": [0, 20] },
   "assets": ["crates"],
   "instances": [
-    { "id": "runner", "prefab": "hero-side", "at": [4.5, 11.6], "params": { "jumpHeight": 2 } },
+    { "id": "runner", "prefab": "hero-side", "at": [4.5, 11.6], "params": { "jumpHeight": 2 }, "overrides": { "hero.behaviors": { "camera-target": {}, "character-side-view": { "jumpHeight": 1, "maxSpeed": 5 }, "collider": { "shape": ["box", 0, 0, 0.2, 0.4] }, "player-input": {}, "sprite": { "asset": "hero", "frame": "hero-0", "size": [0.4, 0.8] } } } },
     { "id": "walker", "prefab": "hero-top", "at": [33, 4.5], "params": { "maxSpeed": 3 }, "overrides": { "hero.behaviors.camera-target.seat": 1, "hero.behaviors.camera-target.weight": 0.25, "hero.behaviors.player-input.seat": 1 } }
   ],
   "entities": [
@@ -35,7 +35,7 @@
     { "id": "walkway-hole", "type": "nav", "shape": ["poly", 36, 9.5, 38, 9.5, 38, 11.5, 36, 11.5], "mode": "block" },
     { "id": "courier", "type": "marker", "at": [32, 10.5], "behaviors": { "nav-agent": { "to": "drop-point" } } },
     { "id": "drop-point", "type": "marker", "at": [42, 10.5], "tags": ["destination"] },
-    { "id": "about", "type": "note", "at": [1, 0.6], "text": "Behavior yard: the engine's standard behaviors with no game module. Left, a side-view room: runner (hero-side, jumpHeight 2) starts beside the crate bin the spawner fills, jumps up through the one-way ledge, is lifted over the first gap by the updraft force area, rides the ferry platform over the second and reaches the goal sensor; the camera follows it. A chain of three jointed links swings from chain-anchor. Right, a top-down room: walker (hero-top, maxSpeed 3) on seat 1, and courier, a nav agent on the walkway, which has a hole, with drop-point across it." },
+    { "id": "about", "type": "note", "at": [1, 0.6], "text": "Behavior yard: the engine's standard behaviors with no game module. Left, a side-view room: runner (hero-side, jumpHeight 2) starts beside the crate bin the spawner fills, jumps up through the one-way ledge, is lifted over the first gap by the updraft force area, rides the ferry platform over the second and reaches the goal sensor. A chain of three jointed links swings from chain-anchor. Right, a top-down room: walker (hero-top, maxSpeed 3) on seat 1, and courier, a nav agent on the walkway, which has a hole, with drop-point across it. Both heroes are camera targets: the one view follows their weighted centre, the runner at weight 1 and the walker at 0.25, so it leans toward the runner; the walker's seat 1 waits for split screen." },
     { "id": "goal", "type": "marker", "at": [26.5, 11.4], "tags": ["goal"], "behaviors": { "collider": { "sensor": true, "shape": ["box", 0, 0, 0.4, 0.5] } } }
   ]
 }

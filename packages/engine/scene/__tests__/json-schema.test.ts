@@ -120,7 +120,10 @@ describe("field kind meta", () => {
     }),
   );
 
-  /** Every object key anywhere in a schema except property names. */
+  /**
+   * Every object key anywhere in a schema except property names, and the
+   * block field names a behavior field's `when` and `units` are keyed by.
+   */
   const keywords = (node: unknown, out = new Set<string>()): Set<string> => {
     if (Array.isArray(node)) for (const n of node) keywords(n, out);
     else if (node && typeof node === "object")
@@ -130,12 +133,12 @@ describe("field kind meta", () => {
           continue;
         }
         out.add(k);
-        keywords(v, out);
+        if (k !== "when" && k !== "units") keywords(v, out);
       }
     return out;
   };
 
-  it("leaves the engine's kind and axis meta out, and keeps unit", () => {
+  it("leaves the engine's kind and axis meta out, and keeps the inspector's annotations", () => {
     for (const schema of [
       sceneJsonSchema(turned),
       prefabJsonSchema(turned),
@@ -144,7 +147,7 @@ describe("field kind meta", () => {
       const keys = keywords(schema);
       expect(keys.has("kind")).toBe(false);
       expect(keys.has("axis")).toBe(false);
-      expect(keys.has("unit")).toBe(true);
+      for (const kept of ["unit", "units", "group", "when"]) expect(keys.has(kept)).toBe(true);
     }
   });
 });

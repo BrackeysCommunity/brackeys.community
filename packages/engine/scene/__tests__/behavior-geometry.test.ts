@@ -28,6 +28,7 @@ const prefab: Prefab = {
     { id: "flag", type: "marker", at: [3, 0] },
     { id: "agent", type: "marker", at: [1, 1], behaviors: { "nav-agent": { to: "flag" } } },
     { id: "far", type: "marker", at: [1, 2], behaviors: { "nav-agent": { to: "elsewhere" } } },
+    { id: "walker", type: "marker", at: [0, 0], behaviors: { "nav-agent": { to: [2, 0] } } },
   ],
 };
 
@@ -100,6 +101,44 @@ describe("behavior geometry and refs under instances, groups and moves", () => {
     expect(
       translateFieldValue(engine, rider("p"), "behaviors.path-follow.path.speed", 1, [1, 2]),
     ).toBe(1);
+  });
+
+  it("places a nav-agent point with its instance, turned and flipped, as a path is", () => {
+    const placed = (inst: { rot?: 1 | 2 | 3; flip?: true }) => {
+      const out = expandScene(
+        scene({ instances: [{ id: "i", prefab: "yard", at: [20, 10], ...inst }] }),
+        engine,
+        { prefabs: prefabLibrary([prefab]) },
+      );
+      const got = byId(out.entities);
+      return { to: navTo(got.get("i/walker")), path: pathOf(got.get("i/p")) as number[][] };
+    };
+    expect(placed({}).to).toEqual([22, 10]);
+    for (const inst of [
+      { rot: 1 as const },
+      { flip: true as const },
+      { rot: 3 as const, flip: true as const },
+    ]) {
+      const { to, path } = placed(inst);
+      expect(to).toEqual(path[1]);
+      expect(to).not.toEqual([2, 0]);
+    }
+  });
+
+  it("moves a nav-agent point with an editor move and an update, and leaves an entity ref alone", () => {
+    const walker: EntityDef = {
+      id: "w",
+      type: "marker",
+      at: [0, 0],
+      behaviors: { "nav-agent": { to: [2, 0] } },
+    };
+    expect(navTo(translateEntityDef(engine, walker, [1, 2]) as RuntimeEntity)).toEqual([3, 2]);
+    expect(translateFieldValue(engine, walker, "behaviors.nav-agent.to", [2, 0], [1, 2])).toEqual([
+      3, 2,
+    ]);
+    expect(translateFieldValue(engine, walker, "behaviors.nav-agent.to", "flag", [1, 2])).toBe(
+      "flag",
+    );
   });
 
   it("resolves a ref innermost instance first, then the scene's own id", () => {

@@ -180,14 +180,19 @@ async function pick(label: string) {
 }
 
 describe("the grid menu's View layers", () => {
-  it("lists Grid, Occupancy and Nav, each off until picked", async () => {
+  it("lists Grid, Occupancy and Nav, each off until picked, and Colliders, on", async () => {
     viewSetup();
     fireEvent.click(bar().getByRole("button", { name: /^Grid step/ }));
     const items = await screen.findAllByRole("menuitemcheckbox");
     expect(items.map((i) => i.querySelector(".je-option-choice")?.firstChild?.textContent)).toEqual(
-      ["Grid", "Occupancy", "Nav"],
+      ["Grid", "Occupancy", "Nav", "Colliders"],
     );
-    expect(items.map((i) => i.getAttribute("aria-checked"))).toEqual(["false", "false", "false"]);
+    expect(items.map((i) => i.getAttribute("aria-checked"))).toEqual([
+      "false",
+      "false",
+      "false",
+      "true",
+    ]);
     expect(document.querySelector("[data-edit-layers]")).toBeNull();
   });
 
@@ -210,6 +215,7 @@ describe("the grid menu's View layers", () => {
       grid: true,
       occupancy: false,
       nav: true,
+      colliders: true,
     });
   });
 

@@ -855,7 +855,7 @@ describe("behavior sections", () => {
     ]);
   });
 
-  it("edits a nav-agent's destination as an entity, or as a point when it holds one", () => {
+  it("edits a nav-agent's destination as an entity, or as a world point to pick when it holds one", () => {
     const walkers: SceneDefinition = {
       ...doc,
       entities: [
@@ -868,7 +868,10 @@ describe("behavior sections", () => {
     const picker = { kind: "entity-ref", accepts: [], multiple: false, any: true };
     expect(to("a")).toMatchObject({ widget: picker, value: undefined, optional: true });
     expect(to("b")).toMatchObject({ widget: picker, value: "a" });
-    expect(to("c")).toMatchObject({ widget: { kind: "point", pick: false }, value: [4, 5] });
+    expect(to("c")).toMatchObject({
+      widget: { kind: "point", pick: true, unit: "m" },
+      value: [4, 5],
+    });
   });
 
   it("reads written values, and keeps the type's own fields out of the behaviors key", () => {
@@ -1134,6 +1137,64 @@ describe("standard behavior fields", () => {
       "collide",
     ]);
     expect(joint({ kind: "prismatic" })).toContain("axis");
+  });
+
+  const jointField = (block: Record<string, unknown>, path: string) => {
+    const def = at({ ...body, joint: { to: "crate", ...block } });
+    const m = buildInspectorModel(engine, [lookupRef(def, "hero")!], { def });
+    const found = fields(m).flatMap((f) => [f, ...(f.children ?? [])]);
+    return { def, field: found.find((f) => f.path === `behaviors.joint.${path}`)! };
+  };
+
+  it("shows a revolute joint's limits as a range in degrees, stored in radians", () => {
+    const { def, field: limits } = jointField(
+      { kind: "revolute", limits: [-Math.PI / 4, Math.PI / 2] },
+      "limits",
+    );
+    expect(limits.widget).toMatchObject({ kind: "range", unit: "deg", step: 1, bigStep: 15 });
+    expect(limits.value).toEqual([-45, 90]);
+    expect(limits.group).toBe("limits");
+    const edit = modelOps(limits, [-30, 60], [lookupRef(def, "hero")!]);
+    expect(edit.ok && edit.ops[0]).toMatchObject({
+      set: { "behaviors.joint.limits": [-Math.PI / 6, Math.PI / 3] },
+    });
+  });
+
+  it("shows a prismatic joint's limits as a range in metres", () => {
+    const { field: limits } = jointField({ kind: "prismatic", limits: [0, 2] }, "limits");
+    expect(limits.widget).toMatchObject({ kind: "range", unit: "m" });
+    expect(limits.widget).not.toHaveProperty("scale");
+    expect(limits.value).toEqual([0, 2]);
+  });
+
+  it("gives a joint motor its own group, with units by the joint's kind", () => {
+    const motor = { velocity: Math.PI, maxForce: 5 };
+    const revolute = jointField({ kind: "revolute", motor }, "motor.velocity");
+    expect(jointField({ kind: "revolute", motor }, "motor").field.group).toBe("motor");
+    expect(revolute.field.widget).toMatchObject({ kind: "number", unit: "deg/s" });
+    expect(revolute.field.value).toBe(180);
+    const edit = modelOps(revolute.field, "+=90", [lookupRef(revolute.def, "hero")!]);
+    expect(edit.ok && edit.ops[0]).toMatchObject({
+      set: { "behaviors.joint.motor.velocity": (3 * Math.PI) / 2 },
+    });
+    expect(jointField({ kind: "revolute", motor }, "motor.maxForce").field.widget).toMatchObject({
+      unit: "N·m",
+    });
+    const slider = jointField({ kind: "prismatic", motor }, "motor.velocity").field;
+    expect(slider.widget).toMatchObject({ kind: "number", unit: "m/s" });
+    expect(slider.value).toBe(Math.PI);
+    expect(jointField({ kind: "prismatic", motor }, "motor.maxForce").field.widget).toMatchObject({
+      unit: "N",
+    });
+  });
+
+  it("puts every engine behavior under an Add behavior category", () => {
+    const def = at({});
+    const options = buildInspectorModel(engine, [lookupRef(def, "hero")!], { def }).addBehaviors;
+    expect(options.length).toBeGreaterThan(0);
+    expect(options.filter((o) => o.category === undefined).map((o) => o.name)).toEqual([]);
+    expect(options.find((o) => o.name === "joint")?.category).toBe("physics");
+    expect(options.find((o) => o.name === "sprite")?.category).toBe("visual");
   });
 
   it("keeps a field the kind doesn't take while the block sets it, so it can be cleared", () => {

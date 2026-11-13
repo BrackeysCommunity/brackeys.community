@@ -420,8 +420,8 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
   "body-not-dynamic": {
     severity: "error",
     summary:
-      "A force, torque or impulse went through `ctx.bodies` to a kinematic or static body, which forces don't move.",
-    hint: 'Set the body\'s `kind` to "dynamic", or move a kinematic body with `setVelocity`; check `ctx.bodies.kind(id)` first.',
+      "A `ctx.bodies` write went to a body that doesn't take it: a force, torque or impulse to a kinematic or static body, a velocity to a static body or a follower (its path sets it), or an angular velocity to a kinematic body.",
+    hint: 'Check `ctx.bodies.kind(id)` first. Push only a dynamic body (set its `kind` to "dynamic"); move a kinematic body with `setVelocity`, a follower through its path, and a static one not at all.',
     fixable: false,
   },
   "spawn-id-invalid": {

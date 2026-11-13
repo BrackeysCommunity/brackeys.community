@@ -12,7 +12,7 @@
     ["box", 4, 2.1, 0.1, 1.9]
   ],
   "entities": [
-    { "id": "hero", "type": "hero", "at": [1.5, 1.5] },
+    { "id": "hero", "type": "hero", "at": [1.5, 1.5], "behaviors": { "camera-target": {}, "character-top-down": { "accel": 20, "decel": 16, "maxSpeed": 3 }, "collider": { "shape": ["box", 0, 0, 0.25, 0.25] }, "player-input": {} } },
     { "id": "goal", "type": "sensor", "shape": ["box", 6.75, 1.5, 0.9, 0.5], "tags": ["goal"] }
   ]
 }

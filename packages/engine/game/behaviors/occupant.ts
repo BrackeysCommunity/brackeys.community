@@ -21,4 +21,5 @@ export const OCCUPANT = defineBehavior({
   name: "occupant",
   description: "Stands on the grid cell under its pose, where paths and game code see it.",
   fields: occupantFields,
+  inspector: { category: "world" },
 });

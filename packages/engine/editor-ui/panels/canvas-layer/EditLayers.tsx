@@ -17,7 +17,7 @@ import {
   gridLayerPlan,
   gridTooDense,
   navMeshLayer,
-  NO_EDIT_LAYERS,
+  DEFAULT_EDIT_LAYERS,
   parseEditLayers,
   unavailableLayers,
   wallCells,
@@ -33,11 +33,11 @@ export const EDIT_LAYERS_KEY = `${STORAGE_PREFIX}view-layers`;
 const layerStores = new WeakMap<EditorSession, Store<EditLayerFlags>>();
 
 /** What a server render and hydration draw, before the viewer's stored flags are read. */
-const unreadLayers = new Store<EditLayerFlags>(NO_EDIT_LAYERS);
+const unreadLayers = new Store<EditLayerFlags>(DEFAULT_EDIT_LAYERS);
 
 /**
  * The View menu's layer flags for `session`, shared by the toolbar and the
- * canvas layer, and remembered per viewer; every layer starts off.
+ * canvas layer, and remembered per viewer; only the colliders start on.
  */
 export function useEditLayers(
   session: EditorSession,
@@ -47,7 +47,7 @@ export function useEditLayers(
   let store = layerStores.get(session);
   if (!store && !ready) store = unreadLayers;
   if (!store) {
-    store = new Store(readStored(storage, EDIT_LAYERS_KEY, NO_EDIT_LAYERS, parseEditLayers));
+    store = new Store(readStored(storage, EDIT_LAYERS_KEY, DEFAULT_EDIT_LAYERS, parseEditLayers));
     layerStores.set(session, store);
   }
   const flags = useStoreValue(store, (s) => s);
@@ -138,8 +138,8 @@ export type EditLayerDrawing = {
 };
 
 /**
- * The layers turned on for `session`, drawn from `scene` over `view`; null
- * while every layer is off. Without a scene grid, the grid is the snapping
+ * The grid, occupancy and nav layers turned on for `session`, drawn from
+ * `scene` over `view`; null while all three are off. Without a scene grid, the grid is the snapping
  * `step`'s.
  */
 export function useEditLayerDrawing(

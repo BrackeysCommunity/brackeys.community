@@ -40,7 +40,9 @@ peer range that excludes the release that draws nothing on Apple GPUs.
   `NAV_AGENT`, `JOINT`, `SPAWNER`, `CAMERA_TARGET`, with `BODY_KINDS`,
   `JOINT_KINDS`, each block's type and the system interfaces). `body`,
   `character-*` and `force-area` require `collider`, `joint` requires
-  `body`, and the two character controllers conflict.
+  `body`, and `path-follow`, `nav-agent` and the two character controllers
+  each conflict with the others (`behavior-conflict`): each moves the
+  entity.
 - `player-input` behavior system: `{ seat }` (default 0) binds an entity to
   an input seat, so one entity is player 2 by a field. Its system
   (`PlayerInputSystem`, from `ctx.behavior("player-input")`) keeps
@@ -124,15 +126,17 @@ actorId)`, which motion bodies and side-view controllers skip in their
   dynamic body it runs into the impulse that matches its speed into it. On
   a dynamic `body` it is refused with `character-body-kind`; a kinematic
   `body` is its own. While attached its motion body stands in for its
-  collider's own body, which goes back into the world and `ctx.bodies` on
-  detach.
+  collider's own body through one collider-system call; on detach the
+  collider's body is built again where the entity is and registered with
+  `ctx.bodies` again. `character-side-view` and `nav-agent` stand in the
+  same way.
   Its world save is its motion body's plus the last `setIntent`.
 - `character-side-view` runs an entity with `collider` and `player-input`
   (or `setIntent` from code): it walks, and jumps with coyote time, a jump
   buffer and a jump cut, over slopes, steps and ground snap, through
   `createSideViewController`. It rides followers and kinematic
   `path-follow` bodies, passes one-way solids per character (rising or
-  holding down), takes force areas' `sample` as acceleration, pushes
+  holding down; the passes go with it), takes force areas' `sample` as acceleration, pushes
   dynamic bodies with `pushDynamic`, and raises `character:jumped`,
   `character:left-ground` and `character:landed` (`CHARACTER_JUMPED`,
   `CHARACTER_LEFT_GROUND`, `CHARACTER_LANDED`; `other` is the ground's
@@ -148,7 +152,10 @@ actorId)`, which motion bodies and side-view controllers skip in their
   tick. `systems/path-follower` exports `advanceAlongPath`,
   `seekAlongPath`, `pathPosition`, `pathWaypoints`, `savePathPlace`,
   `readPathPlace` and `PathPlace`; `carrierDelta` also answers for bodies
-  `path-follow` moves.
+  `path-follow` moves. Its path is placed with its entity: a prefab
+  instance, a group and an editor move move, turn and flip it as they do a
+  follower's path. Any behavior field of kind `point` or `path`, or a
+  union's point arm (`nav-agent`'s `to`), is placed the same way.
 - `nav-agent` walks: `setDestination(id, point | entityId)` plans over
   `ctx.nav`, steps toward each waypoint at `speed`, keeps `radius` from
   other agents by `separation` (side-stepping one met head-on), re-plans
@@ -172,8 +179,11 @@ actorId)`, which motion bodies and side-view controllers skip in their
   `to` names, as a `revolute`, `prismatic`, `rope`, `weld` or `spring`
   joint. Joints are made after every body of the load, removed while
   either end is destroyed or disabled, and made again when both are back or
-  either is rebuilt. A motor drives the relative speed with at most
-  `maxForce`. A missing `anchorB` holds `to` at the point under `anchorA`
+  either is rebuilt. A `to` inside a prefab names a child of the same
+  instance: the expansion rewrites it to the child's id, innermost instance
+  first, else the scene's entity of that id, and the system and the
+  validation resolve a ref written live by the same rule. A motor drives
+  the relative speed with at most `maxForce`. A missing `anchorB` holds `to` at the point under `anchorA`
   when the joint is first made. Spring stiffness defaults to 100 N/m and
   damping to 1 N·s/m. Refusals: `joint-self`, `joint-ref-type`, and
   `physics-required` in a scene without physics.
@@ -181,33 +191,62 @@ actorId)`, which motion bodies and side-view controllers skip in their
   within `within` metres of a point or another entity's pose.
 - `nav-agent`'s optional `to`: a point, world m, or an entity's id it walks
   to from the start, so a scene with no code gives an agent a destination;
-  omitted, it waits for `setDestination`. A world save taken after it
+  omitted, it waits for `setDestination`. The point is placed with the
+  entity (an instance's agents each walk to their own); an id inside a
+  prefab names a sibling, as a joint's does. A world save taken after it
   arrives keeps it from walking there again on restore.
 - `PlayWorld.pose(id)`: a live entity's pose after the tick, for game
   predicates and outcomes.
-- Editor: Add behavior also adds the behaviors one requires, each from its
-  template; seeds a joint's `to` with the nearest entity that can hold it;
-  and applies the scene's own fixes to the blocks it adds (a force area's
-  new collider becomes a sensor). An option that can't be added yet says
-  why (`BehaviorOption.adds`, `BehaviorOption.unavailable`);
-  `buildInspectorModel` takes `{ def }`.
+- Editor: Add behavior lists its options under headings by
+  `BehaviorDef.inspector.category` (`physics`, `movement`, `world` or
+  `visual`; `BehaviorOption.category`), in registration order, a game's
+  own without one under Game. It also adds the behaviors one requires,
+  each from its template; seeds a joint's `to` with the nearest entity that
+  can hold it; starts a `path-follow` path where the entity stands; and
+  applies the scene's own fixes to the blocks it adds (a force area's new
+  collider becomes a sensor). An option that can't be added yet is
+  disabled, with why in the item (`BehaviorOption.adds`,
+  `BehaviorOption.unavailable`); `buildInspectorModel` takes `{ def }`.
 - Editor: behavior gizmos on the selected entity: the collider's shape
   handles (writing `behaviors.collider.shape` in the entity's frame), joint
-  anchors with a line to `to`, a force area's arrow or strength ring, and a
-  spawner's spread ring and velocity arrow (`behaviorGizmo`,
-  `behaviorHandles`, `dragBehaviorHandle`, `behaviorMarks`,
-  `GizmoTarget.behaviors`, `FORCE_PX`, `VELOCITY_PX`).
+  anchors with a line from its pose to the entity `to` names (an anchor
+  that would hide the other's handle, or a collider edge's, moves aside), a
+  force area's arrow or strength ring, a spawner's spread ring and velocity
+  arrow, and its `path-follow` path and waypoints where the entity is
+  placed (`behaviorGizmo`, `behaviorHandles`, `dragBehaviorHandle`,
+  `behaviorMarks`, `GizmoTarget.behaviors`, `FORCE_PX`, `VELOCITY_PX`).
+- Editor: the View menu's Colliders layer, on by default, outlines every
+  other collider in the scene faintly (dashed for a sensor), so an entity
+  with no art still shows where it is.
 - Inspector: behavior fields carry `ModelField.group` and show under group
-  headings; `meta.widget: "action"` fields are a select over the game's
-  actions; vector fields are x/y fields with their unit; a `refField` in a
-  block is an entity picker (`entity-ref` with `any`).
+  headings, leaving out one that would only repeat its section's title or
+  its one field's; a field that applies only to some kinds (a joint's
+  spring stiffness, a force area's point falloff) shows only while the
+  block is of one of them (`meta.when`); `meta.widget: "action"` fields are
+  a select over the game's actions; vector fields are x/y fields with their
+  unit; a `refField` in a block is an entity picker (`entity-ref` with
+  `any`), and a point-or-entity field (`nav-agent`'s `to`) edits whichever
+  it holds. Joint, body and force-area fields carry their units (N/m,
+  N·s/m, /s) and plain titles ("Other anchor", "Max force"), and seat
+  fields sit in their behavior's group. `meta.units` gives a field's unit
+  by another block field's value (`{ kind: { revolute: "rad", prismatic:
+"m" } }`); radians show as degrees (`scale` on the `number` and `range`
+  widgets). `meta.widget: "range"` draws a number pair as low and high
+  fields (the `range` widget): a joint's limits, in degrees for a revolute
+  joint and metres for a prismatic one, with its motor in its own group
+  (velocity in deg/s or m/s, max force in N·m or N). A segmented choice
+  left unset tints its default segment instead of repeating it in a note.
+  Field titles are measured in the loaded face, so the last letter isn't
+  clipped.
 - The engine project gains behavior-yard, a gameless side-view and
   top-down yard built only from the standard behaviors (hero-side and
   hero-top prefabs with exposed `maxSpeed`/`jumpHeight` params, a spawner
   of body crates, a path-follow ferry, a force-area updraft, a three-link
   joint chain, a nav-agent on a walk area sent to a drop point, a one-way
   ledge), with a checks file and an input script that play the side hero
-  to a sensor; kitchen-sink carries one entity per standard behavior.
+  to a sensor. Both heroes are camera targets, so its one view follows
+  their weighted centre, leaning toward the runner. Kitchen-sink carries
+  one entity per standard behavior.
 
 ### Changed
 
@@ -242,51 +281,6 @@ actorId)`, which motion bodies and side-view controllers skip in their
   build, so a page on that build outranks them: after an engine edit the
   server's hashes are stale, and an equal stamp won by hash alone could hold
   every open editor read-only until the server restarted.
-- A `path-follow` path is placed with its entity: a prefab instance, a
-  group and an editor move move, turn and flip it as they do a follower's
-  path, so a path-follow platform inside a prefab runs where the instance
-  is. Any behavior field of kind `point` or `path` is placed the same way.
-- A `joint` or `nav-agent` `to` inside a prefab names a child of the same
-  instance: the expansion rewrites it to the child's id, innermost instance
-  first, else the scene's entity of that id, and the joint and nav-agent
-  systems and the joint's validation resolve a ref written live by the same
-  rule. A nav agent in an instance follows its sibling instead of raising
-  `nav:blocked` `gone`.
-- `camera-target` follows carriers spawned at runtime (`ctx.spawn`,
-  `ctx.instantiate`, a spawner's prefab), not only the scene's own.
-- A force or torque applied after the physics step (in a type system's
-  `afterStep`, a behavior's `step`, an event handler or the game's
-  `afterStep`) is dropped at the end of the tick instead of acting on the
-  next step, so a tick boundary holds no force and a world save taken
-  between ticks continues as the run does.
-- A sensor `collider` (and so a `force-area`) in a project with no game
-  meets dynamic and motion bodies: with no `group` set it joins `dynamic`
-  there, since a gameless project can't link `sensor` to anything.
-  behavior-yard's goal sensor drops its `group` workaround.
-- `character-top-down`, `character-side-view` and `nav-agent` stand their
-  motion body in for the collider's body through one collider-system call,
-  and give it back through one: the collider's body is built again where
-  the entity is and registered with `ctx.bodies` again, so an entity that
-  never moved no longer keeps a live body `ctx.bodies` denies
-  (`body-missing`) after the behavior goes.
-- A side-view character's one-way passes are dropped when it goes, so a
-  spawner of side-view characters no longer grows them without bound.
-- Inspector: a behavior field that applies only to some kinds (a joint's
-  spring stiffness, a force area's point falloff) shows only while the block
-  is of one of them (`meta.when`); joint, body and force-area fields carry
-  their units (N/m, N·s/m, /s) and plain titles ("Other anchor", "Max
-  force"); seat fields sit in their behavior's group; a group heading that
-  would only repeat its section's title or its one field's is left out;
-  field titles are measured in the loaded face, so the last letter isn't
-  clipped.
-- Editor: Add behavior lists its options under headings, a game's under
-  Game; a `path-follow` template's path starts where the entity stands.
-- `path-follow`, `nav-agent` and the two character controllers each
-  conflict with the others (`behavior-conflict`): each moves the entity.
-- Editor: the selected entity's `path-follow` path and waypoints are drawn,
-  its joint draws a line from its pose to the entity `to` names, and every
-  other collider in the scene is outlined faintly (dashed for a sensor), so
-  an entity with no art still shows where it is.
 
 ### Agent surface
 
@@ -311,7 +305,10 @@ actorId)`, which motion bodies and side-view controllers skip in their
   three tested behavior batches.
 - `player-input` action fields are titled by their action ("Move action",
   "Jump action") instead of "Action"; `nav-agent` gains `to` in every
-  schema that offers it.
+  schema that offers it, its point arm a world point (`Pt`).
+- Behavior fields in the schemas carry `when` (the kinds a field applies
+  to) and `group` (the inspector section it sits in), and a joint's `limits` and `motor` fields `units` (by kind) and
+  `widget: "range"`.
 
 ## [0.14.2] — unreleased
 

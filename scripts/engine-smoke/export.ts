@@ -751,14 +751,65 @@ async function clickControl(target: Locator, label: string): Promise<void> {
   await target.click();
 }
 
+/**
+ * Moves the pointer onto the HUD's order menu, off the canvas. The board
+ * cursor follows the pointer, and Chromium fires a move at the pointer's
+ * last spot (where Start was) when the layout under it changes, which can
+ * carry the cursor off the first unit while the level settles.
+ */
+async function parkPointer(page: Page, frame: Frame): Promise<void> {
+  const menu = frame.locator(".tactics-hud-menu").first();
+  await menu.waitFor({ state: "visible", timeout: PAGE_TIMEOUT_MS });
+  const clear = await menu.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return !!hit && el.contains(hit);
+  });
+  const box = await menu.boundingBox();
+  if (!clear || !box)
+    throw new Error("the HUD's order menu doesn't take the pointer at its centre");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+}
+
+/**
+ * Puts the cursor back on the first ready unit with the HUD's own keys
+ * (next unit, then cancel), so a pointer move before the pointer was parked
+ * can't leave it elsewhere. Next unit is ignored until the side can take
+ * orders, so it's pressed until the HUD selects.
+ */
+async function cursorToFirstUnit(page: Page, frame: Frame): Promise<void> {
+  const until = performance.now() + PAGE_TIMEOUT_MS;
+  for (;;) {
+    await page.keyboard.press("KeyQ");
+    const selected = await frame
+      .waitForFunction(
+        () => document.querySelector<HTMLElement>(".tactics-hud")?.dataset.mode === "selected",
+        undefined,
+        { timeout: 1000 },
+      )
+      .then(() => true)
+      .catch((cause: unknown) => {
+        if (cause instanceof Error && cause.name === "TimeoutError") return false;
+        throw cause;
+      });
+    if (selected) break;
+    if (performance.now() >= until)
+      throw new Error(`the HUD selects no unit on next-unit after ${PAGE_TIMEOUT_MS} ms`);
+  }
+  await page.keyboard.press("Escape");
+  await hudMode(frame, "idle");
+}
+
 async function playTactics(
   page: Page,
   frame: Frame,
 ): Promise<{ probe: PlayProbe; reason: string | null }> {
   await clickControl(frame.getByRole("button", { name: "Start", exact: true }), "Start");
+  await parkPointer(page, frame);
   const cursor = frame.locator('[data-highlight="cursor"][data-cell]').first();
   await cursor.waitFor({ state: "visible", timeout: PAGE_TIMEOUT_MS });
   await hudMode(frame, "idle");
+  await cursorToFirstUnit(page, frame);
   const [unitCell] = await highlighted(frame, "cursor");
   if (!unitCell) throw new Error("the HUD shows no cursor cell after Start");
   if (!unitCell.clear) throw new Error(`a HUD panel covers the first unit's cell ${unitCell.cell}`);

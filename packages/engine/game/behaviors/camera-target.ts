@@ -31,5 +31,5 @@ export const CAMERA_TARGET = defineBehavior({
   description:
     "Marks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
   fields: cameraTargetFields,
-  inspector: { label: "Camera target", order: ["weight", "seat"] },
+  inspector: { category: "world", label: "Camera target", order: ["weight", "seat"] },
 });

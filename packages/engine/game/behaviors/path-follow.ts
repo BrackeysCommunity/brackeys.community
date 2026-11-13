@@ -29,7 +29,7 @@ export const PATH_FOLLOW = defineBehavior({
     "Moves the entity along a waypoint path; with a kinematic body it carries what stands on it.",
   fields: pathFollowFields,
   conflicts: ["character-top-down", "character-side-view", "nav-agent"],
-  inspector: { label: "Path follow", order: ["path"] },
+  inspector: { category: "movement", label: "Path follow", order: ["path"] },
   template: {
     path: {
       pts: [
