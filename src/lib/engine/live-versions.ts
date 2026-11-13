@@ -14,7 +14,7 @@ import {
 import { memberName } from "@/lib/member-name";
 
 import { sceneVersionForecast } from "./collect-plan";
-import { LIVE_OUTCOMES, type LiveOutcome } from "./live-outcomes";
+import { LIVE_OUTCOMES, type BlockedBy, type LiveOutcome } from "./live-outcomes";
 import {
   channelRelease,
   moveScenePointer,
@@ -69,7 +69,7 @@ export type SceneVersionSummary = {
   /** The release it was made against, when known. */
   baseReleaseId: Sha256 | null;
   pointers: SceneVersionPointer[];
-  blocked: { at: Date; by: "system" | "user"; reason: string | null } | null;
+  blocked: { at: Date; by: BlockedBy; reason: string | null } | null;
   hidden: { at: Date; reason: string | null } | null;
   collectedAt: Date | null;
   /** Every player's outcomes, signed in or not. */

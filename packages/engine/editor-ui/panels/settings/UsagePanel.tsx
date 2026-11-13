@@ -21,6 +21,7 @@ import {
 } from "../../kit/index";
 import { PendingProvider, useOwnOrSharedPending } from "../../pending/use-pending";
 import { useProjectView } from "../EditorProject";
+import { LoadError } from "../publish/LoadError";
 import { SettingsNote } from "./SettingsRows";
 
 /** The pending scope of emptying the trash, which keeps its button busy. */
@@ -152,12 +153,10 @@ function Usage({
         <Text as="p" size="sm" bold>
           Usage
         </Text>
-        <Text as="p" size="xs" variant="danger" role="alert">
-          Couldn't load this project's usage: {loaded.message}
-        </Text>
-        <Button variant="outline" size="xs" onClick={reload}>
-          Try again
-        </Button>
+        <LoadError
+          text={`Couldn't load this project's usage: ${loaded.message}`}
+          onRetry={reload}
+        />
       </section>
     );
   }

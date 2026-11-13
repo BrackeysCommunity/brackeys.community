@@ -224,11 +224,14 @@ describe("PlayFrame", () => {
     expect(screen.queryByRole("button", { name: /download recording/i })).toBeNull();
 
     act(() => {
-      last().opts.onDownload?.({
-        name: "../match.jamsrec",
-        contentType: "application/json",
-        bytes: new TextEncoder().encode("{}").buffer,
-      });
+      last().opts.onDownload?.(
+        {
+          name: "../match.jamsrec",
+          contentType: "application/json",
+          bytes: new TextEncoder().encode("{}").buffer,
+        },
+        { requested: false },
+      );
     });
     const button = screen.getByRole("button", { name: /download recording/i });
     fireEvent.click(button);
@@ -243,12 +246,35 @@ describe("PlayFrame", () => {
   it("ignores download offers when it offers no downloads", () => {
     render(<PlayFrame {...props({ offerDownloads: false })} />);
     act(() => {
-      last().opts.onDownload?.({
-        name: "match.jamsrec",
-        contentType: "application/json",
-        bytes: new TextEncoder().encode("{}").buffer,
-      });
+      last().opts.onDownload?.(
+        {
+          name: "match.jamsrec",
+          contentType: "application/json",
+          bytes: new TextEncoder().encode("{}").buffer,
+        },
+        { requested: false },
+      );
     });
+    expect(screen.queryByRole("button", { name: /download recording/i })).toBeNull();
+    expect(downloads.downloadBlob).not.toHaveBeenCalled();
+  });
+
+  it("saves a recording the page asked for straight away, without an offer", () => {
+    render(<PlayFrame {...props({ offerDownloads: false })} />);
+    act(() => {
+      last().opts.onDownload?.(
+        {
+          name: "hall.recording.json",
+          contentType: "application/json",
+          bytes: new TextEncoder().encode("{}").buffer,
+        },
+        { requested: true },
+      );
+    });
+    expect(downloads.downloadBlob).toHaveBeenCalledTimes(1);
+    const [name, blob] = downloads.downloadBlob.mock.calls[0]!;
+    expect(name).toBe("hall.recording.json");
+    expect(blob.type).toBe("application/json");
     expect(screen.queryByRole("button", { name: /download recording/i })).toBeNull();
   });
 });

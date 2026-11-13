@@ -100,6 +100,22 @@ export async function fixtureVersion(
   return withVersion(built.version, built.texts);
 }
 
+/** An `edit` that moves the scene's first entity to `[x, y]`, so the scene's text differs from the release's. */
+export const movedStart =
+  (x: number, y = 1) =>
+  (scene: Record<string, unknown>): void => {
+    const [start] = scene.entities as { at: [number, number] }[];
+    start!.at = [x, y];
+  };
+
+/** A version of `release`'s `scene` with its first entity moved to `[x, y]`. */
+export const editedVersion = (
+  release: PlannedRelease,
+  scene: string,
+  x = 4,
+  y = 1,
+): Promise<FixtureVersion> => fixtureVersion(release, { scene, edit: movedStart(x, y) });
+
 /** `version` as `begin` takes it, after a change a builder wouldn't make: a test's tampered copy. */
 export async function withVersion(
   version: SceneVersion,

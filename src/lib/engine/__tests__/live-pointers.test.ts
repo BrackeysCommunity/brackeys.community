@@ -10,7 +10,7 @@ import {
   type PointerTargetFacts,
   type PointerTargetVersion,
 } from "../live-pointers";
-import { fixtureVersion, withVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
+import { editedVersion, withVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
 
 let release: PlannedRelease;
@@ -18,18 +18,13 @@ let fixture: FixtureVersion;
 let releaseKey: string;
 let versionKey: string;
 
-const moved = (scene: Record<string, unknown>): void => {
-  const [start] = scene.entities as { at: [number, number] }[];
-  start!.at = [4, 1];
-};
-
 beforeAll(async () => {
   release = await plannedRelease({
     projectId: "fixture",
     gameId: "fixture-game",
     engineVersion: "0.14.1",
   });
-  fixture = await fixtureVersion(release, { scene: "hall", edit: moved });
+  fixture = await editedVersion(release, "hall");
   releaseKey = await liveCompatKey(liveCompat(release.manifest));
   versionKey = await liveCompatKey(fixture.version.compat);
 });
@@ -199,8 +194,7 @@ describe("pointerTargetVerdict", () => {
   ];
   for (const [what, scene, change, code] of misfits)
     it(`refuses ${what} at a move with the engine's ${code}`, async () => {
-      const base =
-        scene === "hall" ? fixture : await fixtureVersion(release, { scene, edit: moved });
+      const base = scene === "hall" ? fixture : await editedVersion(release, scene);
       const copy = structuredClone(base.version) as SceneVersion;
       change(copy);
       const { text } = await withVersion(copy, base.texts);

@@ -474,7 +474,7 @@ describe("usageLines", () => {
   it("states the nearly-full and full notices from the limits", () => {
     expect(usageNotice("ok")).toBeNull();
     expect(usageNotice("warn")).toBe(
-      `Nearly full. Releases outside your ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned; unpin jam versions you no longer need.`,
+      `Nearly full. Releases outside the ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned; unpin jam versions you no longer need.`,
     );
     expect(usageNotice("full")).toBe(
       "Full. New releases are refused until releases are removed or unpinned.",

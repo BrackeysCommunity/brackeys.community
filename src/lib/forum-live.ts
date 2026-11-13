@@ -13,7 +13,8 @@ export type ForumLiveEvent = {
   authorId: string | null;
 };
 
-function parseForumLiveEvent(raw: unknown): ForumLiveEvent | null {
+/** A forum announcement off the channel, or null when it isn't one. */
+export function parseForumLiveEvent(raw: unknown): ForumLiveEvent | null {
   if (typeof raw !== "object" || raw === null) return null;
   const { id, kind, category, authorId } = raw as Record<string, unknown>;
   if (typeof id !== "number" || typeof kind !== "string" || typeof category !== "string") {

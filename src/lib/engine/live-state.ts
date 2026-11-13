@@ -4,6 +4,7 @@ import type { LiveSceneEntry, LiveSnapshot } from "@jams/engine/standalone";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { engineSceneVersionFiles, engineSceneVersions } from "../../db/schema.ts";
+import type { ReleaseChannel } from "./release-access";
 import type { ReleaseDb } from "./release-audit";
 
 export {
@@ -45,7 +46,7 @@ export function effectiveLive(
   release: LiveRelease,
   pointers: readonly LivePointerRow[],
   rev: number,
-  channel: "preview" | "production",
+  channel: ReleaseChannel,
 ): LiveSnapshot {
   const listed = new Set(release.scenes);
   const scenes: LiveSceneEntry[] = [];

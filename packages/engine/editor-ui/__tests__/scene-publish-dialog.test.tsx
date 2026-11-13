@@ -532,6 +532,27 @@ describe("Publish scene", () => {
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 
+  it("reads today's count and the scene's versions again after a refused publish", async () => {
+    // A production move can fail after the site stored the version: the checks follow the server.
+    const { publish, live } = await setup();
+    publish.mockRejectedValueOnce({
+      code: "live-promote-failed",
+      message: "hall@4 was saved but isn't on production: offline",
+    });
+    expect(await checkLine("today")).toBe("Today: 6 of 100 versions");
+    await waitFor(() => expect(publishButton().hasAttribute("disabled")).toBe(false));
+    live.usage.mockResolvedValue({ today: 7, versions: 4, bytes: 5000 });
+    fireEvent.click(publishButton());
+    expect((await screen.findByRole("alert")).textContent).toContain("was saved");
+    await waitFor(() =>
+      expect(document.querySelector('[data-check="today"]')?.textContent).toBe(
+        "Today: 7 of 100 versions",
+      ),
+    );
+    expect(live.list).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("alert").textContent).toContain("was saved");
+  });
+
   it("keeps a refusal on screen while an edit runs the checks again", async () => {
     const { publish, editor } = await setup();
     publish.mockRejectedValueOnce({

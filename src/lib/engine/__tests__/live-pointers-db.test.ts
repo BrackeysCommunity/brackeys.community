@@ -24,7 +24,7 @@ import {
 } from "../live-pointers";
 import { memoryReleaseStore } from "../release-storage";
 import type { Actor } from "../release-upload";
-import { fixtureVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
+import { editedVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
 import { liveRev, refusal, uploadDeps, uploadRelease, uploadSceneVersion } from "./upload-rig";
 
@@ -50,15 +50,7 @@ let release: PlannedRelease;
 
 const deps = () => uploadDeps(store, { now: () => NOW });
 
-const moved =
-  (x: number) =>
-  (scene: Record<string, unknown>): void => {
-    const [start] = scene.entities as { at: [number, number] }[];
-    start!.at = [x, 1];
-  };
-
-const edited = (scene: "hall" | "yard", x = 4) =>
-  fixtureVersion(release, { scene, edit: moved(x) });
+const edited = (scene: "hall" | "yard", x = 4) => editedVersion(release, scene, x);
 
 /** Publishes `v` on no channel, so only the moves under test touch the pointers. */
 const publish = async (v: FixtureVersion): Promise<number> =>

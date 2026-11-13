@@ -1,3 +1,4 @@
+import { liveCompat, liveCompatKey } from "@jams/engine/project";
 import { call } from "@orpc/server";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -23,7 +24,7 @@ import { seedUser, type TestDb } from "@/test/db";
 import { asUser } from "@/test/orpc";
 
 import {
-  fixtureVersion,
+  editedVersion,
   type FixtureVersion,
 } from "../../../lib/engine/__tests__/fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "../../../lib/engine/__tests__/release-fixture";
@@ -119,12 +120,7 @@ beforeAll(async () => {
   release = await plannedRelease({ projectId: PROJECT });
   await uploadRelease(deps(), release, { actor: staff, promoteTo: "production" });
 
-  hall = await fixtureVersion(release, {
-    scene: "hall",
-    edit: (scene) => {
-      (scene.entities as { at: number[] }[])[0]!.at = [4, 2];
-    },
-  });
+  hall = await editedVersion(release, "hall", 4, 2);
   await uploadSceneVersion(deps(), hall, {
     channel: "preview",
     note: "Moved the start",
@@ -212,7 +208,12 @@ describe("the live pointer procedures", () => {
     );
     expect(production).toEqual({
       channel: "production",
-      release: { id: release.releaseId, version: 1, manifest: release.text },
+      release: {
+        id: release.releaseId,
+        version: 1,
+        manifest: release.text,
+        liveCompatKey: await liveCompatKey(liveCompat(release.manifest)),
+      },
       live: null,
       texts: Object.fromEntries([releaseText("hall")]),
       latest: 1,

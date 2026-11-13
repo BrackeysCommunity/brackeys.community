@@ -12,7 +12,7 @@ import { beginRelease, commitRelease } from "@/orpc/router/engine-release";
 import { seedUser, type TestDb } from "@/test/db";
 import { asUser } from "@/test/orpc";
 
-import { fixtureVersion } from "../../../lib/engine/__tests__/fixtures/live/scene-versions";
+import { editedVersion } from "../../../lib/engine/__tests__/fixtures/live/scene-versions";
 import { plannedRelease } from "../../../lib/engine/__tests__/release-fixture";
 import {
   putMissingFiles,
@@ -96,12 +96,7 @@ describe("the live upload procedures", () => {
     await putMissingFiles(deps, shipped, release, staff);
     await call(commitRelease, { uploadId: shipped.uploadId }, asUser("staff"));
 
-    const hall = await fixtureVersion(release, {
-      scene: "hall",
-      edit: (scene) => {
-        (scene.entities as { at: number[] }[])[0]!.at = [2, 2];
-      },
-    });
+    const hall = await editedVersion(release, "hall", 2, 2);
     const begun = await call(
       beginSceneVersion,
       { projectId: PROJECT, version: hall.text, note: "  Moved the start  " },

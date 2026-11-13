@@ -1028,7 +1028,7 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
   {
     states: ["RELEASE_GRACE_DAYS", "PROJECT_QUOTA.releasesKept"],
     source: "quota.ts's messages",
-    phrase: `Releases outside your ${C("PROJECT_QUOTA.releasesKept")} newest are removed ${C("RELEASE_GRACE_DAYS")} days after publishing unless pinned`,
+    phrase: `Releases outside the ${C("PROJECT_QUOTA.releasesKept")} newest are removed ${C("RELEASE_GRACE_DAYS")} days after publishing unless pinned`,
   },
   {
     states: ["CONNECT_ORIGINS_MAX"],

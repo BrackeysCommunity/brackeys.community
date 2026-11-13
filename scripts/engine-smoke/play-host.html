@@ -28,8 +28,10 @@
   window.__playHost.live.
 
   window.__playHost.requestRecording() asks the frame for its run's
-  recording through the host server; every download the frame offers is
-  kept, decoded, on window.__playHost.downloads.
+  recording through the host server and resolves as the server's own
+  requestRecording does: "offered", "unanswered", or "unsent" while the
+  frame has no channel. Every download the frame offers is kept, decoded,
+  on window.__playHost.downloads.
 -->
 <html lang="en">
   <head>
@@ -80,7 +82,7 @@
         frameMessages: [],
         storeCalls: [],
         downloads: [],
-        requestRecording: () => false,
+        requestRecording: () => Promise.resolve("unsent"),
         live: null,
       };
       window.__playHost = record;

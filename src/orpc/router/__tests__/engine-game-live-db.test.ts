@@ -36,7 +36,7 @@ import { seedUser, type TestDb } from "@/test/db";
 import { asUser } from "@/test/orpc";
 
 import {
-  fixtureVersion,
+  editedVersion,
   type FixtureVersion,
 } from "../../../lib/engine/__tests__/fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "../../../lib/engine/__tests__/release-fixture";
@@ -190,20 +190,14 @@ function movingDb(moves: number[]): ReleaseDb {
   return { ...(db as unknown as ReleaseDb), select } as unknown as ReleaseDb;
 }
 
-const marker =
-  (x: number) =>
-  (scene: Record<string, unknown>): void => {
-    (scene.entities as { at: number[] }[])[0]!.at = [x, 1];
-  };
-
 beforeAll(async () => {
   for (const id of ["pub", "editor", "outsider"]) await seedUser(db, id);
   await seedUser(db, "staff", { guildRoles: ["Staff"] });
   await db.insert(teams).values({ id: TEAM, slug: "live-team", name: "Team", createdBy: "pub" });
   await db.insert(teamMembers).values({ teamId: TEAM, userId: "editor", role: "member" });
   release = await plannedRelease({ projectId: PROJECT, gameId: GAME, engineVersion: "0.14.1" });
-  hall = await fixtureVersion(release, { scene: "hall", edit: marker(4) });
-  yard = await fixtureVersion(release, { scene: "yard", edit: marker(5) });
+  hall = await editedVersion(release, "hall", 4);
+  yard = await editedVersion(release, "yard", 5);
 });
 
 let announced: ReturnType<typeof vi.spyOn>;

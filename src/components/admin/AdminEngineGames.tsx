@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 import { AdminPerson, AdminRow, AdminSection, ReasonField } from "@/components/admin/AdminUI";
+import { CHANNEL_BADGE_LABEL } from "@/components/games/VersionList";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Confirm } from "@/components/ui/confirm";
@@ -596,11 +597,6 @@ function ReviewRow({
   );
 }
 
-const CHANNEL_LABEL: Record<SceneVersion["pointers"][number], string> = {
-  preview: "PREVIEW",
-  production: "LIVE",
-};
-
 function SceneVersionRow({
   version,
   busy,
@@ -631,7 +627,7 @@ function SceneVersionRow({
           ) : (
             version.pointers.map((channel) => (
               <Badge key={channel} size="label" variant="outline">
-                {CHANNEL_LABEL[channel]}
+                {CHANNEL_BADGE_LABEL[channel]}
               </Badge>
             ))
           )}

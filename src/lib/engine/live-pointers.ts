@@ -1,4 +1,9 @@
-import { DEFAULT_SWAP_TIMING, sceneVersionName, type SwapTiming } from "@jams/engine/game";
+import {
+  capitalise,
+  DEFAULT_SWAP_TIMING,
+  sceneVersionName,
+  type SwapTiming,
+} from "@jams/engine/game";
 import {
   parseReleaseManifest,
   sceneVersionFitIssue,
@@ -23,10 +28,9 @@ import { gamePagePath } from "@/lib/engine/route-paths";
 import { formatCount } from "@/lib/format-bytes";
 import { releaseDay } from "@/lib/jam-links";
 
-import { LIVE_LIMITS } from "./limits";
+import { RELEASE_GRACE_DAYS } from "./limits";
 import { engineLive } from "./live-events";
-import { blockedReasonOf } from "./live-outcomes";
-import { checkLiveChannelQuota, quotaAmount } from "./quota";
+import { checkLiveChannelQuota, LIVE_KEPT_RULE, quotaAmount } from "./quota";
 import { refusalFor, type ReleaseChannel } from "./release-access";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
 import { scenesBefore } from "./release-channels";
@@ -86,7 +90,7 @@ export function sceneVersionRemoved(label: string, removedAt: Date | null): Rele
   return {
     code: "release-immutable",
     message: `${label} was removed${removedAt ? ` on ${releaseDay(removedAt)}` : ""}; its files are gone.`,
-    hint: `Scene versions outside a scene's ${formatCount(LIVE_LIMITS.keptPerScene)} newest are removed unless a channel points at them. Change the scene and publish it again.`,
+    hint: `${capitalise(LIVE_KEPT_RULE)}; others go ${formatCount(RELEASE_GRACE_DAYS)} days after publishing. Change the scene and publish it again.`,
   };
 }
 
@@ -114,11 +118,12 @@ export function noVersion(scene: AssetId, number: number): ReleaseApiError {
   };
 }
 
-function noChannelRelease(channel: LiveChannel): ReleaseApiError {
+/** The refusal for a live scene on a channel that plays no release: one is published to preview, and promoted to production. */
+export function noChannelRelease(channel: LiveChannel): ReleaseApiError {
   return {
     code: "not-found",
     message: `This game has no release on ${channel} for a live scene to update.`,
-    hint: "Promote a release first: a live scene replaces one scene of the release a channel plays.",
+    hint: `${channel === "preview" ? "Publish a release" : "Promote a release to production"} first: a live scene replaces one scene of the release a channel plays.`,
   };
 }
 
@@ -177,17 +182,12 @@ export function extraBytesOf(
   return total;
 }
 
-function blockedError(v: PointerTargetVersion): ReleaseApiError {
-  const reason = blockedReasonOf({
+const blockedError = (v: PointerTargetVersion): ReleaseApiError =>
+  liveBlocked(v, {
     by: v.blockedBy,
     reason: v.blockReason,
     reports: { ok: v.reportsOk, failed: v.reportsFailed },
   });
-  return liveBlocked(
-    { scene: v.scene, number: v.number },
-    { reason: v.blockedBy === "system" ? `${reason}.` : reason },
-  );
-}
 
 /**
  * Why a scene version doesn't fit a release, or null when it does, as the

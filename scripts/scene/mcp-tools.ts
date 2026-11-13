@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { DEFAULT_BUILD_TARGET, exportTargetNames } from "@jams/engine/export";
+import { DEFAULT_SWAP_TIMING, SWAP_TIMINGS, swapTimingSchema } from "@jams/engine/game";
 import { RELEASE_FILE } from "@jams/engine/project";
 import { checksPathOf, SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { z } from "zod";
@@ -396,11 +397,10 @@ const releaseChannel = z
     "`preview`. Production moves only by a person on the game's page; an agent asking for it is refused (`release-forbidden`) with that page's URL.",
   );
 
-const liveTiming = z
-  .string()
+const liveTiming = swapTimingSchema
   .optional()
   .describe(
-    "When players get it: `next-load` (default), `boundary` or `now`. A timing the game doesn't list in `GameDefinition.live.timings` is clamped to the strongest it accepts, with a warning.",
+    `When players get it: ${SWAP_TIMINGS.map((t) => `\`${t}\`${t === DEFAULT_SWAP_TIMING ? " (default)" : ""}`).join(", ")}. A timing the game doesn't list in \`GameDefinition.live.timings\` is clamped to the strongest it accepts, with a warning.`,
   );
 
 // ─── Tools ───────────────────────────────────────────────

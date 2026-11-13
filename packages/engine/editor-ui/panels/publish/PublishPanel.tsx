@@ -1,5 +1,5 @@
 import { Cancel01Icon, Copy01Icon } from "@hugeicons/core-free-icons";
-import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   acceptedTimings,
@@ -41,8 +41,10 @@ import {
 } from "../../kit/index";
 import type { Pending } from "../../pending/pending";
 import { PendingProvider, useBusy, useOwnOrSharedPending } from "../../pending/use-pending";
+import { USAGE_TONE } from "../settings/UsagePanel";
 import { ChoiceGroup, TimingChoice } from "./ChoiceGroup";
 import { LIVE_CHANNELS, liveOnText, productionConfirmText, PUBLISHERS_ONLY } from "./live-wording";
+import { LoadError } from "./LoadError";
 import {
   ChannelBadge,
   channelScope,
@@ -237,8 +239,7 @@ function PublishBody({
             <Skeleton style={{ height: 48 }} />
           ) : releases.state === "error" ? (
             <LoadError
-              what="Couldn't load the releases."
-              message={releases.message}
+              text={`Couldn't load the releases. ${releases.message}`}
               onRetry={reloadReleases}
             />
           ) : releases.value.length > 0 ? (
@@ -271,29 +272,6 @@ function PublishBody({
         </div>
       </section>
     </PendingProvider>
-  );
-}
-
-function LoadError({
-  what,
-  message,
-  onRetry,
-}: {
-  what: string;
-  message: string;
-  onRetry: () => void;
-}) {
-  return (
-    <div className="je-insp-stack" role="alert" data-gap="tight">
-      <Text as="p" size="xs" variant="danger">
-        {what} {message}
-      </Text>
-      <div className="je-insp-row">
-        <Button size="xs" variant="outline" onClick={onRetry}>
-          Try again
-        </Button>
-      </div>
-    </div>
   );
 }
 
@@ -338,29 +316,18 @@ function ReleaseCommand({ publish, notify }: { publish: EditorPublishHost; notif
 function UsageLines({ usage, onRetry }: { usage: Loaded<UsageView>; onRetry: () => void }) {
   if (usage.state === "loading") return <Skeleton style={{ height: 32 }} />;
   if (usage.state === "error")
-    return <LoadError what="Couldn't load the usage." message={usage.message} onRetry={onRetry} />;
+    return <LoadError text={`Couldn't load the usage. ${usage.message}`} onRetry={onRetry} />;
   const { lines, notice } = usage.value;
   return (
     <div className="je-insp-stack" data-gap="tight" aria-label="Usage before publishing">
       <MicroLabel>Usage</MicroLabel>
       {lines.map((line) => (
-        <Text
-          key={line.quota}
-          as="p"
-          size="xs"
-          tabular
-          variant={line.level === "full" ? "danger" : line.level === "warn" ? "warning" : "primary"}
-        >
+        <Text key={line.quota} as="p" size="xs" tabular variant={USAGE_TONE[line.level]}>
           {line.text}
         </Text>
       ))}
       {notice ? (
-        <Text
-          as="p"
-          size="xs"
-          role="status"
-          variant={notice.level === "full" ? "danger" : "warning"}
-        >
+        <Text as="p" size="xs" role="status" variant={USAGE_TONE[notice.level]}>
           {notice.text}
         </Text>
       ) : null}
@@ -453,14 +420,19 @@ function RemovedSoon({ releases }: { releases: readonly ReleaseView[] }) {
 /** The question Unblock asks. */
 const unblockMessage = (name: string): string => `Players will get ${name} again.`;
 
-/** The question a Roll back asks: the host goes back to the pointer's previous target. */
+/**
+ * The question a Roll back asks. The host goes back to the pointer's
+ * previous target, which only its audit log knows: an earlier version of
+ * the scene, or the channel's release's own (`release`, when it has one).
+ */
 export const liveRollbackMessage = (
   channel: PublishChannel,
   name: string,
   scene: string,
   timing: SwapTiming,
+  release: number | null,
 ): string =>
-  `${channel === "production" ? "Players go" : "Your team goes"} back to what ${channel} played before ${name} ${arrivalWords(timing)}: an earlier version of ${scene}, or the release's own.`;
+  `${channel === "production" ? "Players go" : "Your team goes"} back to what ${channel} played before ${name} ${arrivalWords(timing)}: an earlier version of ${scene}, or ${release === null ? "the release's own" : `v${release}'s own`}.`;
 
 /** The live scenes' pending scope: one per scene and channel, so a row's buttons go busy together. */
 const liveScope = (scene: AssetId, channel: PublishChannel): string =>
@@ -545,11 +517,7 @@ function LiveScenes({
   if (versions.state === "loading") return <Skeleton style={{ height: 32 }} />;
   if (versions.state === "error")
     return (
-      <LoadError
-        what="Couldn't load the live scenes."
-        message={versions.message}
-        onRetry={onRetry}
-      />
+      <LoadError text={`Couldn't load the live scenes. ${versions.message}`} onRetry={onRetry} />
     );
   const rows = versions.value.flatMap((version) =>
     version.pointers.map((pointer): LiveRow => ({ version, pointer })),
@@ -617,7 +585,7 @@ function LiveScenes({
       ) : null}
       {forecast.length > 0 ? (
         <div className="je-insp-stack" data-gap="tight" aria-label="Live scenes removed soon">
-          <MicroLabel as="div">Removed soon</MicroLabel>
+          <MicroLabel as="div">Live scenes removed soon</MicroLabel>
           {forecast.map((line) => (
             <Text key={line.scene} as="p" size="xs" variant="warning">
               {line.text}
@@ -676,6 +644,14 @@ export function removalForecast(
 }
 
 /**
+ * A blocked version's line beside Unblock: the breaker's count after
+ * "Blocked: "; a publisher's block as the host words it, which already
+ * says who blocked it or gives their reason.
+ */
+const blockedLine = (blocked: NonNullable<LiveVersionView["blocked"]>): string =>
+  blocked.by === "system" ? `Blocked: ${blocked.text}` : blocked.text;
+
+/**
  * A version's hidden reason and its block, said the same in both lists:
  * Unblock asks first, and a version production plays needs a publisher.
  */
@@ -707,7 +683,7 @@ function HoldLines({
       {version.blocked ? (
         <div className="je-insp-row je-insp-wrap" data-gap="tight" data-align="start">
           <Text size="xs" variant="danger" className="je-insp-grow">
-            {version.blocked.text}
+            {blockedLine(version.blocked)}
           </Text>
           <Confirm
             title={`Unblock ${name}?`}
@@ -734,22 +710,44 @@ function HoldLines({
 /** The tooltip on a not-live version's Promote to preview: preview takes it at the next load. */
 const PREVIEW_ARRIVAL = `Your team gets it on preview ${arrivalWords(DEFAULT_SWAP_TIMING)}.`;
 
+/** A version's blocked and hidden badges, the same in both lists. */
+function VersionStateBadges({ version }: { version: LiveVersionView }) {
+  return (
+    <>
+      {version.blocked ? (
+        <Badge size="label" variant="destructive">
+          blocked
+        </Badge>
+      ) : null}
+      {version.hidden !== null ? (
+        <Badge size="label" variant="destructive">
+          hidden
+        </Badge>
+      ) : null}
+    </>
+  );
+}
+
 /**
- * "Promote … to production?", with the timing picker when the game accepts
- * more than the next load; the pick starts at the next load each time it opens.
+ * Promote to production, for publishers only. It asks "Promote … to
+ * production?", with the timing picker when the game accepts more than the
+ * next load; the pick starts at the next load each time it opens.
  */
-function ProductionPromote({
+function ProductionPromoteButton({
   name,
   scene,
   timings,
+  publisher,
+  disabled = false,
   onPromote,
-  children,
 }: {
   name: string;
   scene: AssetId;
   timings: readonly SwapTiming[];
+  publisher: boolean;
+  /** Another move on the row is running. */
+  disabled?: boolean;
   onPromote: (timing: SwapTiming) => Promise<boolean>;
-  children: ReactElement;
 }) {
   const [timing, setTiming] = useState<SwapTiming>(DEFAULT_SWAP_TIMING);
   return (
@@ -777,7 +775,15 @@ function ProductionPromote({
       onOpenChange={(open) => open && setTiming(DEFAULT_SWAP_TIMING)}
       onConfirm={() => onPromote(timing)}
     >
-      {children}
+      <Button
+        size="xs"
+        variant="outline"
+        busyScope={liveScope(scene, "production")}
+        disabled={!publisher || disabled}
+        {...(!publisher ? { tooltip: PUBLISHERS_ONLY } : {})}
+      >
+        Promote to production
+      </Button>
     </Confirm>
   );
 }
@@ -836,16 +842,7 @@ function SavedVersionRow({
         <Text size="sm" bold>
           {called}
         </Text>
-        {version.blocked ? (
-          <Badge size="label" variant="destructive">
-            blocked
-          </Badge>
-        ) : null}
-        {version.hidden !== null ? (
-          <Badge size="label" variant="destructive">
-            hidden
-          </Badge>
-        ) : null}
+        <VersionStateBadges version={version} />
       </div>
       <Text as="p" size="xs" variant="muted" tabular>
         {name} · <TimeAgo date={version.createdAt} />
@@ -870,22 +867,13 @@ function SavedVersionRow({
           >
             Promote to preview
           </Button>
-          <ProductionPromote
+          <ProductionPromoteButton
             name={name}
             scene={scene}
             timings={timings}
+            publisher={publisher}
             onPromote={(at) => promote("production", at)}
-          >
-            <Button
-              size="xs"
-              variant="outline"
-              busyScope={liveScope(scene, "production")}
-              disabled={!publisher}
-              {...(!publisher ? { tooltip: PUBLISHERS_ONLY } : {})}
-            >
-              Promote to production
-            </Button>
-          </ProductionPromote>
+          />
         </div>
       ) : null}
     </div>
@@ -964,16 +952,7 @@ function LiveSceneRow({
           {called}
         </Text>
         <ChannelBadge channel={channel} />
-        {version.blocked ? (
-          <Badge size="label" variant="destructive">
-            blocked
-          </Badge>
-        ) : null}
-        {version.hidden !== null ? (
-          <Badge size="label" variant="destructive">
-            hidden
-          </Badge>
-        ) : null}
+        <VersionStateBadges version={version} />
         {version.collected ? (
           <Badge size="label" variant="ghost">
             removed
@@ -1005,10 +984,12 @@ function LiveSceneRow({
       />
       <div className="je-insp-row je-insp-wrap" data-gap="tight">
         {canPromote ? (
-          <ProductionPromote
+          <ProductionPromoteButton
             name={name}
             scene={scene}
             timings={timings}
+            publisher={publisher}
+            disabled={rowBusy}
             onPromote={(at) =>
               act(
                 `Promoting ${name}`,
@@ -1018,21 +999,11 @@ function LiveSceneRow({
                 liveScope(scene, "production"),
               )
             }
-          >
-            <Button
-              size="xs"
-              variant="outline"
-              busyScope={liveScope(scene, "production")}
-              disabled={!publisher || rowBusy}
-              {...(!publisher ? { tooltip: PUBLISHERS_ONLY } : {})}
-            >
-              Promote to production
-            </Button>
-          </ProductionPromote>
+          />
         ) : null}
         <Confirm
           title={`Roll back ${called} on ${channel}?`}
-          message={liveRollbackMessage(channel, name, called, timing)}
+          message={liveRollbackMessage(channel, name, called, timing, release)}
           confirmText="Roll back"
           onConfirm={rollBack}
         >
@@ -1098,11 +1069,7 @@ function GameSettings({ publish, pending }: { publish: EditorPublishHost; pendin
   if (settings.state === "loading") return <Skeleton style={{ height: 64 }} />;
   if (settings.state === "error")
     return (
-      <LoadError
-        what="Couldn't load the game's settings."
-        message={settings.message}
-        onRetry={reload}
-      />
+      <LoadError text={`Couldn't load the game's settings. ${settings.message}`} onRetry={reload} />
     );
 
   const view = settings.value;

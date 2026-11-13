@@ -73,13 +73,17 @@ import { join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { versionName, type SwapTiming } from "@jams/engine/game";
+import { versionName } from "@jams/engine/game";
 import { liveFiles, type Sha256 } from "@jams/engine/project";
 import type { Browser, BrowserContext, BrowserType, Frame, Page } from "playwright";
 
 import type { ClaimResult } from "../../src/lib/engine/claim-saves";
 import { FRAME_ALLOW, FRAME_SANDBOX } from "../../src/lib/engine/frame-sandbox";
-import type { SaveMode } from "../../src/lib/engine/host-server";
+import {
+  RECORDING_ANSWER_MS,
+  type RecordingAnswer,
+  type SaveMode,
+} from "../../src/lib/engine/host-server";
 import { LIVE_POLL_SECONDS } from "../../src/lib/engine/limits";
 import {
   LOCAL_SAVES_DB,
@@ -105,9 +109,9 @@ import {
   HOLD_MS,
   judgeCanvasChange,
   judgeDrawn,
+  LIVE_TIMING,
   pixelHash,
   readRecording,
-  RECORDING_TIMEOUT_MS,
   recordingDownload,
   RUN_TIMEOUT_MS,
   type DownloadSeen,
@@ -474,8 +478,6 @@ export function judgeClaim(p: ClaimProbe | undefined): string[] {
 
 /** The game whose start scene the live runs publish a version of. */
 export const LIVE_GAME: PlayGame = "platformer";
-/** The live runs' pointer timing: the swap lands mid-run. */
-export const LIVE_SMOKE_TIMING: SwapTiming = "now";
 /** How often a play page without a working stream reads the live state. */
 export const LIVE_POLL_MS = LIVE_POLL_SECONDS * 1000;
 /**
@@ -721,9 +723,9 @@ function judgeLiveSwap(kind: PlayRunKind, p: LiveRunProbe): string[] {
       reasons.push(
         `the frame applied ${short} ${p.appliedMs} ms after the promote; ${kind === "live-poll" ? `one poll interval allows ${deadline} ms` : `with the stream it must within ${deadline} ms`}`,
       );
-    if (applied.timing !== LIVE_SMOKE_TIMING)
+    if (applied.timing !== LIVE_TIMING)
       reasons.push(
-        `the frame applied ${short} at ${applied.timing ?? "no timing"}, not ${LIVE_SMOKE_TIMING}`,
+        `the frame applied ${short} at ${applied.timing ?? "no timing"}, not ${LIVE_TIMING}`,
       );
     if (applied.strategy !== "reconcile")
       reasons.push(
@@ -731,9 +733,7 @@ function judgeLiveSwap(kind: PlayRunKind, p: LiveRunProbe): string[] {
       );
     const kept = judgePosition(p.position, short);
     if (kept) reasons.push(kept);
-    if (
-      !p.swaps.some((s) => s.version === p.published?.versionId && s.timing === LIVE_SMOKE_TIMING)
-    )
+    if (!p.swaps.some((s) => s.version === p.published?.versionId && s.timing === LIVE_TIMING))
       reasons.push(`the play page's live client didn't surface the swap to ${short}`);
   }
   if (p.restarted.length)
@@ -1069,7 +1069,7 @@ type LiveStage = {
   livePath: string;
   /** Publishes the version; again, it answers the same number. */
   publish(): Promise<PublishedSceneVersion>;
-  /** Points production's scene at version `to`, with `LIVE_SMOKE_TIMING`; null takes the pointer off. */
+  /** Points production's scene at version `to`, with `LIVE_TIMING`; null takes the pointer off. */
   point(to: number | null): Promise<void>;
   /** Whether production's live state names `version` now. */
   pointed(version: Sha256): Promise<boolean>;
@@ -1163,7 +1163,7 @@ const violationsIn = (frame: Frame): Promise<CspViolation[]> =>
 export const runTimeoutMs = (kind: PlayRunKind): number => {
   if (kind === "claim") return 2 * RUN_TIMEOUT_MS;
   if (kind === "live-stream" || kind === "live-poll")
-    return RUN_TIMEOUT_MS + liveDeadlineMs(kind) + LIVE_BEAT_MS + RECORDING_TIMEOUT_MS;
+    return RUN_TIMEOUT_MS + liveDeadlineMs(kind) + LIVE_BEAT_MS + RECORDING_ANSWER_MS;
   return RUN_TIMEOUT_MS;
 };
 
@@ -1616,35 +1616,30 @@ const hostDownloads = (host: Frame) =>
 
 /**
  * Asks the frame for its run's recording through the host server and reads
- * where it put the player across the swap to `version`.
+ * where it put the player across the swap to `version`. The smoke waits as
+ * long as the play page does: the frame answers from the recording it keeps,
+ * so `RECORDING_ANSWER_MS` is ample, and an offer that misses it would meet
+ * the download rate on the play page too.
  */
 async function framePosition(host: Frame, version: string): Promise<PositionProbe> {
   const from = (await hostDownloads(host)).length;
-  const asked = await host.evaluate(
+  const answer = await host.evaluate(
     () =>
       (
-        window as unknown as { __playHost?: { requestRecording(): boolean } }
-      ).__playHost?.requestRecording() ?? false,
+        window as unknown as { __playHost?: { requestRecording(): Promise<RecordingAnswer> } }
+      ).__playHost?.requestRecording() ?? Promise.resolve<RecordingAnswer>("unsent"),
   );
-  if (!asked) return { problem: "the host page couldn't ask the frame for its run's recording" };
-  await host
-    .waitForFunction(
-      (n) =>
-        ((window as unknown as { __playHost?: { downloads: unknown[] } }).__playHost?.downloads
-          .length ?? 0) > n,
-      from,
-      { timeout: RECORDING_TIMEOUT_MS, polling: 100 },
-    )
-    .catch((cause: unknown) => {
-      if (!(cause instanceof Error && cause.name === "TimeoutError")) throw cause;
-    });
+  if (answer === "unsent")
+    return { problem: "the host page had no frame channel to ask for its run's recording" };
+  if (answer === "unanswered")
+    return {
+      problem: `the frame offered no run recording within ${RECORDING_ANSWER_MS} ms of the host asking`,
+    };
   const offered = (await hostDownloads(host)).slice(from);
   const at = recordingDownload(offered);
   const recording = at === null ? undefined : offered[at];
   if (!recording)
-    return {
-      problem: `the frame offered no run recording within ${RECORDING_TIMEOUT_MS} ms of the host asking`,
-    };
+    return { problem: "the frame answered the host's ask with a download that isn't a recording" };
   return positionAcrossSwap(recording.name, recording.text, version);
 }
 
@@ -2161,7 +2156,7 @@ async function runBrowser(
             projectId: liveProject,
             scene: liveVersion.scene,
             to,
-            timing: LIVE_SMOKE_TIMING,
+            timing: LIVE_TIMING,
           })
           .catch((err: unknown) => {
             throw new Error(`moving production's pointer was refused: ${refusal(err)}`);

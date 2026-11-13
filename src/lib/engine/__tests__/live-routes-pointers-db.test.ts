@@ -12,7 +12,7 @@ import {
   engineLivePath,
   engineLivePromotePath,
 } from "../route-paths";
-import { fixtureVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
+import { editedVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
 import { call, PROJECT, secretFor, seedEngine, sendTo, testReadSession } from "./harness";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
 import { uploadDeps, uploadRelease, uploadSceneVersion } from "./upload-rig";
@@ -47,12 +47,7 @@ let reader: string;
 
 /** A version of the hall with its start marker at `x`, committed by staff; `channel: "none"` leaves preview alone. */
 async function publishHall(x: number, channel: "preview" | "none"): Promise<FixtureVersion> {
-  const hall = await fixtureVersion(release, {
-    scene: "hall",
-    edit: (scene) => {
-      (scene.entities as { at: number[] }[])[0]!.at = [x, 2];
-    },
-  });
+  const hall = await editedVersion(release, "hall", x, 2);
   await uploadSceneVersion(uploadDeps(store), hall, { channel, actor: staff });
   return hall;
 }

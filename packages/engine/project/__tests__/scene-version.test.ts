@@ -18,7 +18,12 @@ import { ENGINE_VERSION } from "../../version";
 import { memoryContentStore } from "../content-store";
 import { sha256 } from "../hash";
 import { createKindRegistry } from "../kinds";
-import { ENGINE_FORMATS, type ReleaseAsset, type ReleaseManifest } from "../release";
+import {
+  ENGINE_FORMATS,
+  formatReleaseManifest,
+  type ReleaseAsset,
+  type ReleaseManifest,
+} from "../release";
 import {
   checkSceneVersion,
   findSceneVersion,
@@ -30,6 +35,7 @@ import {
   SCENE_VERSION_SCHEMA_ID,
   sceneVersionId,
   sceneVersionJsonSchema,
+  sceneVersionFitIssue,
   sceneVersionSnapshot,
   type SceneVersion,
 } from "../scene-version";
@@ -529,6 +535,66 @@ describe("checkSceneVersion", () => {
     expect(where(checkSceneVersion(base.manifest, base.version, texts, { registry }))).toEqual([
       ["asset-missing", null, "/assets/gate/sha256"],
     ]);
+  });
+});
+
+describe("sceneVersionFitIssue", () => {
+  const KEY = "a".repeat(64);
+  const OTHER = "b".repeat(64);
+  const release = (liveCompatKey?: string, manifest = base.manifest) => ({
+    manifest: formatReleaseManifest(manifest),
+    liveCompatKey,
+  });
+  const version = (compatKey?: string, v = base.version) => ({
+    descriptor: formatSceneVersion(v),
+    compatKey,
+  });
+
+  it("is null for a version that fits, keys equal or either key missing", () => {
+    expect(sceneVersionFitIssue(release(KEY), version(KEY))).toBeNull();
+    expect(sceneVersionFitIssue(release(), version(OTHER))).toBeNull();
+    expect(sceneVersionFitIssue(release(KEY), version())).toBeNull();
+    expect(sceneVersionFitIssue(release(), version())).toBeNull();
+  });
+
+  it("is `release` for a release that takes no live scenes or doesn't read", () => {
+    expect(sceneVersionFitIssue(release(""), version(KEY))).toEqual({ on: "release" });
+    expect(sceneVersionFitIssue({ manifest: "{ not json" }, version(KEY))).toEqual({
+      on: "release",
+    });
+    expect(sceneVersionFitIssue({ manifest: "{ not json", liveCompatKey: KEY }, version())).toEqual(
+      { on: "release" },
+    );
+  });
+
+  it("is `version` with the parse issue for a descriptor that doesn't read", () => {
+    const fit = sceneVersionFitIssue(release(KEY), { descriptor: "{ not json", compatKey: KEY });
+    expect(fit?.on).toBe("version");
+    expect(fit?.on === "version" && fit.issue).toMatchObject({ severity: "error" });
+  });
+
+  it("is `version` with the first error checkSceneVersion finds, before the key rule", () => {
+    const fit = sceneVersionFitIssue(
+      release(KEY),
+      version(OTHER, { ...base.version, project: "other" }),
+    );
+    expect(fit).toMatchObject({
+      on: "version",
+      issue: { code: "live-incompatible", severity: "error", path: "/project" },
+    });
+  });
+
+  it("names the version in the issue as asked", () => {
+    const fit = sceneVersionFitIssue(
+      release(KEY),
+      version(KEY, { ...base.version, project: "other" }),
+      { names: { version: "level-1@3", release: "preview" } },
+    );
+    expect(fit?.on === "version" ? fit.issue?.message : "").toContain("level-1@3");
+  });
+
+  it("is `compat` when both keys are given and differ", () => {
+    expect(sceneVersionFitIssue(release(KEY), version(OTHER))).toEqual({ on: "compat" });
   });
 });
 

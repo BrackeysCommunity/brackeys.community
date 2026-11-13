@@ -979,6 +979,44 @@
     cursor: not-allowed;
   }
 
+  .je-checkbox {
+    display: inline-grid;
+    flex-shrink: 0;
+    place-content: center;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    border: 1px solid var(--je-border);
+    border-radius: 3px;
+    background: var(--je-muted);
+    appearance: none;
+    transition: background-color 150ms;
+  }
+
+  .je-checkbox::before {
+    width: 8px;
+    height: 8px;
+    background: var(--je-primary-fg);
+    clip-path: polygon(14% 44%, 0 59%, 40% 100%, 100% 24%, 86% 10%, 40% 70%);
+    content: "";
+    scale: 0;
+    transition: scale 150ms;
+  }
+
+  .je-checkbox:checked {
+    border-color: var(--je-primary);
+    background: var(--je-primary);
+  }
+
+  .je-checkbox:checked::before {
+    scale: 1;
+  }
+
+  .je-checkbox:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .je-slider {
     flex: 1;
     min-width: 0;

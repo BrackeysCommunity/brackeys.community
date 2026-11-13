@@ -16,13 +16,14 @@ import type {
   UsageView,
 } from "../host";
 import { KitProvider } from "../kit/index";
-import { PublishPanel } from "../panels/publish/PublishPanel";
+import { liveRollbackMessage, PublishPanel } from "../panels/publish/PublishPanel";
 import {
   KEEP_PREVIEW_ONLY,
   KEEP_PUBLISHERS_ONLY,
   REPLACES_UNREAD,
 } from "../panels/publish/ReleaseList";
 import { editorPanels, PUBLISH_PANEL, type PanelContext } from "../panels/registry";
+import { USAGE_TONE } from "../panels/settings/UsagePanel";
 import { fakeLiveHost, type FakeLiveHost } from "./fake-live-host";
 
 // The Keep list asks the host's fit rule whether a live scene fits the new
@@ -219,6 +220,11 @@ describe("PublishPanel", () => {
     const lines = await screen.findByLabelText("Usage before publishing");
     expect(within(lines).getByText("Release storage: 120 MB of 512 MB")).toBeTruthy();
     expect(within(lines).getByRole("status").textContent).toMatch(/^Nearly full/);
+    // The usage levels read as the Usage panel and the Publish scene checks read them.
+    const tone = (text: string) => within(lines).getByText(text).getAttribute("data-tone");
+    expect(tone("Release storage: 120 MB of 512 MB")).toBe(USAGE_TONE.ok);
+    expect(tone("Releases kept: 9 of 10 (plus pinned)")).toBe(USAGE_TONE.warn);
+    expect(within(lines).getByRole("status").getAttribute("data-tone")).toBe(USAGE_TONE.warn);
     const channelBlock = await screen.findByLabelText("Channels");
     expect(
       lines.compareDocumentPosition(channelBlock) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -628,13 +634,30 @@ describe("PublishPanel's live scenes", () => {
     mountLive(live);
     const row = await rowOf("production", "level-1@3");
     expect(within(row).getByText("blocked")).toBeTruthy();
-    expect(within(row).getByText(BLOCKED)).toBeTruthy();
+    expect(within(row).getByText(`Blocked: ${BLOCKED}`)).toBeTruthy();
     const dialog = await ask(within(row).getByRole("button", { name: "Unblock" }));
     expect(within(dialog).getByText("Players will get level-1@3 again.")).toBeTruthy();
     expect(live.unblock).not.toHaveBeenCalled();
     fireEvent.click(within(dialog).getByRole("button", { name: "Unblock" }));
     await waitFor(() => expect(live.unblock).toHaveBeenCalledWith("level-1", 3));
     await waitFor(() => expect(live.list).toHaveBeenCalledTimes(2));
+  });
+
+  it("says a publisher's block as the host words it, without a second Blocked", async () => {
+    const byHand = liveVersion("level-1", 3, {
+      pointers: [{ channel: "production", timing: "next-load", since: ago(MINUTE), by: "Sam" }],
+      blocked: { by: "user", text: "Blocked by a publisher." },
+    });
+    mountLive(liveHost({ list: vi.fn(async () => [byHand]) }));
+    const row = await rowOf("production", "level-1@3");
+    expect(within(row).getByText("Blocked by a publisher.")).toBeTruthy();
+    expect(within(row).queryByText(/^Blocked: /)).toBeNull();
+  });
+
+  it("names the release a rollback may land on only when the channel has one", () => {
+    expect(liveRollbackMessage("preview", "level-1@4", "The ford", "now", null)).toBe(
+      "Your team goes back to what preview played before level-1@4 now: an earlier version of The ford, or the release's own.",
+    );
   });
 
   it("keeps production's moves for publishers", async () => {
@@ -716,7 +739,7 @@ describe("PublishPanel's live scenes", () => {
     expect(within(dialog).getByText("Roll back The ford on preview?")).toBeTruthy();
     expect(
       within(dialog).getByText(
-        "Your team goes back to what preview played before level-1@4 the next time the level loads: an earlier version of The ford, or the release's own.",
+        "Your team goes back to what preview played before level-1@4 the next time the level loads: an earlier version of The ford, or v7's own.",
       ),
     ).toBeTruthy();
     expect(live.rollback).not.toHaveBeenCalled();
@@ -731,10 +754,10 @@ describe("PublishPanel's live scenes", () => {
     );
   });
 
-  it("lists the forecast with its UTC date, under its own Removed soon heading", async () => {
+  it("lists the forecast with its UTC date, under a heading apart from the releases' one", async () => {
     mountLive(liveHost());
     const soon = await screen.findByLabelText("Live scenes removed soon");
-    expect(within(soon).getByText("Removed soon")).toBeTruthy();
+    expect(within(soon).getByText("Live scenes removed soon")).toBeTruthy();
     await waitFor(() => expect(within(soon).getByText(FORECAST)).toBeTruthy());
   });
 
@@ -811,7 +834,7 @@ describe("PublishPanel's live scenes", () => {
     const hiddenRow = [first, second].find((r) => r?.textContent?.includes("cave@3"))!;
     expect(within(hiddenRow).getByText("Spoils the ending.")).toBeTruthy();
     expect(within(hiddenRow).queryByRole("button")).toBeNull();
-    expect(within(blockedRow).getByText(BLOCKED)).toBeTruthy();
+    expect(within(blockedRow).getByText(`Blocked: ${BLOCKED}`)).toBeTruthy();
     expect(within(blockedRow).queryByRole("button", { name: /Promote/ })).toBeNull();
     const unblock = within(blockedRow).getByRole("button", { name: "Unblock" });
     expect(unblock).toHaveProperty("disabled", false);
@@ -928,7 +951,7 @@ describe("PublishPanel's live scenes", () => {
     const dialog = await ask(within(row).getByRole("button", { name: "Roll back" }));
     expect(
       within(dialog).getByText(
-        "Players go back to what production played before cave@2 at the next safe moment: an earlier version of cave, or the release's own.",
+        "Players go back to what production played before cave@2 at the next safe moment: an earlier version of cave, or v6's own.",
       ),
     ).toBeTruthy();
     expect(live.rollback).not.toHaveBeenCalled();
@@ -1001,14 +1024,14 @@ describe("the release promote's live scenes", () => {
     const live = liveHost({ list: vi.fn(async () => onProduction()), base });
     const { publish } = mountLive(live);
     const dialog = await openPromote();
-    const keep = within(dialog).getByRole("switch", { name: "Keep The ford" });
-    expect(keep.getAttribute("aria-checked")).toBe("false");
+    const keep = within(dialog).getByRole("checkbox", { name: "Keep The ford" });
+    expect(keep).toHaveProperty("checked", false);
     expect(within(dialog).getByText("The ford (still fits v7)")).toBeTruthy();
-    expect(within(dialog).queryByRole("switch", { name: "Keep cave" })).toBeNull();
-    expect(within(dialog).getAllByRole("switch")).toHaveLength(1);
+    expect(within(dialog).queryByRole("checkbox", { name: "Keep cave" })).toBeNull();
+    expect(within(dialog).getAllByRole("checkbox")).toHaveLength(1);
 
     fireEvent.click(keep);
-    await waitFor(() => expect(keep.getAttribute("aria-checked")).toBe("true"));
+    await waitFor(() => expect(keep).toHaveProperty("checked", true));
     fireEvent.click(within(dialog).getByRole("button", { name: "Promote" }));
     await waitFor(() =>
       expect(publish.promote).toHaveBeenCalledWith(7, "production", { keepScenes: ["level-1"] }),
@@ -1019,7 +1042,7 @@ describe("the release promote's live scenes", () => {
     const live = liveHost({ list: vi.fn(async () => onProduction()), base });
     const { publish } = mountLive(live);
     const dialog = await openPromote();
-    await within(dialog).findByRole("switch", { name: "Keep The ford" });
+    await within(dialog).findByRole("checkbox", { name: "Keep The ford" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Promote" }));
     await waitFor(() => expect(publish.promote).toHaveBeenCalledWith(7, "production"));
   });
@@ -1028,7 +1051,7 @@ describe("the release promote's live scenes", () => {
     const live = liveHost({ list: vi.fn(async () => onProduction()), base }, false);
     mountLive(live);
     const dialog = await openPromote();
-    expect(within(dialog).queryByRole("switch")).toBeNull();
+    expect(within(dialog).queryByRole("checkbox")).toBeNull();
     expect(within(dialog).queryByText(/still fits v/)).toBeNull();
     expect(within(dialog).getByText(KEEP_PUBLISHERS_ONLY)).toBeTruthy();
   });
@@ -1043,7 +1066,7 @@ describe("the release promote's live scenes", () => {
       within(v5 ?? expect.fail("no v5 row")).getByRole("button", { name: "Promote" }),
     );
     await waitFor(() => expect(within(dialog).getByText(KEEP_PREVIEW_ONLY)).toBeTruthy());
-    expect(within(dialog).queryByRole("switch")).toBeNull();
+    expect(within(dialog).queryByRole("checkbox")).toBeNull();
   });
 
   it("keeps no live scene built for another release's compat key, by the host's rule", async () => {
@@ -1062,7 +1085,7 @@ describe("the release promote's live scenes", () => {
         within(dialog).getByText("None of them still fits v7, so none can be kept."),
       ).toBeTruthy(),
     );
-    expect(within(dialog).queryByRole("switch")).toBeNull();
+    expect(within(dialog).queryByRole("checkbox")).toBeNull();
     expect(fitIssue).toHaveBeenCalledWith(
       expect.objectContaining({ manifest: "manifest-v7", liveCompatKey: "key-7" }),
       expect.objectContaining({ descriptor: FITS, compatKey: "other-key" }),

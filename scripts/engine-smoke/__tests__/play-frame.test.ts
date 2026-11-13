@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { SIGNED_IN_SAVES_DESCRIBE } from "@/lib/engine/local-saves";
 
+import { LIVE_TIMING } from "../export";
 import {
   frameOutsideRelease,
   judgeClaim,
@@ -10,7 +11,6 @@ import {
   judgeOwnSaves,
   LIVE_APPLY_MS,
   LIVE_POLL_MS,
-  LIVE_SMOKE_TIMING,
   liveDeadlineMs,
   playRequestScope,
   positionAcrossSwap,
@@ -161,13 +161,13 @@ const liveRun: LiveRunProbe = {
       scene: "level-1",
       version: VERSION,
       status: "applied",
-      timing: LIVE_SMOKE_TIMING,
+      timing: LIVE_TIMING,
       strategy: "reconcile",
       at: 0,
     },
   ],
   frameLiveMessages: 1,
-  swaps: [{ version: VERSION, timing: LIVE_SMOKE_TIMING }],
+  swaps: [{ version: VERSION, timing: LIVE_TIMING }],
   restarted: [],
   liveFetched: true,
   liveRequests: 1,

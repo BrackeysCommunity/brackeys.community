@@ -20,7 +20,7 @@ import { seedUser, type TestDb } from "@/test/db";
 import { asUser } from "@/test/orpc";
 
 import {
-  fixtureVersion,
+  editedVersion,
   type FixtureVersion,
 } from "../../../lib/engine/__tests__/fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "../../../lib/engine/__tests__/release-fixture";
@@ -77,12 +77,7 @@ const hex = (n: number) => n.toString(16).padStart(64, "0");
 
 /** A version of `scene` with its first marker moved, published to preview. */
 async function publishScene(scene: "hall" | "yard"): Promise<FixtureVersion> {
-  const v = await fixtureVersion(first, {
-    scene,
-    edit: (json) => {
-      (json.entities as { at: number[] }[])[0]!.at = [4, 1];
-    },
-  });
+  const v = await editedVersion(first, scene);
   await uploadSceneVersion(deps(), v, { channel: "preview", actor: staff });
   return v;
 }

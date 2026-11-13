@@ -43,7 +43,11 @@ export type HostServerOptions = {
   /** Who plays, as `welcome` says; signed out when absent. */
   player?: () => { signedIn: boolean; name: string | null };
   onState?(s: { jamsState: string; issue?: SceneIssue }): void;
-  onDownload?(d: { name: string; contentType: string; bytes: ArrayBuffer }): void;
+  /** A file the frame offers; `requested` when it answers this page's `requestRecording`. */
+  onDownload?(
+    d: { name: string; contentType: string; bytes: ArrayBuffer },
+    from: { requested: boolean },
+  ): void;
   sessionToken?(sessionId: string): Promise<{ token: string; url: string }>;
   /** The live versions a frame that supports them gets in `welcome` until `sendLive` sends newer ones. */
   live?: () => LiveSnapshot | null;
@@ -67,7 +71,7 @@ export type HostServer = {
   onLiveState(fn: (state: LiveStateMessage) => void): () => void;
   /**
    * Asks the frame for its run's recording, which reaches `onDownload` past
-   * the download rate. Resolves `offered` once it arrives, `unanswered` when
+   * the download rate, marked requested. Resolves `offered` once it arrives, `unanswered` when
    * none came within `RECORDING_ANSWER_MS`, and `unsent` with no frame to ask.
    */
   requestRecording(): Promise<RecordingAnswer>;
@@ -168,6 +172,8 @@ export function createHostServer(opts: HostServerOptions): HostServer {
     recordingAsk = null;
     settle?.(answer);
   };
+  const offerDownload = ({ name, contentType, bytes }: MessageOf<"download">, requested: boolean) =>
+    opts.onDownload?.({ name, contentType, bytes }, { requested });
   let liveNow: LiveSnapshot | null = null;
   const liveListeners = new Set<(state: LiveStateMessage) => void>();
   let dropped = 0;
@@ -298,11 +304,7 @@ export function createHostServer(opts: HostServerOptions): HostServer {
     download: {
       rate: "download",
       handle(message) {
-        opts.onDownload?.({
-          name: message.name,
-          contentType: message.contentType,
-          bytes: message.bytes,
-        });
+        offerDownload(message, false);
       },
     },
     "live.state": {
@@ -362,7 +364,8 @@ export function createHostServer(opts: HostServerOptions): HostServer {
       dropped++;
       return;
     }
-    if (message.type === "download" && recordingAsk) settleRecordingAsk("offered");
+    const asked = message.type === "download" && recordingAsk !== null;
+    if (asked) settleRecordingAsk("offered");
     else if (row.rate && !rates[row.rate].take(Date.now())) {
       if (isRequest)
         void answer(from, message.id, () => Promise.reject(storeFailed(HOST_THROTTLED_MESSAGE)));
@@ -374,7 +377,8 @@ export function createHostServer(opts: HostServerOptions): HostServer {
       return;
     }
     try {
-      row.handle(message);
+      if (asked && message.type === "download") offerDownload(message, true);
+      else row.handle(message);
     } catch (error) {
       globalThis.reportError?.(error);
     }

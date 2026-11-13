@@ -32,6 +32,9 @@ const hosts = vi.hoisted(() => ({
   siteWrites: [] as string[],
 }));
 
+const downloads = vi.hoisted(() => ({ downloadBlob: vi.fn<(name: string, blob: Blob) => void>() }));
+vi.mock("@/lib/download", () => downloads);
+
 vi.mock("@/orpc/client", () => {
   const fn = (name: string) => (calls as Record<string, (input: unknown) => unknown>)[name];
   return {
@@ -214,6 +217,7 @@ beforeEach(() => {
   hosts.created.length = 0;
   hosts.notified = 0;
   hosts.siteWrites.length = 0;
+  downloads.downloadBlob.mockReset();
   live.clients.length = 0;
   for (const fn of Object.values(toasts)) fn.mockReset();
   localStorage.clear();
@@ -394,7 +398,7 @@ describe("the play page", () => {
     expect(document.title).toBe("Before");
   });
 
-  it("asks the frame for this run's recording, which comes back as the download offer", async () => {
+  it("asks the frame for this run's recording, and saves it as soon as it comes back", async () => {
     hosts.recordingAsked = 0;
     hosts.recordingAnswer = "offered";
     toasts.loading.mockReturnValueOnce("preparing");
@@ -405,13 +409,18 @@ describe("the play page", () => {
     await waitFor(() => expect(toasts.dismiss).toHaveBeenCalledWith("preparing"));
     expect(toasts.error).not.toHaveBeenCalled();
     act(() => {
-      hosts.created[0]?.onDownload?.({
-        name: "hall.recording.json",
-        contentType: "application/json",
-        bytes: new TextEncoder().encode("{}").buffer,
-      });
+      hosts.created[0]?.onDownload?.(
+        {
+          name: "hall.recording.json",
+          contentType: "application/json",
+          bytes: new TextEncoder().encode("{}").buffer,
+        },
+        { requested: true },
+      );
     });
-    expect(screen.getByRole("button", { name: /download recording/i })).toBeTruthy();
+    expect(downloads.downloadBlob).toHaveBeenCalledTimes(1);
+    expect(downloads.downloadBlob.mock.calls[0]![0]).toBe("hall.recording.json");
+    expect(screen.queryByRole("button", { name: /download recording/i })).toBeNull();
   });
 
   it("says so when the frame can't be asked for its run yet", async () => {
@@ -437,11 +446,14 @@ describe("the play page", () => {
   it("lets the player dismiss a recording the game offers", async () => {
     wrap(<PlayChrome play={payload()} version="latest" />);
     act(() => {
-      hosts.created[0]?.onDownload?.({
-        name: "match.jamsrec",
-        contentType: "application/json",
-        bytes: new TextEncoder().encode("{}").buffer,
-      });
+      hosts.created[0]?.onDownload?.(
+        {
+          name: "match.jamsrec",
+          contentType: "application/json",
+          bytes: new TextEncoder().encode("{}").buffer,
+        },
+        { requested: false },
+      );
     });
     expect(screen.getByRole("button", { name: /download recording/i })).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Dismiss the recording" }));

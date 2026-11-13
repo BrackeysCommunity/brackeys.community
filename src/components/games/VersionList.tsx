@@ -39,6 +39,7 @@ import type {
   GamePageLiveScene,
   GamePageVersion,
 } from "@/lib/engine/game-page";
+import type { LiveChannel } from "@/lib/engine/live-versions";
 import { readItchIssuesHeader, ITCH_ISSUES_HEADER } from "@/lib/engine/release-zip-header";
 import { EDITOR_ROOM, editorSearch, engineReleaseZipPath } from "@/lib/engine/route-paths";
 import { formatBytes } from "@/lib/format-bytes";
@@ -61,12 +62,18 @@ export function versionLine(
   ].join(" · ");
 }
 
+/** The badge a channel's version wears, on the game page and in the admin queue. */
+export const CHANNEL_BADGE_LABEL: Readonly<Record<LiveChannel, string>> = {
+  production: "LIVE",
+  preview: "PREVIEW",
+};
+
 function badgesOf(version: GameVersion): { key: string; label: string }[] {
   const out: { key: string; label: string }[] = [];
   if (version.hidden) out.push({ key: "hidden", label: "HIDDEN" });
   for (const badge of version.badges) {
-    if (badge === "live") out.push({ key: "live", label: "LIVE" });
-    else if (badge === "preview") out.push({ key: "preview", label: "PREVIEW" });
+    if (badge === "live") out.push({ key: "live", label: CHANNEL_BADGE_LABEL.production });
+    else if (badge === "preview") out.push({ key: "preview", label: CHANNEL_BADGE_LABEL.preview });
     else if (version.jams.length === 0) out.push({ key: "jam", label: "JAM VERSION" });
     else {
       for (const jam of version.jams) {
@@ -149,24 +156,24 @@ function PromoteMessage({
     name: sceneVersionName(s.scene, s.number),
   }));
   return (
-    <span className="flex flex-col gap-2">
-      <span>{releasePromoteMessage(version)}</span>
-      <span data-promote-replaces="">{releaseReplacesMessage(version, scenes)}</span>
-      <span>
+    <>
+      <p>{releasePromoteMessage(version)}</p>
+      <p data-promote-replaces="">{releaseReplacesMessage(version, scenes)}</p>
+      <p>
         To keep the ones that still fit, promote from the{" "}
         <RouterTextLink
           to="/game/$roomId"
           params={{ roomId: EDITOR_ROOM }}
           search={editorSearch(projectId, { panel: "publish" })}
+          size="sm"
           variant="inherit"
           underline
-          className="text-xs/relaxed hover:text-foreground"
         >
           Publish panel in the editor
         </RouterTextLink>
         .
-      </span>
-    </span>
+      </p>
+    </>
   );
 }
 

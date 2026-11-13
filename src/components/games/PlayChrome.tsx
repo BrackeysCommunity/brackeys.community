@@ -1,10 +1,10 @@
 import {
+  Download04Icon,
   Flag02Icon,
   FloppyDiskIcon,
   FullScreenIcon,
   InformationCircleIcon,
   Login01Icon,
-  VideoReplayIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ORPCError } from "@orpc/client";
@@ -51,10 +51,10 @@ export const PLAY_VERSION = /^(latest|preview|[1-9]\d{0,8})$/;
 
 export const SIGN_IN_MESSAGE = "Signing in reloads the game.";
 
-/** The play page's ask for the frame's recording of this run; the frame answers with a Download recording offer. */
+/** Asks the frame for its recording of this run, which saves as soon as the frame answers. */
 export const DOWNLOAD_RUN_LABEL = "Download this run";
 export const RUN_NOT_READY = "The game isn't ready to share its run yet. Try again in a moment.";
-/** Shown while the frame is asked; it closes when the Download recording offer arrives. */
+/** Shown while the frame is asked; it closes when the recording arrives and saves. */
 export const RUN_PREPARING = "Preparing the run…";
 /** The frame sent nothing in time: it has recorded nothing yet, or its release predates the ask. */
 export const RUN_NOT_OFFERED = "This game has no run to share yet.";
@@ -392,7 +392,7 @@ export function PlayChrome({
         disabled={askingRun}
         onClick={() => void requestRun()}
       >
-        <HugeiconsIcon icon={VideoReplayIcon} size={16} />
+        <HugeiconsIcon icon={Download04Icon} size={16} />
       </Button>
       <Button
         variant="ghost"

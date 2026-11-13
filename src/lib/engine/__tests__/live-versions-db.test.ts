@@ -17,7 +17,7 @@ import { getSceneVersion, listSceneVersions } from "../live-versions";
 import type { ReleaseDb } from "../release-audit";
 import { memoryReleaseStore } from "../release-storage";
 import type { Actor, ReleaseTxDb } from "../release-upload";
-import { fixtureVersion } from "./fixtures/live/scene-versions";
+import { editedVersion } from "./fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
 import { liveRev, uploadDeps, uploadRelease, uploadSceneVersion } from "./upload-rig";
 
@@ -42,13 +42,7 @@ const readDeps = () => ({ db: db as unknown as ReleaseTxDb, now: () => NOW });
 
 /** A version of the hall published on no channel, then pointed at by production; its number and id. */
 async function liveHall() {
-  const v = await fixtureVersion(release, {
-    scene: "hall",
-    edit: (scene) => {
-      const [start] = scene.entities as { at: [number, number] }[];
-      start!.at = [4, 1];
-    },
-  });
+  const v = await editedVersion(release, "hall");
   const { committed } = await uploadSceneVersion(deps(), v, {
     channel: "none",
     actor: publisher,

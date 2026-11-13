@@ -9,6 +9,7 @@ import type {
   UsageLineView,
   UsageView,
 } from "@jams/engine/editor-ui";
+import { capitalise } from "@jams/engine/game";
 import type { ProjectId, Sha256 } from "@jams/engine/project";
 
 import {
@@ -68,10 +69,7 @@ const bytes = formatBytes;
 const n = formatCount;
 
 /** A quota's label at the start of a row: "Asset storage". */
-const rowLabel = (quota: UsageLine["quota"]): string => {
-  const label = quotaLabel(quota);
-  return label.charAt(0).toUpperCase() + label.slice(1);
-};
+const rowLabel = (quota: UsageLine["quota"]): string => capitalise(quotaLabel(quota));
 
 /** "12 MB of 64 MB" in the quota's own unit. */
 const ofMax = (l: UsageLine): string =>

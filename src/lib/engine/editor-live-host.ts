@@ -17,7 +17,7 @@ import { formatBytes, formatCount } from "@/lib/format-bytes";
 import { releaseDay } from "@/lib/jam-links";
 
 import { LIVE_LIMITS, RELEASE_GRACE_DAYS } from "./limits";
-import { blockedReasonOf } from "./live-outcomes";
+import { blockedSentence, type BlockedBy } from "./live-outcomes";
 import { LIVE_KEPT_RULE, quotaAmount, usageLevel } from "./quota";
 import { engineReleaseFilePath } from "./route-paths";
 
@@ -79,7 +79,7 @@ export const liveRemovalText = (scene: AssetId, number: number, at: Date | strin
   `${sceneVersionName(scene, number)} will be removed on ${releaseDay(at)}. Point a channel at it to keep it.`;
 
 /** Who blocked a version, as a line starts: "Blocked automatically", "Blocked by a publisher". */
-export const BLOCKED_BY: Readonly<Record<"system" | "user", string>> = Object.freeze({
+export const BLOCKED_BY: Readonly<Record<BlockedBy, string>> = Object.freeze({
   system: "Blocked automatically",
   user: "Blocked by a publisher",
 });
@@ -89,12 +89,10 @@ export const HIDDEN_BY_STAFF = "Hidden by staff.";
 
 /** Why a version is blocked, said beside its blocked badge: the breaker's count, or the reason a person gave. */
 export function liveBlockedText(
-  blocked: { by: "system" | "user"; reason: string | null },
+  blocked: { by: BlockedBy; reason: string | null },
   reports: { ok: number; failed: number },
 ): string {
-  const reason = blockedReasonOf({ ...blocked, reports });
-  if (blocked.by === "system") return `${reason}.`;
-  return reason ?? `${BLOCKED_BY.user}.`;
+  return blockedSentence({ ...blocked, reports }) ?? `${BLOCKED_BY.user}.`;
 }
 
 /** Usage's line under release storage: what the live scenes hold, and how long they're kept. */
@@ -138,7 +136,7 @@ export type SceneVersionSummaryInput = {
     since: Date | string;
     by: string | null;
   }[];
-  blocked: { by: "system" | "user"; reason: string | null } | null;
+  blocked: { by: BlockedBy; reason: string | null } | null;
   hidden: { reason: string | null } | null;
   collectedAt: Date | string | null;
   reports: { ok: number; failed: number };

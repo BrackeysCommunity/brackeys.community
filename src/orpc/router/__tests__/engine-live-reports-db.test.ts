@@ -15,7 +15,7 @@ import {
 import { seedUser, type TestDb } from "@/test/db";
 import { asUser } from "@/test/orpc";
 
-import { fixtureVersion } from "../../../lib/engine/__tests__/fixtures/live/scene-versions";
+import { editedVersion } from "../../../lib/engine/__tests__/fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "../../../lib/engine/__tests__/release-fixture";
 import {
   liveRev,
@@ -106,12 +106,7 @@ let edits = 0;
 /** Publishes a fresh version of `hall` and points both channels at it. */
 async function liveVersion(): Promise<{ id: string; number: number }> {
   const at = ++edits;
-  const built = await fixtureVersion(release, {
-    scene: "hall",
-    edit: (scene) => {
-      (scene.entities as { at: number[] }[])[0]!.at = [at, 2];
-    },
-  });
+  const built = await editedVersion(release, "hall", at, 2);
   const { committed } = await uploadSceneVersion(deps(), built, {
     channel: "preview",
     actor: staff,

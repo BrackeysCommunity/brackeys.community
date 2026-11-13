@@ -23,7 +23,7 @@ import { GAME_REPORTS_PER_DAY } from "./limits";
 import { canDo, roleOf, type GameAction, type Viewer } from "./release-access";
 import { writeAudit } from "./release-audit";
 import { ReleaseError, type ReleaseApiError } from "./release-errors";
-import type { Actor, ReleaseTxDb } from "./release-upload";
+import type { Actor, ReleaseDeps, ReleaseTxDb } from "./release-upload";
 import { releaseViewer, type ProjectRow } from "./release-viewer";
 
 /** What moderation runs over; every field defaults to the site's own. */
@@ -36,13 +36,7 @@ export type ModerationDeps = {
   forget?: { release: (releaseId: string) => void; project: (projectId: string) => void };
   /** Purges a release's shell files at the edge; default Cloudflare when configured. */
   purge?: (releaseId: string) => Promise<PurgeResult>;
-  /** A fixed-window limiter: true while `key` has made fewer than `limit` calls in the window. */
-  rateLimit?: (
-    bucket: string,
-    key: string,
-    limit: number,
-    windowSeconds: number,
-  ) => Promise<boolean>;
+  rateLimit?: ReleaseDeps["rateLimit"];
 };
 
 /** What a hide did at the edge, for staff: purged, or why copies may persist. */

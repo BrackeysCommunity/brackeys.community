@@ -13,6 +13,7 @@ import type { EditorCue, EditorHost, EditorStorage } from "../host";
 import { Avatar } from "../kit/avatar";
 import { Badge } from "../kit/badge";
 import { Button, IconButton } from "../kit/button";
+import { Checkbox } from "../kit/checkbox";
 import { ColorField, parseHex, toHex } from "../kit/color-field";
 import {
   Combobox,
@@ -546,6 +547,14 @@ describe("controls", () => {
     const control = screen.getByRole("switch", { name: "Solid" });
     fireEvent.click(control);
     expect(onChange).toHaveBeenCalledWith(true, expect.anything());
+    expect(host.cues).toEqual(["toggle"]);
+  });
+
+  it("Checkbox is a checkbox and sounds toggle", () => {
+    const onChange = vi.fn();
+    const { host } = mount(<Checkbox aria-label="Keep" checked={false} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep" }));
+    expect(onChange).toHaveBeenCalledTimes(1);
     expect(host.cues).toEqual(["toggle"]);
   });
 

@@ -5,16 +5,16 @@ import type { LiveSnapshot, LiveStateMessage } from "@jams/engine/standalone";
 import type { HostServer } from "./host-server";
 import { LIVE_CRASH_WINDOW_SECONDS, LIVE_POLL_SECONDS } from "./limits";
 import { LIVE_ISSUE_CODE, type LiveOutcome } from "./live-outcomes";
-import type { ReleaseChannel as LiveChannel } from "./release-access";
+import type { ReleaseChannel } from "./release-access";
 import { engineLiveStreamPath } from "./route-paths";
 
 /** The two procedures the loop calls; the site's oRPC client unless a test stands in. */
 export type LiveProcedures = {
-  live(input: { projectId: string; channel: LiveChannel }): Promise<LiveSnapshot | null>;
+  live(input: { projectId: string; channel: ReleaseChannel }): Promise<LiveSnapshot | null>;
   report(input: {
     projectId: string;
     versionId: Sha256;
-    channel: LiveChannel;
+    channel: ReleaseChannel;
     outcome: LiveOutcome;
     issueCode?: string;
   }): Promise<unknown>;
@@ -34,7 +34,7 @@ export type LiveClient = {
 
 export type LiveClientOptions = {
   projectId: string;
-  channel: LiveChannel;
+  channel: ReleaseChannel;
   /** The play payload's live state; its release is the one the frame runs. */
   initial: LiveSnapshot;
   host: Pick<HostServer, "sendLive" | "onLiveState">;

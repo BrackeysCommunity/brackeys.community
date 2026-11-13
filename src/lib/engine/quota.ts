@@ -164,16 +164,13 @@ export function quotaWords(input: QuotaWordsInput): { message: string; hint: str
         message: `${input.path} is ${formatBytes(input.used)}; one file in a release is limited to ${formatBytes(input.max)}.`,
         hint: "Compress it (Ogg Vorbis for music) or split it.",
       };
-    case "releaseStorageBytes":
-      return input.adds === "scene version"
-        ? {
-            message: `This scene version adds ${formatBytes(input.adding)}, and the project's releases already use ${formatBytes(input.used)} of ${formatBytes(input.max)}.`,
-            hint: `Releases outside the ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned, and ${LIVE_KEPT_RULE}. Unpin jam versions you no longer need, or wait for the next cleanup.`,
-          }
-        : {
-            message: `This release adds ${formatBytes(input.adding)}, and the project's releases already use ${formatBytes(input.used)} of ${formatBytes(input.max)}.`,
-            hint: `Releases outside the ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned. Unpin jam versions you no longer need, or wait for the next cleanup.`,
-          };
+    case "releaseStorageBytes": {
+      const live = input.adds === "scene version";
+      return {
+        message: `This ${live ? "scene version" : "release"} adds ${formatBytes(input.adding)}, and the project's releases already use ${formatBytes(input.used)} of ${formatBytes(input.max)}.`,
+        hint: `${RELEASE_KEPT_RULE}${live ? `, and ${LIVE_KEPT_RULE}` : ""}. Unpin jam versions you no longer need, or wait for the next cleanup.`,
+      };
+    }
     case "jamPins":
       return {
         message: `This project already pins ${formatCount(input.max)} jam versions, the most it can.`,
@@ -211,7 +208,7 @@ export function usageNotice(level: UsageLine["level"]): string | null {
     case "ok":
       return null;
     case "warn":
-      return `Nearly full. Releases outside your ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned; unpin jam versions you no longer need.`;
+      return `Nearly full. ${RELEASE_KEPT_RULE}; unpin jam versions you no longer need.`;
     case "full":
       return "Full. New releases are refused until releases are removed or unpinned.";
   }
@@ -405,6 +402,9 @@ export type StoredUsageCounts = {
   /** Scene versions published since midnight UTC. */
   liveToday: number;
 };
+
+/** Which releases cleanup keeps, as a clause that starts a sentence: "Releases outside the 10 newest are removed 14 days after publishing unless pinned", the numbers from `limits.ts`. */
+export const RELEASE_KEPT_RULE = `Releases outside the ${formatCount(PROJECT_QUOTA.releasesKept)} newest are removed ${formatCount(RELEASE_GRACE_DAYS)} days after publishing unless pinned`;
 
 /** Which scene versions cleanup keeps, as a clause: "each scene keeps its 5 newest versions plus those on a channel", with the count from `LIVE_LIMITS.keptPerScene`. */
 export const LIVE_KEPT_RULE = `each scene keeps its ${formatCount(LIVE_LIMITS.keptPerScene)} newest versions plus those on a channel`;

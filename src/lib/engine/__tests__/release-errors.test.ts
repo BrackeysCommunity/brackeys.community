@@ -26,6 +26,11 @@ import {
   toOrpcError,
 } from "../release-errors";
 
+const breaker = (ok: number, failed: number) =>
+  ({ by: "system", reason: null, reports: { ok, failed } }) as const;
+const byPerson = (reason: string | null) =>
+  ({ by: "user", reason, reports: { ok: 0, failed: 0 } }) as const;
+
 describe("release errors", () => {
   it("send one body over HTTP and oRPC, with the code's status", async () => {
     const err = new ReleaseError(releaseEngineOld("0.14.0"));
@@ -75,32 +80,36 @@ describe("release errors", () => {
   });
 
   it("word the breaker's block with the sentence the block reason stores", () => {
-    expect(liveBlocked({ scene: "level-1", number: 4 }, { failed: 5, total: 12 }).message).toBe(
+    expect(liveBlocked({ scene: "level-1", number: 4 }, breaker(7, 5)).message).toBe(
       `level-1@4 is blocked: ${breakerReason(5, 12)}.`,
     );
+    expect(
+      liveBlocked(
+        { scene: "level-1", number: 4 },
+        { by: "system", reason: breakerReason(5, 12), reports: { ok: 9, failed: 9 } },
+      ).message,
+    ).toBe(`level-1@4 is blocked: ${breakerReason(5, 12)}.`);
   });
 
   it("say why a scene version is blocked, and go out as a conflict", () => {
-    const breaker = liveBlocked({ scene: "level-1", number: 4 }, { failed: 5, total: 12 });
-    expect(breaker).toEqual({
+    const blocked = liveBlocked({ scene: "level-1", number: 4 }, breaker(7, 5));
+    expect(blocked).toEqual({
       code: "live-blocked",
       message: "level-1@4 is blocked: 5 of 12 players' games failed after this update.",
       hint: "Unblock it in the editor's Publish panel (the game's page links to it), or publish a fixed version.",
     });
-    expect(
-      liveBlocked({ scene: "level-1", number: 1200 }, { failed: 1500, total: 2000 }).message,
-    ).toBe(
+    expect(liveBlocked({ scene: "level-1", number: 1200 }, breaker(500, 1500)).message).toBe(
       `level-1@${formatCount(1200)} is blocked: ${formatCount(1500)} of ${formatCount(2000)} players' games failed after this update.`,
     );
     expect(
-      liveBlocked({ scene: "level-1", number: 4 }, { reason: "Softlocks at the ford" }).message,
+      liveBlocked({ scene: "level-1", number: 4 }, byPerson("Softlocks at the ford")).message,
     ).toBe("level-1@4 is blocked: Softlocks at the ford");
-    expect(liveBlocked({ scene: "level-1", number: 4 }, { reason: null }).message).toBe(
+    expect(liveBlocked({ scene: "level-1", number: 4 }, byPerson(null)).message).toBe(
       "level-1@4 is blocked.",
     );
     expect(RELEASE_ERROR_CODES).toContain("live-blocked");
-    expect(apiErrorResponse(breaker).status).toBe(409);
-    expect(toOrpcError(breaker).code).toBe("CONFLICT");
+    expect(apiErrorResponse(blocked).status).toBe(409);
+    expect(toOrpcError(blocked).code).toBe("CONFLICT");
   });
 
   it("date a removed release in UTC", () => {

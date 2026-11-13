@@ -5,16 +5,17 @@ import type { AssetId } from "../../../project/index";
 import { shortId } from "../../../scene/short-id";
 import type { PublishChannel, ReleaseView } from "../../host";
 import {
-  Confirm,
   Badge,
   Button,
+  Checkbox,
+  Confirm,
+  formatBytes,
   MicroLabel,
   Skeleton,
-  Switch,
   Text,
   TimeAgo,
-  formatBytes,
 } from "../../kit/index";
+import { LoadError } from "./LoadError";
 
 /** The pending scope a promote or rollback of `channel` runs under. */
 export const channelScope = (channel: PublishChannel): string => `publish:channel:${channel}`;
@@ -112,14 +113,7 @@ export function PromoteButton({
             {reading === "loading" ? (
               <Skeleton style={{ height: 16 }} />
             ) : (
-              <div className="je-insp-row je-insp-wrap" data-gap="tight" role="alert">
-                <Text size="sm" variant="warning" className="je-insp-grow">
-                  {REPLACES_UNREAD}
-                </Text>
-                <Button size="xs" variant="outline" onClick={read}>
-                  Try again
-                </Button>
-              </div>
+              <LoadError text={REPLACES_UNREAD} tone="warning" inline onRetry={read} />
             )}
           </div>
         ) : scenes.length === 0 ? (
@@ -137,17 +131,18 @@ export function PromoteButton({
                 <MicroLabel as="div">Keep</MicroLabel>
                 {keepable.map((s) => (
                   <label key={s.scene} className="je-insp-row" data-gap="tight">
-                    <Switch
+                    <Checkbox
                       checked={keep.has(s.scene)}
                       aria-label={`Keep ${s.title}`}
-                      onCheckedChange={(on) =>
+                      onChange={(event) => {
+                        const on = event.target.checked;
                         setKeep((last) => {
                           const next = new Set(last);
                           if (on) next.add(s.scene);
                           else next.delete(s.scene);
                           return next;
-                        })
-                      }
+                        });
+                      }}
                     />
                     <Text size="sm">
                       {s.title} (still fits v{version})
@@ -156,7 +151,7 @@ export function PromoteButton({
                 ))}
               </div>
             ) : (
-              <Text as="p" size="sm" variant="muted">
+              <Text as="p" size="xs" variant="muted">
                 {replaces?.keepRule ?? noneFits(version)}
               </Text>
             )}

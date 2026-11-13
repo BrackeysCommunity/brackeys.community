@@ -27,7 +27,7 @@ import {
   setLiveRev,
   type LiveChannel,
 } from "./live-pointers";
-import type { LiveReadDeps } from "./live-versions";
+import type { LiveReadDeps, SceneVersionSummary } from "./live-versions";
 import { anonPlayerKey } from "./player-token";
 import { canDo, canPlay, refusalFor, roleOf, type GameVisibility } from "./release-access";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
@@ -38,6 +38,7 @@ import {
   notFound,
   refuse,
   siteDeps,
+  type ReleaseDeps,
   type ReleaseTxDb,
 } from "./release-upload";
 import { releaseViewer } from "./release-viewer";
@@ -45,13 +46,7 @@ import { viewerOf } from "./viewer";
 
 /** What the moderation of scene versions runs over; each field defaults to the site's own. */
 export type LiveModerationDeps = LiveReadDeps & {
-  /** A fixed-window limiter: true while `key` has made fewer than `limit` calls in the window. */
-  rateLimit?: (
-    bucket: string,
-    key: string,
-    limit: number,
-    windowSeconds: number,
-  ) => Promise<boolean>;
+  rateLimit?: ReleaseDeps["rateLimit"];
   /** Drops a project's cached frame lookups; default this process's at once, and every other's through the release notice. */
   forgetProject?: (projectId: string) => void;
 };
@@ -82,8 +77,8 @@ export type SceneVersionQueueItem = {
   compatKey: Sha256;
   pointers: LiveChannel[];
   reports: { ok: number; failed: number };
-  blocked: { at: Date; by: "system" | "user"; reason: string | null } | null;
-  hidden: { at: Date; reason: string | null } | null;
+  blocked: SceneVersionSummary["blocked"];
+  hidden: SceneVersionSummary["hidden"];
 };
 
 const HOUR_SECONDS = 3600;

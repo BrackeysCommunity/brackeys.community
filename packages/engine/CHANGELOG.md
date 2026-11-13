@@ -22,8 +22,12 @@ follow-ups the engine's live levels left.
   and the scene as players have it, for the Publish scene checks),
   `publish(versionText, texts, opts, onProgress)` (begin, each missing
   text, commit, then promote when production is chosen), `list`,
-  `promote`, `rollback`, `clear`, `unblock`, `usage()`, `role()` and
-  `wording`; with its types `LiveBaseView`, `LiveMove`,
+  `promote`, `rollback`, `clear(scene, channel)` (no timing: players go
+  back at the removed pointer's own timing), `unblock`, `usage()`,
+  `role()` and `wording`; with its types `LiveBaseView` (its optional
+  `release.liveCompatKey` and `live.compatKey` let the release promote's
+  Keep list apply the host's whole fit rule, `sceneVersionFitIssue`, so
+  it never offers to keep a version the host refuses), `LiveMove`,
   `LivePointerView`, `LivePublished`, `LivePublishOptions`,
   `LivePublishProgress` (its upload step counts bytes: `sentBytes` of
   `totalBytes`), `LiveUsageView`, `LiveVersionView` and `LiveWording`
@@ -105,8 +109,8 @@ follow-ups the engine's live levels left.
   from the editor to update one level without a release.' The section
   appears only when the host supplies `publish.live`.
 - `@jams/engine/editor-ui`: promoting a release asks 'Promoting v8
-  replaces these live scenes: …' and, for publishers, offers Keep (off by
-  default) for each live scene that still fits the new release, passed as
+  replaces these live scenes: …' and, for publishers, offers a Keep
+  checkbox (off by default) for each live scene that still fits the new release, passed as
   `keepScenes` to `EditorPublishHost.promote`. A release rollback's
   skipped live scenes are said as warnings. `PublishPanel` takes an
   optional `sceneTitle` to name the rows by title.
@@ -160,8 +164,9 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
   the scene's title with its badges (blocked, hidden, removed soon,
   removed), then `level-1@4 · next load · 12m ago · Jo` muted; a hidden
   version shows staff's reason, and a hidden or removed one offers no
-  Promote. Roll back on production asks first. The blocked line gives the
-  reason after the badge, without repeating "Blocked". The production
+  Promote. Roll back on production asks first. The blocked line beside Unblock
+  reads 'Blocked: 5 of 12 players' games failed after this update.' for
+  the breaker's block, and a publisher's block as the host words it. The production
   confirm reads 'Players will get level-1@4 the next time the level
   loads.' The release promote holds its Promote button while it reads
   the live scenes it replaces, and says so when it can't read them.
@@ -196,7 +201,8 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
 - `@jams/engine/editor-ui`: a Live scenes row shows its channel with the
   release rows' channel badge instead of a Production or Preview
   subheading, and the live scenes' cleanup forecast sits under its own
-  'Removed soon' heading, as the releases' does. The Publish scene dialog
+  'Live scenes removed soon' heading, apart from the releases' 'Removed
+  soon'. The Publish scene dialog
   and the Not live yet promote pick the timing with one shared choice.
 - `@jams/engine/standalone`: `LiveSnapshot` gains optional `blocked`, the
   versions the channel still points at that were blocked (breaker or
@@ -206,12 +212,6 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
 - The scene CLI's `game live publish` Changes line says players' worlds
   are rebuilt and their state restored for a header change (it said they
   reload), in the editor's words.
-- `@jams/engine/editor-ui`: `EditorLiveHost.clear(scene, channel)` takes
-  no timing: players go back at the removed pointer's own timing.
-  `LiveBaseView` gains optional `release.liveCompatKey` and
-  `live.compatKey`; with them the release promote's Keep list applies
-  the host's whole fit rule (`sceneVersionFitIssue`), so it no longer
-  offers to keep a version the host refuses.
 - `@jams/engine/editor-ui`: the editor's Publish panel takes the game's
   `live` declaration, so Promote to production, from a preview row as
   from Not live yet, asks when players get it (next load first, the
@@ -228,6 +228,13 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
   for players of the current release.'), and its Data line at exactly
   the limit reads as a warning, not a refusal (only a version over it is
   refused).
+- `@jams/engine/editor-ui`: a live row's Roll back names the channel's
+  release it may land on ('… an earlier version of The ford, or v7's
+  own.'). The Publish panel's usage lines take the Usage panel's tones
+  (a line within its quota reads muted). The Publish scene dialog reads
+  today's count and the scene's versions again after a refused publish,
+  since a production move can fail after the version is stored. Every
+  failed read in the publish panels offers Try again the same way.
 
 ### Fixed
 

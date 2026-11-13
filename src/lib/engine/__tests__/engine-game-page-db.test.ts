@@ -36,7 +36,7 @@ import type { Viewer } from "../release-access";
 import { promote } from "../release-channels";
 import { memoryReleaseStore } from "../release-storage";
 import type { Actor, ReleaseDeps, ReleaseTxDb } from "../release-upload";
-import { fixtureVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
+import { editedVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
 import { uploadDeps, uploadRelease, uploadSceneVersion } from "./upload-rig";
 
@@ -434,12 +434,6 @@ describe("gamePage: live levels", () => {
   let yard: FixtureVersion;
   let announced: ReturnType<typeof vi.spyOn>;
 
-  const marker =
-    (x: number) =>
-    (scene: Record<string, unknown>): void => {
-      (scene.entities as { at: number[] }[])[0]!.at = [x, 1];
-    };
-
   /** Publishes `v` to preview, which points preview's pointer at it. */
   const publishScene = (v: FixtureVersion) =>
     uploadSceneVersion(deps(), v, { channel: "preview", actor: creator });
@@ -472,8 +466,8 @@ describe("gamePage: live levels", () => {
     db.update(engineSceneVersions).set(values).where(eq(engineSceneVersions.id, id));
 
   beforeAll(async () => {
-    hall = await fixtureVersion(v1, { scene: "hall", edit: marker(4) });
-    yard = await fixtureVersion(v1, { scene: "yard", edit: marker(5) });
+    hall = await editedVersion(v1, "hall", 4);
+    yard = await editedVersion(v1, "yard", 5);
   });
 
   /** v1 on both channels, with hall@1 and yard@1 published to preview. */

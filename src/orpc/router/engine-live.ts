@@ -1,4 +1,3 @@
-import { isSha256 } from "@jams/engine/project";
 import * as z from "zod";
 
 import {
@@ -34,6 +33,7 @@ import {
   engineProjectIdInput as projectId,
   moderationReasonInput as reason,
   sceneIdInput as scene,
+  sha256Input,
   versionNumberInput as number,
 } from "@/lib/engine/projects";
 import { releaseChannel as channel } from "@/lib/engine/release-access";
@@ -62,8 +62,6 @@ export type {
 } from "@/lib/engine/live-versions";
 
 export type { SceneVersionQueueItem } from "@/lib/engine/live-moderation";
-
-const sha256 = z.string().refine(isSha256, "A SHA-256 is 64 lowercase hex digits.");
 
 /** Checks a scene version against its channel's release and every quota, and lists the texts the site doesn't hold yet. */
 export const beginSceneVersion = releaseStaff
@@ -192,7 +190,7 @@ export const reportLiveState = gameReader
   .input(
     z.object({
       projectId,
-      versionId: sha256,
+      versionId: sha256Input,
       channel,
       outcome: z.enum(LIVE_OUTCOMES),
       issueCode: z.string().regex(LIVE_ISSUE_CODE).optional(),

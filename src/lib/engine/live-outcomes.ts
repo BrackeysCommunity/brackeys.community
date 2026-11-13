@@ -23,18 +23,34 @@ export const isFailedOutcome = (outcome: string): boolean =>
 export const breakerReason = (failed: number, total: number): string =>
   `${formatCount(failed)} of ${formatCount(total)} players' games failed after this update`;
 
+/** Who blocked a version: the breaker (`system`) or a publisher (`user`). */
+export type BlockedBy = "system" | "user";
+
+/** A blocked version as the wording reads it: who blocked it, the reason stored, and its report counts. */
+export type BlockedFacts = {
+  by: string | null;
+  reason: string | null;
+  reports: { ok: number; failed: number };
+};
+
 /**
  * Why a version is blocked, as the editor, a refused move and the game page
  * all say it: the reason stored when it was blocked, else for the breaker's
  * block its sentence from the version's report counts. Null when a person
  * blocked it without one. No closing period.
  */
-export function blockedReasonOf(blocked: {
-  by: string | null;
-  reason: string | null;
-  reports: { ok: number; failed: number };
-}): string | null {
+export function blockedReasonOf(blocked: BlockedFacts): string | null {
   if (blocked.reason) return blocked.reason;
   const { ok, failed } = blocked.reports;
   return blocked.by === "system" ? breakerReason(failed, ok + failed) : null;
+}
+
+/**
+ * `blockedReasonOf` as said on its own: the breaker's sentence closes with
+ * a period, a person's reason stays as they wrote it. Null when a person
+ * gave none.
+ */
+export function blockedSentence(blocked: BlockedFacts): string | null {
+  const reason = blockedReasonOf(blocked);
+  return reason !== null && blocked.by === "system" ? `${reason}.` : reason;
 }

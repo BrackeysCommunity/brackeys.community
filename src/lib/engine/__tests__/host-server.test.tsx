@@ -456,7 +456,9 @@ describe("live levels", () => {
     );
     expect(await r.server.requestRecording()).toBe("offered");
     expect(onDownload).toHaveBeenCalledTimes(2);
+    expect(onDownload.mock.calls[0]![1]).toEqual({ requested: false });
     expect((onDownload.mock.calls[1]![0] as { name: string }).name).toBe("one.recording.json");
+    expect(onDownload.mock.calls[1]![1]).toEqual({ requested: true });
     channel.offerDownload("unasked.recording.json", "application/json", bytes);
     await vi.waitFor(() => expect(r.server.dropped).toBe(1));
     expect(onDownload).toHaveBeenCalledTimes(2);

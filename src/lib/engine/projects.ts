@@ -1,3 +1,4 @@
+import { isSha256 } from "@jams/engine/project";
 import { ID_PATTERN } from "@jams/engine/scene";
 import { and, eq, isNull } from "drizzle-orm";
 import * as z from "zod";
@@ -20,6 +21,9 @@ export const engineProjectIdInput = z
 export const sceneIdInput = z
   .string()
   .regex(ID_PATTERN, "A scene id is lowercase letters, digits and dashes.");
+
+/** A content hash, release id or scene version id in a procedure's input. */
+export const sha256Input = z.string().refine(isSha256, "A SHA-256 is 64 lowercase hex digits.");
 
 /** A release's or scene version's number. */
 export const versionNumberInput = z.number().int().min(1);

@@ -35,9 +35,6 @@ import {
 
 export type LiveRouteDeps = ReleaseRouteDeps;
 
-/** How players get a pointer move: on their next load, at the next scene boundary, or now. */
-export const liveTiming = swapTimingSchema;
-
 /** Room for a full version escaped inside a JSON string, and the rest of the body. */
 const BEGIN_BODY_MAX_BYTES = 4 * LIVE_LIMITS.versionDataBytes;
 
@@ -52,25 +49,25 @@ export const liveBeginInput = z.object({
   version: z.string().max(BEGIN_BODY_MAX_BYTES),
   channel: z.enum(["preview", "none"]).default("preview"),
   /** The preview move's timing; the upload defaults it to `next-load`. */
-  timing: liveTiming.optional(),
+  timing: swapTimingSchema.optional(),
   note: z.string().trim().max(BEGIN_BODY_MAX_BYTES).optional(),
 });
 
 /** A move's body after the project, scene and number, read the same way by the procedure and the route. */
 export const livePromoteInput = z.object({
   channel: releaseChannel,
-  timing: liveTiming.default(DEFAULT_SWAP_TIMING),
+  timing: swapTimingSchema.default(DEFAULT_SWAP_TIMING),
 });
 export const liveRollbackInput = z.object({
   channel: releaseChannel,
   to: versionNumberInput.optional(),
   /** Ignored when the rollback goes back to the release's scene: players go back at the pointer's timing. */
-  timing: liveTiming.optional(),
+  timing: swapTimingSchema.optional(),
 });
 export const liveClearInput = z.object({
   channel: releaseChannel,
   /** Ignored: players go back at the pointer's timing. */
-  timing: liveTiming.optional(),
+  timing: swapTimingSchema.optional(),
 });
 
 /**

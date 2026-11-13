@@ -8,12 +8,11 @@ import { SITE } from "../legal-meta";
 import {
   LIVE_LIMITS,
   MIN_HOSTED_ENGINE,
-  PROJECT_QUOTA,
   RELEASE_FILE_PUTS_PER_HOUR,
-  RELEASE_GRACE_DAYS,
   UPLOAD_SESSION_HOURS,
 } from "./limits";
-import { breakerReason } from "./live-outcomes";
+import { blockedSentence, type BlockedFacts } from "./live-outcomes";
+import { RELEASE_KEPT_RULE } from "./quota";
 
 /** The codes only the site's release API answers with; engine codes pass through beside them. */
 export const RELEASE_ERROR_CODES = [
@@ -276,25 +275,21 @@ export function releaseRemoved(version: number, removedAt: Date): ReleaseApiErro
   return {
     code: "release-immutable",
     message: `v${version} was removed on ${releaseDay(removedAt)}; its files are gone.`,
-    hint: `Releases outside the ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned.`,
+    hint: `${RELEASE_KEPT_RULE}.`,
   };
 }
 
 /**
- * A blocked scene version can't be pointed at. The breaker's block names
- * its counts; a person's block names their reason.
+ * A blocked scene version can't be pointed at, said with `blockedSentence`:
+ * the breaker's block names its counts, a person's block their reason.
  */
 export function liveBlocked(
   version: { scene: string; number: number },
-  why: { failed: number; total: number } | { reason: string | null },
+  blocked: BlockedFacts,
 ): ReleaseApiError {
   const label = sceneVersionName(version.scene, version.number);
-  const because =
-    "failed" in why
-      ? `: ${breakerReason(why.failed, why.total)}.`
-      : why.reason
-        ? `: ${why.reason}`
-        : ".";
+  const sentence = blockedSentence(blocked);
+  const because = sentence === null ? "." : `: ${sentence}`;
   return {
     code: "live-blocked",
     message: `${label} is blocked${because}`,

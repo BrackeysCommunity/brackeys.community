@@ -25,6 +25,7 @@ export {
   ComboboxValue,
   useComboboxAnchor,
 } from "./combobox";
+export { Checkbox, type CheckboxProps } from "./checkbox";
 export { Confirm, type ConfirmProps } from "./confirm";
 export { KitProvider, useKit, usePortalContainer, type KitContextValue } from "./context";
 export { cx } from "./cx";

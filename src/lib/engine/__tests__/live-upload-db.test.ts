@@ -20,7 +20,12 @@ import { LIVE_LIMITS } from "../limits";
 import { beginSceneVersion, commitSceneVersion } from "../live-upload";
 import { memoryReleaseStore } from "../release-storage";
 import { commitRelease, putReleaseFile, type Actor } from "../release-upload";
-import { fixtureVersion, withVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
+import {
+  editedVersion,
+  fixtureVersion,
+  withVersion,
+  type FixtureVersion,
+} from "./fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
 import {
   putSceneTexts,
@@ -88,16 +93,7 @@ const publish = (v: FixtureVersion, opts: BeginOptions = {}) =>
     ...(opts.note !== undefined ? { note: opts.note } : {}),
   });
 
-/** A marker moved, so the scene's text differs from the release's. */
-const moved =
-  (x: number) =>
-  (scene: Record<string, unknown>): void => {
-    const [start] = scene.entities as { at: [number, number] }[];
-    start!.at = [x, 1];
-  };
-
-const edited = (scene: "hall" | "yard", x = 4) =>
-  fixtureVersion(release, { scene, edit: moved(x) });
+const edited = (scene: "hall" | "yard", x = 4) => editedVersion(release, scene, x);
 
 /** A copy of `v` changed in a way the engine's builder wouldn't, re-canonicalised. */
 const tampered = (v: FixtureVersion, change: (version: SceneVersion) => void) => {

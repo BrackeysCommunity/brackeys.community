@@ -1,5 +1,7 @@
 // The site's engine route paths, shared by the routes and the scene CLI's
-// hosted client. Dependency-free so scripts and services can import it.
+// hosted client. Free of runtime imports so scripts and services can import it.
+
+import type { ReleaseChannel } from "./release-access";
 
 export const AGENT_SYNC_TOKEN_PATH = "/api/engine/agent-sync-token";
 
@@ -82,11 +84,8 @@ const liveScenePath = (projectId: string, scene: string, rest: string) =>
   engineProjectPath(projectId, `/live/scenes/${encodeURIComponent(scene)}${rest}`);
 
 /** `GET` what the Publish scene checks compare against on `channel`: its release and the scene's live version. */
-export const engineLiveBasePath = (
-  projectId: string,
-  scene: string,
-  channel: "preview" | "production",
-) => liveScenePath(projectId, scene, `/base?channel=${channel}`);
+export const engineLiveBasePath = (projectId: string, scene: string, channel: ReleaseChannel) =>
+  liveScenePath(projectId, scene, `/base?channel=${channel}`);
 
 /** `POST …/live/scenes/<scene>/<number>/promote`: point a channel at that version. */
 export const engineLivePromotePath = (projectId: string, scene: string, number: number) =>
@@ -97,7 +96,7 @@ export const engineLiveMovePath = (projectId: string, scene: string, move: "roll
   liveScenePath(projectId, scene, `/${move}`);
 
 /** `GET` one channel's live moves as server-sent events. */
-export const engineLiveStreamPath = (projectId: string, channel: "preview" | "production") =>
+export const engineLiveStreamPath = (projectId: string, channel: ReleaseChannel) =>
   `/api/engine/live/${encodeURIComponent(projectId)}/stream?channel=${channel}`;
 
 /** Matches the live stream path without its query: the encoded project id. */

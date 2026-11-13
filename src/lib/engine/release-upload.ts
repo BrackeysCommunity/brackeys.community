@@ -49,7 +49,7 @@ import {
   RELEASE_MANIFEST_MAX_BYTES,
   UPLOAD_SESSION_HOURS,
 } from "./limits";
-import { announceLiveMove } from "./live-pointers";
+import { announceLiveMove, lockProject } from "./live-pointers";
 import { checkReleaseQuota, type SiteQuotaRefusal } from "./quota";
 import {
   canDo,
@@ -326,10 +326,20 @@ export async function assertMayUpload(
   if (!canDo(await actorRole(deps, db, actor, project), action)) refuse(releaseForbidden("role"));
 }
 
+const agentTokenOf = (actor: Actor): string | null =>
+  actor.kind === "agent" ? (actor.agentTokenId ?? null) : null;
+
+/** Who acts on an upload row: the person, and the agent token when one acted for them. */
 export const actorColumns = (actor: Actor) => ({
   actorKind: actor.kind,
   actorId: actor.userId,
-  agentTokenId: actor.kind === "agent" ? (actor.agentTokenId ?? null) : null,
+  agentTokenId: agentTokenOf(actor),
+});
+
+/** Who made a release or scene version: the person, and the agent token when one acted for them. */
+export const creatorColumns = (actor: Actor) => ({
+  createdById: actor.userId,
+  agentTokenId: agentTokenOf(actor),
 });
 
 /** Every `build.files` entry plus `release.json`, and the largest file. */
@@ -832,11 +842,7 @@ export async function commitRelease(
   const compatKey = await liveCompatKey(liveCompat(manifest));
 
   const result = await db.transaction(async (tx) => {
-    await tx
-      .select({ projectId: engineProjects.projectId })
-      .from(engineProjects)
-      .where(eq(engineProjects.projectId, projectId))
-      .for("update");
+    await lockProject(tx, projectId);
 
     const existing = await existingRelease(tx, projectId, id);
     if (existing) {
@@ -893,8 +899,7 @@ export async function commitRelease(
       snapshot: manifest.project.snapshot,
       buildHash: manifest.build.hash,
       target: manifest.build.target,
-      createdById: actor.userId,
-      agentTokenId: actor.kind === "agent" ? (actor.agentTokenId ?? null) : null,
+      ...creatorColumns(actor),
       createdAt: at,
       liveCompatKey: compatKey,
       ...(held ? { hiddenAt: at, hiddenById: null, hiddenReason: ENGINE_QUARANTINE_REASON } : {}),

@@ -34,9 +34,11 @@ import {
   announceLiveMove,
   channelRelease,
   lockProject,
+  noChannelRelease,
   pointScene,
   sceneVersionRemoved,
 } from "./live-pointers";
+import type { SceneVersionFile } from "./live-versions";
 import { checkLiveQuota, usageLines } from "./quota";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
 import {
@@ -52,6 +54,7 @@ import {
 import {
   actorColumns,
   assertMayUpload,
+  creatorColumns,
   heldHashes,
   HOUR_MS,
   JSON_TYPE,
@@ -114,18 +117,12 @@ function blobNotStored(asset: ReleaseAsset): ReleaseApiError {
   };
 }
 
-function noRelease(channel: "preview" | "none"): ReleaseApiError {
-  return channel === "preview"
-    ? {
-        code: "not-found",
-        message: "This game has no release on preview for a live scene to update.",
-        hint: "Publish a release first: a live scene replaces one scene of the release a channel plays.",
-      }
-    : {
-        code: "not-found",
-        message: "This game has no release for a live scene to update.",
-        hint: "Publish a release first: a live scene replaces one scene of a release.",
-      };
+function noRelease(): ReleaseApiError {
+  return {
+    code: "not-found",
+    message: "This game has no release for a live scene to update.",
+    hint: "Publish a release first: a live scene replaces one scene of a release.",
+  };
 }
 
 function noteTooLong(chars: number): ReleaseApiError {
@@ -169,7 +166,7 @@ async function targetRelease(
     const parsed = row?.manifest ? parseReleaseManifest(row.manifest) : null;
     if (row && parsed?.ok) return { id: row.id, version: row.version, manifest: parsed.manifest };
   }
-  return refuse(noRelease(channel), 404);
+  return refuse(channel === "preview" ? noChannelRelease("preview") : noRelease(), 404);
 }
 
 async function storedVersion(db: ReleaseDb, projectId: string, id: string) {
@@ -223,7 +220,7 @@ function refuseErrors(issues: readonly SceneIssue[]): void {
 type VersionFile = {
   sha256: Sha256;
   bytes: number;
-  role: "version" | "scene" | "prefab" | "doc" | "blob";
+  role: SceneVersionFile["role"];
   ext: string;
   storage: "doc" | "blob";
 };
@@ -546,8 +543,7 @@ export async function commitSceneVersion(
         sceneHash: sceneDoc.sha256,
         dataBytes,
         note: upload.note,
-        createdById: actor.userId,
-        agentTokenId: actor.kind === "agent" ? (actor.agentTokenId ?? null) : null,
+        ...creatorColumns(actor),
         createdAt: at,
       });
       await tx.insert(engineSceneVersionFiles).values(

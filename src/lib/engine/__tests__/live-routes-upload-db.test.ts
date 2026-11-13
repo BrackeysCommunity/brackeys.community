@@ -14,7 +14,7 @@ import { createReleaseRoutes } from "../release-routes";
 import { memoryReleaseStore, type ReleaseObjectStore } from "../release-storage";
 import type { Actor } from "../release-upload";
 import { engineLiveCommitPath, engineLivePath, engineReleaseFilePath } from "../route-paths";
-import { fixtureVersion } from "./fixtures/live/scene-versions";
+import { editedVersion } from "./fixtures/live/scene-versions";
 import { call, PROJECT, secretFor, seedEngine, sendTo, testReadSession } from "./harness";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
 import { uploadDeps, uploadRelease } from "./upload-rig";
@@ -88,12 +88,7 @@ async function openUpload(projectId: string) {
 describe("live routes", () => {
   it("let a write token begin, send the texts through the file route and commit to preview", async () => {
     await releaseOnPreview();
-    const hall = await fixtureVersion(release, {
-      scene: "hall",
-      edit: (scene) => {
-        (scene.entities as { at: number[] }[])[0]!.at = [3, 2];
-      },
-    });
+    const hall = await editedVersion(release, "hall", 3, 2);
     const secret = await secretFor(PROJECT);
 
     const begun = await send(

@@ -70,6 +70,7 @@ import {
   PRODUCTION_PUBLISHERS_ONLY,
   productionConfirmText,
 } from "./live-wording";
+import { LoadError } from "./LoadError";
 
 // ─── Wording ─────────────────────────────────────────────
 
@@ -426,12 +427,16 @@ export function ScenePublishDialog({
     };
   }, [live, scene, attempt]);
 
-  const retry = () => {
-    setBases({});
-    setUsage(null);
-    setLast(null);
+  /** Reads the bases, today's count and the scene's versions again; `clear` shows them as loading meanwhile. */
+  const reread = (clear: boolean) => {
+    if (clear) {
+      setBases({});
+      setUsage(null);
+      setLast(null);
+    }
     setAttempt((a) => a + 1);
   };
+  const retry = () => reread(true);
 
   const base = bases[channel];
   const baseView = base && "value" in base ? base.value : null;
@@ -516,6 +521,7 @@ export function ScenePublishDialog({
     if (!scene || !game || !baseView) return;
     setRefusal(null);
     setPhase({ step: "build" });
+    let sent = false;
     try {
       const fresh = await publishChecks({
         project: project.session,
@@ -533,6 +539,7 @@ export function ScenePublishDialog({
       // A blocking check is already a line of the Checks list.
       if (!fresh.built || fresh.blocked) return;
       const trimmed = note.trim();
+      sent = true;
       const published = await live.publish(
         fresh.built.text,
         Object.fromEntries(fresh.built.texts),
@@ -543,6 +550,8 @@ export function ScenePublishDialog({
       onClose();
     } catch (error) {
       setRefusal(refusalOf(error));
+      // The host may have stored the version before refusing (a production move that failed after the save).
+      if (sent) reread(false);
     } finally {
       setPhase(null);
     }
@@ -644,14 +653,13 @@ export function ScenePublishDialog({
               aria-live="polite"
             >
               {baseFailed ? (
-                <div className="je-insp-row je-insp-wrap" data-gap="tight" role="listitem">
-                  <Text size="xs" variant="danger" className="je-insp-grow">
-                    {unavailable}
-                  </Text>
-                  <Button size="xs" variant="outline" disabled={busy} onClick={retry}>
-                    Try again
-                  </Button>
-                </div>
+                <LoadError
+                  text={unavailable}
+                  role="listitem"
+                  inline
+                  disabled={busy}
+                  onRetry={retry}
+                />
               ) : unavailable ? (
                 <Text as="p" size="xs" variant="danger" role="listitem">
                   {unavailable}

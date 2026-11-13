@@ -137,7 +137,7 @@ describe("the usage rows", () => {
     expect(view.lines.find((l) => l.quota === "releaseStorageBytes")?.level).toBe("warn");
     expect(view.notice).toEqual({
       level: "warn",
-      text: "Nearly full. Releases outside your 10 newest are removed 14 days after publishing unless pinned; unpin jam versions you no longer need.",
+      text: "Nearly full. Releases outside the 10 newest are removed 14 days after publishing unless pinned; unpin jam versions you no longer need.",
     });
   });
 

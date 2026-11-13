@@ -1,4 +1,4 @@
-import { Cancel01Icon, Download01Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, Download04Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { LiveSnapshot } from "@jams/engine/standalone";
 import { useCallback, useEffect, useEffectEvent, useRef, useState, type Ref } from "react";
@@ -44,7 +44,7 @@ export type PlayFrameProps = {
   player?: HostServerOptions["player"];
   /** True while the page's chrome has a dialog open over the game. */
   dialogOpen?: boolean;
-  /** False ignores the frame's download offers, so no Download recording button shows. */
+  /** False ignores the downloads the frame offers on its own, so no Download recording button shows; one the page asked for still saves. */
   offerDownloads?: boolean;
   onState?: HostServerOptions["onState"];
   sessionToken?: HostServerOptions["sessionToken"];
@@ -217,8 +217,9 @@ export function PlayFrame({
         liveClient?.frameState(s);
         latest().onState?.(s);
       },
-      onDownload: (d) => {
-        if (latest().offerDownloads) setOffer(d);
+      onDownload: (d, { requested }) => {
+        if (requested) saveToDisk(d);
+        else if (latest().offerDownloads) setOffer(d);
       },
       sessionToken:
         latest().sessionToken === undefined
@@ -308,7 +309,7 @@ export function PlayFrame({
             tooltip={safeFileName(offer.name)}
             onClick={() => saveToDisk(offer)}
           >
-            <HugeiconsIcon icon={Download01Icon} data-icon="inline-start" />
+            <HugeiconsIcon icon={Download04Icon} data-icon="inline-start" />
             Download recording
           </Button>
           <Button

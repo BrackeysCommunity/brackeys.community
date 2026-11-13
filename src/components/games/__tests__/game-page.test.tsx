@@ -606,13 +606,18 @@ describe("the publisher menu", () => {
     );
     await user.click(screen.getByRole("button", { name: "Actions for v8" }));
     await user.click(await screen.findByRole("menuitem", { name: /Promote/ }));
-    expect(await screen.findByText(releasePromoteMessage(8))).toBeTruthy();
-    expect(
-      screen.getByText("Promoting v8 replaces these live scenes: The ford (ford@4)."),
-    ).toBeTruthy();
+    const question = await screen.findByText(releasePromoteMessage(8));
+    const replaces = screen.getByText(
+      "Promoting v8 replaces these live scenes: The ford (ford@4).",
+    );
     const editor = screen.getByRole("link", { name: "Publish panel in the editor" });
     expect(editor.getAttribute("href")).toBe("/game/dev?edit=1&project=tactics&panel=publish");
     expect(editor.className).toContain("underline");
+    // Each line sits straight in the dialog's message, which spaces them as it does every other message.
+    const message = question.parentElement;
+    expect(message?.tagName).toBe("DIV");
+    expect(replaces.parentElement).toBe(message);
+    expect(editor.closest("p")?.parentElement).toBe(message);
   });
 
   it("asks the plain promote question as the dialog's description when no live level is replaced", async () => {
