@@ -183,7 +183,8 @@ function serverOnlyChains(entries: readonly string[]): string[] {
 }
 
 describe("the play page's client imports", () => {
-  it("reach no database or drizzle module", () => {
+  // Parses the whole client import graph (~350 files) with the TypeScript compiler.
+  it("reach no database or drizzle module", { timeout: 30_000 }, () => {
     expect(serverOnlyChains(CLIENT_ENTRIES)).toEqual([]);
   });
 
