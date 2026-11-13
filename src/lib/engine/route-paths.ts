@@ -54,6 +54,55 @@ export const RELEASE_FILE_PATH = /^\/api\/engine\/releases\/uploads\/([^/]+)\/fi
 /** The release id. */
 export const RELEASE_ZIP_PATH = /^\/api\/engine\/releases\/([^/]+)\/zip$/;
 
+/**
+ * Live scene versions. `POST …/live` begins a scene upload and `GET` lists
+ * the project's versions (one scene's with `scene`); the texts go up
+ * through `engineReleaseFilePath`, like a release's.
+ */
+export const engineLivePath = (projectId: string, scene?: string) =>
+  engineProjectPath(
+    projectId,
+    scene === undefined ? "/live" : `/live?scene=${encodeURIComponent(scene)}`,
+  );
+
+/** `POST …/live/commit` finishes a scene upload. */
+export const engineLiveCommitPath = (projectId: string) =>
+  engineProjectPath(projectId, "/live/commit");
+
+const liveScenePath = (projectId: string, scene: string, rest: string) =>
+  engineProjectPath(projectId, `/live/scenes/${encodeURIComponent(scene)}${rest}`);
+
+/** `GET` what the Publish scene checks compare against on `channel`: its release and the scene's live version. */
+export const engineLiveBasePath = (
+  projectId: string,
+  scene: string,
+  channel: "preview" | "production",
+) => liveScenePath(projectId, scene, `/base?channel=${channel}`);
+
+/** `POST …/live/scenes/<scene>/<number>/promote`: point a channel at that version. */
+export const engineLivePromotePath = (projectId: string, scene: string, number: number) =>
+  liveScenePath(projectId, scene, `/${number}/promote`);
+
+/** `POST …/live/scenes/<scene>/rollback` or `…/clear` ("Stop"): a channel's pointer back, or off. */
+export const engineLiveMovePath = (projectId: string, scene: string, move: "rollback" | "clear") =>
+  liveScenePath(projectId, scene, `/${move}`);
+
+/** `GET` one channel's live moves as server-sent events. */
+export const engineLiveStreamPath = (projectId: string, channel: "preview" | "production") =>
+  `/api/engine/live/${encodeURIComponent(projectId)}/stream?channel=${channel}`;
+
+/** Matches the live path: the encoded project id. */
+export const LIVE_PATH = /^\/api\/engine\/projects\/([^/]+)\/live$/;
+export const LIVE_COMMIT_PATH = /^\/api\/engine\/projects\/([^/]+)\/live\/commit$/;
+/** The encoded project id and scene. */
+export const LIVE_BASE_PATH = /^\/api\/engine\/projects\/([^/]+)\/live\/scenes\/([^/]+)\/base$/;
+/** The encoded project id, the scene and the number. */
+export const LIVE_PROMOTE_PATH =
+  /^\/api\/engine\/projects\/([^/]+)\/live\/scenes\/([^/]+)\/(\d+)\/promote$/;
+/** The encoded project id, the scene and the move. */
+export const LIVE_MOVE_PATH =
+  /^\/api\/engine\/projects\/([^/]+)\/live\/scenes\/([^/]+)\/(rollback|clear)$/;
+
 /** `GET` every game's saves on the signed-in account. */
 export const ENGINE_SAVES_PATH = "/api/engine/saves";
 

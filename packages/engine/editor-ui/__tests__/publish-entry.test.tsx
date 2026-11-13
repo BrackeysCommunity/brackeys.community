@@ -7,8 +7,9 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../collab/index";
 import { createEditorSession } from "../../editor/index";
 import { createRegistry } from "../../game/index";
+import { createToolRouter } from "../../tool-router";
 import { EditorFrame, editorChrome } from "../frame/EditorFrame";
-import type { EditorNotify, EditorPublishHost } from "../host";
+import type { EditorLiveHost, EditorNotify, EditorPublishHost } from "../host";
 import { DEFAULT_LAYOUT } from "../layout/model";
 import { LAYOUT_KEY } from "../layout/use-layout";
 import type { EditorHostState } from "../session/live-scene-editor";
@@ -25,6 +26,7 @@ vi.mock("../panels/settings/ProjectSettings", () => ({
 vi.mock("../panels/EditorProject", () => ({
   EditorProject: () => <div role="tree" aria-label="Project files" />,
   useSelectedAsset: () => null,
+  useProjectView: () => null,
 }));
 
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
@@ -79,9 +81,15 @@ function chromeFor(publish?: EditorPublishHost) {
   const game = {
     registry,
     pointerWorld: () => null,
-    getStore: () => new Store({}),
+    router: createToolRouter(),
+    getStore: () => new Store({ camera: { x: 0, y: 0, scale: 1 } }),
   } as unknown as EditorChromeGame;
-  const project = { session: {} } as unknown as EditorProjectLink;
+  const project = {
+    session: {
+      view: () => ({ byId: new Map() }),
+      projectDoc: { on: () => {}, off: () => {} },
+    },
+  } as unknown as EditorProjectLink;
   return editorChrome(
     {
       session,
@@ -145,6 +153,31 @@ describe("the editor's publishing entry", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Project settings/ }));
     await waitFor(() => expect(settingsProps.length).toBeGreaterThan(0));
     expect(settingsProps.at(-1)?.publish).toBeUndefined();
+  });
+
+  it("shows Publish scene in the dock only when the host publishes scenes live", () => {
+    for (const live of [false, true]) {
+      const publish = publishHost();
+      const chrome = chromeFor(
+        live
+          ? {
+              ...publish,
+              live: {
+                list: vi.fn(async () => []),
+                usage: vi.fn(async () => null),
+                role: () => ({ publisher: false }),
+              } as unknown as EditorLiveHost,
+            }
+          : publish,
+      );
+      render(
+        <EditorFrame panels={chrome.panels} dock={chrome.dock}>
+          <canvas />
+        </EditorFrame>,
+      );
+      expect(screen.queryByRole("button", { name: "Publish scene" }) !== null).toBe(live);
+      cleanup();
+    }
   });
 
   it("puts Publish in its home group in a layout stored before it existed", () => {

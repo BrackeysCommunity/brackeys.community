@@ -13,6 +13,9 @@ const calls = vi.hoisted(() => ({
   unhideRelease: vi.fn(),
   approveGamePublic: vi.fn(),
   resolveImageFlags: vi.fn(),
+  listSceneVersionQueue: vi.fn(),
+  hideSceneVersion: vi.fn(),
+  unhideSceneVersion: vi.fn(),
 }));
 const gate = vi.hoisted(() => ({ flag: true, allowed: true }));
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }));
@@ -112,6 +115,23 @@ function flag(patch: Record<string, unknown> = {}) {
   };
 }
 
+function sceneVersion(patch: Record<string, unknown> = {}) {
+  return {
+    projectId: "tactics",
+    projectName: "Tactics",
+    scene: "level-1",
+    number: 4,
+    id: "c".repeat(64),
+    createdAt: now,
+    compatKey: "d".repeat(64),
+    pointers: ["preview", "production"],
+    reports: { ok: 12, failed: 5 },
+    blocked: null,
+    hidden: null,
+    ...patch,
+  };
+}
+
 function queue(reports: unknown[] = [], reviews: unknown[] = []) {
   calls.listGameModerationQueue.mockResolvedValue({ reports, reviews });
 }
@@ -133,6 +153,7 @@ beforeEach(() => {
   gate.allowed = true;
   queue();
   flags();
+  calls.listSceneVersionQueue.mockResolvedValue([]);
   for (const name of [
     "resolveGameReport",
     "unhideRelease",
@@ -141,6 +162,8 @@ beforeEach(() => {
   ] as const) {
     calls[name].mockResolvedValue({ success: true });
   }
+  calls.hideSceneVersion.mockResolvedValue(null);
+  calls.unhideSceneVersion.mockResolvedValue(null);
 });
 afterEach(() => {
   cleanup();
@@ -149,9 +172,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function mount() {
+function mount(queryClient = new QueryClient()) {
   render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <AdminEngineGames />
     </QueryClientProvider>,
   );
@@ -311,5 +334,140 @@ describe("AdminEngineGames", { timeout: 20_000 }, () => {
     expect(screen.queryByText("Game reports")).toBeNull();
     expect(calls.listGameModerationQueue).not.toHaveBeenCalled();
     expect(calls.listImageFlags).not.toHaveBeenCalled();
+    expect(calls.listSceneVersionQueue).not.toHaveBeenCalled();
+  });
+
+  describe("scene versions", () => {
+    it("lists a version with its project, channels, compatibility, reports and block", async () => {
+      calls.listSceneVersionQueue.mockResolvedValue([
+        sceneVersion({
+          blocked: {
+            at: now,
+            by: "system",
+            reason: "5 of 12 players' games failed after this update",
+          },
+        }),
+      ]);
+      mount();
+
+      expect(await screen.findByText("level-1@4")).toBeTruthy();
+      expect(screen.getByRole("link", { name: "Tactics" }).getAttribute("href")).toBe(
+        "/games/tactics",
+      );
+      expect(screen.getByText("PREVIEW")).toBeTruthy();
+      expect(screen.getByText("PRODUCTION")).toBeTruthy();
+      expect(screen.getByText(`compat ${"d".repeat(12)}`)).toBeTruthy();
+      expect(screen.getByText(/12 applied · 5 failed/)).toBeTruthy();
+      expect(screen.getByText("BLOCKED")).toBeTruthy();
+      expect(screen.getByText(/Blocked automatically/)).toBeTruthy();
+      expect(screen.getByText(/5 of 12 players' games failed/)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Hide" })).toBeTruthy();
+      expect(calls.listSceneVersionQueue).toHaveBeenCalledWith({ includeHidden: false });
+    });
+
+    it("hides a version only after asking, with the typed reason", async () => {
+      calls.listSceneVersionQueue.mockResolvedValue([sceneVersion()]);
+      const nativeConfirm = vi.fn();
+      vi.stubGlobal("confirm", nativeConfirm);
+      mount();
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole("button", { name: "Hide" }));
+      expect(calls.hideSceneVersion).not.toHaveBeenCalled();
+      const dialog = await screen.findByRole("alertdialog");
+      expect(within(dialog).getByText("Hide level-1@4?")).toBeTruthy();
+      expect(within(dialog).getByText("REASON (REQUIRED)")).toBeTruthy();
+      await user.type(within(dialog).getByRole("textbox"), "  slurs written into the level ");
+      await user.click(within(dialog).getByRole("button", { name: "Hide scene version" }));
+
+      await waitFor(() =>
+        expect(calls.hideSceneVersion).toHaveBeenCalledWith({
+          projectId: "tactics",
+          scene: "level-1",
+          number: 4,
+          reason: "slurs written into the level",
+        }),
+      );
+      expect(nativeConfirm).not.toHaveBeenCalled();
+      await waitFor(() => expect(toasts.success).toHaveBeenCalled());
+    });
+
+    it("can't confirm a hide with an empty or blank reason", async () => {
+      calls.listSceneVersionQueue.mockResolvedValue([sceneVersion()]);
+      mount();
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole("button", { name: "Hide" }));
+      const dialog = await screen.findByRole("alertdialog");
+      const confirm = within(dialog).getByRole("button", { name: "Hide scene version" });
+      expect((confirm as HTMLButtonElement).disabled).toBe(true);
+      await user.type(within(dialog).getByRole("textbox"), "   ");
+      expect((confirm as HTMLButtonElement).disabled).toBe(true);
+      await user.click(confirm);
+      expect(calls.hideSceneVersion).not.toHaveBeenCalled();
+    });
+
+    it("shows a hidden version with Unhide, which asks first", async () => {
+      calls.listSceneVersionQueue.mockResolvedValue([
+        sceneVersion({ pointers: [], hidden: { at: now, reason: "stolen art" } }),
+      ]);
+      mount();
+      const user = userEvent.setup();
+
+      expect(await screen.findByText("HIDDEN")).toBeTruthy();
+      expect(screen.getByText("NOT LIVE")).toBeTruthy();
+      expect(screen.getByText(/stolen art/)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Hide" })).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Unhide" }));
+      expect(calls.unhideSceneVersion).not.toHaveBeenCalled();
+      const dialog = await screen.findByRole("alertdialog");
+      const confirm = within(dialog).getByRole("button", { name: "Unhide scene version" });
+      expect((confirm as HTMLButtonElement).disabled).toBe(true);
+      await user.type(within(dialog).getByRole("textbox"), " art was cleared ");
+      await user.click(confirm);
+      await waitFor(() =>
+        expect(calls.unhideSceneVersion).toHaveBeenCalledWith({
+          projectId: "tactics",
+          scene: "level-1",
+          number: 4,
+          reason: "art was cleared",
+        }),
+      );
+    });
+
+    it("asks for hidden versions too under With hidden", async () => {
+      mount();
+      const user = userEvent.setup();
+      await screen.findByText("No live scene version needs a look.");
+      await user.click(screen.getByRole("button", { name: "With hidden" }));
+      await waitFor(() =>
+        expect(calls.listSceneVersionQueue).toHaveBeenCalledWith({ includeHidden: true }),
+      );
+      expect(
+        await screen.findByText("No hosted game has published a scene version yet."),
+      ).toBeTruthy();
+    });
+
+    it("says so when the list can't load, and the rest of the queue still renders", async () => {
+      queue([], [review()]);
+      calls.listSceneVersionQueue.mockRejectedValue(new Error("Nope."));
+      mount(new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+      expect(
+        await screen.findByText("Scene versions couldn't load. Try again in a moment."),
+      ).toBeTruthy();
+      expect(screen.getByText("FIRST PUBLIC")).toBeTruthy();
+    });
+
+    it("toasts a failed hide", async () => {
+      calls.listSceneVersionQueue.mockResolvedValue([sceneVersion()]);
+      calls.hideSceneVersion.mockRejectedValue(new Error("Nope."));
+      mount();
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole("button", { name: "Hide" }));
+      const dialog = await screen.findByRole("alertdialog");
+      await user.type(within(dialog).getByRole("textbox"), "broken");
+      await user.click(within(dialog).getByRole("button", { name: "Hide scene version" }));
+      await waitFor(() => expect(toasts.error).toHaveBeenCalled());
+    });
   });
 });

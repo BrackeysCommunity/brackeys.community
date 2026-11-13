@@ -152,7 +152,7 @@ describe("recordings and live versions", () => {
   it("parses swaps and refuses a swap with an unknown key", () => {
     const rec = recorder().finish(end, null);
     const swap = {
-      tick: 3,
+      tick: 0,
       version: null,
       strategy: "reconcile",
       timing: "now",

@@ -1,3 +1,4 @@
+import { ID_PATTERN } from "@jams/engine/scene";
 import { os } from "@orpc/server";
 import * as z from "zod";
 
@@ -34,7 +35,7 @@ import { requireStaff } from "@/orpc/middleware/auth";
  * names the caller and calls one function in `@/lib/engine`, which owns
  * the rules.
  */
-const releaseStaff = os.use(requireStaff).use(async ({ context, next }) => {
+export const releaseStaff = os.use(requireStaff).use(async ({ context, next }) => {
   await assertEngineGames({ userId: context.user.id });
   return next();
 });
@@ -48,9 +49,9 @@ const channel = z.enum(["preview", "production"]);
 const person = (userId: string): Actor => ({ kind: "user", userId });
 const staff = (userId: string): Actor => ({ kind: "staff", userId });
 /** The caller as their audit rows name them: staff by their roles, else the person. */
-const actorOf = (context: { user: { id: string }; isStaff: boolean }): Actor =>
+export const actorOf = (context: { user: { id: string }; isStaff: boolean }): Actor =>
   context.isStaff ? staff(context.user.id) : person(context.user.id);
-const deps = () => ({ store: minioReleaseStore });
+export const deps = () => ({ store: minioReleaseStore });
 
 /** Checks a build's `release.json` and every quota, and lists the files the site doesn't hold yet. */
 export const beginRelease = releaseStaff
@@ -84,13 +85,16 @@ export const getRelease = releaseStaff
     orpcRefusals(() => readRelease({ ...input, actor: actorOf(context) })),
   );
 
+const scene = z.string().regex(ID_PATTERN, "A scene id is lowercase letters, digits and dashes.");
+
+/** Points a channel at a release; its live scenes go but `keepScenes`, which a publisher may keep. */
 export const promoteRelease = releaseStaff
-  .input(z.object({ projectId, version, channel }))
+  .input(z.object({ projectId, version, channel, keepScenes: z.array(scene).optional() }))
   .handler(({ context, input }) =>
     orpcRefusals(() => promote({ ...input, actor: actorOf(context) })),
   );
 
-/** Back to the channel's previous release, or to the kept version `to`. */
+/** Back to the channel's previous release, or to the kept version `to`, with the live scenes it put back and those it couldn't. */
 export const rollbackRelease = releaseStaff
   .input(z.object({ projectId, channel, to: version.optional() }))
   .handler(({ context, input }) =>

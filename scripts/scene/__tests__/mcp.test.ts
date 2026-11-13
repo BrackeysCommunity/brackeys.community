@@ -38,7 +38,7 @@ import {
 import { discoverProjects } from "../projects";
 import { loadCompatRapier } from "../rapier-compat";
 import { flow as flowTool } from "../tools/flow";
-import { gameLiveBuild, gameLiveCheck } from "../tools/game-live";
+import { gameLiveBuild, gameLiveCheck, gameLiveList } from "../tools/game-live";
 import { tempProject } from "./fixtures";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
@@ -106,6 +106,11 @@ describe("scene MCP server", () => {
       "game_build",
       "game_live_build",
       "game_live_check",
+      "game_live_clear",
+      "game_live_list",
+      "game_live_promote",
+      "game_live_publish",
+      "game_live_rollback",
       "game_manifest",
       "game_new",
       "game_release_create",
@@ -138,6 +143,11 @@ describe("scene MCP server", () => {
       game_release_list: { readOnlyHint: true },
       game_release_promote: { readOnlyHint: false, idempotentHint: false },
       game_release_rollback: { readOnlyHint: false, idempotentHint: false },
+      game_live_publish: { readOnlyHint: false, idempotentHint: true },
+      game_live_list: { readOnlyHint: true },
+      game_live_promote: { readOnlyHint: false, idempotentHint: false },
+      game_live_rollback: { readOnlyHint: false, idempotentHint: false },
+      game_live_clear: { readOnlyHint: false, idempotentHint: true },
     };
     for (const t of tools) {
       expect(t.inputSchema.properties, t.name).toHaveProperty("project");
@@ -180,12 +190,30 @@ describe("scene MCP server", () => {
     const { tools } = await client.listTools();
     const props = (name: string) => tools.find((t) => t.name === name)?.inputSchema.properties;
     expect(props("scene_replay")).toHaveProperty("versions");
-    for (const name of ["game_live_build", "game_live_check"])
-      expect(Object.keys(props(name) ?? {}).sort(), name).toEqual(
-        name === "game_live_build"
-          ? ["hosted", "id", "out", "project", "scene"]
-          : ["against", "from", "id", "project", "scene"],
-      );
+    const inputs: Record<string, string[]> = {
+      game_live_build: ["hosted", "id", "out", "project", "scene"],
+      game_live_check: ["against", "from", "id", "project", "scene"],
+      game_live_publish: [
+        "channel",
+        "hosted",
+        "id",
+        "note",
+        "project",
+        "scene",
+        "swapCheck",
+        "timing",
+      ],
+      game_live_list: ["id", "project", "scene"],
+      game_live_promote: ["channel", "id", "project", "scene", "timing", "version"],
+      game_live_rollback: ["channel", "id", "project", "scene"],
+      game_live_clear: ["channel", "id", "project", "scene"],
+    };
+    for (const [name, keys] of Object.entries(inputs))
+      expect(Object.keys(props(name) ?? {}).sort(), name).toEqual(keys);
+    const required = (name: string) => tools.find((t) => t.name === name)?.inputSchema.required;
+    expect(required("game_live_list")).toEqual(["id"]);
+    for (const name of ["game_live_promote", "game_live_rollback", "game_live_clear"])
+      expect(required(name), name).toEqual(expect.arrayContaining(["id", "scene", "channel"]));
   });
 
   it("describes every length an agent passes or reads in metres", async () => {
@@ -2015,6 +2043,106 @@ describe("game releases", () => {
     );
     expect(promoted.isError, JSON.stringify(promoted)).toBe(false);
     expect(site.preview).toBe(1);
+  });
+});
+
+describe("game live on the site", { timeout: 120_000 }, () => {
+  const SITE = "https://staging.example.test";
+  const SECRET = "jat_mcpLiveTokenThatStaysHome";
+  const ENV = { [AGENT_TOKEN_ENV]: SECRET, [AGENT_SITE_ENV]: SITE };
+  const tool = (name: string) => MCP_TOOLS.find((t) => t.name === name)!;
+  let liveRoot: string;
+  let projects: ToolContext["projects"];
+  let project: string;
+
+  type Sent = { method: string; url: string; auth: string | null };
+
+  /** A site that records every request and answers each with `answer`. */
+  function recordingSite(answer: () => Response = () => Response.json({ versions: [] })) {
+    const requests: Sent[] = [];
+    const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      requests.push({
+        method: init?.method ?? "GET",
+        url,
+        auth: new Headers(init?.headers).get("authorization"),
+      });
+      return answer();
+    }) as typeof globalThis.fetch;
+    return { requests, fetch };
+  }
+
+  const ctxFor = (fetch: typeof globalThis.fetch, env: Record<string, string> = ENV) =>
+    ({ projects, loadRapier: loadCompatRapier, env, fetch }) satisfies ToolContext;
+  const run = async (name: string, input: Record<string, unknown>, ctx: ToolContext) =>
+    (await runMcpTool(tool(name), input, ctx)) as Called;
+
+  beforeAll(async () => {
+    liveRoot = await mkdtemp(join(tmpdir(), "scene-mcp-live-site-"));
+    const dir = join(liveRoot, "platformer");
+    await mkdir(dir);
+    await copyFile(TEST_YARD, join(dir, "test-yard.json"));
+    projects = [await tempProject(dir, { game: platformerGame })];
+    project = projects[0]!.file.id;
+  });
+
+  afterAll(async () => {
+    await rm(liveRoot, { recursive: true, force: true });
+  });
+
+  const calls = (channel: string) =>
+    [
+      ["game_live_publish", { id: project, scene: "test-yard", channel }],
+      ["game_live_promote", { id: project, scene: "test-yard", version: 1, channel }],
+      ["game_live_rollback", { id: project, scene: "test-yard", channel }],
+      ["game_live_clear", { id: project, scene: "test-yard", channel }],
+    ] as const;
+
+  it("asks for the agent token and site in the server's environment, sending nothing", async () => {
+    for (const [env, says] of [
+      [{ [AGENT_SITE_ENV]: SITE }, AGENT_TOKEN_ENV],
+      [{ [AGENT_TOKEN_ENV]: SECRET }, AGENT_SITE_ENV],
+      [{ [AGENT_TOKEN_ENV]: SECRET, [AGENT_SITE_ENV]: "ftp://example.test" }, AGENT_SITE_ENV],
+    ] as const) {
+      const site = recordingSite();
+      for (const [name, input] of [
+        ...calls("preview"),
+        ["game_live_list", { id: project }] as const,
+      ]) {
+        const r = await run(name, input, ctxFor(site.fetch, env));
+        expect(r, name).toMatchObject({ isError: true, structuredContent: { exitCode: 2 } });
+        expect(JSON.stringify(r), name).toContain(says);
+      }
+      expect(site.requests).toEqual([]);
+    }
+  });
+
+  it("refuses a production channel in every tool that moves one, sending nothing", async () => {
+    const site = recordingSite();
+    for (const [name, input] of calls("production")) {
+      const r = await run(name, input, ctxFor(site.fetch));
+      expect(r.isError, name).toBe(true);
+      expect(r.structuredContent.exitCode, name).toBeGreaterThanOrEqual(1);
+      const json = JSON.stringify(r);
+      expect(json, name).toMatch(/production/i);
+      expect(json, name).toContain("game's page");
+      expect(json, name).not.toContain(SECRET);
+    }
+    expect(site.requests).toEqual([]);
+  });
+
+  it("lists through the CLI's function, with the token only in the site's requests", async () => {
+    const site = recordingSite();
+    const r = await run("game_live_list", { id: project, scene: "test-yard" }, ctxFor(site.fetch));
+    const direct = await gameLiveList({ project, scene: "test-yard" }, ctxFor(site.fetch));
+    expect(r.structuredContent.exitCode).toBe(direct.exitCode);
+    expect(r.structuredContent).toMatchObject(withoutFileBytes(direct.data) as object);
+    expect(JSON.stringify(r)).not.toContain(SECRET);
+    expect(site.requests.length).toBeGreaterThan(0);
+    for (const req of site.requests) {
+      expect(new URL(req.url).origin).toBe(SITE);
+      expect(req.auth).toBe(`Bearer ${SECRET}`);
+    }
   });
 });
 

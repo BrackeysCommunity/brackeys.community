@@ -30,6 +30,7 @@ import { jsonPointer, lineAt, pointerSegments, unitsRefusal } from "./issues";
 import { schemaIdFor, toJsonSchema } from "./json-schema";
 import { migrate, type MigrateEnv, type Migration } from "./migrate";
 import { pointerLines } from "./parse";
+import { builtFor } from "./schema";
 import type { Pt } from "./types";
 
 /** The input-script format version, the `v` every script carries. */
@@ -851,8 +852,6 @@ function buildInputScriptSchemas(registry: Registry, seats: number) {
 
 export type InputScriptSchemas = ReturnType<typeof buildInputScriptSchemas>;
 
-const built = new WeakMap<Registry, Map<number, InputScriptSchemas>>();
-
 /**
  * The input-script schemas for `registry`, built once per registry and seat
  * limit; `players` is the project input map's, which sets the seats tracks
@@ -863,17 +862,9 @@ export function inputScriptSchemasFor(
   players?: PlayersDef | null,
 ): InputScriptSchemas {
   const seats = scriptSeatLimit(registry, players);
-  let bySeats = built.get(registry);
-  if (!bySeats) {
-    bySeats = new Map();
-    built.set(registry, bySeats);
-  }
-  let schemas = bySeats.get(seats);
-  if (!schemas) {
-    schemas = buildInputScriptSchemas(registry, seats);
-    bySeats.set(seats, schemas);
-  }
-  return schemas;
+  return builtFor(registry, `input-script:${seats}`, () =>
+    buildInputScriptSchemas(registry, seats),
+  );
 }
 
 /** An input script for `registry`'s game: its actions, `until` predicates, play options and seats. */

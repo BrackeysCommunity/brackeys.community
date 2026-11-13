@@ -12,9 +12,20 @@ import {
   engineReleaseRollbackPath,
   engineReleasesPath,
   engineReleaseZipPath,
+  engineLiveBasePath,
+  engineLiveCommitPath,
+  engineLiveMovePath,
+  engineLivePath,
+  engineLivePromotePath,
+  engineLiveStreamPath,
   engineProjectSavesPath,
   engineSavePath,
   ENGINE_SAVES_PATH,
+  LIVE_BASE_PATH,
+  LIVE_COMMIT_PATH,
+  LIVE_MOVE_PATH,
+  LIVE_PATH,
+  LIVE_PROMOTE_PATH,
   PROJECT_SAVES_PATH,
   RELEASE_COMMIT_PATH,
   RELEASE_FILE_PATH,
@@ -59,6 +70,49 @@ describe("engine route paths", () => {
     expect(RELEASE_ZIP_PATH.exec(engineReleaseZipPath(HASH))?.[1]).toBe(HASH);
     expect(RELEASE_ZIP_PATH.test(engineReleaseFilePath("u", HASH))).toBe(false);
     expect(BLOBS_PATH.test(engineReleasesPath("demo"))).toBe(false);
+  });
+
+  it("build the live paths their matchers take apart, the query aside, and no other's", () => {
+    const url = (path: string) => new URL(path, "https://site.test");
+    const pathOf = (path: string) => url(path).pathname;
+    expect(LIVE_PATH.exec(engineLivePath("a b"))?.[1]).toBe("a%20b");
+    const listed = url(engineLivePath("demo", "level 1"));
+    expect(LIVE_PATH.test(listed.pathname)).toBe(true);
+    expect(listed.searchParams.get("scene")).toBe("level 1");
+    expect(LIVE_COMMIT_PATH.exec(engineLiveCommitPath("demo"))?.[1]).toBe("demo");
+    expect(LIVE_PATH.test(engineLiveCommitPath("demo"))).toBe(false);
+
+    const base = url(engineLiveBasePath("demo", "level/1", "production"));
+    expect(LIVE_BASE_PATH.exec(base.pathname)?.slice(1)).toEqual(["demo", "level%2F1"]);
+    expect(base.searchParams.get("channel")).toBe("production");
+    const stream = url(engineLiveStreamPath("a b", "preview"));
+    expect(stream.pathname).toBe("/api/engine/live/a%20b/stream");
+    expect(stream.searchParams.get("channel")).toBe("preview");
+    expect(LIVE_PROMOTE_PATH.exec(engineLivePromotePath("demo", "level-1", 4))?.slice(1)).toEqual([
+      "demo",
+      "level-1",
+      "4",
+    ]);
+    expect(
+      LIVE_MOVE_PATH.exec(engineLiveMovePath("demo", "level-1", "rollback"))?.slice(1),
+    ).toEqual(["demo", "level-1", "rollback"]);
+    expect(LIVE_MOVE_PATH.exec(engineLiveMovePath("demo", "level-1", "clear"))?.[3]).toBe("clear");
+
+    // A scene named like a move or "commit" stays a scene.
+    expect(LIVE_COMMIT_PATH.test(pathOf(engineLiveBasePath("demo", "commit", "preview")))).toBe(
+      false,
+    );
+    expect(LIVE_MOVE_PATH.test(engineLivePromotePath("demo", "clear", 1))).toBe(false);
+    expect(LIVE_PROMOTE_PATH.test(engineLiveMovePath("demo", "1", "rollback"))).toBe(false);
+    for (const path of [
+      engineLivePath("demo"),
+      engineLiveCommitPath("demo"),
+      engineLivePromotePath("demo", "level-1", 4),
+    ]) {
+      expect(RELEASES_PATH.test(path)).toBe(false);
+      expect(RELEASE_COMMIT_PATH.test(path)).toBe(false);
+      expect(RELEASE_MOVE_PATH.test(path)).toBe(false);
+    }
   });
 
   it("build the save paths their matchers take apart, and no other's", () => {

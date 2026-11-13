@@ -7,8 +7,9 @@ import type {
   DocOrigin,
   ProjectSession,
 } from "../collab/index";
+import type { SwapTiming } from "../game/index";
 import type { AssetUrl } from "../index";
-import type { AssetKindName, ProjectId, Sha256 } from "../project/index";
+import type { AssetId, AssetKindName, ProjectId, Sha256 } from "../project/index";
 import type { Registry } from "../scene/index";
 
 // ─── The host seam ───────────────────────────────────────
@@ -86,14 +87,21 @@ export type EditorPublishHost = {
   usage(): Promise<UsageView>;
   /** Newest first. */
   releases(): Promise<readonly ReleaseView[]>;
-  promote(version: number, channel: PublishChannel): Promise<PointerMove>;
-  /** Back to the channel's previous release, or to `to`. */
-  rollback(channel: PublishChannel, to?: number): Promise<PointerMove>;
+  /** `keepScenes`: live scenes on the channel that stay on it over the new release. */
+  promote(
+    version: number,
+    channel: PublishChannel,
+    opts?: { keepScenes?: readonly AssetId[] },
+  ): Promise<PointerMove>;
+  /** Back to the channel's previous release, or to `to`, with the live scenes the undone promote replaced. */
+  rollback(channel: PublishChannel, to?: number): Promise<ReleaseRollback>;
   settings(): Promise<GameSettingsView>;
   setSettings(patch: GameSettingsPatch): Promise<GameSettingsView>;
   /** Opens the host's agent token dialog, for the release command. */
   openTokenDialog(): void;
   wording: PublishWording;
+  /** Live scene versions; without it the editor shows no Publish scene entry and no Live scenes section. */
+  live?: EditorLiveHost;
 };
 
 export type PublishChannel = "preview" | "production";
@@ -149,6 +157,12 @@ export type ReleaseView = {
 /** A channel's pointer before and after a promote or a rollback, by version. */
 export type PointerMove = { from: number | null; to: number };
 
+/** A release rollback, with the live scenes it put back and those it couldn't, each with its sentence. */
+export type ReleaseRollback = PointerMove & {
+  restored?: readonly AssetId[];
+  skipped?: readonly { scene: AssetId; reason: string }[];
+};
+
 export type GameSettingsView = {
   visibility: GameVisibility;
   /** Public was asked for and waits for staff review; the game stays unlisted meanwhile. */
@@ -181,6 +195,148 @@ export type PublishWording = {
   /** How many origins the game may list under Connects to. */
   connectOriginsMax: number;
   privateLinks: string;
+};
+
+// ─── Live scenes ─────────────────────────────────────────
+
+/**
+ * A host that publishes single scenes live over a channel's release. As
+ * with `PublishWording`, every sentence stating one of the host's numbers
+ * arrives written in `wording`.
+ */
+export type EditorLiveHost = {
+  /** What the Publish scene checks compare against on `channel`. */
+  base(scene: AssetId, channel: PublishChannel): Promise<LiveBaseView>;
+  /**
+   * Begins the upload of `versionText` (a canonical `scene-version.json`),
+   * sends each text the host is missing from `texts` (by hash), commits,
+   * and promotes to production when `opts.channel` asks for it.
+   */
+  publish(
+    versionText: string,
+    texts: Readonly<Record<Sha256, string>>,
+    opts: LivePublishOptions,
+    onProgress?: (progress: LivePublishProgress) => void,
+  ): Promise<LivePublished>;
+  /** Newest first; one scene's with `scene`. */
+  list(scene?: AssetId): Promise<readonly LiveVersionView[]>;
+  promote(
+    scene: AssetId,
+    version: number,
+    channel: PublishChannel,
+    timing: SwapTiming,
+  ): Promise<LiveMove>;
+  /** Back to the scene's previous pointer on the channel (or the release's scene), or to `to`. */
+  rollback(
+    scene: AssetId,
+    channel: PublishChannel,
+    opts?: { to?: number; timing?: SwapTiming },
+  ): Promise<LiveMove>;
+  /** "Stop": the channel plays the release's scene again. */
+  clear(scene: AssetId, channel: PublishChannel, timing?: SwapTiming): Promise<LiveMove>;
+  unblock(scene: AssetId, version: number): Promise<void>;
+  usage(): Promise<LiveUsageView>;
+  /** Publishers may choose production, `now` there, and keep live scenes over a release. */
+  role(): { publisher: boolean };
+  wording: LiveWording;
+};
+
+export type LivePublishOptions = {
+  channel: PublishChannel;
+  timing: SwapTiming;
+  note?: string;
+};
+
+export type LivePublishProgress =
+  | { step: "begin" }
+  | { step: "upload"; sent: number; total: number }
+  | { step: "commit" }
+  | { step: "promote" };
+
+export type LivePublished = {
+  versionId: Sha256;
+  scene: AssetId;
+  number: number;
+  /** False when the host already held this exact version. */
+  created: boolean;
+  /** Where it now plays; null when nothing points at it. */
+  channel: PublishChannel | null;
+};
+
+/** A scene pointer before and after a move, by version number; null is the release's own scene. */
+export type LiveMove = { from: number | null; to: number | null };
+
+/** What the Publish scene checks compare against, as `EditorLiveHost.base` answers. */
+export type LiveBaseView = {
+  channel: PublishChannel;
+  /** Null when nothing is on the channel yet. */
+  release: { id: Sha256; version: number; manifest: string } | null;
+  /** The scene's live version on the channel, with its `scene-version.json`; null when the release's scene plays. */
+  live: {
+    number: number;
+    versionId: Sha256;
+    timing: SwapTiming;
+    /** ISO 8601, UTC. */
+    since: string;
+    descriptor: string;
+  } | null;
+  /** The scene's and its prefabs' texts that `live` (or the release) names, by hash. */
+  texts: Readonly<Record<Sha256, string>>;
+  /** The scene's newest version number on any channel; null before the first. */
+  latest: number | null;
+};
+
+/** A scene pointer as the Live scenes rows show it. */
+export type LivePointerView = {
+  channel: PublishChannel;
+  timing: SwapTiming;
+  /** ISO 8601, UTC. */
+  since: string;
+  /** Who moved it; null for an agent or a deleted account. */
+  by: string | null;
+};
+
+export type LiveVersionView = {
+  scene: AssetId;
+  number: number;
+  id: Sha256;
+  /** ISO 8601, UTC. */
+  createdAt: string;
+  createdBy: string | null;
+  note: string | null;
+  dataBytes: number;
+  pointers: readonly LivePointerView[];
+  /** The blocked badge's sentence and who blocked it; null when it isn't blocked. */
+  blocked: { by: "system" | "user"; text: string } | null;
+  /** Why staff hid it; null when it isn't hidden. */
+  hidden: string | null;
+  collected: boolean;
+  /** When the cleanup removes it unless a channel points at it, with the forecast's sentence; null when it is kept. */
+  removal: { at: string; text: string } | null;
+};
+
+/** Today's count and what the project's versions hold; the release storage row of `UsageView` carries the live line. */
+export type LiveUsageView = {
+  today: number;
+  versions: number;
+  bytes: number;
+};
+
+/** The Publish scene dialog's and Live scenes' sentences that carry a host's numbers, written by the host. */
+export type LiveWording = {
+  /** The longest note, in characters. */
+  noteMaxChars: number;
+  /** "What changed, for your team (up to 200 characters)". */
+  notePlaceholder: string;
+  /** The largest a version's data may be, and the most versions a day, for the checks' levels. */
+  dataMaxBytes: number;
+  versionsPerDay: number;
+  /** "Data: 14 KB of 2 MB". */
+  data(bytes: number): string;
+  /** "Today: 6 of 100 versions". */
+  today(count: number): string;
+  /** The Stop confirm: "Players go back to v7's version of The ford the next time the level loads." */
+  stopConfirm(args: { release: number; scene: string; timing: SwapTiming }): string;
 };
 
 // ─── Defaults ────────────────────────────────────────────

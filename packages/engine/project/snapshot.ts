@@ -6,10 +6,9 @@ import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-sur
 import { isErrorIssue, makeIssue } from "../scene/issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
 import { parseScene } from "../scene/parse";
-import { parsePrefab, prefabsUsedBy, reachPrefabs } from "../scene/prefab";
+import { prefabReader, prefabsUsedBy, reachPrefabs } from "../scene/prefab";
 import {
   PREFAB_KIND,
-  type Prefab,
   type PrefabLibrary,
   type SceneDefinition,
   type SceneIssue,
@@ -510,33 +509,26 @@ export async function snapshotScene(
   const parsed = parseScene(text, pinned);
   if (!parsed.ok) throw new SnapshotError(withId(sceneId, parsed.issues));
   const def = parsed.def;
-  const prefabs = new Map<string, Prefab>();
   const texts = new Map<AssetId, string>();
+  let next: AssetId[] = [];
+  const prefabs = prefabReader(pinned, {
+    text: (id) => texts.get(id),
+    failed: (id, issues) => {
+      throw new SnapshotError(withId(id, issues));
+    },
+    missing: (id) => next.push(id),
+  });
   // The store is async and the walk isn't: each round fetches what the last one reached.
-  for (let roots = prefabsUsedBy(def); roots.length > 0; ) {
+  for (let roots = prefabsUsedBy(def); roots.length > 0; roots = next) {
     for (const id of roots) {
       if (texts.has(id)) continue;
       const asset = assetOf(snapshot, id, PREFAB_KIND, `scene "${sceneId}" reaches prefab`);
       texts.set(id, await textOf(store, id, asset));
     }
-    const next: AssetId[] = [];
-    reachPrefabs(
-      roots,
-      (id) => {
-        const text = texts.get(id);
-        if (text === undefined) {
-          next.push(id);
-          return undefined;
-        }
-        const read = parsePrefab(text, pinned);
-        if (!read.ok) throw new SnapshotError(withId(id, read.issues));
-        return read.prefab;
-      },
-      prefabs,
-    );
-    roots = next;
+    next = [];
+    reachPrefabs(roots, prefabs.get);
   }
-  return { def, prefabs, registry: pinned };
+  return { def, prefabs: new Map(prefabs.read), registry: pinned };
 }
 
 /** Files and their bytes: what push uploads and pull writes. */

@@ -31,30 +31,12 @@ import type { AssetEntry, AssetId, ProjectExport } from "../project/types";
 import { defaultPhysics, expandScene } from "../scene/expand";
 import { makeIssue } from "../scene/issues";
 import { locatePointer, parseScene } from "../scene/parse";
-import { parsePrefab, prefabLibraryFor } from "../scene/prefab";
-import type { Prefab, PrefabLibrary, SceneDefinition, SceneIssue } from "../scene/types";
+import { prefabReader, type PrefabReader } from "../scene/prefab";
+import type { SceneIssue } from "../scene/types";
 import { assetCredits } from "./credits";
 import { iconFile, planIcons } from "./icons";
 import type { ContentPlan, ExportInput } from "./plan";
 import { exportTarget, exportTargetNames } from "./targets";
-
-/** Each live prefab read from its text by id, parsed once and only when a scene reaches it. */
-function prefabReader(input: ExportInput, issues: SceneIssue[]) {
-  const read = new Map<AssetId, Prefab | null>();
-  const get = (id: AssetId): Prefab | undefined => {
-    if (!read.has(id)) {
-      const entry = input.view.byId.get(id);
-      const text = entry?.kind === prefabKind.kind ? input.texts.get(id) : undefined;
-      const parsed = text === undefined ? null : parsePrefab(text, input.registry);
-      if (parsed && !parsed.ok) issues.push(...withId(id, parsed.issues));
-      read.set(id, parsed?.ok ? parsed.prefab : null);
-    }
-    return read.get(id) ?? undefined;
-  };
-  /** The prefabs `def` reaches, nested ones and variant bases included. */
-  const library = (def: SceneDefinition): PrefabLibrary => prefabLibraryFor(def, get);
-  return { get, library };
-}
 
 /** A listed scene as it ships, its bundle's entries resolved for the blobs to ship. */
 type PlannedScene = { release: ReleaseScene; bundle: AssetBundle };
@@ -62,7 +44,7 @@ type PlannedScene = { release: ReleaseScene; bundle: AssetBundle };
 function planScene(
   entry: SceneListEntry,
   input: ExportInput,
-  prefabs: ReturnType<typeof prefabReader>,
+  prefabs: PrefabReader,
   issues: SceneIssue[],
 ): PlannedScene {
   const empty: AssetBundle = { name: entry.scene, entries: [], bytes: 0 };
@@ -94,13 +76,13 @@ function planScene(
     return fallback();
   }
   const def = parsed.def;
-  const library = prefabs.library(def);
+  let library = prefabs.library(def);
   let bundle = empty;
   try {
     const expanded = expandScene(def, input.registry, { prefabs: library, engine: input.engine });
     const named = namedPrefabs(expanded.entities, input.registry, prefabs.get);
-    const reach = new Map([...library, ...named]);
-    const read = sceneBundle(expanded, def, reach, input.view, input.kinds, input.registry);
+    library = new Map([...library, ...named]);
+    const read = sceneBundle(expanded, def, library, input.view, input.kinds, input.registry);
     issues.push(...withId(entry.scene, read.issues));
     bundle = read.bundle;
   } catch (error) {
@@ -264,7 +246,12 @@ export async function planContent(input: ExportInput): Promise<ContentPlan> {
   };
   issues.push(...sceneListIssues(input.view, values, { lineOf }));
 
-  const prefabs = prefabReader(input, issues);
+  // Each live prefab is parsed once, and only when a scene reaches it.
+  const prefabs = prefabReader(input.registry, {
+    text: (id) =>
+      input.view.byId.get(id)?.kind === prefabKind.kind ? input.texts.get(id) : undefined,
+    failed: (id, found) => issues.push(...withId(id, found)),
+  });
   const planned = list.scenes.map((entry) => planScene(entry, input, prefabs, issues));
   const listed = new Set(list.scenes.map((e) => e.scene));
 

@@ -76,7 +76,14 @@ describe("movePointer", () => {
         at: AT,
       }),
     );
-    expect(first).toEqual({ from: null, to: V1, moved: true });
+    expect(first).toEqual({
+      from: null,
+      to: V1,
+      moved: true,
+      rev: expect.any(Number),
+      restored: [],
+      skipped: [],
+    });
     expect(await pointer("preview")).toMatchObject({ releaseId: V1, updatedById: "staff" });
 
     const second = await db.transaction((tx) =>
@@ -89,7 +96,14 @@ describe("movePointer", () => {
         at: AT,
       }),
     );
-    expect(second).toEqual({ from: V1, to: V2, moved: true });
+    expect(second).toEqual({
+      from: V1,
+      to: V2,
+      moved: true,
+      rev: expect.any(Number),
+      restored: [],
+      skipped: [],
+    });
     expect(await pointer("preview")).toMatchObject({ releaseId: V2 });
 
     const rows = await audit();
@@ -151,6 +165,9 @@ describe("movePointer", () => {
       from: V1,
       to: V1,
       moved: false,
+      rev: null,
+      restored: [],
+      skipped: [],
     });
     expect(await audit()).toHaveLength(1);
   });

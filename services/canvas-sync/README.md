@@ -207,18 +207,29 @@ the collector cleans up hosted games' storage, one project at a time:
 1. **Releases** beyond the 10 newest, unpinned by a channel or a jam and
    older than 14 days: `collected_at` set, `manifest` and file rows dropped,
    an audit row (`collect`, system). The record stays.
-2. **Orphan release files:** `engine_release_objects` no release file row and
-   no open upload lists, stored more than 24 hours ago.
-3. **Blobs** nothing references: the registry (the live doc if this instance
-   holds it, else the row) and every kept release's snapshot are what keep a
-   blob. Referenced ones get `last_referenced_at` = now; unreferenced ones go
-   after 30 quiet days.
-4. **Saves** last used more than 180 days ago (`savesDue`), 500 at a time:
+2. **Scene versions** (step `scenes`) beyond the 5 newest of their scene,
+   pointed at by no channel and older than 14 days (`sceneVersionsToCollect`):
+   in one transaction under the project's lock, `collected_at` set,
+   `descriptor` dropped, its `engine_scene_version_files` rows and its
+   `engine_live_reports` deleted, an audit row (`scene-collect`, system). A
+   version a pointer names is never collected, blocked or not.
+3. **Orphan release files:** `engine_release_objects` that no release file
+   row, no scene version file row and no open upload (a release's or a scene
+   version's) lists, stored more than 24 hours ago. A version collected in
+   step 2 still lists its texts during that run, so they go a day after it.
+4. **Blobs** nothing references: the registry (the live doc if this instance
+   holds it, else the row), every kept release's snapshot and every kept
+   scene version's (`sceneVersionSnapshot` of its descriptor) are what keep
+   a blob, as do the release and scene version file rows. Referenced ones get
+   `last_referenced_at` = now; unreferenced ones go after 30 quiet days.
+5. **Saves** last used more than 180 days ago (`savesDue`), 500 at a time:
    the object at `engine-saves/<user>/<project>/<slot>`, then the row, each
    under the save's row lock and only if a read or write hasn't used it since
    the plan. Saves of a project the purge removes this run are left to it.
-5. **Uploads** expired and uncommitted (their files go with step 2 a day on).
-6. **Deleted projects** 30 days after `deleted_at`: every object under
+6. **Uploads** expired and uncommitted (their files go with step 3 a day on).
+7. **Live reports** (step `reports`) older than 30 days (`reportsDue`), 500
+   rows at a time; rows only, nothing in the bucket.
+8. **Deleted projects** 30 days after `deleted_at`: every object under
    `engine-assets/<project>/` and `engine-releases/<project>/`, every object
    its rows name and its saves' keys (read from `engine_saves` first), then
    the row (the tables cascade).
@@ -234,8 +245,8 @@ next run clears.
 - **Report mode is the default.** `ENGINE_COLLECTOR_MODE=report` deletes
   nothing: it logs the plan and only stamps `last_referenced_at` on blobs still
   in use. Set `delete` once a report run's log has been read.
-- **Without the bucket** (`MINIO_*` unset) releases and expired uploads are
-  still collected in `delete` mode; every object deletion, and the row behind
+- **Without the bucket** (`MINIO_*` unset) releases, scene versions, live
+  reports and expired uploads are still collected in `delete` mode; every object deletion, and the row behind
   it, is only reported.
 - **One runner:** with `REDIS_URL` the run takes
   `<prefix>:engine:collector:lock` (`SET NX EX 3600`), so of several replicas

@@ -6,7 +6,9 @@ import { formatCount } from "@/lib/format-bytes";
 import { MIN_HOSTED_ENGINE, RELEASE_FILE_PUTS_PER_HOUR, UPLOAD_SESSION_HOURS } from "../limits";
 import {
   apiErrorResponse,
+  liveBlocked,
   orpcRefusals,
+  RELEASE_ERROR_CODES,
   ReleaseError,
   releaseEngineOld,
   releaseFilesMissing,
@@ -40,6 +42,29 @@ describe("release errors", () => {
     expect(releaseUploadExpired().message).toContain(`${UPLOAD_SESSION_HOURS} hours`);
     expect(releaseRateLimited("files").message).toContain(formatCount(RELEASE_FILE_PUTS_PER_HOUR));
     expect(releaseFilesMissing(1).message).toBe("1 file of this upload hasn't arrived yet.");
+  });
+
+  it("say why a scene version is blocked, and go out as a conflict", () => {
+    const breaker = liveBlocked({ scene: "level-1", number: 4 }, { failed: 5, total: 12 });
+    expect(breaker).toEqual({
+      code: "live-blocked",
+      message: "level-1@4 is blocked: 5 of 12 players' games failed after it.",
+      hint: "Unblock it on the game's page, or publish a fixed version.",
+    });
+    expect(
+      liveBlocked({ scene: "level-1", number: 1200 }, { failed: 1500, total: 2000 }).message,
+    ).toBe(
+      `level-1@${formatCount(1200)} is blocked: ${formatCount(1500)} of ${formatCount(2000)} players' games failed after it.`,
+    );
+    expect(
+      liveBlocked({ scene: "level-1", number: 4 }, { reason: "Softlocks at the ford" }).message,
+    ).toBe("level-1@4 is blocked: Softlocks at the ford");
+    expect(liveBlocked({ scene: "level-1", number: 4 }, { reason: null }).message).toBe(
+      "level-1@4 is blocked.",
+    );
+    expect(RELEASE_ERROR_CODES).toContain("live-blocked");
+    expect(apiErrorResponse(breaker).status).toBe(409);
+    expect(toOrpcError(breaker).code).toBe("CONFLICT");
   });
 
   it("date a removed release in UTC", () => {

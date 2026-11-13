@@ -177,6 +177,27 @@ describe("tactics live levels", () => {
     }
   });
 
+  it("ends a walk whose next cell a wall took outside a swap on the cell it reached, not past the wall", () => {
+    const rt = start(tacticsGame);
+    try {
+      let s = step(rt, [{ name: "move", args: { unit: KNIGHT, to: WALL } }]);
+      expect(s.walk?.on).toEqual([2, 2]);
+      const level = level1();
+      const wall = expandScene(
+        { ...level, entities: [wallOn([3, 2])], instances: [] },
+        registry,
+      ).entities.find((e) => e.id === "wall-3-2")!;
+      expect(rt.add([wall])).toMatchObject({ ok: true });
+      for (let i = 0; i < 64 && s.walk; i++) s = step(rt);
+      expect(s.walk).toBeUndefined();
+      expect(s.phase).toBe("orders");
+      expect(s.units[KNIGHT]).toMatchObject({ cell: [2, 2], moved: true });
+      expect(poseCell(rt, KNIGHT)).toEqual([2, 2]);
+    } finally {
+      rt.destroy();
+    }
+  });
+
   it("re-indexes a unit the new version moves, and adds one it places", async () => {
     const level = level1();
     const placed = {

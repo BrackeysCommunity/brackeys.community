@@ -387,6 +387,22 @@ describe("LoadRunPanel", () => {
     expect(replay().getAttribute("aria-disabled")).toBe("true");
     fireEvent.click(replay());
     expect(onReplay).toHaveBeenCalledTimes(1);
+
+    // A version its load's sublevel attaches is one the replay can't start without.
+    const atLoad = (version: string): RecordedSwap => ({
+      ...swap(0, version),
+      timing: "next-load",
+      sublevel: "cellar",
+    });
+    show({ swaps: [atLoad(kept), atLoad(lost)] });
+    expect(panel.getByRole("status").textContent).toBe(
+      "Replay stops at 0.0s: the run reached a live version of the scene this editor doesn't have.",
+    );
+    show({ swaps: [{ ...atLoad(lost), sublevel: "hall" }] });
+    expect(panel.getByRole("status").textContent).toBe(
+      "This run starts on a live version this editor doesn't have, so it can't replay here.",
+    );
+    expect(replay().getAttribute("aria-disabled")).toBe("true");
   });
 
   it("notes a run's live versions as plain text, not a warning, when it can't check them", () => {

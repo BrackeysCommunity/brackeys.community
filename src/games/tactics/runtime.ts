@@ -428,7 +428,7 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     stepWalk(walk);
   }
 
-  /** Starts the walk's next cell; ends the walk when none is left or the grid refuses the step. */
+  /** Starts the walk's next cell; ends the walk when none is left or the grid refuses the step, on the cell it reached. */
   function stepWalk(w: Walk): void {
     if (w.on) arrive(w.unit, w.on);
     const step = w.path.shift();
@@ -440,10 +440,15 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
       return;
     }
     if (step) {
-      const last = w.path.at(-1) ?? step;
-      const { x, y } = centre(last);
+      // The grid refused the next cell (a wall or a unit took it): the walk ends where the unit stands.
+      const { x, y } = centre(from);
       ctx.poses.set(w.unit, x, y, undefined, { snap: true });
-      arrive(w.unit, last);
+      const unit = state.units[w.unit];
+      if (unit && !sameCell(unit.cell, from))
+        state = {
+          ...state,
+          units: { ...state.units, [w.unit]: { ...unit, cell: [from[0], from[1]] } },
+        };
     }
     walk = null;
     state = { ...state, phase: w.resume };

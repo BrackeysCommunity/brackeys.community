@@ -7,6 +7,174 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.14.5] — unreleased
+
+Live levels on a host: the editor's seam for publishing single scenes
+over a channel's release. Without the new host member the editor behaves
+as before. Also an engine-side broad phase for Rapier queries and the
+follow-ups the engine's live levels left.
+
+### Added
+
+- `@jams/engine/editor-ui`: `EditorLiveHost`, the optional `live` member
+  of `EditorPublishHost`, through which the editor reaches a host's live
+  scene versions: `base(scene, channel)` (the channel's release manifest
+  and the scene as players have it, for the Publish scene checks),
+  `publish(versionText, texts, opts, onProgress)` (begin, each missing
+  text, commit, then promote when production is chosen), `list`,
+  `promote`, `rollback`, `clear`, `unblock`, `usage()`, `role()` and
+  `wording`; with its types `LiveBaseView`, `LiveMove`,
+  `LivePointerView`, `LivePublished`, `LivePublishOptions`,
+  `LivePublishProgress`, `LiveUsageView`, `LiveVersionView` and
+  `LiveWording` (the host's numbers, written by the host).
+- `@jams/engine/scene`: `shortId` and `SHORT_ID_LENGTH`, a release or
+  scene version id's first six characters (`3fa9c2…`), the one rule the
+  editor's release list and the CLI's release and live lines share.
+- `castSpawn(ctx, at, shape, opts?)` takes `opts.exclude`, entity ids
+  whose colliders neither block the start nor stop the cast; the
+  platformer's swap rescue now passes its player instead of gating the
+  player's collider to groups 0.
+- An engine-side broad phase for Rapier: `PhysicsWorld.collidersNear(box)`
+  and `PhysicsWorld.moved(bodyOrCollider)`. Fixed colliders sit in a
+  spatial hash (built lazily at the first query, cell fitted to the median
+  collider), colliders on moving bodies are read as they stand, so
+  `ctx.space` sweep, overlaps, raycast and pointAt (and castSpawn's Rapier
+  cast) test only nearby colliders: 4000 queries over a 300-collider scene
+  went from 545 ms to 127 ms with the same hits, and loading costs nothing
+  extra. A fixed body moved by code outside the engine's systems calls
+  `moved` or `refreshQueries`.
+- `@jams/engine/editor-ui`: Publish scene in the editor's toolbar, shown
+  when the host's `publish.live` is given: one dialog for the open scene.
+  It picks Preview, or Production for publishers (asking first), and one
+  of the timings the game declares in `GameDefinition.live.timings`, the
+  others disabled. It takes a note whose limit and placeholder come from
+  the host's `LiveWording`. Its checks run on open and on each edit:
+  validation and fit to the channel's release, the diff against what the
+  channel plays and whether players' worlds update in place or are
+  rebuilt, data size, today's count, and who edited since the last
+  version. Publish builds the doc as it is at that moment, publishes
+  through `EditorLiveHost.publish` with progress, and shows the host's
+  refusals in the dialog.
+- `@jams/engine/editor-ui`: the Publish panel lists Live scenes under the
+  channels, one row per pointer per channel (title · level-1@4 · timing ·
+  time ago · who), with Promote to production, Roll back and Stop (Stop
+  asks with the host's `LiveWording.stopConfirm`); a blocked version
+  shows its badge and reason with Unblock, which asks first ('Players
+  will get level-1@4 again.'); versions due for cleanup show the host's
+  forecast line; an empty project says 'No live scenes. Publish a scene
+  from the editor to update one level without a release.' The section
+  appears only when the host supplies `publish.live`.
+- `@jams/engine/editor-ui`: promoting a release asks 'Promoting v8
+  replaces these live scenes: …' and, for publishers, offers Keep (off by
+  default) for each live scene that still fits the new release, passed as
+  `keepScenes` to `EditorPublishHost.promote`. A release rollback's
+  skipped live scenes are said as warnings. `PublishPanel` takes an
+  optional `sceneTitle` to name the rows by title.
+- The scene CLI's `game live publish|list|promote|rollback|clear` and the
+  scene MCP server's `game_live_publish`, `game_live_list`,
+  `game_live_promote`, `game_live_rollback` and `game_live_clear` tools
+  over them: preview only for agent tokens, the token and site from the
+  environment; `publish` swap-checks a boundary or now move from what
+  players have unless `--no-swap-check`.
+
+### Changed
+
+- `@jams/engine/editor-ui`: `EditorPublishHost.promote` takes an optional
+  `{ keepScenes }` (live scenes that stay on the channel over the new
+  release), and `rollback` answers a `ReleaseRollback`: the `PointerMove`
+  with the live scenes it restored and those it skipped, each with its
+  sentence. Existing hosts fit both unchanged.
+- `PhysicsWorld.refreshQueries` no longer disturbs velocities: it still
+  steps by zero (Rapier 0.19 updates its broad phase, which character
+  controllers read, only inside a step) but puts every dynamic body's
+  linear and angular velocity back, so a jointed chain no longer jumps to
+  ~1000 m/s on an add, update or remove in Play, a sublevel attach or a
+  play-from-here cast; the live swap's own velocity restore is gone. No
+  determinism pin moved (platformer goldens, behavior-yard checks and the
+  swap bit-exact tests unchanged).
+- A scene's `flow.scenes` entry (release and scene version alike) lists
+  the prefabs only its fields name (a spawner's `prefab`) in `prefabs`, so
+  a version carrying a changed spawner prefab replaces it instead of
+  failing rule 6 with live-asset-conflict; release ids change for scenes
+  with such prefabs (the engine project's behavior-yard).
+- `SceneRuntime.load(scene, play?, as?)`, `GameInstance.play(doc, opts?,
+as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
+  which saves, live versions and the recording key on when the doc's name
+  isn't its id; editor Play passes it, so Live in Play updates a scene
+  whose name differs from its id.
+- `selectionBounds` redocumented as the outline/gizmo box; framing uses
+  `frameBounds`.
+
+### Fixed
+
+- The editor's Run panel disables Replay for a run whose load attaches a
+  sublevel on a live version the editor doesn't have, which the replay
+  can't start without; it said the replay would stop at 0.0s. The panel
+  and the replay now share one rule for where a replay stops (`replayGap`
+  beside `createSwapReplay`).
+- `parseRecording` refuses `swaps` out of tick order or at or after
+  `ticks` (path `/swaps/i/tick`).
+- `setMode('play')` with no scene loaded remembers the editor camera, so a
+  later Play and Stop no longer leave the follow camera in edit mode.
+- Tactics: a walk whose next cell the grid refuses ends on the cell the
+  unit reached (state and pose), instead of snapping to the path's end
+  past the blocker.
+
+### Agent surface
+
+- AS 20: `vp run scene game live publish|list|promote|rollback|clear`
+  (preview only for agent tokens; the swap check runs before a boundary
+  or now move unless `--no-swap-check`) and the MCP tools
+  `game_live_publish`, `game_live_list`, `game_live_promote`,
+  `game_live_rollback` and `game_live_clear`.
+
+### Internal
+
+- Site only, no engine surface change: jams.team's project quotas gain
+  `liveVersionBytes` and `liveVersionsPerDay` (`checkLiveQuota`,
+  `checkLiveChannelQuota`), its stored usage gains `liveVersions`
+  (`{ kept, bytes }`) and `liveToday`, and the Usage lines gain a
+  live-versions-per-day line.
+- Site only: a release promote or rollback now resets or restores the
+  channel's live scene pointers (`keepScenes` on promote, `restored` and
+  `skipped` on rollback), sets `live_rev` and announces the move; a
+  release committed to preview announces its move once it commits.
+- `input-script` and `ops` schemas memoized through `builtFor`;
+  lifecycle's spawn-schema map dropped; one `prefabReader` in scene/prefab
+  for export, snapshot and scene-version reads; `generationOf` exported
+  from runtime/pool for runtime/live.
+- Site only: `GET /api/engine/live/<projectId>/stream?channel=preview|production`,
+  the live stream (`event: live` with `{channel, rev}`; closes after
+  `LIVE_STREAM_MINUTES`), behind the play page's gate; the forum's stream
+  shares its server-sent-events helper and in-process broadcast.
+- Site only: the play payload carries the channel's live state (`live`)
+  for latest and preview, and is null for numbered and jam versions; new
+  `getGameLive({ projectId, channel })` for play pages, behind the play
+  gate, with a 5 s in-process cache keyed by project, channel, rev and
+  release. jams.team's publish host gains `live` (the editor's
+  `EditorLiveHost` over the live procedures and routes).
+- Site only: the `engine_live` migration (scene versions, their files,
+  per-channel scene pointers, player reports, `live_compat_key` on
+  releases, scene uploads on the upload row), and the live procedures and
+  their REST twins for agent tokens: begin and commit (the release upload
+  protocol, one shared quota and role rule), list, get, base, promote,
+  rollback and clear (one pointer writer, `pointScene`, checked by
+  `checkPointerTarget`), block, unblock, hide, unhide, the staff queue and
+  players' reports.
+- Site only: the frame route serves `live/<sha256><ext>` under a release
+  whose compat key a kept, unhidden version shares (410 'This level was
+  removed' for a hidden one); the collector drops scene versions past the
+  five kept per scene after the release grace, their texts a day later,
+  and reports after 30 days.
+- Site only: play pages follow their channel's live scenes (stream, else a
+  60 s poll), report each version's outcome, and report a crash within
+  10 s of a swap; the breaker blocks a version when, within 30 minutes of
+  its move, 5 players and at least a quarter of those reporting fail on
+  it. The game page names its live
+  levels and, for publishers, blocked ones; staff hide and unhide versions
+  from the admin queue; the terms and privacy pages say how live updates
+  and their reports work.
+
 ## [0.14.4] — unreleased
 
 Live levels in the engine: a published scene version can be staged and
@@ -254,9 +422,10 @@ for it.
   Run panel says whether Replay plays all of a run's live versions, stops
   at a time it names (seconds, or a step in a turns or event game), or
   can't start (Replay disabled) on a version this editor doesn't have. A
-  run with live versions it doesn't have says to replay it with
-  `vp run scene replay --versions`, and one that stops partway says so,
-  at the time it reached, worded as the Run panel words it. Editor UI:
+  run with a live version this editor doesn't have says Replay here has
+  only the latest versions Live in Play built since the editor opened, and
+  one that stops partway says so, at the time it reached, worded as the
+  Run panel words it. Editor UI:
   `EditorHostState.livePlay`, `LivePlayState`, `LivePlayStatus`,
   `EditorProps.onLivePlay`, `EditorProps.liveVersion` (the live versions
   the editor holds, which the Run panel checks a run against).

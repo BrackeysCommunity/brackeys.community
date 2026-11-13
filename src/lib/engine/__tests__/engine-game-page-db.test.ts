@@ -1,11 +1,22 @@
-import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { and, eq } from "drizzle-orm";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 
 import { db as mockedDb } from "@/db";
 import {
   engineProjects,
   engineReleaseJamLinks,
   engineReleases,
+  engineSceneChannels,
+  engineSceneVersions,
   itchJams,
   projectContributors,
   projectTeams,
@@ -18,6 +29,9 @@ import { seedUser, type TestDb } from "@/test/db";
 import { forgetProjectReleases } from "../frame-route";
 import { verifyFrameToken } from "../frame-token";
 import { gamePage, removalNotice, type GamePageDeps } from "../game-page";
+import { engineLive } from "../live-events";
+import { moveScenePointer } from "../live-pointers";
+import { beginSceneVersion, commitSceneVersion } from "../live-upload";
 import type { Viewer } from "../release-access";
 import { promote } from "../release-channels";
 import { memoryReleaseStore } from "../release-storage";
@@ -29,6 +43,7 @@ import {
   type ReleaseDeps,
   type ReleaseTxDb,
 } from "../release-upload";
+import { fixtureVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
 import { plannedRelease, type PlannedRelease } from "./release-fixture";
 
 vi.mock("@/db", async () => {
@@ -443,5 +458,138 @@ describe("gamePage: saves, review and credits", () => {
     });
     expect(await page(publisher)).toMatchObject({ reviewPending: true, noindex: true });
     expect(await page(anonymous)).toMatchObject({ reviewPending: false });
+  });
+});
+
+describe("gamePage: live levels", () => {
+  let hall: FixtureVersion;
+  let yard: FixtureVersion;
+  let announced: ReturnType<typeof vi.spyOn>;
+
+  const marker =
+    (x: number) =>
+    (scene: Record<string, unknown>): void => {
+      (scene.entities as { at: number[] }[])[0]!.at = [x, 1];
+    };
+
+  /** Publishes `v` to preview, which points preview's pointer at it. */
+  async function publishScene(v: FixtureVersion) {
+    const begun = await beginSceneVersion(uploadDeps(), {
+      projectId: PROJECT,
+      version: v.text,
+      channel: "preview",
+      actor: creator,
+    });
+    for (const { sha256 } of begun.missing)
+      await putReleaseFile(uploadDeps(), {
+        uploadId: begun.uploadId,
+        sha256,
+        body: new TextEncoder().encode(v.texts.get(sha256)!),
+        actor: creator,
+      });
+    await commitSceneVersion(uploadDeps(), { uploadId: begun.uploadId, actor: creator });
+  }
+
+  const toProduction = (scene: string) =>
+    moveScenePointer(uploadDeps(), {
+      projectId: PROJECT,
+      scene,
+      channel: "production",
+      to: { number: 1 },
+      timing: "now",
+      action: "scene-promote",
+      actor: creator,
+    });
+
+  const sinceOf = async (scene: string) =>
+    (
+      await db
+        .select({ at: engineSceneChannels.updatedAt })
+        .from(engineSceneChannels)
+        .where(
+          and(
+            eq(engineSceneChannels.channel, "production"),
+            eq(engineSceneChannels.sceneId, scene),
+          ),
+        )
+    )[0]!.at.toISOString();
+
+  const setVersion = (id: string, values: Partial<typeof engineSceneVersions.$inferInsert>) =>
+    db.update(engineSceneVersions).set(values).where(eq(engineSceneVersions.id, id));
+
+  beforeAll(async () => {
+    hall = await fixtureVersion(v1, { scene: "hall", edit: marker(4) });
+    yard = await fixtureVersion(v1, { scene: "yard", edit: marker(5) });
+  });
+
+  /** v1 on both channels, with hall@1 and yard@1 published to preview. */
+  beforeEach(async () => {
+    announced = vi.spyOn(engineLive, "announce").mockResolvedValue(undefined);
+    await promote(
+      { projectId: PROJECT, version: 1, channel: "preview", actor: creator },
+      { db: db as unknown as ReleaseTxDb, now: () => NOW },
+    );
+    await publishScene(hall);
+    await publishScene(yard);
+  });
+
+  afterEach(() => {
+    announced.mockRestore();
+  });
+
+  it("names no updated levels while only preview points at live versions", async () => {
+    expect((await page(anonymous))?.live).toEqual({
+      version: 1,
+      playUrl: expect.stringMatching(/\/games\/page-fixture\/play\/1$/),
+      scenes: [],
+    });
+    expect((await page(publisher))?.blockedScenes).toEqual([]);
+  });
+
+  it("gives the live version the levels production plays, titled by the scene list", async () => {
+    await toProduction("hall");
+    await toProduction("yard");
+    const expected = [
+      { scene: "hall", title: "hall", number: 1, since: await sinceOf("hall") },
+      { scene: "yard", title: "Yard", number: 1, since: await sinceOf("yard") },
+    ];
+    for (const who of [anonymous, outsider, publisher])
+      expect((await page(who))?.live?.scenes).toEqual(expected);
+  });
+
+  it("drops a blocked version from the row and tells only publishers why", async () => {
+    await toProduction("hall");
+    const reason = "5 of 12 players' games failed after this update";
+    await setVersion(hall.id, { blockedAt: NOW, blockedBy: "system", blockReason: reason });
+
+    for (const who of [anonymous, outsider]) {
+      const shown = await page(who);
+      expect(shown?.live?.scenes).toEqual([]);
+      expect(shown?.blockedScenes).toEqual([]);
+    }
+    // Preview and production both point at hall@1: one line, on production.
+    for (const who of [publisher, staff])
+      expect((await page(who))?.blockedScenes).toEqual([
+        { scene: "hall", title: "hall", number: 1, channel: "production", reason },
+      ]);
+  });
+
+  it("names a blocked version only preview points at, and none staff hid", async () => {
+    await setVersion(yard.id, { blockedAt: NOW, blockedBy: "user", blockedById: "creator" });
+    expect((await page(publisher))?.blockedScenes).toEqual([
+      { scene: "yard", title: "Yard", number: 1, channel: "preview", reason: null },
+    ]);
+    await setVersion(yard.id, { hiddenAt: NOW, hiddenReason: "Spam" });
+    expect((await page(publisher))?.blockedScenes).toEqual([]);
+  });
+
+  it("names no updated levels once production moves to another release", async () => {
+    await toProduction("hall");
+    await promote(
+      { projectId: PROJECT, version: 2, channel: "production", actor: creator },
+      { db: db as unknown as ReleaseTxDb, now: () => NOW },
+    );
+    const shown = await page(anonymous);
+    expect(shown?.live).toMatchObject({ version: 2, scenes: [] });
   });
 });

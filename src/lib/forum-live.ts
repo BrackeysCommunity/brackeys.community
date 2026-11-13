@@ -1,17 +1,10 @@
-import type IORedis from "ioredis";
-
-import { bestEffort } from "@/lib/posthog-server";
-import { createRedisClient } from "@/lib/redis";
+import { createBroadcast } from "@/lib/live-broadcast";
 
 /**
  * "N new posts": every published forum post is announced on one Redis
- * channel, and each app instance keeps a single subscriber that fans the
- * announcement out to its open `/api/forum/stream` connections. One socket
- * per instance rather than per reader, since every reader wants the same
- * broadcast.
+ * channel, and each app instance fans it out to its open
+ * `/api/forum/stream` connections.
  */
-
-const CHANNEL = "forum:new-posts";
 
 export type ForumLiveEvent = {
   id: number;
@@ -20,61 +13,29 @@ export type ForumLiveEvent = {
   authorId: string | null;
 };
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __appForumLivePublisher: IORedis | undefined;
-  // eslint-disable-next-line no-var
-  var __appForumLiveSubscriber: Promise<IORedis> | undefined;
-  // eslint-disable-next-line no-var
-  var __appForumLiveListeners: Set<(event: ForumLiveEvent) => void> | undefined;
+function parseForumLiveEvent(raw: unknown): ForumLiveEvent | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const { id, kind, category, authorId } = raw as Record<string, unknown>;
+  if (typeof id !== "number" || typeof kind !== "string" || typeof category !== "string") {
+    return null;
+  }
+  if (authorId !== null && typeof authorId !== "string") return null;
+  return { id, kind, category, authorId };
 }
 
-async function publisher(): Promise<IORedis> {
-  globalThis.__appForumLivePublisher ??= await createRedisClient("forum-live");
-  return globalThis.__appForumLivePublisher;
-}
+const forumLive = createBroadcast<ForumLiveEvent>({
+  name: "forum-live",
+  channel: "forum:new-posts",
+  parse: parseForumLiveEvent,
+  context: (event) => ({ post_id: event.id }),
+});
 
 /** Best-effort: with Redis down the pill just doesn't light up. */
-export async function announceForumPost(event: ForumLiveEvent): Promise<void> {
-  if (!process.env.REDIS_URL) return;
-  await bestEffort("forum_live.publish", { post_id: event.id }, async () => {
-    await (await publisher()).publish(CHANNEL, JSON.stringify(event));
-  });
-}
-
-function listeners(): Set<(event: ForumLiveEvent) => void> {
-  globalThis.__appForumLiveListeners ??= new Set();
-  return globalThis.__appForumLiveListeners;
-}
-
-async function ensureSubscriber(): Promise<void> {
-  globalThis.__appForumLiveSubscriber ??= createRedisClient("forum-live-subscriber").then(
-    (client) => {
-      client.on("message", (_channel, message) => {
-        let event: ForumLiveEvent;
-        try {
-          event = JSON.parse(message) as ForumLiveEvent;
-        } catch {
-          return;
-        }
-        for (const listener of listeners()) listener(event);
-      });
-      // Re-subscribe on every `ready`, as the notification stream does:
-      // with the offline queue off a subscribe during a reconnect rejects.
-      const subscribe = () => void client.subscribe(CHANNEL).catch(() => {});
-      client.on("ready", subscribe);
-      if (client.status === "ready") subscribe();
-      return client;
-    },
-  );
-  await globalThis.__appForumLiveSubscriber;
+export function announceForumPost(event: ForumLiveEvent): Promise<void> {
+  return forumLive.announce(event);
 }
 
 /** Listen for new posts on this instance; returns the unsubscribe. */
-export async function onForumPost(listener: (event: ForumLiveEvent) => void): Promise<() => void> {
-  listeners().add(listener);
-  await ensureSubscriber().catch(() => {});
-  return () => {
-    listeners().delete(listener);
-  };
+export function onForumPost(listener: (event: ForumLiveEvent) => void): Promise<() => void> {
+  return forumLive.listen(listener);
 }

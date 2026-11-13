@@ -3614,3 +3614,28 @@
     font-size: var(--je-text);
   }
 }
+
+/* ─── Publish scene ─── */
+
+@layer jams-editor {
+  .je-dialog.je-publish-scene {
+    width: min(440px, calc(100% - 32px));
+  }
+
+  .je-publish-scene-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .je-publish-scene-group label[data-disabled] {
+    cursor: not-allowed;
+  }
+
+  .je-publish-scene-progress,
+  .je-publish-scene-refusal {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+}

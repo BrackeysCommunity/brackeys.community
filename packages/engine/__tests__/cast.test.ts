@@ -125,6 +125,26 @@ describe.each(BACKENDS)("castSpawn with physics %s", (physics) => {
     rt.destroy();
   });
 
+  it("passes through the excluded entities, at the start and along the cast", () => {
+    const rt = loaded(physics, G);
+    expect(castSpawn(rt.ctx, { x: 5, y: 9.3 }, BOX, { exclude: ["floor"] })).toEqual({
+      ok: true,
+      at: { x: 5, y: 9.3 },
+    });
+    const through = castSpawn(
+      rt.ctx,
+      { x: 6, y: 1.5 },
+      { ...BOX, cast: [0, -1] },
+      {
+        exclude: ["ceiling"],
+      },
+    );
+    expect(through).toEqual({ ok: true, at: { x: 6, y: 1.5 } });
+    const stopped = castSpawn(rt.ctx, { x: 6, y: 1.5 }, { ...BOX, cast: [0, -1] });
+    expect(stopped.ok && stopped.at.y).toBeCloseTo(1.2, DIGITS);
+    rt.destroy();
+  });
+
   it("stays put with nothing ahead, or outside the bounds", () => {
     expect(castTo(physics, G, { x: 6, y: 15 }, BOX)).toEqual({ x: 6, y: 15 });
     expect(castTo(physics, [0, -12], { x: 6, y: 5 }, { ...BOX, cast: [1, 0] })).toEqual({

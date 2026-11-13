@@ -85,6 +85,7 @@ function payload(patch: Partial<PlayPayload> = {}): PlayPayload {
     connectOrigins: [],
     online: false,
     viewer: { signedIn: false },
+    live: null,
     ...patch,
   };
 }

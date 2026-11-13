@@ -14,7 +14,7 @@ import {
 } from "../scene/issues";
 import { SCHEMA_ID_BASE, toJsonSchema } from "../scene/json-schema";
 import { parseScene, pointerLines, withIssueLines } from "../scene/parse";
-import { parsePrefab, prefabLibraryFor, sceneHashWith } from "../scene/prefab";
+import { prefabReader, sceneHashWith } from "../scene/prefab";
 import {
   PREFAB_KIND,
   type ExpandedScene,
@@ -621,23 +621,6 @@ export function findSceneVersion<V extends { id: Sha256; version: SceneVersion }
 
 // ─── Reading one for play ────────────────────────────────
 
-/** Parses prefab `id` from `text` into `into`; its issues go to `issues`, under its id. */
-function readPrefab(
-  id: AssetId,
-  text: string,
-  registry: Registry,
-  into: Map<string, Prefab>,
-  issues: SceneIssue[],
-): Prefab | undefined {
-  const read = parsePrefab(text, registry);
-  if (!read.ok) {
-    issues.push(...withId(id, read.issues));
-    return undefined;
-  }
-  into.set(id, read.prefab);
-  return read.prefab;
-}
-
 /**
  * The last half of a read, shared by the build and `readSceneVersion`:
  * validates the parsed scene against `view` with `prefabs` and expands it,
@@ -728,10 +711,15 @@ export function readSceneVersion(
     return text;
   };
 
-  const prefabs = new Map<string, Prefab>();
+  const prefabs = prefabReader(registry, {
+    text: (pid) => {
+      const asset = ownValue(version.assets, pid);
+      return asset?.kind === PREFAB_KIND ? texts.get(asset.sha256) : undefined;
+    },
+    failed: (pid, found) => issues.push(...withId(pid, found)),
+  });
   version.entry.prefabs.forEach((id, i) => {
-    const text = textOf(id, PREFAB_KIND, pointer("entry", "prefabs", i));
-    if (text !== undefined) readPrefab(id, text, registry, prefabs, issues);
+    if (textOf(id, PREFAB_KIND, pointer("entry", "prefabs", i)) !== undefined) prefabs.get(id);
   });
   const text = textOf(version.scene, sceneKind.kind, pointer("scene"));
   const parsed = text === undefined ? null : parseScene(text, registry);
@@ -742,20 +730,13 @@ export function readSceneVersion(
     version.scene,
     parsed.def,
     text,
-    prefabs,
+    prefabs.read,
     registry,
     view,
     opts.engine,
     issues,
   );
-  if (!read.ok) return read;
-  const get = (pid: AssetId): Prefab | undefined => {
-    if (prefabs.has(pid)) return prefabs.get(pid);
-    const asset = ownValue(version.assets, pid);
-    const t = asset?.kind === PREFAB_KIND ? texts.get(asset.sha256) : undefined;
-    return t === undefined ? undefined : readPrefab(pid, t, registry, prefabs, read.issues);
-  };
-  return withNamedPrefabs(read, registry, get);
+  return read.ok ? withNamedPrefabs(read, registry, prefabs.get) : read;
 }
 
 /**
@@ -804,27 +785,20 @@ function readProjectScene(
   const parsed = parseScene(text, registry);
   if (!parsed.ok) return { ok: false, issues: withId(id, parsed.issues) };
   const issues: SceneIssue[] = [];
-  const prefabs = new Map<string, Prefab>();
-  prefabLibraryFor(parsed.def, (next) => {
+  const prefabs = prefabReader(registry, {
     // A prefab the project doesn't have is the validation's to name.
-    if (view.byId.get(next)?.kind !== PREFAB_KIND) return undefined;
-    const prefabText = opts.texts.get(next);
-    if (prefabText === undefined) {
-      issues.push(
-        assetMissing(`scene "${id}" reaches prefab "${next}", which has no text given`, next),
-      );
-      return undefined;
-    }
-    return readPrefab(next, prefabText, registry, prefabs, issues);
+    text: (pid) => (view.byId.get(pid)?.kind === PREFAB_KIND ? opts.texts.get(pid) : undefined),
+    failed: (pid, found) => issues.push(...withId(pid, found)),
+    missing: (pid) => {
+      if (view.byId.get(pid)?.kind === PREFAB_KIND)
+        issues.push(
+          assetMissing(`scene "${id}" reaches prefab "${pid}", which has no text given`, pid),
+        );
+    },
   });
-  const read = settleScene(id, parsed.def, text, prefabs, registry, view, engine, issues);
-  if (!read.ok) return read;
-  const get = (pid: AssetId): Prefab | undefined => {
-    if (prefabs.has(pid)) return prefabs.get(pid);
-    const t = view.byId.get(pid)?.kind === PREFAB_KIND ? opts.texts.get(pid) : undefined;
-    return t === undefined ? undefined : readPrefab(pid, t, registry, prefabs, read.issues);
-  };
-  return withNamedPrefabs(read, registry, get);
+  prefabs.library(parsed.def);
+  const read = settleScene(id, parsed.def, text, prefabs.read, registry, view, engine, issues);
+  return read.ok ? withNamedPrefabs(read, registry, prefabs.get) : read;
 }
 
 /** What `sceneVersionOptions` reads: an export input's view, texts, snapshot, game and registry. */

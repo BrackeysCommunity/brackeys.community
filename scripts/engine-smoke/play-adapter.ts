@@ -6,22 +6,48 @@
  * serves them on the site. The host page's origin also answers the real save
  * routes (`createSaveRoutes`) for a test player whose session the smoke
  * mints in that same database, and a game's own save server is a stub on
- * its own HTTPS origin.
+ * its own HTTPS origin. Live levels go through the same modules: a scene
+ * version is published with `beginSceneVersion` and `commitSceneVersion`,
+ * pointed at with `moveScenePointer`, read with `resolvePlay`'s live state
+ * and announced over `engineLive`'s local fan-out (the smoke has no Redis)
+ * to the host origin's stream.
  */
-import { createPublicKey, generateKeyPairSync, randomBytes, sign } from "node:crypto";
+import { createHash, createPublicKey, generateKeyPairSync, randomBytes, sign } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 
-import { parseReleaseManifest, RELEASE_FILE } from "@jams/engine/project";
+import type { SwapTiming } from "@jams/engine/game";
+import {
+  parseReleaseManifest,
+  RELEASE_FILE,
+  type AssetId,
+  type Sha256,
+} from "@jams/engine/project";
+import type { LiveSnapshot } from "@jams/engine/standalone";
 import { and, count, eq, gt } from "drizzle-orm";
 
-import { engineProjects, engineSaves, session, user } from "@/db/schema";
+import {
+  engineProjects,
+  engineReleaseObjects,
+  engineReleases,
+  engineSaves,
+  engineSceneVersionFiles,
+  engineSceneVersions,
+  session,
+  user,
+} from "@/db/schema";
 import { frameBase } from "@/lib/engine/frame-csp";
 import { createFrameRoute } from "@/lib/engine/frame-route";
+import { resolvePlay, type PlayPayload } from "@/lib/engine/game-play";
 import type { SaveMode } from "@/lib/engine/host-server";
+import { LIVE_STREAM_MINUTES } from "@/lib/engine/limits";
+import { engineLive } from "@/lib/engine/live-events";
+import { moveScenePointer } from "@/lib/engine/live-pointers";
+import { beginSceneVersion, commitSceneVersion } from "@/lib/engine/live-upload";
+import type { Viewer } from "@/lib/engine/release-access";
 import { promote } from "@/lib/engine/release-channels";
 import { memoryReleaseStore, type ReleaseObjectStore } from "@/lib/engine/release-storage";
 import {
@@ -34,14 +60,23 @@ import {
 } from "@/lib/engine/release-upload";
 import type { ReadSession } from "@/lib/engine/route-gate";
 import { createSaveRoutes } from "@/lib/engine/save-routes";
+import { engineReleaseObjectKey } from "@/lib/engine/storage-keys";
+import { sseResponse } from "@/lib/sse";
 import { createTestDb, seedUser, type TestDb } from "@/test/db";
 
 import { contentType, resolveRequestPath, type ServedRequest } from "./static-server";
 
 // ─── node:http over a fetch handler ──────────────────────
 
-/** A `Request` for what came in on `origin`; a body only for methods that carry one. */
-export async function toRequest(req: IncomingMessage, origin: string): Promise<Request> {
+/**
+ * A `Request` for what came in on `origin`; a body only for methods that
+ * carry one. `signal` aborts it when the client goes, as a stream's cleanup needs.
+ */
+export async function toRequest(
+  req: IncomingMessage,
+  origin: string,
+  signal?: AbortSignal,
+): Promise<Request> {
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
     if (value === undefined) continue;
@@ -58,20 +93,40 @@ export async function toRequest(req: IncomingMessage, origin: string): Promise<R
     method,
     headers,
     ...(body ? { body } : {}),
+    ...(signal ? { signal } : {}),
   });
 }
 
-/** Writes `response` to `res`: its status, every header and, unless the request was HEAD, its body. */
+const isEventStream = (response: Response) =>
+  response.headers.get("content-type")?.startsWith("text/event-stream") ?? false;
+
+/**
+ * Writes `response` to `res`: its status, every header and, unless the
+ * request was HEAD, its body. An event stream is written as it comes, until
+ * it ends or the client goes; anything else is buffered.
+ */
 export async function writeResponse(
   res: ServerResponse,
   response: Response,
   head: boolean,
 ): Promise<void> {
-  const bytes = head || !response.body ? null : Buffer.from(await response.arrayBuffer());
   const headers: Record<string, string> = {};
   response.headers.forEach((value, name) => {
     headers[name] = value;
   });
+  if (!head && response.body && isEventStream(response)) {
+    const reader = response.body.getReader();
+    res.once("close", () => void reader.cancel().catch(() => {}));
+    res.writeHead(response.status, headers);
+    for (;;) {
+      const chunk = await reader.read().catch(() => null);
+      if (!chunk || chunk.done) break;
+      res.write(chunk.value);
+    }
+    res.end();
+    return;
+  }
+  const bytes = head || !response.body ? null : Buffer.from(await response.arrayBuffer());
   if (bytes && !("content-length" in headers)) headers["content-length"] = String(bytes.length);
   res.writeHead(response.status, headers);
   res.end(bytes ?? undefined);
@@ -97,9 +152,11 @@ export async function serveHandler(
   const server = createServer((req, res) => {
     const entry: ServedRequest = { method: req.method ?? "", path: req.url ?? "", status: 0 };
     served.push(entry);
+    const gone = new AbortController();
+    res.once("close", () => gone.abort());
     void (async () => {
       try {
-        const response = await handler(await toRequest(req, origin));
+        const response = await handler(await toRequest(req, origin, gone.signal));
         entry.status = response.status;
         await writeResponse(res, response, req.method === "HEAD");
       } catch {
@@ -262,12 +319,227 @@ export async function serveFrames(site: SmokeSite, hostOrigin: string): Promise<
 export const releaseDir = (frames: Pick<HandlerServer, "origin">, releaseId: string): string =>
   frameBase(releaseId, undefined, frames.origin);
 
+// ─── Live levels ─────────────────────────────────────────
+
+/** A scene version as `buildSceneVersion` made it: its canonical text and the texts it carries. */
+export type SmokeSceneVersion = {
+  scene: AssetId;
+  id: Sha256;
+  /** `formatSceneVersion(version)`. */
+  versionText: string;
+  /** Every text the version carries, by hash. */
+  texts: ReadonlyMap<Sha256, string>;
+};
+
+export type PublishedSceneVersion = {
+  versionId: Sha256;
+  number: number;
+  /** False when the site already held this version: the same number again. */
+  created: boolean;
+  /** How many texts `begin` listed as missing, each sent with `putReleaseFile`. */
+  uploaded: number;
+};
+
+/**
+ * Publishes `version` as the editor's Publish scene does, without moving a
+ * channel: `begin` against the production release, every missing text,
+ * then `commit`. Publishing it again answers its number.
+ */
+export async function publishSceneVersion(
+  site: SmokeSite,
+  projectId: string,
+  version: SmokeSceneVersion,
+): Promise<PublishedSceneVersion> {
+  const begun = await beginSceneVersion(site.deps, {
+    projectId,
+    version: version.versionText,
+    channel: "none",
+    actor: SMOKE_PUBLISHER,
+  });
+  for (const file of begun.missing) {
+    const text = version.texts.get(file.sha256);
+    if (text === undefined) throw new Error(`the version doesn't carry the text ${file.sha256}`);
+    await putReleaseFile(site.deps, {
+      uploadId: begun.uploadId,
+      sha256: file.sha256,
+      body: new TextEncoder().encode(text),
+      actor: SMOKE_PUBLISHER,
+    });
+  }
+  const committed = await commitSceneVersion(site.deps, {
+    uploadId: begun.uploadId,
+    actor: SMOKE_PUBLISHER,
+  });
+  return {
+    versionId: committed.versionId,
+    number: committed.number,
+    created: committed.created,
+    uploaded: begun.missing.length,
+  };
+}
+
+/**
+ * Points production's `scene` at version `to` with `timing` ("Promote"), or
+ * takes the pointer off with null ("Stop"); the move is announced to open
+ * play pages.
+ */
+export function pointProduction(
+  site: SmokeSite,
+  input: { projectId: string; scene: AssetId; to: number | null; timing: SwapTiming },
+) {
+  return moveScenePointer(site.deps, {
+    projectId: input.projectId,
+    scene: input.scene,
+    channel: "production",
+    to: input.to === null ? null : { number: input.to },
+    timing: input.timing,
+    action: input.to === null ? "scene-clear" : "scene-promote",
+    actor: SMOKE_PUBLISHER,
+  });
+}
+
+const sha256Hex = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+
+/** A number no published version of a scene reaches in a smoke run. */
+const FOREIGN_VERSION_NUMBER = 999_999;
+
+/**
+ * Records a version of `scene` in `projectId` as if it had been published
+ * against another release: its compat key is `otherRelease`'s, and its
+ * version text is stored as one of the project's objects. Answers its id,
+ * the hash a frame of `projectId`'s own release asks `live/` for.
+ */
+export async function seedForeignVersion(
+  site: SmokeSite,
+  input: { projectId: string; scene: AssetId; otherRelease: string },
+): Promise<Sha256> {
+  const [other] = await site.db
+    .select({ key: engineReleases.liveCompatKey })
+    .from(engineReleases)
+    .where(eq(engineReleases.id, input.otherRelease))
+    .limit(1);
+  if (!other?.key) throw new Error(`the release ${input.otherRelease} takes no live scenes`);
+  const body = new TextEncoder().encode(
+    JSON.stringify({
+      scene: input.scene,
+      compat: other.key,
+      nonce: randomBytes(8).toString("hex"),
+    }),
+  );
+  const id = sha256Hex(body);
+  const storageKey = engineReleaseObjectKey(input.projectId, id);
+  await site.store.put(storageKey, body, "application/json");
+  await site.db.insert(engineReleaseObjects).values({
+    projectId: input.projectId,
+    sha256: id,
+    bytes: body.byteLength,
+    contentType: "application/json",
+    storageKey,
+  });
+  await site.db.insert(engineSceneVersions).values({
+    id,
+    projectId: input.projectId,
+    sceneId: input.scene,
+    number: FOREIGN_VERSION_NUMBER,
+    descriptor: new TextDecoder().decode(body),
+    compatKey: other.key,
+    physics: "none",
+    sceneHash: id,
+    dataBytes: body.byteLength,
+    createdById: SMOKE_PUBLISHER.userId,
+  });
+  await site.db.insert(engineSceneVersionFiles).values({
+    versionId: id,
+    projectId: input.projectId,
+    sha256: id,
+    bytes: body.byteLength,
+    role: "version",
+    ext: ".json",
+    source: "release",
+  });
+  return id;
+}
+
+/** Who the smoke's play page plays as: signed out, as most players are. */
+const SMOKE_PLAYER_VIEWER: Viewer = {
+  userId: null,
+  staff: false,
+  teamRole: null,
+  isCreator: false,
+};
+
+/** The play payload for `version` (`latest`, `preview` or a number), as `getGamePlay` answers it; null when refused. */
+export async function smokePlay(
+  site: SmokeSite,
+  input: { projectId: string; version: string; playOrigin: string },
+): Promise<PlayPayload | null> {
+  const resolved = await resolvePlay(
+    { projectId: input.projectId, version: input.version, viewer: SMOKE_PLAYER_VIEWER },
+    { db: site.deps.db, playOrigin: input.playOrigin },
+  );
+  return resolved.ok ? resolved.play : null;
+}
+
+const PLAY_VERSION_OF = { production: "latest", preview: "preview" } as const;
+
+/** A channel's live state, as `getGameLive` answers a play page that heard its rev move. */
+export async function smokeLive(
+  site: SmokeSite,
+  input: { projectId: string; channel: "production" | "preview"; playOrigin: string },
+): Promise<LiveSnapshot | null> {
+  const play = await smokePlay(site, {
+    projectId: input.projectId,
+    version: PLAY_VERSION_OF[input.channel],
+    playOrigin: input.playOrigin,
+  });
+  return play?.live ?? null;
+}
+
+/** The site's live stream path, `engineLiveStreamPath` without its query. */
+const LIVE_STREAM = /^\/api\/engine\/live\/([^/]+)\/stream$/;
+
+/**
+ * The live stream as the site's stream route answers it, for the projects
+ * the smoke's player may play: an `event: live` with `{"channel","rev"}`
+ * each time the channel moves. Null for any other path.
+ */
+async function liveStream(
+  site: SmokeSite,
+  request: Request,
+  playOrigin: string,
+): Promise<Response | null> {
+  const url = new URL(request.url);
+  const match = LIVE_STREAM.exec(url.pathname);
+  if (!match) return null;
+  const projectId = decodeURIComponent(match[1] ?? "");
+  const channel = url.searchParams.get("channel");
+  if (channel !== "production" && channel !== "preview") return noStoreText(404, "not found\n");
+  const play = await smokePlay(site, {
+    projectId,
+    version: PLAY_VERSION_OF[channel],
+    playOrigin,
+  });
+  if (!play) return noStoreText(404, "not found\n");
+  return sseResponse(request, {
+    maxMs: LIVE_STREAM_MINUTES * 60_000,
+    subscribe: (send) =>
+      engineLive.listen((event) => {
+        if (event.projectId !== projectId || event.channel !== channel) return;
+        send("live", { channel: event.channel, rev: event.rev });
+      }),
+  });
+}
+
 // ─── The test player ─────────────────────────────────────
 
 /** The cookie the smoke signs its player in with, as the site's session cookie would. */
 export const SMOKE_SESSION_COOKIE = "jams-smoke-session";
 /** The host page asks here who is signed in, as the play page knows from its loader. */
 export const SMOKE_SESSION_PATH = "/smoke/session";
+/** `?project=<id>&version=<latest|preview|n>`: the play payload, as the play page's loader has it. */
+export const SMOKE_PLAY_PATH = "/smoke/play";
+/** `?project=<id>&channel=<production|preview>`: the channel's live state, as `getGameLive` answers. */
+export const SMOKE_LIVE_PATH = "/smoke/live";
 
 export type SmokePlayer = { userId: string; name: string; token: string };
 
@@ -350,13 +622,48 @@ async function staticFile(dir: string, request: Request): Promise<Response> {
   });
 }
 
+const noStoreJson = (body: unknown) =>
+  Response.json(body, { headers: { "cache-control": "no-store" } });
+
+/** The play page's and the live state's reads; null for any other path. */
+async function playReads(
+  site: SmokeSite,
+  request: Request,
+  playOrigin: string,
+): Promise<Response | null> {
+  const url = new URL(request.url);
+  const projectId = url.searchParams.get("project") ?? "";
+  if (url.pathname === SMOKE_PLAY_PATH) {
+    const play = await smokePlay(site, {
+      projectId,
+      version: url.searchParams.get("version") ?? "",
+      playOrigin,
+    });
+    return play ? noStoreJson(play) : noStoreText(404, "not found\n");
+  }
+  if (url.pathname === SMOKE_LIVE_PATH) {
+    const channel = url.searchParams.get("channel");
+    if (channel !== "production" && channel !== "preview") return noStoreText(404, "not found\n");
+    return noStoreJson(await smokeLive(site, { projectId, channel, playOrigin }));
+  }
+  return liveStream(site, request, playOrigin);
+}
+
 /**
  * The play page's origin: the host page's files from `dir`, the site's save
- * routes over the smoke's database and object store, and who is signed in
- * at `SMOKE_SESSION_PATH`. The session is the smoke's own; the save rules,
- * caps and refusals are the site's.
+ * routes over the smoke's database and object store, who is signed in at
+ * `SMOKE_SESSION_PATH`, the play payload and live state at
+ * `SMOKE_PLAY_PATH` and `SMOKE_LIVE_PATH`, and the live stream at the
+ * site's own path. The session is the smoke's own; the save rules, caps and
+ * refusals, the play and live answers and the stream's events are the
+ * site's. `playOrigin` is where frames are served, for the payload's frame URL.
  */
-export async function serveHostSite(site: SmokeSite, dir: string): Promise<HostSiteServer> {
+export async function serveHostSite(
+  site: SmokeSite,
+  dir: string,
+  opts: { playOrigin?: () => string } = {},
+): Promise<HostSiteServer> {
+  const playOrigin = opts.playOrigin ?? (() => "");
   const readSession = smokeReadSession(site);
   const saveRoutes = createSaveRoutes({
     readSession,
@@ -366,6 +673,8 @@ export async function serveHostSite(site: SmokeSite, dir: string): Promise<HostS
   const server = await serveHandler(async (request) => {
     const saved = await saveRoutes(request);
     if (saved) return saved;
+    const read = await playReads(site, request, playOrigin());
+    if (read) return read;
     if (new URL(request.url).pathname === SMOKE_SESSION_PATH) {
       const who = await readSession(request);
       if (!who) return Response.json({ user: null }, { headers: { "cache-control": "no-store" } });

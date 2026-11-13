@@ -10,6 +10,7 @@ import { Empty } from "@/components/ui/empty";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TimeAgo } from "@/components/ui/time-ago";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Text } from "@/components/ui/typography";
 import { engineGamesAllowed } from "@/lib/engine/guard";
 import { useFlag } from "@/lib/hooks/use-flag";
@@ -21,6 +22,8 @@ type Queue = Awaited<ReturnType<typeof client.listGameModerationQueue>>;
 type GameReport = Queue["reports"][number];
 type ReviewRequest = Queue["reviews"][number];
 type ImageFlag = Awaited<ReturnType<typeof client.listImageFlags>>["items"][number];
+type SceneVersion = Awaited<ReturnType<typeof client.listSceneVersionQueue>>[number];
+type SceneVersionRef = { projectId: string; scene: string; number: number };
 
 type ReportAction = "dismiss" | "hide-release" | "hide-project";
 
@@ -32,7 +35,7 @@ const RESOLUTION_LABEL: Record<NonNullable<GameReport["resolution"]>, string> = 
 
 /**
  * Staff's queue for hosted games: players' reports, first-public review
- * requests and release images the scanner flagged. Nothing renders while
+ * requests, release images the scanner flagged and live scene versions. Nothing renders while
  * `engine-games-enabled` is off for the viewer or the deployment may not
  * host games, so its procedures are never asked.
  */
@@ -44,6 +47,7 @@ export function AdminEngineGames() {
 
 function EngineGamesQueue() {
   const [scope, setScope] = useState<"open" | "resolved">("open");
+  const [versionScope, setVersionScope] = useState<"active" | "all">("active");
   // Keyed by row so a reason typed in one dialog can't leak into the next.
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const queryClient = useQueryClient();
@@ -61,9 +65,16 @@ function EngineGamesQueue() {
     }),
   );
 
+  const versions = useQuery(
+    orpc.listSceneVersionQueue.queryOptions({
+      input: { includeHidden: versionScope === "all" },
+    }),
+  );
+
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: orpc.listGameModerationQueue.key() });
     void queryClient.invalidateQueries({ queryKey: orpc.listImageFlags.key() });
+    void queryClient.invalidateQueries({ queryKey: orpc.listSceneVersionQueue.key() });
   };
 
   const resolveReport = useMutation({
@@ -107,8 +118,32 @@ function EngineGamesQueue() {
     onError: toastMutationError("admin.game_image_dismiss"),
   });
 
+  const hideVersion = useMutation({
+    mutationFn: (input: SceneVersionRef & { reason: string }) => client.hideSceneVersion(input),
+    onSuccess: (_result, input) => {
+      invalidate();
+      toast.success(
+        `${input.scene}@${input.number} hidden. Pages running it reload, and its publishers see the reason.`,
+      );
+    },
+    onError: toastMutationError("admin.scene_version_hide"),
+  });
+  const unhideVersion = useMutation({
+    mutationFn: (input: SceneVersionRef & { reason: string }) => client.unhideSceneVersion(input),
+    onSuccess: (_result, input) => {
+      invalidate();
+      toast.success(`${input.scene}@${input.number} is back.`);
+    },
+    onError: toastMutationError("admin.scene_version_unhide"),
+  });
+
   const busy =
-    resolveReport.isPending || unhide.isPending || approve.isPending || dismissFlag.isPending;
+    resolveReport.isPending ||
+    unhide.isPending ||
+    approve.isPending ||
+    dismissFlag.isPending ||
+    hideVersion.isPending ||
+    unhideVersion.isPending;
   const reasonOf = (key: string) => reasons[key] ?? "";
   const setReason = (key: string) => (next: string) =>
     setReasons((prev) => ({ ...prev, [key]: next }));
@@ -209,6 +244,62 @@ function EngineGamesQueue() {
                 }}
               />
             ))}
+          </div>
+        )}
+      </AdminSection>
+
+      <AdminSection
+        title="Scene versions"
+        count={versions.isSuccess ? versions.data.length : undefined}
+        hint="Live scene versions across hosted games: reported, blocked or hidden first."
+        actions={
+          <SegmentedControl
+            size="sm"
+            value={versionScope}
+            onChange={(next) => setVersionScope(next as "active" | "all")}
+          >
+            <SegmentedControl.Item value="active">Active</SegmentedControl.Item>
+            <SegmentedControl.Item value="all">With hidden</SegmentedControl.Item>
+          </SegmentedControl>
+        }
+      >
+        {versions.isPending ? (
+          <QueueSkeleton />
+        ) : versions.isError ? (
+          <Empty>Scene versions couldn't load. Try again in a moment.</Empty>
+        ) : versions.data.length === 0 ? (
+          <Empty>
+            {versionScope === "all"
+              ? "No hosted game has published a scene version yet."
+              : "No live scene version needs a look."}
+          </Empty>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {versions.data.map((version) => {
+              const key = `scene-${version.id}`;
+              const ref = {
+                projectId: version.projectId,
+                scene: version.scene,
+                number: version.number,
+              };
+              return (
+                <SceneVersionRow
+                  key={`${version.projectId}-${version.scene}-${version.number}`}
+                  version={version}
+                  busy={busy}
+                  reason={reasonOf(key)}
+                  onReason={setReason(key)}
+                  onHide={async () => {
+                    await hideVersion.mutateAsync({ ...ref, reason: reasonOf(key).trim() });
+                    setReason(key)("");
+                  }}
+                  onUnhide={async () => {
+                    await unhideVersion.mutateAsync({ ...ref, reason: reasonOf(key).trim() });
+                    setReason(key)("");
+                  }}
+                />
+              );
+            })}
           </div>
         )}
       </AdminSection>
@@ -496,6 +587,145 @@ function ReviewRow({
               Approve public
             </Button>
           </Confirm>
+        </div>
+      </div>
+    </AdminRow>
+  );
+}
+
+const CHANNEL_LABEL: Record<SceneVersion["pointers"][number], string> = {
+  preview: "PREVIEW",
+  production: "PRODUCTION",
+};
+
+function SceneVersionRow({
+  version,
+  busy,
+  reason,
+  onReason,
+  onHide,
+  onUnhide,
+}: {
+  version: SceneVersion;
+  busy: boolean;
+  reason: string;
+  onReason: (next: string) => void;
+  onHide: () => Promise<void>;
+  onUnhide: () => Promise<void>;
+}) {
+  const name = `${version.scene}@${version.number}`;
+  const { hidden, blocked, reports } = version;
+
+  return (
+    <AdminRow muted={hidden != null}>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge size="label">SCENE</Badge>
+          {version.pointers.length === 0 ? (
+            <Badge size="label" variant="outline">
+              NOT LIVE
+            </Badge>
+          ) : (
+            version.pointers.map((channel) => (
+              <Badge key={channel} size="label" variant="outline">
+                {CHANNEL_LABEL[channel]}
+              </Badge>
+            ))
+          )}
+          {blocked != null ? (
+            <Badge size="label" variant="destructive">
+              BLOCKED
+            </Badge>
+          ) : null}
+          {hidden != null ? (
+            <Badge size="label" variant="destructive">
+              HIDDEN
+            </Badge>
+          ) : null}
+          <Text size="xs" variant="muted">
+            published <TimeAgo date={version.createdAt} />
+          </Text>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <GameLink projectId={version.projectId} title={version.projectName} />
+          <Text size="sm" className="font-medium">
+            {name}
+          </Text>
+          <SimpleTooltip content={`Compatibility key ${version.compatKey}`} maxWidth={320}>
+            <Text size="xs" variant="muted" tabIndex={0}>
+              compat {version.compatKey.slice(0, 12)}
+            </Text>
+          </SimpleTooltip>
+        </div>
+
+        <Text size="xs" variant="muted">
+          Players reported {reports.ok} applied · {reports.failed} failed
+        </Text>
+
+        {blocked != null ? (
+          <Text size="sm" className="max-w-prose">
+            {blocked.by === "system" ? "Blocked automatically" : "Blocked by a publisher"}{" "}
+            <TimeAgo date={blocked.at} />
+            {blocked.reason ? <span className="italic">: “{blocked.reason}”</span> : null}
+          </Text>
+        ) : null}
+        {hidden != null ? (
+          <Text size="sm" className="max-w-prose">
+            Hidden <TimeAgo date={hidden.at} />
+            {hidden.reason ? <span className="italic">: “{hidden.reason}”</span> : null}
+          </Text>
+        ) : null}
+
+        <div className="flex flex-wrap items-center gap-2">
+          {hidden == null ? (
+            <Confirm
+              title={`Hide ${name}?`}
+              message={
+                <>
+                  Its files stop being served at once, and every page running it reloads with the
+                  release's own scene. Its publishers see why.
+                  <ReasonField
+                    id={`scene-version-reason-${version.id}`}
+                    value={reason}
+                    onChange={onReason}
+                    required
+                  />
+                </>
+              }
+              confirmText="Hide scene version"
+              variant="destructive"
+              confirmDisabled={!reason.trim()}
+              onConfirm={onHide}
+            >
+              <Button variant="destructive" size="xs" disabled={busy}>
+                Hide
+              </Button>
+            </Confirm>
+          ) : (
+            <Confirm
+              title={`Unhide ${name}?`}
+              message={
+                <>
+                  Its files are served again, and a channel still pointing at it plays it from the
+                  next load.
+                  <ReasonField
+                    id={`scene-version-reason-${version.id}`}
+                    value={reason}
+                    onChange={onReason}
+                    required
+                  />
+                </>
+              }
+              confirmText="Unhide scene version"
+              confirmDisabled={!reason.trim()}
+              onConfirm={onUnhide}
+            >
+              <Button variant="outline" size="xs" disabled={busy}>
+                Unhide
+              </Button>
+            </Confirm>
+          )}
         </div>
       </div>
     </AdminRow>

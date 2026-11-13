@@ -942,7 +942,7 @@ export function editorChrome(
       reveal: controls.reveal,
     },
     mode: session.store,
-    dock: <EditorDock {...controls} />,
+    dock: <EditorDock {...controls} {...(publish ? { publish } : {})} />,
     status: (
       <EditMode session={session}>
         <Island>
@@ -1034,7 +1034,7 @@ function EditorCanvasLayer({ session, tools, game, runStore, canvas, notify }: E
 }
 
 /** The toolbar, or the play controls while playing; owns the tool host and the editor keyboard. */
-function EditorDock(controls: EditorControls) {
+function EditorDock({ publish, ...controls }: EditorControls & { publish?: EditorPublishHost }) {
   const { session, game, tools, notify } = controls;
   const mode = useEditorStore(session, (s) => s.mode);
   useToolHostLifecycle(tools, session, game, notify, controls.project?.session);
@@ -1052,6 +1052,7 @@ function EditorDock(controls: EditorControls) {
         onPlay={() => controls.onPlay()}
         onPlayHere={controls.playHere}
         {...(controls.project ? { project: controls.project } : {})}
+        {...(publish?.live ? { live: publish.live } : {})}
         notify={controls.notify}
       />
     </Island>

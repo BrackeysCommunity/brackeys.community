@@ -107,12 +107,12 @@ describe("release channel routes with an agent token", () => {
     });
     expect(await send(engineReleaseRollbackPath(PROJECT), secret, preview)).toEqual({
       status: 200,
-      body: { from: 2, to: 1 },
+      body: { from: 2, to: 1, restored: [], skipped: [] },
     });
     expect(await pointer()).toBe(hex(1));
     expect(await send(engineReleaseMovePath(PROJECT, 3, "rollback"), secret, preview)).toEqual({
       status: 200,
-      body: { from: 1, to: 3 },
+      body: { from: 1, to: 3, restored: [], skipped: [] },
     });
     expect(await pointer()).toBe(hex(3));
 

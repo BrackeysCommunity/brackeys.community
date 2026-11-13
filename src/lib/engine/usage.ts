@@ -1,5 +1,5 @@
 import type { ProjectUsage } from "@jams/engine/project";
-import { count, desc, eq, sum } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sum } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -10,6 +10,8 @@ import {
   engineReleaseJamLinks,
   engineReleaseObjects,
   engineReleases,
+  engineSceneVersionFiles,
+  engineSceneVersions,
   sceneDocs,
 } from "@/db/schema";
 import { readProjectState } from "@/lib/scene/project-bytes";
@@ -37,11 +39,21 @@ export type StoredUsage = {
   /** Versions whose files are still stored. */
   keptReleases: number;
   pinned: { channels: number; jams: number };
-  /** Unique stored release files (`engine_release_objects`); files served from the project's blobs aren't counted. */
+  /**
+   * Unique stored release files (`engine_release_objects`), scene versions'
+   * texts included; files served from the project's blobs aren't counted.
+   */
   releaseStorageBytes: number;
   largestRelease: { version: number; bytes: number } | null;
   /** Releases published since midnight UTC. */
   releasesToday: number;
+  /**
+   * Scene versions still stored, and the release storage their texts take:
+   * each unique text once, whether a release or another version shares it.
+   */
+  liveVersions: { kept: number; bytes: number };
+  /** Scene versions published since midnight UTC, collected ones included. */
+  liveToday: number;
   /** What the collector will remove, and when (ISO 8601). */
   nextCollection: { version: number; at: string }[];
 };
@@ -129,48 +141,76 @@ function blobBreakdown(
 /**
  * A hosted project's stored usage against every quota: its docs and blobs
  * (split by what the registry holds them for), its releases and pins, the
- * release storage its unique release objects take, and what the collector
- * removes next.
+ * release storage its unique release objects take, its scene versions,
+ * and what the collector removes next.
  */
 export async function storedUsage(
   handle: ReleaseDb,
   projectId: string,
   now: Date = new Date(),
 ): Promise<StoredUsage> {
-  const [docs, [project], blobs, releases, channels, jams, [objects]] = await Promise.all([
-    storedProjectUsage(projectId, handle),
-    handle
-      .select({ state: engineProjects.state })
-      .from(engineProjects)
-      .where(eq(engineProjects.projectId, projectId)),
-    handle
-      .select({ sha256: engineBlobs.sha256, bytes: engineBlobs.byteSize })
-      .from(engineBlobs)
-      .where(eq(engineBlobs.projectId, projectId)),
-    handle
-      .select({
-        id: engineReleases.id,
-        version: engineReleases.version,
-        totalBytes: engineReleases.totalBytes,
-        createdAt: engineReleases.createdAt,
-        collectedAt: engineReleases.collectedAt,
-      })
-      .from(engineReleases)
-      .where(eq(engineReleases.projectId, projectId))
-      .orderBy(desc(engineReleases.version)),
-    handle
-      .select({ releaseId: engineReleaseChannels.releaseId })
-      .from(engineReleaseChannels)
-      .where(eq(engineReleaseChannels.projectId, projectId)),
-    handle
-      .select({ releaseId: engineReleaseJamLinks.releaseId })
-      .from(engineReleaseJamLinks)
-      .where(eq(engineReleaseJamLinks.projectId, projectId)),
-    handle
-      .select({ bytes: sum(engineReleaseObjects.bytes) })
-      .from(engineReleaseObjects)
-      .where(eq(engineReleaseObjects.projectId, projectId)),
-  ]);
+  const keptVersionTexts = handle
+    .select({ sha256: engineSceneVersionFiles.sha256 })
+    .from(engineSceneVersionFiles)
+    .innerJoin(engineSceneVersions, eq(engineSceneVersions.id, engineSceneVersionFiles.versionId))
+    .where(
+      and(
+        eq(engineSceneVersionFiles.projectId, projectId),
+        eq(engineSceneVersionFiles.source, "release"),
+        isNull(engineSceneVersions.collectedAt),
+      ),
+    );
+  const [docs, [project], blobs, releases, channels, jams, [objects], versions, [liveObjects]] =
+    await Promise.all([
+      storedProjectUsage(projectId, handle),
+      handle
+        .select({ state: engineProjects.state })
+        .from(engineProjects)
+        .where(eq(engineProjects.projectId, projectId)),
+      handle
+        .select({ sha256: engineBlobs.sha256, bytes: engineBlobs.byteSize })
+        .from(engineBlobs)
+        .where(eq(engineBlobs.projectId, projectId)),
+      handle
+        .select({
+          id: engineReleases.id,
+          version: engineReleases.version,
+          totalBytes: engineReleases.totalBytes,
+          createdAt: engineReleases.createdAt,
+          collectedAt: engineReleases.collectedAt,
+        })
+        .from(engineReleases)
+        .where(eq(engineReleases.projectId, projectId))
+        .orderBy(desc(engineReleases.version)),
+      handle
+        .select({ releaseId: engineReleaseChannels.releaseId })
+        .from(engineReleaseChannels)
+        .where(eq(engineReleaseChannels.projectId, projectId)),
+      handle
+        .select({ releaseId: engineReleaseJamLinks.releaseId })
+        .from(engineReleaseJamLinks)
+        .where(eq(engineReleaseJamLinks.projectId, projectId)),
+      handle
+        .select({ bytes: sum(engineReleaseObjects.bytes) })
+        .from(engineReleaseObjects)
+        .where(eq(engineReleaseObjects.projectId, projectId)),
+      handle
+        .select({
+          createdAt: engineSceneVersions.createdAt,
+          collectedAt: engineSceneVersions.collectedAt,
+        })
+        .from(engineSceneVersions)
+        .where(eq(engineSceneVersions.projectId, projectId)),
+      handle
+        .select({ bytes: sum(engineReleaseObjects.bytes) })
+        .from(engineReleaseObjects)
+        .where(
+          and(
+            eq(engineReleaseObjects.projectId, projectId),
+            inArray(engineReleaseObjects.sha256, keptVersionTexts),
+          ),
+        ),
+    ]);
 
   const dayStart = startOfUtcDay(now);
   const kept = releases.filter((r) => r.collectedAt === null);
@@ -202,6 +242,11 @@ export async function storedUsage(
     releaseStorageBytes: Number(objects?.bytes ?? 0),
     largestRelease,
     releasesToday: releases.filter((r) => r.createdAt >= dayStart).length,
+    liveVersions: {
+      kept: versions.filter((v) => v.collectedAt === null).length,
+      bytes: Number(liveObjects?.bytes ?? 0),
+    },
+    liveToday: versions.filter((v) => v.createdAt >= dayStart).length,
     nextCollection,
   };
 }

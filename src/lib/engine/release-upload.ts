@@ -1,15 +1,23 @@
 import { measureBudget } from "@jams/engine/export";
+import { createRegistry } from "@jams/engine/game";
 import {
   checkReleaseManifest,
   formatReleaseManifest,
+  liveCompat,
+  liveCompatKey,
   parseReleaseManifest,
+  parseSceneVersion,
+  prefabKind,
   releaseId as releaseIdOf,
+  sceneKind,
   sha256 as sha256Of,
   RELEASE_FILE,
+  type ReleaseAsset,
   type ReleaseFile,
   type ReleaseManifest,
   type Sha256,
 } from "@jams/engine/project";
+import { parsePrefab, parseScene, sceneGameOf, type SceneIssue } from "@jams/engine/scene";
 import { and, eq, inArray, isNull, max } from "drizzle-orm";
 import type { PgAsyncDatabase } from "drizzle-orm/pg-core";
 
@@ -41,8 +49,9 @@ import {
   RELEASE_MANIFEST_MAX_BYTES,
   UPLOAD_SESSION_HOURS,
 } from "./limits";
+import { announceLiveMove } from "./live-pointers";
 import { checkReleaseQuota, type SiteQuotaRefusal } from "./quota";
-import { canDo, roleOf, type GameRole, type Viewer } from "./release-access";
+import { canDo, roleOf, type GameAction, type GameRole, type Viewer } from "./release-access";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
 import { movePointer, playUrlOf } from "./release-channels";
 import {
@@ -120,10 +129,11 @@ export type CommitResult = {
   playUrl: string;
 };
 
-const HOUR_MS = 3_600_000;
+export const HOUR_MS = 3_600_000;
 const FILE_ROWS_PER_INSERT = 500;
 
-const resolved = (deps: ReleaseDeps) => ({
+/** `deps` with the site's own database, clock, limiter and scan filled in. */
+export const resolveDeps = (deps: ReleaseDeps) => ({
   db: deps.db ?? (siteDb as unknown as ReleaseTxDb),
   now: deps.now ?? (() => new Date()),
   rateLimit: deps.rateLimit ?? checkRateLimit,
@@ -136,15 +146,15 @@ const resolved = (deps: ReleaseDeps) => ({
     }),
 });
 
-function refuse(body: ReleaseApiError, status?: number): never {
+export function refuse(body: ReleaseApiError, status?: number): never {
   throw new ReleaseError(body, status);
 }
 
-function notFound(message: string): never {
+export function notFound(message: string): never {
   return refuse({ code: "not-found", message }, 404);
 }
 
-function quotaRefusal(verdict: SiteQuotaRefusal): never {
+export function quotaRefusal(verdict: SiteQuotaRefusal): never {
   return refuse({
     code: "quota-exceeded",
     message: verdict.message,
@@ -242,7 +252,8 @@ function fileBytesRefusal(path: string, body: Uint8Array, entry: string): Releas
 /** Whether the bytes check needs the whole file rather than its first bytes. */
 const needsWholeFile = (path: string) => path === INDEX_HTML || path.endsWith(".json");
 
-async function liveProject(db: ReleaseDb, projectId: string): Promise<ProjectRow> {
+/** The hosted project, not deleted; `not-found` otherwise. */
+export async function liveProject(db: ReleaseDb, projectId: string): Promise<ProjectRow> {
   const [row] = await db
     .select({
       projectId: engineProjects.projectId,
@@ -255,11 +266,13 @@ async function liveProject(db: ReleaseDb, projectId: string): Promise<ProjectRow
   return row ?? notFound(`There is no hosted project "${projectId}".`);
 }
 
-async function assertMayUpload(
+/** Refuses unless the actor's role on the project may do `action`: `upload` for a release, `live-publish` for a scene version. */
+export async function assertMayUpload(
   deps: ReleaseDeps,
   db: ReleaseDb,
   actor: Actor,
   project: ProjectRow,
+  action: Extract<GameAction, "upload" | "live-publish">,
 ): Promise<void> {
   let role: GameRole | "agent";
   if (actor.kind === "agent") role = "agent";
@@ -271,10 +284,10 @@ async function assertMayUpload(
     );
     role = roleOf(viewer, project);
   }
-  if (!canDo(role, "upload")) refuse(releaseForbidden("role"));
+  if (!canDo(role, action)) refuse(releaseForbidden("role"));
 }
 
-const actorColumns = (actor: Actor) => ({
+export const actorColumns = (actor: Actor) => ({
   actorKind: actor.kind,
   actorId: actor.userId,
   agentTokenId: actor.kind === "agent" ? (actor.agentTokenId ?? null) : null,
@@ -294,10 +307,10 @@ function releaseSize(manifest: ReleaseManifest, manifestBytes: number) {
 /** A stored object the project holds: the type it was stored as, and where. */
 type HeldObject = { contentType: string; storageKey: string };
 
-type Held = { objects: Map<string, HeldObject>; blobs: Map<string, HeldObject> };
+export type Held = { objects: Map<string, HeldObject>; blobs: Map<string, HeldObject> };
 
 /** The hashes the project already holds, as release objects and as blobs. */
-async function heldHashes(db: ReleaseDb, projectId: string, hashes: readonly string[]) {
+export async function heldHashes(db: ReleaseDb, projectId: string, hashes: readonly string[]) {
   const unique = [...new Set(hashes)];
   const held: Held = { objects: new Map(), blobs: new Map() };
   for (let i = 0; i < unique.length; i += FILE_ROWS_PER_INSERT) {
@@ -332,7 +345,7 @@ async function heldHashes(db: ReleaseDb, projectId: string, hashes: readonly str
 }
 
 /** Where a listed file is served from: the project's blob when it holds one, else the release object. */
-function servedFrom(held: Held, sha256: string) {
+export function servedFrom(held: Held, sha256: string) {
   const blob = held.blobs.get(sha256);
   if (blob) return { source: "blob" as const, ...blob };
   const object = held.objects.get(sha256);
@@ -341,7 +354,8 @@ function servedFrom(held: Held, sha256: string) {
 
 const CHECK_CONCURRENCY = 8;
 
-async function readStored(
+/** A stored object's bytes, or its first `bytes`; null when the store doesn't hold it. */
+export async function readStored(
   store: ReleaseObjectStore,
   key: string,
   bytes: number | null,
@@ -454,12 +468,12 @@ export async function beginRelease(
   deps: ReleaseDeps,
   input: { projectId: string; manifest: string; actor: Actor; channel?: "preview" | "none" },
 ): Promise<BeginResult> {
-  const { db, now, rateLimit } = resolved(deps);
+  const { db, now, rateLimit } = resolveDeps(deps);
   const { projectId, actor } = input;
   const at = now();
 
   const project = await liveProject(db, projectId);
-  await assertMayUpload(deps, db, actor, project);
+  await assertMayUpload(deps, db, actor, project, "upload");
   if (!(await rateLimit("engine-release-begin", actor.userId, RELEASE_BEGINS_PER_HOUR, 3600)))
     refuse(releaseRateLimited("begins"));
   const stored: StoredUsage = await storedUsage(db, projectId, at);
@@ -557,36 +571,119 @@ export async function beginRelease(
   };
 }
 
-async function openUpload(
+export type UploadKind = "release" | "scene";
+
+/**
+ * An upload by id, once the actor may still add to it: a release's needs
+ * `upload`, a scene version's `live-publish`. With `kind`, an upload of
+ * the other kind is `not-found`.
+ */
+export async function openUpload(
   deps: ReleaseDeps,
   db: ReleaseDb,
   uploadId: string,
   actor: Actor,
+  kind?: UploadKind,
 ): Promise<typeof engineReleaseUploads.$inferSelect & { project: ProjectRow }> {
   const [upload] = await db
     .select()
     .from(engineReleaseUploads)
     .where(eq(engineReleaseUploads.id, uploadId));
-  if (!upload) return notFound("There is no upload with this id.");
+  if (!upload || (kind !== undefined && upload.kind !== kind))
+    return notFound("There is no upload with this id.");
   const project = await liveProject(db, upload.projectId);
-  await assertMayUpload(deps, db, actor, project);
+  await assertMayUpload(
+    deps,
+    db,
+    actor,
+    project,
+    upload.kind === "scene" ? "live-publish" : "upload",
+  );
   return { ...upload, project };
+}
+
+const JSON_TYPE = "application/json";
+
+/** A scene upload's text as `schema` refuses it, named by its asset's path. */
+const sceneTextSchema = (name: string, message: string): ReleaseApiError => ({
+  code: "schema",
+  message: `${name}: ${message}`,
+  hint: "Send the scene version's texts as the engine wrote them; build the version again if one was edited.",
+});
+
+/** The first error, or the first issue. */
+const firstError = (issues: readonly SceneIssue[]) =>
+  issues.find((i) => i.severity === "error") ?? issues[0];
+
+/**
+ * Whether a scene or prefab's JSON holds together without the game's
+ * registry, which the site doesn't have: one with no game is parsed with
+ * the engine's own types; one that names a game must name the version's,
+ * and its types are the frame's to check.
+ */
+function docStructureProblem(asset: ReleaseAsset, json: unknown, text: string, game: string) {
+  const isScene = asset.kind === sceneKind.kind;
+  if (!isScene && asset.kind !== prefabKind.kind) return null;
+  if (typeof json !== "object" || json === null || Array.isArray(json))
+    return `a ${asset.kind} is a JSON object`;
+  const named = sceneGameOf(json);
+  if (named !== undefined)
+    return named === game ? null : `it is for the game "${named}", not "${game}"`;
+  const parsed = isScene ? parseScene(text, createRegistry()) : parsePrefab(text, createRegistry());
+  return parsed.ok ? null : (firstError(parsed.issues)?.message ?? `it isn't a ${asset.kind}`);
+}
+
+/**
+ * Why a scene upload's text can't be stored, or null: it isn't UTF-8 JSON,
+ * or the scene or prefab the version names by this hash doesn't parse.
+ */
+function sceneTextRefusal(
+  versionText: string,
+  sha256: string,
+  body: Uint8Array,
+): ReleaseApiError | null {
+  const parsed = parseSceneVersion(versionText);
+  if (!parsed.ok) return sceneTextSchema(sha256, "the upload's scene version doesn't parse");
+  const { version } = parsed;
+  const asset = Object.values(version.assets).find(
+    (a) => a.storage === "doc" && a.sha256 === sha256,
+  );
+  const name = asset?.path ?? sha256;
+  let text: string;
+  let json: unknown;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(body);
+    json = JSON.parse(text);
+  } catch (error) {
+    return sceneTextSchema(
+      name,
+      `isn't JSON (${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
+  const problem = asset ? docStructureProblem(asset, json, text, version.compat.game.id) : null;
+  return problem === null ? null : sceneTextSchema(name, problem);
 }
 
 /**
  * Stores one of the upload's missing files: its hash is one the upload
- * waits for, its length the manifest's, its SHA-256 the one named, its
- * first bytes what its extension says; then it is stored at
+ * waits for, its length the one listed, its SHA-256 the one named; a
+ * release's file has the first bytes its extension says, a scene
+ * version's text is JSON that parses structurally. Then it is stored at
  * `engine-releases/<project>/<sha256>` and images go to the media scan.
  */
 export async function putReleaseFile(
   deps: ReleaseDeps,
   input: { uploadId: string; sha256: Sha256; body: Uint8Array; actor: Actor },
 ): Promise<void> {
-  const { db, now, rateLimit, scan } = resolved(deps);
+  const { db, now, rateLimit, scan } = resolveDeps(deps);
   const upload = await openUpload(deps, db, input.uploadId, input.actor);
   if (upload.committedAt) refuse(releaseUnchangeable());
   if (upload.expiresAt.getTime() <= now().getTime()) refuse(releaseUploadExpired());
+  const scene = upload.kind === "scene";
+  const listedBy = scene ? "the scene version lists" : "the manifest lists";
+  const unchanged = scene
+    ? "Send the scene version's texts unchanged."
+    : "Upload the build's own files unchanged.";
 
   const file = upload.missing.find((f) => f.sha256 === input.sha256);
   if (!file)
@@ -599,18 +696,20 @@ export async function putReleaseFile(
   if (input.body.byteLength !== bytes)
     refuse({
       code: "hash-mismatch",
-      message: `${path} is ${input.body.byteLength} bytes; the manifest lists ${bytes}.`,
-      hint: "Upload the build's own files unchanged.",
+      message: `${path} is ${input.body.byteLength} bytes; ${listedBy} ${bytes}.`,
+      hint: unchanged,
     });
   const actual = await sha256Of(input.body);
   if (actual !== input.sha256)
     refuse({
       code: "hash-mismatch",
       message: `${path}'s SHA-256 is ${actual}, not ${input.sha256}.`,
-      hint: "Upload the build's own files unchanged.",
+      hint: unchanged,
     });
-  const contentType = contentTypeOfPath(path);
-  const refusal = fileBytesRefusal(path, input.body, parsedManifest(upload.manifest).build.entry);
+  const contentType = scene ? JSON_TYPE : contentTypeOfPath(path);
+  const refusal = scene
+    ? sceneTextRefusal(upload.manifest, input.sha256, input.body)
+    : fileBytesRefusal(path, input.body, parsedManifest(upload.manifest).build.entry);
   if (contentType === null || refusal) refuse(refusal ?? releaseFileType(path));
   if (
     !(await rateLimit("engine-release-file", input.actor.userId, RELEASE_FILE_PUTS_PER_HOUR, 3600))
@@ -653,9 +752,9 @@ export async function commitRelease(
   deps: ReleaseDeps,
   input: { uploadId: string; actor: Actor },
 ): Promise<CommitResult> {
-  const { db, now, scan } = resolved(deps);
+  const { db, now, scan } = resolveDeps(deps);
   const { actor } = input;
-  const upload = await openUpload(deps, db, input.uploadId, actor);
+  const upload = await openUpload(deps, db, input.uploadId, actor, "release");
   const projectId = upload.projectId;
   const id = upload.releaseId;
   const answer = (version: number, created: boolean): CommitResult => ({
@@ -691,6 +790,7 @@ export async function commitRelease(
 
   const manifestBytes = new TextEncoder().encode(upload.manifest).byteLength;
   const size = releaseSize(manifest, manifestBytes);
+  const compatKey = await liveCompatKey(liveCompat(manifest));
 
   const result = await db.transaction(async (tx) => {
     await tx
@@ -705,7 +805,7 @@ export async function commitRelease(
         .update(engineReleaseUploads)
         .set({ committedAt: at })
         .where(eq(engineReleaseUploads.id, upload.id));
-      return answer(existing.version, false);
+      return { ...answer(existing.version, false), rev: null };
     }
 
     // The collector may have removed an object since it was counted, under this same lock.
@@ -757,6 +857,7 @@ export async function commitRelease(
       createdById: actor.userId,
       agentTokenId: actor.kind === "agent" ? (actor.agentTokenId ?? null) : null,
       createdAt: at,
+      liveCompatKey: compatKey,
       ...(held ? { hiddenAt: at, hiddenById: null, hiddenReason: ENGINE_QUARANTINE_REASON } : {}),
     });
     const rows = manifest.build.files.map((f) => ({
@@ -780,23 +881,27 @@ export async function commitRelease(
       at,
     });
     if (held) await holdNewRelease(tx, { projectId, releaseId: id, hashes: underReview, at });
-    if (upload.channel === "preview")
-      await movePointer(tx, {
-        project: projectId,
-        channel: "preview",
-        release: id,
-        actor,
-        action: "promote",
-        at,
-      });
+    const moved =
+      upload.channel === "preview"
+        ? await movePointer(tx, {
+            project: projectId,
+            channel: "preview",
+            release: id,
+            actor,
+            action: "promote",
+            at,
+          })
+        : null;
     await tx
       .update(engineReleaseUploads)
       .set({ committedAt: at })
       .where(eq(engineReleaseUploads.id, upload.id));
-    return answer(version, true);
+    return { ...answer(version, true), rev: moved?.rev ?? null };
   });
-  if (result.created)
+  const { rev, ...committed } = result;
+  if (rev !== null) await announceLiveMove(projectId, "preview", rev);
+  if (committed.created)
     for (const objectKey of unscanned)
       await scan({ objectKey, projectId, uploaderId: actor.userId });
-  return result;
+  return committed;
 }

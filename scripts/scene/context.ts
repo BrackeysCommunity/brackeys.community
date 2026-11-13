@@ -104,11 +104,7 @@ export const failure = (message: string, extra: Record<string, unknown> = {}): T
 export const isToolResult = (v: unknown): v is ToolResult =>
   typeof v === "object" && v !== null && "exitCode" in v;
 
-/** How many characters of a release or version id a short id keeps; the editor's release list keeps as many. */
-export const SHORT_ID_LENGTH = 6;
-
-/** An id's first characters, for a line that names a release or version: `3fa9c2…`. */
-export const shortId = (id: string): string => `${id.slice(0, SHORT_ID_LENGTH)}…`;
+export { SHORT_ID_LENGTH, shortId } from "@jams/engine/scene";
 
 /** `1 run`, `1,204 runs`: a count and its noun. */
 export const plural = (n: number, one: string, many?: string): string =>

@@ -23,7 +23,16 @@ export type AuditAction =
   | "collect"
   | "approve-public"
   | "settings"
-  | "report-resolved";
+  | "report-resolved"
+  | "scene-create"
+  | "scene-promote"
+  | "scene-rollback"
+  | "scene-clear"
+  | "scene-block"
+  | "scene-unblock"
+  | "scene-hide"
+  | "scene-unhide"
+  | "scene-collect";
 
 export type AuditRow = {
   projectId: string;
@@ -33,25 +42,39 @@ export type AuditRow = {
   channel?: "preview" | "production" | null;
   fromRelease?: string | null;
   toRelease?: string | null;
+  /** The scene a `scene-*` row is about, and its version. */
+  sceneId?: string | null;
+  sceneVersionId?: string | null;
   detail?: Record<string, unknown>;
   /** Default now. */
   at?: Date;
 };
 
-/** The one writer of `engine_release_audit`: every pointer move, link, setting, hide and collection calls it. */
-export async function writeAudit(tx: ReleaseDb, row: AuditRow): Promise<void> {
+/**
+ * The one writer of `engine_release_audit`: every pointer move, link,
+ * setting, hide and collection calls it. Answers the row's id, which a
+ * channel's move stores as its `live_rev`.
+ */
+export async function writeAudit(tx: ReleaseDb, row: AuditRow): Promise<number> {
   const { actor } = row;
-  await tx.insert(engineReleaseAudit).values({
-    projectId: row.projectId,
-    actorKind: actor.kind,
-    actorId: actor.kind === "system" ? null : actor.userId,
-    agentTokenId: actor.kind === "agent" ? (actor.agentTokenId ?? null) : null,
-    action: row.action,
-    releaseId: row.releaseId ?? null,
-    channel: row.channel ?? null,
-    fromRelease: row.fromRelease ?? null,
-    toRelease: row.toRelease ?? null,
-    detail: row.detail ?? {},
-    ...(row.at ? { at: row.at } : {}),
-  });
+  const [inserted] = await tx
+    .insert(engineReleaseAudit)
+    .values({
+      projectId: row.projectId,
+      actorKind: actor.kind,
+      actorId: actor.kind === "system" ? null : actor.userId,
+      agentTokenId: actor.kind === "agent" ? (actor.agentTokenId ?? null) : null,
+      action: row.action,
+      releaseId: row.releaseId ?? null,
+      channel: row.channel ?? null,
+      fromRelease: row.fromRelease ?? null,
+      toRelease: row.toRelease ?? null,
+      sceneId: row.sceneId ?? null,
+      sceneVersionId: row.sceneVersionId ?? null,
+      detail: row.detail ?? {},
+      ...(row.at ? { at: row.at } : {}),
+    })
+    .returning({ id: engineReleaseAudit.id });
+  if (!inserted) throw new Error("engine_release_audit: the insert returned no row");
+  return inserted.id;
 }

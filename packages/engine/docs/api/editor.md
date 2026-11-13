@@ -5202,7 +5202,11 @@ Refers to [`EditorCommand`](#editorcommand), [`EditorToolContext`](#editortoolco
 
 _function_ in `editor/commands.ts`
 
-The box around the selection's geometry; `null` when none of it has any.
+The box around what the selection outlines (`outlineBounds` with the
+registry's look), an instance by its children: the box the selection's
+outline, its gizmo and a tool's offer sit on. `null` when nothing in it
+draws. Framing goes by `frameBounds`, which also takes in the paths movers
+travel.
 
 ```ts
 declare function selectionBounds(def: SceneDefinition, registry: Registry, refs: readonly Ref[]): Aabb | null;

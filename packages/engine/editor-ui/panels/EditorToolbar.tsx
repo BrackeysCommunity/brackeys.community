@@ -1,6 +1,7 @@
 import {
   ArrowDown01Icon,
   CircleIcon,
+  CloudUploadIcon,
   Cursor01Icon,
   CursorMove01Icon,
   CursorPointer01Icon,
@@ -33,7 +34,7 @@ import { DEFAULT_LENGTH_UNIT } from "../../game/defaults";
 import { pxPerMetreOf } from "../../game/units";
 import type { Registry } from "../../scene/index";
 import { useBottomRow, usePanelOpener } from "../frame/EditorFrame";
-import type { EditorNotify } from "../host";
+import type { EditorLiveHost, EditorNotify } from "../host";
 import { formatLength } from "../kit/format";
 import {
   Button,
@@ -62,6 +63,7 @@ import type { EditorProjectLink } from "../session/use-scene-editor";
 import { EDIT_LAYERS, unavailableLayers } from "./canvas-layer/edit-layers";
 import { useEditLayers, useExpandedScene } from "./canvas-layer/EditLayers";
 import { useHostValue } from "./canvas-layer/tool-host";
+import { ScenePublishDialog } from "./publish/ScenePublishDialog";
 import {
   NewSceneDialog,
   SceneMenuItems,
@@ -383,8 +385,9 @@ export type DockPart = { key: string; width: number; drop?: number; game?: true 
 
 /**
  * What the toolbar draws, in order, before anything overflows; `option` is
- * the slot's (`optionSlot`), the grid step is shown in metres at `ppm`, and
- * `scene` is the scene picker's label when the toolbar has one.
+ * the slot's (`optionSlot`), the grid step is shown in metres at `ppm`,
+ * `scene` is the scene picker's label when the toolbar has one, and
+ * `publish` adds Publish scene after Play.
  */
 export function dockParts(
   tools: readonly EditorToolDef[],
@@ -392,6 +395,7 @@ export function dockParts(
   option: OptionChoices | null = null,
   ppm: number = DEFAULT_LENGTH_UNIT,
   scene: string | null = null,
+  publish = false,
 ): DockPart[] {
   const engine = tools.filter((t) => isEngineTool(t.id));
   const game = tools.filter((t) => !isEngineTool(t.id));
@@ -442,6 +446,8 @@ export function dockParts(
     { key: "play", width: W.icon },
     { key: "play-here", width: W.icon },
   );
+  if (publish)
+    parts.push({ key: "divider:publish", width: W.divider }, { key: "publish", width: W.icon });
   return parts;
 }
 
@@ -590,13 +596,16 @@ function OverflowMenu({
   );
 }
 
+/** Publish scene's hint in the toolbar. */
+export const PUBLISH_SCENE_TOOLTIP = "Publish this scene live, over the channel's release";
+
 const NO_SNAP: Snap | null = null;
 const NO_OPTION: ToolOption | null = null;
 
 /**
  * The scene picker (in a project), the tools, the active tool's option,
  * snapping, the grid menu (the step and the View layers), undo and redo,
- * and Play.
+ * Play, and Publish scene when the host publishes scenes live.
  * What doesn't fit in the room the frame leaves between the status and the
  * columns moves into a "More tools" menu: game tools first, then the grid
  * step, the tool's option, then the shape tools.
@@ -609,6 +618,7 @@ export function EditorToolbar({
   onPlayHere,
   project,
   notify,
+  live,
 }: {
   session: EditorSession;
   keymap: Keymap;
@@ -619,6 +629,8 @@ export function EditorToolbar({
   /** The open scene's project; with a way to open another scene, the toolbar starts with the picker. */
   project?: EditorProjectLink;
   notify?: EditorNotify;
+  /** The host's live scene publishing; with it and a project, the toolbar ends with Publish scene. */
+  live?: EditorLiveHost;
 }) {
   const canUndo = useEditorStore(session, (s) => s.canUndo);
   const canRedo = useEditorStore(session, (s) => s.canRedo);
@@ -639,10 +651,13 @@ export function EditorToolbar({
   const openPublish = usePanelOpener("publish");
   const sceneLabel = picker?.label ?? null;
   const [creating, setCreating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const publishable = live && project ? { live, project } : null;
+  const canPublish = publishable !== null;
   const ppm = pxPerMetreOf(session.registry);
   const parts = useMemo(
-    () => dockParts(tools, snap?.step ?? null, slot, ppm, sceneLabel),
-    [tools, snap?.step, slot, ppm, sceneLabel],
+    () => dockParts(tools, snap?.step ?? null, slot, ppm, sceneLabel, canPublish),
+    [tools, snap?.step, slot, ppm, sceneLabel, canPublish],
   );
   const full = useMemo(() => dockWidth(parts, new Set()), [parts]);
   const least = useMemo(() => dockWidth(parts, allDroppable(parts)), [parts]);
@@ -775,6 +790,26 @@ export function EditorToolbar({
           <KeyHint text="Play from where the pointer was" chord={keymap.chordOf("play-here")} />
         }
       />
+      {publishable ? (
+        <>
+          <Divider />
+          <IconButton
+            icon={CloudUploadIcon}
+            label="Publish scene"
+            tooltip={PUBLISH_SCENE_TOOLTIP}
+            onClick={() => setPublishing(true)}
+          />
+          {publishing ? (
+            <ScenePublishDialog
+              live={publishable.live}
+              session={session}
+              project={publishable.project}
+              {...(notify ? { notify } : {})}
+              onClose={() => setPublishing(false)}
+            />
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }

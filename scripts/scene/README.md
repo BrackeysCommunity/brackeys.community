@@ -106,6 +106,11 @@ tactics game's: a turn game on a grid, driven by commands) and `engine-yard`
 | `game manifest <dir\|release.json>`                                                                                                                                                                                                                  | no                       | parses and checks a release manifest, with the build's files and their hashes when given its directory, and prints its summary; exit 1 when it doesn't hold together                                                                                                                                                                                                                 |
 | `game live build <project> <scene> [--hosted] [--out <dir>]`                                                                                                                                                                                         | yes                      | builds one scene's version from the project's files, or with `--hosted` from a pull of the hosted project, into `--out`: `scene-version.json` and the texts it carries; prints its id, data size and files; see [Live levels](#live-levels)                                                                                                                                          |
 | `game live check <project> <scene> [--against <release dir\|release.json>] [--from <version dir>]`                                                                                                                                                   | no                       | builds the version and checks it: compatibility with `--against`'s release, and the swap check from that release's scene or from `--from`'s version; with neither flag it only validates, with a `warning:` naming them; exit 1 on an error issue                                                                                                                                    |
+| `game live publish <project> <scene> [--hosted] [--channel preview\|none] [--timing next-load\|boundary\|now] [--note text] [--no-swap-check]`                                                                                                       | on the site              | builds the scene's version, swap checks it for `boundary` and `now` unless `--no-swap-check`, and publishes it to the hosted project, on preview unless `--channel none`; prints its number, id, data size, the release it fits, the changes and the quota lines; see [Publishing live scenes](#publishing-live-scenes)                                                              |
+| `game live list <project> [<scene>]`                                                                                                                                                                                                                 | no                       | the hosted project's scene versions, newest first, with their channels, timing, blocks and notes                                                                                                                                                                                                                                                                                     |
+| `game live promote <project> <scene> <n> --channel preview [--timing next-load\|boundary\|now]`                                                                                                                                                      | on the site              | points preview at version `n` of the scene                                                                                                                                                                                                                                                                                                                                           |
+| `game live rollback <project> <scene> --channel preview`                                                                                                                                                                                             | on the site              | points preview back at the scene's previous version, or the release's scene                                                                                                                                                                                                                                                                                                          |
+| `game live clear <project> <scene> --channel preview`                                                                                                                                                                                                | on the site              | stops the scene's live version on preview; players get the release's scene at their next load                                                                                                                                                                                                                                                                                        |
 
 The `assets` writers and `apply` also take `--dry-run`, `--live`, `--url`,
 `--token`, `--agent` and `--on-behalf-of`; the `assets` writers take `--base` (see
@@ -2186,8 +2191,9 @@ test that builds a game needs a timeout long enough for one pack (up to
 A scene version (`urn:jams-engine:scene-version:v1`, `@jams/engine/schemas/scene-version.schema.json`)
 is one scene and the prefabs and blobs it reaches, as data only, checked
 against the code that made it, so it can replace that scene in a release
-players already run. The CLI builds and checks one offline; publishing it
-is the site's. The commands:
+players already run. The CLI builds and checks one offline, and publishes
+it to a hosted project (see [Publishing live scenes](#publishing-live-scenes)).
+The commands:
 
 ```text
 vp run scene game live build <project> <scene> [--hosted] [--out <dir>] [--json]
@@ -2397,6 +2403,118 @@ and `game release rollback <project> --channel preview` move the preview
 channel. An agent token works on preview only: production is moved by a
 person on the game's page, and the refusal names it.
 
+### Publishing live scenes
+
+A scene version (see [Live levels](#live-levels)) goes to players without a
+release: the play page swaps it into the release they already run. The
+commands that publish one and move it between channels:
+
+```text
+vp run scene game live publish <project> <scene> [--hosted] [--channel preview|none]
+  [--timing next-load|boundary|now] [--note "…"] [--no-swap-check] [--json]
+vp run scene game live list <project> [<scene>] [--json]
+vp run scene game live promote <project> <scene> <n> --channel preview [--timing …] [--json]
+vp run scene game live rollback <project> <scene> --channel preview [--json]
+vp run scene game live clear <project> <scene> --channel preview [--json]
+```
+
+They take the agent token from `JAMS_AGENT_TOKEN` and the site from
+`JAMS_AGENT_SITE`, as the release commands do. **`game live publish`**
+builds the scene's version as `game live build` does (from the project's
+files, or with `--hosted` from a pull of the hosted project), runs the swap
+check when the timing asks for it, then begins the upload (the site checks
+that the version fits the channel's release and every limit below), sends
+only the texts the site doesn't hold yet, and commits. The version gets the
+scene's next number (`level-1@4`), and publishing the same content again is
+the same version. `--note` is for your team.
+
+```sh
+export JAMS_AGENT_TOKEN=jat_…
+export JAMS_AGENT_SITE=https://staging.example
+vp run scene game live publish tactics level-1 --timing boundary --note "Wider ford"
+vp run scene game live list tactics level-1
+vp run scene game live promote tactics level-1 3 --channel preview
+vp run scene game live rollback tactics level-1 --channel preview
+vp run scene game live clear tactics level-1 --channel preview --json
+```
+
+It ends with (`--json` gives the same fields):
+
+```text
+Published tactics level-1@4 (9a3f…) to preview: 14 KB of data, 1 new file.
+  Fits:     v7 (preview) · timing: next load
+  Changes:  12 changed, 3 added, 1 removed (players' worlds update in place)
+  Today:    6 of 100 scene versions · release storage 124 MB of 512 MB
+Put it on production on the game's page: {siteUrl}/games/tactics
+```
+
+with a `warning:` line for any quota at or over 80%, and for a clamped
+timing. When the bounds or settings changed, the Changes line says players'
+worlds are rebuilt and their state restored instead.
+
+**Preview, then production.** A new version goes to the **preview**
+channel unless `--channel none` (kept, on no channel). A person with the
+publisher role puts it on **production**, on the game's page. An agent
+token works on preview only: a production channel is refused before
+anything is sent, with the game's page. Players opening a numbered version
+or a jam version always get that release exactly, without live scenes.
+
+**When players get it** is chosen each time a version moves onto a channel
+(`--timing`, `next-load` by default):
+
+| Timing      | Players get it                                                               | The game must                                                      |
+| ----------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `next-load` | the next time the level loads (a restart, a death that reloads, entering it) | nothing                                                            |
+| `boundary`  | at the next moment the game marks safe, or the next load                     | list `"boundary"` in `live.timings` and call `ctx.live.boundary()` |
+| `now`       | within seconds, between two ticks                                            | list `"now"` in `live.timings`; usually implement `onSwap`         |
+
+A timing the game doesn't list in `GameDefinition.live.timings` is clamped
+to the strongest one it does (`next-load` always counts), with a `warning:`
+line.
+
+**The swap check.** Before a `boundary` or `now` publish, the CLI runs the
+swap check (as `game live check` does) from the version players have on
+that channel now, or the release's own scene when none is live, and stops
+on an error issue before anything is uploaded. `--no-swap-check` skips it.
+A `next-load` version starts on a fresh load, so it needs none.
+
+**The pointers.** `game live list` prints a project's versions, or one
+scene's, newest first: number, id, data size, who published it and when,
+its note, the channels that point at it and their timing, and a block or
+hide with its reason. `game live promote <project> <scene> <n>` points
+preview at a kept version that fits its release (`--timing` as above);
+`game live rollback` points it back at the version it named before, or at
+the release's scene; `game live clear` ("Stop") takes the scene off the
+channel, so players get the release's own scene at their next load.
+
+**Limits per project, enforced by the site:**
+
+| Limit             | Number                                                                              |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| Data per version  | 2 MB: the scene, its prefabs and the version file (art is the project's own assets) |
+| Versions per day  | 100 per UTC day                                                                     |
+| Versions kept     | the 5 newest of each scene, plus every version a channel points at                  |
+| Storage           | part of the project's 512 MB of release storage                                     |
+| A channel's size  | the release plus its live scenes' new files stay within 100 MB                      |
+| Note              | 200 characters                                                                      |
+| Publishes started | 120 an hour per person or token                                                     |
+
+A version that is neither among its scene's 5 newest nor on a channel is
+removed 14 days after it was published. A publish over a limit is refused
+with `quota-exceeded` and the limit's message and hint.
+
+**Delivery.** The play page hears of a new version at once, and checks
+again every 60 seconds if its live connection drops (it reconnects every
+60 minutes anyway). The game has 60 seconds to download, check and prepare
+a version before it gives up on it and keeps the one it has.
+
+**Broken updates are stopped.** If 5 signed-in players' games fail after
+an update within 30 minutes of it going live (failing includes crashing
+within 10 seconds of the swap), and that is at least 25% of the signed-in
+players who reported, the site blocks the version: players get the
+release's level at their next load, and the game's page says why. A person
+unblocks it there once it's fixed, or you publish a new version.
+
 ## MCP
 
 `mcp.ts` is a local stdio MCP server, `jams-scenes`, over the same tool
@@ -2408,34 +2526,39 @@ functions as the CLI (it never spawns it), versioned with the engine
 { "mcpServers": { "jams-scenes": { "command": "bun", "args": ["scripts/scene/mcp.ts"] } } }
 ```
 
-| Tool                    | CLI command             | Notes                                                                                                                                                                                                                                                                                                                                             |
-| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scene_list`            | `list`                  |                                                                                                                                                                                                                                                                                                                                                   |
-| `scene_show`            | `show`                  | `near` is `[x, y, r]`; rows with a sprite carry its `sprite` box; `time` and `physics`                                                                                                                                                                                                                                                            |
-| `scene_schema`          | `schema`                | `which`: any name `schema` takes (`scene`, `ops`, `project-ops`, a doc kind…)                                                                                                                                                                                                                                                                     |
-| `scene_codes`           | `codes`                 |                                                                                                                                                                                                                                                                                                                                                   |
-| `scene_flow`            | `flow`                  | each project's scene list as data; edit the list with `asset_apply_ops`                                                                                                                                                                                                                                                                           |
-| `scene_validate`        | `validate`              | `physical`                                                                                                                                                                                                                                                                                                                                        |
-| `scene_diff`            | `diff`                  | one of `other`, `git` or an inline `ops` batch                                                                                                                                                                                                                                                                                                    |
-| `scene_apply_ops`       | `apply` / `--live`      | writes; `dryRun` defaults to `true`                                                                                                                                                                                                                                                                                                               |
-| `scene_playtest`        | `playtest`              | `script` inline or a path, v1 or v2 (tracks, `set`, `pointer`, `join`, `leave`), command and elapse steps included; `at` is `[x, y]` in metres; `events` a list of types, returns `lifecycle`, and `legal`/`legalTruncated` for a game that lists its commands; `flow` follows scene requests (`segments`), `fromSave` a fixture inline or a path |
-| `scene_replay`          | `replay`                | `run` inline or a path: a v1 or v2 recording or a playtest result; reports `migratedFrom`, the platform and `issues`; `versions`: a directory `game_live_build` wrote, as `--versions`                                                                                                                                                            |
-| `scene_fuzz`            | `fuzz`                  | `seed`, `rollouts`, `ticks` as numbers                                                                                                                                                                                                                                                                                                            |
-| `scene_check`           | `check`                 | every kind, `connected` included; `reaches` takes `expect`                                                                                                                                                                                                                                                                                        |
-| `scene_render`          | `render`                | a PNG `image` block; `ascii` for the map; `overlay` inline or a path; `sprites` lists the sprite boxes                                                                                                                                                                                                                                            |
-| `project_tree`          | `project tree`          |                                                                                                                                                                                                                                                                                                                                                   |
-| `asset_refs`            | `project refs`          | `id`; without one, every dangling reference                                                                                                                                                                                                                                                                                                       |
-| `asset_import`          | `assets import`         | writes; `file` (a local path), `path`, `id`, `kind`, `settings`                                                                                                                                                                                                                                                                                   |
-| `asset_apply_ops`       | `assets apply`          | writes; `ops` inline or a path; `base` on files; edits input maps (`/actions/@<action>/bindings`) and scene lists (`/scenes/@<scene>`, `/start`)                                                                                                                                                                                                  |
-| `game_build`            | `game build`            | builds into `out` (default dist/games/<id>/<target>); `id`, `target`, `out`, `rapier` (`standard`/`compat`), `allowOverBudget`; returns the plan summary and issues, never file bytes                                                                                                                                                             |
-| `game_manifest`         | `game manifest`         | `path`: a build directory, a `release.json` or an inline manifest; returns the validated manifest and its summary                                                                                                                                                                                                                                 |
-| `game_live_build`       | `game live build`       | `id`, `scene`, `hosted`, `out`; `hosted` needs `JAMS_AGENT_TOKEN` and `JAMS_AGENT_SITE` in the server's environment; returns the version's id, data size and files written, as `--json` does                                                                                                                                                      |
-| `game_live_check`       | `game live check`       | `id`, `scene`, `against` (a build directory or `release.json`), `from` (a directory `game_live_build` wrote); returns the compatibility issues and the swap check's runs, as `--json` does                                                                                                                                                        |
-| `game_release_create`   | `game release create`   | `id`, `hosted`, `target`, `channel` (`preview`/`none`), `from`, `allowOverBudget`; needs `JAMS_AGENT_TOKEN` and `JAMS_AGENT_SITE` in the server's environment (never arguments); returns the release summary (version, id, size, files, new bytes, play URL, quota lines and warnings, next removal, game page), never file bytes                 |
-| `game_release_list`     | `game release list`     | `id`                                                                                                                                                                                                                                                                                                                                              |
-| `game_release_promote`  | `game release promote`  | `id`, `version` (a number), `channel: "preview"`; production is refused with the game page's URL                                                                                                                                                                                                                                                  |
-| `game_release_rollback` | `game release rollback` | `id`, `channel: "preview"`; production is refused likewise                                                                                                                                                                                                                                                                                        |
-| `game_new`              | `game new`              | writes; the CLI's inputs (`gravity` as `[x, y]`, `rate`, `cell` and `pxPerMetre` as numbers); returns the files, issues, `urls` and the playtest command                                                                                                                                                                                          |
+| Tool                    | CLI command             | Notes                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scene_list`            | `list`                  |                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `scene_show`            | `show`                  | `near` is `[x, y, r]`; rows with a sprite carry its `sprite` box; `time` and `physics`                                                                                                                                                                                                                                                                                                                                          |
+| `scene_schema`          | `schema`                | `which`: any name `schema` takes (`scene`, `ops`, `project-ops`, a doc kind…)                                                                                                                                                                                                                                                                                                                                                   |
+| `scene_codes`           | `codes`                 |                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `scene_flow`            | `flow`                  | each project's scene list as data; edit the list with `asset_apply_ops`                                                                                                                                                                                                                                                                                                                                                         |
+| `scene_validate`        | `validate`              | `physical`                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `scene_diff`            | `diff`                  | one of `other`, `git` or an inline `ops` batch                                                                                                                                                                                                                                                                                                                                                                                  |
+| `scene_apply_ops`       | `apply` / `--live`      | writes; `dryRun` defaults to `true`                                                                                                                                                                                                                                                                                                                                                                                             |
+| `scene_playtest`        | `playtest`              | `script` inline or a path, v1 or v2 (tracks, `set`, `pointer`, `join`, `leave`), command and elapse steps included; `at` is `[x, y]` in metres; `events` a list of types, returns `lifecycle`, and `legal`/`legalTruncated` for a game that lists its commands; `flow` follows scene requests (`segments`), `fromSave` a fixture inline or a path                                                                               |
+| `scene_replay`          | `replay`                | `run` inline or a path: a v1 or v2 recording or a playtest result; reports `migratedFrom`, the platform and `issues`; `versions`: a directory `game_live_build` wrote, as `--versions`                                                                                                                                                                                                                                          |
+| `scene_fuzz`            | `fuzz`                  | `seed`, `rollouts`, `ticks` as numbers                                                                                                                                                                                                                                                                                                                                                                                          |
+| `scene_check`           | `check`                 | every kind, `connected` included; `reaches` takes `expect`                                                                                                                                                                                                                                                                                                                                                                      |
+| `scene_render`          | `render`                | a PNG `image` block; `ascii` for the map; `overlay` inline or a path; `sprites` lists the sprite boxes                                                                                                                                                                                                                                                                                                                          |
+| `project_tree`          | `project tree`          |                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `asset_refs`            | `project refs`          | `id`; without one, every dangling reference                                                                                                                                                                                                                                                                                                                                                                                     |
+| `asset_import`          | `assets import`         | writes; `file` (a local path), `path`, `id`, `kind`, `settings`                                                                                                                                                                                                                                                                                                                                                                 |
+| `asset_apply_ops`       | `assets apply`          | writes; `ops` inline or a path; `base` on files; edits input maps (`/actions/@<action>/bindings`) and scene lists (`/scenes/@<scene>`, `/start`)                                                                                                                                                                                                                                                                                |
+| `game_build`            | `game build`            | builds into `out` (default dist/games/<id>/<target>); `id`, `target`, `out`, `rapier` (`standard`/`compat`), `allowOverBudget`; returns the plan summary and issues, never file bytes                                                                                                                                                                                                                                           |
+| `game_manifest`         | `game manifest`         | `path`: a build directory, a `release.json` or an inline manifest; returns the validated manifest and its summary                                                                                                                                                                                                                                                                                                               |
+| `game_live_build`       | `game live build`       | `id`, `scene`, `hosted`, `out`; `hosted` needs `JAMS_AGENT_TOKEN` and `JAMS_AGENT_SITE` in the server's environment; returns the version's id, data size and files written, as `--json` does                                                                                                                                                                                                                                    |
+| `game_live_check`       | `game live check`       | `id`, `scene`, `against` (a build directory or `release.json`), `from` (a directory `game_live_build` wrote); returns the compatibility issues and the swap check's runs, as `--json` does                                                                                                                                                                                                                                      |
+| `game_live_publish`     | `game live publish`     | `id`, `scene`, `hosted`, `channel` (`preview`/`none`), `timing` (`next-load`/`boundary`/`now`), `note`, `swapCheck` (`false` is `--no-swap-check`); needs `JAMS_AGENT_TOKEN` and `JAMS_AGENT_SITE` in the server's environment; returns the version's summary (scene@number, id, data size, new files, the release it fits, timing, changes, today's count and storage with their warnings, game page), never a text's contents |
+| `game_live_list`        | `game live list`        | `id`, `scene`                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `game_live_promote`     | `game live promote`     | `id`, `scene`, `version` (the number), `channel: "preview"`, `timing`; production is refused with the game page's URL                                                                                                                                                                                                                                                                                                           |
+| `game_live_rollback`    | `game live rollback`    | `id`, `scene`, `channel: "preview"`; production is refused likewise                                                                                                                                                                                                                                                                                                                                                             |
+| `game_live_clear`       | `game live clear`       | `id`, `scene`, `channel: "preview"`; production is refused likewise                                                                                                                                                                                                                                                                                                                                                             |
+| `game_release_create`   | `game release create`   | `id`, `hosted`, `target`, `channel` (`preview`/`none`), `from`, `allowOverBudget`; needs `JAMS_AGENT_TOKEN` and `JAMS_AGENT_SITE` in the server's environment (never arguments); returns the release summary (version, id, size, files, new bytes, play URL, quota lines and warnings, next removal, game page), never file bytes                                                                                               |
+| `game_release_list`     | `game release list`     | `id`                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `game_release_promote`  | `game release promote`  | `id`, `version` (a number), `channel: "preview"`; production is refused with the game page's URL                                                                                                                                                                                                                                                                                                                                |
+| `game_release_rollback` | `game release rollback` | `id`, `channel: "preview"`; production is refused likewise                                                                                                                                                                                                                                                                                                                                                                      |
+| `game_new`              | `game new`              | writes; the CLI's inputs (`gravity` as `[x, y]`, `rate`, `cell` and `pxPerMetre` as numbers); returns the files, issues, `urls` and the playtest command                                                                                                                                                                                                                                                                        |
 
 Each result is the command's `--json` output as compact JSON in a text block
 and as `structuredContent`, with `exitCode` added. A scene with error issues
@@ -3440,9 +3563,11 @@ trusting codes or flags.
 - `tools/game-build.ts`, `game-export.ts` and `game-manifest.ts` are
   `game build`, `game export` and `game manifest`, and `replay --releases`
   (`replayRelease` in `game-manifest.ts`); `engine-dist.ts` packs the
-  engine a build bundles. `tools/game-live.ts` is `game live build` and
-  `game live check`, over the engine's `buildSceneVersion`,
-  `checkSceneVersion` and `swapCheck`.
+  engine a build bundles. `tools/game-live.ts` is `game live build`,
+  `game live check` and the commands that publish and move a version
+  (`publish`, `list`, `promote`, `rollback`, `clear`), over the engine's
+  `buildSceneVersion`, `checkSceneVersion` and `swapCheck` and the site's
+  live routes.
 - `examples/`: the op batches, input list, input scripts, checks file,
   save fixture and image this README uses.
 - `__tests__/`: the tools against temp projects (`fixtures.ts`), with the

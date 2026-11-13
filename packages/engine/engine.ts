@@ -588,16 +588,20 @@ export async function createGame(
     bundle: AssetBundle | null,
     play?: PlayOptions,
     snap?: boolean,
+    as?: PlayAs,
   ): LoadReport {
     if (destroyed) return { ok: false, error: "game destroyed" };
     const built = buildRuntime(scene.name);
-    const report = built.runtime.load(scene, play);
+    const report = built.runtime.load(scene, play, as);
     if (!report.ok) {
       discard(built, report);
       return report;
     }
     return swapIn(built, scene, bundle, report, snap);
   }
+
+  /** The asset id a scene played outside flow keys saves and live versions on, when it isn't the scene's name. */
+  type PlayAs = { sceneId?: AssetId };
 
   type BuiltRuntime = { runtime: SceneRuntimeHandle; view: PixiView; container: Container };
 
@@ -895,6 +899,7 @@ export async function createGame(
     scene: ExpandedScene,
     bundle: AssetBundle | null,
     opts: PlayOptions = {},
+    as?: PlayAs,
   ): PlayReport {
     const playing = getMode() === "play" && editState !== null;
     const remembered = playing
@@ -906,7 +911,7 @@ export async function createGame(
         };
     // The edit scene's textures stay resident through Play, for Stop.
     if (!playing && remembered?.bundle) assets?.loader.retain(remembered.bundle);
-    const report = buildWorld(scene, bundle, opts, true);
+    const report = buildWorld(scene, bundle, opts, true, as);
     if (!report.ok) {
       if (!playing && remembered?.bundle) assets?.loader.release(remembered.bundle);
       const out: PlayReport = { ok: false, issues: [], error: report.error };
@@ -1063,6 +1068,7 @@ export async function createGame(
   function playRecorded(
     doc: SceneDefinition,
     opts: PlayOptions,
+    as: PlayAs,
     replay?: { recording: RunRecording; live: ReplayLive | null; start: PreparedVersion | null },
   ): PlayReport {
     if (destroyed) return { ok: false, issues: [], error: "game destroyed" };
@@ -1100,12 +1106,13 @@ export async function createGame(
     const bundle = bundleFor(prepared.scene, doc, defPrefabs, view);
     // Play runs the doc it was given, which is the active version only when it is that version's scene.
     if (!replayed) liveLayer.loadingDoc(prepared.hash);
-    const report = startPlay(prepared.scene, bundle, opts);
+    const report = startPlay(prepared.scene, bundle, opts, as);
     liveLayer.loadingDoc(null);
     if (!report.ok) endReplayLive();
     else if (!replayed) liveLayer.loadedDoc(prepared.hash);
     if (report.ok && loaded) {
-      session = recordSession(loaded.runtime, doc.name, prepared, opts, persistAtLoad, replay);
+      const scene = as.sceneId ?? doc.name;
+      session = recordSession(loaded.runtime, scene, prepared, opts, persistAtLoad, replay);
       if (replay && loop.isPaused()) resume();
     }
     return { ...report, issues: prepared.issues };
@@ -1164,8 +1171,8 @@ export async function createGame(
     flowSession = session;
   }
 
-  function play(doc: SceneDefinition, opts: PlayOptions = {}): PlayReport {
-    return playRecorded(doc, opts);
+  function play(doc: SceneDefinition, opts: PlayOptions = {}, as: PlayAs = {}): PlayReport {
+    return playRecorded(doc, opts, as);
   }
 
   /**
@@ -1175,7 +1182,7 @@ export async function createGame(
   function replay(
     doc: SceneDefinition,
     recording: RunRecording,
-    opts: { versions?: (id: Sha256) => StagedVersion | null } = {},
+    opts: { versions?: (id: Sha256) => StagedVersion | null; sceneId?: AssetId } = {},
   ): PlayReport {
     if (destroyed) return { ok: false, issues: [], error: "game destroyed" };
     let start: PreparedVersion | null = null;
@@ -1184,7 +1191,7 @@ export async function createGame(
       if (!found.ok) return { ok: false, issues: [found.issue], error: found.issue.message };
       start = found.prepared;
     }
-    const scene = start?.version.scene ?? doc.name;
+    const scene = start?.version.scene ?? opts.sceneId ?? doc.name;
     const swaps = recording.swaps ?? [];
     const moves: ReplayMoves = { before: new Map(), holds: new Set() };
     const live: ReplayLive | null =
@@ -1202,6 +1209,7 @@ export async function createGame(
     const report = playRecorded(
       start?.def ?? doc,
       recordingStart(recording.start, recording.seed),
+      { sceneId: scene },
       {
         recording,
         live,
@@ -1247,8 +1255,13 @@ export async function createGame(
     if (mode === "edit") return stop();
     session = null;
     const scene = authoredScene();
-    if (scene) startPlay(scene, loaded?.bundle ?? null);
-    else enterMode("play");
+    if (scene) {
+      startPlay(scene, loaded?.bundle ?? null);
+      return;
+    }
+    // Nothing to play yet: what Stop puts back is the editor's camera, not the one play leaves.
+    editState = { scene: null, camera: camera.getState(), bundle: null };
+    enterMode("play");
   }
 
   /** The game's first verdict on this tick, recorded once per session. */

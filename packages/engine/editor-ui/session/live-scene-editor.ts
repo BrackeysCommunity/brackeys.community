@@ -177,9 +177,9 @@ export const LIVE_PLAY_APPLIED_MS = 4_000;
 /** What a replay says when the run reached a live version this editor didn't build. */
 export const LIVE_VERSION_MISSING = "This run played a live version this editor doesn't have";
 
-/** Why a run that played live versions this editor didn't build can't replay here. */
+/** Why this editor lacks a live version a run played. */
 export const LIVE_VERSIONS_ELSEWHERE =
-  "That version was built outside this editor, so the run replays only where it is kept.";
+  "Replay here has only the latest live versions Live in Play built since the editor opened.";
 
 export type EditorIdentity = {
   origin: Extract<SceneOrigin, { kind: "user" }>;
@@ -907,11 +907,7 @@ function createLivePlay({
         return;
       }
       if (!live.pending().some((e) => e.scene === scene && e.version === made.id)) {
-        const playingAs = readDoc(doc).def.name;
-        const cause =
-          playingAs !== scene
-            ? `the game plays this scene as "${playingAs}", not by its id ${scene}`
-            : `${scene} isn't the scene playing`;
+        const cause = `${scene} isn't the scene playing`;
         return fail(
           LIVE_PLAY_NOT_APPLIED,
           liveIssue({ code: "live-swap-failed", scene, cause, phase: "swap" }),
@@ -1200,10 +1196,12 @@ export function openLiveEditor({
     true,
   );
 
+  /** A project scene's asset id: what Play runs it as, whatever its name. */
+  const sceneId = sceneDoc ? idOf(sceneDoc) : null;
   const livePlay = createLivePlay({
     game,
     project,
-    scene: sceneDoc ? idOf(sceneDoc) : name,
+    scene: sceneId ?? name,
     doc,
     session,
     host,
@@ -1417,9 +1415,10 @@ export function openLiveEditor({
   ): SceneDefinition | null {
     const scene = readDoc(doc).def;
     game.setPrefabs(session.getPrefabs());
+    const as = sceneId !== null ? { sceneId } : {};
     const report = recording
-      ? game.replay(scene, recording, { versions: livePlay.version })
-      : game.play(scene, opts);
+      ? game.replay(scene, recording, { versions: livePlay.version, ...as })
+      : game.play(scene, opts, as);
     if (!report.ok) {
       if (recording && report.issues.some((i) => i.code === "scene-version-removed"))
         notify.error(LIVE_VERSION_MISSING, { description: LIVE_VERSIONS_ELSEWHERE });

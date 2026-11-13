@@ -149,6 +149,9 @@ export type SaveHost = {
   playClock(): PlayClock;
 };
 
+/** A load outside flow naming its scene's asset id. */
+type PlayedAs = { sceneId: AssetId };
+
 /**
  * The `live` option as the runtime reads it. A live layer's hooks also
  * answer `sublevel`: the scene an attach of `id` uses in place of the run's
@@ -329,6 +332,10 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   /** The loaded scene's place in flow: null for a load that didn't come through `loadListed`. */
   let flowScene: AssetId | null = null;
   let flowEntry: string | null = null;
+  /** The scene's asset id given by a load outside flow whose scene plays under another name (editor Play). */
+  let playedAs: AssetId | null = null;
+  /** The loaded scene's asset id: its flow scene, else the id its load gave, else its name. */
+  const sceneIdNow = (): AssetId | null => flowScene ?? playedAs ?? mainScene?.name ?? null;
   /** The scene library the loaded scene's run keeps, read once at its load. */
   let runScenes: SceneLibrary | null = null;
   const live: RuntimeLive = opts.live ?? { version: () => null, boundary: () => {} };
@@ -457,7 +464,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     live: {
       get version() {
         // Inside a load (the game's `onLoad`) the host's runtime may still be the one before.
-        const loading = loadedScene === null && mainScene ? (flowScene ?? mainScene.name) : null;
+        const loading = loadedScene === null ? sceneIdNow() : null;
         return loading !== null && live.loading
           ? live.loading(loading, loadingBack)
           : live.version();
@@ -614,6 +621,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     saveRequests = [];
     flowScene = null;
     flowEntry = null;
+    playedAs = null;
   }
 
   function takeRequests(): RuntimeRequests {
@@ -653,7 +661,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   function load(
     next: ExpandedScene,
     playOpts?: PlayOptions,
-    flow?: FlowIdentity,
+    flow?: FlowIdentity | PlayedAs,
     library?: PrefabLibrary,
     startTick = 0,
   ): LoadReport {
@@ -675,10 +683,13 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     mainScene = next;
     versionPrefabs = library ?? null;
     lastPlay = playOpts;
-    runScenes = flow ? flow.library : readSceneLibrary(opts.scenes);
-    if (flow) {
+    if (flow && "library" in flow) {
+      runScenes = flow.library;
       flowScene = flow.scene;
       flowEntry = flow.entry;
+    } else {
+      runScenes = readSceneLibrary(opts.scenes);
+      if (flow) playedAs = flow.sceneId;
     }
     const gravity = next.settings.gravity;
     ctx.bounds = [...next.bounds];
@@ -1198,17 +1209,19 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     library?: PrefabLibrary,
     tick?: number,
   ) => LoadReport {
-    const identity =
+    const identity: FlowIdentity | PlayedAs | undefined =
       flowScene !== null && runScenes
         ? { scene: flowScene, entry: flowEntry, library: runScenes }
-        : undefined;
+        : playedAs !== null
+          ? { sceneId: playedAs }
+          : undefined;
     const playOpts = lastPlay;
     return (scene, library, at) => load(scene, playOpts, identity, library, at);
   }
 
   const saveHost: SaveHost = {
     mainScene: () => mainScene,
-    sceneId: () => flowScene ?? mainScene?.name ?? null,
+    sceneId: sceneIdNow,
     prefabs: () => lifecycle.library,
     play: () => lastPlay,
     stepping: () => stepping,
@@ -1284,7 +1297,8 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   }
 
   const handle: SceneRuntimeHandle = {
-    load: (scene, playOpts) => load(scene, playOpts),
+    load: (scene, playOpts, as) =>
+      load(scene, playOpts, as?.sceneId !== undefined ? { sceneId: as.sceneId } : undefined),
     unload,
     add,
     update,

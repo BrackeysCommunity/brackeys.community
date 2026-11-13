@@ -32,7 +32,7 @@ const NOT_FOUND = (reason?: string) =>
  * `gameStaff` for the play and game pages, where a caller the staff gate
  * refuses reads as not found, the same as a missing game or a closed site.
  */
-const gameReader = os
+export const gameReader = os
   .use(async ({ next }) => {
     let admitted = false;
     try {
@@ -65,6 +65,24 @@ export const getGamePlay = gameReader
     const resolved = await orpcRefusals(() => resolvePlay({ ...input, viewer }));
     if (!resolved.ok) throw NOT_FOUND(resolved.reason);
     return resolved.play;
+  });
+
+/**
+ * The live scenes a channel plays now, for a play page that heard its rev
+ * move: null when the channel's release can't be read. The viewer must be
+ * able to play the channel, as `getGamePlay` decides for `latest` and
+ * `preview`. It stays on the private RPC mount, which is never cached.
+ */
+export const getGameLive = gameReader
+  .input(z.object({ projectId, channel: z.enum(["production", "preview"]) }))
+  .handler(async ({ context, input }) => {
+    const viewer = await viewerOf(context.user.id, input.projectId);
+    const version = input.channel === "production" ? "latest" : "preview";
+    const resolved = await orpcRefusals(() =>
+      resolvePlay({ projectId: input.projectId, version, viewer }),
+    );
+    if (!resolved.ok) throw NOT_FOUND(resolved.reason);
+    return resolved.play.live;
   });
 
 /** The game page as this viewer may see it. */

@@ -227,8 +227,25 @@ const STAFF_PROCEDURES = new Set([
   "getGameSettings",
   "setGameSettings",
   "getGamePlay",
+  "getGameLive",
   "getGamePage",
   "reportGame",
+  // Live scene versions: staff only, behind engine-games-enabled and the production guard;
+  // the play page's report follows getGamePlay's gate.
+  "beginSceneVersion",
+  "commitSceneVersion",
+  "promoteSceneVersion",
+  "rollbackSceneVersion",
+  "clearSceneVersion",
+  "listSceneVersions",
+  "getSceneVersion",
+  "getLiveBase",
+  "blockSceneVersion",
+  "unblockSceneVersion",
+  "hideSceneVersion",
+  "unhideSceneVersion",
+  "listSceneVersionQueue",
+  "reportLiveState",
 ]);
 
 const AUTH_REQUIRING = new Set<unknown>([

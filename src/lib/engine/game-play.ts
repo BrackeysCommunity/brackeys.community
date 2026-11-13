@@ -12,6 +12,8 @@ import {
 import { frameBase } from "./frame-csp";
 import { resolveRelease } from "./frame-route";
 import { mintFrameToken } from "./frame-token";
+import type { LiveSnapshot } from "./live-state";
+import { channelLive } from "./live-versions";
 import {
   canPlay,
   roleOf,
@@ -35,12 +37,17 @@ export type PlayPayload = {
   connectOrigins: string[];
   online: boolean;
   viewer: { signedIn: boolean };
+  /**
+   * The channel's live scenes over its release, for `latest` and `preview`;
+   * null for a version number, which always plays exactly that release.
+   */
+  live: LiveSnapshot | null;
 };
 
 export type PlayResolution = { ok: true; play: PlayPayload } | { ok: false; reason: PlayRefusal };
 
 export type PlayDeps = {
-  db?: Pick<ReleaseDb, "select">;
+  db?: ReleaseDb;
   now?: () => Date;
   /** Where frames are served from; default `playOrigin()`. */
   playOrigin?: string;
@@ -59,9 +66,9 @@ async function channelPointer(
   db: Pick<ReleaseDb, "select">,
   projectId: string,
   channel: ReleaseChannel,
-): Promise<string | null> {
+): Promise<{ releaseId: string; rev: number } | null> {
   const [row] = await db
-    .select({ releaseId: engineReleaseChannels.releaseId })
+    .select({ releaseId: engineReleaseChannels.releaseId, rev: engineReleaseChannels.liveRev })
     .from(engineReleaseChannels)
     .where(
       and(
@@ -70,7 +77,51 @@ async function channelPointer(
       ),
     )
     .limit(1);
-  return row?.releaseId ?? null;
+  return row ?? null;
+}
+
+const LIVE_CACHE_MAX = 1_000;
+const LIVE_CACHE_TTL_MS = 5_000;
+
+/**
+ * Channel snapshots by project, channel, rev and release, shared by every
+ * caller in this process: a burst of pages after a move loads the pointers
+ * once. A pending load is kept too, so concurrent misses share it.
+ */
+const liveCache = new Map<string, { at: number; snapshot: Promise<LiveSnapshot | null> }>();
+
+/** Empties this process's live snapshot cache. */
+export function forgetLiveSnapshots(): void {
+  liveCache.clear();
+}
+
+/** The live scenes `channel` plays over `releaseId` at `rev`, through this process's cache. */
+function channelSnapshot(
+  db: ReleaseDb,
+  input: { projectId: string; channel: ReleaseChannel; releaseId: string; rev: number },
+  now: number,
+): Promise<LiveSnapshot | null> {
+  const key = `${input.projectId}/${input.channel}/${input.rev}/${input.releaseId}`;
+  const cached = liveCache.get(key);
+  liveCache.delete(key);
+  if (cached && now - cached.at < LIVE_CACHE_TTL_MS) {
+    liveCache.set(key, cached);
+    return cached.snapshot;
+  }
+  const snapshot = channelLive(db, input.projectId, input.channel).then((live) => {
+    const current = live?.snapshot.release === input.releaseId && live.snapshot.rev === input.rev;
+    // A move between the two reads: answer with what's there now, but don't file it under the old rev.
+    if (!current) liveCache.delete(key);
+    return live?.snapshot ?? null;
+  });
+  liveCache.set(key, { at: now, snapshot });
+  snapshot.catch(() => liveCache.delete(key));
+  while (liveCache.size > LIVE_CACHE_MAX) {
+    const oldest = liveCache.keys().next().value;
+    if (oldest === undefined) break;
+    liveCache.delete(oldest);
+  }
+  return snapshot;
 }
 
 const releaseColumns = {
@@ -96,7 +147,7 @@ export async function resolvePlay(
   input: { projectId: string; version: string; viewer: Viewer },
   deps: PlayDeps = {},
 ): Promise<PlayResolution> {
-  const db = deps.db ?? (siteDb as unknown as Pick<ReleaseDb, "select">);
+  const db = deps.db ?? (siteDb as unknown as ReleaseDb);
   const now = deps.now ?? (() => new Date());
   const { projectId, version, viewer } = input;
 
@@ -120,13 +171,14 @@ export async function resolvePlay(
   const role = roleOf(viewer, project);
 
   let channel: ReleaseChannel | null = null;
+  let pointer: { releaseId: string; rev: number } | null = null;
   let releaseFilter;
   if (version === "latest" || version === "preview") {
     channel = version === "latest" ? "production" : "preview";
     if (channel === "preview" && role === "player") return refused("not-found");
-    const pointer = await channelPointer(db, projectId, channel);
+    pointer = await channelPointer(db, projectId, channel);
     if (pointer === null) return refused("not-found");
-    releaseFilter = eq(engineReleases.id, pointer);
+    releaseFilter = eq(engineReleases.id, pointer.releaseId);
   } else if (VERSION_NUMBER.test(version)) {
     releaseFilter = eq(engineReleases.version, Number(version));
   } else {
@@ -163,7 +215,12 @@ export async function resolvePlay(
       channelPointer(db, projectId, "production"),
       channelPointer(db, projectId, "preview"),
     ]);
-    channel = production === release.id ? "production" : preview === release.id ? "preview" : null;
+    channel =
+      production?.releaseId === release.id
+        ? "production"
+        : preview?.releaseId === release.id
+          ? "preview"
+          : null;
   }
 
   // A cached frame-route view can trail a visibility change by a few minutes; the private prefix
@@ -182,6 +239,16 @@ export async function resolvePlay(
       );
     token = minted;
   }
+
+  // Only the moving names take live scenes; a number is a permalink to exactly that release.
+  const live =
+    pointer && channel
+      ? await channelSnapshot(
+          db,
+          { projectId, channel, releaseId: release.id, rev: pointer.rev },
+          now().getTime(),
+        )
+      : null;
 
   return {
     ok: true,
@@ -202,6 +269,7 @@ export async function resolvePlay(
       connectOrigins: [...project.connectOrigins],
       online: project.online,
       viewer: { signedIn: viewer.userId !== null },
+      live,
     },
   };
 }

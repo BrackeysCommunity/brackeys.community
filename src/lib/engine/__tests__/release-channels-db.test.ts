@@ -268,7 +268,12 @@ describe("rollback", () => {
     await move("promote", "production", publisher, 1);
     await move("promote", "production", publisher, 2);
     const before = await releaseRows();
-    expect(await move("rollback", "production", publisher)).toEqual({ from: 2, to: 1 });
+    expect(await move("rollback", "production", publisher)).toEqual({
+      from: 2,
+      to: 1,
+      restored: [],
+      skipped: [],
+    });
     expect(await pointer("production")).toBe(hex(1));
     expect(await releaseRows()).toEqual(before);
 
@@ -282,12 +287,22 @@ describe("rollback", () => {
       actorId: "pub",
     });
     // Rolling back the rollback goes forward again.
-    expect(await move("rollback", "production", publisher)).toEqual({ from: 1, to: 2 });
+    expect(await move("rollback", "production", publisher)).toEqual({
+      from: 1,
+      to: 2,
+      restored: [],
+      skipped: [],
+    });
   });
 
   it("with `to`, moves to any kept version, and refuses a collected one", async () => {
     await move("promote", "preview", agent, 3);
-    expect(await move("rollback", "preview", agent, 1)).toEqual({ from: 3, to: 1 });
+    expect(await move("rollback", "preview", agent, 1)).toEqual({
+      from: 3,
+      to: 1,
+      restored: [],
+      skipped: [],
+    });
     expect(await pointer("preview")).toBe(hex(1));
 
     await db
@@ -319,7 +334,12 @@ describe("rollback", () => {
     await move("promote", "preview", editor, 2);
     await move("promote", "production", publisher, 3);
     await move("promote", "preview", editor, 1);
-    expect(await move("rollback", "production", publisher)).toEqual({ from: 3, to: 1 });
+    expect(await move("rollback", "production", publisher)).toEqual({
+      from: 3,
+      to: 1,
+      restored: [],
+      skipped: [],
+    });
     expect(await pointer("preview")).toBe(hex(1));
   });
 });

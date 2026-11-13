@@ -55,19 +55,27 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
     children,
     params,
     to,
+    search,
     ...rest
   }: {
     children?: ReactNode;
     params?: Record<string, string>;
+    search?: Record<string, string | number>;
     to?: string;
-  }) => (
-    <a {...rest} href={(to ?? "").replace(/\$(\w+)/g, (_m, key: string) => params?.[key] ?? "")}>
-      {children}
-    </a>
-  ),
+  }) => {
+    const path = (to ?? "").replace(/\$(\w+)/g, (_m, key: string) => params?.[key] ?? "");
+    const query = search
+      ? `?${new URLSearchParams(Object.entries(search).map(([k, v]) => [k, String(v)]))}`
+      : "";
+    return (
+      <a {...rest} href={path + query}>
+        {children}
+      </a>
+    );
+  },
 }));
 
-const { GamePage, missingLicencesLine } = await import("../GamePage");
+const { GamePage, blockedSceneLine, missingLicencesLine } = await import("../GamePage");
 type GamePageView = import("../GamePage").GamePageView;
 const { downloadReleaseZip, versionLine } = await import("../VersionList");
 const { releaseDay } = await import("@/lib/jam-links");
@@ -137,7 +145,8 @@ function page(patch: Partial<GamePageView> = {}): GamePageView {
     saveMode: "site",
     connectOrigins: [],
     versions: [LIVE, JAM],
-    live: { version: 7, playUrl: "/games/tactics/play/7" },
+    live: { version: 7, playUrl: "/games/tactics/play/7", scenes: [] },
+    blockedScenes: [],
     embeddable: true,
     credits: null,
     creditsMissing: 0,
@@ -409,6 +418,84 @@ describe("the game page", () => {
 
     wrap(<GamePage page={publisherPage({ ...credits, creditsMissing: 3 })} onChanged={() => {}} />);
     expect(screen.getByText("3 assets have no licence recorded.")).toBeTruthy();
+  });
+});
+
+describe("live levels on the game page", () => {
+  // Half a minute over, so the shared clock lagging by up to a second never rounds it down.
+  const minutesAgo = (n: number) => new Date(Date.now() - (n + 0.5) * 60_000).toISOString();
+  const LIVE_SCENES = [
+    { scene: "ford", title: "The ford", number: 4, since: minutesAgo(12) },
+    { scene: "cave", title: "Cave", number: 2, since: minutesAgo(180) },
+  ];
+  const BLOCKED = [
+    {
+      scene: "ford",
+      title: "The ford",
+      number: 5,
+      channel: "production" as const,
+      reason: "5 of 12 players' games failed after this update",
+    },
+  ];
+
+  it("adds the live production row when production plays updated levels", () => {
+    wrap(
+      <GamePage
+        page={page({
+          live: { version: 7, playUrl: "/games/tactics/play/7", scenes: LIVE_SCENES.slice(0, 1) },
+        })}
+        onChanged={() => {}}
+      />,
+    );
+    const row = screen
+      .getByRole("list", { name: "Versions" })
+      .querySelector('[data-version="7"] [data-live-levels]');
+    expect(row?.textContent).toBe("v7 · Live · with updated levels: The ford (12m ago)");
+    expect(
+      screen.getByRole("list", { name: "Versions" }).querySelectorAll("[data-live-levels]"),
+    ).toHaveLength(1);
+  });
+
+  it("lists every updated level in the row", () => {
+    wrap(
+      <GamePage
+        page={page({ live: { version: 7, playUrl: "/games/tactics/play/7", scenes: LIVE_SCENES } })}
+        onChanged={() => {}}
+      />,
+    );
+    expect(document.querySelector("[data-live-levels]")?.textContent).toBe(
+      "v7 · Live · with updated levels: The ford (12m ago), Cave (3h ago)",
+    );
+  });
+
+  it("has no live row when production plays its release's own levels", () => {
+    wrap(<GamePage page={page()} onChanged={() => {}} />);
+    expect(document.querySelector("[data-live-levels]")).toBeNull();
+    expect(screen.queryByText(/with updated levels/)).toBeNull();
+  });
+
+  it("shows publishers a blocked update, linking to the Publish panel in the editor", () => {
+    wrap(<GamePage page={publisherPage({ blockedScenes: BLOCKED })} onChanged={() => {}} />);
+    const link = screen.getByRole("link", {
+      name: "The ford update blocked (5 of 12 players' games failed after this update)",
+    });
+    expect(link.getAttribute("href")).toBe("/game/dev?edit=1&project=tactics&scene=ford");
+    expect(
+      within(screen.getByRole("list", { name: "Blocked level updates" })).getAllByRole("listitem"),
+    ).toHaveLength(1);
+  });
+
+  it("never shows players a blocked update", () => {
+    wrap(<GamePage page={page({ blockedScenes: BLOCKED })} onChanged={() => {}} />);
+    expect(screen.queryByText(/update blocked/)).toBeNull();
+    expect(screen.queryByRole("list", { name: "Blocked level updates" })).toBeNull();
+  });
+
+  it("words a blocked update without a reason", () => {
+    expect(blockedSceneLine({ title: "Cave", reason: null })).toBe("Cave update blocked");
+    expect(blockedSceneLine({ title: "Cave", reason: "Stopped by hand" })).toBe(
+      "Cave update blocked (Stopped by hand)",
+    );
   });
 });
 

@@ -761,9 +761,10 @@ export function createSolidSystem(
 
   function setHidden(id: string, solid: SolidBody, hidden: boolean): void {
     if (solid.hidden === hidden) return;
-    const { rapier } = physicsFor(id);
+    const { rapier, physics } = physicsFor(id);
     const y = hidden ? HIDDEN_Y : solid.pose.y;
     solid.body.setTranslation(new rapier.Vector2(solid.pose.x, y), true);
+    physics.moved(solid.body);
     solid.hidden = hidden;
   }
 

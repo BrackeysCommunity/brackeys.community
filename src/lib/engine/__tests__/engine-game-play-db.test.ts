@@ -165,6 +165,13 @@ describe("resolvePlay: versions", () => {
         connectOrigins: ["https://api.example.org"],
         online: true,
         viewer: { signedIn: false },
+        live: {
+          channel: "production",
+          rev: expect.any(Number),
+          release: v1.releaseId,
+          scenes: [],
+          removed: [],
+        },
       },
     });
   });

@@ -3,12 +3,22 @@
 
 import {
   BLOB_GRACE_DAYS,
+  LIVE_LIMITS,
+  LIVE_REPORT_RETENTION_DAYS,
   PROJECT_QUOTA,
   RELEASE_GRACE_DAYS,
   SITE_SAVE_EXPIRY_DAYS,
 } from "./limits.ts";
 
 export type ReleaseRow = { id: string; version: number; createdAt: Date; collectedAt: Date | null };
+/** One published version of a scene; `scene` is the scene's asset id. */
+export type SceneVersionRow = {
+  id: string;
+  scene: string;
+  number: number;
+  createdAt: Date;
+  collectedAt: Date | null;
+};
 /** The release ids a channel pointer or a jam version names. */
 export type Pins = { channels: readonly string[]; jams: readonly string[] };
 
@@ -31,17 +41,23 @@ export function nextCollectorRun(at: Date): Date {
   return run.getTime() >= at.getTime() ? run : new Date(run.getTime() + DAY_MS);
 }
 
-/** The live releases outside the newest kept and unpinned, oldest first, each with when its grace ends. */
-function beyondKept(
-  releases: readonly ReleaseRow[],
-  pins: Pins,
-): { row: ReleaseRow; dueAt: Date }[] {
-  const pinned = new Set([...pins.channels, ...pins.jams]);
-  const live = releases
+type Collectable = { id: string; createdAt: Date; collectedAt: Date | null };
+
+/**
+ * The rows not yet collected beyond the `kept` newest by `rank` (higher is
+ * newer) and not pinned, oldest first, each with when its grace ends.
+ * Pinned rows count among the newest.
+ */
+function beyondKept<R extends Collectable>(
+  rows: readonly R[],
+  kept: number,
+  pinned: ReadonlySet<string>,
+  rank: (row: R) => number,
+): { row: R; dueAt: Date }[] {
+  return rows
     .filter((r) => r.collectedAt === null)
-    .sort((a, b) => b.version - a.version || b.createdAt.getTime() - a.createdAt.getTime());
-  return live
-    .slice(PROJECT_QUOTA.releasesKept)
+    .sort((a, b) => rank(b) - rank(a) || b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(kept)
     .filter((r) => !pinned.has(r.id))
     .reverse()
     .map((row) => ({
@@ -50,13 +66,25 @@ function beyondKept(
     }));
 }
 
+const releasesBeyondKept = (releases: readonly ReleaseRow[], pins: Pins) =>
+  beyondKept(
+    releases,
+    PROJECT_QUOTA.releasesKept,
+    new Set([...pins.channels, ...pins.jams]),
+    (r) => r.version,
+  );
+
+/** The first collector run at or after a grace's end, or the next run once it has passed. */
+const runAfter = (dueAt: Date, now: Date) =>
+  nextCollectorRun(dueAt.getTime() > now.getTime() ? dueAt : now);
+
 /** The releases to collect now: not among the newest kept, not pinned, past the grace. */
 export function releasesToCollect(
   releases: readonly ReleaseRow[],
   pins: Pins,
   now: Date,
 ): string[] {
-  return beyondKept(releases, pins)
+  return releasesBeyondKept(releases, pins)
     .filter(({ dueAt }) => dueAt.getTime() <= now.getTime())
     .map(({ row }) => row.id);
 }
@@ -71,9 +99,53 @@ export function collectionForecast(
   pins: Pins,
   now: Date,
 ): { version: number; at: Date }[] {
-  return beyondKept(releases, pins).map(({ row, dueAt }) => ({
+  return releasesBeyondKept(releases, pins).map(({ row, dueAt }) => ({
     version: row.version,
-    at: nextCollectorRun(dueAt.getTime() > now.getTime() ? dueAt : now),
+    at: runAfter(dueAt, now),
+  }));
+}
+
+/** Each scene's versions beyond its newest kept and not pointed at, scenes in id order. */
+function versionsBeyondKept(rows: readonly SceneVersionRow[], pointed: readonly string[]) {
+  const byScene = new Map<string, SceneVersionRow[]>();
+  for (const row of rows) {
+    const list = byScene.get(row.scene);
+    if (list) list.push(row);
+    else byScene.set(row.scene, [row]);
+  }
+  const pinned = new Set(pointed);
+  return [...byScene.keys()]
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    .flatMap((scene) =>
+      beyondKept(byScene.get(scene)!, LIVE_LIMITS.keptPerScene, pinned, (r) => r.number),
+    );
+}
+
+/** The scene versions to collect now: not among the newest of their scene, not pointed at by any channel, past the grace. */
+export function sceneVersionsToCollect(
+  rows: readonly SceneVersionRow[],
+  pointed: readonly string[],
+  now: Date,
+): string[] {
+  return versionsBeyondKept(rows, pointed)
+    .filter(({ dueAt }) => dueAt.getTime() <= now.getTime())
+    .map(({ row }) => row.id);
+}
+
+/**
+ * When each scene version outside its scene's kept set and not pointed at
+ * will go: the first run after its grace ends. One inside the kept set has
+ * no date, since only newer versions of its scene push it out.
+ */
+export function sceneVersionForecast(
+  rows: readonly SceneVersionRow[],
+  pointed: readonly string[],
+  now: Date,
+): { scene: string; number: number; at: Date }[] {
+  return versionsBeyondKept(rows, pointed).map(({ row, dueAt }) => ({
+    scene: row.scene,
+    number: row.number,
+    at: runAfter(dueAt, now),
   }));
 }
 
@@ -95,4 +167,9 @@ export function blobsDue(
 /** A save last used before this is expired. */
 export function savesDue(now: Date): Date {
   return new Date(now.getTime() - SITE_SAVE_EXPIRY_DAYS * DAY_MS);
+}
+
+/** Signed-in reports older than 30 days. */
+export function reportsDue(now: Date): Date {
+  return new Date(now.getTime() - LIVE_REPORT_RETENTION_DAYS * DAY_MS);
 }

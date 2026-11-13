@@ -236,7 +236,7 @@ type Dihedral = {
 _const_ in `version.ts`
 
 ```ts
-declare const ENGINE_VERSION = "0.14.4";
+declare const ENGINE_VERSION = "0.14.5";
 ```
 
 ## `ExpandedScene`
@@ -723,9 +723,13 @@ type GameInstance = {
      * snaps to the game's target and the mode becomes `play`. From edit it
      * remembers the edit world and the editor camera for `stop`; while
      * playing it restarts on `doc` and keeps what it remembered. A failed
-     * Play leaves the current world running.
+     * Play leaves the current world running. `as.sceneId` is the scene's
+     * asset id when `doc.name` isn't it: saves, live versions and the
+     * recording key on it.
      */
-    play: (doc: SceneDefinition, opts?: PlayOptions) => PlayReport;
+    play: (doc: SceneDefinition, opts?: PlayOptions, as?: {
+        sceneId?: AssetId;
+    }) => PlayReport;
     /** The last pointer position over the input target in world metres, for "play from here"; null before any. */
     pointerWorld: () => Vec2 | null;
     /**
@@ -785,6 +789,8 @@ type GameInstance = {
      * stops on that tick. The scene's own live version comes back at Stop.
      */
     replay: (doc: SceneDefinition, recording: RunRecording, opts?: {
+        /** The scene's asset id when `doc.name` isn't it, as for `play`. */
+        sceneId?: AssetId;
         /** The scene versions the recording names, by id; null for one the host doesn't have. */
         versions?: (id: Sha256) => StagedVersion | null;
     }) => PlayReport;

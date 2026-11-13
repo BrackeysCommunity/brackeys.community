@@ -84,11 +84,12 @@ export function EmbedFrame({ projectId, version }: { projectId: string; version:
       </div>
     );
   }
-  if (query.isError) {
+  if (query.isError && !query.data) {
     const reason = refusalOf(query.error) ?? "unavailable";
     return <EmbedUnavailable reason={reason} href={href} />;
   }
   const play = query.data;
+  if (!play) return <EmbedUnavailable reason="unavailable" href={href} />;
   if (!EMBEDDABLE.has(play.visibility))
     return <EmbedUnavailable reason="unavailable" href={href} />;
 
@@ -100,6 +101,8 @@ export function EmbedFrame({ projectId, version }: { projectId: string; version:
         frameUrl={play.frameUrl}
         title={play.title}
         release={{ id: play.release.id, gameId: play.release.gameId, projectId }}
+        live={play.live}
+        onReload={() => void query.refetch()}
         saveMode={play.saveMode}
         online={play.online}
         saves={stores.saves}

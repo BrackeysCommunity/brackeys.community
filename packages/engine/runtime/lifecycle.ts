@@ -473,13 +473,9 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     return { id, entities: spawned.map((e) => e.id) };
   }
 
-  /** Per type, its spawn schema, built at the first checked spawn; the registry never changes. */
-  const spawnSchemas = new Map<EntityTypeName, ReturnType<typeof spawnSchemaFor>>();
-
   /** The dev and headless check of a spawn's fields: the type's spawn schema, its id aside. */
   function parseSpawn(type: EntityTypeName, fields: Record<string, unknown>, id: string): void {
-    let schema = spawnSchemas.get(type);
-    if (!spawnSchemas.has(type)) spawnSchemas.set(type, (schema = spawnSchemaFor(registry, type)));
+    const schema = spawnSchemaFor(registry, type);
     if (!schema) return;
     const parsed = schema.safeParse(fields);
     if (parsed.success) return;

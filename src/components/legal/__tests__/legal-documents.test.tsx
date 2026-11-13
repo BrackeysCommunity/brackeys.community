@@ -101,7 +101,19 @@ describe("the terms' games section", () => {
     expect(container.querySelector("section#games")).toBeNull();
     expect(container.querySelector("a[href='#games']")).toBeNull();
     expect(container.textContent).not.toContain("Games you publish and play");
+    expect(container.textContent).not.toContain("Live updates.");
     expect(sectionIds(container)).toContain("jams");
+  });
+
+  it("says what live updates are, right after publishing a game", () => {
+    const { container } = render(<TermsDocument />);
+    const leads = [...(container.querySelectorAll("section#games p > strong") ?? [])].map(
+      (el) => el.textContent,
+    );
+    expect(leads.slice(0, 2)).toEqual(["Publishing a game.", "Live updates."]);
+    expect(container.querySelector("section#games")?.textContent).toContain(
+      "An update holds only the level's data, never code",
+    );
   });
 });
 
@@ -118,10 +130,12 @@ describe("the privacy notice's game paragraphs", () => {
         .map((el) => el.textContent ?? "");
 
     expect(where("what-we-collect").join(" ")).toContain("Game saves.");
+    expect(where("what-we-collect").join(" ")).toContain("h. Level updates in games.");
     expect(where("cookies-analytics").join(" ")).toContain("While you play signed out");
     expect(where("sharing").join(" ")).toContain("Games that connect elsewhere.");
     expect(where("retention").join(" ")).toContain("Game saves");
     expect(where("retention").join(" ")).toContain("and your game saves");
+    expect(where("retention").join(" ")).toContain("Reports of level updates — ");
     expect(where("your-rights").join(" ")).toContain("Settings → Game saves");
     expect(container.querySelector("section#retention")?.textContent).toContain(
       "your collaboration posts and responses, and your game saves. Comments",
@@ -142,6 +156,8 @@ describe("the privacy notice's game paragraphs", () => {
     expect(text).not.toContain("Game saves");
     expect(text).not.toContain("game saves");
     expect(text).not.toContain("Games that connect elsewhere");
+    expect(text).not.toContain("Level updates in games");
+    expect(text).not.toContain("Reports of level updates");
     expect(container.querySelector("section#retention")?.textContent).toContain(
       "and your collaboration posts and responses. Comments",
     );

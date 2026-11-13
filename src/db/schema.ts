@@ -2635,6 +2635,9 @@ export const engineReleases = canvasSchema.table(
     hiddenAt: timestamp("hidden_at"),
     hiddenById: text("hidden_by_id").references(() => user.id, { onDelete: "set null" }),
     hiddenReason: text("hidden_reason"),
+    // liveCompatKey(liveCompat(manifest)), set at commit; '' means it can't take live scenes
+    // (a collected release, or one published before live scenes).
+    liveCompatKey: text("live_compat_key").notNull().default(""),
   },
   (t) => [
     uniqueIndex("engine_releases_project_version_uq").on(t.projectId, t.version),
@@ -2643,6 +2646,10 @@ export const engineReleases = canvasSchema.table(
     check("engine_releases_build_hash", sql`${t.buildHash} ~ '^[0-9a-f]{64}$'`),
     check("engine_releases_version", sql`${t.version} >= 1`),
     check("engine_releases_target", sql`${t.target} IN ('web', 'itch')`),
+    check(
+      "engine_releases_live_compat_key",
+      sql`${t.liveCompatKey} = '' OR ${t.liveCompatKey} ~ '^[0-9a-f]{64}$'`,
+    ),
   ],
 );
 
@@ -2716,6 +2723,8 @@ export const engineReleaseChannels = canvasSchema.table(
       .references(() => engineReleases.id, { onDelete: "no action" }),
     updatedById: text("updated_by_id").references(() => user.id, { onDelete: "set null" }),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    // The audit id of the channel's latest move, release or scene: play pages compare it.
+    liveRev: bigint("live_rev", { mode: "number" }).notNull().default(0),
   },
   (t) => [
     primaryKey({ columns: [t.projectId, t.channel] }),
@@ -2745,6 +2754,8 @@ export const engineReleaseAudit = canvasSchema.table(
     channel: text("channel"),
     fromRelease: text("from_release"),
     toRelease: text("to_release"),
+    sceneId: text("scene_id"),
+    sceneVersionId: text("scene_version_id"),
     detail: jsonb("detail")
       .$type<Record<string, unknown>>()
       .notNull()
@@ -2758,7 +2769,7 @@ export const engineReleaseAudit = canvasSchema.table(
     ),
     check(
       "engine_release_audit_action",
-      sql`${t.action} IN ('create', 'promote', 'rollback', 'visibility', 'jam-link', 'jam-unlink', 'hide', 'unhide', 'collect', 'approve-public', 'settings', 'report-resolved')`,
+      sql`${t.action} IN ('create', 'promote', 'rollback', 'visibility', 'jam-link', 'jam-unlink', 'hide', 'unhide', 'collect', 'approve-public', 'settings', 'report-resolved', 'scene-create', 'scene-promote', 'scene-rollback', 'scene-clear', 'scene-block', 'scene-unblock', 'scene-hide', 'scene-unhide', 'scene-collect')`,
     ),
     check(
       "engine_release_audit_channel",
@@ -2830,7 +2841,10 @@ export const engineReleaseReports = canvasSchema.table(
 /**
  * An upload between `begin` and `commit`: the manifest, the files the site
  * didn't hold yet, and the channel the commit moves. Expires 24 hours after
- * `begin`; an expired one's files go with the orphan cleanup.
+ * `begin`; an expired one's files go with the orphan cleanup. A scene
+ * upload (`kind = 'scene'`) holds its `scene-version.json` in `manifest`
+ * and the version id in `release_id`, with the preview move's timing and
+ * the version's note.
  */
 export const engineReleaseUploads = canvasSchema.table(
   "engine_release_uploads",
@@ -2856,6 +2870,10 @@ export const engineReleaseUploads = canvasSchema.table(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     expiresAt: timestamp("expires_at").notNull(),
     committedAt: timestamp("committed_at"),
+    kind: text("kind").notNull().default("release"),
+    sceneId: text("scene_id"),
+    timing: text("timing"),
+    note: text("note"),
   },
   (t) => [
     index("engine_release_uploads_project_idx").on(t.projectId),
@@ -2865,6 +2883,169 @@ export const engineReleaseUploads = canvasSchema.table(
     check("engine_release_uploads_release_id", sql`${t.releaseId} ~ '^[0-9a-f]{64}$'`),
     check("engine_release_uploads_channel", sql`${t.channel} IN ('preview', 'none')`),
     check("engine_release_uploads_actor_kind", sql`${t.actorKind} IN ('user', 'agent', 'staff')`),
+    check("engine_release_uploads_kind", sql`${t.kind} IN ('release', 'scene')`),
+    check("engine_release_uploads_scene", sql`(${t.kind} = 'scene') = (${t.sceneId} IS NOT NULL)`),
+    check(
+      "engine_release_uploads_timing",
+      sql`${t.timing} IS NULL OR ${t.timing} IN ('next-load', 'boundary', 'now')`,
+    ),
+    check("engine_release_uploads_note", sql`${t.note} IS NULL OR char_length(${t.note}) <= 200`),
+  ],
+);
+
+// ── Live scene versions (canvas schema) ─────────────────────────────────────
+
+/**
+ * One published version of a scene, keyed by the SHA-256 of its canonical
+ * `scene-version.json` and numbered per scene. Its texts are release
+ * objects; collecting it drops the descriptor and the file rows and keeps
+ * the record.
+ */
+export const engineSceneVersions = canvasSchema.table(
+  "engine_scene_versions",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    // The scene's asset id.
+    sceneId: text("scene_id").notNull(),
+    number: integer("number").notNull(),
+    // Canonical scene-version.json; null once collected.
+    descriptor: text("descriptor"),
+    compatKey: text("compat_key").notNull(),
+    // Provenance only: no foreign key, since the release may be collected.
+    baseReleaseId: text("base_release_id"),
+    physics: text("physics").notNull(),
+    sceneHash: text("scene_hash").notNull(),
+    // The version file, the scene text and the prefab texts: what the live data cap counts.
+    dataBytes: integer("data_bytes").notNull(),
+    note: text("note"),
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    agentTokenId: uuid("agent_token_id").references(() => engineAgentTokens.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    collectedAt: timestamp("collected_at"),
+    hiddenAt: timestamp("hidden_at"),
+    hiddenById: text("hidden_by_id").references(() => user.id, { onDelete: "set null" }),
+    hiddenReason: text("hidden_reason"),
+    blockedAt: timestamp("blocked_at"),
+    // 'system' (the breaker) | 'user'.
+    blockedBy: text("blocked_by"),
+    blockedById: text("blocked_by_id").references(() => user.id, { onDelete: "set null" }),
+    blockReason: text("block_reason"),
+    // Every player's outcome, signed in or not.
+    reportsOk: integer("reports_ok").notNull().default(0),
+    reportsFailed: integer("reports_failed").notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex("engine_scene_versions_scene_number_uq").on(
+      t.projectId,
+      t.sceneId,
+      t.number.desc(),
+    ),
+    check("engine_scene_versions_id", sql`${t.id} ~ '^[0-9a-f]{64}$'`),
+    check("engine_scene_versions_compat_key", sql`${t.compatKey} ~ '^[0-9a-f]{64}$'`),
+    check("engine_scene_versions_scene_hash", sql`${t.sceneHash} ~ '^[0-9a-f]{64}$'`),
+    check(
+      "engine_scene_versions_base_release",
+      sql`${t.baseReleaseId} IS NULL OR ${t.baseReleaseId} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check("engine_scene_versions_number", sql`${t.number} >= 1`),
+    check("engine_scene_versions_physics", sql`${t.physics} IN ('rapier', 'none')`),
+    check("engine_scene_versions_data_bytes", sql`${t.dataBytes} >= 0`),
+    check("engine_scene_versions_note", sql`${t.note} IS NULL OR char_length(${t.note}) <= 200`),
+    check(
+      "engine_scene_versions_blocked_by",
+      sql`(${t.blockedBy} IS NULL AND ${t.blockedAt} IS NULL) OR (${t.blockedBy} IN ('system', 'user') AND ${t.blockedAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+/** What a version lists, by hash. `project_id` is denormalised so "is this hash still listed" is one index read. */
+export const engineSceneVersionFiles = canvasSchema.table(
+  "engine_scene_version_files",
+  {
+    versionId: text("version_id")
+      .notNull()
+      .references(() => engineSceneVersions.id, { onDelete: "cascade" }),
+    sha256: text("sha256").notNull(),
+    bytes: integer("bytes").notNull(),
+    role: text("role").notNull(),
+    ext: text("ext").notNull(),
+    // 'release': an engine_release_objects row; 'blob': the project's own engine_blobs row.
+    source: text("source").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.versionId, t.sha256] }),
+    index("engine_scene_version_files_hash_idx").on(t.projectId, t.sha256),
+    check("engine_scene_version_files_sha256", sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+    check(
+      "engine_scene_version_files_role",
+      sql`${t.role} IN ('version', 'scene', 'prefab', 'doc', 'blob')`,
+    ),
+    check("engine_scene_version_files_ext", sql`${t.ext} ~ '^[.][a-z0-9]{1,8}$'`),
+    check("engine_scene_version_files_source", sql`${t.source} IN ('release', 'blob')`),
+  ],
+);
+
+/**
+ * Which version of a scene a channel plays instead of its release's own.
+ * A version a pointer names can't be deleted.
+ */
+export const engineSceneChannels = canvasSchema.table(
+  "engine_scene_channels",
+  {
+    projectId: text("project_id")
+      .notNull()
+      .references(() => engineProjects.projectId, { onDelete: "cascade" }),
+    channel: text("channel").notNull(),
+    sceneId: text("scene_id").notNull(),
+    versionId: text("version_id")
+      .notNull()
+      .references(() => engineSceneVersions.id, { onDelete: "restrict" }),
+    timing: text("timing").notNull(),
+    // Bytes of the version's files the channel's release doesn't list.
+    extraBytes: bigint("extra_bytes", { mode: "number" }).notNull().default(0),
+    updatedById: text("updated_by_id").references(() => user.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.channel, t.sceneId] }),
+    index("engine_scene_channels_version_idx").on(t.versionId),
+    check("engine_scene_channels_channel", sql`${t.channel} IN ('preview', 'production')`),
+    check("engine_scene_channels_timing", sql`${t.timing} IN ('next-load', 'boundary', 'now')`),
+    check("engine_scene_channels_extra_bytes", sql`${t.extraBytes} >= 0`),
+  ],
+);
+
+/** A signed-in player's latest outcome with a version, which the breaker counts. */
+export const engineLiveReports = canvasSchema.table(
+  "engine_live_reports",
+  {
+    versionId: text("version_id")
+      .notNull()
+      .references(() => engineSceneVersions.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull(),
+    outcome: text("outcome").notNull(),
+    issueCode: text("issue_code"),
+    at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.versionId, t.userId] }),
+    index("engine_live_reports_at_idx").on(t.at),
+    check("engine_live_reports_channel", sql`${t.channel} IN ('preview', 'production')`),
+    check(
+      "engine_live_reports_outcome",
+      sql`${t.outcome} IN ('applied', 'refused', 'failed', 'crashed')`,
+    ),
   ],
 );
 

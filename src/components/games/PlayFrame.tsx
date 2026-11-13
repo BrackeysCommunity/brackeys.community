@@ -1,5 +1,6 @@
 import { Cancel01Icon, Download01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import type { LiveSnapshot } from "@jams/engine/standalone";
 import { useCallback, useEffect, useEffectEvent, useRef, useState, type Ref } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,8 @@ import {
   type HostServer,
   type HostServerOptions,
 } from "@/lib/engine/host-server";
+import { createLiveClient, type LiveClient } from "@/lib/engine/live-client";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 type DownloadOffer = { name: string; contentType: string; bytes: ArrayBuffer };
@@ -21,6 +24,16 @@ export type PlayFrameProps = {
   title: string;
   release: HostServerOptions["release"];
   saveMode: HostServerOptions["mode"];
+  /**
+   * The play payload's live scenes: the frame starts on them and follows the
+   * channel's changes. Null for a version number, which plays exactly its release.
+   */
+  live?: LiveSnapshot | null;
+  /**
+   * Loads the play payload again, for the channel's new release: the frame
+   * reloads with the new URL. Without it Reload reloads the whole page.
+   */
+  onReload?: () => void;
   /** The project plays online, as the host channel's `welcome` tells the frame. */
   online?: boolean;
   saves: HostServerOptions["saves"];
@@ -41,6 +54,16 @@ export type PlayFrameProps = {
   className?: string;
 };
 
+/** The quiet toast for a level swapped while the player plays it. */
+export const LIVE_SWAP_TOAST = "This level was just updated.";
+/** The channel moved to another release, which only a reload can play. */
+export const liveReleaseToast = (title: string): string =>
+  `A new version of ${title} is available.`;
+/** Shown as the frame reloads off a version staff hid. */
+export const LIVE_REMOVED_NOTICE = "A level in this game was removed by moderators.";
+
+const LIVE_RELEASE_TOAST_ID = "live-release-moved";
+
 const MIME = /^[\w.+-]+\/[\w.+-]+$/;
 
 function safeFileName(name: string): string {
@@ -59,6 +82,8 @@ export function PlayFrame({
   frameUrl,
   title,
   release,
+  live = null,
+  onReload,
   saveMode,
   online = false,
   saves,
@@ -89,6 +114,9 @@ export function PlayFrame({
     onState,
     sessionToken,
     offerDownloads,
+    live,
+    onReload,
+    title,
   }));
   const announce = useEffectEvent((server: HostServer | null) => onHostServer?.(server));
   const syncPause = useEffectEvent(() => {
@@ -108,13 +136,22 @@ export function PlayFrame({
     [ref],
   );
 
+  /** Loads the frame again in place: the host server stays and welcomes it with the latest live scenes. */
+  const reloadFrame = useEffectEvent(() => {
+    const iframe = iframeRef.current;
+    if (iframe) iframe.src = frameUrl;
+  });
+
   const { id: releaseId, gameId, projectId } = release;
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
+    const initial = latest().live;
+    let liveClient: LiveClient | null = null;
     const server = createHostServer({
       iframe,
       release: { id: releaseId, gameId, projectId },
+      live: () => latest().live ?? null,
       saves: () => latest().saves(),
       describe: () => latest().describe(),
       mode: saveMode,
@@ -127,7 +164,10 @@ export function PlayFrame({
         const who = latest().player;
         return who ? who() : { signedIn: false, name: null };
       },
-      onState: (s) => latest().onState?.(s),
+      onState: (s) => {
+        liveClient?.frameState(s);
+        latest().onState?.(s);
+      },
       onDownload: (d) => {
         if (latest().offerDownloads) setOffer(d);
       },
@@ -139,11 +179,41 @@ export function PlayFrame({
               return fn ? fn(sessionId) : Promise.reject(new Error("No session tokens here."));
             },
     });
+    // Only `latest` and `preview` carry live scenes, and only over the release this frame runs.
+    liveClient =
+      initial && initial.release === releaseId
+        ? createLiveClient({
+            projectId,
+            channel: initial.channel,
+            initial,
+            host: server,
+            onSwapApplied: () => toast(LIVE_SWAP_TOAST),
+            onReleaseMoved: () =>
+              toast(liveReleaseToast(latest().title), {
+                id: LIVE_RELEASE_TOAST_ID,
+                duration: Number.POSITIVE_INFINITY,
+                action: {
+                  label: "Reload",
+                  onClick: () => {
+                    const reload = latest().onReload;
+                    if (reload) reload();
+                    else window.location.reload();
+                  },
+                },
+              }),
+            onRemoved: () => {
+              toast(LIVE_REMOVED_NOTICE);
+              reloadFrame();
+            },
+          })
+        : null;
     serverRef.current = server;
     pausedSentRef.current = false;
     syncPause();
     announce(server);
     return () => {
+      liveClient?.dispose();
+      toast.dismiss(LIVE_RELEASE_TOAST_ID);
       serverRef.current = null;
       server.dispose();
       announce(null);

@@ -16,6 +16,7 @@ import { insertCanvasAttachment } from "@/lib/canvas-persistence";
 import { CANVAS_IMAGE_UPLOADS_PER_DAY } from "@/lib/canvas/limits";
 import { checkPath, repairPath } from "@/lib/canvas/paths";
 import { isStaffMember } from "@/lib/discord";
+import { createLiveRoutes } from "@/lib/engine/live-routes";
 import { createReleaseRoutes } from "@/lib/engine/release-routes";
 import { createEngineRoutes } from "@/lib/engine/routes";
 import { createSaveRoutes } from "@/lib/engine/save-routes";
@@ -215,6 +216,8 @@ async function handle({ request }: { request: Request }) {
   if (pathname.startsWith("/api/engine/")) {
     const release = await handleReleaseRoute(request);
     if (release) return release;
+    const live = await handleLiveRoute(request);
+    if (live) return live;
     const save = await handleSaveRoute(request);
     if (save) return save;
     const engine = await handleEngineRoute(request);
@@ -572,6 +575,9 @@ const handleEngineRoute = createEngineRoutes({
  * routes; null passes the request on to them.
  */
 const handleReleaseRoute = createReleaseRoutes({ readSession: readUploadSession });
+
+/** Live scene versions: begin, commit, the list, the base, promote, rollback and stop. Null passes the request on. */
+const handleLiveRoute = createLiveRoutes({ readSession: readUploadSession });
 
 /** Players' saves on their account, for a signed-in session. Null passes the request on. */
 const handleSaveRoute = createSaveRoutes({ readSession: readUploadSession });

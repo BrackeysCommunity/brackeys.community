@@ -4,16 +4,20 @@ import {
   frameMessageSchema,
   frameReadySchema,
   HOST_PROTOCOL_VERSION,
+  liveSnapshotSchema,
   withinHostMessageCap,
   type FrameMessage,
   type HostMessage,
   type HostSaves,
+  type LiveSnapshot,
+  type LiveStateMessage,
 } from "@jams/engine/standalone";
 
 import { SITE } from "@/lib/legal-meta";
 
 import {
   HOST_DOWNLOAD_INTERVAL_SECONDS,
+  HOST_LIVE_STATES_PER_SECOND,
   HOST_PREFS_WRITES_PER_SECOND,
   HOST_SAVE_REQUESTS_PER_SECOND,
   SITE_SAVE_LIMITS,
@@ -41,6 +45,10 @@ export type HostServerOptions = {
   onState?(s: { jamsState: string; issue?: SceneIssue }): void;
   onDownload?(d: { name: string; contentType: string; bytes: ArrayBuffer }): void;
   sessionToken?(sessionId: string): Promise<{ token: string; url: string }>;
+  /** The live versions a frame that supports them gets in `welcome` until `sendLive` sends newer ones. */
+  live?: () => LiveSnapshot | null;
+  /** An online session is running: its versions are pinned, so `sendLive` sends nothing. Default false. */
+  sessionActive?: () => boolean;
 };
 
 export type HostServer = {
@@ -48,7 +56,18 @@ export type HostServer = {
   notifySavesChanged(): void;
   pause(): void;
   resume(): void;
-  /** How many of the frame's messages were dropped: over the cap, not the protocol's, or throttled events. */
+  /**
+   * Sends the frame the channel's live versions as `live.update`, and keeps
+   * them for the `welcome` of a frame that reloads. Sends nothing to a frame
+   * that didn't announce `"live"`, during an online session, or for another
+   * release; true when it was sent.
+   */
+  sendLive(snapshot: LiveSnapshot): boolean;
+  /** Hands on each `live.state` the frame reports; returns the unsubscribe. */
+  onLiveState(fn: (state: LiveStateMessage) => void): () => void;
+  /** Asks the frame for its run's recording; it answers through `onDownload`. True when it was sent. */
+  requestRecording(): boolean;
+  /** How many of the frame's messages were dropped: over the cap, not the protocol's, throttled events, or live reports from a frame that didn't announce `"live"`. */
   readonly dropped: number;
   dispose(): void;
 };
@@ -63,6 +82,7 @@ export const HOST_RATES = {
   saves: { max: HOST_SAVE_REQUESTS_PER_SECOND, windowMs: 1_000 },
   prefs: { max: HOST_PREFS_WRITES_PER_SECOND, windowMs: 1_000 },
   download: { max: 1, windowMs: HOST_DOWNLOAD_INTERVAL_SECONDS * 1_000 },
+  live: { max: HOST_LIVE_STATES_PER_SECOND, windowMs: 1_000 },
 } as const;
 
 type RateName = keyof typeof HOST_RATES;
@@ -123,8 +143,15 @@ export function createHostServer(opts: HostServerOptions): HostServer {
     saves: rateWindow(HOST_RATES.saves),
     prefs: rateWindow(HOST_RATES.prefs),
     download: rateWindow(HOST_RATES.download),
+    live: rateWindow(HOST_RATES.live),
   };
   let port: MessagePort | null = null;
+  /** The current frame announced `"live"` in its `hello`. */
+  let frameLive = false;
+  /** A recording request is unanswered: the next download comes past the download rate. */
+  let recordingAsked = false;
+  let liveNow: LiveSnapshot | null = null;
+  const liveListeners = new Set<(state: LiveStateMessage) => void>();
   let dropped = 0;
   let disposed = false;
 
@@ -153,6 +180,13 @@ export function createHostServer(opts: HostServerOptions): HostServer {
     }
   };
 
+  /** A snapshot fit to send this frame: the engine's schema, this release, and within the message cap. */
+  const sendable = (snapshot: LiveSnapshot | null | undefined): LiveSnapshot | null => {
+    const parsed = liveSnapshotSchema.safeParse(snapshot);
+    if (!parsed.success || parsed.data.release !== opts.release.id) return null;
+    return withinHostMessageCap({ type: "live.update", live: parsed.data }) ? parsed.data : null;
+  };
+
   const ownGame = (named: string) => {
     if (named !== gameId)
       throw storeFailed(`This page keeps saves for "${gameId}", not "${named}".`);
@@ -168,12 +202,14 @@ export function createHostServer(opts: HostServerOptions): HostServer {
             }),
           );
         }
-        return {
+        frameLive = params.features?.includes("live") ?? false;
+        const welcome = {
           player: opts.player?.() ?? { signedIn: false, name: null },
           saves: savesNow(),
           prefs: opts.prefs.load(),
           online: opts.online ?? false,
         };
+        return frameLive ? { ...welcome, live: liveNow ?? sendable(opts.live?.()) } : welcome;
       },
     },
     "saves.list": {
@@ -251,8 +287,18 @@ export function createHostServer(opts: HostServerOptions): HostServer {
         });
       },
     },
-    // This page sends no live versions, so a frame's reports about them have nothing to update.
-    "live.state": { handle() {} },
+    "live.state": {
+      rate: "live",
+      handle({ type: _type, ...state }) {
+        for (const fn of [...liveListeners]) {
+          try {
+            fn(state);
+          } catch (error) {
+            globalThis.reportError?.(error);
+          }
+        }
+      },
+    },
   };
 
   const answer = async (from: MessagePort, id: number, run: () => unknown) => {
@@ -294,7 +340,13 @@ export function createHostServer(opts: HostServerOptions): HostServer {
     const message = parsed.data;
     const row = table[message.type] as Row<typeof message.type>;
     const isRequest = "id" in message;
-    if (row.rate && !rates[row.rate].take(Date.now())) {
+    if (message.type === "live.state" && !frameLive) {
+      dropped++;
+      return;
+    }
+    const asked = message.type === "download" && recordingAsked;
+    if (asked) recordingAsked = false;
+    else if (row.rate && !rates[row.rate].take(Date.now())) {
       if (isRequest)
         void answer(from, message.id, () => Promise.reject(storeFailed(HOST_THROTTLED_MESSAGE)));
       else dropped++;
@@ -317,6 +369,8 @@ export function createHostServer(opts: HostServerOptions): HostServer {
     if (!frame || event.source !== frame || event.origin !== "null") return;
     if (!frameReadySchema.safeParse(event.data).success) return;
     port?.close();
+    frameLive = false;
+    recordingAsked = false;
     const channel = new MessageChannel();
     const mine = channel.port1;
     port = mine;
@@ -344,6 +398,24 @@ export function createHostServer(opts: HostServerOptions): HostServer {
     resume() {
       post(port, { type: "resume" });
     },
+    sendLive(snapshot) {
+      const live = sendable(snapshot);
+      if (!live) return false;
+      liveNow = live;
+      if (!port || !frameLive || (opts.sessionActive?.() ?? false)) return false;
+      post(port, { type: "live.update", live });
+      return true;
+    },
+    onLiveState(fn) {
+      liveListeners.add(fn);
+      return () => void liveListeners.delete(fn);
+    },
+    requestRecording() {
+      if (disposed || !port) return false;
+      recordingAsked = true;
+      post(port, { type: "recording.request" });
+      return true;
+    },
     get dropped() {
       return dropped;
     },
@@ -351,6 +423,7 @@ export function createHostServer(opts: HostServerOptions): HostServer {
       if (disposed) return;
       disposed = true;
       page.removeEventListener("message", onWindowMessage);
+      liveListeners.clear();
       if (port) {
         port.onmessage = null;
         port.close();

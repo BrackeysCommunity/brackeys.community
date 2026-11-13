@@ -2,8 +2,8 @@
 // Every number a person reads about hosted games is the formatted value of
 // a constant: the README's hosting sections, the terms, the privacy
 // notice's game paragraphs, the editor's publish wording, the save menu's
-// sentences, the save notice, Settings → Game saves and every quota,
-// release and save message. A number that isn't one fails here, and so does a constant no
+// sentences, the save notice, Settings → Game saves, the live levels copy
+// (README, editor, play page, CLI) and every quota, release and save message. A number that isn't one fails here, and so does a constant no
 // sentence states. A limit changes by one edit in `limits.ts` (or the
 // engine's constants) plus the copy this suite points at.
 import { readFileSync } from "node:fs";
@@ -12,6 +12,8 @@ import { resolve } from "node:path";
 import { ITCH_LIMITS, DEFAULT_EXPORT_BUDGET } from "@jams/engine/export";
 import {
   DEFAULT_SAVE_LIMITS,
+  LIVE_CHECK_AGAIN_TICKS,
+  LIVE_DEFAULTS,
   MAX_BROWSER_SAVE_LIMITS,
   parseSaveFile,
   SLOT_MAX_LENGTH,
@@ -44,6 +46,9 @@ const { prefsRefusal, SIGNED_IN_SAVES_DESCRIBE, SIGNED_OUT_SAVES_DESCRIBE, siteS
   await import("../local-saves");
 const { emptyTrashConfirm, publishWording, removalText, USAGE_FOOTER, usageView } =
   await import("@/components/game/publish-host");
+const { liveBlockedText, liveRemovalText, liveUsageText, liveWording } =
+  await import("../editor-live-host");
+const { sceneVersionRemoved } = await import("../live-pointers");
 const { TermsDocument } = await import("@/components/legal/TermsDocument");
 const GAME_SETTINGS = await import("../game-settings");
 const SHOWCASE = await import("../engine-showcase");
@@ -53,6 +58,10 @@ const { SAVE_FAILED_MESSAGE, SAVE_UNREACHABLE_MESSAGE } = await import("../save-
 const { connectsToSentence, PREFS_SENTENCE, savesSentence } =
   await import("@/components/games/SaveNotice");
 const { PrivacyDocument } = await import("@/components/legal/PrivacyDocument");
+const { LIVE_REMOVED_NOTICE, LIVE_SWAP_TOAST, liveReleaseToast } =
+  await import("@/components/games/PlayFrame");
+const { blockedSceneLine } = await import("@/components/games/GamePage");
+const { LiveLevelsLine } = await import("@/components/games/VersionList");
 
 const ROOT = resolve(import.meta.dirname, "../../../..");
 const readRepo = (path: string): string => readFileSync(resolve(ROOT, path), "utf8");
@@ -74,6 +83,7 @@ const bytesOf = (v: number): Constant => ({ kind: "bytes", text: b(v) });
 const countOf = (v: number): Constant => ({ kind: "count", text: n(v) });
 const daysOf = (v: number): Constant => ({ kind: "days", text: n(v) });
 const hoursOf = (v: number): Constant => ({ kind: "hours", text: n(v) });
+const percentOf = (ratio: number): Constant => ({ kind: "percent", text: percent(ratio) });
 
 /** Every leaf of `limits.ts`, by its path; the suite fails when one is missing here. */
 const SITE_CONSTANTS: Record<string, Constant> = {
@@ -94,7 +104,7 @@ const SITE_CONSTANTS: Record<string, Constant> = {
   "PROJECT_QUOTA.releasesKept": countOf(LIMITS.PROJECT_QUOTA.releasesKept),
   "PROJECT_QUOTA.jamPins": countOf(LIMITS.PROJECT_QUOTA.jamPins),
   "PROJECT_QUOTA.releasesPerDay": countOf(LIMITS.PROJECT_QUOTA.releasesPerDay),
-  QUOTA_WARN_RATIO: { kind: "percent", text: percent(LIMITS.QUOTA_WARN_RATIO) },
+  QUOTA_WARN_RATIO: percentOf(LIMITS.QUOTA_WARN_RATIO),
   RELEASE_GRACE_DAYS: daysOf(LIMITS.RELEASE_GRACE_DAYS),
   BLOB_GRACE_DAYS: daysOf(LIMITS.BLOB_GRACE_DAYS),
   ORPHAN_FILE_GRACE_HOURS: hoursOf(LIMITS.ORPHAN_FILE_GRACE_HOURS),
@@ -110,6 +120,20 @@ const SITE_CONSTANTS: Record<string, Constant> = {
   HOST_SAVE_REQUESTS_PER_SECOND: countOf(LIMITS.HOST_SAVE_REQUESTS_PER_SECOND),
   HOST_PREFS_WRITES_PER_SECOND: countOf(LIMITS.HOST_PREFS_WRITES_PER_SECOND),
   HOST_DOWNLOAD_INTERVAL_SECONDS: countOf(LIMITS.HOST_DOWNLOAD_INTERVAL_SECONDS),
+  HOST_LIVE_STATES_PER_SECOND: countOf(LIMITS.HOST_LIVE_STATES_PER_SECOND),
+  "LIVE_LIMITS.versionDataBytes": bytesOf(LIMITS.LIVE_LIMITS.versionDataBytes),
+  "LIVE_LIMITS.versionsPerDay": countOf(LIMITS.LIVE_LIMITS.versionsPerDay),
+  "LIVE_LIMITS.keptPerScene": countOf(LIMITS.LIVE_LIMITS.keptPerScene),
+  "LIVE_LIMITS.noteChars": countOf(LIMITS.LIVE_LIMITS.noteChars),
+  "LIVE_LIMITS.beginsPerHour": countOf(LIMITS.LIVE_LIMITS.beginsPerHour),
+  LIVE_POLL_SECONDS: countOf(LIMITS.LIVE_POLL_SECONDS),
+  LIVE_STREAM_MINUTES: countOf(LIMITS.LIVE_STREAM_MINUTES),
+  "LIVE_BLOCK.players": countOf(LIMITS.LIVE_BLOCK.players),
+  "LIVE_BLOCK.ratio": percentOf(LIMITS.LIVE_BLOCK.ratio),
+  "LIVE_BLOCK.windowMinutes": countOf(LIMITS.LIVE_BLOCK.windowMinutes),
+  LIVE_CRASH_WINDOW_SECONDS: countOf(LIMITS.LIVE_CRASH_WINDOW_SECONDS),
+  LIVE_REPORTS_PER_HOUR: countOf(LIMITS.LIVE_REPORTS_PER_HOUR),
+  LIVE_REPORT_RETENTION_DAYS: daysOf(LIMITS.LIVE_REPORT_RETENTION_DAYS),
 };
 
 const ENGINE_CONSTANTS: Record<string, Constant> = {
@@ -125,6 +149,13 @@ const ENGINE_CONSTANTS: Record<string, Constant> = {
   "ITCH_LIMITS.maxTotalBytes": { kind: "bytes", text: decimalMb(ITCH_LIMITS.maxTotalBytes) },
   "ITCH_LIMITS.maxFileBytes": { kind: "bytes", text: decimalMb(ITCH_LIMITS.maxFileBytes) },
   SLOT_MAX_LENGTH: countOf(SLOT_MAX_LENGTH),
+  "LIVE_DEFAULTS.preloadTimeoutMs": countOf(LIVE_DEFAULTS.preloadTimeoutMs / 1000),
+  "LIVE_DEFAULTS.livePlayDebounceMs": countOf(LIVE_DEFAULTS.livePlayDebounceMs),
+  ...Object.fromEntries(
+    LIVE_DEFAULTS.checkAt.map((at, i) => [`LIVE_DEFAULTS.checkAt.${i}`, percentOf(at)]),
+  ),
+  "LIVE_DEFAULTS.checkTicks": countOf(LIVE_DEFAULTS.checkTicks),
+  LIVE_CHECK_AGAIN_TICKS: countOf(LIVE_CHECK_AGAIN_TICKS),
 };
 
 /** Every number `save-api.ts` exports; the suite fails when one is missing here. */
@@ -152,6 +183,8 @@ const UNSTATED: Record<string, string> = {
   HOST_SAVE_REQUESTS_PER_SECOND: "a rate defence; its refusal says too many save requests",
   HOST_PREFS_WRITES_PER_SECOND: "a rate defence against a frame flooding the page",
   HOST_DOWNLOAD_INTERVAL_SECONDS: "a rate defence against a frame flooding the page",
+  HOST_LIVE_STATES_PER_SECOND: "a rate defence against a frame flooding the page",
+  LIVE_REPORTS_PER_HOUR: "a rate defence; reports over it are dropped without a word",
 };
 
 /** Engine constants the hosting copy must state; the export budget is stated in README §Budgets. */
@@ -164,6 +197,11 @@ const ENGINE_STATED = [
   "ITCH_LIMITS.maxTotalBytes",
   "ITCH_LIMITS.maxFileBytes",
   "SLOT_MAX_LENGTH",
+  "LIVE_DEFAULTS.preloadTimeoutMs",
+  "LIVE_DEFAULTS.livePlayDebounceMs",
+  ...LIVE_DEFAULTS.checkAt.map((_, i) => `LIVE_DEFAULTS.checkAt.${i}`),
+  "LIVE_DEFAULTS.checkTicks",
+  "LIVE_CHECK_AGAIN_TICKS",
 ];
 
 // ─── Numbers in text ─────────────────────────────────────
@@ -269,6 +307,8 @@ const SAMPLE_USAGE: StoredUsage = {
   releaseStorageBytes: 120 * MB,
   largestRelease: { version: 7, bytes: 38 * MB },
   releasesToday: 3,
+  liveVersions: { kept: 12, bytes: 409_600 },
+  liveToday: 6,
   nextCollection: [],
 };
 
@@ -291,6 +331,20 @@ const QUOTA_INPUTS: QUOTA.QuotaWordsInput[] = [
   { limit: "releaseStorageBytes", used: 498 * MB, max: Q.releaseStorageBytes, adding: 30 * MB },
   { limit: "jamPins", used: Q.jamPins, max: Q.jamPins },
   { limit: "releasesPerDay", used: Q.releasesPerDay, max: Q.releasesPerDay },
+  { limit: "liveVersionBytes", used: 2.4 * MB, max: LIMITS.LIVE_LIMITS.versionDataBytes },
+  {
+    limit: "liveVersionsPerDay",
+    used: LIMITS.LIVE_LIMITS.versionsPerDay,
+    max: LIMITS.LIVE_LIMITS.versionsPerDay,
+  },
+  { limit: "releaseBytes", used: 104 * MB, max: Q.releaseBytes, channel: "production" },
+  {
+    limit: "releaseStorageBytes",
+    used: 498 * MB,
+    max: Q.releaseStorageBytes,
+    adding: 30 * MB,
+    adds: "scene version",
+  },
 ];
 
 const QUOTA_GIVEN = givenOf(
@@ -302,6 +356,8 @@ const QUOTA_GIVEN = givenOf(
   48 * MB,
   498 * MB,
   30 * MB,
+  2.4 * MB,
+  104 * MB,
 );
 
 /** Every message `release-errors.ts` writes, by its function's name. */
@@ -379,6 +435,7 @@ const words = (m: { message: string; hint?: string }): string =>
 
 let terms = "";
 let privacy = "";
+let liveLevels = "";
 
 beforeAll(() => {
   const { container } = render(createElement(TermsDocument));
@@ -388,14 +445,24 @@ beforeAll(() => {
 
   const notice = render(createElement(PrivacyDocument)).container;
   const games = [...notice.querySelectorAll("[data-engine-games]")];
-  expect(games.length, "the privacy notice's game paragraphs render with the guard on").toBe(6);
+  expect(games.length, "the privacy notice's game paragraphs render with the guard on").toBe(8);
   privacy = tidy(games.map((el) => el.textContent ?? "").join("\n"));
+
+  const since = new Date(Date.now() - 12.5 * 60_000).toISOString();
+  const row = render(
+    createElement(LiveLevelsLine, {
+      version: 7,
+      scenes: [{ scene: "ford", title: "The ford", number: 4, since }],
+    }),
+  ).container;
+  liveLevels = tidy(row.textContent ?? "");
 });
 
 afterAll(cleanup);
 
 async function sources(): Promise<Source[]> {
   const wording = publishWording("tactics" as never, "Lanes");
+  const live = liveWording();
   const usage = usageView({ usage: SAMPLE_USAGE, lines: QUOTA.usageLines(SAMPLE_USAGE) }, [
     "production",
     "preview",
@@ -425,6 +492,12 @@ async function sources(): Promise<Source[]> {
     {
       name: "README §Publishing on jams.team",
       text: plainMarkdown(readmeSection(`## Publishing on ${SITE.name}`)),
+    },
+    {
+      name: "README §Live levels",
+      text: plainMarkdown(readmeSection("## Live levels", "```text")),
+      // The status line's example, not a limit.
+      prose: ["Live update applied: 1 entity changed"],
     },
     {
       name: "README §Export's itch.io line",
@@ -471,9 +544,44 @@ async function sources(): Promise<Source[]> {
           3,
           1,
           512 * KB,
+          409_600,
         ),
         ...DATE_GIVEN,
       ],
+    },
+    {
+      name: "the live scenes wording",
+      text: tidy(
+        [
+          live.notePlaceholder,
+          live.data(200 * KB),
+          live.today(4),
+          live.stopConfirm({ release: 8, scene: "The ford", timing: "next-load" }),
+          liveUsageText(SAMPLE_USAGE.liveVersions),
+          liveRemovalText("ford" as never, 5, DATE),
+          liveBlockedText({ by: "system", reason: null }, { ok: 9, failed: 3 }),
+          liveBlockedText({ by: "user", reason: "Softlock at the bridge" }, { ok: 0, failed: 0 }),
+          words(sceneVersionRemoved("level-1@3", DATE)),
+        ].join("\n"),
+      ),
+      given: [...givenOf(200 * KB, 4, 8, 409_600, 12, 5, 3), ...DATE_GIVEN],
+    },
+    {
+      name: "the play page and the game page",
+      text: tidy(
+        [
+          LIVE_SWAP_TOAST,
+          liveReleaseToast("Lanes"),
+          LIVE_REMOVED_NOTICE,
+          liveLevels,
+          blockedSceneLine({
+            title: "The ford",
+            reason: liveBlockedText({ by: "system", reason: null }, { ok: 9, failed: 3 }),
+          }),
+          blockedSceneLine({ title: "The ford", reason: null }),
+        ].join("\n"),
+      ),
+      given: givenOf(12, 3),
     },
     {
       name: "the save menu and the host's refusals",
@@ -669,6 +777,71 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
     source: "README §Export's itch.io line",
     phrase: `itch.io takes at most ${C("ITCH_LIMITS.maxFiles")} files, ${C("ITCH_LIMITS.maxTotalBytes")} extracted and ${C("ITCH_LIMITS.maxFileBytes")} per file`,
   },
+  // README §Live levels
+  {
+    states: ["LIVE_LIMITS.versionDataBytes"],
+    source: "README §Live levels",
+    phrase: `Data per version ${C("LIVE_LIMITS.versionDataBytes")}: the scene, its prefabs and the version file`,
+  },
+  {
+    states: ["LIVE_LIMITS.versionsPerDay"],
+    source: "README §Live levels",
+    phrase: `Versions per day ${C("LIVE_LIMITS.versionsPerDay")}`,
+  },
+  {
+    states: ["LIVE_LIMITS.keptPerScene"],
+    source: "README §Live levels",
+    phrase: `Versions kept the ${C("LIVE_LIMITS.keptPerScene")} newest of each scene, plus every version a channel points at`,
+  },
+  {
+    states: ["PROJECT_QUOTA.releaseStorageBytes"],
+    source: "README §Live levels",
+    phrase: `Storage part of the project's ${C("PROJECT_QUOTA.releaseStorageBytes")} of release storage`,
+  },
+  {
+    states: ["PROJECT_QUOTA.releaseBytes"],
+    source: "README §Live levels",
+    phrase: `the release plus its live levels' new files stay within ${C("PROJECT_QUOTA.releaseBytes")}`,
+  },
+  {
+    states: ["LIVE_LIMITS.keptPerScene", "RELEASE_GRACE_DAYS"],
+    source: "README §Live levels",
+    phrase: `A version that is neither among its scene's ${C("LIVE_LIMITS.keptPerScene")} newest nor on a channel is removed ${C("RELEASE_GRACE_DAYS")} days after it was published.`,
+  },
+  {
+    states: ["LIVE_POLL_SECONDS", "LIVE_STREAM_MINUTES", "LIVE_DEFAULTS.preloadTimeoutMs"],
+    source: "README §Live levels",
+    phrase: `checks again every ${C("LIVE_POLL_SECONDS")} seconds if its live connection drops (it reconnects every ${C("LIVE_STREAM_MINUTES")} minutes anyway). The game has ${C("LIVE_DEFAULTS.preloadTimeoutMs")} seconds to download, check and prepare a version`,
+  },
+  {
+    states: [
+      "LIVE_BLOCK.players",
+      "LIVE_BLOCK.windowMinutes",
+      "LIVE_CRASH_WINDOW_SECONDS",
+      "LIVE_BLOCK.ratio",
+    ],
+    source: "README §Live levels",
+    phrase: `If ${C("LIVE_BLOCK.players")} signed-in players' games fail after an update within ${C("LIVE_BLOCK.windowMinutes")} minutes of it going live (failing includes crashing within ${C("LIVE_CRASH_WINDOW_SECONDS")} seconds of the swap), and that is at least ${C("LIVE_BLOCK.ratio")} of the signed-in players who reported`,
+  },
+  {
+    states: ["LIVE_DEFAULTS.preloadTimeoutMs"],
+    source: "README §Live levels",
+    phrase: `its bundle preloaded within ${C("LIVE_DEFAULTS.preloadTimeoutMs")} seconds`,
+  },
+  {
+    states: [
+      ...LIVE_DEFAULTS.checkAt.map((_, i) => `LIVE_DEFAULTS.checkAt.${i}`),
+      "LIVE_DEFAULTS.checkTicks",
+      "LIVE_CHECK_AGAIN_TICKS",
+    ],
+    source: "README §Live levels",
+    phrase: `at ${C("LIVE_DEFAULTS.checkAt.0")}, ${C("LIVE_DEFAULTS.checkAt.1")} and ${C("LIVE_DEFAULTS.checkAt.2")} of each run, steps ${C("LIVE_DEFAULTS.checkTicks")} more ticks, and runs live.check right after each swap and ${C("LIVE_CHECK_AGAIN_TICKS")} ticks later`,
+  },
+  {
+    states: ["LIVE_DEFAULTS.livePlayDebounceMs"],
+    source: "README §Live levels",
+    phrase: `once ${C("LIVE_DEFAULTS.livePlayDebounceMs")} ms pass without another`,
+  },
   // The terms
   {
     states: [
@@ -710,6 +883,11 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
     source: "the terms' games section",
     phrase: `keep up to ${C("SITE_SAVE_LIMITS.maxSlots")} saves of ${C("SITE_SAVE_LIMITS.maxBytes")} per game on ${SITE.name}, ${C("SITE_SAVE_ACCOUNT_BYTES")} in all; a save not used for ${C("SITE_SAVE_EXPIRY_DAYS")} days is deleted`,
   },
+  {
+    states: ["LIVE_LIMITS.keptPerScene", "RELEASE_GRACE_DAYS"],
+    source: "the terms' games section",
+    phrase: `We keep each level's ${C("LIVE_LIMITS.keptPerScene")} newest updates and any update that is live; others are deleted ${C("RELEASE_GRACE_DAYS")} days after they were published.`,
+  },
   // The editor's publish wording
   {
     states: ["SITE_SAVE_LIMITS.maxSlots", "SITE_SAVE_LIMITS.maxBytes", "SITE_SAVE_EXPIRY_DAYS"],
@@ -730,6 +908,27 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
     states: ["RELEASE_GRACE_DAYS", "PROJECT_QUOTA.releasesKept", "BLOB_GRACE_DAYS"],
     source: "the publish wording",
     phrase: `releases outside the ${C("PROJECT_QUOTA.releasesKept")} newest ${C("RELEASE_GRACE_DAYS")} days after publishing, replaced asset versions after ${C("BLOB_GRACE_DAYS")} days`,
+  },
+  // The editor's live scenes wording
+  {
+    states: ["LIVE_LIMITS.noteChars"],
+    source: "the live scenes wording",
+    phrase: `What changed, for your team (up to ${C("LIVE_LIMITS.noteChars")} characters)`,
+  },
+  {
+    states: ["LIVE_LIMITS.versionDataBytes"],
+    source: "the live scenes wording",
+    phrase: `Data: ${b(200 * KB)} of ${C("LIVE_LIMITS.versionDataBytes")}`,
+  },
+  {
+    states: ["LIVE_LIMITS.versionsPerDay"],
+    source: "the live scenes wording",
+    phrase: `Today: ${n(4)} of ${C("LIVE_LIMITS.versionsPerDay")} versions`,
+  },
+  {
+    states: ["LIVE_LIMITS.keptPerScene", "RELEASE_GRACE_DAYS"],
+    source: "the live scenes wording",
+    phrase: `Each scene keeps its ${C("LIVE_LIMITS.keptPerScene")} newest versions plus those on a channel; others go ${C("RELEASE_GRACE_DAYS")} days after publishing.`,
   },
   // The save menu and the host
   {
@@ -769,6 +968,16 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
     source: "the privacy notice's game paragraphs",
     phrase: `until ${C("SITE_SAVE_EXPIRY_DAYS")} days after you last used them`,
   },
+  {
+    states: ["LIVE_REPORT_RETENTION_DAYS"],
+    source: "the privacy notice's game paragraphs",
+    phrase: `When a game on ${SITE.name} updates a level while you play, your browser tells us whether the update worked, so that a broken update can be stopped. If you are signed in, this is linked to your account and deleted after ${C("LIVE_REPORT_RETENTION_DAYS")} days; if you aren't, we only count it.`,
+  },
+  {
+    states: ["LIVE_REPORT_RETENTION_DAYS"],
+    source: "the privacy notice's game paragraphs",
+    phrase: `Reports of level updates — ${C("LIVE_REPORT_RETENTION_DAYS")} days.`,
+  },
   // The signed-in save menu, which the save notice repeats
   {
     states: ["SITE_SAVE_LIMITS.maxSlots", "SITE_SAVE_LIMITS.maxBytes", "SITE_SAVE_EXPIRY_DAYS"],
@@ -796,6 +1005,21 @@ const STATEMENTS: { states: string[]; source: string; phrase: string }[] = [
     states: ["PROJECT_QUOTA.releasesPerDay"],
     source: "quota.ts's messages",
     phrase: `published ${C("PROJECT_QUOTA.releasesPerDay")} releases today, the most per day`,
+  },
+  {
+    states: ["LIVE_LIMITS.versionsPerDay"],
+    source: "quota.ts's messages",
+    phrase: `published ${C("LIVE_LIMITS.versionsPerDay")} scene versions today, the most per day`,
+  },
+  {
+    states: ["LIVE_LIMITS.versionDataBytes"],
+    source: "quota.ts's messages",
+    phrase: `a live scene's data is limited to ${C("LIVE_LIMITS.versionDataBytes")}`,
+  },
+  {
+    states: ["LIVE_LIMITS.keptPerScene"],
+    source: "quota.ts's messages",
+    phrase: `each scene keeps its ${C("LIVE_LIMITS.keptPerScene")} newest versions plus those on a channel`,
   },
   {
     states: ["PROJECT_QUOTA.jamPins"],
@@ -836,6 +1060,23 @@ const STATED_IN_SOURCE: { states: string; file: string; template: string }[] = [
     file: "src/lib/engine/release-moderation.ts",
     template: "You've sent ${GAME_REPORTS_PER_DAY} reports today.",
   },
+  {
+    states: "LIVE_LIMITS.beginsPerHour",
+    file: "src/lib/engine/live-upload.ts",
+    template:
+      "You've started ${formatCount(LIVE_LIMITS.beginsPerHour)} scene publishes this hour, the most per hour.",
+  },
+  {
+    states: "LIVE_LIMITS.noteChars",
+    file: "src/lib/engine/live-upload.ts",
+    template: "a scene version's note is at most ${formatCount(LIVE_LIMITS.noteChars)}.",
+  },
+  // The CLI's publish summary prints the maxima the site's usage carries (`usageLines`).
+  {
+    states: "LIVE_LIMITS.versionsPerDay",
+    file: "scripts/scene/tools/game-live.ts",
+    template: "${formatCount(versions.used)} of ${formatCount(versions.max)} scene versions",
+  },
 ];
 
 // ─── Typed numbers in the code ───────────────────────────
@@ -853,6 +1094,12 @@ const MESSAGE_FILES = [
   "src/lib/engine/save-api.ts",
   "src/lib/engine/save-store.ts",
   "src/components/games/SaveNotice.tsx",
+  "src/lib/engine/editor-live-host.ts",
+  "src/lib/engine/live-upload.ts",
+  "src/lib/engine/live-pointers.ts",
+  "scripts/scene/tools/game-live.ts",
+  "src/components/games/PlayFrame.tsx",
+  "src/components/games/VersionList.tsx",
 ];
 
 /** The literal parts of every string in a file that reads as a sentence. */
@@ -890,6 +1137,29 @@ describe("the wording suite", () => {
     expect(leaves.sort()).toEqual(Object.keys(SITE_CONSTANTS).sort());
   });
 
+  it("knows every leaf of the engine's LIVE_DEFAULTS", () => {
+    const leaves = Object.entries(LIVE_DEFAULTS).flatMap(([key, value]) =>
+      Array.isArray(value)
+        ? value.map((_, i) => `LIVE_DEFAULTS.${key}.${i}`)
+        : [`LIVE_DEFAULTS.${key}`],
+    );
+    expect(leaves.sort()).toEqual(
+      Object.keys(ENGINE_CONSTANTS)
+        .filter((key) => key.startsWith("LIVE_DEFAULTS."))
+        .sort(),
+    );
+  });
+
+  it("gives the CLI's publish summary the live maxima from limits.ts", () => {
+    const lines = QUOTA.usageLines(SAMPLE_USAGE);
+    expect(lines.find((l) => l.quota === "liveVersionsPerDay")?.max).toBe(
+      LIMITS.LIVE_LIMITS.versionsPerDay,
+    );
+    expect(lines.find((l) => l.quota === "releaseStorageBytes")?.max).toBe(
+      LIMITS.PROJECT_QUOTA.releaseStorageBytes,
+    );
+  });
+
   it("knows every number save-api.ts exports", () => {
     const numbers = Object.entries(SAVE_API)
       .filter(([, value]) => typeof value === "number")
@@ -908,8 +1178,8 @@ describe("the wording suite", () => {
       "days",
       "hours",
     ]);
-    expect(straysIn({ name: "copy", text: "up to 5 saves of 33 KB, kept 180 days" })).toEqual([
-      'copy: "5"',
+    expect(straysIn({ name: "copy", text: "up to 9 saves of 33 KB, kept 180 days" })).toEqual([
+      'copy: "9"',
       'copy: "33 KB"',
     ]);
   });
@@ -988,8 +1258,12 @@ describe("the wording suite", () => {
   });
 
   it("renders a refusal for every quota", () => {
-    const named = Object.keys(Q).filter((key) => key !== "releasesKept");
-    expect(QUOTA_INPUTS.map((input) => input.limit).sort()).toEqual(named.sort());
+    const named = [
+      ...Object.keys(Q).filter((key) => key !== "releasesKept"),
+      "liveVersionBytes",
+      "liveVersionsPerDay",
+    ];
+    expect([...new Set(QUOTA_INPUTS.map((input) => input.limit))].sort()).toEqual(named.sort());
   });
 
   it("never types a number into a message: every one is interpolated", () => {

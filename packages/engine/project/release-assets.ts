@@ -188,7 +188,9 @@ export const listedFields = (
 /**
  * A scene's `flow.scenes` entry as a release writes it, and a version
  * carries it: the scene list's fields, the physics it resolves to, the
- * prefabs its expansion used, and its bundle's ids and size.
+ * prefabs it plays with (those its instances reach, and every prefab in
+ * `library`, which holds the ones its fields name, a spawner's), and its
+ * bundle's ids and size.
  */
 export function releaseSceneEntry(
   listed: SceneListEntry,
@@ -201,7 +203,7 @@ export function releaseSceneEntry(
   return {
     ...listedFields(listed),
     physics: scenePhysics(def, registry, engine),
-    prefabs: prefabsUsedBy(def, library),
+    prefabs: [...new Set([...prefabsUsedBy(def, library), ...library.keys()])].sort(byCodeUnit),
     bundle: { entries: bundle.entries.map((e) => e.id), bytes: bundle.bytes },
   };
 }

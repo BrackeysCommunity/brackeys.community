@@ -3,9 +3,19 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { and, eq } from "drizzle-orm";
 import IORedis from "ioredis";
 
+import {
+  formatSceneVersion,
+  liveCompat,
+  liveCompatKey,
+  liveFiles,
+  sceneVersionId,
+  sha256 as hashText,
+  type SceneVersion,
+} from "../../../packages/engine/project/index.ts";
 import type { AssetEntry } from "../../../packages/engine/project/types.ts";
 import {
   engineBlobs,
+  engineLiveReports,
   engineProjects,
   engineReleaseAudit,
   engineReleaseChannels,
@@ -14,6 +24,9 @@ import {
   engineReleases,
   engineReleaseUploads,
   engineSaves,
+  engineSceneChannels,
+  engineSceneVersionFiles,
+  engineSceneVersions,
   itchTierHeartbeats,
 } from "../../../src/db/schema.ts";
 import {
@@ -397,6 +410,333 @@ if (TEST_DATABASE_URL) {
 
     const filesOf = (release: PlannedRelease) =>
       new Set(release.manifest.build.files.map((f) => f.sha256));
+
+    type SeededVersion = { id: string; number: number; sceneId: string; texts: string[] };
+
+    /**
+     * A version of the release's second scene as `commit` leaves it: the row,
+     * its file rows and the objects of its own texts (its descriptor and the
+     * scene). `shared` lists a text the release stores too; `blob` carries a
+     * blob in place of the release's texture.
+     */
+    async function seedVersion(
+      store: MemoryObjectStore,
+      projectId: string,
+      release: PlannedRelease,
+      opts: { number: number; createdAt: Date; shared?: string; blob?: string },
+    ): Promise<SeededVersion> {
+      const { manifest } = release;
+      const entry = manifest.flow.scenes.find((s) => s.id !== manifest.flow.start)!;
+      const sceneAsset = manifest.assets[entry.id]!;
+      const sceneSha = await hashText(`${projectId} ${entry.id} ${opts.number}`);
+      const assets: Record<string, SceneVersion["assets"][string]> = {
+        [entry.id]: { ...sceneAsset, sha256: sceneSha, file: liveFiles.doc(sceneSha) },
+      };
+      if (opts.blob) {
+        const [blobId, blobAsset] = Object.entries(manifest.assets).find(
+          ([, a]) => a.storage === "blob",
+        )!;
+        assets[blobId] = {
+          ...blobAsset,
+          sha256: opts.blob,
+          file: liveFiles.blob(blobAsset.path, opts.blob),
+        };
+      }
+      const version: SceneVersion = {
+        kind: "scene-version",
+        v: 1,
+        project: projectId,
+        scene: entry.id,
+        compat: liveCompat(manifest),
+        engine: manifest.engine.version,
+        base: release.releaseId,
+        entry,
+        sceneHash: sceneSha.slice(0, 16),
+        assets,
+      };
+      const descriptor = formatSceneVersion(version);
+      const id = await sceneVersionId(version);
+      const descriptorBytes = new TextEncoder().encode(descriptor).length;
+      await db.insert(engineSceneVersions).values({
+        id,
+        projectId,
+        sceneId: entry.id,
+        number: opts.number,
+        descriptor,
+        compatKey: await liveCompatKey(version.compat),
+        baseReleaseId: release.releaseId,
+        physics: entry.physics,
+        sceneHash: sceneSha,
+        dataBytes: descriptorBytes + sceneAsset.bytes,
+        createdAt: opts.createdAt,
+      });
+      const rows: (typeof engineSceneVersionFiles.$inferInsert)[] = [
+        { sha256: id, bytes: descriptorBytes, role: "version", ext: ".json", source: "release" },
+        {
+          sha256: sceneSha,
+          bytes: sceneAsset.bytes,
+          role: "scene",
+          ext: ".json",
+          source: "release",
+        },
+      ].map((row) => ({ ...row, versionId: id, projectId }));
+      for (const row of rows) await seedObject(store, projectId, row.sha256, opts.createdAt);
+      if (opts.shared)
+        rows.push({
+          versionId: id,
+          projectId,
+          sha256: opts.shared,
+          bytes: 10,
+          role: "prefab",
+          ext: ".json",
+          source: "release",
+        });
+      if (opts.blob)
+        rows.push({
+          versionId: id,
+          projectId,
+          sha256: opts.blob,
+          bytes: 10,
+          role: "blob",
+          ext: ".png",
+          source: "blob",
+        });
+      await db.insert(engineSceneVersionFiles).values(rows);
+      return { id, number: opts.number, sceneId: entry.id, texts: [id, sceneSha] };
+    }
+
+    /** A release a month old on production, so nothing collects it. */
+    async function productionRelease(store: MemoryObjectStore, projectId: string) {
+      const release = await seedRelease(store, projectId, 1, at(-60 * DAY));
+      await db
+        .insert(engineReleaseChannels)
+        .values({ projectId, channel: "production", releaseId: release.releaseId });
+      return release;
+    }
+
+    async function seedReport(versionId: string, userId: string, reportedAt: Date) {
+      await seedUser(db, userId);
+      await db.insert(engineLiveReports).values({
+        versionId,
+        userId,
+        channel: "preview",
+        outcome: "applied",
+        at: reportedAt,
+      });
+    }
+
+    const versionRow = async (id: string) =>
+      (await db.select().from(engineSceneVersions).where(eq(engineSceneVersions.id, id)))[0];
+    const versionFileCount = async (versionId: string) =>
+      (
+        await db
+          .select({ sha256: engineSceneVersionFiles.sha256 })
+          .from(engineSceneVersionFiles)
+          .where(eq(engineSceneVersionFiles.versionId, versionId))
+      ).length;
+    const reportUsers = async (versionId: string) =>
+      (
+        await db
+          .select({ userId: engineLiveReports.userId })
+          .from(engineLiveReports)
+          .where(eq(engineLiveReports.versionId, versionId))
+      )
+        .map((r) => r.userId)
+        .sort();
+
+    /**
+     * Seven versions of one scene, a month old and older: the oldest two are
+     * beyond the kept five, and preview points at the second. The first
+     * lists one of the release's texts too.
+     */
+    async function sevenVersions(store: MemoryObjectStore, projectId: string) {
+      const release = await productionRelease(store, projectId);
+      const sharedText = release.manifest.build.files.find(
+        (f) => !blobHashes(release).has(f.sha256),
+      )!.sha256;
+      const versions: SeededVersion[] = [];
+      for (let n = 1; n <= 7; n++)
+        versions.push(
+          await seedVersion(store, projectId, release, {
+            number: n,
+            createdAt: at((n - 40) * DAY),
+            ...(n === 1 ? { shared: sharedText } : {}),
+          }),
+        );
+      const [, second] = versions as [SeededVersion, SeededVersion];
+      await db.insert(engineSceneChannels).values({
+        projectId,
+        channel: "preview",
+        sceneId: second.sceneId,
+        versionId: second.id,
+        timing: "next-load",
+      });
+      return { release, versions, sharedText };
+    }
+
+    it("collects an unpointed old scene version, and its texts a day later unless a release lists them", async () => {
+      const projectId = newProjectId();
+      const store = new MemoryObjectStore();
+      await seedProject(projectId);
+      const { versions, sharedText } = await sevenVersions(store, projectId);
+      const [first, second, third] = versions as [SeededVersion, SeededVersion, SeededVersion];
+      const alice = newUserId();
+      const bob = newUserId();
+      await seedReport(first.id, alice, at(-DAY));
+      await seedReport(third.id, bob, at(-DAY));
+
+      const run = await collector([projectId], { objects: store, at: T0 });
+      if (!run.ran) throw new Error("the run didn't take the lock");
+      expect(run.failures).toEqual([]);
+      expect(run.actions.map((a) => [a.step, a.target])).toEqual([["scenes", first.id]]);
+
+      const collected = await versionRow(first.id);
+      expect(collected?.collectedAt?.getTime()).toBe(T0.getTime());
+      expect(collected?.descriptor).toBeNull();
+      expect(await versionFileCount(first.id)).toBe(0);
+      expect(await reportUsers(first.id)).toEqual([]);
+      expect(await reportUsers(third.id)).toEqual([bob]);
+      const audit = await db
+        .select()
+        .from(engineReleaseAudit)
+        .where(eq(engineReleaseAudit.projectId, projectId));
+      expect(
+        audit.map((a) => [a.action, a.actorKind, a.sceneId, a.sceneVersionId, a.detail]),
+      ).toEqual([["scene-collect", "system", first.sceneId, first.id, { number: 1 }]]);
+      // The pointed version and the five newest stay whole.
+      for (const kept of versions.slice(1)) {
+        const row = await versionRow(kept.id);
+        expect(row?.collectedAt).toBeNull();
+        expect(row?.descriptor).not.toBeNull();
+      }
+      expect(await versionFileCount(second.id)).toBe(2);
+      // Its texts outlive it by a day.
+      for (const sha256 of first.texts)
+        expect(store.has(engineReleaseObjectKey(projectId, sha256))).toBe(true);
+
+      const next = await collector([projectId], { objects: store, at: at(DAY) });
+      if (!next.ran) throw new Error("the run didn't take the lock");
+      expect(next.failures).toEqual([]);
+      expect(next.actions.map((a) => [a.step, a.target]).sort()).toEqual(
+        first.texts.map((sha256) => ["orphans", engineReleaseObjectKey(projectId, sha256)]).sort(),
+      );
+      for (const sha256 of first.texts) {
+        expect(store.has(engineReleaseObjectKey(projectId, sha256))).toBe(false);
+        expect(await objectRow(projectId, sha256)).toBeUndefined();
+      }
+      expect(store.has(engineReleaseObjectKey(projectId, sharedText))).toBe(true);
+      for (const kept of versions.slice(1))
+        for (const sha256 of kept.texts)
+          expect(store.has(engineReleaseObjectKey(projectId, sha256))).toBe(true);
+    }, 60_000);
+
+    it("keeps a kept scene version's new blob past the blob grace", async () => {
+      const projectId = newProjectId();
+      const store = new MemoryObjectStore();
+      await seedProject(projectId);
+      const release = await productionRelease(store, projectId);
+      const art = hex("7");
+      const orphan = hex("8");
+      const artKey = await seedBlob(store, projectId, art, at(-60 * DAY));
+      const orphanKey = await seedBlob(store, projectId, orphan, at(-60 * DAY));
+      const version = await seedVersion(store, projectId, release, {
+        number: 1,
+        createdAt: at(-60 * DAY),
+        blob: art,
+      });
+      // Only the version's descriptor keeps it: no file row lists it.
+      await db
+        .delete(engineSceneVersionFiles)
+        .where(
+          and(
+            eq(engineSceneVersionFiles.versionId, version.id),
+            eq(engineSceneVersionFiles.sha256, art),
+          ),
+        );
+
+      const run = await collector([projectId], { objects: store, at: T0 });
+      expect(run.ran && run.failures).toEqual([]);
+      expect(run.ran && run.actions).toEqual([
+        { step: "blobs", projectId, target: orphanKey, bytes: 10 },
+      ]);
+      expect(store.has(artKey)).toBe(true);
+      expect((await blobRow(projectId, art))?.lastReferencedAt?.getTime()).toBe(T0.getTime());
+      expect(store.has(orphanKey)).toBe(false);
+    }, 60_000);
+
+    it("deletes live reports older than 30 days", async () => {
+      const projectId = newProjectId();
+      const store = new MemoryObjectStore();
+      await seedProject(projectId);
+      const release = await productionRelease(store, projectId);
+      const version = await seedVersion(store, projectId, release, {
+        number: 1,
+        createdAt: at(-60 * DAY),
+      });
+      const old = newUserId();
+      const recent = newUserId();
+      await seedReport(version.id, old, at(-31 * DAY));
+      await seedReport(version.id, recent, at(-29 * DAY));
+
+      const run = await collector([projectId], { objects: store, at: T0 });
+      if (!run.ran) throw new Error("the run didn't take the lock");
+      expect(run.failures).toEqual([]);
+      expect(run.actions).toEqual([
+        { step: "reports", projectId, target: `${version.id}:${old}`, bytes: 0 },
+      ]);
+      expect(run.totals.reports).toEqual({ count: 1, bytes: 0 });
+      expect(await reportUsers(version.id)).toEqual([recent]);
+    }, 60_000);
+
+    it("in report mode collects no scene version and deletes no report", async () => {
+      const projectId = newProjectId();
+      const store = new MemoryObjectStore();
+      await seedProject(projectId);
+      const { versions } = await sevenVersions(store, projectId);
+      const third = versions[2]!;
+      await seedReport(third.id, newUserId(), at(-40 * DAY));
+
+      const tables = async () => ({
+        versions: (
+          await db
+            .select({
+              id: engineSceneVersions.id,
+              collectedAt: engineSceneVersions.collectedAt,
+              descriptor: engineSceneVersions.descriptor,
+            })
+            .from(engineSceneVersions)
+            .where(eq(engineSceneVersions.projectId, projectId))
+        ).sort((a, b) => a.id.localeCompare(b.id)),
+        files: (
+          await db
+            .select({ sha256: engineSceneVersionFiles.sha256 })
+            .from(engineSceneVersionFiles)
+            .where(eq(engineSceneVersionFiles.projectId, projectId))
+        ).length,
+        reports: await reportUsers(third.id),
+        objects: await objectCount(projectId),
+        audit: (
+          await db
+            .select({ id: engineReleaseAudit.id })
+            .from(engineReleaseAudit)
+            .where(eq(engineReleaseAudit.projectId, projectId))
+        ).length,
+      });
+      const before = await tables();
+
+      const report = await collector([projectId], { objects: store, mode: "report", at: T0 });
+      if (!report.ran) throw new Error("the report run didn't take the lock");
+      expect(report.failures).toEqual([]);
+      expect(report.actions.map((a) => a.step)).toEqual(["scenes", "reports"]);
+      expect(await tables()).toEqual(before);
+      expect(store.removed).toEqual([]);
+
+      const run = await collector([projectId], { objects: store, at: T0 });
+      if (!run.ran) throw new Error("the delete run didn't take the lock");
+      expect(run.actions).toEqual(report.actions);
+      expect((await versionRow(versions[0]!.id))?.collectedAt?.getTime()).toBe(T0.getTime());
+      expect(await reportUsers(third.id)).toEqual([]);
+    }, 60_000);
 
     it("collects an unpinned old release and deletes its unshared objects; keeps a pinned one", async () => {
       const projectId = newProjectId();

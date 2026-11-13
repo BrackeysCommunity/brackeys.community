@@ -37,7 +37,6 @@ import {
   LIVE_VERSIONS_ELSEWHERE,
   openLiveEditor,
   prefabsReady,
-  runTimes,
   type LiveEditor,
 } from "../session/live-scene-editor";
 import { fakeWorldGame } from "./fake-world-game";
@@ -107,7 +106,7 @@ const entry = (key: string, kind: string, path: string): AssetEntry => ({
   created: { at: 0, by: "seed" },
 });
 
-function seed() {
+function seed(sceneName: string) {
   const host = memoryDocHost();
   seedProjectDoc(
     host.doc("project:p"),
@@ -120,7 +119,10 @@ function seed() {
     },
     { kind: "migration" },
   );
-  sceneToDoc(hall(), { doc: host.doc("scene:p.hall"), key: sequentialKeys("t") });
+  sceneToDoc(
+    { ...hall(), name: sceneName },
+    { doc: host.doc("scene:p.hall"), key: sequentialKeys("t") },
+  );
   return host;
 }
 
@@ -161,12 +163,15 @@ afterEach(() => {
 });
 
 /** Ada's editor on a real game, and Bob in the same project making the remote edits. */
-async function setup(declared: LiveDeclaration = { timings: ["boundary", "now"] }) {
+async function setup(
+  declared: LiveDeclaration = { timings: ["boundary", "now"] },
+  sceneName = "hall",
+) {
   const log: string[] = [];
   const def = liveGame(log, declared);
   const registry = createRegistry(def);
   const kinds = createKindRegistry(def, [sceneKind, prefabKind]);
-  const host = seed();
+  const host = seed(sceneName);
   const canvas = document.createElement("canvas");
   document.body.appendChild(canvas);
   const game = await createGame(canvas, { game: def, registry, dev: true });
@@ -294,6 +299,20 @@ describe("Live in Play", () => {
     expect(toast.success).not.toHaveBeenCalled();
     // The edit reached the game, so Restart isn't offered.
     expect(screen.queryByText("Scene changed")).toBeNull();
+  });
+
+  it("applies an edit to a scene whose name isn't its asset id, which Play runs it as", async () => {
+    const t = await setup(undefined, "great-hall");
+    t.play();
+    expect(t.world()?.scene()?.name).toBe("great-hall");
+    fireEvent.click(t.toggle());
+    t.addMarker("well");
+    await t.staged();
+    act(() => t.game.step());
+    expect(t.world()?.get("well")).toBeDefined();
+    expect(t.world()?.ctx.live.version).toBe(t.game.live.current("hall"));
+    act(() => t.live.stop());
+    expect(t.game.recording()?.scene).toBe("hall");
   });
 
   it("puts a clean apply's line back to listening for edits after a moment, and keeps one with check issues", async () => {
@@ -506,6 +525,7 @@ describe("Live in Play", () => {
     act(() => t.game.step(6));
     act(() => t.live.stop());
     const recording = t.game.recording()!;
+    expect(recording.time).toEqual({ kind: "fixed", rate: 60 });
     const [swap] = recording.swaps!;
     const elsewhere = { ...swap!, tick: swap!.tick + 3, version: "f".repeat(64) };
     let replayed = false;
@@ -513,7 +533,7 @@ describe("Live in Play", () => {
     expect(replayed).toBe(true);
     act(() => t.game.step(swap!.tick + 6));
     expect(toast.error).toHaveBeenCalledWith(LIVE_VERSION_MISSING, {
-      description: `The replay stopped at ${runTimes(recording, "fixed").at(elsewhere.tick)}. ${LIVE_VERSIONS_ELSEWHERE}`,
+      description: `The replay stopped at ${(elsewhere.tick / 60).toFixed(1)}s. ${LIVE_VERSIONS_ELSEWHERE}`,
     });
   });
 

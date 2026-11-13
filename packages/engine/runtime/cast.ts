@@ -1,11 +1,18 @@
 import { physicsOf } from "../game/physics-of";
 import type { EngineContext, SpawnShape } from "../game/types";
 import { shapeColliderDesc } from "../physics";
+import { aabb, aabbUnion, translateShape } from "../scene/shape-geometry";
 import type { Bounds, ShapeObj } from "../scene/types";
 import { roundLength } from "../scene/units";
 import type { Vec2 } from "../types";
+import { colliderLive } from "./space";
 
 export type CastResult = { ok: true; at: Vec2 } | { ok: false; error: string };
+
+export type CastSpawnOptions = {
+  /** Entity ids whose colliders neither block the start nor stop the cast: the actor being placed. */
+  exclude?: readonly string[];
+};
 
 /**
  * Every collision group, as a query filter: a query passing it skips only
@@ -60,9 +67,9 @@ function reach(at: Vec2, dir: Vec2, [minX, minY, maxX, maxY]: Bounds): number {
 /**
  * How far along the unit `dir` the shape at `at` travels free before it
  * touches a non-sensor collider, within `distance`; null when it never does.
- * Rapier casts with a unit velocity so the time of impact is in metres,
- * the distance travelled.
- * Queries see the colliders as of the last `refreshQueries`.
+ * Each collider near the path is cast at with a unit velocity, so the time
+ * of impact is in metres, the distance travelled; colliders gated off with
+ * collision groups 0 and the `exclude`d entities' never count.
  */
 function rapierTravel(
   ctx: EngineContext,
@@ -70,15 +77,37 @@ function rapierTravel(
   dir: Vec2,
   distance: number,
   shape: SpawnShape,
+  exclude: readonly string[],
 ): number | null {
   const { rapier, physics } = physicsOf(ctx, "play from here");
-  const s = shapeColliderDesc(rapier, shapeAt(shape, at)).shape;
+  const from = shapeAt(shape, at);
+  const s = shapeColliderDesc(rapier, from).shape;
   const pos = new rapier.Vector2(at.x, at.y);
   const vel = new rapier.Vector2(dir.x, dir.y);
-  const flags = rapier.QueryFilterFlags.EXCLUDE_SENSORS;
-  const hit = physics.world.castShape(pos, 0, vel, s, 0, distance, false, flags, ALL_GROUPS);
-  return hit ? hit.time_of_impact : null;
+  const path = aabbUnion(
+    aabb(from),
+    aabb(translateShape(from, [dir.x * distance, dir.y * distance])),
+  );
+  const pad = 1e-3 * (1 + distance);
+  let best: number | null = null;
+  for (const c of physics.collidersNear({
+    minX: path.minX - pad,
+    minY: path.minY - pad,
+    maxX: path.maxX + pad,
+    maxY: path.maxY + pad,
+  })) {
+    if (c.isSensor() || !colliderLive(c) || !takesAll(c.collisionGroups())) continue;
+    const id = ctx.tags.get(c.handle)?.entityId;
+    if (id !== undefined && exclude.includes(id)) continue;
+    const hit = c.castShape({ x: 0, y: 0 }, s, pos, 0, vel, 0, distance, false);
+    if (hit && (best === null || hit.time_of_impact < best)) best = hit.time_of_impact;
+  }
+  return best;
 }
+
+/** Whether a query filtering with `ALL_GROUPS` sees a collider in `groups`, by Rapier's rule. */
+const takesAll = (groups: number) =>
+  ((ALL_GROUPS >>> 16) & groups & 0xffff) !== 0 && ((groups >>> 16) & ALL_GROUPS & 0xffff) !== 0;
 
 function geometryTravel(
   space: EngineContext["space"],
@@ -86,9 +115,10 @@ function geometryTravel(
   dir: Vec2,
   distance: number,
   shape: SpawnShape,
+  exclude: readonly string[],
 ): number | null {
   const sweep = (from: Vec2, length: number) =>
-    space.sweep(shapeAt(shape, from), { x: dir.x * length, y: dir.y * length });
+    space.sweep(shapeAt(shape, from), { x: dir.x * length, y: dir.y * length }, { exclude });
   const hit = sweep(at, distance);
   if (!hit) return null;
   let travelled = hit.toi * distance;
@@ -109,11 +139,17 @@ function geometryTravel(
  * within the scene's bounds, on either backend. Refused when the shape
  * already overlaps one there (through `ctx.space`); with no direction (zero
  * gravity, `"none"`, a zero vector) or nothing ahead it stays at `at`. Gated
- * colliders don't count.
+ * colliders and `opts.exclude`'s entities don't count.
  */
-export function castSpawn(ctx: EngineContext, at: Vec2, shape: SpawnShape): CastResult {
+export function castSpawn(
+  ctx: EngineContext,
+  at: Vec2,
+  shape: SpawnShape,
+  opts: CastSpawnOptions = {},
+): CastResult {
   const { space } = ctx;
-  const inside = space.overlaps(shapeAt(shape, at))[0];
+  const exclude = opts.exclude ?? [];
+  const inside = space.overlaps(shapeAt(shape, at), { exclude })[0];
   if (inside) {
     return {
       ok: false,
@@ -128,8 +164,8 @@ export function castSpawn(ctx: EngineContext, at: Vec2, shape: SpawnShape): Cast
 
   const travelled =
     space.backend === "rapier"
-      ? rapierTravel(ctx, at, dir, distance, shape)
-      : geometryTravel(space, at, dir, distance, shape);
+      ? rapierTravel(ctx, at, dir, distance, shape, exclude)
+      : geometryTravel(space, at, dir, distance, shape, exclude);
   if (travelled === null) return { ok: true, at: { ...at } };
   return { ok: true, at: { x: at.x + dir.x * travelled, y: at.y + dir.y * travelled } };
 }

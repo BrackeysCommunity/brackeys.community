@@ -7,7 +7,7 @@
   sign-in (src/lib/engine/claim-saves.ts), bundled by the smoke, around a
   release's frame on another origin.
 
-    play-host.html?frame=<url>&release=<id>&game=<id>&project=<id>&sandbox=<tokens>&allow=<list>&session=<path>[&mode=site|own|none]
+    play-host.html?frame=<url>&release=<id>&game=<id>&project=<id>&sandbox=<tokens>&allow=<list>&session=<path>[&mode=site|own|none][&play=<latest|n>&play-path=<path>&live=<path>[&stream=off]]
 
   The iframe gets the play page's sandbox and allow lists from the query
   (the smoke passes PlayFrame's). Who is signed in comes from the smoke's
@@ -17,6 +17,15 @@
   listening before the frame loads, and what the host heard, every message
   the frame sent on its channel and every call to its save store is kept on
   window.__playHost for the smoke to read.
+
+  With play, the page reads that version's play payload from the play path
+  and plays live levels as the play page does: the host server welcomes the
+  frame with the payload's live state, and the site's live client
+  (src/lib/engine/live-client.ts) follows the channel's stream, reading the
+  live state from the live path. With stream=off the page has no
+  EventSource, so the client polls. Every live.state the frame reports,
+  every swap the client surfaces and every live read is kept on
+  window.__playHost.live.
 -->
 <html lang="en">
   <head>
@@ -44,6 +53,7 @@
     <script type="module">
       import { claimSaves, planClaim } from "../../src/lib/engine/claim-saves.ts";
       import { createHostServer } from "../../src/lib/engine/host-server.ts";
+      import { createLiveClient } from "../../src/lib/engine/live-client.ts";
       import { localPlayPrefs, localPlaySaves } from "../../src/lib/engine/local-saves.ts";
       import { siteSaveStore } from "../../src/lib/engine/save-store.ts";
 
@@ -65,6 +75,7 @@
         claim: null,
         frameMessages: [],
         storeCalls: [],
+        live: null,
       };
       window.__playHost = record;
 
@@ -119,6 +130,34 @@
           return store[method](...args);
         };
 
+      const playVersion = query.get("play");
+      const play =
+        playVersion === null
+          ? null
+          : await fetch(
+              `${need("play-path")}?${new URLSearchParams({ project: projectId, version: playVersion })}`,
+              { cache: "no-store" },
+            ).then((r) =>
+              r.ok ? r.json() : Promise.reject(new Error(`play payload: ${r.status}`)),
+            );
+      const initial = play?.live ?? null;
+      if (play) {
+        if (query.get("stream") === "off") window.EventSource = undefined;
+        record.live = {
+          version: play.version,
+          channel: play.channel,
+          initial,
+          client: false,
+          stream: typeof EventSource !== "undefined",
+          reads: 0,
+          states: [],
+          swaps: [],
+          reports: [],
+          releaseMoved: 0,
+          removed: 0,
+        };
+      }
+
       frame.setAttribute("sandbox", need("sandbox"));
       frame.setAttribute("allow", need("allow"));
       const server = createHostServer({
@@ -127,6 +166,7 @@
         saves: () => recorded,
         describe: () => store.describe,
         mode,
+        live: () => initial,
         prefs: localPlayPrefs(projectId),
         player: () =>
           user ? { signedIn: true, name: user.name } : { signedIn: false, name: null },
@@ -136,6 +176,38 @@
         },
       });
       Object.defineProperty(record, "dropped", { get: () => server.dropped });
+
+      // As PlayFrame: only a moving name carries live scenes, and only over the release this frame runs.
+      if (record.live && initial && initial.release === need("release")) {
+        const live = record.live;
+        server.onLiveState((state) => live.states.push({ ...state, at: Date.now() }));
+        createLiveClient({
+          projectId,
+          channel: initial.channel,
+          initial,
+          host: server,
+          onSwapApplied: (swap) => live.swaps.push({ ...swap, at: Date.now() }),
+          onReleaseMoved: () => live.releaseMoved++,
+          onRemoved: () => live.removed++,
+          procedures: {
+            live: async (input) => {
+              live.reads++;
+              const r = await fetch(
+                `${need("live")}?${new URLSearchParams({ project: input.projectId, channel: input.channel })}`,
+                {
+                  cache: "no-store",
+                },
+              );
+              if (!r.ok) throw new Error(`live state: ${r.status}`);
+              return r.json();
+            },
+            report: async (input) => {
+              live.reports.push(input);
+            },
+          },
+        });
+        live.client = true;
+      }
       frame.src = need("frame");
     </script>
   </body>

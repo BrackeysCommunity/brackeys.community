@@ -4,6 +4,7 @@ import {
   canDo,
   canPlay,
   GAME_ACTIONS,
+  refusalFor,
   roleOf,
   visibilityProblem,
   type GameAction,
@@ -56,6 +57,11 @@ describe("canDo", () => {
     "download-zip": [Y, Y, Y, N, N],
     hide: [Y, N, N, N, N],
     "approve-public": [Y, N, N, N, N],
+    "live-publish": [Y, Y, Y, Y, N],
+    "live-move-preview": [Y, Y, Y, Y, N],
+    "live-move-production": [Y, Y, N, N, N],
+    "live-block": [Y, Y, N, N, N],
+    "live-hide": [Y, N, N, N, N],
   };
   const ROLES = ["staff", "publisher", "editor", "agent", "player"] as const;
 
@@ -72,10 +78,101 @@ describe("canDo", () => {
     });
   }
 
-  test("an agent may only upload and move or roll back preview", () => {
+  test("an agent may only upload, publish scene versions and move preview", () => {
     expect(GAME_ACTIONS.filter((a) => canDo("agent", a)).sort()).toEqual(
-      ["promote-preview", "rollback-preview", "upload"].sort(),
+      ["live-move-preview", "live-publish", "promote-preview", "rollback-preview", "upload"].sort(),
     );
+  });
+
+  describe("live-block depends on where the version is live", () => {
+    // staff, publisher, editor, agent, player
+    const BLOCK: [string, { pointedOn: ("preview" | "production")[] }, boolean[]][] = [
+      ["production points at it", { pointedOn: ["production"] }, [Y, Y, N, N, N]],
+      ["both channels point at it", { pointedOn: ["preview", "production"] }, [Y, Y, N, N, N]],
+      ["only preview points at it", { pointedOn: ["preview"] }, [Y, Y, Y, N, N]],
+      ["nothing points at it", { pointedOn: [] }, [Y, Y, Y, N, N]],
+    ];
+    for (const [name, target, allowed] of BLOCK) {
+      ROLES.forEach((role, i) => {
+        test(`${name}: ${role} ${allowed[i] ? "may" : "may not"} block`, () => {
+          expect(canDo(role, "live-block", target)).toBe(allowed[i]);
+        });
+      });
+    }
+
+    test("without a target it takes production's answer", () => {
+      for (const role of ROLES) {
+        expect(canDo(role, "live-block")).toBe(
+          canDo(role, "live-block", { pointedOn: ["production"] }),
+        );
+      }
+    });
+
+    test("a target changes no other action", () => {
+      for (const action of GAME_ACTIONS.filter((a) => a !== "live-block")) {
+        for (const role of ROLES) {
+          for (const pointedOn of [[], ["preview"], ["production"]] as const) {
+            expect(canDo(role, action, { pointedOn })).toBe(canDo(role, action));
+          }
+        }
+      }
+    });
+  });
+});
+
+describe("refusalFor", () => {
+  const gameUrl = "https://example.test/games/p-1";
+  const AGENT_PRODUCTION = {
+    code: "release-forbidden",
+    message: "Production releases are moved by a person on the game's page.",
+    hint: gameUrl,
+  };
+  const ROLE = {
+    code: "release-forbidden",
+    message: "Only the game's publishers can do this.",
+    hint: "Publishers are the project's creator and its team's owners.",
+  };
+
+  test("null when the role may", () => {
+    expect(refusalFor("editor", "live-publish", { gameUrl })).toBeNull();
+    expect(refusalFor("agent", "live-move-preview", { gameUrl })).toBeNull();
+    expect(
+      refusalFor("editor", "live-block", { gameUrl, target: { pointedOn: ["preview"] } }),
+    ).toBeNull();
+  });
+
+  test.each<GameAction>(["live-move-production", "promote-production", "rollback-production"])(
+    "an agent token moving production (%s) is sent to the game's page",
+    (action) => {
+      expect(refusalFor("agent", action, { gameUrl })).toEqual(AGENT_PRODUCTION);
+    },
+  );
+
+  test("an agent token blocking a version production points at is sent to the game's page", () => {
+    expect(
+      refusalFor("agent", "live-block", { gameUrl, target: { pointedOn: ["production"] } }),
+    ).toEqual(AGENT_PRODUCTION);
+    expect(refusalFor("agent", "live-block", { gameUrl })).toEqual(AGENT_PRODUCTION);
+  });
+
+  test("the page hint is left out when the caller has no URL", () => {
+    expect(refusalFor("agent", "live-move-production")).toEqual({
+      code: "release-forbidden",
+      message: AGENT_PRODUCTION.message,
+    });
+  });
+
+  test("other refusals name the role", () => {
+    expect(
+      refusalFor("agent", "live-block", { gameUrl, target: { pointedOn: ["preview"] } }),
+    ).toEqual(ROLE);
+    expect(refusalFor("agent", "live-hide", { gameUrl })).toEqual(ROLE);
+    expect(refusalFor("editor", "live-move-production", { gameUrl })).toEqual(ROLE);
+    expect(
+      refusalFor("editor", "live-block", { gameUrl, target: { pointedOn: ["production"] } }),
+    ).toEqual(ROLE);
+    expect(refusalFor("publisher", "live-hide", { gameUrl })).toEqual(ROLE);
+    expect(refusalFor("player", "live-publish", { gameUrl })).toEqual(ROLE);
   });
 });
 
@@ -163,6 +260,28 @@ describe("canPlay", () => {
           expect(canPlay(v, p, previewOnly)).toEqual({ ok: false, reason: "not-found" });
         }
       });
+    }
+  });
+
+  // Live scenes play with the release they sit on: preview's for the editor
+  // role and above, production's for the release's audience.
+  describe("live scenes", () => {
+    for (const visibility of ["private", "team", "unlisted", "public"] as const) {
+      for (const teamId of ["team-1", null]) {
+        const p = project(visibility, teamId);
+        for (const [name, viewer] of VIEWERS) {
+          const editorOrAbove = roleOf(viewer, p) !== "player";
+          test(`${visibility}, ${teamId ? "team" : "personal"}: ${name} ${editorOrAbove ? "plays" : "doesn't play"} preview's live scenes`, () => {
+            expect(canPlay(viewer, p, previewOnly).ok).toBe(editorOrAbove);
+          });
+        }
+      }
+      for (const [name, viewer] of VIEWERS) {
+        const audience = AUDIENCE[visibility].includes(name);
+        test(`${visibility}: ${name} ${audience ? "plays" : "doesn't play"} production's live scenes`, () => {
+          expect(canPlay(viewer, project(visibility), live).ok).toBe(audience);
+        });
+      }
     }
   });
 

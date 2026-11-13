@@ -12,7 +12,7 @@ import {
   releaseView,
   sitePublishHost,
   usageView,
-  type PublishRpc,
+  type SitePublishRpc,
 } from "../publish-host";
 
 const MB = 1_048_576;
@@ -31,6 +31,8 @@ const stored = (patch: Partial<StoredUsage> = {}): StoredUsage => ({
   releaseStorageBytes: 120 * MB,
   largestRelease: { version: 7, bytes: 38 * MB },
   releasesToday: 3,
+  liveVersions: { kept: 0, bytes: 0 },
+  liveToday: 0,
   nextCollection: [],
   ...patch,
 });
@@ -55,7 +57,7 @@ const summary = {
   playUrl: "/games/demo/play/2",
 };
 
-function fakeRpc(patch: Partial<Record<keyof PublishRpc, unknown>> = {}) {
+function fakeRpc(patch: Partial<Record<keyof SitePublishRpc, unknown>> = {}) {
   const rpc = {
     getProjectUsage: vi.fn(async () => report(stored())),
     listReleases: vi.fn(async () => [
@@ -80,10 +82,10 @@ function fakeRpc(patch: Partial<Record<keyof PublishRpc, unknown>> = {}) {
     })),
     ...patch,
   };
-  return rpc as typeof rpc & PublishRpc;
+  return rpc as typeof rpc & SitePublishRpc;
 }
 
-const hostOver = (rpc: PublishRpc, team: string | null = "Bit Bakers") =>
+const hostOver = (rpc: SitePublishRpc, team: string | null = "Bit Bakers") =>
   sitePublishHost({ project: "demo", team, openTokenDialog: vi.fn(), rpc });
 
 describe("the usage rows", () => {
@@ -96,7 +98,11 @@ describe("the usage rows", () => {
         "30 MB in use · 6 MB in the trash · 5 MB replaced versions (deleted 30 days after replacement)",
       ],
       ["docs", "Documents: 212 of 1,000 · 3.1 MB of 64 MB", undefined],
-      ["releaseStorageBytes", "Release storage: 120 MB of 512 MB", undefined],
+      [
+        "releaseStorageBytes",
+        "Release storage: 120 MB of 512 MB",
+        "of which live scenes: 0 B in 0 versions. Each scene keeps its 5 newest versions plus those on a channel; others go 14 days after publishing.",
+      ],
       ["releaseBytes", "Largest release: v7, 38 MB of 100 MB per release", undefined],
       [
         "releasesKept",
@@ -108,6 +114,13 @@ describe("the usage rows", () => {
     ]);
     expect(view.footer).toBe(
       "These limits are per project. Cleanup runs every day: releases outside the 10 newest 14 days after publishing, replaced asset versions after 30 days. Pinned releases are never removed.",
+    );
+  });
+
+  it("says under release storage what the live scenes hold", () => {
+    const view = usageView(report(stored({ liveVersions: { kept: 12, bytes: 409_600 } })));
+    expect(view.lines.find((l) => l.quota === "releaseStorageBytes")?.detail).toBe(
+      "of which live scenes: 400 KB in 12 versions. Each scene keeps its 5 newest versions plus those on a channel; others go 14 days after publishing.",
     );
   });
 
@@ -266,6 +279,13 @@ describe("the site's publish host", () => {
       version: 2,
       channel: "production",
     });
+    await host.promote(3, "production", { keepScenes: ["level-1"] });
+    expect(rpc.promoteRelease).toHaveBeenLastCalledWith({
+      projectId: "demo",
+      version: 3,
+      channel: "production",
+      keepScenes: ["level-1"],
+    });
     await host.rollback("production");
     expect(rpc.rollbackRelease).toHaveBeenLastCalledWith({
       projectId: "demo",
@@ -358,6 +378,29 @@ describe("the site's publish host", () => {
     expect(warning).toHaveBeenCalledWith("Old public copies may stay cached for a while", {
       description: "Edge purge isn't configured.",
     });
+  });
+
+  it("publishes live scenes for the same project whenever it publishes releases", async () => {
+    const getProjectUsage = vi.fn(async () =>
+      report(stored({ liveToday: 6, liveVersions: { kept: 12, bytes: 409_600 } })),
+    );
+    const listSceneVersions = vi.fn(async () => []);
+    const rpc = fakeRpc({ getProjectUsage, listSceneVersions });
+    const host = hostOver(rpc);
+    expect(host.live).toBeDefined();
+    expect(await host.live?.usage()).toEqual({ today: 6, versions: 12, bytes: 409_600 });
+    await host.live?.list();
+    expect(listSceneVersions).toHaveBeenCalledWith({ projectId: "demo" });
+    expect(host.live?.role()).toEqual({ publisher: true });
+    expect(host.live?.wording.versionsPerDay).toBe(100);
+    expect(
+      sitePublishHost({
+        project: "demo",
+        openTokenDialog: vi.fn(),
+        rpc,
+        publisher: false,
+      }).live?.role(),
+    ).toEqual({ publisher: false });
   });
 
   it("opens the site's token dialog", () => {

@@ -9,6 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import type { PlayPayload } from "@/lib/engine/game-play";
 import type { HostServerOptions } from "@/lib/engine/host-server";
+import type { LiveClientOptions } from "@/lib/engine/live-client";
+import type { LiveSnapshot } from "@/lib/engine/live-state";
 import { localPlaySaves, SIGNED_OUT_SAVES_DESCRIBE } from "@/lib/engine/local-saves";
 import type { SiteSaveStore } from "@/lib/engine/save-store";
 import { pageTitle } from "@/lib/site-meta";
@@ -68,6 +70,26 @@ vi.mock("@/lib/engine/host-server", () => ({
       dispose: vi.fn(),
     };
   },
+}));
+const live = vi.hoisted(() => ({ clients: [] as LiveClientOptions[] }));
+vi.mock("@/lib/engine/live-client", () => ({
+  createLiveClient: (opts: LiveClientOptions) => {
+    live.clients.push(opts);
+    return { dispose: vi.fn() };
+  },
+}));
+const toasts = vi.hoisted(() => ({
+  show: vi.fn(),
+  dismiss: vi.fn(),
+  success: vi.fn(),
+  error: vi.fn(),
+}));
+vi.mock("@/lib/toast", () => ({
+  toast: Object.assign(toasts.show, {
+    dismiss: toasts.dismiss,
+    success: toasts.success,
+    error: toasts.error,
+  }),
 }));
 vi.mock("@/lib/engine/save-store", async () => {
   const { SITE_SAVE_LIMITS } = await import("@/lib/engine/limits");
@@ -136,6 +158,7 @@ function payload(patch: Partial<PlayPayload> = {}): PlayPayload {
     connectOrigins: [],
     online: false,
     viewer: { signedIn: false },
+    live: null,
     ...patch,
   };
 }
@@ -173,6 +196,8 @@ beforeEach(() => {
   hosts.created.length = 0;
   hosts.notified = 0;
   hosts.siteWrites.length = 0;
+  live.clients.length = 0;
+  for (const fn of Object.values(toasts)) fn.mockReset();
   localStorage.clear();
   sessionStorage.clear();
 });
@@ -505,5 +530,142 @@ describe("the embed page", () => {
     wrap(<EmbedFrame projectId="tactics" version="latest" />);
     expect(await screen.findByText(PLAY_UNAVAILABLE_MESSAGE.hidden)).toBeTruthy();
     expect(screen.queryAllByRole("button")).toEqual([]);
+  });
+});
+
+const RELEASE_A = "a".repeat(64);
+const RELEASE_B = "b".repeat(64);
+const frameOf = (release: string) =>
+  `https://play.example.test/frames/${release}/index.html?host=jams`;
+
+function liveOn(release: string): LiveSnapshot {
+  return {
+    channel: "production",
+    rev: 4,
+    release,
+    scenes: [
+      {
+        scene: "ford",
+        version: "f".repeat(64),
+        number: 2,
+        timing: "boundary",
+        since: "2026-11-12T14:48:00.000Z",
+      },
+    ],
+    removed: [],
+  };
+}
+
+function lastClient(): LiveClientOptions {
+  const opts = live.clients.at(-1);
+  if (!opts) throw new Error("no live client");
+  return opts;
+}
+
+type ToastAction = { action: { label: string; onClick: () => void } };
+
+describe("live levels on the play page", () => {
+  it("follows latest's live scenes and welcomes the frame with them", async () => {
+    calls.getGamePlay.mockResolvedValue(payload({ live: liveOn(RELEASE_A) }));
+    wrap(<PlayPage projectId="tactics" version="latest" />);
+    await screen.findByTitle("Tactics");
+    expect(live.clients).toHaveLength(1);
+    expect(lastClient()).toMatchObject({
+      projectId: "tactics",
+      channel: "production",
+      initial: liveOn(RELEASE_A),
+    });
+    expect(hosts.created.at(-1)?.live?.()).toEqual(liveOn(RELEASE_A));
+  });
+
+  it("starts no live client for a numbered play", async () => {
+    calls.getGamePlay.mockResolvedValue(payload({ live: null }));
+    wrap(<PlayPage projectId="tactics" version="7" />);
+    await screen.findByTitle("Tactics");
+    expect(live.clients).toHaveLength(0);
+    expect(hosts.created.at(-1)?.live?.()).toBeNull();
+  });
+
+  it("toasts each live text", async () => {
+    calls.getGamePlay.mockResolvedValue(payload({ live: liveOn(RELEASE_A) }));
+    wrap(<PlayPage projectId="tactics" version="latest" />);
+    await screen.findByTitle("Tactics");
+    act(() => lastClient().onSwapApplied?.({ scene: "ford", version: null, timing: "boundary" }));
+    act(() => lastClient().onReleaseMoved());
+    act(() => lastClient().onRemoved());
+    expect(toasts.show.mock.calls.map((c) => c[0])).toEqual([
+      "This level was just updated.",
+      "A new version of Tactics is available.",
+      "A level in this game was removed by moderators.",
+    ]);
+  });
+
+  it("reloads the frame on the new release when the player picks Reload", async () => {
+    calls.getGamePlay.mockResolvedValue(payload({ live: liveOn(RELEASE_A) }));
+    wrap(<PlayPage projectId="tactics" version="latest" />);
+    const frame = await screen.findByTitle("Tactics");
+    expect(frame.getAttribute("src")).toBe(frameOf(RELEASE_A));
+
+    act(() => lastClient().onReleaseMoved());
+    const [, options] = toasts.show.mock.calls[0] as [string, ToastAction];
+    expect(options.action.label).toBe("Reload");
+
+    calls.getGamePlay.mockResolvedValue(
+      payload({
+        version: 8,
+        release: { ...payload().release, id: RELEASE_B },
+        frameUrl: frameOf(RELEASE_B),
+        live: liveOn(RELEASE_B),
+      }),
+    );
+    act(() => options.action.onClick());
+    await waitFor(() =>
+      expect(screen.getByTitle("Tactics").getAttribute("src")).toBe(frameOf(RELEASE_B)),
+    );
+    expect(calls.getGamePlay).toHaveBeenCalledTimes(2);
+    expect(hosts.created.at(-1)?.release.id).toBe(RELEASE_B);
+    expect(lastClient().initial.release).toBe(RELEASE_B);
+  });
+
+  it("keeps the game it has when the reload for a new release fails", async () => {
+    calls.getGamePlay.mockResolvedValue(payload({ live: liveOn(RELEASE_A) }));
+    wrap(<PlayPage projectId="tactics" version="latest" />);
+    await screen.findByTitle("Tactics");
+    act(() => lastClient().onReleaseMoved());
+    const [, options] = toasts.show.mock.calls[0] as [string, ToastAction];
+    calls.getGamePlay.mockRejectedValue(new Error("offline"));
+    act(() => options.action.onClick());
+    await waitFor(() => expect(calls.getGamePlay).toHaveBeenCalledTimes(2));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByTitle("Tactics").getAttribute("src")).toBe(frameOf(RELEASE_A));
+  });
+
+  it("gives an embed of latest the same live client and Reload", async () => {
+    calls.getGamePlay.mockResolvedValue(payload({ live: liveOn(RELEASE_A) }));
+    wrap(<EmbedFrame projectId="tactics" version="latest" />);
+    await screen.findByTitle("Tactics");
+    expect(lastClient().initial).toEqual(liveOn(RELEASE_A));
+
+    act(() => lastClient().onReleaseMoved());
+    const [text, options] = toasts.show.mock.calls[0] as [string, ToastAction];
+    expect(text).toBe("A new version of Tactics is available.");
+    calls.getGamePlay.mockResolvedValue(
+      payload({
+        release: { ...payload().release, id: RELEASE_B },
+        frameUrl: frameOf(RELEASE_B),
+        live: liveOn(RELEASE_B),
+      }),
+    );
+    act(() => options.action.onClick());
+    await waitFor(() =>
+      expect(screen.getByTitle("Tactics").getAttribute("src")).toBe(frameOf(RELEASE_B)),
+    );
+  });
+
+  it("starts no live client for an embedded version number", async () => {
+    calls.getGamePlay.mockResolvedValue(payload({ live: null }));
+    wrap(<EmbedFrame projectId="tactics" version="7" />);
+    await screen.findByTitle("Tactics");
+    expect(live.clients).toHaveLength(0);
   });
 });

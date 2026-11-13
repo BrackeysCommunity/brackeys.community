@@ -132,34 +132,27 @@ export function playerInSolidIssues(ctx: EngineContext): SceneIssue[] {
 /**
  * Where the stuck `player` comes to rest from the nearest spot with room for
  * its box, tried outward in `FREE_STEP`s up to `FREE_RINGS` within the bounds
- * and settled as a play start is (`castSpawn`); null when nothing that near is
- * free. Its own collider is gated off meanwhile, so neither the overlap test
- * nor the cast sees it.
+ * and settled as a play start is (`castSpawn`, past the player's own
+ * collider); null when nothing that near is free.
  */
-function restFor(ctx: EngineContext, player: PlayerEntity): Vec2 | null {
+function restFor(ctx: EngineContext, player: PlayerEntity, playerId: string): Vec2 | null {
   const shape = PLATFORMER_PLAY.spawnShape;
   if (!shape) return null;
   const [minX, minY, maxX, maxY] = ctx.bounds;
   const from = player.getPosition();
-  const collider = player.getCollider();
-  const groups = collider.collisionGroups();
-  collider.setCollisionGroups(0);
-  try {
-    for (let ring = 1, d = FREE_STEP; ring <= FREE_RINGS; ring++, d += FREE_STEP) {
-      let inBounds = false;
-      for (const dir of FREE_DIRECTIONS) {
-        const at = { x: from.x + dir.x * d, y: from.y + dir.y * d };
-        if (at.x < minX || at.x > maxX || at.y < minY || at.y > maxY) continue;
-        inBounds = true;
-        const cast = castSpawn(ctx, at, shape);
-        if (cast.ok) return cast.at;
-      }
-      if (!inBounds) return null;
+  const exclude = [playerId];
+  for (let ring = 1, d = FREE_STEP; ring <= FREE_RINGS; ring++, d += FREE_STEP) {
+    let inBounds = false;
+    for (const dir of FREE_DIRECTIONS) {
+      const at = { x: from.x + dir.x * d, y: from.y + dir.y * d };
+      if (at.x < minX || at.x > maxX || at.y < minY || at.y > maxY) continue;
+      inBounds = true;
+      const cast = castSpawn(ctx, at, shape, { exclude });
+      if (cast.ok) return cast.at;
     }
-    return null;
-  } finally {
-    collider.setCollisionGroups(groups);
+    if (!inBounds) return null;
   }
+  return null;
 }
 
 function noPlayer(): PlayerSnapshot {
@@ -322,7 +315,7 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
       const player = actor();
       if (!player || playerId === null) return;
       if (blockersAt(ctx, playerId, player.getPosition()).length === 0) return;
-      const rest = restFor(ctx, player);
+      const rest = restFor(ctx, player, playerId);
       if (!rest) return;
       const body = player.getCollider().parent();
       body?.setTranslation(rest, true);

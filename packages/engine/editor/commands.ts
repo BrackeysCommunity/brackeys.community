@@ -75,7 +75,13 @@ export function rotateSelectionBatch(
   return about ? rotateTargetsBatch(targets, about, deg, pxPerMetreOf(registry)) : null;
 }
 
-/** The box around the selection's geometry; `null` when none of it has any. */
+/**
+ * The box around what the selection outlines (`outlineBounds` with the
+ * registry's look), an instance by its children: the box the selection's
+ * outline, its gizmo and a tool's offer sit on. `null` when nothing in it
+ * draws. Framing goes by `frameBounds`, which also takes in the paths movers
+ * travel.
+ */
 export function selectionBounds(
   def: SceneDefinition,
   registry: Registry,

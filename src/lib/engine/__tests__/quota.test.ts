@@ -6,9 +6,17 @@ import { formatBytes, formatCount } from "@/lib/format-bytes";
 import { SITE } from "@/lib/legal-meta";
 import type { TestDb } from "@/test/db";
 
-import { BLOB_GRACE_DAYS, PROJECT_QUOTA, QUOTA_WARN_RATIO, RELEASE_GRACE_DAYS } from "../limits";
+import {
+  BLOB_GRACE_DAYS,
+  LIVE_LIMITS,
+  PROJECT_QUOTA,
+  QUOTA_WARN_RATIO,
+  RELEASE_GRACE_DAYS,
+} from "../limits";
 import {
   checkJamPinQuota,
+  checkLiveChannelQuota,
+  checkLiveQuota,
   checkQuota,
   checkReleaseQuota,
   ENGINE_QUOTA,
@@ -19,6 +27,7 @@ import {
   usageLevel,
   usageLines,
   usageNotice,
+  type LiveQuotaInput,
   type QuotaName,
   type ReleaseQuotaInput,
   type SiteQuotaVerdict,
@@ -62,6 +71,8 @@ describe("quotaLabel", () => {
     "releaseStorageBytes",
     "jamPins",
     "releasesPerDay",
+    "liveVersionBytes",
+    "liveVersionsPerDay",
   ];
 
   it("names every quota once, in lower case for the middle of a sentence", () => {
@@ -71,12 +82,15 @@ describe("quotaLabel", () => {
     expect(quotaLabel("assetBytes")).toBe("asset storage");
     expect(quotaLabel("releaseStorageBytes")).toBe("release storage");
     expect(quotaLabel("jamPins")).toBe("jam versions");
+    expect(quotaLabel("liveVersionsPerDay")).toBe("scene versions today");
   });
 
   it("writes an amount in the quota's own unit", () => {
     expect(quotaAmount("releaseStorageBytes", 440 * MiB)).toBe(formatBytes(440 * MiB));
     expect(quotaAmount("docs", 1_000)).toBe(formatCount(1_000));
     expect(quotaAmount("jamPins", 8)).toBe("8");
+    expect(quotaAmount("liveVersionBytes", 2 * MiB)).toBe("2 MB");
+    expect(quotaAmount("liveVersionsPerDay", 100)).toBe("100");
   });
 });
 
@@ -260,6 +274,119 @@ describe("checkReleaseQuota", () => {
   });
 });
 
+describe("checkLiveQuota", () => {
+  const small: LiveQuotaInput = { dataBytes: 14 * 1_024, addsBytes: 4 * 1_024, today: 6 };
+  const check = (version: Partial<LiveQuotaInput>, storage = 0) =>
+    checkLiveQuota({ releaseStorageBytes: storage }, { ...small, ...version });
+
+  it("lets a small version through", () => {
+    expect(check({})).toEqual({ ok: true });
+  });
+
+  const cases: [QuotaName, (n: number) => SiteQuotaVerdict, number][] = [
+    ["liveVersionBytes", (n) => check({ dataBytes: n }), LIVE_LIMITS.versionDataBytes],
+    [
+      "releaseStorageBytes",
+      (n) => check({ addsBytes: 1 }, n - 1),
+      PROJECT_QUOTA.releaseStorageBytes,
+    ],
+    ["liveVersionsPerDay", (n) => check({ today: n - 1 }), LIVE_LIMITS.versionsPerDay],
+  ];
+
+  it.each(cases)("holds %s at max - 1, max and max + 1", (limit, at, max) => {
+    expect(at(max - 1).ok).toBe(true);
+    expect(at(max).ok).toBe(true);
+    expect(refused(at(max + 1)).limit).toBe(limit);
+    expect(refused(at(max + 1)).max).toBe(max);
+  });
+
+  it("words a too-large version with its size and the cap", () => {
+    const verdict = refused(check({ dataBytes: 2.4 * MiB }));
+    expect(verdict).toMatchObject({
+      limit: "liveVersionBytes",
+      used: 2.4 * MiB,
+      max: LIVE_LIMITS.versionDataBytes,
+    });
+    expect(verdict.message).toBe(
+      `This scene version is 2.4 MB; a live scene's data is limited to ${formatBytes(LIVE_LIMITS.versionDataBytes)}.`,
+    );
+    expect(verdict.hint).toBe(
+      "Split the level into sublevels, or move repeated entities into a prefab or bulk entries.",
+    );
+  });
+
+  it("words the day's count from the limit", () => {
+    const verdict = refused(check({ today: LIVE_LIMITS.versionsPerDay }));
+    expect(verdict).toMatchObject({ limit: "liveVersionsPerDay", used: 100, max: 100 });
+    expect(verdict.message).toBe(
+      `This project has published ${LIVE_LIMITS.versionsPerDay} scene versions today, the most per day.`,
+    );
+    expect(verdict.hint).toBe("Try again after midnight UTC, or publish a release.");
+  });
+
+  it("words release storage as the scene version's addition", () => {
+    const verdict = refused(check({ addsBytes: 30 * MiB }, 498 * MiB));
+    expect(verdict).toMatchObject({
+      limit: "releaseStorageBytes",
+      used: 498 * MiB,
+      max: PROJECT_QUOTA.releaseStorageBytes,
+    });
+    expect(verdict.message).toBe(
+      `This scene version adds 30 MB, and the project's releases already use 498 MB of ${formatBytes(PROJECT_QUOTA.releaseStorageBytes)}.`,
+    );
+    expect(verdict.hint).toContain(
+      `each scene keeps its ${LIVE_LIMITS.keptPerScene} newest versions plus those on a channel`,
+    );
+  });
+
+  it("answers the first quota that refuses: data before storage before the day", () => {
+    const all = { dataBytes: 3 * MiB, addsBytes: 30 * MiB, today: 100 };
+    expect(refused(check(all, 500 * MiB)).limit).toBe("liveVersionBytes");
+    expect(refused(check({ ...all, dataBytes: 1 }, 500 * MiB)).limit).toBe("releaseStorageBytes");
+    expect(refused(check({ ...all, dataBytes: 1 })).limit).toBe("liveVersionsPerDay");
+  });
+
+  it("takes a staff-raised release storage through the parameter, never the live caps", () => {
+    const stored = { releaseStorageBytes: 512 * MiB };
+    expect(checkLiveQuota(stored, small).ok).toBe(false);
+    const raised = { overrides: { releaseStorageBytes: 1_024 * MiB } };
+    expect(checkLiveQuota(stored, small, raised)).toEqual({ ok: true });
+    expect(refused(checkLiveQuota(stored, { ...small, dataBytes: 3 * MiB }, raised)).limit).toBe(
+      "liveVersionBytes",
+    );
+  });
+});
+
+describe("checkLiveChannelQuota", () => {
+  const max = PROJECT_QUOTA.releaseBytes;
+
+  it("holds a channel's release plus its live scenes at max - 1, max and max + 1", () => {
+    expect(checkLiveChannelQuota("production", max - 1).ok).toBe(true);
+    expect(checkLiveChannelQuota("production", max).ok).toBe(true);
+    expect(refused(checkLiveChannelQuota("production", max + 1))).toMatchObject({
+      limit: "releaseBytes",
+      used: max + 1,
+      max,
+    });
+  });
+
+  it("words the channel's size with the site's name", () => {
+    const verdict = refused(checkLiveChannelQuota("production", 104 * MiB));
+    expect(verdict.message).toBe(
+      `With this scene the game on production would be 104 MB; a game on ${SITE.name} is limited to ${formatBytes(max)}.`,
+    );
+    expect(verdict.hint).toBe(
+      "Publish a release instead: it replaces the live scenes, so their extra files stop counting.",
+    );
+  });
+
+  it("takes a staff-raised release size through the parameter", () => {
+    expect(
+      checkLiveChannelQuota("preview", 150 * MiB, { overrides: { releaseBytes: 200 * MiB } }),
+    ).toEqual({ ok: true });
+  });
+});
+
 describe("checkJamPinQuota", () => {
   it("holds jam pins at the max", () => {
     expect(checkJamPinQuota(PROJECT_QUOTA.jamPins - 1).ok).toBe(true);
@@ -280,6 +407,7 @@ describe("usageLines", () => {
     largestRelease: { version: 7, bytes: 38 * MiB },
     pinned: { channels: 2, jams: 1 },
     releasesToday: 3,
+    liveToday: 6,
   };
 
   it("gives one line per stored quota, each against its max", () => {
@@ -291,6 +419,7 @@ describe("usageLines", () => {
       ["releaseStorageBytes", 120 * MiB, PROJECT_QUOTA.releaseStorageBytes],
       ["jamPins", 1, PROJECT_QUOTA.jamPins],
       ["releasesPerDay", 3, PROJECT_QUOTA.releasesPerDay],
+      ["liveVersionsPerDay", 6, LIVE_LIMITS.versionsPerDay],
     ]);
     expect(usageLines(stored).every((l) => l.level === "ok")).toBe(true);
   });
@@ -304,6 +433,27 @@ describe("usageLines", () => {
     expect(docsAt(PROJECT_QUOTA.docs)).toMatchObject({ level: "full", ratio: 1 });
     expect(docsAt(PROJECT_QUOTA.docs + 1)).toMatchObject({ level: "full" });
     expect([0.79, 0.8, 0.99, 1].map(usageLevel)).toEqual(["ok", "warn", "warn", "full"]);
+  });
+
+  it("warns of today's scene versions from the 80% line", () => {
+    const today = (liveToday: number) =>
+      usageLines({ ...stored, liveToday }).find((l) => l.quota === "liveVersionsPerDay")!;
+    const boundary = LIVE_LIMITS.versionsPerDay * QUOTA_WARN_RATIO;
+    expect(today(boundary - 1)).toMatchObject({ level: "ok" });
+    expect(today(boundary)).toMatchObject({ level: "warn", ratio: QUOTA_WARN_RATIO });
+    expect(today(LIVE_LIMITS.versionsPerDay - 1)).toMatchObject({ level: "warn" });
+    expect(today(LIVE_LIMITS.versionsPerDay)).toMatchObject({ level: "full", ratio: 1 });
+    expect(today(LIVE_LIMITS.versionsPerDay + 1)).toMatchObject({ level: "full" });
+  });
+
+  it("warns of a scene version's data from the 80% line", () => {
+    const at = (bytes: number) => usageLevel(bytes / LIVE_LIMITS.versionDataBytes);
+    const boundary = LIVE_LIMITS.versionDataBytes * QUOTA_WARN_RATIO;
+    expect([boundary - 1, boundary, LIVE_LIMITS.versionDataBytes].map(at)).toEqual([
+      "ok",
+      "warn",
+      "full",
+    ]);
   });
 
   it("counts no release as zero", () => {

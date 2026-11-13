@@ -85,6 +85,7 @@ import { Route as OauthGitlabProviderIdCallbackRouteImport } from './routes/oaut
 import { Route as GamesProjectIdPlayVersionRouteImport } from './routes/games_.$projectId.play.$version'
 import { Route as GamesProjectIdEmbedVersionRouteImport } from './routes/games_.$projectId.embed.$version'
 import { Route as ApiPublicRpcSplatRouteImport } from './routes/api.public.rpc.$'
+import { Route as ApiEngineLiveProjectIdStreamRouteImport } from './routes/api.engine.live.$projectId.stream'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -469,6 +470,12 @@ const ApiPublicRpcSplatRoute = ApiPublicRpcSplatRouteImport.update({
   path: '/api/public/rpc/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEngineLiveProjectIdStreamRoute =
+  ApiEngineLiveProjectIdStreamRouteImport.update({
+    id: '/api/engine/live/$projectId/stream',
+    path: '/api/engine/live/$projectId/stream',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -547,6 +554,7 @@ export interface FileRoutesByFullPath {
   '/games/$projectId/play/$version': typeof GamesProjectIdPlayVersionRoute
   '/oauth/gitlab/$providerId/callback': typeof OauthGitlabProviderIdCallbackRoute
   '/games/$projectId/play/': typeof GamesProjectIdPlayIndexRoute
+  '/api/engine/live/$projectId/stream': typeof ApiEngineLiveProjectIdStreamRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -616,6 +624,7 @@ export interface FileRoutesByTo {
   '/games/$projectId/play/$version': typeof GamesProjectIdPlayVersionRoute
   '/oauth/gitlab/$providerId/callback': typeof OauthGitlabProviderIdCallbackRoute
   '/games/$projectId/play': typeof GamesProjectIdPlayIndexRoute
+  '/api/engine/live/$projectId/stream': typeof ApiEngineLiveProjectIdStreamRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -695,6 +704,7 @@ export interface FileRoutesById {
   '/games_/$projectId/play/$version': typeof GamesProjectIdPlayVersionRoute
   '/oauth/gitlab/$providerId/callback': typeof OauthGitlabProviderIdCallbackRoute
   '/games_/$projectId/play/': typeof GamesProjectIdPlayIndexRoute
+  '/api/engine/live/$projectId/stream': typeof ApiEngineLiveProjectIdStreamRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -775,6 +785,7 @@ export interface FileRouteTypes {
     | '/games/$projectId/play/$version'
     | '/oauth/gitlab/$providerId/callback'
     | '/games/$projectId/play/'
+    | '/api/engine/live/$projectId/stream'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -844,6 +855,7 @@ export interface FileRouteTypes {
     | '/games/$projectId/play/$version'
     | '/oauth/gitlab/$providerId/callback'
     | '/games/$projectId/play'
+    | '/api/engine/live/$projectId/stream'
   id:
     | '__root__'
     | '/'
@@ -922,6 +934,7 @@ export interface FileRouteTypes {
     | '/games_/$projectId/play/$version'
     | '/oauth/gitlab/$providerId/callback'
     | '/games_/$projectId/play/'
+    | '/api/engine/live/$projectId/stream'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -974,6 +987,7 @@ export interface RootRouteChildren {
   GamesProjectIdPlayVersionRoute: typeof GamesProjectIdPlayVersionRoute
   OauthGitlabProviderIdCallbackRoute: typeof OauthGitlabProviderIdCallbackRoute
   GamesProjectIdPlayIndexRoute: typeof GamesProjectIdPlayIndexRoute
+  ApiEngineLiveProjectIdStreamRoute: typeof ApiEngineLiveProjectIdStreamRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1510,6 +1524,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRpcSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/engine/live/$projectId/stream': {
+      id: '/api/engine/live/$projectId/stream'
+      path: '/api/engine/live/$projectId/stream'
+      fullPath: '/api/engine/live/$projectId/stream'
+      preLoaderRoute: typeof ApiEngineLiveProjectIdStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1696,6 +1717,7 @@ const rootRouteChildren: RootRouteChildren = {
   GamesProjectIdPlayVersionRoute: GamesProjectIdPlayVersionRoute,
   OauthGitlabProviderIdCallbackRoute: OauthGitlabProviderIdCallbackRoute,
   GamesProjectIdPlayIndexRoute: GamesProjectIdPlayIndexRoute,
+  ApiEngineLiveProjectIdStreamRoute: ApiEngineLiveProjectIdStreamRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

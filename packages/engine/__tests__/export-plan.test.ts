@@ -98,11 +98,11 @@ describe("the content plan over the engine project", () => {
     expect(Object.keys(plan.assets)).toEqual(Object.keys(plan.assets).sort());
   });
 
-  it("bundles the assets of a prefab only a spawner names, with no header naming them", async () => {
+  it("lists and bundles a prefab only a spawner names, with no header naming its assets", async () => {
     const plan = await planContent(input);
     const yard = plan.scenes.find((s) => s.id === "behavior-yard")!;
     expect(JSON.parse(input.texts.get("behavior-yard")!)).not.toHaveProperty("assets");
-    expect(yard.prefabs).not.toContain("crate");
+    expect(yard.prefabs).toEqual(["crate", "hero-side", "hero-top"]);
     expect(yard.bundle.entries).toContain("crates-texture");
     for (const id of ["crate", "crates", "crates-texture"])
       expect(plan.assets[id], id).toBeDefined();

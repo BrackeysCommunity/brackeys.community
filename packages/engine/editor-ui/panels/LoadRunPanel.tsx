@@ -5,6 +5,7 @@ import type { EditorSession } from "../../editor/index";
 import { resolveTime, type Registry, type TimeKind } from "../../game/index";
 import type { PlayOptions, StagedVersion } from "../../index";
 import type { Sha256 } from "../../project/index";
+import { replayGap } from "../../runtime/live";
 import type { EditorNotify } from "../host";
 import {
   Badge,
@@ -53,8 +54,9 @@ export type HeldVersion = (id: Sha256) => StagedVersion | null;
 /**
  * What Replay does with the live versions a run played, checked against the
  * versions this editor holds when `held` is given: null for a run that
- * played none. `blocked` when the run starts on a version it lacks; `stopsAt`
- * the time of the first one it reaches and lacks.
+ * played none. `blocked` when it can't start without one it lacks (the
+ * version it starts on, or one its load's sublevels attach); `stopsAt` the
+ * time of the first later one it reaches and lacks.
  */
 function liveReplay(
   recording: LoadedRun["recording"],
@@ -71,18 +73,17 @@ function liveReplay(
       stopsAt: null,
     };
   }
-  const missing = (id: Sha256 | null) => id !== null && held(id) === null;
-  if (recording.sceneVersion !== undefined && missing(recording.sceneVersion)) {
+  const gap = replayGap(recording, held);
+  if (gap?.start) {
     return {
-      text: "This run starts on a live version of the scene this editor doesn't have, so it can't replay here.",
+      text: "This run starts on a live version this editor doesn't have, so it can't replay here.",
       caveat: true,
       blocked: true,
       stopsAt: null,
     };
   }
-  const gone = swaps.find((swap) => missing(swap.version));
-  if (gone) {
-    const when = at(gone.tick);
+  if (gap) {
+    const when = at(gap.tick);
     return {
       text: `Replay stops at ${when}: the run reached a live version of the scene this editor doesn't have.`,
       caveat: true,

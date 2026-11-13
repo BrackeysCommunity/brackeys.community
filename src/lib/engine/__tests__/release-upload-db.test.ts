@@ -1,3 +1,4 @@
+import { liveCompat, liveCompatKey } from "@jams/engine/project";
 import { asc, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -22,6 +23,7 @@ import {
 import { seedUser, type TestDb } from "@/test/db";
 
 import { PROJECT_QUOTA } from "../limits";
+import { engineLive } from "../live-events";
 import { ReleaseError } from "../release-errors";
 import { memoryReleaseStore, type ReleaseObjectStore } from "../release-storage";
 import {
@@ -480,6 +482,16 @@ describe("commitRelease", () => {
     expect(upload?.committedAt).not.toBeNull();
   });
 
+  it("stores the release's live compatibility key, which scene versions are matched on", async () => {
+    const r = await release();
+    await publish(r);
+    const [row] = await db
+      .select({ liveCompatKey: engineReleases.liveCompatKey })
+      .from(engineReleases);
+    expect(row?.liveCompatKey).toBe(await liveCompatKey(liveCompat(r.manifest)));
+    expect(row?.liveCompatKey).toMatch(/^[0-9a-f]{64}$/);
+  });
+
   it("answers a second identical upload with the same version and created: false", async () => {
     const r = await release();
     await publish(r);
@@ -514,6 +526,29 @@ describe("commitRelease", () => {
     expect(row).toMatchObject({ createdById: "member", agentTokenId: TOKEN });
     const audit = await db.select().from(engineReleaseAudit);
     expect(audit.every((a) => a.actorKind === "agent" && a.agentTokenId === TOKEN)).toBe(true);
+  });
+
+  it("announces the preview move once it commits, and nothing on no channel", async () => {
+    const announced = vi.spyOn(engineLive, "announce").mockResolvedValue(undefined);
+    try {
+      const { committed } = await publish(await release());
+      expect(committed).not.toHaveProperty("rev");
+      const promote = (await db.select().from(engineReleaseAudit)).find(
+        (a) => a.action === "promote",
+      );
+      expect(announced.mock.calls).toEqual([
+        [{ projectId: PROJECT, channel: "preview", rev: promote?.id }],
+      ]);
+
+      announced.mockClear();
+      const next = await release({ hallVariant: 1 });
+      const begun = await begin(next, staff, "none");
+      await putAll(next, begun.uploadId, begun.missing);
+      await commitRelease(deps(), { uploadId: begun.uploadId, actor: staff });
+      expect(announced).not.toHaveBeenCalled();
+    } finally {
+      announced.mockRestore();
+    }
   });
 
   it("leaves the pointers alone for an upload on no channel", async () => {

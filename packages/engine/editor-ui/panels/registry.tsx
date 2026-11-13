@@ -313,7 +313,13 @@ export const PUBLISH_PANEL: PanelDef = {
   id: "publish",
   title: "Publish",
   icon: Rocket01Icon,
-  render: ({ controls }) => <PublishPanel publish={controls.publish} notify={controls.notify} />,
+  render: ({ controls }) => (
+    <PublishPanel
+      publish={controls.publish}
+      notify={controls.notify}
+      sceneTitle={(id) => controls.project?.flow?.scenes.find((e) => e.scene === id)?.title}
+    />
+  ),
   skeleton: rows(4),
 };
 

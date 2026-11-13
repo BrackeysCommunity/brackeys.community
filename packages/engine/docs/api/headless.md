@@ -1962,9 +1962,13 @@ type SceneRuntime = {
      * Replaces the current scene; a scene with duplicate ids or unknown types is
      * rejected before anything changes. With `play` it builds a play world:
      * `EngineContext.play` is set before the game's `onLoad`, and an `at` inside
-     * a solid fails the load (`reason: "spawn-blocked"`).
+     * a solid fails the load (`reason: "spawn-blocked"`). `as.sceneId` is the
+     * scene's asset id when it plays under another name (`scene.name`), which
+     * saves and live versions key on; a flow load knows its own.
      */
-    load: (scene: ExpandedScene, play?: PlayOptions) => LoadReport;
+    load: (scene: ExpandedScene, play?: PlayOptions, as?: {
+        sceneId?: AssetId;
+    }) => LoadReport;
     /** Despawns by id; unknown ids are no-ops. */
     remove: (ids: string[]) => void;
     /** The game's snapshot now; `null` without a game. */

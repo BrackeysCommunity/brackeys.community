@@ -5,12 +5,23 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { exportTargetNames } from "@jams/engine/export";
+import { LIVE_DEFAULTS } from "@jams/engine/game";
 import type { ReleaseTarget } from "@jams/engine/project";
 import { formatPrefab, formatScene, type SceneDefinition } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { platformerGame } from "../../../src/games/platformer";
 import { tacticsGame } from "../../../src/games/tactics";
+import {
+  LIVE_BLOCK,
+  LIVE_CRASH_WINDOW_SECONDS,
+  LIVE_LIMITS,
+  LIVE_POLL_SECONDS,
+  LIVE_STREAM_MINUTES,
+  PROJECT_QUOTA,
+  RELEASE_GRACE_DAYS,
+} from "../../../src/lib/engine/limits";
+import { formatBytes } from "../../../src/lib/format-bytes";
 import { duelGame, field } from "../../engine-readme/examples/duel-game";
 import { basin, fountainGame, twinSpout } from "../../engine-readme/examples/fountain-game";
 import { meadow, orchardGame } from "../../engine-readme/examples/orchard-game";
@@ -827,6 +838,11 @@ describe("game build docs", () => {
       "game manifest",
       "game live build",
       "game live check",
+      "game live publish",
+      "game live list",
+      "game live promote",
+      "game live rollback",
+      "game live clear",
       "replay",
     ] as const) {
       const row = table.split("\n").find((l) => l.startsWith(`| \`${name} `));
@@ -835,6 +851,70 @@ describe("game build docs", () => {
         COMMANDS[name];
       for (const flag of [...values, ...switches].filter((f) => f !== "project"))
         expect(row, `${name} --${flag}`).toContain(`--${flag}`);
+    }
+  });
+});
+
+/** The README's Publishing live scenes section. */
+const publishText = (() => {
+  const text = texts[0]!;
+  const start = text.indexOf("### Publishing live scenes");
+  return text.slice(start, text.indexOf("## MCP", start));
+})();
+/** The same, its whitespace collapsed, for sentences that wrap. */
+const publishSection = publishText.replace(/\s+/g, " ");
+
+describe("live scene publishing docs", () => {
+  const steps = examples(DOCS[0]!, publishText).filter((e) => e.fenced);
+  const used = (name: string, flag?: string) =>
+    steps.some((e) => e.argv.slice(0, 3).join(" ") === name && (!flag || e.argv.includes(flag)));
+
+  it("publishes with a timing and a note, then lists, promotes, rolls back and stops on preview", () => {
+    expect(used("game live publish", "--timing")).toBe(true);
+    expect(used("game live publish", "--note")).toBe(true);
+    expect(used("game live list")).toBe(true);
+    for (const name of ["game live promote", "game live rollback", "game live clear"])
+      expect(used(name, "--channel"), name).toBe(true);
+    for (const e of steps.filter((e) => e.argv.includes("--channel")))
+      expect(flagValue(e.argv, "--channel"), e.line).toBe("preview");
+  });
+
+  it("states the timings, preview then production, and the swap check", () => {
+    for (const timing of ["next-load", "boundary", "now"])
+      expect(publishSection).toMatch(new RegExp(`\\| \`${timing}\` +\\|`));
+    expect(publishSection).toContain("GameDefinition.live.timings");
+    expect(publishSection).toContain("**Preview, then production.**");
+    expect(publishSection).toContain("production channel is refused before anything is sent");
+    expect(publishSection).toContain("`--no-swap-check` skips it");
+    expect(publishSection).toContain("Published tactics level-1@4");
+  });
+
+  it("states every live limit as the site's limits.ts and the engine's LIVE_DEFAULTS set it", () => {
+    for (const said of [
+      `${formatBytes(LIVE_LIMITS.versionDataBytes)}: the scene, its prefabs and the version file`,
+      `${LIVE_LIMITS.versionsPerDay} per UTC day`,
+      `the ${LIVE_LIMITS.keptPerScene} newest of each scene`,
+      `part of the project's ${formatBytes(PROJECT_QUOTA.releaseStorageBytes)} of release storage`,
+      `stay within ${formatBytes(PROJECT_QUOTA.releaseBytes)}`,
+      `${LIVE_LIMITS.noteChars} characters`,
+      `${LIVE_LIMITS.beginsPerHour} an hour per person or token`,
+      `removed ${RELEASE_GRACE_DAYS} days after it was published`,
+      `every ${LIVE_POLL_SECONDS} seconds if its live connection drops`,
+      `reconnects every ${LIVE_STREAM_MINUTES} minutes`,
+      `${LIVE_DEFAULTS.preloadTimeoutMs / 1000} seconds to download, check and prepare`,
+      `If ${LIVE_BLOCK.players} signed-in players`,
+      `within ${LIVE_BLOCK.windowMinutes} minutes of it going live`,
+      `within ${LIVE_CRASH_WINDOW_SECONDS} seconds of the swap`,
+      `at least ${LIVE_BLOCK.ratio * 100}% of the signed-in players`,
+      `Today: 6 of ${LIVE_LIMITS.versionsPerDay} scene versions`,
+    ])
+      expect(publishSection).toContain(said);
+  });
+
+  it("lists the five live tools in the MCP table beside their commands", () => {
+    for (const verb of ["publish", "list", "promote", "rollback", "clear"]) {
+      const row = texts[0]!.split("\n").find((l) => l.startsWith(`| \`game_live_${verb}\``));
+      expect(row, verb).toContain(`\`game live ${verb}\``);
     }
   });
 });

@@ -8,7 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 import {
   JamPickerField,
@@ -27,7 +27,7 @@ import { TimeAgo } from "@/components/ui/time-ago";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
 import { downloadBlob } from "@/lib/download";
-import type { GamePageVersion } from "@/lib/engine/game-page";
+import type { GamePageLiveScene, GamePageVersion } from "@/lib/engine/game-page";
 import { readItchIssuesHeader, ITCH_ISSUES_HEADER } from "@/lib/engine/release-zip-header";
 import { engineReleaseZipPath } from "@/lib/engine/route-paths";
 import { formatBytes } from "@/lib/format-bytes";
@@ -64,6 +64,27 @@ function badgesOf(version: GameVersion): { key: string; label: string }[] {
     }
   }
   return out;
+}
+
+/** "v7 · Live · with updated levels: The ford (12m ago)": the levels production plays from live versions. */
+export function LiveLevelsLine({
+  version,
+  scenes,
+}: {
+  version: number;
+  scenes: readonly GamePageLiveScene[];
+}) {
+  return (
+    <Text as="span" size="xs" variant="muted" data-live-levels="">
+      v{version} · Live · with updated levels:{" "}
+      {scenes.map((s, i) => (
+        <Fragment key={s.scene}>
+          {i > 0 ? ", " : null}
+          {s.title} (<TimeAgo date={s.since} />)
+        </Fragment>
+      ))}
+    </Text>
+  );
 }
 
 const errorText = (error: unknown, fallback: string) =>
@@ -264,6 +285,8 @@ type VersionListProps = {
   publisher: boolean;
   /** The version production plays. */
   liveVersion: number | null;
+  /** The levels production plays from live versions over `liveVersion`. */
+  liveScenes?: readonly GamePageLiveScene[];
   onChanged: () => void;
 };
 
@@ -273,6 +296,7 @@ export function VersionList({
   versions,
   publisher,
   liveVersion,
+  liveScenes = [],
   onChanged,
 }: VersionListProps) {
   if (versions.length === 0) {
@@ -300,6 +324,9 @@ export function VersionList({
                 {version.removalNotice ? <> · {version.removalNotice}</> : null}
                 {version.hidden?.reason ? <> · Hidden: {version.hidden.reason}</> : null}
               </Text>
+              {version.version === liveVersion && liveScenes.length > 0 ? (
+                <LiveLevelsLine version={version.version} scenes={liveScenes} />
+              ) : null}
             </span>
             {badgesOf(version).map((badge) => (
               <Badge

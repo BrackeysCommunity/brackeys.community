@@ -314,7 +314,7 @@ export function outlineBounds(
 /**
  * The box framing `refs` goes to: their `outlineBounds` grown over the paths
  * their entities travel (a path field's and a `path-follow` block's
- * waypoints), so framing a mover shows its whole route.
+ * waypoints), so framing an entity on a path shows its whole route.
  */
 export function frameBounds(
   def: SceneDefinition,

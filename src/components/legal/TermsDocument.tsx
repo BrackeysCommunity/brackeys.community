@@ -2,6 +2,7 @@ import { DiscordInviteLink } from "@/components/ui/discord-invite-link";
 import { engineGamesAllowed } from "@/lib/engine/guard";
 import {
   BLOB_GRACE_DAYS,
+  LIVE_LIMITS,
   PROJECT_PURGE_DAYS,
   PROJECT_QUOTA,
   RELEASE_GRACE_DAYS,
@@ -767,6 +768,14 @@ const GAMES_SECTION: LegalSection = {
         it must not try to escape its sandbox, attack its players or the Service, collect players'
         information without telling them, or send data anywhere other than the sites you list under
         "Connects to".
+      </p>
+      <p>
+        <strong>Live updates.</strong> You can update a level of a published game while people play
+        it. An update holds only the level's data, never code; it reaches players at the time you
+        choose, and we may stop an update automatically when players' games fail after it, or remove
+        it under these Terms. We keep each level's {formatCount(LIVE_LIMITS.keptPerScene)} newest
+        updates and any update that is live; others are deleted {formatCount(RELEASE_GRACE_DAYS)}{" "}
+        days after they were published.
       </p>
       <p>
         <strong>Limits.</strong> Each game has fixed limits, shown in the editor before you reach

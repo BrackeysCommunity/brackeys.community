@@ -10,8 +10,7 @@ import {
   isServerFlagEnabled,
   withErrorReporting,
 } from "@/lib/posthog-server";
-
-const HEARTBEAT_MS = 25_000;
+import { sseResponse } from "@/lib/sse";
 
 /**
  * The forum's live channel: one `post` event per newly published post, for
@@ -28,56 +27,8 @@ async function handle({ request }: { request: Request }) {
     return new Response("Not found", { status: 404 });
   }
 
-  let heartbeat: ReturnType<typeof setInterval> | null = null;
-  let unsubscribe: (() => void) | null = null;
-  let closed = false;
-  let controllerRef: ReadableStreamDefaultController<Uint8Array> | null = null;
-
-  const cleanup = () => {
-    if (closed) return;
-    closed = true;
-    if (heartbeat) clearInterval(heartbeat);
-    unsubscribe?.();
-    try {
-      controllerRef?.close();
-    } catch {
-      // Already closed by the adapter.
-    }
-  };
-
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      controllerRef = controller;
-      const encoder = new TextEncoder();
-      const send = (chunk: string) => {
-        if (closed) return;
-        try {
-          controller.enqueue(encoder.encode(chunk));
-        } catch {
-          // Closed underneath us; cleanup runs once from cancel/abort.
-        }
-      };
-      unsubscribe = await onForumPost((event) => {
-        send(`event: post\ndata: ${JSON.stringify(event)}\n\n`);
-      });
-      send(`: connected\n\n`);
-      heartbeat = setInterval(() => send(`: ping\n\n`), HEARTBEAT_MS);
-    },
-    cancel() {
-      cleanup();
-    },
-  });
-
-  request.signal?.addEventListener("abort", cleanup, { once: true });
-
-  return new Response(stream, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    },
+  return sseResponse(request, {
+    subscribe: (send) => onForumPost((event) => send("post", event)),
   });
 }
 

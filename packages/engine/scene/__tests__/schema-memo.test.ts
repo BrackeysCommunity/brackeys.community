@@ -4,7 +4,9 @@ import { z } from "zod";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { pointField } from "../../game/fields";
 import { fragmentSchemaFor } from "../fragment";
+import { inputScriptSchemasFor } from "../input-script";
 import { sceneJsonSchema } from "../json-schema";
+import { opBatchSchemaFor, sceneOpSchemaFor } from "../ops-schema";
 import { prefabSchemaFor } from "../prefab";
 import { builtFor, entitySchemaFor, sceneSchemaFor, spawnSchemaFor } from "../schema";
 import { fakeGame } from "./fixtures/fake-game";
@@ -39,6 +41,18 @@ describe("schemas built once per registry", () => {
     expect(prefabSchemaFor(r)).toBe(prefabSchemaFor(r));
     expect(entitySchemaFor(r, "door")).toBe(entitySchemaFor(r, "door"));
     expect(spawnSchemaFor(r, "spark")).toBe(spawnSchemaFor(r, "spark"));
+    expect(sceneOpSchemaFor(r)).toBe(sceneOpSchemaFor(r));
+    expect(opBatchSchemaFor(r)).toBe(opBatchSchemaFor(r));
+    expect(inputScriptSchemasFor(r)).toBe(inputScriptSchemasFor(r));
+  });
+
+  it("keys the input-script schemas by seat limit too", () => {
+    const r = createRegistry(fakeGame);
+    const four = { max: 4, join: "auto" } as const;
+    const solo = inputScriptSchemasFor(r);
+    expect(inputScriptSchemasFor(r, four)).toBe(inputScriptSchemasFor(r, { ...four }));
+    expect(inputScriptSchemasFor(r, four)).not.toBe(solo);
+    expect(sceneOpSchemaFor(createRegistry(fakeGame))).not.toBe(sceneOpSchemaFor(r));
   });
 
   it("never shares a schema between two registries, even of one game", () => {

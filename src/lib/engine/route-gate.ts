@@ -1,8 +1,11 @@
+import type * as z from "zod";
+
 import type { SyncAccess } from "@/lib/canvas/token";
 
 import { authorizeAgentToken } from "./agent-token";
 import { engineGamesOpen } from "./guard-server";
 import { engineProjectsEnabled, isEngineStaff, liveEngineProject } from "./projects";
+import { apiErrorResponse, ReleaseError } from "./release-errors";
 import type { Actor } from "./release-upload";
 
 /** The caller's session, a banned one already treated as signed out. */
@@ -122,4 +125,43 @@ export function parseJson(bytes: Uint8Array): unknown {
   } catch {
     return null;
   }
+}
+
+// ─── The release API's transport ─────────────────────────
+
+/** A request body the route can't read, as the release API's `schema` error. */
+export const badBody = (message: string, status = 400) =>
+  apiErrorResponse({ code: "schema", message }, status);
+
+/** The gate's refusal as the release API's error body: `not-found` for a 404, else `release-forbidden`. */
+export function gateResponse(gated: Extract<Gated, { ok: false }>): Response {
+  const { status, message, headers } = gated.refusal;
+  const code = status === 404 ? "not-found" : "release-forbidden";
+  const response = apiErrorResponse({ code, message }, status);
+  for (const [name, value] of Object.entries(headers ?? {})) response.headers.set(name, value);
+  return response;
+}
+
+/** Runs one lib call, its refusals answered as their JSON body and status. */
+export async function answer(run: () => Promise<Response>): Promise<Response> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof ReleaseError) return apiErrorResponse(error);
+    throw error;
+  }
+}
+
+/** The JSON body as `schema` reads it, or the `schema` error naming the `shape` to send. */
+export async function jsonBody<T>(
+  request: Request,
+  max: number,
+  schema: z.ZodType<T>,
+  shape: string,
+): Promise<{ ok: true; body: T } | { ok: false; response: Response }> {
+  const raw = await readBody(request, max);
+  if (raw === "too-large") return { ok: false, response: badBody(`Send ${shape} as JSON.`, 413) };
+  const parsed = schema.safeParse(parseJson(raw));
+  if (!parsed.success) return { ok: false, response: badBody(`Send ${shape} as JSON.`) };
+  return { ok: true, body: parsed.data };
 }

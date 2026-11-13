@@ -15,7 +15,9 @@ import { DEFAULT_SNAP } from "../../../editor/tools";
 import { createRegistry } from "../../../game/index";
 import { pxPerMetreOf } from "../../../game/units";
 import { createToolRouter } from "../../../tool-router";
+import type { EditorLiveHost } from "../../host";
 import { formatLength } from "../../kit/format";
+import type { EditorProjectLink } from "../../session/use-scene-editor";
 import { dockParts, EditorToolbar, optionSlot } from "../EditorToolbar";
 
 const scene: SceneDefinition = { v: 4, name: "divider-yard", bounds: [0, 0, 20, 12] };
@@ -30,7 +32,7 @@ afterEach(() => {
   for (const s of sessions.splice(0)) s.destroy();
 });
 
-function setup(withHost: boolean) {
+function setup(withHost: boolean, live?: EditorLiveHost) {
   const registry = createRegistry();
   const session = createEditorSession({
     doc: sceneToDoc(scene, { key: sequentialKeys("d") }),
@@ -57,6 +59,7 @@ function setup(withHost: boolean) {
       host={host}
       onPlay={() => {}}
       onPlayHere={() => {}}
+      {...(live ? { live, project: { session: null } as unknown as EditorProjectLink } : {})}
     />,
   );
   return { registry, host };
@@ -86,6 +89,14 @@ describe("the toolbar's dividers", () => {
     expect(counted).toBe(1);
     expect(dividers()).toBe(1);
     expect(toolbar().firstElementChild?.classList.contains("je-toolbar-divider")).toBe(false);
+  });
+
+  it("adds Publish scene's divider when the host publishes scenes live", () => {
+    setup(false, { role: () => ({ publisher: false }) } as unknown as EditorLiveHost);
+    const parts = dockParts([], null, null, undefined, null, true);
+    expect(parts.slice(-2).map((p) => p.key)).toEqual(["divider:publish", "publish"]);
+    expect(dividers()).toBe(parts.filter((p) => p.key.startsWith("divider:")).length);
+    expect(toolbar().lastElementChild?.getAttribute("aria-label")).toBe("Publish scene");
   });
 });
 

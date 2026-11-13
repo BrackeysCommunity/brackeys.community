@@ -1,5 +1,11 @@
 import { formatSaveFile, type SaveFile } from "@jams/engine/game";
-import { connectHost, HostRequestError, type HostChannel } from "@jams/engine/standalone";
+import {
+  connectHost,
+  HostRequestError,
+  type HostChannel,
+  type HostFeature,
+  type LiveSnapshot,
+} from "@jams/engine/standalone";
 import { expect } from "vite-plus/test";
 
 import { createHostServer, type HostServer, type HostServerOptions } from "../host-server";
@@ -39,8 +45,26 @@ export type HostRig = {
   framePort: () => MessagePort;
   /** Dispatches a window message on the page as if from `source` on `origin`. */
   toPage(data: unknown, source: unknown, origin: string): void;
-  connect(): Promise<HostChannel>;
+  /** Connects a frame; `features` is what its `hello` announces (none by default). */
+  connect(features?: readonly HostFeature[]): Promise<HostChannel>;
 };
+
+/** A live snapshot for the rig's release: `scenes` maps a scene id to its version's hash. */
+export function rigLive(rev: number, scenes: Record<string, string> = {}): LiveSnapshot {
+  return {
+    channel: "production",
+    rev,
+    release: RIG_RELEASE.id,
+    scenes: Object.entries(scenes).map(([scene, version], i) => ({
+      scene,
+      version,
+      number: i + 1,
+      timing: "boundary",
+      since: "2026-11-13T00:00:00.000Z",
+    })),
+    removed: [],
+  };
+}
 
 const live: { rig: HostRig; channels: HostChannel[] }[] = [];
 
@@ -98,8 +122,13 @@ export function hostRig(over: Partial<Omit<HostServerOptions, "iframe">> = {}): 
     toFrame,
     framePort: () => lastPort!,
     toPage,
-    async connect() {
-      const channel = await connectHost({ hello: HELLO, window: frameView, timeoutMs: 2_000 });
+    async connect(features) {
+      const channel = await connectHost({
+        hello: HELLO,
+        window: frameView,
+        timeoutMs: 2_000,
+        ...(features ? { features } : {}),
+      });
       if (!channel) throw new Error("the page didn't answer");
       channels.push(channel);
       return channel;

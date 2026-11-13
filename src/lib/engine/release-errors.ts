@@ -1,10 +1,9 @@
 import type { SceneIssue } from "@jams/engine/scene";
 import { ORPCError } from "@orpc/client";
 
-import { formatCount } from "@/lib/format-bytes";
-import { releaseDay } from "@/lib/jam-links";
-import { SITE } from "@/lib/legal-meta";
-
+import { formatCount } from "../format-bytes";
+import { releaseDay } from "../jam-links";
+import { SITE } from "../legal-meta";
 import {
   MIN_HOSTED_ENGINE,
   PROJECT_QUOTA,
@@ -22,6 +21,7 @@ export const RELEASE_ERROR_CODES = [
   "release-files-missing",
   "release-upload-expired",
   "release-rate-limited",
+  "live-blocked",
 ] as const;
 
 export type ReleaseErrorCode = (typeof RELEASE_ERROR_CODES)[number];
@@ -61,6 +61,7 @@ const STATUS: Readonly<Record<string, number>> = {
   "release-files-missing": 409,
   "release-upload-expired": 410,
   "release-rate-limited": 429,
+  "live-blocked": 409,
   "release-forbidden": 403,
   "release-immutable": 409,
   "quota-exceeded": 413,
@@ -229,6 +230,28 @@ export function releaseRemoved(version: number, removedAt: Date): ReleaseApiErro
     code: "release-immutable",
     message: `v${version} was removed on ${releaseDay(removedAt)}; its files are gone.`,
     hint: `Releases outside the ${PROJECT_QUOTA.releasesKept} newest are removed ${RELEASE_GRACE_DAYS} days after publishing unless pinned.`,
+  };
+}
+
+/**
+ * A blocked scene version can't be pointed at. The breaker's block names
+ * its counts; a person's block names their reason.
+ */
+export function liveBlocked(
+  version: { scene: string; number: number },
+  why: { failed: number; total: number } | { reason: string | null },
+): ReleaseApiError {
+  const label = `${version.scene}@${formatCount(version.number)}`;
+  const because =
+    "failed" in why
+      ? `: ${formatCount(why.failed)} of ${formatCount(why.total)} players' games failed after it.`
+      : why.reason
+        ? `: ${why.reason}`
+        : ".";
+  return {
+    code: "live-blocked",
+    message: `${label} is blocked${because}`,
+    hint: "Unblock it on the game's page, or publish a fixed version.",
   };
 }
 

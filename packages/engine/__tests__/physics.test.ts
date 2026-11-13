@@ -126,6 +126,138 @@ describe("body management", () => {
   });
 });
 
+describe("the collider index", () => {
+  const box = (minX: number, minY: number, maxX: number, maxY: number) => ({
+    minX,
+    minY,
+    maxX,
+    maxY,
+  });
+  const near = (pw: ReturnType<typeof createPhysicsWorld>, b: ReturnType<typeof box>) =>
+    pw
+      .collidersNear(b)
+      .map((c) => c.handle)
+      .sort((x, y) => x - y);
+
+  it("finds fixed colliders near a box and none far from it", () => {
+    const pw = createPhysicsWorld(rapier);
+    const handles: number[] = [];
+    for (let i = 0; i < 50; i++) {
+      const body = pw.addRigidBody(rapier.RigidBodyDesc.fixed().setTranslation(i * 10, 0));
+      handles.push(pw.addCollider(rapier.ColliderDesc.cuboid(1, 1), body).handle);
+    }
+    expect(near(pw, box(19, -1, 21, 1))).toEqual([handles[2]]);
+    expect(near(pw, box(200, 5, 300, 6))).toEqual([]);
+    expect(pw.collidersNear(null)).toHaveLength(50);
+    pw.destroy();
+  });
+
+  it("reads a collider on a moving body where it stands, and forgets removed ones", () => {
+    const pw = createPhysicsWorld(rapier);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(0, 0));
+    const ball = pw.addCollider(rapier.ColliderDesc.ball(0.1), body);
+    expect(near(pw, box(-1, -1, 1, 1))).toEqual([ball.handle]);
+    for (let i = 0; i < 60; i++) pw.step();
+    const y = ball.translation().y;
+    expect(y).toBeGreaterThan(2);
+    expect(near(pw, box(-1, -1, 1, 1))).toEqual([]);
+    expect(near(pw, box(-1, y - 0.5, 1, y + 0.5))).toEqual([ball.handle]);
+    pw.removeRigidBody(body);
+    expect(near(pw, box(-1, y - 0.5, 1, y + 0.5))).toEqual([]);
+    pw.destroy();
+  });
+
+  it("follows a fixed body moved by code once told, and one added past it through the raw world", () => {
+    const pw = createPhysicsWorld(rapier);
+    const body = pw.addRigidBody(rapier.RigidBodyDesc.fixed().setTranslation(0, 0));
+    const wall = pw.addCollider(rapier.ColliderDesc.cuboid(1, 1), body);
+    body.setTranslation({ x: 50, y: 0 }, false);
+    pw.moved(body);
+    pw.step();
+    expect(near(pw, box(49, -1, 51, 1))).toEqual([wall.handle]);
+    expect(near(pw, box(-1, -1, 1, 1))).toEqual([]);
+    const raw = pw.world.createCollider(rapier.ColliderDesc.cuboid(1, 1).setTranslation(80, 0));
+    expect(near(pw, box(79, -1, 81, 1))).toEqual([raw.handle]);
+    body.setTranslation({ x: 20, y: 0 }, false);
+    pw.refreshQueries();
+    expect(near(pw, box(19, -1, 21, 1))).toEqual([wall.handle]);
+    pw.destroy();
+  });
+});
+
+describe("refreshQueries", () => {
+  /** A fixed anchor and three jointed links hanging from it, stepped until they swing. */
+  function chain(pw: ReturnType<typeof createPhysicsWorld>) {
+    const anchor = pw.addRigidBody(rapier.RigidBodyDesc.fixed().setTranslation(0, 0));
+    let prev = anchor;
+    const links = [];
+    for (let i = 1; i <= 3; i++) {
+      const link = pw.addRigidBody(rapier.RigidBodyDesc.dynamic().setTranslation(i * 0.5, 0));
+      pw.addCollider(rapier.ColliderDesc.cuboid(0.2, 0.05), link);
+      pw.world.createImpulseJoint(
+        rapier.JointData.revolute({ x: i === 1 ? 0 : 0.25, y: 0 }, { x: -0.25, y: 0 }),
+        prev,
+        link,
+        true,
+      );
+      links.push(link);
+      prev = link;
+    }
+    return links;
+  }
+  const state = (links: ReturnType<typeof chain>) =>
+    links.map((b) => [
+      b.translation().x,
+      b.translation().y,
+      b.linvel().x,
+      b.linvel().y,
+      b.angvel(),
+    ]);
+
+  it("keeps a swinging chain's velocities and its continuation bit-exact", () => {
+    const a = createPhysicsWorld(rapier);
+    const b = createPhysicsWorld(rapier);
+    const la = chain(a);
+    const lb = chain(b);
+    for (let i = 0; i < 20; i++) {
+      a.step();
+      b.step();
+    }
+    const before = state(la);
+    const bare = createPhysicsWorld(rapier);
+    const lbare = chain(bare);
+    for (let i = 0; i < 20; i++) bare.step();
+    bare.world.timestep = 0;
+    bare.world.step();
+    expect(state(lbare)).not.toEqual(before);
+    bare.destroy();
+    a.refreshQueries();
+    expect(state(la)).toEqual(before);
+    for (let i = 0; i < 30; i++) {
+      a.step();
+      b.step();
+    }
+    expect(state(la)).toEqual(state(lb));
+    a.destroy();
+    b.destroy();
+  });
+
+  it("lets a character controller see a collider added since the last step", () => {
+    const pw = createPhysicsWorld(rapier);
+    const body = pw.addRigidBody(
+      rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(0, 0),
+    );
+    const actor = pw.addCollider(rapier.ColliderDesc.cuboid(0.2, 0.2), body);
+    pw.step();
+    addFloor(pw, 1);
+    pw.refreshQueries();
+    const controller = pw.createCharacterController(SIDE_VIEW_CONTROLLER);
+    controller.computeColliderMovement(actor, { x: 0, y: 2 });
+    expect(controller.computedMovement().y).toBeLessThan(1);
+    pw.destroy();
+  });
+});
+
 // ─── Simulation ──────────────────────────────────────────
 
 describe("simulation", () => {

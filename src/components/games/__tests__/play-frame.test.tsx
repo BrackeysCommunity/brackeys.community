@@ -3,6 +3,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { HostServerOptions } from "@/lib/engine/host-server";
+import type { LiveClientOptions } from "@/lib/engine/live-client";
+import type { LiveSnapshot } from "@/lib/engine/live-state";
 
 const fakes = vi.hoisted(() => ({
   created: [] as Array<{
@@ -32,7 +34,22 @@ vi.mock("@/lib/engine/host-server", () => ({
 const downloads = vi.hoisted(() => ({ downloadBlob: vi.fn<(name: string, blob: Blob) => void>() }));
 vi.mock("@/lib/download", () => downloads);
 
-const { PlayFrame } = await import("../PlayFrame");
+const live = vi.hoisted(() => ({
+  clients: [] as Array<{ opts: LiveClientOptions; dispose: ReturnType<typeof vi.fn> }>,
+}));
+vi.mock("@/lib/engine/live-client", () => ({
+  createLiveClient: (opts: LiveClientOptions) => {
+    const dispose = vi.fn();
+    live.clients.push({ opts, dispose });
+    return { dispose };
+  },
+}));
+
+const toasts = vi.hoisted(() => ({ show: vi.fn(), dismiss: vi.fn() }));
+vi.mock("@/lib/toast", () => ({ toast: Object.assign(toasts.show, { dismiss: toasts.dismiss }) }));
+
+const { PlayFrame, LIVE_REMOVED_NOTICE, LIVE_SWAP_TOAST, liveReleaseToast } =
+  await import("../PlayFrame");
 
 const FRAME_URL = "https://play.example.test/frames/rel-1/index.html?host=jams";
 
@@ -59,6 +76,9 @@ let hidden = false;
 
 beforeEach(() => {
   fakes.created.length = 0;
+  live.clients.length = 0;
+  toasts.show.mockReset();
+  toasts.dismiss.mockReset();
   downloads.downloadBlob.mockReset();
   hidden = false;
   Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
@@ -204,5 +224,106 @@ describe("PlayFrame", () => {
       });
     });
     expect(screen.queryByRole("button", { name: /download recording/i })).toBeNull();
+  });
+});
+
+const SNAPSHOT: LiveSnapshot = {
+  channel: "production",
+  rev: 3,
+  release: "rel-1",
+  scenes: [
+    {
+      scene: "ford",
+      version: "f".repeat(64),
+      number: 2,
+      timing: "now",
+      since: "2026-11-12T14:48:00.000Z",
+    },
+  ],
+  removed: [],
+};
+
+function liveClient() {
+  const entry = live.clients.at(-1);
+  if (!entry) throw new Error("no live client created");
+  return entry;
+}
+
+describe("PlayFrame's live levels", () => {
+  it("starts no live client for a numbered play, and welcomes the frame with no live scenes", () => {
+    render(<PlayFrame {...props({ live: null })} />);
+    expect(live.clients).toHaveLength(0);
+    expect(last().opts.live?.()).toBeNull();
+  });
+
+  it("follows the payload's channel over the host server it creates, and stops with it", () => {
+    const { unmount } = render(<PlayFrame {...props({ live: SNAPSHOT })} />);
+    expect(live.clients).toHaveLength(1);
+    const { opts, dispose } = liveClient();
+    expect(opts).toMatchObject({ projectId: "proj-1", channel: "production", initial: SNAPSHOT });
+    expect(opts.host).toBe(last().server);
+    expect(last().opts.live?.()).toEqual(SNAPSHOT);
+    unmount();
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts no client for live scenes over another release", () => {
+    render(<PlayFrame {...props({ live: { ...SNAPSHOT, release: "rel-0" } })} />);
+    expect(live.clients).toHaveLength(0);
+  });
+
+  it("tells the player when a level was just updated", () => {
+    render(<PlayFrame {...props({ live: SNAPSHOT })} />);
+    act(() =>
+      liveClient().opts.onSwapApplied?.({ scene: "ford", version: "f".repeat(64), timing: "now" }),
+    );
+    expect(toasts.show).toHaveBeenCalledTimes(1);
+    expect(toasts.show).toHaveBeenCalledWith("This level was just updated.");
+    expect(LIVE_SWAP_TOAST).toBe("This level was just updated.");
+  });
+
+  it("offers Reload for a new release, which loads the play again", () => {
+    const onReload = vi.fn();
+    render(<PlayFrame {...props({ live: SNAPSHOT, onReload })} />);
+    act(() => liveClient().opts.onReleaseMoved());
+    expect(toasts.show).toHaveBeenCalledTimes(1);
+    const [text, options] = toasts.show.mock.calls[0] as [
+      string,
+      { action: { label: string; onClick: () => void } },
+    ];
+    expect(text).toBe("A new version of Tactics is available.");
+    expect(liveReleaseToast("Tactics")).toBe(text);
+    expect(options.action.label).toBe("Reload");
+    expect(onReload).not.toHaveBeenCalled();
+    options.action.onClick();
+    expect(onReload).toHaveBeenCalledTimes(1);
+  });
+
+  it("names the game's current title in the new-version toast", () => {
+    const { rerender } = render(<PlayFrame {...props({ live: SNAPSHOT })} />);
+    rerender(<PlayFrame {...props({ live: SNAPSHOT, title: "Tactics Deluxe" })} />);
+    act(() => liveClient().opts.onReleaseMoved());
+    expect(toasts.show.mock.calls[0]?.[0]).toBe("A new version of Tactics Deluxe is available.");
+  });
+
+  it("reloads the frame in place with the notice when staff removed a level it runs", () => {
+    render(<PlayFrame {...props({ live: SNAPSHOT })} />);
+    const iframe = screen.getByTitle("Tactics") as HTMLIFrameElement;
+    const setSrc = vi.spyOn(iframe, "src", "set");
+    act(() => liveClient().opts.onRemoved());
+    expect(toasts.show).toHaveBeenCalledWith("A level in this game was removed by moderators.");
+    expect(LIVE_REMOVED_NOTICE).toBe("A level in this game was removed by moderators.");
+    expect(setSrc).toHaveBeenCalledWith(FRAME_URL);
+    // The same host server welcomes the reloaded frame.
+    expect(fakes.created).toHaveLength(1);
+    expect(live.clients).toHaveLength(1);
+  });
+
+  it("withdraws a waiting new-version toast when the frame goes", () => {
+    const { unmount } = render(<PlayFrame {...props({ live: SNAPSHOT })} />);
+    act(() => liveClient().opts.onReleaseMoved());
+    const [, options] = toasts.show.mock.calls[0] as [string, { id: string }];
+    unmount();
+    expect(toasts.dismiss).toHaveBeenCalledWith(options.id);
   });
 });

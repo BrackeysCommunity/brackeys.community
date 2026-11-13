@@ -1,6 +1,7 @@
 import { DiscordInviteLink } from "@/components/ui/discord-invite-link";
 import { engineGamesAllowed } from "@/lib/engine/guard";
 import {
+  LIVE_REPORT_RETENTION_DAYS,
   SITE_SAVE_ACCOUNT_BYTES,
   SITE_SAVE_EXPIRY_DAYS,
   SITE_SAVE_LIMITS,
@@ -110,6 +111,15 @@ function privacySections(games: boolean): LegalSection[] {
               {formatBytes(SITE_SAVE_ACCOUNT_BYTES)} in all) with the game, the time it was saved
               and the time you last used it. Saves contain whatever the game chooses to record about
               your play.
+            </p>
+          ) : null}
+          {games ? (
+            <p data-engine-games>
+              <strong>h. Level updates in games.</strong> When a game on {SITE.name} updates a level
+              while you play, your browser tells us whether the update worked, so that a broken
+              update can be stopped. If you are signed in, this is linked to your account and
+              deleted after {formatCount(LIVE_REPORT_RETENTION_DAYS)} days; if you aren't, we only
+              count it.
             </p>
           ) : null}
           <p>
@@ -447,6 +457,12 @@ function privacySections(games: boolean): LegalSection[] {
                 <strong>Game saves</strong> — until you delete them, until{" "}
                 {formatCount(SITE_SAVE_EXPIRY_DAYS)} days after you last used them, or until you
                 close your account, whichever comes first.
+              </li>
+            ) : null}
+            {games ? (
+              <li data-engine-games>
+                <strong>Reports of level updates</strong> —{" "}
+                {formatCount(LIVE_REPORT_RETENTION_DAYS)} days.
               </li>
             ) : null}
             <li>

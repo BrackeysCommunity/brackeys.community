@@ -1,5 +1,18 @@
+import { useRef, useState } from "react";
+
+import type { AssetId } from "../../../project/index";
+import { shortId } from "../../../scene/short-id";
 import type { PublishChannel, ReleaseView } from "../../host";
-import { Confirm, Badge, Button, MicroLabel, Text, TimeAgo, formatBytes } from "../../kit/index";
+import {
+  Confirm,
+  Badge,
+  Button,
+  MicroLabel,
+  Switch,
+  Text,
+  TimeAgo,
+  formatBytes,
+} from "../../kit/index";
 
 /** The pending scope a promote or rollback of `channel` runs under. */
 export const channelScope = (channel: PublishChannel): string => `publish:channel:${channel}`;
@@ -11,9 +24,6 @@ export function unplayable(release: ReleaseView): string | null {
   return null;
 }
 
-/** A release id's first six hex digits, as the CLI prints it: `3fa9c2…`. */
-export const shortId = (id: string): string => `${id.slice(0, 6)}…`;
-
 /** What a promote of `version` to production asks, as the game page asks it. */
 export const promoteMessage = (version: number): string =>
   `Players will get v${version} the next time they open the game. You can roll back at any time.`;
@@ -24,26 +34,101 @@ export const rollbackMessage = (version: number, live: number | null): string =>
     ? `Players get v${version} again the next time they open the game.`
     : `Players get v${version} again the next time they open the game. v${live} stays in the list.`;
 
-/** A button that moves production to `version`, after asking. */
+/** A live scene on production that a release promote replaces; `fits` when it may be kept over the new release. */
+export type ReplacedScene = {
+  scene: AssetId;
+  /** `level-1@4`. */
+  name: string;
+  /** The scene's title, or its id when the editor has none. */
+  title: string;
+  fits: boolean;
+};
+
+/** The live scenes a promote of a release replaces, and whether the promoter may keep the ones that fit. */
+export type PromoteReplaces = {
+  read: () => Promise<readonly ReplacedScene[]>;
+  canKeep: boolean;
+};
+
+/** A button that moves production to `version`, after asking; with `replaces`, the question lists the live scenes it replaces. */
 export function PromoteButton({
   version,
   label,
   onPromote,
+  replaces,
   size = "xs",
   variant = "outline",
 }: {
   version: number;
   label: string;
-  onPromote: () => Promise<unknown>;
+  /** `keep`: the live scenes chosen to stay on production. */
+  onPromote: (keep: readonly AssetId[]) => Promise<unknown>;
+  replaces?: PromoteReplaces;
   size?: "xs" | "sm";
   variant?: "default" | "outline";
 }) {
+  const [scenes, setScenes] = useState<readonly ReplacedScene[]>([]);
+  const [keep, setKeep] = useState<ReadonlySet<AssetId>>(new Set());
+  const asked = useRef(0);
+  const onOpenChange = (open: boolean) => {
+    if (!open || !replaces) return;
+    const id = ++asked.current;
+    setScenes([]);
+    setKeep(new Set());
+    replaces.read().then(
+      (read) => {
+        if (id === asked.current) setScenes(read);
+      },
+      // Without the list the promote still asks; the host replaces the live scenes either way.
+      () => undefined,
+    );
+  };
+  const kept = scenes.filter((s) => keep.has(s.scene) && s.fits).map((s) => s.scene);
+  const keepable = replaces?.canKeep ? scenes.filter((s) => s.fits) : [];
   return (
     <Confirm
       title={`Promote v${version} to production?`}
-      message={promoteMessage(version)}
+      message={
+        scenes.length === 0 ? (
+          promoteMessage(version)
+        ) : (
+          <div className="je-insp-stack" data-gap="tight">
+            <Text as="p" size="sm" variant="muted">
+              {promoteMessage(version)}
+            </Text>
+            <Text as="p" size="sm">
+              {replacesMessage(version, scenes)}
+            </Text>
+            {keepable.length > 0 ? (
+              <div className="je-insp-stack" data-gap="tight" aria-label="Keep">
+                <MicroLabel as="div">Keep</MicroLabel>
+                {keepable.map((s) => (
+                  <label key={s.scene} className="je-insp-row" data-gap="tight">
+                    <Switch
+                      checked={keep.has(s.scene)}
+                      aria-label={`Keep ${s.title}`}
+                      onCheckedChange={(on) =>
+                        setKeep((last) => {
+                          const next = new Set(last);
+                          if (on) next.add(s.scene);
+                          else next.delete(s.scene);
+                          return next;
+                        })
+                      }
+                    />
+                    <Text size="sm">
+                      {s.title} (still fits v{version})
+                    </Text>
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        )
+      }
       confirmText="Promote"
-      onConfirm={onPromote}
+      onOpenChange={onOpenChange}
+      onConfirm={() => onPromote(kept)}
     >
       <Button size={size} variant={variant} busyScope={channelScope("production")}>
         {label}
@@ -52,19 +137,31 @@ export function PromoteButton({
   );
 }
 
+/** "Promoting v8 replaces these live scenes: The ford (level-1@4)." */
+const replacesMessage = (version: number, scenes: readonly ReplacedScene[]): string =>
+  `Promoting v${version} replaces these live scenes: ${scenes.map((s) => `${s.title} (${s.name})`).join(", ")}.`;
+
 /** Every release, newest first, with its channels, pins and cleanup date. */
 export function ReleaseList({
   releases,
   onPromote,
+  replaces,
 }: {
   releases: readonly ReleaseView[];
-  onPromote: (version: number) => Promise<unknown>;
+  onPromote: (version: number, keep: readonly AssetId[]) => Promise<unknown>;
+  /** The live scenes a promote of `version` replaces; none without live scenes. */
+  replaces?: (version: number) => PromoteReplaces;
 }) {
   return (
     <div className="je-insp-stack" role="list" aria-label="Releases">
       <MicroLabel>Releases</MicroLabel>
       {releases.map((release) => (
-        <ReleaseRow key={release.id} release={release} onPromote={onPromote} />
+        <ReleaseRow
+          key={release.id}
+          release={release}
+          onPromote={onPromote}
+          replaces={replaces?.(release.version)}
+        />
       ))}
     </div>
   );
@@ -73,9 +170,11 @@ export function ReleaseList({
 function ReleaseRow({
   release,
   onPromote,
+  replaces,
 }: {
   release: ReleaseView;
-  onPromote: (version: number) => Promise<unknown>;
+  onPromote: (version: number, keep: readonly AssetId[]) => Promise<unknown>;
+  replaces: PromoteReplaces | undefined;
 }) {
   const blocked = unplayable(release);
   const live = release.channels.includes("production");
@@ -147,7 +246,8 @@ function ReleaseRow({
             version={release.version}
             label="Promote"
             variant="outline"
-            onPromote={() => onPromote(release.version)}
+            onPromote={(keep) => onPromote(release.version, keep)}
+            replaces={replaces}
           />
         ) : null}
       </div>

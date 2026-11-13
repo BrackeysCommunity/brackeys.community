@@ -484,6 +484,57 @@ export const prefabLibraryFor = (
   get: (id: string) => Prefab | undefined,
 ): PrefabLibrary => reachPrefabs(prefabsUsedBy(def), get);
 
+/** Prefabs parsed on demand by id: what `prefabReader` gives. */
+export type PrefabReader = {
+  /** Prefab `id`, parsed at the first ask; undefined without text or when it doesn't parse. */
+  get: (id: string) => Prefab | undefined;
+  /** The prefabs `def`'s instances reach through `get` (`prefabLibraryFor`). */
+  library: (def: SceneDefinition) => PrefabLibrary;
+  /** Every prefab parsed so far. */
+  readonly read: PrefabLibrary;
+};
+
+/**
+ * A prefab reader over texts: each id's text from `opts.text` parsed once
+ * with `registry`, a failed parse's issues handed to `opts.failed` (and the
+ * id reading as undefined from then on). An id with no text isn't
+ * remembered, so a later ask finds text that arrived since; `opts.missing`
+ * hears of each such id once.
+ */
+export function prefabReader(
+  registry: Registry,
+  opts: {
+    text: (id: string) => string | undefined;
+    failed: (id: string, issues: SceneIssue[]) => void;
+    missing?: (id: string) => void;
+  },
+): PrefabReader {
+  const read = new Map<string, Prefab>();
+  const refused = new Set<string>();
+  const missed = new Set<string>();
+  const get = (id: string): Prefab | undefined => {
+    const known = read.get(id);
+    if (known || refused.has(id)) return known;
+    const text = opts.text(id);
+    if (text === undefined) {
+      if (!missed.has(id)) {
+        missed.add(id);
+        opts.missing?.(id);
+      }
+      return undefined;
+    }
+    const parsed = parsePrefab(text, registry);
+    if (!parsed.ok) {
+      refused.add(id);
+      opts.failed(id, parsed.issues);
+      return undefined;
+    }
+    read.set(id, parsed.prefab);
+    return parsed.prefab;
+  };
+  return { get, library: (def) => prefabLibraryFor(def, get), read };
+}
+
 /**
  * The scene's hash with every prefab it reaches (`prefabsUsedBy`): what a
  * recording or a cache keys on, so editing a prefab, nested ones included,

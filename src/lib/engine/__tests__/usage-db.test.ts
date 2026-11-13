@@ -11,13 +11,15 @@ import {
   engineReleaseJamLinks,
   engineReleaseObjects,
   engineReleases,
+  engineSceneVersionFiles,
+  engineSceneVersions,
   itchJams,
   sceneDocs,
 } from "@/db/schema";
 import { emptyProjectState, seedProjectState } from "@/lib/scene/project-bytes";
 import type { TestDb } from "@/test/db";
 
-import { PROJECT_QUOTA } from "../limits";
+import { LIVE_LIMITS, PROJECT_QUOTA } from "../limits";
 import { projectUsageReport, releaseUsageReport, storedUsage } from "../usage";
 import { PROJECT, seedEngine } from "./harness";
 
@@ -95,6 +97,8 @@ let db: TestDb;
 
 beforeEach(async () => {
   ({ db } = (await import("@/db")) as unknown as { db: TestDb });
+  await db.delete(engineSceneVersionFiles);
+  await db.delete(engineSceneVersions);
   await db.delete(engineReleaseJamLinks);
   await db.delete(engineReleaseChannels);
   await db.delete(engineReleaseFiles);
@@ -179,6 +183,8 @@ describe("storedUsage: assets and docs", () => {
       releaseStorageBytes: 0,
       largestRelease: null,
       releasesToday: 0,
+      liveVersions: { kept: 0, bytes: 0 },
+      liveToday: 0,
       nextCollection: [],
     });
   });
@@ -319,5 +325,121 @@ describe("storedUsage: releases", () => {
     expect(of(after, "releaseStorageBytes")).toBe(180);
     expect(of(after, "releasesPerDay")).toBe(2);
     expect(of(after, "releaseBytes")).toBe(9_000);
+  });
+});
+
+describe("storedUsage: scene versions", () => {
+  const SCENE_TEXT = hex("3");
+  const PREFAB_TEXT = hex("4");
+  const VERSION_FILE = hex("5");
+  const NEXT_VERSION_FILE = hex("6");
+  const OLD_VERSION_FILE = hex("7");
+
+  const object = (sha256: string, bytes: number) => ({
+    projectId: PROJECT,
+    sha256,
+    bytes,
+    contentType: "application/json",
+    storageKey: `engine-releases/${PROJECT}/${sha256}`,
+  });
+
+  const version = (id: string, number: number, opts: { at: Date; collected?: boolean }) => ({
+    id,
+    projectId: PROJECT,
+    sceneId: "level-1",
+    number,
+    descriptor: opts.collected ? null : "{}",
+    compatKey: hex("8"),
+    physics: "none",
+    sceneHash: SCENE_TEXT,
+    dataBytes: 0,
+    createdAt: opts.at,
+    collectedAt: opts.collected ? new Date(NOW.getTime() - DAY) : null,
+  });
+
+  const file = (versionId: string, sha256: string, bytes: number, role: string) => ({
+    versionId,
+    sha256,
+    bytes,
+    role,
+    ext: role === "blob" ? ".png" : ".json",
+    source: role === "blob" ? "blob" : "release",
+    projectId: PROJECT,
+  });
+
+  beforeEach(async () => {
+    await db.insert(engineBlobs).values(blob(LIVE, 10));
+    await db.insert(engineReleases).values(release(2, {}));
+    // The release's scene text is the one both versions publish again.
+    await db
+      .insert(engineReleaseObjects)
+      .values([
+        object(SCENE_TEXT, 400),
+        object(PREFAB_TEXT, 60),
+        object(VERSION_FILE, 30),
+        object(NEXT_VERSION_FILE, 31),
+      ]);
+    await db.insert(engineReleaseFiles).values({
+      releaseId: releaseId(2),
+      projectId: PROJECT,
+      path: "scenes/level-1.json",
+      sha256: SCENE_TEXT,
+      bytes: 400,
+      role: "data",
+      source: "release",
+    });
+    await db
+      .insert(engineSceneVersions)
+      .values([
+        version(OLD_VERSION_FILE, 1, { at: new Date(NOW.getTime() - 20 * DAY), collected: true }),
+        version(VERSION_FILE, 2, { at: new Date(NOW.getTime() - 2 * DAY) }),
+        version(NEXT_VERSION_FILE, 3, { at: new Date(NOW.getTime() - 3_600_000) }),
+      ]);
+    await db
+      .insert(engineSceneVersionFiles)
+      .values([
+        file(VERSION_FILE, VERSION_FILE, 30, "version"),
+        file(VERSION_FILE, SCENE_TEXT, 400, "scene"),
+        file(VERSION_FILE, PREFAB_TEXT, 60, "prefab"),
+        file(VERSION_FILE, LIVE, 10, "blob"),
+        file(NEXT_VERSION_FILE, NEXT_VERSION_FILE, 31, "version"),
+        file(NEXT_VERSION_FILE, SCENE_TEXT, 400, "scene"),
+        file(NEXT_VERSION_FILE, PREFAB_TEXT, 60, "prefab"),
+      ]);
+  });
+
+  it("counts a version's texts once in release storage when a release shares them", async () => {
+    const usage = await storedUsage(db, PROJECT, NOW);
+    expect(usage.releaseStorageBytes).toBe(400 + 60 + 30 + 31);
+    expect(usage.blobBytes).toBe(10);
+  });
+
+  it("counts the kept versions' texts once per hash and never a blob", async () => {
+    const usage = await storedUsage(db, PROJECT, NOW);
+    expect(usage.liveVersions).toEqual({ kept: 2, bytes: 400 + 60 + 30 + 31 });
+  });
+
+  it("counts today's versions from midnight UTC, collected ones included", async () => {
+    expect((await storedUsage(db, PROJECT, NOW)).liveToday).toBe(1);
+    const nextDay = new Date("2026-11-13T00:30:00Z");
+    expect((await storedUsage(db, PROJECT, nextDay)).liveToday).toBe(0);
+  });
+
+  it("drops a collected version's texts from its share", async () => {
+    await db
+      .update(engineSceneVersions)
+      .set({ collectedAt: NOW, descriptor: null })
+      .where(eq(engineSceneVersions.id, NEXT_VERSION_FILE));
+    const usage = await storedUsage(db, PROJECT, NOW);
+    expect(usage.liveVersions).toEqual({ kept: 1, bytes: 400 + 60 + 30 });
+  });
+
+  it("reports today's versions as a usage line", async () => {
+    const { lines } = await projectUsageReport(PROJECT, NOW);
+    expect(lines.find((l) => l.quota === "liveVersionsPerDay")).toMatchObject({
+      used: 1,
+      max: LIVE_LIMITS.versionsPerDay,
+      level: "ok",
+    });
   });
 });

@@ -12,7 +12,8 @@ export const LOAD_GENERATION: unique symbol = Symbol.for("@jams/engine:load-gene
 
 type GenerationCarrier = { [LOAD_GENERATION]?: () => number };
 
-function generationOf(ctx: EngineContext): (() => number) | undefined {
+/** The scene runtime's load-generation reader on `ctx`; undefined for a host's own context. */
+export function generationOf(ctx: EngineContext): (() => number) | undefined {
   return (ctx as EngineContext & GenerationCarrier)[LOAD_GENERATION];
 }
 

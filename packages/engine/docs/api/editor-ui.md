@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`BlobRouteError`](#blobrouteerror) · [`CloseReason`](#closereason) · [`ConnectProjectSessionOptions`](#connectprojectsessionoptions) · [`DEFAULT_LAYOUT`](#default_layout) · [`EDITOR_UI_STYLESHEET`](#editor_ui_stylesheet) · [`EditorCue`](#editorcue) · [`EditorHost`](#editorhost) · [`EditorIdentityInput`](#editoridentityinput) · [`EditorLayout`](#editorlayout) · [`EditorNotify`](#editornotify) · [`EditorProjectChoice`](#editorprojectchoice) · [`EditorPublishHost`](#editorpublishhost) · [`EditorSkeleton`](#editorskeleton) · [`EditorSkeletonProps`](#editorskeletonprops) · [`EditorStorage`](#editorstorage) · [`GameSaveMode`](#gamesavemode) · [`GameSettingsPatch`](#gamesettingspatch) · [`GameSettingsView`](#gamesettingsview) · [`GameVisibility`](#gamevisibility) · [`MintProjectToken`](#mintprojecttoken) · [`NotifyOptions`](#notifyoptions) · [`PanelId`](#panelid) · [`Pending`](#pending) · [`PendingRun`](#pendingrun) · [`PendingTask`](#pendingtask) · [`PointerMove`](#pointermove) · [`ProjectAccess`](#projectaccess) · [`ProjectBlobs`](#projectblobs) · [`ProjectConnection`](#projectconnection) · [`ProjectConnectionState`](#projectconnectionstate) · [`ProjectConnectionStatus`](#projectconnectionstatus) · [`ProjectSocket`](#projectsocket) · [`ProjectTokenAnswer`](#projecttokenanswer) · [`ProjectTokenRequest`](#projecttokenrequest) · [`ProjectTokens`](#projecttokens) · [`ProjectTransport`](#projecttransport) · [`PublishChannel`](#publishchannel) · [`PublishWording`](#publishwording) · [`ReleaseView`](#releaseview) · [`SceneEditor`](#sceneeditor) · [`SceneEditorHandle`](#sceneeditorhandle) · [`SceneEditorProps`](#sceneeditorprops) · [`SceneHome`](#scenehome) · [`UsageLevel`](#usagelevel) · [`UsageLineView`](#usagelineview) · [`UsageView`](#usageview) · [`blobContentStore`](#blobcontentstore) · [`connectProjectSession`](#connectprojectsession) · [`createPending`](#createpending) · [`createProjectTokens`](#createprojecttokens) · [`devProjectHost`](#devprojecthost) · [`fitLayout`](#fitlayout) · [`hocuspocusTransport`](#hocuspocustransport) · [`mountSceneEditor`](#mountsceneeditor) · [`offConnection`](#offconnection) · [`parseLayout`](#parselayout) · [`projectBlobs`](#projectblobs-1)
+[`BlobRouteError`](#blobrouteerror) · [`CloseReason`](#closereason) · [`ConnectProjectSessionOptions`](#connectprojectsessionoptions) · [`DEFAULT_LAYOUT`](#default_layout) · [`EDITOR_UI_STYLESHEET`](#editor_ui_stylesheet) · [`EditorCue`](#editorcue) · [`EditorHost`](#editorhost) · [`EditorIdentityInput`](#editoridentityinput) · [`EditorLayout`](#editorlayout) · [`EditorLiveHost`](#editorlivehost) · [`EditorNotify`](#editornotify) · [`EditorProjectChoice`](#editorprojectchoice) · [`EditorPublishHost`](#editorpublishhost) · [`EditorSkeleton`](#editorskeleton) · [`EditorSkeletonProps`](#editorskeletonprops) · [`EditorStorage`](#editorstorage) · [`GameSaveMode`](#gamesavemode) · [`GameSettingsPatch`](#gamesettingspatch) · [`GameSettingsView`](#gamesettingsview) · [`GameVisibility`](#gamevisibility) · [`LiveBaseView`](#livebaseview) · [`LiveMove`](#livemove) · [`LivePointerView`](#livepointerview) · [`LivePublishOptions`](#livepublishoptions) · [`LivePublishProgress`](#livepublishprogress) · [`LivePublished`](#livepublished) · [`LiveUsageView`](#liveusageview) · [`LiveVersionView`](#liveversionview) · [`LiveWording`](#livewording) · [`MintProjectToken`](#mintprojecttoken) · [`NotifyOptions`](#notifyoptions) · [`PanelId`](#panelid) · [`Pending`](#pending) · [`PendingRun`](#pendingrun) · [`PendingTask`](#pendingtask) · [`PointerMove`](#pointermove) · [`ProjectAccess`](#projectaccess) · [`ProjectBlobs`](#projectblobs) · [`ProjectConnection`](#projectconnection) · [`ProjectConnectionState`](#projectconnectionstate) · [`ProjectConnectionStatus`](#projectconnectionstatus) · [`ProjectSocket`](#projectsocket) · [`ProjectTokenAnswer`](#projecttokenanswer) · [`ProjectTokenRequest`](#projecttokenrequest) · [`ProjectTokens`](#projecttokens) · [`ProjectTransport`](#projecttransport) · [`PublishChannel`](#publishchannel) · [`PublishWording`](#publishwording) · [`ReleaseRollback`](#releaserollback) · [`ReleaseView`](#releaseview) · [`SceneEditor`](#sceneeditor) · [`SceneEditorHandle`](#sceneeditorhandle) · [`SceneEditorProps`](#sceneeditorprops) · [`SceneHome`](#scenehome) · [`UsageLevel`](#usagelevel) · [`UsageLineView`](#usagelineview) · [`UsageView`](#usageview) · [`blobContentStore`](#blobcontentstore) · [`connectProjectSession`](#connectprojectsession) · [`createPending`](#createpending) · [`createProjectTokens`](#createprojecttokens) · [`devProjectHost`](#devprojecthost) · [`fitLayout`](#fitlayout) · [`hocuspocusTransport`](#hocuspocustransport) · [`mountSceneEditor`](#mountsceneeditor) · [`offConnection`](#offconnection) · [`parseLayout`](#parselayout) · [`projectBlobs`](#projectblobs-1)
 
 ## `BlobRouteError`
 
@@ -171,6 +171,46 @@ type EditorLayout = {
 };
 ```
 
+## `EditorLiveHost`
+
+_type_ in `editor-ui/host.ts`
+
+A host that publishes single scenes live over a channel's release. As
+with `PublishWording`, every sentence stating one of the host's numbers
+arrives written in `wording`.
+
+```ts
+type EditorLiveHost = {
+    /** What the Publish scene checks compare against on `channel`. */
+    base(scene: AssetId, channel: PublishChannel): Promise<LiveBaseView>;
+    /** "Stop": the channel plays the release's scene again. */
+    clear(scene: AssetId, channel: PublishChannel, timing?: SwapTiming): Promise<LiveMove>;
+    /** Newest first; one scene's with `scene`. */
+    list(scene?: AssetId): Promise<readonly LiveVersionView[]>;
+    promote(scene: AssetId, version: number, channel: PublishChannel, timing: SwapTiming): Promise<LiveMove>;
+    /**
+     * Begins the upload of `versionText` (a canonical `scene-version.json`),
+     * sends each text the host is missing from `texts` (by hash), commits,
+     * and promotes to production when `opts.channel` asks for it.
+     */
+    publish(versionText: string, texts: Readonly<Record<Sha256, string>>, opts: LivePublishOptions, onProgress?: (progress: LivePublishProgress) => void): Promise<LivePublished>;
+    /** Publishers may choose production, `now` there, and keep live scenes over a release. */
+    role(): {
+        publisher: boolean;
+    };
+    /** Back to the scene's previous pointer on the channel (or the release's scene), or to `to`. */
+    rollback(scene: AssetId, channel: PublishChannel, opts?: {
+        timing?: SwapTiming;
+        to?: number;
+    }): Promise<LiveMove>;
+    unblock(scene: AssetId, version: number): Promise<void>;
+    usage(): Promise<LiveUsageView>;
+    wording: LiveWording;
+};
+```
+
+Refers to [`LiveBaseView`](#livebaseview), [`LiveMove`](#livemove), [`LivePublishOptions`](#livepublishoptions), [`LivePublishProgress`](#livepublishprogress), [`LivePublished`](#livepublished), [`LiveUsageView`](#liveusageview), [`LiveVersionView`](#liveversionview), [`LiveWording`](#livewording), [`PublishChannel`](#publishchannel).
+
 ## `EditorNotify`
 
 _type_ in `editor-ui/host.ts`
@@ -207,15 +247,20 @@ them.
 
 ```ts
 type EditorPublishHost = {
+    /** Live scene versions; without it the editor shows no Publish scene entry and no Live scenes section. */
+    live?: EditorLiveHost;
     /** Opens the host's agent token dialog, for the release command. */
     openTokenDialog(): void;
     /** The project these calls act on. */
     project: ProjectId;
-    promote(version: number, channel: PublishChannel): Promise<PointerMove>;
+    /** `keepScenes`: live scenes on the channel that stay on it over the new release. */
+    promote(version: number, channel: PublishChannel, opts?: {
+        keepScenes?: readonly AssetId[];
+    }): Promise<PointerMove>;
     /** Newest first. */
     releases(): Promise<readonly ReleaseView[]>;
-    /** Back to the channel's previous release, or to `to`. */
-    rollback(channel: PublishChannel, to?: number): Promise<PointerMove>;
+    /** Back to the channel's previous release, or to `to`, with the live scenes the undone promote replaced. */
+    rollback(channel: PublishChannel, to?: number): Promise<ReleaseRollback>;
     setSettings(patch: GameSettingsPatch): Promise<GameSettingsView>;
     settings(): Promise<GameSettingsView>;
     usage(): Promise<UsageView>;
@@ -223,7 +268,7 @@ type EditorPublishHost = {
 };
 ```
 
-Refers to [`GameSettingsPatch`](#gamesettingspatch), [`GameSettingsView`](#gamesettingsview), [`PointerMove`](#pointermove), [`PublishChannel`](#publishchannel), [`PublishWording`](#publishwording), [`ReleaseView`](#releaseview), [`UsageView`](#usageview).
+Refers to [`EditorLiveHost`](#editorlivehost), [`GameSettingsPatch`](#gamesettingspatch), [`GameSettingsView`](#gamesettingsview), [`PointerMove`](#pointermove), [`PublishChannel`](#publishchannel), [`PublishWording`](#publishwording), [`ReleaseRollback`](#releaserollback), [`ReleaseView`](#releaseview), [`UsageView`](#usageview).
 
 ## `EditorSkeleton`
 
@@ -321,6 +366,196 @@ _type_ in `editor-ui/host.ts`
 
 ```ts
 type GameVisibility = "private" | "public" | "team" | "unlisted";
+```
+
+## `LiveBaseView`
+
+_type_ in `editor-ui/host.ts`
+
+What the Publish scene checks compare against, as `EditorLiveHost.base` answers.
+
+```ts
+type LiveBaseView = {
+    channel: PublishChannel;
+    /** The scene's newest version number on any channel; null before the first. */
+    latest: null | number;
+    /** The scene's live version on the channel, with its `scene-version.json`; null when the release's scene plays. */
+    live: null | {
+        descriptor: string;
+        number: number;
+        /** ISO 8601, UTC. */
+        since: string;
+        timing: SwapTiming;
+        versionId: Sha256;
+    };
+    /** Null when nothing is on the channel yet. */
+    release: null | {
+        id: Sha256;
+        manifest: string;
+        version: number;
+    };
+    /** The scene's and its prefabs' texts that `live` (or the release) names, by hash. */
+    texts: Readonly<Record<Sha256, string>>;
+};
+```
+
+Refers to [`PublishChannel`](#publishchannel).
+
+## `LiveMove`
+
+_type_ in `editor-ui/host.ts`
+
+A scene pointer before and after a move, by version number; null is the release's own scene.
+
+```ts
+type LiveMove = {
+    from: null | number;
+    to: null | number;
+};
+```
+
+## `LivePointerView`
+
+_type_ in `editor-ui/host.ts`
+
+A scene pointer as the Live scenes rows show it.
+
+```ts
+type LivePointerView = {
+    /** Who moved it; null for an agent or a deleted account. */
+    by: null | string;
+    channel: PublishChannel;
+    /** ISO 8601, UTC. */
+    since: string;
+    timing: SwapTiming;
+};
+```
+
+Refers to [`PublishChannel`](#publishchannel).
+
+## `LivePublishOptions`
+
+_type_ in `editor-ui/host.ts`
+
+```ts
+type LivePublishOptions = {
+    channel: PublishChannel;
+    note?: string;
+    timing: SwapTiming;
+};
+```
+
+Refers to [`PublishChannel`](#publishchannel).
+
+## `LivePublishProgress`
+
+_type_ in `editor-ui/host.ts`
+
+```ts
+type LivePublishProgress = {
+    sent: number;
+    step: "upload";
+    total: number;
+} | {
+    step: "begin";
+} | {
+    step: "commit";
+} | {
+    step: "promote";
+};
+```
+
+## `LivePublished`
+
+_type_ in `editor-ui/host.ts`
+
+```ts
+type LivePublished = {
+    /** Where it now plays; null when nothing points at it. */
+    channel: PublishChannel | null;
+    /** False when the host already held this exact version. */
+    created: boolean;
+    number: number;
+    scene: AssetId;
+    versionId: Sha256;
+};
+```
+
+Refers to [`PublishChannel`](#publishchannel).
+
+## `LiveUsageView`
+
+_type_ in `editor-ui/host.ts`
+
+Today's count and what the project's versions hold; the release storage row of `UsageView` carries the live line.
+
+```ts
+type LiveUsageView = {
+    bytes: number;
+    today: number;
+    versions: number;
+};
+```
+
+## `LiveVersionView`
+
+_type_ in `editor-ui/host.ts`
+
+```ts
+type LiveVersionView = {
+    /** The blocked badge's sentence and who blocked it; null when it isn't blocked. */
+    blocked: null | {
+        by: "system" | "user";
+        text: string;
+    };
+    collected: boolean;
+    /** ISO 8601, UTC. */
+    createdAt: string;
+    createdBy: null | string;
+    dataBytes: number;
+    /** Why staff hid it; null when it isn't hidden. */
+    hidden: null | string;
+    id: Sha256;
+    note: null | string;
+    number: number;
+    pointers: readonly LivePointerView[];
+    /** When the cleanup removes it unless a channel points at it, with the forecast's sentence; null when it is kept. */
+    removal: null | {
+        at: string;
+        text: string;
+    };
+    scene: AssetId;
+};
+```
+
+Refers to [`LivePointerView`](#livepointerview).
+
+## `LiveWording`
+
+_type_ in `editor-ui/host.ts`
+
+The Publish scene dialog's and Live scenes' sentences that carry a host's numbers, written by the host.
+
+```ts
+type LiveWording = {
+    /** "Data: 14 KB of 2 MB". */
+    data(bytes: number): string;
+    /** The largest a version's data may be, and the most versions a day, for the checks' levels. */
+    dataMaxBytes: number;
+    /** The longest note, in characters. */
+    noteMaxChars: number;
+    /** "What changed, for your team (up to 200 characters)". */
+    notePlaceholder: string;
+    /** The Stop confirm: "Players go back to v7's version of The ford the next time the level loads." */
+    stopConfirm(args: {
+        release: number;
+        scene: string;
+        timing: SwapTiming;
+    }): string;
+    /** "Today: 6 of 100 versions". */
+    today(count: number): string;
+    versionsPerDay: number;
+};
 ```
 
 ## `MintProjectToken`
@@ -628,6 +863,24 @@ type PublishWording = {
 ```
 
 Refers to [`GameSaveMode`](#gamesavemode), [`GameVisibility`](#gamevisibility).
+
+## `ReleaseRollback`
+
+_type_ in `editor-ui/host.ts`
+
+A release rollback, with the live scenes it put back and those it couldn't, each with its sentence.
+
+```ts
+type ReleaseRollback = PointerMove & {
+    restored?: readonly AssetId[];
+    skipped?: readonly {
+        reason: string;
+        scene: AssetId;
+    }[];
+};
+```
+
+Refers to [`PointerMove`](#pointermove).
 
 ## `ReleaseView`
 

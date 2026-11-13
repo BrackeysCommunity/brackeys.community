@@ -13,7 +13,7 @@ import type { SceneLibrary } from "../../game/flow";
 import type { SwapTiming } from "../../game/live";
 import type { GameDefinition, GameRuntime, Registry, SceneSystem } from "../../game/types";
 import { findSceneVersion } from "../../project/scene-version";
-import type { LiveLayer } from "../../runtime/live";
+import { replayGap, type LiveLayer } from "../../runtime/live";
 import { expandScene } from "../../scene/expand";
 import { parseRecording, type RunRecording } from "../../scene/recording-schema";
 import {
@@ -297,6 +297,11 @@ describe("replaying a run with live swaps", () => {
     });
     expect(removed[0]!.message).toContain(`${SCENE}@${v2.id.slice(0, 12)}`);
     expect(report.divergence).toContain(`tick ${BOUNDARY_TICK + 1}`);
+    expect(replayGap(recording, (id) => findSceneVersion(id, [v1]))).toEqual({
+      start: false,
+      tick: BOUNDARY_TICK + 1,
+    });
+    expect(replayGap(recording, (id) => findSceneVersion(id, held()))).toBeNull();
   });
 
   it("is stale from a swap the replay makes with another strategy or run hash", () => {
@@ -426,6 +431,7 @@ describe("replaying a run whose onLoad attaches a sublevel on a live version", (
 
   it("refuses to load when the version is gone, naming the swap", () => {
     const run = replay(recording);
+    expect(replayGap(recording, () => null)).toEqual({ start: true });
     expect(run.blocked).toBe(true);
     if (!run.blocked) return;
     expect(run.stage).toBe("load");
@@ -478,6 +484,23 @@ describe("replaying a run whose sublevel moved after its onLoad attach, before t
     expect(report.recording.swaps).toEqual(recording.swaps);
     const { xs } = report.final as { xs: [string, number][] };
     expect(xs.map(([id]) => id)).not.toContain("low:c2");
+  });
+
+  it("starts without the moved version, stopping at its tick", () => {
+    const run = replayRecording({
+      game,
+      registry,
+      scene: yard(),
+      flow: cellarLibrary(),
+      recording,
+    });
+    expect(replayGap(recording, () => null)).toEqual({ start: false, tick: 0 });
+    expect(run.blocked).toBe(false);
+    const report = replayed(run);
+    expect(report.issues.find((i) => i.code === "scene-version-removed")).toMatchObject({
+      path: "/swaps/1/version",
+      detail: { tick: 0 },
+    });
   });
 });
 

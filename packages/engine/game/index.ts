@@ -295,7 +295,7 @@ export type { AssetKindDef } from "../project/kinds";
 export type { ProjectRuntimeView } from "../project/runtime-view";
 export { composePose, relativePose } from "../runtime/poses";
 export type { Pose, PoseIndex } from "../runtime/poses";
-export { castSpawn, type CastResult } from "../runtime/cast";
+export { castSpawn, type CastResult, type CastSpawnOptions } from "../runtime/cast";
 export { spawnPose } from "../runtime/spawn-pose";
 
 // ─── System authoring ────────────────────────────────────

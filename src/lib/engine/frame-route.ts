@@ -18,6 +18,7 @@ import { frameBase, frameCsp, playOrigin as appPlayOrigin } from "./frame-csp";
 import { onPlayHost, playHost as playHostOf } from "./frame-route-rules";
 import { verifyFrameToken } from "./frame-token";
 import { engineGamesAllowed } from "./guard";
+import { liveFileVisible } from "./live-state";
 import type { ReleaseDb } from "./release-audit";
 import { contentTypeFor, type ReleaseObjectStore } from "./release-storage";
 
@@ -62,6 +63,8 @@ export type LoadedRelease = {
   collected: boolean;
   connectOrigins: readonly string[];
   online: boolean;
+  /** Which scene versions the release's `live/` prefix serves; '' when it takes none. */
+  liveCompatKey: string;
   files: ReadonlyMap<string, ReleaseFileEntry>;
 };
 
@@ -86,11 +89,97 @@ export function forgetRelease(releaseId: string): void {
   releaseCache.delete(releaseId);
 }
 
-/** Drops every cached release of a project, after the project is hidden or unhidden. */
+/**
+ * Drops every cached release of a project and its `live/` lookups, after
+ * the project, or one of its scene versions, is hidden or unhidden.
+ */
 export function forgetProjectReleases(projectId: string): void {
   for (const [id, entry] of releaseCache) {
     if (entry.release.projectId === projectId) releaseCache.delete(id);
   }
+  forgetLiveFiles(projectId);
+}
+
+/** What a `live/<sha256><ext>` path resolves to: served, removed (410) or unknown (404). */
+type LiveLookup = { status: "ok"; storageKey: string } | { status: "hidden" | "none" };
+
+const LIVE_CACHE_MAX = 10_000;
+
+/**
+ * Listed and hidden answers, by project, compat key and file; an unknown
+ * hash isn't kept, so a version committed after a probe serves at once.
+ */
+const liveCache = new Map<string, { at: number; projectId: string; lookup: LiveLookup }>();
+
+/** Drops a project's cached `live/` lookups, so a hidden version's files answer 410 at once. */
+export function forgetLiveFiles(projectId: string): void {
+  for (const [key, entry] of liveCache) {
+    if (entry.projectId === projectId) liveCache.delete(key);
+  }
+}
+
+const LIVE_PATH = /^live\/([0-9a-f]{64})(\.[a-z0-9]+)$/;
+
+/** The hash, extension and served type a `live/…` path names; null for anything the prefix doesn't serve. */
+export function parseLivePath(
+  path: string,
+): { sha256: string; ext: string; contentType: string } | null {
+  const match = LIVE_PATH.exec(path);
+  if (!match) return null;
+  const [, sha256 = "", ext = ""] = match;
+  // The asset row's table, which has `.json` too: scene, prefab and version texts.
+  const contentType = contentTypeFor(`assets/${sha256}${ext}`, "asset");
+  return contentType ? { sha256, ext, contentType } : null;
+}
+
+async function readLiveFile(
+  db: Pick<ReleaseDb, "select">,
+  input: { projectId: string; sha256: string; ext: string; compatKey: string },
+): Promise<LiveLookup> {
+  const status = await liveFileVisible(db, input);
+  if (status !== "ok") return { status };
+  const match = (table: typeof engineReleaseObjects | typeof engineBlobs) =>
+    and(eq(table.projectId, input.projectId), eq(table.sha256, input.sha256));
+  const [[text], [blob]] = await Promise.all([
+    db
+      .select({ storageKey: engineReleaseObjects.storageKey })
+      .from(engineReleaseObjects)
+      .where(match(engineReleaseObjects))
+      .limit(1),
+    db
+      .select({ storageKey: engineBlobs.storageKey })
+      .from(engineBlobs)
+      .where(match(engineBlobs))
+      .limit(1),
+  ]);
+  // Texts are release objects; blobs, `.json` atlases included, are the project's own.
+  const storageKey =
+    input.ext === ".json" ? (text?.storageKey ?? blob?.storageKey) : blob?.storageKey;
+  return storageKey ? { status: "ok", storageKey } : { status: "none" };
+}
+
+/** Whether a release's `live/` prefix serves a file, through this process's cache. */
+async function lookupLiveFile(
+  db: Pick<ReleaseDb, "select">,
+  input: { projectId: string; sha256: string; ext: string; compatKey: string },
+  now: number,
+): Promise<LiveLookup> {
+  const key = `${input.projectId}/${input.compatKey}/${input.sha256}${input.ext}`;
+  const cached = liveCache.get(key);
+  liveCache.delete(key);
+  if (cached && now - cached.at < CACHE_TTL_MS) {
+    liveCache.set(key, cached);
+    return cached.lookup;
+  }
+  const lookup = await readLiveFile(db, input);
+  if (lookup.status === "none") return lookup;
+  liveCache.set(key, { at: now, projectId: input.projectId, lookup });
+  while (liveCache.size > LIVE_CACHE_MAX) {
+    const oldest = liveCache.keys().next().value;
+    if (oldest === undefined) break;
+    liveCache.delete(oldest);
+  }
+  return lookup;
 }
 
 /** Drops what a release notice names from this process's cache. */
@@ -124,6 +213,7 @@ async function readRelease(
       hiddenReason: engineReleases.hiddenReason,
       projectHiddenAt: engineProjects.hiddenAt,
       projectHiddenReason: engineProjects.hiddenReason,
+      liveCompatKey: engineReleases.liveCompatKey,
       visibility: engineProjects.visibility,
       connectOrigins: engineProjects.connectOrigins,
       online: engineProjects.online,
@@ -181,6 +271,7 @@ async function readRelease(
     collected,
     connectOrigins: row.connectOrigins,
     online: row.online,
+    liveCompatKey: row.liveCompatKey,
     files,
   };
 }
@@ -335,8 +426,8 @@ export function createFrameRoute(
         "access-control-allow-origin": "*",
         "cross-origin-resource-policy": "cross-origin",
       });
-    const refuse = (status: 403 | 404 | 410, body: string): Response => {
-      const h = headers();
+    const refuse = (status: 403 | 404 | 410, body: string, release?: LoadedRelease): Response => {
+      const h = headers(release);
       h.set("content-type", "text/plain; charset=utf-8");
       h.set("cache-control", "no-store");
       return new Response(request.method === "HEAD" ? null : body, { status, headers: h });
@@ -377,18 +468,42 @@ export function createFrameRoute(
       });
     }
 
+    const serve = async (storageKey: string, sha256: string, contentType: string) => {
+      const fileHeaders = headers(release);
+      fileHeaders.set("etag", `"${sha256}"`);
+      fileHeaders.set("cache-control", cacheControl);
+      const response = await streamStoredObject(storageKey, request, {
+        source: deps.store,
+        contentType,
+        headers: fileHeaders,
+      });
+      return response.status === 404 ? refuse(404, "Not Found", release) : response;
+    };
+
+    // A scene version's file, served beside the release it fits.
+    if (parsed.path.startsWith("live/")) {
+      const live = parseLivePath(parsed.path);
+      if (!live || release.liveCompatKey === "") return refuse(404, "Not Found", release);
+      const lookup = await lookupLiveFile(
+        deps.db ?? appDb,
+        {
+          projectId: release.projectId,
+          sha256: live.sha256,
+          ext: live.ext,
+          compatKey: release.liveCompatKey,
+        },
+        now().getTime(),
+      );
+      if (lookup.status !== "ok") {
+        return lookup.status === "hidden"
+          ? refuse(410, "This level was removed", release)
+          : refuse(404, "Not Found", release);
+      }
+      return serve(lookup.storageKey, live.sha256, live.contentType);
+    }
+
     const file = release.files.get(parsed.path);
     if (!file) return notFound();
-
-    const fileHeaders = headers(release);
-    fileHeaders.set("etag", `"${file.sha256}"`);
-    fileHeaders.set("cache-control", cacheControl);
-    const response = await streamStoredObject(file.storageKey, request, {
-      source: deps.store,
-      contentType: file.contentType,
-      headers: fileHeaders,
-    });
-    if (response.status === 404) return notFound();
-    return response;
+    return serve(file.storageKey, file.sha256, file.contentType);
   };
 }

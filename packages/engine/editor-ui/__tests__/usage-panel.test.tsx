@@ -191,6 +191,30 @@ describe("UsagePanel", () => {
     expect(panel.queryByRole("status")).toBeNull();
   });
 
+  it("shows the live scenes' line under release storage, as the host writes it", async () => {
+    const session = await project([]);
+    const liveLine =
+      "of which live scenes: 0.4 MB in 12 versions. Each scene keeps its 5 newest versions plus those on a channel; others go 14 days after publishing.";
+    const { panel } = mount(
+      session,
+      publishWith(() =>
+        usageOf({
+          lines: [
+            line("releaseStorageBytes", 120, 512, {
+              text: "Release storage: 120 MB of 512 MB",
+              detail: liveLine,
+            }),
+          ],
+        }),
+      ),
+    );
+    const caption = await waitFor(() => panel.getByText("Release storage: 120 MB of 512 MB"));
+    const row = caption.closest("[data-quota]") as HTMLElement;
+    expect(row.dataset.quota).toBe("releaseStorageBytes");
+    const detail = within(row).getByText(liveLine);
+    expect(caption.compareDocumentPosition(detail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("marks a quota at 80% amber with the host's nearly-full notice", async () => {
     const session = await project([]);
     const { panel } = mount(

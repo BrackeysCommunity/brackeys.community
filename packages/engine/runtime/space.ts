@@ -14,7 +14,7 @@ import {
   translateShape,
 } from "../scene/shape-geometry";
 import type { Aabb, Pt, ShapeObj } from "../scene/types";
-import type { RapierModule, Vec2 } from "../types";
+import type { Vec2 } from "../types";
 import { geometryColliders, type GeometryWorld } from "./geometry-world";
 
 export type SpaceFilter = {
@@ -136,75 +136,10 @@ function toWorld(collider: Collider, v: Vec2, point: boolean): Vec2 {
 }
 
 /**
- * A Rapier collider's world bounds, or null for a shape kind with no cheap
- * box. Read from the collider each time: Rapier's in-place size setters
- * change it without replacing `Collider.shape`.
+ * `box` padded past Rapier's contact tolerance and its single-precision
+ * poses, so a collider whose bounds miss it can't be hit.
  */
-export function rapierColliderBounds(
-  c: Collider,
-  ShapeType: RapierModule["ShapeType"],
-): Aabb | null {
-  const { x, y } = c.translation();
-  const rot = c.rotation();
-  const cos = Math.abs(Math.cos(rot));
-  const sin = Math.abs(Math.sin(rot));
-  const around = (ex: number, ey: number): Aabb => ({
-    minX: x - ex,
-    minY: y - ey,
-    maxX: x + ex,
-    maxY: y + ey,
-  });
-  switch (c.shapeType()) {
-    case ShapeType.Ball:
-      return around(c.radius(), c.radius());
-    case ShapeType.Cuboid:
-    case ShapeType.RoundCuboid: {
-      const { x: hw, y: hh } = c.halfExtents();
-      const r = c.shapeType() === ShapeType.RoundCuboid ? c.roundRadius() : 0;
-      return around(cos * hw + sin * hh + r, sin * hw + cos * hh + r);
-    }
-    case ShapeType.Capsule: {
-      const h = c.halfHeight();
-      const r = c.radius();
-      return around(sin * h + r, cos * h + r);
-    }
-    case ShapeType.ConvexPolygon:
-    case ShapeType.RoundConvexPolygon:
-    case ShapeType.Polyline:
-    case ShapeType.TriMesh: {
-      const v = c.vertices();
-      if (v.length < 2) return null;
-      const r = c.shapeType() === ShapeType.RoundConvexPolygon ? c.roundRadius() : 0;
-      const ca = Math.cos(rot);
-      const sa = Math.sin(rot);
-      const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-      for (let i = 0; i + 1 < v.length; i += 2) {
-        const lx = v[i]!;
-        const ly = v[i + 1]!;
-        const wx = x + lx * ca - ly * sa;
-        const wy = y + lx * sa + ly * ca;
-        box.minX = Math.min(box.minX, wx - r);
-        box.minY = Math.min(box.minY, wy - r);
-        box.maxX = Math.max(box.maxX, wx + r);
-        box.maxY = Math.max(box.maxY, wy + r);
-      }
-      return box;
-    }
-    default:
-      return null;
-  }
-}
-
-const apart = (a: Aabb, b: Aabb) =>
-  a.maxX < b.minX || b.maxX < a.minX || a.maxY < b.minY || b.maxY < a.minY;
-
-/**
- * The box a sweep of `shape` by `by` covers, padded past Rapier's contact
- * tolerance and its single-precision poses, so a collider outside it can't
- * be hit.
- */
-function sweptBox(shape: ShapeObj, by: Vec2): Aabb {
-  const box = aabbUnion(aabb(shape), aabb(translateShape(shape, pt(by))));
+function padded(box: Aabb): Aabb {
   const far = Math.max(-box.minX, -box.minY, box.maxX, box.maxY);
   const pad = 1e-4 + 1e-3 * Math.max(box.maxX - box.minX, box.maxY - box.minY) + 1e-6 * far;
   return {
@@ -215,32 +150,35 @@ function sweptBox(shape: ShapeObj, by: Vec2): Aabb {
   };
 }
 
+const pointBox = ({ x, y }: Vec2): Aabb => ({ minX: x, minY: y, maxX: x, maxY: y });
+
+/** The box a sweep of `shape` by `by` covers. */
+const sweptBox = (shape: ShapeObj, by: Vec2): Aabb =>
+  aabbUnion(aabb(shape), aabb(translateShape(shape, pt(by))));
+
 /**
  * Queries over the Rapier world, collider by collider (`intersectsShape`,
  * `castShape`, `castRayAndGetNormal`): Rapier's callback-taking world queries
  * call back into JS from wasm, which some loaders (Node's under Vitest)
  * can't do (a `castShape` filter predicate is never called there), and its
  * query pipeline misses colliders added or moved since the last step.
- * Queries see colliders as they stand, with no query refresh. A sweep casts
- * only at the colliders whose bounds meet the box it covers.
+ * Queries see colliders as they stand, with no query refresh, and test only
+ * the colliders the physics world's collider index finds near the box the
+ * query covers.
  */
 export function rapierSpace(ctx: EngineContext): SpaceQuery {
   const world = () => physicsOf(ctx, "space queries");
 
-  /** The colliders the filter admits, by handle; with `within`, only those whose bounds meet it. */
+  /** The colliders near `within` that the filter admits, by handle. */
   function tagged(
     filter: SpaceFilter,
     sweeping: boolean,
-    within?: Aabb,
+    within: Aabb,
   ): { collider: Collider; tag: ColliderTag }[] {
-    const { physics, rapier } = world();
+    const { physics } = world();
     const admit = admitter(ctx.tags, ctx.registry, filter, sweeping);
     const out: { collider: Collider; tag: ColliderTag; handle: number }[] = [];
-    for (const collider of physics.world.colliders.getAll()) {
-      if (within) {
-        const bounds = rapierColliderBounds(collider, rapier.ShapeType);
-        if (bounds && apart(bounds, within)) continue;
-      }
+    for (const collider of physics.collidersNear(padded(within))) {
       if (!colliderLive(collider)) continue;
       const tag = admit({
         handle: collider.handle,
@@ -265,14 +203,14 @@ export function rapierSpace(ctx: EngineContext): SpaceQuery {
   return {
     backend: "rapier",
     pointAt(p, filter = {}) {
-      return tagged(filter, false)
+      return tagged(filter, false, pointBox(p))
         .filter(({ collider }) => collider.containsPoint(p))
         .map(({ collider, tag }) => ({ handle: collider.handle, tag, at: { x: p.x, y: p.y } }));
     },
     overlaps(shape, filter = {}) {
       const q = queryShape(shape);
       const centre = vec(shapeCentre(shape).at);
-      return tagged(filter, false)
+      return tagged(filter, false, aabb(shape))
         .filter(({ collider }) => collider.intersectsShape(q.shape, q.pos, q.rot))
         .map(({ collider, tag }) => {
           const at = collider.projectPoint(centre, true)?.point ?? centre;
@@ -284,8 +222,13 @@ export function rapierSpace(ctx: EngineContext): SpaceQuery {
       if (!d || !(maxDist >= 0)) return null;
       const { rapier } = world();
       const ray = new rapier.Ray(from, vec(d));
+      const to: Vec2 = { x: from.x + d[0] * maxDist, y: from.y + d[1] * maxDist };
       const hits: SpaceCastHit[] = [];
-      for (const { collider, tag } of tagged(filter, false)) {
+      for (const { collider, tag } of tagged(
+        filter,
+        false,
+        aabbUnion(pointBox(from), pointBox(to)),
+      )) {
         const hit = collider.castRayAndGetNormal(ray, maxDist, true);
         if (!hit) continue;
         const t = hit.timeOfImpact;
@@ -321,8 +264,6 @@ export function rapierSpace(ctx: EngineContext): SpaceQuery {
 }
 
 // ─── Geometry ────────────────────────────────────────────
-
-const pointBox = ({ x, y }: Vec2): Aabb => ({ minX: x, minY: y, maxX: x, maxY: y });
 
 /** Queries over the geometry world, filtering by collision group as Rapier does. */
 export function geometrySpace(
@@ -383,9 +324,8 @@ export function geometrySpace(
     },
     sweep(shape, by, filter = {}) {
       if (by.x === 0 && by.y === 0) return null;
-      const box = aabbUnion(aabb(shape), aabb(translateShape(shape, pt(by))));
       const hits: SpaceCastHit[] = [];
-      for (const { handle, tag, shape: target } of near(box, filter, true)) {
+      for (const { handle, tag, shape: target } of near(sweptBox(shape, by), filter, true)) {
         const hit = sweepShape(shape, pt(by), target);
         if (hit) hits.push({ handle, tag, at: vec(hit.at), toi: hit.toi, normal: vec(hit.normal) });
       }

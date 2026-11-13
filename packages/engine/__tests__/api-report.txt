@@ -736,6 +736,7 @@ EditorCue
 EditorHost
 EditorIdentityInput
 EditorLayout
+EditorLiveHost
 EditorNotify
 EditorProjectChoice
 EditorPublishHost
@@ -746,6 +747,15 @@ GameSaveMode
 GameSettingsPatch
 GameSettingsView
 GameVisibility
+LiveBaseView
+LiveMove
+LivePointerView
+LivePublishOptions
+LivePublishProgress
+LivePublished
+LiveUsageView
+LiveVersionView
+LiveWording
 MintProjectToken
 NotifyOptions
 PanelId
@@ -765,6 +775,7 @@ ProjectTokens
 ProjectTransport
 PublishChannel
 PublishWording
+ReleaseRollback
 ReleaseView
 SceneEditor
 SceneEditorHandle
@@ -869,6 +880,7 @@ CONTACT_END
 CONTACT_START
 CameraTargetBlock
 CastResult
+CastSpawnOptions
 Cell
 CellBounds
 CellKey
@@ -1923,6 +1935,7 @@ SCENE_GRID_MAX_CELLS
 SCENE_HEADER_KEYS
 SCENE_SVG_MAX_SIZE
 SCHEMA_ID_BASE
+SHORT_ID_LENGTH
 SceneAsciiMap
 SceneAsciiOptions
 SceneChange
@@ -2122,6 +2135,7 @@ shapeOutline
 shapeToTuple
 shapeVertices
 shapesIntersect
+shortId
 snapToPixel
 spawnSchemaFor
 splitChildRef
@@ -3344,6 +3358,23 @@ type EditorIdentityInput = {
     avatarUrl?: null | string;
     name: string;
 };
+type EditorLiveHost = {
+    base(scene: AssetId, channel: PublishChannel): Promise<LiveBaseView>;
+    clear(scene: AssetId, channel: PublishChannel, timing?: SwapTiming): Promise<LiveMove>;
+    list(scene?: AssetId): Promise<readonly LiveVersionView[]>;
+    promote(scene: AssetId, version: number, channel: PublishChannel, timing: SwapTiming): Promise<LiveMove>;
+    publish(versionText: string, texts: Readonly<Record<Sha256, string>>, opts: LivePublishOptions, onProgress?: (progress: LivePublishProgress) => void): Promise<LivePublished>;
+    role(): {
+        publisher: boolean;
+    };
+    rollback(scene: AssetId, channel: PublishChannel, opts?: {
+        timing?: SwapTiming;
+        to?: number;
+    }): Promise<LiveMove>;
+    unblock(scene: AssetId, version: number): Promise<void>;
+    usage(): Promise<LiveUsageView>;
+    wording: LiveWording;
+};
 type EditorNotify = ((message: string, opts?: NotifyOptions) => unknown) & {
     error(message: string, opts?: NotifyOptions): unknown;
     success(message: string, opts?: NotifyOptions): unknown;
@@ -3354,11 +3385,14 @@ type EditorProjectChoice = {
     name: string;
 };
 type EditorPublishHost = {
+    live?: EditorLiveHost;
     openTokenDialog(): void;
     project: ProjectId;
-    promote(version: number, channel: PublishChannel): Promise<PointerMove>;
+    promote(version: number, channel: PublishChannel, opts?: {
+        keepScenes?: readonly AssetId[];
+    }): Promise<PointerMove>;
     releases(): Promise<readonly ReleaseView[]>;
-    rollback(channel: PublishChannel, to?: number): Promise<PointerMove>;
+    rollback(channel: PublishChannel, to?: number): Promise<ReleaseRollback>;
     setSettings(patch: GameSettingsPatch): Promise<GameSettingsView>;
     settings(): Promise<GameSettingsView>;
     usage(): Promise<UsageView>;
@@ -3385,6 +3419,94 @@ type GameSettingsView = {
 };
 type GameVisibility = "private" | "public" | "team" | "unlisted";
 type HocuspocusModule = typeof _$_hocuspocus_provider0;
+type LiveBaseView = {
+    channel: PublishChannel;
+    latest: null | number;
+    live: null | {
+        descriptor: string;
+        number: number;
+        since: string;
+        timing: SwapTiming;
+        versionId: Sha256;
+    };
+    release: null | {
+        id: Sha256;
+        manifest: string;
+        version: number;
+    };
+    texts: Readonly<Record<Sha256, string>>;
+};
+type LiveMove = {
+    from: null | number;
+    to: null | number;
+};
+type LivePointerView = {
+    by: null | string;
+    channel: PublishChannel;
+    since: string;
+    timing: SwapTiming;
+};
+type LivePublishOptions = {
+    channel: PublishChannel;
+    note?: string;
+    timing: SwapTiming;
+};
+type LivePublishProgress = {
+    sent: number;
+    step: "upload";
+    total: number;
+} | {
+    step: "begin";
+} | {
+    step: "commit";
+} | {
+    step: "promote";
+};
+type LivePublished = {
+    channel: PublishChannel | null;
+    created: boolean;
+    number: number;
+    scene: AssetId;
+    versionId: Sha256;
+};
+type LiveUsageView = {
+    bytes: number;
+    today: number;
+    versions: number;
+};
+type LiveVersionView = {
+    blocked: null | {
+        by: "system" | "user";
+        text: string;
+    };
+    collected: boolean;
+    createdAt: string;
+    createdBy: null | string;
+    dataBytes: number;
+    hidden: null | string;
+    id: Sha256;
+    note: null | string;
+    number: number;
+    pointers: readonly LivePointerView[];
+    removal: null | {
+        at: string;
+        text: string;
+    };
+    scene: AssetId;
+};
+type LiveWording = {
+    data(bytes: number): string;
+    dataMaxBytes: number;
+    noteMaxChars: number;
+    notePlaceholder: string;
+    stopConfirm(args: {
+        release: number;
+        scene: string;
+        timing: SwapTiming;
+    }): string;
+    today(count: number): string;
+    versionsPerDay: number;
+};
 type MintProjectToken = (request: ProjectTokenRequest) => Promise<ProjectTokenAnswer>;
 type NotifyOptions = {
     action?: {
@@ -3468,6 +3590,13 @@ type PublishWording = {
     saveModes: Readonly<Record<GameSaveMode, string>>;
     token: string;
     visibility: Readonly<Record<GameVisibility, string>>;
+};
+type ReleaseRollback = PointerMove & {
+    restored?: readonly AssetId[];
+    skipped?: readonly {
+        reason: string;
+        scene: AssetId;
+    }[];
 };
 type ReleaseView = {
     bytes: number;
@@ -8031,6 +8160,7 @@ type CharacterControllerOptions = {
 type PhysicsWorld = {
     addCollider: (desc: ColliderDesc, body?: RigidBody) => Collider;
     addRigidBody: (desc: RigidBodyDesc) => RigidBody;
+    collidersNear: (box: Aabb | null) => Collider[];
     createCharacterController: (opts: CharacterControllerOptions) => KinematicCharacterController;
     debugRender: () => {
         colors: Float32Array;
@@ -8038,6 +8168,7 @@ type PhysicsWorld = {
     };
     destroy: () => void;
     isGrounded: (controller: KinematicCharacterController) => boolean;
+    moved: (target: Collider | RigidBody) => void;
     rapier: RapierModule;
     refreshQueries: () => void;
     removeCollider: (collider: Collider) => void;
@@ -10342,7 +10473,10 @@ type CastResult = {
     error: string;
     ok: false;
 };
-declare function castSpawn(ctx: EngineContext, at: Vec2, shape: SpawnShape): CastResult;
+type CastSpawnOptions = {
+    exclude?: readonly string[];
+};
+declare function castSpawn(ctx: EngineContext, at: Vec2, shape: SpawnShape, opts?: CastSpawnOptions): CastResult;
 
 ## runtime/geometry-world.ts
 type GeometryColliderDesc = {
@@ -10665,7 +10799,9 @@ type SceneRuntime = {
     busy: () => boolean;
     destroy: () => void;
     get: (id: string) => RuntimeEntity | undefined;
-    load: (scene: ExpandedScene, play?: PlayOptions) => LoadReport;
+    load: (scene: ExpandedScene, play?: PlayOptions, as?: {
+        sceneId?: AssetId;
+    }) => LoadReport;
     remove: (ids: string[]) => void;
     snapshot: () => unknown;
     stats: () => RuntimeStats;
@@ -10786,7 +10922,7 @@ declare function memorySaveStore(): SaveStore;
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 19;
+declare const AGENT_SURFACE_VERSION = 20;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -13684,6 +13820,10 @@ declare const ShapeTupleSchema: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeIn
 declare function parseShape(input: unknown, path?: string): ParseShapeResult;
 declare function shapeToTuple(s: ShapeObj): ShapeTuple;
 
+## scene/short-id.ts
+declare const SHORT_ID_LENGTH = 6;
+declare const shortId: (id: string) => string;
+
 ## scene/spatial-hash.ts
 type SpatialHash<K> = {
     clear(): void;
@@ -15321,7 +15461,9 @@ type GameInstance = {
     on: <K extends keyof GameEventMap>(event: K, handler: (payload: GameEventMap[K]) => void) => void;
     panBy: (screenDelta: Vec2) => void;
     pause: () => void;
-    play: (doc: SceneDefinition, opts?: PlayOptions) => PlayReport;
+    play: (doc: SceneDefinition, opts?: PlayOptions, as?: {
+        sceneId?: AssetId;
+    }) => PlayReport;
     pointerWorld: () => Vec2 | null;
     preload: (scene: ExpandedScene | SceneDefinition, onProgress?: (p: LoadProgress) => void) => Promise<{
         failed: BundleEntry[];
@@ -15340,6 +15482,7 @@ type GameInstance = {
         failed: BundleEntry[];
     }>;
     replay: (doc: SceneDefinition, recording: RunRecording, opts?: {
+        sceneId?: AssetId;
         versions?: (id: Sha256) => StagedVersion | null;
     }) => PlayReport;
     resize: (width: number, height: number) => void;
@@ -15521,7 +15664,7 @@ type UiHandle = {
 
 ## version.ts
 declare const COLLAB_LAYOUT_VERSION = 3;
-declare const ENGINE_VERSION = "0.14.4";
+declare const ENGINE_VERSION = "0.14.5";
 declare const REPLAY_ACROSS_PLATFORMS = true;
 
 ## vite/apply-files.ts

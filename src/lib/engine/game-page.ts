@@ -1,11 +1,13 @@
 import { parseReleaseManifest } from "@jams/engine/project";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { db as siteDb } from "@/db";
 import {
   developerProfiles,
   engineProjects,
   engineReleases,
+  engineSceneChannels,
+  engineSceneVersions,
   profileUrlStubs,
   projectContributors,
   projectTeams,
@@ -22,6 +24,7 @@ import { profileStubJoin } from "@/orpc/profile-projection";
 import { frameBase } from "./frame-csp";
 import { mintFrameToken } from "./frame-token";
 import type { GameSaveMode } from "./game-settings";
+import { channelLive, channelRelease, type LiveChannel } from "./live-versions";
 import {
   canDo,
   canPlay,
@@ -58,6 +61,25 @@ export type GamePageVersion = {
   actions: GameVersionAction[];
 };
 
+/** A level production plays from a live version over the live release. */
+export type GamePageLiveScene = {
+  scene: string;
+  /** The scene list's title, else the scene's id. */
+  title: string;
+  number: number;
+  /** ISO time the pointer moved. */
+  since: string;
+};
+
+/** Publishers only: a version a channel points at that players don't get, since it is blocked. */
+export type GamePageBlockedScene = {
+  scene: string;
+  title: string;
+  number: number;
+  channel: LiveChannel;
+  reason: string | null;
+};
+
 export type GamePageContributor = {
   id: number;
   profileId: string | null;
@@ -88,8 +110,13 @@ export type GamePagePayload = {
   connectOrigins: string[];
   /** Newest first. */
   versions: GamePageVersion[];
-  /** The version production plays, when this viewer may play it: the big Play button. */
-  live: { version: number; playUrl: string } | null;
+  /**
+   * The version production plays, when this viewer may play it: the big Play
+   * button, and the levels production plays from live versions over it.
+   */
+  live: { version: number; playUrl: string; scenes: GamePageLiveScene[] } | null;
+  /** Publishers only: blocked versions a channel still points at; empty for everyone else. */
+  blockedScenes: GamePageBlockedScene[];
   /** The `<iframe>` snippet is offered for public and unlisted games with a live version. */
   embeddable: boolean;
   credits: { url: string; version: number } | null;
@@ -210,6 +237,79 @@ function versionActions(
   if (release.hidden === null && linkable && canDo(role, "jam-link")) actions.push("jam-link");
   if (canDo(role, "download-zip")) actions.push("download-zip");
   return actions;
+}
+
+type SceneTitles = ReadonlyMap<string, string>;
+
+const titlesOf = (scenes: readonly { id: string; title?: string }[]): SceneTitles =>
+  new Map(scenes.map((s) => [s.id, s.title ?? s.id]));
+
+/** The live scenes production plays over `releaseId`, as `effectiveLive` decides, and its release's scene titles. */
+async function productionScenes(
+  db: ReleaseTxDb,
+  projectId: string,
+  releaseId: string,
+): Promise<{ scenes: GamePageLiveScene[]; titles: SceneTitles | null }> {
+  const live = await channelLive(db, projectId, "production");
+  if (!live) return { scenes: [], titles: null };
+  const titles = titlesOf(live.release.manifest.flow.scenes);
+  if (live.snapshot.release !== releaseId) return { scenes: [], titles };
+  return {
+    titles,
+    scenes: live.snapshot.scenes.map((s) => ({
+      scene: s.scene,
+      title: titles.get(s.scene) ?? s.scene,
+      number: s.number,
+      since: s.since,
+    })),
+  };
+}
+
+/** Blocked, kept and unhidden versions a channel points at, production first, one line per version. */
+async function blockedScenes(
+  db: ReleaseTxDb,
+  projectId: string,
+  productionTitles: SceneTitles | null,
+): Promise<GamePageBlockedScene[]> {
+  const rows = await db
+    .select({
+      versionId: engineSceneVersions.id,
+      scene: engineSceneChannels.sceneId,
+      channel: engineSceneChannels.channel,
+      number: engineSceneVersions.number,
+      reason: engineSceneVersions.blockReason,
+    })
+    .from(engineSceneChannels)
+    .innerJoin(engineSceneVersions, eq(engineSceneVersions.id, engineSceneChannels.versionId))
+    .where(
+      and(
+        eq(engineSceneChannels.projectId, projectId),
+        isNotNull(engineSceneVersions.blockedAt),
+        isNull(engineSceneVersions.hiddenAt),
+        isNull(engineSceneVersions.collectedAt),
+      ),
+    )
+    .orderBy(desc(engineSceneChannels.channel), engineSceneChannels.sceneId);
+  if (rows.length === 0) return [];
+
+  const titles = new Map<LiveChannel, SceneTitles>();
+  if (productionTitles) titles.set("production", productionTitles);
+  for (const channel of new Set(rows.map((r) => r.channel as LiveChannel))) {
+    if (titles.has(channel)) continue;
+    const release = await channelRelease(db, projectId, channel);
+    titles.set(channel, release ? titlesOf(release.manifest.flow.scenes) : new Map());
+  }
+
+  const seen = new Set<string>();
+  const out: GamePageBlockedScene[] = [];
+  for (const r of rows) {
+    if (seen.has(r.versionId)) continue;
+    seen.add(r.versionId);
+    const channel = r.channel as LiveChannel;
+    const title = titles.get(channel)?.get(r.scene) ?? r.scene;
+    out.push({ scene: r.scene, title, number: r.number, channel, reason: r.reason });
+  }
+  return out;
 }
 
 async function creditsMissingOf(db: ReleaseTxDb, releaseId: string): Promise<number> {
@@ -334,6 +434,10 @@ export async function gamePage(
     ? await showcaseIdentity(db, project.showcaseProjectId)
     : null;
 
+  const production = liveRelease
+    ? await productionScenes(db, projectId, liveRelease.id)
+    : { scenes: [], titles: null };
+
   return {
     projectId,
     title: identity?.title ?? project.name,
@@ -350,7 +454,10 @@ export async function gamePage(
     versions: versions.map(({ id, ...v }) =>
       v.actions.includes("download-zip") ? { ...v, id } : v,
     ),
-    live: liveRelease ? { version: liveRelease.version, playUrl: liveRelease.playUrl } : null,
+    live: liveRelease
+      ? { version: liveRelease.version, playUrl: liveRelease.playUrl, scenes: production.scenes }
+      : null,
+    blockedScenes: publisher ? await blockedScenes(db, projectId, production.titles) : [],
     embeddable: liveRelease !== null && (visibility === "public" || visibility === "unlisted"),
     credits,
     creditsMissing: publisher && creditsRelease ? await creditsMissingOf(db, creditsRelease.id) : 0,

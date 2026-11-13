@@ -128,6 +128,7 @@ import { getContributions } from "./contributions";
 import { listGuildEmojis } from "./emoji";
 import {
   createGameShowcase,
+  getGameLive,
   getGamePage,
   getGamePlay,
   getGameSettings,
@@ -136,6 +137,22 @@ import {
   setGameSettings,
   unlinkGameShowcase,
 } from "./engine-game";
+import {
+  beginSceneVersion,
+  blockSceneVersion,
+  clearSceneVersion,
+  commitSceneVersion,
+  getLiveBase,
+  getSceneVersion,
+  hideSceneVersion,
+  listSceneVersionQueue,
+  listSceneVersions,
+  promoteSceneVersion,
+  reportLiveState,
+  rollbackSceneVersion,
+  unblockSceneVersion,
+  unhideSceneVersion,
+} from "./engine-live";
 import {
   createAgentToken,
   createHostedProject,
@@ -611,6 +628,7 @@ export default {
   listGameModerationQueue,
   resolveGameReport,
   getGamePlay,
+  getGameLive,
   getGamePage,
   linkGameShowcase,
   createGameShowcase,
@@ -618,4 +636,18 @@ export default {
   getGameSettings,
   setGameSettings,
   reportGame,
+  beginSceneVersion,
+  commitSceneVersion,
+  promoteSceneVersion,
+  rollbackSceneVersion,
+  clearSceneVersion,
+  listSceneVersions,
+  getSceneVersion,
+  getLiveBase,
+  blockSceneVersion,
+  unblockSceneVersion,
+  hideSceneVersion,
+  unhideSceneVersion,
+  listSceneVersionQueue,
+  reportLiveState,
 };

@@ -1,18 +1,30 @@
 import { Cancel01Icon, Copy01Icon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { timingWords, type SwapTiming } from "../../../game/live";
+import {
+  checkSceneVersion,
+  parseReleaseManifest,
+  parseSceneVersion,
+  type AssetId,
+} from "../../../project/index";
 import type {
+  EditorLiveHost,
   EditorNotify,
   EditorPublishHost,
   GameSaveMode,
   GameSettingsPatch,
   GameSettingsView,
   GameVisibility,
+  LivePointerView,
+  LiveVersionView,
+  PublishChannel,
   ReleaseView,
   UsageView,
 } from "../../host";
 import { formatDay } from "../../kit/format";
 import {
+  Badge,
   Button,
   Confirm,
   IconButton,
@@ -21,6 +33,7 @@ import {
   Radio,
   Skeleton,
   Text,
+  TimeAgo,
 } from "../../kit/index";
 import type { Pending } from "../../pending/pending";
 import { PendingProvider, useBusy, useOwnOrSharedPending } from "../../pending/use-pending";
@@ -30,6 +43,8 @@ import {
   ReleaseList,
   rollbackMessage,
   unplayable,
+  type PromoteReplaces,
+  type ReplacedScene,
 } from "./ReleaseList";
 
 const SETTINGS_SCOPE = "publish:settings";
@@ -87,28 +102,54 @@ const silentNotify: EditorNotify = Object.assign(() => undefined, {
   error: () => undefined,
 });
 
-/** The project's releases, channels and usage before publishing; nothing while the host doesn't publish. */
+/** A scene's title for the editor's rows, or undefined when it has none. */
+export type SceneTitleOf = (scene: AssetId) => string | undefined;
+
+/** The project's releases, channels, live scenes and usage before publishing; nothing while the host doesn't publish. */
 export function PublishPanel({
   publish,
   notify,
+  sceneTitle,
 }: {
   publish: EditorPublishHost | undefined;
   /** Where copies and failures outside a pending task are said; the editor's toasts. */
   notify?: EditorNotify;
+  /** Names the live scenes' rows by title; without it they go by their version name alone. */
+  sceneTitle?: SceneTitleOf;
 }) {
   if (!publish) return null;
-  return <PublishBody key={publish.project} publish={publish} notify={notify ?? silentNotify} />;
+  return (
+    <PublishBody
+      key={publish.project}
+      publish={publish}
+      notify={notify ?? silentNotify}
+      sceneTitle={sceneTitle ?? noTitle}
+    />
+  );
 }
 
-function PublishBody({ publish, notify }: { publish: EditorPublishHost; notify: EditorNotify }) {
+const noTitle: SceneTitleOf = () => undefined;
+const noLiveVersions = async (): Promise<readonly LiveVersionView[]> => [];
+
+function PublishBody({
+  publish,
+  notify,
+  sceneTitle,
+}: {
+  publish: EditorPublishHost;
+  notify: EditorNotify;
+  sceneTitle: SceneTitleOf;
+}) {
   const pending = useOwnOrSharedPending(notify);
+  const live = publish.live;
   const [usage, reloadUsage] = useLoaded(() => publish.usage());
   const [releases, reloadReleases] = useLoaded(() => publish.releases());
+  const [liveVersions, reloadLive] = useLoaded(() => (live ? live.list() : noLiveVersions()));
 
-  const move = async (
+  const move = async <T extends { to: number }>(
     label: string,
     channel: "production",
-    work: () => Promise<{ to: number }>,
+    work: () => Promise<T>,
     error: string,
   ) => {
     const result = await pending.run(
@@ -122,22 +163,38 @@ function PublishBody({ publish, notify }: { publish: EditorPublishHost; notify: 
     );
     reloadReleases();
     reloadUsage();
-    return result.ok;
+    if (live) reloadLive();
+    return result;
   };
-  const promote = (version: number) =>
-    move(
-      `Promoting v${version}`,
-      "production",
-      () => publish.promote(version, "production"),
-      `Couldn't promote v${version}`,
-    );
-  const rollback = (to: number) =>
-    move(
+  const promote = async (version: number, keep: readonly AssetId[] = []) =>
+    (
+      await move(
+        `Promoting v${version}`,
+        "production",
+        () =>
+          keep.length > 0
+            ? publish.promote(version, "production", { keepScenes: keep })
+            : publish.promote(version, "production"),
+        `Couldn't promote v${version}`,
+      )
+    ).ok;
+  const rollback = async (to: number) => {
+    const result = await move(
       `Rolling back to v${to}`,
       "production",
       () => publish.rollback("production", to),
       `Couldn't roll back to v${to}`,
     );
+    if (result.ok) for (const s of result.value.skipped ?? []) notify.warning(s.reason);
+    return result.ok;
+  };
+  const replaces =
+    live && releases.state === "ready"
+      ? (version: number): PromoteReplaces => ({
+          read: () => replacedScenes(live, version, releases.value, sceneTitle),
+          canKeep: live.role().publisher,
+        })
+      : undefined;
 
   return (
     <PendingProvider pending={pending}>
@@ -160,9 +217,25 @@ function PublishBody({ publish, notify }: { publish: EditorPublishHost; notify: 
             />
           ) : releases.value.length > 0 ? (
             <>
-              <Channels releases={releases.value} onPromote={promote} onRollback={rollback} />
+              <Channels
+                releases={releases.value}
+                onPromote={promote}
+                onRollback={rollback}
+                replaces={replaces}
+              />
+              {live ? (
+                <LiveScenes
+                  live={live}
+                  versions={liveVersions}
+                  releases={releases.value}
+                  sceneTitle={sceneTitle}
+                  pending={pending}
+                  onRetry={reloadLive}
+                  onMoved={reloadLive}
+                />
+              ) : null}
               <RemovedSoon releases={releases.value} />
-              <ReleaseList releases={releases.value} onPromote={promote} />
+              <ReleaseList releases={releases.value} onPromote={promote} replaces={replaces} />
             </>
           ) : null}
           <GameSettings publish={publish} pending={pending} />
@@ -281,10 +354,12 @@ function Channels({
   releases,
   onPromote,
   onRollback,
+  replaces,
 }: {
   releases: readonly ReleaseView[];
-  onPromote: (version: number) => Promise<boolean>;
+  onPromote: (version: number, keep: readonly AssetId[]) => Promise<boolean>;
   onRollback: (version: number) => Promise<boolean>;
+  replaces: ((version: number) => PromoteReplaces) | undefined;
 }) {
   const production = releases.find((r) => r.channels.includes("production"));
   const preview = releases.find((r) => r.channels.includes("preview"));
@@ -308,7 +383,8 @@ function Channels({
             version={preview.version}
             label={`Promote v${preview.version} to production`}
             variant="default"
-            onPromote={() => onPromote(preview.version)}
+            onPromote={(keep) => onPromote(preview.version, keep)}
+            replaces={replaces?.(preview.version)}
           />
         ) : null}
         {back ? (
@@ -339,6 +415,330 @@ function RemovedSoon({ releases }: { releases: readonly ReleaseView[] }) {
           {r.removal?.text}
         </Text>
       ))}
+    </div>
+  );
+}
+
+// ─── Live scenes ─────────────────────────────────────────
+
+const CHANNELS = ["production", "preview"] as const satisfies readonly PublishChannel[];
+const CHANNEL_TITLE = { production: "Production", preview: "Preview" } as const;
+const PUBLISHERS_ONLY = "Only publishers can change production.";
+
+/** `level-1@4`: a scene version as the CLI and the site name it. */
+export const liveName = (scene: AssetId, number: number): string => `${scene}@${number}`;
+
+/** When a production move reaches players, after "Players will get level-1@4 ". */
+const PLAYERS_GET: Readonly<Record<SwapTiming, string>> = {
+  "next-load": "next time the level loads",
+  boundary: "at the next safe moment",
+  now: "now",
+};
+
+/** The question a move of `name` to production asks. */
+export const livePromoteMessage = (name: string, timing: SwapTiming): string =>
+  `Players will get ${name} ${PLAYERS_GET[timing]}. You can roll back or stop it at any time.`;
+
+/** The question Unblock asks. */
+const unblockMessage = (name: string): string => `Players will get ${name} again.`;
+
+/** The live scenes' pending scope: one per scene and channel, so a row's buttons go busy together. */
+const liveScope = (scene: AssetId, channel: PublishChannel): string =>
+  `publish:live:${channel}:${scene}`;
+
+/**
+ * Whether the scene version `descriptor` (its `scene-version.json`) may
+ * stay live over the release `manifest` (its `release.json`): both read,
+ * and the version check finds no error.
+ */
+export function stillFits(manifest: string, descriptor: string): boolean {
+  const release = parseReleaseManifest(manifest);
+  const version = parseSceneVersion(descriptor);
+  if (!release.ok || !version.ok) return false;
+  return !checkSceneVersion(release.manifest, version.version).some((i) => i.severity === "error");
+}
+
+/**
+ * The live scenes on production that promoting `version` replaces. Only the
+ * release on preview can be checked here (its manifest is preview's base);
+ * any other release's scenes are listed without the offer to keep them.
+ */
+async function replacedScenes(
+  live: EditorLiveHost,
+  version: number,
+  releases: readonly ReleaseView[],
+  sceneTitle: SceneTitleOf,
+): Promise<ReplacedScene[]> {
+  const onPreview = releases.some((r) => r.version === version && r.channels.includes("preview"));
+  const onProduction = (await live.list()).filter((v) =>
+    v.pointers.some((p) => p.channel === "production"),
+  );
+  const fits = async (v: LiveVersionView): Promise<boolean> => {
+    if (!onPreview || v.blocked || v.hidden !== null || v.collected) return false;
+    try {
+      const [target, current] = await Promise.all([
+        live.base(v.scene, "preview"),
+        live.base(v.scene, "production"),
+      ]);
+      if (target.release?.version !== version || current.live?.number !== v.number) return false;
+      return stillFits(target.release.manifest, current.live.descriptor);
+    } catch {
+      return false;
+    }
+  };
+  return Promise.all(
+    onProduction.map(async (v) => ({
+      scene: v.scene,
+      name: liveName(v.scene, v.number),
+      title: sceneTitle(v.scene) ?? v.scene,
+      fits: await fits(v),
+    })),
+  );
+}
+
+type LiveRow = { version: LiveVersionView; pointer: LivePointerView };
+
+function LiveScenes({
+  live,
+  versions,
+  releases,
+  sceneTitle,
+  pending,
+  onRetry,
+  onMoved,
+}: {
+  live: EditorLiveHost;
+  versions: Loaded<readonly LiveVersionView[]>;
+  releases: readonly ReleaseView[];
+  sceneTitle: SceneTitleOf;
+  pending: Pending;
+  onRetry: () => void;
+  onMoved: () => void;
+}) {
+  if (versions.state === "loading") return <Skeleton style={{ height: 32 }} />;
+  if (versions.state === "error")
+    return (
+      <LoadError
+        what="Couldn't load the live scenes."
+        message={versions.message}
+        onRetry={onRetry}
+      />
+    );
+  const rows = versions.value.flatMap((version) =>
+    version.pointers.map((pointer): LiveRow => ({ version, pointer })),
+  );
+  const due = versions.value.filter((v) => v.removal !== null && !v.collected);
+  const publisher = live.role().publisher;
+  return (
+    <div className="je-insp-stack" data-gap="tight" aria-label="Live scenes">
+      <MicroLabel>Live scenes</MicroLabel>
+      {rows.length === 0 ? (
+        <Text as="p" size="xs" variant="muted">
+          No live scenes. Publish a scene from the editor to update one level without a release.
+        </Text>
+      ) : (
+        CHANNELS.map((channel) => {
+          const here = rows.filter((r) => r.pointer.channel === channel);
+          if (here.length === 0) return null;
+          const release = releases.find((r) => r.channels.includes(channel));
+          return (
+            <div
+              key={channel}
+              className="je-insp-stack"
+              data-gap="tight"
+              role="list"
+              aria-label={`Live on ${channel}`}
+            >
+              <Text as="p" size="xs" bold>
+                {CHANNEL_TITLE[channel]}
+              </Text>
+              {here.map((row) => (
+                <LiveSceneRow
+                  key={`${row.version.scene}:${channel}`}
+                  row={row}
+                  live={live}
+                  release={release?.version ?? null}
+                  onProduction={rows.find(
+                    (r) =>
+                      r.pointer.channel === "production" && r.version.scene === row.version.scene,
+                  )}
+                  title={sceneTitle(row.version.scene)}
+                  publisher={publisher}
+                  pending={pending}
+                  onMoved={onMoved}
+                />
+              ))}
+            </div>
+          );
+        })
+      )}
+      {due.map((v) => (
+        <Text key={v.id} as="p" size="xs" variant="warning">
+          {v.removal?.text}
+        </Text>
+      ))}
+    </div>
+  );
+}
+
+function LiveSceneRow({
+  row: { version, pointer },
+  live,
+  release,
+  onProduction,
+  title,
+  publisher,
+  pending,
+  onMoved,
+}: {
+  row: LiveRow;
+  live: EditorLiveHost;
+  /** The channel's release version; null when the channel has none. */
+  release: number | null;
+  /** The scene's row on production, when it has one. */
+  onProduction: LiveRow | undefined;
+  title: string | undefined;
+  publisher: boolean;
+  pending: Pending;
+  onMoved: () => void;
+}) {
+  const { scene, number } = version;
+  const { channel, timing } = pointer;
+  const name = liveName(scene, number);
+  const called = title ?? scene;
+  const scope = liveScope(scene, channel);
+  const unblockScope = `publish:live:unblock:${name}`;
+  const locked = channel === "production" && !publisher;
+  const lockedTip = locked ? { tooltip: PUBLISHERS_ONLY } : {};
+  const unblockLocked = !publisher && version.pointers.some((p) => p.channel === "production");
+
+  const act = async <T,>(
+    label: string,
+    error: string,
+    success: (value: T) => string,
+    work: () => Promise<T>,
+    at = scope,
+  ) => {
+    const result = await pending.run({ label, scope: at, success, error }, work);
+    onMoved();
+    return result.ok;
+  };
+  const movedWords = (to: number | null, on: PublishChannel) =>
+    to === null
+      ? `${called} plays the release's version on ${on} again.`
+      : `${liveName(scene, to)} is live on ${on}.`;
+
+  const canPromote =
+    channel === "preview" && version.blocked === null && onProduction?.version.number !== number;
+
+  return (
+    <div role="listitem" className="je-insp-stack" data-gap="tight">
+      <Text as="p" size="xs" tabular>
+        {title ? `${title} · ` : ""}
+        {name} · {timingWords(timing)} · <TimeAgo date={pointer.since} />
+        {pointer.by ? ` · ${pointer.by}` : ""}
+      </Text>
+      {version.blocked ? (
+        <div className="je-insp-row je-insp-wrap" data-gap="tight" data-align="start">
+          <Badge size="label" variant="destructive">
+            blocked
+          </Badge>
+          <Text size="xs" variant="danger" className="je-insp-grow">
+            {version.blocked.text}
+          </Text>
+          <Confirm
+            title={`Unblock ${name}?`}
+            message={unblockMessage(name)}
+            confirmText="Unblock"
+            onConfirm={() =>
+              act(
+                `Unblocking ${name}`,
+                `Couldn't unblock ${name}`,
+                () => `${name} is unblocked.`,
+                () => live.unblock(scene, number),
+                unblockScope,
+              )
+            }
+          >
+            <Button
+              size="xs"
+              variant="outline"
+              busyScope={unblockScope}
+              disabled={unblockLocked}
+              {...(unblockLocked ? { tooltip: PUBLISHERS_ONLY } : {})}
+            >
+              Unblock
+            </Button>
+          </Confirm>
+        </div>
+      ) : null}
+      <div className="je-insp-row je-insp-wrap" data-gap="tight">
+        {canPromote ? (
+          <Confirm
+            title={`Promote ${name} to production?`}
+            message={livePromoteMessage(name, timing)}
+            confirmText="Promote"
+            onConfirm={() =>
+              act(
+                `Promoting ${name}`,
+                `Couldn't promote ${name}`,
+                (moved: { to: number | null }) => movedWords(moved.to, "production"),
+                () => live.promote(scene, number, "production", timing),
+                liveScope(scene, "production"),
+              )
+            }
+          >
+            <Button
+              size="xs"
+              variant="default"
+              busyScope={liveScope(scene, "production")}
+              disabled={!publisher}
+              {...(!publisher ? { tooltip: PUBLISHERS_ONLY } : {})}
+            >
+              Promote to production
+            </Button>
+          </Confirm>
+        ) : null}
+        <Button
+          size="xs"
+          variant="outline"
+          busyScope={scope}
+          disabled={locked}
+          {...lockedTip}
+          onClick={() =>
+            void act(
+              `Rolling back ${called} on ${channel}`,
+              `Couldn't roll back ${called} on ${channel}`,
+              (moved: { to: number | null }) => movedWords(moved.to, channel),
+              () => live.rollback(scene, channel, { timing }),
+            )
+          }
+        >
+          Roll back
+        </Button>
+        <Confirm
+          title={`Stop ${name} on ${channel}?`}
+          message={
+            release === null
+              ? `Players go back to the release's version of ${called}.`
+              : live.wording.stopConfirm({ release, scene: called, timing })
+          }
+          confirmText="Stop"
+          variant="destructive"
+          onConfirm={() =>
+            act(
+              `Stopping ${name} on ${channel}`,
+              `Couldn't stop ${name}`,
+              () => movedWords(null, channel),
+              () => live.clear(scene, channel, timing),
+            )
+          }
+        >
+          <Button size="xs" variant="outline" busyScope={scope} disabled={locked} {...lockedTip}>
+            Stop
+          </Button>
+        </Confirm>
+      </div>
     </div>
   );
 }

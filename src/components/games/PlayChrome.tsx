@@ -199,7 +199,8 @@ export function PlayPage({ projectId, version }: { projectId: string; version: s
 
   if (blocked || !valid) return <PlayUnavailable />;
   if (query.isPending) return <PlayLoading />;
-  if (query.isError) {
+  // A failed reload for a new release keeps the game it has.
+  if (query.isError && !query.data) {
     const reason = refusalOf(query.error);
     if (reason !== undefined) return <PlayUnavailable reason={reason} />;
     return (
@@ -212,7 +213,7 @@ export function PlayPage({ projectId, version }: { projectId: string; version: s
       </div>
     );
   }
-  return <PlayChrome play={query.data} version={version} />;
+  return <PlayChrome play={query.data} version={version} onReload={() => void query.refetch()} />;
 }
 
 /** Only a game that saves to the site promises to keep saves on sign-in. */
@@ -268,7 +269,16 @@ function SignInButton({
 }
 
 /** The play page around a release's frame, in the takeover shell's islands. */
-export function PlayChrome({ play, version }: { play: PlayPayload; version: string }) {
+export function PlayChrome({
+  play,
+  version,
+  onReload,
+}: {
+  play: PlayPayload;
+  version: string;
+  /** Loads the payload again when the channel moves to a new release. */
+  onReload?: () => void;
+}) {
   const phone = useIsMobile();
   const { data: session, isPending: sessionPending } = authClient.useSession();
   const user = session?.user ?? null;
@@ -407,6 +417,8 @@ export function PlayChrome({ play, version }: { play: PlayPayload; version: stri
           frameUrl={play.frameUrl}
           title={play.title}
           release={{ id: play.release.id, gameId: play.release.gameId, projectId }}
+          live={play.live}
+          onReload={onReload}
           saveMode={play.saveMode}
           online={play.online}
           saves={stores.saves}

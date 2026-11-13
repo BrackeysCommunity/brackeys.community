@@ -79,7 +79,8 @@ export const RELEASE_UPLOAD_CONCURRENCY = 4;
 /** Tries per file before the upload gives up on it. */
 export const RELEASE_FILE_ATTEMPTS = 3;
 const FILE_TIMEOUT_MS = 120_000;
-const BEGIN_TIMEOUT_MS = 30_000;
+/** How long a `begin` may take: it checks the whole manifest. */
+export const BEGIN_TIMEOUT_MS = 30_000;
 
 /** What `create` runs besides HTTP: the build, the hosted pull and the wait between retries. */
 export type GameReleaseDeps = {
@@ -112,7 +113,9 @@ export class ReleaseApiFailure extends Error {
   }
 }
 
-type MissingFile = { path: string; sha256: string; bytes: number };
+/** A file an upload's `begin` names missing, by hash. */
+export type MissingUpload = { sha256: string; bytes: number };
+type MissingFile = MissingUpload & { path: string };
 type BeginAnswer = {
   uploadId: string;
   releaseId: string;
@@ -156,7 +159,7 @@ const isDropped = (error: unknown) =>
   (error instanceof ReleaseApiFailure && [500, 502, 503, 504].includes(error.status));
 
 /** One release API call: JSON in, JSON (or nothing) out, any refusal a `ReleaseApiFailure`. */
-async function call<T>(
+export async function call<T>(
   site: HostedSite,
   path: string,
   init: RequestInit & { timeoutMs?: number } = {},
@@ -179,7 +182,7 @@ async function call<T>(
   return payload as T;
 }
 
-const postJson = <T>(site: HostedSite, path: string, body: unknown, timeoutMs?: number) =>
+export const postJson = <T>(site: HostedSite, path: string, body: unknown, timeoutMs?: number) =>
   call<T>(site, path, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -189,10 +192,10 @@ const postJson = <T>(site: HostedSite, path: string, body: unknown, timeoutMs?: 
 
 // ─── Shared pieces ───────────────────────────────────────
 
-type Access = { site: HostedSite; projectId: string };
+export type Access = { site: HostedSite; projectId: string };
 
 /** The site and the agent token: `--url` or `JAMS_AGENT_SITE`, `--token` or `JAMS_AGENT_TOKEN`. */
-function accessFor(
+export function accessFor(
   input: { project?: string; token?: string; url?: string },
   ctx: ToolContext,
   cmdUsage: string,
@@ -217,11 +220,14 @@ function accessFor(
 }
 
 /** The game's page on the site: where production is moved. */
-const gamePageOf = (site: HostedSite, projectId: string) =>
+export const gamePageOf = (site: HostedSite, projectId: string) =>
   new URL(`/games/${encodeURIComponent(projectId)}`, site.origin).toString();
 
 /** The refusal as the CLI prints it: its code, its message and its hint. */
-function refusalResult(error: ReleaseApiFailure, extra: Record<string, unknown> = {}): ToolResult {
+export function refusalResult(
+  error: ReleaseApiFailure,
+  extra: Record<string, unknown> = {},
+): ToolResult {
   const { code, message, hint, limit, used, max } = error.body;
   return {
     exitCode: 1,
@@ -239,7 +245,7 @@ function refusalResult(error: ReleaseApiFailure, extra: Record<string, unknown> 
 }
 
 /** A site or network failure as the tool's answer; anything else is rethrown. */
-function answerFailure(error: unknown, extra: Record<string, unknown> = {}): ToolResult {
+export function answerFailure(error: unknown, extra: Record<string, unknown> = {}): ToolResult {
   if (error instanceof ReleaseApiFailure) return refusalResult(error, extra);
   if (error instanceof HostedError) return failure(error.message, { code: error.code, ...extra });
   if (error instanceof ProjectClientError)
@@ -329,21 +335,21 @@ async function pool<T>(items: readonly T[], limit: number, work: (item: T) => Pr
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Sends every missing file, four at a time, each tried again when its connection drops. */
-async function uploadMissing(
+async function uploadMissing<F extends MissingUpload>(
   site: HostedSite,
-  build: BuildDir,
-  begun: BeginAnswer,
-  deps: GameReleaseDeps,
+  uploadId: string,
+  missing: readonly F[],
+  read: (file: F) => Promise<Uint8Array<ArrayBuffer>>,
+  deps: Pick<GameReleaseDeps, "retryDelayMs">,
 ): Promise<{ files: number; bytes: number; retries: number }> {
   const delay = deps.retryDelayMs ?? ((n: number) => 500 * 2 ** (n - 1));
   let retries = 0;
   let bytes = 0;
-  await pool(begun.missing, RELEASE_UPLOAD_CONCURRENCY, async (file) => {
-    const path = build.paths.get(file.sha256) ?? file.path;
-    const body = new Uint8Array(await readFile(join(build.dir, ...path.split("/"))));
+  await pool(missing, RELEASE_UPLOAD_CONCURRENCY, async (file) => {
+    const body = await read(file);
     for (let attempt = 1; ; attempt++) {
       try {
-        await call<void>(site, engineReleaseFilePath(begun.uploadId, file.sha256), {
+        await call<void>(site, engineReleaseFilePath(uploadId, file.sha256), {
           method: "PUT",
           headers: { "content-type": "application/octet-stream" },
           body,
@@ -358,7 +364,47 @@ async function uploadMissing(
       }
     }
   });
-  return { files: begun.missing.length, bytes, retries };
+  return { files: missing.length, bytes, retries };
+}
+
+/** What an upload's `begin` answers with: the upload and the files the site doesn't hold. */
+export type UploadBegun<F extends MissingUpload = MissingUpload> = {
+  uploadId: string;
+  missing: F[];
+};
+
+/**
+ * The upload protocol a release and a scene version share: `begin`, every
+ * file it names missing sent (`read` gives its bytes), then `commit`. A
+ * commit that finds files missing begins again and sends those. `first` is
+ * the first begin's answer, which names everything that was new.
+ */
+export async function sendUpload<F extends MissingUpload, B extends UploadBegun<F>, C>(
+  site: HostedSite,
+  steps: {
+    begin: () => Promise<B>;
+    read: (file: F) => Promise<Uint8Array<ArrayBuffer>>;
+    commit: (uploadId: string) => Promise<C>;
+  },
+  deps: Pick<GameReleaseDeps, "retryDelayMs"> = {},
+): Promise<{ first: B; committed: C; sent: { files: number; bytes: number; retries: number } }> {
+  let begun = await steps.begin();
+  const first = begun;
+  const sent = await uploadMissing(site, begun.uploadId, begun.missing, steps.read, deps);
+  let committed: C;
+  try {
+    committed = await steps.commit(begun.uploadId);
+  } catch (error) {
+    if (!(error instanceof ReleaseApiFailure && error.body.code === "release-files-missing"))
+      throw error;
+    begun = await steps.begin();
+    const again = await uploadMissing(site, begun.uploadId, begun.missing, steps.read, deps);
+    sent.files += again.files;
+    sent.bytes += again.bytes;
+    sent.retries += again.retries;
+    committed = await steps.commit(begun.uploadId);
+  }
+  return { first, committed, sent };
 }
 
 /**
@@ -441,33 +487,25 @@ async function release(
   deps: GameReleaseDeps,
   env: Readonly<Record<string, string | undefined>>,
 ): Promise<ToolResult> {
-  const begin = () =>
-    postJson<BeginAnswer>(
-      site,
-      engineReleasesPath(projectId),
-      { manifest: build.text, channel },
-      BEGIN_TIMEOUT_MS,
-    );
-  let begun = await begin();
-  const first = begun;
-  const sent = await uploadMissing(site, build, begun, deps);
-  let committed: CommitAnswer;
-  try {
-    committed = await postJson<CommitAnswer>(site, engineReleaseCommitPath(projectId), {
-      uploadId: begun.uploadId,
-    });
-  } catch (error) {
-    if (!(error instanceof ReleaseApiFailure && error.body.code === "release-files-missing"))
-      throw error;
-    begun = await begin();
-    const again = await uploadMissing(site, build, begun, deps);
-    sent.files += again.files;
-    sent.bytes += again.bytes;
-    sent.retries += again.retries;
-    committed = await postJson<CommitAnswer>(site, engineReleaseCommitPath(projectId), {
-      uploadId: begun.uploadId,
-    });
-  }
+  const { first, committed, sent } = await sendUpload<MissingFile, BeginAnswer, CommitAnswer>(
+    site,
+    {
+      begin: () =>
+        postJson<BeginAnswer>(
+          site,
+          engineReleasesPath(projectId),
+          { manifest: build.text, channel },
+          BEGIN_TIMEOUT_MS,
+        ),
+      read: async (file) => {
+        const path = build.paths.get(file.sha256) ?? file.path;
+        return new Uint8Array(await readFile(join(build.dir, ...path.split("/"))));
+      },
+      commit: (uploadId) =>
+        postJson<CommitAnswer>(site, engineReleaseCommitPath(projectId), { uploadId }),
+    },
+    deps,
+  );
 
   const releases = await listOf(site, projectId);
   const kept = releases.filter((r) => r.collectedAt === null).length;
@@ -602,6 +640,10 @@ function moveFailure(error: unknown, site: HostedSite, projectId: string): ToolR
   return result;
 }
 
+/** Where a channel's game plays on the site. */
+export const channelPlayUrl = (site: HostedSite, projectId: string, channel: string) =>
+  new URL(`/games/${encodeURIComponent(projectId)}/play/${channel}`, site.origin).toString();
+
 function moved(
   site: HostedSite,
   projectId: string,
@@ -609,10 +651,7 @@ function moved(
   verb: string,
   answer: { from: number | null; to: number },
 ): ToolResult {
-  const playUrl = new URL(
-    `/games/${encodeURIComponent(projectId)}/play/${channel}`,
-    site.origin,
-  ).toString();
+  const playUrl = channelPlayUrl(site, projectId, channel);
   const was = answer.from === null ? "" : ` (was v${answer.from})`;
   return {
     exitCode: 0,

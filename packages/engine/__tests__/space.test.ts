@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
 
-import { beforeAll, describe, expect, it } from "vite-plus/test";
+import { beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import { createColliderTags } from "../collider-tags";
 import { createRegistry } from "../game/define";
@@ -709,7 +709,39 @@ describe("a Rapier sweep, against casting at every collider", () => {
     runtime.destroy();
   });
 
-  it("sees a collider moved or added since the last step, as Rapier's query pipeline would not", () => {
+  it("tests only the colliders near a query, however many the world holds", () => {
+    const solids = Array.from({ length: 400 }, (_, i) => ["box", i * 3, 50, 1, 1]);
+    const { runtime, space } = loaded({
+      v: 1,
+      name: "row",
+      bounds: [0, 0, 1200, 100],
+      solid: solids,
+    });
+    const proto = Object.getPrototypeOf(runtime.ctx.physics!.world.colliders.getAll()[0]!) as {
+      castShape: (...args: unknown[]) => unknown;
+      intersectsShape: (...args: unknown[]) => unknown;
+      containsPoint: (...args: unknown[]) => unknown;
+      castRayAndGetNormal: (...args: unknown[]) => unknown;
+    };
+    const tested = Object.fromEntries(
+      (["castShape", "intersectsShape", "containsPoint", "castRayAndGetNormal"] as const).map(
+        (name) => [name, vi.spyOn(proto, name)],
+      ),
+    );
+    const at: ShapeObj = { type: "circle", cx: 600, cy: 45, r: 1 };
+    expect(space.sweep(at, { x: 0, y: 10 })?.tag.entityId).toBe("~solid:200");
+    expect(space.overlaps({ ...at, cy: 50 }).map((h) => h.tag.entityId)).toEqual(["~solid:200"]);
+    expect(space.pointAt({ x: 600, y: 50 }).map((h) => h.tag.entityId)).toEqual(["~solid:200"]);
+    expect(space.raycast({ x: 600, y: 40 }, { x: 0, y: 1 }, 20)?.tag.entityId).toBe("~solid:200");
+    for (const [name, spy] of Object.entries(tested)) {
+      expect(spy.mock.calls.length, name).toBeGreaterThan(0);
+      expect(spy.mock.calls.length, name).toBeLessThanOrEqual(3);
+      spy.mockRestore();
+    }
+    runtime.destroy();
+  });
+
+  it("sees a collider moved (and reported) or added since the last step, as Rapier's query pipeline would not", () => {
     const { runtime, space } = loaded({
       v: 1,
       name: "moved",
@@ -721,7 +753,9 @@ describe("a Rapier sweep, against casting at every collider", () => {
     const by = { x: 80, y: 0 };
     expect(space.sweep(shape, by)).toBeNull();
     const [handle] = runtime.ctx.tags.handlesOf("~solid:0");
-    physics.world.getCollider(handle!)!.setTranslation({ x: 50, y: 50 });
+    const solid = physics.world.getCollider(handle!)!;
+    solid.setTranslation({ x: 50, y: 50 });
+    physics.moved(solid);
     expect(space.sweep(shape, by)?.tag.entityId).toBe("~solid:0");
     const added = physics.addCollider(
       physics.rapier.ColliderDesc.cuboid(1, 1).setTranslation(30, 50),

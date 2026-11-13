@@ -28,7 +28,7 @@ import type {
 import type { GameEventMap, GameLive, StagedVersion } from "../types";
 import { flowLoaderOf } from "./flow";
 import { runHash } from "./play-session";
-import { LOAD_GENERATION } from "./pool";
+import { generationOf } from "./pool";
 import { recordedSwap, type RunRecorder } from "./recorder";
 import { saveHostOf } from "./runtime";
 import type { SceneRuntimeHandle } from "./types";
@@ -273,8 +273,7 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
     return docHash === null || version?.version.sceneHash === docHash ? version : null;
   }
 
-  const generationOf = (rt: SceneRuntimeHandle): number =>
-    (rt.ctx as { [LOAD_GENERATION]?: () => number })[LOAD_GENERATION]?.() ?? 0;
+  const loadGeneration = (rt: SceneRuntimeHandle): number => generationOf(rt.ctx)?.() ?? 0;
 
   const sceneIdOf = (rt: SceneRuntimeHandle): AssetId | null =>
     saveHostOf(rt.ctx)?.sceneId() ?? null;
@@ -292,7 +291,7 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
       running = null;
       return null;
     }
-    const generation = generationOf(rt);
+    const generation = loadGeneration(rt);
     if (seen?.runtime === rt && seen.generation === generation) return rt;
     const scene = sceneIdOf(rt);
     const loaded = rt.scene() !== null;
@@ -305,7 +304,7 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
 
   /** After a swap, which may have reloaded: its load is the one `running` already names. */
   function settle(rt: SceneRuntimeHandle): void {
-    seen = { runtime: rt, generation: generationOf(rt) };
+    seen = { runtime: rt, generation: loadGeneration(rt) };
   }
 
   function setActive(scene: AssetId, prepared: PreparedVersion | null): void {
@@ -612,7 +611,7 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
       docLoad = null;
       const rt = opts.runtime();
       if (!rt) return;
-      seen = { runtime: rt, generation: generationOf(rt) };
+      seen = { runtime: rt, generation: loadGeneration(rt) };
       const scene = sceneIdOf(rt);
       const version = scene === null ? null : playedBy(scene, sceneHash);
       running =
@@ -736,6 +735,15 @@ export function recordLiveSwaps(
   };
 }
 
+/** The version `id` from the host's `versions`; null when it has none, or gives another. */
+function heldVersion(
+  versions: ((id: Sha256) => StagedVersion | null) | undefined,
+  id: Sha256,
+): StagedVersion | null {
+  const staged = versions?.(id) ?? null;
+  return staged?.id === id ? staged : null;
+}
+
 /**
  * The version `id` a recording names, through the host's `versions`:
  * `scene-version-removed` (with the swap's `tick`) when the host has none,
@@ -747,8 +755,8 @@ export function recordedVersion(
   id: Sha256,
   tick?: number,
 ): { ok: true; staged: StagedVersion } | { ok: false; issue: SceneIssue } {
-  const staged = versions?.(id) ?? null;
-  if (staged?.id === id) return { ok: true, staged };
+  const staged = heldVersion(versions, id);
+  if (staged) return { ok: true, staged };
   const issue = liveIssue({
     code: "scene-version-removed",
     version: versionName(scene, id),
@@ -781,6 +789,45 @@ export type SwapReplayStop = {
   version: Sha256;
   issues: SceneIssue[];
 };
+
+/**
+ * The index past the swaps from `from` that a load at `tick` takes: the
+ * leading `sublevel` swaps recorded at that tick, one per scene.
+ */
+function loadSwapsEnd(swaps: readonly RecordedSwap[], from: number, tick: number): number {
+  const taken = new Set<AssetId>();
+  let end = from;
+  for (; end < swaps.length; end++) {
+    const { tick: at, sublevel } = swaps[end]!;
+    if (at !== tick || sublevel === undefined || taken.has(sublevel)) break;
+    taken.add(sublevel);
+  }
+  return end;
+}
+
+/** Where a replay stops for a version the host lacks: before it starts, or at a swap's tick. */
+export type ReplayGap = { start: true } | { start: false; tick: number };
+
+/**
+ * Where a replay of `recording`, loading at `loadTick`, stops for a version
+ * `versions` can't give, by `createSwapReplay`'s rule without running it:
+ * before it starts when that is the version it starts on or one its load's
+ * sublevels attach, else at the first later swap naming one; null when it
+ * has them all.
+ */
+export function replayGap(
+  recording: { sceneVersion?: Sha256; swaps?: readonly RecordedSwap[] },
+  versions: (id: Sha256) => StagedVersion | null,
+  loadTick = 0,
+): ReplayGap | null {
+  const lacks = (id: Sha256 | null) => id !== null && heldVersion(versions, id) === null;
+  const swaps = recording.swaps ?? [];
+  const atLoad = loadSwapsEnd(swaps, 0, loadTick);
+  if (lacks(recording.sceneVersion ?? null) || swaps.slice(0, atLoad).some((s) => lacks(s.version)))
+    return { start: true };
+  const gone = swaps.slice(atLoad).find((s) => lacks(s.version));
+  return gone ? { start: false, tick: gone.tick } : null;
+}
 
 const strategyWord = (s: SwapStrategy) => (s === "reload" ? "reloaded" : "reconciled");
 
@@ -833,13 +880,9 @@ export function createSwapReplay(opts: SwapReplayOptions): {
 
   return {
     atLoad(tick) {
-      const taken = new Set<AssetId>();
-      for (; next < swaps.length; next++) {
-        const entry = swaps[next]!;
-        const named = entry.sublevel;
-        if (entry.tick !== tick || named === undefined || taken.has(named)) break;
-        taken.add(named);
-        const found = targetOf(next, named);
+      const end = loadSwapsEnd(swaps, next, tick);
+      for (; next < end; next++) {
+        const found = targetOf(next, swaps[next]!.sublevel!);
         if ("stop" in found) {
           next++;
           return found.stop;

@@ -4,13 +4,21 @@ import { describe, expect, it } from "vite-plus/test";
 import { SIGNED_IN_SAVES_DESCRIBE } from "@/lib/engine/local-saves";
 
 import {
+  frameOutsideRelease,
   judgeClaim,
+  judgeLive,
   judgeOwnSaves,
+  LIVE_APPLY_MS,
+  LIVE_POLL_MS,
+  LIVE_SMOKE_TIMING,
+  liveDeadlineMs,
   playRequestScope,
+  PROBE_PARAM,
   SAVED_BANNER,
   SAVED_NOTE,
   type ClaimProbe,
   type HostProbe,
+  type LiveRunProbe,
   type OwnSavesProbe,
   type PlayScope,
 } from "../play-frame";
@@ -129,6 +137,142 @@ describe("judgeClaim", () => {
     expect(reasons).toHaveLength(3);
     expect(judgeClaim({ ...claim, second: null })).toEqual([
       "the second browser context didn't run",
+    ]);
+  });
+});
+
+const VERSION = "a".repeat(64);
+const DIR = "http://127.0.0.1:4000/frames/p/r1/";
+
+const liveRun: LiveRunProbe = {
+  payloadVersion: 1,
+  initialScenes: 0,
+  client: true,
+  stream: true,
+  streamRequests: 1,
+  reads: 1,
+  moved: null,
+  published: { versionId: VERSION, number: 1, created: true, uploaded: 1, scene: "level-1" },
+  appliedMs: 800,
+  states: [
+    {
+      scene: "level-1",
+      version: VERSION,
+      status: "applied",
+      timing: LIVE_SMOKE_TIMING,
+      strategy: "reconcile",
+      at: 0,
+    },
+  ],
+  frameLiveMessages: 1,
+  swaps: [{ version: VERSION, timing: LIVE_SMOKE_TIMING }],
+  restarted: [],
+  liveFetched: true,
+  liveRequests: 1,
+  frameOutside: [],
+  route: { compatible: 200, foreignCompat: 404, otherProject: 404 },
+};
+
+const pinnedRun: LiveRunProbe = {
+  ...liveRun,
+  initialScenes: null,
+  client: false,
+  stream: false,
+  streamRequests: 0,
+  frameLiveMessages: 0,
+  liveRequests: 0,
+  pointed: true,
+};
+
+describe("live runs", () => {
+  it("gives the poll run one poll interval more than the stream", () => {
+    expect(liveDeadlineMs("live-stream")).toBe(LIVE_APPLY_MS);
+    expect(liveDeadlineMs("live-poll")).toBe(LIVE_POLL_MS + LIVE_APPLY_MS);
+  });
+
+  it("finds the frame's requests outside its release's directory", () => {
+    expect(
+      frameOutsideRelease(
+        [
+          `${DIR}index.html`,
+          `${DIR}live/${VERSION}.json`,
+          "data:image/png;base64,AA",
+          "blob:http://127.0.0.1:4000/x",
+          `http://127.0.0.1:4000/frames/p/r2/live/${VERSION}.json`,
+          `http://127.0.0.1:4000/frames/p/r2/live/${VERSION}.json`,
+          `http://127.0.0.1:4000/anything?${PROBE_PARAM}=1`,
+          "not a url",
+        ],
+        DIR,
+      ),
+    ).toEqual([`http://127.0.0.1:4000/frames/p/r2/live/${VERSION}.json`, "not a url"]);
+  });
+
+  it("passes a clean stream swap and a clean pinned run", () => {
+    expect(judgeLive("live-stream", liveRun)).toEqual([]);
+    expect(judgeLive("live-pinned", pinnedRun)).toEqual([]);
+  });
+
+  it("fails a run that never finished", () => {
+    expect(judgeLive("live-stream", undefined)).toEqual(["the live run didn't finish"]);
+  });
+
+  it("puts reads outside the release first", () => {
+    const reasons = judgeLive("live-stream", { ...liveRun, frameOutside: ["http://x/y"] });
+    expect(reasons).toEqual(["the frame read outside its release's directory: http://x/y"]);
+  });
+
+  it("fails a stream swap that applied late, by replacing, or never surfaced", () => {
+    const first = liveRun.states[0]!;
+    const reasons = judgeLive("live-stream", {
+      ...liveRun,
+      appliedMs: LIVE_APPLY_MS + 1,
+      states: [{ ...first, strategy: "replace" }],
+      swaps: [],
+    });
+    expect(reasons).toHaveLength(3);
+    expect(reasons[0]).toContain(`with the stream it must within ${LIVE_APPLY_MS} ms`);
+    expect(reasons[1]).toContain("not reconcile");
+    expect(reasons[2]).toContain("didn't surface the swap");
+  });
+
+  it("allows the poll run its longer deadline but no stream", () => {
+    const poll: LiveRunProbe = {
+      ...liveRun,
+      stream: false,
+      streamRequests: 0,
+      route: undefined,
+      appliedMs: LIVE_POLL_MS + 1,
+    };
+    expect(judgeLive("live-poll", poll)).toEqual([]);
+    expect(judgeLive("live-poll", { ...poll, stream: true })).toEqual([
+      "the play page still had an EventSource with the stream off",
+    ]);
+  });
+
+  it("names a refused version once, without a deadline reason", () => {
+    const first = liveRun.states[0]!;
+    const reasons = judgeLive("live-stream", {
+      ...liveRun,
+      appliedMs: null,
+      states: [{ ...first, status: "refused", issue: { code: "compat", message: "no" } }],
+    });
+    expect(reasons).toEqual([
+      `the frame reported level-1@${VERSION.slice(0, 12)} refused (compat: no)`,
+    ]);
+  });
+
+  it("fails a numbered play that took the pointer's version", () => {
+    const reasons = judgeLive("live-pinned", {
+      ...pinnedRun,
+      client: true,
+      frameLiveMessages: 2,
+      liveRequests: 1,
+    });
+    expect(reasons).toEqual([
+      "the numbered play started the live client",
+      "the frame sent 2 live.state message(s) in a numbered play",
+      "the frame read 1 live file(s) in a numbered play",
     ]);
   });
 });

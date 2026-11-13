@@ -8,7 +8,7 @@ import { closest } from "./did-you-mean";
 import { FIELD_NAME_PATTERN } from "./field-path";
 import { layerNames, toJsonSchema } from "./json-schema";
 import { prefabParamSchema } from "./prefab";
-import { OVERRIDE_PATH } from "./schema";
+import { builtFor, OVERRIDE_PATH } from "./schema";
 import { OP_NAMES, type OpBatch, type Ref, type SceneOp } from "./types";
 
 const SPOT_ANCHORS = ["center", "top", "bottom", "left", "right"] as const;
@@ -682,17 +682,8 @@ function buildOpSchemas(registry: Registry) {
 
 export type OpSchemas = ReturnType<typeof buildOpSchemas>;
 
-/** Pure in the registry, which never changes once built, so each one's schemas are built once. */
-const built = new WeakMap<Registry, OpSchemas>();
-
-function schemasFor(registry: Registry): OpSchemas {
-  let schemas = built.get(registry);
-  if (!schemas) {
-    schemas = buildOpSchemas(registry);
-    built.set(registry, schemas);
-  }
-  return schemas;
-}
+const schemasFor = (registry: Registry): OpSchemas =>
+  builtFor(registry, "ops", () => buildOpSchemas(registry));
 
 /** One op, with entity types and bulk keys from `registry`. */
 export function sceneOpSchemaFor(registry: Registry): OpSchemas["op"] {

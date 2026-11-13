@@ -4,6 +4,8 @@
 
 import { releaseForbidden, type ReleaseApiError } from "./release-errors";
 
+export type ReleaseChannel = "preview" | "production";
+
 export type GameVisibility = "private" | "team" | "unlisted" | "public";
 
 export type Viewer = {
@@ -28,6 +30,11 @@ export const GAME_ACTIONS = [
   "hide",
   "approve-public",
   "download-zip",
+  "live-publish",
+  "live-move-preview",
+  "live-move-production",
+  "live-block",
+  "live-hide",
 ] as const;
 
 export type GameAction = (typeof GAME_ACTIONS)[number];
@@ -51,6 +58,7 @@ export function roleOf(viewer: Viewer, project: { teamId: string | null }): Game
 
 const EDITORS: readonly (GameRole | "agent")[] = ["staff", "publisher", "editor", "agent"];
 const PUBLISHERS: readonly (GameRole | "agent")[] = ["staff", "publisher"];
+const TEAM: readonly (GameRole | "agent")[] = ["staff", "publisher", "editor"];
 
 const ALLOWED: Readonly<Record<GameAction, readonly (GameRole | "agent")[]>> = {
   upload: EDITORS,
@@ -61,14 +69,65 @@ const ALLOWED: Readonly<Record<GameAction, readonly (GameRole | "agent")[]>> = {
   visibility: PUBLISHERS,
   "jam-link": PUBLISHERS,
   settings: PUBLISHERS,
-  "download-zip": ["staff", "publisher", "editor"],
+  "download-zip": TEAM,
   hide: ["staff"],
   "approve-public": ["staff"],
+  "live-publish": EDITORS,
+  "live-move-preview": EDITORS,
+  "live-move-production": PUBLISHERS,
+  "live-block": TEAM,
+  "live-hide": ["staff"],
 };
 
-/** The role table. An agent token (write access) uploads and moves `preview` only. */
-export function canDo(role: GameRole | "agent", action: GameAction): boolean {
+/** The channels whose pointers name a scene version. */
+export type VersionTarget = { pointedOn: readonly ReleaseChannel[] };
+
+/**
+ * Whether blocking a version is production's business: production points at
+ * it, or the caller didn't say (the stricter answer).
+ */
+function blocksProduction(target: VersionTarget | undefined): boolean {
+  return target === undefined || target.pointedOn.includes("production");
+}
+
+/**
+ * The role table. An agent token (write access) uploads, publishes scene
+ * versions and moves `preview` only. `live-block` on a version production
+ * points at needs a publisher; on any other version, an editor.
+ */
+export function canDo(
+  role: GameRole | "agent",
+  action: GameAction,
+  target?: VersionTarget,
+): boolean {
+  if (action === "live-block" && blocksProduction(target)) {
+    return PUBLISHERS.includes(role);
+  }
   return ALLOWED[action].includes(role);
+}
+
+const PRODUCTION_MOVES: ReadonlySet<GameAction> = new Set([
+  "promote-production",
+  "rollback-production",
+  "live-move-production",
+]);
+
+/**
+ * Why this role can't do this, or null when it may. An agent token refused
+ * something on production is sent to the game's page (`gameUrl`), where a
+ * person moves it; every other refusal names the role it needs.
+ */
+export function refusalFor(
+  role: GameRole | "agent",
+  action: GameAction,
+  options: { gameUrl?: string; target?: VersionTarget } = {},
+): ReleaseApiError | null {
+  if (canDo(role, action, options.target)) return null;
+  const onProduction =
+    PRODUCTION_MOVES.has(action) || (action === "live-block" && blocksProduction(options.target));
+  return role === "agent" && onProduction
+    ? releaseForbidden("agent-production", options.gameUrl)
+    : releaseForbidden("role");
 }
 
 /**

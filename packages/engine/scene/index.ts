@@ -200,6 +200,7 @@ export {
 } from "./issues";
 export { diffExpanded } from "./expanded-diff";
 export { plural } from "./plural";
+export { SHORT_ID_LENGTH, shortId } from "./short-id";
 export {
   fragmentJsonSchema,
   layerNames,

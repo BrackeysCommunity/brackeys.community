@@ -7,6 +7,7 @@ import { RELEASE_FILE } from "@jams/engine/project";
 import { checksPathOf, SCENE_FORMAT_VERSION } from "@jams/engine/scene";
 import { z } from "zod";
 
+import { LIVE_LIMITS } from "../../src/lib/engine/limits";
 import {
   failure,
   hostedOptions,
@@ -39,7 +40,15 @@ import { diff } from "./tools/diff";
 import { flow } from "./tools/flow";
 import { fuzz } from "./tools/fuzz";
 import { gameBuild } from "./tools/game-build";
-import { gameLiveBuild, gameLiveCheck } from "./tools/game-live";
+import {
+  gameLiveBuild,
+  gameLiveCheck,
+  gameLiveClear,
+  gameLiveList,
+  gameLivePromote,
+  gameLivePublish,
+  gameLiveRollback,
+} from "./tools/game-live";
 import { gameManifest } from "./tools/game-manifest";
 import { gameNew } from "./tools/game-new";
 import {
@@ -131,6 +140,8 @@ const RELEASE_MOVE: McpAnnotations = {
 const RELEASE_READ: McpAnnotations = { readOnlyHint: true, openWorldHint: true };
 /** Writes a scene version over its output directory; with `hosted`, reads the hosted project first. */
 const LIVE_BUILD: McpAnnotations = { ...BUILD, openWorldHint: true };
+/** Stops a scene's live version on preview; stopping it again changes nothing. */
+const LIVE_CLEAR: McpAnnotations = { ...RELEASE_MOVE, idempotentHint: true };
 
 // ─── Inputs ──────────────────────────────────────────────
 
@@ -383,6 +394,13 @@ const releaseChannel = z
   .string()
   .describe(
     "`preview`. Production moves only by a person on the game's page; an agent asking for it is refused (`release-forbidden`) with that page's URL.",
+  );
+
+const liveTiming = z
+  .string()
+  .optional()
+  .describe(
+    "When players get it: `next-load` (default), `boundary` or `now`. A timing the game doesn't list in `GameDefinition.live.timings` is clamped to the strongest it accepts, with a warning.",
   );
 
 // ─── Tools ───────────────────────────────────────────────
@@ -1082,6 +1100,124 @@ export const MCP_TOOLS: readonly McpTool[] = [
         { project: i.id, scene: i.scene, hosted: i.hosted === true, out: i.out },
         ctx,
       )),
+  }),
+  defineTool({
+    name: "game_live_publish",
+    title: "Publish a scene version",
+    description: `Build one scene's version (\`game live publish\`; as \`game_live_build\` does, or with \`hosted\` from a temporary pull of the hosted project) and publish it to its hosted project on the site (${AGENT_SITE_ENV}, with ${AGENT_TOKEN_ENV}): the swap check first for \`boundary\` and \`now\` unless \`swapCheck\` is false, then begin, the texts the site doesn't hold yet, commit. It lands on preview unless \`channel\` is \`none\`; production moves only by a person on the game's page. Returns the version's summary (scene@number, id, data size, new files, the release it fits, the timing, the changes and whether players' worlds update in place or are rebuilt, today's versions and release storage with a warning for any quota at or over 80% and for a clamped timing, the game page), never a text's contents. Publishing the same content again is the same version. Refusals carry the site's code, message and hint.`,
+    annotations: RELEASE_CREATE,
+    input: {
+      id: releaseProject,
+      scene: sceneName,
+      hosted: z
+        .boolean()
+        .optional()
+        .describe(
+          "Build what the hosted project holds (pulled into a temporary copy) instead of the working tree.",
+        ),
+      channel: z
+        .string()
+        .optional()
+        .describe(
+          "`preview` (default) or `none`. Production moves only by a person on the game's page.",
+        ),
+      timing: liveTiming,
+      note: z
+        .string()
+        .optional()
+        .describe(`What changed, for your team (up to ${LIVE_LIMITS.noteChars} characters).`),
+      swapCheck: z
+        .boolean()
+        .optional()
+        .describe(
+          "false skips the swap check that runs before `boundary` and `now` (`--no-swap-check`).",
+        ),
+    },
+    run: async (i, ctx) =>
+      releaseEnv(ctx) ??
+      buildReport(
+        await gameLivePublish(
+          {
+            project: i.id,
+            scene: i.scene,
+            hosted: i.hosted === true,
+            channel: i.channel,
+            timing: i.timing,
+            note: i.note,
+            noSwapCheck: i.swapCheck === false,
+          },
+          ctx,
+        ),
+      ),
+  }),
+  defineTool({
+    name: "game_live_list",
+    title: "List scene versions",
+    description:
+      "A hosted project's live scene versions (`game live list`), or one scene's, newest first: scene@number, id, data size, when and by whom, its note, the channels that point at it and their timing, whether it is blocked or hidden, and when the cleanup removes it.",
+    annotations: RELEASE_READ,
+    input: {
+      id: releaseProject,
+      scene: z.string().optional().describe("Only this scene's versions."),
+    },
+    run: async (i, ctx) =>
+      releaseEnv(ctx) ?? buildReport(await gameLiveList({ project: i.id, scene: i.scene }, ctx)),
+  }),
+  defineTool({
+    name: "game_live_promote",
+    title: "Promote a scene version",
+    description:
+      "Point a hosted project's preview channel at one of a scene's kept versions (`game live promote`), with its timing. The version must fit the channel's release and not be blocked or hidden. Production is refused with the game page's URL, where a person moves it.",
+    annotations: RELEASE_MOVE,
+    input: {
+      id: releaseProject,
+      scene: sceneName,
+      version: z
+        .number()
+        .int()
+        .positive()
+        .describe("The scene's version number, the 4 of `level-1@4`."),
+      channel: releaseChannel,
+      timing: liveTiming,
+    },
+    run: async (i, ctx) =>
+      releaseEnv(ctx) ??
+      buildReport(
+        await gameLivePromote(
+          {
+            project: i.id,
+            scene: i.scene,
+            number: String(i.version),
+            channel: i.channel,
+            timing: i.timing,
+          },
+          ctx,
+        ),
+      ),
+  }),
+  defineTool({
+    name: "game_live_rollback",
+    title: "Roll back a scene version",
+    description:
+      "Point a hosted project's preview channel back at the scene version it named before, or at the release's own scene (`game live rollback`). Production is refused with the game page's URL, where a person moves it.",
+    annotations: RELEASE_MOVE,
+    input: { id: releaseProject, scene: sceneName, channel: releaseChannel },
+    run: async (i, ctx) =>
+      releaseEnv(ctx) ??
+      buildReport(
+        await gameLiveRollback({ project: i.id, scene: i.scene, channel: i.channel }, ctx),
+      ),
+  }),
+  defineTool({
+    name: "game_live_clear",
+    title: "Stop a scene version",
+    description:
+      "Stop a scene's live version on a hosted project's preview channel (`game live clear`): players get the release's own scene at their next load. The version is kept. Production is refused with the game page's URL, where a person moves it.",
+    annotations: LIVE_CLEAR,
+    input: { id: releaseProject, scene: sceneName, channel: releaseChannel },
+    run: async (i, ctx) =>
+      releaseEnv(ctx) ??
+      buildReport(await gameLiveClear({ project: i.id, scene: i.scene, channel: i.channel }, ctx)),
   }),
   defineTool({
     name: "game_live_check",

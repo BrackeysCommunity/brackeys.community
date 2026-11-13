@@ -2875,6 +2875,11 @@ describe("runCli", () => {
       "game release rollback",
       "game live build",
       "game live check",
+      "game live publish",
+      "game live list",
+      "game live promote",
+      "game live rollback",
+      "game live clear",
     ]);
   });
 

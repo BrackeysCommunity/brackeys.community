@@ -461,9 +461,11 @@ export type GameInstance = {
    * snaps to the game's target and the mode becomes `play`. From edit it
    * remembers the edit world and the editor camera for `stop`; while
    * playing it restarts on `doc` and keeps what it remembered. A failed
-   * Play leaves the current world running.
+   * Play leaves the current world running. `as.sceneId` is the scene's
+   * asset id when `doc.name` isn't it: saves, live versions and the
+   * recording key on it.
    */
-  play: (doc: SceneDefinition, opts?: PlayOptions) => PlayReport;
+  play: (doc: SceneDefinition, opts?: PlayOptions, as?: { sceneId?: AssetId }) => PlayReport;
   /**
    * Plays `recording` on `doc`: Play from the recording's start, with its
    * input edges stepped on their ticks in place of the keyboard's. At its
@@ -483,6 +485,8 @@ export type GameInstance = {
     opts?: {
       /** The scene versions the recording names, by id; null for one the host doesn't have. */
       versions?: (id: Sha256) => StagedVersion | null;
+      /** The scene's asset id when `doc.name` isn't it, as for `play`. */
+      sceneId?: AssetId;
     },
   ) => PlayReport;
   /**

@@ -4,12 +4,14 @@ import type {
   KinematicCharacterController,
   RigidBody,
   RigidBodyDesc,
+  Vector,
   World,
 } from "@dimforge/rapier2d";
 
 import { DEFAULT_GRAVITY, DEFAULT_TICK_RATE } from "./game/defaults";
 import { signedArea } from "./scene/shape-geometry";
-import type { Pt, ShapeObj } from "./scene/types";
+import { createSpatialHash, type SpatialHash } from "./scene/spatial-hash";
+import type { Aabb, Pt, ShapeObj } from "./scene/types";
 import type { RapierModule, Vec2 } from "./types";
 
 // ─── Physics World ──────────────────────────────────────
@@ -22,8 +24,23 @@ export type PhysicsWorld = {
   step: () => void;
   /** World gravity from the next step on, m/s²; y is down. */
   setGravity: (gravity: Vec2) => void;
-  /** Make newly added colliders visible to scene queries without advancing time. */
+  /**
+   * Make colliders added or moved since the last step visible to queries and
+   * character controllers without advancing time: Rapier's broad phase
+   * updates and the engine's collider index is rebuilt, and every body keeps
+   * the velocity it had. Call it after moving a fixed body outside the
+   * engine's systems.
+   */
   refreshQueries: () => void;
+  /**
+   * Colliders whose bounds may meet `box` (every collider for null), in no
+   * set order: the broad phase the engine's space queries use. Colliders on
+   * moving bodies are read as they stand; fixed ones as of their last add,
+   * `moved`, step or `refreshQueries`.
+   */
+  collidersNear: (box: Aabb | null) => Collider[];
+  /** Tell the collider index that a fixed body or collider was moved or resized by code. */
+  moved: (target: RigidBody | Collider) => void;
   addRigidBody: (desc: RigidBodyDesc) => RigidBody;
   /** Create a collider, optionally attached to a rigid body */
   addCollider: (desc: ColliderDesc, body?: RigidBody) => Collider;
@@ -90,21 +107,37 @@ export function createPhysicsWorld(
   const world = new rapier.World(new rapier.Vector2(cfg.gravity.x, cfg.gravity.y));
   world.timestep = cfg.timestep;
 
+  const index = createColliderIndex(world, rapier);
+
   // Sensor overlaps are read back with world.intersectionPair rather than an
   // EventQueue, so stepping never calls back into JS.
   function step(): void {
     world.step();
+    index.stepped();
   }
 
   function setGravity(gravity: Vec2): void {
     world.gravity = new rapier.Vector2(gravity.x, gravity.y);
   }
 
+  // Rapier updates its broad phase only inside a step, so this steps by zero.
+  // A zero step still runs the solver, which throws jointed bodies' velocities
+  // off (a chain's links reach about 1000 m/s): each dynamic body gets its own back.
   function refreshQueries(): void {
+    const kept: { body: RigidBody; v: Vector; w: number }[] = [];
+    world.bodies.forEach((body) => {
+      if (body.isDynamic()) kept.push({ body, v: body.linvel(), w: body.angvel() });
+    });
     const dt = world.timestep;
     world.timestep = 0;
     world.step();
     world.timestep = dt;
+    for (const { body, v, w } of kept) {
+      const now = body.linvel();
+      if (now.x !== v.x || now.y !== v.y) body.setLinvel(v, false);
+      if (body.angvel() !== w) body.setAngvel(w, false);
+    }
+    index.rebuild();
   }
 
   function addRigidBody(desc: RigidBodyDesc): RigidBody {
@@ -112,7 +145,9 @@ export function createPhysicsWorld(
   }
 
   function addCollider(desc: ColliderDesc, body?: RigidBody): Collider {
-    return world.createCollider(desc, body);
+    const collider = world.createCollider(desc, body);
+    index.place(collider);
+    return collider;
   }
 
   function createCharacterController(
@@ -149,11 +184,19 @@ export function createPhysicsWorld(
   }
 
   function removeRigidBody(body: RigidBody): void {
+    for (let i = 0; i < body.numColliders(); i++) index.forget(body.collider(i).handle);
     world.removeRigidBody(body);
   }
 
   function removeCollider(collider: Collider): void {
+    index.forget(collider.handle);
     world.removeCollider(collider, true);
+  }
+
+  function moved(target: RigidBody | Collider): void {
+    if ("numColliders" in target) {
+      for (let i = 0; i < target.numColliders(); i++) index.moved(target.collider(i).handle);
+    } else index.moved(target.handle);
   }
 
   function debugRender(): { vertices: Float32Array; colors: Float32Array } {
@@ -175,6 +218,8 @@ export function createPhysicsWorld(
     step,
     setGravity,
     refreshQueries,
+    collidersNear: (box) => index.near(box),
+    moved,
     addRigidBody,
     addCollider,
     createCharacterController,
@@ -183,6 +228,200 @@ export function createPhysicsWorld(
     removeCollider,
     debugRender,
     destroy,
+  };
+}
+
+// ─── Collider index ─────────────────────────────────────
+
+/**
+ * A Rapier collider's world bounds, or null for a shape kind with no cheap
+ * box. Read from the collider each time: Rapier's in-place size setters
+ * change it without replacing `Collider.shape`.
+ */
+export function rapierColliderBounds(
+  c: Collider,
+  ShapeType: RapierModule["ShapeType"],
+): Aabb | null {
+  const { x, y } = c.translation();
+  const rot = c.rotation();
+  const cos = Math.abs(Math.cos(rot));
+  const sin = Math.abs(Math.sin(rot));
+  const around = (ex: number, ey: number): Aabb => ({
+    minX: x - ex,
+    minY: y - ey,
+    maxX: x + ex,
+    maxY: y + ey,
+  });
+  switch (c.shapeType()) {
+    case ShapeType.Ball:
+      return around(c.radius(), c.radius());
+    case ShapeType.Cuboid:
+    case ShapeType.RoundCuboid: {
+      const { x: hw, y: hh } = c.halfExtents();
+      const r = c.shapeType() === ShapeType.RoundCuboid ? c.roundRadius() : 0;
+      return around(cos * hw + sin * hh + r, sin * hw + cos * hh + r);
+    }
+    case ShapeType.Capsule: {
+      const h = c.halfHeight();
+      const r = c.radius();
+      return around(sin * h + r, cos * h + r);
+    }
+    case ShapeType.ConvexPolygon:
+    case ShapeType.RoundConvexPolygon:
+    case ShapeType.Polyline:
+    case ShapeType.TriMesh: {
+      const v = c.vertices();
+      if (v.length < 2) return null;
+      const r = c.shapeType() === ShapeType.RoundConvexPolygon ? c.roundRadius() : 0;
+      const ca = Math.cos(rot);
+      const sa = Math.sin(rot);
+      const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+      for (let i = 0; i + 1 < v.length; i += 2) {
+        const lx = v[i]!;
+        const ly = v[i + 1]!;
+        const wx = x + lx * ca - ly * sa;
+        const wy = y + lx * sa + ly * ca;
+        box.minX = Math.min(box.minX, wx - r);
+        box.minY = Math.min(box.minY, wy - r);
+        box.maxX = Math.max(box.maxX, wx + r);
+        box.maxY = Math.max(box.maxY, wy + r);
+      }
+      return box;
+    }
+    default:
+      return null;
+  }
+}
+
+const apart = (a: Aabb, b: Aabb) =>
+  a.maxX < b.minX || b.maxX < a.minX || a.maxY < b.minY || b.maxY < a.minY;
+
+/** The collider index's cell side: the median fixed collider's longer side, within these, m. */
+const MIN_INDEX_CELL = 0.5;
+const MAX_INDEX_CELL = 64;
+
+/**
+ * Colliders by bounds, built at the first query after a load or a
+ * `rebuild`, so loading pays nothing for it. Fixed colliders (no body, or a
+ * fixed one) sit in a spatial hash whose cell fits their median size,
+ * re-read when added, marked `moved`, and after a step that follows a
+ * `moved`; colliders on bodies that move are read as they stand at each
+ * query, so no system has to report them. A collider added or removed
+ * straight through the Rapier world shows as a count that no longer
+ * matches, and the index builds again.
+ */
+function createColliderIndex(world: World, rapier: RapierModule) {
+  let settled: SpatialHash<number> | null = null;
+  const moving = new Set<number>();
+  /** Shapes with no cheap bounds: every query looks at them. */
+  const loose = new Set<number>();
+  /** Fixed colliders moved by code: re-read at each query until a step has carried the move. */
+  const stale = new Set<number>();
+  const bounds = (c: Collider) => rapierColliderBounds(c, rapier.ShapeType);
+  const fixed = (c: Collider) => {
+    const parent = c.parent();
+    return !parent || parent.isFixed();
+  };
+
+  function forget(handle: number): void {
+    settled?.remove(handle);
+    moving.delete(handle);
+    loose.delete(handle);
+    stale.delete(handle);
+  }
+
+  function place(c: Collider): void {
+    if (!settled) return;
+    if (!fixed(c)) {
+      settled.remove(c.handle);
+      loose.delete(c.handle);
+      moving.add(c.handle);
+      return;
+    }
+    moving.delete(c.handle);
+    const box = bounds(c);
+    if (box) {
+      loose.delete(c.handle);
+      settled.update(c.handle, box);
+    } else {
+      settled.remove(c.handle);
+      loose.add(c.handle);
+    }
+  }
+
+  function rebuild(): void {
+    settled = null;
+    moving.clear();
+    loose.clear();
+    stale.clear();
+  }
+
+  function build(): SpatialHash<number> {
+    moving.clear();
+    loose.clear();
+    const boxes: [number, Aabb][] = [];
+    world.colliders.forEach((c) => {
+      if (!fixed(c)) moving.add(c.handle);
+      else {
+        const box = bounds(c);
+        if (box) boxes.push([c.handle, box]);
+        else loose.add(c.handle);
+      }
+    });
+    const sides = boxes
+      .map(([, b]) => Math.max(b.maxX - b.minX, b.maxY - b.minY))
+      .sort((a, b) => a - b);
+    const median = sides[sides.length >> 1] ?? MIN_INDEX_CELL;
+    const hash = createSpatialHash<number>(
+      Math.min(MAX_INDEX_CELL, Math.max(MIN_INDEX_CELL, median)),
+    );
+    for (const [handle, box] of boxes) hash.insert(handle, box);
+    settled = hash;
+    return hash;
+  }
+
+  function restale(): void {
+    for (const handle of stale) {
+      const c = world.getCollider(handle);
+      if (c) place(c);
+      else forget(handle);
+    }
+  }
+
+  return {
+    place,
+    forget,
+    rebuild,
+    moved(handle: number): void {
+      stale.add(handle);
+    },
+    stepped(): void {
+      restale();
+      stale.clear();
+    },
+    near(box: Aabb | null): Collider[] {
+      const out: Collider[] = [];
+      if (!box) {
+        world.colliders.forEach((c) => out.push(c));
+        return out;
+      }
+      let hash = settled;
+      if (!hash || hash.size + moving.size + loose.size !== world.colliders.len()) hash = build();
+      else restale();
+      const take = (handle: number) => {
+        const c = world.getCollider(handle);
+        if (c) out.push(c);
+      };
+      for (const handle of hash.query(box)) take(handle);
+      for (const handle of loose) take(handle);
+      for (const handle of moving) {
+        const c = world.getCollider(handle);
+        if (!c) continue;
+        const b = bounds(c);
+        if (!b || !apart(b, box)) out.push(c);
+      }
+      return out;
+    },
   };
 }
 

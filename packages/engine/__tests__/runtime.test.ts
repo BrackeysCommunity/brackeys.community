@@ -7,7 +7,7 @@ import type { GameDefinition } from "../game/types";
 import type { TickInput } from "../input/stream";
 import { runtimeView, type ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetEntry, ProjectView } from "../project/types";
-import { createSceneRuntime } from "../runtime/runtime";
+import { createSceneRuntime, saveHostOf } from "../runtime/runtime";
 import { SENSOR_ENTER, SENSOR_EXIT, type RuntimeStats } from "../runtime/types";
 import type { ExpandedScene, RuntimeEntity, ShapeObj } from "../scene/types";
 import { createSolidSystem, type SolidSystem } from "../systems/bodies";
@@ -99,6 +99,19 @@ describe("SceneRuntime load and unload", () => {
         .map((m) => m.id),
     ).toEqual(["start"]);
     expect(rt.scene()?.name).toBe("engine-yard");
+    rt.destroy();
+  });
+
+  it("keys the scene on the asset id a load gives, until a load without one", () => {
+    const rt = runtime();
+    const host = () => saveHostOf(rt.ctx)!;
+    rt.load(engineYard(), {}, { sceneId: "yard-asset" });
+    expect(host().sceneId()).toBe("yard-asset");
+    expect(rt.scene()?.name).toBe("engine-yard");
+    rt.load(engineYard());
+    expect(host().sceneId()).toBe("engine-yard");
+    rt.unload();
+    expect(host().sceneId()).toBeNull();
     rt.destroy();
   });
 

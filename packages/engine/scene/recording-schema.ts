@@ -720,6 +720,21 @@ function v2Problem(rec: RunRecordingV2): ParseRecordingResult | null {
         );
     }
   }
+  const swaps = rec.swaps ?? [];
+  for (let i = 0; i < swaps.length; i++) {
+    const { tick } = swaps[i]!;
+    const previous = swaps[i - 1];
+    if (previous && tick < previous.tick)
+      return fail(
+        ["swaps", i, "tick"],
+        `swaps are in tick order, but ${tick} follows ${previous.tick}`,
+      );
+    if (tick >= rec.ticks)
+      return fail(
+        ["swaps", i, "tick"],
+        `a swap runs before a tick the run simulated, but ${tick} isn't below \`ticks\` (${rec.ticks})`,
+      );
+  }
   return null;
 }
 

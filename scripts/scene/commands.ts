@@ -25,8 +25,18 @@ import { GAME_EXPORT_USAGE, gameExport } from "./tools/game-export";
 import {
   GAME_LIVE_BUILD_USAGE,
   GAME_LIVE_CHECK_USAGE,
+  GAME_LIVE_CLEAR_USAGE,
+  GAME_LIVE_LIST_USAGE,
+  GAME_LIVE_PROMOTE_USAGE,
+  GAME_LIVE_PUBLISH_USAGE,
+  GAME_LIVE_ROLLBACK_USAGE,
   gameLiveBuild,
   gameLiveCheck,
+  gameLiveClear,
+  gameLiveList,
+  gameLivePromote,
+  gameLivePublish,
+  gameLiveRollback,
 } from "./tools/game-live";
 import { GAME_MANIFEST_USAGE, gameManifest, replayRelease } from "./tools/game-manifest";
 import { GAME_NEW_FLAGS, gameNew } from "./tools/game-new";
@@ -759,6 +769,69 @@ const DEFINITIONS = {
     maxPositionals: 2,
     run: ({ positionals: [project, scene], flags }, ctx) =>
       gameLiveCheck({ project, scene, against: str(flags.against), from: str(flags.from) }, ctx),
+  },
+  "game live publish": {
+    usage: GAME_LIVE_PUBLISH_USAGE,
+    summary:
+      "build one scene's version as game live build does (or from the hosted project with --hosted) and publish it to its hosted project: checked against the channel's release, swap-checked from what players have before a boundary or now move unless --no-swap-check, then only the texts the site lacks go up; on preview unless --channel none, production refused for agent tokens with the game's page; prints the version, its size and new files, the release it fits, the changes, today's usage and a warning: line for any quota at or over 80% and for a clamped timing",
+    values: ["channel", "timing", "note"],
+    switches: ["hosted", "no-swap-check"],
+    maxPositionals: 2,
+    run: ({ positionals: [project, scene], flags }, ctx) =>
+      gameLivePublish(
+        {
+          project,
+          scene,
+          hosted: flags.hosted === true,
+          channel: str(flags.channel),
+          timing: str(flags.timing),
+          note: str(flags.note),
+          noSwapCheck: flags["no-swap-check"] === true,
+        },
+        ctx,
+      ),
+  },
+  "game live list": {
+    usage: GAME_LIVE_LIST_USAGE,
+    summary:
+      "a hosted project's scene versions (one scene's with <scene>), newest first, with their size, where each is live and its timing, their state and note",
+    values: [],
+    switches: [],
+    maxPositionals: 2,
+    run: ({ positionals: [project, scene] }, ctx) => gameLiveList({ project, scene }, ctx),
+  },
+  "game live promote": {
+    usage: GAME_LIVE_PROMOTE_USAGE,
+    summary:
+      "point a hosted project's preview at version <n> of a scene, at --timing (clamped to the timings the game declares, with a warning); production is refused for agent tokens and the refusal names the game's page",
+    values: ["channel", "timing"],
+    switches: [],
+    maxPositionals: 3,
+    run: ({ positionals: [project, scene, number], flags }, ctx) =>
+      gameLivePromote(
+        { project, scene, number, channel: str(flags.channel), timing: str(flags.timing) },
+        ctx,
+      ),
+  },
+  "game live rollback": {
+    usage: GAME_LIVE_ROLLBACK_USAGE,
+    summary:
+      "point a hosted project's preview back at the scene's previous version, or the release's scene; production is moved by a person on the game's page",
+    values: ["channel"],
+    switches: [],
+    maxPositionals: 2,
+    run: ({ positionals: [project, scene], flags }, ctx) =>
+      gameLiveRollback({ project, scene, channel: str(flags.channel) }, ctx),
+  },
+  "game live clear": {
+    usage: GAME_LIVE_CLEAR_USAGE,
+    summary:
+      "stop a scene's live version on a hosted project's preview: players get the release's scene at their next load; production is moved by a person on the game's page",
+    values: ["channel"],
+    switches: [],
+    maxPositionals: 2,
+    run: ({ positionals: [project, scene], flags }, ctx) =>
+      gameLiveClear({ project, scene, channel: str(flags.channel) }, ctx),
   },
 } satisfies Record<string, Command>;
 

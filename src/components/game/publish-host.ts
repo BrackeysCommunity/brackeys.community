@@ -10,8 +10,14 @@ import type {
   UsageView,
 } from "@jams/engine/editor-ui";
 import type { ProjectId, Sha256 } from "@jams/engine/project";
-import { ORPCError } from "@orpc/client";
 
+import {
+  editorLiveHost,
+  hostCall,
+  liveUsageText,
+  type LiveRpc,
+  type SendText,
+} from "@/lib/engine/editor-live-host";
 import { engineGamesAllowed } from "@/lib/engine/guard";
 import {
   BLOB_GRACE_DAYS,
@@ -37,7 +43,9 @@ export const publishAllowed = (flag: (name: string) => boolean): boolean =>
 
 type SiteClient = (typeof import("@/orpc/client"))["client"];
 
-/** The procedures the publish host calls; the site's oRPC client by default. */
+export { PublishHostError, publishError } from "@/lib/engine/editor-live-host";
+
+/** The release procedures the publish host calls; the site's oRPC client by default. */
 export type PublishRpc = Pick<
   SiteClient,
   | "getProjectUsage"
@@ -48,34 +56,8 @@ export type PublishRpc = Pick<
   | "setGameSettings"
 >;
 
-/** A refusal from the site, its message for people and its hint for developers. */
-export class PublishHostError extends Error {
-  readonly code: string;
-  readonly hint: string | undefined;
-  constructor(message: string, code: string, hint?: string) {
-    super(message);
-    this.name = "PublishHostError";
-    this.code = code;
-    this.hint = hint;
-  }
-}
-
-/** An oRPC refusal as the host's error; anything else passes through. */
-export function publishError(error: unknown): unknown {
-  if (!(error instanceof ORPCError)) return error;
-  const data = (error.data ?? {}) as { code?: unknown; message?: unknown; hint?: unknown };
-  const message = typeof data.message === "string" ? data.message : error.message;
-  const code = typeof data.code === "string" ? data.code : String(error.code);
-  return new PublishHostError(message, code, typeof data.hint === "string" ? data.hint : undefined);
-}
-
-async function call<T>(run: () => Promise<T>): Promise<T> {
-  try {
-    return await run();
-  } catch (error) {
-    throw publishError(error);
-  }
-}
+/** Every procedure the publish host and its `live` member call. */
+export type SitePublishRpc = PublishRpc & LiveRpc;
 
 // ─── The words ───────────────────────────────────────────
 
@@ -228,7 +210,11 @@ export function usageView(
       `${bytes(usage.liveBlobBytes)} in use · ${bytes(usage.trashBytes)} in the trash · ${bytes(usage.historyBytes)} replaced versions (deleted ${n(BLOB_GRACE_DAYS)} days after replacement)`,
     ),
     documents,
-    row("releaseStorageBytes", (l) => `${rowLabel(l.quota)}: ${ofMax(l)}`),
+    row(
+      "releaseStorageBytes",
+      (l) => `${rowLabel(l.quota)}: ${ofMax(l)}`,
+      liveUsageText(usage.liveVersions),
+    ),
     row("releaseBytes", (l) =>
       usage.largestRelease
         ? `Largest release: v${usage.largestRelease.version}, ${bytes(l.used)} of ${bytes(l.max)} per release`
@@ -298,17 +284,22 @@ export type SitePublishHostOptions = {
   openTokenDialog: () => void;
   /** Where a change's side notes go, such as old copies left at the edge; default nowhere. */
   notify?: EditorNotify;
+  /** Whether this viewer may move production; default true, since only publishers and staff read the settings this host opens behind. */
+  publisher?: boolean;
   /** Default: the site's oRPC client, loaded on the first call. */
-  rpc?: PublishRpc | (() => Promise<PublishRpc>);
+  rpc?: SitePublishRpc | (() => Promise<SitePublishRpc>);
+  /** The live host's file uploads; default the browser's `fetch`. */
+  fetch?: SendText;
 };
 
-const siteRpc = (): Promise<PublishRpc> => import("@/orpc/client").then((m) => m.client);
+const siteRpc = (): Promise<SitePublishRpc> => import("@/orpc/client").then((m) => m.client);
 
 /**
  * jams.team as the editor's publisher: the project's usage, releases and
- * channels, and its game settings, over the site's oRPC procedures, with
- * every sentence that states a site number written here. A refusal comes
- * back as a `PublishHostError` carrying the site's message and hint.
+ * channels, its game settings and its live scene versions (`live`), over
+ * the site's oRPC procedures, with every sentence that states a site
+ * number written here. A refusal comes back as a `PublishHostError`
+ * carrying the site's message and hint.
  */
 export function sitePublishHost(opts: SitePublishHostOptions): EditorPublishHost {
   const { project } = opts;
@@ -322,8 +313,8 @@ export function sitePublishHost(opts: SitePublishHostOptions): EditorPublishHost
     async usage() {
       const api = await rpc();
       const [report, releases] = await Promise.all([
-        call(() => api.getProjectUsage({ projectId })),
-        call(() => api.listReleases({ projectId })).catch(() => null),
+        hostCall(() => api.getProjectUsage({ projectId })),
+        hostCall(() => api.listReleases({ projectId })).catch(() => null),
       ]);
       const channels = releases
         ? [...new Set(releases.flatMap((r) => r.channels as readonly PublishChannel[]))]
@@ -332,28 +323,36 @@ export function sitePublishHost(opts: SitePublishHostOptions): EditorPublishHost
     },
     async releases() {
       const api = await rpc();
-      const list = await call(() => api.listReleases({ projectId }));
+      const list = await hostCall(() => api.listReleases({ projectId }));
       return list.map((r) => releaseView(r));
     },
-    async promote(version, channel) {
+    async promote(version, channel, promoteOpts) {
       const api = await rpc();
-      return call(() => api.promoteRelease({ projectId, version, channel }));
+      const keep = promoteOpts?.keepScenes;
+      return hostCall(() =>
+        api.promoteRelease({
+          projectId,
+          version,
+          channel,
+          ...(keep !== undefined ? { keepScenes: [...keep] } : {}),
+        }),
+      );
     },
     async rollback(channel, to) {
       const api = await rpc();
-      return call(() =>
+      return hostCall(() =>
         api.rollbackRelease({ projectId, channel, ...(to !== undefined ? { to } : {}) }),
       );
     },
     async settings(): Promise<GameSettingsView> {
       const api = await rpc();
-      const saved = await call(() => api.getGameSettings({ projectId }));
+      const saved = await hostCall(() => api.getGameSettings({ projectId }));
       return { ...saved, team };
     },
     async setSettings(patch): Promise<GameSettingsView> {
       const api = await rpc();
       const { connectOrigins, ...rest } = patch;
-      const { edgeNote, ...saved } = await call(() =>
+      const { edgeNote, ...saved } = await hostCall(() =>
         api.setGameSettings({
           projectId,
           ...rest,
@@ -369,5 +368,11 @@ export function sitePublishHost(opts: SitePublishHostOptions): EditorPublishHost
     },
     openTokenDialog: () => opts.openTokenDialog(),
     wording: publishWording(project, team),
+    live: editorLiveHost({
+      project,
+      rpc,
+      ...(opts.publisher !== undefined ? { publisher: opts.publisher } : {}),
+      ...(opts.fetch ? { fetch: opts.fetch } : {}),
+    }),
   };
 }

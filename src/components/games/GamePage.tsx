@@ -13,7 +13,7 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Heading, Link as TextLink, Text } from "@/components/ui/typography";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Well } from "@/components/ui/well";
-import type { GamePagePayload } from "@/lib/engine/game-page";
+import type { GamePageBlockedScene, GamePagePayload } from "@/lib/engine/game-page";
 import { engineGamesAllowed } from "@/lib/engine/guard";
 import { useFlagBlocks } from "@/lib/hooks/use-flag";
 import { profileLinkParams } from "@/lib/profile-links";
@@ -41,6 +41,44 @@ export function missingLicencesLine(count: number): string {
     ? "1 asset has no licence recorded."
     : `${count} assets have no licence recorded.`;
 }
+
+/** "The ford update blocked (5 of 12 players' games failed after this update)" */
+export function blockedSceneLine(blocked: Pick<GamePageBlockedScene, "title" | "reason">): string {
+  return blocked.reason
+    ? `${blocked.title} update blocked (${blocked.reason})`
+    : `${blocked.title} update blocked`;
+}
+
+/** Publishers only: each blocked level update, linking to the editor's Publish panel for its scene. */
+function BlockedScenes({
+  projectId,
+  blocked,
+}: {
+  projectId: string;
+  blocked: readonly GamePageBlockedScene[];
+}) {
+  return (
+    <ul aria-label="Blocked level updates" className="flex flex-col gap-1">
+      {blocked.map((b) => (
+        <li key={`${b.scene}@${b.number}`}>
+          <Text as="span" size="sm" variant="warning">
+            <Link
+              to="/game/$roomId"
+              params={{ roomId: EDITOR_ROOM }}
+              search={{ edit: 1, project: projectId, scene: b.scene }}
+              className="underline underline-offset-2"
+            >
+              {blockedSceneLine(b)}
+            </Link>
+          </Text>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The room the editor opens a hosted project in, as the scene CLI's links name it. */
+const EDITOR_ROOM = "dev";
 
 /** True when hosted games are off for this viewer or this deployment. */
 function useGamesBlocked(): boolean {
@@ -237,8 +275,12 @@ export function GamePage({
           versions={page.versions}
           publisher={page.publisher}
           liveVersion={page.live?.version ?? null}
+          liveScenes={page.live?.scenes}
           onChanged={onChanged}
         />
+        {page.publisher && page.blockedScenes.length > 0 ? (
+          <BlockedScenes projectId={page.projectId} blocked={page.blockedScenes} />
+        ) : null}
       </Section>
 
       <Section id="saves" title="SAVES AND PRIVACY">

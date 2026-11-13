@@ -109,20 +109,9 @@ function putBack(host: SwapHost, e: RuntimeEntity, kept: Kept): void {
   host.restoreEntity(e, kept.states);
 }
 
-/** Every moving body's velocity, by handle. */
-function motionOf(ctx: EngineContext): Map<number, BodyState> {
-  const out = new Map<number, BodyState>();
-  ctx.physics?.world.bodies.forEach((body) => {
-    if (!body.isFixed()) out.set(body.handle, bodyState(body));
-  });
-  return out;
-}
-
-function place(body: RigidBody, was: BodyState, moveIt: boolean): void {
-  if (moveIt) {
-    body.setTranslation({ x: was.x, y: was.y }, false);
-    body.setRotation(was.rot, false);
-  }
+function place(body: RigidBody, was: BodyState): void {
+  body.setTranslation({ x: was.x, y: was.y }, false);
+  body.setRotation(was.rot, false);
   if (body.isDynamic()) {
     body.setLinvel({ x: was.vx, y: was.vy }, false);
     body.setAngvel(was.w, false);
@@ -130,28 +119,18 @@ function place(body: RigidBody, was: BodyState, moveIt: boolean): void {
 }
 
 /**
- * After the runtime's add, update and remove refreshed its queries, which
- * steps the world by zero and can disturb what moves (a joint's bodies
- * most): each body that was there before moves on as it did, and each
- * entity in `carried` has its bodies put where they were (a system that
- * keeps no pose of its own still has its body moved).
+ * After the runtime's add, update and remove: queries see the new world,
+ * and each entity in `carried` has its bodies put where they were (a system
+ * that keeps no pose of its own still has its body moved).
  */
-function settle(
-  ctx: EngineContext,
-  motion: Map<number, BodyState>,
-  carried: readonly Taken[],
-): void {
+function settle(ctx: EngineContext, carried: readonly Taken[]): void {
   const physics = ctx.physics;
   if (!physics) return;
   physics.refreshQueries();
-  for (const [handle, was] of motion) {
-    const body = physics.world.getRigidBody(handle);
-    if (body) place(body, was, false);
-  }
   for (const { e, kept } of carried) {
     const bodies = bodiesOf(ctx, e.id);
     if (bodies.length !== kept.bodies.length) continue;
-    for (const [i, body] of bodies.entries()) place(body, kept.bodies[i]!, true);
+    for (const [i, body] of bodies.entries()) place(body, kept.bodies[i]!);
   }
   physics.world.propagateModifiedBodyPositionsToColliders();
 }
@@ -296,14 +275,10 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
     touches && worldSaveBlockers(host.runtime()).length === 0 ? capture(host, "world") : null;
   const exact = world?.ok ? world.file : null;
   const applied = { removed: false, added: false, updated: false };
-  const motion = motionOf(ctx);
   const carried: Taken[] = [];
 
-  /**
-   * Undoes what `applied` says ran, from what was taken before it ran;
-   * every other body moves on as `moving` says.
-   */
-  function inverse(moving: Map<number, BodyState>): void {
+  /** Undoes what `applied` says ran, from what was taken before it ran. */
+  function inverse(): void {
     const back: Taken[] = [];
     if (applied.updated) {
       host.update(changed.map((c) => c.e));
@@ -322,7 +297,6 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
     host.order(order);
     settle(
       ctx,
-      moving,
       back.filter((t) => ctx.get(t.e.id)),
     );
   }
@@ -361,7 +335,7 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
   }
   if (refused) {
     if (exact) return reload(host, next, opts.prefabs, diff, was, refuse, { file: exact, refused });
-    inverse(motion);
+    inverse();
     // Without a world capture the reload carries progress. A refused add or
     // a throw would refuse again in the fresh load and lose the world, so
     // only a refused update reloads; the others keep the inverse's world.
@@ -377,7 +351,7 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
   for (const e of added) now.add(e.id);
   host.setVersion(next, opts.prefabs);
   host.order(next.entities.map((e) => e.id));
-  settle(ctx, motion, carried);
+  settle(ctx, carried);
 
   const swapTick = ctx.tick;
   const generation = host.generation();
@@ -394,7 +368,7 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
         rolledBack(loadAndRestore(host, was.loadBack, version, library, exact, swapTick));
         return;
       }
-      inverse(motionOf(ctx));
+      inverse();
     },
   };
 }

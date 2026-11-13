@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { HostRequestError } from "@jams/engine/standalone";
+import type { HostRequestError, LiveSnapshot, LiveStateMessage } from "@jams/engine/standalone";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 
 import { HOST_NO_SITE_SAVES_MESSAGE, HOST_THROTTLED_MESSAGE } from "../host-server";
@@ -10,6 +10,7 @@ import {
   hostRig as rig,
   refusal,
   RIG_RELEASE as RELEASE,
+  rigLive,
   rigSaveText as saveText,
 } from "./host-rig";
 
@@ -285,5 +286,170 @@ describe("events", () => {
     r.toPage({ type: "jams:frame-ready", protocol: 1 }, r.frame, "null");
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(r.toFrame).toHaveLength(2);
+  });
+});
+
+describe("live levels", () => {
+  const ONE = "a".repeat(64);
+  const TWO = "b".repeat(64);
+
+  /** Waits a few turns for messages that should not arrive. */
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+
+  it("gives a frame that announced live the current snapshot in welcome", async () => {
+    const live = rigLive(3, { one: ONE });
+    const r = rig({ live: () => live });
+    const channel = await r.connect(["live"]);
+    expect(channel.welcome.live).toEqual(live);
+  });
+
+  it("gives a frame without the feature no live in welcome and no live.update", async () => {
+    const r = rig({ live: () => rigLive(3, { one: ONE }) });
+    const channel = await r.connect();
+    expect("live" in channel.welcome).toBe(false);
+    const seen = vi.fn();
+    channel.on("live.update", seen);
+    expect(r.server.sendLive(rigLive(4, { one: TWO }))).toBe(false);
+    await settle();
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it("sends live.update to a frame that announced live, and keeps it for a reload's welcome", async () => {
+    const r = rig({ live: () => rigLive(3, { one: ONE }) });
+    const channel = await r.connect(["live"]);
+    const seen = vi.fn<(live: LiveSnapshot) => void>();
+    channel.on("live.update", seen);
+    const next = rigLive(4, { one: TWO });
+    expect(r.server.sendLive(next)).toBe(true);
+    await vi.waitFor(() => expect(seen).toHaveBeenCalledWith(next));
+    const reloaded = await r.connect(["live"]);
+    expect(reloaded.welcome.live).toEqual(next);
+  });
+
+  it("forgets a reloaded frame's feature when the new one doesn't announce it", async () => {
+    const r = rig();
+    await r.connect(["live"]);
+    const plain = await r.connect();
+    const seen = vi.fn();
+    plain.on("live.update", seen);
+    expect(r.server.sendLive(rigLive(1))).toBe(false);
+    await settle();
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing during an online session", async () => {
+    let session = true;
+    const r = rig({ sessionActive: () => session });
+    const channel = await r.connect(["live"]);
+    const seen = vi.fn();
+    channel.on("live.update", seen);
+    expect(r.server.sendLive(rigLive(1, { one: ONE }))).toBe(false);
+    await settle();
+    expect(seen).not.toHaveBeenCalled();
+    session = false;
+    expect(r.server.sendLive(rigLive(2, { one: ONE }))).toBe(true);
+    await vi.waitFor(() => expect(seen).toHaveBeenCalledTimes(1));
+  });
+
+  it("sends nothing for another release, or a snapshot the schema refuses", async () => {
+    const r = rig();
+    const channel = await r.connect(["live"]);
+    const seen = vi.fn();
+    channel.on("live.update", seen);
+    expect(r.server.sendLive({ ...rigLive(1), release: "f".repeat(64) })).toBe(false);
+    expect(r.server.sendLive({ ...rigLive(1), rev: -1 })).toBe(false);
+    await settle();
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing over the message cap", async () => {
+    const r = rig();
+    const channel = await r.connect(["live"]);
+    const seen = vi.fn();
+    channel.on("live.update", seen);
+    const big = rigLive(
+      1,
+      Object.fromEntries(Array.from({ length: 1_000 }, (_, i) => [`scene-${i}`, ONE])),
+    );
+    expect(r.server.sendLive(big)).toBe(false);
+    await settle();
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it("hands on each live.state, validated, and stops after unsubscribing", async () => {
+    const r = rig();
+    const channel = await r.connect(["live"]);
+    const states = vi.fn<(s: LiveStateMessage) => void>();
+    const off = r.server.onLiveState(states);
+    channel.liveState({ scene: "one", version: ONE, status: "applied", timing: "now", tick: 12 });
+    channel.liveState({ scene: "one", version: null, status: "ready" });
+    await vi.waitFor(() => expect(states).toHaveBeenCalledTimes(2));
+    expect(states.mock.calls[0]![0]).toEqual({
+      scene: "one",
+      version: ONE,
+      status: "applied",
+      timing: "now",
+      tick: 12,
+    });
+    expect(states.mock.calls[1]![0]).toEqual({ scene: "one", version: null, status: "ready" });
+    const port = r.framePort();
+    port.postMessage({ type: "live.state", scene: "one", version: "nope", status: "applied" });
+    port.postMessage({ type: "live.state", scene: "one", version: ONE, status: "won" });
+    await vi.waitFor(() => expect(r.server.dropped).toBe(2));
+    off();
+    channel.liveState({ scene: "one", version: ONE, status: "applied" });
+    await settle();
+    expect(states).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops live.state from a frame that didn't announce live", async () => {
+    const r = rig();
+    const channel = await r.connect();
+    const states = vi.fn();
+    r.server.onLiveState(states);
+    channel.liveState({ scene: "one", version: ONE, status: "applied" });
+    await vi.waitFor(() => expect(r.server.dropped).toBe(1));
+    expect(states).not.toHaveBeenCalled();
+  });
+
+  it("takes live.state 10 a second, beside 20 for saves", async () => {
+    const r = rig();
+    const channel = await r.connect(["live"]);
+    const states = vi.fn();
+    r.server.onLiveState(states);
+    for (let i = 0; i < 11; i++)
+      channel.liveState({ scene: "one", version: ONE, status: "staging" });
+    const saves = await Promise.allSettled(
+      Array.from({ length: 20 }, () => channel.request("saves.list", { gameId: "tactics" })),
+    );
+    expect(saves.every((s) => s.status === "fulfilled")).toBe(true);
+    await vi.waitFor(() => expect(r.server.dropped).toBe(1));
+    expect(states).toHaveBeenCalledTimes(10);
+  });
+
+  it("asks for the recording, and its answer reaches onDownload past the download rate", async () => {
+    Object.defineProperty(ArrayBuffer, Symbol.hasInstance, {
+      configurable: true,
+      value: (v: unknown) => Object.prototype.toString.call(v) === "[object ArrayBuffer]",
+    });
+    onTestFinished(() => {
+      delete (ArrayBuffer as { [Symbol.hasInstance]?: unknown })[Symbol.hasInstance];
+    });
+    const onDownload = vi.fn();
+    const r = rig({ onDownload });
+    expect(r.server.requestRecording()).toBe(false);
+    const channel = await r.connect(["live"]);
+    const bytes = new Uint8Array([7]).buffer;
+    channel.offerDownload("match.recording.json", "application/json", bytes);
+    await vi.waitFor(() => expect(onDownload).toHaveBeenCalledTimes(1));
+    channel.on("recording.request", () =>
+      channel.offerDownload("one.recording.json", "application/json", bytes),
+    );
+    expect(r.server.requestRecording()).toBe(true);
+    await vi.waitFor(() => expect(onDownload).toHaveBeenCalledTimes(2));
+    expect((onDownload.mock.calls[1]![0] as { name: string }).name).toBe("one.recording.json");
+    channel.offerDownload("unasked.recording.json", "application/json", bytes);
+    await vi.waitFor(() => expect(r.server.dropped).toBe(1));
+    expect(onDownload).toHaveBeenCalledTimes(2);
   });
 });

@@ -16,6 +16,8 @@ export const HOST_SAVE_REQUESTS_PER_SECOND = 20;
 export const HOST_PREFS_WRITES_PER_SECOND = 10;
 /** A game frame may offer the play page one download this often. */
 export const HOST_DOWNLOAD_INTERVAL_SECONDS = 10;
+/** Live reports a game frame may send the play page a second. */
+export const HOST_LIVE_STATES_PER_SECOND = 10;
 /** One preferences store (remaps, or the other preferences), kept in this browser only. */
 export const PREFS_MAX_BYTES = 16_384;
 
@@ -59,3 +61,24 @@ export const RELEASE_BEGINS_PER_HOUR = 60;
 export const GAME_REPORTS_PER_DAY = 10;
 /** The largest `release.json` an upload may begin with. */
 export const RELEASE_MANIFEST_MAX_BYTES = 1_048_576;
+
+/** Live scene versions: a version's data, a project's versions a day, the versions each scene keeps, a note, begins an hour. */
+export const LIVE_LIMITS = {
+  versionDataBytes: 2_097_152, // 2 MiB
+  versionsPerDay: 100,
+  keptPerScene: 5,
+  noteChars: 200,
+  beginsPerHour: 120,
+} as const;
+/** A play page without a working stream asks for the live state this often while visible. */
+export const LIVE_POLL_SECONDS = 60;
+/** The live stream closes after this long; the browser reconnects it. */
+export const LIVE_STREAM_MINUTES = 60;
+/** The breaker: this many distinct players failing, at this share of the reports, within this long of the move. */
+export const LIVE_BLOCK = { players: 5, ratio: 0.25, windowMinutes: 30 } as const;
+/** A frame that errors this soon after an applied swap counts as crashed by it. */
+export const LIVE_CRASH_WINDOW_SECONDS = 10;
+/** Live outcome reports one player may send an hour. */
+export const LIVE_REPORTS_PER_HOUR = 30;
+/** Signed-in live reports are deleted this long after they were made. */
+export const LIVE_REPORT_RETENTION_DAYS = 30;

@@ -1,12 +1,13 @@
 import type { Collider } from "@dimforge/rapier2d";
 
 import type { ContactSelector, Contacts, EngineContext } from "../game/types";
+import { rapierColliderBounds } from "../physics";
 import { aabb, shapesIntersect } from "../scene/shape-geometry";
 import { createSpatialHash } from "../scene/spatial-hash";
 import type { Aabb } from "../scene/types";
 import type { RapierModule, Vec2 } from "../types";
 import { geometryColliders } from "./geometry-world";
-import { colliderLive, rapierColliderBounds } from "./space";
+import { colliderLive } from "./space";
 import { CONTACT_END, CONTACT_START } from "./types";
 
 /** A runtime's contact reader: `EngineContext.contacts` plus what the tick and the lifecycle call. */

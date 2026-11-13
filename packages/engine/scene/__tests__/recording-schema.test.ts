@@ -254,10 +254,24 @@ describe("recording v2", () => {
       ["a negative tick", (r: any) => (r.swaps[0].tick = -1), "/swaps/0/tick"],
       ["a swap without its runHash", (r: any) => delete r.swaps[0].runHash, "/swaps/0/runHash"],
       ["a key a swap doesn't have", (r: any) => (r.swaps[0].scene = "level-1"), "/swaps/0"],
+      ["swaps out of tick order", (r: any) => (r.swaps[1].tick = 239), "/swaps/1/tick"],
+      ["a swap at the run's last tick", (r: any) => (r.swaps[1].tick = r.ticks), "/swaps/1/tick"],
+      ["a swap past the run's end", (r: any) => (r.swaps[0].tick = r.ticks + 5), "/swaps/0/tick"],
     ])("refuses %s, saying where", (_, change, path) => {
       const rec = live();
       change(rec);
       expect(issuesOf(rec).map((i) => i.path)).toContain(path);
+    });
+
+    it("takes swaps sharing a tick, and one before the last tick simulated", () => {
+      const rec = live();
+      rec.swaps![1]!.tick = 240;
+      expect(ok(rec).recording.swaps).toHaveLength(2);
+      rec.swaps![1]!.tick = rec.ticks - 1;
+      expect(ok(rec).recording.swaps).toHaveLength(2);
+      expect(issuesOf({ ...rec, ticks: 240 })[0]?.message).toBe(
+        "a swap runs before a tick the run simulated, but 240 isn't below `ticks` (240)",
+      );
     });
 
     it("migrates a v1 file to neither key", () => {

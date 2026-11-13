@@ -204,6 +204,23 @@ describe("buildSceneVersion over the engine project", () => {
     ]);
   });
 
+  it("lists a prefab only a spawner names, so a changed copy replaces the release's", async () => {
+    const path = "prefabs/crate.json";
+    const crate = JSON.parse(held.texts.get(path)!) as Prefab;
+    crate.entities![0]!.tags = ["crate", "heavy"];
+    const changed = await heldInput(
+      ENGINE_PROJECT,
+      withHeldDoc(held, path, crate, formatPrefab(crate)),
+      testGame,
+    );
+    const result = await built(sceneVersionOptions(changed, "behavior-yard", { release }));
+    expect(result.version.entry.prefabs).toContain("crate");
+    expect(result.version.assets.crate?.sha256).not.toBe(release.assets.crate?.sha256);
+    expect(result.issues.filter((i) => i.severity === "error")).toEqual([]);
+    const read = readSceneVersion(result.version, result.texts, changed.registry, testGame);
+    expect(read.ok && read.prefabs.get("crate")?.entities?.[0]?.tags).toEqual(["crate", "heavy"]);
+  });
+
   it("stops at a validation error", async () => {
     const broken = editedSink(held, (def) => {
       def.entities = [...(def.entities ?? []), { ...def.entities![0]! }];

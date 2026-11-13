@@ -34,10 +34,26 @@
  *   memory object store) and this browser's copy goes; a second browser
  *   context with the same session and an empty IndexedDB offers Continue
  *   with the signed-in save note and lands on turn 2;
+ * - `live-stream` and `live-poll`, the platformer: the play page plays
+ *   `latest` (release v1, no live scene yet) with the site's live client;
+ *   the player moves; a scene version (`fixtures/live/move-cheese.json`'s
+ *   edit) is published through `beginSceneVersion`/`commitSceneVersion`
+ *   and production is pointed at it with `now`. With the stream the frame
+ *   applies it at once; without one (`stream=off`) within one poll
+ *   interval. Either way it is a reconcile mid-run, so the player keeps
+ *   their position, and the frame read it from its own release's `live/`.
+ *   The stream run also asks the frame route for a version recorded
+ *   against another release's compat key and for the version under
+ *   another project's release: both 404, while the version itself is served;
+ * - `live-pinned`, the platformer: a numbered play (`/play/<n>`) while
+ *   production points at the version gets no live state, sends the frame
+ *   nothing and the frame reads nothing from `live/`, even as the pointer
+ *   moves during the run;
  * - every run: no request leaves the release's directory, the host page's
  *   own files and the routes its run uses (the browser's request log,
  *   probes aside), and the root element's `data-jams-render` never reads
- *   "lost".
+ *   "lost". In the live runs every request the frame makes stays under its
+ *   own release's directory.
  *
  *   vp run engine:smoke:play [--browsers chromium,firefox,webkit] [--out <file>]
  *
@@ -54,17 +70,20 @@ import { join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
+import type { SwapTiming } from "@jams/engine/game";
+import { liveFiles, type Sha256 } from "@jams/engine/project";
 import type { Browser, BrowserContext, BrowserType, Frame, Page } from "playwright";
 
 import type { ClaimResult } from "../../src/lib/engine/claim-saves";
 import { FRAME_ALLOW, FRAME_SANDBOX } from "../../src/lib/engine/frame-sandbox";
 import type { SaveMode } from "../../src/lib/engine/host-server";
+import { LIVE_POLL_SECONDS } from "../../src/lib/engine/limits";
 import {
   LOCAL_SAVES_DB,
   SIGNED_IN_SAVES_DESCRIBE,
   SIGNED_OUT_SAVES_DESCRIBE,
 } from "../../src/lib/engine/local-saves";
-import { ENGINE_SAVES_PATH } from "../../src/lib/engine/route-paths";
+import { ENGINE_SAVES_PATH, engineLiveStreamPath } from "../../src/lib/engine/route-paths";
 import { engineSourceAlias } from "../engine-source-alias";
 import {
   installCommand,
@@ -75,11 +94,15 @@ import {
   type BrowserName,
 } from "./browser-compare";
 import {
+  buildLiveFixture,
   closeWithin,
   CLOSE_MS,
   decodePng,
   distinctColours,
+  HOLD_MS,
+  judgeCanvasChange,
   judgeDrawn,
+  pixelHash,
   RUN_TIMEOUT_MS,
 } from "./export";
 import { SAVE_SERVER_PARAM } from "./fixtures/own-saves/store";
@@ -88,9 +111,11 @@ import type {
   HandlerServer,
   HostSiteServer,
   PublishedRelease,
+  PublishedSceneVersion,
   SaveStubServer,
   SmokePlayer,
   SmokeProjectSettings,
+  SmokeSceneVersion,
   SmokeSite,
 } from "./play-adapter";
 import { BUILD_TIMEOUT_MS, buildOne, pageErrors, waitReady } from "./smoke-page";
@@ -106,7 +131,16 @@ export const PLAY_FIXTURES: Partial<Record<PlayGame, string>> = {
   "own-saves": "fixtures/own-saves",
 };
 
-export type PlayRunKind = "play" | "embed" | "saves" | "sandbox" | "own-saves" | "claim";
+export type PlayRunKind =
+  | "play"
+  | "embed"
+  | "saves"
+  | "sandbox"
+  | "own-saves"
+  | "claim"
+  | "live-stream"
+  | "live-poll"
+  | "live-pinned";
 
 export type PlannedPlayRun = { game: PlayGame; kind: PlayRunKind; browser: BrowserName };
 
@@ -119,7 +153,13 @@ export const PLAY_RUNS: readonly { game: PlayGame; kind: PlayRunKind }[] = [
   { game: "tactics", kind: "sandbox" },
   { game: "own-saves", kind: "own-saves" },
   { game: "tactics", kind: "claim" },
+  { game: "platformer", kind: "live-stream" },
+  { game: "platformer", kind: "live-poll" },
+  { game: "platformer", kind: "live-pinned" },
 ];
+
+export const LIVE_KINDS: readonly PlayRunKind[] = ["live-stream", "live-poll", "live-pinned"];
+export const isLiveKind = (kind: PlayRunKind): boolean => LIVE_KINDS.includes(kind);
 
 /** The release the sandbox run's frame tries to read from: another project's directory. */
 export const OTHER_RELEASE_GAME: Record<PlayGame, PlayGame> = {
@@ -423,6 +463,224 @@ export function judgeClaim(p: ClaimProbe | undefined): string[] {
   return reasons;
 }
 
+// ─── Live levels ─────────────────────────────────────────
+
+/** The game whose start scene the live runs publish a version of. */
+export const LIVE_GAME: PlayGame = "platformer";
+/** The live runs' pointer timing: the swap lands mid-run. */
+export const LIVE_SMOKE_TIMING: SwapTiming = "now";
+/** How often a play page without a working stream reads the live state. */
+export const LIVE_POLL_MS = LIVE_POLL_SECONDS * 1000;
+/**
+ * How long the frame may take to apply a version once the page has heard
+ * of it: reading the live state, fetching and staging the version, and the
+ * swap's tick. A quarter of the poll interval, so a stream run that meets
+ * it was told by the stream.
+ */
+export const LIVE_APPLY_MS = 15_000;
+/** How long after the promote the frame may report the version applied, with the stream or by polling. */
+export const liveDeadlineMs = (kind: PlayRunKind): number =>
+  kind === "live-poll" ? LIVE_POLL_MS + LIVE_APPLY_MS : LIVE_APPLY_MS;
+/** The built live version beside the builds, read by each browser's process. */
+export const LIVE_FIXTURE_FILE = "live-fixture.json";
+/** How long building the live version from the platformer's project may take. */
+const LIVE_FIXTURE_TIMEOUT_MS = 3 * 60_000;
+
+/** One `live.state` the frame reported, with when the host page heard it (`Date.now()`). */
+export type FrameLiveState = {
+  scene: string;
+  version: string | null;
+  status: string;
+  timing?: string;
+  strategy?: string;
+  tick?: number;
+  issue?: { code: string; message: string };
+  at: number;
+};
+
+/** What the frame route answered for `live/` files, by status. */
+export type LiveRouteProbe = {
+  /** The version itself, under its own release. */
+  compatible: number;
+  /** A version recorded against another release's compat key, under this release. */
+  foreignCompat: number;
+  /** The version, under another project's release. */
+  otherProject: number;
+};
+
+/** What a live run saw. */
+export type LiveRunProbe = {
+  /** The play payload's release version, and how many live scenes its live state had at load (null: none carried). */
+  payloadVersion: number | null;
+  initialScenes: number | null;
+  /** The page started the live client, and had an `EventSource` for it. */
+  client: boolean;
+  stream: boolean;
+  /** Times the host origin served the live stream. */
+  streamRequests: number;
+  /** Live state reads the client made. */
+  reads: number;
+  /** Why holding ArrowRight didn't show on the canvas, or null; not read in the pinned run. */
+  moved: string | null;
+  published: (PublishedSceneVersion & { scene: string }) | null;
+  /** From the promote to the host page hearing the version applied; null when it wasn't. */
+  appliedMs: number | null;
+  /** The frame's reports on the version, in order. */
+  states: FrameLiveState[];
+  /** `live.state` messages the frame sent on its channel, of any version. */
+  frameLiveMessages: number;
+  /** Swaps the live client surfaced for the version (the play page's notice). */
+  swaps: { version: string | null; timing: string }[];
+  /** States the host heard after the promote other than "ready": the frame restarted. */
+  restarted: string[];
+  /** The frame read `live/<version>.json` from its own release's directory. */
+  liveFetched: boolean;
+  /** The frame's requests to `live/` anywhere. */
+  liveRequests: number;
+  /** The frame's requests that left its own release's directory. */
+  frameOutside: string[];
+  route?: LiveRouteProbe;
+  /** The pinned run: production's live state named the version while the numbered play ran. */
+  pointed?: boolean;
+};
+
+/**
+ * The frame's requests that left its release's directory: everything the
+ * frame loads, `data/`, `assets/`, `live/` and the build's own files alike,
+ * sits under it.
+ */
+export function frameOutsideRelease(urls: readonly string[], dir: string): string[] {
+  const outside = new Set<string>();
+  for (const url of urls) {
+    if (isProbe(url)) continue;
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      outside.add(url);
+      continue;
+    }
+    if (["data:", "about:", "blob:"].includes(parsed.protocol)) continue;
+    if (!`${parsed.origin}${parsed.pathname}`.startsWith(dir)) outside.add(url);
+  }
+  return [...outside];
+}
+
+/** Whether `url` names a `live/` file under any directory. */
+const isLiveFile = (url: string): boolean => {
+  try {
+    return /\/live\/[0-9a-f]{64}\.[a-z0-9]+$/.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+};
+
+const shortVersion = (id: string) => id.slice(0, 12);
+
+const issueSuffix = (s: FrameLiveState) =>
+  s.issue ? ` (${s.issue.code}: ${s.issue.message})` : "";
+
+/** Why a live swap run fails: the start, the swap's arrival and kind, and where the frame read from. */
+function judgeLiveSwap(kind: PlayRunKind, p: LiveRunProbe): string[] {
+  const reasons: string[] = [];
+  if (p.initialScenes === null) reasons.push("the play payload carried no live state for latest");
+  else if (p.initialScenes > 0)
+    reasons.push(`the frame started on ${p.initialScenes} live scene(s), not the release's own`);
+  if (!p.client) reasons.push("the play page didn't start the live client");
+  if (kind === "live-stream") {
+    if (!p.stream) reasons.push("the play page had no EventSource");
+    if (p.streamRequests < 1) reasons.push("the play page never opened the live stream");
+  } else {
+    if (p.stream) reasons.push("the play page still had an EventSource with the stream off");
+    if (p.streamRequests > 0)
+      reasons.push(`the live stream was opened ${p.streamRequests} time(s) with the stream off`);
+  }
+  if (p.moved) reasons.push(p.moved);
+  if (!p.published) {
+    reasons.push("no scene version was published");
+    return reasons;
+  }
+  const short = `${p.published.scene}@${shortVersion(p.published.versionId)}`;
+  const bad = p.states.find((s) => s.status === "refused" || s.status === "failed");
+  if (bad) reasons.push(`the frame reported ${short} ${bad.status}${issueSuffix(bad)}`);
+  const applied = p.states.find((s) => s.status === "applied");
+  const deadline = liveDeadlineMs(kind);
+  if (!applied || p.appliedMs === null) {
+    const last = p.states.at(-1);
+    if (!bad)
+      reasons.push(
+        `the frame didn't apply ${short} within ${deadline} ms of the promote; its last report was ${last ? `${last.status}${issueSuffix(last)}` : "none"}`,
+      );
+  } else {
+    if (p.appliedMs > deadline)
+      reasons.push(
+        `the frame applied ${short} ${p.appliedMs} ms after the promote; ${kind === "live-poll" ? `one poll interval allows ${deadline} ms` : `with the stream it must within ${deadline} ms`}`,
+      );
+    if (applied.timing !== LIVE_SMOKE_TIMING)
+      reasons.push(
+        `the frame applied ${short} at ${applied.timing ?? "no timing"}, not ${LIVE_SMOKE_TIMING}`,
+      );
+    if (applied.strategy !== "reconcile")
+      reasons.push(
+        `the frame applied ${short} by ${applied.strategy ?? "no strategy"}, not reconcile, so the run didn't keep the player where they were`,
+      );
+    if (
+      !p.swaps.some((s) => s.version === p.published?.versionId && s.timing === LIVE_SMOKE_TIMING)
+    )
+      reasons.push(`the play page's live client didn't surface the swap to ${short}`);
+  }
+  if (p.restarted.length)
+    reasons.push(`the frame restarted after the promote: the host heard ${p.restarted.join(", ")}`);
+  if (!p.liveFetched)
+    reasons.push(
+      `the frame never read ${liveFiles.doc(p.published.versionId)} from its own release`,
+    );
+  if (kind === "live-stream") {
+    const r = p.route;
+    if (!r) reasons.push("the frame route's live files weren't probed");
+    else {
+      if (r.compatible !== 200)
+        reasons.push(
+          `the frame route answered ${r.compatible} for the version under its own release`,
+        );
+      if (r.foreignCompat !== 404)
+        reasons.push(
+          `the frame route answered ${r.foreignCompat} for a version of another release's compat key, not 404`,
+        );
+      if (r.otherProject !== 404)
+        reasons.push(
+          `the frame route answered ${r.otherProject} for the version under another project's release, not 404`,
+        );
+    }
+  }
+  return reasons;
+}
+
+/** Why the pinned run fails: a numbered play took, or was sent, the pointer's version. */
+function judgeLivePinned(p: LiveRunProbe): string[] {
+  const reasons: string[] = [];
+  if (p.payloadVersion === null) reasons.push("the numbered play has no payload");
+  if (p.initialScenes !== null)
+    reasons.push(`the numbered play's payload carries a live state (${p.initialScenes} scene(s))`);
+  if (p.client) reasons.push("the numbered play started the live client");
+  if (!p.pointed) reasons.push("production's live state didn't name the version during the run");
+  if (p.frameLiveMessages > 0)
+    reasons.push(`the frame sent ${p.frameLiveMessages} live.state message(s) in a numbered play`);
+  if (p.liveRequests > 0)
+    reasons.push(`the frame read ${p.liveRequests} live file(s) in a numbered play`);
+  return reasons;
+}
+
+/** Every reason a live run fails, after its frame's requests outside its release. */
+export function judgeLive(kind: PlayRunKind, p: LiveRunProbe | undefined): string[] {
+  if (!p) return ["the live run didn't finish"];
+  const reasons: string[] = [];
+  if (p.frameOutside.length)
+    reasons.push(`the frame read outside its release's directory: ${p.frameOutside.join(", ")}`);
+  reasons.push(...(kind === "live-pinned" ? judgeLivePinned(p) : judgeLiveSwap(kind, p)));
+  return reasons;
+}
+
 /** What a finished run observed, before judging. */
 export type PlayObservation = {
   requests: readonly string[];
@@ -438,6 +696,7 @@ export type PlayObservation = {
   sandbox?: SandboxProbe;
   own?: OwnSavesProbe;
   claim?: ClaimProbe;
+  live?: LiveRunProbe;
 };
 
 /** Every reason a run fails, in a fixed order: requests, CSP, host, render, then the run's own checks. */
@@ -458,6 +717,7 @@ export function judgePlayRun(kind: PlayRunKind, o: PlayObservation): string[] {
   if (kind === "sandbox") reasons.push(...judgeSandbox(o.sandbox));
   if (kind === "own-saves") reasons.push(...judgeOwnSaves(o.own, o.host));
   if (kind === "claim") reasons.push(...judgeClaim(o.claim));
+  if (isLiveKind(kind)) reasons.push(...judgeLive(kind, o.live));
   return reasons;
 }
 
@@ -477,6 +737,7 @@ export type PlayRunOutcome = PlannedPlayRun & {
   sandbox?: SandboxProbe;
   own?: OwnSavesProbe;
   claim?: ClaimProbe;
+  live?: LiveRunProbe;
 };
 
 export function playRunOutcome(
@@ -502,6 +763,7 @@ export function playRunOutcome(
     ...(o.sandbox ? { sandbox: o.sandbox } : {}),
     ...(o.own ? { own: o.own } : {}),
     ...(o.claim ? { claim: o.claim } : {}),
+    ...(o.live ? { live: o.live } : {}),
   };
 }
 
@@ -596,6 +858,25 @@ async function buildFixture(
   return { release: built.release };
 }
 
+const ORPC_CLIENT = join(REPO, "src/orpc/client");
+const NO_ORPC_CLIENT = "\0play-host-no-orpc-client";
+
+/**
+ * Stands in for the site's oRPC client in the host page: the live client
+ * reaches it only for its default procedures, and the page passes its own.
+ * The real one would bundle the router, which only builds on the server.
+ */
+const noOrpcClient = {
+  name: "play-host-no-orpc-client",
+  enforce: "pre" as const,
+  resolveId: (source: string) =>
+    [ORPC_CLIENT, `${ORPC_CLIENT}.ts`, "@/orpc/client"].includes(source) ? NO_ORPC_CLIENT : null,
+  load: (id: string) =>
+    id === NO_ORPC_CLIENT
+      ? `export const client = new Proxy({}, { get() { throw new Error("the play host passes its own procedures"); } });`
+      : null,
+};
+
 /** `play-host.html` bundled with the site's host server; the bundle's paths as the server serves them. */
 async function buildHostPage(outDir: string): Promise<Set<string>> {
   const { build } = await import("vite-plus");
@@ -605,6 +886,7 @@ async function buildHostPage(outDir: string): Promise<Set<string>> {
     base: "./",
     logLevel: "warn",
     css: { postcss: { plugins: [] } },
+    plugins: [noOrpcClient],
     resolve: {
       alias: [...engineSourceAlias, { find: /^@\//, replacement: `${join(REPO, "src")}/` }],
     },
@@ -625,6 +907,45 @@ async function buildHostPage(outDir: string): Promise<Set<string>> {
   return files;
 }
 
+/**
+ * Builds the live runs' scene version once, from the platformer's project
+ * and its built release: `fixtures/live/move-cheese.json`'s edit to the
+ * start scene, checked against that release. Written beside the builds.
+ */
+async function writeLiveFixture(buildsDir: string): Promise<SmokeSceneVersion> {
+  const { parseReleaseManifest, RELEASE_FILE } = await import("@jams/engine/project");
+  const parsed = parseReleaseManifest(
+    readFileSync(join(buildsDir, LIVE_GAME, RELEASE_FILE), "utf8"),
+  );
+  if (!parsed.ok)
+    throw new Error(
+      `${LIVE_GAME}'s ${RELEASE_FILE} doesn't read: ${parsed.issues.map((i) => i.message).join("; ")}`,
+    );
+  const fixture = await buildLiveFixture(parsed.manifest, {
+    projectDir: join(REPO, "src/games", LIVE_GAME),
+    cacheDir: join(buildsDir, "live-cache"),
+  });
+  const version: SmokeSceneVersion = {
+    scene: fixture.scene,
+    id: fixture.id,
+    versionText: fixture.versionText,
+    texts: fixture.texts,
+  };
+  writeFileSync(
+    join(buildsDir, LIVE_FIXTURE_FILE),
+    JSON.stringify({ ...version, texts: [...fixture.texts] }),
+  );
+  return version;
+}
+
+function readLiveFixture(buildsDir: string): SmokeSceneVersion {
+  const raw = JSON.parse(readFileSync(join(buildsDir, LIVE_FIXTURE_FILE), "utf8")) as Omit<
+    SmokeSceneVersion,
+    "texts"
+  > & { texts: [Sha256, string][] };
+  return { ...raw, texts: new Map(raw.texts) };
+}
+
 // ─── In the browser ──────────────────────────────────────
 
 type Hosted = {
@@ -633,8 +954,24 @@ type Hosted = {
   dir: string;
 };
 
+/** The live runs' version and the site's moves on it. */
+type LiveStage = {
+  version: SmokeSceneVersion;
+  /** Where the host page reads the play payload and the live state. */
+  playPath: string;
+  livePath: string;
+  /** Publishes the version; again, it answers the same number. */
+  publish(): Promise<PublishedSceneVersion>;
+  /** Points production's scene at version `to`, with `LIVE_SMOKE_TIMING`; null takes the pointer off. */
+  point(to: number | null): Promise<void>;
+  /** Whether production's live state names `version` now. */
+  pointed(version: Sha256): Promise<boolean>;
+  /** A version of the live game's project recorded against another release's compat key; seeded once. */
+  foreign(): Promise<Sha256>;
+};
+
 type Stage = {
-  /** The play page's origin: its files, the save API and the session. */
+  /** The play page's origin: its files, the save API, the session, the play payload, the live state and stream. */
   host: HostSiteServer;
   /** Where the host page asks who is signed in. */
   sessionPath: string;
@@ -649,13 +986,21 @@ type Stage = {
   sessionCookie: string;
   /** The player's saves in the site's database. */
   accountSaves(): Promise<number>;
+  live: LiveStage;
 };
 
 /** Where each game saves, as its project's settings say; the rest save to the site. */
 const SAVE_MODES: Partial<Record<PlayGame, SaveMode>> = { "own-saves": "own" };
 
-/** The host page framing `hosted`, as the play page would, with the project's save mode. */
-function hostPageUrl(stage: Stage, hosted: Hosted, game: PlayGame): string {
+/** How a live run's host page plays: the payload's version, and whether it has a stream. */
+type LivePlay = { play: string; stream: boolean };
+
+/**
+ * The host page framing `hosted`, as the play page would, with the
+ * project's save mode; with `live`, it plays that version's payload with
+ * the site's live client.
+ */
+function hostPageUrl(stage: Stage, hosted: Hosted, game: PlayGame, live?: LivePlay): string {
   const frame = new URL(`${hosted.dir}${FRAME_ENTRY}`);
   if (game === "own-saves") frame.searchParams.set(SAVE_SERVER_PARAM, stage.stubs.declared.origin);
   const q = new URLSearchParams({
@@ -668,6 +1013,12 @@ function hostPageUrl(stage: Stage, hosted: Hosted, game: PlayGame): string {
     mode: SAVE_MODES[game] ?? "site",
     session: stage.sessionPath,
   });
+  if (live) {
+    q.set("play", live.play);
+    q.set("play-path", stage.live.playPath);
+    q.set("live", stage.live.livePath);
+    if (!live.stream) q.set("stream", "off");
+  }
   return `${stage.host.url}${HOST_PAGE_FILE}?${q}`;
 }
 
@@ -698,9 +1049,19 @@ const violationsIn = (frame: Frame): Promise<CspViolation[]> =>
     ...((window as unknown as { __playSmokeCsp?: CspViolation[] }).__playSmokeCsp ?? []),
   ]);
 
-/** How long one run may take: the claim run boots the game three times, in two contexts. */
-export const runTimeoutMs = (kind: PlayRunKind): number =>
-  kind === "claim" ? 2 * RUN_TIMEOUT_MS : RUN_TIMEOUT_MS;
+/**
+ * How long one run may take: the claim run boots the game three times, in
+ * two contexts; a live swap run also waits up to its deadline for the swap.
+ */
+export const runTimeoutMs = (kind: PlayRunKind): number => {
+  if (kind === "claim") return 2 * RUN_TIMEOUT_MS;
+  if (kind === "live-stream" || kind === "live-poll")
+    return RUN_TIMEOUT_MS + liveDeadlineMs(kind) + LIVE_BEAT_MS;
+  return RUN_TIMEOUT_MS;
+};
+
+/** What the live runs wait past a deadline: a report crossing to the host, a restart showing. */
+const LIVE_BEAT_MS = 5_000;
 
 /** How long the host page may take to hear a state the frame already shows: the port's delivery is async. */
 const HOST_HEARS_MS = 10_000;
@@ -788,16 +1149,19 @@ async function attachedFrame(host: Frame): Promise<Frame> {
 const renderState = (frame: Frame): Promise<string | null> =>
   frame.evaluate(() => document.documentElement.dataset.jamsRender ?? null);
 
-/** Two frames and a beat, then the distinct colours on the frame's canvas. */
-async function canvasColours(frame: Frame): Promise<number> {
+/** Two frames and a beat, then the frame's canvas as it shows. */
+async function settledCanvas(frame: Frame) {
   await frame.evaluate(
     () =>
       new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
   );
   await frame.waitForTimeout(250);
-  const png = await frame.locator("#game canvas").first().screenshot({ animations: "allow" });
-  return distinctColours(decodePng(png));
+  return decodePng(await frame.locator("#game canvas").first().screenshot({ animations: "allow" }));
 }
+
+/** The distinct colours on the frame's canvas once it settled. */
+const canvasColours = async (frame: Frame): Promise<number> =>
+  distinctColours(await settledCanvas(frame));
 
 const bannerIs = (frame: Frame, want: string) =>
   frame.waitForFunction(
@@ -1095,6 +1459,237 @@ async function probeSandbox(
   };
 }
 
+// ─── The live runs ───────────────────────────────────────
+
+type LiveRecord = {
+  version: number;
+  initial: { scenes: unknown[] } | null;
+  client: boolean;
+  stream: boolean;
+  reads: number;
+  states: FrameLiveState[];
+  swaps: { scene: string; version: string | null; timing: string; at: number }[];
+};
+
+/** What the host page kept: the frame's states, how many `live.state` messages it sent, and the live record. */
+const liveRecord = (host: Frame) =>
+  host.evaluate(() => {
+    const r = (
+      window as unknown as {
+        __playHost?: { states: string[]; frameMessages: string[]; live: unknown };
+      }
+    ).__playHost;
+    return {
+      states: [...(r?.states ?? [])],
+      frameLive: (r?.frameMessages ?? []).filter((type) => type === "live.state").length,
+      live: (r?.live ? JSON.parse(JSON.stringify(r.live)) : null) as LiveRecord | null,
+    };
+  });
+
+/** The pixel hash of the frame's canvas once it settled. */
+const canvasHash = async (frame: Frame): Promise<string> => pixelHash(await settledCanvas(frame));
+
+/** Clicks into the frame and holds ArrowRight, so the player isn't where they spawned; why that didn't show, or null. */
+async function movePlayer(page: Page, frame: Frame): Promise<string | null> {
+  await frame.locator("#game canvas").first().click({ force: true });
+  const before = await canvasHash(frame);
+  await page.keyboard.down("ArrowRight");
+  await page.waitForTimeout(HOLD_MS);
+  await page.keyboard.up("ArrowRight");
+  return judgeCanvasChange(before, await canvasHash(frame));
+}
+
+/** Requests the host origin served at `path` (with its query) since request `from`. */
+const servedAt = (server: HandlerServer, path: string, from: number) =>
+  server.served.slice(from).filter((r) => r.path === path);
+
+/** Waits until the host origin answers the live stream, or `timeoutMs` passes. */
+async function streamOpened(
+  server: HandlerServer,
+  path: string,
+  from: number,
+  timeoutMs: number,
+): Promise<boolean> {
+  const until = performance.now() + timeoutMs;
+  while (performance.now() < until) {
+    if (servedAt(server, path, from).some((r) => r.status === 200)) return true;
+    await new Promise((done) => setTimeout(done, 100));
+  }
+  return false;
+}
+
+/** Waits until the frame reports `version` applied, refused or failed, or `timeoutMs` passes. */
+async function liveSettled(host: Frame, version: string, timeoutMs: number): Promise<void> {
+  await host
+    .waitForFunction(
+      (v) => {
+        const r = (
+          window as unknown as { __playHost?: { live: { states: FrameLiveState[] } | null } }
+        ).__playHost;
+        return (r?.live?.states ?? []).some(
+          (s) =>
+            s.version === v &&
+            (s.status === "applied" || s.status === "refused" || s.status === "failed"),
+        );
+      },
+      version,
+      { timeout: timeoutMs, polling: 100 },
+    )
+    .catch((cause: unknown) => {
+      if (!(cause instanceof Error && cause.name === "TimeoutError")) throw cause;
+    });
+}
+
+/** The status the frame route answers `url` with, its body dropped; 0 when it doesn't answer. */
+const routeStatus = (url: string): Promise<number> =>
+  fetch(url, { cache: "no-store" }).then(
+    async (r) => {
+      await r.arrayBuffer().catch(() => {});
+      return r.status;
+    },
+    () => 0,
+  );
+
+/** The frame route's answers for `version`'s file under its own release and another project's, and for a foreign version's. */
+async function probeLiveRoute(
+  stage: Stage,
+  hosted: Hosted,
+  other: Hosted,
+  version: Sha256,
+): Promise<LiveRouteProbe> {
+  const foreign = await stage.live.foreign();
+  return {
+    compatible: await routeStatus(`${hosted.dir}${liveFiles.doc(version)}`),
+    foreignCompat: await routeStatus(`${hosted.dir}${liveFiles.doc(foreign)}`),
+    otherProject: await routeStatus(`${other.dir}${liveFiles.doc(version)}`),
+  };
+}
+
+/** What every live probe reads from the frame's requests. */
+function frameReads(frameRequests: readonly string[], hosted: Hosted, version: Sha256 | null) {
+  const want = version === null ? null : `${hosted.dir}${liveFiles.doc(version)}`;
+  return {
+    liveFetched:
+      want !== null &&
+      frameRequests.some((url) => {
+        try {
+          const u = new URL(url);
+          return `${u.origin}${u.pathname}` === want;
+        } catch {
+          return false;
+        }
+      }),
+    liveRequests: frameRequests.filter(isLiveFile).length,
+    frameOutside: frameOutsideRelease(frameRequests, hosted.dir),
+  };
+}
+
+/**
+ * The swap run: the frame plays v1, the player moves, the version is
+ * published and production promoted to it with `now`; then the frame's
+ * reports until it applied the version or the run's deadline passed. The
+ * stream run then probes the frame route's `live/` files.
+ */
+async function liveSwap(
+  kind: PlayRunKind,
+  page: Page,
+  frame: Frame,
+  stage: Stage,
+  hosted: Hosted,
+  other: Hosted,
+  frameRequests: readonly string[],
+  servedFrom: number,
+): Promise<LiveRunProbe> {
+  const host = page.mainFrame();
+  const streamPath = engineLiveStreamPath(hosted.release.projectId, "production");
+  const start = await liveRecord(host);
+  const moved = await movePlayer(page, frame);
+  if (kind === "live-stream") await streamOpened(stage.host, streamPath, servedFrom, HOST_HEARS_MS);
+  const published = await stage.live.publish();
+  const statesBefore = (await liveRecord(host)).states.length;
+  const promotedAt = Date.now();
+  await stage.live.point(published.number);
+  await liveSettled(host, published.versionId, liveDeadlineMs(kind) + LIVE_BEAT_MS);
+  await page.waitForTimeout(SETTLE_MS);
+  const end = await liveRecord(host);
+  const states = (end.live?.states ?? []).filter((s) => s.version === published.versionId);
+  const applied = states.find((s) => s.status === "applied");
+  return {
+    payloadVersion: start.live?.version ?? null,
+    initialScenes: start.live?.initial ? start.live.initial.scenes.length : null,
+    client: start.live?.client ?? false,
+    stream: start.live?.stream ?? false,
+    streamRequests: servedAt(stage.host, streamPath, servedFrom).length,
+    reads: end.live?.reads ?? 0,
+    moved,
+    published: { ...published, scene: stage.live.version.scene },
+    appliedMs: applied ? applied.at - promotedAt : null,
+    states,
+    frameLiveMessages: end.frameLive,
+    swaps: (end.live?.swaps ?? [])
+      .filter((s) => s.version === published.versionId)
+      .map(({ version, timing }) => ({ version, timing })),
+    restarted: end.states.slice(statesBefore).filter((state) => state !== "ready"),
+    ...frameReads(frameRequests, hosted, published.versionId),
+    ...(kind === "live-stream"
+      ? { route: await probeLiveRoute(stage, hosted, other, published.versionId) }
+      : {}),
+  };
+}
+
+/**
+ * The pinned run: a numbered play while production points at the version.
+ * The pointer moves off and back during the run; the frame must hear
+ * nothing and read nothing from `live/`.
+ */
+async function livePinned(
+  page: Page,
+  stage: Stage,
+  hosted: Hosted,
+  published: PublishedSceneVersion,
+  frameRequests: readonly string[],
+  servedFrom: number,
+): Promise<LiveRunProbe> {
+  const host = page.mainFrame();
+  await stage.live.point(null);
+  await stage.live.point(published.number);
+  const pointed = await stage.live.pointed(published.versionId);
+  await page.waitForTimeout(2 * SETTLE_MS);
+  const end = await liveRecord(host);
+  const streamPath = engineLiveStreamPath(hosted.release.projectId, "production");
+  return {
+    payloadVersion: end.live?.version ?? null,
+    initialScenes: end.live?.initial ? end.live.initial.scenes.length : null,
+    client: end.live?.client ?? false,
+    stream: end.live?.stream ?? false,
+    streamRequests: servedAt(stage.host, streamPath, servedFrom).length,
+    reads: end.live?.reads ?? 0,
+    moved: null,
+    published: { ...published, scene: stage.live.version.scene },
+    appliedMs: null,
+    states: end.live?.states ?? [],
+    frameLiveMessages: end.frameLive,
+    swaps: [],
+    restarted: [],
+    pointed,
+    ...frameReads(frameRequests, hosted, null),
+  };
+}
+
+/** Sets production up before a live run's page opens: off for the swap runs, on the version for the pinned run. */
+async function prepareLiveRun(
+  kind: PlayRunKind,
+  stage: Stage,
+): Promise<PublishedSceneVersion | null> {
+  if (kind !== "live-pinned") {
+    await stage.live.point(null);
+    return null;
+  }
+  const published = await stage.live.publish();
+  await stage.live.point(published.number);
+  return published;
+}
+
 async function runOne(
   browser: Browser,
   planned: PlannedPlayRun,
@@ -1107,20 +1702,44 @@ async function runOne(
   const embedded = planned.kind === "embed";
   const ownSaves = planned.kind === "own-saves";
   const claiming = planned.kind === "claim";
+  const live = isLiveKind(planned.kind);
+  const livePaths = [
+    stage.live.playPath,
+    stage.live.livePath,
+    new URL(engineLiveStreamPath(hosted.release.projectId, "production"), "http://x").pathname,
+  ];
   const scope: PlayScope = {
     release: hosted.dir,
     hostOrigin: stage.host.origin,
     hostFiles: stage.hostFiles,
-    hostPaths: claiming ? [stage.sessionPath, ENGINE_SAVES_PATH] : [stage.sessionPath],
+    hostPaths: [
+      stage.sessionPath,
+      ...(claiming ? [ENGINE_SAVES_PATH] : []),
+      ...(live ? livePaths : []),
+    ],
     ...(embedded ? { embedder: `${stage.embedder.url}${EMBEDDER_FILE}` } : {}),
     ...(ownSaves ? { connect: [stage.stubs.declared.origin] } : {}),
   };
   // The own-saves game's server has a throwaway self-signed certificate.
   const context = await browser.newContext(ownSaves ? { ignoreHTTPSErrors: true } : {});
   const requests: string[] = [];
+  /** What the frame asked for: every request to the frame server, and every request the frame made. */
+  const frameRequests: string[] = [];
+  const fromFrames = (url: string, frameUrl: () => string) => {
+    const frames = `${stage.frames.origin}/`;
+    if (url.startsWith(frames)) return true;
+    try {
+      return frameUrl().startsWith(frames);
+    } catch {
+      return false;
+    }
+  };
   const failed: string[] = [];
   const watch = (watched: BrowserContext) => {
-    watched.on("request", (r) => requests.push(r.url()));
+    watched.on("request", (r) => {
+      requests.push(r.url());
+      if (live && fromFrames(r.url(), () => r.frame().url())) frameRequests.push(r.url());
+    });
     watched.on("requestfailed", (r) =>
       failed.push(`${r.url()} (${r.failure()?.errorText ?? "failed"})`),
     );
@@ -1134,8 +1753,16 @@ async function runOne(
     const page = await context.newPage();
     page.setDefaultTimeout(PAGE_TIMEOUT_MS);
     const errors = hostPageErrors(page);
+    const servedFrom = stage.host.served.length;
+    const livePlay: LivePlay | undefined = live
+      ? {
+          play: planned.kind === "live-pinned" ? String(hosted.release.version) : "latest",
+          stream: planned.kind !== "live-poll",
+        }
+      : undefined;
     const work = async (): Promise<PlayObservation> => {
-      const url = hostPageUrl(stage, hosted, planned.game);
+      const pinned = live ? await prepareLiveRun(planned.kind, stage) : null;
+      const url = hostPageUrl(stage, hosted, planned.game, livePlay);
       const { host, frame } = embedded
         ? await openEmbedded(page, embedderUrl(stage, hosted, planned.game))
         : { host: page.mainFrame(), frame: await openHosted(page, url) };
@@ -1152,6 +1779,21 @@ async function runOne(
       const claimed = claiming
         ? await claimAndReadBack(browser, context, page, frame, stage, url, watch)
         : undefined;
+      const liveProbe =
+        planned.kind === "live-stream" || planned.kind === "live-poll"
+          ? await liveSwap(
+              planned.kind,
+              page,
+              frame,
+              stage,
+              hosted,
+              other,
+              frameRequests,
+              servedFrom,
+            )
+          : pinned
+            ? await livePinned(page, stage, hosted, pinned, frameRequests, servedFrom)
+            : undefined;
       return {
         requests,
         scope,
@@ -1163,6 +1805,7 @@ async function runOne(
         ...(sandbox ? { sandbox } : {}),
         ...(own ? { own } : {}),
         ...(claimed ? { claim: claimed.claim } : {}),
+        ...(liveProbe ? { live: liveProbe } : {}),
       };
     };
     const observed = await withTimeout(
@@ -1331,10 +1974,12 @@ async function runBrowser(
     const player = await site.createSmokePlayer(smokeSite);
     const hostDir = join(tmp, "host");
     const hostFiles = await buildHostPage(hostDir);
-    const host = await site.serveHostSite(smokeSite, hostDir);
+    let framesOrigin = "";
+    const host = await site.serveHostSite(smokeSite, hostDir, { playOrigin: () => framesOrigin });
     servers.push(host);
     const frames = await site.serveFrames(smokeSite, host.origin);
     servers.push(frames);
+    framesOrigin = frames.origin;
     const embedderDir = join(tmp, "embedder");
     mkdirSync(embedderDir);
     writeFileSync(join(embedderDir, EMBEDDER_FILE), EMBEDDER_HTML);
@@ -1344,6 +1989,47 @@ async function runBrowser(
     for (const [game, release] of releases)
       hosted.set(game, { release, dir: site.releaseDir(frames, release.releaseId) });
     const ownSite = smokeSite;
+    const liveVersion = readLiveFixture(buildsDir);
+    const liveRelease = releases.get(LIVE_GAME);
+    const foreignRelease = releases.get(OTHER_RELEASE_GAME[LIVE_GAME]);
+    if (!liveRelease || !foreignRelease) throw new Error(`nothing hosts ${LIVE_GAME}`);
+    const liveProject = liveRelease.projectId;
+    let foreign: Promise<Sha256> | null = null;
+    const liveStage: LiveStage = {
+      version: liveVersion,
+      playPath: site.SMOKE_PLAY_PATH,
+      livePath: site.SMOKE_LIVE_PATH,
+      publish: () =>
+        site.publishSceneVersion(ownSite, liveProject, liveVersion).catch((err: unknown) => {
+          throw new Error(`the scene version was refused: ${refusal(err)}`);
+        }),
+      point: async (to) => {
+        await site
+          .pointProduction(ownSite, {
+            projectId: liveProject,
+            scene: liveVersion.scene,
+            to,
+            timing: LIVE_SMOKE_TIMING,
+          })
+          .catch((err: unknown) => {
+            throw new Error(`moving production's pointer was refused: ${refusal(err)}`);
+          });
+      },
+      pointed: async (version) => {
+        const state = await site.smokeLive(ownSite, {
+          projectId: liveProject,
+          channel: "production",
+          playOrigin: framesOrigin,
+        });
+        return state?.scenes.some((e) => e.version === version) ?? false;
+      },
+      foreign: () =>
+        (foreign ??= site.seedForeignVersion(ownSite, {
+          projectId: liveProject,
+          scene: liveVersion.scene,
+          otherRelease: foreignRelease.releaseId,
+        })),
+    };
     const stage: Stage = {
       host,
       sessionPath: site.SMOKE_SESSION_PATH,
@@ -1355,6 +2041,7 @@ async function runBrowser(
       player,
       sessionCookie: site.SMOKE_SESSION_COOKIE,
       accountSaves: () => site.accountSaveCount(ownSite, player.userId),
+      live: liveStage,
     };
 
     try {
@@ -1498,6 +2185,12 @@ async function main(): Promise<number> {
       if (!outcome.ok) throw new Error(`${game}: ${outcome.reason}`);
       console.log(`${game}: built (release ${outcome.built})`);
     }
+    const liveVersion = await withTimeout(
+      writeLiveFixture(tmp),
+      LIVE_FIXTURE_TIMEOUT_MS,
+      "building the live scene version",
+    );
+    console.log(`live: built ${liveVersion.scene}@${shortVersion(liveVersion.id)}`);
 
     // Each browser gets its own process, site and servers, so nothing one
     // browser leaves behind reaches the next: on macOS, WebKit timed out

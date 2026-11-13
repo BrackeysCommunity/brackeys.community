@@ -335,6 +335,21 @@ describe("Play and Stop", () => {
     game.stop();
     expect(world(game)!.scene()).toStrictEqual(edit);
   });
+
+  it("puts the editor camera back at Stop when Play began with no scene loaded", async () => {
+    const game = await editing({ scene: undefined });
+    expect(world(game)).toBeNull();
+    const before = structuredClone(game.getStore().state.camera);
+    expect(before.mode).toBe("free");
+    game.setMode("play");
+    expect(game.getMode()).toBe("play");
+    expect(game.play(yard())).toMatchObject({ ok: true });
+    expect(game.getStore().state.camera.mode).toBe("follow");
+    game.step(10);
+    game.stop();
+    expect(game.getMode()).toBe("edit");
+    expect(game.getStore().state.camera).toStrictEqual(before);
+  });
 });
 
 describe("the play session", () => {

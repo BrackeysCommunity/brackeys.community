@@ -1,5 +1,5 @@
 {
-  "version": "0.14.4",
+  "version": "0.14.5",
   "entries": {
     ".": [
       "DEFAULT_INDEXED_DB_NAME",
@@ -116,6 +116,7 @@
       "SCENE_HEADER_KEYS",
       "SCENE_SVG_MAX_SIZE",
       "SCHEMA_ID_BASE",
+      "SHORT_ID_LENGTH",
       "SceneParseError",
       "SceneVersionError",
       "ShapeTupleSchema",
@@ -279,6 +280,7 @@
       "shapeToTuple",
       "shapeVertices",
       "shapesIntersect",
+      "shortId",
       "snapToPixel",
       "spawnSchemaFor",
       "splitChildRef",
@@ -1577,6 +1579,19 @@
     "game export": ["json", "out", "project", "target", "zip"],
     "game live build": ["hosted", "json", "out", "project"],
     "game live check": ["against", "from", "json", "project"],
+    "game live clear": ["channel", "json", "project"],
+    "game live list": ["json", "project"],
+    "game live promote": ["channel", "json", "project", "timing"],
+    "game live publish": [
+      "channel",
+      "hosted",
+      "json",
+      "no-swap-check",
+      "note",
+      "project",
+      "timing"
+    ],
+    "game live rollback": ["channel", "json", "project"],
     "game manifest": ["json", "project"],
     "game new": [
       "cell",
@@ -1669,6 +1684,11 @@
     "game_build",
     "game_live_build",
     "game_live_check",
+    "game_live_clear",
+    "game_live_list",
+    "game_live_promote",
+    "game_live_publish",
+    "game_live_rollback",
     "game_manifest",
     "game_new",
     "game_release_create",

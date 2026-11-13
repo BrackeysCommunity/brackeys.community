@@ -3,13 +3,16 @@ import type { PgAsyncDatabase } from "drizzle-orm/pg-core";
 
 import {
   parseReleaseManifest,
+  parseSceneVersion,
   projectView,
   releaseSnapshot,
+  sceneVersionSnapshot,
   unreferencedBlobs,
   type ProjectSnapshot,
 } from "../../../../packages/engine/project/index.ts";
 import {
   engineBlobs,
+  engineLiveReports,
   engineProjects,
   engineReleaseChannels,
   engineReleaseFiles,
@@ -18,6 +21,9 @@ import {
   engineReleases,
   engineReleaseUploads,
   engineSaves,
+  engineSceneChannels,
+  engineSceneVersionFiles,
+  engineSceneVersions,
   itchTierHeartbeats,
 } from "../../../../src/db/schema.ts";
 import { purgeShell } from "../../../../src/lib/cloudflare-purge.ts";
@@ -25,7 +31,9 @@ import {
   blobsDue,
   nextCollectorRun,
   releasesToCollect,
+  reportsDue,
   savesDue,
+  sceneVersionsToCollect,
 } from "../../../../src/lib/engine/collect-plan.ts";
 import {
   BLOB_GRACE_DAYS,
@@ -44,10 +52,12 @@ import type { ServiceTelemetry } from "../../../../src/lib/service-telemetry.ts"
 import type { CollectorObjectStore } from "./object-store.ts";
 
 /**
- * The daily cleanup of hosted games: releases beyond the kept set, release
- * files nothing lists, blobs nothing references, saves nobody has used for
- * the expiry period, expired uploads and projects deleted long enough ago. Every run works out the whole plan from
- * what is stored and logs it; in `report` mode that is all it does.
+ * The daily cleanup of hosted games: releases beyond the kept set, live
+ * scene versions beyond each scene's kept set, release files nothing lists,
+ * blobs nothing references, saves nobody has used for the expiry period,
+ * expired uploads, old live reports and projects deleted long enough ago.
+ * Every run works out the whole plan from what is stored and logs it; in
+ * `report` mode that is all it does.
  *
  * Deletions go object first, then row, so a run that stops halfway leaves
  * at worst a row naming a missing object, which the next run removes. Each
@@ -57,22 +67,36 @@ import type { CollectorObjectStore } from "./object-store.ts";
 
 export type CollectorMode = "report" | "delete";
 
-export type CollectorStep = "releases" | "orphans" | "blobs" | "saves" | "uploads" | "projects";
+export type CollectorStep =
+  | "releases"
+  | "scenes"
+  | "orphans"
+  | "blobs"
+  | "saves"
+  | "uploads"
+  | "reports"
+  | "projects";
 
 export const COLLECTOR_STEPS: readonly CollectorStep[] = [
   "releases",
+  "scenes",
   "orphans",
   "blobs",
   "saves",
   "uploads",
+  "reports",
   "projects",
 ];
 
-/** One deletion: a release's manifest and files, an object and its row (a save's too), an upload, a project row. */
+/**
+ * One deletion: a release's manifest and files, a scene version's
+ * descriptor, files and reports, an object and its row (a save's too), an
+ * upload, a live report, a project row.
+ */
 export type CollectorAction = {
   step: CollectorStep;
   projectId: string;
-  /** The release id, the object's storage key, the upload id, or the project id. */
+  /** The release or scene version id, the object's storage key, the upload id, `<version>:<user>` for a report, or the project id. */
   target: string;
   bytes: number;
 };
@@ -207,6 +231,7 @@ type ObjectRow = { sha256: string; storageKey: string; bytes: number };
 
 type ProjectPlan = {
   releases: { id: string; version: number; bytes: number }[];
+  versions: { id: string; scene: string; number: number; bytes: number }[];
   orphans: ObjectRow[];
   /** Stored blobs still referenced: stamped now. */
   referenced: string[];
@@ -214,11 +239,30 @@ type ProjectPlan = {
   uploads: string[];
 };
 
-/** The hashes an open upload's manifest lists: `begin` counted on them being stored. */
-function inFlightHashes(manifests: readonly string[]): Set<string> {
+type OpenUpload = { kind: string; manifest: string; releaseId: string };
+
+const openUploadColumns = {
+  kind: engineReleaseUploads.kind,
+  manifest: engineReleaseUploads.manifest,
+  releaseId: engineReleaseUploads.releaseId,
+};
+
+/**
+ * The hashes an open upload lists, which `begin` counted on being stored: a
+ * release's files and assets, or a scene version's assets and its own text
+ * (stored under the version's id).
+ */
+function inFlightHashes(uploads: readonly OpenUpload[]): Set<string> {
   const hashes = new Set<string>();
-  for (const text of manifests) {
-    const parsed = parseReleaseManifest(text);
+  for (const upload of uploads) {
+    if (upload.kind === "scene") {
+      const parsed = parseSceneVersion(upload.manifest);
+      if (!parsed.ok) continue;
+      hashes.add(upload.releaseId);
+      for (const asset of Object.values(parsed.version.assets)) hashes.add(asset.sha256);
+      continue;
+    }
+    const parsed = parseReleaseManifest(upload.manifest);
     if (!parsed.ok) continue;
     for (const file of parsed.manifest.build.files) hashes.add(file.sha256);
     for (const asset of Object.values(parsed.manifest.assets)) hashes.add(asset.sha256);
@@ -261,14 +305,48 @@ async function planProject(
   );
   const kept = releases.filter((r) => r.collectedAt === null && !collect.has(r.id));
 
-  // What stays listed once this run's collections are made.
+  const versions = await db
+    .select({
+      id: engineSceneVersions.id,
+      scene: engineSceneVersions.sceneId,
+      number: engineSceneVersions.number,
+      createdAt: engineSceneVersions.createdAt,
+      collectedAt: engineSceneVersions.collectedAt,
+      descriptor: engineSceneVersions.descriptor,
+    })
+    .from(engineSceneVersions)
+    .where(eq(engineSceneVersions.projectId, projectId))
+    .orderBy(asc(engineSceneVersions.sceneId), asc(engineSceneVersions.number));
+  const pointers = await db
+    .select({ versionId: engineSceneChannels.versionId })
+    .from(engineSceneChannels)
+    .where(eq(engineSceneChannels.projectId, projectId));
+  const collectVersions = new Set(
+    sceneVersionsToCollect(
+      versions,
+      pointers.map((p) => p.versionId),
+      now,
+    ),
+  );
+  const keptVersions = versions.filter((v) => v.collectedAt === null && !collectVersions.has(v.id));
+
+  // What stays listed once this run's release collections are made. A
+  // version collected this run still lists its files until the next run,
+  // so its texts go a day after it.
   const files = await db
     .select({ releaseId: engineReleaseFiles.releaseId, sha256: engineReleaseFiles.sha256 })
     .from(engineReleaseFiles)
     .where(eq(engineReleaseFiles.projectId, projectId));
-  const listed = new Set(files.filter((f) => !collect.has(f.releaseId)).map((f) => f.sha256));
+  const versionFiles = await db
+    .select({ sha256: engineSceneVersionFiles.sha256 })
+    .from(engineSceneVersionFiles)
+    .where(eq(engineSceneVersionFiles.projectId, projectId));
+  const listed = new Set([
+    ...files.filter((f) => !collect.has(f.releaseId)).map((f) => f.sha256),
+    ...versionFiles.map((f) => f.sha256),
+  ]);
   const open = await db
-    .select({ manifest: engineReleaseUploads.manifest })
+    .select(openUploadColumns)
     .from(engineReleaseUploads)
     .where(
       and(
@@ -277,7 +355,7 @@ async function planProject(
         gt(engineReleaseUploads.expiresAt, now),
       ),
     );
-  const inFlight = inFlightHashes(open.map((u) => u.manifest));
+  const inFlight = inFlightHashes(open);
 
   const orphanCutoff = now.getTime() - ORPHAN_FILE_GRACE_HOURS * HOUR_MS;
   const objects = await db
@@ -306,12 +384,18 @@ async function planProject(
     state = row?.state ? new Uint8Array(row.state) : null;
   }
   const view = projectView(readProjectState(state));
-  // A kept release whose manifest won't parse pins blobs nobody can name: fail the project.
+  // A kept release or version that won't parse pins blobs nobody can name: fail the project.
   const pinned: ProjectSnapshot[] = kept.map((r) => {
     const parsed = r.manifest === null ? null : parseReleaseManifest(r.manifest);
     if (!parsed?.ok) throw new Error(`release v${r.version} (${r.id}) has no readable manifest`);
     return releaseSnapshot(parsed.manifest);
   });
+  for (const v of keptVersions) {
+    const parsed = v.descriptor === null ? null : parseSceneVersion(v.descriptor);
+    if (!parsed?.ok)
+      throw new Error(`scene ${v.scene} version ${v.number} (${v.id}) has no readable descriptor`);
+    pinned.push(await sceneVersionSnapshot(parsed.version));
+  }
   const blobs = await db
     .select({
       sha256: engineBlobs.sha256,
@@ -323,7 +407,7 @@ async function planProject(
     .from(engineBlobs)
     .where(eq(engineBlobs.projectId, projectId))
     .orderBy(asc(engineBlobs.sha256));
-  // A kept release serving a blob as one of its files, or an upload counting on one, keeps it too.
+  // A kept release or version serving a blob as one of its files, or an upload counting on one, keeps it too.
   const unreferenced = new Set(
     unreferencedBlobs(
       view,
@@ -349,6 +433,14 @@ async function planProject(
     releases: releases
       .filter((r) => collect.has(r.id))
       .map((r) => ({ id: r.id, version: r.version, bytes: r.manifestBytes })),
+    versions: versions
+      .filter((v) => collectVersions.has(v.id))
+      .map((v) => ({
+        id: v.id,
+        scene: v.scene,
+        number: v.number,
+        bytes: v.descriptor === null ? 0 : new TextEncoder().encode(v.descriptor).length,
+      })),
     orphans,
     referenced: blobs.filter((b) => !unreferenced.has(b.sha256)).map((b) => b.sha256),
     blobs: blobs
@@ -404,7 +496,49 @@ async function collectRelease(
   });
 }
 
-/** Whether a release file row or an open upload names `sha256` now. */
+/**
+ * Collects one scene version unless a pointer came to name it since the
+ * plan: drops its descriptor, its file rows and its reports. Its texts go
+ * with the orphan step once nothing else lists them.
+ */
+async function collectSceneVersion(
+  db: CollectorDb,
+  projectId: string,
+  version: { id: string; scene: string; number: number },
+  now: Date,
+): Promise<boolean> {
+  return db.transaction(async (tx: CollectorTx) => {
+    await lockProject(tx, projectId);
+    const collected = await tx
+      .update(engineSceneVersions)
+      .set({ collectedAt: now, descriptor: null })
+      .where(
+        and(
+          eq(engineSceneVersions.id, version.id),
+          isNull(engineSceneVersions.collectedAt),
+          sql`not exists (select 1 from ${engineSceneChannels} where ${engineSceneChannels.versionId} = ${engineSceneVersions.id})`,
+        ),
+      )
+      .returning({ id: engineSceneVersions.id });
+    if (collected.length === 0) return false;
+    await tx
+      .delete(engineSceneVersionFiles)
+      .where(eq(engineSceneVersionFiles.versionId, version.id));
+    await tx.delete(engineLiveReports).where(eq(engineLiveReports.versionId, version.id));
+    await writeAudit(tx, {
+      projectId,
+      actor: { kind: "system" },
+      action: "scene-collect",
+      sceneId: version.scene,
+      sceneVersionId: version.id,
+      detail: { number: version.number },
+      at: now,
+    });
+    return true;
+  });
+}
+
+/** Whether a release file row, a scene version file row or an open upload names `sha256` now. */
 async function stillListed(
   db: CollectorTx,
   projectId: string,
@@ -417,8 +551,19 @@ async function stillListed(
     .where(and(eq(engineReleaseFiles.projectId, projectId), eq(engineReleaseFiles.sha256, sha256)))
     .limit(1);
   if (file) return true;
+  const [versionFile] = await db
+    .select({ one: sql<number>`1` })
+    .from(engineSceneVersionFiles)
+    .where(
+      and(
+        eq(engineSceneVersionFiles.projectId, projectId),
+        eq(engineSceneVersionFiles.sha256, sha256),
+      ),
+    )
+    .limit(1);
+  if (versionFile) return true;
   const open = await db
-    .select({ manifest: engineReleaseUploads.manifest })
+    .select(openUploadColumns)
     .from(engineReleaseUploads)
     .where(
       and(
@@ -427,12 +572,12 @@ async function stillListed(
         gt(engineReleaseUploads.expiresAt, now),
       ),
     );
-  return inFlightHashes(open.map((u) => u.manifest)).has(sha256);
+  return inFlightHashes(open).has(sha256);
 }
 
 /**
  * Removes a stored object and its row under the project's lock, unless a
- * release file or an open upload names its hash again, or `stillDue` says
+ * release file, a scene version file or an open upload names its hash again, or `stillDue` says
  * the row no longer qualifies. True when it was removed.
  */
 async function removeUnlisted(
@@ -552,6 +697,18 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
           });
         }
 
+        for (const version of project.versions) {
+          const action = {
+            step: "scenes",
+            projectId,
+            target: version.id,
+            bytes: version.bytes,
+          } as const;
+          if (!plan(action, false)) continue;
+          if (!(await collectSceneVersion(db, projectId, version, now)))
+            log(`[collector] kept ${version.id}: a channel pointed at it after the plan`);
+        }
+
         for (const orphan of project.orphans) {
           const action = {
             step: "orphans",
@@ -573,7 +730,8 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
               remove: (tx) => tx.delete(engineReleaseObjects).where(objectRow),
             },
           );
-          if (!removed) log(`[collector] kept ${orphan.storageKey}: a release lists it again`);
+          if (!removed)
+            log(`[collector] kept ${orphan.storageKey}: a release or scene version lists it again`);
         }
 
         // Bookkeeping, not deletion: a blob referenced today starts its grace from today.
@@ -629,6 +787,7 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
 
     const purgeBefore = new Date(clock().getTime() - PROJECT_PURGE_DAYS * DAY_MS);
     await expireSaves(savesDue(clock()), purgeBefore);
+    await expireReports(reportsDue(clock()));
 
     const deleted = await db
       .select({ projectId: engineProjects.projectId })
@@ -717,6 +876,61 @@ export async function runCollector(options: CollectorOptions): Promise<Collector
           return;
         }
       }
+      const last = rows.at(-1);
+      if (rows.length < CHUNK || !last) return;
+      after = last;
+      await pause();
+    }
+  }
+
+  /**
+   * Live reports older than `before`, 500 at a time. Rows only, no object;
+   * a report written since the plan has a new `at` and stays.
+   */
+  async function expireReports(before: Date): Promise<void> {
+    let after: { versionId: string; userId: string } | undefined;
+    for (;;) {
+      if (options.shouldStop?.()) return;
+      const rows = await db
+        .select({
+          versionId: engineLiveReports.versionId,
+          userId: engineLiveReports.userId,
+          projectId: engineSceneVersions.projectId,
+        })
+        .from(engineLiveReports)
+        .innerJoin(engineSceneVersions, eq(engineSceneVersions.id, engineLiveReports.versionId))
+        .where(
+          and(
+            lt(engineLiveReports.at, before),
+            scope ? inArray(engineSceneVersions.projectId, [...scope]) : undefined,
+            after
+              ? sql`(${engineLiveReports.versionId}, ${engineLiveReports.userId}) > (${after.versionId}, ${after.userId})`
+              : undefined,
+          ),
+        )
+        .orderBy(asc(engineLiveReports.versionId), asc(engineLiveReports.userId))
+        .limit(CHUNK);
+      const due = rows.filter((row) =>
+        plan(
+          {
+            step: "reports",
+            projectId: row.projectId,
+            target: `${row.versionId}:${row.userId}`,
+            bytes: 0,
+          },
+          false,
+        ),
+      );
+      if (due.length > 0)
+        await db.delete(engineLiveReports).where(
+          and(
+            lt(engineLiveReports.at, before),
+            sql`(${engineLiveReports.versionId}, ${engineLiveReports.userId}) in (${sql.join(
+              due.map((row) => sql`(${row.versionId}, ${row.userId})`),
+              sql`, `,
+            )})`,
+          ),
+        );
       const last = rows.at(-1);
       if (rows.length < CHUNK || !last) return;
       after = last;
