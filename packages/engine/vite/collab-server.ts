@@ -241,6 +241,9 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
     const map = projectCodeMap(doc);
     const hashes = await buildHashes(s.project.kinds, s.project.registry);
     const stamps = projectBuildMap(doc);
+    // The server loaded the engine once, so after an engine edit its hashes
+    // are older than the pages it serves: a page on this build outranks them.
+    const stampAt = buildAt - 1;
     doc.transact(() => {
       for (const [file, info] of Object.entries(code))
         if (JSON.stringify(map.get(file)) !== JSON.stringify(info)) map.set(file, info);
@@ -248,8 +251,8 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
       for (const [kind, hash] of Object.entries(hashes)) {
         const stamp = stamps.get(kind);
         if (stamp?.hash === hash) continue;
-        if (stamp && !stampWins(buildAt, hash, stamp)) continue;
-        stamps.set(kind, { hash, buildAt, engine: ENGINE_VERSION });
+        if (stamp && !stampWins(stampAt, hash, stamp)) continue;
+        stamps.set(kind, { hash, buildAt: stampAt, engine: ENGINE_VERSION });
       }
     }, BUILD_REPAIR);
   }

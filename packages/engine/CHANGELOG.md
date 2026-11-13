@@ -235,6 +235,13 @@ actorId)`, which motion bodies and side-view controllers skip in their
 
 ### Fixed
 
+- Play starts on the game's own view: the camera takes zoom 1 and snaps to
+  its target, where an editor zoomed out past the scene's bounds held it on
+  the bounds' centre. Stop restores the editor camera as before.
+- The dev collab server stamps its schema hashes one tick older than its
+  build, so a page on that build outranks them: after an engine edit the
+  server's hashes are stale, and an equal stamp won by hash alone could hold
+  every open editor read-only until the server restarted.
 - A `path-follow` path is placed with its entity: a prefab instance, a
   group and an editor move move, turn and flip it as they do a follower's
   path, so a path-follow platform inside a prefab runs where the instance

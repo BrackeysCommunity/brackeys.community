@@ -201,6 +201,29 @@ describe("camera-target", () => {
     expect(lastFrame().x).toBeCloseTo(0, 3);
   });
 
+  it("starts Play on the targets wherever the editor camera was left", async () => {
+    const scene = {
+      ...sceneOf([target("hero", { x: 30, y: 30 })]),
+      bounds: [0, 0, 100, 100] as [number, number, number, number],
+    };
+    const instance = await createGame(canvas, { game: null, rapier: async () => rapier });
+    games.push(instance);
+    instance.setMode("edit");
+    instance.loadScene(scene);
+    instance.start();
+    advance(2);
+    instance.zoomAt({ x: 0, y: 0 }, 0.2);
+    instance.panBy({ x: 400, y: -300 });
+    advance(1);
+    expect(lastFrame()).not.toEqual({ x: 30, y: 30 });
+    expect(instance.play(scene).ok).toBe(true);
+    expect(instance.getStore().state.camera.zoom).toBe(1);
+    advance(1);
+    expect(lastFrame()).toEqual({ x: 30, y: 30 });
+    instance.stop();
+    expect(instance.getStore().state.camera.zoom).toBeCloseTo(0.2);
+  });
+
   it("follows the targets when the game names none", async () => {
     await playing(sceneOf([target("hero", { x: 30, y: 30 })], "framer"), gameWith());
     expect(lastFrame()).toEqual({ x: 30, y: 30 });

@@ -885,6 +885,14 @@ export async function createGame(
     editState = remembered;
     resetQueues();
     enterMode("play");
+    // Play shows the game's own view, not the editor's zoom (Stop restores that from editState):
+    // a zoomed-out editor view clamps the camera to the bounds' centre, so it never reaches the target.
+    if (!playing && loaded) {
+      camera.setZoom(1);
+      const target = cameraTarget(loaded.runtime);
+      if (target) camera.snapTo(target);
+      updateCamera(store, camera.getState());
+    }
     setSession(store, { startTick: store.state.tick, outcome: null });
     return { ok: true, issues: [] };
   }

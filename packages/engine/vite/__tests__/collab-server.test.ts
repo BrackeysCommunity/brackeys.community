@@ -9,6 +9,7 @@ import type * as Y from "yjs";
 
 import { checkedTestGame } from "../../__tests__/fixtures/test-game";
 import { applyOpsToDoc } from "../../collab/apply";
+import { stampWins } from "../../collab/build-stamp";
 import { docToScene } from "../../collab/convert";
 import { readLog } from "../../collab/log";
 import { applyProjectBatch, applyRegistryBatch } from "../../collab/project-apply";
@@ -190,7 +191,9 @@ describe("the dev collab server: the project doc", () => {
     expect(state.code).toEqual({});
     const stamps = [...projectBuildMap(doc).values()];
     expect(stamps.length).toBeGreaterThan(0);
-    expect(new Set(stamps.map((s) => s.buildAt))).toEqual(new Set([1234]));
+    expect(new Set(stamps.map((s) => s.buildAt))).toEqual(new Set([1233]));
+    // A page on the server's own build outranks the server, whatever its hash.
+    for (const stamp of stamps) expect(stampWins(1234, "0".repeat(64), stamp)).toBe(true);
   });
 
   it("lists the code modules, the game module with what the loaded game registers, and follows new ones", async () => {
