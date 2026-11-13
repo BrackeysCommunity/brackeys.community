@@ -1,10 +1,6 @@
-import { swapTimingSchema } from "@jams/engine/game";
+import { DEFAULT_SWAP_TIMING, swapTimingSchema } from "@jams/engine/game";
 import { ID_PATTERN } from "@jams/engine/scene";
-import { and, eq } from "drizzle-orm";
 import * as z from "zod";
-
-import { db } from "@/db";
-import { engineReleaseUploads } from "@/db/schema";
 
 import { LIVE_LIMITS } from "./limits";
 import { beginSceneVersion, commitSceneVersion } from "./live-upload";
@@ -28,8 +24,6 @@ import {
   NO_STORE,
   notFound,
   SMALL_BODY_MAX_BYTES,
-  unknownUpload,
-  uploadIdInput,
 } from "./route-gate";
 import {
   LIVE_BASE_PATH,
@@ -65,7 +59,7 @@ export const liveBeginInput = z.object({
 /** A move's body after the project, scene and number, read the same way by the procedure and the route. */
 export const livePromoteInput = z.object({
   channel: releaseChannel,
-  timing: liveTiming.default("next-load"),
+  timing: liveTiming.default(DEFAULT_SWAP_TIMING),
 });
 export const liveRollbackInput = z.object({
   channel: releaseChannel,
@@ -93,7 +87,8 @@ export const liveClearInput = z.object({
 export function createLiveRoutes(
   deps: LiveRouteDeps,
 ): (request: Request) => Promise<Response | null> {
-  const { gate, releaseDeps } = engineRoutes(deps);
+  const { gate, releaseDeps, commit: commitWith } = engineRoutes(deps);
+  const commit = commitWith(commitSceneVersion, "scene");
 
   async function begin(request: Request, projectId: string): Promise<Response> {
     const gated = await gate(request, projectId, "write");
@@ -111,36 +106,6 @@ export function createLiveRoutes(
         { headers: NO_STORE },
       ),
     );
-  }
-
-  /** Whether `uploadId` is a scene upload of `projectId`, so a token reaches only its own project's. */
-  async function sceneUploadOf(uploadId: string, projectId: string): Promise<boolean> {
-    const [row] = await db
-      .select({ id: engineReleaseUploads.id })
-      .from(engineReleaseUploads)
-      .where(
-        and(
-          eq(engineReleaseUploads.id, uploadId),
-          eq(engineReleaseUploads.projectId, projectId),
-          eq(engineReleaseUploads.kind, "scene"),
-        ),
-      );
-    return row !== undefined;
-  }
-
-  async function commit(request: Request, projectId: string): Promise<Response> {
-    const gated = await gate(request, projectId, "write");
-    if (!gated.ok) return gateResponse(gated);
-    const body = await jsonBody(request, SMALL_BODY_MAX_BYTES, uploadIdInput, "{ uploadId }");
-    if (!body.ok) return body.response;
-    if (!(await sceneUploadOf(body.body.uploadId, projectId))) return unknownUpload();
-    return answer(async () => {
-      const result = await commitSceneVersion(releaseDeps(), {
-        uploadId: body.body.uploadId,
-        actor: gated.actor,
-      });
-      return Response.json(result, { status: result.created ? 201 : 200 });
-    });
   }
 
   async function list(request: Request, projectId: string): Promise<Response> {

@@ -49,11 +49,7 @@ export async function uploadRelease(
     actor,
     ...(opts.channel ? { channel: opts.channel } : {}),
   });
-  for (const file of begun.missing) {
-    const body = planned.files.get(file.path);
-    if (!body) throw new Error(`the planned release has no bytes for "${file.path}"`);
-    await putReleaseFile(deps, { uploadId: begun.uploadId, sha256: file.sha256, body, actor });
-  }
+  await putMissingFiles(deps, begun, planned, actor);
   const committed = await commitRelease(deps, { uploadId: begun.uploadId, actor });
   if (opts.promoteTo)
     await promote(
@@ -61,6 +57,20 @@ export async function uploadRelease(
       { db: deps.db, now: deps.now },
     );
   return committed;
+}
+
+/** Every file a begun release upload reported missing, put from `planned`'s bytes. */
+export async function putMissingFiles(
+  deps: ReleaseDeps,
+  begun: { uploadId: string; missing: readonly { path: string; sha256: string }[] },
+  planned: PlannedRelease,
+  actor: Actor,
+) {
+  for (const file of begun.missing) {
+    const body = planned.files.get(file.path);
+    if (!body) throw new Error(`the planned release has no bytes for "${file.path}"`);
+    await putReleaseFile(deps, { uploadId: begun.uploadId, sha256: file.sha256, body, actor });
+  }
 }
 
 export { putSceneTexts } from "../scene-version-upload";
@@ -74,7 +84,8 @@ export const uploadSceneVersion = (
 
 /**
  * What a call was refused with: a release refusal's body and status, an oRPC
- * error's release body, or else its oRPC code. Fails when the call went through.
+ * error's release body and status, or else its oRPC code. Fails when the call
+ * went through.
  */
 export async function refusal(
   run: () => Promise<unknown>,
@@ -85,7 +96,7 @@ export async function refusal(
     if (error instanceof ReleaseError) return { ...error.body, status: error.status };
     if (error instanceof ORPCError) {
       const data = error.data as Partial<ReleaseApiError> | undefined;
-      return data?.code ? data : { code: error.code };
+      return data?.code ? { ...data, status: error.status } : { code: error.code };
     }
     throw error;
   }

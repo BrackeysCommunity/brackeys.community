@@ -116,6 +116,18 @@ follow-ups the engine's live levels left.
   over them: preview only for agent tokens, the token and site from the
   environment; `publish` swap-checks a boundary or now move from what
   players have unless `--no-swap-check`.
+- `@jams/engine/game`: `DEFAULT_SWAP_TIMING` (`next-load`), the timing a
+  channel move takes when none is picked, shared by the editor, a host's
+  routes and the CLI; and `capitalise(text)`, the one first-letter rule
+  the Publish scene lines, a host's usage line, input-script step names
+  and inspector field titles share.
+- `@jams/engine/project`: `sceneVersionFitIssue(release, version, opts?)`
+  and `SceneVersionFitIssue`: whether a stored scene version (its
+  `scene-version.json`) may go live on a release (its `release.json`,
+  with its live compat key), as `release` (unreadable, or takes no live
+  scenes), `version` (with the first error issue) or `compat` (built for
+  another key); null when it fits. A host's move refusal and the editor's
+  Keep list read this one rule.
 
 ### Changed
 
@@ -194,6 +206,28 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
 - The scene CLI's `game live publish` Changes line says players' worlds
   are rebuilt and their state restored for a header change (it said they
   reload), in the editor's words.
+- `@jams/engine/editor-ui`: `EditorLiveHost.clear(scene, channel)` takes
+  no timing: players go back at the removed pointer's own timing.
+  `LiveBaseView` gains optional `release.liveCompatKey` and
+  `live.compatKey`; with them the release promote's Keep list applies
+  the host's whole fit rule (`sceneVersionFitIssue`), so it no longer
+  offers to keep a version the host refuses.
+- `@jams/engine/editor-ui`: the editor's Publish panel takes the game's
+  `live` declaration, so Promote to production, from a preview row as
+  from Not live yet, asks when players get it (next load first, the
+  game's other timings beside it) instead of reusing preview's timing.
+  Roll back asks first on preview too ('Your team goes back to what
+  preview played before level-1@4 …'). The release promote says why it
+  offers no Keep ('Only publishers can keep live scenes over a new
+  release.', 'Only the release on preview can keep the live scenes that
+  still fit it.', or that none still fits), and when the live scenes it
+  replaces can't be read it says Promote replaces whichever are live and
+  offers Try again.
+- `@jams/engine/editor-ui`: the Publish scene dialog's description names
+  the version it creates ('Publishes level-1@4: updates this one level
+  for players of the current release.'), and its Data line at exactly
+  the limit reads as a warning, not a refusal (only a version over it is
+  refused).
 
 ### Fixed
 
@@ -288,6 +322,20 @@ as?)` and `replay(doc, rec, { sceneId })` take the scene's asset id,
   version row. The blocked and hidden fallbacks and the kept-versions
   rule are one sentence each across the editor host, publish host, admin
   queue and quota hints.
+- Site only: a blocked version's reason is one rule (`blockedReasonOf`:
+  the stored reason, else the breaker's sentence from the version's
+  reports) for the editor's blocked line, a refused move and the game
+  page; the game page lists a blocked version on each channel that points
+  at it. The live production row ends '· with updated levels: The ford
+  (12m ago)' and its Play opens production (`latest`); the promote
+  question without live levels is the dialog's description again, and
+  the blocked and Publish panel links are underlined. Download this run
+  shows 'Preparing the run…' and says 'This game has no run to share
+  yet.' when the frame offers none within `RECORDING_ANSWER_MS`, after
+  which a frame's download meets the download rate again. The pinned play
+  path is `gamePlayPath(projectId, versionOrChannel)`, the release and
+  live commit routes share one upload check, and `liveReportKey` names a
+  signed-out player through `anonPlayerKey`.
 - Site only: the notifications stream and the API reference gate read
   the session through `readRouteSession`, so a banned user's stream is
   refused as every oRPC procedure refuses it.

@@ -658,7 +658,7 @@ function moveFailure(error: unknown, site: HostedSite, projectId: string): ToolR
 
 /** Where a channel's game plays on the site. */
 export const channelPlayUrl = (site: HostedSite, projectId: string, channel: string) =>
-  new URL(`${gamePlayPath(projectId)}/${channel}`, site.origin).toString();
+  new URL(gamePlayPath(projectId, channel), site.origin).toString();
 
 function moved(
   site: HostedSite,

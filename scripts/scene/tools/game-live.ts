@@ -12,6 +12,7 @@ import {
 import type { ExportInput } from "@jams/engine/export";
 import {
   clampTiming,
+  DEFAULT_SWAP_TIMING,
   sceneVersionName,
   SWAP_STRATEGY_WORDS,
   SWAP_TIMINGS,
@@ -820,7 +821,7 @@ export async function gameLivePublish(
   const channel = input.channel ?? "preview";
   if (channel === "production") return productionRefused(access);
   if (channel !== "preview" && channel !== "none") return usage(GAME_LIVE_PUBLISH_USAGE);
-  const wanted = input.timing === undefined ? "next-load" : timingOf(input.timing);
+  const wanted = input.timing === undefined ? DEFAULT_SWAP_TIMING : timingOf(input.timing);
   if (!wanted) return usage(GAME_LIVE_PUBLISH_USAGE);
   const env = ctx.env ?? process.env;
   const cmd = "game live publish";
@@ -1142,7 +1143,7 @@ export async function gameLivePromote(
     return usage(GAME_LIVE_PROMOTE_USAGE);
   const refused = moveChannel(access, input.channel, GAME_LIVE_PROMOTE_USAGE);
   if (refused) return refused;
-  const wanted = input.timing === undefined ? "next-load" : timingOf(input.timing);
+  const wanted = input.timing === undefined ? DEFAULT_SWAP_TIMING : timingOf(input.timing);
   if (!wanted) return usage(GAME_LIVE_PROMOTE_USAGE);
   const { site, projectId } = access;
   const { scene } = input;
@@ -1189,7 +1190,7 @@ export async function gameLiveRollback(
     return movedScene(
       access,
       scene,
-      `preview rolled back to ${wasOf(scene, answer.to)} (was ${wasOf(scene, answer.from)}) · timing: next load`,
+      `preview rolled back to ${wasOf(scene, answer.to)} (was ${wasOf(scene, answer.from)}) · timing: ${timingWords(DEFAULT_SWAP_TIMING)}`,
       { from: answer.from, to: answer.to },
       [],
       ctx.env ?? process.env,

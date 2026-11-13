@@ -6,8 +6,11 @@ export const AGENT_SYNC_TOKEN_PATH = "/api/engine/agent-sync-token";
 /** A hosted game's page: `/games/<id>`. */
 export const gamePagePath = (projectId: string) => `/games/${encodeURIComponent(projectId)}`;
 
-/** Where the game plays: `/games/<id>/play`, then `/<channel or version>` for a pinned one. */
-export const gamePlayPath = (projectId: string) => `${gamePagePath(projectId)}/play`;
+/** Where the game plays: `/games/<id>/play`, or `/games/<id>/play/<channel or version>` pinned. */
+export const gamePlayPath = (projectId: string, pinned?: string | number) =>
+  pinned === undefined
+    ? `${gamePagePath(projectId)}/play`
+    : `${gamePagePath(projectId)}/play/${encodeURIComponent(String(pinned))}`;
 
 /** `/api/engine/projects/<id><rest>`. */
 export const engineProjectPath = (projectId: string, rest = "") =>

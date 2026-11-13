@@ -34,6 +34,7 @@ import {
   SIGNED_OUT_SAVES_DESCRIBE,
 } from "@/lib/engine/local-saves";
 import type { PlayRefusal } from "@/lib/engine/release-access";
+import { gamePlayPath } from "@/lib/engine/route-paths";
 import { siteSaveStore } from "@/lib/engine/save-store";
 import { useFlagBlocks } from "@/lib/hooks/use-flag";
 import { useIsMobile } from "@/lib/hooks/use-mobile";
@@ -48,14 +49,15 @@ import { SaveNotice } from "./SaveNotice";
 /** What `/play/<version>` accepts: the live version, the preview, or a version number. */
 export const PLAY_VERSION = /^(latest|preview|[1-9]\d{0,8})$/;
 
-export const playPath = (projectId: string, version: string): string =>
-  `/games/${projectId}/play/${version}`;
-
 export const SIGN_IN_MESSAGE = "Signing in reloads the game.";
 
 /** The play page's ask for the frame's recording of this run; the frame answers with a Download recording offer. */
 export const DOWNLOAD_RUN_LABEL = "Download this run";
 export const RUN_NOT_READY = "The game isn't ready to share its run yet. Try again in a moment.";
+/** Shown while the frame is asked; it closes when the Download recording offer arrives. */
+export const RUN_PREPARING = "Preparing the run…";
+/** The frame sent nothing in time: it has recorded nothing yet, or its release predates the ask. */
+export const RUN_NOT_OFFERED = "This game has no run to share yet.";
 
 /** Why the page shows no frame, in words that never say the viewer was refused. */
 export type PlayUnavailableReason = "hidden" | "collected" | "unavailable";
@@ -317,8 +319,17 @@ export function PlayChrome({
     });
   };
 
-  const requestRun = () => {
-    if (!hostRef.current?.requestRecording()) toast.error(RUN_NOT_READY);
+  const [askingRun, setAskingRun] = useState(false);
+  const requestRun = async () => {
+    const host = hostRef.current;
+    if (!host) return void toast.error(RUN_NOT_READY);
+    setAskingRun(true);
+    const preparing = toast.loading(RUN_PREPARING);
+    const answer = await host.requestRecording();
+    toast.dismiss(preparing);
+    setAskingRun(false);
+    if (answer === "unsent") toast.error(RUN_NOT_READY);
+    else if (answer === "unanswered") toast.error(RUN_NOT_OFFERED);
   };
 
   const report = async (reason: string) => {
@@ -378,7 +389,8 @@ export function PlayChrome({
         size="icon"
         tooltip={DOWNLOAD_RUN_LABEL}
         aria-label={DOWNLOAD_RUN_LABEL}
-        onClick={requestRun}
+        disabled={askingRun}
+        onClick={() => void requestRun()}
       >
         <HugeiconsIcon icon={VideoReplayIcon} size={16} />
       </Button>
@@ -458,7 +470,7 @@ export function PlayChrome({
       {signedIn ? null : (
         <SignInConfirm
           label={signInLabel(play.saveMode)}
-          callbackURL={playPath(projectId, version)}
+          callbackURL={gamePlayPath(projectId, version)}
           open={signInAsked}
           onOpenChange={setSignInAsked}
         />

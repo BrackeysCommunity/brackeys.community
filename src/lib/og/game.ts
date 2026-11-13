@@ -21,7 +21,7 @@ import {
   teams,
 } from "@/db/schema";
 import { engineGamesOpen } from "@/lib/engine/guard-server";
-import { gamePagePath } from "@/lib/og/game-links";
+import { gamePagePath } from "@/lib/engine/route-paths";
 
 /** The SQL half. Needs the production pointer and its release joined. */
 function shareableGameFilter() {

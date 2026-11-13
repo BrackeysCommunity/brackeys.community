@@ -26,10 +26,11 @@ import {
   subtext,
   textDisplay,
 } from "@/lib/discord-embed";
+import { gamePagePath, gamePlayPath } from "@/lib/engine/route-paths";
 import { collabRateLine, type CollabRateSource } from "@/lib/format-rate";
 import { itchImageUrl, itchOriginalUrl } from "@/lib/itch-image";
 import { jamSlug, jamUrl } from "@/lib/jam-links";
-import { gamePagePath, gamePlayPath, isShareableVisibility } from "@/lib/og/game-links";
+import { isShareableVisibility } from "@/lib/og/game-links";
 import { profileSlug } from "@/lib/profile-links";
 import { DEFAULT_OG_EMBED_CARD, ogCardPath, SITE_NAME } from "@/lib/site-meta";
 import { teamSlug } from "@/lib/team-links";

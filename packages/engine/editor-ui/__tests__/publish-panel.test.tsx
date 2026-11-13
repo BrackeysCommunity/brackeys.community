@@ -17,36 +17,30 @@ import type {
 } from "../host";
 import { KitProvider } from "../kit/index";
 import { PublishPanel } from "../panels/publish/PublishPanel";
-import { REPLACES_UNREAD } from "../panels/publish/ReleaseList";
-import { editorPanels } from "../panels/registry";
+import {
+  KEEP_PREVIEW_ONLY,
+  KEEP_PUBLISHERS_ONLY,
+  REPLACES_UNREAD,
+} from "../panels/publish/ReleaseList";
+import { editorPanels, PUBLISH_PANEL, type PanelContext } from "../panels/registry";
 import { fakeLiveHost, type FakeLiveHost } from "./fake-live-host";
 
-// The Keep list asks the version check whether a live scene fits the new
+// The Keep list asks the host's fit rule whether a live scene fits the new
 // release; these descriptor texts stand for a version that fits and one that doesn't.
 const FITS = "fits-v7";
 const STALE = "stale-for-v7";
+const fitIssue = vi.hoisted(() => vi.fn());
 vi.mock("../../project/index", async (importOriginal) => {
   const real = await importOriginal<typeof import("../../project/index")>();
-  return {
-    ...real,
-    parseReleaseManifest: (text: string) =>
-      text === "manifest-v7"
-        ? { ok: true, manifest: { stand: text } }
-        : real.parseReleaseManifest(text),
-    parseSceneVersion: (text: string) =>
-      text === FITS || text === STALE
-        ? { ok: true, version: { stand: text } }
-        : real.parseSceneVersion(text),
-    checkSceneVersion: (...args: Parameters<typeof real.checkSceneVersion>) => {
-      const stand = (args[1] as unknown as { stand?: string }).stand;
-      if (stand === FITS) return [];
-      if (stand === STALE)
-        return [
-          { severity: "error", code: "live-incompatible", message: "Other build.", path: "" },
-        ];
-      return real.checkSceneVersion(...args);
-    },
-  };
+  fitIssue.mockImplementation((...args: Parameters<typeof real.sceneVersionFitIssue>) => {
+    const [release, version] = args;
+    if (release.manifest !== "manifest-v7") return real.sceneVersionFitIssue(...args);
+    if (version.compatKey === "other-key") return { on: "compat" };
+    if (version.descriptor === FITS) return null;
+    if (version.descriptor === STALE) return { on: "version", issue: null };
+    return real.sceneVersionFitIssue(...args);
+  });
+  return { ...real, sceneVersionFitIssue: fitIssue };
 });
 
 afterEach(cleanup);
@@ -611,7 +605,7 @@ describe("PublishPanel's live scenes", () => {
     ).toBeTruthy();
     expect(live.clear).not.toHaveBeenCalled();
     fireEvent.click(within(dialog).getByRole("button", { name: "Stop" }));
-    await waitFor(() => expect(live.clear).toHaveBeenCalledWith("level-1", "preview", "next-load"));
+    await waitFor(() => expect(live.clear).toHaveBeenCalledWith("level-1", "preview"));
     await waitFor(() =>
       expect(notify.success.mock.calls[0]?.[0]).toBe(
         "The ford plays the release's version on preview again.",
@@ -663,7 +657,7 @@ describe("PublishPanel's live scenes", () => {
     expect(within(preview).getByRole("button", { name: "Stop" })).toHaveProperty("disabled", false);
   });
 
-  it("promotes a preview version to production with its timing, after asking", async () => {
+  it("promotes a preview version to production at the next load, after asking", async () => {
     const live = liveHost();
     const { notify } = mountLive(live);
     const row = await rowOf("preview", "level-1@4");
@@ -682,7 +676,35 @@ describe("PublishPanel's live scenes", () => {
     );
   });
 
-  it("rolls a pointer back with its timing and reports a refusal", async () => {
+  it("lets the editor's Publish panel pick when players get a preview version on production", async () => {
+    const live = liveHost();
+    const publish = host({ releases: vi.fn(async () => channels()), live });
+    const controls = {
+      publish,
+      notify: notifier(),
+      project: undefined,
+      session: { registry: { game: { live: { timings: ["now"] } } } },
+    };
+    render(
+      <KitProvider host={{}}>
+        {PUBLISH_PANEL.render({ controls } as unknown as PanelContext)}
+      </KitProvider>,
+    );
+    const row = await rowOf("preview", "level-1@4");
+    const dialog = await ask(within(row).getByRole("button", { name: "Promote to production" }));
+    const when = within(dialog).getByRole("radiogroup", { name: "When players get it" });
+    expect(within(when).getByLabelText("Next time the level loads")).toHaveProperty(
+      "checked",
+      true,
+    );
+    fireEvent.click(within(when).getByLabelText("Now, while they play"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Promote" }));
+    await waitFor(() =>
+      expect(live.promote).toHaveBeenCalledWith("level-1", 4, "production", "now"),
+    );
+  });
+
+  it("asks before rolling preview back, then rolls it back with its timing and reports a refusal", async () => {
     const live = liveHost({
       rollback: vi.fn(async () => {
         throw new Error("level-1@2 is blocked.");
@@ -690,7 +712,15 @@ describe("PublishPanel's live scenes", () => {
     });
     const { notify } = mountLive(live);
     const row = await rowOf("preview", "level-1@4");
-    fireEvent.click(within(row).getByRole("button", { name: "Roll back" }));
+    const dialog = await ask(within(row).getByRole("button", { name: "Roll back" }));
+    expect(within(dialog).getByText("Roll back The ford on preview?")).toBeTruthy();
+    expect(
+      within(dialog).getByText(
+        "Your team goes back to what preview played before level-1@4 the next time the level loads: an earlier version of The ford, or the release's own.",
+      ),
+    ).toBeTruthy();
+    expect(live.rollback).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Roll back" }));
     await waitFor(() =>
       expect(live.rollback).toHaveBeenCalledWith("level-1", "preview", { timing: "next-load" }),
     );
@@ -999,7 +1029,44 @@ describe("the release promote's live scenes", () => {
     mountLive(live);
     const dialog = await openPromote();
     expect(within(dialog).queryByRole("switch")).toBeNull();
-    expect(within(dialog).queryByText(/still fits/)).toBeNull();
+    expect(within(dialog).queryByText(/still fits v/)).toBeNull();
+    expect(within(dialog).getByText(KEEP_PUBLISHERS_ONLY)).toBeTruthy();
+  });
+
+  it("says Keep is only for the release on preview when promoting another", async () => {
+    mountLive(liveHost({ list: vi.fn(async () => onProduction()), base }));
+    const releases = await screen.findByRole("list", { name: "Releases" });
+    const v5 = within(releases)
+      .getAllByRole("listitem")
+      .find((row) => row.textContent?.startsWith("v5"));
+    const dialog = await ask(
+      within(v5 ?? expect.fail("no v5 row")).getByRole("button", { name: "Promote" }),
+    );
+    await waitFor(() => expect(within(dialog).getByText(KEEP_PREVIEW_ONLY)).toBeTruthy());
+    expect(within(dialog).queryByRole("switch")).toBeNull();
+  });
+
+  it("keeps no live scene built for another release's compat key, by the host's rule", async () => {
+    const keyed = vi.fn<EditorLiveHost["base"]>(async (scene, channel) => {
+      const answer = await base(scene, channel);
+      return {
+        ...answer,
+        release: answer.release && { ...answer.release, liveCompatKey: "key-7" },
+        live: answer.live && { ...answer.live, compatKey: "other-key" as Sha256 },
+      };
+    });
+    mountLive(liveHost({ list: vi.fn(async () => onProduction()), base: keyed }));
+    const dialog = await openPromote();
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText("None of them still fits v7, so none can be kept."),
+      ).toBeTruthy(),
+    );
+    expect(within(dialog).queryByRole("switch")).toBeNull();
+    expect(fitIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ manifest: "manifest-v7", liveCompatKey: "key-7" }),
+      expect.objectContaining({ descriptor: FITS, compatKey: "other-key" }),
+    );
   });
 
   it("holds Promote while the live scenes load, and says when they couldn't be read", async () => {
@@ -1029,6 +1096,13 @@ describe("the release promote's live scenes", () => {
       "disabled",
       false,
     );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Try again" }));
+    await waitFor(() =>
+      expect(dialog.textContent).toContain(
+        "Promoting v7 replaces these live scenes: The ford (level-1@3), cave (cave@2).",
+      ),
+    );
+    expect(within(dialog).queryByText(REPLACES_UNREAD)).toBeNull();
   });
 
   it("asks as before when nothing is live on production", async () => {

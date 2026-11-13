@@ -38,6 +38,7 @@ import {
   canonicalWithAssets,
   ENGINE_FORMATS,
   orderedLayout,
+  parseReleaseManifest,
   RELEASE_SCENE_LAYOUT,
   releaseAssetSchema,
   releaseId,
@@ -608,6 +609,46 @@ export function checkSceneVersion(
   ]);
   if (texts) issues.push(...carriedRefIssues(version, texts, opts.registry ?? createRegistry()));
   return issues;
+}
+
+/**
+ * Why a stored scene version can't go live on a release, as hosts and the
+ * editor read it from the texts they hold: `release` when the release
+ * doesn't read or takes no live scenes, `version` with the first issue when
+ * the version doesn't read or `checkSceneVersion` finds an error, `compat`
+ * when it was built for another release's compat key.
+ */
+export type SceneVersionFitIssue =
+  | { on: "release" }
+  | { on: "version"; issue: SceneIssue | null }
+  | { on: "compat" };
+
+/**
+ * Whether the scene version `descriptor` (its `scene-version.json`) may go
+ * live on the release `manifest` (its `release.json`): null when it fits.
+ * `liveCompatKey` is the release's (`""` when it takes no live scenes) and
+ * `compatKey` the version's; the key rule applies when both are given.
+ */
+export function sceneVersionFitIssue(
+  release: { manifest: string; liveCompatKey?: string },
+  version: { descriptor: string; compatKey?: string },
+  opts: Pick<CheckSceneVersionOptions, "names"> = {},
+): SceneVersionFitIssue | null {
+  const manifest = parseReleaseManifest(release.manifest);
+  if (!manifest.ok || release.liveCompatKey === "") return { on: "release" };
+  const parsed = parseSceneVersion(version.descriptor);
+  if (!parsed.ok) return { on: "version", issue: parsed.issues[0] ?? null };
+  const error = checkSceneVersion(manifest.manifest, parsed.version, undefined, opts).find(
+    (i) => i.severity === "error",
+  );
+  if (error) return { on: "version", issue: error };
+  if (
+    release.liveCompatKey !== undefined &&
+    version.compatKey !== undefined &&
+    version.compatKey !== release.liveCompatKey
+  )
+    return { on: "compat" };
+  return null;
 }
 
 // ─── Snapshot and lookup ─────────────────────────────────

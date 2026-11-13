@@ -6,12 +6,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
 import { siteUrl } from "@/env";
 import type { PlayPayload } from "@/lib/engine/game-play";
+import { gamePlayPath } from "@/lib/engine/route-paths";
 import { SITE } from "@/lib/legal-meta";
 import { cn } from "@/lib/utils";
 
 import {
   PLAY_UNAVAILABLE_MESSAGE,
-  playPath,
   refusalOf,
   reloadPlay,
   useEngineGamesBlocked,
@@ -73,7 +73,7 @@ export function EmbedFrame({ projectId, version }: { projectId: string; version:
   const valid = EMBED_VERSION.test(version);
   const query = usePlayQuery(projectId, version, !blocked && valid);
   const stores = useLocalPlayStores(projectId, () => EMBED_SAVES_DESCRIBE);
-  const href = siteUrl(playPath(projectId, valid ? version : "latest"));
+  const href = siteUrl(gamePlayPath(projectId, valid ? version : "latest"));
   const embeddable = query.data && EMBEDDABLE.has(query.data.visibility) ? query.data : undefined;
   usePlayTitle(embeddable);
 

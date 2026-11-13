@@ -183,8 +183,8 @@ arrives written in `wording`.
 type EditorLiveHost = {
     /** What the Publish scene checks compare against on `channel`. */
     base(scene: AssetId, channel: PublishChannel): Promise<LiveBaseView>;
-    /** "Stop": the channel plays the release's scene again. */
-    clear(scene: AssetId, channel: PublishChannel, timing?: SwapTiming): Promise<LiveMove>;
+    /** "Stop": the channel plays the release's scene again, at the removed pointer's own timing. */
+    clear(scene: AssetId, channel: PublishChannel): Promise<LiveMove>;
     /** Newest first; one scene's with `scene`. */
     list(scene?: AssetId): Promise<readonly LiveVersionView[]>;
     /**
@@ -385,8 +385,12 @@ type LiveBaseView = {
     channel: PublishChannel;
     /** The scene's newest version number on any channel; null before the first. */
     latest: null | number;
-    /** The scene's live version on the channel, with its `scene-version.json`; null when the release's scene plays. */
+    /**
+     * The scene's live version on the channel, with its `scene-version.json`
+     * and the compat key it was built for; null when the release's scene plays.
+     */
     live: null | {
+        compatKey?: Sha256;
         descriptor: string;
         number: number;
         /** ISO 8601, UTC. */
@@ -394,9 +398,14 @@ type LiveBaseView = {
         timing: SwapTiming;
         versionId: Sha256;
     };
-    /** Null when nothing is on the channel yet. */
+    /**
+     * Null when nothing is on the channel yet. `liveCompatKey` is the key a
+     * version must be built for to go live on it, `""` when it takes no live
+     * scenes; without it the editor leaves that rule to the host's move.
+     */
     release: null | {
         id: Sha256;
+        liveCompatKey?: string;
         manifest: string;
         version: number;
     };

@@ -139,10 +139,15 @@ export type CommitResult = {
 export const HOUR_MS = 3_600_000;
 const FILE_ROWS_PER_INSERT = 500;
 
-/** `deps` with the site's own database, clock, limiter and scan filled in. */
-export const resolveDeps = (deps: ReleaseDeps) => ({
+/** `deps` with the site's own database and clock filled in. */
+export const siteDeps = (deps: { db?: ReleaseTxDb; now?: () => Date }) => ({
   db: deps.db ?? (siteDb as unknown as ReleaseTxDb),
   now: deps.now ?? (() => new Date()),
+});
+
+/** `deps` with the site's own database, clock, limiter and scan filled in. */
+export const resolveDeps = (deps: ReleaseDeps) => ({
+  ...siteDeps(deps),
   rateLimit: deps.rateLimit ?? checkRateLimit,
   scan:
     deps.scan ??
@@ -636,7 +641,7 @@ export async function openUpload(
   return { ...upload, project };
 }
 
-const JSON_TYPE = "application/json";
+export const JSON_TYPE = "application/json";
 
 /** A scene upload's text as `schema` refuses it, named by its asset's path. */
 const sceneTextSchema = (name: string, message: string): ReleaseApiError => ({

@@ -7,6 +7,7 @@ import { actorLabel, type LogEntry } from "../../../collab/types";
 import type { EditorSession } from "../../../editor/index";
 import {
   acceptedTimings,
+  capitalise,
   clampTiming,
   diffWords,
   sceneVersionName,
@@ -82,9 +83,7 @@ export const TODAY_UNCHECKED =
   "Couldn't check today's count of versions; the site still checks it when you publish.";
 export const EDITORS_UNCHECKED = "Couldn't check who edited the scene since its last version.";
 
-const capitalised = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
-
-export const IN_PLACE = `${capitalised(SWAP_STRATEGY_WORDS.reconcile)}.`;
+export const IN_PLACE = `${capitalise(SWAP_STRATEGY_WORDS.reconcile)}.`;
 export const REBUILT = `The bounds or settings changed, so ${SWAP_STRATEGY_WORDS.reload}.`;
 
 // ─── The checks ──────────────────────────────────────────
@@ -167,7 +166,7 @@ export function diffCheck(
   if (!before?.ok || !after.ok) return null;
   const diff = diffExpanded(before.scene, after.scene);
   const text =
-    swapStrategyFor(diff) === "reload" ? REBUILT : `${capitalised(diffWords(diff))}. ${IN_PLACE}`;
+    swapStrategyFor(diff) === "reload" ? REBUILT : `${capitalise(diffWords(diff))}. ${IN_PLACE}`;
   return { id: "diff", text, tone: "muted" };
 }
 
@@ -250,10 +249,12 @@ export async function publishChecks(input: PublishCheckInput): Promise<PublishCh
 
     const bytes = sceneVersionDataBytes(text, made.version);
     const max = live.wording.dataMaxBytes;
+    const level = USAGE_TONE[live.wording.level(bytes, max)];
+    // A version exactly at the limit still publishes: only one over it reads as refused.
     lines.push({
       id: "data",
       text: live.wording.data(bytes),
-      tone: USAGE_TONE[live.wording.level(bytes, max)],
+      tone: bytes > max ? "danger" : level === "danger" ? "warning" : level,
       ...(bytes > max ? { blocks: true as const } : {}),
     });
   }
@@ -571,7 +572,8 @@ export function ScenePublishDialog({
           <DialogHeader>
             <DialogTitle>Publish {title}</DialogTitle>
             <DialogDescription>
-              Updates this one level for players of the current release.
+              {baseView && scene ? `Publishes ${nextName}: updates` : "Updates"} this one level for
+              players of the current release.
             </DialogDescription>
           </DialogHeader>
 

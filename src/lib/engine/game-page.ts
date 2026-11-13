@@ -24,6 +24,7 @@ import { profileStubJoin } from "@/orpc/profile-projection";
 import { frameBase } from "./frame-csp";
 import { mintFrameToken } from "./frame-token";
 import type { GameSaveMode } from "./game-settings";
+import { blockedReasonOf } from "./live-outcomes";
 import { channelLive, channelRelease, type LiveChannel } from "./live-versions";
 import {
   canDo,
@@ -265,7 +266,7 @@ async function productionScenes(
   };
 }
 
-/** Blocked, kept and unhidden versions a channel points at, production first, one line per version. */
+/** Blocked, kept and unhidden versions a channel points at, production first, one line per channel and version. */
 async function blockedScenes(
   db: ReleaseTxDb,
   projectId: string,
@@ -277,7 +278,10 @@ async function blockedScenes(
       scene: engineSceneChannels.sceneId,
       channel: engineSceneChannels.channel,
       number: engineSceneVersions.number,
+      by: engineSceneVersions.blockedBy,
       reason: engineSceneVersions.blockReason,
+      reportsOk: engineSceneVersions.reportsOk,
+      reportsFailed: engineSceneVersions.reportsFailed,
     })
     .from(engineSceneChannels)
     .innerJoin(engineSceneVersions, eq(engineSceneVersions.id, engineSceneChannels.versionId))
@@ -303,11 +307,17 @@ async function blockedScenes(
   const seen = new Set<string>();
   const out: GamePageBlockedScene[] = [];
   for (const r of rows) {
-    if (seen.has(r.versionId)) continue;
-    seen.add(r.versionId);
+    const key = `${r.channel}:${r.versionId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     const channel = r.channel as LiveChannel;
     const title = titles.get(channel)?.get(r.scene) ?? r.scene;
-    out.push({ scene: r.scene, title, number: r.number, channel, reason: r.reason });
+    const reason = blockedReasonOf({
+      by: r.by,
+      reason: r.reason,
+      reports: { ok: r.reportsOk, failed: r.reportsFailed },
+    });
+    out.push({ scene: r.scene, title, number: r.number, channel, reason });
   }
   return out;
 }

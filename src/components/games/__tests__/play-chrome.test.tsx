@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { PlayPayload } from "@/lib/engine/game-play";
-import type { HostServerOptions } from "@/lib/engine/host-server";
+import type { HostServerOptions, RecordingAnswer } from "@/lib/engine/host-server";
 import type { LiveClientOptions } from "@/lib/engine/live-client";
 import type { LiveSnapshot } from "@/lib/engine/live-state";
 import { localPlaySaves, SIGNED_OUT_SAVES_DESCRIBE } from "@/lib/engine/local-saves";
@@ -28,7 +28,7 @@ const hosts = vi.hoisted(() => ({
   created: [] as HostServerOptions[],
   notified: 0,
   recordingAsked: 0,
-  recordingSent: true,
+  recordingAnswer: "offered" as RecordingAnswer,
   siteWrites: [] as string[],
 }));
 
@@ -71,7 +71,7 @@ vi.mock("@/lib/engine/host-server", () => ({
       resume: vi.fn(),
       requestRecording: () => {
         hosts.recordingAsked += 1;
-        return hosts.recordingSent;
+        return Promise.resolve(hosts.recordingAnswer);
       },
       dispose: vi.fn(),
     };
@@ -148,7 +148,9 @@ const {
   PlayChrome,
   PlayPage,
   PLAY_UNAVAILABLE_MESSAGE,
+  RUN_NOT_OFFERED,
   RUN_NOT_READY,
+  RUN_PREPARING,
   SIGN_IN_MESSAGE,
 } = await import("../PlayChrome");
 const { EmbedFrame, EMBED_SAVES_DESCRIBE } = await import("../EmbedFrame");
@@ -394,10 +396,13 @@ describe("the play page", () => {
 
   it("asks the frame for this run's recording, which comes back as the download offer", async () => {
     hosts.recordingAsked = 0;
-    hosts.recordingSent = true;
+    hosts.recordingAnswer = "offered";
+    toasts.loading.mockReturnValueOnce("preparing");
     wrap(<PlayChrome play={payload()} version="latest" />);
     await userEvent.click(screen.getByRole("button", { name: DOWNLOAD_RUN_LABEL }));
     expect(hosts.recordingAsked).toBe(1);
+    expect(toasts.loading).toHaveBeenCalledWith(RUN_PREPARING);
+    await waitFor(() => expect(toasts.dismiss).toHaveBeenCalledWith("preparing"));
     expect(toasts.error).not.toHaveBeenCalled();
     act(() => {
       hosts.created[0]?.onDownload?.({
@@ -411,12 +416,22 @@ describe("the play page", () => {
 
   it("says so when the frame can't be asked for its run yet", async () => {
     hosts.recordingAsked = 0;
-    hosts.recordingSent = false;
+    hosts.recordingAnswer = "unsent";
     wrap(<PlayChrome play={payload()} version="latest" />);
     await userEvent.click(screen.getByRole("button", { name: DOWNLOAD_RUN_LABEL }));
     expect(hosts.recordingAsked).toBe(1);
-    expect(toasts.error).toHaveBeenCalledWith(RUN_NOT_READY);
-    hosts.recordingSent = true;
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(RUN_NOT_READY));
+    hosts.recordingAnswer = "offered";
+  });
+
+  it("says the game has no run to share when the frame offers none in time", async () => {
+    hosts.recordingAnswer = "unanswered";
+    toasts.loading.mockReturnValueOnce("preparing");
+    wrap(<PlayChrome play={payload()} version="latest" />);
+    await userEvent.click(screen.getByRole("button", { name: DOWNLOAD_RUN_LABEL }));
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(RUN_NOT_OFFERED));
+    expect(toasts.dismiss).toHaveBeenCalledWith("preparing");
+    hosts.recordingAnswer = "offered";
   });
 
   it("lets the player dismiss a recording the game offers", async () => {

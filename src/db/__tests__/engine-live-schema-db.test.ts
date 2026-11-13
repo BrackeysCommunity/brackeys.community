@@ -13,7 +13,7 @@ import {
   engineSceneVersions,
 } from "@/db/schema";
 import { writeAudit } from "@/lib/engine/release-audit";
-import { createTestDb, seedUser, type TestDb } from "@/test/db";
+import { createTestDb, seedUser, statementRefusal, type TestDb } from "@/test/db";
 
 const hex = (c: string) => c.repeat(64);
 const PROJECT = "kitchen";
@@ -73,22 +73,11 @@ const release = {
   target: "web",
 };
 
-/** The database's own words for a refused statement: drizzle wraps them in `cause`. */
-async function refusal(run: () => Promise<unknown>): Promise<string> {
-  try {
-    await run();
-  } catch (error) {
-    const cause = (error as { cause?: unknown }).cause;
-    return `${String(error)} ${cause instanceof Error ? cause.message : ""}`;
-  }
-  throw new Error("the statement went through");
-}
-
 describe("engine_scene_versions", () => {
   it("numbers a scene's versions once per project and scene", async () => {
     await db.insert(engineSceneVersions).values(version(hex("1"), 1));
     expect(
-      await refusal(() => db.insert(engineSceneVersions).values(version(hex("2"), 1))),
+      await statementRefusal(() => db.insert(engineSceneVersions).values(version(hex("2"), 1))),
     ).toContain("engine_scene_versions_scene_number_uq");
     await db.insert(engineSceneVersions).values(version(hex("2"), 2));
     await db.insert(engineSceneVersions).values(version(hex("3"), 1, { sceneId: "level-2" }));
@@ -106,7 +95,7 @@ describe("engine_scene_versions", () => {
     ];
     for (const [over, check] of cases) {
       expect(
-        await refusal(() =>
+        await statementRefusal(() =>
           db.insert(engineSceneVersions).values(version(hex("1"), over.number ?? 1, over)),
         ),
       ).toContain(check);
@@ -118,14 +107,14 @@ describe("engine_scene_versions", () => {
 
   it("is blocked by the system or a person, with a time, or not at all", async () => {
     expect(
-      await refusal(() =>
+      await statementRefusal(() =>
         db
           .insert(engineSceneVersions)
           .values(version(hex("1"), 1, { blockedAt: new Date(), blockedBy: "breaker" })),
       ),
     ).toContain("engine_scene_versions_blocked_by");
     expect(
-      await refusal(() =>
+      await statementRefusal(() =>
         db.insert(engineSceneVersions).values(version(hex("1"), 1, { blockedBy: "system" })),
       ),
     ).toContain("engine_scene_versions_blocked_by");
@@ -162,9 +151,9 @@ describe("engine_scene_version_files", () => {
       [{ source: "cdn" }, "engine_scene_version_files_source"],
     ];
     for (const [over, check] of cases) {
-      expect(await refusal(() => db.insert(engineSceneVersionFiles).values(file(over)))).toContain(
-        check,
-      );
+      expect(
+        await statementRefusal(() => db.insert(engineSceneVersionFiles).values(file(over))),
+      ).toContain(check);
     }
     await db
       .insert(engineSceneVersionFiles)
@@ -184,7 +173,7 @@ describe("engine_scene_channels", () => {
   it("keeps a version a pointer names from being deleted", async () => {
     await db.insert(engineSceneChannels).values(pointer());
     expect(
-      await refusal(() =>
+      await statementRefusal(() =>
         db.delete(engineSceneVersions).where(eq(engineSceneVersions.id, hex("1"))),
       ),
     ).toContain("engine_scene_channels_version_id");
@@ -194,10 +183,14 @@ describe("engine_scene_channels", () => {
 
   it("refuses a timing or channel outside its lists", async () => {
     expect(
-      await refusal(() => db.insert(engineSceneChannels).values(pointer({ timing: "later" }))),
+      await statementRefusal(() =>
+        db.insert(engineSceneChannels).values(pointer({ timing: "later" })),
+      ),
     ).toContain("engine_scene_channels_timing");
     expect(
-      await refusal(() => db.insert(engineSceneChannels).values(pointer({ channel: "beta" }))),
+      await statementRefusal(() =>
+        db.insert(engineSceneChannels).values(pointer({ channel: "beta" })),
+      ),
     ).toContain("engine_scene_channels_channel");
     const [made] = await db
       .insert(engineSceneChannels)
@@ -208,9 +201,9 @@ describe("engine_scene_channels", () => {
 
   it("holds one pointer per channel and scene", async () => {
     await db.insert(engineSceneChannels).values(pointer());
-    expect(await refusal(() => db.insert(engineSceneChannels).values(pointer()))).toContain(
-      "engine_scene_channels_pkey",
-    );
+    expect(
+      await statementRefusal(() => db.insert(engineSceneChannels).values(pointer())),
+    ).toContain("engine_scene_channels_pkey");
     await db.insert(engineSceneChannels).values(pointer({ channel: "production" }));
   });
 });
@@ -223,12 +216,14 @@ describe("engine_live_reports", () => {
   it("refuses an outcome or channel outside its lists, and goes with its player", async () => {
     const row = { versionId: hex("1"), userId: "staff", channel: "production", outcome: "failed" };
     expect(
-      await refusal(() =>
+      await statementRefusal(() =>
         db.insert(engineLiveReports).values({ ...row, outcome: "slow" as string }),
       ),
     ).toContain("engine_live_reports_outcome");
     expect(
-      await refusal(() => db.insert(engineLiveReports).values({ ...row, channel: "beta" })),
+      await statementRefusal(() =>
+        db.insert(engineLiveReports).values({ ...row, channel: "beta" }),
+      ),
     ).toContain("engine_live_reports_channel");
     await db.insert(engineLiveReports).values(row);
     await seedUser(db, "player");
@@ -242,7 +237,7 @@ describe("releases, channels, uploads and the audit, for live scenes", () => {
     const [made] = await db.insert(engineReleases).values(release).returning();
     expect(made?.liveCompatKey).toBe("");
     expect(
-      await refusal(() =>
+      await statementRefusal(() =>
         db
           .update(engineReleases)
           .set({ liveCompatKey: "abc" })
@@ -276,20 +271,28 @@ describe("releases, channels, uploads and the audit, for live scenes", () => {
     const [plain] = await db.insert(engineReleaseUploads).values(row).returning();
     expect(plain).toMatchObject({ kind: "release", sceneId: null, timing: null, note: null });
     expect(
-      await refusal(() => db.insert(engineReleaseUploads).values({ ...row, kind: "scene" })),
+      await statementRefusal(() =>
+        db.insert(engineReleaseUploads).values({ ...row, kind: "scene" }),
+      ),
     ).toContain("engine_release_uploads_scene");
     expect(
-      await refusal(() => db.insert(engineReleaseUploads).values({ ...row, sceneId: SCENE })),
+      await statementRefusal(() =>
+        db.insert(engineReleaseUploads).values({ ...row, sceneId: SCENE }),
+      ),
     ).toContain("engine_release_uploads_scene");
     expect(
-      await refusal(() => db.insert(engineReleaseUploads).values({ ...row, kind: "level" })),
+      await statementRefusal(() =>
+        db.insert(engineReleaseUploads).values({ ...row, kind: "level" }),
+      ),
     ).toContain("engine_release_uploads_kind");
     const scene = { ...row, kind: "scene", sceneId: SCENE };
     expect(
-      await refusal(() => db.insert(engineReleaseUploads).values({ ...scene, timing: "soon" })),
+      await statementRefusal(() =>
+        db.insert(engineReleaseUploads).values({ ...scene, timing: "soon" }),
+      ),
     ).toContain("engine_release_uploads_timing");
     expect(
-      await refusal(() =>
+      await statementRefusal(() =>
         db.insert(engineReleaseUploads).values({ ...scene, note: "x".repeat(201) }),
       ),
     ).toContain("engine_release_uploads_note");
@@ -321,7 +324,7 @@ describe("releases, channels, uploads and the audit, for live scenes", () => {
       })),
     );
     expect(
-      await refusal(() =>
+      await statementRefusal(() =>
         db
           .insert(engineReleaseAudit)
           .values({ projectId: PROJECT, actorKind: "system", action: "scene-delete" }),

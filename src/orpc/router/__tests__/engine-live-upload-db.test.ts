@@ -6,9 +6,7 @@ import { db as mockedDb } from "@/db";
 import { engineProjects, engineReleaseAudit, engineReleaseUploads } from "@/db/schema";
 import { LIVE_LIMITS } from "@/lib/engine/limits";
 import { createLiveRoutes } from "@/lib/engine/live-routes";
-import { putReleaseFile, type ReleaseTxDb } from "@/lib/engine/release-upload";
 import { engineLivePath } from "@/lib/engine/route-paths";
-import { putSceneTexts } from "@/lib/engine/scene-version-upload";
 import { beginSceneVersion, commitSceneVersion } from "@/orpc/router/engine-live";
 import { beginRelease, commitRelease } from "@/orpc/router/engine-release";
 import { seedUser, type TestDb } from "@/test/db";
@@ -16,6 +14,12 @@ import { asUser } from "@/test/orpc";
 
 import { fixtureVersion } from "../../../lib/engine/__tests__/fixtures/live/scene-versions";
 import { plannedRelease } from "../../../lib/engine/__tests__/release-fixture";
+import {
+  putMissingFiles,
+  putSceneTexts,
+  refusal,
+  uploadDeps,
+} from "../../../lib/engine/__tests__/upload-rig";
 
 vi.mock("@/db", async () => {
   const { createTestDb } = await import("@/test/db");
@@ -79,34 +83,17 @@ beforeEach(() => {
 const begin = (user: string, version = "{}") =>
   call(beginSceneVersion, { projectId: PROJECT, version }, asUser(user));
 
-/** The oRPC error's code and its release API body, or null when the call went through. */
-async function refusal(run: () => Promise<unknown>) {
-  try {
-    await run();
-    return null;
-  } catch (error) {
-    const e = error as { code?: string; data?: { code?: string } };
-    return { code: e.code, data: e.data };
-  }
-}
-
 describe("the live upload procedures", () => {
   it("let staff begin and commit a version to preview, audited as staff", async () => {
     const release = await plannedRelease({ projectId: PROJECT });
     const staff = { kind: "staff", userId: "staff" } as const;
-    const deps = { db: db as unknown as ReleaseTxDb, store: shared.store!, scan: async () => {} };
+    const deps = uploadDeps(shared.store!);
     const shipped = await call(
       beginRelease,
       { projectId: PROJECT, manifest: release.text, channel: "preview" },
       asUser("staff"),
     );
-    for (const file of shipped.missing)
-      await putReleaseFile(deps, {
-        uploadId: shipped.uploadId,
-        sha256: file.sha256,
-        body: release.files.get(file.path)!,
-        actor: staff,
-      });
+    await putMissingFiles(deps, shipped, release, staff);
     await call(commitRelease, { uploadId: shipped.uploadId }, asUser("staff"));
 
     const hall = await fixtureVersion(release, {
@@ -180,10 +167,8 @@ describe("the live upload procedures", () => {
     const refused = await refusal(() =>
       call(beginSceneVersion, { projectId: PROJECT, version: "{}", note }, asUser("staff")),
     );
-    expect(refused).toMatchObject({ code: "BAD_REQUEST", data: { code: "schema" } });
-    expect(refused?.data).toMatchObject({
-      message: expect.stringContaining(`${LIVE_LIMITS.noteChars + 1} characters`),
-    });
+    expect(refused).toMatchObject({ code: "schema", status: 400 });
+    expect(refused.message).toContain(`${LIVE_LIMITS.noteChars + 1} characters`);
   });
 
   it("count a note's characters, not its UTF-16 units", async () => {
@@ -192,7 +177,7 @@ describe("the live upload procedures", () => {
     const refused = await refusal(() =>
       call(beginSceneVersion, { projectId: PROJECT, version: "{}", note }, asUser("staff")),
     );
-    expect(refused?.data).toMatchObject({ message: expect.not.stringContaining("note") });
+    expect(refused.message).not.toContain("note");
   });
 
   it("answer a version over the data cap with the quota refusal", async () => {
@@ -202,23 +187,21 @@ describe("the live upload procedures", () => {
         call(beginSceneVersion, { projectId: PROJECT, version: "x".repeat(used) }, asUser("staff")),
       ),
     ).toMatchObject({
-      data: {
-        code: "quota-exceeded",
-        limit: "liveVersionBytes",
-        used,
-        max: LIVE_LIMITS.versionDataBytes,
-      },
+      code: "quota-exceeded",
+      limit: "liveVersionBytes",
+      used,
+      max: LIVE_LIMITS.versionDataBytes,
     });
   });
 
   it("refuse the begin past the hour's limit as rate limited", async () => {
     for (let i = 0; i < LIVE_LIMITS.beginsPerHour; i++) {
       const refused = await refusal(() => begin("staff"));
-      expect(refused?.data?.code, `begin ${i + 1}`).not.toBe("release-rate-limited");
+      expect(refused.code, `begin ${i + 1}`).not.toBe("release-rate-limited");
     }
     expect(await refusal(() => begin("staff"))).toMatchObject({
-      code: "TOO_MANY_REQUESTS",
-      data: { code: "release-rate-limited" },
+      code: "release-rate-limited",
+      status: 429,
     });
   });
 });

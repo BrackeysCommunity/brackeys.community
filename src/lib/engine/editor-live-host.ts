@@ -8,7 +8,7 @@ import type {
   LiveWording,
   PublishChannel,
 } from "@jams/engine/editor-ui";
-import { arrivalWords, sceneVersionName, type SwapTiming } from "@jams/engine/game";
+import { arrivalWords, capitalise, sceneVersionName, type SwapTiming } from "@jams/engine/game";
 import type { AssetId, ProjectId, Sha256 } from "@jams/engine/project";
 import { plural, shortId } from "@jams/engine/scene";
 import { ORPCError } from "@orpc/client";
@@ -17,7 +17,7 @@ import { formatBytes, formatCount } from "@/lib/format-bytes";
 import { releaseDay } from "@/lib/jam-links";
 
 import { LIVE_LIMITS, RELEASE_GRACE_DAYS } from "./limits";
-import { breakerReason } from "./live-outcomes";
+import { blockedReasonOf } from "./live-outcomes";
 import { LIVE_KEPT_RULE, quotaAmount, usageLevel } from "./quota";
 import { engineReleaseFilePath } from "./route-paths";
 
@@ -92,14 +92,14 @@ export function liveBlockedText(
   blocked: { by: "system" | "user"; reason: string | null },
   reports: { ok: number; failed: number },
 ): string {
-  if (blocked.by === "system")
-    return `${breakerReason(reports.failed, reports.ok + reports.failed)}.`;
-  return blocked.reason ?? `${BLOCKED_BY.user}.`;
+  const reason = blockedReasonOf({ ...blocked, reports });
+  if (blocked.by === "system") return `${reason}.`;
+  return reason ?? `${BLOCKED_BY.user}.`;
 }
 
 /** Usage's line under release storage: what the live scenes hold, and how long they're kept. */
 export const liveUsageText = (versions: { kept: number; bytes: number }): string =>
-  `of which live scenes: ${formatBytes(versions.bytes)} in ${plural(versions.kept, "version", "versions", n)}. ${LIVE_KEPT_RULE.charAt(0).toUpperCase()}${LIVE_KEPT_RULE.slice(1)}; others go ${n(RELEASE_GRACE_DAYS)} days after publishing.`;
+  `of which live scenes: ${formatBytes(versions.bytes)} in ${plural(versions.kept, "version", "versions", n)}. ${capitalise(LIVE_KEPT_RULE)}; others go ${n(RELEASE_GRACE_DAYS)} days after publishing.`;
 
 /** The Publish scene dialog's and Live scenes' sentences, every number from `limits.ts`. */
 export function liveWording(): LiveWording {
@@ -356,16 +356,9 @@ export function editorLiveHost(opts: EditorLiveHostOptions): EditorLiveHost {
       return { from: moved.from, to: moved.to };
     },
 
-    async clear(scene, channel, timing): Promise<LiveMove> {
+    async clear(scene, channel): Promise<LiveMove> {
       const api = await rpc();
-      const moved = await hostCall(() =>
-        api.clearSceneVersion({
-          projectId,
-          scene,
-          channel,
-          ...(timing !== undefined ? { timing } : {}),
-        }),
-      );
+      const moved = await hostCall(() => api.clearSceneVersion({ projectId, scene, channel }));
       return { from: moved.from, to: null };
     },
 

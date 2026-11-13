@@ -11,7 +11,7 @@ import {
   itchJams,
 } from "@/db/schema";
 import { siteUrl } from "@/env";
-import { gamePagePath, gamePlayPath } from "@/lib/og/game-links";
+import { gamePagePath, gamePlayPath } from "@/lib/engine/route-paths";
 
 import { collectionForecast } from "./collect-plan";
 import {
@@ -46,7 +46,7 @@ export type { ReleaseChannel };
 
 /** Where version `version` of a hosted game plays. */
 export const playUrlOf = (projectId: string, version: number): string =>
-  siteUrl(`${gamePlayPath(projectId)}/${version}`);
+  siteUrl(gamePlayPath(projectId, version));
 
 export type PointerMoveInput = {
   project: string;

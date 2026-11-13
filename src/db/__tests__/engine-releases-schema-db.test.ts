@@ -12,7 +12,7 @@ import {
   engineReleaseUploads,
   itchJams,
 } from "@/db/schema";
-import { createTestDb, seedUser, type TestDb } from "@/test/db";
+import { createTestDb, seedUser, statementRefusal, type TestDb } from "@/test/db";
 
 const hex = (c: string) => c.repeat(64);
 const PROJECT = "kitchen";
@@ -51,17 +51,6 @@ const release = (
   ...over,
 });
 
-/** The database's own words for a refused statement: drizzle wraps them in `cause`. */
-async function refusal(run: () => Promise<unknown>): Promise<string> {
-  try {
-    await run();
-  } catch (error) {
-    const cause = (error as { cause?: unknown }).cause;
-    return `${String(error)} ${cause instanceof Error ? cause.message : ""}`;
-  }
-  throw new Error("the statement went through");
-}
-
 describe("engine_projects' publishing columns", () => {
   it("default to private, saving to the site, offline, no origins", async () => {
     const [row] = await db
@@ -80,7 +69,7 @@ describe("engine_projects' publishing columns", () => {
 
   it("refuse a visibility or save mode outside their lists", async () => {
     expect(
-      await refusal(() =>
+      await statementRefusal(() =>
         db
           .update(engineProjects)
           .set({ visibility: "friends" })
@@ -88,7 +77,7 @@ describe("engine_projects' publishing columns", () => {
       ),
     ).toContain("engine_projects_visibility");
     expect(
-      await refusal(() =>
+      await statementRefusal(() =>
         db
           .update(engineProjects)
           .set({ saveMode: "elsewhere" })
@@ -101,29 +90,29 @@ describe("engine_projects' publishing columns", () => {
 describe("engine_releases", () => {
   it("numbers versions once per project", async () => {
     await db.insert(engineReleases).values(release(hex("1"), 1));
-    expect(await refusal(() => db.insert(engineReleases).values(release(hex("2"), 1)))).toContain(
-      "engine_releases_project_version_uq",
-    );
+    expect(
+      await statementRefusal(() => db.insert(engineReleases).values(release(hex("2"), 1))),
+    ).toContain("engine_releases_project_version_uq");
     await db.insert(engineReleases).values(release(hex("2"), 2));
   });
 
   it("holds 64-hex ids and hashes, web or itch, versions from 1", async () => {
-    expect(await refusal(() => db.insert(engineReleases).values(release("abc", 1)))).toContain(
-      "engine_releases_id",
-    );
     expect(
-      await refusal(() =>
+      await statementRefusal(() => db.insert(engineReleases).values(release("abc", 1))),
+    ).toContain("engine_releases_id");
+    expect(
+      await statementRefusal(() =>
         db.insert(engineReleases).values(release(hex("1"), 1, { snapshot: "x" })),
       ),
     ).toContain("engine_releases_snapshot");
     expect(
-      await refusal(() =>
+      await statementRefusal(() =>
         db.insert(engineReleases).values(release(hex("1"), 1, { target: "desktop" })),
       ),
     ).toContain("engine_releases_target");
-    expect(await refusal(() => db.insert(engineReleases).values(release(hex("1"), 0)))).toContain(
-      "engine_releases_version",
-    );
+    expect(
+      await statementRefusal(() => db.insert(engineReleases).values(release(hex("1"), 0))),
+    ).toContain("engine_releases_version");
   });
 });
 
@@ -134,7 +123,7 @@ describe("engine_release_channels", () => {
 
   it("names preview or production only", async () => {
     expect(
-      await refusal(() =>
+      await statementRefusal(() =>
         db
           .insert(engineReleaseChannels)
           .values({ projectId: PROJECT, channel: "beta", releaseId: hex("1") }),
@@ -147,7 +136,9 @@ describe("engine_release_channels", () => {
       .insert(engineReleaseChannels)
       .values({ projectId: PROJECT, channel: "production", releaseId: hex("1") });
     expect(
-      await refusal(() => db.delete(engineReleases).where(eq(engineReleases.id, hex("1")))),
+      await statementRefusal(() =>
+        db.delete(engineReleases).where(eq(engineReleases.id, hex("1"))),
+      ),
     ).toContain("engine_release_channels_release_id");
   });
 
@@ -157,7 +148,9 @@ describe("engine_release_channels", () => {
       .insert(engineReleaseJamLinks)
       .values({ projectId: PROJECT, jamId: 7, releaseId: hex("1") });
     expect(
-      await refusal(() => db.delete(engineReleases).where(eq(engineReleases.id, hex("1")))),
+      await statementRefusal(() =>
+        db.delete(engineReleases).where(eq(engineReleases.id, hex("1"))),
+      ),
     ).toContain("engine_release_jam_links_release_id");
   });
 });
@@ -262,13 +255,19 @@ describe("engine_release_audit", () => {
   it("refuses an action, actor kind or channel outside its lists", async () => {
     const row = { projectId: PROJECT, actorKind: "user", action: "create" };
     expect(
-      await refusal(() => db.insert(engineReleaseAudit).values({ ...row, action: "delete" })),
+      await statementRefusal(() =>
+        db.insert(engineReleaseAudit).values({ ...row, action: "delete" }),
+      ),
     ).toContain("engine_release_audit_action");
     expect(
-      await refusal(() => db.insert(engineReleaseAudit).values({ ...row, actorKind: "robot" })),
+      await statementRefusal(() =>
+        db.insert(engineReleaseAudit).values({ ...row, actorKind: "robot" }),
+      ),
     ).toContain("engine_release_audit_actor_kind");
     expect(
-      await refusal(() => db.insert(engineReleaseAudit).values({ ...row, channel: "beta" })),
+      await statementRefusal(() =>
+        db.insert(engineReleaseAudit).values({ ...row, channel: "beta" }),
+      ),
     ).toContain("engine_release_audit_channel");
   });
 });
@@ -283,12 +282,14 @@ describe("engine_release_uploads", () => {
       expiresAt: new Date(),
     };
     expect(
-      await refusal(() =>
+      await statementRefusal(() =>
         db.insert(engineReleaseUploads).values({ ...row, channel: "production" }),
       ),
     ).toContain("engine_release_uploads_channel");
     expect(
-      await refusal(() => db.insert(engineReleaseUploads).values({ ...row, releaseId: "nope" })),
+      await statementRefusal(() =>
+        db.insert(engineReleaseUploads).values({ ...row, releaseId: "nope" }),
+      ),
     ).toContain("engine_release_uploads_release_id");
     const [made] = await db.insert(engineReleaseUploads).values(row).returning();
     expect(made).toMatchObject({ channel: "preview", missing: [], committedAt: null });

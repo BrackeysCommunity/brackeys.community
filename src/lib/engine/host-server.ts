@@ -65,12 +65,25 @@ export type HostServer = {
   sendLive(snapshot: LiveSnapshot): boolean;
   /** Hands on each `live.state` the frame reports; returns the unsubscribe. */
   onLiveState(fn: (state: LiveStateMessage) => void): () => void;
-  /** Asks the frame for its run's recording; it answers through `onDownload`. True when it was sent. */
-  requestRecording(): boolean;
+  /**
+   * Asks the frame for its run's recording, which reaches `onDownload` past
+   * the download rate. Resolves `offered` once it arrives, `unanswered` when
+   * none came within `RECORDING_ANSWER_MS`, and `unsent` with no frame to ask.
+   */
+  requestRecording(): Promise<RecordingAnswer>;
   /** How many of the frame's messages were dropped: over the cap, not the protocol's, throttled events, or live reports from a frame that didn't announce `"live"`. */
   readonly dropped: number;
   dispose(): void;
 };
+
+/** What came of a recording request. */
+export type RecordingAnswer = "offered" | "unanswered" | "unsent";
+
+/**
+ * How long a recording request waits for the frame's offer. A frame with
+ * nothing recorded sends none, and nor does one built before the request.
+ */
+export const RECORDING_ANSWER_MS = 4000;
 
 export const HOST_THROTTLED_MESSAGE = "Too many save requests; try again in a moment.";
 export const HOST_NO_SITE_SAVES_MESSAGE = `This game doesn't save to ${SITE.name}.`;
@@ -148,8 +161,13 @@ export function createHostServer(opts: HostServerOptions): HostServer {
   let port: MessagePort | null = null;
   /** The current frame announced `"live"` in its `hello`. */
   let frameLive = false;
-  /** A recording request is unanswered: the next download comes past the download rate. */
-  let recordingAsked = false;
+  /** The unanswered recording request: the next download comes past the download rate, until it times out. */
+  let recordingAsk: ((answer: RecordingAnswer) => void) | null = null;
+  const settleRecordingAsk = (answer: RecordingAnswer) => {
+    const settle = recordingAsk;
+    recordingAsk = null;
+    settle?.(answer);
+  };
   let liveNow: LiveSnapshot | null = null;
   const liveListeners = new Set<(state: LiveStateMessage) => void>();
   let dropped = 0;
@@ -344,8 +362,7 @@ export function createHostServer(opts: HostServerOptions): HostServer {
       dropped++;
       return;
     }
-    const asked = message.type === "download" && recordingAsked;
-    if (asked) recordingAsked = false;
+    if (message.type === "download" && recordingAsk) settleRecordingAsk("offered");
     else if (row.rate && !rates[row.rate].take(Date.now())) {
       if (isRequest)
         void answer(from, message.id, () => Promise.reject(storeFailed(HOST_THROTTLED_MESSAGE)));
@@ -370,7 +387,7 @@ export function createHostServer(opts: HostServerOptions): HostServer {
     if (!frameReadySchema.safeParse(event.data).success) return;
     port?.close();
     frameLive = false;
-    recordingAsked = false;
+    settleRecordingAsk("unanswered");
     const channel = new MessageChannel();
     const mine = channel.port1;
     port = mine;
@@ -411,10 +428,17 @@ export function createHostServer(opts: HostServerOptions): HostServer {
       return () => void liveListeners.delete(fn);
     },
     requestRecording() {
-      if (disposed || !port) return false;
-      recordingAsked = true;
-      post(port, { type: "recording.request" });
-      return true;
+      const to = port;
+      if (disposed || !to) return Promise.resolve("unsent");
+      settleRecordingAsk("unanswered");
+      return new Promise<RecordingAnswer>((resolve) => {
+        const timer = setTimeout(() => settleRecordingAsk("unanswered"), RECORDING_ANSWER_MS);
+        recordingAsk = (answer) => {
+          clearTimeout(timer);
+          resolve(answer);
+        };
+        post(to, { type: "recording.request" });
+      });
     },
     get dropped() {
       return dropped;
@@ -422,6 +446,7 @@ export function createHostServer(opts: HostServerOptions): HostServer {
     dispose() {
       if (disposed) return;
       disposed = true;
+      settleRecordingAsk("unanswered");
       page.removeEventListener("message", onWindowMessage);
       liveListeners.clear();
       if (port) {

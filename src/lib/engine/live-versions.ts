@@ -1,8 +1,7 @@
-import type { SwapTiming } from "@jams/engine/game";
+import { DEFAULT_SWAP_TIMING, type SwapTiming } from "@jams/engine/game";
 import { parseSceneVersion, type AssetId, type Sha256 } from "@jams/engine/project";
 import { and, count, desc, eq, inArray, isNotNull, isNull, lte, max, or, sql } from "drizzle-orm";
 
-import { db as siteDb } from "@/db";
 import {
   developerProfiles,
   engineLiveReports,
@@ -18,7 +17,6 @@ import { sceneVersionForecast } from "./collect-plan";
 import { LIVE_OUTCOMES, type LiveOutcome } from "./live-outcomes";
 import {
   channelRelease,
-  DEFAULT_SWAP_TIMING,
   moveScenePointer,
   noVersion,
   sceneVersionMisfit,
@@ -38,6 +36,7 @@ import {
   readStored,
   refuse,
   servedFrom,
+  siteDeps,
   type ReleaseDeps,
   type ReleaseTxDb,
 } from "./release-upload";
@@ -105,15 +104,16 @@ export type SceneVersionDetail = SceneVersionSummary & {
  */
 export type LiveBase = {
   channel: LiveChannel;
-  /** Null when nothing is on the channel yet. */
-  release: { id: Sha256; version: number; manifest: string } | null;
-  /** The scene's pointer on the channel, with its `scene-version.json`; null when the release's scene plays. */
+  /** Null when nothing is on the channel yet; `liveCompatKey` is `""` when it takes no live scenes. */
+  release: { id: Sha256; version: number; manifest: string; liveCompatKey: string } | null;
+  /** The scene's pointer on the channel, with its `scene-version.json` and compat key; null when the release's scene plays. */
   live: {
     number: number;
     versionId: Sha256;
     timing: SwapTiming;
     since: Date;
     descriptor: string;
+    compatKey: Sha256;
   } | null;
   /** The scene's and its prefabs' texts that `live` (or the release) names, by hash. */
   texts: Readonly<Record<Sha256, string>>;
@@ -129,7 +129,7 @@ export type LiveReadDeps = {
   viewer?: (userId: string, project: ProjectRow) => Promise<Viewer>;
 };
 
-const dbOf = (deps: LiveReadDeps): ReleaseDb => deps.db ?? (siteDb as unknown as ReleaseDb);
+const dbOf = (deps: LiveReadDeps): ReleaseDb => siteDeps(deps).db;
 
 // ─── A channel's live state ─────────────────────────────
 
@@ -540,13 +540,21 @@ export async function liveBase(
   const { release, snapshot } = live;
   const base = {
     channel,
-    release: { id: release.id, version: release.version, manifest: release.manifestText },
+    release: {
+      id: release.id,
+      version: release.version,
+      manifest: release.manifestText,
+      liveCompatKey: release.liveCompatKey,
+    },
     latest,
   };
   const entry = snapshot.scenes.find((s) => s.scene === scene);
   if (entry) {
     const [row] = await db
-      .select({ descriptor: engineSceneVersions.descriptor })
+      .select({
+        descriptor: engineSceneVersions.descriptor,
+        compatKey: engineSceneVersions.compatKey,
+      })
       .from(engineSceneVersions)
       .where(eq(engineSceneVersions.id, entry.version));
     const parsed = row?.descriptor ? parseSceneVersion(row.descriptor) : null;
@@ -560,6 +568,7 @@ export async function liveBase(
           timing: entry.timing,
           since: new Date(entry.since),
           descriptor: row.descriptor,
+          compatKey: row.compatKey as Sha256,
         },
         texts: await storedTexts(
           db,

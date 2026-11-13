@@ -598,7 +598,7 @@ function ReviewRow({
 
 const CHANNEL_LABEL: Record<SceneVersion["pointers"][number], string> = {
   preview: "PREVIEW",
-  production: "PRODUCTION",
+  production: "LIVE",
 };
 
 function SceneVersionRow({
@@ -626,7 +626,7 @@ function SceneVersionRow({
           <Badge size="label">SCENE</Badge>
           {version.pointers.length === 0 ? (
             <Badge size="label" variant="outline">
-              NOT LIVE
+              NO CHANNEL
             </Badge>
           ) : (
             version.pointers.map((channel) => (

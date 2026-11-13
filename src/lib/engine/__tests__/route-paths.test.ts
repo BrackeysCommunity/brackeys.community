@@ -21,6 +21,8 @@ import {
   engineProjectSavesPath,
   engineSavePath,
   ENGINE_SAVES_PATH,
+  gamePagePath,
+  gamePlayPath,
   LIVE_BASE_PATH,
   LIVE_COMMIT_PATH,
   LIVE_MOVE_PATH,
@@ -47,6 +49,13 @@ describe("engine route paths", () => {
     expect(BLOBS_PATH.test(engineBundlePath("demo"))).toBe(false);
     expect(BLOBS_PATH.test(AGENT_SYNC_TOKEN_PATH)).toBe(false);
     expect(BUNDLE_PATH.test(AGENT_SYNC_TOKEN_PATH)).toBe(false);
+  });
+
+  it("build the game's page and play paths, pinned or not, the project id encoded", () => {
+    expect(gamePagePath("a b")).toBe("/games/a%20b");
+    expect(gamePlayPath("a b")).toBe("/games/a%20b/play");
+    expect(gamePlayPath("a b", 7)).toBe("/games/a%20b/play/7");
+    expect(gamePlayPath("demo", "preview")).toBe("/games/demo/play/preview");
   });
 
   it("build the release paths their matchers take apart, and no other's", () => {

@@ -356,7 +356,7 @@ describe("AdminEngineGames", { timeout: 20_000 }, () => {
         "/games/tactics",
       );
       expect(screen.getByText("PREVIEW")).toBeTruthy();
-      expect(screen.getByText("PRODUCTION")).toBeTruthy();
+      expect(screen.getByText("LIVE")).toBeTruthy();
       expect(screen.getByText(`compat ${"d".repeat(6)}…`)).toBeTruthy();
       expect(screen.getByText("Players' reports: 12 updated fine · 5 failed")).toBeTruthy();
       expect(screen.getByText("BLOCKED")).toBeTruthy();
@@ -416,7 +416,7 @@ describe("AdminEngineGames", { timeout: 20_000 }, () => {
       const user = userEvent.setup();
 
       expect(await screen.findByText("HIDDEN")).toBeTruthy();
-      expect(screen.getByText("NOT LIVE")).toBeTruthy();
+      expect(screen.getByText("NO CHANNEL")).toBeTruthy();
       expect(screen.getByText(/stolen art/)).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Hide" })).toBeNull();
       await user.click(screen.getByRole("button", { name: "Unhide" }));

@@ -9,6 +9,7 @@ import {
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import { behaviorsConflict } from "../game/define";
 import { assetKindsOf, CHILD_REF_PATTERN, SIDES } from "../game/fields";
+import { capitalise } from "../game/live";
 import type { BehaviorRules, InspectorWidgetDef, RegisteredType, Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import type { AssetKindName } from "../project/types";
@@ -615,7 +616,7 @@ export function fieldTitle(name: string): string {
         : w.toLowerCase(),
     );
   const text = words.join(" ");
-  return text ? text.charAt(0).toUpperCase() + text.slice(1) : name;
+  return text ? capitalise(text) : name;
 }
 
 /** Where a field lands: `forced` always (a behavior's block), else its group, `inherited`, or its kind's. */

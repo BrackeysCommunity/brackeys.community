@@ -78,21 +78,20 @@ function badgesOf(version: GameVersion): { key: string; label: string }[] {
 }
 
 /**
- * "With updated levels: The ford (12m ago)": the levels production plays
- * from live versions, under the live version's row, which already names
- * the version and carries the LIVE badge.
+ * "with updated levels: The ford (12m ago)": the levels production plays
+ * from live versions, at the end of the live version's row.
  */
 export function LiveLevelsLine({ scenes }: { scenes: readonly GamePageLiveScene[] }) {
   return (
-    <Text as="span" size="xs" variant="muted" data-live-levels="">
-      With updated levels:{" "}
+    <span data-live-levels="">
+      with updated levels:{" "}
       {scenes.map((s, i) => (
         <Fragment key={s.scene}>
           {i > 0 ? ", " : null}
           {s.title} (<TimeAgo date={s.since} />)
         </Fragment>
       ))}
-    </Text>
+    </span>
   );
 }
 
@@ -121,6 +120,7 @@ function BlockedLevelsLine({
             search={editorSearch(projectId, { scene: b.scene, panel: "publish" })}
             size="xs"
             variant="danger"
+            underline
           >
             {blockedSceneLine(b)}
           </RouterTextLink>
@@ -133,9 +133,9 @@ function BlockedLevelsLine({
 /**
  * What a promote asks when production plays live levels the new version
  * replaces: the release question, the levels it drops, and where to keep
- * the ones that still fit.
+ * the ones that still fit. Without any, the question is the plain string.
  */
-export function PromoteMessage({
+function PromoteMessage({
   projectId,
   version,
   replaces,
@@ -144,7 +144,6 @@ export function PromoteMessage({
   version: number;
   replaces: readonly GamePageLiveScene[];
 }) {
-  if (replaces.length === 0) return releasePromoteMessage(version);
   const scenes = replaces.map((s) => ({
     title: s.title,
     name: sceneVersionName(s.scene, s.number),
@@ -159,7 +158,9 @@ export function PromoteMessage({
           to="/game/$roomId"
           params={{ roomId: EDITOR_ROOM }}
           search={editorSearch(projectId, { panel: "publish" })}
-          size="sm"
+          variant="inherit"
+          underline
+          className="text-xs/relaxed hover:text-foreground"
         >
           Publish panel in the editor
         </RouterTextLink>
@@ -313,11 +314,11 @@ function PublisherMenu({
         onOpenChange={close}
         title={`Promote v${v} to production?`}
         message={
-          <PromoteMessage
-            projectId={projectId}
-            version={v}
-            replaces={v === liveVersion ? [] : liveScenes}
-          />
+          v === liveVersion || liveScenes.length === 0 ? (
+            releasePromoteMessage(v)
+          ) : (
+            <PromoteMessage projectId={projectId} version={v} replaces={liveScenes} />
+          )
         }
         confirmText="Promote"
         onConfirm={() =>
@@ -384,6 +385,9 @@ type VersionListProps = {
   onChanged: () => void;
 };
 
+/** The live row's Play tooltip: it plays production, updated levels included. */
+export const LIVE_LEVELS_PLAY = "Plays this version with its updated levels";
+
 /** The channels a version is on, read from its LIVE and PREVIEW badges. */
 const channelsOf = (version: GameVersion): GamePageBlockedScene["channel"][] => [
   ...(version.badges.includes("live") ? (["production"] as const) : []),
@@ -407,6 +411,9 @@ export function VersionList({
       </Text>
     );
   }
+  // The live row plays what it lists: its version with the updated levels, as production does.
+  const withLiveLevels = (version: GameVersion) =>
+    version.version === liveVersion && liveScenes.length > 0;
   return (
     <Well className="gap-0 p-0 backdrop-blur-none">
       <ul aria-label="Versions" className="divide-y divide-dashed divide-muted/40">
@@ -424,10 +431,13 @@ export function VersionList({
                 <TimeAgo date={version.createdAt} />
                 {version.removalNotice ? <> · {version.removalNotice}</> : null}
                 {version.hidden?.reason ? <> · Hidden: {version.hidden.reason}</> : null}
+                {withLiveLevels(version) ? (
+                  <>
+                    {" · "}
+                    <LiveLevelsLine scenes={liveScenes} />
+                  </>
+                ) : null}
               </Text>
-              {version.version === liveVersion && liveScenes.length > 0 ? (
-                <LiveLevelsLine scenes={liveScenes} />
-              ) : null}
               {publisher ? (
                 <BlockedOn
                   projectId={projectId}
@@ -450,10 +460,14 @@ export function VersionList({
                 variant="outline"
                 size="sm"
                 nativeButton={false}
+                {...(withLiveLevels(version) ? { tooltip: LIVE_LEVELS_PLAY } : {})}
                 render={
                   <Link
                     to="/games/$projectId/play/$version"
-                    params={{ projectId, version: String(version.version) }}
+                    params={{
+                      projectId,
+                      version: withLiveLevels(version) ? "latest" : String(version.version),
+                    }}
                   />
                 }
               >

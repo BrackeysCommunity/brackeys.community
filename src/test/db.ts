@@ -44,6 +44,20 @@ let snapshot: Promise<Blob> | undefined;
 
 export type TestDb = Awaited<ReturnType<typeof createTestDb>>;
 
+/**
+ * The database's own words for a statement it refused (drizzle wraps them in
+ * `cause`), for matching a constraint name. Fails when the statement went through.
+ */
+export async function statementRefusal(run: () => Promise<unknown>): Promise<string> {
+  try {
+    await run();
+  } catch (error) {
+    const cause = (error as { cause?: unknown }).cause;
+    return `${String(error)} ${cause instanceof Error ? cause.message : ""}`;
+  }
+  throw new Error("the statement went through");
+}
+
 /** Identity + profile rows in one call — what a signed-in member needs. */
 export async function seedUser(
   db: TestDb,

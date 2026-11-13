@@ -281,7 +281,9 @@ export type {
 } from "./types";
 export {
   arrivalWords,
+  capitalise,
   clampTiming,
+  DEFAULT_SWAP_TIMING,
   LIVE_CHECK_AGAIN_TICKS,
   LIVE_DEFAULTS,
   releasePromoteMessage,

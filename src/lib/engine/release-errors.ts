@@ -222,8 +222,12 @@ export function releaseRateLimited(what: "files" | "begins" | "scene-begins"): R
   }
 }
 
+/**
+ * Why a caller was refused. `role` names the publishers, `editor` the
+ * game's team and `staff` the site's staff: the least role the action needs.
+ */
 export function releaseForbidden(
-  why: "agent-production" | "role" | "team-personal",
+  why: "agent-production" | "role" | "editor" | "staff" | "team-personal",
   playUrl?: string,
 ): ReleaseApiError {
   switch (why) {
@@ -238,6 +242,17 @@ export function releaseForbidden(
         code: "release-forbidden",
         message: "Only the game's publishers can do this.",
         hint: "Publishers are the project's creator and its team's owners.",
+      };
+    case "editor":
+      return {
+        code: "release-forbidden",
+        message: "Only the game's team can do this.",
+        hint: "The team is the project's creator and its team's members.",
+      };
+    case "staff":
+      return {
+        code: "release-forbidden",
+        message: `Only ${site} staff can do this.`,
       };
     case "team-personal":
       return {

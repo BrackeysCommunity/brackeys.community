@@ -1,8 +1,7 @@
-import { sceneVersionName, type SwapTiming } from "@jams/engine/game";
+import { DEFAULT_SWAP_TIMING, sceneVersionName, type SwapTiming } from "@jams/engine/game";
 import {
-  checkSceneVersion,
   parseReleaseManifest,
-  parseSceneVersion,
+  sceneVersionFitIssue,
   type AssetId,
   type ReleaseManifest,
   type Sha256,
@@ -20,12 +19,13 @@ import {
   engineSceneVersions,
 } from "@/db/schema";
 import { siteUrl } from "@/env";
+import { gamePagePath } from "@/lib/engine/route-paths";
 import { formatCount } from "@/lib/format-bytes";
 import { releaseDay } from "@/lib/jam-links";
-import { gamePagePath } from "@/lib/og/game-links";
 
 import { LIVE_LIMITS } from "./limits";
 import { engineLive } from "./live-events";
+import { blockedReasonOf } from "./live-outcomes";
 import { checkLiveChannelQuota, quotaAmount } from "./quota";
 import { refusalFor, type ReleaseChannel } from "./release-access";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
@@ -79,9 +79,6 @@ export type PointerTargetVerdict =
       /** The end of "level-1@3 wasn't restored: …". */
       reason: string;
     };
-
-/** The timing a pointer move takes when none is given. */
-export const DEFAULT_SWAP_TIMING: SwapTiming = "next-load";
 
 // ─── The refusals ────────────────────────────────────────
 
@@ -181,17 +178,21 @@ export function extraBytesOf(
 }
 
 function blockedError(v: PointerTargetVersion): ReleaseApiError {
-  const at = { scene: v.scene, number: v.number };
-  return v.blockedBy === "system" && !v.blockReason
-    ? liveBlocked(at, { failed: v.reportsFailed, total: v.reportsOk + v.reportsFailed })
-    : liveBlocked(at, { reason: v.blockReason });
+  const reason = blockedReasonOf({
+    by: v.blockedBy,
+    reason: v.blockReason,
+    reports: { ok: v.reportsOk, failed: v.reportsFailed },
+  });
+  return liveBlocked(
+    { scene: v.scene, number: v.number },
+    { reason: v.blockedBy === "system" ? `${reason}.` : reason },
+  );
 }
 
 /**
- * Why a scene version doesn't fit a release, or null when it does: the
- * release takes live scenes at all, `checkSceneVersion` finds no error, and
- * the version was built for the release's compat key. Moves and the
- * version's detail both ask this.
+ * Why a scene version doesn't fit a release, or null when it does, as the
+ * release API's refusal of `sceneVersionFitIssue`'s answer (the rule the
+ * editor's Keep list reads too). Moves and the version's detail both ask this.
  */
 export function sceneVersionMisfit(
   v: Pick<PointerTargetVersion, "scene" | "number" | "compatKey"> & { descriptor: string },
@@ -199,26 +200,27 @@ export function sceneVersionMisfit(
 ): ReleaseApiError | null {
   const label = sceneVersionName(v.scene, v.number);
   const releaseName = `v${formatCount(release.version)}`;
-  const manifest = release.manifest === null ? null : parseReleaseManifest(release.manifest);
-  if (!manifest?.ok || release.liveCompatKey === "") return releaseTakesNoLive(release.version);
-  const parsed = parseSceneVersion(v.descriptor);
-  if (!parsed.ok) {
-    const [issue] = parsed.issues;
-    return issue
-      ? issueError(issue)
-      : { code: "schema", message: `${label} isn't a scene version.` };
+  if (release.manifest === null) return releaseTakesNoLive(release.version);
+  const misfit = sceneVersionFitIssue(
+    { manifest: release.manifest, liveCompatKey: release.liveCompatKey },
+    { descriptor: v.descriptor, compatKey: v.compatKey },
+    { names: { version: label, release: releaseName } },
+  );
+  if (misfit === null) return null;
+  switch (misfit.on) {
+    case "release":
+      return releaseTakesNoLive(release.version);
+    case "version":
+      return misfit.issue
+        ? issueError(misfit.issue)
+        : { code: "schema", message: `${label} isn't a scene version.` };
+    case "compat":
+      return {
+        code: "live-incompatible",
+        message: `${label} was built for another release than ${releaseName}.`,
+        hint: "Publish the scene again from the project as the release has it.",
+      };
   }
-  const error = checkSceneVersion(manifest.manifest, parsed.version, undefined, {
-    names: { version: label, release: releaseName },
-  }).find((i) => i.severity === "error");
-  if (error) return issueError(error);
-  if (v.compatKey !== release.liveCompatKey)
-    return {
-      code: "live-incompatible",
-      message: `${label} was built for another release than ${releaseName}.`,
-      hint: "Publish the scene again from the project as the release has it.",
-    };
-  return null;
 }
 
 /**

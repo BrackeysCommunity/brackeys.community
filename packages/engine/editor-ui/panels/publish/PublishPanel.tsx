@@ -1,21 +1,17 @@
 import { Cancel01Icon, Copy01Icon } from "@hugeicons/core-free-icons";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 
 import {
   acceptedTimings,
   arrivalWords,
+  DEFAULT_SWAP_TIMING,
   releaseRollbackMessage,
   sceneVersionName,
   timingWords,
   type LiveDeclaration,
   type SwapTiming,
 } from "../../../game/live";
-import {
-  checkSceneVersion,
-  parseReleaseManifest,
-  parseSceneVersion,
-  type AssetId,
-} from "../../../project/index";
+import { sceneVersionFitIssue, type AssetId } from "../../../project/index";
 import type {
   EditorLiveHost,
   EditorNotify,
@@ -24,6 +20,7 @@ import type {
   GameSettingsPatch,
   GameSettingsView,
   GameVisibility,
+  LiveBaseView,
   LivePointerView,
   LiveVersionView,
   PublishChannel,
@@ -49,6 +46,8 @@ import { LIVE_CHANNELS, liveOnText, productionConfirmText, PUBLISHERS_ONLY } fro
 import {
   ChannelBadge,
   channelScope,
+  KEEP_PREVIEW_ONLY,
+  KEEP_PUBLISHERS_ONLY,
   PromoteButton,
   ReleaseList,
   unplayable,
@@ -127,7 +126,7 @@ export function PublishPanel({
   /** Names the live scenes' rows by title; without it they go by their version name alone. */
   sceneTitle?: SceneTitleOf;
   /** The game's live declaration: the timings a promote may pick. Next load only without it. */
-  gameLive?: Pick<LiveDeclaration, "timings">;
+  gameLive?: Pick<LiveDeclaration, "timings"> | undefined;
 }) {
   if (!publish) return null;
   return (
@@ -215,7 +214,11 @@ function PublishBody({
     live && releases.state === "ready"
       ? (version: number): PromoteReplaces => ({
           read: () => replacedScenes(live, version, releases.value, sceneTitle),
-          canKeep: live.role().publisher,
+          keepRule: !live.role().publisher
+            ? KEEP_PUBLISHERS_ONLY
+            : onPreview(releases.value, version)
+              ? null
+              : KEEP_PREVIEW_ONLY,
         })
       : undefined;
 
@@ -450,26 +453,34 @@ function RemovedSoon({ releases }: { releases: readonly ReleaseView[] }) {
 /** The question Unblock asks. */
 const unblockMessage = (name: string): string => `Players will get ${name} again.`;
 
-/** The question a production Roll back asks: the host goes back to the pointer's previous target. */
-export const liveRollbackMessage = (name: string, scene: string, timing: SwapTiming): string =>
-  `Players go back to what production played before ${name} ${arrivalWords(timing)}: an earlier version of ${scene}, or the release's own.`;
+/** The question a Roll back asks: the host goes back to the pointer's previous target. */
+export const liveRollbackMessage = (
+  channel: PublishChannel,
+  name: string,
+  scene: string,
+  timing: SwapTiming,
+): string =>
+  `${channel === "production" ? "Players go" : "Your team goes"} back to what ${channel} played before ${name} ${arrivalWords(timing)}: an earlier version of ${scene}, or the release's own.`;
 
 /** The live scenes' pending scope: one per scene and channel, so a row's buttons go busy together. */
 const liveScope = (scene: AssetId, channel: PublishChannel): string =>
   `publish:live:${channel}:${scene}`;
 
 /**
- * Whether the scene version `descriptor` (its `scene-version.json`) may
- * stay live over the release `manifest` (its `release.json`): both read,
- * and the version check finds no error. This is the manifest half of the
- * host's rule; the host also refuses a release that takes no live scenes.
+ * Whether the live version `live` may stay over the release `release`, by
+ * the host's own rule (`sceneVersionFitIssue`), with the compat keys when
+ * the host gives them.
  */
-export function stillFits(manifest: string, descriptor: string): boolean {
-  const release = parseReleaseManifest(manifest);
-  const version = parseSceneVersion(descriptor);
-  if (!release.ok || !version.ok) return false;
-  return !checkSceneVersion(release.manifest, version.version).some((i) => i.severity === "error");
+export function stillFits(
+  release: Pick<NonNullable<LiveBaseView["release"]>, "manifest" | "liveCompatKey">,
+  live: Pick<NonNullable<LiveBaseView["live"]>, "descriptor" | "compatKey">,
+): boolean {
+  return sceneVersionFitIssue(release, live) === null;
 }
+
+/** Whether release `version` is the one on preview: only its manifest can be checked here. */
+const onPreview = (releases: readonly ReleaseView[], version: number): boolean =>
+  releases.some((r) => r.version === version && r.channels.includes("preview"));
 
 /**
  * The live scenes on production that promoting `version` replaces. Only the
@@ -482,19 +493,19 @@ async function replacedScenes(
   releases: readonly ReleaseView[],
   sceneTitle: SceneTitleOf,
 ): Promise<ReplacedScene[]> {
-  const onPreview = releases.some((r) => r.version === version && r.channels.includes("preview"));
+  const checkable = onPreview(releases, version);
   const onProduction = (await live.list()).filter((v) =>
     v.pointers.some((p) => p.channel === "production"),
   );
   const fits = async (v: LiveVersionView): Promise<boolean> => {
-    if (!onPreview || v.blocked || v.hidden !== null || v.collected) return false;
+    if (!checkable || v.blocked || v.hidden !== null || v.collected) return false;
     try {
       const [target, current] = await Promise.all([
         live.base(v.scene, "preview"),
         live.base(v.scene, "production"),
       ]);
       if (target.release?.version !== version || current.live?.number !== v.number) return false;
-      return stillFits(target.release.manifest, current.live.descriptor);
+      return stillFits(target.release, current.live);
     } catch {
       return false;
     }
@@ -577,6 +588,7 @@ function LiveScenes({
                       r.pointer.channel === "production" && r.version.scene === row.version.scene,
                   )}
                   title={sceneTitle(row.version.scene)}
+                  timings={timings}
                   publisher={publisher}
                   pending={pending}
                   onMoved={onMoved}
@@ -720,7 +732,55 @@ function HoldLines({
 }
 
 /** The tooltip on a not-live version's Promote to preview: preview takes it at the next load. */
-const PREVIEW_ARRIVAL = `Your team gets it on preview ${arrivalWords("next-load")}.`;
+const PREVIEW_ARRIVAL = `Your team gets it on preview ${arrivalWords(DEFAULT_SWAP_TIMING)}.`;
+
+/**
+ * "Promote … to production?", with the timing picker when the game accepts
+ * more than the next load; the pick starts at the next load each time it opens.
+ */
+function ProductionPromote({
+  name,
+  scene,
+  timings,
+  onPromote,
+  children,
+}: {
+  name: string;
+  scene: AssetId;
+  timings: readonly SwapTiming[];
+  onPromote: (timing: SwapTiming) => Promise<boolean>;
+  children: ReactElement;
+}) {
+  const [timing, setTiming] = useState<SwapTiming>(DEFAULT_SWAP_TIMING);
+  return (
+    <Confirm
+      title={`Promote ${name} to production?`}
+      message={
+        timings.length > 1 ? (
+          <div className="je-insp-stack" data-gap="tight">
+            <Text as="p" size="sm" variant="muted">
+              {productionConfirmText(name, timing)}
+            </Text>
+            <TimingChoice
+              name={`promote-timing-${scene}`}
+              value={timing}
+              accepted={timings}
+              disabled={false}
+              onPick={setTiming}
+            />
+          </div>
+        ) : (
+          productionConfirmText(name, timing)
+        )
+      }
+      confirmText="Promote"
+      onOpenChange={(open) => open && setTiming(DEFAULT_SWAP_TIMING)}
+      onConfirm={() => onPromote(timing)}
+    >
+      {children}
+    </Confirm>
+  );
+}
 
 function SavedVersionRow({
   version,
@@ -742,7 +802,6 @@ function SavedVersionRow({
   const { scene, number } = version;
   const name = sceneVersionName(scene, number);
   const called = title ?? scene;
-  const [timing, setTiming] = useState<SwapTiming>("next-load");
   const movable = version.blocked === null && version.hidden === null;
   const promote = async (channel: PublishChannel, at: SwapTiming) => {
     const result = await pending.run(
@@ -807,33 +866,15 @@ function SavedVersionRow({
             variant="outline"
             busyScope={liveScope(scene, "preview")}
             tooltip={PREVIEW_ARRIVAL}
-            onClick={() => void promote("preview", "next-load")}
+            onClick={() => void promote("preview", DEFAULT_SWAP_TIMING)}
           >
             Promote to preview
           </Button>
-          <Confirm
-            title={`Promote ${name} to production?`}
-            message={
-              timings.length > 1 ? (
-                <div className="je-insp-stack" data-gap="tight">
-                  <Text as="p" size="sm" variant="muted">
-                    {productionConfirmText(name, timing)}
-                  </Text>
-                  <TimingChoice
-                    name={`promote-timing-${scene}`}
-                    value={timing}
-                    accepted={timings}
-                    disabled={false}
-                    onPick={setTiming}
-                  />
-                </div>
-              ) : (
-                productionConfirmText(name, timing)
-              )
-            }
-            confirmText="Promote"
-            onOpenChange={(open) => open && setTiming("next-load")}
-            onConfirm={() => promote("production", timing)}
+          <ProductionPromote
+            name={name}
+            scene={scene}
+            timings={timings}
+            onPromote={(at) => promote("production", at)}
           >
             <Button
               size="xs"
@@ -844,7 +885,7 @@ function SavedVersionRow({
             >
               Promote to production
             </Button>
-          </Confirm>
+          </ProductionPromote>
         </div>
       ) : null}
     </div>
@@ -857,6 +898,7 @@ function LiveSceneRow({
   release,
   onProduction,
   title,
+  timings,
   publisher,
   pending,
   onMoved,
@@ -868,6 +910,8 @@ function LiveSceneRow({
   /** The scene's row on production, when it has one. */
   onProduction: LiveRow | undefined;
   title: string | undefined;
+  /** The timings the game accepts, next load first. */
+  timings: readonly SwapTiming[];
   publisher: boolean;
   pending: Pending;
   onMoved: () => void;
@@ -912,18 +956,6 @@ function LiveSceneRow({
     version.hidden === null &&
     !version.collected &&
     onProduction?.version.number !== number;
-  const rollBackButton = (
-    <Button
-      size="xs"
-      variant="outline"
-      busyScope={scope}
-      disabled={locked || promoting}
-      {...lockedTip}
-      {...(channel === "production" ? {} : { onClick: () => void rollBack() })}
-    >
-      Roll back
-    </Button>
-  );
 
   return (
     <div role="listitem" className="je-insp-stack" data-gap="tight">
@@ -973,16 +1005,16 @@ function LiveSceneRow({
       />
       <div className="je-insp-row je-insp-wrap" data-gap="tight">
         {canPromote ? (
-          <Confirm
-            title={`Promote ${name} to production?`}
-            message={productionConfirmText(name, timing)}
-            confirmText="Promote"
-            onConfirm={() =>
+          <ProductionPromote
+            name={name}
+            scene={scene}
+            timings={timings}
+            onPromote={(at) =>
               act(
                 `Promoting ${name}`,
                 `Couldn't promote ${name}`,
                 (moved: { to: number | null }) => movedWords(moved.to, "production"),
-                () => live.promote(scene, number, "production", timing),
+                () => live.promote(scene, number, "production", at),
                 liveScope(scene, "production"),
               )
             }
@@ -996,20 +1028,24 @@ function LiveSceneRow({
             >
               Promote to production
             </Button>
-          </Confirm>
+          </ProductionPromote>
         ) : null}
-        {channel === "production" ? (
-          <Confirm
-            title={`Roll back ${called} on production?`}
-            message={liveRollbackMessage(name, called, timing)}
-            confirmText="Roll back"
-            onConfirm={rollBack}
+        <Confirm
+          title={`Roll back ${called} on ${channel}?`}
+          message={liveRollbackMessage(channel, name, called, timing)}
+          confirmText="Roll back"
+          onConfirm={rollBack}
+        >
+          <Button
+            size="xs"
+            variant="outline"
+            busyScope={scope}
+            disabled={locked || promoting}
+            {...lockedTip}
           >
-            {rollBackButton}
-          </Confirm>
-        ) : (
-          rollBackButton
-        )}
+            Roll back
+          </Button>
+        </Confirm>
         <Confirm
           title={`Stop ${name} on ${channel}?`}
           message={
@@ -1024,7 +1060,7 @@ function LiveSceneRow({
               `Stopping ${name} on ${channel}`,
               `Couldn't stop ${name}`,
               () => movedWords(null, channel),
-              () => live.clear(scene, channel, timing),
+              () => live.clear(scene, channel),
             )
           }
         >

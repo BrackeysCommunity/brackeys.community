@@ -406,7 +406,7 @@ export type StoredUsageCounts = {
   liveToday: number;
 };
 
-/** Which scene versions cleanup keeps, as a clause: "each scene keeps its 10 newest versions plus those on a channel". */
+/** Which scene versions cleanup keeps, as a clause: "each scene keeps its 5 newest versions plus those on a channel", with the count from `LIVE_LIMITS.keptPerScene`. */
 export const LIVE_KEPT_RULE = `each scene keeps its ${formatCount(LIVE_LIMITS.keptPerScene)} newest versions plus those on a channel`;
 
 /** "full" once nothing more fits, "warn" from `QUOTA_WARN_RATIO`. */

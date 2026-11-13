@@ -20,6 +20,9 @@ export type SwapStrategy = "reconcile" | "reload";
 export const SWAP_TIMINGS = Object.freeze(["next-load", "boundary", "now"] as const);
 export const SWAP_STRATEGIES = Object.freeze(["reconcile", "reload"] as const);
 
+/** The timing a channel move takes when none is picked: every game accepts it. */
+export const DEFAULT_SWAP_TIMING: SwapTiming = "next-load";
+
 /** Whether `L` lists exactly `T`'s members: the build fails when a timing or strategy is left out. */
 type Lists<T extends string, L extends readonly string[]> = [T] extends [L[number]]
   ? [L[number]] extends [T]
@@ -149,6 +152,9 @@ export const SWAP_TIMING_WORDS: Readonly<
   },
   now: { short: "now", label: "Now, while they play", arrival: "now" },
 });
+
+/** `text` with its first letter upper-cased, as a sentence starts a clause. */
+export const capitalise = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** How a timing reads in a message: `next load`, `boundary` or `now`. */
 export const timingWords = (t: SwapTiming): string => SWAP_TIMING_WORDS[t].short;

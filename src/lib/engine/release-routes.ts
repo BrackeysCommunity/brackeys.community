@@ -9,6 +9,7 @@ import type { SyncAccess } from "@/lib/canvas/token";
 import { PROJECT_QUOTA, RELEASE_MANIFEST_MAX_BYTES } from "./limits";
 import { quotaWords } from "./quota";
 import { canDo, releaseChannel, type ReleaseChannel } from "./release-access";
+import type { Actor } from "./release-audit";
 import { listReleases, promote, rollback } from "./release-channels";
 import { apiErrorResponse, releaseForbidden } from "./release-errors";
 import { minioReleaseStore } from "./release-storage";
@@ -44,20 +45,62 @@ export type ReleaseRouteDeps = {
   release?: Partial<ReleaseDeps>;
 };
 
+/** The upload's project, kind and missing files; null for an unknown id. */
+async function uploadOf(uploadId: string) {
+  const [row] = await db
+    .select({
+      projectId: engineReleaseUploads.projectId,
+      kind: engineReleaseUploads.kind,
+      missing: engineReleaseUploads.missing,
+    })
+    .from(engineReleaseUploads)
+    .where(eq(engineReleaseUploads.id, uploadId));
+  return row ?? null;
+}
+
+/** Finishes one upload through its lib call: a release's or a scene version's. */
+type FinishUpload = (
+  deps: ReleaseDeps,
+  input: { uploadId: string; actor: Actor },
+) => Promise<{ created: boolean }>;
+
 /**
  * What the release and live routes share: the gate behind
- * `engine-games-enabled` and the production guard, and the upload
- * protocol's deps.
+ * `engine-games-enabled` and the production guard, the upload protocol's
+ * deps, and the commit route.
  */
 export function engineRoutes(deps: ReleaseRouteDeps) {
-  return {
-    gate: (request: Request, projectId: string, need: SyncAccess) =>
-      gateEngineRequest(request, projectId, need, { readSession: deps.readSession, games: true }),
-    releaseDeps: (): ReleaseDeps => ({
-      ...deps.release,
-      store: deps.release?.store ?? minioReleaseStore,
-    }),
-  };
+  const gate = (request: Request, projectId: string, need: SyncAccess) =>
+    gateEngineRequest(request, projectId, need, { readSession: deps.readSession, games: true });
+  const releaseDeps = (): ReleaseDeps => ({
+    ...deps.release,
+    store: deps.release?.store ?? minioReleaseStore,
+  });
+
+  /**
+   * `POST …/commit` through `finish`, for an upload of `projectId` (and of
+   * `kind`, when given) only, so a token reaches only its own project's.
+   */
+  const commit =
+    (finish: FinishUpload, kind?: "scene") =>
+    async (request: Request, projectId: string): Promise<Response> => {
+      const gated = await gate(request, projectId, "write");
+      if (!gated.ok) return gateResponse(gated);
+      const body = await jsonBody(request, SMALL_BODY_MAX_BYTES, uploadIdInput, "{ uploadId }");
+      if (!body.ok) return body.response;
+      const upload = await uploadOf(body.body.uploadId);
+      if (upload?.projectId !== projectId || (kind !== undefined && upload.kind !== kind))
+        return unknownUpload();
+      return answer(async () => {
+        const result = await finish(releaseDeps(), {
+          uploadId: body.body.uploadId,
+          actor: gated.actor,
+        });
+        return Response.json(result, { status: result.created ? 201 : 200 });
+      });
+    };
+
+  return { gate, releaseDeps, commit };
 }
 
 /** Room for a 1 MiB manifest escaped inside a JSON string, and the rest of the body. */
@@ -80,7 +123,8 @@ const moveBody = z.object({ channel: releaseChannel });
 export function createReleaseRoutes(
   deps: ReleaseRouteDeps,
 ): (request: Request) => Promise<Response | null> {
-  const { gate, releaseDeps } = engineRoutes(deps);
+  const { gate, releaseDeps, commit: commitWith } = engineRoutes(deps);
+  const commit = commitWith(commitRelease);
 
   async function begin(request: Request, projectId: string): Promise<Response> {
     const gated = await gate(request, projectId, "write");
@@ -109,31 +153,6 @@ export function createReleaseRoutes(
         { headers: NO_STORE },
       ),
     );
-  }
-
-  /** The upload's project and missing files, for the gate and the byte cap; null for an unknown id. */
-  async function uploadOf(uploadId: string) {
-    const [row] = await db
-      .select({ projectId: engineReleaseUploads.projectId, missing: engineReleaseUploads.missing })
-      .from(engineReleaseUploads)
-      .where(eq(engineReleaseUploads.id, uploadId));
-    return row ?? null;
-  }
-
-  async function commit(request: Request, projectId: string): Promise<Response> {
-    const gated = await gate(request, projectId, "write");
-    if (!gated.ok) return gateResponse(gated);
-    const body = await jsonBody(request, SMALL_BODY_MAX_BYTES, uploadIdInput, "{ uploadId }");
-    if (!body.ok) return body.response;
-    const upload = await uploadOf(body.body.uploadId);
-    if (upload?.projectId !== projectId) return unknownUpload();
-    return answer(async () => {
-      const result = await commitRelease(releaseDeps(), {
-        uploadId: body.body.uploadId,
-        actor: gated.actor,
-      });
-      return Response.json(result, { status: result.created ? 201 : 200 });
-    });
   }
 
   async function putFile(request: Request, uploadId: string, hash: string): Promise<Response> {

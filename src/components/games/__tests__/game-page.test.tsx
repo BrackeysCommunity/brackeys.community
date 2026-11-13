@@ -454,10 +454,30 @@ describe("live levels on the game page", () => {
     const row = screen
       .getByRole("list", { name: "Versions" })
       .querySelector('[data-version="7"] [data-live-levels]');
-    expect(row?.textContent).toBe("With updated levels: The ford (12m ago)");
+    expect(row?.textContent).toBe("with updated levels: The ford (12m ago)");
+    expect(row?.parentElement?.textContent).toMatch(
+      / · with updated levels: The ford \(12m ago\)$/,
+    );
     expect(
       screen.getByRole("list", { name: "Versions" }).querySelectorAll("[data-live-levels]"),
     ).toHaveLength(1);
+  });
+
+  it("plays the live row as production plays it, updated levels included", () => {
+    wrap(
+      <GamePage
+        page={page({
+          live: { version: 7, playUrl: "/games/tactics/play/7", scenes: LIVE_SCENES.slice(0, 1) },
+        })}
+        onChanged={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Play v7" }).getAttribute("href")).toBe(
+      "/games/tactics/play/latest",
+    );
+    expect(screen.getByRole("button", { name: "Play v6" }).getAttribute("href")).toBe(
+      "/games/tactics/play/6",
+    );
   });
 
   it("lists every updated level in the row", () => {
@@ -468,7 +488,7 @@ describe("live levels on the game page", () => {
       />,
     );
     expect(document.querySelector("[data-live-levels]")?.textContent).toBe(
-      "With updated levels: The ford (12m ago), Cave (3h ago)",
+      "with updated levels: The ford (12m ago), Cave (3h ago)",
     );
   });
 
@@ -507,6 +527,25 @@ describe("live levels on the game page", () => {
     const preview = versions.querySelector<HTMLElement>('[data-version="8"]')!;
     expect(within(preview).getByRole("link", { name: "Cave update blocked" })).toBeTruthy();
     expect(screen.getAllByRole("list", { name: "Blocked level updates" })).toHaveLength(2);
+  });
+
+  it("shows a blocked version both channels point at on each channel's row", () => {
+    wrap(
+      <GamePage
+        page={publisherPage({
+          blockedScenes: [...BLOCKED, { ...BLOCKED[0]!, channel: "preview" }],
+        })}
+        onChanged={() => {}}
+      />,
+    );
+    const versions = screen.getByRole("list", { name: "Versions" });
+    for (const version of ["7", "8"]) {
+      const row = versions.querySelector<HTMLElement>(`[data-version="${version}"]`)!;
+      const link = within(row).getByRole("link", {
+        name: "The ford update blocked (5 of 12 players' games failed after this update)",
+      });
+      expect(link.className).toContain("underline");
+    }
   });
 
   it("never shows players a blocked update", () => {
@@ -571,9 +610,19 @@ describe("the publisher menu", () => {
     expect(
       screen.getByText("Promoting v8 replaces these live scenes: The ford (ford@4)."),
     ).toBeTruthy();
-    expect(
-      screen.getByRole("link", { name: "Publish panel in the editor" }).getAttribute("href"),
-    ).toBe("/game/dev?edit=1&project=tactics&panel=publish");
+    const editor = screen.getByRole("link", { name: "Publish panel in the editor" });
+    expect(editor.getAttribute("href")).toBe("/game/dev?edit=1&project=tactics&panel=publish");
+    expect(editor.className).toContain("underline");
+  });
+
+  it("asks the plain promote question as the dialog's description when no live level is replaced", async () => {
+    const user = userEvent.setup();
+    wrap(<GamePage page={publisherPage()} onChanged={() => {}} />);
+    await user.click(screen.getByRole("button", { name: "Actions for v8" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Promote/ }));
+    const dialog = await screen.findByRole("alertdialog");
+    const described = document.getElementById(dialog.getAttribute("aria-describedby") ?? "");
+    expect(described?.textContent).toBe(releasePromoteMessage(8));
   });
 
   it("rolls production back to an older version", async () => {

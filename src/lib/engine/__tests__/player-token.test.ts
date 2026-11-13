@@ -2,11 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { verifyCanvasToken } from "@/lib/canvas/token";
 
-import { mintPlayerToken, PLAYER_TOKEN_TTL_MS } from "../player-token";
+import { anonPlayerKey, mintPlayerToken, PLAYER_TOKEN_TTL_MS } from "../player-token";
 
 const SECRET = "player-token-test-secret";
 const NOW = 1_800_000_000_000;
 const ANON = "6f1d2c3b-4a59-4e8f-9a0b-1c2d3e4f5a6b";
+
+describe("anonPlayerKey", () => {
+  it("names a signed-out player by their lowercased anonymous id, or nothing", () => {
+    expect(anonPlayerKey(ANON.toUpperCase())).toBe(`anon:${ANON}`);
+    expect(anonPlayerKey("not-a-uuid")).toBeNull();
+    expect(anonPlayerKey(undefined)).toBeNull();
+  });
+});
 
 describe("mintPlayerToken", () => {
   beforeEach(() => vi.stubEnv("CANVAS_SYNC_SECRET", SECRET));

@@ -95,6 +95,14 @@ function blocksProduction(target: VersionTarget | undefined): boolean {
   return target === undefined || target.pointedOn.includes("production");
 }
 
+/** The roles that may do this; blocking depends on where the version is live. */
+function allowedFor(
+  action: GameAction,
+  target: VersionTarget | undefined,
+): readonly (GameRole | "agent")[] {
+  return action === "live-block" && blocksProduction(target) ? PUBLISHERS : ALLOWED[action];
+}
+
 /**
  * The role table. An agent token (write access) uploads, publishes scene
  * versions and moves `preview` only. `live-block` on a version production
@@ -105,10 +113,7 @@ export function canDo(
   action: GameAction,
   target?: VersionTarget,
 ): boolean {
-  if (action === "live-block" && blocksProduction(target)) {
-    return PUBLISHERS.includes(role);
-  }
-  return ALLOWED[action].includes(role);
+  return allowedFor(action, target).includes(role);
 }
 
 const PRODUCTION_MOVES: ReadonlySet<GameAction> = new Set([
@@ -117,10 +122,20 @@ const PRODUCTION_MOVES: ReadonlySet<GameAction> = new Set([
   "live-move-production",
 ]);
 
+/** The least role that may do this: editors, then publishers, else staff alone. */
+function leastRole(
+  action: GameAction,
+  target: VersionTarget | undefined,
+): "role" | "editor" | "staff" {
+  const allowed = allowedFor(action, target);
+  if (allowed.includes("editor")) return "editor";
+  return allowed.includes("publisher") ? "role" : "staff";
+}
+
 /**
  * Why this role can't do this, or null when it may. An agent token refused
  * something on production is sent to the game's page (`gameUrl`), where a
- * person moves it; every other refusal names the role it needs.
+ * person moves it; every other refusal names the least role that may.
  */
 export function refusalFor(
   role: GameRole | "agent",
@@ -132,7 +147,7 @@ export function refusalFor(
     PRODUCTION_MOVES.has(action) || (action === "live-block" && blocksProduction(options.target));
   return role === "agent" && onProduction
     ? releaseForbidden("agent-production", options.gameUrl)
-    : releaseForbidden("role");
+    : releaseForbidden(leastRole(action, options.target));
 }
 
 /**

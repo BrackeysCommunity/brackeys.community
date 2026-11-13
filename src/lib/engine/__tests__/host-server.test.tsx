@@ -2,7 +2,11 @@
 import type { HostRequestError, LiveSnapshot, LiveStateMessage } from "@jams/engine/standalone";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 
-import { HOST_NO_SITE_SAVES_MESSAGE, HOST_THROTTLED_MESSAGE } from "../host-server";
+import {
+  HOST_NO_SITE_SAVES_MESSAGE,
+  HOST_THROTTLED_MESSAGE,
+  RECORDING_ANSWER_MS,
+} from "../host-server";
 import { SITE_SAVE_LIMITS } from "../limits";
 import { localPlaySaves, SIGNED_OUT_SAVES_DESCRIBE } from "../local-saves";
 import {
@@ -427,7 +431,8 @@ describe("live levels", () => {
     expect(states).toHaveBeenCalledTimes(10);
   });
 
-  it("asks for the recording, and its answer reaches onDownload past the download rate", async () => {
+  /** Cross-realm buffers from the rig's channel pass the download's `ArrayBuffer` check. */
+  const realmBuffers = () => {
     Object.defineProperty(ArrayBuffer, Symbol.hasInstance, {
       configurable: true,
       value: (v: unknown) => Object.prototype.toString.call(v) === "[object ArrayBuffer]",
@@ -435,9 +440,13 @@ describe("live levels", () => {
     onTestFinished(() => {
       delete (ArrayBuffer as { [Symbol.hasInstance]?: unknown })[Symbol.hasInstance];
     });
+  };
+
+  it("asks for the recording, and its answer reaches onDownload past the download rate", async () => {
+    realmBuffers();
     const onDownload = vi.fn();
     const r = rig({ onDownload });
-    expect(r.server.requestRecording()).toBe(false);
+    expect(await r.server.requestRecording()).toBe("unsent");
     const channel = await r.connect(["live"]);
     const bytes = new Uint8Array([7]).buffer;
     channel.offerDownload("match.recording.json", "application/json", bytes);
@@ -445,11 +454,30 @@ describe("live levels", () => {
     channel.on("recording.request", () =>
       channel.offerDownload("one.recording.json", "application/json", bytes),
     );
-    expect(r.server.requestRecording()).toBe(true);
-    await vi.waitFor(() => expect(onDownload).toHaveBeenCalledTimes(2));
+    expect(await r.server.requestRecording()).toBe("offered");
+    expect(onDownload).toHaveBeenCalledTimes(2);
     expect((onDownload.mock.calls[1]![0] as { name: string }).name).toBe("one.recording.json");
     channel.offerDownload("unasked.recording.json", "application/json", bytes);
     await vi.waitFor(() => expect(r.server.dropped).toBe(1));
     expect(onDownload).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up on a request the frame doesn't answer, so a later download meets the rate", async () => {
+    realmBuffers();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    onTestFinished(() => void vi.useRealTimers());
+    const onDownload = vi.fn();
+    const r = rig({ onDownload });
+    const channel = await r.connect(["live"]);
+    const bytes = new Uint8Array([7]).buffer;
+    channel.offerDownload("match.recording.json", "application/json", bytes);
+    await vi.waitFor(() => expect(onDownload).toHaveBeenCalledTimes(1));
+
+    const asked = r.server.requestRecording();
+    vi.advanceTimersByTime(RECORDING_ANSWER_MS);
+    expect(await asked).toBe("unanswered");
+    channel.offerDownload("unasked.recording.json", "application/json", bytes);
+    await vi.waitFor(() => expect(r.server.dropped).toBe(1));
+    expect(onDownload).toHaveBeenCalledTimes(1);
   });
 });

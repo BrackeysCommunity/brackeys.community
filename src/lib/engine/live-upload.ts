@@ -1,4 +1,4 @@
-import { sceneVersionName, type SwapTiming } from "@jams/engine/game";
+import { DEFAULT_SWAP_TIMING, sceneVersionName, type SwapTiming } from "@jams/engine/game";
 import {
   checkSceneVersion,
   formatSceneVersion,
@@ -33,7 +33,6 @@ import { LIVE_LIMITS, UPLOAD_SESSION_HOURS } from "./limits";
 import {
   announceLiveMove,
   channelRelease,
-  DEFAULT_SWAP_TIMING,
   lockProject,
   pointScene,
   sceneVersionRemoved,
@@ -55,6 +54,7 @@ import {
   assertMayUpload,
   heldHashes,
   HOUR_MS,
+  JSON_TYPE,
   liveProject,
   openUpload,
   quotaRefusal,
@@ -102,8 +102,6 @@ export type BeginSceneInput = {
   note?: string;
   actor: Actor;
 };
-
-const JSON_TYPE = "application/json";
 
 // ─── The refusals a scene version has of its own ────────
 

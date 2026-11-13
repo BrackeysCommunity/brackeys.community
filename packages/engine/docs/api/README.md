@@ -12,9 +12,9 @@ Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regene
 | [`@jams/engine/editor`](editor.md) | 329 |
 | [`@jams/engine/editor-ui`](editor-ui.md) | 68 |
 | [`@jams/engine/export`](export.md) | 40 |
-| [`@jams/engine/game`](game.md) | 460 |
+| [`@jams/engine/game`](game.md) | 464 |
 | [`@jams/engine/headless`](headless.md) | 169 |
-| [`@jams/engine/project`](project.md) | 326 |
+| [`@jams/engine/project`](project.md) | 328 |
 | [`@jams/engine/scene`](scene.md) | 366 |
 | [`@jams/engine/sim-kit`](sim-kit.md) | 19 |
 | [`@jams/engine/standalone`](standalone.md) | 57 |

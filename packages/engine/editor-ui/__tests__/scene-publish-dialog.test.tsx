@@ -435,6 +435,30 @@ describe("Publish scene", () => {
     expect(level).toHaveBeenCalledWith(6, FAKE_LIVE_WORDING.versionsPerDay);
   });
 
+  it("tones Data at exactly the limit as a warning that doesn't hold Publish", async () => {
+    // The host's level reads "full" from 100% on; only a version over the limit is refused.
+    const level = vi.fn<LiveWording["level"]>((_used, max) =>
+      max === FAKE_LIVE_WORDING.dataMaxBytes ? "full" : "ok",
+    );
+    await setup({ live: { wording: { ...FAKE_LIVE_WORDING, level } } });
+    await checkLine("data");
+    expect(document.querySelector('[data-check="data"]')?.getAttribute("data-tone")).toBe(
+      "warning",
+    );
+    await waitFor(() => expect(publishButton().hasAttribute("disabled")).toBe(false));
+  });
+
+  it("names the version a publish creates", async () => {
+    await setup({ latest: 3 });
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "Publishes hall@4: updates this one level for players of the current release.",
+        ),
+      ).toBeTruthy(),
+    );
+  });
+
   it("labels the Checks list by its heading, every child of the list a list item", async () => {
     await setup();
     await checkLine("data");

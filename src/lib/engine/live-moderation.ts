@@ -1,7 +1,6 @@
 import type { AssetId, Sha256 } from "@jams/engine/project";
 import { and, desc, eq, inArray, isNull, max, or, sql } from "drizzle-orm";
 
-import { db as siteDb } from "@/db";
 import {
   engineLiveReports,
   engineProjects,
@@ -14,7 +13,7 @@ import {
   projects,
 } from "@/db/schema";
 import { siteUrl } from "@/env";
-import { gamePagePath } from "@/lib/og/game-links";
+import { gamePagePath } from "@/lib/engine/route-paths";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 import { announceReleaseChange } from "./frame-cache-notice";
@@ -29,10 +28,18 @@ import {
   type LiveChannel,
 } from "./live-pointers";
 import type { LiveReadDeps } from "./live-versions";
+import { anonPlayerKey } from "./player-token";
 import { canDo, canPlay, refusalFor, roleOf, type GameVisibility } from "./release-access";
 import { writeAudit, type Actor, type ReleaseDb } from "./release-audit";
 import { releaseForbidden } from "./release-errors";
-import { actorRole, liveProject, notFound, refuse, type ReleaseTxDb } from "./release-upload";
+import {
+  actorRole,
+  liveProject,
+  notFound,
+  refuse,
+  siteDeps,
+  type ReleaseTxDb,
+} from "./release-upload";
 import { releaseViewer } from "./release-viewer";
 import { viewerOf } from "./viewer";
 
@@ -81,11 +88,9 @@ export type SceneVersionQueueItem = {
 
 const HOUR_SECONDS = 3600;
 const QUEUE_MAX = 200;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const resolved = (deps: LiveModerationDeps) => ({
-  db: deps.db ?? (siteDb as unknown as ReleaseTxDb),
-  now: deps.now ?? (() => new Date()),
+  ...siteDeps(deps),
   rateLimit: deps.rateLimit ?? checkRateLimit,
   forgetProject:
     deps.forgetProject ??
@@ -99,9 +104,7 @@ const resolved = (deps: LiveModerationDeps) => ({
  * reports without a usable id share one window.
  */
 export function liveReportKey(userId: string | null, anonId?: string): string {
-  if (userId !== null) return userId;
-  if (anonId !== undefined && UUID.test(anonId)) return `anon:${anonId.toLowerCase()}`;
-  return "anon";
+  return userId ?? anonPlayerKey(anonId) ?? "anon";
 }
 
 const versionColumns = {

@@ -3,6 +3,7 @@ import type { z } from "zod";
 import { NAV_COMMAND, type NavDestination } from "../game/commands";
 import { simBindings } from "../game/input-bindings";
 import { pointerBit, POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
+import { capitalise } from "../game/live";
 import { resolveTime, ticksFor, type ResolvedTime } from "../game/time";
 import type {
   Binding,
@@ -262,8 +263,6 @@ function durationOf(
   return { ok: true, value: durations[0]! };
 }
 
-const capitalised = (kind: string) => kind.charAt(0).toUpperCase() + kind.slice(1);
-
 /** Picks a step's shape by its keys, so a mistake is reported against the step it was meant to be. */
 function parseStep(
   raw: unknown,
@@ -326,7 +325,7 @@ function parseStep(
   if (TIMED.includes(kind) && (kind !== "pointer" || misplaced)) {
     const duration = durationOf(raw, `a ${kind} step`, path);
     if (!duration.ok) return duration;
-    const named = `${kind}${capitalised(duration.value)}` as keyof InputScriptSchemas["steps"];
+    const named = `${kind}${capitalise(duration.value)}` as keyof InputScriptSchemas["steps"];
     shape = schemas.steps[named];
   } else {
     shape = schemas.steps[kind as keyof InputScriptSchemas["steps"]];

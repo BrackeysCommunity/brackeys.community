@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 
+import { SITE } from "@/lib/legal-meta";
+
 import {
   canDo,
   canPlay,
@@ -127,10 +129,19 @@ describe("refusalFor", () => {
     message: "Production releases are moved by a person on the game's page.",
     hint: gameUrl,
   };
-  const ROLE = {
+  const PUBLISHERS = {
     code: "release-forbidden",
     message: "Only the game's publishers can do this.",
     hint: "Publishers are the project's creator and its team's owners.",
+  };
+  const EDITORS = {
+    code: "release-forbidden",
+    message: "Only the game's team can do this.",
+    hint: "The team is the project's creator and its team's members.",
+  };
+  const STAFF = {
+    code: "release-forbidden",
+    message: `Only ${SITE.name} staff can do this.`,
   };
 
   test("null when the role may", () => {
@@ -162,17 +173,66 @@ describe("refusalFor", () => {
     });
   });
 
-  test("other refusals name the role", () => {
-    expect(
-      refusalFor("agent", "live-block", { gameUrl, target: { pointedOn: ["preview"] } }),
-    ).toEqual(ROLE);
-    expect(refusalFor("agent", "live-hide", { gameUrl })).toEqual(ROLE);
-    expect(refusalFor("editor", "live-move-production", { gameUrl })).toEqual(ROLE);
-    expect(
-      refusalFor("editor", "live-block", { gameUrl, target: { pointedOn: ["production"] } }),
-    ).toEqual(ROLE);
-    expect(refusalFor("publisher", "live-hide", { gameUrl })).toEqual(ROLE);
-    expect(refusalFor("player", "live-publish", { gameUrl })).toEqual(ROLE);
+  describe("other refusals name the least role that may", () => {
+    const onPreview = { pointedOn: ["preview" as const] };
+    const onProduction = { pointedOn: ["production" as const] };
+    test.each<
+      [
+        string,
+        GameRole | "agent",
+        GameAction,
+        { pointedOn: ("preview" | "production")[] } | undefined,
+        object,
+      ]
+    >([
+      ["a player publishing a scene version", "player", "live-publish", undefined, EDITORS],
+      ["a player moving preview", "player", "live-move-preview", undefined, EDITORS],
+      ["a player uploading", "player", "upload", undefined, EDITORS],
+      [
+        "a player blocking a version only preview plays",
+        "player",
+        "live-block",
+        onPreview,
+        EDITORS,
+      ],
+      ["an agent blocking a version only preview plays", "agent", "live-block", onPreview, EDITORS],
+      ["an agent downloading the zip", "agent", "download-zip", undefined, EDITORS],
+      ["an editor moving production", "editor", "live-move-production", undefined, PUBLISHERS],
+      ["an editor promoting to production", "editor", "promote-production", undefined, PUBLISHERS],
+      [
+        "an editor blocking a version production plays",
+        "editor",
+        "live-block",
+        onProduction,
+        PUBLISHERS,
+      ],
+      ["an editor blocking with no target", "editor", "live-block", undefined, PUBLISHERS],
+      [
+        "a player blocking a version production plays",
+        "player",
+        "live-block",
+        onProduction,
+        PUBLISHERS,
+      ],
+      ["an editor changing visibility", "editor", "visibility", undefined, PUBLISHERS],
+      ["a publisher hiding a scene version", "publisher", "live-hide", undefined, STAFF],
+      ["an agent hiding a scene version", "agent", "live-hide", undefined, STAFF],
+      ["a publisher hiding a release", "publisher", "hide", undefined, STAFF],
+      ["a publisher approving public", "publisher", "approve-public", undefined, STAFF],
+    ])("%s", (_name, role, action, target, expected) => {
+      expect(refusalFor(role, action, { gameUrl, ...(target ? { target } : {}) })).toEqual(
+        expected,
+      );
+    });
+
+    test("every refused role and action gets one of the three", () => {
+      for (const action of GAME_ACTIONS) {
+        for (const role of ["staff", "publisher", "editor", "player"] as const) {
+          const refusal = refusalFor(role, action, { gameUrl });
+          if (refusal) expect([EDITORS, PUBLISHERS, STAFF]).toContainEqual(refusal);
+        }
+      }
+    });
   });
 });
 

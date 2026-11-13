@@ -22,3 +22,19 @@ export const isFailedOutcome = (outcome: string): boolean =>
 /** "5 of 12 players' games failed after this update": why the breaker blocked a version. */
 export const breakerReason = (failed: number, total: number): string =>
   `${formatCount(failed)} of ${formatCount(total)} players' games failed after this update`;
+
+/**
+ * Why a version is blocked, as the editor, a refused move and the game page
+ * all say it: the reason stored when it was blocked, else for the breaker's
+ * block its sentence from the version's report counts. Null when a person
+ * blocked it without one. No closing period.
+ */
+export function blockedReasonOf(blocked: {
+  by: string | null;
+  reason: string | null;
+  reports: { ok: number; failed: number };
+}): string | null {
+  if (blocked.reason) return blocked.reason;
+  const { ok, failed } = blocked.reports;
+  return blocked.by === "system" ? breakerReason(failed, ok + failed) : null;
+}

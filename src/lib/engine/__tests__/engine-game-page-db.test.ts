@@ -30,6 +30,7 @@ import { forgetProjectReleases } from "../frame-route";
 import { verifyFrameToken } from "../frame-token";
 import { gamePage, removalNotice, type GamePageDeps } from "../game-page";
 import { engineLive } from "../live-events";
+import { breakerReason } from "../live-outcomes";
 import { moveScenePointer } from "../live-pointers";
 import type { Viewer } from "../release-access";
 import { promote } from "../release-channels";
@@ -520,11 +521,30 @@ describe("gamePage: live levels", () => {
       expect(shown?.live?.scenes).toEqual([]);
       expect(shown?.blockedScenes).toEqual([]);
     }
-    // Preview and production both point at hall@1: one line, on production.
+    // Preview and production both point at hall@1: a line on each channel's row.
     for (const who of [publisher, staff])
       expect((await page(who))?.blockedScenes).toEqual([
         { scene: "hall", title: "hall", number: 1, channel: "production", reason },
+        { scene: "hall", title: "hall", number: 1, channel: "preview", reason },
       ]);
+  });
+
+  it("words a breaker block with no stored reason from its reports, as the editor does", async () => {
+    await setVersion(yard.id, {
+      blockedAt: NOW,
+      blockedBy: "system",
+      reportsOk: 7,
+      reportsFailed: 5,
+    });
+    expect((await page(publisher))?.blockedScenes).toEqual([
+      {
+        scene: "yard",
+        title: "Yard",
+        number: 1,
+        channel: "preview",
+        reason: breakerReason(5, 12),
+      },
+    ]);
   });
 
   it("names a blocked version only preview points at, and none staff hid", async () => {

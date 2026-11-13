@@ -909,6 +909,7 @@ DEFAULT_PHYSICS
 DEFAULT_ROTATE_STEP
 DEFAULT_SAVE_LIMITS
 DEFAULT_SPAWN_CAST
+DEFAULT_SWAP_TIMING
 DEFAULT_TICK_RATE
 DEFAULT_TIME
 DRAW_LAYERS
@@ -1180,6 +1181,7 @@ bodyLocalShape
 bodyShapeField
 boundsCells
 buildNavMesh
+capitalise
 carrierDelta
 castSpawn
 cellKey
@@ -1635,6 +1637,7 @@ SceneListEntry
 SceneListFile
 SceneListFlow
 SceneVersion
+SceneVersionFitIssue
 SceneVersionNames
 SceneVersionRead
 SceneVersionSource
@@ -1776,6 +1779,7 @@ sceneListFlow
 sceneListIssues
 sceneListKind
 sceneVersionDataBytes
+sceneVersionFitIssue
 sceneVersionId
 sceneVersionJsonSchema
 sceneVersionOptions
@@ -3371,7 +3375,7 @@ type EditorIdentityInput = {
 };
 type EditorLiveHost = {
     base(scene: AssetId, channel: PublishChannel): Promise<LiveBaseView>;
-    clear(scene: AssetId, channel: PublishChannel, timing?: SwapTiming): Promise<LiveMove>;
+    clear(scene: AssetId, channel: PublishChannel): Promise<LiveMove>;
     list(scene?: AssetId): Promise<readonly LiveVersionView[]>;
     onPublished?(listener: (published: LivePublished) => void): () => void;
     promote(scene: AssetId, version: number, channel: PublishChannel, timing: SwapTiming): Promise<LiveMove>;
@@ -3435,6 +3439,7 @@ type LiveBaseView = {
     channel: PublishChannel;
     latest: null | number;
     live: null | {
+        compatKey?: Sha256;
         descriptor: string;
         number: number;
         since: string;
@@ -3443,6 +3448,7 @@ type LiveBaseView = {
     };
     release: null | {
         id: Sha256;
+        liveCompatKey?: string;
         manifest: string;
         version: number;
     };
@@ -6143,6 +6149,7 @@ type SeatInput = {
 declare function inputFor(ctx: EngineContext, entityId: string): SeatInput;
 
 ## game/live.ts
+declare const DEFAULT_SWAP_TIMING: SwapTiming;
 declare const LIVE_CHECK_AGAIN_TICKS = 60;
 declare const LIVE_DEFAULTS: {
     readonly checkAt: readonly [
@@ -6190,6 +6197,7 @@ type SwapTiming = "boundary" | "next-load" | "now";
 declare function acceptedTimings(live: Pick<LiveDeclaration, "timings"> | undefined): SwapTiming[];
 declare function acceptedTimingsWords(live: Pick<LiveDeclaration, "timings"> | undefined): string;
 declare const arrivalWords: (t: SwapTiming) => string;
+declare const capitalise: (text: string) => string;
 declare function clampTiming(live: LiveDeclaration | undefined, wanted: SwapTiming): {
     clamped: boolean;
     timing: SwapTiming;
@@ -10040,6 +10048,14 @@ type SceneVersion = {
     sceneHash: SceneHash;
     v: 1;
 };
+type SceneVersionFitIssue = {
+    issue: SceneIssue | null;
+    on: "version";
+} | {
+    on: "compat";
+} | {
+    on: "release";
+};
 type SceneVersionNames = {
     release?: string;
     version?: string;
@@ -10082,6 +10098,13 @@ declare function readSceneVersion(version: SceneVersion, texts: ReadonlyMap<Sha2
     engine?: Readonly<Record<string, unknown>>;
 }): SceneVersionRead;
 declare function sceneVersionDataBytes(text: string, version: SceneVersion): number;
+declare function sceneVersionFitIssue(release: {
+    liveCompatKey?: string;
+    manifest: string;
+}, version: {
+    compatKey?: string;
+    descriptor: string;
+}, opts?: Pick<CheckSceneVersionOptions, "names">): SceneVersionFitIssue | null;
 declare function sceneVersionId(version: SceneVersion): Promise<Sha256>;
 declare function sceneVersionJsonSchema(): Record<string, unknown>;
 declare function sceneVersionOptions(input: SceneVersionSource, scene: AssetId, opts?: {

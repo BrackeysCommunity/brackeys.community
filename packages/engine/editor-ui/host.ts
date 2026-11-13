@@ -232,8 +232,8 @@ export type EditorLiveHost = {
     channel: PublishChannel,
     opts?: { to?: number; timing?: SwapTiming },
   ): Promise<LiveMove>;
-  /** "Stop": the channel plays the release's scene again. */
-  clear(scene: AssetId, channel: PublishChannel, timing?: SwapTiming): Promise<LiveMove>;
+  /** "Stop": the channel plays the release's scene again, at the removed pointer's own timing. */
+  clear(scene: AssetId, channel: PublishChannel): Promise<LiveMove>;
   unblock(scene: AssetId, version: number): Promise<void>;
   usage(): Promise<LiveUsageView>;
   /** Publishers may choose production, `now` there, and keep live scenes over a release. */
@@ -275,9 +275,16 @@ export type LiveMove = { from: number | null; to: number | null };
 /** What the Publish scene checks compare against, as `EditorLiveHost.base` answers. */
 export type LiveBaseView = {
   channel: PublishChannel;
-  /** Null when nothing is on the channel yet. */
-  release: { id: Sha256; version: number; manifest: string } | null;
-  /** The scene's live version on the channel, with its `scene-version.json`; null when the release's scene plays. */
+  /**
+   * Null when nothing is on the channel yet. `liveCompatKey` is the key a
+   * version must be built for to go live on it, `""` when it takes no live
+   * scenes; without it the editor leaves that rule to the host's move.
+   */
+  release: { id: Sha256; version: number; manifest: string; liveCompatKey?: string } | null;
+  /**
+   * The scene's live version on the channel, with its `scene-version.json`
+   * and the compat key it was built for; null when the release's scene plays.
+   */
   live: {
     number: number;
     versionId: Sha256;
@@ -285,6 +292,7 @@ export type LiveBaseView = {
     /** ISO 8601, UTC. */
     since: string;
     descriptor: string;
+    compatKey?: Sha256;
   } | null;
   /** The scene's and its prefabs' texts that `live` (or the release) names, by hash. */
   texts: Readonly<Record<Sha256, string>>;

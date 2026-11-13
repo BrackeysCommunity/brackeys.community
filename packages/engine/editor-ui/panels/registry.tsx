@@ -318,6 +318,7 @@ export const PUBLISH_PANEL: PanelDef = {
       publish={controls.publish}
       notify={controls.notify}
       sceneTitle={(id) => controls.project?.flow?.scenes.find((e) => e.scene === id)?.title}
+      gameLive={controls.session.registry.game?.live}
     />
   ),
   skeleton: rows(4),

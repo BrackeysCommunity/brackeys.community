@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { engineProjects, engineSaves, user } from "@/db/schema";
-import { createTestDb, seedUser, type TestDb } from "@/test/db";
+import { createTestDb, seedUser, statementRefusal, type TestDb } from "@/test/db";
 
 const PROJECT = "kitchen";
 const PLAYER = "player";
@@ -46,17 +46,6 @@ const save = (slot: string, over: Partial<typeof engineSaves.$inferInsert> = {})
   ...over,
 });
 
-/** The database's own words for a refused statement: drizzle wraps them in `cause`. */
-async function refusal(run: () => Promise<unknown>): Promise<string> {
-  try {
-    await run();
-  } catch (error) {
-    const cause = (error as { cause?: unknown }).cause;
-    return `${String(error)} ${cause instanceof Error ? cause.message : ""}`;
-  }
-  throw new Error("the statement went through");
-}
-
 const savedSlots = async () =>
   (await db.select({ slot: engineSaves.slot }).from(engineSaves)).map((r) => r.slot).sort();
 
@@ -86,7 +75,7 @@ describe("engine_saves", () => {
     }
     for (const slot of ["", "-a", "Auto", "slot_1", "a b", "a".repeat(33)]) {
       expect(SLOT_PATTERN.test(slot)).toBe(false);
-      expect(await refusal(() => db.insert(engineSaves).values(save(slot)))).toContain(
+      expect(await statementRefusal(() => db.insert(engineSaves).values(save(slot)))).toContain(
         "engine_saves_slot",
       );
     }
@@ -94,7 +83,7 @@ describe("engine_saves", () => {
 
   it("refuses a second row for the same player, game and slot", async () => {
     await db.insert(engineSaves).values(save("auto"));
-    expect(await refusal(() => db.insert(engineSaves).values(save("auto")))).toContain(
+    expect(await statementRefusal(() => db.insert(engineSaves).values(save("auto")))).toContain(
       "engine_saves_pkey",
     );
     await db.insert(engineSaves).values(save("auto", { userId: "other" }));

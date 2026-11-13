@@ -48,8 +48,17 @@ export type ReplacedScene = {
 /** The live scenes a promote of a release replaces, and whether the promoter may keep the ones that fit. */
 export type PromoteReplaces = {
   read: () => Promise<readonly ReplacedScene[]>;
-  canKeep: boolean;
+  /** Why none may be kept, whatever fits; null when the ones that fit may stay. */
+  keepRule: string | null;
 };
+
+/** Why a promote offers no Keep: who may keep live scenes, and over which release. */
+export const KEEP_PUBLISHERS_ONLY = "Only publishers can keep live scenes over a new release.";
+export const KEEP_PREVIEW_ONLY =
+  "Only the release on preview can keep the live scenes that still fit it.";
+
+/** Said when the promoter may keep live scenes but none of them fits `version`. */
+const noneFits = (version: number) => `None of them still fits v${version}, so none can be kept.`;
 
 /** A button that moves production to `version`, after asking; with `replaces`, the question lists the live scenes it replaces. */
 export function PromoteButton({
@@ -72,8 +81,8 @@ export function PromoteButton({
   const [reading, setReading] = useState<"idle" | "loading" | "failed">("idle");
   const [keep, setKeep] = useState<ReadonlySet<AssetId>>(new Set());
   const asked = useRef(0);
-  const onOpenChange = (open: boolean) => {
-    if (!open || !replaces) return;
+  const read = () => {
+    if (!replaces) return;
     const id = ++asked.current;
     setScenes([]);
     setKeep(new Set());
@@ -90,7 +99,7 @@ export function PromoteButton({
     );
   };
   const kept = scenes.filter((s) => keep.has(s.scene) && s.fits).map((s) => s.scene);
-  const keepable = replaces?.canKeep ? scenes.filter((s) => s.fits) : [];
+  const keepable = replaces?.keepRule === null ? scenes.filter((s) => s.fits) : [];
   return (
     <Confirm
       title={`Promote v${version} to production?`}
@@ -103,9 +112,14 @@ export function PromoteButton({
             {reading === "loading" ? (
               <Skeleton style={{ height: 16 }} />
             ) : (
-              <Text as="p" size="sm" variant="muted">
-                {REPLACES_UNREAD}
-              </Text>
+              <div className="je-insp-row je-insp-wrap" data-gap="tight" role="alert">
+                <Text size="sm" variant="warning" className="je-insp-grow">
+                  {REPLACES_UNREAD}
+                </Text>
+                <Button size="xs" variant="outline" onClick={read}>
+                  Try again
+                </Button>
+              </div>
             )}
           </div>
         ) : scenes.length === 0 ? (
@@ -141,13 +155,19 @@ export function PromoteButton({
                   </label>
                 ))}
               </div>
-            ) : null}
+            ) : (
+              <Text as="p" size="sm" variant="muted">
+                {replaces?.keepRule ?? noneFits(version)}
+              </Text>
+            )}
           </div>
         )
       }
       confirmText="Promote"
       confirmDisabled={reading === "loading"}
-      onOpenChange={onOpenChange}
+      onOpenChange={(open) => {
+        if (open) read();
+      }}
       onConfirm={() => onPromote(kept)}
     >
       <Button size={size} variant={variant} busyScope={channelScope("production")}>
@@ -157,8 +177,9 @@ export function PromoteButton({
   );
 }
 
-/** Said in the promote question when the live scenes it replaces couldn't be read. */
-export const REPLACES_UNREAD = "Couldn't check the live scenes this replaces.";
+/** Said in the promote question when the live scenes it replaces couldn't be read; Promote still replaces them. */
+export const REPLACES_UNREAD =
+  "Couldn't check the live scenes this replaces. Promoting now replaces whichever are live.";
 
 /** Every release, newest first, with its channels, pins and cleanup date. */
 export function ReleaseList({
