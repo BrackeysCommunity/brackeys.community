@@ -868,6 +868,7 @@ _type_ in `editor/inspector-model.ts`
 
 ```ts
 type EnumOption = {
+    description?: string;
     label: string;
     value: number | string;
 };
@@ -965,6 +966,8 @@ type FieldWidget = {
     kind: "switch";
 } | {
     kind: "tags";
+    options?: string[];
+    placeholder?: string;
 } | {
     kind: "text";
     maxLength?: number;
@@ -4114,7 +4117,10 @@ Refers to [`Ref`](#ref), [`Registry`](#registry), [`SceneDefinition`](#scenedefi
 
 _function_ in `editor/gizmos/handles.ts`
 
-The topmost handle within `tolPx` screen px of `p` (the last one drawn wins).
+The handle under `p`: the topmost one whose drawn square holds it, else
+the nearest within `tolPx` screen px (the topmost on a tie). A handle
+partly covered by a neighbour, such as a thin box's corners under a joint
+anchor, can still be grabbed where it shows.
 
 ```ts
 declare function hitHandle(handles: readonly GizmoHandle[], p: Pt, scale: number, tolPx?: number): GizmoHandle | undefined;
@@ -4341,7 +4347,7 @@ _function_ in `editor/inspector-model.ts`
 `modelOps` as one undoable batch, with the `base` hash bulk refs need.
 
 ```ts
-declare function modelBatch(field: ModelField, input: unknown, targets: readonly RefTarget[], def: SceneDefinition): {
+declare function modelBatch(field: ModelField, input: unknown, targets: readonly RefTarget[], def: SceneDefinition, registry?: Registry): {
     batch: OpBatch;
     ok: true;
 } | {
@@ -4350,7 +4356,7 @@ declare function modelBatch(field: ModelField, input: unknown, targets: readonly
 };
 ```
 
-Refers to [`ModelField`](#modelfield), [`OpBatch`](#opbatch), [`RefTarget`](#reftarget), [`SceneDefinition`](#scenedefinition).
+Refers to [`ModelField`](#modelfield), [`OpBatch`](#opbatch), [`RefTarget`](#reftarget), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
 
 ## `modelOps`
 
@@ -4361,14 +4367,15 @@ target whose value changes. On a number field a string is parsed by
 `parseRelative` against each target's own value (or the field's default
 when unset), so `+=16` moves every one. A metric number or point is
 written to micrometres (`roundLength`). `undefined` unsets an optional
-field. Fails without ops when any target's new value doesn't pass the
-field's schema.
+field. With `registry`, a behavior field's edit on an entity also writes
+what keeps its block valid (`behaviorFieldEdit`). Fails without ops when
+any target's new value doesn't pass the field's schema.
 
 ```ts
-declare function modelOps(field: ModelField, input: unknown, targets: readonly RefTarget[]): ModelEdit;
+declare function modelOps(field: ModelField, input: unknown, targets: readonly RefTarget[], registry?: Registry): ModelEdit;
 ```
 
-Refers to [`ModelEdit`](#modeledit), [`ModelField`](#modelfield), [`RefTarget`](#reftarget).
+Refers to [`ModelEdit`](#modeledit), [`ModelField`](#modelfield), [`RefTarget`](#reftarget), [`Registry`](#registry).
 
 ## `moveBatch`
 

@@ -237,6 +237,30 @@ describe("the save menu", () => {
     expect(second.getStore().state.sim.paused).toBe(false);
   });
 
+  it("hands the keys to the board when Start replaces the title screen", async () => {
+    const game = await boot();
+    const restarted = game.flow.restart();
+    await vi.runAllTimersAsync();
+    await restarted;
+    const start = button('.tactics-menu button[data-command="start"]');
+    expect(document.activeElement).toBe(start);
+    start!.click();
+    for (let i = 0; i < 20 && game.flow.current() === "menu"; i++) {
+      game.step();
+      await vi.runAllTimersAsync();
+    }
+    stepUntil(game, (s) => s.flow?.screen === "level" && s.side === "blue" && s.phase === "orders");
+    game.step(3);
+    expect(document.querySelector(".tactics-menu")).toBeNull();
+    expect(document.activeElement).toBe(canvas);
+
+    const hud = () => document.querySelector<HTMLElement>(".tactics-hud");
+    expect(hud()?.dataset.mode).toBe("idle");
+    canvas.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyQ", key: "q", bubbles: true }));
+    game.step();
+    expect(hud()?.dataset.mode).toBe("selected");
+  });
+
   it("keeps Continue off with no save, and says why a save it offered won't load", async () => {
     const game = await boot();
     const restarted = game.flow.restart();

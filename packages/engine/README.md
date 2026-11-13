@@ -1714,7 +1714,14 @@ defaults?, forbidden? }`. A required behavior is always there: a missing
 - **The inspector** shows one section per carried behavior, titled by
   `inspector.label`, fields in `inspector.order`, with Remove, and an Add
   behavior menu of what the type allows. The section of fields marked
-  `meta({ group: "behavior" })` is titled Gameplay.
+  `meta({ group: "behavior" })` is titled Gameplay. Changing a field other
+  fields' `meta.when` keys on (a joint's `kind`) is one edit that leaves
+  the block valid: fields that no longer apply are unset, and ones the new
+  kind needs are seeded. `meta.options` gives an enum's values a label and
+  a description each; `meta.widget: "collision-group"` picks from the
+  game's collision groups and `"type"` from its entity types. A field an
+  instance's param sets says so under it, and so does an override that
+  beats the param.
 
 **Field paths** address fields in ops, overrides and params:
 
@@ -3306,9 +3313,16 @@ its README has the batches, and its tests run each).
   characters, `nav-agent` and `path-follow` each move the entity on their
   own, so an entity carries at most one of the four: any two together are
   `behavior-conflict`. A joint's `to` holds when it names an entity with a
-  `body`, a `collider` that isn't a sensor, or a type that declares
-  `ownsBody` (`solid`, `prop` and `follower` do, and a type based on one
-  of them); anything else is `joint-ref-type`, here and at load alike. A character on a
+  `collider` that isn't a sensor (a `body` on a sensor collider holds
+  nothing), or a type that declares `ownsBody` (`solid`, `prop` and
+  `follower` do, and so does a type based on one of them that brings no
+  system of its own); anything else is `joint-ref-type`, here and at load
+  alike. A joint on a character or a nav agent holds its motion body. A
+  revolute or prismatic joint's `limits` go low, then high. A collider's
+  `group` the game doesn't declare is a `schema` error naming the nearest
+  one; a force area's `affects.groups` entry is the same as a warning. A
+  type based on a primitive with no system of its own also refuses what
+  that primitive refuses (`behavior-forbidden`). A character on a
   dynamic body is `character-body-kind`, since the controller and the
   solver would both move it; its fix makes the body kinematic. A dynamic
   `body` or a `joint` in a scene without physics is `physics-required`.

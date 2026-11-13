@@ -1212,6 +1212,167 @@ describe("standard behavior fields", () => {
     });
   });
 
+  const blockField = (def: SceneDefinition, path: string) => {
+    const m = buildInspectorModel(engine, [lookupRef(def, "hero")!], { def });
+    return fields(m)
+      .flatMap((f) => [f, ...(f.children ?? [])])
+      .find((f) => f.path === path)!;
+  };
+  /** `input` written to the hero's field at `path` the way the inspector commits it, applied. */
+  const commit = (def: SceneDefinition, path: string, input: unknown) => {
+    const edit = modelBatch(blockField(def, path), input, [lookupRef(def, "hero")!], def, engine);
+    if (!edit.ok) throw new Error(edit.error);
+    const out = applyOps(def, edit.batch, engine);
+    if (!out.ok) throw new Error(out.issue.message);
+    return {
+      ops: edit.batch.ops,
+      block: (name: string) =>
+        (out.def.entities!.find((e) => e.id === "hero")!.behaviors as Record<string, unknown>)[
+          name
+        ] as Record<string, unknown>,
+    };
+  };
+
+  it("switches a hinge to a rope or a spring in one edit, seeding its length", () => {
+    const hinge = at({
+      ...body,
+      joint: {
+        kind: "revolute",
+        to: "crate",
+        limits: [-1, 1],
+        motor: { velocity: 1, maxForce: 2 },
+      },
+    });
+    const rope = commit(hinge, "behaviors.joint.kind", "rope");
+    expect(rope.ops).toEqual([
+      {
+        op: "update",
+        ref: "hero",
+        set: { "behaviors.joint.kind": "rope", "behaviors.joint.length": 1 },
+        unset: ["behaviors.joint.limits", "behaviors.joint.motor"],
+      },
+    ]);
+    expect(rope.block("joint")).toEqual({ kind: "rope", to: "crate", length: 1 });
+    expect(commit(hinge, "behaviors.joint.kind", "spring").block("joint")).toEqual({
+      kind: "spring",
+      to: "crate",
+      length: 1,
+    });
+    const spring = at({
+      ...body,
+      joint: { kind: "spring", to: "crate", length: 3, stiffness: 50 },
+    });
+    expect(commit(spring, "behaviors.joint.kind", "revolute").block("joint")).toEqual({
+      kind: "revolute",
+      to: "crate",
+    });
+  });
+
+  it("switches a force area between directional and point, carrying the force's size", () => {
+    const sensor = { collider: { shape: ["box", 0, 0, 1, 1], sensor: true } };
+    const updraft = at({ ...sensor, "force-area": { force: [0, -20], drag: 1 } });
+    const point = commit(updraft, "behaviors.force-area.kind", "point");
+    expect(point.block("force-area")).toEqual({ kind: "point", strength: 20, drag: 1 });
+    const back = at({ ...sensor, "force-area": { kind: "point", strength: 5, falloff: "linear" } });
+    expect(commit(back, "behaviors.force-area.kind", "directional").block("force-area")).toEqual({
+      kind: "directional",
+      force: [0, -20],
+    });
+  });
+
+  it("swaps a spawner's prefab for a type, and back, in one edit", () => {
+    const fromType = at({ spawner: { type: "marker", rate: 2 } });
+    expect(commit(fromType, "behaviors.spawner.prefab", "a".repeat(26)).ops).toEqual([
+      {
+        op: "update",
+        ref: "hero",
+        set: { "behaviors.spawner.prefab": "a".repeat(26) },
+        unset: ["behaviors.spawner.type"],
+      },
+    ]);
+    const fromPrefab = at({ spawner: { prefab: "a".repeat(26), rate: 2 } });
+    expect(commit(fromPrefab, "behaviors.spawner.type", "marker").block("spawner")).toEqual({
+      type: "marker",
+      rate: 2,
+    });
+    const field = blockField(fromType, "behaviors.spawner.type");
+    expect(field.widget).toMatchObject({ kind: "select" });
+    expect((field.widget as { options: { value: unknown }[] }).options.map((o) => o.value)).toEqual(
+      [...engine.typeNames],
+    );
+  });
+
+  it("adds a joint motor from either of its fields, seeding the other", () => {
+    const hinge = at({ ...body, joint: { kind: "revolute", to: "crate" } });
+    const velocity = commit(hinge, "behaviors.joint.motor.velocity", "30");
+    expect(velocity.ops).toEqual([
+      {
+        op: "update",
+        ref: "hero",
+        set: { "behaviors.joint.motor": { velocity: (30 * Math.PI) / 180, maxForce: 1 } },
+      },
+    ]);
+    expect(commit(hinge, "behaviors.joint.motor.maxForce", "5").block("joint").motor).toEqual({
+      velocity: 0,
+      maxForce: 5,
+    });
+  });
+
+  it("leaves a refusal it can't fix for the op to report", () => {
+    const hinge = at({ ...body, joint: { kind: "revolute", to: "crate", limits: [0, 1] } });
+    const limits = blockField(hinge, "behaviors.joint.limits");
+    const edit = modelBatch(limits, [90, 10], [lookupRef(hinge, "hero")!], hinge, engine);
+    expect(edit.ok && edit.batch.ops).toEqual([
+      {
+        op: "update",
+        ref: "hero",
+        set: { "behaviors.joint.limits": [Math.PI / 2, Math.PI / 18] },
+      },
+    ]);
+    const out = edit.ok ? applyOps(hinge, edit.batch, engine) : null;
+    expect(out && !out.ok && out.issue.message).toContain("limits: low must not exceed high");
+  });
+
+  it("labels a joint's kinds by what they do, with each one's description", () => {
+    const kind = blockField(
+      at({ ...body, joint: { kind: "revolute", to: "crate" } }),
+      "behaviors.joint.kind",
+    );
+    const options = (kind.widget as { options: { label: string; description?: string }[] }).options;
+    expect(options.map((o) => o.label)).toEqual([
+      "Hinge (revolute)",
+      "Slider (prismatic)",
+      "Rope",
+      "Weld",
+      "Spring",
+    ]);
+    expect(options.every((o) => typeof o.description === "string")).toBe(true);
+  });
+
+  it("picks collision groups from the game's for a collider and a force area's affects", () => {
+    const def = at({
+      collider: { shape: ["box", 0, 0, 1, 1], sensor: true },
+      "force-area": { force: [0, -20], affects: { groups: [engine.collisionGroupNames[0]] } },
+    });
+    const group = blockField(def, "behaviors.collider.group");
+    expect((group.widget as { options: { value: unknown }[] }).options.map((o) => o.value)).toEqual(
+      [...engine.collisionGroupNames],
+    );
+    expect(blockField(def, "behaviors.force-area.affects.groups").widget).toEqual({
+      kind: "tags",
+      options: [...engine.collisionGroupNames],
+      placeholder: "Add a group",
+    });
+    expect(blockField(def, "behaviors.force-area.affects.tags").widget).toEqual({ kind: "tags" });
+  });
+
+  it("heads every sprite field with a group", () => {
+    const def = at({ sprite: {} });
+    const m = buildInspectorModel(engine, [lookupRef(def, "hero")!], { def });
+    const sprite = m.sections.find((s) => s.id === "behaviors:sprite")!;
+    expect(sprite.fields.filter((f) => f.group === undefined).map((f) => f.name)).toEqual([]);
+  });
+
   it("puts every engine behavior under an Add behavior category", () => {
     const def = at({});
     const options = buildInspectorModel(engine, [lookupRef(def, "hero")!], { def }).addBehaviors;

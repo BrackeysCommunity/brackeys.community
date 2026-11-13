@@ -14,6 +14,7 @@ import {
 import { EngineError, type EngineContext, type JsonValue } from "../../game/types";
 import { parseShape } from "../../scene/shapes";
 import type { RuntimeEntity, ShapeObj } from "../../scene/types";
+import { geometryColliders } from "../geometry-world";
 import type { Pose } from "../poses";
 import { SENSOR_ENTER, SENSOR_EXIT, type StepEvent } from "../types";
 
@@ -156,24 +157,35 @@ export const createForceAreaSystem: BehaviorSystemFactory = (
   }
 
   /**
-   * Whether `affects` takes `id`: in one of its collision groups and carrying
-   * one of its tags, each when given. Group membership is read off the
-   * physics world's colliders, so with no physics an area with `groups`
-   * takes nothing.
+   * A collider's packed collision groups, from whichever world holds it; 0
+   * while it is out of the world, as a collider a motion body stands in for is.
    */
-  function takes(area: Area, id: string, tagged: Set<string> | null): boolean {
-    const groups = area.block.affects?.groups;
+  function groupsOf(handle: number): number {
+    if (ctx.physics) {
+      const c = ctx.physics.world.getCollider(handle);
+      return c?.isEnabled() ? c.collisionGroups() : 0;
+    }
+    const c = ctx.geometry ? geometryColliders(ctx.geometry).get(handle) : undefined;
+    return c?.enabled ? c.groups : 0;
+  }
+
+  /**
+   * Whether `affects` takes `id`: in one of its collision groups and carrying
+   * one of its tags, each when given. `tagged` is the set of entities with
+   * one of the tags, for a loop over many; without it `id`'s own tags are
+   * looked up.
+   */
+  function takes(area: Area, id: string, tagged?: Set<string> | null): boolean {
+    const { groups, tags } = area.block.affects ?? {};
     if (groups) {
-      const world = ctx.physics?.world;
       let want = 0;
       for (const g of groups) want |= ctx.registry.collisionGroups(g) >>> 16;
-      const member = ctx.tags.handlesOf(id).some((h) => {
-        const groups = world?.getCollider(h)?.collisionGroups() ?? 0;
-        return ((groups >>> 16) & want) !== 0;
-      });
+      const member = ctx.tags.handlesOf(id).some((h) => ((groupsOf(h) >>> 16) & want) !== 0);
       if (!member) return false;
     }
-    return tagged === null || tagged.has(id);
+    if (!tags) return true;
+    if (tagged) return tagged.has(id);
+    return tags.some((t) => ctx.query.byTag(t).includes(id));
   }
 
   /** The entities carrying one of `affects.tags`, or null when it names none. */
@@ -262,7 +274,7 @@ export const createForceAreaSystem: BehaviorSystemFactory = (
       if (hits.length === 0) return sum;
       for (const area of areas.values()) {
         if (!area.on || !hits.some((h) => h.tag.entityId === area.id)) continue;
-        if (entityId !== undefined && !takes(area, entityId, taggedBy(area))) continue;
+        if (entityId !== undefined && !takes(area, entityId)) continue;
         const pose = ctx.poses.get(area.id);
         if (!pose) continue;
         const a = field(area, pose, point);

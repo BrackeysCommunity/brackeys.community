@@ -17,7 +17,17 @@ const jointFields = {
     .describe(
       "revolute: a hinge. prismatic: a slider along axis. rope: at most length apart. weld: held rigidly. spring: pulled toward length apart.",
     )
-    .meta({ title: "Kind", group: "joint" }),
+    .meta({
+      title: "Kind",
+      group: "joint",
+      options: {
+        revolute: { label: "Hinge", description: "Turns about the anchors, within limits." },
+        prismatic: { label: "Slider", description: "Slides along axis, within limits." },
+        rope: { label: "Rope", description: "Keeps them at most length apart." },
+        weld: { label: "Weld", description: "Holds them rigidly together." },
+        spring: { label: "Spring", description: "Pulls them toward length apart." },
+      },
+    }),
   to: refField(
     "The other entity's id: one with a body or a collider that isn't a sensor (joint-ref-type otherwise), never this one (joint-self).",
   ).meta({ title: "To", group: "joint" }),
@@ -128,6 +138,8 @@ export const JOINT = defineBehavior({
     const axis = block.axis as JointBlock["axis"];
     if (kind === "prismatic" && axis && axis[0] === 0 && axis[1] === 0)
       return "a prismatic joint's `axis` needs a direction";
+    const limits = block.limits as JointBlock["limits"];
+    if (limits && limits[0] > limits[1]) return "limits: low must not exceed high";
     if (kind !== "revolute" && kind !== "prismatic") {
       if (block.limits !== undefined) return `a ${kind} joint takes no \`limits\``;
       if (block.motor !== undefined) return `a ${kind} joint takes no \`motor\``;

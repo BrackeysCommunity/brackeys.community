@@ -63,22 +63,26 @@ export const createJointSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
   const linked = new Map<string, Linked>();
 
   /**
-   * The body that holds `id`'s first collider that isn't a sensor, in handle
-   * order: what validation's `joint-ref-type` expects of an entity with a
-   * body, a non-sensor collider, or a type that declares `ownsBody`.
+   * The body that holds `id`'s first enabled collider that isn't a sensor, in
+   * handle order: what validation's `joint-ref-type` expects of an entity
+   * with a body, a non-sensor collider, or a type that declares `ownsBody`.
+   * A collider body a character's or an agent's motion body stands in for is
+   * disabled, so the joint holds the motion body. A cached body that has
+   * since been disabled is looked up again.
    */
   function bodyOf(physics: PhysicsWorld, id: string, cached: number | null): RigidBody | null {
     if (cached !== null) {
       const body = physics.world.bodies.get(cached);
-      if (body) return body;
+      if (body?.isEnabled()) return body;
     }
     let best: RigidBody | null = null;
     let bestHandle = Infinity;
     for (const handle of ctx.tags.handlesOf(id)) {
       const collider = physics.world.getCollider(handle);
-      if (!collider || collider.isSensor() || handle >= bestHandle) continue;
+      if (!collider || collider.isSensor() || !collider.isEnabled() || handle >= bestHandle)
+        continue;
       const parent = collider.parent();
-      if (!parent) continue;
+      if (!parent?.isEnabled()) continue;
       best = parent;
       bestHandle = handle;
     }

@@ -250,6 +250,27 @@ function typeBehaviorRules(
   return Object.freeze({ allowed, required: requiredBlocks, defaults });
 }
 
+/**
+ * A type with a `base` and no system of its own runs its base primitive's
+ * system, so it takes that primitive's `ownsBody` (unless it declares its
+ * own) and its forbidden behaviors on top of its own.
+ */
+function inheritBaseSystemRules(
+  t: RegisteredType,
+  types: ReadonlyMap<EntityTypeName, RegisteredType>,
+): void {
+  if (t.system || !t.base || t.base === t.type) return;
+  const base = types.get(t.base);
+  if (!base) return;
+  if (t.ownsBody === undefined && base.ownsBody) t.ownsBody = true;
+  const inherited = base.behaviors?.forbidden;
+  if (!inherited || inherited.length === 0) return;
+  const own = t.behaviors?.forbidden;
+  const forbidden =
+    inherited === "all" || own === "all" ? "all" : [...new Set([...(own ?? []), ...inherited])];
+  t.behaviors = { ...t.behaviors, forbidden };
+}
+
 /** Refuses a type's behavior rules that name unknown behaviors, overlap or fail a schema. */
 function checkTypeBehaviors(
   t: RegisteredType,
@@ -576,7 +597,7 @@ export function createRegistry(
   }
 
   for (const t of types.values()) {
-    if (t.ownsBody === undefined && t.base && types.get(t.base)?.ownsBody) t.ownsBody = true;
+    inheritBaseSystemRules(t, types);
     checkTypeBehaviors(t, behaviors, problem);
     for (const ref of t.refs ?? []) {
       if (!(ref.field in t.shape))

@@ -21,6 +21,7 @@ export type ProjectCopy = {
   /** A file of the copy, by project-relative path. */
   file(path: string): string;
   read(path: string): Promise<string>;
+  /** Deletes the copy, retrying while a write that outlived its test still lands in it. */
   remove(): Promise<void>;
 };
 
@@ -48,7 +49,7 @@ export async function engineProjectCopy(paths: readonly string[]): Promise<Proje
     project,
     file,
     read: (path) => readFile(file(path), "utf8"),
-    remove: () => rm(root, { recursive: true, force: true }),
+    remove: () => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }),
   };
 }
 

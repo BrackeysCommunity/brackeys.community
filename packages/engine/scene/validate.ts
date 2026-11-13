@@ -811,13 +811,13 @@ function checkSpawners(r: Registry, entities: readonly EntityDef[], push: Push):
 }
 
 /**
- * Whether a joint can hold `e`: it carries a body, or a collider that isn't
- * a sensor, or its registered type declares `ownsBody`. The runtime holds
- * the same entities, by the non-sensor collider on a body each one has.
+ * Whether a joint can hold `e`: it carries a collider that isn't a sensor
+ * (a `body` always comes with one), or its registered type declares
+ * `ownsBody`. The runtime holds the same entities, by the non-sensor
+ * collider on a body each one has.
  */
 function holdsJoint(r: Registry, e: EntityDef): boolean {
   const blocks = behaviorBlocks(r, e.type, e[BEHAVIORS_FIELD]);
-  if (blocks[BODY.name]) return true;
   const collider = blocks[COLLIDER.name];
   if (collider) return collider.sensor !== true;
   return r.types.get(e.type)?.ownsBody === true;
@@ -1072,6 +1072,46 @@ function checkBehaviors(
         ),
       });
     }
+  }
+
+  const groups = registry.collisionGroupNames;
+  const groupIssue = (group: unknown, path: string, what: string, severity?: "warn") => {
+    if (typeof group !== "string" || !ID_PATTERN.test(group) || groups.includes(group)) return;
+    const guess = closest(group, groups);
+    push("schema", {
+      message: `${e.id}'s ${what} names collision group "${group}", which the game doesn't declare${guess ? `; did you mean "${guess}"?` : ""}`,
+      path,
+      entityIds: [e.id],
+      expected: groups.join(" | "),
+      got: group,
+      hint: `Use one of the collision groups: ${groups.join(", ")}.`,
+      ...(severity ? { severity } : {}),
+    });
+  };
+  if (carried.has(COLLIDER.name)) {
+    const written = blocks[COLLIDER.name];
+    const own = isPlainObject(written) && "group" in written;
+    const group = own
+      ? written.group
+      : (rules.required.get(COLLIDER.name) ?? rules.defaults.get(COLLIDER.name))?.group;
+    groupIssue(group, own ? pointer(COLLIDER.name, "group") : pointer(COLLIDER.name), "collider");
+  }
+  if (carried.has(FORCE_AREA.name)) {
+    const written = blocks[FORCE_AREA.name];
+    const own = isPlainObject(written) && isPlainObject(written.affects);
+    const affects = own
+      ? written.affects
+      : (rules.required.get(FORCE_AREA.name) ?? rules.defaults.get(FORCE_AREA.name))?.affects;
+    const listed = isPlainObject(affects) ? affects.groups : undefined;
+    if (Array.isArray(listed))
+      listed.forEach((group, j) =>
+        groupIssue(
+          group,
+          own ? pointer(FORCE_AREA.name, "affects", "groups", j) : pointer(FORCE_AREA.name),
+          "force area",
+          "warn",
+        ),
+      );
   }
 
   for (const name of order) {

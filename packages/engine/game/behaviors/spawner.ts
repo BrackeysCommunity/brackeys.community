@@ -15,7 +15,7 @@ const spawnerFields = (env: FieldEnv) => ({
     .regex(ID_PATTERN)
     .optional()
     .describe("The entity type it spawns, spawn-only types included; give this or `prefab`.")
-    .meta({ title: "Type", group: "spawn" }),
+    .meta({ title: "Type", group: "spawn", widget: "type" }),
   prefab: assetField(env, "prefab", "The prefab it places; give this or `type`.")
     .optional()
     .meta({ title: "Prefab", group: "spawn" }),

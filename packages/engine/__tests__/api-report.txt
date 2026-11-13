@@ -4116,6 +4116,7 @@ type BehaviorSectionInfo = {
     remove?: OpBatch;
 };
 type EnumOption = {
+    description?: string;
     label: string;
     value: number | string;
 };
@@ -4187,6 +4188,8 @@ type FieldWidget = {
     kind: "switch";
 } | {
     kind: "tags";
+    options?: string[];
+    placeholder?: string;
 } | {
     kind: "text";
     maxLength?: number;
@@ -4283,14 +4286,14 @@ declare function instanceZBatch(model: InstanceTransformModel, text: string): {
     error: string;
     ok: false;
 };
-declare function modelBatch(field: ModelField, input: unknown, targets: readonly RefTarget[], def: SceneDefinition): {
+declare function modelBatch(field: ModelField, input: unknown, targets: readonly RefTarget[], def: SceneDefinition, registry?: Registry): {
     batch: OpBatch;
     ok: true;
 } | {
     error: string;
     ok: false;
 };
-declare function modelOps(field: ModelField, input: unknown, targets: readonly RefTarget[]): ModelEdit;
+declare function modelOps(field: ModelField, input: unknown, targets: readonly RefTarget[], registry?: Registry): ModelEdit;
 declare function paramBatch(model: InstanceParamsModel, param: ParamModel, input: unknown, field?: ModelField): {
     batch: OpBatch;
     ok: true;

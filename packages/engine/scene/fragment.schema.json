@@ -157,11 +157,13 @@
                     },
                     "frame": {
                       "description": "The atlas frame's name; required for an atlas.",
+                      "group": "assets",
                       "type": "string"
                     },
                     "size": {
                       "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
                       "unit": "m",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -180,11 +182,13 @@
                     },
                     "scale": {
                       "description": "Used when size is omitted; default 1.",
+                      "group": "placement",
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "anchor": {
                       "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -202,6 +206,7 @@
                       ]
                     },
                     "offset": {
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -221,36 +226,43 @@
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
                       "widget": "color",
+                      "group": "look",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 16777215
                     },
                     "alpha": {
                       "description": "Opacity, 0–1; default 1.",
+                      "group": "look",
                       "type": "number",
                       "minimum": 0,
                       "maximum": 1
                     },
                     "flipX": {
+                      "group": "look",
                       "type": "boolean",
                       "description": "Mirror left–right; an instance flip toggles it."
                     },
                     "flipY": {
                       "description": "Mirror top–bottom.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "blend": {
                       "description": "How it composites over what is below; default the material's, else normal.",
+                      "group": "look",
                       "type": "string",
                       "enum": ["normal", "add", "multiply", "screen"]
                     },
                     "tile": {
                       "description": "Repeat the frame across size.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
                       "unit": "px",
+                      "group": "look",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -285,6 +297,7 @@
                     },
                     "turn": {
                       "description": "Turn with the pose; default true.",
+                      "group": "placement",
                       "type": "boolean"
                     }
                   },
@@ -433,6 +446,7 @@
                       "properties": {
                         "groups": {
                           "description": "Only bodies in one of these collision groups.",
+                          "widget": "collision-group",
                           "minItems": 1,
                           "type": "array",
                           "items": {
@@ -740,7 +754,29 @@
                       "enum": ["revolute", "prismatic", "rope", "weld", "spring"],
                       "description": "revolute: a hinge. prismatic: a slider along axis. rope: at most length apart. weld: held rigidly. spring: pulled toward length apart.",
                       "title": "Kind",
-                      "group": "joint"
+                      "group": "joint",
+                      "options": {
+                        "revolute": {
+                          "label": "Hinge",
+                          "description": "Turns about the anchors, within limits."
+                        },
+                        "prismatic": {
+                          "label": "Slider",
+                          "description": "Slides along axis, within limits."
+                        },
+                        "rope": {
+                          "label": "Rope",
+                          "description": "Keeps them at most length apart."
+                        },
+                        "weld": {
+                          "label": "Weld",
+                          "description": "Holds them rigidly together."
+                        },
+                        "spring": {
+                          "label": "Spring",
+                          "description": "Pulls them toward length apart."
+                        }
+                      }
                     },
                     "to": {
                       "type": "string",
@@ -925,6 +961,7 @@
                       "description": "The entity type it spawns, spawn-only types included; give this or `prefab`.",
                       "title": "Type",
                       "group": "spawn",
+                      "widget": "type",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },
@@ -1140,11 +1177,13 @@
                     },
                     "frame": {
                       "description": "The atlas frame's name; required for an atlas.",
+                      "group": "assets",
                       "type": "string"
                     },
                     "size": {
                       "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
                       "unit": "m",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -1163,11 +1202,13 @@
                     },
                     "scale": {
                       "description": "Used when size is omitted; default 1.",
+                      "group": "placement",
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "anchor": {
                       "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -1185,6 +1226,7 @@
                       ]
                     },
                     "offset": {
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -1204,36 +1246,43 @@
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
                       "widget": "color",
+                      "group": "look",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 16777215
                     },
                     "alpha": {
                       "description": "Opacity, 0–1; default 1.",
+                      "group": "look",
                       "type": "number",
                       "minimum": 0,
                       "maximum": 1
                     },
                     "flipX": {
+                      "group": "look",
                       "type": "boolean",
                       "description": "Mirror left–right; an instance flip toggles it."
                     },
                     "flipY": {
                       "description": "Mirror top–bottom.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "blend": {
                       "description": "How it composites over what is below; default the material's, else normal.",
+                      "group": "look",
                       "type": "string",
                       "enum": ["normal", "add", "multiply", "screen"]
                     },
                     "tile": {
                       "description": "Repeat the frame across size.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
                       "unit": "px",
+                      "group": "look",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -1268,6 +1317,7 @@
                     },
                     "turn": {
                       "description": "Turn with the pose; default true.",
+                      "group": "placement",
                       "type": "boolean"
                     }
                   },
@@ -1416,6 +1466,7 @@
                       "properties": {
                         "groups": {
                           "description": "Only bodies in one of these collision groups.",
+                          "widget": "collision-group",
                           "minItems": 1,
                           "type": "array",
                           "items": {
@@ -1723,7 +1774,29 @@
                       "enum": ["revolute", "prismatic", "rope", "weld", "spring"],
                       "description": "revolute: a hinge. prismatic: a slider along axis. rope: at most length apart. weld: held rigidly. spring: pulled toward length apart.",
                       "title": "Kind",
-                      "group": "joint"
+                      "group": "joint",
+                      "options": {
+                        "revolute": {
+                          "label": "Hinge",
+                          "description": "Turns about the anchors, within limits."
+                        },
+                        "prismatic": {
+                          "label": "Slider",
+                          "description": "Slides along axis, within limits."
+                        },
+                        "rope": {
+                          "label": "Rope",
+                          "description": "Keeps them at most length apart."
+                        },
+                        "weld": {
+                          "label": "Weld",
+                          "description": "Holds them rigidly together."
+                        },
+                        "spring": {
+                          "label": "Spring",
+                          "description": "Pulls them toward length apart."
+                        }
+                      }
                     },
                     "to": {
                       "type": "string",
@@ -1908,6 +1981,7 @@
                       "description": "The entity type it spawns, spawn-only types included; give this or `prefab`.",
                       "title": "Type",
                       "group": "spawn",
+                      "widget": "type",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },
@@ -2115,11 +2189,13 @@
                     },
                     "frame": {
                       "description": "The atlas frame's name; required for an atlas.",
+                      "group": "assets",
                       "type": "string"
                     },
                     "size": {
                       "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
                       "unit": "m",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -2138,11 +2214,13 @@
                     },
                     "scale": {
                       "description": "Used when size is omitted; default 1.",
+                      "group": "placement",
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "anchor": {
                       "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -2160,6 +2238,7 @@
                       ]
                     },
                     "offset": {
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -2179,36 +2258,43 @@
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
                       "widget": "color",
+                      "group": "look",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 16777215
                     },
                     "alpha": {
                       "description": "Opacity, 0–1; default 1.",
+                      "group": "look",
                       "type": "number",
                       "minimum": 0,
                       "maximum": 1
                     },
                     "flipX": {
+                      "group": "look",
                       "type": "boolean",
                       "description": "Mirror left–right; an instance flip toggles it."
                     },
                     "flipY": {
                       "description": "Mirror top–bottom.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "blend": {
                       "description": "How it composites over what is below; default the material's, else normal.",
+                      "group": "look",
                       "type": "string",
                       "enum": ["normal", "add", "multiply", "screen"]
                     },
                     "tile": {
                       "description": "Repeat the frame across size.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
                       "unit": "px",
+                      "group": "look",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -2243,6 +2329,7 @@
                     },
                     "turn": {
                       "description": "Turn with the pose; default true.",
+                      "group": "placement",
                       "type": "boolean"
                     }
                   },
@@ -2442,6 +2529,7 @@
                       "description": "The collision group it belongs to, one of the game's; omitted: sensor for a sensor (dynamic in a project with no game), dynamic on a dynamic body, else static.",
                       "title": "Collision group",
                       "group": "collider",
+                      "widget": "collision-group",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },
@@ -2635,6 +2723,7 @@
                       "properties": {
                         "groups": {
                           "description": "Only bodies in one of these collision groups.",
+                          "widget": "collision-group",
                           "minItems": 1,
                           "type": "array",
                           "items": {
@@ -2942,7 +3031,29 @@
                       "enum": ["revolute", "prismatic", "rope", "weld", "spring"],
                       "description": "revolute: a hinge. prismatic: a slider along axis. rope: at most length apart. weld: held rigidly. spring: pulled toward length apart.",
                       "title": "Kind",
-                      "group": "joint"
+                      "group": "joint",
+                      "options": {
+                        "revolute": {
+                          "label": "Hinge",
+                          "description": "Turns about the anchors, within limits."
+                        },
+                        "prismatic": {
+                          "label": "Slider",
+                          "description": "Slides along axis, within limits."
+                        },
+                        "rope": {
+                          "label": "Rope",
+                          "description": "Keeps them at most length apart."
+                        },
+                        "weld": {
+                          "label": "Weld",
+                          "description": "Holds them rigidly together."
+                        },
+                        "spring": {
+                          "label": "Spring",
+                          "description": "Pulls them toward length apart."
+                        }
+                      }
                     },
                     "to": {
                       "type": "string",
@@ -3127,6 +3238,7 @@
                       "description": "The entity type it spawns, spawn-only types included; give this or `prefab`.",
                       "title": "Type",
                       "group": "spawn",
+                      "widget": "type",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },
@@ -3393,11 +3505,13 @@
                     },
                     "frame": {
                       "description": "The atlas frame's name; required for an atlas.",
+                      "group": "assets",
                       "type": "string"
                     },
                     "size": {
                       "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
                       "unit": "m",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -3416,11 +3530,13 @@
                     },
                     "scale": {
                       "description": "Used when size is omitted; default 1.",
+                      "group": "placement",
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "anchor": {
                       "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -3438,6 +3554,7 @@
                       ]
                     },
                     "offset": {
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -3457,36 +3574,43 @@
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
                       "widget": "color",
+                      "group": "look",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 16777215
                     },
                     "alpha": {
                       "description": "Opacity, 0–1; default 1.",
+                      "group": "look",
                       "type": "number",
                       "minimum": 0,
                       "maximum": 1
                     },
                     "flipX": {
+                      "group": "look",
                       "type": "boolean",
                       "description": "Mirror left–right; an instance flip toggles it."
                     },
                     "flipY": {
                       "description": "Mirror top–bottom.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "blend": {
                       "description": "How it composites over what is below; default the material's, else normal.",
+                      "group": "look",
                       "type": "string",
                       "enum": ["normal", "add", "multiply", "screen"]
                     },
                     "tile": {
                       "description": "Repeat the frame across size.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
                       "unit": "px",
+                      "group": "look",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -3521,6 +3645,7 @@
                     },
                     "turn": {
                       "description": "Turn with the pose; default true.",
+                      "group": "placement",
                       "type": "boolean"
                     }
                   },
@@ -3669,6 +3794,7 @@
                       "properties": {
                         "groups": {
                           "description": "Only bodies in one of these collision groups.",
+                          "widget": "collision-group",
                           "minItems": 1,
                           "type": "array",
                           "items": {
@@ -3976,7 +4102,29 @@
                       "enum": ["revolute", "prismatic", "rope", "weld", "spring"],
                       "description": "revolute: a hinge. prismatic: a slider along axis. rope: at most length apart. weld: held rigidly. spring: pulled toward length apart.",
                       "title": "Kind",
-                      "group": "joint"
+                      "group": "joint",
+                      "options": {
+                        "revolute": {
+                          "label": "Hinge",
+                          "description": "Turns about the anchors, within limits."
+                        },
+                        "prismatic": {
+                          "label": "Slider",
+                          "description": "Slides along axis, within limits."
+                        },
+                        "rope": {
+                          "label": "Rope",
+                          "description": "Keeps them at most length apart."
+                        },
+                        "weld": {
+                          "label": "Weld",
+                          "description": "Holds them rigidly together."
+                        },
+                        "spring": {
+                          "label": "Spring",
+                          "description": "Pulls them toward length apart."
+                        }
+                      }
                     },
                     "to": {
                       "type": "string",
@@ -4161,6 +4309,7 @@
                       "description": "The entity type it spawns, spawn-only types included; give this or `prefab`.",
                       "title": "Type",
                       "group": "spawn",
+                      "widget": "type",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },
@@ -4369,11 +4518,13 @@
                     },
                     "frame": {
                       "description": "The atlas frame's name; required for an atlas.",
+                      "group": "assets",
                       "type": "string"
                     },
                     "size": {
                       "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
                       "unit": "m",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -4392,11 +4543,13 @@
                     },
                     "scale": {
                       "description": "Used when size is omitted; default 1.",
+                      "group": "placement",
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "anchor": {
                       "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -4414,6 +4567,7 @@
                       ]
                     },
                     "offset": {
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -4433,36 +4587,43 @@
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
                       "widget": "color",
+                      "group": "look",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 16777215
                     },
                     "alpha": {
                       "description": "Opacity, 0–1; default 1.",
+                      "group": "look",
                       "type": "number",
                       "minimum": 0,
                       "maximum": 1
                     },
                     "flipX": {
+                      "group": "look",
                       "type": "boolean",
                       "description": "Mirror left–right; an instance flip toggles it."
                     },
                     "flipY": {
                       "description": "Mirror top–bottom.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "blend": {
                       "description": "How it composites over what is below; default the material's, else normal.",
+                      "group": "look",
                       "type": "string",
                       "enum": ["normal", "add", "multiply", "screen"]
                     },
                     "tile": {
                       "description": "Repeat the frame across size.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
                       "unit": "px",
+                      "group": "look",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -4497,6 +4658,7 @@
                     },
                     "turn": {
                       "description": "Turn with the pose; default true.",
+                      "group": "placement",
                       "type": "boolean"
                     }
                   },
@@ -4645,6 +4807,7 @@
                       "properties": {
                         "groups": {
                           "description": "Only bodies in one of these collision groups.",
+                          "widget": "collision-group",
                           "minItems": 1,
                           "type": "array",
                           "items": {
@@ -4952,7 +5115,29 @@
                       "enum": ["revolute", "prismatic", "rope", "weld", "spring"],
                       "description": "revolute: a hinge. prismatic: a slider along axis. rope: at most length apart. weld: held rigidly. spring: pulled toward length apart.",
                       "title": "Kind",
-                      "group": "joint"
+                      "group": "joint",
+                      "options": {
+                        "revolute": {
+                          "label": "Hinge",
+                          "description": "Turns about the anchors, within limits."
+                        },
+                        "prismatic": {
+                          "label": "Slider",
+                          "description": "Slides along axis, within limits."
+                        },
+                        "rope": {
+                          "label": "Rope",
+                          "description": "Keeps them at most length apart."
+                        },
+                        "weld": {
+                          "label": "Weld",
+                          "description": "Holds them rigidly together."
+                        },
+                        "spring": {
+                          "label": "Spring",
+                          "description": "Pulls them toward length apart."
+                        }
+                      }
                     },
                     "to": {
                       "type": "string",
@@ -5137,6 +5322,7 @@
                       "description": "The entity type it spawns, spawn-only types included; give this or `prefab`.",
                       "title": "Type",
                       "group": "spawn",
+                      "widget": "type",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },
@@ -5335,11 +5521,13 @@
                     },
                     "frame": {
                       "description": "The atlas frame's name; required for an atlas.",
+                      "group": "assets",
                       "type": "string"
                     },
                     "size": {
                       "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
                       "unit": "m",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -5358,11 +5546,13 @@
                     },
                     "scale": {
                       "description": "Used when size is omitted; default 1.",
+                      "group": "placement",
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "anchor": {
                       "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -5380,6 +5570,7 @@
                       ]
                     },
                     "offset": {
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -5399,36 +5590,43 @@
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
                       "widget": "color",
+                      "group": "look",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 16777215
                     },
                     "alpha": {
                       "description": "Opacity, 0–1; default 1.",
+                      "group": "look",
                       "type": "number",
                       "minimum": 0,
                       "maximum": 1
                     },
                     "flipX": {
+                      "group": "look",
                       "type": "boolean",
                       "description": "Mirror left–right; an instance flip toggles it."
                     },
                     "flipY": {
                       "description": "Mirror top–bottom.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "blend": {
                       "description": "How it composites over what is below; default the material's, else normal.",
+                      "group": "look",
                       "type": "string",
                       "enum": ["normal", "add", "multiply", "screen"]
                     },
                     "tile": {
                       "description": "Repeat the frame across size.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
                       "unit": "px",
+                      "group": "look",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -5463,6 +5661,7 @@
                     },
                     "turn": {
                       "description": "Turn with the pose; default true.",
+                      "group": "placement",
                       "type": "boolean"
                     }
                   },
@@ -5662,6 +5861,7 @@
                       "description": "The collision group it belongs to, one of the game's; omitted: sensor for a sensor (dynamic in a project with no game), dynamic on a dynamic body, else static.",
                       "title": "Collision group",
                       "group": "collider",
+                      "widget": "collision-group",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },
@@ -5855,6 +6055,7 @@
                       "properties": {
                         "groups": {
                           "description": "Only bodies in one of these collision groups.",
+                          "widget": "collision-group",
                           "minItems": 1,
                           "type": "array",
                           "items": {
@@ -6162,7 +6363,29 @@
                       "enum": ["revolute", "prismatic", "rope", "weld", "spring"],
                       "description": "revolute: a hinge. prismatic: a slider along axis. rope: at most length apart. weld: held rigidly. spring: pulled toward length apart.",
                       "title": "Kind",
-                      "group": "joint"
+                      "group": "joint",
+                      "options": {
+                        "revolute": {
+                          "label": "Hinge",
+                          "description": "Turns about the anchors, within limits."
+                        },
+                        "prismatic": {
+                          "label": "Slider",
+                          "description": "Slides along axis, within limits."
+                        },
+                        "rope": {
+                          "label": "Rope",
+                          "description": "Keeps them at most length apart."
+                        },
+                        "weld": {
+                          "label": "Weld",
+                          "description": "Holds them rigidly together."
+                        },
+                        "spring": {
+                          "label": "Spring",
+                          "description": "Pulls them toward length apart."
+                        }
+                      }
                     },
                     "to": {
                       "type": "string",
@@ -6347,6 +6570,7 @@
                       "description": "The entity type it spawns, spawn-only types included; give this or `prefab`.",
                       "title": "Type",
                       "group": "spawn",
+                      "widget": "type",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },
@@ -6561,11 +6785,13 @@
                     },
                     "frame": {
                       "description": "The atlas frame's name; required for an atlas.",
+                      "group": "assets",
                       "type": "string"
                     },
                     "size": {
                       "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
                       "unit": "m",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -6584,11 +6810,13 @@
                     },
                     "scale": {
                       "description": "Used when size is omitted; default 1.",
+                      "group": "placement",
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "anchor": {
                       "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -6606,6 +6834,7 @@
                       ]
                     },
                     "offset": {
+                      "group": "placement",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -6625,36 +6854,43 @@
                     "tint": {
                       "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
                       "widget": "color",
+                      "group": "look",
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 16777215
                     },
                     "alpha": {
                       "description": "Opacity, 0–1; default 1.",
+                      "group": "look",
                       "type": "number",
                       "minimum": 0,
                       "maximum": 1
                     },
                     "flipX": {
+                      "group": "look",
                       "type": "boolean",
                       "description": "Mirror left–right; an instance flip toggles it."
                     },
                     "flipY": {
                       "description": "Mirror top–bottom.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "blend": {
                       "description": "How it composites over what is below; default the material's, else normal.",
+                      "group": "look",
                       "type": "string",
                       "enum": ["normal", "add", "multiply", "screen"]
                     },
                     "tile": {
                       "description": "Repeat the frame across size.",
+                      "group": "look",
                       "type": "boolean"
                     },
                     "nineSlice": {
                       "description": "Insets in texture px; default the import's.",
                       "unit": "px",
+                      "group": "look",
                       "type": "array",
                       "prefixItems": [
                         {
@@ -6689,6 +6925,7 @@
                     },
                     "turn": {
                       "description": "Turn with the pose; default true.",
+                      "group": "placement",
                       "type": "boolean"
                     }
                   },
@@ -6888,6 +7125,7 @@
                       "description": "The collision group it belongs to, one of the game's; omitted: sensor for a sensor (dynamic in a project with no game), dynamic on a dynamic body, else static.",
                       "title": "Collision group",
                       "group": "collider",
+                      "widget": "collision-group",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },
@@ -7081,6 +7319,7 @@
                       "properties": {
                         "groups": {
                           "description": "Only bodies in one of these collision groups.",
+                          "widget": "collision-group",
                           "minItems": 1,
                           "type": "array",
                           "items": {
@@ -7388,7 +7627,29 @@
                       "enum": ["revolute", "prismatic", "rope", "weld", "spring"],
                       "description": "revolute: a hinge. prismatic: a slider along axis. rope: at most length apart. weld: held rigidly. spring: pulled toward length apart.",
                       "title": "Kind",
-                      "group": "joint"
+                      "group": "joint",
+                      "options": {
+                        "revolute": {
+                          "label": "Hinge",
+                          "description": "Turns about the anchors, within limits."
+                        },
+                        "prismatic": {
+                          "label": "Slider",
+                          "description": "Slides along axis, within limits."
+                        },
+                        "rope": {
+                          "label": "Rope",
+                          "description": "Keeps them at most length apart."
+                        },
+                        "weld": {
+                          "label": "Weld",
+                          "description": "Holds them rigidly together."
+                        },
+                        "spring": {
+                          "label": "Spring",
+                          "description": "Pulls them toward length apart."
+                        }
+                      }
                     },
                     "to": {
                       "type": "string",
@@ -7573,6 +7834,7 @@
                       "description": "The entity type it spawns, spawn-only types included; give this or `prefab`.",
                       "title": "Type",
                       "group": "spawn",
+                      "widget": "type",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../../game/define";
-import type { SceneDefinition } from "../../scene/types";
+import type { EntityDef, Pt, SceneDefinition } from "../../scene/types";
 import yard from "../../scenes/engine-yard.json";
 import {
   gizmoTarget,
+  HANDLE_HIT_PX,
+  HANDLE_PX,
   hitHandle,
   resizeCursor,
   selectionHandles,
@@ -12,6 +14,7 @@ import {
   STALK_PX,
   targetHandles,
 } from "../gizmos";
+import type { GizmoHandle } from "../tools";
 
 const registry = createRegistry();
 const def = structuredClone(yard) as unknown as SceneDefinition;
@@ -116,6 +119,72 @@ describe("hitHandle", () => {
     expect(hitHandle(hs, [15.25, 8.05], 4 * S)).toBeUndefined();
     expect(hitHandle(hs, [13, 9], S)).toBeUndefined();
   });
+
+  it("takes the drawn square on top, else the nearest handle in reach", () => {
+    const hs: GizmoHandle[] = [
+      { id: "under", kind: "resize", at: [0, 0] },
+      { id: "over", kind: "vertex", at: [5, 0] },
+    ];
+    expect(hitHandle(hs, [3, 0], 1)!.id).toBe("over");
+    expect(hitHandle(hs, [0, 0], 1)!.id).toBe("under");
+    expect(hitHandle(hs, [-5, 0], 1)!.id).toBe("under");
+    expect(hitHandle([...hs, { id: "same", kind: "move", at: [5, 0] }], [5, 0], 1)!.id).toBe(
+      "same",
+    );
+  });
+});
+
+describe("a joint's stacked anchors on a thin collider", () => {
+  /** A 0.8 x 0.1 m chain link whose anchors meet `along` metres from its centre. */
+  const thinLink = (along: number, rotDeg: number): SceneDefinition => {
+    const rad = (rotDeg * Math.PI) / 180;
+    const meet: Pt = [10 + along * Math.cos(rad), 5 + along * Math.sin(rad)];
+    const post: EntityDef = { id: "post", type: "marker", at: meet };
+    const link: EntityDef = {
+      id: "link",
+      type: "marker",
+      at: [10, 5],
+      behaviors: {
+        body: {},
+        collider: { shape: ["box", 0, 0, 0.4, 0.05, rotDeg] },
+        joint: {
+          kind: "revolute",
+          to: "post",
+          anchorA: [meet[0] - 10, meet[1] - 5],
+          anchorB: [0, 0],
+        },
+      },
+    };
+    return { v: 1, name: "thin", bounds: [0, 0, 20, 20], entities: [post, link] };
+  };
+  const gap = (a: Pt, b: Pt, scale: number) =>
+    Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1])) * scale;
+  /** Whether some screen pixel of the handle's drawn square grabs it. */
+  const reachable = (hs: GizmoHandle[], id: string, scale: number) => {
+    const at = hs.find((h) => h.id === id)!.at;
+    const half = HANDLE_PX / 2;
+    for (let x = -half; x <= half; x++)
+      for (let y = -half; y <= half; y++)
+        if (hitHandle(hs, [at[0] + x / scale, at[1] + y / scale], scale)?.id === id) return true;
+    return false;
+  };
+
+  for (const scale of [32, 64, 90, 100])
+    for (const rotDeg of [0, 90])
+      it(`leaves every handle grabbable at ${scale} px per metre, turned ${rotDeg}°`, () => {
+        for (const along of [-0.4, -0.3, -0.26, -0.2, 0.1, 0.14, 0.3, 0.4]) {
+          const t = gizmoTarget(thinLink(along, rotDeg), registry, "link")!;
+          const hs = targetHandles(t, { scale });
+          const a = hs.find((h) => h.id === "joint:anchorA")!;
+          for (const h of hs)
+            if (h !== a && h.id.startsWith("collider:"))
+              expect(gap(a.at, h.at, scale), `${along}: ${h.id}`).toBeGreaterThanOrEqual(
+                2 * HANDLE_HIT_PX - 1e-6,
+              );
+          expect(hitHandle(hs, a.at, scale)?.id).toBe("joint:anchorA");
+          for (const h of hs) expect(reachable(hs, h.id, scale), `${along}: ${h.id}`).toBe(true);
+        }
+      });
 });
 
 describe("selectionHandles", () => {

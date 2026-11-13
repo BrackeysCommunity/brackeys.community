@@ -45,6 +45,13 @@ const registry = createRegistry(
         system: noSystem,
       }),
       defineEntityType({
+        type: "winch-prop",
+        description: "A prop its own system draws, with no body.",
+        base: "prop",
+        fields: { ...shape, density: z.number(), restitution: z.number() },
+        system: noSystem,
+      }),
+      defineEntityType({
         type: "crate",
         description: "A prop of the game's.",
         base: "prop",
@@ -75,6 +82,28 @@ describe("joint-ref-type from the registry", () => {
 
   it("refuses a game type that declares no body", () => {
     const [hit] = refTypes({ id: "post", type: "glow", shape: ["box", 5, 5, 0.2, 0.2] });
+    expect(hit?.entityIds).toEqual(["link", "post"]);
+  });
+
+  it("refuses a type based on a body-owning primitive that brings its own system", () => {
+    expect(registry.types.get("winch-prop")?.ownsBody).toBeUndefined();
+    const [hit] = refTypes({
+      id: "post",
+      type: "winch-prop",
+      shape: ["box", 5, 5, 0.2, 0.2],
+      density: 1,
+      restitution: 0,
+    });
+    expect(hit?.entityIds).toEqual(["link", "post"]);
+  });
+
+  it("refuses a body whose collider is a sensor, as the load does", () => {
+    const [hit] = refTypes({
+      id: "post",
+      type: "marker",
+      at: [5, 5],
+      behaviors: { collider: { shape: box, sensor: true }, body: { kind: "kinematic" } },
+    });
     expect(hit?.entityIds).toEqual(["link", "post"]);
   });
 

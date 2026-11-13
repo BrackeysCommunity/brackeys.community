@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
+import type { CharacterSystem } from "../game/behaviors/character-top-down";
 import type { JointBlock, JointSystem } from "../game/behaviors/joint";
 import { createRegistry } from "../game/define";
 import { composePose } from "../runtime/poses";
@@ -437,6 +438,33 @@ describe("joint", () => {
     expect(jointCount(rt)).toBe(1);
     expect(system.joined("bob")).toBe(true);
     rt.destroy();
+  });
+
+  it("a rope tied to a walking character pulls its dynamic end along", () => {
+    for (const kind of ["character-side-view", "character-top-down"] as const) {
+      const rt = load([
+        box("floor", [0, 1], { kind: "static", hw: 30, hh: 0.5 }),
+        {
+          id: "hero",
+          type: "marker",
+          at: [0, 0.2],
+          behaviors: { collider: { shape: ["box", 0, 0, 0.2, 0.2] }, [kind]: {} },
+        },
+        box("balloon", [-0.6, 0.2], {
+          kind: "dynamic",
+          hw: 0.1,
+          hh: 0.1,
+          joint: { kind: "rope", to: "hero", length: 0.6, anchorB: [0, 0] },
+        }),
+      ]);
+      expect(joints(rt).joined("balloon"), kind).toBe(true);
+      const characters = rt.ctx.behavior<CharacterSystem>(kind)!;
+      step(rt, 120, () => characters.setIntent("hero", { move: { x: 1, y: 0 } }));
+      const hero = pose(rt, "hero");
+      expect(hero.x, kind).toBeGreaterThan(2);
+      expect(distance(hero, pose(rt, "balloon")), kind).toBeLessThan(0.6 + 0.1);
+      rt.destroy();
+    }
   });
 
   it("refuses a joint to itself with joint-self", () => {

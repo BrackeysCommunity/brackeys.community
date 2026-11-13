@@ -214,10 +214,15 @@ function jointAnchorHandles(b: BehaviorGizmo): GizmoHandle[] {
   return out;
 }
 
+/** How many `ANCHOR_ASIDE_PX` steps out a stacked anchor may move looking for a clear spot. */
+const ANCHOR_ASIDE_STEPS = 3;
+
 /**
- * A spot `ANCHOR_ASIDE_PX` screen px from `at` whose hit box overlaps none
- * of `taken`: across the line from `at` to `toward` first, then along it.
- * The first candidate when none is clear.
+ * The nearest spot, in `ANCHOR_ASIDE_PX` screen px steps from `at`, whose
+ * hit box overlaps none of `taken`: at each step across the line from `at`
+ * to `toward` first, then along it, then the diagonals. On a thin collider
+ * the first step can land between two corner handles, so it steps further
+ * out rather than cover them. The first candidate when none is clear.
  */
 function clearSpot(at: Pt, toward: Pt, taken: readonly Pt[], scale: number): Pt {
   const dx = toward[0] - at[0];
@@ -229,16 +234,24 @@ function clearSpot(at: Pt, toward: Pt, taken: readonly Pt[], scale: number): Pt 
     [-uy, ux],
     [ux, uy],
     [-ux, -uy],
+    [ux + uy, uy - ux],
+    [ux - uy, uy + ux],
+    [-ux + uy, -uy - ux],
+    [-ux - uy, -uy + ux],
   ];
-  const spots = dirs.map(([x, y]): Pt => {
-    const d = ANCHOR_ASIDE_PX / scale / Math.max(Math.abs(x), Math.abs(y));
-    return [at[0] + x * d, at[1] + y * d];
-  });
   const clear = (p: Pt) =>
     taken.every(
       (q) => Math.max(Math.abs(p[0] - q[0]), Math.abs(p[1] - q[1])) >= (2 * HANDLE_HIT_PX) / scale,
     );
-  return spots.find(clear) ?? spots[0]!;
+  let first: Pt | undefined;
+  for (let step = 1; step <= ANCHOR_ASIDE_STEPS; step++)
+    for (const [x, y] of dirs) {
+      const d = (step * ANCHOR_ASIDE_PX) / scale / Math.max(Math.abs(x), Math.abs(y));
+      const spot: Pt = [at[0] + x * d, at[1] + y * d];
+      if (clear(spot)) return spot;
+      first ??= spot;
+    }
+  return first!;
 }
 
 /**
@@ -271,7 +284,12 @@ export function selectionHandles(box: Aabb, scale: number): GizmoHandle[] {
   ];
 }
 
-/** The topmost handle within `tolPx` screen px of `p` (the last one drawn wins). */
+/**
+ * The handle under `p`: the topmost one whose drawn square holds it, else
+ * the nearest within `tolPx` screen px (the topmost on a tie). A handle
+ * partly covered by a neighbour, such as a thin box's corners under a joint
+ * anchor, can still be grabbed where it shows.
+ */
 export function hitHandle(
   handles: readonly GizmoHandle[],
   p: Pt,
@@ -279,9 +297,17 @@ export function hitHandle(
   tolPx = HANDLE_HIT_PX,
 ): GizmoHandle | undefined {
   const tol = tolPx / scale;
+  const half = Math.min(HANDLE_PX / 2, tolPx) / scale;
+  let best: GizmoHandle | undefined;
+  let bestD = Infinity;
   for (let i = handles.length - 1; i >= 0; i--) {
     const h = handles[i]!;
-    if (Math.abs(h.at[0] - p[0]) <= tol && Math.abs(h.at[1] - p[1]) <= tol) return h;
+    const d = Math.max(Math.abs(h.at[0] - p[0]), Math.abs(h.at[1] - p[1]));
+    if (d <= half) return h;
+    if (d <= tol && d < bestD) {
+      best = h;
+      bestD = d;
+    }
   }
-  return undefined;
+  return best;
 }

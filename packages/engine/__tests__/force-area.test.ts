@@ -371,4 +371,36 @@ describe("force-area with no game", () => {
     expect(entered).toEqual(["crate"]);
     rt.destroy();
   });
+
+  it("filters by collision group without physics, and pushes the characters it takes", () => {
+    const gameless = createRegistry();
+    for (const kind of ["character-side-view", "character-top-down"] as const) {
+      const rt = createSceneRuntime({ rapier: null, view: null, game: null });
+      const hero = (id: string, at: [number, number]): EntityDef => ({
+        id,
+        type: "marker",
+        at,
+        behaviors: { collider: { shape: ["box", 0, 0, 0.2, 0.2] }, [kind]: {} },
+      });
+      const def: SceneDefinition = {
+        ...scene([], "none"),
+        entities: [
+          area("vent", { force: [60, 0], affects: { groups: ["dynamic"] } }, ["box", 0, 0, 3, 3]),
+          area("dud", { force: [60, 0], affects: { groups: ["static"] } }, ["box", 10, 0, 3, 3]),
+          hero("hero", [0, 0]),
+          hero("still", [10, 0]),
+        ],
+      };
+      delete def.game;
+      expect(validateScene(def, gameless)).toEqual([]);
+      const report = rt.load(expandScene(def, gameless));
+      if (!report.ok) throw new Error(report.error);
+      expect(areas(rt).sample({ x: 0, y: 0 }, "hero")).toEqual({ x: 60, y: 0 });
+      expect(areas(rt).sample({ x: 10, y: 0 }, "still")).toEqual({ x: 0, y: 0 });
+      steps(rt, 5);
+      expect(rt.ctx.poses.get("hero")!.x, kind).toBeGreaterThan(0.01);
+      expect(rt.ctx.poses.get("still")!.x, kind).toBe(10);
+      rt.destroy();
+    }
+  });
 });

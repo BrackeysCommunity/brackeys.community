@@ -630,6 +630,51 @@ describe("createRegistry behavior conflicts and default actions", () => {
     expect(r.behaviorRules("marker").allowed).toContain("body");
     expect(r.behaviorRules("decor").allowed).toContain("collider");
   });
+
+  it("passes the base primitive's ban and ownsBody to a type with no system of its own", () => {
+    const goal = defineEntityType({
+      type: "goal",
+      description: "A finish zone.",
+      base: "sensor",
+      fields: { shape: shapeField("Zone.") },
+      behaviors: { forbidden: ["lifetime"] },
+    });
+    const winch = defineEntityType({
+      type: "winch",
+      description: "A prop its own system draws, with no body.",
+      base: "prop",
+      fields: crate.fields,
+      system: () => ({ spawn() {}, despawn() {}, clear() {}, size: () => 0 }),
+    });
+    const r = createRegistry(game({ types: [crate, flag, goal, winch] }));
+    for (const type of ["crate", "goal"]) {
+      const allowed = r.behaviorRules(type).allowed;
+      expect(allowed, type).not.toContain("body");
+      expect(allowed, type).not.toContain("collider");
+      expect(allowed, type).toContain("sprite");
+    }
+    expect(r.behaviorRules("goal").allowed).not.toContain("lifetime");
+    expect(r.types.get("crate")?.ownsBody).toBe(true);
+    expect(r.types.get("goal")?.ownsBody).toBeUndefined();
+    expect(r.behaviorRules("winch").allowed).toContain("collider");
+    expect(r.types.get("winch")?.ownsBody).toBeUndefined();
+  });
+
+  it("refuses a based type that requires or defaults a behavior its base forbids", () => {
+    const pellet = defineEntityType({
+      type: "pellet",
+      description: "A prop that also asks for a body.",
+      base: "prop",
+      fields: crate.fields,
+      behaviors: { required: { body: {} }, defaults: { collider: { sensor: true } } },
+    });
+    expect(problems(() => createRegistry(game({ types: [crate, flag, pellet] })))).toEqual(
+      expect.arrayContaining([
+        'type "pellet" both requires and forbids "body"',
+        'type "pellet" gives defaults for "collider", which it forbids',
+      ]),
+    );
+  });
 });
 
 describe("createRegistry layers", () => {

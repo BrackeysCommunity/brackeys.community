@@ -2541,6 +2541,13 @@
 
   .je-insp-error {
     color: var(--je-danger);
+    overflow-wrap: anywhere;
+  }
+
+  .je-insp-param-note {
+    color: var(--je-muted-fg);
+    font-size: 11px;
+    font-style: italic;
   }
 
   .je-insp-stack {

@@ -84,6 +84,29 @@ describe("EditorInspector: behavior fields on an instance child", () => {
     expect(session.getDoc().instances![0]!.overrides).toBeUndefined();
   });
 
+  it("marks a field the instance's param sets, and says when an override beats it", () => {
+    const session = setup(["runner/hero"]);
+    render(<EditorInspector session={session} />);
+    const noted = () => [...document.querySelectorAll<HTMLElement>(".je-insp-param-note")];
+    expect(noted().map((n) => n.textContent)).toEqual(["from param jumpHeight"]);
+    expect(
+      within(noted()[0]!.closest("[data-param-set]") as HTMLElement).getByLabelText(JUMP),
+    ).toBeTruthy();
+    commit(JUMP, "1");
+    expect(noted().map((n) => n.textContent)).toEqual(["overrides param jumpHeight"]);
+    expect(noted()[0]!.closest("[data-overridden]")).toBeTruthy();
+  });
+
+  it("marks nothing when the instance leaves the param unset", () => {
+    const session = setup(["runner/hero"]);
+    session.dispatch({
+      label: "Clear",
+      ops: [{ op: "setParam", ref: "runner", name: "jumpHeight", value: null }],
+    });
+    render(<EditorInspector session={session} />);
+    expect(document.querySelectorAll(".je-insp-param-note")).toHaveLength(0);
+  });
+
   it("notes on the instance's param the override that beats it", () => {
     const session = setup(["runner/hero"]);
     const { unmount } = render(<EditorInspector session={session} />);

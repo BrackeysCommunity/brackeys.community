@@ -283,7 +283,14 @@ export function createTacticsMenu(
     return panel;
   }
 
-  function hide(): void {
+  /**
+   * Removes the screen. Keys reach the game only while its canvas has focus,
+   * so a level that replaces the screen takes the focus a button of it held
+   * (or that nothing held) instead of leaving it on the page.
+   */
+  function hide(handBack = false): void {
+    const active = doc.activeElement;
+    const held = !!root && (!active || active === doc.body || root.contains(active));
     listing++;
     saved = { newest: null, loading: false, error: null };
     offAction?.();
@@ -292,6 +299,7 @@ export function createTacticsMenu(
     root = null;
     primary = null;
     shown = null;
+    if (handBack && held) ctx.canvas.focus({ preventScroll: true });
   }
 
   // A pad's confirm presses the screen's button; a focused button already answers Enter itself.
@@ -316,7 +324,7 @@ export function createTacticsMenu(
 
   function render(slice: TacticsFlowSlice | null): void {
     const flow = slice?.flow;
-    if (!flow || flow.screen === "level") return hide();
+    if (!flow || flow.screen === "level") return hide(!!flow);
     const key = JSON.stringify([flow.screen, flow.scene, flow.next, flow.progress]);
     if (key === shown) return;
     const refocus = !root || root.dataset.screen !== flow.screen;

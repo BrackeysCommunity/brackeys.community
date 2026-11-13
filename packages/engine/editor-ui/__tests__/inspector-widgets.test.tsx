@@ -302,6 +302,101 @@ describe("the inspector's asset picker", () => {
   });
 });
 
+describe("the inspector's behavior edits", () => {
+  const yard = (behaviors: Record<string, unknown>): SceneDefinition => ({
+    v: 2,
+    name: "joint-yard",
+    bounds: [0, 0, 20, 20],
+    settings: { physics: "rapier" },
+    entities: [
+      { id: "crate", type: "prop", shape: ["box", 8, 5, 0.5, 0.5] },
+      {
+        id: "hero",
+        type: "marker",
+        at: [5, 3],
+        behaviors: { collider: { shape: ["box", 0, 0, 0.25, 0.25] }, body: {}, ...behaviors },
+      },
+    ],
+  });
+  const open = (def: SceneDefinition) => {
+    const session = createEditorSession({
+      doc: sceneToDoc(def, { key: sequentialKeys("j") }),
+      origin: ada,
+      name: "joint-yard",
+      registry: createRegistry(),
+      issuesDebounceMs: 0,
+    });
+    session.select(["hero"]);
+    render(<EditorInspector session={session} />);
+    const block = (name: string) =>
+      (
+        session.getDoc().entities!.find((e) => e.id === "hero")!.behaviors as Record<
+          string,
+          unknown
+        >
+      )[name] as Record<string, unknown>;
+    return { session, block };
+  };
+  const type = (label: string, value: string) => {
+    const input = screen.getByLabelText(label) as HTMLInputElement;
+    fireEvent.change(input, { target: { value } });
+    fireEvent.keyDown(input, { key: "Enter" });
+  };
+
+  it("turns a hinge into a rope from the Kind select, and shows its length", async () => {
+    const { block } = open(yard({ joint: { kind: "revolute", to: "crate", limits: [-1, 1] } }));
+    fireEvent.click(screen.getByRole("combobox", { name: "behaviors.joint.kind" }));
+    choose(await screen.findByRole("option", { name: "Rope" }));
+    expect(block("joint")).toEqual({ kind: "rope", to: "crate", length: 1 });
+    expect(await screen.findByLabelText("behaviors.joint.length")).toBeTruthy();
+    expect(screen.queryByLabelText("behaviors.joint.limits.low")).toBeNull();
+  });
+
+  it("adds a motor from its Velocity field", () => {
+    const { block } = open(yard({ joint: { kind: "revolute", to: "crate" } }));
+    type("behaviors.joint.motor.velocity", "90");
+    expect(block("joint").motor).toEqual({ velocity: Math.PI / 2, maxForce: 1 });
+  });
+
+  it("starts a range from one typed end without inverting it, and labels each end", () => {
+    const { block } = open(yard({ joint: { kind: "revolute", to: "crate" } }));
+    const row = screen
+      .getByLabelText("behaviors.joint.limits.low")
+      .closest(".je-insp-field") as HTMLElement;
+    expect([...row.querySelectorAll(".je-insp-suffix")].map((s) => s.textContent)).toEqual([
+      "min",
+      "max",
+      "deg",
+    ]);
+    type("behaviors.joint.limits.low", "30");
+    expect(block("joint").limits).toEqual([Math.PI / 6, Math.PI / 6]);
+  });
+
+  it("names the field a refusal is about by its title, not the op path", () => {
+    open(yard({ joint: { kind: "revolute", to: "crate", limits: [0, 1] } }));
+    type("behaviors.joint.limits.low", "90");
+    const error = document.querySelector(".je-insp-error")!;
+    expect(error.textContent).toBe("Joint: limits: low must not exceed high");
+  });
+
+  it("adds a force area's groups from the game's collision groups", async () => {
+    const { block } = open(
+      yard({
+        collider: { shape: ["box", 0, 0, 1, 1], sensor: true },
+        body: undefined,
+        "force-area": { force: [0, -20] },
+      }),
+    );
+    const groups = createRegistry().collisionGroupNames;
+    fireEvent.click(screen.getByRole("combobox", { name: "behaviors.force-area.affects.groups" }));
+    choose(await screen.findByRole("option", { name: groups[0] }));
+    expect(block("force-area").affects).toEqual({ groups: [groups[0]] });
+    expect(
+      screen.getByLabelText("behaviors.force-area.affects.tags").getAttribute("placeholder"),
+    ).toBe("Add a tag");
+  });
+});
+
 describe("the shared field widgets", () => {
   const SCHEMA = z.object({
     lives: z.number().int().min(1).max(9).optional().describe("Lives per run."),

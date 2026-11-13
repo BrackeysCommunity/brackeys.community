@@ -600,7 +600,8 @@ export type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
   /**
    * Its system gives each entity a physics body with a collider that isn't a
    * sensor, as solid, prop and follower do: a joint's `to` can name it.
-   * Omitted, a type with a `base` takes its base primitive's.
+   * Omitted, a type with a `base` and no system of its own takes its base
+   * primitive's.
    */
   ownsBody?: true;
   inspector?: { label?: string; group?: string; order?: readonly string[] };
@@ -612,7 +613,10 @@ export type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
     required?: Readonly<Record<BehaviorName, Record<string, unknown>>>;
     /** Field defaults for an optional behavior when an entity of this type carries it. */
     defaults?: Readonly<Record<BehaviorName, Record<string, unknown>>>;
-    /** Refused on this type; "all" allows only `required`. */
+    /**
+     * Refused on this type; "all" allows only `required`. A type with a `base`
+     * and no system of its own also refuses what its base primitive refuses.
+     */
     forbidden?: readonly BehaviorName[] | "all";
   };
 };

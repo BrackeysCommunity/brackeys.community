@@ -60,7 +60,8 @@ peer range that excludes the release that draws nothing on Apple GPUs.
   a sensor, dynamic for a sensor in a project with no game, else static),
   `density`, and `friction` and `restitution` (its
   own win over the material's). Without physics, fixed and kinematic
-  colliders go to the geometry world.
+  colliders go to the geometry world. A `group` the game doesn't declare
+  is a `schema` error naming the nearest one.
 - `body` behavior: makes an entity's collider a dynamic, kinematic or static
   body, with the prop's body fields (`gravityScale`, `linearDamping`,
   `angularDamping`, `fixedRotation`, `ccd`). A dynamic body writes the
@@ -76,8 +77,8 @@ peer range that excludes the release that draws nothing on Apple GPUs.
   `prefab` instances (through `ctx.instantiate`) at `rate` a second up to
   `cap` live, plus `burst` on its first active tick, at the entity's pose
   plus a random offset within `spread` drawn from
-  `ctx.random.fork("spawner:<id>")`; sets `velocity` (turned with the
-  entity) on spawns with a dynamic body through `ctx.bodies`; `lifeMs` gives
+  `ctx.random.fork("spawner:<id>")` (a world save carries the stream on);
+  sets `velocity` (turned with the entity) on spawns with a dynamic body through `ctx.bodies`; `lifeMs` gives
   a type's spawn a `lifetime` block and a prefab instance a lifetime as a
   whole; counts its live spawns back from `entity:destroyed` (an instance
   counts once, by its id, until its last child goes); raises
@@ -117,7 +118,9 @@ actorId)`, which motion bodies and side-view controllers skip in their
 - `SpaceFilter.skip`: collider handles a query leaves out.
 - `oneWayPasses(ctx, actorId)` (`@jams/engine/game`): the one-way colliders
   an actor passes, for a game's own sweeps, and `forgetOneWayActor(ctx,
-actorId)` to drop them when the actor goes. A motion body's `destroy`
+actorId, passes?)` to drop them when the actor goes (with `passes`, the
+  set `oneWayPasses` gave, only while that set is still the actor's, so a
+  body made for it since keeps its own). A motion body's `destroy`
   forgets its entity's, so a character, an agent or a game's own
   controller built on one needs no call.
 - `character-top-down` behavior system: the entity's `collider` shape
@@ -166,8 +169,9 @@ actorId)` to drop them when the actor goes. A motion body's `destroy`
 - `nav-agent` walks: `setDestination(id, point | entityId)` plans over
   `ctx.nav`, steps toward each waypoint at `speed`, keeps `radius` from
   other agents by `separation` (side-stepping one met head-on), re-plans
-  toward a followed entity every `repathTicks` (staggered by attach
-  order), and ends with `nav:arrived` or `nav:blocked` (`NAV_ARRIVED`,
+  toward a followed entity every `repathTicks` (staggered by entity id,
+  so a world save keeps each agent's place in the period), and ends with
+  `nav:arrived` or `nav:blocked` (`NAV_ARRIVED`,
   `NAV_BLOCKED`; `data.reason` `no-path`, `stuck` or `gone`); `stop(id)`
   ends a walk silently. An entity with a solid `collider` moves through a
   motion body of that shape, otherwise by pose; both stay on the walk
@@ -177,7 +181,9 @@ actorId)` to drop them when the actor goes. A motion body's `destroy`
   times the body's mass, `point` gives `strength` toward its pose with
   `none`, `linear` (to zero at the collider's farthest point) or
   `inverse-square` (past 1 m) falloff, plus `drag` against velocity;
-  `affects` limits it by collision group and tag.
+  `affects` limits it by collision group and tag, groups read off either
+  world (a `groups` entry the game doesn't declare is a `schema`
+  warning).
   `ForceAreaSystem.sample(point, entityId?)` returns the summed
   acceleration of every area containing the point (drag aside) for
   kinematic controllers; with an entity, only the areas whose `affects`
@@ -195,13 +201,17 @@ actorId)` to drop them when the actor goes. A motion body's `destroy`
   validation resolve a ref written live by the same rule. A motor drives
   the relative speed with at most `maxForce`. A missing `anchorB` holds `to` at the point under `anchorA`
   when the joint is first made. Spring stiffness defaults to 100 N/m and
-  damping to 1 N·s/m. Refusals: `joint-self`, `joint-ref-type`, and
-  `physics-required` in a scene without physics. `to` holds an entity with
-  a `body`, a non-sensor `collider`, or a type that declares `ownsBody`.
+  damping to 1 N·s/m. A revolute or prismatic joint's `limits` go low,
+  then high. On a character or a nav agent the joint holds its motion
+  body. Refusals: `joint-self`, `joint-ref-type`, and `physics-required`
+  in a scene without physics. `to` holds an entity with a non-sensor
+  `collider` (a `body` on a sensor collider holds nothing) or a type that
+  declares `ownsBody`.
 - `EntityTypeDef.ownsBody`: the type's system gives each entity a physics
   body with a collider that isn't a sensor, so a joint's `to` may name it.
-  `solid`, `prop` and `follower` declare it, and a type with a `base`
-  takes its base's.
+  `solid`, `prop` and `follower` declare it, and a type with a `base` and
+  no system of its own takes its base's, with the behaviors its base
+  forbids.
 - `ColliderSystem.standIn(id)` and `release(id)` (the `BodyStandIn` type,
   from `@jams/engine/game`): a game's own controller takes an entity's body
   over from the collider system as the characters and agents do, held
@@ -230,7 +240,9 @@ actorId)` to drop them when the actor goes. A motion body's `destroy`
 - Editor: behavior gizmos on the selected entity: the collider's shape
   handles (writing `behaviors.collider.shape` in the entity's frame), joint
   anchors with a line from its pose to the entity `to` names (an anchor
-  that would hide the other's handle, or a collider edge's, moves aside), a
+  that would hide the other's handle, or a collider edge's, moves aside,
+  further out on a thin collider; a handle partly covered is still grabbed
+  where it shows), a
   force area's arrow or strength ring, a spawner's spread ring and velocity
   arrow, and its `path-follow` path and waypoints where the entity is
   placed (`behaviorGizmo`, `behaviorHandles`, `dragBehaviorHandle`,
@@ -257,7 +269,20 @@ actorId)` to drop them when the actor goes. A motion body's `destroy`
   (velocity in deg/s or m/s, max force in N·m or N). A segmented choice
   left unset tints its default segment instead of repeating it in a note.
   Field titles are measured in the loaded face, so the last letter isn't
-  clipped.
+  clipped. Switching a field other fields' `meta.when` keys on (a joint's
+  `kind`, a force area's, a spawner's `type` or `prefab`) is one edit that
+  unsets what no longer applies and seeds what the new choice needs (a
+  rope's length, a point area's strength from the force's size); a field
+  under an object the block lacks (a motor's velocity) writes the whole
+  object (`modelOps` and `modelBatch` take the registry). `meta.options`
+  labels an enum's values with a description each (a joint's kinds read
+  Hinge, Slider, Rope, Weld, Spring); `meta.widget: "collision-group"`
+  picks from the game's collision groups (a `tags` widget with `options`)
+  and `meta.widget: "type"` from its entity types; a range's ends are
+  labelled min and max, and one typed end starts it without inverting it;
+  an op's refusal names the field by its title. On an instance child, a
+  field one of the instance's params sets says so, and so does an override
+  that beats it. Sprite fields sit under group headings.
 - The engine project gains behavior-yard, a gameless side-view and
   top-down yard built only from the standard behaviors (hero-side and
   hero-top prefabs with exposed `maxSpeed`/`jumpHeight` params, a spawner
@@ -274,7 +299,7 @@ actorId)` to drop them when the actor goes. A motion body's `destroy`
   WebGPU renderer draws nothing in Chrome 157 on Apple GPUs.
 - `solid`, `sensor`, `prop` and `follower` refuse the `body` and
   `collider` behaviors (`behavior-forbidden`): their systems already own a
-  body.
+  body. So does a type based on one of them with no system of its own.
 - A registry with no game has the `move` and `jump` actions, and the shell
   binds them in a gameless project.
 - `ENGINE_PREDICATES` gains `near`.
@@ -294,8 +319,6 @@ actorId)` to drop them when the actor goes. A motion body's `destroy`
 
 ### Fixed
 
-- nav-agent repath stagger and spawner random fork now survive a world
-  restore.
 - Play starts on the game's own view: the camera takes zoom 1 and snaps to
   its target, where an editor zoomed out past the scene's bounds held it on
   the bounds' centre. Stop restores the editor camera as before.
@@ -330,7 +353,13 @@ actorId)` to drop them when the actor goes. A motion body's `destroy`
   schema that offers it, its point arm a world point (`Pt`).
 - Behavior fields in the schemas carry `when` (the kinds a field applies
   to) and `group` (the inspector section it sits in), and a joint's `limits` and `motor` fields `units` (by kind) and
-  `widget: "range"`.
+  `widget: "range"`. A joint's `kind` carries `options` (each kind's label
+  and description), a collider's `group` and a force area's
+  `affects.groups` carry `widget: "collision-group"`, a spawner's `type`
+  `widget: "type"`, and every sprite field a `group`.
+- A collider `group` or force-area `affects.groups` entry the game doesn't
+  declare is reported as `schema` (an error for the collider, a warning
+  for the force area), with the declared groups as `expected`.
 
 ## [0.14.2] — unreleased
 

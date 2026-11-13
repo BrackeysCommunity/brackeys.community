@@ -65,8 +65,9 @@ import {
   overlappingKeys,
   paramOverriddenBy,
 } from "../../editor/inspector-model";
-import { BEHAVIOR_CATEGORIES } from "../../game/behaviors";
+import { BEHAVIOR_CATEGORIES, BEHAVIORS_FIELD } from "../../game/behaviors";
 import { pxPerMetreOf } from "../../game/units";
+import type { PrefabLibrary } from "../../scene/index";
 import { snapToPixel } from "../../scene/units";
 import { STORAGE_PREFIX } from "../host";
 import {
@@ -92,6 +93,11 @@ import {
   MenuTrigger,
   MicroLabel,
   SegmentedControl,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Slider,
   Text,
   useComboboxAnchor,
@@ -158,6 +164,8 @@ type Ctx = {
   def: SceneDefinition;
   /** For one instance child: its scene instance, its id there, and the override keys naming it. */
   overrides?: { instance: string; child: string; keys: string[] };
+  /** For one instance child: the paths on it (`behaviors.character.maxSpeed`) each param its instance sets feeds. */
+  params?: readonly { name: string; paths: readonly string[] }[];
   /** Builds the batch for an edit instead of `modelBatch`; it's written against the document. */
   edit?: (field: ModelField, input: unknown) => Edit;
   /** Builds one batch for several edits instead of joining `edit`'s, when they can touch one value. */
@@ -184,11 +192,36 @@ function valueAt(target: RefTarget, path: string): unknown {
   return cur;
 }
 
+const OP_REFUSAL = /^([^:]+): \/ops\/\d+(?:\/(?:set|unset)\/([^:\s]+))?: (.+)$/s;
+
+/**
+ * An op's refusal as a field shows it: the field it names by its title, not
+ * the op path, and "needs a value" for a missing one; the entity's ref only
+ * when several are selected.
+ */
+function refusalText(ctx: Ctx, message: string): string {
+  const m = OP_REFUSAL.exec(message);
+  if (!m) return message;
+  const [, ref, path, detail] = m as unknown as [string, string, string | undefined, string];
+  const who = ctx.targets.length > 1 ? `${ref}: ` : "";
+  if (path === undefined) return `${who}${detail}`;
+  const segs = path.split(".");
+  const behavior =
+    segs.length === 2 && segs[0] === BEHAVIORS_FIELD
+      ? ctx.session.registry.behaviors.get(segs[1]!)
+      : undefined;
+  const title =
+    ctx.fields?.get(path)?.title ?? behavior?.inspector?.label ?? fieldTitle(segs.at(-1) ?? path);
+  return /received undefined$/.test(detail)
+    ? `${who}${title} needs a value`
+    : `${who}${title}: ${detail}`;
+}
+
 function dispatch(ctx: Ctx, batch: OpBatch): string | null {
   if (batch.ops.length === 0) return null;
   if (ctx.readOnly) return READ_ONLY;
   const result = ctx.session.dispatch(batch, ctx.edit ? {} : { resolved: true });
-  return result.ok ? null : result.issue.message;
+  return result.ok ? null : refusalText(ctx, result.issue.message);
 }
 
 /** A batch written against the document itself (prefab commands), not the resolved view. */
@@ -204,7 +237,9 @@ function dispatchSource(
 }
 
 function batchFor(ctx: Ctx, field: ModelField, input: unknown, targets = ctx.targets): Edit {
-  return ctx.edit ? ctx.edit(field, input) : modelBatch(field, input, targets, ctx.def);
+  return ctx.edit
+    ? ctx.edit(field, input)
+    : modelBatch(field, input, targets, ctx.def, ctx.session.registry);
 }
 
 /** Sets each field to its input on every target, as one batch. */
@@ -478,6 +513,7 @@ function PointsField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
 }
 
 function TagsField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
+  const w = field.widget as Extract<FieldWidget, { kind: "tags" }>;
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const tags = Array.isArray(field.value) ? (field.value as string[]) : [];
@@ -511,20 +547,42 @@ function TagsField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
             <Icon icon={Cancel01Icon} size={12} />
           </Button>
         ))}
-        <Input
-          aria-label={field.path}
-          placeholder="Add a tag"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === ",") {
-              e.preventDefault();
-              add();
-            }
-          }}
-          onBlur={add}
-          className="je-insp-tag-input"
-        />
+        {w.options ? (
+          <Select
+            value=""
+            onValueChange={(v) => {
+              if (typeof v === "string" && v) save((cur) => [...new Set([...cur, v])]);
+            }}
+          >
+            <SelectTrigger size="sm" aria-label={field.path} className="je-insp-tag-input">
+              <SelectValue>{w.placeholder ?? "Add"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              {w.options
+                .filter((o) => !tags.includes(o))
+                .map((o) => (
+                  <SelectItem key={o} value={o}>
+                    {o}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            aria-label={field.path}
+            placeholder={w.placeholder ?? "Add a tag"}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === ",") {
+                e.preventDefault();
+                add();
+              }
+            }}
+            onBlur={add}
+            className="je-insp-tag-input"
+          />
+        )}
       </div>
     </FieldRow>
   );
@@ -754,12 +812,14 @@ function RangeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const w = field.widget as Extract<ModelField["widget"], { kind: "range" }>;
   const scale = w.scale ?? 1;
   const at = asPt(field.value);
+  // With no range yet, the end not typed starts at 0, or at the typed value when 0 would invert it.
   const end = (i: 0 | 1) => (text: string) =>
     commitEach(ctx, field, (cur) => {
       const stored = asPt(cur);
-      const pair: Pt = stored ? [stored[0] * scale, stored[1] * scale] : [0, 0];
-      const n = resolveNumber(text, pair[i], { integer: false });
+      const n = resolveNumber(text, stored ? stored[i] * scale : 0, { integer: false });
       if (n instanceof EditError) return n;
+      if (!stored) return i === 0 ? [n, Math.max(n, 0)] : [Math.min(n, 0), n];
+      const pair: Pt = [stored[0] * scale, stored[1] * scale];
       pair[i] = n;
       return pair;
     });
@@ -767,17 +827,18 @@ function RangeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     <FieldRow field={field}>
       <div className="je-insp-row" data-gap="tight" data-align="start">
         {(["low", "high"] as const).map((name, i) => (
-          <NumberInput
-            key={name}
-            label={`${field.path}.${name}`}
-            value={at?.[i]}
-            mixed={field.mixed}
-            step={w.step}
-            bigStep={w.bigStep}
-            decimals={w.decimals}
-            suffix={name}
-            onCommit={end(i as 0 | 1)}
-          />
+          <Fragment key={name}>
+            <span className="je-insp-line je-insp-suffix">{i === 0 ? "min" : "max"}</span>
+            <NumberInput
+              label={`${field.path}.${name}`}
+              value={at?.[i]}
+              mixed={field.mixed}
+              step={w.step}
+              bigStep={w.bigStep}
+              decimals={w.decimals}
+              onCommit={end(i as 0 | 1)}
+            />
+          </Fragment>
         ))}
         {w.unit ? <UnitSuffix unit={w.unit} /> : null}
       </div>
@@ -984,16 +1045,48 @@ function overridesOf(field: ModelField, ctx: Ctx): string[] {
   return overlappingKeys(local, field.path).map((k) => `${o.child}.${k}`);
 }
 
-/** One field, drawn by the widget the model chose for it; bold with a Revert when an override sets it. */
+/** The params its instance sets that feed some of `field` on an instance child. */
+function paramsOf(field: ModelField, ctx: Ctx): string[] {
+  if (!ctx.params || (field.children?.length ?? 0) > 0) return [];
+  return ctx.params
+    .filter((p) => overlappingKeys(p.paths, field.path).length > 0)
+    .map((p) => p.name);
+}
+
+/** A muted line under a field a param sets: an override on it beats the param. */
+function ParamNote({ names, overridden }: { names: string[]; overridden: boolean }) {
+  if (names.length === 0) return null;
+  const list = names.join(", ");
+  return (
+    <Hinted
+      hint={
+        overridden
+          ? "This override beats the instance's param; Revert to use the param again."
+          : "Set by the instance's param; editing it here adds an override that beats the param."
+      }
+    >
+      <p className="je-insp-param-note" data-param={list}>
+        {overridden ? `overrides param ${list}` : `from param ${list}`}
+      </p>
+    </Hinted>
+  );
+}
+
+/**
+ * One field, drawn by the widget the model chose for it; bold with a Revert
+ * when an override sets it, with a note when a param of its instance does.
+ */
 function FieldView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   if (ctx.drawnBy?.has(field.path)) return null;
   const keys = overridesOf(field, ctx);
   const instance = ctx.overrides?.instance;
+  const params = paramsOf(field, ctx);
   if (keys.length > 0 && instance !== undefined)
     return (
       <div className="je-insp-overridden" data-overridden="">
         <div className="je-insp-grow">
           <FieldWidgetView field={field} ctx={ctx} />
+          <ParamNote names={params} overridden />
         </div>
         <Button
           size="sm"
@@ -1014,7 +1107,13 @@ function FieldView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         </Button>
       </div>
     );
-  return <FieldWidgetView field={field} ctx={ctx} />;
+  if (params.length === 0) return <FieldWidgetView field={field} ctx={ctx} />;
+  return (
+    <div className="je-insp-stack" data-gap="tight" data-param-set="">
+      <FieldWidgetView field={field} ctx={ctx} />
+      <ParamNote names={params} overridden={false} />
+    </div>
+  );
 }
 
 function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
@@ -1096,6 +1195,21 @@ function fieldsByPath(fields: readonly ModelField[], into = new Map<string, Mode
     if (f.children) fieldsByPath(f.children, into);
   }
   return into;
+}
+
+/** The params `child`'s instance sets, each with the paths on the child it feeds. */
+function paramsFeeding(
+  doc: SceneDefinition,
+  child: { instance: string; child: string },
+  registry: EditorSession["registry"],
+  prefabs: PrefabLibrary,
+): { name: string; paths: string[] }[] {
+  const model = instanceParamsModel(doc, child.instance, registry, prefabs);
+  const prefix = `${child.child}.`;
+  return (model?.params ?? []).flatMap((p) => {
+    const paths = p.targets.filter((t) => t.startsWith(prefix)).map((t) => t.slice(prefix.length));
+    return p.set && paths.length > 0 ? [{ name: p.name, paths }] : [];
+  });
 }
 
 /** The frame fields an asset picker among `fields` draws itself. */
@@ -1351,6 +1465,7 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
 
   const model = buildInspectorModel(session.registry, targets, { def: view });
   const child = targets.length === 1 ? childOverrides(doc, targets[0]!.ref) : null;
+  const childParams = child ? paramsFeeding(doc, child, session.registry, prefabs) : [];
   const byPath = fieldsByPath(model.sections.flatMap((s) => s.fields));
   const ctx: Ctx = {
     session,
@@ -1369,6 +1484,7 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
           },
         }
       : {}),
+    ...(childParams.length > 0 ? { params: childParams } : {}),
   };
   const prefabBatch = child || inPrefab ? null : createPrefabBatch(doc, selection, prefabs);
   const typeDefs = model.types.map((t) => session.registry.types.get(t));

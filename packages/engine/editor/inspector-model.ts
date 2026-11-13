@@ -92,7 +92,7 @@ const GROUP_SECTIONS: Readonly<Record<string, InspectorSectionId>> = {
 
 // ─── Descriptors ─────────────────────────────────────────
 
-export type EnumOption = { value: string | number; label: string };
+export type EnumOption = { value: string | number; label: string; description?: string };
 
 /** How the site draws a field; the engine only describes it. */
 export type FieldWidget =
@@ -155,7 +155,11 @@ export type FieldWidget =
       decimals?: number;
     }
   | { kind: "points"; min?: number }
-  | { kind: "tags" }
+  /**
+   * A list of names as chips. With `options` (`meta.widget: "collision-group"`)
+   * new ones are picked from those, else typed; `placeholder` is the add box's.
+   */
+  | { kind: "tags"; options?: string[]; placeholder?: string }
   /**
    * A combobox of ids whose type (or base) is in `accepts` (`refCandidates`),
    * plus an eyedropper. With `any`, every entity but the selection: a
@@ -274,6 +278,7 @@ type FieldMeta = {
   placeholder?: unknown;
   when?: unknown;
   units?: unknown;
+  options?: unknown;
 };
 
 /** The field's metadata, inner wrappers first so an outer `.meta()` wins. */
@@ -302,9 +307,29 @@ function shapeTypesOf(schema: z.ZodType): ShapeType[] {
 const optionLabel = (v: string | number) =>
   typeof v === "number" ? String(v) : v.replace(/[_-]+/g, " ");
 
-/** A choice among `values`: segmented for up to four, else a select. */
-function choice(values: readonly (string | number)[]): FieldWidget {
-  const options = values.map((value) => ({ value, label: optionLabel(value) }));
+/** One value's `meta.options` entry: `{ revolute: { label: "Hinge", description: "…" } }`. */
+type OptionMeta = { label?: unknown; description?: unknown };
+
+/**
+ * A choice among `values`: segmented for up to four, else a select. A
+ * value `meta.options` names reads by its label, the value after it when
+ * they differ ("Hinge (revolute)"), with its description as the tooltip.
+ */
+function choice(values: readonly (string | number)[], meta?: unknown): FieldWidget {
+  const named = meta !== null && typeof meta === "object" ? (meta as Record<string, unknown>) : {};
+  const options = values.map((value): EnumOption => {
+    const plain = optionLabel(value);
+    const entry = named[String(value)] as OptionMeta | undefined;
+    const label = typeof entry?.label === "string" ? entry.label : undefined;
+    return {
+      value,
+      label:
+        label && label.toLowerCase() !== plain.toLowerCase()
+          ? `${label} (${plain})`
+          : (label ?? plain),
+      ...(typeof entry?.description === "string" ? { description: entry.description } : {}),
+    };
+  });
   return options.length <= 4 ? { kind: "segmented", options } : { kind: "select", options };
 }
 
@@ -425,6 +450,13 @@ function widgetFor(
     if (widget) return { kind: "custom", id: meta.widget, widget };
     if (meta.widget === "color") return { kind: "color" };
     if (meta.widget === "action" && ctx.registry) return actionChoice(ctx.registry);
+    if (meta.widget === "type" && ctx.registry) return choice(ctx.registry.typeNames);
+    const groups = ctx.registry?.collisionGroupNames ?? [];
+    if (meta.widget === "collision-group" && groups.length > 0) {
+      if (unwrapSchema(schema) instanceof z.ZodArray)
+        return { kind: "tags", options: [...groups], placeholder: "Add a group" };
+      return choice(groups);
+    }
   }
   const assetKinds = assetKindsOf(schema);
   if (assetKinds) return { kind: "asset", kinds: [...assetKinds] };
@@ -489,7 +521,7 @@ function widgetFor(
     };
   }
   if (inner instanceof z.ZodEnum) {
-    return choice(inner.options as (string | number)[]);
+    return choice(inner.options as (string | number)[], meta.options);
   }
   if (inner instanceof z.ZodBoolean) return { kind: "switch" };
   if (inner instanceof z.ZodLiteral) return { kind: "readonly", format: "text" };
@@ -821,7 +853,10 @@ function seedValue(schema: z.ZodType): unknown {
     v = n;
   } else if (inner instanceof z.ZodString) v = "";
   else if (inner instanceof z.ZodArray) v = [];
-  else if (inner instanceof z.ZodObject) v = seedBlock(inner.shape, {});
+  else if (inner instanceof z.ZodTuple && inner.def.rest === null) {
+    const items = (inner.def.items as z.ZodType[]).map(seedValue);
+    v = items.every((i) => i !== undefined) ? items : undefined;
+  } else if (inner instanceof z.ZodObject) v = seedBlock(inner.shape, {});
   return v !== undefined && schema.safeParse(v).success ? v : undefined;
 }
 
@@ -833,6 +868,170 @@ function seedBlock(shape: z.ZodRawShape, defaults: Readonly<Record<string, unkno
     if (v !== undefined) out[k] = v;
   }
   return out;
+}
+
+// ─── Behavior field edits ────────────────────────────────
+
+/** What one field edit writes to an entity: set and unset paths, as an update op takes them. */
+export type FieldEdit = { set: Record<FieldPath, unknown>; unset: FieldPath[] };
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+
+/**
+ * `base` with `next` at `rel` below it; an object `rel` passes through that
+ * `base` lacks is seeded (`seedBlock`) so its required fields hold a value.
+ * Undefined when `rel` leaves the schema's objects.
+ */
+function withNested(
+  shape: z.ZodRawShape,
+  base: Record<string, unknown>,
+  rel: readonly string[],
+  next: unknown,
+): Record<string, unknown> | undefined {
+  const [key, ...rest] = rel;
+  if (key === undefined) return undefined;
+  const out = { ...base };
+  if (rest.length === 0) {
+    if (next === undefined) delete out[key];
+    else out[key] = next;
+    return out;
+  }
+  const field = shape[key];
+  const inner = field && unwrapSchema(field);
+  if (!(inner instanceof z.ZodObject)) return undefined;
+  const cur = base[key];
+  const nested = withNested(
+    inner.shape,
+    isRecord(cur) ? cur : seedBlock(inner.shape, {}),
+    rest,
+    next,
+  );
+  if (!nested) return undefined;
+  out[key] = nested;
+  return out;
+}
+
+/** A field's `meta.when` names `key`. */
+const keysOn = (schema: z.ZodType, key: string) => {
+  const when = fieldMeta(schema).when;
+  return isRecord(when) && key in when;
+};
+
+/** A number for a field of `unit` from a value a switch dropped in that unit: a number's size, a vector's length. */
+function carried(
+  unit: unknown,
+  dropped: readonly (readonly [z.ZodType, unknown])[],
+): number | undefined {
+  if (typeof unit !== "string") return undefined;
+  for (const [schema, value] of dropped) {
+    if (fieldMeta(schema).unit !== unit) continue;
+    if (typeof value === "number") return Math.abs(value);
+    if (Array.isArray(value) && value.length > 0 && value.every((v) => typeof v === "number"))
+      return tidy(Math.hypot(...(value as number[])));
+  }
+  return undefined;
+}
+
+/**
+ * What writing `next` to the behavior field at `path` on `entity` takes
+ * for the block to stay valid; null when `path` isn't a registered
+ * behavior's field. A field under an object the block lacks (a joint's
+ * `motor.velocity`) writes the whole object, its other required fields
+ * seeded. Changing a field other fields' `meta.when` keys on (a `kind`)
+ * unsets those that no longer apply. When the behavior's `refine` still
+ * refuses the block, it seeds the applicable fields that fix it, from a
+ * value the switch dropped in the same unit (a force's length as a
+ * strength), the template, else `seedValue`, and failing that unsets the
+ * other written fields that fix it (a spawner's `prefab` once `type` is
+ * set). A refusal it can't fix is left for the op to report.
+ */
+export function behaviorFieldEdit(
+  registry: Registry,
+  entity: EntityDef,
+  path: FieldPath,
+  next: unknown,
+): FieldEdit | null {
+  const segs = path.split(".");
+  const [root, name, key] = segs;
+  if (root !== BEHAVIORS_FIELD || name === undefined || key === undefined) return null;
+  const b = registry.behaviors.get(name);
+  if (!b) return null;
+  const shape = b.shape;
+  const written = writtenBlocks(entity)[name];
+  const before = isRecord(written) ? written : {};
+  const after = withNested(shape, before, segs.slice(2), next);
+  if (!after) return null;
+  const prefix = `${BEHAVIORS_FIELD}.${name}`;
+  const edit: FieldEdit = { set: {}, unset: [] };
+  // The first object above the field the block lacks is written whole.
+  let depth = 3;
+  while (depth < segs.length && isRecord(valueAt(before, segs.slice(2, depth).join(".")))) depth++;
+  if (next === undefined) edit.unset.push(path);
+  else if (depth < segs.length) {
+    const at = segs.slice(2, depth).join(".");
+    edit.set[`${prefix}.${at}`] = valueAt(after, at);
+  } else edit.set[path] = next;
+
+  const defaults = registry.behaviorRules(entity.type).defaults.get(name) ?? {};
+  const fallback = (k: string): unknown => {
+    if (defaults[k] !== undefined) return defaults[k];
+    const field = shape[k];
+    const parsed = field ? z.safeParse(field, undefined) : undefined;
+    return parsed?.success ? parsed.data : undefined;
+  };
+  const current = (k: string) => (after[k] !== undefined ? after[k] : fallback(k));
+  const order = orderedFields(shape, b.inspector?.order ?? []).filter(([k]) => k !== key);
+  const dropped: (readonly [z.ZodType, unknown])[] = [];
+  for (const [k, schema] of order) {
+    if (after[k] === undefined || !keysOn(schema, key)) continue;
+    if (fieldApplies(fieldMeta(schema).when, current)) continue;
+    dropped.push([schema, after[k]]);
+    delete after[k];
+    edit.unset.push(`${prefix}.${k}`);
+  }
+  if (!b.refine) return edit;
+  const refused = () => {
+    const full: Record<string, unknown> = {};
+    for (const k of Object.keys(shape)) {
+      const v = current(k);
+      if (v !== undefined) full[k] = v;
+    }
+    return b.refine!(full);
+  };
+  let error = refused();
+  if (error === undefined) return edit;
+  const fixes: FieldEdit = { set: {}, unset: [] };
+  const template = (b.template ?? {}) as Record<string, unknown>;
+  for (const [k, schema] of order) {
+    if (error === undefined) break;
+    if (after[k] !== undefined || fallback(k) !== undefined) continue;
+    if (!fieldApplies(fieldMeta(schema).when, current)) continue;
+    const options = [carried(fieldMeta(schema).unit, dropped), template[k], seedValue(schema)];
+    const seed = options.find((v) => v !== undefined && schema.safeParse(v).success);
+    if (seed === undefined) continue;
+    after[k] = structuredClone(seed);
+    const now = refused();
+    if (now === error) delete after[k];
+    else {
+      fixes.set[`${prefix}.${k}`] = after[k];
+      error = now;
+    }
+  }
+  for (const [k, schema] of order) {
+    if (error === undefined) break;
+    if (after[k] === undefined || !schema.safeParse(undefined).success) continue;
+    const kept = after[k];
+    delete after[k];
+    const now = refused();
+    if (now === error) after[k] = kept;
+    else {
+      fixes.unset.push(`${prefix}.${k}`);
+      error = now;
+    }
+  }
+  if (error !== undefined) return edit;
+  return { set: { ...edit.set, ...fixes.set }, unset: [...edit.unset, ...fixes.unset] };
 }
 
 /** Where an entity stands as the editor places it; undefined for an unregistered type. */
@@ -1252,13 +1451,15 @@ export function typedValue(
  * `parseRelative` against each target's own value (or the field's default
  * when unset), so `+=16` moves every one. A metric number or point is
  * written to micrometres (`roundLength`). `undefined` unsets an optional
- * field. Fails without ops when any target's new value doesn't pass the
- * field's schema.
+ * field. With `registry`, a behavior field's edit on an entity also writes
+ * what keeps its block valid (`behaviorFieldEdit`). Fails without ops when
+ * any target's new value doesn't pass the field's schema.
  */
 export function modelOps(
   field: ModelField,
   input: unknown,
   targets: readonly RefTarget[],
+  registry?: Registry,
 ): ModelEdit {
   const ops: SceneOp[] = [];
   for (const t of targets) {
@@ -1275,13 +1476,23 @@ export function modelOps(
     if (next === undefined) {
       if (!field.optional || t.kind === "bulk")
         return { ok: false, error: `${field.title} can't be unset` };
-      ops.push({ op: "update", ref: t.ref, unset: [field.path] });
-      continue;
+    } else {
+      const parsed = field.schema.safeParse(next);
+      if (!parsed.success)
+        return { ok: false, error: parsed.error.issues[0]?.message ?? "invalid value" };
     }
-    const parsed = field.schema.safeParse(next);
-    if (!parsed.success)
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "invalid value" };
-    ops.push({ op: "update", ref: t.ref, set: { [field.path]: next } });
+    const edit =
+      registry && t.kind === "entity"
+        ? behaviorFieldEdit(registry, t.entity, field.path, next)
+        : null;
+    const set = edit ? edit.set : next === undefined ? {} : { [field.path]: next };
+    const unset = edit ? edit.unset : next === undefined ? [field.path] : [];
+    ops.push({
+      op: "update",
+      ref: t.ref,
+      ...(Object.keys(set).length > 0 ? { set } : {}),
+      ...(unset.length > 0 ? { unset } : {}),
+    });
   }
   return { ok: true, ops };
 }
@@ -1292,8 +1503,9 @@ export function modelBatch(
   input: unknown,
   targets: readonly RefTarget[],
   def: SceneDefinition,
+  registry?: Registry,
 ): { ok: true; batch: OpBatch } | { ok: false; error: string } {
-  const edit = modelOps(field, input, targets);
+  const edit = modelOps(field, input, targets, registry);
   if (!edit.ok) return edit;
   const bulk = targets.some((t) => t.kind === "bulk");
   return {

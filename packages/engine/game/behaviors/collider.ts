@@ -29,7 +29,7 @@ const colliderFields = (env: FieldEnv) => ({
     .describe(
       "The collision group it belongs to, one of the game's; omitted: sensor for a sensor (dynamic in a project with no game), dynamic on a dynamic body, else static.",
     )
-    .meta({ title: "Collision group", group: "collider" }),
+    .meta({ title: "Collision group", group: "collider", widget: "collision-group" }),
   density: z
     .number()
     .positive()

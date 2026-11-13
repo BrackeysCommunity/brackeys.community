@@ -54,7 +54,9 @@ const forceAreaFields = {
     .meta({ title: "Drag", unit: "/s", group: "force" }),
   affects: z
     .strictObject({
-      groups: names("Only bodies in one of these collision groups."),
+      groups: names("Only bodies in one of these collision groups.").meta({
+        widget: "collision-group",
+      }),
       tags: names("Only entities with one of these tags."),
     })
     .optional()

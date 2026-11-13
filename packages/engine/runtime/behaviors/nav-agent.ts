@@ -12,8 +12,6 @@ import { createMotionBody, type MotionBody } from "../../motion/index";
 import { parseShape } from "../../scene/shapes";
 import type { Aabb, RuntimeEntity } from "../../scene/types";
 import { seedFromString } from "../../sim-kit/rng";
-import { forgetOneWayActor } from "../../systems/bodies";
-import type { BodyStandIn } from "../bodies-control";
 import type { RuntimeNav } from "../nav";
 import { NAV_ARRIVED, NAV_BLOCKED } from "../types";
 
@@ -151,7 +149,7 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
     return parsed.success ? (parsed.data as NavAgentBlock) : block;
   }
 
-  const colliders = () => ctx.behavior<ColliderSystem & BodyStandIn>(COLLIDER.name);
+  const colliders = () => ctx.behavior<ColliderSystem>(COLLIDER.name);
 
   function bodyFor(e: RuntimeEntity): MotionBody | null {
     const block = e.behaviors?.[COLLIDER.name] as Partial<ColliderBlock> | undefined;
@@ -451,7 +449,6 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       countType(a.type, -1);
       if (a.body) {
         a.body.destroy();
-        forgetOneWayActor(ctx, id);
         if (ctx.exists(id)) colliders()?.release(id);
       }
     },

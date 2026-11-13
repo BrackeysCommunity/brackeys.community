@@ -25,7 +25,6 @@ import {
   rapierBodyEntry,
   registerBody,
   type BodyEntry,
-  type BodyStandIn,
 } from "../bodies-control";
 import { composePose, relativePose, type Pose } from "../poses";
 import type { SpaceHit } from "../space";
@@ -67,9 +66,6 @@ type Built = {
   stood: boolean;
   unregister: () => void;
 };
-
-/** The collider system, which lets a character's or an agent's motion body stand in for its own. */
-export type ColliderHost = ColliderSystem & BodyStandIn;
 
 const ZERO: Pose = { x: 0, y: 0, rot: 0 };
 
@@ -408,7 +404,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     if (b.handle !== null) ctx.geometry?.setEnabled(b.handle, on);
   }
 
-  const system: ColliderHost = {
+  const system: ColliderSystem = {
     attach(_id, block, e) {
       build(e, block);
     },

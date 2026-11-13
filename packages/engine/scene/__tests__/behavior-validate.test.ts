@@ -3,7 +3,8 @@ import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
 import { defineBehavior } from "../../game/behaviors";
-import { createRegistry, defineGame } from "../../game/define";
+import { createRegistry, defineEntityType, defineGame } from "../../game/define";
+import { shapeField } from "../../game/fields";
 import { inputScriptSchemaFor } from "../input-script";
 import type { EntityDef, Prefab, PrefabLibrary, SceneDefinition, SceneIssue } from "../types";
 import { validateScene } from "../validate";
@@ -193,6 +194,115 @@ describe("joints", () => {
       { prefabs },
     );
     expect(issues.filter((i) => i.severity === "error")).toEqual([]);
+  });
+});
+
+describe("types based on a body-owning primitive", () => {
+  const registry = createRegistry(
+    defineGame({
+      id: "based",
+      types: [
+        defineEntityType({
+          type: "pellet",
+          description: "A prop of the game's.",
+          base: "prop",
+          fields: {
+            shape: shapeField("Its shape."),
+            density: z.number(),
+            restitution: z.number(),
+          },
+        }),
+        defineEntityType({
+          type: "goal",
+          description: "A finish zone.",
+          base: "sensor",
+          fields: { shape: shapeField("Its shape.") },
+        }),
+      ],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    }),
+  );
+
+  it("refuses collider and body with behavior-forbidden", () => {
+    const behaviors = { collider: { shape: box }, body: {} };
+    for (const target of [
+      { id: "p", type: "pellet", shape: box, density: 1, restitution: 0, behaviors },
+      { id: "g", type: "goal", shape: box, behaviors },
+    ] satisfies EntityDef[]) {
+      const issues = validateScene(scene([target], { game: "based" }), registry);
+      expect(new Set(codes(issues, "behavior-forbidden").map((i) => i.got)), target.type).toEqual(
+        new Set(["body", "collider"]),
+      );
+    }
+  });
+});
+
+describe("collision groups", () => {
+  const groups = createRegistry(
+    defineGame({
+      id: "grouped",
+      types: [],
+      actions: [],
+      collisionGroups: { avatar: { collidesWith: ["static", "dynamic"] } },
+      createRuntime: () => ({ snapshot: () => null }),
+    }),
+  );
+  const unknownGroup = (issues: SceneIssue[]) =>
+    codes(issues, "schema").filter((i) => i.message.includes("collision group"));
+
+  it("refuses a collider group the game doesn't declare, with the groups it does", () => {
+    const issues = validateScene(
+      scene([marker("m", { collider: { shape: box, group: "avatr" } })], { game: "grouped" }),
+      groups,
+    );
+    const [hit] = unknownGroup(issues);
+    expect(hit?.severity).toBe("error");
+    expect(hit?.path).toBe("/entities/0/behaviors/collider/group");
+    expect(hit?.got).toBe("avatr");
+    expect(hit?.expected).toBe(groups.collisionGroupNames.join(" | "));
+    expect(hit?.message).toContain('did you mean "avatar"');
+    expect(hit?.hint).toContain("avatar");
+  });
+
+  it("accepts a declared group, and an engine one in a gameless scene", () => {
+    expect(
+      unknownGroup(
+        validateScene(
+          scene([marker("m", { collider: { shape: box, group: "avatar" } })], { game: "grouped" }),
+          groups,
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      unknownGroup(
+        validateScene(scene([marker("m", { collider: { shape: box, group: "static" } })]), engine),
+      ),
+    ).toEqual([]);
+    expect(
+      unknownGroup(
+        validateScene(scene([marker("m", { collider: { shape: box, group: "bogus" } })]), engine),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("warns on a force area that affects a group the game doesn't declare", () => {
+    const issues = validateScene(
+      scene(
+        [
+          marker("wind", {
+            collider: { shape: box, sensor: true },
+            "force-area": { affects: { groups: ["avatar", "ghost"] } },
+          }),
+        ],
+        { game: "grouped" },
+      ),
+      groups,
+    );
+    const hits = unknownGroup(issues);
+    expect(hits.map((i) => [i.severity, i.path, i.got])).toEqual([
+      ["warn", "/entities/0/behaviors/force-area/affects/groups/1", "ghost"],
+    ]);
   });
 });
 

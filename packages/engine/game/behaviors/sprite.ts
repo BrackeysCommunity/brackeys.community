@@ -32,7 +32,11 @@ const spriteFields = (env: FieldEnv) => ({
     ["texture", "atlas"],
     "The texture, or the atlas whose frame it draws.",
   ).optional(),
-  frame: z.string().optional().describe("The atlas frame's name; required for an atlas."),
+  frame: z
+    .string()
+    .optional()
+    .describe("The atlas frame's name; required for an atlas.")
+    .meta({ group: "assets" }),
   size: z
     .tuple([
       z.number().positive().describe("Width, m.").meta({ unit: "m" }),
@@ -42,18 +46,26 @@ const spriteFields = (env: FieldEnv) => ({
     .describe(
       "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
     )
-    .meta({ unit: "m" }),
-  scale: z.number().positive().optional().describe("Used when size is omitted; default 1."),
+    .meta({ unit: "m", group: "placement" }),
+  scale: z
+    .number()
+    .positive()
+    .optional()
+    .describe("Used when size is omitted; default 1.")
+    .meta({ group: "placement" }),
   anchor: z
     .tuple([
       unit.describe("x: 0 the frame's left edge, 1 its right."),
       unit.describe("y: 0 the frame's top, 1 its bottom."),
     ])
     .optional()
-    .describe("0–1 in the frame; default its pivot, else the centre."),
+    .describe("0–1 in the frame; default its pivot, else the centre.")
+    .meta({ group: "placement" }),
   offset: vectorField(
     "World metres from the pose to the anchor; turns and flips with the instance.",
-  ).optional(),
+  )
+    .optional()
+    .meta({ group: "placement" }),
   tint: z
     .number()
     .int()
@@ -61,15 +73,24 @@ const spriteFields = (env: FieldEnv) => ({
     .max(0xffffff)
     .optional()
     .describe("0xRRGGBB multiplied into the texture; default the material's, else none.")
-    .meta({ widget: "color" }),
-  alpha: z.number().min(0).max(1).optional().describe("Opacity, 0–1; default 1."),
-  flipX: mirrorField("x", "Mirror left–right; an instance flip toggles it.").optional(),
-  flipY: z.boolean().optional().describe("Mirror top–bottom."),
+    .meta({ widget: "color", group: "look" }),
+  alpha: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe("Opacity, 0–1; default 1.")
+    .meta({ group: "look" }),
+  flipX: mirrorField("x", "Mirror left–right; an instance flip toggles it.")
+    .optional()
+    .meta({ group: "look" }),
+  flipY: z.boolean().optional().describe("Mirror top–bottom.").meta({ group: "look" }),
   blend: z
     .enum(BLEND_MODES)
     .optional()
-    .describe("How it composites over what is below; default the material's, else normal."),
-  tile: z.boolean().optional().describe("Repeat the frame across size."),
+    .describe("How it composites over what is below; default the material's, else normal.")
+    .meta({ group: "look" }),
+  tile: z.boolean().optional().describe("Repeat the frame across size.").meta({ group: "look" }),
   nineSlice: z
     .tuple([
       inset("Left inset, px."),
@@ -79,8 +100,12 @@ const spriteFields = (env: FieldEnv) => ({
     ])
     .optional()
     .describe("Insets in texture px; default the import's.")
-    .meta({ unit: "px" }),
-  turn: z.boolean().optional().describe("Turn with the pose; default true."),
+    .meta({ unit: "px", group: "look" }),
+  turn: z
+    .boolean()
+    .optional()
+    .describe("Turn with the pose; default true.")
+    .meta({ group: "placement" }),
 });
 
 /** A `sprite` block as an entity carries it. */
