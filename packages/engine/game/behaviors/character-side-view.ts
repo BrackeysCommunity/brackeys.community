@@ -100,7 +100,7 @@ export const CHARACTER_SIDE_VIEW = defineBehavior({
     "Runs and jumps the entity under gravity from its seat's move and jump actions or an intent from code, with coyote time, jump buffering and one-way platforms.",
   fields: characterSideViewFields,
   requires: ["collider"],
-  conflicts: ["character-top-down"],
+  conflicts: ["character-top-down", "nav-agent", "path-follow"],
   inspector: {
     label: "Character (side view)",
     order: [

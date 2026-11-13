@@ -3235,17 +3235,34 @@ whatever the engine's do ([Write your own controller](#write-your-own-controller
 
 | Behavior              | What it is                                                                                                                                                   | Fields (defaults)                                                                                                                                                                                                                                                                                                     | Requires                                                                                              |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `collider`            | A collision shape: static on its own, moved by a `body` beside it, or a trigger that raises `sensor:enter` and `sensor:exit` as the `sensor` type does.      | `shape` (local to the entity's pose, not a chain), `sensor` (false), `material`, `group`, `density` (1 kg/m²), `friction`, `restitution` (from the material)                                                                                                                                                          | —                                                                                                     |
+| `collider`            | A collision shape: static on its own, moved by a `body` beside it, or a trigger that raises `sensor:enter` and `sensor:exit` as the `sensor` type does.      | `shape` (local to the entity's pose, not a chain), `sensor` (false), `material`, `group` (see below), `density` (1 kg/m²), `friction`, `restitution` (from the material)                                                                                                                                              | —                                                                                                     |
 | `body`                | Makes the collider a physics body.                                                                                                                           | `kind` (`dynamic`, `kinematic` or `static`), `gravityScale` (1), `linearDamping` (0), `angularDamping` (0), `fixedRotation` (false), `ccd` (false)                                                                                                                                                                    | `collider`; a dynamic body needs physics                                                              |
 | `player-input`        | Binds the entity to a seat; behaviors on it read that player through `inputFor`.                                                                             | `seat` (0)                                                                                                                                                                                                                                                                                                            | —                                                                                                     |
 | `character-top-down`  | Walks in the plane: a kinematic controller, stopped and slid along by walls.                                                                                 | `maxSpeed` (4 m/s), `accel` (40 m/s²), `decel` (40 m/s²), `pushDynamic` (false), `move` (the action, `"move"`)                                                                                                                                                                                                        | `collider`; a `body` only if kinematic; not with `character-side-view`                                |
 | `character-side-view` | Runs and jumps under gravity, with coyote time, a jump buffer, a variable jump height, slopes, steps and one-way platforms; rides moving platforms.          | `maxSpeed` (6), `accel` (60), `decel` (70), `airControl` (0.6), `jumpHeight` (1.2 m), `gravityScale` (1), `maxFallSpeed` (15 m/s), `coyoteMs` (100), `jumpBufferMs` (100), `jumpCut` (0.5), `maxSlopeDeg` (50), `stepHeight` (0.04 m), `snapToGround` (0.04 m), `pushDynamic` (true), `move` and `jump` (the actions) | `collider`; a `body` only if kinematic; not with `character-top-down`                                 |
-| `camera-target`       | Data only: with no `cameraTarget()` from the game, the camera follows the weighted centre of the entities carrying it.                                       | `weight` (1), `seat` (omitted: every view)                                                                                                                                                                                                                                                                            | —                                                                                                     |
+| `camera-target`       | With no `cameraTarget()` from the game, the camera follows the weighted centre of the live entities carrying it, loaded or spawned.                          | `weight` (1), `seat` (omitted: every view)                                                                                                                                                                                                                                                                            | —                                                                                                     |
 | `spawner`             | Spawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones.                                                                     | `type` or `prefab` (exactly one), `rate` (1 /s), `cap` (10), `burst` (0), `lifeMs` (omitted: they stay), `spread` (0 m), `velocity` (for a dynamic body), `active` (true)                                                                                                                                             | —                                                                                                     |
 | `nav-agent`           | Walks the scene's walk areas to a point or after an entity, kept apart from other agents; through a motion body when it has a `collider`, else by pose.      | `speed` (1.2 m/s), `arrive` (0.12 m), `radius` (0.3 m), `separation` (1.5), `repathTicks` (180), `to` (a point or an entity's id it walks to from the start; none)                                                                                                                                                    | a `nav` walk area in the scene (`nav-missing` otherwise)                                              |
 | `path-follow`         | Moves the entity along a waypoint path, with the `follower` type's path; with a kinematic `body` it carries what stands on it.                               | `path` (`pts`, `mode`, `speed`, as a follower's)                                                                                                                                                                                                                                                                      | —                                                                                                     |
 | `force-area`          | Pushes the dynamic bodies inside its collider one way, or toward or away from its pose; the two characters add the same acceleration while they stand in it. | `kind` (`directional`), `force` (directional, m/s²) or `strength` (point, m/s²), `falloff` (`none`, `linear` or `inverse-square`), `drag` (0 /s), `affects` (`groups`, `tags`)                                                                                                                                        | `collider` with `sensor: true`; pushing bodies needs physics                                          |
 | `joint`               | Links the entity's body to another entity's: a hinge, a slider, a rope, a weld or a spring.                                                                  | `kind`, `to` (the other entity), `anchorA`, `anchorB`, `axis` (prismatic), `limits` and `motor` (revolute and prismatic), `length` (rope and spring), `stiffness` (100) and `damping` (1) (spring), `collide` (false)                                                                                                 | `body`, and physics; `to` names an entity with a body (`joint-ref-type`), never itself (`joint-self`) |
+
+A collider with no `group` joins `dynamic` on a dynamic body and `static`
+otherwise. A sensor's joins `sensor`, which meets nothing until the game
+links it (`collisionGroups: { dynamic: { collidesWith: ["sensor"] } }`), so
+a game says what its triggers and force areas see. A project with no game
+can't link groups, so there a sensor's joins `dynamic`: it meets the
+dynamic bodies, the characters' and agents' motion bodies, and the static
+ones. The `sensor` type keeps its own group either way.
+
+A behavior's points and paths are world metres, and its entity references
+name entities: a `path-follow` path moves, turns and flips with its entity
+in a prefab instance, a group and an editor move, as a follower's path
+does, and a `joint` or `nav-agent` `to` inside a prefab names a child of
+the same instance (`door` in prefab `gate` placed as `gate-1` is
+`gate-1/door`), the innermost instance first, else the scene's own entity
+of that id. A behavior's vectors (a joint's anchors, a sprite's offset)
+are local to the entity's pose.
 
 `solid`, `sensor`, `prop` and `follower` already own a body, so they
 forbid `collider` and `body`: put the blocks on a `marker`, or on a game
@@ -3298,7 +3315,11 @@ its README has the batches, and its tests run each).
   `ForceAreaSystem` (`sample(point)`, the acceleration the areas give
   there), `PathFollowSystem` (`position`), `JointSystem` (`joined`) and
   `ColliderSystem` (`has`). A gameless scene's nav agents stand still until
-  code gives them a destination.
+  code gives them a destination, or their `to` names one. A character's or
+  an agent's motion body stands in for its collider's own body, which the
+  collider system keeps out of the world (and out of `ctx.bodies`) until
+  the character or agent lets go: then it is built again where the entity
+  stands and answers `ctx.bodies` again.
 - **Events**, in `step` and `playtest` reports as any other:
 
 | Event                   | When                                                               | `entityId`    | `other`                     |
@@ -3330,11 +3351,12 @@ Behaviors have two hooks before the physics step, `beforeStep(dtMs)` and
 5. the type systems' `beforePhysics`, then the behaviors' (`joint` acts
    here); without physics, only the behaviors';
 6. the tick's forces handed to the bodies, the physics step, and the forces
-   dropped;
+   taken off them;
 7. the type systems' `afterStep`, then contacts;
 8. the behaviors' `step`;
 9. the timers, the events, the game's `afterStep`, and the end-of-tick flush
-   ([Entity lifecycle](#entity-lifecycle) has the rest).
+   ([Entity lifecycle](#entity-lifecycle) has the rest); any force applied
+   since the step is dropped.
 
 Registration order is the engine's behaviors (`sprite`, `occupant`,
 `lifetime`, `collider`, `body`, `player-input`, `path-follow`,
@@ -3360,7 +3382,10 @@ bodies (the characters' too) all register theirs.
   `applyTorque(id, torque)` hold for this tick's physics step only: they are
   summed through the tick, handed to the body after the behaviors'
   `beforePhysics`, and dropped after the step, so call them every tick to
-  sustain one. A save between ticks therefore never holds a force.
+  sustain one. One applied after the step (in `afterStep`, a behavior's
+  `step` or an event handler) is dropped at the end of the tick, not
+  carried into the next. A save between ticks therefore never holds a
+  force.
 - An id with no body throws `EngineError` `body-missing`. A force, torque
   or impulse on a kinematic or static body, a velocity on a static body or
   a follower, and an angular velocity on a kinematic body throw

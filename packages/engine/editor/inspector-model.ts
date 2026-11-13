@@ -13,6 +13,7 @@ import { childEntity, resolvePrefab, splitOverridePath } from "../scene/resolve"
 import { entitySchemaFor, fieldKind, InstanceSchema, unwrapSchema } from "../scene/schema";
 import { aabb, boxCorners, convexHull, isConvex } from "../scene/shape-geometry";
 import { parseShape, SHAPE_TYPES, shapeToTuple } from "../scene/shapes";
+import { addPt, isPt } from "../scene/translate";
 import {
   PREFAB_MAX_DEPTH,
   type EntityDef,
@@ -245,6 +246,7 @@ type FieldMeta = {
   accepts?: unknown;
   default?: unknown;
   placeholder?: unknown;
+  when?: unknown;
 };
 
 /** The field's metadata, inner wrappers first so an outer `.meta()` wins. */
@@ -668,21 +670,49 @@ function behaviorFields(registry: Registry, s: BehaviorState, name: BehaviorName
   if (!b)
     return [describeField(`${BEHAVIORS_FIELD}.${name}`, z.unknown(), entity, ctx, { forced })];
   const defaults = s.rules.defaults.get(name) ?? {};
+  const shape = blockShape(registry, s, name);
+  const written = writtenBlocks(entity)[name];
+  const block =
+    written !== null && typeof written === "object" ? (written as Record<string, unknown>) : {};
+  const current = (key: string): unknown => {
+    if (block[key] !== undefined) return block[key];
+    if (defaults[key] !== undefined) return defaults[key];
+    const field = shape[key];
+    const parsed = field ? z.safeParse(field, undefined) : undefined;
+    return parsed?.success ? parsed.data : undefined;
+  };
+  const applies = ([k, schema]: [string, z.ZodType]) =>
+    block[k] !== undefined || fieldApplies(fieldMeta(schema).when, current);
   return linkFrames(
-    orderedFields(blockShape(registry, s, name), b.inspector?.order ?? []).map(([k, schema]) => {
-      const f = describeField(`${BEHAVIORS_FIELD}.${name}.${k}`, schema, entity, ctx, {
-        forced,
-      });
-      const group = fieldMeta(schema).group;
-      if (typeof group === "string") f.group = group;
-      const d = defaults[k];
-      if (d !== undefined) {
-        f.defaultValue = d;
-        f.optional = true;
-      }
-      return f;
-    }),
+    orderedFields(shape, b.inspector?.order ?? [])
+      .filter(applies)
+      .map(([k, schema]) => {
+        const f = describeField(`${BEHAVIORS_FIELD}.${name}.${k}`, schema, entity, ctx, {
+          forced,
+        });
+        const group = fieldMeta(schema).group;
+        if (typeof group === "string") f.group = group;
+        const d = defaults[k];
+        if (d !== undefined) {
+          f.defaultValue = d;
+          f.optional = true;
+        }
+        return f;
+      }),
   );
+}
+
+/**
+ * Whether a field with `meta.when` (`{ kind: ["spring"] }`) applies to the
+ * block: every key it names holds one of the listed values, or no value
+ * yet. A field without one always applies.
+ */
+function fieldApplies(when: unknown, current: (key: string) => unknown): boolean {
+  if (when === null || typeof when !== "object") return true;
+  return Object.entries(when).every(([key, values]) => {
+    const v = current(key);
+    return v === undefined || !Array.isArray(values) || values.includes(v);
+  });
 }
 
 /** A value `schema` accepts for a field with no default, so an added block validates; undefined when none is found. */
@@ -715,6 +745,19 @@ function seedBlock(shape: z.ZodRawShape, defaults: Readonly<Record<string, unkno
   return out;
 }
 
+/** Where an entity stands as the editor places it; undefined for an unregistered type. */
+function poseOf(registry: Registry, e: EntityDef): Pt | undefined {
+  const t = registry.types.get(e.type);
+  return t ? editPose(entityGeometry(t, e), e).at : undefined;
+}
+
+/** A template path's waypoints moved to start from `at`, since a path's points are world metres. */
+function pathFrom(path: unknown, at: Pt): unknown {
+  if (path === null || typeof path !== "object" || !("pts" in path) || !Array.isArray(path.pts))
+    return path;
+  return { ...path, pts: path.pts.map((p: unknown) => (isPt(p) ? addPt(p, at) : p)) };
+}
+
 /**
  * The block Add behavior writes: the behavior's template under the type's own
  * defaults for it, then a seed for each required field still unset. The
@@ -734,8 +777,11 @@ function addedBlock(
     ...seedBlock(shape, { ...defaults, ...base }),
   });
   if (!b.template) return block({});
+  const at = poseOf(registry, s.target.entity) ?? [0, 0];
   const kept = Object.fromEntries(
-    Object.entries(structuredClone(b.template)).filter(([k]) => defaults[k] === undefined),
+    Object.entries(structuredClone(b.template))
+      .filter(([k]) => defaults[k] === undefined)
+      .map(([k, v]) => [k, shape[k] && fieldKind(shape[k]) === "path" ? pathFrom(v, at) : v]),
   );
   const withTemplate = block(kept);
   return b.refine?.({ ...defaults, ...withTemplate }) === undefined ? withTemplate : block({});
@@ -797,15 +843,11 @@ function seedRef(
   name: BehaviorName,
   field: string,
 ): string | undefined {
-  const poseOf = (e: EntityDef) => {
-    const t = registry.types.get(e.type);
-    return t ? editPose(entityGeometry(t, e), e).at : undefined;
-  };
-  const from = poseOf(self) ?? [0, 0];
+  const from = poseOf(registry, self) ?? [0, 0];
   const near = (def.entities ?? [])
     .filter((e) => e.id !== self.id && registry.types.has(e.type))
     .map((e) => {
-      const at = poseOf(e);
+      const at = poseOf(registry, e);
       return { e, d: at ? (at[0] - from[0]) ** 2 + (at[1] - from[1]) ** 2 : Infinity };
     })
     .sort((a, b) => a.d - b.d)

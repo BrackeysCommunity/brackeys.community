@@ -7,10 +7,12 @@ import type {
 } from "../../game/behaviors";
 import { COLLIDER, type ColliderBlock, type ColliderSystem } from "../../game/behaviors/collider";
 import type { NavAgentBlock, NavAgentSystem } from "../../game/behaviors/nav-agent";
-import type { EngineContext, JsonValue } from "../../game/types";
+import { scopedRef, type EngineContext, type JsonValue } from "../../game/types";
 import { createMotionBody, type MotionBody } from "../../motion/index";
 import { parseShape } from "../../scene/shapes";
 import type { Aabb, RuntimeEntity } from "../../scene/types";
+import { forgetOneWayActor } from "../../systems/bodies";
+import type { BodyStandIn } from "../bodies-control";
 import type { RuntimeNav } from "../nav";
 import { NAV_ARRIVED, NAV_BLOCKED } from "../types";
 
@@ -36,6 +38,8 @@ type Agent = {
   to: Vec2 | null;
   /** The entity it follows; null for a point or none. */
   target: string | null;
+  /** Whether `target` came from its block and is still to be resolved against its instance (`scopedRef`). */
+  scope: boolean;
   /** The route from where it last planned; null with no destination. */
   path: Vec2[] | null;
   /** The waypoint of `path` it walks to. */
@@ -48,10 +52,8 @@ type Agent = {
   stuck: number;
   /** Raised at the next tick and ending the walk: a plan that found no route. */
   blocked: BlockedReason | null;
-  /** The motion body it moves through when the entity has a solid `collider`; else it moves by pose. */
+  /** The motion body it moves through when the entity has a solid `collider`, standing in for the collider's own body; else it moves by pose. */
   body: MotionBody | null;
-  /** The collider system's own copy of that collider, taken out of the world while the motion body stands in for it. */
-  stood: boolean;
 };
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -144,7 +146,7 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
     return parsed.success ? (parsed.data as NavAgentBlock) : block;
   }
 
-  const colliders = () => ctx.behavior<ColliderSystem>(COLLIDER.name);
+  const colliders = () => ctx.behavior<ColliderSystem & BodyStandIn>(COLLIDER.name);
 
   function bodyFor(e: RuntimeEntity): MotionBody | null {
     const block = e.behaviors?.[COLLIDER.name] as Partial<ColliderBlock> | undefined;
@@ -164,19 +166,13 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
     );
   }
 
-  /** Takes the collider system's copy out of the world while the motion body stands in for it. */
-  function standIn(a: Agent): void {
-    const system = colliders();
-    a.stood = a.body !== null && system?.has(a.id) === true;
-    if (a.stood) system!.disable?.(a.id);
-  }
-
   /** Its pose as the pose index holds it (a motion body writes it too), so reading it allocates nothing. */
   const position = (a: Agent): Readonly<Vec2> => ctx.poses.get(a.id) ?? ORIGIN;
 
   function end(a: Agent): void {
     a.to = null;
     a.target = null;
+    a.scope = false;
     a.path = null;
     a.next = 0;
     a.stuck = 0;
@@ -286,6 +282,10 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       return;
     }
     if (a.to === null && a.target === null) return;
+    if (a.scope && a.target !== null) {
+      a.target = scopedRef(a.id, a.target, (other) => ctx.exists(other));
+      a.scope = false;
+    }
     const nav = ctx.nav;
     if (!nav) {
       raise(a, NAV_BLOCKED, position(a), "no-path");
@@ -419,17 +419,19 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
         best: Infinity,
         stuck: 0,
         blocked: null,
+        scope: false,
         body: bodyFor(entity),
-        stood: false,
       };
       agents.set(id, a);
       countType(entity.type, 1);
-      standIn(a);
+      if (a.body) colliders()?.standIn(id);
       // The scene's own destination; planned at the first tick, once the walk areas and its target are in.
       const to = a.block.to;
       if (to !== undefined) {
-        if (typeof to === "string") a.target = to;
-        else a.to = { x: to[0], y: to[1] };
+        if (typeof to === "string") {
+          a.target = to;
+          a.scope = true;
+        } else a.to = { x: to[0], y: to[1] };
       }
     },
     update(id, block) {
@@ -443,7 +445,8 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       countType(a.type, -1);
       if (a.body) {
         a.body.destroy();
-        if (a.stood && a.on) colliders()?.enable?.(id);
+        forgetOneWayActor(ctx, id);
+        if (ctx.exists(id)) colliders()?.release(id);
       }
     },
     beforeStep(dtMs) {
@@ -462,7 +465,6 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       if (!a || a.on) return;
       a.on = true;
       a.body?.setEnabled(true);
-      if (a.stood) colliders()?.disable?.(id);
     },
     setDestination(id, to) {
       const a = agents.get(id);
@@ -515,8 +517,10 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       const { to, target, path, next, repathIn, best, stuck, blocked } = state;
       const point = readPoint(to);
       if (point) a.to = point;
-      else if (typeof target === "string") a.target = target;
-      else return;
+      else if (typeof target === "string") {
+        a.target = target;
+        a.scope = true;
+      } else return;
       if (Array.isArray(path)) {
         const pts: Vec2[] = [];
         for (const w of path) {

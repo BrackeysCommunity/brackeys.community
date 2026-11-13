@@ -127,6 +127,30 @@ describe("the nav-agent behavior", () => {
     rt.destroy();
   });
 
+  it("gives an unmoved entity's collider body back to ctx.bodies when the behavior goes", () => {
+    const collider = { collider: { shape: ["circle", 0, 0, 0.2] }, body: { kind: "kinematic" } };
+    const { rt } = setup([...ROOM, agent("a", [1, 5], {}, collider)]);
+    const kept: RuntimeEntity = { id: "a", type: "marker", at: [1, 5], behaviors: collider };
+    expect(rt.update([...ROOM, kept])).toEqual({ ok: true });
+    expect(rt.ctx.bodies.has("a")).toBe(true);
+    expect(rt.ctx.bodies.kind("a")).toBe("kinematic");
+    rt.ctx.bodies.setVelocity("a", { x: 1, y: 0 });
+    rt.step(rt.ctx.time.tickMs, []);
+    expect(rt.ctx.poses.get("a")!.x).toBeCloseTo(1 + 1 / 60, 6);
+    rt.destroy();
+  });
+
+  it("follows a sibling inside its instance by the name the prefab gave it", () => {
+    const { rt, events, steps } = setup([
+      ...ROOM,
+      agent("i/a", [1, 5], { to: "drop" }),
+      { id: "i/drop", type: "marker", at: [11, 5] },
+    ]);
+    steps(900);
+    expect(events).toEqual([expect.objectContaining({ type: ARRIVED, entityId: "i/a" })]);
+    rt.destroy();
+  });
+
   it("follows a moving entity, planning again as it moves, and arrives beside it", () => {
     const { rt, nav, events, steps, at } = setup([
       { id: "floor", type: "nav", shape: box(0, 0, 30, 10) },

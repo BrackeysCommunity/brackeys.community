@@ -52,13 +52,13 @@ export const BODY_FIELDS = {
     .min(0)
     .optional()
     .describe("Slows the body's motion over time; default 0.")
-    .meta({ title: "Linear damping", group: "body", default: 0 }),
+    .meta({ title: "Linear damping", unit: "/s", group: "body", default: 0 }),
   angularDamping: z
     .number()
     .min(0)
     .optional()
     .describe("Slows the body's spin over time; default 0.")
-    .meta({ title: "Angular damping", group: "body", default: 0 }),
+    .meta({ title: "Angular damping", unit: "/s", group: "body", default: 0 }),
   fixedRotation: z
     .boolean()
     .optional()

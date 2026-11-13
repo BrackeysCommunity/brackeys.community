@@ -10,15 +10,15 @@ import { defineBehavior } from "../behaviors";
 /** The most seats a game can have; seat indices are 0 to one less. */
 const MAX_SEATS = 8;
 
-/** A seat index field: 0 is the first player. */
-export function seatField(description: string) {
+/** A seat index field, under the inspector's `group`: 0 is the first player. */
+export function seatField(description: string, group: string) {
   return z
     .number()
     .int()
     .min(0)
     .max(MAX_SEATS - 1)
     .describe(description)
-    .meta({ title: "Seat" });
+    .meta({ title: "Seat", group });
 }
 
 /** A field naming one of the game's actions, by default `fallback`. */
@@ -36,7 +36,10 @@ export function actionField(fallback: string, description: string) {
 }
 
 const playerInputFields = {
-  seat: seatField("The seat whose input drives this entity: 0 is the first player.").default(0),
+  seat: seatField(
+    "The seat whose input drives this entity: 0 is the first player.",
+    "input",
+  ).default(0),
 };
 
 /** A `player-input` block as an entity carries it, defaults applied. */

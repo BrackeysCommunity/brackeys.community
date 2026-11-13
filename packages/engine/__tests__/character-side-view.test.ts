@@ -327,6 +327,39 @@ describe("character-side-view", () => {
         rt.destroy();
       });
 
+      it("stays on the ground down a step within snapToGround, and leaves it with snapToGround 0", () => {
+        const DROP = 0.03;
+        const lower: EntityDef = {
+          id: "lower",
+          type: "solid",
+          shape: ["box", 4, FLOOR + DROP + 0.5, 2, 0.5],
+        } as EntityDef;
+        const upper: EntityDef = {
+          id: "upper",
+          type: "solid",
+          shape: ["box", -2, FLOOR + 0.5, 4, 0.5],
+        } as EntityDef;
+        const walk = (block: BehaviorBlock) => {
+          const rt = load([upper, lower, hero("npc", standing(0), { block })], backend);
+          characters(rt).setIntent("npc", { move: { x: 1, y: 0 } });
+          const seen: string[] = [];
+          for (let i = 0; i < 40; i++)
+            for (const e of step(rt))
+              if (e.type === "character:left-ground" || e.type === "character:landed")
+                seen.push(`${e.type} ${i}`);
+          const y = pose(rt, "npc").y;
+          rt.destroy();
+          return { seen, y };
+        };
+        // The block's default snapToGround, 0.04 m, reaches past the 0.03 m step.
+        const stuck = walk({});
+        expect(stuck.seen).toEqual([]);
+        expect(stuck.y).toBeCloseTo(STANDING + DROP, 2);
+        const dropped = walk({ snapToGround: 0 });
+        expect(dropped.seen).toEqual(["character:left-ground 24", "character:landed 28"]);
+        expect(dropped.y).toBeCloseTo(STANDING + DROP, 2);
+      });
+
       it("drives two characters from two seats, and stops one whose seat leaves", () => {
         const rt = load(
           [floor, hero("one", standing(-12), { seat: 0 }), hero("two", standing(12), { seat: 1 })],

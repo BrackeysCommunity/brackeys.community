@@ -417,8 +417,14 @@ interface BodyControl {
     setAngularVelocity(id: string, w: number): void;
     /** Applied once, at the centre of mass or at a world point. */
     applyImpulse(id: string, impulse: Vec2, at?: Vec2): void;
-    /** Held for this tick's physics step only; call it each tick to sustain it. */
+    /**
+     * Held for this tick's physics step only; call it each tick to sustain it.
+     * One applied after the step (in `afterStep`, a behavior's `step` or an
+     * event handler) is dropped at the end of the tick, never carried into the
+     * next one.
+     */
     applyForce(id: string, force: Vec2, at?: Vec2): void;
+    /** Held as `applyForce` holds a force. */
     applyTorque(id: string, torque: number): void;
     mass(id: string): number;
     wake(id: string): void;

@@ -540,7 +540,11 @@ export function OptionsField({
     else if (option) write(option.value);
     else if (key === "" && field.optional) write(undefined);
   };
-  const note = field.mixed ? MIXED : !set && unset !== undefined ? unset : null;
+  // An unset field shows the option its default picks, by that option's label.
+  const fallback =
+    set || field.mixed ? undefined : options.find((o) => o.value === field.defaultValue);
+  const unsetNote = fallback ? `${fallback.label} (default)` : unset;
+  const note = field.mixed ? MIXED : !set && unsetNote !== undefined ? unsetNote : null;
   if (segmented) {
     return (
       <FieldRow field={field} error={error} scope={scope}>
@@ -563,6 +567,7 @@ export function OptionsField({
                 key={String(o.value)}
                 value={String(o.value)}
                 tooltip={o.description}
+                {...(o === fallback ? { className: "je-insp-default-choice" } : {})}
               >
                 {o.label}
               </SegmentedControl.Item>

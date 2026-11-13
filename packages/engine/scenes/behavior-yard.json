@@ -36,6 +36,6 @@
     { "id": "courier", "type": "marker", "at": [32, 10.5], "behaviors": { "nav-agent": { "to": "drop-point" } } },
     { "id": "drop-point", "type": "marker", "at": [42, 10.5], "tags": ["destination"] },
     { "id": "about", "type": "note", "at": [1, 0.6], "text": "Behavior yard: the engine's standard behaviors with no game module. Left, a side-view room: runner (hero-side, jumpHeight 2) starts beside the crate bin the spawner fills, jumps up through the one-way ledge, is lifted over the first gap by the updraft force area, rides the ferry platform over the second and reaches the goal sensor; the camera follows it. A chain of three jointed links swings from chain-anchor. Right, a top-down room: walker (hero-top, maxSpeed 3) on seat 1, and courier, a nav agent on the walkway, which has a hole, with drop-point across it." },
-    { "id": "goal", "type": "marker", "at": [26.5, 11.4], "tags": ["goal"], "behaviors": { "collider": { "group": "dynamic", "sensor": true, "shape": ["box", 0, 0, 0.4, 0.5] } } }
+    { "id": "goal", "type": "marker", "at": [26.5, 11.4], "tags": ["goal"], "behaviors": { "collider": { "sensor": true, "shape": ["box", 0, 0, 0.4, 0.5] } } }
   ]
 }

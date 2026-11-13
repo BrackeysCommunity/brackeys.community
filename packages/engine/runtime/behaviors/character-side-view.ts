@@ -18,9 +18,9 @@ import { createMotionBody, type MotionBody } from "../../motion/body";
 import { createSideViewController, type SideViewController } from "../../motion/side-view";
 import { parseShape } from "../../scene/shapes";
 import type { Aabb, RuntimeEntity, ShapeObj } from "../../scene/types";
-import { oneWayPasses, type SolidSystem } from "../../systems/bodies";
+import { forgetOneWayActor, oneWayPasses, type SolidSystem } from "../../systems/bodies";
 import { carrierDelta } from "../../systems/path-follower";
-import { kinematicBodyEntry, registerBody } from "../bodies-control";
+import { kinematicBodyEntry, registerBody, type BodyStandIn } from "../bodies-control";
 import type { SpaceCastHit, SpaceFilter, SpaceHit, SpaceQuery } from "../space";
 import { CHARACTER_JUMPED, CHARACTER_LANDED, CHARACTER_LEFT_GROUND } from "../types";
 
@@ -58,8 +58,7 @@ type Character = {
   /** Grounded at the end of its last step: what the landed and left-ground events compare. */
   grounded: boolean;
   disabled: boolean;
-  /** The collider system's handles for the entity, as last taken over. */
-  handles: string;
+  /** Drops its `ctx.bodies` entry. */
   release: () => void;
 };
 
@@ -213,23 +212,9 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
     return Object.create(ctx, { space: { value: space } }) as EngineContext;
   }
 
-  /** Takes the entity's body over from the collider system: its colliders out of the world, `ctx.bodies` on the motion body. */
-  function takeOver(c: Character, force = false): void {
-    const handles = ctx.tags.handlesOf(c.id).filter((h) => h !== c.body.handle);
-    let hid = false;
-    for (const h of handles) {
-      if (ctx.geometry) ctx.geometry.setEnabled(h, false);
-      const collider = ctx.physics?.world.getCollider(h);
-      if (collider?.isEnabled()) {
-        collider.setEnabled(false);
-        collider.parent()?.setEnabled(false);
-        hid = true;
-      }
-    }
-    if (hid) ctx.physics?.refreshQueries();
-    const key = handles.join(",");
-    if (!force && key === c.handles) return;
-    c.handles = key;
+  /** Takes the entity's body over from the collider system (`standIn`), and its `ctx.bodies` entry onto the controller. */
+  function takeOver(c: Character): void {
+    ctx.behavior<ColliderSystem & BodyStandIn>(COLLIDER.name)?.standIn(c.id);
     c.release();
     c.release = registerBody(
       ctx,
@@ -313,12 +298,11 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
       held: was?.held ?? false,
       grounded: was ? was.grounded : controller.grounded(),
       disabled: was?.disabled ?? false,
-      handles: "",
       release: was?.release ?? (() => {}),
     };
     if (c.disabled) body.setEnabled(false);
     characters.set(e.id, c);
-    takeOver(c, true);
+    takeOver(c);
   }
 
   function remove(id: string, giveBack: boolean): void {
@@ -328,26 +312,8 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
     c.release();
     c.controller.destroy();
     c.body.destroy();
-    if (!giveBack) return;
-    for (const h of ctx.tags.handlesOf(id)) {
-      if (ctx.geometry) ctx.geometry.setEnabled(h, true);
-      const collider = ctx.physics?.world.getCollider(h);
-      collider?.parent()?.setEnabled(true);
-      collider?.setEnabled(true);
-    }
-    const collider = ctx.behavior<ColliderSystem>(COLLIDER.name);
-    if (!collider?.has(id)) return;
-    const before = ctx.tags.handlesOf(id).join(",");
-    collider.rebuild(id);
-    const at = ctx.poses.get(id);
-    if (!at || ctx.tags.handlesOf(id).join(",") !== before) return;
-    // Built at this very pose, the collider system keeps the body it has, which
-    // `ctx.bodies` no longer names: a build at another pose and back makes it anew.
-    const { x, y, rot } = at;
-    ctx.poses.set(id, x + 1, y, rot, { snap: true });
-    collider.rebuild(id);
-    ctx.poses.set(id, x, y, rot, { snap: true });
-    collider.rebuild(id);
+    forgetOneWayActor(ctx, id);
+    if (giveBack) ctx.behavior<ColliderSystem & BodyStandIn>(COLLIDER.name)?.release(id);
   }
 
   /**
@@ -439,7 +405,6 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
 
   function stepOne(was: Character, dtMs: number): void {
     const c = current(was);
-    takeOver(c);
     const at = c.body.position();
     const intent = intentOf(c);
     const passing = c.controller.velocity().y < 0 || intent.down;
@@ -515,7 +480,6 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
       if (!c || !c.disabled) return;
       c.disabled = false;
       c.body.setEnabled(true);
-      takeOver(c, true);
     },
     beforeStep(dtMs) {
       for (const c of characters.values()) if (!c.disabled) stepOne(c, dtMs);
@@ -561,7 +525,6 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
       c.intent = saved.intent;
       c.held = saved.held;
       c.grounded = saved.grounded;
-      takeOver(c, true);
     },
   };
   return system as BehaviorSystem;

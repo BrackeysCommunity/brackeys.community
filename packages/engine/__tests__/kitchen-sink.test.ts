@@ -11,8 +11,9 @@ import * as Y from "yjs";
 import { docToScene, sceneToDoc } from "../collab/convert";
 import { docToPrefab, prefabToDoc } from "../collab/prefab-doc";
 import { LIFETIME, type LifetimeBlock } from "../game/behaviors/lifetime";
+import { OCCUPANT } from "../game/behaviors/occupant";
 import { SPRITE, type SpriteBlock } from "../game/behaviors/sprite";
-import { createRegistry, defineGame, withProject } from "../game/define";
+import { createRegistry, defineGame, ENGINE_BEHAVIORS, withProject } from "../game/define";
 import { parseSaveFile } from "../game/save-file";
 import { PRIMITIVE_TYPES, type GameDefinition, type Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
@@ -213,6 +214,34 @@ describe("kitchen-sink.json", () => {
   describe("covers", () => {
     it("every engine primitive", () => {
       expect(new Set(entities().map((e) => e.type))).toEqual(new Set(PRIMITIVE_TYPES));
+    });
+
+    it("every engine behavior but occupant, which the grid-only grid-yard carries, each standard one on its own std- entity", () => {
+      const carried = new Set(expanded().entities.flatMap((e) => Object.keys(e.behaviors ?? {})));
+      const engineNames = ENGINE_BEHAVIORS.map((b) => b.name).filter((n) => n !== OCCUPANT.name);
+      expect(carried).toEqual(new Set(engineNames));
+      const grid = JSON.parse(readFileSync(new URL("grid-yard.json", scenesDir), "utf8")) as {
+        entities?: { behaviors?: Record<string, unknown> }[];
+      };
+      expect(grid.entities?.some((e) => e.behaviors?.[OCCUPANT.name])).toBe(true);
+      const standard: Record<string, string> = {
+        collider: "std-collider",
+        body: "std-body",
+        "player-input": "std-player-input",
+        "character-top-down": "std-top-down",
+        "character-side-view": "std-side-view",
+        "camera-target": "std-camera-target",
+        spawner: "std-spawner",
+        "nav-agent": "std-nav-agent",
+        "path-follow": "std-path-follow",
+        "force-area": "std-force-area",
+        joint: "std-joint",
+      };
+      for (const [name, id] of Object.entries(standard)) {
+        expect(engineNames, name).toContain(name);
+        const e = entities().find((x) => x.id === id);
+        expect(e?.behaviors, id).toHaveProperty([name]);
+      }
     });
 
     it("every shape form in bulk, a rotated box among them", () => {

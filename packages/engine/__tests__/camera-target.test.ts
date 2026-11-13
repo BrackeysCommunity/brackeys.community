@@ -177,6 +177,30 @@ describe("camera-target", () => {
     expect(held).not.toEqual({ x: 30, y: 30 });
   });
 
+  it("follows a carrier spawned at runtime, and lets go of it when it goes", async () => {
+    let tick = 0;
+    const spawning = defineGame({
+      id: "framer",
+      types: [],
+      actions: [],
+      world: { physics: "none" },
+      createRuntime: (ctx) => ({
+        snapshot: () => null,
+        afterStep() {
+          tick++;
+          if (tick === 3) ctx.spawn({ ...target("marker#late", { x: 40, y: 0 }) });
+          if (tick === 200) ctx.destroy("marker#late");
+        },
+      }),
+    });
+    await playing(sceneOf([target("stay", { x: 0, y: 0 })], "framer"), spawning);
+    expect(lastFrame()).toEqual({ x: 0, y: 0 });
+    advance(150);
+    expect(lastFrame().x).toBeCloseTo(20, 3);
+    advance(250);
+    expect(lastFrame().x).toBeCloseTo(0, 3);
+  });
+
   it("follows the targets when the game names none", async () => {
     await playing(sceneOf([target("hero", { x: 30, y: 30 })], "framer"), gameWith());
     expect(lastFrame()).toEqual({ x: 30, y: 30 });

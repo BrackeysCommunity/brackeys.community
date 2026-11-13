@@ -230,6 +230,63 @@ describe.each(BACKENDS)("the side-view controller (physics %s)", (physics) => {
     expect(tall.y).toBeCloseTo(STANDING, 3);
   });
 
+  /** Walks right from x = 3 on `upper` for `ticks` ticks, noting each tick it leaves or lands. */
+  const walkDown = (entities: EntityDef[], snapToGround: number, ticks: number) => {
+    const { rt, body, tick } = rig(physics, entities, standing(3), { snapToGround });
+    const events: string[] = [];
+    let was = true;
+    for (let i = 0; i < ticks; i++) {
+      const r = tick(RIGHT);
+      if (r.grounded !== was) events.push(`${r.grounded ? "landed" : "left"} ${i}`);
+      was = r.grounded;
+    }
+    const p = body.position();
+    rt.destroy();
+    return { events, x: p.x, y: p.y };
+  };
+  const UPPER = { id: "upper", type: "solid", shape: ["box", 2, 2.25, 2, 0.25] } as EntityDef;
+
+  it("sticks to a step down within snapToGround, and drops off it with snapToGround 0", () => {
+    const DROP = 0.03;
+    const lower = {
+      id: "lower",
+      type: "solid",
+      shape: ["box", 6, FLOOR_TOP + DROP + 0.25, 2, 0.25],
+    } as EntityDef;
+    const stuck = walkDown([UPPER, lower], 0.04, 30);
+    expect(stuck.events).toEqual([]);
+    expect(stuck.x).toBeGreaterThan(5);
+    expect(stuck.y).toBeCloseTo(STANDING + DROP, 3);
+    const dropped = walkDown([UPPER, lower], 0, 30);
+    expect(dropped.events).toEqual(["left 14", "landed 19"]);
+    expect(dropped.y).toBeCloseTo(STANDING + DROP, 3);
+  });
+
+  it("follows a 20° slope down within snapToGround, and leaves it with snapToGround 0", () => {
+    const run = 1.5;
+    const bottom = FLOOR_TOP + run * Math.tan((20 * Math.PI) / 180);
+    const slope = {
+      id: "slope",
+      type: "solid",
+      shape: ["poly", 4, FLOOR_TOP, 4 + run, bottom, 4, bottom],
+    } as EntityDef;
+    const lower = {
+      id: "lower",
+      type: "solid",
+      shape: ["box", 7.5, bottom + 0.25, 2, 0.25],
+    } as EntityDef;
+    const stuck = walkDown([UPPER, slope, lower], 0.04, 40);
+    expect(stuck.events).toEqual([]);
+    expect(stuck.x).toBeGreaterThan(4 + run);
+    expect(stuck.y).toBeCloseTo(bottom - HH, 3);
+    // Off the slope's top it flies over the slope and lands on the floor past it.
+    const flown = walkDown([UPPER, slope, lower], 0, 40);
+    expect(flown.events).toEqual(
+      physics === "rapier" ? ["left 15", "landed 34"] : ["left 14", "landed 33"],
+    );
+    expect(flown.y).toBeCloseTo(bottom - HH, 3);
+  });
+
   it("stops at a wall and loses the speed heading into it", () => {
     const wall = { id: "wall", type: "solid", shape: ["box", 3.1, 1, 0.1, 1] } as EntityDef;
     const { rt, body, ctl, tick } = rig(physics, [LONG_FLOOR, wall], standing(2));

@@ -258,6 +258,78 @@ describe("EditorInspector: standard behaviors", () => {
   });
 });
 
+describe("EditorInspector: standard behavior fields", () => {
+  const collider = { shape: ["box", 0, 0, 0.25, 0.25] };
+  const section = (name: string) => screen.getByRole("region", { name });
+  const headings = (el: HTMLElement) =>
+    [...el.querySelectorAll(".je-insp-group-title")].map((h) => h.textContent);
+
+  it("shows an unset spawner as active, and switching it off writes false", async () => {
+    const { dispatch, entity } = setup(
+      ["hero"],
+      room({ ...hero, behaviors: { spawner: { type: "marker" } } }),
+    );
+    const active = screen.getByRole("switch", { name: "behaviors.spawner.active" });
+    expect(active.getAttribute("aria-checked")).toBe("true");
+    expect(within(section("Spawner")).getByText("on (default)")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(active);
+    });
+    expect(dispatch).toHaveBeenCalledOnce();
+    expect(entity("hero").behaviors).toMatchObject({ spawner: { active: false } });
+  });
+
+  it("reads a choice left unset as its default option", () => {
+    setup(
+      ["hero"],
+      room({ ...hero, behaviors: { collider, body: {}, "character-side-view": {} } }),
+    );
+    const move = screen.getByRole("combobox", { name: "behaviors.character-side-view.move" });
+    expect(move.textContent).toBe("move (vector) (default)");
+    const jump = screen.getByRole("combobox", { name: "behaviors.character-side-view.jump" });
+    expect(jump.textContent).toBe("jump (default)");
+    const kind = within(section("Body")).getByRole("group", { name: "behaviors.body.kind" });
+    expect(within(kind).getByText("dynamic").closest(".je-insp-default-choice")).toBeTruthy();
+    expect(within(section("Body")).getByText("dynamic (default)")).toBeTruthy();
+  });
+
+  it("leaves off a sub-heading that repeats the section's title", () => {
+    setup(
+      ["hero"],
+      room(crate, {
+        ...hero,
+        behaviors: {
+          collider,
+          body: {},
+          joint: { kind: "revolute", to: "crate" },
+          spawner: { type: "marker" },
+          "camera-target": {},
+        },
+      }),
+    );
+    expect(headings(section("Collider"))).toEqual(["Surface"]);
+    expect(headings(section("Joint"))).toEqual(["Limits"]);
+    expect(headings(section("Spawner"))).toEqual(["Placement"]);
+    expect(headings(section("Camera target"))).toEqual([]);
+    const to = screen.getByRole("combobox", { name: "behaviors.joint.to" }) as HTMLInputElement;
+    expect(to.placeholder).toBe("Pick an entity");
+  });
+
+  it("groups Add behavior under headings, with what it also adds as its own note", async () => {
+    setup(["hero"], room(hero, crate));
+    await openMenu();
+    const menu = document.querySelector(".je-insp-behavior-menu") as HTMLElement;
+    expect([...menu.querySelectorAll(".je-menu-label")].map((l) => l.textContent)).toEqual([
+      "Physics",
+      "Movement",
+      "World",
+      "Visual",
+    ]);
+    const side = menu.querySelector('[data-behavior="character-side-view"]') as HTMLElement;
+    expect(side.querySelector(".je-insp-behavior-note")?.textContent).toBe("Also adds Collider.");
+  });
+});
+
 describe("BehaviorMarks", () => {
   it("draws the selected entity's collider, joint line, force arrow and spread ring", () => {
     const session = createEditorSession({

@@ -28,43 +28,47 @@ const jointFields = {
     "Where the joint holds the other entity's body, from its pose, m. Default: the point under `anchorA` when the joint is first made.",
   )
     .optional()
-    .meta({ title: "Anchor on `to`", group: "joint" }),
+    .meta({ title: "Other anchor", group: "joint" }),
   axis: vectorField("prismatic: the slide direction, in this body's frame. Default [1, 0].")
     .optional()
-    .meta({ title: "Axis", group: "joint" }),
+    .meta({ title: "Axis", group: "joint", when: { kind: ["prismatic"] } }),
   limits: z
     .tuple([z.number().describe("The low limit."), z.number().describe("The high limit.")])
     .optional()
     .describe(
       "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
     )
-    .meta({ title: "Limits", group: "limits" }),
+    .meta({ title: "Limits", group: "limits", when: { kind: ["revolute", "prismatic"] } }),
   motor: z
     .strictObject({
       velocity: z.number().describe("The target speed: rad/s for revolute, m/s for prismatic."),
-      maxForce: z.number().positive().describe("The most force (or torque) it uses, N."),
+      maxForce: z
+        .number()
+        .positive()
+        .describe("The most force (or torque) it uses, N.")
+        .meta({ title: "Max force" }),
     })
     .optional()
     .describe("revolute and prismatic: drives this body's speed relative to `to` toward velocity.")
-    .meta({ title: "Motor", group: "limits" }),
+    .meta({ title: "Motor", group: "limits", when: { kind: ["revolute", "prismatic"] } }),
   length: z
     .number()
     .positive()
     .optional()
     .describe("rope: the most they can be apart, m. spring: the rest length, m.")
-    .meta({ title: "Length", unit: "m", group: "joint" }),
+    .meta({ title: "Length", unit: "m", group: "joint", when: { kind: ["rope", "spring"] } }),
   stiffness: z
     .number()
     .positive()
     .optional()
     .describe("spring: how hard it pulls toward its rest length, N/m. Default 100.")
-    .meta({ title: "Stiffness", group: "spring" }),
+    .meta({ title: "Stiffness", unit: "N/m", group: "spring", when: { kind: ["spring"] } }),
   damping: z
     .number()
     .min(0)
     .optional()
     .describe("spring: how fast its bounce dies down, N·s/m. Default 1.")
-    .meta({ title: "Damping", group: "spring" }),
+    .meta({ title: "Damping", unit: "N·s/m", group: "spring", when: { kind: ["spring"] } }),
   collide: z
     .boolean()
     .default(false)

@@ -4,7 +4,7 @@ import { createRegistry } from "../../game/define";
 import { applyOps } from "../../scene/ops";
 import type { EntityDef, Pt, SceneDefinition } from "../../scene/types";
 import { validateScene } from "../../scene/validate";
-import { behaviorMarks } from "../gizmos/behavior-marks";
+import { behaviorMarks, colliderOutlines, pathFollowPath } from "../gizmos/behavior-marks";
 import {
   FORCE_PX,
   REACH_PX,
@@ -276,7 +276,31 @@ describe("behavior marks", () => {
       { id: "crate", type: "prop", shape: ["box", 8, 5, 0.5, 0.5] },
     );
     expect(behaviorMarks(targetOf(joint).behaviors!, SCALE).lines).toEqual([
-      { from: [5, 5], to: [8, 5] },
+      { kind: "link", from: [5, 5], to: [8, 5] },
+    ]);
+  });
+
+  it("links a joint whose anchors coincide to its partner, and draws anchors apart", () => {
+    const link = (anchorB: Pt) =>
+      scene(
+        {
+          id: "post",
+          type: "marker",
+          at: [4, 5],
+          behaviors: { collider: { shape: ["box", 0, 0, 0.1, 0.1] } },
+        },
+        marker({
+          collider: { shape: ["box", 0, 0, 0.5, 0.05] },
+          body: {},
+          joint: { kind: "revolute", to: "post", anchorA: [-0.5, 0], anchorB },
+        }),
+      );
+    expect(behaviorMarks(targetOf(link([0.5, 0])).behaviors!, SCALE).lines).toEqual([
+      { kind: "link", from: [5, 5], to: [4, 5] },
+    ]);
+    expect(behaviorMarks(targetOf(link([0, 0])).behaviors!, SCALE).lines).toEqual([
+      { kind: "link", from: [5, 5], to: [4, 5] },
+      { kind: "anchors", from: [4.5, 5], to: [4, 5] },
     ]);
   });
 
@@ -303,6 +327,56 @@ describe("behavior marks", () => {
       marker({ collider: sensor, "force-area": { kind: "point", strength: -10 } }),
     );
     expect(behaviorMarks(targetOf(push).behaviors!, SCALE).rings[0]!.inward).toBe(false);
+  });
+});
+
+describe("scene-wide behavior marks", () => {
+  it("outlines every collider but the skipped one's, dashing sensors", () => {
+    const def = scene(
+      marker({ collider: { shape: ["box", 0, 0, 0.5, 0.5] } }),
+      {
+        id: "zone",
+        type: "marker",
+        at: [2, 3],
+        behaviors: { collider: { shape: ["circle", 0, 0, 1], sensor: true } },
+      },
+      { id: "bare", type: "marker", at: [1, 1] },
+    );
+    expect(colliderOutlines(def, registry)).toEqual([
+      {
+        ref: "m",
+        shape: { type: "box", cx: 5, cy: 5, hw: 0.5, hh: 0.5, rotDeg: 0 },
+        sensor: false,
+      },
+      { ref: "zone", shape: { type: "circle", cx: 2, cy: 3, r: 1 }, sensor: true },
+    ]);
+    expect(colliderOutlines(def, registry, ["m"]).map((o) => o.ref)).toEqual(["zone"]);
+  });
+
+  it("gives a path-follow entity its waypoints, closed for a loop", () => {
+    const path = {
+      pts: [
+        [5, 5],
+        [8, 5],
+        [8, 2],
+      ],
+      mode: "loop",
+      speed: 1,
+    };
+    const def = scene(marker({ "path-follow": { path } }), {
+      id: "bare",
+      type: "marker",
+      at: [1, 1],
+    });
+    expect(pathFollowPath(def, registry, "m")).toEqual({
+      pts: [
+        [5, 5],
+        [8, 5],
+        [8, 2],
+      ],
+      closed: true,
+    });
+    expect(pathFollowPath(def, registry, "bare")).toBeUndefined();
   });
 });
 

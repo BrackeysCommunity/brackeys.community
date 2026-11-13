@@ -1,14 +1,13 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { defineBehavior, type BehaviorSystem } from "../game/behaviors";
-import { defineEntityType, defineGame } from "../game/define";
+import { defineEntityType, defineGame, ENGINE_BEHAVIORS } from "../game/define";
 import { pointField } from "../game/fields";
 import type { SceneSystem } from "../game/types";
 import { createSceneRuntime } from "../runtime/runtime";
 import { createRunTiming } from "../runtime/timing";
 import type { ExpandedScene, RuntimeEntity } from "../scene/types";
 import type { RapierModule } from "../types";
-import { testGame } from "./fixtures/test-game";
 
 let rapier: RapierModule;
 
@@ -170,17 +169,56 @@ describe("behavior tick hooks", () => {
     rt.destroy();
   });
 
-  it("make no call when no registered behavior has them", () => {
+  it("make a call, and a lap, only for the systems that define them", () => {
+    const plain = defineBehavior({
+      name: "hooks/plain",
+      description: "Steps, with no tick hooks.",
+      fields: {},
+      system: (): BehaviorSystem => {
+        const live = new Set<string>();
+        return {
+          attach: (id) => void live.add(id),
+          detach: (id) => void live.delete(id),
+          clear: () => live.clear(),
+          size: () => live.size,
+          step: () => {},
+        };
+      },
+    });
+    const game = defineGame({
+      id: "hooks",
+      types: [],
+      actions: [],
+      behaviors: [plain],
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const TICKS = 3;
     for (const physics of ["rapier", "none"] as const) {
       let now = 0;
       const timing = createRunTiming(() => (now += 1));
-      const rt = createSceneRuntime({ rapier, view: null, game: testGame, timing });
+      const rt = createSceneRuntime({ rapier, view: null, game, timing });
       expect(rt.load(scene(physics, [])).ok).toBe(true);
-      for (let i = 0; i < 3; i++) rt.step(DT, []);
-      const hooks = Object.keys(timing.report().tick.parts).filter(
-        (p) => p.startsWith("behavior.") && /\.(beforeStep|beforePhysics)$/.test(p),
+      for (let i = 0; i < TICKS; i++) rt.step(DT, []);
+      const parts = timing.report().tick.parts;
+      const laps = Object.keys(parts).filter((p) =>
+        /^behavior\..*\.(beforeStep|beforePhysics)$/.test(p),
       );
-      expect(hooks, physics).toEqual([]);
+      expect(
+        laps.filter((p) => p.startsWith("behavior.hooks/plain.")),
+        physics,
+      ).toEqual([]);
+      expect(Object.keys(parts), physics).toContain("behavior.hooks/plain");
+      for (const part of laps) {
+        const [, name, hook] = /^behavior\.(.+)\.(beforeStep|beforePhysics)$/.exec(part)!;
+        const system = rt.ctx.behavior<BehaviorSystem>(name!);
+        expect(typeof system?.[hook as "beforeStep" | "beforePhysics"], part).toBe("function");
+        expect(parts[part]!.calls, part).toBe(TICKS);
+      }
+      for (const { name } of [...ENGINE_BEHAVIORS, plain]) {
+        const system = rt.ctx.behavior<BehaviorSystem>(name);
+        for (const hook of ["beforeStep", "beforePhysics"] as const)
+          if (system?.[hook]) expect(laps, `${name}.${hook}`).toContain(`behavior.${name}.${hook}`);
+      }
       rt.destroy();
     }
   });

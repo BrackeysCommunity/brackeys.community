@@ -254,3 +254,47 @@ describe("computeMovementSkipping", () => {
     expect(trace(4)).toEqual(trace(12));
   });
 });
+
+describe("one-way passes of actors that go", () => {
+  /** How many actors the context keeps one-way passes for. */
+  function actorsKept(rt: SceneRuntimeHandle): number {
+    const key = Object.getOwnPropertySymbols(rt.ctx).find(
+      (s) => s.description === "one-way passes",
+    );
+    const map = key ? (rt.ctx as unknown as Record<symbol, Map<string, unknown>>)[key] : undefined;
+    return map?.size ?? 0;
+  }
+
+  for (const physics of BACKENDS) {
+    it(`forgets a side-view character's passes when it is destroyed (${physics})`, () => {
+      const floor: RuntimeEntity = {
+        id: "floor",
+        type: "solid",
+        shape: box(0, 2, 6, 0.1),
+        oneWay: true,
+      };
+      const rt = load([floor], physics, [0, 10]);
+      for (let round = 0; round < 5; round++) {
+        const ids = [0, 1, 2].map(
+          (i) =>
+            rt.ctx.spawn({
+              type: "marker",
+              at: [i - 1, 1],
+              behaviors: {
+                collider: { shape: ["box", 0, 0, 0.2, 0.3] },
+                body: { kind: "kinematic" },
+                "character-side-view": {},
+              },
+            }).id,
+        );
+        rt.step(DT, []);
+        rt.step(DT, []);
+        expect(actorsKept(rt)).toBeGreaterThanOrEqual(3);
+        for (const id of ids) rt.ctx.destroy(id);
+        rt.step(DT, []);
+        expect(actorsKept(rt)).toBe(0);
+      }
+      rt.destroy();
+    });
+  }
+});

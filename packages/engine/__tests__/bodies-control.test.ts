@@ -1,6 +1,7 @@
 import type { RigidBody } from "@dimforge/rapier2d";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
+import { defineGame } from "../game/define";
 import { EngineError } from "../game/types";
 import { createMotionBody } from "../motion/body";
 import type { RuntimeBodyControl } from "../runtime/bodies-control";
@@ -264,6 +265,60 @@ describe("forces last one step", () => {
     expect(rt.ctx.bodies.velocity("crate").x).toBe(after);
     expect(rt.ctx.bodies.angularVelocity("crate")).toBe(spin);
     rt.destroy();
+  });
+});
+
+describe("forces after the step", () => {
+  /** A runtime whose game applies `force` to the crate in its afterStep each tick. */
+  function pushedAfter(force: { x: number; y: number } | null): SceneRuntimeHandle {
+    const game = defineGame({
+      id: "pusher",
+      types: [],
+      actions: [],
+      createRuntime: (ctx) => ({
+        snapshot: () => null,
+        afterStep() {
+          if (force) ctx.bodies.applyForce("crate", force);
+          if (force) ctx.bodies.applyTorque("crate", 0.01);
+        },
+      }),
+    });
+    const rt = createSceneRuntime({ rapier, view: null, game });
+    const report = rt.load({
+      name: "bodies",
+      game: "pusher",
+      bounds: [-10, -10, 10, 10],
+      settings: {
+        gravity: [0, 0],
+        physics: "rapier",
+        grid: null,
+        view: { projection: "orthogonal" },
+      },
+      entities: [crate()],
+    });
+    if (!report.ok) throw new Error(report.error);
+    return rt;
+  }
+
+  it("a force or torque applied in afterStep is dropped at the end of the tick", () => {
+    const rt = pushedAfter({ x: 0.04, y: 0 });
+    steps(rt, 30);
+    expect(rt.ctx.bodies.velocity("crate")).toEqual({ x: 0, y: 0 });
+    expect(rt.ctx.bodies.angularVelocity("crate")).toBe(0);
+    rt.destroy();
+  });
+
+  it("a tick boundary holds no force, so a run that pushes after the step digests as one that doesn't", () => {
+    const digest = (rt: SceneRuntimeHandle) => {
+      const poses: number[][] = [];
+      steps(rt, 60, () => {
+        const b = bodyOf(rt, "crate");
+        poses.push([b.translation().x, b.translation().y, b.linvel().x, b.angvel()]);
+      });
+      rt.destroy();
+      return snapshotDigest(poses);
+    };
+    expect(digest(pushedAfter({ x: 0.04, y: -0.02 }))).toBe(digest(pushedAfter(null)));
   });
 });
 

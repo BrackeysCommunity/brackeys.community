@@ -340,6 +340,7 @@
                       "maximum": 7,
                       "description": "The seat whose input drives this entity: 0 is the first player.",
                       "title": "Seat",
+                      "group": "input",
                       "default": 0
                     }
                   },
@@ -377,6 +378,9 @@
                       "title": "Force",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["directional"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -396,6 +400,9 @@
                       "title": "Strength",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "type": "number"
                     },
                     "falloff": {
@@ -404,6 +411,9 @@
                       "description": "point: how strength fades with distance from the pose: none, linear to zero at the collider's edge, or inverse-square past 1 m. Default none.",
                       "title": "Falloff",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "default": "none"
                     },
                     "drag": {
@@ -771,7 +781,7 @@
                       "description": "Where the joint holds this entity's body, from its pose, m."
                     },
                     "anchorB": {
-                      "title": "Anchor on `to`",
+                      "title": "Other anchor",
                       "group": "joint",
                       "type": "array",
                       "prefixItems": [
@@ -792,6 +802,9 @@
                     "axis": {
                       "title": "Axis",
                       "group": "joint",
+                      "when": {
+                        "kind": ["prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -812,6 +825,9 @@
                       "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
                       "title": "Limits",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -828,6 +844,9 @@
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "object",
                       "properties": {
                         "velocity": {
@@ -837,7 +856,8 @@
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N."
+                          "description": "The most force (or torque) it uses, N.",
+                          "title": "Max force"
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -848,20 +868,31 @@
                       "title": "Length",
                       "unit": "m",
                       "group": "joint",
+                      "when": {
+                        "kind": ["rope", "spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "stiffness": {
                       "description": "spring: how hard it pulls toward its rest length, N/m. Default 100.",
                       "title": "Stiffness",
+                      "unit": "N/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "damping": {
                       "description": "spring: how fast its bounce dies down, N·s/m. Default 1.",
                       "title": "Damping",
+                      "unit": "N·s/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "minimum": 0
                     },
@@ -989,7 +1020,8 @@
                       "minimum": 0,
                       "maximum": 7,
                       "description": "The seat whose view follows it, for split screens; omitted, every view does.",
-                      "title": "Seat"
+                      "title": "Seat",
+                      "group": "camera"
                     }
                   },
                   "additionalProperties": false,
@@ -1283,6 +1315,7 @@
                       "maximum": 7,
                       "description": "The seat whose input drives this entity: 0 is the first player.",
                       "title": "Seat",
+                      "group": "input",
                       "default": 0
                     }
                   },
@@ -1320,6 +1353,9 @@
                       "title": "Force",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["directional"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -1339,6 +1375,9 @@
                       "title": "Strength",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "type": "number"
                     },
                     "falloff": {
@@ -1347,6 +1386,9 @@
                       "description": "point: how strength fades with distance from the pose: none, linear to zero at the collider's edge, or inverse-square past 1 m. Default none.",
                       "title": "Falloff",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "default": "none"
                     },
                     "drag": {
@@ -1714,7 +1756,7 @@
                       "description": "Where the joint holds this entity's body, from its pose, m."
                     },
                     "anchorB": {
-                      "title": "Anchor on `to`",
+                      "title": "Other anchor",
                       "group": "joint",
                       "type": "array",
                       "prefixItems": [
@@ -1735,6 +1777,9 @@
                     "axis": {
                       "title": "Axis",
                       "group": "joint",
+                      "when": {
+                        "kind": ["prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -1755,6 +1800,9 @@
                       "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
                       "title": "Limits",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -1771,6 +1819,9 @@
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "object",
                       "properties": {
                         "velocity": {
@@ -1780,7 +1831,8 @@
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N."
+                          "description": "The most force (or torque) it uses, N.",
+                          "title": "Max force"
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -1791,20 +1843,31 @@
                       "title": "Length",
                       "unit": "m",
                       "group": "joint",
+                      "when": {
+                        "kind": ["rope", "spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "stiffness": {
                       "description": "spring: how hard it pulls toward its rest length, N/m. Default 100.",
                       "title": "Stiffness",
+                      "unit": "N/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "damping": {
                       "description": "spring: how fast its bounce dies down, N·s/m. Default 1.",
                       "title": "Damping",
+                      "unit": "N·s/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "minimum": 0
                     },
@@ -1932,7 +1995,8 @@
                       "minimum": 0,
                       "maximum": 7,
                       "description": "The seat whose view follows it, for split screens; omitted, every view does.",
-                      "title": "Seat"
+                      "title": "Seat",
+                      "group": "camera"
                     }
                   },
                   "additionalProperties": false,
@@ -2418,6 +2482,7 @@
                     "linearDamping": {
                       "description": "Slows the body's motion over time; default 0.",
                       "title": "Linear damping",
+                      "unit": "/s",
                       "group": "body",
                       "default": 0,
                       "type": "number",
@@ -2426,6 +2491,7 @@
                     "angularDamping": {
                       "description": "Slows the body's spin over time; default 0.",
                       "title": "Angular damping",
+                      "unit": "/s",
                       "group": "body",
                       "default": 0,
                       "type": "number",
@@ -2460,6 +2526,7 @@
                       "maximum": 7,
                       "description": "The seat whose input drives this entity: 0 is the first player.",
                       "title": "Seat",
+                      "group": "input",
                       "default": 0
                     }
                   },
@@ -2497,6 +2564,9 @@
                       "title": "Force",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["directional"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -2516,6 +2586,9 @@
                       "title": "Strength",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "type": "number"
                     },
                     "falloff": {
@@ -2524,6 +2597,9 @@
                       "description": "point: how strength fades with distance from the pose: none, linear to zero at the collider's edge, or inverse-square past 1 m. Default none.",
                       "title": "Falloff",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "default": "none"
                     },
                     "drag": {
@@ -2891,7 +2967,7 @@
                       "description": "Where the joint holds this entity's body, from its pose, m."
                     },
                     "anchorB": {
-                      "title": "Anchor on `to`",
+                      "title": "Other anchor",
                       "group": "joint",
                       "type": "array",
                       "prefixItems": [
@@ -2912,6 +2988,9 @@
                     "axis": {
                       "title": "Axis",
                       "group": "joint",
+                      "when": {
+                        "kind": ["prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -2932,6 +3011,9 @@
                       "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
                       "title": "Limits",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -2948,6 +3030,9 @@
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "object",
                       "properties": {
                         "velocity": {
@@ -2957,7 +3042,8 @@
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N."
+                          "description": "The most force (or torque) it uses, N.",
+                          "title": "Max force"
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -2968,20 +3054,31 @@
                       "title": "Length",
                       "unit": "m",
                       "group": "joint",
+                      "when": {
+                        "kind": ["rope", "spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "stiffness": {
                       "description": "spring: how hard it pulls toward its rest length, N/m. Default 100.",
                       "title": "Stiffness",
+                      "unit": "N/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "damping": {
                       "description": "spring: how fast its bounce dies down, N·s/m. Default 1.",
                       "title": "Damping",
+                      "unit": "N·s/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "minimum": 0
                     },
@@ -3109,7 +3206,8 @@
                       "minimum": 0,
                       "maximum": 7,
                       "description": "The seat whose view follows it, for split screens; omitted, every view does.",
-                      "title": "Seat"
+                      "title": "Seat",
+                      "group": "camera"
                     }
                   },
                   "additionalProperties": false,
@@ -3226,6 +3324,7 @@
             "linearDamping": {
               "description": "Slows the body's motion over time; default 0.",
               "title": "Linear damping",
+              "unit": "/s",
               "group": "body",
               "default": 0,
               "type": "number",
@@ -3234,6 +3333,7 @@
             "angularDamping": {
               "description": "Slows the body's spin over time; default 0.",
               "title": "Angular damping",
+              "unit": "/s",
               "group": "body",
               "default": 0,
               "type": "number",
@@ -3452,6 +3552,7 @@
                       "maximum": 7,
                       "description": "The seat whose input drives this entity: 0 is the first player.",
                       "title": "Seat",
+                      "group": "input",
                       "default": 0
                     }
                   },
@@ -3489,6 +3590,9 @@
                       "title": "Force",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["directional"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -3508,6 +3612,9 @@
                       "title": "Strength",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "type": "number"
                     },
                     "falloff": {
@@ -3516,6 +3623,9 @@
                       "description": "point: how strength fades with distance from the pose: none, linear to zero at the collider's edge, or inverse-square past 1 m. Default none.",
                       "title": "Falloff",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "default": "none"
                     },
                     "drag": {
@@ -3883,7 +3993,7 @@
                       "description": "Where the joint holds this entity's body, from its pose, m."
                     },
                     "anchorB": {
-                      "title": "Anchor on `to`",
+                      "title": "Other anchor",
                       "group": "joint",
                       "type": "array",
                       "prefixItems": [
@@ -3904,6 +4014,9 @@
                     "axis": {
                       "title": "Axis",
                       "group": "joint",
+                      "when": {
+                        "kind": ["prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -3924,6 +4037,9 @@
                       "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
                       "title": "Limits",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -3940,6 +4056,9 @@
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "object",
                       "properties": {
                         "velocity": {
@@ -3949,7 +4068,8 @@
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N."
+                          "description": "The most force (or torque) it uses, N.",
+                          "title": "Max force"
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -3960,20 +4080,31 @@
                       "title": "Length",
                       "unit": "m",
                       "group": "joint",
+                      "when": {
+                        "kind": ["rope", "spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "stiffness": {
                       "description": "spring: how hard it pulls toward its rest length, N/m. Default 100.",
                       "title": "Stiffness",
+                      "unit": "N/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "damping": {
                       "description": "spring: how fast its bounce dies down, N·s/m. Default 1.",
                       "title": "Damping",
+                      "unit": "N·s/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "minimum": 0
                     },
@@ -4101,7 +4232,8 @@
                       "minimum": 0,
                       "maximum": 7,
                       "description": "The seat whose view follows it, for split screens; omitted, every view does.",
-                      "title": "Seat"
+                      "title": "Seat",
+                      "group": "camera"
                     }
                   },
                   "additionalProperties": false,
@@ -4388,6 +4520,7 @@
                       "maximum": 7,
                       "description": "The seat whose input drives this entity: 0 is the first player.",
                       "title": "Seat",
+                      "group": "input",
                       "default": 0
                     }
                   },
@@ -4425,6 +4558,9 @@
                       "title": "Force",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["directional"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -4444,6 +4580,9 @@
                       "title": "Strength",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "type": "number"
                     },
                     "falloff": {
@@ -4452,6 +4591,9 @@
                       "description": "point: how strength fades with distance from the pose: none, linear to zero at the collider's edge, or inverse-square past 1 m. Default none.",
                       "title": "Falloff",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "default": "none"
                     },
                     "drag": {
@@ -4819,7 +4961,7 @@
                       "description": "Where the joint holds this entity's body, from its pose, m."
                     },
                     "anchorB": {
-                      "title": "Anchor on `to`",
+                      "title": "Other anchor",
                       "group": "joint",
                       "type": "array",
                       "prefixItems": [
@@ -4840,6 +4982,9 @@
                     "axis": {
                       "title": "Axis",
                       "group": "joint",
+                      "when": {
+                        "kind": ["prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -4860,6 +5005,9 @@
                       "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
                       "title": "Limits",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -4876,6 +5024,9 @@
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "object",
                       "properties": {
                         "velocity": {
@@ -4885,7 +5036,8 @@
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N."
+                          "description": "The most force (or torque) it uses, N.",
+                          "title": "Max force"
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -4896,20 +5048,31 @@
                       "title": "Length",
                       "unit": "m",
                       "group": "joint",
+                      "when": {
+                        "kind": ["rope", "spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "stiffness": {
                       "description": "spring: how hard it pulls toward its rest length, N/m. Default 100.",
                       "title": "Stiffness",
+                      "unit": "N/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "damping": {
                       "description": "spring: how fast its bounce dies down, N·s/m. Default 1.",
                       "title": "Damping",
+                      "unit": "N·s/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "minimum": 0
                     },
@@ -5037,7 +5200,8 @@
                       "minimum": 0,
                       "maximum": 7,
                       "description": "The seat whose view follows it, for split screens; omitted, every view does.",
-                      "title": "Seat"
+                      "title": "Seat",
+                      "group": "camera"
                     }
                   },
                   "additionalProperties": false,
@@ -5514,6 +5678,7 @@
                     "linearDamping": {
                       "description": "Slows the body's motion over time; default 0.",
                       "title": "Linear damping",
+                      "unit": "/s",
                       "group": "body",
                       "default": 0,
                       "type": "number",
@@ -5522,6 +5687,7 @@
                     "angularDamping": {
                       "description": "Slows the body's spin over time; default 0.",
                       "title": "Angular damping",
+                      "unit": "/s",
                       "group": "body",
                       "default": 0,
                       "type": "number",
@@ -5556,6 +5722,7 @@
                       "maximum": 7,
                       "description": "The seat whose input drives this entity: 0 is the first player.",
                       "title": "Seat",
+                      "group": "input",
                       "default": 0
                     }
                   },
@@ -5593,6 +5760,9 @@
                       "title": "Force",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["directional"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -5612,6 +5782,9 @@
                       "title": "Strength",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "type": "number"
                     },
                     "falloff": {
@@ -5620,6 +5793,9 @@
                       "description": "point: how strength fades with distance from the pose: none, linear to zero at the collider's edge, or inverse-square past 1 m. Default none.",
                       "title": "Falloff",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "default": "none"
                     },
                     "drag": {
@@ -5987,7 +6163,7 @@
                       "description": "Where the joint holds this entity's body, from its pose, m."
                     },
                     "anchorB": {
-                      "title": "Anchor on `to`",
+                      "title": "Other anchor",
                       "group": "joint",
                       "type": "array",
                       "prefixItems": [
@@ -6008,6 +6184,9 @@
                     "axis": {
                       "title": "Axis",
                       "group": "joint",
+                      "when": {
+                        "kind": ["prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -6028,6 +6207,9 @@
                       "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
                       "title": "Limits",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -6044,6 +6226,9 @@
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "object",
                       "properties": {
                         "velocity": {
@@ -6053,7 +6238,8 @@
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N."
+                          "description": "The most force (or torque) it uses, N.",
+                          "title": "Max force"
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -6064,20 +6250,31 @@
                       "title": "Length",
                       "unit": "m",
                       "group": "joint",
+                      "when": {
+                        "kind": ["rope", "spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "stiffness": {
                       "description": "spring: how hard it pulls toward its rest length, N/m. Default 100.",
                       "title": "Stiffness",
+                      "unit": "N/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "damping": {
                       "description": "spring: how fast its bounce dies down, N·s/m. Default 1.",
                       "title": "Damping",
+                      "unit": "N·s/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "minimum": 0
                     },
@@ -6205,7 +6402,8 @@
                       "minimum": 0,
                       "maximum": 7,
                       "description": "The seat whose view follows it, for split screens; omitted, every view does.",
-                      "title": "Seat"
+                      "title": "Seat",
+                      "group": "camera"
                     }
                   },
                   "additionalProperties": false,
@@ -6698,6 +6896,7 @@
                     "linearDamping": {
                       "description": "Slows the body's motion over time; default 0.",
                       "title": "Linear damping",
+                      "unit": "/s",
                       "group": "body",
                       "default": 0,
                       "type": "number",
@@ -6706,6 +6905,7 @@
                     "angularDamping": {
                       "description": "Slows the body's spin over time; default 0.",
                       "title": "Angular damping",
+                      "unit": "/s",
                       "group": "body",
                       "default": 0,
                       "type": "number",
@@ -6740,6 +6940,7 @@
                       "maximum": 7,
                       "description": "The seat whose input drives this entity: 0 is the first player.",
                       "title": "Seat",
+                      "group": "input",
                       "default": 0
                     }
                   },
@@ -6777,6 +6978,9 @@
                       "title": "Force",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["directional"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -6796,6 +7000,9 @@
                       "title": "Strength",
                       "unit": "m/s²",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "type": "number"
                     },
                     "falloff": {
@@ -6804,6 +7011,9 @@
                       "description": "point: how strength fades with distance from the pose: none, linear to zero at the collider's edge, or inverse-square past 1 m. Default none.",
                       "title": "Falloff",
                       "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
                       "default": "none"
                     },
                     "drag": {
@@ -7171,7 +7381,7 @@
                       "description": "Where the joint holds this entity's body, from its pose, m."
                     },
                     "anchorB": {
-                      "title": "Anchor on `to`",
+                      "title": "Other anchor",
                       "group": "joint",
                       "type": "array",
                       "prefixItems": [
@@ -7192,6 +7402,9 @@
                     "axis": {
                       "title": "Axis",
                       "group": "joint",
+                      "when": {
+                        "kind": ["prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -7212,6 +7425,9 @@
                       "description": "revolute: this body's angle relative to `to`, radians. prismatic: its travel along axis, m.",
                       "title": "Limits",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "array",
                       "prefixItems": [
                         {
@@ -7228,6 +7444,9 @@
                       "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
                       "title": "Motor",
                       "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
                       "type": "object",
                       "properties": {
                         "velocity": {
@@ -7237,7 +7456,8 @@
                         "maxForce": {
                           "type": "number",
                           "exclusiveMinimum": 0,
-                          "description": "The most force (or torque) it uses, N."
+                          "description": "The most force (or torque) it uses, N.",
+                          "title": "Max force"
                         }
                       },
                       "required": ["velocity", "maxForce"],
@@ -7248,20 +7468,31 @@
                       "title": "Length",
                       "unit": "m",
                       "group": "joint",
+                      "when": {
+                        "kind": ["rope", "spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "stiffness": {
                       "description": "spring: how hard it pulls toward its rest length, N/m. Default 100.",
                       "title": "Stiffness",
+                      "unit": "N/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "exclusiveMinimum": 0
                     },
                     "damping": {
                       "description": "spring: how fast its bounce dies down, N·s/m. Default 1.",
                       "title": "Damping",
+                      "unit": "N·s/m",
                       "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
                       "type": "number",
                       "minimum": 0
                     },
@@ -7389,7 +7620,8 @@
                       "minimum": 0,
                       "maximum": 7,
                       "description": "The seat whose view follows it, for split screens; omitted, every view does.",
-                      "title": "Seat"
+                      "title": "Seat",
+                      "group": "camera"
                     }
                   },
                   "additionalProperties": false,

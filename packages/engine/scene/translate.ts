@@ -1,9 +1,11 @@
-import type { z } from "zod";
+import { z } from "zod";
 
-import { SIDES } from "../game/fields";
-import type { Registry, Side } from "../game/types";
+import { BEHAVIORS_FIELD } from "../game/behaviors";
+import { CHILD_REF_PATTERN, SIDES } from "../game/fields";
+import { scopedRef, type Registry, type Side } from "../game/types";
+import { isPlainObject } from "../project/kinds/define";
 import { transformGrid, type GridCells } from "./grid";
-import { fieldKind, geometryFields } from "./schema";
+import { fieldKind, geometryFields, unwrapSchema } from "./schema";
 import { normDeg } from "./shape-geometry";
 import {
   applyPt,
@@ -189,6 +191,40 @@ function transformableFields(
 const isGeometryKind = (kind: string): kind is GeometryKind =>
   kind === "shape" || kind === "point" || kind === "path";
 
+/** A behavior field holding a world position, which moves, turns and flips with its entity. */
+export type BehaviorGeometry = { behavior: string; field: string; kind: "point" | "path" };
+
+/**
+ * The points and paths of the behavior blocks `def` writes. A behavior's
+ * vectors, angles and shapes are local to the entity's pose, which carries
+ * its turn and flip, so only these are world positions.
+ */
+export function behaviorGeometry(registry: Registry, def: EntityDef): BehaviorGeometry[] {
+  const blocks = def[BEHAVIORS_FIELD];
+  if (!isPlainObject(blocks)) return [];
+  const out: BehaviorGeometry[] = [];
+  for (const [behavior, block] of Object.entries(blocks)) {
+    const shape = registry.behaviors.get(behavior)?.shape;
+    if (!shape || !isPlainObject(block)) continue;
+    for (const [field, schema] of Object.entries(shape)) {
+      const kind = fieldKind(schema);
+      if ((kind === "point" || kind === "path") && block[field] !== undefined)
+        out.push({ behavior, field, kind });
+    }
+  }
+  return out;
+}
+
+/** `def`'s behavior points and paths under `t`, in place. */
+function transformBehaviorGeometry(registry: Registry, def: EntityDef, t: Transform2D): boolean {
+  const sites = behaviorGeometry(registry, def);
+  for (const { behavior, field, kind } of sites) {
+    const block = (def[BEHAVIORS_FIELD] as Record<string, Record<string, unknown>>)[behavior]!;
+    block[field] = transformByKind(kind, block[field], t);
+  }
+  return sites.length > 0;
+}
+
 /** The shape, point and path fields of an entity's type that the entity sets. */
 export function presentGeometry(
   registry: Registry,
@@ -227,25 +263,29 @@ export function transformEntityDef(
   t: Transform2D,
 ): EntityDef | null {
   const fields = transformableFields(registry, def);
-  if (fields.length === 0) return null;
+  const behaviors = behaviorGeometry(registry, def).length > 0;
+  if (fields.length === 0 && !behaviors) return null;
   const local = fields.some((f) => f.kind === "path") ? linearPart(t) : t;
   const next = clone(def);
   for (const { field, kind } of fields) {
     next[field] = transformByKind(kind, next[field], kind === "shape" ? local : t);
   }
+  if (behaviors) transformBehaviorGeometry(registry, next, t);
   return next;
 }
 
 /** `def` moved by `by`; `null` when it has no position to move. */
 export function translateEntityDef(registry: Registry, def: EntityDef, by: Pt): EntityDef | null {
-  if (movableGeometry(registry, def).length === 0) return null;
+  if (movableGeometry(registry, def).length === 0 && behaviorGeometry(registry, def).length === 0)
+    return null;
   return transformEntityDef(registry, def, translation(by));
 }
 
 /**
  * The value an update sets at `path` on `def`, moved by `by` when the path
- * lands on movable geometry: a whole shape, point or path, a path's `pts`,
- * or one of its points. Anything else comes back as given.
+ * lands on movable geometry: a whole shape, point or path of its type or of
+ * a behavior block (`behaviors.<name>.<field>`), a path's `pts`, or one of
+ * its points. Anything else comes back as given.
  */
 export function translateFieldValue(
   registry: Registry,
@@ -255,13 +295,17 @@ export function translateFieldValue(
   by: Pt,
 ): unknown {
   if (isZeroPt(by)) return value;
-  const segs = path.split(".");
-  const type = registry.types.get(def.type);
+  const all = path.split(".");
+  const inBehavior = all[0] === BEHAVIORS_FIELD;
+  const shape = inBehavior
+    ? registry.behaviors.get(all[1] ?? "")?.shape
+    : registry.types.get(def.type)?.shape;
+  const segs = inBehavior ? all.slice(2) : all;
   const field = segs[0] ?? "";
-  const schema = type && Object.hasOwn(type.shape, field) ? type.shape[field] : undefined;
+  const schema = shape && Object.hasOwn(shape, field) ? shape[field] : undefined;
   if (!schema) return value;
   const kind: string = fieldKind(schema);
-  if (!isGeometryKind(kind)) return value;
+  if (!isGeometryKind(kind) || (inBehavior && kind === "shape")) return value;
   const t = translation(by);
   if (segs.length === 1) {
     if (kind === "shape" && presentGeometry(registry, def).some((f) => f.kind === "path")) {
@@ -275,4 +319,42 @@ export function translateFieldValue(
   }
   if (segs.length === 3 && isPt(value)) return placePt(t, value);
   return value;
+}
+
+/** Whether `schema` holds an entity's id or an instance child's ref (`refField`), alone or as one arm of a union. */
+export function holdsEntityRef(schema: z.core.$ZodType): boolean {
+  const inner = unwrapSchema(schema);
+  if (inner instanceof z.ZodUnion) return inner.options.some((o) => holdsEntityRef(o));
+  if (!(inner instanceof z.ZodString)) return false;
+  const patterns = (inner._zod.bag as { patterns?: Set<RegExp> }).patterns;
+  return [...(patterns ?? [])].some((p) => p.source === CHILD_REF_PATTERN.source);
+}
+
+/**
+ * `def` with each entity reference in its behavior blocks rewritten by
+ * `scopedRef` against `has`, so an instance child names its siblings by
+ * their ids; `def` itself when none changes.
+ */
+export function scopeBehaviorRefs(
+  registry: Registry,
+  def: EntityDef,
+  has: (id: string) => boolean,
+): EntityDef {
+  const blocks = def[BEHAVIORS_FIELD];
+  if (!isPlainObject(blocks) || !def.id.includes("/")) return def;
+  let out: Record<string, unknown> | null = null;
+  for (const [behavior, block] of Object.entries(blocks)) {
+    const shape = registry.behaviors.get(behavior)?.shape;
+    if (!shape || !isPlainObject(block)) continue;
+    for (const [field, schema] of Object.entries(shape)) {
+      const value = block[field];
+      if (value === undefined || !holdsEntityRef(schema)) continue;
+      const scope = (v: unknown) => (typeof v === "string" ? scopedRef(def.id, v, has) : v);
+      const next = Array.isArray(value) ? value.map(scope) : scope(value);
+      if (JSON.stringify(next) === JSON.stringify(value)) continue;
+      out ??= clone(blocks);
+      (out[behavior] as Record<string, unknown>)[field] = next;
+    }
+  }
+  return out ? { ...def, [BEHAVIORS_FIELD]: out } : def;
 }

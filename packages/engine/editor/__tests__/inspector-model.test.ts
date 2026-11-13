@@ -1093,6 +1093,94 @@ describe("behavior sections", () => {
   });
 });
 
+describe("standard behavior fields", () => {
+  const engine = createRegistry();
+  const at = (behaviors: Record<string, unknown>): SceneDefinition => ({
+    v: SCENE_FORMAT_VERSION,
+    name: "kinds",
+    bounds: [0, 0, 20, 20],
+    settings: { physics: "rapier" },
+    entities: [
+      { id: "crate", type: "prop", shape: ["box", 8, 5, 0.5, 0.5] },
+      { id: "hero", type: "marker", at: [5, 3], behaviors },
+    ],
+  });
+  const names = (def: SceneDefinition, behavior: string) =>
+    buildInspectorModel(engine, [lookupRef(def, "hero")!], { def })
+      .sections.find((s) => s.id === `behaviors:${behavior}`)!
+      .fields.map((f) => f.name);
+  const body = { collider: { shape: ["box", 0, 0, 0.25, 0.25] }, body: {} };
+
+  it("shows a joint only the fields its kind takes", () => {
+    const joint = (block: Record<string, unknown>) =>
+      names(at({ ...body, joint: { to: "crate", ...block } }), "joint");
+    expect(joint({ kind: "revolute" })).toEqual([
+      "kind",
+      "to",
+      "anchorA",
+      "anchorB",
+      "limits",
+      "motor",
+      "collide",
+    ]);
+    expect(joint({ kind: "spring", length: 1 })).toEqual([
+      "kind",
+      "to",
+      "anchorA",
+      "anchorB",
+      "length",
+      "stiffness",
+      "damping",
+      "collide",
+    ]);
+    expect(joint({ kind: "prismatic" })).toContain("axis");
+  });
+
+  it("keeps a field the kind doesn't take while the block sets it, so it can be cleared", () => {
+    const def = at({ ...body, joint: { kind: "weld", to: "crate", stiffness: 5 } });
+    expect(names(def, "joint")).toContain("stiffness");
+    expect(names(def, "joint")).not.toContain("damping");
+  });
+
+  it("judges a force area by its default kind when it sets none", () => {
+    const sensor = { collider: { shape: ["box", 0, 0, 1, 1], sensor: true } };
+    expect(names(at({ ...sensor, "force-area": { force: [0, -20] } }), "force-area")).toEqual([
+      "kind",
+      "force",
+      "drag",
+      "affects",
+    ]);
+    expect(
+      names(at({ ...sensor, "force-area": { kind: "point", strength: 5 } }), "force-area"),
+    ).toEqual(["kind", "strength", "falloff", "drag", "affects"]);
+  });
+
+  it("starts an added path from the entity, since its waypoints are world metres", () => {
+    const def = at({});
+    const option = buildInspectorModel(engine, [lookupRef(def, "hero")!], {
+      def,
+    }).addBehaviors.find((o) => o.name === "path-follow")!;
+    expect(option.batch.ops).toEqual([
+      {
+        op: "update",
+        ref: "hero",
+        set: {
+          "behaviors.path-follow": {
+            path: {
+              pts: [
+                [5, 3],
+                [7, 3],
+              ],
+              mode: "ping_pong",
+              speed: 1,
+            },
+          },
+        },
+      },
+    ]);
+  });
+});
+
 describe("colour and asset widgets", () => {
   const LAMP_SHADE = defineBehavior({
     name: "shades/shade",

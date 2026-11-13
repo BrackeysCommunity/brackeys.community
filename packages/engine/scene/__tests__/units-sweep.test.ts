@@ -23,6 +23,9 @@ import { LENGTH_UNITS } from "../units";
 const NAMES_LENGTH =
   /(?:^|[\s,(])(?:m|m\/s|m\/s²|px|px\/s|px\/s²)(?=$|[\s.,;:)])|\b(?:metres?|meters?|pixels?)\b/i;
 
+/** Units that never scale with px per metre: angles, durations, tick counts, rates, density and spring constants. */
+const NON_LENGTH_UNITS = ["deg", "ms", "ticks", "/s", "kg/m²", "N/m", "N·s/m"];
+
 /** Units no field may declare: the simulation's speeds and accelerations are metric. */
 const PX_RATES = ["px/s", "px/s²"];
 
@@ -145,10 +148,19 @@ function registrySchemas(registry: Registry): [string, z.core.$ZodType][] {
 /** Input scripts migrate with their own format, so their fields aren't swept here. */
 const outsideScripts = (problem: string) => !/\/script(?:\||\/|$| )/.test(problem);
 
+/**
+ * A joint motor's velocity is rad/s on a revolute joint and m/s on a
+ * prismatic one, so it can't declare one unit; no px document predates
+ * joints, so no migration has a length to scale there.
+ */
+const notJointMotorVelocity = (problem: string) =>
+  !/(?:\/behaviors\/joint|^behavior joint: )\/motor\/velocity \(/.test(problem);
+
 function sweep(registry: Registry): string[] {
   return registrySchemas(registry)
     .flatMap(([where, schema]) => unitProblems(where, schema))
-    .filter(outsideScripts);
+    .filter(outsideScripts)
+    .filter(notJointMotorVelocity);
 }
 
 describe("length units on every length field", () => {
@@ -189,7 +201,7 @@ describe("length units on every length field", () => {
     ]);
   });
 
-  it("every length unit the engine declares is one of LENGTH_UNITS, else px on the drawing side", () => {
+  it("every unit the engine declares is a length in LENGTH_UNITS, px on the drawing side, or a known non-length unit", () => {
     const units = new Set<unknown>();
     const collect = (schema: z.core.$ZodType, seen = new Set<z.core.$ZodType>()): void => {
       if (seen.has(schema)) return;
@@ -215,7 +227,7 @@ describe("length units on every length field", () => {
     };
     for (const [, schema] of registrySchemas(createRegistry(testGame))) collect(schema);
     for (const unit of units)
-      expect([...LENGTH_UNITS, "px", "deg", "ms"]).toContain(unit as string);
+      expect([...LENGTH_UNITS, "px", ...NON_LENGTH_UNITS]).toContain(unit as string);
     expect([...units]).toEqual(expect.arrayContaining(["m", "m/s", "m/s²", "px"]));
   });
 });

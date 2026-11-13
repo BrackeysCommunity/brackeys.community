@@ -3867,6 +3867,7 @@ type BehaviorMarks = {
     }[];
     lines: {
         from: Pt;
+        kind: "anchors" | "link";
         to: Pt;
     }[];
     outlines: {

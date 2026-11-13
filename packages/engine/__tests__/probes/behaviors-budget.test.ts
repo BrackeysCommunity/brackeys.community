@@ -23,6 +23,8 @@ import type { RapierModule } from "../../types";
 const CROWD = 2000;
 const CRATES = 500;
 const MEASURED_TICKS = 300;
+/** The crowd's ticks are each ~2000 agents' work in both runs, so it samples fewer to stay inside its timeout on a loaded runner. */
+const CROWD_MEASURED_TICKS = 60;
 /** The most a behavior's part may take per tick, on average, in a scene that carries none. */
 const IDLE_LAP_MS = 0.01;
 
@@ -53,8 +55,8 @@ function timedTick(run: Timed): { tick: number; parts: Record<string, number> } 
 
 type Measured = { ticks: number[]; parts: Record<string, number[]> };
 
-/** Steps both runs `warm` ticks, then times `MEASURED_TICKS` ticks of each, alternating. */
-function race(a: Timed, b: Timed, warm: number): [Measured, Measured] {
+/** Steps both runs `warm` ticks, then times `measured` ticks of each, alternating. */
+function race(a: Timed, b: Timed, warm: number, measured = MEASURED_TICKS): [Measured, Measured] {
   for (let i = 0; i < warm; i++) {
     a.rt.step(a.rt.ctx.time.tickMs, []);
     b.rt.step(b.rt.ctx.time.tickMs, []);
@@ -63,7 +65,7 @@ function race(a: Timed, b: Timed, warm: number): [Measured, Measured] {
     { ticks: [], parts: {} },
     { ticks: [], parts: {} },
   ];
-  for (let i = 0; i < MEASURED_TICKS; i++) {
+  for (let i = 0; i < measured; i++) {
     for (const [n, run] of [a, b].entries()) {
       const sample = timedTick(run);
       const into = out[n]!;
@@ -267,7 +269,7 @@ describe("standard behavior budgets", () => {
     expect(agents.rt.ctx.behavior<NavAgentSystem>(NAV_AGENT.name)!.size()).toBe(CROWD);
 
     // Every agent has had its first route by the end of the warm-up.
-    const [own, behaviors] = race(stress, agents, REPATH_TICKS + 20);
+    const [own, behaviors] = race(stress, agents, REPATH_TICKS + 10, CROWD_MEASURED_TICKS);
     const ownMs = median(own.ticks);
     const behaviorMs = median(behaviors.ticks);
     const navMs = median(behaviors.parts[`behavior.${NAV_AGENT.name}.beforeStep`] ?? [0]);

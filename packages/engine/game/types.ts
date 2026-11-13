@@ -87,6 +87,20 @@ export type PrimitiveType = (typeof PRIMITIVE_TYPES)[number];
 /** Primitives with a runtime system; `note` never loads. */
 export type BasePrimitive = Exclude<PrimitiveType, "note">;
 
+/**
+ * The entity `ref`, written on the entity `from`, names: the nearest
+ * `<instance>/<ref>` among `from`'s instances, innermost first, else `ref`
+ * itself. The one rule a behavior's entity reference resolves by, when an
+ * instance expands and wherever one is read.
+ */
+export function scopedRef(from: string, ref: string, has: (id: string) => boolean): string {
+  for (let at = from.lastIndexOf("/"); at > 0; at = from.lastIndexOf("/", at - 1)) {
+    const candidate = `${from.slice(0, at)}/${ref}`;
+    if (has(candidate)) return candidate;
+  }
+  return ref;
+}
+
 /** Collision groups the primitives use. A game adds its own beside them. */
 export const ENGINE_COLLISION_GROUPS = ["static", "dynamic", "sensor"] as const;
 export type EngineCollisionGroup = (typeof ENGINE_COLLISION_GROUPS)[number];
@@ -365,8 +379,14 @@ export interface BodyControl {
   setAngularVelocity(id: string, w: number): void;
   /** Applied once, at the centre of mass or at a world point. */
   applyImpulse(id: string, impulse: Vec2, at?: Vec2): void;
-  /** Held for this tick's physics step only; call it each tick to sustain it. */
+  /**
+   * Held for this tick's physics step only; call it each tick to sustain it.
+   * One applied after the step (in `afterStep`, a behavior's `step` or an
+   * event handler) is dropped at the end of the tick, never carried into the
+   * next one.
+   */
   applyForce(id: string, force: Vec2, at?: Vec2): void;
+  /** Held as `applyForce` holds a force. */
   applyTorque(id: string, torque: number): void;
   mass(id: string): number;
   wake(id: string): void;

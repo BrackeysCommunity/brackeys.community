@@ -19,6 +19,8 @@ import {
 } from "../../motion/index";
 import { parseShape } from "../../scene/shapes";
 import type { RuntimeEntity } from "../../scene/types";
+import { forgetOneWayActor } from "../../systems/bodies";
+import type { BodyStandIn } from "../bodies-control";
 
 type Vec = { x: number; y: number };
 
@@ -53,7 +55,7 @@ function bodyKindOf(e: RuntimeEntity): string | null {
  */
 export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const characters = new Map<string, Character>();
-  const colliders = () => ctx.behavior<ColliderSystem>(COLLIDER.name);
+  const colliders = () => ctx.behavior<ColliderSystem & BodyStandIn>(COLLIDER.name);
   const seats = () => ctx.behavior<PlayerInputSystem>(PLAYER_INPUT.name);
 
   function make(e: RuntimeEntity, at: Vec): MotionBody {
@@ -125,7 +127,7 @@ export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineC
       intent: null,
       disabled: false,
     });
-    colliders()?.disable?.(id);
+    colliders()?.standIn(id);
   }
 
   function detach(id: string): void {
@@ -133,7 +135,8 @@ export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineC
     if (!c) return;
     characters.delete(id);
     c.body.destroy();
-    if (!c.disabled) colliders()?.enable?.(id);
+    forgetOneWayActor(ctx, id);
+    if (ctx.exists(id)) colliders()?.release(id);
   }
 
   const system: CharacterSystem<CharacterTopDownBlock> = {
@@ -156,7 +159,6 @@ export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineC
       c.body.setVelocity(v);
       if (c.disabled) c.body.setEnabled(false);
       c.controller = controllerOf(c.body, block);
-      if (!c.disabled) colliders()?.disable?.(id);
     },
     beforeStep(dtMs) {
       if (characters.size === 0) return;
@@ -187,7 +189,6 @@ export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineC
       if (!c || !c.disabled) return;
       c.disabled = false;
       c.body.setEnabled(true);
-      colliders()?.disable?.(id);
     },
     clear() {
       for (const id of [...characters.keys()]) detach(id);

@@ -1,7 +1,21 @@
+import { BEHAVIORS_FIELD } from "../../game/behaviors";
+import { COLLIDER } from "../../game/behaviors/collider";
+import { PATH_FOLLOW } from "../../game/behaviors/path-follow";
+import type { Registry } from "../../game/types";
+import { behaviorBlocks } from "../../scene/expand";
 import { rotateShape, translateShape } from "../../scene/shape-geometry";
-import type { Pt, ShapeObj } from "../../scene/types";
+import { parseShape } from "../../scene/shapes";
+import type { Pt, Ref, SceneDefinition, ShapeObj } from "../../scene/types";
+import { entityGeometry } from "../spatial-index";
 import type { GizmoHandle } from "../tools";
-import { FORCE_PX, vectorTip, VELOCITY_PX, type BehaviorGizmo } from "./behavior-target";
+import {
+  editPose,
+  FORCE_PX,
+  shapeToWorld,
+  vectorTip,
+  VELOCITY_PX,
+  type BehaviorGizmo,
+} from "./behavior-target";
 import { behaviorHandles, shapeHandles, shapePivot } from "./handles";
 
 const DEG = Math.PI / 180;
@@ -10,8 +24,12 @@ const DEG = Math.PI / 180;
 export type BehaviorMarks = {
   /** The collider's shape. */
   outlines: { shape: ShapeObj; sensor: boolean }[];
-  /** A joint, from its anchor to the other entity's (or its pose). */
-  lines: { from: Pt; to: Pt }[];
+  /**
+   * A joint: `link` from the entity's pose to the entity `to` names, so a
+   * joint whose anchors coincide still shows its partner; `anchors` from its
+   * anchor to the other body's, when that one is written and apart from it.
+   */
+  lines: { kind: "link" | "anchors"; from: Pt; to: Pt }[];
   /** A force area's direction, a spawner's velocity. */
   arrows: { from: Pt; to: Pt }[];
   /** A spawner's spread; a point force area's strength, `inward` when it pulls. */
@@ -85,8 +103,8 @@ function shifted(b: BehaviorGizmo, by: Pt): BehaviorGizmo {
 
 /**
  * What `b` draws at screen scale `scale` (px per metre): the collider's
- * outline, a line from the joint's anchor to the other entity's (or its
- * pose), the force area's arrow or strength ring, the spawner's spread ring
+ * outline, the joint's line to the entity it links and between its anchors,
+ * the force area's arrow or strength ring, the spawner's spread ring
  * and velocity arrow. `handles` are the host's handles this frame: one of
  * `b`'s that isn't where the document puts it is being dragged, and its
  * mark follows it. `shift` is how far a previewed move has taken the entity.
@@ -117,9 +135,12 @@ export function behaviorMarks(
     });
   }
   if (b.joint) {
+    const partner = b.joint.to?.pose.at;
+    if (partner && dist(pose, partner) > 1e-9)
+      out.lines.push({ kind: "link", from: pose, to: partner });
     const a = live("joint:anchorA") ?? b.joint.anchorA;
-    const other = live("joint:anchorB") ?? b.joint.anchorB ?? b.joint.to?.pose.at;
-    if (other) out.lines.push({ from: a, to: other });
+    const other = live("joint:anchorB") ?? b.joint.anchorB;
+    if (other && dist(a, other) > 1e-9) out.lines.push({ kind: "anchors", from: a, to: other });
   }
   const arrow = (id: string, v: Pt, px: number) => {
     const tip = live(id);
@@ -145,3 +166,49 @@ export function behaviorMarks(
   }
   return out;
 }
+
+/**
+ * The world collider shape of every entity in `def` (the resolved view)
+ * that carries a `collider` block, but those in `skip` (drawn by their gizmo):
+ * what the canvas outlines faintly, so an entity with no art still shows.
+ */
+export function colliderOutlines(
+  def: SceneDefinition,
+  registry: Registry,
+  skip: readonly Ref[] = [],
+): { ref: Ref; shape: ShapeObj; sensor: boolean }[] {
+  const out: { ref: Ref; shape: ShapeObj; sensor: boolean }[] = [];
+  for (const e of def.entities ?? []) {
+    const type = registry.types.get(e.type);
+    if (!type || skip.includes(e.id)) continue;
+    const collider = behaviorBlocks(registry, e.type, e[BEHAVIORS_FIELD])[COLLIDER.name];
+    if (!collider) continue;
+    const local = parseShape(collider.shape);
+    if (!local.ok) continue;
+    const pose = editPose(entityGeometry(type, e), e);
+    out.push({
+      ref: e.id,
+      shape: shapeToWorld(pose, local.shape),
+      sensor: collider.sensor === true,
+    });
+  }
+  return out;
+}
+
+/** The waypoints `ref`'s `path-follow` block moves it along, world metres; undefined without one. */
+export function pathFollowPath(
+  def: SceneDefinition,
+  registry: Registry,
+  ref: Ref,
+): { pts: Pt[]; closed: boolean } | undefined {
+  const e = (def.entities ?? []).find((x) => x.id === ref);
+  if (!e || !registry.types.has(e.type)) return undefined;
+  const block = behaviorBlocks(registry, e.type, e[BEHAVIORS_FIELD])[PATH_FOLLOW.name];
+  const path = block?.path as { pts?: unknown; mode?: unknown } | undefined;
+  const pts = Array.isArray(path?.pts) ? path.pts.filter(isPt) : [];
+  if (pts.length < 2) return undefined;
+  return { pts: pts.map(([x, y]) => [x, y] as Pt), closed: path?.mode === "loop" };
+}
+
+const isPt = (v: unknown): v is Pt =>
+  Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n));

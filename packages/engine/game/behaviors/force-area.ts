@@ -27,19 +27,25 @@ const forceAreaFields = {
     ])
     .optional()
     .describe("directional: the acceleration it gives what is inside, m/s²; turns with the entity.")
-    .meta({ title: "Force", unit: "m/s²", kind: "vector", group: "force" }),
+    .meta({
+      title: "Force",
+      unit: "m/s²",
+      kind: "vector",
+      group: "force",
+      when: { kind: ["directional"] },
+    }),
   strength: z
     .number()
     .optional()
     .describe("point: the acceleration toward its pose, m/s²; negative pushes away.")
-    .meta({ title: "Strength", unit: "m/s²", group: "force" }),
+    .meta({ title: "Strength", unit: "m/s²", group: "force", when: { kind: ["point"] } }),
   falloff: z
     .enum(["none", "linear", "inverse-square"])
     .default("none")
     .describe(
       "point: how strength fades with distance from the pose: none, linear to zero at the collider's edge, or inverse-square past 1 m. Default none.",
     )
-    .meta({ title: "Falloff", group: "force" }),
+    .meta({ title: "Falloff", group: "force", when: { kind: ["point"] } }),
   drag: z
     .number()
     .min(0)

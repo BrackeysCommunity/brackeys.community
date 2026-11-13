@@ -55,13 +55,20 @@ const PAINT = defineEntityType({
   },
 });
 
-/** A game with the card table and the settings the copied project's files use, a grid type, two actions, and nothing to play. */
+/** A game with the card table, settings and actions the copied project's files use, a grid type, and nothing to play. */
 const deckGame = defineGame({
   id: "deck-game",
   types: [PAINT],
   actions: [
     { action: "right", keys: ["d"], description: "Walk right." },
     { action: "fire", keys: [" "], description: "Fire." },
+    { action: "jump", keys: ["w"], description: "Jump, which behavior-yard's script holds." },
+    {
+      action: "move",
+      kind: "vector",
+      bindings: [{ device: "pad", stick: "left" }],
+      description: "Move, which behavior-yard's script sets.",
+    },
   ],
   tables: {
     card: {

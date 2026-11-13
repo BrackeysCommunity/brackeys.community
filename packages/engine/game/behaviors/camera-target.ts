@@ -19,6 +19,7 @@ const cameraTargetFields = {
     .meta({ title: "Weight", group: "camera" }),
   seat: seatField(
     "The seat whose view follows it, for split screens; omitted, every view does.",
+    "camera",
   ).optional(),
 };
 

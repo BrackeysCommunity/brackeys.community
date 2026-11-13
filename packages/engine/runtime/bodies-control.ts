@@ -26,17 +26,35 @@ export type BodyEntry = {
   wake(): void;
 };
 
+/**
+ * What a system that owns entities' bodies (the collider behavior's) offers
+ * one that moves the entity through a body of its own (a character, a nav
+ * agent): its body out of the world while the other stands in, and back.
+ */
+export type BodyStandIn = {
+  /**
+   * Takes the entity's body out of the world, and out of `ctx.bodies`, which
+   * the standing-in body answers meanwhile; it holds across rebuilds.
+   */
+  standIn(entityId: string): void;
+  /** Gives the body back: built again where the entity is now, in `ctx.bodies` again. */
+  release(entityId: string): void;
+};
+
 /** The runtime's side of `ctx.bodies`: owners register bodies, the step flushes and clears forces. */
 export type RuntimeBodyControl = BodyControl & {
   /** Registers `id`'s body, replacing any earlier entry; the returned call unregisters this one. */
   register(id: string, entry: BodyEntry): () => void;
   /** Hands the tick's summed forces and torques to the bodies, before the physics step. */
   flush(): void;
-  /**
-   * Drops the forces and torques after the physics step, so each lasts one
-   * step; one applied after the step is dropped with them.
-   */
+  /** Takes the forces and torques `flush` handed over off the bodies, after the physics step, so each lasts one step. */
   clear(): void;
+  /**
+   * Drops the forces and torques applied since the physics step, at the end
+   * of the tick: the step they were for has run, and a tick boundary (where
+   * a save is taken) holds none.
+   */
+  endTick(): void;
   /** Forgets every body and force, for an unload. */
   reset(): void;
 };
@@ -215,10 +233,12 @@ export function createBodyControl(_ctx: EngineContext): RuntimeBodyControl {
       sums.clear();
     },
     clear() {
-      sums.clear();
       if (flushed.length === 0) return;
       for (const entry of flushed) entry.resetForces();
       flushed.length = 0;
+    },
+    endTick() {
+      sums.clear();
     },
     reset() {
       entries.clear();

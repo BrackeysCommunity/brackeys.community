@@ -606,21 +606,37 @@ const ONE_WAY_TOLERANCE = 0.04;
 /** The key a context keeps each actor's one-way passes under. */
 const ONE_WAY_PASSES: unique symbol = Symbol("one-way passes");
 
-type PassesHolder = EngineContext & { [ONE_WAY_PASSES]?: Map<string, Set<number>> };
+/** One actor's passes: all of them, and the ones each solid system put there, by the system's key. */
+type ActorPasses = { all: Set<number>; by: Map<object, Set<number>> };
 
-function passesOf(ctx: EngineContext, actorId: string): Set<number> {
+type PassesHolder = EngineContext & { [ONE_WAY_PASSES]?: Map<string, ActorPasses> };
+
+function actorsOf(ctx: EngineContext): Map<string, ActorPasses> {
   const holder = ctx as PassesHolder;
-  let all = holder[ONE_WAY_PASSES];
-  if (!all) {
-    all = new Map();
-    Object.defineProperty(holder, ONE_WAY_PASSES, { value: all });
+  let actors = holder[ONE_WAY_PASSES];
+  if (!actors) {
+    actors = new Map();
+    Object.defineProperty(holder, ONE_WAY_PASSES, { value: actors });
   }
-  let passes = all.get(actorId);
+  return actors;
+}
+
+function actorPasses(ctx: EngineContext, actorId: string): ActorPasses {
+  const actors = actorsOf(ctx);
+  let passes = actors.get(actorId);
   if (!passes) {
-    passes = new Set();
-    all.set(actorId, passes);
+    passes = { all: new Set(), by: new Map() };
+    actors.set(actorId, passes);
   }
   return passes;
+}
+
+const passesOf = (ctx: EngineContext, actorId: string): Set<number> =>
+  actorPasses(ctx, actorId).all;
+
+/** Forgets an actor that is gone, with every solid system's passes for it. */
+export function forgetOneWayActor(ctx: EngineContext, actorId: string): void {
+  actorsOf(ctx).delete(actorId);
 }
 
 /**
@@ -714,8 +730,8 @@ export function createSolidSystem(
   const gated = new Set<string>();
   /** Each live entity's record, to redraw it on enable. */
   const records = new Map<string, SolidEntity>();
-  /** The handles this system put in each actor's `oneWayPasses`, to take back out. */
-  const passed = new Map<string, Set<number>>();
+  /** The key this system's own share of each actor's `oneWayPasses` is kept under. */
+  const passKey = {};
   const riders = createRiders<SolidEntity>(ctx, type, {
     layer: (e) => opts.layer ?? entityDrawLayer(ctx, e, "terrain"),
     draw: opts.draw !== false,
@@ -862,11 +878,11 @@ export function createSolidSystem(
     },
     gateOneWaySides: (actor, passing) => gateSides(actor, passing, null),
     passesOneWay(actorId, actor, passing) {
-      const all = passesOf(ctx, actorId);
-      let mine = passed.get(actorId);
+      const { all, by } = actorPasses(ctx, actorId);
+      let mine = by.get(passKey);
       if (!mine) {
         mine = new Set();
-        passed.set(actorId, mine);
+        by.set(passKey, mine);
       }
       for (const handle of mine) all.delete(handle);
       mine.clear();
@@ -929,8 +945,9 @@ export function createSolidSystem(
 
   /** Takes `handles` (all of them, for null) back out of every actor's `oneWayPasses`. */
   function forgetPasses(handles: readonly number[] | null): void {
-    for (const [actorId, mine] of passed) {
-      const all = passesOf(ctx, actorId);
+    for (const { all, by } of actorsOf(ctx).values()) {
+      const mine = by.get(passKey);
+      if (!mine) continue;
       for (const handle of handles ?? mine) {
         if (!mine.has(handle)) continue;
         all.delete(handle);

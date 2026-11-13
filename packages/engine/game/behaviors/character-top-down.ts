@@ -78,7 +78,7 @@ export const CHARACTER_TOP_DOWN = defineBehavior({
     "Walks the entity in the plane from its seat's move action or an intent from code: a kinematic controller stopped and slid along by walls.",
   fields: characterTopDownFields,
   requires: ["collider"],
-  conflicts: ["character-side-view"],
+  conflicts: ["character-side-view", "nav-agent", "path-follow"],
   inspector: {
     label: "Character (top-down)",
     order: ["maxSpeed", "accel", "decel", "pushDynamic", "move"],

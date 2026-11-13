@@ -1,0 +1,97 @@
+// @vitest-environment node
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { beforeAll, describe, expect, it } from "vite-plus/test";
+
+import { createRegistry } from "../game/define";
+import type { Registry } from "../game/types";
+import { runChecks } from "../headless/run-checks";
+import { parseChecks, type ChecksFile } from "../scene/checks";
+import { parseScene } from "../scene/parse";
+import type { PrefabLibrary, SceneDefinition } from "../scene/types";
+import type { RapierModule } from "../types";
+import { readPrefabFiles } from "../vite/project-files";
+
+const scenesDir = new URL("../scenes/", import.meta.url);
+const read = (path: string) => readFileSync(new URL(path, scenesDir), "utf8");
+
+let rapier: RapierModule;
+let registry: Registry;
+let scene: SceneDefinition;
+let prefabs: PrefabLibrary;
+let checks: ChecksFile;
+
+beforeAll(async () => {
+  rapier = await import("@dimforge/rapier2d");
+  registry = createRegistry(null);
+  const parsed = parseScene(read("behavior-yard.json"), registry);
+  if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+  scene = parsed.def;
+  const files = await readPrefabFiles(fileURLToPath(scenesDir), registry);
+  expect(files.problems).toEqual([]);
+  prefabs = files.prefabs;
+  const parsedChecks = parseChecks(read("behavior-yard.checks.json"), registry);
+  if (!parsedChecks.ok) throw new Error(JSON.stringify(parsedChecks.issues));
+  checks = parsedChecks.file;
+});
+
+describe("behavior-yard.json", () => {
+  it("names no game: the standard behaviors carry it alone", () => {
+    expect(scene.game ?? null).toBeNull();
+  });
+
+  it("passes every check headless under the gameless engine registry, none skipped", () => {
+    const report = runChecks({ rapier, scene, prefabs, registry, checks, readFile: read });
+    expect(report.results.map((r) => [r.id, r.kind])).toEqual([
+      ["valid", "valid"],
+      ["reaches-goal", "reaches"],
+      ["chain-holds", "reaches"],
+      ["courier-arrives", "reaches"],
+    ]);
+    for (const r of report.results) {
+      expect(r.skipped, r.id).toBeUndefined();
+      expect(r.pass, `${r.id}: ${r.message}`).toBe(true);
+    }
+    expect(report.ok).toBe(true);
+  });
+
+  it("plays its input script to the end with the side hero beside the goal, having entered it", () => {
+    const goal = checks.checks.find((c) => c.id === "reaches-goal");
+    expect(goal).toMatchObject({
+      result: "script-end",
+      expect: {
+        near: { id: "runner/hero", to: "goal" },
+        event: { type: "sensor:enter", entityId: "goal", other: "runner/hero" },
+      },
+    });
+    const report = runChecks({
+      rapier,
+      scene,
+      prefabs,
+      registry,
+      checks: { ...checks, checks: [goal!] },
+      readFile: read,
+    });
+    const [result] = report.results;
+    expect(result?.pass, result?.message).toBe(true);
+  });
+
+  it("fails reaches-goal when the hero only stands still", () => {
+    const goal = checks.checks.find((c) => c.id === "reaches-goal")!;
+    const report = runChecks({
+      rapier,
+      scene,
+      prefabs,
+      registry,
+      checks: {
+        ...checks,
+        checks: [{ ...goal, script: { v: 2, scene: "behavior-yard", steps: [{ wait: 600 }] } }],
+      },
+      readFile: read,
+    });
+    const [result] = report.results;
+    expect(result?.pass).toBe(false);
+    expect(result?.message).toMatch(/expect\.(near|event)/);
+  });
+});

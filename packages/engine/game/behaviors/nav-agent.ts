@@ -74,6 +74,7 @@ export const NAV_AGENT = defineBehavior({
   description:
     "Walks the entity through the scene's walk areas to a point or another entity, kept apart from other agents; raises nav:arrived and nav:blocked.",
   fields: navAgentFields,
+  conflicts: ["character-top-down", "character-side-view", "path-follow"],
   inspector: {
     label: "Nav agent",
     order: ["speed", "arrive", "radius", "separation", "repathTicks", "to"],

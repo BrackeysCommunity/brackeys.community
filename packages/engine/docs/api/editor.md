@@ -133,9 +133,14 @@ type BehaviorMarks = {
         from: Pt;
         to: Pt;
     }[];
-    /** A joint, from its anchor to the other entity's (or its pose). */
+    /**
+     * A joint: `link` from the entity's pose to the entity `to` names, so a
+     * joint whose anchors coincide still shows its partner; `anchors` from its
+     * anchor to the other body's, when that one is written and apart from it.
+     */
     lines: {
         from: Pt;
+        kind: "anchors" | "link";
         to: Pt;
     }[];
     /** The collider's shape. */
@@ -3242,8 +3247,8 @@ Refers to [`BehaviorGizmo`](#behaviorgizmo), [`GizmoHandle`](#gizmohandle).
 _function_ in `editor/gizmos/behavior-marks.ts`
 
 What `b` draws at screen scale `scale` (px per metre): the collider's
-outline, a line from the joint's anchor to the other entity's (or its
-pose), the force area's arrow or strength ring, the spawner's spread ring
+outline, the joint's line to the entity it links and between its anchors,
+the force area's arrow or strength ring, the spawner's spread ring
 and velocity arrow. `handles` are the host's handles this frame: one of
 `b`'s that isn't where the document puts it is being dragged, and its
 mark follows it. `shift` is how far a previewed move has taken the entity.

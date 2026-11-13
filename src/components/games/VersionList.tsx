@@ -26,6 +26,7 @@ import {
 import { TimeAgo } from "@/components/ui/time-ago";
 import { Text } from "@/components/ui/typography";
 import { Well } from "@/components/ui/well";
+import { downloadBlob } from "@/lib/download";
 import type { GamePageVersion } from "@/lib/engine/game-page";
 import { readItchIssuesHeader, ITCH_ISSUES_HEADER } from "@/lib/engine/release-zip-header";
 import { engineReleaseZipPath } from "@/lib/engine/route-paths";
@@ -76,18 +77,6 @@ function attachmentName(response: Response, fallback: string): string {
   return named?.[1] ?? fallback;
 }
 
-function saveBlob(blob: Blob, name: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.rel = "noopener";
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1_000);
-}
-
 /**
  * Builds and saves a version's zip, saying so while the server packs it,
  * then what itch.io will make of its layout, so the publisher hears before
@@ -114,7 +103,7 @@ export async function downloadReleaseZip(
       );
     }
     const issues = readItchIssuesHeader(response.headers.get(ITCH_ISSUES_HEADER));
-    saveBlob(await response.blob(), attachmentName(response, `${input.projectId}-v${v}.zip`));
+    downloadBlob(attachmentName(response, `${input.projectId}-v${v}.zip`), await response.blob());
     toast.dismiss(pending);
     if (issues && issues.count > 0) {
       const more = issues.count - issues.messages.length;

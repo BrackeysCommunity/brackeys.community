@@ -102,12 +102,13 @@ describe("headless runtime", () => {
     expect(report.final).toBeNull();
   });
 
-  it("runs primitives alone without a game", () => {
+  it("runs primitives alone without a game, with the default actions", () => {
     const report = runProbe({ rapier, scene: engineYard(), ticks: 10 });
     expect(report.load.ok).toBe(true);
     expect(report.final).toBeNull();
+    expect(runProbe({ rapier, scene: engineYard(), ticks: 1, hold: ["jump"] }).load.ok).toBe(true);
     expect(() => runProbe({ rapier, scene: engineYard(), ticks: 1, hold: ["right"] })).toThrow(
-      /unknown action "right" \(actions: none\)/,
+      'unknown action "right" (actions: move, jump)',
     );
   });
 

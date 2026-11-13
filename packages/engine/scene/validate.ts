@@ -15,7 +15,7 @@ import { behaviorsConflict, isSpawnOnly, placeableTypes } from "../game/define";
 import { ID_PATTERN, isPolygonField } from "../game/fields";
 import { flowIssue, type SceneLibrary } from "../game/flow";
 import { physicsNeeds } from "../game/primitives";
-import type { RegisteredType, Registry } from "../game/types";
+import { scopedRef, type RegisteredType, type Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { assetInfo } from "../project/asset-info";
 import { ATLAS_KIND } from "../project/kinds/atlas";
@@ -843,9 +843,7 @@ function checkJoints(
     const to = joint?.to;
     if (typeof to !== "string") return;
     const path = jsonPointer(["entities", i, BEHAVIORS_FIELD, JOINT.name, "to"]);
-    const slash = e.id.lastIndexOf("/");
-    const sibling = slash < 0 ? undefined : `${e.id.slice(0, slash)}/${to}`;
-    const targetId = byId.has(to) ? to : sibling !== undefined && byId.has(sibling) ? sibling : to;
+    const targetId = scopedRef(e.id, to, (id) => byId.has(id));
     if (targetId === e.id) {
       push("joint-self", {
         message: `${e.id}'s joint links ${e.id} to itself`,

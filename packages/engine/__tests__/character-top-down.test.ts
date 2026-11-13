@@ -258,6 +258,20 @@ describe("character-top-down", () => {
         rt.destroy();
       });
 
+      it("gives an unmoved entity's collider body back to ctx.bodies when it detaches", () => {
+        const { rt, characters } = load([hero("npc", [0, 0])], physics);
+        expect(rt.ctx.bodies.kind("npc")).toBe("kinematic");
+        expect(rt.update(expanded([wall("npc", [0, 0], HALF, HALF)], physics))).toEqual({
+          ok: true,
+        });
+        expect(characters.size()).toBe(0);
+        if (physics === "rapier") expect(rt.ctx.bodies.kind("npc")).toBe("static");
+        else expect(rt.ctx.bodies.has("npc")).toBe(false);
+        const hits = rt.ctx.space.overlaps({ type: "circle", cx: 0, cy: 0, r: 0.05 });
+        expect(hits.map((h) => h.tag.entityId)).toEqual(["npc"]);
+        rt.destroy();
+      });
+
       it("keeps its place and velocity through an update of its block", () => {
         const { rt, characters, step, steps, pos } = load([seated("hero", [0, 0], 0)], physics);
         step({ actions: [move(1, 0, 0)] });

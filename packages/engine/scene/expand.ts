@@ -11,6 +11,7 @@ import { gridTurns, instanceStepsIn, placeInstance, resolveSceneDetailed } from 
 import { fieldKind } from "./schema";
 import { parseShape } from "./shapes";
 import type { Dihedral } from "./transform";
+import { scopeBehaviorRefs } from "./translate";
 import {
   RESERVED_SCENE_KEYS,
   type BulkEntry,
@@ -208,7 +209,8 @@ export function runtimeEntity(
 
 /**
  * One prefab instance's entities as a load expands them: ids
- * `<instance>/<child>` (refs between its children remapped to them), fields,
+ * `<instance>/<child>` (refs between its children remapped to them, the
+ * behavior blocks' entity refs by `scopeBehaviorRefs`), fields,
  * behaviors, `z`, layers and `transform`, in spawn-group order, `off`
  * children and types that don't load dropped. `group` is the instance's
  * group; `cells` says the scene's turns are grid turns (`gridTurns`). An
@@ -231,13 +233,16 @@ export function expandInstance(
   );
   if (!placed.ok) return placed;
   const groups: RuntimeEntity[][] = registry.spawnGroups.map(() => []);
-  for (const { def, transform } of placed.children) {
-    if (def.off) continue;
+  const ids = new Set(placed.children.map((c) => c.def.id));
+  const has = (id: string) => ids.has(id);
+  for (const child of placed.children) {
+    if (child.def.off) continue;
+    const def = scopeBehaviorRefs(registry, child.def, has);
     const t = registry.types.get(def.type);
     if (!t) throw new Error(`expandInstance: ${def.id} has unregistered type "${def.type}"`);
     const group = registry.spawnGroupOf(def.type);
     if (group === undefined) continue;
-    groups[group]?.push(runtimeEntity(registry, def, t, transform));
+    groups[group]?.push(runtimeEntity(registry, def, t, child.transform));
   }
   return { ok: true, entities: groups.flat() };
 }

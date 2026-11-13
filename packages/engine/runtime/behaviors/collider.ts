@@ -25,6 +25,7 @@ import {
   rapierBodyEntry,
   registerBody,
   type BodyEntry,
+  type BodyStandIn,
 } from "../bodies-control";
 import { composePose, relativePose, type Pose } from "../poses";
 import type { SpaceHit } from "../space";
@@ -62,12 +63,20 @@ type Built = {
   /** The pose last written while the body slept: a sleeping body that wrote it hasn't moved since. */
   rested: Readonly<Pose> | undefined;
   disabled: boolean;
+  /** Another body stands in for this one (`standIn`): out of the world and of `ctx.bodies` until released. */
+  stood: boolean;
   unregister: () => void;
 };
+
+/** The collider system, which lets a character's or an agent's motion body stand in for its own. */
+export type ColliderHost = ColliderSystem & BodyStandIn;
 
 const ZERO: Pose = { x: 0, y: 0, rot: 0 };
 
 const moving = (b: Built) => b.v.x !== 0 || b.v.y !== 0;
+
+/** Out of the world: disabled, or stood in for. */
+const off = (b: Built) => b.disabled || b.stood;
 
 const kindOf = (body: Partial<BodyBlock> | undefined): Kind => {
   if (!body) return "fixed";
@@ -95,6 +104,17 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
   const built = new Map<string, Built>();
   const overlaps = createOverlapTracker(ctx);
   const tickSeconds = () => ctx.time.tickMs / 1000;
+
+  /**
+   * The group of a collider whose block sets none: a body's by its kind; a
+   * sensor's is `sensor`, which a game links to what it should see, but in a
+   * project with no game, which can't link groups, it is `dynamic`, so it
+   * meets the dynamic and motion bodies there.
+   */
+  function defaultGroup(sensor: boolean, kind: Kind): string {
+    if (sensor) return ctx.registry.game ? "sensor" : "dynamic";
+    return kind === "dynamic" ? "dynamic" : "static";
+  }
 
   function tagOf(e: RuntimeEntity, block: ColliderBlock): ColliderTag {
     const tag: ColliderTag = { entityId: e.id, type: e.type };
@@ -150,13 +170,14 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     return b;
   }
 
-  /** The body and collider for `e`'s blocks at its pose now, replacing any it had. */
-  function build(e: RuntimeEntity, block: ColliderBlock): void {
+  /** The body and collider for `e`'s blocks at its pose now, replacing any it had; unless `force`, kept when those are unchanged. */
+  function build(e: RuntimeEntity, block: ColliderBlock, force = false): void {
     const bodyBlock = e.behaviors?.[BODY.name] as Partial<BodyBlock> | undefined;
     const blocks = JSON.stringify([block, bodyBlock ?? null]);
     const pose: Pose = { ...(ctx.poses.get(e.id) ?? ZERO) };
     const was = built.get(e.id);
     if (
+      !force &&
       was &&
       was.blocks === blocks &&
       was.pose.x === pose.x &&
@@ -178,7 +199,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     }
     remove(e.id);
     const sensor = block.sensor === true;
-    const group = block.group ?? (sensor ? "sensor" : kind === "dynamic" ? "dynamic" : "static");
+    const group = block.group ?? defaultGroup(sensor, kind);
     const tag = tagOf(e, block);
     const b: Built = {
       entity: e,
@@ -198,6 +219,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       restored: was && was.blocks === blocks ? was.restored : null,
       rested: undefined,
       disabled: was?.disabled ?? false,
+      stood: was?.stood ?? false,
       unregister: () => {},
     };
     if (!ctx.physics) {
@@ -211,7 +233,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
           group,
         });
         ctx.tags.set(b.handle, tag);
-        if (b.disabled) world.setEnabled(b.handle, false);
+        if (off(b)) world.setEnabled(b.handle, false);
       }
     } else {
       const { rapier, physics } = physicsOf(ctx, "a collider", e.id);
@@ -232,8 +254,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       let collider: Collider;
       if (sensor) {
         collider = createSensorCollider(ctx, body, colliderDesc);
-        if (block.group !== undefined)
-          collider.setCollisionGroups(ctx.registry.collisionGroups(group));
+        if (group !== "sensor") collider.setCollisionGroups(ctx.registry.collisionGroups(group));
       } else {
         const surface = surfaceOf(block);
         colliderDesc
@@ -251,13 +272,13 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
         body.setLinvel(carried.v, true);
         body.setAngvel(carried.w, true);
       }
-      if (b.disabled) {
+      if (off(b)) {
         body.setEnabled(false);
         collider.setEnabled(false);
       }
     }
     built.set(e.id, b);
-    if (ctx.physics || kind === "kinematic") {
+    if (!b.stood && (ctx.physics || kind === "kinematic")) {
       b.unregister = registerBody(ctx, e.id, entryOf(b));
     }
   }
@@ -272,7 +293,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
   function moveKinematic(): void {
     const dt = tickSeconds();
     for (const b of built.values()) {
-      if (b.kind !== "kinematic" || b.disabled || !moving(b)) continue;
+      if (b.kind !== "kinematic" || off(b) || !moving(b)) continue;
       if (b.body) {
         const t = b.body.translation();
         b.body.setNextKinematicTranslation({ x: t.x + b.v.x * dt, y: t.y + b.v.y * dt });
@@ -291,7 +312,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
   /** Writes the entity's pose from each Rapier body that moved this step. */
   function poseBodies(): void {
     for (const b of built.values()) {
-      if (!b.body || b.disabled || b.kind === "fixed") continue;
+      if (!b.body || off(b) || b.kind === "fixed") continue;
       if (b.kind === "kinematic") {
         if (!moving(b)) continue;
       } else {
@@ -351,7 +372,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
   function raiseSensors(): void {
     let colliders: Collider[] | null = null;
     for (const [id, b] of built) {
-      if (!b.sensor || b.disabled) continue;
+      if (!b.sensor || off(b)) continue;
       settle(b);
       if (b.collider) {
         const { physics } = physicsOf(ctx, "a sensor collider", id);
@@ -380,7 +401,14 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     return e.behaviors?.collider as ColliderBlock | undefined;
   }
 
-  const system: ColliderSystem = {
+  /** Puts `b`'s body and collider in or out of the world. */
+  function place(b: Built, on: boolean): void {
+    b.body?.setEnabled(on);
+    b.collider?.setEnabled(on);
+    if (b.handle !== null) ctx.geometry?.setEnabled(b.handle, on);
+  }
+
+  const system: ColliderHost = {
     attach(_id, block, e) {
       build(e, block);
     },
@@ -400,7 +428,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     ready(ids) {
       for (const id of ids) {
         const b = built.get(id);
-        if (b?.sensor && b.handle !== null && !b.disabled && b.next === null && !b.restored)
+        if (b?.sensor && b.handle !== null && !off(b) && b.next === null && !b.restored)
           b.next = geometryOverlaps(b).now;
       }
     },
@@ -418,17 +446,29 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       b.inside = new Map();
       b.next = null;
       b.restored = null;
-      b.body?.setEnabled(false);
-      b.collider?.setEnabled(false);
-      if (b.handle !== null) ctx.geometry?.setEnabled(b.handle, false);
+      place(b, false);
     },
     enable(id) {
       const b = built.get(id);
       if (!b || !b.disabled) return;
       b.disabled = false;
-      b.body?.setEnabled(true);
-      b.collider?.setEnabled(true);
-      if (b.handle !== null) ctx.geometry?.setEnabled(b.handle, true);
+      if (!b.stood) place(b, true);
+    },
+    standIn(id) {
+      const b = built.get(id);
+      if (!b || b.stood) return;
+      b.stood = true;
+      place(b, false);
+      b.unregister();
+      b.unregister = () => {};
+      ctx.physics?.refreshQueries();
+    },
+    release(id) {
+      const b = built.get(id);
+      const block = b ? blockOf(b.entity) : undefined;
+      if (!b?.stood || !block) return;
+      b.stood = false;
+      build(b.entity, block, true);
     },
     reset() {
       for (const b of built.values()) {

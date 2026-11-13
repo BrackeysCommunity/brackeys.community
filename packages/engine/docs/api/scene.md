@@ -3795,7 +3795,8 @@ Refers to [`EntityTypeName`](#entitytypename), [`Registry`](#registry).
 _function_ in `scene/expand.ts`
 
 One prefab instance's entities as a load expands them: ids
-`<instance>/<child>` (refs between its children remapped to them), fields,
+`<instance>/<child>` (refs between its children remapped to them, the
+behavior blocks' entity refs by `scopeBehaviorRefs`), fields,
 behaviors, `z`, layers and `transform`, in spawn-group order, `off`
 children and types that don't load dropped. `group` is the instance's
 group; `cells` says the scene's turns are grid turns (`gridTurns`). An

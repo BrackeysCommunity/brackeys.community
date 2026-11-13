@@ -5,7 +5,7 @@ import { createCamera } from "./camera";
 import type { DebugOverlay } from "./debug";
 import { GameEventEmitter } from "./events";
 import { createFlowHost } from "./flow-host";
-import { CAMERA_TARGET, type CameraTargetBlock } from "./game/behaviors/camera-target";
+import { CAMERA_TARGET } from "./game/behaviors/camera-target";
 import { flowIssue, type FlowRequest, type LibraryScene, type SceneLibrary } from "./game/flow";
 import {
   actionProblem,
@@ -80,6 +80,7 @@ import type { LoadProgress } from "./render/asset-loader";
 import { createPixiView, type PixiView } from "./render/pixi-view";
 import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
+import type { CameraTarget, CameraTargetSystem } from "./runtime/behaviors/camera-target";
 import { loadListed } from "./runtime/flow";
 import { gamePersistCell, persistProblem, playClockOf } from "./runtime/persist";
 import {
@@ -546,13 +547,7 @@ export async function createGame(
     setGameSlice(store, loaded?.runtime.game?.storeSlice?.() ?? null);
   }
 
-  /** The `camera-target` entities of the scene last read, rebuilt when the runtime's scene changes. */
-  let targetsScene: ExpandedScene | null = null;
-  let targets: FollowedTarget[] = [];
-
   function teardownScene(): void {
-    targetsScene = null;
-    targets = [];
     if (!loaded) return;
     debugOverlay?.setPhysics(null);
     loaded.attachment?.destroy();
@@ -1234,17 +1229,8 @@ export async function createGame(
 
   // ─── Game loop ────────────────────────────────────────────
 
-  function sceneTargets(runtime: SceneRuntimeHandle): readonly FollowedTarget[] {
-    const scene = runtime.scene();
-    if (scene !== targetsScene) {
-      targetsScene = scene;
-      targets = followedTargets(scene);
-    }
-    return targets;
-  }
-
   function cameraTarget(runtime: SceneRuntimeHandle): Vec2 | null {
-    return cameraTargetOf(runtime, getMode() === "play", sceneTargets);
+    return cameraTargetOf(runtime, getMode() === "play");
   }
 
   /** The camera, the game's store slice and the debug overlay: what moves on with or without a step. */
@@ -2264,20 +2250,8 @@ function flowUnavailable(): FlowResult {
   };
 }
 
-type FollowedTarget = { id: string; weight: number };
-
-/** The scene's entities carrying `camera-target`, with their weights. */
-function followedTargets(scene: ExpandedScene | null): FollowedTarget[] {
-  const out: FollowedTarget[] = [];
-  for (const e of scene?.entities ?? []) {
-    const block = e.behaviors?.[CAMERA_TARGET.name] as Partial<CameraTargetBlock> | undefined;
-    if (block) out.push({ id: e.id, weight: block.weight ?? 1 });
-  }
-  return out;
-}
-
 /** The weight-averaged pose of the targets that are live and enabled, or null when none is. */
-function weightedCentre(ctx: EngineContext, targets: readonly FollowedTarget[]): Vec2 | null {
+function weightedCentre(ctx: EngineContext, targets: readonly CameraTarget[]): Vec2 | null {
   let x = 0;
   let y = 0;
   let total = 0;
@@ -2294,21 +2268,18 @@ function weightedCentre(ctx: EngineContext, targets: readonly FollowedTarget[]):
 /**
  * Where the camera looks: the game's target when its `cameraTarget()` gives
  * one (`null` holds the camera still). Otherwise, in a play world, the
- * weighted centre of the `camera-target` entities; failing those, in a
+ * weighted centre of the live `camera-target` entities, loaded or spawned; failing those, in a
  * scene no game runs, Play's start when Play began from a point, else the
  * centre of the scene's bounds. An edit world leaves the camera to the
  * editor.
  */
-function cameraTargetOf(
-  runtime: SceneRuntimeHandle,
-  playing: boolean,
-  targets: (runtime: SceneRuntimeHandle) => readonly FollowedTarget[],
-): Vec2 | null {
+function cameraTargetOf(runtime: SceneRuntimeHandle, playing: boolean): Vec2 | null {
   const own = runtime.game?.cameraTarget?.();
   if (own !== undefined) return own;
   const { play, bounds } = runtime.ctx;
   if (play || playing) {
-    const centre = weightedCentre(runtime.ctx, targets(runtime));
+    const system = runtime.ctx.behavior<CameraTargetSystem>(CAMERA_TARGET.name);
+    const centre = system ? weightedCentre(runtime.ctx, system.targets()) : null;
     if (centre) return centre;
   }
   if (runtime.game || !play) return null;

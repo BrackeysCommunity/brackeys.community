@@ -872,6 +872,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       }
     } finally {
       stepping = false;
+      bodies.endTick();
     }
     if (sprites || ctx.view?.commit) {
       sprites?.settle();

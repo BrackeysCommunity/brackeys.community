@@ -1,5 +1,6 @@
 import type { BehaviorSystemFactory } from "../../game/behaviors";
 import { createBodySystem } from "./body";
+import { createCameraTargetSystem } from "./camera-target";
 import { createCharacterSideViewSystem } from "./character-side-view";
 import { createCharacterTopDownSystem } from "./character-top-down";
 import { createColliderSystem } from "./collider";
@@ -15,7 +16,7 @@ import { createSpriteSystem } from "./sprite";
 
 /**
  * The engine's behavior systems by behavior name, as `runtime/primitives.ts`
- * maps primitives. `camera-target` is data only and has none.
+ * maps primitives.
  */
 export const ENGINE_BEHAVIOR_SYSTEMS: Readonly<Record<string, BehaviorSystemFactory>> =
   Object.freeze({
@@ -32,4 +33,5 @@ export const ENGINE_BEHAVIOR_SYSTEMS: Readonly<Record<string, BehaviorSystemFact
     "nav-agent": createNavAgentSystem,
     joint: createJointSystem,
     spawner: createSpawnerSystem,
+    "camera-target": createCameraTargetSystem,
   });

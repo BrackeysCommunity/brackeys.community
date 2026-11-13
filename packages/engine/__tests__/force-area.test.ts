@@ -297,3 +297,36 @@ describe("force-area", () => {
     expect(areas(b).save!("belt")).toBeUndefined();
   });
 });
+
+describe("force-area with no game", () => {
+  it("pushes a dynamic body with the collider's default group, and its sensor reports it", () => {
+    const gameless = createRegistry();
+    const rt = createSceneRuntime({ rapier, view: null, game: null });
+    const def: SceneDefinition = {
+      ...scene([], "rapier"),
+      entities: [
+        area("belt", { kind: "directional", force: [3, 0] }),
+        {
+          id: "crate",
+          type: "marker",
+          at: [0, 0],
+          behaviors: { collider: { shape: ["box", 0, 0, 0.25, 0.25] }, body: { kind: "dynamic" } },
+        },
+      ],
+    };
+    delete def.game;
+    const report = rt.load(expandScene(def, gameless));
+    if (!report.ok) throw new Error(report.error);
+    const entered: string[] = [];
+    rt.ctx.events.on("sensor:enter", (e) => {
+      if (e.entityId === "belt" && e.other) entered.push(e.other);
+    });
+    steps(rt, 5);
+    const before = rt.ctx.bodies.velocity("crate");
+    steps(rt, 60);
+    const after = rt.ctx.bodies.velocity("crate");
+    expect((after.x - before.x) / (60 * dt(rt))).toBeCloseTo(3, 3);
+    expect(entered).toEqual(["crate"]);
+    rt.destroy();
+  });
+});

@@ -132,20 +132,23 @@ const entity = (session: ReturnType<typeof setup>["session"], id: string) =>
 
 afterEach(cleanup);
 
-/** The engine's behaviors a sensor may add, in registration order: it refuses `body` and `collider`. */
+/**
+ * The engine's behaviors a sensor may add, under the menu's headings: it
+ * refuses `body` and `collider`, so a joint has nothing to link and says so.
+ */
 const SENSOR_ENGINE_ITEMS = [
-  "SpriteDraws a texture or an atlas frame at the entity's pose.",
-  "OccupantStands on the grid cell under its pose, where paths and game code see it.",
-  "LifetimeDestroys or disables the entity a time after it spawns or is enabled.",
-  "Player inputBinds the entity to an input seat: behaviors on it read that player's actions through inputFor.",
-  "Path followMoves the entity along a waypoint path; with a kinematic body it carries what stands on it.",
+  "JointLinks the entity's body to another entity's: a hinge, a slider, a rope, a weld or a spring. Needs physics.Joint needs another entity in the scene to link to.",
   "Force areaPushes the dynamic bodies inside the entity's sensor collider: one way, or toward or away from a point.",
   "Character (top-down)Walks the entity in the plane from its seat's move action or an intent from code: a kinematic controller stopped and slid along by walls.",
   "Character (side view)Runs and jumps the entity under gravity from its seat's move and jump actions or an intent from code, with coyote time, jump buffering and one-way platforms.",
+  "Path followMoves the entity along a waypoint path; with a kinematic body it carries what stands on it.",
   "Nav agentWalks the entity through the scene's walk areas to a point or another entity, kept apart from other agents; raises nav:arrived and nav:blocked.",
-  "JointLinks the entity's body to another entity's: a hinge, a slider, a rope, a weld or a spring. Needs physics.",
+  "Player inputBinds the entity to an input seat: behaviors on it read that player's actions through inputFor.",
   "SpawnerSpawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones; raises spawner:spawned for each.",
   "Camera targetMarks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
+  "LifetimeDestroys or disables the entity a time after it spawns or is enabled.",
+  "OccupantStands on the grid cell under its pose, where paths and game code see it.",
+  "SpriteDraws a texture or an atlas frame at the entity's pose.",
 ];
 
 describe("EditorInspector", () => {
@@ -355,7 +358,9 @@ describe("EditorInspector", () => {
       fireEvent.click(screen.getByRole("button", { name: "Add behavior" }));
     });
     await act(async () => {
-      fireEvent.click((await screen.findAllByRole("menuitem"))[0]!);
+      fireEvent.click(
+        (await screen.findAllByRole("menuitem")).find((i) => i.textContent?.startsWith("Sprite"))!,
+      );
     });
     expect(Object.keys(entity(session, "zone").behaviors ?? {})).toEqual(["sprite"]);
     const sprite = screen.getByRole("region", { name: "Sprite" });

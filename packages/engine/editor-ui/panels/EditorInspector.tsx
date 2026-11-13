@@ -80,7 +80,9 @@ import {
   Input,
   Menu,
   MenuContent,
+  MenuGroup,
   MenuItem,
+  MenuLabel,
   MenuTrigger,
   MicroLabel,
   SegmentedControl,
@@ -270,16 +272,23 @@ const labelColumnPx = (width: number, longest: number): number => {
 
 const fieldTitles = (el: HTMLElement) => el.querySelectorAll<HTMLElement>(".je-insp-field-title");
 
+/** A title's text width in px, fractions kept: `scrollWidth` rounds down, which clips the last letter. */
+function titleWidth(t: HTMLElement): number {
+  const range = t.ownerDocument.createRange();
+  range.selectNodeContents(t);
+  return Math.max(t.scrollWidth, range.getBoundingClientRect?.().width ?? 0);
+}
+
 function fitLabelColumn(el: HTMLElement) {
   let longest = 0;
-  for (const t of fieldTitles(el)) longest = Math.max(longest, t.scrollWidth);
+  for (const t of fieldTitles(el)) longest = Math.max(longest, titleWidth(t));
   el.style.setProperty("--je-label-col", `${labelColumnPx(el.clientWidth, longest)}px`);
 }
 
 /**
  * Sets `--je-label-col` on the element from its own width and its titles,
- * so nested fields line up with the top-level ones: again on each resize,
- * and on a re-render only when the titles shown changed, so a scrub doesn't
+ * so nested fields line up with the top-level ones: again on each resize
+ * and once web fonts load, and on a re-render only when the titles shown changed, so a scrub doesn't
  * measure every frame. Without a `ResizeObserver` the stylesheet's token
  * sizes each row.
  */
@@ -288,9 +297,16 @@ function useLabelColumn() {
   const fitted = useRef<{ el: HTMLElement; titles: string } | null>(null);
   useLayoutEffect(() => {
     if (!el || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => fitLabelColumn(el));
+    const fit = () => fitLabelColumn(el);
+    const observer = new ResizeObserver(fit);
     observer.observe(el);
-    return () => observer.disconnect();
+    // Titles measured in a fallback face are narrower than in the web font that replaces it.
+    const fonts = el.ownerDocument.fonts as FontFaceSet | undefined;
+    fonts?.addEventListener("loadingdone", fit);
+    return () => {
+      observer.disconnect();
+      fonts?.removeEventListener("loadingdone", fit);
+    };
   }, [el]);
   useLayoutEffect(() => {
     if (!el || typeof ResizeObserver === "undefined") return;
@@ -528,10 +544,11 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         : [];
   const dangling = values.filter((v) => !candidates.includes(v));
   const accepts = w.any ? "entity" : w.accepts.join(" or ");
+  const article = /^[aeiou]/i.test(accepts) ? "an" : "a";
   const problem =
     error ??
     (dangling.length > 0
-      ? `${dangling.join(", ")} ${dangling.length > 1 ? "aren't" : "isn't"} a ${accepts} in this scene.`
+      ? `${dangling.join(", ")} ${dangling.length > 1 ? "aren't" : "isn't"} ${article} ${accepts} in this scene.`
       : null);
   const set = (next: unknown) => setError(commitField(ctx, field, next));
 
@@ -552,7 +569,7 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
             ))}
             <ComboboxChipsInput
               aria-label={field.path}
-              placeholder={field.mixed ? MIXED : `Add a ${accepts}`}
+              placeholder={field.mixed ? MIXED : `Add ${article} ${accepts}`}
             />
           </ComboboxChips>
           <ComboboxContent anchor={anchor}>
@@ -577,7 +594,7 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           <ComboboxInput
             aria-label={field.path}
             aria-invalid={problem ? true : undefined}
-            placeholder={field.mixed ? MIXED : `Pick a ${accepts}`}
+            placeholder={field.mixed ? MIXED : `Pick ${article} ${accepts}`}
             showClear={field.optional}
           />
           <ComboboxContent>
@@ -897,6 +914,7 @@ function CustomField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         <OptionsField
           field={field}
           commit={committer(ctx, field)}
+          unset={unsetText(field)}
           options={def.options}
           segmented={def.options.length <= 4}
         />
@@ -956,12 +974,24 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         <OptionsField
           field={field}
           commit={committer(ctx, field)}
+          unset={unsetText(field)}
           options={w.options}
           segmented={w.kind === "segmented"}
         />
       );
     case "switch":
-      return <SwitchField field={field} commit={committer(ctx, field)} />;
+      return (
+        <SwitchField
+          field={field}
+          commit={committer(ctx, field)}
+          {...(typeof field.defaultValue === "boolean"
+            ? {
+                fallback: field.defaultValue,
+                unset: `${field.defaultValue ? "on" : "off"} (default)`,
+              }
+            : {})}
+        />
+      );
     case "text":
       return <TextField field={field} commit={committer(ctx, field)} />;
     case "point":
@@ -1068,8 +1098,30 @@ function BehaviorSection({
 }
 
 /**
+ * Whether a group's sub-heading would only repeat what is already shown:
+ * the first group named for its behavior (Spawner's `spawn`), or a group
+ * whose one field has the group's title.
+ */
+function headingRepeats(
+  section: InspectorSectionModel,
+  group: string,
+  fields: readonly ModelField[],
+  first: boolean,
+): boolean {
+  const title = fieldTitle(group).toLowerCase();
+  const name = section.behavior?.name.toLowerCase() ?? "";
+  if (
+    first &&
+    (name.startsWith(group.toLowerCase()) || section.title.toLowerCase().startsWith(title))
+  )
+    return true;
+  return fields.length === 1 && fields[0]!.title.toLowerCase() === title;
+}
+
+/**
  * A behavior section's fields under their `meta.group` sub-headings, groups
- * in the order their first field comes; one group shows no heading.
+ * in the order their first field comes; one group shows no heading, nor
+ * does one whose heading would repeat the section's title or its one field's.
  */
 function groupedFields(section: InspectorSectionModel, render: (f: ModelField) => ReactNode) {
   const groups = new Map<string, ModelField[]>();
@@ -1078,9 +1130,9 @@ function groupedFields(section: InspectorSectionModel, render: (f: ModelField) =
     groups.set(key, [...(groups.get(key) ?? []), f]);
   }
   if (groups.size < 2) return section.fields.map(render);
-  return [...groups].map(([group, fields]) => (
+  return [...groups].map(([group, fields], i) => (
     <div key={group} className="je-insp-group" data-group={group || undefined}>
-      {group ? (
+      {group && !headingRepeats(section, group, fields, i === 0) ? (
         <MicroLabel as="p" className="je-insp-group-title">
           {fieldTitle(group)}
         </MicroLabel>
@@ -1090,10 +1142,38 @@ function groupedFields(section: InspectorSectionModel, render: (f: ModelField) =
   ));
 }
 
+/** The Add behavior menu's headings, each with the engine behaviors it lists; a game's own land under Game. */
+const MENU_GROUPS: readonly { title: string; names: readonly string[] }[] = [
+  { title: "Physics", names: ["collider", "body", "joint", "force-area"] },
+  {
+    title: "Movement",
+    names: [
+      "character-top-down",
+      "character-side-view",
+      "path-follow",
+      "nav-agent",
+      "player-input",
+    ],
+  },
+  { title: "World", names: ["spawner", "camera-target", "lifetime", "occupant"] },
+  { title: "Visual", names: ["sprite"] },
+];
+
+/** `options` under the menu's headings, in their order; a game's in the order given; empty headings dropped. */
+function menuGroups(options: InspectorModel["addBehaviors"]) {
+  const groups = MENU_GROUPS.map(({ title, names }) => ({
+    title,
+    items: names.flatMap((n) => options.filter((o) => o.name === n)),
+  }));
+  const placed = MENU_GROUPS.flatMap((g) => g.names);
+  groups.push({ title: "Game", items: options.filter((o) => !placed.includes(o.name)) });
+  return groups.filter((g) => g.items.length > 0);
+}
+
 /**
- * The behaviors the selection's types allow and it doesn't all carry yet;
- * picking one adds it, and what it requires, in one batch. One that can't be
- * added yet is dimmed, and picking it says why.
+ * The behaviors the selection's types allow and it doesn't all carry yet,
+ * under headings; picking one adds it, and what it requires, in one batch.
+ * One that can't be added yet is dimmed with its reason in the item.
  */
 function AddBehaviorMenu({ options, ctx }: { options: InspectorModel["addBehaviors"]; ctx: Ctx }) {
   const [error, setError] = useState<string | null>(null);
@@ -1108,20 +1188,33 @@ function AddBehaviorMenu({ options, ctx }: { options: InspectorModel["addBehavio
           }
         />
         <MenuContent align="start" className="je-insp-behavior-menu">
-          {options.map((o) => (
-            <MenuItem
-              key={o.name}
-              className="je-insp-behavior-item"
-              data-behavior={o.name}
-              data-unavailable={o.unavailable === undefined ? undefined : ""}
-              onClick={() => setError(o.unavailable ?? dispatch(ctx, o.batch))}
-            >
-              <span>{behaviorTitle(o.label, o.name)}</span>
-              <span className="je-insp-muted">{o.description}</span>
-              {o.adds ? (
-                <span className="je-insp-muted">Also adds {o.adds.join(", ")}.</span>
-              ) : null}
-            </MenuItem>
+          {menuGroups(options).map((g) => (
+            <MenuGroup key={g.title}>
+              <MenuLabel>{g.title}</MenuLabel>
+              {g.items.map((o) => (
+                <MenuItem
+                  key={o.name}
+                  className="je-insp-behavior-item"
+                  data-behavior={o.name}
+                  data-unavailable={o.unavailable === undefined ? undefined : ""}
+                  onClick={() => setError(o.unavailable ?? dispatch(ctx, o.batch))}
+                >
+                  <span>{behaviorTitle(o.label, o.name)}</span>
+                  <Hinted hint={o.description}>
+                    <span className="je-insp-muted je-insp-behavior-description">
+                      {o.description}
+                    </span>
+                  </Hinted>
+                  {o.unavailable ? (
+                    <span className="je-insp-behavior-note" data-tone="warning">
+                      {o.unavailable}
+                    </span>
+                  ) : o.adds ? (
+                    <span className="je-insp-behavior-note">Also adds {o.adds.join(", ")}.</span>
+                  ) : null}
+                </MenuItem>
+              ))}
+            </MenuGroup>
           ))}
         </MenuContent>
       </Menu>

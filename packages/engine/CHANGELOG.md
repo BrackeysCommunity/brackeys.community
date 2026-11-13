@@ -55,7 +55,8 @@ peer range that excludes the release that draws nothing on Apple GPUs.
   entity's pose. Without a `body` it is a fixed body; with `sensor: true` it
   raises `sensor:enter` and `sensor:exit` as the `sensor` type does. It
   takes `material`, `group` (default: dynamic on a dynamic body, sensor for
-  a sensor, else static), `density`, and `friction` and `restitution` (its
+  a sensor, dynamic for a sensor in a project with no game, else static),
+  `density`, and `friction` and `restitution` (its
   own win over the material's). Without physics, fixed and kinematic
   colliders go to the geometry world.
 - `body` behavior: makes an entity's collider a dynamic, kinematic or static
@@ -66,8 +67,9 @@ peer range that excludes the release that draws nothing on Apple GPUs.
   `ctx.bodies.setVelocity` gives it, on either backend. Both register with
   `ctx.bodies` and keep their velocity through disable/enable and world
   saves.
-- `camera-target` (data only): the shell follows the weighted centre of the
-  entities carrying it.
+- `camera-target`: the shell follows the weighted centre of the live
+  entities carrying it, loaded or spawned (its system keeps them in attach
+  order, and nothing a save needs).
 - `spawner` behavior system: spawns `type` entities (through `ctx.spawn`) or
   `prefab` instances (through `ctx.instantiate`) at `rate` a second up to
   `cap` live, plus `burst` on its first active tick, at the entity's pose
@@ -121,8 +123,9 @@ actorId)`, which motion bodies and side-view controllers skip in their
   velocity, `grounded` is always true, and with `pushDynamic` it gives each
   dynamic body it runs into the impulse that matches its speed into it. On
   a dynamic `body` it is refused with `character-body-kind`; a kinematic
-  `body` is its own. While attached it takes its collider's own body out of
-  the world (through `ColliderSystem.disable`) and puts it back on detach.
+  `body` is its own. While attached its motion body stands in for its
+  collider's own body, which goes back into the world and `ctx.bodies` on
+  detach.
   Its world save is its motion body's plus the last `setIntent`.
 - `character-side-view` runs an entity with `collider` and `player-input`
   (or `setIntent` from code): it walks, and jumps with coyote time, a jump
@@ -220,7 +223,8 @@ actorId)`, which motion bodies and side-view controllers skip in their
   (velocity, impulses, forces, torques, mass, wake by entity id), solids and
   sensors as static, followers and motion bodies as kinematic. Forces and
   torques are summed per tick, handed to Rapier before the step and cleared
-  after it, so a force lasts one step.
+  after it, so a force lasts one step; one applied after the step is
+  dropped at the end of the tick.
 - When a game names no camera target (no `cameraTarget()`, or it returns
   `undefined`), the shell's camera follows the weight-averaged pose of the
   live, enabled `camera-target` entities in a play world, with the camera's
@@ -228,6 +232,54 @@ actorId)`, which motion bodies and side-view controllers skip in their
   still wins.
 - A nav agent's separation looks only at entities of its agents' types, so
   a crowd on large walk areas no longer tests every polygon it overlaps.
+
+### Fixed
+
+- A `path-follow` path is placed with its entity: a prefab instance, a
+  group and an editor move move, turn and flip it as they do a follower's
+  path, so a path-follow platform inside a prefab runs where the instance
+  is. Any behavior field of kind `point` or `path` is placed the same way.
+- A `joint` or `nav-agent` `to` inside a prefab names a child of the same
+  instance: the expansion rewrites it to the child's id, innermost instance
+  first, else the scene's entity of that id, and the joint and nav-agent
+  systems and the joint's validation resolve a ref written live by the same
+  rule. A nav agent in an instance follows its sibling instead of raising
+  `nav:blocked` `gone`.
+- `camera-target` follows carriers spawned at runtime (`ctx.spawn`,
+  `ctx.instantiate`, a spawner's prefab), not only the scene's own.
+- A force or torque applied after the physics step (in a type system's
+  `afterStep`, a behavior's `step`, an event handler or the game's
+  `afterStep`) is dropped at the end of the tick instead of acting on the
+  next step, so a tick boundary holds no force and a world save taken
+  between ticks continues as the run does.
+- A sensor `collider` (and so a `force-area`) in a project with no game
+  meets dynamic and motion bodies: with no `group` set it joins `dynamic`
+  there, since a gameless project can't link `sensor` to anything.
+  behavior-yard's goal sensor drops its `group` workaround.
+- `character-top-down`, `character-side-view` and `nav-agent` stand their
+  motion body in for the collider's body through one collider-system call,
+  and give it back through one: the collider's body is built again where
+  the entity is and registered with `ctx.bodies` again, so an entity that
+  never moved no longer keeps a live body `ctx.bodies` denies
+  (`body-missing`) after the behavior goes.
+- A side-view character's one-way passes are dropped when it goes, so a
+  spawner of side-view characters no longer grows them without bound.
+- Inspector: a behavior field that applies only to some kinds (a joint's
+  spring stiffness, a force area's point falloff) shows only while the block
+  is of one of them (`meta.when`); joint, body and force-area fields carry
+  their units (N/m, N·s/m, /s) and plain titles ("Other anchor", "Max
+  force"); seat fields sit in their behavior's group; a group heading that
+  would only repeat its section's title or its one field's is left out;
+  field titles are measured in the loaded face, so the last letter isn't
+  clipped.
+- Editor: Add behavior lists its options under headings, a game's under
+  Game; a `path-follow` template's path starts where the entity stands.
+- `path-follow`, `nav-agent` and the two character controllers each
+  conflict with the others (`behavior-conflict`): each moves the entity.
+- Editor: the selected entity's `path-follow` path and waypoints are drawn,
+  its joint draws a line from its pose to the entity `to` names, and every
+  other collider in the scene is outlined faintly (dashed for a sensor), so
+  an entity with no art still shows where it is.
 
 ### Agent surface
 

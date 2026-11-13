@@ -3,7 +3,7 @@ import type { ImpulseJoint, RigidBody, UnitImpulseJoint } from "@dimforge/rapier
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
 import type { JointBlock, JointSystem } from "../../game/behaviors/joint";
 import { physicsOf } from "../../game/physics-of";
-import { EngineError, type EngineContext, type JsonValue } from "../../game/types";
+import { EngineError, scopedRef, type EngineContext, type JsonValue } from "../../game/types";
 import type { PhysicsWorld } from "../../physics";
 import { composePose, relativePose, type Pose } from "../poses";
 
@@ -16,7 +16,7 @@ const DEFAULT_SPRING_DAMPING = 1;
 
 type Linked = {
   block: JointBlock;
-  /** The entity `to` resolved to: itself, or a sibling inside the same instance. */
+  /** The entity `to` resolved to (`scopedRef`). */
   target: string;
   /**
    * Where the joint holds `to`, from its pose, when the block sets no
@@ -40,14 +40,9 @@ const rotate = (v: Vec, rot: number): Vec => {
   return { x: v.x * c - v.y * s, y: v.x * s + v.y * c };
 };
 
-/** `to` as the entity it names: the id itself, else a sibling of `id` inside its instance. */
-function targetOf(ctx: EngineContext, id: string, to: string): string {
-  if (ctx.exists(to)) return to;
-  const slash = id.lastIndexOf("/");
-  if (slash < 0) return to;
-  const sibling = `${id.slice(0, slash)}/${to}`;
-  return ctx.exists(sibling) ? sibling : to;
-}
+/** `to` as the entity it names (`scopedRef`): a load already scoped an instance's own, so this covers a block written live. */
+const targetOf = (ctx: EngineContext, id: string, to: string): string =>
+  scopedRef(id, to, (other) => ctx.exists(other));
 
 /** The inverse inertia (or mass) a motor pushes against: 0 for a body that isn't dynamic. */
 const inverse = (dynamic: boolean, amount: number): number =>
