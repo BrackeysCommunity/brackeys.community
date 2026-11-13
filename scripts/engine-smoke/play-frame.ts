@@ -74,7 +74,14 @@ import {
   withTimeout,
   type BrowserName,
 } from "./browser-compare";
-import { decodePng, distinctColours, judgeDrawn, RUN_TIMEOUT_MS } from "./export";
+import {
+  closeWithin,
+  CLOSE_MS,
+  decodePng,
+  distinctColours,
+  judgeDrawn,
+  RUN_TIMEOUT_MS,
+} from "./export";
 import { SAVE_SERVER_PARAM } from "./fixtures/own-saves/store";
 import { REPO } from "./pack";
 import type {
@@ -694,15 +701,6 @@ const violationsIn = (frame: Frame): Promise<CspViolation[]> =>
 /** How long one run may take: the claim run boots the game three times, in two contexts. */
 export const runTimeoutMs = (kind: PlayRunKind): number =>
   kind === "claim" ? 2 * RUN_TIMEOUT_MS : RUN_TIMEOUT_MS;
-
-/** How long closing a context or browser may take: WebKit can hang closing one, and the run's result is already in hand. */
-const CLOSE_MS = 15_000;
-
-async function closeWithin(closing: Promise<void>, what: string): Promise<void> {
-  await withTimeout(closing, CLOSE_MS, `closing ${what}`).catch((err) =>
-    console.error(err instanceof Error ? err.message : String(err)),
-  );
-}
 
 /** How long the host page may take to hear a state the frame already shows: the port's delivery is async. */
 const HOST_HEARS_MS = 10_000;

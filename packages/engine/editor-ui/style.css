@@ -1964,6 +1964,19 @@
     font-size: var(--je-text);
   }
 
+  .je-live-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px;
+  }
+
+  .je-live-status {
+    min-width: 0;
+    max-width: min(480px, 100%);
+    padding-right: 12px;
+  }
+
   /* Status */
 
   .je-status {

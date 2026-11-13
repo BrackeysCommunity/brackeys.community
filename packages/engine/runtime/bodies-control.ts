@@ -107,16 +107,25 @@ export function rapierBodyEntry(
   };
 }
 
+/** What the owner of a kinematic body reports and takes: `kinematicBodyEntry`'s `motion`. */
+export type KinematicMotion = {
+  /** m/s. */
+  velocity(): Vec2;
+  /** Left out when the owner sets the velocity itself (a path). */
+  setVelocity?(v: Vec2): void;
+  /** rad/s; left out, with `setAngularVelocity`, for a body that never turns (a character's). */
+  angularVelocity?(): number;
+  setAngularVelocity?(w: number): void;
+  wake?(): void;
+};
+
 /**
  * A kinematic body whose owner moves it: `velocity` reads what the owner
  * reports, and `setVelocity`, when the owner takes one, writes what it
- * moves by. It never turns, and forces don't move it, so its mass is
- * infinite.
+ * moves by; the angular velocity likewise, and a body whose owner takes
+ * none never turns. Forces don't move it, so its mass is infinite.
  */
-export function kinematicBodyEntry(
-  id: string,
-  motion: { velocity(): Vec2; setVelocity?(v: Vec2): void; wake?(): void },
-): BodyEntry {
+export function kinematicBodyEntry(id: string, motion: KinematicMotion): BodyEntry {
   const owned = (what: string, why: string) => () => refuse(id, "kinematic", what, why);
   const forces = owned("apply a force to", "and only a dynamic body takes forces");
   return {
@@ -125,8 +134,10 @@ export function kinematicBodyEntry(
     setVelocity: motion.setVelocity
       ? (v) => motion.setVelocity!(v)
       : owned("set the velocity of", "and what owns it sets its velocity"),
-    angularVelocity: () => 0,
-    setAngularVelocity: owned("set the angular velocity of", "and it never turns"),
+    angularVelocity: () => motion.angularVelocity?.() ?? 0,
+    setAngularVelocity: motion.setAngularVelocity
+      ? (w) => motion.setAngularVelocity!(w)
+      : owned("set the angular velocity of", "and it never turns"),
     applyImpulse: forces,
     addForce: forces,
     addTorque: forces,

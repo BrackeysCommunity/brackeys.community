@@ -48,8 +48,12 @@ type Built = {
   handle: number | null;
   /** The entity's pose in its Rapier body's frame. */
   offset: Pose;
+  /** The Rapier body's pose in the entity's frame: the shape's own centre and turn. */
+  frame: Pose;
   /** A kinematic body's velocity, m/s: code sets it, the step moves the body by it. */
   v: Vec;
+  /** A kinematic body's angular velocity, rad/s, about the entity's pose. */
+  w: number;
   inside: Overlaps;
   /** What a geometry sensor overlapped at the end of the last step: the next step's enters and exits. */
   next: Overlaps | null;
@@ -69,7 +73,7 @@ type Built = {
 
 const ZERO: Pose = { x: 0, y: 0, rot: 0 };
 
-const moving = (b: Built) => b.v.x !== 0 || b.v.y !== 0;
+const moving = (b: Built) => b.v.x !== 0 || b.v.y !== 0 || b.w !== 0;
 
 /** Out of the world: disabled, or stood in for. */
 const off = (b: Built) => b.disabled || b.stood;
@@ -141,14 +145,24 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
 
   function entryOf(b: Built): BodyEntry {
     const id = b.entity.id;
-    if (b.kind === "kinematic")
+    if (b.kind === "kinematic") {
+      const body = b.entity.behaviors?.[BODY.name] as Partial<BodyBlock> | undefined;
       return kinematicBodyEntry(id, {
         velocity: () => ({ x: b.v.x, y: b.v.y }),
         setVelocity(v) {
           b.v = { x: v.x, y: v.y };
         },
+        ...(body?.fixedRotation === true
+          ? {}
+          : {
+              angularVelocity: () => b.w,
+              setAngularVelocity(w: number) {
+                b.w = w;
+              },
+            }),
         wake: () => b.body?.wakeUp(),
       });
+    }
     return rapierBodyEntry(id, b.body!, b.kind === "dynamic" ? "dynamic" : "static");
   }
 
@@ -191,7 +205,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       carried =
         kind === "dynamic" && was.body
           ? { v: { ...was.body.linvel() }, w: was.body.angvel() }
-          : { v: was.v, w: 0 };
+          : { v: was.v, w: was.w };
     }
     remove(e.id);
     const sensor = block.sensor === true;
@@ -209,7 +223,9 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       collider: null,
       handle: null,
       offset: ZERO,
+      frame: ZERO,
       v: kind === "kinematic" ? carried.v : { x: 0, y: 0 },
+      w: kind === "kinematic" && bodyBlock?.fixedRotation !== true ? carried.w : 0,
       inside: was && was.blocks === blocks ? was.inside : new Map(),
       next: null,
       restored: was && was.blocks === blocks ? was.restored : null,
@@ -233,12 +249,9 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       }
     } else {
       const { rapier, physics } = physicsOf(ctx, "a collider", e.id);
-      const frame = shapePose(shape);
-      const at = composePose(pose.x, pose.y, pose.rot, {
-        x: frame.x,
-        y: frame.y,
-        rot: frame.rotation,
-      });
+      const centre = shapePose(shape);
+      const frame: Pose = { x: centre.x, y: centre.y, rot: centre.rotation };
+      const at = composePose(pose.x, pose.y, pose.rot, frame);
       const desc =
         kind === "dynamic"
           ? rapier.RigidBodyDesc.dynamic()
@@ -264,6 +277,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       b.body = body;
       b.collider = collider;
       b.offset = relativePose(pose, at);
+      b.frame = frame;
       if (kind === "dynamic" && (carried.v.x !== 0 || carried.v.y !== 0 || carried.w !== 0)) {
         body.setLinvel(carried.v, true);
         body.setAngvel(carried.w, true);
@@ -285,20 +299,31 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
     b.pose = { x: p.x, y: p.y, rot: p.rot };
   }
 
-  /** Moves the kinematic bodies by their velocity over one tick: Rapier's next pose, or the geometry collider now. */
+  /**
+   * Moves the kinematic bodies by their velocities over one tick: Rapier's
+   * next pose, or the geometry collider now. A turning body turns about its
+   * entity's pose on both backends.
+   */
   function moveKinematic(): void {
     const dt = tickSeconds();
     for (const b of built.values()) {
       if (b.kind !== "kinematic" || off(b) || !moving(b)) continue;
       if (b.body) {
         const t = b.body.translation();
-        b.body.setNextKinematicTranslation({ x: t.x + b.v.x * dt, y: t.y + b.v.y * dt });
+        if (b.w === 0) {
+          b.body.setNextKinematicTranslation({ x: t.x + b.v.x * dt, y: t.y + b.v.y * dt });
+          continue;
+        }
+        const e = composePose(t.x, t.y, b.body.rotation(), b.offset);
+        const next = composePose(e.x + b.v.x * dt, e.y + b.v.y * dt, e.rot + b.w * dt, b.frame);
+        b.body.setNextKinematicTranslation({ x: next.x, y: next.y });
+        b.body.setNextKinematicRotation(next.rot);
         continue;
       }
       const from = ctx.poses.get(b.entity.id) ?? b.pose;
       const x = from.x + b.v.x * dt;
       const y = from.y + b.v.y * dt;
-      const rot = from.rot;
+      const rot = b.w === 0 ? from.rot : from.rot + b.w * dt;
       ctx.poses.set(b.entity.id, x, y, rot);
       b.pose = { x, y, rot };
       if (b.handle !== null) ctx.geometry?.setPose(b.handle, x, y, rot);

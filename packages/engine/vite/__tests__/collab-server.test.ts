@@ -57,14 +57,14 @@ const disk = () => copy.read("engine-yard.json");
 const serverDoc = (name = YARD) => server.server.hocuspocus.documents.get(name)!;
 const open = (name = YARD) => connect(server.url, name, clients);
 
-async function start(paths = ["engine-yard.json"]) {
+async function start(paths = ["engine-yard.json"], buildAt = 1234) {
   copy = await engineProjectCopy(paths);
   server = await listenSceneCollab({
     projects: [copy.project],
     debounceMs: 50,
     watchDelayMs: 20,
     settleMs: 150,
-    buildAt: 1234,
+    buildAt,
     warn: (m) => warnings.push(m),
   });
 }
@@ -194,6 +194,40 @@ describe("the dev collab server: the project doc", () => {
     expect(new Set(stamps.map((s) => s.buildAt))).toEqual(new Set([1233]));
     // A page on the server's own build outranks the server, whatever its hash.
     for (const stamp of stamps) expect(stampWins(1234, "0".repeat(64), stamp)).toBe(true);
+  });
+
+  it("stamps an undated build at 0, never below", async () => {
+    await start(["engine-yard.json"], 0);
+    const { doc } = await open(PROJECT);
+    const stamps = [...projectBuildMap(doc).values()];
+    expect(stamps.length).toBeGreaterThan(0);
+    expect(new Set(stamps.map((s) => s.buildAt))).toEqual(new Set([0]));
+  });
+
+  it("lets a page on the server's build replace the server's stale hash and write", async () => {
+    await start();
+    await open(PROJECT);
+    const project = serverDoc(PROJECT);
+    const builds = projectBuildMap(project);
+    const stale = { hash: "f".repeat(64), buildAt: 1233, engine: builds.get("scene")!.engine };
+    // The largest hash: on an equal stamp it would win by hash alone and hold the page read-only.
+    project.transact(() => builds.set("scene", stale));
+    const session = await createProjectSession({
+      project: "engine",
+      origin: ada,
+      registry: registry(),
+      kinds: copy.project.kinds,
+      buildAt: 1234,
+      openDoc: async (name) => {
+        const { doc, provider } = await connect(server.url, name, clients);
+        return { doc, awareness: provider.awareness!, close: () => provider.destroy() };
+      },
+    });
+    expect((await session.open(YARD)).readOnly).toBe(false);
+    expect(session.skew()).toEqual([]);
+    await until(() => builds.get("scene")?.buildAt === 1234, "the page's stamp on the server");
+    expect(builds.get("scene")).toMatchObject({ hash: session.hashes.scene, buildAt: 1234 });
+    session.destroy();
   });
 
   it("lists the code modules, the game module with what the loaded game registers, and follows new ones", async () => {

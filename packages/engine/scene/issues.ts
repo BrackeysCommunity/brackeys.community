@@ -1,3 +1,5 @@
+import type { SwapTiming } from "../game/live";
+import type { AssetId } from "../project/types";
 import type { MigrationRefusal } from "./migrate";
 import type { EngineIssueCode, IssueCode, IssueCodeInfo, SceneIssue } from "./types";
 
@@ -183,8 +185,8 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
   "behavior-conflict": {
     severity: "error",
     summary:
-      "An entity carries two behaviors that can't share it, such as both character controllers.",
-    hint: "Unset one of the two blocks with update; keep the one whose movement the entity should have.",
+      "An entity carries two behaviors that can't share it, such as both character controllers. As a warning: a `path-follow` that can't move all of its entity, whose collider has no body or a static one, or whose type's own system places it (solid, prop, follower, sensor).",
+    hint: "Unset one of the two blocks with update; keep the one whose movement the entity should have. For a path-follow warning, give the collider a kinematic body, or move it some other way.",
     fixable: false,
   },
   "character-body-kind": {
@@ -539,7 +541,175 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Record the asset's licence with a `setLicence` project op (`vp run scene assets apply`): its SPDX id, author, source and attribution line.",
     fixable: false,
   },
+  "live-incompatible": {
+    severity: "error",
+    summary:
+      "A scene version was made for another build of the game, another scene format, or another game or configuration than the release it would go live on. `detail.rule` names which: `build`, `formats` or `game`.",
+    hint: "Publish it again from the build the release was made from, or publish a release.",
+    fixable: false,
+  },
+  "live-scene-unlisted": {
+    severity: "error",
+    summary:
+      "A scene version replaces a scene the release's scene list doesn't hold, or holds with another sublevel flag, so it can't be updated live.",
+    hint: "New scenes need a release: add it to the scene list and publish one.",
+    fixable: false,
+  },
+  "live-physics": {
+    severity: "error",
+    summary: "A scene version needs physics, and the release was built without it.",
+    hint: "Publish a release so the build includes physics.",
+    fixable: false,
+  },
+  "live-asset-conflict": {
+    severity: "error",
+    summary:
+      "A scene version carries a changed asset that the release ships under the same id: only the scene and its prefabs may change live.",
+    hint: "Shared assets change with a release. Keep the old asset under its id and add the new one under a new id, or publish a release.",
+    fixable: false,
+  },
+  "live-swap-failed": {
+    severity: "error",
+    summary:
+      "A new version of a scene couldn't be applied while playing: staging failed, a swap step refused, or the game's `onSwap` threw. The old version keeps running and the new one loads next time; `detail.phase` names the step.",
+    hint: "The issue's own hint is the onSwap error or the step that refused.",
+    fixable: false,
+  },
+  "live-timing-unsupported": {
+    severity: "warn",
+    summary:
+      "A scene version was moved with a timing the game doesn't declare, so it reaches players at the strongest timing the game accepts.",
+    hint: "Declare more timings in GameDefinition.live.timings.",
+    fixable: false,
+  },
+  "scene-version-removed": {
+    severity: "error",
+    summary:
+      "A replay needs a scene version that is gone: the segment's `sceneVersion` (the replay doesn't start), or a swap's (it replays to `detail.tick` and stops).",
+    hint: "Scene versions are removed some days after publishing unless a channel points at them; a recording replays only while the versions it names are kept.",
+    fixable: false,
+  },
 };
+
+/** How a timing reads in a message. */
+const timingWords = (t: SwapTiming) => (t === "next-load" ? "next load" : t);
+
+/**
+ * The facts a live-level issue's wording needs. A version is named as its
+ * scene and number (`level-1@4`) and a release as its version (`v7`);
+ * the caller formats both, since only the host knows the numbers.
+ */
+export type LiveIssueInput =
+  | { code: "live-incompatible"; rule: "build"; version: string; release: string }
+  | {
+      code: "live-incompatible";
+      rule: "formats";
+      version: string;
+      release: string;
+      /** The scene format the version uses, and the one the release reads. */
+      format: number;
+      reads: number;
+    }
+  | { code: "live-incompatible"; rule: "game"; version: string }
+  | { code: "live-scene-unlisted"; release: string; scene: AssetId }
+  | { code: "live-physics"; release: string; scene: AssetId }
+  | { code: "live-asset-conflict"; scene: AssetId; asset: string }
+  | {
+      code: "live-swap-failed";
+      scene: AssetId;
+      /** The onSwap error or the step that refused: the issue's hint. */
+      cause: string;
+      phase?: "stage" | "swap" | "onSwap";
+      /** `reload` when the swap needs a reload; `refused` when a reconcile step refused. */
+      reason?: "reload" | "refused";
+      /** The entity whose step refused. */
+      entityId?: string;
+    }
+  | { code: "live-timing-unsupported"; version: string; accepted: readonly SwapTiming[] }
+  | {
+      code: "scene-version-removed";
+      version: string;
+      /** When it was removed, as the host shows dates. */
+      removedOn?: string;
+      /** The swap's tick, for a version a swap needed. */
+      tick?: number;
+      /** The host's retention rule, when it states one. */
+      kept?: { newest: number; days: number };
+    };
+
+/** A live-level issue with its message and hint worded and its values filled in. */
+export function liveIssue(input: LiveIssueInput): SceneIssue {
+  switch (input.code) {
+    case "live-incompatible": {
+      const detail = { rule: input.rule };
+      if (input.rule === "build")
+        return makeIssue(input.code, {
+          message: `${input.version} was made for another build of the game: its entity types or data kinds differ from ${input.release}'s.`,
+          hint: `Publish it again from the build ${input.release} was made from, or publish a release.`,
+          detail,
+        });
+      if (input.rule === "formats")
+        return makeIssue(input.code, {
+          message: `${input.version} uses scene format ${input.format}; ${input.release} reads format ${input.reads}.`,
+          hint: "Publish a release made with the newer engine.",
+          detail,
+        });
+      return makeIssue(input.code, {
+        message: `${input.version} belongs to another game or game configuration.`,
+        hint: "Publish it from the game and configuration the release was built with.",
+        detail,
+      });
+    }
+    case "live-scene-unlisted":
+      return makeIssue(input.code, {
+        message: `${input.release} doesn't list the scene ${input.scene}, so it can't be updated live.`,
+        entityIds: [input.scene],
+      });
+    case "live-physics":
+      return makeIssue(input.code, {
+        message: `${input.scene} now needs physics, and ${input.release} was built without it.`,
+        entityIds: [input.scene],
+      });
+    case "live-asset-conflict":
+      return makeIssue(input.code, {
+        message: `${input.scene} uses a changed ${input.asset} that other scenes share.`,
+        entityIds: [input.scene],
+      });
+    case "live-swap-failed":
+      return makeIssue(input.code, {
+        message: `The update to ${input.scene} couldn't be applied while playing; it will load next time.`,
+        hint: input.cause,
+        entityIds: [input.scene],
+        ...(input.phase || input.reason || input.entityId !== undefined
+          ? {
+              detail: {
+                ...(input.phase ? { phase: input.phase } : {}),
+                ...(input.reason ? { reason: input.reason } : {}),
+                ...(input.entityId !== undefined ? { entityId: input.entityId } : {}),
+              },
+            }
+          : {}),
+      });
+    case "live-timing-unsupported": {
+      const accepted = input.accepted.includes("next-load")
+        ? input.accepted
+        : ["next-load" as const, ...input.accepted];
+      return makeIssue(input.code, {
+        message: `This game accepts only ${accepted.map(timingWords).join(" or ")}; ${input.version} will reach players then.`,
+      });
+    }
+    case "scene-version-removed":
+      return makeIssue(input.code, {
+        message: `This replay needs ${input.version}, which was removed${input.removedOn ? ` on ${input.removedOn}` : ""}.`,
+        ...(input.kept
+          ? {
+              hint: `Scene versions outside a scene's ${input.kept.newest} newest are removed ${input.kept.days} days after publishing unless a channel points at them.`,
+            }
+          : {}),
+        ...(input.tick !== undefined ? { detail: { tick: input.tick } } : {}),
+      });
+  }
+}
 
 /**
  * A `SceneIssue` with the code's severity and hint filled in. A game's codes

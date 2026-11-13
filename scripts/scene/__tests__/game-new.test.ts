@@ -6,8 +6,10 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import type { PlayerInputSystem } from "@jams/engine/game";
+import { runPlaytest } from "@jams/engine/headless";
 import { sceneListFlow } from "@jams/engine/project";
-import { inputScriptJsonSchema, sceneJsonSchema } from "@jams/engine/scene";
+import { inputScriptJsonSchema, parseSceneOrThrow, sceneJsonSchema } from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
 import type { ToolContext } from "../context";
@@ -237,6 +239,49 @@ describe("game new writes a project that passes the repo's checks", () => {
             checks: { kind: string; expect?: { near?: unknown } }[];
           };
           expect(checks.checks.find((c) => c.kind === "reaches")?.expect?.near).toBeDefined();
+        });
+
+      if (behaviors)
+        it("freezes its hero at the win: its seat is gone and held input no longer moves it", async () => {
+          const project = projects.find((p) => p.file.id === id)!;
+          const { game, registry } = project;
+          const read = async (path: string) =>
+            JSON.parse(await readFile(join(GAMES, id, path), "utf8")) as Record<string, unknown>;
+          const scene = parseSceneOrThrow(await read("scenes/main.json"), registry);
+          const script = (await read("scenes/main.script.json")) as { steps: unknown[] };
+          const rapier = await loadCompatRapier();
+          let seat: number | null | undefined;
+          const won = runPlaytest({
+            rapier,
+            game,
+            scene,
+            script: script as never,
+            onEnd: (runtime) => {
+              seat = runtime.ctx.behavior<PlayerInputSystem>("player-input")?.seatOf("hero");
+            },
+          });
+          if (won.blocked) throw new Error(JSON.stringify(won));
+          expect(won.outcome.result).toBe("won");
+          expect(seat).toBeNull();
+
+          // Past the win, with no verdict to end the run, the hero rests however long move is held.
+          const endless = { ...game!, play: { ...game!.play, outcome: undefined } };
+          const restAfter = (ticks: number) => {
+            const run = runPlaytest({
+              rapier,
+              game: endless as never,
+              scene,
+              script: {
+                ...script,
+                steps: [...script.steps, { set: { move: [-1, 0] }, for: ticks }],
+              } as never,
+            });
+            if (run.blocked) throw new Error(JSON.stringify(run));
+            const final = run.final as { at: { x: number; y: number }; reached: boolean };
+            expect(final.reached).toBe(true);
+            return final.at;
+          };
+          expect(restAfter(30)).toEqual(restAfter(60));
         });
     });
   }

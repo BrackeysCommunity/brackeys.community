@@ -95,10 +95,13 @@ function readSaved(state: JsonValue): {
  * system's one-way solids for it, passing up through a platform while it
  * rises and down through one while it holds down;
  * rides what it stands on by `carrierDelta`; adds the force areas'
- * `sample` as acceleration; and steps. It raises `character:jumped`,
+ * `sample` as acceleration, which its `decel` (at its air share off the
+ * ground) takes back each tick while idle, so only a push past the decel
+ * builds speed; and steps. It raises `character:jumped`,
  * `character:left-ground` and `character:landed` (with the ground's entity
  * as `other`). With `pushDynamic` it pushes the dynamic bodies it walks
- * into. The controller keeps its velocity and timers in world saves; its
+ * into. Play from here starts seat 0's character at the chosen point.
+ * The controller keeps its velocity and timers in world saves; its
  * own save holds the intent and the grounded state the events compare.
  */
 export const createCharacterSideViewSystem: BehaviorSystemFactory = (
@@ -108,6 +111,8 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
   const schema = z.object(def.shape);
   const characters = new Map<string, Character>();
   let solids: SolidSystem[] | null = null;
+  /** Set by a load; the first tick after it places Play from here's hero. */
+  let loaded = false;
 
   const solidSystems = (): SolidSystem[] => {
     if (solids) return solids;
@@ -257,6 +262,18 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
     if (c.disabled) body.setEnabled(false);
     characters.set(e.id, c);
     takeOver(c);
+  }
+
+  /** Play from here: on a play world's first tick (a restored one is past it), seat 0's first character starts at `ctx.play.at`, at rest. */
+  function startAtPlay(): void {
+    const at = ctx.play?.at;
+    if (!at || ctx.tick !== 0) return;
+    for (const c of characters.values()) {
+      if (ctx.behavior<PlayerInputSystem>(PLAYER_INPUT.name)?.seatOf(c.id) !== 0) continue;
+      c.body.teleport(at.x, at.y);
+      c.body.setVelocity({ x: 0, y: 0 });
+      return;
+    }
   }
 
   function remove(id: string, giveBack: boolean): void {
@@ -435,7 +452,14 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
       c.disabled = false;
       c.body.setEnabled(true);
     },
+    reset() {
+      loaded = true;
+    },
     beforeStep(dtMs) {
+      if (loaded) {
+        loaded = false;
+        startAtPlay();
+      }
       for (const c of characters.values()) if (!c.disabled) stepOne(c, dtMs);
     },
     clear() {

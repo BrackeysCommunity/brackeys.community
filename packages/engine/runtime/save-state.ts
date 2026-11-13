@@ -266,43 +266,54 @@ export function restoreSave(
       }),
     );
   }
-  const undo = (issue: SceneIssue) => {
+  const refused = restoreLoaded(runtime, file);
+  if (refused) {
     host.reloadMain();
-    return failed(issue);
-  };
+    return failed(refused);
+  }
+  return { ok: true, report: loaded.report, issues };
+}
+
+/**
+ * Puts `file` back onto `runtime`'s scene, just loaded fresh, in a
+ * restore's order: the world at world depth (sublevels, spawns, destroys,
+ * counters, enabled flags, the tick, poses and each owner's state, timers,
+ * `ctx.random` and its forks, seats), the game's `restore` with the saved
+ * data, `persist`, then the play clock. The issue of the first part that
+ * can't be put back, after which the scene is only partly restored.
+ */
+export function restoreLoaded(runtime: SceneRuntimeHandle, file: SaveFile): SceneIssue | null {
+  const host = saveHostOf(runtime.ctx);
+  if (!host) throw new Error("restoreLoaded needs a runtime built by createSceneRuntime");
+  const { ctx } = runtime;
+  const world = file.depth === "world" ? file.world : undefined;
   if (world) {
-    if (ctx.settings.physics === "rapier") return undo(unsupported([PHYSICS_BLOCKER]));
+    if (ctx.settings.physics === "rapier") return unsupported([PHYSICS_BLOCKER]);
     const refused = host.restoreWorld(world, file.scene.sublevels);
-    if (refused) return undo(refused);
+    if (refused) return refused;
     if (!sameSublevels(ctx.flow.sublevels(), file.scene.sublevels)) {
-      return undo(
-        makeIssue("sublevel-invalid", {
-          message: `the save's sublevels (${file.scene.sublevels.map((s) => s.label).join(", ") || "none"}) couldn't all be attached again`,
-          entityIds: [file.scene.id],
-        }),
-      );
+      return makeIssue("sublevel-invalid", {
+        message: `the save's sublevels (${file.scene.sublevels.map((s) => s.label).join(", ") || "none"}) couldn't all be attached again`,
+        entityIds: [file.scene.id],
+      });
     }
   }
   try {
     runtime.game?.restore?.(structuredClone(file.data));
   } catch (err) {
-    return undo(
-      makeIssue("schema", {
-        message: `the game's restore refused the save's data: ${err instanceof Error ? err.message : String(err)}`,
-        path: "/data",
-      }),
-    );
+    return makeIssue("schema", {
+      message: `the game's restore refused the save's data: ${err instanceof Error ? err.message : String(err)}`,
+      path: "/data",
+    });
   }
   try {
     ctx.persist.set(file.persist);
   } catch (err) {
-    return undo(
-      makeIssue("schema", {
-        message: `the save's persist was refused: ${err instanceof Error ? err.message : String(err)}`,
-        path: "/persist",
-      }),
-    );
+    return makeIssue("schema", {
+      message: `the save's persist was refused: ${err instanceof Error ? err.message : String(err)}`,
+      path: "/persist",
+    });
   }
   host.playClock().ticks = file.meta.playTicks;
-  return { ok: true, report: loaded.report, issues };
+  return null;
 }

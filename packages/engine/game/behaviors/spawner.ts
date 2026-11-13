@@ -16,6 +16,13 @@ const spawnerFields = (env: FieldEnv) => ({
     .optional()
     .describe("The entity type it spawns, spawn-only types included; give this or `prefab`.")
     .meta({ title: "Type", group: "spawn", widget: "type" }),
+  fields: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe(
+      "The fields each spawn of `type` gets, as a scene entity of that type writes them (a shape type's `shape`); its shapes, points and paths are relative to the spawn point. Without a shape, point or path, a spawn stands at the spawn point by its `at`.",
+    )
+    .meta({ title: "Fields", group: "spawn" }),
   prefab: assetField(env, "prefab", "The prefab it places; give this or `type`.")
     .optional()
     .meta({ title: "Prefab", group: "spawn" }),
@@ -76,6 +83,9 @@ export type SpawnerSystem = BehaviorSystem<SpawnerBlock> & {
   live(entityId: string): readonly string[];
 };
 
+/** What a spawn's id, type and sublevel come from: the spawner, never its `fields`. */
+const SPAWN_OWN_KEYS = Object.freeze(["id", "type", "sublevel"] as const);
+
 export const SPAWNER = defineBehavior({
   name: "spawner",
   description:
@@ -84,11 +94,28 @@ export const SPAWNER = defineBehavior({
   inspector: {
     category: "world",
     label: "Spawner",
-    order: ["type", "prefab", "rate", "cap", "burst", "lifeMs", "spread", "velocity", "active"],
+    order: [
+      "type",
+      "fields",
+      "prefab",
+      "rate",
+      "cap",
+      "burst",
+      "lifeMs",
+      "spread",
+      "velocity",
+      "active",
+    ],
   },
   template: { type: "marker" },
   refine(block) {
     const given = (block.type === undefined ? 0 : 1) + (block.prefab === undefined ? 0 : 1);
-    return given === 1 ? undefined : "spawner takes exactly one of `type` or `prefab`";
+    if (given !== 1) return "spawner takes exactly one of `type` or `prefab`";
+    if (block.fields === undefined) return undefined;
+    if (block.type === undefined) return "spawner's `fields` go with `type`, not `prefab`";
+    const own = SPAWN_OWN_KEYS.filter((k) => Object.hasOwn(block.fields as object, k));
+    return own.length === 0
+      ? undefined
+      : `spawner's \`fields\` can't set ${own.map((k) => `\`${k}\``).join(", ")}: the spawner gives each spawn its own`;
   },
 });

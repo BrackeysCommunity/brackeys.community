@@ -65,9 +65,9 @@ const handleOf = (rt: SceneRuntimeHandle, id: string) => rt.ctx.tags.handlesOf(i
 
 /** The entity `actorId`'s sweep of its box from `at` by `by`, skipping what it passes. */
 function sweepAs(rt: SceneRuntimeHandle, actorId: string, at: Vec2, by: Vec2) {
-  const passed = [...oneWayPasses(rt.ctx, actorId)].map((h) => rt.ctx.tags.get(h)!.entityId);
   return rt.ctx.space.sweep(box(at.x, at.y, ACTOR_HALF, ACTOR_HALF), by, {
-    exclude: [actorId, ...passed],
+    exclude: [actorId],
+    skip: oneWayPasses(rt.ctx, actorId),
   });
 }
 

@@ -46,15 +46,31 @@ function bodyKindOf(e: RuntimeEntity): string | null {
  * The `character-top-down` behavior's system: a kinematic motion body of
  * the entity's collider shape, walked by a top-down controller from its
  * seat's move action, or from `setIntent` when it carries no
- * `player-input`. A force area it stands in adds its acceleration, and with
+ * `player-input`. A force area it stands in adds its acceleration, which
+ * its `decel` works against while idle (see `ForceAreaSystem.sample`), and with
  * `pushDynamic` it shoves the dynamic bodies it runs into. The motion body
  * stands in for the collider system's own body, which it takes out of the
- * world while the character is attached.
+ * world while the character is attached. Play from here starts seat 0's
+ * character at the chosen point.
  */
 export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const characters = new Map<string, Character>();
   const colliders = () => ctx.behavior<ColliderSystem>(COLLIDER.name);
   const seats = () => ctx.behavior<PlayerInputSystem>(PLAYER_INPUT.name);
+  /** Set by a load; the first tick after it places Play from here's hero. */
+  let loaded = false;
+
+  /** Play from here: on a play world's first tick (a restored one is past it), seat 0's first character starts at `ctx.play.at`, at rest. */
+  function startAtPlay(): void {
+    const at = ctx.play?.at;
+    if (!at || ctx.tick !== 0) return;
+    for (const [id, c] of characters) {
+      if (seats()?.seatOf(id) !== 0) continue;
+      c.body.teleport(at.x, at.y);
+      c.body.setVelocity({ x: 0, y: 0 });
+      return;
+    }
+  }
 
   function make(e: RuntimeEntity, at: Vec): MotionBody {
     if (bodyKindOf(e) === "dynamic")
@@ -157,7 +173,14 @@ export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineC
       if (c.disabled) c.body.setEnabled(false);
       c.controller = controllerOf(c.body, block);
     },
+    reset() {
+      loaded = true;
+    },
     beforeStep(dtMs) {
+      if (loaded) {
+        loaded = false;
+        startAtPlay();
+      }
       if (characters.size === 0) return;
       const forces = ctx.behavior<ForceAreaSystem>("force-area");
       const dt = dtMs / 1000;

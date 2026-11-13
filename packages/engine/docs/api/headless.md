@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`AnalogValues`](#analogvalues) · [`AssetInfo`](#assetinfo) · [`AssetReloadError`](#assetreloaderror) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CheckEnv`](#checkenv) · [`CheckResult`](#checkresult) · [`CheckVerdict`](#checkverdict) · [`ChecksReport`](#checksreport) · [`CompileResult`](#compileresult) · [`CompiledInputScript`](#compiledinputscript) · [`CompiledPointer`](#compiledpointer) · [`CompiledScript`](#compiledscript) · [`CompiledScriptStep`](#compiledscriptstep) · [`CompiledStep`](#compiledstep) · [`CompiledTrack`](#compiledtrack) · [`DecodeOptions`](#decodeoptions) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EventMatch`](#eventmatch) · [`FilesLoadInput`](#filesloadinput) · [`FuzzLegal`](#fuzzlegal) · [`FuzzMacroInputs`](#fuzzmacroinputs) · [`FuzzOptions`](#fuzzoptions) · [`FuzzReport`](#fuzzreport) · [`FuzzRun`](#fuzzrun) · [`FuzzTouch`](#fuzztouch) · [`HeadlessLoad`](#headlessload) · [`HeadlessLoadInput`](#headlessloadinput) · [`HeadlessLoadOptions`](#headlessloadoptions) · [`HeadlessRuntime`](#headlessruntime) · [`HeadlessRuntimeOptions`](#headlessruntimeoptions) · [`InputEdge`](#inputedge) · [`InputScript`](#inputscript) · [`InputScriptStep`](#inputscriptstep) · [`InputScriptStepV2`](#inputscriptstepv2) · [`InputScriptTrack`](#inputscripttrack) · [`InputScriptV2`](#inputscriptv2) · [`LoadFailureReason`](#loadfailurereason) · [`LoadReport`](#loadreport) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`ParseRecordingResult`](#parserecordingresult) · [`PersistCell`](#persistcell) · [`PersistCellOptions`](#persistcelloptions) · [`PersistMatch`](#persistmatch) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicalOptions`](#physicaloptions) · [`PlayOptions`](#playoptions) · [`PlaytestBlocked`](#playtestblocked) · [`PlaytestHooks`](#playtesthooks) · [`PlaytestOptions`](#playtestoptions) · [`PlaytestOutcomeReport`](#playtestoutcomereport) · [`PlaytestReport`](#playtestreport) · [`PlaytestRun`](#playtestrun) · [`PlaytestSegment`](#playtestsegment) · [`PlaytestSegmentEnd`](#playtestsegmentend) · [`PlaytestStart`](#playteststart) · [`PlaytestStep`](#playteststep) · [`PointerBindings`](#pointerbindings) · [`PreparedPlay`](#preparedplay) · [`ProbeInput`](#probeinput) · [`ProbeOptions`](#probeoptions) · [`ProbeReport`](#probereport) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`RECORDING_VERSION`](#recording_version) · [`REPLAY_ACROSS_PLATFORMS`](#replay_across_platforms) · [`RapierModule`](#rapiermodule) · [`RecorderOptions`](#recorderoptions) · [`RecordingCommand`](#recordingcommand) · [`RecordingEnd`](#recordingend) · [`RecordingHost`](#recordinghost) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`ReplayOptions`](#replayoptions) · [`ReplayReport`](#replayreport) · [`ReplayRun`](#replayrun) · [`RunChecksOptions`](#runchecksoptions) · [`RunRecorder`](#runrecorder) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RunTiming`](#runtiming) · [`RuntimeRequests`](#runtimerequests) · [`RuntimeStats`](#runtimestats) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`STUCK_METRES`](#stuck_metres) · [`STUCK_TICKS`](#stuck_ticks) · [`SaveBlocker`](#saveblocker) · [`SaveStart`](#savestart) · [`SceneRuntime`](#sceneruntime) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`ScriptIssue`](#scriptissue) · [`ScriptSource`](#scriptsource) · [`ScriptStepLog`](#scriptsteplog) · [`SeatChange`](#seatchange) · [`SeatEvent`](#seatevent) · [`SnapshotError`](#snapshoterror) · [`SnapshotLoadInput`](#snapshotloadinput) · [`StepDuration`](#stepduration) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StreamTables`](#streamtables) · [`SystemEvent`](#systemevent) · [`TickInput`](#tickinput) · [`TimingBucket`](#timingbucket) · [`TimingReport`](#timingreport) · [`TimingScope`](#timingscope) · [`TimingSpan`](#timingspan) · [`UntilClause`](#untilclause) · [`ValidatePhysicalOptions`](#validatephysicaloptions) · [`analogActions`](#analogactions) · [`analogValues`](#analogvalues-1) · [`assetInfo`](#assetinfo-1) · [`captureSave`](#capturesave) · [`compileInputScript`](#compileinputscript) · [`compiledPointer`](#compiledpointer-1) · [`createHeadlessRuntime`](#createheadlessruntime) · [`createPersistCell`](#createpersistcell) · [`createRunRecorder`](#createrunrecorder) · [`createRunTiming`](#createruntiming) · [`decodeStreams`](#decodestreams) · [`defaultFuzzMacro`](#defaultfuzzmacro) · [`defaultSeed`](#defaultseed) · [`fuzz`](#fuzz) · [`gamePersistCell`](#gamepersistcell) · [`heldEdges`](#heldedges) · [`loadHeadless`](#loadheadless) · [`memorySaveStore`](#memorysavestore) · [`mergeTick`](#mergetick) · [`parseRecording`](#parserecording) · [`physicalEnv`](#physicalenv-1) · [`plainJsonProblem`](#plainjsonproblem) · [`platformIssues`](#platformissues) · [`playWorld`](#playworld) · [`pointerAt`](#pointerat) · [`pointerHeld`](#pointerheld) · [`preparePlay`](#prepareplay) · [`probeConfigHash`](#probeconfighash) · [`recordingDivergence`](#recordingdivergence) · [`replayRecording`](#replayrecording) · [`restoreSave`](#restoresave) · [`runBlocked`](#runblocked) · [`runChecks`](#runchecks) · [`runPhysicalChecks`](#runphysicalchecks) · [`runPlaytest`](#runplaytest) · [`runProbe`](#runprobe) · [`scriptSource`](#scriptsource-1) · [`simActionError`](#simactionerror) · [`tickWakes`](#tickwakes) · [`unknownActionError`](#unknownactionerror) · [`untilHolds`](#untilholds) · [`validatePhysical`](#validatephysical) · [`worldSaveBlockers`](#worldsaveblockers)
+[`AnalogValues`](#analogvalues) · [`AssetInfo`](#assetinfo) · [`AssetReloadError`](#assetreloaderror) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CheckEnv`](#checkenv) · [`CheckResult`](#checkresult) · [`CheckVerdict`](#checkverdict) · [`ChecksReport`](#checksreport) · [`CompileResult`](#compileresult) · [`CompiledInputScript`](#compiledinputscript) · [`CompiledPointer`](#compiledpointer) · [`CompiledScript`](#compiledscript) · [`CompiledScriptStep`](#compiledscriptstep) · [`CompiledStep`](#compiledstep) · [`CompiledTrack`](#compiledtrack) · [`DecodeOptions`](#decodeoptions) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EventMatch`](#eventmatch) · [`FilesLoadInput`](#filesloadinput) · [`FuzzLegal`](#fuzzlegal) · [`FuzzMacroInputs`](#fuzzmacroinputs) · [`FuzzOptions`](#fuzzoptions) · [`FuzzReport`](#fuzzreport) · [`FuzzRun`](#fuzzrun) · [`FuzzTouch`](#fuzztouch) · [`HeadlessLive`](#headlesslive) · [`HeadlessLoad`](#headlessload) · [`HeadlessLoadInput`](#headlessloadinput) · [`HeadlessLoadOptions`](#headlessloadoptions) · [`HeadlessRuntime`](#headlessruntime) · [`HeadlessRuntimeOptions`](#headlessruntimeoptions) · [`InputEdge`](#inputedge) · [`InputScript`](#inputscript) · [`InputScriptStep`](#inputscriptstep) · [`InputScriptStepV2`](#inputscriptstepv2) · [`InputScriptTrack`](#inputscripttrack) · [`InputScriptV2`](#inputscriptv2) · [`LoadFailureReason`](#loadfailurereason) · [`LoadReport`](#loadreport) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`ParseRecordingResult`](#parserecordingresult) · [`PersistCell`](#persistcell) · [`PersistCellOptions`](#persistcelloptions) · [`PersistMatch`](#persistmatch) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicalOptions`](#physicaloptions) · [`PlayOptions`](#playoptions) · [`PlaytestBlocked`](#playtestblocked) · [`PlaytestHooks`](#playtesthooks) · [`PlaytestOptions`](#playtestoptions) · [`PlaytestOutcomeReport`](#playtestoutcomereport) · [`PlaytestReport`](#playtestreport) · [`PlaytestRun`](#playtestrun) · [`PlaytestSegment`](#playtestsegment) · [`PlaytestSegmentEnd`](#playtestsegmentend) · [`PlaytestStart`](#playteststart) · [`PlaytestStep`](#playteststep) · [`PointerBindings`](#pointerbindings) · [`PreparedPlay`](#preparedplay) · [`ProbeInput`](#probeinput) · [`ProbeOptions`](#probeoptions) · [`ProbeReport`](#probereport) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`RECORDING_VERSION`](#recording_version) · [`REPLAY_ACROSS_PLATFORMS`](#replay_across_platforms) · [`RapierModule`](#rapiermodule) · [`RecordedLoad`](#recordedload) · [`RecorderOptions`](#recorderoptions) · [`RecordingCommand`](#recordingcommand) · [`RecordingEnd`](#recordingend) · [`RecordingHost`](#recordinghost) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`ReplayOptions`](#replayoptions) · [`ReplayReport`](#replayreport) · [`ReplayRun`](#replayrun) · [`RunChecksOptions`](#runchecksoptions) · [`RunRecorder`](#runrecorder) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RunTiming`](#runtiming) · [`RuntimeRequests`](#runtimerequests) · [`RuntimeStats`](#runtimestats) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`STUCK_METRES`](#stuck_metres) · [`STUCK_TICKS`](#stuck_ticks) · [`SaveBlocker`](#saveblocker) · [`SaveStart`](#savestart) · [`SceneRuntime`](#sceneruntime) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`ScriptIssue`](#scriptissue) · [`ScriptSource`](#scriptsource) · [`ScriptStepLog`](#scriptsteplog) · [`SeatChange`](#seatchange) · [`SeatEvent`](#seatevent) · [`SnapshotError`](#snapshoterror) · [`SnapshotLoadInput`](#snapshotloadinput) · [`StepDuration`](#stepduration) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StreamTables`](#streamtables) · [`SwapCheckOptions`](#swapcheckoptions) · [`SwapCheckReport`](#swapcheckreport) · [`SwapCheckRun`](#swapcheckrun) · [`SwapReport`](#swapreport) · [`SystemEvent`](#systemevent) · [`TickInput`](#tickinput) · [`TimingBucket`](#timingbucket) · [`TimingReport`](#timingreport) · [`TimingScope`](#timingscope) · [`TimingSpan`](#timingspan) · [`UntilClause`](#untilclause) · [`ValidatePhysicalOptions`](#validatephysicaloptions) · [`analogActions`](#analogactions) · [`analogValues`](#analogvalues-1) · [`assetInfo`](#assetinfo-1) · [`captureSave`](#capturesave) · [`compileInputScript`](#compileinputscript) · [`compiledPointer`](#compiledpointer-1) · [`createHeadlessRuntime`](#createheadlessruntime) · [`createPersistCell`](#createpersistcell) · [`createRunRecorder`](#createrunrecorder) · [`createRunTiming`](#createruntiming) · [`decodeStreams`](#decodestreams) · [`defaultFuzzMacro`](#defaultfuzzmacro) · [`defaultSeed`](#defaultseed) · [`fuzz`](#fuzz) · [`gamePersistCell`](#gamepersistcell) · [`heldEdges`](#heldedges) · [`loadHeadless`](#loadheadless) · [`memorySaveStore`](#memorysavestore) · [`mergeTick`](#mergetick) · [`parseRecording`](#parserecording) · [`physicalEnv`](#physicalenv-1) · [`plainJsonProblem`](#plainjsonproblem) · [`platformIssues`](#platformissues) · [`playWorld`](#playworld) · [`pointerAt`](#pointerat) · [`pointerHeld`](#pointerheld) · [`preparePlay`](#prepareplay) · [`probeConfigHash`](#probeconfighash) · [`recordedSwap`](#recordedswap) · [`recordingDivergence`](#recordingdivergence) · [`replayRecording`](#replayrecording) · [`restoreSave`](#restoresave) · [`runBlocked`](#runblocked) · [`runChecks`](#runchecks) · [`runPhysicalChecks`](#runphysicalchecks) · [`runPlaytest`](#runplaytest) · [`runProbe`](#runprobe) · [`scriptSource`](#scriptsource-1) · [`simActionError`](#simactionerror) · [`swapCheck`](#swapcheck) · [`tickWakes`](#tickwakes) · [`unknownActionError`](#unknownactionerror) · [`untilHolds`](#untilholds) · [`validatePhysical`](#validatephysical) · [`worldSaveBlockers`](#worldsaveblockers)
 
 ## `AnalogValues`
 
@@ -516,6 +516,26 @@ type FuzzTouch = {
 };
 ```
 
+## `HeadlessLive`
+
+_type_ in `headless/types.ts`
+
+`GameInstance.live` for a headless runtime: the same members, with no
+preloading, so staging answers at once. An activated `now` or `boundary`
+swap applies after the step it waits for, between ticks.
+
+```ts
+type HeadlessLive = Omit<GameLive, "stage"> & {
+    /** Reads and validates a version for a listed scene and keeps it resident; nothing is fetched or preloaded. */
+    stage(v: StagedVersion): {
+        issue: SceneIssue;
+        ok: false;
+    } | {
+        ok: true;
+    };
+};
+```
+
 ## `HeadlessLoad`
 
 _type_ in `headless/load.ts`
@@ -576,10 +596,11 @@ type HeadlessLoadOptions = {
 
 _type_ in `headless/types.ts`
 
-A headless runtime; `save` captures the world as `captureSave` does.
+A headless runtime; `save` captures the world as `captureSave` does, and `live` swaps scene versions in.
 
 ```ts
 type HeadlessRuntime = SceneRuntimeHandle & {
+    live?: HeadlessLive;
     save?(opts: {
         depth: SaveDepth;
         /** The caller's clock for `meta.savedAt`. */
@@ -596,7 +617,7 @@ type HeadlessRuntime = SceneRuntimeHandle & {
 };
 ```
 
-Refers to [`SceneRuntimeHandle`](#sceneruntimehandle).
+Refers to [`HeadlessLive`](#headlesslive), [`SceneRuntimeHandle`](#sceneruntimehandle).
 
 ## `HeadlessRuntimeOptions`
 
@@ -690,7 +711,7 @@ Refers to [`StepDuration`](#stepduration).
 _type_ in `headless/playtest-types.ts`
 
 A v2 step: v1's, plus `set` (axis values and vector pairs held for the
-step, alone or with `hold`), `pointer`, and a seat's `join` and `leave`.
+step, alone or with `hold`), `pointer`, `nav`, and a seat's `join` and `leave`.
 
 ```ts
 type InputScriptStepV2 = ({
@@ -709,6 +730,8 @@ type InputScriptStepV2 = ({
     join: DeviceId;
 } | {
     leave: DeviceId;
+} | {
+    nav: NavDestination;
 } | {
     press: string | string[];
 } | {
@@ -1401,6 +1424,16 @@ _type_ in `types.ts`
 type RapierModule = typeof _$_dimforge_rapier2d0;
 ```
 
+## `RecordedLoad`
+
+_type_ in `runtime/recorder.ts`
+
+A load inside a segment as `RunRecorder.loaded` takes it: a swap without its timing and strategy.
+
+```ts
+type RecordedLoad = Omit<RecordedSwap, "strategy" | "timing">;
+```
+
 ## `RecorderOptions`
 
 _type_ in `runtime/recorder.ts`
@@ -1428,6 +1461,8 @@ type RecorderOptions = RecordingHost & {
     runHash: string;
     scene: string;
     sceneHash: SceneHash;
+    /** The live version the scene loaded as, written as `sceneVersion`; null or omitted for the release's own. */
+    sceneVersion?: Sha256 | null;
     /** The start as Play was asked for it; a replay casts `at` again the same way. */
     start: PlayOptions;
     /** The run's clock (`runtime.ctx.time`); omitted, the game's own. */
@@ -1576,6 +1611,14 @@ type ReplayOptions<S = unknown> = RecordingHost & {
     scene: SceneDefinition;
     /** The scene's listed id (`ctx.flow.scene`); default the library's id for it, else its name. */
     sceneId?: AssetId;
+    /**
+     * The scene versions the recording names, by id (a host holding several
+     * looks one up with `findSceneVersion`); null for one it doesn't have. A
+     * recording that starts on a version it can't find doesn't replay, and a
+     * swap to one stops the replay at its tick, both with
+     * `scene-version-removed`.
+     */
+    versions?: (id: Sha256) => StagedVersion | null;
 };
 ```
 
@@ -1603,9 +1646,12 @@ type ReplayReport<S = unknown> = {
     /**
      * What the run runs differs from what the recording ran (`runHash`; for a
      * recording migrated from v1, which has none, the scene's hash), so the
-     * replay may not end the same way.
+     * replay may not end the same way. Judged per part of the run: the start
+     * against the start, and each swap against what the replayed swap made.
      */
     stale: boolean;
+    /** The tick of the first swap the replay made differently (strategy, run hash, or not at all), from which it is stale. */
+    staleFrom?: number;
     /** Why this replay may differ: a stale run, other tuning, another engine version or physics build. */
     warnings: string[];
 };
@@ -1657,12 +1703,21 @@ _type_ in `runtime/recorder.ts`
 type RunRecorder = {
     /** The recording so far, ended as `end` with the game's snapshot after its last tick. */
     finish(end: RecordingEnd, final: unknown): RunRecording;
+    /**
+     * After a load that ran inside this segment rather than starting a new one
+     * (game code loading its own scene again, say): when it ran another version
+     * than the one playing, it is written as a `next-load` swap with the
+     * `reload` strategy, since the load replaced the whole world.
+     */
+    loaded(load: RecordedLoad): void;
+    /** After a swap was applied between ticks; written to `swaps` in the order given. */
+    swap(entry: RecordedSwap): void;
     /** After each simulated tick, with the input it stepped, in the order the runtime took it. */
     tick(state: PlayState, input: TickInput, focus: Vec2 | null): void;
 };
 ```
 
-Refers to [`RecordingEnd`](#recordingend), [`RunRecording`](#runrecording), [`TickInput`](#tickinput).
+Refers to [`RecordedLoad`](#recordedload), [`RecordingEnd`](#recordingend), [`RunRecording`](#runrecording), [`TickInput`](#tickinput).
 
 ## `RunRecording`
 
@@ -1739,6 +1794,8 @@ type RunRecordingV2 = {
     runHash: string;
     scene: string;
     sceneHash: string;
+    /** The live version this segment started on; absent: the release's own scene. */
+    sceneVersion?: Sha256;
     /** Always written: the default seed when the run named none. */
     seed: number | string;
     start: {
@@ -1753,6 +1810,8 @@ type RunRecordingV2 = {
         persist?: JsonValue;
         timeOffsetMs?: number;
     };
+    /** Every swap during the segment, in tick order; absent when none ran. */
+    swaps?: RecordedSwap[];
     system: SystemEvent[];
     ticks: number;
     time: {
@@ -1935,6 +1994,15 @@ type SceneRuntime = {
      */
     step: (dtMs: number, input: InputAction[] | TickInput, commands?: readonly GameCommand[]) => StepResult;
     /**
+     * Applies a new version of the loaded scene between ticks: reconcile when
+     * the header is unchanged, else reload with capture and restore. Never
+     * runs `onSwap`; the instance's live layer does.
+     */
+    swap: (next: ExpandedScene, opts: {
+        prefabs: PrefabLibrary;
+        strategy?: "auto" | "reload";
+    }) => SwapReport;
+    /**
      * The flow request and the save requests game code made since the last
      * call, emptied: the host applies them after the tick that made them.
      */
@@ -1950,7 +2018,7 @@ type SceneRuntime = {
 };
 ```
 
-Refers to [`LoadReport`](#loadreport), [`PlayOptions`](#playoptions), [`RuntimeRequests`](#runtimerequests), [`RuntimeStats`](#runtimestats), [`StepResult`](#stepresult), [`TickInput`](#tickinput).
+Refers to [`LoadReport`](#loadreport), [`PlayOptions`](#playoptions), [`RuntimeRequests`](#runtimerequests), [`RuntimeStats`](#runtimestats), [`StepResult`](#stepresult), [`SwapReport`](#swapreport), [`TickInput`](#tickinput).
 
 ## `SceneRuntimeHandle`
 
@@ -2179,6 +2247,97 @@ The names a stream's events index into.
 type StreamTables = {
     actions: readonly string[];
     commands: readonly string[];
+};
+```
+
+## `SwapCheckOptions`
+
+_type_ in `headless/swap-check.ts`
+
+```ts
+type SwapCheckOptions = {
+    /** Ticks to step after each swap; default `LIVE_DEFAULTS.checkTicks`. */
+    afterTicks?: number;
+    /** Fractions of each script's run to swap at; default `LIVE_DEFAULTS.checkAt`. */
+    at?: readonly number[];
+    /** The scene's checks file, run once against `to`; the report's `checks`. */
+    checks?: {
+        file: ChecksFile;
+        readFile: (path: string) => string;
+    };
+    /** The version players have now: a staged version, or the release's scene (def and prefabs). */
+    from: StagedVersion | {
+        def: SceneDefinition;
+        prefabs: PrefabLibrary;
+    };
+    game: GameDefinition;
+    project?: ProjectRuntimeView | null;
+    /** Needed when either version's scene runs on Rapier. */
+    rapier?: RapierModule | null;
+    /** Built from `game` when omitted. */
+    registry?: Registry;
+    /** The scene's input scripts, each named as the report names its runs. */
+    scripts: readonly {
+        name: string;
+        script: InputScript | InputScriptV2;
+    }[];
+    to: StagedVersion;
+};
+```
+
+Refers to [`InputScript`](#inputscript), [`InputScriptV2`](#inputscriptv2), [`ProjectRuntimeView`](#projectruntimeview), [`RapierModule`](#rapiermodule).
+
+## `SwapCheckReport`
+
+_type_ in `headless/swap-check.ts`
+
+```ts
+type SwapCheckReport = {
+    /** `checks` run against `to`, when given. */
+    checks?: ChecksReport;
+    /** What kept a version or a script from being played at all, the script's name leading the message. */
+    issues: readonly SceneIssue[];
+    /** No error among the runs' issues and `issues`, and every check passed. */
+    ok: boolean;
+    runs: readonly SwapCheckRun[];
+};
+```
+
+Refers to [`ChecksReport`](#checksreport), [`SwapCheckRun`](#swapcheckrun).
+
+## `SwapCheckRun`
+
+_type_ in `headless/swap-check.ts`
+
+```ts
+type SwapCheckRun = {
+    /** The fraction of the run asked for. */
+    at: number;
+    issues: readonly SceneIssue[];
+    script: string;
+    /** What the swap did, or would have done when it failed. */
+    strategy: SwapStrategy;
+    /** The tick the swap ran before: `round(at · N)` of the run's N ticks, at most its last. */
+    tick: number;
+};
+```
+
+## `SwapReport`
+
+_type_ in `runtime/types.ts`
+
+What `SceneRuntime.swap` did; `undo()` puts the old version back.
+
+```ts
+type SwapReport = {
+    carried: SceneSwap["carried"];
+    diff: SceneDiff;
+    ok: true;
+    strategy: SwapStrategy;
+    undo(): void;
+} | {
+    issue: SceneIssue;
+    ok: false;
 };
 ```
 
@@ -2463,14 +2622,18 @@ tick that left a scene holds the next); without, every request waits there.
 With `fromSave` it starts where the save left off (`restoreSave`): its
 scene from `flow`, else `scene`, which must be the save's; a save that
 can't be restored throws. `save` captures it as `captureSave` does.
+`live` stages versions and swaps them in after the step their timing
+waits for (after its flow request), and a flow load of a scene uses the
+version active for it.
 
 ```ts
 declare function createHeadlessRuntime(opts: HeadlessRuntimeOptions & ProjectOption & RuntimeShareOptions): HeadlessRuntime & {
+    live: HeadlessLive;
     save: NonNullable<HeadlessRuntime["save"]>;
 };
 ```
 
-Refers to [`HeadlessRuntime`](#headlessruntime), [`HeadlessRuntimeOptions`](#headlessruntimeoptions).
+Refers to [`HeadlessLive`](#headlesslive), [`HeadlessRuntime`](#headlessruntime), [`HeadlessRuntimeOptions`](#headlessruntimeoptions).
 
 ## `createPersistCell`
 
@@ -2786,6 +2949,16 @@ apart. `time` is the run's clock; omitted, the game's own.
 declare function probeConfigHash(game?: GameDefinition | null, time?: Pick<ResolvedTime, "rate">): string;
 ```
 
+## `recordedSwap`
+
+_function_ in `runtime/recorder.ts`
+
+An applied swap as a recording holds it: the version and hashes it swapped to, its strategy, timing and tick.
+
+```ts
+declare function recordedSwap(swap: SceneSwap): RecordedSwap;
+```
+
 ## `recordingDivergence`
 
 _function_ in `headless/recording.ts`
@@ -2971,6 +3144,23 @@ input path (probe, step, fuzz macro, input script) applies.
 ```ts
 declare function simActionError(registry: Registry, action: string): null | string;
 ```
+
+## `swapCheck`
+
+_function_ in `headless/swap-check.ts`
+
+Plays each script on `from`, swaps `to` in at each fraction of its run
+through the live layer's own apply path (timing `now`, strategy auto),
+steps `afterTicks` more, and runs the game's `live.check` right after the
+swap and 60 ticks later. A swap that fails (`onSwap` threw, or a swap step
+refused) and a step that throws after it are issues; `checks` runs once
+against `to`. Deterministic, as playtests are.
+
+```ts
+declare function swapCheck(opts: SwapCheckOptions): SwapCheckReport;
+```
+
+Refers to [`SwapCheckOptions`](#swapcheckoptions), [`SwapCheckReport`](#swapcheckreport).
 
 ## `tickWakes`
 

@@ -19,14 +19,16 @@ import {
   sequentialKeys,
 } from "@jams/engine/collab";
 import { DEFAULT_EXPORT_BUDGET, exportTargetNames, ITCH_LIMITS } from "@jams/engine/export";
-import { createRegistry } from "@jams/engine/game";
+import { clampTiming, createRegistry, LIVE_DEFAULTS, SLOT_MAX_LENGTH } from "@jams/engine/game";
 import { createKindRegistry, ENGINE_ASSET_KINDS, type AssetEntry } from "@jams/engine/project";
 import type { SceneDefinition } from "@jams/engine/scene";
 import { Store } from "@tanstack/store";
 import { describe, expect, it } from "vite-plus/test";
 import type * as Y from "yjs";
 
+import { SITE } from "../../../src/lib/legal-meta";
 import { loadCompatRapier } from "../../scene/rapier-compat";
+import { GAME_LIVE_BUILD_USAGE, GAME_LIVE_CHECK_USAGE } from "../../scene/tools/game-live";
 import type { FerrySlice } from "../examples/dom-hud";
 import {
   formatReference,
@@ -653,6 +655,16 @@ function tableRows(markdown: string, header: string): string[][] {
   return rows;
 }
 
+describe("the saves section", () => {
+  it("states the slot names' length as SLOT_MAX_LENGTH has it", () => {
+    const stated =
+      /Slot\s+names are lowercase letters, digits and dashes, 1–(\d+)\s+characters/.exec(
+        readmeSection("## Saves"),
+      );
+    expect(Number(stated?.[1])).toBe(SLOT_MAX_LENGTH);
+  });
+});
+
 describe("the export section", () => {
   const MiB = 1024 * 1024;
 
@@ -906,5 +918,104 @@ describe("the graphics loss example runs", () => {
       "lost webgl: paused",
       "back on webgl: resumed",
     ]);
+  });
+});
+
+describe("the live levels section", () => {
+  const live = () => readmeSection("## Live levels");
+  const flat = () => live().replace(/\s+/g, " ");
+
+  it("comes right after Publishing on jams.team", () => {
+    const readme = readFileSync(README, "utf8");
+    const headings = [...readme.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
+    const at = headings.indexOf("Live levels");
+    expect(headings.slice(at - 1, at + 2)).toEqual([
+      `Publishing on ${SITE.name}`,
+      "Live levels",
+      "Graphics loss",
+    ]);
+  });
+
+  it("names the timings as SwapTiming does, in clampTiming's order", () => {
+    const rows = tableRows(live(), "| Timing");
+    expect(rows.map((r) => r[0])).toEqual(["Next load", "At a boundary", "Now"]);
+    const listed = rows.map((r) => /list "(\w+)" in live\.timings/.exec(r[2]!)?.[1] ?? null);
+    expect(listed).toEqual([null, "boundary", "now"]);
+    for (const t of ["boundary", "now"] as const) {
+      expect(clampTiming({ timings: [] }, t)).toEqual({ timing: "next-load", clamped: true });
+      expect(clampTiming({ timings: [t] }, t)).toEqual({ timing: t, clamped: false });
+    }
+  });
+
+  it("states the site's limits as the live levels plan gives them", () => {
+    expect(Object.fromEntries(tableRows(live(), "| Limit").map((r) => [r[0], r[1]]))).toEqual({
+      "Data per version":
+        "2 MB: the scene, its prefabs and the version file (art is the project's own assets)",
+      "Versions per day": "100",
+      "Versions kept": "the 5 newest of each scene, plus every version a channel points at",
+      Storage: "part of the project's 512 MB of release storage",
+      "A channel's size": "the release plus its live levels' new files stay within 100 MB",
+    });
+    const text = flat();
+    for (const line of [
+      "A version that is neither among its scene's 5 newest nor on a channel is removed 14 days after it was published.",
+      "checks again every 60 seconds if its live connection drops (it reconnects every 60 minutes anyway).",
+      "If 5 signed-in players' games fail after an update within 30 minutes of it going live (failing includes crashing within 10 seconds of the swap), and that is at least 25% of the signed-in players who reported,",
+    ])
+      expect(text).toContain(line);
+  });
+
+  it("states the engine's numbers as LIVE_DEFAULTS has them", () => {
+    const text = flat();
+    const seconds = LIVE_DEFAULTS.preloadTimeoutMs / 1000;
+    expect(text).toContain(`The game has ${seconds} seconds to download, check and prepare`);
+    expect(text).toContain(`preloaded within ${seconds} seconds`);
+    const pct = LIVE_DEFAULTS.checkAt.map((f) => `${f * 100}%`);
+    expect(text).toContain(`at ${pct.slice(0, -1).join(", ")} and ${pct.at(-1)} of each run`);
+    expect(text).toContain(`steps ${LIVE_DEFAULTS.checkTicks} more ticks`);
+    expect(text).toContain(`once ${LIVE_DEFAULTS.livePlayDebounceMs} ms pass without another`);
+  });
+
+  it("gives the CLI's usage as the tools have it, and Live in Play's tooltip", () => {
+    const text = flat().replace(/` `/g, " ");
+    for (const usage of [GAME_LIVE_BUILD_USAGE, GAME_LIVE_CHECK_USAGE])
+      expect(text).toContain(`vp run scene ${usage}`);
+    expect(text).toContain(
+      '("Apply edits to the running game, the way players get a live update")',
+    );
+  });
+
+  it("names the site only as SITE does, with no URL", () => {
+    const section = live();
+    const names = new Set(section.match(/\b[\w-]+\.team\b/g));
+    expect([...names]).toEqual([SITE.name]);
+    expect(section).not.toMatch(/https?:\/\//);
+  });
+});
+
+describe("the live levels examples run", () => {
+  it("ledge-live.ts lifts the runner out of the crate, reports it stuck without onSwap, and reloads on new bounds", async () => {
+    const { checkCrate } = await import("../examples/ledge-live");
+    const runs = (strategy: string, codes: string[]) =>
+      [50, 100, 150].map((tick) => ({ tick, strategy, codes }));
+    expect(await checkCrate()).toEqual({
+      freed: { ok: true, runs: runs("reconcile", []) },
+      stuck: { ok: false, runs: runs("reconcile", ["ledge/stuck"]) },
+      longer: { ok: true, runs: runs("reload", []) },
+    });
+  });
+
+  it("ledge-live.ts takes the crate on the tick after the runner's respawn", async () => {
+    const { crateAtRespawn } = await import("../examples/ledge-live");
+    expect(await crateAtRespawn()).toEqual({
+      staged: true,
+      timing: "boundary",
+      waiting: ["boundary"],
+      swappedAt: 451,
+      current: true,
+      x: 1,
+      respawns: 1,
+      swaps: ["boundary reconcile +crate"],
+    });
   });
 });

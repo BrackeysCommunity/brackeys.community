@@ -10,6 +10,7 @@ export type {
   GameFlow,
   GameInput,
   GameInstance,
+  GameLive,
   GameMode,
   GamePhase,
   GameStoreState,
@@ -25,10 +26,12 @@ export type {
   RendererConfig,
   SceneSource,
   SimState,
+  StagedVersion,
   TransitionRunner,
   UiActionEvent,
   Vec2,
 } from "./types";
+export { liveSceneSource, type LiveSceneVersions } from "./flow-host";
 export {
   browserSaveStore,
   DEFAULT_INDEXED_DB_NAME,
@@ -67,7 +70,17 @@ export type {
   StepResult,
 } from "./runtime/types";
 export type { ExpandedScene, RuntimeEntity } from "./scene/types";
-export type { GameCommand, GameDefinition, Registry } from "./game/types";
+export type { GameCommand, GameDefinition, LiveContext, Registry } from "./game/types";
+export {
+  clampTiming,
+  LIVE_DEFAULTS,
+  type LiveDeclaration,
+  type SceneDiff,
+  type SceneSwap,
+  type SwapSide,
+  type SwapStrategy,
+  type SwapTiming,
+} from "./game/live";
 export type { PlayOptions } from "./headless/playtest-types";
 export type { RunRecording } from "./scene/recording-schema";
 export {

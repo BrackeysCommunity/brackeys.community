@@ -33,7 +33,6 @@ import {
   quarterTurnTargets,
   rotateSelectionBatch,
   selectAllRefs,
-  selectionBounds,
   turnBatch,
   ungroupBatch,
   zOrderBatch,
@@ -282,6 +281,21 @@ export function outlinesOfRef(
     const t = registry.types.get(e.type);
     if (t) geometryMarks(def, entityGeometry(t, e), e.type, e, tone, ref, out, look);
   }
+}
+
+/**
+ * The box around what `refs` outline in `def`, an instance's children for an
+ * instance; `null` when none of them draws. Framing and revealing a selection
+ * go by it, so they show what its outline shows.
+ */
+export function outlineBounds(
+  def: SceneDefinition,
+  refs: readonly Ref[],
+  look: OutlineLook,
+): Aabb | null {
+  const marks: OutlineMarks = { outlines: [], points: [] };
+  for (const ref of refs) outlinesOfRef(def, ref, "selected", marks, look);
+  return marksBounds(marks.outlines, marks.points);
 }
 
 /** The box around a set of marks; `null` for none. */
@@ -637,6 +651,8 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     return t.rest.length === 0 && t.instances.length + t.groups.length > 0;
   }
 
+  const look = (): OutlineLook => ({ registry, ...(opts.asset ? { asset: opts.asset } : {}) });
+
   /**
    * The overlay's outlines: the selection's, the shared hover's and the
    * marquee's would-be selection. While a drag previews, the selection is
@@ -648,10 +664,10 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     const def = previewed ?? committed;
     const sel = selection();
     const ghost: OutlineMarks = { outlines: [], points: [] };
-    const look: OutlineLook = { registry, ...(opts.asset ? { asset: opts.asset } : {}) };
-    if (previewed) for (const ref of sel) outlinesOfRef(committed, ref, "ghost", ghost, look);
+    const outline = look();
+    if (previewed) for (const ref of sel) outlinesOfRef(committed, ref, "ghost", ghost, outline);
     const marks: OutlineMarks = { outlines: [], points: [] };
-    for (const ref of sel) outlinesOfRef(def, ref, "selected", marks, look);
+    for (const ref of sel) outlinesOfRef(def, ref, "selected", marks, outline);
     const bounds =
       sel.length > 1 || (sel.length === 1 && isComposite(def, sel[0]!))
         ? marksBounds(marks.outlines, marks.points)
@@ -664,9 +680,9 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     const gesturing = active?.gesture?.() ?? false;
     const hover = session.store.state.hover;
     if (!gesturing && hover !== null && !taken.has(hover))
-      outlinesOfRef(def, hover, "hover", marks, look);
+      outlinesOfRef(def, hover, "hover", marks, outline);
     for (const ref of own.marquee?.hits ?? [])
-      if (!taken.has(ref)) outlinesOfRef(def, ref, "hover", marks, look);
+      if (!taken.has(ref)) outlinesOfRef(def, ref, "hover", marks, outline);
     return { ...marks, ...(bounds ? { bounds } : {}) };
   }
 
@@ -766,7 +782,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       });
       return result.ok && commit(result.batch, { selectionAfter: result.select });
     },
-    selectionBounds: () => selectionBounds(session.getResolved(), registry, selection()),
+    selectionBounds: () => outlineBounds(session.getResolved(), selection(), look()),
     acceptOffer: () => host.command("accept-offer"),
     pointerWorld: () => cursorWorld,
     subscribe(listener) {

@@ -4,6 +4,7 @@ import {
   cellKey,
   createGridStepper,
   defineEntityType,
+  inCellBounds,
   OCCUPANT,
   ID_PATTERN,
   pointField,
@@ -21,13 +22,14 @@ import {
   type PlayWorld,
   type ProjectRuntimeView,
   type RuntimeGrid,
+  type SceneSwap,
   type TransitionSpec,
 } from "@jams/engine/game";
 import { z } from "zod";
 
 import { nextEnemyUnit, enemyOrders } from "./ai";
 import { parseTacticsCommand, type TacticsCommand } from "./commands";
-import { applyCommand, reachField } from "./rules";
+import { applyCommand, isLegal, occupancy, reachField } from "./rules";
 import {
   ROUGH_TYPE,
   STEP_COST,
@@ -315,6 +317,13 @@ export function boardData(
 
 const isRough = (e: RuntimeEntity | undefined): e is RoughEntity => e?.type === ROUGH_TYPE.type;
 
+/** How a board with these units stands: won or lost once a side has none left, open otherwise or with no units at all. */
+function standingResult(units: Readonly<Record<string, UnitState>>): TacticsSnapshot["result"] {
+  const sides = new Set(Object.values(units).map((u) => u.side));
+  if (sides.size === 0) return null;
+  return !sides.has("red") ? "won" : !sides.has("blue") ? "lost" : null;
+}
+
 /** The board and class table a run's world holds now, as `play.commands` reads them. */
 export function worldBoard(world: PlayWorld): { grid: TacticsGridData; classes: UnitClasses } {
   const roughs = (world.select?.({ type: ROUGH_TYPE.type }) ?? [])
@@ -358,6 +367,11 @@ const describe = (c: GameCommand) =>
  * Saves: a listed level asks for a world save to `TACTICS_AUTOSAVE_SLOT`
  * as each of blue's turns starts, and `restore` rebuilds the run from
  * `snapshot()` output, a walk or the red side's orders under way included.
+ *
+ * Live levels: the end of a full round (red handing the turn back) is a
+ * `ctx.live.boundary()`. After a swap, `onSwap` rebuilds the board, puts
+ * each unit on the cell its pose stands on, and drops the orders that a new
+ * wall, a new unit or a removed cell made impossible.
  */
 export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRunSnapshot> {
   let state: TacticsSnapshot = INITIAL;
@@ -589,6 +603,7 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
       });
       aiWait = settings().aiStepTicks;
       pending = [];
+      if (state.side === "blue") ctx.live.boundary(`round ${before.turn}`);
     }
     return true;
   }
@@ -618,6 +633,16 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     if (!first || !apply(first)) apply({ name: "wait", args: { unit: id } });
   }
 
+  function stairOf(stair: StairEntity): Stair {
+    const pose = spawnPose(stair, ctx.registry);
+    return {
+      id: stair.id,
+      cell: board.geometry.cellAt([pose.x, pose.y]),
+      sublevel: stair.sublevel,
+      offset: [stair.offset[0], stair.offset[1]],
+    };
+  }
+
   function load(scene: ExpandedScene): void {
     screen = screenOf(ctx.flow.scene ?? scene.name);
     next = null;
@@ -632,20 +657,9 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     stairs = [];
     for (const e of scene.entities) {
       if (e.type === UNIT_TYPE.type) units[e.id] = unitState(e as UnitEntity);
-      else if (e.type === STAIR_TYPE.type) {
-        const stair = e as StairEntity;
-        const pose = spawnPose(stair, ctx.registry);
-        stairs.push({
-          id: stair.id,
-          cell: board.geometry.cellAt([pose.x, pose.y]),
-          sublevel: stair.sublevel,
-          offset: [stair.offset[0], stair.offset[1]],
-        });
-      }
+      else if (e.type === STAIR_TYPE.type) stairs.push(stairOf(e as StairEntity));
     }
-    const sides = new Set(Object.values(units).map((u) => u.side));
-    const result =
-      sides.size === 0 ? null : !sides.has("red") ? "won" : !sides.has("blue") ? "lost" : null;
+    const result = standingResult(units);
     state = { ...INITIAL, units, result, phase: result === null ? "orders" : "over" };
     autosaved = null;
     changed();
@@ -743,6 +757,108 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     changed();
   }
 
+  /**
+   * The units after a swap, in their old order with new ones after: a unit
+   * gone from the world is dropped, one new to it joins as it loads, a
+   * changed one takes its side and class from its definition (its wounds
+   * kept), and every unit not walking stands on the cell its pose is in.
+   */
+  function reindexUnits(swap: SceneSwap): Record<string, UnitState> {
+    const changedIds = new Set(swap.diff.changed);
+    const units: Record<string, UnitState> = {};
+    const live = ctx.query.select({ type: UNIT_TYPE.type });
+    const alive = new Set(live);
+    for (const [id, was] of Object.entries(state.units)) {
+      const e = ctx.get(id);
+      if (!alive.has(id) || e?.type !== UNIT_TYPE.type) continue;
+      let unit: UnitState = was;
+      if (changedIds.has(id)) {
+        const fresh = unitState(e as UnitEntity);
+        unit = { ...was, side: fresh.side, class: fresh.class, hp: Math.min(was.hp, fresh.hp) };
+      }
+      const pose = ctx.poses.get(id);
+      if (id !== walk?.unit && pose) {
+        const cell = board.geometry.cellAt([pose.x, pose.y]);
+        if (!sameCell(cell, unit.cell)) unit = { ...unit, cell };
+      }
+      units[id] = unit;
+    }
+    for (const id of live) {
+      const e = ctx.get(id);
+      if (!Object.hasOwn(units, id) && e) units[id] = unitState(e as UnitEntity);
+    }
+    return units;
+  }
+
+  /**
+   * Cuts the walk under way short of the first cell it can no longer enter:
+   * off the board, a wall, or another unit's. A step already walking into
+   * such a cell goes back to the cell it left.
+   */
+  function cutWalk(): void {
+    const w = walk;
+    if (!w) return;
+    const held = occupancy(state);
+    const open = (c: Cell) => {
+      if (!inCellBounds(board.bounds, c) || board.walls.has(cellKey(c))) return false;
+      const holder = held.get(cellKey(c));
+      return holder === undefined || holder === w.unit;
+    };
+    const unit = state.units[w.unit];
+    const target = unit?.cell;
+    if (w.on && !open(w.on)) {
+      const { x, y } = centre(w.from);
+      ctx.poses.set(w.unit, x, y, undefined, { snap: true });
+      walk = null;
+      state = { ...state, phase: w.resume };
+      if (unit)
+        state = { ...state, units: { ...state.units, [w.unit]: { ...unit, cell: w.from } } };
+    } else {
+      const blocked = w.path.findIndex((c) => !open(c));
+      if (blocked < 0) return;
+      w.path = w.path.slice(0, blocked);
+      const end = w.path.at(-1) ?? w.on ?? w.from;
+      if (unit)
+        state = {
+          ...state,
+          units: { ...state.units, [w.unit]: { ...unit, cell: [end[0], end[1]] } },
+        };
+    }
+    note(`${w.unit}'s move to ${target?.join(",") ?? "?"} is cut short: the way is gone`);
+    pending = pending.filter((c) => c.name === "end-turn" || c.args.unit !== w.unit);
+  }
+
+  /** A new version of this scene is running: the board, the units, the stairs and the orders follow it. */
+  function onSwap(swap: SceneSwap): void {
+    if (screen !== "level") return;
+    boardStale = true;
+    freshBoard();
+    state = { ...state, units: reindexUnits(swap) };
+    cutWalk();
+    const result = state.result ?? standingResult(state.units);
+    if (result !== null) {
+      state = { ...state, result, phase: "over" };
+      if (walk) walk.resume = "over";
+    }
+
+    const fresh = new Set([...swap.diff.added, ...swap.diff.changed]);
+    const kept = new Set(stairs.map((s) => s.id));
+    const open = new Set(ctx.flow.sublevels().map((l) => l.label));
+    stairs = ctx.query
+      .select({ type: STAIR_TYPE.type })
+      .map((id) => ctx.get(id) as StairEntity | undefined)
+      .filter((e): e is StairEntity => e !== undefined)
+      .filter((e) => (kept.has(e.id) || fresh.has(e.id)) && !open.has(e.sublevel))
+      .map(stairOf);
+
+    const before = pending.length;
+    pending = pending.filter((c) => isLegal(state, c, classes, board));
+    const dropped = before - pending.length;
+    if (dropped > 0)
+      note(`the new level drops ${dropped === 1 ? "a red order" : `${dropped} red orders`}`);
+    changed();
+  }
+
   function reset(): void {
     state = INITIAL;
     grid = EMPTY_GRID;
@@ -810,6 +926,7 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
       };
     },
     restore,
+    onSwap,
     cameraTarget: () =>
       grid.cols === 0 ? null : { x: (grid.cols * grid.cell) / 2, y: (grid.rows * grid.cell) / 2 },
     storeSlice() {

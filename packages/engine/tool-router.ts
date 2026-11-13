@@ -8,6 +8,7 @@ export type ToolEvent =
       screen: Vec2;
       /** The DOM button that changed (0 primary, 1 middle, 2 secondary), -1 for a plain move. */
       button: number;
+      /** A wheel turn's vertical distance in CSS px, whatever unit the browser reported it in; 0 otherwise. */
       deltaY: number;
       /** The device: absent for an event the router didn't build, which reads as a mouse. */
       pointerType?: PointerKind;
@@ -97,6 +98,18 @@ export function resolveInputTarget(canvas: HTMLCanvasElement, target?: HTMLEleme
   return canvas;
 }
 
+/** CSS px per line and per page of a wheel turn reported in lines (Firefox's mouse wheel) or pages. */
+const WHEEL_LINE_PX = 100 / 3;
+const WHEEL_PAGE_PX = 800;
+
+/** A wheel event's vertical distance in CSS px: one notch is about 100 in every browser. */
+function wheelDeltaPx(native: Pick<WheelEvent, "deltaY" | "deltaMode">): number {
+  const { deltaY, deltaMode } = native;
+  if (deltaMode === 1) return deltaY * WHEEL_LINE_PX;
+  if (deltaMode === 2) return deltaY * WHEEL_PAGE_PX;
+  return deltaY;
+}
+
 /** Decides whether play, a game tool or an editor tool gets each pointer and key event. */
 export function createToolRouter(): ToolRouter {
   // Highest priority first; equal priorities keep registration order.
@@ -143,7 +156,7 @@ export function createToolRouter(): ToolRouter {
           type,
           screen: { x: native.clientX - origin.left, y: native.clientY - origin.top },
           button: native.button,
-          deltaY: "deltaY" in native ? native.deltaY : 0,
+          deltaY: "deltaY" in native ? wheelDeltaPx(native) : 0,
           pointerType: pointerKindOf(native),
           native,
         };

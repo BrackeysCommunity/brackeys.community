@@ -1,0 +1,4 @@
+{
+  "label": "Move the cheese half a metre right",
+  "ops": [{ "op": "update", "ref": "cheese", "set": { "shape": ["circle", 5.5, 8, 0.12] } }]
+}

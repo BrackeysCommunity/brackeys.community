@@ -8,8 +8,9 @@ export type BundleInput = { scene?: string };
 
 /**
  * The blobs a scene loads before it draws (`sceneBundle` of its expanded
- * entities, settings and asset headers, prefabs' included), with its
- * `asset-missing` issues; exit 1 when there are any.
+ * entities, settings and asset headers, those of the prefabs it places or
+ * a field names included), with its `asset-missing` issues; exit 1 when
+ * there are any.
  */
 export const bundle: Tool<BundleInput> = async (input, ctx) => {
   const opened = await openScene(ctx, input.scene, "bundle");

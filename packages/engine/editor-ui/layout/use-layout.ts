@@ -3,7 +3,14 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { STORAGE_PREFIX, type EditorStorage } from "../host";
 import { useBrowserState } from "../kit/ssr";
 import { readStored, writeStored } from "../session/stored";
-import { DEFAULT_LAYOUT, parseLayout, type EditorLayout, type PanelId } from "./model";
+import {
+  DEFAULT_LAYOUT,
+  panelGroup,
+  parseLayout,
+  withPanels,
+  type EditorLayout,
+  type PanelId,
+} from "./model";
 
 export const LAYOUT_KEY = `${STORAGE_PREFIX}layout:v1`;
 /** How long a layout change settles before it is stored. */
@@ -48,16 +55,19 @@ export function useLayout(
   useEffect(() => {
     if (knownWas.current === knownKey) return;
     knownWas.current = knownKey;
-    // A panel that arrives late (the host's Publish panel, once the editor is up)
-    // goes where the viewer left it, or to its home group.
+    // A panel that arrives late (the host's Publish panel, once the editor is up, or
+    // the panels a rebuild brings back) goes where the viewer last left it, or to its
+    // home group; storage never replaces the layout on screen.
     setLayout((now) => {
-      const from =
-        now === stored.current ? readStored(storage, LAYOUT_KEY, fallback, (v) => v) : now;
-      const next = parseLayout(from, known) ?? now;
+      const arriving = known.some((panel) => !panelGroup(now, panel));
+      const saved = arriving
+        ? readStored(storage, LAYOUT_KEY, null, (v) => parseLayout(v, known))
+        : null;
+      const next = withPanels(now, known, saved);
       if (now === stored.current) stored.current = next;
       return next;
     });
-  }, [knownKey, known, storage, fallback, setLayout]);
+  }, [knownKey, known, storage, setLayout]);
   const unsaved = useRef<EditorLayout | null>(null);
   const target = useRef(storage);
   useEffect(() => {

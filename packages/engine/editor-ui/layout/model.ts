@@ -35,8 +35,12 @@ export type EditorLayout = {
 
 export const LIMITS = {
   column: { min: 232, max: 520 },
-  /** The 28 px tab strip plus content. */
-  group: { min: 96 },
+  /**
+   * The 28 px tab strip plus content. With both groups open, the top one
+   * keeps `topShare` of the room they share, however tall the bottom one is
+   * stored, and a bottom one with no stored height starts at `bottomShare`.
+   */
+  group: { min: 96, topShare: 0.4, bottomShare: 0.4 },
   canvas: { min: 320 },
   phone: 640,
 } as const;
@@ -105,6 +109,13 @@ const columnWidth = (width: number): number =>
 const bothFit = (viewportWidth: number): boolean =>
   viewportWidth - 2 * INSET - 2 * LIMITS.column.min >= LIMITS.canvas.min;
 
+/** The heights a bottom group may be drawn at when both groups open in `room` px (the column less the gap). */
+export function splitRange(room: number): { min: number; max: number } {
+  const { min, topShare } = LIMITS.group;
+  const top = Math.max(min, Math.round(room * topShare));
+  return { min, max: Math.max(min, room - top) };
+}
+
 function fitGroups(column: ColumnState, height: number): FittedColumn["groups"] {
   const [top, bottom] = column.groups;
   if (!bottom) {
@@ -128,8 +139,9 @@ function fitGroups(column: ColumnState, height: number): FittedColumn["groups"] 
     bottomHeight = STRIP;
     topHeight = Math.max(STRIP, room - STRIP);
   } else {
-    const stored = bottom.size ?? LIMITS.group.min;
-    bottomHeight = Math.round(clamp(stored, LIMITS.group.min, room - LIMITS.group.min));
+    const stored = bottom.size ?? room * LIMITS.group.bottomShare;
+    const range = splitRange(room);
+    bottomHeight = Math.round(clamp(stored, range.min, range.max));
     topHeight = room - bottomHeight;
   }
   const bottomY = topCollapsed && bottomCollapsed ? STRIP + GAP : height - bottomHeight;
@@ -288,6 +300,28 @@ export const toggleGroup = (layout: EditorLayout, side: Side, group: 0 | 1): Edi
   if (!layout[side].groups[group]) return layout;
   return setGroup(layout, side, group, (g) => ({ ...g, collapsed: !g.collapsed }));
 };
+
+/**
+ * `layout` holding exactly `known`, as when the frame's panels change: panels
+ * no longer known leave it, and each one it lacks goes where `saved` keeps
+ * it, when that group exists here, else to its home group. Columns, sizes and
+ * tabs stay as `layout` has them, so the layout a person set outlives a
+ * change of panels whatever `saved` holds.
+ */
+export function withPanels(
+  layout: EditorLayout,
+  known: readonly PanelId[],
+  saved?: EditorLayout | null,
+): EditorLayout {
+  let next = layout;
+  for (const panel of saved ? known : []) {
+    if (panelGroup(next, panel)) continue;
+    const at = panelGroup(saved!, panel);
+    if (!at || !next[at.side].groups[at.group]) continue;
+    next = setGroup(next, at.side, at.group, (g) => ({ ...g, panels: [...g.panels, panel] }));
+  }
+  return parseLayout(next, known) ?? layout;
+}
 
 /** The column and group that hold `panel`, or null when no group does. */
 export function panelGroup(

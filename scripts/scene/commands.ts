@@ -22,6 +22,12 @@ import { fmt } from "./tools/fmt";
 import { fuzz } from "./tools/fuzz";
 import { GAME_BUILD_USAGE, gameBuild } from "./tools/game-build";
 import { GAME_EXPORT_USAGE, gameExport } from "./tools/game-export";
+import {
+  GAME_LIVE_BUILD_USAGE,
+  GAME_LIVE_CHECK_USAGE,
+  gameLiveBuild,
+  gameLiveCheck,
+} from "./tools/game-live";
 import { GAME_MANIFEST_USAGE, gameManifest, replayRelease } from "./tools/game-manifest";
 import { GAME_NEW_FLAGS, gameNew } from "./tools/game-new";
 import {
@@ -290,17 +296,23 @@ const DEFINITIONS = {
       ),
   },
   replay: {
-    usage: "replay <scene|file|-> --run <file|-> [--game id] [--releases <dir>]",
+    usage: "replay <scene|file|-> --run <file|-> [--game id] [--releases <dir>] [--versions <dir>]",
     summary:
-      "replay a run recording (or a playtest report's) headless: the recorded engine version and physics, `migratedFrom 1` for a v1 file, the platform line (recorded vs replayed) and recording-other-platform; with --releases, the release among those builds the run was made on; exit 1 when it ends differently",
-    values: ["run", "game", "releases"],
+      "replay a run recording (or a playtest report's) headless: the recorded engine version and physics, `migratedFrom 1` for a v1 file, the platform line (recorded vs replayed) and recording-other-platform; with --releases, the release among those builds the run was made on; exit 1 when it ends differently; with --versions, a run's live swaps replay from a directory of scene versions and their texts (game live build's output), and one it can't find stops the replay at that swap with scene-version-removed",
+    values: ["run", "game", "releases", "versions"],
     switches: [],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) => {
       const releases = str(flags.releases);
+      const input = {
+        scene,
+        run: str(flags.run),
+        game: str(flags.game),
+        versions: str(flags.versions),
+      };
       return releases === undefined
-        ? replay({ scene, run: str(flags.run), game: str(flags.game) }, ctx)
-        : replayRelease({ scene, run: str(flags.run), game: str(flags.game), releases }, ctx);
+        ? replay(input, ctx)
+        : replayRelease({ ...input, releases }, ctx);
     },
   },
   fuzz: {
@@ -727,6 +739,26 @@ const DEFINITIONS = {
         { project, channel: str(flags.channel), token: str(flags.token), url: str(flags.url) },
         ctx,
       ),
+  },
+  "game live build": {
+    usage: GAME_LIVE_BUILD_USAGE,
+    summary:
+      "build one scene's version from the project's files, or with --hosted from a pull of the hosted project, into --out: the version record and the texts it carries; prints its id, size and the files it adds",
+    values: ["out"],
+    switches: ["hosted"],
+    maxPositionals: 2,
+    run: ({ positionals: [project, scene], flags }, ctx) =>
+      gameLiveBuild({ project, scene, hosted: flags.hosted === true, out: str(flags.out) }, ctx),
+  },
+  "game live check": {
+    usage: GAME_LIVE_CHECK_USAGE,
+    summary:
+      "check one scene's version against a release (--against: compatibility) and swap it into the version players have now (--from: the scene's scripts with the game's live checks); with neither flag it only validates",
+    values: ["against", "from"],
+    switches: [],
+    maxPositionals: 2,
+    run: ({ positionals: [project, scene], flags }, ctx) =>
+      gameLiveCheck({ project, scene, against: str(flags.against), from: str(flags.from) }, ctx),
   },
 } satisfies Record<string, Command>;
 

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import { ID_PATTERN, PtSchema } from "../game/fields";
+import type { SwapStrategy, SwapTiming } from "../game/live";
 import { MAX_TICK_RATE, MIN_TICK_RATE, type TimeKind } from "../game/time";
 import type { DeviceId, JsonValue, Registry } from "../game/types";
 import { scaleLengths } from "../game/units";
@@ -249,6 +250,23 @@ export type RunRecordingV2 = {
   next?: { scene: AssetId; entry?: string };
   /** The save the run began from: its slot and the save file's hash. */
   fromSave?: { slot: string; sha256: Sha256 };
+  /** The live version this segment started on; absent: the release's own scene. */
+  sceneVersion?: Sha256;
+  /** Every swap during the segment, in tick order; absent when none ran. */
+  swaps?: RecordedSwap[];
+};
+
+/** One swap a recording holds: a replay applies it before stepping `tick`. */
+export type RecordedSwap = {
+  /** The tick the swap ran before (`ctx.tick` at the swap). */
+  tick: number;
+  /** null: back to the release's own scene. */
+  version: Sha256 | null;
+  strategy: SwapStrategy;
+  timing: SwapTiming;
+  sceneHash: string;
+  /** `runHash` of the run after the swap: the run's inputs with the new scene. */
+  runHash: string;
 };
 
 /** A recording in the current format. */
@@ -477,6 +495,40 @@ export const runRecordingSchema = z
       })
       .optional()
       .describe("The save the run began by loading, instead of the scene's fresh load."),
+    sceneVersion: z
+      .string()
+      .regex(SHA256_PATTERN)
+      .optional()
+      .describe(
+        "The live scene version this part of the run started on, its id; omitted for the release's own scene.",
+      ),
+    swaps: z
+      .array(
+        z
+          .strictObject({
+            tick: tick("The tick the swap ran before."),
+            version: z
+              .string()
+              .regex(SHA256_PATTERN)
+              .nullable()
+              .describe("The version swapped in; null for the release's own scene."),
+            strategy: z
+              .enum(["reconcile", "reload"])
+              .describe("Whether entities changed in place or the scene reloaded."),
+            timing: z
+              .enum(["next-load", "boundary", "now"])
+              .describe("The timing the version was activated with."),
+            sceneHash: z.string().describe("The swapped-in scene's hash."),
+            runHash: z
+              .string()
+              .describe(
+                "What the run ran after the swap; a replay is stale from here when it differs.",
+              ),
+          })
+          .describe("A new version of the scene applied between ticks."),
+      )
+      .optional()
+      .describe("Every swap during this part of the run, in tick order; omitted when none ran."),
   })
   .describe(
     "A recorded run: how it started and every seat's input, enough to replay it tick for tick, " +

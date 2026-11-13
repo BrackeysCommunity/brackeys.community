@@ -7,6 +7,307 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.14.4] — unreleased
+
+Live levels in the engine: a published scene version can be staged and
+swapped into a running game at a timing the game accepts, with the game's
+migration hook, recorded and replayed, and checked headlessly. A run
+that doesn't use them behaves exactly as before.
+
+### Added
+
+- `@jams/engine/game` and `.`: `SwapTiming`, `SwapStrategy`, `SceneDiff`,
+  `SwapSide`, `SceneSwap`, `LiveDeclaration`, `LiveContext`,
+  `LIVE_DEFAULTS` and `clampTiming(live, wanted)`, which keeps
+  `next-load` always and drops a timing the game doesn't list to the
+  strongest listed one below it.
+- `GameDefinition.live`, `GameRuntime.onSwap(swap)` and `ctx.live`
+  (`version`, null for the release's own scene, and `boundary(label?)`).
+- `GameInstance.live` (`stage`, `activate`, `current`, `pending`, `pin`,
+  `unpin`) and `StagedVersion`; `GameInstance.replay` takes
+  `{ versions? }`; `GameEventMap` gains `live:swapped` and `live:failed`.
+- `SceneRuntime.swap(next, { prefabs, strategy? })` and `SwapReport`.
+- `@jams/engine/project`: the `scene-version:v1` record (`SceneVersion`,
+  `LiveCompat`, `SCENE_VERSION_VERSION`, `SCENE_VERSION_SCHEMA_ID`,
+  `scene-version.schema.json`, exported as
+  `@jams/engine/schemas/scene-version.schema.json`): `sceneVersionSchema`,
+  `sceneVersionJsonSchema`, `parseSceneVersion`, `formatSceneVersion` (the
+  release manifest's canonical writer), `sceneVersionId`,
+  `liveCompat`/`liveCompatKey`, `checkSceneVersion` (the eight
+  compatibility rules; `live-incompatible` with `detail.rule` `game`,
+  `formats` or `build`, `live-scene-unlisted`, `live-physics`,
+  `live-asset-conflict`, `asset-missing` and `schema`; it takes
+  `CheckSceneVersionOptions`, `{ registry?, names?: { version?, release? } }`),
+  `sceneVersionSnapshot`, `findSceneVersion`, `buildSceneVersion` and
+  `readSceneVersion` (the one reader of a version for play, taking
+  `{ engine? }`).
+- `buildSceneVersion(opts)` (`./project`): builds a scene's
+  `scene-version:v1` from a project view and canonical texts (files or docs
+  give the same id); reads the scene as Play does, takes its release entry
+  (physics, prefabs, bundle, title, sublevel), carries the scene, its
+  prefabs, its bundle and their references under `live/`, stamps this
+  code's compatibility, and with `release` sets `base` and returns
+  `checkSceneVersion`'s issues.
+- `SceneRuntime.swap` reconciles a new version of the loaded scene between
+  ticks: remove, then add, then update, in scene order, through the same
+  spawn and despawn code the editor's add, update and remove use. Runtime
+  spawns, entities destroyed at runtime (even if their definition changed)
+  and disabled entities keep their facts. A changed entity whose authored
+  pose (spawn pose, transform, type) didn't change keeps its runtime pose,
+  every owner's save state and its bodies' motion; when the designer moved
+  it, the new definition wins. The version's prefab library is frozen for
+  `ctx.instantiate` from the next call, and reloading the main scene uses
+  that version and library. `undo()` and a refused step put the old
+  version and library back. When the world can be saved at world depth,
+  they restore it exactly from a world capture; otherwise, on Rapier for
+  example, by the inverse reconcile, which matches the world at the moment
+  of undo. A header change or `strategy: "reload"` reloads instead
+  (below). A refused step gives `detail.reason: "refused"` and
+  `detail.entityId`.
+- `SceneRuntime.swap` reloads when the scene's name, bounds or settings
+  changed, when `strategy: "reload"` is asked for, or when a reconcile step
+  refused and the run can be captured at world depth: the run is captured
+  with `captureSave` (world depth unless `worldSaveBlockers` names a cause,
+  else progress), the new version loads fresh under the main scene's flow
+  identity with its prefabs as the library (the game's `onLoad` runs), and
+  the capture is restored in a save restore's order (the game's `restore`
+  runs; `onSwap` never does). `SwapReport.carried` is `"all"` for a
+  reconcile and `"world"` or `"progress"` for a reload, `strategy` is
+  `"reload"`, and `undo()` loads the old version again and restores the
+  pre-swap capture at the same depth. A failed reload puts the old version
+  back and reports `live-swap-failed` with `detail.reason: "refused"`.
+- `GameInstance.live`: `stage(version, { signal })` reads, validates and
+  expands a scene version, adds its assets to the loader's view for that
+  scene's loads, and preloads its bundle within
+  `LIVE_DEFAULTS.preloadTimeoutMs` (a timeout or abort refuses with
+  `live-swap-failed`, `detail.phase: "stage"`); swaps run between ticks
+  after any flow request, never while paused, during a scene change or in
+  a replay, and never move or zoom the camera; flow loads and sublevel
+  attaches read each scene's active version. `activate` also returns an
+  `issue`: `live-timing-unsupported` (a warning) when the timing was
+  clamped, `live-swap-failed` when the version isn't staged.
+- The live layer behind `GameInstance.live` (internal, `runtime/live.ts`):
+  stage keeps one staged version per scene; activate clamps the timing and
+  is ignored while pinned; `next-load` waits for the scene's next load,
+  `boundary` and `now` swap after the tick, one per scene in scene-id
+  order, never while paused or during a scene change; `GameRuntime.onSwap`
+  runs once after the swap, and a throw undoes the swap, destroys what
+  `onSwap` spawned, emits `live:failed` (`live-swap-failed`, phase
+  `onSwap`) and keeps the version for the next load.
+- `liveSceneSource(base, live)` and `LiveSceneVersions` (`.`): a
+  `SceneSource` that answers `scene(id)` with the scene's active live
+  version (`live.sceneFor(id)`) before `base`'s, with `list` and `start`
+  from `base`; every flow load and the sublevel library built from it get
+  the version.
+- The flow host's `left(scene)` option: called once a change has left a
+  scene for a loaded one (the same scene on a restart), so the live layer
+  drops that scene's pending swap; a failed change keeps it.
+- `@jams/engine/scene`: `diffExpanded(prev, next): SceneDiff` (added and
+  changed ids in `next`'s order, removed in `prev`'s, `header` when the
+  name, bounds or settings differ), `RecordedSwap`, and `liveIssue`, which
+  words the live-level codes with their values.
+- A kinematic `body` turns: `ctx.bodies.setAngularVelocity` sets its
+  angular velocity (rad/s), it turns about its entity's pose on Rapier and
+  without physics, and the `body` behavior keeps it in world saves; a
+  kinematic body with `fixedRotation`, a character, a motion body and a
+  follower still refuse with `body-not-dynamic`. `kinematicBodyEntry` takes
+  `KinematicMotion`, whose optional `angularVelocity`/`setAngularVelocity`
+  let an owner's body turn.
+- `createMotionBody` takes `controller` (`CharacterControllerOptions`,
+  default `TOP_DOWN_CONTROLLER`; `pushDynamic` is Rapier's
+  `applyImpulsesToDynamicBodies`), and its body answers `grounded()`
+  (optional on `MotionBody` so game-written bodies still fit).
+- `swapCheck` (`./headless`): plays each input script on the old version,
+  swaps the new one in through the live layer's apply (timing `now`,
+  strategy auto) at `LIVE_DEFAULTS.checkAt` of each run, steps
+  `checkTicks` more, and runs the game's `live.check` right after the swap
+  and 60 ticks later. It reports `onSwap` throwing or a swap step refusing
+  (`live-swap-failed`), a step that throws after the swap, and the check's
+  own issues per run as `{ script, at, tick, strategy, issues }`. With
+  `checks` it runs the scene's checks file against the new version
+  (`report.checks`). `issues` holds what kept a version or script from
+  playing at all.
+- `@jams/engine/standalone`: `createLiveController`, `LiveSceneEntry`,
+  `LiveSnapshot`, `LiveStateMessage` and their schemas. The `jams-host`
+  channel (still protocol 1) gains `hello.features` (sent only when
+  `connectHost`'s `features` lists one), `welcome.live`, the page's
+  `live.update` event and the frame's `live.state` event
+  (`HostChannel.liveState`).
+- Recording v2 takes optional `sceneVersion` and `swaps`; a run with no
+  live version and no swap writes neither.
+- Recordings write `sceneVersion` (the live version a segment started on,
+  omitted for the release's own scene) and `swaps` (each applied swap's
+  tick, version, strategy, timing, sceneHash and runHash, in order). A run
+  without swaps writes the same bytes as before. `recordedSwap(swap)`
+  (`./headless`) turns a `SceneSwap` into its recorded entry.
+  `RunRecorder.loaded(load)` records a load inside a segment that ran
+  another version as a `next-load` swap with strategy `reload`.
+- `replayRecording` takes `versions` (id -> `StagedVersion | null`; look
+  one up with `findSceneVersion`): a segment's `sceneVersion` is read with
+  `readSceneVersion` and played instead of the release's scene, and each
+  `swaps` entry is applied before its tick through the live layer with its
+  recorded strategy. A missing version is `scene-version-removed`: a
+  recording that starts on one doesn't replay (blocked at load, path
+  `/sceneVersion`); a swap's stops the replay at its tick (path
+  `/swaps/<i>/version`, `detail.tick`). Staleness is judged per segment:
+  the start's runHash against the start, each swap's strategy and runHash
+  against what the replayed swap made; `ReplayReport.staleFrom` is the
+  tick of the first one that differs.
+- `HeadlessRuntime.live` (`HeadlessLive`): `GameInstance.live`'s members
+  over a headless live layer, with synchronous `stage` and no preloading;
+  a `now`/`boundary` activation swaps after the step it waits for (after
+  its flow request), and a flow load uses the scene's active version.
+  Headless runs keep `ctx.live`, and `runPlaytest`'s and replays'
+  recordings carry `sceneVersion` from it.
+- `GameInstance.replay` plays a recording's `sceneVersion` through
+  `opts.versions` and applies its recorded swaps before their ticks
+  through the live layer, with the recorded strategy; a version the host
+  can't give ends the replay with `scene-version-removed` (at the start it
+  doesn't start; at a swap it stops on that tick, `detail.tick`, reported
+  on `live:failed`). The scene's own live version comes back at Stop.
+  Play's session recordings carry `sceneVersion` from `ctx.live.version`.
+- `bootStandalone` in a hosted frame says `features: ["live"]` in
+  `hello`. It stages `welcome.live` before `flow.restart()`: the start
+  scene waits for its own version, up to 60 s, and starts on the release's
+  own if that version is refused; the other scenes stage in the
+  background. It hands each `live.update` to `createLiveController` and
+  reports back as `live.state` events.
+- `createLiveController({ instance, manifest, fetchText, report, files? })`
+  fetches `live/<version>.json` and checks that its SHA-256 equals the
+  version id, then runs `parseSceneVersion` and `checkSceneVersion`. Each
+  carried doc is read from the release's own `data/` file when the release
+  ships that hash, else from `live/`, and its hash is checked. It stages
+  everything under one 60 s deadline, then activates at the pointer's
+  timing. It reports `staging`, `ready`, `waiting`, `applied`, `refused`
+  and `failed`, with one staging per scene at a time. A scene that leaves
+  the snapshot goes back to the release's own. New:
+  `LiveController.settled(scene)`, and `LiveControllerOptions.files`, the
+  blob overlay that the standalone loader's URL function reads.
+- Live in Play: a "Live in Play" switch in the editor's play controls, off
+  by default and remembered per viewer. While it is on, each edit during
+  Play (debounced 300 ms) is built into an in-memory scene version and
+  staged and activated `now` on the running game, through the same stage,
+  swap and onSwap path a live update takes; nothing is uploaded. The play
+  bar's status line says "Applying live update…", then "Live update
+  applied (reconcile, 3 changed)", when a clamped timing will apply, or
+  the issue. A header edit reloads with capture and restore. The game's
+  `live.check` issues go to the Problems panel. A failing onSwap is shown
+  and Play carries on. Editor UI: `EditorHostState.livePlay`,
+  `LivePlayState`, `LivePlayStatus`, `EditorProps.onLivePlay`.
+- The spawner takes `fields`, the fields each spawn of its `type` gets;
+  their shapes, points and paths are placed at the spawn point, so a shape
+  type (a prop, a solid) spawns by type.
+- `translateEntityDef(registry, def, by)` on `@jams/engine/scene`: an
+  entity def moved by an offset, or null when it has nothing to move.
+- Input scripts (v2) take a `nav` step and `reaches` checks a `nav` list
+  that send a nav agent to a point or after an entity, as the engine
+  command `@nav { id, to }` (`NAV_COMMAND`, `NavDestination`); it is
+  recorded and replayed as input, and an entity without a nav-agent ends
+  the run blocked with `behavior-missing` (`dangling-ref` for a missing
+  id).
+- `InputState.commands()`: the tick's commands, engine ones included.
+- A `behavior-conflict` warning for a `path-follow` that can't move its
+  entity: a collider with no body or a static one, or a solid, prop,
+  follower or sensor.
+- `FramePanels.reveal` and `EditorControls.reveal`: bring refs a panel
+  selects into the canvas's view.
+- `castSpawn` and `CastResult` are exported from `@jams/engine/game`: a
+  game's `onSwap` settles an actor the way play from here settles a start,
+  carried along gravity onto the first non-sensor collider and refused
+  inside one.
+- README: a Live levels section after Publishing on jams.team: the three
+  timings, what a swap keeps, the site's limits, delivery and blocking, the
+  API in short (`GameDefinition.live`, `ctx.live.boundary()`,
+  `GameRuntime.onSwap`, `GameInstance.live`, `swapCheck`,
+  `game live build/check`, Live in Play) and two runnable examples
+  (`ledge-game.ts`, `ledge-live.ts`).
+- The host channel's `recording.request` event: a hosted frame offers its
+  run's recording as a `download` (`<scene>.recording.json`), which
+  replays headless with `replay --versions`.
+- `GameConfig.recording.flow`: records the scene flow's run outside the
+  editor's Play, one session per scene load (with its `sceneVersion` and
+  swaps), ended as `flow` by the next load; a hosted standalone frame turns
+  it on. `GameInstance.recording({ running: true })` returns a session
+  still recording as Stop would end it now.
+
+### Changed
+
+- `bindSceneDoc` and `applyEntityDiff` use the shared expanded-scene diff;
+  no behaviour change.
+- Rapier `ctx.space.sweep` casts only at colliders whose bounds meet the
+  swept box: the same hits, about twice as fast at 1000 colliders.
+- Documented: a force area adds to a character's velocity, which its
+  `decel` works against while idle: a weaker push builds no speed, a
+  stronger one carries it at the difference.
+- `sceneBundle` follows prefab asset fields (a spawner's `prefab`) into
+  the named prefab's children, its header and the prefabs it reaches, and
+  the export plan and `buildSceneVersion`/`readSceneVersion` add those
+  prefabs to each scene's library; scenes without such a field bundle
+  exactly as before.
+- behavior-yard drops its `assets` header; its bundle (crates-texture,
+  hero-texture) and its genre pin are unchanged.
+- The camera's free mode (the editor's) only keeps the view from leaving
+  the bounds entirely, instead of keeping it inside them and centring an
+  axis the view is wider than; follow mode (Play) is unchanged.
+- Scene CLI: `game new`'s behavior presets drop the hero's `player-input`
+  at the win, so it comes to rest.
+
+### Fixed
+
+- The dev collab server started without a build time (0) stamps its schema
+  hashes at 0, not -1: one tick older than its build never goes below the
+  undated floor.
+- Play from here starts seat 0's `character-top-down` or
+  `character-side-view` hero at the chosen point.
+- Editor: f (Frame the selection) frames whatever is selected, wherever
+  the selection was made, by the box the selection's outline covers, so a
+  prefab instance (its children) and a sprite box frame too, where they
+  used to frame the whole scene.
+- Editor: a row selected in the outliner that is off-screen is panned into
+  the part of the canvas the columns leave visible, never zooming; one
+  already in view leaves the camera alone.
+- Editor: a wheel zoom keeps the world point under the pointer, including
+  with the scene smaller than the view and after framing into the visible
+  canvas. Wheel turns reported in lines (Firefox) or pages become CSS px,
+  about 100 a notch in every browser.
+- Editor: a column's top group keeps at least 40% of the column, so at
+  1024 px Project settings no longer leaves the outliner a few rows; a
+  bottom group with no stored height starts at 40%.
+- Editor: the layout on screen survives a change of the frame's panels (a
+  rebuild at Stop, the late Publish panel), whatever the storage holds: a
+  null or refusing storage, or one another editor tab wrote to, no longer
+  reopens a collapsed column.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 19, and every committed JSON Schema's
+  `x-agent-surface` with it; `scene-version.schema.json` is a new schema
+  id.
+- Issue codes `live-incompatible`, `live-scene-unlisted`, `live-physics`,
+  `live-asset-conflict`, `live-swap-failed` and `scene-version-removed`
+  (errors) and `live-timing-unsupported` (warn).
+- The recording schema's `sceneVersion` and `swaps`.
+- The scene schema's spawner `fields`; the input-script schema's `nav`
+  step and the checks schema's `reaches.nav`; the registry's command names
+  gain `@nav`.
+- `behavior-conflict`'s summary and hint cover a `path-follow` that can't
+  move its entity.
+- `game live build <project> <scene> [--hosted] [--out <dir>]` writes
+  `scene-version.json` and a `<sha256>.json` for each text it carries, and
+  prints the id, the data size and the files; `game live check <project>
+<scene> [--against <release dir|release.json>] [--from <version dir>]`
+  checks the version against a release and runs the swap check from the
+  release's scene or a built version; with neither flag it only validates
+  and prints a warning; `replay --versions <dir>` replays a run's live
+  swaps.
+- The scene MCP server gains `game_live_build` (build one scene's version
+  into `out`, or with `hosted` from a temporary pull of the hosted
+  project; same fields as `game live build --json`) and `game_live_check`
+  (`against` a release dir or release.json, `from` a version dir; same
+  fields as `game live check --json`). `scene_replay` takes `versions`, a
+  directory of scene versions and their texts, as `replay --versions`
+  does.
+
 ## [0.14.3] — unreleased
 
 The standard behavior library: bodies, colliders, input seats, character

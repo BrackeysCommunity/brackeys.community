@@ -631,6 +631,40 @@ describe("host commands", () => {
     expect(clean(frames)).toEqual([{ minX: 2.8, minY: 9.2, maxX: 3.2, maxY: 9.6 }]);
   });
 
+  it("frames a selection made outside the canvas by what it outlines, an instance's children too", () => {
+    const def: SceneDefinition = {
+      ...parseSceneOrThrow(yard, registry),
+      instances: [{ id: "post-1", prefab: "post", at: [600, 600] }],
+    };
+    const prefabs = prefabLibrary([
+      {
+        kind: "prefab",
+        v: def.v,
+        id: "post",
+        entities: [
+          { id: "a", type: "marker", at: [0, 0] },
+          { id: "b", type: "marker", at: [20, 10] },
+        ],
+      },
+    ]);
+    const frames: unknown[] = [];
+    const r = rig({ frame: (rect) => void frames.push(rect) }, undefined, { def, prefabs });
+    const at = (id: string) =>
+      r.session.getResolved().entities!.find((e) => e.id === id)!.at as [number, number];
+    const [ax, ay] = at("post-1/a");
+    const [bx, by] = at("post-1/b");
+
+    // As the outliner selects: straight on the session, no pointer.
+    r.session.select(["post-1"]);
+    expect(r.host.selectionBounds()).toEqual({ minX: ax, minY: ay, maxX: bx, maxY: by });
+    expect(r.host.command("frame")).toBe(true);
+    expect(frames).toEqual([{ minX: ax, minY: ay, maxX: bx, maxY: by }]);
+
+    r.session.select(["post-1/b"]);
+    expect(r.host.command("frame")).toBe(true);
+    expect(frames.at(-1)).toEqual({ minX: bx, minY: by, maxX: bx, maxY: by });
+  });
+
   it("ignores pointers outside edit mode", () => {
     const r = rig();
     r.session.setMode("play");

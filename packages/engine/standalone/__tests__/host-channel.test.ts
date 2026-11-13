@@ -758,6 +758,7 @@ describe("bootStandalone with ?host=jams", () => {
         engine: ENGINE_VERSION,
         release: await releaseId(build.manifest),
         game: testGame.id,
+        features: ["live"],
       },
     });
     expect(game.instance.saves.store.kind).toBe("host");

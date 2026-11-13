@@ -18,12 +18,14 @@ import {
 
 import {
   createKeymap,
-  selectionBounds,
+  type Aabb,
   type EditorSession,
   type Keymap,
+  type Ref as SceneRef,
   type SceneIssue,
 } from "../../editor/index";
-import type { RapierModule } from "../../index";
+import { outlineBounds } from "../../editor/tool-host";
+import type { GameInstance, RapierModule } from "../../index";
 import type { AssetKey } from "../../project/index";
 import { hostPeerColor, type EditorHost, type EditorPublishHost } from "../host";
 import { cx, KitProvider, useKit } from "../kit/index";
@@ -44,6 +46,7 @@ import { useLayout } from "../layout/use-layout";
 import { CanvasLayer } from "../panels/canvas-layer/CanvasLayer";
 import {
   createToolHostCell,
+  hostAsset,
   useToolHost,
   useToolHostLifecycle,
 } from "../panels/canvas-layer/tool-host";
@@ -61,6 +64,7 @@ import {
   type PanelContext,
   type PanelDef,
 } from "../panels/registry";
+import type { EditorHostState } from "../session/live-scene-editor";
 import { createLoadedRunStore } from "../session/loaded-run";
 import { useEditorStore } from "../session/use-editor-store";
 import { usePhysicalIssues } from "../session/use-physical-issues";
@@ -187,6 +191,8 @@ export type FramePanels = {
   defs?: readonly PanelDef[];
   /** Each panel shows its skeleton. */
   booting?: boolean;
+  /** Brings refs selected in a panel into the canvas's view; without it they stay where they are. */
+  reveal?: (refs: readonly SceneRef[]) => boolean;
 };
 
 /** The frame's layout, for a host's "show this panel" and "reset layout". */
@@ -400,6 +406,56 @@ function createOpener() {
 }
 
 const VisibleAreaContext = createContext<() => VisibleArea | null>(() => null);
+
+const RevealContext = createContext<((refs: readonly SceneRef[]) => boolean) | null>(null);
+
+/**
+ * Brings refs a panel selects into the canvas's view, panning only when they
+ * lie outside the part the chrome leaves visible; null outside an editor.
+ */
+export function useCanvasReveal(): ((refs: readonly SceneRef[]) => boolean) | null {
+  return useContext(RevealContext);
+}
+
+type PanningGame = Pick<GameInstance, "screenToWorld" | "panBy" | "getStore">;
+
+/**
+ * Pans `game`, never zooming, so `rect` sits in the middle of the visible
+ * part of the canvas when any of it lies outside that part; true when it
+ * panned. An area with nothing visible counts as the whole canvas.
+ */
+export function revealInView(game: PanningGame, rect: Aabb, area: VisibleArea): boolean {
+  const { width, height, insets } = area;
+  const shows = width - insets.left - insets.right > 0 && height - insets.top - insets.bottom > 0;
+  const seen = shows
+    ? {
+        left: insets.left,
+        top: insets.top,
+        right: width - insets.right,
+        bottom: height - insets.bottom,
+      }
+    : { left: 0, top: 0, right: width, bottom: height };
+  const { scale } = game.getStore().state.camera;
+  const origin = game.screenToWorld({ x: 0, y: 0 });
+  const box = {
+    left: (rect.minX - origin.x) * scale,
+    top: (rect.minY - origin.y) * scale,
+    right: (rect.maxX - origin.x) * scale,
+    bottom: (rect.maxY - origin.y) * scale,
+  };
+  if (
+    box.left >= seen.left &&
+    box.right <= seen.right &&
+    box.top >= seen.top &&
+    box.bottom <= seen.bottom
+  )
+    return false;
+  game.panBy({
+    x: (seen.left + seen.right - box.left - box.right) / 2,
+    y: (seen.top + seen.bottom - box.top - box.bottom) / 2,
+  });
+  return true;
+}
 
 /** The frame's `openPanel` for chrome outside the panels (the dock), with the panels it can open. */
 const PanelOpenerContext = createContext<{
@@ -791,20 +847,22 @@ function FrameBody({
           ) : null}
           {/* Kept mounted in play mode, so the panels' scroll, filters and drafts survive a playtest. */}
           <div className="je-frame-columns" hidden={playing} inert={playing}>
-            {phone ? (
-              <div ref={phoneRef} className="je-frame-phone" style={{ bottom: bottomInset }}>
-                {phoneSheet()}
-                <div className="je-frame-phone-bar">
-                  {phoneRail("left")}
-                  {phoneRail("right")}
+            <RevealContext.Provider value={panels?.reveal ?? null}>
+              {phone ? (
+                <div ref={phoneRef} className="je-frame-phone" style={{ bottom: bottomInset }}>
+                  {phoneSheet()}
+                  <div className="je-frame-phone-bar">
+                    {phoneRail("left")}
+                    {phoneRail("right")}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <>
-                {column("left")}
-                {column("right")}
-              </>
-            )}
+              ) : (
+                <>
+                  {column("left")}
+                  {column("right")}
+                </>
+              )}
+            </RevealContext.Provider>
           </div>
           {dock || (status && !playing) ? (
             <div
@@ -877,12 +935,27 @@ export function editorChrome(
   if (dev && editorKeys) warnShadowedKeys(editorKeys, keymap);
   const physical = new Store<readonly SceneIssue[]>([]);
   const pickedAsset = new Store<AssetKey | null>(null);
+  const tools = createToolHostCell();
+  let readVisible: ReadVisibleArea | null = null;
+  const watchVisible = (read: ReadVisibleArea) => {
+    readVisible = read;
+    return () => {
+      if (readVisible === read) readVisible = null;
+    };
+  };
+  const boundsOf = (refs: readonly SceneRef[]) => {
+    const asset = tools.state ? hostAsset(tools.state) : undefined;
+    return outlineBounds(session.getResolved(), refs, {
+      registry: session.registry,
+      ...(asset ? { asset } : {}),
+    });
+  };
   const controls: EditorControls = {
     ...props,
     rapier: props.rapier ?? null,
     runStore: props.runStore ?? createLoadedRunStore(),
     keymap,
-    tools: createToolHostCell(),
+    tools,
     playHere() {
       const at = game.pointerWorld();
       if (!at) {
@@ -895,10 +968,15 @@ export function editorChrome(
     },
     playFrom: (opts) => props.onPlay(opts),
     frame(refs) {
-      const box = selectionBounds(session.getResolved(), session.registry, refs);
+      const box = boundsOf(refs);
       if (!box) return false;
       frameInView(game, box);
       return true;
+    },
+    reveal(refs) {
+      const box = boundsOf(refs);
+      const area = readVisible?.() ?? null;
+      return box !== null && area !== null && revealInView(game, box, area);
     },
   };
   return {
@@ -915,6 +993,7 @@ export function editorChrome(
     panels: {
       defs: editorPanels(publish ? { publish } : {}),
       context: { controls: publish ? { ...controls, publish } : controls, physical, pickedAsset },
+      reveal: controls.reveal,
     },
     mode: session.store,
     dock: <EditorDock {...controls} />,
@@ -931,8 +1010,8 @@ export function editorChrome(
     ),
     overlay: (
       <EditMode session={session}>
-        <PhysicalWatch session={session} rapier={controls.rapier} store={physical} />
-        <VisibleAreaOf game={game} />
+        <PhysicalWatch session={session} rapier={controls.rapier} host={host} store={physical} />
+        <VisibleAreaOf game={game} watch={watchVisible} />
         <EditorCanvasOverlay session={session} store={game.getStore()} />
         <EditorCanvasLayer {...controls} />
       </EditMode>
@@ -940,9 +1019,22 @@ export function editorChrome(
   };
 }
 
-/** Keeps framing on `game` inside the canvas the columns leave visible. */
-function VisibleAreaOf({ game }: { game: object }) {
+type ReadVisibleArea = () => VisibleArea | null;
+
+/**
+ * Keeps framing and revealing on `game` inside the canvas the columns leave
+ * visible; `watch` is handed the frame's reader and returns its release.
+ */
+function VisibleAreaOf({
+  game,
+  watch,
+}: {
+  game: object;
+  watch: (read: ReadVisibleArea) => () => void;
+}) {
   useVisibleArea(game);
+  const read = useContext(VisibleAreaContext);
+  useEffect(() => watch(read), [watch, read]);
   return null;
 }
 
@@ -957,18 +1049,24 @@ function warnShadowedKeys(editorKeys: object, keymap: Keymap): void {
   }
 }
 
-/** Physical validation, run once for the panels that show it. */
+/** Physical validation, run once for the panels that show it, with the last Live in Play run's checks after it. */
 function PhysicalWatch({
   session,
   rapier,
+  host,
   store,
 }: {
   session: EditorSession;
   rapier: RapierModule | null;
+  host: Store<EditorHostState>;
   store: Store<readonly SceneIssue[]>;
 }) {
   const issues = usePhysicalIssues(session, rapier);
-  useEffect(() => store.setState(() => issues), [issues, store]);
+  const checks = useStoreValue(host, (s) => s.livePlay?.checks ?? null);
+  useEffect(
+    () => store.setState(() => (checks && checks.length > 0 ? [...issues, ...checks] : issues)),
+    [issues, checks, store],
+  );
   return null;
 }
 

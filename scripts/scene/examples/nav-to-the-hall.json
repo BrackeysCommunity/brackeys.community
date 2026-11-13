@@ -1,0 +1,12 @@
+{
+  "v": 2,
+  "scene": "kitchen-sink",
+  "steps": [
+    { "nav": { "id": "std-nav-agent", "to": [22.6, 3.5] } },
+    {
+      "hold": [],
+      "until": { "event": { "type": "nav:arrived", "entityId": "std-nav-agent" } },
+      "max": 600
+    }
+  ]
+}

@@ -87,6 +87,23 @@ describe("bundle", { timeout: 60_000 }, () => {
     );
   });
 
+  it("brings the assets of a prefab a field names, with no header naming them", async () => {
+    const yard = JSON.parse(await readFile(join(deck, "behavior-yard.json"), "utf8")) as Data;
+    expect(yard.assets).toBeUndefined();
+    const r = await run("bundle", "behavior-yard");
+    expect(r.exitCode, JSON.stringify(r.data)).toBe(0);
+    const bundle = r.data.bundle as { entries: { id: string }[] };
+    // crates-texture is the crate prefab's, which only crate-drop's spawner names.
+    expect(bundle.entries.map((e) => e.id)).toEqual(["crates-texture", "hero-texture"]);
+    await setHeader("prefabs/crate.json", ["items"]);
+    const header = await run("bundle", "behavior-yard");
+    expect((header.data.bundle as typeof bundle).entries.map((e) => e.id)).toEqual([
+      "crates-texture",
+      "hero-texture",
+      "items-art",
+    ]);
+  });
+
   it("exits 1 with asset-missing and a did-you-mean for a dangling id", async () => {
     await setHeader("engine-yard.json", ["item"]);
     const r = await run("bundle", "engine-yard");

@@ -1,3 +1,4 @@
+import type { NavDestination } from "../game/commands";
 import type { SceneLibrary } from "../game/flow";
 import type {
   DeviceId,
@@ -122,7 +123,7 @@ export type InputScript<G = unknown> = {
 
 /**
  * A v2 step: v1's, plus `set` (axis values and vector pairs held for the
- * step, alone or with `hold`), `pointer`, and a seat's `join` and `leave`.
+ * step, alone or with `hold`), `pointer`, `nav`, and a seat's `join` and `leave`.
  */
 export type InputScriptStepV2 =
   | ({ hold: string[]; set?: AnalogSet } & StepDuration)
@@ -132,6 +133,8 @@ export type InputScriptStepV2 =
   | { wait: number }
   | { command: string; args?: unknown }
   | { elapse: number }
+  /** One slot that sends a nav agent to a point or after an entity, holding what the step before held. */
+  | { nav: NavDestination }
   /** A device for the track's seat. */
   | { join: DeviceId }
   | { leave: DeviceId };

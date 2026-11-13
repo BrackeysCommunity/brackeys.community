@@ -1,4 +1,4 @@
-import type { ActionKind, PlayerInfo, PlayersDef, Registry } from "../game/types";
+import type { ActionKind, GameCommand, PlayerInfo, PlayersDef, Registry } from "../game/types";
 import { PLAYER_JOINED, PLAYER_LEFT, type StepEvent } from "../runtime/types";
 import type { InputAction, Vec2 } from "../types";
 import { createSeatBook, resolvePlayers } from "./players";
@@ -27,6 +27,8 @@ export interface InputState {
   vector(action: string, player?: number): Vec2;
   pointer(player?: number): PointerState | null;
   players(): readonly PlayerInfo[];
+  /** The tick's commands, the engine's (`@elapsed`, `@nav`) among them, in the order the tick holds them. */
+  commands(): readonly GameCommand[];
 }
 
 /** The runtime's side: each step feeds the tick's input and raises the seat events it returns. */
@@ -99,6 +101,7 @@ export function createInputState(
   );
   const seats = new Map<number, Seat>();
   const book = createSeatBook(players);
+  let commands: readonly GameCommand[] = [];
 
   const seat = (player: number): Seat => {
     let s = seats.get(player);
@@ -119,7 +122,9 @@ export function createInputState(
     vector: (name, player) => action(name, player)?.vector ?? ZERO,
     pointer: (player = 0) => seats.get(player)?.pointer ?? null,
     players: book.players,
+    commands: () => commands,
     update(input) {
+      commands = input.commands;
       const events: Omit<StepEvent, "tick">[] = [];
       for (const change of input.joins) {
         for (const done of book.apply(change)) {

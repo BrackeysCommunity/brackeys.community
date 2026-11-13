@@ -5,7 +5,7 @@ import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { RunTiming } from "../runtime/timing";
 import type { LoadReport, RuntimeStats, SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import type { ExpandedScene, SceneIssue } from "../scene/types";
-import type { RapierModule } from "../types";
+import type { GameLive, RapierModule, StagedVersion } from "../types";
 import type { PlaytestBlocked } from "./playtest-types";
 
 export type HeadlessRuntimeOptions = {
@@ -25,7 +25,17 @@ export type HeadlessRuntimeOptions = {
   timing?: RunTiming;
 };
 
-/** A headless runtime; `save` captures the world as `captureSave` does. */
+/**
+ * `GameInstance.live` for a headless runtime: the same members, with no
+ * preloading, so staging answers at once. An activated `now` or `boundary`
+ * swap applies after the step it waits for, between ticks.
+ */
+export type HeadlessLive = Omit<GameLive, "stage"> & {
+  /** Reads and validates a version for a listed scene and keeps it resident; nothing is fetched or preloaded. */
+  stage(v: StagedVersion): { ok: true } | { ok: false; issue: SceneIssue };
+};
+
+/** A headless runtime; `save` captures the world as `captureSave` does, and `live` swaps scene versions in. */
 export type HeadlessRuntime = SceneRuntimeHandle & {
   save?(opts: {
     depth: SaveDepth;
@@ -34,6 +44,7 @@ export type HeadlessRuntime = SceneRuntimeHandle & {
     /** The caller's clock for `meta.savedAt`. */
     now: number;
   }): { ok: true; file: SaveFile } | { ok: false; issue: SceneIssue };
+  live?: HeadlessLive;
 };
 
 export type ProbeInput = {

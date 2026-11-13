@@ -210,6 +210,76 @@ describe("recording v2", () => {
     expect(issuesOf("{")[0]!.message).toMatch(/isn't valid JSON/);
   });
 
+  describe("a live run's keys", () => {
+    const SHA = "ab".repeat(32);
+    const swap = {
+      tick: 240,
+      version: SHA,
+      strategy: "reconcile" as const,
+      timing: "now" as const,
+      sceneHash: "5f1c09a2b7e3d4c9",
+      runHash: "a90e44d1c2b3f508",
+    };
+    const live = (): RunRecordingV2 => ({
+      ...v2Example(),
+      sceneVersion: SHA,
+      swaps: [
+        { ...swap },
+        { ...swap, tick: 600, version: null, strategy: "reload", timing: "boundary" },
+      ],
+    });
+
+    it("takes sceneVersion and swaps together or alone, as they are", () => {
+      expect(ok(live()).recording).toEqual(live());
+      const { swaps: _, ...started } = live();
+      expect(ok(started).recording).toEqual(started);
+      const { sceneVersion: __, ...swapped } = live();
+      expect(ok(swapped).recording).toEqual(swapped);
+      expect(ok(v2Example()).recording).not.toHaveProperty("swaps");
+    });
+
+    it.each([
+      [
+        "a sceneVersion that isn't a SHA-256",
+        (r: any) => (r.sceneVersion = "abc"),
+        "/sceneVersion",
+      ],
+      [
+        "a swap to a version that isn't one",
+        (r: any) => (r.swaps[0].version = "abc"),
+        "/swaps/0/version",
+      ],
+      ["an unknown strategy", (r: any) => (r.swaps[0].strategy = "patch"), "/swaps/0/strategy"],
+      ["an unknown timing", (r: any) => (r.swaps[1].timing = "later"), "/swaps/1/timing"],
+      ["a negative tick", (r: any) => (r.swaps[0].tick = -1), "/swaps/0/tick"],
+      ["a swap without its runHash", (r: any) => delete r.swaps[0].runHash, "/swaps/0/runHash"],
+      ["a key a swap doesn't have", (r: any) => (r.swaps[0].scene = "level-1"), "/swaps/0"],
+    ])("refuses %s, saying where", (_, change, path) => {
+      const rec = live();
+      change(rec);
+      expect(issuesOf(rec).map((i) => i.path)).toContain(path);
+    });
+
+    it("migrates a v1 file to neither key", () => {
+      const parsed = ok(v1Full());
+      expect(parsed.migratedFrom).toBe(1);
+      expect(parsed.recording).not.toHaveProperty("sceneVersion");
+      expect(parsed.recording).not.toHaveProperty("swaps");
+      for (const name of v1Fixtures) {
+        const fixture = ok(readV1(name)).recording;
+        expect(fixture, name).not.toHaveProperty("sceneVersion");
+        expect(fixture, name).not.toHaveProperty("swaps");
+      }
+    });
+
+    it("describes both keys in the published schema", () => {
+      const props = recordingJsonSchema().properties as Record<string, { description?: string }>;
+      expect(props.sceneVersion?.description).toMatch(/live scene version/);
+      expect(props.swaps?.description).toMatch(/swap/);
+      expect(runRecordingSchema.safeParse(live()).success).toBe(true);
+    });
+  });
+
   it("publishes a described JSON Schema with the agent surface version", () => {
     const schema = recordingJsonSchema();
     expect(schema.$id).toBe(RECORDING_SCHEMA_ID);

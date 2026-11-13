@@ -291,7 +291,13 @@ export function transformEntityDef(
   return next;
 }
 
-/** `def` moved by `by`; `null` when it has no position to move. */
+/**
+ * `def` moved by `by`, a copy: its type's shapes, points and paths (a path
+ * rider's shapes stay local to its path) and its behavior blocks' points
+ * and paths, each rounded to the file's length precision. `null` when it
+ * has no position to move. Places a template def, written around the
+ * origin, at a point.
+ */
 export function translateEntityDef(registry: Registry, def: EntityDef, by: Pt): EntityDef | null {
   if (movableGeometry(registry, def).length === 0 && behaviorGeometry(registry, def).length === 0)
     return null;

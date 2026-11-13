@@ -6,6 +6,7 @@ import {
   LIMITS,
   resizeColumn,
   resizeSplit,
+  splitRange,
   toggleColumn,
   toggleGroup,
   type FittedColumn,
@@ -55,6 +56,7 @@ export function Column({ side, fitted, layout, viewport, panels, children }: Col
   const groups = fitted.groups;
   const [top, bottom] = groups;
   const gap = top && bottom ? bottom.y - top.height : 0;
+  const range = splitRange(fitted.height - gap);
   const bottomHeight = bottom ? (split ?? bottom.height) : 0;
   const placed =
     top && bottom && split !== null
@@ -96,8 +98,8 @@ export function Column({ side, fitted, layout, viewport, panels, children }: Col
           className="je-split-groups"
           style={{ top: placed[1]!.y - gap, height: gap }}
           value={bottomHeight}
-          min={LIMITS.group.min}
-          max={fitted.height - gap - LIMITS.group.min}
+          min={range.min}
+          max={range.max}
           grow={-1}
           onPreview={setSplit}
           onChange={(h) =>

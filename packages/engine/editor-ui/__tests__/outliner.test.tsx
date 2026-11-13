@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { Store } from "@tanstack/store";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import {
   afterAll,
@@ -13,7 +14,7 @@ import {
 } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../collab/index";
-import { createEditorSession, type SceneDefinition } from "../../editor/index";
+import { createEditorSession, type SceneDefinition, type SceneIssue } from "../../editor/index";
 import {
   createRegistry,
   defineEntityType,
@@ -21,10 +22,13 @@ import {
   shapeField,
   type Registry,
 } from "../../game/index";
+import type { AssetKey } from "../../project/index";
 import { prefabLibrary, SCENE_FORMAT_VERSION, type PrefabLibrary } from "../../scene/index";
+import { EditorFrame } from "../frame/EditorFrame";
 import type { EditorStorage } from "../host";
 import { KitProvider } from "../kit/index";
 import { EditorOutliner } from "../panels/EditorOutliner";
+import type { LoadedRun } from "../session/loaded-run";
 
 const registry = createRegistry();
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
@@ -173,6 +177,54 @@ describe("EditorOutliner", () => {
     expect(session.store.state.selection).toEqual(["gate"]);
     fireEvent.pointerEnter(outliner().getByRole("button", { name: /^pad/ }));
     expect(onHover).toHaveBeenLastCalledWith("pad");
+  });
+
+  it("asks the frame to bring each row it selects into the canvas's view, and nothing it deselects", () => {
+    const session = createEditorSession({
+      doc: sceneToDoc(scene(), { key: sequentialKeys("t") }),
+      origin: ada,
+      name: "outline-yard",
+      registry,
+      issuesDebounceMs: 0,
+    });
+    const reveal = vi.fn(() => true);
+    render(
+      <EditorFrame
+        host={{ storage: null }}
+        panels={{
+          context: {
+            controls: {
+              session,
+              notify: Object.assign(vi.fn(), {
+                error: vi.fn(),
+                warning: vi.fn(),
+                success: vi.fn(),
+              }),
+              runStore: new Store<LoadedRun | null>(null),
+              playFrom: vi.fn(),
+              onReplay: vi.fn(),
+              frame: () => true,
+            },
+            physical: new Store<readonly SceneIssue[]>([]),
+            pickedAsset: new Store<AssetKey | null>(null),
+          },
+          reveal,
+        }}
+      >
+        <canvas />
+      </EditorFrame>,
+    );
+    fireEvent.click(outliner().getByRole("button", { name: /^zone/ }));
+    expect(reveal).toHaveBeenLastCalledWith(["zone"]);
+    fireEvent.click(outliner().getByRole("button", { name: /^gate/ }), { shiftKey: true });
+    expect(reveal).toHaveBeenLastCalledWith(["gate"]);
+    fireEvent.click(outliner().getByRole("button", { name: /^pad/ }), { metaKey: true });
+    expect(reveal).toHaveBeenLastCalledWith(["pad"]);
+    expect(reveal).toHaveBeenCalledTimes(3);
+    fireEvent.click(outliner().getByRole("button", { name: /^zone/ }), { metaKey: true });
+    expect(session.store.state.selection).not.toContain("zone");
+    expect(reveal).toHaveBeenCalledTimes(3);
+    session.destroy();
   });
 
   it("lists rows by layer and group, and a drop onto a layer row moves the dragged rows in one batch", async () => {

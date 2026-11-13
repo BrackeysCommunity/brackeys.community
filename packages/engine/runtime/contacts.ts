@@ -6,7 +6,7 @@ import { createSpatialHash } from "../scene/spatial-hash";
 import type { Aabb } from "../scene/types";
 import type { RapierModule, Vec2 } from "../types";
 import { geometryColliders } from "./geometry-world";
-import { colliderLive } from "./space";
+import { colliderLive, rapierColliderBounds } from "./space";
 import { CONTACT_END, CONTACT_START } from "./types";
 
 /** A runtime's contact reader: `EngineContext.contacts` plus what the tick and the lifecycle call. */
@@ -68,59 +68,6 @@ function rapierSizes(c: Collider, ShapeType: RapierModule["ShapeType"]): number[
       return [c.roundRadius()];
     default:
       return [];
-  }
-}
-
-/** A Rapier collider's world bounds, or null for a shape kind with no cheap box (it is a candidate of every query). */
-function rapierBounds(c: Collider, ShapeType: RapierModule["ShapeType"]): Aabb | null {
-  const { x, y } = c.translation();
-  const rot = c.rotation();
-  const cos = Math.abs(Math.cos(rot));
-  const sin = Math.abs(Math.sin(rot));
-  const around = (ex: number, ey: number): Aabb => ({
-    minX: x - ex,
-    minY: y - ey,
-    maxX: x + ex,
-    maxY: y + ey,
-  });
-  switch (c.shapeType()) {
-    case ShapeType.Ball:
-      return around(c.radius(), c.radius());
-    case ShapeType.Cuboid:
-    case ShapeType.RoundCuboid: {
-      const { x: hw, y: hh } = c.halfExtents();
-      const r = c.shapeType() === ShapeType.RoundCuboid ? c.roundRadius() : 0;
-      return around(cos * hw + sin * hh + r, sin * hw + cos * hh + r);
-    }
-    case ShapeType.Capsule: {
-      const h = c.halfHeight();
-      const r = c.radius();
-      return around(sin * h + r, cos * h + r);
-    }
-    case ShapeType.ConvexPolygon:
-    case ShapeType.RoundConvexPolygon:
-    case ShapeType.Polyline:
-    case ShapeType.TriMesh: {
-      const v = c.vertices();
-      if (v.length < 2) return null;
-      const r = c.shapeType() === ShapeType.RoundConvexPolygon ? c.roundRadius() : 0;
-      const ca = Math.cos(rot);
-      const sa = Math.sin(rot);
-      const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-      for (let i = 0; i + 1 < v.length; i += 2) {
-        const lx = v[i]!;
-        const ly = v[i + 1]!;
-        const wx = x + lx * ca - ly * sa;
-        const wy = y + lx * sa + ly * ca;
-        box.minX = Math.min(box.minX, wx - r);
-        box.minY = Math.min(box.minY, wy - r);
-        box.maxX = Math.max(box.maxX, wx + r);
-        box.maxY = Math.max(box.maxY, wy + r);
-      }
-      return box;
-    }
-    default:
-      return null;
   }
 }
 
@@ -199,7 +146,7 @@ export function createContacts(ctx: EngineContext): RuntimeContacts {
           const { x, y } = c.translation();
           return {
             at: [x, y, c.rotation(), c.shape, ...rapierSizes(c, ShapeType)],
-            box: () => rapierBounds(c, ShapeType),
+            box: () => rapierColliderBounds(c, ShapeType),
           };
         },
       };

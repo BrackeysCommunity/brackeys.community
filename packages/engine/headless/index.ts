@@ -11,6 +11,7 @@ export {
   unknownActionError,
 } from "./headless";
 export type {
+  HeadlessLive,
   HeadlessRuntime,
   HeadlessRuntimeOptions,
   ProbeInput,
@@ -18,6 +19,12 @@ export type {
   ProbeReport,
 } from "./types";
 export { memorySaveStore } from "../saves/store";
+export {
+  swapCheck,
+  type SwapCheckOptions,
+  type SwapCheckReport,
+  type SwapCheckRun,
+} from "./swap-check";
 export {
   captureSave,
   restoreSave,
@@ -41,6 +48,7 @@ export type {
   SceneRuntimeHandle,
   StepEvent,
   StepResult,
+  SwapReport,
 } from "../runtime/types";
 export {
   CONTACT_END,
@@ -115,7 +123,9 @@ export {
 } from "./recording";
 export {
   createRunRecorder,
+  recordedSwap,
   REPLAY_ACROSS_PLATFORMS,
+  type RecordedLoad,
   type RecorderOptions,
   type RecordingEnd,
   type RecordingHost,

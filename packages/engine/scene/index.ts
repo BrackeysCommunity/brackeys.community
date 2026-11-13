@@ -129,6 +129,7 @@ export {
   type Dihedral,
   type Transform2D,
 } from "./transform";
+export { translateEntityDef } from "./translate";
 export { DEFAULT_LAYERS, defaultLayer, type SceneLayerDef } from "./layers";
 export {
   canonicalGrid,
@@ -188,7 +189,8 @@ export {
   type SublevelSettings,
   type ValidateOptions,
 } from "./validate";
-export { ISSUE_CODES, jsonPointer, makeIssue } from "./issues";
+export { ISSUE_CODES, jsonPointer, liveIssue, makeIssue, type LiveIssueInput } from "./issues";
+export { diffExpanded } from "./expanded-diff";
 export {
   fragmentJsonSchema,
   layerNames,
@@ -280,6 +282,7 @@ export {
   runRecordingSchema,
   runRecordingV1Schema,
   type ParseRecordingResult,
+  type RecordedSwap,
   type RecordingCommand,
   type RecordingIssue,
   type RecordingMarker,

@@ -181,6 +181,29 @@ describe("parseChecks", () => {
     expect(bad({ tick: -1 }, game)[0]!.path).toBe("/checks/0/expect/tick");
   });
 
+  it("parses a reaches check's nav: agents and where they walk", () => {
+    const nav = [
+      { id: "guard", to: [4, 1.5] },
+      { id: "guard#1", to: "hero" },
+    ];
+    const r = parseChecks(
+      text([{ id: "r", kind: "reaches", script: "r.json", result: "timeout", nav }]),
+      engine,
+    );
+    expect(r.ok && r.file.checks[0]).toMatchObject({ nav });
+    const bad = (value: unknown) =>
+      issues(
+        text([{ id: "r", kind: "reaches", script: "r.json", result: "timeout", nav: value }]),
+        engine,
+      );
+    expect(bad([])[0]!.path).toBe("/checks/0/nav");
+    expect(bad([{ id: "guard", to: [1] }])[0]!.path).toMatch(/^\/checks\/0\/nav\/0\/to/);
+    expect(bad([{ id: "guard", to: "hero", within: 1 }])[0]).toMatchObject({
+      path: "/checks/0/nav/0/within",
+      message: 'unknown key "within"',
+    });
+  });
+
   it("leaves an inline script to the playtest's compiler", () => {
     const r = parseChecks(
       text([{ id: "r", kind: "reaches", script: { v: 2, steps: "?" }, result: "timeout" }]),

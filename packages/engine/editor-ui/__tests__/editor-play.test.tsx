@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys } from "../../collab/index";
@@ -8,7 +16,10 @@ import type { SceneDefinition } from "../../editor/index";
 import { defineGame } from "../../game/index";
 import { createGame, type GameInstance, type RapierModule } from "../../index";
 import type { MountUi } from "../../ui/types";
-import { EditorFrame, editorChrome } from "../frame/EditorFrame";
+import { EditorFrame, editorChrome, type FramePanels } from "../frame/EditorFrame";
+import type { EditorStorage } from "../host";
+import { LAYOUT_WRITE_DELAY } from "../layout/use-layout";
+import { PANELS } from "../panels/registry";
 import { usePlayUi } from "../SceneEditor";
 import { editorIdentity, openLiveEditor, type LiveEditor } from "../session/live-scene-editor";
 
@@ -86,8 +97,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** The editor on a real game, its keys read from the window as GameCanvas sets it up. */
-async function setup(scene: SceneDefinition = yard()) {
+/**
+ * The editor on a real game, its keys read from the window as GameCanvas sets
+ * it up. `rerender` draws it again, as a rebuild does, with `panels` changed.
+ */
+async function setup(
+  scene: SceneDefinition = yard(),
+  frameHost: { storage?: EditorStorage | null } = {},
+) {
   const canvas = document.createElement("canvas");
   document.body.append(canvas);
   game = await createGame(canvas, {
@@ -107,24 +124,24 @@ async function setup(scene: SceneDefinition = yard()) {
     issuesDebounceMs: 0,
   });
   const { session, host } = live;
-  render(
-    <EditorFrame
-      topLeft={null}
-      {...editorChrome({
-        session,
-        host,
-        game,
-        onPlay: live.play,
-        onReplay: live.replay,
-        onStop: live.stop,
-        onRestart: live.restart,
-        notify: toast,
-      })}
-    >
+  const chrome = editorChrome({
+    session,
+    host,
+    game,
+    onPlay: live.play,
+    onReplay: live.replay,
+    onStop: live.stop,
+    onRestart: live.restart,
+    notify: toast,
+  });
+  const frame = (panels: FramePanels | undefined = chrome.panels) => (
+    <EditorFrame topLeft={null} host={frameHost} {...chrome} panels={panels}>
       <div />
-    </EditorFrame>,
+    </EditorFrame>
   );
-  return { game, live, canvas };
+  const view = render(frame());
+  const rerender = (panels?: FramePanels) => view.rerender(frame(panels));
+  return { game, live, canvas, chrome, rerender };
 }
 
 const state = () => game!.getStore().state;
@@ -239,5 +256,110 @@ describe("the game's UI during Play", () => {
     renderHook(() => usePlayUi(game, () => canvas, null));
     act(() => live.play());
     expect(ui.mountUi).not.toHaveBeenCalled();
+  });
+});
+
+/** The game's display, which the frame around it fills: the engine's default 1920x1080. */
+function fillWindow() {
+  Object.assign(window, { innerWidth: 1920, innerHeight: 1080 });
+  window.dispatchEvent(new Event("resize"));
+}
+
+/** Where a world point is drawn, in px from the canvas's corner. */
+function screenOf(x: number, y: number) {
+  const { position, scale } = state().camera;
+  return { x: (x - position.x) * scale + 960, y: (y - position.y) * scale + 540 };
+}
+
+/** The part of the canvas the columns leave visible, from their drawn edges. */
+function visibleSpan() {
+  const left = document.querySelector<HTMLElement>(".je-frame-column.je-frame-left")!;
+  const right = document.querySelector<HTMLElement>(".je-frame-column.je-frame-right")!;
+  const px = (el: HTMLElement, prop: "left" | "width") => Number.parseFloat(el.style[prop]);
+  return { from: px(left, "left") + px(left, "width"), to: px(right, "left") };
+}
+
+const outlinerRow = (name: string) =>
+  within(screen.getByRole("navigation", { name: "Outliner" })).getByRole("button", {
+    name: new RegExp(`^${name}`),
+  });
+
+describe("the editor's camera", () => {
+  beforeEach(fillWindow);
+  afterEach(() => {
+    Object.assign(window, { innerWidth: 1024, innerHeight: 768 });
+  });
+
+  it("frames a selection made in the outliner when f is pressed there", async () => {
+    await setup();
+    const row = outlinerRow("zone");
+    fireEvent.click(row);
+    row.focus();
+    fireEvent.keyDown(row, { key: "f", code: "KeyF" });
+    expect(state().camera.zoom).toBe(5);
+    const { from, to } = visibleSpan();
+    expect(screenOf(9, 6).x).toBeCloseTo((from + to) / 2, 6);
+    expect(screenOf(9, 6).y).toBeCloseTo(540, 6);
+  });
+
+  it("pans an off-screen outliner selection into the visible canvas, never zooming", async () => {
+    await setup();
+    act(() => game!.panBy({ x: 1500, y: 0 }));
+    const zoom = state().camera.zoom;
+    const { from, to } = visibleSpan();
+    expect(screenOf(10, 10.1).x).toBeGreaterThan(to);
+
+    fireEvent.click(outlinerRow("pad"));
+    expect(state().camera.zoom).toBe(zoom);
+    expect(screenOf(10, 10.1).x).toBeCloseTo((from + to) / 2, 6);
+
+    const seen = { ...state().camera.position };
+    fireEvent.click(outlinerRow("zone"));
+    expect(state().camera.position).toEqual(seen);
+  });
+
+  it("keeps the world point under the pointer through a wheel zoom, in px and in lines", async () => {
+    const { canvas } = await setup();
+    // Framing the whole scene leaves it smaller than the canvas, offset for the columns.
+    fireEvent.keyDown(window, { key: "f", code: "KeyF" });
+    const framed = state().camera.zoom;
+    expect(2000 * framed).toBeLessThan(1920);
+    const pointer = { x: 420, y: 300 };
+    const under = game!.screenToWorld(pointer);
+
+    fireEvent.wheel(canvas, { clientX: pointer.x, clientY: pointer.y, deltaY: -100 });
+    expect(state().camera.zoom).toBeCloseTo(framed * 1.15, 6);
+    expect(game!.screenToWorld(pointer).x).toBeCloseTo(under.x, 6);
+    expect(game!.screenToWorld(pointer).y).toBeCloseTo(under.y, 6);
+
+    fireEvent.wheel(canvas, { clientX: pointer.x, clientY: pointer.y, deltaY: 3, deltaMode: 1 });
+    expect(state().camera.zoom).toBeCloseTo(framed, 6);
+    expect(game!.screenToWorld(pointer).x).toBeCloseTo(under.x, 6);
+    expect(game!.screenToWorld(pointer).y).toBeCloseTo(under.y, 6);
+  });
+});
+
+describe("the layout through Play", () => {
+  const leftOpen = () => screen.queryByRole("separator", { name: "Left column edge" }) !== null;
+
+  it("keeps a column collapsed before Play collapsed after Stop, through the rebuild Stop lets in", async () => {
+    const { chrome, rerender } = await setup(yard(), { storage: null });
+    fireEvent.click(screen.getByRole("button", { name: "Collapse the left column" }));
+    expect(leftOpen()).toBe(false);
+    // Long enough for the layout to settle and be written, as it is by the time anyone plays.
+    await act(() => new Promise((done) => setTimeout(done, LAYOUT_WRITE_DELAY + 50)));
+
+    fireEvent.keyDown(window, { key: "Enter", ctrlKey: true });
+    expect(state().mode).toBe("play");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(state().mode).toBe("edit");
+    expect(leftOpen()).toBe(false);
+
+    // A rebuild draws the booting panels, then the editor's, which may bring one more.
+    const extra = { ...PANELS[0]!, id: "extra", title: "Extra" };
+    rerender({ ...chrome.panels!, defs: PANELS.filter((p) => p.id !== "history") });
+    rerender({ ...chrome.panels!, defs: [...PANELS, extra] });
+    expect(leftOpen()).toBe(false);
+    expect(screen.getByRole("navigation", { name: "Left panels" })).toBeTruthy();
   });
 });

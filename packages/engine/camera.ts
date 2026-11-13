@@ -13,7 +13,11 @@ export const CAMERA_SCENE_MARGIN = 1;
 export type Viewport = { x: number; y: number; width: number; height: number };
 
 export type Camera = {
-  /** In `follow` mode eases toward `target` (`null` holds); in `free` mode holds. Either way it stays inside the bounds. */
+  /**
+   * In `follow` mode eases toward `target` (`null` holds) with the view inside
+   * the bounds; in `free` mode holds, with the view only kept from leaving
+   * the bounds entirely, so a zoom about any point over them keeps it put.
+   */
   update: (dt: number, target: Vec2 | null) => void;
   getPosition: () => Vec2;
   getViewport: () => Viewport;
@@ -77,6 +81,13 @@ export function createCamera(
   function clampToBounds(p: Vec2): Vec2 {
     const halfW = viewW / (2 * zoom);
     const halfH = viewH / (2 * zoom);
+    if (mode === "free") {
+      return clampVec2(
+        p,
+        { x: bounds.min.x - halfW, y: bounds.min.y - halfH },
+        { x: bounds.max.x + halfW, y: bounds.max.y + halfH },
+      );
+    }
     const worldW = bounds.max.x - bounds.min.x;
     const worldH = bounds.max.y - bounds.min.y;
     const center = boundsCenter();

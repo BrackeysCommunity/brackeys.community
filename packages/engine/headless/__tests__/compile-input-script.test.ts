@@ -426,6 +426,79 @@ describe("command and elapse steps", () => {
     );
   });
 
+  it("compile a nav step to one slot that sends @nav, holding what the hold before held", () => {
+    const result = compileInputScript(
+      {
+        v: 2,
+        steps: [
+          { hold: ["right"], for: 3 },
+          { nav: { id: "guard", to: [4, 1.5] } },
+          { wait: 2 },
+          { nav: { id: "guard#1", to: "hero" } },
+        ],
+      },
+      game,
+    );
+    expect(result).toEqual({
+      ok: true,
+      script: {
+        maxTicks: 1800,
+        play: {},
+        steps: [
+          { index: 0, hold: ["right"], ticks: 3 },
+          {
+            index: 1,
+            hold: ["right"],
+            ticks: 1,
+            commands: [{ name: "@nav", args: { id: "guard", to: [4, 1.5] } }],
+          },
+          { index: 2, hold: [], ticks: 2 },
+          {
+            index: 3,
+            hold: [],
+            ticks: 1,
+            commands: [{ name: "@nav", args: { id: "guard#1", to: "hero" } }],
+          },
+        ],
+        edges: [
+          [0, "right", 1],
+          [4, "right", 0],
+        ],
+      },
+    });
+  });
+
+  it("refuses @nav as a command, a nav step in v1, a duration on one and a misspelt key", () => {
+    const found = issues(
+      compileInputScript(
+        {
+          v: 2,
+          steps: [
+            { command: "@nav", args: { id: "guard", to: "hero" } },
+            { nav: { id: "guard", to: "hero" }, for: 3 },
+            { nav: { id: "guard", too: "hero" } },
+            { nav: { id: "guard", to: [1] } },
+          ],
+        },
+        game,
+      ),
+    );
+    const at = (path: string) => found.find((i) => i.path === path)?.message;
+    expect(at("/steps/0/command")).toBe("@nav is the engine's; send it with a nav step");
+    expect(at("/steps/1/for")).toMatch(/^for goes with a hold, set or pointer step/);
+    expect(at("/steps/2/nav/too")).toBe('unknown key "too"; did you mean "to"?');
+    expect(found.some((i) => i.path.startsWith("/steps/3/nav/to"))).toBe(true);
+    const v1 = issues(
+      compileInputScript({ v: 1, steps: [{ nav: { id: "guard", to: "hero" } }] }, game),
+    );
+    expect(v1).toEqual([
+      expect.objectContaining({
+        path: "/steps/0/nav",
+        hint: 'nav steps need input-script v2: set "v": 2.',
+      }),
+    ]);
+  });
+
   it("points a duration on a step other than hold at the hold step", () => {
     const found = issues(
       compileInputScript(
@@ -673,7 +746,7 @@ describe("input-script v2", () => {
     expect(at("/steps/12/pointer/presss")).toBe('unknown key "presss"; did you mean "press"?');
     expect(at("/steps/13/max")).toMatch(/max caps an until step/);
     expect(at("/steps/14")).toBe(
-      "a step is one of hold, set, pointer, press, wait, command, elapse, join or leave, not press and set",
+      "a step is one of hold, set, pointer, press, wait, command, elapse, nav, join or leave, not press and set",
     );
   });
 

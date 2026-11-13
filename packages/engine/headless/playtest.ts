@@ -3,11 +3,13 @@ import { resolveTime } from "../game/time";
 import type { GameDefinition, JsonValue, PlayState, Registry } from "../game/types";
 import { sameValue } from "../project/canonical";
 import { parseJsonPointer } from "../project/json-edit";
+import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
 import { gamePersistCell } from "../runtime/persist";
 import {
   createRunRecorder,
   recordedCommand,
+  recordedSwap,
   recordingRapier,
   trailPoint,
   type RecordingHost,
@@ -39,6 +41,7 @@ import {
 } from "./play-loop";
 import type {
   CompiledInputScript,
+  CompileResult,
   EventMatch,
   InputEdge,
   InputScript,
@@ -209,6 +212,25 @@ function segmentSource(source: InputSource, base: { slots: number; ticks: number
 }
 
 /**
+ * Compiles `script` as `runPlaytest` plays it: at the rate the project's
+ * `engine` block and the game give, its seats and pointer bindings the
+ * project input map's over the game's.
+ */
+export function compilePlaytestScript(
+  script: InputScript | InputScriptV2,
+  registry: Registry,
+  project?: ProjectRuntimeView | null,
+): CompileResult {
+  return compileInputScript(
+    script,
+    registry,
+    resolveTime({ project: project?.engine, game: registry.time }),
+    project?.inputMap?.players,
+    project?.inputMap,
+  );
+}
+
+/**
  * Plays an input script on a scene headless, starting the run the way the
  * editor's Play does (validation errors block, the document is cloned and
  * expanded, `at` is cast with the game's spawn shape), and reports how it
@@ -237,13 +259,7 @@ export function runPlaytest<S = unknown, G = unknown>(
   let script: CompiledInputScript;
   if (isCompiled(opts.script)) script = opts.script;
   else {
-    const compiled = compileInputScript(
-      opts.script,
-      registry,
-      resolveTime({ project: engine, game: registry.time }),
-      opts.project?.inputMap?.players,
-      opts.project?.inputMap,
-    );
+    const compiled = compilePlaytestScript(opts.script, registry, opts.project);
     if (!compiled.ok) return blockedRun("script", name, [], compiled.issues);
     script = compiled.script;
   }
@@ -370,6 +386,7 @@ export function runPlaytest<S = unknown, G = unknown>(
         ...(persistAtLoad !== undefined ? { persist: persistAtLoad } : {}),
         entry: seg.entry,
         ...(saved ? { fromSave: { slot: saved.file.slot, sha256: saved.sha256 } } : {}),
+        sceneVersion: runtime.ctx.live.version,
         time,
         players: runtime.ctx.input.players(),
         platform: opts.platform,
@@ -377,6 +394,7 @@ export function runPlaytest<S = unknown, G = unknown>(
         maxTrail,
         registry,
       });
+      started.live.onApplied((swap) => recorder.swap(recordedSwap(swap)));
 
       let last = null as PlayState | null;
       let end: RunEnd;
@@ -387,6 +405,7 @@ export function runPlaytest<S = unknown, G = unknown>(
           maxTicks: script.maxTicks - base.ticks,
           input: segmentSource(source, base),
           carry,
+          live: started.live,
           onTick(state, focus, edges, stepped, tickInput) {
             last = state;
             const at = base.ticks + state.tick;

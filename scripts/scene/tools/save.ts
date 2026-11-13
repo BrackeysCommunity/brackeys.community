@@ -1,7 +1,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join, matchesGlob, relative, sep } from "node:path";
 
-import { formatSaveFile, SLOT_PATTERN, type SaveDepth, type SaveFile } from "@jams/engine/game";
+import {
+  formatSaveFile,
+  SLOT_MAX_LENGTH,
+  SLOT_PATTERN,
+  type SaveDepth,
+  type SaveFile,
+} from "@jams/engine/game";
 import { captureSave, runPlaytest, type SaveBlocker } from "@jams/engine/headless";
 import {
   projectPathMatcher,
@@ -172,7 +178,7 @@ export const save: Tool<SaveInput> = async (input, ctx) => {
   const slot = name.slice(0, -SAVE_SUFFIX.length);
   if (!SLOT_PATTERN.test(slot))
     return usage(
-      `--out's name before ${SAVE_SUFFIX} is the save's slot: lowercase letters, digits and dashes, 1–32 characters; got ${JSON.stringify(slot)}`,
+      `--out's name before ${SAVE_SUFFIX} is the save's slot: lowercase letters, digits and dashes, 1–${SLOT_MAX_LENGTH} characters; got ${JSON.stringify(slot)}`,
     );
 
   const loaded = await openScene(ctx, input.scene, USAGE);

@@ -4,7 +4,9 @@
   the build named by ?frame=<url> in an iframe with ?host=jams, answers the
   frame's jams:frame-ready with a port, answers hello and every saves.* and
   prefs.save request from memory, and records what it saw on
-  window.__hostStub for the smoke to read.
+  window.__hostStub for the smoke to read: the frame's live.state reports
+  and the downloads it offered, their contents as text. The smoke sends
+  page events (live.update, pause, …) through window.__hostStub.send.
 
   The iframe isn't sandboxed: the smoke's static server sends no CORS
   headers, so an opaque-origin frame couldn't fetch its own build. It is on
@@ -41,6 +43,8 @@
           hello: null,
           states: [],
           requests: [],
+          live: [],
+          downloads: [],
           invalid: 0,
         };
         window.__hostStub = record;
@@ -81,7 +85,24 @@
             record.states.push(m.jamsState);
             return;
           }
-          if (m && m.type === "download") return;
+          if (m && m.type === "live.state") {
+            const { type: _type, ...report } = m;
+            record.live.push(report);
+            return;
+          }
+          if (m && m.type === "download" && m.bytes instanceof ArrayBuffer) {
+            let text = null;
+            try {
+              text = new TextDecoder("utf-8", { fatal: true }).decode(m.bytes);
+            } catch {}
+            record.downloads.push({
+              name: String(m.name),
+              contentType: String(m.contentType),
+              bytes: m.bytes.byteLength,
+              text,
+            });
+            return;
+          }
           if (!isRequest(m)) {
             record.invalid++;
             return;
@@ -146,8 +167,12 @@
           frame.contentWindow.postMessage({ type: "jams:host", protocol: 1 }, "*", [channel.port2]);
         });
 
-        /** Posts a page event (pause, resume, saves.changed) to the frame. */
-        record.send = (message) => port?.postMessage(message);
+        /** Posts a page event (pause, resume, saves.changed, live.update) to the frame; false before the port. */
+        record.send = (message) => {
+          if (!port) return false;
+          port.postMessage(message);
+          return true;
+        };
 
         const url = new URL(target);
         url.searchParams.set("host", "jams");

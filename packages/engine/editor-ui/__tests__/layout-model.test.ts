@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   DEFAULT_LAYOUT,
   fitLayout,
+  FRAME,
   LIMITS,
   movePanel,
   parseLayout,
@@ -10,6 +11,7 @@ import {
   resizeSplit,
   revealPanel,
   selectTab,
+  splitRange,
   toggleColumn,
   toggleGroup,
   type EditorLayout,
@@ -196,11 +198,44 @@ describe("minimums", () => {
     expect(resizeSplit(LEFT_MERGED, "left", 200)).toBe(LEFT_MERGED);
   });
 
-  it("draws a tall stored split no taller than leaves the top group its minimum", () => {
+  it("draws a tall stored split no taller than leaves the top group its share", () => {
     const tall = resizeSplit(DEFAULT_LAYOUT, "right", 5000);
     const fit = fitLayout(tall, view(1440, 900));
-    expect(fit.right!.groups[0]!.height).toBe(LIMITS.group.min);
+    const room = fit.right!.height - FRAME.gap;
+    expect(fit.right!.groups[0]!.height).toBe(Math.round(room * LIMITS.group.topShare));
+    expect(fit.right!.groups[1]!.height).toBe(splitRange(room).max);
     expect(tall.right.groups[1]!.size).toBe(5000);
+  });
+
+  it("at 1024 px with Project settings open, leaves the outliner its share of the left column", () => {
+    const layout = selectTab(DEFAULT_LAYOUT, "settings");
+    expect(layout.left.groups[1]!.size).toBe(480);
+    for (const height of [700, 768]) {
+      const left = fitLayout(layout, view(1024, height)).left!;
+      const [outliner, settings] = left.groups;
+      const room = left.height - FRAME.gap;
+      expect(outliner!.height).toBeGreaterThanOrEqual(Math.round(room * LIMITS.group.topShare));
+      expect(outliner!.height + settings!.height).toBe(room);
+      expect(settings!.height).toBeGreaterThan(DEFAULT_LAYOUT.left.groups[1]!.size!);
+    }
+  });
+
+  it("starts a bottom group with no stored height at its default share", () => {
+    const layout: EditorLayout = {
+      ...DEFAULT_LAYOUT,
+      left: {
+        ...DEFAULT_LAYOUT.left,
+        groups: [DEFAULT_LAYOUT.left.groups[0], { ...DEFAULT_LAYOUT.left.groups[1]!, size: null }],
+      },
+    };
+    const left = fitLayout(layout, view(1024, 768)).left!;
+    const room = left.height - FRAME.gap;
+    expect(left.groups[1]!.height).toBe(Math.round(room * LIMITS.group.bottomShare));
+  });
+
+  it("bounds the split between the bottom group's minimum and the top group's share", () => {
+    expect(splitRange(600)).toEqual({ min: LIMITS.group.min, max: 360 });
+    expect(splitRange(150)).toEqual({ min: LIMITS.group.min, max: LIMITS.group.min });
   });
 
   it("collapses the bottom group first when both minimums don't fit", () => {

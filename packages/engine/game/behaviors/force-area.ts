@@ -71,7 +71,10 @@ export type ForceAreaSystem = BehaviorSystem<ForceAreaBlock> & {
   /**
    * The summed acceleration every area containing `point` gives, m/s²: what
    * a kinematic controller adds. With `entityId`, only the areas whose
-   * `affects` takes that entity count, by the rule they push bodies by.
+   * `affects` takes that entity count, by the rule they push bodies by. The
+   * characters add it to their own velocity, which their `decel` then works
+   * against while idle: a push weaker than the decel builds no speed, and a
+   * stronger one carries the character at the difference.
    */
   sample(point: Vec2, entityId?: string): Vec2;
 };

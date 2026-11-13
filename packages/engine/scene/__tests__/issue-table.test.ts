@@ -10,18 +10,24 @@ import { checkItchLayout } from "../../export/itch";
 import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineGame, withProject } from "../../game/define";
 import { assetField } from "../../game/fields";
+import type { SwapTiming } from "../../game/live";
 import { parseSaveFile, type SaveFile } from "../../game/save-file";
 import type { Registry } from "../../game/types";
+import { replayRecording } from "../../headless/recording";
 import { runChecks } from "../../headless/run-checks";
 import { validatePhysical } from "../../headless/validate-physical";
 import { createKindRegistry, parseAssetDoc } from "../../project/kinds";
 import { gameSettingsKind } from "../../project/kinds/game-settings";
 import { sceneListIssues, sceneListKind } from "../../project/kinds/scene-list";
 import { checkProjectBatch } from "../../project/ops";
+import { ENGINE_FORMATS, type ReleaseAsset, type ReleaseManifest } from "../../project/release";
 import { heldProject } from "../../project/runtime-view";
+import { checkSceneVersion, liveCompat, type SceneVersion } from "../../project/scene-version";
 import { jsonValues, snapshotProject } from "../../project/snapshot";
 import type { AssetEntry } from "../../project/types";
 import { projectView } from "../../project/view";
+import { createLiveLayer } from "../../runtime/live";
+import { createRunRecorder } from "../../runtime/recorder";
 import { createSceneRuntime } from "../../runtime/runtime";
 import { captureSave } from "../../runtime/save-state";
 import { createSaveSlots } from "../../saves/slots";
@@ -29,7 +35,7 @@ import { memorySaveStore, type SaveStore } from "../../saves/store";
 import type { RapierModule } from "../../types";
 import { expandScene } from "../expand";
 import { formatScene } from "../format";
-import { ISSUE_CODES } from "../issues";
+import { ISSUE_CODES, liveIssue } from "../issues";
 import { applyOps } from "../ops";
 import { locatePointer, parseScene } from "../parse";
 import {
@@ -235,6 +241,105 @@ function physical(def: SceneDefinition): SceneIssue[] {
 function opIssue(def: SceneDefinition, ops: unknown[], base?: string): SceneIssue[] {
   const r = applyOps(def, { ops, base } as never, engine);
   return r.ok ? r.issues : [r.issue];
+}
+
+/**
+ * A release that lists `level-1` and ships `hero`, and a version of
+ * `level-1` that fits it until `edit` changes one of them. Only the parts
+ * `checkSceneVersion` reads are filled in.
+ */
+function liveCheck(edit: (m: Mutable<ReleaseManifest>, v: Mutable<SceneVersion>) => void) {
+  const hash = (c: string) => c.repeat(64);
+  const hero: ReleaseAsset = {
+    key: "k-hero",
+    kind: "texture",
+    path: "art/hero.png",
+    sha256: hash("b"),
+    bytes: 4,
+    storage: "blob",
+    file: `assets/${hash("b")}.png`,
+  };
+  const level: ReleaseAsset = {
+    key: "k-level",
+    kind: "scene",
+    path: "scenes/level-1.json",
+    sha256: hash("c"),
+    bytes: 2,
+    storage: "doc",
+    file: `live/${hash("c")}.json`,
+  };
+  const listed = {
+    id: "level-1",
+    physics: "none",
+    prefabs: [],
+    bundle: { entries: ["hero"], bytes: 4 },
+  };
+  const manifest = {
+    engine: { formats: ENGINE_FORMATS },
+    game: { id: "fake", configHash: null },
+    project: { id: "p", build: { scene: hash("a") } },
+    build: { rapier: null },
+    flow: { start: "level-1", scenes: [listed] },
+    assets: { hero, "level-1": { ...level, sha256: hash("d"), file: `data/${hash("d")}.json` } },
+  } as unknown as Mutable<ReleaseManifest>;
+  const version = structuredClone({
+    kind: "scene-version",
+    v: 1,
+    project: "p",
+    scene: "level-1",
+    compat: liveCompat(manifest as ReleaseManifest),
+    engine: "0.14.4",
+    base: null,
+    entry: listed,
+    sceneHash: "0123456789abcdef",
+    assets: { hero: { ...hero, file: `live/${hash("b")}.png` }, "level-1": level },
+  } as SceneVersion) as Mutable<SceneVersion>;
+  edit(manifest, version);
+  return checkSceneVersion(manifest as ReleaseManifest, version as SceneVersion);
+}
+
+type Mutable<T> = { -readonly [K in keyof T]: Mutable<T[K]> };
+
+/** A live layer over a running physics-free scene whose game's `onSwap` throws, and a version of it staged. */
+function liveLayerFixture(live?: { timings: readonly SwapTiming[] }) {
+  const game = defineGame({
+    id: "live-fixture",
+    world: { physics: "none" },
+    actions: [],
+    types: [],
+    ...(live ? { live } : {}),
+    createRuntime: () => ({
+      snapshot: () => null,
+      onSwap() {
+        throw new Error("onSwap threw: the door moved");
+      },
+    }),
+  });
+  const registry = createRegistry(game);
+  let rt: ReturnType<typeof createSceneRuntime> | null = null;
+  const failed: SceneIssue[] = [];
+  const layer = createLiveLayer({
+    game,
+    runtime: () => rt,
+    emit: (event, payload) => {
+      if (event === "live:failed") failed.push((payload as { issue: SceneIssue }).issue);
+    },
+  });
+  rt = createSceneRuntime({ rapier: null, view: null, game, registry, live: layer.hooks });
+  const def = scene({ settings: { physics: "none" } });
+  rt.load(expandScene(def, registry));
+  const next = scene({ settings: { physics: "none" } }, [
+    { id: "flag", type: "marker", at: [1, 1] },
+  ]);
+  const sha = "e".repeat(64);
+  layer.stage({
+    id: sha,
+    version: { scene: def.name, sceneHash: "h" } as SceneVersion,
+    def: next,
+    scene: expandScene(next, registry),
+    prefabs: new Map(),
+  });
+  return { layer, scene: def.name, sha, failed };
 }
 
 const rock = (shape: unknown[]): EntityDef => ({
@@ -736,6 +841,50 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
         file: `assets/${"c".repeat(64)}.sound`,
       },
     }).issues,
+  "live-incompatible": () =>
+    liveCheck((m) => {
+      m.project.build.scene = "e".repeat(64);
+    }),
+  "live-scene-unlisted": () =>
+    liveCheck((m) => {
+      m.flow.scenes = [];
+    }),
+  "live-physics": () =>
+    liveCheck((_, v) => {
+      v.entry.physics = "rapier";
+    }),
+  "live-asset-conflict": () =>
+    liveCheck((m) => {
+      m.assets.hero!.sha256 = "f".repeat(64);
+    }),
+  "live-swap-failed": () => {
+    const { layer, scene: id, sha, failed } = liveLayerFixture({ timings: ["now"] });
+    layer.activate(id, sha, "now");
+    layer.afterTick({ paused: false, changing: false });
+    return failed;
+  },
+  "live-timing-unsupported": () => {
+    const { layer, scene: id, sha } = liveLayerFixture();
+    const { issue } = layer.activate(id, sha, "now");
+    return issue ? [issue] : [];
+  },
+  "scene-version-removed": () => {
+    const def = scene({ settings: { physics: "none" } });
+    const recording = createRunRecorder({
+      rapier: null,
+      game: null,
+      scene: def.name,
+      sceneHash: "0".repeat(16),
+      runHash: "0".repeat(16),
+      start: {},
+    }).finish({ result: "timeout", tick: -1, ticks: 0 }, null);
+    const run = replayRecording({
+      scene: def,
+      recording: { ...recording, sceneVersion: "e".repeat(64) },
+      versions: () => null,
+    });
+    return run.issues;
+  },
 };
 
 /** Raised below the code's own severity on purpose: an icon that falls back to the default warns. */
@@ -743,16 +892,23 @@ const SEVERITY_RAISED: Partial<Record<EngineIssueCode, SceneIssue["severity"]>> 
   "export-asset-missing": "warn",
 };
 
-/** Codes with no line to point at: a sidecar with no licence, a budget or a layout over built files. */
+/** Codes with no line to point at: a sidecar with no licence, a budget or a layout over built files, a recording read as data. */
 const NO_LINE_CODES: readonly EngineIssueCode[] = [
   "licence-missing",
+  "scene-version-removed",
+  "live-swap-failed",
+  "live-timing-unsupported",
   "export-over-budget",
   "export-itch-layout",
   "export-target-unsupported",
 ];
 
 /** A build's target comes from the command line, not from a document a path could point into. */
-const NO_PATH_CODES: readonly EngineIssueCode[] = ["export-target-unsupported"];
+const NO_PATH_CODES: readonly EngineIssueCode[] = [
+  "export-target-unsupported",
+  "live-swap-failed",
+  "live-timing-unsupported",
+];
 
 /** `applyOps` and `checkProjectBatch` codes point into the batch, which has no line map. */
 const OP_CODES: readonly EngineIssueCode[] = [
@@ -817,6 +973,46 @@ describe("the engine's issue table", () => {
     expect(applied.ok, JSON.stringify(applied)).toBe(true);
     if (!applied.ok) return;
     expect(validated(applied.def).map((i) => i.code)).not.toContain("character-body-kind");
+  });
+
+  it("words the live-level codes with their values filled in", () => {
+    const issues = [
+      liveIssue({ code: "live-incompatible", rule: "build", version: "level-1@4", release: "v7" }),
+      liveIssue({
+        code: "live-incompatible",
+        rule: "formats",
+        version: "level-1@4",
+        release: "v7",
+        format: 3,
+        reads: 2,
+      }),
+      liveIssue({ code: "live-incompatible", rule: "game", version: "level-1@4" }),
+      liveIssue({ code: "live-scene-unlisted", release: "v7", scene: "level-9" }),
+      liveIssue({ code: "live-physics", release: "v7", scene: "level-1" }),
+      liveIssue({ code: "live-asset-conflict", scene: "level-1", asset: "hero.png" }),
+      liveIssue({ code: "live-swap-failed", scene: "level-1", cause: "onSwap threw: boom" }),
+      liveIssue({ code: "live-timing-unsupported", version: "level-1@4", accepted: [] }),
+      liveIssue({ code: "scene-version-removed", version: "level-1@3", tick: 40 }),
+    ];
+    for (const issue of issues) {
+      expect(issue.severity).toBe(ISSUE_CODES[issue.code as EngineIssueCode].severity);
+      expect(issue.hint?.length, issue.code).toBeGreaterThan(0);
+      expect(issue.message).not.toMatch(/[{}]/);
+    }
+    expect(issues.map((i) => i.message)).toEqual([
+      "level-1@4 was made for another build of the game: its entity types or data kinds differ from v7's.",
+      "level-1@4 uses scene format 3; v7 reads format 2.",
+      "level-1@4 belongs to another game or game configuration.",
+      "v7 doesn't list the scene level-9, so it can't be updated live.",
+      "level-1 now needs physics, and v7 was built without it.",
+      "level-1 uses a changed hero.png that other scenes share.",
+      "The update to level-1 couldn't be applied while playing; it will load next time.",
+      "This game accepts only next load; level-1@4 will reach players then.",
+      "This replay needs level-1@3, which was removed.",
+    ]);
+    expect(issues[0]!.detail).toEqual({ rule: "build" });
+    expect(issues[6]!.hint).toBe("onSwap threw: boom");
+    expect(issues[8]!.detail).toEqual({ tick: 40 });
   });
 
   it("every code any tool emits on the fixtures is registered, with a hint", async () => {

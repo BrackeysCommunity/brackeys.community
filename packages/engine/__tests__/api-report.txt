@@ -29,12 +29,17 @@ GameEventMap
 GameFlow
 GameInput
 GameInstance
+GameLive
 GameMode
 GamePhase
 GameStoreState
 IDENTITY_2D
 InputAction
 InputBinding
+LIVE_DEFAULTS
+LiveContext
+LiveDeclaration
+LiveSceneVersions
 LoadFailureReason
 LoadProgress
 LoadReport
@@ -69,16 +74,22 @@ SaveSlots
 SaveStore
 SaveSummary
 SaveWriteResult
+SceneDiff
 SceneLibrary
 SceneListEntry
 SceneSource
+SceneSwap
 SimState
 SpriteAssetInfo
 SpriteBlock
 SpriteGeometry
 SpriteVisual
+StagedVersion
 StepEvent
 StepResult
+SwapSide
+SwapStrategy
+SwapTiming
 TOOL_PRIORITY
 TextureSource
 ToolConsumer
@@ -100,6 +111,7 @@ bindText
 bindToWorld
 browserRemapStore
 browserSaveStore
+clampTiming
 compose
 composeDihedral
 createAssetLoader
@@ -115,6 +127,7 @@ fadeTransition
 flipWorld
 indexedDbSaveStore
 invert
+liveSceneSource
 localStorageSaveStore
 memoryRemapStore
 memorySaveStore
@@ -847,6 +860,7 @@ COMMAND_NAME_PATTERN
 CONTACT_END
 CONTACT_START
 CameraTargetBlock
+CastResult
 Cell
 CellBounds
 CellKey
@@ -956,9 +970,13 @@ JointSystem
 JsonValue
 KEY_CODES
 KEY_TO_CODE
+KinematicMotion
 LIFETIME
+LIVE_DEFAULTS
 LibraryScene
 LifetimeBlock
+LiveContext
+LiveDeclaration
 LoadFailureReason
 MAX_BROWSER_SAVE_LIMITS
 MAX_TICK_RATE
@@ -975,8 +993,10 @@ MotionResult
 NAV_AGENT
 NAV_ARRIVED
 NAV_BLOCKED
+NAV_COMMAND
 NavAgentBlock
 NavAgentSystem
+NavDestination
 NavEntity
 NavIssue
 NavMesh
@@ -1064,10 +1084,12 @@ SaveRequest
 SavedSystems
 SavedTimer
 SavesContext
+SceneDiff
 SceneLayerDef
 SceneLibrary
 SceneListEntry
 SceneRuntimeHandle
+SceneSwap
 SceneSystem
 SceneTemplate
 SceneValidator
@@ -1100,6 +1122,9 @@ Style
 SublevelInfo
 SublevelOptions
 SublevelResult
+SwapSide
+SwapStrategy
+SwapTiming
 SystemFactory
 TOOL_PRIORITY
 TOP_DOWN_CONTROLLER
@@ -1131,9 +1156,11 @@ bodyShapeField
 boundsCells
 buildNavMesh
 carrierDelta
+castSpawn
 cellKey
 cellOf
 clamp
+clampTiming
 clampVec2
 composePose
 createDataSystem
@@ -1274,6 +1301,7 @@ FuzzOptions
 FuzzReport
 FuzzRun
 FuzzTouch
+HeadlessLive
 HeadlessLoad
 HeadlessLoadInput
 HeadlessLoadOptions
@@ -1317,6 +1345,7 @@ ProjectSnapshot
 RECORDING_VERSION
 REPLAY_ACROSS_PLATFORMS
 RapierModule
+RecordedLoad
 RecorderOptions
 RecordingCommand
 RecordingEnd
@@ -1355,6 +1384,10 @@ StepDuration
 StepEvent
 StepResult
 StreamTables
+SwapCheckOptions
+SwapCheckReport
+SwapCheckRun
+SwapReport
 SystemEvent
 TickInput
 TimingBucket
@@ -1391,6 +1424,7 @@ pointerAt
 pointerHeld
 preparePlay
 probeConfigHash
+recordedSwap
 recordingDivergence
 replayRecording
 restoreSave
@@ -1401,6 +1435,7 @@ runPlaytest
 runProbe
 scriptSource
 simActionError
+swapCheck
 tickWakes
 unknownActionError
 untilHolds
@@ -1434,10 +1469,13 @@ AudioMeta
 AudioSettings
 BlobInspect
 BlobKindDef
+BuildSceneVersionOptions
+BuildSceneVersionResult
 BuildStamp
 BundleEntry
 CREDITS_FILE
 CheckReleaseOptions
+CheckSceneVersionOptions
 CodeKindDef
 CodeModuleInfo
 ContentStore
@@ -1487,6 +1525,7 @@ JsonPointer
 KindEnv
 KindRegistry
 Licence
+LiveCompat
 MATERIAL_KIND
 MATERIAL_SCHEMA_ID
 MATERIAL_VERSION
@@ -1552,6 +1591,8 @@ SCENE_KIND_NAME
 SCENE_LIST_KIND
 SCENE_LIST_SCHEMA_ID
 SCENE_LIST_VERSION
+SCENE_VERSION_SCHEMA_ID
+SCENE_VERSION_VERSION
 SERVICE_WORKER_FILE
 SIDECAR_SCHEMA_ID
 SIDECAR_SUFFIX
@@ -1561,6 +1602,9 @@ SaveFixtureSettings
 SceneListEntry
 SceneListFile
 SceneListFlow
+SceneVersion
+SceneVersionNames
+SceneVersionRead
 SceneWrite
 Sha256
 SnapshotAsset
@@ -1590,10 +1634,12 @@ audioKind
 audioMetaSchema
 audioSettingsSchema
 buildRefIndex
+buildSceneVersion
 byCodeUnit
 canonicalJson
 checkProjectBatch
 checkReleaseManifest
+checkSceneVersion
 checkSnapshot
 checksKind
 codeKind
@@ -1607,6 +1653,7 @@ docKindJsonSchema
 docNameOf
 engineResolution
 findRelease
+findSceneVersion
 fontKind
 fontMetaSchema
 fontSettingsSchema
@@ -1615,6 +1662,7 @@ formatBytes
 formatProjectFile
 formatProjectSnapshot
 formatReleaseManifest
+formatSceneVersion
 formatSidecar
 gameSettingsEntries
 gameSettingsIssues
@@ -1633,6 +1681,8 @@ isSha256
 isSkippedAssetPath
 keyedItemPointer
 kindInputMap
+liveCompat
+liveCompatKey
 materialKind
 materialSchema
 mayBeAssetFile
@@ -1647,6 +1697,7 @@ parseJsonPointer
 parseProjectFile
 parseProjectSnapshot
 parseReleaseManifest
+parseSceneVersion
 parseSidecar
 parseTexturePackerJson
 prefabKind
@@ -1666,6 +1717,7 @@ readGifSize
 readJpegSize
 readPngSize
 readPointer
+readSceneVersion
 readWebpSize
 recordingKind
 recordingMetaSchema
@@ -1688,6 +1740,10 @@ sceneListEntries
 sceneListFlow
 sceneListIssues
 sceneListKind
+sceneVersionId
+sceneVersionJsonSchema
+sceneVersionSchema
+sceneVersionSnapshot
 schemaRefSites
 sha256
 sidecarJsonSchema
@@ -1784,6 +1840,7 @@ IssueCodeInfo
 JsonSchemaOptions
 LENGTH_UNITS
 LengthUnitName
+LiveIssueInput
 LocalChild
 MAX_SCRIPT_TICKS
 MAX_TOUCH_ROLLOUTS
@@ -1824,6 +1881,7 @@ RECORDING_TRAIL_EVERY
 RECORDING_VERSION
 RESERVED_SCENE_KEYS
 ReachesCheck
+RecordedSwap
 RecordingCommand
 RecordingIssue
 RecordingMarker
@@ -1922,6 +1980,7 @@ decodeRow
 defaultLayer
 defaultPhysics
 describeChange
+diffExpanded
 diffPrefabToOps
 diffScenes
 diffToOps
@@ -1972,6 +2031,7 @@ isWholePixel
 jsonPointer
 layerNames
 lengthDecimals
+liveIssue
 localChild
 localChildren
 makeIssue
@@ -2056,6 +2116,7 @@ takenIds
 toSourceBatch
 topSpan
 transformGrid
+translateEntityDef
 translateShape
 translation
 turnOf
@@ -2099,6 +2160,7 @@ HOST_REQUEST_TIMEOUT_MS
 HOST_WELCOME_TIMEOUT_MS
 HostChannel
 HostEvents
+HostFeature
 HostMessage
 HostRequestError
 HostRequestMethod
@@ -2106,6 +2168,12 @@ HostRequestParams
 HostRequestResult
 HostSaves
 HostWelcome
+LiveController
+LiveControllerOptions
+LiveSceneEntry
+LiveSnapshot
+LiveStateMessage
+LiveStatus
 RenderState
 StandaloneBootError
 StandaloneGame
@@ -2113,15 +2181,20 @@ StandaloneOptions
 bootStandalone
 channelSaveStore
 connectHost
+createLiveController
 fetchReleaseTexts
 frameMessageSchema
 frameReadySchema
+hostFeatureSchema
 hostHandshakeSchema
 hostIssueSchema
 hostMessageBytes
 hostMessageSchema
 hostRequested
 hostSavesSchema
+liveSceneEntrySchema
+liveSnapshotSchema
+liveStateMessageSchema
 manifestRuntimeView
 manifestView
 mirrorRenderState
@@ -3192,6 +3265,7 @@ type FramePanels = {
     booting?: boolean;
     context: Omit<PanelContext, "openPanel" | "subscribe">;
     defs?: readonly PanelDef[];
+    reveal?: (refs: readonly Ref[]) => boolean;
 };
 
 ## editor-ui/frame/EditorSkeleton.ts
@@ -3214,6 +3288,7 @@ type EditorControls = Omit<EditorChromeProps, "rapier" | "runStore"> & {
     playFrom: (opts: PlayOptions) => void;
     playHere: () => void;
     rapier: RapierModule | null;
+    reveal: (refs: readonly Ref[]) => boolean;
     runStore: Store<LoadedRun | null>;
     tools: ToolHostCell;
 };
@@ -3573,9 +3648,21 @@ type EditingTarget = {
 };
 type EditorHostState = {
     connection: SceneDocStatus;
+    livePlay?: LivePlayState;
     readOnly?: CodeSkewIssue | null;
     sceneChanged: boolean;
     unsynced?: number;
+};
+type LivePlayState = {
+    checks: readonly SceneIssue[];
+    on: boolean;
+    status: LivePlayStatus | null;
+    unavailable: null | string;
+};
+type LivePlayStatus = {
+    issue?: SceneIssue;
+    text: string;
+    tone: "applied" | "busy" | "failed" | "waiting";
 };
 type OpenPrefabLink = {
     id: string;
@@ -3611,6 +3698,7 @@ type EditorProps = EditingTarget & {
     canvas?: () => HTMLElement | null;
     game: EditorChromeGame;
     host: Store<EditorHostState>;
+    onLivePlay?: (on: boolean) => void;
     onPlay: (opts?: PlayOptions) => void;
     onReplay: (recording: RunRecording) => void;
     onRestart: () => void;
@@ -5098,6 +5186,12 @@ declare function zipFiles(files: readonly {
     path: string;
 }[]): Uint8Array;
 
+## flow-host.ts
+type LiveSceneVersions = {
+    sceneFor(id: AssetId): LibraryScene | null;
+};
+declare function liveSceneSource(base: SceneSource, live: LiveSceneVersions): SceneSource;
+
 ## game/behaviors.ts
 declare const BEHAVIORS_FIELD = "behaviors";
 declare const BEHAVIOR_NAME_PATTERN: RegExp;
@@ -5510,6 +5604,7 @@ declare const SPAWNER: BehaviorDef<{
     active: z.ZodDefault<z.ZodBoolean>;
     burst: z.ZodDefault<z.ZodNumber>;
     cap: z.ZodDefault<z.ZodNumber>;
+    fields: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     lifeMs: z.ZodOptional<z.ZodNumber>;
     prefab: z.ZodOptional<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
     rate: z.ZodDefault<z.ZodNumber>;
@@ -5528,6 +5623,7 @@ declare const spawnerFields: (env: FieldEnv) => {
     active: z.ZodDefault<z.ZodBoolean>;
     burst: z.ZodDefault<z.ZodNumber>;
     cap: z.ZodDefault<z.ZodNumber>;
+    fields: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     lifeMs: z.ZodOptional<z.ZodNumber>;
     prefab: z.ZodOptional<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
     rate: z.ZodDefault<z.ZodNumber>;
@@ -5638,7 +5734,15 @@ declare function spriteGeometry(block: Partial<SpriteBlock>, info?: SpriteAssetI
 
 ## game/commands.ts
 declare const COMMAND_NAME_PATTERN: RegExp;
-declare const ENGINE_COMMANDS: Readonly<Record<"@elapsed", CommandDef>>;
+declare const ENGINE_COMMANDS: Readonly<Record<"@elapsed" | typeof NAV_COMMAND, CommandDef>>;
+declare const NAV_COMMAND = "@nav";
+type NavDestination = {
+    id: string;
+    to: [
+        x: number,
+        y: number
+    ] | string;
+};
 
 ## game/defaults.ts
 declare const DEFAULT_ACTIONS: readonly ActionDef[];
@@ -5876,6 +5980,49 @@ type SeatInput = {
     vector(action: string): Vec2;
 };
 declare function inputFor(ctx: EngineContext, entityId: string): SeatInput;
+
+## game/live.ts
+declare const LIVE_DEFAULTS: {
+    readonly checkAt: readonly [
+        0.25,
+        0.5,
+        0.75
+    ];
+    readonly checkTicks: 120;
+    readonly livePlayDebounceMs: 300;
+    readonly preloadTimeoutMs: 60000;
+};
+type LiveDeclaration = {
+    check?(ctx: EngineContext): readonly SceneIssue[];
+    timings: readonly SwapTiming[];
+};
+type SceneDiff = {
+    added: readonly string[];
+    changed: readonly string[];
+    header: boolean;
+    removed: readonly string[];
+};
+type SceneSwap = {
+    carried: "all" | "progress" | "world";
+    diff: SceneDiff;
+    from: SwapSide;
+    scene: AssetId;
+    strategy: SwapStrategy;
+    tick: number;
+    timing: SwapTiming;
+    to: SwapSide;
+};
+type SwapSide = {
+    runHash: string;
+    sceneHash: string;
+    version: Sha256 | null;
+};
+type SwapStrategy = "reconcile" | "reload";
+type SwapTiming = "boundary" | "next-load" | "now";
+declare function clampTiming(live: LiveDeclaration | undefined, wanted: SwapTiming): {
+    clamped: boolean;
+    timing: SwapTiming;
+};
 
 ## game/physics-of.ts
 declare class PhysicsRequiredError extends EngineError {
@@ -6414,6 +6561,7 @@ type EngineContext = {
     rapier: RapierModule | null;
     readonly bodies: BodyControl;
     readonly grid: RuntimeGrid | null;
+    readonly live: LiveContext;
     readonly nav: RuntimeNav | null;
     readonly play: PlayStart | null;
     readonly project: ProjectRuntimeView | null;
@@ -6541,6 +6689,7 @@ type GameDefinition<S = unknown, G = unknown> = {
     input?: GameInputDef;
     issues?: Readonly<Record<string, IssueCodeDef>>;
     layers?: readonly SceneLayerDef[];
+    live?: LiveDeclaration;
     materials?: Readonly<Record<string, MaterialDef>>;
     persist?: GamePersistDef;
     physicalChecks?: readonly PhysicalCheck[];
@@ -6603,6 +6752,7 @@ type GameRuntime<S = unknown> = {
     debugInfo?(): unknown;
     destroy?(): void;
     onLoad?(scene: ExpandedScene): void;
+    onSwap?(swap: SceneSwap): void;
     onUnload?(): void;
     restore?(state: S): void;
     snapshot(): S;
@@ -6667,6 +6817,10 @@ type InstantiateResult = {
 type IssueCodeDef = IssueCodeInfo;
 type JsonValue = JsonValue[] | boolean | null | number | string | {
     [key: string]: JsonValue;
+};
+type LiveContext = {
+    boundary(label?: string): void;
+    readonly version: Sha256 | null;
 };
 type Macro = {
     hold: readonly string[];
@@ -7050,6 +7204,7 @@ type LibraryOption = {
 };
 type RuntimeShareOptions = Pick<SceneRuntimeOptions, "persist" | "prefabs">;
 declare function createHeadlessRuntime(opts: HeadlessRuntimeOptions & ProjectOption & RuntimeShareOptions): HeadlessRuntime & {
+    live: HeadlessLive;
     save: NonNullable<HeadlessRuntime["save"]>;
 };
 declare function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): ProbeReport<S>;
@@ -7225,6 +7380,8 @@ type InputScriptStepV2 = ({
 } | {
     leave: DeviceId;
 } | {
+    nav: NavDestination;
+} | {
     press: string | string[];
 } | {
     wait: number;
@@ -7383,6 +7540,7 @@ type ReplayOptions<S = unknown> = RecordingHost & {
     saves?: ReadonlyMap<Sha256, SaveFile | string>;
     scene: SceneDefinition;
     sceneId?: AssetId;
+    versions?: (id: Sha256) => StagedVersion | null;
 };
 type ReplayReport<S = unknown> = {
     blocked: false;
@@ -7393,6 +7551,7 @@ type ReplayReport<S = unknown> = {
     migratedFrom?: 1;
     recording: RunRecording;
     stale: boolean;
+    staleFrom?: number;
     warnings: string[];
 };
 type ReplayRun<S = unknown> = PlaytestBlocked | ReplayReport<S>;
@@ -7426,8 +7585,54 @@ type RunChecksOptions = {
 };
 declare function runChecks(opts: RunChecksOptions): ChecksReport;
 
+## headless/swap-check.ts
+type SwapCheckOptions = {
+    afterTicks?: number;
+    at?: readonly number[];
+    checks?: {
+        file: ChecksFile;
+        readFile: (path: string) => string;
+    };
+    from: StagedVersion | {
+        def: SceneDefinition;
+        prefabs: PrefabLibrary;
+    };
+    game: GameDefinition;
+    project?: ProjectRuntimeView | null;
+    rapier?: RapierModule | null;
+    registry?: Registry;
+    scripts: readonly {
+        name: string;
+        script: InputScript | InputScriptV2;
+    }[];
+    to: StagedVersion;
+};
+type SwapCheckReport = {
+    checks?: ChecksReport;
+    issues: readonly SceneIssue[];
+    ok: boolean;
+    runs: readonly SwapCheckRun[];
+};
+type SwapCheckRun = {
+    at: number;
+    issues: readonly SceneIssue[];
+    script: string;
+    strategy: SwapStrategy;
+    tick: number;
+};
+declare function swapCheck(opts: SwapCheckOptions): SwapCheckReport;
+
 ## headless/types.ts
+type HeadlessLive = Omit<GameLive, "stage"> & {
+    stage(v: StagedVersion): {
+        issue: SceneIssue;
+        ok: false;
+    } | {
+        ok: true;
+    };
+};
 type HeadlessRuntime = SceneRuntimeHandle & {
+    live?: HeadlessLive;
     save?(opts: {
         depth: SaveDepth;
         now: number;
@@ -7570,6 +7775,7 @@ interface InputState {
     vector(action: string, player?: number): Vec2;
     pointer(player?: number): PointerState | null;
     players(): readonly PlayerInfo[];
+    commands(): readonly GameCommand[];
 }
 type PointerState = {
     buttons: number;
@@ -7661,12 +7867,14 @@ interface MotionBody {
         slide?: boolean;
     }): MotionResult;
     teleport(x: number, y: number): void;
+    grounded?(): boolean;
     setEnabled(enabled: boolean): void;
     velocity(): Vec2;
     setVelocity(v: Vec2): void;
     destroy(): void;
 }
 type MotionBodyOptions = {
+    controller?: CharacterControllerOptions;
     group?: string;
     shape: ShapeObj;
     tag?: Partial<ColliderTag>;
@@ -9581,6 +9789,94 @@ declare function heldProject(files: readonly HeldFile[], registry: Registry, met
 }): HeldProject;
 declare function runtimeView(view: ProjectView, values: ReadonlyMap<AssetId, unknown>, registry: Registry): ProjectRuntimeView;
 
+## project/scene-version.ts
+type BuildSceneVersionOptions = {
+    build: Readonly<Record<AssetKindName, Sha256>>;
+    game: GameDefinition;
+    registry: Registry;
+    release?: ReleaseManifest;
+    scene: AssetId;
+    texts: ReadonlyMap<AssetId, string>;
+    view: ProjectView;
+};
+type BuildSceneVersionResult = {
+    id: Sha256;
+    issues: SceneIssue[];
+    ok: true;
+    texts: ReadonlyMap<Sha256, string>;
+    version: SceneVersion;
+} | {
+    issues: SceneIssue[];
+    ok: false;
+};
+type CheckSceneVersionOptions = {
+    names?: SceneVersionNames;
+    registry?: Registry;
+};
+type LiveCompat = {
+    build: Readonly<Record<AssetKindName, Sha256>>;
+    formats: {
+        prefab: number;
+        scene: number;
+    };
+    game: {
+        configHash: null | string;
+        id: string;
+    };
+};
+declare const SCENE_VERSION_SCHEMA_ID = "urn:jams-engine:scene-version:v1";
+declare const SCENE_VERSION_VERSION = 1;
+type SceneVersion = {
+    $schema?: string;
+    assets: Readonly<Record<AssetId, ReleaseAsset>>;
+    base: Sha256 | null;
+    compat: LiveCompat;
+    engine: string;
+    entry: ReleaseScene;
+    kind: "scene-version";
+    project: ProjectId;
+    scene: AssetId;
+    sceneHash: SceneHash;
+    v: 1;
+};
+type SceneVersionNames = {
+    release?: string;
+    version?: string;
+};
+type SceneVersionRead = {
+    def: SceneDefinition;
+    issues: SceneIssue[];
+    ok: true;
+    prefabs: PrefabLibrary;
+    scene: ExpandedScene;
+} | {
+    issues: SceneIssue[];
+    ok: false;
+};
+declare function buildSceneVersion(opts: BuildSceneVersionOptions): Promise<BuildSceneVersionResult>;
+declare function checkSceneVersion(manifest: ReleaseManifest, version: SceneVersion, texts?: ReadonlyMap<Sha256, string>, opts?: CheckSceneVersionOptions): SceneIssue[];
+declare function findSceneVersion<V extends {
+    id: Sha256;
+    version: SceneVersion;
+}>(id: Sha256, versions: readonly V[]): V | null;
+declare function formatSceneVersion(version: SceneVersion): string;
+declare function liveCompat(manifest: ReleaseManifest): LiveCompat;
+declare function liveCompatKey(compat: LiveCompat): Promise<Sha256>;
+declare function parseSceneVersion(text: string): {
+    issues: SceneIssue[];
+    ok: false;
+} | {
+    ok: true;
+    version: SceneVersion;
+};
+declare function readSceneVersion(version: SceneVersion, texts: ReadonlyMap<Sha256, string>, registry: Registry, game: GameDefinition | null, opts?: {
+    engine?: Readonly<Record<string, unknown>>;
+}): SceneVersionRead;
+declare function sceneVersionId(version: SceneVersion): Promise<Sha256>;
+declare function sceneVersionJsonSchema(): Record<string, unknown>;
+declare const sceneVersionSchema: z.ZodType<SceneVersion>;
+declare function sceneVersionSnapshot(version: SceneVersion): Promise<ProjectSnapshot>;
+
 ## project/sidecar.ts
 type AssetSidecar = {
     $schema?: string;
@@ -9977,13 +10273,26 @@ type BodyStandIn = {
     release(entityId: string): void;
     standIn(entityId: string): void;
 };
-declare function kinematicBodyEntry(id: string, motion: {
+type KinematicMotion = {
+    angularVelocity?(): number;
+    setAngularVelocity?(w: number): void;
     setVelocity?(v: Vec2): void;
     velocity(): Vec2;
     wake?(): void;
-}): BodyEntry;
+};
+declare function kinematicBodyEntry(id: string, motion: KinematicMotion): BodyEntry;
 declare function rapierBodyEntry(id: string, body: RigidBody, kind: "dynamic" | "static"): BodyEntry;
 declare function registerBody(ctx: EngineContext, id: string, entry: BodyEntry): () => void;
+
+## runtime/cast.ts
+type CastResult = {
+    at: Vec2;
+    ok: true;
+} | {
+    error: string;
+    ok: false;
+};
+declare function castSpawn(ctx: EngineContext, at: Vec2, shape: SpawnShape): CastResult;
 
 ## runtime/geometry-world.ts
 type GeometryColliderDesc = {
@@ -10092,6 +10401,7 @@ declare function composePose(x: number, y: number, rot: number, offset: Pose): P
 declare function relativePose(pose: Pose, frame: Pose): Pose;
 
 ## runtime/recorder.ts
+type RecordedLoad = Omit<RecordedSwap, "strategy" | "timing">;
 type RecorderOptions = RecordingHost & {
     entry?: null | string;
     fromSave?: {
@@ -10108,6 +10418,7 @@ type RecorderOptions = RecordingHost & {
     runHash: string;
     scene: string;
     sceneHash: SceneHash;
+    sceneVersion?: Sha256 | null;
     start: PlayOptions;
     time?: ResolvedTime;
 };
@@ -10132,10 +10443,13 @@ type RecordingHost = {
 };
 type RunRecorder = {
     finish(end: RecordingEnd, final: unknown): RunRecording;
+    loaded(load: RecordedLoad): void;
+    swap(entry: RecordedSwap): void;
     tick(state: PlayState, input: TickInput, focus: Vec2 | null): void;
 };
 declare function createRunRecorder(opts: RecorderOptions): RunRecorder;
 declare function probeConfigHash(game?: GameDefinition | null, time?: Pick<ResolvedTime, "rate">): string;
+declare function recordedSwap(swap: SceneSwap): RecordedSwap;
 
 ## runtime/runtime.ts
 type ProjectOption = {
@@ -10308,6 +10622,10 @@ type SceneRuntime = {
     snapshot: () => unknown;
     stats: () => RuntimeStats;
     step: (dtMs: number, input: InputAction[] | TickInput, commands?: readonly GameCommand[]) => StepResult;
+    swap: (next: ExpandedScene, opts: {
+        prefabs: PrefabLibrary;
+        strategy?: "auto" | "reload";
+    }) => SwapReport;
     takeRequests: () => RuntimeRequests;
     unload: () => void;
     update: (entities: RuntimeEntity[]) => ReconcileReport;
@@ -10322,6 +10640,10 @@ type SceneRuntimeHandle = SceneRuntime & {
 type SceneRuntimeOptions = {
     dev?: boolean;
     game?: GameDefinition | null;
+    live?: {
+        boundary(label?: string): void;
+        version(): Sha256 | null;
+    };
     now?: () => number;
     persist?: PersistCell;
     prefabs?: (() => PrefabLibrary) | PrefabLibrary;
@@ -10345,6 +10667,16 @@ type StepResult = {
     events: StepEvent[];
     game: unknown;
     tick: number;
+};
+type SwapReport = {
+    carried: SceneSwap["carried"];
+    diff: SceneDiff;
+    ok: true;
+    strategy: SwapStrategy;
+    undo(): void;
+} | {
+    issue: SceneIssue;
+    ok: false;
 };
 
 ## saves/browser.ts
@@ -10406,7 +10738,7 @@ declare function memorySaveStore(): SaveStore;
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 18;
+declare const AGENT_SURFACE_VERSION = 19;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -10495,6 +10827,7 @@ type ReachesCheck = CheckHead & {
     at?: Pt;
     expect?: UntilClause;
     kind: "reaches";
+    nav?: NavDestination[];
     result: string;
     script: InputScript | InputScriptV2 | string;
 };
@@ -10563,6 +10896,9 @@ declare function expandScene(source: SceneDefinition, registry: Registry, opts?:
 declare function isExpandedScene(scene: ExpandedScene | SceneDefinition): scene is ExpandedScene;
 declare function resolveSettings(settings: SceneSettings | undefined, sources?: SettingsSources): ResolvedSettings;
 declare function scenePhysics(def: SceneDefinition, registry: Registry, engine?: Readonly<Record<string, unknown>>): "none" | "rapier";
+
+## scene/expanded-diff.ts
+declare function diffExpanded(prev: ExpandedScene, next: ExpandedScene): SceneDiff;
 
 ## scene/field-path.ts
 declare const INSTANCE_OVERRIDE_FIELDS: readonly [
@@ -11074,6 +11410,9 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                 elapse: z.ZodNumber;
             }, z.core.$strict>,
             z.ZodObject<{
+                nav: z.ZodType<NavDestination, unknown, z.core.$ZodTypeInternals<NavDestination, unknown>>;
+            }, z.core.$strict>,
+            z.ZodObject<{
                 join: z.ZodUnion<readonly [
                     z.ZodEnum<{
                         keyboard: "keyboard";
@@ -11322,6 +11661,9 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                     elapse: z.ZodNumber;
                 }, z.core.$strict>,
                 z.ZodObject<{
+                    nav: z.ZodType<NavDestination, unknown, z.core.$ZodTypeInternals<NavDestination, unknown>>;
+                }, z.core.$strict>,
+                z.ZodObject<{
                     join: z.ZodUnion<readonly [
                         z.ZodEnum<{
                             keyboard: "keyboard";
@@ -11423,6 +11765,9 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                 }>,
                 z.ZodTemplateLiteral<`pad:${number}`>
             ]>;
+        }, z.core.$strict>;
+        nav: z.ZodObject<{
+            nav: z.ZodType<NavDestination, unknown, z.core.$ZodTypeInternals<NavDestination, unknown>>;
         }, z.core.$strict>;
         pointer: z.ZodObject<{
             pointer: z.ZodObject<{
@@ -11817,6 +12162,9 @@ declare function buildInputScriptSchemas(registry: Registry, seats: number): {
                 elapse: z.ZodNumber;
             }, z.core.$strict>,
             z.ZodObject<{
+                nav: z.ZodType<NavDestination, unknown, z.core.$ZodTypeInternals<NavDestination, unknown>>;
+            }, z.core.$strict>,
+            z.ZodObject<{
                 join: z.ZodUnion<readonly [
                     z.ZodEnum<{
                         keyboard: "keyboard";
@@ -11878,7 +12226,57 @@ declare function worldPointSchema(): z.ZodTuple<[
 
 ## scene/issues.ts
 declare const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>>;
+type LiveIssueInput = {
+    accepted: readonly SwapTiming[];
+    code: "live-timing-unsupported";
+    version: string;
+} | {
+    asset: string;
+    code: "live-asset-conflict";
+    scene: AssetId;
+} | {
+    cause: string;
+    code: "live-swap-failed";
+    entityId?: string;
+    phase?: "onSwap" | "stage" | "swap";
+    reason?: "refused" | "reload";
+    scene: AssetId;
+} | {
+    code: "live-incompatible";
+    format: number;
+    reads: number;
+    release: string;
+    rule: "formats";
+    version: string;
+} | {
+    code: "live-incompatible";
+    release: string;
+    rule: "build";
+    version: string;
+} | {
+    code: "live-incompatible";
+    rule: "game";
+    version: string;
+} | {
+    code: "live-physics";
+    release: string;
+    scene: AssetId;
+} | {
+    code: "live-scene-unlisted";
+    release: string;
+    scene: AssetId;
+} | {
+    code: "scene-version-removed";
+    kept?: {
+        days: number;
+        newest: number;
+    };
+    removedOn?: string;
+    tick?: number;
+    version: string;
+};
 declare function jsonPointer(segments: readonly (number | string)[]): string;
+declare function liveIssue(input: LiveIssueInput): SceneIssue;
 declare function makeIssue(code: IssueCode, fields: Partial<Omit<SceneIssue, "code">> & {
     message: string;
 }, codes?: Readonly<Record<string, IssueCodeInfo>>): SceneIssue;
@@ -12585,6 +12983,14 @@ type ParseRecordingResult = {
 declare const RECORDING_SCHEMA_ID = "urn:jams-engine:recording:v2";
 declare const RECORDING_TRAIL_EVERY = 4;
 declare const RECORDING_VERSION = 2;
+type RecordedSwap = {
+    runHash: string;
+    sceneHash: string;
+    strategy: SwapStrategy;
+    tick: number;
+    timing: SwapTiming;
+    version: Sha256 | null;
+};
 type RecordingCommand = NonNullable<RunRecordingV1["commands"]>[number];
 type RecordingIssue = {
     message: string;
@@ -12635,6 +13041,7 @@ type RunRecordingV2 = {
     runHash: string;
     scene: string;
     sceneHash: string;
+    sceneVersion?: Sha256;
     seed: number | string;
     start: {
         at?: [
@@ -12646,6 +13053,7 @@ type RunRecordingV2 = {
         persist?: JsonValue;
         timeOffsetMs?: number;
     };
+    swaps?: RecordedSwap[];
     system: SystemEvent[];
     ticks: number;
     time: {
@@ -12806,6 +13214,7 @@ declare const runRecordingSchema: z.ZodObject<{
     runHash: z.ZodString;
     scene: z.ZodString;
     sceneHash: z.ZodString;
+    sceneVersion: z.ZodOptional<z.ZodString>;
     seed: z.ZodUnion<readonly [
         z.ZodNumber,
         z.ZodString
@@ -12820,6 +13229,21 @@ declare const runRecordingSchema: z.ZodObject<{
         persist: z.ZodOptional<z.ZodJSONSchema>;
         timeOffsetMs: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>;
+    swaps: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        runHash: z.ZodString;
+        sceneHash: z.ZodString;
+        strategy: z.ZodEnum<{
+            reconcile: "reconcile";
+            reload: "reload";
+        }>;
+        tick: z.ZodNumber;
+        timing: z.ZodEnum<{
+            "next-load": "next-load";
+            boundary: "boundary";
+            now: "now";
+        }>;
+        version: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>>>;
     system: z.ZodArray<z.ZodUnion<readonly [
         z.ZodTuple<[
             z.ZodNumber,
@@ -13272,6 +13696,9 @@ declare const turnOf: (d: {
     rot?: number;
 }) => Dihedral;
 
+## scene/translate.ts
+declare function translateEntityDef(registry: Registry, def: EntityDef, by: Pt): EntityDef | null;
+
 ## scene/types.ts
 type Aabb = {
     maxX: number;
@@ -13408,7 +13835,14 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "export-over-budget",
     "export-itch-layout",
     "export-target-unsupported",
-    "licence-missing"
+    "licence-missing",
+    "live-incompatible",
+    "live-scene-unlisted",
+    "live-physics",
+    "live-asset-conflict",
+    "live-swap-failed",
+    "live-timing-unsupported",
+    "scene-version-removed"
 ];
 type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 type EntityBase = {
@@ -13990,6 +14424,7 @@ declare function showBootError(root: HTMLElement, issue: SceneIssue): {
 
 ## standalone/host-channel.ts
 type ConnectHostOptions = {
+    features?: readonly HostFeature[];
     hello: {
         engine: string;
         game: string;
@@ -14002,6 +14437,7 @@ type ConnectHostOptions = {
 };
 type HostChannel = {
     close(): void;
+    liveState(message: LiveStateMessage): void;
     offerDownload(name: string, contentType: string, bytes: ArrayBuffer): void;
     on<E extends keyof HostEvents>(event: E, fn: (data: HostEvents[E]) => void): () => void;
     readonly dropped: number;
@@ -14091,10 +14527,12 @@ declare const HOST_REQUESTS: {
     readonly hello: {
         readonly params: z.ZodObject<{
             engine: z.ZodString;
+            features: z.ZodOptional<z.ZodArray<z.ZodLiteral<"live">>>;
             game: z.ZodString;
             release: z.ZodString;
         }, z.core.$strict>;
         readonly result: z.ZodObject<{
+            live: z.ZodOptional<z.ZodNullable<z.ZodType<LiveSnapshot, unknown, z.core.$ZodTypeInternals<LiveSnapshot, unknown>>>>;
             online: z.ZodBoolean;
             player: z.ZodObject<{
                 name: z.ZodNullable<z.ZodString>;
@@ -14122,21 +14560,49 @@ declare const HOST_REQUESTS: {
 declare const HOST_REQUEST_TIMEOUT_MS = 30000;
 declare const HOST_WELCOME_TIMEOUT_MS = 30000;
 type HostEvents = {
+    "live.update": LiveSnapshot;
+    "recording.request": undefined;
     "saves.changed": HostSaves;
     pause: undefined;
     resume: undefined;
 };
+type HostFeature = z.infer<typeof hostFeatureSchema>;
 type HostMessage = z.infer<typeof hostMessageSchema>;
 type HostRequestMethod = keyof typeof HOST_REQUESTS;
 type HostRequestParams<M extends HostRequestMethod> = z.infer<(typeof HOST_REQUESTS)[M]["params"]>;
 type HostRequestResult<M extends HostRequestMethod> = z.infer<(typeof HOST_REQUESTS)[M]["result"]>;
 type HostSaves = z.infer<typeof hostSavesSchema>;
 type HostWelcome = z.infer<typeof welcomeSchema>;
+type LiveSceneEntry = {
+    number: number;
+    scene: AssetId;
+    since: string;
+    timing: SwapTiming;
+    version: Sha256;
+};
+type LiveSnapshot = {
+    channel: "preview" | "production";
+    release: Sha256;
+    removed: readonly Sha256[];
+    rev: number;
+    scenes: readonly LiveSceneEntry[];
+};
+type LiveStateMessage = {
+    issue?: SceneIssue;
+    scene: AssetId;
+    status: LiveStatus;
+    strategy?: SwapStrategy;
+    tick?: number;
+    timing?: SwapTiming;
+    version: Sha256 | null;
+};
+type LiveStatus = "applied" | "failed" | "ready" | "refused" | "staging" | "waiting";
 declare const frameMessageSchema: z.ZodDiscriminatedUnion<[
     z.ZodObject<{
         id: z.ZodNumber;
         params: z.ZodObject<{
             engine: z.ZodString;
+            features: z.ZodOptional<z.ZodArray<z.ZodLiteral<"live">>>;
             game: z.ZodString;
             release: z.ZodString;
         }, z.core.$strict>;
@@ -14206,12 +14672,30 @@ declare const frameMessageSchema: z.ZodDiscriminatedUnion<[
         contentType: z.ZodString;
         name: z.ZodString;
         type: z.ZodLiteral<"download">;
+    }, z.core.$strict>,
+    z.ZodObject<{
+        issue: z.ZodOptional<z.ZodType<SceneIssue, unknown, z.core.$ZodTypeInternals<SceneIssue, unknown>>>;
+        scene: z.ZodString;
+        status: z.ZodEnum<{
+            applied: "applied";
+            failed: "failed";
+            ready: "ready";
+            refused: "refused";
+            staging: "staging";
+            waiting: "waiting";
+        }>;
+        strategy: z.ZodOptional<z.ZodType<SwapStrategy, unknown, z.core.$ZodTypeInternals<SwapStrategy, unknown>>>;
+        tick: z.ZodOptional<z.ZodNumber>;
+        timing: z.ZodOptional<z.ZodType<SwapTiming, unknown, z.core.$ZodTypeInternals<SwapTiming, unknown>>>;
+        type: z.ZodLiteral<"live.state">;
+        version: z.ZodNullable<z.ZodString>;
     }, z.core.$strict>
 ], "type">;
 declare const frameReadySchema: z.ZodObject<{
     protocol: z.ZodLiteral<1>;
     type: z.ZodLiteral<"jams:frame-ready">;
 }, z.core.$strict>;
+declare const hostFeatureSchema: z.ZodLiteral<"live">;
 declare const hostHandshakeSchema: z.ZodObject<{
     protocol: z.ZodLiteral<1>;
     type: z.ZodLiteral<"jams:host">;
@@ -14253,6 +14737,13 @@ declare const hostMessageSchema: z.ZodDiscriminatedUnion<[
     }, z.core.$strip>,
     z.ZodObject<{
         type: z.ZodLiteral<"resume">;
+    }, z.core.$strip>,
+    z.ZodObject<{
+        live: z.ZodType<LiveSnapshot, unknown, z.core.$ZodTypeInternals<LiveSnapshot, unknown>>;
+        type: z.ZodLiteral<"live.update">;
+    }, z.core.$strip>,
+    z.ZodObject<{
+        type: z.ZodLiteral<"recording.request">;
     }, z.core.$strip>
 ], "type">;
 declare const hostSavesSchema: z.ZodObject<{
@@ -14267,6 +14758,24 @@ declare const hostSavesSchema: z.ZodObject<{
         site: "site";
     }>;
 }, z.core.$strip>;
+declare const liveSceneEntrySchema: z.ZodType<LiveSceneEntry>;
+declare const liveSnapshotSchema: z.ZodType<LiveSnapshot>;
+declare const liveStateMessageSchema: z.ZodObject<{
+    issue: z.ZodOptional<z.ZodType<SceneIssue, unknown, z.core.$ZodTypeInternals<SceneIssue, unknown>>>;
+    scene: z.ZodString;
+    status: z.ZodEnum<{
+        applied: "applied";
+        failed: "failed";
+        ready: "ready";
+        refused: "refused";
+        staging: "staging";
+        waiting: "waiting";
+    }>;
+    strategy: z.ZodOptional<z.ZodType<SwapStrategy, unknown, z.core.$ZodTypeInternals<SwapStrategy, unknown>>>;
+    tick: z.ZodOptional<z.ZodNumber>;
+    timing: z.ZodOptional<z.ZodType<SwapTiming, unknown, z.core.$ZodTypeInternals<SwapTiming, unknown>>>;
+    version: z.ZodNullable<z.ZodString>;
+}, z.core.$strict>;
 declare const saveLimitsSchema: z.ZodObject<{
     maxBytes: z.ZodNumber;
     maxSlots: z.ZodNumber;
@@ -14297,6 +14806,7 @@ declare const saveWriteResultSchema: z.ZodUnion<readonly [
     }, z.core.$strip>
 ]>;
 declare const welcomeSchema: z.ZodObject<{
+    live: z.ZodOptional<z.ZodNullable<z.ZodType<LiveSnapshot, unknown, z.core.$ZodTypeInternals<LiveSnapshot, unknown>>>>;
     online: z.ZodBoolean;
     player: z.ZodObject<{
         name: z.ZodNullable<z.ZodString>;
@@ -14320,6 +14830,21 @@ declare const welcomeSchema: z.ZodObject<{
     }, z.core.$strip>;
 }, z.core.$strip>;
 declare function withinHostMessageCap(message: unknown): boolean;
+
+## standalone/live.ts
+type LiveController = {
+    dispose(): void;
+    settled(scene: AssetId): Promise<void>;
+    update(live: LiveSnapshot): void;
+};
+type LiveControllerOptions = {
+    fetchText(path: string): Promise<string>;
+    files?: Map<Sha256, string>;
+    instance: GameInstance;
+    manifest: ReleaseManifest;
+    report(state: LiveStateMessage): void;
+};
+declare function createLiveController(opts: LiveControllerOptions): LiveController;
 
 ## standalone/manifest-view.ts
 declare function manifestRuntimeView(m: ReleaseManifest, texts: ReadonlyMap<AssetId, string>, game: GameDefinition): ProjectRuntimeView;
@@ -14610,7 +15135,9 @@ type GameConfig = {
     maxDeltaTime: number;
     prefabs?: PrefabLibrary;
     rapier?: () => Promise<RapierModule>;
-    recording?: RecordingHost;
+    recording?: RecordingHost & {
+        flow?: boolean;
+    };
     registry?: Registry;
     release?: {
         id: Sha256;
@@ -14636,6 +15163,12 @@ type GameEventMap = {
     "game:tick": {
         tick: number;
     };
+    "live:failed": {
+        issue: SceneIssue;
+        scene: AssetId;
+        version: Sha256 | null;
+    };
+    "live:swapped": SceneSwap;
     "play:outcome": PlayOutcome;
     "play:recorded": RunRecording;
     "render:failed": {
@@ -14713,6 +15246,7 @@ type GameInstance = {
     getMode: () => GameMode;
     getStore: () => Store<GameStoreState>;
     input: GameInput;
+    live: GameLive;
     loadScene: (scene: ExpandedScene | SceneDefinition) => LoadReport;
     off: <K extends keyof GameEventMap>(event: K, handler: (payload: GameEventMap[K]) => void) => void;
     on: <K extends keyof GameEventMap>(event: K, handler: (payload: GameEventMap[K]) => void) => void;
@@ -14724,7 +15258,9 @@ type GameInstance = {
         failed: BundleEntry[];
     }>;
     project: () => ProjectRuntimeView | null;
-    recording: () => RunRecording | null;
+    recording: (opts?: {
+        running?: boolean;
+    }) => RunRecording | null;
     registry: Registry;
     reloadAssets: (update: {
         changed: readonly AssetId[];
@@ -14734,7 +15270,9 @@ type GameInstance = {
         errors: AssetReloadError[];
         failed: BundleEntry[];
     }>;
-    replay: (doc: SceneDefinition, recording: RunRecording) => PlayReport;
+    replay: (doc: SceneDefinition, recording: RunRecording, opts?: {
+        versions?: (id: Sha256) => StagedVersion | null;
+    }) => PlayReport;
     resize: (width: number, height: number) => void;
     resume: () => void;
     router: ToolRouter;
@@ -14754,6 +15292,29 @@ type GameInstance = {
         y: number;
     };
     zoomAt: (screen: Vec2, factor: number) => void;
+};
+type GameLive = {
+    activate(scene: AssetId, version: Sha256 | null, timing: SwapTiming): {
+        clamped: boolean;
+        issue?: SceneIssue;
+        timing: SwapTiming;
+    };
+    current(scene: AssetId): Sha256 | null;
+    pending(): readonly {
+        scene: AssetId;
+        timing: SwapTiming;
+        version: Sha256 | null;
+    }[];
+    pin(versions: Readonly<Record<AssetId, Sha256>>): void;
+    stage(v: StagedVersion, opts?: {
+        signal?: AbortSignal;
+    }): Promise<{
+        issue: SceneIssue;
+        ok: false;
+    } | {
+        ok: true;
+    }>;
+    unpin(): void;
 };
 type GameMode = "edit" | "play";
 type GamePhase = "destroyed" | "idle" | "loading" | "paused" | "running";
@@ -14823,6 +15384,11 @@ type SimState = {
     paused: boolean;
     timeScale: number;
 };
+type StagedVersion = {
+    id: Sha256;
+    texts: ReadonlyMap<Sha256, string>;
+    version: SceneVersion;
+};
 type TransitionRunner = (phase: "in" | "out", spec: TransitionSpec, layer: HTMLElement) => Promise<void>;
 type UiActionEvent = {
     action: string;
@@ -14886,7 +15452,7 @@ type UiHandle = {
 
 ## version.ts
 declare const COLLAB_LAYOUT_VERSION = 3;
-declare const ENGINE_VERSION = "0.14.3";
+declare const ENGINE_VERSION = "0.14.4";
 declare const REPLAY_ACROSS_PLATFORMS = true;
 
 ## vite/apply-files.ts

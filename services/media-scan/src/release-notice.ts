@@ -1,10 +1,7 @@
 import {
-  ENGINE_RELEASE_NOTICE_CHANNEL,
-  formatEngineReleaseNotice,
+  engineReleaseNoticePublisher,
   type EngineReleaseNotice,
 } from "../../../src/lib/image-quarantine.ts";
-
-type Publisher = { publish(channel: string, message: string): Promise<unknown> };
 
 /**
  * Tells the web app's frame caches that a quarantine hid these releases, so
@@ -13,10 +10,8 @@ type Publisher = { publish(channel: string, message: string): Promise<unknown> }
  * takedown logs it, and the cache's TTL bounds how long origin is stale.
  */
 export function releaseNoticePublisher(
-  client?: Publisher,
+  client?: Parameters<typeof engineReleaseNoticePublisher>[0],
 ): (notice: EngineReleaseNotice) => Promise<void> {
-  return async (notice) => {
-    const publisher = client ?? (await import("./redis.ts")).pacerRedis;
-    await publisher.publish(ENGINE_RELEASE_NOTICE_CHANNEL, formatEngineReleaseNotice(notice));
-  };
+  return async (notice) =>
+    engineReleaseNoticePublisher(client ?? (await import("./redis.ts")).pacerRedis)(notice);
 }

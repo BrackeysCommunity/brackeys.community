@@ -17,13 +17,15 @@ const SHARED = {
     `      const half = (typeof start.size === "number" ? start.size : HERO_SIZE) / 2;`,
     `      const shape = { type: "box" as const, cx: 0, cy: 0, hw: half, hh: half, rotDeg: 0 };`,
   ],
-  afterStep: [
+  /** The goal check; `onWin` are lines run once the hero reaches a goal. */
+  afterStep: (onWin: readonly string[] = []) => [
     `    afterStep(_dtMs, events) {`,
     `      for (const e of events) {`,
     `        if (reached || e.type !== SENSOR_ENTER || e.other !== heroId) continue;`,
     `        if (e.entityId === undefined || !goals.has(e.entityId)) continue;`,
     `        reached = true;`,
     `        ctx.emit({ type: REACHED, entityId: e.entityId, other: heroId, at: e.at });`,
+    ...onWin,
     `      }`,
     `    },`,
   ],
@@ -38,11 +40,18 @@ const SHARED = {
 /**
  * A behavior preset's runtime: no movement code. The hero's `collider`,
  * character, `player-input` and `camera-target` behaviors walk it and the
- * camera follows; the game finds the goals and declares the win.
+ * camera follows; the game finds the goals and declares the win, which
+ * drops the hero's `player-input` so it comes to rest.
  */
 function behaviorRuntime(): string {
   return [
-    `import { SENSOR_ENTER, type EngineContext, type GameRuntime } from "@jams/engine/game";`,
+    `import {`,
+    `  PLAYER_INPUT,`,
+    `  SENSOR_ENTER,`,
+    `  type EngineContext,`,
+    `  type GameRuntime,`,
+    `  type PlayerInputSystem,`,
+    `} from "@jams/engine/game";`,
     ``,
     `import { GOAL_TAG, HERO, REACHED, type Slice, type Snapshot } from "./types";`,
     ``,
@@ -74,7 +83,10 @@ function behaviorRuntime(): string {
     `    beforeStep(_dtMs, actions) {`,
     `      for (const a of actions) if (a.action === "move") moving = a.pressed;`,
     `    },`,
-    ...SHARED.afterStep,
+    ...SHARED.afterStep([
+      `        // The win freezes the hero: with no seat, its character slows to a stop.`,
+      `        if (heroId !== null) ctx.behavior<PlayerInputSystem>(PLAYER_INPUT.name)?.detach(heroId);`,
+    ]),
     `    // An event clock keeps ticking while \`move\` is held or the hero still moves.`,
     `    busy() {`,
     `      if (moving) return true;`,
@@ -209,7 +221,7 @@ function gridRuntime(options: GameOptions): string {
           `      if (to && !reached && !stepper.moving()) stepper.step(to);`,
           `    },`,
         ]),
-    ...s.afterStep,
+    ...s.afterStep(),
     turns
       ? `    // Ticks run while the hero walks or has steps queued.`
       : `    // The event clock keeps ticking while the hero walks or \`move\` is held.`,

@@ -295,6 +295,24 @@ describe("input-script v2 steps", () => {
     expect(step({ join: "pad:0", for: 3 })).toBe(false);
   });
 
+  it("nav sends a nav agent to a point or after an entity, for one slot", () => {
+    expect(step({ nav: { id: "guard", to: [4, 1.5] } })).toBe(true);
+    expect(step({ nav: { id: "guard#1", to: "hero" } })).toBe(true);
+    expect(step({ nav: { id: "guard", to: [4] } })).toBe(false);
+    expect(step({ nav: { id: "", to: "hero" } })).toBe(false);
+    expect(step({ nav: { id: "guard" } })).toBe(false);
+    expect(step({ nav: { id: "guard", to: "hero", within: 1 } })).toBe(false);
+    expect(step({ nav: { id: "guard", to: "hero" }, for: 3 })).toBe(false);
+    const nav = (inputScriptJsonSchema(two) as Defs).$defs.NavDestination!;
+    expect(Object.keys(nav.properties!)).toEqual(["id", "to"]);
+    expect(JSON.stringify(nav.properties!.to)).toContain("world metres");
+    const parsed = parseInputScript({ v: 2, steps: [{ nav: { id: "guard", to: [4, 1.5] } }] }, two);
+    expect(parsed).toEqual({
+      ok: true,
+      script: { v: 2, steps: [{ nav: { id: "guard", to: [4, 1.5] } }] },
+    });
+  });
+
   it("keeps command, elapse and the predicates", () => {
     expect(step({ command: "nudge", args: { dx: 3 } })).toBe(true);
     expect(step({ hold: [], until: { past: 2, count: { type: "lamp", min: 1 } } })).toBe(true);

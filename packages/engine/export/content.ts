@@ -2,6 +2,7 @@ import { flowIssue } from "../game/flow";
 import { resolveTime } from "../game/time";
 import {
   blobContent,
+  namedPrefabs,
   projectBundle,
   sceneBundle,
   unsizedIds,
@@ -124,7 +125,9 @@ function planScene(
   let bundle = empty;
   try {
     const expanded = expandScene(def, input.registry, { prefabs: library, engine: input.engine });
-    const read = sceneBundle(expanded, def, library, input.view, input.kinds, input.registry);
+    const named = namedPrefabs(expanded.entities, input.registry, prefabs.get);
+    const reach = new Map([...library, ...named]);
+    const read = sceneBundle(expanded, def, reach, input.view, input.kinds, input.registry);
     issues.push(...withAsset(entry.scene, read.issues));
     bundle = read.bundle;
   } catch (error) {

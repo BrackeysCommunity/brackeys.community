@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { runnerImport } from "vite-plus";
@@ -32,4 +33,14 @@ describe("the dev server's hot updates", () => {
       expect(data(at("src/styles.css"))).toBe(false);
     },
   );
+
+  // The config itself isn't imported: building it constructs every site plugin.
+  it("filters edits through Vite's hotUpdate, for updates only, with the same predicate", () => {
+    const config = readFileSync(at("vite.config.ts"), "utf8");
+    expect(config).not.toContain("handleHotUpdate");
+    expect(config).toContain(
+      'hotUpdate({ type, file }) {\n      return type === "update" && isProjectData?.(file) ? [] : undefined;',
+    );
+    expect(config).toContain("isProjectData = (file) => module.isDevProjectData(file);");
+  });
 });

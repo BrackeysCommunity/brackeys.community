@@ -12,10 +12,12 @@ import {
   hostMessageSchema,
   withinHostMessageCap,
   type HostEvents,
+  type HostFeature,
   type HostRequestMethod,
   type HostRequestParams,
   type HostRequestResult,
   type HostWelcome,
+  type LiveStateMessage,
 } from "./host-protocol";
 
 /** The frame's end of the `jams-host` channel, open once the page has answered `hello`. */
@@ -40,6 +42,8 @@ export type HostChannel = {
   state(state: "loading" | "ready" | "error", issue?: SceneIssue): void;
   /** Hands the page a file to offer as a download button; the frame can't start downloads itself. */
   offerDownload(name: string, contentType: string, bytes: ArrayBuffer): void;
+  /** Reports where one scene's live version stands. */
+  liveState(message: LiveStateMessage): void;
   close(): void;
 };
 
@@ -54,6 +58,8 @@ export type ConnectHostOptions = {
   requestTimeoutMs?: number;
   /** The frame's window; default the global one. */
   window?: Window;
+  /** What the frame supports, sent in `hello`; none by default, and an empty list sends none. */
+  features?: readonly HostFeature[];
 };
 
 /** A request the page refused or the channel couldn't carry: `issue` is the page's own, passed on unchanged. */
@@ -104,7 +110,13 @@ function openChannel(port: MessagePort, requestTimeoutMs: number): OpenChannel {
   let closed = false;
   let welcome: HostWelcome | null = null;
   const pending = new Map<number, Pending>();
-  const listeners: Listeners = { "saves.changed": new Set(), pause: new Set(), resume: new Set() };
+  const listeners: Listeners = {
+    "saves.changed": new Set(),
+    pause: new Set(),
+    resume: new Set(),
+    "live.update": new Set(),
+    "recording.request": new Set(),
+  };
 
   const receive = (data: unknown) => {
     if (closed) return;
@@ -144,7 +156,11 @@ function openChannel(port: MessagePort, requestTimeoutMs: number): OpenChannel {
         return;
       case "pause":
       case "resume":
+      case "recording.request":
         deliver(listeners[message.type], undefined);
+        return;
+      case "live.update":
+        deliver(listeners["live.update"], message.live);
         return;
     }
   };
@@ -221,6 +237,9 @@ function openChannel(port: MessagePort, requestTimeoutMs: number): OpenChannel {
     offerDownload(name, contentType, bytes) {
       post({ type: "download", name, contentType, bytes });
     },
+    liveState(message) {
+      post({ ...message, type: "live.state" });
+    },
     close() {
       if (closed) return;
       closed = true;
@@ -281,7 +300,10 @@ export function connectHost(opts: ConnectHostOptions): Promise<HostChannel | nul
       );
       const opened = openChannel(port, opts.requestTimeoutMs ?? HOST_REQUEST_TIMEOUT_MS);
       channel = opened;
-      opened.hello(opts.hello).then(finish, () => finish(null));
+      const features = opts.features ?? [];
+      opened
+        .hello(features.length > 0 ? { ...opts.hello, features: [...features] } : opts.hello)
+        .then(finish, () => finish(null));
     };
     win.addEventListener("message", onMessage);
     try {

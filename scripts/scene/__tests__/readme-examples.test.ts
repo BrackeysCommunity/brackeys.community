@@ -100,15 +100,15 @@ const unbuiltTarget = (argv: readonly string[]) => {
 };
 
 /**
- * Commands that read or write a game build: a build packs the engine and
- * runs Vite, so they run once, in document order, in "game builds in the
- * docs".
+ * Commands that read or write a game build, or a scene version beside one:
+ * a build packs the engine and runs Vite, so they run once, in document
+ * order, in "game builds in the docs".
  */
 function needsBuild(argv: string[]): boolean {
   const [name, rest] = split(argv);
   if (name === "game build" || name === "game export") return !unbuiltTarget(argv);
-  if (name === "game manifest") return true;
-  return name === "replay" && rest.includes("--releases");
+  if (name === "game manifest" || name?.startsWith("game live ")) return true;
+  return name === "replay" && (rest.includes("--releases") || rest.includes("--versions"));
 }
 
 /** Commands that write nothing and need no dev server, as invoked. */
@@ -271,6 +271,16 @@ const EXPORT_LISTED = [
   "export-over-budget",
   "export-itch-layout",
   "licence-missing",
+];
+/** The codes live levels added, each in the issue table. */
+const LIVE_LISTED = [
+  "live-incompatible",
+  "live-scene-unlisted",
+  "live-physics",
+  "live-asset-conflict",
+  "live-swap-failed",
+  "live-timing-unsupported",
+  "scene-version-removed",
 ];
 const LIFECYCLE_EVENTS = [
   "entity:spawned",
@@ -545,6 +555,32 @@ describe("op batches in the docs", () => {
     ).toBe(true);
   });
 
+  it("runs a script's nav step and a reaches check's nav, and reproduces the path-follow warning", async () => {
+    const run = all.flat().filter((e) => e.fenced && isPure(e.argv) && !e.expect);
+    const files = (name: string, flag: string) =>
+      Promise.all(
+        run
+          .filter((e) => split(e.argv)[0] === name)
+          .map((e) => e.argv[e.argv.indexOf(flag) + 1])
+          .filter((f): f is string => !!f?.startsWith("scripts/scene/examples/"))
+          .map(
+            async (f) => JSON.parse(await readFile(repoFile(f), "utf8")) as Record<string, unknown>,
+          ),
+      );
+    const steps = (await files("playtest", "--script")).flatMap(
+      (s) => (s.steps as Record<string, unknown>[] | undefined) ?? [],
+    );
+    expect(steps.some((step) => "nav" in step)).toBe(true);
+    const checks = (await files("check", "--checks")).flatMap(
+      (c) => c.checks as { kind: string; nav?: unknown[] }[],
+    );
+    expect(checks.some((c) => c.kind === "reaches" && (c.nav?.length ?? 0) > 0)).toBe(true);
+    const warned = allBatches.filter(
+      (b) => b.expect === "behavior-conflict" && b.text.includes("behaviors.path-follow"),
+    );
+    expect(warned).toHaveLength(1);
+  });
+
   it("reproduces every issue code format v3 added, and lists each in the issue table", () => {
     const expected = new Set(allBatches.map((b) => b.expect));
     expect(V3_CODES.filter((code) => !expected.has(code))).toEqual([]);
@@ -754,12 +790,45 @@ describe("game build docs", () => {
       expect(buildSection).toMatch(new RegExp(`^\\| \`${target}\` +\\|`, "m"));
   });
 
-  it("documents game build, export and manifest, and replay --releases, in the commands table", () => {
+  it("builds and checks a scene version against a release and a version, and replays with it", () => {
+    expect(used("game live build", (a) => a.includes("--out"))).toBe(true);
+    const checks = buildSteps.filter((e) => split(e.argv)[0] === "game live check");
+    expect(checks.some((e) => !e.argv.includes("--against") && !e.argv.includes("--from"))).toBe(
+      true,
+    );
+    expect(checks.some((e) => flagValue(e.argv, "--against")?.startsWith("dist/games/"))).toBe(
+      true,
+    );
+    // Every version a check or replay reads is one an earlier example built.
+    const built = buildSteps
+      .filter((e) => split(e.argv)[0] === "game live build")
+      .map((e) => flagValue(e.argv, "--out"));
+    const read = buildSteps.flatMap((e) =>
+      ["--from", "--versions"].map((f) => flagValue(e.argv, f)).filter((v) => v !== undefined),
+    );
+    expect(read.length).toBeGreaterThanOrEqual(2);
+    for (const dir of read) expect(built).toContain(dir);
+    expect(used("replay", (a) => a.includes("--versions"))).toBe(true);
+  });
+
+  it("lists the seven live-level codes in the issue table", () => {
+    for (const code of LIVE_LISTED)
+      expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+  });
+
+  it("documents game build, export, manifest and live, and replay's flags, in the commands table", () => {
     const table = texts[0]!.slice(
       texts[0]!.indexOf("## Commands"),
       texts[0]!.indexOf("## Projects and assets"),
     );
-    for (const name of ["game build", "game export", "game manifest", "replay"] as const) {
+    for (const name of [
+      "game build",
+      "game export",
+      "game manifest",
+      "game live build",
+      "game live check",
+      "replay",
+    ] as const) {
       const row = table.split("\n").find((l) => l.startsWith(`| \`${name} `));
       expect(row, name).toBeDefined();
       const { values, switches }: { values: readonly string[]; switches: readonly string[] } =
@@ -843,7 +912,8 @@ describe("game builds in the docs", () => {
             filesChecked: !step.argv[2]!.endsWith(".json"),
             unlisted: [],
           });
-        if (name === "replay") expect(r.data.releasesSearched, r.text).toBeGreaterThan(0);
+        if (name === "replay" && step.argv.includes("--releases"))
+          expect(r.data.releasesSearched, r.text).toBeGreaterThan(0);
       },
       building ? BUILD_MS : 60_000,
     );

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:scene:v4",
-  "x-agent-surface": 18,
+  "x-agent-surface": 19,
   "title": "jams engine scene, format v4",
   "type": "object",
   "properties": {
@@ -1477,6 +1477,16 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },
+                    "fields": {
+                      "description": "The fields each spawn of `type` gets, as a scene entity of that type writes them (a shape type's `shape`); its shapes, points and paths are relative to the spawn point. Without a shape, point or path, a spawn stands at the spawn point by its `at`.",
+                      "title": "Fields",
+                      "group": "spawn",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
                     "prefab": {
                       "title": "Prefab",
                       "group": "spawn",
@@ -2497,6 +2507,16 @@
                       "widget": "type",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+                    },
+                    "fields": {
+                      "description": "The fields each spawn of `type` gets, as a scene entity of that type writes them (a shape type's `shape`); its shapes, points and paths are relative to the spawn point. Without a shape, point or path, a spawn stands at the spawn point by its `at`.",
+                      "title": "Fields",
+                      "group": "spawn",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
                     },
                     "prefab": {
                       "title": "Prefab",
@@ -3756,6 +3776,16 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },
+                    "fields": {
+                      "description": "The fields each spawn of `type` gets, as a scene entity of that type writes them (a shape type's `shape`); its shapes, points and paths are relative to the spawn point. Without a shape, point or path, a spawn stands at the spawn point by its `at`.",
+                      "title": "Fields",
+                      "group": "spawn",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
                     "prefab": {
                       "title": "Prefab",
                       "group": "spawn",
@@ -4828,6 +4858,16 @@
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
                     },
+                    "fields": {
+                      "description": "The fields each spawn of `type` gets, as a scene entity of that type writes them (a shape type's `shape`); its shapes, points and paths are relative to the spawn point. Without a shape, point or path, a spawn stands at the spawn point by its `at`.",
+                      "title": "Fields",
+                      "group": "spawn",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
                     "prefab": {
                       "title": "Prefab",
                       "group": "spawn",
@@ -5841,6 +5881,16 @@
                       "widget": "type",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+                    },
+                    "fields": {
+                      "description": "The fields each spawn of `type` gets, as a scene entity of that type writes them (a shape type's `shape`); its shapes, points and paths are relative to the spawn point. Without a shape, point or path, a spawn stands at the spawn point by its `at`.",
+                      "title": "Fields",
+                      "group": "spawn",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
                     },
                     "prefab": {
                       "title": "Prefab",
@@ -7090,6 +7140,16 @@
                       "widget": "type",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+                    },
+                    "fields": {
+                      "description": "The fields each spawn of `type` gets, as a scene entity of that type writes them (a shape type's `shape`); its shapes, points and paths are relative to the spawn point. Without a shape, point or path, a spawn stands at the spawn point by its `at`.",
+                      "title": "Fields",
+                      "group": "spawn",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
                     },
                     "prefab": {
                       "title": "Prefab",
@@ -8355,6 +8415,16 @@
                       "widget": "type",
                       "type": "string",
                       "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+                    },
+                    "fields": {
+                      "description": "The fields each spawn of `type` gets, as a scene entity of that type writes them (a shape type's `shape`); its shapes, points and paths are relative to the spawn point. Without a shape, point or path, a spawn stands at the spawn point by its `at`.",
+                      "title": "Fields",
+                      "group": "spawn",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
                     },
                     "prefab": {
                       "title": "Prefab",

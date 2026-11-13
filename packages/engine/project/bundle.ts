@@ -1,8 +1,17 @@
 import type { Registry } from "../game/types";
 import { closest } from "../scene/did-you-mean";
+import { expandInstance } from "../scene/expand";
 import { jsonPointer, makeIssue, pointerSegments } from "../scene/issues";
 import { prefabsUsedBy } from "../scene/prefab";
-import type { ExpandedScene, PrefabLibrary, SceneDefinition, SceneIssue } from "../scene/types";
+import {
+  PREFAB_KIND,
+  type ExpandedScene,
+  type Prefab,
+  type PrefabLibrary,
+  type RuntimeEntity,
+  type SceneDefinition,
+  type SceneIssue,
+} from "../scene/types";
 import type { KindRegistry } from "./kinds";
 import { byCodeUnit, isPlainObject } from "./kinds/define";
 import { entityRefSites, headerAssetRefs } from "./kinds/fields";
@@ -157,17 +166,145 @@ const headerSources = (assets: readonly unknown[] | undefined, label: string, id
     entityIds: ids,
   }));
 
+const entitySources = (registry: Registry, e: RuntimeEntity): Source[] =>
+  entityRefSites(registry, e, jsonPointer(["entities", `@${e.id}`])).map((site) => ({
+    site,
+    where: `${e.id}.${fieldOf(site, 2)}`,
+    entityIds: [e.id],
+  }));
+
+/** A prefab a field names, placed as an instance at the origin, and the scene field that first reached it. */
+type NamedPrefab = { id: AssetId; children: RuntimeEntity[]; from: Source };
+
+/**
+ * The prefabs `entities` name through prefab asset fields of their types
+ * and behavior blocks (a spawner's `prefab`), then those the named
+ * prefabs' own children name in turn, as far as `get` has them. Each comes
+ * with its children as an instance at the origin places them (defaults
+ * applied, nested instances and variant bases resolved); `library` holds
+ * every prefab they reach.
+ */
+function walkNamedPrefabs(
+  entities: readonly RuntimeEntity[],
+  registry: Registry,
+  get: (id: AssetId) => Prefab | undefined,
+): { named: NamedPrefab[]; library: Map<string, Prefab> } {
+  const library = new Map<string, Prefab>();
+  const reach = (id: string): void => {
+    if (library.has(id)) return;
+    const prefab = get(id);
+    if (!prefab) return;
+    library.set(id, prefab);
+    if (typeof prefab.base === "string") reach(prefab.base);
+    for (const nested of prefab.instances ?? []) reach(nested.prefab);
+  };
+  const pending: { id: AssetId; from: Source }[] = [];
+  const queue = (e: RuntimeEntity, from?: Source) => {
+    for (const source of entitySources(registry, e))
+      if (source.site.kinds.includes(PREFAB_KIND))
+        pending.push({ id: source.site.id, from: from ?? source });
+  };
+  for (const e of entities) queue(e);
+  const named: NamedPrefab[] = [];
+  const seen = new Set<AssetId>();
+  for (let next = pending.shift(); next !== undefined; next = pending.shift()) {
+    const { id, from } = next;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    reach(id);
+    if (!library.has(id)) continue;
+    let children: RuntimeEntity[];
+    try {
+      const placed = expandInstance({ id, prefab: id, at: [0, 0] }, library, registry);
+      if (!placed.ok) continue;
+      children = placed.entities;
+    } catch {
+      continue;
+    }
+    named.push({ id, children, from });
+    for (const child of children) queue(child, from);
+  }
+  return { named, library };
+}
+
+/**
+ * The prefabs a scene's expanded `entities` name through prefab asset
+ * fields (a spawner's `prefab`), with every prefab those reach: their
+ * nested instances, variant bases and the prefabs their own children name,
+ * as far as `get` has them. What a reader adds to the scene's prefab
+ * library so `sceneBundle` follows a spawned prefab into its assets.
+ */
+export function namedPrefabs(
+  entities: readonly RuntimeEntity[],
+  registry: Registry,
+  get: (id: AssetId) => Prefab | undefined,
+): PrefabLibrary {
+  return walkNamedPrefabs(entities, registry, get).library;
+}
+
+/**
+ * The sources of the prefabs the scene's fields name (`walkNamedPrefabs`):
+ * their children's asset fields and the headers of every prefab they
+ * reach, each pointed at the scene field that named it. An id an earlier
+ * source already names, and a header the scene's instances already cover,
+ * are left out, so nothing is reported twice.
+ */
+function namedPrefabSources(
+  scene: ExpandedScene,
+  prefabs: PrefabLibrary,
+  registry: Registry,
+  covered: ReadonlySet<string>,
+  earlier: readonly Source[],
+): Source[] {
+  const { named, library } = walkNamedPrefabs(scene.entities, registry, (id) => prefabs.get(id));
+  if (named.length === 0) return [];
+  const known = new Set(earlier.map((s) => s.site.id));
+  const headers = new Set(covered);
+  const out: Source[] = [];
+  const add = (source: Source, from: Source) => {
+    if (known.has(source.site.id)) return;
+    known.add(source.site.id);
+    out.push({
+      site: { ...source.site, pointer: from.site.pointer },
+      where: source.where,
+      entityIds: from.entityIds,
+    });
+  };
+  for (const { id, children, from } of named) {
+    const label = `prefab "${id}" (${from.where})`;
+    for (const child of children) {
+      for (const source of entitySources(registry, child))
+        add({ ...source, where: `${label} ${source.where.slice(id.length + 1)}` }, from);
+    }
+    const reached = prefabsUsedBy(
+      { instances: [{ id, prefab: id, at: [0, 0] }] } as SceneDefinition,
+      library,
+    );
+    for (const pid of reached) {
+      if (headers.has(pid)) continue;
+      headers.add(pid);
+      const prefab = library.get(pid);
+      if (!prefab) continue;
+      for (const source of headerSources(prefab.assets, `prefab "${pid}"'s `, []))
+        add({ ...source, where: `${source.where} (${from.where})` }, from);
+    }
+  }
+  return out;
+}
+
 /**
  * The bundle of an expanded scene: every asset field of its entities
  * (instances resolved and defaults applied, so an id only a type's or a
  * behavior's default names counts), its settings' asset fields, and the
  * `assets` headers of `def` and of every prefab it reaches
  * (`prefabsUsedBy`: nesting and variant bases included), with each asset's
- * own references followed. Entries are the textures among them, sorted by
- * id, each once. A reference no live asset of its kinds resolves, or a
- * texture with no content, is `asset-missing` with the closest live id; a
- * texture whose entry records a hash but no size is left out and is
- * `asset-missing` too, saying so.
+ * own references followed. A prefab a field names (a spawner's `prefab`)
+ * that `prefabs` holds brings its children's asset fields and its header
+ * too, and so on through what those name (`namedPrefabs`). Entries are the
+ * textures among them, sorted by id, each once. A reference no live asset
+ * of its kinds resolves, or a texture with no content, is `asset-missing`
+ * with the closest live id; a texture whose entry records a hash but no
+ * size is left out and is `asset-missing` too, saying so.
  */
 export function sceneBundle(
   scene: ExpandedScene,
@@ -178,17 +315,16 @@ export function sceneBundle(
   registry: Registry,
 ): { bundle: AssetBundle; issues: SceneIssue[] } {
   const sources: Source[] = [];
-  for (const e of scene.entities) {
-    for (const site of entityRefSites(registry, e, jsonPointer(["entities", `@${e.id}`])))
-      sources.push({ site, where: `${e.id}.${fieldOf(site, 2)}`, entityIds: [e.id] });
-  }
+  for (const e of scene.entities) sources.push(...entitySources(registry, e));
   for (const site of schemaRefSites(registry.settings, scene.settings, "/settings"))
     sources.push({ site, where: `settings.${fieldOf(site, 1)}`, entityIds: [] });
   sources.push(...headerSources(def.assets, "", []));
-  for (const id of prefabsUsedBy(def, prefabs)) {
+  const used = prefabsUsedBy(def, prefabs);
+  for (const id of used) {
     const prefab = prefabs.get(id);
     if (prefab) sources.push(...headerSources(prefab.assets, `prefab "${id}"'s `, [id]));
   }
+  sources.push(...namedPrefabSources(scene, prefabs, registry, new Set(used), sources));
   return resolve(scene.name, sources, view, kinds);
 }
 

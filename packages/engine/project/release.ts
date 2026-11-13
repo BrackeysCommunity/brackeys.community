@@ -497,6 +497,9 @@ const manifestSchema = z
     "A build's manifest (release.json): what it ships, which engine and game built it, the project snapshot it pins and its sizes.",
   );
 
+/** A shipped asset's and a listed scene's schemas, which a scene version's `assets` and `entry` share. */
+export { assetSchema as releaseAssetSchema, sceneSchema as releaseSceneSchema };
+
 /** The manifest's zod schema; `parseReleaseManifest` checks with it. */
 export const releaseManifestSchema: z.ZodType<ReleaseManifest> = manifestSchema;
 
@@ -533,6 +536,8 @@ function ordered(
   return { as: "map", fields: Object.fromEntries(keys.map((k) => [k, nested[k] ?? ATOMIC])) };
 }
 
+export { ordered as orderedLayout };
+
 const lines = (item: Extract<DocLayout, { as: "map" }>): DocLayout => ({ as: "list", item });
 
 const BUNDLE_LAYOUT = ordered(["entries", "bytes"]);
@@ -552,6 +557,12 @@ const ASSET_LAYOUT = ordered(
     "licence",
   ],
   { licence: ordered(["spdx", "author", "source", "attribution"]) },
+);
+
+/** `ReleaseScene`'s key order. */
+export const RELEASE_SCENE_LAYOUT = ordered(
+  ["id", "title", "sublevel", "physics", "prefabs", "bundle"],
+  { bundle: BUNDLE_LAYOUT },
 );
 
 /** The key order of `ReleaseManifest`, with each `files`, `assets`, `scenes` and credits item on one line. */
@@ -585,11 +596,7 @@ const MANIFEST_LAYOUT = ordered(
     time: ordered(["kind", "rate", "catchUp", "wakeOnPointerMove"]),
     replay: ordered(["acrossPlatforms"]),
     flow: ordered(["start", "scenes"], {
-      scenes: lines(
-        ordered(["id", "title", "sublevel", "physics", "prefabs", "bundle"], {
-          bundle: BUNDLE_LAYOUT,
-        }),
-      ),
+      scenes: lines(RELEASE_SCENE_LAYOUT),
     }),
     projectBundle: BUNDLE_LAYOUT,
     assets: { as: "map", rest: ATOMIC },
@@ -647,15 +654,25 @@ function assetsBlock(assets: ReleaseManifest["assets"]): string {
  * one line; trailing newline.
  */
 export function formatReleaseManifest(manifest: ReleaseManifest): string {
-  const value = {
-    ...manifest,
-    build: { ...manifest.build, files: [...manifest.build.files].sort(byPath) },
-    assets: {},
-  };
-  const text = canonicalJson(value, MANIFEST_LAYOUT);
+  return canonicalWithAssets(
+    { ...manifest, build: { ...manifest.build, files: [...manifest.build.files].sort(byPath) } },
+    MANIFEST_LAYOUT,
+  );
+}
+
+/**
+ * canonicalJson of `value` in `layout`, with its top-level `assets` sorted
+ * by id and each item on one line in `ReleaseAsset`'s key order: the one
+ * writer of every format that lists assets as a release does.
+ */
+export function canonicalWithAssets<V extends { assets: Readonly<Record<AssetId, ReleaseAsset>> }>(
+  value: V,
+  layout: Extract<DocLayout, { as: "map" }>,
+): string {
+  const text = canonicalJson({ ...value, assets: {} }, layout);
   const at = text.indexOf(ASSETS_SLOT);
   const end = at + ASSETS_SLOT.length;
-  return `${text.slice(0, at)}\n  "assets": ${assetsBlock(manifest.assets)}${text.slice(end)}`;
+  return `${text.slice(0, at)}\n  "assets": ${assetsBlock(value.assets)}${text.slice(end)}`;
 }
 
 /** The release id: sha256 of `formatReleaseManifest`'s text. */
@@ -675,11 +692,13 @@ export function releaseBuildHash(files: readonly ReleaseFile[]): Promise<Sha256>
 const hasEntries = (value: Record<string, unknown> | undefined): value is Record<string, unknown> =>
   value !== undefined && Object.keys(value).length > 0;
 
-/** The project snapshot the manifest pins (`at: 0`), rebuilt from `project` and `assets`; its `hash` is `project.snapshot`. */
-export function releaseSnapshot(manifest: ReleaseManifest): ProjectSnapshot {
+/** Shipped assets as a snapshot pins them, sorted by id: a blob keeps its size, import settings and meta. */
+export function snapshotAssetsOf(
+  shipped: Readonly<Record<AssetId, ReleaseAsset>>,
+): Record<AssetId, SnapshotAsset> {
   const assets: Record<AssetId, SnapshotAsset> = {};
-  for (const id of Object.keys(manifest.assets).sort(byCodeUnit)) {
-    const a = manifest.assets[id]!;
+  for (const id of Object.keys(shipped).sort(byCodeUnit)) {
+    const a = shipped[id]!;
     const pinned: SnapshotAsset = { key: a.key, kind: a.kind, path: a.path, sha256: a.sha256 };
     if (a.storage === "blob") {
       pinned.bytes = a.bytes;
@@ -688,6 +707,12 @@ export function releaseSnapshot(manifest: ReleaseManifest): ProjectSnapshot {
     }
     assets[id] = pinned;
   }
+  return assets;
+}
+
+/** The project snapshot the manifest pins (`at: 0`), rebuilt from `project` and `assets`; its `hash` is `project.snapshot`. */
+export function releaseSnapshot(manifest: ReleaseManifest): ProjectSnapshot {
+  const assets = snapshotAssetsOf(manifest.assets);
   const build: Record<AssetKindName, Sha256> = {};
   for (const kind of Object.keys(manifest.project.build).sort(byCodeUnit))
     build[kind] = manifest.project.build[kind]!;

@@ -7,7 +7,14 @@ import type {
 } from "../../game/behaviors";
 import { COLLIDER, type ColliderBlock, type ColliderSystem } from "../../game/behaviors/collider";
 import type { NavAgentBlock, NavAgentSystem } from "../../game/behaviors/nav-agent";
-import { scopedRef, type EngineContext, type JsonValue } from "../../game/types";
+import { NAV_COMMAND, type NavDestination } from "../../game/commands";
+import {
+  EngineError,
+  scopedRef,
+  type EngineContext,
+  type GameCommand,
+  type JsonValue,
+} from "../../game/types";
 import { createMotionBody, type MotionBody } from "../../motion/index";
 import { parseShape } from "../../scene/shapes";
 import type { Aabb, RuntimeEntity } from "../../scene/types";
@@ -117,8 +124,11 @@ function clearCorners(path: Vec2[], clearance: number, nav: RuntimeNav): Vec2[] 
  * with a solid `collider` moves through a motion body of the collider's
  * shape, sliding along what it meets, and the collider system's own copy
  * of the collider leaves the world while it does; any other moves by pose.
- * Both stay on the walk areas. A world save holds each agent's place in
- * the step order, its destination, its route and its timers.
+ * Both stay on the walk areas. A tick's `@nav` commands (a script's or a
+ * check's `nav`) set destinations before any agent steps; one naming an
+ * entity that doesn't exist is `dangling-ref`, and one without a nav-agent
+ * `behavior-missing`. A world save holds each agent's place in the step
+ * order, its destination, its route and its timers.
  */
 export const createNavAgentSystem: BehaviorSystemFactory = (
   ctx: EngineContext,
@@ -413,6 +423,24 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
     }
   }
 
+  /** A `@nav` command: `setDestination` for an agent, refused for anything else. */
+  function steer(command: GameCommand): void {
+    const { id, to } = command.args as NavDestination;
+    if (!ctx.exists(id))
+      throw new EngineError(
+        "dangling-ref",
+        `${NAV_COMMAND} names "${id}", which doesn't exist`,
+        id,
+      );
+    if (!agents.has(id))
+      throw new EngineError(
+        "behavior-missing",
+        `${NAV_COMMAND} steers "${id}", which carries no ${def.name}`,
+        id,
+      );
+    system.setDestination(id, typeof to === "string" ? to : { x: to[0], y: to[1] });
+  }
+
   const system: NavAgentSystem = {
     attach(id, block, entity) {
       const a: Agent = {
@@ -460,6 +488,11 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       }
     },
     beforeStep(dtMs) {
+      const commands = ctx.input.commands();
+      for (let i = 0; i < commands.length; i++) {
+        const c = commands[i]!;
+        if (c.name === NAV_COMMAND) steer(c);
+      }
       if (agents.size === 0) return;
       if (reorder) {
         reorder = false;

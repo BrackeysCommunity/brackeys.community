@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ConnectHostOptions`](#connecthostoptions) · [`FetchText`](#fetchtext) · [`FrameMessage`](#framemessage) · [`HOST_DOWNLOAD_MAX_BYTES`](#host_download_max_bytes) · [`HOST_HANDSHAKE_TIMEOUT_MS`](#host_handshake_timeout_ms) · [`HOST_MESSAGE_MAX_BYTES`](#host_message_max_bytes) · [`HOST_PROTOCOL_VERSION`](#host_protocol_version) · [`HOST_REQUESTS`](#host_requests) · [`HOST_REQUEST_TIMEOUT_MS`](#host_request_timeout_ms) · [`HOST_WELCOME_TIMEOUT_MS`](#host_welcome_timeout_ms) · [`HostChannel`](#hostchannel) · [`HostEvents`](#hostevents) · [`HostMessage`](#hostmessage) · [`HostRequestError`](#hostrequesterror) · [`HostRequestMethod`](#hostrequestmethod) · [`HostRequestParams`](#hostrequestparams) · [`HostRequestResult`](#hostrequestresult) · [`HostSaves`](#hostsaves) · [`HostWelcome`](#hostwelcome) · [`RenderState`](#renderstate) · [`StandaloneBootError`](#standalonebooterror) · [`StandaloneGame`](#standalonegame) · [`StandaloneOptions`](#standaloneoptions) · [`bootStandalone`](#bootstandalone) · [`channelSaveStore`](#channelsavestore) · [`connectHost`](#connecthost) · [`fetchReleaseTexts`](#fetchreleasetexts) · [`frameMessageSchema`](#framemessageschema) · [`frameReadySchema`](#framereadyschema) · [`hostHandshakeSchema`](#hosthandshakeschema) · [`hostIssueSchema`](#hostissueschema) · [`hostMessageBytes`](#hostmessagebytes) · [`hostMessageSchema`](#hostmessageschema) · [`hostRequested`](#hostrequested) · [`hostSavesSchema`](#hostsavesschema) · [`manifestRuntimeView`](#manifestruntimeview) · [`manifestView`](#manifestview) · [`mirrorRenderState`](#mirrorrenderstate) · [`saveLimitsSchema`](#savelimitsschema) · [`saveModeSchema`](#savemodeschema) · [`saveSummarySchema`](#savesummaryschema) · [`saveWriteResultSchema`](#savewriteresultschema) · [`showBootError`](#showbooterror) · [`welcomeSchema`](#welcomeschema) · [`withinHostMessageCap`](#withinhostmessagecap)
+[`ConnectHostOptions`](#connecthostoptions) · [`FetchText`](#fetchtext) · [`FrameMessage`](#framemessage) · [`HOST_DOWNLOAD_MAX_BYTES`](#host_download_max_bytes) · [`HOST_HANDSHAKE_TIMEOUT_MS`](#host_handshake_timeout_ms) · [`HOST_MESSAGE_MAX_BYTES`](#host_message_max_bytes) · [`HOST_PROTOCOL_VERSION`](#host_protocol_version) · [`HOST_REQUESTS`](#host_requests) · [`HOST_REQUEST_TIMEOUT_MS`](#host_request_timeout_ms) · [`HOST_WELCOME_TIMEOUT_MS`](#host_welcome_timeout_ms) · [`HostChannel`](#hostchannel) · [`HostEvents`](#hostevents) · [`HostFeature`](#hostfeature) · [`HostMessage`](#hostmessage) · [`HostRequestError`](#hostrequesterror) · [`HostRequestMethod`](#hostrequestmethod) · [`HostRequestParams`](#hostrequestparams) · [`HostRequestResult`](#hostrequestresult) · [`HostSaves`](#hostsaves) · [`HostWelcome`](#hostwelcome) · [`LiveController`](#livecontroller) · [`LiveControllerOptions`](#livecontrolleroptions) · [`LiveSceneEntry`](#livesceneentry) · [`LiveSnapshot`](#livesnapshot) · [`LiveStateMessage`](#livestatemessage) · [`LiveStatus`](#livestatus) · [`RenderState`](#renderstate) · [`StandaloneBootError`](#standalonebooterror) · [`StandaloneGame`](#standalonegame) · [`StandaloneOptions`](#standaloneoptions) · [`bootStandalone`](#bootstandalone) · [`channelSaveStore`](#channelsavestore) · [`connectHost`](#connecthost) · [`createLiveController`](#createlivecontroller) · [`fetchReleaseTexts`](#fetchreleasetexts) · [`frameMessageSchema`](#framemessageschema) · [`frameReadySchema`](#framereadyschema) · [`hostFeatureSchema`](#hostfeatureschema) · [`hostHandshakeSchema`](#hosthandshakeschema) · [`hostIssueSchema`](#hostissueschema) · [`hostMessageBytes`](#hostmessagebytes) · [`hostMessageSchema`](#hostmessageschema) · [`hostRequested`](#hostrequested) · [`hostSavesSchema`](#hostsavesschema) · [`liveSceneEntrySchema`](#livesceneentryschema) · [`liveSnapshotSchema`](#livesnapshotschema) · [`liveStateMessageSchema`](#livestatemessageschema) · [`manifestRuntimeView`](#manifestruntimeview) · [`manifestView`](#manifestview) · [`mirrorRenderState`](#mirrorrenderstate) · [`saveLimitsSchema`](#savelimitsschema) · [`saveModeSchema`](#savemodeschema) · [`saveSummarySchema`](#savesummaryschema) · [`saveWriteResultSchema`](#savewriteresultschema) · [`showBootError`](#showbooterror) · [`welcomeSchema`](#welcomeschema) · [`withinHostMessageCap`](#withinhostmessagecap)
 
 ## `ConnectHostOptions`
 
@@ -10,6 +10,8 @@ _type_ in `standalone/host-channel.ts`
 
 ```ts
 type ConnectHostOptions = {
+    /** What the frame supports, sent in `hello`; none by default, and an empty list sends none. */
+    features?: readonly HostFeature[];
     /** What the frame says in `hello`. */
     hello: {
         engine: string;
@@ -26,6 +28,8 @@ type ConnectHostOptions = {
     window?: Window;
 };
 ```
+
+Refers to [`HostFeature`](#hostfeature).
 
 ## `FetchText`
 
@@ -168,10 +172,12 @@ declare const HOST_REQUESTS: {
     readonly hello: {
         readonly params: z.ZodObject<{
             engine: z.ZodString;
+            features: z.ZodOptional<z.ZodArray<z.ZodLiteral<"live">>>;
             game: z.ZodString;
             release: z.ZodString;
         }, z.core.$strict>;
         readonly result: z.ZodObject<{
+            live: z.ZodOptional<z.ZodNullable<z.ZodType<LiveSnapshot, unknown, z.core.$ZodTypeInternals<LiveSnapshot, unknown>>>>;
             online: z.ZodBoolean;
             player: z.ZodObject<{
                 name: z.ZodNullable<z.ZodString>;
@@ -197,6 +203,8 @@ declare const HOST_REQUESTS: {
     };
 };
 ```
+
+Refers to [`LiveSnapshot`](#livesnapshot).
 
 ## `HOST_REQUEST_TIMEOUT_MS`
 
@@ -232,6 +240,8 @@ The frame's end of the `jams-host` channel, open once the page has answered `hel
 ```ts
 type HostChannel = {
     close(): void;
+    /** Reports where one scene's live version stands. */
+    liveState(message: LiveStateMessage): void;
     /** Hands the page a file to offer as a download button; the frame can't start downloads itself. */
     offerDownload(name: string, contentType: string, bytes: ArrayBuffer): void;
     /** Listens for one of the page's events; returns the unsubscribe. */
@@ -252,7 +262,7 @@ type HostChannel = {
 };
 ```
 
-Refers to [`HostEvents`](#hostevents), [`HostRequestMethod`](#hostrequestmethod), [`HostRequestParams`](#hostrequestparams), [`HostRequestResult`](#hostrequestresult), [`HostWelcome`](#hostwelcome).
+Refers to [`HostEvents`](#hostevents), [`HostRequestMethod`](#hostrequestmethod), [`HostRequestParams`](#hostrequestparams), [`HostRequestResult`](#hostrequestresult), [`HostWelcome`](#hostwelcome), [`LiveStateMessage`](#livestatemessage).
 
 ## `HostEvents`
 
@@ -262,13 +272,27 @@ The events the page sends, by type, as a frame listens for them.
 
 ```ts
 type HostEvents = {
+    /** The whole live snapshot again; the frame diffs it against what it runs. */
+    "live.update": LiveSnapshot;
+    /** The page asks for the run's recording so far; the frame answers with a download. */
+    "recording.request": undefined;
     "saves.changed": HostSaves;
     pause: undefined;
     resume: undefined;
 };
 ```
 
-Refers to [`HostSaves`](#hostsaves).
+Refers to [`HostSaves`](#hostsaves), [`LiveSnapshot`](#livesnapshot).
+
+## `HostFeature`
+
+_type_ in `standalone/host-protocol.ts`
+
+```ts
+type HostFeature = z.infer<typeof hostFeatureSchema>;
+```
+
+Refers to [`hostFeatureSchema`](#hostfeatureschema).
 
 ## `HostMessage`
 
@@ -342,6 +366,115 @@ type HostWelcome = z.infer<typeof welcomeSchema>;
 ```
 
 Refers to [`welcomeSchema`](#welcomeschema).
+
+## `LiveController`
+
+_type_ in `standalone/live.ts`
+
+The frame's side of live levels, for a host that announced `"live"`.
+
+```ts
+type LiveController = {
+    dispose(): void;
+    /** Resolves once `scene`'s preparation has finished, staged or refused; at once when none runs. */
+    settled(scene: AssetId): Promise<void>;
+    /** Diffs against what is staged and active; stages what's new, activates what's ready. */
+    update(live: LiveSnapshot): void;
+};
+```
+
+Refers to [`LiveSnapshot`](#livesnapshot).
+
+## `LiveControllerOptions`
+
+_type_ in `standalone/live.ts`
+
+```ts
+type LiveControllerOptions = {
+    /** Fetches a file relative to release.json: the boot's own fetch. */
+    fetchText(path: string): Promise<string>;
+    /**
+     * Filled with the file each staged version's blobs load from, by hash: the
+     * release's own path when it ships that hash, else `live/<sha256><ext>`.
+     * The standalone loader's URL function reads it.
+     */
+    files?: Map<Sha256, string>;
+    instance: GameInstance;
+    manifest: ReleaseManifest;
+    report(state: LiveStateMessage): void;
+};
+```
+
+Refers to [`LiveStateMessage`](#livestatemessage).
+
+## `LiveSceneEntry`
+
+_type_ in `standalone/host-protocol.ts`
+
+One scene a channel runs a live version of.
+
+```ts
+type LiveSceneEntry = {
+    /** The version's number among the scene's versions, as the page shows it. */
+    number: number;
+    scene: AssetId;
+    /** ISO time the pointer moved; the page uses it for "updated 3 min ago" in its chrome. */
+    since: string;
+    timing: SwapTiming;
+    version: Sha256;
+};
+```
+
+## `LiveSnapshot`
+
+_type_ in `standalone/host-protocol.ts`
+
+The live versions a channel's release runs now: what the page hands the frame.
+
+```ts
+type LiveSnapshot = {
+    channel: "preview" | "production";
+    release: Sha256;
+    /** Versions this channel still points at that were hidden: pages running one reload their frame. */
+    removed: readonly Sha256[];
+    /** Grows with every move on the channel. */
+    rev: number;
+    /** Only pointers that apply: compatible, listed, not collected, hidden or blocked. Sorted by scene. */
+    scenes: readonly LiveSceneEntry[];
+};
+```
+
+Refers to [`LiveSceneEntry`](#livesceneentry).
+
+## `LiveStateMessage`
+
+_type_ in `standalone/host-protocol.ts`
+
+The frame's report on one scene's version; `version` null means the release's own.
+
+```ts
+type LiveStateMessage = {
+    issue?: SceneIssue;
+    scene: AssetId;
+    status: LiveStatus;
+    strategy?: SwapStrategy;
+    tick?: number;
+    timing?: SwapTiming;
+    version: Sha256 | null;
+};
+```
+
+Refers to [`LiveStatus`](#livestatus).
+
+## `LiveStatus`
+
+_type_ in `standalone/host-protocol.ts`
+
+Where a scene's version stands in the frame.
+
+```ts
+type LiveStatus = "applied" | "failed" | "ready" | "refused" | "staging" | "waiting";
+```
 
 ## `RenderState`
 
@@ -437,8 +570,14 @@ directory.
 With `?host=jams` on the page's URL it first looks for the page that
 frames it (`connectHost`). When one answers, saves and remaps go through
 that page, no service worker registers, the state is reported to it too
-and its `pause`/`resume` pause the game; when none answers in 2 s the
-build plays as it would anywhere else.
+and its `pause`/`resume` pause the game, and its `recording.request`
+gets the run's recording so far as a `download` (a hosted frame records
+each scene the flow loads); when none answers in 2 s the
+build plays as it would anywhere else. A hosted frame announces `"live"`:
+the welcome's live versions are staged before the first scene loads (the
+start scene waits for its own, the others stage in the background), the
+page's `live.update` snapshots go to `createLiveController`, and its
+reports go back as `live.state`.
 
 ```ts
 declare function bootStandalone(opts: StandaloneOptions): Promise<StandaloneGame>;
@@ -481,6 +620,30 @@ declare function connectHost(opts: ConnectHostOptions): Promise<HostChannel | nu
 
 Refers to [`ConnectHostOptions`](#connecthostoptions), [`HostChannel`](#hostchannel).
 
+## `createLiveController`
+
+_function_ in `standalone/live.ts`
+
+Follows the page's live snapshots: for each scene whose version differs
+from what the frame runs, fetches `live/<version>.json` and checks that
+it hashes to its id, parses and is compatible with the release; fetches
+each doc it carries from the release's own `data/` when the release ships
+that hash, else from `live/`, each hash-checked; stages it within one
+`LIVE_DEFAULTS.preloadTimeoutMs` deadline for the whole preparation; and
+activates it at its timing. Each step goes to `report`: `staging`,
+`ready`, `waiting` (a boundary swap), `applied` (the swap, or the load
+that used it) and `refused` or `failed` with the issue. A scene that
+leaves the snapshot goes back to the release's own, at its pointer's
+last timing, or at the next load when the version it ran had failed or
+was removed. One preparation per scene runs at a time; a newer snapshot
+cancels an older one.
+
+```ts
+declare function createLiveController(opts: LiveControllerOptions): LiveController;
+```
+
+Refers to [`LiveController`](#livecontroller), [`LiveControllerOptions`](#livecontrolleroptions).
+
 ## `fetchReleaseTexts`
 
 _function_ in `standalone/data.ts`
@@ -509,6 +672,7 @@ declare const frameMessageSchema: z.ZodDiscriminatedUnion<[
         id: z.ZodNumber;
         params: z.ZodObject<{
             engine: z.ZodString;
+            features: z.ZodOptional<z.ZodArray<z.ZodLiteral<"live">>>;
             game: z.ZodString;
             release: z.ZodString;
         }, z.core.$strict>;
@@ -578,6 +742,23 @@ declare const frameMessageSchema: z.ZodDiscriminatedUnion<[
         contentType: z.ZodString;
         name: z.ZodString;
         type: z.ZodLiteral<"download">;
+    }, z.core.$strict>,
+    z.ZodObject<{
+        issue: z.ZodOptional<z.ZodType<SceneIssue, unknown, z.core.$ZodTypeInternals<SceneIssue, unknown>>>;
+        scene: z.ZodString;
+        status: z.ZodEnum<{
+            applied: "applied";
+            failed: "failed";
+            ready: "ready";
+            refused: "refused";
+            staging: "staging";
+            waiting: "waiting";
+        }>;
+        strategy: z.ZodOptional<z.ZodType<SwapStrategy, unknown, z.core.$ZodTypeInternals<SwapStrategy, unknown>>>;
+        tick: z.ZodOptional<z.ZodNumber>;
+        timing: z.ZodOptional<z.ZodType<SwapTiming, unknown, z.core.$ZodTypeInternals<SwapTiming, unknown>>>;
+        type: z.ZodLiteral<"live.state">;
+        version: z.ZodNullable<z.ZodString>;
     }, z.core.$strict>
 ], "type">;
 ```
@@ -593,6 +774,16 @@ declare const frameReadySchema: z.ZodObject<{
     protocol: z.ZodLiteral<1>;
     type: z.ZodLiteral<"jams:frame-ready">;
 }, z.core.$strict>;
+```
+
+## `hostFeatureSchema`
+
+_const_ in `standalone/host-protocol.ts`
+
+What a frame says it supports in `hello`; absent means none.
+
+```ts
+declare const hostFeatureSchema: z.ZodLiteral<"live">;
 ```
 
 ## `hostHandshakeSchema`
@@ -671,9 +862,18 @@ declare const hostMessageSchema: z.ZodDiscriminatedUnion<[
     }, z.core.$strip>,
     z.ZodObject<{
         type: z.ZodLiteral<"resume">;
+    }, z.core.$strip>,
+    z.ZodObject<{
+        live: z.ZodType<LiveSnapshot, unknown, z.core.$ZodTypeInternals<LiveSnapshot, unknown>>;
+        type: z.ZodLiteral<"live.update">;
+    }, z.core.$strip>,
+    z.ZodObject<{
+        type: z.ZodLiteral<"recording.request">;
     }, z.core.$strip>
 ], "type">;
 ```
+
+Refers to [`LiveSnapshot`](#livesnapshot).
 
 ## `hostRequested`
 
@@ -704,6 +904,49 @@ declare const hostSavesSchema: z.ZodObject<{
         site: "site";
     }>;
 }, z.core.$strip>;
+```
+
+## `liveSceneEntrySchema`
+
+_const_ in `standalone/host-protocol.ts`
+
+```ts
+declare const liveSceneEntrySchema: z.ZodType<LiveSceneEntry>;
+```
+
+Refers to [`LiveSceneEntry`](#livesceneentry).
+
+## `liveSnapshotSchema`
+
+_const_ in `standalone/host-protocol.ts`
+
+```ts
+declare const liveSnapshotSchema: z.ZodType<LiveSnapshot>;
+```
+
+Refers to [`LiveSnapshot`](#livesnapshot).
+
+## `liveStateMessageSchema`
+
+_const_ in `standalone/host-protocol.ts`
+
+```ts
+declare const liveStateMessageSchema: z.ZodObject<{
+    issue: z.ZodOptional<z.ZodType<SceneIssue, unknown, z.core.$ZodTypeInternals<SceneIssue, unknown>>>;
+    scene: z.ZodString;
+    status: z.ZodEnum<{
+        applied: "applied";
+        failed: "failed";
+        ready: "ready";
+        refused: "refused";
+        staging: "staging";
+        waiting: "waiting";
+    }>;
+    strategy: z.ZodOptional<z.ZodType<SwapStrategy, unknown, z.core.$ZodTypeInternals<SwapStrategy, unknown>>>;
+    tick: z.ZodOptional<z.ZodNumber>;
+    timing: z.ZodOptional<z.ZodType<SwapTiming, unknown, z.core.$ZodTypeInternals<SwapTiming, unknown>>>;
+    version: z.ZodNullable<z.ZodString>;
+}, z.core.$strict>;
 ```
 
 ## `manifestRuntimeView`
@@ -818,10 +1061,11 @@ declare function showBootError(root: HTMLElement, issue: SceneIssue): {
 
 _const_ in `standalone/host-protocol.ts`
 
-The page's answer to `hello`: who plays, where saves go, this browser's stored preferences, and whether the game may go online.
+The page's answer to `hello`: who plays, where saves go, this browser's stored preferences, whether the game may go online, and the live versions it runs.
 
 ```ts
 declare const welcomeSchema: z.ZodObject<{
+    live: z.ZodOptional<z.ZodNullable<z.ZodType<LiveSnapshot, unknown, z.core.$ZodTypeInternals<LiveSnapshot, unknown>>>>;
     online: z.ZodBoolean;
     player: z.ZodObject<{
         name: z.ZodNullable<z.ZodString>;
@@ -845,6 +1089,8 @@ declare const welcomeSchema: z.ZodObject<{
     }, z.core.$strip>;
 }, z.core.$strip>;
 ```
+
+Refers to [`LiveSnapshot`](#livesnapshot).
 
 ## `withinHostMessageCap`
 

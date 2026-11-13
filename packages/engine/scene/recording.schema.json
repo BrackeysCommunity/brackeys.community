@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:recording:v2",
-  "x-agent-surface": 18,
+  "x-agent-surface": 19,
   "title": "jams engine run recording, format v2",
   "type": "object",
   "properties": {
@@ -657,6 +657,59 @@
       },
       "required": ["slot", "sha256"],
       "additionalProperties": false
+    },
+    "sceneVersion": {
+      "description": "The live scene version this part of the run started on, its id; omitted for the release's own scene.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "swaps": {
+      "description": "Every swap during this part of the run, in tick order; omitted when none ran.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tick": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The tick the swap ran before."
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The version swapped in; null for the release's own scene."
+          },
+          "strategy": {
+            "type": "string",
+            "enum": ["reconcile", "reload"],
+            "description": "Whether entities changed in place or the scene reloaded."
+          },
+          "timing": {
+            "type": "string",
+            "enum": ["next-load", "boundary", "now"],
+            "description": "The timing the version was activated with."
+          },
+          "sceneHash": {
+            "type": "string",
+            "description": "The swapped-in scene's hash."
+          },
+          "runHash": {
+            "type": "string",
+            "description": "What the run ran after the swap; a replay is stale from here when it differs."
+          }
+        },
+        "required": ["tick", "version", "strategy", "timing", "sceneHash", "runHash"],
+        "additionalProperties": false,
+        "description": "A new version of the scene applied between ticks."
+      }
     }
   },
   "required": [

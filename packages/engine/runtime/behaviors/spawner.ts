@@ -7,7 +7,9 @@ import type {
 } from "../../game/behaviors";
 import type { SpawnerBlock, SpawnerSystem } from "../../game/behaviors/spawner";
 import { ticksFor, wholeTicksIn } from "../../game/time";
-import type { EngineContext, JsonValue } from "../../game/types";
+import type { EngineContext, JsonValue, SpawnInput } from "../../game/types";
+import { translateEntityDef } from "../../scene/translate";
+import type { EntityDef } from "../../scene/types";
 import { ENTITY_DESTROYED, SPAWNER_SPAWNED, type StepEvent } from "../types";
 
 const U32 = 0x1_0000_0000;
@@ -98,6 +100,19 @@ export const createSpawnerSystem: BehaviorSystemFactory = (
     }
   }
 
+  /**
+   * A type spawn's fields at `x, y`: the block's `fields` with their
+   * geometry moved there, or, with none to move, standing there by `at`.
+   */
+  function typeSpawn(block: SpawnerBlock, x: number, y: number): SpawnInput {
+    const type = block.type ?? "";
+    if (block.fields === undefined) return { type, at: [x, y] };
+    const def = { ...structuredClone(block.fields), id: "", type } as EntityDef;
+    const moved = translateEntityDef(ctx.registry, def, [x, y]);
+    const { id: _id, ...fields } = moved ?? { ...def, at: [x, y] };
+    return fields as SpawnInput;
+  }
+
   /** Spawns one at the spawner's pose plus `dx, dy`; `lifeTicks` replaces `lifeMs` (a seek's remainder). */
   function spawnOne(s: Spawner, dx: number, dy: number, emit: boolean, lifeTicks?: number): void {
     const pose = ctx.poses.get(s.id);
@@ -120,11 +135,13 @@ export const createSpawnerSystem: BehaviorSystemFactory = (
           : block.lifeMs !== undefined
             ? { ms: block.lifeMs }
             : undefined;
-      id = ctx.spawn({
-        type: block.type ?? "",
-        at: [x, y],
-        ...(lifetime ? { behaviors: { lifetime } } : {}),
-      }).id;
+      const input = typeSpawn(block, x, y);
+      if (lifetime) {
+        const own = input.behaviors;
+        const blocks = typeof own === "object" && own !== null && !Array.isArray(own) ? own : {};
+        input.behaviors = { ...blocks, lifetime };
+      }
+      id = ctx.spawn(input).id;
       bodies = [id];
     }
     s.live.add(id);

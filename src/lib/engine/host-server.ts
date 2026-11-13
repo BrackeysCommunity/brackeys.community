@@ -251,6 +251,8 @@ export function createHostServer(opts: HostServerOptions): HostServer {
         });
       },
     },
+    // This page sends no live versions, so a frame's reports about them have nothing to update.
+    "live.state": { handle() {} },
   };
 
   const answer = async (from: MessagePort, id: number, run: () => unknown) => {

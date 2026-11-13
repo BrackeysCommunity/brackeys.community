@@ -279,6 +279,51 @@ describe("Play and Stop", () => {
     expect(game.getStore().state.camera).toStrictEqual(before);
   });
 
+  it("plays a behavior hero from a point: seat 0's character starts there, another seat's stays", async () => {
+    const hero = (id: string, at: [number, number], character: string, seat: number) => ({
+      id,
+      type: "marker",
+      at,
+      behaviors: {
+        collider: { shape: ["box", 0, 0, 0.2, 0.2] },
+        [character]: {},
+        "player-input": { seat },
+      },
+    });
+    const doc: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      name: "heroes",
+      bounds: [0, 0, 20, 12],
+      settings: { physics: "none", gravity: [0, 0] },
+      entities: [
+        hero("walker", [2, 2], "character-top-down", 0),
+        hero("other", [4, 2], "character-top-down", 1),
+        hero("jumper", [2, 8], "character-side-view", 0),
+      ],
+    };
+    const game = await makeGame({ game: null, scene: doc });
+    game.start();
+    game.stop();
+    const pose = (id: string) => {
+      const p = world(game)!.ctx.poses.get(id)!;
+      return [p.x, p.y];
+    };
+    expect(game.play(doc, { at: { x: 9, y: 5 } }).ok).toBe(true);
+    expect(pose("walker")).toEqual([2, 2]);
+    game.step(1);
+    expect(pose("walker")).toEqual([9, 5]);
+    expect(pose("other")).toEqual([4, 2]);
+    expect(pose("jumper")[0]).toBe(9);
+    game.step(30);
+    expect(pose("walker")).toEqual([9, 5]);
+    game.stop();
+
+    expect(game.play(doc).ok).toBe(true);
+    game.step(1);
+    expect(pose("walker")).toEqual([2, 2]);
+    expect(pose("jumper")[0]).toBe(2);
+  });
+
   it("keeps the remembered edit world across a restart", async () => {
     const game = await editing();
     const edit = world(game)!.scene();

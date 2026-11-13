@@ -1,5 +1,6 @@
 import type { z } from "zod";
 
+import { NAV_COMMAND, type NavDestination } from "../game/commands";
 import { simBindings } from "../game/input-bindings";
 import { pointerBit, POINTER_BUTTONS, type PointerButton } from "../game/input-codes";
 import { resolveTime, ticksFor, type ResolvedTime } from "../game/time";
@@ -26,6 +27,7 @@ import {
   hintedIssue,
   INPUT_SCRIPT_VERSION,
   inputScriptSchemasFor,
+  navCommand,
   pointerStepProblem,
   scriptCommandNames,
   uiActionScriptProblem,
@@ -106,17 +108,18 @@ export type ScriptStepLog = PlaytestStep & { player?: number };
 // ─── Parsing ─────────────────────────────────────────────
 
 const V1_KINDS = ["hold", "press", "wait", "command", "elapse"] as const;
-const V2_KINDS = [...V1_KINDS, "set", "pointer", "join", "leave"] as const;
+const V2_KINDS = [...V1_KINDS, "set", "pointer", "nav", "join", "leave"] as const;
 type StepKind = (typeof V2_KINDS)[number];
 const DURATIONS = ["for", "forMs", "until"] as const;
 const V1_STEP_KEYS = [...V1_KINDS, ...DURATIONS, "max", "args"];
 const V2_STEP_KEYS = [...V2_KINDS, ...DURATIONS, "max", "args"];
 const V1_KIND_LIST = "hold, press, wait, command or elapse";
-const V2_KIND_LIST = "hold, set, pointer, press, wait, command, elapse, join or leave";
+const V2_KIND_LIST = "hold, set, pointer, press, wait, command, elapse, nav, join or leave";
 /** Kinds that take `for`, `forMs` or `until`. */
 const TIMED: readonly StepKind[] = ["hold", "set", "pointer"];
 const EXISTS_KEYS = ["id", "enabled"];
 const PERSIST_KEYS = ["pointer", "eq", "gte", "lte"];
+const NAV_KEYS = ["id", "to"];
 
 type Format = {
   v2: boolean;
@@ -225,6 +228,7 @@ type ParsedStep =
   | { kind: "wait"; ticks: number }
   | { kind: "command"; command: GameCommand }
   | { kind: "elapse"; ms: number }
+  | { kind: "nav"; command: GameCommand }
   | { kind: "join" | "leave"; device: DeviceId };
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; issues: ScriptIssue[] };
@@ -273,7 +277,7 @@ function parseStep(
   if (!isRecord(raw)) {
     return fail(
       format.v2
-        ? "a step is an object: { hold, set?, for | forMs | until }, { set, for | forMs | until }, { pointer }, { press }, { wait }, { command, args? }, { elapse }, { join } or { leave }"
+        ? "a step is an object: { hold, set?, for | forMs | until }, { set, for | forMs | until }, { pointer }, { press }, { wait }, { command, args? }, { elapse }, { nav }, { join } or { leave }"
         : "a step is an object: { hold, for | forMs | until }, { press }, { wait }, { command, args? } or { elapse }",
     );
   }
@@ -336,6 +340,7 @@ function parseStep(
       if (rel.at(-2) === "until" && rel.at(-1) === "persist") return PERSIST_KEYS;
       if (rel.at(-1) === "set") return shapeKeys(schemas.analog);
       if (rel.at(-1) === "pointer") return shapeKeys(schemas.pointer);
+      if (rel.at(-1) === "nav") return NAV_KEYS;
       return format.keys;
     };
     return failed(...fromZod(parsed.error, raw, path, registry, keysAt));
@@ -366,6 +371,8 @@ function stepOf(
     }
     case "elapse":
       return { ok: true, value: { kind, ms: data.elapse as number } };
+    case "nav":
+      return { ok: true, value: { kind, command: navCommand(data.nav as NavDestination) } };
     case "wait":
       return { ok: true, value: { kind, ticks: data.wait as number } };
     case "press": {
@@ -414,7 +421,9 @@ function commandStepIssue(
       [...path, "command"],
       name === "@elapsed"
         ? "@elapsed is the engine's; send it with an elapse step"
-        : `${name} is the engine's; a command step sends the game's`,
+        : name === NAV_COMMAND
+          ? `${NAV_COMMAND} is the engine's; send it with a nav step`
+          : `${name} is the engine's; a command step sends the game's`,
       { got: JSON.stringify(name) },
     );
   }
@@ -460,6 +469,7 @@ function compileStep(
     case "press":
       return { index, hold: step.press, ticks: 1 };
     case "command":
+    case "nav":
       return held({ commands: [step.command] });
     case "elapse": {
       const { catchUp } = resolveTime({ game: registry.time });
@@ -662,6 +672,32 @@ export function compileInputScript(
   if (head.data.players !== undefined) compiled.players = head.data.players;
   if (scene !== undefined) compiled.scene = scene;
   return { ok: true, script: compiled };
+}
+
+/**
+ * `script` with `commands` sent on its first slot, ahead of what its first
+ * step sends there: on seat 0's first step, or the first track's.
+ */
+export function withStartCommands(
+  script: CompiledInputScript,
+  commands: readonly GameCommand[],
+): CompiledInputScript {
+  if (commands.length === 0) return script;
+  const lead = (steps: CompiledScriptStep[]): CompiledScriptStep[] => {
+    const [first, ...rest] = steps;
+    return first
+      ? [{ ...first, commands: [...commands, ...(first.commands ?? [])] }, ...rest]
+      : steps;
+  };
+  const compiled = script as CompiledScript;
+  if (!compiled.tracks) return { ...compiled, steps: lead(compiled.steps) };
+  const [first, ...rest] = compiled.tracks;
+  if (!first) return script;
+  const out: CompiledScript = {
+    ...compiled,
+    tracks: [{ ...first, steps: lead(first.steps) }, ...rest],
+  };
+  return out;
 }
 
 /**

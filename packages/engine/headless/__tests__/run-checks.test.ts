@@ -469,3 +469,72 @@ describe("runChecks seats", () => {
     }
   });
 });
+
+describe("a reaches check's nav", () => {
+  const hall: SceneDefinition = {
+    v: 4,
+    name: "hall",
+    bounds: [-1, -1, 14, 12],
+    settings: { physics: "none", gravity: [0, 0] },
+    entities: [
+      { id: "floor", type: "nav", shape: ["poly", 0, 0, 12, 0, 12, 10, 0, 10] },
+      { id: "guard", type: "marker", at: [1, 5], behaviors: { "nav-agent": {} } },
+    ],
+  };
+  const arrived = { event: { type: "nav:arrived", entityId: "guard" } };
+  const runHall = (checks: unknown[]) => {
+    const parsed = parseChecks(JSON.stringify({ v: 3, checks }), engine);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    return runChecks({
+      scene: hall,
+      registry: engine,
+      checks: parsed.file,
+      readFile: () => {
+        throw new Error("ENOENT");
+      },
+    });
+  };
+
+  it("sends its agents on the run's first slot, beside the script's first step", () => {
+    const script = { v: 2, steps: [{ hold: [], until: arrived, max: 900 }] };
+    const report = runHall([
+      {
+        id: "walks",
+        kind: "reaches",
+        script,
+        result: "script-end",
+        nav: [{ id: "guard", to: [11, 5] }],
+        expect: { near: { id: "guard", to: [11, 5], within: 0.2 } },
+      },
+      {
+        id: "idle",
+        kind: "reaches",
+        script: { ...script, steps: [{ wait: 60 }] },
+        result: "script-end",
+        expect: { near: { id: "guard", to: [11, 5], within: 0.2 } },
+      },
+    ]);
+    expect(report.results.map((r) => [r.id, r.pass])).toEqual([
+      ["walks", true],
+      ["idle", false],
+    ]);
+    const steps = (report.results[0]!.detail as { steps: { end: string; ticks: number }[] }).steps;
+    expect(steps).toEqual([expect.objectContaining({ end: "until" })]);
+  });
+
+  it("fails a check whose nav names an entity without a nav-agent, with the code", () => {
+    const report = runHall([
+      {
+        id: "floor",
+        kind: "reaches",
+        script: { v: 2, steps: [{ wait: 5 }] },
+        result: "script-end",
+        nav: [{ id: "floor", to: [2, 2] }],
+      },
+    ]);
+    expect(report.ok).toBe(false);
+    const run = report.results[0]!.detail as { issues: SceneIssue[] };
+    expect(run.issues).toContainEqual(expect.objectContaining({ code: "behavior-missing" }));
+    expect(report.results[0]!.message).toMatch(/^blocked at run: @nav steers "floor"/);
+  });
+});

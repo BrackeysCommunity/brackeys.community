@@ -27,7 +27,10 @@ import type { EditorStorage } from "../host";
 import {
   DEFAULT_LAYOUT,
   fitLayout,
+  FRAME,
+  LIMITS,
   resizeColumn,
+  splitRange,
   type EditorLayout,
   type FittedColumn,
   type Viewport,
@@ -373,6 +376,25 @@ describe("the frame's layout", () => {
     expect(sheet.style.maxHeight).toBe("400px");
     fireEvent.click(within(bar).getByRole("button", { name: "Run" }));
     expect(screen.queryByRole("tablist", { name: "Right column, bottom group" })).toBeNull();
+  });
+
+  it("at 1024 px leaves the outliner its share when Project settings grows the group under it", () => {
+    resizeWindow(1024, 768);
+    const { storage } = setup();
+    fireEvent.click(screen.getByRole("tab", { name: /Project settings/ }));
+    act(() => vi.advanceTimersByTime(LAYOUT_WRITE_DELAY));
+    const layout = stored(storage);
+    expect(layout.left.groups[1]!.size).toBe(480);
+    const fitted = fitLayout(layout, viewportOf(1024, 768)).left!;
+    expectColumnAt("left", fitted);
+    const room = fitted.height - FRAME.gap;
+    const [outliner, settings] = fitted.groups;
+    expect(outliner!.height).toBe(room - splitRange(room).max);
+    expect(outliner!.height).toBeGreaterThanOrEqual(room * LIMITS.group.topShare - 0.5);
+    expect(settings!.height).toBeLessThan(480);
+    expect(separator("Left column split").getAttribute("aria-valuemax")).toBe(
+      String(splitRange(room).max),
+    );
   });
 
   it("hides the columns, rails and status in play mode and keeps the dock", () => {

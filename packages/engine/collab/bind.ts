@@ -2,6 +2,7 @@ import type * as Y from "yjs";
 
 import type { Registry } from "../game/types";
 import { bulkKeysOf, expandScene } from "../scene/expand";
+import { diffEntities, diffExpanded } from "../scene/expanded-diff";
 import { resolveScene } from "../scene/resolve";
 import {
   RESERVED_SCENE_KEYS,
@@ -12,7 +13,6 @@ import {
   type SceneDefinition,
 } from "../scene/types";
 import { contentMaps, prefabsReachedBy, readDoc, touchesMaps } from "./convert";
-import { sameValue } from "./log";
 import { EMPTY_PREFAB_SOURCE, type PrefabSource } from "./prefab-source";
 
 /** The part of a `SceneRuntime` a binding drives. */
@@ -125,6 +125,15 @@ export function expandLenient(
   return { scene, errors };
 }
 
+type EntityChanges = { added: RuntimeEntity[]; removed: string[]; changed: RuntimeEntity[] };
+
+function runChanges(runtime: BindableRuntime, { added, removed, changed }: EntityChanges): boolean {
+  if (removed.length > 0) runtime.remove(removed);
+  const okAdd = added.length === 0 || runtime.add(added).ok;
+  const okUpdate = changed.length === 0 || runtime.update(changed).ok;
+  return okAdd && okUpdate;
+}
+
 /**
  * Moves `runtime` from holding `before` to holding `after`: removes the
  * entities `after` lacks, adds the new ones and updates those whose value
@@ -135,18 +144,7 @@ export function applyEntityDiff(
   before: readonly RuntimeEntity[],
   after: readonly RuntimeEntity[],
 ): boolean {
-  const prev = new Map(before.map((e) => [e.id, e]));
-  const next = new Set(after.map((e) => e.id));
-  const removed = before.filter((e) => !next.has(e.id)).map((e) => e.id);
-  const added = after.filter((e) => !prev.has(e.id));
-  const changed = after.filter((e) => {
-    const was = prev.get(e.id);
-    return was !== undefined && !sameValue(was, e);
-  });
-  if (removed.length > 0) runtime.remove(removed);
-  const okAdd = added.length === 0 || runtime.add(added).ok;
-  const okUpdate = changed.length === 0 || runtime.update(changed).ok;
-  return okAdd && okUpdate;
+  return runChanges(runtime, diffEntities(before, after));
 }
 
 /**
@@ -184,15 +182,21 @@ export function bindSceneDoc(
     return scene;
   }
 
-  const header = (s: ExpandedScene) => ({ name: s.name, bounds: s.bounds, settings: s.settings });
-
   function apply(next: ExpandedScene): void {
-    if (!sameValue(header(current), header(next))) {
-      runtime.load(next);
-      current = next;
-      return;
+    const diff = diffExpanded(current, next);
+    if (diff.header) runtime.load(next);
+    else {
+      const pick = (ids: readonly string[]) => {
+        const want = new Set(ids);
+        return next.entities.filter((e) => want.has(e.id));
+      };
+      const changes = {
+        added: pick(diff.added),
+        removed: [...diff.removed],
+        changed: pick(diff.changed),
+      };
+      if (!runChanges(runtime, changes)) runtime.load(next);
     }
-    if (!applyEntityDiff(runtime, current.entities, next.entities)) runtime.load(next);
     current = next;
   }
 

@@ -1,4 +1,10 @@
-import { SENSOR_ENTER, type EngineContext, type GameRuntime } from "@jams/engine/game";
+import {
+  PLAYER_INPUT,
+  SENSOR_ENTER,
+  type EngineContext,
+  type GameRuntime,
+  type PlayerInputSystem,
+} from "@jams/engine/game";
 
 import { GOAL_TAG, HERO, REACHED, type Slice, type Snapshot } from "./types";
 
@@ -36,6 +42,8 @@ export function createRuntime(ctx: EngineContext): GameRuntime<Snapshot> {
         if (e.entityId === undefined || !goals.has(e.entityId)) continue;
         reached = true;
         ctx.emit({ type: REACHED, entityId: e.entityId, other: heroId, at: e.at });
+        // The win freezes the hero: with no seat, its character slows to a stop.
+        if (heroId !== null) ctx.behavior<PlayerInputSystem>(PLAYER_INPUT.name)?.detach(heroId);
       }
     },
     // An event clock keeps ticking while `move` is held or the hero still moves.

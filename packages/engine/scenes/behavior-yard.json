@@ -4,7 +4,6 @@
   "name": "behavior-yard",
   "bounds": [0, 0, 44, 15],
   "settings": { "gravity": [0, 20] },
-  "assets": ["crates"],
   "instances": [
     { "id": "runner", "prefab": "hero-side", "at": [4.5, 11.6], "params": { "jumpHeight": 2 } },
     { "id": "walker", "prefab": "hero-top", "at": [33, 4.5], "params": { "maxSpeed": 3 }, "overrides": { "hero.behaviors.camera-target.seat": 1, "hero.behaviors.camera-target.weight": 0.1, "hero.behaviors.player-input.seat": 1 } }

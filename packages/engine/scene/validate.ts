@@ -9,13 +9,14 @@ import { FORCE_AREA, forceAreaSensorMessage } from "../game/behaviors/force-area
 import { JOINT } from "../game/behaviors/joint";
 import { NAV_AGENT } from "../game/behaviors/nav-agent";
 import { OCCUPANT } from "../game/behaviors/occupant";
+import { PATH_FOLLOW } from "../game/behaviors/path-follow";
 import { SPAWNER } from "../game/behaviors/spawner";
 import { SPRITE } from "../game/behaviors/sprite";
 import { behaviorsConflict, isSpawnOnly, placeableTypes } from "../game/define";
 import { ID_PATTERN, isPolygonField } from "../game/fields";
 import { flowIssue, type SceneLibrary } from "../game/flow";
 import { physicsNeeds } from "../game/primitives";
-import { scopedRef, type RegisteredType, type Registry } from "../game/types";
+import { ENGINE_REGISTRY_ID, scopedRef, type RegisteredType, type Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { assetInfo } from "../project/asset-info";
 import { ATLAS_KIND } from "../project/kinds/atlas";
@@ -823,6 +824,32 @@ function holdsJoint(r: Registry, e: EntityDef): boolean {
   return r.types.get(e.type)?.ownsBody === true;
 }
 
+/** The primitive whose system runs `type`: its own name for a primitive, its base for a type with no system of its own. */
+function primitiveOf(type: RegisteredType): string | undefined {
+  if (type.origin === ENGINE_REGISTRY_ID) return type.type;
+  return type.system ? undefined : type.base;
+}
+
+/**
+ * Why a `path-follow` on an entity of `type` leaves something behind, or
+ * null when it moves all of it: the type's own system places its body
+ * (`ownsBody`: a solid, a prop, a follower) or builds a fixed trigger (a
+ * sensor), or the entity's `collider` has no body or a static one, so it
+ * stays where it was built. A collider on a kinematic or dynamic body moves.
+ */
+function pathFollowFixed(
+  type: RegisteredType,
+  collider: boolean,
+  body: Record<string, unknown> | null,
+): string | null {
+  if (type.ownsBody) return `a ${type.type}'s own system places its body`;
+  if (primitiveOf(type) === "sensor") return `a ${type.type}'s trigger stays where it was built`;
+  if (!collider) return null;
+  if (!body) return "its collider has no body, so it stays where it was built";
+  const kind = body.kind ?? "dynamic";
+  return kind === "static" ? "its collider's body is static, so it stays where it was built" : null;
+}
+
 /**
  * Each joint's `to` against the scene: `joint-self` when it names the
  * entity carrying it, `dangling-ref` when it names nothing, `joint-ref-type`
@@ -914,8 +941,10 @@ type MakeBatch = (label: string, ops: SceneOp[], refs: Ref[]) => OpBatch;
  * `behavior-unknown`, `behavior-forbidden`, `behavior-missing` (a carried
  * behavior's `requires`, counting the type's required blocks),
  * `behavior-conflict` once per carried pair that conflicts,
- * `character-body-kind` for a character on a dynamic body, and `schema`
- * for a block's fields once the type's defaults are under them.
+ * `character-body-kind` for a character on a dynamic body, a
+ * `behavior-conflict` warning for a `path-follow` that can't move what it
+ * carries (`pathFollowFixed`), and `schema` for a block's fields once the
+ * type's defaults are under them.
  */
 function checkBehaviors(
   registry: Registry,
@@ -1044,6 +1073,29 @@ function checkBehaviors(
         ),
       });
     }
+  }
+
+  if (carried.has(PATH_FOLLOW.name)) {
+    const written = blocks[BODY.name];
+    const body = carried.has(BODY.name)
+      ? {
+          ...(rules.required.get(BODY.name) ?? rules.defaults.get(BODY.name)),
+          ...(isPlainObject(written) ? written : {}),
+        }
+      : null;
+    const why = pathFollowFixed(type, carried.has(COLLIDER.name), body);
+    if (why)
+      push("behavior-conflict", {
+        severity: "warn",
+        message: `${e.id}'s ${PATH_FOLLOW.name} moves its pose, but ${why}`,
+        path: pointer(PATH_FOLLOW.name),
+        entityIds: [e.id],
+        got: PATH_FOLLOW.name,
+        hint:
+          type.ownsBody || primitiveOf(type) === "sensor"
+            ? "Move it on a marker or decor whose collider rides a kinematic body, or use a follower's own path."
+            : 'Give the collider a body of `kind` "kinematic" so the path moves the collider too, and carries what stands on it.',
+      });
   }
 
   if (carried.has(FORCE_AREA.name) && carried.has(COLLIDER.name)) {

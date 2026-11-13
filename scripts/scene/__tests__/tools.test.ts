@@ -41,6 +41,7 @@ import { diff } from "../tools/diff";
 import { flow } from "../tools/flow";
 import { fmt } from "../tools/fmt";
 import { fuzz } from "../tools/fuzz";
+import { gameLiveBuild } from "../tools/game-live";
 import { grid } from "../tools/grid";
 import { input } from "../tools/input";
 import { list } from "../tools/list";
@@ -2016,6 +2017,47 @@ describe("replay", () => {
     expect(r.exitCode).toBe(0);
     expect(r.text).toMatch(/platform recorded .*, rapier2d; replayed .*, rapier2d$/m);
   });
+
+  it("replays a run's swaps from --versions, and stops at one it doesn't have", async () => {
+    const file = join(root, "hop5.rec.json");
+    await playtest({ scene: "test-yard", script: HOP_LEFT, record: file }, ctx);
+    const versions = join(root, "versions");
+    const built = await gameLiveBuild(
+      { project: "platformer", scene: "test-yard", hosted: false, out: join(versions, "a") },
+      ctx,
+    );
+    expect(built.exitCode, built.text).toBe(0);
+    const { id } = built.data as { id: string };
+    const rec = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+    const swap = { tick: 30, version: id, strategy: "reconcile", timing: "now" };
+    await writeFile(
+      join(root, "swapped.json"),
+      JSON.stringify({ ...rec, swaps: [{ ...swap, sceneHash: "0", runHash: "0" }] }),
+    );
+    const first = await replay(
+      { scene: "test-yard", run: join(root, "swapped.json"), versions },
+      ctx,
+    );
+    const replayed = (first.data as { recording: { swaps?: unknown[] } }).recording;
+    expect(replayed.swaps).toEqual([expect.objectContaining(swap)]);
+
+    await writeFile(join(root, "replayed.json"), JSON.stringify(replayed));
+    const again = await replay(
+      { scene: "test-yard", run: join(root, "replayed.json"), versions },
+      ctx,
+    );
+    expect(again.exitCode, again.text).toBe(0);
+    expect(again.data).toMatchObject({ matches: true, stale: false, versions: { ids: [id] } });
+    expect(again.text).toContain(`  swap t30 to test-yard@${id.slice(0, 12)} (reconcile, now)`);
+
+    const without = await replay({ scene: "test-yard", run: join(root, "replayed.json") }, ctx);
+    expect(without.exitCode).toBe(1);
+    expect(without.text).toContain("scene-version-removed");
+    expect(
+      (await replay({ scene: "test-yard", run: file, versions: join(root, "nowhere") }, ctx))
+        .exitCode,
+    ).toBe(1);
+  });
 });
 
 describe("input", () => {
@@ -2831,6 +2873,8 @@ describe("runCli", () => {
       "game release list",
       "game release promote",
       "game release rollback",
+      "game live build",
+      "game live check",
     ]);
   });
 
@@ -2879,7 +2923,9 @@ describe("runCli", () => {
       `game export <id> --zip [--target ${zipTargets.join("|")}] [--out dist/games/<id>-<target>.zip]`,
     );
     expect(help).toContain("game manifest <dir|release.json>");
-    expect(help).toContain("replay <scene|file|-> --run <file|-> [--game id] [--releases <dir>]");
+    expect(help).toContain(
+      "replay <scene|file|-> --run <file|-> [--game id] [--releases <dir>] [--versions <dir>]",
+    );
     const bare = await runCli(["game", "build"], ctx);
     expect(bare.exitCode).toBe(2);
     expect(bare.stderr).toContain("game build <id>");

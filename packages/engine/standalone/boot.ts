@@ -34,6 +34,7 @@ import { ENGINE_VERSION } from "../version";
 import { fetchReleaseTexts, fetchText, releaseUrl, type FetchText } from "./data";
 import { renderBootError, StandaloneBootError } from "./errors";
 import { connectHost, hostRequested, type HostChannel } from "./host-channel";
+import { createLiveController, type LiveController } from "./live";
 import { manifestRuntimeView, manifestView } from "./manifest-view";
 
 export type StandaloneOptions = {
@@ -329,8 +330,14 @@ async function shippedScenes(
  * With `?host=jams` on the page's URL it first looks for the page that
  * frames it (`connectHost`). When one answers, saves and remaps go through
  * that page, no service worker registers, the state is reported to it too
- * and its `pause`/`resume` pause the game; when none answers in 2 s the
- * build plays as it would anywhere else.
+ * and its `pause`/`resume` pause the game, and its `recording.request`
+ * gets the run's recording so far as a `download` (a hosted frame records
+ * each scene the flow loads); when none answers in 2 s the
+ * build plays as it would anywhere else. A hosted frame announces `"live"`:
+ * the welcome's live versions are staged before the first scene loads (the
+ * start scene waits for its own, the others stage in the background), the
+ * page's `live.update` snapshots go to `createLiveController`, and its
+ * reports go back as `live.state`.
  */
 export async function bootStandalone(opts: StandaloneOptions): Promise<StandaloneGame> {
   const { root, game } = opts;
@@ -347,6 +354,7 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
   let unmirror: (() => void) | null = null;
   let loader: ReturnType<typeof createAssetLoader> | null = null;
   let host: HostChannel | null = null;
+  let live: LiveController | null = null;
   const win = doc.defaultView;
   const workerWin = opts.serviceWorker !== false && canServiceWork(win) ? win : null;
   let prompt = workerWin ? installPrompt(workerWin) : null;
@@ -364,6 +372,8 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
     unmountUi = null;
     unmirror?.();
     unmirror = null;
+    live?.dispose();
+    live = null;
     instance?.destroy();
     instance = null;
     loader?.destroy();
@@ -407,6 +417,7 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
     if (hostRequested(win?.location.href)) {
       host = await connectHost({
         hello: { engine: ENGINE_VERSION, release: id, game: game.id },
+        features: ["live"],
         ...(win ? { window: win } : {}),
       });
     }
@@ -426,9 +437,12 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
     if (late.length > 0) throw new StandaloneBootError(late);
     const source = await shippedScenes(manifest, texts, registry);
 
+    /** Blob files live versions carry, by hash; the release's own pins come first. */
+    const liveFiles = new Map<Sha256, string>();
     const assetUrl = (assetId: AssetId, hash: Sha256): string => {
       const asset = Object.hasOwn(manifest.assets, assetId) ? manifest.assets[assetId] : undefined;
-      return releaseUrl(base, asset?.file ?? `assets/${hash}`).href;
+      const file = asset?.sha256 === hash ? asset.file : liveFiles.get(hash);
+      return releaseUrl(base, file ?? asset?.file ?? `assets/${hash}`).href;
     };
     loader = createAssetLoader({
       project: manifest.project.id,
@@ -455,6 +469,7 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
       assets: { loader, view, kinds },
       saves: opts.saves ?? (host ? channelSaveStore(host) : browserSaveStore()),
       release: { id, manifest },
+      ...(host ? { recording: { flow: true } } : {}),
       ...(renderer ? { renderer } : {}),
     });
     unmirror = mirrorRenderState(instance, doc.documentElement);
@@ -471,6 +486,24 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
         credits ? { links: credits } : {},
       );
     }
+    if (host) {
+      const channel = host;
+      const controller = createLiveController({
+        instance,
+        manifest,
+        fetchText: (path) => fetchText(base, path, fetchFn),
+        report: (state) => channel.liveState(state),
+        files: liveFiles,
+      });
+      live = controller;
+      // The start scene's first load uses its live version: loading the release's own and swapping it a moment later would flash.
+      const first = channel.welcome.live;
+      if (first) {
+        controller.update(first);
+        await controller.settled(manifest.flow.start);
+      }
+      channel.on("live.update", (snapshot) => controller.update(snapshot));
+    }
     instance.start();
     const started = await instance.flow.restart();
     if (!started.ok) throw new StandaloneBootError([started.issue]);
@@ -483,6 +516,7 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
     const playing = instance;
     if (host) {
       followHostPause(host, playing);
+      offerRecordings(host, playing);
       host.state("ready");
     }
 
@@ -543,6 +577,19 @@ function followHostPause(host: HostChannel, instance: GameInstance): void {
     if (!pausedByHost) return;
     pausedByHost = false;
     instance.resume();
+  });
+}
+
+/** Answers the page's `recording.request` with the run's recording so far, as `<scene>.recording.json`. */
+function offerRecordings(host: HostChannel, instance: GameInstance): void {
+  host.on("recording.request", () => {
+    const recording = instance.recording({ running: true });
+    if (!recording) return;
+    const text = new TextEncoder().encode(JSON.stringify(recording));
+    // Copied into this realm's ArrayBuffer: an encoder's buffer can come from another one.
+    const bytes = new Uint8Array(new ArrayBuffer(text.byteLength));
+    bytes.set(text);
+    host.offerDownload(`${recording.scene}.recording.json`, "application/json", bytes.buffer);
   });
 }
 

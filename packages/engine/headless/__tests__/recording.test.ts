@@ -403,7 +403,7 @@ describe("commands in recordings", () => {
     const unknown = replay({ ...rec, commands: ["nudg"] });
     expect(unknown.blocked && unknown.scriptIssues[0]).toEqual({
       path: `/inputs/0/${at}/2`,
-      message: 'unknown command "nudg"; did you mean "nudge"? (commands: @elapsed, nudge)',
+      message: 'unknown command "nudg"; did you mean "nudge"? (commands: @elapsed, @nav, nudge)',
     });
     const inputs = structuredClone(rec.inputs);
     inputs[0]![at] = [inputs[0]![at]![0], "c", 0, { dx: "far" }];

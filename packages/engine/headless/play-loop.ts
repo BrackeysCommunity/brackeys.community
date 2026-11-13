@@ -6,7 +6,7 @@
  * that nothing wakes skips the slot.
  */
 
-import type { FlowRequest, SceneLibrary } from "../game/flow";
+import type { FlowRequest, LibraryScene, SceneLibrary } from "../game/flow";
 import type { SaveFile } from "../game/save-file";
 import type { ResolvedTime } from "../game/time";
 import {
@@ -24,6 +24,7 @@ import { mergeTick, qOffset, type SeatChange, type TickInput } from "../input/st
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, Sha256 } from "../project/types";
 import { flowLoaderOf, type FlowIdentity } from "../runtime/flow";
+import { createLiveLayer, type LiveLayer, type PreparedVersion } from "../runtime/live";
 import { playWorld, preparePlay } from "../runtime/play-session";
 import { inputAction } from "../runtime/recorder";
 import { createSceneRuntime } from "../runtime/runtime";
@@ -147,6 +148,10 @@ export type StartOptions = {
   fromSave?: SaveFile;
   /** Times each step's parts into this collector. */
   timing?: RunTiming;
+  /** The live version `scene` was read from, active before the load so `ctx.live.version` names it. */
+  version?: PreparedVersion;
+  /** The release's own definition of a scene, which a swap back to it applies; default the flow library's. */
+  release?: (id: AssetId) => LibraryScene | null;
 };
 
 /**
@@ -170,16 +175,29 @@ export function loadAs(
 }
 
 /**
- * A fresh headless play world for one run; the caller destroys the
- * runtime. With `fromSave` the save is restored over the load (what the
- * restore noted, such as a scene changed since the save, in `issues`), and
- * a save that can't be is a failed load carrying the refusal as `issue`.
+ * A fresh headless play world for one run, with its live layer; the caller
+ * destroys the runtime. With `fromSave` the save is restored over the load
+ * (what the restore noted, such as a scene changed since the save, in
+ * `issues`), and a save that can't be is a failed load carrying the refusal
+ * as `issue`. With `version`, that version is the one the scene runs.
  */
 export function startRun(
   opts: StartOptions,
 ):
-  | { ok: true; runtime: SceneRuntimeHandle; issues?: SceneIssue[] }
+  | { ok: true; runtime: SceneRuntimeHandle; live: LiveLayer; issues?: SceneIssue[] }
   | { ok: false; load: LoadReport; issue?: SceneIssue } {
+  let created: SceneRuntimeHandle | null = null;
+  const library = opts.flow?.library;
+  const live = createLiveLayer({
+    game: opts.game,
+    registry: opts.registry,
+    runtime: () => created,
+    release: opts.release ?? ((id) => library?.scenes.get(id) ?? null),
+  });
+  if (opts.version) {
+    live.stage(opts.version);
+    live.activate(opts.version.version.scene, opts.version.id, "next-load");
+  }
   const runtime = createSceneRuntime({
     rapier: opts.rapier,
     view: null,
@@ -191,15 +209,17 @@ export function startRun(
     ...(opts.persist ? { persist: opts.persist } : {}),
     ...(opts.flow ? { scenes: opts.flow.library } : {}),
     ...(opts.timing ? { timing: opts.timing } : {}),
+    live: live.hooks,
   });
+  created = runtime;
   const load = loadAs(runtime, opts.scene, opts.play, opts.flow);
   if (!load.ok) {
     runtime.destroy();
     return { ok: false, load };
   }
-  if (!opts.fromSave) return { ok: true, runtime };
+  if (!opts.fromSave) return { ok: true, runtime, live };
   const restored = restoreSave(runtime, opts.fromSave);
-  if (restored.ok) return { ok: true, runtime, issues: restored.issues };
+  if (restored.ok) return { ok: true, runtime, live, issues: restored.issues };
   runtime.destroy();
   const { issue } = restored;
   const entityId = issue.entityIds[0];
@@ -277,6 +297,21 @@ export type RunEnd = {
   request?: FlowRequest;
 };
 
+/**
+ * What a run does between ticks for live versions: the one hook replays and
+ * the swap check share. A `LiveLayer` is one.
+ */
+export type RunLoopLive = {
+  /**
+   * Before each simulated tick, with `ctx.tick` the tick about to step: a
+   * replay applies the swaps recorded for it. A returned cause ends the run
+   * there as `script-end`.
+   */
+  beforeTick?(): string | null | void;
+  /** After each simulated tick the run goes on from on its scene, so a waiting swap may apply. */
+  afterTick?(state: { paused: boolean; changing: boolean }): void;
+};
+
 export type RunLoopOptions = {
   runtime: SceneRuntimeHandle;
   game: GameDefinition | null;
@@ -296,6 +331,8 @@ export type RunLoopOptions = {
    * first simulated tick, before that slot's own.
    */
   carry?: TickInput | null;
+  /** The run's live layer: swaps between ticks. */
+  live?: RunLoopLive;
   /**
    * After each tick, before the run decides whether it is over: its state,
    * the focus, its seat-0 button edges and commands, and the whole input it
@@ -423,7 +460,9 @@ function applyActions(held: readonly string[], actions: readonly InputAction[]):
  * actions and seat changes are played, in order, with the next simulated
  * tick, and its pointer stands until a later one replaces it. Each tick's
  * input is merged (system first, then seats in order) and its actions
- * stamped with the tick, as a replay of it is.
+ * stamped with the tick, as a replay of it is. `live` runs before each
+ * simulated tick and after each one that neither ends the run nor requests
+ * a scene, so a swap lands between ticks as the shell's does.
  */
 export function runLoop(opts: RunLoopOptions): RunEnd {
   const { runtime, input, maxTicks } = opts;
@@ -461,6 +500,8 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
       if (p) sent[seat] = p;
     });
     if (!read.held) held = applyActions(held, merged.actions);
+    const stopped = opts.live?.beforeTick?.();
+    if (stopped) return { result: "script-end", ...last, cause: stopped };
     const edges: InputEdge[] = merged.actions
       .filter(isSeat0Button)
       .map((a) => [tick, a.action, a.pressed ? 1 : 0]);
@@ -489,6 +530,7 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
     }
     const request = runtime.takeRequests().flow;
     if (request) return { result: "flow", ...ended, cause: `requested "${request.to}"`, request };
+    opts.live?.afterTick?.({ paused: false, changing: false });
     if (
       stuck?.(
         held.some((a) => movement.includes(a)),

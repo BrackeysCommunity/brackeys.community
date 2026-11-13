@@ -10,7 +10,12 @@ import { PLATFORMER_ISSUES } from "./issues";
 import { PLATFORMER_MATERIALS } from "./materials";
 import { PLATFORMER_PHYSICAL_CHECKS } from "./physical";
 import { PLATFORMER_PLAY } from "./play";
-import { createPlatformerRuntime, type PlayerSnapshot } from "./runtime";
+import {
+  createPlatformerRuntime,
+  PLATFORMER_LIVE_ISSUES,
+  playerInSolidIssues,
+  type PlayerSnapshot,
+} from "./runtime";
 import { CLOUD_GROUP } from "./systems/cloud";
 import { SHAPER_PLACE, SHAPER_REMOVE } from "./systems/shaper";
 import { attachShaper, SHAPER_KEYS } from "./systems/shaper-attach";
@@ -57,7 +62,7 @@ export const platformerGame = defineGame<PlayerSnapshot>({
     [PLAYER_TYPE]: { collidesWith: ["static", "dynamic", "sensor"] },
     [CLOUD_GROUP]: { collidesWith: [PLAYER_TYPE] },
   },
-  issues: PLATFORMER_ISSUES,
+  issues: { ...PLATFORMER_ISSUES, ...PLATFORMER_LIVE_ISSUES },
   validators: PLATFORMER_VALIDATORS,
   physicalChecks: PLATFORMER_PHYSICAL_CHECKS,
   template: PLATFORMER_TEMPLATE,
@@ -72,6 +77,8 @@ export const platformerGame = defineGame<PlayerSnapshot>({
   world: { gravity: [0, 12], lengthUnit: 100 },
   time: { kind: "fixed", rate: 60 },
   play: PLATFORMER_PLAY,
+  // A swap lifts a player a new solid lands on (`onSwap`); landing from the air marks a boundary.
+  live: { timings: ["next-load", "boundary", "now"], check: playerInSolidIssues },
   editorKeys: [...SHAPER_KEYS, ...PLATFORMER_EDIT_KEYS],
   // Dev builds only, so a production build emits no editor code at all.
   ...(import.meta.env?.DEV
@@ -99,6 +106,8 @@ export type {
 } from "./types";
 export {
   createPlatformerRuntime,
+  PLATFORMER_LIVE_ISSUES,
+  playerInSolidIssues,
   SHAPER_REFUSED,
   type PlatformerDebugInfo,
   type PlatformerStoreSlice,

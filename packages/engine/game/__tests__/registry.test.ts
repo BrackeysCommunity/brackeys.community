@@ -992,7 +992,7 @@ describe("createRegistry commands", () => {
 
   it("registers the engine's commands, then the game's", () => {
     const registry = createRegistry(game({ commands: { end: command, "move-to": command } }));
-    expect(registry.commandNames).toEqual(["@elapsed", "end", "move-to"]);
+    expect(registry.commandNames).toEqual(["@elapsed", "@nav", "end", "move-to"]);
     expect(registry.commands.get("move-to")).toBe(command);
   });
 

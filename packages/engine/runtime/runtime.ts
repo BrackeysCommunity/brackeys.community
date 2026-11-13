@@ -67,6 +67,7 @@ import { systemFactoryOf } from "./primitives";
 import { createQueryIndex, type RuntimeQueryIndex } from "./query-index";
 import { runRandom } from "./seed";
 import { geometrySpace, rapierSpace, type SpaceQuery } from "./space";
+import { swapRuntime, type SwapHost } from "./swap";
 import { createTimers, type RuntimeTimers, type UnsaveableTimer } from "./timers";
 import type {
   LoadReport,
@@ -311,6 +312,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   let flowEntry: string | null = null;
   /** The scene library the loaded scene's run keeps, read once at its load. */
   let runScenes: SceneLibrary | null = null;
+  const live = opts.live ?? { version: () => null, boundary: () => {} };
   const ctx: EngineContext = {
     get rapier() {
       return onRapier ? (rapier ?? null) : null;
@@ -433,6 +435,12 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     get bodies() {
       return bodies;
     },
+    live: {
+      get version() {
+        return live.version();
+      },
+      boundary: (label) => live.boundary(label),
+    },
   };
   bodies = createBodyControl(ctx);
   timers = createTimers(ctx);
@@ -531,6 +539,8 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   /** The main scene from the start of its load, so its `onLoad` may attach sublevels beside it. */
   let mainScene: ExpandedScene | null = null;
   let cachedScene: ExpandedScene | null = null;
+  /** The prefab library a swap froze for the main scene's version, which reloading it uses; null until a swap. */
+  let versionPrefabs: PrefabLibrary | null = null;
   let gameLoaded = false;
   let destroyed = false;
 
@@ -563,6 +573,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     loadedScene = null;
     mainScene = null;
     cachedScene = null;
+    versionPrefabs = null;
     wallsMoved = false;
     tableChanged = false;
     play = null;
@@ -606,7 +617,12 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     return cast.ok ? { ...start, at: cast.at } : { error: cast.error };
   }
 
-  function load(next: ExpandedScene, playOpts?: PlayOptions, flow?: FlowIdentity): LoadReport {
+  function load(
+    next: ExpandedScene,
+    playOpts?: PlayOptions,
+    flow?: FlowIdentity,
+    library?: PrefabLibrary,
+  ): LoadReport {
     if (destroyed) return { ok: false, error: "runtime destroyed" };
     const started = now();
 
@@ -622,6 +638,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
 
     unload();
     mainScene = next;
+    versionPrefabs = library ?? null;
     lastPlay = playOpts;
     runScenes = flow ? flow.library : readSceneLibrary(opts.scenes);
     if (flow) {
@@ -644,7 +661,8 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     ctx.physics?.setGravity(ctx.gravity);
     gridState.load(next);
     lifecycle.load(
-      typeof opts.prefabs === "function" ? opts.prefabs() : (opts.prefabs ?? new Map()),
+      library ??
+        (typeof opts.prefabs === "function" ? opts.prefabs() : (opts.prefabs ?? new Map())),
     );
     forks.clear();
     random = forks.root(runRandom(registry, next.name, playOpts?.seed));
@@ -971,22 +989,51 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     input.update({ tick: world.tick, actions, commands: [], pointers, joins });
   }
 
+  /** `e`'s type system's state, then its behaviors', by owner. */
+  function ownStates(e: RuntimeEntity): [string, JsonValue][] {
+    const out: [string, JsonValue][] = [];
+    const own = systems.get(e.type)?.save?.(e.id);
+    if (own !== undefined) out.push([e.type, own]);
+    out.push(...Object.entries(behaviors.save(e)));
+    return out;
+  }
+
+  /** What game code registered with the save registry for `id`, by owner. */
+  function registeredStates(id: string): [string, JsonValue][] {
+    const out: [string, JsonValue][] = [];
+    for (const [owner, entry] of saveRegistry.entries.get(id) ?? []) {
+      const value = entry.save();
+      if (value !== undefined) out.push([owner, value]);
+    }
+    return out;
+  }
+
+  /** Hands `e`'s type system (when it is on, or can be restored while off) and behaviors their states. */
+  function restoreOwn(e: RuntimeEntity, states: Readonly<Record<string, JsonValue>>): void {
+    const system = systems.get(e.type)!;
+    const state = states[e.type];
+    if (state !== undefined && (system.disable || lifecycle.enabled(e.id)))
+      system.restore?.(e.id, state);
+    behaviors.restore(e, states);
+  }
+
+  function restoreRegistered(id: string, states: Readonly<Record<string, JsonValue>>): void {
+    for (const [owner, entry] of saveRegistry.entries.get(id) ?? []) {
+      const state = states[owner];
+      if (state !== undefined) entry.restore(state);
+    }
+  }
+
   function captureWorld(): WorldState {
     const saved: Record<string, Record<string, JsonValue>> = {};
     const put = (id: string, owner: string, value: JsonValue) => {
       (saved[id] ??= {})[owner] = value;
     };
-    for (const e of byId.values()) {
-      const own = systems.get(e.type)?.save?.(e.id);
-      if (own !== undefined) put(e.id, e.type, own);
-      for (const [name, value] of Object.entries(behaviors.save(e))) put(e.id, name, value);
-    }
-    for (const [id, owners] of saveRegistry.entries) {
+    for (const e of byId.values())
+      for (const [owner, value] of ownStates(e)) put(e.id, owner, value);
+    for (const id of saveRegistry.entries.keys()) {
       if (!byId.has(id)) continue;
-      for (const [owner, entry] of owners) {
-        const value = entry.save();
-        if (value !== undefined) put(id, owner, value);
-      }
+      for (const [owner, value] of registeredStates(id)) put(id, owner, value);
     }
     const forked = forks.states();
     if (Object.keys(forked).length > 0) saved[SAVE_RANDOM_KEY] = forked;
@@ -1086,18 +1133,11 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     }
     for (const e of byId.values()) {
       const states = systemsSaved[e.id];
-      if (!states) continue;
-      const system = systems.get(e.type)!;
-      const state = states[e.type];
-      if (state !== undefined && (system.disable || lifecycle.enabled(e.id)))
-        system.restore?.(e.id, state);
-      behaviors.restore(e, states);
+      if (states) restoreOwn(e, states);
     }
-    for (const [id, owners] of saveRegistry.entries) {
-      for (const [owner, entry] of owners) {
-        const state = systemsSaved[id]?.[owner];
-        if (state !== undefined) entry.restore(state);
-      }
+    for (const id of saveRegistry.entries.keys()) {
+      const states = systemsSaved[id];
+      if (states) restoreRegistered(id, states);
     }
     const watches = systemsSaved[SAVE_CONTACTS_KEY]?.watches;
     contacts.restore((watches ?? []) as unknown as SavedTouch[][]);
@@ -1113,6 +1153,20 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     return null;
   }
 
+  /**
+   * Loads a scene fresh as the main scene loaded last: its flow identity and
+   * play options, taken now so a load that fails and unloads can still be
+   * followed by another under the same identity.
+   */
+  function freshLoader(): (scene: ExpandedScene, library?: PrefabLibrary) => LoadReport {
+    const identity =
+      flowScene !== null && runScenes
+        ? { scene: flowScene, entry: flowEntry, library: runScenes }
+        : undefined;
+    const playOpts = lastPlay;
+    return (scene, library) => load(scene, playOpts, identity, library);
+  }
+
   const saveHost: SaveHost = {
     mainScene: () => mainScene,
     sceneId: () => flowScene ?? mainScene?.name ?? null,
@@ -1123,17 +1177,56 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     reloadMain() {
       const scene = mainScene;
       if (!scene) return { ok: false, error: "no scene loaded" };
-      const identity =
-        flowScene !== null && runScenes
-          ? { scene: flowScene, entry: flowEntry, library: runScenes }
-          : undefined;
-      return load(scene, lastPlay, identity);
+      return freshLoader()(scene, versionPrefabs ?? undefined);
     },
     captureWorld,
     restoreWorld,
     playClock: () => playClock,
   };
   Object.defineProperty(ctx, SAVE_HOST, { value: saveHost });
+
+  const swapHost: SwapHost = {
+    ctx,
+    registry,
+    game,
+    save: saveHost,
+    runtime: () => handle,
+    scene: currentScene,
+    add,
+    update,
+    remove,
+    authored: () => authored,
+    disabledIds: () => lifecycle.disabledIds(),
+    spawns: () => lifecycle.spawns(),
+    generation: () => lifecycle.generation,
+    freshLoader: () => {
+      const loadFresh = freshLoader();
+      return (scene, library) => loadFresh(scene, new Map(library));
+    },
+    setVersion(scene, library) {
+      mainScene = scene;
+      loadedScene = scene;
+      cachedScene = null;
+      versionPrefabs = new Map(library);
+      lifecycle.relibrary(library);
+    },
+    order(ids) {
+      const first = ids.flatMap((id) => {
+        const e = byId.get(id);
+        return e ? [e] : [];
+      });
+      const placed = new Set(first.map((e) => e.id));
+      const rest = [...byId.values()].filter((e) => !placed.has(e.id));
+      byId.clear();
+      for (const e of [...first, ...rest]) byId.set(e.id, e);
+      cachedScene = null;
+    },
+    saveEntity: (e) => Object.fromEntries([...ownStates(e), ...registeredStates(e.id)]),
+    restoreEntity(e, states) {
+      restoreOwn(e, states);
+      restoreRegistered(e.id, states);
+    },
+  };
 
   function destroy(): void {
     if (destroyed) return;
@@ -1144,7 +1237,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     destroyed = true;
   }
 
-  return {
+  const handle: SceneRuntimeHandle = {
     load: (scene, playOpts) => load(scene, playOpts),
     unload,
     add,
@@ -1156,6 +1249,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     snapshot,
     stats,
     takeRequests,
+    swap: (next, swapOpts) => swapRuntime(swapHost, next, swapOpts),
     destroy,
     ctx,
     game,
@@ -1170,4 +1264,5 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     },
     scene: currentScene,
   };
+  return handle;
 }

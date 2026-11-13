@@ -224,6 +224,100 @@ describe("camera-target", () => {
     expect(instance.getStore().state.camera.zoom).toBeCloseTo(0.2);
   });
 
+  /** An edit-mode instance on `scene`, its editor camera zoomed out and panned away. */
+  async function editing(scene: SceneDefinition, game: GameDefinition | null = null) {
+    const instance = await createGame(canvas, { game, rapier: async () => rapier });
+    games.push(instance);
+    instance.setMode("edit");
+    instance.loadScene(scene);
+    instance.start();
+    advance(2);
+    instance.zoomAt({ x: 0, y: 0 }, 0.2);
+    instance.panBy({ x: 400, y: -300 });
+    advance(1);
+    return { instance, editor: instance.getStore().state.camera };
+  }
+
+  const boxed = (entities: EntityDef[], game?: string): SceneDefinition => ({
+    ...sceneOf(entities, game),
+    bounds: [0, 0, 100, 100],
+  });
+
+  it("Stop puts the editor camera back exactly: position, zoom, bounds and mode", async () => {
+    const scene = boxed([target("hero", { x: 30, y: 30 })]);
+    const { instance, editor } = await editing(scene);
+    expect(instance.play(scene).ok).toBe(true);
+    advance(5);
+    instance.stop();
+    expect(instance.getStore().state.camera).toEqual(editor);
+  });
+
+  it("starts Play from here at zoom 1 on the start point", async () => {
+    const scene = boxed([{ id: "post", type: "marker", at: [80, 80] } as EntityDef]);
+    const { instance, editor } = await editing(scene);
+    expect(instance.play(scene, { at: { x: 70, y: 40 } }).ok).toBe(true);
+    expect(instance.getStore().state.camera.zoom).toBe(1);
+    advance(1);
+    expect(lastFrame()).toEqual({ x: 70, y: 40 });
+    instance.stop();
+    expect(instance.getStore().state.camera).toEqual(editor);
+  });
+
+  it("starts a replay as it starts Play: zoom 1 on the target, Stop restoring the editor", async () => {
+    const scene = boxed([target("hero", { x: 30, y: 30 })]);
+    const { instance, editor } = await editing(scene);
+    expect(instance.play(scene).ok).toBe(true);
+    advance(3);
+    instance.stop();
+    const recording = instance.recording();
+    expect(recording).not.toBeNull();
+    expect(instance.getStore().state.camera).toEqual(editor);
+    expect(instance.replay(scene, recording!).ok).toBe(true);
+    expect(instance.getStore().state.camera.zoom).toBe(1);
+    advance(1);
+    expect(lastFrame()).toEqual({ x: 30, y: 30 });
+    instance.stop();
+    expect(instance.getStore().state.camera).toEqual(editor);
+  });
+
+  it("keeps the playing camera's zoom on a restart, and Stop still restores the editor's", async () => {
+    const scene = boxed([target("hero", { x: 30, y: 30 })]);
+    const { instance, editor } = await editing(scene);
+    expect(instance.play(scene).ok).toBe(true);
+    instance.zoomAt({ x: 960, y: 540 }, 2);
+    expect(instance.play(scene).ok).toBe(true);
+    expect(instance.getStore().state.camera.zoom).toBe(2);
+    advance(1);
+    expect(lastFrame()).toEqual({ x: 30, y: 30 });
+    instance.stop();
+    expect(instance.getStore().state.camera).toEqual(editor);
+  });
+
+  it("starts Play at zoom 1 when the game holds the camera still", async () => {
+    const scene = boxed([target("hero", { x: 30, y: 30 })], "framer");
+    const { instance, editor } = await editing(
+      scene,
+      gameWith(() => null),
+    );
+    expect(instance.play(scene).ok).toBe(true);
+    expect(instance.getStore().state.camera.zoom).toBe(1);
+    advance(1);
+    const held = lastFrame();
+    advance(30);
+    expect(lastFrame()).toEqual(held);
+    expect(held).toEqual({ x: 50, y: 50 });
+    instance.stop();
+    expect(instance.getStore().state.camera).toEqual(editor);
+  });
+
+  it("leaves the editor camera alone when Play is refused", async () => {
+    const scene = boxed([target("hero", { x: 30, y: 30 })]);
+    const { instance, editor } = await editing(scene);
+    const broken = { ...scene, entities: [{ id: "x", type: "no-such-type" } as EntityDef] };
+    expect(instance.play(broken).ok).toBe(false);
+    expect(instance.getStore().state.camera).toEqual(editor);
+  });
+
   it("follows the targets when the game names none", async () => {
     await playing(sceneOf([target("hero", { x: 30, y: 30 })], "framer"), gameWith());
     expect(lastFrame()).toEqual({ x: 30, y: 30 });

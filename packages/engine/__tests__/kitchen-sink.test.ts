@@ -446,11 +446,22 @@ describe("kitchen-sink.json", () => {
       const withExpect = checks.checks.filter(
         (c): c is ReachesCheck => c.kind === "reaches" && c.expect !== undefined,
       );
-      expect(withExpect.map((c) => c.id)).toEqual(["fades"]);
+      expect(withExpect.map((c) => c.id)).toEqual(["fades", "nav-step", "nav-check"]);
       expect(withExpect[0]!.expect).toEqual({
         exists: expect.any(String),
         count: expect.objectContaining({ type: "decor" }),
       });
+    });
+
+    it("a reaches check sending a nav agent with a script's nav step, and one with its own nav", () => {
+      const reaches = checks.checks.filter((c): c is ReachesCheck => c.kind === "reaches");
+      const step = reaches.find((c) => c.id === "nav-step")!;
+      const steps = (step.script as { steps: Record<string, unknown>[] }).steps;
+      expect(steps[0]).toEqual({ nav: { id: "std-nav-agent", to: [22.6, 3.5] } });
+      const own = reaches.find((c) => c.id === "nav-check")!;
+      expect(own.nav).toEqual([{ id: "std-nav-agent", to: [22.6, 3.5] }]);
+      const agent = entities().find((e) => e.id === "std-nav-agent")!;
+      expect(Object.keys(agent.behaviors ?? {})).toEqual(["nav-agent"]);
     });
 
     it("a sprite drawing a whole texture, on a decor", () => {
@@ -947,6 +958,8 @@ describe("kitchen-sink.json", () => {
         ["settles", "reaches", true, false],
         ["fades", "reaches", true, false],
         ["ball-in-zone", "touches", true, true],
+        ["nav-step", "reaches", true, false],
+        ["nav-check", "reaches", true, false],
         ["two-seats", "reaches", true, false],
       ]);
       expect(report.ok).toBe(true);
@@ -992,6 +1005,8 @@ describe("kitchen-sink.json", () => {
         "reaches",
         "reaches",
         "touches",
+        "reaches",
+        "reaches",
         "reaches",
       ]);
       for (const r of report.results) {

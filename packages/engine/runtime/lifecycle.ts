@@ -152,6 +152,11 @@ export type Lifecycle = {
   pending: () => boolean;
   /** At each load, before anything spawns: the run's prefab library, frozen for the run. */
   load: (library: PrefabLibrary) => void;
+  /**
+   * A new version of the running scene's prefab library, frozen in place of
+   * the load's from the next `instantiate` on; counters, spawns and flags stay.
+   */
+  relibrary: (library: PrefabLibrary) => void;
   /** At unload: forgets the library, every disabled flag, the counters and queued destroys. */
   reset: () => void;
   /** The library `load` froze; empty before a load. */
@@ -688,6 +693,9 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       records.clear();
       recordOf.clear();
       generation++;
+    },
+    relibrary(next) {
+      library = new Map(next);
     },
     reset() {
       library = new Map();

@@ -13,16 +13,21 @@ import {
 import { z } from "zod";
 
 import { browserArch, createGame } from "../engine";
-import { createRegistry } from "../game/define";
+import { createRegistry, defineGame } from "../game/define";
 import type { GameCommand, GameDefinition } from "../game/types";
 import { replayRecording } from "../headless/recording";
-import type { ReleaseManifest } from "../project/release";
+import { sha256 } from "../project/hash";
+import { ENGINE_FORMATS, type ReleaseManifest } from "../project/release";
+import { sceneVersionId, type SceneVersion } from "../project/scene-version";
+import { formatScene } from "../scene/format";
+import { hashText } from "../scene/hash";
 import { parseSceneOrThrow } from "../scene/parse";
 import { parseRecording, type RunRecording } from "../scene/recording-schema";
-import type { SceneDefinition } from "../scene/types";
+import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
 import engineYardJson from "../scenes/engine-yard.json";
 import type { ToolEvent } from "../tool-router";
-import type { GameInstance, RapierModule } from "../types";
+import type { GameEventMap, GameInstance, RapierModule, StagedVersion } from "../types";
+import { ENGINE_VERSION } from "../version";
 import { loadCompatRapier } from "./fixtures/compat-rapier";
 import { testGame, type TestGameSnapshot } from "./fixtures/test-game";
 
@@ -833,6 +838,192 @@ describe("recording a session's TickInputs", () => {
     const headless = replayRecording({ rapier, game: def, scene: doc, recording: rec });
     if (headless.blocked) throw new Error("replay blocked");
     expect(headless.matches, headless.divergence ?? "").toBe(true);
+  });
+});
+
+describe("live versions in a play session", () => {
+  /** A physics-free game that draws from `ctx.random` each tick and counts its markers into the snapshot. */
+  const liveGame: GameDefinition = defineGame({
+    id: "live-shell",
+    types: [],
+    actions: [],
+    world: { physics: "none" },
+    live: { timings: ["boundary", "now"] },
+    createRuntime(ctx) {
+      let score = 0;
+      return {
+        afterStep() {
+          score += ctx.random.below(10) + (ctx.exists("well") ? 100 : 0);
+        },
+        onSwap() {
+          score += ctx.random.below(1000);
+        },
+        snapshot: () => ({ score }),
+      };
+    },
+  });
+
+  const hall = (markers: readonly string[] = ["start"]): SceneDefinition => ({
+    v: SCENE_FORMAT_VERSION,
+    name: "hall",
+    bounds: [0, 0, 10, 10],
+    entities: markers.map((id, i) => ({ id, type: "marker", at: [1 + i, 1] })),
+  });
+
+  /** `hall` with a `well` marker added, as a host hands it to `stage`. */
+  async function wellVersion(): Promise<StagedVersion> {
+    const text = formatScene(hall(["start", "well"])).text;
+    const sha = await sha256(text);
+    const version: SceneVersion = {
+      kind: "scene-version",
+      v: 1,
+      project: "p",
+      scene: "hall",
+      compat: {
+        formats: { scene: ENGINE_FORMATS.scene, prefab: ENGINE_FORMATS.prefab },
+        build: {},
+        game: { id: liveGame.id, configHash: liveGame.configHash ?? null },
+      },
+      engine: ENGINE_VERSION,
+      base: null,
+      entry: { id: "hall", physics: "none", prefabs: [], bundle: { entries: [], bytes: 0 } },
+      sceneHash: hashText(text),
+      assets: {
+        hall: {
+          key: "k-hall",
+          kind: "scene",
+          path: "scenes/hall.json",
+          sha256: sha,
+          bytes: text.length,
+          storage: "doc",
+          file: `live/${sha}.json`,
+        },
+      },
+    };
+    return { id: await sceneVersionId(version), version, texts: new Map([[sha, text]]) };
+  }
+
+  async function livePlay() {
+    const game = await createGame(document.querySelector("canvas")!, {
+      game: liveGame,
+      scene: hall(),
+    });
+    games.push(game);
+    game.start();
+    game.stop();
+    const recorded: RunRecording[] = [];
+    const failed: GameEventMap["live:failed"][] = [];
+    game.on("play:recorded", (r) => recorded.push(r));
+    game.on("live:failed", (f) => failed.push(f));
+    const v = await wellVersion();
+    expect(await game.live.stage(v)).toEqual({ ok: true });
+    const versions = (id: string) => (id === v.id ? v : null);
+    return { game, recorded, failed, v, versions };
+  }
+
+  /** Plays `hall` for 10 ticks, swaps the version in `now`, plays 10 more and stops. */
+  function nowSwap({ game, recorded, v }: Awaited<ReturnType<typeof livePlay>>): RunRecording {
+    expect(game.play(hall())).toMatchObject({ ok: true });
+    game.step(10);
+    expect(game.live.activate("hall", v.id, "now")).toMatchObject({ timing: "now" });
+    game.step(10);
+    game.stop();
+    return recorded.at(-1)!;
+  }
+
+  it("records a now swap, and replays it through the same apply to the same digest", async () => {
+    const t = await livePlay();
+    const rec = nowSwap(t);
+    expect(rec).not.toHaveProperty("sceneVersion");
+    expect(rec.swaps).toEqual([
+      expect.objectContaining({ tick: 11, version: t.v.id, strategy: "reconcile", timing: "now" }),
+    ]);
+    expect(parseRecording(JSON.stringify(rec))).toMatchObject({ ok: true });
+
+    const swapped: number[] = [];
+    t.game.on("live:swapped", (s) => swapped.push(s.tick));
+    expect(t.game.replay(hall(), rec, { versions: t.versions })).toMatchObject({ ok: true });
+    t.game.step(11);
+    expect(t.game.runtime()?.get("well")).toBeUndefined();
+    t.game.step(30);
+    expect(swapped).toEqual([11]);
+    const replayed = t.recorded.at(-1)!;
+    expect(replayed.end).toBe(rec.end);
+    expect(replayed.swaps).toEqual(rec.swaps);
+    expect(t.game.getStore().state.sim.paused).toBe(true);
+    expect(t.failed).toEqual([]);
+
+    // The swap made the version the scene's own; the replay put that back at Stop.
+    t.game.stop();
+    expect(t.game.live.current("hall")).toBe(t.v.id);
+  });
+
+  it("records the version a Play started on, and replays on it in place of the doc", async () => {
+    const t = await livePlay();
+    nowSwap(t);
+    // The editor's doc as Live in Play left it: the version it built is the scene's own now.
+    expect(t.game.play(hall(["start", "well"]))).toMatchObject({ ok: true });
+    expect(t.game.runtime()?.get("well")).toBeDefined();
+    t.game.step(15);
+    t.game.stop();
+    const rec = t.recorded.at(-1)!;
+    expect(rec.sceneVersion).toBe(t.v.id);
+    expect(rec).not.toHaveProperty("swaps");
+
+    t.game.live.activate("hall", null, "next-load");
+    expect(t.game.replay(hall(), rec, { versions: t.versions })).toMatchObject({ ok: true });
+    expect(t.game.runtime()?.get("well")).toBeDefined();
+    t.game.step(20);
+    expect(t.recorded.at(-1)!.end).toBe(rec.end);
+    expect(t.recorded.at(-1)!.sceneVersion).toBe(t.v.id);
+    t.game.stop();
+    expect(t.game.live.current("hall")).toBeNull();
+  });
+
+  it("doesn't start a replay whose start version is gone", async () => {
+    const t = await livePlay();
+    nowSwap(t);
+    t.game.play(hall());
+    t.game.step(5);
+    t.game.stop();
+    const rec = t.recorded.at(-1)!;
+    expect(rec.sceneVersion).toBe(t.v.id);
+    const before = t.recorded.length;
+
+    const out = t.game.replay(hall(), rec, { versions: () => null });
+    expect(out).toMatchObject({
+      ok: false,
+      issues: [{ code: "scene-version-removed", severity: "error" }],
+    });
+    expect(out.issues[0]!.message).toContain(`hall@${t.v.id.slice(0, 12)}`);
+    expect(t.game.replay(hall(), rec)).toMatchObject({
+      ok: false,
+      issues: [{ code: "scene-version-removed" }],
+    });
+    expect(t.game.getMode()).toBe("edit");
+    expect(t.recorded).toHaveLength(before);
+  });
+
+  it("stops a replay on the tick whose swap needs a version that is gone", async () => {
+    const t = await livePlay();
+    const rec = nowSwap(t);
+    t.game.live.activate("hall", null, "next-load");
+
+    expect(t.game.replay(hall(), rec, { versions: () => null })).toMatchObject({ ok: true });
+    t.game.step(30);
+    expect(t.failed).toEqual([
+      {
+        scene: "hall",
+        version: t.v.id,
+        issue: expect.objectContaining({ code: "scene-version-removed", detail: { tick: 11 } }),
+      },
+    ]);
+    const stopped = t.recorded.at(-1)!;
+    expect(stopped.outcome).toMatchObject({ result: "quit", tick: 10 });
+    expect(stopped.ticks).toBe(11);
+    expect(stopped).not.toHaveProperty("swaps");
+    expect(t.game.getStore().state.sim.paused).toBe(true);
+    expect(t.game.runtime()?.get("well")).toBeUndefined();
   });
 });
 

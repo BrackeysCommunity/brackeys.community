@@ -4,7 +4,7 @@ import { Container } from "pixi.js";
 import { createCamera } from "./camera";
 import type { DebugOverlay } from "./debug";
 import { GameEventEmitter } from "./events";
-import { createFlowHost } from "./flow-host";
+import { createFlowHost, liveSceneSource } from "./flow-host";
 import { CAMERA_TARGET } from "./game/behaviors/camera-target";
 import { flowIssue, type FlowRequest, type LibraryScene, type SceneLibrary } from "./game/flow";
 import {
@@ -14,6 +14,7 @@ import {
   keysProblems,
   type BindingProblem,
 } from "./game/input-bindings";
+import { LIVE_DEFAULTS, type SceneSwap } from "./game/live";
 import { isRuntimeId } from "./game/runtime-ids";
 import type { SaveFile } from "./game/save-file";
 import { resolveTime, type ResolvedTime } from "./game/time";
@@ -72,24 +73,30 @@ import {
   type BundleEntry,
 } from "./project/bundle";
 import { sameValue } from "./project/canonical";
+import type { KindRegistry } from "./project/kinds";
 import { engineResolution } from "./project/kinds/game-settings";
 import { TEXTURE_KIND } from "./project/kinds/texture";
+import type { ReleaseAsset } from "./project/release";
 import type { ProjectRuntimeView } from "./project/runtime-view";
-import type { AssetId, ProjectView } from "./project/types";
+import type { SceneVersion } from "./project/scene-version";
+import type { AssetEntry, AssetId, ProjectView, Sha256 } from "./project/types";
+import { projectView } from "./project/view";
 import type { LoadProgress } from "./render/asset-loader";
 import { createPixiView, type PixiView } from "./render/pixi-view";
 import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
 import type { CameraTarget, CameraTargetSystem } from "./runtime/behaviors/camera-target";
 import { loadListed } from "./runtime/flow";
+import { createLiveLayer, preparedVersion, type PreparedVersion } from "./runtime/live";
 import { gamePersistCell, persistProblem, playClockOf } from "./runtime/persist";
 import {
   createSessionRecording,
   playWorld,
   preparePlay,
+  type PreparedPlay,
   type SessionRecording,
 } from "./runtime/play-session";
-import { recordingRapier, recordingStart } from "./runtime/recorder";
+import { recordedSwap, recordingRapier, recordingStart } from "./runtime/recorder";
 import {
   createSceneRuntime,
   resolveGame,
@@ -109,8 +116,8 @@ import {
 import type { SaveWriteResult } from "./saves/store";
 import { defaultPhysics, expandScene, isExpandedScene, scenePhysics } from "./scene/expand";
 import { checkCommand, elapsedCommand } from "./scene/input-script";
-import { makeIssue } from "./scene/issues";
-import type { RunRecording } from "./scene/recording-schema";
+import { liveIssue, makeIssue } from "./scene/issues";
+import type { RecordedSwap, RunRecording } from "./scene/recording-schema";
 import type {
   Aabb,
   ExpandedScene,
@@ -139,6 +146,7 @@ import type {
   GameEventMap,
   GameInput,
   GameInstance,
+  GameLive,
   GameMode,
   GameStoreState,
   InputAction,
@@ -146,6 +154,7 @@ import type {
   PlayOutcome,
   PlayReport,
   RapierModule,
+  StagedVersion,
   UiActionEvent,
   Vec2,
 } from "./types";
@@ -514,11 +523,11 @@ export async function createGame(
     scene: ExpandedScene,
     def: SceneDefinition | null,
     defPrefabs: PrefabLibrary = prefabs,
+    view: ProjectView | null = assetView(),
   ): AssetBundle | null {
-    if (!assets) return null;
+    if (!assets || !view) return null;
     const source = def ?? { v: 0, name: scene.name, bounds: scene.bounds };
-    const library = def ? defPrefabs : new Map();
-    return sceneBundle(scene, source, library, assetView()!, assets.kinds, registry).bundle;
+    return sceneBundle(scene, source, defPrefabs, view, assets.kinds, registry).bundle;
   }
 
   /**
@@ -584,7 +593,7 @@ export async function createGame(
 
   /** The listed scenes as the flow source holds them, for a runtime's flow loads and attaches. */
   function flowLibrary(): SceneLibrary {
-    const source = cfg.flow!.source;
+    const source = flowSource!;
     const list = source.list();
     const scenes = new Map<AssetId, LibraryScene>();
     for (const entry of list) {
@@ -615,6 +624,7 @@ export async function createGame(
       prefabs: () => prefabs,
       persist,
       timing,
+      live: liveLayer.hooks,
       ...(cfg.flow ? { scenes: flowLibrary } : {}),
       ...(resolution.sampling ? { sampling: resolution.sampling } : {}),
     });
@@ -655,6 +665,20 @@ export async function createGame(
   }
 
   let prefabs: PrefabLibrary = cfg.prefabs ?? new Map();
+  const liveLayer = createLiveLayer({
+    game,
+    runtime: () => loaded?.runtime ?? null,
+    registry,
+    project: () => project,
+    release: (id) => cfg.flow?.source.scene(id) ?? null,
+    emit: (event, payload) => {
+      if (event === "live:swapped")
+        events.emit("live:swapped", payload as GameEventMap["live:swapped"]);
+      else events.emit("live:failed", payload as GameEventMap["live:failed"]);
+    },
+  });
+  /** The host's scenes with each one's active live version in their place: every load and sublevel library reads it. */
+  const flowSource = cfg.flow ? liveSceneSource(cfg.flow.source, liveLayer) : null;
 
   function expand(
     source: SceneDefinition | ExpandedScene,
@@ -741,7 +765,7 @@ export async function createGame(
   ): Promise<{ ok: true } | { ok: false; issue: SceneIssue }> {
     if (destroyed) return { ok: false, issue: loadRefused(file.scene.id, "game destroyed") };
     const id = file.scene.id;
-    const source = cfg.flow?.source;
+    const source = flowSource;
     const refused = flowIssue(source?.list() ?? [], id, "go");
     if (refused) return { ok: false, issue: refused };
     const listed = source?.scene(id) ?? null;
@@ -795,7 +819,13 @@ export async function createGame(
         session = null;
       }
       const scene = built.runtime.scene()!;
-      swapIn(built, scene, bundleFor(scene, listed.def, listed.prefabs), restored.report, true);
+      swapIn(
+        built,
+        scene,
+        bundleFor(scene, listed.def, listed.prefabs, sceneView(id)),
+        restored.report,
+        true,
+      );
       resetQueues();
       if (file.depth === "world") seatRestored(built.runtime);
     } finally {
@@ -915,49 +945,192 @@ export async function createGame(
     events.emit("play:recorded", recording);
   }
 
+  /**
+   * A replay's live versions: the swaps it applies before their ticks, where
+   * it resolves their versions, and the version the scene's loads used before
+   * it, put back when the replay ends.
+   */
+  type ReplayLive = {
+    scene: AssetId;
+    swaps: readonly RecordedSwap[];
+    next: number;
+    versions: ((id: Sha256) => StagedVersion | null) | undefined;
+    before: PreparedVersion | null;
+  };
+  let replayLive: ReplayLive | null = null;
+
+  /** Gives the scene back the version its loads used before the replay. */
+  function endReplayLive(): void {
+    const r = replayLive;
+    if (!r) return;
+    replayLive = null;
+    if (r.before) liveLayer.stage(r.before);
+    liveLayer.activate(r.scene, r.before?.id ?? null, "next-load");
+  }
+
+  /** A recording's version through the host's `versions`: gone when the host has none, or another. */
+  function replayVersion(
+    scene: AssetId,
+    id: Sha256,
+    versions: ReplayLive["versions"],
+    tick?: number,
+  ): { ok: true; prepared: PreparedVersion } | { ok: false; issue: SceneIssue } {
+    const v = versions?.(id) ?? null;
+    if (!v || v.id !== id) {
+      const version = `${scene}@${id.slice(0, 12)}`;
+      return {
+        ok: false,
+        issue: liveIssue({
+          code: "scene-version-removed",
+          version,
+          ...(tick !== undefined ? { tick } : {}),
+        }),
+      };
+    }
+    return prepareVersion(v);
+  }
+
+  /**
+   * Before a replay steps `tick`: applies the swaps recorded for it through
+   * the live layer with their recorded strategies. False when the replay
+   * stopped here (a version it can't have, or a swap that didn't apply),
+   * holding this frame as a replay's last.
+   */
+  function replaySwaps(tick: number): boolean {
+    const r = replayLive;
+    if (!r || !session?.replaying) return true;
+    while (r.next < r.swaps.length && r.swaps[r.next]!.tick <= tick) {
+      const entry = r.swaps[r.next++]!;
+      let prepared: PreparedVersion | null = null;
+      if (entry.version !== null) {
+        const found = replayVersion(r.scene, entry.version, r.versions, tick);
+        if (!found.ok) {
+          events.emit("live:failed", {
+            scene: r.scene,
+            version: entry.version,
+            issue: found.issue,
+          });
+          return stopReplay();
+        }
+        prepared = found.prepared;
+      }
+      const out = liveLayer.apply(r.scene, prepared, {
+        timing: entry.timing,
+        strategy: entry.strategy,
+        tick,
+      });
+      if (!out.ok) return stopReplay();
+      if (cfg.dev && out.swap.strategy !== entry.strategy)
+        console.warn(
+          `[replay] stale from tick ${tick}: the swap ran as ${out.swap.strategy}, recorded as ${entry.strategy}`,
+        );
+    }
+    return true;
+  }
+
+  function stopReplay(): false {
+    finishRecording(session?.stop() ?? null);
+    pause();
+    return false;
+  }
+
   function playRecorded(
     doc: SceneDefinition,
     opts: PlayOptions,
-    replay?: RunRecording,
+    replay?: { recording: RunRecording; live: ReplayLive | null; start: PreparedVersion | null },
   ): PlayReport {
     if (destroyed) return { ok: false, issues: [], error: "game destroyed" };
-    const prepared = preparePlay(doc, registry, { dev: cfg.dev, prefabs, project });
+    const start = replay?.start ?? null;
+    const defPrefabs = start?.prefabs ?? prefabs;
+    const prepared = preparePlay(doc, registry, { dev: cfg.dev, prefabs: defPrefabs, project });
     if (!prepared.ok) return { ok: false, issues: prepared.issues };
     finishRecording(session?.stop() ?? null);
     session = null;
+    endReplayLive();
+    const replayed = replay?.live ?? null;
+    if (replayed) {
+      replayed.before = liveLayer.sceneFor(replayed.scene);
+      if (start) liveLayer.stage(start);
+      liveLayer.activate(replayed.scene, start?.id ?? null, "next-load");
+      replayLive = replayed;
+    }
     const persistAtLoad = persist.value;
-    const report = startPlay(prepared.scene, bundleFor(prepared.scene, doc), opts);
+    const view = start ? liveView(start.version) : assetView();
+    const bundle = bundleFor(prepared.scene, doc, defPrefabs, view);
+    const report = startPlay(prepared.scene, bundle, opts);
+    if (!report.ok) endReplayLive();
     if (report.ok && loaded) {
-      session = createSessionRecording({
-        rapier: recordingRapier(prepared.scene, rapier),
-        game,
-        scene: doc.name,
-        sceneHash: prepared.hash,
-        runHash: prepared.runHash,
-        platform: { arch, runtime: "browser", ...cfg.recording?.platform },
-        ...(recordingProjectRef !== undefined ? { projectRef: recordingProjectRef } : {}),
-        ...(cfg.release ? { release: cfg.release.id } : {}),
-        start: opts,
-        persist: persistAtLoad,
-        entry: loaded.runtime.ctx.flow.entry,
-        time: loaded.runtime.ctx.time,
-        players: loaded.runtime.ctx.input.players(),
-        world: playWorld(loaded.runtime.ctx),
-        registry,
-        ...(replay ? { replay } : {}),
-      });
+      session = recordSession(loaded.runtime, doc.name, prepared, opts, persistAtLoad, replay);
       if (replay && loop.isPaused()) resume();
     }
     return { ...report, issues: prepared.issues };
+  }
+
+  /** A recording of the run `runtime` just loaded, from its start: what Play and a recorded flow load share. */
+  function recordSession(
+    runtime: SceneRuntimeHandle,
+    scene: string,
+    prepared: Extract<PreparedPlay, { ok: true }>,
+    start: PlayOptions,
+    persistAtLoad: JsonValue | undefined,
+    replay?: { recording: RunRecording },
+  ): SessionRecording {
+    const sceneVersion = runtime.ctx.live.version;
+    return createSessionRecording({
+      rapier: recordingRapier(prepared.scene, rapier),
+      game,
+      scene,
+      sceneHash: prepared.hash,
+      runHash: prepared.runHash,
+      platform: { arch, runtime: "browser", ...cfg.recording?.platform },
+      ...(recordingProjectRef !== undefined ? { projectRef: recordingProjectRef } : {}),
+      ...(cfg.release ? { release: cfg.release.id } : {}),
+      start,
+      persist: persistAtLoad,
+      entry: runtime.ctx.flow.entry,
+      time: runtime.ctx.time,
+      players: runtime.ctx.input.players(),
+      world: playWorld(runtime.ctx),
+      registry,
+      ...(sceneVersion !== null ? { sceneVersion } : {}),
+      ...(replay ? { replay: replay.recording } : {}),
+    });
+  }
+
+  /** With `recording.flow`, a scene the flow loads outside the editor's Play is recorded until the next load. */
+  function recordFlowLoad(listed: LibraryScene, persistAtLoad: JsonValue | undefined): void {
+    if (!cfg.recording?.flow || !loaded || store.state.session) return;
+    const prepared = preparePlay(listed.def, registry, { prefabs: listed.prefabs, project });
+    if (!prepared.ok) return;
+    session = recordSession(loaded.runtime, listed.def.name, prepared, {}, persistAtLoad);
   }
 
   function play(doc: SceneDefinition, opts: PlayOptions = {}): PlayReport {
     return playRecorded(doc, opts);
   }
 
-  /** Starts from the recording's persistent value, as a headless replay does; a refused start keeps the value it had. */
-  function replay(doc: SceneDefinition, recording: RunRecording): PlayReport {
+  /**
+   * Starts from the recording's persistent value, as a headless replay does; a refused start keeps the value it had.
+   * A recording that started on a live version plays that version's scene in place of `doc`.
+   */
+  function replay(
+    doc: SceneDefinition,
+    recording: RunRecording,
+    opts: { versions?: (id: Sha256) => StagedVersion | null } = {},
+  ): PlayReport {
     if (destroyed) return { ok: false, issues: [], error: "game destroyed" };
+    let start: PreparedVersion | null = null;
+    if (recording.sceneVersion !== undefined) {
+      const found = replayVersion(recording.scene, recording.sceneVersion, opts.versions);
+      if (!found.ok) return { ok: false, issues: [found.issue], error: found.issue.message };
+      start = found.prepared;
+    }
+    const scene = start?.version.scene ?? doc.name;
+    const swaps = recording.swaps ?? [];
+    const live: ReplayLive | null =
+      start || swaps.length > 0 || liveLayer.sceneFor(scene)
+        ? { scene, swaps, next: 0, versions: opts.versions, before: null }
+        : null;
     const recorded = recording.start.persist;
     const before = recorded !== undefined ? persist.value : undefined;
     if (recorded !== undefined) {
@@ -966,7 +1139,15 @@ export async function createGame(
         return { ok: false, issues: [], error: `the recording's start.persist ${problem}` };
       persist.set(recorded);
     }
-    const report = playRecorded(doc, recordingStart(recording.start, recording.seed), recording);
+    const report = playRecorded(
+      start?.def ?? doc,
+      recordingStart(recording.start, recording.seed),
+      {
+        recording,
+        live,
+        start,
+      },
+    );
     if (!report.ok && before !== undefined) persist.set(before);
     return report;
   }
@@ -975,6 +1156,7 @@ export async function createGame(
     if (destroyed || getMode() !== "play") return;
     finishRecording(session?.stop() ?? null);
     session = null;
+    endReplayLive();
     const remembered = editState;
     editState = null;
     const scene = remembered?.scene ?? authoredScene();
@@ -1274,7 +1456,7 @@ export async function createGame(
       const polled = takeInput(store.state.tick);
       let mouseWorld = camera.screenToWorld(input.getMousePosition());
 
-      if (loaded && playing) {
+      if (loaded && playing && replaySwaps(loaded.runtime.ctx.tick)) {
         if (subTick) stampOffsets(polled, loaded.runtime.ctx.time.tickMs);
         // Seat by seat, as a replay decodes it, so a run and its replay deliver one order.
         const live = mergeTick({
@@ -1314,6 +1496,11 @@ export async function createGame(
           if (finished && replaying) pause();
         }
         if (requests.flow) flowRequested(requests.flow, result.tick, verdict);
+        // After the flow request, so a change it started holds the swap; a replay applies only its own.
+        liveLayer.afterTick({
+          paused: loop.isPaused() || replaying,
+          changing: flowHolding || (flowHost?.changing ?? false),
+        });
         shellTiming.lap("session");
       }
 
@@ -1875,7 +2062,7 @@ export async function createGame(
     opts: { entry: string | null; persist?: JsonValue; reset?: boolean },
   ): FlowResult {
     if (destroyed) return { ok: false, issue: loadRefused(id, "game destroyed") };
-    const listed = cfg.flow?.source.scene(id) ?? null;
+    const listed = flowSource?.scene(id) ?? null;
     // A recording covers one scene: a change during a Play session ends it there.
     if (session) {
       finishRecording(session.requested({ to: id }));
@@ -1888,6 +2075,7 @@ export async function createGame(
       persist.reset();
       clock.ticks = 0;
     }
+    const persistAtLoad = opts.persist !== undefined ? opts.persist : persist.value;
     const built = buildRuntime(id);
     let result: ReturnType<typeof loadListed>;
     try {
@@ -1912,14 +2100,15 @@ export async function createGame(
       return { ok: false, issue: result.issue };
     }
     const scene = built.runtime.scene()!;
-    const bundle = listed ? bundleFor(scene, listed.def, listed.prefabs) : null;
+    const bundle = listed ? bundleFor(scene, listed.def, listed.prefabs, sceneView(id)) : null;
     swapIn(built, scene, bundle, result.report, true);
+    if (listed) recordFlowLoad(listed, persistAtLoad);
     return { ok: true, scene: id, report: result.report };
   }
 
   const flowHost = cfg.flow
     ? createFlowHost({
-        source: cfg.flow.source,
+        source: flowSource!,
         ...(cfg.flow.transition ? { transition: cfg.flow.transition } : {}),
         ...(cfg.flow.loading !== undefined ? { loading: cfg.flow.loading } : {}),
         layer: flowLayer,
@@ -1928,15 +2117,16 @@ export async function createGame(
           flowHolding = !on;
         },
         unload: flowUnload,
-        preload: (_id, listed, onProgress) => {
+        preload: (id, listed, onProgress) => {
           const scene = expandScene(listed.def, registry, {
             prefabs: listed.prefabs,
             engine: project?.engine,
           });
-          return preloadExpanded(scene, listed.def, listed.prefabs, onProgress);
+          return preloadExpanded(scene, listed.def, listed.prefabs, onProgress, sceneView(id));
         },
         load: flowLoad,
         changed: (e) => events.emit("flow:change", e),
+        left: (scene) => liveLayer.dropPending(scene),
         loadingProgress: (p) => events.emit("flow:loading", p),
         destroyed: () => destroyed,
         dev: cfg.dev,
@@ -1970,6 +2160,211 @@ export async function createGame(
         console.warn(`[flow] the request for "${to}" failed: ${r.issue.message}`);
     });
   }
+
+  // ─── Live versions ────────────────────────────────────────
+
+  /** A staged version's scene and the bundle that keeps its textures resident while the live layer holds it. */
+  type LiveHold = { scene: AssetId; bundle: AssetBundle | null };
+  const liveHolds = new Map<Sha256, LiveHold>();
+  /** The version staged per scene and not yet activated, as the layer keeps it. */
+  const liveStaged = new Map<AssetId, Sha256>();
+  const liveStaging = new Map<Sha256, ReturnType<GameLive["stage"]>>();
+  /** Each version's overlay over the project view it was built on. */
+  const liveViews = new WeakMap<SceneVersion, { over: ProjectView; view: ProjectView }>();
+
+  /** The project's view with `version`'s assets in place of the project's own, rebuilt when the project's view moves on. */
+  function liveView(version: SceneVersion): ProjectView | null {
+    const base = assetView();
+    if (!base) return null;
+    let built = liveViews.get(version);
+    if (built?.over !== base) {
+      built = { over: base, view: overlaidView(base, version.assets, assets!.kinds) };
+      liveViews.set(version, built);
+    }
+    return built.view;
+  }
+
+  /** The view a load of `scene` resolves its assets through: its active version's, else the project's. */
+  function sceneView(scene: AssetId): ProjectView | null {
+    const active = liveLayer.sceneFor(scene);
+    return active ? liveView(active.version) : assetView();
+  }
+
+  function liveHeld(scene: AssetId, id: Sha256): boolean {
+    return (
+      liveStaging.has(id) ||
+      liveStaged.get(scene) === id ||
+      liveLayer.sceneFor(scene)?.id === id ||
+      liveLayer.current(scene) === id ||
+      liveLayer.pending().some((p) => p.scene === scene && p.version === id) ||
+      (currentScene() === scene && liveLayer.hooks.version() === id)
+    );
+  }
+
+  /** Lets go of the versions the layer no longer holds, so their textures may be evicted. */
+  function pruneLive(): void {
+    for (const [id, hold] of liveHolds) {
+      if (liveHeld(hold.scene, id)) continue;
+      if (hold.bundle) assets?.loader.release(hold.bundle);
+      liveHolds.delete(id);
+    }
+  }
+
+  /** The textures `version`'s scene draws before its first frame, at the version's hashes. */
+  function versionBundle(id: Sha256, version: SceneVersion): AssetBundle {
+    const entries: BundleEntry[] = [];
+    for (const asset of version.entry.bundle.entries) {
+      const a = Object.hasOwn(version.assets, asset) ? version.assets[asset] : undefined;
+      if (a) entries.push({ id: asset, kind: a.kind, sha256: a.sha256, bytes: a.bytes });
+    }
+    return bundleOf(`live:${id}`, entries);
+  }
+
+  /** Waits for `work` until the staging deadline or `signal`, whichever comes first. */
+  async function withinDeadline<T>(
+    work: Promise<T>,
+    signal: AbortSignal | undefined,
+  ): Promise<{ ok: true; value: T } | { ok: false; why: string }> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let onAbort: (() => void) | undefined;
+    const stopped = new Promise<{ ok: false; why: string }>((done) => {
+      timer = setTimeout(
+        () =>
+          done({
+            ok: false,
+            why: `its textures didn't preload within ${LIVE_DEFAULTS.preloadTimeoutMs / 1000} s`,
+          }),
+        LIVE_DEFAULTS.preloadTimeoutMs,
+      );
+      if (!signal) return;
+      onAbort = () => done({ ok: false, why: "its staging was cancelled" });
+      if (signal.aborted) onAbort();
+      else signal.addEventListener("abort", onAbort, { once: true });
+    });
+    try {
+      return await Promise.race([work.then((value) => ({ ok: true as const, value })), stopped]);
+    } finally {
+      clearTimeout(timer);
+      if (onAbort) signal?.removeEventListener("abort", onAbort);
+    }
+  }
+
+  /** Reads `v` with the game's registry, as every stage and replay does. */
+  function prepareVersion(
+    v: StagedVersion,
+  ): { ok: true; prepared: PreparedVersion } | { ok: false; issue: SceneIssue } {
+    const read = preparedVersion(v, registry, game, project?.engine);
+    if (read.ok) return read;
+    const cause = read.issues.find((i) => i.severity === "error") ?? read.issues[0];
+    const issue =
+      cause ??
+      liveIssue({
+        code: "live-swap-failed",
+        scene: v.version.scene,
+        cause: "it didn't read",
+        phase: "stage",
+      });
+    return { ok: false, issue };
+  }
+
+  async function stageLive(
+    v: StagedVersion,
+    signal?: AbortSignal,
+  ): Promise<{ ok: true } | { ok: false; issue: SceneIssue }> {
+    const scene = v.version.scene;
+    const refused = (cause: string) => ({
+      ok: false as const,
+      issue: liveIssue({ code: "live-swap-failed", scene, cause, phase: "stage" }),
+    });
+    if (destroyed) return refused("the game was destroyed");
+    if (flowSource && !flowSource.list().some((e) => e.scene === scene))
+      return refused(`${scene} isn't in the game's scene list`);
+    const read = prepareVersion(v);
+    if (!read.ok) return read;
+    let hold = liveHolds.get(v.id);
+    if (!hold) {
+      hold = { scene, bundle: assets ? versionBundle(v.id, v.version) : null };
+      liveHolds.set(v.id, hold);
+      if (hold.bundle) assets?.loader.retain(hold.bundle);
+    }
+    liveView(v.version);
+    const textures = hold.bundle ? loadBundle(hold.bundle) : null;
+    const loading = Promise.all([physicsFor(v.version.entry.physics), textures]);
+    const done = await withinDeadline(loading, signal);
+    if (destroyed) return refused("the game was destroyed");
+    if (!done.ok) return refused(`${v.id} was refused: ${done.why}`);
+    const failed = done.value[1]?.failed ?? [];
+    if (failed.length > 0) {
+      const ids = failed.map((e) => e.id);
+      return {
+        ok: false,
+        issue: makeIssue("asset-missing", {
+          message: `${v.id} was refused: ${ids.map((id) => `"${id}"`).join(", ")} didn't load`,
+          entityIds: [scene, ...ids],
+        }),
+      };
+    }
+    const staged = liveLayer.stage(read.prepared);
+    if (!staged.ok) return staged;
+    liveStaged.set(scene, v.id);
+    return { ok: true };
+  }
+
+  /** After the layer swapped a version into the running scene: the recording, the scene's bundle and the camera's bounds follow it. */
+  function swappedIn(swap: SceneSwap): void {
+    session?.swap(recordedSwap(swap));
+    const scene = loaded?.runtime.scene();
+    if (!loaded || !scene) return;
+    const listed = liveLayer.sceneFor(swap.scene) ?? flowSource?.scene(swap.scene) ?? null;
+    const bundle = bundleFor(
+      scene,
+      listed?.def ?? null,
+      listed?.prefabs ?? prefabs,
+      sceneView(swap.scene),
+    );
+    if (bundle && assets) {
+      // Retained before the old bundle is released, so textures both versions use stay resident.
+      assets.loader.retain(bundle);
+      if (loaded.bundle) assets.loader.release(loaded.bundle);
+      void loadBundle(bundle);
+    }
+    loaded.bundle = bundle;
+    syncTickRate(loaded.runtime.ctx.time);
+    debugOverlay?.setPhysics(loaded.runtime.ctx);
+    syncGameSlice();
+    // The camera keeps its place and zoom: only a load snaps it.
+    camera.setBoundsFromScene(scene.bounds);
+    updateCamera(store, camera.getState());
+  }
+
+  liveLayer.onApplied((swap) => {
+    swappedIn(swap);
+    pruneLive();
+  });
+
+  const live: GameLive = {
+    stage(v, opts = {}) {
+      const running = liveStaging.get(v.id);
+      if (running) return running;
+      const staging = stageLive(v, opts.signal).finally(() => {
+        liveStaging.delete(v.id);
+        pruneLive();
+      });
+      liveStaging.set(v.id, staging);
+      return staging;
+    },
+    activate(scene, version, timing) {
+      const out = liveLayer.activate(scene, version, timing);
+      if (out.issue?.code !== "live-swap-failed" && liveStaged.get(scene) === version)
+        liveStaged.delete(scene);
+      pruneLive();
+      return out;
+    },
+    current: (scene) => liveLayer.current(scene),
+    pending: () => liveLayer.pending(),
+    pin: (versions) => liveLayer.pin(versions),
+    unpin: () => liveLayer.unpin(),
+  };
 
   // ─── Public API ───────────────────────────────────────────
 
@@ -2025,17 +2420,20 @@ export async function createGame(
     def: SceneDefinition | null,
     defPrefabs: PrefabLibrary,
     onProgress?: (p: LoadProgress) => void,
+    view: ProjectView | null = assetView(),
   ): Promise<{ failed: BundleEntry[] }> {
-    const physics =
-      scene.settings.physics === "rapier"
-        ? loadRapier().catch((error: unknown) => {
-            if (cfg.dev) console.warn(`[scene] Rapier failed to load`, error);
-          })
-        : null;
-    const bundle = assets ? bundleFor(scene, def, defPrefabs) : null;
+    const bundle = assets ? bundleFor(scene, def, defPrefabs, view) : null;
     const textures = bundle ? loadBundle(bundle, onProgress) : { failed: [] };
-    const [, result] = await Promise.all([physics, textures]);
+    const [, result] = await Promise.all([physicsFor(scene.settings.physics), textures]);
     return result;
+  }
+
+  /** Brings Rapier in for a scene that runs on it; a failure is the load's to report. */
+  function physicsFor(physics: "rapier" | "none"): Promise<unknown> | null {
+    if (physics !== "rapier") return null;
+    return loadRapier().catch((error: unknown) => {
+      if (cfg.dev) console.warn(`[scene] Rapier failed to load`, error);
+    });
   }
 
   /** `bundle` with each changed texture's entry at `view`'s hash; `bundle` itself when none changed. */
@@ -2142,6 +2540,8 @@ export async function createGame(
     if (editState?.bundle) assets?.loader.release(editState.bundle);
     editState = null;
     if (projectAssets) assets?.loader.release(projectAssets);
+    for (const hold of liveHolds.values()) if (hold.bundle) assets?.loader.release(hold.bundle);
+    liveHolds.clear();
     router.destroy();
     touch?.destroy();
     pads.destroy();
@@ -2202,7 +2602,8 @@ export async function createGame(
     setPrefabs: (next) => {
       prefabs = next;
     },
-    recording: () => session?.done ?? lastRecording,
+    recording: (opts) =>
+      session ? ((opts?.running ? session.soFar() : session.done) ?? lastRecording) : lastRecording,
     stop,
     pause,
     resume,
@@ -2227,16 +2628,17 @@ export async function createGame(
     extractPixels: (world) => renderer.extractPixels(world),
     flow: {
       get start() {
-        return cfg.flow?.source.start() ?? null;
+        return flowSource?.start() ?? null;
       },
       get scenes() {
-        return cfg.flow?.source.list() ?? [];
+        return flowSource?.list() ?? [];
       },
       current: currentScene,
       go: (to, opts) => (flowHost ? flowHost.go(to, opts) : Promise.resolve(flowUnavailable())),
       restart: () => (flowHost ? flowHost.restart() : Promise.resolve(flowUnavailable())),
     },
     saves,
+    live,
   };
   return self;
 }
@@ -2363,4 +2765,36 @@ function warnHostBindings(list: readonly InputBinding[], resolved: ResolvedBindi
       }
     });
   }
+}
+
+/**
+ * `base` with `carried` in place of the project's own entries of the same id
+ * or key: the view a live version's loads resolve their assets through.
+ */
+function overlaidView(
+  base: ProjectView,
+  carried: Readonly<Record<AssetId, ReleaseAsset>>,
+  kinds: KindRegistry,
+): ProjectView {
+  const ids = new Set(Object.keys(carried));
+  const keys = new Set(Object.values(carried).map((a) => a.key));
+  const entries: Record<string, AssetEntry> = {};
+  for (const [key, e] of Object.entries(base.state.assets)) {
+    if (!ids.has(e.id) && !keys.has(e.key)) entries[key] = e;
+  }
+  for (const [id, a] of Object.entries(carried)) {
+    const blob = a.storage === "blob";
+    entries[a.key] = {
+      key: a.key,
+      id,
+      kind: a.kind,
+      path: a.path,
+      ...(blob ? { sha256: a.sha256, bytes: a.bytes } : {}),
+      ...(blob && a.import ? { import: { ...a.import } } : {}),
+      ...(blob && a.meta ? { meta: structuredClone(a.meta) } : {}),
+      created: { at: 0, by: "" },
+    };
+  }
+  const view = projectView({ ...base.state, assets: entries }, kinds);
+  return base.engine ? { ...view, engine: base.engine } : view;
 }

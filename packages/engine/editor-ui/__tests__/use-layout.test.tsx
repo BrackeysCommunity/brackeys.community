@@ -6,7 +6,15 @@ import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { EditorStorage } from "../host";
-import { DEFAULT_LAYOUT, resizeColumn, selectTab, type EditorLayout } from "../layout/model";
+import {
+  DEFAULT_LAYOUT,
+  resizeColumn,
+  selectTab,
+  toggleColumn,
+  type EditorLayout,
+  type PanelId,
+  type Viewport,
+} from "../layout/model";
 import { LAYOUT_KEY, LAYOUT_WRITE_DELAY, useLayout } from "../layout/use-layout";
 
 function memoryStorage(initial: Record<string, string> = {}) {
@@ -118,6 +126,67 @@ describe("useLayout", () => {
       expect(() => unmount()).not.toThrow();
     });
   }
+
+  describe("when the frame's panels change, as a rebuild at Stop changes them", () => {
+    const BASE: readonly PanelId[] = [
+      "outliner",
+      "project",
+      "settings",
+      "inspector",
+      "problems",
+      "run",
+      "history",
+    ];
+    const WITH_PUBLISH: readonly PanelId[] = [...BASE, "publish"];
+    const desk: Viewport = { width: 1440, height: 900, topLeft: 40, topRight: 0, bottom: 36 };
+
+    const collapsedThenSettled = (storage: EditorStorage | null, known: readonly PanelId[]) => {
+      const hook = renderHook(({ panels }) => useLayout(storage, panels), {
+        initialProps: { panels: known },
+      });
+      act(() => hook.result.current.update((l) => toggleColumn(l, "left", desk)));
+      act(() => vi.advanceTimersByTime(LAYOUT_WRITE_DELAY * 2));
+      expect(hook.result.current.layout.left.collapsed).toBe(true);
+      return hook;
+    };
+
+    for (const [name, storage] of [
+      ["a throwing storage", throwing],
+      ["a null storage", null],
+      ["a storage another editor writes to", memoryStorage()],
+    ] as const) {
+      it(`keeps the layout on screen with ${name}`, () => {
+        const { result, rerender } = collapsedThenSettled(storage, WITH_PUBLISH);
+        if (storage && "data" in storage)
+          storage.data.set(LAYOUT_KEY, JSON.stringify(resizeColumn(DEFAULT_LAYOUT, "right", 500)));
+        rerender({ panels: BASE });
+        rerender({ panels: WITH_PUBLISH });
+        expect(result.current.layout.left.collapsed).toBe(true);
+        expect(result.current.layout.right.width).toBe(DEFAULT_LAYOUT.right.width);
+        expect(result.current.layout.left.groups[1]!.panels).toContain("publish");
+      });
+    }
+
+    it("puts a panel that arrives where the stored layout last had it", () => {
+      const [inspector, problems] = DEFAULT_LAYOUT.right.groups;
+      const placed: EditorLayout = {
+        ...DEFAULT_LAYOUT,
+        right: {
+          ...DEFAULT_LAYOUT.right,
+          groups: [{ ...inspector, panels: ["inspector", "publish"] }, problems!],
+        },
+      };
+      const storage = memoryStorage({ [LAYOUT_KEY]: JSON.stringify(placed) });
+      const { result, rerender } = renderHook(({ panels }) => useLayout(storage, panels), {
+        initialProps: { panels: BASE },
+      });
+      act(() => result.current.update((l) => toggleColumn(l, "left", desk)));
+      expect(result.current.layout.right.groups[0]!.panels).not.toContain("publish");
+      rerender({ panels: WITH_PUBLISH });
+      expect(result.current.layout.right.groups[0]!.panels).toEqual(["inspector", "publish"]);
+      expect(result.current.layout.left.collapsed).toBe(true);
+    });
+  });
 
   it("hydrates a server render with the default, then takes the stored layout", () => {
     const stored = resizeColumn(DEFAULT_LAYOUT, "right", 420);

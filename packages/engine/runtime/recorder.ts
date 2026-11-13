@@ -4,6 +4,7 @@
  * game's markers, and how it ended.
  */
 import { isUiAction } from "../game/input-bindings";
+import type { SceneSwap } from "../game/live";
 import { resolveTime, type ResolvedTime } from "../game/time";
 import type {
   DeviceId,
@@ -23,6 +24,7 @@ import { hashText } from "../scene/hash";
 import {
   RECORDING_TRAIL_EVERY,
   RECORDING_VERSION,
+  type RecordedSwap,
   type RecordingCommand,
   type RecordingMarker,
   type RecordingPlatform,
@@ -210,6 +212,8 @@ export type RecorderOptions = RecordingHost & {
   entry?: string | null;
   /** The save the run began by loading: its slot and the fixture's hash, written as `fromSave`. */
   fromSave?: { slot: string; sha256: Sha256 };
+  /** The live version the scene loaded as, written as `sceneVersion`; null or omitted for the release's own. */
+  sceneVersion?: Sha256 | null;
   /** The run's clock (`runtime.ctx.time`); omitted, the game's own. */
   time?: ResolvedTime;
   /** The seats as the run loaded (`runtime.ctx.input.players()`); devices they take later come from the joins recorded. */
@@ -233,9 +237,34 @@ export type RecordingEnd = {
 export type RunRecorder = {
   /** After each simulated tick, with the input it stepped, in the order the runtime took it. */
   tick(state: PlayState, input: TickInput, focus: Vec2 | null): void;
+  /** After a swap was applied between ticks; written to `swaps` in the order given. */
+  swap(entry: RecordedSwap): void;
+  /**
+   * After a load that ran inside this segment rather than starting a new one
+   * (game code loading its own scene again, say): when it ran another version
+   * than the one playing, it is written as a `next-load` swap with the
+   * `reload` strategy, since the load replaced the whole world.
+   */
+  loaded(load: RecordedLoad): void;
   /** The recording so far, ended as `end` with the game's snapshot after its last tick. */
   finish(end: RecordingEnd, final: unknown): RunRecording;
 };
+
+/** An applied swap as a recording holds it: the version and hashes it swapped to, its strategy, timing and tick. */
+export function recordedSwap(swap: SceneSwap): RecordedSwap {
+  const { version, sceneHash, runHash } = swap.to;
+  return {
+    tick: swap.tick,
+    version,
+    strategy: swap.strategy,
+    timing: swap.timing,
+    sceneHash,
+    runHash,
+  };
+}
+
+/** A load inside a segment as `RunRecorder.loaded` takes it: a swap without its timing and strategy. */
+export type RecordedLoad = Omit<RecordedSwap, "timing" | "strategy">;
 
 /** Lifecycle events, which a game spawning bullets raises by the thousand, mark only when named. */
 const LIFECYCLE_PREFIX = "entity:";
@@ -310,6 +339,14 @@ export function createRunRecorder(opts: RecorderOptions): RunRecorder {
   if (game?.persist && opts.persist !== undefined) start.persist = structuredClone(opts.persist);
   if (opts.entry != null) start.entry = opts.entry;
   const seed = opts.start.seed ?? defaultSeed(game?.id ?? null, opts.scene);
+  const swaps: RecordedSwap[] = [];
+  /** The version playing now: the start's, then each swap's. */
+  let playing: Sha256 | null = opts.sceneVersion ?? null;
+  const record = (e: RecordedSwap) => {
+    const { tick, version, strategy, timing, sceneHash, runHash } = e;
+    swaps.push({ tick, version, strategy, timing, sceneHash, runHash });
+    playing = version;
+  };
 
   return {
     tick(state, stepped, focus) {
@@ -354,6 +391,11 @@ export function createRunRecorder(opts: RecorderOptions): RunRecorder {
         else trailTruncated = true;
       }
     },
+    swap: record,
+    loaded(load) {
+      if (load.version === playing) return;
+      record({ ...load, strategy: "reload", timing: "next-load" });
+    },
     finish(end, final) {
       const focus = play?.focus && final !== null ? play.focus(final) : null;
       const outcome: RunRecording["outcome"] = {
@@ -395,6 +437,8 @@ export function createRunRecorder(opts: RecorderOptions): RunRecorder {
       };
       if (end.next) recording.next = { ...end.next };
       if (opts.fromSave) recording.fromSave = { ...opts.fromSave };
+      if (opts.sceneVersion) recording.sceneVersion = opts.sceneVersion;
+      if (swaps.length > 0) recording.swaps = swaps.map((s) => ({ ...s }));
       if (play?.focus)
         recording.trail = {
           every: RECORDING_TRAIL_EVERY,

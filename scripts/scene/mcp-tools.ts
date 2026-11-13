@@ -39,6 +39,7 @@ import { diff } from "./tools/diff";
 import { flow } from "./tools/flow";
 import { fuzz } from "./tools/fuzz";
 import { gameBuild } from "./tools/game-build";
+import { gameLiveBuild, gameLiveCheck } from "./tools/game-live";
 import { gameManifest } from "./tools/game-manifest";
 import { gameNew } from "./tools/game-new";
 import {
@@ -128,6 +129,8 @@ const RELEASE_MOVE: McpAnnotations = {
   openWorldHint: true,
 };
 const RELEASE_READ: McpAnnotations = { readOnlyHint: true, openWorldHint: true };
+/** Writes a scene version over its output directory; with `hosted`, reads the hosted project first. */
+const LIVE_BUILD: McpAnnotations = { ...BUILD, openWorldHint: true };
 
 // ─── Inputs ──────────────────────────────────────────────
 
@@ -361,14 +364,16 @@ function buildReport(result: ToolResult): ToolResult {
  * send the token anywhere else.
  */
 function releaseEnv(ctx: ToolContext): ToolResult | null {
+  return siteEnv(ctx, "releases", "an agent token with write access");
+}
+
+function siteEnv(ctx: ToolContext, what: string, token: string): ToolResult | null {
   const env = ctx.env ?? process.env;
   if (!agentTokenFrom(undefined, env))
-    return usage(
-      `releases need an agent token with write access: set ${AGENT_TOKEN_ENV} in the MCP server's environment`,
-    );
+    return usage(`${what} need ${token}: set ${AGENT_TOKEN_ENV} in the MCP server's environment`);
   if (!agentSiteFrom(env))
     return usage(
-      `releases need ${AGENT_SITE_ENV} (the site's https:// origin) set in the MCP server's environment`,
+      `${what} need ${AGENT_SITE_ENV} (the site's https:// origin) set in the MCP server's environment`,
     );
   return null;
 }
@@ -606,12 +611,26 @@ export const MCP_TOOLS: readonly McpTool[] = [
       run: jsonOrPath(
         "A run recording, v2 or v1 (`scene_schema` with which `recording`), or a `scene_playtest` result holding one",
       ),
+      versions: z
+        .string()
+        .optional()
+        .describe(
+          "A directory of scene versions and their texts (as `game_live_build` writes them) for a run that swapped versions while it played; each swap replays at its recorded tick.",
+        ),
       game,
       ...liveFields,
     },
     run: (i, ctx) =>
       withSource(i, ctx, async (scene, c, tmp) =>
-        replay({ scene, run: await tmp.payload("run.json", i.run), game: i.game }, c),
+        replay(
+          {
+            scene,
+            run: await tmp.payload("run.json", i.run),
+            game: i.game,
+            versions: i.versions,
+          },
+          c,
+        ),
       ),
   }),
   defineTool({
@@ -1039,6 +1058,51 @@ export const MCP_TOOLS: readonly McpTool[] = [
     run: async (i, ctx) =>
       releaseEnv(ctx) ??
       buildReport(await gameReleaseRollback({ project: i.id, channel: i.channel }, ctx)),
+  }),
+  defineTool({
+    name: "game_live_build",
+    title: "Build a scene version",
+    description:
+      "Build one scene's version (`game live build`) from the project's files, or with `hosted` from a temporary pull of the hosted project, into `out`: `scene-version.json` and a `<sha256>.json` for each text it carries. Returns the same fields as `--json`: the version's id, its data size and the files written. The same content always gives the same id, the editor's included. exitCode 1 on an error-severity issue.",
+    annotations: LIVE_BUILD,
+    input: {
+      id: releaseProject,
+      scene: sceneName,
+      hosted: z
+        .boolean()
+        .optional()
+        .describe(
+          `Build what the hosted project holds, with ${AGENT_TOKEN_ENV} and ${AGENT_SITE_ENV} from the server's environment.`,
+        ),
+      out: z.string().optional().describe("The output directory."),
+    },
+    run: async (i, ctx) =>
+      (i.hosted === true ? siteEnv(ctx, "hosted builds", "an agent token") : null) ??
+      (await gameLiveBuild(
+        { project: i.id, scene: i.scene, hosted: i.hosted === true, out: i.out },
+        ctx,
+      )),
+  }),
+  defineTool({
+    name: "game_live_check",
+    title: "Check a scene version",
+    description:
+      "Check one scene's version (`game live check`) before players get it: with `against` (a release's build directory or `release.json`), whether that release can load it (a changed shared asset is refused), swapping it into the release's own scene; with `from` (a built version's directory), swapping it into that version. The swap check plays the scene's input scripts, swaps at fixed points of each run and reports per run its tick, strategy and issues (`live-swap-failed` when `onSwap` throws, and the game's live checks). With neither, it only validates and warns which flag to pass. Returns the same fields as `--json`. exitCode 1 on an error-severity issue.",
+    annotations: READ,
+    input: {
+      id: releaseProject,
+      scene: sceneName,
+      against: z
+        .string()
+        .optional()
+        .describe("A release to check against: its build directory or its `release.json`."),
+      from: z
+        .string()
+        .optional()
+        .describe("The version players have now: a directory `game_live_build` wrote."),
+    },
+    run: (i, ctx) =>
+      gameLiveCheck({ project: i.id, scene: i.scene, against: i.against, from: i.from }, ctx),
   }),
 ];
 

@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ATLAS_KIND`](#atlas_kind) · [`ATLAS_SUFFIX`](#atlas_suffix) · [`AUDIO_KIND`](#audio_kind) · [`AssetBundle`](#assetbundle) · [`AssetEntry`](#assetentry) · [`AssetFile`](#assetfile) · [`AssetId`](#assetid) · [`AssetInfo`](#assetinfo) · [`AssetKey`](#assetkey) · [`AssetKindDef`](#assetkinddef) · [`AssetKindName`](#assetkindname) · [`AssetMatch`](#assetmatch) · [`AssetPath`](#assetpath) · [`AssetSidecar`](#assetsidecar) · [`AtlasDirection`](#atlasdirection) · [`AtlasFrame`](#atlasframe) · [`AtlasMeta`](#atlasmeta) · [`AtlasSettings`](#atlassettings) · [`AtlasSheet`](#atlassheet) · [`AtlasSlice`](#atlasslice) · [`AtlasTag`](#atlastag) · [`AtlasTool`](#atlastool) · [`AudioMeta`](#audiometa) · [`AudioSettings`](#audiosettings) · [`BlobInspect`](#blobinspect) · [`BlobKindDef`](#blobkinddef) · [`BuildStamp`](#buildstamp) · [`BundleEntry`](#bundleentry) · [`CREDITS_FILE`](#credits_file) · [`CheckReleaseOptions`](#checkreleaseoptions) · [`CodeKindDef`](#codekinddef) · [`CodeModuleInfo`](#codemoduleinfo) · [`ContentStore`](#contentstore) · [`ContentStoreError`](#contentstoreerror) · [`DATA_TABLE_KIND`](#data_table_kind) · [`DATA_TABLE_SCHEMA_ID`](#data_table_schema_id) · [`DATA_TABLE_VERSION`](#data_table_version) · [`DOC_NAME_KINDS`](#doc_name_kinds) · [`DOC_NAME_MAX_LENGTH`](#doc_name_max_length) · [`DataTableFile`](#datatablefile) · [`DataTableRow`](#datatablerow) · [`DocKindDef`](#dockinddef) · [`DocLayout`](#doclayout) · [`DocName`](#docname) · [`DocNameKind`](#docnamekind) · [`ENGINE_ASSET_KINDS`](#engine_asset_kinds) · [`EditSceneOp`](#editsceneop) · [`ExportBudget`](#exportbudget) · [`ExportBudgetReport`](#exportbudgetreport) · [`FONT_KIND`](#font_kind) · [`FontFormat`](#fontformat) · [`FontMeta`](#fontmeta) · [`FontSettings`](#fontsettings) · [`GAME_SETTINGS_KIND`](#game_settings_kind) · [`GAME_SETTINGS_SCHEMA_ID`](#game_settings_schema_id) · [`GAME_SETTINGS_VERSION`](#game_settings_version) · [`GameSettingsEngine`](#gamesettingsengine) · [`GameSettingsFile`](#gamesettingsfile) · [`GlobMatch`](#globmatch) · [`HashHistoryEntry`](#hashhistoryentry) · [`HeldFile`](#heldfile) · [`HeldProject`](#heldproject) · [`INDEX_HTML_FILE`](#index_html_file) · [`INPUT_MAP_KIND`](#input_map_kind) · [`INPUT_MAP_SCHEMA_ID`](#input_map_schema_id) · [`INPUT_MAP_VERSION`](#input_map_version) · [`INPUT_SCRIPT_SUFFIX`](#input_script_suffix) · [`ImageSize`](#imagesize) · [`InputMapFile`](#inputmapfile) · [`InputMapProblem`](#inputmapproblem) · [`InputMapTouchControl`](#inputmaptouchcontrol) · [`InspectEnv`](#inspectenv) · [`InspectResult`](#inspectresult) · [`JsonEdit`](#jsonedit) · [`JsonEditResult`](#jsoneditresult) · [`JsonPointer`](#jsonpointer) · [`KindEnv`](#kindenv) · [`KindRegistry`](#kindregistry) · [`Licence`](#licence) · [`MATERIAL_KIND`](#material_kind) · [`MATERIAL_SCHEMA_ID`](#material_schema_id) · [`MATERIAL_VERSION`](#material_version) · [`MaterialFile`](#materialfile) · [`PREFAB_SCENE_OPS`](#prefab_scene_ops) · [`PROJECT_FILE`](#project_file) · [`PROJECT_FILE_DEFAULTS`](#project_file_defaults) · [`PROJECT_FILE_VERSION`](#project_file_version) · [`PROJECT_OPS_SCHEMA_ID`](#project_ops_schema_id) · [`PROJECT_OP_NAMES`](#project_op_names) · [`PROJECT_SCHEMA_ID`](#project_schema_id) · [`PROJECT_SNAPSHOT_SCHEMA_ID`](#project_snapshot_schema_id) · [`PROJECT_SNAPSHOT_VERSION`](#project_snapshot_version) · [`ParseAssetResult`](#parseassetresult) · [`ParseProjectFileResult`](#parseprojectfileresult) · [`ParseProjectSnapshotResult`](#parseprojectsnapshotresult) · [`ParseReleaseManifestResult`](#parsereleasemanifestresult) · [`ParseSidecarResult`](#parsesidecarresult) · [`PerProjectWords`](#perprojectwords) · [`PointerRead`](#pointerread) · [`ProjectApplyResult`](#projectapplyresult) · [`ProjectBatchCheck`](#projectbatchcheck) · [`ProjectBatchEnv`](#projectbatchenv) · [`ProjectBundle`](#projectbundle) · [`ProjectExport`](#projectexport) · [`ProjectFile`](#projectfile) · [`ProjectId`](#projectid) · [`ProjectOp`](#projectop) · [`ProjectOpBatch`](#projectopbatch) · [`ProjectOpName`](#projectopname) · [`ProjectPathMatcher`](#projectpathmatcher) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`ProjectState`](#projectstate) · [`ProjectTreeNode`](#projecttreenode) · [`ProjectUsage`](#projectusage) · [`ProjectView`](#projectview) · [`QuotaPolicy`](#quotapolicy) · [`QuotaVerdict`](#quotaverdict) · [`RECORDING_KIND`](#recording_kind) · [`RECORDING_SUFFIX`](#recording_suffix) · [`RELEASE_FILE`](#release_file) · [`RELEASE_SCHEMA_ID`](#release_schema_id) · [`RELEASE_VERSION`](#release_version) · [`RUNTIME_VIEW_KINDS`](#runtime_view_kinds) · [`RecordingMeta`](#recordingmeta) · [`RecordingSettings`](#recordingsettings) · [`RefIndex`](#refindex) · [`RefSite`](#refsite) · [`Referrer`](#referrer) · [`ReleaseAsset`](#releaseasset) · [`ReleaseBudgetContent`](#releasebudgetcontent) · [`ReleaseCredit`](#releasecredit) · [`ReleaseFile`](#releasefile) · [`ReleaseManifest`](#releasemanifest) · [`ReleaseRecordingRef`](#releaserecordingref) · [`ReleaseScene`](#releasescene) · [`ReleaseTarget`](#releasetarget) · [`SAVE_FIXTURE_MAX_BYTES`](#save_fixture_max_bytes) · [`SAVE_KIND`](#save_kind) · [`SAVE_SUFFIX`](#save_suffix) · [`SCENE_KIND_NAME`](#scene_kind_name) · [`SCENE_LIST_KIND`](#scene_list_kind) · [`SCENE_LIST_SCHEMA_ID`](#scene_list_schema_id) · [`SCENE_LIST_VERSION`](#scene_list_version) · [`SERVICE_WORKER_FILE`](#service_worker_file) · [`SIDECAR_SCHEMA_ID`](#sidecar_schema_id) · [`SIDECAR_SUFFIX`](#sidecar_suffix) · [`SIDECAR_VERSION`](#sidecar_version) · [`SaveFixtureMeta`](#savefixturemeta) · [`SaveFixtureSettings`](#savefixturesettings) · [`SceneListEntry`](#scenelistentry) · [`SceneListFile`](#scenelistfile) · [`SceneListFlow`](#scenelistflow) · [`SceneWrite`](#scenewrite) · [`Sha256`](#sha256) · [`SnapshotAsset`](#snapshotasset) · [`SnapshotError`](#snapshoterror) · [`TEXTURE_KIND`](#texture_kind) · [`TextureFormat`](#textureformat) · [`TextureMeta`](#texturemeta) · [`TextureSettings`](#texturesettings) · [`ThirdPartyLicence`](#thirdpartylicence) · [`UNLIMITED_QUOTA`](#unlimited_quota) · [`WEB_MANIFEST_FILE`](#web_manifest_file) · [`applyJsonEdits`](#applyjsonedits) · [`assetFileEntries`](#assetfileentries) · [`assetFileEntry`](#assetfileentry) · [`assetFileKind`](#assetfilekind) · [`assetFilesIn`](#assetfilesin) · [`assetIdOfPath`](#assetidofpath) · [`assetInfo`](#assetinfo-1) · [`assetPathProblem`](#assetpathproblem) · [`atlasExportApp`](#atlasexportapp) · [`atlasImage`](#atlasimage) · [`atlasKind`](#atlaskind) · [`atlasMetaSchema`](#atlasmetaschema) · [`atlasSettingsSchema`](#atlassettingsschema) · [`atlasTool`](#atlastool-1) · [`audioKind`](#audiokind) · [`audioMetaSchema`](#audiometaschema) · [`audioSettingsSchema`](#audiosettingsschema) · [`buildRefIndex`](#buildrefindex) · [`byCodeUnit`](#bycodeunit) · [`canonicalJson`](#canonicaljson) · [`checkProjectBatch`](#checkprojectbatch) · [`checkReleaseManifest`](#checkreleasemanifest) · [`checkSnapshot`](#checksnapshot) · [`checksKind`](#checkskind) · [`codeKind`](#codekind) · [`compareEntries`](#compareentries) · [`createKindRegistry`](#createkindregistry) · [`dataTableIssues`](#datatableissues) · [`dataTableKind`](#datatablekind) · [`defineAssetKind`](#defineassetkind) · [`detectImport`](#detectimport) · [`docKindJsonSchema`](#dockindjsonschema) · [`docNameOf`](#docnameof) · [`engineResolution`](#engineresolution) · [`findRelease`](#findrelease) · [`fontKind`](#fontkind) · [`fontMetaSchema`](#fontmetaschema) · [`fontSettingsSchema`](#fontsettingsschema) · [`formatAssetDoc`](#formatassetdoc) · [`formatBytes`](#formatbytes) · [`formatProjectFile`](#formatprojectfile) · [`formatProjectSnapshot`](#formatprojectsnapshot) · [`formatReleaseManifest`](#formatreleasemanifest) · [`formatSidecar`](#formatsidecar) · [`gameSettingsEntries`](#gamesettingsentries) · [`gameSettingsIssues`](#gamesettingsissues) · [`gameSettingsKind`](#gamesettingskind) · [`gameSettingsValues`](#gamesettingsvalues) · [`hashForPut`](#hashforput) · [`heldProject`](#heldproject-1) · [`idsAtPaths`](#idsatpaths) · [`inputMapEntries`](#inputmapentries) · [`inputMapIssues`](#inputmapissues) · [`inputMapKind`](#inputmapkind) · [`inputMapProblems`](#inputmapproblems) · [`inputScriptKind`](#inputscriptkind) · [`inspectEntry`](#inspectentry) · [`isSha256`](#issha256) · [`isSkippedAssetPath`](#isskippedassetpath) · [`keyedItemPointer`](#keyeditempointer) · [`kindInputMap`](#kindinputmap) · [`materialKind`](#materialkind) · [`materialSchema`](#materialschema) · [`mayBeAssetFile`](#maybeassetfile) · [`memoryContentStore`](#memorycontentstore) · [`orphanSidecarIssue`](#orphansidecarissue) · [`ownAssetId`](#ownassetid) · [`parseAsepriteJson`](#parseasepritejson) · [`parseAssetDoc`](#parseassetdoc) · [`parseBmfont`](#parsebmfont) · [`parseDocName`](#parsedocname) · [`parseJsonPointer`](#parsejsonpointer) · [`parseProjectFile`](#parseprojectfile) · [`parseProjectSnapshot`](#parseprojectsnapshot) · [`parseReleaseManifest`](#parsereleasemanifest) · [`parseSidecar`](#parsesidecar) · [`parseTexturePackerJson`](#parsetexturepackerjson) · [`prefabKind`](#prefabkind) · [`projectBundle`](#projectbundle-1) · [`projectFileSchema`](#projectfileschema) · [`projectGlobs`](#projectglobs) · [`projectJsonSchema`](#projectjsonschema) · [`projectMaterialOf`](#projectmaterialof) · [`projectOpBatchSchema`](#projectopbatchschema) · [`projectOpsJsonSchema`](#projectopsjsonschema) · [`projectPathMatcher`](#projectpathmatcher-1) · [`projectSnapshotJsonSchema`](#projectsnapshotjsonschema) · [`projectSnapshotSchema`](#projectsnapshotschema) · [`projectUsage`](#projectusage-1) · [`projectView`](#projectview-1) · [`readGifSize`](#readgifsize) · [`readJpegSize`](#readjpegsize) · [`readPngSize`](#readpngsize) · [`readPointer`](#readpointer) · [`readWebpSize`](#readwebpsize) · [`recordingKind`](#recordingkind) · [`recordingMetaSchema`](#recordingmetaschema) · [`recordingSettingsSchema`](#recordingsettingsschema) · [`referencedTrash`](#referencedtrash) · [`releaseBuildHash`](#releasebuildhash) · [`releaseId`](#releaseid) · [`releaseJsonSchema`](#releasejsonschema) · [`releaseManifestSchema`](#releasemanifestschema) · [`releaseSnapshot`](#releasesnapshot) · [`rewriteRefs`](#rewriterefs) · [`rowSchemaOf`](#rowschemaof) · [`runtimeView`](#runtimeview) · [`saveFixtureMetaSchema`](#savefixturemetaschema) · [`saveFixtureSettingsSchema`](#savefixturesettingsschema) · [`saveKind`](#savekind) · [`sceneBundle`](#scenebundle) · [`sceneKind`](#scenekind) · [`sceneListEntries`](#scenelistentries) · [`sceneListFlow`](#scenelistflow-1) · [`sceneListIssues`](#scenelistissues) · [`sceneListKind`](#scenelistkind) · [`schemaRefSites`](#schemarefsites) · [`sha256`](#sha256-1) · [`sidecarJsonSchema`](#sidecarjsonschema) · [`sidecarPathOf`](#sidecarpathof) · [`sidecarSchema`](#sidecarschema) · [`snapshotProject`](#snapshotproject) · [`snapshotScene`](#snapshotscene) · [`stableJson`](#stablejson) · [`suffixedId`](#suffixedid) · [`suffixedPath`](#suffixedpath) · [`tableAssets`](#tableassets) · [`textureKind`](#texturekind) · [`textureMetaSchema`](#texturemetaschema) · [`textureSettingsSchema`](#texturesettingsschema) · [`unreferencedBlobs`](#unreferencedblobs) · [`usableInputMap`](#usableinputmap) · [`validateAssetDoc`](#validateassetdoc) · [`writesPrefabs`](#writesprefabs)
+[`ATLAS_KIND`](#atlas_kind) · [`ATLAS_SUFFIX`](#atlas_suffix) · [`AUDIO_KIND`](#audio_kind) · [`AssetBundle`](#assetbundle) · [`AssetEntry`](#assetentry) · [`AssetFile`](#assetfile) · [`AssetId`](#assetid) · [`AssetInfo`](#assetinfo) · [`AssetKey`](#assetkey) · [`AssetKindDef`](#assetkinddef) · [`AssetKindName`](#assetkindname) · [`AssetMatch`](#assetmatch) · [`AssetPath`](#assetpath) · [`AssetSidecar`](#assetsidecar) · [`AtlasDirection`](#atlasdirection) · [`AtlasFrame`](#atlasframe) · [`AtlasMeta`](#atlasmeta) · [`AtlasSettings`](#atlassettings) · [`AtlasSheet`](#atlassheet) · [`AtlasSlice`](#atlasslice) · [`AtlasTag`](#atlastag) · [`AtlasTool`](#atlastool) · [`AudioMeta`](#audiometa) · [`AudioSettings`](#audiosettings) · [`BlobInspect`](#blobinspect) · [`BlobKindDef`](#blobkinddef) · [`BuildSceneVersionOptions`](#buildsceneversionoptions) · [`BuildSceneVersionResult`](#buildsceneversionresult) · [`BuildStamp`](#buildstamp) · [`BundleEntry`](#bundleentry) · [`CREDITS_FILE`](#credits_file) · [`CheckReleaseOptions`](#checkreleaseoptions) · [`CheckSceneVersionOptions`](#checksceneversionoptions) · [`CodeKindDef`](#codekinddef) · [`CodeModuleInfo`](#codemoduleinfo) · [`ContentStore`](#contentstore) · [`ContentStoreError`](#contentstoreerror) · [`DATA_TABLE_KIND`](#data_table_kind) · [`DATA_TABLE_SCHEMA_ID`](#data_table_schema_id) · [`DATA_TABLE_VERSION`](#data_table_version) · [`DOC_NAME_KINDS`](#doc_name_kinds) · [`DOC_NAME_MAX_LENGTH`](#doc_name_max_length) · [`DataTableFile`](#datatablefile) · [`DataTableRow`](#datatablerow) · [`DocKindDef`](#dockinddef) · [`DocLayout`](#doclayout) · [`DocName`](#docname) · [`DocNameKind`](#docnamekind) · [`ENGINE_ASSET_KINDS`](#engine_asset_kinds) · [`EditSceneOp`](#editsceneop) · [`ExportBudget`](#exportbudget) · [`ExportBudgetReport`](#exportbudgetreport) · [`FONT_KIND`](#font_kind) · [`FontFormat`](#fontformat) · [`FontMeta`](#fontmeta) · [`FontSettings`](#fontsettings) · [`GAME_SETTINGS_KIND`](#game_settings_kind) · [`GAME_SETTINGS_SCHEMA_ID`](#game_settings_schema_id) · [`GAME_SETTINGS_VERSION`](#game_settings_version) · [`GameSettingsEngine`](#gamesettingsengine) · [`GameSettingsFile`](#gamesettingsfile) · [`GlobMatch`](#globmatch) · [`HashHistoryEntry`](#hashhistoryentry) · [`HeldFile`](#heldfile) · [`HeldProject`](#heldproject) · [`INDEX_HTML_FILE`](#index_html_file) · [`INPUT_MAP_KIND`](#input_map_kind) · [`INPUT_MAP_SCHEMA_ID`](#input_map_schema_id) · [`INPUT_MAP_VERSION`](#input_map_version) · [`INPUT_SCRIPT_SUFFIX`](#input_script_suffix) · [`ImageSize`](#imagesize) · [`InputMapFile`](#inputmapfile) · [`InputMapProblem`](#inputmapproblem) · [`InputMapTouchControl`](#inputmaptouchcontrol) · [`InspectEnv`](#inspectenv) · [`InspectResult`](#inspectresult) · [`JsonEdit`](#jsonedit) · [`JsonEditResult`](#jsoneditresult) · [`JsonPointer`](#jsonpointer) · [`KindEnv`](#kindenv) · [`KindRegistry`](#kindregistry) · [`Licence`](#licence) · [`LiveCompat`](#livecompat) · [`MATERIAL_KIND`](#material_kind) · [`MATERIAL_SCHEMA_ID`](#material_schema_id) · [`MATERIAL_VERSION`](#material_version) · [`MaterialFile`](#materialfile) · [`PREFAB_SCENE_OPS`](#prefab_scene_ops) · [`PROJECT_FILE`](#project_file) · [`PROJECT_FILE_DEFAULTS`](#project_file_defaults) · [`PROJECT_FILE_VERSION`](#project_file_version) · [`PROJECT_OPS_SCHEMA_ID`](#project_ops_schema_id) · [`PROJECT_OP_NAMES`](#project_op_names) · [`PROJECT_SCHEMA_ID`](#project_schema_id) · [`PROJECT_SNAPSHOT_SCHEMA_ID`](#project_snapshot_schema_id) · [`PROJECT_SNAPSHOT_VERSION`](#project_snapshot_version) · [`ParseAssetResult`](#parseassetresult) · [`ParseProjectFileResult`](#parseprojectfileresult) · [`ParseProjectSnapshotResult`](#parseprojectsnapshotresult) · [`ParseReleaseManifestResult`](#parsereleasemanifestresult) · [`ParseSidecarResult`](#parsesidecarresult) · [`PerProjectWords`](#perprojectwords) · [`PointerRead`](#pointerread) · [`ProjectApplyResult`](#projectapplyresult) · [`ProjectBatchCheck`](#projectbatchcheck) · [`ProjectBatchEnv`](#projectbatchenv) · [`ProjectBundle`](#projectbundle) · [`ProjectExport`](#projectexport) · [`ProjectFile`](#projectfile) · [`ProjectId`](#projectid) · [`ProjectOp`](#projectop) · [`ProjectOpBatch`](#projectopbatch) · [`ProjectOpName`](#projectopname) · [`ProjectPathMatcher`](#projectpathmatcher) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`ProjectState`](#projectstate) · [`ProjectTreeNode`](#projecttreenode) · [`ProjectUsage`](#projectusage) · [`ProjectView`](#projectview) · [`QuotaPolicy`](#quotapolicy) · [`QuotaVerdict`](#quotaverdict) · [`RECORDING_KIND`](#recording_kind) · [`RECORDING_SUFFIX`](#recording_suffix) · [`RELEASE_FILE`](#release_file) · [`RELEASE_SCHEMA_ID`](#release_schema_id) · [`RELEASE_VERSION`](#release_version) · [`RUNTIME_VIEW_KINDS`](#runtime_view_kinds) · [`RecordingMeta`](#recordingmeta) · [`RecordingSettings`](#recordingsettings) · [`RefIndex`](#refindex) · [`RefSite`](#refsite) · [`Referrer`](#referrer) · [`ReleaseAsset`](#releaseasset) · [`ReleaseBudgetContent`](#releasebudgetcontent) · [`ReleaseCredit`](#releasecredit) · [`ReleaseFile`](#releasefile) · [`ReleaseManifest`](#releasemanifest) · [`ReleaseRecordingRef`](#releaserecordingref) · [`ReleaseScene`](#releasescene) · [`ReleaseTarget`](#releasetarget) · [`SAVE_FIXTURE_MAX_BYTES`](#save_fixture_max_bytes) · [`SAVE_KIND`](#save_kind) · [`SAVE_SUFFIX`](#save_suffix) · [`SCENE_KIND_NAME`](#scene_kind_name) · [`SCENE_LIST_KIND`](#scene_list_kind) · [`SCENE_LIST_SCHEMA_ID`](#scene_list_schema_id) · [`SCENE_LIST_VERSION`](#scene_list_version) · [`SCENE_VERSION_SCHEMA_ID`](#scene_version_schema_id) · [`SCENE_VERSION_VERSION`](#scene_version_version) · [`SERVICE_WORKER_FILE`](#service_worker_file) · [`SIDECAR_SCHEMA_ID`](#sidecar_schema_id) · [`SIDECAR_SUFFIX`](#sidecar_suffix) · [`SIDECAR_VERSION`](#sidecar_version) · [`SaveFixtureMeta`](#savefixturemeta) · [`SaveFixtureSettings`](#savefixturesettings) · [`SceneListEntry`](#scenelistentry) · [`SceneListFile`](#scenelistfile) · [`SceneListFlow`](#scenelistflow) · [`SceneVersion`](#sceneversion) · [`SceneVersionNames`](#sceneversionnames) · [`SceneVersionRead`](#sceneversionread) · [`SceneWrite`](#scenewrite) · [`Sha256`](#sha256) · [`SnapshotAsset`](#snapshotasset) · [`SnapshotError`](#snapshoterror) · [`TEXTURE_KIND`](#texture_kind) · [`TextureFormat`](#textureformat) · [`TextureMeta`](#texturemeta) · [`TextureSettings`](#texturesettings) · [`ThirdPartyLicence`](#thirdpartylicence) · [`UNLIMITED_QUOTA`](#unlimited_quota) · [`WEB_MANIFEST_FILE`](#web_manifest_file) · [`applyJsonEdits`](#applyjsonedits) · [`assetFileEntries`](#assetfileentries) · [`assetFileEntry`](#assetfileentry) · [`assetFileKind`](#assetfilekind) · [`assetFilesIn`](#assetfilesin) · [`assetIdOfPath`](#assetidofpath) · [`assetInfo`](#assetinfo-1) · [`assetPathProblem`](#assetpathproblem) · [`atlasExportApp`](#atlasexportapp) · [`atlasImage`](#atlasimage) · [`atlasKind`](#atlaskind) · [`atlasMetaSchema`](#atlasmetaschema) · [`atlasSettingsSchema`](#atlassettingsschema) · [`atlasTool`](#atlastool-1) · [`audioKind`](#audiokind) · [`audioMetaSchema`](#audiometaschema) · [`audioSettingsSchema`](#audiosettingsschema) · [`buildRefIndex`](#buildrefindex) · [`buildSceneVersion`](#buildsceneversion) · [`byCodeUnit`](#bycodeunit) · [`canonicalJson`](#canonicaljson) · [`checkProjectBatch`](#checkprojectbatch) · [`checkReleaseManifest`](#checkreleasemanifest) · [`checkSceneVersion`](#checksceneversion) · [`checkSnapshot`](#checksnapshot) · [`checksKind`](#checkskind) · [`codeKind`](#codekind) · [`compareEntries`](#compareentries) · [`createKindRegistry`](#createkindregistry) · [`dataTableIssues`](#datatableissues) · [`dataTableKind`](#datatablekind) · [`defineAssetKind`](#defineassetkind) · [`detectImport`](#detectimport) · [`docKindJsonSchema`](#dockindjsonschema) · [`docNameOf`](#docnameof) · [`engineResolution`](#engineresolution) · [`findRelease`](#findrelease) · [`findSceneVersion`](#findsceneversion) · [`fontKind`](#fontkind) · [`fontMetaSchema`](#fontmetaschema) · [`fontSettingsSchema`](#fontsettingsschema) · [`formatAssetDoc`](#formatassetdoc) · [`formatBytes`](#formatbytes) · [`formatProjectFile`](#formatprojectfile) · [`formatProjectSnapshot`](#formatprojectsnapshot) · [`formatReleaseManifest`](#formatreleasemanifest) · [`formatSceneVersion`](#formatsceneversion) · [`formatSidecar`](#formatsidecar) · [`gameSettingsEntries`](#gamesettingsentries) · [`gameSettingsIssues`](#gamesettingsissues) · [`gameSettingsKind`](#gamesettingskind) · [`gameSettingsValues`](#gamesettingsvalues) · [`hashForPut`](#hashforput) · [`heldProject`](#heldproject-1) · [`idsAtPaths`](#idsatpaths) · [`inputMapEntries`](#inputmapentries) · [`inputMapIssues`](#inputmapissues) · [`inputMapKind`](#inputmapkind) · [`inputMapProblems`](#inputmapproblems) · [`inputScriptKind`](#inputscriptkind) · [`inspectEntry`](#inspectentry) · [`isSha256`](#issha256) · [`isSkippedAssetPath`](#isskippedassetpath) · [`keyedItemPointer`](#keyeditempointer) · [`kindInputMap`](#kindinputmap) · [`liveCompat`](#livecompat-1) · [`liveCompatKey`](#livecompatkey) · [`materialKind`](#materialkind) · [`materialSchema`](#materialschema) · [`mayBeAssetFile`](#maybeassetfile) · [`memoryContentStore`](#memorycontentstore) · [`orphanSidecarIssue`](#orphansidecarissue) · [`ownAssetId`](#ownassetid) · [`parseAsepriteJson`](#parseasepritejson) · [`parseAssetDoc`](#parseassetdoc) · [`parseBmfont`](#parsebmfont) · [`parseDocName`](#parsedocname) · [`parseJsonPointer`](#parsejsonpointer) · [`parseProjectFile`](#parseprojectfile) · [`parseProjectSnapshot`](#parseprojectsnapshot) · [`parseReleaseManifest`](#parsereleasemanifest) · [`parseSceneVersion`](#parsesceneversion) · [`parseSidecar`](#parsesidecar) · [`parseTexturePackerJson`](#parsetexturepackerjson) · [`prefabKind`](#prefabkind) · [`projectBundle`](#projectbundle-1) · [`projectFileSchema`](#projectfileschema) · [`projectGlobs`](#projectglobs) · [`projectJsonSchema`](#projectjsonschema) · [`projectMaterialOf`](#projectmaterialof) · [`projectOpBatchSchema`](#projectopbatchschema) · [`projectOpsJsonSchema`](#projectopsjsonschema) · [`projectPathMatcher`](#projectpathmatcher-1) · [`projectSnapshotJsonSchema`](#projectsnapshotjsonschema) · [`projectSnapshotSchema`](#projectsnapshotschema) · [`projectUsage`](#projectusage-1) · [`projectView`](#projectview-1) · [`readGifSize`](#readgifsize) · [`readJpegSize`](#readjpegsize) · [`readPngSize`](#readpngsize) · [`readPointer`](#readpointer) · [`readSceneVersion`](#readsceneversion) · [`readWebpSize`](#readwebpsize) · [`recordingKind`](#recordingkind) · [`recordingMetaSchema`](#recordingmetaschema) · [`recordingSettingsSchema`](#recordingsettingsschema) · [`referencedTrash`](#referencedtrash) · [`releaseBuildHash`](#releasebuildhash) · [`releaseId`](#releaseid) · [`releaseJsonSchema`](#releasejsonschema) · [`releaseManifestSchema`](#releasemanifestschema) · [`releaseSnapshot`](#releasesnapshot) · [`rewriteRefs`](#rewriterefs) · [`rowSchemaOf`](#rowschemaof) · [`runtimeView`](#runtimeview) · [`saveFixtureMetaSchema`](#savefixturemetaschema) · [`saveFixtureSettingsSchema`](#savefixturesettingsschema) · [`saveKind`](#savekind) · [`sceneBundle`](#scenebundle) · [`sceneKind`](#scenekind) · [`sceneListEntries`](#scenelistentries) · [`sceneListFlow`](#scenelistflow-1) · [`sceneListIssues`](#scenelistissues) · [`sceneListKind`](#scenelistkind) · [`sceneVersionId`](#sceneversionid) · [`sceneVersionJsonSchema`](#sceneversionjsonschema) · [`sceneVersionSchema`](#sceneversionschema) · [`sceneVersionSnapshot`](#sceneversionsnapshot) · [`schemaRefSites`](#schemarefsites) · [`sha256`](#sha256-1) · [`sidecarJsonSchema`](#sidecarjsonschema) · [`sidecarPathOf`](#sidecarpathof) · [`sidecarSchema`](#sidecarschema) · [`snapshotProject`](#snapshotproject) · [`snapshotScene`](#snapshotscene) · [`stableJson`](#stablejson) · [`suffixedId`](#suffixedid) · [`suffixedPath`](#suffixedpath) · [`tableAssets`](#tableassets) · [`textureKind`](#texturekind) · [`textureMetaSchema`](#texturemetaschema) · [`textureSettingsSchema`](#texturesettingsschema) · [`unreferencedBlobs`](#unreferencedblobs) · [`usableInputMap`](#usableinputmap) · [`validateAssetDoc`](#validateassetdoc) · [`writesPrefabs`](#writesprefabs)
 
 ## `ATLAS_KIND`
 
@@ -416,6 +416,53 @@ type BlobKindDef<M = unknown, S = unknown> = KindBase & {
 
 Refers to [`AssetEntry`](#assetentry), [`InspectEnv`](#inspectenv), [`InspectResult`](#inspectresult), [`RefSite`](#refsite).
 
+## `BuildSceneVersionOptions`
+
+_type_ in `project/scene-version.ts`
+
+What `buildSceneVersion` reads.
+
+```ts
+type BuildSceneVersionOptions = {
+    /** `project.build` for the code doing the build. */
+    build: Readonly<Record<AssetKindName, Sha256>>;
+    game: GameDefinition;
+    registry: Registry;
+    /** The release it will go live on; when given, `checkSceneVersion` runs and its issues are returned. */
+    release?: ReleaseManifest;
+    scene: AssetId;
+    /**
+     * Canonical texts by asset id (from docs or files): the scene, every doc
+     * it reaches (its prefabs, materials, tables), and the game settings and
+     * scene list it is read with.
+     */
+    texts: ReadonlyMap<AssetId, string>;
+    view: ProjectView;
+};
+```
+
+Refers to [`AssetId`](#assetid), [`AssetKindName`](#assetkindname), [`ProjectView`](#projectview), [`ReleaseManifest`](#releasemanifest), [`Sha256`](#sha256).
+
+## `BuildSceneVersionResult`
+
+_type_ in `project/scene-version.ts`
+
+```ts
+type BuildSceneVersionResult = {
+    id: Sha256;
+    issues: SceneIssue[];
+    ok: true;
+    /** The canonical texts it carries, by hash. */
+    texts: ReadonlyMap<Sha256, string>;
+    version: SceneVersion;
+} | {
+    issues: SceneIssue[];
+    ok: false;
+};
+```
+
+Refers to [`SceneVersion`](#sceneversion), [`Sha256`](#sha256).
+
 ## `BuildStamp`
 
 _type_ in `project/types.ts`
@@ -475,6 +522,24 @@ type CheckReleaseOptions = {
 ```
 
 Refers to [`ExportBudget`](#exportbudget), [`ExportBudgetReport`](#exportbudgetreport), [`ReleaseBudgetContent`](#releasebudgetcontent), [`ReleaseFile`](#releasefile).
+
+## `CheckSceneVersionOptions`
+
+_type_ in `project/scene-version.ts`
+
+```ts
+type CheckSceneVersionOptions = {
+    names?: SceneVersionNames;
+    /**
+     * The game's registry, for finding the references in the carried scene and
+     * prefabs (rule 7). Without it only what the engine's own types name is
+     * found: the `assets` header, prefab instances and blobs' references.
+     */
+    registry?: Registry;
+};
+```
+
+Refers to [`SceneVersionNames`](#sceneversionnames).
 
 ## `CodeKindDef`
 
@@ -1209,6 +1274,30 @@ type Licence = {
     spdx?: string;
 };
 ```
+
+## `LiveCompat`
+
+_type_ in `project/scene-version.ts`
+
+What a release must match for a scene version to go live on it.
+
+```ts
+type LiveCompat = {
+    /** The per-kind schema hashes of the code that checked the version: `project.build`. */
+    build: Readonly<Record<AssetKindName, Sha256>>;
+    /** From `engine.formats`. */
+    formats: {
+        prefab: number;
+        scene: number;
+    };
+    game: {
+        configHash: null | string;
+        id: string;
+    };
+};
+```
+
+Refers to [`AssetKindName`](#assetkindname), [`Sha256`](#sha256).
 
 ## `MATERIAL_KIND`
 
@@ -2386,6 +2475,26 @@ _const_ in `project/kinds/scene-list.ts`
 declare const SCENE_LIST_VERSION = 1;
 ```
 
+## `SCENE_VERSION_SCHEMA_ID`
+
+_const_ in `project/scene-version.ts`
+
+`urn:jams-engine:scene-version:v1`.
+
+```ts
+declare const SCENE_VERSION_SCHEMA_ID = "urn:jams-engine:scene-version:v1";
+```
+
+## `SCENE_VERSION_VERSION`
+
+_const_ in `project/scene-version.ts`
+
+The scene version record's format, the `v` every one carries.
+
+```ts
+declare const SCENE_VERSION_VERSION = 1;
+```
+
 ## `SERVICE_WORKER_FILE`
 
 _const_ in `project/release.ts`
@@ -2497,6 +2606,79 @@ type SceneListFlow = {
 ```
 
 Refers to [`AssetId`](#assetid), [`SceneListEntry`](#scenelistentry).
+
+## `SceneVersion`
+
+_type_ in `project/scene-version.ts`
+
+One published version of one scene: the data that replaces the release's
+scene, never code. Holds no wall clock, author, note or timing, so the
+same level published twice is the same version.
+
+```ts
+type SceneVersion = {
+    $schema?: string;
+    /**
+     * Every asset the version needs: the scene doc, each prefab in
+     * `entry.prefabs`, every blob in `entry.bundle` and the assets those refer
+     * to. `file` is always `live/<sha256>.json` (docs) or `live/<sha256><ext>`
+     * (blobs); the frame uses the release's own path when the release ships
+     * that hash. Sorted by id.
+     */
+    assets: Readonly<Record<AssetId, ReleaseAsset>>;
+    /** The release it was checked against when it was built; provenance only. */
+    base: Sha256 | null;
+    compat: LiveCompat;
+    /** ENGINE_VERSION of the code that built it; shown, never compared. */
+    engine: string;
+    /** Its `flow.scenes` entry as a release would write it: title, sublevel, physics, prefabs, bundle. */
+    entry: ReleaseScene;
+    kind: "scene-version";
+    project: ProjectId;
+    /** The scene asset this version replaces; must be listed in the release's flow. */
+    scene: AssetId;
+    /** `sceneHash` of the canonical scene text: what the editor and replays display. */
+    sceneHash: SceneHash;
+    v: 1;
+};
+```
+
+Refers to [`AssetId`](#assetid), [`LiveCompat`](#livecompat), [`ProjectId`](#projectid), [`ReleaseAsset`](#releaseasset), [`ReleaseScene`](#releasescene), [`Sha256`](#sha256).
+
+## `SceneVersionNames`
+
+_type_ in `project/scene-version.ts`
+
+How the messages name the version and the release; a host passes its numbers (`level-1@4`, `v7`).
+
+```ts
+type SceneVersionNames = {
+    /** Default: "the release". */
+    release?: string;
+    /** Default: the scene's id. */
+    version?: string;
+};
+```
+
+## `SceneVersionRead`
+
+_type_ in `project/scene-version.ts`
+
+A version read for play: its scene parsed, validated and expanded, and the prefabs it expanded from.
+
+```ts
+type SceneVersionRead = {
+    def: SceneDefinition;
+    /** Warnings and infos; an error stops the read. */
+    issues: SceneIssue[];
+    ok: true;
+    prefabs: PrefabLibrary;
+    scene: ExpandedScene;
+} | {
+    issues: SceneIssue[];
+    ok: false;
+};
+```
 
 ## `SceneWrite`
 
@@ -2918,6 +3100,25 @@ declare function buildRefIndex(view: ProjectView, values: ReadonlyMap<AssetId, u
 
 Refers to [`AssetId`](#assetid), [`KindEnv`](#kindenv), [`KindRegistry`](#kindregistry), [`ProjectView`](#projectview), [`RefIndex`](#refindex).
 
+## `buildSceneVersion`
+
+_function_ in `project/scene-version.ts`
+
+Builds the version of `opts.scene`: reads the scene as Play does (any
+error stops the build); takes its release entry (physics, the prefabs the
+expansion used, the bundle, and the title and sublevel flag the scene
+list gives); carries the scene, its prefabs, its bundle and everything
+those reference, each under `live/`; stamps the compatibility of this
+code; then hashes it. With `opts.release`, `base` is that release's id
+and `checkSceneVersion`'s issues against it are returned. The same
+content gives the same id, whether its texts came from files or docs.
+
+```ts
+declare function buildSceneVersion(opts: BuildSceneVersionOptions): Promise<BuildSceneVersionResult>;
+```
+
+Refers to [`BuildSceneVersionOptions`](#buildsceneversionoptions), [`BuildSceneVersionResult`](#buildsceneversionresult).
+
 ## `byCodeUnit`
 
 _const_ in `project/kinds/define.ts`
@@ -2986,6 +3187,26 @@ declare function checkReleaseManifest(manifest: ReleaseManifest, files?: Readonl
 ```
 
 Refers to [`CheckReleaseOptions`](#checkreleaseoptions), [`ReleaseManifest`](#releasemanifest), [`Sha256`](#sha256).
+
+## `checkSceneVersion`
+
+_function_ in `project/scene-version.ts`
+
+Every compatibility rule: the project, game and configuration (1),
+formats (2) and per-kind schema hashes (3) are the release's; the scene
+is listed with the same sublevel flag (4); physics only when the release
+ships Rapier (5); every carried asset besides the scene and its prefabs
+new to the release or with its hash (6); with `texts` (the carried
+canonical texts, by hash), every reference out of a carried asset is to a
+carried one (7); `entry`'s scene, prefabs and bundle carried and sorted
+(8). `[]` when the version may go live on this release. Issues that
+point into the version carry the line of its canonical text.
+
+```ts
+declare function checkSceneVersion(manifest: ReleaseManifest, version: SceneVersion, texts?: ReadonlyMap<Sha256, string>, opts?: CheckSceneVersionOptions): SceneIssue[];
+```
+
+Refers to [`CheckSceneVersionOptions`](#checksceneversionoptions), [`ReleaseManifest`](#releasemanifest), [`SceneVersion`](#sceneversion), [`Sha256`](#sha256).
 
 ## `checkSnapshot`
 
@@ -3250,6 +3471,21 @@ declare function findRelease<R extends {
 
 Refers to [`ReleaseManifest`](#releasemanifest), [`ReleaseRecordingRef`](#releaserecordingref), [`Sha256`](#sha256).
 
+## `findSceneVersion`
+
+_function_ in `project/scene-version.ts`
+
+A recording's version by id; null when the host doesn't have it.
+
+```ts
+declare function findSceneVersion<V extends {
+    id: Sha256;
+    version: SceneVersion;
+}>(id: Sha256, versions: readonly V[]): V | null;
+```
+
+Refers to [`SceneVersion`](#sceneversion), [`Sha256`](#sha256).
+
 ## `fontKind`
 
 _const_ in `project/kinds/font.ts`
@@ -3357,6 +3593,20 @@ declare function formatReleaseManifest(manifest: ReleaseManifest): string;
 ```
 
 Refers to [`ReleaseManifest`](#releasemanifest).
+
+## `formatSceneVersion`
+
+_function_ in `project/scene-version.ts`
+
+Canonical text, by `formatReleaseManifest`'s writer: the key order of
+`SceneVersion`, `assets` by id with each item on one line, two-space
+indent, trailing newline.
+
+```ts
+declare function formatSceneVersion(version: SceneVersion): string;
+```
+
+Refers to [`SceneVersion`](#sceneversion).
 
 ## `formatSidecar`
 
@@ -3766,6 +4016,30 @@ declare function kindInputMap(view: ProjectView, valueOf: (id: AssetId) => unkno
 
 Refers to [`AssetId`](#assetid), [`InputMapFile`](#inputmapfile), [`ProjectView`](#projectview).
 
+## `liveCompat`
+
+_function_ in `project/scene-version.ts`
+
+What `manifest` asks of a version that goes live on it.
+
+```ts
+declare function liveCompat(manifest: ReleaseManifest): LiveCompat;
+```
+
+Refers to [`LiveCompat`](#livecompat), [`ReleaseManifest`](#releasemanifest).
+
+## `liveCompatKey`
+
+_function_ in `project/scene-version.ts`
+
+One hash of `compat`: two releases a version fits equally have the same key.
+
+```ts
+declare function liveCompatKey(compat: LiveCompat): Promise<Sha256>;
+```
+
+Refers to [`LiveCompat`](#livecompat), [`Sha256`](#sha256).
+
 ## `materialKind`
 
 _const_ in `project/kinds/material.ts`
@@ -4031,6 +4305,24 @@ declare function parseReleaseManifest(text: string): ParseReleaseManifestResult;
 ```
 
 Refers to [`ParseReleaseManifestResult`](#parsereleasemanifestresult).
+
+## `parseSceneVersion`
+
+_function_ in `project/scene-version.ts`
+
+Reads a scene version's text: bad JSON, a wrong `kind`, a newer `v` or a shape the schema refuses are issues. Never throws.
+
+```ts
+declare function parseSceneVersion(text: string): {
+    issues: SceneIssue[];
+    ok: false;
+} | {
+    ok: true;
+    version: SceneVersion;
+};
+```
+
+Refers to [`SceneVersion`](#sceneversion).
 
 ## `parseSidecar`
 
@@ -4487,6 +4779,25 @@ declare function readPointer(value: unknown, layout: DocLayout, pointer: JsonPoi
 
 Refers to [`DocLayout`](#doclayout), [`JsonPointer`](#jsonpointer), [`PointerRead`](#pointerread).
 
+## `readSceneVersion`
+
+_function_ in `project/scene-version.ts`
+
+The one reader of a version for play: parses its scene and prefabs from
+`texts` (canonical texts by hash), validates the scene with `registry`
+against the version's own assets, and expands it, as Play does. With
+`game`, a version made for another game or configuration is refused
+first. `opts.engine` is the project's `engine` block, which settings
+resolve through.
+
+```ts
+declare function readSceneVersion(version: SceneVersion, texts: ReadonlyMap<Sha256, string>, registry: Registry, game: GameDefinition | null, opts?: {
+    engine?: Readonly<Record<string, unknown>>;
+}): SceneVersionRead;
+```
+
+Refers to [`SceneVersion`](#sceneversion), [`SceneVersionRead`](#sceneversionread), [`Sha256`](#sha256).
+
 ## `readWebpSize`
 
 _function_ in `project/inspect/webp.ts`
@@ -4727,11 +5038,13 @@ The bundle of an expanded scene: every asset field of its entities
 behavior's default names counts), its settings' asset fields, and the
 `assets` headers of `def` and of every prefab it reaches
 (`prefabsUsedBy`: nesting and variant bases included), with each asset's
-own references followed. Entries are the textures among them, sorted by
-id, each once. A reference no live asset of its kinds resolves, or a
-texture with no content, is `asset-missing` with the closest live id; a
-texture whose entry records a hash but no size is left out and is
-`asset-missing` too, saying so.
+own references followed. A prefab a field names (a spawner's `prefab`)
+that `prefabs` holds brings its children's asset fields and its header
+too, and so on through what those name (`namedPrefabs`). Entries are the
+textures among them, sorted by id, each once. A reference no live asset
+of its kinds resolves, or a texture with no content, is `asset-missing`
+with the closest live id; a texture whose entry records a hash but no
+size is left out and is `asset-missing` too, saying so.
 
 ```ts
 declare function sceneBundle(scene: ExpandedScene, def: SceneDefinition, prefabs: PrefabLibrary, view: ProjectView, kinds: KindRegistry, registry: Registry): {
@@ -4901,6 +5214,52 @@ declare const sceneListKind: {
 ```
 
 Refers to [`KindEnv`](#kindenv), [`RefSite`](#refsite), [`SceneListFile`](#scenelistfile).
+
+## `sceneVersionId`
+
+_function_ in `project/scene-version.ts`
+
+SHA-256 of `formatSceneVersion`'s text: the version's id.
+
+```ts
+declare function sceneVersionId(version: SceneVersion): Promise<Sha256>;
+```
+
+Refers to [`SceneVersion`](#sceneversion), [`Sha256`](#sha256).
+
+## `sceneVersionJsonSchema`
+
+_function_ in `project/scene-version.ts`
+
+The draft 2020-12 JSON Schema of `scene-version.json`.
+
+```ts
+declare function sceneVersionJsonSchema(): Record<string, unknown>;
+```
+
+## `sceneVersionSchema`
+
+_const_ in `project/scene-version.ts`
+
+The zod schema `scene-version.schema.json` is generated from; `parseSceneVersion` checks with it.
+
+```ts
+declare const sceneVersionSchema: z.ZodType<SceneVersion>;
+```
+
+Refers to [`SceneVersion`](#sceneversion).
+
+## `sceneVersionSnapshot`
+
+_function_ in `project/scene-version.ts`
+
+A `ProjectSnapshot` holding exactly the version's assets (`at: 0`), hashed as `snapshotProject` hashes: what a collector pins.
+
+```ts
+declare function sceneVersionSnapshot(version: SceneVersion): Promise<ProjectSnapshot>;
+```
+
+Refers to [`ProjectSnapshot`](#projectsnapshot), [`SceneVersion`](#sceneversion).
 
 ## `schemaRefSites`
 

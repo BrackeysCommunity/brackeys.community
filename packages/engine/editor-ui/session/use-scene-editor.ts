@@ -151,6 +151,8 @@ export type EditorProps = EditingTarget & {
   onStop: () => void;
   /** Rebuilds the play world from the latest doc. */
   onRestart: () => void;
+  /** Turns Live in Play on or off; without it the play controls offer no toggle. */
+  onLivePlay?: (on: boolean) => void;
   /** Rapier, for the physical checks; null until it has loaded. */
   rapier?: RapierModule | null;
   /** The run loaded into the editor; one is made when absent. */
@@ -629,6 +631,7 @@ export function useSceneEditor({
       onReplay: live.replay,
       onStop: live.stop,
       onRestart: live.restart,
+      onLivePlay: live.setLivePlay,
       rapier: loaded.rapier,
       runStore,
       ...(getCanvas ? { canvas: getCanvas } : {}),

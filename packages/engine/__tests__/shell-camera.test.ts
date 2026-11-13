@@ -181,6 +181,20 @@ describe("a letterboxed shell", () => {
     expect(after.y).toBeCloseTo(under.y, 6);
   });
 
+  it("plays at the policy's own scale, whatever the editor's zoom, and Stop restores the editor's", async () => {
+    const g = await letterboxed();
+    const policy = cam().scale;
+    g.zoomAt({ x: 1000, y: 300 }, 0.4);
+    g.panBy({ x: 120, y: -60 });
+    const editor = cam();
+    expect(g.play(yard).ok).toBe(true);
+    expect(cam().zoom).toBe(1);
+    expect(cam().scale).toBeCloseTo(policy);
+    expectRoundTrip(g);
+    g.stop();
+    expect(cam()).toEqual(editor);
+  });
+
   it("inverts clientToWorld through the bars, under zoom and pan", async () => {
     const g = await letterboxed();
     const canvas = [...document.querySelectorAll("canvas")].at(-1)!;

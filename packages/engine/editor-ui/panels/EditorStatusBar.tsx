@@ -4,11 +4,11 @@ import { useEffect, useReducer } from "react";
 
 import type { EditorSession } from "../../editor/index";
 import { Activity, saveState, SaveState } from "../frame/Activity";
-import { useBottomRow } from "../frame/EditorFrame";
-import { Icon } from "../kit/index";
+import { Island, useBottomRow } from "../frame/EditorFrame";
+import { Icon, Spinner, Text, type TextTone } from "../kit/index";
 import { ACTIVITY_DELAY_MS, type PendingTask } from "../pending/pending";
 import { usePendingTasks } from "../pending/use-pending";
-import type { EditorHostState } from "../session/live-scene-editor";
+import type { EditorHostState, LivePlayStatus } from "../session/live-scene-editor";
 import { useEditorStore } from "../session/use-editor-store";
 import type { SceneNotice } from "../session/use-scene-editor";
 import { useStoreValue, type ReadableStore } from "../session/use-store-value";
@@ -199,5 +199,30 @@ export function EditorStatusBar({
       {warnings > 0 ? <span data-tone="warning">{warningText}</span> : null}
       <Activity />
     </div>
+  );
+}
+
+const LIVE_TONES: Readonly<Record<LivePlayStatus["tone"], TextTone>> = {
+  busy: "muted",
+  applied: "success",
+  waiting: "warning",
+  failed: "danger",
+};
+
+/**
+ * Live in Play's status line while playing: the update staging, then how it
+ * was applied, when it will apply under the game's timings, or why it
+ * wasn't. Nothing while Live in Play is off or before the first edit.
+ */
+export function LiveInPlayStatus({ host }: { host: ReadableStore<EditorHostState> }) {
+  const status = useStoreValue(host, (s) => (s.livePlay?.on ? s.livePlay.status : null));
+  if (!status) return null;
+  return (
+    <Island role="status" className="je-scene-changed je-live-status" data-live={status.tone}>
+      {status.tone === "busy" ? <Spinner size={12} label={null} /> : null}
+      <Text size="sm" variant={LIVE_TONES[status.tone]} ellipsis>
+        {status.text}
+      </Text>
+    </Island>
   );
 }

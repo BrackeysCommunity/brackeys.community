@@ -501,7 +501,9 @@ if (!coverage.blocked) {
   predicate the game declares in `play.predicates`. A script's `seed`
   seeds `ctx.random`. Scripts are `v: 2`: per-seat `tracks`, analog
   `set`, `pointer`, `join` and `leave` steps (see
-  [Local multiplayer](#local-multiplayer)); a v1 script migrates on read.
+  [Local multiplayer](#local-multiplayer)), and `nav` steps
+  (`{ "nav": { "id": "guard", "to": [4, 1.5] } }`, see
+  [Standard behaviors](#standard-behaviors)); a v1 script migrates on read.
   A pointer step's buttons raise the actions bound to them, as a live
   click does, and a track that ends early holds its last step until the
   script ends.
@@ -2239,7 +2241,9 @@ export async function startWithArt(
   of the expanded entities (instances resolved and defaults applied, so an
   id only a type's default names counts), the scene's settings, and the
   `assets` headers of the scene and of every prefab it reaches, with each
-  asset's own references followed (an atlas brings its texture). Only
+  asset's own references followed (an atlas brings its texture). A prefab
+  a field names (a spawner's `prefab`) brings its children's assets and its
+  header too; no scene `assets` header is needed for it. Only
   textures are entries (`{ id, kind, sha256, bytes }`, sorted by id, each
   once); an atlas's frames are already in its meta. Anything unresolvable
   is `asset-missing`, and so is a texture whose entry records a hash but no
@@ -2503,7 +2507,8 @@ them on the same ticks.
 
 **Catch-up.** With `time.catchUp: { maxMs }`, time away arrives as one
 engine command, `@elapsed { ms }` (`ENGINE_COMMANDS` in `./game` lists the
-engine's commands, which every registry accepts beside the game's), capped
+engine's commands, which every registry accepts beside the game's: the
+other is `@nav`, a script's `nav` step), capped
 at `maxMs`: the browser shell
 measures how long the page was hidden and sends it when the page is shown
 again after at least a second, and `GameInstance.elapse(ms)` sends it for a
@@ -3006,14 +3011,15 @@ export function scout() {
 `./game` moves entities without a game writing its own physics, on either
 backend:
 
-- **`createMotionBody(ctx, entity, at, { shape, group?, tag? })`**: a body
-  moved by `move(delta)`, which slides along what it hits (up to four
+- **`createMotionBody(ctx, entity, at, { shape, group?, tag?, controller? })`**:
+  a body moved by `move(delta)`, which slides along what it hits (up to four
   times) and reports what it `moved`, its `hits` and whether it was
-  `blocked`. On Rapier it is a kinematic body with a
-  `TOP_DOWN_CONTROLLER` character controller; on geometry a kinematic
+  `blocked`. On Rapier it is a kinematic body with a character controller,
+  `controller` or by default `TOP_DOWN_CONTROLLER`; on geometry a kinematic
   collider swept through `ctx.space`. `teleport`, `setEnabled` and
-  `destroy` do what they say. It doesn't push props: a game that wants
-  pushing uses Rapier's character controller itself.
+  `destroy` do what they say. `grounded()` says whether its last move
+  ended against what faces the controller's `up`. It pushes props only
+  with a controller whose `pushDynamic` is true.
 - **`createTopDownController(body, { maxSpeed, accel, decel })`**: steering
   toward an intended direction in the unit disc, with acceleration and
   braking, one `step(dtMs, intent)` a tick.
@@ -3248,7 +3254,7 @@ whatever the engine's do ([Write your own controller](#write-your-own-controller
 | `character-top-down`  | Walks in the plane: a kinematic controller, stopped and slid along by walls.                                                                                 | `maxSpeed` (4 m/s), `accel` (40 m/s²), `decel` (40 m/s²), `pushDynamic` (false), `move` (the action, `"move"`)                                                                                                                                                                                                        | `collider`; a `body` only if kinematic; not with `character-side-view`, `nav-agent` or `path-follow`  |
 | `character-side-view` | Runs and jumps under gravity, with coyote time, a jump buffer, a variable jump height, slopes, steps and one-way platforms; rides moving platforms.          | `maxSpeed` (6), `accel` (60), `decel` (70), `airControl` (0.6), `jumpHeight` (1.2 m), `gravityScale` (1), `maxFallSpeed` (15 m/s), `coyoteMs` (100), `jumpBufferMs` (100), `jumpCut` (0.5), `maxSlopeDeg` (50), `stepHeight` (0.04 m), `snapToGround` (0.04 m), `pushDynamic` (true), `move` and `jump` (the actions) | `collider`; a `body` only if kinematic; not with `character-top-down`, `nav-agent` or `path-follow`   |
 | `camera-target`       | With no `cameraTarget()` from the game, the camera follows the weighted centre of the live entities carrying it, loaded or spawned.                          | `weight` (1), `seat` (omitted: every view)                                                                                                                                                                                                                                                                            | —                                                                                                     |
-| `spawner`             | Spawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones.                                                                     | `type` or `prefab` (exactly one), `rate` (1 /s), `cap` (10), `burst` (0), `lifeMs` (omitted: they stay), `spread` (0 m), `velocity` (for a dynamic body), `active` (true)                                                                                                                                             | —                                                                                                     |
+| `spawner`             | Spawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones.                                                                     | `type` or `prefab` (exactly one), `rate` (1 /s), `cap` (10), `burst` (0), `lifeMs` (omitted: they stay), `spread` (0 m), `velocity` (for a dynamic body), `fields` (a type spawn's own fields), `active` (true)                                                                                                       | —                                                                                                     |
 | `nav-agent`           | Walks the scene's walk areas to a point or after an entity, kept apart from other agents; through a motion body when it has a `collider`, else by pose.      | `speed` (1.2 m/s), `arrive` (0.12 m), `radius` (0.3 m), `separation` (1.5), `repathTicks` (180), `to` (a point or an entity's id it walks to from the start; none)                                                                                                                                                    | a `nav` walk area in the scene (`nav-missing` otherwise); not with a character or `path-follow`       |
 | `path-follow`         | Moves the entity along a waypoint path, with the `follower` type's path; with a kinematic `body` it carries what stands on it.                               | `path` (`pts`, `mode`, `speed`, as a follower's)                                                                                                                                                                                                                                                                      | not with a character or `nav-agent`                                                                   |
 | `force-area`          | Pushes the dynamic bodies inside its collider one way, or toward or away from its pose; the two characters add the same acceleration while they stand in it. | `kind` (`directional`), `force` (directional, m/s²) or `strength` (point, m/s²), `falloff` (`none`, `linear` or `inverse-square`), `drag` (0 /s), `affects` (`groups`, `tags`)                                                                                                                                        | `collider` with `sensor: true`; pushing bodies needs physics                                          |
@@ -3261,6 +3267,10 @@ a game says what its triggers and force areas see. A project with no game
 can't link groups, so there a sensor's joins `dynamic`: it meets the
 dynamic bodies, the characters' and agents' motion bodies, and the static
 ones. The `sensor` type keeps its own group either way.
+
+A force area adds to a character's velocity, and the character's `decel`
+works against it while idle: a push weaker than the decel builds no speed,
+a stronger one carries the character at the difference.
 
 A behavior's points and paths are world metres, and its entity references
 name entities: a `path-follow` path moves, turns and flips with its entity
@@ -3327,6 +3337,19 @@ its README has the batches, and its tests run each).
   dynamic body is `character-body-kind`, since the controller and the
   solver would both move it; its fix makes the body kinematic. A dynamic
   `body` or a `joint` in a scene without physics is `physics-required`.
+  A `path-follow` that can't move all of its entity is a
+  `behavior-conflict` warning: a `collider` with no `body`, or a static
+  one, stays where it was built while the pose moves, and a `solid`,
+  `prop`, `follower` or `sensor` (or a type based on one, with no system
+  of its own) is placed by its own system. Give the collider a kinematic
+  body to move it with the path.
+  The editor's Add behavior applies any validator fix that only sets
+  fields of the block it just added, so a new block starts without the
+  issues those fixes clear.
+- **Play from here.** On the run's first tick, seat 0's character (the
+  first entity of each character behavior whose `player-input` is seat 0)
+  starts at the chosen point, at rest. A world restored from a save keeps
+  its place.
 - **Systems.** `ctx.behavior(name)` gives each one's system:
   `CharacterSystem` (`setIntent(id, { move, jump? })` drives an entity with
   no `player-input`, from that tick until the next call; `velocity`,
@@ -3337,7 +3360,14 @@ its README has the batches, and its tests run each).
   it, as the characters ask), `PathFollowSystem` (`position`),
   `JointSystem` (`joined`) and `ColliderSystem` (`has`, `rebuild`, and
   `standIn` and `release`, below). A gameless scene's nav agents stand still until
-  code gives them a destination, or their `to` names one. A character's or
+  code gives them a destination, their `to` names one, or a script's `nav`
+  step or a `reaches` check's `nav` sends them. Those send the engine
+  command `@nav { id, to }`, which the nav-agent system takes at the start
+  of the tick, before any agent steps; it is input, recorded and replayed
+  like a script's other steps, and an entity without a nav-agent ends the
+  run `blocked` at stage `run`: `behavior-missing`, or `dangling-ref` for
+  an id that doesn't exist. `ctx.input.commands()` is the tick's commands,
+  engine ones included, for any system that reads them. A character's or
   an agent's motion body stands in for its collider's own body, which the
   collider system keeps out of the world (and out of `ctx.bodies`) from
   `standIn(id)` until `release(id)`, across rebuilds and the entity's
@@ -3357,6 +3387,9 @@ its README has the batches, and its tests run each).
 | `nav:blocked`           | an agent gives up; `data.reason` is `no-path`, `stuck` or `gone`   | the agent     | the entity it followed      |
 | `spawner:spawned`       | a spawner makes a spawn, `at` where it appeared                    | the spawner   | the new id (also `data.id`) |
 
+- **Type spawns.** A type spawn takes `fields`, its own fields written as a
+  scene entity of that type writes them; its shapes, points and paths are
+  relative to the spawn point.
 - **Saves.** Every one that keeps state writes it into a world save and
   reads it back, so a restored run goes on as the saved one did; the
   spawner draws from `ctx.random.fork("spawner:<id>")`, and no other one
@@ -3414,7 +3447,8 @@ bodies (the characters' too) all register theirs.
   force.
 - An id with no body throws `EngineError` `body-missing`. A force, torque
   or impulse on a kinematic or static body, a velocity on a static body or
-  a follower, and an angular velocity on a kinematic body throw
+  a follower, and an angular velocity on a kinematic body that never turns
+  (a character, a motion body, a follower, or `fixedRotation`) throw
   `body-not-dynamic`. Without physics, only kinematic bodies exist.
 
 **Nothing gates forces by behavior.** `ctx.bodies` checks the body's kind
@@ -4910,8 +4944,8 @@ save's size is that text's UTF-8 length (`saveFileBytes`). A save whose
 scene changed since (its `runHash`) still loads, with an info issue, since
 refusing every save after a balance tweak would read as data loss. Slot
 names are lowercase letters, digits and dashes, 1–32 characters
-(`SLOT_PATTERN`). `meta.savedAt` is the host's clock, never read inside the
-simulation. `meta.playTicks` is the play time: every tick played under the
+(`SLOT_PATTERN`, `SLOT_MAX_LENGTH`). `meta.savedAt` is the host's clock,
+never read inside the simulation. `meta.playTicks` is the play time: every tick played under the
 instance's persist cell (or the headless session's), across scenes and
 runtimes, seeded from the save when one loads and back to 0 on `flow.restart()`.
 
@@ -6089,6 +6123,389 @@ count toward asset storage, until you empty the trash.
 **The game runs sandboxed.** It can load only its own files, and connect
 only to them and to up to 4 origins you list under "Connects to".
 Builds need `@jams/engine` 0.14.1 or newer.
+
+## Live levels
+
+**Live levels: deploy one level without a release.** On jams.team you
+can publish a new version of a single scene and have running games pick
+it up. A scene version holds the scene and the prefabs it uses, by
+content; it never holds code, so a change to game code, the scene list,
+tables or settings still needs a release. Versions are immutable and
+numbered per scene (`level-1@4`).
+
+**When players get it** is chosen each time you move a version onto a
+channel:
+
+| Timing        | Players get it                                                               | Your game must                                                     |
+| ------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Next load     | the next time the level loads (a restart, a death that reloads, entering it) | nothing                                                            |
+| At a boundary | at the next moment your game marks safe, or the next load                    | list `"boundary"` in `live.timings` and call `ctx.live.boundary()` |
+| Now           | within seconds, between two ticks                                            | list `"now"` in `live.timings`; usually implement `onSwap`         |
+
+When only entities changed, the engine updates the running world in
+place and keeps everything else: the player, spawned things, timers,
+what was collected. When the scene's bounds or settings changed, it
+rebuilds the world and restores its state the way a save does. Then it
+calls your `GameRuntime.onSwap(swap)`, which gets the diff and can fix
+what only your game understands (move the player out of a new wall).
+If anything fails, the game keeps the version it had and takes the new
+one at the next load. Try it in the editor first: turn on **Live in
+Play**, then edit while playing.
+
+A new version first goes to the **preview** channel; a person with the
+publisher role puts it on **production**. Players opening a numbered
+version or a jam version always get that release exactly, without live
+levels.
+
+**Limits per project, enforced by jams.team:**
+
+| Limit            | Number                                                                              |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| Data per version | 2 MB: the scene, its prefabs and the version file (art is the project's own assets) |
+| Versions per day | 100                                                                                 |
+| Versions kept    | the 5 newest of each scene, plus every version a channel points at                  |
+| Storage          | part of the project's 512 MB of release storage                                     |
+| A channel's size | the release plus its live levels' new files stay within 100 MB                      |
+
+A version that is neither among its scene's 5 newest nor on a channel
+is removed 14 days after it was published.
+
+**Delivery.** The play page hears of a new version at once, and checks
+again every 60 seconds if its live connection drops (it reconnects
+every 60 minutes anyway). The game has 60 seconds to download, check
+and prepare a version before it gives up on it.
+
+**Broken updates are stopped.** If 5 signed-in players' games fail
+after an update within 30 minutes of it going live (failing includes
+crashing within 10 seconds of the swap), and that is at least 25% of
+the signed-in players who reported, jams.team blocks the version: players
+get the release's level at their next load, and you see why on the
+game's page. Unblock it there once it's fixed, or publish a new version.
+
+Live levels need jams.team's play page: an itch.io zip or a static host
+plays the release as built.
+
+### The API in short
+
+- **`GameDefinition.live`** (`LiveDeclaration`): `timings` lists what the
+  game accepts beyond `"next-load"`, which is always allowed; `check(ctx)`
+  returns the issues that mean a swap left the world wrong. A timing the
+  game doesn't list falls to the strongest listed one below it (`now`,
+  then `boundary`, then `next-load`): `clampTiming(live, wanted)` from
+  `./game` is that rule, and every path that activates a version uses it.
+  Without `live` a game takes new versions at the next load only.
+- **`ctx.live`**: `version` is the running main scene's version (null for
+  the release's own), and `boundary(label?)`, called inside a step, marks
+  a safe moment: a waiting `"boundary"` version applies after that tick.
+  It consumes no randomness and changes no digest.
+- **`GameRuntime.onSwap(swap)`** runs after a version was applied and
+  before the next tick, outside a step. `swap` (`SceneSwap`) names the
+  scene, both sides' versions and hashes, the `strategy` (`reconcile` or
+  `reload`), what was `carried`, the `diff` (`added`, `removed` and
+  `changed` entity ids, and `header` when the bounds, name or settings
+  changed), the `timing` and the `tick`. If it throws, the swap is undone
+  and the version waits for the next load.
+- **`GameInstance.live`** (`GameLive`) is the host's side: `stage(v)` makes
+  a fetched `StagedVersion` resident (validated, expanded, its bundle
+  preloaded within 60 seconds); `activate(scene, version, timing)` picks
+  the version a scene uses, with the timing clamped (a warning
+  `live-timing-unsupported` says so); `current(scene)` and `pending()` say
+  where things stand; `pin(versions)` and `unpin()` hold an online session
+  on fixed versions. The game emits `live:swapped` with the `SceneSwap`
+  and `live:failed` with the issue. A headless runtime's `live` has the
+  same members, with a `stage` that answers at once.
+- **`swapCheck`** from `./headless` plays each of a scene's input scripts
+  on the version players have now, swaps the new one in through the same
+  path at 25%, 50% and 75% of each run, steps 120 more ticks, and runs
+  `live.check` right after each swap and 60 ticks later. A swap that
+  fails, an `onSwap` that throws and a step that throws after it are
+  issues; the report's `ok` says whether it may go out.
+- **The CLI** (usage after this list): `game live build` builds a version
+  from the project's files (or, with `--hosted`, from a pull of the
+  hosted project) and prints its id, size and the files it adds;
+  `game live check` checks it against a release's compatibility
+  (`--against`) and swaps it into the version players have now (`--from`)
+  with `swapCheck`, and with neither flag only validates it. A recording
+  of a run with swaps replays with `replay … --versions <dir>`.
+- **Live in Play**: during Play the editor's play bar has a **Live in
+  Play** switch, off until you turn it on and remembered per viewer
+  ("Apply edits to the running game, the way players get a live
+  update"). While it is on, each edit, once 300 ms pass without another,
+  is built into a version in memory (nothing is uploaded), staged and
+  activated `now`: the status bar says how it applied ("Live update
+  applied (reconcile, 1 changed)") or why it didn't, and `live.check`'s
+  issues show in the problems panel. A bounds or settings edit reloads
+  with capture and restore, as players would get it. Off, Play keeps the
+  world it started with.
+
+```text
+vp run scene game live build <project> <scene> [--hosted] [--out <dir>] [--json]
+vp run scene game live check <project> <scene> [--against <release dir|release.json>] [--from <version dir>] [--json]
+```
+
+The ledge game below declares all three timings. Its runner hops crates
+and starts again past the right edge, which is where it marks a
+boundary; its check says a runner stands inside a crate, and its
+`onSwap` lifts the runner out of one a new version dropped on it.
+
+```ts ledge-game.ts
+import {
+  defineEntityType,
+  defineGame,
+  pointField,
+  type EngineContext,
+  type GameDefinition,
+  type SceneSystem,
+} from "@jams/engine/game";
+import type { Pt, RuntimeEntity, SceneIssue } from "@jams/engine/scene";
+import { z } from "zod";
+
+type Crate = RuntimeEntity<{ at: Pt; w: number }>;
+type Runner = RuntimeEntity<{ at: Pt; speed: number }>;
+
+export type LedgeSnapshot = { x: number; respawns: number; swaps: string[] };
+
+/** Poses each entity where the scene puts it; the game's runtime moves them from there. */
+const posed = <E extends RuntimeEntity<{ at: Pt }>>(ctx: EngineContext): SceneSystem<E> => {
+  const ids = new Set<string>();
+  return {
+    spawn(e) {
+      ids.add(e.id);
+      ctx.poses.set(e.id, e.at[0], e.at[1], 0, { snap: true });
+    },
+    despawn: (id) => void ids.delete(id),
+    clear: () => ids.clear(),
+    size: () => ids.size,
+  };
+};
+
+const runner = defineEntityType({
+  type: "runner",
+  description: "Runs right, hops every crate, and starts again from its spot past the right edge.",
+  fields: {
+    at: pointField("Where it starts."),
+    speed: z.number().positive().default(2).describe("Metres a second."),
+  },
+  system: (ctx) => posed<Runner>(ctx),
+});
+
+const crate = defineEntityType({
+  type: "crate",
+  description: "A crate the runner hops; nothing may stand inside one.",
+  fields: {
+    at: pointField("Its centre."),
+    w: z.number().positive().default(1).describe("Its width, m."),
+  },
+  system: (ctx) => posed<Crate>(ctx),
+});
+
+/** The crate whose span holds `x`. */
+function crateAt(ctx: EngineContext, x: number): Crate | undefined {
+  for (const id of ctx.query.select({ type: "crate" })) {
+    const c = ctx.get(id) as Crate | undefined;
+    if (c && Math.abs(x - c.at[0]) < c.w / 2) return c;
+  }
+  return undefined;
+}
+
+const beyond = (c: Crate) => c.at[0] + c.w / 2;
+
+/** The ledge game; `freeOnSwap: false` leaves out the `onSwap` that lifts the runner out of a new crate. */
+export function makeLedge({ freeOnSwap = true } = {}): GameDefinition<LedgeSnapshot> {
+  return defineGame<LedgeSnapshot>({
+    id: "ledge",
+    types: [runner, crate],
+    actions: [],
+    world: { physics: "none" },
+    live: {
+      timings: ["next-load", "boundary", "now"],
+      // Run by the swap check and Live in Play right after a swap, and again later.
+      check(ctx) {
+        const issues: SceneIssue[] = [];
+        for (const id of ctx.query.select({ type: "runner" })) {
+          const c = crateAt(ctx, ctx.poses.get(id)!.x);
+          if (!c) continue;
+          issues.push({
+            severity: "error",
+            code: "ledge/stuck",
+            message: `${id} is inside ${c.id}`,
+            entityIds: [id, c.id],
+          });
+        }
+        return issues;
+      },
+    },
+    createRuntime(ctx) {
+      let respawns = 0;
+      const swaps: string[] = [];
+      const runners = () => ctx.query.select({ type: "runner" });
+      return {
+        beforeStep(dtMs) {
+          for (const id of runners()) {
+            const r = ctx.get(id) as Runner;
+            const { y } = ctx.poses.get(id)!;
+            let x = ctx.poses.get(id)!.x + (r.speed * dtMs) / 1000;
+            let snap = false;
+            if (x > ctx.bounds[2]) {
+              x = r.at[0];
+              snap = true;
+              respawns++;
+              // A respawn is a safe moment: a "boundary" update applies after this tick.
+              ctx.live.boundary("respawn");
+            }
+            const c = crateAt(ctx, x);
+            if (c) x = beyond(c);
+            ctx.poses.set(id, x, y, 0, { snap });
+          }
+        },
+        ...(freeOnSwap
+          ? {
+              onSwap(swap) {
+                swaps.push(`${swap.timing} ${swap.strategy} +${swap.diff.added.join(",")}`);
+                for (const id of runners()) {
+                  const { x, y } = ctx.poses.get(id)!;
+                  const c = crateAt(ctx, x);
+                  if (c) ctx.poses.set(id, beyond(c), y, 0, { snap: true });
+                }
+              },
+            }
+          : {}),
+        snapshot: () => ({
+          x: ctx.poses.get(runners()[0] ?? "")?.x ?? 0,
+          respawns,
+          swaps: [...swaps],
+        }),
+      };
+    },
+  });
+}
+
+export const ledgeGame = makeLedge();
+```
+
+The check builds a version from the project's files the way `game live
+build` does, then runs it through `swapCheck`: with `onSwap` the crate
+lands safely at every swap point, without it the check reports the
+runner stuck, and a version with longer bounds reloads instead of
+reconciling. The last part plays the release headless and takes the
+crate at the next respawn.
+
+```ts ledge-live.ts
+import type { StagedVersion } from "@jams/engine";
+import { createRegistry, withProject, type GameDefinition } from "@jams/engine/game";
+import { createHeadlessRuntime, swapCheck } from "@jams/engine/headless";
+import { buildSceneVersion, heldProject, type HeldFile } from "@jams/engine/project";
+import {
+  expandScene,
+  SCENE_FORMAT_VERSION,
+  type EntityDef,
+  type SceneDefinition,
+} from "@jams/engine/scene";
+
+import { ledgeGame, makeLedge, type LedgeSnapshot } from "./ledge-game";
+
+/** The level as released: a runner on an empty ledge 16 m long. */
+export function ledge(extra: EntityDef[] = [], bounds = [0, 0, 16, 4]): SceneDefinition {
+  return {
+    v: SCENE_FORMAT_VERSION,
+    game: "ledge",
+    name: "ledge",
+    bounds: bounds as SceneDefinition["bounds"],
+    settings: { physics: "none" },
+    entities: [{ id: "runner", type: "runner", at: [1, 1], speed: 2 }, ...extra],
+  };
+}
+
+/** A crate 12 m wide over the middle of the ledge: wherever the runner is when it lands, it is inside. */
+const WIDE_CRATE: EntityDef = { id: "crate", type: "crate", at: [8, 1], w: 12 };
+
+/** Builds one version of the ledge scene from its files, as `game live build` does. */
+export async function versionOf(
+  def: SceneDefinition,
+  game: GameDefinition = ledgeGame,
+): Promise<StagedVersion> {
+  const docs: Record<string, unknown> = {
+    "scene-list.json": { kind: "scene-list", v: 1, start: "ledge", scenes: [{ scene: "ledge" }] },
+    "game-settings.json": { kind: "game-settings", v: 2, engine: {}, game: {} },
+    "ledge.json": def,
+  };
+  const files: HeldFile[] = Object.entries(docs).map(([path, json]) => ({ path, json }));
+  const { view } = heldProject(files, createRegistry(game), { projectId: "ledge", name: "Ledge" });
+  const texts = new Map<string, string>();
+  for (const entry of view.byId.values())
+    texts.set(entry.id, `${JSON.stringify(docs[entry.path], null, 2)}\n`);
+  const values = new Map([...texts].map(([id, text]) => [id, JSON.parse(text) as unknown]));
+  const built = await buildSceneVersion({
+    view,
+    texts,
+    // The schema hashes of the code doing the build, by kind.
+    build: Object.fromEntries(Object.entries(view.state.build).map(([kind, s]) => [kind, s.hash])),
+    game,
+    registry: withProject(createRegistry(game), view, values),
+    scene: "ledge",
+  });
+  if (!built.ok) throw new Error(built.issues.map((i) => i.message).join("; "));
+  return { id: built.id, version: built.version, texts: built.texts };
+}
+
+/** Swaps the crate in at a quarter, half and three quarters of a 200-tick run, with and without `onSwap`. */
+export async function checkCrate() {
+  const scripts = [
+    { name: "run", script: { v: 1 as const, scene: "ledge", steps: [{ wait: 200 }] } },
+  ];
+  const from = { def: ledge(), prefabs: new Map() };
+  const run = (game: GameDefinition, to: StagedVersion) => {
+    const report = swapCheck({ game, from, to, scripts });
+    return {
+      ok: report.ok,
+      runs: report.runs.map((r) => ({
+        tick: r.tick,
+        strategy: r.strategy,
+        codes: r.issues.map((i) => i.code),
+      })),
+    };
+  };
+  const stubborn = makeLedge({ freeOnSwap: false });
+  return {
+    freed: run(ledgeGame, await versionOf(ledge([WIDE_CRATE]))),
+    stuck: run(stubborn, await versionOf(ledge([WIDE_CRATE]), stubborn)),
+    // New bounds change the scene's header: the world is rebuilt and its state restored.
+    longer: run(ledgeGame, await versionOf(ledge([], [0, 0, 20, 4]))),
+  };
+}
+
+/** A headless run that takes the crate at its next respawn, the way a player's game would. */
+export async function crateAtRespawn() {
+  const def = ledge();
+  const registry = createRegistry(ledgeGame);
+  const rt = createHeadlessRuntime({
+    game: ledgeGame,
+    registry,
+    flow: { list: [{ scene: "ledge" }], scenes: new Map([["ledge", { def, prefabs: new Map() }]]) },
+    scene: expandScene(def, registry),
+  });
+  const next = await versionOf(ledge([WIDE_CRATE]));
+  const staged = rt.live.stage(next);
+  const activated = rt.live.activate("ledge", next.id, "boundary");
+  const waiting = rt.live.pending().map((p) => p.timing);
+  let swappedAt: number | null = null;
+  for (let tick = 0; tick < 600 && swappedAt === null; tick++) {
+    rt.step(rt.ctx.time.tickMs, []);
+    if ((rt.snapshot() as LedgeSnapshot).swaps.length > 0) swappedAt = rt.ctx.tick;
+  }
+  const snap = rt.snapshot() as LedgeSnapshot;
+  const result = {
+    staged: staged.ok,
+    timing: activated.timing,
+    waiting,
+    swappedAt,
+    current: rt.live.current("ledge") === next.id,
+    ...snap,
+  };
+  rt.destroy();
+  return result;
+}
+```
 
 ## Graphics loss
 

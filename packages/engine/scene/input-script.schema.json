@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:input-script:v2",
-  "x-agent-surface": 18,
+  "x-agent-surface": 19,
   "title": "jams engine input script, format v2",
   "type": "object",
   "properties": {
@@ -359,6 +359,17 @@
         {
           "type": "object",
           "properties": {
+            "nav": {
+              "$ref": "#/$defs/NavDestination"
+            }
+          },
+          "required": ["nav"],
+          "additionalProperties": false,
+          "description": "Send a nav agent to a point or after an entity, for one slot, still holding what the hold step before it held (nothing after a press or wait). An entity without a nav-agent is refused when the step plays: `behavior-missing`, or `dangling-ref` for one that doesn't exist."
+        },
+        {
+          "type": "object",
+          "properties": {
             "join": {
               "description": "The device that takes the track's seat.",
               "$ref": "#/$defs/Device"
@@ -381,7 +392,7 @@
           "description": "The track's seat gives up a device, for one slot."
         }
       ],
-      "description": "One step: `hold` (with `set` beside it or not) or `set`, with exactly one of `for`, `forMs` or `until`; `pointer`, alone for one slot or with one of them; `press`; `wait`; `command`; `elapse`; `join`; or `leave`."
+      "description": "One step: `hold` (with `set` beside it or not) or `set`, with exactly one of `for`, `forMs` or `until`; `pointer`, alone for one slot or with one of them; `press`; `wait`; `command`; `elapse`; `nav`; `join`; or `leave`."
     },
     "Action": {
       "type": "string",
@@ -725,6 +736,46 @@
       "required": ["at"],
       "additionalProperties": false,
       "description": "The seat's pointer: its position, a button pressed or released, and a drag."
+    },
+    "NavDestination": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The entity carrying the nav-agent, e.g. `guard`, or a spawned `guard#1`."
+        },
+        "to": {
+          "anyOf": [
+            {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "description": "x in world metres.",
+                  "unit": "m"
+                },
+                {
+                  "type": "number",
+                  "description": "y in world metres; y is down.",
+                  "unit": "m"
+                }
+              ],
+              "description": "A point [x, y] in world metres.",
+              "unit": "m"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "description": "Another entity's id: the agent follows it as it moves."
+            }
+          ],
+          "description": "Where it walks: a point in world metres, or an entity it follows."
+        }
+      },
+      "required": ["id", "to"],
+      "additionalProperties": false,
+      "description": "Sends a nav agent to a point or after an entity, as `setDestination` does: it plans at once and raises nav:arrived or nav:blocked."
     },
     "Device": {
       "anyOf": [

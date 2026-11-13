@@ -42,7 +42,8 @@ const play: GamePlayDef<TacticsRunSnapshot> = {
  * side (the player) moves each unit once a turn, then attacks or waits;
  * `end-turn` hands over to the red side, which the game plays on ticks.
  * A menu leads into the levels, and each level's end into a result scene.
- * A listed level autosaves its world at each turn start.
+ * A listed level autosaves its world at each turn start, and takes a new
+ * version of itself at its next load or at the end of a full round.
  */
 export const tacticsGame = defineGame<TacticsRunSnapshot>({
   id: "tactics",
@@ -77,6 +78,8 @@ export const tacticsGame = defineGame<TacticsRunSnapshot>({
   play,
   persist: { initial: initialProgress, schema: TACTICS_PROGRESS },
   saves: { version: 1 },
+  // A new version of a level waits for its next load or the end of a full round; never mid-turn.
+  live: { timings: ["next-load", "boundary"] },
 });
 
 export { TACTICS_ACTIONS } from "./actions";

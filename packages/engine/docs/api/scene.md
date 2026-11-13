@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`AGENT_SURFACE_KEYWORD`](#agent_surface_keyword) · [`AGENT_SURFACE_VERSION`](#agent_surface_version) · [`Aabb`](#aabb) · [`AnalogSet`](#analogset) · [`ApplyOptions`](#applyoptions) · [`ApplyResult`](#applyresult) · [`AssetId`](#assetid) · [`Bounds`](#bounds) · [`BulkEntry`](#bulkentry) · [`BulkForm`](#bulkform) · [`BulkKey`](#bulkkey) · [`BulkPlacement`](#bulkplacement) · [`CHECKS_FORMAT_VERSION`](#checks_format_version) · [`CHECKS_LAYOUT`](#checks_layout) · [`CHECKS_SUFFIX`](#checks_suffix) · [`CHILD_SEPARATOR`](#child_separator) · [`CHUNK_KEY_PATTERN`](#chunk_key_pattern) · [`CellEdit`](#celledit) · [`CellRect`](#cellrect) · [`CheckCell`](#checkcell) · [`CheckPlace`](#checkplace) · [`ChecksFile`](#checksfile) · [`ChecksIssue`](#checksissue) · [`ChunkKey`](#chunkkey) · [`ConnectedCheck`](#connectedcheck) · [`CountMatch`](#countmatch) · [`DEFAULT_ASCII_TAG_CHARS`](#default_ascii_tag_chars) · [`DEFAULT_BLOCKED_BY`](#default_blocked_by) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_SCRIPT_MAX_TICKS`](#default_script_max_ticks) · [`DEFAULT_TOUCH_ROLLOUTS`](#default_touch_rollouts) · [`DEFAULT_TOUCH_SEED`](#default_touch_seed) · [`DEFAULT_TOUCH_TICKS`](#default_touch_ticks) · [`DEFAULT_UNTIL_MAX`](#default_until_max) · [`Dihedral`](#dihedral) · [`DrawnSprite`](#drawnsprite) · [`EMPTY_SCENE_TEMPLATE`](#empty_scene_template) · [`ENGINE_ISSUE_CODE_LIST`](#engine_issue_code_list) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`EngineIssueCode`](#engineissuecode) · [`EntityBase`](#entitybase) · [`EntityDef`](#entitydef) · [`EntityInput`](#entityinput) · [`EntityTypeName`](#entitytypename) · [`ExistsMatch`](#existsmatch) · [`ExpandOptions`](#expandoptions) · [`ExpandedScene`](#expandedscene) · [`FRAGMENT_KIND`](#fragment_kind) · [`FieldKind`](#fieldkind) · [`FieldPath`](#fieldpath) · [`GRID_CHUNK`](#grid_chunk) · [`GRID_MAX_VALUE`](#grid_max_value) · [`GRID_ROW_PATTERN`](#grid_row_pattern) · [`GameCheck`](#gamecheck) · [`GridCells`](#gridcells) · [`GridProblem`](#gridproblem) · [`GridRow`](#gridrow) · [`GridSettings`](#gridsettings) · [`GroupDef`](#groupdef) · [`GroupSchema`](#groupschema) · [`IDENTITY_2D`](#identity_2d) · [`ID_PATTERN`](#id_pattern) · [`INPUT_SCRIPT_LAYOUT`](#input_script_layout) · [`INPUT_SCRIPT_MIGRATIONS`](#input_script_migrations) · [`INPUT_SCRIPT_VERSION`](#input_script_version) · [`INSTANCE_OVERRIDE_FIELDS`](#instance_override_fields) · [`ISSUE_CODES`](#issue_codes) · [`InputScriptSchemas`](#inputscriptschemas) · [`InstanceDef`](#instancedef) · [`InstanceInput`](#instanceinput) · [`InstanceSchema`](#instanceschema) · [`IssueCode`](#issuecode) · [`IssueCodeInfo`](#issuecodeinfo) · [`JsonSchemaOptions`](#jsonschemaoptions) · [`LENGTH_UNITS`](#length_units) · [`LengthUnitName`](#lengthunitname) · [`LocalChild`](#localchild) · [`MAX_SCRIPT_TICKS`](#max_script_ticks) · [`MAX_TOUCH_ROLLOUTS`](#max_touch_rollouts) · [`MIGRATIONS`](#migrations) · [`MigrateEnv`](#migrateenv) · [`MigrateInputScriptResult`](#migrateinputscriptresult) · [`MigrateResult`](#migrateresult) · [`Migration`](#migration) · [`MigrationRefusal`](#migrationrefusal) · [`OP_NAMES`](#op_names) · [`OVERRIDE_PATH`](#override_path) · [`OpBatch`](#opbatch) · [`OverlayPoint`](#overlaypoint) · [`OverridePath`](#overridepath) · [`PREFABS_DIR`](#prefabs_dir) · [`PREFAB_KIND`](#prefab_kind) · [`PREFAB_MAX_DEPTH`](#prefab_max_depth) · [`ParseChecksResult`](#parsechecksresult) · [`ParseFragmentResult`](#parsefragmentresult) · [`ParseInputScriptResult`](#parseinputscriptresult) · [`ParseOptions`](#parseoptions) · [`ParsePrefabResult`](#parseprefabresult) · [`ParseRecordingResult`](#parserecordingresult) · [`ParseSceneResult`](#parsesceneresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathCommand`](#pathcommand) · [`PathDef`](#pathdef) · [`PlacedChild`](#placedchild) · [`PlacedFragment`](#placedfragment) · [`Prefab`](#prefab) · [`PrefabBody`](#prefabbody) · [`PrefabLibrary`](#prefablibrary) · [`PrefabParam`](#prefabparam) · [`PrefabResolution`](#prefabresolution) · [`Pt`](#pt) · [`RECORDING_SCHEMA_ID`](#recording_schema_id) · [`RECORDING_TRAIL_EVERY`](#recording_trail_every) · [`RECORDING_VERSION`](#recording_version) · [`RESERVED_SCENE_KEYS`](#reserved_scene_keys) · [`ReachesCheck`](#reachescheck) · [`RecordingCommand`](#recordingcommand) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`RectInput`](#rectinput) · [`Ref`](#ref) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolveOptions`](#resolveoptions) · [`ResolvedOrigin`](#resolvedorigin) · [`ResolvedPrefab`](#resolvedprefab) · [`ResolvedScene`](#resolvedscene) · [`ResolvedSettings`](#resolvedsettings) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RuntimeEntity`](#runtimeentity) · [`RuntimeField`](#runtimefield) · [`RuntimeFields`](#runtimefields) · [`SCENE_FORMAT_VERSION`](#scene_format_version) · [`SCENE_GRID_MAX_CELLS`](#scene_grid_max_cells) · [`SCENE_HEADER_KEYS`](#scene_header_keys) · [`SCENE_SVG_MAX_SIZE`](#scene_svg_max_size) · [`SCHEMA_ID_BASE`](#schema_id_base) · [`SceneAsciiMap`](#sceneasciimap) · [`SceneAsciiOptions`](#sceneasciioptions) · [`SceneChange`](#scenechange) · [`SceneCheck`](#scenecheck) · [`SceneDefinition`](#scenedefinition) · [`SceneFragment`](#scenefragment) · [`SceneHash`](#scenehash) · [`SceneIssue`](#sceneissue) · [`SceneLabels`](#scenelabels) · [`SceneLayerDef`](#scenelayerdef) · [`SceneOp`](#sceneop) · [`SceneOverlay`](#sceneoverlay) · [`SceneParseError`](#sceneparseerror) · [`SceneRegionOptions`](#sceneregionoptions) · [`SceneSettings`](#scenesettings) · [`SceneSprite`](#scenesprite) · [`SceneSvgOptions`](#scenesvgoptions) · [`SceneVersionError`](#sceneversionerror) · [`SceneViewport`](#sceneviewport) · [`ScriptPointer`](#scriptpointer) · [`SeatEvent`](#seatevent) · [`SettingsSources`](#settingssources) · [`Severity`](#severity) · [`ShapeInput`](#shapeinput) · [`ShapeObj`](#shapeobj) · [`ShapeTuple`](#shapetuple) · [`ShapeTupleSchema`](#shapetupleschema) · [`ShapeType`](#shapetype) · [`SpatialHash`](#spatialhash) · [`SpotAnchor`](#spotanchor) · [`SpriteAssetLookup`](#spriteassetlookup) · [`SpritePoseSource`](#spriteposesource) · [`SublevelJudgeOptions`](#subleveljudgeoptions) · [`SublevelSettings`](#sublevelsettings) · [`SystemEvent`](#systemevent) · [`TouchesCheck`](#touchescheck) · [`Transform2D`](#transform2d) · [`ValidCheck`](#validcheck) · [`ValidateOptions`](#validateoptions) · [`aabb`](#aabb-1) · [`aabbUnion`](#aabbunion) · [`applyOps`](#applyops) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`behaviorBlocks`](#behaviorblocks) · [`boxCorners`](#boxcorners) · [`bulkEntries`](#bulkentries) · [`bulkId`](#bulkid) · [`bulkKeyType`](#bulkkeytype) · [`bulkKeysOf`](#bulkkeysof) · [`canonicalGrid`](#canonicalgrid) · [`centroid`](#centroid) · [`checksJsonSchema`](#checksjsonschema) · [`checksPathOf`](#checkspathof) · [`checksSchemaFor`](#checksschemafor) · [`checksSchemaId`](#checksschemaid) · [`childRef`](#childref) · [`closest`](#closest) · [`closestOnSegment`](#closestonsegment) · [`compareChunkKeys`](#comparechunkkeys) · [`comparePointers`](#comparepointers) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`containedInRect`](#containedinrect) · [`containsPoint`](#containspoint) · [`convexHull`](#convexhull) · [`createRegistry`](#createregistry) · [`createScene`](#createscene) · [`createSpatialHash`](#createspatialhash) · [`decodeRow`](#decoderow) · [`defaultLayer`](#defaultlayer) · [`defaultPhysics`](#defaultphysics) · [`describeChange`](#describechange) · [`diffPrefabToOps`](#diffprefabtoops) · [`diffScenes`](#diffscenes) · [`diffToOps`](#difftoops) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`encodeRow`](#encoderow) · [`entityIssues`](#entityissues) · [`entitySchemaFor`](#entityschemafor) · [`expandInstance`](#expandinstance) · [`expandScene`](#expandscene) · [`fieldKind`](#fieldkind-1) · [`flipWorld`](#flipworld) · [`formatAsciiMap`](#formatasciimap) · [`formatChecks`](#formatchecks) · [`formatInputScript`](#formatinputscript) · [`formatPrefab`](#formatprefab) · [`formatPrefabs`](#formatprefabs) · [`formatScene`](#formatscene) · [`fragmentBounds`](#fragmentbounds) · [`fragmentJsonSchema`](#fragmentjsonschema) · [`fragmentOf`](#fragmentof) · [`fragmentSchemaFor`](#fragmentschemafor) · [`geometryFields`](#geometryfields) · [`gridCellBounds`](#gridcellbounds) · [`gridProblems`](#gridproblems) · [`gridTurns`](#gridturns) · [`groupOrigin`](#grouporigin) · [`groupTransform`](#grouptransform) · [`hashText`](#hashtext) · [`inputScriptJsonSchema`](#inputscriptjsonschema) · [`inputScriptSchemaFor`](#inputscriptschemafor) · [`inputScriptSchemaId`](#inputscriptschemaid) · [`inputScriptSchemasFor`](#inputscriptschemasfor) · [`instanceOrigin`](#instanceorigin) · [`instanceSteps`](#instancesteps) · [`instanceTransform`](#instancetransform) · [`intersectsRect`](#intersectsrect) · [`inverseTurn`](#inverseturn) · [`invert`](#invert) · [`isConvex`](#isconvex) · [`isExpandedScene`](#isexpandedscene) · [`isGridValue`](#isgridvalue) · [`isIdentityTurn`](#isidentityturn) · [`isInstanceOverrideField`](#isinstanceoverridefield) · [`isMigrationRefusal`](#ismigrationrefusal) · [`isSpawnOnly`](#isspawnonly) · [`isWholePixel`](#iswholepixel) · [`jsonPointer`](#jsonpointer) · [`layerNames`](#layernames) · [`lengthDecimals`](#lengthdecimals) · [`localChild`](#localchild-1) · [`localChildren`](#localchildren) · [`makeIssue`](#makeissue) · [`migrate`](#migrate) · [`migrateInputScript`](#migrateinputscript) · [`migrateRecordingV1`](#migraterecordingv1) · [`nearestSegment`](#nearestsegment) · [`nearestVertex`](#nearestvertex) · [`nextFreeId`](#nextfreeid) · [`opBatchSchemaFor`](#opbatchschemafor) · [`opsJsonSchema`](#opsjsonschema) · [`opsSchemaId`](#opsschemaid) · [`paintGrid`](#paintgrid) · [`parseBulkId`](#parsebulkid) · [`parseChecks`](#parsechecks) · [`parseChildRef`](#parsechildref) · [`parseChunkKey`](#parsechunkkey) · [`parseFragment`](#parsefragment) · [`parseInputScript`](#parseinputscript) · [`parsePrefab`](#parseprefab) · [`parseRecording`](#parserecording) · [`parseScene`](#parsescene) · [`parseSceneOrThrow`](#parsesceneorthrow) · [`parseShape`](#parseshape) · [`placeChildren`](#placechildren) · [`placeFragment`](#placefragment) · [`placeableTypes`](#placeabletypes) · [`pointerLines`](#pointerlines) · [`prefabBody`](#prefabbody-1) · [`prefabJsonSchema`](#prefabjsonschema) · [`prefabLibrary`](#prefablibrary-1) · [`prefabOf`](#prefabof) · [`prefabScene`](#prefabscene) · [`prefabSchemaFor`](#prefabschemafor) · [`prefabsUsedBy`](#prefabsusedby) · [`projectSpriteAssets`](#projectspriteassets) · [`pxToMetres`](#pxtometres) · [`raycastShape`](#raycastshape) · [`readCell`](#readcell) · [`recordingJsonSchema`](#recordingjsonschema) · [`renderSceneAscii`](#rendersceneascii) · [`renderSceneSvg`](#renderscenesvg) · [`resolvePrefab`](#resolveprefab) · [`resolveScene`](#resolvescene) · [`resolveSceneDetailed`](#resolvescenedetailed) · [`resolveSettings`](#resolvesettings) · [`resolveTime`](#resolvetime) · [`rotateShape`](#rotateshape) · [`roundLength`](#roundlength) · [`runRecordingSchema`](#runrecordingschema) · [`runRecordingV1Schema`](#runrecordingv1schema) · [`sceneAsciiMap`](#sceneasciimap-1) · [`sceneBody`](#scenebody) · [`sceneGameOf`](#scenegameof) · [`sceneHash`](#scenehash-1) · [`sceneHashWith`](#scenehashwith) · [`sceneJsonSchema`](#scenejsonschema) · [`sceneOpSchemaFor`](#sceneopschemafor) · [`scenePhysics`](#scenephysics) · [`sceneRegistry`](#sceneregistry) · [`sceneSchemaFor`](#sceneschemafor) · [`sceneSprites`](#scenesprites) · [`sceneViewport`](#sceneviewport-1) · [`schemaIdFor`](#schemaidfor) · [`scriptSeatLimit`](#scriptseatlimit) · [`scriptShapeIssues`](#scriptshapeissues) · [`shapeAtPose`](#shapeatpose) · [`shapeIsClosed`](#shapeisclosed) · [`shapeOutline`](#shapeoutline) · [`shapeToTuple`](#shapetotuple) · [`shapeVertices`](#shapevertices) · [`shapesIntersect`](#shapesintersect) · [`snapToPixel`](#snaptopixel) · [`spawnSchemaFor`](#spawnschemafor) · [`splitChildRef`](#splitchildref) · [`splitFieldPath`](#splitfieldpath) · [`splitOverridePath`](#splitoverridepath) · [`spriteBoxOf`](#spriteboxof) · [`sublevelIssue`](#sublevelissue) · [`suggestType`](#suggesttype) · [`takenIds`](#takenids) · [`toSourceBatch`](#tosourcebatch) · [`topSpan`](#topspan) · [`transformGrid`](#transformgrid) · [`translateShape`](#translateshape) · [`translation`](#translation) · [`turnOf`](#turnof) · [`undescribedProperties`](#undescribedproperties) · [`unknownGameIssue`](#unknowngameissue) · [`untitledEntityFields`](#untitledentityfields) · [`validateScene`](#validatescene) · [`worldPointSchema`](#worldpointschema)
+[`AGENT_SURFACE_KEYWORD`](#agent_surface_keyword) · [`AGENT_SURFACE_VERSION`](#agent_surface_version) · [`Aabb`](#aabb) · [`AnalogSet`](#analogset) · [`ApplyOptions`](#applyoptions) · [`ApplyResult`](#applyresult) · [`AssetId`](#assetid) · [`Bounds`](#bounds) · [`BulkEntry`](#bulkentry) · [`BulkForm`](#bulkform) · [`BulkKey`](#bulkkey) · [`BulkPlacement`](#bulkplacement) · [`CHECKS_FORMAT_VERSION`](#checks_format_version) · [`CHECKS_LAYOUT`](#checks_layout) · [`CHECKS_SUFFIX`](#checks_suffix) · [`CHILD_SEPARATOR`](#child_separator) · [`CHUNK_KEY_PATTERN`](#chunk_key_pattern) · [`CellEdit`](#celledit) · [`CellRect`](#cellrect) · [`CheckCell`](#checkcell) · [`CheckPlace`](#checkplace) · [`ChecksFile`](#checksfile) · [`ChecksIssue`](#checksissue) · [`ChunkKey`](#chunkkey) · [`ConnectedCheck`](#connectedcheck) · [`CountMatch`](#countmatch) · [`DEFAULT_ASCII_TAG_CHARS`](#default_ascii_tag_chars) · [`DEFAULT_BLOCKED_BY`](#default_blocked_by) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_SCRIPT_MAX_TICKS`](#default_script_max_ticks) · [`DEFAULT_TOUCH_ROLLOUTS`](#default_touch_rollouts) · [`DEFAULT_TOUCH_SEED`](#default_touch_seed) · [`DEFAULT_TOUCH_TICKS`](#default_touch_ticks) · [`DEFAULT_UNTIL_MAX`](#default_until_max) · [`Dihedral`](#dihedral) · [`DrawnSprite`](#drawnsprite) · [`EMPTY_SCENE_TEMPLATE`](#empty_scene_template) · [`ENGINE_ISSUE_CODE_LIST`](#engine_issue_code_list) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`EngineIssueCode`](#engineissuecode) · [`EntityBase`](#entitybase) · [`EntityDef`](#entitydef) · [`EntityInput`](#entityinput) · [`EntityTypeName`](#entitytypename) · [`ExistsMatch`](#existsmatch) · [`ExpandOptions`](#expandoptions) · [`ExpandedScene`](#expandedscene) · [`FRAGMENT_KIND`](#fragment_kind) · [`FieldKind`](#fieldkind) · [`FieldPath`](#fieldpath) · [`GRID_CHUNK`](#grid_chunk) · [`GRID_MAX_VALUE`](#grid_max_value) · [`GRID_ROW_PATTERN`](#grid_row_pattern) · [`GameCheck`](#gamecheck) · [`GridCells`](#gridcells) · [`GridProblem`](#gridproblem) · [`GridRow`](#gridrow) · [`GridSettings`](#gridsettings) · [`GroupDef`](#groupdef) · [`GroupSchema`](#groupschema) · [`IDENTITY_2D`](#identity_2d) · [`ID_PATTERN`](#id_pattern) · [`INPUT_SCRIPT_LAYOUT`](#input_script_layout) · [`INPUT_SCRIPT_MIGRATIONS`](#input_script_migrations) · [`INPUT_SCRIPT_VERSION`](#input_script_version) · [`INSTANCE_OVERRIDE_FIELDS`](#instance_override_fields) · [`ISSUE_CODES`](#issue_codes) · [`InputScriptSchemas`](#inputscriptschemas) · [`InstanceDef`](#instancedef) · [`InstanceInput`](#instanceinput) · [`InstanceSchema`](#instanceschema) · [`IssueCode`](#issuecode) · [`IssueCodeInfo`](#issuecodeinfo) · [`JsonSchemaOptions`](#jsonschemaoptions) · [`LENGTH_UNITS`](#length_units) · [`LengthUnitName`](#lengthunitname) · [`LiveIssueInput`](#liveissueinput) · [`LocalChild`](#localchild) · [`MAX_SCRIPT_TICKS`](#max_script_ticks) · [`MAX_TOUCH_ROLLOUTS`](#max_touch_rollouts) · [`MIGRATIONS`](#migrations) · [`MigrateEnv`](#migrateenv) · [`MigrateInputScriptResult`](#migrateinputscriptresult) · [`MigrateResult`](#migrateresult) · [`Migration`](#migration) · [`MigrationRefusal`](#migrationrefusal) · [`OP_NAMES`](#op_names) · [`OVERRIDE_PATH`](#override_path) · [`OpBatch`](#opbatch) · [`OverlayPoint`](#overlaypoint) · [`OverridePath`](#overridepath) · [`PREFABS_DIR`](#prefabs_dir) · [`PREFAB_KIND`](#prefab_kind) · [`PREFAB_MAX_DEPTH`](#prefab_max_depth) · [`ParseChecksResult`](#parsechecksresult) · [`ParseFragmentResult`](#parsefragmentresult) · [`ParseInputScriptResult`](#parseinputscriptresult) · [`ParseOptions`](#parseoptions) · [`ParsePrefabResult`](#parseprefabresult) · [`ParseRecordingResult`](#parserecordingresult) · [`ParseSceneResult`](#parsesceneresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathCommand`](#pathcommand) · [`PathDef`](#pathdef) · [`PlacedChild`](#placedchild) · [`PlacedFragment`](#placedfragment) · [`Prefab`](#prefab) · [`PrefabBody`](#prefabbody) · [`PrefabLibrary`](#prefablibrary) · [`PrefabParam`](#prefabparam) · [`PrefabResolution`](#prefabresolution) · [`Pt`](#pt) · [`RECORDING_SCHEMA_ID`](#recording_schema_id) · [`RECORDING_TRAIL_EVERY`](#recording_trail_every) · [`RECORDING_VERSION`](#recording_version) · [`RESERVED_SCENE_KEYS`](#reserved_scene_keys) · [`ReachesCheck`](#reachescheck) · [`RecordedSwap`](#recordedswap) · [`RecordingCommand`](#recordingcommand) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`RectInput`](#rectinput) · [`Ref`](#ref) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolveOptions`](#resolveoptions) · [`ResolvedOrigin`](#resolvedorigin) · [`ResolvedPrefab`](#resolvedprefab) · [`ResolvedScene`](#resolvedscene) · [`ResolvedSettings`](#resolvedsettings) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RuntimeEntity`](#runtimeentity) · [`RuntimeField`](#runtimefield) · [`RuntimeFields`](#runtimefields) · [`SCENE_FORMAT_VERSION`](#scene_format_version) · [`SCENE_GRID_MAX_CELLS`](#scene_grid_max_cells) · [`SCENE_HEADER_KEYS`](#scene_header_keys) · [`SCENE_SVG_MAX_SIZE`](#scene_svg_max_size) · [`SCHEMA_ID_BASE`](#schema_id_base) · [`SceneAsciiMap`](#sceneasciimap) · [`SceneAsciiOptions`](#sceneasciioptions) · [`SceneChange`](#scenechange) · [`SceneCheck`](#scenecheck) · [`SceneDefinition`](#scenedefinition) · [`SceneFragment`](#scenefragment) · [`SceneHash`](#scenehash) · [`SceneIssue`](#sceneissue) · [`SceneLabels`](#scenelabels) · [`SceneLayerDef`](#scenelayerdef) · [`SceneOp`](#sceneop) · [`SceneOverlay`](#sceneoverlay) · [`SceneParseError`](#sceneparseerror) · [`SceneRegionOptions`](#sceneregionoptions) · [`SceneSettings`](#scenesettings) · [`SceneSprite`](#scenesprite) · [`SceneSvgOptions`](#scenesvgoptions) · [`SceneVersionError`](#sceneversionerror) · [`SceneViewport`](#sceneviewport) · [`ScriptPointer`](#scriptpointer) · [`SeatEvent`](#seatevent) · [`SettingsSources`](#settingssources) · [`Severity`](#severity) · [`ShapeInput`](#shapeinput) · [`ShapeObj`](#shapeobj) · [`ShapeTuple`](#shapetuple) · [`ShapeTupleSchema`](#shapetupleschema) · [`ShapeType`](#shapetype) · [`SpatialHash`](#spatialhash) · [`SpotAnchor`](#spotanchor) · [`SpriteAssetLookup`](#spriteassetlookup) · [`SpritePoseSource`](#spriteposesource) · [`SublevelJudgeOptions`](#subleveljudgeoptions) · [`SublevelSettings`](#sublevelsettings) · [`SystemEvent`](#systemevent) · [`TouchesCheck`](#touchescheck) · [`Transform2D`](#transform2d) · [`ValidCheck`](#validcheck) · [`ValidateOptions`](#validateoptions) · [`aabb`](#aabb-1) · [`aabbUnion`](#aabbunion) · [`applyOps`](#applyops) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`behaviorBlocks`](#behaviorblocks) · [`boxCorners`](#boxcorners) · [`bulkEntries`](#bulkentries) · [`bulkId`](#bulkid) · [`bulkKeyType`](#bulkkeytype) · [`bulkKeysOf`](#bulkkeysof) · [`canonicalGrid`](#canonicalgrid) · [`centroid`](#centroid) · [`checksJsonSchema`](#checksjsonschema) · [`checksPathOf`](#checkspathof) · [`checksSchemaFor`](#checksschemafor) · [`checksSchemaId`](#checksschemaid) · [`childRef`](#childref) · [`closest`](#closest) · [`closestOnSegment`](#closestonsegment) · [`compareChunkKeys`](#comparechunkkeys) · [`comparePointers`](#comparepointers) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`containedInRect`](#containedinrect) · [`containsPoint`](#containspoint) · [`convexHull`](#convexhull) · [`createRegistry`](#createregistry) · [`createScene`](#createscene) · [`createSpatialHash`](#createspatialhash) · [`decodeRow`](#decoderow) · [`defaultLayer`](#defaultlayer) · [`defaultPhysics`](#defaultphysics) · [`describeChange`](#describechange) · [`diffExpanded`](#diffexpanded) · [`diffPrefabToOps`](#diffprefabtoops) · [`diffScenes`](#diffscenes) · [`diffToOps`](#difftoops) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`encodeRow`](#encoderow) · [`entityIssues`](#entityissues) · [`entitySchemaFor`](#entityschemafor) · [`expandInstance`](#expandinstance) · [`expandScene`](#expandscene) · [`fieldKind`](#fieldkind-1) · [`flipWorld`](#flipworld) · [`formatAsciiMap`](#formatasciimap) · [`formatChecks`](#formatchecks) · [`formatInputScript`](#formatinputscript) · [`formatPrefab`](#formatprefab) · [`formatPrefabs`](#formatprefabs) · [`formatScene`](#formatscene) · [`fragmentBounds`](#fragmentbounds) · [`fragmentJsonSchema`](#fragmentjsonschema) · [`fragmentOf`](#fragmentof) · [`fragmentSchemaFor`](#fragmentschemafor) · [`geometryFields`](#geometryfields) · [`gridCellBounds`](#gridcellbounds) · [`gridProblems`](#gridproblems) · [`gridTurns`](#gridturns) · [`groupOrigin`](#grouporigin) · [`groupTransform`](#grouptransform) · [`hashText`](#hashtext) · [`inputScriptJsonSchema`](#inputscriptjsonschema) · [`inputScriptSchemaFor`](#inputscriptschemafor) · [`inputScriptSchemaId`](#inputscriptschemaid) · [`inputScriptSchemasFor`](#inputscriptschemasfor) · [`instanceOrigin`](#instanceorigin) · [`instanceSteps`](#instancesteps) · [`instanceTransform`](#instancetransform) · [`intersectsRect`](#intersectsrect) · [`inverseTurn`](#inverseturn) · [`invert`](#invert) · [`isConvex`](#isconvex) · [`isExpandedScene`](#isexpandedscene) · [`isGridValue`](#isgridvalue) · [`isIdentityTurn`](#isidentityturn) · [`isInstanceOverrideField`](#isinstanceoverridefield) · [`isMigrationRefusal`](#ismigrationrefusal) · [`isSpawnOnly`](#isspawnonly) · [`isWholePixel`](#iswholepixel) · [`jsonPointer`](#jsonpointer) · [`layerNames`](#layernames) · [`lengthDecimals`](#lengthdecimals) · [`liveIssue`](#liveissue) · [`localChild`](#localchild-1) · [`localChildren`](#localchildren) · [`makeIssue`](#makeissue) · [`migrate`](#migrate) · [`migrateInputScript`](#migrateinputscript) · [`migrateRecordingV1`](#migraterecordingv1) · [`nearestSegment`](#nearestsegment) · [`nearestVertex`](#nearestvertex) · [`nextFreeId`](#nextfreeid) · [`opBatchSchemaFor`](#opbatchschemafor) · [`opsJsonSchema`](#opsjsonschema) · [`opsSchemaId`](#opsschemaid) · [`paintGrid`](#paintgrid) · [`parseBulkId`](#parsebulkid) · [`parseChecks`](#parsechecks) · [`parseChildRef`](#parsechildref) · [`parseChunkKey`](#parsechunkkey) · [`parseFragment`](#parsefragment) · [`parseInputScript`](#parseinputscript) · [`parsePrefab`](#parseprefab) · [`parseRecording`](#parserecording) · [`parseScene`](#parsescene) · [`parseSceneOrThrow`](#parsesceneorthrow) · [`parseShape`](#parseshape) · [`placeChildren`](#placechildren) · [`placeFragment`](#placefragment) · [`placeableTypes`](#placeabletypes) · [`pointerLines`](#pointerlines) · [`prefabBody`](#prefabbody-1) · [`prefabJsonSchema`](#prefabjsonschema) · [`prefabLibrary`](#prefablibrary-1) · [`prefabOf`](#prefabof) · [`prefabScene`](#prefabscene) · [`prefabSchemaFor`](#prefabschemafor) · [`prefabsUsedBy`](#prefabsusedby) · [`projectSpriteAssets`](#projectspriteassets) · [`pxToMetres`](#pxtometres) · [`raycastShape`](#raycastshape) · [`readCell`](#readcell) · [`recordingJsonSchema`](#recordingjsonschema) · [`renderSceneAscii`](#rendersceneascii) · [`renderSceneSvg`](#renderscenesvg) · [`resolvePrefab`](#resolveprefab) · [`resolveScene`](#resolvescene) · [`resolveSceneDetailed`](#resolvescenedetailed) · [`resolveSettings`](#resolvesettings) · [`resolveTime`](#resolvetime) · [`rotateShape`](#rotateshape) · [`roundLength`](#roundlength) · [`runRecordingSchema`](#runrecordingschema) · [`runRecordingV1Schema`](#runrecordingv1schema) · [`sceneAsciiMap`](#sceneasciimap-1) · [`sceneBody`](#scenebody) · [`sceneGameOf`](#scenegameof) · [`sceneHash`](#scenehash-1) · [`sceneHashWith`](#scenehashwith) · [`sceneJsonSchema`](#scenejsonschema) · [`sceneOpSchemaFor`](#sceneopschemafor) · [`scenePhysics`](#scenephysics) · [`sceneRegistry`](#sceneregistry) · [`sceneSchemaFor`](#sceneschemafor) · [`sceneSprites`](#scenesprites) · [`sceneViewport`](#sceneviewport-1) · [`schemaIdFor`](#schemaidfor) · [`scriptSeatLimit`](#scriptseatlimit) · [`scriptShapeIssues`](#scriptshapeissues) · [`shapeAtPose`](#shapeatpose) · [`shapeIsClosed`](#shapeisclosed) · [`shapeOutline`](#shapeoutline) · [`shapeToTuple`](#shapetotuple) · [`shapeVertices`](#shapevertices) · [`shapesIntersect`](#shapesintersect) · [`snapToPixel`](#snaptopixel) · [`spawnSchemaFor`](#spawnschemafor) · [`splitChildRef`](#splitchildref) · [`splitFieldPath`](#splitfieldpath) · [`splitOverridePath`](#splitoverridepath) · [`spriteBoxOf`](#spriteboxof) · [`sublevelIssue`](#sublevelissue) · [`suggestType`](#suggesttype) · [`takenIds`](#takenids) · [`toSourceBatch`](#tosourcebatch) · [`topSpan`](#topspan) · [`transformGrid`](#transformgrid) · [`translateEntityDef`](#translateentitydef) · [`translateShape`](#translateshape) · [`translation`](#translation) · [`turnOf`](#turnof) · [`undescribedProperties`](#undescribedproperties) · [`unknownGameIssue`](#unknowngameissue) · [`untitledEntityFields`](#untitledentityfields) · [`validateScene`](#validatescene) · [`worldPointSchema`](#worldpointschema)
 
 ## `AGENT_SURFACE_KEYWORD`
 
@@ -27,7 +27,7 @@ Bump it whenever one of those lists changes; `codes --json` and the
 published JSON Schemas carry it.
 
 ```ts
-declare const AGENT_SURFACE_VERSION = 18;
+declare const AGENT_SURFACE_VERSION = 19;
 ```
 
 ## `Aabb`
@@ -595,7 +595,14 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "export-over-budget",
     "export-itch-layout",
     "export-target-unsupported",
-    "licence-missing"
+    "licence-missing",
+    "live-incompatible",
+    "live-scene-unlisted",
+    "live-physics",
+    "live-asset-conflict",
+    "live-swap-failed",
+    "live-timing-unsupported",
+    "scene-version-removed"
 ];
 ```
 
@@ -1178,6 +1185,73 @@ The units a length field declares in `meta.unit`.
 
 ```ts
 type LengthUnitName = "m" | "m/s" | "m/s²";
+```
+
+## `LiveIssueInput`
+
+_type_ in `scene/issues.ts`
+
+The facts a live-level issue's wording needs. A version is named as its
+scene and number (`level-1@4`) and a release as its version (`v7`);
+the caller formats both, since only the host knows the numbers.
+
+```ts
+type LiveIssueInput = {
+    accepted: readonly SwapTiming[];
+    code: "live-timing-unsupported";
+    version: string;
+} | {
+    asset: string;
+    code: "live-asset-conflict";
+    scene: AssetId;
+} | {
+    /** The onSwap error or the step that refused: the issue's hint. */
+    cause: string;
+    code: "live-swap-failed";
+    /** The entity whose step refused. */
+    entityId?: string;
+    phase?: "onSwap" | "stage" | "swap";
+    /** `reload` when the swap needs a reload; `refused` when a reconcile step refused. */
+    reason?: "refused" | "reload";
+    scene: AssetId;
+} | {
+    code: "live-incompatible";
+    /** The scene format the version uses, and the one the release reads. */
+    format: number;
+    reads: number;
+    release: string;
+    rule: "formats";
+    version: string;
+} | {
+    code: "live-incompatible";
+    release: string;
+    rule: "build";
+    version: string;
+} | {
+    code: "live-incompatible";
+    rule: "game";
+    version: string;
+} | {
+    code: "live-physics";
+    release: string;
+    scene: AssetId;
+} | {
+    code: "live-scene-unlisted";
+    release: string;
+    scene: AssetId;
+} | {
+    code: "scene-version-removed";
+    /** The host's retention rule, when it states one. */
+    kept?: {
+        days: number;
+        newest: number;
+    };
+    /** When it was removed, as the host shows dates. */
+    removedOn?: string;
+    /** The swap's tick, for a version a swap needed. */
+    tick?: number;
+    version: string;
+};
 ```
 
 ## `LocalChild`
@@ -1808,6 +1882,8 @@ type ReachesCheck = CheckHead & {
     /** Every key must hold on the run's last tick, judged as a script step's `until` is. */
     expect?: UntilClause;
     kind: "reaches";
+    /** Nav agents sent on the run's first slot, before the script's own first step plays, as its `nav` steps send them. */
+    nav?: NavDestination[];
     result: string;
     /** Inline, or a path relative to the checks file; a parsed file's inline script is the current format. */
     script: InputScript | InputScriptV2 | string;
@@ -1815,6 +1891,26 @@ type ReachesCheck = CheckHead & {
 ```
 
 Refers to [`Pt`](#pt).
+
+## `RecordedSwap`
+
+_type_ in `scene/recording-schema.ts`
+
+One swap a recording holds: a replay applies it before stepping `tick`.
+
+```ts
+type RecordedSwap = {
+    /** `runHash` of the run after the swap: the run's inputs with the new scene. */
+    runHash: string;
+    sceneHash: string;
+    strategy: SwapStrategy;
+    /** The tick the swap ran before (`ctx.tick` at the swap). */
+    tick: number;
+    timing: SwapTiming;
+    /** null: back to the release's own scene. */
+    version: Sha256 | null;
+};
+```
 
 ## `RecordingCommand`
 
@@ -2144,6 +2240,8 @@ type RunRecordingV2 = {
     runHash: string;
     scene: string;
     sceneHash: string;
+    /** The live version this segment started on; absent: the release's own scene. */
+    sceneVersion?: Sha256;
     /** Always written: the default seed when the run named none. */
     seed: number | string;
     start: {
@@ -2158,6 +2256,8 @@ type RunRecordingV2 = {
         persist?: JsonValue;
         timeOffsetMs?: number;
     };
+    /** Every swap during the segment, in tick order; absent when none ran. */
+    swaps?: RecordedSwap[];
     system: SystemEvent[];
     ticks: number;
     time: {
@@ -2169,7 +2269,7 @@ type RunRecordingV2 = {
 };
 ```
 
-Refers to [`RecordingMarker`](#recordingmarker), [`RecordingPlatform`](#recordingplatform), [`RunRecordingV1`](#runrecordingv1), [`SeatEvent`](#seatevent), [`SystemEvent`](#systemevent).
+Refers to [`RecordedSwap`](#recordedswap), [`RecordingMarker`](#recordingmarker), [`RecordingPlatform`](#recordingplatform), [`RunRecordingV1`](#runrecordingv1), [`SeatEvent`](#seatevent), [`SystemEvent`](#systemevent).
 
 ## `RuntimeEntity`
 
@@ -3660,6 +3760,20 @@ declare function describeChange(c: SceneChange): string;
 
 Refers to [`SceneChange`](#scenechange).
 
+## `diffExpanded`
+
+_function_ in `scene/expanded-diff.ts`
+
+What changed between two expansions of a scene: `added` and `changed` in
+`next`'s order, `removed` in `prev`'s, and `header` when the name, bounds
+or settings differ.
+
+```ts
+declare function diffExpanded(prev: ExpandedScene, next: ExpandedScene): SceneDiff;
+```
+
+Refers to [`ExpandedScene`](#expandedscene).
+
 ## `diffPrefabToOps`
 
 _function_ in `scene/diff-to-ops.ts`
@@ -4351,6 +4465,18 @@ Decimals that show one world px exactly at pxPerMetre, at most 6 (2 at 100, 5 at
 ```ts
 declare function lengthDecimals(pxPerMetre: number): number;
 ```
+
+## `liveIssue`
+
+_function_ in `scene/issues.ts`
+
+A live-level issue with its message and hint worded and its values filled in.
+
+```ts
+declare function liveIssue(input: LiveIssueInput): SceneIssue;
+```
+
+Refers to [`LiveIssueInput`](#liveissueinput), [`SceneIssue`](#sceneissue).
 
 ## `localChild`
 
@@ -5172,6 +5298,7 @@ declare const runRecordingSchema: z.ZodObject<{
     runHash: z.ZodString;
     scene: z.ZodString;
     sceneHash: z.ZodString;
+    sceneVersion: z.ZodOptional<z.ZodString>;
     seed: z.ZodUnion<readonly [
         z.ZodNumber,
         z.ZodString
@@ -5186,6 +5313,21 @@ declare const runRecordingSchema: z.ZodObject<{
         persist: z.ZodOptional<z.ZodJSONSchema>;
         timeOffsetMs: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>;
+    swaps: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        runHash: z.ZodString;
+        sceneHash: z.ZodString;
+        strategy: z.ZodEnum<{
+            reconcile: "reconcile";
+            reload: "reload";
+        }>;
+        tick: z.ZodNumber;
+        timing: z.ZodEnum<{
+            "next-load": "next-load";
+            boundary: "boundary";
+            now: "now";
+        }>;
+        version: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>>>;
     system: z.ZodArray<z.ZodUnion<readonly [
         z.ZodTuple<[
             z.ZodNumber,
@@ -5771,6 +5913,22 @@ declare function transformGrid(grid: GridCells, d: Dihedral): GridCells;
 ```
 
 Refers to [`Dihedral`](#dihedral), [`GridCells`](#gridcells).
+
+## `translateEntityDef`
+
+_function_ in `scene/translate.ts`
+
+`def` moved by `by`, a copy: its type's shapes, points and paths (a path
+rider's shapes stay local to its path) and its behavior blocks' points
+and paths, each rounded to the file's length precision. `null` when it
+has no position to move. Places a template def, written around the
+origin, at a point.
+
+```ts
+declare function translateEntityDef(registry: Registry, def: EntityDef, by: Pt): EntityDef | null;
+```
+
+Refers to [`EntityDef`](#entitydef), [`Pt`](#pt), [`Registry`](#registry).
 
 ## `translateShape`
 

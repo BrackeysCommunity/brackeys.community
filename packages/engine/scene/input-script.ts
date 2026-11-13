@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { NAV_COMMAND, navDestinationSchema, type NavDestination } from "../game/commands";
 import { ID_PATTERN } from "../game/fields";
 import {
   bindingProblems,
@@ -161,6 +162,12 @@ export function uiActionScriptProblem(
 }
 
 const NO_CATCH_UP = "elapse needs the game's time.catchUp, and this game has none";
+
+/** The `@nav` command a `nav` step or a check's `nav` sends. */
+export function navCommand(nav: NavDestination): GameCommand {
+  const to = typeof nav.to === "string" ? nav.to : [nav.to[0], nav.to[1]];
+  return { name: NAV_COMMAND, args: { id: nav.id, to } };
+}
 
 /** The commands a script's `command` step may send: the game's own, not the engine's `@` ones. */
 export function scriptCommandNames(registry: Registry): string[] {
@@ -674,6 +681,11 @@ function buildInputScriptSchemas(registry: Registry, seats: number) {
     .describe(
       "Report wall time away for one slot, as `@elapsed`, still holding what the hold step before it held (nothing after a press or wait). It wakes every game.",
     );
+  const nav = z
+    .strictObject({ nav: navDestinationSchema })
+    .describe(
+      "Send a nav agent to a point or after an entity, for one slot, still holding what the hold step before it held (nothing after a press or wait). An entity without a nav-agent is refused when the step plays: `behavior-missing`, or `dangling-ref` for one that doesn't exist.",
+    );
   const join = z
     .strictObject({ join: deviceSchema.describe("The device that takes the track's seat.") })
     .describe("A device joins the track's seat, for one slot; it leaves the seat it held before.");
@@ -696,6 +708,7 @@ function buildInputScriptSchemas(registry: Registry, seats: number) {
     wait,
     command,
     elapse,
+    nav,
     join,
     leave,
   };
@@ -715,11 +728,12 @@ function buildInputScriptSchemas(registry: Registry, seats: number) {
       wait,
       command,
       elapse,
+      nav,
       join,
       leave,
     ])
     .describe(
-      "One step: `hold` (with `set` beside it or not) or `set`, with exactly one of `for`, `forMs` or `until`; `pointer`, alone for one slot or with one of them; `press`; `wait`; `command`; `elapse`; `join`; or `leave`.",
+      "One step: `hold` (with `set` beside it or not) or `set`, with exactly one of `for`, `forMs` or `until`; `pointer`, alone for one slot or with one of them; `press`; `wait`; `command`; `elapse`; `nav`; `join`; or `leave`.",
     )
     .meta({ id: "Step" });
 

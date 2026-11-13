@@ -81,8 +81,9 @@ export type ProbeVariant = {
   /**
    * Also plays the run from a world save: captured after this tick, restored
    * into a fresh runtime, and played on with the rest of the input. It must
-   * end exactly as the uninterrupted run does (`ProbeRun.fromSave`). Pick a
-   * tick no key is held on, since held keys are input and no save holds them.
+   * end exactly as the uninterrupted run does (`ProbeRun.fromSave`). Any tick
+   * works, held keys included: the save carries each seat's held actions and
+   * pointer, and the restore puts them back before the next step.
    */
   saveAt?: number;
 };

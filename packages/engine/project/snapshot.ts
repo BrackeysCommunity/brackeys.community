@@ -172,7 +172,9 @@ export function projectSnapshotJsonSchema(): Record<string, unknown> {
 }
 
 /** The hash a snapshot's content gives: every field but `at`, `$schema` and `hash` itself. */
-function snapshotHash(snapshot: Omit<ProjectSnapshot, "hash" | "at" | "$schema">): Promise<Sha256> {
+export function snapshotHash(
+  snapshot: Omit<ProjectSnapshot, "hash" | "at" | "$schema">,
+): Promise<Sha256> {
   const { kind, v, project, engine, build, assets } = snapshot;
   return sha256(stableJson({ kind, v, project, engine, build, assets }));
 }

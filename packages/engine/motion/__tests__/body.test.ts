@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
+import { SIDE_VIEW_CONTROLLER, TOP_DOWN_CONTROLLER } from "../../game/defaults";
 import { createRegistry, defineGame } from "../../game/define";
 import type { EngineContext, GameDefinition, JsonValue } from "../../game/types";
 import { createSceneRuntime } from "../../runtime/runtime";
@@ -316,5 +317,102 @@ describe.each(BACKENDS)("a motion body in a world save (physics %s)", (physics) 
       expect(body.position()).toEqual({ x: 1.5, y: 0.7 });
     }
     rt.destroy();
+  });
+});
+
+/** A floor whose top face is at y = 1.5 m, and the wall. */
+const FLOOR = { id: "floor", type: "solid", shape: ["box", 2, 1.75, 2, 0.25] } as EntityDef;
+
+describe.each(BACKENDS)("a motion body's grounded read (physics %s)", (physics) => {
+  it("answers whether its last move ended against what faces up", () => {
+    const rt = loaded(physics, [WALL, FLOOR]);
+    const body = hero(rt, 0.5, 1.3);
+    expect(body.grounded?.()).toBe(false);
+    body.move({ x: 0, y: 0.3 });
+    expect(body.position().y).toBeCloseTo(1.45, 3);
+    expect(body.grounded?.()).toBe(true);
+    rt.step(DT, []);
+    body.move({ x: 0, y: -0.2 });
+    expect(body.grounded?.()).toBe(false);
+    body.move({ x: 0.6, y: 0 });
+    expect(body.position().x).toBeLessThanOrEqual(0.95);
+    expect(body.grounded?.(), "a wall faces sideways").toBe(false);
+    body.move({ x: 0, y: 0.5 });
+    expect(body.grounded?.()).toBe(true);
+    body.teleport(0.5, 0.5);
+    expect(body.grounded?.()).toBe(false);
+    body.move({ x: 0, y: 2 });
+    expect(body.grounded?.()).toBe(true);
+    body.setEnabled(false);
+    body.move({ x: 0, y: 0.1 });
+    expect(body.grounded?.(), "a disabled move touches nothing").toBe(false);
+    rt.destroy();
+  });
+
+  it("keeps the controller's offset from what it hits", () => {
+    const rt = loaded(physics);
+    const body = createMotionBody(
+      rt.ctx,
+      { id: "hero", type: "hero" },
+      { x: 0.5, y: 0.5 },
+      { shape: BOX, controller: { ...TOP_DOWN_CONTROLLER, offset: 0.02 } },
+    );
+    body.move({ x: 0.6, y: 0 });
+    expect(body.position().x).toBeCloseTo(0.93, 2);
+    expect(body.position().x).toBeLessThan(0.94);
+    rt.destroy();
+  });
+});
+
+describe("a motion body's controller options on Rapier", () => {
+  const crate = {
+    id: "crate",
+    type: "prop",
+    shape: ["box", 0.6, 0.5, 0.05, 0.05],
+    density: 0.001,
+    restitution: 0,
+  } as EntityDef;
+
+  it("pushes a prop with pushDynamic, Rapier's applyImpulsesToDynamicBodies", () => {
+    const rt = loaded("rapier", [crate]);
+    const body = createMotionBody(
+      rt.ctx,
+      { id: "hero", type: "hero" },
+      { x: 0.3, y: 0.5 },
+      { shape: BOX, controller: { ...TOP_DOWN_CONTROLLER, pushDynamic: true } },
+    );
+    const start = rt.ctx.poses.get("crate")!.x;
+    for (let i = 0; i < 30; i++) {
+      body.move({ x: 0.03, y: 0 });
+      rt.step(DT, []);
+    }
+    expect(rt.ctx.poses.get("crate")!.x).toBeGreaterThan(start + 0.05);
+    rt.destroy();
+  });
+
+  it("sets the controller up as given: a side-view preset stops at a slope too steep to climb", () => {
+    const ramp = {
+      id: "ramp",
+      type: "solid",
+      shape: ["poly", 1, 2, 2, 2, 2, 0],
+    } as EntityDef;
+    const run = (controller?: typeof SIDE_VIEW_CONTROLLER) => {
+      const rt = loaded("rapier", [ramp]);
+      const body = createMotionBody(
+        rt.ctx,
+        { id: "hero", type: "hero" },
+        { x: 0.9, y: 1.94 },
+        { shape: BOX, ...(controller ? { controller } : {}) },
+      );
+      for (let i = 0; i < 20; i++) {
+        body.move({ x: 0.05, y: 0 });
+        rt.step(DT, []);
+      }
+      const y = body.position().y;
+      rt.destroy();
+      return y;
+    };
+    expect(run(), "the top-down default climbs every slope").toBeLessThan(1.6);
+    expect(run(SIDE_VIEW_CONTROLLER), "63° is past the side view's 50°").toBeGreaterThan(1.85);
   });
 });

@@ -364,6 +364,73 @@ describe("force-area", () => {
   });
 });
 
+describe("force-area against a character's deceleration", () => {
+  /** An idle character in an area pushing +x at `push`, zero gravity, so a side view is in the air. */
+  function pushed(
+    kind: "character-side-view" | "character-top-down",
+    push: number,
+    block: Record<string, unknown> = {},
+    physics: Physics = "rapier",
+  ) {
+    const rt = load(
+      [
+        area("wind", { force: [push, 0] }, ["box", 0, 0, 15, 15]),
+        {
+          id: "hero",
+          type: "marker",
+          at: [0, 0],
+          behaviors: { collider: { shape: ["box", 0, 0, 0.2, 0.2] }, [kind]: block },
+        },
+      ],
+      physics,
+    );
+    const vx = () => rt.ctx.bodies.velocity("hero").x;
+    return { rt, vx };
+  }
+
+  for (const physics of ["rapier", "none"] as const) {
+    it(`a top-down character's decel holds it against a weaker push, and a stronger one carries it at the difference (${physics})`, () => {
+      const weak = pushed("character-top-down", 30, {}, physics);
+      steps(weak.rt, 120);
+      expect(weak.vx()).toBe(0);
+      expect(weak.rt.ctx.poses.get("hero")!.x).toBe(0);
+      weak.rt.destroy();
+
+      const strong = pushed("character-top-down", 60, {}, physics);
+      steps(strong.rt, 10);
+      const v0 = strong.vx();
+      steps(strong.rt, 30);
+      expect((strong.vx() - v0) / (30 * dt(strong.rt))).toBeCloseTo(60 - 40, 6);
+      strong.rt.destroy();
+
+      const free = pushed("character-top-down", 30, { decel: 0 }, physics);
+      steps(free.rt, 40);
+      expect(free.vx() / (40 * dt(free.rt)), "with no decel the push wins in full").toBeCloseTo(
+        30,
+        6,
+      );
+      free.rt.destroy();
+    });
+
+    it(`a side-view character's decel, at its air share, takes back a weaker push each tick (${physics})`, () => {
+      const weak = pushed("character-side-view", 30, {}, physics);
+      steps(weak.rt, 60);
+      const residue = 30 * dt(weak.rt);
+      expect(weak.vx()).toBeCloseTo(residue, 9);
+      steps(weak.rt, 60);
+      expect(weak.vx(), "it never builds up").toBeCloseTo(residue, 9);
+      weak.rt.destroy();
+
+      const strong = pushed("character-side-view", 60, {}, physics);
+      steps(strong.rt, 10);
+      const v0 = strong.vx();
+      steps(strong.rt, 30);
+      expect((strong.vx() - v0) / (30 * dt(strong.rt))).toBeCloseTo(60 - 70 * 0.6, 6);
+      strong.rt.destroy();
+    });
+  }
+});
+
 describe("force-area with no game", () => {
   it("pushes a dynamic body with the collider's default group, and its sensor reports it", () => {
     const gameless = createRegistry();

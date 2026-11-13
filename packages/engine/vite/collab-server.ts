@@ -243,7 +243,8 @@ export async function createSceneCollab(options: SceneCollabOptions): Promise<Sc
     const stamps = projectBuildMap(doc);
     // The server loaded the engine once, so after an engine edit its hashes
     // are older than the pages it serves: a page on this build outranks them.
-    const stampAt = buildAt - 1;
+    // An undated build (0) stays at 0, the floor every stamp compares from.
+    const stampAt = Math.max(0, buildAt - 1);
     doc.transact(() => {
       for (const [file, info] of Object.entries(code))
         if (JSON.stringify(map.get(file)) !== JSON.stringify(info)) map.set(file, info);

@@ -1,14 +1,23 @@
 import type { RigidBody } from "@dimforge/rapier2d";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
-import { defineGame } from "../game/define";
+import type { BehaviorSystem } from "../game/behaviors";
+import { createRegistry, defineGame } from "../game/define";
 import { EngineError } from "../game/types";
 import { createMotionBody } from "../motion/body";
 import type { RuntimeBodyControl } from "../runtime/bodies-control";
 import { snapshotDigest } from "../runtime/recorder";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { SceneRuntimeHandle } from "../runtime/types";
-import type { ExpandedScene, RuntimeEntity, ShapeObj } from "../scene/types";
+import { expandScene } from "../scene/expand";
+import {
+  SCENE_FORMAT_VERSION,
+  type EntityDef,
+  type ExpandedScene,
+  type RuntimeEntity,
+  type SceneDefinition,
+  type ShapeObj,
+} from "../scene/types";
 import type { RapierModule } from "../types";
 
 let rapier: RapierModule;
@@ -446,5 +455,126 @@ describe("ctx.bodies with physics none", () => {
     hero.destroy();
     expect(rt.ctx.bodies.has("hero")).toBe(false);
     rt.destroy();
+  });
+});
+
+describe("a kinematic body behavior's angular velocity", () => {
+  /** A 2 m plank whose shape sits 1 m right of its entity's pose, on a kinematic body. */
+  const plank = (body: Record<string, unknown> = {}): EntityDef => ({
+    id: "plank",
+    type: "marker",
+    at: [2, 3],
+    behaviors: {
+      collider: { shape: ["box", 1, 0, 1, 0.1] },
+      body: { kind: "kinematic", ...body },
+    },
+  });
+
+  function loadDef(entities: EntityDef[], physics: "rapier" | "none"): SceneRuntimeHandle {
+    const registry = createRegistry();
+    const def: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      name: "spin",
+      bounds: [-10, -10, 10, 10],
+      settings: { physics, gravity: [0, 0] },
+      entities,
+    };
+    const rt = createSceneRuntime({ rapier: physics === "rapier" ? rapier : null, view: null });
+    const report = rt.load(expandScene(def, registry));
+    if (!report.ok) throw new Error(report.error);
+    return rt;
+  }
+
+  for (const physics of ["rapier", "none"] as const) {
+    it(`turns about its entity's pose at the rate set through ctx.bodies (${physics})`, () => {
+      const rt = loadDef([plank()], physics);
+      const { bodies } = rt.ctx;
+      expect(bodies.kind("plank")).toBe("kinematic");
+      expect(bodies.angularVelocity("plank")).toBe(0);
+      bodies.setAngularVelocity("plank", 1.5);
+      expect(bodies.angularVelocity("plank")).toBe(1.5);
+      steps(rt, 60);
+      const pose = rt.ctx.poses.get("plank")!;
+      expect(pose.rot).toBeCloseTo(1.5, 5);
+      expect(pose.x).toBeCloseTo(2, 5);
+      expect(pose.y).toBeCloseTo(3, 5);
+      if (physics === "rapier") {
+        const t = bodyOf(rt, "plank").translation();
+        expect(t.x).toBeCloseTo(2 + Math.cos(1.5), 5);
+        expect(t.y).toBeCloseTo(3 + Math.sin(1.5), 5);
+        expect(bodyOf(rt, "plank").rotation()).toBeCloseTo(1.5, 5);
+      }
+      bodies.setAngularVelocity("plank", 0);
+      steps(rt, 10);
+      expect(rt.ctx.poses.get("plank")!.rot).toBeCloseTo(1.5, 5);
+      rt.destroy();
+    });
+  }
+
+  it("moves and turns alike on Rapier and without physics", () => {
+    const run = (physics: "rapier" | "none") => {
+      const rt = loadDef([plank()], physics);
+      rt.ctx.bodies.setVelocity("plank", { x: 1, y: -0.5 });
+      rt.ctx.bodies.setAngularVelocity("plank", -2);
+      steps(rt, 90);
+      const pose = { ...rt.ctx.poses.get("plank")! };
+      rt.destroy();
+      return pose;
+    };
+    const a = run("rapier");
+    const b = run("none");
+    expect(a.x).toBeCloseTo(3.5, 4);
+    expect(a.y).toBeCloseTo(2.25, 4);
+    expect(a.rot).toBeCloseTo(-3, 4);
+    expect(b.x).toBeCloseTo(a.x, 4);
+    expect(b.y).toBeCloseTo(a.y, 4);
+    expect(b.rot).toBeCloseTo(a.rot, 4);
+  });
+
+  it("keeps its angular velocity through the body behavior's save, and the same run digests the same", () => {
+    const run = () => {
+      const rt = loadDef([plank()], "rapier");
+      rt.ctx.bodies.setAngularVelocity("plank", 0.75);
+      steps(rt, 30);
+      const saved = rt.ctx.behavior<BehaviorSystem>("body")!.save!("plank");
+      const digest = snapshotDigest(rt.snapshot());
+      rt.destroy();
+      return { saved, digest };
+    };
+    const first = run();
+    expect(first.saved).toEqual({ w: 0.75 });
+    expect(run().digest).toBe(first.digest);
+
+    const rt = loadDef([plank()], "none");
+    rt.ctx.behavior<BehaviorSystem>("body")!.restore!("plank", first.saved!);
+    expect(rt.ctx.bodies.angularVelocity("plank")).toBe(0.75);
+    rt.destroy();
+  });
+
+  it("refuses a turn for a fixed-rotation kinematic body, a follower and a motion body", () => {
+    const rt = loadDef([plank({ fixedRotation: true })], "rapier");
+    const { bodies } = rt.ctx;
+    expect(codeOf(() => bodies.setAngularVelocity("plank", 1))).toBe("body-not-dynamic");
+    expect(bodies.angularVelocity("plank")).toBe(0);
+    for (const call of [
+      () => bodies.applyTorque("plank", 1),
+      () => bodies.applyForce("plank", { x: 1, y: 0 }),
+      () => bodies.applyImpulse("plank", { x: 1, y: 0 }),
+    ])
+      expect(codeOf(call)).toBe("body-not-dynamic");
+    createMotionBody(
+      rt.ctx,
+      { id: "hero", type: "hero" },
+      { x: 0, y: 0 },
+      {
+        shape: box(0, 0, 0.1, 0.1),
+      },
+    );
+    expect(codeOf(() => bodies.setAngularVelocity("hero", 1))).toBe("body-not-dynamic");
+    rt.destroy();
+
+    const lifted = load([lift]);
+    expect(codeOf(() => lifted.ctx.bodies.setAngularVelocity("lift", 1))).toBe("body-not-dynamic");
+    lifted.destroy();
   });
 });

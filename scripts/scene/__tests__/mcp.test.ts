@@ -38,6 +38,7 @@ import {
 import { discoverProjects } from "../projects";
 import { loadCompatRapier } from "../rapier-compat";
 import { flow as flowTool } from "../tools/flow";
+import { gameLiveBuild, gameLiveCheck } from "../tools/game-live";
 import { tempProject } from "./fixtures";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
@@ -103,6 +104,8 @@ describe("scene MCP server", () => {
       "asset_import",
       "asset_refs",
       "game_build",
+      "game_live_build",
+      "game_live_check",
       "game_manifest",
       "game_new",
       "game_release_create",
@@ -142,6 +145,15 @@ describe("scene MCP server", () => {
         expect(t.annotations, t.name).toMatchObject({ ...releases[t.name], openWorldHint: true });
         for (const arg of ["token", "url", "site", "dryRun"])
           expect(t.inputSchema.properties, t.name).not.toHaveProperty(arg);
+      } else if (t.name === "game_live_build") {
+        expect(t.annotations).toMatchObject({
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: true,
+          openWorldHint: true,
+        });
+        for (const arg of ["token", "url", "site", "dryRun"])
+          expect(t.inputSchema.properties, t.name).not.toHaveProperty(arg);
       } else if (t.name === "game_build") {
         expect(t.annotations).toMatchObject({
           readOnlyHint: false,
@@ -162,6 +174,18 @@ describe("scene MCP server", () => {
         expect(t.annotations, t.name).toMatchObject({ readOnlyHint: true, openWorldHint: false });
       }
     }
+  });
+
+  it("takes a versions directory in scene_replay, and a project and scene in the live tools", async () => {
+    const { tools } = await client.listTools();
+    const props = (name: string) => tools.find((t) => t.name === name)?.inputSchema.properties;
+    expect(props("scene_replay")).toHaveProperty("versions");
+    for (const name of ["game_live_build", "game_live_check"])
+      expect(Object.keys(props(name) ?? {}).sort(), name).toEqual(
+        name === "game_live_build"
+          ? ["hosted", "id", "out", "project", "scene"]
+          : ["against", "from", "id", "project", "scene"],
+      );
   });
 
   it("describes every length an agent passes or reads in metres", async () => {
@@ -1991,5 +2015,74 @@ describe("game releases", () => {
     );
     expect(promoted.isError, JSON.stringify(promoted)).toBe(false);
     expect(site.preview).toBe(1);
+  });
+});
+
+describe("game live", { timeout: 120_000 }, () => {
+  let liveRoot: string;
+  let ctx: ToolContext;
+  const tool = (name: string) => MCP_TOOLS.find((t) => t.name === name)!;
+  const run = (name: string, input: Record<string, unknown>, c: ToolContext = ctx) =>
+    runMcpTool(tool(name), input, c);
+  const fields = ({ exitCode: _exitCode, ...rest }: Record<string, unknown>) => rest;
+
+  beforeAll(async () => {
+    liveRoot = await mkdtemp(join(tmpdir(), "scene-mcp-live-"));
+    const dir = join(liveRoot, "platformer");
+    await mkdir(dir);
+    await copyFile(TEST_YARD, join(dir, "test-yard.json"));
+    ctx = {
+      projects: [await tempProject(dir, { game: platformerGame })],
+      loadRapier: loadCompatRapier,
+      env: {},
+    };
+  });
+
+  afterAll(async () => {
+    await rm(liveRoot, { recursive: true, force: true });
+  });
+
+  it("builds and checks a version through the tools with the CLI's --json fields", async () => {
+    const project = ctx.projects[0]!.file.id;
+    const out = join(liveRoot, "version");
+
+    const built = await run("game_live_build", { id: project, scene: "test-yard", out });
+    expect(built.isError).toBe(false);
+    expect(built.structuredContent.exitCode).toBe(0);
+    const direct = await gameLiveBuild({ project, scene: "test-yard", hosted: false, out }, ctx);
+    expect(fields(built.structuredContent)).toEqual(direct.data);
+    expect(JSON.parse(built.content[0]!.type === "text" ? built.content[0]!.text : "")).toEqual(
+      direct.data,
+    );
+    await expect(readFile(join(out, "scene-version.json"), "utf8")).resolves.toBeTruthy();
+
+    for (const flags of [{}, { from: out }]) {
+      const checked = await run("game_live_check", { id: project, scene: "test-yard", ...flags });
+      const cli = await gameLiveCheck({ project, scene: "test-yard", ...flags }, ctx);
+      expect(checked.structuredContent.exitCode, JSON.stringify(flags)).toBe(cli.exitCode);
+      expect(fields(checked.structuredContent), JSON.stringify(flags)).toEqual(cli.data);
+      if (!("from" in flags))
+        expect(JSON.stringify(checked.structuredContent.warnings)).toMatch(/--against/);
+    }
+  });
+
+  it("asks for the agent token and site before a hosted build, writing nothing", async () => {
+    const out = join(liveRoot, "hosted");
+    const r = await run("game_live_build", {
+      id: ctx.projects[0]!.file.id,
+      scene: "test-yard",
+      hosted: true,
+      out,
+    });
+    expect(r.isError).toBe(true);
+    expect(r.structuredContent.exitCode).toBe(2);
+    expect(JSON.stringify(r.structuredContent)).toContain(AGENT_TOKEN_ENV);
+    await expect(readFile(join(out, "scene-version.json"))).rejects.toThrow();
+  });
+
+  it("refuses a call without a project's scene as the CLI's usage does", async () => {
+    const r = await run("game_live_check", { id: ctx.projects[0]!.file.id, scene: "" });
+    expect(r.structuredContent.exitCode).toBe(2);
+    expect(r.isError).toBe(true);
   });
 });

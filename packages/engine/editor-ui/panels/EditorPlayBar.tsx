@@ -1,10 +1,24 @@
 import { NextIcon, PauseIcon, PlayIcon, StopIcon } from "@hugeicons/core-free-icons";
+import type { Store } from "@tanstack/store";
+import { useEffect } from "react";
 
 import type { GameStoreState } from "../../types";
 import { Island } from "../frame/EditorFrame";
 import type { EditorControls } from "../frame/keys";
-import { Badge, Button, IconButton, KeyHint } from "../kit/index";
+import { STORAGE_PREFIX } from "../host";
+import { Badge, Button, Hint, IconButton, KeyHint, Switch, Text, useKit } from "../kit/index";
+import type { EditorHostState } from "../session/live-scene-editor";
+import { readStored, writeStored } from "../session/stored";
 import { useStoreValue } from "../session/use-store-value";
+import { LiveInPlayStatus } from "./EditorStatusBar";
+
+/** Where the viewer's Live in Play choice is kept. */
+export const LIVE_PLAY_KEY = `${STORAGE_PREFIX}live-in-play`;
+
+export const LIVE_PLAY_TOOLTIP =
+  "Apply edits to the running game, the way players get a live update";
+
+const storedFlag = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null);
 
 /** The time scales `[` and `]` walk through. */
 export const TIME_SCALES = [0.25, 0.5, 1] as const;
@@ -31,9 +45,27 @@ export function flowRequestedScene(state: Pick<GameStoreState, "session">): stri
  * scene moved on, and the scene a flow request asked for when one ended Play,
  * which opens it. Once the session has an outcome, Resume and Step are off.
  */
-export function EditorPlayBar({ game, host, keymap, onStop, onRestart, project }: EditorControls) {
+export function EditorPlayBar({
+  game,
+  host,
+  keymap,
+  onStop,
+  onRestart,
+  onLivePlay,
+  project,
+}: EditorControls) {
   const { paused, timeScale } = useStoreValue(game.getStore(), (s) => s.sim);
-  const sceneChanged = useStoreValue(host, (s) => s.sceneChanged);
+  // While Live in Play applies edits, the game already has them; Restart is offered when one didn't land.
+  const sceneChanged = useStoreValue(
+    host,
+    (s) =>
+      s.sceneChanged &&
+      !(
+        s.livePlay?.on &&
+        s.livePlay.status?.tone !== "failed" &&
+        s.livePlay.status?.tone !== "waiting"
+      ),
+  );
   const requested = useStoreValue(game.getStore(), flowRequestedScene);
   const ended = useStoreValue(game.getStore(), (s) => (s.session?.outcome ?? null) !== null);
   const openScene = project?.openScene;
@@ -88,6 +120,7 @@ export function EditorPlayBar({ game, host, keymap, onStop, onRestart, project }
             </Button>
           ))}
         </div>
+        {onLivePlay ? <LiveInPlayToggle host={host} onChange={onLivePlay} /> : null}
         <Button
           variant="secondary"
           size="sm"
@@ -98,6 +131,7 @@ export function EditorPlayBar({ game, host, keymap, onStop, onRestart, project }
           Stop
         </Button>
       </Island>
+      <LiveInPlayStatus host={host} />
       {requested !== null ? (
         <Island role="status" className="je-scene-changed" data-flow-requested="">
           Ended: requested {requested}
@@ -117,5 +151,43 @@ export function EditorPlayBar({ game, host, keymap, onStop, onRestart, project }
         </Island>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The Live in Play switch: off by default, the viewer's last choice taken
+ * again at each Play; disabled, with the reason in its hint, where the scene
+ * or game can't take live updates.
+ */
+function LiveInPlayToggle({
+  host,
+  onChange,
+}: {
+  host: Store<EditorHostState>;
+  onChange: (on: boolean) => void;
+}) {
+  const { storage } = useKit();
+  const on = useStoreValue(host, (s) => s.livePlay?.on ?? false);
+  const unavailable = useStoreValue(host, (s) => s.livePlay?.unavailable ?? null);
+  useEffect(() => {
+    if (readStored(storage, LIVE_PLAY_KEY, false, storedFlag)) onChange(true);
+  }, [storage, onChange]);
+  return (
+    <Hint content={unavailable ?? LIVE_PLAY_TOOLTIP}>
+      <span className="je-live-toggle">
+        <Switch
+          aria-label="Live in Play"
+          checked={on}
+          disabled={unavailable !== null}
+          onCheckedChange={(next) => {
+            writeStored(storage, LIVE_PLAY_KEY, next);
+            onChange(next);
+          }}
+        />
+        <Text size="sm" variant={unavailable !== null ? "muted" : "primary"} aria-hidden>
+          Live in Play
+        </Text>
+      </span>
+    </Hint>
   );
 }

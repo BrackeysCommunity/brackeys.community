@@ -19,6 +19,7 @@ import {
   judgeHost,
   judgeRun,
   launchFailures,
+  liveRuns,
   pickReachCell,
   pixelHash,
   plannedRuns,
@@ -337,12 +338,16 @@ describe("hostRuns", () => {
     );
   });
 
-  it("puts each browser's host run after that browser's other runs", () => {
+  it("puts each browser's host run after that browser's plays, and its live run last", () => {
     expect(allRuns(SMOKE_BUILDS, browsers)).toEqual(
-      browsers.flatMap((b) => [...plannedRuns(SMOKE_BUILDS, [b]), ...hostRuns(SMOKE_BUILDS, [b])]),
+      browsers.flatMap((b) => [
+        ...plannedRuns(SMOKE_BUILDS, [b]),
+        ...hostRuns(SMOKE_BUILDS, [b]),
+        ...liveRuns(SMOKE_BUILDS, [b]),
+      ]),
     );
     const firefox = allRuns(SMOKE_BUILDS, browsers).filter((r) => r.browser === "firefox");
-    expect(firefox.at(-1)?.kind).toBe("host");
+    expect(firefox.slice(-2).map((r) => r.kind)).toEqual(["host", "live"]);
   });
 });
 
@@ -352,6 +357,8 @@ const goodHost: HostProbe = {
   hello: { engine: "0.14.1", release: RELEASE, game: "tactics" },
   states: ["loading", "ready"],
   requests: [],
+  live: [],
+  downloads: [],
   invalid: 0,
 };
 

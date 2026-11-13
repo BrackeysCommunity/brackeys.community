@@ -1,6 +1,9 @@
 import { z } from "zod";
 
+import { ID_PATTERN } from "../game/fields";
+import type { SwapStrategy, SwapTiming } from "../game/live";
 import { SLOT_PATTERN } from "../game/save-file";
+import type { AssetId, Sha256 } from "../project/types";
 import type { SceneIssue } from "../scene/types";
 
 /**
@@ -83,12 +86,86 @@ export const saveWriteResultSchema = z.union([
   z.object({ ok: z.literal(false), issue: hostIssueSchema }),
 ]);
 
-/** The page's answer to `hello`: who plays, where saves go, this browser's stored preferences, and whether the game may go online. */
+// ─── Live levels ─────────────────────────────────────────
+
+const swapTiming: z.ZodType<SwapTiming> = z.enum(["next-load", "boundary", "now"]);
+const swapStrategy: z.ZodType<SwapStrategy> = z.enum(["reconcile", "reload"]);
+const sceneId = z.string().regex(ID_PATTERN);
+
+/** One scene a channel runs a live version of. */
+export type LiveSceneEntry = {
+  scene: AssetId;
+  version: Sha256;
+  /** The version's number among the scene's versions, as the page shows it. */
+  number: number;
+  timing: SwapTiming;
+  /** ISO time the pointer moved; the page uses it for "updated 3 min ago" in its chrome. */
+  since: string;
+};
+
+/** The live versions a channel's release runs now: what the page hands the frame. */
+export type LiveSnapshot = {
+  channel: "preview" | "production";
+  /** Grows with every move on the channel. */
+  rev: number;
+  release: Sha256;
+  /** Only pointers that apply: compatible, listed, not collected, hidden or blocked. Sorted by scene. */
+  scenes: readonly LiveSceneEntry[];
+  /** Versions this channel still points at that were hidden: pages running one reload their frame. */
+  removed: readonly Sha256[];
+};
+
+/** Where a scene's version stands in the frame. */
+export type LiveStatus = "staging" | "ready" | "waiting" | "applied" | "refused" | "failed";
+
+/** The frame's report on one scene's version; `version` null means the release's own. */
+export type LiveStateMessage = {
+  scene: AssetId;
+  version: Sha256 | null;
+  status: LiveStatus;
+  timing?: SwapTiming;
+  strategy?: SwapStrategy;
+  tick?: number;
+  issue?: SceneIssue;
+};
+
+export const liveSceneEntrySchema: z.ZodType<LiveSceneEntry> = z.object({
+  scene: sceneId,
+  version: sha256,
+  number: z.number().int().min(1),
+  timing: swapTiming,
+  since: z.string().min(1).max(64),
+});
+
+export const liveSnapshotSchema: z.ZodType<LiveSnapshot> = z.object({
+  channel: z.enum(["preview", "production"]),
+  rev: z.number().int().min(0),
+  release: sha256,
+  scenes: z.array(liveSceneEntrySchema),
+  removed: z.array(sha256),
+});
+
+export const liveStateMessageSchema = z.strictObject({
+  scene: sceneId,
+  version: sha256.nullable(),
+  status: z.enum(["staging", "ready", "waiting", "applied", "refused", "failed"]),
+  timing: swapTiming.optional(),
+  strategy: swapStrategy.optional(),
+  tick: z.number().int().min(0).optional(),
+  issue: hostIssueSchema.optional(),
+});
+
+/** What a frame says it supports in `hello`; absent means none. */
+export const hostFeatureSchema = z.literal("live");
+export type HostFeature = z.infer<typeof hostFeatureSchema>;
+
+/** The page's answer to `hello`: who plays, where saves go, this browser's stored preferences, whether the game may go online, and the live versions it runs. */
 export const welcomeSchema = z.object({
   player: z.object({ signedIn: z.boolean(), name: z.string().nullable() }),
   saves: hostSavesSchema,
   prefs: z.object({ remap: z.unknown(), prefs: z.unknown() }),
   online: z.boolean(),
+  live: liveSnapshotSchema.nullable().optional(),
 });
 
 // ─── The handshake ───────────────────────────────────────
@@ -113,7 +190,12 @@ const request = <T extends string, P extends z.ZodType>(type: T, params: P) =>
 /** Each request the frame sends: its params, and the schema of the page's result. */
 export const HOST_REQUESTS = {
   hello: {
-    params: z.strictObject({ engine: z.string().min(1).max(64), release: sha256, game: gameId }),
+    params: z.strictObject({
+      engine: z.string().min(1).max(64),
+      release: sha256,
+      game: gameId,
+      features: z.array(hostFeatureSchema).min(1).max(8).optional(),
+    }),
     result: welcomeSchema,
   },
   "saves.list": { params: z.strictObject({ gameId }), result: z.array(saveSummarySchema) },
@@ -165,6 +247,7 @@ export const frameMessageSchema = z.discriminatedUnion("type", [
       message: `a download is at most ${HOST_DOWNLOAD_MAX_BYTES} bytes`,
     }),
   }),
+  liveStateMessageSchema.extend({ type: z.literal("live.state") }),
 ]);
 
 export type FrameMessage = z.infer<typeof frameMessageSchema>;
@@ -185,6 +268,8 @@ export const hostMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("saves.changed"), saves: hostSavesSchema }),
   z.object({ type: z.literal("pause") }),
   z.object({ type: z.literal("resume") }),
+  z.object({ type: z.literal("live.update"), live: liveSnapshotSchema }),
+  z.object({ type: z.literal("recording.request") }),
 ]);
 
 export type HostMessage = z.infer<typeof hostMessageSchema>;
@@ -196,6 +281,10 @@ export type HostEvents = {
   "saves.changed": HostSaves;
   pause: undefined;
   resume: undefined;
+  /** The whole live snapshot again; the frame diffs it against what it runs. */
+  "live.update": LiveSnapshot;
+  /** The page asks for the run's recording so far; the frame answers with a download. */
+  "recording.request": undefined;
 };
 
 /**

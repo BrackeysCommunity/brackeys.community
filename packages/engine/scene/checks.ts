@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { navDestinationSchema, type NavDestination } from "../game/commands";
 import { ID_PATTERN } from "../game/fields";
 import { ENGINE_CHECK_KINDS, type PlayersDef, type Registry } from "../game/types";
 import { pxPerMetreOf, scaleLengths } from "../game/units";
@@ -49,6 +50,8 @@ export type ReachesCheck = CheckHead & {
   result: string;
   /** Play from here, over the script's own `at`. */
   at?: Pt;
+  /** Nav agents sent on the run's first slot, before the script's own first step plays, as its `nav` steps send them. */
+  nav?: NavDestination[];
   /** Every key must hold on the run's last tick, judged as a script step's `until` is. */
   expect?: UntilClause;
 };
@@ -225,6 +228,13 @@ function buildChecksSchemas(registry: Registry, strictScript: boolean, players?:
         at: ReachesAtSchema.optional().describe(
           "Play from here, in world metres, over the script's own `at`.",
         ),
+        nav: z
+          .array(navDestinationSchema)
+          .min(1)
+          .optional()
+          .describe(
+            "Nav agents to send on the run's first slot, alongside what the script's first step sends there, as a script's `nav` steps send them; an entity without a nav-agent is refused (`behavior-missing`).",
+          ),
         expect: inputScriptSchemasFor(registry)
           .until.optional()
           .describe(

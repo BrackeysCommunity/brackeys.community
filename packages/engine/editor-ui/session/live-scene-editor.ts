@@ -5,6 +5,8 @@ import {
   actorLabel,
   applyEntityDiff,
   bindSceneDoc,
+  docToPrefab,
+  docToScene,
   expandLenient,
   layoutFromDoc,
   observeProjectPeers,
@@ -43,26 +45,44 @@ import {
   type Ref,
   type SessionHistory,
 } from "../../editor/index";
-import { withProject, type Registry } from "../../game/index";
+import {
+  LIVE_DEFAULTS,
+  withProject,
+  type GameDefinition,
+  type Registry,
+  type SceneSwap,
+  type SwapTiming,
+} from "../../game/index";
 import type { GameInstance, PlayOptions, PlayReport, RunRecording } from "../../index";
 import {
+  buildSceneVersion,
+  formatAssetDoc,
   MATERIAL_KIND,
   parseDocName,
   prefabKind,
   RUNTIME_VIEW_KINDS,
   runtimeView,
+  SCENE_KIND_NAME,
   stableJson,
   type AssetEntry,
   type AssetId,
+  type BuildSceneVersionResult,
   type ProjectRuntimeView,
   type ProjectView,
+  type Sha256,
 } from "../../project/index";
+import type { SceneRuntimeHandle } from "../../runtime/types";
 import {
+  formatPrefab,
+  formatScene,
+  liveIssue,
   nextFreeId,
+  sceneHashWith,
   type InstanceDef,
   type Prefab,
   type RuntimeEntity,
   type SceneDefinition,
+  type SceneIssue,
 } from "../../scene/index";
 import type { SceneDocStatus } from "../connect/scene-doc";
 import { frameInView } from "../frame/visible-rect";
@@ -88,7 +108,34 @@ export type EditorHostState = {
   sceneChanged: boolean;
   /** Why the doc on screen may only be read: a newer build of the game changed its kind's schema. */
   readOnly?: CodeSkewIssue | null;
+  /** Live in Play: the toggle and what the last live update did. */
+  livePlay?: LivePlayState;
 };
+
+/**
+ * Live in Play: while on, each doc change during Play becomes an in-memory
+ * scene version that the running game stages and swaps in, as a live update
+ * reaches players. Off by default, when Play stays isolated from edits.
+ */
+export type LivePlayState = {
+  on: boolean;
+  /** Why it can't be turned on for this scene and game; null when it can. */
+  unavailable: string | null;
+  /** The status line: what the last live update is doing or did; null before one. */
+  status: LivePlayStatus | null;
+  /** The game's `live.check` issues right after the last swap, for the problems panel. */
+  checks: readonly SceneIssue[];
+};
+
+export type LivePlayStatus = {
+  tone: "busy" | "applied" | "waiting" | "failed";
+  text: string;
+  /** Why it failed, or why it waits. */
+  issue?: SceneIssue;
+};
+
+/** The pending feedback and status line while a live update stages. */
+export const LIVE_PLAY_APPLYING = "Applying live update…";
 
 export type EditorIdentity = {
   origin: Extract<SceneOrigin, { kind: "user" }>;
@@ -108,7 +155,9 @@ export type EditorGame = Pick<
   | "setPrefabs"
   | "frame"
   | "panBy"
->;
+> &
+  /** Live in Play needs the game's live versions and its events; without them the toggle is off. */
+  Partial<Pick<GameInstance, "live" | "on" | "off" | "getStore">>;
 
 /** The project session a scene doc belongs to, and that doc's name in it. */
 export type LiveEditorProject = { session: ProjectSession; doc: string };
@@ -190,6 +239,8 @@ export type LiveEditor = {
   stop: () => void;
   /** Rebuilds the running play world from the latest doc, from where the last Play started. */
   restart: () => void;
+  /** Turns Live in Play on or off (`host.state.livePlay`); it stays off where it's unavailable. */
+  setLivePlay: (on: boolean) => void;
   destroy: () => void;
 };
 
@@ -559,6 +610,359 @@ function withVariantBase(
   };
 }
 
+const TIMING_WORDS: Readonly<Record<SwapTiming, string>> = {
+  now: "now",
+  boundary: "boundary",
+  "next-load": "next load",
+};
+
+/** When a clamped live update reaches the game, and the timings the game takes. */
+function clampedText(timing: SwapTiming, accepted: readonly SwapTiming[]): string {
+  const when = timing === "next-load" ? "at the next load" : "at the game's next boundary";
+  const takes = (["now", "boundary", "next-load"] as const).filter(
+    (t) => t === "next-load" || accepted.includes(t),
+  );
+  const list =
+    takes.length === 1
+      ? `only ${TIMING_WORDS[takes[0]!]}`
+      : `${takes
+          .slice(0, -1)
+          .map((t) => TIMING_WORDS[t])
+          .join(", ")} and ${TIMING_WORDS[takes.at(-1)!]}`;
+  return `Live update applies ${when}: this game accepts ${list}`;
+}
+
+/** "(reconcile, 3 changed)": how the swap went and how many entities it touched. */
+function swapSummary(swap: SceneSwap): string {
+  const { added, removed, changed, header } = swap.diff;
+  const n = added.length + removed.length + changed.length;
+  const what = n > 0 ? `${n} changed` : header ? "the header changed" : "nothing changed";
+  return `(${swap.strategy}, ${what})`;
+}
+
+const errorOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
+/** The canonical text of a project doc as its file would hold it; null for a kind with no text. */
+function docText(project: ProjectSession, entry: AssetEntry, doc: Y.Doc): string | null {
+  try {
+    if (entry.kind === SCENE_KIND_NAME) return formatScene(docToScene(doc)).text;
+    if (entry.kind === prefabKind.kind) return formatPrefab(docToPrefab(doc));
+    const def = project.kinds.get(entry.kind);
+    const name = project.docNameFor(entry);
+    const layout = name ? project.get(name)?.layout : undefined;
+    if (def?.storage !== "doc" || !layout) return null;
+    return formatAssetDoc(def, layoutFromDoc(doc, layout));
+  } catch {
+    return null;
+  }
+}
+
+type LivePlayOptions = {
+  game: EditorGame;
+  project: ProjectSession | null;
+  /** The scene's asset id, which the version is built for. */
+  scene: AssetId;
+  doc: Y.Doc;
+  session: EditorSession;
+  host: Store<EditorHostState>;
+  notify: EditorNotify;
+  tasks: Pending;
+};
+
+/**
+ * Live in Play over the live editor's doc: while on and playing, a doc or
+ * prefab change, debounced, is built into a scene version from the editor's
+ * own copy of the project's docs, staged on the running game and activated
+ * `now` (clamped as the game's live declaration says). Nothing is uploaded.
+ */
+function createLivePlay({
+  game,
+  project,
+  scene,
+  doc,
+  session,
+  host,
+  notify,
+  tasks,
+}: LivePlayOptions) {
+  const definition: GameDefinition | null = game.registry.game;
+  const live = game.live;
+  let on = false;
+  let playing = false;
+  let replaying = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let building = false;
+  let again = false;
+  /** Bumped at every Play, Stop and toggle, so a build that outlived its run is dropped. */
+  let run = 0;
+  /** The version activated `now` or at a boundary, until its swap lands or fails. */
+  let awaiting: Sha256 | null = null;
+  /** The running scene's hash, so a build that changes nothing isn't swapped in. */
+  let runningHash: string | null = null;
+  let activated = false;
+  /** Docs this opened to build from, held until Play ends. */
+  const held = new Set<string>();
+
+  function unavailable(): string | null {
+    if (!live || !game.on || !game.off) return "This editor's game doesn't take live updates.";
+    if (!project) return "Live in Play needs the scene to be in a project.";
+    if (!definition) return "Live in Play needs a game; this scene picks up edits at Restart.";
+    if (replaying) return "A replay plays its recorded run; edits wait for Restart.";
+    return null;
+  }
+
+  const set = (patch: Partial<LivePlayState>) =>
+    host.setState((s) => ({ ...s, livePlay: { ...(s.livePlay ?? initial()), ...patch } }));
+
+  function initial(): LivePlayState {
+    return { on: false, unavailable: unavailable(), status: null, checks: [] };
+  }
+
+  const active = () => on && playing && !replaying && unavailable() === null;
+
+  function cancel() {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    run++;
+    awaiting = null;
+  }
+
+  function fail(prefix: string, issue: SceneIssue) {
+    const why = issue.hint ?? issue.message;
+    set({ status: { tone: "failed", text: `${prefix}: ${why}`, issue } });
+    notify.error(prefix, { id: "live-play", description: issue.message });
+  }
+
+  /** Every project doc's text by asset id, the scene's from the editor's own doc. */
+  function texts(p: ProjectSession): Map<AssetId, string> {
+    const out = new Map<AssetId, string>();
+    for (const entry of p.view().byId.values()) {
+      const name = p.docNameFor(entry);
+      const from = entry.id === scene ? doc : name ? p.get(name)?.doc : undefined;
+      if (!from) continue;
+      const text = docText(p, entry, from);
+      if (text !== null) out.set(entry.id, text);
+    }
+    return out;
+  }
+
+  /** Builds the version, opening the docs it reaches that the editor hasn't open, a few rounds deep. */
+  async function build(p: ProjectSession, def: GameDefinition): Promise<BuildSceneVersionResult> {
+    const tried = new Set<string>();
+    for (let round = 0; ; round++) {
+      const result = await buildSceneVersion({
+        view: p.view(),
+        texts: texts(p),
+        build: p.hashes,
+        game: def,
+        registry: game.registry,
+        scene,
+      });
+      if (result.ok || round >= 4) return result;
+      const closed = result.issues
+        .filter((i) => i.code === "asset-missing")
+        .flatMap((i) => i.entityIds)
+        .map((id) => p.view().byId.get(id))
+        .map((entry) => (entry ? p.docNameFor(entry) : null))
+        .filter((name): name is string => !!name && !p.get(name) && !tried.has(name));
+      if (closed.length === 0) return result;
+      await Promise.all(
+        closed.map((name) => {
+          tried.add(name);
+          return p.open(name).then(
+            () => {
+              if (playing) held.add(name);
+              else p.release(name);
+            },
+            () => {},
+          );
+        }),
+      );
+    }
+  }
+
+  async function applyOnce(ticket: number): Promise<void> {
+    const p = project;
+    if (!p || !definition || !live) return;
+    const release = tasks.hold({ id: "live-play", label: LIVE_PLAY_APPLYING, scope: "live-play" });
+    set({ status: { tone: "busy", text: LIVE_PLAY_APPLYING } });
+    try {
+      const built = await build(p, definition);
+      if (ticket !== run) return;
+      if (!built.ok) {
+        const issue = built.issues.find((i) => i.severity === "error") ?? built.issues[0];
+        if (issue) fail("Live update not applied", issue);
+        return;
+      }
+      if (built.version.sceneHash === runningHash) {
+        set({ status: null });
+        return;
+      }
+      const staged = await live.stage({ id: built.id, version: built.version, texts: built.texts });
+      if (ticket !== run) return;
+      if (!staged.ok) return fail("Live update not applied", staged.issue);
+      const out = live.activate(scene, built.id, "now");
+      activated = true;
+      if (out.issue?.code === "live-swap-failed") return fail("Live update not applied", out.issue);
+      if (out.timing === "next-load") {
+        const text = clampedText(out.timing, definition.live?.timings ?? []);
+        set({ status: { tone: "waiting", text, ...(out.issue ? { issue: out.issue } : {}) } });
+        return;
+      }
+      if (!live.pending().some((e) => e.scene === scene && e.version === built.id)) {
+        const playingAs = readDoc(doc).def.name;
+        const cause =
+          playingAs !== scene
+            ? `the game plays this scene as "${playingAs}", not by its id ${scene}`
+            : `${scene} isn't the scene playing`;
+        return fail(
+          "Live update not applied",
+          liveIssue({ code: "live-swap-failed", scene, cause, phase: "swap" }),
+        );
+      }
+      awaiting = built.id;
+      if (out.clamped) {
+        const text = clampedText(out.timing, definition.live?.timings ?? []);
+        set({ status: { tone: "waiting", text, ...(out.issue ? { issue: out.issue } : {}) } });
+      } else if (game.getStore?.().state.sim.paused) {
+        set({ status: { tone: "waiting", text: "Live update applies when the game runs again" } });
+      }
+    } catch (err) {
+      if (ticket !== run) return;
+      fail(
+        "Live update not applied",
+        liveIssue({ code: "live-swap-failed", scene, cause: errorOf(err), phase: "stage" }),
+      );
+    } finally {
+      release();
+    }
+  }
+
+  async function flush(): Promise<void> {
+    timer = null;
+    if (!active()) return;
+    if (building) {
+      again = true;
+      return;
+    }
+    building = true;
+    try {
+      do {
+        again = false;
+        await applyOnce(run);
+      } while (again && active());
+    } finally {
+      building = false;
+    }
+  }
+
+  function changed() {
+    if (!active()) return;
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(() => void flush(), LIVE_DEFAULTS.livePlayDebounceMs);
+  }
+
+  function checksAfter(): SceneIssue[] {
+    const declared = definition?.live;
+    // The runtime the game plays is the shell's handle, which carries the context the check reads.
+    const ctx = (game.runtime() as SceneRuntimeHandle | null)?.ctx;
+    if (!declared?.check || !ctx) return [];
+    try {
+      return [...declared.check(ctx)];
+    } catch (err) {
+      const cause = `the game's live check threw: ${errorOf(err)}`;
+      return [liveIssue({ code: "live-swap-failed", scene, cause, phase: "swap" })];
+    }
+  }
+
+  const onSwapped = (swap: SceneSwap) => {
+    if (swap.scene !== scene || awaiting === null || swap.to.version !== awaiting) return;
+    awaiting = null;
+    runningHash = swap.to.sceneHash;
+    const checks = checksAfter();
+    const counted =
+      checks.length > 0
+        ? ` · ${checks.length === 1 ? "1 check issue" : `${checks.length} check issues`}`
+        : "";
+    set({
+      status: { tone: "applied", text: `Live update applied ${swapSummary(swap)}${counted}` },
+      checks,
+    });
+    notify.success("Live update applied", { id: "live-play", description: swapSummary(swap) });
+  };
+
+  const onFailed = (e: { scene: AssetId; version: Sha256 | null; issue: SceneIssue }) => {
+    if (e.scene !== scene || awaiting === null || e.version !== awaiting) return;
+    awaiting = null;
+    fail("Live update failed", e.issue);
+  };
+
+  const offDoc = () => doc.off("update", changed);
+  doc.on("update", changed);
+  const offPrefabs = session.prefabs.subscribe(changed);
+  game.on?.("live:swapped", onSwapped);
+  game.on?.("live:failed", onFailed);
+  host.setState((s) => ({ ...s, livePlay: initial() }));
+
+  /** Back to the release's own scene, so nothing this staged stays resident. */
+  function deactivate() {
+    if (!activated) return;
+    activated = false;
+    live?.activate(scene, null, "next-load");
+  }
+
+  function releaseHeld() {
+    for (const name of held) project?.release(name);
+    held.clear();
+  }
+
+  return {
+    setOn(next: boolean) {
+      const allowed = next && unavailable() === null;
+      if (allowed === on) return;
+      on = allowed;
+      cancel();
+      // Off, nothing waiting reaches the game; what already swapped in keeps running.
+      if (!on) deactivate();
+      set({ on, status: null });
+    },
+    /** Play started, on `def` with `prefabs`, or on a recording. */
+    entered(def: SceneDefinition, recording: boolean) {
+      cancel();
+      playing = true;
+      replaying = recording;
+      runningHash = sceneHashWith(def, session.getPrefabs());
+      const reason = unavailable();
+      if (reason !== null) on = false;
+      set({ on, unavailable: reason, status: null, checks: [] });
+    },
+    /** Play restarted on the latest doc: what runs is that doc again. */
+    restarted(def: SceneDefinition) {
+      cancel();
+      runningHash = sceneHashWith(def, session.getPrefabs());
+      set({ status: null });
+    },
+    /** Stop: the run's checks stay for the problems panel until the next Play. */
+    left() {
+      cancel();
+      playing = false;
+      replaying = false;
+      deactivate();
+      releaseHeld();
+      set({ unavailable: unavailable(), status: null });
+    },
+    destroy() {
+      cancel();
+      playing = false;
+      offDoc();
+      offPrefabs();
+      game.off?.("live:swapped", onSwapped);
+      game.off?.("live:failed", onFailed);
+      releaseHeld();
+    },
+  };
+}
+
 /** Scene ops that write prefab docs. */
 const writesPrefabs = (op: string): boolean =>
   op === "applyToPrefab" || op === "createPrefab" || op === "definePrefab";
@@ -658,6 +1062,17 @@ export function openLiveEditor({
     sceneDoc,
     true,
   );
+
+  const livePlay = createLivePlay({
+    game,
+    project,
+    scene: sceneDoc ? idOf(sceneDoc) : name,
+    doc,
+    session,
+    host,
+    notify,
+    tasks,
+  });
 
   const presence = (patch: Partial<ProjectPresence>) => {
     if (project) setProjectPresence(project.awareness, patch);
@@ -856,17 +1271,20 @@ export function openLiveEditor({
     if (e.source === "remote") for (const entry of e.logged) announce(notify, entry);
   });
 
-  /** Plays the doc as it is now; on a refusal the world that was running keeps running. */
-  function launch(opts: PlayOptions | undefined, recording: RunRecording | null): boolean {
+  /** Plays the doc as it is now, returning what it played; on a refusal the world that was running keeps running. */
+  function launch(
+    opts: PlayOptions | undefined,
+    recording: RunRecording | null,
+  ): SceneDefinition | null {
     const scene = readDoc(doc).def;
     game.setPrefabs(session.getPrefabs());
     const report = recording ? game.replay(scene, recording) : game.play(scene, opts);
     if (!report.ok) {
       playRefused(notify, report);
-      return false;
+      return null;
     }
     host.setState((s) => ({ ...s, sceneChanged: false }));
-    return true;
+    return scene;
   }
 
   function enter(given: PlayOptions | undefined, recording: RunRecording | null): boolean {
@@ -879,8 +1297,10 @@ export function openLiveEditor({
         opts = rest;
       }
     }
-    if (playing || !launch(opts, recording)) return false;
+    const played = playing ? null : launch(opts, recording);
+    if (!played) return false;
     binding.setPaused(true);
+    livePlay.entered(played, recording !== null);
     playing = true;
     started = opts;
     replayed = recording;
@@ -922,16 +1342,21 @@ export function openLiveEditor({
       if (!playing) return;
       playing = false;
       game.stop();
+      livePlay.left();
       binding.setPaused(false);
       host.setState((s) => ({ ...s, sceneChanged: false }));
       session.setMode("edit");
       presence({ mode: "edit" });
     },
     restart() {
-      if (playing) launch(started, replayed);
+      if (!playing) return;
+      const played = launch(started, replayed);
+      if (played) livePlay.restarted(played);
     },
+    setLivePlay: (on) => livePlay.setOn(on),
     destroy() {
       opening++;
+      livePlay.destroy();
       unsubscribe();
       offPeers();
       offAccess();

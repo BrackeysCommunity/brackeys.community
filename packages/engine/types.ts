@@ -2,6 +2,7 @@ import type { Store } from "@tanstack/store";
 
 import type { DebugLayerFactory, DebugOverlayFactory } from "./debug";
 import type { FlowRequest, LibraryScene, SceneListEntry, TransitionSpec } from "./game/flow";
+import type { SceneSwap, SwapTiming } from "./game/live";
 import type {
   ActionKind,
   Binding,
@@ -18,6 +19,7 @@ import type { BundleEntry } from "./project/bundle";
 import type { KindRegistry } from "./project/kinds";
 import type { ReleaseManifest } from "./project/release";
 import type { ProjectRuntimeView } from "./project/runtime-view";
+import type { SceneVersion } from "./project/scene-version";
 import type { AssetId, ProjectView, Sha256 } from "./project/types";
 import type { AssetLoader, LoadProgress } from "./render/asset-loader";
 import type { ResolutionPolicy } from "./resolution";
@@ -106,7 +108,14 @@ export type GameConfig = {
    */
   rapier?: () => Promise<RapierModule>;
   /** The Rapier package and the project's snapshot, for Play's recordings; the engine fills the arch and runtime. */
-  recording?: RecordingHost;
+  recording?: RecordingHost & {
+    /**
+     * Also records the scene flow's run outside the editor's Play: each
+     * scene `flow` loads is a session until the next load, which ends it as
+     * `flow`. A load from a save isn't recorded. Default false.
+     */
+    flow?: boolean;
+  };
   /** Loaded on start, expanded through `registry` when it is a document. Without one the world is empty. */
   scene?: SceneDefinition | ExpandedScene;
   /** The prefabs scene documents' instances name; `setPrefabs` replaces them. */
@@ -333,6 +342,10 @@ export type GameEventMap = {
   "render:failed": { backend: RenderBackend };
   /** WebGPU failed at start or was lost, and the shell draws with WebGL for the rest of the session. */
   "render:fallback": { from: "webgpu"; reason: "init" | "lost" };
+  /** A new version of the running scene was applied between ticks, after the game's `onSwap`. */
+  "live:swapped": SceneSwap;
+  /** A version couldn't be staged or applied; the old one keeps running and the new one waits for the next load. */
+  "live:failed": { scene: AssetId; version: Sha256 | null; issue: SceneIssue };
 };
 
 // ─── Store ───────────────────────────────────────────────
@@ -450,8 +463,23 @@ export type GameInstance = {
    * Plays `recording` on `doc`: Play from the recording's start, with its
    * input edges stepped on their ticks in place of the keyboard's. At its
    * last tick the loop pauses on the end state; Stop returns to edit.
+   *
+   * A recording that started on a live version (`sceneVersion`) plays that
+   * version's scene in place of `doc`, and each recorded swap is applied
+   * before its tick with its recorded strategy, through the same path as a
+   * live swap. A version `versions` can't give is `scene-version-removed`:
+   * for the start, the replay doesn't start (the report carries the issue);
+   * for a swap, `live:failed` carries it with `detail.tick` and the replay
+   * stops on that tick. The scene's own live version comes back at Stop.
    */
-  replay: (doc: SceneDefinition, recording: RunRecording) => PlayReport;
+  replay: (
+    doc: SceneDefinition,
+    recording: RunRecording,
+    opts?: {
+      /** The scene versions the recording names, by id; null for one the host doesn't have. */
+      versions?: (id: Sha256) => StagedVersion | null;
+    },
+  ) => PlayReport;
   /**
    * The prefabs that documents passed to `loadScene`, `play` and `replay`
    * expand their instances from, e.g. the collab doc's as they change.
@@ -460,9 +488,10 @@ export type GameInstance = {
   /**
    * The session's recording once finished (the game's first verdict, or
    * Stop), else the last session's; null before any Play. A session started
-   * through `setMode` isn't recorded.
+   * through `setMode` isn't recorded. With `running`, a session still
+   * recording comes back as Stop would end it now, and keeps recording.
    */
-  recording: () => RunRecording | null;
+  recording: (opts?: { running?: boolean }) => RunRecording | null;
   /**
    * Discards the play world, rebuilds the edit world from the scene loaded
    * before Play (the play world's own scene when there was none), restores
@@ -539,4 +568,45 @@ export type GameInstance = {
   flow: GameFlow;
   /** Save slots over the game's, the host's or the browser's store. */
   saves: SaveSlots;
+  /** New versions of listed scenes, staged and swapped into the running game. */
+  live: GameLive;
+};
+
+/** A scene version the host fetched, ready to stage. */
+export type StagedVersion = {
+  id: Sha256;
+  version: SceneVersion;
+  /** Canonical texts by hash (the scene and its prefabs), already hash-checked. */
+  texts: ReadonlyMap<Sha256, string>;
+};
+
+/** `GameInstance.live`. */
+export type GameLive = {
+  /**
+   * Fetches nothing: makes a version resident (validated, expanded, bundle
+   * preloaded) for a listed scene. Its preload gets `LIVE_DEFAULTS.preloadTimeoutMs`,
+   * or less when `signal` aborts first; a refusal leaves the scene's versions as they were.
+   */
+  stage(
+    v: StagedVersion,
+    opts?: { signal?: AbortSignal },
+  ): Promise<{ ok: true } | { ok: false; issue: SceneIssue }>;
+  /**
+   * Uses a staged version (null: the release's own) for a scene, with a timing
+   * clamped to what the game accepts. The issue is live-timing-unsupported (a
+   * warning) when the timing was clamped, or live-swap-failed when the version
+   * isn't staged.
+   */
+  activate(
+    scene: AssetId,
+    version: Sha256 | null,
+    timing: SwapTiming,
+  ): { timing: SwapTiming; clamped: boolean; issue?: SceneIssue };
+  /** The version this scene's loads use; null for the release's own. */
+  current(scene: AssetId): Sha256 | null;
+  /** Activations waiting for their timing, in scene-id order. */
+  pending(): readonly { scene: AssetId; version: Sha256 | null; timing: SwapTiming }[];
+  /** For online sessions: ignore activations until unpinned. */
+  pin(versions: Readonly<Record<AssetId, Sha256>>): void;
+  unpin(): void;
 };

@@ -1,6 +1,6 @@
-import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 import { RELEASE_FILE, type ReleaseManifest } from "@jams/engine/project";
 
@@ -28,6 +28,7 @@ import {
 import { hostedCodeProject, ProjectClientError } from "../project-client";
 import type { ProjectHandle } from "../projects";
 import { buildGame, type GameBuildInput, type GameBuildOutcome } from "./game-build";
+import { amber, hostedProjectCopy } from "./game-live";
 import { checkManifestAt } from "./game-manifest";
 import { projectPull, type ProjectPullInput } from "./project-pull";
 
@@ -242,11 +243,6 @@ const shortId = (id: string) => `${id.slice(0, 6)}…`;
 const plural = (n: number, one: string, many = `${one}s`) =>
   `${formatCount(n)} ${n === 1 ? one : many}`;
 
-/** Amber on a terminal that takes colour; plain everywhere else (pipes, `--json`, MCP). */
-function amber(text: string, env: Readonly<Record<string, string | undefined>>): string {
-  return process.stdout.isTTY && env.NO_COLOR === undefined ? `\x1b[33m${text}\x1b[0m` : text;
-}
-
 /** One `warning:` line per quota at or over 80% once the release is stored. */
 export function quotaWarnings(lines: readonly UsageLine[]): string[] {
   return lines
@@ -362,40 +358,6 @@ async function uploadMissing(
 }
 
 /**
- * The project's files with the hosted project's docs and blobs pulled over
- * them, in a dot directory beside the project so the game code's relative
- * imports and package resolution reach what they reach from the checkout.
- */
-async function hostedCopy(
-  local: ProjectHandle,
-  site: HostedSite,
-  input: GameReleaseCreateInput,
-  ctx: ToolContext,
-  pull: NonNullable<GameReleaseDeps["pull"]>,
-): Promise<{ dir: string } | { dir: string; result: ToolResult }> {
-  const dir = await mkdtemp(join(dirname(local.dir), `.${basename(local.dir)}-release-`));
-  await cp(local.dir, dir, {
-    recursive: true,
-    filter: (src) => {
-      const name = basename(src);
-      return (
-        src === local.dir || !(name === "node_modules" || name === "dist" || name.startsWith("."))
-      );
-    },
-  });
-  const pulled = await pull(
-    {
-      id: local.file.id,
-      url: site.origin,
-      out: dir,
-      ...(input.token === undefined ? {} : { token: input.token }),
-    },
-    ctx,
-  );
-  return pulled.exitCode === 0 ? { dir } : { dir, result: pulled };
-}
-
-/**
  * Builds the project (or takes `--from`'s build), uploads it to the hosted
  * project as a new release and prints its version, size, play URL and the
  * quotas after it. `begin` names the files the site doesn't hold; they go
@@ -439,7 +401,14 @@ export async function gameReleaseCreate(
         ...(input.target === undefined ? {} : { target: input.target }),
       };
       if (input.hosted) {
-        const copy = await hostedCopy(local, site, input, ctx, deps.pull ?? projectPull);
+        const copy = await hostedProjectCopy(
+          local,
+          site.origin,
+          input.token,
+          ctx,
+          deps.pull ?? projectPull,
+          "release",
+        );
         temps.push(copy.dir);
         if ("result" in copy) return copy.result;
         local = { ...local, dir: copy.dir };

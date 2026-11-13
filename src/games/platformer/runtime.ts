@@ -1,20 +1,25 @@
 import type { Vec2 } from "@jams/engine";
 import {
   carrierDelta,
+  castSpawn,
   type EngineContext,
   type GameCommand,
   type GameRuntime,
+  type IssueCodeDef,
   type SolidSystem,
 } from "@jams/engine/game";
+import { makeIssue, roundLength, type SceneIssue, type ShapeObj } from "@jams/engine/scene";
 
 import type { GrappleAnchorSystem } from "./entities/grapple-anchor";
 import {
   PLAYER_HEIGHT,
   PLAYER_TYPE,
+  PLAYER_WIDTH,
   type MovementState,
   type PlayerEntity,
 } from "./entities/player";
 import type { ConstructSystem, ConstructType } from "./entities/shaper-constructs";
+import { PLATFORMER_PLAY } from "./play";
 import type { PlayerSystem } from "./systems/player";
 import { SHAPER_PLACE, SHAPER_REMOVE } from "./systems/shaper";
 import { TYPE } from "./type-names";
@@ -58,6 +63,101 @@ export type PlatformerStoreSlice = { player: PlayerSnapshot | null };
 
 /** Types whose one-way solids pass the player up through them. */
 const ONE_WAY_TYPES = [TYPE.cloud, "solid"] as const;
+
+/** The code `live.check` reports; registered with the game's other issue codes. */
+export const PLATFORMER_LIVE_ISSUES = {
+  "platformer/player-in-solid": {
+    severity: "error",
+    summary: `After a new version of the level went live, the ${PLAYER_WIDTH} × ${PLAYER_HEIGHT} m player box overlaps something it can't stand inside.`,
+    hint: "Leave the player room where the change lands: with a free spot nearby the swap lifts the player onto it; boxed in, it stays stuck.",
+    fixable: false,
+  },
+} as const satisfies Record<string, IssueCodeDef>;
+
+/** How far apart the spots a swap tries for a stuck player are; under half the player box, so no gap it fits is skipped. */
+const FREE_STEP = PLAYER_HEIGHT / 4;
+/** Up first, then either side, then down. */
+const FREE_DIRECTIONS: readonly Vec2[] = [
+  { x: 0, y: -1 },
+  { x: -1, y: 0 },
+  { x: 1, y: 0 },
+  { x: 0, y: 1 },
+];
+
+/** How far the player's box may sink into what it touches (its resting contact) before it counts as inside. */
+const CONTACT_SKIN = 0.001;
+
+/** The player's box centred on `at`, less the contact skin. */
+const playerBox = (at: Vec2): ShapeObj => ({
+  type: "box",
+  cx: at.x,
+  cy: at.y,
+  hw: PLAYER_WIDTH / 2 - CONTACT_SKIN,
+  hh: PLAYER_HEIGHT / 2 - CONTACT_SKIN,
+  rotDeg: 0,
+});
+
+/** The entities whose colliders the player `id`'s box at `at` overlaps; gated one-way solids and sensors don't count. */
+function blockersAt(ctx: EngineContext, id: string, at: Vec2): string[] {
+  const hits = ctx.space.overlaps(playerBox(at), { exclude: [id] });
+  return [...new Set(hits.map((h) => h.tag.entityId))];
+}
+
+/** `live.check`: a player inside a solid, cloud, construct or platform. */
+export function playerInSolidIssues(ctx: EngineContext): SceneIssue[] {
+  const players = ctx.system<PlayerSystem>(PLAYER_TYPE);
+  const issues: SceneIssue[] = [];
+  for (const id of ctx.query.select({ type: PLAYER_TYPE })) {
+    const at = players?.actor(id)?.getPosition();
+    if (!at) continue;
+    const inside = blockersAt(ctx, id, at);
+    if (inside.length === 0) continue;
+    issues.push(
+      makeIssue(
+        "platformer/player-in-solid",
+        {
+          message: `${id} at ${roundLength(at.x)}, ${roundLength(at.y)} m is inside ${inside.join(", ")}`,
+          entityIds: [id, ...inside],
+          at: [at.x, at.y],
+        },
+        PLATFORMER_LIVE_ISSUES,
+      ),
+    );
+  }
+  return issues;
+}
+
+/**
+ * Where the stuck `player` comes to rest from the nearest spot with room for
+ * its box, tried outward in `FREE_STEP`s within the bounds and settled as a
+ * play start is (`castSpawn`); null when nothing nearby is free. Its own
+ * collider is gated off meanwhile, so neither the overlap test nor the cast
+ * sees it.
+ */
+function restFor(ctx: EngineContext, player: PlayerEntity): Vec2 | null {
+  const shape = PLATFORMER_PLAY.spawnShape;
+  if (!shape) return null;
+  const [minX, minY, maxX, maxY] = ctx.bounds;
+  const from = player.getPosition();
+  const collider = player.getCollider();
+  const groups = collider.collisionGroups();
+  collider.setCollisionGroups(0);
+  try {
+    for (let d = FREE_STEP; ; d += FREE_STEP) {
+      let inBounds = false;
+      for (const dir of FREE_DIRECTIONS) {
+        const at = { x: from.x + dir.x * d, y: from.y + dir.y * d };
+        if (at.x < minX || at.x > maxX || at.y < minY || at.y > maxY) continue;
+        inBounds = true;
+        const cast = castSpawn(ctx, at, shape);
+        if (cast.ok) return cast.at;
+      }
+      if (!inBounds) return null;
+    }
+  } finally {
+    collider.setCollisionGroups(groups);
+  }
+}
 
 function noPlayer(): PlayerSnapshot {
   return { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, state: "idle", grounded: false };
@@ -203,6 +303,8 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
         if (!prevGrounded || snap.groundId !== prevGroundId) {
           ctx.emit({ type: "landed", entityId: snap.groundId, at });
         }
+        // Coming to rest from the air is the runner's safe moment to change the level under it.
+        if (!prevGrounded) ctx.live.boundary("landed");
         prevGroundId = snap.groundId;
         prevGrounded = true;
       } else if (!snap.grounded && prevGrounded) {
@@ -211,6 +313,19 @@ export function createPlatformerRuntime(ctx: EngineContext): GameRuntime<PlayerS
         prevGrounded = false;
       }
       if (!sameSnapshot(slice.player, snap)) slice = { player: snap };
+    },
+    onSwap() {
+      // A new solid where the player stands: lift it onto the nearest free spot.
+      const player = actor();
+      if (!player || playerId === null) return;
+      if (blockersAt(ctx, playerId, player.getPosition()).length === 0) return;
+      const rest = restFor(ctx, player);
+      if (!rest) return;
+      const body = player.getCollider().parent();
+      body?.setTranslation(rest, true);
+      body?.setNextKinematicTranslation(rest);
+      ctx.physics?.refreshQueries();
+      ctx.poses.set(playerId, rest.x, rest.y + PLAYER_HEIGHT / 2, 0, { snap: true });
     },
     snapshot() {
       const player = actor();

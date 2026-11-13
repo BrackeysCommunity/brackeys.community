@@ -225,6 +225,48 @@ describe("bounds from the scene", () => {
   });
 });
 
+describe("free mode, the editor's camera", () => {
+  /** What `GameInstance.zoomAt` does: zooms, then moves so the world point under `screen` stays put. */
+  function zoomAt(camera: ReturnType<typeof setup>["camera"], screen: Vec2, factor: number) {
+    const before = camera.screenToWorld(screen);
+    camera.setZoom(camera.getState().zoom * factor);
+    const after = camera.screenToWorld(screen);
+    const at = camera.getPosition();
+    camera.snapTo({ x: at.x + before.x - after.x, y: at.y + before.y - after.y });
+  }
+
+  it("keeps the world point under the pointer through a zoom, the scene smaller than the view", () => {
+    const { camera, toScreen } = setup();
+    camera.setBoundsFromScene([0, 0, 20, 12]);
+    camera.setMode("free");
+    camera.setZoom(0.5);
+    // Offset from the centre, as framing into the canvas the columns leave visible does.
+    camera.snapTo({ x: 13, y: 4 });
+    const pointer = { x: 420, y: 300 };
+    const under = camera.screenToWorld(pointer);
+    for (const factor of [1.15, 1.15, 1 / 1.15, 0.8]) {
+      zoomAt(camera, pointer, factor);
+      expectNear(camera.screenToWorld(pointer), under);
+      expectNear(toScreen(under), pointer, 6);
+    }
+  });
+
+  it("only keeps the view from leaving the bounds entirely", () => {
+    const { camera } = setup();
+    camera.setBoundsFromScene([0, 0, 20, 12], 0);
+    camera.setMode("free");
+    camera.snapTo({ x: 25, y: 6 });
+    expectNear(camera.getPosition(), { x: 25, y: 6 });
+    camera.snapTo({ x: 999, y: -999 });
+    // Half the 19.2 x 10.8 m view past each edge.
+    expectNear(camera.getPosition(), { x: 20 + 9.6, y: -5.4 });
+
+    camera.setMode("follow");
+    camera.snapTo({ x: 25, y: 6 });
+    expectNear(camera.getPosition(), { x: 20 - 9.6, y: 6 });
+  });
+});
+
 describe("resolution policies", () => {
   const LETTERBOX: ResolutionPolicy = {
     ...DEFAULT_RESOLUTION,

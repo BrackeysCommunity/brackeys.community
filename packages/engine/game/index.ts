@@ -179,7 +179,12 @@ export {
 } from "./input-bindings";
 export { bindingKeyLabel, keycapLabel, pointerButtonLabel } from "../input/keycaps";
 export type { InputState, PointerState } from "../input/state";
-export { COMMAND_NAME_PATTERN, ENGINE_COMMANDS } from "./commands";
+export {
+  COMMAND_NAME_PATTERN,
+  ENGINE_COMMANDS,
+  NAV_COMMAND,
+  type NavDestination,
+} from "./commands";
 export {
   ENGINE_CHECK_KINDS,
   ENGINE_COLLISION_GROUPS,
@@ -233,6 +238,7 @@ export type {
   GamePersistDef,
   GameSavesDef,
   JsonValue,
+  LiveContext,
   PersistContext,
   SaveRequest,
   SavesContext,
@@ -272,11 +278,22 @@ export type {
   TimerAction,
   Timers,
 } from "./types";
+export {
+  clampTiming,
+  LIVE_DEFAULTS,
+  type LiveDeclaration,
+  type SceneDiff,
+  type SceneSwap,
+  type SwapSide,
+  type SwapStrategy,
+  type SwapTiming,
+} from "./live";
 export { createPool } from "../runtime/pool";
 export type { AssetKindDef } from "../project/kinds";
 export type { ProjectRuntimeView } from "../project/runtime-view";
 export { composePose, relativePose } from "../runtime/poses";
 export type { Pose, PoseIndex } from "../runtime/poses";
+export { castSpawn, type CastResult } from "../runtime/cast";
 export { spawnPose } from "../runtime/spawn-pose";
 
 // ─── System authoring ────────────────────────────────────
@@ -335,7 +352,7 @@ export type {
   VisualOptions,
 } from "../systems/bodies";
 export { kinematicBodyEntry, rapierBodyEntry, registerBody } from "../runtime/bodies-control";
-export type { BodyEntry, BodyStandIn } from "../runtime/bodies-control";
+export type { BodyEntry, BodyStandIn, KinematicMotion } from "../runtime/bodies-control";
 export { parseShape } from "../scene/shapes";
 export type { ParseShapeResult } from "../scene/shapes";
 export { drawShape, traceShape } from "../render/draw-shape";

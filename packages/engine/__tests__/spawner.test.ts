@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vite-plus/test";
+import { z } from "zod";
 
 import type { BehaviorBlock } from "../game/behaviors";
 import { SPAWNER } from "../game/behaviors/spawner";
 import type { SpawnerSystem } from "../game/behaviors/spawner";
 import { createRegistry, defineEntityType, defineGame } from "../game/define";
-import { pointField } from "../game/fields";
+import { pointField, shapeField } from "../game/fields";
 import {
   EngineError,
   type EngineContext,
@@ -24,6 +25,7 @@ import {
   type ExpandedScene,
   type Prefab,
   type RuntimeEntity,
+  type ShapeObj,
 } from "../scene/types";
 
 /** A point type, and one whose system registers a dynamic body that only stores its velocity. */
@@ -78,9 +80,23 @@ function spawnGame(): GameDefinition {
       };
     },
   });
+  const slab = defineEntityType({
+    type: "slab",
+    description: "A shape with no point of its own.",
+    fields: { shape: shapeField("Its outline."), label: z.string().optional() },
+    system: (): SceneSystem => {
+      const live = new Set<string>();
+      return {
+        spawn: (e) => void live.add(e.id),
+        despawn: (id) => void live.delete(id),
+        clear: () => live.clear(),
+        size: () => live.size,
+      };
+    },
+  });
   return defineGame({
     id: "spawning",
-    types: [dot, ball],
+    types: [dot, ball, slab],
     actions: [],
     time: { kind: "fixed", rate: 60 },
     createRuntime: () => ({ snapshot: () => null, restore: () => {} }),
@@ -157,6 +173,73 @@ describe("the spawner behavior", () => {
     expect(SPAWNER.refine!({})).toMatch(/exactly one of `type` or `prefab`/);
     expect(SPAWNER.refine!({ type: "dot", prefab: "pair" })).toMatch(/exactly one/);
     expect(SPAWNER.template).toEqual({ type: "marker" });
+  });
+
+  it("takes fields only with type, and never the spawn's own id, type or sublevel", () => {
+    expect(
+      SPAWNER.refine!({ type: "slab", fields: { shape: ["box", 0, 0, 1, 1] } }),
+    ).toBeUndefined();
+    expect(SPAWNER.refine!({ prefab: "pair", fields: {} })).toMatch(/`fields` go with `type`/);
+    expect(SPAWNER.refine!({ type: "slab", fields: { id: "x", sublevel: "a" } })).toBe(
+      "spawner's `fields` can't set `id`, `sublevel`: the spawner gives each spawn its own",
+    );
+  });
+
+  it("spawns a shape type by type, its fields' shape placed at the spawn point, within spread and cap", () => {
+    const { ctx, steps, spawned, system, rt } = setup([
+      spawner("s", {
+        type: "slab",
+        fields: { shape: ["box", 0.5, 0, 0.5, 0.25], label: "brick" },
+        rate: 60,
+        cap: 4,
+        spread: 2,
+      }),
+    ]);
+    steps(30);
+    expect(spawned).toHaveLength(4);
+    expect(system.live("s")).toEqual(spawned.map((e) => e.other));
+    for (const e of spawned) {
+      const slab = ctx.get(e.other!)!;
+      expect(slab).toMatchObject({ type: "slab", label: "brick" });
+      expect(slab).not.toHaveProperty("at");
+      const { type, cx, cy, hw, hh } = slab.shape as Extract<ShapeObj, { type: "box" }>;
+      expect([type, hw, hh]).toEqual(["box", 0.5, 0.25]);
+      expect(cx).toBeCloseTo(e.at.x + 0.5, 5);
+      expect(cy).toBeCloseTo(e.at.y, 5);
+      const pose = ctx.poses.get(e.other!)!;
+      expect([pose.x, pose.y]).toEqual([cx, cy]);
+      const [dx, dy] = [e.at.x - 5, e.at.y - 5];
+      expect(dx * dx + dy * dy).toBeLessThanOrEqual(4 + 1e-9);
+    }
+    expect(new Set(spawned.map((e) => `${e.at.x},${e.at.y}`)).size).toBe(4);
+    rt.destroy();
+  });
+
+  it("stands a type spawn at the spawn point by at when its fields move nothing, keeping their behaviors beside its lifetime", () => {
+    const { ctx, steps, system, rt } = setup([
+      spawner("s", {
+        type: "dot",
+        fields: { behaviors: { spawner: { type: "dot", rate: 0 } } },
+        rate: 60,
+        cap: 1,
+        lifeMs: 100,
+      }),
+    ]);
+    steps(1);
+    const [id] = system.live("s");
+    expect(ctx.get(id!)).toMatchObject({
+      at: [5, 5],
+      behaviors: { spawner: { type: "dot", rate: 0 }, lifetime: { ms: 100 } },
+    });
+    rt.destroy();
+  });
+
+  it("refuses a spawn whose fields don't fit its type, in a dev or headless run", () => {
+    const { rt } = setup([spawner("s", { type: "slab", fields: { label: "no shape" }, rate: 60 })]);
+    expect(() => rt.step(rt.ctx.time.tickMs, [])).toThrow(
+      /spawn of "slab" doesn't match its schema/,
+    );
+    rt.destroy();
   });
 
   it("spawns 60 in 2 s at 30 a second, at its pose, raising spawner:spawned for each", () => {

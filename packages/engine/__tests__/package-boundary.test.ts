@@ -17,6 +17,7 @@ import { sceneListKind } from "../project/kinds/scene-list";
 import { PROJECT_OP_NAMES, projectOpsJsonSchema } from "../project/ops";
 import { projectJsonSchema } from "../project/project-file";
 import { RELEASE_SCHEMA_ID } from "../project/release";
+import { SCENE_VERSION_SCHEMA_ID } from "../project/scene-version";
 import { sidecarJsonSchema } from "../project/sidecar";
 import { projectSnapshotJsonSchema } from "../project/snapshot";
 import { checksJsonSchema } from "../scene/checks";
@@ -747,6 +748,21 @@ describe("package boundary", () => {
     violations(bad);
   });
 
+  it("copies live levels' shared modules into the canvas-sync image, each reaching only copied files", () => {
+    const shared = ["game/live.ts", "project/scene-version.ts", "scene/expanded-diff.ts"];
+    expect(shared.filter((f) => !isServiceCopied(f))).toEqual([]);
+    for (const entry of shared)
+      violations([...runtimeGraph(entry).files].filter((f) => !isServiceCopied(f)));
+  });
+
+  it("keeps the frame's live controller off editor UI and headless values", () => {
+    violations(
+      [...runtimeGraph("standalone/live.ts").files].filter(
+        (f) => f.startsWith("editor-ui/") || f.startsWith("headless/"),
+      ),
+    );
+  });
+
   it("keeps saves/ off Pixi values", () => {
     const saveFiles = sourceFiles.map((f) => rel(f)).filter((p) => p.startsWith("saves/"));
     expect(saveFiles).toContain("saves/index.ts");
@@ -1348,6 +1364,7 @@ async function surface() {
       docKindJsonSchema(sceneListKind, kindEnv).$id as string,
       SAVE_SCHEMA_ID,
       RELEASE_SCHEMA_ID,
+      SCENE_VERSION_SCHEMA_ID,
     ],
     cliCommands: Object.fromEntries(
       Object.entries(cli.COMMANDS)

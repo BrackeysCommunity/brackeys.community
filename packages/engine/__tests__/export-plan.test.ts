@@ -145,6 +145,18 @@ describe("the content plan over the engine project", () => {
     expect(Object.keys(plan.assets)).toEqual(Object.keys(plan.assets).sort());
   });
 
+  it("bundles the assets of a prefab only a spawner names, with no header naming them", async () => {
+    const plan = await planContent(input);
+    const yard = plan.scenes.find((s) => s.id === "behavior-yard")!;
+    expect(JSON.parse(input.texts.get("behavior-yard")!)).not.toHaveProperty("assets");
+    expect(yard.prefabs).not.toContain("crate");
+    expect(yard.bundle.entries).toContain("crates-texture");
+    for (const id of ["crate", "crates", "crates-texture"])
+      expect(plan.assets[id], id).toBeDefined();
+    const sink = plan.scenes.find((s) => s.id === "kitchen-sink")!;
+    expect(sink.bundle.entries).toEqual(["backdrop", "crates-texture", "hero-texture"]);
+  });
+
   it("refuses a shipped atlas whose entry records no size once, at the blob", async () => {
     const byId = new Map(input.view.byId);
     const { bytes: _, ...sizeless } = byId.get("hero")!;

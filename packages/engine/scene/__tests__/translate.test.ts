@@ -399,6 +399,18 @@ describe("the translate wrappers", () => {
     });
   });
 
+  it("place a template def at a point, rounded to the file's precision, or say it has nothing to move", () => {
+    const template: EntityDef = { id: "", type: "solid", shape: ["box", 0.5, 0, 0.5, 0.25] };
+    expect(translateEntityDef(registry, template, [1 / 3, 2])).toEqual({
+      ...template,
+      shape: ["box", 0.833333, 2, 0.5, 0.25],
+    });
+    expect(template.shape).toEqual(["box", 0.5, 0, 0.5, 0.25]);
+    expect(
+      translateEntityDef(registry, { id: "", type: "marker", tags: ["a"] }, [1, 1]),
+    ).toBeNull();
+  });
+
   it("translate bulk entries without turning boxes", () => {
     expect(translateBulkEntry(["box", 1, 2, 3, 4], [10, 10])).toEqual(["box", 11, 12, 3, 4]);
     expect(translateBulkEntry([1, 2], [10, 10])).toEqual([11, 12]);

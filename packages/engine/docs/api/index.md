@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ActionBindings`](#actionbindings) · [`AssetLoader`](#assetloader) · [`AssetReloadError`](#assetreloaderror) · [`AssetUrl`](#asseturl) · [`BindingLayerName`](#bindinglayername) · [`BindingLayers`](#bindinglayers) · [`BlendMode`](#blendmode) · [`BoundInput`](#boundinput) · [`CameraMode`](#cameramode) · [`CameraState`](#camerastate) · [`DEFAULT_INDEXED_DB_NAME`](#default_indexed_db_name) · [`DEFAULT_LOCAL_STORAGE_PREFIX`](#default_local_storage_prefix) · [`DEFAULT_RESOLUTION`](#default_resolution) · [`DeviceTables`](#devicetables) · [`Dihedral`](#dihedral) · [`ENGINE_VERSION`](#engine_version) · [`ExpandedScene`](#expandedscene) · [`FlowRequest`](#flowrequest) · [`FlowResult`](#flowresult) · [`FrameRect`](#framerect) · [`GameCommand`](#gamecommand) · [`GameConfig`](#gameconfig) · [`GameDefinition`](#gamedefinition) · [`GameEventMap`](#gameeventmap) · [`GameFlow`](#gameflow) · [`GameInput`](#gameinput) · [`GameInstance`](#gameinstance) · [`GameMode`](#gamemode) · [`GamePhase`](#gamephase) · [`GameStoreState`](#gamestorestate) · [`IDENTITY_2D`](#identity_2d) · [`InputAction`](#inputaction) · [`InputBinding`](#inputbinding) · [`LoadFailureReason`](#loadfailurereason) · [`LoadProgress`](#loadprogress) · [`LoadReport`](#loadreport) · [`LoadingView`](#loadingview) · [`LoadingViewFactory`](#loadingviewfactory) · [`MAX_PLAYERS`](#max_players) · [`MountUi`](#mountui) · [`PixiView`](#pixiview) · [`PixiViewOptions`](#pixiviewoptions) · [`PlayOptions`](#playoptions) · [`PlayOutcome`](#playoutcome) · [`PlayReport`](#playreport) · [`PlaySession`](#playsession) · [`PointerKind`](#pointerkind) · [`RapierModule`](#rapiermodule) · [`Registry`](#registry) · [`RemapState`](#remapstate) · [`RemapStore`](#remapstore) · [`RenderBackend`](#renderbackend) · [`RendererConfig`](#rendererconfig) · [`ResolutionPolicy`](#resolutionpolicy) · [`ResolutionViewport`](#resolutionviewport) · [`ResolvedBindings`](#resolvedbindings) · [`RunRecording`](#runrecording) · [`RuntimeEntity`](#runtimeentity) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SaveDepth`](#savedepth) · [`SaveLimits`](#savelimits) · [`SaveMeta`](#savemeta) · [`SaveSlots`](#saveslots) · [`SaveStore`](#savestore) · [`SaveSummary`](#savesummary) · [`SaveWriteResult`](#savewriteresult) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneSource`](#scenesource) · [`SimState`](#simstate) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteVisual`](#spritevisual) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`TOOL_PRIORITY`](#tool_priority) · [`TextureSource`](#texturesource) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TouchControlDef`](#touchcontroldef) · [`TouchControlValue`](#touchcontrolvalue) · [`TouchControls`](#touchcontrols) · [`Transform2D`](#transform2d) · [`TransitionRunner`](#transitionrunner) · [`TransitionSpec`](#transitionspec) · [`UiActionEvent`](#uiactionevent) · [`UiContext`](#uicontext) · [`UiHandle`](#uihandle) · [`Vec2`](#vec2) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`bindText`](#bindtext) · [`bindToWorld`](#bindtoworld) · [`browserRemapStore`](#browserremapstore) · [`browserSaveStore`](#browsersavestore) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`createAssetLoader`](#createassetloader) · [`createGame`](#creategame) · [`createLoadingOverlay`](#createloadingoverlay) · [`createPixiView`](#createpixiview) · [`createTouchControls`](#createtouchcontrols) · [`createUiLayer`](#createuilayer) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`drawSprite`](#drawsprite) · [`fadeTransition`](#fadetransition) · [`flipWorld`](#flipworld) · [`indexedDbSaveStore`](#indexeddbsavestore) · [`invert`](#invert) · [`localStorageSaveStore`](#localstoragesavestore) · [`memoryRemapStore`](#memoryremapstore) · [`memorySaveStore`](#memorysavestore) · [`mountUi`](#mountui-1) · [`pixiContainer`](#pixicontainer) · [`resolveBindings`](#resolvebindings) · [`resolvePlayers`](#resolveplayers) · [`resolveResolution`](#resolveresolution) · [`selectCamera`](#selectcamera) · [`selectDebugMode`](#selectdebugmode) · [`selectFPS`](#selectfps) · [`selectGame`](#selectgame) · [`selectMode`](#selectmode) · [`selectPhase`](#selectphase) · [`selectSession`](#selectsession) · [`selectSim`](#selectsim) · [`selectTick`](#selecttick) · [`snapshotRemapStore`](#snapshotremapstore) · [`spriteGeometry`](#spritegeometry-1) · [`viewportFor`](#viewportfor) · [`watchView`](#watchview)
+[`ActionBindings`](#actionbindings) · [`AssetLoader`](#assetloader) · [`AssetReloadError`](#assetreloaderror) · [`AssetUrl`](#asseturl) · [`BindingLayerName`](#bindinglayername) · [`BindingLayers`](#bindinglayers) · [`BlendMode`](#blendmode) · [`BoundInput`](#boundinput) · [`CameraMode`](#cameramode) · [`CameraState`](#camerastate) · [`DEFAULT_INDEXED_DB_NAME`](#default_indexed_db_name) · [`DEFAULT_LOCAL_STORAGE_PREFIX`](#default_local_storage_prefix) · [`DEFAULT_RESOLUTION`](#default_resolution) · [`DeviceTables`](#devicetables) · [`Dihedral`](#dihedral) · [`ENGINE_VERSION`](#engine_version) · [`ExpandedScene`](#expandedscene) · [`FlowRequest`](#flowrequest) · [`FlowResult`](#flowresult) · [`FrameRect`](#framerect) · [`GameCommand`](#gamecommand) · [`GameConfig`](#gameconfig) · [`GameDefinition`](#gamedefinition) · [`GameEventMap`](#gameeventmap) · [`GameFlow`](#gameflow) · [`GameInput`](#gameinput) · [`GameInstance`](#gameinstance) · [`GameLive`](#gamelive) · [`GameMode`](#gamemode) · [`GamePhase`](#gamephase) · [`GameStoreState`](#gamestorestate) · [`IDENTITY_2D`](#identity_2d) · [`InputAction`](#inputaction) · [`InputBinding`](#inputbinding) · [`LIVE_DEFAULTS`](#live_defaults) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LiveSceneVersions`](#livesceneversions) · [`LoadFailureReason`](#loadfailurereason) · [`LoadProgress`](#loadprogress) · [`LoadReport`](#loadreport) · [`LoadingView`](#loadingview) · [`LoadingViewFactory`](#loadingviewfactory) · [`MAX_PLAYERS`](#max_players) · [`MountUi`](#mountui) · [`PixiView`](#pixiview) · [`PixiViewOptions`](#pixiviewoptions) · [`PlayOptions`](#playoptions) · [`PlayOutcome`](#playoutcome) · [`PlayReport`](#playreport) · [`PlaySession`](#playsession) · [`PointerKind`](#pointerkind) · [`RapierModule`](#rapiermodule) · [`Registry`](#registry) · [`RemapState`](#remapstate) · [`RemapStore`](#remapstore) · [`RenderBackend`](#renderbackend) · [`RendererConfig`](#rendererconfig) · [`ResolutionPolicy`](#resolutionpolicy) · [`ResolutionViewport`](#resolutionviewport) · [`ResolvedBindings`](#resolvedbindings) · [`RunRecording`](#runrecording) · [`RuntimeEntity`](#runtimeentity) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SaveDepth`](#savedepth) · [`SaveLimits`](#savelimits) · [`SaveMeta`](#savemeta) · [`SaveSlots`](#saveslots) · [`SaveStore`](#savestore) · [`SaveSummary`](#savesummary) · [`SaveWriteResult`](#savewriteresult) · [`SceneDiff`](#scenediff) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneSource`](#scenesource) · [`SceneSwap`](#sceneswap) · [`SimState`](#simstate) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteVisual`](#spritevisual) · [`StagedVersion`](#stagedversion) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`TOOL_PRIORITY`](#tool_priority) · [`TextureSource`](#texturesource) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TouchControlDef`](#touchcontroldef) · [`TouchControlValue`](#touchcontrolvalue) · [`TouchControls`](#touchcontrols) · [`Transform2D`](#transform2d) · [`TransitionRunner`](#transitionrunner) · [`TransitionSpec`](#transitionspec) · [`UiActionEvent`](#uiactionevent) · [`UiContext`](#uicontext) · [`UiHandle`](#uihandle) · [`Vec2`](#vec2) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`bindText`](#bindtext) · [`bindToWorld`](#bindtoworld) · [`browserRemapStore`](#browserremapstore) · [`browserSaveStore`](#browsersavestore) · [`clampTiming`](#clamptiming) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`createAssetLoader`](#createassetloader) · [`createGame`](#creategame) · [`createLoadingOverlay`](#createloadingoverlay) · [`createPixiView`](#createpixiview) · [`createTouchControls`](#createtouchcontrols) · [`createUiLayer`](#createuilayer) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`drawSprite`](#drawsprite) · [`fadeTransition`](#fadetransition) · [`flipWorld`](#flipworld) · [`indexedDbSaveStore`](#indexeddbsavestore) · [`invert`](#invert) · [`liveSceneSource`](#livescenesource) · [`localStorageSaveStore`](#localstoragesavestore) · [`memoryRemapStore`](#memoryremapstore) · [`memorySaveStore`](#memorysavestore) · [`mountUi`](#mountui-1) · [`pixiContainer`](#pixicontainer) · [`resolveBindings`](#resolvebindings) · [`resolvePlayers`](#resolveplayers) · [`resolveResolution`](#resolveresolution) · [`selectCamera`](#selectcamera) · [`selectDebugMode`](#selectdebugmode) · [`selectFPS`](#selectfps) · [`selectGame`](#selectgame) · [`selectMode`](#selectmode) · [`selectPhase`](#selectphase) · [`selectSession`](#selectsession) · [`selectSim`](#selectsim) · [`selectTick`](#selecttick) · [`snapshotRemapStore`](#snapshotremapstore) · [`spriteGeometry`](#spritegeometry-1) · [`viewportFor`](#viewportfor) · [`watchView`](#watchview)
 
 ## `ActionBindings`
 
@@ -236,7 +236,7 @@ type Dihedral = {
 _const_ in `version.ts`
 
 ```ts
-declare const ENGINE_VERSION = "0.14.3";
+declare const ENGINE_VERSION = "0.14.4";
 ```
 
 ## `ExpandedScene`
@@ -399,7 +399,14 @@ type GameConfig = {
      */
     rapier?: () => Promise<RapierModule>;
     /** The Rapier package and the project's snapshot, for Play's recordings; the engine fills the arch and runtime. */
-    recording?: RecordingHost;
+    recording?: RecordingHost & {
+        /**
+         * Also records the scene flow's run outside the editor's Play: each
+         * scene `flow` loads is a session until the next load, which ends it as
+         * `flow`. A load from a save isn't recorded. Default false.
+         */
+        flow?: boolean;
+    };
     /** A registry the host already built from `game`, so host and shell share one; built here when omitted. */
     registry?: Registry;
     /** The release this instance plays; the recorder writes its id as `release`. */
@@ -471,6 +478,8 @@ type GameDefinition<S = unknown, G = unknown> = {
     issues?: Readonly<Record<string, IssueCodeDef>>;
     /** Scene layers, bottom to top; replaces the engine's four defaults when given. */
     layers?: readonly SceneLayerDef[];
+    /** Which swap timings the game accepts for a new version of a running scene; omitted: next load only. */
+    live?: LiveDeclaration;
     materials?: Readonly<Record<string, MaterialDef>>;
     /** State that survives every scene change within one instance (`EngineContext.persist`). */
     persist?: GamePersistDef;
@@ -514,7 +523,7 @@ type GameDefinition<S = unknown, G = unknown> = {
 };
 ```
 
-Refers to [`ResolutionPolicy`](#resolutionpolicy).
+Refers to [`LiveDeclaration`](#livedeclaration), [`ResolutionPolicy`](#resolutionpolicy).
 
 ## `GameEventMap`
 
@@ -536,6 +545,14 @@ type GameEventMap = {
     "game:tick": {
         tick: number;
     };
+    /** A version couldn't be staged or applied; the old one keeps running and the new one waits for the next load. */
+    "live:failed": {
+        issue: SceneIssue;
+        scene: AssetId;
+        version: Sha256 | null;
+    };
+    /** A new version of the running scene was applied between ticks, after the game's `onSwap`. */
+    "live:swapped": SceneSwap;
     /** The game's first verdict in a play session, from its `play.outcome`. */
     "play:outcome": PlayOutcome;
     /** A play session's recording, finished at the game's first verdict, a replay's last tick, or Stop. */
@@ -573,7 +590,7 @@ type GameEventMap = {
 };
 ```
 
-Refers to [`LoadProgress`](#loadprogress), [`PlayOutcome`](#playoutcome), [`RenderBackend`](#renderbackend), [`RunRecording`](#runrecording), [`StepResult`](#stepresult).
+Refers to [`LoadProgress`](#loadprogress), [`PlayOutcome`](#playoutcome), [`RenderBackend`](#renderbackend), [`RunRecording`](#runrecording), [`SceneSwap`](#sceneswap), [`StepResult`](#stepresult).
 
 ## `GameFlow`
 
@@ -676,6 +693,8 @@ type GameInstance = {
     getStore: () => Store<GameStoreState>;
     /** Bindings, remapping, seats and pointer tracking. */
     input: GameInput;
+    /** New versions of listed scenes, staged and swapped into the running game. */
+    live: GameLive;
     /**
      * Builds a fresh world for `scene`, expanding a document through `registry`
      * first; on failure the current scene keeps running.
@@ -719,9 +738,12 @@ type GameInstance = {
     /**
      * The session's recording once finished (the game's first verdict, or
      * Stop), else the last session's; null before any Play. A session started
-     * through `setMode` isn't recorded.
+     * through `setMode` isn't recorded. With `running`, a session still
+     * recording comes back as Stop would end it now, and keeps recording.
      */
-    recording: () => RunRecording | null;
+    recording: (opts?: {
+        running?: boolean;
+    }) => RunRecording | null;
     /** The registry built from `config.game`; hosts parse and expand scenes with it. */
     registry: Registry;
     /**
@@ -748,8 +770,19 @@ type GameInstance = {
      * Plays `recording` on `doc`: Play from the recording's start, with its
      * input edges stepped on their ticks in place of the keyboard's. At its
      * last tick the loop pauses on the end state; Stop returns to edit.
+     *
+     * A recording that started on a live version (`sceneVersion`) plays that
+     * version's scene in place of `doc`, and each recorded swap is applied
+     * before its tick with its recorded strategy, through the same path as a
+     * live swap. A version `versions` can't give is `scene-version-removed`:
+     * for the start, the replay doesn't start (the report carries the issue);
+     * for a swap, `live:failed` carries it with `detail.tick` and the replay
+     * stops on that tick. The scene's own live version comes back at Stop.
      */
-    replay: (doc: SceneDefinition, recording: RunRecording) => PlayReport;
+    replay: (doc: SceneDefinition, recording: RunRecording, opts?: {
+        /** The scene versions the recording names, by id; null for one the host doesn't have. */
+        versions?: (id: Sha256) => StagedVersion | null;
+    }) => PlayReport;
     resize: (width: number, height: number) => void;
     resume: () => void;
     /**
@@ -807,7 +840,55 @@ type GameInstance = {
 };
 ```
 
-Refers to [`AssetReloadError`](#assetreloaderror), [`ExpandedScene`](#expandedscene), [`GameCommand`](#gamecommand), [`GameEventMap`](#gameeventmap), [`GameFlow`](#gameflow), [`GameInput`](#gameinput), [`GameMode`](#gamemode), [`GameStoreState`](#gamestorestate), [`LoadProgress`](#loadprogress), [`LoadReport`](#loadreport), [`PlayOptions`](#playoptions), [`PlayReport`](#playreport), [`Registry`](#registry), [`RunRecording`](#runrecording), [`SaveSlots`](#saveslots), [`ToolRouter`](#toolrouter), [`Vec2`](#vec2).
+Refers to [`AssetReloadError`](#assetreloaderror), [`ExpandedScene`](#expandedscene), [`GameCommand`](#gamecommand), [`GameEventMap`](#gameeventmap), [`GameFlow`](#gameflow), [`GameInput`](#gameinput), [`GameLive`](#gamelive), [`GameMode`](#gamemode), [`GameStoreState`](#gamestorestate), [`LoadProgress`](#loadprogress), [`LoadReport`](#loadreport), [`PlayOptions`](#playoptions), [`PlayReport`](#playreport), [`Registry`](#registry), [`RunRecording`](#runrecording), [`SaveSlots`](#saveslots), [`StagedVersion`](#stagedversion), [`ToolRouter`](#toolrouter), [`Vec2`](#vec2).
+
+## `GameLive`
+
+_type_ in `types.ts`
+
+`GameInstance.live`.
+
+```ts
+type GameLive = {
+    /**
+     * Uses a staged version (null: the release's own) for a scene, with a timing
+     * clamped to what the game accepts. The issue is live-timing-unsupported (a
+     * warning) when the timing was clamped, or live-swap-failed when the version
+     * isn't staged.
+     */
+    activate(scene: AssetId, version: Sha256 | null, timing: SwapTiming): {
+        clamped: boolean;
+        issue?: SceneIssue;
+        timing: SwapTiming;
+    };
+    /** The version this scene's loads use; null for the release's own. */
+    current(scene: AssetId): Sha256 | null;
+    /** Activations waiting for their timing, in scene-id order. */
+    pending(): readonly {
+        scene: AssetId;
+        timing: SwapTiming;
+        version: Sha256 | null;
+    }[];
+    /** For online sessions: ignore activations until unpinned. */
+    pin(versions: Readonly<Record<AssetId, Sha256>>): void;
+    /**
+     * Fetches nothing: makes a version resident (validated, expanded, bundle
+     * preloaded) for a listed scene. Its preload gets `LIVE_DEFAULTS.preloadTimeoutMs`,
+     * or less when `signal` aborts first; a refusal leaves the scene's versions as they were.
+     */
+    stage(v: StagedVersion, opts?: {
+        signal?: AbortSignal;
+    }): Promise<{
+        issue: SceneIssue;
+        ok: false;
+    } | {
+        ok: true;
+    }>;
+    unpin(): void;
+};
+```
+
+Refers to [`StagedVersion`](#stagedversion), [`SwapTiming`](#swaptiming).
 
 ## `GameMode`
 
@@ -896,6 +977,69 @@ type InputBinding = {
      * code `KEY_TO_CODE` gives the key; use `bindings`.
      */
     keys?: readonly string[];
+};
+```
+
+## `LIVE_DEFAULTS`
+
+_const_ in `game/live.ts`
+
+How long staging may take, Live in Play's debounce, and where and how long the swap check runs.
+
+```ts
+declare const LIVE_DEFAULTS: {
+    readonly checkAt: readonly [
+        0.25,
+        0.5,
+        0.75
+    ];
+    readonly checkTicks: 120;
+    readonly livePlayDebounceMs: 300;
+    readonly preloadTimeoutMs: 60000;
+};
+```
+
+## `LiveContext`
+
+_type_ in `game/types.ts`
+
+`EngineContext.live`.
+
+```ts
+type LiveContext = {
+    /** Inside a step: this is a safe moment to change the level (a respawn, a turn's end, a checkpoint). */
+    boundary(label?: string): void;
+    /** The running main scene's version; null when it is the release's own. */
+    readonly version: Sha256 | null;
+};
+```
+
+## `LiveDeclaration`
+
+_type_ in `game/live.ts`
+
+`GameDefinition.live`: which timings the game accepts and what must hold after a swap.
+
+```ts
+type LiveDeclaration = {
+    /** Invariants the swap check (and Live in Play) runs right after a swap and 60 ticks later. */
+    check?(ctx: EngineContext): readonly SceneIssue[];
+    /** "next-load" is always allowed; list "boundary" and "now" to accept them. */
+    timings: readonly SwapTiming[];
+};
+```
+
+Refers to [`SwapTiming`](#swaptiming).
+
+## `LiveSceneVersions`
+
+_type_ in `flow-host.ts`
+
+The live versions a scene source reads first: the active version's scene for a listed id, or null for the release's own.
+
+```ts
+type LiveSceneVersions = {
+    sceneFor(id: AssetId): LibraryScene | null;
 };
 ```
 
@@ -1546,6 +1690,22 @@ type SaveWriteResult = {
 };
 ```
 
+## `SceneDiff`
+
+_type_ in `game/live.ts`
+
+What differs between two expanded versions of a scene, by entity id in scene order.
+
+```ts
+type SceneDiff = {
+    added: readonly string[];
+    changed: readonly string[];
+    /** name, bounds or settings differ: the swap reloads. */
+    header: boolean;
+    removed: readonly string[];
+};
+```
+
 ## `SceneLibrary`
 
 _type_ in `game/flow.ts`
@@ -1592,6 +1752,30 @@ type SceneSource = {
 ```
 
 Refers to [`SceneListEntry`](#scenelistentry).
+
+## `SceneSwap`
+
+_type_ in `game/live.ts`
+
+What `GameRuntime.onSwap` and the `live:swapped` event receive.
+
+```ts
+type SceneSwap = {
+    /** What survived: everything (reconcile), the world (reload, world depth), or only the game's state and persist. */
+    carried: "all" | "progress" | "world";
+    diff: SceneDiff;
+    /** `version` null: the release's own scene. */
+    from: SwapSide;
+    scene: AssetId;
+    strategy: SwapStrategy;
+    /** `ctx.tick` when the swap ran: the next tick to step. */
+    tick: number;
+    timing: SwapTiming;
+    to: SwapSide;
+};
+```
+
+Refers to [`SceneDiff`](#scenediff), [`SwapSide`](#swapside), [`SwapStrategy`](#swapstrategy), [`SwapTiming`](#swaptiming).
 
 ## `SimState`
 
@@ -1711,6 +1895,21 @@ type SpriteVisual = {
 
 Refers to [`BlendMode`](#blendmode).
 
+## `StagedVersion`
+
+_type_ in `types.ts`
+
+A scene version the host fetched, ready to stage.
+
+```ts
+type StagedVersion = {
+    id: Sha256;
+    /** Canonical texts by hash (the scene and its prefabs), already hash-checked. */
+    texts: ReadonlyMap<Sha256, string>;
+    version: SceneVersion;
+};
+```
+
 ## `StepEvent`
 
 _type_ in `runtime/types.ts`
@@ -1755,6 +1954,42 @@ type StepResult = {
 ```
 
 Refers to [`StepEvent`](#stepevent).
+
+## `SwapSide`
+
+_type_ in `game/live.ts`
+
+One side of a swap: the version (null for the release's own scene) and its hashes.
+
+```ts
+type SwapSide = {
+    runHash: string;
+    sceneHash: string;
+    version: Sha256 | null;
+};
+```
+
+## `SwapStrategy`
+
+_type_ in `game/live.ts`
+
+Reconcile changes entities in place; reload loads the new version fresh and restores what it can.
+
+```ts
+type SwapStrategy = "reconcile" | "reload";
+```
+
+## `SwapTiming`
+
+_type_ in `game/live.ts`
+
+When a new version of a scene reaches a running game: inside the next load
+of that scene, after the tick in which game code called
+`ctx.live.boundary()`, or after the tick during which it finished staging.
+
+```ts
+type SwapTiming = "boundary" | "next-load" | "now";
+```
 
 ## `TOOL_PRIORITY`
 
@@ -1810,6 +2045,7 @@ _type_ in `tool-router.ts`
 type ToolEvent = {
     /** The DOM button that changed (0 primary, 1 middle, 2 secondary), -1 for a plain move. */
     button: number;
+    /** A wheel turn's vertical distance in CSS px, whatever unit the browser reported it in; 0 otherwise. */
     deltaY: number;
     kind: "pointer";
     /** A move that is the pointer leaving the target (a `pointerleave`); `screen` is where it left. */
@@ -2159,6 +2395,23 @@ declare function browserSaveStore(): SaveStore;
 
 Refers to [`SaveStore`](#savestore).
 
+## `clampTiming`
+
+_function_ in `game/live.ts`
+
+The timing a game gets when `wanted` is asked for: `next-load` is always
+allowed, and a timing the game doesn't list falls to the strongest listed
+one below it (`now`, then `boundary`, then `next-load`).
+
+```ts
+declare function clampTiming(live: LiveDeclaration | undefined, wanted: SwapTiming): {
+    clamped: boolean;
+    timing: SwapTiming;
+};
+```
+
+Refers to [`LiveDeclaration`](#livedeclaration), [`SwapTiming`](#swaptiming).
+
 ## `compose`
 
 _function_ in `scene/transform.ts`
@@ -2359,6 +2612,20 @@ declare function invert(t: Transform2D): Transform2D;
 ```
 
 Refers to [`Transform2D`](#transform2d).
+
+## `liveSceneSource`
+
+_function_ in `flow-host.ts`
+
+`base` with each scene's active live version in place of its own, so
+every load and sublevel library built from it gets that version; the
+list and the start are `base`'s.
+
+```ts
+declare function liveSceneSource(base: SceneSource, live: LiveSceneVersions): SceneSource;
+```
+
+Refers to [`LiveSceneVersions`](#livesceneversions), [`SceneSource`](#scenesource).
 
 ## `localStorageSaveStore`
 

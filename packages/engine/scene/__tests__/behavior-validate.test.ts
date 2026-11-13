@@ -437,3 +437,105 @@ describe("until.near", () => {
     ).toThrow(/script predicate "near" is the engine's/);
   });
 });
+
+describe("path-follow on what it can't move", () => {
+  const path = {
+    path: {
+      pts: [
+        [1, 1],
+        [3, 1],
+      ],
+      mode: "ping_pong",
+      speed: 1,
+    },
+  };
+  const warnings = (entities: EntityDef[], registry = engine) =>
+    codes(validateScene(scene(entities), registry), "behavior-conflict");
+
+  it("warns when the collider has no body or a static one, at the path-follow block", () => {
+    const hits = warnings([
+      marker("bare", { collider: { shape: box }, "path-follow": path }),
+      marker("pinned", {
+        collider: { shape: box },
+        body: { kind: "static" },
+        "path-follow": path,
+      }),
+    ]);
+    expect(hits.map((i) => [i.entityIds[0], i.severity, i.path])).toEqual([
+      ["bare", "warn", "/entities/0/behaviors/path-follow"],
+      ["pinned", "warn", "/entities/1/behaviors/path-follow"],
+    ]);
+    expect(hits[0]!.message).toBe(
+      "bare's path-follow moves its pose, but its collider has no body, so it stays where it was built",
+    );
+    expect(hits[1]!.message).toContain("its collider's body is static");
+    expect(hits[0]!.hint).toContain('"kinematic"');
+  });
+
+  it("warns on a type whose own system places it: solid, prop, follower and sensor", () => {
+    const shape = ["box", 1, 1, 0.5, 0.5];
+    const hits = warnings([
+      { id: "wall", type: "solid", shape, behaviors: { "path-follow": path } },
+      {
+        id: "crate",
+        type: "prop",
+        shape,
+        density: 1,
+        restitution: 0,
+        behaviors: { "path-follow": path },
+      },
+      {
+        id: "lift",
+        type: "follower",
+        shape: ["box", 0, 0, 0.5, 0.1],
+        path: path.path,
+        behaviors: { "path-follow": path },
+      },
+      { id: "zone", type: "sensor", shape, behaviors: { "path-follow": path } },
+    ]);
+    expect(hits.map((i) => [i.entityIds[0], i.severity])).toEqual([
+      ["wall", "warn"],
+      ["crate", "warn"],
+      ["lift", "warn"],
+      ["zone", "warn"],
+    ]);
+    expect(hits[2]!.message).toBe(
+      "lift's path-follow moves its pose, but a follower's own system places its body",
+    );
+    expect(hits[3]!.message).toContain("a sensor's trigger stays where it was built");
+  });
+
+  it("leaves alone what it moves: a bare pose, a collider on a kinematic or dynamic body, a decor, a game type's own system", () => {
+    const game = defineGame({
+      id: "carriers",
+      types: [
+        defineEntityType({
+          type: "crate",
+          description: "A crate its own system draws.",
+          fields: { at: z.tuple([z.number(), z.number()]).describe("Where.") },
+          system: () => ({ spawn: () => {}, despawn: () => {}, clear: () => {} }) as never,
+        }),
+      ],
+      actions: [],
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    expect(
+      warnings([
+        marker("plain", { "path-follow": path }),
+        marker("ferry", {
+          collider: { shape: box },
+          body: { kind: "kinematic" },
+          "path-follow": path,
+        }),
+        marker("raft", { collider: { shape: box }, body: {}, "path-follow": path }),
+        { id: "haze", type: "decor", at: [1, 1], behaviors: { "path-follow": path } },
+      ]),
+    ).toEqual([]);
+    expect(
+      warnings(
+        [{ id: "c", type: "crate", at: [1, 1], behaviors: { "path-follow": path } }],
+        createRegistry(game),
+      ),
+    ).toEqual([]);
+  });
+});

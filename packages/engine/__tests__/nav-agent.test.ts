@@ -3,8 +3,10 @@ import { describe, expect, it } from "vite-plus/test";
 import type { BehaviorBlock } from "../game/behaviors";
 import type { NavAgentSystem } from "../game/behaviors/nav-agent";
 import { createRegistry, defineGame } from "../game/define";
-import type { GameDefinition } from "../game/types";
+import { EngineError, type GameDefinition } from "../game/types";
 import { createHeadlessRuntime } from "../headless/headless";
+import { runPlaytest } from "../headless/playtest";
+import { replayRecording } from "../headless/recording";
 import { ENGINE_BEHAVIOR_SYSTEMS } from "../runtime/behaviors/index";
 import { createNavAgentSystem } from "../runtime/behaviors/nav-agent";
 import { createSceneRuntime } from "../runtime/runtime";
@@ -391,6 +393,102 @@ describe("the nav-agent behavior", () => {
     const { rt, nav } = setup([...ROOM, agent("a", [1, 5])]);
     expect(() => nav.setDestination("floor", { x: 1, y: 1 })).toThrow(/no nav-agent/);
     rt.destroy();
+  });
+});
+
+describe("@nav: a script's nav step", () => {
+  const tick = (commands: { name: string; args: unknown }[]) => ({
+    tick: 0,
+    actions: [],
+    commands,
+    pointers: [],
+    joins: [],
+  });
+
+  it("sets a destination at the start of the tick, as setDestination does", () => {
+    const { rt, nav, events, steps, at } = setup([...ROOM, agent("a", [1, 5])]);
+    rt.step(rt.ctx.time.tickMs, tick([{ name: "@nav", args: { id: "a", to: [11, 5] } }]));
+    expect(nav.path("a")?.at(-1)).toEqual({ x: 11, y: 5 });
+    steps(900);
+    expect(events).toEqual([expect.objectContaining({ type: ARRIVED, entityId: "a" })]);
+    expect(dist(at("a"), { x: 11, y: 5 })).toBeLessThanOrEqual(0.12);
+    rt.destroy();
+  });
+
+  it("refuses an entity without a nav-agent (behavior-missing) and one that doesn't exist (dangling-ref)", () => {
+    const { rt } = setup([...ROOM, agent("a", [1, 5])]);
+    const refusal = (id: string) => {
+      try {
+        rt.step(rt.ctx.time.tickMs, tick([{ name: "@nav", args: { id, to: [2, 2] } }]));
+      } catch (err) {
+        return err instanceof EngineError ? { code: err.code, entityId: err.entityId } : err;
+      }
+      return null;
+    };
+    expect(refusal("floor")).toEqual({ code: "behavior-missing", entityId: "floor" });
+    rt.destroy();
+    const again = setup([...ROOM, agent("a", [1, 5])]);
+    try {
+      again.rt.step(
+        again.rt.ctx.time.tickMs,
+        tick([{ name: "@nav", args: { id: "nobody", to: "a" } }]),
+      );
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toMatchObject({ code: "dangling-ref", entityId: "nobody" });
+    }
+    again.rt.destroy();
+  });
+
+  const doc = (): SceneDefinition => ({
+    v: 4,
+    name: "nav-steps",
+    bounds: [-20, -20, 40, 40],
+    settings: { physics: "none", gravity: [0, 0] },
+    entities: [
+      { id: "floor", type: "nav", shape: ["poly", 0, 0, 12, 0, 12, 10, 0, 10] },
+      { id: "pillar", type: "nav", mode: "block", shape: ["poly", 4, 3, 8, 3, 8, 7, 4, 7] },
+      { id: "a", type: "marker", at: [1, 5], behaviors: { "nav-agent": {} } },
+      { id: "b", type: "marker", at: [11, 9], behaviors: { "nav-agent": {} } },
+    ],
+  });
+
+  it("walks agents in a gameless playtest, records the steps as input and replays them", () => {
+    const script = {
+      v: 2 as const,
+      steps: [
+        { nav: { id: "a", to: [11, 5] as [number, number] } },
+        { nav: { id: "b", to: "a" } },
+        { hold: [], until: { event: { type: ARRIVED, entityId: "a" } }, max: 900 },
+      ],
+    };
+    const run = runPlaytest({ scene: doc(), script });
+    if (run.blocked) throw new Error(JSON.stringify(run));
+    expect(run.outcome.result).toBe("script-end");
+    expect(run.steps.map((s) => s.end)).toEqual(["done", "done", "until"]);
+    expect(run.recording.commands).toEqual(["@nav"]);
+    expect(run.commands.slice(0, 2)).toEqual([
+      [0, "@nav", { id: "a", to: [11, 5] }],
+      [1, "@nav", { id: "b", to: "a" }],
+    ]);
+    const replay = replayRecording({ scene: doc(), recording: run.recording });
+    if (replay.blocked) throw new Error(JSON.stringify(replay));
+    expect(replay.matches, replay.divergence ?? "").toBe(true);
+    const again = runPlaytest({ scene: doc(), script });
+    expect(again.blocked ? null : again.recording).toEqual(run.recording);
+  });
+
+  it("blocks a playtest whose nav step names an entity without a nav-agent", () => {
+    const run = runPlaytest({
+      scene: doc(),
+      script: { v: 2, steps: [{ wait: 3 }, { nav: { id: "floor", to: [2, 2] } }] },
+    });
+    expect(run.blocked).toBe(true);
+    if (!run.blocked) return;
+    expect(run.stage).toBe("run");
+    expect(run.issues).toContainEqual(
+      expect.objectContaining({ code: "behavior-missing", entityIds: ["floor"] }),
+    );
   });
 });
 

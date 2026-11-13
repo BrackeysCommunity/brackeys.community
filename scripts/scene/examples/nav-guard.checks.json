@@ -1,0 +1,13 @@
+{
+  "v": 3,
+  "checks": [
+    {
+      "id": "guard-crosses",
+      "kind": "reaches",
+      "script": { "v": 2, "steps": [{ "wait": 300 }] },
+      "nav": [{ "id": "std-nav-agent", "to": [22.6, 3.5] }],
+      "result": "script-end",
+      "expect": { "near": { "id": "std-nav-agent", "to": [22.6, 3.5], "within": 0.2 } }
+    }
+  ]
+}

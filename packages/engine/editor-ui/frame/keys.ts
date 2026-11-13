@@ -35,6 +35,8 @@ export type EditorControls = Omit<EditorChromeProps, "runStore" | "rapier"> & {
   playFrom: (opts: PlayOptions) => void;
   /** Frames `refs` in the editor camera; false when none of them has geometry. */
   frame: (refs: readonly Ref[]) => boolean;
+  /** Pans, never zooming, until `refs` are in the canvas's visible part; true when it panned. */
+  reveal: (refs: readonly Ref[]) => boolean;
 };
 
 /** Commands the shell carries out itself, in edit and play. */

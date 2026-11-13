@@ -7,7 +7,7 @@ import type { InputState } from "../input/state";
 import type { PhysicsWorld } from "../physics";
 import type { AssetKindDef } from "../project/kinds";
 import type { ProjectRuntimeView } from "../project/runtime-view";
-import type { AssetId, AssetKindName } from "../project/types";
+import type { AssetId, AssetKindName, Sha256 } from "../project/types";
 import type { ResolutionPolicy } from "../resolution";
 import type { GeometryWorld } from "../runtime/geometry-world";
 import type { RuntimeGrid } from "../runtime/grid";
@@ -53,6 +53,7 @@ import type {
 } from "./behaviors";
 import type { FlowRequest, SublevelInfo, SublevelOptions, SublevelResult } from "./flow";
 import type { PadAxis, PadButton, PointerButton } from "./input-codes";
+import type { LiveDeclaration, SceneSwap } from "./live";
 import type { SaveDepth, SaveGameData, SaveLimits } from "./save-file";
 import type { ResolvedTime, TimeModel } from "./time";
 
@@ -360,6 +361,16 @@ export type EngineContext = {
   saves: SavesContext;
   /** Moves bodies by entity id, whichever system owns them. */
   readonly bodies: BodyControl;
+  /** Which version of the main scene runs, and where game code marks a safe moment to change it. */
+  readonly live: LiveContext;
+};
+
+/** `EngineContext.live`. */
+export type LiveContext = {
+  /** The running main scene's version; null when it is the release's own. */
+  readonly version: Sha256 | null;
+  /** Inside a step: this is a safe moment to change the level (a respawn, a turn's end, a checkpoint). */
+  boundary(label?: string): void;
 };
 
 /**
@@ -367,8 +378,11 @@ export type EngineContext = {
  * throws `EngineError` `body-missing`; a force, torque or impulse on a
  * kinematic or static body, a velocity write on a static body or a follower
  * (its path sets its velocity), and an angular velocity write on a kinematic
- * body throw `body-not-dynamic`. A static or kinematic body's mass is
- * Infinity. With `world.physics: "none"` only kinematic bodies exist.
+ * body that never turns (a character's, a motion body, a follower, or one with
+ * `fixedRotation`) throw `body-not-dynamic`; a kinematic `body` block's turns
+ * about its entity's pose at the angular velocity set. A static or kinematic
+ * body's mass is Infinity. With `world.physics: "none"` only kinematic bodies
+ * exist.
  */
 export interface BodyControl {
   has(id: string): boolean;
@@ -848,6 +862,8 @@ export type GameRuntime<S = unknown> = {
    * match the run that saved puts its own key order back here.
    */
   restore?(state: S): void;
+  /** After a new version of the running scene was applied, before the next tick; outside a step. */
+  onSwap?(swap: SceneSwap): void;
   /** Where the shell's camera follows; `null` keeps it still. */
   cameraTarget?(): Vec2 | null;
   /** The game's slice of the shell's store, read once per tick. Return the same object when nothing changed. */
@@ -1121,6 +1137,8 @@ export type GameDefinition<S = unknown, G = unknown> = {
   persist?: GamePersistDef;
   /** The game's save data version, its migrations, limits and own backend. */
   saves?: GameSavesDef;
+  /** Which swap timings the game accepts for a new version of a running scene; omitted: next load only. */
+  live?: LiveDeclaration;
 };
 
 /** `GameDefinition.persist`. */

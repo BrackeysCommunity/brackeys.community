@@ -22,6 +22,22 @@ export const LOADING_DELAY_MS = 150;
 
 const NO_TRANSITION: TransitionSpec = { kind: "none" };
 
+/** The live versions a scene source reads first: the active version's scene for a listed id, or null for the release's own. */
+export type LiveSceneVersions = { sceneFor(id: AssetId): LibraryScene | null };
+
+/**
+ * `base` with each scene's active live version in place of its own, so
+ * every load and sublevel library built from it gets that version; the
+ * list and the start are `base`'s.
+ */
+export function liveSceneSource(base: SceneSource, live: LiveSceneVersions): SceneSource {
+  return {
+    list: () => base.list(),
+    start: () => base.start(),
+    scene: (id) => live.sceneFor(id) ?? base.scene(id),
+  };
+}
+
 export type FlowHostOptions = {
   source: SceneSource;
   /** Runs every transition but "none"; default `fadeTransition()`. */
@@ -51,6 +67,13 @@ export type FlowHostOptions = {
   ): FlowResult;
   /** After ticking resumes. */
   changed(e: ChangeEvent): void;
+  /**
+   * Once a change has left `scene` for a loaded one (the same scene on a
+   * restart): a live layer drops its pending swap there, since the scene's
+   * next load uses the version anyway. A failed change puts the scene back
+   * and leaves its pending swap.
+   */
+  left?(scene: AssetId): void;
   loadingProgress(p: LoadProgress): void;
   destroyed(): boolean;
   dev: boolean;
@@ -61,7 +84,7 @@ export type FlowHost = {
   go(to: AssetId, opts?: Omit<FlowRequest, "to">): Promise<FlowResult>;
   /** Changes to the list's start with persist reset. */
   restart(): Promise<FlowResult>;
-  /** True from the moment a change starts until ticking resumes. */
+  /** True from the moment a change starts until ticking resumes; no live swap runs while it is. */
   readonly changing: boolean;
   /** Drops the loading view and the layer's state; later calls refuse. */
   destroy(): void;
@@ -179,6 +202,7 @@ export function createFlowHost(opts: FlowHostOptions): FlowHost {
       result = opts.load(to, { entry, ...load });
     }
     if (!result.ok) putBack();
+    else if (from !== null) opts.left?.(from);
     await half("in", spec);
     if (opts.destroyed()) return { result: result.ok ? destroyedResult(to) : result };
     return result.ok ? { result, change: { from, to, entry } } : { result };

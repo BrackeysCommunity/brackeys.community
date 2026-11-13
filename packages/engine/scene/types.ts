@@ -322,6 +322,14 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "export-itch-layout",
   "export-target-unsupported",
   "licence-missing",
+  // live levels
+  "live-incompatible",
+  "live-scene-unlisted",
+  "live-physics",
+  "live-asset-conflict",
+  "live-swap-failed",
+  "live-timing-unsupported",
+  "scene-version-removed",
 ] as const;
 export type EngineIssueCode = (typeof ENGINE_ISSUE_CODE_LIST)[number];
 /** An engine code, or a game's `<game-id>/<code>`. */

@@ -154,6 +154,35 @@ describe("attach", () => {
     router.destroy();
   });
 
+  it("gives a wheel turn in px whatever unit the browser reports, with its offset from the target", () => {
+    const canvas = mountCanvas(new DOMRect(40, 30, 800, 600));
+    const router = createToolRouter();
+    const tool = consumer("tool", 0);
+    router.register(tool);
+    router.attach(canvas);
+
+    const turn = (deltaY: number, deltaMode: number) =>
+      canvas.dispatchEvent(
+        new WheelEvent("wheel", { deltaY, deltaMode, clientX: 140, clientY: 130 }),
+      );
+    // Chrome's notch in px, Firefox's mouse in lines, a page, and a trackpad's small px steps.
+    turn(-100, WheelEvent.DOM_DELTA_PIXEL);
+    turn(-3, WheelEvent.DOM_DELTA_LINE);
+    turn(1, WheelEvent.DOM_DELTA_PAGE);
+    turn(4, WheelEvent.DOM_DELTA_PIXEL);
+
+    const wheels = tool.seen.flatMap((e) =>
+      e.kind === "pointer" && e.type === "wheel" ? [[e.deltaY, e.screen]] : [],
+    );
+    expect(wheels).toEqual([
+      [-100, { x: 100, y: 100 }],
+      [-100, { x: 100, y: 100 }],
+      [800, { x: 100, y: 100 }],
+      [4, { x: 100, y: 100 }],
+    ]);
+    router.destroy();
+  });
+
   it("carries the pointer's kind and id; a cancel ends like a release, a leave is a move", () => {
     const canvas = mountCanvas();
     const router = createToolRouter();

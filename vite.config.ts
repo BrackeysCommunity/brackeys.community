@@ -226,8 +226,8 @@ function sceneCollab(): Plugin {
       module.devSceneCollab({ buildAt }).configureServer(server);
     },
     // The collab docs carry project data edits; a module update would remount the editor.
-    handleHotUpdate({ file }) {
-      return isProjectData?.(file) ? [] : undefined;
+    hotUpdate({ type, file }) {
+      return type === "update" && isProjectData?.(file) ? [] : undefined;
     },
   };
 }

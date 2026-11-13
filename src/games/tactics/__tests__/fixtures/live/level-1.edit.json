@@ -1,0 +1,13 @@
+{
+  "scene": "level-1",
+  "about": "A live edit of level 1: a wall on cell 4,2, where blue-knight-1's first move ends. live.test.ts builds a scene version from level 1 with these entities added.",
+  "add": [
+    {
+      "id": "wall-ford",
+      "type": "solid",
+      "layer": "decor",
+      "shape": ["box", 4.5, 2.5, 0.5, 0.5],
+      "behaviors": { "sprite": { "asset": "tile-wall", "size": [1, 1], "tile": true } }
+    }
+  ]
+}

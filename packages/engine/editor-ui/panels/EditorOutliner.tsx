@@ -33,6 +33,7 @@ import {
   type SceneOp,
 } from "../../editor/index";
 import { defaultLayer, type PrefabLibrary } from "../../scene/index";
+import { useCanvasReveal } from "../frame/EditorFrame";
 import { STORAGE_PREFIX } from "../host";
 import {
   Badge,
@@ -526,7 +527,8 @@ function EntityItem({
  * adds physical issues to `has:problems`. The row under the pointer is the
  * editor store's `hover`, which the scene view outlines, and the entity
  * under the pointer in the view marks its row; `onHover` also hears it.
- * The view and the collapsed rows are kept in the host's storage.
+ * The view and the collapsed rows are kept in the host's storage. A row
+ * selected here is brought into the canvas's view when it is off-screen.
  */
 export function EditorOutliner({
   session,
@@ -541,6 +543,7 @@ export function EditorOutliner({
   onOpenPrefab?: (prefab: string, from: Ref) => void;
 }) {
   const { storage, cue } = useKit();
+  const reveal = useCanvasReveal();
   const doc = useEditorDoc(session);
   const sceneName = useEditorStore(session, (s) => s.sceneName);
   const selection = useEditorStore(session, (s) => s.selection);
@@ -722,7 +725,11 @@ export function EditorOutliner({
                   hovered={!!ref && hover === ref}
                   selectedBy={peerMarks.get(row.key)}
                   indent={indent}
-                  onSelect={(mode) => ref && session.select([ref], mode, order)}
+                  onSelect={(mode) => {
+                    if (!ref) return;
+                    session.select([ref], mode, order);
+                    if (session.store.state.selection.includes(ref)) reveal?.([ref]);
+                  }}
                   onHover={hoverRow}
                   onOpenPrefab={onOpenPrefab}
                 />

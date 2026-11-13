@@ -7,7 +7,9 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { createRegistry } from "../game/define";
 import type { Registry } from "../game/types";
 import { runChecks } from "../headless/run-checks";
+import { namedPrefabs } from "../project/bundle";
 import { parseChecks, type ChecksFile } from "../scene/checks";
+import { expandScene } from "../scene/expand";
 import { parseScene } from "../scene/parse";
 import { resolveScene } from "../scene/resolve";
 import type { PrefabLibrary, SceneDefinition } from "../scene/types";
@@ -40,6 +42,18 @@ beforeAll(async () => {
 describe("behavior-yard.json", () => {
   it("names no game: the standard behaviors carry it alone", () => {
     expect(scene.game ?? null).toBeNull();
+  });
+
+  it("carries no assets header: its spawner's prefab brings the crate art into its bundle", () => {
+    expect(scene.assets).toBeUndefined();
+    const drop = scene.entities?.find((e) => e.id === "crate-drop");
+    expect(drop?.behaviors).toMatchObject({ spawner: { prefab: "crate" } });
+    const expanded = expandScene(scene, registry, { prefabs });
+    const named = namedPrefabs(expanded.entities, registry, (id) => prefabs.get(id));
+    expect([...named.keys()]).toEqual(["crate"]);
+    expect(named.get("crate")?.entities?.[0]?.behaviors).toMatchObject({
+      sprite: { asset: "crates" },
+    });
   });
 
   it("passes every check headless under the gameless engine registry, none skipped", () => {

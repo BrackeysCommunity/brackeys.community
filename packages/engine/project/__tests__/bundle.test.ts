@@ -8,7 +8,7 @@ import { expandScene } from "../../scene/expand";
 import { parseScene } from "../../scene/parse";
 import { parsePrefab, prefabLibrary } from "../../scene/prefab";
 import type { Prefab, SceneDefinition } from "../../scene/types";
-import { blobContent, projectBundle, sceneBundle, unsizedIds } from "../bundle";
+import { blobContent, namedPrefabs, projectBundle, sceneBundle, unsizedIds } from "../bundle";
 import { createKindRegistry } from "../kinds";
 import type { AssetEntry, ProjectState } from "../types";
 import { projectView } from "../view";
@@ -21,9 +21,15 @@ const look = defineBehavior({
   fields: { skin: assetField(fieldEnv, ["texture", "atlas"], "Its picture.").optional() },
 });
 
+const drop = defineBehavior({
+  name: "art/drop",
+  description: "What it drops at run time.",
+  fields: { what: assetField(fieldEnv, "prefab", "The prefab it drops.").optional() },
+});
+
 const art = defineGame({
   id: "art",
-  behaviors: [look],
+  behaviors: [look, drop],
   types: [
     {
       type: "statue",
@@ -100,6 +106,9 @@ const entries: AssetEntry[] = [
   doc("inner", "prefab", "prefabs/inner.json"),
   doc("fancy", "prefab", "prefabs/fancy.json"),
   doc("plain", "prefab", "prefabs/plain.json"),
+  doc("crate", "prefab", "prefabs/crate.json"),
+  doc("chute", "prefab", "prefabs/chute.json"),
+  doc("leaky", "prefab", "prefabs/leaky.json"),
   doc("game-settings", "game-settings", "game-settings.json"),
 ];
 const state = (list: AssetEntry[]): ProjectState => ({
@@ -122,6 +131,21 @@ const prefabs = prefabLibrary([
   prefab({ id: "inner", assets: ["nested-art"] }),
   prefab({ id: "plain", assets: ["base-art"] }),
   prefab({ id: "fancy", base: "plain" }),
+  prefab({
+    id: "crate",
+    assets: ["glyphs"],
+    instances: [{ id: "lid", prefab: "inner", at: [0, 0] }],
+    entities: [
+      { id: "box", type: "statue", at: [0, 0], behaviors: { [look.name]: { skin: "crates" } } },
+    ],
+  }),
+  prefab({
+    id: "chute",
+    entities: [
+      { id: "mouth", type: "statue", at: [0, 0], behaviors: { [drop.name]: { what: "crate" } } },
+    ],
+  }),
+  prefab({ id: "leaky", entities: [{ id: "drip", type: "statue", at: [0, 0], icon: "boom" }] }),
 ]);
 
 function scene(raw: Record<string, unknown>): SceneDefinition {
@@ -256,6 +280,77 @@ describe("sceneBundle", () => {
       }),
     ]);
     expect([...unsizedIds(r.issues)]).toEqual(["sky-art"]);
+  });
+});
+
+describe("sceneBundle and prefabs a field names", () => {
+  const dropper = (what: string, more: Record<string, unknown> = {}) => ({
+    id: "d",
+    type: "statue",
+    at: [0, 0],
+    behaviors: { [drop.name]: { what } },
+    ...more,
+  });
+
+  it("follows a prefab a behavior field names into its children, its header and its nested prefabs", () => {
+    const r = bundleOf(scene({ entities: [dropper("crate")] }));
+    expect(r.issues).toEqual([]);
+    expect(ids(r)).toEqual(["crates-art", "glyph-page", "nested-art", "statue-art"]);
+  });
+
+  it("follows what a named prefab's own children name in turn", () => {
+    const r = bundleOf(scene({ entities: [dropper("chute")] }));
+    expect(r.issues).toEqual([]);
+    expect(ids(r)).toEqual(["crates-art", "glyph-page", "nested-art", "statue-art"]);
+  });
+
+  it("points a named prefab's dangling id at the field that named it", () => {
+    const r = bundleOf(scene({ entities: [dropper("leaky")] }));
+    expect(r.issues.map((i) => [i.code, i.path, i.got, i.entityIds, i.message])).toEqual([
+      [
+        "asset-missing",
+        "/entities/@d/behaviors/art~1drop/what",
+        "boom",
+        ["d"],
+        'prefab "leaky" (d.behaviors.art/drop.what) drip.icon names texture "boom", which is of kind audio',
+      ],
+    ]);
+  });
+
+  it("reports nothing twice for a prefab the scene both places and names", () => {
+    const r = bundleOf(
+      scene({
+        instances: [{ id: "o", prefab: "leaky", at: [0, 0] }],
+        entities: [dropper("leaky")],
+      }),
+    );
+    expect(r.issues.map((i) => [i.path, i.got])).toEqual([["/entities/@o~1drip/icon", "boom"]]);
+  });
+
+  it("leaves a scene without a prefab-naming field as it was, and a prefab the library lacks unfollowed", () => {
+    const plain = scene({ entities: [{ id: "s", type: "statue", at: [0, 0] }] });
+    const base = bundleOf(plain);
+    const lacking = scene({
+      entities: [{ id: "s", type: "statue", at: [0, 0] }, dropper("crate")],
+    });
+    const without = sceneBundle(
+      expandScene(lacking, registry, { prefabs }),
+      lacking,
+      new Map(),
+      view,
+      kinds,
+      registry,
+    );
+    expect(without).toEqual(base);
+  });
+
+  it("gives the library a reader adds: the named prefabs and all they reach", () => {
+    const def = scene({ entities: [dropper("chute")] });
+    const named = namedPrefabs(expandScene(def, registry, { prefabs }).entities, registry, (id) =>
+      prefabs.get(id),
+    );
+    expect([...named.keys()].sort()).toEqual(["chute", "crate", "inner"]);
+    expect(namedPrefabs([], registry, (id) => prefabs.get(id)).size).toBe(0);
   });
 });
 

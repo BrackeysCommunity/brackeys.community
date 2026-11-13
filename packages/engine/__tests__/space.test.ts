@@ -5,9 +5,11 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { createColliderTags } from "../collider-tags";
 import { createRegistry } from "../game/define";
+import { shapeColliderDesc, shapePose } from "../physics";
 import { createGeometryWorld, type GeometryColliderDesc } from "../runtime/geometry-world";
 import { createSceneRuntime } from "../runtime/runtime";
 import {
+  colliderLive,
   geometrySpace,
   rapierSpace,
   type SpaceCastHit,
@@ -557,6 +559,177 @@ describe("space queries over disabled bodies", () => {
     });
     runtime.ctx.setEnabled("lift", true);
     expect(found(space).overlaps).toEqual(["lift", "plank"]);
+    runtime.destroy();
+  });
+});
+
+describe("a Rapier sweep, against casting at every collider", () => {
+  const interacts = (a: number, b: number) =>
+    ((a >>> 16) & b & 0xffff) !== 0 && ((b >>> 16) & a & 0xffff) !== 0;
+
+  /** The sweep as it was before it skipped colliders by bounds: a cast at every admitted collider. */
+  function everyCollider(
+    runtime: ReturnType<typeof createSceneRuntime>,
+    shape: ShapeObj,
+    by: Vec2,
+    filter: SpaceFilter,
+  ): SpaceCastHit | null {
+    if (by.x === 0 && by.y === 0) return null;
+    const { ctx } = runtime;
+    const R = ctx.physics!.rapier;
+    const group = filter.group === undefined ? null : ctx.registry.collisionGroups(filter.group);
+    const desc = shapeColliderDesc(R, shape);
+    const pose = shapePose(shape);
+    const hits: SpaceCastHit[] = [];
+    const all = [...ctx.physics!.world.colliders.getAll()].sort((a, b) => a.handle - b.handle);
+    for (const c of all) {
+      if (!colliderLive(c) || c.isSensor()) continue;
+      const groups = c.collisionGroups();
+      if (groups === 0 || (group !== null && !interacts(group, groups))) continue;
+      if (filter.skip?.has(c.handle)) continue;
+      const tag = ctx.tags.get(c.handle);
+      if (!tag || filter.exclude?.includes(tag.entityId)) continue;
+      if (filter.types && !filter.types.includes(tag.type)) continue;
+      const hit = c.castShape(
+        { x: 0, y: 0 },
+        desc.shape,
+        { x: pose.x, y: pose.y },
+        pose.rotation,
+        by,
+        0,
+        1,
+        true,
+      );
+      if (!hit) continue;
+      const r = c.rotation();
+      const [cos, sin] = [Math.cos(r), Math.sin(r)];
+      const t = c.translation();
+      const w = hit.witness1;
+      const n = hit.normal1;
+      const nx = n.x * cos - n.y * sin;
+      const ny = n.x * sin + n.y * cos;
+      const len = Math.sqrt(nx * nx + ny * ny);
+      hits.push({
+        handle: c.handle,
+        tag,
+        at: { x: t.x + (w.x * cos - w.y * sin), y: t.y + (w.x * sin + w.y * cos) },
+        toi: hit.time_of_impact,
+        normal: len === 0 ? { x: 0, y: 0 } : { x: nx / len, y: ny / len },
+      });
+    }
+    let best: SpaceCastHit | null = null;
+    for (const h of hits) if (!best || h.toi < best.toi) best = h;
+    if (!best) return null;
+    const earliest = best.toi;
+    let tie: SpaceCastHit | null = null;
+    for (const h of hits) if (h.toi - earliest <= 1e-6 && (!tie || h.handle < tie.handle)) tie = h;
+    return tie && { ...tie, toi: earliest };
+  }
+
+  function loaded(def: SceneDefinition) {
+    const runtime = createSceneRuntime({ rapier, view: null, registry: engine });
+    const report = runtime.load(expandScene(def, engine));
+    if (!report.ok) throw new Error(report.error);
+    return { runtime, space: rapierSpace(runtime.ctx) };
+  }
+
+  function expectParity(def: SceneDefinition, seed: number, n: number, reach: number) {
+    const { runtime, space } = loaded(def);
+    const handles = (id: string) => new Set(runtime.ctx.tags.handlesOf(id));
+    const filters: SpaceFilter[] = [
+      ...FILTERS,
+      { skip: handles("~solid:3") },
+      { skip: handles("~solid:11"), exclude: ["~solid:12"] },
+    ];
+    const rnd = random(seed);
+    let hits = 0;
+    for (let i = 0; i < n; i++) {
+      const shape = queryShape(rnd, false);
+      const by = { x: rnd.int(-reach, reach), y: rnd.int(-reach, reach) };
+      const filter = filters[i % filters.length]!;
+      const want = everyCollider(runtime, shape, by, filter);
+      expect(space.sweep(shape, by, filter), JSON.stringify({ shape, by, filter })).toEqual(want);
+      if (want) hits++;
+    }
+    runtime.destroy();
+    return hits;
+  }
+
+  it("finds the same hit over the shapes scene, sensors left out and skipped handles too", () => {
+    expect(expectParity(SHAPES, 9, 600, 300)).toBeGreaterThan(80);
+  });
+
+  it("finds the same hit with short sweeps that start next to what they hit", () => {
+    expect(expectParity(SHAPES, 21, 600, 8)).toBeGreaterThan(20);
+  });
+
+  it("finds the same hit over the engine yard", () => {
+    const yard = parseSceneOrThrow(
+      readFileSync(new URL("../scenes/engine-yard.json", import.meta.url), "utf8"),
+      engine,
+    );
+    const { runtime, space } = loaded(yard);
+    const rnd = random(13);
+    const filter: SpaceFilter = { types: ["solid", "sensor"] };
+    for (let i = 0; i < 300; i++) {
+      const shape = queryShape(rnd, false);
+      const by = { x: rnd.int(-400, 400), y: rnd.int(-400, 400) };
+      expect(space.sweep(shape, by, filter)).toEqual(everyCollider(runtime, shape, by, filter));
+    }
+    runtime.destroy();
+  });
+
+  it("finds the same hit exactly at contact, far from the origin", () => {
+    const far: SceneDefinition = {
+      v: 1,
+      name: "far",
+      bounds: [99000, 99000, 101000, 101000],
+      solid: [["box", 100000, 100000, 10, 10]],
+    };
+    const { runtime, space } = loaded(far);
+    for (const gap of [0, 1e-3, 0.01, 0.5]) {
+      const shape: ShapeObj = {
+        type: "box",
+        cx: 99980 - gap,
+        cy: 100000,
+        hw: 10,
+        hh: 10,
+        rotDeg: 0,
+      };
+      for (const by of [
+        { x: gap, y: 0 },
+        { x: gap + 0.001, y: 0 },
+        { x: 0, y: 5 },
+      ]) {
+        expect(space.sweep(shape, by, {}), JSON.stringify({ gap, by })).toEqual(
+          everyCollider(runtime, shape, by, {}),
+        );
+      }
+    }
+    runtime.destroy();
+  });
+
+  it("sees a collider moved or added since the last step, as Rapier's query pipeline would not", () => {
+    const { runtime, space } = loaded({
+      v: 1,
+      name: "moved",
+      bounds: [0, 0, 100, 100],
+      solid: [["box", 50, 10, 5, 5]],
+    });
+    const physics = runtime.ctx.physics!;
+    const shape: ShapeObj = { type: "circle", cx: 10, cy: 50, r: 2 };
+    const by = { x: 80, y: 0 };
+    expect(space.sweep(shape, by)).toBeNull();
+    const [handle] = runtime.ctx.tags.handlesOf("~solid:0");
+    physics.world.getCollider(handle!)!.setTranslation({ x: 50, y: 50 });
+    expect(space.sweep(shape, by)?.tag.entityId).toBe("~solid:0");
+    const added = physics.addCollider(
+      physics.rapier.ColliderDesc.cuboid(1, 1).setTranslation(30, 50),
+    );
+    runtime.ctx.tags.set(added.handle, { entityId: "late", type: "solid" });
+    const hit = space.sweep(shape, by);
+    expect(hit?.tag.entityId).toBe("late");
+    expect(hit).toEqual(everyCollider(runtime, shape, by, {}));
     runtime.destroy();
   });
 });

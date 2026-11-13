@@ -1,6 +1,7 @@
 import type { SceneView } from "../context";
 import type { BehaviorName } from "../game/behaviors";
 import type { FlowRequest, SceneLibrary } from "../game/flow";
+import type { SceneDiff, SceneSwap, SwapStrategy } from "../game/live";
 import type {
   EngineContext,
   GameCommand,
@@ -13,8 +14,14 @@ import type {
 import type { PlayOptions } from "../headless/playtest-types";
 import type { TickInput } from "../input/stream";
 import type { ProjectRuntimeView } from "../project/runtime-view";
-import type { AssetId } from "../project/types";
-import type { EntityTypeName, ExpandedScene, PrefabLibrary, RuntimeEntity } from "../scene/types";
+import type { AssetId, Sha256 } from "../project/types";
+import type {
+  EntityTypeName,
+  ExpandedScene,
+  PrefabLibrary,
+  RuntimeEntity,
+  SceneIssue,
+} from "../scene/types";
 import type { InputAction, RapierModule, Vec2 } from "../types";
 import type { RunTiming, TimingReport } from "./timing";
 
@@ -163,8 +170,28 @@ export type SceneRuntime = {
    * call, emptied: the host applies them after the tick that made them.
    */
   takeRequests: () => RuntimeRequests;
+  /**
+   * Applies a new version of the loaded scene between ticks: reconcile when
+   * the header is unchanged, else reload with capture and restore. Never
+   * runs `onSwap`; the instance's live layer does.
+   */
+  swap: (
+    next: ExpandedScene,
+    opts: { prefabs: PrefabLibrary; strategy?: "auto" | "reload" },
+  ) => SwapReport;
   destroy: () => void;
 };
+
+/** What `SceneRuntime.swap` did; `undo()` puts the old version back. */
+export type SwapReport =
+  | {
+      ok: true;
+      strategy: SwapStrategy;
+      carried: SceneSwap["carried"];
+      diff: SceneDiff;
+      undo(): void;
+    }
+  | { ok: false; issue: SceneIssue };
 
 /** What `SceneRuntime.takeRequests` hands the host. */
 export type RuntimeRequests = { flow: FlowRequest | null; saves: SaveRequest[] };
@@ -206,6 +233,11 @@ export type SceneRuntimeOptions = {
    * one the runtime reads no clock in a step.
    */
   timing?: RunTiming;
+  /**
+   * What `EngineContext.live` reads: the instance's live layer. Without one
+   * the version is null and `boundary()` does nothing.
+   */
+  live?: { version(): Sha256 | null; boundary(label?: string): void };
 };
 
 /** The runtime plus the parts the shell and a game's tools drive directly. */

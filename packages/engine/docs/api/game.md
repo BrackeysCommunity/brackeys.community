@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ACTION_KINDS`](#action_kinds) · [`ActionDef`](#actiondef) · [`ActionKind`](#actionkind) · [`AssetIdSchema`](#assetidschema) · [`AssetKindDef`](#assetkinddef) · [`Attachment`](#attachment) · [`AttachmentHub`](#attachmenthub) · [`BASE_FIELDS`](#base_fields) · [`BEHAVIOR_NAME_PATTERN`](#behavior_name_pattern) · [`BODY`](#body) · [`BODY_KINDS`](#body_kinds) · [`BODY_SHAPE_TYPES`](#body_shape_types) · [`BasePrimitive`](#baseprimitive) · [`BehaviorBlock`](#behaviorblock) · [`BehaviorDef`](#behaviordef) · [`BehaviorName`](#behaviorname) · [`BehaviorRules`](#behaviorrules) · [`BehaviorSystem`](#behaviorsystem) · [`BehaviorSystemFactory`](#behaviorsystemfactory) · [`Binding`](#binding) · [`BindingContext`](#bindingcontext) · [`BindingProblem`](#bindingproblem) · [`BodyBlock`](#bodyblock) · [`BodyControl`](#bodycontrol) · [`BodyEntry`](#bodyentry) · [`BodyKind`](#bodykind) · [`BodyStandIn`](#bodystandin) · [`BulkKeyInfo`](#bulkkeyinfo) · [`CAMERA_TARGET`](#camera_target) · [`CHARACTER_JUMPED`](#character_jumped) · [`CHARACTER_LANDED`](#character_landed) · [`CHARACTER_LEFT_GROUND`](#character_left_ground) · [`CHARACTER_SIDE_VIEW`](#character_side_view) · [`CHARACTER_TOP_DOWN`](#character_top_down) · [`CHILD_REF_PATTERN`](#child_ref_pattern) · [`COLLIDER`](#collider) · [`COMMAND_NAME_PATTERN`](#command_name_pattern) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraTargetBlock`](#cameratargetblock) · [`Cell`](#cell) · [`CellBounds`](#cellbounds) · [`CellKey`](#cellkey) · [`CharacterControllerOptions`](#charactercontrolleroptions) · [`CharacterIntent`](#characterintent) · [`CharacterSideViewBlock`](#charactersideviewblock) · [`CharacterSystem`](#charactersystem) · [`CharacterTopDownBlock`](#charactertopdownblock) · [`CheckEnv`](#checkenv) · [`CheckKindDef`](#checkkinddef) · [`CheckVerdict`](#checkverdict) · [`ColliderBlock`](#colliderblock) · [`ColliderSystem`](#collidersystem) · [`ColliderTag`](#collidertag) · [`ColliderTags`](#collidertags) · [`CommandDef`](#commanddef) · [`ContactSelector`](#contactselector) · [`Contacts`](#contacts) · [`CoroutineYield`](#coroutineyield) · [`CreateRegistryOptions`](#createregistryoptions) · [`DEFAULT_ACTIONS`](#default_actions) · [`DEFAULT_GRAVITY`](#default_gravity) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_LENGTH_UNIT`](#default_length_unit) · [`DEFAULT_PHYSICS`](#default_physics) · [`DEFAULT_ROTATE_STEP`](#default_rotate_step) · [`DEFAULT_SAVE_LIMITS`](#default_save_limits) · [`DEFAULT_SPAWN_CAST`](#default_spawn_cast) · [`DEFAULT_TICK_RATE`](#default_tick_rate) · [`DEFAULT_TIME`](#default_time) · [`DRAW_LAYERS`](#draw_layers) · [`DataSystem`](#datasystem) · [`DecorEntity`](#decorentity) · [`Delay`](#delay) · [`DeviceId`](#deviceid) · [`DrawLayer`](#drawlayer) · [`ENGINE_CHECK_KINDS`](#engine_check_kinds) · [`ENGINE_COLLISION_GROUPS`](#engine_collision_groups) · [`ENGINE_COMMANDS`](#engine_commands) · [`ENGINE_PREDICATES`](#engine_predicates) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`ENGINE_RUN_RESULTS`](#engine_run_results) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EditorToolDef`](#editortooldef) · [`EngineCheckKind`](#enginecheckkind) · [`EngineCollisionGroup`](#enginecollisiongroup) · [`EngineContext`](#enginecontext) · [`EngineError`](#engineerror) · [`EngineRunResult`](#enginerunresult) · [`EngineToolId`](#enginetoolid) · [`EntityOf`](#entityof) · [`EntityQuery`](#entityquery) · [`EntitySelector`](#entityselector) · [`EntityTypeDef`](#entitytypedef) · [`EventBus`](#eventbus) · [`EventSubscribeOptions`](#eventsubscribeoptions) · [`FORCE_AREA`](#force_area) · [`FieldEnv`](#fieldenv) · [`FlowContext`](#flowcontext) · [`FlowField`](#flowfield) · [`FlowRequest`](#flowrequest) · [`FlowUse`](#flowuse) · [`FollowerOptions`](#followeroptions) · [`FollowerSystem`](#followersystem) · [`ForceAreaBlock`](#forceareablock) · [`ForceAreaSystem`](#forceareasystem) · [`FrameRect`](#framerect) · [`GRID_STEP_SAVE_OWNER`](#grid_step_save_owner) · [`GameAttachment`](#gameattachment) · [`GameCommand`](#gamecommand) · [`GameDefinition`](#gamedefinition) · [`GameEditorDef`](#gameeditordef) · [`GameInputDef`](#gameinputdef) · [`GameKeyBinding`](#gamekeybinding) · [`GameOutcome`](#gameoutcome) · [`GamePersistDef`](#gamepersistdef) · [`GamePlayDef`](#gameplaydef) · [`GameRuntime`](#gameruntime) · [`GameSavesDef`](#gamesavesdef) · [`GameShell`](#gameshell) · [`GameTableDef`](#gametabledef) · [`GameWorldDef`](#gameworlddef) · [`GeometryColliderDesc`](#geometrycolliderdesc) · [`GeometryWorld`](#geometryworld) · [`GridFieldInfo`](#gridfieldinfo) · [`GridGeometry`](#gridgeometry) · [`GridPath`](#gridpath) · [`GridPathOptions`](#gridpathoptions) · [`GridPlace`](#gridplace) · [`GridSettings`](#gridsettings) · [`GridStepper`](#gridstepper) · [`ID_PATTERN`](#id_pattern) · [`InputState`](#inputstate) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstantiateOptions`](#instantiateoptions) · [`InstantiateResult`](#instantiateresult) · [`IssueCodeDef`](#issuecodedef) · [`JOINT`](#joint) · [`JOINT_KINDS`](#joint_kinds) · [`JointBlock`](#jointblock) · [`JointKind`](#jointkind) · [`JointSystem`](#jointsystem) · [`JsonValue`](#jsonvalue) · [`KEY_CODES`](#key_codes) · [`KEY_TO_CODE`](#key_to_code) · [`LIFETIME`](#lifetime) · [`LibraryScene`](#libraryscene) · [`LifetimeBlock`](#lifetimeblock) · [`LoadFailureReason`](#loadfailurereason) · [`MAX_BROWSER_SAVE_LIMITS`](#max_browser_save_limits) · [`MAX_TICK_RATE`](#max_tick_rate) · [`MIN_TICK_RATE`](#min_tick_rate) · [`MOTION_SAVE_OWNER`](#motion_save_owner) · [`Macro`](#macro) · [`MacroRandom`](#macrorandom) · [`MarkerEntity`](#markerentity) · [`MarkerSystem`](#markersystem) · [`MaterialDef`](#materialdef) · [`MotionBody`](#motionbody) · [`MotionBodyOptions`](#motionbodyoptions) · [`MotionResult`](#motionresult) · [`NAV_AGENT`](#nav_agent) · [`NAV_ARRIVED`](#nav_arrived) · [`NAV_BLOCKED`](#nav_blocked) · [`NavAgentBlock`](#navagentblock) · [`NavAgentSystem`](#navagentsystem) · [`NavEntity`](#naventity) · [`NavIssue`](#navissue) · [`NavMesh`](#navmesh) · [`NavPolygon`](#navpolygon) · [`NavSystem`](#navsystem) · [`OCCUPANT`](#occupant) · [`Occupancy`](#occupancy) · [`OccupantBlock`](#occupantblock) · [`OverlapTracker`](#overlaptracker) · [`Overlaps`](#overlaps) · [`PAD_AXES`](#pad_axes) · [`PAD_BUTTONS`](#pad_buttons) · [`PATH_FOLLOW`](#path_follow) · [`PLAYER_INPUT`](#player_input) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`POINTER_BUTTONS`](#pointer_buttons) · [`PRIMITIVE_TYPES`](#primitive_types) · [`PadAxis`](#padaxis) · [`PadButton`](#padbutton) · [`ParseSaveResult`](#parsesaveresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathFollowBlock`](#pathfollowblock) · [`PathFollowSystem`](#pathfollowsystem) · [`PathPlace`](#pathplace) · [`PathSchema`](#pathschema) · [`PersistContext`](#persistcontext) · [`PhysicalCheck`](#physicalcheck) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicsRequiredError`](#physicsrequirederror) · [`PhysicsWorld`](#physicsworld) · [`PlacementCheck`](#placementcheck) · [`PlacementDraw`](#placementdraw) · [`PlacementGhost`](#placementghost) · [`PlacementTool`](#placementtool) · [`PlacementToolOptions`](#placementtooloptions) · [`PlayStart`](#playstart) · [`PlayState`](#playstate) · [`PlayWorld`](#playworld) · [`PlayerInfo`](#playerinfo) · [`PlayerInputBlock`](#playerinputblock) · [`PlayerInputSystem`](#playerinputsystem) · [`PlayersDef`](#playersdef) · [`PointerButton`](#pointerbutton) · [`PointerKind`](#pointerkind) · [`PointerState`](#pointerstate) · [`Pool`](#pool) · [`Pose`](#pose) · [`PoseIndex`](#poseindex) · [`PrimitiveType`](#primitivetype) · [`ProjectMaterialDef`](#projectmaterialdef) · [`ProjectRuntimeView`](#projectruntimeview) · [`PtSchema`](#ptschema) · [`RUNTIME_ID_PATTERN`](#runtime_id_pattern) · [`RegisteredBehavior`](#registeredbehavior) · [`RegisteredType`](#registeredtype) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolvedTime`](#resolvedtime) · [`RunResult`](#runresult) · [`RuntimeGrid`](#runtimegrid) · [`RuntimeNav`](#runtimenav) · [`SAVE_RANDOM_KEY`](#save_random_key) · [`SAVE_SCHEMA_ID`](#save_schema_id) · [`SAVE_VERSION`](#save_version) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`SIDES`](#sides) · [`SIDE_VIEW_CONTROLLER`](#side_view_controller) · [`SLOT_MAX_LENGTH`](#slot_max_length) · [`SLOT_PATTERN`](#slot_pattern) · [`SPAWNER`](#spawner) · [`SPAWNER_SPAWNED`](#spawner_spawned) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SUBLEVEL_ID_PATTERN`](#sublevel_id_pattern) · [`SaveDepth`](#savedepth) · [`SaveFile`](#savefile) · [`SaveGameData`](#savegamedata) · [`SaveLimits`](#savelimits) · [`SaveLimitsStore`](#savelimitsstore) · [`SaveMeta`](#savemeta) · [`SaveRequest`](#saverequest) · [`SavedSystems`](#savedsystems) · [`SavedTimer`](#savedtimer) · [`SavesContext`](#savescontext) · [`SceneLayerDef`](#scenelayerdef) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`SceneSystem`](#scenesystem) · [`SceneTemplate`](#scenetemplate) · [`SceneValidator`](#scenevalidator) · [`SceneView`](#sceneview) · [`ScriptPredicate`](#scriptpredicate) · [`SeatInput`](#seatinput) · [`SensorSystem`](#sensorsystem) · [`Side`](#side) · [`SideViewController`](#sideviewcontroller) · [`SideViewEnv`](#sideviewenv) · [`SideViewIntent`](#sideviewintent) · [`SideViewOptions`](#sideviewoptions) · [`SideViewResult`](#sideviewresult) · [`SolidOptions`](#solidoptions) · [`SolidSystem`](#solidsystem) · [`SpaceCastHit`](#spacecasthit) · [`SpaceFilter`](#spacefilter) · [`SpaceHit`](#spacehit) · [`SpaceQuery`](#spacequery) · [`SpawnInput`](#spawninput) · [`SpawnShape`](#spawnshape) · [`SpawnerBlock`](#spawnerblock) · [`SpawnerSystem`](#spawnersystem) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`Style`](#style) · [`SublevelInfo`](#sublevelinfo) · [`SublevelOptions`](#subleveloptions) · [`SublevelResult`](#sublevelresult) · [`SystemFactory`](#systemfactory) · [`TOOL_PRIORITY`](#tool_priority) · [`TOP_DOWN_CONTROLLER`](#top_down_controller) · [`TimeKind`](#timekind) · [`TimeModel`](#timemodel) · [`TimerAction`](#timeraction) · [`Timers`](#timers) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TopDownController`](#topdowncontroller) · [`TopDownOptions`](#topdownoptions) · [`TransitionSpec`](#transitionspec) · [`ViewLayer`](#viewlayer) · [`ViewLayerHandle`](#viewlayerhandle) · [`VisualOptions`](#visualoptions) · [`WaypointMode`](#waypointmode) · [`WaypointState`](#waypointstate) · [`WorldState`](#worldstate) · [`advanceAlongPath`](#advancealongpath) · [`advanceWaypoint`](#advancewaypoint) · [`angleField`](#anglefield) · [`assetField`](#assetfield) · [`assetKindsOf`](#assetkindsof) · [`bindingKeyLabel`](#bindingkeylabel) · [`bindingProblems`](#bindingproblems) · [`bodyLocalShape`](#bodylocalshape) · [`bodyShapeField`](#bodyshapefield) · [`boundsCells`](#boundscells) · [`buildNavMesh`](#buildnavmesh) · [`carrierDelta`](#carrierdelta) · [`cellKey`](#cellkey-1) · [`cellOf`](#cellof) · [`clamp`](#clamp) · [`clampVec2`](#clampvec2) · [`composePose`](#composepose) · [`createDataSystem`](#createdatasystem) · [`createDecorSystem`](#createdecorsystem) · [`createFollowerSystem`](#createfollowersystem) · [`createGridStepper`](#creategridstepper) · [`createMarkerSystem`](#createmarkersystem) · [`createMotionBody`](#createmotionbody) · [`createNavSystem`](#createnavsystem) · [`createOccupancy`](#createoccupancy) · [`createOverlapTracker`](#createoverlaptracker) · [`createPlacementTool`](#createplacementtool) · [`createPool`](#createpool) · [`createPropSystem`](#createpropsystem) · [`createRegistry`](#createregistry) · [`createSensorCollider`](#createsensorcollider) · [`createSensorSystem`](#createsensorsystem) · [`createSideViewController`](#createsideviewcontroller) · [`createSolidSystem`](#createsolidsystem) · [`createTopDownController`](#createtopdowncontroller) · [`declaredBindings`](#declaredbindings) · [`defineBehavior`](#definebehavior) · [`defineEntityType`](#defineentitytype) · [`defineGame`](#definegame) · [`degToRad`](#degtorad) · [`distanceVec2`](#distancevec2) · [`drawEntity`](#drawentity) · [`drawShape`](#drawshape) · [`effectiveSaveLimits`](#effectivesavelimits) · [`fieldOfView`](#fieldofview) · [`findPath`](#findpath) · [`flowField`](#flowfield-1) · [`flowIssue`](#flowissue) · [`forgetOneWayActor`](#forgetonewayactor) · [`formatSaveFile`](#formatsavefile) · [`gridField`](#gridfield) · [`gridFieldInfo`](#gridfieldinfo-1) · [`gridGeometry`](#gridgeometry-1) · [`gridMissingIssue`](#gridmissingissue) · [`gridPlace`](#gridplace-1) · [`gridRoute`](#gridroute) · [`inCellBounds`](#incellbounds) · [`initialWaypointState`](#initialwaypointstate) · [`inputFor`](#inputfor) · [`interpolatePosition`](#interpolateposition) · [`isNavSystem`](#isnavsystem) · [`isPolygonField`](#ispolygonfield) · [`isRuntimeId`](#isruntimeid) · [`isUiAction`](#isuiaction) · [`keycapLabel`](#keycaplabel) · [`keysProblems`](#keysproblems) · [`kinematicBodyEntry`](#kinematicbodyentry) · [`lengthUnitOf`](#lengthunitof) · [`lerp`](#lerp) · [`lerpVec2`](#lerpvec2) · [`lineOfSight`](#lineofsight) · [`materialField`](#materialfield) · [`mirrorField`](#mirrorfield) · [`navContains`](#navcontains) · [`navNearest`](#navnearest) · [`navPath`](#navpath) · [`oneWayPasses`](#onewaypasses) · [`parseRuntimeId`](#parseruntimeid) · [`parseSaveFile`](#parsesavefile) · [`parseShape`](#parseshape) · [`parseSublevelId`](#parsesublevelid) · [`pathPosition`](#pathposition) · [`pathWaypoints`](#pathwaypoints) · [`physicsOf`](#physicsof) · [`playersProblems`](#playersproblems) · [`pointField`](#pointfield) · [`pointerBit`](#pointerbit) · [`pointerButtonLabel`](#pointerbuttonlabel) · [`polygonField`](#polygonfield) · [`posedBodyDesc`](#posedbodydesc) · [`primitiveFields`](#primitivefields) · [`pxPerMetreOf`](#pxpermetreof) · [`rapierBodyEntry`](#rapierbodyentry) · [`readPathPlace`](#readpathplace) · [`refField`](#reffield) · [`registerBody`](#registerbody) · [`relativePose`](#relativepose) · [`resolveTime`](#resolvetime) · [`restoreOverlaps`](#restoreoverlaps) · [`runtimeId`](#runtimeid) · [`sameCell`](#samecell) · [`saveFileBytes`](#savefilebytes) · [`saveFileSchema`](#savefileschema) · [`saveOverlaps`](#saveoverlaps) · [`savePathPlace`](#savepathplace) · [`scaleLengths`](#scalelengths) · [`sceneGrid`](#scenegrid) · [`scopedRef`](#scopedref) · [`seekAlongPath`](#seekalongpath) · [`shapeColliderDesc`](#shapecolliderdesc) · [`shapeField`](#shapefield) · [`shapePose`](#shapepose) · [`sideField`](#sidefield) · [`spawnPose`](#spawnpose) · [`spriteGeometry`](#spritegeometry-1) · [`styleOf`](#styleof) · [`sublevelId`](#sublevelid) · [`tagsField`](#tagsfield) · [`tickRateProblem`](#tickrateproblem) · [`ticksFor`](#ticksfor) · [`traceShape`](#traceshape) · [`vectorField`](#vectorfield) · [`wholeTicksIn`](#wholeticksin) · [`withProject`](#withproject)
+[`ACTION_KINDS`](#action_kinds) · [`ActionDef`](#actiondef) · [`ActionKind`](#actionkind) · [`AssetIdSchema`](#assetidschema) · [`AssetKindDef`](#assetkinddef) · [`Attachment`](#attachment) · [`AttachmentHub`](#attachmenthub) · [`BASE_FIELDS`](#base_fields) · [`BEHAVIOR_NAME_PATTERN`](#behavior_name_pattern) · [`BODY`](#body) · [`BODY_KINDS`](#body_kinds) · [`BODY_SHAPE_TYPES`](#body_shape_types) · [`BasePrimitive`](#baseprimitive) · [`BehaviorBlock`](#behaviorblock) · [`BehaviorDef`](#behaviordef) · [`BehaviorName`](#behaviorname) · [`BehaviorRules`](#behaviorrules) · [`BehaviorSystem`](#behaviorsystem) · [`BehaviorSystemFactory`](#behaviorsystemfactory) · [`Binding`](#binding) · [`BindingContext`](#bindingcontext) · [`BindingProblem`](#bindingproblem) · [`BodyBlock`](#bodyblock) · [`BodyControl`](#bodycontrol) · [`BodyEntry`](#bodyentry) · [`BodyKind`](#bodykind) · [`BodyStandIn`](#bodystandin) · [`BulkKeyInfo`](#bulkkeyinfo) · [`CAMERA_TARGET`](#camera_target) · [`CHARACTER_JUMPED`](#character_jumped) · [`CHARACTER_LANDED`](#character_landed) · [`CHARACTER_LEFT_GROUND`](#character_left_ground) · [`CHARACTER_SIDE_VIEW`](#character_side_view) · [`CHARACTER_TOP_DOWN`](#character_top_down) · [`CHILD_REF_PATTERN`](#child_ref_pattern) · [`COLLIDER`](#collider) · [`COMMAND_NAME_PATTERN`](#command_name_pattern) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraTargetBlock`](#cameratargetblock) · [`CastResult`](#castresult) · [`Cell`](#cell) · [`CellBounds`](#cellbounds) · [`CellKey`](#cellkey) · [`CharacterControllerOptions`](#charactercontrolleroptions) · [`CharacterIntent`](#characterintent) · [`CharacterSideViewBlock`](#charactersideviewblock) · [`CharacterSystem`](#charactersystem) · [`CharacterTopDownBlock`](#charactertopdownblock) · [`CheckEnv`](#checkenv) · [`CheckKindDef`](#checkkinddef) · [`CheckVerdict`](#checkverdict) · [`ColliderBlock`](#colliderblock) · [`ColliderSystem`](#collidersystem) · [`ColliderTag`](#collidertag) · [`ColliderTags`](#collidertags) · [`CommandDef`](#commanddef) · [`ContactSelector`](#contactselector) · [`Contacts`](#contacts) · [`CoroutineYield`](#coroutineyield) · [`CreateRegistryOptions`](#createregistryoptions) · [`DEFAULT_ACTIONS`](#default_actions) · [`DEFAULT_GRAVITY`](#default_gravity) · [`DEFAULT_LAYERS`](#default_layers) · [`DEFAULT_LENGTH_UNIT`](#default_length_unit) · [`DEFAULT_PHYSICS`](#default_physics) · [`DEFAULT_ROTATE_STEP`](#default_rotate_step) · [`DEFAULT_SAVE_LIMITS`](#default_save_limits) · [`DEFAULT_SPAWN_CAST`](#default_spawn_cast) · [`DEFAULT_TICK_RATE`](#default_tick_rate) · [`DEFAULT_TIME`](#default_time) · [`DRAW_LAYERS`](#draw_layers) · [`DataSystem`](#datasystem) · [`DecorEntity`](#decorentity) · [`Delay`](#delay) · [`DeviceId`](#deviceid) · [`DrawLayer`](#drawlayer) · [`ENGINE_CHECK_KINDS`](#engine_check_kinds) · [`ENGINE_COLLISION_GROUPS`](#engine_collision_groups) · [`ENGINE_COMMANDS`](#engine_commands) · [`ENGINE_PREDICATES`](#engine_predicates) · [`ENGINE_REGISTRY_ID`](#engine_registry_id) · [`ENGINE_RUN_RESULTS`](#engine_run_results) · [`ENGINE_TOOL_IDS`](#engine_tool_ids) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EditorToolDef`](#editortooldef) · [`EngineCheckKind`](#enginecheckkind) · [`EngineCollisionGroup`](#enginecollisiongroup) · [`EngineContext`](#enginecontext) · [`EngineError`](#engineerror) · [`EngineRunResult`](#enginerunresult) · [`EngineToolId`](#enginetoolid) · [`EntityOf`](#entityof) · [`EntityQuery`](#entityquery) · [`EntitySelector`](#entityselector) · [`EntityTypeDef`](#entitytypedef) · [`EventBus`](#eventbus) · [`EventSubscribeOptions`](#eventsubscribeoptions) · [`FORCE_AREA`](#force_area) · [`FieldEnv`](#fieldenv) · [`FlowContext`](#flowcontext) · [`FlowField`](#flowfield) · [`FlowRequest`](#flowrequest) · [`FlowUse`](#flowuse) · [`FollowerOptions`](#followeroptions) · [`FollowerSystem`](#followersystem) · [`ForceAreaBlock`](#forceareablock) · [`ForceAreaSystem`](#forceareasystem) · [`FrameRect`](#framerect) · [`GRID_STEP_SAVE_OWNER`](#grid_step_save_owner) · [`GameAttachment`](#gameattachment) · [`GameCommand`](#gamecommand) · [`GameDefinition`](#gamedefinition) · [`GameEditorDef`](#gameeditordef) · [`GameInputDef`](#gameinputdef) · [`GameKeyBinding`](#gamekeybinding) · [`GameOutcome`](#gameoutcome) · [`GamePersistDef`](#gamepersistdef) · [`GamePlayDef`](#gameplaydef) · [`GameRuntime`](#gameruntime) · [`GameSavesDef`](#gamesavesdef) · [`GameShell`](#gameshell) · [`GameTableDef`](#gametabledef) · [`GameWorldDef`](#gameworlddef) · [`GeometryColliderDesc`](#geometrycolliderdesc) · [`GeometryWorld`](#geometryworld) · [`GridFieldInfo`](#gridfieldinfo) · [`GridGeometry`](#gridgeometry) · [`GridPath`](#gridpath) · [`GridPathOptions`](#gridpathoptions) · [`GridPlace`](#gridplace) · [`GridSettings`](#gridsettings) · [`GridStepper`](#gridstepper) · [`ID_PATTERN`](#id_pattern) · [`InputState`](#inputstate) · [`InspectorWidgetDef`](#inspectorwidgetdef) · [`InstantiateOptions`](#instantiateoptions) · [`InstantiateResult`](#instantiateresult) · [`IssueCodeDef`](#issuecodedef) · [`JOINT`](#joint) · [`JOINT_KINDS`](#joint_kinds) · [`JointBlock`](#jointblock) · [`JointKind`](#jointkind) · [`JointSystem`](#jointsystem) · [`JsonValue`](#jsonvalue) · [`KEY_CODES`](#key_codes) · [`KEY_TO_CODE`](#key_to_code) · [`KinematicMotion`](#kinematicmotion) · [`LIFETIME`](#lifetime) · [`LIVE_DEFAULTS`](#live_defaults) · [`LibraryScene`](#libraryscene) · [`LifetimeBlock`](#lifetimeblock) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LoadFailureReason`](#loadfailurereason) · [`MAX_BROWSER_SAVE_LIMITS`](#max_browser_save_limits) · [`MAX_TICK_RATE`](#max_tick_rate) · [`MIN_TICK_RATE`](#min_tick_rate) · [`MOTION_SAVE_OWNER`](#motion_save_owner) · [`Macro`](#macro) · [`MacroRandom`](#macrorandom) · [`MarkerEntity`](#markerentity) · [`MarkerSystem`](#markersystem) · [`MaterialDef`](#materialdef) · [`MotionBody`](#motionbody) · [`MotionBodyOptions`](#motionbodyoptions) · [`MotionResult`](#motionresult) · [`NAV_AGENT`](#nav_agent) · [`NAV_ARRIVED`](#nav_arrived) · [`NAV_BLOCKED`](#nav_blocked) · [`NAV_COMMAND`](#nav_command) · [`NavAgentBlock`](#navagentblock) · [`NavAgentSystem`](#navagentsystem) · [`NavDestination`](#navdestination) · [`NavEntity`](#naventity) · [`NavIssue`](#navissue) · [`NavMesh`](#navmesh) · [`NavPolygon`](#navpolygon) · [`NavSystem`](#navsystem) · [`OCCUPANT`](#occupant) · [`Occupancy`](#occupancy) · [`OccupantBlock`](#occupantblock) · [`OverlapTracker`](#overlaptracker) · [`Overlaps`](#overlaps) · [`PAD_AXES`](#pad_axes) · [`PAD_BUTTONS`](#pad_buttons) · [`PATH_FOLLOW`](#path_follow) · [`PLAYER_INPUT`](#player_input) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`POINTER_BUTTONS`](#pointer_buttons) · [`PRIMITIVE_TYPES`](#primitive_types) · [`PadAxis`](#padaxis) · [`PadButton`](#padbutton) · [`ParseSaveResult`](#parsesaveresult) · [`ParseShapeResult`](#parseshaperesult) · [`PathFollowBlock`](#pathfollowblock) · [`PathFollowSystem`](#pathfollowsystem) · [`PathPlace`](#pathplace) · [`PathSchema`](#pathschema) · [`PersistContext`](#persistcontext) · [`PhysicalCheck`](#physicalcheck) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicsRequiredError`](#physicsrequirederror) · [`PhysicsWorld`](#physicsworld) · [`PlacementCheck`](#placementcheck) · [`PlacementDraw`](#placementdraw) · [`PlacementGhost`](#placementghost) · [`PlacementTool`](#placementtool) · [`PlacementToolOptions`](#placementtooloptions) · [`PlayStart`](#playstart) · [`PlayState`](#playstate) · [`PlayWorld`](#playworld) · [`PlayerInfo`](#playerinfo) · [`PlayerInputBlock`](#playerinputblock) · [`PlayerInputSystem`](#playerinputsystem) · [`PlayersDef`](#playersdef) · [`PointerButton`](#pointerbutton) · [`PointerKind`](#pointerkind) · [`PointerState`](#pointerstate) · [`Pool`](#pool) · [`Pose`](#pose) · [`PoseIndex`](#poseindex) · [`PrimitiveType`](#primitivetype) · [`ProjectMaterialDef`](#projectmaterialdef) · [`ProjectRuntimeView`](#projectruntimeview) · [`PtSchema`](#ptschema) · [`RUNTIME_ID_PATTERN`](#runtime_id_pattern) · [`RegisteredBehavior`](#registeredbehavior) · [`RegisteredType`](#registeredtype) · [`Registry`](#registry) · [`RegistryError`](#registryerror) · [`ResolvedTime`](#resolvedtime) · [`RunResult`](#runresult) · [`RuntimeGrid`](#runtimegrid) · [`RuntimeNav`](#runtimenav) · [`SAVE_RANDOM_KEY`](#save_random_key) · [`SAVE_SCHEMA_ID`](#save_schema_id) · [`SAVE_VERSION`](#save_version) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`SIDES`](#sides) · [`SIDE_VIEW_CONTROLLER`](#side_view_controller) · [`SLOT_MAX_LENGTH`](#slot_max_length) · [`SLOT_PATTERN`](#slot_pattern) · [`SPAWNER`](#spawner) · [`SPAWNER_SPAWNED`](#spawner_spawned) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SUBLEVEL_ID_PATTERN`](#sublevel_id_pattern) · [`SaveDepth`](#savedepth) · [`SaveFile`](#savefile) · [`SaveGameData`](#savegamedata) · [`SaveLimits`](#savelimits) · [`SaveLimitsStore`](#savelimitsstore) · [`SaveMeta`](#savemeta) · [`SaveRequest`](#saverequest) · [`SavedSystems`](#savedsystems) · [`SavedTimer`](#savedtimer) · [`SavesContext`](#savescontext) · [`SceneDiff`](#scenediff) · [`SceneLayerDef`](#scenelayerdef) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`SceneSwap`](#sceneswap) · [`SceneSystem`](#scenesystem) · [`SceneTemplate`](#scenetemplate) · [`SceneValidator`](#scenevalidator) · [`SceneView`](#sceneview) · [`ScriptPredicate`](#scriptpredicate) · [`SeatInput`](#seatinput) · [`SensorSystem`](#sensorsystem) · [`Side`](#side) · [`SideViewController`](#sideviewcontroller) · [`SideViewEnv`](#sideviewenv) · [`SideViewIntent`](#sideviewintent) · [`SideViewOptions`](#sideviewoptions) · [`SideViewResult`](#sideviewresult) · [`SolidOptions`](#solidoptions) · [`SolidSystem`](#solidsystem) · [`SpaceCastHit`](#spacecasthit) · [`SpaceFilter`](#spacefilter) · [`SpaceHit`](#spacehit) · [`SpaceQuery`](#spacequery) · [`SpawnInput`](#spawninput) · [`SpawnShape`](#spawnshape) · [`SpawnerBlock`](#spawnerblock) · [`SpawnerSystem`](#spawnersystem) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`Style`](#style) · [`SublevelInfo`](#sublevelinfo) · [`SublevelOptions`](#subleveloptions) · [`SublevelResult`](#sublevelresult) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`SystemFactory`](#systemfactory) · [`TOOL_PRIORITY`](#tool_priority) · [`TOP_DOWN_CONTROLLER`](#top_down_controller) · [`TimeKind`](#timekind) · [`TimeModel`](#timemodel) · [`TimerAction`](#timeraction) · [`Timers`](#timers) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TopDownController`](#topdowncontroller) · [`TopDownOptions`](#topdownoptions) · [`TransitionSpec`](#transitionspec) · [`ViewLayer`](#viewlayer) · [`ViewLayerHandle`](#viewlayerhandle) · [`VisualOptions`](#visualoptions) · [`WaypointMode`](#waypointmode) · [`WaypointState`](#waypointstate) · [`WorldState`](#worldstate) · [`advanceAlongPath`](#advancealongpath) · [`advanceWaypoint`](#advancewaypoint) · [`angleField`](#anglefield) · [`assetField`](#assetfield) · [`assetKindsOf`](#assetkindsof) · [`bindingKeyLabel`](#bindingkeylabel) · [`bindingProblems`](#bindingproblems) · [`bodyLocalShape`](#bodylocalshape) · [`bodyShapeField`](#bodyshapefield) · [`boundsCells`](#boundscells) · [`buildNavMesh`](#buildnavmesh) · [`carrierDelta`](#carrierdelta) · [`castSpawn`](#castspawn) · [`cellKey`](#cellkey-1) · [`cellOf`](#cellof) · [`clamp`](#clamp) · [`clampTiming`](#clamptiming) · [`clampVec2`](#clampvec2) · [`composePose`](#composepose) · [`createDataSystem`](#createdatasystem) · [`createDecorSystem`](#createdecorsystem) · [`createFollowerSystem`](#createfollowersystem) · [`createGridStepper`](#creategridstepper) · [`createMarkerSystem`](#createmarkersystem) · [`createMotionBody`](#createmotionbody) · [`createNavSystem`](#createnavsystem) · [`createOccupancy`](#createoccupancy) · [`createOverlapTracker`](#createoverlaptracker) · [`createPlacementTool`](#createplacementtool) · [`createPool`](#createpool) · [`createPropSystem`](#createpropsystem) · [`createRegistry`](#createregistry) · [`createSensorCollider`](#createsensorcollider) · [`createSensorSystem`](#createsensorsystem) · [`createSideViewController`](#createsideviewcontroller) · [`createSolidSystem`](#createsolidsystem) · [`createTopDownController`](#createtopdowncontroller) · [`declaredBindings`](#declaredbindings) · [`defineBehavior`](#definebehavior) · [`defineEntityType`](#defineentitytype) · [`defineGame`](#definegame) · [`degToRad`](#degtorad) · [`distanceVec2`](#distancevec2) · [`drawEntity`](#drawentity) · [`drawShape`](#drawshape) · [`effectiveSaveLimits`](#effectivesavelimits) · [`fieldOfView`](#fieldofview) · [`findPath`](#findpath) · [`flowField`](#flowfield-1) · [`flowIssue`](#flowissue) · [`forgetOneWayActor`](#forgetonewayactor) · [`formatSaveFile`](#formatsavefile) · [`gridField`](#gridfield) · [`gridFieldInfo`](#gridfieldinfo-1) · [`gridGeometry`](#gridgeometry-1) · [`gridMissingIssue`](#gridmissingissue) · [`gridPlace`](#gridplace-1) · [`gridRoute`](#gridroute) · [`inCellBounds`](#incellbounds) · [`initialWaypointState`](#initialwaypointstate) · [`inputFor`](#inputfor) · [`interpolatePosition`](#interpolateposition) · [`isNavSystem`](#isnavsystem) · [`isPolygonField`](#ispolygonfield) · [`isRuntimeId`](#isruntimeid) · [`isUiAction`](#isuiaction) · [`keycapLabel`](#keycaplabel) · [`keysProblems`](#keysproblems) · [`kinematicBodyEntry`](#kinematicbodyentry) · [`lengthUnitOf`](#lengthunitof) · [`lerp`](#lerp) · [`lerpVec2`](#lerpvec2) · [`lineOfSight`](#lineofsight) · [`materialField`](#materialfield) · [`mirrorField`](#mirrorfield) · [`navContains`](#navcontains) · [`navNearest`](#navnearest) · [`navPath`](#navpath) · [`oneWayPasses`](#onewaypasses) · [`parseRuntimeId`](#parseruntimeid) · [`parseSaveFile`](#parsesavefile) · [`parseShape`](#parseshape) · [`parseSublevelId`](#parsesublevelid) · [`pathPosition`](#pathposition) · [`pathWaypoints`](#pathwaypoints) · [`physicsOf`](#physicsof) · [`playersProblems`](#playersproblems) · [`pointField`](#pointfield) · [`pointerBit`](#pointerbit) · [`pointerButtonLabel`](#pointerbuttonlabel) · [`polygonField`](#polygonfield) · [`posedBodyDesc`](#posedbodydesc) · [`primitiveFields`](#primitivefields) · [`pxPerMetreOf`](#pxpermetreof) · [`rapierBodyEntry`](#rapierbodyentry) · [`readPathPlace`](#readpathplace) · [`refField`](#reffield) · [`registerBody`](#registerbody) · [`relativePose`](#relativepose) · [`resolveTime`](#resolvetime) · [`restoreOverlaps`](#restoreoverlaps) · [`runtimeId`](#runtimeid) · [`sameCell`](#samecell) · [`saveFileBytes`](#savefilebytes) · [`saveFileSchema`](#savefileschema) · [`saveOverlaps`](#saveoverlaps) · [`savePathPlace`](#savepathplace) · [`scaleLengths`](#scalelengths) · [`sceneGrid`](#scenegrid) · [`scopedRef`](#scopedref) · [`seekAlongPath`](#seekalongpath) · [`shapeColliderDesc`](#shapecolliderdesc) · [`shapeField`](#shapefield) · [`shapePose`](#shapepose) · [`sideField`](#sidefield) · [`spawnPose`](#spawnpose) · [`spriteGeometry`](#spritegeometry-1) · [`styleOf`](#styleof) · [`sublevelId`](#sublevelid) · [`tagsField`](#tagsfield) · [`tickRateProblem`](#tickrateproblem) · [`ticksFor`](#ticksfor) · [`traceShape`](#traceshape) · [`vectorField`](#vectorfield) · [`wholeTicksIn`](#wholeticksin) · [`withProject`](#withproject)
 
 ## `ACTION_KINDS`
 
@@ -409,8 +409,11 @@ Every owner of a body registers it here by entity id. An id with no body
 throws `EngineError` `body-missing`; a force, torque or impulse on a
 kinematic or static body, a velocity write on a static body or a follower
 (its path sets its velocity), and an angular velocity write on a kinematic
-body throw `body-not-dynamic`. A static or kinematic body's mass is
-Infinity. With `world.physics: "none"` only kinematic bodies exist.
+body that never turns (a character's, a motion body, a follower, or one with
+`fixedRotation`) throw `body-not-dynamic`; a kinematic `body` block's turns
+about its entity's pose at the angular velocity set. A static or kinematic
+body's mass is Infinity. With `world.physics: "none"` only kinematic bodies
+exist.
 
 ```ts
 interface BodyControl {
@@ -659,6 +662,20 @@ A `camera-target` block as an entity carries it, defaults applied.
 
 ```ts
 type CameraTargetBlock = z.infer<z.ZodObject<typeof cameraTargetFields>>;
+```
+
+## `CastResult`
+
+_type_ in `runtime/cast.ts`
+
+```ts
+type CastResult = {
+    at: Vec2;
+    ok: true;
+} | {
+    error: string;
+    ok: false;
+};
 ```
 
 ## `Cell`
@@ -1206,10 +1223,10 @@ _const_ in `game/commands.ts`
 Engine commands; game command names may not start with "@".
 
 ```ts
-declare const ENGINE_COMMANDS: Readonly<Record<"@elapsed", CommandDef>>;
+declare const ENGINE_COMMANDS: Readonly<Record<"@elapsed" | typeof NAV_COMMAND, CommandDef>>;
 ```
 
-Refers to [`CommandDef`](#commanddef).
+Refers to [`CommandDef`](#commanddef), [`NAV_COMMAND`](#nav_command).
 
 ## `ENGINE_PREDICATES`
 
@@ -1420,6 +1437,8 @@ type EngineContext = {
     readonly bodies: BodyControl;
     /** Present when the loaded scene's resolved settings have a grid. */
     readonly grid: RuntimeGrid | null;
+    /** Which version of the main scene runs, and where game code marks a safe moment to change it. */
+    readonly live: LiveContext;
     /** Present when the loaded scene has walk areas. */
     readonly nav: RuntimeNav | null;
     /**
@@ -1469,7 +1488,7 @@ type EngineContext = {
 };
 ```
 
-Refers to [`AttachmentHub`](#attachmenthub), [`BehaviorName`](#behaviorname), [`BehaviorSystem`](#behaviorsystem), [`BodyControl`](#bodycontrol), [`ColliderTags`](#collidertags), [`Contacts`](#contacts), [`EntityQuery`](#entityquery), [`EventBus`](#eventbus), [`FlowContext`](#flowcontext), [`GeometryWorld`](#geometryworld), [`InputState`](#inputstate), [`InstantiateOptions`](#instantiateoptions), [`InstantiateResult`](#instantiateresult), [`PersistContext`](#persistcontext), [`PhysicsWorld`](#physicsworld), [`PlayStart`](#playstart), [`PoseIndex`](#poseindex), [`ProjectRuntimeView`](#projectruntimeview), [`Registry`](#registry), [`ResolvedTime`](#resolvedtime), [`RuntimeGrid`](#runtimegrid), [`RuntimeNav`](#runtimenav), [`SavesContext`](#savescontext), [`SceneSystem`](#scenesystem), [`SceneView`](#sceneview), [`SpaceQuery`](#spacequery), [`SpawnInput`](#spawninput), [`StepEvent`](#stepevent), [`Timers`](#timers).
+Refers to [`AttachmentHub`](#attachmenthub), [`BehaviorName`](#behaviorname), [`BehaviorSystem`](#behaviorsystem), [`BodyControl`](#bodycontrol), [`ColliderTags`](#collidertags), [`Contacts`](#contacts), [`EntityQuery`](#entityquery), [`EventBus`](#eventbus), [`FlowContext`](#flowcontext), [`GeometryWorld`](#geometryworld), [`InputState`](#inputstate), [`InstantiateOptions`](#instantiateoptions), [`InstantiateResult`](#instantiateresult), [`LiveContext`](#livecontext), [`PersistContext`](#persistcontext), [`PhysicsWorld`](#physicsworld), [`PlayStart`](#playstart), [`PoseIndex`](#poseindex), [`ProjectRuntimeView`](#projectruntimeview), [`Registry`](#registry), [`ResolvedTime`](#resolvedtime), [`RuntimeGrid`](#runtimegrid), [`RuntimeNav`](#runtimenav), [`SavesContext`](#savescontext), [`SceneSystem`](#scenesystem), [`SceneView`](#sceneview), [`SpaceQuery`](#spacequery), [`SpawnInput`](#spawninput), [`StepEvent`](#stepevent), [`Timers`](#timers).
 
 ## `EngineError`
 
@@ -1847,7 +1866,10 @@ type ForceAreaSystem = BehaviorSystem<ForceAreaBlock> & {
     /**
      * The summed acceleration every area containing `point` gives, m/s²: what
      * a kinematic controller adds. With `entityId`, only the areas whose
-     * `affects` takes that entity count, by the rule they push bodies by.
+     * `affects` takes that entity count, by the rule they push bodies by. The
+     * characters add it to their own velocity, which their `decel` then works
+     * against while idle: a push weaker than the decel builds no speed, and a
+     * stronger one carries the character at the difference.
      */
     sample(point: Vec2, entityId?: string): Vec2;
 };
@@ -1955,6 +1977,8 @@ type GameDefinition<S = unknown, G = unknown> = {
     issues?: Readonly<Record<string, IssueCodeDef>>;
     /** Scene layers, bottom to top; replaces the engine's four defaults when given. */
     layers?: readonly SceneLayerDef[];
+    /** Which swap timings the game accepts for a new version of a running scene; omitted: next load only. */
+    live?: LiveDeclaration;
     materials?: Readonly<Record<string, MaterialDef>>;
     /** State that survives every scene change within one instance (`EngineContext.persist`). */
     persist?: GamePersistDef;
@@ -1998,7 +2022,7 @@ type GameDefinition<S = unknown, G = unknown> = {
 };
 ```
 
-Refers to [`ActionDef`](#actiondef), [`AssetKindDef`](#assetkinddef), [`BehaviorDef`](#behaviordef), [`CheckKindDef`](#checkkinddef), [`CommandDef`](#commanddef), [`EngineContext`](#enginecontext), [`EntityTypeDef`](#entitytypedef), [`GameAttachment`](#gameattachment), [`GameEditorDef`](#gameeditordef), [`GameInputDef`](#gameinputdef), [`GameKeyBinding`](#gamekeybinding), [`GamePersistDef`](#gamepersistdef), [`GamePlayDef`](#gameplaydef), [`GameRuntime`](#gameruntime), [`GameSavesDef`](#gamesavesdef), [`GameShell`](#gameshell), [`GameTableDef`](#gametabledef), [`GameWorldDef`](#gameworlddef), [`IssueCodeDef`](#issuecodedef), [`MaterialDef`](#materialdef), [`PhysicalCheck`](#physicalcheck), [`SceneLayerDef`](#scenelayerdef), [`SceneRuntimeHandle`](#sceneruntimehandle), [`SceneTemplate`](#scenetemplate), [`SceneValidator`](#scenevalidator), [`TimeModel`](#timemodel).
+Refers to [`ActionDef`](#actiondef), [`AssetKindDef`](#assetkinddef), [`BehaviorDef`](#behaviordef), [`CheckKindDef`](#checkkinddef), [`CommandDef`](#commanddef), [`EngineContext`](#enginecontext), [`EntityTypeDef`](#entitytypedef), [`GameAttachment`](#gameattachment), [`GameEditorDef`](#gameeditordef), [`GameInputDef`](#gameinputdef), [`GameKeyBinding`](#gamekeybinding), [`GamePersistDef`](#gamepersistdef), [`GamePlayDef`](#gameplaydef), [`GameRuntime`](#gameruntime), [`GameSavesDef`](#gamesavesdef), [`GameShell`](#gameshell), [`GameTableDef`](#gametabledef), [`GameWorldDef`](#gameworlddef), [`IssueCodeDef`](#issuecodedef), [`LiveDeclaration`](#livedeclaration), [`MaterialDef`](#materialdef), [`PhysicalCheck`](#physicalcheck), [`SceneLayerDef`](#scenelayerdef), [`SceneRuntimeHandle`](#sceneruntimehandle), [`SceneTemplate`](#scenetemplate), [`SceneValidator`](#scenevalidator), [`TimeModel`](#timemodel).
 
 ## `GameEditorDef`
 
@@ -2159,6 +2183,8 @@ type GameRuntime<S = unknown> = {
     destroy?(): void;
     /** After every entity spawned, before the first step; spawn actors here. */
     onLoad?(scene: ExpandedScene): void;
+    /** After a new version of the running scene was applied, before the next tick; outside a step. */
+    onSwap?(swap: SceneSwap): void;
     /** Before `onLoad` of the next scene, and on destroy. Remove what `onLoad` made. */
     onUnload?(): void;
     /**
@@ -2177,7 +2203,7 @@ type GameRuntime<S = unknown> = {
 };
 ```
 
-Refers to [`GameCommand`](#gamecommand), [`StepEvent`](#stepevent).
+Refers to [`GameCommand`](#gamecommand), [`SceneSwap`](#sceneswap), [`StepEvent`](#stepevent).
 
 ## `GameSavesDef`
 
@@ -2482,10 +2508,12 @@ interface InputState {
     vector(action: string, player?: number): Vec2;
     pointer(player?: number): PointerState | null;
     players(): readonly PlayerInfo[];
+    /** The tick's commands, the engine's (`@elapsed`, `@nav`) among them, in the order the tick holds them. */
+    commands(): readonly GameCommand[];
 }
 ```
 
-Refers to [`PlayerInfo`](#playerinfo), [`PointerState`](#pointerstate).
+Refers to [`GameCommand`](#gamecommand), [`PlayerInfo`](#playerinfo), [`PointerState`](#pointerstate).
 
 ## `InspectorWidgetDef`
 
@@ -2672,6 +2700,25 @@ bindings: "Shift" is both Shifts, "1" the digit row and the numpad.
 declare const KEY_TO_CODE: Readonly<Record<string, readonly string[]>>;
 ```
 
+## `KinematicMotion`
+
+_type_ in `runtime/bodies-control.ts`
+
+What the owner of a kinematic body reports and takes: `kinematicBodyEntry`'s `motion`.
+
+```ts
+type KinematicMotion = {
+    /** rad/s; left out, with `setAngularVelocity`, for a body that never turns (a character's). */
+    angularVelocity?(): number;
+    setAngularVelocity?(w: number): void;
+    /** Left out when the owner sets the velocity itself (a path). */
+    setVelocity?(v: Vec2): void;
+    /** m/s. */
+    velocity(): Vec2;
+    wake?(): void;
+};
+```
+
 ## `LIFETIME`
 
 _const_ in `game/behaviors/lifetime.ts`
@@ -2688,6 +2735,25 @@ declare const LIFETIME: BehaviorDef<{
 ```
 
 Refers to [`BehaviorDef`](#behaviordef).
+
+## `LIVE_DEFAULTS`
+
+_const_ in `game/live.ts`
+
+How long staging may take, Live in Play's debounce, and where and how long the swap check runs.
+
+```ts
+declare const LIVE_DEFAULTS: {
+    readonly checkAt: readonly [
+        0.25,
+        0.5,
+        0.75
+    ];
+    readonly checkTicks: 120;
+    readonly livePlayDebounceMs: 300;
+    readonly preloadTimeoutMs: 60000;
+};
+```
 
 ## `LibraryScene`
 
@@ -2711,6 +2777,38 @@ A `lifetime` block as an entity carries it.
 ```ts
 type LifetimeBlock = z.infer<z.ZodObject<typeof lifetimeFields>>;
 ```
+
+## `LiveContext`
+
+_type_ in `game/types.ts`
+
+`EngineContext.live`.
+
+```ts
+type LiveContext = {
+    /** Inside a step: this is a safe moment to change the level (a respawn, a turn's end, a checkpoint). */
+    boundary(label?: string): void;
+    /** The running main scene's version; null when it is the release's own. */
+    readonly version: Sha256 | null;
+};
+```
+
+## `LiveDeclaration`
+
+_type_ in `game/live.ts`
+
+`GameDefinition.live`: which timings the game accepts and what must hold after a swap.
+
+```ts
+type LiveDeclaration = {
+    /** Invariants the swap check (and Live in Play) runs right after a swap and 60 ticks later. */
+    check?(ctx: EngineContext): readonly SceneIssue[];
+    /** "next-load" is always allowed; list "boundary" and "now" to accept them. */
+    timings: readonly SwapTiming[];
+};
+```
+
+Refers to [`EngineContext`](#enginecontext), [`SwapTiming`](#swaptiming).
 
 ## `LoadFailureReason`
 
@@ -2856,6 +2954,15 @@ interface MotionBody {
     }): MotionResult;
     /** Puts it at (x, y) with no sweep; the pose snaps. */
     teleport(x: number, y: number): void;
+    /**
+     * Whether its last move ended against something facing its controller's
+     * `up`: on Rapier, `PhysicsWorld.isGrounded` for its controller; without
+     * physics, a hit of that move whose normal faces `up`. False after a
+     * teleport, a restore, or a move while disabled, until it moves again.
+     * Every `createMotionBody` body answers it; it is optional so a body a
+     * game writes itself (for `createGridStepper`, say) still fits.
+     */
+    grounded?(): boolean;
     /** A disabled body is out of the world: nothing hits it, and its moves travel in full. */
     setEnabled(enabled: boolean): void;
     /** m/s, kept for the controller moving it (`createTopDownController`); a world save keeps it. */
@@ -2874,6 +2981,14 @@ _type_ in `motion/body.ts`
 
 ```ts
 type MotionBodyOptions = {
+    /**
+     * The Rapier character controller that moves it, set up exactly as given
+     * (`pushDynamic` is Rapier's `applyImpulsesToDynamicBodies`). Default
+     * `TOP_DOWN_CONTROLLER`, which climbs and slides along every slope: a
+     * top-down body has no up. Without physics only `offset`, the gap kept
+     * from what it hits, and `up`, for `grounded`, apply.
+     */
+    controller?: CharacterControllerOptions;
     /** Collision group name; default "dynamic". */
     group?: string;
     /** Local, centred on 0, 0; not chain. */
@@ -2883,7 +2998,7 @@ type MotionBodyOptions = {
 };
 ```
 
-Refers to [`ColliderTag`](#collidertag).
+Refers to [`CharacterControllerOptions`](#charactercontrolleroptions), [`ColliderTag`](#collidertag).
 
 ## `MotionResult`
 
@@ -2944,6 +3059,16 @@ A nav agent gave up: `data.reason` is `no-path`, `stuck` or `gone`.
 declare const NAV_BLOCKED = "nav:blocked";
 ```
 
+## `NAV_COMMAND`
+
+_const_ in `game/commands.ts`
+
+The engine command a script's or a check's `nav` sends: the `nav-agent` system reads it at the start of the tick.
+
+```ts
+declare const NAV_COMMAND = "@nav";
+```
+
 ## `NavAgentBlock`
 
 _type_ in `game/behaviors/nav-agent.ts`
@@ -2970,6 +3095,24 @@ type NavAgentSystem = BehaviorSystem<NavAgentBlock> & {
 ```
 
 Refers to [`BehaviorSystem`](#behaviorsystem), [`NavAgentBlock`](#navagentblock).
+
+## `NavDestination`
+
+_type_ in `game/commands.ts`
+
+Where a `nav` step, a check's `nav` or the `@nav` command sends a nav agent.
+
+```ts
+type NavDestination = {
+    /** The nav agent's entity id. */
+    id: string;
+    /** A point, world m, or an entity id it follows. */
+    to: [
+        x: number,
+        y: number
+    ] | string;
+};
+```
 
 ## `NavEntity`
 
@@ -4188,6 +4331,7 @@ declare const SPAWNER: BehaviorDef<{
     active: z.ZodDefault<z.ZodBoolean>;
     burst: z.ZodDefault<z.ZodNumber>;
     cap: z.ZodDefault<z.ZodNumber>;
+    fields: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
     lifeMs: z.ZodOptional<z.ZodNumber>;
     prefab: z.ZodOptional<z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>>;
     rate: z.ZodDefault<z.ZodNumber>;
@@ -4449,6 +4593,22 @@ type SavesContext = {
 
 Refers to [`SaveDepth`](#savedepth).
 
+## `SceneDiff`
+
+_type_ in `game/live.ts`
+
+What differs between two expanded versions of a scene, by entity id in scene order.
+
+```ts
+type SceneDiff = {
+    added: readonly string[];
+    changed: readonly string[];
+    /** name, bounds or settings differ: the swap reloads. */
+    header: boolean;
+    removed: readonly string[];
+};
+```
+
 ## `SceneLayerDef`
 
 _type_ in `scene/layers.ts`
@@ -4526,6 +4686,30 @@ type SceneRuntimeHandle = SceneRuntime & {
 ```
 
 Refers to [`EngineContext`](#enginecontext), [`GameRuntime`](#gameruntime), [`ProjectRuntimeView`](#projectruntimeview).
+
+## `SceneSwap`
+
+_type_ in `game/live.ts`
+
+What `GameRuntime.onSwap` and the `live:swapped` event receive.
+
+```ts
+type SceneSwap = {
+    /** What survived: everything (reconcile), the world (reload, world depth), or only the game's state and persist. */
+    carried: "all" | "progress" | "world";
+    diff: SceneDiff;
+    /** `version` null: the release's own scene. */
+    from: SwapSide;
+    scene: AssetId;
+    strategy: SwapStrategy;
+    /** `ctx.tick` when the swap ran: the next tick to step. */
+    tick: number;
+    timing: SwapTiming;
+    to: SwapSide;
+};
+```
+
+Refers to [`SceneDiff`](#scenediff), [`SwapSide`](#swapside), [`SwapStrategy`](#swapstrategy), [`SwapTiming`](#swaptiming).
 
 ## `SceneSystem`
 
@@ -5168,6 +5352,42 @@ type SublevelResult = {
 };
 ```
 
+## `SwapSide`
+
+_type_ in `game/live.ts`
+
+One side of a swap: the version (null for the release's own scene) and its hashes.
+
+```ts
+type SwapSide = {
+    runHash: string;
+    sceneHash: string;
+    version: Sha256 | null;
+};
+```
+
+## `SwapStrategy`
+
+_type_ in `game/live.ts`
+
+Reconcile changes entities in place; reload loads the new version fresh and restores what it can.
+
+```ts
+type SwapStrategy = "reconcile" | "reload";
+```
+
+## `SwapTiming`
+
+_type_ in `game/live.ts`
+
+When a new version of a scene reaches a running game: inside the next load
+of that scene, after the tick in which game code called
+`ctx.live.boundary()`, or after the tick during which it finished staging.
+
+```ts
+type SwapTiming = "boundary" | "next-load" | "now";
+```
+
 ## `SystemFactory`
 
 _type_ in `game/types.ts`
@@ -5300,6 +5520,7 @@ _type_ in `tool-router.ts`
 type ToolEvent = {
     /** The DOM button that changed (0 primary, 1 middle, 2 secondary), -1 for a plain move. */
     button: number;
+    /** A wheel turn's vertical distance in CSS px, whatever unit the browser reported it in; 0 otherwise. */
     deltaY: number;
     kind: "pointer";
     /** A move that is the pointer leaving the target (a `pointerleave`); `screen` is where it left. */
@@ -5656,6 +5877,23 @@ declare function carrierDelta(ctx: EngineContext, handle: number): Vec2 | null;
 
 Refers to [`EngineContext`](#enginecontext).
 
+## `castSpawn`
+
+_function_ in `runtime/cast.ts`
+
+Where an actor of `shape` placed at `at` comes to rest: carried along its
+`cast` direction (gravity's by default) onto the first non-sensor collider,
+within the scene's bounds, on either backend. Refused when the shape
+already overlaps one there (through `ctx.space`); with no direction (zero
+gravity, `"none"`, a zero vector) or nothing ahead it stays at `at`. Gated
+colliders don't count.
+
+```ts
+declare function castSpawn(ctx: EngineContext, at: Vec2, shape: SpawnShape): CastResult;
+```
+
+Refers to [`CastResult`](#castresult), [`EngineContext`](#enginecontext), [`SpawnShape`](#spawnshape).
+
 ## `cellKey`
 
 _function_ in `grid/geometry.ts`
@@ -5685,6 +5923,23 @@ Clamp a number between min and max
 ```ts
 declare function clamp(value: number, min: number, max: number): number;
 ```
+
+## `clampTiming`
+
+_function_ in `game/live.ts`
+
+The timing a game gets when `wanted` is asked for: `next-load` is always
+allowed, and a timing the game doesn't list falls to the strongest listed
+one below it (`now`, then `boundary`, then `next-load`).
+
+```ts
+declare function clampTiming(live: LiveDeclaration | undefined, wanted: SwapTiming): {
+    clamped: boolean;
+    timing: SwapTiming;
+};
+```
+
+Refers to [`LiveDeclaration`](#livedeclaration), [`SwapTiming`](#swaptiming).
 
 ## `clampVec2`
 
@@ -5798,8 +6053,9 @@ Refers to [`EngineContext`](#enginecontext), [`MarkerSystem`](#markersystem), [`
 
 _function_ in `motion/body.ts`
 
-Rapier: a kinematic position-based body with a TOP_DOWN_CONTROLLER
-character controller; geometry: a kinematic collider, sweep and slide.
+Rapier: a kinematic position-based body with a character controller
+(`opts.controller`, default `TOP_DOWN_CONTROLLER`); geometry: a kinematic
+collider, sweep and slide.
 It answers `ctx.bodies` as a kinematic body, its stored velocity read
 and written there.
 
@@ -6407,18 +6663,14 @@ _function_ in `runtime/bodies-control.ts`
 
 A kinematic body whose owner moves it: `velocity` reads what the owner
 reports, and `setVelocity`, when the owner takes one, writes what it
-moves by. It never turns, and forces don't move it, so its mass is
-infinite.
+moves by; the angular velocity likewise, and a body whose owner takes
+none never turns. Forces don't move it, so its mass is infinite.
 
 ```ts
-declare function kinematicBodyEntry(id: string, motion: {
-    setVelocity?(v: Vec2): void;
-    velocity(): Vec2;
-    wake?(): void;
-}): BodyEntry;
+declare function kinematicBodyEntry(id: string, motion: KinematicMotion): BodyEntry;
 ```
 
-Refers to [`BodyEntry`](#bodyentry).
+Refers to [`BodyEntry`](#bodyentry), [`KinematicMotion`](#kinematicmotion).
 
 ## `lengthUnitOf`
 

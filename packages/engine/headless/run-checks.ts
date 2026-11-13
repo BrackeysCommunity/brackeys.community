@@ -24,16 +24,23 @@ import {
 } from "../scene/checks";
 import { expandScene } from "../scene/expand";
 import { formatScene } from "../scene/format";
-import { inputScriptSchemasFor, migrateInputScript } from "../scene/input-script";
+import { inputScriptSchemasFor, migrateInputScript, navCommand } from "../scene/input-script";
 import { jsonPointer, lineAt, makeIssue } from "../scene/issues";
 import { parseChildRef } from "../scene/resolve";
 import type { PrefabLibrary, Ref, SceneDefinition, SceneIssue, Severity } from "../scene/types";
 import { validateScene } from "../scene/validate";
 import type { RapierModule } from "../types";
+import { withStartCommands } from "./compile-input-script";
 import { fuzz } from "./fuzz";
 import { runLibrary } from "./play-loop";
-import { runPlaytest, untilHolds } from "./playtest";
-import type { InputScript, InputScriptV2, PlaytestBlocked, UntilClause } from "./playtest-types";
+import { compilePlaytestScript, runPlaytest, untilHolds } from "./playtest";
+import type {
+  CompiledInputScript,
+  InputScript,
+  InputScriptV2,
+  PlaytestBlocked,
+  UntilClause,
+} from "./playtest-types";
 import { validatePhysical } from "./validate-physical";
 
 export type CheckResult = {
@@ -160,7 +167,7 @@ function runReaches(
   env: RunEnv,
   project: ProjectRuntimeView | null,
 ): CheckVerdict {
-  let script: InputScript | InputScriptV2;
+  let script: InputScript | InputScriptV2 | CompiledInputScript;
   if (typeof check.script === "string") {
     let raw: unknown;
     try {
@@ -174,6 +181,11 @@ function runReaches(
     script = lifted.script as InputScriptV2;
   } else script = check.script;
   if (check.at) script = { ...script, at: check.at };
+  if (check.nav) {
+    // A script that doesn't compile goes to the playtest as written, which reports why.
+    const compiled = compilePlaytestScript(script, env.registry, project);
+    if (compiled.ok) script = withStartCommands(compiled.script, check.nav.map(navCommand));
+  }
 
   let expectKeys: [string, unknown][] | null = null;
   if (check.expect !== undefined) {

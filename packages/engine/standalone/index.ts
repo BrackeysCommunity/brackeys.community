@@ -16,6 +16,7 @@ export {
   type ConnectHostOptions,
   type HostChannel,
 } from "./host-channel";
+export { createLiveController, type LiveController, type LiveControllerOptions } from "./live";
 export {
   frameMessageSchema,
   frameReadySchema,
@@ -30,7 +31,11 @@ export {
   hostIssueSchema,
   hostMessageBytes,
   hostMessageSchema,
+  hostFeatureSchema,
   hostSavesSchema,
+  liveSceneEntrySchema,
+  liveSnapshotSchema,
+  liveStateMessageSchema,
   saveLimitsSchema,
   saveModeSchema,
   saveSummarySchema,
@@ -39,11 +44,16 @@ export {
   withinHostMessageCap,
   type FrameMessage,
   type HostEvents,
+  type HostFeature,
   type HostMessage,
   type HostRequestMethod,
   type HostRequestParams,
   type HostRequestResult,
   type HostSaves,
   type HostWelcome,
+  type LiveSceneEntry,
+  type LiveSnapshot,
+  type LiveStateMessage,
+  type LiveStatus,
 } from "./host-protocol";
 export { channelSaveStore } from "../saves/store";

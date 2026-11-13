@@ -3,7 +3,7 @@ import type { Collider, KinematicCharacterController, RigidBody } from "@dimforg
 import { TOP_DOWN_CONTROLLER } from "../game/defaults";
 import { physicsOf } from "../game/physics-of";
 import type { ColliderTag, EngineContext, JsonValue } from "../game/types";
-import { shapeColliderDesc } from "../physics";
+import { shapeColliderDesc, type CharacterControllerOptions } from "../physics";
 import { kinematicBodyEntry, registerBody } from "../runtime/bodies-control";
 import type { SpaceCastHit, SpaceFilter } from "../runtime/space";
 import type { ShapeObj } from "../scene/types";
@@ -42,6 +42,14 @@ export type MotionBodyOptions = {
   group?: string;
   /** Merged into the collider's tag (entityId and type come from the entity). */
   tag?: Partial<ColliderTag>;
+  /**
+   * The Rapier character controller that moves it, set up exactly as given
+   * (`pushDynamic` is Rapier's `applyImpulsesToDynamicBodies`). Default
+   * `TOP_DOWN_CONTROLLER`, which climbs and slides along every slope: a
+   * top-down body has no up. Without physics only `offset`, the gap kept
+   * from what it hits, and `up`, for `grounded`, apply.
+   */
+  controller?: CharacterControllerOptions;
 };
 
 export type MotionResult = {
@@ -61,6 +69,15 @@ export interface MotionBody {
   move(delta: Vec2, opts?: { slide?: boolean }): MotionResult;
   /** Puts it at (x, y) with no sweep; the pose snaps. */
   teleport(x: number, y: number): void;
+  /**
+   * Whether its last move ended against something facing its controller's
+   * `up`: on Rapier, `PhysicsWorld.isGrounded` for its controller; without
+   * physics, a hit of that move whose normal faces `up`. False after a
+   * teleport, a restore, or a move while disabled, until it moves again.
+   * Every `createMotionBody` body answers it; it is optional so a body a
+   * game writes itself (for `createGridStepper`, say) still fits.
+   */
+  grounded?(): boolean;
   /** A disabled body is out of the world: nothing hits it, and its moves travel in full. */
   setEnabled(enabled: boolean): void;
   /** m/s, kept for the controller moving it (`createTopDownController`); a world save keeps it. */
@@ -104,14 +121,18 @@ function lostTravel(delta: Vec2, moved: Vec2): boolean {
 /** Backend operations behind a motion body. */
 type Backend = {
   handle: number;
-  /** Moves from `from` by `delta`; returns the travel and what it hit. */
-  move(from: Vec2, delta: Vec2, slide: boolean): { moved: Vec2; hits: SpaceCastHit[] };
+  /** Moves from `from` by `delta`; returns the travel, what it hit, and whether it ended grounded. */
+  move(
+    from: Vec2,
+    delta: Vec2,
+    slide: boolean,
+  ): { moved: Vec2; hits: SpaceCastHit[]; grounded: boolean };
   place(at: Vec2, snap: boolean): void;
   setEnabled(enabled: boolean): void;
   destroy(): void;
 };
 
-/** Rapier: a kinematic position-based body moved by a top-down character controller. */
+/** Rapier: a kinematic position-based body moved by a character controller, top-down unless `opts.controller` says otherwise. */
 function rapierBackend(
   ctx: EngineContext,
   entityId: string,
@@ -129,14 +150,17 @@ function rapierBackend(
     body,
   );
   ctx.tags.set(collider.handle, tag);
-  const controller: KinematicCharacterController =
-    physics.createCharacterController(TOP_DOWN_CONTROLLER);
+  const controller: KinematicCharacterController = physics.createCharacterController(
+    opts.controller ?? TOP_DOWN_CONTROLLER,
+  );
   const skip = oneWayPasses(ctx, entityId);
-  // The controller still splits moves along `up`, and at a slide limit of a
-  // right angle it drops the "downward" part of a slide along a vertical
-  // wall. A top-down body has no up: every slope climbs and every one slides.
-  controller.setMaxSlopeClimbAngle(Math.PI);
-  controller.setMinSlopeSlideAngle(0);
+  if (!opts.controller) {
+    // The controller still splits moves along `up`, and at a slide limit of a
+    // right angle it drops the "downward" part of a slide along a vertical
+    // wall. A top-down body has no up: every slope climbs and every one slides.
+    controller.setMaxSlopeClimbAngle(Math.PI);
+    controller.setMinSlopeSlideAngle(0);
+  }
 
   return {
     handle: collider.handle,
@@ -167,7 +191,7 @@ function rapierBackend(
           normal: n === 0 ? { ...ZERO } : { x: c.normal1.x / n, y: c.normal1.y / n },
         });
       }
-      return { moved: { x: m.x, y: m.y }, hits };
+      return { moved: { x: m.x, y: m.y }, hits, grounded: physics.isGrounded(controller) };
     },
     place(p, snap) {
       const v = new rapier.Vector2(p.x, p.y);
@@ -210,6 +234,8 @@ function geometryBackend(
   });
   ctx.tags.set(handle, tag);
   const filter: SpaceFilter = { exclude: [entityId], group, skip: oneWayPasses(ctx, entityId) };
+  const skin = opts.controller?.offset ?? SKIN;
+  const [upX, upY] = (opts.controller ?? TOP_DOWN_CONTROLLER).up;
 
   return {
     handle,
@@ -229,15 +255,16 @@ function geometryBackend(
         }
         hits.push(hit);
         const n = hit.normal;
-        x += rest.x * hit.toi + n.x * SKIN;
-        y += rest.y * hit.toi + n.y * SKIN;
+        x += rest.x * hit.toi + n.x * skin;
+        y += rest.y * hit.toi + n.y * skin;
         if (!slide) break;
         const left = { x: rest.x * (1 - hit.toi), y: rest.y * (1 - hit.toi) };
         const into = dot(left, n);
         rest = into < 0 ? { x: left.x - n.x * into, y: left.y - n.y * into } : left;
       }
       world.setPose(handle, from.x, from.y, 0);
-      return { moved: { x: x - from.x, y: y - from.y }, hits };
+      const grounded = hits.some((h) => h.normal.x * upX + h.normal.y * upY > 0);
+      return { moved: { x: x - from.x, y: y - from.y }, hits, grounded };
     },
     place(p) {
       world.setPose(handle, p.x, p.y, 0);
@@ -253,8 +280,9 @@ function geometryBackend(
 }
 
 /**
- * Rapier: a kinematic position-based body with a TOP_DOWN_CONTROLLER
- * character controller; geometry: a kinematic collider, sweep and slide.
+ * Rapier: a kinematic position-based body with a character controller
+ * (`opts.controller`, default `TOP_DOWN_CONTROLLER`); geometry: a kinematic
+ * collider, sweep and slide.
  * It answers `ctx.bodies` as a kinematic body, its stored velocity read
  * and written there.
  */
@@ -278,6 +306,7 @@ export function createMotionBody(
   let velocity: Vec2 = { x: 0, y: 0 };
   let enabled = true;
   let destroyed = false;
+  let grounded = false;
   ctx.poses.set(entity.id, pos.x, pos.y, undefined, { snap: true });
 
   const live = (what: string) => {
@@ -306,9 +335,11 @@ export function createMotionBody(
     position: () => ({ ...pos }),
     move(delta, moveOpts) {
       live("move");
-      const { moved, hits } = enabled
+      const result = enabled
         ? backend.move(pos, delta, moveOpts?.slide !== false)
-        : { moved: { x: delta.x, y: delta.y }, hits: [] };
+        : { moved: { x: delta.x, y: delta.y }, hits: [], grounded: false };
+      const { moved, hits } = result;
+      grounded = result.grounded;
       pos = { x: pos.x + moved.x, y: pos.y + moved.y };
       backend.place(pos, false);
       ctx.poses.set(entity.id, pos.x, pos.y);
@@ -317,6 +348,7 @@ export function createMotionBody(
     teleport(x, y) {
       live("teleport");
       pos = { x, y };
+      grounded = false;
       backend.place(pos, true);
       ctx.poses.set(entity.id, x, y, undefined, { snap: true });
     },
@@ -326,6 +358,7 @@ export function createMotionBody(
       enabled = next;
       backend.setEnabled(next);
     },
+    grounded: () => grounded,
     velocity: () => ({ ...velocity }),
     setVelocity(v) {
       velocity = { x: v.x, y: v.y };
