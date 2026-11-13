@@ -28,7 +28,7 @@ import {
   type EditorFrameHandle,
 } from "../frame/EditorFrame";
 import { LIVE_PLAY_KEY, LIVE_PLAY_TOOLTIP } from "../panels/EditorPlayBar";
-import { LIVE_PLAY_IDLE } from "../panels/EditorStatusBar";
+import { LIVE_PLAY_IDLE } from "../panels/LiveInPlayStatus";
 import {
   editorIdentity,
   LIVE_PLAY_APPLIED_MS,

@@ -3,9 +3,16 @@
  * with a loading view on a slow preload. DOM only; the shell supplies the
  * runtime side (unload, preload, load) and the layer it draws into.
  */
-import { flowIssue, type FlowRequest, type LibraryScene, type TransitionSpec } from "./game/flow";
+import {
+  flowIssue,
+  type FlowRequest,
+  type LibraryScene,
+  type SceneLibrary,
+  type TransitionSpec,
+} from "./game/flow";
 import type { AssetId } from "./project/types";
 import type { LoadProgress } from "./render/asset-loader";
+import { liveScene } from "./runtime/live";
 import { makeIssue } from "./scene/issues";
 import type { SceneIssue } from "./scene/types";
 import type {
@@ -34,8 +41,19 @@ export function liveSceneSource(base: SceneSource, live: LiveSceneVersions): Sce
   return {
     list: () => base.list(),
     start: () => base.start(),
-    scene: (id) => live.sceneFor(id) ?? base.scene(id),
+    scene: (id) => liveScene(live, id) ?? base.scene(id),
   };
+}
+
+/** `source`'s listed scenes as a run's library: what its flow loads and attaches read. */
+export function sourceLibrary(source: SceneSource): SceneLibrary {
+  const list = source.list();
+  const scenes = new Map<AssetId, LibraryScene>();
+  for (const entry of list) {
+    const listed = source.scene(entry.scene);
+    if (listed) scenes.set(entry.scene, listed);
+  }
+  return { list, scenes };
 }
 
 export type FlowHostOptions = {

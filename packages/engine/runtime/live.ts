@@ -29,6 +29,7 @@ import type { GameEventMap, GameLive, StagedVersion } from "../types";
 import { flowLoaderOf } from "./flow";
 import { runHash } from "./play-session";
 import { LOAD_GENERATION } from "./pool";
+import { recordedSwap, type RunRecorder } from "./recorder";
 import { saveHostOf } from "./runtime";
 import type { SceneRuntimeHandle } from "./types";
 
@@ -184,8 +185,12 @@ export type LiveLayer = Pick<GameLive, "current" | "pending" | "pin" | "unpin"> 
     version(): Sha256 | null;
     boundary(label?: string): void;
     sublevel(id: AssetId): LibraryScene | null;
-    /** While a load of `scene` runs (the game's `onLoad`), the version that load plays. */
-    loading(scene: AssetId): Sha256 | null;
+    /**
+     * While a load of `scene` runs (the game's `onLoad`), the version that
+     * load plays; `back` when it puts back the version a swap that failed or
+     * was undone left.
+     */
+    loading(scene: AssetId, back?: boolean): Sha256 | null;
   };
   /**
    * The load about to run plays a definition of the host's own (Play of an
@@ -259,6 +264,8 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
   const moved = new Set<AssetId>();
   /** The scene hash of the host's own definition the load in progress plays, from `loadingDoc`. */
   let docLoad: string | null = null;
+  /** While `apply` swaps: the scene and the version it ran before, which a load putting it back plays. */
+  let unwinding: { scene: AssetId; version: PreparedVersion | null } | null = null;
 
   /** The version a load of `scene` plays: its active one, unless the load plays `docHash`, a definition of the host's own that isn't it. */
   function playedBy(scene: AssetId, docHash: string | null): PreparedVersion | null {
@@ -449,47 +456,64 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
     if (!target) return refuse(`the release's own ${scene} isn't available`, "swap");
 
     const from = fromSide(rt, scene);
-    const report = rt.swap(target.scene, {
-      prefabs: target.prefabs,
-      strategy: applyOpts.strategy === "reload" ? "reload" : "auto",
-    });
-    settle(rt);
-    if (!report.ok) return failed(scene, version, report.issue);
-
-    const swap: SceneSwap = {
-      scene,
-      from,
-      to: {
-        version,
-        sceneHash: target.sceneHash,
-        runHash: hashRun(rt, target.scene, target.prefabs),
-      },
-      strategy: report.strategy,
-      carried: report.carried,
-      diff: report.diff,
-      timing: applyOpts.timing,
-      tick: applyOpts.tick ?? rt.ctx.tick,
+    const was = running;
+    /**
+     * Back to the run before the swap. A load inside it can look before it
+     * has its scene (an `onLoad` attach) and clear `running`.
+     */
+    const unwound = () => {
+      settle(rt);
+      running = rt.scene() === null ? null : was;
     };
-    const before = new Set(rt.ctx.query.select({ enabled: false }));
+    unwinding = { scene, version: was?.version ?? null };
     try {
-      rt.game?.onSwap?.(swap);
-    } catch (err) {
-      for (const id of rt.ctx.query.select({ enabled: false })) {
-        if (!before.has(id) && rt.ctx.exists(id)) rt.ctx.destroy(id);
-      }
-      let cause = errorText(err);
-      try {
-        report.undo();
-      } catch (undoErr) {
-        cause += `; ${errorText(undoErr)}`;
+      const report = rt.swap(target.scene, {
+        prefabs: target.prefabs,
+        strategy: applyOpts.strategy === "reload" ? "reload" : "auto",
+      });
+      if (!report.ok) {
+        unwound();
+        return failed(scene, version, report.issue);
       }
       settle(rt);
-      return refuse(cause, "onSwap");
+
+      const swap: SceneSwap = {
+        scene,
+        from,
+        to: {
+          version,
+          sceneHash: target.sceneHash,
+          runHash: hashRun(rt, target.scene, target.prefabs),
+        },
+        strategy: report.strategy,
+        carried: report.carried,
+        diff: report.diff,
+        timing: applyOpts.timing,
+        tick: applyOpts.tick ?? rt.ctx.tick,
+      };
+      const before = new Set(rt.ctx.query.select({ enabled: false }));
+      try {
+        rt.game?.onSwap?.(swap);
+      } catch (err) {
+        for (const id of rt.ctx.query.select({ enabled: false })) {
+          if (!before.has(id) && rt.ctx.exists(id)) rt.ctx.destroy(id);
+        }
+        let cause = errorText(err);
+        try {
+          report.undo();
+        } catch (undoErr) {
+          cause += `; ${errorText(undoErr)}`;
+        }
+        unwound();
+        return refuse(cause, "onSwap");
+      }
+      running = { scene, version: prepared };
+      emit("live:swapped", swap);
+      for (const fn of [...listeners]) fn(swap);
+      return { ok: true, swap };
+    } finally {
+      unwinding = null;
     }
-    running = { scene, version: prepared };
-    emit("live:swapped", swap);
-    for (const fn of [...listeners]) fn(swap);
-    return { ok: true, swap };
   }
 
   return {
@@ -576,7 +600,10 @@ export function createLiveLayer(opts: LiveLayerOptions): LiveLayer {
         if (!moved.has(id)) return null;
         return active.get(id) ?? opts.release?.(id) ?? null;
       },
-      loading: (scene) => playedBy(scene, docLoad)?.id ?? null,
+      loading: (scene, back) =>
+        back && unwinding?.scene === scene
+          ? (unwinding.version?.id ?? null)
+          : (playedBy(scene, docLoad)?.id ?? null),
     },
     loadingDoc(sceneHash) {
       docLoad = sceneHash;
@@ -646,12 +673,22 @@ export function overlayLibrary(
   return scenes ? { list: base.list, scenes } : base;
 }
 
+/** The live versions a run reads: the active version of a scene, or null for the release's own. */
+type ActiveVersions = { sceneFor(id: AssetId): LibraryScene | null };
+
+/**
+ * The definition and prefabs a load or attach of `id` uses in place of its
+ * own: its active live version's, or null for its own. The one rule a
+ * scene source and a run's library both read.
+ */
+export function liveScene(layer: ActiveVersions, id: AssetId): LibraryScene | null {
+  const active = layer.sceneFor(id);
+  return active && { def: active.def, prefabs: active.prefabs };
+}
+
 /** `base` with each listed scene's active live version in place of its own definition. */
-export function liveLibrary(base: SceneLibrary, layer: Pick<LiveLayer, "sceneFor">): SceneLibrary {
-  return overlayLibrary(base, (id) => {
-    const active = layer.sceneFor(id);
-    return active && { def: active.def, prefabs: active.prefabs };
-  });
+export function liveLibrary(base: SceneLibrary, layer: ActiveVersions): SceneLibrary {
+  return overlayLibrary(base, (id) => liveScene(layer, id));
 }
 
 /** The swaps a recording writes, in order, for a run whose load ran at the log's start tick. */
@@ -679,6 +716,23 @@ export function liveSwapLog(startTick: number, atLoad: readonly SceneSwap[]): Li
       started.add(swap.scene);
       return [{ ...swap, to: swap.from }, swap];
     },
+  };
+}
+
+/**
+ * Writes a run's live swaps to `recorder` by `liveSwapLog`, from a load at
+ * `startTick`: the versions its sublevels attach now, then each swap the
+ * returned writer is given (subscribe it with `onApplied`).
+ */
+export function recordLiveSwaps(
+  recorder: Pick<RunRecorder, "swap">,
+  live: Pick<LiveLayer, "liveSublevels">,
+  startTick: number,
+): (swap: SceneSwap) => void {
+  const log = liveSwapLog(startTick, live.liveSublevels());
+  for (const swap of log.start) recorder.swap(recordedSwap(swap));
+  return (swap) => {
+    for (const s of log.next(swap)) recorder.swap(recordedSwap(s));
   };
 }
 

@@ -1,18 +1,28 @@
-import type { LibraryScene } from "../../game/flow";
-import type { GameDefinition, Registry } from "../../game/types";
+import type { LibraryScene, SceneLibrary } from "../../game/flow";
+import type { SwapTiming } from "../../game/live";
+import type { GameDefinition, PlayState, Registry } from "../../game/types";
+import { prepareRun, runLoop, startRun } from "../../headless/play-loop";
 import { stableJson } from "../../project/canonical";
 import { sha256 } from "../../project/hash";
 import { ENGINE_FORMATS, type ReleaseAsset } from "../../project/release";
 import { utf8Bytes } from "../../project/release-assets";
 import { sceneVersionId, type SceneVersion } from "../../project/scene-version";
-import type { PreparedVersion } from "../../runtime/live";
+import {
+  preparedVersion,
+  recordLiveSwaps,
+  type LiveActivation,
+  type LiveLayer,
+  type PreparedVersion,
+} from "../../runtime/live";
+import { createRunRecorder } from "../../runtime/recorder";
 import { saveHostOf } from "../../runtime/runtime";
 import type { SceneRuntimeHandle, StepResult, SwapReport } from "../../runtime/types";
 import { expandScene } from "../../scene/expand";
 import { formatScene } from "../../scene/format";
 import { hashText } from "../../scene/hash";
+import type { RunRecording } from "../../scene/recording-schema";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/types";
-import type { SceneSource, StagedVersion } from "../../types";
+import type { RapierModule, SceneSource, StagedVersion } from "../../types";
 import { ENGINE_VERSION } from "../../version";
 
 /** A 10×10 scene of `marker` entities named by `markers`, in a row from (1, 1). */
@@ -120,6 +130,106 @@ export function preparedOf(
   const version = { scene, sceneHash: `hash-${id.slice(0, 4)}` } as SceneVersion;
   const prefabs = new Map();
   return { id, version, def, scene: expandScene(def, registry, { prefabs }), prefabs };
+}
+
+/** `v` read for play with the game's registry and staged on `live`; what stopped it thrown. */
+export function stageVersion(
+  live: Pick<LiveLayer, "stage">,
+  v: StagedVersion,
+  registry: Registry,
+  game: GameDefinition | null,
+): PreparedVersion {
+  const read = preparedVersion(v, registry, game);
+  if (!read.ok) throw new Error(JSON.stringify(read.issues));
+  const staged = live.stage(read.prepared);
+  if (!staged.ok) throw new Error(JSON.stringify(staged.issue));
+  return read.prepared;
+}
+
+/** `v` staged on `live` and activated for its scene with `timing`: the activation. */
+export function stageAndActivate(
+  live: Pick<LiveLayer, "stage" | "activate">,
+  v: StagedVersion,
+  registry: Registry,
+  game: GameDefinition | null,
+  timing: SwapTiming,
+): LiveActivation {
+  stageVersion(live, v, registry, game);
+  return live.activate(v.version.scene, v.id, timing);
+}
+
+export type LiveRunOptions = {
+  game: GameDefinition;
+  registry: Registry;
+  /** The scene it plays, listed in `library` under its name. */
+  def: SceneDefinition;
+  library: SceneLibrary;
+  ticks: number;
+  rapier?: RapierModule | null;
+  /** Before the load: versions its sublevels attach. */
+  beforeLoad?(live: LiveLayer): void;
+  /** After the load and the recorder started, before the first step. */
+  afterLoad?(live: LiveLayer): void;
+  /** After each tick was recorded. */
+  onTick?(state: PlayState, live: LiveLayer, runtime: SceneRuntimeHandle): void;
+};
+
+/**
+ * Plays `def` headless for `ticks` ticks through the live layer a replay
+ * uses, recorded by the run recorder with its live swaps written the way
+ * every recording writes them.
+ */
+export function recordLiveRun(opts: LiveRunOptions): RunRecording {
+  const { game, registry, def } = opts;
+  const rapier = opts.rapier ?? null;
+  const prepared = prepareRun(def, registry);
+  if (!prepared.ok) throw new Error(JSON.stringify(prepared.blocked));
+  const started = startRun({
+    rapier,
+    game,
+    registry,
+    scene: prepared.scene,
+    play: {},
+    flow: { scene: def.name, entry: null, library: opts.library },
+    beforeLoad(live) {
+      opts.beforeLoad?.(live);
+      return null;
+    },
+  });
+  if (!started.ok) throw new Error(JSON.stringify(started.load));
+  const { runtime, live } = started;
+  try {
+    const recorder = createRunRecorder({
+      rapier,
+      game,
+      registry,
+      scene: def.name,
+      sceneHash: prepared.hash,
+      runHash: prepared.runHash,
+      start: {},
+      entry: null,
+      sceneVersion: runtime.ctx.live.version,
+      time: runtime.ctx.time,
+      players: runtime.ctx.input.players(),
+    });
+    live.onApplied(recordLiveSwaps(recorder, live, runtime.ctx.tick));
+    opts.afterLoad?.(live);
+    const end = runLoop({
+      runtime,
+      game,
+      maxTicks: opts.ticks,
+      input: { done: () => false },
+      everySlot: true,
+      live,
+      onTick(state, focus, _edges, _commands, input) {
+        recorder.tick(state, input, focus);
+        opts.onTick?.(state, live, runtime);
+      },
+    });
+    return recorder.finish(end, runtime.snapshot());
+  } finally {
+    runtime.destroy();
+  }
 }
 
 export const steps = (rt: SceneRuntimeHandle, n: number): StepResult[] =>

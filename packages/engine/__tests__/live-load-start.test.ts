@@ -89,7 +89,7 @@ describe("ctx.live.version in the shell's onLoad", () => {
 });
 
 describe("a sublevel moved after the shell's onLoad attach, before the first step", () => {
-  it("records the release's own the load attached before the move, and replays it so", async () => {
+  it("records the release's own scene the load attached before the move, and replays both in order", async () => {
     const t = await setup();
     const barrel = await oneSceneVersion(markerScene("cellar", ["start", "barrel"]), t.def, {
       scene: "cellar",

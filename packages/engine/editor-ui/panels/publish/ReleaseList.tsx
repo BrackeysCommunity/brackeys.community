@@ -11,8 +11,8 @@ export function unplayable(release: ReleaseView): string | null {
   return null;
 }
 
-/** The first twelve hex digits of a release id, as the CLI prints it. */
-export const shortId = (id: string): string => id.slice(0, 12);
+/** A release id's first six hex digits, as the CLI prints it: `3fa9c2…`. */
+export const shortId = (id: string): string => `${id.slice(0, 6)}…`;
 
 /** What a promote of `version` to production asks, as the game page asks it. */
 export const promoteMessage = (version: number): string =>

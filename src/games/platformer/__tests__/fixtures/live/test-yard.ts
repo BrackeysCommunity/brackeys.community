@@ -1,15 +1,10 @@
 import { fileURLToPath } from "node:url";
 
 import type { StagedVersion } from "@jams/engine";
-import { projectInput } from "@jams/engine-testing";
-import {
-  buildSceneVersion,
-  sceneVersionOptions,
-  type ProjectRuntimeView,
-} from "@jams/engine/project";
+import { editedSceneVersion, projectInput } from "@jams/engine-testing";
+import type { ProjectRuntimeView } from "@jams/engine/project";
 import {
   applyOps,
-  formatScene,
   parseSceneOrThrow,
   sceneHash,
   type SceneDefinition,
@@ -43,7 +38,7 @@ export type LiveFixture = {
 /** The game's project as read from its files, shared by every version built from it. */
 let read: ReturnType<typeof projectInput> | undefined;
 
-/** A version of the test yard with `ops` applied, built from the game's project files with `buildSceneVersion`. */
+/** A version of the test yard with `ops` applied, built from the game's project files. */
 export async function testYardVersion(ops: SceneOp[] = STEP_OVER_SPAWN): Promise<LiveFixture> {
   read ??= projectInput(GAME_DIR, platformerGame);
   const { input, runtime: project } = await read;
@@ -52,9 +47,6 @@ export async function testYardVersion(ops: SceneOp[] = STEP_OVER_SPAWN): Promise
     validate: "none",
   });
   if (!edit.ok) throw new Error(edit.issue.message);
-  const texts = new Map(input.texts);
-  texts.set(SCENE, formatScene(edit.def).text);
-  const built = await buildSceneVersion(sceneVersionOptions(input, SCENE, { texts }));
-  if (!built.ok) throw new Error(JSON.stringify(built.issues, null, 2));
-  return { release, version: built, edited: edit.def, project };
+  const version = await editedSceneVersion(input, SCENE, edit.def);
+  return { release, version, edited: edit.def, project };
 }

@@ -2,11 +2,14 @@
 import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
-import { markerScene, oneSceneVersion } from "../../__tests__/fixtures/live-version";
+import {
+  markerScene,
+  oneSceneVersion,
+  stageAndActivate,
+} from "../../__tests__/fixtures/live-version";
 import { createRegistry, defineGame } from "../../game/define";
 import type { GameDefinition } from "../../game/types";
 import { prepareRun, startRun } from "../../headless/play-loop";
-import { preparedVersion } from "../live";
 
 /** Marks a boundary in `onLoad`, and in a step when sent `safe`. */
 function boundaryGame(): GameDefinition {
@@ -46,10 +49,9 @@ describe("ctx.live.boundary()", () => {
     };
     try {
       const v = await oneSceneVersion(scene(["start", "well"]), game);
-      const read = preparedVersion(v, registry, game);
-      if (!read.ok) throw new Error(JSON.stringify(read.issues));
-      live.stage(read.prepared);
-      expect(live.activate("yard", v.id, "boundary")).toMatchObject({ timing: "boundary" });
+      expect(stageAndActivate(live, v, registry, game, "boundary")).toMatchObject({
+        timing: "boundary",
+      });
 
       step();
       expect(runtime.get("well")).toBeUndefined();

@@ -17,7 +17,7 @@ import type { SceneIssue } from "@jams/engine/scene";
 import type { ProjectProblem as FileProblem } from "@jams/engine/vite";
 import * as Y from "yjs";
 
-import { failure, issueLine, usage, type Tool, type ToolContext } from "../context";
+import { failure, issueLine, plural, usage, type Tool, type ToolContext } from "../context";
 import {
   blobContentType,
   fetchHostedBundle,
@@ -43,8 +43,6 @@ export type ProjectPushInput = {
 };
 
 const USAGE = "scene project push <dir> --create --url https://site [--token t] [--dry-run]";
-
-const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
 
 const readOptional = (file: string) =>
   readFile(file, "utf8").catch((e: NodeJS.ErrnoException) => {

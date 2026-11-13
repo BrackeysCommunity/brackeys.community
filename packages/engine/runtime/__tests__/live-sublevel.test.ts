@@ -1,12 +1,16 @@
 // @vitest-environment node
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
-import { oneSceneVersion } from "../../__tests__/fixtures/live-version";
+import {
+  oneSceneVersion,
+  recordLiveRun,
+  stageAndActivate,
+  stageVersion,
+} from "../../__tests__/fixtures/live-version";
 import { createRegistry, defineGame } from "../../game/define";
 import { pointField } from "../../game/fields";
 import type { SceneLibrary } from "../../game/flow";
 import type { GameDefinition, GameRuntime, Registry, SceneSystem } from "../../game/types";
-import { prepareRun, runLoop, startRun } from "../../headless/play-loop";
 import { replayRecording } from "../../headless/recording";
 import { findSceneVersion } from "../../project/scene-version";
 import { parseRecording, type RunRecording } from "../../scene/recording-schema";
@@ -18,8 +22,6 @@ import {
   type SceneDefinition,
 } from "../../scene/types";
 import type { StagedVersion } from "../../types";
-import { preparedVersion } from "../live";
-import { createRunRecorder, recordedSwap } from "../recorder";
 
 const GAME = "sub-yard";
 const POST = `${GAME}-post`;
@@ -102,66 +104,32 @@ function recordRun(
   registry: Registry,
   moves: readonly Move[],
 ): { recording: RunRecording; seen: Seen[] } {
-  const prepared = prepareRun(yard(), registry);
-  if (!prepared.ok) throw new Error(JSON.stringify(prepared.blocked));
-  const started = startRun({
-    rapier: null,
-    game,
-    registry,
-    scene: prepared.scene,
-    play: {},
-    flow: { scene: "yard", entry: null, library: library() },
-  });
-  if (!started.ok) throw new Error(JSON.stringify(started.load));
-  const { runtime, live } = started;
-  const recorder = createRunRecorder({
-    rapier: null,
-    game,
-    registry,
-    scene: "yard",
-    sceneHash: prepared.hash,
-    runHash: prepared.runHash,
-    start: {},
-    entry: null,
-    sceneVersion: runtime.ctx.live.version,
-    time: runtime.ctx.time,
-    players: runtime.ctx.input.players(),
-  });
-  live.onApplied((swap) => recorder.swap(recordedSwap(swap)));
   const seen: Seen[] = [];
-  try {
-    const end = runLoop({
-      runtime,
-      game,
-      maxTicks: TICKS,
-      input: { done: () => false },
-      everySlot: true,
-      live,
-      onTick(state, focus, _edges, _commands, input) {
-        recorder.tick(state, input, focus);
-        seen.push({ tick: state.tick, ids: [...runtime.ctx.query.select()].sort() });
-        for (const move of moves) {
-          if (move.at !== state.tick) continue;
-          if (move.version === null) {
-            live.activate("cellar", null, "next-load");
-            continue;
-          }
-          const read = preparedVersion(move.version, registry, game);
-          if (!read.ok) throw new Error(JSON.stringify(read.issues));
-          expect(live.stage(read.prepared).ok).toBe(true);
-          if (move.pin) live.pin({ cellar: move.version.id });
-          else
-            expect(live.activate("cellar", move.version.id, "now")).toMatchObject({
-              timing: "next-load",
-              clamped: true,
-            });
+  const recording = recordLiveRun({
+    game,
+    registry,
+    def: yard(),
+    library: library(),
+    ticks: TICKS,
+    onTick(state, live, runtime) {
+      seen.push({ tick: state.tick, ids: [...runtime.ctx.query.select()].sort() });
+      for (const move of moves) {
+        if (move.at !== state.tick) continue;
+        if (move.version === null) {
+          live.activate("cellar", null, "next-load");
+        } else if (move.pin) {
+          stageVersion(live, move.version, registry, game);
+          live.pin({ cellar: move.version.id });
+        } else {
+          expect(stageAndActivate(live, move.version, registry, game, "now")).toMatchObject({
+            timing: "next-load",
+            clamped: true,
+          });
         }
-      },
-    });
-    return { recording: recorder.finish(end, runtime.snapshot()), seen };
-  } finally {
-    runtime.destroy();
-  }
+      }
+    },
+  });
+  return { recording, seen };
 }
 
 describe("a sublevel's live version", () => {

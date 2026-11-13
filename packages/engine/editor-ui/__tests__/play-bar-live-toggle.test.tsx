@@ -16,7 +16,7 @@ import {
   LIVE_PLAY_SOURCES,
   LIVE_PLAY_TOOLTIP,
 } from "../panels/EditorPlayBar";
-import { LIVE_PLAY_IDLE, livePlayPending } from "../panels/EditorStatusBar";
+import { LIVE_PLAY_IDLE, livePlayPending } from "../panels/LiveInPlayStatus";
 import { LIVE_PLAY_NOT_APPLIED, type LivePlayStatus } from "../session/live-scene-editor";
 
 afterEach(() => {

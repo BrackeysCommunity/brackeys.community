@@ -11,6 +11,7 @@ import { gizmoTarget, type GizmoTarget } from "./gizmos/target";
 import { buildOutline } from "./outline";
 import type { PickLayers } from "./picking";
 import { docRefs } from "./refs";
+import { outlineBounds, outlineLook } from "./tool-host";
 import type { SpatialIndex } from "./tools";
 
 /** World px a coarse (Shift) nudge moves. */
@@ -80,8 +81,7 @@ export function selectionBounds(
   registry: Registry,
   refs: readonly Ref[],
 ): Aabb | null {
-  const targets = targetsOf(def, registry, refs);
-  return targets.length > 0 ? selectionBox(targets) : null;
+  return outlineBounds(def, refs, outlineLook(registry));
 }
 
 /** Every ref in the document, in file order, except those on a hidden or locked layer. */

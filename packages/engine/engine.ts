@@ -4,7 +4,7 @@ import { Container } from "pixi.js";
 import { createCamera } from "./camera";
 import type { DebugOverlay } from "./debug";
 import { GameEventEmitter } from "./events";
-import { createFlowHost, liveSceneSource } from "./flow-host";
+import { createFlowHost, liveSceneSource, sourceLibrary } from "./flow-host";
 import { CAMERA_TARGET } from "./game/behaviors/camera-target";
 import { flowIssue, type FlowRequest, type LibraryScene, type SceneLibrary } from "./game/flow";
 import {
@@ -91,13 +91,11 @@ import { loadListed } from "./runtime/flow";
 import {
   createLiveLayer,
   createSwapReplay,
-  liveLibrary,
-  liveSwapLog,
   preparedVersion,
   recordedVersion,
+  recordLiveSwaps,
   stageIssue,
   unlistedStageIssue,
-  type LiveSwapLog,
   type PreparedVersion,
 } from "./runtime/live";
 import { gamePersistCell, persistProblem, playClockOf } from "./runtime/persist";
@@ -108,7 +106,7 @@ import {
   type PreparedPlay,
   type SessionRecording,
 } from "./runtime/play-session";
-import { recordedSwap, recordingRapier, recordingStart } from "./runtime/recorder";
+import { recordingRapier, recordingStart } from "./runtime/recorder";
 import {
   createSceneRuntime,
   resolveGame,
@@ -603,21 +601,8 @@ export async function createGame(
 
   type BuiltRuntime = { runtime: SceneRuntimeHandle; view: PixiView; container: Container };
 
-  /**
-   * The host's listed scenes with each one's active live version in its
-   * place, by the rule headless runs read theirs by: a runtime's flow loads
-   * and attaches read it.
-   */
-  function flowLibrary(): SceneLibrary {
-    const source = cfg.flow!.source;
-    const list = source.list();
-    const scenes = new Map<AssetId, LibraryScene>();
-    for (const entry of list) {
-      const listed = source.scene(entry.scene);
-      if (listed) scenes.set(entry.scene, listed);
-    }
-    return liveLibrary({ list, scenes }, liveLayer);
-  }
+  /** The host's listed scenes with their active live versions: what a runtime's flow loads and attaches read. */
+  const flowLibrary = (): SceneLibrary => sourceLibrary(flowSource!);
 
   function buildRuntime(name: string): BuiltRuntime {
     const container = new Container();
@@ -946,7 +931,7 @@ export async function createGame(
   /** The session's recording while playing; after Stop, `lastRecording` keeps what it finished. */
   let session: SessionRecording | null = null;
   /** How `session` writes its live swaps, made with it. */
-  let sessionSwaps: { session: SessionRecording; log: LiveSwapLog } | null = null;
+  let sessionSwaps: { session: SessionRecording; write: (swap: SceneSwap) => void } | null = null;
   let lastRecording: RunRecording | null = null;
 
   /** The host's own project ref, else the released project's when this instance plays a release. */
@@ -1156,9 +1141,10 @@ export async function createGame(
       ...(replay ? { replay: replay.recording } : {}),
     });
     // The other listed scenes' live versions, which this load's sublevels attach.
-    const log = liveSwapLog(runtime.ctx.tick, liveLayer.liveSublevels());
-    for (const swap of log.start) recording.swap(recordedSwap(swap));
-    sessionSwaps = { session: recording, log };
+    sessionSwaps = {
+      session: recording,
+      write: recordLiveSwaps(recording, liveLayer, runtime.ctx.tick),
+    };
     return recording;
   }
 
@@ -2369,10 +2355,7 @@ export async function createGame(
 
   /** After the layer swapped a version into the running scene: the recording, the scene's bundle and the camera's bounds follow it. */
   function swappedIn(swap: SceneSwap): void {
-    if (session) {
-      const log = sessionSwaps?.session === session ? sessionSwaps.log : null;
-      for (const s of log ? log.next(swap) : [swap]) session.swap(recordedSwap(s));
-    }
+    if (session && sessionSwaps?.session === session) sessionSwaps.write(swap);
     // A sublevel scene's version, which its next attach uses: nothing in the running scene changed.
     if (swap.timing === "next-load") return;
     const scene = loaded?.runtime.scene();

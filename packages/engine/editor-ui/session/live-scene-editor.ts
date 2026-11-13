@@ -46,14 +46,16 @@ import {
 import { frameBounds, outlineLook } from "../../editor/tool-host";
 import {
   LIVE_DEFAULTS,
+  resolveTime,
   withProject,
   type GameDefinition,
   type LiveDeclaration,
   type Registry,
   type SceneSwap,
   type SwapTiming,
+  type TimeKind,
 } from "../../game/index";
-import { acceptedTimingsWords, diffWords } from "../../game/live";
+import { acceptedTimingsWords, diffWords, timingWords } from "../../game/live";
 import type {
   GameInstance,
   PlayOptions,
@@ -654,7 +656,8 @@ function withVariantBase(
 
 /** When a clamped live update reaches the game, and the timings the game takes. */
 function clampedText(timing: SwapTiming, live: LiveDeclaration | undefined): string {
-  const when = timing === "next-load" ? "at the next load" : "at the game's next boundary";
+  const when =
+    timing === "boundary" ? "at the game's next boundary" : `at the ${timingWords(timing)}`;
   return `Live update applies ${when}: this game accepts ${acceptedTimingsWords(live)}`;
 }
 
@@ -689,11 +692,32 @@ function docText(project: ProjectSession, entry: AssetEntry, doc: Y.Doc): string
 /** How many versions Live in Play keeps for replaying its runs; the oldest go first. */
 const KEPT_VERSIONS = 32;
 
-/** Why a replay stopped partway: the tick it reached, then why it lacks the version. */
-function replayStopped(issue: SceneIssue): string {
+/** `tick` as seconds at the recording's tick rate. */
+const seconds = (tick: number, tickRate: number) => `${(tick / tickRate).toFixed(1)}s`;
+
+/**
+ * A recording's length and the time of a tick in it. A fixed clock's ticks
+ * are elapsed time; a turns or event game skips idle ticks, so its ticks are
+ * only steps.
+ */
+export function runTimes(recording: Pick<RunRecording, "ticks" | "time">, kind: TimeKind) {
+  if (kind === "fixed") {
+    return {
+      length: `${recording.ticks} ticks (${seconds(recording.ticks, recording.time.rate)})`,
+      at: (tick: number) => seconds(tick, recording.time.rate),
+    };
+  }
+  return {
+    length: `${recording.ticks} steps`,
+    at: (tick: number) => `step ${tick}`,
+  };
+}
+
+/** Why a replay stopped partway: when in the run it stopped, then why it lacks the version. */
+function replayStopped(issue: SceneIssue, recording: RunRecording, kind: TimeKind): string {
   const tick = issue.detail?.tick;
   return typeof tick === "number"
-    ? `The replay stopped at tick ${tick}. ${LIVE_VERSIONS_ELSEWHERE}`
+    ? `The replay stopped at ${runTimes(recording, kind).at(tick)}. ${LIVE_VERSIONS_ELSEWHERE}`
     : LIVE_VERSIONS_ELSEWHERE;
 }
 
@@ -729,7 +753,8 @@ function createLivePlay({
   const live = game.live;
   let on = false;
   let playing = false;
-  let replaying = false;
+  /** The recording a replay plays; null for a Play. */
+  let replaying: RunRecording | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let building = false;
   let again = false;
@@ -989,7 +1014,8 @@ function createLivePlay({
 
   const onFailed = (e: { scene: AssetId; version: Sha256 | null; issue: SceneIssue }) => {
     if (replaying && e.issue.code === "scene-version-removed") {
-      notify.error(LIVE_VERSION_MISSING, { description: replayStopped(e.issue) });
+      const kind = resolveTime({ game: game.registry.time }).kind;
+      notify.error(LIVE_VERSION_MISSING, { description: replayStopped(e.issue, replaying, kind) });
       return;
     }
     if (e.scene !== scene || awaiting === null || e.version !== awaiting) return;
@@ -1031,7 +1057,7 @@ function createLivePlay({
       if (on && host.state.sceneChanged) void flush();
     },
     /** Play started, on `def` with `prefabs`, or on a recording. */
-    entered(def: SceneDefinition, recording: boolean) {
+    entered(def: SceneDefinition, recording: RunRecording | null) {
       cancel();
       playing = true;
       replaying = recording;
@@ -1057,7 +1083,7 @@ function createLivePlay({
     left() {
       cancel();
       playing = false;
-      replaying = false;
+      replaying = null;
       deactivate();
       releaseHeld();
       set({ unavailable: unavailable(), status: null });
@@ -1417,7 +1443,7 @@ export function openLiveEditor({
     const played = playing ? null : launch(opts, recording);
     if (!played) return false;
     binding.setPaused(true);
-    livePlay.entered(played, recording !== null);
+    livePlay.entered(played, recording);
     playing = true;
     started = opts;
     replayed = recording;

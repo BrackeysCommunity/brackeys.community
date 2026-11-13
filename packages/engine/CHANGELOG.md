@@ -246,13 +246,20 @@ for it.
   the issue, whose whole text a hint holds. A header edit reloads with
   capture and restore. The game's `live.check` runs right after the swap
   and 60 ticks later; its issues, and the last failed update's until one
-  applies, go to the Problems panel and stay after Stop. A failing onSwap
-  is shown and Play carries on. Replaying a run (Load run) passes the
-  versions Live in Play built this session; a run with live versions it
-  doesn't have says to replay it with `vp run scene replay --versions`,
-  and one that stops at such a version partway says so, with the tick it
-  reached. Editor UI: `EditorHostState.livePlay`,
-  `LivePlayState`, `LivePlayStatus`, `EditorProps.onLivePlay`.
+  applies, go to the Problems panel marked "Last Live in Play run" and
+  stay after Stop until the scene or a prefab changes, or the next Play. A
+  failed update shows in the play bar's status line, not a toast; a
+  failing onSwap is shown and Play carries on. Replaying a run (Replay in
+  the Run panel) passes the versions Live in Play built this session; the
+  Run panel says whether Replay plays all of a run's live versions, stops
+  at a time it names (seconds, or a step in a turns or event game), or
+  can't start (Replay disabled) on a version this editor doesn't have. A
+  run with live versions it doesn't have says to replay it with
+  `vp run scene replay --versions`, and one that stops partway says so,
+  at the time it reached, worded as the Run panel words it. Editor UI:
+  `EditorHostState.livePlay`, `LivePlayState`, `LivePlayStatus`,
+  `EditorProps.onLivePlay`, `EditorProps.liveVersion` (the live versions
+  the editor holds, which the Run panel checks a run against).
 - The spawner takes `fields`, the fields each spawn of its `type` gets;
   their shapes, points and paths are placed at the spawn point, so a shape
   type (a prop, a solid) spawns by type.
@@ -281,7 +288,9 @@ for it.
   the release's own scene read for play by `readSceneVersion` against the
   release's assets (null when the release doesn't list it).
 - `@jams/engine/scene`: `isErrorIssue(issue)`, whether an issue is an
-  error.
+  error, and `plural(n, one, many?, format?)` (`1 error`, `3 errors`;
+  `format` writes the count), the one count-and-noun rule the editor, the
+  live check's words and the scene CLI share.
 - `@jams/engine/project`: `liveFiles` and `AssetFiles`, a scene version's
   file layout (`live/<sha256>.json`, `live/<sha256><ext>`) as the export,
   the standalone loader and the smoke share it.
@@ -342,6 +351,8 @@ for it.
   axis the view is wider than; follow mode (Play) is unchanged.
 - Scene CLI: `game new`'s behavior presets drop the hero's `player-input`
   at the win, so it comes to rest.
+- The Publish panel's release list shortens a release id as the CLI does,
+  to its first six hex digits and an ellipsis (`3fa9c2…`), not twelve.
 
 ### Fixed
 

@@ -697,9 +697,12 @@ describe("the live controller in a hosted frame", () => {
     expect(hallFlag()).toBe(true);
     await vi.waitFor(() => expect(statuses(page, "hall")).toEqual(["staging", "ready", "applied"]));
     expect(states(page).at(-1)).toMatchObject({ version: v.id, timing: "next-load" });
-    // The run's recording holds the move, so its replay attaches the same hall.
+    // The run's recording holds the move, so its replay attaches the same hall. It came
+    // before the first step, so the release's own hall (what the load used) is written
+    // first: a replay's load takes that one and the move after it.
     expect(game.instance.recording({ running: true })?.swaps).toEqual([
-      expect.objectContaining({ sublevel: "hall", version: v.id, timing: "next-load" }),
+      expect.objectContaining({ tick: 0, sublevel: "hall", version: null, timing: "next-load" }),
+      expect.objectContaining({ tick: 0, sublevel: "hall", version: v.id, timing: "next-load" }),
     ]);
 
     // A recording of the next load starts with the hall version its sublevels attach.

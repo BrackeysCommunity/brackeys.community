@@ -1,8 +1,13 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
-import { createFlowHost, liveSceneSource, type LiveSceneVersions } from "../flow-host";
-import type { LibraryScene, SceneLibrary } from "../game/flow";
+import {
+  createFlowHost,
+  liveSceneSource,
+  sourceLibrary,
+  type LiveSceneVersions,
+} from "../flow-host";
+import type { LibraryScene } from "../game/flow";
 import { formatSaveFile, parseSaveFile, SAVE_VERSION } from "../game/save-file";
 import type { GameDefinition } from "../game/types";
 import type { AssetId } from "../project/types";
@@ -46,19 +51,13 @@ function fakeLive() {
   return { live, active, pending, drop: (id: AssetId) => pending.delete(id) };
 }
 
-/** The library a runtime's flow loads and attaches read, built from the source as the shell builds it. */
-function libraryOf(source: SceneSource): SceneLibrary {
-  const list = source.list();
-  const scenes = new Map<AssetId, LibraryScene>();
-  for (const entry of list) {
-    const s = source.scene(entry.scene);
-    if (s) scenes.set(entry.scene, s);
-  }
-  return { list, scenes };
-}
-
 const runtimeOver = (source: SceneSource): SceneRuntimeHandle =>
-  createSceneRuntime({ rapier: null, view: null, game: testGame, scenes: () => libraryOf(source) });
+  createSceneRuntime({
+    rapier: null,
+    view: null,
+    game: testGame,
+    scenes: () => sourceLibrary(source),
+  });
 
 const ids = (rt: SceneRuntimeHandle): string[] => rt.scene()!.entities.map((e) => e.id);
 
@@ -101,7 +100,7 @@ describe("liveSceneSource", () => {
     expect(source.scene("yard")).toBe(base.scene("yard"));
     const version = listed(scene("yard", ["start", "well", "bucket"]));
     active.set("yard", version);
-    expect(source.scene("yard")).toBe(version);
+    expect(source.scene("yard")).toEqual(version);
     expect(source.scene("hall")).toBe(base.scene("hall"));
     expect(source.scene("ghost")).toBeNull();
     expect(source.list()).toEqual(base.list());
@@ -262,7 +261,7 @@ describe("saves across a version change", () => {
       rapier: null,
       view: null,
       game: liveTestGame,
-      scenes: () => libraryOf(source),
+      scenes: () => sourceLibrary(source),
       live: layer.hooks,
     });
     rt = handle;

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { defineGame } from "../game/define";
 import type { SceneSwap } from "../game/live";
+import { findSceneVersion } from "../project/scene-version";
 import type { RunRecording } from "../scene/recording-schema";
 import { installLiveGames, world } from "./fixtures/live-game";
 import { markerScene, markerSource, oneSceneVersion } from "./fixtures/live-version";
@@ -67,7 +68,7 @@ describe("Play of a doc while a version is active", () => {
     expect(swaps[0]!.to.version).toBe(v2.id);
     expect(rec.swaps?.map((s) => s.version)).toEqual([v2.id]);
 
-    const versions = (id: string) => [v1, v2].find((v) => v.id === id) ?? null;
+    const versions = (id: string) => findSceneVersion(id, [v1, v2]);
     const recorded: RunRecording[] = [];
     g.on("play:recorded", (r) => recorded.push(r));
     expect(g.replay(doc, rec, { versions })).toMatchObject({ ok: true });

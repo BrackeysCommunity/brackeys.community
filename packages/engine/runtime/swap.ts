@@ -56,7 +56,13 @@ export type SwapHost = {
 
 export type SwapOptions = { prefabs: PrefabLibrary; strategy?: "auto" | "reload" };
 
-export type FreshLoad = (scene: ExpandedScene, library: PrefabLibrary, tick: number) => LoadReport;
+/** `back` when the load puts back the version a swap left. */
+export type FreshLoad = (
+  scene: ExpandedScene,
+  library: PrefabLibrary,
+  tick: number,
+  back?: boolean,
+) => LoadReport;
 
 /** A Rapier body of an entity as it was: where it was and how it moved. */
 type BodyState = { x: number; y: number; rot: number; vx: number; vy: number; w: number };
@@ -199,8 +205,16 @@ type Refuse = (
 
 type Refusal = { cause: string; entityId?: string };
 
-/** The version the runtime ran before the swap, and how to load it again. */
-type Previous = { version: ExpandedScene; library: PrefabLibrary; loadFresh: FreshLoad };
+/**
+ * The version the runtime ran before the swap. `loadFresh` loads a scene
+ * under the run's identity; `loadBack` loads this version again.
+ */
+type Previous = {
+  version: ExpandedScene;
+  library: PrefabLibrary;
+  loadFresh: FreshLoad;
+  loadBack: FreshLoad;
+};
 
 /** A capture of the run at `depth`, in memory: the same one a save of that depth takes. */
 const capture = (host: SwapHost, depth: SaveDepth) =>
@@ -250,7 +264,13 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
 
   const version = host.save.mainScene() ?? scene;
   const library = host.save.prefabs();
-  const was: Previous = { version, library, loadFresh: host.freshLoader() };
+  const loadFresh = host.freshLoader();
+  const was: Previous = {
+    version,
+    library,
+    loadFresh,
+    loadBack: (s, lib, tick) => loadFresh(s, lib, tick, true),
+  };
   const running = runningVersion(host, scene, version);
   const diff = diffExpanded(running.scene, next);
   if (swapStrategyFor(diff, opts.strategy) === "reload") {
@@ -371,7 +391,7 @@ export function swapRuntime(host: SwapHost, next: ExpandedScene, opts: SwapOptio
       if (undone || host.generation() !== generation || host.save.stepping()) return;
       undone = true;
       if (exact && ctx.tick === swapTick) {
-        rolledBack(loadAndRestore(host, was.loadFresh, version, library, exact, swapTick));
+        rolledBack(loadAndRestore(host, was.loadBack, version, library, exact, swapTick));
         return;
       }
       inverse(motionOf(ctx));
@@ -420,7 +440,7 @@ function reload(
   if (failed) {
     const back =
       host.save.mainScene() !== was.version
-        ? loadAndRestore(host, was.loadFresh, was.version, was.library, before, tick)
+        ? loadAndRestore(host, was.loadBack, was.version, was.library, before, tick)
         : null;
     const why: Refusal = after
       ? {
@@ -446,7 +466,7 @@ function reload(
       if (undone || host.generation() !== generation || host.save.stepping()) return;
       undone = true;
       rolledBack(
-        loadAndRestore(host, was.loadFresh, was.version, was.library, before, host.ctx.tick),
+        loadAndRestore(host, was.loadBack, was.version, was.library, before, host.ctx.tick),
       );
     },
   };

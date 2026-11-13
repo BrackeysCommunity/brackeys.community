@@ -5,11 +5,11 @@ import { sameValue } from "../project/canonical";
 import { parseJsonPointer } from "../project/json-edit";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
+import { recordLiveSwaps } from "../runtime/live";
 import { gamePersistCell } from "../runtime/persist";
 import {
   createRunRecorder,
   recordedCommand,
-  recordedSwap,
   recordingRapier,
   trailPoint,
   type RecordingHost,
@@ -396,7 +396,7 @@ export function runPlaytest<S = unknown, G = unknown>(
         maxTrail,
         registry,
       });
-      started.live.onApplied((swap) => recorder.swap(recordedSwap(swap)));
+      started.live.onApplied(recordLiveSwaps(recorder, started.live, runtime.ctx.tick));
 
       let last = null as PlayState | null;
       let end: RunEnd;

@@ -27,6 +27,7 @@ import {
   useOwnOrSharedPending,
   usePending,
 } from "../pending/use-pending";
+import { runTimes } from "../session/live-scene-editor";
 import { parseRun, runIsStale, runStart, type LoadedRun } from "../session/loaded-run";
 import { useEditorDoc, useEditorPrefabs } from "../session/use-editor-store";
 import { useStoreValue } from "../session/use-store-value";
@@ -44,26 +45,6 @@ function readText(file: Blob): Promise<string> {
     reader.onerror = () => fail(reader.error ?? new Error("couldn't read the file"));
     reader.readAsText(file);
   });
-}
-
-/** `tick` as seconds at the recording's tick rate. */
-const seconds = (tick: number, tickRate: number) => `${(tick / tickRate).toFixed(1)}s`;
-
-/**
- * A recording's length and marker times. A fixed clock's ticks are elapsed
- * time; a turns or event game skips idle ticks, so its ticks are only steps.
- */
-function runTimes(recording: LoadedRun["recording"], kind: TimeKind) {
-  if (kind === "fixed") {
-    return {
-      length: `${recording.ticks} ticks (${seconds(recording.ticks, recording.time.rate)})`,
-      at: (tick: number) => seconds(tick, recording.time.rate),
-    };
-  }
-  return {
-    length: `${recording.ticks} steps`,
-    at: (tick: number) => `step ${tick}`,
-  };
 }
 
 /** Looks up a live version this editor holds: Live in Play's `liveVersion`. */
@@ -85,7 +66,7 @@ function liveReplay(
   if (!held) {
     return {
       text: "This run played live versions of the scene. Replay needs the ones Live in Play built in this editor, and stops where the run reached a version this editor doesn't have.",
-      caveat: true,
+      caveat: false,
       blocked: false,
       stopsAt: null,
     };

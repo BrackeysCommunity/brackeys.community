@@ -8,7 +8,13 @@ import {
   type Ref,
   type SessionHistory,
 } from "../../editor/index";
-import type { GameInstance, PlayOptions, RapierModule, RunRecording } from "../../index";
+import type {
+  GameInstance,
+  PlayOptions,
+  RapierModule,
+  RunRecording,
+  StagedVersion,
+} from "../../index";
 import {
   parseDocName,
   SCENE_KIND_NAME,
@@ -17,6 +23,7 @@ import {
   type ProjectRuntimeView,
   type ProjectView,
   type SceneListFlow,
+  type Sha256,
 } from "../../project/index";
 import type { Registry } from "../../scene/index";
 import { reloadOf } from "../connect/project-session";
@@ -153,6 +160,8 @@ export type EditorProps = EditingTarget & {
   onRestart: () => void;
   /** Turns Live in Play on or off; without it the play controls offer no toggle. */
   onLivePlay?: (on: boolean) => void;
+  /** A live version Live in Play built and this editor holds; without it the Run panel can't tell how far a replay plays. */
+  liveVersion?: (id: Sha256) => StagedVersion | null;
   /** Rapier, for the physical checks; null until it has loaded. */
   rapier?: RapierModule | null;
   /** The run loaded into the editor; one is made when absent. */
@@ -632,6 +641,7 @@ export function useSceneEditor({
       onStop: live.stop,
       onRestart: live.restart,
       onLivePlay: live.setLivePlay,
+      liveVersion: live.liveVersion,
       rapier: loaded.rapier,
       runStore,
       ...(getCanvas ? { canvas: getCanvas } : {}),

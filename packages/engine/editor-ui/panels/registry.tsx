@@ -40,6 +40,7 @@ export type PanelControls = Pick<
   | "prefab"
   | "onOpenPrefab"
   | "onReplay"
+  | "liveVersion"
   | "runStore"
   | "playFrom"
   | "frame"
@@ -273,6 +274,7 @@ export const PANELS: readonly PanelDef[] = [
         run={controls.runStore}
         onPlayFrom={controls.playFrom}
         onReplay={(run) => controls.onReplay(run.recording)}
+        liveVersion={controls.liveVersion}
         notify={controls.notify}
       />
     ),

@@ -2,15 +2,18 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
-import { oneSceneVersion } from "../../__tests__/fixtures/live-version";
+import {
+  oneSceneVersion,
+  recordLiveRun,
+  stageAndActivate,
+} from "../../__tests__/fixtures/live-version";
 import { createRegistry, defineGame } from "../../game/define";
 import { pointField } from "../../game/fields";
 import type { SceneLibrary } from "../../game/flow";
 import type { SwapTiming } from "../../game/live";
 import type { GameDefinition, GameRuntime, Registry, SceneSystem } from "../../game/types";
 import { findSceneVersion } from "../../project/scene-version";
-import { liveSwapLog, preparedVersion } from "../../runtime/live";
-import { createRunRecorder, recordedSwap } from "../../runtime/recorder";
+import type { LiveLayer } from "../../runtime/live";
 import { expandScene } from "../../scene/expand";
 import { parseRecording, type RunRecording } from "../../scene/recording-schema";
 import {
@@ -22,7 +25,6 @@ import {
 } from "../../scene/types";
 import type { RapierModule, StagedVersion } from "../../types";
 import { createHeadlessRuntime } from "../headless";
-import { prepareRun, runLoop, startRun } from "../play-loop";
 import { replayRecording, type ReplayReport, type ReplayRun } from "../recording";
 import { V1_FIXTURES } from "./fixtures/recordings/v1";
 import { readV1Recording } from "./fixtures/recordings/v1/runs";
@@ -179,11 +181,7 @@ const cellarLibrary = (): SceneLibrary => ({
 
 type Activation = { at: number; version: StagedVersion; timing: SwapTiming };
 
-/**
- * Plays the yard headless for `TICKS` ticks through the live layer the
- * replay uses, recorded by the run recorder, staging and activating each
- * version after the tick `at` names.
- */
+/** Plays the yard headless for `TICKS` ticks, recorded, staging and activating each version after the tick `at` names. */
 function recordRun(
   game: GameDefinition,
   registry: Registry,
@@ -199,75 +197,24 @@ function recordRun(
   } = {},
 ): RunRecording {
   const def = on.def ?? yard();
-  const rapier = on.rapier ?? null;
-  const prepared = prepareRun(def, registry);
-  if (!prepared.ok) throw new Error(JSON.stringify(prepared.blocked));
-  const started = startRun({
-    rapier,
+  const nextLoad = (live: LiveLayer, versions: readonly StagedVersion[] = []) => {
+    for (const v of versions) stageAndActivate(live, v, registry, game, "next-load");
+  };
+  return recordLiveRun({
     game,
     registry,
-    scene: prepared.scene,
-    play: {},
-    flow: { scene: SCENE, entry: null, library: on.library ?? libraryOf(def) },
-    beforeLoad(live) {
-      for (const v of on.sublevels ?? []) {
-        const read = preparedVersion(v, registry, game);
-        if (!read.ok) throw new Error(JSON.stringify(read.issues));
-        live.stage(read.prepared);
-        live.activate(v.version.scene, v.id, "next-load");
+    def,
+    library: on.library ?? libraryOf(def),
+    ticks: TICKS,
+    rapier: on.rapier ?? null,
+    beforeLoad: (live) => nextLoad(live, on.sublevels),
+    afterLoad: (live) => nextLoad(live, on.afterLoad),
+    onTick(state, live) {
+      for (const a of activations) {
+        if (a.at === state.tick) stageAndActivate(live, a.version, registry, game, a.timing);
       }
-      return null;
     },
   });
-  if (!started.ok) throw new Error(JSON.stringify(started.load));
-  const { runtime, live } = started;
-  const recorder = createRunRecorder({
-    rapier,
-    game,
-    registry,
-    scene: def.name,
-    sceneHash: prepared.hash,
-    runHash: prepared.runHash,
-    start: {},
-    entry: null,
-    sceneVersion: runtime.ctx.live.version,
-    time: runtime.ctx.time,
-    players: runtime.ctx.input.players(),
-  });
-  const log = liveSwapLog(runtime.ctx.tick, live.liveSublevels());
-  for (const swap of log.start) recorder.swap(recordedSwap(swap));
-  live.onApplied((swap) => {
-    for (const s of log.next(swap)) recorder.swap(recordedSwap(s));
-  });
-  for (const v of on.afterLoad ?? []) {
-    const read = preparedVersion(v, registry, game);
-    if (!read.ok) throw new Error(JSON.stringify(read.issues));
-    live.stage(read.prepared);
-    live.activate(v.version.scene, v.id, "next-load");
-  }
-  try {
-    const end = runLoop({
-      runtime,
-      game,
-      maxTicks: TICKS,
-      input: { done: () => false },
-      everySlot: true,
-      live,
-      onTick(state, focus, _edges, _commands, input) {
-        recorder.tick(state, input, focus);
-        for (const a of activations) {
-          if (a.at !== state.tick) continue;
-          const read = preparedVersion(a.version, registry, game);
-          if (!read.ok) throw new Error(JSON.stringify(read.issues));
-          expect(live.stage(read.prepared).ok).toBe(true);
-          live.activate(SCENE, a.version.id, a.timing);
-        }
-      },
-    });
-    return recorder.finish(end, runtime.snapshot());
-  } finally {
-    runtime.destroy();
-  }
 }
 
 function replayed(run: ReplayRun): ReplayReport {

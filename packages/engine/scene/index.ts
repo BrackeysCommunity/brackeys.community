@@ -199,6 +199,7 @@ export {
   type LiveSwapPhase,
 } from "./issues";
 export { diffExpanded } from "./expanded-diff";
+export { plural } from "./plural";
 export {
   fragmentJsonSchema,
   layerNames,

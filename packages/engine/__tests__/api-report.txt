@@ -2076,6 +2076,7 @@ parseShape
 placeChildren
 placeFragment
 placeableTypes
+plural
 pointerLines
 prefabBody
 prefabJsonSchema
@@ -3591,7 +3592,7 @@ type PanelContext = {
     pickedAsset: Store<AssetKey | null>;
     subscribe: (listener: () => void) => () => void;
 };
-type PanelControls = Pick<EditorControls, "frame" | "notify" | "onOpenPrefab" | "onReplay" | "playFrom" | "prefab" | "project" | "runStore" | "session"> & Partial<Pick<EditorControls, "game">> & {
+type PanelControls = Pick<EditorControls, "frame" | "liveVersion" | "notify" | "onOpenPrefab" | "onReplay" | "playFrom" | "prefab" | "project" | "runStore" | "session"> & Partial<Pick<EditorControls, "game">> & {
     publish?: EditorPublishHost;
 };
 type PanelDef = {
@@ -3715,6 +3716,7 @@ type EditorProps = EditingTarget & {
     canvas?: () => HTMLElement | null;
     game: EditorChromeGame;
     host: Store<EditorHostState>;
+    liveVersion?: (id: Sha256) => StagedVersion | null;
     onLivePlay?: (on: boolean) => void;
     onPlay: (opts?: PlayOptions) => void;
     onReplay: (recording: RunRecording) => void;
@@ -12996,6 +12998,9 @@ declare function parseScene(input: unknown, registry: Registry, opts?: ParseOpti
 declare function parseSceneOrThrow(input: unknown, registry: Registry, opts?: ParseOptions): SceneDefinition;
 declare function pointerLines(text: string): Map<string, number>;
 declare function suggestType(word: string, registry: Registry): EntityTypeName | undefined;
+
+## scene/plural.ts
+declare const plural: (n: number, one: string, many?: string, format?: (n: number) => string) => string;
 
 ## scene/prefab.ts
 declare const PREFABS_DIR = "prefabs";

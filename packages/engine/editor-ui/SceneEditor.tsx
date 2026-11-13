@@ -23,8 +23,9 @@ import {
 } from "./frame/EditorFrame";
 import { EditorBooting, EditorSkeleton } from "./frame/EditorSkeleton";
 import { hostCue, type EditorHost, type NotifyOptions, type SceneHome } from "./host";
-import { Button, createToaster, hostNotify, Toasts } from "./kit/index";
+import { createToaster, hostNotify, Toasts } from "./kit/index";
 import type { PanelId } from "./layout/model";
+import { ReloadButton } from "./panels/CodeSkewNotice";
 import { InspectorReadOnly } from "./panels/EditorInspector";
 import { createPending } from "./pending/pending";
 import { PendingProvider } from "./pending/use-pending";
@@ -496,13 +497,7 @@ export function SceneEditor(props: SceneEditorProps): ReactElement {
                   <EditorBooting {...booting} />
                   {booting.error ? (
                     <Island className="je-boot-reload">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => window.location.reload()}
-                      >
-                        Reload
-                      </Button>
+                      <ReloadButton tooltip="Reload the editor to ask the scene server again" />
                     </Island>
                   ) : null}
                 </>

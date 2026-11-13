@@ -389,7 +389,7 @@ describe("LoadRunPanel", () => {
     expect(onReplay).toHaveBeenCalledTimes(1);
   });
 
-  it("notes a run's live versions as the stale note does when it can't check them", () => {
+  it("notes a run's live versions as plain text, not a warning, when it can't check them", () => {
     const { store } = setup();
     act(() =>
       store.setState(() => ({
@@ -397,9 +397,10 @@ describe("LoadRunPanel", () => {
         name: "run",
       })),
     );
-    const note = within(screen.getByRole("region", { name: "Run" })).getByRole("status");
-    expect(note.className).toBe("je-run-stale");
-    expect(note.textContent).toContain("Replay needs the ones Live in Play built in this editor");
+    const panel = within(screen.getByRole("region", { name: "Run" }));
+    expect(panel.queryByRole("status")).toBeNull();
+    expect(panel.getByText(/Replay needs the ones Live in Play built in this editor/)).toBeTruthy();
+    expect(panel.getByRole("button", { name: "Replay" })).toHaveProperty("disabled", false);
   });
 
   it("shows a file being read as busy with no PendingProvider above it", async () => {

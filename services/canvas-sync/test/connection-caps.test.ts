@@ -174,7 +174,10 @@ for (const variant of variants) {
         sockets.map((_, i) => signCanvasToken({ c: name, u: `burst${i}`, a: "write" }, SECRET)),
       );
       const capped = server.metrics.refusals.caps;
+      // Every socket admitted or refused, however long a loaded runner takes to read the frames.
+      const decided = () => liveFor(name) + server.metrics.refusals.caps - capped;
       sockets.forEach((s, i) => s.socket.send(authFrame(name, tokens[i]!)));
+      await waitFor(() => decided() >= 60);
       await settle();
       expect(liveFor(name)).toBe(PER_CANVAS);
       expect(server.metrics.refusals.caps - capped).toBe(60 - PER_CANVAS);
@@ -185,6 +188,7 @@ for (const variant of variants) {
       late.socket.send(
         authFrame(name, await signCanvasToken({ c: name, u: "late", a: "write" }, SECRET)),
       );
+      await waitFor(() => decided() >= 61);
       await settle();
       expect(liveFor(name, "late")).toBe(0);
       expect(server.metrics.refusals.caps - capped).toBe(61 - PER_CANVAS);

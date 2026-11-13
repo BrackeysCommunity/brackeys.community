@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import type { StagedVersion } from "@jams/engine";
-import { projectInput } from "@jams/engine-testing";
+import { editedSceneVersion, projectInput } from "@jams/engine-testing";
 import type { ExportInput } from "@jams/engine/export";
 import {
   cellKey,
@@ -19,11 +19,10 @@ import {
   swapCheck,
   type InputScriptV2,
 } from "@jams/engine/headless";
-import { buildSceneVersion, sceneListFlow, sceneVersionOptions } from "@jams/engine/project";
+import { sceneListFlow } from "@jams/engine/project";
 import {
   createRegistry,
   expandScene,
-  formatScene,
   parsePrefab,
   parseSceneOrThrow,
   prefabLibrary,
@@ -106,13 +105,8 @@ const GAME_DIR = fileURLToPath(here("../"));
 let input: ExportInput;
 
 /** Level 1 as `level` (as committed when omitted), built into a version from the project's files. */
-async function versionOf(level?: SceneDefinition): Promise<StagedVersion> {
-  const texts = new Map(input.texts);
-  if (level) texts.set(SCENE, formatScene(level).text);
-  const built = await buildSceneVersion(sceneVersionOptions(input, SCENE, { texts }));
-  if (!built.ok) throw new Error(JSON.stringify(built.issues, null, 2));
-  return built;
-}
+const versionOf = (level?: SceneDefinition): Promise<StagedVersion> =>
+  editedSceneVersion(input, SCENE, level);
 
 const level1 = () => JSON.parse(input.texts.get(SCENE)!) as SceneDefinition;
 

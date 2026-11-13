@@ -255,11 +255,19 @@ function geometryMarks(
     out.points.push({ at: g.at, tone, ref: owner });
 }
 
+/** The entities `ref` names in `def`: the entity itself, or an instance's children. */
+function entitiesOfRef(def: SceneDefinition, ref: Ref): EntityDef[] {
+  const entities = def.entities ?? [];
+  const own = entities.find((e) => e.id === ref);
+  if (own) return [own];
+  const prefix = `${ref}${CHILD_SEPARATOR}`;
+  return entities.filter((e) => e.id.startsWith(prefix));
+}
+
 /** Whether `ref` names an instance (or a nested one) rather than an entity of `def`. */
 function isComposite(def: SceneDefinition, ref: Ref): boolean {
-  if ((def.entities ?? []).some((e) => e.id === ref)) return false;
-  const prefix = `${ref}${CHILD_SEPARATOR}`;
-  return (def.entities ?? []).some((e) => e.id.startsWith(prefix));
+  const named = entitiesOfRef(def, ref);
+  return named.length > 0 && named[0]!.id !== ref;
 }
 
 /**
@@ -282,9 +290,7 @@ export function outlinesOfRef(
     geometryMarks(def, own, own.type, entity, tone, ref, out, look);
     return;
   }
-  const prefix = `${ref}${CHILD_SEPARATOR}`;
-  for (const e of def.entities ?? []) {
-    if (!e.id.startsWith(prefix)) continue;
+  for (const e of entitiesOfRef(def, ref)) {
     const t = registry.types.get(e.type);
     if (t) geometryMarks(def, entityGeometry(t, e), e.type, e, tone, ref, out, look);
   }
@@ -303,15 +309,6 @@ export function outlineBounds(
   const marks: OutlineMarks = { outlines: [], points: [] };
   for (const ref of refs) outlinesOfRef(def, ref, "selected", marks, look);
   return marksBounds(marks.outlines, marks.points);
-}
-
-/** The entities `ref` names in `def`: the entity itself, or an instance's children. */
-function entitiesOfRef(def: SceneDefinition, ref: Ref): EntityDef[] {
-  const entities = def.entities ?? [];
-  const own = entities.find((e) => e.id === ref);
-  if (own) return [own];
-  const prefix = `${ref}${CHILD_SEPARATOR}`;
-  return entities.filter((e) => e.id.startsWith(prefix));
 }
 
 /**

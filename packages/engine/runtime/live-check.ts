@@ -2,6 +2,7 @@ import { LIVE_CHECK_AGAIN_TICKS, type LiveDeclaration } from "../game/live";
 import type { EngineContext, Registry } from "../game/types";
 import { stableJson } from "../project/canonical";
 import type { AssetId } from "../project/types";
+import { plural } from "../scene/plural";
 import type { SceneIssue } from "../scene/types";
 import { liveCheckThrew } from "./live";
 
@@ -9,8 +10,7 @@ import { liveCheckThrew } from "./live";
 export const LIVE_CHECK_RIGHT_AFTER = "right after the swap";
 
 /** When a later live check runs, as its issues word it: `60 ticks after the swap`. */
-export const afterSwapWords = (ticks: number): string =>
-  `${ticks} ${ticks === 1 ? "tick" : "ticks"} after the swap`;
+export const afterSwapWords = (ticks: number): string => `${plural(ticks, "tick")} after the swap`;
 
 /** The tick at which the game's live check runs again after a swap at `swapTick`. */
 export const liveRecheckAt = (swapTick: number): number => swapTick + LIVE_CHECK_AGAIN_TICKS;

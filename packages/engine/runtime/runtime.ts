@@ -156,8 +156,11 @@ export type SaveHost = {
  */
 type RuntimeLive = NonNullable<SceneRuntimeOptions["live"]> & {
   sublevel?(id: AssetId): LibraryScene | null;
-  /** While a load of `scene` runs, before it has its scene: the version that load plays. */
-  loading?(scene: AssetId): Sha256 | null;
+  /**
+   * While a load of `scene` runs, before it has its scene: the version that
+   * load plays; `back` when a swap puts back the version it left.
+   */
+  loading?(scene: AssetId, back?: boolean): Sha256 | null;
 };
 
 export function saveHostOf(ctx: EngineContext): SaveHost | undefined {
@@ -455,7 +458,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       get version() {
         // Inside a load (the game's `onLoad`) the host's runtime may still be the one before.
         const loading = loadedScene === null && mainScene ? (flowScene ?? mainScene.name) : null;
-        return loading !== null && live.loading ? live.loading(loading) : live.version();
+        return loading !== null && live.loading
+          ? live.loading(loading, loadingBack)
+          : live.version();
       },
       boundary: (label) => live.boundary(label),
     },
@@ -563,6 +568,8 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   let loadedScene: ExpandedScene | null = null;
   /** The main scene from the start of its load, so its `onLoad` may attach sublevels beside it. */
   let mainScene: ExpandedScene | null = null;
+  /** While a swap's load puts back the version the swap left. */
+  let loadingBack = false;
   let cachedScene: ExpandedScene | null = null;
   /** The prefab library a swap froze for the main scene's version, which reloading it uses; null until a swap. */
   let versionPrefabs: PrefabLibrary | null = null;
@@ -1233,7 +1240,14 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     generation: () => lifecycle.generation,
     freshLoader: () => {
       const loadFresh = freshLoader();
-      return (scene, library, at) => loadFresh(scene, new Map(library), at);
+      return (scene, library, at, back = false) => {
+        loadingBack = back;
+        try {
+          return loadFresh(scene, new Map(library), at);
+        } finally {
+          loadingBack = false;
+        }
+      };
     },
     setVersion(scene, library) {
       mainScene = scene;

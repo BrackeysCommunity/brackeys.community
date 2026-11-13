@@ -10,7 +10,7 @@ import { Badge, Button, Hint, IconButton, KeyHint, Switch, Text, useKit } from "
 import type { EditorHostState } from "../session/live-scene-editor";
 import { readStored, storedFlag, writeStored } from "../session/stored";
 import { useStoreValue } from "../session/use-store-value";
-import { LiveInPlayStatus, livePlayPending } from "./EditorStatusBar";
+import { LiveInPlayStatus, livePlayPending } from "./LiveInPlayStatus";
 
 /** Where the viewer's Live in Play choice is kept. */
 export const LIVE_PLAY_KEY = `${STORAGE_PREFIX}live-in-play`;

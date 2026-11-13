@@ -24,10 +24,14 @@ const V2 = "2".repeat(64);
 /** What the game's `onSwap` does in a test; reset by each `world()`. */
 type Hook = (swap: SceneSwap, ctx: SceneRuntimeHandle["ctx"]) => void;
 
-function liveGame(
-  hook: { current: Hook | null },
-  physics: "none" | "rapier" = "none",
-): GameDefinition {
+/** The game's hooks in a test: what `onSwap` and `onLoad` do, and `ctx.live.version` as each `onLoad` read it. */
+type Hooks = {
+  current: Hook | null;
+  load?: (ctx: SceneRuntimeHandle["ctx"]) => void;
+  loads: (string | null)[];
+};
+
+function liveGame(hook: Hooks, physics: "none" | "rapier" = "none"): GameDefinition {
   return defineGame({
     id: "live-yard",
     world: { physics },
@@ -83,6 +87,10 @@ function liveGame(
         },
         snapshot: () => ({ score }),
         restore: (s) => void (score = s.score),
+        onLoad() {
+          hook.loads.push(ctx.live.version);
+          hook.load?.(ctx);
+        },
         onSwap: (swap) => hook.current?.(swap, ctx),
       };
       return runtime;
@@ -119,7 +127,7 @@ type Emitted = { [K in "live:swapped" | "live:failed"]: { event: K; payload: Gam
 /** The yard running under a live layer; on Rapier, `rapier` is the module. */
 function world(rapier: RapierModule | null = null) {
   const physics = rapier ? "rapier" : "none";
-  const hook: { current: Hook | null } = { current: null };
+  const hook: Hooks = { current: null, loads: [] };
   const game = liveGame(hook, physics);
   const registry = createRegistry(game);
   const emitted: Emitted[keyof Emitted][] = [];
@@ -287,6 +295,50 @@ describe("a throwing onSwap", () => {
       expect(a.rt.ctx.exists("w3")).toBe(true);
     });
   }
+
+  it("after a reload from a version, onLoad of the version put back reads that version", () => {
+    const { rt, registry, layer, hook, tick } = world();
+    const wide = (w: number): SceneDefinition => ({ ...yard(), bounds: [0, 0, w, 10] });
+    tick(5);
+    layer.stage(preparedOf(V1, wide(50), registry));
+    layer.activate("yard", V1, "now");
+    tick();
+    expect(rt.ctx.live.version).toBe(V1);
+
+    hook.loads.length = 0;
+    hook.current = () => {
+      throw new Error("the door moved");
+    };
+    layer.stage(preparedOf(V2, wide(60), registry));
+    layer.activate("yard", V2, "now");
+    tick();
+    expect(hook.loads).toEqual([V2, V1]);
+    expect(rt.ctx.live.version).toBe(V1);
+    expect(rt.ctx.bounds).toEqual([0, 0, 50, 10]);
+    expect(layer.current("yard")).toBe(V2);
+  });
+
+  it("when the new version's load fails, onLoad of the version put back reads that version", () => {
+    const { rt, registry, layer, hook, tick, emitted } = world();
+    tick(5);
+    layer.stage(preparedOf(V1, yard(withW3), registry));
+    layer.activate("yard", V1, "now");
+    tick();
+    expect(rt.ctx.live.version).toBe(V1);
+
+    hook.loads.length = 0;
+    hook.load = (ctx) => {
+      if (ctx.bounds[2] === 60) throw new Error("the cave collapsed");
+    };
+    layer.stage(preparedOf(V2, { ...yard(withW3), bounds: [0, 0, 60, 10] }, registry));
+    layer.activate("yard", V2, "now");
+    tick();
+    expect(emitted.at(-1)).toMatchObject({ event: "live:failed", payload: { version: V2 } });
+    expect(hook.loads).toEqual([V2, V1]);
+    expect(rt.ctx.live.version).toBe(V1);
+    expect(rt.ctx.bounds).toEqual([0, 0, 40, 10]);
+    expect(rt.ctx.exists("w3")).toBe(true);
+  });
 
   it("on Rapier, undoes a throwing onSwap by the inverse reconcile, which keeps what onSwap changed outside the diff", async () => {
     const rapier = (await import("@dimforge/rapier2d")) as RapierModule;

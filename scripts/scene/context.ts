@@ -11,6 +11,7 @@ import {
   createRegistry,
   makeIssue,
   parseScene,
+  plural as countNoun,
   sceneGameOf,
   type Prefab,
   type PrefabLibrary,
@@ -103,12 +104,15 @@ export const failure = (message: string, extra: Record<string, unknown> = {}): T
 export const isToolResult = (v: unknown): v is ToolResult =>
   typeof v === "object" && v !== null && "exitCode" in v;
 
-/** An id's first six characters, for a line that names a release or version: `3fa9c2…`. */
-export const shortId = (id: string): string => `${id.slice(0, 6)}…`;
+/** How many characters of a release or version id a short id keeps; the editor's release list keeps as many. */
+export const SHORT_ID_LENGTH = 6;
+
+/** An id's first characters, for a line that names a release or version: `3fa9c2…`. */
+export const shortId = (id: string): string => `${id.slice(0, SHORT_ID_LENGTH)}…`;
 
 /** `1 run`, `1,204 runs`: a count and its noun. */
-export const plural = (n: number, one: string, many = `${one}s`): string =>
-  `${formatCount(n)} ${n === 1 ? one : many}`;
+export const plural = (n: number, one: string, many?: string): string =>
+  countNoun(n, one, many, formatCount);
 
 /** Amber on a terminal that takes colour; plain everywhere else (pipes, `--json`, MCP). */
 export function amber(text: string, env: Readonly<Record<string, string | undefined>>): string {

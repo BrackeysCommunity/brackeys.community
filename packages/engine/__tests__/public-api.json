@@ -233,6 +233,7 @@
       "placeChildren",
       "placeFragment",
       "placeableTypes",
+      "plural",
       "pointerLines",
       "prefabBody",
       "prefabJsonSchema",

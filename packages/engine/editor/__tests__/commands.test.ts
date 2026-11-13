@@ -24,6 +24,7 @@ import {
   zOrderBatch,
 } from "../commands";
 import { createSpatialIndex } from "../spatial-index";
+import { outlineBounds, outlineLook } from "../tool-host";
 
 const registry = createRegistry();
 /** The engine yard's entities in metres. */
@@ -308,5 +309,26 @@ describe("select-all, delete and bounds", () => {
       maxY: 9.6,
     });
     expect(selectionBounds(doc, registry, [])).toBeNull();
+  });
+
+  it("bounds a selection as the editor outlines it, an instance by its children", () => {
+    const refs = ["crate", "~solid:0", "readme"];
+    expect(selectionBounds(doc, registry, refs)).toEqual(
+      outlineBounds(doc, refs, outlineLook(registry)),
+    );
+    const resolved: SceneDefinition = {
+      ...doc,
+      entities: [
+        ...doc.entities!,
+        { id: "gate/left", type: "marker", at: [5, 2] },
+        { id: "gate/right", type: "prop", shape: ["box", 7, 3, 0.5, 0.5] },
+      ],
+    };
+    expect(selectionBounds(resolved, registry, ["gate"])).toEqual({
+      minX: 5,
+      minY: 2,
+      maxX: 7.5,
+      maxY: 3.5,
+    });
   });
 });
