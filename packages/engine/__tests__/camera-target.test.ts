@@ -1,13 +1,11 @@
 // @vitest-environment jsdom
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
-import { createGame } from "../engine";
 import { defineGame } from "../game/define";
 import type { GameDefinition } from "../game/types";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
-import type { GameInstance, RapierModule, Vec2 } from "../types";
-import { loadCompatRapier } from "./fixtures/compat-rapier";
-import { manualFrames, type FrameClock, type FrameRecord } from "./fixtures/frame-clock";
+import type { Vec2 } from "../types";
+import { playRig, type FrameRecord } from "./fixtures/frame-clock";
 
 vi.mock("../renderer", async () => (await import("./fixtures/frame-clock")).stubRenderer());
 
@@ -17,13 +15,12 @@ vi.mock("../render/pixi-view", async (importOriginal) =>
   (await import("./fixtures/frame-clock")).recordingPixiView(importOriginal, seen),
 );
 
-let clock: FrameClock;
-/** Runs `n` frames a tick apart: each steps one tick, then renders. */
-const advance = (n: number) => clock.ticks(n);
+const rig = playRig(seen);
+const { advance, playing } = rig;
 
 /** Where the last frame's camera stood. */
 const lastFrame = (): Vec2 => {
-  const { x, y } = seen.frames[seen.frames.length - 1]!;
+  const { x, y } = rig.lastFrame();
   return { x, y };
 };
 
@@ -46,40 +43,6 @@ function sceneOf(entities: EntityDef[], game?: string): SceneDefinition {
     entities,
   };
 }
-
-let rapier: RapierModule;
-beforeAll(async () => {
-  rapier = await loadCompatRapier();
-});
-
-const games: GameInstance[] = [];
-let canvas: HTMLCanvasElement;
-
-async function playing(
-  scene: SceneDefinition,
-  game: GameDefinition | null = null,
-): Promise<GameInstance> {
-  const instance = await createGame(canvas, { game, rapier: async () => rapier, scene });
-  games.push(instance);
-  instance.start();
-  // The loop's first frame only starts its clock; the second ticks and renders.
-  advance(2);
-  return instance;
-}
-
-beforeEach(() => {
-  seen.frames.length = 0;
-  seen.views.length = 0;
-  clock = manualFrames();
-  canvas = document.createElement("canvas");
-  document.body.appendChild(canvas);
-});
-
-afterEach(() => {
-  for (const g of games.splice(0)) g.destroy();
-  document.body.replaceChildren();
-  vi.unstubAllGlobals();
-});
 
 /** A physics-free game with the given `cameraTarget` hook (none when omitted). */
 function gameWith(cameraTarget?: () => Vec2 | null): GameDefinition {
@@ -176,15 +139,7 @@ describe("camera-target", () => {
       ...sceneOf([target("hero", { x: 30, y: 30 })]),
       bounds: [0, 0, 100, 100] as [number, number, number, number],
     };
-    const instance = await createGame(canvas, { game: null, rapier: async () => rapier });
-    games.push(instance);
-    instance.setMode("edit");
-    instance.loadScene(scene);
-    instance.start();
-    advance(2);
-    instance.zoomAt({ x: 0, y: 0 }, 0.2);
-    instance.panBy({ x: 400, y: -300 });
-    advance(1);
+    const { instance } = await editing(scene);
     expect(lastFrame()).not.toEqual({ x: 30, y: 30 });
     expect(instance.play(scene).ok).toBe(true);
     expect(instance.getStore().state.camera.zoom).toBe(1);
@@ -196,12 +151,7 @@ describe("camera-target", () => {
 
   /** An edit-mode instance on `scene`, its editor camera zoomed out and panned away. */
   async function editing(scene: SceneDefinition, game: GameDefinition | null = null) {
-    const instance = await createGame(canvas, { game, rapier: async () => rapier });
-    games.push(instance);
-    instance.setMode("edit");
-    instance.loadScene(scene);
-    instance.start();
-    advance(2);
+    const instance = await rig.editing(scene, game);
     instance.zoomAt({ x: 0, y: 0 }, 0.2);
     instance.panBy({ x: 400, y: -300 });
     advance(1);

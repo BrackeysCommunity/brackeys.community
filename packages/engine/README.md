@@ -4501,8 +4501,8 @@ events and hitboxes are written:
   is `{ frame, ms?, events?, shapes? }`: `ms` defaults to the atlas
   frame's duration, else 100.
 - `loop` is `loop`, `once`, `pingpong` or `hold` (default: the tag's
-  direction, else `loop`). A `once` clip goes on to `next`; with none it
-  holds its last frame.
+  direction, else `loop`). A `once` clip goes on to `next`, carrying the
+  part of a tick it left over; with none it holds its last frame.
 - `speed` (default 1) scales the clip, and the block's `speed` scales it
   again.
 - The doc is checked against its atlas: `anim-tag-unknown` for a tag the
@@ -4741,7 +4741,9 @@ functions aren't guaranteed to, so a tweened puzzle replays everywhere.
 - **What can be tweened.** A pose channel needs a type that can be posed:
   `marker`, `decor`, `solid` and `sensor`, and game types whose system
   implements `SceneSystem.setPose` (or that sit on one of those bases with
-  no system of their own). `prop` and `follower` can't. A visual channel
+  no system of their own). `prop` and `follower` can't, and neither can a
+  `solid` or `sensor` riding a host (`attach`), which goes where the host's
+  body takes it. A visual channel
   needs a `sprite`. Anything else is `tween-target-invalid`: an error in a
   scene's validation for a `tween` block, and an `EngineError` thrown from
   `ctx.tweens.to`.
@@ -4754,8 +4756,10 @@ functions aren't guaranteed to, so a tweened puzzle replays everywhere.
   (or a kinematic `body` with `path-follow`).
 - An entity's tweens are cancelled when it is destroyed and paused while it
   is disabled, as its timers are.
-- World saves keep data tweens. A pending `value` tween holds functions, so
-  it makes a world save `save-unsupported`, naming it; raise an event with
+- World saves keep data tweens, and where a tween (or `setPose`) left a
+  `solid` or `sensor`, collider included, and the `collider` block of an
+  entity a tween moved. A pending `value` tween holds functions, so it
+  makes a world save `save-unsupported`, naming it; raise an event with
   `emit` and subscribe instead.
 
 A bobbing, fading decor is a block:
@@ -7620,7 +7624,7 @@ An area that holds the camera: inside it, the view stays within its box and may 
 
 | Field       | Type                      | Required | Description                                                                                                                                                               |
 | ----------- | ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shape`     | #/$defs/CameraRegionShape | yes      | The region. Absolute world metres; y is down.                                                                                                                             |
+| `shape`     | #/$defs/CameraRegionShape | yes      | The region, axis-aligned: a turned box frames its bounding box. Absolute world metres; y is down.                                                                         |
 | `zoom`      | number                    |          | The camera's zoom while it frames this region; omitted keeps the rig's own.                                                                                               |
 | `clamp`     | boolean                   |          | Keep the view inside the box; default true.                                                                                                                               |
 | `ease`      | number (s)                |          | Seconds to move into the region's framing; default 0.4.                                                                                                                   |

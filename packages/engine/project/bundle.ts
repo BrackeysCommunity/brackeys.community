@@ -1,5 +1,5 @@
 import type { Registry } from "../game/types";
-import { closest } from "../scene/did-you-mean";
+import { didYouMean } from "../scene/did-you-mean";
 import { expandInstance } from "../scene/expand";
 import { jsonPointer, makeIssue, pointerSegments } from "../scene/issues";
 import { prefabsUsedBy, reachPrefabs } from "../scene/prefab";
@@ -98,12 +98,12 @@ function missingIssue(view: ProjectView, { site, where, entityIds }: Source): Sc
   else if (view.deleted.some((e) => e.id === site.id && fits(e, site)))
     why = "which is in the trash";
   else why = "which the project doesn't have";
-  const guess = closest(
+  const near = didYouMean(
     site.id,
-    [...view.byId.values()].filter((e) => e.id !== site.id && fits(e, site)).map((e) => e.id),
+    [...view.byId.values()].filter((e) => fits(e, site)).map((e) => e.id),
   );
   return makeIssue("asset-missing", {
-    message: `${where} names ${what} "${site.id}", ${why}${guess ? `; did you mean "${guess}"?` : ""}`,
+    message: `${where} names ${what} "${site.id}", ${why}${near}`,
     path: site.pointer,
     entityIds,
     got: site.id,
@@ -111,7 +111,10 @@ function missingIssue(view: ProjectView, { site, where, entityIds }: Source): Sc
   });
 }
 
-/** A doc's value by kind and id, as a bundle reads it to follow a runtime doc a field names; undefined when it has none. */
+/**
+ * A doc's value by kind and id, as a bundle reads it to follow a runtime
+ * doc a field names; undefined when it has none. A `DocLookup` is one.
+ */
 type BundleDocs = { read(kind: AssetKindName, id: AssetId): unknown };
 
 /** How `resolve` reads a runtime doc's references: its values, and the env its kind's `refs` take. */
@@ -327,7 +330,7 @@ export function sceneBundle(
   view: ProjectView,
   kinds: KindRegistry,
   registry: Registry,
-  docs?: { read(kind: AssetKindName, id: AssetId): unknown },
+  docs?: BundleDocs,
 ): { bundle: AssetBundle; issues: SceneIssue[] } {
   const sources: Source[] = [];
   for (const e of scene.entities) sources.push(...entitySources(registry, e));

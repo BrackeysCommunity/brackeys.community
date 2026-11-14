@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { ease } from "../anim/ease";
-import { lerpChannel } from "../anim/tweens";
+import { isTweenState, lerpChannel, type TweenState } from "../anim/tweens";
 import type { SceneView } from "../context";
 import { defineGame } from "../game/define";
 import { EngineError, type SceneSystem } from "../game/types";
@@ -330,6 +330,29 @@ describe("tweens", () => {
     expect(lerpChannel("x", 0, 10, 0.25)).toBe(2.5);
   });
 
+  it("take back only a saved state whose from and given fit its to", () => {
+    const state: TweenState = {
+      id: 1,
+      owner: "a",
+      to: { x: 4, alpha: 0.5 },
+      given: { x: 1 },
+      from: { x: 1, alpha: 1 },
+      duration: 10,
+      delay: 0,
+      ease: "linear",
+      repeat: 0,
+      yoyo: false,
+      play: 0,
+      tick: 3,
+    };
+    expect(isTweenState(state)).toBe(true);
+    expect(isTweenState({ ...state, from: { x: 1 } })).toBe(false);
+    expect(isTweenState({ ...state, from: { x: 1, alpha: 1, y: 0 } })).toBe(false);
+    expect(isTweenState({ ...state, given: { y: 2 } })).toBe(false);
+    expect(isTweenState({ ...state, from: undefined, given: undefined })).toBe(true);
+    expect(isTweenState({ ...state, to: { x: Number.NaN } })).toBe(false);
+  });
+
   it("repeat, with yoyo playing every other play backwards, and -1 forever", () => {
     const rt = tweening([
       { id: "a", type: "marker", at: [0, 0] },
@@ -542,6 +565,48 @@ describe("tweens", () => {
     rt.destroy();
   });
 
+  it("refuse a block entry on a riding solid at load, counting entries from 1 as the validator does", () => {
+    const rt = createSceneRuntime({ rapier, view: null, game: sensing });
+    const report = rt.load({
+      name: "riding",
+      bounds: [-50, -50, 50, 50],
+      settings: {
+        gravity: [0, 0],
+        physics: "rapier",
+        grid: null,
+        view: { projection: "orthogonal" },
+      },
+      entities: [
+        {
+          id: "lift",
+          type: "follower",
+          shape: box(0, 0, 2, 0.5),
+          path: {
+            pts: [
+              [0, 0],
+              [10, 0],
+            ],
+            mode: "loop",
+            speed: 1,
+          },
+        },
+        {
+          id: "plank",
+          type: "solid",
+          attach: "lift",
+          shape: box(1, -1, 1, 0.2),
+          behaviors: { tween: { tweens: [{ to: { y: 3 }, duration: 5 }] } },
+        },
+      ],
+    });
+    expect(report).toMatchObject({
+      ok: false,
+      entityId: "plank",
+      error: `plank's tween 1 can't play: it is a solid riding "lift", which can't be posed, so a tween can't move its y`,
+    });
+    rt.destroy();
+  });
+
   it("refuse an emit whose data isn't plain JSON, at `to`", () => {
     const rt = tweening([{ id: "spot", type: "marker", at: [0, 0] }]);
     const emitting = (data: unknown) => {
@@ -751,12 +816,16 @@ describe("tweens replay and save", () => {
     { id: "spot", type: "marker", at: [-2, 0] },
   ];
 
+  /** What blocks the door's spawn spot (y 0) or the end of its tween (y 4). */
+  const doorAt = (rt: SceneRuntimeHandle, y: number) =>
+    rt.ctx.space.pointAt({ x: 5, y }).map((h) => h.tag.entityId);
+
   /** Ticks `from` to `to`: each tick's events and every pose, hashed. Code starts a tween on `spot` at tick 5. */
   function play(rt: SceneRuntimeHandle, from: number, to: number): string {
     const frames: unknown[] = [];
     for (let t = from; t < to; t++) {
       if (t === 5) rt.ctx.tweens.to("spot", { to: { x: 2 }, duration: 40, ease: "elasticOut" });
-      frames.push([rt.step(DT, []).events, poses(rt), rt.ctx.space.pointAt({ x: 5, y: 2 }).length]);
+      frames.push([rt.step(DT, []).events, poses(rt), doorAt(rt, 0), doorAt(rt, 4)]);
     }
     return hashText(JSON.stringify(frames));
   }
@@ -847,7 +916,68 @@ describe("tweens replay and save", () => {
     const b = tweening(entities());
     const restored = restoreSave(b, captured.file);
     if (!restored.ok) throw new Error(restored.issue.message);
+    expect(pose(b, "door").y).toBe(4);
+    expect(doorAt(b, 4)).toEqual(["door"]);
+    expect(doorAt(b, 0)).toEqual([]);
     expect(play(b, 70, 100)).toBe(digest);
+    b.destroy();
+  });
+
+  it("a save keeps a collider block where a tween since ended left its entity", () => {
+    const crate = (): RuntimeEntity[] => [
+      {
+        id: "crate",
+        type: "marker",
+        at: [0, 0],
+        behaviors: {
+          collider: { shape: ["box", 0, 0, 0.5, 0.5] },
+          tween: { tweens: [{ to: { y: 4 }, duration: 3 }] },
+        },
+      },
+    ];
+    const crateAt = (rt: SceneRuntimeHandle, y: number) =>
+      rt.ctx.space.pointAt({ x: 0, y }).map((h) => h.tag.entityId);
+    const a = tweening(crate());
+    stepFor(a, 6);
+    expect(crateAt(a, 4)).toEqual(["crate"]);
+    const captured = captureSave(a, { depth: "world", slot: "s", now: 0 });
+    if (!captured.ok) throw new Error(captured.issue.message);
+    a.destroy();
+    const b = tweening(crate());
+    const restored = restoreSave(b, captured.file);
+    if (!restored.ok) throw new Error(restored.issue.message);
+    expect(crateAt(b, 4)).toEqual(["crate"]);
+    expect(crateAt(b, 0)).toEqual([]);
+    b.destroy();
+  });
+
+  it("a save keeps where code's setPose moved a solid and a sensor: collider and drawing", () => {
+    const moving = (): RuntimeEntity[] => [
+      { id: "door", type: "solid", shape: box(0, 0, 0.5, 1) },
+      { id: "zone", type: "sensor", shape: box(-5, 0, 1, 1) },
+    ];
+    const hitsAt = (rt: SceneRuntimeHandle, x: number, y: number) =>
+      rt.ctx.space.pointAt({ x, y }, { sensors: true }).map((h) => h.tag.entityId);
+    const first = recordingView();
+    const a = tweening(moving(), first.view);
+    a.ctx.system<SceneSystem>("solid")!.setPose!("door", 3, 2, Math.PI / 2);
+    a.ctx.system<SceneSystem>("sensor")!.setPose!("zone", -5, 6, 0);
+    stepFor(a, 2);
+    const captured = captureSave(a, { depth: "world", slot: "s", now: 0 });
+    if (!captured.ok) throw new Error(captured.issue.message);
+    const drawn = [first.live.get("door")!.pose, first.live.get("zone")!.pose];
+    a.destroy();
+
+    const second = recordingView();
+    const b = tweening(moving(), second.view);
+    const restored = restoreSave(b, captured.file);
+    if (!restored.ok) throw new Error(restored.issue.message);
+    expect(pose(b, "door")).toEqual({ x: 3, y: 2, rot: Math.PI / 2 });
+    expect(hitsAt(b, 3, 2)).toEqual(["door"]);
+    expect(hitsAt(b, 0, 0)).toEqual([]);
+    expect(hitsAt(b, -5, 6)).toEqual(["zone"]);
+    expect(hitsAt(b, -5, 0)).toEqual([]);
+    expect([second.live.get("door")!.pose, second.live.get("zone")!.pose]).toEqual(drawn);
     b.destroy();
   });
 });

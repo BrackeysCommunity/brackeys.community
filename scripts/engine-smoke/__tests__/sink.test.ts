@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { inflateSync } from "node:zlib";
 
-import { createRegistry, resolveClips, withProject } from "@jams/engine/game";
-import { assetInfo, createHeadlessRuntime } from "@jams/engine/headless";
+import { createRegistry, pxPerMetreOf, resolveClips, withProject } from "@jams/engine/game";
+import { assetInfo, cameraRegionsOf, createHeadlessRuntime } from "@jams/engine/headless";
 import {
   createKindRegistry,
   projectView,
@@ -32,6 +32,7 @@ import {
   INSIDE_COLOUR,
   INSIDE_POINT,
   OUTSIDE_POINT,
+  SINK_CANVAS,
   SINK_DATA_ROUTE,
   SINK_FRAME,
   SINK_PROJECT,
@@ -39,7 +40,7 @@ import {
   SMOKE_BACKGROUND,
   SPLIT_VIEWPORTS,
 } from "../browser/sink";
-import { parseSinkScene, sinkPrefabs } from "../browser/sink-prefabs";
+import { parseSinkScene, sinkPrefabs, withoutCameraRig } from "../browser/sink-prefabs";
 import { smokeGame } from "../game";
 import { REPO } from "../pack";
 
@@ -70,6 +71,13 @@ const inBox = (
   [x, y]: readonly [number, number],
   b: { minX: number; minY: number; maxX: number; maxY: number },
 ) => x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY;
+
+const grown = (b: { minX: number; minY: number; maxX: number; maxY: number }, m: number) => ({
+  minX: b.minX - m,
+  minY: b.minY - m,
+  maxX: b.maxX + m,
+  maxY: b.maxY + m,
+});
 
 /** An RGBA PNG's pixel, for the unfiltered rows a zlib PNG writer emits. */
 async function pngPixel(path: string, x: number, y: number): Promise<number> {
@@ -153,13 +161,7 @@ describe("the render run's pinned points", () => {
     expect(Math.abs(x - body.cx)).toBeGreaterThanOrEqual(body.hw + margin);
     for (const d of drawn) {
       if (!d.shape || d.id === "crate") continue;
-      const grown = {
-        minX: d.box.minX - margin,
-        minY: d.box.minY - margin,
-        maxX: d.box.maxX + margin,
-        maxY: d.box.maxY + margin,
-      };
-      expect(inBox(INSIDE_POINT, grown), d.id).toBe(false);
+      expect(inBox(INSIDE_POINT, grown(d.box, margin)), d.id).toBe(false);
     }
     for (const s of sprites)
       if (s.ref !== "crate") expect(inBox(INSIDE_POINT, s.box), s.ref).toBe(false);
@@ -169,12 +171,7 @@ describe("the render run's pinned points", () => {
     const { view, registry, def, prefabs } = pageSide();
     const margin = 0.08;
     const near = (b: { minX: number; minY: number; maxX: number; maxY: number }) =>
-      inBox(OUTSIDE_POINT, {
-        minX: b.minX - margin,
-        minY: b.minY - margin,
-        maxX: b.maxX + margin,
-        maxY: b.maxY + margin,
-      });
+      inBox(OUTSIDE_POINT, grown(b, margin));
     for (const s of sceneSprites(def, { registry, prefabs, project: view }))
       expect(near(s.box), s.ref).toBe(false);
     for (const d of drawnEntities(expandScene(def, registry, { prefabs }), registry))
@@ -183,6 +180,22 @@ describe("the render run's pinned points", () => {
 
   it("sit inside the camera's frame", () => {
     for (const p of [INSIDE_POINT, OUTSIDE_POINT]) expect(inBox(p, SINK_FRAME)).toBe(true);
+  });
+
+  it("frame the camera by hand: the run's scene keeps no camera settings or region to rig it in Play", () => {
+    const { registry, def, prefabs } = pageSide();
+    expect(smokeGame.camera).toBeUndefined();
+    const authored = cameraRegionsOf(expandScene(def, registry, { prefabs }).entities, registry);
+    expect(def.settings?.camera).toBeDefined();
+    expect(authored.length).toBeGreaterThan(0);
+    const run = withoutCameraRig(def, registry, prefabs);
+    expect(run.settings?.camera).toBeUndefined();
+    expect(run.settings?.gravity).toEqual(def.settings?.gravity);
+    expect(cameraRegionsOf(expandScene(run, registry, { prefabs }).entities, registry)).toEqual([]);
+    const regionIds = new Set(authored.map((r) => r.id));
+    expect(run.entities?.map((e) => e.id)).toEqual(
+      def.entities?.filter((e) => !regionIds.has(e.id)).map((e) => e.id),
+    );
   });
 
   it("hold after the run's one step: the crate rests where it was placed", async () => {
@@ -226,13 +239,6 @@ describe("the render run's pinned points", () => {
   });
 });
 
-const grown = (b: { minX: number; minY: number; maxX: number; maxY: number }, m: number) => ({
-  minX: b.minX - m,
-  minY: b.minY - m,
-  maxX: b.maxX + m,
-  maxY: b.maxY + m,
-});
-
 /** The scene's own entities, each with its behavior blocks by name. */
 const entitiesOf = (def: SceneDefinition) =>
   (def.entities ?? []) as readonly (EntityDef & { behaviors?: Record<string, unknown> })[];
@@ -252,18 +258,31 @@ describe("the split run", () => {
     expect(ids.has("crate") && ids.has(ANIM_ENTITY)).toBe(true);
   });
 
-  it("follows both through the scene's rig with no camera region taking either", () => {
-    const { def } = pageSide();
+  it("follows both through the scene's rig: the crate clear of every camera region, the animated sprite centred in the one framing it", () => {
+    const { def, registry, prefabs } = pageSide();
     expect(def.settings?.camera).toBeDefined();
-    const regions = entitiesOf(def).filter((e) => e.type === "camera-region");
-    expect(regions.length).toBeGreaterThan(0);
-    for (const point of [INSIDE_POINT, ANIM_POINT])
-      for (const region of regions) {
-        const [kind, cx, cy, hw, hh] = region.shape as [string, number, number, number, number];
-        expect(kind, region.id).toBe("box");
-        const box = { minX: cx - hw, minY: cy - hh, maxX: cx + hw, maxY: cy + hh };
-        expect(inBox(point, grown(box, 1)), region.id).toBe(false);
-      }
+    const regions = cameraRegionsOf(expandScene(def, registry, { prefabs }).entities, registry);
+    const boxOf = (r: (typeof regions)[number]) => ({
+      minX: r.min.x,
+      minY: r.min.y,
+      maxX: r.max.x,
+      maxY: r.max.y,
+    });
+    for (const r of regions) expect(inBox(INSIDE_POINT, grown(boxOf(r), 1)), r.id).toBe(false);
+    const framing = regions.filter((r) => inBox(ANIM_POINT, boxOf(r)));
+    expect(framing.map((r) => r.id)).toEqual(["framing"]);
+    const region = framing[0]!;
+    // The right half's view at the region's zoom, around the sprite: the clamp leaves it centred when this fits the box.
+    const zoom = region.zoom ?? 1;
+    const ppm = pxPerMetreOf(registry);
+    const half = {
+      x: (SINK_CANVAS.width * SPLIT_VIEWPORTS[1]!.rect[2]) / (2 * ppm * zoom),
+      y: (SINK_CANVAS.height * SPLIT_VIEWPORTS[1]!.rect[3]) / (2 * ppm * zoom),
+    };
+    const [ax, ay] = ANIM_POINT;
+    expect(region.clamp).toBe(true);
+    expect(ax - half.x >= region.min.x && ax + half.x <= region.max.x).toBe(true);
+    expect(ay - half.y >= region.min.y && ay + half.y <= region.max.y).toBe(true);
   });
 
   it("reads the animated sprite's centre: on its sprite, clear of every other sprite, body and the emitter", () => {
@@ -275,8 +294,9 @@ describe("the split run", () => {
     const margin = 0.1;
     for (const s of sprites)
       if (s.ref !== ANIM_ENTITY) expect(inBox(ANIM_POINT, grown(s.box, margin)), s.ref).toBe(false);
+    // A camera region's outline is drawn only while editing, never on the smoke's page.
     for (const d of drawnEntities(expandScene(def, registry, { prefabs }), registry))
-      if (d.shape && d.id !== ANIM_ENTITY)
+      if (d.shape && d.id !== ANIM_ENTITY && d.base !== "camera-region")
         expect(inBox(ANIM_POINT, grown(d.box, margin)), d.id).toBe(false);
     for (const e of entitiesOf(def).filter((x) => x.behaviors?.emitter)) {
       const [ex, ey] = e.at as [number, number];

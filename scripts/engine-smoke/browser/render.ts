@@ -30,7 +30,7 @@ import {
   SMOKE_BACKGROUND,
   SPLIT_VIEWPORTS,
 } from "./sink";
-import { parseSinkScene, sinkPrefabs } from "./sink-prefabs";
+import { parseSinkScene, sinkPrefabs, withoutCameraRig } from "./sink-prefabs";
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
@@ -38,17 +38,6 @@ async function sinkData(): Promise<SinkProjectData> {
   const res = await fetch(SINK_DATA_ROUTE);
   if (!res.ok) throw new Error(`GET ${SINK_DATA_ROUTE} answered ${res.status}`);
   return (await res.json()) as SinkProjectData;
-}
-
-/**
- * `scene` without its camera settings: they put a rig on the camera in Play,
- * which places it every rendered frame, and the crate run frames the camera
- * itself.
- */
-function withoutRig(scene: SceneDefinition): SceneDefinition {
-  const settings = { ...scene.settings };
-  delete settings.camera;
-  return { ...scene, settings };
 }
 
 export async function runRenderSmoke(): Promise<{ render: RenderProbe; split: SplitProbe }> {
@@ -79,7 +68,7 @@ export async function runRenderSmoke(): Promise<{ render: RenderProbe; split: Sp
     const { failed } = await game.preload(scene);
     if (failed.length > 0)
       throw new Error(`textures failed to load: ${failed.map((e) => e.id).join(", ")}`);
-    const report = game.loadScene(withoutRig(scene));
+    const report = game.loadScene(withoutCameraRig(scene, registry, prefabs));
     if (!report.ok) throw new Error(`${SINK_SCENE} didn't load: ${report.error}`);
     game.pause();
     game.step(1);

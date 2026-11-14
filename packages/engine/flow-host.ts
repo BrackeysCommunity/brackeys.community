@@ -11,6 +11,7 @@ import {
   type TransitionSpec,
 } from "./game/flow";
 import type { AssetId } from "./project/types";
+import { readFlag } from "./reduced-motion";
 import type { LoadProgress } from "./render/asset-loader";
 import { liveScene } from "./runtime/live";
 import { makeIssue } from "./scene/issues";
@@ -160,9 +161,7 @@ export function createFlowHost(opts: FlowHostOptions): FlowHost {
     const layer = opts.layer();
     if (!layer) return;
     try {
-      const reduced = opts.reducedMotion;
-      const reducedMotion = typeof reduced === "function" ? reduced() : (reduced ?? false);
-      await runner(phase, spec, layer, { reducedMotion });
+      await runner(phase, spec, layer, { reducedMotion: readFlag(opts.reducedMotion) });
     } catch (err) {
       if (opts.dev) console.warn(`[flow] the transition's ${phase} half failed`, err);
     }

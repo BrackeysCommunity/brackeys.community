@@ -735,6 +735,14 @@ describe("the anim behavior", () => {
     // Six-tick frames at 1.5 last four ticks.
     expect(idleFrames).toEqual(["f0", "f0", "f0", "f0", "f1", "f1", "f1", "f1", "f0"]);
     expect(rt.ctx.anim.state("fast")?.speed).toBe(1.5);
+
+    // Three ticks at 2.5 owe seven whole ticks after the start: attack's six, then one into
+    // idle, which a once clip's next carries on from.
+    const { rt: chained } = arenaRuntime([brawler("a", [0, 0], { clip: "attack", speed: 2.5 })]);
+    stepFor(chained, 4);
+    expect(chained.ctx.anim.state("a")).toMatchObject({ clip: "idle", index: 0, into: 1 });
+    stepFor(chained, 1);
+    expect(chained.ctx.anim.state("a")).toMatchObject({ clip: "idle", index: 0, into: 4 });
   });
 
   it("staggers a start by offset ticks, raising nothing for a frame it starts inside", () => {

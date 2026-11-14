@@ -412,6 +412,8 @@ export function createBodyTable<T extends OwnedBody>(
       const at = framePose(m.now, m.drawn);
       ctx.view.pose(id, at.x, at.y, at.rot);
     },
+    /** Whether `setPose` moved the entity since it spawned. */
+    wasMoved: (id: string): boolean => moved.has(id),
     /** The geometry collider of a placed entity, else null. */
     placedHandle: (id: string): number | null => placed.get(id)?.handle ?? null,
     despawn,
@@ -806,6 +808,26 @@ function onOneWaySide(side: Side, solid: Aabb, actor: Aabb): boolean {
   }
 }
 
+/** A posed body's save: `state` plus `moved` when `setPose` moved it; undefined when that holds nothing. */
+function savedBody(moved: boolean, state: Record<string, JsonValue>): JsonValue | undefined {
+  const out = moved ? { ...state, moved: true } : state;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Puts a body `setPose` moved before a save where the save's pose index,
+ * already restored, holds it, since a fresh load placed it at its spawn.
+ */
+function restoreMoved(
+  ctx: EngineContext,
+  id: string,
+  state: Readonly<Record<string, JsonValue>>,
+  setPose: (id: string, x: number, y: number, rot: number) => void,
+): void {
+  const pose = state.moved === true ? ctx.poses.get(id) : undefined;
+  if (pose) setPose(id, pose.x, pose.y, pose.rot);
+}
+
 type SolidBody = OwnedBody & {
   pose: Vec2;
   box: Aabb;
@@ -929,6 +951,28 @@ export function createSolidSystem(
     draw(e);
   }
 
+  /**
+   * Moves the solid's body (or geometry collider) with it, so a moved door
+   * blocks where it is drawn; a hidden one-way solid stays out of the world
+   * until its gate shows it there. An attached solid rides its host.
+   */
+  function setPose(id: string, x: number, y: number, rot: number): void {
+    const e = records.get(id);
+    if (!e || riders.riders.has(id)) return;
+    const frame = table.setPose(id, { x, y, rot }, e.shape);
+    if (!frame) return;
+    const box = aabb(shapeAtPose(bodyLocalShape(e.shape), frame));
+    const solid = table.owned.get(id);
+    if (solid) {
+      solid.pose = { x: frame.x, y: frame.y };
+      solid.box = box;
+      if (solid.hidden) moveFixedBody(ctx, id, solid, { ...frame, y: HIDDEN_Y });
+    }
+    const placed = placedOneWay.get(id);
+    if (placed) placed.box = box;
+    if (opts.draw !== false) table.poseDrawn(id);
+  }
+
   return {
     spawn,
     update(e) {
@@ -967,13 +1011,14 @@ export function createSolidSystem(
       forgetPasses(null);
     },
     size: () => table.size() + riders.riders.size,
-    /** A one-way solid's gate, while it lets actors through. */
+    /** A one-way solid's gate while it lets actors through, and whether `setPose` moved it. */
     save(id) {
       const hidden = table.owned.get(id)?.hidden ?? placedOneWay.get(id)?.hidden ?? gated.has(id);
-      return hidden ? { hidden: true } : undefined;
+      return savedBody(table.wasMoved(id), hidden ? { hidden: true } : {});
     },
     restore(id, state) {
       if (typeof state !== "object" || state === null || Array.isArray(state)) return;
+      restoreMoved(ctx, id, state, setPose);
       const hidden = state.hidden === true;
       const solid = table.owned.get(id);
       if (solid) return solid.oneWay ? setHidden(id, solid, hidden) : undefined;
@@ -1004,27 +1049,7 @@ export function createSolidSystem(
     },
     isHidden: (id) => table.owned.get(id)?.hidden ?? placedOneWay.get(id)?.hidden ?? gated.has(id),
     position: (id) => table.position(id) ?? riders.position(id),
-    /**
-     * Moves the solid's body (or geometry collider) with it, so a moved door
-     * blocks where it is drawn; a hidden one-way solid stays out of the world
-     * until its gate shows it there. An attached solid rides its host.
-     */
-    setPose(id, x, y, rot) {
-      const e = records.get(id);
-      if (!e || riders.riders.has(id)) return;
-      const frame = table.setPose(id, { x, y, rot }, e.shape);
-      if (!frame) return;
-      const box = aabb(shapeAtPose(bodyLocalShape(e.shape), frame));
-      const solid = table.owned.get(id);
-      if (solid) {
-        solid.pose = { x: frame.x, y: frame.y };
-        solid.box = box;
-        if (solid.hidden) moveFixedBody(ctx, id, solid, { ...frame, y: HIDDEN_Y });
-      }
-      const placed = placedOneWay.get(id);
-      if (placed) placed.box = box;
-      if (opts.draw !== false) table.poseDrawn(id);
-    },
+    setPose,
   };
 
   /** Gates each one-way solid, or each of side `only`: hidden unless the actor is on its side and not passing. */
@@ -1377,6 +1402,17 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
     draw(e);
   }
 
+  /**
+   * Moves the sensor's collider with it: what it overlaps where it is now
+   * raises the enters and exits of the next step. An attached sensor rides
+   * its host.
+   */
+  function setPose(id: string, x: number, y: number, rot: number): void {
+    const e = records.get(id);
+    if (!e || riders.riders.has(id)) return;
+    if (table.setPose(id, { x, y, rot }, e.shape)) table.poseDrawn(id);
+  }
+
   return {
     spawn,
     update(e, prev) {
@@ -1435,26 +1471,22 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
       inside.clear();
     },
     size: () => table.size() + riders.riders.size,
+    setPose,
     /**
-     * Moves the sensor's collider with it: what it overlaps where it is now
-     * raises the enters and exits of the next step. An attached sensor rides
-     * its host.
+     * What overlaps the sensor since the last step, so a restore raises no
+     * enter for it again, and whether `setPose` moved it.
      */
-    setPose(id, x, y, rot) {
-      const e = records.get(id);
-      if (!e || riders.riders.has(id)) return;
-      if (table.setPose(id, { x, y, rot }, e.shape)) table.poseDrawn(id);
-    },
-    /** What overlaps the sensor since the last step, so a restore raises no enter for it again. */
     save(id): JsonValue | undefined {
       const placed = placedSensors.get(id);
       const overlaps = placed?.inside ?? table.owned.get(id)?.inside ?? inside.get(id);
       const saved = overlaps ? saveOverlaps(ctx.tags, overlaps) : [];
-      if (placed?.fresh) return { inside: saved, fresh: true };
-      return saved.length > 0 ? { inside: saved } : undefined;
+      const moved = table.wasMoved(id);
+      if (placed?.fresh) return savedBody(moved, { inside: saved, fresh: true });
+      return savedBody(moved, saved.length > 0 ? { inside: saved } : {});
     },
     restore(id, state) {
       if (typeof state !== "object" || state === null || Array.isArray(state)) return;
+      restoreMoved(ctx, id, state, setPose);
       const overlaps = restoreOverlaps(ctx.tags, state.inside);
       const placed = placedSensors.get(id);
       if (placed) {

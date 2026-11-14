@@ -26,12 +26,26 @@ const REDUCED_FLASH_ALPHA = 0.3;
 const positive = (n: number | undefined): n is number =>
   n !== undefined && Number.isFinite(n) && n > 0;
 
+/** The shell's effect layer, told when the host sets the time scale itself. */
+export type ShellEffectLayer = EffectLayer & {
+  /** The host set the time scale: a running hit-stop ends and leaves that scale as it is. */
+  timeScaleSet(): void;
+};
+
 /** An effect layer over `layer` (a div over the canvas), driving `loop`'s time scale. */
 export function createEffectLayer(
   layer: HTMLElement,
   loop: Pick<GameLoop, "setTimeScale" | "getTimeScale">,
   opts: { reducedMotion: () => boolean },
 ): EffectLayer {
+  return createShellEffectLayer(layer, loop, opts);
+}
+
+export function createShellEffectLayer(
+  layer: HTMLElement,
+  loop: Pick<GameLoop, "setTimeScale" | "getTimeScale">,
+  opts: { reducedMotion: () => boolean },
+): ShellEffectLayer {
   const flashes = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
 
   let stop: { end: number; prevScale: number; timer: ReturnType<typeof setTimeout> } | null = null;
@@ -48,7 +62,7 @@ export function createEffectLayer(
     clearTimeout(stop.timer);
     const { prevScale } = stop;
     stop = null;
-    // A scale someone set during the stop is theirs to keep.
+    // A scale someone set during the stop is theirs to keep; the shell reports its own through `timeScaleSet`.
     if (loop.getTimeScale() === 0) loop.setTimeScale(prevScale);
   }
 
@@ -86,6 +100,12 @@ export function createEffectLayer(
       const prevScale = loop.getTimeScale();
       loop.setTimeScale(0);
       stop = { end, prevScale, timer: setTimeout(endStop, ms) };
+    },
+
+    timeScaleSet() {
+      if (!stop) return;
+      clearTimeout(stop.timer);
+      stop = null;
     },
 
     clear() {

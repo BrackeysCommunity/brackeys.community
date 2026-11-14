@@ -135,7 +135,25 @@ const near = (px: Rgba, hex: number) =>
   rgbOf(hex).every((c, i) => Math.abs((px[i] ?? -1) - c) <= PIXEL_TOLERANCE);
 
 const show = (px: Rgba) => `rgba(${px.join(", ")})`;
-const hexOf = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
+/** A 0xRRGGBB colour as `#rrggbb`, as the smoke's messages and report print it. */
+export const hexOf = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
+
+/** Why `pixel` isn't an opaque pixel of `colour` (`named` in the message, if given), or null. */
+function notColour(
+  pixel: Rgba,
+  colour: number,
+  what: string,
+  renderer: string,
+  named?: string,
+): string | null {
+  if (pixel[3] < 255 - PIXEL_TOLERANCE)
+    return `${what} isn't opaque: ${show(pixel)} on ${renderer}`;
+  if (near(pixel, SMOKE_BACKGROUND))
+    return `${what} is blank (the background, ${show(pixel)}) on ${renderer}`;
+  if (!near(pixel, colour))
+    return `${what} is ${show(pixel)}, not ${named ? `${named}'s ` : ""}${hexOf(colour)}, on ${renderer}`;
+  return null;
+}
 
 /**
  * Why the render run failed, or null when it passed: the pixel inside the
@@ -145,12 +163,8 @@ const hexOf = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
 export function judgeRender(render: RenderProbe | undefined): string | null {
   if (!render) return "the page ran no render";
   const { inside, outside } = render;
-  if (inside[3] < 255 - PIXEL_TOLERANCE)
-    return `the sprite's pixel isn't opaque: ${show(inside)} on ${render.renderer}`;
-  if (near(inside, SMOKE_BACKGROUND))
-    return `the sprite's pixel is blank (the background, ${show(inside)}) on ${render.renderer}`;
-  if (!near(inside, INSIDE_COLOUR))
-    return `the sprite's pixel is ${show(inside)}, not crate-0's ${hexOf(INSIDE_COLOUR)}, on ${render.renderer}`;
+  const sprite = notColour(inside, INSIDE_COLOUR, "the sprite's pixel", render.renderer, "crate-0");
+  if (sprite) return sprite;
   if (!near(outside, SMOKE_BACKGROUND))
     return `the empty pixel is ${show(outside)}, not the background ${hexOf(SMOKE_BACKGROUND)}, on ${render.renderer}`;
   return null;
@@ -168,22 +182,6 @@ function outsideViewport(read: ViewportPixel, width: number, height: number): st
   return `viewport ${read.viewport} drew its point at (${n(x)}, ${n(y)}), outside its rectangle [${def.rect.join(", ")}] of ${width}×${height}`;
 }
 
-/** Why `read` isn't an opaque pixel of `colour`, or null. */
-function notColour(
-  read: ViewportPixel,
-  colour: number,
-  what: string,
-  renderer: string,
-): string | null {
-  if (read.pixel[3] < 255 - PIXEL_TOLERANCE)
-    return `${what} isn't opaque: ${show(read.pixel)} on ${renderer}`;
-  if (near(read.pixel, SMOKE_BACKGROUND))
-    return `${what} is blank (the background, ${show(read.pixel)}) on ${renderer}`;
-  if (!near(read.pixel, colour))
-    return `${what} is ${show(read.pixel)}, not ${hexOf(colour)}, on ${renderer}`;
-  return null;
-}
-
 /**
  * Why the split screen failed, or null: each viewport drew its point inside
  * its own half, the left half the crate's colour, the right the animated
@@ -199,15 +197,15 @@ export function judgeSplit(split: SplitProbe | undefined): string | null {
   }
   if (crate.viewport === before.viewport)
     return `the crate and the animated sprite were both read through viewport ${crate.viewport}`;
-  const left = notColour(crate, INSIDE_COLOUR, "the left half's crate pixel", renderer);
+  const left = notColour(crate.pixel, INSIDE_COLOUR, "the left half's crate pixel", renderer);
   if (left) return left;
   if (split.ticks !== ANIM_FRAME_TICKS)
     return `the animated sprite was read ${split.ticks} ticks apart, not a clip frame's ${ANIM_FRAME_TICKS}`;
   if (before.pixel.every((c, i) => Math.abs(c - (after.pixel[i] ?? -1)) <= PIXEL_TOLERANCE))
     return `the animated sprite didn't change in ${split.ticks} ticks: ${show(before.pixel)} both times on ${renderer}`;
   return (
-    notColour(before, ANIM_COLOURS[0], "the animated sprite's first frame", renderer) ??
-    notColour(after, ANIM_COLOURS[1], "the animated sprite's next frame", renderer)
+    notColour(before.pixel, ANIM_COLOURS[0], "the animated sprite's first frame", renderer) ??
+    notColour(after.pixel, ANIM_COLOURS[1], "the animated sprite's next frame", renderer)
   );
 }
 

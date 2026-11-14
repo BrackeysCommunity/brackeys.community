@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 
+import { cssHex } from "../../../game/color";
 import {
   ColorField as ColorPicker,
   Input,
@@ -13,7 +14,7 @@ import {
 /** A stored colour as `#rrggbb`: a `0xRRGGBB` number or a hex string; "" for anything else. */
 export function colorText(value: unknown): string {
   if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 0xffffff)
-    return `#${value.toString(16).padStart(6, "0")}`;
+    return cssHex(value);
   if (typeof value === "string") {
     const rgb = parseHex(value);
     return rgb ? toHex(rgb) : "";

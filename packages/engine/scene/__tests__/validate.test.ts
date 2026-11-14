@@ -946,6 +946,28 @@ describe("tween blocks", () => {
     expect(issues[0]!.line).toBeTypeOf("number");
   });
 
+  it("tween-target-invalid on the pose of a solid or sensor riding a host, as the run refuses it", () => {
+    const def = scene({ settings: { physics: "rapier" } }, [
+      lift([
+        [0, 0],
+        [200, 0],
+      ]),
+      tweened("plank", "solid", { y: 3 }, { attach: "lift" } as Partial<EntityDef>),
+      tweened("gate", "sensor", { y: 3 }, { attach: "lift" } as Partial<EntityDef>),
+      tweened("door", "solid", { y: 3 }),
+    ]);
+    const issues = tweenIssues(def);
+    expect(issues.map((i) => [i.path, i.entityIds])).toEqual([
+      ["/entities/2/behaviors/tween/tweens/0", ["plank"]],
+      ["/entities/2/behaviors/tween/tweens/1", ["plank"]],
+      ["/entities/3/behaviors/tween/tweens/0", ["gate"]],
+      ["/entities/3/behaviors/tween/tweens/1", ["gate"]],
+    ]);
+    expect(issues[1]!.message).toBe(
+      `plank's tween 2 can't play: it is a solid riding "lift", which can't be posed, so a tween can't move its y`,
+    );
+  });
+
   it("tween-target-invalid for a visual channel on an entity without a sprite", () => {
     const def = scene({}, [tweened("spot", "marker", { alpha: 0.5, tint: 0 })]);
     expect(tweenIssues(def).map((i) => [i.path, i.message])).toEqual([

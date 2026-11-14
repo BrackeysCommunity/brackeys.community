@@ -3496,10 +3496,31 @@ describe("animation, camera regions and presentation", { timeout: 60_000 }, () =
     });
   });
 
+  it("step --anim follows an entity the run spawns, with no clip until it appears", async () => {
+    const path = join(sink, "kitchen-sink.json");
+    const def = JSON.parse(await readFile(path, "utf8")) as {
+      entities: { id: string; behaviors?: { spawner?: { fields: Record<string, unknown> } } }[];
+    };
+    const spawner = def.entities.find((e) => e.id === "std-spawner")!.behaviors!.spawner!;
+    spawner.fields.behaviors = { anim: { clip: "idle", source: "kitchen-animation" } };
+    await writeFile(path, JSON.stringify(def));
+    const r = await step({ scene: "kitchen-sink", ticks: "124", anim: "solid#1" }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    expect(r.text).toContain(
+      [
+        "  anim solid#1: clip, frame index and frame per tick",
+        "    t0..119 no clip",
+        "    t120..123 idle 0 hero-0",
+      ].join("\n"),
+    );
+  });
+
   it("step --anim refuses an entity it can't follow", async () => {
     const typo = await step({ scene: "kitchen-sink", anim: "std-anm" }, sinkCtx);
     expect(typo.exitCode).toBe(2);
-    expect(typo.text).toContain('no entity "std-anm" in the scene; did you mean "std-anim"?');
+    expect(typo.text).toContain(
+      'no entity "std-anm" in the scene or spawned in 120 ticks; did you mean "std-anim"?',
+    );
     const plain = await step({ scene: "kitchen-sink", anim: "crate" }, sinkCtx);
     expect(plain.exitCode).toBe(2);
     expect(plain.text).toContain('"crate" has no anim block (entities with one: std-anim)');

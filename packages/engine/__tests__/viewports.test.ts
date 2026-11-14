@@ -12,39 +12,16 @@ import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../s
 import type { GameInstance, Vec2 } from "../types";
 import { manualFrames, type FrameClock } from "./fixtures/frame-clock";
 
-/** The stubbed app: a real stage, and a renderer that records what it is asked to draw. */
+/** What the stubbed renderer was asked to draw, in order. */
 const gpu = vi.hoisted(() => ({
-  renders: [] as { container: unknown; target: unknown; transform: Matrix }[],
+  renders: [] as { container: unknown; target?: unknown; transform: Matrix }[],
 }));
 
-vi.mock("../renderer", async () => {
-  const { Container: PixiContainer } = await import("pixi.js");
-  return {
-    createRenderer: async () => {
-      const stage = new PixiContainer();
-      const worldContainer = new PixiContainer();
-      worldContainer.label = "world";
-      const uiContainer = new PixiContainer();
-      uiContainer.label = "ui";
-      stage.addChild(worldContainer, uiContainer);
-      return {
-        app: {
-          stage,
-          renderer: {
-            resolution: 1,
-            render(o: { container: unknown; target: unknown; transform: Matrix }) {
-              gpu.renders.push({ ...o, transform: o.transform.clone() });
-            },
-          },
-        },
-        worldContainer,
-        uiContainer,
-        resize: () => {},
-        destroy: () => {},
-      };
-    },
-  };
-});
+vi.mock("../renderer", async () =>
+  (await import("./fixtures/frame-clock")).stubRenderer({
+    onRender: (o) => gpu.renders.push({ ...o, transform: o.transform!.clone() }),
+  }),
+);
 
 /** Two seats and no camera target of its own: the shell follows the `camera-target` entities. */
 const versus = defineGame({

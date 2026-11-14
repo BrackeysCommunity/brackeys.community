@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { tweenBlockProblems, type TweenTarget } from "../anim/tweens";
 import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
 import { ANIM } from "../game/behaviors/anim";
 import { BODY } from "../game/behaviors/body";
@@ -13,15 +14,9 @@ import { OCCUPANT } from "../game/behaviors/occupant";
 import { PATH_FOLLOW } from "../game/behaviors/path-follow";
 import { SPAWNER } from "../game/behaviors/spawner";
 import { SPRITE } from "../game/behaviors/sprite";
-import {
-  posableType,
-  TWEEN,
-  tweenChannels,
-  tweenTargetProblem,
-  type TweenBlock,
-} from "../game/behaviors/tween";
+import { posableType, TWEEN, type TweenBlock } from "../game/behaviors/tween";
 import { behaviorsConflict, isSpawnOnly, placeableTypes } from "../game/define";
-import { ID_PATTERN, isPolygonField } from "../game/fields";
+import { isAttachField, ID_PATTERN, isPolygonField } from "../game/fields";
 import { flowIssue, type SceneLibrary } from "../game/flow";
 import { physicsNeeds } from "../game/primitives";
 import { ENGINE_REGISTRY_ID, scopedRef, type RegisteredType, type Registry } from "../game/types";
@@ -34,7 +29,7 @@ import type { SceneListEntry } from "../project/kinds/scene-list";
 import { kindsLabel, schemaRefSites, siteFits, type RefSite } from "../project/refs";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, AssetKindName, ProjectView } from "../project/types";
-import { closest, didYouMean } from "./did-you-mean";
+import { closest, didYouMean, meantText } from "./did-you-mean";
 import {
   behaviorBlocks,
   bulkId,
@@ -449,7 +444,7 @@ export function validateScene(
               }
             : { op: "update", ref: e.id, set: { [field]: guess } };
           push("ref-child-unknown", {
-            message: `${e.id}.${field} names "${String(target)}", but prefab "${child.prefab}" of ${child.id} has no such child${guess ? `; did you mean "${guess}"?` : ""}`,
+            message: `${e.id}.${field} names "${String(target)}", but prefab "${child.prefab}" of ${child.id} has no such child${meantText(guess)}`,
             path,
             entityIds: [e.id],
             got: String(target),
@@ -955,6 +950,19 @@ const showValue = (v: unknown): string => (v === undefined ? "missing" : JSON.st
 type MakeBatch = (label: string, ops: SceneOp[], refs: Ref[]) => OpBatch;
 
 /**
+ * What an entity of `type` is to a tween: whether the type can be posed,
+ * and the host an attach field (a solid's or sensor's `attach`) has it ride.
+ */
+function tweenTargetOf(type: RegisteredType, e: EntityDef): TweenTarget {
+  const target: TweenTarget = { type: type.type, posable: posableType(type) };
+  for (const [field, schema] of Object.entries(type.shape)) {
+    const host = e[field];
+    if (typeof host === "string" && isAttachField(schema)) return { ...target, riding: host };
+  }
+  return target;
+}
+
+/**
  * An entity's behavior blocks against the registry and its type's rules:
  * `behavior-unknown`, `behavior-forbidden`, `behavior-missing` (a carried
  * behavior's `requires`, counting the type's required blocks),
@@ -1203,17 +1211,20 @@ function checkBehaviors(
     const result = refineBlock(behavior, z.strictObject(behavior.shape)).safeParse(merged);
     if (result.success) {
       if (name === TWEEN.name) {
-        const sprited = carried.has(SPRITE.name);
-        const target = { type: type.type, posable: posableType(type) };
-        (result.data as TweenBlock).tweens.forEach((spec, j) => {
-          const problem = tweenTargetProblem(target, tweenChannels(spec), sprited);
-          if (!problem) return;
+        const tweens = (result.data as TweenBlock).tweens;
+        const target = tweenTargetOf(type, e);
+        for (const { index, message } of tweenBlockProblems(
+          e.id,
+          tweens,
+          target,
+          carried.has(SPRITE.name),
+        )) {
           push("tween-target-invalid", {
-            message: `${e.id}'s tween ${j + 1} can't play: ${problem}`,
-            path: pointer(name, "tweens", j),
+            message,
+            path: pointer(name, "tweens", index),
             entityIds: [e.id],
           });
-        });
+        }
       }
       continue;
     }
@@ -1811,7 +1822,7 @@ function validateView(
     const known = [...prefabs.keys()].filter((id) => id !== self);
     const guess = closest(base, known);
     push("variant-base-unknown", {
-      message: `prefab "${self}"'s base "${base}" isn't a prefab in the project${guess ? `; did you mean "${guess}"?` : ""}`,
+      message: `prefab "${self}"'s base "${base}" isn't a prefab in the project${meantText(guess)}`,
       path: "/base",
       got: base,
       ...(known.length > 0 ? { expected: known.join(" | ") } : {}),

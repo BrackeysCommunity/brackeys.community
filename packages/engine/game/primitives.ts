@@ -230,11 +230,14 @@ export const PRIMITIVES = {
       "An area that holds the camera: inside it, the view stays within its box and may zoom.",
     physics: "optional",
     fields: {
-      shape: shapeField(`The region. ${absolute}`, {
-        types: ["box"],
-        id: "CameraRegionShape",
-        owner: "a camera region's",
-      }),
+      shape: shapeField(
+        `The region, axis-aligned: a turned box frames its bounding box. ${absolute}`,
+        {
+          types: ["box"],
+          id: "CameraRegionShape",
+          owner: "a camera region's",
+        },
+      ),
       zoom: z
         .number()
         .positive()
@@ -251,7 +254,7 @@ export const PRIMITIVES = {
         .min(0)
         .optional()
         .describe(`Seconds to move into the region's framing; default ${DEFAULT_REGION_EASE}.`)
-        .meta({ title: "Ease", unit: "s", default: DEFAULT_REGION_EASE }),
+        .meta({ title: "Ease time", unit: "s", default: DEFAULT_REGION_EASE }),
     },
     style: { stroke: 0xff9966, alpha: 0.9, strokeWidth: 2 },
     ascii: "c",

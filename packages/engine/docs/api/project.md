@@ -5610,15 +5610,13 @@ blobs its kind's `bundleRefs` name; blobs reached only through runtime
 docs no field names stay out, and load on demand.
 
 ```ts
-declare function sceneBundle(scene: ExpandedScene, def: SceneDefinition, prefabs: PrefabLibrary, view: ProjectView, kinds: KindRegistry, registry: Registry, docs?: {
-    read(kind: AssetKindName, id: AssetId): unknown;
-}): {
+declare function sceneBundle(scene: ExpandedScene, def: SceneDefinition, prefabs: PrefabLibrary, view: ProjectView, kinds: KindRegistry, registry: Registry, docs?: BundleDocs): {
     bundle: AssetBundle;
     issues: SceneIssue[];
 };
 ```
 
-Refers to [`AssetBundle`](#assetbundle), [`AssetId`](#assetid), [`AssetKindName`](#assetkindname), [`KindRegistry`](#kindregistry), [`ProjectView`](#projectview).
+Refers to [`AssetBundle`](#assetbundle), [`KindRegistry`](#kindregistry), [`ProjectView`](#projectview).
 
 ## `sceneKind`
 

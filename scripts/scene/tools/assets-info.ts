@@ -15,6 +15,7 @@ import {
 } from "@jams/engine/project";
 import {
   aabb,
+  aabbUnion,
   closest,
   resolveTime,
   type Aabb,
@@ -88,15 +89,8 @@ export type AnimationInfo = {
 };
 
 /** The box around a shape set, rounded as `show` rounds boxes. */
-const shapeBox = (shapes: readonly ShapeObj[]): Aabb => {
-  const boxes = shapes.map(aabb);
-  return roundBox({
-    minX: Math.min(...boxes.map((b) => b.minX)),
-    minY: Math.min(...boxes.map((b) => b.minY)),
-    maxX: Math.max(...boxes.map((b) => b.maxX)),
-    maxY: Math.max(...boxes.map((b) => b.maxY)),
-  });
-};
+const shapeBox = (shapes: readonly ShapeObj[]): Aabb =>
+  roundBox(shapes.map(aabb).reduce(aabbUnion));
 
 function clipInfo(clip: ResolvedClip): ClipInfo {
   return {

@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import { defineBehavior } from "../behaviors";
+import { delayField } from "../delay-field";
 import { ENGINE_REGISTRY_ID, type EntityTypeDef } from "../types";
 
 const EASE_FAMILIES = [
@@ -29,6 +30,23 @@ export type EaseName = "linear" | `${(typeof EASE_FAMILIES)[number]}${(typeof EA
 export const EASE_NAMES: readonly EaseName[] = Object.freeze([
   "linear",
   ...EASE_FAMILIES.flatMap((family) => EASE_ENDS.map((end): EaseName => `${family}${end}`)),
+]);
+
+const EASE_END_LABELS: Record<(typeof EASE_ENDS)[number], string> = {
+  In: "in",
+  Out: "out",
+  InOut: "in-out",
+};
+
+/** Each ease's label as the inspector reads it: `sineInOut` is "Sine in-out". */
+const EASE_OPTIONS = Object.fromEntries([
+  ["linear", { label: "Linear" }],
+  ...EASE_FAMILIES.flatMap((family) =>
+    EASE_ENDS.map((end) => [
+      `${family}${end}`,
+      { label: `${family[0]!.toUpperCase()}${family.slice(1)} ${EASE_END_LABELS[end]}` },
+    ]),
+  ),
 ]);
 
 /** What a tween can animate: the pose, and a sprite's look. */
@@ -74,18 +92,14 @@ export function posableType(
   return null;
 }
 
-/** The channels a tween writes: those its `to` or `from` gives a value. */
-export function tweenChannels(spec: {
-  to: TweenSpec["to"];
-  from?: TweenSpec["to"];
-}): TweenChannel[] {
-  const named = new Set<TweenChannel>();
-  for (const side of [spec.to, spec.from]) {
-    if (!side) continue;
-    for (const [channel, value] of Object.entries(side))
-      if (value !== undefined) named.add(channel as TweenChannel);
-  }
-  return [...named];
+/**
+ * The channels a tween writes: those its `to` gives a value. `from` only
+ * sets where those start; a channel named in `from` alone never moves.
+ */
+export function tweenChannels(spec: { to: TweenSpec["to"] }): TweenChannel[] {
+  return Object.entries(spec.to)
+    .filter(([, value]) => value !== undefined)
+    .map(([channel]) => channel as TweenChannel);
 }
 
 /**
@@ -108,16 +122,6 @@ export function tweenTargetProblem(
     return `it has no sprite, so a tween can't animate its ${visual.join(", ")}`;
   return null;
 }
-
-const delaySchema = (description: string, min: number) =>
-  z
-    .union([
-      z.number().int().min(min).describe("Ticks.").meta({ unit: "ticks" }),
-      z.strictObject({
-        ms: z.number().min(min).describe("Milliseconds, rounded to ticks once at the run's rate."),
-      }),
-    ])
-    .describe(description);
 
 const channels = (description: string) =>
   z
@@ -147,22 +151,34 @@ export const tweenSpecSchema = z
   .strictObject({
     to: channels("Values to reach."),
     from: channels("Values to start from; default the current ones.").optional(),
-    duration: delaySchema("How long one play takes.", 1),
+    duration: delayField("How long one play takes.", 1),
     ease: z
       .enum(EASE_NAMES as readonly [EaseName, ...EaseName[]])
       .optional()
-      .describe("Default linear."),
-    delay: delaySchema("Wait before the first play; default none.", 0).optional(),
+      .describe("Default linear.")
+      .meta({ default: "linear", options: EASE_OPTIONS }),
+    delay: delayField("Wait before the first play; default none.", 0)
+      .optional()
+      .meta({ default: 0 }),
     repeat: z
       .number()
       .int()
       .min(-1)
       .optional()
-      .describe("Extra plays after the first; -1 forever. Default 0."),
-    yoyo: z.boolean().optional().describe("Every other play runs backwards."),
+      .describe("Extra plays after the first; -1 forever. Default 0.")
+      .meta({ default: 0 }),
+    yoyo: z
+      .boolean()
+      .optional()
+      .describe("Every other play runs backwards.")
+      .meta({ default: false }),
     emit: z
       .strictObject({
-        type: z.string().min(1).describe("The step event's type."),
+        type: z
+          .string()
+          .min(1)
+          .describe("The step event's type.")
+          .meta({ placeholder: "tween:end" }),
         data: z.unknown().optional().describe("Plain JSON the event carries."),
       })
       .optional()

@@ -30,7 +30,9 @@ const animFields = (env: FieldEnv) => ({
   offset: delayField(
     "Starts this far into the clip, so a row of torches doesn't flicker in step; default 0.",
     0,
-  ).optional(),
+  )
+    .optional()
+    .meta({ default: 0 }),
 });
 
 /** An `anim` block as an entity carries it. */

@@ -58,7 +58,7 @@ export type StepInput = {
   legal?: boolean;
   /** Time each tick's parts on the wall clock: `stats.timing`, and a block in the text. */
   timing?: boolean;
-  /** An entity with an `anim` block: its clip and frame after every tick. */
+  /** An entity with an `anim` block, in the scene or spawned during the run: its clip and frame after every tick. */
   anim?: string;
 };
 
@@ -329,18 +329,18 @@ function legalLines(
 /** Where an `--anim` entity's clip is after a tick's step; `clip` null when it has none to play. */
 export type AnimTick = { tick: number } & (AnimState | { clip: null });
 
-/** The entity `id` of the expanded scene with an `anim` block, or why `--anim` can't follow it. */
+const animatedIds = (scene: ExpandedScene) =>
+  scene.entities.filter((e) => e.behaviors?.[ANIM.name] !== undefined).map((e) => e.id);
+
+/**
+ * Why `--anim` can't follow a scene entity: it has no `anim` block. An id the
+ * scene doesn't hold may be spawned during the run, so it isn't judged here.
+ */
 function animTargetProblem(scene: ExpandedScene, id: string): string | null {
   const entity = scene.entities.find((e) => e.id === id);
-  const animated = scene.entities.filter((e) => e.behaviors?.[ANIM.name] !== undefined);
-  if (!entity)
-    return `--anim ${id}: no entity "${id}" in the scene${didYouMean(
-      id,
-      animated.map((e) => e.id),
-    )}`;
-  if (entity.behaviors?.[ANIM.name] !== undefined) return null;
-  const others =
-    animated.length > 0 ? ` (entities with one: ${animated.map((e) => e.id).join(", ")})` : "";
+  if (!entity || entity.behaviors?.[ANIM.name] !== undefined) return null;
+  const animated = animatedIds(scene);
+  const others = animated.length > 0 ? ` (entities with one: ${animated.join(", ")})` : "";
   return `--anim ${id}: "${id}" has no anim block${others}`;
 }
 
@@ -418,11 +418,13 @@ export const step: Tool<StepInput> = async (input, ctx) => {
   const rapier = await rapierFor(ctx, loaded.def, registry, engine);
   const animId = input.anim;
   const trace: AnimTick[] = [];
+  let animSeen = animId !== undefined && scene.entities.some((e) => e.id === animId);
   const observe =
     animId === undefined
       ? undefined
       : (run: EngineContext, tick: number) => {
           const state = run.anim.state(animId);
+          if (!animSeen && run.get(animId)) animSeen = true;
           trace.push(state ? { tick, ...state } : { tick, clip: null });
         };
   const report = runProbe({
@@ -439,6 +441,14 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     ...(input.timing ? { timing: wallTiming() } : {}),
     ...(observe ? { observe } : {}),
   });
+  if (animId !== undefined && report.load.ok && !report.blocked && !animSeen) {
+    return usage(
+      `--anim ${animId}: no entity "${animId}" in the scene or spawned in ${report.ticks} ticks${didYouMean(
+        animId,
+        animatedIds(scene),
+      )}`,
+    );
+  }
   const { timing } = report.stats;
   const anim = animId !== undefined && report.load.ok ? trace : undefined;
   const hash = sceneHashWith(loaded.def, loaded.prefabs);

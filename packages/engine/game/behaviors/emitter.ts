@@ -19,7 +19,7 @@ const emitterFields = (env: FieldEnv) => ({
     .min(0)
     .optional()
     .describe("Particles per second; overrides the preset's rate.")
-    .meta({ unit: "/s" }),
+    .meta({ unit: "/s", placeholder: "from preset" }),
 });
 
 /** An `emitter` block as an entity carries it. */

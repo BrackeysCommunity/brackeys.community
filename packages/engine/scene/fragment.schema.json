@@ -1114,6 +1114,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": 0,
                       "anyOf": [
                         {
                           "type": "integer",
@@ -1199,6 +1200,7 @@
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
+                      "placeholder": "from preset",
                       "type": "number",
                       "minimum": 0
                     }
@@ -2269,6 +2271,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": 0,
                       "anyOf": [
                         {
                           "type": "integer",
@@ -2354,6 +2357,7 @@
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
+                      "placeholder": "from preset",
                       "type": "number",
                       "minimum": 0
                     }
@@ -3661,6 +3665,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": 0,
                       "anyOf": [
                         {
                           "type": "integer",
@@ -3746,6 +3751,7 @@
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
+                      "placeholder": "from preset",
                       "type": "number",
                       "minimum": 0
                     }
@@ -4867,6 +4873,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": 0,
                       "anyOf": [
                         {
                           "type": "integer",
@@ -4952,6 +4959,7 @@
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
+                      "placeholder": "from preset",
                       "type": "number",
                       "minimum": 0
                     }
@@ -6015,6 +6023,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": 0,
                       "anyOf": [
                         {
                           "type": "integer",
@@ -6100,6 +6109,7 @@
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
+                      "placeholder": "from preset",
                       "type": "number",
                       "minimum": 0
                     }
@@ -7398,6 +7408,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": 0,
                       "anyOf": [
                         {
                           "type": "integer",
@@ -7483,6 +7494,7 @@
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
+                      "placeholder": "from preset",
                       "type": "number",
                       "minimum": 0
                     }
@@ -8797,6 +8809,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": 0,
                       "anyOf": [
                         {
                           "type": "integer",
@@ -8882,6 +8895,7 @@
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
+                      "placeholder": "from preset",
                       "type": "number",
                       "minimum": 0
                     }
@@ -8958,7 +8972,7 @@
               "maximum": 10000
             },
             "shape": {
-              "description": "The region. Absolute world metres; y is down.",
+              "description": "The region, axis-aligned: a turned box frames its bounding box. Absolute world metres; y is down.",
               "title": "Shape",
               "group": "geometry",
               "$ref": "#/$defs/CameraRegionShape"
@@ -8977,7 +8991,7 @@
             },
             "ease": {
               "description": "Seconds to move into the region's framing; default 0.4.",
-              "title": "Ease",
+              "title": "Ease time",
               "unit": "s",
               "default": 0.4,
               "type": "number",
@@ -10201,6 +10215,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "default": 0,
                       "anyOf": [
                         {
                           "type": "integer",
@@ -10286,6 +10301,7 @@
                     "rate": {
                       "description": "Particles per second; overrides the preset's rate.",
                       "unit": "/s",
+                      "placeholder": "from preset",
                       "type": "number",
                       "minimum": 0
                     }
@@ -10687,6 +10703,102 @@
         },
         "ease": {
           "description": "Default linear.",
+          "default": "linear",
+          "options": {
+            "linear": {
+              "label": "Linear"
+            },
+            "quadIn": {
+              "label": "Quad in"
+            },
+            "quadOut": {
+              "label": "Quad out"
+            },
+            "quadInOut": {
+              "label": "Quad in-out"
+            },
+            "cubicIn": {
+              "label": "Cubic in"
+            },
+            "cubicOut": {
+              "label": "Cubic out"
+            },
+            "cubicInOut": {
+              "label": "Cubic in-out"
+            },
+            "quartIn": {
+              "label": "Quart in"
+            },
+            "quartOut": {
+              "label": "Quart out"
+            },
+            "quartInOut": {
+              "label": "Quart in-out"
+            },
+            "quintIn": {
+              "label": "Quint in"
+            },
+            "quintOut": {
+              "label": "Quint out"
+            },
+            "quintInOut": {
+              "label": "Quint in-out"
+            },
+            "sineIn": {
+              "label": "Sine in"
+            },
+            "sineOut": {
+              "label": "Sine out"
+            },
+            "sineInOut": {
+              "label": "Sine in-out"
+            },
+            "expoIn": {
+              "label": "Expo in"
+            },
+            "expoOut": {
+              "label": "Expo out"
+            },
+            "expoInOut": {
+              "label": "Expo in-out"
+            },
+            "circIn": {
+              "label": "Circ in"
+            },
+            "circOut": {
+              "label": "Circ out"
+            },
+            "circInOut": {
+              "label": "Circ in-out"
+            },
+            "backIn": {
+              "label": "Back in"
+            },
+            "backOut": {
+              "label": "Back out"
+            },
+            "backInOut": {
+              "label": "Back in-out"
+            },
+            "elasticIn": {
+              "label": "Elastic in"
+            },
+            "elasticOut": {
+              "label": "Elastic out"
+            },
+            "elasticInOut": {
+              "label": "Elastic in-out"
+            },
+            "bounceIn": {
+              "label": "Bounce in"
+            },
+            "bounceOut": {
+              "label": "Bounce out"
+            },
+            "bounceInOut": {
+              "label": "Bounce in-out"
+            }
+          },
           "type": "string",
           "enum": [
             "linear",
@@ -10723,6 +10835,7 @@
           ]
         },
         "delay": {
+          "default": 0,
           "anyOf": [
             {
               "type": "integer",
@@ -10748,12 +10861,14 @@
         },
         "repeat": {
           "description": "Extra plays after the first; -1 forever. Default 0.",
+          "default": 0,
           "type": "integer",
           "minimum": -1,
           "maximum": 9007199254740991
         },
         "yoyo": {
           "description": "Every other play runs backwards.",
+          "default": false,
           "type": "boolean"
         },
         "emit": {
@@ -10763,7 +10878,8 @@
             "type": {
               "type": "string",
               "minLength": 1,
-              "description": "The step event's type."
+              "description": "The step event's type.",
+              "placeholder": "tween:end"
             },
             "data": {
               "description": "Plain JSON the event carries."

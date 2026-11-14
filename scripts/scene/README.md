@@ -2180,7 +2180,10 @@ vp run scene apply kitchen-sink --ops scripts/scene/examples/animate-start.json 
 `step --anim <id>` follows one entity's `anim` through a headless run:
 its clip, frame index and frame after every tick, the ticks on one frame
 run together (`anim.ticks` in `--json`, one entry a tick), beside the
-`anim:frame` and `anim:end` events the run raised:
+`anim:frame` and `anim:end` events the run raised. The entity can be one
+the run spawns (a spawner's output, say): its ticks read `no clip` until it
+appears, and an id that is neither in the scene nor spawned by the last tick
+is refused:
 
 ```sh
 vp run scene step kitchen-sink --ticks 30 --anim std-anim

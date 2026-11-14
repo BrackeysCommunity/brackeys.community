@@ -357,12 +357,9 @@ export type FieldWidgetProps = {
   disabled?: boolean;
 };
 
+/** An unset value's placeholder; a required field is unset only while the object holding it is. */
 const placeholderOf = (field: InspectorRow, unset: string | undefined) =>
-  field.mixed
-    ? MIXED
-    : field.value === undefined && (unset !== undefined || field.optional)
-      ? (unset ?? unsetText(field))
-      : undefined;
+  field.mixed ? MIXED : field.value === undefined ? (unset ?? unsetText(field)) : undefined;
 
 // ─── Widgets ─────────────────────────────────────────────
 

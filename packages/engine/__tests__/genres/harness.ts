@@ -51,6 +51,7 @@ import type { RecordingCommand, RunRecording } from "../../scene/recording-schem
 import type { Pt, PrefabLibrary, SceneDefinition, SceneSettings } from "../../scene/types";
 import type { GameInstance, InputAction, RapierModule } from "../../types";
 import { loadCompatRapier } from "../fixtures/compat-rapier";
+import { stubRenderer } from "../fixtures/frame-clock";
 
 /** Plan 53's matrix rows, by id; matrix.ts maps each to the milestones that deliver it. */
 export type GenreRow =
@@ -738,36 +739,21 @@ type StubbedDraws = { surfaces: Map<unknown, number> };
 let stubbedDraws: StubbedDraws | null = null;
 
 /**
- * A stand-in for the engine's `renderer` module: a real Pixi stage and
- * containers, and a renderer that only counts what it is asked to draw into
- * each texture. A test with view runs mocks the module with it:
+ * A stand-in for the engine's `renderer` module: `stubRenderer`'s, counting
+ * what each renderer is asked to draw into each texture. A test with view
+ * runs mocks the module with it:
  * `vi.mock("../../renderer", async () => (await import("./harness")).stubbedRenderer())`.
  */
 export async function stubbedRenderer() {
-  const { Container } = await import("pixi.js");
+  let draws: StubbedDraws = { surfaces: new Map() };
+  const stub = await stubRenderer({
+    onRender: ({ target }) => draws.surfaces.set(target, (draws.surfaces.get(target) ?? 0) + 1),
+  });
   return {
     createRenderer: async () => {
-      const stage = new Container();
-      const worldContainer = new Container();
-      const uiContainer = new Container();
-      stage.addChild(worldContainer, uiContainer);
-      const draws: StubbedDraws = { surfaces: new Map() };
+      draws = { surfaces: new Map() };
       stubbedDraws = draws;
-      return {
-        app: {
-          stage,
-          renderer: {
-            resolution: 1,
-            render({ target }: { target?: unknown }) {
-              draws.surfaces.set(target, (draws.surfaces.get(target) ?? 0) + 1);
-            },
-          },
-        },
-        worldContainer,
-        uiContainer,
-        resize: () => {},
-        destroy: () => {},
-      };
+      return stub.createRenderer();
     },
   };
 }

@@ -8899,6 +8899,9 @@ type AssetBundle = {
     entries: readonly BundleEntry[];
     name: string;
 };
+type BundleDocs = {
+    read(kind: AssetKindName, id: AssetId): unknown;
+};
 type BundleEntry = {
     bytes: number;
     id: AssetId;
@@ -8909,9 +8912,7 @@ declare function projectBundle(view: ProjectView, settings: unknown, kinds: Kind
     bundle: AssetBundle;
     issues: SceneIssue[];
 };
-declare function sceneBundle(scene: ExpandedScene, def: SceneDefinition, prefabs: PrefabLibrary, view: ProjectView, kinds: KindRegistry, registry: Registry, docs?: {
-    read(kind: AssetKindName, id: AssetId): unknown;
-}): {
+declare function sceneBundle(scene: ExpandedScene, def: SceneDefinition, prefabs: PrefabLibrary, view: ProjectView, kinds: KindRegistry, registry: Registry, docs?: BundleDocs): {
     bundle: AssetBundle;
     issues: SceneIssue[];
 };

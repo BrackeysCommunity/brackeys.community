@@ -1,8 +1,16 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { createEffectLayer } from "../render/effects";
+import { createGame } from "../engine";
+import { defineGame } from "../game/define";
+import type { GameDefinition } from "../game/types";
+import { createEffectLayer, createShellEffectLayer } from "../render/effects";
+import type { SceneDefinition } from "../scene/types";
+import type { GameInstance } from "../types";
 import { createEffectOverlay, createTransitionLayer, createUiLayer } from "../ui/layer";
+import { manualFrames } from "./fixtures/frame-clock";
+
+vi.mock("../renderer", async () => (await import("./fixtures/frame-clock")).stubRenderer());
 
 function fakeLoop(scale = 1) {
   const calls: number[] = [];
@@ -181,6 +189,104 @@ describe("hitStop", () => {
     loop.setTimeScale(2);
     vi.advanceTimersByTime(100);
     expect(loop.getTimeScale()).toBe(2);
+  });
+
+  it("keeps a scale the host reports through timeScaleSet, 0 included", () => {
+    for (const set of [0, 2]) {
+      const loop = fakeLoop(0.5);
+      const fx = createShellEffectLayer(host, loop, { reducedMotion: () => false });
+      fx.hitStop(100);
+      loop.setTimeScale(set);
+      fx.timeScaleSet();
+      vi.advanceTimersByTime(200);
+      expect(loop.getTimeScale()).toBe(set);
+      fx.clear();
+      expect(loop.calls).toEqual([0, set]);
+    }
+  });
+
+  it("starts a fresh stop after a reported scale, ending on that scale", () => {
+    const loop = fakeLoop();
+    const fx = createShellEffectLayer(host, loop, { reducedMotion: () => false });
+    fx.hitStop(100);
+    loop.setTimeScale(2);
+    fx.timeScaleSet();
+    fx.hitStop(50);
+    expect(loop.getTimeScale()).toBe(0);
+    vi.advanceTimersByTime(50);
+    expect(loop.getTimeScale()).toBe(2);
+    expect(loop.calls).toEqual([0, 2, 0, 2]);
+  });
+
+  it("ignores timeScaleSet with no stop running", () => {
+    const loop = fakeLoop(0.5);
+    const fx = createShellEffectLayer(host, loop, { reducedMotion: () => false });
+    fx.timeScaleSet();
+    fx.hitStop(40);
+    vi.advanceTimersByTime(40);
+    expect(loop.calls).toEqual([0, 0.5]);
+  });
+});
+
+describe("hit-stop in the shell", () => {
+  const games: GameInstance[] = [];
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    document.body.appendChild(document.createElement("canvas"));
+  });
+
+  afterEach(() => {
+    for (const g of games.splice(0)) g.destroy();
+    document.querySelector("canvas")?.remove();
+    vi.unstubAllGlobals();
+  });
+
+  /** Asks for a long hit-stop on its second tick. */
+  const stopping = defineGame({
+    id: "stopping",
+    types: [],
+    actions: [],
+    world: { physics: "none" },
+    time: { kind: "fixed", rate: 60 },
+    createRuntime: (ctx) => ({
+      afterStep() {
+        if (ctx.tick === 2) ctx.present.effects.hitStop(500);
+      },
+      snapshot: () => null,
+    }),
+  });
+
+  const doc: SceneDefinition = {
+    v: 4,
+    game: "stopping",
+    name: "stopping",
+    bounds: [0, 0, 20, 20],
+    settings: { physics: "none" },
+    entities: [],
+  };
+
+  it("keeps a time scale of 0 that the host set during the stop", async () => {
+    const frames = manualFrames({ timers: true });
+    const game = await createGame(document.querySelector("canvas")!, {
+      game: stopping as GameDefinition,
+      reducedMotion: false,
+    });
+    games.push(game);
+    game.start();
+    expect(game.play(doc)).toMatchObject({ ok: true });
+    const tick = () => game.getStore().state.tick;
+    for (let ms = 0; tick() < 3 && ms < 1000; ms += 10) frames.advance(10);
+    const held = tick();
+    frames.advance(100);
+    expect(tick()).toBe(held);
+    game.setTimeScale(0);
+    for (let i = 0; i < 80; i++) frames.advance(10);
+    expect(tick()).toBe(held);
+    expect(game.getStore().state.sim.timeScale).toBe(0);
+    game.setTimeScale(1);
+    frames.advance(50);
+    expect(tick()).toBeGreaterThan(held);
   });
 });
 

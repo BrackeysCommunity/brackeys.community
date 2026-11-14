@@ -1,12 +1,14 @@
 /**
- * The sink project's prefabs, for the page and the tests alike. Each is
- * parsed with the lookup itself, and the scene is parsed with it too, so a
- * file in an older format migrates the fields its instances override
- * through the prefabs they name (nested ones included).
+ * The sink project's prefabs and scene, for the page and the tests alike.
+ * Each prefab is parsed with the lookup itself, and the scene is parsed with
+ * it too, so a file in an older format migrates the fields its instances
+ * override through the prefabs they name (nested ones included).
  */
 import type { Registry } from "@jams/engine/game";
+import { cameraRegionsOf } from "@jams/engine/headless";
 import type { ProjectView } from "@jams/engine/project";
 import {
+  expandScene,
   parsePrefab,
   parseSceneOrThrow,
   type Prefab,
@@ -53,3 +55,21 @@ export const parseSinkScene = (
   registry: Registry,
   prefabs: ReadonlyMap<string, Prefab>,
 ): SceneDefinition => parseSceneOrThrow(value, registry, { prefab: (id) => prefabs.get(id) });
+
+/**
+ * `scene` with nothing that places Play's camera on its own: no camera
+ * settings and no camera regions, either of which puts a rig on the camera
+ * that places it every rendered frame, so a run can frame the camera itself.
+ */
+export function withoutCameraRig(
+  scene: SceneDefinition,
+  registry: Registry,
+  prefabs: ReadonlyMap<string, Prefab>,
+): SceneDefinition {
+  const expanded = expandScene(scene, registry, { prefabs });
+  const regions = new Set(cameraRegionsOf(expanded.entities, registry).map((r) => r.id));
+  const settings = { ...scene.settings };
+  delete settings.camera;
+  const entities = (scene.entities ?? []).filter((e) => !regions.has(e.id));
+  return { ...scene, settings, entities };
+}

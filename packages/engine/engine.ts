@@ -103,8 +103,9 @@ import type { ProjectRuntimeView } from "./project/runtime-view";
 import type { SceneVersion } from "./project/scene-version";
 import type { AssetEntry, AssetId, ProjectView, Sha256 } from "./project/types";
 import { projectView } from "./project/view";
+import { reducedMotionQuery } from "./reduced-motion";
 import type { LoadProgress } from "./render/asset-loader";
-import { createEffectLayer, type EffectLayer } from "./render/effects";
+import { createShellEffectLayer, type EffectLayer, type ShellEffectLayer } from "./render/effects";
 import { particleTexture } from "./render/particles";
 import {
   createPixiView,
@@ -1959,7 +1960,7 @@ export async function createGame(
   // ─── Effects ──────────────────────────────────────────────
 
   /** The flash and hit-stop layer over the canvas, under the UI: made at the first effect, once. */
-  let effects: { layer: EffectLayer; overlay: { destroy(): void } } | null = null;
+  let effects: { layer: ShellEffectLayer; overlay: { destroy(): void } } | null = null;
 
   function effectLayer(): EffectLayer | null {
     if (effects) return effects.layer;
@@ -1967,7 +1968,7 @@ export async function createGame(
     const overlay = createEffectOverlay(canvas);
     effects = {
       overlay,
-      layer: createEffectLayer(overlay.root, loop, { reducedMotion: motionReduced }),
+      layer: createShellEffectLayer(overlay.root, loop, { reducedMotion: motionReduced }),
     };
     return effects.layer;
   }
@@ -2183,6 +2184,7 @@ export async function createGame(
 
   function setTimeScale(scale: number): void {
     loop.setTimeScale(scale);
+    effects?.layer.timeScaleSet();
     syncSim();
   }
 
@@ -3244,18 +3246,6 @@ export async function createGame(
     viewportAt,
   };
   return self;
-}
-
-/** The page's prefers-reduced-motion query; null where media queries aren't available. */
-function reducedMotionQuery(canvas: HTMLCanvasElement): MediaQueryList | null {
-  try {
-    const view = canvas.ownerDocument.defaultView;
-    return typeof view?.matchMedia === "function"
-      ? view.matchMedia("(prefers-reduced-motion: reduce)")
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 /** A save's scene that didn't build: the expand's or the load's own words. */

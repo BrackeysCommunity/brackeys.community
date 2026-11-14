@@ -3,9 +3,13 @@
  * clock they read, a renderer with no GPU, and a scene view that records the
  * camera each frame hands it.
  */
-import { vi } from "vite-plus/test";
+import type { Matrix } from "pixi.js";
+import { afterEach, beforeAll, beforeEach, vi } from "vite-plus/test";
 
+import type { GameDefinition } from "../../game/types";
 import type { PixiView } from "../../render/pixi-view";
+import type { SceneDefinition } from "../../scene/types";
+import type { GameInstance, RapierModule } from "../../types";
 
 /** One fixed tick at 60 Hz, ms. */
 export const TICK_MS = 1000 / 60;
@@ -46,17 +50,38 @@ export function manualFrames(
   };
 }
 
-/** A `../renderer` module for `vi.mock`: plain containers and no GPU. */
-export async function stubRenderer() {
+/** One draw the stubbed renderer was asked for: what it drew, into which texture (none for the canvas), and how. */
+export type StubbedRender = { container: unknown; target?: unknown; transform?: Matrix };
+
+/**
+ * A `../renderer` module for `vi.mock` with no GPU: a real Pixi stage
+ * holding the world and UI containers (labelled "world" and "ui"), and a
+ * renderer whose `render` only hands each draw to `onRender`.
+ */
+export async function stubRenderer(opts: { onRender?: (o: StubbedRender) => void } = {}) {
   const { Container } = await import("pixi.js");
   return {
-    createRenderer: async () => ({
-      app: {},
-      worldContainer: new Container(),
-      uiContainer: new Container(),
-      resize: () => {},
-      destroy: () => {},
-    }),
+    createRenderer: async () => {
+      const stage = new Container();
+      const worldContainer = new Container({ label: "world" });
+      const uiContainer = new Container({ label: "ui" });
+      stage.addChild(worldContainer, uiContainer);
+      return {
+        app: {
+          stage,
+          renderer: {
+            resolution: 1,
+            render(o: StubbedRender) {
+              opts.onRender?.(o);
+            },
+          },
+        },
+        worldContainer,
+        uiContainer,
+        resize: () => {},
+        destroy: () => {},
+      };
+    },
   };
 }
 
@@ -87,6 +112,86 @@ export async function recordingPixiView(
           view.frame!(f);
         },
       } satisfies PixiView;
+    },
+  };
+}
+
+/** A shell driven frame by frame, with `../renderer` and `../render/pixi-view` mocked as above. */
+export type PlayRig = {
+  /** Runs `n` frames a tick apart: each steps one tick, then renders. */
+  advance: (n: number) => void;
+  /** The camera the last frame handed the view. */
+  lastFrame: () => FrameRecord["frames"][number];
+  /** `createGame` on the rig's canvas, destroyed after the test. */
+  create: (game: GameDefinition | null, scene?: SceneDefinition) => Promise<GameInstance>;
+  /** A started game playing `scene`, its first frame drawn. */
+  playing: (scene: SceneDefinition, game?: GameDefinition | null) => Promise<GameInstance>;
+  /** A started game editing `scene`, its first frame drawn. */
+  editing: (scene: SceneDefinition, game?: GameDefinition | null) => Promise<GameInstance>;
+};
+
+/**
+ * Sets up the hooks a jsdom test of the shell's camera needs: Rapier once,
+ * and for each test a fresh canvas, `seen` emptied and a `manualFrames`
+ * clock (`frames` are its options); after it, every game made is destroyed
+ * and the stubs undone. Call it where the hooks belong (module scope or a
+ * `describe`), with the `seen` record `recordingPixiView` writes to.
+ */
+export function playRig(
+  seen: FrameRecord,
+  frames: Parameters<typeof manualFrames>[0] = {},
+): PlayRig {
+  let rapier: RapierModule;
+  let clock: FrameClock;
+  let canvas: HTMLCanvasElement;
+  const games: GameInstance[] = [];
+
+  beforeAll(async () => {
+    rapier = await (await import("./compat-rapier")).loadCompatRapier();
+  });
+  beforeEach(() => {
+    seen.frames.length = 0;
+    seen.views.length = 0;
+    clock = manualFrames(frames);
+    canvas = document.createElement("canvas");
+    document.body.appendChild(canvas);
+  });
+  afterEach(() => {
+    for (const g of games.splice(0)) g.destroy();
+    document.body.replaceChildren();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const advance = (n: number) => clock.ticks(n);
+  const create: PlayRig["create"] = async (game, scene) => {
+    const { createGame } = await import("../../engine");
+    const instance = await createGame(canvas, {
+      game,
+      rapier: async () => rapier,
+      ...(scene ? { scene } : {}),
+    });
+    games.push(instance);
+    return instance;
+  };
+  return {
+    advance,
+    lastFrame: () => seen.frames[seen.frames.length - 1]!,
+    create,
+    playing: async (scene, game = null) => {
+      const instance = await create(game, scene);
+      instance.start();
+      // The loop's first frame only starts its clock; the second ticks and renders.
+      advance(2);
+      return instance;
+    },
+    editing: async (scene, game = null) => {
+      const instance = await create(game);
+      instance.setMode("edit");
+      instance.loadScene(scene);
+      instance.start();
+      advance(2);
+      return instance;
     },
   };
 }

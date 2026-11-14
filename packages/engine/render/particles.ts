@@ -18,6 +18,7 @@ import {
   type EmitterFile,
 } from "../project/kinds/emitter";
 import type { Sha256 } from "../project/types";
+import { readFlag } from "../reduced-motion";
 import type { Pose } from "../runtime/poses";
 import type { BurstOptions } from "../runtime/present";
 import { viewRandom } from "../sim-kit/rng";
@@ -176,8 +177,7 @@ export function createParticleLayer(
   const random = viewRandom(opts.seed);
   const unit = random.unit;
   const between = ([lo, hi]: readonly [number, number]) => random.between(lo, hi);
-  const reduced = opts.reducedMotion;
-  const motion = () => ((typeof reduced === "function" ? reduced() : reduced) ? 0.25 : 1);
+  const motion = () => (readFlag(opts.reducedMotion) ? 0.25 : 1);
   const emitters = new Map<string, Group>();
   /** Bursts, and stopped emitters' particles living out their life. */
   let loose: Group[] = [];

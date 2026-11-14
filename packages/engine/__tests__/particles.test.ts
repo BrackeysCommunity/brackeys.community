@@ -28,10 +28,12 @@ import {
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import { createParticleLayer, curveAt, tintAt, type ParticleLayer } from "../render/particles";
 import { createPixiView } from "../render/pixi-view";
+import { emitterGlyphId } from "../runtime/behaviors/emitter";
 import { snapshotDigest } from "../runtime/recorder";
 import { createSceneRuntime } from "../runtime/runtime";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
 import { undescribedProperties } from "../scene/json-schema";
+import { DEFAULT_LAYERS } from "../scene/layers";
 import type { ExpandedScene, SceneDefinition } from "../scene/types";
 import type { GameInstance } from "../types";
 import { manualFrames, type FrameClock } from "./fixtures/frame-clock";
@@ -371,6 +373,28 @@ describe("the particle layer", () => {
     expect(layer.stats().particles).toBe(8);
   });
 
+  it("emits for durationMs, then stops: no rate past it and no burst due after it", () => {
+    const { layer } = layerOf();
+    const bursts = [
+      { atMs: 0, count: 5 },
+      { atMs: 800, count: 7 },
+    ];
+    layer.emitter("e", file({ rate: 40, durationMs: 500, bursts }), () => still);
+    run(layer, 500);
+    const atEnd = layer.stats().particles;
+    expect(Math.abs(atEnd - (5 + 20))).toBeLessThanOrEqual(1);
+    run(layer, 1500);
+    expect(layer.stats().particles).toBe(atEnd);
+    expect(layer.stats().emitters).toBe(1);
+  });
+
+  it("splits a frame that crosses durationMs, emitting only up to it", () => {
+    const { layer } = layerOf();
+    layer.emitter("e", file({ rate: 100, durationMs: 250 }), () => still);
+    run(layer, 1000, 200);
+    expect(layer.stats().particles).toBe(25);
+  });
+
   it("keeps no more than max alive, and lets particles die at the end of their life", () => {
     const { layer, drawn } = layerOf();
     layer.emitter("e", file({ rate: 1000, max: 30 }), () => still);
@@ -632,9 +656,13 @@ const fountain: ExpandedScene = {
   entities: [emitting()],
 };
 
-function viewedRuntime(entities = fountain.entities) {
+function viewedRuntime(entities = fountain.entities, editing?: () => boolean) {
   const container = new Container();
-  const view = createPixiView(container, { particles: { reducedMotion: false, seed: "fountain" } });
+  const view = createPixiView(container, {
+    particles: { reducedMotion: false, seed: "fountain" },
+    layers: DEFAULT_LAYERS,
+    editing,
+  });
   const rt = createSceneRuntime({
     rapier: null,
     view,
@@ -686,6 +714,34 @@ describe("the emitter behavior", () => {
     expect(layer.stats().emitters).toBe(0);
     rt.destroy();
     view.destroy();
+  });
+
+  it("marks every emitter with a glyph at its point, shown only while editing, gone with its entity", () => {
+    const entities = [
+      emitting({ preset: "spray", offset: [0.5, -1] }),
+      { ...emitting({ preset: "missing" }), id: "none" },
+    ];
+    const glyph = (view: { container: Container }, id: string) =>
+      view.container.getChildByLabel(emitterGlyphId(id), true);
+
+    const edit = viewedRuntime(entities, () => true);
+    edit.rt.render(1);
+    const spark = glyph(edit.view, "fountain")!;
+    expect(spark.visible).toBe(true);
+    expect([spark.position.x, spark.position.y]).toEqual([250, 200]);
+    expect(glyph(edit.view, "none")?.visible).toBe(true);
+    edit.rt.ctx.destroy("fountain");
+    edit.rt.step(edit.rt.ctx.time.tickMs, []);
+    expect(glyph(edit.view, "fountain")).toBeNull();
+    edit.rt.destroy();
+    edit.view.destroy();
+
+    const play = viewedRuntime(entities, () => false);
+    play.rt.render(1);
+    expect(glyph(play.view, "fountain")?.visible).toBe(false);
+    expect(glyph(play.view, "none")?.visible).toBe(false);
+    play.rt.destroy();
+    play.view.destroy();
   });
 
   it("a playtest with emitters ends on one digest with a view and without", () => {

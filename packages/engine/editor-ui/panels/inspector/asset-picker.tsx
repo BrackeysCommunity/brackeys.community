@@ -1,6 +1,5 @@
-import { articled } from "../../../editor/inspector-model";
+import { articled, kindsPhrase } from "../../../editor/inspector-model";
 import { assetInfo, type AssetKindName, type ProjectView } from "../../../project/index";
-import { kindsLabel } from "../../../project/refs";
 import {
   Combobox,
   ComboboxContent,
@@ -127,7 +126,7 @@ export function AssetCombobox({
             );
           }}
         </ComboboxList>
-        <ComboboxEmpty>No {kindsLabel({ kinds })} in this project</ComboboxEmpty>
+        <ComboboxEmpty>No {kindsPhrase(kinds)} in this project</ComboboxEmpty>
       </ComboboxContent>
     </Combobox>
   );

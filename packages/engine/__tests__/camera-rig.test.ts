@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { MAX_CAMERA_ZOOM, MIN_CAMERA_ZOOM } from "../camera";
 import { cameraRegionsOf, regionFor, type CameraRegion } from "../camera/regions";
@@ -10,7 +10,6 @@ import {
   type CameraFrame,
   type RigInput,
 } from "../camera/rig";
-import { createGame } from "../engine";
 import { createRegistry, defineEntityType, defineGame } from "../game/define";
 import { primitiveFields, type CameraRigDef } from "../game/primitives";
 import type { EngineContext, GameDefinition } from "../game/types";
@@ -19,9 +18,8 @@ import type { PixiView } from "../render/pixi-view";
 import { snapshotDigest } from "../runtime/recorder";
 import { expandScene } from "../scene/expand";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
-import type { GameInstance, RapierModule, Vec2 } from "../types";
-import { loadCompatRapier } from "./fixtures/compat-rapier";
-import { manualFrames, type FrameClock, type FrameRecord } from "./fixtures/frame-clock";
+import type { Vec2 } from "../types";
+import { playRig, type FrameRecord } from "./fixtures/frame-clock";
 
 // ─── The rig, pure ────────────────────────────────────────
 
@@ -362,34 +360,7 @@ vi.mock("../render/pixi-view", async (importOriginal) =>
   (await import("./fixtures/frame-clock")).recordingPixiView(importOriginal, seen),
 );
 
-let clock: FrameClock;
-/** Runs `n` frames a tick apart: each steps one tick, then renders. */
-const advance = (n: number) => clock.ticks(n);
-
-const lastFrame = () => seen.frames[seen.frames.length - 1]!;
-
-let rapier: RapierModule;
-beforeAll(async () => {
-  rapier = await loadCompatRapier();
-});
-
-const games: GameInstance[] = [];
-let canvas: HTMLCanvasElement;
-
-beforeEach(() => {
-  seen.frames.length = 0;
-  seen.views.length = 0;
-  clock = manualFrames({ performance: true });
-  canvas = document.createElement("canvas");
-  document.body.appendChild(canvas);
-});
-
-afterEach(() => {
-  for (const g of games.splice(0)) g.destroy();
-  document.body.replaceChildren();
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
+const { advance, lastFrame, create, playing, editing } = playRig(seen, { performance: true });
 
 const followed = (id: string, x: number, y: number): EntityDef =>
   ({ id, type: "marker", at: [x, y], behaviors: { "camera-target": {} } }) as EntityDef;
@@ -403,15 +374,6 @@ function sceneOf(entities: EntityDef[], game: string): SceneDefinition {
     settings: { physics: "none" },
     entities,
   };
-}
-
-async function playing(scene: SceneDefinition, game: GameDefinition): Promise<GameInstance> {
-  const instance = await createGame(canvas, { game, rapier: async () => rapier, scene });
-  games.push(instance);
-  instance.start();
-  // The loop's first frame only starts its clock; the second ticks and renders.
-  advance(2);
-  return instance;
 }
 
 describe("the rig in Play", () => {
@@ -448,15 +410,7 @@ describe("the rig in Play", () => {
       ease: 0,
     } as EntityDef;
     const scene = sceneOf([followed("hero", 20, -4), room], "framer");
-    const instance = await createGame(canvas, {
-      game: framer({ damping: 0 }),
-      rapier: async () => rapier,
-    });
-    games.push(instance);
-    instance.setMode("edit");
-    instance.loadScene(scene);
-    instance.start();
-    advance(2);
+    const instance = await editing(scene, framer({ damping: 0 }));
     const outline = (view: PixiView) => view.container.getChildByLabel("room", true);
     expect(outline(seen.views.at(-1)!)?.visible).toBe(true);
 
@@ -568,9 +522,7 @@ describe("the rig in Play", () => {
       camera: { damping: -1 },
       createRuntime: () => ({ snapshot: () => null }),
     });
-    await expect(createGame(canvas, { game: bad, rapier: async () => rapier })).rejects.toThrow(
-      /camera: damping/,
-    );
+    await expect(create(bad)).rejects.toThrow(/camera: damping/);
   });
 
   it("ends a run with camera requests on the digest a headless run ends on", async () => {

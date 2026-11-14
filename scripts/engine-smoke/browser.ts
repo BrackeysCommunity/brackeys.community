@@ -41,6 +41,7 @@ import { engineScenes, type EngineScenes } from "../engine-editor/run";
 import {
   EDITOR_TAB,
   EDITOR_VIEWPORTS,
+  hexOf,
   INSPECTOR_MIN_PX,
   judgeEditor,
   judgeLaunchFailure,
@@ -468,7 +469,6 @@ try {
 }
 
 const ok = error === null && overallOk(outcomes);
-const hex = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
 writeFileSync(
   REPORT,
   `${JSON.stringify(
@@ -480,7 +480,7 @@ writeFileSync(
       flavour: "rapier2d-compat",
       render: {
         scene: SINK_SCENE,
-        inside: { at: INSIDE_POINT, colour: hex(INSIDE_COLOUR) },
+        inside: { at: INSIDE_POINT, colour: hexOf(INSIDE_COLOUR) },
         outside: { at: OUTSIDE_POINT },
       },
       split: {
@@ -489,7 +489,7 @@ writeFileSync(
           entity: ANIM_ENTITY,
           at: ANIM_POINT,
           ticks: ANIM_FRAME_TICKS,
-          colours: ANIM_COLOURS.map(hex),
+          colours: ANIM_COLOURS.map(hexOf),
         },
       },
       editor: {

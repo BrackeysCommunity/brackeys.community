@@ -86,7 +86,8 @@ alpha })` draws a full-canvas DOM flash over every viewport, on the
   instance's flip and turned by the pose. `anim:frame` (`ANIM_FRAME`, data
   `{ clip, frame, index, event }`) is raised once per event a frame
   declares, on the tick the frame is entered. A `once` clip goes to its
-  `next`, or holds its last frame and raises `anim:end` (`ANIM_END`, data
+  `next`, which carries on from the thousandths of a tick it left over, or
+  holds its last frame and raises `anim:end` (`ANIM_END`, data
   `{ clip }`). World saves and live reconcile swaps keep the clip's place.
   `overlapFrameShapes(ctx, a, setA, b, setB)` tests two entities' frame
   shapes with `shapesIntersect`. The sprite system gains
@@ -194,9 +195,13 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   `setPose` (a `collider` block the entity carries is rebuilt where it now
   is) and the sprite is posed in the same tick; visual channels go through
   the sprite system's new `style`. World saves hold data tweens
-  (`world.systems["@tweens"]`, written only when there are tweens or tween
-  blocks); a pending value tween makes a world save `save-unsupported`
-  naming it (cause `tween`). `@jams/engine/game` exports `TWEEN_END` and
+  (`world.systems["@tweens"]`, written only when there are tweens, tween
+  blocks or entities tweens moved); a pending value tween makes a world
+  save `save-unsupported` naming it (cause `tween`). A world save keeps
+  where `setPose` moved a solid or sensor, by a tween since ended or by
+  game code: its save state carries `moved: true`, and a restore moves its
+  collider and drawing to the pose the save holds. A restore rebuilds the
+  `collider` block of each entity tweens moved where they left it. `@jams/engine/game` exports `TWEEN_END` and
   `UnsaveableTween`.
 - Particles: the `emitter` behavior (visual only, never built headless)
   draws an `emitter` preset on the entity's layer through the scene view's
@@ -257,8 +262,9 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   (jsdom, stubbed Pixi; a probe's `view` and `viewports`) and holds it to
   the headless end; `recordPresentation` probes also digest alike without
   presentation. `saves-audit.test.ts` runs every probe's save-at-N variant
-  with an animated, tweened entity attached: save-then-continue equals
-  restore-then-continue. matrix.ts reads "landed" from a table of the
+  with an animated, tweened entity and a solid whose tween has ended
+  attached: save-then-continue equals restore-then-continue, the solid's
+  collider included. matrix.ts reads "landed" from a table of the
   shipped milestones' versions against `ENGINE_VERSION`.
 
 - The editor's inspector edits a list of objects (a `tween` block's
@@ -373,7 +379,8 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   `asset-frame-unknown` and `asset-kind` for an animation's frames and
   atlas; and `tween-target-invalid`, raised structurally for a `tween`
   entry on a type that can't be posed (`prop`, `follower`, `nav`,
-  `camera-region`, or a game type based on one without its own system) or
+  `camera-region`, or a game type based on one without its own system), on
+  the pose of a solid or sensor riding a host (`attach`), or
   animating `alpha`/`tint`/`scale` on an entity without a `sprite`, and as
   `EngineError("tween-target-invalid")` by `ctx.tweens.to` and by the
   block's attach. `codes` lists all four.
@@ -391,8 +398,8 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   `emitter` block's `emitting`, carry their defaults (1, true, true) as
   `default`.
 - `tween-target-invalid` counts a block's tweens from 1 in its message
-  ("crate's tween 1 can't play: …" for the first); its path stays
-  zero-based.
+  ("crate's tween 1 can't play: …" for the first), from the validator and
+  from the block's attach alike; its path stays zero-based.
 - The tween spec's `scale` reads "Multiplies the sprite's drawn size; 1
   draws it as its block sizes it."
 - `scene step --anim <id>` prints an entity's clip, frame index and frame

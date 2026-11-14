@@ -30,6 +30,8 @@ const PROBES = probesFrom(
 
 /** The entity the audit adds to every probe's scene. */
 const AUDITED = "saves-audit";
+/** A small solid in a corner of every probe's scene, which a tween moves before any save. */
+const DOOR = "saves-audit-door";
 const SHEET = "saves-audit-sheet";
 const TEXTURE = "saves-audit-texture";
 
@@ -107,6 +109,23 @@ function auditedEntity(probe: GenreProbe): EntityDef {
   } as EntityDef;
 }
 
+/** The door's spawn spot and where its tween leaves it. */
+function doorSpots(probe: GenreProbe): { at: [number, number]; end: [number, number] } {
+  const [x0, y0] = probe.scene.bounds;
+  return { at: [x0 + 0.25, y0 + 0.25], end: [x0 + 0.25, y0 + 0.75] };
+}
+
+/** The door, whose short tween has ended at every probe's save. */
+function auditedDoor(probe: GenreProbe): EntityDef {
+  const { at, end } = doorSpots(probe);
+  return {
+    id: DOOR,
+    type: "solid",
+    shape: ["box", at[0], at[1], 0.05, 0.05],
+    behaviors: { [TWEEN.name]: { tweens: [{ to: { y: end[1] }, duration: 3 }] } },
+  } as EntityDef;
+}
+
 /** The probe's game, which also starts a looping code tween on the audited entity at load. */
 function auditedGame(game: GameDefinition): GameDefinition {
   return {
@@ -135,24 +154,31 @@ function audited(probe: GenreProbe): GenreProbe {
   return {
     ...probe,
     game: auditedGame(probe.game as GameDefinition),
-    scene: { ...probe.scene, entities: [...(probe.scene.entities ?? []), auditedEntity(probe)] },
+    scene: {
+      ...probe.scene,
+      entities: [...(probe.scene.entities ?? []), auditedEntity(probe), auditedDoor(probe)],
+    },
     project: { ...probe.project, files: [...(probe.project?.files ?? []), ...AUDIT_FILES] },
   };
 }
 
 /**
  * What a world save of the runtime's end holds of animation and tweens: the
- * audited entity's pose and systems, and every tween of the run; or why it
- * can't be saved.
+ * audited entity's pose and systems, and every tween of the run; whether the
+ * door blocks its spawn spot and its tween's end; or why it can't be saved.
  */
-function endState(runtime: SceneRuntimeHandle): unknown {
+function endState(probe: GenreProbe, runtime: SceneRuntimeHandle): unknown {
   const captured = captureSave(runtime, { depth: "world", slot: "audit", now: 0 });
   if (!captured.ok) return { refused: captured.issue.code };
   const world = captured.file.world;
+  const blocks = ([x, y]: [number, number]) =>
+    runtime.ctx.space.pointAt({ x, y }).some((h) => h.tag.entityId === DOOR);
+  const { at, end } = doorSpots(probe);
   return {
     pose: world?.poses[AUDITED],
     systems: world?.systems[AUDITED],
     tweens: world?.systems[SAVE_TWEENS_KEY],
+    door: { pose: world?.poses[DOOR], at: blocks(at), end: blocks(end) },
   };
 }
 
@@ -175,7 +201,7 @@ async function auditRun(
     at: variant.saveAt,
     label: `${probe.id} ${variant.name} audited${continueSaved ? ", continued" : ""}`,
     continueSaved,
-    observe: endState,
+    observe: (runtime) => endState(probe, runtime),
   });
 }
 
@@ -211,6 +237,9 @@ describe("saves audit: every probe's save-at-N variant with anim and tweens atta
           id,
         ).toHaveLength(3);
         expect(world?.poses[AUDITED], id).toBeDefined();
+        // Where the door's tween moved it, its collider went too.
+        const door = (continued.observed as { door: { pose?: number[]; end: boolean } }).door;
+        expect(door.end, id).toBe(door.pose?.[1] === doorSpots(probe).end[1]);
 
         expect(restored.outcome).toStrictEqual(continued.outcome);
         expect(restored.ticks).toBe(continued.ticks);

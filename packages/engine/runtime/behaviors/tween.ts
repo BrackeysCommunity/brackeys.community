@@ -1,10 +1,13 @@
 import {
   isTweenState,
   stepTween,
+  tweenBlockProblems,
+  tweenProblem,
   tweenStarted,
   tweenValues,
   type Tweens,
   type TweenState,
+  type TweenTarget,
   type TweenValues,
 } from "../../anim/tweens";
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
@@ -16,7 +19,6 @@ import {
   TWEEN,
   tweenChannels,
   tweenSpecSchema,
-  tweenTargetProblem,
   type TweenBlock,
   type TweenChannel,
   type TweenSpec,
@@ -86,6 +88,8 @@ type Captured = {
   blocks: Record<string, string[]>;
   /** The visual channel values tweens left on each live entity, finished tweens' included. */
   looks?: Record<string, SpriteLook>;
+  /** The live entities whose pose tweens wrote, finished tweens' included. */
+  posed?: string[];
 };
 
 /** The one channel a value tween runs on. */
@@ -137,6 +141,8 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
   const paused = new Set<string>();
   /** Visual channel values tweens wrote, by entity: held headless too. */
   const looks = new Map<string, SpriteLook>();
+  /** The entities whose pose tweens wrote, so a restore rebuilds their `collider` blocks there. */
+  const posed = new Set<string>();
   let next = 1;
 
   function stateOf(
@@ -193,35 +199,24 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     return add({ state: stateOf(spec, defined(spec.to)!, defined(spec.from), owner, index) });
   }
 
-  /**
-   * Why `e` can't take `spec`. An entity riding a host (a solid's or
-   * sensor's `attach`) goes where the host's body takes it, so its pose
-   * can't be tweened either.
-   */
-  function targetProblem(e: RuntimeEntity, spec: TweenSpec): string | null {
+  /** What `e` is to a tween: posable when its type's system has `setPose`, riding the host it is attached to. */
+  function targetOf(e: RuntimeEntity): TweenTarget {
     const system = ctx.system<SceneSystem>(e.type);
     const host = e.attach;
     const rides = typeof host === "string" && ctx.attachments.attachedTo(host).includes(e.id);
-    return tweenTargetProblem(
-      rides
-        ? { type: `${e.type} riding "${host}"`, posable: false }
-        : { type: e.type, posable: typeof system?.setPose === "function" },
-      tweenChannels(spec),
-      SPRITE.name in (e.behaviors ?? {}),
-    );
+    return {
+      type: e.type,
+      posable: typeof system?.setPose === "function",
+      ...(rides ? { riding: host } : {}),
+    };
   }
 
+  const sprited = (e: RuntimeEntity) => SPRITE.name in (e.behaviors ?? {});
+
   function checkBlock(id: string, block: TweenBlock, entity?: RuntimeEntity): void {
-    block.tweens.forEach((spec, i) => {
-      const problem = entity ? targetProblem(entity, spec) : null;
-      if (problem) {
-        throw new EngineError(
-          "tween-target-invalid",
-          `${id}'s tween ${i} can't play: ${problem}`,
-          id,
-        );
-      }
-    });
+    if (!entity) return;
+    const [first] = tweenBlockProblems(id, block.tweens, targetOf(entity), sprited(entity));
+    if (first) throw new EngineError("tween-target-invalid", first.message, id);
   }
 
   function startBlock(id: string, block: TweenBlock, entity?: RuntimeEntity): void {
@@ -304,21 +299,27 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     return e ? spriteLook(ctx, e)[channel as keyof SpriteLook] : 0;
   }
 
+  /** Rebuilds the `collider` block `id` carries where the entity is now. */
+  function rebuildCollider(id: string): void {
+    const colliders = ctx.behavior<ColliderSystem>(COLLIDER.name);
+    if (colliders?.has(id)) colliders.rebuild(id);
+  }
+
   function apply(id: string, values: TweenValues): void {
     const e = ctx.get(id);
     if (!e) return;
-    let posed = false;
+    let moves = false;
     const look: SpriteLook = {};
     for (const [channel, v] of Object.entries(values)) {
-      if (isPose(channel)) posed = true;
+      if (isPose(channel)) moves = true;
       else look[channel as keyof SpriteLook] = v;
     }
     const owner = ctx.system<SceneSystem>(e.type);
-    if (posed && owner?.setPose) {
+    if (moves && owner?.setPose) {
       const p = poseOf(id);
       owner.setPose(id, values.x ?? p.x, values.y ?? p.y, values.rot ?? p.rot);
-      const colliders = ctx.behavior<ColliderSystem>(COLLIDER.name);
-      if (colliders?.has(id)) colliders.rebuild(id);
+      posed.add(id);
+      rebuildCollider(id);
     }
     if (Object.keys(look).length > 0) {
       looks.set(id, { ...looks.get(id), ...look });
@@ -370,8 +371,16 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     const held: Record<string, SpriteLook> = {};
     for (const [id, look] of looks) if (ctx.get(id)) held[id] = { ...look };
     const anyLook = Object.keys(held).length > 0;
-    if (states.length === 0 && blocks.size === 0 && !anyLook) return undefined;
-    return { next, tweens: states, blocks: carried, ...(anyLook ? { looks: held } : {}) };
+    const moved = [...posed].filter((id) => ctx.get(id));
+    if (states.length === 0 && blocks.size === 0 && !anyLook && moved.length === 0)
+      return undefined;
+    return {
+      next,
+      tweens: states,
+      blocks: carried,
+      ...(anyLook ? { looks: held } : {}),
+      ...(moved.length > 0 ? { posed: moved } : {}),
+    };
   }
 
   /**
@@ -424,6 +433,11 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
       tweens.set(run.state.id, run);
     }
     restoreLooks(got.looks);
+    posed.clear();
+    for (const id of Array.isArray(got.posed) ? got.posed : [])
+      if (typeof id === "string" && ctx.get(id)) posed.add(id);
+    // A fresh load built each collider block where its entity spawned.
+    for (const id of posed) rebuildCollider(id);
     for (const { state } of tweens.values())
       if (state.owner !== undefined && tweenStarted(state)) apply(state.owner, tweenValues(state));
   }
@@ -435,6 +449,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
    */
   function restart(): void {
     looks.clear();
+    posed.clear();
     for (const run of tweens.values()) {
       const { owner, block, id } = run.state;
       const spec =
@@ -461,6 +476,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
       blocks.clear();
       paused.clear();
       looks.clear();
+      posed.clear();
       next = 1;
     },
     size: () => blocks.size,
@@ -474,7 +490,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
           entityId,
         );
       }
-      const problem = targetProblem(e, parsed);
+      const problem = tweenProblem(targetOf(e), parsed, sprited(e));
       if (problem)
         throw new EngineError(
           "tween-target-invalid",
@@ -507,6 +523,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
       system.cancelAll(entityId);
       paused.delete(entityId);
       looks.delete(entityId);
+      posed.delete(entityId);
     },
     ownerEnabled(entityId, on) {
       if (on) paused.delete(entityId);

@@ -1381,11 +1381,17 @@ function addedBlocks(
 const behaviorLabel = (registry: Registry, name: BehaviorName) =>
   registry.behaviors.get(name)?.inspector?.label ?? fieldTitle(name);
 
-/** Asset kinds as a phrase names them, each with its article: "an animation or an atlas"; "an asset" for none. */
+/** `word` with its indefinite article: "an atlas", "a sensor". */
+export const withArticle = (word: string) => `${/^[aeiou]/i.test(word) ? "an" : "a"} ${word}`;
+
+const kindWords = (kinds: readonly string[]) => (kinds.length === 0 ? ["asset"] : kinds);
+
+/** Kinds as a phrase names them, each with its article: "an animation or an atlas"; "an asset" for none. */
 export const articled = (kinds: readonly string[]) =>
-  kinds.length === 0
-    ? "an asset"
-    : kinds.map((k) => `${/^[aeiou]/.test(k) ? "an" : "a"} ${k}`).join(" or ");
+  kindWords(kinds).map(withArticle).join(" or ");
+
+/** Kinds as a phrase names them without articles: "animation or atlas"; "asset" for none. */
+export const kindsPhrase = (kinds: readonly string[]) => kindWords(kinds).join(" or ");
 
 /** `buildInspectorModel`'s `clips`. */
 type ClipLookup = (source: AssetId) => readonly string[] | null;

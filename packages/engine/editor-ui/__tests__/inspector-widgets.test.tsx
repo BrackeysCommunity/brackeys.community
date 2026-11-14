@@ -504,7 +504,7 @@ describe("the inspector's motion behaviors", () => {
     expect(tweens()[0]).toEqual({ ...SPIN, to: { y: 5, alpha: 0.5 } });
 
     fireEvent.click(screen.getByRole("combobox", { name: "behaviors.tween.tweens.0.ease" }));
-    choose(await screen.findByRole("option", { name: /^quad ?in$/i }));
+    choose(await screen.findByRole("option", { name: "Quad in (quadIn)" }));
     expect(tweens()[0]!.ease).toBe("quadIn");
   });
 
@@ -512,7 +512,7 @@ describe("the inspector's motion behaviors", () => {
     const { session, tweens } = open();
     show(session, "lamp");
     const remove = screen.getByRole("button", { name: "Remove Tween 1" }) as HTMLButtonElement;
-    expect(remove.matches(":disabled")).toBe(true);
+    expect(remove.getAttribute("aria-disabled")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "Add tween" }));
     expect(tweens()).toEqual([SPIN, SPIN]);
     type("behaviors.tween.tweens.1.to.alpha", "1");

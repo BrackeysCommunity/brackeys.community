@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
 import type { Aabb, GizmoHandle, OverlayTone, Pt, ToolOverlay } from "../../../editor/index";
+import { cssHex } from "../../../game/color";
 import type { Style } from "../../../game/index";
 import { aabb } from "../../../scene/index";
 import {
@@ -53,7 +54,7 @@ function Handle({ handle, view }: { handle: GizmoHandle; view: View }) {
 /** A game template's colour for its ghost: its stroke, else its fill. */
 function styleTone(style: Style | undefined): string | undefined {
   const c = style?.stroke ?? style?.fill;
-  return c === undefined ? undefined : `#${(c & 0xffffff).toString(16).padStart(6, "0")}`;
+  return c === undefined ? undefined : cssHex(c);
 }
 
 /** A rectangle's attributes in metres. */

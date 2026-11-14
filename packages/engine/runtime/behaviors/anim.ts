@@ -6,7 +6,7 @@ import { SPRITE, spriteOffset, type SpriteBlock } from "../../game/behaviors/spr
 import { delayTicks, isCount, wholeTicksIn } from "../../game/time";
 import { EngineError, type EngineContext, type JsonValue } from "../../game/types";
 import { clipSourceIn } from "../../project/clip-source";
-import { closest } from "../../scene/did-you-mean";
+import { didYouMean } from "../../scene/did-you-mean";
 import type { ShapeObj } from "../../scene/types";
 import { spawnPose } from "../spawn-pose";
 import type { SpriteSystem } from "./sprite";
@@ -178,7 +178,10 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
         ctx.emit({ type: ANIM_END, entityId: id, at: { x, y }, data: { clip: clip.name } });
         return;
       }
+      // The next clip goes on from the thousandths of a tick this one left over.
+      const part = run.part;
       begin(run, next, 0);
+      run.part = part;
       run.started = true;
       if (!quiet) enter(id, run);
       return;
@@ -308,10 +311,9 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
       const run = runOf(id);
       const clip = run.clips.get(name);
       if (!clip) {
-        const near = closest(name, [...run.clips.keys()]);
         throw new EngineError(
           "anim-clip-unknown",
-          `"${id}" has no clip "${name}"${near ? `; did you mean "${near}"?` : ""}`,
+          `"${id}" has no clip "${name}"${didYouMean(name, [...run.clips.keys()])}`,
           id,
         );
       }

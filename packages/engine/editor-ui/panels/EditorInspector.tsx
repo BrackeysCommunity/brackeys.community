@@ -61,10 +61,12 @@ import {
   type ShapeTuple,
 } from "../../editor/index";
 import {
+  articled,
   fieldTitle,
   lengthStep,
   overlappingKeys,
   paramOverriddenBy,
+  withArticle,
 } from "../../editor/inspector-model";
 import { BEHAVIOR_CATEGORIES, BEHAVIORS_FIELD } from "../../game/behaviors";
 import { ticksFor } from "../../game/time";
@@ -453,7 +455,7 @@ function PointsEditor({
     <div className="je-insp-stack" data-gap="tight">
       {pts.map((pt, i) => (
         <div key={i} className="je-insp-row" data-gap="tight" data-align="start">
-          <span className="je-insp-point-index">{i}</span>
+          <span className="je-insp-point-index">{i + 1}</span>
           {(["x", "y"] as const).map((name, axis) => (
             <NumberInput
               key={name}
@@ -477,7 +479,7 @@ function PointsEditor({
           <IconButton
             icon={Cancel01Icon}
             size="icon-xs"
-            label={`Remove point ${i}`}
+            label={`Remove point ${i + 1}`}
             tooltip="Remove point"
             disabled={pts.length <= min}
             onClick={() => set(pts.filter((_, j) => j !== i))}
@@ -624,12 +626,11 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         ? [field.value]
         : [];
   const dangling = values.filter((v) => !candidates.includes(v));
-  const accepts = w.any ? "entity" : w.accepts.join(" or ");
-  const article = /^[aeiou]/i.test(accepts) ? "an" : "a";
+  const accepts = w.any || w.accepts.length === 0 ? withArticle("entity") : articled(w.accepts);
   const problem =
     error ??
     (dangling.length > 0
-      ? `${dangling.join(", ")} ${dangling.length > 1 ? "aren't" : "isn't"} ${article} ${accepts} in this scene.`
+      ? `${dangling.join(", ")} ${dangling.length > 1 ? "aren't" : "isn't"} ${accepts} in this scene.`
       : null);
   const set = (next: unknown) => setError(commitField(ctx, field, next));
 
@@ -650,7 +651,7 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
             ))}
             <ComboboxChipsInput
               aria-label={field.path}
-              placeholder={field.mixed ? MIXED : `Add ${article} ${accepts}`}
+              placeholder={field.mixed ? MIXED : `Add ${accepts}`}
             />
           </ComboboxChips>
           <ComboboxContent anchor={anchor}>
@@ -675,7 +676,7 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
           <ComboboxInput
             aria-label={field.path}
             aria-invalid={problem ? true : undefined}
-            placeholder={field.mixed ? MIXED : `Pick ${article} ${accepts}`}
+            placeholder={field.mixed ? MIXED : `Pick ${accepts}`}
             showClear={field.optional}
           />
           <ComboboxContent>
@@ -885,6 +886,9 @@ function ListField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const set = (next: unknown[]) => setError(commitField(ctx, field, next));
   const last = items.at(-1) ?? w.seed;
   const noun = w.item.toLowerCase();
+  // A button disabled for a bound stays hoverable, so its hint can say why.
+  const atLeast = items.length <= (w.min ?? 0);
+  const full = w.max !== undefined && items.length >= w.max;
   if (field.mixed)
     return (
       <FieldRow field={field}>
@@ -902,8 +906,9 @@ function ListField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
             icon={Cancel01Icon}
             size="icon-xs"
             label={`Remove ${item.title}`}
-            tooltip={`Remove ${noun}`}
-            disabled={items.length <= (w.min ?? 0)}
+            tooltip={atLeast ? `Keeps at least ${w.min}` : `Remove ${noun}`}
+            disabled={atLeast}
+            focusableWhenDisabled={atLeast}
             onClick={() => set(items.filter((_, j) => j !== i))}
           />
         </div>
@@ -912,10 +917,9 @@ function ListField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
         size="xs"
         variant="ghost"
         className="je-insp-start"
-        disabled={last === undefined || (w.max !== undefined && items.length >= w.max)}
-        {...(w.max !== undefined && items.length >= w.max
-          ? { tooltip: `Holds at most ${w.max}` }
-          : {})}
+        disabled={last === undefined || full}
+        focusableWhenDisabled={full}
+        {...(full ? { tooltip: `Holds at most ${w.max}` } : {})}
         onClick={() => set([...items, structuredClone(last)])}
       >
         Add {noun}

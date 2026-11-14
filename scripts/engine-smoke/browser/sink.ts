@@ -33,8 +33,8 @@ export const SINK_CANVAS = { width: 640, height: 360 } as const;
 /** The entity whose `anim` block plays the `idle` clip over the `hero` sheet. */
 export const ANIM_ENTITY = "std-anim";
 
-/** World metres at the centre of the animated sprite. */
-export const ANIM_POINT: readonly [x: number, y: number] = [4.8, 5];
+/** World metres at the centre of the animated sprite, inside the `framing` camera region. */
+export const ANIM_POINT: readonly [x: number, y: number] = [10.6, 5.2];
 
 /** The idle clip's frames' one colours in `art/hero.png`: hero-0, then hero-1. */
 export const ANIM_COLOURS = [0xe040ff, 0xffe000] as const;

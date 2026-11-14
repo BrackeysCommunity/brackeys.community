@@ -226,7 +226,7 @@ describe("mountUi", () => {
     unmount();
   });
 
-  it("resolves reduced motion once, at createGame: auto asks the page, a boolean wins", async () => {
+  it("asks the page once under auto, a boolean wins, and hands UiContext the game's value", async () => {
     const reduce = vi.fn((query: string) => ({
       matches: query === "(prefers-reduced-motion: reduce)",
     }));
