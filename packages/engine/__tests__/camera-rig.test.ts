@@ -1,9 +1,15 @@
 // @vitest-environment jsdom
-import { Container } from "pixi.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { MAX_CAMERA_ZOOM, MIN_CAMERA_ZOOM } from "../camera";
 import { cameraRegionsOf, regionFor, type CameraRegion } from "../camera/regions";
-import { createCameraRig, type CameraFrame, type RigInput } from "../camera/rig";
+import {
+  cameraRigProblem,
+  centreOf,
+  createCameraRig,
+  type CameraFrame,
+  type RigInput,
+} from "../camera/rig";
 import { createGame } from "../engine";
 import { createRegistry, defineEntityType, defineGame } from "../game/define";
 import { primitiveFields, type CameraRigDef } from "../game/primitives";
@@ -15,6 +21,7 @@ import { expandScene } from "../scene/expand";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
 import type { GameInstance, RapierModule, Vec2 } from "../types";
 import { loadCompatRapier } from "./fixtures/compat-rapier";
+import { manualFrames, type FrameClock, type FrameRecord } from "./fixtures/frame-clock";
 
 // ─── The rig, pure ────────────────────────────────────────
 
@@ -33,6 +40,7 @@ function input(over: Partial<RigInput> = {}): RigInput {
   };
 }
 
+const STILL: Vec2 = { x: 0, y: 0 };
 const at = (x: number, y: number, velocity: Vec2 = { x: 0, y: 0 }, weight = 1) => ({
   at: { x, y },
   velocity,
@@ -237,6 +245,47 @@ describe("createCameraRig", () => {
     expect(rig.update(input({ bounds })).position).toEqual({ x: 50, y: 20 });
     expect(run(rig, 10, { bounds }).position).toEqual({ x: 50, y: 20 });
   });
+
+  it("keeps every zoom within the camera's limits, and sizes its clamp from that zoom", () => {
+    const tight: CameraRegion = {
+      id: "tight",
+      min: { x: 0, y: 0 },
+      max: { x: 10, y: 10 },
+      zoom: 50,
+      clamp: true,
+      ease: 0,
+    };
+    const rig = createCameraRig({ damping: 0 }, "s");
+    const frame = rig.update(input({ targets: [at(9, 5)], regions: [tight] }));
+    expect(frame.zoom).toBe(MAX_CAMERA_ZOOM);
+    // At zoom 5 the view is 3.84 m wide, so the right edge holds it at 10 − 1.92.
+    expect(frame.position.x).toBeCloseTo(8.08, 9);
+    rig.request({ op: "zoom", zoom: 0.001 });
+    expect(rig.update(input({ targets: [at(-50, 0)] })).zoom).toBe(MIN_CAMERA_ZOOM);
+  });
+});
+
+describe("centreOf", () => {
+  it("weights the targets' positions and velocities, skipping any without a positive weight", () => {
+    expect(
+      centreOf([at(0, 0, { x: 2, y: 0 }, 1), at(10, 4, { x: 0, y: 0 }, 3), at(99, 99, STILL, 0)]),
+    ).toEqual({ at: { x: 7.5, y: 3 }, velocity: { x: 0.5, y: 0 } });
+    expect(centreOf([at(5, 5, STILL, 0), at(1, 1, STILL, -2)])).toBeNull();
+    expect(centreOf([])).toBeNull();
+  });
+});
+
+describe("cameraRigProblem", () => {
+  it("says what's wrong with settings that aren't a rig", () => {
+    expect(
+      cameraRigProblem({ damping: 0.2, fit: { padding: 1, minZoom: 0.5, maxZoom: 2 } }),
+    ).toBeNull();
+    expect(cameraRigProblem({ fit: { padding: -1, minZoom: 0.5, maxZoom: 2 } })).toMatch(
+      /^fit\.padding: /,
+    );
+    expect(cameraRigProblem({ deadzone: "wide" })).toMatch(/^deadzone: /);
+    expect(cameraRigProblem({ follow: true })).not.toBeNull();
+  });
 });
 
 describe("cameraRegionsOf", () => {
@@ -283,52 +332,17 @@ describe("cameraRegionsOf", () => {
 
 // ─── The rig in the shell ─────────────────────────────────
 
-vi.mock("../renderer", () => ({
-  createRenderer: async () => ({
-    app: {},
-    worldContainer: new Container(),
-    uiContainer: new Container(),
-    resize: () => {},
-    destroy: () => {},
-  }),
-}));
+vi.mock("../renderer", async () => (await import("./fixtures/frame-clock")).stubRenderer());
 
 /** The camera each frame hands the view, and the views made, in order. */
-const seen = vi.hoisted(() => ({
-  frames: [] as { x: number; y: number; zoom: number }[],
-  views: [] as PixiView[],
-}));
-vi.mock("../render/pixi-view", async (importOriginal) => {
-  const real = await importOriginal<typeof import("../render/pixi-view")>();
-  return {
-    ...real,
-    createPixiView: (...args: Parameters<typeof real.createPixiView>) => {
-      const view = real.createPixiView(...args);
-      seen.views.push(view);
-      return {
-        ...view,
-        frame(f) {
-          seen.frames.push({ ...f.camera });
-          view.frame!(f);
-        },
-      } satisfies PixiView;
-    },
-  };
-});
+const seen = vi.hoisted((): FrameRecord => ({ frames: [], views: [] }));
+vi.mock("../render/pixi-view", async (importOriginal) =>
+  (await import("./fixtures/frame-clock")).recordingPixiView(importOriginal, seen),
+);
 
-const TICK_MS = 1000 / 60;
-let pending: FrameRequestCallback[] = [];
-let now = 0;
-
+let clock: FrameClock;
 /** Runs `n` frames a tick apart: each steps one tick, then renders. */
-function advance(n: number): void {
-  for (let i = 0; i < n; i++) {
-    now += TICK_MS;
-    const due = pending;
-    pending = [];
-    for (const cb of due) cb(now);
-  }
-}
+const advance = (n: number) => clock.ticks(n);
 
 const lastFrame = () => seen.frames[seen.frames.length - 1]!;
 
@@ -343,11 +357,7 @@ let canvas: HTMLCanvasElement;
 beforeEach(() => {
   seen.frames.length = 0;
   seen.views.length = 0;
-  pending = [];
-  now = 0;
-  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => pending.push(cb));
-  vi.stubGlobal("cancelAnimationFrame", () => {});
-  vi.spyOn(performance, "now").mockImplementation(() => now);
+  clock = manualFrames({ performance: true });
   canvas = document.createElement("canvas");
   document.body.appendChild(canvas);
 });
@@ -443,6 +453,50 @@ describe("the rig in Play", () => {
     expect(instance.runtime()!.update([zoomed])).toEqual({ ok: true });
     advance(1);
     expect(lastFrame().zoom).toBe(2);
+  });
+
+  it("frames a region with no camera settings anywhere, and goes back to the plain follow without one", async () => {
+    const plain = defineGame({
+      id: "plain",
+      types: [],
+      actions: [],
+      world: { physics: "none" },
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    const room = {
+      id: "room",
+      type: "camera-region",
+      shape: ["box", 10, -4, 12, 8],
+      zoom: 2,
+      ease: 0,
+    } as EntityDef;
+    const game = await playing(sceneOf([followed("hero", 20, -4), room], "plain"), plain);
+    // The room's right edge holds the view at zoom 2: 22 − 19.2 / 4.
+    expect(lastFrame()).toEqual({ x: 17.2, y: -4, zoom: 2 });
+
+    game.runtime()!.remove(["room"]);
+    const from = game.getStore().state.tick;
+    advance(3);
+    const ticks = game.getStore().state.tick - from;
+    expect(ticks).toBeGreaterThan(0);
+    // The plain follow: a tenth of the rest of the way to the hero per tick, at zoom 1.
+    expect(lastFrame().x).toBeCloseTo(20 - (20 - 17.2) * 0.9 ** ticks, 9);
+    expect(lastFrame().zoom).toBe(1);
+    expect(game.getStore().state.camera.zoom).toBe(1);
+  });
+
+  it("refuses a game whose camera settings aren't a rig", async () => {
+    const bad = defineGame({
+      id: "bad-camera",
+      types: [],
+      actions: [],
+      world: { physics: "none" },
+      camera: { damping: -1 },
+      createRuntime: () => ({ snapshot: () => null }),
+    });
+    await expect(createGame(canvas, { game: bad, rapier: async () => rapier })).rejects.toThrow(
+      /camera: damping/,
+    );
   });
 
   it("ends a run with camera requests on the digest a headless run ends on", async () => {

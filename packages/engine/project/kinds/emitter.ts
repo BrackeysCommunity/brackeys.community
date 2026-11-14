@@ -8,10 +8,8 @@ import { z } from "zod";
 import type { BlendMode } from "../../context";
 import { BLEND_MODES } from "../../game/defaults";
 import { ID_PATTERN } from "../../game/fields";
-import { closest } from "../../scene/did-you-mean";
-import { makeIssue } from "../../scene/issues";
 import type { SceneIssue } from "../../scene/types";
-import { assetInfo, type AssetInfo } from "../asset-info";
+import { assetInfo, atlasFrameIssue, type AssetInfo } from "../asset-info";
 import type { RefSite } from "../refs";
 import type { AssetId } from "../types";
 import { ATLAS_KIND } from "./atlas";
@@ -200,27 +198,8 @@ export function emitterIssues(
   file: EmitterFile,
   texture: AssetInfo | null | undefined,
 ): SceneIssue[] {
-  if (texture?.kind !== ATLAS_KIND || !texture.frames) return [];
-  const frames = texture.frames;
-  const expected = frames.length > 0 ? { expected: frames.join(" | ") } : {};
-  if (file.frame === undefined)
-    return [
-      makeIssue("asset-frame-unknown", {
-        message: `the emitter draws atlas "${file.texture}" but names no frame`,
-        path: "/frame",
-        ...expected,
-      }),
-    ];
-  if (frames.includes(file.frame)) return [];
-  const guess = closest(file.frame, frames);
-  return [
-    makeIssue("asset-frame-unknown", {
-      message: `the emitter names frame "${file.frame}", which atlas "${file.texture}" doesn't have${guess ? `; did you mean "${guess}"?` : ""}`,
-      path: "/frame",
-      got: file.frame,
-      ...expected,
-    }),
-  ];
+  const issue = atlasFrameIssue(texture, file.frame, { who: "the emitter", path: "/frame" });
+  return issue ? [issue] : [];
 }
 
 /** Particle presets the `emitter` behavior and burst effects draw from; presentation only. */

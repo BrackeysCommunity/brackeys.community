@@ -120,6 +120,7 @@ export {
   type ParticleTexture,
 } from "./render/particles";
 export { createEffectLayer, type EffectLayer } from "./render/effects";
+export type { BurstOptions, FlashOptions } from "./runtime/present";
 export {
   SPRITE,
   SPRITE_FALLBACK_SIZE,

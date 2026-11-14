@@ -19,6 +19,7 @@ import {
 } from "../context";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { Sha256 } from "../project/types";
+import { lerpPose, type Pose } from "../runtime/poses";
 import type { SceneLayerDef } from "../scene/layers";
 import { drawShape } from "./draw-shape";
 import { createParticleLayer, type ParticleLayer, type ParticleLayerOptions } from "./particles";
@@ -76,7 +77,6 @@ export type PixiView = SceneView & {
   destroy(): void;
 };
 
-type Pose = { x: number; y: number; rot: number };
 type SpriteDisplay = Sprite | TilingSprite | NineSliceSprite;
 
 /**
@@ -100,14 +100,6 @@ type Visual = {
   /** The y it was last placed at in a frame, metres, before pixel snapping. */
   y: number;
 };
-
-const TAU = Math.PI * 2;
-
-/** From `a` toward `b` by `t`, turning the shorter way round. */
-function lerpAngle(a: number, b: number, t: number): number {
-  const d = ((((b - a) % TAU) + TAU + Math.PI) % TAU) - Math.PI;
-  return a + d * t;
-}
 
 /** `current` when it is already the display `visual` needs, else a new one. */
 function spriteDisplay(current: Container | undefined, visual: SpriteVisual, texture: Texture) {
@@ -338,12 +330,7 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
   /** Where `v` sits this frame: between its last two poses when the last committed tick moved it. */
   function placed(v: Visual, alpha: number): Pose {
     if (v.tick !== committed || v.snapped) return v.cur;
-    const { prev, cur } = v;
-    return {
-      x: prev.x + (cur.x - prev.x) * alpha,
-      y: prev.y + (cur.y - prev.y) * alpha,
-      rot: lerpAngle(prev.rot, cur.rot, alpha),
-    };
+    return lerpPose(v.prev, v.cur, alpha);
   }
 
   function placeVisuals(alpha: number): void {

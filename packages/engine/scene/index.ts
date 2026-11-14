@@ -181,7 +181,7 @@ export {
   snapToPixel,
   type LengthUnitName,
 } from "./units";
-export { closest } from "./did-you-mean";
+export { closest, didYouMean } from "./did-you-mean";
 export {
   sublevelIssue,
   validateScene,

@@ -4,11 +4,18 @@
  * code steers it through presentation requests and nothing reads it back.
  */
 import { ease, type EaseName } from "../anim/ease";
-import type { CameraRigDef } from "../game/primitives";
+import { clampZoom, zoomToFit } from "../camera";
+import {
+  DEFAULT_CAMERA_DAMPING,
+  DEFAULT_CAMERA_SHAKE,
+  DEFAULT_REGION_EASE,
+} from "../game/defaults";
+import { CAMERA_RIG_SCHEMA, type CameraRigDef } from "../game/primitives";
+import { lerp, lerpVec2 } from "../math";
 import type { CameraRequest } from "../runtime/present";
-import { Rng } from "../sim-kit/rng";
+import { viewRandom } from "../sim-kit/rng";
 import type { Vec2 } from "../types";
-import { DEFAULT_REGION_EASE, regionFor, type CameraRegion } from "./regions";
+import { regionFor, type CameraRegion } from "./regions";
 
 export type { CameraRigDef } from "../game/primitives";
 
@@ -42,16 +49,21 @@ export interface CameraRig {
   readonly following: CameraTargetSpec | null;
 }
 
-/** Seconds to close half the distance to the goal when the def names no `damping`. */
-export const DEFAULT_CAMERA_DAMPING = 0.12;
+export { DEFAULT_CAMERA_DAMPING, DEFAULT_CAMERA_SHAKE };
 
-/** The shake a rig gets when its def names none: a light jolt, no turn, gone a second after full trauma. */
-export const DEFAULT_CAMERA_SHAKE = Object.freeze({ maxOffset: 10, maxTurn: 0, decay: 1 });
+/** Why `def` can't be a camera rig's settings, or null when it can. */
+export function cameraRigProblem(def: unknown): string | null {
+  const parsed = CAMERA_RIG_SCHEMA.safeParse(def);
+  if (parsed.success) return null;
+  const issue = parsed.error.issues[0];
+  if (!issue) return "not a camera rig";
+  const at = issue.path.join(".");
+  return at ? `${at}: ${issue.message}` : issue.message;
+}
 
 type Transition = { from: Vec2; fromZoom: number; elapsed: number; seconds: number };
 type ZoomEase = { from: number; to: number; ms: number; elapsed: number; ease?: EaseName };
 
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
 /** `p` with the view (half sizes `hw`, `hh`) kept inside the box; a box smaller than the view centres it. */
@@ -61,8 +73,11 @@ function clampView(p: Vec2, hw: number, hh: number, min: Vec2, max: Vec2): Vec2 
   return { x: axis(p.x, min.x, max.x, hw), y: axis(p.y, min.y, max.y, hh) };
 }
 
-/** The weighted centre and velocity of the targets; null when their weights sum to nothing. */
-function centreOf(targets: RigInput["targets"]): { at: Vec2; velocity: Vec2 } | null {
+/**
+ * The weighted centre and velocity of the targets, skipping any whose
+ * weight isn't positive; null when none is left.
+ */
+export function centreOf(targets: RigInput["targets"]): { at: Vec2; velocity: Vec2 } | null {
   let x = 0;
   let y = 0;
   let vx = 0;
@@ -92,9 +107,7 @@ function fitZoom(targets: RigInput["targets"], view: RigInput["view"], padding: 
     maxX = Math.max(maxX, t.at.x);
     maxY = Math.max(maxY, t.at.y);
   }
-  const w = maxX - minX + 2 * padding;
-  const h = maxY - minY + 2 * padding;
-  return Math.min(w > 0 ? view.width / w : Infinity, h > 0 ? view.height / h : Infinity);
+  return zoomToFit(maxX - minX + 2 * padding, maxY - minY + 2 * padding, view);
 }
 
 /** A rig for `def`; `seed` (the scene's name) seeds its shake. */
@@ -103,9 +116,9 @@ export function createCameraRig(def: CameraRigDef, seed: string): CameraRig {
   const [deadW, deadH] = def.deadzone ?? [0, 0];
   const lookAhead = def.lookAhead ?? 0;
   const shake = def.shake ?? DEFAULT_CAMERA_SHAKE;
-  const random = Rng.from(seed);
+  const random = viewRandom(seed);
   /** -1 to 1 from the view's own stream. */
-  const signed = () => (random.nextU32() / 0x1_0000_0000) * 2 - 1;
+  const signed = () => random.between(-1, 1);
 
   let position: Vec2 | null = null;
   let zoom = 1;
@@ -135,7 +148,8 @@ export function createCameraRig(def: CameraRigDef, seed: string): CameraRig {
       z = Math.min(z, fitZoom(input.targets, input.view, def.fit.padding));
       z = Math.min(def.fit.maxZoom, Math.max(def.fit.minZoom, z));
     }
-    return z;
+    // The zoom the camera will apply, so the view's clamp is sized from the view it shows.
+    return clampZoom(z);
   }
 
   /** The point the camera heads for: the targets' centre led by their velocity, capped at `maxLead`. */
@@ -194,20 +208,14 @@ export function createCameraRig(def: CameraRigDef, seed: string): CameraRig {
       }
       const desired = focus ? deadzoned(position, focus) : position;
       const k = damping > 0 ? 1 - Math.pow(0.5, dt / damping) : 1;
-      const damped = {
-        x: position.x + (desired.x - position.x) * k,
-        y: position.y + (desired.y - position.y) * k,
-      };
+      const damped = lerpVec2(position, desired, k);
       const framed = clampView(damped, hw, hh, box.min, box.max);
       if (transition) {
         transition.elapsed += dt;
         const t = transition.seconds > 0 ? Math.min(1, transition.elapsed / transition.seconds) : 1;
         const s = smooth(t);
-        position = {
-          x: lerp(transition.from.x, framed.x, s),
-          y: lerp(transition.from.y, framed.y, s),
-        };
-        zoom = lerp(transition.fromZoom, z, s);
+        position = t >= 1 ? framed : lerpVec2(transition.from, framed, s);
+        zoom = t >= 1 ? z : lerp(transition.fromZoom, z, s);
         if (t >= 1) transition = null;
       } else {
         position = framed;

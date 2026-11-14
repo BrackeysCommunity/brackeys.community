@@ -6,7 +6,7 @@ import type {
   RegisteredBehavior,
 } from "../../game/behaviors";
 import type { SpawnerBlock, SpawnerSystem } from "../../game/behaviors/spawner";
-import { ticksFor, wholeTicksIn } from "../../game/time";
+import { isCount, ticksFor, wholeTicksIn } from "../../game/time";
 import type { EngineContext, JsonValue, SpawnInput } from "../../game/types";
 import { translateEntityDef } from "../../scene/translate";
 import type { EntityDef } from "../../scene/types";
@@ -32,8 +32,6 @@ type Spawner = {
 };
 
 type Made = { at: number; dx: number; dy: number };
-
-const isCount = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
 
 /**
  * The spawner system: each entity carrying a `spawner` block accrues `rate`

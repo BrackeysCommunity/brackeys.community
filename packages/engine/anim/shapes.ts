@@ -1,20 +1,7 @@
 /** Frame shapes in world space, and the overlap test fighting games call on them. */
 import type { EngineContext } from "../game/types";
-import { normDeg, shapeAtPose, shapesIntersect } from "../scene/shape-geometry";
-import type { Pt, ShapeObj } from "../scene/types";
-
-/** `s` mirrored across its local y axis; a polygon's or chain's points reversed to keep its winding. */
-function mirrorX(s: ShapeObj): ShapeObj {
-  switch (s.type) {
-    case "poly":
-    case "chain":
-      return { type: s.type, pts: s.pts.map(([x, y]): Pt => [0 - x, y]).reverse() };
-    case "circle":
-      return { ...s, cx: 0 - s.cx };
-    default:
-      return { ...s, cx: 0 - s.cx, rotDeg: normDeg(0 - s.rotDeg) };
-  }
-}
+import { flipShapeX, shapeAtPose, shapesIntersect } from "../scene/shape-geometry";
+import type { ShapeObj } from "../scene/types";
 
 /**
  * A frame's shapes, written in the entity's local metres, placed in the
@@ -26,7 +13,7 @@ export function frameShapesAt(
   pose: { x: number; y: number; rot: number },
   flipX: boolean,
 ): ShapeObj[] {
-  return local.map((s) => shapeAtPose(flipX ? mirrorX(s) : s, pose));
+  return local.map((s) => shapeAtPose(flipX ? flipShapeX(s) : s, pose));
 }
 
 /** True when any shape of `a`'s set `setA` touches any of `b`'s set `setB`, in world space. */

@@ -10,6 +10,7 @@ import { layerOrder, type SpriteVisual, type ViewLayer } from "../context";
 import { spriteAssets } from "../game/behaviors/sprite";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { EngineContext } from "../game/types";
+import { lerpRgb } from "../math";
 import {
   EMITTER_MAX_CAP,
   EMITTER_MAX_DEFAULT,
@@ -18,7 +19,8 @@ import {
 } from "../project/kinds/emitter";
 import type { Sha256 } from "../project/types";
 import type { Pose } from "../runtime/poses";
-import { Rng } from "../sim-kit/rng";
+import type { BurstOptions } from "../runtime/present";
+import { viewRandom } from "../sim-kit/rng";
 import type { Vec2 } from "../types";
 import type { TextureSource } from "./pixi-view";
 import { createSpriteTextures, type SpriteTextures } from "./sprite-textures";
@@ -37,11 +39,7 @@ export interface ParticleLayer {
    * preset's bursts' total, else one second of its rate), its angle range
    * turned by `angle` degrees, drawn in `tint` instead of its tint curve.
    */
-  burst(
-    preset: EmitterFile,
-    at: Vec2,
-    opts?: { count?: number; angle?: number; tint?: number },
-  ): void;
+  burst(preset: EmitterFile, at: Vec2, opts?: BurstOptions): void;
   /** Wall ms scaled by the loop's time scale; 0 while paused. */
   update(dtMs: number): void;
   stats(): { emitters: number; particles: number };
@@ -57,8 +55,8 @@ export type ParticleTexture = {
 };
 
 export type ParticleLayerOptions = {
-  /** Rates and burst counts are quartered. */
-  reducedMotion: boolean;
+  /** Rates and burst counts are quartered while it holds; a function is read on each use. */
+  reducedMotion: boolean | (() => boolean);
   /** Seeds the layer's own random stream: the scene's name. */
   seed: string;
   /** The game's px per metre; default 100. `container` and the layer containers draw in world px. */
@@ -92,33 +90,33 @@ export function particleTexture(
   };
 }
 
+type CurveKey = EmitterCurve[number];
+
+/** The keys either side of `t` on a non-empty curve; the end key twice past either end. */
+function keysAround(curve: EmitterCurve, t: number): [CurveKey, CurveKey] {
+  let before = curve[0]!;
+  if (t <= before[0]) return [before, before];
+  for (const key of curve) {
+    if (key[0] >= t) return [before, key];
+    before = key;
+  }
+  return [before, before];
+}
+
 /** The value of a `[t, value]` curve at `t`, linear between keys; `fallback` without one. */
 export function curveAt(curve: EmitterCurve | undefined, t: number, fallback: number): number {
   if (!curve || curve.length === 0) return fallback;
-  let before = curve[0]!;
-  if (t <= before[0]) return before[1];
-  for (const key of curve) {
-    if (key[0] >= t) {
-      const span = key[0] - before[0];
-      return span > 0 ? before[1] + ((key[1] - before[1]) * (t - before[0])) / span : key[1];
-    }
-    before = key;
-  }
-  return before[1];
+  const [a, b] = keysAround(curve, t);
+  const span = b[0] - a[0];
+  return span > 0 ? a[1] + ((b[1] - a[1]) * (t - a[0])) / span : b[1];
 }
 
 /** A tint curve at `t`, blended per channel. */
 export function tintAt(curve: EmitterCurve | undefined, t: number): number {
   if (!curve || curve.length === 0) return 0xffffff;
-  const channel = (shift: number) =>
-    Math.round(
-      curveAt(
-        curve.map(([k, v]) => [k, (v >> shift) & 0xff]),
-        t,
-        0xff,
-      ),
-    );
-  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
+  const [a, b] = keysAround(curve, t);
+  const span = b[0] - a[0];
+  return lerpRgb(a[1], b[1], span > 0 ? (t - a[0]) / span : 1);
 }
 
 type Bucket = {
@@ -127,7 +125,7 @@ type Bucket = {
   /** Null while the preset's texture hasn't loaded, or for squares. */
   texture: Texture | null;
   want: ParticleTexture | null;
-  /** Particles drawn in it. */
+  /** Particles drawn in it, and emitters that draw into it: it stays, in its place, while any is left. */
   users: number;
 };
 
@@ -154,6 +152,8 @@ type Group = {
   local: boolean;
   cap: number;
   particles: Live[];
+  /** The bucket a running emitter keeps alive between its particles; null for a burst or leftovers. */
+  held: Bucket | null;
   /** An emitter's own state; null for a burst or a stopped emitter's leftovers. */
   source: {
     at: () => Pose | undefined;
@@ -173,10 +173,11 @@ export function createParticleLayer(
   opts: ParticleLayerOptions,
 ): ParticleLayer {
   const ppm = opts.pxPerMetre ?? DEFAULT_LENGTH_UNIT;
-  const random = Rng.from(opts.seed);
-  const unit = () => random.nextU32() / 0x1_0000_0000;
-  const between = ([lo, hi]: readonly [number, number]) => lo + (hi - lo) * unit();
-  const motion = opts.reducedMotion ? 0.25 : 1;
+  const random = viewRandom(opts.seed);
+  const unit = random.unit;
+  const between = ([lo, hi]: readonly [number, number]) => random.between(lo, hi);
+  const reduced = opts.reducedMotion;
+  const motion = () => ((typeof reduced === "function" ? reduced() : reduced) ? 0.25 : 1);
   const emitters = new Map<string, Group>();
   /** Bursts, and stopped emitters' particles living out their life. */
   let loose: Group[] = [];
@@ -242,10 +243,21 @@ export function createParticleLayer(
   const baseScale = (bucket: Bucket) =>
     bucket.texture ? 1 : (SQUARE_METRES * ppm) / Math.max(1, Texture.WHITE.width);
 
+  function hold(preset: EmitterFile, layer: ViewLayer | null): Bucket {
+    const bucket = bucketFor(preset, layer);
+    bucket.users++;
+    return bucket;
+  }
+
+  function release(bucket: Bucket | null): void {
+    if (!bucket) return;
+    bucket.users--;
+    if (bucket.users === 0) dropBucket(bucket);
+  }
+
   function kill(p: Live): void {
     p.bucket.container.removeParticle(p.display);
-    p.bucket.users--;
-    if (p.bucket.users === 0) dropBucket(p.bucket);
+    release(p.bucket);
   }
 
   function spawn(
@@ -332,8 +344,10 @@ export function createParticleLayer(
     g.particles = kept;
   }
 
-  const quartered = (count: number) =>
-    motion === 1 ? count : Math.max(1, Math.round(count * motion));
+  const quartered = (count: number) => {
+    const m = motion();
+    return m === 1 ? count : Math.max(1, Math.round(count * m));
+  };
 
   function emit(g: Group, dtMs: number): void {
     const s = g.source!;
@@ -352,7 +366,7 @@ export function createParticleLayer(
       s.nextBurst++;
     }
     const emitting = Math.max(0, Math.min(s.elapsedMs, until) - from);
-    s.owed += (preset.rate * motion * emitting) / 1000;
+    s.owed += (preset.rate * motion() * emitting) / 1000;
     const n = Math.floor(s.owed);
     s.owed -= n;
     if (n > 0) spawn(g, n, pose);
@@ -363,7 +377,7 @@ export function createParticleLayer(
       for (const p of g.particles) kill(p);
       return;
     }
-    if (g.particles.length > 0) loose.push({ ...g, source: null });
+    if (g.particles.length > 0) loose.push({ ...g, held: null, source: null });
   }
 
   const capOf = (preset: EmitterFile) =>
@@ -382,14 +396,18 @@ export function createParticleLayer(
         local,
         cap: capOf(preset),
         particles: keep ?? [],
+        held: hold(preset, layer ?? null),
         source: { at, owed: 0, elapsedMs: 0, nextBurst: 0, bursts, origin: at() ?? null },
       });
+      // After the new hold, so a restart on the same bucket keeps it in place.
+      release(before?.held ?? null);
     },
     remove(id) {
       const g = emitters.get(id);
       if (!g) return;
       emitters.delete(id);
       stop(g);
+      release(g.held);
     },
     burst(preset, at, o = {}) {
       const total = (preset.bursts ?? []).reduce((n, b) => n + b.count, 0);
@@ -401,6 +419,7 @@ export function createParticleLayer(
         local: false,
         cap: capOf(preset),
         particles: [],
+        held: null,
         source: null,
       };
       spawn(

@@ -566,8 +566,24 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
   "sprite-no-asset": () =>
     validated(scene({}, [sprited("pic", { scale: 2 })]), engine, { project }),
   "anim-tag-unknown": () => animated([{ name: "rest", tag: "idel" }]),
-  "anim-clip-unknown": () =>
-    animated([{ name: "jab", frames: [{ frame: "idle-0" }], loop: "once", next: "idel" }]),
+  "anim-clip-unknown": () => [
+    ...animated([{ name: "jab", frames: [{ frame: "idle-0" }], loop: "once", next: "idel" }]),
+    ...validated(
+      scene({}, [
+        {
+          id: "pic",
+          type: "marker",
+          at: [100, 100],
+          behaviors: {
+            sprite: { asset: "hero", frame: "idle-0" },
+            anim: { source: "hero", clip: "idel" },
+          },
+        },
+      ]),
+      engine,
+      { project },
+    ),
+  ],
   "frame-shape-invalid": () =>
     animated([{ name: "jab", frames: [{ frame: "idle-0", shapes: { Hit: [["box", 0, 0, 1]] } }] }]),
   "tween-target-invalid": () =>

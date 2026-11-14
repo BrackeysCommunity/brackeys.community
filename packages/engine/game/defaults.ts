@@ -15,6 +15,13 @@ export const DEFAULT_SPAWN_CAST = "gravity";
 /** A game's px per metre when its `world.lengthUnit` sets none. */
 export const DEFAULT_LENGTH_UNIT = 100;
 
+/** Seconds a camera rig takes to close half the distance to its goal when its def names no `damping`. */
+export const DEFAULT_CAMERA_DAMPING = 0.12;
+/** The shake a rig gets when its def names none: a light jolt, no turn, gone a second after full trauma. */
+export const DEFAULT_CAMERA_SHAKE = Object.freeze({ maxOffset: 10, maxTurn: 0, decay: 1 });
+/** Seconds a camera region's framing takes to ease in when it names no `ease`. */
+export const DEFAULT_REGION_EASE = 0.4;
+
 /** Side-view tuning in metres: up −y, climb 50°, slide 30°, autostep 0.04 × 0.02, snap 0.04, push. */
 export const SIDE_VIEW_CONTROLLER: CharacterControllerOptions = {
   offset: 0.0001,

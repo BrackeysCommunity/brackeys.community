@@ -1,6 +1,7 @@
 /** Viewports: split screen and minimaps drawn from one world. View-side; nothing here reads the simulation. */
+import { clampZoom, zoomToFit } from "../camera";
 import type { CameraRigDef } from "../game/primitives";
-import type { CameraFrame } from "./rig";
+import { cameraRigProblem, type CameraFrame } from "./rig";
 
 /** One viewport over the canvas. */
 export type ViewportDef = {
@@ -38,6 +39,8 @@ export function viewportsProblem(defs: readonly ViewportDef[]): string | null {
       return `viewport ${i}: rect [${def.rect.join(", ")}] isn't a non-empty part of the canvas in 0–1 fractions`;
     if (def.border && !(Number.isFinite(def.border.width) && def.border.width >= 0))
       return `viewport ${i}: border width must be a finite number ≥ 0`;
+    const rig = def.rig === undefined ? null : cameraRigProblem(def.rig);
+    if (rig) return `viewport ${i}: rig ${rig}`;
   }
   return null;
 }
@@ -79,20 +82,18 @@ export function viewportIndexAt(
 
 /**
  * The frame that shows all of `bounds` ([minX, minY, maxX, maxY], metres) in
- * a view of `view`'s size (metres at zoom 1): centred, as large as fits, never
- * turned or shaken.
+ * a view of `view`'s size (metres at zoom 1): centred, as large as fits within
+ * the camera's zoom limits, never turned or shaken.
  */
 export function sceneFitFrame(
   bounds: readonly [number, number, number, number],
   view: { width: number; height: number },
 ): CameraFrame {
   const [minX, minY, maxX, maxY] = bounds;
-  const w = maxX - minX;
-  const h = maxY - minY;
-  const zoom = Math.min(w > 0 ? view.width / w : Infinity, h > 0 ? view.height / h : Infinity);
+  const zoom = zoomToFit(maxX - minX, maxY - minY, view);
   return {
     position: { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
-    zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : 1,
+    zoom: Number.isFinite(zoom) && zoom > 0 ? clampZoom(zoom) : 1,
     rotation: 0,
   };
 }

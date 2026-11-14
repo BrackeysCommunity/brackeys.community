@@ -8,6 +8,7 @@ import {
   ENGINE_FORMATS,
   formatReleaseManifest,
   INDEX_HTML_FILE,
+  manifestDocRefs,
   RELEASE_FILE,
   releaseBuildHash,
   SERVICE_WORKER_FILE,
@@ -303,6 +304,7 @@ export async function finishExport(
         { path: RELEASE_FILE, bytes: utf8(formatReleaseManifest(manifest)).length },
       ]),
     );
-  issues.push(...(await checkReleaseManifest(manifest, undefined, { measureBudget })));
+  const docRefs = manifestDocRefs(input.texts, input.registry, input.kinds);
+  issues.push(...(await checkReleaseManifest(manifest, undefined, { measureBudget, docRefs })));
   return { manifest, files: files.map((f) => f.file).sort(byPath), issues };
 }

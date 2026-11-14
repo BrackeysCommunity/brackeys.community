@@ -1,3 +1,6 @@
+import { didYouMean } from "../scene/did-you-mean";
+import { makeIssue } from "../scene/issues";
+import type { SceneIssue } from "../scene/types";
 import { ATLAS_KIND, atlasMetaSchema, atlasSettingsSchema } from "./kinds/atlas";
 import { TEXTURE_KIND, textureMetaSchema, textureSettingsSchema } from "./kinds/texture";
 import type { AssetEntry, AssetId, AssetKindName, ProjectView, Sha256 } from "./types";
@@ -99,4 +102,37 @@ export function assetInfo(view: ProjectView, id: AssetId, frame?: string): Asset
   if (frame === undefined) return info;
   const own = frames.get(frame);
   return own ? { ...info, ...own } : null;
+}
+
+/**
+ * `asset-frame-unknown` when `frame` isn't one of an atlas's frames: `who`
+ * draws the atlas but names no frame (at `at.block`, default `at.path`), or
+ * names one it lacks (at `at.path`, with a did-you-mean). Null for a frame
+ * the atlas has, and for an asset that isn't an atlas or whose frames are
+ * unknown.
+ */
+export function atlasFrameIssue(
+  atlas: AssetInfo | null | undefined,
+  frame: unknown,
+  at: { who: string; path: string; block?: string; entityIds?: string[] },
+): SceneIssue | null {
+  if (atlas?.kind !== ATLAS_KIND || !atlas.frames) return null;
+  const frames = atlas.frames;
+  const expected = frames.length > 0 ? { expected: frames.join(" | ") } : {};
+  const entityIds = at.entityIds ?? [];
+  if (typeof frame !== "string")
+    return makeIssue("asset-frame-unknown", {
+      message: `${at.who} draws atlas "${atlas.id}" but names no frame`,
+      path: at.block ?? at.path,
+      entityIds,
+      ...expected,
+    });
+  if (frames.includes(frame)) return null;
+  return makeIssue("asset-frame-unknown", {
+    message: `${at.who} names frame "${frame}", which atlas "${atlas.id}" doesn't have${didYouMean(frame, frames)}`,
+    path: at.path,
+    entityIds,
+    got: frame,
+    ...expected,
+  });
 }

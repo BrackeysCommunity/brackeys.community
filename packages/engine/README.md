@@ -4894,9 +4894,13 @@ velocity from the last tick's pose. A `follow` request replaces them until
 
 **The rig** is a `CameraRigDef` (`./game`, schema `CAMERA_RIG_SCHEMA`), from
 `GameDefinition.camera`, with the scene's `settings.camera` over it field
-by field; a viewport's own `rig` replaces both. With none, the camera
-follows its targets directly until the first camera request gives it a
-rig with the defaults.
+by field; a viewport's own `rig` replaces both. With none, a scene that
+has camera regions gets a rig with the defaults in Play (dropped again if
+a live update removes the last region), as does the first camera request;
+otherwise the camera follows its targets' centre directly. Every zoom,
+from a region, a request or `fit`, stays within the camera's limits,
+0.1–5. A malformed `GameDefinition.camera` fails `createGame`, and a
+viewport's malformed `rig` fails `setViewports`.
 
 | Field       | Default                    | What it is                                                                                  |
 | ----------- | -------------------------- | ------------------------------------------------------------------------------------------- |
@@ -4922,7 +4926,8 @@ smallest, then the first in scene order; leaving every region eases back
 to the scene's bounds. The editor outlines regions on an editor-only layer,
 hidden in Play, and `vp run scene render` draws their boxes (`c` in
 `--ascii`). The rig reads regions from the scene as it stands each frame,
-so a live update that moves one takes effect on the next frame.
+so a live update that moves one takes effect on the next frame. A region
+needs no camera settings: placing one is enough for Play to frame it.
 
 ```ts lookout-game.ts
 import { defineGame, type EngineContext } from "@jams/engine/game";
@@ -5183,7 +5188,8 @@ there are none.
 
 The shell makes both layers. A host that draws its own world uses them
 from `.`: `createParticleLayer(container, textures, { reducedMotion, seed,
-pxPerMetre?, layer?, texture? })` draws into a Pixi container, and
+pxPerMetre?, layer?, texture? })` draws into a Pixi container
+(`reducedMotion` a boolean, or a function read on each use), and
 `createEffectLayer(layer, loop, { reducedMotion })` takes a DOM element
 over the canvas and anything with a time scale:
 
@@ -5212,9 +5218,11 @@ export function hostEffects(
 ## Reduced motion
 
 `GameConfig.reducedMotion` is `true`, `false` or `"auto"` (the default:
-the page's `prefers-reduced-motion`). It is resolved once, at
-`createGame`, and every part reads that one value: `GameInstance.reducedMotion`
-and `UiContext.reducedMotion` carry it.
+the page's `prefers-reduced-motion`, followed as the player changes it).
+Every part reads that one value as it stands: the camera, flashes,
+particles and transitions from their next frame, flash or fade on.
+`GameInstance.reducedMotion` reads it now; `UiContext.reducedMotion`
+carries it as it stood when the UI mounted.
 
 | What                            | Under reduced motion                                              |
 | ------------------------------- | ----------------------------------------------------------------- |

@@ -32,6 +32,12 @@ export type PlannedReleaseOptions = {
   /** Extra code chunks with distinct bytes, for the size and count quotas; the export budget grows to fit them. */
   extraFiles?: { count: number; bytes: number };
   target?: ReleaseTarget;
+  /**
+   * Adds an animation over an atlas "band" the project doesn't hold: the
+   * plan's own refusal of it is let through, so the release ships a doc
+   * whose reference isn't in its assets.
+   */
+  danglingAnimation?: boolean;
 };
 
 export type PlannedRelease = {
@@ -108,8 +114,18 @@ const scene = (name: string, assets: string[], at: [number, number]) => ({
 });
 
 /** A physics-free project as a host holds it: two scenes, a data table, a texture. */
-function heldFiles(png: Uint8Array, pngHash: string, hallVariant: number) {
+function heldFiles(png: Uint8Array, pngHash: string, hallVariant: number, dangling: boolean) {
   const docs: Record<string, unknown> = {
+    ...(dangling
+      ? {
+          "spare.animation.json": {
+            kind: "animation",
+            v: 1,
+            atlas: "band",
+            clips: [{ name: "spin", tag: "spin" }],
+          },
+        }
+      : {}),
     "scene-list.json": {
       kind: "scene-list",
       v: 1,
@@ -173,7 +189,8 @@ export async function plannedRelease(opts: PlannedReleaseOptions = {}): Promise<
   };
   const game = fixtureGame(opts.gameId ?? "fixture-game");
   const png = onePixelPng([64, 160, 96, 255]);
-  const held = heldFiles(png, await sha256(png), opts.hallVariant ?? 0);
+  const dangling = opts.danglingAnimation ?? false;
+  const held = heldFiles(png, await sha256(png), opts.hallVariant ?? 0, dangling);
   const { view, kinds } = heldProject(held.files, createRegistry(game), {
     projectId: project.id,
     name: project.name,
@@ -226,7 +243,9 @@ export async function plannedRelease(opts: PlannedReleaseOptions = {}): Promise<
       : undefined;
 
   const plan = await finishExport(await planContent(input), code, input, budget);
-  const errors = plan.issues.filter((i) => i.severity === "error");
+  const errors = plan.issues.filter(
+    (i) => i.severity === "error" && !(dangling && i.code === "asset-missing"),
+  );
   if (errors.length > 0)
     throw new Error(`the fixture release doesn't plan: ${errors.map((i) => i.message).join("; ")}`);
 

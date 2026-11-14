@@ -330,7 +330,7 @@ const file = (over: Partial<EmitterFile> = {}): EmitterFile => ({
   ...over,
 });
 
-function layerOf(opts: { reducedMotion?: boolean } = {}) {
+function layerOf(opts: { reducedMotion?: boolean | (() => boolean) } = {}) {
   const container = new Container();
   const layer = createParticleLayer(container, undefined, {
     reducedMotion: opts.reducedMotion ?? false,
@@ -519,6 +519,38 @@ describe("the particle layer", () => {
     const bursts = layerOf({ reducedMotion: true });
     bursts.layer.burst(file(), { x: 0, y: 0 }, { count: 12 });
     expect(bursts.layer.stats().particles).toBe(3);
+  });
+
+  it("reads a reduced-motion function on each use, so a change takes effect at once", () => {
+    let reduced = false;
+    const { layer } = layerOf({ reducedMotion: () => reduced });
+    layer.burst(file(), { x: 0, y: 0 }, { count: 12 });
+    expect(layer.stats().particles).toBe(12);
+    reduced = true;
+    layer.burst(file(), { x: 0, y: 0 }, { count: 12 });
+    expect(layer.stats().particles).toBe(15);
+  });
+
+  it("keeps a running emitter's container in its place between its particles", () => {
+    const { container, layer } = layerOf();
+    const blink = file({ bursts: [{ atMs: 0, count: 1 }], lifeMs: [50, 50] });
+    layer.emitter("e", blink, () => still);
+    const bucket = container.children[0];
+    expect(bucket).toBeDefined();
+    const sprite = new Container();
+    container.addChild(sprite);
+    run(layer, 200);
+    expect(layer.stats().particles).toBe(0);
+    // Its last particle died, but the emitter still runs: the same container, under the sprite.
+    expect(container.children).toEqual([bucket, sprite]);
+    layer.emitter("e", blink, () => still);
+    expect(container.children).toEqual([bucket, sprite]);
+    layer.update(FRAME_MS);
+    expect(layer.stats().particles).toBe(1);
+    expect(container.children).toEqual([bucket, sprite]);
+    layer.remove("e");
+    run(layer, 100);
+    expect(container.children).toEqual([sprite]);
   });
 
   it("keeps a stopped emitter's world particles to the end of their life, and clear drops all", () => {

@@ -1,8 +1,8 @@
 /** Validation across a project's docs: each doc's own checks, then the checks that read other docs. */
 import { makeIssue } from "../scene/issues";
 import type { SceneIssue } from "../scene/types";
-import { parseAssetDoc, type DocLookup, type KindEnv, type KindRegistry } from "./kinds";
-import { byPathThenKey, type DocKindDef } from "./kinds/define";
+import { parseAssetDoc, type KindEnv, type KindRegistry } from "./kinds";
+import { byPathThenKey, docLookup, type DocKindDef } from "./kinds/define";
 import { withId } from "./snapshot";
 import type { AssetEntry, AssetId, AssetKindName, ProjectView } from "./types";
 
@@ -28,31 +28,26 @@ export function validateProject(
     if (def?.storage === "doc") docs.push({ entry, def });
   }
 
-  const parsed = new Map<AssetId, { kind: AssetKindName; value: unknown }>();
+  const parsed = new Map<AssetKindName, Map<AssetId, unknown>>();
   for (const { entry, def } of docs) {
     const text = texts.get(entry.id);
     if (text === undefined) continue;
     const found = guarded(entry, "validating", () => {
       const read = parseAssetDoc(def, text, env);
-      if (read.ok) parsed.set(entry.id, { kind: entry.kind, value: read.value });
+      if (read.ok) {
+        const ofKind = parsed.get(entry.kind) ?? new Map<AssetId, unknown>();
+        parsed.set(entry.kind, ofKind.set(entry.id, read.value));
+      }
       return read.issues;
     });
     issues.push(...withId(entry.id, found));
   }
 
-  const lookup: DocLookup = {
-    ids: (kind) => entries.filter((e) => e.kind === kind).map((e) => e.id),
-    read: <T = unknown>(kind: AssetKindName, id: AssetId): T | undefined => {
-      const doc = parsed.get(id);
-      return doc?.kind === kind ? (doc.value as T) : undefined;
-    },
-  };
+  const lookup = docLookup(parsed);
   for (const { entry, def } of docs) {
-    const doc = parsed.get(entry.id);
-    if (!def.crossValidate || !doc) continue;
-    const found = guarded(entry, "cross-validating", () =>
-      def.crossValidate!(doc.value, lookup, env),
-    );
+    if (!def.crossValidate || !parsed.get(entry.kind)?.has(entry.id)) continue;
+    const value = lookup.doc(entry.kind, entry.id);
+    const found = guarded(entry, "cross-validating", () => def.crossValidate!(value, lookup, env));
     issues.push(...withId(entry.id, found));
   }
   return issues;

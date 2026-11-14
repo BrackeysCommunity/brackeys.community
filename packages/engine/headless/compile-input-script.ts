@@ -19,7 +19,7 @@ import type { PointerState } from "../input/state";
 import type { SeatChange, TickInput } from "../input/stream";
 import type { InputMapFile } from "../project/kinds/input-map";
 import { inputAction } from "../runtime/recorder";
-import { closest } from "../scene/did-you-mean";
+import { didYouMean } from "../scene/did-you-mean";
 import {
   checkCommand,
   DEFAULT_SCRIPT_MAX_TICKS,
@@ -146,14 +146,6 @@ function valueAt(value: unknown, path: readonly PropertyKey[]): unknown {
   return at;
 }
 
-const guessed = (word: string, candidates: readonly string[]) => {
-  const guess = closest(
-    word,
-    candidates.filter((c) => c !== word),
-  );
-  return guess ? `; did you mean "${guess}"?` : "";
-};
-
 const issueAt = (path: Path, message: string, extra: Partial<ScriptIssue> = {}): ScriptIssue => ({
   path: jsonPointer(path),
   message,
@@ -161,10 +153,14 @@ const issueAt = (path: Path, message: string, extra: Partial<ScriptIssue> = {}):
 });
 
 function unknownKey(path: Path, key: string, candidates: readonly string[]): ScriptIssue {
-  return issueAt([...path, key], `unknown key ${JSON.stringify(key)}${guessed(key, candidates)}`, {
-    expected: candidates.join(" | "),
-    got: JSON.stringify(key),
-  });
+  return issueAt(
+    [...path, key],
+    `unknown key ${JSON.stringify(key)}${didYouMean(key, candidates)}`,
+    {
+      expected: candidates.join(" | "),
+      got: JSON.stringify(key),
+    },
+  );
 }
 
 function unknownAction(path: Path, action: string, registry: Registry): ScriptIssue {

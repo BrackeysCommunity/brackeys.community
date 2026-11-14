@@ -266,6 +266,7 @@ export {
   findRelease,
   formatReleaseManifest,
   INDEX_HTML_FILE,
+  manifestDocRefs,
   parseReleaseManifest,
   RELEASE_FILE,
   RELEASE_SCHEMA_ID,

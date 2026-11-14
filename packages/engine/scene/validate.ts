@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
+import { ANIM } from "../game/behaviors/anim";
 import { BODY } from "../game/behaviors/body";
 import { CHARACTER_SIDE_VIEW } from "../game/behaviors/character-side-view";
 import { CHARACTER_TOP_DOWN } from "../game/behaviors/character-top-down";
@@ -25,14 +26,16 @@ import { flowIssue, type SceneLibrary } from "../game/flow";
 import { physicsNeeds } from "../game/primitives";
 import { ENGINE_REGISTRY_ID, scopedRef, type RegisteredType, type Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
-import { assetInfo } from "../project/asset-info";
+import { assetInfo, atlasFrameIssue } from "../project/asset-info";
+import { ANIMATION_KIND, sourceClipNames, type AnimationFile } from "../project/kinds/animation";
 import { ATLAS_KIND } from "../project/kinds/atlas";
 import { isPlainObject } from "../project/kinds/define";
 import { entityRefSites, headerAssetRefs } from "../project/kinds/fields";
 import type { SceneListEntry } from "../project/kinds/scene-list";
 import { schemaRefSites, type RefSite } from "../project/refs";
+import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, AssetKindName, ProjectView } from "../project/types";
-import { closest } from "./did-you-mean";
+import { closest, didYouMean } from "./did-you-mean";
 import {
   behaviorBlocks,
   bulkId,
@@ -127,10 +130,17 @@ export type ValidateOptions = {
    * types, behaviors and settings, and the `assets` header) that isn't live
    * is `asset-missing` and one of the wrong kind `asset-kind`, a sprite
    * without an asset `sprite-no-asset` and one naming a frame its atlas
-   * lacks (or none) `asset-frame-unknown`; without it,
+   * lacks (or none) `asset-frame-unknown`, and an `anim` block whose atlas
+   * source has no tag named its `clip` `anim-clip-unknown`; without it,
    * asset ids aren't checked.
    */
   project?: ProjectView;
+  /**
+   * The project's runtime view, which reads its runtime docs. With it and
+   * `project`, an `anim` block whose source is an animation is checked
+   * against that animation's clips too.
+   */
+  runtime?: Pick<ProjectRuntimeView, "doc">;
   /**
    * The project's `game-settings` engine block. Settings resolve through it
    * and the game's world as `expandScene` resolves them, so the grid that
@@ -539,7 +549,10 @@ export function validateScene(
     check(schemaRefSites(r.settings, source.settings ?? {}, "/settings"), "", []);
     check(headerAssetRefs(source.assets), "", []);
     entities.forEach((e, i) => {
-      if (r.types.has(e.type)) checkSprite(r, project, e, jsonPointer(["entities", i]), push);
+      if (!r.types.has(e.type)) return;
+      const at = jsonPointer(["entities", i]);
+      checkSprite(r, project, e, at, push);
+      checkAnim(r, project, opts.runtime, e, at, push);
     });
   }
 
@@ -807,9 +820,8 @@ function checkSpawners(r: Registry, entities: readonly EntityDef[], push: Push):
     if (typeof type !== "string" || (r.types.get(type) && r.types.get(type)!.loads !== false))
       return;
     const loadable = r.typeNames.filter((t) => r.types.get(t)?.loads !== false);
-    const guess = closest(type, loadable);
     push("unknown-type", {
-      message: `${e.id}'s spawner spawns "${type}", which ${r.types.has(type) ? "never loads" : "isn't a registered type"}${guess ? `; did you mean "${guess}"?` : ""}`,
+      message: `${e.id}'s spawner spawns "${type}", which ${r.types.has(type) ? "never loads" : "isn't a registered type"}${didYouMean(type, loadable)}`,
       path: jsonPointer(["entities", i, BEHAVIORS_FIELD, SPAWNER.name, "type"]),
       entityIds: [e.id],
       expected: loadable.join(" | "),
@@ -988,9 +1000,8 @@ function checkBehaviors(
       const candidates = loads
         ? [...allowed].filter((n) => !(n in blocks))
         : registry.behaviorNames.filter((n) => !(n in blocks));
-      const guess = closest(name, candidates);
       push("behavior-unknown", {
-        message: `${e.id} carries behavior "${name}", which isn't registered${guess ? `; did you mean "${guess}"?` : ""}`,
+        message: `${e.id} carries behavior "${name}", which isn't registered${didYouMean(name, candidates)}`,
         path: pointer(name),
         entityIds: [e.id],
         got: name,
@@ -1139,9 +1150,8 @@ function checkBehaviors(
   const groups = registry.collisionGroupNames;
   const groupIssue = (group: unknown, path: string, what: string, severity?: "warn") => {
     if (typeof group !== "string" || !ID_PATTERN.test(group) || groups.includes(group)) return;
-    const guess = closest(group, groups);
     push("schema", {
-      message: `${e.id}'s ${what} names collision group "${group}", which the game doesn't declare${guess ? `; did you mean "${guess}"?` : ""}`,
+      message: `${e.id}'s ${what} names collision group "${group}", which the game doesn't declare${didYouMean(group, groups)}`,
       path,
       entityIds: [e.id],
       expected: groups.join(" | "),
@@ -1213,9 +1223,8 @@ function checkBehaviors(
       if (issue.code === "unrecognized_keys") {
         const known = Object.keys(behavior.shape);
         for (const key of issue.keys) {
-          const guess = closest(key, known);
           push("schema", {
-            message: `${e.id}.${BEHAVIORS_FIELD}.${name} has no field "${key}"${guess ? `; did you mean "${guess}"?` : ""}`,
+            message: `${e.id}.${BEHAVIORS_FIELD}.${name} has no field "${key}"${didYouMean(key, known)}`,
             path: pointer(name, ...path, key),
             entityIds: [e.id],
             got: key,
@@ -1253,12 +1262,9 @@ function checkSprite(
   at: string,
   push: Push,
 ): void {
-  const name = SPRITE.name;
-  const block = behaviorBlocks(registry, e.type, e[BEHAVIORS_FIELD])[name];
+  const block = behaviorBlocks(registry, e.type, e[BEHAVIORS_FIELD])[SPRITE.name];
   if (!block) return;
-  const written = isPlainObject(e[BEHAVIORS_FIELD]) && Object.hasOwn(e[BEHAVIORS_FIELD], name);
-  const pointer = (...rest: string[]) =>
-    written ? `${at}${jsonPointer([BEHAVIORS_FIELD, name, ...rest])}` : at;
+  const pointer = blockPointer(e, at, SPRITE.name);
   const asset = block.asset;
   if (typeof asset !== "string") {
     push("sprite-no-asset", {
@@ -1268,27 +1274,70 @@ function checkSprite(
     });
     return;
   }
-  const info = assetInfo(project, asset);
-  if (info?.kind !== ATLAS_KIND || !info.frames) return;
-  const frame = block.frame;
-  const frames = info.frames;
-  if (typeof frame !== "string") {
-    push("asset-frame-unknown", {
-      message: `${e.id}'s sprite draws atlas "${asset}" but names no frame`,
-      path: pointer(),
-      entityIds: [e.id],
-      ...(frames.length > 0 ? { expected: frames.join(" | ") } : {}),
-    });
-    return;
-  }
-  if (frames.includes(frame)) return;
-  const guess = closest(frame, frames);
-  push("asset-frame-unknown", {
-    message: `${e.id}'s sprite names frame "${frame}", which atlas "${asset}" doesn't have${guess ? `; did you mean "${guess}"?` : ""}`,
+  const issue = atlasFrameIssue(assetInfo(project, asset), block.frame, {
+    who: `${e.id}'s sprite`,
     path: pointer("frame"),
+    block: pointer(),
     entityIds: [e.id],
-    got: frame,
-    ...(frames.length > 0 ? { expected: frames.join(" | ") } : {}),
+  });
+  if (issue) push(issue.code, issue);
+}
+
+/**
+ * A pointer into `e`'s `name` block when the entity writes one, else to the
+ * entity, whose type's block it carries.
+ */
+function blockPointer(e: EntityDef, at: string, name: string) {
+  const written = isPlainObject(e[BEHAVIORS_FIELD]) && Object.hasOwn(e[BEHAVIORS_FIELD], name);
+  return (...rest: string[]) =>
+    written ? `${at}${jsonPointer([BEHAVIORS_FIELD, name, ...rest])}` : at;
+}
+
+/** The clips an `anim` block's source offers and what it is, or null when they can't be read. */
+function sourceClips(
+  project: ProjectView,
+  runtime: Pick<ProjectRuntimeView, "doc"> | undefined,
+  source: AssetId,
+): { what: string; names: string[] } | null {
+  const kind = project.byId.get(source)?.kind;
+  if (kind === ATLAS_KIND) {
+    const atlas = assetInfo(project, source);
+    return atlas?.tags ? { what: "atlas", names: sourceClipNames({ atlas }) } : null;
+  }
+  if (kind === ANIMATION_KIND) {
+    const animation = runtime?.doc?.<AnimationFile>(ANIMATION_KIND, source);
+    return animation ? { what: "animation", names: sourceClipNames({ animation }) } : null;
+  }
+  return null;
+}
+
+/**
+ * An entity's anim block against its source: `anim-clip-unknown` for a
+ * `clip` that isn't one of the source's clips (an animation's, or an
+ * atlas's tags), with a did-you-mean. An animation source is read through
+ * `runtime`, and isn't checked without it; a missing or wrong-kind source is
+ * the asset checks'.
+ */
+function checkAnim(
+  registry: Registry,
+  project: ProjectView,
+  runtime: Pick<ProjectRuntimeView, "doc"> | undefined,
+  e: EntityDef,
+  at: string,
+  push: Push,
+): void {
+  const block = behaviorBlocks(registry, e.type, e[BEHAVIORS_FIELD])[ANIM.name];
+  const source = block?.source;
+  const clip = block?.clip;
+  if (typeof source !== "string" || typeof clip !== "string") return;
+  const clips = sourceClips(project, runtime, source);
+  if (!clips || clips.names.includes(clip)) return;
+  push("anim-clip-unknown", {
+    message: `${e.id}'s anim plays clip "${clip}", which ${clips.what} "${source}" doesn't have${didYouMean(clip, clips.names)}`,
+    path: blockPointer(e, at, ANIM.name)("clip"),
+    entityIds: [e.id],
+    got: clip,
+    ...(clips.names.length > 0 ? { expected: clips.names.join(" | ") } : {}),
   });
 }
 
@@ -1314,11 +1363,10 @@ function assetIssue(
   const segments = pointerSegments(site.pointer);
   const field = (owner ? segments.slice(2) : segments).join(".");
   const where = owner ? `${owner}.${field}` : field;
-  const guess = closest(
+  const suggest = didYouMean(
     site.id,
-    [...project.byId.values()].filter((e) => e.id !== site.id && fits(e.kind)).map((e) => e.id),
+    [...project.byId.values()].filter((e) => fits(e.kind)).map((e) => e.id),
   );
-  const suggest = guess ? `; did you mean "${guess}"?` : "";
   const common = {
     path: site.pointer,
     entityIds,
@@ -1434,9 +1482,8 @@ function validateSource(
   ];
   for (const { id, layer, path } of layered) {
     if (typeof layer !== "string" || layers.includes(layer)) continue;
-    const guess = closest(layer, layers);
     push("layer-unknown", {
-      message: `${id} is on layer "${layer}", which isn't one of ${layers.join(", ")}${guess ? `; did you mean "${guess}"?` : ""}`,
+      message: `${id} is on layer "${layer}", which isn't one of ${layers.join(", ")}${didYouMean(layer, layers)}`,
       path: jsonPointer([...path, "layer"]),
       entityIds: [id],
       expected: layers.join(" | "),
@@ -1560,9 +1607,8 @@ function validateSource(
     if (resolved.ok)
       for (const name of Object.keys(inst.params ?? {})) {
         if (exposed.includes(name)) continue;
-        const guess = closest(name, exposed);
         push("param-unknown", {
-          message: `${inst.id} sets param "${name}", which prefab "${inst.prefab}" doesn't expose${guess ? `; did you mean "${guess}"?` : ""}`,
+          message: `${inst.id} sets param "${name}", which prefab "${inst.prefab}" doesn't expose${didYouMean(name, exposed)}`,
           path: jsonPointer(["instances", i, "params", name]),
           entityIds: [inst.id],
           got: name,

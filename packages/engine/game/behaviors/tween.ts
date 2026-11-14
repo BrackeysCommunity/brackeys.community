@@ -37,8 +37,13 @@ export type TweenChannel = "x" | "y" | "rot" | "alpha" | "tint" | "scale";
 /** The channels that move the pose; the rest are a sprite's. */
 export const POSE_CHANNELS: readonly TweenChannel[] = Object.freeze(["x", "y", "rot"]);
 
-/** The engine primitives whose systems have `setPose`. */
-const POSED_PRIMITIVES: readonly string[] = Object.freeze(["marker", "decor", "solid", "sensor"]);
+/** The engine primitives whose systems have `setPose`; zod-only code can't ask the systems. */
+export const POSED_PRIMITIVES: readonly string[] = Object.freeze([
+  "marker",
+  "decor",
+  "solid",
+  "sensor",
+]);
 
 /**
  * Whether entities of `type` can be posed, as the registry tells it: an
@@ -93,7 +98,7 @@ export function tweenTargetProblem(
 const delaySchema = (description: string, min: number) =>
   z
     .union([
-      z.number().int().min(min).describe("Ticks."),
+      z.number().int().min(min).describe("Ticks.").meta({ unit: "ticks" }),
       z.strictObject({
         ms: z.number().min(min).describe("Milliseconds, rounded to ticks once at the run's rate."),
       }),

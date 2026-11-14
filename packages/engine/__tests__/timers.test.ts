@@ -153,6 +153,16 @@ describe("{ ms } delays", () => {
     expect(log).toEqual([`50@${fiftyMsTick}`, `100@${hundredMsTick}`]);
     rt.destroy();
   });
+
+  it("wait no ticks for { ms: 0 }, as for 0", () => {
+    const { ctx, steps, rt } = setup();
+    const log: string[] = [];
+    ctx.timers.after({ ms: 0 }, () => void log.push(`ms@${ctx.tick}`));
+    ctx.timers.after(0, () => void log.push(`ticks@${ctx.tick}`));
+    steps(2);
+    expect(log).toEqual(["ms@0", "ticks@0"]);
+    rt.destroy();
+  });
 });
 
 describe("owners", () => {

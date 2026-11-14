@@ -2,9 +2,11 @@ import { measureBudget } from "@jams/engine/export";
 import { createRegistry } from "@jams/engine/game";
 import {
   checkReleaseManifest,
+  createKindRegistry,
   formatReleaseManifest,
   liveCompat,
   liveCompatKey,
+  manifestDocRefs,
   parseReleaseManifest,
   parseSceneVersion,
   prefabKind,
@@ -12,6 +14,7 @@ import {
   sceneKind,
   sha256 as sha256Of,
   RELEASE_FILE,
+  type KindRegistry,
   type ReleaseAsset,
   type ReleaseFile,
   type ReleaseManifest,
@@ -471,6 +474,36 @@ async function checkListedFiles(
   return unseen.filter((key) => !scanned.has(key));
 }
 
+/**
+ * The text of every shipped doc the project holds whose kind in `kinds`
+ * names other assets, by id, for the check of those references. The site
+ * has no game, so `kinds` are the engine's.
+ */
+async function shippedDocTexts(
+  store: ReleaseObjectStore,
+  manifest: ReleaseManifest,
+  held: Held,
+  kinds: KindRegistry,
+): Promise<Map<string, string>> {
+  const docs = Object.entries(manifest.assets).flatMap(([id, asset]) => {
+    const def = kinds.get(asset.kind);
+    const served = def?.storage === "doc" && def.refs ? servedFrom(held, asset.sha256) : null;
+    return served ? [{ id, key: served.storageKey }] : [];
+  });
+  const texts = new Map<string, string>();
+  const decoder = new TextDecoder();
+  for (let i = 0; i < docs.length; i += CHECK_CONCURRENCY) {
+    await Promise.all(
+      docs.slice(i, i + CHECK_CONCURRENCY).map(async ({ id, key }) => {
+        const body = await readStored(store, key, null);
+        if (!body) refuse(releaseFilesMissing(1));
+        texts.set(id, decoder.decode(body));
+      }),
+    );
+  }
+  return texts;
+}
+
 /** Each file the project holds neither as a release object nor as a blob, once per hash. */
 function missingFiles(files: readonly ReleaseFile[], held: Held): MissingFile[] {
   const seen = new Set<string>();
@@ -787,7 +820,9 @@ export async function putReleaseFile(
 
 /**
  * Records the release once every file has arrived and every listed file,
- * held or sent, passes the per-file checks. Under a lock on the project
+ * held or sent, passes the per-file checks, and the manifest checks again
+ * with every shipped doc's references read from its stored text (an engine
+ * kind's; the site has no game's). Under a lock on the project
  * row, the one the collector takes before it removes anything: every file
  * still stored, the next version, the release and its file rows, the
  * preview pointer (unless the upload said `none`), the audit rows, and the
@@ -832,7 +867,10 @@ export async function commitRelease(
   const files = new Map<string, Sha256>();
   for (const f of manifest.build.files)
     if (held.objects.has(f.sha256) || held.blobs.has(f.sha256)) files.set(f.path, f.sha256);
-  const issues = await checkReleaseManifest(manifest, files, { measureBudget });
+  const kinds = createKindRegistry();
+  const texts = await shippedDocTexts(deps.store, manifest, held, kinds);
+  const docRefs = manifestDocRefs(texts, createRegistry(), kinds);
+  const issues = await checkReleaseManifest(manifest, files, { measureBudget, docRefs });
   const error = issues.find((i) => i.severity === "error");
   if (error) refuse(issueError(error));
   const unscanned = await checkListedFiles(db, deps.store, manifest, held);

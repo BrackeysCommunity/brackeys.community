@@ -2,29 +2,27 @@ import {
   ANIM,
   pxPerMetreOf,
   type AnimState,
+  type EngineContext,
   type GameCommand,
   type PlayersDef,
 } from "@jams/engine/game";
 import {
   compileInputScript,
-  createHeadlessRuntime,
   ENTITY_DESTROYED,
   ENTITY_SPAWNED,
   runProbe,
   simActionError,
   type ProbeInput,
-  type ProjectRuntimeView,
   type RapierModule,
   type StepEvent,
 } from "@jams/engine/headless";
 import {
-  closest,
+  didYouMean,
   expandScene,
   INPUT_SCRIPT_VERSION,
   sceneHashWith,
   scenePhysics,
   type ExpandedScene,
-  type PrefabLibrary,
   type Registry,
   type SceneDefinition,
 } from "@jams/engine/scene";
@@ -335,71 +333,15 @@ export type AnimTick = { tick: number } & (AnimState | { clip: null });
 function animTargetProblem(scene: ExpandedScene, id: string): string | null {
   const entity = scene.entities.find((e) => e.id === id);
   const animated = scene.entities.filter((e) => e.behaviors?.[ANIM.name] !== undefined);
-  if (!entity) {
-    const guess = closest(
+  if (!entity)
+    return `--anim ${id}: no entity "${id}" in the scene${didYouMean(
       id,
       animated.map((e) => e.id),
-    );
-    return `--anim ${id}: no entity "${id}" in the scene${guess ? `; did you mean "${guess}"?` : ""}`;
-  }
+    )}`;
   if (entity.behaviors?.[ANIM.name] !== undefined) return null;
   const others =
     animated.length > 0 ? ` (entities with one: ${animated.map((e) => e.id).join(", ")})` : "";
   return `--anim ${id}: "${id}" has no anim block${others}`;
-}
-
-/**
- * The `--anim` entity's clip and frame after each of the first `ticks`
- * ticks, from a second headless run of the same scene, input and commands
- * (the simulation is deterministic, so it steps as the probe's run did); it
- * stops early where a step throws, as the probe's run is then blocked.
- */
-function traceAnim(opts: {
-  id: string;
-  ticks: number;
-  rapier: RapierModule | null;
-  registry: Registry;
-  project: ProjectRuntimeView | null;
-  scene: ExpandedScene;
-  library?: PrefabLibrary;
-  hold: readonly string[];
-  inputs: readonly Edge[];
-  commands: readonly (readonly [number, GameCommand])[];
-}): AnimTick[] {
-  const runtime = createHeadlessRuntime({
-    rapier: opts.rapier,
-    game: opts.registry.game,
-    registry: opts.registry,
-    project: opts.project,
-    scene: opts.scene,
-    ...(opts.library ? { prefabs: opts.library } : {}),
-  });
-  const trace: AnimTick[] = [];
-  try {
-    const time = runtime.ctx.time;
-    const press = (action: string, pressed: boolean, tick: number) => ({
-      action,
-      pressed,
-      tick,
-      timestamp: tick * time.tickMs,
-    });
-    for (let tick = 0; tick < opts.ticks; tick++) {
-      const actions = tick === 0 ? opts.hold.map((a) => press(a, true, 0)) : [];
-      for (const [at, action, down] of opts.inputs)
-        if (at === tick) actions.push(press(action, down === 1, tick));
-      const commands = opts.commands.filter(([at]) => at === tick).map(([, c]) => c);
-      try {
-        runtime.step(time.tickMs, actions, commands.length > 0 ? commands : undefined);
-      } catch {
-        break;
-      }
-      const state = runtime.ctx.anim.state(opts.id);
-      trace.push(state ? { tick, ...state } : { tick, clip: null });
-    }
-  } finally {
-    runtime.destroy();
-  }
-  return trace;
 }
 
 /** `t0..5 idle 0 hero-0`: one line per run of ticks on the same frame of the same clip. */
@@ -474,6 +416,15 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     if (problem) return usage(problem);
   }
   const rapier = await rapierFor(ctx, loaded.def, registry, engine);
+  const animId = input.anim;
+  const trace: AnimTick[] = [];
+  const observe =
+    animId === undefined
+      ? undefined
+      : (run: EngineContext, tick: number) => {
+          const state = run.anim.state(animId);
+          trace.push(state ? { tick, ...state } : { tick, clip: null });
+        };
   const report = runProbe({
     rapier,
     game: registry.game,
@@ -486,23 +437,10 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     inputs,
     commands,
     ...(input.timing ? { timing: wallTiming() } : {}),
+    ...(observe ? { observe } : {}),
   });
   const { timing } = report.stats;
-  const anim =
-    input.anim !== undefined && report.load.ok
-      ? traceAnim({
-          id: input.anim,
-          ticks: report.ticks,
-          rapier,
-          registry,
-          project,
-          scene,
-          ...(loaded.prefabs ? { library: loaded.prefabs } : {}),
-          hold,
-          inputs,
-          commands,
-        })
-      : undefined;
+  const anim = animId !== undefined && report.load.ok ? trace : undefined;
   const hash = sceneHashWith(loaded.def, loaded.prefabs);
   const printed = eventsReport(report.events, report.truncated, types);
   const data = {

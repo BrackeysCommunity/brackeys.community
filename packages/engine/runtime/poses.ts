@@ -1,3 +1,5 @@
+import { lerp, lerpAngle } from "../math";
+
 export type Pose = {
   x: number;
   y: number;
@@ -78,6 +80,15 @@ export function createPoseIndex(tick: () => number): WatchedPoseIndex {
   };
 }
 
+/** `prev` toward `cur` by `alpha`: what a rendered frame between two ticks draws, turning the shorter way. */
+export function lerpPose(prev: Readonly<Pose>, cur: Readonly<Pose>, alpha: number): Pose {
+  return {
+    x: lerp(prev.x, cur.x, alpha),
+    y: lerp(prev.y, cur.y, alpha),
+    rot: lerpAngle(prev.rot, cur.rot, alpha),
+  };
+}
+
 /** `pose` in the frame `frame` is posed at: what a body-local offset is for a body placed at `frame`. */
 export function relativePose(pose: Pose, frame: Pose): Pose {
   const dx = pose.x - frame.x;
@@ -86,6 +97,19 @@ export function relativePose(pose: Pose, frame: Pose): Pose {
   const c = Math.cos(frame.rot);
   const s = Math.sin(frame.rot);
   return { x: dx * c + dy * s, y: dy * c - dx * s, rot: pose.rot - frame.rot };
+}
+
+/** The pose of a body whose entity, at `offset` in the body's frame, is at `pose`: `composePose`'s inverse. */
+export function framePose(pose: Readonly<Pose>, offset: Pose): Pose {
+  const rot = pose.rot - offset.rot;
+  if (rot === 0) return { x: pose.x - offset.x, y: pose.y - offset.y, rot };
+  const c = Math.cos(rot);
+  const s = Math.sin(rot);
+  return {
+    x: pose.x - (offset.x * c - offset.y * s),
+    y: pose.y - (offset.x * s + offset.y * c),
+    rot,
+  };
 }
 
 /** A body-local `offset` placed on a body at `x, y` turned `rot` radians: the world pose it rides to. */

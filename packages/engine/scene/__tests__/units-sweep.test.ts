@@ -24,7 +24,7 @@ const NAMES_LENGTH =
   /(?:^|[\s,(])(?:m|m\/s|m\/s²|px|px\/s|px\/s²)(?=$|[\s.,;:)])|\b(?:metres?|meters?|pixels?)\b/i;
 
 /** Units that never scale with px per metre: angles, durations, tick counts, rates, density and spring constants. */
-const NON_LENGTH_UNITS = ["deg", "ms", "ticks", "/s", "kg/m²", "N/m", "N·s/m"];
+const NON_LENGTH_UNITS = ["deg", "rad", "s", "ms", "ticks", "/s", "kg/m²", "N/m", "N·s/m"];
 
 /** Units no field may declare: the simulation's speeds and accelerations are metric. */
 const PX_RATES = ["px/s", "px/s²"];

@@ -12,6 +12,7 @@ import { heldProject, type ProjectRuntimeView } from "../project/runtime-view";
 import { validateProject } from "../project/validate-project";
 import { preparePlay } from "../runtime/play-session";
 import { makeIssue } from "../scene/issues";
+import type { SceneDefinition } from "../scene/types";
 import { manifestRuntimeView } from "../standalone/manifest-view";
 import {
   CC0,
@@ -51,14 +52,14 @@ const curveKind = defineAssetKind({
   refs: (value: CurveFile) =>
     value.art === undefined ? [] : [{ pointer: "/art", id: value.art, kinds: ["texture"] }],
   crossValidate: (value: CurveFile, lookup) =>
-    value.after === undefined || lookup.read(CURVE, value.after) !== undefined
+    value.after === undefined || lookup.doc(CURVE, value.after) !== undefined
       ? []
       : [
           makeIssue("asset-missing", {
             message: `the curve follows "${value.after}", which isn't a curve`,
             path: "/after",
             got: value.after,
-            expected: lookup.ids(CURVE).join(", "),
+            expected: lookup.docs(CURVE).join(", "),
           }),
         ],
   runtime: "sim",
@@ -140,6 +141,91 @@ describe("runHash over runtime docs", () => {
     expect(runHashWith(kindsGame, memoryRuntimeView({ settings: { avatarSpeed: 4 } }))).not.toBe(
       base,
     );
+  });
+
+  /** An atlas sidecar: frames "a" and "b" of `ms` each, tagged "walk". */
+  const walkAtlas = (ms: number) => ({
+    path: "art/strip.json",
+    sidecar: {
+      kind: "asset-sidecar" as const,
+      v: 1 as const,
+      key: "key-strip",
+      id: "strip",
+      assetKind: "atlas",
+      sha256: "1".repeat(64),
+      bytes: 50,
+      import: { texture: "strip-art" },
+      meta: {
+        frames: {
+          a: { x: 0, y: 0, w: 16, h: 16, pivot: [0.5, 0.5], durationMs: ms },
+          b: { x: 16, y: 0, w: 16, h: 16, pivot: [0.5, 0.5], durationMs: ms },
+        },
+        order: ["a", "b"],
+        slices: [],
+        tags: [{ name: "walk", from: 0, to: 1, direction: "forward" }],
+        tool: "aseprite",
+      },
+      licence: CC0,
+    },
+  });
+  const animation = (clip: string) => ({
+    kind: "animation",
+    v: 1,
+    atlas: "strip",
+    clips: [{ name: clip, tag: "walk" }],
+  });
+  /** PRE_KINDS_DOCS with `docs` added, and the strip atlas at `ms` a frame. */
+  const animated = (docs: Record<string, unknown>, ms = 100) => {
+    const held = heldDocs({ ...PRE_KINDS_DOCS, ...docs });
+    held.files.push(walkAtlas(ms), {
+      path: "art/strip.png",
+      sidecar: png("strip-art", "2".repeat(64), 40, 32, CC0),
+    });
+    return heldProject(held.files, createRegistry(testGame), { projectId: "test", name: "Test" })
+      .runtime;
+  };
+
+  it("leaves the hash equal when an animation doc moves, since the docs join in id order", () => {
+    const hop = { "anims/b.animation.json": animation("hop") };
+    const before = animated({ "anims/a.animation.json": animation("run"), ...hop });
+    const after = animated({ "zz/a.animation.json": animation("run"), ...hop });
+    expect(before.docs!("animation")).toEqual(["a-animation", "b-animation"]);
+    expect(after.docs!("animation")).toEqual(["b-animation", "a-animation"]);
+    expect(runHashWith(testGame, after)).toBe(runHashWith(testGame, before));
+  });
+
+  it("changes with an animated atlas's frame timing, and keeps a project without animations at its hash", () => {
+    const docs = { "walk.animation.json": animation("walk") };
+    const base = runHashWith(testGame, animated(docs, 100));
+    expect(runHashWith(testGame, animated(docs, 100))).toBe(base);
+    expect(runHashWith(testGame, animated(docs, 200))).not.toBe(base);
+    expect(runHashWith(testGame, animated({}, 100))).toBe(runHashWith(testGame, animated({}, 200)));
+  });
+
+  it("changes with the timing of an atlas an anim block plays directly", () => {
+    const yard = (ms: number) => {
+      const view = animated({}, ms);
+      const def = {
+        ...scene("yard"),
+        entities: [
+          { id: "start", type: "marker", at: [1, 1], tags: ["spawn"] },
+          {
+            id: "dancer",
+            type: "marker",
+            at: [2, 1],
+            behaviors: {
+              sprite: { asset: "strip", frame: "a", size: [0.5, 0.5] },
+              anim: { source: "strip", clip: "walk" },
+            },
+          },
+        ],
+      } as SceneDefinition;
+      const prepared = preparePlay(def, createRegistry(testGame), { project: view });
+      if (!prepared.ok) throw new Error(JSON.stringify(prepared.issues));
+      return prepared.runHash;
+    };
+    expect(yard(100)).toBe(yard(100));
+    expect(yard(200)).not.toBe(yard(100));
   });
 
   it("keeps a project with no other sim docs at its pinned hash, whatever kinds the game adds", () => {

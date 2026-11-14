@@ -1,4 +1,6 @@
 /** Camera regions: areas that hold the camera's framing while a target is inside. */
+import { DEFAULT_REGION_EASE } from "../game/defaults";
+import { CAMERA_REGION_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { aabb } from "../scene/shape-geometry";
 import type { RuntimeEntity, ShapeObj } from "../scene/types";
@@ -16,10 +18,7 @@ export type CameraRegion = {
   ease: number;
 };
 
-/** Seconds a region's framing takes to ease in when it names no `ease`. */
-export const DEFAULT_REGION_EASE = 0.4;
-
-const PRIMITIVE = "camera-region";
+export { DEFAULT_REGION_EASE };
 
 const contains = (r: CameraRegion, p: Vec2) =>
   p.x >= r.min.x && p.x <= r.max.x && p.y >= r.min.y && p.y <= r.max.y;
@@ -56,7 +55,7 @@ export function cameraRegionsOf(
   const out: CameraRegion[] = [];
   for (const e of entities) {
     const type = registry.types.get(e.type);
-    if (!type || (type.base ?? type.type) !== PRIMITIVE) continue;
+    if (!type || (type.base ?? type.type) !== CAMERA_REGION_TYPE) continue;
     const shape = e.shape as ShapeObj | undefined;
     if (!shape) continue;
     const box = aabb(shape);

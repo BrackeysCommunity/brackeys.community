@@ -8,9 +8,11 @@ import { rowSchemaOf, tableAssets } from "./kinds/data-table";
 import {
   byCodeUnit,
   byPathThenKey,
+  docLookup,
   isPlainObject,
   isRuntimeKind,
   runtimeKindNames,
+  type DocLookup,
 } from "./kinds/define";
 import { gameSettingsEntries, gameSettingsValues } from "./kinds/game-settings";
 import type { InputMapFile } from "./kinds/input-map";
@@ -56,9 +58,9 @@ export type ProjectRuntimeView = {
    * frozen; undefined for an unknown id, a doc that doesn't parse, or a
    * kind that isn't a runtime kind. `runtimeView` always sets it.
    */
-  doc?<T = unknown>(kind: AssetKindName, id: AssetId): T | undefined;
+  doc?: DocLookup["doc"];
   /** The ids `doc` answers for a runtime kind, in path order. `runtimeView` always sets it. */
-  docs?(kind: AssetKindName): readonly AssetId[];
+  docs?: DocLookup["docs"];
 };
 
 type Row = Readonly<Record<string, unknown> & { id: string }>;
@@ -127,8 +129,7 @@ export function runtimeView(
     structuredClone(sceneListFlow(listEntry ? values.get(listEntry.id) : undefined)),
   );
 
-  const runtimeDocs = runtimeDocsOf(view, values, registry, kinds);
-  const noIds: readonly AssetId[] = Object.freeze([]);
+  const runtimeDocs = docLookup(runtimeDocsOf(view, values, registry, kinds));
 
   return Object.freeze({
     settings,
@@ -140,37 +141,30 @@ export function runtimeView(
     },
     inputMap,
     flow,
-    doc: <T = unknown>(kind: AssetKindName, id: AssetId): T | undefined =>
-      runtimeDocs.get(kind)?.values.get(id) as T | undefined,
-    docs: (kind: AssetKindName) => runtimeDocs.get(kind)?.ids ?? noIds,
+    doc: runtimeDocs.doc,
+    docs: runtimeDocs.docs,
   });
 }
 
-/** Each runtime kind's docs that parse, frozen, by id, and their ids in path order. */
+/** Each runtime kind's docs that parse, frozen, by id in path order. */
 function runtimeDocsOf(
   view: ProjectView,
   values: ReadonlyMap<AssetId, unknown>,
   registry: Registry,
   kinds: KindRegistry,
-): Map<AssetKindName, { ids: readonly AssetId[]; values: ReadonlyMap<AssetId, unknown> }> {
-  const out = new Map<
-    AssetKindName,
-    { ids: readonly AssetId[]; values: ReadonlyMap<AssetId, unknown> }
-  >();
+): Map<AssetKindName, Map<AssetId, unknown>> {
+  const out = new Map<AssetKindName, Map<AssetId, unknown>>();
   const env = { registry, project: view };
   const entries = [...view.byId.values()].sort(byPathThenKey);
   for (const def of kinds.list()) {
     if (!isRuntimeKind(def)) continue;
-    const ids: AssetId[] = [];
     const parsed = new Map<AssetId, unknown>();
     for (const entry of entries) {
       if (entry.kind !== def.kind || !values.has(entry.id)) continue;
       const read = parseAssetDoc(def, values.get(entry.id), env);
-      if (!read.ok) continue;
-      ids.push(entry.id);
-      parsed.set(entry.id, deepFreeze(structuredClone(read.value)));
+      if (read.ok) parsed.set(entry.id, deepFreeze(structuredClone(read.value)));
     }
-    out.set(def.kind, { ids: Object.freeze(ids), values: parsed });
+    out.set(def.kind, parsed);
   }
   return out;
 }

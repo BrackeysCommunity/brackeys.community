@@ -31,6 +31,29 @@ export function lerpVec2(a: Vec2, b: Vec2, t: number): Vec2 {
   };
 }
 
+const TAU = Math.PI * 2;
+
+/** From angle `a` toward `b` (radians) by `t`, turning the shorter way round. */
+export function lerpAngle(a: number, b: number, t: number): number {
+  const d = ((((b - a) % TAU) + TAU + Math.PI) % TAU) - Math.PI;
+  return a + d * t;
+}
+
+/** Each 8-bit channel of 0xRRGGBB colours `a` to `b` by `t`, rounded and kept in 0–255. */
+export function lerpRgb(a: number, b: number, t: number): number {
+  let out = 0;
+  for (const shift of [16, 8, 0]) {
+    const from = (a >> shift) & 0xff;
+    const to = (b >> shift) & 0xff;
+    out = out * 256 + clamp(Math.round(from + (to - from) * t), 0, 0xff);
+  }
+  return out;
+}
+
+/** A 0xRRGGBB colour as CSS hex, `#rrggbb`. */
+export const cssHex = (rgb: number): string =>
+  `#${(Math.trunc(rgb) & 0xffffff).toString(16).padStart(6, "0")}`;
+
 /** Clamp a number between min and max */
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { DEFAULT_TICK_RATE } from "../game/defaults";
 import {
+  delayTicks,
+  isCount,
   MAX_TICK_RATE,
   MIN_TICK_RATE,
   resolveTime,
@@ -87,6 +89,46 @@ describe("ticksFor", () => {
   it("is at least one tick", () => {
     expect(ticksFor(0, { rate: 60 })).toBe(1);
     expect(ticksFor(1, { rate: 1 })).toBe(1);
+  });
+});
+
+describe("delayTicks", () => {
+  const at60 = { rate: 60 };
+
+  it("takes a tick count as given and rounds ms once, a positive wait at least one tick", () => {
+    expect(delayTicks(0, at60, "a delay")).toBe(0);
+    expect(delayTicks(7, at60, "a delay")).toBe(7);
+    expect(delayTicks({ ms: 100 }, at60, "a delay")).toBe(6);
+    expect(delayTicks({ ms: 1 }, at60, "a delay")).toBe(1);
+  });
+
+  it("waits no ticks for { ms: 0 }, as for 0", () => {
+    expect(delayTicks({ ms: 0 }, at60, "a delay")).toBe(0);
+  });
+
+  it("refuses a count that isn't whole and 0 or more, and ms that aren't finite and 0 or more", () => {
+    for (const bad of [-1, 1.5, Number.NaN])
+      expect(() => delayTicks(bad, at60, "a delay")).toThrow(
+        /^a delay must be a whole number of ticks/,
+      );
+    for (const ms of [-1, Number.NaN, Infinity])
+      expect(() => delayTicks({ ms }, at60, "a wait")).toThrow(/^a wait must be 0 ms or more/);
+  });
+});
+
+describe("isCount", () => {
+  it("holds for whole numbers of at least min", () => {
+    expect([0, 3, -1, 1.5, Number.NaN, "2", null].map((n) => isCount(n))).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(isCount(0, 1)).toBe(false);
+    expect(isCount(1, 1)).toBe(true);
   });
 });
 

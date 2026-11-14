@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { SAVE_VERSION } from "../game/save-file";
 import type { TimeKind } from "../game/time";
+import type { Registry } from "../game/types";
 import { AGENT_SURFACE_KEYWORD, AGENT_SURFACE_VERSION } from "../scene/agent-surface";
 import { INPUT_SCRIPT_VERSION } from "../scene/input-script";
 import { jsonPointer, makeIssue } from "../scene/issues";
@@ -12,8 +13,8 @@ import { SCENE_FORMAT_VERSION, type SceneIssue } from "../scene/types";
 import { COLLAB_LAYOUT_VERSION } from "../version";
 import { canonicalJson, ownValue, stableJson } from "./canonical";
 import { sha256 } from "./hash";
-import type { DocLayout } from "./kinds";
-import { byCodeUnit } from "./kinds/define";
+import { createKindRegistry, parseAssetDoc, type DocLayout, type KindRegistry } from "./kinds";
+import { byCodeUnit, type KindEnv } from "./kinds/define";
 import { ENGINE_ASSET_KINDS } from "./kinds/index";
 import { readJsonDocument, zodSceneIssues } from "./project-file";
 import type { RefSite } from "./refs";
@@ -748,13 +749,36 @@ export type CheckReleaseOptions = {
     limits: ExportBudget,
   ) => ExportBudgetReport;
   /**
-   * The references of a shipped doc, as its kind's `refs` reads its text,
-   * for a host that holds the texts; every target must ship. Left out,
-   * only blobs' references (an atlas's texture, a font's pages) are
-   * checked, from what the manifest records of them.
+   * The references of a shipped doc, for a host that holds the texts
+   * (`manifestDocRefs`); every target must ship. Left out, only blobs'
+   * references (an atlas's texture, a font's pages) are checked, from what
+   * the manifest records of them.
    */
   docRefs?: (id: AssetId, asset: ReleaseAsset) => readonly RefSite[];
 };
+
+/**
+ * `CheckReleaseOptions.docRefs` over the shipped docs' texts by id: each
+ * doc's references as its kind's `refs` reads it, parsed with `registry`
+ * and no project, so a check that reads other assets (an animation's atlas)
+ * can't hide a reference to one that doesn't ship. A doc of a kind `kinds`
+ * doesn't have (a game's, on a host without the game), with no text in
+ * `texts`, or that doesn't parse names nothing: reading it reports that.
+ */
+export function manifestDocRefs(
+  texts: ReadonlyMap<AssetId, string>,
+  registry: Registry,
+  kinds: KindRegistry = createKindRegistry(registry.game),
+): NonNullable<CheckReleaseOptions["docRefs"]> {
+  const env: KindEnv = { registry, project: null };
+  return (id, asset) => {
+    const def = kinds.get(asset.kind);
+    const text = texts.get(id);
+    if (def?.storage !== "doc" || !def.refs || text === undefined) return [];
+    const read = parseAssetDoc(def, text, env);
+    return read.ok ? def.refs(read.value, env) : [];
+  };
+}
 
 const pointer = (...segments: (string | number)[]) => jsonPointer(segments);
 

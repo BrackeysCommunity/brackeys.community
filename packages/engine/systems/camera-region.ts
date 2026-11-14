@@ -1,3 +1,4 @@
+import { outlineOnly } from "../game/primitives";
 import { styleOf } from "../game/style";
 import type { EngineContext, RegisteredType, SceneSystem } from "../game/types";
 import type { RuntimeEntity, ShapeObj } from "../scene/types";
@@ -23,9 +24,7 @@ export function createCameraRegionSystem(
   const live = new Set<string>();
   const editorLayer = ctx.registry.layers.find((l) => l.editorOnly)?.draw;
   const style = styleOf(ctx, type, undefined);
-  /** An area, not a wall: the outline alone. */
-  const outline = style ? { ...style } : undefined;
-  if (outline) delete outline.fill;
+  const outline = style ? outlineOnly(style) : undefined;
 
   const draw = (e: CameraRegionEntity) => {
     const view = ctx.view;

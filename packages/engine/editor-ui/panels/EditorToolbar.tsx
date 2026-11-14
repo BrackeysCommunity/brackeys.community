@@ -329,12 +329,17 @@ function NoToolOption({ width }: { width: number }) {
 
 const DRAW_TOOLS: readonly DrawToolKind[] = ["box", "circle", "pen"];
 
-type OptionChoices = { choices: readonly { label: string }[] };
+type OptionChoices = {
+  choices: readonly { label: string }[];
+  /** The choice the slot shows now; absent while the active tool has no option. */
+  shown?: string;
+};
 
 /**
  * The widest choices the dock's option slot holds: the active tool's, or any
- * of the built-in draw tools' that offers two or more types. Null when no
- * tool has an option, and the dock has no slot.
+ * of the built-in draw tools' that offers two or more types, with the active
+ * tool's choice as `shown`. Null when no tool has an option, and the dock has
+ * no slot.
  */
 export function optionSlot(
   tools: readonly EditorToolDef[],
@@ -349,7 +354,7 @@ export function optionSlot(
   }
   let widest: OptionChoices | null = null;
   for (const c of candidates) if (!widest || optionWidth(c) > optionWidth(widest)) widest = c;
-  return widest;
+  return widest && option ? { choices: widest.choices, shown: optionText(option) } : widest;
 }
 
 // The toolbar's widths, matching the stylesheet: an island's padding and
@@ -373,15 +378,41 @@ const textWidth = (label: string) => W.textPad + Math.ceil(label.length * W.char
 /** The grid step's button: the step in metres, the chevron and the gap before it. */
 const stepWidth = (step: number, ppm: number) =>
   W.textPad + Math.ceil(glyphs(formatLength(step, ppm))) + 6 + 13;
+/** A picker button showing `chars` glyphs, its chevron and the gap before it. */
+const pickerWidth = (chars: number) => W.textPad + Math.ceil(chars * W.char) + 6 + 13;
 /** A tool option's button at its longest choice, so picking another doesn't refit the dock. */
 const optionWidth = (option: OptionChoices) =>
-  W.textPad + Math.ceil(Math.max(...option.choices.map((c) => c.label.length)) * W.char) + 6 + 13;
+  pickerWidth(Math.max(...option.choices.map((c) => c.label.length)));
+
+/** The glyphs the option slot keeps room for when the dock is short, unless its choice is longer. */
+const SLOT_GLYPHS = 8;
+
+/**
+ * The option slot's width in a short dock: room for `SLOT_GLYPHS`, or for
+ * the shown choice when that is longer, never more than its full width. One
+ * long type name then costs room only while it is picked.
+ */
+const narrowOptionWidth = (option: OptionChoices) =>
+  Math.min(optionWidth(option), pickerWidth(Math.max(SLOT_GLYPHS, option.shown?.length ?? 0)));
 
 /** Tools that never move into the overflow menu. */
 const isPinned = (id: string) => id === "select" || id === "pan";
 
-/** One control in the toolbar; `drop` orders what moves into the overflow menu, lowest first. */
-export type DockPart = { key: string; width: number; drop?: number; game?: true };
+/**
+ * One control in the toolbar; `drop` orders what moves into the overflow
+ * menu, lowest first, and a part with `narrow` shrinks to it before any part
+ * moves there.
+ */
+export type DockPart = { key: string; width: number; narrow?: number; drop?: number; game?: true };
+
+const NARROW = "narrow:";
+
+/** The key `fitDock` adds when it shrinks a part to its `narrow` width. */
+export const narrowed = (key: string) => `${NARROW}${key}`;
+
+/** Whether `fitDock` moved anything into the overflow menu, not only narrowed a part. */
+export const overflows = (hidden: ReadonlySet<string>) =>
+  [...hidden].some((key) => !key.startsWith(NARROW));
 
 /**
  * What the toolbar draws, in order, before anything overflows; `option` is
@@ -428,7 +459,7 @@ export function dockParts(
   if (option) {
     parts.push(
       { key: "divider:option", width: W.divider },
-      { key: "option", width: optionWidth(option), drop: 150 },
+      { key: "option", width: optionWidth(option), narrow: narrowOptionWidth(option), drop: 150 },
     );
   }
   if (step !== null) {
@@ -461,23 +492,33 @@ export function dockWidth(parts: readonly DockPart[], hidden: ReadonlySet<string
       (p.key !== "divider:option" || !hidden.has("option")) &&
       (p.key !== "divider:scene" || !hidden.has("scene")),
   );
-  const widths = shown.map((p) => p.width);
-  if (hidden.size > 0) widths.push(W.icon);
+  const widths = shown.map((p) =>
+    p.narrow !== undefined && hidden.has(narrowed(p.key)) ? p.narrow : p.width,
+  );
+  if (overflows(hidden)) widths.push(W.icon);
   return W.island + widths.reduce((a, b) => a + b, 0) + W.gap * Math.max(0, widths.length - 1);
 }
 
 /**
- * What moves into the overflow menu so the toolbar fits in `room`: game
- * tools, the grid step, the tool's option, the scene picker, then shape tools.
+ * What gives way so the toolbar fits in `room`: first the parts that can
+ * narrow do (their `narrowed` keys), then these move into the overflow menu:
+ * game tools, the grid step, the tool's option, the scene picker, then shape
+ * tools.
  */
 export function fitDock(parts: readonly DockPart[], room: number): Set<string> {
   const hidden = new Set<string>();
-  const order = parts
-    .filter((p): p is DockPart & { drop: number } => p.drop !== undefined)
-    .sort((a, b) => a.drop - b.drop);
-  for (const part of order) {
+  const steps = [
+    ...parts
+      .filter((p) => p.narrow !== undefined && p.narrow < p.width)
+      .map((p) => narrowed(p.key)),
+    ...parts
+      .filter((p): p is DockPart & { drop: number } => p.drop !== undefined)
+      .sort((a, b) => a.drop - b.drop)
+      .map((p) => p.key),
+  ];
+  for (const key of steps) {
     if (dockWidth(parts, hidden) <= room) break;
-    hidden.add(part.key);
+    hidden.add(key);
   }
   return hidden;
 }
@@ -610,8 +651,9 @@ const NO_OPTION: ToolOption | null = null;
  * snapping, the grid menu (the step and the View layers), undo and redo,
  * Play, and Publish scene when the host publishes scenes live.
  * What doesn't fit in the room the frame leaves between the status and the
- * columns moves into a "More tools" menu: game tools first, then the grid
- * step, the tool's option, then the shape tools.
+ * columns gives way: the option slot narrows, then things move into a
+ * "More tools" menu: game tools first, then the grid step, the tool's
+ * option, then the shape tools.
  */
 export function EditorToolbar({
   session,
@@ -647,7 +689,6 @@ export function EditorToolbar({
     () => optionSlot(tools, session.registry, option),
     [tools, session.registry, option],
   );
-  const slotWidth = slot ? optionWidth(slot) : 0;
 
   const picker = useScenePicker(project);
   const openSettings = usePanelOpener("settings");
@@ -666,6 +707,11 @@ export function EditorToolbar({
   const least = useMemo(() => dockWidth(parts, allDroppable(parts)), [parts]);
   const room = useBottomRow("dock", { full, least }).dock;
   const hidden = useMemo(() => fitDock(parts, room), [parts, room]);
+  const slotPart = parts.find((p) => p.key === "option");
+  const slotWidth =
+    slotPart?.narrow !== undefined && hidden.has(narrowed("option"))
+      ? slotPart.narrow
+      : (slotPart?.width ?? 0);
 
   const shownTools = tools.filter((t) => !hidden.has(`tool:${t.id}`));
   const hiddenTools = tools.filter((t) => hidden.has(`tool:${t.id}`));
@@ -683,7 +729,7 @@ export function EditorToolbar({
   );
 
   let overflow: ReactNode = null;
-  if (host && hidden.size > 0) {
+  if (host && overflows(hidden)) {
     overflow = (
       <OverflowMenu
         session={session}

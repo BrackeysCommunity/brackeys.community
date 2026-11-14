@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { DEFAULT_CAMERA_DAMPING, DEFAULT_REGION_EASE } from "./defaults";
 import {
   attachField,
   bodyShapeField,
@@ -13,9 +14,24 @@ import {
   SIDES,
   tagsField,
 } from "./fields";
-import type { EntityTypeDef, FieldEnv, PrimitiveType, RegisteredType, Side } from "./types";
+import type { EntityTypeDef, FieldEnv, PrimitiveType, RegisteredType, Side, Style } from "./types";
 
 export { DEFAULT_GRAVITY } from "./defaults";
+
+/** The primitive whose entities hold the Play camera's framing. */
+export const CAMERA_REGION_TYPE = "camera-region";
+
+/**
+ * How every renderer draws a camera region: an area the camera frames, not
+ * a surface, so its outline alone, stroked in the fill's colour when the
+ * style names no stroke.
+ */
+export function outlineOnly(style: Style): Style {
+  const { fill, ...outline } = style;
+  return fill === undefined || outline.stroke !== undefined
+    ? outline
+    : { ...outline, stroke: fill };
+}
 
 const absolute = "Absolute world metres; y is down.";
 
@@ -234,8 +250,8 @@ export const PRIMITIVES = {
         .number()
         .min(0)
         .optional()
-        .describe("Seconds to move into the region's framing; default 0.4.")
-        .meta({ title: "Ease", unit: "s", default: 0.4 }),
+        .describe(`Seconds to move into the region's framing; default ${DEFAULT_REGION_EASE}.`)
+        .meta({ title: "Ease", unit: "s", default: DEFAULT_REGION_EASE }),
     },
     style: { stroke: 0xff9966, alpha: 0.5 },
     ascii: "c",
@@ -355,7 +371,9 @@ export const CAMERA_RIG_SCHEMA = z
       .number()
       .min(0)
       .optional()
-      .describe("Seconds to close half the distance to the goal, at any frame rate; default 0.12.")
+      .describe(
+        `Seconds to close half the distance to the goal, at any frame rate; default ${DEFAULT_CAMERA_DAMPING}.`,
+      )
       .meta({ unit: "s" }),
     fit: z
       .strictObject({

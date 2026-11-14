@@ -23,6 +23,8 @@ const fixture = (name: string) =>
   new Uint8Array(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 const fixtureJson = (name: string): any =>
   JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"));
+const engineArt = (name: string): unknown =>
+  JSON.parse(readFileSync(new URL(`../../scenes/art/${name}`, import.meta.url), "utf8"));
 const encode = (value: unknown) =>
   new TextEncoder().encode(typeof value === "string" ? value : JSON.stringify(value));
 
@@ -133,6 +135,8 @@ describe("the blob kinds", () => {
       "recording",
       "save",
       "code",
+      "animation",
+      "emitter",
     ]);
     const kinds = createKindRegistry();
     const kindOf = (path: string, json?: unknown, sidecar?: string) =>
@@ -147,6 +151,10 @@ describe("the blob kinds", () => {
     for (const ext of ["ogg", "mp3", "wav", "m4a"]) expect(kindOf(`sfx/a.${ext}`)).toBe("audio");
     expect(kindOf("runs/a.recording.json", fixtureJson("run.recording.json"))).toBe("recording");
     expect(kindOf("fixtures/level-2.save.json", JSON.parse(saveText()))).toBe("save");
+    expect(kindOf("art/kitchen.animation.json", engineArt("kitchen.animation.json"))).toBe(
+      "animation",
+    );
+    expect(kindOf("art/sparks.emitter.json", engineArt("sparks.emitter.json"))).toBe("emitter");
   });
 
   it("schema-hash their settings and meta", async () => {

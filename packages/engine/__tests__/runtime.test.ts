@@ -1301,3 +1301,106 @@ describe("EngineContext.input", () => {
     rt.destroy();
   });
 });
+
+describe("tweens and anim plays code starts while a scene loads", () => {
+  const atlasEntry = (id: string, kind: string, extra: Partial<AssetEntry>): AssetEntry => ({
+    ...entry(id, kind, `${id}.${kind}`),
+    ...extra,
+  });
+  const assets = [
+    atlasEntry("tex", "texture", {
+      sha256: "a".repeat(64),
+      meta: { format: "png", width: 64, height: 16 },
+    }),
+    atlasEntry("sheet", "atlas", {
+      sha256: "b".repeat(64),
+      meta: {
+        tool: "aseprite",
+        frames: Object.fromEntries(
+          [0, 1, 2, 3].map((i) => [`f${i}`, { x: i * 16, y: 0, w: 16, h: 16, durationMs: 100 }]),
+        ),
+        tags: [
+          { name: "idle", from: 0, to: 1, direction: "forward" },
+          { name: "run", from: 2, to: 3, direction: "forward" },
+        ],
+        slices: [],
+        order: ["f0", "f1", "f2", "f3"],
+      },
+      import: { texture: "tex" },
+    }),
+  ];
+  const view: ProjectView = {
+    state: {
+      meta: { projectId: "anim", layout: 1, name: "Anim" },
+      assets: Object.fromEntries(assets.map((e) => [e.key, e])),
+      history: {},
+      code: {},
+      build: {},
+    },
+    byId: new Map(assets.map((e) => [e.id, e])),
+    byPath: new Map(assets.map((e) => [e.path, e])),
+    byKey: new Map(assets.map((e) => [e.key, e])),
+    deleted: [],
+    issues: [],
+    repairs: new Map(),
+    tree: () => [],
+  };
+
+  /** A game whose `director` starts a tween and a clip on `hero` from its system's `ready`. */
+  const directed = defineGame({
+    id: "directed",
+    types: [
+      {
+        type: "director",
+        description: "Starts a tween and a clip on the hero when the scene is ready.",
+        fields: {},
+        system: (ctx) => ({
+          spawn: () => {},
+          despawn: () => {},
+          clear: () => {},
+          size: () => 0,
+          ready: () => {
+            ctx.tweens.to("hero", { to: { x: 4 }, duration: 4 });
+            ctx.anim.play("hero", "run");
+          },
+        }),
+      },
+    ],
+    actions: [],
+    createRuntime: () => ({ snapshot: () => null }),
+  });
+
+  it("keeps them through the load's reset, as for an entity spawned later", () => {
+    const project = runtimeView(view, new Map(), createRegistry(directed));
+    const rt = createSceneRuntime({ rapier: null, view: null, game: directed, project });
+    const report = rt.load({
+      name: "directed",
+      bounds: [-10, -10, 10, 10],
+      settings: {
+        gravity: [0, 0],
+        physics: "none",
+        grid: null,
+        view: { projection: "orthogonal" },
+      },
+      entities: [
+        {
+          id: "hero",
+          type: "marker",
+          at: [0, 0],
+          behaviors: {
+            sprite: { asset: "sheet", frame: "f0" },
+            anim: { source: "sheet", clip: "idle" },
+          },
+        },
+        { id: "boss", type: "director" },
+      ],
+    });
+    expect(report).toMatchObject({ ok: true });
+    expect(rt.ctx.tweens.size).toBe(1);
+    expect(rt.ctx.anim.state("hero")).toMatchObject({ clip: "run", frame: "f2" });
+    rt.step(DT, []);
+    expect(rt.ctx.poses.get("hero")!.x).toBe(1);
+    expect(rt.ctx.anim.state("hero")).toMatchObject({ clip: "run", frame: "f2", playing: true });
+    rt.destroy();
+  });
+});

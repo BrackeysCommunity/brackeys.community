@@ -2,11 +2,13 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 
 import { formatBytes, measureBudget } from "@jams/engine/export";
+import { createRegistry } from "@jams/engine/game";
 import { parseRecording, type RunRecording } from "@jams/engine/headless";
 import {
   byCodeUnit,
   checkReleaseManifest,
   findRelease,
+  manifestDocRefs,
   parseReleaseManifest,
   RELEASE_FILE,
   releaseId,
@@ -19,11 +21,14 @@ import type { SceneIssue } from "@jams/engine/scene";
 
 import {
   failure,
+  gamelessRegistry,
   issueLine,
   readArg,
+  registryOf,
   usage,
   UsageError,
   type Tool,
+  type ToolContext,
   type ToolResult,
 } from "../context";
 import { replay, type ReplayInput } from "./replay";
@@ -226,14 +231,32 @@ export async function readReleaseAt(
   };
 }
 
+/** The texts of the shipped docs a build directory holds, by id. */
+async function shippedDocTexts(
+  dir: string,
+  manifest: ReleaseManifest,
+  files: ReadonlyMap<string, Sha256>,
+): Promise<Map<string, string>> {
+  const texts = new Map<string, string>();
+  for (const id of Object.keys(manifest.assets).sort(byCodeUnit)) {
+    const asset = manifest.assets[id]!;
+    if (asset.storage === "doc" && files.has(asset.file))
+      texts.set(id, await readFile(join(dir, asset.file), "utf8"));
+  }
+  return texts;
+}
+
 /**
  * Checks a manifest the way every reader does (`checkReleaseManifest`, the
  * budget recomputed), with its directory's files and their hashes when
- * given one. Its issues; and the files the directory holds that the
- * manifest doesn't list.
+ * given one, and each shipped doc's references then too, read with the
+ * registry of the manifest's game (that game's project in `ctx`, else the
+ * gameless one; the engine's alone without `ctx`). Its issues; and the
+ * files the directory holds that the manifest doesn't list.
  */
 export async function checkManifestAt(
   path: string,
+  ctx?: ToolContext,
 ): Promise<
   | { ok: true; file: string; manifest: ReleaseManifest; issues: SceneIssue[]; unlisted: string[] }
   | { ok: false; result: ToolResult }
@@ -241,16 +264,23 @@ export async function checkManifestAt(
   const read = await readReleaseAt(path, true);
   if (!read.ok) return read;
   const { manifest } = read;
-  const issues = await checkReleaseManifest(manifest, read.files, { measureBudget });
+  const registry = ctx
+    ? (registryOf(ctx, manifest.game.id) ?? gamelessRegistry(ctx))
+    : createRegistry();
+  const texts = read.files
+    ? await shippedDocTexts(dirname(read.file), manifest, read.files)
+    : new Map<string, string>();
+  const docRefs = manifestDocRefs(texts, registry);
+  const issues = await checkReleaseManifest(manifest, read.files, { measureBudget, docRefs });
   const listed = new Set(manifest.build.files.map((f) => f.path));
   const unlisted = read.files ? [...read.files.keys()].filter((p) => !listed.has(p)) : [];
   return { ok: true, file: read.file, manifest, issues, unlisted };
 }
 
 /** Parses and checks a release manifest (with the build's files when given a directory) and prints its summary. */
-export const gameManifest: Tool<GameManifestInput> = async (input) => {
+export const gameManifest: Tool<GameManifestInput> = async (input, ctx) => {
   if (!input.path) return usage(GAME_MANIFEST_USAGE);
-  const checked = await checkManifestAt(input.path);
+  const checked = await checkManifestAt(input.path, ctx);
   if (!checked.ok) return checked.result;
   const { file, manifest, issues, unlisted } = checked;
   const id = await releaseId(manifest);

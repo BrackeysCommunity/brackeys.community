@@ -20,10 +20,9 @@ import {
   type TweenChannel,
   type TweenSpec,
 } from "../../game/behaviors/tween";
-import { ticksFor, wholeTicksIn } from "../../game/time";
+import { delayTicks, wholeTicksIn } from "../../game/time";
 import {
   EngineError,
-  type Delay,
   type EngineContext,
   type JsonValue,
   type SceneSystem,
@@ -59,12 +58,12 @@ export interface TweenSystem extends BehaviorSystem<TweenBlock> {
   ownerEnabled(entityId: string, on: boolean): void;
   /** The pending value tweens, whose callbacks a world save can't hold. */
   unsaveable(): UnsaveableTween[];
-  /** What a world save keeps of the tweens; undefined when there is nothing to keep. */
+  /** What a world save keeps of the tweens and the looks they left; undefined when there is nothing to keep. */
   capture(): JsonValue | undefined;
   /**
-   * Replaces the tweens a fresh load started with `saved` (what `capture`
-   * gave, or undefined for none). A block entry that changed since the save
-   * keeps the fresh load's tween.
+   * Replaces the tweens a fresh load started, and the looks tweens left,
+   * with `saved` (what `capture` gave, or undefined for none). A block entry
+   * that changed since the save keeps the fresh load's tween.
    */
   restoreCaptured(saved: JsonValue | undefined): void;
 }
@@ -82,6 +81,8 @@ type Captured = {
   tweens: TweenState[];
   /** Each block carrier's entries as written, to tell an entry a live edit changed. */
   blocks: Record<string, string[]>;
+  /** The visual channel values tweens left on each live entity, finished tweens' included. */
+  looks?: Record<string, SpriteLook>;
 };
 
 /** The one channel a value tween runs on. */
@@ -90,6 +91,18 @@ const VALUE = "v";
 const isPose = (channel: string) => POSE_CHANNELS.includes(channel as TweenChannel);
 
 const entryKey = (spec: TweenSpec) => JSON.stringify(spec);
+
+const isLookChannel = (channel: string): channel is keyof SpriteLook =>
+  channel === "alpha" || channel === "tint" || channel === "scale";
+
+/** The look a world save held for an entity, its channels checked; null when there is none. */
+function savedLook(value: unknown): SpriteLook | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const out: SpriteLook = {};
+  for (const [channel, v] of Object.entries(value))
+    if (isLookChannel(channel) && typeof v === "number" && Number.isFinite(v)) out[channel] = v;
+  return Object.keys(out).length > 0 ? out : null;
+}
 
 function parsedSpec(spec: unknown, entityId?: string): TweenSpec {
   const parsed = tweenSpecSchema.safeParse(spec);
@@ -121,29 +134,23 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
   const looks = new Map<string, SpriteLook>();
   let next = 1;
 
-  /** Whole ticks for a duration (at least 1) or a delay (0 for none). */
-  const ticksOf = (delay: Delay | undefined): number => {
-    if (delay === undefined) return 0;
-    if (typeof delay === "number") return delay;
-    return delay.ms === 0 ? 0 : ticksFor(delay.ms, ctx.time);
-  };
-
   function stateOf(
     spec: TweenSpec,
     to: TweenValues,
     given: TweenValues | undefined,
     owner?: string,
     block?: number,
+    id = next++,
   ): TweenState {
     return {
-      id: next++,
+      id,
       ...(owner !== undefined ? { owner } : {}),
       ...(spec.key !== undefined ? { key: spec.key } : {}),
       ...(block !== undefined ? { block } : {}),
       to,
       ...(given && Object.keys(given).length > 0 ? { given } : {}),
-      duration: Math.max(1, ticksOf(spec.duration)),
-      delay: ticksOf(spec.delay),
+      duration: Math.max(1, delayTicks(spec.duration, ctx.time, "a tween's duration")),
+      delay: spec.delay === undefined ? 0 : delayTicks(spec.delay, ctx.time, "a tween's delay"),
       ease: spec.ease ?? "linear",
       repeat: spec.repeat ?? 0,
       yoyo: spec.yoyo ?? false,
@@ -289,8 +296,38 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
       if (state.owner !== undefined) states.push(structuredClone(state));
     const carried: Record<string, string[]> = {};
     for (const [id, block] of blocks) carried[id] = block.tweens.map(entryKey);
-    if (states.length === 0 && blocks.size === 0) return undefined;
-    return { next, tweens: states, blocks: carried };
+    const held: Record<string, SpriteLook> = {};
+    for (const [id, look] of looks) if (ctx.get(id)) held[id] = { ...look };
+    const anyLook = Object.keys(held).length > 0;
+    if (states.length === 0 && blocks.size === 0 && !anyLook) return undefined;
+    return { next, tweens: states, blocks: carried, ...(anyLook ? { looks: held } : {}) };
+  }
+
+  /**
+   * Puts back the looks a save held. An entity a fresh load's tween styled
+   * that the save held nothing for goes back to its block's look.
+   */
+  function restoreLooks(saved: unknown): void {
+    const before = new Map(looks);
+    looks.clear();
+    if (typeof saved === "object" && saved !== null && !Array.isArray(saved)) {
+      for (const [id, value] of Object.entries(saved)) {
+        const look = ctx.get(id) ? savedLook(value) : null;
+        if (look) looks.set(id, look);
+      }
+    }
+    const sprites = ctx.behavior<SpriteSystem>(SPRITE.name);
+    if (!sprites) return;
+    for (const id of new Set([...before.keys(), ...looks.keys()])) {
+      const e = ctx.get(id);
+      if (!e) continue;
+      const base = spriteLook(ctx, e);
+      const held = looks.get(id) ?? {};
+      const look: SpriteLook = {};
+      for (const channel of Object.keys({ ...before.get(id), ...held }))
+        if (isLookChannel(channel)) look[channel] = held[channel] ?? base[channel];
+      sprites.style(id, look);
+    }
   }
 
   function restoreCaptured(saved: JsonValue | undefined): void {
@@ -315,15 +352,24 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
       run.state.id = next++;
       tweens.set(run.state.id, run);
     }
+    restoreLooks(got.looks);
     for (const { state } of tweens.values())
       if (state.owner !== undefined && tweenStarted(state)) apply(state.owner, tweenValues(state));
   }
 
+  /**
+   * Back to t = 0: each block entry's tween starts over under its id. A
+   * tween code started (a type system's `spawn` or `ready`, a behavior's
+   * `ready`) is kept as it is, since a load resets before any tick runs.
+   */
   function restart(): void {
-    tweens.clear();
     looks.clear();
-    next = 1;
-    for (const [id, block] of blocks) block.tweens.forEach((spec, i) => startEntry(id, spec, i));
+    for (const run of tweens.values()) {
+      const { owner, block, id } = run.state;
+      const spec =
+        owner === undefined || block === undefined ? undefined : blocks.get(owner)?.tweens[block];
+      if (spec) run.state = stateOf(spec, defined(spec.to)!, defined(spec.from), owner, block, id);
+    }
   }
 
   const system: TweenSystem = {

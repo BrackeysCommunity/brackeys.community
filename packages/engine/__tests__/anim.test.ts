@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vite-plus/test";
 
@@ -10,7 +11,7 @@ import { createRegistry, defineGame } from "../game/define";
 import { EngineError, type Registry } from "../game/types";
 import { runPlaytest } from "../headless/playtest";
 import { replayRecording } from "../headless/recording";
-import { entryInfo, type AssetInfo } from "../project/asset-info";
+import type { AssetInfo } from "../project/asset-info";
 import { docKindJsonSchema, parseAssetDoc, type KindEnv } from "../project/kinds";
 import {
   ANIMATION_SCHEMA_ID,
@@ -19,8 +20,8 @@ import {
   type AnimationFile,
   type ClipDef,
 } from "../project/kinds/animation";
-import { runtimeView, type ProjectRuntimeView } from "../project/runtime-view";
-import type { AssetEntry, ProjectView } from "../project/types";
+import { heldProject, runtimeView, type ProjectRuntimeView } from "../project/runtime-view";
+import type { AssetEntry } from "../project/types";
 import { projectView } from "../project/view";
 import { ANIM_END, ANIM_FRAME, type AnimSystem } from "../runtime/behaviors/anim";
 import { spriteViewId, type SpriteSystem } from "../runtime/behaviors/sprite";
@@ -38,38 +39,25 @@ import {
   type SceneDefinition,
   type ShapeTuple,
 } from "../scene/types";
+import { validateScene } from "../scene/validate";
+import { readHeld } from "./fixtures/held-project";
 import { recordingView } from "./fixtures/recording-view";
 
 const at60 = { rate: 60 };
 const at30 = { rate: 30 };
 
-type Sidecar = {
-  key: string;
-  id: string;
-  assetKind: string;
-  meta: Record<string, unknown>;
-  import?: Record<string, unknown>;
-};
-
 /** A tuple `parseShape` refuses, typed as one so a test can write it into a file. */
 const unparsed = (...tuple: unknown[]) => tuple as unknown as ShapeTuple;
 
-/** The engine project's `hero` atlas, as the project reads its sidecar. */
-function heroEntry(): AssetEntry {
-  const sidecar = JSON.parse(
-    readFileSync(new URL("../scenes/art/hero.json.asset.json", import.meta.url), "utf8"),
-  ) as Sidecar;
-  return {
-    key: sidecar.key,
-    id: sidecar.id,
-    kind: sidecar.assetKind,
-    path: "art/hero.json",
-    created: { at: 0, by: "test" },
-    meta: sidecar.meta,
-    ...(sidecar.import ? { import: sidecar.import } : {}),
-  };
-}
-const hero: AssetInfo = entryInfo(heroEntry()).info;
+/** The engine project's hero atlas and kitchen animation, held as a host holds them. */
+const engineArt = heldProject(
+  readHeld(fileURLToPath(new URL("../scenes/", import.meta.url)), (path) =>
+    ["art/hero.json", "art/kitchen.animation.json"].includes(path),
+  ).files,
+  createRegistry(),
+  { projectId: "p", name: "P" },
+);
+const hero: AssetInfo = engineArt.runtime.asset("hero")!;
 
 /** A three-frame atlas with its own durations and a tag per direction. */
 const sheet = {
@@ -446,17 +434,6 @@ describe("clipFrameAt", () => {
 describe("the animation kind", () => {
   const engineEnv: KindEnv = { registry: createRegistry(), project: null };
 
-  function heroProject(): ProjectView {
-    const entry = heroEntry();
-    return projectView({
-      meta: { projectId: "p", layout: 2, name: "P" },
-      assets: { [entry.key]: entry },
-      history: {},
-      code: {},
-      build: {},
-    });
-  }
-
   it("is a sim doc over one atlas, co-edited per clip, capped at 256 KiB and 512 clips", () => {
     expect(animationKind).toMatchObject({
       kind: "animation",
@@ -487,7 +464,7 @@ describe("the animation kind", () => {
 
   it("validates against the project's atlas through animationIssues, with lines", () => {
     const text = `${JSON.stringify(doc([{ name: "rest", tag: "idlee" }], "hero"), null, 2)}\n`;
-    const r = parseAssetDoc(animationKind, text, { ...engineEnv, project: heroProject() });
+    const r = parseAssetDoc(animationKind, text, { ...engineEnv, project: engineArt.view });
     expect(r.ok).toBe(false);
     expect(r.issues.map((i) => [i.code, i.path, i.line])).toEqual([
       ["anim-tag-unknown", "/clips/0/tag", 8],
@@ -495,7 +472,7 @@ describe("the animation kind", () => {
     expect(r.issues[0]!.message).toMatch(/did you mean "idle"\?/);
     const fine = parseAssetDoc(animationKind, doc([{ name: "rest", tag: "idle" }], "hero"), {
       ...engineEnv,
-      project: heroProject(),
+      project: engineArt.view,
     });
     expect(fine).toMatchObject({ ok: true, issues: [] });
   });
@@ -517,6 +494,54 @@ describe("the animation kind", () => {
     expect(schema.$id).toBe(ANIMATION_SCHEMA_ID);
     expect(schema[AGENT_SURFACE_KEYWORD]).toBe(AGENT_SURFACE_VERSION);
     expect(undescribedProperties(schema)).toEqual([]);
+  });
+});
+
+describe("an anim block's clip", () => {
+  const registry = createRegistry();
+  const placed = (anim: Record<string, unknown>): SceneDefinition => ({
+    v: SCENE_FORMAT_VERSION,
+    name: "t",
+    bounds: [0, 0, 10, 10],
+    entities: [
+      {
+        id: "fighter",
+        type: "marker",
+        at: [1, 1],
+        behaviors: { sprite: { asset: "hero", frame: "hero-0" }, anim },
+      },
+    ],
+  });
+  const clipIssues = (anim: Record<string, unknown>) =>
+    validateScene(placed(anim), registry, {
+      project: engineArt.view,
+      runtime: engineArt.runtime,
+    }).filter((i) => i.code === "anim-clip-unknown");
+
+  it("passes for one of the source's clips: an animation's, or an atlas's tags", () => {
+    expect(clipIssues({ source: "kitchen-animation", clip: "jab" })).toEqual([]);
+    expect(clipIssues({ source: "hero", clip: "idle" })).toEqual([]);
+  });
+
+  it("anim-clip-unknown for one the source lacks, which the run would leave unplayed", () => {
+    expect(clipIssues({ source: "kitchen-animation", clip: "jabb" })).toMatchObject([
+      {
+        severity: "error",
+        path: "/entities/0/behaviors/anim/clip",
+        entityIds: ["fighter"],
+        got: "jabb",
+        expected: "idle | jab",
+        message: expect.stringMatching(/did you mean "jab"\?$/),
+      },
+    ]);
+    expect(clipIssues({ source: "hero", clip: "jab" })).toMatchObject([
+      { got: "jab", expected: "idle" },
+    ]);
+    const kitchen = engineArt.runtime.doc!<AnimationFile>("animation", "kitchen-animation")!;
+    expect([...resolveClips({ animation: kitchen }, hero, at60).clips.keys()]).toEqual([
+      "idle",
+      "jab",
+    ]);
   });
 });
 

@@ -1,4 +1,5 @@
 import { deepFreeze } from "../project/canonical";
+import { docLookup } from "../project/kinds/define";
 import type { InputMapFile } from "../project/kinds/input-map";
 import type { SceneListFlow } from "../project/kinds/scene-list";
 import type { ProjectRuntimeView } from "../project/runtime-view";
@@ -29,14 +30,14 @@ export function memoryRuntimeView(init: MemoryRuntimeViewInit = {}): ProjectRunt
   const settings = frozen(init.settings ?? {});
   const engine = frozen(init.engine ?? {});
   const tables = frozen(init.tables ?? {});
-  const docs = new Map<AssetKindName, { ids: readonly AssetId[]; values: Map<AssetId, unknown> }>();
+  const byKind = new Map<AssetKindName, Map<AssetId, unknown>>();
   for (const [kind, byId] of Object.entries(init.docs ?? {})) {
     const values = new Map<AssetId, unknown>();
     for (const [id, value] of Object.entries(byId)) values.set(id, frozen(value));
-    docs.set(kind, { ids: Object.freeze([...values.keys()]), values });
+    byKind.set(kind, values);
   }
+  const docs = docLookup(byKind);
   const none: readonly Row[] = Object.freeze([]);
-  const noIds: readonly AssetId[] = Object.freeze([]);
   return Object.freeze({
     settings,
     engine,
@@ -44,8 +45,7 @@ export function memoryRuntimeView(init: MemoryRuntimeViewInit = {}): ProjectRunt
     asset: () => undefined,
     inputMap: init.inputMap ? frozen(init.inputMap) : null,
     flow: frozen(init.flow ?? { start: null, scenes: [] }),
-    doc: <T = unknown>(kind: AssetKindName, id: AssetId): T | undefined =>
-      docs.get(kind)?.values.get(id) as T | undefined,
-    docs: (kind: AssetKindName) => docs.get(kind)?.ids ?? noIds,
+    doc: docs.doc,
+    docs: docs.docs,
   });
 }

@@ -67,8 +67,10 @@ export { CAMERA_RIG_SCHEMA, type CameraRigDef } from "./primitives";
 export type { CameraFrame, CameraTargetSpec } from "../camera/rig";
 export type {
   AudioRequest,
+  BurstOptions,
   CameraRequest,
   EffectRequest,
+  FlashOptions,
   PresentationQueue,
   PresentedRequest,
   PresentRequest,

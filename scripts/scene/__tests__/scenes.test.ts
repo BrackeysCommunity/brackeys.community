@@ -142,7 +142,8 @@ describe("grid-yard, the engine's physics-free scene", () => {
   });
 });
 
-describe("kitchen-sink, the engine's feature scene", () => {
+// Every check's ticks are capped (600 at most): about 0.5 s alone, past 5 s under CI's full-suite load.
+describe("kitchen-sink, the engine's feature scene", { timeout: 20_000 }, () => {
   it("passes its checks through the CLI, a lifetime entity gone by the time its expect is judged", async () => {
     const result = await check(
       { scene: "kitchen-sink" },

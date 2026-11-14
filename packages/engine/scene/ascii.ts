@@ -1,3 +1,4 @@
+import { CAMERA_REGION_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import {
   gridCellsIn,
@@ -106,7 +107,7 @@ function markOf(
 }
 
 /** A camera region: an area the camera frames, drawn as its box's outline only. */
-const isRegion = (d: DrawnEntity) => d.base === "camera-region";
+const isRegion = (d: DrawnEntity) => d.base === CAMERA_REGION_TYPE;
 
 /** The outline as polylines, arcs flattened to at most `step` world px per segment. */
 function outlinePolylines(d: DrawnEntity, step: number): Pt[][] {

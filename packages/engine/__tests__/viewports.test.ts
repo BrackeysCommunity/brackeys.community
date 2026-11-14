@@ -2,13 +2,15 @@
 import { Container, type Matrix, RenderTexture } from "pixi.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { MAX_CAMERA_ZOOM, MIN_CAMERA_ZOOM } from "../camera";
 import type { ViewportDef } from "../camera/viewports";
-import { viewportIndexAt, viewportsProblem } from "../camera/viewports";
+import { sceneFitFrame, viewportIndexAt, viewportsProblem } from "../camera/viewports";
 import { createGame } from "../engine";
 import { defineGame } from "../game/define";
 import type { GameDefinition } from "../game/types";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
 import type { GameInstance, Vec2 } from "../types";
+import { manualFrames, type FrameClock } from "./fixtures/frame-clock";
 
 /** The stubbed app: a real stage, and a renderer that records what it is asked to draw. */
 const gpu = vi.hoisted(() => ({
@@ -43,22 +45,6 @@ vi.mock("../renderer", async () => {
     },
   };
 });
-
-/** Drives the loop's frames by hand. */
-function manualFrames() {
-  let pending: FrameRequestCallback[] = [];
-  let now = 0;
-  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => pending.push(cb));
-  vi.stubGlobal("cancelAnimationFrame", () => {});
-  return {
-    advance(ms: number) {
-      now += ms;
-      const due = pending;
-      pending = [];
-      for (const cb of due) cb(now);
-    },
-  };
-}
 
 /** Two seats and no camera target of its own: the shell follows the `camera-target` entities. */
 const versus = defineGame({
@@ -99,7 +85,7 @@ const SPLIT: ViewportDef[] = [
 
 const games: GameInstance[] = [];
 let canvas: HTMLCanvasElement;
-let frames: ReturnType<typeof manualFrames>;
+let frames: FrameClock;
 
 beforeEach(() => {
   gpu.renders.length = 0;
@@ -139,6 +125,20 @@ function centreOf(g: GameInstance, def: ViewportDef, index: number): Vec2 {
   return g.clientToWorld(10 + (x + w / 2) * 1920, 20 + (y + h / 2) * 1080, index);
 }
 
+describe("sceneFitFrame", () => {
+  it("centres the bounds at the largest zoom that fits, within the camera's limits", () => {
+    const view = { width: 19.2, height: 10.8 };
+    expect(sceneFitFrame([0, 0, 38.4, 10.8], view)).toEqual({
+      position: { x: 19.2, y: 5.4 },
+      zoom: 0.5,
+      rotation: 0,
+    });
+    expect(sceneFitFrame([0, 0, 0.5, 0.5], view).zoom).toBe(MAX_CAMERA_ZOOM);
+    expect(sceneFitFrame([0, 0, 1000, 1000], view).zoom).toBe(MIN_CAMERA_ZOOM);
+    expect(sceneFitFrame([3, 3, 3, 3], view).zoom).toBe(1);
+  });
+});
+
 describe("viewports", () => {
   it("checks the set: one to four, each a non-empty part of the canvas", () => {
     expect(viewportsProblem(SPLIT)).toBeNull();
@@ -146,6 +146,11 @@ describe("viewports", () => {
     expect(viewportsProblem([...SPLIT, ...SPLIT, ...SPLIT])).toMatch(/1–4/);
     expect(viewportsProblem([{ rect: [0.5, 0, 0.6, 1], frame: "main" }])).toMatch(/viewport 0/);
     expect(viewportsProblem([{ rect: [0, 0, 0, 1], frame: "main" }])).toMatch(/viewport 0/);
+    expect(
+      viewportsProblem([{ rect: [0, 0, 1, 1], frame: "main", rig: { damping: 0.1 } }]),
+    ).toBeNull();
+    const badRig = { rect: [0, 0, 1, 1], frame: "main", rig: { damping: -1 } } as ViewportDef;
+    expect(viewportsProblem([badRig])).toMatch(/^viewport 0: rig damping: /);
     // The topmost wins where they overlap.
     const minimap: ViewportDef[] = [
       { rect: [0, 0, 1, 1], frame: "main" },

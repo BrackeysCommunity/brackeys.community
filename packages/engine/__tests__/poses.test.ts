@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../game/define";
-import { composePose, createPoseIndex } from "../runtime/poses";
+import { composePose, createPoseIndex, framePose, lerpPose, relativePose } from "../runtime/poses";
 import { createSceneRuntime } from "../runtime/runtime";
 import { spawnPose } from "../runtime/spawn-pose";
 import type { ExpandedScene, PathDef, RuntimeEntity, ShapeObj } from "../scene/types";
@@ -395,5 +395,34 @@ describe("the runtime's pose index", () => {
     rt.ctx.poses.set("floor", 999, 999, 1);
     expect(JSON.stringify([rt.snapshot(), rt.stats()])).toBe(before);
     rt.destroy();
+  });
+});
+
+describe("lerpPose", () => {
+  it("moves between two poses and turns the shorter way", () => {
+    expect(lerpPose({ x: 0, y: 2, rot: 0 }, { x: 4, y: 6, rot: 1 }, 0.25)).toEqual({
+      x: 1,
+      y: 3,
+      rot: 0.25,
+    });
+    const across = lerpPose({ x: 0, y: 0, rot: 3 }, { x: 0, y: 0, rot: -3 }, 0.5);
+    expect(across.rot).toBeCloseTo(Math.PI, 12);
+  });
+});
+
+describe("framePose", () => {
+  it("is composePose's inverse: the body pose that carries an offset to a world pose", () => {
+    const offset = { x: 0.5, y: -0.25, rot: 0.3 };
+    for (const body of [
+      { x: 2, y: 3, rot: 0 },
+      { x: -1, y: 4, rot: 1.2 },
+    ]) {
+      const world = composePose(body.x, body.y, body.rot, offset);
+      const back = framePose(world, offset);
+      expect(back.x).toBeCloseTo(body.x, 12);
+      expect(back.y).toBeCloseTo(body.y, 12);
+      expect(back.rot).toBeCloseTo(body.rot, 12);
+      expect(relativePose(world, back).rot).toBeCloseTo(offset.rot, 12);
+    }
   });
 });

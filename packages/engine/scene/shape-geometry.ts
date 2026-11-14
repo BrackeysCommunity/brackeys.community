@@ -87,6 +87,26 @@ export function aabbUnion(a: Aabb, b: Aabb): Aabb {
   };
 }
 
+/** An angle in degrees seen in a mirror: a flip turns it the other way. */
+export const mirrorDeg = (deg: number) => 0 - deg;
+
+/**
+ * `s` mirrored across its local y axis: x negated, a box's or capsule's
+ * `rotDeg` mirrored (kept in [0, 360)), and a polygon's or chain's points
+ * reversed to keep their winding, as a flipping scene transform does.
+ */
+export function flipShapeX(s: ShapeObj): ShapeObj {
+  switch (s.type) {
+    case "poly":
+    case "chain":
+      return { type: s.type, pts: s.pts.map(([x, y]): Pt => [0 - x, y]).reverse() };
+    case "circle":
+      return { ...s, cx: 0 - s.cx };
+    default:
+      return { ...s, cx: 0 - s.cx, rotDeg: normDeg(mirrorDeg(s.rotDeg)) };
+  }
+}
+
 export function translateShape(s: ShapeObj, [dx, dy]: Pt): ShapeObj {
   switch (s.type) {
     case "poly":

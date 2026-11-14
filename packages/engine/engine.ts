@@ -4,6 +4,8 @@ import { Container, Graphics } from "pixi.js";
 import { createCamera, type Camera } from "./camera";
 import { cameraRegionsOf, type CameraRegion } from "./camera/regions";
 import {
+  cameraRigProblem,
+  centreOf,
   createCameraRig,
   type CameraRig,
   type CameraRigDef,
@@ -93,7 +95,6 @@ import {
 } from "./project/bundle";
 import { ownValue, sameValue } from "./project/canonical";
 import type { KindRegistry } from "./project/kinds";
-import { EMITTER_KIND, type EmitterFile } from "./project/kinds/emitter";
 import { engineResolution } from "./project/kinds/game-settings";
 import { TEXTURE_KIND } from "./project/kinds/texture";
 import type { ReleaseAsset } from "./project/release";
@@ -115,6 +116,7 @@ import {
 import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
 import type { CameraTargetSystem } from "./runtime/behaviors/camera-target";
+import { emitterPreset } from "./runtime/behaviors/emitter";
 import { loadListed } from "./runtime/flow";
 import {
   createLiveLayer,
@@ -134,6 +136,7 @@ import {
   type PreparedPlay,
   type SessionRecording,
 } from "./runtime/play-session";
+import { lerpPose } from "./runtime/poses";
 import type { EffectRequest, PresentRequest } from "./runtime/present";
 import { recordingRapier, recordingStart } from "./runtime/recorder";
 import {
@@ -230,8 +233,22 @@ export async function createGame(
   let self: GameInstance | null = null;
   const cfg: GameConfig = { ...DEFAULT_GAME_CONFIG, ...rest };
   const { game } = cfg;
-  /** The one reduced-motion flag the camera, the effects, the transitions and the UI read. */
-  const reducedMotion = resolveReducedMotion(cfg.reducedMotion ?? "auto", canvas);
+  /**
+   * The one reduced-motion flag the camera, the effects, the particles and
+   * the transitions read; under "auto" it follows the page's setting as it changes.
+   */
+  const fixedMotion = typeof cfg.reducedMotion === "boolean" ? cfg.reducedMotion : null;
+  const motionQuery = fixedMotion === null ? reducedMotionQuery(canvas) : null;
+  let reducedMotion = fixedMotion ?? motionQuery?.matches ?? false;
+  const onMotionChange = (e: { matches: boolean }) => {
+    reducedMotion = e.matches;
+  };
+  motionQuery?.addEventListener?.("change", onMotionChange);
+  const motionReduced = () => reducedMotion;
+  if (game?.camera) {
+    const problem = cameraRigProblem(game.camera);
+    if (problem) throw new Error(`[game] "${game.id}" camera: ${problem}`);
+  }
   let viewports: readonly ViewportDef[] = checkedViewports(cfg.viewports ?? defaultViewports());
   // Resolved before any rendering, so a malformed game fails fast; every scene's runtime shares it.
   const { registry } = resolveGame({ game, registry: cfg.registry });
@@ -318,9 +335,10 @@ export async function createGame(
   /**
    * The first viewport: `camera`, which the stage draws directly (the
    * editor's only view). Its rig is made on load when the viewport's `rig`,
-   * the scene's `settings.camera` or the game's `camera` declares one, or at
-   * its first camera request. Without one, Play's camera eases toward the
-   * targets' centre as the editor camera's `follow` mode does.
+   * the scene's `settings.camera` or the game's `camera` declares one, in
+   * Play while the scene has camera regions, or at its first camera
+   * request. Without one, Play's camera eases toward the targets' centre as
+   * the editor camera's `follow` mode does.
    */
   const main: ViewCamera = {
     index: 0,
@@ -340,6 +358,8 @@ export async function createGame(
   let mainBorder: ViewportSurface | null = null;
   /** The regions read from the runtime's scene, kept while it hands back the same scene. */
   let regionsMemo: { scene: ExpandedScene; regions: CameraRegion[] } | null = null;
+  /** The first viewport's rig is there only for the scene's camera regions, so it goes with the last of them. */
+  let regionRig = false;
 
   // Rapier loads at start only when the game (or its start-up scene) runs on it; `preload`
   // brings it in for a later Rapier scene, and without it such a load reports `physics-not-loaded`.
@@ -683,7 +703,7 @@ export async function createGame(
       editing: () => getMode() === "edit",
       pxPerMetre,
       particles: {
-        reducedMotion,
+        reducedMotion: motionReduced,
         seed: name,
         texture: (preset) => (built ? particleTexture(built.ctx, preset) : null),
       },
@@ -737,6 +757,7 @@ export async function createGame(
     camera.setBoundsFromScene(scene.bounds);
     const rigDef = frameOf(0) === "scene" ? null : rigDefOf(scene, 0);
     main.rig = rigDef ? createCameraRig(rigDef, scene.name) : null;
+    regionRig = false;
     main.frameAt = null;
     main.track = freshTrack();
     for (const vc of extras) {
@@ -745,7 +766,7 @@ export async function createGame(
       vc.track = freshTrack();
     }
     if (snap ?? (first || getMode() === "play")) {
-      camera.snapTo(cameraTarget(runtime));
+      camera.snapTo(targetsCentre(runtime));
     }
     updateCamera(store, camera.getState());
     return report;
@@ -1008,7 +1029,7 @@ export async function createGame(
     // a zoomed-out editor view clamps the camera to the bounds' centre, so it never reaches the target.
     if (!playing && loaded) {
       camera.setZoom(1);
-      const target = cameraTarget(loaded.runtime);
+      const target = targetsCentre(loaded.runtime);
       if (target) camera.snapTo(target);
       updateCamera(store, camera.getState());
     }
@@ -1595,9 +1616,32 @@ export async function createGame(
     return getMode() === "play" ? (viewports[index]?.frame ?? "main") : "main";
   }
 
-  /** The first viewport's camera is placed per rendered frame (by its rig, or fitted to the scene), not per tick. */
-  const framedPerFrame = () =>
-    loaded !== null && getMode() === "play" && (main.rig !== null || frameOf(0) === "scene");
+  /**
+   * Whether the first viewport's camera is placed per rendered frame (by its
+   * rig, or fitted to the scene) rather than by the plain follow each tick.
+   * In Play a scene with camera regions gets a rig with the defaults when
+   * nothing else made one, starting from where the camera stands, and a
+   * swap that takes the last region away drops it again; so the plain follow
+   * runs only without camera settings, regions or a camera request.
+   */
+  function framedPerFrame(): boolean {
+    if (loaded === null || getMode() !== "play") return false;
+    if (frameOf(0) === "scene") return true;
+    const regions = sceneRegions(loaded.runtime).length > 0;
+    const scene = loaded.runtime.scene();
+    if (!main.rig && regions && scene) {
+      main.rig = createCameraRig({}, scene.name);
+      main.rig.request({ op: "snap", at: camera.getPosition() });
+      main.frameAt = null;
+      regionRig = true;
+    } else if (regionRig && !regions) {
+      main.rig = null;
+      regionRig = false;
+      camera.setZoom(1);
+      updateCamera(store, { zoom: 1, scale: camera.getState().scale });
+    }
+    return main.rig !== null;
+  }
 
   /**
    * What `vc` follows, null holding it: a `follow` request's target while
@@ -1619,9 +1663,13 @@ export async function createGame(
     return targets.length > 0 ? targets : null;
   }
 
-  function cameraTarget(runtime: SceneRuntimeHandle): Vec2 | null {
+  /**
+   * The main targets' weighted centre at their latest poses: where a load or
+   * Play's start puts the camera, and where the plain follow heads.
+   */
+  function targetsCentre(runtime: SceneRuntimeHandle): Vec2 | null {
     const targets = viewTargets(runtime, main, getMode() === "play", null, 1);
-    return targets ? weightedCentre(targets) : null;
+    return targets ? (centreOf(targets)?.at ?? null) : null;
   }
 
   /** The camera regions in the runtime's scene as it stands, so a live swap's apply on the next frame. */
@@ -1877,6 +1925,8 @@ export async function createGame(
           const scene = loaded?.runtime.scene();
           if (!scene) break;
           vc.rig ??= createCameraRig(rigDefOf(scene, index) ?? {}, scene.name);
+          // A rig a camera request has steered stays when the scene loses its regions.
+          if (index === 0) regionRig = false;
           vc.rig.request(req.op);
           break;
         }
@@ -1900,7 +1950,7 @@ export async function createGame(
     const overlay = createEffectOverlay(canvas);
     effects = {
       overlay,
-      layer: createEffectLayer(overlay.root, loop, { reducedMotion: () => reducedMotion }),
+      layer: createEffectLayer(overlay.root, loop, { reducedMotion: motionReduced }),
     };
     return effects.layer;
   }
@@ -1918,7 +1968,7 @@ export async function createGame(
         break;
       case "burst": {
         const runtime = loaded?.runtime;
-        const preset = runtime?.ctx.project?.doc?.<EmitterFile>(EMITTER_KIND, op.preset);
+        const preset = runtime ? emitterPreset(runtime.ctx, op.preset) : undefined;
         if (!preset) break;
         const { op: _, preset: __, at, ...opts } = op;
         loaded?.view.particles?.()?.burst(preset, at, opts);
@@ -1930,8 +1980,8 @@ export async function createGame(
   /** The camera, the game's store slice and the debug overlay: what moves on with or without a step. */
   function shellTick(dt: number, mouseWorld: Vec2): void {
     const hooks = loaded?.runtime.game ?? null;
-    // A rig or a fit to the scene places the camera on render frames instead.
-    if (!framedPerFrame()) camera.update(dt, loaded ? cameraTarget(loaded.runtime) : null);
+    // The plain follow; a rig or a fit to the scene places the camera on render frames instead.
+    if (!framedPerFrame()) camera.update(dt, loaded ? targetsCentre(loaded.runtime) : null);
     syncGameSlice();
     updateCamera(store, { position: camera.getPosition() });
 
@@ -2668,7 +2718,7 @@ export async function createGame(
         loadingProgress: (p) => events.emit("flow:loading", p),
         destroyed: () => destroyed,
         dev: cfg.dev,
-        reducedMotion,
+        reducedMotion: motionReduced,
       })
     : null;
 
@@ -3050,6 +3100,7 @@ export async function createGame(
     destroyed = true;
 
     loop.stop();
+    motionQuery?.removeEventListener?.("change", onMotionChange);
     flowHost?.destroy();
     transitionLayer?.destroy();
     capturing?.end(null);
@@ -3169,24 +3220,24 @@ export async function createGame(
     },
     saves,
     live,
-    reducedMotion,
+    get reducedMotion() {
+      return reducedMotion;
+    },
     setViewports,
     viewportAt,
   };
   return self;
 }
 
-/** `GameConfig.reducedMotion`, resolved once: "auto" asks the page, and is false where it can't. */
-function resolveReducedMotion(setting: boolean | "auto", canvas: HTMLCanvasElement): boolean {
-  if (setting !== "auto") return setting;
+/** The page's prefers-reduced-motion query; null where media queries aren't available. */
+function reducedMotionQuery(canvas: HTMLCanvasElement): MediaQueryList | null {
   try {
     const view = canvas.ownerDocument.defaultView;
-    return (
-      typeof view?.matchMedia === "function" &&
-      view.matchMedia("(prefers-reduced-motion: reduce)").matches
-    );
+    return typeof view?.matchMedia === "function"
+      ? view.matchMedia("(prefers-reduced-motion: reduce)")
+      : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -3240,19 +3291,6 @@ function checkedViewports(defs: readonly ViewportDef[]): ViewportDef[] {
 
 const STILL: Vec2 = Object.freeze({ x: 0, y: 0 });
 
-/** The weight-averaged position of the targets, or null when their weights sum to nothing. */
-function weightedCentre(targets: readonly FollowTarget[]): Vec2 | null {
-  let x = 0;
-  let y = 0;
-  let total = 0;
-  for (const { at, weight } of targets) {
-    x += at.x * weight;
-    y += at.y * weight;
-    total += weight;
-  }
-  return total > 0 ? { x: x / total, y: y / total } : null;
-}
-
 /**
  * `id`'s pose `alpha` of the way from its last tick's to its latest, and
  * its velocity over that tick; null when it isn't live and enabled.
@@ -3268,11 +3306,8 @@ function entityTarget(
   const prev = ctx.poses.prev(id) ?? cur;
   const seconds = ctx.time.tickMs / 1000;
   const velocity = { x: (cur.x - prev.x) / seconds, y: (cur.y - prev.y) / seconds };
-  const at =
-    alpha >= 1
-      ? { x: cur.x, y: cur.y }
-      : { x: prev.x + (cur.x - prev.x) * alpha, y: prev.y + (cur.y - prev.y) * alpha };
-  return { at, velocity, weight };
+  const pose = alpha >= 1 ? cur : lerpPose(prev, cur, alpha);
+  return { at: { x: pose.x, y: pose.y }, velocity, weight };
 }
 
 /**

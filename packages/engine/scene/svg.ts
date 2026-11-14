@@ -1,3 +1,4 @@
+import { CAMERA_REGION_TYPE, outlineOnly } from "../game/primitives";
 import { styleOf } from "../game/style";
 import type { Registry, Style } from "../game/types";
 import {
@@ -231,11 +232,11 @@ export function renderSceneSvg(
     if (!d.shape) continue;
     const style = styleOf({ registry }, d.type, materialOf(d)) ?? FALLBACK_STYLE;
     // A camera region is an area the camera frames, not a surface: a dashed outline, unfilled.
-    const region = d.base === "camera-region";
+    const region = d.base === CAMERA_REGION_TYPE;
     out.push(
       shapeElement(
         d.shape,
-        region ? { ...style, fill: undefined, stroke: style.stroke ?? style.fill } : style,
+        region ? outlineOnly(style) : style,
         px,
         `data-ref="${esc(d.id)}" data-type="${esc(d.type.type)}"` +
           (region ? ` stroke-dasharray="${px(6)} ${px(4)}"` : ""),

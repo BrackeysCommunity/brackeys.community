@@ -267,6 +267,37 @@ describe("bootStandalone", () => {
     });
   });
 
+  it("refuses a build whose shipped doc names an asset the build doesn't ship", async () => {
+    const held = physicsFreeFiles();
+    const spare = {
+      kind: "animation",
+      v: 1,
+      atlas: "band",
+      clips: [{ name: "spin", tag: "spin" }],
+    };
+    const text = `${JSON.stringify(spare, null, 2)}\n`;
+    held.files.push({ path: "spare.animation.json", json: spare });
+    held.texts.set("spare.animation.json", text);
+    const input = await heldInput(FREE_PROJECT, held, testGame);
+    const plan = await finishExport(await planContent(input), CODE, input);
+    expect(plan.manifest.assets["spare-animation"]?.kind).toBe("animation");
+    expect(plan.manifest.assets.band).toBeUndefined();
+    const files = new Map<string, string>();
+    for (const f of plan.files)
+      files.set(f.path, f.source.kind === "text" ? f.source.text : `<${f.source.kind}>`);
+    const served = fakeFetch({ manifest: plan.manifest, files }, DIR);
+    await expect(boot({ fetch: served.fetch })).rejects.toMatchObject({
+      issues: [
+        expect.objectContaining({
+          code: "asset-missing",
+          path: "/assets/spare-animation",
+          entityIds: ["spare-animation", "band"],
+        }),
+      ],
+    });
+    expect(document.documentElement.dataset.jamsState).toBe("error");
+  });
+
   it("never loads Rapier for a physics-free build", async () => {
     expect(build.manifest.build.rapier).toBeNull();
     const rapier = vi.fn(async () => {

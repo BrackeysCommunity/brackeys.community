@@ -13,6 +13,7 @@ import {
   checkReleaseManifest,
   findRelease,
   formatReleaseManifest,
+  manifestDocRefs,
   parseReleaseManifest,
   RELEASE_SCHEMA_ID,
   releaseBuildHash,
@@ -494,6 +495,62 @@ describe("checkReleaseManifest", () => {
   it("reports a shape the schema refuses before anything else", async () => {
     const m = corrupt((m) => ((m as unknown as Record<string, unknown>).extra = true));
     expect(where(await check(m))).toEqual([["unknown-key", "/extra"]]);
+  });
+});
+
+describe("manifestDocRefs", () => {
+  const walk = (atlas: string) =>
+    `${JSON.stringify({ kind: "animation", v: 1, atlas, clips: [{ name: "walk", tag: "walk" }] })}\n`;
+  const doc = (kind: string): ReleaseAsset => ({
+    key: "k",
+    kind,
+    path: "anims/walk.animation.json",
+    sha256: "0".repeat(64),
+    bytes: 1,
+    storage: "doc",
+    file: `data/${"0".repeat(64)}.json`,
+  });
+
+  it("reads a shipped doc's references from its text, whatever the rest of the project holds", () => {
+    const docRefs = manifestDocRefs(new Map([["walk", walk("strip")]]), createRegistry());
+    expect(docRefs("walk", doc("animation"))).toEqual([
+      { pointer: "/atlas", id: "strip", kinds: ["atlas"] },
+    ]);
+  });
+
+  it("names nothing for a doc with no text, of a kind the host lacks, or that doesn't parse", () => {
+    const texts = new Map([
+      ["walk", walk("strip")],
+      ["broken", '{ "kind": "animation", "v": 1 }\n'],
+    ]);
+    const docRefs = manifestDocRefs(texts, createRegistry());
+    expect(docRefs("other", doc("animation"))).toEqual([]);
+    expect(docRefs("walk", doc("test-game/reel"))).toEqual([]);
+    expect(docRefs("broken", doc("animation"))).toEqual([]);
+  });
+
+  it("makes checkReleaseManifest refuse a shipped doc's reference outside assets", async () => {
+    const base = await fixture();
+    const text = walk("ghost");
+    const sha = await sha256(text);
+    const file = `data/${sha}.json`;
+    const manifest = structuredClone(base.manifest) as ReleaseManifest;
+    (manifest.assets as Record<AssetId, ReleaseAsset>).walk = {
+      ...doc("animation"),
+      sha256: sha,
+      bytes: text.length,
+      file,
+    };
+    const docRefs = manifestDocRefs(new Map([["walk", text]]), createRegistry());
+    const issues = await checkReleaseManifest(manifest, undefined, { docRefs });
+    expect(issues.filter((i) => i.path === "/assets/walk")).toEqual([
+      expect.objectContaining({
+        code: "asset-missing",
+        entityIds: ["walk", "ghost"],
+        expected: "atlas",
+        got: "ghost",
+      }),
+    ]);
   });
 });
 

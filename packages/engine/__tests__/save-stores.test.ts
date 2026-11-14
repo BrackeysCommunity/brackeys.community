@@ -496,8 +496,11 @@ describe("the shell's saves", () => {
     const text = await store.read("vault", "auto");
     expect(written).toEqual([{ slot: "auto", bytes: new TextEncoder().encode(text!).length }]);
     expect(failed).toEqual([]);
-    for (const step of steps) expect(Object.keys(step).sort()).toEqual(["events", "game", "tick"]);
+    for (const step of steps) {
+      expect(Object.keys(step).sort()).toEqual(["events", "game", "present", "tick"]);
+    }
     expect(steps.flatMap((s) => s.events)).toEqual([]);
+    expect(steps.flatMap((s) => s.present ?? [])).toEqual([]);
   });
 
   it("reports a refused save as save:failed", async () => {

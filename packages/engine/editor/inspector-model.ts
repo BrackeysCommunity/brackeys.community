@@ -12,7 +12,9 @@ import { assetKindsOf, CHILD_REF_PATTERN, SIDES } from "../game/fields";
 import { capitalise } from "../game/live";
 import type { BehaviorRules, InspectorWidgetDef, RegisteredType, Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
-import type { AssetKindName } from "../project/types";
+import { ANIMATION_KIND } from "../project/kinds/animation";
+import { ATLAS_KIND } from "../project/kinds/atlas";
+import type { AssetId, AssetKindName } from "../project/types";
 import { bulkKeysOf } from "../scene/expand";
 import { splitFieldPath } from "../scene/field-path";
 import { sceneHash } from "../scene/hash";
@@ -192,9 +194,10 @@ export type FieldWidget =
   /**
    * A project asset of one of `kinds` (an `assetField`). When an atlas is
    * among them and the field has a sibling string field named `frame`,
-   * `frame` is that field's path: picking an atlas sets both.
+   * `frame` is that field's path; when an animation is among them and it has
+   * one named `clip`, `clip` is. Picking an asset sets the asset and its part.
    */
-  | { kind: "asset"; kinds: AssetKindName[]; frame?: FieldPath }
+  | { kind: "asset"; kinds: AssetKindName[]; frame?: FieldPath; clip?: FieldPath }
   /** A game's own widget from `registry.widgets`, by the id the field's `meta.widget` names. */
   | { kind: "custom"; id: string; widget: InspectorWidgetDef }
   | { kind: "readonly"; format: "text" | "json" };
@@ -265,6 +268,8 @@ export type BehaviorOption = {
   batch: OpBatch;
   /** The required behaviors `batch` adds alongside it, by label. */
   adds?: string[];
+  /** The project assets `batch` names, each with the clip it picked (`hero (idle)`). */
+  uses?: string[];
   /** Why it can't be added yet (a reference with nothing in the scene to name); `batch` would fail. */
   unavailable?: string;
 };
@@ -701,13 +706,21 @@ function describeField(
   return placeRow(describeRow(path, schema, root, ctx), place);
 }
 
-/** Points each atlas-taking asset field at its sibling `frame` text field; `siblings` share one parent. */
+/**
+ * Points each asset field at the sibling text field naming a part of the
+ * asset: `frame` for one taking atlases, `clip` for one taking animations
+ * (whose atlases' tags are clips too). `siblings` share one parent.
+ */
 function linkFrames<R extends InspectorRow>(siblings: R[]): R[] {
-  const frame = siblings.find((f) => f.name === "frame" && f.widget.kind === "text");
-  if (!frame) return siblings;
+  const part = (name: string) => siblings.find((f) => f.name === name && f.widget.kind === "text");
+  const frame = part("frame");
+  const clip = part("clip");
+  if (!frame && !clip) return siblings;
   for (const f of siblings) {
-    if (f.widget.kind === "asset" && f.widget.kinds.includes("atlas"))
-      f.widget = { ...f.widget, frame: frame.path };
+    if (f.widget.kind !== "asset") continue;
+    if (frame && f.widget.kinds.includes(ATLAS_KIND)) f.widget = { ...f.widget, frame: frame.path };
+    if (clip && f.widget.kinds.includes(ANIMATION_KIND))
+      f.widget = { ...f.widget, clip: clip.path };
   }
   return siblings;
 }
@@ -1238,7 +1251,12 @@ function addedBlocks(
   s: BehaviorState,
   name: BehaviorName,
   def: SceneDefinition | undefined,
-): { blocks: Record<BehaviorName, Record<string, unknown>>; unavailable?: string } {
+  clips: ClipLookup | undefined,
+): {
+  blocks: Record<BehaviorName, Record<string, unknown>>;
+  unavailable?: string;
+  uses: string[];
+} {
   const blocks: Record<BehaviorName, Record<string, unknown>> = {};
   for (const n of withRequires(registry, s, name))
     blocks[n] = addedBlock(registry, s, n, registry.behaviors.get(n)!);
@@ -1250,8 +1268,7 @@ function addedBlocks(
       if (blocks[n]![field] !== undefined) continue;
       const id = def ? seedRef(registry, def, self, blocks, n, field) : undefined;
       if (id === undefined) {
-        const title = registry.behaviors.get(n)?.inspector?.label ?? n;
-        unavailable ??= `${title} needs another entity in the scene to link to.`;
+        unavailable ??= `${behaviorLabel(registry, n)} needs another entity in the scene to link to.`;
         continue;
       }
       blocks[n]![field] = id;
@@ -1259,22 +1276,65 @@ function addedBlocks(
       if (other) extra.push(other);
     }
   }
+  const uses: string[] = [];
   for (const n of Object.keys(blocks)) {
-    const title = registry.behaviors.get(n)?.inspector?.label ?? n;
-    for (const [field, schema] of unsetRequired(registry, s, n, blocks[n]!)) {
+    const title = behaviorLabel(registry, n);
+    const block = blocks[n]!;
+    const shape = blockShape(registry, s, n);
+    // Asset fields first: one taking animations picks its clip too.
+    const unset = unsetRequired(registry, s, n, block).sort(
+      ([, a], [, b]) => Number(!assetKindsOf(a)) - Number(!assetKindsOf(b)),
+    );
+    for (const [field, schema] of unset) {
+      if (block[field] !== undefined) continue;
       const kinds = assetKindsOf(schema);
-      const [first] = kinds ? assetChoices(schema) : [];
+      const choices = kinds ? assetChoices(schema) : [];
+      const clip = kinds?.includes(ANIMATION_KIND) ? clipField(shape, block) : undefined;
+      if (clip !== undefined && choices.length > 0) {
+        const picked = choices
+          .map((id) => [id, clips?.(id)?.[0]] as const)
+          .find(([, first]) => first !== undefined);
+        if (picked) {
+          block[field] = picked[0];
+          block[clip] = picked[1];
+          uses.push(`${picked[0]} (${picked[1]})`);
+          continue;
+        }
+        unavailable ??= clips
+          ? `${title} needs ${articled(kinds!)} asset with clips in the project.`
+          : `${title} needs its ${clip} set, which Add can't choose.`;
+        continue;
+      }
+      const [first] = choices;
       if (first !== undefined) {
-        blocks[n]![field] = first;
+        block[field] = first;
+        uses.push(first);
         continue;
       }
       unavailable ??= kinds
-        ? `${title} needs ${kinds.map((k) => `${/^[aeiou]/.test(k) ? "an" : "a"} ${k}`).join(" or ")} asset in the project.`
+        ? `${title} needs ${articled(kinds)} asset in the project.`
         : `${title} needs its ${field} set, which Add can't choose.`;
     }
   }
   fixAdded(registry, def, self, blocks, extra);
-  return unavailable ? { blocks, unavailable } : { blocks };
+  return unavailable ? { blocks, unavailable, uses } : { blocks, uses };
+}
+
+/** A behavior as Add behavior's notes name it: its inspector label, else its key in sentence case. */
+const behaviorLabel = (registry: Registry, name: BehaviorName) =>
+  registry.behaviors.get(name)?.inspector?.label ?? fieldTitle(name);
+
+const articled = (kinds: readonly string[]) =>
+  kinds.map((k) => `${/^[aeiou]/.test(k) ? "an" : "a"} ${k}`).join(" or ");
+
+/** `buildInspectorModel`'s `clips`. */
+type ClipLookup = (source: AssetId) => readonly string[] | null;
+
+/** The block's required `clip` text field an animation-taking asset field picks along with it, when unset. */
+function clipField(shape: z.ZodRawShape, block: Readonly<Record<string, unknown>>) {
+  const clip = shape.clip;
+  if (!clip || block.clip !== undefined || clip._zod.optin === "optional") return undefined;
+  return unwrapSchema(clip) instanceof z.ZodString ? "clip" : undefined;
 }
 
 /** The project asset ids an asset field offers, as its schema's choices list them. */
@@ -1320,6 +1380,7 @@ function addOptions(
   registry: Registry,
   states: readonly BehaviorState[],
   def: SceneDefinition | undefined,
+  clips: ClipLookup | undefined,
 ): BehaviorOption[] {
   const [first, ...rest] = states;
   if (!first) return [];
@@ -1331,12 +1392,14 @@ function addOptions(
     if (lacking.length === 0) continue;
     const label = b.inspector?.label ?? name;
     const adds = new Set<string>();
+    const uses = new Set<string>();
     let unavailable: string | undefined;
     const ops: SceneOp[] = lacking.map((s) => {
-      const added = addedBlocks(registry, s, name, def);
+      const added = addedBlocks(registry, s, name, def, clips);
       unavailable ??= added.unavailable;
+      for (const u of added.uses) uses.add(u);
       for (const n of Object.keys(added.blocks))
-        if (n !== name) adds.add(registry.behaviors.get(n)?.inspector?.label ?? n);
+        if (n !== name) adds.add(behaviorLabel(registry, n));
       const set = Object.fromEntries(
         Object.entries(added.blocks).map(([n, block]) => [`${BEHAVIORS_FIELD}.${n}`, block]),
       );
@@ -1350,6 +1413,7 @@ function addOptions(
       ...(b.inspector?.category ? { category: b.inspector.category } : {}),
       batch: { label: `Add ${label} to ${who}`, ops },
       ...(adds.size > 0 ? { adds: [...adds] } : {}),
+      ...(uses.size > 0 && !unavailable ? { uses: [...uses] } : {}),
       ...(unavailable ? { unavailable } : {}),
     });
   }
@@ -1401,6 +1465,12 @@ export function buildInspectorModel(
   opts: {
     /** The scene the targets are in (the resolved view): Add behavior seeds a reference from it. */
     def?: SceneDefinition;
+    /**
+     * The clip names an animation or atlas asset offers, in file order (an
+     * atlas's tags are its clips), null when they can't be read: Add
+     * behavior picks an `anim` block's source and clip from them.
+     */
+    clips?: (source: AssetId) => readonly string[] | null;
   } = {},
 ): InspectorModel {
   const maybe = targets.map((t) => behaviorState(registry, t));
@@ -1442,7 +1512,7 @@ export function buildInspectorModel(
     refs: targets.map((t) => t.ref),
     types,
     sections,
-    addBehaviors: addOptions(registry, states, opts.def),
+    addBehaviors: addOptions(registry, states, opts.def, opts.clips),
   };
 }
 

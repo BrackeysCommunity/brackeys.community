@@ -30,10 +30,10 @@ import {
   checkReleaseManifest,
   ENGINE_FORMATS,
   formatReleaseManifest,
+  manifestDocRefs,
   parseReleaseManifest,
   RELEASE_FILE,
   releaseSnapshot,
-  type ReleaseAsset,
   type ReleaseManifest,
 } from "../project/release";
 import type { AssetSidecar } from "../project/sidecar";
@@ -633,15 +633,30 @@ describe("an export with an animation and an emitter preset", () => {
       else if (source.kind === "blob") files.set(f.path, source.sha256);
       else files.set(f.path, plan.manifest.build.files.find((r) => r.path === f.path)!.sha256);
     }
-    const env = { registry: input.registry, project: input.view };
-    const docRefs = (id: string, asset: ReleaseAsset) => {
-      const def = input.kinds.get(asset.kind);
-      return def?.storage === "doc"
-        ? (def.refs?.(JSON.parse(input.texts.get(id)!), env) ?? [])
-        : [];
-    };
+    const docRefs = manifestDocRefs(input.texts, input.registry, input.kinds);
     expect(await checkReleaseManifest(parsed.manifest, files, { docRefs })).toEqual([]);
-    expect(docRefs("walk-animation", plan.manifest.assets["walk-animation"]!)).not.toEqual([]);
+    expect(docRefs("walk-animation", plan.manifest.assets["walk-animation"]!)).toEqual([
+      { pointer: "/atlas", id: "strip", kinds: ["atlas"] },
+    ]);
+  });
+
+  it("refuses to plan a release whose animation names an atlas that doesn't ship", async () => {
+    const content = await planContent(input);
+    const { strip: _, ...assets } = content.assets;
+    const dropped = await finishExport({ ...content, assets }, builtCode(), input);
+    expect(
+      dropped.issues.filter(
+        (i) => i.code === "asset-missing" && i.entityIds[0] === "walk-animation",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        path: "/assets/walk-animation",
+        entityIds: ["walk-animation", "strip"],
+        expected: "atlas",
+        got: "strip",
+      }),
+    ]);
   });
 
   describe("booted standalone", () => {

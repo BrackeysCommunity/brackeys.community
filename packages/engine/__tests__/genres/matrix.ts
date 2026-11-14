@@ -4,7 +4,7 @@ import type { GenreProbe, GenreRow } from "./harness";
 export type GenreMatrixRow = {
   /** The matrix's own name for the genre. */
   genre: string;
-  /** The engine milestones that deliver it, as plan 53's "Delivered by" column names them. */
+  /** Plan 53's "Delivered by" column, as written there. */
   deliveredBy: string;
   /** The probes that prove part of the row, by id; matrix.test.ts holds the probes' own `rows` to it. */
   probes: readonly string[];
@@ -63,9 +63,7 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
     deliveredBy: "M14, M16, M17, M23",
     probes: ["point-and-click"],
   },
-  // Plan 53 also lists M21 here: the site's save store, which an engine probe
-  // can't reach; M21's staging tests cover it.
-  idle: { genre: "Idle / clicker", deliveredBy: "M14, M17, M18", probes: ["idle"] },
+  idle: { genre: "Idle / clicker", deliveredBy: "M14, M17, M18, M21", probes: ["idle"] },
   "endless-runner": {
     genre: "Endless runner",
     deliveredBy: "M15, M16, M19, M22",
@@ -90,6 +88,7 @@ export const GENRE_ROWS = Object.keys(GENRE_MATRIX) as GenreRow[];
  * The engine version each milestone ships in. Milestones don't land in
  * number order, so "landed" is read from here against `ENGINE_VERSION`
  * rather than from the numbers; a milestone missing here hasn't landed.
+ * Add each one as it ships.
  */
 export const MILESTONE_VERSIONS: Readonly<Record<number, string>> = {
   10: "0.5.0",
@@ -108,16 +107,6 @@ export const MILESTONE_VERSIONS: Readonly<Record<number, string>> = {
   30: "0.14.4",
   31: "0.14.5",
   22: "0.15.0",
-  23: "0.16.0",
-  24: "0.17.0",
-  25: "0.18.0",
-  26: "0.19.0",
-  38: "0.19.1",
-  39: "0.19.2",
-  27: "0.20.0",
-  32: "0.20.1",
-  28: "0.21.0",
-  29: "1.0.0",
 };
 
 /** `a` against `b` as semver release triples: negative, zero or positive. */

@@ -2,11 +2,18 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import * as Y from "yjs";
 
-import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../collab/index";
+import {
+  sceneToDoc,
+  sequentialKeys,
+  type ProjectSession,
+  type SceneOrigin,
+} from "../../collab/index";
 import { createEditorSession, lookupRef, type SceneDefinition } from "../../editor/index";
 import { buildInspectorModel } from "../../editor/inspector-model";
 import { createRegistry, ENGINE_BEHAVIORS } from "../../game/define";
+import { projectView, type AssetEntry, type ProjectState } from "../../project/index";
 import { applyOps } from "../../scene/ops";
 import type { EntityDef } from "../../scene/types";
 import { validateScene } from "../../scene/validate";
@@ -107,6 +114,75 @@ describe("Add behavior templates", () => {
     expect(option.batch.ops).toEqual([
       { op: "update", ref: "hero", set: { "behaviors.emitter": { preset: "embers" } } },
     ]);
+    expect(option.uses).toEqual(["embers"]);
+  });
+
+  describe("Animation", () => {
+    const withSources = createRegistry(null, {
+      assets: (kinds) => [
+        ...(kinds.includes("animation") ? ["blank", "kitchen"] : []),
+        ...(kinds.includes("atlas") ? ["hero"] : []),
+      ],
+    });
+    const CLIPS: Record<string, string[]> = { blank: [], kitchen: ["idle", "jab"], hero: ["walk"] };
+    const animOption = (clips?: (id: string) => readonly string[] | null) => {
+      const def = room(hero, crate);
+      const option = buildInspectorModel(withSources, [lookupRef(def, "hero")!], {
+        def,
+        ...(clips ? { clips } : {}),
+      }).addBehaviors.find((o) => o.name === "anim")!;
+      return { def, option };
+    };
+
+    it("picks the first source with clips and its first clip, and the block validates", () => {
+      const { def, option } = animOption((id) => CLIPS[id] ?? null);
+      expect(option.unavailable).toBeUndefined();
+      expect(option.uses).toEqual(["kitchen (idle)"]);
+      expect(option.adds).toEqual(["Sprite"]);
+      expect(option.batch.ops).toEqual([
+        {
+          op: "update",
+          ref: "hero",
+          set: { "behaviors.sprite": {}, "behaviors.anim": { source: "kitchen", clip: "idle" } },
+        },
+      ]);
+      const r = applyOps(def, option.batch, withSources);
+      if (!r.ok) throw new Error(r.issue.message);
+      expect(validateScene(r.def, withSources)).toEqual([]);
+    });
+
+    it("says so when no source has a clip", () => {
+      expect(animOption(() => []).option.unavailable).toBe(
+        "Animation needs an animation or an atlas asset with clips in the project.",
+      );
+    });
+
+    it("links the source to its clip, and shows ticks and per-second units", () => {
+      const def = room({
+        ...hero,
+        behaviors: {
+          sprite: {},
+          anim: { source: "kitchen", clip: "idle" },
+          emitter: { preset: "kitchen" },
+        },
+      });
+      const fields = buildInspectorModel(withSources, [lookupRef(def, "hero")!], {
+        def,
+      }).sections.flatMap((s) => s.fields);
+      const widget = (path: string) => fields.find((f) => f.path === path)!.widget;
+      expect(widget("behaviors.anim.source")).toMatchObject({
+        kind: "asset",
+        clip: "behaviors.anim.clip",
+      });
+      expect(widget("behaviors.anim.offset")).toMatchObject({ kind: "number", unit: "ticks" });
+      expect(widget("behaviors.emitter.rate")).toMatchObject({ kind: "number", unit: "/s" });
+    });
+
+    it("can't pick a clip without the project's clips", () => {
+      expect(animOption().option.unavailable).toBe(
+        "Animation needs its clip set, which Add can't choose.",
+      );
+    });
   });
 
   it("adds what a behavior requires alongside it, each from its own template", () => {
@@ -439,5 +515,117 @@ describe("BehaviorMarks", () => {
     act(() => session.select(["link"]));
     const two = draw();
     expect(two.container.querySelectorAll('[data-behavior-mark="joint"]')).toHaveLength(1);
+  });
+});
+
+describe("EditorInspector: Animation's source and clip", () => {
+  const HASH = "a".repeat(64);
+  const rect = { x: 0, y: 0, w: 8, h: 8 };
+  const sheet = (id: string, tags: Record<string, [number, number]>): AssetEntry => {
+    const frames = Object.values(tags).flatMap(([from, to]) =>
+      Array.from({ length: to - from + 1 }, (_, i) => `${id}-${from + i}`),
+    );
+    return {
+      key: id,
+      id,
+      kind: "atlas",
+      path: `art/${id}.atlas.json`,
+      sha256: HASH,
+      bytes: 10,
+      meta: {
+        tool: "aseprite",
+        frames: Object.fromEntries(frames.map((f) => [f, rect])),
+        tags: Object.entries(tags).map(([name, [from, to]]) => ({
+          name,
+          from,
+          to,
+          direction: "forward",
+        })),
+        slices: [],
+        order: frames,
+      },
+      created: { at: 0, by: "test" },
+    };
+  };
+  const SHEETS = [sheet("hero", { walk: [0, 1], run: [2, 3] }), sheet("coins", { spin: [0, 1] })];
+  const sheets = createRegistry(null, {
+    assets: (kinds) => (kinds.includes("atlas") ? SHEETS.map((e) => e.id) : []),
+  });
+
+  /** A project of atlases only: their tags are the clips, read from the view alone. */
+  function fakeProject(): ProjectSession {
+    const state: ProjectState = {
+      meta: { projectId: "p", layout: 1, name: "P" },
+      assets: Object.fromEntries(SHEETS.map((e) => [e.key, e])),
+      history: {},
+      code: {},
+      build: {},
+    };
+    const view = projectView(state);
+    return { view: () => view, projectDoc: new Y.Doc() } as unknown as ProjectSession;
+  }
+
+  function setupSheets() {
+    const session = createEditorSession({
+      doc: sceneToDoc(room(hero), { key: sequentialKeys("a") }),
+      origin: ada,
+      name: "templates",
+      registry: sheets,
+      issuesDebounceMs: 0,
+    });
+    session.select(["hero"]);
+    const dispatch = vi.spyOn(session, "dispatch");
+    render(<EditorInspector session={session} project={fakeProject()} />);
+    const anim = () =>
+      (
+        session.getDoc().entities!.find((e) => e.id === "hero")!.behaviors as Record<
+          string,
+          unknown
+        >
+      ).anim;
+    return { dispatch, anim };
+  }
+
+  it("adds Animation with the first atlas's first tag, saying which in the item", async () => {
+    const { dispatch, anim } = setupSheets();
+    const items = await openMenu();
+    const item = items.find((i) => i.getAttribute("data-behavior") === "anim")!;
+    expect(item.getAttribute("aria-disabled")).toBeNull();
+    expect(item.querySelector(".je-insp-behavior-note")?.textContent).toBe(
+      "Uses hero (walk). Also adds Sprite.",
+    );
+    await act(async () => {
+      choose(item);
+    });
+    expect(dispatch).toHaveBeenCalledOnce();
+    expect(anim()).toEqual({ source: "hero", clip: "walk" });
+  });
+
+  it("picks the clip from the source's clips, and a new source takes its first", async () => {
+    const { dispatch, anim } = setupSheets();
+    await act(async () => {
+      choose((await openMenu()).find((i) => i.getAttribute("data-behavior") === "anim")!);
+    });
+    expect(screen.queryByRole("textbox", { name: "behaviors.anim.clip" })).toBeNull();
+    fireEvent.click(screen.getByRole("combobox", { name: "behaviors.anim.clip" }));
+    const options = await waitFor(() => screen.getAllByRole("option"));
+    expect(options.map((o) => o.textContent)).toEqual(["walk", "run"]);
+    choose(options[1]!);
+    await waitFor(() => expect(anim()).toEqual({ source: "hero", clip: "run" }));
+
+    const row = screen
+      .getByRole("combobox", { name: "behaviors.anim.source" })
+      .closest(".je-insp-field") as HTMLElement;
+    fireEvent.click(within(row).getByRole("button", { name: "Show options" }));
+    const sources = await waitFor(() => screen.getAllByRole("option"));
+    choose(sources.find((o) => o.textContent?.includes("coins"))!);
+    await waitFor(() => expect(anim()).toEqual({ source: "coins", clip: "spin" }));
+    expect(dispatch.mock.calls.at(-1)![0]).toMatchObject({
+      label: "Set Asset",
+      ops: [
+        { op: "update", ref: "hero", set: { "behaviors.anim.source": "coins" } },
+        { op: "update", ref: "hero", set: { "behaviors.anim.clip": "spin" } },
+      ],
+    });
   });
 });

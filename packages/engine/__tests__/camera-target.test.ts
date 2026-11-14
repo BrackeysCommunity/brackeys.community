@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { Container } from "pixi.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createGame } from "../engine";
@@ -8,52 +7,25 @@ import type { GameDefinition } from "../game/types";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
 import type { GameInstance, RapierModule, Vec2 } from "../types";
 import { loadCompatRapier } from "./fixtures/compat-rapier";
+import { manualFrames, type FrameClock, type FrameRecord } from "./fixtures/frame-clock";
 
-vi.mock("../renderer", () => ({
-  createRenderer: async () => ({
-    app: {},
-    worldContainer: new Container(),
-    uiContainer: new Container(),
-    resize: () => {},
-    destroy: () => {},
-  }),
-}));
+vi.mock("../renderer", async () => (await import("./fixtures/frame-clock")).stubRenderer());
 
 /** The camera each frame hands the view, in the order the frames ran. */
-const frames = vi.hoisted(() => [] as { x: number; y: number }[]);
-vi.mock("../render/pixi-view", async (importOriginal) => {
-  const real = await importOriginal<typeof import("../render/pixi-view")>();
-  return {
-    ...real,
-    createPixiView: (...args: Parameters<typeof real.createPixiView>) => {
-      const view = real.createPixiView(...args);
-      const recording: typeof view = {
-        ...view,
-        frame(f) {
-          frames.push({ x: f.camera.x, y: f.camera.y });
-          view.frame!(f);
-        },
-      };
-      return recording;
-    },
-  };
-});
+const seen = vi.hoisted((): FrameRecord => ({ frames: [], views: [] }));
+vi.mock("../render/pixi-view", async (importOriginal) =>
+  (await import("./fixtures/frame-clock")).recordingPixiView(importOriginal, seen),
+);
 
-const TICK_MS = 1000 / 60;
-
-let pending: FrameRequestCallback[] = [];
-let now = 0;
+let clock: FrameClock;
 /** Runs `n` frames a tick apart: each steps one tick, then renders. */
-function advance(n: number): void {
-  for (let i = 0; i < n; i++) {
-    now += TICK_MS;
-    const due = pending;
-    pending = [];
-    for (const cb of due) cb(now);
-  }
-}
+const advance = (n: number) => clock.ticks(n);
 
-const lastFrame = (): { x: number; y: number } => frames[frames.length - 1]!;
+/** Where the last frame's camera stood. */
+const lastFrame = (): Vec2 => {
+  const { x, y } = seen.frames[seen.frames.length - 1]!;
+  return { x, y };
+};
 
 const target = (id: string, at: Vec2, extra: Partial<EntityDef> = {}, weight?: number) =>
   ({
@@ -96,11 +68,9 @@ async function playing(
 }
 
 beforeEach(() => {
-  frames.length = 0;
-  pending = [];
-  now = 0;
-  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => pending.push(cb));
-  vi.stubGlobal("cancelAnimationFrame", () => {});
+  seen.frames.length = 0;
+  seen.views.length = 0;
+  clock = manualFrames();
   canvas = document.createElement("canvas");
   document.body.appendChild(canvas);
 });
@@ -166,7 +136,7 @@ describe("camera-target", () => {
     advance(30);
     expect(lastFrame()).toEqual({ x: -7, y: 3 });
 
-    frames.length = 0;
+    seen.frames.length = 0;
     await playing(
       scene,
       gameWith(() => null),

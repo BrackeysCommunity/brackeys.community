@@ -310,6 +310,19 @@ describe("tweens", () => {
     rt.destroy();
   });
 
+  it("wait no ticks for a delay of { ms: 0 }, as for 0", () => {
+    const rt = tweening([
+      { id: "a", type: "marker", at: [0, 0] },
+      { id: "b", type: "marker", at: [0, 0] },
+    ]);
+    rt.ctx.tweens.to("a", { to: { x: 3 }, duration: 3, delay: { ms: 0 } });
+    rt.ctx.tweens.to("b", { to: { x: 3 }, duration: 3, delay: 0 });
+    rt.step(DT, []);
+    expect(pose(rt, "a").x).toBe(1);
+    expect(pose(rt, "b").x).toBe(1);
+    rt.destroy();
+  });
+
   it("lerp a tint per colour channel", () => {
     expect(lerpChannel("tint", 0x000000, 0xff8000, 0.5)).toBe(0x804000);
     expect(lerpChannel("tint", 0x102030, 0x102030, 0.3)).toBe(0x102030);
@@ -656,6 +669,55 @@ describe("tweens replay and save", () => {
     expect(b.ctx.tweens.size).toBe(4);
     expect(play(b, AT, 90)).toBe(digest);
     b.destroy();
+  });
+
+  it("a save keeps the look finished tweens left, for the sprite and a later tween's start", () => {
+    const lamp: RuntimeEntity = {
+      id: "lamp",
+      type: "decor",
+      at: [0, 0],
+      behaviors: { sprite: { tint: 0x000000 } },
+    };
+    const sid = spriteViewId("lamp");
+    const fade = { to: { alpha: 0.25, tint: 0xff8000, scale: 2 }, duration: 3 };
+    /** Ticks on from the save, starting a fade back up: the sprite's look each tick. */
+    const rest = (rt: SceneRuntimeHandle, live: ReturnType<typeof recordingView>["live"]) => {
+      const looks: unknown[] = [];
+      rt.ctx.tweens.to("lamp", { to: { alpha: 1, scale: 1 }, duration: 4 });
+      for (let i = 0; i < 5; i++) {
+        rt.step(DT, []);
+        const { alpha, tint, size } = live.get(sid)!.sprite!;
+        looks.push([alpha, tint, size]);
+      }
+      return looks;
+    };
+
+    const a = recordingView({ sprites: true });
+    const first = tweening([lamp], a.view);
+    first.ctx.tweens.to("lamp", fade);
+    stepFor(first, 5);
+    expect(first.ctx.tweens.size).toBe(0);
+    const captured = captureSave(first, { depth: "world", slot: "s", now: 0 });
+    if (!captured.ok) throw new Error(captured.issue.message);
+    const atSave = { ...a.live.get(sid)!.sprite! };
+    expect(atSave.alpha).toBe(0.25);
+    const looks = rest(first, a.live);
+    expect(looks[0]).toEqual([formula(0.25, 1, 1, 4), 0xff8000, expect.anything()]);
+    first.destroy();
+
+    const b = recordingView({ sprites: true });
+    const second = tweening([lamp], b.view);
+    expect(b.live.get(sid)!.sprite!.alpha).not.toBe(atSave.alpha);
+    const restored = restoreSave(second, captured.file);
+    if (!restored.ok) throw new Error(restored.issue.message);
+    const { alpha, tint, size } = b.live.get(sid)!.sprite!;
+    expect({ alpha, tint, size }).toEqual({
+      alpha: atSave.alpha,
+      tint: atSave.tint,
+      size: atSave.size,
+    });
+    expect(rest(second, b.live)).toEqual(looks);
+    second.destroy();
   });
 
   it("a save after tweens ended keeps them ended", () => {

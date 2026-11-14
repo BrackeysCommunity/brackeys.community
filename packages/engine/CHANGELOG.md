@@ -26,7 +26,7 @@ made against a project that has animations go stale once.
   `StepResult.present` in request order, and a request made outside a step
   (a game's `onLoad`) joins the next tick's list. The shell records and
   drains them after each tick's `view.commit` and presents camera and
-  effect requests (bursts and sounds are dropped for now).
+  effect requests (sounds are dropped for now).
   `@jams/engine/game` exports `PresentationQueue`, `PresentRequest`,
   `PresentedRequest`, `CameraRequest`, `EffectRequest` and `AudioRequest`.
 - Headless: `recordPresentation` on `createHeadlessRuntime` and
@@ -111,10 +111,10 @@ alpha })` draws a full-canvas DOM flash over every viewport, on the
   frozen; `runtimeView` takes the kind registry as an optional fourth
   argument. `validateProject(view, texts, kinds, env)` runs every doc's
   checks, then every kind's `crossValidate` over the other docs, and never
-  throws (a check that throws reports as a `schema` error on its doc). It
-  and the `AnimationFile`, `ClipDef`,
-  `AnimFrameDef`, `ClipLoop`, `EmitterFile` and `EmitterCurve` types on
-  `@jams/engine/project`.
+  throws (a check that throws reports as a `schema` error on its doc).
+  `@jams/engine/project` exports `validateProject` and the `AnimationFile`,
+  `ClipDef`, `AnimFrameDef`, `ClipLoop`, `EmitterFile` and `EmitterCurve`
+  types.
 - The `animation` asset kind (`animation:v1`,
   `urn:jams-engine:animation:v1`): clips over one atlas, keyed by name and
   co-edited per clip, with per-frame `ms`, `events` and named shape sets in
@@ -236,9 +236,8 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   the headless end; `recordPresentation` probes also digest alike without
   presentation. `saves-audit.test.ts` runs every probe's save-at-N variant
   with an animated, tweened entity attached: save-then-continue equals
-  restore-then-continue. matrix.ts reads "landed" from a milestone →
-  version table against ENGINE_VERSION; the idle row lists engine
-  milestones only.
+  restore-then-continue. matrix.ts reads "landed" from a table of the
+  shipped milestones' versions against `ENGINE_VERSION`.
 
 ### Changed
 
@@ -270,17 +269,15 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   entities with velocity from the previous poses. Without a rig, the
   follow is unchanged. A live swap that changes `settings.camera` keeps
   the running rig until the next load.
-- The kitchen sink gains the camera region `framing`,
-  `settings.camera: { damping: 0.2 }` and a note.
 - The kitchen sink carries every animation, camera and effect feature:
-  `std-anim` plays the new `kitchen-animation`
+  the camera region `framing`, `settings.camera: { damping: 0.2 }` and a
+  note; `std-anim` plays the new `kitchen-animation`
   (`art/kitchen.animation.json`, clips over the hero atlas: `idle` from
   its tag, `jab` a once clip raising `strike` over a `hit` shape set),
   `std-tween` is a decor on a yoyo tween, `std-emitter` sprays the new
-  `sparks` emitter preset (`art/sparks.emitter.json`), beside the
-  `framing` camera region; its `fades` check now expects two decors. Its
-  svg and ascii goldens are regenerated (they now draw the camera region
-  too).
+  `sparks` emitter preset (`art/sparks.emitter.json`); its `fades` check
+  now expects two decors. Its svg and ascii goldens are regenerated (they
+  now draw the camera region too).
 - Internal, no public surface: the editor's outline helpers
   (`outlineBounds`, `outlineLook`, `frameBounds`, `outlinesOfRef`,
   `marksBounds`) live in `editor/outline-bounds.ts`, ending the
@@ -290,7 +287,12 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   it).
 - `PixiView` gains `parallax(camera)` and `showLayers(names | null)`.
 - Internal: one `BLEND_MODES` list (`game/defaults.ts`) for the
-  sprite block, the material kind and the emitter kind.
+  sprite block, the material kind and the emitter kind; frame shapes
+  mirror through `flipShapeX` (`scene/shape-geometry.ts`), on the same
+  flip rules a scene transform applies to a shape tuple.
+- The editor's project tree, asset panel, delete confirm and trash give
+  animation, emitter, scene-list and save assets icons of their own
+  instead of the generic file icon.
 - Genre pins: `grid-puzzle`'s `default`, `gravity-zero`,
   `gravity-sideways` and `saved-mid-push` move (8df0c7714f456fd0 →
   9ffe5388c1a4b159): each push tweens the crate's picture over 8 ticks,
@@ -319,30 +321,27 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
 ### Agent surface
 
 - `AGENT_SURFACE_VERSION` is 21, and every committed JSON Schema's
-  `x-agent-surface` with it; `animation.schema.json` and
-  `emitter.schema.json` are new schema ids.
-- Issue codes `anim-tag-unknown`, `anim-clip-unknown`,
-  `frame-shape-invalid` and `tween-target-invalid` (all errors).
-- The scene, prefab and fragment schemas gain the `anim`, `tween` and
-  `emitter` blocks (the tween spec as `$defs/TweenSpec`) and
-  `settings.camera`.
-- `animation:v1` and its schema `./schemas/animation.schema.json`; the
-  issue codes `anim-tag-unknown`, `anim-clip-unknown` and
-  `frame-shape-invalid` are now raised (by `animationIssues`), alongside
+  `x-agent-surface` with it.
+- New schema ids `animation:v1` (`./schemas/animation.schema.json`) and
+  `emitter:v1` (`./schemas/emitter.schema.json`).
+- New issue codes, all errors: `anim-tag-unknown`, `anim-clip-unknown` and
+  `frame-shape-invalid`, raised by `animationIssues` alongside
   `asset-frame-unknown` and `asset-kind` for an animation's frames and
-  atlas.
-- The `camera-region` primitive in every scene schema
-  (`$defs/CameraRegionShape`).
-- `emitter:v1` (the emitter kind and its JSON Schema).
-- The `emitter` block's `rate` reads "Particles per second; overrides the
-  preset's rate."
-- `tween-target-invalid` is now raised: structurally (error) for a `tween`
+  atlas; and `tween-target-invalid`, raised structurally for a `tween`
   entry on a type that can't be posed (`prop`, `follower`, `nav`,
   `camera-region`, or a game type based on one without its own system) or
   animating `alpha`/`tint`/`scale` on an entity without a `sprite`, and as
   `EngineError("tween-target-invalid")` by `ctx.tweens.to` and by the
-  block's attach. The tween spec's `scale` now reads "Multiplies the
-  sprite's drawn size; 1 draws it as its block sizes it."
+  block's attach. `codes` lists all four.
+- The scene, prefab and fragment schemas gain the `anim`, `tween` and
+  `emitter` blocks (the tween spec as `$defs/TweenSpec`) and
+  `settings.camera`.
+- The `camera-region` primitive in every scene schema
+  (`$defs/CameraRegionShape`).
+- The `emitter` block's `rate` reads "Particles per second; overrides the
+  preset's rate."
+- The tween spec's `scale` reads "Multiplies the sprite's drawn size; 1
+  draws it as its block sizes it."
 - `scene step --anim <id>` prints an entity's clip, frame index and frame
   after every tick (consecutive ticks run together in the text;
   `anim.ticks` in --json has one entry per tick).
@@ -355,8 +354,6 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   (`animation` in --json).
 - `show` lists the camera regions as the camera rig reads them: box, zoom,
   clamp and ease (`cameraRegions` in --json).
-- `codes` lists `anim-tag-unknown`, `anim-clip-unknown`,
-  `frame-shape-invalid` and `tween-target-invalid`.
 - The headless entry exports `cameraRegionsOf` and `CameraRegion`.
 - MCP `scene_playtest` takes `present: true` and returns the run's
   presentation requests (`present`: each with `kind`, `op` and `tick`, in

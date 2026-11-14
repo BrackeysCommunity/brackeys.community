@@ -326,7 +326,7 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     severity: "error",
     summary:
       "A clip's `next`, an `anim` block's `clip` or a `ctx.anim.play` names a clip the animation doesn't have.",
-    hint: "Add the clip, or fix `next`.",
+    hint: "Name one of the animation's clips (the message suggests the closest), or add the clip.",
     fixable: false,
   },
   "frame-shape-invalid": {

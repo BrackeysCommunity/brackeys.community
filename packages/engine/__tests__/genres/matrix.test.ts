@@ -40,14 +40,12 @@ describe("the genre matrix", () => {
     expect(() => milestonesOf("later")).toThrow(/can't read/);
   });
 
-  it("knows the version of every milestone a row or a pending need names, each version once", () => {
-    const names = new Set([
-      ...GENRE_ROWS.flatMap((row) => MATRIX[row].milestones),
-      ...PROBES.flatMap((p) => Object.values(p.pending ?? {}).flatMap((n) => named(n ?? ""))),
-    ]);
-    for (const m of names) expect(MILESTONE_VERSIONS[m], `M${m}`).toBeDefined();
+  it("dates only shipped milestones, each version once, none ahead of the engine", () => {
     const versions = Object.values(MILESTONE_VERSIONS);
     expect(new Set(versions).size).toBe(versions.length);
+    for (const [m, at] of Object.entries(MILESTONE_VERSIONS)) {
+      expect(compareVersions(at, ENGINE_VERSION), `M${m} at ${at}`).toBeLessThanOrEqual(0);
+    }
     expect(MILESTONE_VERSIONS[22]).toBe("0.15.0");
   });
 
@@ -60,7 +58,7 @@ describe("the genre matrix", () => {
     expect(landed(22, "0.14.5")).toBe(false);
     expect(landed(22, "0.15.0")).toBe(true);
     expect(landed(31, "0.14.5")).toBe(true);
-    // Landed out of number order: M42 shipped before M22.
+    // Milestones don't land in number order.
     expect(landed(42, "0.14.5")).toBe(true);
     expect(landed(99, "9.0.0")).toBe(false);
     expect(landed(19)).toBe(compareVersions(ENGINE_VERSION, "0.14.0") >= 0);

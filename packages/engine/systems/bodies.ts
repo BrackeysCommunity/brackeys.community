@@ -10,7 +10,7 @@ import type {
 } from "@dimforge/rapier2d";
 
 import { createSensorCollider } from "../collisions";
-import type { ViewLayer } from "../context";
+import { DRAW_LAYERS, type ViewLayer } from "../context";
 import { SPRITE } from "../game/behaviors/sprite";
 import { physicsOf } from "../game/physics-of";
 import { oneWaySideOf } from "../game/primitives";
@@ -27,10 +27,12 @@ import type {
 import { posedBodyDesc, shapeColliderDesc, shapePose } from "../physics";
 import { rapierBodyEntry, registerBody, type BodyEntry } from "../runtime/bodies-control";
 import type { GeometryColliderDesc } from "../runtime/geometry-world";
-import { composePose, relativePose, type Pose } from "../runtime/poses";
+import { composePose, framePose, relativePose, type Pose } from "../runtime/poses";
 import type { SpaceHit } from "../runtime/space";
 import { shapeSpawnPose } from "../runtime/spawn-pose";
 import { SENSOR_ENTER, SENSOR_EXIT, type StepEvent } from "../runtime/types";
+import { parseBulkId } from "../scene/bulk-ref";
+import { defaultLayer } from "../scene/layers";
 import { aabb, shapeAtPose, translateShape } from "../scene/shape-geometry";
 import type { Aabb, RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
@@ -103,6 +105,24 @@ export function entityDrawLayer(
 ): ViewLayer {
   if (e.layer === undefined) return fallback;
   return ctx.registry.layers.find((l) => l.name === e.layer)?.draw ?? fallback;
+}
+
+/**
+ * The draw order an entity's own visuals (a sprite, an emitter) sit on: the
+ * scene layer it names, else its type's default layer, else the body layer.
+ */
+export function entityHomeLayer(
+  ctx: Pick<EngineContext, "registry">,
+  id: string,
+  entity: { type: string; layer?: string },
+): ViewLayer {
+  const { layers, types } = ctx.registry;
+  const home = defaultLayer(types.get(entity.type), parseBulkId(id) !== null, layers);
+  return entityDrawLayer(
+    ctx,
+    entity,
+    layers.find((l) => l.name === home)?.draw ?? DRAW_LAYERS.body,
+  );
 }
 
 /**
@@ -185,19 +205,6 @@ function bodyOffset(e: ShapedEntity, local: boolean): Pose {
   if (local) return pose;
   const frame = shapePose(e.shape);
   return relativePose(pose, { x: frame.x, y: frame.y, rot: frame.rotation });
-}
-
-/** The pose of a body whose entity, at `offset` in the body's frame, is at `pose`: `composePose`'s inverse. */
-function framePose(pose: Readonly<Pose>, offset: Pose): Pose {
-  const rot = pose.rot - offset.rot;
-  if (rot === 0) return { x: pose.x - offset.x, y: pose.y - offset.y, rot };
-  const c = Math.cos(rot);
-  const s = Math.sin(rot);
-  return {
-    x: pose.x - (offset.x * c - offset.y * s),
-    y: pose.y - (offset.x * s + offset.y * c),
-    rot,
-  };
 }
 
 const framedAt = (shape: ShapeObj): Pose => {

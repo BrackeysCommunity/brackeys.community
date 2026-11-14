@@ -1,13 +1,6 @@
 import type { SavedTimer } from "../game/save-file";
-import { ticksFor } from "../game/time";
-import type {
-  CoroutineYield,
-  Delay,
-  EngineContext,
-  JsonValue,
-  TimerAction,
-  Timers,
-} from "../game/types";
+import { delayTicks } from "../game/time";
+import type { CoroutineYield, EngineContext, JsonValue, TimerAction, Timers } from "../game/types";
 
 /** A pending timer a world save can't hold: a function-form timer or a coroutine. */
 export type UnsaveableTimer = { kind: "timer" | "coroutine"; id: number; owner?: string };
@@ -68,13 +61,6 @@ type CoroutineEntry = Base & {
 
 type Entry = TimerEntry | CoroutineEntry;
 
-function checkTicks(ticks: number, what: string): number {
-  if (!Number.isInteger(ticks) || ticks < 0) {
-    throw new RangeError(`${what} must be a whole number of ticks (0 or more), got ${ticks}`);
-  }
-  return ticks;
-}
-
 /**
  * The runtime's timers and coroutines, on a clock of timer phases: one per
  * simulated tick (step 6 of the tick), plus the phases a seek runs before
@@ -97,14 +83,6 @@ export function createTimers(ctx: EngineContext): RuntimeTimers {
     return lastPhase >= base ? base + 1 : base;
   };
   const dueIn = (ticks: number) => Math.max(now() + ticks, nextPhase());
-
-  function ticksOf(delay: Delay, what: string): number {
-    if (typeof delay === "number") return checkTicks(delay, what);
-    if (!Number.isFinite(delay.ms) || delay.ms < 0) {
-      throw new RangeError(`${what} must be 0 ms or more, got ${delay.ms}`);
-    }
-    return ticksFor(delay.ms, ctx.time);
-  }
 
   function add<E extends Entry>(entry: Omit<E, "id" | "paused">): number {
     const id = nextId++;
@@ -166,7 +144,7 @@ export function createTimers(ctx: EngineContext): RuntimeTimers {
     }
     let ticks: number;
     try {
-      ticks = ticksOf(value, "a coroutine's yielded delay");
+      ticks = delayTicks(value, ctx.time, "a coroutine's yielded delay");
     } catch (err) {
       entries.delete(e.id);
       throw err;
@@ -193,14 +171,14 @@ export function createTimers(ctx: EngineContext): RuntimeTimers {
       return add<TimerEntry>({
         kind: "timer",
         owner: opts?.owner,
-        due: dueIn(ticksOf(delay, "an after delay")),
+        due: dueIn(delayTicks(delay, ctx.time, "an after delay")),
         action,
         period: null,
         left: null,
       });
     },
     every(period, action, opts) {
-      const ticks = ticksOf(period, "an every period");
+      const ticks = delayTicks(period, ctx.time, "an every period");
       const times = opts?.times;
       if (times !== undefined && (!Number.isInteger(times) || times < 1)) {
         throw new RangeError(`every's times must be a whole number of 1 or more, got ${times}`);
@@ -234,7 +212,7 @@ export function createTimers(ctx: EngineContext): RuntimeTimers {
       runPhase(ctx.tick + offset);
     },
     seek(ticks) {
-      checkTicks(ticks, "a seek");
+      delayTicks(ticks, ctx.time, "a seek");
       const start = now();
       try {
         for (let i = 0; i < ticks; i++) {

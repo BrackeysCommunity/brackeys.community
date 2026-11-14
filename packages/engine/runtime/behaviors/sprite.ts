@@ -1,10 +1,4 @@
-import {
-  DRAW_LAYERS,
-  drawSprite,
-  type SceneView,
-  type SpriteVisual,
-  type ViewLayer,
-} from "../../context";
+import { drawSprite, type SceneView, type SpriteVisual, type ViewLayer } from "../../context";
 import type { BehaviorBlock, BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
 import {
   SPRITE,
@@ -16,10 +10,8 @@ import {
 import { styleOf } from "../../game/style";
 import type { EngineContext } from "../../game/types";
 import { pxPerMetreOf } from "../../game/units";
-import { parseBulkId } from "../../scene/bulk-ref";
-import { defaultLayer } from "../../scene/layers";
 import type { Pt, RuntimeEntity } from "../../scene/types";
-import { entityDrawLayer } from "../../systems/bodies";
+import { entityHomeLayer } from "../../systems/bodies";
 import type { Pose } from "../poses";
 import { spawnPose } from "../spawn-pose";
 
@@ -166,14 +158,10 @@ export const createSpriteSystem: BehaviorSystemFactory = (ctx) => {
   }
 
   function show(id: string, block: SpriteBlock, entity: RuntimeEntity): void {
-    // An entity naming no layer, or an unknown one, draws on its type's default layer.
-    const { layers, types } = ctx.registry;
-    const home = defaultLayer(types.get(entity.type), parseBulkId(id) !== null, layers);
-    const fallback = layers.find((l) => l.name === home)?.draw ?? DRAW_LAYERS.body;
     const a: Attached = {
       entity,
       block,
-      layer: entityDrawLayer(ctx, entity, fallback),
+      layer: entityHomeLayer(ctx, id, entity),
       frame: attached.get(id)?.frame,
       look: attached.get(id)?.look ?? {},
       offset: spriteGeometry(block).offset,

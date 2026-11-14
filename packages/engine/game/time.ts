@@ -1,4 +1,5 @@
 import { DEFAULT_TIME } from "./defaults";
+import type { Delay } from "./types";
 
 export type TimeKind = "fixed" | "turns" | "event";
 
@@ -74,6 +75,29 @@ export function ticksIn(ms: number, time: Pick<ResolvedTime, "rate">): number {
 /** Whole ticks for `ms` at this rate, at least 1: what `forMs`, `{ ms }` timers and `msPerStep` use. */
 export function ticksFor(ms: number, time: Pick<ResolvedTime, "rate">): number {
   return Math.max(1, Math.round(ticksIn(ms, time)));
+}
+
+/** Whether `n` is a whole number of at least `min`: a tick count or an order a world save holds. */
+export const isCount = (n: unknown, min = 0): n is number =>
+  typeof n === "number" && Number.isInteger(n) && n >= min;
+
+/**
+ * The whole ticks a `Delay` waits: a tick count as given, `{ ms }` rounded
+ * once at this rate, a positive wait at least 1 tick and `{ ms: 0 }` none.
+ * A count that isn't whole and 0 or more, or ms that aren't finite and 0 or
+ * more, throw a `RangeError` naming `what`.
+ */
+export function delayTicks(delay: Delay, time: Pick<ResolvedTime, "rate">, what: string): number {
+  if (typeof delay === "number") {
+    if (!isCount(delay))
+      throw new RangeError(
+        `${what} must be a whole number of ticks (0 or more), got ${String(delay)}`,
+      );
+    return delay;
+  }
+  if (!Number.isFinite(delay.ms) || delay.ms < 0)
+    throw new RangeError(`${what} must be 0 ms or more, got ${delay.ms}`);
+  return delay.ms === 0 ? 0 : ticksFor(delay.ms, time);
 }
 
 /** The whole ticks that fit in `ms` (rounded down) and the ms left over: what a seek runs. */

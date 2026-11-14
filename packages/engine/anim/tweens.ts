@@ -6,6 +6,7 @@
  */
 import type { EaseName, TweenSpec } from "../game/behaviors/tween";
 import type { JsonValue } from "../game/types";
+import { lerpRgb } from "../math";
 import { ease, EASE_NAMES } from "./ease";
 
 export type { TweenChannel, TweenSpec } from "../game/behaviors/tween";
@@ -60,21 +61,11 @@ export type TweenState = {
   emit?: { type: string; data?: JsonValue };
 };
 
-const BYTE = 0xff;
-
 /** `from` to `to` by `k`, the tint channel lerped per 8-bit colour channel. */
 export function lerpChannel(channel: string, from: number, to: number, k: number): number {
   if (k === 0) return from;
   if (k === 1) return to;
-  if (channel !== "tint") return from + (to - from) * k;
-  let out = 0;
-  for (const shift of [16, 8, 0]) {
-    const a = (from >> shift) & BYTE;
-    const b = (to >> shift) & BYTE;
-    const c = Math.min(BYTE, Math.max(0, Math.round(a + (b - a) * k)));
-    out = out * 256 + c;
-  }
-  return out;
+  return channel === "tint" ? lerpRgb(from, to, k) : from + (to - from) * k;
 }
 
 /** The eased progress of `state` at its current tick: running backwards on a yoyo's odd plays. */

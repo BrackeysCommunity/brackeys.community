@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { Container } from "pixi.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createGame } from "../engine";
@@ -12,16 +11,9 @@ import type { PlaytestReport, PlaytestRun } from "../headless/playtest-types";
 import { createPresentationQueue, type PresentRequest } from "../runtime/present";
 import type { ExpandedScene, SceneDefinition } from "../scene/types";
 import type { GameInstance } from "../types";
+import { manualFrames, type FrameClock } from "./fixtures/frame-clock";
 
-vi.mock("../renderer", () => ({
-  createRenderer: async () => ({
-    app: {},
-    worldContainer: new Container(),
-    uiContainer: new Container(),
-    resize: () => {},
-    destroy: () => {},
-  }),
-}));
+vi.mock("../renderer", async () => (await import("./fixtures/frame-clock")).stubRenderer());
 
 /** Asks for one of each kind of presentation: at load, before and after a step's physics. */
 const presenting: GameDefinition<{ ticks: number }> = defineGame({
@@ -161,23 +153,6 @@ describe("presentation requests, headless", () => {
 
 // ─── The shell half: effects and the camera's shake in a browser game ───
 
-/** Drives the loop's frames by hand, `ms` of the fake clock at a time. */
-function manualFrames() {
-  let pending: FrameRequestCallback[] = [];
-  let now = 0;
-  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => pending.push(cb));
-  vi.stubGlobal("cancelAnimationFrame", () => {});
-  return {
-    advance(ms: number) {
-      now += ms;
-      vi.advanceTimersByTime(ms);
-      const due = pending;
-      pending = [];
-      for (const cb of due) cb(now);
-    },
-  };
-}
-
 type Ask = (ctx: EngineContext) => void;
 
 /** A fixed-rate game that walks a counter and asks for presentation on the ticks `asks` names. */
@@ -213,11 +188,11 @@ const askingDoc: SceneDefinition = {
 
 describe("presentation requests, in the shell", () => {
   const games: GameInstance[] = [];
-  let frames: ReturnType<typeof manualFrames>;
+  let frames: FrameClock;
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
-    frames = manualFrames();
+    frames = manualFrames({ timers: true });
     document.body.appendChild(document.createElement("canvas"));
   });
 
@@ -228,7 +203,10 @@ describe("presentation requests, in the shell", () => {
     vi.useRealTimers();
   });
 
-  async function playing(def: GameDefinition<{ n: number }>, reducedMotion = false) {
+  async function playing(
+    def: GameDefinition<{ n: number }>,
+    reducedMotion: boolean | "auto" = false,
+  ) {
     const game = await createGame(document.querySelector("canvas")!, {
       game: def as GameDefinition,
       reducedMotion,
@@ -308,6 +286,33 @@ describe("presentation requests, in the shell", () => {
     expect(styles.some((s) => /opacity: 0\.9\b/.test(s))).toBe(false);
     frames.advance(90);
     expect(document.querySelector("[data-jams-flash]")).toBeNull();
+  });
+
+  it('follows the page\'s reduced motion as the player changes it, under "auto"', async () => {
+    const listeners = new Set<(e: { matches: boolean }) => void>();
+    const query = {
+      matches: false,
+      addEventListener: (_: string, fn: (e: { matches: boolean }) => void) => listeners.add(fn),
+      removeEventListener: (_: string, fn: (e: { matches: boolean }) => void) =>
+        listeners.delete(fn),
+    };
+    vi.stubGlobal("matchMedia", (q: string) =>
+      q === "(prefers-reduced-motion: reduce)" ? query : { matches: false },
+    );
+    const game = await playing(
+      asking({ 1: (ctx) => ctx.present.effects.flash({ ms: 500, alpha: 0.9 }) }),
+      "auto",
+    );
+    expect(game.reducedMotion).toBe(false);
+    query.matches = true;
+    for (const fn of listeners) fn({ matches: true });
+    expect(game.reducedMotion).toBe(true);
+    runTo(game, ticks(game) + 2);
+    expect(document.querySelector<HTMLElement>("[data-jams-flash]")!.style.transition).toContain(
+      "80ms",
+    );
+    game.destroy();
+    expect(listeners.size).toBe(0);
   });
 
   it("under reduced motion drops the shake: the camera frames as if none was asked for", async () => {

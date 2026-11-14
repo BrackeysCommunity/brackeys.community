@@ -70,13 +70,30 @@ export type DocLayout =
    */
   | { as: "keyed"; id?: string /* default "id" */; item: Extract<DocLayout, { as: "map" }> };
 
-/** What a kind's `crossValidate` reads of the other docs in the project. */
+/**
+ * Parsed docs by kind: what a kind's `crossValidate` reads of the other
+ * docs, and what `ProjectRuntimeView` gives of its runtime docs.
+ */
 export type DocLookup = {
-  /** Every live asset id of a kind, in path order. */
-  ids(kind: AssetKindName): readonly AssetId[];
-  /** A doc's parsed, migrated value; undefined when missing or invalid. */
-  read<T = unknown>(kind: AssetKindName, id: AssetId): T | undefined;
+  /** The ids `doc` answers for a kind, in path order. */
+  docs: (kind: AssetKindName) => readonly AssetId[];
+  /** A doc's parsed, migrated value; undefined for an id of no doc of `kind` that parses. */
+  doc: <T = unknown>(kind: AssetKindName, id: AssetId) => T | undefined;
 };
+
+/** A `DocLookup` over parsed docs by kind, then id; a kind's ids in its map's order. */
+export function docLookup(
+  byKind: ReadonlyMap<AssetKindName, ReadonlyMap<AssetId, unknown>>,
+): DocLookup {
+  const ids = new Map<AssetKindName, readonly AssetId[]>();
+  for (const [kind, docs] of byKind) ids.set(kind, Object.freeze([...docs.keys()]));
+  const none: readonly AssetId[] = Object.freeze([]);
+  return {
+    docs: (kind) => ids.get(kind) ?? none,
+    doc: <T = unknown>(kind: AssetKindName, id: AssetId) =>
+      byKind.get(kind)?.get(id) as T | undefined,
+  };
+}
 
 /** A doc kind's file read: its migrated value, or the issues that refuse it. */
 export type ParseAssetResult<J = unknown> =

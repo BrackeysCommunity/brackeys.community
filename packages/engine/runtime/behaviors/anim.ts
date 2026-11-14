@@ -3,7 +3,7 @@ import { frameShapesAt } from "../../anim/shapes";
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
 import { ANIM, type AnimBlock } from "../../game/behaviors/anim";
 import { SPRITE, spriteOffset, type SpriteBlock } from "../../game/behaviors/sprite";
-import { wholeTicksIn } from "../../game/time";
+import { isCount, wholeTicksIn } from "../../game/time";
 import { EngineError, type EngineContext, type JsonValue } from "../../game/types";
 import { ANIMATION_KIND, type AnimationFile } from "../../project/kinds/animation";
 import { closest } from "../../scene/did-you-mean";
@@ -62,6 +62,8 @@ type Run = {
   off: boolean;
   /** The frame last handed to the sprite system. */
   shown: string | null;
+  /** `play` or `stop` set it since its block last attached or changed clip. */
+  byCode: boolean;
 };
 
 /** What a world save holds: the entity's `AnimState`, plus where in the pass it is and the carried thousandths. */
@@ -71,8 +73,6 @@ const MILLI = 1000;
 
 /** Thousandths of a tick a run moves per tick: its speed times its clip's, at least one. */
 const milliOf = (run: Run) => Math.max(1, Math.round(run.speed * (run.clip?.speed ?? 1) * MILLI));
-
-const isCount = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
 
 const wraps = (clip: ResolvedClip) => clip.loop === "loop" || clip.loop === "pingpong";
 
@@ -213,6 +213,7 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
       started: false,
       off: false,
       shown,
+      byCode: false,
     };
     begin(run, clips.get(block.clip) ?? null, block.offset ?? 0);
     return run;
@@ -272,8 +273,10 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
         tick(id, run, false);
       }
     },
+    // A run `play` or `stop` set is kept as it is: a load resets before any tick runs.
     reset() {
       for (const [id, run] of runs) {
+        if (run.byCode) continue;
         const again = fresh(run.block, run.shown);
         again.off = run.off;
         runs.set(id, again);
@@ -316,12 +319,15 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
       const ended = run.clip === clip && clip.loop === "once" && run.at >= clip.length;
       const same = run.clip === clip && !opts?.restart && !ended;
       run.playing = true;
+      run.byCode = true;
       if (same) return;
       begin(run, clip, 0);
       show(id, run);
     },
     stop(id) {
-      runOf(id).playing = false;
+      const run = runOf(id);
+      run.playing = false;
+      run.byCode = true;
     },
     state(id) {
       const run = runs.get(id);

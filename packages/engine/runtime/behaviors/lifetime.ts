@@ -1,9 +1,7 @@
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
 import type { LifetimeBlock } from "../../game/behaviors/lifetime";
-import { ticksFor, wholeTicksIn } from "../../game/time";
+import { isCount, ticksFor, wholeTicksIn } from "../../game/time";
 import type { EngineContext, JsonValue } from "../../game/types";
-
-const isCount = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
 
 /** A running lifetime: the clock phase it ends in, and its order among those ending then. */
 type Countdown = { due: number; seq: number };

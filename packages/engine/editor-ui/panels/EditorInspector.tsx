@@ -11,6 +11,7 @@ import {
   createContext,
   Fragment,
   useContext,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -18,7 +19,7 @@ import {
   type ReactNode,
 } from "react";
 
-import type { ProjectSession } from "../../collab/index";
+import { layoutFromDoc, type ProjectSession, type SessionDoc } from "../../collab/index";
 import {
   applyLevels,
   applyToPrefabBatch,
@@ -67,6 +68,15 @@ import {
 } from "../../editor/inspector-model";
 import { BEHAVIOR_CATEGORIES, BEHAVIORS_FIELD } from "../../game/behaviors";
 import { pxPerMetreOf } from "../../game/units";
+import {
+  assetInfo,
+  isRuntimeKind,
+  parseAssetDoc,
+  type AssetId,
+  type ProjectView,
+} from "../../project/index";
+import { ANIMATION_KIND, sourceClipNames, type AnimationFile } from "../../project/kinds/animation";
+import { ATLAS_KIND } from "../../project/kinds/atlas";
 import type { PrefabLibrary } from "../../scene/index";
 import { snapToPixel } from "../../scene/units";
 import { STORAGE_PREFIX } from "../host";
@@ -176,9 +186,13 @@ type Ctx = {
   project?: ProjectSession | null;
   /** The model's fields by path, for widgets that edit a sibling (an atlas's frame). */
   fields?: ReadonlyMap<string, ModelField>;
-  /** Fields an asset picker draws as its frame row, so they aren't drawn again. */
+  /** Fields an asset picker draws as its frame or clip row, so they aren't drawn again. */
   drawnBy?: ReadonlySet<string>;
+  /** The clips an animation or atlas offers (`useClips`), for an asset picker's clip row. */
+  clips?: ClipLookup;
 };
+
+type ClipLookup = (source: AssetId) => readonly string[] | null;
 
 type Edit = { ok: true; batch: OpBatch } | { ok: false; error: string };
 
@@ -881,25 +895,30 @@ function ColorField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
  * An asset field: a combobox of the project's assets of its kinds. Picking
  * an atlas also sets its linked frame field (the current frame when the
  * atlas has it, else its first) and picking a texture unsets it, one batch
- * each; the frame row then lists the atlas's frames. Without a project
- * both are text fields.
+ * each; the frame row then lists the atlas's frames. A linked clip field
+ * likewise takes the picked source's current clip, else its first, and its
+ * row lists the source's clips. Without a project they're all text fields.
  */
 function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const w = field.widget as Extract<FieldWidget, { kind: "asset" }>;
   const view = useProjectView(ctx.project ?? null);
   const [error, setError] = useState<string | null>(null);
   const frameField = w.frame ? ctx.fields?.get(w.frame) : undefined;
+  const clipField = w.clip ? ctx.fields?.get(w.clip) : undefined;
   if (!view) {
     return (
       <>
         <TextField field={field} commit={committer(ctx, field)} />
         {frameField ? <TextField field={frameField} commit={committer(ctx, frameField)} /> : null}
+        {clipField ? <TextField field={clipField} commit={committer(ctx, clipField)} /> : null}
       </>
     );
   }
   const options = assetOptions(view, w.kinds);
   const chosen = field.mixed ? undefined : options.find((o) => o.id === field.value);
   const problem = error ?? (field.mixed ? null : danglingAsset(field.value, options, w.kinds));
+  const clipsOf = (id: string | undefined) => (id === undefined ? null : (ctx.clips?.(id) ?? null));
+  const clips = chosen ? clipsOf(chosen.id) : null;
 
   const pick = (id: string | undefined) => {
     const edits: [ModelField, unknown][] = [[field, id]];
@@ -907,6 +926,9 @@ function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
       const frames = options.find((o) => o.id === id)?.frames;
       edits.push([frameField, frames ? frameFor(frames, frameField.value) : undefined]);
     }
+    const next = clipsOf(id);
+    const clip = next ? frameFor(next, clipField?.value) : undefined;
+    if (clipField && clip !== undefined) edits.push([clipField, clip]);
     setError(commitFields(ctx, `Set ${field.title}`, edits));
   };
 
@@ -933,40 +955,55 @@ function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
       </FieldRow>
       {frameField && showFrame ? (
         chosen?.frames ? (
-          <FrameRow field={frameField} frames={chosen.frames} ctx={ctx} />
+          <PartRow field={frameField} names={chosen.frames} owner="atlas" part="frame" ctx={ctx} />
         ) : (
           <TextField field={frameField} commit={committer(ctx, frameField)} />
+        )
+      ) : null}
+      {clipField ? (
+        chosen && clips ? (
+          <PartRow field={clipField} names={clips} owner={chosen.kind} part="clip" ctx={ctx} />
+        ) : (
+          <TextField field={clipField} commit={committer(ctx, clipField)} />
         )
       ) : null}
     </>
   );
 }
 
-function FrameRow({
+/** A frame or clip field picked from the names its asset has, saying so when it names another. */
+function PartRow({
   field,
-  frames,
+  names,
+  owner,
+  part,
   ctx,
 }: {
   field: ModelField;
-  frames: readonly string[];
+  names: readonly string[];
+  /** The asset's kind, as the problem names it. */
+  owner: string;
+  part: "frame" | "clip";
   ctx: Ctx;
 }) {
   const [error, setError] = useState<string | null>(null);
   const current = field.mixed ? undefined : field.value;
   const problem =
     error ??
-    (typeof current === "string" && !frames.includes(current)
-      ? `This atlas has no frame ${current}.`
-      : null);
+    (names.length === 0
+      ? `This ${owner} has no ${part}s.`
+      : typeof current === "string" && !names.includes(current)
+        ? `This ${owner} has no ${part} ${current}.`
+        : null);
   return (
     <FieldRow field={field} error={problem}>
       <FrameSelect
         path={field.path}
-        frames={frames}
+        frames={names}
         value={field.value}
         mixed={field.mixed}
         empty={field.mixed ? MIXED : "unset"}
-        onPick={(frame) => setError(commitField(ctx, field, frame))}
+        onPick={(name) => setError(commitField(ctx, field, name))}
       />
     </FieldRow>
   );
@@ -1265,13 +1302,76 @@ function paramsFeeding(
   });
 }
 
-/** The frame fields an asset picker among `fields` draws itself. */
+/** The frame and clip fields an asset picker among `fields` draws itself. */
 function framesDrawn(fields: ReadonlyMap<string, ModelField>): Set<string> {
   const out = new Set<string>();
-  for (const f of fields.values())
-    if (f.widget.kind === "asset" && f.widget.frame && fields.has(f.widget.frame))
-      out.add(f.widget.frame);
+  for (const f of fields.values()) {
+    if (f.widget.kind !== "asset") continue;
+    for (const part of [f.widget.frame, f.widget.clip])
+      if (part !== undefined && fields.has(part)) out.add(part);
+  }
   return out;
+}
+
+/**
+ * The clip names each animation and atlas asset of `project` offers, as the
+ * scene validator reads an `anim` block's source: an atlas's tags, or an
+ * animation doc's clips (every animation doc held open while mounted, and
+ * read again as one changes). Undefined without a project.
+ */
+function useClips(project: ProjectSession | null): ClipLookup | undefined {
+  const view = useProjectView(project);
+  const [, bump] = useState(0);
+  const key = project && view ? animationDocs(project, view).join("\n") : "";
+  useEffect(() => {
+    if (!project || key === "") return;
+    const changed = () => bump((n) => n + 1);
+    const held: SessionDoc[] = [];
+    let gone = false;
+    for (const name of key.split("\n")) {
+      project.open(name).then(
+        (doc) => {
+          if (gone) return project.release(name);
+          held.push(doc);
+          doc.doc.on("update", changed);
+          changed();
+        },
+        // An animation whose doc can't open offers no clips.
+        () => {},
+      );
+    }
+    return () => {
+      gone = true;
+      for (const doc of held) {
+        doc.doc.off("update", changed);
+        project.release(doc.name);
+      }
+    };
+  }, [project, key]);
+  if (!project || !view) return undefined;
+  return (source) => clipsOf(project, view, source);
+}
+
+const animationDocs = (project: ProjectSession, view: ProjectView) =>
+  [...view.byId.values()]
+    .filter((e) => e.kind === ANIMATION_KIND)
+    .flatMap((e) => project.docNameFor(e) ?? [])
+    .sort();
+
+function clipsOf(project: ProjectSession, view: ProjectView, source: AssetId) {
+  const entry = view.byId.get(source);
+  if (entry?.kind === ATLAS_KIND) {
+    const atlas = assetInfo(view, source);
+    return atlas?.tags ? sourceClipNames({ atlas }) : null;
+  }
+  if (entry?.kind !== ANIMATION_KIND) return null;
+  const name = project.docNameFor(entry);
+  const held = name ? project.get(name) : undefined;
+  const kind = project.kinds.get(ANIMATION_KIND);
+  if (!held?.layout || !isRuntimeKind(kind)) return null;
+  const env = { registry: project.registry, project: view };
+  const read = parseAssetDoc(kind, layoutFromDoc(held.doc, held.layout), env);
+  return read.ok ? sourceClipNames({ animation: read.value as AnimationFile }) : null;
 }
 
 /**
@@ -1385,6 +1485,12 @@ function menuGroups(options: InspectorModel["addBehaviors"]) {
   return groups.filter((g) => g.items.length > 0);
 }
 
+/** What an Add behavior item says it picks and brings along: "Uses sparks. Also adds Sprite." */
+const addNote = (o: InspectorModel["addBehaviors"][number]) =>
+  [o.uses && `Uses ${o.uses.join(", ")}.`, o.adds && `Also adds ${o.adds.join(", ")}.`]
+    .filter(Boolean)
+    .join(" ");
+
 /**
  * The behaviors the selection's types allow and it doesn't all carry yet,
  * under headings; picking one adds it, and what it requires, in one batch.
@@ -1424,8 +1530,8 @@ function AddBehaviorMenu({ options, ctx }: { options: InspectorModel["addBehavio
                     <span className="je-insp-behavior-note" data-tone="warning">
                       {o.unavailable}
                     </span>
-                  ) : o.adds ? (
-                    <span className="je-insp-behavior-note">Also adds {o.adds.join(", ")}.</span>
+                  ) : o.uses || o.adds ? (
+                    <span className="je-insp-behavior-note">{addNote(o)}</span>
                   ) : null}
                 </MenuItem>
               ))}
@@ -1483,6 +1589,7 @@ type InspectorProps = {
 function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: InspectorProps) {
   const readOnly = useContext(ReadOnlyContext);
   const labelColumn = useLabelColumn();
+  const clips = useClips(project ?? null);
   const selection = useEditorStore(session, (s) => s.selection);
   const doc = useEditorDoc(session);
   const view = useEditorResolved(session);
@@ -1516,7 +1623,10 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
     );
   }
 
-  const model = buildInspectorModel(session.registry, targets, { def: view });
+  const model = buildInspectorModel(session.registry, targets, {
+    def: view,
+    ...(clips ? { clips } : {}),
+  });
   const child = targets.length === 1 ? childOverrides(doc, targets[0]!.ref) : null;
   const childParams = child ? paramsFeeding(doc, child, session.registry, prefabs) : [];
   const byPath = fieldsByPath(model.sections.flatMap((s) => s.fields));
@@ -1528,6 +1638,7 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
     project: project ?? null,
     fields: byPath,
     drawnBy: framesDrawn(byPath),
+    ...(clips ? { clips } : {}),
     ...(child
       ? {
           overrides: {
@@ -1654,20 +1765,29 @@ function paramsBatch(
 }
 
 /**
- * A param's field with each atlas picker inside it pointing at its sibling
- * `frame` under the param's own path, where the param's widgets edit it.
+ * A param's field with each asset picker inside it pointing at its sibling
+ * `frame` or `clip` under the param's own path, where the param's widgets
+ * edit it.
  */
 function paramFrames(field: ModelField): ModelField {
   if (!field.children) return field;
   const children = field.children.map(paramFrames);
   const frame = children.find((c) => c.name === "frame");
+  const clip = children.find((c) => c.name === "clip");
   return {
     ...field,
-    children: children.map((c) =>
-      frame && c.widget.kind === "asset" && c.widget.frame !== undefined
-        ? { ...c, widget: { ...c.widget, frame: frame.path } }
-        : c,
-    ),
+    children: children.map((c) => {
+      if (c.widget.kind !== "asset") return c;
+      const w = c.widget;
+      return {
+        ...c,
+        widget: {
+          ...w,
+          ...(frame && w.frame !== undefined ? { frame: frame.path } : {}),
+          ...(clip && w.clip !== undefined ? { clip: clip.path } : {}),
+        },
+      };
+    }),
   };
 }
 
@@ -1690,6 +1810,7 @@ function ParamsSection({
 }) {
   const [error, setError] = useState<string | null>(null);
   const readOnly = useContext(ReadOnlyContext);
+  const clips = useClips(project);
   const params = model.params.map((p) => ({ ...p, field: paramFrames(p.field) }));
   const byPath = fieldsByPath(params.map((p) => p.field));
   const ctx: Ctx = {
@@ -1700,6 +1821,7 @@ function ParamsSection({
     project,
     fields: byPath,
     drawnBy: framesDrawn(byPath),
+    ...(clips ? { clips } : {}),
     edit: (field, input) => {
       const param = paramOf(model, field);
       return param

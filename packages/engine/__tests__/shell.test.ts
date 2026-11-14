@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { Assets, Container, type Texture } from "pixi.js";
+import { Assets, type Texture } from "pixi.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { DebugOverlayFactory, DebugSceneSource } from "../debug";
@@ -21,18 +21,11 @@ import engineYardJson from "../scenes/engine-yard.json";
 import { TOOL_PRIORITY, type ToolEvent } from "../tool-router";
 import type { GameInstance, InputAction, RapierModule } from "../types";
 import { loadCompatRapier } from "./fixtures/compat-rapier";
+import { manualFrames, type FrameClock } from "./fixtures/frame-clock";
 import { ENGINE_PARITY_SCRIPT } from "./fixtures/parity-script";
 import { testGame } from "./fixtures/test-game";
 
-vi.mock("../renderer", () => ({
-  createRenderer: async () => ({
-    app: {},
-    worldContainer: new Container(),
-    uiContainer: new Container(),
-    resize: () => {},
-    destroy: () => {},
-  }),
-}));
+vi.mock("../renderer", async () => (await import("./fixtures/frame-clock")).stubRenderer());
 
 /** The alpha of each frame any Pixi view is asked to render. */
 const frameAlphas = vi.hoisted(() => [] as number[]);
@@ -100,22 +93,6 @@ function recordingOverlay() {
     };
   };
   return { factory, bound, colliders };
-}
-
-/** Drives the loop's frames by hand. */
-function manualFrames() {
-  let pending: FrameRequestCallback[] = [];
-  let now = 0;
-  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => pending.push(cb));
-  vi.stubGlobal("cancelAnimationFrame", () => {});
-  return {
-    advance(ms: number) {
-      now += ms;
-      const due = pending;
-      pending = [];
-      for (const cb of due) cb(now);
-    },
-  };
 }
 
 const games: GameInstance[] = [];
@@ -617,7 +594,7 @@ describe("the clock", () => {
   }
 
   /** `ms` of wall time in 120 Hz frames. */
-  function wall(frames: ReturnType<typeof manualFrames>, ms: number) {
+  function wall(frames: FrameClock, ms: number) {
     for (let t = 0; t < ms; t += 1000 / 120) frames.advance(1000 / 120);
   }
 

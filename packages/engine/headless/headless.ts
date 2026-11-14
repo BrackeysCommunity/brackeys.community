@@ -1,5 +1,12 @@
 import type { LibraryScene, SceneLibrary } from "../game/flow";
-import type { GameCommand, GameDefinition, GameOutcome, PlayState, Registry } from "../game/types";
+import type {
+  EngineContext,
+  GameCommand,
+  GameDefinition,
+  GameOutcome,
+  PlayState,
+  Registry,
+} from "../game/types";
 import { applyFlowRequest } from "../runtime/flow";
 import {
   createLiveLayer,
@@ -18,7 +25,7 @@ import type {
   StepEvent,
   StepResult,
 } from "../runtime/types";
-import { closest } from "../scene/did-you-mean";
+import { didYouMean } from "../scene/did-you-mean";
 import { uiActionScriptProblem } from "../scene/input-script";
 import type { PrefabLibrary } from "../scene/types";
 import type { InputAction } from "../types";
@@ -182,9 +189,8 @@ function headlessLive(
 /** The probe's error for an action name the game doesn't declare, or null. */
 export function unknownActionError(action: string, actionNames: readonly string[]): string | null {
   if (actionNames.includes(action)) return null;
-  const guess = closest(action, actionNames);
   const known = actionNames.length > 0 ? actionNames.join(", ") : "none";
-  return `unknown action ${JSON.stringify(action)}${guess ? `; did you mean "${guess}"?` : ""} (actions: ${known})`;
+  return `unknown action ${JSON.stringify(action)}${didYouMean(action, actionNames)} (actions: ${known})`;
 }
 
 /**
@@ -207,6 +213,12 @@ type LibraryOption = {
   library?: PrefabLibrary;
 };
 
+/** Reads the run as it goes, for state the report doesn't carry. */
+type ObserveOption = {
+  /** Called after each tick's step that didn't throw, with the runtime's context; it must not change the run. */
+  observe?: (ctx: EngineContext, tick: number) => void;
+};
+
 /**
  * Load `scene`, play scripted input for `ticks` ticks on the runtime's clock,
  * and report what happened. Every tick is simulated whatever the time model,
@@ -215,9 +227,12 @@ type LibraryOption = {
  * the report covering the ticks before it. A game that lists its commands
  * gets `legal` after the last tick, else at the start (`legalCommands`), as
  * `runPlaytest` does; a blocked run has none. A UI-only action in `hold` or
- * `inputs` is refused (`simActionError`).
+ * `inputs` is refused (`simActionError`). `observe` sees each tick after
+ * its step.
  */
-export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): ProbeReport<S> {
+export function runProbe<S = unknown>(
+  opts: ProbeOptions<S> & LibraryOption & ObserveOption,
+): ProbeReport<S> {
   const { registry, game } = resolveGame(opts);
   for (const action of [...(opts.hold ?? []), ...(opts.inputs ?? []).map((e) => e[1])]) {
     const error = simActionError(registry, action);
@@ -271,6 +286,7 @@ export function runProbe<S = unknown>(opts: ProbeOptions<S> & LibraryOption): Pr
         }
         events.push(...result.events);
         ticks++;
+        opts.observe?.(runtime.ctx, tick);
         last = {
           tick,
           snapshot: result.game,

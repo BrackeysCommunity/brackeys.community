@@ -2,13 +2,39 @@ import type { Container } from "pixi.js";
 
 import type { CameraFrame } from "./camera/rig";
 import { DEFAULT_LENGTH_UNIT } from "./game/defaults";
-import { clampVec2, lerpVec2 } from "./math";
+import { clamp, clampVec2, lerpVec2 } from "./math";
 import { DEFAULT_RESOLUTION, viewportFor, type ResolutionPolicy } from "./resolution";
 import type { Bounds } from "./scene/types";
 import type { CameraConfig, CameraMode, CameraState, Vec2 } from "./types";
 
 /** Metres the camera may show past each edge of a scene's bounds. */
 export const CAMERA_SCENE_MARGIN = 1;
+
+/** The furthest out and closest in a camera zooms; every zoom it's handed is clamped to these. */
+export const MIN_CAMERA_ZOOM = 0.1;
+export const MAX_CAMERA_ZOOM = 5;
+
+/** `zoom` within the camera's limits: the zoom a camera actually applies. */
+export const clampZoom = (zoom: number): number => clamp(zoom, MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM);
+
+/**
+ * The largest zoom at which a `width` × `height` area (metres) fits a view
+ * of `view`'s size (metres at zoom 1); Infinity when the area has no extent.
+ */
+export function zoomToFit(width: number, height: number, view: { width: number; height: number }) {
+  return Math.min(
+    width > 0 ? view.width / width : Infinity,
+    height > 0 ? view.height / height : Infinity,
+  );
+}
+
+/** `d` turned by `angle` radians. */
+function rotate(d: Vec2, angle: number): Vec2 {
+  if (angle === 0) return d;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return { x: d.x * cos - d.y * sin, y: d.x * sin + d.y * cos };
+}
 
 /** The world area in view, metres. */
 export type Viewport = { x: number; y: number; width: number; height: number };
@@ -121,21 +147,21 @@ export function createCamera(
     place();
   }
 
+  /** The view's centre on the canvas, px. */
+  function viewCentre(): Vec2 {
+    return {
+      x: offset.x + (displayScale * viewW) / 2,
+      y: offset.y + (displayScale * viewH) / 2,
+    };
+  }
+
   /** Moves the world container so `position` sits at the view's centre, turned by `rotation`. */
   function place(): void {
     const effectiveScale = displayScale * zoom;
-    const cx = offset.x + (displayScale * viewW) / 2;
-    const cy = offset.y + (displayScale * viewH) / 2;
-    let x = -position.x * effectiveScale + cx;
-    let y = -position.y * effectiveScale + cy;
-    if (rotation !== 0) {
-      const cos = Math.cos(rotation);
-      const sin = Math.sin(rotation);
-      const px = position.x * effectiveScale;
-      const py = position.y * effectiveScale;
-      x = cx - (px * cos - py * sin);
-      y = cy - (px * sin + py * cos);
-    }
+    const centre = viewCentre();
+    const p = rotate({ x: position.x * effectiveScale, y: position.y * effectiveScale }, rotation);
+    const x = centre.x - p.x;
+    const y = centre.y - p.y;
     if (resolution.pixelSnap) worldContainer.position.set(Math.round(x), Math.round(y));
     else worldContainer.position.set(x, y);
     worldContainer.rotation = rotation;
@@ -153,21 +179,6 @@ export function createCamera(
     setZoom(frame.zoom);
     rotation = frame.rotation;
     place();
-  }
-
-  /** `d`, a canvas-px offset from the view's centre, turned back by the view's turn. */
-  function unturn(d: Vec2): Vec2 {
-    if (rotation === 0) return d;
-    const cos = Math.cos(rotation);
-    const sin = Math.sin(rotation);
-    return { x: d.x * cos + d.y * sin, y: -d.x * sin + d.y * cos };
-  }
-
-  function turn(d: Vec2): Vec2 {
-    if (rotation === 0) return d;
-    const cos = Math.cos(rotation);
-    const sin = Math.sin(rotation);
-    return { x: d.x * cos - d.y * sin, y: d.x * sin + d.y * cos };
   }
 
   function getPosition(): Vec2 {
@@ -202,9 +213,8 @@ export function createCamera(
   function screenToWorld(screen: Vec2): Vec2 {
     const scale = displayScale * zoom;
     if (rotation !== 0) {
-      const cx = offset.x + (displayScale * viewW) / 2;
-      const cy = offset.y + (displayScale * viewH) / 2;
-      const d = unturn({ x: screen.x - cx, y: screen.y - cy });
+      const c = viewCentre();
+      const d = rotate({ x: screen.x - c.x, y: screen.y - c.y }, -rotation);
       return { x: position.x + d.x / scale, y: position.y + d.y / scale };
     }
     const vp = getViewport();
@@ -214,10 +224,12 @@ export function createCamera(
   function worldToScreen(world: Vec2): Vec2 {
     const scale = displayScale * zoom;
     if (rotation !== 0) {
-      const cx = offset.x + (displayScale * viewW) / 2;
-      const cy = offset.y + (displayScale * viewH) / 2;
-      const d = turn({ x: (world.x - position.x) * scale, y: (world.y - position.y) * scale });
-      return { x: cx + d.x, y: cy + d.y };
+      const c = viewCentre();
+      const d = rotate(
+        { x: (world.x - position.x) * scale, y: (world.y - position.y) * scale },
+        rotation,
+      );
+      return { x: c.x + d.x, y: c.y + d.y };
     }
     const vp = getViewport();
     return { x: (world.x - vp.x) * scale + offset.x, y: (world.y - vp.y) * scale + offset.y };
@@ -250,7 +262,7 @@ export function createCamera(
   }
 
   function setZoom(z: number): void {
-    zoom = Math.max(0.1, Math.min(5, z));
+    zoom = clampZoom(z);
   }
 
   function resize(dw: number, dh: number): void {

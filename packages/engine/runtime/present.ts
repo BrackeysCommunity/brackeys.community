@@ -20,14 +20,20 @@ export type CameraRequest =
   /** Jumps to `at`, or to the targets' goal, with no easing. */
   | { op: "snap"; at?: Vec2; viewport?: number };
 
+/** A full-canvas flash: `color` 0xRRGGBB at `alpha`, fading over `ms`. */
+export type FlashOptions = { color?: number; ms?: number; alpha?: number };
+
+/** A burst's overrides: `count` particles, its angle range turned by `angle` degrees, drawn in `tint`. */
+export type BurstOptions = { count?: number; angle?: number; tint?: number };
+
 /** What the effect and particle layers are asked to do. */
 export type EffectRequest =
   /** A full-canvas flash: `color` 0xRRGGBB, fading over `ms`. */
-  | { op: "flash"; color?: number; ms?: number; alpha?: number }
+  | ({ op: "flash" } & FlashOptions)
   /** Stops the loop's clock for `ms` of wall time; no tick runs meanwhile. */
   | { op: "hitStop"; ms: number }
   /** Particles from an emitter preset at a world point (metres). */
-  | { op: "burst"; preset: AssetId; at: Vec2; count?: number; angle?: number; tint?: number };
+  | ({ op: "burst"; preset: AssetId; at: Vec2 } & BurstOptions);
 
 /** What the audio system is asked to do. */
 export type AudioRequest =
@@ -64,13 +70,9 @@ export interface PresentationQueue {
     snap(at?: Vec2, opts?: { viewport?: number }): void;
   };
   effects: {
-    flash(opts?: { color?: number; ms?: number; alpha?: number }): void;
+    flash(opts?: FlashOptions): void;
     hitStop(ms: number): void;
-    burst(
-      preset: AssetId,
-      at: Vec2,
-      opts?: { count?: number; angle?: number; tint?: number },
-    ): void;
+    burst(preset: AssetId, at: Vec2, opts?: BurstOptions): void;
   };
   audio: {
     play(sound: AssetId, opts?: { at?: Vec2; volume?: number; pitch?: number; key?: string }): void;

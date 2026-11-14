@@ -1,3 +1,5 @@
+import { resolveClips, type ResolvedClip } from "../anim/clips";
+import { ANIM } from "../game/behaviors/anim";
 import type { FlowRequest } from "../game/flow";
 import { resolveTime, type ResolvedTime } from "../game/time";
 import {
@@ -10,9 +12,11 @@ import {
 } from "../game/types";
 import type { TickInput } from "../input/stream";
 import { deepFreeze, stableJson } from "../project/canonical";
+import { clipSourceIn } from "../project/clip-source";
 import { createKindRegistry } from "../project/kinds";
+import { ANIMATION_KIND } from "../project/kinds/animation";
 import { DATA_TABLE_KIND } from "../project/kinds/data-table";
-import { byCodeUnit } from "../project/kinds/define";
+import { byCodeUnit, isPlainObject } from "../project/kinds/define";
 import { GAME_SETTINGS_KIND } from "../project/kinds/game-settings";
 import { INPUT_MAP_KIND } from "../project/kinds/input-map";
 import { SCENE_LIST_KIND } from "../project/kinds/scene-list";
@@ -25,6 +29,7 @@ import { sceneHashWith } from "../scene/prefab";
 import type { RecordedSwap, RunRecording } from "../scene/recording-schema";
 import type {
   ExpandedScene,
+  Prefab,
   PrefabLibrary,
   SceneDefinition,
   SceneHash,
@@ -61,15 +66,18 @@ export type PreparedPlay =
 /**
  * What a run ran, hashed: the expanded scene, the resolved clock, the
  * project view's data (its settings, engine block, the tables the game
- * declares in name order, the input map, and every other `sim` kind's docs
- * in kind then `docs` order) and every prefab the run's `ctx.instantiate`
- * may place, in id order. The other `sim` docs join under one key written
- * only when there is one, so a project without any keeps the hash it had
- * before such kinds existed; `view` kinds and the scene list never join.
- * File text never reaches it, so a re-format that leaves the expanded scene
- * equal leaves it equal, while a changed table row or prefab changes it. A doc's `$schema` points at a
- * schema file's location, not at anything the run reads, so moving the
- * schema leaves it equal too.
+ * declares in name order, the input map, every other `sim` kind's docs in
+ * kind then id order, and the clips `anim` plays: those of every animation
+ * doc and of every source an `anim` block in the scene or a prefab names,
+ * resolved against their atlases' frames, durations and tags) and every
+ * prefab the run's `ctx.instantiate` may place, in id order. The other
+ * `sim` docs and the clips each join under a key written only when there
+ * is one, so a project without any keeps the hash it had before; `view`
+ * kinds and the scene list never join. File text and paths never reach it,
+ * so a re-format or a move that leaves the expanded scene equal leaves it
+ * equal, while a changed table row, prefab or atlas timing changes it. A
+ * doc's `$schema` points at a schema file's location, not at anything the
+ * run reads, so moving the schema leaves it equal too.
  */
 export function runHash(
   scene: ExpandedScene,
@@ -83,6 +91,8 @@ export function runHash(
     .sort(byCodeUnit)
     .map((name) => [name, view ? view.table(name) : []]);
   const docs = view ? simDocs(view, registry) : [];
+  const prefabs = [...(library ?? new Map<string, Prefab>())].sort(([a], [b]) => byCodeUnit(a, b));
+  const anims = view ? animClips(view, time, [scene.entities, prefabs]) : [];
   const data = view
     ? {
         settings: withoutSchemaPointer(view.settings),
@@ -90,9 +100,9 @@ export function runHash(
         tables,
         inputMap: withoutSchemaPointer(view.inputMap),
         ...(docs.length > 0 ? { docs } : {}),
+        ...(anims.length > 0 ? { anims } : {}),
       }
     : null;
-  const prefabs = [...(library ?? new Map())].sort(([a], [b]) => byCodeUnit(a, b));
   return hashText(stableJson({ scene, time, project: data, prefabs }));
 }
 
@@ -109,13 +119,13 @@ function hashedByName(kind: AssetKindName): boolean {
   }
 }
 
-/** Each other `sim` kind's docs, in registration order, that has any: `[kind, [id, doc][]]`. */
+/** Each other `sim` kind's docs, in registration order, that has any: `[kind, [id, doc][]]` in id order. */
 function simDocs(view: ProjectRuntimeView, registry: Registry): [AssetKindName, unknown[]][] {
   if (!view.docs || !view.doc) return [];
   const out: [AssetKindName, unknown[]][] = [];
   for (const def of createKindRegistry(registry.game).list()) {
     if (def.storage !== "doc" || def.runtime !== "sim" || hashedByName(def.kind)) continue;
-    const ids = view.docs(def.kind);
+    const ids = [...view.docs(def.kind)].sort(byCodeUnit);
     if (ids.length === 0) continue;
     out.push([
       def.kind,
@@ -123,6 +133,57 @@ function simDocs(view: ProjectRuntimeView, registry: Registry): [AssetKindName, 
     ]);
   }
   return out;
+}
+
+const ANIM_SOURCE_PATH = `behaviors.${ANIM.name}.source`;
+
+/**
+ * Every `anim` source `values` name: an `anim` block's, and an override's,
+ * a param map's or a param default's whose path ends at a block's source.
+ */
+function animSources(values: unknown, out: Set<string>): Set<string> {
+  if (Array.isArray(values)) {
+    for (const v of values) animSources(v, out);
+    return out;
+  }
+  if (!isPlainObject(values)) return out;
+  const block = isPlainObject(values.behaviors) ? values.behaviors[ANIM.name] : undefined;
+  if (isPlainObject(block) && typeof block.source === "string") out.add(block.source);
+  const targets = Array.isArray(values.targets) ? values.targets : [];
+  if (typeof values.default === "string" && targets.some((t) => endsAtSource(t)))
+    out.add(values.default);
+  for (const [key, value] of Object.entries(values)) {
+    if (endsAtSource(key)) {
+      if (typeof value === "string") out.add(value);
+      else if (isPlainObject(value))
+        for (const mapped of Object.values(value)) if (typeof mapped === "string") out.add(mapped);
+    }
+    animSources(value, out);
+  }
+  return out;
+}
+
+const endsAtSource = (path: unknown) =>
+  typeof path === "string" && (path === ANIM_SOURCE_PATH || path.endsWith(`.${ANIM_SOURCE_PATH}`));
+
+/**
+ * The clips the `anim` system resolves at the run's rate for every
+ * animation doc and every source `content` names, by source in id order:
+ * `[source, [name, clip][]]`, empty for a source with no atlas.
+ */
+function animClips(
+  view: ProjectRuntimeView,
+  time: ResolvedTime,
+  content: unknown,
+): [string, [string, ResolvedClip][]][] {
+  const sources = animSources(content, new Set(view.docs?.(ANIMATION_KIND) ?? []));
+  return [...sources].sort(byCodeUnit).map((id) => {
+    const found = clipSourceIn(view, id);
+    const clips = found
+      ? resolveClips(found.source, found.atlas, time).clips
+      : new Map<string, ResolvedClip>();
+    return [id, [...clips]];
+  });
 }
 
 function withoutSchemaPointer<T>(doc: T): T {

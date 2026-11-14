@@ -1,17 +1,20 @@
-import { DRAW_LAYERS, type ViewLayer } from "../../context";
+import type { ViewLayer } from "../../context";
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
 import type { EmitterBlock } from "../../game/behaviors/emitter";
 import { spriteOffset } from "../../game/behaviors/sprite";
+import type { EngineContext } from "../../game/types";
 import { EMITTER_KIND, type EmitterFile } from "../../project/kinds/emitter";
-import { parseBulkId } from "../../scene/bulk-ref";
-import { defaultLayer } from "../../scene/layers";
 import type { RuntimeEntity } from "../../scene/types";
-import { entityDrawLayer } from "../../systems/bodies";
-import type { Pose } from "../poses";
+import { entityHomeLayer } from "../../systems/bodies";
+import { lerpPose, type Pose } from "../poses";
 
 type Attached = { entity: RuntimeEntity; block: EmitterBlock; layer: ViewLayer };
 
-const TAU = Math.PI * 2;
+/** The project's `emitter` preset `id`; undefined when there's no project or no such preset. */
+export const emitterPreset = (
+  ctx: Pick<EngineContext, "project">,
+  id: string,
+): EmitterFile | undefined => ctx.project?.doc?.<EmitterFile>(EMITTER_KIND, id);
 
 /**
  * The `emitter` behavior's system: visual only, built with a view and never
@@ -30,16 +33,6 @@ export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
   /** Each entity's pose as the last rendered frame placed it. */
   const framed = new Map<string, Pose>();
 
-  const layerOf = (id: string, entity: RuntimeEntity): ViewLayer => {
-    const { layers, types } = ctx.registry;
-    const home = defaultLayer(types.get(entity.type), parseBulkId(id) !== null, layers);
-    return entityDrawLayer(
-      ctx,
-      entity,
-      layers.find((l) => l.name === home)?.draw ?? DRAW_LAYERS.body,
-    );
-  };
-
   function at(id: string): Pose | undefined {
     const a = attached.get(id);
     const pose = framed.get(id) ?? ctx.poses.get(id);
@@ -53,7 +46,7 @@ export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
   function start(id: string, a: Attached): void {
     const layer = view.particles?.();
     if (!layer) return;
-    const preset = ctx.project?.doc?.<EmitterFile>(EMITTER_KIND, a.block.preset);
+    const preset = emitterPreset(ctx, a.block.preset);
     if (!preset || a.block.emitting === false) {
       layer.remove(id);
       return;
@@ -63,7 +56,7 @@ export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
   }
 
   function show(id: string, block: EmitterBlock, entity: RuntimeEntity): void {
-    const a: Attached = { entity, block, layer: layerOf(id, entity) };
+    const a: Attached = { entity, block, layer: entityHomeLayer(ctx, id, entity) };
     attached.set(id, a);
     start(id, a);
   }
@@ -82,13 +75,7 @@ export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
       for (const id of attached.keys()) {
         const cur = ctx.poses.get(id);
         if (!cur) continue;
-        const prev = ctx.poses.prev(id) ?? cur;
-        const turn = ((((cur.rot - prev.rot) % TAU) + TAU + Math.PI) % TAU) - Math.PI;
-        framed.set(id, {
-          x: prev.x + (cur.x - prev.x) * alpha,
-          y: prev.y + (cur.y - prev.y) * alpha,
-          rot: prev.rot + turn * alpha,
-        });
+        framed.set(id, lerpPose(ctx.poses.prev(id) ?? cur, cur, alpha));
       }
     },
     reset() {

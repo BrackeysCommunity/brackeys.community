@@ -645,6 +645,21 @@ describe("commitRelease", () => {
     expect(await db.select().from(engineReleases)).toEqual([]);
   });
 
+  it("refuses a release whose shipped doc names an asset it doesn't ship, read from the stored text", async () => {
+    const r = await release({ danglingAnimation: true });
+    expect(r.manifest.assets["spare-animation"]?.kind).toBe("animation");
+    expect(r.manifest.assets.band).toBeUndefined();
+    const begun = await begin(r);
+    await putAll(r, begun.uploadId, begun.missing);
+    expect(
+      await refusal(() => commitRelease(deps(), { uploadId: begun.uploadId, actor: staff })),
+    ).toMatchObject({
+      code: "asset-missing",
+      message: expect.stringContaining(`animation "spare-animation" names "band" at /atlas`),
+    });
+    expect(await db.select().from(engineReleases)).toEqual([]);
+  });
+
   it("stamps the create and promote audit rows and the pointer with the commit's clock", async () => {
     clock = new Date(NOW.getTime() + 5 * 60_000);
     await publish(await release());

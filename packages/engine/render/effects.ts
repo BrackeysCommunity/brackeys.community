@@ -5,10 +5,13 @@
  * timers, so every browser behaves alike.
  */
 import type { GameLoop } from "../loop";
+import { cssHex } from "../math";
+import type { FlashOptions } from "../runtime/present";
+import { colourVeil, fadeOpacity } from "../ui/flow-views";
 
 export interface EffectLayer {
   /** A full-canvas colour (0xRRGGBB) fading over `ms`; reduced motion caps it at 0.3 alpha and 80 ms. */
-  flash(opts?: { color?: number; ms?: number; alpha?: number }): void;
+  flash(opts?: FlashOptions): void;
   /** Time scale 0 for `ms` of wall time, then the scale before; overlapping stops extend to the latest end. */
   hitStop(ms: number): void;
   clear(): void;
@@ -19,9 +22,6 @@ const FLASH_ALPHA = 0.8;
 const FLASH_COLOR = 0xffffff;
 const REDUCED_FLASH_MS = 80;
 const REDUCED_FLASH_ALPHA = 0.3;
-
-const hexColor = (color: number): string =>
-  `#${(Math.trunc(color) & 0xffffff).toString(16).padStart(6, "0")}`;
 
 const positive = (n: number | undefined): n is number =>
   n !== undefined && Number.isFinite(n) && n > 0;
@@ -62,20 +62,11 @@ export function createEffectLayer(
         ms = Math.min(ms, REDUCED_FLASH_MS);
         alpha = Math.min(alpha, REDUCED_FLASH_ALPHA);
       }
-      const el = layer.ownerDocument.createElement("div");
-      el.setAttribute("data-jams-flash", "");
-      Object.assign(el.style, {
-        position: "absolute",
-        inset: "0",
-        pointerEvents: "none",
-        background: hexColor(o.color ?? FLASH_COLOR),
-        opacity: String(alpha),
-      } satisfies Partial<CSSStyleDeclaration>);
+      const el = colourVeil(layer.ownerDocument, "data-jams-flash", alpha);
+      el.style.pointerEvents = "none";
+      el.style.background = cssHex(o.color ?? FLASH_COLOR);
       layer.append(el);
-      // Commit the starting opacity before the transition, so the fade runs from it.
-      void el.offsetWidth;
-      el.style.transition = `opacity ${ms}ms linear`;
-      el.style.opacity = "0";
+      fadeOpacity(el, 0, ms);
       flashes.set(
         el,
         setTimeout(() => removeFlash(el), ms),

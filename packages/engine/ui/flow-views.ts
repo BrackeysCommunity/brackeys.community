@@ -1,3 +1,4 @@
+import { cssHex } from "../math";
 import type { LoadProgress } from "../render/asset-loader";
 import type { LoadingView, LoadingViewFactory, TransitionRunner } from "../types";
 
@@ -6,7 +7,25 @@ export const DEFAULT_FADE_MS = 400;
 
 const VEIL_ATTR = "data-jams-fade";
 
-const cssColor = (rgb: number) => `#${(rgb & 0xffffff).toString(16).padStart(6, "0")}`;
+/** A full-cover div marked with `attr`, at `opacity`; the caller colours it and puts it in place. */
+export function colourVeil(doc: Document, attr: string, opacity: number): HTMLElement {
+  const el = doc.createElement("div");
+  el.setAttribute(attr, "");
+  Object.assign(el.style, { position: "absolute", inset: "0", opacity: String(opacity) });
+  return el;
+}
+
+/** Fades `el` from its current opacity to `to` over `ms`, linear; `ms` 0 sets it at once. */
+export function fadeOpacity(el: HTMLElement, to: number, ms: number): void {
+  if (ms > 0) {
+    // Read the box so the browser commits the start opacity before the transition.
+    void el.offsetWidth;
+    el.style.transition = `opacity ${ms}ms linear`;
+  } else {
+    el.style.transition = "";
+  }
+  el.style.opacity = String(to);
+}
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
@@ -17,29 +36,16 @@ const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
  */
 export function fadeTransition(opts: { color?: number } = {}): TransitionRunner {
   return async (phase, spec, layer, env) => {
-    const doc = layer.ownerDocument;
     let veil = layer.querySelector<HTMLElement>(`[${VEIL_ATTR}]`);
     if (!veil) {
-      veil = doc.createElement("div");
-      veil.setAttribute(VEIL_ATTR, "");
-      Object.assign(veil.style, { position: "absolute", inset: "0", opacity: "0" });
+      veil = colourVeil(layer.ownerDocument, VEIL_ATTR, 0);
       layer.prepend(veil);
     }
-    veil.style.background = cssColor(spec.color ?? opts.color ?? 0x000000);
+    veil.style.background = cssHex(spec.color ?? opts.color ?? 0x000000);
     const half = Math.max(0, Math.round((spec.ms ?? DEFAULT_FADE_MS) / 2));
-    const cut = half === 0 || env.reducedMotion;
-    const target = phase === "out" ? "1" : "0";
-
-    if (cut) {
-      veil.style.transition = "";
-      veil.style.opacity = target;
-    } else {
-      // Read the box so the browser commits the start opacity before the transition.
-      void veil.offsetWidth;
-      veil.style.transition = `opacity ${half}ms linear`;
-      veil.style.opacity = target;
-      await wait(half);
-    }
+    const ms = env.reducedMotion ? 0 : half;
+    fadeOpacity(veil, phase === "out" ? 1 : 0, ms);
+    if (ms > 0) await wait(ms);
     if (phase === "in") veil.remove();
   };
 }

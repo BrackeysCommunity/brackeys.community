@@ -6,7 +6,7 @@ import { scopedRef, type Registry, type Side } from "../game/types";
 import { isPlainObject } from "../project/kinds/define";
 import { transformGrid, type GridCells } from "./grid";
 import { fieldKind, geometryFields, unwrapSchema } from "./schema";
-import { normDeg } from "./shape-geometry";
+import { mirrorDeg, normDeg } from "./shape-geometry";
 import {
   applyPt,
   applyVec,
@@ -63,7 +63,7 @@ function quarterTurns(t: Transform2D): Dihedral {
 }
 
 /** An angle in degrees after `d`: negated by a flip, then plus 90° per turn. */
-const turnAngle = (deg: number, d: Dihedral) => (d.flip ? 0 - deg : deg) + 90 * d.rot;
+const turnAngle = (deg: number, d: Dihedral) => (d.flip ? mirrorDeg(deg) : deg) + 90 * d.rot;
 
 /** A shape's `rotDeg` after `d`, kept in [0, 360). */
 const turnRotDeg = (deg: number, d: Dihedral) => normDeg(turnAngle(deg, d));
@@ -80,6 +80,7 @@ export function transformTuple(tuple: ShapeTuple, t: Transform2D): ShapeTuple {
     for (let i = 1; i + 1 < out.length; i += 2) {
       pts.push(placePt(t, [out[i] as number, out[i + 1] as number]));
     }
+    // A flip reverses the points to keep the winding, as `flipShapeX` does.
     if (t.a * t.d - t.b * t.c < 0) pts.reverse();
     return [tuple[0], ...pts.flat()] as ShapeTuple;
   }

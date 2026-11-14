@@ -29,3 +29,12 @@ export function closest(word: string, candidates: readonly string[]): string | u
   }
   return bestDistance <= limit ? best : undefined;
 }
+
+/** `; did you mean "x"?` for the `closest` candidate other than `word` itself, else "". */
+export function didYouMean(word: string, candidates: readonly string[]): string {
+  const guess = closest(
+    word,
+    candidates.filter((c) => c !== word),
+  );
+  return guess ? `; did you mean "${guess}"?` : "";
+}

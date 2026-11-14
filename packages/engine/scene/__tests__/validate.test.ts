@@ -10,6 +10,7 @@ import { assetField, gridField, pointField } from "../../game/fields";
 import type { SceneLibrary } from "../../game/flow";
 import { PRIMITIVES, primitiveFields, typePhysics } from "../../game/primitives";
 import type { FieldEnv, Registry } from "../../game/types";
+import type { AnimationFile } from "../../project/kinds/animation";
 import type { AssetEntry } from "../../project/types";
 import { projectView } from "../../project/view";
 import { createDataSystem } from "../../systems/data";
@@ -1082,6 +1083,108 @@ describe("sprite blocks", () => {
     const def = scene({ game: "walls" }, [{ id: "d", type: "decal", at: [5, 5] }]);
     const issue = only(validateScene(def, walls, { project }), "sprite-no-asset");
     expect(issue.path).toBe("/entities/1");
+  });
+});
+
+describe("anim blocks", () => {
+  const entry = (id: string, kind: string, extra: Partial<AssetEntry> = {}): AssetEntry => ({
+    key: `k-${id}`,
+    id,
+    kind,
+    path: `${id}.${kind}`,
+    created: { at: 0, by: "t" },
+    ...extra,
+  });
+  const frame = (x: number) => ({ x, y: 0, w: 16, h: 16 });
+  const project = projectView({
+    meta: { projectId: "p", layout: 2, name: "P" },
+    assets: Object.fromEntries(
+      [
+        entry("hero", "atlas", {
+          sha256: "b".repeat(64),
+          meta: {
+            tool: "aseprite",
+            frames: { "idle-0": frame(0), "run-0": frame(16) },
+            tags: [
+              { name: "idle", from: 0, to: 0, direction: "forward" },
+              { name: "run", from: 1, to: 1, direction: "forward" },
+            ],
+            slices: [],
+            order: ["idle-0", "run-0"],
+          },
+        }),
+        entry("moves", "animation"),
+      ].map((e) => [e.key, e]),
+    ),
+    history: {},
+    code: {},
+    build: {},
+  });
+  const moves: AnimationFile = {
+    kind: "animation",
+    v: 1,
+    atlas: "hero",
+    clips: [
+      { name: "jab", frames: [{ frame: "idle-0" }] },
+      { name: "kick", tag: "run" },
+    ],
+  };
+  const runtime = {
+    doc: <T>(kind: string, id: string): T | undefined =>
+      kind === "animation" && id === "moves" ? (moves as T) : undefined,
+  };
+  const animScene = (anim: Record<string, unknown>) =>
+    scene({}, [
+      {
+        id: "pic",
+        type: "marker",
+        at: [10, 10],
+        behaviors: { sprite: { asset: "hero", frame: "idle-0" }, anim },
+      },
+    ]);
+  const clipIssues = (def: SceneDefinition, withRuntime = true) =>
+    validateScene(def, engine, withRuntime ? { project, runtime } : { project }).filter(
+      (i) => i.code === "anim-clip-unknown",
+    );
+
+  it("pass for an atlas's tag and an animation's clip", () => {
+    expect(clipIssues(animScene({ source: "hero", clip: "run" }))).toEqual([]);
+    expect(clipIssues(animScene({ source: "moves", clip: "kick" }))).toEqual([]);
+  });
+
+  it("anim-clip-unknown for a clip an atlas source has no tag for, with a did-you-mean", () => {
+    const issue = only(clipIssues(animScene({ source: "hero", clip: "rum" })), "anim-clip-unknown");
+    expect(issue).toMatchObject({
+      severity: "error",
+      path: "/entities/1/behaviors/anim/clip",
+      entityIds: ["pic"],
+      got: "rum",
+      expected: "idle | run",
+    });
+    expect(issue.message).toBe(
+      'pic\'s anim plays clip "rum", which atlas "hero" doesn\'t have; did you mean "run"?',
+    );
+  });
+
+  it("anim-clip-unknown for a clip an animation source lacks, read through the runtime view", () => {
+    const issue = only(
+      clipIssues(animScene({ source: "moves", clip: "jabb" })),
+      "anim-clip-unknown",
+    );
+    expect(issue).toMatchObject({ got: "jabb", expected: "jab | kick" });
+    expect(issue.message).toBe(
+      'pic\'s anim plays clip "jabb", which animation "moves" doesn\'t have; did you mean "jab"?',
+    );
+  });
+
+  it("leave an animation source unchecked without the runtime view, and a missing source to the asset checks", () => {
+    expect(clipIssues(animScene({ source: "moves", clip: "jabb" }), false)).toEqual([]);
+    const missing = validateScene(animScene({ source: "mvoes", clip: "jab" }), engine, {
+      project,
+      runtime,
+    });
+    expect(missing.map((i) => i.code)).toContain("asset-missing");
+    expect(missing.map((i) => i.code)).not.toContain("anim-clip-unknown");
   });
 });
 

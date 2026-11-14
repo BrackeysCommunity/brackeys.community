@@ -7,11 +7,11 @@
 import { z } from "zod";
 
 import { ID_PATTERN } from "../../game/fields";
-import { closest } from "../../scene/did-you-mean";
+import { didYouMean } from "../../scene/did-you-mean";
 import { jsonPointer, makeIssue } from "../../scene/issues";
 import { parseShape, SHAPE_SIGNATURES, SHAPE_TYPES } from "../../scene/shapes";
 import type { SceneIssue, ShapeTuple } from "../../scene/types";
-import { assetInfo, type AssetInfo } from "../asset-info";
+import { assetInfo, atlasFrameIssue, type AssetInfo } from "../asset-info";
 import type { RefSite } from "../refs";
 import type { AssetId } from "../types";
 import { ATLAS_KIND } from "./atlas";
@@ -20,6 +20,9 @@ import { defineAssetKind, folderOf, perProjectEntries, type KindEnv } from "./de
 export const ANIMATION_KIND = "animation";
 export const ANIMATION_VERSION = 1;
 export const ANIMATION_SCHEMA_ID = `urn:jams-engine:animation:v${ANIMATION_VERSION}`;
+
+/** A frame's duration when neither the clip nor the atlas gives one. */
+export const DEFAULT_FRAME_MS = 100;
 
 /**
  * How a clip plays: `loop` wraps; `once` stops on its last frame and
@@ -31,7 +34,7 @@ export type ClipLoop = "loop" | "once" | "pingpong" | "hold";
 export type AnimFrameDef = {
   /** The atlas frame's name. */
   frame: string;
-  /** Default: the atlas frame's durationMs, else 100. */
+  /** Default: the atlas frame's durationMs, else {@link DEFAULT_FRAME_MS}. */
   ms?: number;
   /** Raised as `anim:frame` when the frame is entered. */
   events?: readonly string[];
@@ -86,7 +89,9 @@ const frameSchema = z
       .number()
       .positive()
       .optional()
-      .describe("How long the frame shows, rounded to whole ticks; default the atlas's, else 100."),
+      .describe(
+        `How long the frame shows, rounded to whole ticks; default the atlas's, else ${DEFAULT_FRAME_MS}.`,
+      ),
     events: z
       .array(z.string())
       .optional()
@@ -141,13 +146,26 @@ const animationSchema: z.ZodType<AnimationFile> = z
     "Clips over one atlas, with per-frame durations, events and shape sets, played on the simulation's ticks.",
   ) as unknown as z.ZodType<AnimationFile>;
 
+/** What an `anim` block names: an animation doc, or an atlas whose tags are the clips. */
+export type ClipSource = { animation: AnimationFile } | { atlas: AssetInfo };
+
+/** The animation a clip source plays: the doc itself, or the atlas's tags as clips named after them. */
+export function sourceAnimation(source: ClipSource): AnimationFile {
+  if ("animation" in source) return source.animation;
+  return {
+    kind: ANIMATION_KIND,
+    v: ANIMATION_VERSION,
+    atlas: source.atlas.id,
+    clips: (source.atlas.tags ?? []).map((t) => ({ name: t.name, tag: t.name })),
+  };
+}
+
+/** The clip names an `anim` block's `clip` and `ctx.anim.play` may use, in file order. */
+export const sourceClipNames = (source: ClipSource): string[] =>
+  sourceAnimation(source).clips.map((c) => c.name);
+
 const listed = (names: readonly string[]) =>
   names.length > 0 ? { expected: names.join(" | ") } : {};
-
-const guessed = (word: string, names: readonly string[]) => {
-  const guess = closest(word, names);
-  return guess ? `; did you mean "${guess}"?` : "";
-};
 
 /**
  * What's wrong with an animation file against its atlas's meta: the one
@@ -180,7 +198,6 @@ export function animationIssues(
       }),
     );
   const tagNames = sheet?.tags?.map((t) => t.name) ?? [];
-  const frameNames = sheet?.frames ?? [];
   const clipNames = clips.map((c) => c.name);
   clips.forEach((clip, c) => {
     const at = (...rest: (string | number)[]) => jsonPointer(["clips", c, ...rest]);
@@ -194,22 +211,18 @@ export function animationIssues(
     if (sheet && clip.tag !== undefined && !tagNames.includes(clip.tag))
       issues.push(
         makeIssue("anim-tag-unknown", {
-          message: `clip "${clip.name}" names tag "${clip.tag}", which atlas "${file.atlas}" doesn't have${guessed(clip.tag, tagNames)}`,
+          message: `clip "${clip.name}" names tag "${clip.tag}", which atlas "${file.atlas}" doesn't have${didYouMean(clip.tag, tagNames)}`,
           path: at("tag"),
           got: clip.tag,
           ...listed(tagNames),
         }),
       );
     clip.frames?.forEach((def, f) => {
-      if (sheet && !frameNames.includes(def.frame))
-        issues.push(
-          makeIssue("asset-frame-unknown", {
-            message: `frame ${f} of clip "${clip.name}" names "${def.frame}", which atlas "${file.atlas}" doesn't have${guessed(def.frame, frameNames)}`,
-            path: at("frames", f, "frame"),
-            got: def.frame,
-            ...listed(frameNames),
-          }),
-        );
+      const unknown = atlasFrameIssue(sheet, def.frame, {
+        who: `frame ${f} of clip "${clip.name}"`,
+        path: at("frames", f, "frame"),
+      });
+      if (unknown) issues.push(unknown);
       for (const [set, shapes] of Object.entries(def.shapes ?? {})) {
         if (!SHAPE_SET_NAME.test(set))
           issues.push(
@@ -237,7 +250,7 @@ export function animationIssues(
     if (clip.next !== undefined && !clipNames.includes(clip.next))
       issues.push(
         makeIssue("anim-clip-unknown", {
-          message: `clip "${clip.name}" goes next to "${clip.next}", which the animation doesn't have${guessed(clip.next, clipNames)}`,
+          message: `clip "${clip.name}" goes next to "${clip.next}", which the animation doesn't have${didYouMean(clip.next, clipNames)}`,
           path: at("next"),
           got: clip.next,
           ...listed(clipNames),

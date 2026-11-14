@@ -13,6 +13,7 @@ import {
   checkReleaseManifest,
   CREDITS_FILE,
   ENGINE_FORMATS,
+  manifestDocRefs,
   parseReleaseManifest,
   RELEASE_FILE,
   releaseId,
@@ -408,13 +409,18 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
       prompt?.stop();
       prompt = null;
     }
-    const held = (await checkReleaseManifest(manifest)).filter(isErrorIssue);
-    if (held.length > 0) throw new StandaloneBootError(held);
-
     const [id, texts] = await Promise.all([
       releaseId(manifest),
       fetchReleaseTexts(manifest, base, fetchFn),
     ]);
+    const view = manifestView(manifest);
+    const registry = withProject(createRegistry(game), view, jsonValues(texts));
+    const kinds = createKindRegistry(registry.game);
+    const docRefs = manifestDocRefs(texts, registry, kinds);
+    const held = (await checkReleaseManifest(manifest, undefined, { docRefs })).filter(
+      isErrorIssue,
+    );
+    if (held.length > 0) throw new StandaloneBootError(held);
     if (hostRequested(win?.location.href)) {
       host = await connectHost({
         hello: { engine: ENGINE_VERSION, release: id, game: game.id },
@@ -434,9 +440,7 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
       prompt = null;
       host.state("loading");
     }
-    const view = manifestView(manifest);
     const project = manifestRuntimeView(manifest, texts, game);
-    const registry = withProject(createRegistry(game), view, jsonValues(texts));
     const late = timeIssues(
       manifest,
       resolveTime({ project: project.engine, game: registry.time }),
@@ -455,7 +459,6 @@ export async function bootStandalone(opts: StandaloneOptions): Promise<Standalon
       project: manifest.project.id,
       url: (_, entry) => assetUrl(entry.id, entry.sha256),
     });
-    const kinds = createKindRegistry(registry.game);
     const renderer = rendererPreference(doc);
     const size = sizeOf(root);
     canvas = doc.createElement("canvas");

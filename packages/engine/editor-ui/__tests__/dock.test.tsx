@@ -27,7 +27,15 @@ import {
 import type { EditorNotify } from "../host";
 import { DEFAULT_LAYOUT, fitLayout, type Viewport } from "../layout/model";
 import { EditorStatusBar } from "../panels/EditorStatusBar";
-import { dockParts, dockWidth, EditorToolbar, fitDock } from "../panels/EditorToolbar";
+import {
+  dockParts,
+  dockWidth,
+  EditorToolbar,
+  fitDock,
+  narrowed,
+  optionSlot,
+  overflows,
+} from "../panels/EditorToolbar";
 import { ACTIVITY_DELAY_MS, createPending, type PendingStep } from "../pending/pending";
 import { PendingProvider } from "../pending/use-pending";
 import type { EditorHostState } from "../session/live-scene-editor";
@@ -180,6 +188,52 @@ describe("the dock's fit", () => {
       last = width;
     }
   });
+
+  const long = { choices: [{ label: "solid" }, { label: "camera-region" }] };
+  const tools = [gameTool("select", "select"), gameTool("box", "box"), ...GAME_TOOLS];
+
+  it("narrows the option slot to a few glyphs before anything moves into More tools", () => {
+    const slotted = dockParts(tools, 16, long);
+    const slot = slotted.find((p) => p.key === "option")!;
+    expect(slot.narrow).toBeLessThan(slot.width);
+    const full = dockWidth(slotted, new Set());
+    const shrunk = fitDock(slotted, full - 1);
+    expect([...shrunk]).toEqual([narrowed("option")]);
+    expect(overflows(shrunk)).toBe(false);
+    expect(dockWidth(slotted, shrunk)).toBe(full - slot.width + slot.narrow!);
+    expect([...fitDock(slotted, dockWidth(slotted, shrunk) - 1)]).toEqual([
+      narrowed("option"),
+      "tool:springs",
+    ]);
+  });
+
+  it("keeps room for the shown choice when it is longer than the narrow slot", () => {
+    const short = dockParts(tools, 16, { ...long, shown: "solid" }).find(
+      (p) => p.key === "option",
+    )!;
+    const picked = dockParts(tools, 16, { ...long, shown: "camera-region" }).find(
+      (p) => p.key === "option",
+    )!;
+    expect(short.narrow).toBeLessThan(short.width);
+    expect(picked.narrow).toBe(picked.width);
+    const slotted = dockParts(tools, 16, { ...long, shown: "camera-region" });
+    expect(fitDock(slotted, dockWidth(slotted, new Set()) - 1).has(narrowed("option"))).toBe(false);
+  });
+
+  it("takes the active tool's choice as the one shown", () => {
+    const registry = createRegistry();
+    const option = {
+      label: "Draw type",
+      command: "type:",
+      value: "sensor",
+      choices: [
+        { value: "solid", label: "solid" },
+        { value: "sensor", label: "sensor" },
+      ],
+    };
+    expect(optionSlot(tools, registry, option)?.shown).toBe("sensor");
+    expect(optionSlot(tools, registry, null)?.shown).toBeUndefined();
+  });
 });
 
 describe("the dock in the frame", () => {
@@ -199,6 +253,23 @@ describe("the dock in the frame", () => {
     act(() => play.focus());
     const hint = await screen.findByText("Play from spawn");
     expect(hint.closest(".je-key-hint")?.querySelector(".je-hotkey")).toBeTruthy();
+  });
+
+  it("keeps the idle draw type slot at its widest choice where the row has room, narrower at 1440", () => {
+    const slotWidth = () =>
+      within(toolbar()).getByRole("button", { name: /^Draw type/ }).style.minWidth;
+    const { tools, session } = setup();
+    const atLaptop = slotWidth();
+    cleanup();
+    resizeWindow(2400);
+    setup();
+    const slot = dockParts(
+      tools.tools(),
+      DEFAULT_SNAP.step,
+      optionSlot(tools.tools(), session.registry, null),
+    ).find((p) => p.key === "option")!;
+    expect(slotWidth()).toBe(`${slot.width}px`);
+    expect(atLaptop).toBe(`${slot.narrow}px`);
   });
 
   it("moves game tools into the overflow menu when the canvas is narrower than they need", async () => {

@@ -5,6 +5,8 @@
  */
 import { z } from "zod";
 
+import { ANIMATION_KIND } from "../../project/kinds/animation";
+import { ATLAS_KIND } from "../../project/kinds/atlas";
 import { defineBehavior } from "../behaviors";
 import { assetField } from "../fields";
 import type { FieldEnv } from "../types";
@@ -12,7 +14,7 @@ import type { FieldEnv } from "../types";
 const animFields = (env: FieldEnv) => ({
   source: assetField(
     env,
-    ["animation", "atlas"],
+    [ANIMATION_KIND, ATLAS_KIND],
     "The clips: an animation, or an atlas whose tags are clips.",
   ),
   clip: z.string().min(1).describe("The clip playing at spawn."),
@@ -28,7 +30,8 @@ const animFields = (env: FieldEnv) => ({
     .int()
     .min(0)
     .optional()
-    .describe("Starts this many ticks into the clip, so a row of torches doesn't flicker in step."),
+    .describe("Starts this many ticks into the clip, so a row of torches doesn't flicker in step.")
+    .meta({ unit: "ticks" }),
 });
 
 /** An `anim` block as an entity carries it. */

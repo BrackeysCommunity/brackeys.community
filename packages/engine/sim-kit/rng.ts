@@ -164,3 +164,22 @@ export class Rng {
     return items[this.below(items.length)]!;
   }
 }
+
+/** A view-side stream of floats: cameras and particles, never the simulation. */
+export type ViewRandom = {
+  /** A float in [0, 1). */
+  unit: () => number;
+  /** A float in [lo, hi). */
+  between: (lo: number, hi: number) => number;
+};
+
+/**
+ * Floats over an `Rng` seeded from `seed`, for presentation only: float
+ * arithmetic isn't guaranteed bit for bit across runtimes, so nothing a
+ * digest covers may draw from it.
+ */
+export function viewRandom(seed: number | string): ViewRandom {
+  const rng = Rng.from(seed);
+  const unit = () => rng.nextU32() / U32;
+  return { unit, between: (lo, hi) => lo + (hi - lo) * unit() };
+}

@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import * as math from "../math";
-import { addVec2, clamp, clampVec2, distanceVec2, lerp, lerpVec2, scaleVec2 } from "../math";
+import {
+  addVec2,
+  clamp,
+  clampVec2,
+  cssHex,
+  distanceVec2,
+  lerp,
+  lerpAngle,
+  lerpRgb,
+  lerpVec2,
+  scaleVec2,
+} from "../math";
 import * as transform from "../scene/transform";
 
 describe("lerp", () => {
@@ -102,5 +113,37 @@ describe("transform re-exports", () => {
     }
     expect(math.applyPt(math.dihedral({ rot: 1, flip: false }, [10, 0]), [1, 0])).toEqual([10, 1]);
     expect(math.IDENTITY_2D).toEqual({ a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 });
+  });
+});
+
+describe("lerpAngle", () => {
+  it("turns the shorter way round, across ±π", () => {
+    expect(lerpAngle(0, 1, 0.5)).toBe(0.5);
+    expect(lerpAngle(3, -3, 0.5)).toBeCloseTo(Math.PI, 12);
+    expect(lerpAngle(-3, 3, 0.5)).toBeCloseTo(-Math.PI, 12);
+    expect(lerpAngle(0.1, 0.1 + 4 * Math.PI, 1)).toBeCloseTo(0.1, 12);
+  });
+});
+
+describe("lerpRgb", () => {
+  it("blends each 8-bit channel on its own, rounded", () => {
+    expect(lerpRgb(0x000000, 0xffffff, 0.5)).toBe(0x808080);
+    expect(lerpRgb(0xff0000, 0x0000ff, 0.25)).toBe(0xbf0040);
+    expect(lerpRgb(0x123456, 0xabcdef, 0)).toBe(0x123456);
+    expect(lerpRgb(0x123456, 0xabcdef, 1)).toBe(0xabcdef);
+  });
+
+  it("keeps every channel in 0–255 past either end", () => {
+    expect(lerpRgb(0x000000, 0xffffff, 2)).toBe(0xffffff);
+    expect(lerpRgb(0x808080, 0xffffff, -2)).toBe(0x000000);
+  });
+});
+
+describe("cssHex", () => {
+  it("writes 0xRRGGBB as #rrggbb, padded, ignoring anything above 24 bits", () => {
+    expect(cssHex(0xff3344)).toBe("#ff3344");
+    expect(cssHex(0x0000ff)).toBe("#0000ff");
+    expect(cssHex(0x1ffffff)).toBe("#ffffff");
+    expect(cssHex(255.7)).toBe("#0000ff");
   });
 });

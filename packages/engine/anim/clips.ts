@@ -6,19 +6,18 @@
 import { ticksFor, type ResolvedTime } from "../game/time";
 import type { AssetInfo } from "../project/asset-info";
 import {
-  ANIMATION_KIND,
-  ANIMATION_VERSION,
   animationIssues,
-  type AnimationFile,
+  DEFAULT_FRAME_MS,
+  sourceAnimation,
   type AnimFrameDef,
   type ClipDef,
   type ClipLoop,
+  type ClipSource,
 } from "../project/kinds/animation";
 import { parseShape } from "../scene/shapes";
 import type { SceneIssue, ShapeObj } from "../scene/types";
 
-/** A frame's duration when neither the clip nor the atlas gives one. */
-export const DEFAULT_FRAME_MS = 100;
+export { DEFAULT_FRAME_MS, type ClipSource };
 
 /** A clip with every duration in ticks and frames resolved against the atlas meta. */
 export type ResolvedClip = {
@@ -35,19 +34,6 @@ export type ResolvedClip = {
   /** Sum of `ticks` over one pass (pingpong: there and back without repeating the ends). */
   length: number;
 };
-
-/** What an `anim` block names: an animation doc, or an atlas whose tags are the clips. */
-export type ClipSource = { animation: AnimationFile } | { atlas: AssetInfo };
-
-/** An atlas's tags as clips, each named after its tag. */
-function tagClips(atlas: AssetInfo): AnimationFile {
-  return {
-    kind: ANIMATION_KIND,
-    v: ANIMATION_VERSION,
-    atlas: atlas.id,
-    clips: (atlas.tags ?? []).map((t) => ({ name: t.name, tag: t.name })),
-  };
-}
 
 const CLIP_PATH = /^\/clips\/(\d+)(?:\/|$)/;
 
@@ -97,7 +83,7 @@ function passLength(frames: readonly { ticks: number }[], loop: ClipLoop): numbe
  * The clips of `source` over `atlas`, at the run's tick rate, and the
  * issues that left any out. An atlas source's tags become clips named
  * after them. Each frame's `ms` (else the atlas frame's durationMs, else
- * 100) becomes whole ticks, at least 1. A clip any error points into is
+ * `DEFAULT_FRAME_MS`) becomes whole ticks, at least 1. A clip any error points into is
  * left out, and a `next` naming a clip left out is dropped; an error on
  * the atlas itself leaves every clip out. Of two clips with one name, the
  * first counts.
@@ -107,7 +93,7 @@ export function resolveClips(
   atlas: AssetInfo,
   time: Pick<ResolvedTime, "rate">,
 ): { clips: ReadonlyMap<string, ResolvedClip>; issues: SceneIssue[] } {
-  const file = "animation" in source ? source.animation : tagClips(source.atlas);
+  const file = sourceAnimation(source);
   const issues = animationIssues(file, atlas);
   const refused = refusedClips(issues);
   const clips = new Map<string, ResolvedClip>();
