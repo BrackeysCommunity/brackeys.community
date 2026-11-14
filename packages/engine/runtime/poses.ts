@@ -103,6 +103,10 @@ export function lerpPose(prev: Readonly<Pose>, cur: Readonly<Pose>, alpha: numbe
   };
 }
 
+/** Whether two poses are exactly equal. */
+export const samePose = (a: Readonly<Pose>, b: Readonly<Pose>): boolean =>
+  a.x === b.x && a.y === b.y && a.rot === b.rot;
+
 /** `pose` in the frame `frame` is posed at: what a body-local offset is for a body placed at `frame`. */
 export function relativePose(pose: Pose, frame: Pose): Pose {
   const dx = pose.x - frame.x;

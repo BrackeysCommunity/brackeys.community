@@ -9,7 +9,7 @@ import type { Registry } from "../game/types";
 import { runChecks } from "../headless/run-checks";
 import { composePose, relativePose, type Pose } from "../runtime/poses";
 import { createSceneRuntime } from "../runtime/runtime";
-import { SENSOR_ENTER, type SceneRuntimeHandle, type StepEvent } from "../runtime/types";
+import { SENSOR_ENTER, type SceneRuntimeHandle } from "../runtime/types";
 import { parseChecks, type ChecksFile } from "../scene/checks";
 import { expandScene } from "../scene/expand";
 import { parseScene } from "../scene/parse";
@@ -18,6 +18,7 @@ import { validateScene } from "../scene/validate";
 import type { RapierModule } from "../types";
 import { readPrefabFiles } from "../vite/project-files";
 import { testGame } from "./fixtures/test-game";
+import { expectPoseClose, stepEvents } from "./fixtures/tree-rig";
 
 const scenesDir = new URL("../scenes/", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, scenesDir), "utf8");
@@ -55,12 +56,6 @@ function load(registry: Registry = engine): SceneRuntimeHandle {
   return rt;
 }
 
-function steps(rt: SceneRuntimeHandle, n: number): StepEvent[] {
-  const events: StepEvent[] = [];
-  for (let i = 0; i < n; i++) events.push(...rt.step(rt.ctx.time.tickMs, []).events);
-  return events;
-}
-
 const pose = (rt: SceneRuntimeHandle, id: string): Pose => {
   const p = rt.ctx.poses.get(id);
   if (!p) throw new Error(`no pose for ${id}`);
@@ -72,13 +67,6 @@ const bodyOf = (rt: SceneRuntimeHandle, id: string) => {
   if (handle === undefined) throw new Error(`no collider for ${id}`);
   return rt.ctx.physics!.world.getCollider(handle)!.parent()!.handle;
 };
-
-/** `digits` 5 where a pose comes from the file's geometry, which is stored to the micrometre. */
-function expectPose(actual: Pose, expected: Pose, digits = 6) {
-  expect(actual.x).toBeCloseTo(expected.x, digits);
-  expect(actual.y).toBeCloseTo(expected.y, digits);
-  expect(actual.rot).toBeCloseTo(expected.rot, digits);
-}
 
 const TURRET_PARTS = ["base", "barrel", "sight"] as const;
 
@@ -138,9 +126,9 @@ describe("the turret", () => {
     const node = pose(rt, "turret-a");
     const locals = TURRET_PARTS.map((p) => relativePose(pose(rt, `turret-a/${p}`), node));
     rt.ctx.setPose("turret-a", 4, 9, Math.PI / 6);
-    steps(rt, 1);
+    stepEvents(rt, 1);
     TURRET_PARTS.forEach((p, i) =>
-      expectPose(pose(rt, `turret-a/${p}`), composePose(4, 9, Math.PI / 6, locals[i]!)),
+      expectPoseClose(pose(rt, `turret-a/${p}`), composePose(4, 9, Math.PI / 6, locals[i]!)),
     );
     rt.destroy();
   });
@@ -153,14 +141,14 @@ describe("the turret", () => {
     const start = pose(rt, "carrier");
     const seen: Pose[] = [];
     for (let i = 0; i < 4; i++) {
-      steps(rt, 30);
+      stepEvents(rt, 30);
       const carrier = pose(rt, "carrier");
       seen.push(carrier);
-      expectPose(
+      expectPoseClose(
         pose(rt, placed.id),
         composePose(carrier.x, carrier.y, carrier.rot, { x: 0, y: 0.8, rot: 0 }),
       );
-      expectPose(
+      expectPoseClose(
         pose(rt, `${placed.id}/barrel`),
         composePose(carrier.x, carrier.y, carrier.rot, { x: 0.5, y: 0.8 - 0.55, rot: 0 }),
       );
@@ -183,7 +171,7 @@ describe("the turret built from plain entities", () => {
     const node = pose(rt, "tower");
     const prefab = pose(rt, "turret-a");
     for (const part of ["base", "barrel"]) {
-      expectPose(
+      expectPoseClose(
         relativePose(pose(rt, `tower-${part}`), node),
         relativePose(pose(rt, `turret-a/${part}`), prefab),
       );
@@ -196,9 +184,9 @@ describe("the turret built from plain entities", () => {
     const node = pose(rt, "tower");
     const locals = ["tower-base", "tower-barrel"].map((id) => relativePose(pose(rt, id), node));
     rt.ctx.setPose("tower", 8, 10, -Math.PI / 4);
-    steps(rt, 1);
-    expectPose(pose(rt, "tower-base"), composePose(8, 10, -Math.PI / 4, locals[0]!));
-    expectPose(pose(rt, "tower-barrel"), composePose(8, 10, -Math.PI / 4, locals[1]!));
+    stepEvents(rt, 1);
+    expectPoseClose(pose(rt, "tower-base"), composePose(8, 10, -Math.PI / 4, locals[0]!));
+    expectPoseClose(pose(rt, "tower-barrel"), composePose(8, 10, -Math.PI / 4, locals[1]!));
     rt.destroy();
   });
 });
@@ -212,11 +200,17 @@ describe("the tilted turret", () => {
     );
     const tilt = pose(rt, "tilt");
     expect(tilt.rot).toBeCloseTo(Math.PI / 6, 9);
-    expectPose(pose(rt, "tilt-turret"), tilt);
+    expectPoseClose(pose(rt, "tilt-turret"), tilt);
     const upright = pose(rt, "turret-a");
     for (const part of TURRET_PARTS) {
       const local = relativePose(pose(rt, `turret-a/${part}`), upright);
-      expectPose(pose(rt, `tilt-turret/${part}`), composePose(tilt.x, tilt.y, tilt.rot, local), 5);
+      // to 5 digits where a pose comes from the file's geometry, stored to the micrometre
+      expectPoseClose(
+        pose(rt, `tilt-turret/${part}`),
+        composePose(tilt.x, tilt.y, tilt.rot, local),
+        part,
+        5,
+      );
     }
     const sight = pose(rt, "tilt-turret/sight");
     expect(sight.y).toBeGreaterThan(tilt.y + 0.4);
@@ -236,13 +230,14 @@ describe("the three-level chain", () => {
       const arm = pose(rt, "arm");
       turns.push(arm.rot);
       const forearm = composePose(arm.x, arm.y, arm.rot, { x: 1, y: 0, rot: Math.PI / 6 });
-      expectPose(pose(rt, "forearm"), forearm, 5);
-      expectPose(
+      expectPoseClose(pose(rt, "forearm"), forearm, "forearm", 5);
+      expectPoseClose(
         pose(rt, "hand"),
         composePose(forearm.x, forearm.y, forearm.rot, { x: 1, y: 0, rot: 0 }),
+        "hand",
         5,
       );
-      steps(rt, 20);
+      stepEvents(rt, 20);
     }
     expect(turns[0]).toBeCloseTo(Math.PI / 6, 6);
     expect(Math.max(...turns)).toBeGreaterThan(turns[0]! + 0.1);
@@ -256,17 +251,17 @@ describe("the crate", () => {
     expect(rt.ctx.tree.parent("crate-eye")).toBe("crate");
     expect(bodyOf(rt, "crate-eye")).toBe(bodyOf(rt, "crate"));
     const offset = relativePose(pose(rt, "crate-eye"), pose(rt, "crate"));
-    steps(rt, 90);
+    stepEvents(rt, 90);
     const crate = pose(rt, "crate");
     expect(crate.y).toBeGreaterThan(10.5);
-    expectPose(pose(rt, "crate-eye"), composePose(crate.x, crate.y, crate.rot, offset));
+    expectPoseClose(pose(rt, "crate-eye"), composePose(crate.x, crate.y, crate.rot, offset));
     rt.destroy();
   });
 
   it("raises the eye's sensor:enter, under a game, when the crate carries it onto the deck", () => {
     const rt = load(game);
     rt.ctx.setPose("crate", 18, 10, 0);
-    const events = steps(rt, 10);
+    const events = stepEvents(rt, 10);
     expect(
       events.some((e) => e.type === SENSOR_ENTER && e.entityId === "crate-eye"),
       JSON.stringify(events.filter((e) => e.type === SENSOR_ENTER)),
@@ -281,14 +276,14 @@ describe("the lift", () => {
     expect(rt.ctx.tree.parent("deck")).toBe("lift");
     const deck0 = pose(rt, "deck");
     const lift0 = pose(rt, "lift");
-    steps(rt, 120);
+    stepEvents(rt, 120);
     const lift = pose(rt, "lift");
     expect(lift.x).toBeGreaterThan(lift0.x + 2);
     expect(pose(rt, "deck").x - lift.x).toBeCloseTo(deck0.x - lift0.x, 6);
     const hero = pose(rt, "rider/hero");
     expect(hero.y).toBeLessThan(pose(rt, "deck").y);
     const gap = hero.x - lift.x;
-    steps(rt, 60);
+    stepEvents(rt, 60);
     expect(pose(rt, "lift").x).toBeGreaterThan(lift.x + 1);
     expect(pose(rt, "rider/hero").x - pose(rt, "lift").x).toBeCloseTo(gap, 2);
     rt.destroy();
@@ -298,14 +293,14 @@ describe("the lift", () => {
 describe("the room the spawner places", () => {
   it("goes with its root when its lifetime ends, nested prefabs and all, children first", () => {
     const rt = load();
-    const first = steps(rt, 1);
+    const first = stepEvents(rt, 1);
     const spawned = first.filter((e) => e.type === "entity:spawned").map((e) => e.entityId);
     expect(spawned).toContain("room#1");
     expect(rt.ctx.tree.parent("room#1/door-1/latch")).toBe("room#1/door-1");
     expect(rt.ctx.tree.parent("room#1/door-1")).toBe("room#1");
     const subtree = rt.ctx.tree.subtree("room#1");
     expect(subtree).toContain("room#1/door-1/latch/trigger");
-    const later = steps(rt, 150);
+    const later = stepEvents(rt, 150);
     const gone = later.filter((e) => e.type === "entity:destroyed").map((e) => e.entityId);
     expect(new Set(gone)).toEqual(new Set(subtree));
     expect(gone.at(-1)).toBe("room#1");

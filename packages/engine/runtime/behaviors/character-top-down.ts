@@ -231,6 +231,7 @@ export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineC
     posed(id, pose, snap) {
       characters.get(id)?.body.teleport(pose.x, pose.y, { snap });
     },
+    selfMoving: (id) => characters.has(id),
     save(id): JsonValue | undefined {
       const intent = characters.get(id)?.intent;
       if (!intent) return undefined;

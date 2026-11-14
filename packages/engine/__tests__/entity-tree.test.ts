@@ -2,10 +2,10 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { LIFETIME } from "../game/behaviors/lifetime";
 import type { Entity } from "../game/entity";
-import { EngineError } from "../game/types";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { ExpandedScene, RuntimeEntity } from "../scene/types";
 import { testGame } from "./fixtures/test-game";
+import { engineError } from "./fixtures/tree-rig";
 
 const marker = (id: string, extra: Partial<RuntimeEntity> = {}): RuntimeEntity => ({
   id,
@@ -49,16 +49,6 @@ function setup(entities: RuntimeEntity[] = TREE()) {
 const ids = (list: readonly Entity[]) => list.map((e) => e.id);
 const ticksOf = (handle: { fields: unknown } | undefined) =>
   (handle?.fields as { ticks?: number } | undefined)?.ticks;
-
-const thrown = (fn: () => unknown): EngineError => {
-  try {
-    fn();
-  } catch (err) {
-    expect(err).toBeInstanceOf(EngineError);
-    return err as EngineError;
-  }
-  throw new Error("expected an EngineError");
-};
 
 describe("Entity in the scene tree", () => {
   it("answers parent, children and root as handles", () => {
@@ -118,8 +108,8 @@ describe("Entity in the scene tree", () => {
 
   it("setParent under its own subtree refuses with parent-cycle", () => {
     const { get } = setup();
-    expect(thrown(() => get("base").setParent(get("hand"))).code).toBe("parent-cycle");
-    expect(thrown(() => get("base").setParent("base")).code).toBe("parent-cycle");
+    expect(engineError(() => get("base").setParent(get("hand"))).code).toBe("parent-cycle");
+    expect(engineError(() => get("base").setParent("base")).code).toBe("parent-cycle");
     expect(get("base").parent).toBeNull();
   });
 
@@ -223,7 +213,7 @@ describe("Entity in the scene tree", () => {
       (e) => e.getBehaviorInParent(LIFETIME),
       (e) => e.enabledSelf,
     ];
-    for (const member of members) expect(thrown(() => member(hand)).code).toBe("entity-gone");
+    for (const member of members) expect(engineError(() => member(hand)).code).toBe("entity-gone");
     expect(get("arm").children).toEqual([]);
     expect(get("base").find("arm/hand")).toBeUndefined();
   });

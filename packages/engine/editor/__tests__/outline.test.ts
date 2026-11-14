@@ -451,6 +451,32 @@ describe("tree drops", () => {
     });
   });
 
+  it("reorders just after a sibling, reparenting first when the parent differs", () => {
+    expect(batch(["lamp"], { kind: "reorder", after: "nav" })).toEqual({
+      label: "Move lamp after nav",
+      ops: [{ op: "reorder", refs: ["lamp"], index: 4 }],
+    });
+    expect(batch(["lamp"], { kind: "reorder", after: "barrel" })).toEqual({
+      label: "Move lamp after barrel",
+      ops: [{ op: "reparent", refs: ["lamp"], parent: "base" }],
+    });
+    expect(batch(["nav"], { kind: "reorder", after: "lamp" })).toBeNull();
+    expect(batch(["nav"], { kind: "reorder", after: "nav" })).toBeNull();
+  });
+
+  it("puts what is dropped on the parent it already has last among its siblings", () => {
+    expect(batch(["tower"], { kind: "reparent", parent: null })).toEqual({
+      label: "Move tower last at the root",
+      ops: [{ op: "reorder", refs: ["tower"], index: 4 }],
+    });
+    expect(batch(["lamp", "tower"], { kind: "reparent", parent: null })).toEqual({
+      label: "Move 2 items last at the root",
+      ops: [{ op: "reorder", refs: ["tower", "lamp"], index: 3 }],
+    });
+    expect(batch(["nav"], { kind: "reparent", parent: null })).toBeNull();
+    expect(batch(["i-1"], { kind: "reparent", parent: null })).toBeNull();
+  });
+
   it("splits a mixed drag into one reorder per list", () => {
     expect(batch(["i-1", "lamp"], { kind: "reorder", before: "tower" })?.ops).toEqual([
       { op: "reorder", refs: ["lamp"], index: 0 },

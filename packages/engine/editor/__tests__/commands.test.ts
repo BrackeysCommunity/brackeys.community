@@ -463,6 +463,23 @@ describe("select-all, delete and bounds", () => {
     expect(deleteBatch([])).toBeNull();
   });
 
+  it("names what goes with a deleted parent: everything below it", () => {
+    const tree: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      name: "tree",
+      bounds: [0, 0, 10, 10],
+      entities: [
+        { id: "pivot", type: "node", at: [1, 1] },
+        { id: "arm", type: "node", at: [1, 0], parent: "pivot" },
+        { id: "tip", type: "marker", at: [1, 0], parent: "arm" },
+        { id: "lamp", type: "marker", at: [5, 5] },
+      ],
+    };
+    expect(deleteBatch(["pivot"], tree)?.label).toBe("Delete pivot and 2 children");
+    expect(deleteBatch(["arm", "pivot"], tree)?.label).toBe("Delete 2 entities and 1 child");
+    expect(deleteBatch(["lamp"], tree)?.label).toBe("Delete lamp");
+  });
+
   it("frames the box around the selection", () => {
     const box = selectionBounds(doc, registry, ["avatar", "start"])!;
     expect(Object.fromEntries(Object.entries(box).map(([k, v]) => [k, roundLength(v)]))).toEqual({

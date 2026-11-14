@@ -328,6 +328,34 @@ describe("kitchen-sink.json", () => {
       rt.destroy();
     });
 
+    it("a node at an angle that isn't a quarter turn, whose child expands and loads by trigonometry", () => {
+      const node = entities().find(
+        (e) =>
+          e.type === "node" &&
+          typeof e.rot === "number" &&
+          e.rot % 90 !== 0 &&
+          entities().some((c) => c.parent === e.id && Array.isArray(c.at)),
+      );
+      expect(node, "a node turned off the quarter turns, with a child").toBeDefined();
+      const child = entities().find((e) => e.parent === node!.id && Array.isArray(e.at))!;
+      const [nx, ny] = node!.at as Pt;
+      const [lx, ly] = child.at as Pt;
+      const turn = ((node!.rot as number) * Math.PI) / 180;
+      const wx = nx + lx * Math.cos(turn) - ly * Math.sin(turn);
+      const wy = ny + lx * Math.sin(turn) + ly * Math.cos(turn);
+      const [ex, ey] = expanded().entities.find((e) => e.id === child.id)!.at as Pt;
+      expect(ex).toBeCloseTo(wx, 3);
+      expect(ey).toBeCloseTo(wy, 3);
+      const rt = createSceneRuntime({ rapier, view: null, game: null, registry: engine, prefabs });
+      expect(rt.load(expanded()).ok).toBe(true);
+      expect(rt.ctx.tree.parent(child.id)).toBe(node!.id);
+      const c = rt.ctx.poses.get(child.id)!;
+      expect(c.x).toBeCloseTo(wx, 3);
+      expect(c.y).toBeCloseTo(wy, 3);
+      expect(c.rot).toBeCloseTo(turn, 9);
+      rt.destroy();
+    });
+
     it("a child of an instance's child, which goes where the instance goes", () => {
       const child = entities().find(
         (e) => typeof e.parent === "string" && e.parent.split("/").length === 2,

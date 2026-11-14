@@ -3,7 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import type { CharacterSystem } from "../game/behaviors/character-top-down";
 import { createRegistry, defineGame } from "../game/define";
-import { composePose, type Pose } from "../runtime/poses";
+import { composePose } from "../runtime/poses";
 import { createSceneRuntime } from "../runtime/runtime";
 import { SENSOR_ENTER, type SceneRuntimeHandle, type StepEvent } from "../runtime/types";
 import { expandScene } from "../scene/expand";
@@ -18,6 +18,7 @@ import {
 import { validateScene } from "../scene/validate";
 import type { SolidSystem } from "../systems/bodies";
 import { testGame } from "./fixtures/test-game";
+import { expectPoseClose, stepEvents, withParents } from "./fixtures/tree-rig";
 
 /** The test game, without its Rapier-driven avatar, so sensors fire and nothing else needs physics. */
 const game = defineGame({
@@ -46,11 +47,7 @@ function scene(
   const def = source(entities, gravity);
   expect(validateScene(def, registry).filter((i) => i.code === "physics-required")).toEqual([]);
   const out = expandScene(def, registry);
-  for (const e of out.entities) {
-    const parent = parents[e.id];
-    if (parent !== undefined) e.parent = parent;
-  }
-  return out;
+  return withParents(out, parents);
 }
 
 function load(
@@ -65,12 +62,6 @@ function load(
   return rt;
 }
 
-function steps(rt: SceneRuntimeHandle, n: number): StepEvent[] {
-  const events: StepEvent[] = [];
-  for (let i = 0; i < n; i++) events.push(...rt.step(rt.ctx.time.tickMs, []).events);
-  return events;
-}
-
 const pose = (rt: SceneRuntimeHandle, id: string) => rt.ctx.poses.get(id)!;
 
 /** Who the geometry world has at (x, y), any group. */
@@ -79,13 +70,6 @@ const at = (rt: SceneRuntimeHandle, x: number, y: number) =>
     .overlaps({ type: "circle", cx: x, cy: y, r: 0.02 }, { sensors: true })
     .map((h) => h.tag.entityId)
     .sort();
-
-const close = (got: Readonly<Pose> | undefined, want: Pose, what: string, digits = 6) => {
-  expect(got, what).toBeDefined();
-  expect(got!.x, `${what}.x`).toBeCloseTo(want.x, digits);
-  expect(got!.y, `${what}.y`).toBeCloseTo(want.y, digits);
-  expect(got!.rot, `${what}.rot`).toBeCloseTo(want.rot, digits);
-};
 
 /** No `physics-required` anywhere in a run's events. */
 const noPhysicsAsked = (events: readonly StepEvent[]) =>
@@ -114,16 +98,16 @@ describe("geometry colliders under a parent follow it by pose", () => {
       { shelf: "hub", lid: "hub" },
       [0, 0],
     );
-    steps(rt, 1);
+    stepEvents(rt, 1);
     expect(at(rt, 2, 0)).toEqual(["shelf"]);
     expect(at(rt, 0, -2)).toEqual(["lid"]);
 
     rt.ctx.setPose("hub", 5, 5, Math.PI / 2);
-    const events = steps(rt, 2);
+    const events = stepEvents(rt, 2);
     const shelf = composePose(5, 5, Math.PI / 2, { x: 2, y: 0, rot: 0 });
     const lid = composePose(5, 5, Math.PI / 2, { x: 0, y: -2, rot: 0 });
-    close(pose(rt, "shelf"), shelf, "shelf");
-    close(pose(rt, "lid"), lid, "lid");
+    expectPoseClose(pose(rt, "shelf"), shelf, "shelf");
+    expectPoseClose(pose(rt, "lid"), lid, "lid");
     expect(at(rt, shelf.x, shelf.y)).toEqual(["shelf"]);
     expect(at(rt, lid.x, lid.y)).toEqual(["lid"]);
     expect(at(rt, 2, 0)).toEqual([]);
@@ -147,9 +131,9 @@ describe("geometry colliders under a parent follow it by pose", () => {
       { scoop: "cart" },
       [0, 0],
     );
-    expect(steps(rt, 5).filter((e) => e.type === SENSOR_ENTER)).toEqual([]);
+    expect(stepEvents(rt, 5).filter((e) => e.type === SENSOR_ENTER)).toEqual([]);
     rt.ctx.bodies.setVelocity("cart", { x: 2, y: 0 });
-    const events = steps(rt, 120);
+    const events = stepEvents(rt, 120);
     expect(pose(rt, "cart").x).toBeCloseTo(4, 3);
     expect(pose(rt, "scoop").x - pose(rt, "cart").x).toBeCloseTo(0, 6);
     expect(
@@ -176,13 +160,13 @@ describe("geometry colliders under a parent follow it by pose", () => {
       ],
       { deck: "host" },
     );
-    steps(rt, 30);
+    stepEvents(rt, 30);
     const start = pose(rt, "hero").x;
     const characters = rt.ctx.behavior<CharacterSystem>("character-side-view")!;
     expect(characters.grounded("hero")).toBe(true);
 
     rt.ctx.bodies.setVelocity("host", { x: 1, y: 0 });
-    const events = steps(rt, 60);
+    const events = stepEvents(rt, 60);
     expect(pose(rt, "host").x).toBeCloseTo(1, 3);
     expect(pose(rt, "deck").x).toBeCloseTo(5, 3);
     expect(at(rt, 5.9, 2.9)).toContain("deck");
@@ -214,11 +198,11 @@ describe("geometry colliders under a parent follow it by pose", () => {
       ],
       { deck: "barge" },
     );
-    steps(rt, 30);
+    stepEvents(rt, 30);
     const characters = rt.ctx.behavior<CharacterSystem>("character-side-view")!;
     expect(characters.grounded("hero")).toBe(true);
     const start = pose(rt, "hero").x;
-    const events = steps(rt, 70);
+    const events = stepEvents(rt, 70);
     expect(pose(rt, "barge").x).toBe(2);
     expect(pose(rt, "deck").x).toBeCloseTo(2, 6);
     expect(at(rt, 3.4, 3)).toContain("deck");
@@ -242,16 +226,16 @@ describe("geometry colliders under a parent follow it by pose", () => {
     expect(rt.ctx.tree.parent("plate")).toBe("b");
     expect(pose(rt, "plate")).toMatchObject({ x: 0, y: 1 });
     rt.ctx.setPose("b", 5, 3);
-    steps(rt, 1);
+    stepEvents(rt, 1);
     expect(pose(rt, "plate")).toMatchObject({ x: 0, y: 4 });
     expect(at(rt, 0, 4)).toEqual(["plate"]);
     rt.ctx.setPose("a", 0, -3);
-    steps(rt, 1);
+    stepEvents(rt, 1);
     expect(pose(rt, "plate")).toMatchObject({ x: 0, y: 4 });
 
     rt.ctx.tree.setParent("plate", null);
     rt.ctx.setPose("b", 5, 0);
-    steps(rt, 1);
+    stepEvents(rt, 1);
     expect(pose(rt, "plate")).toMatchObject({ x: 0, y: 4 });
     expect(at(rt, 0, 4)).toEqual(["plate"]);
     expect(rt.ctx.system<SolidSystem>("solid")!.position("plate")).toEqual({ x: 0, y: 4 });
@@ -267,8 +251,8 @@ describe("geometry colliders under a parent follow it by pose", () => {
       { plank: "host" },
       [0, 0],
     );
-    steps(rt, 1);
-    close(pose(rt, "plank"), { x: 2, y: 0, rot: 0 }, "plank");
+    stepEvents(rt, 1);
+    expectPoseClose(pose(rt, "plank"), { x: 2, y: 0, rot: 0 }, "plank");
     const solids = rt.ctx.system<SolidSystem>("solid")!;
     solids.gateOneWaySides({ minX: 1.8, minY: -0.9, maxX: 2.2, maxY: -0.1 }, false);
     expect(solids.isHidden("plank")).toBe(false);
@@ -303,7 +287,7 @@ describe("a bodiless follower", () => {
       { lamp: "lift", plank: "lift" },
       [0, 0],
     );
-    const events = steps(rt, 90);
+    const events = stepEvents(rt, 90);
     const l = pose(rt, "lift");
     expect(l.x).toBeGreaterThan(5);
     expect(pose(rt, "lamp").x - l.x).toBeCloseTo(0, 6);
@@ -329,14 +313,14 @@ describe("a bodiless follower", () => {
       { plank: "lift" },
       [0, 0],
     );
-    steps(rt, 60);
+    stepEvents(rt, 60);
     const l = pose(rt, "lift");
     const p = pose(rt, "plank");
     expect(p.x - l.x).toBeCloseTo(1, 6);
     expect(p.y - l.y).toBeCloseTo(-0.5, 6);
     expect(rt.ctx.tree.local("plank")).toMatchObject({ y: expect.closeTo(-0.5, 6) });
     expect(at(rt, p.x, p.y)).toEqual(["plank"]);
-    steps(rt, 60);
+    stepEvents(rt, 60);
     expect(pose(rt, "plank").y - pose(rt, "lift").y).toBeCloseTo(-0.5, 6);
     rt.destroy();
   });
@@ -371,7 +355,7 @@ describe("a bodiless follower", () => {
       ],
       { plank: "lift" },
     );
-    steps(rt, 1);
+    stepEvents(rt, 1);
     const characters = rt.ctx.behavior<CharacterSystem>("character-side-view")!;
     expect(characters.grounded("rider")).toBe(true);
     expect(characters.grounded("stander")).toBe(true);
@@ -380,7 +364,7 @@ describe("a bodiless follower", () => {
       rider: pose(rt, "rider").x,
       stander: pose(rt, "stander").x,
     };
-    const events = steps(rt, 90);
+    const events = stepEvents(rt, 90);
     const moved = pose(rt, "lift").x - start.lift;
     expect(moved).toBeGreaterThan(1);
     expect(pose(rt, "stander").x - start.stander).toBeCloseTo(moved, 1);
@@ -396,9 +380,9 @@ describe("a bodiless follower", () => {
       { plank: "lift" },
       [0, 0],
     );
-    steps(rt, 1);
+    stepEvents(rt, 1);
     rt.ctx.destroy("lift");
-    steps(rt, 1);
+    stepEvents(rt, 1);
     expect(rt.ctx.exists("lift")).toBe(false);
     expect(rt.ctx.exists("plank")).toBe(false);
     rt.destroy();
@@ -448,11 +432,11 @@ describe("nothing asks for Rapier", () => {
       parent: second.id,
       local: true,
     });
-    const events = steps(rt, 2);
+    const events = stepEvents(rt, 2);
     expect(rt.ctx.tree.parent("solid#post")).toBe(second.id);
 
     rt.ctx.setPose("yard", 0, 10);
-    steps(rt, 1);
+    stepEvents(rt, 1);
     expect(pose(rt, second.id)).toMatchObject({ x: -3, y: 10 });
     expect(pose(rt, "solid#post")).toMatchObject({ x: -3, y: 10 });
     expect(at(rt, -3, 10)).toContain("solid#post");

@@ -214,7 +214,12 @@ const spawnInputSchema = z
 const instanceSchema = z
   .strictObject({
     prefab: assetId.describe("The prefab instantiated."),
-    rot: z.number().optional().describe("Degrees clockwise."),
+    rot: z
+      .number()
+      .optional()
+      .describe(
+        "Degrees clockwise; a save from an engine before 0.16.0 holds quarter turns 0–3, read as 90 × k.",
+      ),
     parent: z.string().min(1).optional().describe("The live entity its node spawned under."),
     local: z.boolean().optional().describe("`at` is in the parent's frame."),
     flip: z.boolean().optional().describe("Mirrored on x."),
@@ -419,7 +424,9 @@ function readSaveFile(text: string, game?: Pick<GameDefinition, "id" | "saves">)
   if (!read.ok) return read;
   const parsed = saveFileSchema.safeParse(read.raw);
   if (!parsed.success) return { ok: false, issues: zodSceneIssues(parsed.error, ["game"]) };
-  const file = parsed.data;
+  const lifted = liftQuarterTurns(parsed.data);
+  if (!lifted.ok) return lifted;
+  const { file } = lifted;
   if (!game) return { ok: true, file };
   if (file.game !== game.id) {
     return {
@@ -435,6 +442,50 @@ function readSaveFile(text: string, game?: Pick<GameDefinition, "id" | "saves">)
     };
   }
   return migrateSave(file, game.saves?.version ?? 1, game.saves?.migrations ?? {});
+}
+
+/** The engine version whose saves hold an instance's `rot` in degrees; older ones hold quarter turns. */
+const DEGREE_TURNS_SINCE = "0.16.0";
+
+/** Whether the version `engine` names is older than `than`; false when either isn't `major.minor.patch`. */
+function engineOlder(engine: string, than: string): boolean {
+  const parts = (v: string) => /^(\d+)\.(\d+)\.(\d+)/.exec(v)?.slice(1).map(Number);
+  const [a, b] = [parts(engine), parts(than)];
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i]! < b[i]!;
+  return false;
+}
+
+/**
+ * A world save from an engine before degree turns, each instance record's
+ * quarter turns `k` read as `90 × k` degrees; when any turned, `engine` is
+ * set to the first version that writes degrees, so it isn't lifted twice.
+ */
+function liftQuarterTurns(
+  file: SaveFile,
+): { ok: true; file: SaveFile } | Extract<ParseSaveResult, { ok: false }> {
+  const world = file.world;
+  if (!world || !engineOlder(file.engine, DEGREE_TURNS_SINCE)) return { ok: true, file };
+  const issues: SceneIssue[] = [];
+  const spawned = world.spawned.map((rec, i) => {
+    const rot = rec.instance?.rot;
+    if (!rot || !rec.instance) return rec;
+    if (rot !== 0 && rot !== 1 && rot !== 2 && rot !== 3) {
+      issues.push(
+        makeIssue("schema", {
+          message: `a save from engine ${file.engine} counts an instance's turns in quarter turns, 0–3`,
+          path: `/world/spawned/${i}/instance/rot`,
+          expected: "0, 1, 2 or 3",
+          got: String(rot),
+        }),
+      );
+      return rec;
+    }
+    return { ...rec, instance: { ...rec.instance, rot: rot * 90 } };
+  });
+  if (issues.length > 0) return { ok: false, issues };
+  if (spawned.every((rec, i) => rec === world.spawned[i])) return { ok: true, file };
+  return { ok: true, file: { ...file, engine: DEGREE_TURNS_SINCE, world: { ...world, spawned } } };
 }
 
 function migrateSave(

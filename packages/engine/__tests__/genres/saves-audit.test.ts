@@ -296,7 +296,7 @@ const tweenIds: GenreProbe = {
   expect: { result: "none" },
 };
 
-/** The grid puzzle's swap rules saved with a pointer button held, where the restored run used to step fewer ticks. */
+/** The grid puzzle's swap rules saved with a pointer button held continue with the uninterrupted run's ticks. */
 const HELD_POINTER_SAVES = [14, 16, 19, 21, 40, 42];
 
 /** A run saved at `at`, restored, saved again at each of `again` and restored each time. */

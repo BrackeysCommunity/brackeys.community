@@ -3,7 +3,7 @@ import { z } from "zod";
 import { BEHAVIORS_FIELD, type BehaviorBlock, type BehaviorName } from "../game/behaviors";
 import { DEFAULT_GRAVITY, DEFAULT_PHYSICS } from "../game/defaults";
 import { BASE_FIELDS } from "../game/fields";
-import { ENGINE_SETTING_KEYS, ENGINE_SETTINGS } from "../game/primitives";
+import { ENGINE_SETTING_KEYS, ENGINE_SETTINGS, NODE_TYPE } from "../game/primitives";
 import type { RegisteredType, Registry } from "../game/types";
 import { isPlainObject } from "../project/kinds/define";
 import { bulkId } from "./bulk-ref";
@@ -225,7 +225,6 @@ export function runtimeEntity(
 /** The id each prefab gains in `withOrigins`: no entity id can take it, and it names no bulk entry. */
 const ORIGIN = "~origin";
 const ORIGIN_SUFFIX = `${CHILD_SEPARATOR}${ORIGIN}`;
-const NODE: EntityTypeName = "node";
 
 type Origins = { source: Map<string, Prefab>; marked: Map<string, Prefab> };
 /** Per library, its prefabs each with an origin child; kept in step with the library's entries. */
@@ -246,7 +245,7 @@ function withOrigins(library: PrefabLibrary): PrefabLibrary {
     o.source.set(id, prefab);
     o.marked.set(id, {
       ...prefab,
-      entities: [...prefab.entities, { id: ORIGIN, type: NODE, at: [0, 0] }],
+      entities: [...prefab.entities, { id: ORIGIN, type: NODE_TYPE, at: [0, 0] }],
     });
   }
   if (o.source.size !== library.size) {
@@ -320,13 +319,13 @@ export function expandInstance(
       origins.push({ id, child });
     }
   }
-  const nodeType = registry.types.get(NODE);
-  if (!nodeType) throw new Error(`expandInstance: the registry has no "${NODE}" type`);
+  const nodeType = registry.types.get(NODE_TYPE);
+  if (!nodeType) throw new Error(`expandInstance: the registry has no "${NODE_TYPE}" type`);
   const ids = new Set(rest.filter((c) => !c.def.off).map((c) => c.def.id));
   const linked = (parent: unknown) =>
     typeof parent === "string" && (ids.has(parent) || nodeIds.has(parent)) ? parent : undefined;
   const nodes = origins.map(({ id, child: { def, transform, nodeParent } }) => {
-    const node: EntityDef = { id, type: NODE, at: def.at as Pt };
+    const node: EntityDef = { id, type: NODE_TYPE, at: def.at as Pt };
     if (transform.rot !== 0) node.rot = transform.rot;
     if (def.layer !== undefined) node.layer = def.layer;
     if (def.z !== undefined) node.z = def.z;

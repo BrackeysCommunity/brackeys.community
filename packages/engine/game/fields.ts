@@ -366,3 +366,6 @@ export const RESERVED_FIELDS: readonly string[] = [
   "params",
   "overrides",
 ];
+
+/** Keys a `SpawnInput` takes beside `id` and `parent`; a type's own fields can't reuse them either. */
+export const SPAWN_INPUT_KEYS: readonly string[] = ["sublevel", "local"];

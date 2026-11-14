@@ -299,6 +299,36 @@ describe("reparent", () => {
         "ref-not-found",
       );
     });
+
+    it("a nested instance, whose frame no child is placed by", () => {
+      const prefabs = prefabLibrary([
+        {
+          kind: "prefab",
+          v: 4,
+          id: "door",
+          entities: [{ id: "panel", type: "node", at: [1, 0] }],
+        },
+        {
+          kind: "prefab",
+          v: 4,
+          id: "hall",
+          entities: [{ id: "post", type: "node", at: [0, 0] }],
+          instances: [{ id: "door-1", prefab: "door", at: [4, 0] }],
+        },
+      ]);
+      const def = scene({
+        entities: [{ id: "lamp", type: "marker", at: [0, 0] }],
+        instances: [{ id: "hall-1", prefab: "hall", at: [60, 0] }],
+      });
+      const issue = code(
+        [{ op: "reparent", refs: ["lamp"], parent: "hall-1/door-1" }],
+        def,
+        prefabs,
+      );
+      expect(issue).toMatchObject({ code: "parent-type", got: "nested instance" });
+      expect(issue.hint).toContain("hall-1");
+      ok(run(def, [{ op: "reparent", refs: ["lamp"], parent: "hall-1/door-1/panel" }], prefabs));
+    });
   });
 });
 

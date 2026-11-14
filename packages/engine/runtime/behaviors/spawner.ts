@@ -6,6 +6,7 @@ import type {
   RegisteredBehavior,
 } from "../../game/behaviors";
 import type { SpawnerBlock, SpawnerHandle, SpawnerSystem } from "../../game/behaviors/spawner";
+import { NODE_TYPE } from "../../game/primitives";
 import { ticksFor, wholeTicksIn } from "../../game/time";
 import type { EngineContext, JsonValue, SpawnInput } from "../../game/types";
 import { translateEntityDef } from "../../scene/translate";
@@ -13,7 +14,6 @@ import type { EntityDef } from "../../scene/types";
 import { ENTITY_DESTROYED, SPAWNER_SPAWNED, type StepEvent } from "../types";
 
 const U32 = 0x1_0000_0000;
-const NODE = "node";
 
 type Spawner = {
   id: string;
@@ -86,7 +86,7 @@ export const createSpawnerSystem: BehaviorSystemFactory = (
   function holds(s: Spawner, key: string): boolean {
     if (!ctx.exists(key)) return false;
     if (s.block.prefab === undefined) return true;
-    return ctx.tree.subtree(key).some((id) => ctx.exists(id) && ctx.get(id)?.type !== NODE);
+    return ctx.tree.subtree(key).some((id) => ctx.exists(id) && ctx.get(id)?.type !== NODE_TYPE);
   }
 
   /** Frees `key`'s slot once it holds nothing, and destroys the node an emptied instance leaves. */

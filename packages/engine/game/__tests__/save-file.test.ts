@@ -182,6 +182,38 @@ describe("formatSaveFile and parseSaveFile", () => {
     expect(parsed.ok && parsed.file.world?.spawned).toEqual(spawned);
   });
 
+  it("reads an instance's quarter turns from a save before 0.16.0 as degrees, once", () => {
+    const instance = (rot?: number) => ({
+      id: "lamp#1",
+      input: { type: "lamp", at: [2, 3] },
+      instance: { prefab: "lamp", ...(rot !== undefined ? { rot } : {}) },
+    });
+    const saved = (engine: string, ...rots: (number | undefined)[]) => {
+      const file = worldSave({ engine });
+      return JSON.stringify({ ...file, world: { ...file.world!, spawned: rots.map(instance) } });
+    };
+    const rots = (r: ReturnType<typeof parseSaveFile>) =>
+      r.ok ? r.file.world?.spawned.map((rec) => rec.instance?.rot) : r.issues;
+
+    const old = parseSaveFile(saved("0.15.0", 0, 1, 2, 3, undefined));
+    expect(rots(old)).toEqual([0, 90, 180, 270, undefined]);
+    expect(old.ok && old.file.engine).toBe("0.16.0");
+    if (old.ok) expect(rots(parseSaveFile(formatSaveFile(old.file)))).toEqual(rots(old));
+
+    expect(rots(parseSaveFile(saved("0.16.0", 1, 45)))).toEqual([1, 45]);
+    expect(rots(parseSaveFile(saved("1.2.0", 3)))).toEqual([3]);
+    const untouched = parseSaveFile(saved("0.15.0", 0));
+    expect(untouched.ok && untouched.file.engine).toBe("0.15.0");
+
+    const bad = parseSaveFile(saved("0.15.0", 45));
+    expect(bad.ok).toBe(false);
+    if (!bad.ok)
+      expect(bad.issues[0]).toMatchObject({
+        code: "schema",
+        path: "/world/spawned/0/instance/rot",
+      });
+  });
+
   it("refuses a save another game wrote", () => {
     const r = parseSaveFile(formatSaveFile(worldSave()), {
       id: "platformer",

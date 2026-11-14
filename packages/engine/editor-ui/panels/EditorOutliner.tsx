@@ -13,7 +13,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { ArrowDown01Icon, ArrowRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { selectionsByKey } from "../../collab/index";
 import {
@@ -40,6 +40,7 @@ import {
   type TreeDrop,
 } from "../../editor/outline";
 import { defaultLayer } from "../../scene/index";
+import { canBeInTree } from "../../scene/validate";
 import { useCanvasReveal } from "../frame/EditorFrame";
 import { STORAGE_PREFIX } from "../host";
 import {
@@ -50,6 +51,7 @@ import {
   Input,
   MicroLabel,
   SegmentedControl,
+  Text,
   useKit,
 } from "../kit/index";
 import { useBrowserState } from "../kit/ssr";
@@ -298,19 +300,37 @@ type DropData = { kind: "place"; target: DropTarget } | TreeDrop;
 
 /** The empty space below the tree's rows: a drop there puts rows at the root. */
 const ROOT_DROP = "tree-root";
+/** The strip under the list while a tree drag is held, which takes root drops when the rows fill the list. */
+const ROOT_STRIP = "tree-root-strip";
+const isRootDrop = (id: unknown) => id === ROOT_DROP || id === ROOT_STRIP;
+const ROOT_DATA = { kind: "reparent", parent: null } satisfies DropData;
 
 /** The rows under the pointer, else the list around them. */
 const rowsFirst: CollisionDetection = (args) => {
   const hits = pointerWithin(args);
-  const rows = hits.filter((h) => h.id !== ROOT_DROP);
+  const rows = hits.filter((h) => !isRootDrop(h.id));
   return rows.length > 0 ? rows : hits;
 };
 
-/** How much of a row's height, from its top, is a drop before it rather than onto it. */
-const BEFORE_BAND = 0.3;
+/**
+ * How much of a row's height, from its top, is a drop before it (and from
+ * its bottom, after it) rather than onto it; a row that can't take children
+ * splits into halves.
+ */
+const EDGE_BAND = 1 / 3;
+
+/** How long a refused drop's reason stays after the row is let go. */
+const REFUSAL_MS = 4000;
 
 /** Where a tree drag would land: the droppable under the pointer, the drop, and its batch or why it's refused. */
 type Aim = { at: string; drop: TreeDrop; batch: OpBatch | null; refused: SceneIssue | null };
+
+const dropKey = (d: TreeDrop) =>
+  d.kind === "reparent"
+    ? `onto:${d.parent ?? ""}`
+    : "before" in d
+      ? `before:${d.before}`
+      : `after:${d.after}`;
 
 /**
  * One batch moving entities and instances onto a layer row (their `layer`).
@@ -367,14 +387,24 @@ function DropRow({
   );
 }
 
-/** How a row shows the drag over it: taking it onto the row, before the row, or refusing it. */
-type DropMark = "over" | "before" | "refused";
+/** How a row shows the drag over it: taking it onto the row, before or after the row, or refusing it. */
+type DropMark = "over" | "before" | "after" | "refused";
 
 const markAttrs = (mark: DropMark | undefined) => ({
   "data-drop-over": mark === "over" ? "" : undefined,
   "data-drop-before": mark === "before" ? "" : undefined,
+  "data-drop-after": mark === "after" ? "" : undefined,
   "data-drop-refused": mark === "refused" ? "" : undefined,
 });
+
+/** Why a tree drop is refused, in the danger tone beside where it was aimed; announced without taking focus. */
+function Refusal({ message }: { message: string }) {
+  return (
+    <Text as="p" role="status" size="xs" variant="danger" className="je-outliner-refusal">
+      {message}
+    </Text>
+  );
+}
 
 /** The tree's list, which takes a drop on its empty space as a move to the root. */
 function TreeList({
@@ -386,15 +416,28 @@ function TreeList({
   mark: DropMark | undefined;
   children: ReactNode;
 }) {
-  const { setNodeRef } = useDroppable({
-    id: ROOT_DROP,
-    data: { kind: "reparent", parent: null } satisfies DropData,
-    disabled: !enabled,
-  });
+  const { setNodeRef } = useDroppable({ id: ROOT_DROP, data: ROOT_DATA, disabled: !enabled });
   return (
     <ul ref={setNodeRef} className="je-outliner-list" {...markAttrs(mark)}>
       {children}
     </ul>
+  );
+}
+
+/** The root drop that is always in reach while a tree drag is held, however full the list is. */
+function RootStrip({
+  mark,
+  refusal,
+}: {
+  mark: DropMark | undefined;
+  refusal?: string | undefined;
+}) {
+  const { setNodeRef } = useDroppable({ id: ROOT_STRIP, data: ROOT_DATA });
+  return (
+    <div ref={setNodeRef} className="je-outliner-root" {...markAttrs(mark)}>
+      <span>Drop here to move to the root</span>
+      {refusal ? <Refusal message={refusal} /> : null}
+    </div>
   );
 }
 
@@ -403,6 +446,7 @@ function EntityItem({
   draggable,
   drop,
   mark,
+  refusal,
   expanded,
   onToggle,
   selected,
@@ -428,6 +472,8 @@ function EntityItem({
   /** Set on a row that takes tree drops. */
   drop?: DropData | undefined;
   mark?: DropMark | undefined;
+  /** Why a drop aimed at this row is refused. */
+  refusal?: string | undefined;
   indent: CSSProperties;
   onSelect: (mode: "replace" | "range" | "toggle") => void;
   onHover: (ref: Ref | null) => void;
@@ -515,6 +561,7 @@ function EntityItem({
           Open
         </Button>
       ) : null}
+      {refusal ? <Refusal message={refusal} /> : null}
     </li>
   );
 }
@@ -523,10 +570,13 @@ function EntityItem({
  * The scene's rows as its tree (the default), by type or by layer, filtered
  * by `type:`, `shape:`, `has:problems` chips and free text, with an
  * instance's children nested under it. In the tree, dragging a row onto
- * another puts it under that row, dragging it onto a row's top edge puts it
- * just before that row among its siblings, and dragging it onto the empty
- * space below puts it at the root; nothing moves in the world, and a drop
- * the scene would refuse shows as refused before it is let go. Dragging a
+ * another puts it under that row, dragging it onto a row's top or bottom
+ * edge puts it just before or after that row among its siblings (after only
+ * where no open children follow the row), and dragging it onto the empty
+ * space below, or the root strip shown while dragging, puts it at the root;
+ * nothing moves in the world. A drop the scene would refuse shows as refused,
+ * with why, before it is let go and for a while after. A drop under a closed
+ * row opens it, so the moved rows stay in sight. Dragging a
  * selected row drags the selection's roots. In the layer view, dragging
  * entity rows onto a layer row moves them there. Either is one batch. `physical`
  * adds physical issues to `has:problems`. The row under the pointer is the
@@ -565,6 +615,9 @@ export function EditorOutliner({
   );
   const [query, setQuery] = useState("");
   const [aim, setAim] = useState<Aim | null>(null);
+  const [dragging, setDragging] = useState(false);
+  /** A refused drop's reason, kept a while after the row is let go, by the droppable it was aimed at. */
+  const [refusedAt, setRefusedAt] = useState<{ at: string; message: string } | null>(null);
   const dragged = useRef<Ref[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -608,6 +661,12 @@ export function EditorOutliner({
   const filtering = !isEmpty(filter);
   const tree = view === "tree";
 
+  useEffect(() => {
+    if (!refusedAt) return;
+    const timer = setTimeout(() => setRefusedAt(null), REFUSAL_MS);
+    return () => clearTimeout(timer);
+  }, [refusedAt]);
+
   const hoverRow = (ref: Ref | null) => {
     setHover(session.store, ref);
     onHover?.(ref);
@@ -627,27 +686,67 @@ export function EditorOutliner({
         .join(" "),
     );
 
+  /** Whether a row's entity can have children, so its middle takes drops onto it. */
+  const takesChildren = (row: Row) =>
+    !isEntityRow(row) || row.type === undefined || canBeInTree(registry.types.get(row.type));
+
+  /** Opens the row of `parent` and every row above it, so what was dropped under it shows. */
+  const openTo = (parent: Ref) => {
+    const at = rows.findIndex((r) => r.ref === parent);
+    if (at < 0) return;
+    const opened: Record<string, boolean> = {};
+    for (let i = at, depth = Infinity; i >= 0; i--) {
+      const r = rows[i]!;
+      if (r.depth >= depth) continue;
+      depth = r.depth;
+      if (collapsed[r.key] ?? collapsedByDefault(r)) opened[r.key] = false;
+    }
+    if (Object.keys(opened).length === 0) return;
+    const next = { ...collapsed, ...opened };
+    setCollapsed(next);
+    writeStored(storage, COLLAPSE_KEY, next);
+  };
+
   const onDragStart = ({ active }: DragStartEvent) => {
     const ref = active.data.current?.ref as Ref | undefined;
     if (!ref || !tree) return;
+    setRefusedAt(null);
+    setDragging(true);
     dragged.current = selected.has(ref)
       ? treeDragRoots(session.getDoc(), registry, session.getPrefabs(), selection)
       : [ref];
+  };
+
+  /**
+   * The drop a row takes at height `y`: before it on its top edge, after it
+   * on its bottom edge where no open children follow it, else onto it. Only
+   * the scene's own rows take a place among siblings.
+   */
+  const rowDrop = (key: string, ref: Ref, y: number, rect: { top: number; height: number }) => {
+    const i = shown.findIndex((r) => r.key === key);
+    const row = shown[i];
+    if (!row || !own.has(ref) || rect.height <= 0) return null;
+    const band = takesChildren(row) ? EDGE_BAND : 0.5;
+    const t = (y - rect.top) / rect.height;
+    if (t < band) return { kind: "reorder", before: ref } satisfies TreeDrop;
+    const next = shown[i + 1];
+    if (t >= 1 - band && (!next || next.depth <= row.depth))
+      return { kind: "reorder", after: ref } satisfies TreeDrop;
+    return null;
   };
 
   /** Where the pointer would drop the dragged rows in the tree, or null over nothing that takes them. */
   const aimAt = ({ active, over, activatorEvent, delta }: DragMoveEvent): Aim | null => {
     const data = over?.data.current as DropData | undefined;
     if (!tree || !over || !data || data.kind === "place" || over.id === active.id) return null;
+    const at = String(over.id);
     let drop: TreeDrop = data;
     const parent = data.kind === "reparent" ? data.parent : null;
-    if (parent !== null && own.has(parent) && activatorEvent && "clientY" in activatorEvent) {
+    if (parent !== null && activatorEvent && "clientY" in activatorEvent) {
       const y = (activatorEvent as PointerEvent).clientY + delta.y;
-      if (y < over.rect.top + over.rect.height * BEFORE_BAND)
-        drop = { kind: "reorder", before: parent };
+      drop = rowDrop(at, parent, y, over.rect) ?? data;
     }
-    const at = String(over.id);
-    if (aim && aim.at === at && aim.drop.kind === drop.kind) return aim;
+    if (aim && aim.at === at && dropKey(aim.drop) === dropKey(drop)) return aim;
     const current = session.getDoc();
     const prefabLib = session.getPrefabs();
     const batch = treeDropBatch(current, registry, prefabLib, dragged.current, drop);
@@ -660,15 +759,26 @@ export function EditorOutliner({
     if (next !== aim) setAim(next);
   };
 
-  const onDragEnd = (e: DragEndEvent) => {
+  const endDrag = () => {
     setAim(null);
+    setDragging(false);
+  };
+
+  const onDragEnd = (e: DragEndEvent) => {
+    endDrag();
     const ref = e.active.data.current?.ref as Ref | undefined;
     const drop = e.over?.data.current as DropData | undefined;
     if (!ref || !drop) return;
     if (drop.kind !== "place") {
       const landed = aimAt(e);
-      if (landed?.refused) cue("error");
-      else if (landed?.batch && session.dispatch(landed.batch).ok) cue("drop");
+      if (landed?.refused) {
+        setRefusedAt({ at: landed.at, message: landed.refused.message });
+        cue("error");
+      } else if (landed?.batch && session.dispatch(landed.batch).ok) {
+        if (landed.drop.kind === "reparent" && landed.drop.parent !== null)
+          openTo(landed.drop.parent);
+        cue("drop");
+      }
       return;
     }
     const moved = selected.has(ref) ? selection.filter((r) => !isBulkRef(r)) : [ref];
@@ -681,9 +791,22 @@ export function EditorOutliner({
       ? undefined
       : aim.refused
         ? "refused"
-        : aim.drop.kind === "reorder"
-          ? "before"
-          : "over";
+        : aim.drop.kind === "reparent"
+          ? "over"
+          : "before" in aim.drop
+            ? "before"
+            : "after";
+
+  /** Why the drop aimed at `key` is refused: while it's held, then for a while after it's let go. */
+  const refusalAt = (key: string): string | undefined =>
+    aim
+      ? aim.at === key
+        ? aim.refused?.message
+        : undefined
+      : refusedAt?.at === key
+        ? refusedAt.message
+        : undefined;
+  const rootRefusal = refusalAt(ROOT_DROP) ?? refusalAt(ROOT_STRIP);
 
   return (
     <nav
@@ -691,6 +814,7 @@ export function EditorOutliner({
       className="je-outliner"
       // The pointer left the scene view for here, so what it last hovered there no longer is.
       onPointerEnter={() => setHover(session.store, null)}
+      onPointerDownCapture={() => setRefusedAt(null)}
     >
       <div className="je-panel-toolbar je-outliner-head">
         <span className="je-sp-truncate je-outliner-scene">{sceneName}</span>
@@ -706,7 +830,7 @@ export function EditorOutliner({
         >
           <SegmentedControl.Item
             value="tree"
-            tooltip="Rows under their parents; drag a row onto another to put it under it"
+            tooltip="Rows under their parents; drag a row onto another to put it under it, or onto its top or bottom edge to put it before or after it"
           >
             Tree
           </SegmentedControl.Item>
@@ -761,7 +885,7 @@ export function EditorOutliner({
         onDragOver={onDragMove}
         onDragMove={onDragMove}
         onDragEnd={onDragEnd}
-        onDragCancel={() => setAim(null)}
+        onDragCancel={endDrag}
       >
         <TreeList enabled={tree} mark={markOf(ROOT_DROP)}>
           {filtering && shown.length === 0 ? (
@@ -782,6 +906,7 @@ export function EditorOutliner({
                   draggable={draggable}
                   drop={tree && ref ? { kind: "reparent", parent: ref } : undefined}
                   mark={markOf(row.key)}
+                  refusal={refusalAt(row.key)}
                   {...(opens
                     ? {
                         expanded: !(collapsed[row.key] ?? collapsedByDefault(row)),
@@ -855,12 +980,10 @@ export function EditorOutliner({
             );
           })}
         </TreeList>
+        {tree && (dragging || rootRefusal) ? (
+          <RootStrip mark={markOf(ROOT_STRIP)} refusal={rootRefusal} />
+        ) : null}
       </DndContext>
-      {aim?.refused ? (
-        <p role="status" className="je-outliner-none">
-          {aim.refused.message}
-        </p>
-      ) : null}
     </nav>
   );
 }

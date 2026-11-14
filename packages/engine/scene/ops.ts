@@ -3,13 +3,14 @@ import { z } from "zod";
 import { BEHAVIORS_FIELD } from "../game/behaviors";
 import { isSpawnOnly, placeableTypes } from "../game/define";
 import { ID_PATTERN, Z_LIMIT } from "../game/fields";
+import { NODE_TYPE } from "../game/primitives";
 import type { BulkKeyInfo, Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { closest } from "./did-you-mean";
 import { bulkOffset, diffScenes, isObj, isStructured } from "./diff";
 import { bulkEntries, bulkId, parseBulkId } from "./expand";
 import { INSTANCE_OVERRIDE_FIELDS, isInstanceOverrideField, splitFieldPath } from "./field-path";
-import { compareEntityKeys, sortedAssets } from "./format";
+import { sortedAssets } from "./format";
 import {
   FRAGMENT_KIND,
   fragmentBounds,
@@ -49,19 +50,27 @@ import {
 import {
   CHILD_SEPARATOR,
   childRef,
+  documentTree,
   entityFrame,
   gridTurns,
+  headOfRef,
   instanceFrame,
   instanceOverrideEntries,
   localChild,
   mapResolvedBatch,
   parseChildRef,
   placeChildren,
+  keepInPlace,
+  ownChildId,
   placedFrame,
   placeInstance,
+  reexpressEntity,
+  reexpressInstance,
   resolvePrefab,
   sceneFrames,
   splitOverridePath,
+  withKey,
+  withOrientation,
   type ChildApply,
   type PlacedInstanceChild,
   type SceneFrames,
@@ -69,7 +78,6 @@ import {
 } from "./resolve";
 import {
   entitySchemaFor,
-  fieldKind,
   geometryFields,
   gridFieldsOf,
   sceneRegistry,
@@ -78,19 +86,18 @@ import {
   unknownGameIssue,
   InstanceSchema,
 } from "./schema";
-import { aabb, normDeg } from "./shape-geometry";
+import { aabb } from "./shape-geometry";
 import { parseShape, shapeToTuple } from "./shapes";
 import {
   asFrame,
   compose,
-  composeOrientations,
+  composeSteps,
   dihedral,
   frame,
   frameOf,
   IDENTITY_2D,
   invert,
   translation,
-  type Orientation,
   type Transform2D,
 } from "./transform";
 import {
@@ -99,7 +106,6 @@ import {
   presentGeometry,
   transformBulkEntry,
   translateBulkEntry,
-  transformEntityDef,
   translateEntityDef,
   translateTuple,
   type GeometryKind,
@@ -134,7 +140,14 @@ import {
   type SpotAnchor,
 } from "./types";
 import { roundLength, snapToPixel } from "./units";
-import { canBeInTree, validateScene, type ValidateOptions } from "./validate";
+import {
+  canBeInTree,
+  canParent,
+  parentRefusal,
+  parentTargets,
+  validateScene,
+  type ValidateOptions,
+} from "./validate";
 
 /** A bulk entry with identity, so references keep pointing at it while indices shift. */
 type Slot = { value: BulkEntry; orig: number | null; demotedFrom?: string; tag?: string };
@@ -1011,181 +1024,20 @@ function validateSettings(w: Work, settings: Json, i: number): void {
 
 // ─── Ops ─────────────────────────────────────────────────
 
-/** `def` with `key` at its canonical place among the keys, or without it for `undefined`. */
-function withKey<T extends object>(def: T, key: string, value: unknown): T {
-  const out: Json = {};
-  let placed = value === undefined;
-  for (const [k, v] of Object.entries(def)) {
-    if (k === key) continue;
-    if (!placed && compareEntityKeys(key, k) < 0) {
-      out[key] = value;
-      placed = true;
-    }
-    out[k] = clone(v);
-  }
-  if (!placed) out[key] = value;
-  return out as T;
-}
-
 /** `def` with `z` at its canonical place among the keys, or without it for 0. */
 const withZ = <T extends { z?: number }>(def: T, z: number): T =>
   withKey(def, "z", z === 0 ? undefined : z);
 
-/** `def` carrying angle and flip `o`, the identity written as absent. */
-function withOrientation<T extends object>(def: T, o: Orientation): T {
-  return withKey(withKey(def, "rot", o.rot === 0 ? undefined : o.rot), "flip", o.flip || undefined);
-}
-
 // ─── The tree ────────────────────────────────────────────
-
-const NODE = "node";
-
-/** The id of the document entry a parent ref names or sits in: `room-1` for `room-1/door-1/panel`. */
-const headOf = (ref: Ref): string => parseChildRef(ref)?.instance ?? ref;
-
-/** Levels a ref adds below its document entry: a child of an instance counts one, as validation counts it. */
-const childLevels = (ref: Ref): number => (parseChildRef(ref) ? 1 : 0);
-
-/** Steps applied innermost first, as `SceneFrames` lists them. */
-const composeAll = (steps: readonly Transform2D[]): Transform2D =>
-  steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D);
-
-const isIdentity = (t: Transform2D) =>
-  t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1 && t.tx === 0 && t.ty === 0;
-
-/** Whether `t` turns or flips, rather than only moving. */
-const turns = (t: Transform2D) => !(t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1);
-
-/** Equal but for float noise: a parent frame this close hasn't moved its children. */
-const sameFrame = (p: Transform2D, q: Transform2D) =>
-  Math.abs(p.a - q.a) <= 1e-12 &&
-  Math.abs(p.b - q.b) <= 1e-12 &&
-  Math.abs(p.c - q.c) <= 1e-12 &&
-  Math.abs(p.d - q.d) <= 1e-12 &&
-  Math.abs(p.tx - q.tx) <= 1e-9 &&
-  Math.abs(p.ty - q.ty) <= 1e-9;
 
 /** Whether entities of `type` stay out of the tree, as validation judges it. */
 const outsideTree = (registry: Registry, type: string): boolean =>
   !canBeInTree(registry.types.get(type));
 
-/** A document's tree as the lenient read settles it (`sceneFrames`): links, depths, subtrees. */
-type Tree = {
-  parentOf(id: string): Ref | undefined;
-  /** Levels below its root: 0 for a root; an instance's child one below its instance. */
-  depth(ref: Ref): number;
-  /** Every entity and instance below each of `ids`, by id, `ids` themselves left out. */
-  below(ids: Iterable<string>): Set<string>;
-  /** The ids from `ref`'s own entry up to its root. */
-  chain(ref: Ref): string[];
-};
-
-function treeOf(def: SceneDefinition, frames: SceneFrames): Tree {
-  const children = new Map<string, string[]>();
-  for (const item of [...(def.entities ?? []), ...(def.instances ?? [])]) {
-    const p = frames.parentOf(item.id);
-    if (p === undefined) continue;
-    const list = children.get(headOf(p));
-    if (list) list.push(item.id);
-    else children.set(headOf(p), [item.id]);
-  }
-  const depths = new Map<string, number>();
-  const depthOf = (id: string): number => {
-    let d = depths.get(id);
-    if (d === undefined) {
-      const p = frames.parentOf(id);
-      depths.set(id, (d = p === undefined ? 0 : depthOf(headOf(p)) + childLevels(p) + 1));
-    }
-    return d;
-  };
-  return {
-    parentOf: (id) => frames.parentOf(id),
-    depth: (ref) => depthOf(headOf(ref)) + childLevels(ref),
-    below(ids) {
-      const out = new Set<string>();
-      const queue = [...ids];
-      for (let id = queue.pop(); id !== undefined; id = queue.pop())
-        for (const c of children.get(id) ?? [])
-          if (!out.has(c)) {
-            out.add(c);
-            queue.push(c);
-          }
-      for (const id of ids) out.delete(id);
-      return out;
-    },
-    chain(ref) {
-      const out: string[] = [];
-      for (let id: string | undefined = headOf(ref); id !== undefined; ) {
-        out.push(id);
-        const p = frames.parentOf(id);
-        id = p === undefined ? undefined : headOf(p);
-      }
-      return out;
-    },
-  };
-}
-
-/** The deepest level of `id`'s subtree below `id` itself. */
-const heightOf = (tree: Tree, id: string): number =>
-  Math.max(0, ...[...tree.below([id])].map((d) => tree.depth(d) - tree.depth(id)));
-
 /** Whether any entity or instance the batch holds names a parent. */
 const anyParent = (w: Work) =>
   w.entities.some((r) => r.def.parent !== undefined) ||
   w.instances.some((r) => r.def.parent !== undefined);
-
-/**
- * `deg` in the 360° window `like` sits in, so an angle a frame change turns
- * stays near the range it was written in.
- */
-function inWindow(deg: number, like: number): number {
-  const lo = Math.floor(like / 360) * 360;
-  return roundLength(lo + normDeg(deg - lo));
-}
-
-/**
- * An entity's stored fields re-expressed by `t`, a rigid transform at any
- * angle, as resolving places a child: field by field
- * (`transformEntityDef`), grid cells kept when the scene's grid can't turn
- * with them, a node's `rot` and `flip` composed even when it writes
- * neither, other angle fields kept in the window they were written in.
- */
-function reexpressEntity(w: Work, def: EntityDef, t: Transform2D): EntityDef {
-  if (isIdentity(t)) return def;
-  let next = transformEntityDef(w.registry, def, t) ?? clone(def);
-  if (!gridTurns({ settings: w.settings }) && turns(t))
-    for (const field of gridFields(w, def.type))
-      if (def[field] !== undefined) next[field] = clone(def[field]);
-  if (def.type === NODE) {
-    const o = composeOrientations(frameOf(t), {
-      rot: typeof def.rot === "number" ? normDeg(def.rot) : 0,
-      flip: def.flip === true,
-    });
-    next = withKey(
-      withKey(next, "rot", o.rot === 0 ? undefined : o.rot),
-      "flip",
-      o.flip || undefined,
-    );
-    return next;
-  }
-  for (const [field, schema] of Object.entries(w.registry.types.get(def.type)?.shape ?? {})) {
-    const was = def[field];
-    const now = next[field];
-    if (fieldKind(schema) === "angle" && typeof was === "number" && typeof now === "number")
-      next[field] = inWindow(now, was);
-  }
-  return next;
-}
-
-/** An instance's `at`, angle and flip re-expressed by `t`. */
-function reexpressInstance(def: InstanceDef, t: Transform2D): InstanceDef {
-  if (isIdentity(t)) return def;
-  const placed = asFrame(compose(t, frame(instanceFrame(def))));
-  return withOrientation(
-    { ...clone(def), at: [roundLength(placed.at[0]), roundLength(placed.at[1])] },
-    placed,
-  );
-}
 
 /** `rec`'s def re-expressed by `t`, and the list it is in marked touched. */
 function reexpressRec(w: Work, t: Named, by: Transform2D): void {
@@ -1193,71 +1045,51 @@ function reexpressRec(w: Work, t: Named, by: Transform2D): void {
     t.rec.def = reexpressInstance(t.rec.def, by);
     w.instancesTouched = true;
   } else {
-    t.rec.def = reexpressEntity(w, t.rec.def, by);
+    t.rec.def = reexpressEntity(w.registry, w.settings, t.rec.def, by);
     w.entitiesTouched = true;
   }
 }
 
-/**
- * After the entries in `moved` were rewritten into new frames, rewrites
- * each entry under them whose parent's frame changed, level by level, so
- * its world pose stays as `before` placed it. Only an entity whose frame
- * comes from its geometry changes its children's frame: it can't carry a
- * flip, and a circle or a point carries no angle.
- */
+/** `keepInPlace` over the batch's document: what sits under `moved` keeps the world pose `before` gave it. */
 function keepChildrenInPlace(w: Work, before: SceneFrames, moved: ReadonlySet<string>): void {
-  let level: ReadonlySet<string> = moved;
-  for (let guard = 0; level.size > 0 && guard <= PARENT_MAX_DEPTH + 1; guard++) {
-    const after = sceneFrames(current(w), w.registry, w.prefabs);
-    const next = new Set<string>();
-    const recs: Named[] = [
-      ...w.entities.map((rec): Named => ({ kind: "entity", rec })),
-      ...w.instances.map((rec): Named => ({ kind: "instance", rec })),
-    ];
-    for (const t of recs) {
-      const id = t.rec.def.id;
-      const p = after.parentOf(id);
-      if (moved.has(id) || p === undefined || !level.has(headOf(p))) continue;
-      const was = composeAll(before.under(p));
-      const is = composeAll(after.under(p));
-      if (sameFrame(was, is)) continue;
-      reexpressRec(w, t, compose(invert(is), was));
-      next.add(id);
-    }
-    level = next;
-  }
+  keepInPlace(
+    before,
+    moved,
+    () => ({
+      frames: sceneFrames(current(w), w.registry, w.prefabs),
+      ids: [...w.entities, ...w.instances].map((r) => r.def.id),
+    }),
+    (id, by) => reexpressRec(w, resolveNamed(w, id), by),
+  );
 }
 
-/** Refuses a parent `reparent` can't put anything under: a bulk entry, a missing entry or child, a type outside the tree. */
+/** Refuses a parent `reparent` can't put anything under, by the rule validation reads the tree with. */
 function checkParent(w: Work, frames: SceneFrames, parent: Ref, i: number): void {
   const path = `/ops/${i}/parent`;
-  if (parent.startsWith("~"))
+  const t = parentTargets(current(w), w.registry, frames)(parent);
+  if (t.kind === "bulk")
     fail("parent-type", `${parent} is a bulk entry, which can't be a parent; promote it first.`, {
       path,
       got: parent,
       hint: `{ "op": "promote", "ref": "${parent}", "id": "..." }`,
     });
   const child = parseChildRef(parent);
-  let type: string | undefined;
-  if (child) {
-    const inst = resolveInstance(w, child.instance).def;
-    const found = frames.placed(inst)?.find((c) => c.def.id === parent);
-    if (!found)
-      fail("ref-not-found", `Instance ${child.instance} has no child "${child.child}".`, {
-        path,
-        got: parent,
-      });
-    type = found.def.type;
-  } else {
-    const t = resolveNamed(w, parent);
-    if (t.kind === "entity") type = t.rec.def.type;
-  }
-  if (type !== undefined && outsideTree(w.registry, type))
-    fail("parent-type", `${parent} is a ${type}, which can't be a parent.`, {
+  if (child && (t.kind === "missing" || t.kind === "unresolved"))
+    fail("ref-not-found", `Instance ${child.instance} has no child "${child.child}".`, {
+      path,
+      got: parent,
+    });
+  if (t.kind === "missing") resolveNamed(w, parent);
+  const bad = parentRefusal(t);
+  if (bad !== undefined)
+    fail("parent-type", `${parent} is a ${bad}, which can't be a parent.`, {
       path,
       entityIds: [parent],
-      got: type,
-      hint: "Parent it to a node, an instance or another entity that has a pose.",
+      got: bad,
+      hint:
+        t.kind === "nested"
+          ? `Parent it to ${child?.instance ?? "the instance"} or one of its children.`
+          : "Parent it to a node, an instance or another entity that has a pose.",
     });
 }
 
@@ -1289,8 +1121,7 @@ function reparentOp(w: Work, op: Extract<SceneOp, { op: "reparent" }>, i: number
   const frames = sceneFrames(def, w.registry, w.prefabs);
   if (parent !== undefined) {
     checkParent(w, frames, parent, i);
-    const tree = treeOf(def, frames);
-    const above = tree.chain(parent);
+    const tree = documentTree(def, frames);
     for (const t of targets) {
       const id = t.rec.def.id;
       if (t.kind === "entity" && outsideTree(w.registry, t.rec.def.type))
@@ -1299,32 +1130,36 @@ function reparentOp(w: Work, op: Extract<SceneOp, { op: "reparent" }>, i: number
           got: t.rec.def.type,
           hint: `Leave ${id} at the root: { "op": "reparent", "refs": ["${id}"], "parent": null }.`,
         });
-      if (above.includes(id))
+      const refused = tree.refusal(id, parent);
+      if (refused?.kind === "cycle")
         fail(
           "parent-cycle",
           parent === id
             ? `${id} can't be its own parent.`
             : `${parent} is under ${id}, so putting ${id} under it would make a loop.`,
           {
-            entityIds: [id, headOf(parent)],
+            entityIds: [id, headOfRef(parent)],
             hint: "Pick a parent outside the entity's own subtree, or reparent to null.",
           },
         );
-      const deepest = tree.depth(parent) + 1 + heightOf(tree, id);
-      if (deepest > PARENT_MAX_DEPTH)
+      if (refused?.kind === "depth")
         fail(
           "parent-depth",
-          `Under ${parent}, ${id}'s subtree would reach ${deepest} levels; the most is ${PARENT_MAX_DEPTH}.`,
-          { entityIds: [id], got: String(deepest), expected: String(PARENT_MAX_DEPTH) },
+          `Under ${parent}, ${id}'s subtree would reach ${refused.deepest} levels; the most is ${PARENT_MAX_DEPTH}.`,
+          {
+            entityIds: [id],
+            got: String(refused.deepest),
+            expected: String(PARENT_MAX_DEPTH),
+          },
         );
     }
   }
-  const to = composeAll(frames.under(parent));
+  const to = composeSteps(frames.under(parent));
   const moved = new Set<string>();
   for (const t of targets) {
     const was = t.rec.def;
     if (was.parent === parent) continue;
-    const by = compose(invert(to), composeAll(frames.stepsFor(was)));
+    const by = compose(invert(to), composeSteps(frames.stepsFor(was)));
     reexpressRec(w, t, by);
     if (t.kind === "instance") {
       const next = withKey(t.rec.def, "parent", parent);
@@ -1363,7 +1198,7 @@ function subtreeTargets(w: Work, targets: readonly Target[]): Target[] {
   const ids = targets.flatMap((t) => (t.kind === "bulk" ? [] : [t.rec.def.id]));
   if (ids.length === 0 || !anyParent(w)) return [];
   const def = current(w);
-  const below = treeOf(def, sceneFrames(def, w.registry, w.prefabs)).below(ids);
+  const below = documentTree(def, sceneFrames(def, w.registry, w.prefabs)).below(ids);
   return [...below].map((id) => resolveNamed(w, id));
 }
 
@@ -1846,6 +1681,20 @@ function applyOp(w: Work, op: SceneOp, i: number): void {
   }
 }
 
+/** The world transform a `transform` op applies about `at`: its flip after its turn. */
+export function transformOpMatrix(
+  op: Pick<Extract<SceneOp, { op: "transform" }>, "turn" | "rotate" | "flip">,
+  at: Pt,
+): Transform2D {
+  const deg = op.rotate ?? 90 * (op.turn === -1 ? 3 : (op.turn ?? 0));
+  const mirror =
+    op.flip === undefined
+      ? IDENTITY_2D
+      : dihedral({ rot: op.flip === "x" ? 0 : 2, flip: true }, [0, 0]);
+  const world = compose(mirror, frame({ at: [0, 0], rot: deg, flip: false }));
+  return compose(translation(at), compose(world, translation([-at[0], -at[1]])));
+}
+
 /**
  * Turns and flips instances and nodes in world terms about `about` (each
  * one's own origin by default): the world op, `flip` after the turn (`turn`
@@ -1865,16 +1714,10 @@ function transformOp(w: Work, op: Extract<SceneOp, { op: "transform" }>, i: numb
     fail("op-invalid", "transform has no turn, rotate or flip, so it changes nothing.", {
       hint: `{ "op": "transform", "refs": [...], "rotate": 90 }`,
     });
-  const deg = op.rotate ?? 90 * (op.turn === -1 ? 3 : (op.turn ?? 0));
-  const mirror =
-    op.flip === undefined
-      ? IDENTITY_2D
-      : dihedral({ rot: op.flip === "x" ? 0 : 2, flip: true }, [0, 0]);
-  const world = compose(mirror, frame({ at: [0, 0], rot: deg, flip: false }));
-  const about = (p: Pt) => compose(translation(p), compose(world, translation([-p[0], -p[1]])));
+  const about = (p: Pt) => transformOpMatrix(op, p);
   const targets = refs.map((ref) => {
     const t = resolveNamed(w, ref);
-    if (t.kind === "entity" && t.rec.def.type !== NODE)
+    if (t.kind === "entity" && t.rec.def.type !== NODE_TYPE)
       fail(
         "op-invalid",
         `${ref} is a ${t.rec.def.type}; transform turns instances and nodes. Put it under a node and turn the node.`,
@@ -1884,7 +1727,7 @@ function transformOp(w: Work, op: Extract<SceneOp, { op: "transform" }>, i: numb
   });
   const def = current(w);
   const frames = sceneFrames(def, w.registry, w.prefabs);
-  const tree = targets.length > 0 && anyParent(w) ? treeOf(def, frames) : null;
+  const tree = targets.length > 0 && anyParent(w) ? documentTree(def, frames) : null;
   const ids = targets.map((t) => t.rec.def.id);
   for (const t of targets) {
     const id = t.rec.def.id;
@@ -1903,7 +1746,7 @@ function transformOp(w: Work, op: Extract<SceneOp, { op: "transform" }>, i: numb
       t.kind === "instance"
         ? frame(instanceFrame(t.rec.def))
         : frame(entityFrame(w.registry, t.rec.def));
-    const outer = composeAll(frames.stepsFor(was));
+    const outer = composeSteps(frames.stepsFor(was));
     const placed = compose(outer, own);
     const local = compose(
       invert(outer),
@@ -2267,7 +2110,7 @@ function validateInstance(w: Work, def: InstanceDef, relocate: Relocate): void {
     if (!c) continue;
     if (c.kind === "entity") {
       // A nested child's id is its relative ref (`door-1/panel`); its fields are what's checked.
-      const stem = ref.slice(ref.lastIndexOf(CHILD_SEPARATOR) + 1);
+      const stem = ownChildId(ref);
       const own = isNestedRef(ref)
         ? { ...c.def, id: ID_PATTERN.test(stem) ? stem : "child" }
         : c.def;
@@ -2628,7 +2471,7 @@ function unpackOp(w: Work, rec: InstRec, i: number): void {
   const inst = rec.def;
   const before = sceneFrames(current(w), w.registry, w.prefabs);
   const hanging: [Named, Ref][] = [];
-  const under = (p: unknown) => typeof p === "string" && headOf(p) === inst.id;
+  const under = (p: unknown) => typeof p === "string" && headOfRef(p) === inst.id;
   for (const r of w.entities)
     if (under(r.def.parent)) hanging.push([{ kind: "entity", rec: r }, r.def.parent!]);
   for (const r of w.instances)
@@ -2644,7 +2487,7 @@ function unpackOp(w: Work, rec: InstRec, i: number): void {
   const moved = new Set<string>();
   for (const [t, p] of hanging) {
     const to = p === inst.id ? inst.parent : placed(parseChildRef(p)!.child);
-    const by = compose(invert(composeAll(after.under(to))), composeAll(before.under(p)));
+    const by = compose(invert(composeSteps(after.under(to))), composeSteps(before.under(p)));
     reexpressRec(w, t, by);
     t.rec.def = withKey(t.rec.def, "parent", to);
     moved.add(t.rec.def.id);
@@ -2674,7 +2517,7 @@ function createPrefabOp(w: Work, op: Extract<SceneOp, { op: "createPrefab" }>, i
   const frames = sceneFrames(current(w), w.registry, w.prefabs);
   const isRoot = (id: string) => {
     const p = frames.parentOf(id);
-    return p === undefined || !memberIds.has(headOf(p));
+    return p === undefined || !memberIds.has(headOfRef(p));
   };
   const named = [...w.entities, ...w.instances].filter((r) => memberIds.has(r.def.id));
   const roots = named.filter((r) => isRoot(r.def.id));
@@ -2687,7 +2530,7 @@ function createPrefabOp(w: Work, op: Extract<SceneOp, { op: "createPrefab" }>, i
       : undefined;
   const moving = roots.filter((r) => r.def.parent !== common).map((r) => r.def.id);
   if (moving.length > 0) applyOp(w, { op: "reparent", refs: moving, parent: common ?? null }, i);
-  const fromWorld = invert(composeAll(frames.under(common)));
+  const fromWorld = invert(composeSteps(frames.under(common)));
 
   const entities: { index: number; def: EntityDef; root: boolean }[] = [];
   const nested: { index: number; def: InstanceDef; root: boolean }[] = [];
@@ -3138,9 +2981,10 @@ function treeInverse(
   const hasParent = (d: SceneDefinition) =>
     [...(d.entities ?? []), ...(d.instances ?? [])].some((e) => e.parent !== undefined);
   if (!hasParent(start) && !hasParent(now)) return null;
-  const nowTree = treeOf(now, sceneFrames(now, w.registry, w.prefabs));
+  const nowTree = documentTree(now, sceneFrames(now, w.registry, w.prefabs));
   const wasFrames = sceneFrames(start, w.registry, startPrefabs);
-  const wasTree = treeOf(start, wasFrames);
+  const wasTree = documentTree(start, wasFrames);
+  const wasTarget = parentTargets(start, w.registry, wasFrames);
   const startEnts = start.entities ?? [];
   const startInsts = start.instances ?? [];
   const ents = w.entities.filter((r) => r.orig !== null);
@@ -3153,7 +2997,7 @@ function treeInverse(
   /** A parent ref after the batch, in start ids; one the batch made can't match any. */
   const asStart = (p: Ref | undefined): string | undefined => {
     if (p === undefined) return undefined;
-    const head = headOf(p);
+    const head = headOfRef(p);
     const id = startId.get(head);
     return id === undefined ? `\0${p}` : id + p.slice(head.length);
   };
@@ -3163,14 +3007,7 @@ function treeInverse(
     const p = was.parent;
     if (p === undefined) return true;
     if (wasFrames.parentOf(was.id) !== p || outsideTree(w.registry, was.type)) return false;
-    const child = parseChildRef(p);
-    const inst = child ? startInsts.find((x) => x.id === child.instance) : undefined;
-    const type = child
-      ? (inst && wasFrames.placed(inst)?.find((c) => c.def.id === p))?.def.type
-      : startEnts.find((e) => e.id === p)?.type;
-    if (child && type === undefined) return false;
-    if (type !== undefined && outsideTree(w.registry, type)) return false;
-    return wasTree.depth(was.id) + heightOf(wasTree, was.id) <= PARENT_MAX_DEPTH;
+    return canParent(wasTarget(p)) && wasTree.refusal(was.id, p) === null;
   };
 
   const replaced = new Set<EntRec | InstRec>(
@@ -3192,7 +3029,7 @@ function treeInverse(
     grew = false;
     const removed = new Set([...created, ...replaced].map((r) => r.def.id));
     const leaving = (now: Ref | undefined, was: Ref | undefined) =>
-      asStart(now) !== was || (now !== undefined && removed.has(headOf(now)));
+      asStart(now) !== was || (now !== undefined && removed.has(headOfRef(now)));
     phase = ents.filter((r) => !replaced.has(r) && leaving(r.def.parent, wasEnt(r).parent));
     for (const r of phase)
       if (!restorable(r) || holdsInstance(r)) {
@@ -3243,7 +3080,7 @@ function exactRestore(was: EntityDef, now: EntityDef): SceneOp[] {
   const fixed = ["id", "type", "parent"];
   const set: Json = {};
   for (const [k, v] of Object.entries(was)) if (!fixed.includes(k)) set[k] = clone(v);
-  const extra = was.type === NODE ? ["rot", "flip"] : [];
+  const extra = was.type === NODE_TYPE ? ["rot", "flip"] : [];
   const unset = [...new Set([...Object.keys(now), ...extra])].filter(
     (k) => !fixed.includes(k) && !(k in was),
   );

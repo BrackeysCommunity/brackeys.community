@@ -30,6 +30,18 @@ const STRESS_TICKS = 600;
 const FOLLOW_BUDGET = 2;
 /** How much the scene tree may add to the movers' and combined stress scenes' tick. */
 const STRESS_BUDGET = 1.1;
+/**
+ * Races of each stress scene, each on runtimes loaded afresh; its result is
+ * their median. One race's ratio spreads by ±0.06 between runs of the same
+ * code, more than half the budget's margin, so a single race can't decide it.
+ */
+const STRESS_ROUNDS = 5;
+/**
+ * The first runtimes a process steps run the engine's hot paths 5–10%
+ * faster than later ones, and more so on the side with more to carry, so
+ * each stress scene first races once unmeasured.
+ */
+const SETTLE_ROUNDS = 1;
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -190,17 +202,17 @@ type StressScene = "movers" | "rooms" | "combined";
 
 /**
  * Each stress scene before the scene tree existed. `ratio` is its median
- * tick time over the same scene with its riders' `attach` and parents
- * dropped, both stepped in turn in one Node run as this test steps them
- * (the engine before the tree, on the owner's machine): the cost of
- * carrying riders, as a share of the rest of the scene, which another
- * machine's speed moves far less than wall time. `mean` is what
- * `scene step --timing` printed over 600 ticks then, ms per tick; it is
- * printed beside this run's numbers and never decides a result.
+ * tick time over the same scene with its riders' `attach` dropped, raced
+ * as `measure` races it, settling race included (the engine before the
+ * tree, on the owner's machine): the cost of carrying riders, as a share
+ * of the rest of the scene, which another machine's speed moves far less
+ * than wall time. `mean` is what `scene step --timing` printed over 600
+ * ticks then, ms per tick; it is printed beside this run's numbers and
+ * never decides a result.
  */
 const BEFORE_TREE: Readonly<Record<StressScene, { ratio: number; mean: number }>> = {
-  movers: { ratio: 1.1, mean: 4.746 },
-  rooms: { ratio: 1.03, mean: 1.963 },
+  movers: { ratio: 1.18, mean: 4.746 },
+  rooms: { ratio: 1.01, mean: 1.963 },
   combined: { ratio: 1.03, mean: 5.049 },
 };
 
@@ -316,9 +328,10 @@ describe("scene tree budgets", () => {
 
     /**
      * Steps the scene as it loads, without its riders and, when it has
-     * instances, without their nodes, all in turn; prints each against the
-     * scene's numbers from before the tree. The ratios are to the riderless
-     * scene's tick.
+     * instances, without their nodes, all in turn, `STRESS_ROUNDS` times
+     * after `SETTLE_ROUNDS` unmeasured; prints each against the scene's
+     * numbers from before the tree. The ratios are to the riderless
+     * scene's tick, the median of the rounds'.
      */
     function measure(name: StressScene) {
       const scene = expand(name);
@@ -328,28 +341,38 @@ describe("scene tree budgets", () => {
         nodes > 0
           ? [scene, withoutRiders(scene), withoutNodes(scene)]
           : [scene, withoutRiders(scene)];
-      const runs = variants.map(open);
-      const [loaded, riderless] = runs as [SceneRuntimeHandle, SceneRuntimeHandle];
       const child = scene.entities.find((e) => e.parent !== undefined)!;
-      expect(loaded.ctx.tree.parent(child.id)).toBe(child.parent);
-      expect(riderless.ctx.tree.parent(child.id)).toBeNull();
-      const [loadedMs, riderlessMs, nodelessMs] = race(runs, 0, STRESS_TICKS) as [
-        number,
-        number,
-        number | undefined,
-      ];
-      const ratio = loadedMs / riderlessMs;
+      const rounds: { loadedMs: number; riderlessMs: number; nodelessMs: number | undefined }[] =
+        [];
+      for (let round = -SETTLE_ROUNDS; round < STRESS_ROUNDS; round++) {
+        const runs = variants.map(open);
+        const [loaded, riderless] = runs as [SceneRuntimeHandle, SceneRuntimeHandle];
+        expect(loaded.ctx.tree.parent(child.id)).toBe(child.parent);
+        expect(riderless.ctx.tree.parent(child.id)).toBeNull();
+        const [loadedMs, riderlessMs, nodelessMs] = race(runs, 0, STRESS_TICKS) as [
+          number,
+          number,
+          number | undefined,
+        ];
+        if (round >= 0) rounds.push({ loadedMs, riderlessMs, nodelessMs });
+        for (const rt of runs) rt.destroy();
+      }
+      const ratios = rounds.map((r) => r.loadedMs / r.riderlessMs);
+      const ratio = median(ratios);
+      const loadedMs = median(rounds.map((r) => r.loadedMs));
+      const riderlessMs = median(rounds.map((r) => r.riderlessMs));
+      const nodelessMs = nodes > 0 ? median(rounds.map((r) => r.nodelessMs!)) : undefined;
       const before = BEFORE_TREE[name];
       console.info(
         `stress/${name} (${scene.entities.length} entities, ${nodes} nodes, ${parented} with a parent), ` +
-          `median ms/tick over ${STRESS_TICKS}: as loaded ${ms(loadedMs)}, without riders ${ms(riderlessMs)}` +
+          `median ms/tick over ${STRESS_TICKS}, median of ${STRESS_ROUNDS} rounds: as loaded ${ms(loadedMs)}, without riders ${ms(riderlessMs)}` +
           (nodelessMs === undefined
             ? ""
             : `, without nodes ${ms(nodelessMs)} (as loaded / without nodes ${(loadedMs / nodelessMs).toFixed(3)})`) +
-          `; as loaded / without riders ${ratio.toFixed(3)}, before the tree ${before.ratio.toFixed(3)} ` +
-          `(${((ratio / before.ratio - 1) * 100).toFixed(1)}%); scene step before the tree, mean ${ms(before.mean)} ms/tick`,
+          `; as loaded / without riders ${ratio.toFixed(3)} (rounds ${ratios.map((r) => r.toFixed(3)).join(", ")}), ` +
+          `before the tree ${before.ratio.toFixed(3)} (${((ratio / before.ratio - 1) * 100).toFixed(1)}%); ` +
+          `scene step before the tree, mean ${ms(before.mean)} ms/tick`,
       );
-      for (const rt of runs) rt.destroy();
       return { ratio, nodes, budget: before.ratio * STRESS_BUDGET };
     }
 
@@ -357,17 +380,17 @@ describe("scene tree budgets", () => {
       const { ratio, nodes, budget } = measure("movers");
       expect(nodes).toBe(0);
       expect(ratio).toBeLessThanOrEqual(budget);
-    }, 180_000);
+    }, 300_000);
 
     it(`combined: within ${STRESS_BUDGET}× its tick before the tree`, () => {
       const { ratio, nodes, budget } = measure("combined");
       expect(nodes).toBeGreaterThan(0);
       expect(ratio).toBeLessThanOrEqual(budget);
-    }, 180_000);
+    }, 300_000);
 
     it("rooms: reports what its instance nodes cost", () => {
       expect(measure("rooms").nodes).toBeGreaterThan(0);
-    }, 180_000);
+    }, 300_000);
   });
 
   it("draws a child 4 m from a parent turning a full turn a second within a pixel of its arc", () => {

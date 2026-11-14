@@ -773,21 +773,21 @@ function ParentField({
   doc: SceneDefinition;
   refs: readonly Ref[];
   /** The `parent` field the row stands for; without one it's titled Parent. */
-  field?: Pick<ModelField, "title" | "description">;
+  field?: ModelField;
 }) {
   const readOnly = useContext(ReadOnlyContext);
   const prefabs = useEditorPrefabs(session);
   const [error, setError] = useState<string | null>(null);
   const model = parentModel(doc, session.registry, refs, prefabs);
-  if (!model) return null;
   const row = field ?? { title: "Parent", description: PARENT_HINT };
+  if (!model) return field?.readonly ? <ReadonlyField field={field} unset={ROOT_PARENT} /> : null;
   if (model.fixed !== undefined)
     return (
-      <FieldRow field={row} hint={model.fixed}>
-        <span className="je-insp-line je-sp-truncate">
-          {model.mixed ? MIXED : (model.value ?? "None (root)")}
-        </span>
-      </FieldRow>
+      <ReadonlyField
+        field={{ ...row, value: model.value ?? undefined, mixed: model.mixed }}
+        unset={ROOT_PARENT}
+        hint={model.fixed}
+      />
     );
   const commit = (next: string | null) => {
     const edit = parentBatch(model, next, doc);
@@ -801,13 +801,16 @@ function ParentField({
         value={model.value ?? null}
         onChange={commit}
         invalid={!!error}
-        placeholder={model.mixed ? MIXED : "None (root)"}
+        placeholder={model.mixed ? MIXED : ROOT_PARENT}
         clearable={!model.mixed && model.value !== null}
         empty="Nothing here can be a parent"
       />
     </FieldRow>
   );
 }
+
+/** The Parent row's words for no parent. */
+const ROOT_PARENT = "None (root)";
 
 const PARENT_HINT =
   "What this sits under: it moves, turns, hides and is destroyed with its parent. Changing it keeps it where it is in the world.";
@@ -1521,6 +1524,16 @@ function EitherField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
 
 function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const w = field.widget;
+  // Every Parent row, read-only ones too, says why it can't change here.
+  if (w.kind === "entity-ref" && w.parent)
+    return (
+      <ParentField
+        session={ctx.session}
+        doc={ctx.def}
+        refs={ctx.targets.map((t) => t.ref)}
+        field={field}
+      />
+    );
   if (field.readonly && w.kind !== "custom")
     return (
       <ReadonlyField
@@ -1579,16 +1592,7 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     case "tags":
       return <TagsField field={field} ctx={ctx} />;
     case "entity-ref":
-      return w.parent ? (
-        <ParentField
-          session={ctx.session}
-          doc={ctx.def}
-          refs={ctx.targets.map((t) => t.ref)}
-          field={field}
-        />
-      ) : (
-        <RefField field={field} ctx={ctx} />
-      );
+      return <RefField field={field} ctx={ctx} />;
     case "shape":
       return <ShapeField field={field} ctx={ctx} />;
     case "path":
@@ -2180,9 +2184,9 @@ const placementText = ({ rot, flip }: InstanceTransformModel) =>
   [rot > 0 ? `Turned ${rot}°` : "Not turned", ...(flip ? ["flipped"] : [])].join(", ");
 
 /**
- * How an instance sits: Turn and Flip and its angle in degrees, each one
- * batch about its `at`, and its `z`. A nested instance shows its prefab's
- * placement without editing it.
+ * How an instance sits: what it sits under, Turn and Flip and its angle in
+ * degrees, each one batch about its `at`, and its `z`. A nested instance
+ * shows its prefab's placement without editing it.
  */
 function PlacementSection({
   session,
@@ -2221,6 +2225,7 @@ function PlacementSection({
   ];
   return (
     <Section id="instance:placement" title="Placement">
+      <ParentField session={session} doc={doc} refs={[model.ref]} />
       <div className="je-insp-row" data-gap="tight">
         <span className="je-insp-grow je-sp-truncate je-insp-muted">{placementText(model)}</span>
         {model.editable
@@ -2314,12 +2319,11 @@ function InstancePanel({
           {nested ? ` in ${nested.holder}` : ""}
         </span>
       </header>
-      <Section id="instance:identity" title="Identity">
-        <ParentField key={id} session={session} doc={doc} refs={[id]} />
-      </Section>
       {placement ? (
         <PlacementSection key={id} session={session} doc={doc} model={placement} />
-      ) : null}
+      ) : (
+        <ParentField key={id} session={session} doc={doc} refs={[id]} />
+      )}
       {params && params.params.length > 0 ? (
         <ParamsSection
           key={id}

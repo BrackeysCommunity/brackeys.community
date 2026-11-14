@@ -453,7 +453,7 @@
                     "description": "The prefab instantiated."
                   },
                   "rot": {
-                    "description": "Degrees clockwise.",
+                    "description": "Degrees clockwise; a save from an engine before 0.16.0 holds quarter turns 0–3, read as 90 × k.",
                     "type": "number"
                   },
                   "parent": {

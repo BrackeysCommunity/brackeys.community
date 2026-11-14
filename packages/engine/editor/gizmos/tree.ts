@@ -1,4 +1,4 @@
-import { CHILD_SEPARATOR, parseChildRef, sceneFrames } from "../../scene/resolve";
+import { instanceLevels, parseChildRef, refLinks, sceneFrames } from "../../scene/resolve";
 import type { PrefabLibrary, Ref, SceneDefinition } from "../../scene/types";
 
 /**
@@ -29,9 +29,7 @@ export type EditTree = {
  * document itself.
  */
 export function enclosingInstances(ref: Ref): Ref[] {
-  if (!parseChildRef(ref)) return [];
-  const parts = ref.split(CHILD_SEPARATOR);
-  return parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join(CHILD_SEPARATOR));
+  return instanceLevels(ref).slice(0, -1);
 }
 
 /**
@@ -51,12 +49,8 @@ export function editTree(view: SceneDefinition, source?: EditSource): EditTree {
   const docEntities = new Set((source?.doc.entities ?? []).map((e) => e.id));
 
   /** Children by `parent`, and an instance's (or nested instance's) children by their ref. */
-  const children = new Map<Ref, Ref[]>();
-  const link = (parent: Ref, child: Ref) => {
-    const list = children.get(parent);
-    if (list) list.push(child);
-    else children.set(parent, [child]);
-  };
+  const links = refLinks();
+  const link = (parent: Ref, child: Ref) => links.link(parent, child);
   const order = new Map<Ref, number>();
   for (const e of entities) {
     if (!order.has(e.id)) order.set(e.id, order.size);
@@ -74,17 +68,10 @@ export function editTree(view: SceneDefinition, source?: EditSource): EditTree {
     instances: () => instanceIds,
     below(refs) {
       const start = new Set(refs);
-      const seen = new Set<Ref>(start);
-      const queue = [...start];
-      const out: Ref[] = [];
-      for (let r = queue.pop(); r !== undefined; r = queue.pop())
-        for (const c of children.get(r) ?? []) {
-          if (seen.has(c)) continue;
-          seen.add(c);
-          queue.push(c);
-          if (order.has(c)) out.push(c);
-        }
-      return out.sort((a, b) => order.get(a)! - order.get(b)!);
+      return links
+        .walk(start)
+        .filter((r) => !start.has(r) && order.has(r))
+        .sort((a, b) => order.get(a)! - order.get(b)!);
     },
   };
 }

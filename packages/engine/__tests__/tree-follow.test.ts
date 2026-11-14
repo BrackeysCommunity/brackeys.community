@@ -3,12 +3,13 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { defineBehavior, type BehaviorBlock, type BehaviorSystem } from "../game/behaviors";
 import { DEFAULT_ACTIONS } from "../game/defaults";
 import { createRegistry, defineGame } from "../game/define";
-import { composePose, createPoseIndex, type Pose } from "../runtime/poses";
+import { composePose, createPoseIndex } from "../runtime/poses";
 import { createSceneRuntime } from "../runtime/runtime";
 import { createSceneTree } from "../runtime/tree";
 import { expandScene } from "../scene/expand";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
 import type { RapierModule } from "../types";
+import { expectPoseClose, stepEvents, withParents } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -73,24 +74,13 @@ function load(physics: Physics) {
     entities: ENTITIES,
   };
   const expanded = expandScene(scene, registry);
-  expanded.entities = expanded.entities.map((e) =>
-    PARENTS[e.id] ? { ...e, parent: PARENTS[e.id] } : e,
-  );
+  withParents(expanded, PARENTS);
   const rt = createSceneRuntime({ rapier: physics === "rapier" ? rapier : null, view: null, game });
   const report = rt.load(expanded);
   if (!report.ok) throw new Error(report.error);
-  const steps = (n: number) => {
-    for (let i = 0; i < n; i++) rt.step(rt.ctx.time.tickMs, []);
-  };
+  const steps = (n: number) => void stepEvents(rt, n);
   return { rt, steps };
 }
-
-const close = (got: Readonly<Pose> | undefined, want: Pose, what: string) => {
-  expect(got, what).toBeDefined();
-  expect(got!.x, `${what}.x`).toBeCloseTo(want.x, 6);
-  expect(got!.y, `${what}.y`).toBeCloseTo(want.y, 6);
-  expect(got!.rot, `${what}.rot`).toBeCloseTo(want.rot, 6);
-};
 
 for (const physics of BACKENDS) {
   describe(`following a parent on physics: ${physics}`, () => {
@@ -99,18 +89,18 @@ for (const physics of BACKENDS) {
       steps(1);
       rt.ctx.setPose("hub", 5, 0, Math.PI / 2);
       const hub = { x: 5, y: 0, rot: Math.PI / 2 };
-      close(
+      expectPoseClose(
         rt.ctx.poses.get("lamp"),
         composePose(5, 0, Math.PI / 2, { x: 1, y: 0, rot: 0 }),
         "lamp",
       );
       const lamp = rt.ctx.poses.get("lamp")!;
-      close(
+      expectPoseClose(
         rt.ctx.poses.get("bulb"),
         composePose(lamp.x, lamp.y, lamp.rot, { x: 0, y: 1, rot: 0 }),
         "bulb",
       );
-      close(
+      expectPoseClose(
         rt.ctx.poses.get("post"),
         composePose(hub.x, hub.y, hub.rot, { x: 0, y: 2, rot: 0 }),
         "post",
@@ -125,7 +115,7 @@ for (const physics of BACKENDS) {
           .map((h) => h.tag.entityId);
       expect(at(post.x, post.y)).toContain("post");
       expect(at(0, 2)).not.toContain("post");
-      close(
+      expectPoseClose(
         rt.ctx.poses.get("post"),
         composePose(hub.x, hub.y, hub.rot, { x: 0, y: 2, rot: 0 }),
         "post",

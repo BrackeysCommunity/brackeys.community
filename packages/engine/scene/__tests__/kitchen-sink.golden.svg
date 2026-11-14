@@ -88,6 +88,7 @@
 <g data-ref="std-emitter" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1280" cy="540" r="11.25"/><path d="M1262 540H1298M1280 522V558"/></g>
 <g data-ref="cap-flag" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1640" cy="1010" r="11.25"/><path d="M1622 1010H1658M1640 992V1028"/></g>
 <g data-ref="hook-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1500" cy="420" r="11.25"/><path d="M1482 420H1518M1500 402V438"/></g>
+<g data-ref="pivot-mark" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="991.96" cy="850" r="11.25"/><path d="M973.96 850H1009.96M991.96 832V868"/></g>
 <g data-ref="post-1/cap" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1640" cy="1030" r="11.25"/><path d="M1622 1030H1658M1640 1012V1048"/></g>
 <g data-ref="post-2/cap" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="1760" cy="1030" r="11.25"/><path d="M1742 1030H1778M1760 1012V1048"/></g>
 <g data-ref="room-1/lamp" data-type="marker" class="marker" fill="none" stroke="#ffcc44" stroke-width="3.38"><circle cx="2720" cy="700" r="11.25"/><path d="M2702 700H2738M2720 682V718"/></g>
@@ -202,6 +203,7 @@
 <text x="1300.25" y="519.75" font-size="24.75" text-anchor="start">std-emitter</text>
 <text x="1660.25" y="989.75" font-size="24.75" text-anchor="start">cap-flag</text>
 <text x="1520.25" y="399.75" font-size="24.75" text-anchor="start">hook-mark</text>
+<text x="1012.21" y="829.75" font-size="24.75" text-anchor="start">pivot-mark</text>
 <text x="1660.25" y="1009.75" font-size="24.75" text-anchor="start">post-1/cap</text>
 <text x="1780.25" y="1009.75" font-size="24.75" text-anchor="start">post-2/cap</text>
 <text x="2740.25" y="679.75" font-size="24.75" text-anchor="start">room-1/lamp</text>

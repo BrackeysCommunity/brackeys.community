@@ -61,6 +61,12 @@ export function shapePivot(s: ShapeObj): Pt {
 const handle = (id: string, kind: GizmoHandle["kind"], at: Pt, cursor?: string): GizmoHandle =>
   cursor ? { id, kind, at, cursor } : { id, kind, at };
 
+/** A rotate handle at `at`, on a stalk drawn from `pivot`, the point it turns about. */
+const rotateHandle = (at: Pt, pivot: Pt): GizmoHandle => ({
+  ...handle("rotate", "rotate", at, "grab"),
+  stalk: [pivot[0], pivot[1]],
+});
+
 /**
  * A shape's handles, at a constant screen size for `scale` (screen px per
  * metre): move at the pivot; a box's eight resize handles and rotate
@@ -80,7 +86,7 @@ export function shapeHandles(s: ShapeObj, scale: number): GizmoHandle[] {
           handle(`resize:${dir}`, "resize", add(pivot, v), resizeCursor(turn([sx, sy], s.rotDeg))),
         );
       }
-      out.push(handle("rotate", "rotate", add(pivot, turn([0, -s.hh - stalk], s.rotDeg)), "grab"));
+      out.push(rotateHandle(add(pivot, turn([0, -s.hh - stalk], s.rotDeg)), pivot));
       break;
     }
     case "circle":
@@ -91,19 +97,12 @@ export function shapeHandles(s: ShapeObj, scale: number): GizmoHandle[] {
       out.push(handle("length", "length", add(pivot, top), resizeCursor(top)));
       const side = turn([s.r, 0], s.rotDeg);
       out.push(handle("radius", "radius", add(pivot, side), resizeCursor(side)));
-      out.push(
-        handle(
-          "rotate",
-          "rotate",
-          add(pivot, turn([0, -s.halfLen - s.r - stalk], s.rotDeg)),
-          "grab",
-        ),
-      );
+      out.push(rotateHandle(add(pivot, turn([0, -s.halfLen - s.r - stalk], s.rotDeg)), pivot));
       break;
     }
     default: {
       const b = aabb(s);
-      out.push(handle("rotate", "rotate", [pivot[0], b.minY - stalk], "grab"));
+      out.push(rotateHandle([pivot[0], b.minY - stalk], pivot));
     }
   }
   return out;
@@ -348,19 +347,13 @@ export function frameHandles(
         reach = Math.max(reach, (x - f.at[0]) * up[0] + (y - f.at[1]) * up[1]);
   const len = reach + STALK_PX / scale;
   const at: Pt = [f.at[0] + up[0] * len, f.at[1] + up[1] * len];
-  return [
-    handle("move", "move", [f.at[0], f.at[1]], "move"),
-    { ...handle("rotate", "rotate", at, "grab"), stalk: [f.at[0], f.at[1]] },
-  ];
+  return [handle("move", "move", [f.at[0], f.at[1]], "move"), rotateHandle(at, f.at)];
 }
 
 /** A multi-selection's one gizmo: move at the box's centre and a rotate stalk above it. No resize. */
 export function selectionHandles(box: Aabb, scale: number): GizmoHandle[] {
   const c: Pt = [(box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2];
-  return [
-    handle("move", "move", c, "move"),
-    handle("rotate", "rotate", [c[0], box.minY - STALK_PX / scale], "grab"),
-  ];
+  return [handle("move", "move", c, "move"), rotateHandle([c[0], box.minY - STALK_PX / scale], c)];
 }
 
 /**

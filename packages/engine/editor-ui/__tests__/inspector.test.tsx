@@ -851,8 +851,9 @@ describe("EditorInspector: the Parent row", () => {
   }
 
   const identity = () => screen.getByRole("region", { name: "Identity" });
-  const pick = async (id: string) => {
-    fireEvent.click(within(identity()).getByRole("button", { name: "Show options" }));
+  const placement = () => screen.getByRole("region", { name: "Placement" });
+  const pick = async (id: string, region = identity) => {
+    fireEvent.click(within(region()).getByRole("button", { name: "Show options" }));
     const options = await waitFor(() => screen.getAllByRole("option"));
     const option = options.find((o) => o.textContent === id)!;
     fireEvent.mouseMove(option);
@@ -898,9 +899,12 @@ describe("EditorInspector: the Parent row", () => {
     expect(screen.getByText("World values; the file stores them in rig's frame.")).toBeTruthy();
   });
 
-  it("puts the Parent row in an instance's Identity and reparents the instance", async () => {
+  it("puts the Parent row atop an instance's Placement and reparents the instance", async () => {
     const { session, dispatch } = tree(["post-2"]);
-    await pick("rig");
+    expect(screen.queryByRole("region", { name: "Identity" })).toBeNull();
+    const rows = within(placement()).getAllByText(/^(Parent|Angle|z)$/);
+    expect(rows.map((r) => r.textContent)[0]).toBe("Parent");
+    await pick("rig", placement);
     await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
     expect(dispatch.mock.calls[0]![0]).toEqual({
       label: "Reparent post-2 under rig",
@@ -926,10 +930,14 @@ describe("EditorInspector: the Parent row", () => {
     expect(screen.getByText("Turned 45°")).toBeTruthy();
   });
 
-  it("shows an instance child's parent without a picker", () => {
+  it("shows an instance child's parent without a picker, saying why", async () => {
     tree(["post-2/p"]);
     expect(within(identity()).queryByRole("combobox", { name: "parent" })).toBeNull();
     expect(within(identity()).getByText("post-2")).toBeTruthy();
     expect(document.querySelectorAll("[title]")).toHaveLength(0);
+    await act(async () => {
+      fireEvent.focus(within(identity()).getByText("Parent"));
+    });
+    expect(await screen.findByText("In post-2; unpack the instance to move it.")).toBeTruthy();
   });
 });

@@ -111,8 +111,8 @@ describe("a hosted doc whose next format step needs its game", () => {
     return row;
   };
 
-  it("loads and stays at v3, its stored bytes untouched", async () => {
-    expect(V).toBe(4);
+  it("loads and stays at v4, its stored bytes untouched", async () => {
+    expect(V).toBe(5);
     const row = storedAt("jam.old", V - 1);
     const before = row.state;
     const state = await load("jam.old");
@@ -123,7 +123,7 @@ describe("a hosted doc whose next format step needs its game", () => {
     expect(store.rows.get("jam.old")!.state).toBe(before);
   });
 
-  it("is served read-only to a v4 client with migration-unresolved, before and after load", async () => {
+  it("is served read-only to a v5 client with migration-unresolved, before and after load", async () => {
     storedAt("jam.stuck", V - 1);
     const expected = {
       type: "scene-read-only",
@@ -144,14 +144,15 @@ describe("a hosted doc whose next format step needs its game", () => {
   });
 
   it("lifts an older doc as far as it can without the game, then holds it there", async () => {
-    storedAt("jam.older", V - 2);
+    storedAt("jam.older", V - 3);
     const grant = await admit("jam.older", V);
-    expect(JSON.parse(grant.notice ?? "null")).toMatchObject({
+    expect(JSON.parse(grant.notice ?? "null")).toEqual({
+      type: "scene-read-only",
       reason: "migration-unresolved",
-      schemaVersion: V - 1,
+      schemaVersion: V - 2,
     });
-    expect(stateSchemaVersion(await load("jam.older"))).toBe(V - 1);
-    expect(store.rows.get("jam.older")!.schemaVersion).toBe(V - 1);
+    expect(stateSchemaVersion(await load("jam.older"))).toBe(V - 2);
+    expect(store.rows.get("jam.older")!.schemaVersion).toBe(V - 2);
   });
 
   it("stores no snapshot text for it", async () => {
@@ -160,7 +161,7 @@ describe("a hosted doc whose next format step needs its game", () => {
     expect(store.rows.get("jam.unsnapped")!.snapshot).toBeNull();
   });
 
-  it("seeds a new doc at v4, which a v4 client writes", async () => {
+  it("seeds a new doc at v5, which a v5 client writes", async () => {
     store.create("jam.fresh");
     expect(await admit("jam.fresh", V)).toEqual({});
     const seeded = await load("jam.fresh");
@@ -170,7 +171,7 @@ describe("a hosted doc whose next format step needs its game", () => {
     expect(stateSchemaVersion(await load("jam.seeded"))).toBe(V);
   });
 
-  it("keeps a v3 client from writing a v4 doc", async () => {
+  it("keeps a v4 client from writing a v5 doc", async () => {
     storedAt("jam.current", V);
     const grant = await admit("jam.current", V - 1);
     expect(grant.readOnly).toBe(true);
@@ -181,9 +182,9 @@ describe("a hosted doc whose next format step needs its game", () => {
     });
   });
 
-  it("lets a v3 client write the v3 doc, its own format", async () => {
-    storedAt("jam.v3-client", V - 1);
-    expect(await admit("jam.v3-client", V - 1)).toEqual({});
+  it("lets a v4 client write the v4 doc, its own format", async () => {
+    storedAt("jam.v4-client", V - 1);
+    expect(await admit("jam.v4-client", V - 1)).toEqual({});
   });
 });
 
@@ -204,7 +205,7 @@ describe("a hosted doc that names no game", () => {
     return row;
   };
 
-  it("lifts to v4 with the engine's own registry, lengths in metres, and a v4 client writes it", async () => {
+  it("lifts to v5 with the engine's own registry, lengths in metres, and a v5 client writes it", async () => {
     storedAt("p-yard.old", V - 2);
     expect(
       await kind.admit("p-yard.old", await claims(COLLAB_LAYOUT_VERSION, V, "scene:p-yard.old")),

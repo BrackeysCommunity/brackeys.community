@@ -3869,13 +3869,15 @@ Refers to [`EditorToolDef`](#editortooldef).
 
 _function_ in `editor/commands.ts`
 
-One batch removing `refs`; `null` for an empty selection.
+One batch removing `refs`; `null` for an empty selection. With `def`
+(the document), the label also counts what goes with them: everything
+below them in the tree.
 
 ```ts
-declare function deleteBatch(refs: readonly Ref[]): OpBatch | null;
+declare function deleteBatch(refs: readonly Ref[], def?: SceneDefinition): OpBatch | null;
 ```
 
-Refers to [`OpBatch`](#opbatch), [`Ref`](#ref).
+Refers to [`OpBatch`](#opbatch), [`Ref`](#ref), [`SceneDefinition`](#scenedefinition).
 
 ## `deleteVertices`
 
@@ -4923,9 +4925,10 @@ Refers to [`OpBatch`](#opbatch), [`ParentModel`](#parentmodel), [`Ref`](#ref), [
 _function_ in `editor/inspector-model.ts`
 
 What `refs` can be put under: the document's entities whose type can be
-a parent, its instances, and its instances' children and nested
-instances by resolved ref, in that order, without the refs themselves or
-anything under one of them.
+a parent, its instances, and its instances' children by resolved ref, in
+that order, without the refs themselves, anything under one of them, or
+a parent that would take one past the tree's depth: what `reparent`
+takes.
 
 ```ts
 declare function parentCandidates(def: SceneDefinition, registry: Registry, refs: readonly Ref[], prefabs?: PrefabLibrary): Ref[];

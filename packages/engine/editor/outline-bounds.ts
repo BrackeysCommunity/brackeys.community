@@ -1,3 +1,4 @@
+import { NODE_TYPE } from "../game/primitives";
 import { isCameraRegionType } from "../game/primitives";
 import type { Registry } from "../game/types";
 import type { GridCells } from "../scene/grid";
@@ -122,7 +123,7 @@ export function isComposite(
   const tree = look?.tree?.(def) ?? editTree(def, look?.source);
   if (tree.isInstance(ref)) return tree.below([ref]).length > 0;
   const own = (def.entities ?? []).find((e) => e.id === ref);
-  return own?.type === "node" && tree.below([ref]).length > 0;
+  return own?.type === NODE_TYPE && tree.below([ref]).length > 0;
 }
 
 /**

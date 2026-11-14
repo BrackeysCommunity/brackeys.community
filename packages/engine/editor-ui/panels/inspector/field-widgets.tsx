@@ -803,13 +803,17 @@ export function ReadonlyField({
   json = false,
   ppm = DEFAULT_LENGTH_UNIT,
   unset = "unset",
+  hint,
 }: {
-  field: InspectorRow;
+  field: Pick<InspectorRow, "title" | "description" | "value" | "mixed"> &
+    Partial<Pick<InspectorRow, "widget">>;
   json?: boolean;
   ppm?: number;
   unset?: string;
+  /** Shown on the label in place of the field's description: why it can't be edited here. */
+  hint?: string;
 }) {
-  const unit = "unit" in field.widget ? metricUnit(field.widget.unit) : undefined;
+  const unit = field.widget && "unit" in field.widget ? metricUnit(field.widget.unit) : undefined;
   const text = field.mixed
     ? MIXED
     : field.value === undefined
@@ -820,7 +824,7 @@ export function ReadonlyField({
           ? JSON.stringify(field.value)
           : field.value;
   return (
-    <FieldRow field={field}>
+    <FieldRow field={field} {...(hint !== undefined ? { hint } : {})}>
       <span className="je-insp-line je-sp-truncate">{text}</span>
     </FieldRow>
   );

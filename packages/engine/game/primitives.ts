@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { EntityTypeName } from "../scene/types";
 import { DEFAULT_CAMERA_DAMPING, DEFAULT_REGION_EASE } from "./defaults";
 import {
   angleField,
@@ -16,6 +17,9 @@ import {
 import type { EntityTypeDef, FieldEnv, PrimitiveType, RegisteredType, Side, Style } from "./types";
 
 export { DEFAULT_GRAVITY } from "./defaults";
+
+/** The primitive that is a pose and nothing else: the tree's plain parent. */
+export const NODE_TYPE: EntityTypeName = "node";
 
 /** The primitive whose entities hold the Play camera's framing. */
 export const CAMERA_REGION_TYPE = "camera-region";
@@ -101,7 +105,7 @@ const OWNS_BODY = { forbidden: ["body", "collider"] } as const;
  */
 export const PRIMITIVES = {
   node: {
-    type: "node",
+    type: NODE_TYPE,
     description:
       "A pose and nothing else: a parent to move, turn, hide or destroy what sits under it as one thing.",
     physics: "optional",

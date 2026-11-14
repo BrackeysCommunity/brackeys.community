@@ -15,6 +15,22 @@ export type Transform2D = { a: number; b: number; c: number; d: number; tx: numb
 
 export const IDENTITY_2D: Transform2D = Object.freeze({ a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 });
 
+export const isIdentity = (t: Transform2D): boolean =>
+  t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1 && t.tx === 0 && t.ty === 0;
+
+/** Whether `t` turns or flips, rather than only moving. */
+export const turns = (t: Transform2D): boolean =>
+  !(t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1);
+
+/** Equal but for float noise: a parent frame this close hasn't moved its children. */
+export const sameFrame = (p: Transform2D, q: Transform2D): boolean =>
+  Math.abs(p.a - q.a) <= 1e-12 &&
+  Math.abs(p.b - q.b) <= 1e-12 &&
+  Math.abs(p.c - q.c) <= 1e-12 &&
+  Math.abs(p.d - q.d) <= 1e-12 &&
+  Math.abs(p.tx - q.tx) <= 1e-9 &&
+  Math.abs(p.ty - q.ty) <= 1e-9;
+
 /** A quarter-turn transform: mirror x when `flip`, then turn `rot` quarter turns clockwise, then translate to `at`. */
 export type Dihedral = { rot: 0 | 1 | 2 | 3; flip: boolean };
 
@@ -50,6 +66,10 @@ export function compose(outer: Transform2D, inner: Transform2D): Transform2D {
     ty: z(o.b * i.tx + o.d * i.ty + o.ty),
   };
 }
+
+/** Steps applied innermost first, as a parent chain lists them, as one transform. */
+export const composeSteps = (steps: readonly Transform2D[]): Transform2D =>
+  steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D);
 
 export function invert(t: Transform2D): Transform2D {
   const det = t.a * t.d - t.b * t.c;
@@ -95,7 +115,7 @@ export function dihedralOf(t: Transform2D): Dihedral | null {
  * and `flip` spell; null when `rot` is off the quarter turns.
  */
 export function turnOf(d: { rot?: number; flip?: boolean }): Dihedral | null {
-  const deg = typeof d.rot === "number" ? wrapDeg(d.rot) : 0;
+  const deg = typeof d.rot === "number" ? normDeg(d.rot) : 0;
   return deg % 90 === 0 ? { rot: quarter(deg / 90), flip: d.flip === true } : null;
 }
 
@@ -131,24 +151,24 @@ export type Frame = { at: Pt; rot: number } & Orientation;
 /** Micro-units, no -0: how a frame's off-quarter numbers are kept, so two machines agree. */
 const micro = (n: number) => Math.round(n * 1e6) / 1e6 + 0;
 
-/** `deg` in [0, 360), never `-0`. */
-const wrapDeg = (deg: number) => {
+/** An angle in degrees in [0, 360), never `-0`. */
+export const normDeg = (deg: number): number => {
   const r = deg % 360;
   return r < 0 ? r + 360 : r + 0;
 };
 
 /** `deg` in [0, 360) to the micro-degree. */
 const settleDeg = (deg: number) => {
-  const r = micro(wrapDeg(deg));
+  const r = micro(normDeg(deg));
   return r === 360 ? 0 : r;
 };
 
 /** Whether `deg` is a whole number of quarter turns. */
-export const isQuarterTurn = (deg: number): boolean => wrapDeg(deg) % 90 === 0;
+export const isQuarterTurn = (deg: number): boolean => normDeg(deg) % 90 === 0;
 
 /** `deg` in radians; a whole number of quarter turns is k·π/2 for k in 0..3, the same bits every time. */
 export function turnRadians(deg: number): number {
-  const wrapped = wrapDeg(deg);
+  const wrapped = normDeg(deg);
   return wrapped % 90 === 0 ? ((wrapped / 90) * Math.PI) / 2 : (deg * Math.PI) / 180;
 }
 
@@ -157,7 +177,7 @@ export function turnRadians(deg: number): number {
  * exact; from sine and cosine otherwise.
  */
 export function frame(f: Frame): Transform2D {
-  const deg = wrapDeg(f.rot);
+  const deg = normDeg(f.rot);
   if (deg % 90 === 0) return dihedral({ rot: quarter(deg / 90), flip: f.flip }, f.at);
   const rad = (deg * Math.PI) / 180;
   const cos = Math.cos(rad);

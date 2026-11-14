@@ -1,7 +1,9 @@
 import { BEHAVIORS_FIELD } from "../game/behaviors";
+import { NODE_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { bulkId } from "./bulk-ref";
 import { isInstanceOverrideField, splitChildRef, splitOverridePath } from "./field-path";
+import { compareEntityKeys } from "./format";
 import { transformCell } from "./grid";
 import { makeIssue } from "./issues";
 import { paramTargetValues } from "./prefab-params";
@@ -11,13 +13,18 @@ import { parseShape } from "./shapes";
 import {
   applyPt,
   applyVec,
+  asFrame,
   compose,
   composeOrientations,
+  composeSteps,
   dihedralOf,
   frame,
   frameOf,
   IDENTITY_2D,
   invert,
+  isIdentity,
+  sameFrame,
+  turns,
   type Frame,
   type Orientation,
   type Transform2D,
@@ -31,6 +38,7 @@ import {
   transformFieldValue,
 } from "./translate";
 import {
+  PARENT_MAX_DEPTH,
   PREFAB_MAX_DEPTH,
   type BulkEntry,
   type EntityDef,
@@ -73,13 +81,28 @@ export function parseChildRef(ref: Ref): { instance: string; child: Ref } | null
 
 export { splitChildRef, splitOverridePath };
 
+/** The document entry a ref sits in: `room-1` for `room-1/door-1/panel`, else the ref itself. */
+export const headOfRef = (ref: Ref): string => parseChildRef(ref)?.instance ?? ref;
+
+/** The instance a child ref sits in directly: `room-1/door-1` for `room-1/door-1/panel`; none for a ref of the document itself. */
+export const enclosingInstance = (ref: Ref): Ref | undefined =>
+  parseChildRef(ref) ? ref.slice(0, ref.lastIndexOf(CHILD_SEPARATOR)) : undefined;
+
+/**
+ * The levels from the outermost instance holding `ref` down to `ref`
+ * itself: `["room-1", "room-1/door-1", "room-1/door-1/panel"]`; just
+ * `[ref]` for a ref of the document itself.
+ */
+export function instanceLevels(ref: Ref): Ref[] {
+  if (!parseChildRef(ref)) return [ref];
+  const parts = ref.split(CHILD_SEPARATOR);
+  return parts.map((_, i) => parts.slice(0, i + 1).join(CHILD_SEPARATOR));
+}
+
+/** A child's own id, the last segment of its ref: `panel` for `room-1/door-1/panel`. */
+export const ownChildId = (ref: Ref): string => ref.slice(ref.lastIndexOf(CHILD_SEPARATOR) + 1);
+
 const clone = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T));
-
-const isIdentity = (t: Transform2D) =>
-  t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1 && t.tx === 0 && t.ty === 0;
-
-/** Whether `t` turns or flips, rather than only moving. */
-const turns = (t: Transform2D) => !(t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1);
 
 /** Whether `t` turns by whole quarter turns, which keep whole numbers whole. */
 const quarter = (t: Transform2D) => dihedralOf(t) !== null;
@@ -99,8 +122,6 @@ function placeVector(t: Transform2D, v: Pt): Pt {
   const [x, y] = applyVec(t, v);
   return quarter(t) ? [x, y] : [roundLength(x), roundLength(y)];
 }
-
-const NODE = "node";
 
 /** An instance's own frame: its `at`, its angle in degrees and its flip. */
 export function instanceFrame(inst: Pick<InstanceDef, "at" | "rot" | "flip">): Frame {
@@ -143,7 +164,7 @@ function storedPose(registry: Registry | undefined, def: EntityDef): { at: Pt; r
  * unflipped. An entity with no geometry stands at the origin.
  */
 export function entityFrame(registry: Registry | undefined, def: EntityDef): Frame {
-  if (def.type === NODE) {
+  if (def.type === NODE_TYPE) {
     return {
       at: isPt(def.at) ? [def.at[0], def.at[1]] : [0, 0],
       rot: typeof def.rot === "number" ? def.rot : 0,
@@ -165,7 +186,7 @@ export function placedFrame(
   def: EntityDef,
   turn: Orientation = NO_TURN,
 ): Frame {
-  if (def.type === NODE) return entityFrame(registry, def);
+  if (def.type === NODE_TYPE) return entityFrame(registry, def);
   const pose = storedPose(registry, def);
   return { at: pose.at, rot: pose.rotDeg ?? turn.rot, flip: turn.flip };
 }
@@ -210,9 +231,6 @@ export function instanceTransform(
   return composeSteps(instanceSteps(def, inst, registry, prefabs));
 }
 
-const composeSteps = (steps: readonly Transform2D[]): Transform2D =>
-  steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D);
-
 /** Where an instance's prefab origin lands in the world. */
 export function instanceOrigin(
   def: SceneDefinition,
@@ -223,28 +241,22 @@ export function instanceOrigin(
   return placePoint(composeSteps(sceneFrames(def, registry, prefabs).stepsFor(inst)), inst.at);
 }
 
-const headOf = (ref: Ref): string => {
-  const i = ref.indexOf(CHILD_SEPARATOR);
-  return i < 0 ? ref : ref.slice(0, i);
-};
-
 /**
- * The parent each id resolves under, read leniently so a file and a doc
- * read alike: none for a root or a parent that doesn't exist, and none for
- * the id that sorts last in each cycle (a parent naming an instance's child
- * depends on that instance). `declared` maps each id to the parent it
- * names.
+ * The loops `declared`'s links make, each listed from the id the lenient
+ * read takes as a root (the one that sorts last) up its parents to the id
+ * that names it. `declared` maps each id to the parent it names; a parent
+ * `exists` rejects is no link, and a parent naming an instance's child
+ * links to that instance.
  */
-function settledParents(
+export function parentCycles(
   declared: ReadonlyMap<string, Ref | undefined>,
   exists: (ref: Ref) => boolean,
-): Map<string, Ref | undefined> {
-  const out = new Map<string, Ref | undefined>();
-  for (const [id, p] of declared) out.set(id, p !== undefined && exists(p) ? p : undefined);
+): string[][] {
   const next = (id: string): string | undefined => {
-    const p = out.get(id);
-    return p === undefined || !declared.has(headOf(p)) ? undefined : headOf(p);
+    const p = declared.get(id);
+    return p === undefined || !exists(p) || !declared.has(headOfRef(p)) ? undefined : headOfRef(p);
   };
+  const out: string[][] = [];
   const state = new Map<string, "open" | "done">();
   for (const start of declared.keys()) {
     const path: string[] = [];
@@ -256,13 +268,26 @@ function settledParents(
     }
     if (id !== undefined && state.get(id) === "open") {
       const loop = path.slice(path.indexOf(id));
-      out.set(
-        loop.reduce((a, b) => (b > a ? b : a)),
-        undefined,
-      );
+      const k = loop.indexOf(loop.reduce((a, b) => (b > a ? b : a)));
+      out.push([...loop.slice(k), ...loop.slice(0, k)]);
     }
     for (const p of path) state.set(p, "done");
   }
+  return out;
+}
+
+/**
+ * The parent each id resolves under, read leniently so a file and a doc
+ * read alike: none for a root or a parent that doesn't exist, and none for
+ * the root of each of `parentCycles`.
+ */
+function settledParents(
+  declared: ReadonlyMap<string, Ref | undefined>,
+  exists: (ref: Ref) => boolean,
+): Map<string, Ref | undefined> {
+  const out = new Map<string, Ref | undefined>();
+  for (const [id, p] of declared) out.set(id, p !== undefined && exists(p) ? p : undefined);
+  for (const [root] of parentCycles(declared, exists)) out.set(root!, undefined);
   return out;
 }
 
@@ -303,7 +328,7 @@ export function sceneFrames(
   const declared = new Map<string, Ref | undefined>();
   for (const item of [...entities.values(), ...instances.values()])
     declared.set(item.id, item.parent);
-  const exists = (ref: Ref) => entities.has(ref) || instances.has(headOf(ref));
+  const exists = (ref: Ref) => entities.has(ref) || instances.has(headOfRef(ref));
   const settled = settledParents(declared, exists);
   const steps = new Map<string, readonly Transform2D[]>();
   const unders = new Map<Ref, readonly Transform2D[]>();
@@ -366,7 +391,7 @@ export function sceneFrames(
     return out;
   };
   const childOf = (ref: Ref): PlacedInstanceChild | undefined => {
-    const inst = instances.get(headOf(ref));
+    const inst = instances.get(headOfRef(ref));
     return inst ? placed(inst)?.find((c) => c.def.id === ref) : undefined;
   };
   return {
@@ -400,7 +425,7 @@ function transformEntity(
   cells: boolean,
 ): EntityDef {
   if (isIdentity(t)) return def;
-  if (def.type === NODE) return turnNode(transformEntityDef(registry, def, t) ?? def, def, t);
+  if (def.type === NODE_TYPE) return turnNode(transformEntityDef(registry, def, t) ?? def, def, t);
   const held =
     !cells && turns(t)
       ? gridFieldsOf(registry.types.get(def.type)).filter((f) => def[f] !== undefined)
@@ -411,6 +436,236 @@ function transformEntity(
   const out = transformEntityDef(registry, rest, t) ?? clone(rest);
   for (const field of held) out[field] = clone(def[field]);
   return out;
+}
+
+/** `def` with `key` at its canonical place among the keys, or without it for `undefined`. */
+export function withKey<T extends object>(def: T, key: string, value: unknown): T {
+  const out: Record<string, unknown> = {};
+  let placed = value === undefined;
+  for (const [k, v] of Object.entries(def)) {
+    if (k === key) continue;
+    if (!placed && compareEntityKeys(key, k) < 0) {
+      out[key] = value;
+      placed = true;
+    }
+    out[k] = clone(v);
+  }
+  if (!placed) out[key] = value;
+  return out as T;
+}
+
+/** `def` carrying angle and flip `o`, the identity written as absent. */
+export function withOrientation<T extends object>(def: T, o: Orientation): T {
+  return withKey(withKey(def, "rot", o.rot === 0 ? undefined : o.rot), "flip", o.flip || undefined);
+}
+
+/**
+ * `deg` in the 360° window `like` sits in, so an angle a frame change turns
+ * stays near the range it was written in.
+ */
+function inWindow(deg: number, like: number): number {
+  const lo = Math.floor(like / 360) * 360;
+  return roundLength(lo + normDeg(deg - lo));
+}
+
+/**
+ * An entity's stored fields re-expressed by `t`, a rigid transform at any
+ * angle, as resolving places a child (`transformEntity`, its grid cells
+ * kept when `settings`' grid can't turn with them), with a node's `rot`
+ * and `flip` at their canonical place and other angle fields kept in the
+ * window they were written in. What reparent, paste, unpack and the
+ * gizmos' previews all write.
+ */
+export function reexpressEntity(
+  registry: Registry,
+  settings: SceneDefinition["settings"],
+  def: EntityDef,
+  t: Transform2D,
+): EntityDef {
+  if (isIdentity(t)) return def;
+  let next = transformEntity(registry, def, t, gridTurns({ settings }));
+  if (next === def) next = clone(def);
+  if (def.type === NODE_TYPE)
+    return withOrientation(next, {
+      rot: typeof next.rot === "number" ? next.rot : 0,
+      flip: next.flip === true,
+    });
+  for (const [field, schema] of Object.entries(registry.types.get(def.type)?.shape ?? {})) {
+    const was = def[field];
+    const now = next[field];
+    if (fieldKind(schema) === "angle" && typeof was === "number" && typeof now === "number")
+      next[field] = inWindow(now, was);
+  }
+  return next;
+}
+
+/** An instance's `at`, angle and flip re-expressed by `t`. */
+export function reexpressInstance(def: InstanceDef, t: Transform2D): InstanceDef {
+  if (isIdentity(t)) return def;
+  const placed = asFrame(compose(t, frame(instanceFrame(def))));
+  return withOrientation(
+    { ...clone(def), at: [roundLength(placed.at[0]), roundLength(placed.at[1])] },
+    placed,
+  );
+}
+
+/**
+ * After the entries in `moved` were rewritten into new frames, rewrites
+ * each entry under them whose parent's frame changed, level by level, so
+ * its world pose stays as `before` placed it. `now` reads the document as
+ * it stands (its frames, and its entities' and instances' ids) before each
+ * level; `rewrite` re-expresses one entry by `by` (`reexpressEntity`,
+ * `reexpressInstance`). Only an entity whose frame comes from its geometry
+ * changes its children's frame: it can't carry a flip, and a circle or a
+ * point carries no angle.
+ */
+export function keepInPlace(
+  before: SceneFrames,
+  moved: ReadonlySet<string>,
+  now: () => { frames: SceneFrames; ids: Iterable<string> },
+  rewrite: (id: string, by: Transform2D) => void,
+): void {
+  let level: ReadonlySet<string> = moved;
+  for (let guard = 0; level.size > 0 && guard <= PARENT_MAX_DEPTH + 1; guard++) {
+    const { frames: after, ids } = now();
+    const next = new Set<string>();
+    for (const id of ids) {
+      const p = after.parentOf(id);
+      if (moved.has(id) || p === undefined || !level.has(headOfRef(p))) continue;
+      const was = composeSteps(before.under(p));
+      const is = composeSteps(after.under(p));
+      if (sameFrame(was, is)) continue;
+      rewrite(id, compose(invert(is), was));
+      next.add(id);
+    }
+    level = next;
+  }
+}
+
+/**
+ * Parent-to-child links between refs, walked breadth first: what the
+ * document's tree and the resolved view's tree are both built on.
+ */
+export type RefLinks = {
+  link(parent: Ref, child: Ref): void;
+  /** `starts` in order, each once, then everything below them, level by level, in link order. */
+  walk(starts: Iterable<Ref>): Ref[];
+};
+
+export function refLinks(): RefLinks {
+  const children = new Map<Ref, Ref[]>();
+  return {
+    link(parent, child) {
+      const list = children.get(parent);
+      if (list) list.push(child);
+      else children.set(parent, [child]);
+    },
+    walk(starts) {
+      const seen = new Set<Ref>();
+      const out: Ref[] = [];
+      const visit = (ref: Ref) => {
+        if (seen.has(ref)) return;
+        seen.add(ref);
+        out.push(ref);
+      };
+      for (const ref of starts) visit(ref);
+      for (let i = 0; i < out.length; i++) children.get(out[i]!)?.forEach(visit);
+      return out;
+    },
+  };
+}
+
+/** Why putting an entry under a parent would break the tree. */
+export type TreeRefusal = { kind: "cycle" } | { kind: "depth"; deepest: number };
+
+/**
+ * A scene document's tree as the lenient read settles it (`sceneFrames`):
+ * a document entry sits under its settled parent, and an instance's child
+ * or nested instance under the instance that holds it directly.
+ */
+export type DocumentTree = {
+  /** What `ref` sits under; none at the root. */
+  parentOf(ref: Ref): Ref | undefined;
+  /** Everything `ref` sits under, nearest first, up to its root. */
+  ancestors(ref: Ref): Ref[];
+  /** The document ids from `ref`'s own entry up to its root. */
+  chain(ref: Ref): string[];
+  /** Levels below its root, as validation counts them: 0 for a root; an instance's child one below its instance. */
+  depth(ref: Ref): number;
+  /**
+   * `refs` in order, each once, then the entities and instances below
+   * them, level by level: what names a ref as its parent and, below an
+   * instance, what names one of its children.
+   */
+  subtree(refs: readonly Ref[]): Ref[];
+  /** The entities and instances below each of `ids`, by id, `ids` themselves left out. */
+  below(ids: Iterable<string>): Set<string>;
+  /** `refs` without those that sit under another of them, in order, each once. */
+  roots(refs: readonly Ref[]): Ref[];
+  /** Why `id` (an entity or instance) can't go under `parent`: a loop, or a subtree deeper than `PARENT_MAX_DEPTH`; null when it fits. */
+  refusal(id: string, parent: Ref): TreeRefusal | null;
+};
+
+export function documentTree(
+  def: SceneDefinition,
+  frames: SceneFrames = sceneFrames(def),
+): DocumentTree {
+  const items = [...(def.entities ?? []), ...(def.instances ?? [])];
+  const links = refLinks();
+  for (const { id } of items) {
+    const p = frames.parentOf(id);
+    if (p !== undefined) links.link(p, id);
+  }
+  for (const { id } of items) {
+    const p = frames.parentOf(id);
+    if (p !== undefined && parseChildRef(p)) links.link(headOfRef(p), id);
+  }
+  const parentOf = (ref: Ref) => enclosingInstance(ref) ?? frames.parentOf(ref);
+  const ancestors = (ref: Ref): Ref[] => {
+    const out: Ref[] = [];
+    for (let p = parentOf(ref); p !== undefined && !out.includes(p); p = parentOf(p)) out.push(p);
+    return out;
+  };
+  const depths = new Map<string, number>();
+  const depthOf = (id: string): number => {
+    let d = depths.get(id);
+    if (d === undefined) {
+      depths.set(id, 0);
+      const p = frames.parentOf(id);
+      depths.set(id, (d = p === undefined ? 0 : depth(p) + 1));
+    }
+    return d;
+  };
+  const depth = (ref: Ref): number => depthOf(headOfRef(ref)) + (parseChildRef(ref) ? 1 : 0);
+  const below = (ids: Iterable<string>): Set<string> => {
+    const start = [...ids];
+    const out = new Set(links.walk(start));
+    for (const id of start) out.delete(id);
+    return out;
+  };
+  const chain = (ref: Ref): string[] => {
+    const head = headOfRef(ref);
+    return [head, ...ancestors(head).filter((a) => !parseChildRef(a))];
+  };
+  return {
+    parentOf,
+    ancestors,
+    chain,
+    depth,
+    subtree: (refs) => links.walk(refs),
+    below,
+    roots(refs) {
+      const sel = new Set(refs);
+      return [...sel].filter((r) => !ancestors(r).some((a) => sel.has(a)));
+    },
+    refusal(id, parent) {
+      if (chain(parent).includes(id)) return { kind: "cycle" };
+      const base = depth(id);
+      const height = Math.max(0, ...[...below([id])].map((d) => depth(d) - base));
+      const deepest = depth(parent) + 1 + height;
+      return deepest > PARENT_MAX_DEPTH ? { kind: "depth", deepest } : null;
+    },
+  };
 }
 
 /** Writes `value` at a dot path, creating objects on the way; false when the path runs into a value. */
@@ -1037,7 +1292,8 @@ function parentSteps(
   for (const c of children) {
     const nestedChild = c.child.includes(CHILD_SEPARATOR);
     if (!nestedChild && c.kind === "entity") declared.set(c.child, c.under);
-    else if (nestedChild && !declared.has(headOf(c.child))) declared.set(headOf(c.child), c.under);
+    else if (nestedChild && !declared.has(headOfRef(c.child)))
+      declared.set(headOfRef(c.child), c.under);
   }
   const exists = (ref: Ref) =>
     byRef.get(ref)?.kind === "entity" ||
@@ -1053,7 +1309,7 @@ function parentSteps(
     let found = { steps: [] as Transform2D[], off: false };
     if (c?.kind === "entity") {
       // The parent's own frame is in the frame its def is written in, which its chain places.
-      const above = chain(settled.get(headOf(ref)));
+      const above = chain(settled.get(headOfRef(ref)));
       const own = frame(placedFrame(ctx.registry, c.def, c.turn));
       found = { steps: [own, ...above.steps], off: c.def.off === true || above.off };
     } else if (n) {
@@ -1068,7 +1324,7 @@ function parentSteps(
   };
   for (const c of children) {
     if (c.under === undefined) continue;
-    const parent = settled.get(headOf(c.child));
+    const parent = settled.get(headOfRef(c.child));
     out.set(c, { ...chain(parent), root: parent === undefined });
   }
   return out;
@@ -1430,7 +1686,7 @@ function ownFrameChild(
     const n = nestedThrough(level.patched, [], seg, library);
     const next = n && library?.get(n.prefab);
     if (!n || !next) return null;
-    const under = level.children.find((c) => headOf(c.child) === seg && c.child !== seg);
+    const under = level.children.find((c) => headOfRef(c.child) === seg && c.child !== seg);
     const chain = (under && level.pending.get(under)?.steps) ?? [];
     steps.unshift(frame(instanceFrame(n)), ...chain);
     z += n.z ?? 0;

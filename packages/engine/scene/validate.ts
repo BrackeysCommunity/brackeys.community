@@ -52,12 +52,15 @@ import { prefabsUsedBy } from "./prefab";
 import {
   CHILD_SEPARATOR,
   childEntity,
+  documentTree,
   issueOnSource,
   localChild,
   localChildren,
   type LocalChild,
   mapResolvedBatch,
   NO_CHILD_EDITS,
+  ownChildId,
+  parentCycles,
   parseChildRef,
   resolvePrefab,
   resolveScene,
@@ -787,10 +790,73 @@ export function canBeInTree(type: RegisteredType | undefined): boolean {
   );
 }
 
-/** What a `parent` link names: a document entity or instance, an instance's child or nested instance, a bulk entry, nothing, or a child of an instance whose prefab doesn't resolve (reported as such). */
-type ParentTarget =
+/**
+ * What a ref names as a parent: a document entity or instance, an
+ * instance's child or nested instance, a bulk entry, nothing, or a child of
+ * an instance whose prefab doesn't resolve (reported as such).
+ */
+export type ParentTarget =
   | { kind: "entity" | "child"; type: RegisteredType | undefined; what: string }
-  | { kind: "instance" | "bulk" | "missing" | "unresolved" };
+  | { kind: "instance" | "nested" | "bulk" | "missing" | "unresolved" };
+
+/**
+ * What each ref of `def` (the document) names, for the tree's rules: the
+ * one reading validation, `reparent`, the Parent row and grouping share.
+ */
+export function parentTargets(
+  def: SceneDefinition,
+  r: Registry,
+  frames: SceneFrames,
+): (ref: Ref) => ParentTarget {
+  const entities = new Map<string, EntityDef>();
+  const instances = new Map<string, InstanceDef>();
+  for (const e of def.entities ?? []) if (!entities.has(e.id)) entities.set(e.id, e);
+  for (const n of def.instances ?? []) if (!instances.has(n.id)) instances.set(n.id, n);
+  return (ref) => {
+    const e = entities.get(ref);
+    if (e) return { kind: "entity", type: r.types.get(e.type), what: e.type };
+    if (instances.has(ref)) return { kind: "instance" };
+    if (parseBulkId(ownChildId(ref))) return { kind: "bulk" };
+    const split = parseChildRef(ref);
+    const inst = split && instances.get(split.instance);
+    if (!inst) return { kind: "missing" };
+    const placed = frames.placed(inst);
+    if (!placed) return { kind: "unresolved" };
+    const child = placed.find((c) => c.def.id === ref);
+    if (child) return { kind: "child", type: r.types.get(child.def.type), what: child.def.type };
+    const nested = nestedInstanceRefs(placed.map((c) => c.def.id));
+    return nested.has(ref) ? { kind: "nested" } : { kind: "missing" };
+  };
+}
+
+/**
+ * Why `t` can't be a parent: "bulk entry", "nested instance" (its frame
+ * isn't one the scene places children by) or the type it is; undefined
+ * when it can, or names nothing.
+ */
+export function parentRefusal(t: ParentTarget): string | undefined {
+  if (t.kind === "bulk") return "bulk entry";
+  if (t.kind === "nested") return "nested instance";
+  return (t.kind === "entity" || t.kind === "child") && !canBeInTree(t.type) ? t.what : undefined;
+}
+
+/** Whether `t` can be a parent. */
+export const canParent = (t: ParentTarget): boolean =>
+  t.kind !== "missing" && t.kind !== "unresolved" && parentRefusal(t) === undefined;
+
+/** Whether `t` can be put under a parent: a document instance, or a document entity of a type the tree takes. */
+export const canBeChild = (t: ParentTarget): boolean =>
+  t.kind === "instance" || (t.kind === "entity" && canBeInTree(t.type));
+
+/** How a batch names the entries it moves: the one id, else how many. */
+export const itemsLabel = (refs: readonly Ref[]): string =>
+  refs.length === 1 ? refs[0]! : `${refs.length} items`;
+
+/** A `reparent`'s label, wherever the batch comes from. */
+export const reparentLabel = (refs: readonly Ref[], parent: Ref | null): string =>
+  parent === null
+    ? `Move ${itemsLabel(refs)} to the root`
+    : `Put ${itemsLabel(refs)} under ${parent}`;
 
 const isTurnBound = (kind: string) => kind === "side" || kind === "grid";
 
@@ -817,6 +883,7 @@ function checkParents(def: SceneDefinition, r: Registry, frames: SceneFrames, pu
   const instances = new Map<string, InstanceDef>();
   for (const e of def.entities ?? []) if (!entities.has(e.id)) entities.set(e.id, e);
   for (const n of def.instances ?? []) if (!instances.has(n.id)) instances.set(n.id, n);
+  const tree = documentTree(def, frames);
   const items: Item[] = [];
   (def.entities ?? []).forEach((e, i) => {
     if (typeof e.parent === "string")
@@ -827,38 +894,11 @@ function checkParents(def: SceneDefinition, r: Registry, frames: SceneFrames, pu
       items.push({ id: n.id, parent: n.parent, at: ["instances", i] });
   });
 
-  const target = (ref: Ref): ParentTarget => {
-    const e = entities.get(ref);
-    if (e) return { kind: "entity", type: r.types.get(e.type), what: e.type };
-    if (instances.has(ref)) return { kind: "instance" };
-    if (parseBulkId(ref.slice(ref.lastIndexOf(CHILD_SEPARATOR) + 1))) return { kind: "bulk" };
-    const split = parseChildRef(ref);
-    const inst = split && instances.get(split.instance);
-    if (!inst) return { kind: "missing" };
-    const placed = frames.placed(inst);
-    if (!placed) return { kind: "unresolved" };
-    const child = placed.find((c) => c.def.id === ref);
-    if (child) return { kind: "child", type: r.types.get(child.def.type), what: child.def.type };
-    const nested = nestedInstanceRefs(placed.map((c) => c.def.id));
-    return nested.has(ref) ? { kind: "instance" } : { kind: "missing" };
-  };
-  /** Why `t` can't be a parent: the type it is, or "bulk entry"; undefined when it can. */
-  const cantParent = (t: ParentTarget): string | undefined =>
-    t.kind === "bulk"
-      ? "bulk entry"
-      : (t.kind === "entity" || t.kind === "child") && !canBeInTree(t.type)
-        ? t.what
-        : undefined;
-  const canParent = (t: ParentTarget) =>
-    t.kind !== "missing" && t.kind !== "unresolved" && cantParent(t) === undefined;
-  /** The next link up: an instance's child sits under its instance. */
-  const up = (ref: Ref): Ref | undefined =>
-    entities.has(ref) || instances.has(ref) ? frames.parentOf(ref) : parseChildRef(ref)?.instance;
-  const ancestors = function* (ref: Ref | undefined) {
-    for (let at = ref; at !== undefined; at = up(at)) yield at;
-  };
+  const target = parentTargets(def, r, frames);
+  /** What `ref` sits under that can be a parent, nearest first. */
+  const parentsAbove = (ref: Ref) => tree.ancestors(ref).filter((a) => canParent(target(a)));
   const reparent = (id: string, parent: Ref | null): OpBatch => ({
-    label: parent === null ? `Move ${id} to the root` : `Reparent ${id} under ${parent}`,
+    label: reparentLabel([id], parent),
     ops: [{ op: "reparent", refs: [id], parent }],
   });
   const pointer = (item: Item) => jsonPointer([...item.at, "parent"]);
@@ -905,16 +945,11 @@ function checkParents(def: SceneDefinition, r: Registry, frames: SceneFrames, pu
       });
       continue;
     }
-    const bad = cantParent(t);
+    const bad = parentRefusal(t);
     if (bad !== undefined) {
-      let to: Ref | null = null;
-      for (const a of ancestors(t.kind === "bulk" ? undefined : up(parent)))
-        if (canParent(target(a))) {
-          to = a;
-          break;
-        }
+      const to = t.kind === "bulk" ? null : (parentsAbove(parent)[0] ?? null);
       push("parent-type", {
-        message: `${id}.parent names ${parent}, ${bad === "bulk entry" ? "a bulk entry" : `a ${bad}`}, which can't be a parent`,
+        message: `${id}.parent names ${parent}, a ${bad}, which can't be a parent`,
         path: pointer(item),
         entityIds: [id, parent],
         got: bad,
@@ -926,55 +961,21 @@ function checkParents(def: SceneDefinition, r: Registry, frames: SceneFrames, pu
   }
 
   // cycles, each reported once on the id the lenient read takes as a root
-  const next = (id: string): string | undefined => {
-    const p = linked.get(id);
-    return p === undefined ? undefined : (parseChildRef(p)?.instance ?? p);
-  };
-  const state = new Map<string, "open" | "done">();
   const inCycle = new Set<string>();
-  for (const start of linked.keys()) {
-    const path: string[] = [];
-    let id: string | undefined = start;
-    while (id !== undefined && !state.has(id)) {
-      state.set(id, "open");
-      path.push(id);
-      id = next(id);
-    }
-    if (id !== undefined && state.get(id) === "open") {
-      const loop = path.slice(path.indexOf(id));
-      const root = loop.reduce((a, b) => (b > a ? b : a));
-      const k = loop.indexOf(root);
-      const chain = [...loop.slice(k), ...loop.slice(0, k)];
-      for (const c of chain) inCycle.add(c);
-      const item = items.find((x) => x.id === root)!;
-      push("parent-cycle", {
-        message: `${root} is under itself: ${[...chain, root].join(" → ")}`,
-        path: pointer(item),
-        entityIds: chain,
-        fix: reparent(root, null),
-      });
-    }
-    for (const p of path) state.set(p, "done");
+  for (const chain of parentCycles(linked, () => true)) {
+    const root = chain[0]!;
+    for (const c of chain) inCycle.add(c);
+    const item = items.find((x) => x.id === root)!;
+    push("parent-cycle", {
+      message: `${root} is under itself: ${[...chain, root].join(" → ")}`,
+      path: pointer(item),
+      entityIds: chain,
+      fix: reparent(root, null),
+    });
   }
 
   // depth, counted through the links the lenient read keeps
-  const depths = new Map<Ref, number>();
-  const depthOf = (ref: Ref): number => {
-    const chain: Ref[] = [];
-    let at: Ref | undefined = ref;
-    let base = -1;
-    while (at !== undefined) {
-      const known = depths.get(at);
-      if (known !== undefined) {
-        base = known;
-        break;
-      }
-      chain.push(at);
-      at = up(at);
-    }
-    for (let i = chain.length - 1; i >= 0; i--) depths.set(chain[i]!, ++base);
-    return depths.get(ref)!;
-  };
+  const depthOf = (ref: Ref) => tree.depth(ref);
   // each run past the limit is reported once, on its shallowest entity
   const itemOf = new Map(items.map((item) => [item.id, item]));
   const tooDeep = new Map<string, { item: Item; deepest: number }>();
@@ -983,7 +984,7 @@ function checkParents(def: SceneDefinition, r: Registry, frames: SceneFrames, pu
     const d = depthOf(item.id);
     if (d <= PARENT_MAX_DEPTH) continue;
     let top = item;
-    for (const a of ancestors(up(item.id))) {
+    for (const a of tree.ancestors(item.id)) {
       const above = itemOf.get(a);
       if (above && depthOf(a) > PARENT_MAX_DEPTH) top = above;
     }
@@ -994,12 +995,7 @@ function checkParents(def: SceneDefinition, r: Registry, frames: SceneFrames, pu
   for (const [id, { item, deepest }] of tooDeep) {
     const depth = depthOf(id);
     const wanted = Math.max(0, PARENT_MAX_DEPTH - (deepest - depth));
-    let to: Ref | null = null;
-    for (const a of ancestors(up(id)))
-      if (depthOf(a) === wanted - 1) {
-        to = a;
-        break;
-      }
+    const to = parentsAbove(id).find((a) => depthOf(a) === wanted - 1) ?? null;
     push("parent-depth", {
       message: `${id} sits ${depth} parent levels below its root; at most ${PARENT_MAX_DEPTH} are allowed`,
       path: pointer(item),
@@ -1014,12 +1010,7 @@ function checkParents(def: SceneDefinition, r: Registry, frames: SceneFrames, pu
   const quarterUnder = (ref: Ref) => quarterChain(frames.under(ref)) !== null;
   // Reparenting keeps an instance's world angle, so an instance gets no fix.
   const offQuarter = (item: Item, fields: readonly string[], what: string, fixable = true) => {
-    let to: Ref | null = null;
-    for (const a of ancestors(up(item.parent)))
-      if (quarterUnder(a)) {
-        to = a;
-        break;
-      }
+    const to = parentsAbove(item.parent).find(quarterUnder) ?? null;
     push("quarter-turn-only", {
       message: `${what} under ${item.parent}, whose frame turns off the quarter turns, so ${fields.length === 1 ? "it stays" : "they stay"} unturned (${fields.join(", ")})`,
       path: pointer(item),

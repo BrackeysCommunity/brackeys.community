@@ -260,6 +260,9 @@ function withCheck<D extends BehaviorDef>(def: D, check: () => string | undefine
   return def;
 }
 
+/** The hooks a contact or sensor event calls, on each side of the pair. */
+type EventHook = "onContactStart" | "onContactEnd" | "onSensorEnter" | "onSensorExit";
+
 type Instance = {
   readonly id: string;
   binding: Binding;
@@ -321,17 +324,15 @@ function scriptSystem(make: (b: Binding) => Hooks): BehaviorSystemFactory {
     }
 
     function listen(): () => void {
+      const bothSides = (hook: EventHook) => (e: StepEvent) => {
+        deliver(e.entityId, e.other, e, hook);
+        deliver(e.other, e.entityId, e, hook);
+      };
       const offs = [
-        ctx.events.on(CONTACT_STARTED, (e) => deliver(e.entityId, e.other, e, "onContactStart")),
-        ctx.events.on(CONTACT_ENDED, (e) => deliver(e.entityId, e.other, e, "onContactEnd")),
-        ctx.events.on(SENSOR_ENTERED, (e) => {
-          deliver(e.entityId, e.other, e, "onSensorEnter");
-          deliver(e.other, e.entityId, e, "onSensorEnter");
-        }),
-        ctx.events.on(SENSOR_EXITED, (e) => {
-          deliver(e.entityId, e.other, e, "onSensorExit");
-          deliver(e.other, e.entityId, e, "onSensorExit");
-        }),
+        ctx.events.on(CONTACT_STARTED, bothSides("onContactStart")),
+        ctx.events.on(CONTACT_ENDED, bothSides("onContactEnd")),
+        ctx.events.on(SENSOR_ENTERED, bothSides("onSensorEnter")),
+        ctx.events.on(SENSOR_EXITED, bothSides("onSensorExit")),
       ];
       return () => {
         for (const off of offs) off();
@@ -342,7 +343,7 @@ function scriptSystem(make: (b: Binding) => Hooks): BehaviorSystemFactory {
       to: string | undefined,
       from: string | undefined,
       e: StepEvent,
-      hook: "onContactStart" | "onContactEnd" | "onSensorEnter" | "onSensorExit",
+      hook: EventHook,
     ): void {
       if (to === undefined || from === undefined) return;
       const inst = instances.get(to);

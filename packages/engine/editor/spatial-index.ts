@@ -1,5 +1,6 @@
 import { SPRITE } from "../game/behaviors/sprite";
 import { Z_LIMIT } from "../game/fields";
+import { NODE_TYPE } from "../game/primitives";
 import { isCameraRegionType } from "../game/primitives";
 import type { RegisteredType, Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
@@ -15,8 +16,6 @@ import { editTree, enclosingInstances, type EditSource, type EditTree } from "./
 import type { IndexEntry, SpatialIndex } from "./tools";
 
 export const DEFAULT_CELL = 2.56;
-
-const NODE = "node";
 
 /** Where an entity's geometry lives in the document, and what it is in the world. */
 export type EditGeometry = {
@@ -262,7 +261,7 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
       insert({
         ref,
         key: keyOf(ref),
-        type: NODE,
+        type: NODE_TYPE,
         layer: top.layer,
         aabb: box,
         z: top.z,

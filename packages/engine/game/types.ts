@@ -503,8 +503,9 @@ export type SpawnInput = {
  * `prefab-not-spawnable`, `physics-required`, `unknown-type`, `schema`,
  * `entity-gone` (a handle used after its entity was destroyed),
  * `pose-not-settable` (`ctx.setPose` on a type nothing can pose),
- * `parent-cycle` and `parent-scope` (a reparent under its own subtree, or
- * under an entity of another sublevel). A playtest that hits one ends
+ * `parent-cycle` (a reparent under its own subtree) and `parent-scope` (a
+ * parent that isn't live, or is in another sublevel than what goes under
+ * it, on a reparent, spawn or instantiate). A playtest that hits one ends
  * blocked at stage `"run"` with its code.
  */
 export class EngineError extends Error {

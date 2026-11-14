@@ -5,12 +5,13 @@ import type { CharacterSystem } from "../game/behaviors/character-top-down";
 import { createRegistry } from "../game/define";
 import type { Registry } from "../game/types";
 import { createSceneRuntime } from "../runtime/runtime";
-import { SENSOR_ENTER, type SceneRuntimeHandle, type StepEvent } from "../runtime/types";
+import { SENSOR_ENTER, type SceneRuntimeHandle } from "../runtime/types";
 import { expandScene } from "../scene/expand";
 import { SCENE_FORMAT_VERSION, type EntityDef, type ExpandedScene } from "../scene/types";
 import type { SolidSystem } from "../systems/bodies";
 import type { RapierModule } from "../types";
 import { testGame } from "./fixtures/test-game";
+import { stepEvents, withParents } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -38,11 +39,7 @@ function scene(
     },
     registry,
   );
-  for (const e of out.entities) {
-    const parent = parents[e.id];
-    if (parent !== undefined) e.parent = parent;
-  }
-  return out;
+  return withParents(out, parents);
 }
 
 function load(
@@ -55,12 +52,6 @@ function load(
   const report = rt.load(scene(entities, parents, opts));
   if (!report.ok) throw new Error(report.error);
   return rt;
-}
-
-function steps(rt: SceneRuntimeHandle, n: number): StepEvent[] {
-  const events: StepEvent[] = [];
-  for (let i = 0; i < n; i++) events.push(...rt.step(rt.ctx.time.tickMs, []).events);
-  return events;
 }
 
 const colliderOf = (rt: SceneRuntimeHandle, id: string): Collider =>
@@ -107,7 +98,7 @@ describe("colliders on the nearest body", () => {
       carrier: { entityId: "crate", type: "prop" },
     });
 
-    const events = steps(rt, 180);
+    const events = stepEvents(rt, 180);
     expect(pose(rt, "crate").y).toBeCloseTo(4.5, 1);
     // the shelf goes where the crate goes, and holds the pea up off the floor
     expect(pose(rt, "shelf").x - pose(rt, "crate").x).toBeCloseTo(1, 6);
@@ -156,13 +147,13 @@ describe("colliders on the nearest body", () => {
       { deck: "host" },
     );
     expect(bodyHandle(rt, "deck")).toBe(bodyHandle(rt, "host"));
-    steps(rt, 30);
+    stepEvents(rt, 30);
     const start = { crate: pose(rt, "crate").x, hero: pose(rt, "hero").x };
     const characters = rt.ctx.behavior<CharacterSystem>("character-side-view")!;
     expect(characters.grounded("hero")).toBe(true);
 
     rt.ctx.bodies.setVelocity("host", { x: 1, y: 0 });
-    steps(rt, 60);
+    stepEvents(rt, 60);
     expect(pose(rt, "host").x).toBeCloseTo(1, 3);
     expect(pose(rt, "deck").x).toBeCloseTo(5, 3);
     expect(colliderOf(rt, "deck").translation().x).toBeCloseTo(5, 3);
@@ -232,7 +223,7 @@ describe("colliders on the nearest body", () => {
     const lift = colliderOf(rt, "lift").parent()!;
     expect(bodyHandle(rt, "plank")).toBe(lift.handle);
     expect(rt.ctx.tree.parent("plank")).toBe("lift");
-    steps(rt, 60);
+    stepEvents(rt, 60);
     const at = lift.translation();
     const plank = colliderOf(rt, "plank");
     expect(plank.parent()!.handle).toBe(lift.handle);
@@ -242,7 +233,7 @@ describe("colliders on the nearest body", () => {
     expect(pose(rt, "plank").y - pose(rt, "lift").y).toBeCloseTo(-0.5, 6);
     expect(rt.ctx.tree.local("plank")).toMatchObject({ y: expect.closeTo(-0.5, 6) });
     // it stays there as the lift goes on
-    steps(rt, 60);
+    stepEvents(rt, 60);
     expect(colliderOf(rt, "plank").translation().y - lift.translation().y).toBeCloseTo(-0.5, 4);
     rt.destroy();
   });

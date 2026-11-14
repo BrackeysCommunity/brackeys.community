@@ -8,6 +8,7 @@ import { ENTITY_DESTROYED, ENTITY_SPAWNED, type StepEvent } from "../runtime/typ
 import { expandScene } from "../scene/expand";
 import { prefabLibrary } from "../scene/prefab";
 import type { InstanceDef, Prefab, RuntimeEntity, SceneDefinition } from "../scene/types";
+import { stepEvents } from "./fixtures/tree-rig";
 
 const prefab = (id: string, body: Partial<Prefab> = {}): Prefab => ({
   kind: "prefab",
@@ -52,7 +53,7 @@ function load(instances: InstanceDef[], entities: SceneDefinition["entities"] = 
   if (!report.ok) throw new Error(report.error);
   const events: StepEvent[] = [];
   const step = (n = 1) => {
-    for (let i = 0; i < n; i++) events.push(...rt.step(rt.ctx.time.tickMs, []).events);
+    events.push(...stepEvents(rt, n));
   };
   const at = (id: string) => {
     const p = rt.ctx.poses.get(id);
@@ -188,7 +189,7 @@ describe("a spawner placing prefabs", () => {
     if (!report.ok) throw new Error(report.error);
     const events: StepEvent[] = [];
     const step = (n = 1) => {
-      for (let i = 0; i < n; i++) events.push(...rt.step(rt.ctx.time.tickMs, []).events);
+      events.push(...stepEvents(rt, n));
     };
     const system = rt.ctx.behavior<SpawnerSystem>("spawner")!;
     return { rt, ctx: rt.ctx, step, events, system };

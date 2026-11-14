@@ -14,13 +14,23 @@ import {
 } from "vite-plus/test";
 
 import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../collab/index";
-import { createEditorSession, type SceneDefinition, type SceneIssue } from "../../editor/index";
+import {
+  createEditorSession,
+  createToolHost,
+  type SceneDefinition,
+  type SceneIssue,
+} from "../../editor/index";
 import { createRegistry, defineGame, type Registry } from "../../game/index";
 import type { AssetKey } from "../../project/index";
+import { composePose, relativePose, type Pose } from "../../runtime/poses";
+import { createSceneRuntime } from "../../runtime/runtime";
+import { expandScene } from "../../scene/expand";
 import { prefabLibrary, SCENE_FORMAT_VERSION, type PrefabLibrary } from "../../scene/index";
+import { createToolRouter } from "../../tool-router";
 import { EditorFrame } from "../frame/EditorFrame";
 import type { EditorStorage } from "../host";
 import { KitProvider } from "../kit/index";
+import { EditorInspector } from "../panels/EditorInspector";
 import { EditorOutliner } from "../panels/EditorOutliner";
 import type { LoadedRun } from "../session/loaded-run";
 
@@ -106,6 +116,8 @@ beforeAll(() => {
     const i = li ? [...(li.parentElement?.children ?? [])].indexOf(li) : -1;
     if (!li && this.classList.contains("je-outliner-list"))
       return DOMRect.fromRect({ x: 0, y: 0, width: 200, height: 2000 });
+    if (this.classList.contains("je-outliner-root"))
+      return DOMRect.fromRect({ x: 0, y: 2000, width: 200, height: ROW_PX });
     return DOMRect.fromRect(i < 0 ? {} : { x: 0, y: i * ROW_PX, width: 200, height: ROW_PX });
   });
 });
@@ -113,23 +125,22 @@ afterAll(() => vi.restoreAllMocks());
 
 /**
  * Drags `from` (a row button) onto the row `to`, pointer-first as a mouse
- * does it: to its middle, its top edge, or (`to` null) the empty space
- * below every row. `beforeRelease` sees the drag still held over its target.
+ * does it: to its middle, its top or bottom edge, or (`to` null) the empty
+ * space below every row, or the root strip shown while dragging.
+ * `beforeRelease` sees the drag still held over its target.
  */
 async function drag(
   from: HTMLElement,
-  to: HTMLElement | null,
-  where: "middle" | "top" = "middle",
+  to: HTMLElement | null | "strip",
+  where: "middle" | "top" | "bottom" = "middle",
   beforeRelease?: () => void,
 ) {
   const a = from.getBoundingClientRect();
   const rows = outliner().getAllByRole("listitem").length;
-  const b = to
-    ? to.getBoundingClientRect()
-    : DOMRect.fromRect({ x: 0, y: rows * ROW_PX + 40, width: 200, height: ROW_PX });
   const at = (r: DOMRect) => ({
     clientX: r.x + 50,
-    clientY: r.y + (where === "top" && r !== a ? 2 : r.height / 2),
+    clientY:
+      r.y + (r === a || where === "middle" ? r.height / 2 : where === "top" ? 2 : r.height - 2),
   });
   await act(async () => {
     fireEvent.pointerDown(from, { ...at(a), button: 0, isPrimary: true, pointerId: 1 });
@@ -137,6 +148,12 @@ async function drag(
   await act(async () => {
     fireEvent.pointerMove(document, { clientX: a.x + 50, clientY: a.y + 30, pointerId: 1 });
   });
+  const b =
+    to === "strip"
+      ? outliner().getByText("Drop here to move to the root").parentElement!.getBoundingClientRect()
+      : to
+        ? to.getBoundingClientRect()
+        : DOMRect.fromRect({ x: 0, y: rows * ROW_PX + 40, width: 200, height: ROW_PX });
   await act(async () => {
     fireEvent.pointerMove(document, { ...at(b), pointerId: 1 });
   });
@@ -643,23 +660,24 @@ describe("EditorOutliner tree", () => {
     expect(entry(session, "barrel").parent).toBeUndefined();
   });
 
-  it("shows a drop that would make a loop as refused before release, and dispatches nothing", async () => {
+  it("shows a drop that would make a loop as refused before release, says why by the row, and dispatches nothing", async () => {
     const { session, dispatch, cue } = setup(towerScene());
     await drag(row("tower"), row("barrel"), "middle", () => {
       const li = row("barrel").closest("li")!;
       expect(li.hasAttribute("data-drop-refused")).toBe(true);
       expect(li.hasAttribute("data-drop-over")).toBe(false);
-      expect(
-        outliner()
-          .getByText(/would make a loop/)
-          .getAttribute("role"),
-      ).toBe("status");
+      const why = within(li).getByText(/would make a loop/);
+      expect(why.getAttribute("role")).toBe("status");
+      expect(why.getAttribute("data-tone")).toBe("danger");
     });
     expect(dispatch).not.toHaveBeenCalled();
     expect(cue).toHaveBeenCalledWith("error");
     expect(entry(session, "tower").parent).toBeUndefined();
-    expect(outliner().queryByText(/would make a loop/)).toBeNull();
     expect(row("barrel").closest("li")!.hasAttribute("data-drop-refused")).toBe(false);
+    // The reason stays by the row once it's let go, until the next press.
+    expect(within(row("barrel").closest("li")!).getByText(/would make a loop/)).toBeTruthy();
+    fireEvent.pointerDown(row("crate"));
+    expect(outliner().queryByText(/would make a loop/)).toBeNull();
   });
 
   it("marks an accepted drop on the row it would land on", async () => {
@@ -670,6 +688,100 @@ describe("EditorOutliner tree", () => {
     await drag(row("lamp"), row("crate"), "top", () => {
       expect(row("crate").closest("li")!.hasAttribute("data-drop-before")).toBe(true);
     });
+    await drag(row("crate"), row("barrel"), "bottom", () => {
+      expect(row("barrel").closest("li")!.hasAttribute("data-drop-after")).toBe(true);
+    });
+  });
+
+  it("a drop on a row's bottom edge puts it after that row, the last place among its siblings", async () => {
+    const { session, dispatch } = setup(towerScene());
+    await drag(row("lamp"), row("barrel"), "bottom");
+    expect(dispatch).toHaveBeenCalledOnce();
+    expect(dispatch.mock.calls[0]![0].ops[0]).toEqual({
+      op: "reparent",
+      refs: ["lamp"],
+      parent: "base",
+    });
+    expect(levels()).toEqual([
+      ["tower", "1"],
+      ["base", "2"],
+      ["barrel", "3"],
+      ["lamp", "3"],
+      ["crate", "1"],
+    ]);
+    expect(entry(session, "lamp").parent).toBe("base");
+
+    dispatch.mockClear();
+    await drag(row("tower"), row("crate"), "bottom");
+    expect(levels().map(([n]) => n)).toEqual(["crate", "tower", "base", "barrel", "lamp"]);
+  });
+
+  it("takes a row's bottom edge as onto it where its open children follow it", async () => {
+    const { dispatch } = setup(towerScene());
+    await drag(row("lamp"), row("base"), "bottom");
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      label: "Put lamp under base",
+      ops: [{ op: "reparent", refs: ["lamp"], parent: "base" }],
+    });
+  });
+
+  it("splits a row that can't take children into before and after halves", async () => {
+    const def = towerScene();
+    def.entities!.push({ id: "memo", type: "note", at: [10, 10], text: "Look here." });
+    const { dispatch } = setup(def);
+    await drag(row("crate"), row("memo"), "bottom", () => {
+      expect(row("memo").closest("li")!.hasAttribute("data-drop-after")).toBe(true);
+    });
+    expect(dispatch).toHaveBeenCalledOnce();
+    expect(
+      levels()
+        .map(([n]) => n)
+        .slice(-2),
+    ).toEqual(["memo", "crate"]);
+  });
+
+  it("shows a root strip only while dragging, which moves a row to the root however full the list", async () => {
+    const { session } = setup(towerScene());
+    expect(outliner().queryByText("Drop here to move to the root")).toBeNull();
+    await drag(row("barrel"), "strip", "middle", () => {
+      expect(outliner().getByText("Drop here to move to the root")).toBeTruthy();
+      expect(
+        outliner()
+          .getByText("Drop here to move to the root")
+          .parentElement!.hasAttribute("data-drop-over"),
+      ).toBe(true);
+    });
+    expect(entry(session, "barrel").parent).toBeUndefined();
+    expect(outliner().queryByText("Drop here to move to the root")).toBeNull();
+  });
+
+  it("moves a root row to the end of the root on a drop on the root", async () => {
+    setup(towerScene());
+    await drag(row("crate"), "strip");
+    expect(levels().map(([n]) => n)).toEqual(["tower", "base", "barrel", "lamp", "crate"]);
+  });
+
+  it("opens a closed row a drop puts rows under, so they stay in sight", async () => {
+    const { session } = setup(towerScene());
+    fireEvent.click(outliner().getByRole("button", { name: "Collapse base", expanded: true }));
+    fireEvent.click(outliner().getByRole("button", { name: "Collapse tower", expanded: true }));
+    expect(levels().map(([n]) => n)).toEqual(["tower", "crate", "lamp"]);
+    await drag(row("lamp"), row("tower"));
+    expect(entry(session, "lamp").parent).toBe("tower");
+    expect(outliner().getByRole("button", { name: "Collapse tower", expanded: true })).toBeTruthy();
+    expect(levels().map(([n]) => n)).toEqual(["tower", "base", "lamp", "crate"]);
+  });
+
+  it("says in the Tree tab's hint that edges reorder", async () => {
+    setup(towerScene());
+    await act(async () => {
+      fireEvent.focus(outliner().getByRole("button", { name: "Tree" }));
+    });
+    expect(
+      await screen.findByText(
+        "Rows under their parents; drag a row onto another to put it under it, or onto its top or bottom edge to put it before or after it",
+      ),
+    ).toBeTruthy();
   });
 
   it("dragging a selected row drags the selection's roots", async () => {
@@ -721,5 +833,99 @@ describe("EditorOutliner tree", () => {
       ["sight", "3"],
     ]);
     expect(session.getDoc().entities![0]!.parent).toBe("t-1/barrel");
+  });
+  it("builds a turret by hand (a node, a base under it, a barrel with a collider under the base) that plays as one", async () => {
+    const session = createEditorSession({
+      doc: sceneToDoc(
+        { v: SCENE_FORMAT_VERSION, name: "turret", bounds: [0, 0, 20, 20] },
+        { key: sequentialKeys("t") },
+      ),
+      origin: ada,
+      name: "turret",
+      registry,
+      issuesDebounceMs: 0,
+    });
+    const host = createToolHost({
+      session,
+      router: createToolRouter(),
+      toWorld: ({ x, y }) => [x / 100, y / 100],
+      scale: () => 100,
+    });
+    render(
+      <KitProvider host={{ cue: vi.fn() }}>
+        <EditorOutliner session={session} />
+        <EditorInspector session={session} />
+      </KitProvider>,
+    );
+    // The batches the draw and place tools commit.
+    act(() => {
+      session.dispatch({
+        label: "Add base",
+        ops: [
+          { op: "add", entity: { id: "base", type: "solid", shape: ["box", 6, 10, 0.4, 0.2] } },
+        ],
+      });
+      session.dispatch({
+        label: "Add barrel",
+        ops: [{ op: "add", entity: { id: "barrel", type: "marker", at: [6.5, 9.65] } }],
+      });
+      session.select(["base", "barrel"]);
+    });
+    act(() => void host.command("group"));
+    expect(levels()).toEqual([
+      ["node-1", "1"],
+      ["base", "2"],
+      ["barrel", "2"],
+    ]);
+    await drag(row("barrel"), row("base"));
+    expect(levels()).toEqual([
+      ["node-1", "1"],
+      ["base", "2"],
+      ["barrel", "3"],
+    ]);
+    act(() => session.select(["barrel"]));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add behavior" }));
+    });
+    const collider = (await screen.findAllByRole("menuitem")).find((i) =>
+      i.textContent?.startsWith("Collider"),
+    )!;
+    await act(async () => {
+      fireEvent.click(collider);
+    });
+    const doc = session.getDoc();
+    expect(doc.entities!.map((e) => [e.id, e.type, e.parent])).toEqual([
+      ["node-1", "node", undefined],
+      ["base", "solid", "node-1"],
+      ["barrel", "marker", "base"],
+    ]);
+    expect(Object.keys(doc.entities![2]!.behaviors ?? {})).toEqual(["collider"]);
+    expect(session.store.state.issues).toEqual([]);
+
+    const rapier = await import("@dimforge/rapier2d");
+    const rt = createSceneRuntime({ rapier, view: null, registry, prefabs: prefabLibrary([]) });
+    const report = rt.load(expandScene(doc, registry));
+    expect(report.ok).toBe(true);
+    const { tree } = rt.ctx;
+    expect(tree.subtree("node-1")).toEqual(["node-1", "base", "barrel"]);
+    expect(rt.ctx.tags.handlesOf("barrel")).toHaveLength(1);
+    const pose = (id: string): Pose => {
+      const p = rt.ctx.poses.get(id)!;
+      return { x: p.x, y: p.y, rot: p.rot };
+    };
+    const node = pose("node-1");
+    const locals = ["base", "barrel"].map((id) => relativePose(pose(id), node));
+    rt.ctx.setPose("node-1", 8, 10, -Math.PI / 4);
+    rt.step(rt.ctx.time.tickMs, []);
+    for (const [i, id] of ["base", "barrel"].entries()) {
+      const want = composePose(8, 10, -Math.PI / 4, locals[i]!);
+      const got = pose(id);
+      expect(got.x).toBeCloseTo(want.x, 6);
+      expect(got.y).toBeCloseTo(want.y, 6);
+      expect(got.rot).toBeCloseTo(want.rot, 6);
+    }
+    rt.destroy();
+    host.destroy();
+    session.destroy();
   });
 });

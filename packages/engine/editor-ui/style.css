@@ -2433,6 +2433,7 @@
 
   .je-outliner {
     display: flex;
+    position: relative;
     flex-direction: column;
     gap: 4px;
     width: 100%;
@@ -2475,6 +2476,7 @@
   }
 
   .je-outliner-item {
+    position: relative;
     border-radius: var(--je-radius-sm);
   }
 
@@ -2487,19 +2489,56 @@
     box-shadow: inset 0 2px 0 var(--je-primary);
   }
 
-  .je-outliner-item[data-drop-refused] {
+  .je-outliner-item[data-drop-after] {
+    box-shadow: inset 0 -2px 0 var(--je-primary);
+  }
+
+  .je-outliner-item[data-drop-refused],
+  .je-outliner-list[data-drop-refused],
+  .je-outliner-root[data-drop-refused] {
+    border-radius: var(--je-radius-sm);
     background: color-mix(in srgb, var(--je-danger) 10%, transparent);
     box-shadow: inset 0 0 0 1px var(--je-danger);
     cursor: not-allowed;
   }
 
-  .je-outliner-list[data-drop-over] {
-    box-shadow: inset 0 0 0 1px var(--je-primary);
+  .je-outliner-list {
     border-radius: var(--je-radius-sm);
   }
 
-  .je-outliner-list[data-drop-refused] {
-    box-shadow: inset 0 0 0 1px var(--je-danger);
+  /* Shown while a tree drag is held, so the root takes drops however full the list is. */
+  .je-outliner-root {
+    display: flex;
+    position: relative;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--je-row);
+    border: 1px dashed var(--je-border);
+    border-radius: var(--je-radius-sm);
+    color: var(--je-muted-fg);
+    font-size: var(--je-text-sm);
+  }
+
+  /* Why a tree drop is refused, hung under the row it was aimed at without moving the rows. */
+  .je-outliner-refusal {
+    position: absolute;
+    top: 100%;
+    right: 8px;
+    left: 8px;
+    z-index: 2;
+    margin: 2px 0 0;
+    padding: 2px 6px;
+    border: 1px solid color-mix(in srgb, var(--je-danger) 40%, transparent);
+    border-radius: var(--je-radius-sm);
+    background: color-mix(in srgb, var(--je-danger) 10%, var(--je-panel));
+    pointer-events: none;
+  }
+
+  .je-outliner-root .je-outliner-refusal {
+    top: auto;
+    bottom: 100%;
+    margin: 0 0 2px;
   }
 
   .je-outliner-entity {
@@ -3326,7 +3365,9 @@
     border-radius: var(--je-radius-sm);
   }
 
-  .je-ptree-drop[data-drop-over] {
+  .je-ptree-drop[data-drop-over],
+  .je-outliner-list[data-drop-over],
+  .je-outliner-root[data-drop-over] {
     box-shadow: 0 0 0 1px var(--je-primary);
   }
 

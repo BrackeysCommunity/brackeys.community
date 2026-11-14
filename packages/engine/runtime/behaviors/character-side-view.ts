@@ -492,6 +492,7 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
     posed(id, pose, snap) {
       characters.get(id)?.body.teleport(pose.x, pose.y, { snap });
     },
+    selfMoving: (id) => characters.has(id),
     save(id): JsonValue | undefined {
       const c = characters.get(id);
       if (!c) return undefined;

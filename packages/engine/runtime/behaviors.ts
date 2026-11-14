@@ -82,7 +82,8 @@ export type BehaviorHost = {
    * `handle`, asked once per attach and kept until the block detaches, with
    * `fields` reading the block as it is now; `{ fields }` for a behavior
    * with no system or a system without `handle`. Undefined when `e` doesn't
-   * carry the block, or its system isn't built or holds it detached.
+   * carry the block, or its system isn't built, holds it detached or has
+   * no handle for it yet (an earlier block's hook asking mid-attach).
    */
   handle(e: RuntimeEntity, name: BehaviorName): object | undefined;
   /** `ctx.setPose` moved `e`: each attached block's `posed`, in registration order. */
@@ -359,7 +360,8 @@ export function createBehaviorHost(ctx: EngineContext, registry: Registry): Beha
       if (system) {
         if (dropped.get(e.id)?.has(name) || parked.get(e.id)?.has(name)) return undefined;
       } else if (factoryOf(def)) return undefined;
-      const made = system?.handle?.(e.id) ?? {};
+      const made = system?.handle ? system.handle(e.id) : {};
+      if (!made) return undefined;
       if (!("fields" in made)) {
         Object.defineProperty(made, "fields", {
           get: () => blockOf(carriers.get(e.id) ?? current, name),

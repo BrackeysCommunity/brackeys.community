@@ -13,7 +13,7 @@ import type { EngineContext } from "../../game/types";
 import { pxPerMetreOf } from "../../game/units";
 import type { Pt, RuntimeEntity } from "../../scene/types";
 import { entityHomeLayer } from "../../systems/bodies";
-import type { Pose } from "../poses";
+import { samePose, type Pose } from "../poses";
 import { spawnPose } from "../spawn-pose";
 
 /**
@@ -60,9 +60,6 @@ type Attached = {
   /** The pose-index pose the sprite was last posed from. */
   applied: Readonly<Pose> | null;
 };
-
-const samePose = (a: Readonly<Pose>, b: Readonly<Pose>) =>
-  a.x === b.x && a.y === b.y && a.rot === b.rot;
 
 const materialOf = (ctx: EngineContext, e: RuntimeEntity) =>
   typeof e.material === "string" ? ctx.registry.materials.get(e.material) : undefined;

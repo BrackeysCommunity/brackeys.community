@@ -6,8 +6,8 @@ import { applyOps } from "../scene/ops";
 import {
   CHILD_SEPARATOR,
   childRef,
+  documentTree,
   localChildren,
-  parseChildRef,
   sceneFrames,
   type LocalChild,
 } from "../scene/resolve";
@@ -26,6 +26,7 @@ import {
   type SceneIssue,
   type SceneOp,
 } from "../scene/types";
+import { itemsLabel, reparentLabel } from "../scene/validate";
 import { prefabInstances } from "./prefab-commands";
 
 export type OutlineRow = {
@@ -295,21 +296,15 @@ export function buildTreeOutline(
   return rows;
 }
 
-/** Where a row dropped in the tree goes: under a parent (null: the root), or just before a sibling. */
-export type TreeDrop = { kind: "reparent"; parent: Ref | null } | { kind: "reorder"; before: Ref };
-
-/** The ids from `ref`'s parent up to its root, as the scene loads them; an instance child's chain starts at its instance. */
-function ancestors(frames: ReturnType<typeof sceneFrames>, ref: Ref): string[] {
-  const out: string[] = [];
-  let at: Ref | undefined = frames.parentOf(ref);
-  while (at !== undefined) {
-    const id = parseChildRef(at)?.instance ?? at;
-    if (out.includes(id)) break;
-    out.push(id);
-    at = frames.parentOf(id);
-  }
-  return out;
-}
+/**
+ * Where a row dropped in the tree goes: under a parent (null: the root;
+ * the parent it already has puts it last among its siblings), or just
+ * before or just after a sibling.
+ */
+export type TreeDrop =
+  | { kind: "reparent"; parent: Ref | null }
+  | { kind: "reorder"; before: Ref }
+  | { kind: "reorder"; after: Ref };
 
 /**
  * What dragging `refs` moves in the tree: the scene's own entities and
@@ -325,19 +320,14 @@ export function treeDragRoots(
   const ids = new Set([...(def.entities ?? []), ...(def.instances ?? [])].map((d) => d.id));
   const movable = [...new Set(refs)].filter((r) => ids.has(r));
   if (movable.length < 2) return movable;
-  const frames = sceneFrames(def, registry, prefabs);
-  const set = new Set(movable);
-  return movable.filter((r) => !ancestors(frames, r).some((a) => set.has(a)));
+  return documentTree(def, sceneFrames(def, registry, prefabs)).roots(movable);
 }
-
-const itemsLabel = (refs: readonly Ref[]) =>
-  refs.length === 1 ? refs[0]! : `${refs.length} items`;
 
 /**
  * One batch for dropping `refs` in the tree: a `reparent` for those whose
- * parent changes and, before a sibling, a `reorder` per list (entities,
- * instances) that changes. Nothing moves in the world. Null when nothing
- * changes.
+ * parent changes and, beside a sibling or onto the parent they all already
+ * have, a `reorder` per list (entities, instances) that changes. Nothing
+ * moves in the world. Null when nothing changes.
  */
 export function treeDropBatch(
   def: SceneDefinition,
@@ -353,41 +343,50 @@ export function treeDropBatch(
   );
   const moving = [...new Set(refs)].filter((r) => declared.has(r));
   if (moving.length === 0) return null;
-  if (drop.kind === "reorder" && moving.includes(drop.before)) return null;
+  const sibling =
+    drop.kind === "reparent"
+      ? undefined
+      : "before" in drop
+        ? { at: drop.before, after: false }
+        : { at: drop.after, after: true };
+  if (sibling && moving.includes(sibling.at)) return null;
   const frames = sceneFrames(def, registry, prefabs);
   const settled = (id: string) => frames.parentOf(id) ?? null;
-  const parent = drop.kind === "reparent" ? drop.parent : settled(drop.before);
+  const parent = drop.kind === "reparent" ? drop.parent : settled(sibling!.at);
   const ops: SceneOp[] = [];
   const reparenting = moving.filter((r) => (declared.get(r) ?? null) !== parent);
   if (reparenting.length > 0) ops.push({ op: "reparent", refs: reparenting, parent });
-  if (drop.kind === "reorder") {
+  // Onto the parent every moving ref already has: last among its siblings.
+  const last = drop.kind === "reparent" && reparenting.length === 0;
+  if (sibling || last) {
     for (const list of [entities, instances]) {
       const mine = list.filter((d) => moving.includes(d.id));
       if (mine.length === 0) continue;
       const rest = list.filter((d) => !moving.includes(d.id));
       const siblings = rest.flatMap((d, i) => (settled(d.id) === parent ? [i] : []));
-      let index = rest.findIndex((d) => d.id === drop.before);
-      // `before` is in the other list: entities go after their last sibling entity, instances before their first sibling instance.
+      const at = sibling ? rest.findIndex((d) => d.id === sibling.at) : -1;
+      let index = at < 0 ? -1 : sibling!.after ? at + 1 : at;
+      // Last, or beside a sibling in the other list: entities go after their last sibling entity, instances before their first sibling instance.
       if (index < 0)
         index =
-          list === entities
+          list === entities || last
             ? (siblings.at(-1) ?? rest.length - 1) + 1
             : (siblings[0] ?? rest.length);
       const next = [...rest.slice(0, index), ...mine, ...rest.slice(index)];
-      const sibling = (d: EntityDef | InstanceDef) => mine.includes(d) || settled(d.id) === parent;
-      const was = list.filter(sibling);
-      if (next.filter(sibling).every((d, i) => d === was[i])) continue;
+      const isSibling = (d: EntityDef | InstanceDef) =>
+        mine.includes(d) || settled(d.id) === parent;
+      const was = list.filter(isSibling);
+      if (next.filter(isSibling).every((d, i) => d === was[i])) continue;
       ops.push({ op: "reorder", refs: mine.map((d) => d.id), index });
     }
   }
   if (ops.length === 0) return null;
   const what = itemsLabel(moving);
-  const label =
-    drop.kind === "reorder"
-      ? `Move ${what} before ${drop.before}`
-      : parent === null
-        ? `Move ${what} to the root`
-        : `Put ${what} under ${parent}`;
+  let label: string;
+  if (sibling) label = `Move ${what} ${sibling.after ? "after" : "before"} ${sibling.at}`;
+  else if (last)
+    label = parent === null ? `Move ${what} last at the root` : `Move ${what} last under ${parent}`;
+  else label = reparentLabel(moving, parent);
   return { label, ops };
 }
 

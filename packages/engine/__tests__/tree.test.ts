@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
-import { EngineError } from "../game/types";
 import { createPoseIndex, relativePose } from "../runtime/poses";
 import { createSceneTree, type SceneTreeDeps } from "../runtime/tree";
 import type { RuntimeEntity } from "../scene/types";
+import { engineErrorCode, expectPoseClose } from "./fixtures/tree-rig";
 
 /** A tree over a pose index, with every dependency a set or a log the test reads. */
 function world() {
@@ -61,22 +61,6 @@ function world() {
   };
 }
 
-const code = (f: () => unknown) => {
-  try {
-    f();
-  } catch (err) {
-    return err instanceof EngineError ? err.code : String(err);
-  }
-  return null;
-};
-
-const close = (got: { x: number; y: number; rot: number } | undefined, want: typeof got) => {
-  expect(got).toBeDefined();
-  expect(got!.x).toBeCloseTo(want!.x, 9);
-  expect(got!.y).toBeCloseTo(want!.y, 9);
-  expect(got!.rot).toBeCloseTo(want!.rot, 9);
-};
-
 describe("the scene tree's links", () => {
   it("links a batch's children under their parents, in the order given", () => {
     const { tree, add } = world();
@@ -125,7 +109,7 @@ describe("local poses", () => {
   it("are the pose in the parent's frame, and the world pose for a root", () => {
     const { tree, add } = world();
     add(["room", 10, 0, Math.PI / 2], ["door", 10, 2, 0, "room"]);
-    close(tree.local("door"), { x: 2, y: 0, rot: -Math.PI / 2 });
+    expectPoseClose(tree.local("door"), { x: 2, y: 0, rot: -Math.PI / 2 }, "door", 9);
     expect(tree.local("room")).toEqual({ x: 10, y: 0, rot: Math.PI / 2 });
   });
 
@@ -133,11 +117,11 @@ describe("local poses", () => {
     const { tree, add, poses } = world();
     add(["room", 10, 0, Math.PI / 2], ["door", 10, 2, 0, "room"], ["panel", 10, 3, 0, "door"]);
     tree.setLocal("door", 0, 3, 0);
-    close(poses.get("door"), { x: 7, y: 0, rot: Math.PI / 2 });
+    expectPoseClose(poses.get("door"), { x: 7, y: 0, rot: Math.PI / 2 }, "door", 9);
     expect(tree.local("door")).toEqual({ x: 0, y: 3, rot: 0 });
     // The grandchild keeps its place in the door's frame.
     expect(tree.local("panel")).toEqual({ x: 0, y: 1, rot: 0 });
-    close(poses.get("panel"), { x: 6, y: 0, rot: Math.PI / 2 });
+    expectPoseClose(poses.get("panel"), { x: 6, y: 0, rot: Math.PI / 2 }, "panel", 9);
     tree.setLocal("room", 1, 1);
     expect(poses.get("room")).toMatchObject({ x: 1, y: 1 });
   });
@@ -159,7 +143,8 @@ describe("setParent", () => {
     expect(tree.children("a")).toEqual([]);
     expect(tree.children("b")).toEqual(["kid"]);
     expect(poses.get("kid")).toEqual({ x: 1, y: 0, rot: 0 });
-    close(tree.local("kid"), relativePose({ x: 1, y: 0, rot: 0 }, { x: 5, y: 0, rot: Math.PI }));
+    const kid = relativePose({ x: 1, y: 0, rot: 0 }, { x: 5, y: 0, rot: Math.PI });
+    expectPoseClose(tree.local("kid"), kid, "kid", 9);
     expect(reparented).toEqual(["kid"]);
   });
 
@@ -195,16 +180,16 @@ describe("setParent", () => {
     expect(rides).toEqual(["box>null", "lid>null"]);
   });
 
-  it("refuses a cycle, another sublevel's parent and a gone entity", () => {
+  it("refuses a cycle, a parent that isn't live or is in another sublevel, and a gone entity", () => {
     const { tree, add, scopes } = world();
     add(["a", 0, 0], ["b", 0, 0, 0, "a"], ["c", 0, 0, 0, "b"], ["cellar:d", 0, 0]);
     scopes.set("cellar:d", "cellar");
-    expect(code(() => tree.setParent("a", "c"))).toBe("parent-cycle");
-    expect(code(() => tree.setParent("a", "a"))).toBe("parent-cycle");
-    expect(code(() => tree.setParent("b", "cellar:d"))).toBe("parent-scope");
-    expect(code(() => tree.setParent("cellar:d", "a"))).toBe("parent-scope");
-    expect(code(() => tree.setParent("ghost", "a"))).toBe("entity-gone");
-    expect(code(() => tree.setParent("b", "ghost"))).toBe("entity-gone");
+    expect(engineErrorCode(() => tree.setParent("a", "c"))).toBe("parent-cycle");
+    expect(engineErrorCode(() => tree.setParent("a", "a"))).toBe("parent-cycle");
+    expect(engineErrorCode(() => tree.setParent("b", "cellar:d"))).toBe("parent-scope");
+    expect(engineErrorCode(() => tree.setParent("cellar:d", "a"))).toBe("parent-scope");
+    expect(engineErrorCode(() => tree.setParent("ghost", "a"))).toBe("entity-gone");
+    expect(engineErrorCode(() => tree.setParent("b", "ghost"))).toBe("parent-scope");
     expect(tree.subtree("a")).toEqual(["a", "b", "c"]);
   });
 });

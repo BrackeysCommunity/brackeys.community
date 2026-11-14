@@ -3794,7 +3794,7 @@ Both take a script class, a definition or a name.
 | `render(alpha)`                             | Each rendered frame, for a `visualOnly` script only.                                                             |
 | `onEnable()` / `onDisable()`                | When the entity is enabled or disabled. A disabled script keeps its instance and runs no tick hooks.             |
 | `onDestroy()`                               | When the block detaches: the entity is destroyed, unloaded or loses the block.                                   |
-| `onContactStart(other, e)` / `onContactEnd` | A contact of this entity's begins or ends; `other` is the other entity's handle.                                 |
+| `onContactStart(other, e)` / `onContactEnd` | A contact of this entity's begins or ends, with this entity on either side; `other` is the other side.           |
 | `onSensorEnter(other, e)` / `onSensorExit`  | A sensor event with this entity on either side; `other` is the other side.                                       |
 | `onFieldsChanged(prev)`                     | An edit changed the block. Without it the instance is rebuilt: `onDestroy`, a new instance, `awake` and `start`. |
 | `save()` / `restore(state)`                 | A world save and its load: see below.                                                                            |
@@ -4489,9 +4489,11 @@ system builds in code counts by where it is, not by the entity's scene
 shape) finds the candidates, and each pair is tested exactly: Rapier's
 `contactCollider` (touching at distance 0 or less) or the geometry
 backend's `shapesIntersect`. A pair reports once per tick, `at` the
-contact point. An entity destroyed or disabled mid-contact ends its
-contacts without a `contact:end` (its own event says why). Nothing is
-queried while nothing is watched.
+contact point, however many watches match it: a watch made while another
+already holds the pair touching doesn't start it again. An entity
+destroyed or disabled mid-contact ends its contacts without a
+`contact:end` (its own event says why). Nothing is queried while nothing
+is watched.
 
 ### `lifetime` and pools
 

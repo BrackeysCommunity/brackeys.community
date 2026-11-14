@@ -2,7 +2,7 @@ import type { z } from "zod";
 
 import { BEHAVIORS_FIELD } from "../game/behaviors";
 import { BASE_FIELDS } from "../game/fields";
-import { ENGINE_SETTING_KEYS } from "../game/primitives";
+import { ENGINE_SETTING_KEYS, NODE_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { pxPerMetreOf, scaleLengths, scaleLengthsAt } from "../game/units";
 import { parseBulkId } from "./bulk-ref";
@@ -11,7 +11,7 @@ import { jsonPointer, makeIssue } from "./issues";
 import { CHILD_SEPARATOR, parseChildRef, sceneFrames } from "./resolve";
 import { unknownGameIssue } from "./schema";
 import { isShapeSchema, mapShapeLengths } from "./shapes";
-import { compose, IDENTITY_2D, invert, type Transform2D } from "./transform";
+import { compose, composeSteps, invert } from "./transform";
 import { transformEntityDef } from "./translate";
 import {
   PREFAB_KIND,
@@ -449,14 +449,8 @@ function v3ToV4(raw: unknown, env: MigrateEnv): unknown {
 
 // ─── v4 → v5: the scene tree ─────────────────────────────
 
-const NODE = "node";
-
 /** Whether a v4 doc is a scene: prefab files and fragments never had groups. */
 const isSceneDoc = (doc: Body) => doc.kind === undefined;
-
-/** Composes steps given innermost first. */
-const composeAll = (steps: readonly Transform2D[]): Transform2D =>
-  steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D);
 
 /** Quarter turns `k` as degrees; anything else is left for the schema to judge. */
 const quarterDeg = (k: unknown): unknown => (k === 1 || k === 2 || k === 3 ? 90 * k : k);
@@ -554,7 +548,7 @@ function treeStep(registry: Registry, env: MigrateEnv) {
       for (let n = 1; taken.has(id); n++) id = `${g}-${n}`;
       taken.add(id);
       nodeOf.set(g, id);
-      const node: Record<string, unknown> = { id, type: NODE };
+      const node: Record<string, unknown> = { id, type: NODE_TYPE };
       if (typeof def.name === "string") node.name = def.name;
       node.at = def.at;
       const rot = quarterDeg(def.rot);
@@ -637,8 +631,8 @@ function treeStep(registry: Registry, env: MigrateEnv) {
         );
       const { attach: _attach, ...rest } = e;
       const by = compose(
-        invert(composeAll(frames.under(host))),
-        composeAll(frames.stepsFor(e as EntityDef)),
+        invert(composeSteps(frames.under(host))),
+        composeSteps(frames.stepsFor(e as EntityDef)),
       );
       const placed = transformEntityDef(registry, rest as EntityDef, by) ?? (rest as EntityDef);
       moved.set(e, { ...placed, parent: host });

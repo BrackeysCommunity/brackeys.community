@@ -26,6 +26,9 @@ import { plural } from "../scene/plural";
 import {
   CHILD_SEPARATOR,
   childEntity,
+  documentTree,
+  enclosingInstance,
+  headOfRef,
   resolvePrefab,
   resolveScene,
   sceneFrames,
@@ -65,7 +68,13 @@ import {
   snapToPixel,
   type LengthUnitName,
 } from "../scene/units";
-import { canBeInTree, validateScene } from "../scene/validate";
+import {
+  canBeInTree,
+  canParent,
+  parentTargets,
+  reparentLabel,
+  validateScene,
+} from "../scene/validate";
 import { editPose } from "./gizmos/behavior-target";
 import { numberBounds } from "./inspector";
 import { nestedInstanceOf, prefabInstances } from "./prefab-commands";
@@ -2024,18 +2033,6 @@ export function refCandidates(
 
 // ─── Parent ──────────────────────────────────────────────
 
-/** The instance an instance child or nested instance sits in: `room-1/door-1/panel` gives `room-1/door-1`. */
-const enclosingInstance = (ref: Ref): Ref | undefined => {
-  const i = ref.lastIndexOf(CHILD_SEPARATOR);
-  return i > 0 && !ref.startsWith("~") ? ref.slice(0, i) : undefined;
-};
-
-/** The scene instance a resolved ref starts with, or the ref itself. */
-const headOfRef = (ref: Ref): Ref => {
-  const i = ref.indexOf(CHILD_SEPARATOR);
-  return i > 0 ? ref.slice(0, i) : ref;
-};
-
 /** What the Parent row shows and offers for a selection. */
 export type ParentModel = {
   refs: Ref[];
@@ -2111,9 +2108,10 @@ export function parentModel(
 
 /**
  * What `refs` can be put under: the document's entities whose type can be
- * a parent, its instances, and its instances' children and nested
- * instances by resolved ref, in that order, without the refs themselves or
- * anything under one of them.
+ * a parent, its instances, and its instances' children by resolved ref, in
+ * that order, without the refs themselves, anything under one of them, or
+ * a parent that would take one past the tree's depth: what `reparent`
+ * takes.
  */
 export function parentCandidates(
   def: SceneDefinition,
@@ -2122,30 +2120,15 @@ export function parentCandidates(
   prefabs?: PrefabLibrary,
 ): Ref[] {
   const frames = sceneFrames(def, registry, prefabs);
-  const moving = new Set(refs);
-  const underMoving = (ref: Ref): boolean => {
-    const seen = new Set<Ref>();
-    for (let at: Ref | undefined = headOfRef(ref); at !== undefined; at = frames.parentOf(at)) {
-      if (moving.has(at)) return true;
-      if (seen.has(at)) return false;
-      seen.add(at);
-    }
-    return false;
-  };
-  const out: Ref[] = [];
-  for (const e of def.entities ?? []) if (canBeInTree(registry.types.get(e.type))) out.push(e.id);
-  for (const i of def.instances ?? []) out.push(i.id);
-  if (prefabs && (def.instances ?? []).length > 0) {
-    const nested = new Set<Ref>();
-    for (const e of resolveScene(def, registry, prefabs).entities ?? []) {
-      if (!e.id.includes(CHILD_SEPARATOR) || e.id.startsWith("~")) continue;
-      const segs = e.id.split(CHILD_SEPARATOR);
-      for (let k = 2; k < segs.length; k++) nested.add(segs.slice(0, k).join(CHILD_SEPARATOR));
-      if (canBeInTree(registry.types.get(e.type)) && !segs.at(-1)!.startsWith("~")) out.push(e.id);
-    }
-    out.push(...nested);
-  }
-  return [...new Set(out)].filter((ref) => !underMoving(ref));
+  const tree = documentTree(def, frames);
+  const target = parentTargets(def, registry, frames);
+  const moving = [...new Set(refs)];
+  const out: Ref[] = [...(def.entities ?? []), ...(def.instances ?? [])].map((d) => d.id);
+  for (const inst of def.instances ?? [])
+    for (const c of frames.placed(inst) ?? []) out.push(c.def.id);
+  return [...new Set(out)].filter(
+    (ref) => canParent(target(ref)) && moving.every((id) => tree.refusal(id, ref) === null),
+  );
 }
 
 /**
@@ -2164,11 +2147,12 @@ export function parentBatch(
     (def.entities?.find((e) => e.id === ref) ?? def.instances?.find((i) => i.id === ref))?.parent ??
     null;
   const refs = model.refs.filter((r) => current(r) !== parent);
-  const what = model.refs.length === 1 ? model.refs[0]! : `${model.refs.length} items`;
-  const label = parent === null ? `Move ${what} to the root` : `Reparent ${what} under ${parent}`;
   return {
     ok: true,
-    batch: { label, ops: refs.length > 0 ? [{ op: "reparent", refs, parent }] : [] },
+    batch: {
+      label: reparentLabel(model.refs, parent),
+      ops: refs.length > 0 ? [{ op: "reparent", refs, parent }] : [],
+    },
   };
 }
 

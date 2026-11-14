@@ -1,6 +1,7 @@
 import { EngineError, type EngineContext, type SceneSystem } from "../game/types";
 import type { EntityTypeName, RuntimeEntity } from "../scene/types";
 import type { BehaviorHost } from "./behaviors";
+import { entityGone } from "./tree";
 
 export type SetPoseDeps = {
   ctx: EngineContext;
@@ -22,8 +23,7 @@ export function createSetPose(deps: SetPoseDeps): EngineContext["setPose"] {
   const { ctx, systems, behaviors } = deps;
   return (id, x, y, rot, opts) => {
     const e = deps.get(id);
-    if (!e)
-      throw new EngineError("entity-gone", `can't pose "${id}": no live entity has that id`, id);
+    if (!e) throw entityGone(id, "pose");
     const system = systems.get(e.type);
     if (!system?.setPose) {
       throw new EngineError(

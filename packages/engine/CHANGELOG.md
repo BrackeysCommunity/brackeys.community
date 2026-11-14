@@ -96,7 +96,8 @@ pose, snap)`, `selfMoving(entityId)` and `ride(entityId, host)`;
 - `ctx.tree` live: parents and children, local poses, following (a
   driven child moves with its parent, children in child order) and
   `setParent(id, parent, { keepWorld? })`, which refuses with
-  `parent-cycle` or `parent-scope`. A parent's children are its own
+  `parent-cycle`, or `parent-scope` for a parent that isn't live or is in
+  another sublevel. A parent's children are its own
   entities first, then its nested instances' nodes.
 - Every prefab instance now loads as a `node` at its id, posed at the
   instance's origin and angle (`rot` in degrees), with one more
@@ -125,8 +126,12 @@ pose, snap)`, `selfMoving(entityId)` and `ride(entityId, host)`;
 { parent, local })` spawn under a live entity. Fields (or `at`) are world
   coordinates by default and in the parent's frame with `local: true`. An
   unknown parent, or one in another sublevel, throws
-  `EngineError("parent-scope")`. A destroy of a parent queued mid-tick
-  takes the children spawned under it later that tick.
+  `EngineError("parent-scope")` naming the parent, as `setParent` does for
+  a parent that isn't live. A local instance under a parent off the
+  quarter turns expands at its world angle (`rot` plus the parent's), so
+  its spawn record holds where it went and a restore re-instantiates it
+  there. A destroy of a parent queued mid-tick takes the children spawned
+  under it later that tick.
 - `EntitySelector.under` limits `query.select`, `count`, `inArea`, `at`,
   `nearest` and `ctx.entities` to an entity's descendants, not the entity
   itself.
@@ -160,8 +165,11 @@ pose, snap)`, `selfMoving(entityId)` and `ride(entityId, host)`;
 - `__tests__/probes/tree-budget.test.ts` measures the tree. Following
   costs about 0.2 µs a child, 1.3× the same moves through `ctx.setPose`.
   The stress scenes' tick, over the same scene without riders, is held to
-  its before-the-tree ratio +10%: movers 1.12–1.17 (budget 1.21),
-  combined 1.04–1.08 (budget 1.133). A child 4 m from a parent turning
+  its before-the-tree ratio +10%, each the median of five races after one
+  unmeasured: the first runtimes a process steps run 5–10% faster, so the
+  engine before the tree was raced the same way (movers 1.18, combined
+  1.03). Movers 1.25–1.27 (budget 1.298), combined 1.03–1.04 (budget
+  1.133). A child 4 m from a parent turning
   360°/s is drawn 5.48 mm (0.55 px at 100 px/m) off its arc at 60 ticks/s.
 - Tests: Live in Play takes a reparent (into a node, out to the root, a
   whole subtree) without a reload; two clients' concurrent reparents (a
@@ -371,10 +379,18 @@ frame)`, which moves a riding collider on its host's body when its entity
 - Breaking: instance `rot` counts degrees clockwise, any angle in (0, 360), where it
   counted quarter turns: in scenes, prefab files, fragments, overrides
   keyed `<instance>.rot`, `InstanceDef`, the `instantiate` op and
-  `InstantiateOptions.rot` (a breaking change to a public type). `transform`,
+  `InstantiateOptions.rot` (a breaking change to a public type), and a
+  world save's instance records (`WorldState.spawned[].instance.rot`).
+  `SAVE_VERSION` stays 1: reading a world save an engine before 0.16.0
+  wrote turns its instance records' quarter turns `k` into `90 × k`
+  degrees and marks it `engine: "0.16.0"`, and refuses a value there
+  outside 0–3. `transform`,
   `reparent`, `unpack` and `createPrefab` no longer refuse an instance off
   the quarter turns; an instance whose own angle is off them over side or
   grid fields is `quarter-turn-only`.
+- Breaking: `createRegistry` refuses a type field named `local` or
+  `sublevel` (`type "x" redefines the reserved spawn key "local"`): a
+  `SpawnInput` takes them as its own, beside `id` and `parent`.
 - `turnOf` reads `rot` in degrees and returns null off the quarter turns.
   `InstanceTransformModel.rot` is degrees.
 - The `transform` op takes `refs` (required): instances and nodes.
@@ -446,6 +462,9 @@ refs)` take the document and return `{ batch, select } | null`
 - `scene show` prints no group or attach.
 - `KeyContext.quarterTurns` and the `quarterTurns` field of
   `ToolHost.keyContext()`.
+- Breaking: `runProbe`'s `observe(ctx, tick)` option; it is
+  `ProbeOptions.onTick(tick, ctx)`, with the arguments the other way
+  round.
 
 ### Fixed
 
@@ -484,6 +503,9 @@ refs)` take the document and return `{ batch, select } | null`
   renders draw the nodes that replaced their groups. The platformer's
   golden traces, the determinism probe and the engine-yard expansion are
   unchanged.
+- Save files stay `save:v1`, but a world save's instance records hold
+  `rot` in degrees from engine 0.16.0; a world save an older engine wrote
+  is read with its quarter turns `k` as `90 × k` degrees.
 
 ### Agent surface
 

@@ -65,6 +65,9 @@ export {
   type OutlineMarks,
 } from "./outline-bounds";
 
+/** How long the readout says why a command did nothing, unless the next input clears it first. */
+const NOTICE_MS = 2500;
+
 /** Presses this close in time (ms) and space (screen px) count as one multi-click. */
 export const MULTI_CLICK_MS = 500;
 /** The shortest gap between two cursor positions sent to other editors, as canvases throttle theirs. */
@@ -246,6 +249,9 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
   let lastPress: { t: number; at: Vec2; button: number; clicks: number } | null = null;
   let middlePan: Vec2 | null = null;
   let cursorWorld: Pt | null = null;
+  /** Why the last command did nothing, shown as the readout beside the selection. */
+  let notice: { at: Pt; text: string } | null = null;
+  let noticeTimer: ReturnType<typeof setTimeout> | undefined;
   let destroyed = false;
 
   function emit(): void {
@@ -321,6 +327,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
   // ─── Pointer input ──────────────────────────────────────
 
   function pointer(e: Extract<ToolEvent, { kind: "pointer" }>): boolean {
+    if (e.type === "down") clearNotice();
     const world = opts.toWorld(e.screen);
     const screen: Pt = [e.screen.x, e.screen.y];
     cursorWorld = world;
@@ -414,6 +421,26 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     return batch !== null && commit(batch, selectionAfter ? { selectionAfter } : undefined);
   }
 
+  function clearNotice(): void {
+    if (noticeTimer !== undefined) clearTimeout(noticeTimer);
+    noticeTimer = undefined;
+    if (notice === null) return;
+    notice = null;
+    emit();
+  }
+
+  /** Says why a command did nothing, beside the selection (else the pointer) for a moment; false, as the command is. */
+  function refuse(text: string): false {
+    clearNotice();
+    const box = outlineBounds(session.getResolved(), selection(), look());
+    const at: Pt | null = box ? [box.maxX, box.minY] : cursorWorld;
+    if (at === null) return false;
+    notice = { at, text };
+    noticeTimer = setTimeout(clearNotice, NOTICE_MS);
+    emit();
+    return false;
+  }
+
   function selectRefs(refs: Ref[] | null): boolean {
     if (!refs) return false;
     ctx.select(refs);
@@ -468,11 +495,15 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
         return apply(flipBatch(session.getDoc(), sel, command === "flip-x" ? "x" : "y"));
       case "select-all":
         return selectRefs(selectAllRefs(def, index, layers));
-      case "group":
+      case "group": {
+        const edit = groupBatch(doc, registry, sel, prefabs);
+        if (edit) return apply(edit.batch, edit.select);
+        return sel.length > 0 && refuse("Nothing selected can go under a node.");
+      }
       case "ungroup": {
-        const edit =
-          command === "group" ? groupBatch(doc, registry, sel, prefabs) : ungroupBatch(doc, sel);
-        return edit !== null && apply(edit.batch, edit.select);
+        const edit = ungroupBatch(doc, sel);
+        if (edit) return apply(edit.batch, edit.select);
+        return sel.length > 0 && refuse("Select a node to ungroup.");
       }
       case "bring-forward":
         return apply(zOrderBatch(sel, 1));
@@ -565,6 +596,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
         ...(outlines.length > 0 ? { outlines } : {}),
         ...(points.length > 0 ? { points } : {}),
         ...(sel.bounds ? { bounds: sel.bounds } : {}),
+        ...(notice && !own.readout ? { readout: notice } : {}),
       };
     },
     option: () => active?.overlay?.()?.option,
@@ -588,6 +620,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     },
     command(command) {
       if (destroyed) return false;
+      clearNotice();
       const pick = /^tool:([^:]+)(?::(.*))?$/.exec(command);
       if (pick) {
         held = null;
@@ -655,6 +688,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     },
     destroy() {
       if (destroyed) return;
+      if (noticeTimer !== undefined) clearTimeout(noticeTimer);
       active?.cancel?.();
       active?.destroy?.();
       active = null;

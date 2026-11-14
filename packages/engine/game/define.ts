@@ -42,7 +42,7 @@ import { SPRITE } from "./behaviors/sprite";
 import { TWEEN } from "./behaviors/tween";
 import { COMMAND_NAME_PATTERN, ENGINE_COMMANDS } from "./commands";
 import { DEFAULT_ACTIONS, DEFAULT_TIME } from "./defaults";
-import { ID_PATTERN, RESERVED_FIELDS, SIDES } from "./fields";
+import { ID_PATTERN, RESERVED_FIELDS, SIDES, SPAWN_INPUT_KEYS } from "./fields";
 import {
   ACTION_KINDS,
   bindingProblems,
@@ -552,6 +552,8 @@ export function createRegistry(
     for (const key of Object.keys(shape)) {
       if (RESERVED_FIELDS.includes(key))
         problem(`type "${name}" redefines the reserved field "${key}"`);
+      if (SPAWN_INPUT_KEYS.includes(key))
+        problem(`type "${name}" redefines the reserved spawn key "${key}"`);
       if (!FIELD_NAME_PATTERN.test(key))
         problem(`type "${name}" field "${key}" must match ${FIELD_NAME_PATTERN}`);
     }

@@ -1,12 +1,9 @@
+import { normDeg } from "./transform";
 import type { Aabb, Pt, ShapeObj } from "./types";
 
-const DEG = Math.PI / 180;
+export { normDeg };
 
-/** An angle in degrees in [0, 360), never `-0`. */
-export const normDeg = (deg: number) => {
-  const r = deg % 360;
-  return r < 0 ? r + 360 : r + 0;
-};
+const DEG = Math.PI / 180;
 
 /** `[x, y]` turned `deg` degrees clockwise on screen; quarter turns are exact. */
 function rotate([x, y]: Pt, deg: number): Pt {

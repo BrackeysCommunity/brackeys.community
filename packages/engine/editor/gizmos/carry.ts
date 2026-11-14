@@ -1,66 +1,18 @@
 import type { Registry } from "../../game/types";
-import { applyOps } from "../../scene/ops";
-import { entityFrame } from "../../scene/resolve";
+import { entityUpdate } from "../../scene/diff-to-ops";
+import { applyOps, transformOpMatrix } from "../../scene/ops";
+import { entityFrame, reexpressEntity } from "../../scene/resolve";
 import {
   compose,
-  dihedral,
   frame,
-  IDENTITY_2D,
   invert,
+  isIdentity,
   translation,
   type Frame,
   type Transform2D,
 } from "../../scene/transform";
-import { transformEntityDef } from "../../scene/translate";
-import type { EntityDef, OpBatch, Pt, Ref, SceneDefinition, SceneOp } from "../../scene/types";
+import type { EntityDef, OpBatch, Ref, SceneDefinition, SceneOp } from "../../scene/types";
 import type { EditTree } from "./tree";
-
-const NODE = "node";
-
-const isIdentity = (t: Transform2D) =>
-  t.a === 1 && t.b === 0 && t.c === 0 && t.d === 1 && t.tx === 0 && t.ty === 0;
-
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-
-/** The world transform a `transform` op applies: its flip after its turn, about `at`. */
-function transformOf(op: Extract<SceneOp, { op: "transform" }>, at: Pt): Transform2D {
-  const deg = op.rotate ?? 90 * (op.turn === -1 ? 3 : (op.turn ?? 0));
-  const mirror =
-    op.flip === undefined
-      ? IDENTITY_2D
-      : dihedral({ rot: op.flip === "x" ? 0 : 2, flip: true }, [0, 0]);
-  const world = compose(mirror, frame({ at: [0, 0], rot: deg, flip: false }));
-  return compose(translation(at), compose(world, translation([-at[0], -at[1]])));
-}
-
-/** A view entity carried by `t`: its geometry, and a node's angle and flip even when it writes neither. */
-function carried(registry: Registry, def: EntityDef, t: Transform2D): EntityDef | null {
-  if (def.type !== NODE) return transformEntityDef(registry, def, t);
-  const next = transformEntityDef(
-    registry,
-    { ...def, rot: def.rot ?? 0, flip: def.flip === true },
-    t,
-  );
-  if (!next) return null;
-  if (next.flip !== true) delete next.flip;
-  if (next.rot === 0 && def.rot === undefined) delete next.rot;
-  return next;
-}
-
-/** The `update` taking `def` to `next`, by the fields that differ; null when none does. */
-function updateTo(def: EntityDef, next: EntityDef | null): SceneOp | null {
-  if (!next) return null;
-  const set: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(next)) if (!same(v, def[k])) set[k] = v;
-  const unset = Object.keys(def).filter((k) => !(k in next));
-  if (Object.keys(set).length === 0 && unset.length === 0) return null;
-  return {
-    op: "update",
-    ref: def.id,
-    ...(Object.keys(set).length > 0 ? { set } : {}),
-    ...(unset.length > 0 ? { unset } : {}),
-  };
-}
 
 export type CarryContext = {
   view: SceneDefinition;
@@ -114,10 +66,10 @@ export function carryPreview(cx: CarryContext, batch: OpBatch): OpBatch | null {
       for (const r of op.refs) {
         const at = op.about ?? cx.frameOf(r)?.at;
         if (!at) continue;
-        const t = transformOf(op, at);
+        const t = transformOpMatrix(op, at);
         moved.set(r, t);
         const own = byId.get(r);
-        const update = own && updateTo(own, carried(registry, own, t));
+        const update = own && entityUpdate(own, reexpressEntity(registry, view.settings, own, t));
         if (update) ops.push(update);
       }
     } else {
@@ -141,7 +93,7 @@ export function carryPreview(cx: CarryContext, batch: OpBatch): OpBatch | null {
       if (done.has(r)) continue;
       done.add(r);
       const def = byId.get(r);
-      const update = def && updateTo(def, carried(registry, def, t));
+      const update = def && entityUpdate(def, reexpressEntity(registry, view.settings, def, t));
       if (update) {
         ops.push(update);
         changed = true;

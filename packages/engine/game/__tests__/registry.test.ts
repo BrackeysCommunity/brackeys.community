@@ -777,6 +777,23 @@ describe("createRegistry field names and settings", () => {
       );
   });
 
+  it("refuses a field named like a spawn input's own keys", () => {
+    const odd = defineEntityType({
+      type: "odd",
+      description: "Fields a spawn would take as its own.",
+      base: "marker",
+      fields: {
+        at: pointField("Where."),
+        local: z.boolean().optional().describe("Clashes with the spawn's frame flag."),
+        sublevel: z.string().optional().describe("Clashes with the spawn's sublevel."),
+      },
+    });
+    expect(problems(() => createRegistry(game({ types: [crate, flag, odd] })))).toEqual([
+      `type "odd" redefines the reserved spawn key "local"`,
+      `type "odd" redefines the reserved spawn key "sublevel"`,
+    ]);
+  });
+
   it("refuses a behavior field name that isn't an identifier", () => {
     const odd = defineBehavior({
       name: "fake/odd",

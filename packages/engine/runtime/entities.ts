@@ -2,6 +2,7 @@ import type { BehaviorName } from "../game/behaviors";
 import type { BehaviorKey, Entity, HandleOf } from "../game/entity";
 import { behaviorNameOf } from "../game/script";
 import { EngineError, type EngineContext, type SceneTree } from "../game/types";
+import { ownChildId } from "../scene/resolve";
 import { tagFieldsOf } from "../scene/schema";
 import type { RuntimeEntity } from "../scene/types";
 import type { BehaviorHost } from "./behaviors";
@@ -193,7 +194,7 @@ class EntityHandle implements Entity {
     let at = this.id;
     for (const segment of path.split("/")) {
       const next = segment
-        ? tree.children(at).find((child) => ownId(child) === segment)
+        ? tree.children(at).find((child) => ownChildId(child) === segment)
         : undefined;
       if (next === undefined) return undefined;
       at = next;
@@ -227,11 +228,6 @@ class EntityHandle implements Entity {
       | HandleOf<D>
       | undefined;
   }
-}
-
-/** A child's own id: the last segment of its id, so a prefab child answers to its ref. */
-function ownId(id: string): string {
-  return id.slice(id.lastIndexOf("/") + 1);
 }
 
 function* ancestry(tree: SceneTree, id: string): Generator<string> {

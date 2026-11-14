@@ -4,11 +4,11 @@ import { BODY } from "../game/behaviors/body";
 import { LIFETIME } from "../game/behaviors/lifetime";
 import { SPRITE } from "../game/behaviors/sprite";
 import type { Entity } from "../game/entity";
-import { EngineError } from "../game/types";
 import { createSceneRuntime } from "../runtime/runtime";
-import { ENTITY_DISABLED, type StepEvent } from "../runtime/types";
+import { ENTITY_DISABLED } from "../runtime/types";
 import type { ExpandedScene, RuntimeEntity } from "../scene/types";
 import { testGame } from "./fixtures/test-game";
+import { engineErrorCode, stepEvents } from "./fixtures/tree-rig";
 
 const marker = (id: string, extra: Partial<RuntimeEntity> = {}): RuntimeEntity => ({
   id,
@@ -34,24 +34,11 @@ function scene(entities: RuntimeEntity[] = ENTITIES()): ExpandedScene {
 function setup(entities?: RuntimeEntity[]) {
   const rt = createSceneRuntime({ rapier: null, view: null, game: testGame });
   expect(rt.load(scene(entities))).toMatchObject({ ok: true });
-  const step = (n = 1) => {
-    const events: StepEvent[] = [];
-    for (let i = 0; i < n; i++) events.push(...rt.step(rt.ctx.time.tickMs, []).events);
-    return events;
-  };
+  const step = (n = 1) => stepEvents(rt, n);
   return { rt, ctx: rt.ctx, step };
 }
 
-const gone = (fn: () => unknown) => {
-  try {
-    fn();
-  } catch (err) {
-    expect(err).toBeInstanceOf(EngineError);
-    expect((err as EngineError).code).toBe("entity-gone");
-    return;
-  }
-  throw new Error("expected entity-gone");
-};
+const gone = (fn: () => unknown) => expect(engineErrorCode(fn)).toBe("entity-gone");
 
 /** Every member but `id` and `alive`, each read or called once. */
 const MEMBERS: Readonly<Record<string, (e: Entity) => unknown>> = {

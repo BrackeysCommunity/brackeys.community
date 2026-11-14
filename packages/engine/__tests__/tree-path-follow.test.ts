@@ -22,6 +22,7 @@ import {
 } from "../scene/types";
 import type { Vec2 } from "../types";
 import { testGame } from "./fixtures/test-game";
+import { steps } from "./fixtures/tree-rig";
 
 const game = defineGame({
   ...testGame,
@@ -89,9 +90,7 @@ function load(def = scene(), opts?: { timeOffsetMs: number }): SceneRuntimeHandl
   return rt;
 }
 
-const step = (rt: SceneRuntimeHandle, n = 1) => {
-  for (let i = 0; i < n; i++) rt.step(rt.ctx.time.tickMs, []);
-};
+const step = (rt: SceneRuntimeHandle, n = 1) => void steps(rt, n);
 
 const offset = (rt: SceneRuntimeHandle, id: string, parent: string): Pose =>
   relativePose(rt.ctx.poses.get(id)!, rt.ctx.poses.get(parent)!);

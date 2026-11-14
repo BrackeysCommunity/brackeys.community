@@ -283,6 +283,24 @@ describe("parent-type", () => {
     expectFixClears(def, issue);
   });
 
+  it("refuses a nested instance as a parent, moving the child to the instance that holds it", () => {
+    const prefabs = prefabLibrary([
+      prefab("door", { entities: [{ id: "panel", type: "node", at: [1, 0] }] }),
+      prefab("hall", {
+        entities: [{ id: "post", type: "node", at: [0, 0] }],
+        instances: [{ id: "door-1", prefab: "door", at: [4, 0] }],
+      }),
+    ]);
+    const def = scene({
+      entities: [{ id: "m", type: "marker", at: [1, 1], parent: "hall-1/door-1" }],
+      instances: [{ id: "hall-1", prefab: "hall", at: [20, 0] }],
+    });
+    const issue = only(def, "parent-type", { prefabs });
+    expect(issue).toMatchObject({ entityIds: ["m", "hall-1/door-1"], got: "nested instance" });
+    expect(issue.fix!.ops).toEqual([{ op: "reparent", refs: ["m"], parent: "hall-1" }]);
+    expectFixClears(def, issue, { prefabs });
+  });
+
   it("judges by one rule: nav areas, camera regions and notes stay out", () => {
     expect(
       ["node", "marker", "solid", "sensor", "follower"].every((t) =>

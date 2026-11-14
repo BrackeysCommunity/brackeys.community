@@ -16,7 +16,7 @@ import {
 } from "../../runtime/live";
 import { createRunRecorder } from "../../runtime/recorder";
 import { saveHostOf } from "../../runtime/runtime";
-import type { SceneRuntimeHandle, StepResult, SwapReport } from "../../runtime/types";
+import type { SceneRuntimeHandle, SwapReport } from "../../runtime/types";
 import { expandScene } from "../../scene/expand";
 import { formatScene } from "../../scene/format";
 import { hashText } from "../../scene/hash";
@@ -24,6 +24,7 @@ import type { RunRecording } from "../../scene/recording-schema";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../../scene/types";
 import type { RapierModule, SceneSource, StagedVersion } from "../../types";
 import { ENGINE_VERSION } from "../../version";
+import { steps } from "./tree-rig";
 
 /** A 10×10 scene of `marker` entities named by `markers`, in a row from (1, 1). */
 export const markerScene = (
@@ -232,8 +233,7 @@ export function recordLiveRun(opts: LiveRunOptions): RunRecording {
   }
 }
 
-export const steps = (rt: SceneRuntimeHandle, n: number): StepResult[] =>
-  Array.from({ length: n }, () => rt.step(rt.ctx.time.tickMs, []));
+export { steps };
 
 /**
  * Every live entity's pose, flag and saved state, the game's state,

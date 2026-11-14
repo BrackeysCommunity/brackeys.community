@@ -27,6 +27,7 @@ import type {
   SceneDefinition,
   SceneHash,
 } from "../scene/types";
+import { reparentLabel } from "../scene/validate";
 import { select as nextSelection, type SelectMode } from "./selection";
 import { createEditorStore, type EditorMode, type EditorStoreState } from "./store";
 
@@ -298,9 +299,7 @@ export function labelFor(batch: OpBatch): string {
       return what.length === 1 ? `${verb} ${what[0]}` : `${verb} ${what.length} items`;
     }
     case "reparent":
-      return op.parent === null
-        ? `Move ${many(op.refs.length, op.refs[0]!)} to the root`
-        : `Put ${many(op.refs.length, op.refs[0]!)} under ${op.parent}`;
+      return reparentLabel(op.refs, op.parent);
     case "setZ":
       return `Set z of ${many(op.refs.length, op.refs[0]!)}`;
     case "useAssets":

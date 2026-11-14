@@ -7,8 +7,12 @@ import { migrate } from "./migrate";
 import { migrateEnvOf, parseScene, type ParseOptions } from "./parse";
 import {
   childRef,
-  instanceFrame,
+  documentTree,
+  keepInPlace,
+  ownChildId,
   parseChildRef,
+  reexpressEntity,
+  reexpressInstance,
   resolveScene,
   resolveWith,
   sceneFrames,
@@ -24,18 +28,9 @@ import {
 } from "./schema";
 import { aabb, aabbUnion, translateShape } from "./shape-geometry";
 import { parseShape } from "./shapes";
-import {
-  compose,
-  frame,
-  frameOf,
-  IDENTITY_2D,
-  invert,
-  isQuarterTurn,
-  type Transform2D,
-} from "./transform";
+import { composeSteps } from "./transform";
 import { isZeroPt, translateBulkEntry, translateEntityDef } from "./translate";
 import {
-  PARENT_MAX_DEPTH,
   RESERVED_SCENE_KEYS,
   SCENE_FORMAT_VERSION,
   type Aabb,
@@ -53,7 +48,6 @@ import {
   type ShapeInput,
   type ShapeObj,
 } from "./types";
-import { roundLength } from "./units";
 
 export const FRAGMENT_KIND = "scene-fragment";
 
@@ -76,53 +70,13 @@ export type SceneFragment = {
 
 const clone = <T>(v: T): T => structuredClone(v);
 
-/** `inst` with the steps above it, innermost first, folded into its `at`, angle and flip. */
-function placedInstance(inst: InstanceDef, steps: readonly Transform2D[]): InstanceDef {
-  const out = clone(inst);
-  if (steps.length === 0) return out;
-  const t = steps.reduce((acc, s) => compose(s, acc), frame(instanceFrame(inst)));
-  const { rot, flip } = frameOf(t);
-  out.at = isQuarterTurn(rot) ? [t.tx, t.ty] : [roundLength(t.tx), roundLength(t.ty)];
-  delete out.rot;
-  delete out.flip;
-  if (rot !== 0) out.rot = rot;
-  if (flip) out.flip = true;
-  return out;
-}
-
-/** An entity's stored fields under `t`, exactly as resolving places a child. */
-function placedEntity(
-  def: SceneDefinition,
-  registry: Registry,
-  e: EntityDef,
-  t: Transform2D,
-): EntityDef {
-  const one: SceneFrames = {
-    stepsFor: () => [t],
-    under: () => [],
-    parentOf: () => undefined,
-    hidden: () => false,
-    placed: () => null,
-  };
-  const scratch = fragmentScene({ kind: FRAGMENT_KIND, v: def.v, entities: [e] });
-  if (def.settings) scratch.settings = def.settings;
-  return resolveWith(scratch, registry, one, false).def.entities?.[0] ?? e;
-}
-
-const composeAll = (steps: readonly Transform2D[]): Transform2D =>
-  steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D);
-
-const sameTransform = (x: Transform2D, y: Transform2D) =>
-  (["a", "b", "c", "d", "tx", "ty"] as const).every((k) => Math.abs(x[k] - y[k]) < 1e-9);
-
 /**
  * Rewrites, level by level below the roots, what sits under a parent whose
- * frame its new place changed (an entity whose frame comes from its
- * geometry carries no flip, and a point no angle), so each keeps the world
+ * frame its new place changed (`keepInPlace`), so each keeps the world
  * pose `frames` gives it. `entities` and `instances` are the fragment's,
  * rewritten in place.
  */
-function keepInPlace(
+function keepFragmentInPlace(
   def: SceneDefinition,
   registry: Registry,
   prefabs: PrefabLibrary | undefined,
@@ -130,31 +84,27 @@ function keepInPlace(
   entities: EntityDef[],
   instances: InstanceDef[],
 ): void {
-  let level = new Set(
-    [...entities, ...instances].filter((x) => x.parent === undefined).map((x) => x.id),
+  const entityAt = new Map(entities.map((e, i) => [e.id, i]));
+  const instanceAt = new Map(instances.map((inst, i) => [inst.id, i]));
+  const roots = [...entities, ...instances].filter((x) => x.parent === undefined);
+  keepInPlace(
+    frames,
+    new Set(roots.map((x) => x.id)),
+    () => {
+      const scene = fragmentScene({ kind: FRAGMENT_KIND, v: def.v, entities, instances });
+      if (def.settings) scene.settings = def.settings;
+      return {
+        frames: sceneFrames(scene, registry, prefabs),
+        ids: [...entityAt.keys(), ...instanceAt.keys()],
+      };
+    },
+    (id, by) => {
+      const e = entityAt.get(id);
+      if (e !== undefined) entities[e] = reexpressEntity(registry, def.settings, entities[e]!, by);
+      const n = instanceAt.get(id);
+      if (n !== undefined) instances[n] = reexpressInstance(instances[n]!, by);
+    },
   );
-  for (let guard = 0; level.size > 0 && guard <= PARENT_MAX_DEPTH + 1; guard++) {
-    const scene = fragmentScene({ kind: FRAGMENT_KIND, v: def.v, entities, instances });
-    if (def.settings) scene.settings = def.settings;
-    const now = sceneFrames(scene, registry, prefabs);
-    const next = new Set<string>();
-    const shift = (x: { id: string; parent?: Ref }): Transform2D | null => {
-      const p = x.parent;
-      if (p === undefined || !(level.has(p) || level.has(parseChildRef(p)?.instance ?? p)))
-        return null;
-      next.add(x.id);
-      return compose(invert(composeAll(now.under(p))), composeAll(frames.under(p)));
-    };
-    entities.forEach((e, i) => {
-      const t = shift(e);
-      if (t && !sameTransform(t, IDENTITY_2D)) entities[i] = placedEntity(def, registry, e, t);
-    });
-    instances.forEach((inst, i) => {
-      const t = shift(inst);
-      if (t && !sameTransform(t, IDENTITY_2D)) instances[i] = placedInstance(inst, [t]);
-    });
-    level = next;
-  }
 }
 
 /** A ref with its depth below the scene's root: 0 for a root, 1 for a root's child, and so on. */
@@ -178,47 +128,8 @@ export function withSubtrees(
 }
 
 function subtreeIn(def: SceneDefinition, refs: readonly Ref[], frames: SceneFrames) {
-  const byParent = new Map<Ref, string[]>();
-  const byInstance = new Map<string, string[]>();
-  const push = (map: Map<string, string[]>, key: string, id: string) => {
-    const list = map.get(key);
-    if (list) list.push(id);
-    else map.set(key, [id]);
-  };
-  const items = [...(def.entities ?? []), ...(def.instances ?? [])];
-  for (const { id } of items) {
-    const parent = frames.parentOf(id);
-    if (parent === undefined) continue;
-    push(byParent, parent, id);
-    const child = parseChildRef(parent);
-    if (child) push(byInstance, child.instance, id);
-  }
-  const instances = new Set((def.instances ?? []).map((i) => i.id));
-  const depths = new Map<string, number>();
-  const depthOf = (ref: Ref): number => {
-    const child = parseChildRef(ref);
-    if (child) return depthOf(child.instance) + 1;
-    let d = depths.get(ref);
-    if (d === undefined) {
-      const parent = frames.parentOf(ref);
-      depths.set(ref, (d = parent === undefined ? 0 : depthOf(parent) + 1));
-    }
-    return d;
-  };
-  const out: Ref[] = [];
-  const seen = new Set<Ref>();
-  const visit = (ref: Ref) => {
-    if (seen.has(ref)) return;
-    seen.add(ref);
-    out.push(ref);
-  };
-  refs.forEach(visit);
-  for (let i = 0; i < out.length; i++) {
-    const ref = out[i]!;
-    byParent.get(ref)?.forEach(visit);
-    if (instances.has(ref)) byInstance.get(ref)?.forEach(visit);
-  }
-  return out.map((ref) => ({ ref, depth: parseBulkId(ref) ? 0 : depthOf(ref) }));
+  const tree = documentTree(def, frames);
+  return tree.subtree(refs).map((ref) => ({ ref, depth: parseBulkId(ref) ? 0 : tree.depth(ref) }));
 }
 
 /**
@@ -267,7 +178,7 @@ export function fragmentOf(
     .filter((i) => ids.has(i.id))
     .map((i) => {
       if (inside(frames.parentOf(i.id))) return clone(i);
-      const out = placedInstance(i, frames.stepsFor(i));
+      const out = clone(reexpressInstance(i, composeSteps(frames.stepsFor(i))));
       delete out.parent;
       return out;
     });
@@ -283,7 +194,7 @@ export function fragmentOf(
       if (stored && stored.off !== true) delete out.off;
       return out;
     });
-  keepInPlace(def, registry, prefabs, frames, entities, instances);
+  keepFragmentInPlace(def, registry, prefabs, frames, entities, instances);
   // A copied child becomes a plain entity under its own id, and refs to it in the fragment follow.
   const taken = new Set([...entities.map((e) => e.id), ...copied]);
   const renamed = new Map<string, string>();
@@ -314,7 +225,7 @@ export function fragmentOf(
 
 /** The id an entity takes outside its instance: a child's own id (`gate-3/door` → `door`), a bulk child's type. */
 function plainId(e: EntityDef): string {
-  const stem = e.id.slice(e.id.lastIndexOf("/") + 1);
+  const stem = ownChildId(e.id);
   return stem.startsWith("~") ? e.type : stem;
 }
 

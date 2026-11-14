@@ -1,3 +1,4 @@
+import { NODE_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { bulkOffset, lcsPairs, pairBulk } from "./diff";
 import { bulkEntries, bulkId, bulkKeysOf } from "./expand";
@@ -5,7 +6,7 @@ import { sortedAssets } from "./format";
 import { parentsFirst } from "./fragment";
 import { sceneHash } from "./hash";
 import { usesBulkRefs } from "./ops-schema";
-import { parseChildRef } from "./resolve";
+import { headOfRef } from "./resolve";
 import type {
   BulkEntry,
   BulkKey,
@@ -133,7 +134,8 @@ function namedUpdate(a: EntityDef, b: EntityDef): SceneOp | null {
   return keys.length === 1 && keys[0] === "z" ? { op: "setZ", refs: [a.id], z: b.z ?? 0 } : update;
 }
 
-function entityUpdate(a: EntityDef, b: EntityDef): SceneOp | null {
+/** The `update` that turns `a` into `b`, by the fields that differ; null when none does. */
+export function entityUpdate(a: EntityDef, b: EntityDef): SceneOp | null {
   const set: Record<string, unknown> = {};
   const unset: string[] = [];
   for (const k of Object.keys(a))
@@ -260,7 +262,7 @@ function restoreEntity(a: EntityDef, b: EntityDef): SceneOp | null {
     (k) => k !== "id" && k !== "type" && k !== "parent" && a[k] !== undefined && b[k] === undefined,
   );
   for (const k of ["rot", "flip"])
-    if (b.type === "node" && b[k] === undefined && !unset.includes(k)) unset.push(k);
+    if (b.type === NODE_TYPE && b[k] === undefined && !unset.includes(k)) unset.push(k);
   if (Object.keys(set).length === 0 && unset.length === 0) return null;
   return {
     op: "update",
@@ -293,8 +295,6 @@ function restoreInstance(a: InstanceDef, b: InstanceDef): SceneOp[] {
   ops[own] = update;
   return ops;
 }
-
-const ownerOf = (ref: Ref) => parseChildRef(ref)?.instance ?? ref;
 
 /**
  * How the parents change from `a` to `b` for the entities and instances
@@ -330,8 +330,8 @@ function parentMoves(
   /** The owners above `id` in `map`, nearest first, stopping at a cycle. */
   const chain = (map: ReadonlyMap<string, Ref | undefined>, id: string): string[] => {
     const out: string[] = [];
-    for (let p = map.get(id); p !== undefined; p = map.get(ownerOf(p))) {
-      const owner = ownerOf(p);
+    for (let p = map.get(id); p !== undefined; p = map.get(headOfRef(p))) {
+      const owner = headOfRef(p);
       if (owner === id || out.includes(owner)) break;
       out.push(owner);
     }
@@ -339,7 +339,7 @@ function parentMoves(
   };
   const detach = kept.filter((id) => {
     const p = before.get(id);
-    return p !== undefined && removed.has(ownerOf(p));
+    return p !== undefined && removed.has(headOfRef(p));
   });
   const moving = new Set([...kept.filter((id) => before.get(id) !== after.get(id)), ...detach]);
   // A reparent rewrites what sits under an entity whose frame comes from its geometry, so all of it is restored.
@@ -376,7 +376,7 @@ function parentMoves(
     while (pending.length > 0) {
       const k = pending.findIndex((id) => {
         const p = after.get(id);
-        return p === undefined || (ownerOf(p) !== id && !chain(now, ownerOf(p)).includes(id));
+        return p === undefined || (headOfRef(p) !== id && !chain(now, headOfRef(p)).includes(id));
       });
       if (k >= 0) {
         const id = pending.splice(k, 1)[0]!;
@@ -560,7 +560,7 @@ export function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Reg
   const order = parentsFirst(
     adding,
     (x) => x.item.id,
-    (x) => (x.item.parent === undefined ? undefined : ownerOf(x.item.parent)),
+    (x) => (x.item.parent === undefined ? undefined : headOfRef(x.item.parent)),
   );
   for (const { item, j, entity } of order) {
     if (!entity && !bulkPlaced) {

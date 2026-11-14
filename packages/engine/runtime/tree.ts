@@ -8,6 +8,13 @@ export type { SceneTree };
 export const scopeName = (scope: string | null): string =>
   scope === null ? "the main scene" : `sublevel "${scope}"`;
 
+/** The refusal for an id no live entity has: `can't <what> "<id>"`. */
+export const entityGone = (id: string, what: string): EngineError =>
+  new EngineError("entity-gone", `can't ${what} "${id}": no live entity has that id`, id);
+
+/** Kept with a linked entity for `SceneTreeDeps.follows`; the tree never reads it. */
+export type FollowSlot = { held: unknown };
+
 /** What the tree reads and calls; the lifecycle gives it these. */
 export type SceneTreeDeps = {
   poses: PoseIndex;
@@ -26,9 +33,16 @@ export type SceneTreeDeps = {
    * `id`'s parent `parent` moved, which puts `id` at `pose`: "still" when
    * `id` is off or moves itself; "carried" when `parent`'s body already
    * carried its collider there and its pose alone was written; else "pose",
-   * for the tree to pose it in full.
+   * for the tree to pose it in full. `slot` stays with `id`'s link, empty
+   * at first, for what `follows` looked up and may reuse next time.
    */
-  follows(id: string, parent: string, pose: Pose, snap: boolean): "still" | "carried" | "pose";
+  follows(
+    id: string,
+    parent: string,
+    pose: Pose,
+    snap: boolean,
+    slot: FollowSlot,
+  ): "still" | "carried" | "pose";
   /** The sublevel `id` belongs to; null for the main scene. */
   scopeOf(id: string): string | null;
   /** `id` moved under another parent: its subtree's enabled state may have changed. */
@@ -61,6 +75,19 @@ export type RuntimeSceneTree = SceneTree & {
   quietly<T>(fn: () => T): T;
   /** Forgets every link; at unload. */
   clear(): void;
+  /**
+   * Refuses `parent` for something in `scope` with `parent-scope`: when no
+   * live entity has that id, or it belongs to another sublevel. `what` is
+   * the refused action (`put "a"`, `spawn "marker"`), `subject` what it
+   * moves, and `id` the entity it moves, when it exists yet.
+   */
+  checkParent(
+    parent: string,
+    scope: string | null,
+    what: string,
+    subject: string,
+    id?: string,
+  ): void;
 };
 
 /**
@@ -74,7 +101,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
    * An entity with a parent or children. Child lists are replaced, never
    * mutated, so a list handed out stays as it was.
    */
-  type Link = {
+  type Link = FollowSlot & {
     readonly id: string;
     parent: Link | null;
     kids: readonly Link[];
@@ -96,11 +123,21 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
   const noKids: readonly Link[] = [];
 
   const parentOf = (id: string): string | undefined => links.get(id)?.parent?.id;
+  /** Each runtime's pose index is its own shape, so the hot path reads poses through this. */
+  const poseOf = deps.poses.get.bind(deps.poses);
 
   function linkOf(id: string): Link {
     let link = links.get(id);
     if (!link) {
-      link = { id, parent: null, kids: noKids, ids: none, local: null, driving: false };
+      link = {
+        id,
+        parent: null,
+        kids: noKids,
+        ids: none,
+        local: null,
+        driving: false,
+        held: undefined,
+      };
       links.set(id, link);
     }
     return link;
@@ -176,7 +213,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
   function follow(link: Link, snap: boolean): void {
     const list = link.kids;
     if (list.length === 0) return;
-    const frame = deps.poses.get(link.id);
+    const frame = poseOf(link.id);
     if (!frame) return;
     for (const child of list) {
       const local = child.local;
@@ -186,7 +223,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
       carrying = child.id;
       let how: "still" | "carried" | "pose";
       try {
-        how = deps.follows(child.id, link.id, pose, snap);
+        how = deps.follows(child.id, link.id, pose, snap, child);
       } finally {
         carrying = outer;
       }
@@ -228,8 +265,30 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
   }
 
   function live(id: string, what: string): void {
-    if (!deps.exists(id)) {
-      throw new EngineError("entity-gone", `can't ${what} "${id}": no live entity has that id`, id);
+    if (!deps.exists(id)) throw entityGone(id, what);
+  }
+
+  function checkParent(
+    parent: string,
+    scope: string | null,
+    what: string,
+    subject: string,
+    id?: string,
+  ): void {
+    if (!deps.exists(parent)) {
+      throw new EngineError(
+        "parent-scope",
+        `can't ${what} under "${parent}": no live entity has that id`,
+        parent,
+      );
+    }
+    const theirs = deps.scopeOf(parent);
+    if (theirs !== scope) {
+      throw new EngineError(
+        "parent-scope",
+        `can't ${what} under "${parent}": ${subject} belongs to ${scopeName(scope)} and "${parent}" to ${scopeName(theirs)}`,
+        id ?? parent,
+      );
     }
   }
 
@@ -263,22 +322,14 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     setParent(id, parent, opts) {
       live(id, "reparent");
       if (parent !== null) {
-        live(parent, "reparent under");
-        if (isUnder(parent, id)) {
+        if (deps.exists(parent) && isUnder(parent, id)) {
           throw new EngineError(
             "parent-cycle",
             `can't put "${id}" under "${parent}": ${parent === id ? "an entity can't be its own parent" : `"${parent}" is below "${id}"`}`,
             id,
           );
         }
-        const [mine, theirs] = [deps.scopeOf(id), deps.scopeOf(parent)];
-        if (mine !== theirs) {
-          throw new EngineError(
-            "parent-scope",
-            `can't put "${id}" under "${parent}": "${id}" belongs to ${scopeName(mine)} and "${parent}" to ${scopeName(theirs)}`,
-            id,
-          );
-        }
+        checkParent(parent, deps.scopeOf(id), `put "${id}"`, `"${id}"`, id);
       }
       const was = parentOf(id);
       if ((was ?? null) === parent) return;
@@ -301,10 +352,14 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     },
     link(entities) {
       const linked: Link[] = [];
+      // A parent in the batch is linked under the id string its own record
+      // holds, the one its pose writes pass, so they find it by identity.
+      let own: Map<string, string> | undefined;
       for (const e of entities) {
         if (e.parent === undefined || e.parent === e.id || !deps.exists(e.parent)) continue;
+        own ??= new Map(entities.map((x) => [x.id, x.id]));
         dropChild(e.id);
-        addChild(e.parent, e.id);
+        addChild(own.get(e.parent) ?? e.parent, e.id);
         linked.push(linkOf(e.id));
       }
       for (const link of linked) remeasure(link);
@@ -354,6 +409,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
       gone.clear();
       goneTick = -1;
     },
+    checkParent,
   };
   return tree;
 }

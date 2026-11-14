@@ -3,13 +3,13 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { DEFAULT_ACTIONS } from "../game/defaults";
 import { createRegistry, defineGame } from "../game/define";
-import { EngineError } from "../game/types";
 import { createSceneRuntime, saveHostOf } from "../runtime/runtime";
 import { ENTITY_DESTROYED, ENTITY_SPAWNED, type StepEvent } from "../runtime/types";
 import { expandScene } from "../scene/expand";
 import { prefabLibrary } from "../scene/prefab";
 import { SCENE_FORMAT_VERSION, type EntityDef, type Prefab } from "../scene/types";
 import type { RapierModule } from "../types";
+import { engineErrorCode } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -81,20 +81,11 @@ const pose = (rt: Runtime, id: string) => {
   return p!;
 };
 
-const near = (rt: Runtime, id: string, x: number, y: number, rot?: number) => {
+const near = (rt: Runtime, id: string, x: number, y: number, rot?: number, digits = 9) => {
   const p = pose(rt, id);
-  expect(p.x, `${id}.x`).toBeCloseTo(x, 9);
-  expect(p.y, `${id}.y`).toBeCloseTo(y, 9);
+  expect(p.x, `${id}.x`).toBeCloseTo(x, digits);
+  expect(p.y, `${id}.y`).toBeCloseTo(y, digits);
   if (rot !== undefined) expect(p.rot, `${id}.rot`).toBeCloseTo(rot, 9);
-};
-
-const code = (f: () => unknown) => {
-  try {
-    f();
-  } catch (err) {
-    return err instanceof EngineError ? err.code : String(err);
-  }
-  return null;
 };
 
 const DEG30 = Math.PI / 6;
@@ -167,10 +158,11 @@ for (const physics of BACKENDS) {
       near(rt, quarter.id, 0, 1, Math.PI);
       near(rt, `${quarter.id}/wick`, -1, 1);
 
+      // an instance off the quarter turns expands to the file's length precision
       const tilted = rt.ctx.instantiate("lantern", [1, 0], { parent: "tilted", local: true });
       const [c, s] = [Math.cos(DEG30), Math.sin(DEG30)];
-      near(rt, tilted.id, c, s, DEG30);
-      near(rt, `${tilted.id}/wick`, 2 * c, 2 * s, DEG30);
+      near(rt, tilted.id, c, s, DEG30, 6);
+      near(rt, `${tilted.id}/wick`, 2 * c, 2 * s, DEG30, 6);
 
       rt.ctx.setPose("cart", 0, 0);
       near(rt, `${local.id}/wick`, 1, 1);
@@ -179,12 +171,12 @@ for (const physics of BACKENDS) {
 
     it("refuses an unknown parent with parent-scope, giving out no id", () => {
       const { rt } = load(physics);
-      expect(code(() => rt.ctx.spawn({ type: "marker", at: [0, 0], parent: "nowhere" }))).toBe(
-        "parent-scope",
-      );
-      expect(code(() => rt.ctx.instantiate("lantern", [0, 0], { parent: "nowhere" }))).toBe(
-        "parent-scope",
-      );
+      expect(
+        engineErrorCode(() => rt.ctx.spawn({ type: "marker", at: [0, 0], parent: "nowhere" })),
+      ).toBe("parent-scope");
+      expect(
+        engineErrorCode(() => rt.ctx.instantiate("lantern", [0, 0], { parent: "nowhere" })),
+      ).toBe("parent-scope");
       expect(rt.ctx.spawn({ type: "marker", at: [0, 0] }).id).toBe("marker#1");
       expect(rt.ctx.instantiate("lantern", [0, 0]).id).toBe("lantern#1");
       rt.destroy();
@@ -238,6 +230,31 @@ describe("a save's spawn records", () => {
     near(back, lid.id, 1, 0);
     rt.destroy();
     back.destroy();
+  });
+
+  it("records a local instance under a tilted parent at its world angle", () => {
+    const { rt } = load("none");
+    const lamp = rt.ctx.instantiate("lantern", [1, 0], { parent: "tilted", local: true, rot: 15 });
+    const [c, s] = [Math.cos(DEG30), Math.sin(DEG30)];
+    const world = saveHostOf(rt.ctx)!.captureWorld();
+    const rec = world.spawned.find((r) => r.id === lamp.id)!;
+    expect(rec.instance).toEqual({ prefab: "lantern", rot: 45, parent: "tilted" });
+    const [x, y] = rec.input.at as [number, number];
+    expect(x).toBeCloseTo(c, 6);
+    expect(y).toBeCloseTo(s, 6);
+
+    const owned = new Set([lamp.id, ...lamp.entities]);
+    const poses = Object.fromEntries(Object.entries(world.poses).filter(([id]) => !owned.has(id)));
+    for (const back of [restored(world), restored({ ...world, poses })]) {
+      expect(back.ctx.tree.parent(lamp.id)).toBe("tilted");
+      near(back, lamp.id, c, s, Math.PI / 4, 6);
+      for (const id of [lamp.id, `${lamp.id}/wick`]) {
+        const [a, b] = [rt.ctx.poses.get(id)!, back.ctx.poses.get(id)!];
+        expect([b.x, b.y, b.rot], id).toEqual([a.x, a.y, a.rot]);
+      }
+      back.destroy();
+    }
+    rt.destroy();
   });
 
   it("records the parent a spawn has now, and restores one whose parent is gone as a root", () => {

@@ -6,12 +6,12 @@ import type { PathFollowSystem } from "../game/behaviors/path-follow";
 import { DEFAULT_ACTIONS } from "../game/defaults";
 import { createRegistry, defineEntityType, defineGame } from "../game/define";
 import { pointField } from "../game/fields";
-import { EngineError } from "../game/types";
 import { createSceneRuntime } from "../runtime/runtime";
 import { expandScene } from "../scene/expand";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
 import { createDataSystem } from "../systems/data";
 import type { RapierModule } from "../types";
+import { engineErrorCode, stepEvents } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -101,9 +101,7 @@ function load(entities: EntityDef[], physics: Physics) {
   const rt = createSceneRuntime({ rapier: physics === "rapier" ? rapier : null, view: null, game });
   const report = rt.load(expandScene(scene(entities, physics), registry));
   if (!report.ok) throw new Error(report.error);
-  const steps = (n: number) => {
-    for (let i = 0; i < n; i++) rt.step(rt.ctx.time.tickMs, []);
-  };
+  const steps = (n: number) => void stepEvents(rt, n);
   return { rt, steps };
 }
 
@@ -115,15 +113,6 @@ function idsAt(rt: ReturnType<typeof load>["rt"], x: number, y: number): string[
     .map((h) => h.tag.entityId)
     .sort();
 }
-
-const refusal = (f: () => unknown) => {
-  try {
-    f();
-  } catch (err) {
-    return err instanceof EngineError ? err.code : String(err);
-  }
-  return null;
-};
 
 for (const physics of BACKENDS) {
   describe(`ctx.setPose on physics: ${physics}`, () => {
@@ -207,10 +196,10 @@ for (const physics of BACKENDS) {
       );
       for (const id of ["lift", "floor", "room", "statue"])
         expect(
-          refusal(() => rt.ctx.setPose(id, 1, 1)),
+          engineErrorCode(() => rt.ctx.setPose(id, 1, 1)),
           id,
         ).toBe("pose-not-settable");
-      expect(refusal(() => rt.ctx.setPose("nobody", 1, 1))).toBe("entity-gone");
+      expect(engineErrorCode(() => rt.ctx.setPose("nobody", 1, 1))).toBe("entity-gone");
       rt.destroy();
     });
 

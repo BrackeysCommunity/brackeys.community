@@ -122,7 +122,7 @@ const tickHooksOn = (system: BehaviorSystem) =>
 
 type Row = { row: string; fieldsChanged?: boolean; run(rt: ReturnType<typeof world>): void };
 
-/** E276's lifecycle, one row each, run on two entities `a` and `b`. */
+/** The script lifecycle, one row each, run on two entities `a` and `b`. */
 const ROWS: { row: Row; expected: string[] }[] = [
   {
     row: { row: "attach builds and wakes, ready starts", run() {} },
@@ -307,6 +307,32 @@ describe("a script, as a class and as a function", () => {
     expect(h.twice()).toBe(6);
     expect(h.entity).toBe(a);
     expect(h.fields.k).toBe(3);
+    rt.destroy();
+  });
+
+  it("finds a later script's instance in start after its awake asked before that script attached", () => {
+    const seen: string[] = [];
+    class Later extends Script({ name: "probe/later", description: "Says hello.", fields: {} }) {
+      hello(): string {
+        return "hi";
+      }
+    }
+    class Early extends Script({ name: "probe/early", description: "Asks.", fields: {} }) {
+      awake(): void {
+        seen.push(`awake:${typeof this.entity.getBehavior(Later)}`);
+        seen.push(`awake find:${typeof this.ctx.findBehavior(Later)}`);
+      }
+      start(): void {
+        seen.push(`start:${this.entity.getBehavior(Later)?.hello()}`);
+        seen.push(`start find:${this.ctx.findBehavior(Later)?.hello()}`);
+      }
+    }
+    const rt = world(
+      [{ id: "c", type: "node", at: [0, 0], behaviors: { "probe/early": {}, "probe/later": {} } }],
+      [Early, Later],
+    );
+    expect(seen).toEqual(["awake:undefined", "awake find:undefined", "start:hi", "start find:hi"]);
+    expect(rt.ctx.entity("c")!.getBehavior(Later)).toBeInstanceOf(Later);
     rt.destroy();
   });
 
@@ -581,6 +607,81 @@ describe("contact and sensor hooks", () => {
     rt.step(DT, []);
     expect(log).toEqual(["start:ball>wall:contact:start", "end:ball>wall"]);
     rt.destroy();
+  });
+
+  describe("on both scripted sides of a contact", () => {
+    const bumper = (log: string[]) =>
+      defineScript({
+        name: "test-game/bumper",
+        description: "Bumps.",
+        fields: {},
+        create: (self) => ({
+          onContactStart: (other: Entity) => log.push(`start:${self.entity.id}>${other.id}`),
+          onContactEnd: (other: Entity) => log.push(`end:${self.entity.id}>${other.id}`),
+        }),
+      });
+    const pair = [
+      {
+        id: "a",
+        type: "marker",
+        at: [0, 0],
+        behaviors: { collider: { shape: box(0, 0) }, "test-game/bumper": {} },
+      },
+      { id: "b", type: "solid", shape: box(0.3, 0), behaviors: { "test-game/bumper": {} } },
+    ] as EntityDef[];
+
+    const touchAndPart = (rt: ReturnType<typeof testWorld>, log: string[]) => {
+      const raised: StepEvent[] = [];
+      rt.ctx.events.on(CONTACT_START, (e) => raised.push(e));
+      rt.step(DT, []);
+      rt.step(DT, []);
+      const started = [...log].sort();
+      rt.ctx.setPose("a", 5, 5);
+      rt.step(DT, []);
+      return { raised, started, ended: log.slice(started.length).sort() };
+    };
+
+    it("calls the contact hooks on both entities", () => {
+      const log: string[] = [];
+      const rt = testWorld([bumper(log)], pair);
+      const { raised, started, ended } = touchAndPart(rt, log);
+      expect(raised).toHaveLength(1);
+      expect(started).toEqual(["start:a>b", "start:b>a"]);
+      expect(ended).toEqual(["end:a>b", "end:b>a"]);
+      rt.destroy();
+    });
+
+    it("calls them on both entities under a game watch made first, which reads the pair the other way", () => {
+      const log: string[] = [];
+      const rt = testWorld([bumper(log)], pair);
+      const both = ["a", "b"].map((id) => rt.get(id)!);
+      rt.remove(["a", "b"]);
+      rt.ctx.contacts.watch({ type: "solid" });
+      expect(rt.add(both).ok).toBe(true);
+      const { raised, started, ended } = touchAndPart(rt, log);
+      expect(raised.map((e) => e.entityId)).toEqual(["b"]);
+      expect(started).toEqual(["start:a>b", "start:b>a"]);
+      expect(ended).toEqual(["end:a>b", "end:b>a"]);
+      rt.destroy();
+    });
+
+    it("doesn't start a touching pair again when its other side gains a contact script", () => {
+      const log: string[] = [];
+      const plain = pair.map((e) => (e.id === "b" ? { ...e, behaviors: {} } : e)) as EntityDef[];
+      const rt = testWorld([bumper(log)], plain);
+      const raised: StepEvent[] = [];
+      rt.ctx.events.on(CONTACT_START, (e) => raised.push(e));
+      rt.step(DT, []);
+      expect(log).toEqual(["start:a>b"]);
+      expect(rt.update([{ ...rt.get("b")!, behaviors: { "test-game/bumper": {} } }]).ok).toBe(true);
+      rt.step(DT, []);
+      expect(log).toEqual(["start:a>b"]);
+      expect(raised).toHaveLength(1);
+      rt.ctx.setPose("a", 5, 5);
+      rt.step(DT, []);
+      expect(log.slice(1).sort()).toEqual(["end:a>b", "end:b>a"]);
+      rt.destroy();
+    });
   });
 
   it("calls the sensor hooks on both sides, with other the side that isn't this entity", () => {

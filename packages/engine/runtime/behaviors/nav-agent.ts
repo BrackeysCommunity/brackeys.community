@@ -546,6 +546,7 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       a.body?.teleport(pose.x, pose.y, { snap });
       if (a.path && (a.to !== null || a.target !== null)) plan(a);
     },
+    selfMoving: (id) => agents.has(id),
     clear() {
       for (const a of agents.values()) a.body?.destroy();
       agents.clear();

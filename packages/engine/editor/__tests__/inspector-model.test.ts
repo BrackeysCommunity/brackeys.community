@@ -8,7 +8,12 @@ import { assetField, pointField, shapeField, tagsField } from "../../game/fields
 import { applyOps } from "../../scene/ops";
 import { prefabLibrary } from "../../scene/prefab";
 import { resolveScene } from "../../scene/resolve";
-import { SCENE_FORMAT_VERSION, type Prefab, type SceneDefinition } from "../../scene/types";
+import {
+  PARENT_MAX_DEPTH,
+  SCENE_FORMAT_VERSION,
+  type Prefab,
+  type SceneDefinition,
+} from "../../scene/types";
 import {
   buildInspectorModel,
   instanceAngleBatch,
@@ -1739,8 +1744,8 @@ describe("the tree", () => {
       "hall-1/post",
       "hall-1/door-1/hinge",
       "hall-1/door-1/panel",
-      "hall-1/door-1",
     ]);
+    // A nested instance's frame isn't one the scene places children by, so reparent refuses it.
     const all = parentCandidates(scene, tree, ["rig"], library);
     expect(all).not.toContain("rig");
     expect(all).not.toContain("arm");
@@ -1749,7 +1754,49 @@ describe("the tree", () => {
     expect(all).not.toContain("door-2/hinge");
     expect(all).not.toContain("walk");
     expect(all).not.toContain("memo");
-    expect(all).toEqual(expect.arrayContaining(["floor", "hall-1", "hall-1/door-1"]));
+    expect(all).toEqual(expect.arrayContaining(["floor", "hall-1", "hall-1/door-1/panel"]));
+    expect(all).not.toContain("hall-1/door-1");
+  });
+
+  it("offers exactly the parents reparent takes", () => {
+    const every = [
+      ...(view.entities ?? []).map((e) => e.id),
+      ...(scene.instances ?? []).map((i) => i.id),
+      "hall-1/door-1",
+      "~solid:0",
+    ];
+    for (const moving of ["arm", "floor", "door-2"]) {
+      const offered = new Set(parentCandidates(scene, tree, [moving], library));
+      for (const parent of every) {
+        const r = applyOps(scene, { ops: [{ op: "reparent", refs: [moving], parent }] }, tree, {
+          prefabs: library,
+          validate: "none",
+        });
+        expect(r.ok, `${moving} under ${parent}`).toBe(offered.has(parent));
+      }
+    }
+  });
+
+  it("leaves out a parent that would take a subtree past the tree's depth", () => {
+    const chain = Array.from({ length: PARENT_MAX_DEPTH + 1 }, (_, k) => ({
+      id: `n-${k}`,
+      type: "node",
+      at: [1, 0] as [number, number],
+      ...(k > 0 ? { parent: `n-${k - 1}` } : {}),
+    }));
+    const deep: SceneDefinition = {
+      ...scene,
+      instances: [],
+      entities: [
+        ...chain,
+        { id: "top", type: "node", at: [0, 0] },
+        { id: "kid", type: "node", at: [0, 0], parent: "top" },
+      ],
+    };
+    const offered = parentCandidates(deep, tree, ["top"], library);
+    expect(offered).toContain(`n-${PARENT_MAX_DEPTH - 2}`);
+    expect(offered).not.toContain(`n-${PARENT_MAX_DEPTH - 1}`);
+    expect(parentCandidates(deep, tree, ["kid"], library)).toContain(`n-${PARENT_MAX_DEPTH - 1}`);
   });
 
   it("reads each ref's parent, and fixes it for instance children and types outside the tree", () => {
@@ -1782,7 +1829,7 @@ describe("the tree", () => {
     expect(r).toEqual({
       ok: true,
       batch: {
-        label: "Reparent 2 items under rig",
+        label: "Put 2 items under rig",
         ops: [{ op: "reparent", refs: ["block", "floor"], parent: "rig" }],
       },
     });

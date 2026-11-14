@@ -33,6 +33,7 @@ type Rider = PathPlace & {
 
 const ZERO: Vec2 = { x: 0, y: 0 };
 
+/** A standard behavior imports only what a game can, so it keeps this copy of the runtime's `samePose`. */
 const samePose = (a: Readonly<Pose>, b: Readonly<Pose>) =>
   a.x === b.x && a.y === b.y && a.rot === b.rot;
 

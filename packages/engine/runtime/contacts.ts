@@ -306,10 +306,14 @@ export function createContacts(ctx: EngineContext): RuntimeContacts {
       const { order, own } = refreshHash(phase.locate);
       const started = new Set<string>();
       const ended = new Set<string>();
-      for (const watch of [...watches]) {
+      const reading = [...watches];
+      // Another watch holding the pair: its new state if read already this tick, else its last.
+      const heldElsewhere = (watch: Watch, key: string) =>
+        reading.some((w) => w !== watch && w.touching.has(key));
+      for (const watch of reading) {
         const now = touchesOf(watch, order, own, phase.narrow);
         for (const [key, t] of now) {
-          if (watch.touching.has(key) || started.has(key)) continue;
+          if (watch.touching.has(key) || started.has(key) || heldElsewhere(watch, key)) continue;
           started.add(key);
           ctx.emit({ type: CONTACT_START, entityId: t.entityId, other: t.other, at: t.at });
         }

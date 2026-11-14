@@ -349,8 +349,8 @@ describe("hosted scene layouts", () => {
   });
 
   it("a layout-2, v2 prefab doc moves to layout 3 and v3 at load, keeping every key", async () => {
-    // A prefab doc lifts only as far as this side can without a registry: a step short of current.
-    const lifted = SCENE_FORMAT_VERSION - 1;
+    // Without the game's registry a prefab doc lifts only to v3: the metric and tree steps need it.
+    const lifted = 3;
     const server = await instance("layout-two-prefab");
     const projectId = newProjectId();
     createMemoryProject(stores, {

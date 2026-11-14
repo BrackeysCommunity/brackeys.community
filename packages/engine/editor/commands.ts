@@ -1,7 +1,17 @@
+import { NODE_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { parseBulkId } from "../scene/expand";
-import { CHILD_SEPARATOR, parseChildRef, resolveScene, sceneFrames } from "../scene/resolve";
+import { plural } from "../scene/plural";
+import {
+  CHILD_SEPARATOR,
+  documentTree,
+  headOfRef,
+  instanceLevels as levelsOf,
+  ownChildId,
+  resolveScene,
+  sceneFrames,
+} from "../scene/resolve";
 import type {
   Aabb,
   OpBatch,
@@ -12,7 +22,7 @@ import type {
   SceneOp,
 } from "../scene/types";
 import { snapToPixel } from "../scene/units";
-import { canBeInTree } from "../scene/validate";
+import { canBeChild, parentTargets } from "../scene/validate";
 import { moveBatch } from "./gizmos/batch";
 import { rotateTargetsBatch, selectionBox } from "./gizmos/multi";
 import { gizmoTarget, targetPivot, type GizmoTarget } from "./gizmos/target";
@@ -141,12 +151,19 @@ export function selectAllRefs(
   });
 }
 
-/** One batch removing `refs`; `null` for an empty selection. */
-export function deleteBatch(refs: readonly Ref[]): OpBatch | null {
+/**
+ * One batch removing `refs`; `null` for an empty selection. With `def`
+ * (the document), the label also counts what goes with them: everything
+ * below them in the tree.
+ */
+export function deleteBatch(refs: readonly Ref[], def?: SceneDefinition): OpBatch | null {
   if (refs.length === 0) return null;
   const unique = [...new Set(refs)];
+  const what = unique.length === 1 ? unique[0]! : `${unique.length} entities`;
+  const below = def ? documentTree(def).below(unique).size : 0;
   return {
-    label: `Delete ${unique.length === 1 ? unique[0] : `${unique.length} entities`}`,
+    label:
+      below > 0 ? `Delete ${what} and ${plural(below, "child", "children")}` : `Delete ${what}`,
     ops: [{ op: "remove", refs: unique }],
   };
 }
@@ -158,9 +175,7 @@ export function deleteBatch(refs: readonly Ref[]): OpBatch | null {
  * `null` when nothing is left.
  */
 export function zOrderBatch(refs: readonly Ref[], by: 1 | -1): OpBatch | null {
-  const placed = [...new Set(refs)].filter(
-    (r) => !parseBulkId(r.slice(r.lastIndexOf(CHILD_SEPARATOR) + 1)),
-  );
+  const placed = [...new Set(refs)].filter((r) => !parseBulkId(ownChildId(r)));
   if (placed.length === 0) return null;
   const n = placed.length === 1 ? placed[0]! : `${placed.length} entities`;
   return {
@@ -183,7 +198,7 @@ export type QuarterTurnTargets = {
 export function quarterTurnTargets(def: SceneDefinition, refs: readonly Ref[]): QuarterTurnTargets {
   const known = new Set((def.instances ?? []).map((i) => i.id));
   const instanceOf = (r: Ref) => {
-    const id = parseChildRef(r)?.instance ?? r;
+    const id = headOfRef(r);
     return known.has(id) ? id : undefined;
   };
   const out: QuarterTurnTargets = { instances: [], rest: [] };
@@ -236,15 +251,6 @@ export function flipBatch(
   return transformBatch(def, refs, (w) => `Flip ${w} ${dir}`, { flip: axis });
 }
 
-const NODE_TYPE = "node";
-
-/** The id of the document entry a ref sits in: `room-1` for `room-1/door-1/panel`. */
-const headOf = (ref: Ref): string => parseChildRef(ref)?.instance ?? ref;
-
-/** The instance a child ref sits in directly: `room-1/door-1` for `room-1/door-1/panel`. */
-const enclosingOf = (ref: Ref): Ref | undefined =>
-  parseChildRef(ref) ? ref.slice(0, ref.lastIndexOf(CHILD_SEPARATOR)) : undefined;
-
 /** Whether `ref` is a document instance or `node`, which turn by `transform`. */
 const isFrameRef = (def: SceneDefinition, ref: Ref): boolean =>
   (def.instances ?? []).some((i) => i.id === ref) ||
@@ -256,25 +262,7 @@ const isFrameRef = (def: SceneDefinition, ref: Ref): boolean =>
  * `[ref]` for anything that isn't an instance's child.
  */
 export function instanceLevels(ref: Ref): Ref[] {
-  const parts = ref.split(CHILD_SEPARATOR);
-  return parts.map((_, i) => parts.slice(0, i + 1).join(CHILD_SEPARATOR));
-}
-
-/**
- * What `ref` sits under in `def` (the document): an instance's child under
- * its instance, anything else under its `parent` as the lenient read settles
- * it. `undefined` at the root.
- */
-function treeParents(def: SceneDefinition): (ref: Ref) => Ref | undefined {
-  const frames = sceneFrames(def);
-  return (ref) => enclosingOf(ref) ?? frames.parentOf(ref);
-}
-
-/** Everything `ref` sits under, nearest first, up to its root. */
-function ancestorsOf(parentOf: (ref: Ref) => Ref | undefined, ref: Ref): Ref[] {
-  const out: Ref[] = [];
-  for (let p = parentOf(ref); p !== undefined && !out.includes(p); p = parentOf(p)) out.push(p);
-  return out;
+  return levelsOf(ref);
 }
 
 /**
@@ -282,9 +270,7 @@ function ancestorsOf(parentOf: (ref: Ref) => Ref | undefined, ref: Ref): Ref[] {
  * what a move or turn of the selection writes, since the rest follows.
  */
 export function selectionRoots(def: SceneDefinition, refs: readonly Ref[]): Ref[] {
-  const parentOf = treeParents(def);
-  const sel = new Set(refs);
-  return [...sel].filter((r) => !ancestorsOf(parentOf, r).some((a) => sel.has(a)));
+  return documentTree(def).roots(refs);
 }
 
 /** A batch with what the editor selects once it applies. */
@@ -305,20 +291,20 @@ export function groupBatch(
   prefabs?: PrefabLibrary,
 ): SelectingBatch | null {
   if (!registry.types.has(NODE_TYPE)) return null;
-  const entities = new Map((def.entities ?? []).map((e) => [e.id, e]));
-  const instances = new Set((def.instances ?? []).map((i) => i.id));
-  const groupable = (r: Ref) =>
-    instances.has(r) || (entities.has(r) && canBeInTree(registry.types.get(entities.get(r)!.type)));
-  const roots = selectionRoots(def, refs).filter(groupable);
+  const frames = sceneFrames(def, registry, prefabs);
+  const tree = documentTree(def, frames);
+  const target = parentTargets(def, registry, frames);
+  const roots = tree.roots(refs).filter((r) => canBeChild(target(r)));
   if (roots.length === 0) return null;
-  const parentOf = treeParents(def);
-  const lines = roots.map((r) => [...ancestorsOf(parentOf, r), undefined]);
+  const entities = new Set((def.entities ?? []).map((e) => e.id));
+  const instances = new Set((def.instances ?? []).map((i) => i.id));
+  const lines = roots.map((r) => [...tree.ancestors(r), undefined]);
   const parent = lines[0]!.find((a) => lines.every((line) => line.includes(a)));
   const box = selectionBounds(resolveScene(def, registry, prefabs), registry, roots);
   const ppm = pxPerMetreOf(registry);
   const centre = box ? [(box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2] : [0, 0];
   const at: Pt = [snapToPixel(centre[0]!, ppm) + 0, snapToPixel(centre[1]!, ppm) + 0];
-  const taken = new Set([...entities.keys(), ...instances]);
+  const taken = new Set([...entities, ...instances]);
   let n = 1;
   while (taken.has(`${NODE_TYPE}-${n}`)) n++;
   const id = `${NODE_TYPE}-${n}`;
@@ -345,9 +331,10 @@ export function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): Select
     .filter((e) => e.type === NODE_TYPE && picked.has(e.id))
     .map((e) => e.id);
   if (nodes.length === 0) return null;
-  const parentOf = treeParents(def);
+  const tree = documentTree(def);
+  const parentOf = (ref: Ref) => tree.parentOf(ref);
   const gone = new Set(nodes);
-  const keeper = (id: string) => ancestorsOf(parentOf, id).find((a) => !gone.has(a)) ?? null;
+  const keeper = (id: string) => tree.ancestors(id).find((a) => !gone.has(a)) ?? null;
   const moves = new Map<Ref | null, Ref[]>();
   const moved: Ref[] = [];
   for (const item of [...(def.entities ?? []), ...(def.instances ?? [])]) {
@@ -372,10 +359,10 @@ const sameSet = (a: readonly Ref[], b: readonly Ref[]) =>
  * root climbs to its whole bucket. `null` when nothing climbs.
  */
 export function hierarchyUp(def: SceneDefinition, sel: readonly Ref[]): Ref[] | null {
-  const parentOf = treeParents(def);
+  const tree = documentTree(def);
   const up: Ref[] = [];
   for (const r of sel) {
-    const p = parentOf(r);
+    const p = tree.parentOf(r);
     if (p !== undefined && !up.includes(p)) up.push(p);
   }
   if (up.length > 0) return up;
@@ -404,7 +391,7 @@ export function hierarchyDown(
   }
   const ref = sel[0];
   if (ref === undefined) return null;
-  const inst = (def.instances ?? []).find((i) => i.id === headOf(ref));
+  const inst = (def.instances ?? []).find((i) => i.id === headOfRef(ref));
   if (inst) {
     const prefix = `${ref}${CHILD_SEPARATOR}`;
     const child = sceneFrames(def, registry, prefabs)
@@ -415,9 +402,9 @@ export function hierarchyDown(
       return [`${prefix}${next}`];
     }
   }
-  const parentOf = treeParents(def);
+  const tree = documentTree(def);
   const below = [...(def.entities ?? []), ...(def.instances ?? [])].find(
-    (item) => parentOf(item.id) === ref,
+    (item) => tree.parentOf(item.id) === ref,
   );
   return below ? [below.id] : null;
 }
