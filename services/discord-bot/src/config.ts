@@ -67,7 +67,7 @@ const schema = z
     ANTHROPIC_API_KEY: z.string().min(1).optional(),
     // A summary costs model calls and a burst of history reads, so it gets
     // its own, much slower window than the lookups.
-    SUMMARY_COOLDOWN_LIMIT: z.coerce.number().int().positive().default(3),
+    SUMMARY_COOLDOWN_LIMIT: z.coerce.number().int().positive().default(10),
     SUMMARY_COOLDOWN_WINDOW_MS: z.coerce
       .number()
       .int()

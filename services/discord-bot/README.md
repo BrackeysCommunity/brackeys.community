@@ -92,7 +92,10 @@ Root `vp check` formats these files but does not type-check them.
    registers `/summarize` (plan 49) and takes the non-privileged
    `GuildMessages` intent to hear deletions. Staff-only (Manage Messages)
    until `SUMMARIZE_OPEN=true`; `SUMMARY_COOLDOWN_LIMIT` /
-   `SUMMARY_COOLDOWN_WINDOW_MS` set its per-member window (3 per 10 min).
+   `SUMMARY_COOLDOWN_WINDOW_MS` set its per-member window (10 per 10 min).
+   A reply shared to the channel may run to 10,000 output tokens and a
+   private one to 100,000; one too long for a single message is shown a
+   page at a time, with the later pages kept in Redis for six hours.
    Message text is read over REST on request only and goes to Anthropic
    under an org with no training and zero data retention; only summaries
    are cached, for 30 days. The same Redis holds the Discord backoff

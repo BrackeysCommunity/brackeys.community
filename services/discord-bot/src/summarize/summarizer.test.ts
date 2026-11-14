@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { MAX_FETCH, snowflakeAt } from "./buckets.ts";
 import type { DiscordApiMessage, ReadHistory } from "./history.ts";
-import type { SummaryModel } from "./model.ts";
+import { OUTPUT_TOKENS, type SummaryModel } from "./model.ts";
 import { type SummaryRedis, createSummarizer } from "./summarizer.ts";
 
 const MIN = 60_000;
@@ -53,8 +53,8 @@ function fakeModel() {
   const calls = {
     chunk: [] as string[],
     final: [] as string[],
-    answer: [] as { question: string; history: string }[],
-    words: [] as number[],
+    answer: [] as { question: string; asker?: string; history: string }[],
+    maxTokens: [] as number[],
   };
   const usage = { inputTokens: 1000, outputTokens: 100 };
   const model: SummaryModel = {
@@ -65,13 +65,14 @@ function fakeModel() {
         usage,
       };
     },
-    final: async (sections, words) => {
+    final: async (sections, maxTokens) => {
       calls.final.push(sections);
-      calls.words.push(words);
+      calls.maxTokens.push(maxTokens);
       return { text: "[the first point](#1) final", usage };
     },
-    answer: async (question, history) => {
-      calls.answer.push({ question, history });
+    answer: async ({ question, asker }, history, maxTokens) => {
+      calls.answer.push({ question, asker, history });
+      calls.maxTokens.push(maxTokens);
       return { text: `answer to ${question}`, usage };
     },
   };
@@ -108,7 +109,35 @@ describe("summarize", () => {
     expect(summary.text).toBe(
       `[the first point](https://discord.com/channels/${GUILD}/${CHANNEL}/${messages[0].id}) final`,
     );
-    expect(calls.words).toEqual([300]);
+  });
+
+  test("a shared reply gets the smaller output ceiling and its own cache entry", async () => {
+    const { summarizer, calls } = setup(spread(NOW - 20 * HOUR, NOW, 50));
+    await summarizer.summarize(CHANNEL, "24h", { now: NOW });
+    const shared = await summarizer.summarize(CHANNEL, "24h", { now: NOW, shared: true });
+    expect(shared.finalCached).toBe(false);
+    expect(calls.maxTokens).toEqual([OUTPUT_TOKENS.private, OUTPUT_TOKENS.shared]);
+    expect(OUTPUT_TOKENS).toEqual({ shared: 10_000, private: 100_000 });
+  });
+
+  test("the model's stamps become timestamps each reader sees in their own zone", async () => {
+    const { readHistory } = channel(spread(NOW - 20 * HOUR, NOW, 50));
+    const usage = { inputTokens: 1, outputTokens: 1 };
+    const summarizer = createSummarizer({
+      redis: memoryRedis(),
+      readHistory,
+      model: {
+        chunk: async () => ({ text: "", usage }),
+        final: async () => ({ text: "**Voting** ({10-26 14:00} to {10-26 15:00})", usage }),
+        answer: async () => ({ text: "", usage }),
+      },
+      guildId: GUILD,
+    });
+    const summary = await summarizer.summarize(CHANNEL, "24h", { now: NOW });
+    const unix = (iso: string) => Date.parse(iso) / 1000;
+    expect(summary.text).toBe(
+      `**Voting** (<t:${unix("2026-10-26T14:00:00Z")}:t> to <t:${unix("2026-10-26T15:00:00Z")}:t>)`,
+    );
   });
 
   test("cached chunk summaries keep their citations as ids and are renumbered per request", async () => {
@@ -123,7 +152,6 @@ describe("summarize", () => {
     // In the final call they come back as this request's numbers.
     expect(calls.final[0]).toMatch(/\[summary of \d+\]\(#\d+\)/);
     expect(calls.final[0]).not.toContain("<m:");
-    expect(calls.words).toEqual([500]);
   });
 
   test("a question is answered from the same history and cached apart from the summary", async () => {
@@ -149,6 +177,22 @@ describe("summarize", () => {
       question: "anything else?",
     });
     expect(other.finalCached).toBe(false);
+  });
+
+  test("an answer is told who asked, and is reused only for that member", async () => {
+    const { summarizer, calls } = setup(spread(NOW - 6 * HOUR, NOW, 100));
+    const ask = (requesterId: string, requesterName: string) =>
+      summarizer.summarize(CHANNEL, "6h", {
+        now: NOW,
+        question: "did anyone try this already?",
+        requesterId,
+        requesterName,
+      });
+    await ask("1", "Jo");
+    expect(calls.answer[0].asker).toBe("Jo");
+    expect((await ask("1", "Jo")).finalCached).toBe(true);
+    expect((await ask("2", "Sam")).finalCached).toBe(false);
+    expect(calls.answer.map((a) => a.asker)).toEqual(["Jo", "Sam"]);
   });
 
   test("since I last posted starts just after the caller's newest post", async () => {
@@ -183,6 +227,16 @@ describe("summarize", () => {
     expect(summary.sinceLastPost).toBe(false);
     expect(summary.from).toBe(NOW - 7 * 24 * HOUR);
     expect(summary.messageCount).toBe(4);
+  });
+
+  test("a channel too busy to search for the caller's post doesn't claim they have none", async () => {
+    const { summarizer } = setup(spread(NOW - 7 * 24 * HOUR, NOW, MAX_FETCH * 2));
+    const summary = await summarizer.summarize(CHANNEL, "mine", {
+      now: NOW,
+      requesterId: "nobody",
+    });
+    expect(summary.sinceLastPost).toBeUndefined();
+    expect(summary.truncated).toBe(true);
   });
 
   test("an empty window calls nothing", async () => {

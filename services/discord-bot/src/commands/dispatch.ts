@@ -14,7 +14,7 @@ import { jamEntries, jamEntriesPage, jamInfo, jamNow, jamResults } from "./jam.t
 import { memberByDiscordId, memberByName } from "./member.ts";
 import { ping } from "./ping.ts";
 import type { ShareDecision } from "./share-gate.ts";
-import { summarizeChannel } from "./summarize.ts";
+import { summarizeChannel, summaryPageTurn } from "./summarize.ts";
 import { teamInfo } from "./team.ts";
 
 /** Command and option names — the manifest and the adapter both read these. */
@@ -72,6 +72,8 @@ export interface Invocation {
   channelId?: string | null;
   /** Who ran it, for windows that depend on the caller. */
   actorId?: string;
+  /** Their display name as a channel's history shows it. */
+  actorName?: string;
 }
 
 /** Whether the caller asked for the answer to go to the channel. */
@@ -97,8 +99,9 @@ export async function runInvocation(
   api: PublicApi,
   inv: Invocation,
   ctx: CommandContext,
+  decision?: ShareDecision,
 ): Promise<Reply> {
-  const share = replyVisibility(inv) === "public";
+  const share = replyVisibility(inv, decision) === "public";
   const str = (name: string) => {
     const v = inv.options[name];
     return typeof v === "string" ? v : undefined;
@@ -181,13 +184,18 @@ export async function runInvocation(
       if (!ctx.summarize) return textReply("Summaries aren't switched on for this bot yet.");
       if (!inv.channelId) return textReply("Run this in the channel you want summarized.");
       const since = str(OPT.since);
-      return summarizeChannel(ctx.summarize, {
-        channelId: inv.channelId,
-        window: isSummaryWindow(since) ? since : SUMMARY_WINDOW_DEFAULT,
-        question: str(OPT.ask)?.trim() || undefined,
-        requesterId: inv.actorId,
-        share,
-      });
+      return summarizeChannel(
+        ctx.summarize,
+        {
+          channelId: inv.channelId,
+          window: isSummaryWindow(since) ? since : SUMMARY_WINDOW_DEFAULT,
+          question: str(OPT.ask)?.trim() || undefined,
+          requesterId: inv.actorId,
+          requesterName: inv.actorName,
+          share,
+        },
+        { pages: ctx.summaryPages },
+      );
     }
   }
   return textReply(
@@ -207,6 +215,8 @@ export function runPage(
       return jamEntriesPage(api, state, ctx, ephemeral);
     case "collab_browse":
       return collabBrowsePage(api, state, ctx, ephemeral);
+    case "summary":
+      return summaryPageTurn(ctx.summaryPages, state, ephemeral);
   }
 }
 

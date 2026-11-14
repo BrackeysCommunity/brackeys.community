@@ -39,6 +39,7 @@ const SUMMARY_KINDS: Record<SummaryUnavailableError["reason"], FailureKind> = {
   refused: "rejected",
   busy: "throttled",
   slow: "timeout",
+  expired: "rejected",
 };
 
 export function classifyFailure(error: unknown): Failure {

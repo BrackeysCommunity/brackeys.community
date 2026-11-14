@@ -4,6 +4,9 @@
  * share, and a restart forgetting the windows is harmless.
  */
 export interface Cooldown {
+  /** The allowance, for telling a member what the rule is. */
+  readonly limit: number;
+  readonly windowMs: number;
   /** Records the hit when allowed. */
   check(userId: string, now?: number): { allowed: boolean; retryAfterMs: number };
   size(): number;
@@ -20,6 +23,8 @@ export function createCooldown({ limit, windowMs }: { limit: number; windowMs: n
   }
 
   return {
+    limit,
+    windowMs,
     check(userId, now = Date.now()) {
       // A full sweep every so often keeps the map bounded by active users
       // rather than by everyone who ever ran a command.

@@ -18,13 +18,19 @@ import {
 import type { ReadHistory } from "./history.ts";
 import {
   type ModelUsage,
+  OUTPUT_TOKENS,
   PROMPT_VERSION,
   type SummaryModel,
-  summaryWords,
   usageCostUsd,
 } from "./model.ts";
-import { RefTable, fitLinks, numberLinks, resolveLinks, storeLinks } from "./refs.ts";
-import { type TranscriptMessage, formatLines, formatStamp, toTranscript } from "./transcript.ts";
+import { RefTable, numberLinks, resolveLinks, storeLinks } from "./refs.ts";
+import {
+  type TranscriptMessage,
+  formatLines,
+  formatStamp,
+  resolveTimes,
+  toTranscript,
+} from "./transcript.ts";
 
 /** The commands used, typed structurally so tests can pass a fake. */
 export interface SummaryRedis {
@@ -50,8 +56,19 @@ export interface Summary {
   outputTokens: number;
   costUsd: number;
   /** For the since-my-last-message window: whether that message was found
-   *  inside the cap (false means the summary covers the whole cap). */
+   *  inside the cap (false means the summary covers the whole cap). Unset
+   *  there too when the channel was too busy to search the whole cap. */
   sinceLastPost?: boolean;
+}
+
+export interface SummaryOptions {
+  now?: number;
+  question?: string;
+  requesterId?: string;
+  /** The asker as the transcript names them, so an answer can tell their own messages apart. */
+  requesterName?: string;
+  /** The reply goes to the whole channel, which gets the smaller output ceiling. */
+  shared?: boolean;
 }
 
 interface CachedBucket {
@@ -64,13 +81,11 @@ const BUCKET_TTL_SECONDS = 30 * 86_400;
 /** Several people asking about the same busy channel at once cost one call. */
 const FINAL_TTL_SECONDS = 300;
 const CHUNK_CONCURRENCY = 6;
-/** Two embeds' worth: the reply splits at a line past 4096, inside the 6000 per message. */
-const MAX_SUMMARY_CHARS = 5_000;
 
 const bucketKey = (channelId: string, bucket: number) =>
   `summarize:v${PROMPT_VERSION}:${channelId}:${bucket}`;
 /** Bumped on any deletion in the channel, so cached final answers miss. */
-const generationKey = (channelId: string) => `summarize:gen:${channelId}`;
+export const generationKey = (channelId: string) => `summarize:gen:${channelId}`;
 
 async function quietly<T>(work: () => Promise<T>, fallback: T): Promise<T> {
   try {
@@ -128,8 +143,16 @@ export function createSummarizer(deps: {
     }
   }
 
-  /** The caller's newest message in the last `SINCE_MINE_MAX_MS`, if any. */
-  async function findLastPost(channelId: string, authorId: string, now: number) {
+  /**
+   * The caller's newest message in the last `SINCE_MINE_MAX_MS`: `"none"`
+   * when they have none, `"unknown"` when the read budget ran out before
+   * the whole stretch was searched.
+   */
+  async function findLastPost(
+    channelId: string,
+    authorId: string,
+    now: number,
+  ): Promise<{ id: string; at: number } | "none" | "unknown"> {
     const floor = now - SINCE_MINE_MAX_MS;
     let before = snowflakeAt(now + 1);
     for (let read = 0; read < MAX_FETCH; ) {
@@ -137,33 +160,30 @@ export function createSummarizer(deps: {
       read += page.length;
       for (const raw of page) {
         const at = snowflakeTime(raw.id);
-        if (at < floor) return null;
+        if (at < floor) return "none";
         if (raw.author.id === authorId) return { id: raw.id, at };
       }
-      if (page.length < 100) return null;
+      if (page.length < 100) return "none";
       before = page.at(-1)!.id;
     }
-    return null;
+    return "unknown";
   }
 
   /** A summary, or with `question` an answer to it drawn from the same history. */
   async function summarize(
     channelId: string,
     window: SummaryWindow,
-    {
-      now = Date.now(),
-      question,
-      requesterId,
-    }: { now?: number; question?: string; requesterId?: string } = {},
+    { now = Date.now(), question, requesterId, requesterName, shared = false }: SummaryOptions = {},
   ): Promise<Summary> {
     let start: number;
     let windowKey: string = window;
     let sinceLastPost: boolean | undefined;
     if (window === SINCE_MINE) {
-      const post = requesterId ? await findLastPost(channelId, requesterId, now) : null;
+      const found = requesterId ? await findLastPost(channelId, requesterId, now) : "none";
+      const post = typeof found === "object" ? found : null;
       start = post ? post.at + 1 : now - SINCE_MINE_MAX_MS;
       windowKey = `${SINCE_MINE}:${post?.id ?? "none"}`;
-      sinceLastPost = Boolean(post);
+      sinceLastPost = found === "unknown" ? undefined : Boolean(post);
     } else {
       start = now - WINDOWS[window];
     }
@@ -187,8 +207,15 @@ export function createSummarizer(deps: {
     if (!latest || snowflakeTime(latest.id) < start) return result({});
 
     const generation = (await quietly(() => redis.get(generationKey(channelId)), null)) ?? "0";
-    const asked = question ? createHash("sha256").update(question).digest("hex").slice(0, 16) : "-";
-    const finalKey = `summarize:final:v${PROMPT_VERSION}:${channelId}:${generation}:${windowKey}:${latest.id}:${asked}`;
+    // An answer is written to its asker, so it is only reused for the same one.
+    const asked = question
+      ? createHash("sha256")
+          .update(`${requesterId ?? ""}\0${question}`)
+          .digest("hex")
+          .slice(0, 16)
+      : "-";
+    const maxTokens = shared ? OUTPUT_TOKENS.shared : OUTPUT_TOKENS.private;
+    const finalKey = `summarize:final:v${PROMPT_VERSION}:${channelId}:${generation}:${windowKey}:${latest.id}:${asked}:${maxTokens}`;
     const cachedFinal = await quietly(() => redis.get(finalKey), null);
     if (cachedFinal) return { ...(JSON.parse(cachedFinal) as Summary), finalCached: true };
 
@@ -297,12 +324,12 @@ export function createSummarizer(deps: {
       )
       .join("\n\n");
     const final = question
-      ? await model.answer(question, history, summaryWords(count))
-      : await model.final(history, summaryWords(count));
+      ? await model.answer({ question, asker: requesterName }, history, maxTokens)
+      : await model.final(history, maxTokens);
     usage.push(final.usage);
     const messageUrl = (id: string) => `https://discord.com/channels/${guildId}/${channelId}/${id}`;
     const summary = result({
-      text: fitLinks(resolveLinks(final.text, refs, messageUrl), MAX_SUMMARY_CHARS),
+      text: resolveTimes(resolveLinks(final.text, refs, messageUrl), now),
       from,
       messageCount: count,
       truncated: cut !== null,
@@ -338,11 +365,13 @@ export function createSummarizer(deps: {
     window: SummaryWindow,
     options: Parameters<typeof summarize>[2] = {},
   ): Promise<Summary> {
+    const perMember = window === SINCE_MINE || options.question !== undefined;
     const key = [
       channelId,
       window,
       options.question ?? "",
-      window === SINCE_MINE ? (options.requesterId ?? "") : "",
+      perMember ? (options.requesterId ?? "") : "",
+      options.shared ? "shared" : "private",
     ].join("\0");
     const pending = inFlight.get(key);
     if (pending) return pending.then((summary) => ({ ...summary, finalCached: true }));

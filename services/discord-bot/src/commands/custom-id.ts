@@ -12,6 +12,8 @@
  */
 
 export const CUSTOM_ID_MAX = 100;
+/** The shape of a stored summary's key, as `summarize/pages.ts` mints it. */
+export const SUMMARY_TOKEN = /^[A-Za-z0-9_-]{12}$/;
 /** UTF-16 units. 30 lets the widest collab state land at 99 characters. */
 export const SEARCH_MAX = 30;
 const SEP = "|";
@@ -32,7 +34,9 @@ export type PageState =
       jamId?: number;
       page: number;
       search: string;
-    };
+    }
+  /** The one kind with a store behind it: a summary's text can't ride in an id. */
+  | { kind: "summary"; token: string; page: number };
 
 /** Max values the option definitions enforce, so the encoder's bounds and
  *  the manifest's cannot drift. */
@@ -45,7 +49,7 @@ export const ID_BOUNDS = {
   page: 9_999,
 } as const;
 
-const VERSION = { jam_entries: "j1", collab_browse: "c1" } as const;
+const VERSION = { jam_entries: "j1", collab_browse: "c1", summary: "s1" } as const;
 const TYPE_CODE: Record<CollabType, string> = { paid: "p", hobby: "h" };
 const CODE_TYPE: Record<string, CollabType> = { p: "paid", h: "hobby" };
 
@@ -59,6 +63,7 @@ export function truncateSearch(search: string | undefined): string {
 }
 
 export function encodeCustomId(state: PageState): string {
+  if (state.kind === "summary") return [VERSION.summary, state.token, state.page].join(SEP);
   const search = truncateSearch(state.search);
   let id: string;
   switch (state.kind) {
@@ -87,6 +92,12 @@ export function encodeCustomId(state: PageState): string {
 export function decodeCustomId(id: string): PageState | null {
   const parts = id.split(SEP);
   const version = parts[0];
+  if (version === VERSION.summary && parts.length === 3) {
+    const token = parts[1] ?? "";
+    const page = int(parts[2], ID_BOUNDS.page, 0);
+    if (!SUMMARY_TOKEN.test(token) || page == null) return null;
+    return { kind: "summary", token, page };
+  }
   if (version === VERSION.jam_entries && parts[1] === "e") {
     const jamId = int(parts[2], ID_BOUNDS.jamId);
     const sort = parts[3];
