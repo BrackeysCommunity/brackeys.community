@@ -9,7 +9,7 @@ import {
   parseProjectFile,
   PROJECT_FILE,
   projectView,
-  RUNTIME_VIEW_KINDS,
+  runtimeKindNames,
   runtimeView,
   type AssetId,
   type KindRegistry,
@@ -62,7 +62,6 @@ export type DiscoverOptions = {
 };
 
 const SKIPPED_DIR = /(^|\/)(node_modules|dist|__tests__|\.[^/]*)$/;
-const RUNTIME_KINDS: ReadonlySet<string> = new Set(RUNTIME_VIEW_KINDS);
 
 const isGame = (v: unknown): v is GameDefinition =>
   typeof v === "object" &&
@@ -129,9 +128,8 @@ export async function overlayMaterials(
 
 /**
  * What game code reads as `EngineContext.project` in a run of one of the
- * project's scenes under `registry` (the game the run plays): its
- * game-settings and data tables as their files hold them now, from `scan`
- * or a fresh one.
+ * project's scenes under `registry` (the game the run plays): its runtime
+ * kinds' docs as their files hold them now, from `scan` or a fresh one.
  */
 export async function projectRuntime(
   project: ProjectHandle,
@@ -139,8 +137,8 @@ export async function projectRuntime(
   scan?: ProjectScan,
 ): Promise<ProjectRuntimeView> {
   const files = scan ?? (await scanProject(project));
-  const values = await docValues(project.dir, files, RUNTIME_KINDS);
-  return runtimeView(projectView(files.state, project.kinds), values, registry);
+  const values = await docValues(project.dir, files, new Set(runtimeKindNames(project.kinds)));
+  return runtimeView(projectView(files.state, project.kinds), values, registry, project.kinds);
 }
 
 /** `handle` with its material assets as their files hold them now. */

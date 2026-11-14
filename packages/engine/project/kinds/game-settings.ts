@@ -231,6 +231,7 @@ export const gameSettingsKind = defineAssetKind({
   match: { jsonKind: GAME_SETTINGS_KIND },
   defaultFolder: () => "",
   storage: "doc",
+  runtime: "sim",
   perProject: 1,
   perProjectWords: { noun: "game-settings asset", held: "game settings", contents: "settings" },
   version: GAME_SETTINGS_VERSION,

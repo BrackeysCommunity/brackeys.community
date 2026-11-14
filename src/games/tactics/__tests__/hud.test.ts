@@ -35,7 +35,15 @@ const START: Record<string, UnitState> = {
 };
 
 /** What a HUD may touch on the instance: anything else throws, so the test proves it sends only commands. */
-const ALLOWED = new Set(["getStore", "project", "send", "clientToWorld", "worldToClient", "input"]);
+const ALLOWED = new Set([
+  "getStore",
+  "project",
+  "send",
+  "clientToWorld",
+  "worldToClient",
+  "input",
+  "reducedMotion",
+]);
 
 type Fake = {
   game: GameInstance;
@@ -45,7 +53,7 @@ type Fake = {
   listeners: number;
 };
 
-function fakeGame(initial: TacticsSlice | null): Fake {
+function fakeGame(initial: TacticsSlice | null, reducedMotion = false): Fake {
   let state = { game: initial, camera: { position: { x: 0, y: 0 } } } as unknown as GameStoreState;
   const subs = new Set<() => void>();
   const store = {
@@ -60,6 +68,7 @@ function fakeGame(initial: TacticsSlice | null): Fake {
   const listeners = new Set<{ fn: (e: UiActionEvent) => void; actions?: readonly string[] }>();
   const sends: GameCommand[] = [];
   const impl = {
+    reducedMotion,
     getStore: () => store,
     project: () => null,
     send: (c: GameCommand) => {
@@ -118,11 +127,13 @@ afterEach(() => {
   unmount?.();
   unmount = null;
   document.body.replaceChildren();
-  delete (window as { matchMedia?: unknown }).matchMedia;
 });
 
-function mount(initial: TacticsSlice | null = sliceOf(snapshot(START))): Fake {
-  const fake = fakeGame(initial);
+function mount(
+  initial: TacticsSlice | null = sliceOf(snapshot(START)),
+  opts: { reducedMotion?: boolean } = {},
+): Fake {
+  const fake = fakeGame(initial, opts.reducedMotion);
   unmount = mountUi(fake.game, canvas, mountTacticsHud);
   return fake;
 }
@@ -609,7 +620,7 @@ describe("the tactics HUD", () => {
     expect(fog).not.toContain("5,1");
   });
 
-  it("pulses highlights unless the page prefers reduced motion", () => {
+  it("pulses highlights unless the game runs with reduced motion", () => {
     const fake = mount();
     press(fake, "confirm");
     expect(hud().dataset.motion).toBe("full");
@@ -620,8 +631,7 @@ describe("the tactics HUD", () => {
     unmount = null;
     expect(document.querySelector(".tactics-hud")).toBeNull();
 
-    window.matchMedia = ((q: string) => ({ matches: q.includes("reduce"), media: q })) as never;
-    const reduced = mount();
+    const reduced = mount(sliceOf(snapshot(START)), { reducedMotion: true });
     press(reduced, "confirm");
     expect(hud().dataset.motion).toBe("reduced");
     expect(cellsOf("reach").length).toBeGreaterThan(0);

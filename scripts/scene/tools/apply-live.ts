@@ -60,11 +60,13 @@ async function liveEngine(
 ): Promise<Readonly<Record<string, unknown>>> {
   const [entry] = gameSettingsEntries(session.view());
   const name = entry ? session.docNameFor(entry) : null;
-  if (!entry || !name) return runtimeView(session.view(), new Map(), registry).engine;
+  if (!entry || !name)
+    return runtimeView(session.view(), new Map(), registry, session.kinds).engine;
   const opened = await session.open(name);
   try {
     const value = opened.layout ? layoutFromDoc(opened.doc, opened.layout) : null;
-    return runtimeView(session.view(), new Map([[entry.id, value]]), registry).engine;
+    return runtimeView(session.view(), new Map([[entry.id, value]]), registry, session.kinds)
+      .engine;
   } finally {
     session.release(name);
   }

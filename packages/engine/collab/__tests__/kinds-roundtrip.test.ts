@@ -88,6 +88,10 @@ const FIXTURES: Record<string, string> = {
   ),
   /** Frozen: a change to the input-map's layout or formatter that moves a byte of it is a format change. */
   "input-map": readFileSync(new URL("./fixtures/input-map.json", import.meta.url), "utf8"),
+  /** Frozen: a change to the animation's layout or formatter that moves a byte of it is a format change. */
+  animation: readFileSync(new URL("./fixtures/hero.animation.json", import.meta.url), "utf8"),
+  /** Frozen: a change to the emitter's layout or formatter that moves a byte of it is a format change. */
+  emitter: readFileSync(new URL("./fixtures/sparks.emitter.json", import.meta.url), "utf8"),
   /** Frozen: a change to the scene list's layout or formatter that moves a byte of it is a format change. */
   "scene-list": readFileSync(new URL("./fixtures/scene-list.json", import.meta.url), "utf8"),
   checks: lines(
@@ -293,6 +297,63 @@ describe("file → doc → file, per kind", () => {
     expect(scenes.map((e) => e.scene)).toEqual(["menu", "ford", "result", "cellar"]);
     expect(scenes.find((e) => e.scene === "result")!.title).toBeUndefined();
     expect(scenes.filter((e) => e.sublevel).map((e) => e.scene)).toEqual(["cellar"]);
+  });
+
+  it("animation: the frozen fixture holds every loop mode, a tag override, events, shape sets and next", () => {
+    const parsed = parseAssetDoc(kinds.get("animation") as DocKindDef, FIXTURES.animation!, env);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    expect(parsed.issues).toEqual([]);
+    const { clips } = parsed.value as {
+      clips: {
+        name: string;
+        tag?: string;
+        loop?: string;
+        next?: string;
+        frames?: { events?: string[]; shapes?: Record<string, unknown[]> }[];
+      }[];
+    };
+    expect(clips.map((c) => c.name)).toEqual(["idle", "blink", "strike", "sway", "pose"]);
+    expect(new Set(clips.map((c) => c.loop ?? "loop"))).toEqual(
+      new Set(["loop", "once", "pingpong", "hold"]),
+    );
+    expect(clips.find((c) => c.tag && c.frames)?.name).toBe("blink");
+    expect(clips.filter((c) => c.next).map((c) => c.next)).toEqual(["idle", "idle"]);
+    const frames = clips.flatMap((c) => c.frames ?? []);
+    expect(frames.flatMap((f) => f.events ?? [])).toEqual(["blink", "swing", "step"]);
+    expect(frames.flatMap((f) => Object.keys(f.shapes ?? {}))).toEqual(["hit", "hurt-high"]);
+  });
+
+  it("emitter: the frozen fixture sets every field, two bursts and every curve", () => {
+    const parsed = parseAssetDoc(kinds.get("emitter") as DocKindDef, FIXTURES.emitter!, env);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    expect(parsed.issues).toEqual([]);
+    const value = parsed.value as Record<string, unknown>;
+    expect(Object.keys(value).sort()).toEqual(
+      [
+        "$schema",
+        "kind",
+        "v",
+        "texture",
+        "frame",
+        "blend",
+        "rate",
+        "bursts",
+        "lifeMs",
+        "speed",
+        "angle",
+        "drift",
+        "damping",
+        "scale",
+        "alpha",
+        "tint",
+        "shape",
+        "space",
+        "max",
+        "durationMs",
+      ].sort(),
+    );
+    expect(value.bursts).toHaveLength(2);
+    expect((value.shape as { kind: string }).kind).toBe("circle");
   });
 
   for (const [name, text] of Object.entries(WORLD_PREDICATES)) {

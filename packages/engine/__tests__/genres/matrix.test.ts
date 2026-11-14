@@ -1,13 +1,30 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
+import { ENGINE_VERSION } from "../../version";
 import { probesFrom, type GenreRow } from "./harness";
-import { GENRE_MATRIX, GENRE_ROWS, LANDED_THROUGH, genreMatrix, milestonesOf } from "./matrix";
+import {
+  GENRE_MATRIX,
+  GENRE_ROWS,
+  MILESTONE_VERSIONS,
+  compareVersions,
+  genreMatrix,
+  landed,
+  landedRows,
+  milestonesOf,
+} from "./matrix";
 
 const PROBES = probesFrom(
   import.meta.glob<Record<string, unknown>>("./*.probe.ts", { eager: true }),
 );
 const MATRIX = genreMatrix(PROBES);
+
+/** The probes that list `row` with nothing pending on it. */
+const completing = (row: GenreRow) =>
+  PROBES.filter((p) => p.rows.includes(row) && p.pending?.[row] === undefined).map((p) => p.id);
+
+/** The milestones a pending need names. */
+const named = (need: string) => [...need.matchAll(/M(\d+)/g)].map((m) => Number(m[1]));
 
 describe("the genre matrix", () => {
   it("has plan 53's twenty rows, each delivered by at least one milestone", () => {
@@ -23,30 +40,73 @@ describe("the genre matrix", () => {
     expect(() => milestonesOf("later")).toThrow(/can't read/);
   });
 
-  it("names a probe for every row whose milestones have all landed", () => {
-    const landed = GENRE_ROWS.filter((row) =>
-      MATRIX[row].milestones.every((m) => m <= LANDED_THROUGH),
-    );
-    for (const row of landed) expect(MATRIX[row].probes.length, row).toBeGreaterThan(0);
-    expect(landed).toStrictEqual(["tactics", "tower-defense"]);
+  it("knows the version of every milestone a row or a pending need names, each version once", () => {
+    const names = new Set([
+      ...GENRE_ROWS.flatMap((row) => MATRIX[row].milestones),
+      ...PROBES.flatMap((p) => Object.values(p.pending ?? {}).flatMap((n) => named(n ?? ""))),
+    ]);
+    for (const m of names) expect(MILESTONE_VERSIONS[m], `M${m}`).toBeDefined();
+    const versions = Object.values(MILESTONE_VERSIONS);
+    expect(new Set(versions).size).toBe(versions.length);
+    expect(MILESTONE_VERSIONS[22]).toBe("0.15.0");
+  });
+
+  it("counts a milestone landed once the engine's version reaches its own", () => {
+    expect(compareVersions("0.15.0", "0.14.5")).toBeGreaterThan(0);
+    expect(compareVersions("0.14.10", "0.14.9")).toBeGreaterThan(0);
+    expect(compareVersions("0.15.0-dev.1", "0.15.0")).toBeLessThan(0);
+    expect(compareVersions("1.0.0", "1.0.0")).toBe(0);
+    expect(() => compareVersions("next", "1.0.0")).toThrow(/can't read/);
+    expect(landed(22, "0.14.5")).toBe(false);
+    expect(landed(22, "0.15.0")).toBe(true);
+    expect(landed(31, "0.14.5")).toBe(true);
+    // Landed out of number order: M42 shipped before M22.
+    expect(landed(42, "0.14.5")).toBe(true);
+    expect(landed(99, "9.0.0")).toBe(false);
+    expect(landed(19)).toBe(compareVersions(ENGINE_VERSION, "0.14.0") >= 0);
+  });
+
+  it("names a probe with nothing pending for every row whose milestones have all landed", () => {
+    for (const row of landedRows()) expect(completing(row), row).not.toStrictEqual([]);
     expect(MATRIX["tower-defense"].probes).toContain("tower-defense");
     expect(MATRIX.tactics.probes).toContain("turn-tactics");
+  });
+
+  it("completes the rows animation, cameras and effects finish, and idle", () => {
+    const rows: GenreRow[] = [
+      "puzzle",
+      "twin-stick",
+      "racing",
+      "local-multiplayer",
+      "endless-runner",
+      "idle",
+    ];
+    for (const row of rows) expect(completing(row), row).not.toStrictEqual([]);
+    expect(completing("puzzle")).toContain("grid-puzzle");
+    expect(completing("twin-stick")).toContain("shooter");
+    expect(completing("endless-runner")).toContain("shooter");
+    expect(completing("racing")).toContain("racing");
+    expect(completing("local-multiplayer")).toContain("local-versus");
+    expect(completing("idle")).toContain("idle");
+  });
+
+  it("lands exactly those rows with the milestone that finishes them", () => {
+    const before = new Set(landedRows("0.14.5"));
+    expect([...before].sort()).toStrictEqual(["idle", "tactics", "tower-defense"]);
+    const added = landedRows(MILESTONE_VERSIONS[22]).filter((row) => !before.has(row));
+    expect(added.sort()).toStrictEqual([
+      "endless-runner",
+      "local-multiplayer",
+      "puzzle",
+      "racing",
+      "twin-stick",
+    ]);
   });
 
   it("leaves turn-tactics nothing pending on the tactics row", () => {
     const probe = PROBES.find((p) => p.id === "turn-tactics");
     expect(probe?.rows).toContain("tactics");
     expect(probe?.pending?.tactics).toBeUndefined();
-  });
-
-  it("completes no row with the milestone after the last landed one", () => {
-    const next = LANDED_THROUGH + 1;
-    const complete = GENRE_ROWS.filter(
-      (row) =>
-        MATRIX[row].milestones.every((m) => m <= next) &&
-        !MATRIX[row].milestones.every((m) => m <= LANDED_THROUGH),
-    );
-    expect(complete).toStrictEqual([]);
   });
 
   it("names the input probes on the rows they prove", () => {
@@ -71,12 +131,12 @@ describe("the genre matrix", () => {
     it("lists pending needs only for its own rows, naming only milestones still to land", () => {
       for (const [row, need] of Object.entries(probe.pending ?? {})) {
         expect(probe.rows).toContain(row as GenreRow);
-        const named = [...(need ?? "").matchAll(/M(\d+)/g)].map((m) => Number(m[1]));
-        expect(named.length, `${row}: ${need}`).toBeGreaterThan(0);
+        const milestones = named(need ?? "");
+        expect(milestones.length, `${row}: ${need}`).toBeGreaterThan(0);
         expect(
-          named.every((m) => m > LANDED_THROUGH),
+          milestones.filter((m) => landed(m)),
           `${row}: ${need}`,
-        ).toBe(true);
+        ).toStrictEqual([]);
       }
     });
   });

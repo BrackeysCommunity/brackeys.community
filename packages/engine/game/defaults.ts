@@ -2,6 +2,7 @@
  * The engine's world defaults: the only home of these literals. No value
  * imports, so the canvas-sync image can carry it.
  */
+import type { BlendMode } from "../context";
 import type { CharacterControllerOptions } from "../physics";
 import type { ActionDef, Binding } from "./types";
 
@@ -79,3 +80,16 @@ export const DEFAULT_ACTIONS: readonly ActionDef[] = Object.freeze([
     ],
   },
 ]);
+
+/** Every `BlendMode`, in the order schemas list them. */
+export const BLEND_MODES = [
+  "normal",
+  "add",
+  "multiply",
+  "screen",
+] as const satisfies readonly BlendMode[];
+/** Compiles only while `BLEND_MODES` lists every `BlendMode`. */
+const everyBlendMode: [Exclude<BlendMode, (typeof BLEND_MODES)[number]>] extends [never]
+  ? true
+  : never = true;
+void everyBlendMode;

@@ -13,7 +13,7 @@ import {
   type SceneIssue,
 } from "../scene/types";
 import type { KindRegistry } from "./kinds";
-import { byCodeUnit, isPlainObject } from "./kinds/define";
+import { byCodeUnit, isPlainObject, isRuntimeKind, type KindEnv } from "./kinds/define";
 import { entityRefSites, headerAssetRefs } from "./kinds/fields";
 import { GAME_SETTINGS_KIND, gameSettingsEntries, gameSettingsValues } from "./kinds/game-settings";
 import { MATERIAL_KIND } from "./kinds/material";
@@ -112,17 +112,27 @@ function missingIssue(view: ProjectView, { site, where, entityIds }: Source): Sc
   });
 }
 
+/** A doc's value by kind and id, as a bundle reads it to follow a runtime doc a field names; undefined when it has none. */
+type BundleDocs = { read(kind: AssetKindName, id: AssetId): unknown };
+
+/** How `resolve` reads a runtime doc's references: its values, and the env its kind's `refs` take. */
+type DocFollow = { docs: BundleDocs; env: KindEnv };
+
 /**
  * Resolves `sources` against the project, following each blob asset's own
  * references through its kind's `refs` (an atlas's texture, a font's
- * pages). Only textures are entries: an atlas's or font's data is its meta.
- * Material sites are skipped, since materials ride in the registry.
+ * pages), and, with `follow`, each runtime doc's through its kind's
+ * `bundleRefs` (default `refs`), so an animation a behavior names brings
+ * its atlas and texture. Only textures are entries: an atlas's or font's
+ * data is its meta. Material sites are skipped, since materials ride in the
+ * registry.
  */
 function resolve(
   name: string,
   sources: Source[],
   view: ProjectView,
   kinds: KindRegistry,
+  follow?: DocFollow,
 ): { bundle: AssetBundle; issues: SceneIssue[] } {
   const entries = new Map<AssetId, BundleEntry>();
   const followed = new Set<AssetId>();
@@ -139,6 +149,16 @@ function resolve(
     if (followed.has(live.id)) continue;
     followed.add(live.id);
     const def = kinds.get(live.kind);
+    if (isRuntimeKind(def)) {
+      const value = follow?.docs.read(live.kind, live.id);
+      if (!follow || value === undefined) continue;
+      const own = def.bundleRefs
+        ? def.bundleRefs(value, follow.env)
+        : def.refs?.(value, follow.env);
+      for (const site of own ?? [])
+        sources.push({ site, where: `"${live.id}" ${fieldOf(site, 0)}`, entityIds: [live.id] });
+      continue;
+    }
     if (def?.storage !== "blob") continue;
     if (live.kind === TEXTURE_KIND) {
       const content = blobContent(live);
@@ -296,7 +316,10 @@ function namedPrefabSources(
  * textures among them, sorted by id, each once. A reference no live asset
  * of its kinds resolves, or a texture with no content, is `asset-missing`
  * with the closest live id; a texture whose entry records a hash but no
- * size is left out and is `asset-missing` too, saying so.
+ * size is left out and is `asset-missing` too, saying so. With `docs`, a
+ * runtime doc a field names (an `anim`'s animation) is followed into the
+ * blobs its kind's `bundleRefs` name; blobs reached only through runtime
+ * docs no field names stay out, and load on demand.
  */
 export function sceneBundle(
   scene: ExpandedScene,
@@ -305,6 +328,7 @@ export function sceneBundle(
   view: ProjectView,
   kinds: KindRegistry,
   registry: Registry,
+  docs?: { read(kind: AssetKindName, id: AssetId): unknown },
 ): { bundle: AssetBundle; issues: SceneIssue[] } {
   const sources: Source[] = [];
   for (const e of scene.entities) sources.push(...entitySources(registry, e));
@@ -317,7 +341,8 @@ export function sceneBundle(
     if (prefab) sources.push(...headerSources(prefab.assets, `prefab "${id}"'s `, [id]));
   }
   sources.push(...namedPrefabSources(scene, prefabs, registry, new Set(used), sources));
-  return resolve(scene.name, sources, view, kinds);
+  const follow = docs ? { docs, env: { registry, project: view } } : undefined;
+  return resolve(scene.name, sources, view, kinds, follow);
 }
 
 /**

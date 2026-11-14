@@ -280,7 +280,7 @@ export const pointAndClickProbe: GenreProbe<PointAndClickSnapshot> = {
   rows: ["point-and-click", "rts"],
   pending: {
     "point-and-click": "M23 (dialogue)",
-    rts: "M22 (minimap viewport), M24 (many units: culling, profiling), M25 (tilemaps)",
+    rts: "M24 (many units: culling, profiling), M25 (tilemaps)",
   },
   game,
   scene,

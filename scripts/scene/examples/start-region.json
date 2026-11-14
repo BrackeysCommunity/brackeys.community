@@ -1,0 +1,16 @@
+{
+  "label": "Hold the camera on the start in a close-up",
+  "ops": [
+    {
+      "op": "add",
+      "entity": {
+        "id": "start-view",
+        "type": "camera-region",
+        "shape": ["box", 7.6, 11, 2.4, 1.2],
+        "zoom": 1.5,
+        "clamp": true,
+        "ease": 0.4
+      }
+    }
+  ]
+}

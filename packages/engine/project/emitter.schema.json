@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:emitter:v1",
+  "x-agent-surface": 21,
+  "title": "jams engine emitter, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The emitter JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "emitter",
+      "description": "Always \"emitter\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Emitter format version."
+    },
+    "texture": {
+      "description": "A texture or atlas asset the particles draw; omitted, they draw as small squares.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+    },
+    "frame": {
+      "description": "With an atlas texture: the frame the particles draw.",
+      "type": "string"
+    },
+    "blend": {
+      "description": "How particles blend; default normal.",
+      "type": "string",
+      "enum": ["normal", "add", "multiply", "screen"]
+    },
+    "rate": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Particles per second while emitting; 0 for bursts only."
+    },
+    "bursts": {
+      "description": "Particles fired at once at set times, each co-edited on its own.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "atMs": {
+            "type": "number",
+            "minimum": 0,
+            "description": "When the burst fires, ms after emitting starts."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "How many particles it fires at once."
+          }
+        },
+        "required": ["atMs", "count"],
+        "additionalProperties": false
+      }
+    },
+    "lifeMs": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The least life in ms."
+        },
+        {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The most life in ms."
+        }
+      ],
+      "description": "How long each particle lives, ms: [min, max], picked per particle."
+    },
+    "speed": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "unit": "m/s",
+          "description": "The least speed, m/s."
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "unit": "m/s",
+          "description": "The most speed, m/s."
+        }
+      ],
+      "unit": "m/s",
+      "description": "Each particle's starting speed, m/s: [min, max]."
+    },
+    "angle": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "unit": "deg",
+          "description": "The least angle, degrees."
+        },
+        {
+          "type": "number",
+          "unit": "deg",
+          "description": "The most angle, degrees."
+        }
+      ],
+      "unit": "deg",
+      "description": "Each particle's heading, degrees, 0 = +x, clockwise (y down): [min, max]."
+    },
+    "drift": {
+      "description": "A constant acceleration every particle drifts by, m/s².",
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "description": "x, m/s²."
+        },
+        {
+          "type": "number",
+          "description": "y, m/s²; y is down."
+        }
+      ],
+      "unit": "m/s²"
+    },
+    "damping": {
+      "description": "How fast particles slow, per second; default 0.",
+      "type": "number",
+      "minimum": 0
+    },
+    "scale": {
+      "description": "Scale over a particle's life: [t, scale] keys sorted by t in 0–1; default 1.",
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "t: 0 at a particle's birth, 1 at its death."
+          },
+          {
+            "type": "number",
+            "minimum": 0,
+            "description": "Scale."
+          }
+        ]
+      }
+    },
+    "alpha": {
+      "description": "Alpha over a particle's life: [t, alpha] keys sorted by t in 0–1; default 1.",
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "t: 0 at a particle's birth, 1 at its death."
+          },
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Alpha, 0–1."
+          }
+        ]
+      }
+    },
+    "tint": {
+      "description": "Tint over a particle's life: [t, 0xrrggbb] keys sorted by t in 0–1, blended per channel; default white.",
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "t: 0 at a particle's birth, 1 at its death."
+          },
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 16777215,
+            "description": "Colour as a number, 0xrrggbb."
+          }
+        ]
+      }
+    },
+    "shape": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "point",
+              "description": "Born at the emitter's point."
+            }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "circle",
+              "description": "Born anywhere inside a circle."
+            },
+            "r": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Radius, m."
+            }
+          },
+          "required": ["kind", "r"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "box",
+              "description": "Born anywhere inside a box centred on the emitter."
+            },
+            "w": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Width, m."
+            },
+            "h": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Height, m."
+            }
+          },
+          "required": ["kind", "w", "h"],
+          "additionalProperties": false
+        }
+      ],
+      "description": "Where particles are born around the emitter; default a point."
+    },
+    "space": {
+      "description": "world: particles stay where born; local: they move with the entity. Default world.",
+      "type": "string",
+      "enum": ["world", "local"]
+    },
+    "max": {
+      "description": "At most this many particles alive at once; default 500, at most 4096.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096
+    },
+    "durationMs": {
+      "description": "How long it emits, ms; omitted, it emits while enabled.",
+      "type": "number",
+      "exclusiveMinimum": 0
+    }
+  },
+  "required": ["kind", "v", "rate", "lifeMs", "speed", "angle"],
+  "additionalProperties": false,
+  "description": "A particle preset: rate and bursts, each particle's life, speed and heading, drift, and curves over its life. Drawn only, never simulated."
+}

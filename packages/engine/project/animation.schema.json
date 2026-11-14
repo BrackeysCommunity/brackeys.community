@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:jams-engine:animation:v1",
+  "x-agent-surface": 21,
+  "title": "jams engine animation, format v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The animation JSON Schema this file follows.",
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "const": "animation",
+      "description": "Always \"animation\"."
+    },
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Animation format version."
+    },
+    "atlas": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+      "description": "The atlas asset whose frames the clips show."
+    },
+    "clips": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The clip's name, which `anim` blocks and `next` use."
+          },
+          "tag": {
+            "description": "An atlas tag whose frames and direction the clip takes; `frames` overrides them by index.",
+            "type": "string"
+          },
+          "frames": {
+            "description": "The clip's frames in order; with `tag`, each replaces the tag's frame at its index.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "frame": {
+                  "type": "string",
+                  "description": "The atlas frame's name."
+                },
+                "ms": {
+                  "description": "How long the frame shows, rounded to whole ticks; default the atlas's, else 100.",
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "events": {
+                  "description": "Raised as `anim:frame` events on the tick the frame is entered.",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "shapes": {
+                  "description": "Named shape sets (hitboxes, hurtboxes) that game code queries; set names are lowercase with dashes.",
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      },
+                      "unit": "m",
+                      "description": "A shape tuple, local to the sprite's anchor: [\"box\", cx, cy, hw, hh, rotDeg?] | [\"circle\", cx, cy, r] | [\"capsule\", cx, cy, halfLen, r, rotDeg?] | [\"poly\", x1, y1, x2, y2, x3, y3, ...] | [\"chain\", x1, y1, x2, y2, ...]. Metres, y is down; rotDeg in degrees."
+                    }
+                  }
+                }
+              },
+              "required": ["frame"],
+              "additionalProperties": false,
+              "description": "One frame of a clip."
+            }
+          },
+          "loop": {
+            "description": "loop wraps; once stops on its last frame and ends; pingpong runs back and forth; hold stops on its last frame without ending. Default: the tag's direction, else loop.",
+            "type": "string",
+            "enum": ["loop", "once", "pingpong", "hold"]
+          },
+          "speed": {
+            "description": "Multiplies the clip's pace; default 1.",
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "next": {
+            "description": "For a once clip: the clip that follows; omitted, it holds its last frame.",
+            "type": "string"
+          }
+        },
+        "required": ["name"],
+        "additionalProperties": false,
+        "description": "One clip: a tag of the atlas, its own frames, or both."
+      },
+      "description": "The clips, keyed by name and co-edited per clip."
+    }
+  },
+  "required": ["kind", "v", "atlas", "clips"],
+  "additionalProperties": false,
+  "description": "Clips over one atlas, with per-frame durations, events and shape sets, played on the simulation's ticks."
+}

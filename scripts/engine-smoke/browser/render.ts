@@ -1,27 +1,34 @@
 /**
- * The browser smoke's render run: the kitchen sink played on a canvas with
- * its textures fetched through the asset loader on the dev URL scheme,
- * stepped once and drawn, then two pixels read back through
- * `GameInstance.extractPixels` (WebGPU and WebGL alike): one inside the
- * crate's sprite, one in empty air.
+ * The browser smoke's render runs: the kitchen sink played on a canvas with
+ * its textures fetched through the asset loader on the dev URL scheme. First
+ * it is stepped once and framed on the crate, then two pixels are read back
+ * through `GameInstance.extractPixels` (WebGPU and WebGL alike): one inside
+ * the crate's sprite, one in empty air. Then the canvas splits into two
+ * viewports, the crate on the left and the animated sprite on the right, and
+ * each half's sprite is read, the animated one again a clip frame later.
  */
 import { createAssetLoader, createGame, type GameInstance } from "@jams/engine";
 import { createRegistry, withProject } from "@jams/engine/game";
 import { createKindRegistry, projectView, runtimeView } from "@jams/engine/project";
+import type { SceneDefinition } from "@jams/engine/scene";
 
 import { devAssetUrl } from "../../../packages/engine/editor-ui/connect/dev";
-import type { RenderProbe } from "../browser-compare";
+import type { RenderProbe, SplitProbe } from "../browser-compare";
 import { smokeGame } from "../game";
-import { readProbe } from "./pixels";
+import { readProbe, readThrough } from "./pixels";
 import type { SinkProjectData } from "./project";
 import { loadRapier } from "./run";
 import {
+  ANIM_FRAME_TICKS,
+  ANIM_POINT,
+  INSIDE_POINT,
   SINK_CANVAS,
   SINK_DATA_ROUTE,
   SINK_FRAME,
   SINK_PROJECT,
   SINK_SCENE,
   SMOKE_BACKGROUND,
+  SPLIT_VIEWPORTS,
 } from "./sink";
 import { parseSinkScene, sinkPrefabs } from "./sink-prefabs";
 
@@ -33,7 +40,18 @@ async function sinkData(): Promise<SinkProjectData> {
   return (await res.json()) as SinkProjectData;
 }
 
-export async function runRenderSmoke(): Promise<RenderProbe> {
+/**
+ * `scene` without its camera settings: they put a rig on the camera in Play,
+ * which places it every rendered frame, and the crate run frames the camera
+ * itself.
+ */
+function withoutRig(scene: SceneDefinition): SceneDefinition {
+  const settings = { ...scene.settings };
+  delete settings.camera;
+  return { ...scene, settings };
+}
+
+export async function runRenderSmoke(): Promise<{ render: RenderProbe; split: SplitProbe }> {
   const data = await sinkData();
   const kinds = createKindRegistry(smokeGame);
   const view = projectView(data.state, kinds);
@@ -51,7 +69,7 @@ export async function runRenderSmoke(): Promise<RenderProbe> {
       game: smokeGame,
       registry,
       rapier: loadRapier,
-      project: runtimeView(view, values, registry),
+      project: runtimeView(view, values, registry, kinds),
       prefabs,
       assets: { loader, view, kinds },
       displayWidth: SINK_CANVAS.width,
@@ -61,18 +79,51 @@ export async function runRenderSmoke(): Promise<RenderProbe> {
     const { failed } = await game.preload(scene);
     if (failed.length > 0)
       throw new Error(`textures failed to load: ${failed.map((e) => e.id).join(", ")}`);
-    const report = game.loadScene(scene);
+    const report = game.loadScene(withoutRig(scene));
     if (!report.ok) throw new Error(`${SINK_SCENE} didn't load: ${report.error}`);
     game.pause();
     game.step(1);
     game.frame({ ...SINK_FRAME }, 0);
     game.start();
     for (let i = 0; i < 3; i++) await nextFrame();
+    const render = readProbe(game);
 
-    return readProbe(game);
+    return { render, split: await runSplit(game, canvas, scene) };
   } finally {
     game?.destroy();
     loader.destroy();
     canvas.remove();
   }
+}
+
+/**
+ * The sink as authored on two viewports, each following its own entity
+ * through the scene's rig: stepped once, then a clip frame's ticks more while
+ * paused, so only the animation changes the right half between its reads.
+ */
+async function runSplit(
+  game: GameInstance,
+  canvas: HTMLCanvasElement,
+  scene: SceneDefinition,
+): Promise<SplitProbe> {
+  game.setViewports(SPLIT_VIEWPORTS);
+  const report = game.loadScene(scene);
+  if (!report.ok) throw new Error(`${SINK_SCENE} didn't load split: ${report.error}`);
+  game.pause();
+  game.step(1);
+  for (let i = 0; i < 3; i++) await nextFrame();
+  const crate = readThrough(game, canvas, INSIDE_POINT, 0);
+  const before = readThrough(game, canvas, ANIM_POINT, 1);
+  game.step(ANIM_FRAME_TICKS);
+  for (let i = 0; i < 3; i++) await nextFrame();
+  const after = readThrough(game, canvas, ANIM_POINT, 1);
+  const { width, height } = canvas.getBoundingClientRect();
+  return {
+    renderer: crate.renderer,
+    width,
+    height,
+    crate: crate.read,
+    anim: [before.read, after.read],
+    ticks: ANIM_FRAME_TICKS,
+  };
 }

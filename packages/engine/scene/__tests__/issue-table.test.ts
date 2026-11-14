@@ -17,6 +17,7 @@ import { replayRecording } from "../../headless/recording";
 import { runChecks } from "../../headless/run-checks";
 import { validatePhysical } from "../../headless/validate-physical";
 import { createKindRegistry, parseAssetDoc } from "../../project/kinds";
+import { animationKind } from "../../project/kinds/animation";
 import { gameSettingsKind } from "../../project/kinds/game-settings";
 import { sceneListIssues, sceneListKind } from "../../project/kinds/scene-list";
 import { checkProjectBatch } from "../../project/ops";
@@ -94,7 +95,7 @@ const project = projectView({
       meta: {
         tool: "aseprite",
         frames: { "idle-0": { x: 0, y: 0, w: 16, h: 16 } },
-        tags: [],
+        tags: [{ name: "idle", from: 0, to: 0, direction: "forward" }],
         slices: [],
         order: ["idle-0"],
       },
@@ -111,6 +112,13 @@ const sprited = (id: string, sprite: Record<string, unknown>): EntityDef => ({
   behaviors: { sprite },
 });
 const env = { materials: [], materialDefs: new Map(), types: [], assets: () => [] };
+/** Issues of an animation over the `hero` atlas, given as text so they carry lines. */
+const animated = (clips: Record<string, unknown>[]): SceneIssue[] =>
+  parseAssetDoc(
+    animationKind,
+    JSON.stringify({ kind: "animation", v: 1, atlas: "hero", clips }, null, 2),
+    { registry: engine, project },
+  ).issues;
 const scored = createRegistry(
   defineGame({
     id: "scored",
@@ -557,6 +565,22 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
     validated(scene({}, [sprited("pic", { asset: "hero", frame: "idel-0" })]), engine, { project }),
   "sprite-no-asset": () =>
     validated(scene({}, [sprited("pic", { scale: 2 })]), engine, { project }),
+  "anim-tag-unknown": () => animated([{ name: "rest", tag: "idel" }]),
+  "anim-clip-unknown": () =>
+    animated([{ name: "jab", frames: [{ frame: "idle-0" }], loop: "once", next: "idel" }]),
+  "frame-shape-invalid": () =>
+    animated([{ name: "jab", frames: [{ frame: "idle-0", shapes: { Hit: [["box", 0, 0, 1]] } }] }]),
+  "tween-target-invalid": () =>
+    validated(
+      scene({}, [
+        {
+          id: "glow",
+          type: "marker",
+          at: [100, 100],
+          behaviors: { tween: { tweens: [{ to: { alpha: 0 }, duration: 30 }] } },
+        },
+      ]),
+    ),
   "tick-rate-invalid": () =>
     parseAssetDoc(
       gameSettingsKind,

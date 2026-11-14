@@ -1,0 +1,11 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "8oqj98ccy3vl",
+  "id": "kitchen-animation",
+  "licence": {
+    "spdx": "CC0-1.0",
+    "author": "The @jams/engine authors",
+    "source": "Written for this repository over the hero sheet."
+  }
+}

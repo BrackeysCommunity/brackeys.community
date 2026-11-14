@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { ViewportDef } from "../../camera/viewports";
 import { defineGame } from "../../game/define";
 import type { Binding, EngineContext } from "../../game/types";
 import type { InputScriptStepV2, InputScriptV2 } from "../../headless/playtest-types";
@@ -206,6 +207,13 @@ const game = defineGame<LocalVersusSnapshot>({
           });
         }
       },
+      // Each seat's camera follows its own fighter; the shared view frames them both.
+      cameraTargets: () =>
+        fighters.map((f, seat) => ({
+          at: f.body.position(),
+          velocity: f.move.velocity(),
+          player: seat,
+        })),
       snapshot() {
         if (fighters.length < SEATS) return null;
         return {
@@ -252,10 +260,26 @@ const scene: SceneDefinition = {
     solid("south", 4, 4.4, 4, 0.1),
     solid("west", 0.1, 2.25, 0.1, 2.05),
     solid("east", 7.9, 2.25, 0.1, 2.05),
+    // Zoomed in so each seat's half of a split screen shows its own end of the arena.
+    { id: "arena-view", type: "camera-region", shape: ["box", 4, 2.25, 4, 2.25], zoom: 2 },
     { id: "fighter-0", type: "marker", at: [1.5, 2.25], tags: [FIGHTER] },
     { id: "fighter-1", type: "marker", at: [6.5, 2.25], tags: [FIGHTER] },
   ],
 };
+
+/** Each half's rig: a little slack before the camera moves, so a strike's shove doesn't jolt it. */
+const RIG = { deadzone: [0.5, 0.5] as [number, number] };
+
+/** Split screen: seat 0 on the left half, seat 1 on the right, a seam between them. */
+const SPLIT: readonly ViewportDef[] = [
+  { rect: [0, 0, 0.5, 1], frame: { player: 0 }, rig: RIG },
+  {
+    rect: [0.5, 0, 0.5, 1],
+    frame: { player: 1 },
+    rig: RIG,
+    border: { width: 2, color: 0x101010 },
+  },
+];
 
 const strike = (move: Pt): InputScriptStepV2 => ({ hold: ["strike"], set: { move }, for: 1 });
 
@@ -300,16 +324,16 @@ const script: InputScriptV2 = {
 /**
  * Two seats on vector sticks in one arena, physics none: motion bodies on the
  * geometry backend, so the run and its replay are the same on every platform.
+ * Played on screen, each seat gets half the canvas with its own camera.
  */
 export const localVersusProbe: GenreProbe<LocalVersusSnapshot> = {
   id: ID,
   rows: ["local-multiplayer", "fighting"],
-  pending: {
-    "local-multiplayer": "M22 (split and shared cameras)",
-    fighting: "M22 (per-frame hitboxes), M27 (rollback)",
-  },
+  pending: { fighting: "M27 (rollback)" },
   game,
   scene,
+  viewports: SPLIT,
+  view: true,
   script,
   expect: { result: "seat-0-wins", maxTicks: 200 },
   variants: [

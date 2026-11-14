@@ -9,7 +9,9 @@ import { describe, expect, it } from "vite-plus/test";
 import { createRegistry } from "../game/define";
 import { SAVE_SCHEMA_ID } from "../game/save-file";
 import { docKindJsonSchema } from "../project/kinds";
+import { animationKind } from "../project/kinds/animation";
 import { dataTableKind } from "../project/kinds/data-table";
+import { emitterKind } from "../project/kinds/emitter";
 import { gameSettingsKind } from "../project/kinds/game-settings";
 import { inputMapKind } from "../project/kinds/input-map";
 import { materialKind } from "../project/kinds/material";
@@ -76,6 +78,7 @@ const VITE_ONLY = ["@hocuspocus/server"];
 /** A provider is the host's to supply; the engine's own tests may use one as a client. */
 const TEST_ONLY = [
   "vite-plus/test",
+  "vite-plus/test/runtime",
   "@dimforge/rapier2d",
   "@dimforge/rapier2d-compat",
   "@dimforge/rapier2d-deterministic-compat",
@@ -129,6 +132,10 @@ const SERVICE_TYPE_ONLY = [
   "headless/",
   "export/",
   "standalone/",
+  "anim/",
+  "camera/",
+  "render/",
+  "systems/",
 ];
 const isServiceTypeTarget = (path: string) =>
   isServiceCopied(path) ||
@@ -461,6 +468,31 @@ function reachesEditorUi(path: string, spec: string): boolean {
   return target === "editor-ui" || target.startsWith("editor-ui/");
 }
 
+/** Where the simulation runs: code here may write presentation requests, never read them back. */
+const PRESENT_WRITE_ONLY = ["systems/", "runtime/behaviors/", "game/"];
+
+/**
+ * Each place `source` reads presentation requests: a `.present` that isn't
+ * a call through `.camera`, `.effects` or `.audio` (`result.present`, a
+ * queue held in a variable), and `present` destructured out of something.
+ */
+function presentReads(source: string): { line: number; text: string }[] {
+  const src = stripStrings(stripComments(source));
+  const out: { line: number; text: string }[] = [];
+  const lineOf = (index: number) => src.slice(0, index).split("\n").length;
+  for (const m of src.matchAll(
+    /\.\s*present\b(?!\s*\.\s*(?:camera|effects|audio)\s*\.\s*\w+\s*\()/g,
+  ))
+    out.push({ line: lineOf(m.index), text: m[0] });
+  for (const m of src.matchAll(/\{[^{}]*\bpresent\b[^{}]*\}\s*=/g))
+    out.push({ line: lineOf(m.index), text: m[0] });
+  return out;
+}
+
+/** Simulation modules a camera module may not import as a value. */
+const SIMULATION_DIRS = ["runtime/", "systems/", "motion/", "grid/"];
+const SIMULATION_FILES = ["physics.ts"];
+
 // ─── Rules ───────────────────────────────────────────────
 
 describe("package boundary", () => {
@@ -619,6 +651,7 @@ describe("package boundary", () => {
       "render/pixi-view.ts",
       "render/asset-loader.ts",
       "render/sprite-textures.ts",
+      "render/particles.ts",
     ];
     const bad = sourceFiles
       .map((f) => rel(f))
@@ -990,6 +1023,55 @@ describe("package boundary", () => {
     violations(bad);
   });
 
+  it("lets systems, behaviors and game/ write presentation requests and never read them", () => {
+    const files = sourceFiles.filter((f) => PRESENT_WRITE_ONLY.some((d) => rel(f).startsWith(d)));
+    expect(files.length).toBeGreaterThan(0);
+    violations(
+      files.flatMap((f) =>
+        presentReads(readFileSync(f, "utf8")).map((r) => `${rel(f)}:${r.line} reads ${r.text}`),
+      ),
+    );
+  });
+
+  it("refuses a fixture system that reads presentation requests, and passes one that writes them", () => {
+    const writes = [
+      "ctx.present.camera.shake(0.5);",
+      'ctx.present.effects.burst("sparks", { x: 1, y: 2 }, { count: 3 });',
+      'this.ctx.present.audio.play("hit");',
+      "ctx.present\n  .effects.flash({ ms: 80 });",
+    ].join("\n");
+    expect(presentReads(writes)).toEqual([]);
+    const reads = [
+      "const result = runtime.step(dt, []);",
+      "if (result.present?.length) won = true;",
+      "const queue = ctx.present;",
+      "const { present } = runtime.step(dt, []);",
+    ].join("\n");
+    expect(presentReads(reads).map((r) => r.line)).toEqual([2, 3, 4]);
+  });
+
+  it("keeps anim/ off Pixi values, and camera/ off the simulation's modules", () => {
+    const bad: string[] = [];
+    for (const file of sourceFiles) {
+      const path = rel(file);
+      if (path.startsWith("anim/")) {
+        const { bare } = runtimeGraph(path);
+        if (bare.has("pixi.js"))
+          bad.push(`${path} reaches pixi.js via ${bare.get("pixi.js")!.join(", ")}`);
+      }
+      if (!path.startsWith("camera/")) continue;
+      for (const imp of importsOf(file)) {
+        if (imp.typeOnly || !imp.spec.startsWith(".")) continue;
+        const target = rel(resolveRelative(file, imp.spec) ?? resolve(dirname(file), imp.spec));
+        if (SIMULATION_DIRS.some((d) => target.startsWith(d)) || SIMULATION_FILES.includes(target))
+          bad.push(`${path}:${imp.line} imports ${target}`);
+      }
+    }
+    expect(sourceFiles.some((f) => rel(f) === "anim/index.ts")).toBe(true);
+    expect(sourceFiles.some((f) => rel(f) === "camera/index.ts")).toBe(true);
+    violations(bad);
+  });
+
   it("has no module-level Map, Set or array registries", () => {
     const decl =
       /^(?:export\s+)?(?:const|let)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*(?:new\s+(?:Map|Set)\b|\[\s*\])/gm;
@@ -1047,7 +1129,15 @@ describe("package boundary", () => {
     }
     /** motion/index re-exports each motion module, so a name it offers is offered from any of them. */
     const motion = offered.get("motion/index.ts") ?? new Set<string>();
-    const own = ["sprite.ts", "lifetime.ts", "occupant.ts", "index.ts"];
+    const own = [
+      "sprite.ts",
+      "lifetime.ts",
+      "occupant.ts",
+      "anim.ts",
+      "tween.ts",
+      "emitter.ts",
+      "index.ts",
+    ];
     const files = sourceFiles.filter((f) => {
       const path = rel(f);
       return path.startsWith("runtime/behaviors/") && !own.includes(path.slice(18));
@@ -1365,6 +1455,8 @@ async function surface() {
       SAVE_SCHEMA_ID,
       RELEASE_SCHEMA_ID,
       SCENE_VERSION_SCHEMA_ID,
+      docKindJsonSchema(animationKind, kindEnv).$id as string,
+      docKindJsonSchema(emitterKind, kindEnv).$id as string,
     ],
     cliCommands: Object.fromEntries(
       Object.entries(cli.COMMANDS)

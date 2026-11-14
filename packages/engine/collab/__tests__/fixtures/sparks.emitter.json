@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../project/emitter.schema.json",
+  "kind": "emitter",
+  "v": 1,
+  "bursts": [
+    { "atMs": 0, "count": 12 },
+    { "atMs": 250, "count": 6 }
+  ],
+  "alpha": [[0, 1], [0.7, 1], [1, 0]],
+  "angle": [-120, -60],
+  "blend": "add",
+  "damping": 0.5,
+  "drift": [0, 4],
+  "durationMs": 1500,
+  "frame": "spark-0",
+  "lifeMs": [300, 600],
+  "max": 200,
+  "rate": 40,
+  "scale": [[0, 1], [1, 0.2]],
+  "shape": { "kind": "circle", "r": 0.06 },
+  "space": "world",
+  "speed": [0.8, 2.2],
+  "texture": "sparks",
+  "tint": [[0, 16777215], [1, 16744448]]
+}

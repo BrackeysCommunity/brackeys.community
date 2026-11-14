@@ -49,7 +49,9 @@ import { Rng, type RngState } from "../sim-kit/rng";
 import { createAttachmentHub } from "../systems/attachments";
 import type { InputAction } from "../types";
 import { createBehaviorHost, type BehaviorHost } from "./behaviors";
+import { animContext } from "./behaviors/anim";
 import type { SpriteSystem } from "./behaviors/sprite";
+import { tweensContext } from "./behaviors/tween";
 import { createBodyControl, type RuntimeBodyControl } from "./bodies-control";
 import { castSpawn } from "./cast";
 import { createContacts, type RuntimeContacts, type SavedTouch } from "./contacts";
@@ -70,6 +72,7 @@ import { runtimeNav } from "./nav";
 import { gamePersistCell, playClockOf, type PlayClock } from "./persist";
 import { LOAD_GENERATION } from "./pool";
 import { createPoseIndex } from "./poses";
+import { createPresentationQueue } from "./present";
 import { systemFactoryOf } from "./primitives";
 import { createQueryIndex, type RuntimeQueryIndex } from "./query-index";
 import { runRandom } from "./seed";
@@ -339,6 +342,12 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   /** The scene library the loaded scene's run keeps, read once at its load. */
   let runScenes: SceneLibrary | null = null;
   const live: RuntimeLive = opts.live ?? { version: () => null, boundary: () => {} };
+  /** One queue per runtime: a request made outside a step joins the next tick's list. */
+  const present = createPresentationQueue({
+    record: opts.recordPresentation ?? false,
+    tick: () => tick,
+  });
+  const behaviorOf: EngineContext["behavior"] = (name) => host?.system(name);
   const ctx: EngineContext = {
     get rapier() {
       return onRapier ? (rapier ?? null) : null;
@@ -386,7 +395,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       return project;
     },
     poses: createPoseIndex(() => tick),
-    behavior: (name) => host?.system(name),
+    behavior: behaviorOf,
     sampling: opts.sampling ?? "linear",
     spawn: <E extends RuntimeEntity = RuntimeEntity>(input: SpawnInput) =>
       lifecycle.spawn(input) as E,
@@ -471,6 +480,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
       },
       boundary: (label) => live.boundary(label),
     },
+    present: present.queue,
+    anim: animContext({ behavior: behaviorOf }),
+    tweens: tweensContext({ behavior: behaviorOf }),
   };
   bodies = createBodyControl(ctx);
   timers = createTimers(ctx);
@@ -619,6 +631,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     tick = 0;
     flowRequest = null;
     saveRequests = [];
+    present.take();
     flowScene = null;
     flowEntry = null;
     playedAs = null;
@@ -947,6 +960,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     tick++;
     playClock.ticks++;
     const result: StepResult = { tick: t, events: [...engineEvents, ...gameEvents], game: null };
+    if (opts.recordPresentation) result.present = present.take();
     result.game = snapshot();
     if (game) timed?.lap("game.snapshot");
     timed?.end();

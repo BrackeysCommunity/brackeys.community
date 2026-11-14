@@ -1,9 +1,11 @@
+import { animationKind } from "./animation";
 import { atlasKind } from "./atlas";
 import { audioKind } from "./audio";
 import { checksKind } from "./checks";
 import { codeKind } from "./code";
 import { dataTableKind } from "./data-table";
 import type { AssetKindDef } from "./define";
+import { emitterKind } from "./emitter";
 import { fontKind } from "./font";
 import { gameSettingsKind } from "./game-settings";
 import { inputMapKind } from "./input-map";
@@ -16,6 +18,19 @@ import { sceneKind } from "./scene";
 import { sceneListKind } from "./scene-list";
 import { textureKind } from "./texture";
 
+export {
+  ANIMATION_KIND,
+  ANIMATION_SCHEMA_ID,
+  ANIMATION_VERSION,
+  animationIssues,
+  animationKind,
+  CLIP_LOOPS,
+  SHAPE_SET_NAME,
+  type AnimationFile,
+  type AnimFrameDef,
+  type ClipDef,
+  type ClipLoop,
+} from "./animation";
 export {
   ATLAS_KIND,
   ATLAS_SUFFIX,
@@ -47,6 +62,17 @@ export {
   type DataTableFile,
   type DataTableRow,
 } from "./data-table";
+export {
+  EMITTER_KIND,
+  EMITTER_MAX_CAP,
+  EMITTER_MAX_DEFAULT,
+  EMITTER_SCHEMA_ID,
+  EMITTER_VERSION,
+  emitterIssues,
+  emitterKind,
+  type EmitterCurve,
+  type EmitterFile,
+} from "./emitter";
 export {
   FONT_KIND,
   fontKind,
@@ -150,4 +176,6 @@ export const ENGINE_ASSET_KINDS: readonly AssetKindDef[] = [
   recordingKind,
   saveKind,
   codeKind,
+  animationKind,
+  emitterKind,
 ];

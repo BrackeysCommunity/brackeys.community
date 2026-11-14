@@ -42,7 +42,7 @@ import {
   type Ref,
   type SessionHistory,
 } from "../../editor/index";
-import { frameBounds, outlineLook } from "../../editor/tool-host";
+import { frameBounds, outlineLook } from "../../editor/outline-bounds";
 import {
   LIVE_DEFAULTS,
   resolveTime,
@@ -63,14 +63,15 @@ import type {
   StagedVersion,
 } from "../../index";
 import {
+  isRuntimeKind,
   MATERIAL_KIND,
   parseDocName,
   prefabKind,
-  RUNTIME_VIEW_KINDS,
   runtimeView,
   stableJson,
   type AssetEntry,
   type AssetId,
+  type KindRegistry,
   type ProjectRuntimeView,
   type ProjectView,
   type Sha256,
@@ -378,17 +379,16 @@ function reloadName(view: ReturnType<ProjectSession["view"]>, changed: readonly 
   return view.byId.get(id)?.path.split("/").at(-1) ?? id;
 }
 
-const isWatchedKind = (kind: string): boolean =>
-  kind === MATERIAL_KIND || RUNTIME_VIEW_KINDS.includes(kind);
+const isWatchedKind = (kinds: KindRegistry, kind: string): boolean =>
+  kind === MATERIAL_KIND || isRuntimeKind(kinds.get(kind));
 
 /**
  * The registry a project's docs are read, validated and built with: the
  * session's code registry with the project's material assets overlaid
  * (`withProject`), rebuilt only when a material's value changes. The
  * session itself keeps its code registry, which its schema hashes come from.
- * Beside it, the project's runtime view (`runtimeView`) from its
- * runtime-view (game-settings, data-table, input-map, scene-list) docs, rebuilt only
- * when one of their values changes.
+ * Beside it, the project's runtime view (`runtimeView`) from its runtime
+ * kinds' docs (`isRuntimeKind`), rebuilt only when one of their values changes.
  */
 export function projectRegistry(
   session: ProjectSession,
@@ -403,14 +403,14 @@ export function projectRegistry(
   const held = new Map<string, Held>();
   const listeners = new Set<() => void>();
   let current = session.registry;
-  let project = runtimeView(session.view(), new Map(), session.registry);
+  let project = runtimeView(session.view(), new Map(), session.registry, session.kinds);
   let materialsKey: string | null = null;
   let dataKey: string | null = null;
   let destroyed = false;
 
   const watched = () =>
     [...session.view().byId.values()]
-      .filter((e) => isWatchedKind(e.kind))
+      .filter((e) => isWatchedKind(session.kinds, e.kind))
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
   function valuesOf(entries: readonly AssetEntry[]) {
@@ -445,7 +445,7 @@ export function projectRegistry(
     }
     if (nextData !== dataKey) {
       dataKey = nextData;
-      project = runtimeView(view, data, session.registry);
+      project = runtimeView(view, data, session.registry, session.kinds);
       changed = true;
     }
     if (changed && !first) for (const l of listeners) l();
@@ -534,7 +534,7 @@ export function projectRegistry(
           changed.push(id);
         }
         if (changed.length === 0) return;
-        project = runtimeView(view, dataValues(watched()), session.registry);
+        project = runtimeView(view, dataValues(watched()), session.registry, session.kinds);
         changed.sort();
         reload(view, changed);
       };

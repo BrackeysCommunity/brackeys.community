@@ -8,19 +8,6 @@ const VEIL_ATTR = "data-jams-fade";
 
 const cssColor = (rgb: number) => `#${(rgb & 0xffffff).toString(16).padStart(6, "0")}`;
 
-/** Whether the layer's window asks for reduced motion. */
-function prefersReducedMotion(el: HTMLElement): boolean {
-  const view = el.ownerDocument.defaultView;
-  try {
-    return (
-      typeof view?.matchMedia === "function" &&
-      view.matchMedia("(prefers-reduced-motion: reduce)").matches
-    );
-  } catch {
-    return false;
-  }
-}
-
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 /**
@@ -29,7 +16,7 @@ const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
  * the second. Under reduced motion each half is a cut.
  */
 export function fadeTransition(opts: { color?: number } = {}): TransitionRunner {
-  return async (phase, spec, layer) => {
+  return async (phase, spec, layer, env) => {
     const doc = layer.ownerDocument;
     let veil = layer.querySelector<HTMLElement>(`[${VEIL_ATTR}]`);
     if (!veil) {
@@ -40,7 +27,7 @@ export function fadeTransition(opts: { color?: number } = {}): TransitionRunner 
     }
     veil.style.background = cssColor(spec.color ?? opts.color ?? 0x000000);
     const half = Math.max(0, Math.round((spec.ms ?? DEFAULT_FADE_MS) / 2));
-    const cut = half === 0 || prefersReducedMotion(layer);
+    const cut = half === 0 || env.reducedMotion;
     const target = phase === "out" ? "1" : "0";
 
     if (cut) {

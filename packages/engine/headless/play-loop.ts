@@ -31,6 +31,7 @@ import {
   type PreparedVersion,
 } from "../runtime/live";
 import { playWorld, preparePlay } from "../runtime/play-session";
+import type { PresentRequest } from "../runtime/present";
 import { inputAction } from "../runtime/recorder";
 import { createSceneRuntime } from "../runtime/runtime";
 import { restoreSave } from "../runtime/save-state";
@@ -143,6 +144,8 @@ export type StartOptions = {
   dev?: boolean;
   /** The project's data the game reads as `EngineContext.project`; its `engine` block sets the clock. */
   project?: ProjectRuntimeView | null;
+  /** Keep presentation requests in each `StepResult.present`; default false. */
+  recordPresentation?: boolean;
   /** What `ctx.instantiate` places. */
   prefabs?: PrefabLibrary;
   /** The session's persistent value; default one of the run's own. */
@@ -220,6 +223,7 @@ export function startRun(
     registry: opts.registry,
     dev: opts.dev,
     project: opts.project,
+    ...(opts.recordPresentation ? { recordPresentation: true } : {}),
     ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
     ...(opts.persist ? { persist: opts.persist } : {}),
     ...(library ? { scenes: () => liveLibrary(library, live) } : {}),
@@ -350,8 +354,8 @@ export type RunLoopOptions = {
   live?: RunLoopLive;
   /**
    * After each tick, before the run decides whether it is over: its state,
-   * the focus, its seat-0 button edges and commands, and the whole input it
-   * stepped.
+   * the focus, its seat-0 button edges and commands, the whole input it
+   * stepped, and its presentation requests when the runtime records them.
    */
   onTick?(
     state: PlayState,
@@ -359,6 +363,7 @@ export type RunLoopOptions = {
     edges: readonly InputEdge[],
     commands: readonly GameCommand[],
     input: TickInput,
+    present: readonly PresentRequest[] | undefined,
   ): void;
 };
 
@@ -532,7 +537,7 @@ export function runLoop(opts: RunLoopOptions): RunEnd {
     };
     const focus = play?.focus ? play.focus(result.game) : null;
     input.after?.(state);
-    opts.onTick?.(state, focus, edges, merged.commands, merged);
+    opts.onTick?.(state, focus, edges, merged.commands, merged, result.present);
 
     const ended = { tick, ticks: tick + 1, slots: slot + 1 };
     tick++;

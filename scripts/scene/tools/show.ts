@@ -1,4 +1,5 @@
 import { pxPerMetreOf, type TimeKind } from "@jams/engine/game";
+import { cameraRegionsOf, type CameraRegion } from "@jams/engine/headless";
 import type { ProjectView } from "@jams/engine/project";
 import {
   aabb,
@@ -6,6 +7,7 @@ import {
   closest,
   decodeRow,
   dihedralOf,
+  expandScene,
   geometryFields,
   gridCellBounds,
   groupOrigin,
@@ -302,7 +304,31 @@ function distanceTo(row: ShownEntity, [x, y]: Pt): number {
 }
 
 /** `x0,y0..x1,y1 m`. */
-const boxText = (b: Aabb) => `${b.minX},${b.minY}..${b.maxX},${b.maxY} m`;
+export const boxText = (b: Aabb) => `${b.minX},${b.minY}..${b.maxX},${b.maxY} m`;
+
+/**
+ * The scene's camera regions as the camera rig reads them from the expanded
+ * scene (`cameraRegionsOf`): instance children included, defaults applied.
+ */
+export function sceneRegions(
+  def: SceneDefinition,
+  registry: Registry,
+  prefabs: PrefabLibrary | undefined,
+  engine: Readonly<Record<string, unknown>> | undefined,
+): CameraRegion[] {
+  const scene = expandScene(def, registry, { prefabs, engine });
+  return cameraRegionsOf(scene.entities, registry).map((r) => {
+    const b = roundBox({ minX: r.min.x, minY: r.min.y, maxX: r.max.x, maxY: r.max.y });
+    return { ...r, min: { x: b.minX, y: b.minY }, max: { x: b.maxX, y: b.maxY } };
+  });
+}
+
+/** `framing 9,0.5..21,7.5 m zoom 1.5 clamp ease 0.5 s`. */
+export function regionLine(r: CameraRegion): string {
+  const zoom = r.zoom === undefined ? "" : ` zoom ${r.zoom}`;
+  const box = boxText({ minX: r.min.x, minY: r.min.y, maxX: r.max.x, maxY: r.max.y });
+  return `  ${r.id} ${box}${zoom} ${r.clamp ? "clamp" : "no clamp"} ease ${r.ease} s`;
+}
 
 /** One row as text; lengths are metres, each followed by its unit. */
 function rowLine(r: ShownEntity): string {
@@ -361,6 +387,8 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
   const total = rows.length;
   const truncated = total > MAX_ROWS;
   const shown = truncated ? rows.slice(0, MAX_ROWS) : rows;
+  const listed = new Set(rows.map((r) => r.ref));
+  const regions = sceneRegions(def, registry, prefabs, engine).filter((r) => listed.has(r.id));
   const data = {
     ok: true,
     scene: loaded.name,
@@ -371,6 +399,7 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
     ...(def.settings ? { settings: def.settings } : {}),
     time,
     physics,
+    cameraRegions: regions,
     entities: shown,
     total,
     truncated,
@@ -395,6 +424,14 @@ export const show: Tool<ShowInput> = async (input, ctx) => {
   return {
     exitCode: 0,
     data,
-    text: [head, worldLine(time, physics), ...shown.map(rowLine), ...more].join("\n"),
+    text: [
+      head,
+      worldLine(time, physics),
+      ...(regions.length > 0
+        ? ["camera regions (as the camera rig reads them):", ...regions.map(regionLine)]
+        : []),
+      ...shown.map(rowLine),
+      ...more,
+    ].join("\n"),
   };
 };

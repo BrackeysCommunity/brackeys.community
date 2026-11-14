@@ -186,6 +186,7 @@ export const dataTableKind = defineAssetKind({
   match: { jsonKind: DATA_TABLE_KIND },
   defaultFolder: () => "data",
   storage: "doc",
+  runtime: "sim",
   version: DATA_TABLE_VERSION,
   migrations: { 1: dataTableV1ToV2 },
   schemaId: DATA_TABLE_SCHEMA_ID,

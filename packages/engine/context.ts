@@ -1,5 +1,6 @@
 import type { Style } from "./game/types";
 import type { Sha256 } from "./project/types";
+import type { ParticleLayer } from "./render/particles";
 import type { ShapeObj } from "./scene/types";
 
 /**
@@ -76,6 +77,8 @@ export interface SceneView {
   commit?(tick: number): void;
   /** Each rendered frame: interpolated poses, y-sort, parallax; `camera` is the camera's position in metres. */
   frame?(f: { alpha: number; camera: { x: number; y: number; zoom: number } }): void;
+  /** The view's particle layer, which the `emitter` behavior draws through; null in a view without one. */
+  particles?(): ParticleLayer | null;
 }
 
 /** Draws a sprite through any view: `sprite` when it has one, else the fallback box. */

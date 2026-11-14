@@ -35,6 +35,7 @@ import { platformerGame } from "../../../src/games/platformer";
 import { COMMAND_NAMES, runCli } from "../commands";
 import type { ToolContext } from "../context";
 import { apply } from "../tools/apply";
+import { assetsInfo } from "../tools/assets-info";
 import { check } from "../tools/check";
 import { codes } from "../tools/codes";
 import { diff } from "../tools/diff";
@@ -2901,7 +2902,7 @@ describe("runCli", () => {
       'game new <id> [--name "Title"] [--preset top-down|side-view|grid|turns] [--physics none|rapier] [--gravity x,y] [--time fixed|turns|event] [--rate n] [--grid square|hex|none] [--cell n] [--px-per-metre n] [--dir src/games] [--dry-run]',
     );
     expect(help).toMatch(/step <scene\|file\|-> .*\[--legal\] \[--timing\]\n/);
-    expect(help).toMatch(/playtest <scene\|file\|-> .*\[--timing\]\n/);
+    expect(help).toMatch(/playtest <scene\|file\|-> .*\[--timing\] \[--present\]\n/);
     const bare = await runCli(["game", "new"], ctx);
     expect(bare.exitCode).toBe(2);
     expect(bare.stderr).toContain("game new <id> [--name");
@@ -3357,5 +3358,234 @@ describe("playtest --flow", { timeout: 60_000 }, () => {
     const r = await playtest({ scene: "test-yard", script: HOP_LEFT, flow: true }, ctx);
     expect(r.exitCode).toBe(1);
     expect(r.text).toContain('project "platformer" has no scene list');
+  });
+});
+
+/** The avatar game, asking for a shake and a burst on its third tick. */
+const presentGame = defineGame({
+  ...avatarGame,
+  id: "present-game",
+  createRuntime(ctx) {
+    const base = avatarGame.createRuntime(ctx);
+    let tick = 0;
+    return {
+      ...base,
+      beforeStep(dt, actions, ...rest) {
+        base.beforeStep?.(dt, actions, ...rest);
+        if (tick++ !== 2) return;
+        ctx.present.camera.shake(0.5);
+        ctx.present.effects.burst("sparks", { x: 1.25, y: 2 }, { count: 3 });
+      },
+    };
+  },
+});
+
+describe("animation, camera regions and presentation", { timeout: 60_000 }, () => {
+  let sink: string;
+  let sinkCtx: ToolContext;
+
+  beforeEach(async () => {
+    sink = join(root, "engine");
+    await cp(ENGINE_SCENES, sink, { recursive: true });
+    sinkCtx = { ...ctx, projects: [await tempProject(sink, { id: "engine" })] };
+  });
+
+  type Anim = {
+    atlas: string;
+    rate: number;
+    clips: {
+      name: string;
+      loop: string;
+      next: string | null;
+      length: number;
+      frames: { frame: string; ticks: number; events: string[]; shapes: Record<string, unknown> }[];
+    }[];
+    leftOut: string[];
+    issues: { code: string }[];
+  };
+
+  it("assets info prints an animation's clips, frame ticks at the project's rate, events and shape sets", async () => {
+    const r = await assetsInfo({ id: "kitchen-animation" }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    const anim = (r.data as { animation: Anim }).animation;
+    expect(anim).toMatchObject({ atlas: "hero", rate: 60, leftOut: [], issues: [] });
+    expect(anim.clips.map((c) => [c.name, c.loop, c.next, c.length])).toEqual([
+      ["idle", "loop", null, 12],
+      ["jab", "once", "idle", 14],
+    ]);
+    expect(anim.clips[1]!.frames).toEqual([
+      { frame: "hero-0", ticks: 3, events: [], shapes: {} },
+      {
+        frame: "hero-1",
+        ticks: 5,
+        events: ["strike"],
+        shapes: { hit: { minX: 0.06, minY: -0.04, maxX: 0.18, maxY: 0.04 } },
+      },
+      { frame: "hero-0", ticks: 6, events: [], shapes: {} },
+    ]);
+    expect(r.text).toContain("atlas hero; clips at 60Hz, frame lengths in ticks");
+    expect(r.text).toContain("clip jab  once -> idle  3 frames, 14 ticks a pass");
+    expect(r.text).toContain("1 hero-1 5t [strike] hit 0.06,-0.04..0.18,0.04 m");
+
+    const settings = join(sink, "game-settings.json");
+    const file = JSON.parse(await readFile(settings, "utf8")) as { engine: object };
+    await writeFile(settings, JSON.stringify({ ...file, engine: { tickRate: 30 } }));
+    const slow = await assetsInfo({ id: "kitchen-animation" }, sinkCtx);
+    const at30 = (slow.data as { animation: Anim }).animation;
+    expect(at30.rate).toBe(30);
+    expect(at30.clips[0]!.frames.map((f) => f.ticks)).toEqual([3, 3]);
+  });
+
+  it("assets info reports an animation's issues through the animation rule and leaves the clip out", async () => {
+    const path = join(sink, "art", "kitchen.animation.json");
+    const file = JSON.parse(await readFile(path, "utf8")) as { clips: object[] };
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...file,
+        clips: [...file.clips, { name: "wave", tag: "idel", loop: "once", next: "jabb" }],
+      }),
+    );
+    const r = await assetsInfo({ id: "kitchen-animation" }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    const anim = (r.data as { animation: Anim }).animation;
+    expect(anim.clips.map((c) => c.name)).toEqual(["idle", "jab"]);
+    expect(anim.leftOut).toEqual(["wave"]);
+    expect(anim.issues.map((i) => i.code)).toEqual(["anim-tag-unknown", "anim-clip-unknown"]);
+    expect(r.text).toContain("left out: wave");
+    expect(r.text).toContain('error anim-tag-unknown clip "wave" names tag "idel"');
+    expect(r.text).toMatch(/error anim-clip-unknown .*did you mean "jab"\?/);
+  });
+
+  it("step --anim prints the entity's clip and frame per tick", async () => {
+    const r = await runCli(
+      ["step", "kitchen-sink", "--ticks", "20", "--anim", "std-anim", "--events", "anim:frame"],
+      sinkCtx,
+    );
+    expect(r.exitCode, r.stderr).toBe(0);
+    expect(r.stdout).toContain(
+      [
+        "  anim std-anim: clip, frame index and frame per tick",
+        "    t0..5 idle 0 hero-0",
+        "    t6..11 idle 1 hero-1",
+        "    t12..17 idle 0 hero-0",
+        "    t18..19 idle 1 hero-1",
+      ].join("\n"),
+    );
+    const json = await step({ scene: "kitchen-sink", ticks: "8", anim: "std-anim" }, sinkCtx);
+    const { anim } = json.data as {
+      anim: { id: string; ticks: { tick: number; frame: string }[] };
+    };
+    expect(anim.id).toBe("std-anim");
+    expect(anim.ticks.map((t) => [t.tick, t.frame])).toEqual([
+      [0, "hero-0"],
+      [1, "hero-0"],
+      [2, "hero-0"],
+      [3, "hero-0"],
+      [4, "hero-0"],
+      [5, "hero-0"],
+      [6, "hero-1"],
+      [7, "hero-1"],
+    ]);
+    expect(anim.ticks[6]).toMatchObject({ clip: "idle", index: 1, into: 0, playing: true });
+    const plain = await step({ scene: "kitchen-sink", ticks: "8" }, sinkCtx);
+    const { anim: _anim, ...rest } = json.data as Record<string, unknown>;
+    expect({ ...rest, stats: undefined }).toEqual({
+      ...(plain.data as Record<string, unknown>),
+      stats: undefined,
+    });
+  });
+
+  it("step --anim refuses an entity it can't follow", async () => {
+    const typo = await step({ scene: "kitchen-sink", anim: "std-anm" }, sinkCtx);
+    expect(typo.exitCode).toBe(2);
+    expect(typo.text).toContain('no entity "std-anm" in the scene; did you mean "std-anim"?');
+    const plain = await step({ scene: "kitchen-sink", anim: "crate" }, sinkCtx);
+    expect(plain.exitCode).toBe(2);
+    expect(plain.text).toContain('"crate" has no anim block (entities with one: std-anim)');
+  });
+
+  it("show lists the camera regions as the rig reads them", async () => {
+    const r = await show({ scene: "kitchen-sink" }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    expect((r.data as { cameraRegions: unknown }).cameraRegions).toEqual([
+      {
+        id: "framing",
+        min: { x: 9, y: 0.5 },
+        max: { x: 21, y: 7.5 },
+        zoom: 1.5,
+        clamp: true,
+        ease: 0.5,
+      },
+    ]);
+    expect(r.text).toContain(
+      "camera regions (as the camera rig reads them):\n  framing 9,0.5..21,7.5 m zoom 1.5 clamp ease 0.5 s",
+    );
+    const solids = await show({ scene: "kitchen-sink", type: "solid" }, sinkCtx);
+    expect((solids.data as { cameraRegions: unknown[] }).cameraRegions).toEqual([]);
+    expect(solids.text).not.toContain("camera regions");
+  });
+
+  it("playtest --present lists none on a scene that asks for nothing", async () => {
+    const script = join(root, "wait.json");
+    await writeFile(script, JSON.stringify({ v: 2, steps: [{ wait: 10 }] }));
+    const r = await playtest({ scene: "kitchen-sink", script, present: true }, sinkCtx);
+    expect(r.exitCode, r.text).toBe(0);
+    expect((r.data as { present: unknown[] }).present).toEqual([]);
+    expect(r.text).toContain("  present: none");
+  });
+
+  it("playtest --present prints the presentation requests, which change nothing in the run", async () => {
+    const dir = join(root, presentGame.id);
+    await mkdir(dir);
+    const yard = JSON.parse(await engineYardText()) as Record<string, unknown>;
+    await writeFile(
+      join(dir, "present-yard.json"),
+      JSON.stringify({ ...yard, name: "present-yard", game: presentGame.id }),
+    );
+    const presentCtx = {
+      ...ctx,
+      projects: [...ctx.projects, await tempProject(dir, { game: presentGame })],
+    };
+    const script = join(root, "wait.json");
+    await writeFile(script, JSON.stringify({ v: 2, steps: [{ wait: 5 }] }));
+    const presented = await playtest({ scene: "present-yard", script, present: true }, presentCtx);
+    expect(presented.exitCode, presented.text).toBe(0);
+    const { present, ...run } = presented.data as { present: unknown[] };
+    expect(present).toEqual([
+      { kind: "camera", op: { op: "shake", trauma: 0.5 }, tick: 2 },
+      {
+        kind: "effect",
+        op: { op: "burst", preset: "sparks", at: { x: 1.25, y: 2 }, count: 3 },
+        tick: 2,
+      },
+    ]);
+    expect(presented.text).toContain(
+      [
+        "  present (2, points in metres):",
+        '    t2 camera shake {"trauma":0.5}',
+        '    t2 effect burst {"preset":"sparks","at":{"x":1.25,"y":2},"count":3}',
+      ].join("\n"),
+    );
+    const plain = await playtest({ scene: "present-yard", script }, presentCtx);
+    expect(run).toEqual(plain.data);
+    expect(presented.text.startsWith(plain.text)).toBe(true);
+  });
+
+  it("codes lists the animation and tween codes", async () => {
+    const listed = (await codes({}, sinkCtx)).text;
+    for (const code of [
+      "anim-tag-unknown",
+      "anim-clip-unknown",
+      "frame-shape-invalid",
+      "tween-target-invalid",
+    ])
+      expect(listed, code).toMatch(new RegExp(`^  ${code} +error `, "m"));
+  });
+
+  it("lists --anim and --present in the usage", async () => {
+    const help = await runCli(["help"], sinkCtx);
+    expect(help.stdout).toContain("[--anim id]");
+    expect(help.stdout).toContain("[--present]");
   });
 });

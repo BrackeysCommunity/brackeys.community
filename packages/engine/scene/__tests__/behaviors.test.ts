@@ -93,6 +93,9 @@ const STANDARD = [
   "joint",
   "spawner",
   "camera-target",
+  "anim",
+  "tween",
+  "emitter",
 ];
 
 describe("behavior registration", () => {

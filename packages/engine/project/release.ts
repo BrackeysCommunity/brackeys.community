@@ -14,7 +14,10 @@ import { canonicalJson, ownValue, stableJson } from "./canonical";
 import { sha256 } from "./hash";
 import type { DocLayout } from "./kinds";
 import { byCodeUnit } from "./kinds/define";
+import { ENGINE_ASSET_KINDS } from "./kinds/index";
 import { readJsonDocument, zodSceneIssues } from "./project-file";
+import type { RefSite } from "./refs";
+import { assetEntryOf } from "./release-assets";
 import { sidecarSchema } from "./sidecar";
 import {
   parseProjectSnapshot,
@@ -744,6 +747,13 @@ export type CheckReleaseOptions = {
     content: ReleaseBudgetContent,
     limits: ExportBudget,
   ) => ExportBudgetReport;
+  /**
+   * The references of a shipped doc, as its kind's `refs` reads its text,
+   * for a host that holds the texts; every target must ship. Left out,
+   * only blobs' references (an atlas's texture, a font's pages) are
+   * checked, from what the manifest records of them.
+   */
+  docRefs?: (id: AssetId, asset: ReleaseAsset) => readonly RefSite[];
 };
 
 const pointer = (...segments: (string | number)[]) => jsonPointer(segments);
@@ -818,6 +828,39 @@ function shippedIssues(
       }),
     );
   });
+  return issues;
+}
+
+/** A shipped blob's references, through its engine kind's `refs` over the manifest's record of it. */
+function blobRefs(id: AssetId, asset: ReleaseAsset): readonly RefSite[] {
+  const def = ENGINE_ASSET_KINDS.find((k) => k.kind === asset.kind);
+  if (def?.storage !== "blob" || !def.refs) return [];
+  return def.refs(assetEntryOf(id, asset, { at: 0, by: "release" }));
+}
+
+/** `asset-missing` for each reference out of a shipped asset to one that doesn't ship as a kind it takes. */
+function refIssues(m: ReleaseManifest, docRefs: CheckReleaseOptions["docRefs"]): SceneIssue[] {
+  const issues: SceneIssue[] = [];
+  for (const id of Object.keys(m.assets).sort(byCodeUnit)) {
+    const asset = ownValue(m.assets, id)!;
+    const sites = asset.storage === "blob" ? blobRefs(id, asset) : (docRefs?.(id, asset) ?? []);
+    for (const site of sites) {
+      const target = ownValue(m.assets, site.id);
+      if (target && (site.kinds.length === 0 || site.kinds.includes(target.kind))) continue;
+      const expected = site.kinds.length > 0 ? site.kinds.join(" or ") : "an asset";
+      issues.push(
+        makeIssue("asset-missing", {
+          message: target
+            ? `${asset.kind} "${id}" names "${site.id}" at ${site.pointer}, which ships as a ${target.kind}, not ${expected}`
+            : `${asset.kind} "${id}" names "${site.id}" at ${site.pointer}, which isn't among the manifest's assets`,
+          path: pointer("assets", id),
+          entityIds: [id, site.id],
+          expected,
+          got: site.id,
+        }),
+      );
+    }
+  }
   return issues;
 }
 
@@ -1029,8 +1072,10 @@ function budgetIssues(
 /**
  * Every check a host can make without game code: the shape; every path
  * relative with no ".."; the start listed; scenes, prefabs, bundle entries
- * and credits inside `assets`; `build.rapier` null exactly when no scene is
- * "rapier"; every named file in `build.files`, an asset's with its hash;
+ * and credits inside `assets`; every reference out of a shipped blob (and,
+ * with `options.docRefs`, a shipped doc) to a shipped asset of a kind it
+ * takes; `build.rapier` null exactly when no scene is "rapier"; every
+ * named file in `build.files`, an asset's with its hash;
  * `build.hash` and the snapshot hash reproduced; the files present with
  * their hashes (when `files` is given, by path); the budget recomputed (when
  * `options.measureBudget` is given). Empty when the manifest holds together.
@@ -1046,6 +1091,7 @@ export async function checkReleaseManifest(
   return [
     ...pathIssues(m),
     ...listingIssues(m),
+    ...refIssues(m, options.docRefs),
     ...rapierIssues(m),
     ...listedFileIssues(m),
     ...(await buildHashIssues(m)),

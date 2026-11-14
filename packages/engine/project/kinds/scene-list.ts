@@ -73,6 +73,7 @@ export const sceneListKind = defineAssetKind({
   match: { jsonKind: SCENE_LIST_KIND },
   defaultFolder: () => "",
   storage: "doc",
+  runtime: "sim",
   perProject: 1,
   perProjectWords: { noun: "scene list", contents: "entries" },
   version: SCENE_LIST_VERSION,

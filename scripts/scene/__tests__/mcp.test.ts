@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,6 +48,7 @@ const TEST_YARD = repoFile("src/games/platformer/scenes/test-yard.json");
 const HOP_LEFT = repoFile("scripts/scene/examples/hop-left.json");
 const DOT = repoFile("scripts/scene/examples/dot.png");
 const SPRITES = repoFile("packages/engine/scene/__tests__/fixtures/sprites.json");
+const ENGINE_ART = repoFile("packages/engine/scenes/art");
 const V1_RECORDINGS = "packages/engine/headless/__tests__/fixtures/recordings/v1";
 const V1_ENGINE_YARD = repoFile(`${V1_RECORDINGS}/scenes/engine-yard.json`);
 const V1_SETTLES = repoFile(`${V1_RECORDINGS}/engine-yard.settles.recording.json`);
@@ -1405,6 +1406,161 @@ describe("scene flow and saves", { timeout: 20_000 }, () => {
       final: { x: 7 },
       recording: { fromSave: { slot: "fixture" } },
     });
+  });
+});
+
+/** Asks the shell for a flash and a shake on its third tick, and nothing else. */
+const showGame = defineGame({
+  id: "show-yard",
+  types: [],
+  actions: [{ action: "right", keys: ["d"], description: "Unused." }],
+  world: { physics: "none" },
+  time: { kind: "fixed" },
+  createRuntime(ctx) {
+    let ticks = 0;
+    return {
+      onLoad() {
+        ticks = 0;
+      },
+      beforeStep() {
+        ticks++;
+        if (ticks !== 3) return;
+        ctx.present.effects.flash({ color: 0xffffff, ms: 80 });
+        ctx.present.camera.shake(0.4);
+      },
+      snapshot: () => ({ ticks }),
+    };
+  },
+});
+
+describe("presentation and animation docs", { timeout: 20_000 }, () => {
+  let show: Client;
+  let dir: string;
+  const callShow = async (name: string, args: Record<string, unknown>) =>
+    (await show.callTool({ name, arguments: args })) as Called;
+  const readDoc = async (file: string) => JSON.parse(await readFile(join(dir, file), "utf8"));
+  const edit = (id: string, ...edits: object[]) => ({
+    v: 1,
+    ops: [{ op: "editAsset", id, edits }],
+  });
+  const WAIT = { v: 2, steps: [{ wait: 6 }] };
+
+  beforeAll(async () => {
+    dir = join(root, showGame.id);
+    await cp(ENGINE_ART, join(dir, "art"), { recursive: true });
+    await writeFile(
+      join(dir, "stage.json"),
+      JSON.stringify({
+        v: SCENE_FORMAT_VERSION,
+        name: "stage",
+        game: showGame.id,
+        bounds: [0, 0, 10, 6],
+        entities: [{ id: "start", type: "marker", at: [1, 1] }],
+      }),
+    );
+    const ctx: ToolContext = {
+      projects: [await tempProject(dir, { game: showGame })],
+      loadRapier: () => Promise.reject(new Error("a physics-free tool loaded Rapier")),
+    };
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    await createSceneMcpServer(ctx).connect(serverSide);
+    show = new Client({ name: "scene-mcp-present-test", version: "0" });
+    await show.connect(clientSide);
+  });
+
+  afterAll(async () => {
+    await show.close();
+  });
+
+  it("describes present on scene_playtest and the animation and emitter docs", async () => {
+    const { tools } = await client.listTools();
+    const tool = (name: string) => tools.find((t) => t.name === name)!;
+    const props = tool("scene_playtest").inputSchema.properties as Record<string, object>;
+    expect(props.present).toMatchObject({ type: "boolean" });
+    expect(tool("scene_playtest").description).toContain("With `present`");
+    const assets = tool("asset_apply_ops").description!;
+    for (const code of ["anim-tag-unknown", "anim-clip-unknown", "frame-shape-invalid"])
+      expect(assets).toContain(code);
+    expect(assets).toContain('"/rate"');
+  });
+
+  it("scene_playtest returns the run's presentation requests with present, and drops them without", async () => {
+    const plain = await callShow("scene_playtest", { scene: "stage", script: WAIT });
+    expect(plain.structuredContent, JSON.stringify(plain.structuredContent)).toMatchObject({
+      exitCode: 0,
+    });
+    expect(plain.structuredContent).not.toHaveProperty("present");
+
+    const shown = await callShow("scene_playtest", { scene: "stage", script: WAIT, present: true });
+    expect(shown.structuredContent, JSON.stringify(shown.structuredContent)).toMatchObject({
+      exitCode: 0,
+      present: [
+        { kind: "effect", op: { op: "flash", color: 0xffffff, ms: 80 }, tick: 2 },
+        { kind: "camera", op: { op: "shake", trauma: 0.4 }, tick: 2 },
+      ],
+    });
+    expect(shown.structuredContent.present).toHaveLength(2);
+    expect(shown.structuredContent.final).toEqual(plain.structuredContent.final);
+  });
+
+  it("asset_apply_ops inserts a clip, sets an emitter's rate, and refuses an unknown tag", async () => {
+    const swing = {
+      name: "swing",
+      frames: [{ frame: "hero-1", ms: 60 }],
+      loop: "once",
+      next: "idle",
+    };
+    const insert = edit("kitchen-animation", { insert: "/clips", value: swing, before: "jab" });
+    const planned = await callShow("asset_apply_ops", { ops: insert });
+    expect(planned.structuredContent, JSON.stringify(planned.structuredContent)).toMatchObject({
+      exitCode: 0,
+      written: false,
+    });
+    const clipNames = async () =>
+      ((await readDoc("art/kitchen.animation.json")).clips as { name: string }[]).map(
+        (c) => c.name,
+      );
+    expect(await clipNames()).toEqual(["idle", "jab"]);
+    const inserted = await callShow("asset_apply_ops", { ops: insert, dryRun: false });
+    expect(inserted.structuredContent, JSON.stringify(inserted.structuredContent)).toMatchObject({
+      exitCode: 0,
+      written: true,
+    });
+    expect(await clipNames()).toEqual(["idle", "swing", "jab"]);
+    expect((await readDoc("art/kitchen.animation.json")).clips[1]).toEqual(swing);
+
+    const rate = await callShow("asset_apply_ops", {
+      ops: edit("sparks", { set: "/rate", value: 45 }),
+      dryRun: false,
+    });
+    expect(rate.structuredContent, JSON.stringify(rate.structuredContent)).toMatchObject({
+      exitCode: 0,
+      written: true,
+    });
+    expect((await readDoc("art/sparks.emitter.json")).rate).toBe(45);
+
+    for (const [value, code] of [
+      [{ name: "run", tag: "idel" }, "anim-tag-unknown"],
+      [{ name: "dash", tag: "idle", loop: "once", next: "rest" }, "anim-clip-unknown"],
+    ] as const) {
+      const refused = await callShow("asset_apply_ops", {
+        ops: edit("kitchen-animation", { insert: "/clips", value }),
+        dryRun: false,
+      });
+      expect(refused.structuredContent, JSON.stringify(refused.structuredContent)).toMatchObject({
+        exitCode: 1,
+        written: false,
+        issue: { code },
+      });
+    }
+    expect(await clipNames()).toEqual(["idle", "swing", "jab"]);
+
+    const dropped = await callShow("asset_apply_ops", {
+      ops: edit("kitchen-animation", { remove: "/clips/@swing" }),
+      dryRun: false,
+    });
+    expect(dropped.structuredContent).toMatchObject({ exitCode: 0, written: true });
+    expect(await clipNames()).toEqual(["idle", "jab"]);
   });
 });
 

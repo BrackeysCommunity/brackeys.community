@@ -101,6 +101,36 @@ const TILES_ROOM = {
   entities: [{ id: "tiles", type: "paint", at: [600, 200], cells: {} }],
 };
 const SCRIPT = { v: 1, scene: "kitchen-sink", steps: [{ wait: 60 }] };
+const ANIMATION_FILE = "art/deck-moves.animation.json";
+const EMITTER_FILE = "art/deck-sparks.emitter.json";
+/** Clips over the copied hero atlas, whose one tag is `idle`. */
+const MOVES = {
+  kind: "animation",
+  v: 1,
+  atlas: "hero",
+  clips: [
+    { name: "idle", tag: "idle" },
+    {
+      name: "strike",
+      frames: [
+        { frame: "hero-0", ms: 50 },
+        { frame: "hero-1", ms: 80 },
+      ],
+      loop: "once",
+      next: "idle",
+    },
+  ],
+};
+const SPARKS = {
+  kind: "emitter",
+  v: 1,
+  texture: "hero",
+  frame: "hero-1",
+  rate: 30,
+  lifeMs: [300, 600],
+  speed: [0.5, 1.5],
+  angle: [-120, -60],
+};
 
 type Called = {
   content: { type: string; text?: string }[];
@@ -179,6 +209,11 @@ async function mcp(name: string, args: Record<string, unknown>): Promise<Called>
 }
 
 const view = (): ProjectView => human.session.view();
+const idAt = (path: string): string => {
+  const entry = [...view().byId.values()].find((e) => e.path === path);
+  if (!entry) throw new Error(`no asset at ${path}`);
+  return entry.id;
+};
 const entryOf = (id: string): AssetEntry => {
   const entry = view().byId.get(id);
   if (!entry) throw new Error(`no asset ${id}`);
@@ -252,6 +287,8 @@ beforeAll(async () => {
   await cp(ENGINE_SCENES, deck, { recursive: true });
   await writeFile(join(deck, SCRIPT_FILE), `${JSON.stringify(SCRIPT)}\n`);
   await writeFile(join(deck, "tiles-room.json"), `${JSON.stringify(TILES_ROOM)}\n`);
+  await writeFile(join(deck, ANIMATION_FILE), `${JSON.stringify(MOVES)}\n`);
+  await writeFile(join(deck, EMITTER_FILE), `${JSON.stringify(SPARKS)}\n`);
   for (const name of [
     "texture.png",
     "texture.webp",
@@ -290,6 +327,8 @@ beforeAll(async () => {
   });
   const script = [...view().byId.values()].find((e) => e.path === SCRIPT_FILE)!;
   for (const id of [
+    idAt(ANIMATION_FILE),
+    idAt(EMITTER_FILE),
     "kitchen-sink",
     "tiles-room",
     "post",
@@ -749,6 +788,89 @@ describe("a CLI and an MCP edit to every kind land in a human's docs and history
         () => list().start === before.start,
         MCP_AGENT,
         "the MCP start put back",
+      );
+    },
+  );
+
+  it(
+    "animation and emitter: an agent's editAsset inserting a clip and setting the rate lands as the agent, off the human's undo stack; an unknown tag is refused",
+    { timeout: 60_000 },
+    async () => {
+      const moves = idAt(ANIMATION_FILE);
+      const sparks = idAt(EMITTER_FILE);
+      const clips = () => valueOf(moves).clips as { name: string; tag?: string; loop?: string }[];
+      const clipNames = () => clips().map((c) => c.name);
+      const rate = () => valueOf(sparks).rate;
+      expect(clipNames()).toEqual(["idle", "strike"]);
+      expect(rate()).toBe(30);
+
+      const viaCli = await cli(
+        "assets",
+        "apply",
+        "--ops",
+        await jsonFile(
+          editAsset(moves, [
+            { insert: "/clips", value: { name: "sway", tag: "idle", loop: "pingpong" } },
+          ]),
+        ),
+      );
+      expect(viaCli.exitCode, JSON.stringify(viaCli.data)).toBe(0);
+      await landsInDoc(moves, () => clipNames().includes("sway"), CLI_AGENT, "the CLI's sway clip");
+      expect(clips().at(-1)).toEqual({ name: "sway", tag: "idle", loop: "pingpong" });
+
+      const cliRate = await cli(
+        "assets",
+        "apply",
+        "--ops",
+        await jsonFile(editAsset(sparks, [{ set: "/rate", value: 45 }])),
+      );
+      expect(cliRate.exitCode, JSON.stringify(cliRate.data)).toBe(0);
+      await landsInDoc(sparks, () => rate() === 45, CLI_AGENT, "the CLI's emitter rate");
+
+      const viaMcp = await mcp("asset_apply_ops", {
+        ops: editAsset(moves, [
+          {
+            insert: "/clips",
+            value: {
+              name: "jab",
+              frames: [{ frame: "hero-1", ms: 60 }],
+              loop: "once",
+              next: "idle",
+            },
+            before: "strike",
+          },
+        ]),
+      });
+      expect(viaMcp.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      await landsInDoc(moves, () => clipNames().includes("jab"), MCP_AGENT, "the MCP jab clip");
+      expect(clipNames()).toEqual(["idle", "jab", "strike", "sway"]);
+
+      const mcpRate = await mcp("asset_apply_ops", {
+        ops: editAsset(sparks, [{ set: "/rate", value: 60 }]),
+      });
+      expect(mcpRate.structuredContent).toMatchObject({ exitCode: 0, written: true });
+      await landsInDoc(sparks, () => rate() === 60, MCP_AGENT, "the MCP emitter rate");
+
+      const typo = editAsset(moves, [{ insert: "/clips", value: { name: "run", tag: "idel" } }]);
+      const badCli = await cli("assets", "apply", "--ops", await jsonFile(typo));
+      expect(badCli.exitCode).toBe(1);
+      expect(badCli.data).toMatchObject({ written: false, issue: { code: "anim-tag-unknown" } });
+      const badMcp = await mcp("asset_apply_ops", { ops: typo });
+      expect(badMcp.structuredContent).toMatchObject({
+        exitCode: 1,
+        written: false,
+        issue: { code: "anim-tag-unknown" },
+      });
+      expect(clipNames()).toEqual(["idle", "jab", "strike", "sway"]);
+      expect(human.session.canUndo()).toBe(false);
+
+      await until(async () => {
+        const text = await readOrEmpty(join(deck, ANIMATION_FILE));
+        return text.includes('"name": "sway"') && text.includes('"name": "jab"');
+      }, "the server to write the clips back");
+      await until(
+        async () => (await readOrEmpty(join(deck, EMITTER_FILE))).includes('"rate": 60'),
+        "the server to write the rate back",
       );
     },
   );

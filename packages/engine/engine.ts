@@ -1,7 +1,25 @@
 import type { Store } from "@tanstack/store";
-import { Container } from "pixi.js";
+import { Container, Graphics } from "pixi.js";
 
-import { createCamera } from "./camera";
+import { createCamera, type Camera } from "./camera";
+import { cameraRegionsOf, type CameraRegion } from "./camera/regions";
+import {
+  createCameraRig,
+  type CameraRig,
+  type CameraRigDef,
+  type CameraTargetSpec,
+  type RigInput,
+} from "./camera/rig";
+import {
+  defaultViewports,
+  fillsCanvas,
+  sceneFitFrame,
+  viewportIndexAt,
+  viewportRect,
+  viewportsProblem,
+  type ViewportDef,
+  type ViewportRect,
+} from "./camera/viewports";
 import type { DebugOverlay } from "./debug";
 import { GameEventEmitter } from "./events";
 import { createFlowHost, liveSceneSource, sourceLibrary } from "./flow-host";
@@ -25,6 +43,7 @@ import type {
   GameAttachment,
   GameCommand,
   GameOutcome,
+  GameRuntime,
   GameShell,
   JsonValue,
   PlayerInfo,
@@ -74,6 +93,7 @@ import {
 } from "./project/bundle";
 import { ownValue, sameValue } from "./project/canonical";
 import type { KindRegistry } from "./project/kinds";
+import { EMITTER_KIND, type EmitterFile } from "./project/kinds/emitter";
 import { engineResolution } from "./project/kinds/game-settings";
 import { TEXTURE_KIND } from "./project/kinds/texture";
 import type { ReleaseAsset } from "./project/release";
@@ -83,10 +103,18 @@ import type { SceneVersion } from "./project/scene-version";
 import type { AssetEntry, AssetId, ProjectView, Sha256 } from "./project/types";
 import { projectView } from "./project/view";
 import type { LoadProgress } from "./render/asset-loader";
-import { createPixiView, type PixiView } from "./render/pixi-view";
+import { createEffectLayer, type EffectLayer } from "./render/effects";
+import { particleTexture } from "./render/particles";
+import {
+  createPixiView,
+  createViewportSurface,
+  type PixiView,
+  type SurfaceRenderer,
+  type ViewportSurface,
+} from "./render/pixi-view";
 import { createRenderer } from "./renderer";
 import { resolveResolution } from "./resolution";
-import type { CameraTarget, CameraTargetSystem } from "./runtime/behaviors/camera-target";
+import type { CameraTargetSystem } from "./runtime/behaviors/camera-target";
 import { loadListed } from "./runtime/flow";
 import {
   createLiveLayer,
@@ -106,6 +134,7 @@ import {
   type PreparedPlay,
   type SessionRecording,
 } from "./runtime/play-session";
+import type { EffectRequest, PresentRequest } from "./runtime/present";
 import { recordingRapier, recordingStart } from "./runtime/recorder";
 import {
   createSceneRuntime,
@@ -169,7 +198,7 @@ import type {
   Vec2,
 } from "./types";
 import { DEFAULT_GAME_CONFIG } from "./types";
-import { cancelMountedUi, createTransitionLayer } from "./ui/layer";
+import { cancelMountedUi, createEffectOverlay, createTransitionLayer } from "./ui/layer";
 
 /** The scene that is playing: its runtime, the view it draws into, and the game's tools on it. */
 type LoadedScene = {
@@ -201,6 +230,9 @@ export async function createGame(
   let self: GameInstance | null = null;
   const cfg: GameConfig = { ...DEFAULT_GAME_CONFIG, ...rest };
   const { game } = cfg;
+  /** The one reduced-motion flag the camera, the effects, the transitions and the UI read. */
+  const reducedMotion = resolveReducedMotion(cfg.reducedMotion ?? "auto", canvas);
+  let viewports: readonly ViewportDef[] = checkedViewports(cfg.viewports ?? defaultViewports());
   // Resolved before any rendering, so a malformed game fails fast; every scene's runtime shares it.
   const { registry } = resolveGame({ game, registry: cfg.registry });
   const projectResolution = project ? engineResolution(project.engine) : undefined;
@@ -242,6 +274,8 @@ export async function createGame(
   const renderer = await createRenderer(canvas, cfg, resolution, {
     lost: (backend) => {
       gpuLost = true;
+      // Off the stage, so a rebuild's teardown of the old app leaves them whole.
+      detachChrome();
       events.emit("render:lost", { backend });
       if (loopReady && !loop.isPaused()) {
         pausedWhileLost = true;
@@ -278,6 +312,34 @@ export async function createGame(
     pxPerMetre,
   );
   updateCamera(store, { scale: camera.getState().scale });
+
+  /** The canvas's size, px: what the viewports' fractions are of. */
+  let display = { width: cfg.displayWidth, height: cfg.displayHeight };
+  /**
+   * The first viewport: `camera`, which the stage draws directly (the
+   * editor's only view). Its rig is made on load when the viewport's `rig`,
+   * the scene's `settings.camera` or the game's `camera` declares one, or at
+   * its first camera request. Without one, Play's camera eases toward the
+   * targets' centre as the editor camera's `follow` mode does.
+   */
+  const main: ViewCamera = {
+    index: 0,
+    camera,
+    rig: null,
+    frameAt: null,
+    track: freshTrack(),
+    rect: { x: 0, y: 0, ...display },
+    holder: null,
+    surface: null,
+  };
+  /** The viewports past the first, in Play: each draws the world into its own surface. */
+  let extras: ViewCamera[] = [];
+  /** Clips the stage's direct draw to the first viewport when it doesn't fill the canvas. */
+  let mainMask: Graphics | null = null;
+  /** The first viewport's border, when it has one. */
+  let mainBorder: ViewportSurface | null = null;
+  /** The regions read from the runtime's scene, kept while it hands back the same scene. */
+  let regionsMemo: { scene: ExpandedScene; regions: CameraRegion[] } | null = null;
 
   // Rapier loads at start only when the game (or its start-up scene) runs on it; `preload`
   // brings it in for a later Rapier scene, and without it such a load reports `physics-not-loaded`.
@@ -537,7 +599,9 @@ export async function createGame(
   ): AssetBundle | null {
     if (!assets || !view) return null;
     const source = def ?? { v: 0, name: scene.name, bounds: scene.bounds };
-    return sceneBundle(scene, source, defPrefabs, view, assets.kinds, registry).bundle;
+    const read = project?.doc?.bind(project);
+    const docs = read ? { read } : undefined;
+    return sceneBundle(scene, source, defPrefabs, view, assets.kinds, registry, docs).bundle;
   }
 
   /**
@@ -611,11 +675,18 @@ export async function createGame(
   function buildRuntime(name: string): BuiltRuntime {
     const container = new Container();
     container.label = `scene:${name}`;
+    /** Set once made: the particle layer reads its project's textures through it. */
+    let built: SceneRuntimeHandle | null = null;
     const view = createPixiView(container, {
       layers: registry.layers,
       textures: cfg.assets?.loader,
       editing: () => getMode() === "edit",
       pxPerMetre,
+      particles: {
+        reducedMotion,
+        seed: name,
+        texture: (preset) => (built ? particleTexture(built.ctx, preset) : null),
+      },
       ...(resolution.pixelSnap ? { pixelSnap: true } : {}),
     });
     const runtime = createSceneRuntime({
@@ -624,6 +695,7 @@ export async function createGame(
       game,
       registry,
       dev: cfg.dev,
+      recordPresentation: true,
       now: () => performance.now(),
       project,
       prefabs: () => prefabs,
@@ -633,6 +705,7 @@ export async function createGame(
       ...(cfg.flow ? { scenes: flowLibrary } : {}),
       ...(resolution.sampling ? { sampling: resolution.sampling } : {}),
     });
+    built = runtime;
     return { runtime, view, container };
   }
 
@@ -662,6 +735,15 @@ export async function createGame(
     debugOverlay?.setPhysics(runtime.ctx);
     syncGameSlice();
     camera.setBoundsFromScene(scene.bounds);
+    const rigDef = frameOf(0) === "scene" ? null : rigDefOf(scene, 0);
+    main.rig = rigDef ? createCameraRig(rigDef, scene.name) : null;
+    main.frameAt = null;
+    main.track = freshTrack();
+    for (const vc of extras) {
+      vc.rig = null;
+      vc.frameAt = null;
+      vc.track = freshTrack();
+    }
     if (snap ?? (first || getMode() === "play")) {
       camera.snapTo(cameraTarget(runtime));
     }
@@ -883,6 +965,7 @@ export async function createGame(
     input.setEnabled(mode === "play");
     touch?.sync();
     camera.setMode(mode === "play" ? "follow" : "free");
+    layoutViewports();
     updateCamera(store, camera.getState());
     loaded?.attachment?.onModeChange?.(mode);
     if (mode === "play" && store.state.phase === "running") focusInput();
@@ -1235,7 +1318,8 @@ export async function createGame(
     enterMode("edit");
     if (remembered) restoreCamera(remembered.camera);
     setSession(store, null);
-    // Edit mode's camera and overlays tick too, so the loop runs on at 1x.
+    // Edit mode's camera and overlays tick too, so the loop runs on at 1x, with no flash left over.
+    effects?.layer.clear();
     loop.setTimeScale(1);
     if (gpuLost) pausedWhileLost = true;
     else if (!pausedWhileHidden) loop.resume();
@@ -1345,7 +1429,7 @@ export async function createGame(
     applyPads(pads.poll(++padPolls));
     if (!input.hasPointer()) return;
     const reading = input.getPointer();
-    const at = camera.screenToWorld({ x: reading.x, y: reading.y });
+    const at = canvasToWorld({ x: reading.x, y: reading.y });
     pointerNow = {
       x: qPointer(at.x),
       y: qPointer(at.y),
@@ -1492,14 +1576,362 @@ export async function createGame(
 
   // ─── Game loop ────────────────────────────────────────────
 
+  // ─── Camera rig and viewports ─────────────────────────────
+
+  /**
+   * Viewport `index`'s own `rig`, else the game's camera settings with the
+   * scene's own over them, field by field; null when none of them has any.
+   */
+  function rigDefOf(scene: ExpandedScene, index = 0): CameraRigDef | null {
+    const own = viewports[index]?.rig;
+    if (own) return own;
+    const settings = scene.settings.camera;
+    if (!game?.camera && !settings) return null;
+    return { ...game?.camera, ...settings };
+  }
+
+  /** What viewport `index` frames; the editor's one view frames the main targets. */
+  function frameOf(index: number): ViewportDef["frame"] {
+    return getMode() === "play" ? (viewports[index]?.frame ?? "main") : "main";
+  }
+
+  /** The first viewport's camera is placed per rendered frame (by its rig, or fitted to the scene), not per tick. */
+  const framedPerFrame = () =>
+    loaded !== null && getMode() === "play" && (main.rig !== null || frameOf(0) === "scene");
+
+  /**
+   * What `vc` follows, null holding it: a `follow` request's target while
+   * one stands; else what its viewport frames (the main targets, a seat's,
+   * an entity); a viewport fitted to the scene follows nothing.
+   */
+  function viewTargets(
+    runtime: SceneRuntimeHandle,
+    vc: ViewCamera,
+    playing: boolean,
+    following: CameraTargetSpec | null,
+    alpha: number,
+  ): FollowTarget[] | null {
+    const frame = frameOf(vc.index);
+    if (following || frame === "main")
+      return cameraTargetsOf(runtime, playing, following, alpha, vc.track);
+    if (frame === "scene") return null;
+    const targets = followedTargets(runtime, frame, alpha);
+    return targets.length > 0 ? targets : null;
+  }
+
   function cameraTarget(runtime: SceneRuntimeHandle): Vec2 | null {
-    return cameraTargetOf(runtime, getMode() === "play");
+    const targets = viewTargets(runtime, main, getMode() === "play", null, 1);
+    return targets ? weightedCentre(targets) : null;
+  }
+
+  /** The camera regions in the runtime's scene as it stands, so a live swap's apply on the next frame. */
+  function sceneRegions(runtime: SceneRuntimeHandle): readonly CameraRegion[] {
+    const scene = runtime.scene();
+    if (!scene) return [];
+    if (regionsMemo?.scene !== scene)
+      regionsMemo = { scene, regions: cameraRegionsOf(scene.entities, registry) };
+    return regionsMemo.regions;
+  }
+
+  /**
+   * Places `vc`'s camera for this rendered frame in Play: fitted to the
+   * scene's bounds for a `"scene"` viewport (never shaken), else through its
+   * rig. A viewport past the first gets a rig at its first frame.
+   */
+  function frameView(vc: ViewCamera, runtime: SceneRuntimeHandle, alpha: number): void {
+    const cam = vc.camera;
+    if (frameOf(vc.index) === "scene") {
+      const { zoom } = cam.getState();
+      const vp = cam.getViewport();
+      cam.setFrame(
+        sceneFitFrame(runtime.ctx.bounds, { width: vp.width * zoom, height: vp.height * zoom }),
+      );
+      return;
+    }
+    if (!vc.rig && vc.index > 0) {
+      const scene = runtime.scene();
+      if (scene) vc.rig = createCameraRig(rigDefOf(scene, vc.index) ?? {}, scene.name);
+    }
+    const { rig } = vc;
+    if (!rig) return;
+    const now = performance.now();
+    const dtMs = vc.frameAt === null || loop.isPaused() ? 0 : now - vc.frameAt;
+    vc.frameAt = now;
+    const targets = viewTargets(runtime, vc, true, rig.following, alpha) ?? [];
+    const { zoom, bounds } = cam.getState();
+    const vp = cam.getViewport();
+    const input: RigInput = {
+      dtMs,
+      targets,
+      regions: sceneRegions(runtime),
+      view: { width: vp.width * zoom, height: vp.height * zoom },
+      bounds,
+      pxPerMetre,
+      reducedMotion,
+    };
+    cam.setFrame(rig.update(input));
+  }
+
+  /** Viewport `index`'s camera, or null where there's no such viewport (only the first outside Play). */
+  function viewOf(index: number): ViewCamera | null {
+    return index === 0 ? main : (extras[index - 1] ?? null);
+  }
+
+  /** The viewport under canvas px `at`: the topmost in Play, the editor's one view otherwise; null over none. */
+  function viewIndexAt(at: Vec2): number | null {
+    if (getMode() !== "play")
+      return at.x >= 0 && at.y >= 0 && at.x <= display.width && at.y <= display.height ? 0 : null;
+    return viewportIndexAt(viewports, at.x, at.y, display.width, display.height);
+  }
+
+  /** Canvas px to world metres through viewport `index`, by default the one under the point (else the first). */
+  function canvasToWorld(at: Vec2, index?: number): Vec2 {
+    const vc = viewOf(index ?? viewIndexAt(at) ?? 0) ?? main;
+    return vc.camera.screenToWorld({ x: at.x - vc.rect.x, y: at.y - vc.rect.y });
+  }
+
+  /** World metres to canvas px through viewport `index`: `canvasToWorld`'s inverse. */
+  function worldToCanvas(p: Vec2, index = 0): Vec2 {
+    const vc = viewOf(index) ?? main;
+    const screen = vc.camera.worldToScreen(p);
+    return { x: screen.x + vc.rect.x, y: screen.y + vc.rect.y };
+  }
+
+  /** Texels per canvas px for a viewport's texture: the renderer's own resolution. */
+  function texelsPerPx(): number {
+    const gpu = (renderer.app as { renderer?: { resolution?: number } }).renderer;
+    return gpu?.resolution ?? 1;
+  }
+
+  /**
+   * Lays the viewports out over the canvas. In Play the first one's camera
+   * is sized to its rectangle (clipped to it when it doesn't fill the
+   * canvas) and each later one gets a camera and a surface of its own;
+   * outside Play the editor's one view fills the canvas. `force` resizes the
+   * first camera even when its size is unchanged (the canvas was resized).
+   */
+  function layoutViewports(force = false): void {
+    if (destroyed) return;
+    const playing = getMode() === "play";
+    const first = viewports[0]!;
+    const rect: ViewportRect = playing
+      ? viewportRect(first, display.width, display.height)
+      : { x: 0, y: 0, ...display };
+    if (force || rect.width !== main.rect.width || rect.height !== main.rect.height) {
+      camera.resize(rect.width, rect.height);
+      updateCamera(store, { scale: camera.getState().scale });
+    }
+    main.rect = rect;
+
+    const world = renderer.worldContainer;
+    if (playing && !fillsCanvas(first)) {
+      if (!mainMask) {
+        mainMask = new Graphics();
+        mainMask.label = "viewport-mask";
+      }
+      mainMask.clear().rect(rect.x, rect.y, rect.width, rect.height).fill(0xffffff);
+      world.mask = mainMask;
+    } else if (mainMask) {
+      world.mask = null;
+      mainMask.destroy();
+      mainMask = null;
+    }
+    if (rect.x === 0 && rect.y === 0) world.pivot.set(0, 0);
+
+    if (playing && first.border && first.border.width > 0) {
+      mainBorder ??= createViewportSurface(false);
+      mainBorder.layout(rect, 1, first.border);
+    } else if (mainBorder) {
+      mainBorder.destroy();
+      mainBorder = null;
+    }
+
+    const want = playing ? viewports.length - 1 : 0;
+    while (extras.length > want) extras.pop()?.surface?.destroy();
+    for (let index = 1; index <= want; index++) {
+      const def = viewports[index]!;
+      const r = viewportRect(def, display.width, display.height);
+      let vc = extras[index - 1];
+      if (!vc) {
+        const holder = new Container();
+        const cam = createCamera(holder, r.width, r.height, cfg.camera, resolution, pxPerMetre);
+        vc = {
+          index,
+          camera: cam,
+          rig: null,
+          frameAt: null,
+          track: freshTrack(),
+          rect: r,
+          holder,
+          surface: createViewportSurface(true),
+        };
+        extras.push(vc);
+      } else if (r.width !== vc.rect.width || r.height !== vc.rect.height) {
+        vc.camera.resize(r.width, r.height);
+      }
+      vc.rect = r;
+      vc.surface?.layout(r, texelsPerPx(), def.border);
+    }
+    if (!playing) loaded?.view.showLayers(null);
+  }
+
+  /** Replaces the viewports; a later viewport starts afresh, with a new camera and rig. */
+  function setViewports(defs: readonly ViewportDef[]): void {
+    if (destroyed) return;
+    viewports = checkedViewports(defs);
+    for (const vc of extras) vc.surface?.destroy();
+    extras = [];
+    layoutViewports();
+  }
+
+  /** Puts the viewports' chrome on the stage over the world, in order: the clip, each later viewport, the first's border. */
+  function mountChrome(): void {
+    const stage = (renderer.app as { stage?: Container }).stage;
+    const world = renderer.worldContainer;
+    if (!stage || world.parent !== stage) return;
+    let at = stage.getChildIndex(world) + 1;
+    for (const node of [
+      mainMask,
+      ...extras.map((vc) => vc.surface?.display),
+      mainBorder?.display,
+    ]) {
+      if (!node) continue;
+      if (node.parent !== stage || stage.getChildIndex(node) !== at) stage.addChildAt(node, at);
+      at++;
+    }
+  }
+
+  function detachChrome(): void {
+    for (const node of [mainMask, ...extras.map((vc) => vc.surface?.display), mainBorder?.display])
+      node?.parent?.removeChild(node);
+  }
+
+  /**
+   * Shifts the first viewport's draw to its rectangle's corner. The camera
+   * places the world for a view at the canvas's corner, so the shift goes in
+   * the world's pivot, turned and scaled back by the camera's own turn and
+   * zoom; it is recomputed each frame from them.
+   */
+  function offsetMain(): void {
+    const world = renderer.worldContainer;
+    const { x, y } = main.rect;
+    if (x === 0 && y === 0) return;
+    const s = world.scale.x || 1;
+    const cos = Math.cos(world.rotation);
+    const sin = Math.sin(world.rotation);
+    world.pivot.set(-(x * cos + y * sin) / s, -(-x * sin + y * cos) / s);
+  }
+
+  /**
+   * After the frame's interpolation and y-sort, which run once: each later
+   * viewport frames its camera and draws the world into its surface with its
+   * own transform, parallax and layers; then the first viewport's parallax
+   * and layers are put back for the stage's direct draw.
+   */
+  function drawViewports(view: PixiView, runtime: SceneRuntimeHandle, alpha: number): void {
+    if (getMode() !== "play" || gpuLost) return;
+    const first = viewports[0]!;
+    offsetMain();
+    mountChrome();
+    if (extras.length > 0) {
+      const gpu = (renderer.app as { renderer?: SurfaceRenderer }).renderer;
+      const world = renderer.worldContainer;
+      const { bounds } = camera.getState();
+      // The clip belongs to the stage's draw of the first viewport, not to the textures.
+      const mask = world.mask;
+      world.mask = null;
+      for (const vc of extras) {
+        vc.camera.setBounds(bounds.min, bounds.max);
+        frameView(vc, runtime, alpha);
+        view.parallax(vc.camera.getPosition());
+        view.showLayers(viewports[vc.index]?.layers ?? null);
+        if (gpu && vc.holder && vc.surface) {
+          vc.holder.updateLocalTransform();
+          vc.surface.render(gpu, world, vc.holder.localTransform, cfg.backgroundColor);
+        }
+      }
+      world.mask = mask;
+      view.parallax(camera.getPosition());
+    }
+    view.showLayers(first.layers ?? null);
+  }
+
+  /**
+   * A tick's presentation requests, after its `view.commit` and before the
+   * next frame draws: camera requests to their viewport's rig (the first one
+   * makes it when the scene declares none; a viewport fitted to the scene
+   * takes none, and under reduced motion no shake is kept), effects to the
+   * effect layer and bursts to the scene view's particle layer, in that
+   * order. Audio has nowhere to go yet, so it is dropped, as are requests
+   * for a viewport that isn't there.
+   */
+  function presentTick(requests: readonly PresentRequest[] | undefined): void {
+    if (!requests) return;
+    for (const req of requests) {
+      switch (req.kind) {
+        case "camera": {
+          const index = req.op.viewport ?? 0;
+          if (req.op.op === "shake" && reducedMotion) break;
+          const vc = viewOf(index);
+          if (!vc || frameOf(index) === "scene") break;
+          const scene = loaded?.runtime.scene();
+          if (!scene) break;
+          vc.rig ??= createCameraRig(rigDefOf(scene, index) ?? {}, scene.name);
+          vc.rig.request(req.op);
+          break;
+        }
+        case "effect":
+          presentEffect(req.op);
+          break;
+        case "audio":
+          break;
+      }
+    }
+  }
+
+  // ─── Effects ──────────────────────────────────────────────
+
+  /** The flash and hit-stop layer over the canvas, under the UI: made at the first effect, once. */
+  let effects: { layer: EffectLayer; overlay: { destroy(): void } } | null = null;
+
+  function effectLayer(): EffectLayer | null {
+    if (effects) return effects.layer;
+    if (destroyed || !canvas.parentElement) return null;
+    const overlay = createEffectOverlay(canvas);
+    effects = {
+      overlay,
+      layer: createEffectLayer(overlay.root, loop, { reducedMotion: () => reducedMotion }),
+    };
+    return effects.layer;
+  }
+
+  function presentEffect(op: EffectRequest): void {
+    switch (op.op) {
+      case "flash": {
+        const { op: _, ...opts } = op;
+        effectLayer()?.flash(opts);
+        break;
+      }
+      case "hitStop":
+        // Hit-stop holds the loop's clock: only Play's own, never the editor's.
+        if (getMode() === "play") effectLayer()?.hitStop(op.ms);
+        break;
+      case "burst": {
+        const runtime = loaded?.runtime;
+        const preset = runtime?.ctx.project?.doc?.<EmitterFile>(EMITTER_KIND, op.preset);
+        if (!preset) break;
+        const { op: _, preset: __, at, ...opts } = op;
+        loaded?.view.particles?.()?.burst(preset, at, opts);
+        break;
+      }
+    }
   }
 
   /** The camera, the game's store slice and the debug overlay: what moves on with or without a step. */
   function shellTick(dt: number, mouseWorld: Vec2): void {
     const hooks = loaded?.runtime.game ?? null;
-    camera.update(dt, loaded ? cameraTarget(loaded.runtime) : null);
+    // A rig or a fit to the scene places the camera on render frames instead.
+    if (!framedPerFrame()) camera.update(dt, loaded ? cameraTarget(loaded.runtime) : null);
     syncGameSlice();
     updateCamera(store, { position: camera.getPosition() });
 
@@ -1512,6 +1944,11 @@ export async function createGame(
     });
   }
 
+  /** When the last rendered frame ran, for the particles' wall time; null before the first. */
+  let lastFrameAt: number | null = null;
+  /** Sim time `step` advanced while paused, owed to the particles on the next rendered frame. */
+  let steppedMs = 0;
+
   const loop = createGameLoop({
     tickRate: initialTime.rate,
     maxDeltaMs: cfg.maxDeltaTime,
@@ -1519,7 +1956,7 @@ export async function createGame(
 
     onTick(dt: number) {
       if (flowHolding) {
-        shellTick(dt, camera.screenToWorld(input.getMousePosition()));
+        shellTick(dt, canvasToWorld(input.getMousePosition()));
         return;
       }
       const playing = loaded !== null && getMode() === "play";
@@ -1527,7 +1964,7 @@ export async function createGame(
       if (playing) sampleDevices();
       sampled = false;
       const polled = takeInput(store.state.tick);
-      let mouseWorld = camera.screenToWorld(input.getMousePosition());
+      let mouseWorld = canvasToWorld(input.getMousePosition());
 
       if (loaded && playing && replaySwaps(loaded.runtime.ctx.tick)) {
         if (subTick) stampOffsets(polled, loaded.runtime.ctx.time.tickMs);
@@ -1554,6 +1991,7 @@ export async function createGame(
         loaded.attachment?.onTick?.(dt, mouseWorld);
         shellTiming.lap("input");
         const result = loaded.runtime.step(dt, tickInput);
+        presentTick(result.present);
         shellTiming.lap("step");
         incrementTick(store);
         events.emit("scene:step", result);
@@ -1586,7 +2024,7 @@ export async function createGame(
     },
 
     onIdle(dt: number) {
-      shellTick(dt, camera.screenToWorld(input.getMousePosition()));
+      shellTick(dt, canvasToWorld(input.getMousePosition()));
     },
 
     onDropped(ms: number) {
@@ -1595,6 +2033,9 @@ export async function createGame(
 
     onRender(alpha: number) {
       frameTiming.begin();
+      const now = performance.now();
+      const wallMs = lastFrameAt === null ? 0 : Math.min(now - lastFrameAt, cfg.maxDeltaTime);
+      lastFrameAt = now;
       // A frame's look at the devices ends with it; the next frame reads them afresh.
       sampled = false;
       pollFrame();
@@ -1603,10 +2044,22 @@ export async function createGame(
         // Paused or editing, nothing steps, so visuals sit at their latest poses (an idle
         // turns or event game gets alpha 1 from the loop).
         const a = loop.isPaused() || getMode() === "edit" ? 1 : alpha;
+        if (framedPerFrame()) {
+          const before = camera.getState().zoom;
+          frameView(main, loaded.runtime, a);
+          const state = camera.getState();
+          if (state.zoom !== before) updateCamera(store, { zoom: state.zoom, scale: state.scale });
+        }
         const { position, zoom } = camera.getState();
         loaded.view.frame?.({ alpha: a, camera: { x: position.x, y: position.y, zoom } });
         frameTiming.lap("view.frame");
         loaded.runtime.render(a);
+        // Particles run on the loop's scaled wall time: still while paused or editing, except
+        // by the ticks a paused `step` advanced.
+        const still = loop.isPaused() || getMode() === "edit";
+        loaded.view.particles?.()?.update(still ? steppedMs : wallMs * loop.getTimeScale());
+        steppedMs = 0;
+        drawViewports(loaded.view, loaded.runtime, a);
         frameTiming.lap("behaviors.render");
       }
       setFPS(store, loop.getFPS());
@@ -1658,6 +2111,7 @@ export async function createGame(
   function step(n = 1): void {
     if (destroyed || gpuLost || getMode() !== "play") return;
     loop.step(n);
+    if (loop.isPaused() && loaded) steppedMs += n * loaded.runtime.ctx.time.tickMs;
   }
 
   function setTimeScale(scale: number): void {
@@ -1721,20 +2175,29 @@ export async function createGame(
   }
 
   function pointerWorld(): Vec2 | null {
-    return input.hasPointer() ? camera.screenToWorld(input.getMousePosition()) : null;
+    return input.hasPointer() ? canvasToWorld(input.getMousePosition()) : null;
   }
 
-  /** Page px to world metres, through the input target's rect, the bars, the zoom and the px per metre. */
-  function clientToWorld(clientX: number, clientY: number): Vec2 {
+  /**
+   * Page px to world metres, through the input target's rect, the viewport
+   * (`viewport`, else the one under the point), its bars, zoom and the px per metre.
+   */
+  function clientToWorld(clientX: number, clientY: number, viewport?: number): Vec2 {
     const rect = inputTarget.getBoundingClientRect();
-    return camera.screenToWorld({ x: clientX - rect.left, y: clientY - rect.top });
+    return canvasToWorld({ x: clientX - rect.left, y: clientY - rect.top }, viewport);
   }
 
-  /** World metres to page px: `clientToWorld`'s inverse, through the camera and the input target's rect. */
-  function worldToClient(p: Vec2): { x: number; y: number } {
+  /** World metres to page px through viewport `viewport` (default the first): `clientToWorld`'s inverse. */
+  function worldToClient(p: Vec2, viewport = 0): { x: number; y: number } {
     const rect = inputTarget.getBoundingClientRect();
-    const screen = camera.worldToScreen(p);
-    return { x: rect.left + screen.x, y: rect.top + screen.y };
+    const at = worldToCanvas(p, viewport);
+    return { x: rect.left + at.x, y: rect.top + at.y };
+  }
+
+  /** The viewport under page coordinates, or null off every viewport. */
+  function viewportAt(clientX: number, clientY: number): number | null {
+    const rect = inputTarget.getBoundingClientRect();
+    return viewIndexAt({ x: clientX - rect.left, y: clientY - rect.top });
   }
 
   /**
@@ -2205,6 +2668,7 @@ export async function createGame(
         loadingProgress: (p) => events.emit("flow:loading", p),
         destroyed: () => destroyed,
         dev: cfg.dev,
+        reducedMotion,
       })
     : null;
 
@@ -2454,9 +2918,9 @@ export async function createGame(
 
   function resize(width: number, height: number): void {
     if (destroyed) return;
+    display = { width, height };
     renderer.resize(width, height);
-    camera.resize(width, height);
-    updateCamera(store, { scale: camera.getState().scale });
+    layoutViewports(true);
   }
 
   /**
@@ -2595,6 +3059,13 @@ export async function createGame(
     document.removeEventListener("visibilitychange", onVisibilityChange);
     inputTarget.removeEventListener("blur", onInputBlur);
     debugOverlay?.destroy();
+    effects?.layer.clear();
+    effects?.overlay.destroy();
+    effects = null;
+    for (const vc of extras) vc.surface?.destroy();
+    extras = [];
+    mainBorder?.destroy();
+    mainMask?.destroy();
     teardownScene();
     if (editState?.bundle) assets?.loader.release(editState.bundle);
     editState = null;
@@ -2698,8 +3169,25 @@ export async function createGame(
     },
     saves,
     live,
+    reducedMotion,
+    setViewports,
+    viewportAt,
   };
   return self;
+}
+
+/** `GameConfig.reducedMotion`, resolved once: "auto" asks the page, and is false where it can't. */
+function resolveReducedMotion(setting: boolean | "auto", canvas: HTMLCanvasElement): boolean {
+  if (setting !== "auto") return setting;
+  try {
+    const view = canvas.ownerDocument.defaultView;
+    return (
+      typeof view?.matchMedia === "function" &&
+      view.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** A save's scene that didn't build: the expand's or the load's own words. */
@@ -2719,42 +3207,186 @@ function flowUnavailable(): FlowResult {
   };
 }
 
-/** The weight-averaged pose of the targets that are live and enabled, or null when none is. */
-function weightedCentre(ctx: EngineContext, targets: readonly CameraTarget[]): Vec2 | null {
+/** One thing the camera follows this frame, world metres and m/s. */
+type FollowTarget = RigInput["targets"][number];
+
+/** The game's `cameraTarget()` point as last read: where, on which tick, and how fast it moved then. */
+type PointTrack = { at: Vec2 | null; tick: number; velocity: Vec2 };
+
+const freshTrack = (): PointTrack => ({ at: null, tick: 0, velocity: { x: 0, y: 0 } });
+
+/** One viewport's camera, its rig and where it sits on the canvas. */
+type ViewCamera = {
+  index: number;
+  camera: Camera;
+  rig: CameraRig | null;
+  /** The wall time the rig last framed, ms; null before its first frame. */
+  frameAt: number | null;
+  /** The game's `cameraTarget()` point as this view last read it, for its velocity. */
+  track: PointTrack;
+  /** Its rectangle on the canvas, px. */
+  rect: ViewportRect;
+  /** What a later viewport's camera places, whose transform draws the world into its surface; null for the first. */
+  holder: Container | null;
+  surface: ViewportSurface | null;
+};
+
+/** `defs` copied, or an error saying why they can't be the canvas's viewports. */
+function checkedViewports(defs: readonly ViewportDef[]): ViewportDef[] {
+  const problem = viewportsProblem(defs);
+  if (problem) throw new Error(`[game] viewports: ${problem}`);
+  return defs.map((d) => ({ ...d, rect: [...d.rect] }));
+}
+
+const STILL: Vec2 = Object.freeze({ x: 0, y: 0 });
+
+/** The weight-averaged position of the targets, or null when their weights sum to nothing. */
+function weightedCentre(targets: readonly FollowTarget[]): Vec2 | null {
   let x = 0;
   let y = 0;
   let total = 0;
-  for (const { id, weight } of targets) {
-    const pose = ctx.enabled(id) ? ctx.poses.get(id) : undefined;
-    if (!pose) continue;
-    x += pose.x * weight;
-    y += pose.y * weight;
+  for (const { at, weight } of targets) {
+    x += at.x * weight;
+    y += at.y * weight;
     total += weight;
   }
   return total > 0 ? { x: x / total, y: y / total } : null;
 }
 
 /**
- * Where the camera looks: the game's target when its `cameraTarget()` gives
- * one (`null` holds the camera still). Otherwise, in a play world, the
- * weighted centre of the live `camera-target` entities, loaded or spawned; failing those, in a
- * scene no game runs, Play's start when Play began from a point, else the
- * centre of the scene's bounds. An edit world leaves the camera to the
- * editor.
+ * `id`'s pose `alpha` of the way from its last tick's to its latest, and
+ * its velocity over that tick; null when it isn't live and enabled.
  */
-function cameraTargetOf(runtime: SceneRuntimeHandle, playing: boolean): Vec2 | null {
-  const own = runtime.game?.cameraTarget?.();
-  if (own !== undefined) return own;
+function entityTarget(
+  ctx: EngineContext,
+  id: string,
+  weight: number,
+  alpha: number,
+): FollowTarget | null {
+  const cur = ctx.enabled(id) ? ctx.poses.get(id) : undefined;
+  if (!cur) return null;
+  const prev = ctx.poses.prev(id) ?? cur;
+  const seconds = ctx.time.tickMs / 1000;
+  const velocity = { x: (cur.x - prev.x) / seconds, y: (cur.y - prev.y) / seconds };
+  const at =
+    alpha >= 1
+      ? { x: cur.x, y: cur.y }
+      : { x: prev.x + (cur.x - prev.x) * alpha, y: prev.y + (cur.y - prev.y) * alpha };
+  return { at, velocity, weight };
+}
+
+/**
+ * The live, enabled entities carrying `camera-target`; when `seat` is given,
+ * those on that seat and those on none (a target with no seat is every view's).
+ */
+function behaviorTargets(ctx: EngineContext, alpha: number, seat?: number): FollowTarget[] {
+  const system = ctx.behavior<CameraTargetSystem>(CAMERA_TARGET.name);
+  if (!system) return [];
+  const out: FollowTarget[] = [];
+  for (const { id, weight } of system.targets()) {
+    const own = ctx.get(id)?.behaviors?.[CAMERA_TARGET.name]?.seat;
+    if (seat !== undefined && own !== undefined && own !== seat) continue;
+    const t = entityTarget(ctx, id, weight, alpha);
+    if (t) out.push(t);
+  }
+  return out;
+}
+
+/** The game's `cameraTarget()` point with a velocity from where it was a tick before. */
+function pointTarget(ctx: EngineContext, at: Vec2, track: PointTrack): FollowTarget {
+  if (track.at && ctx.tick !== track.tick) {
+    const seconds = ((ctx.tick - track.tick) * ctx.time.tickMs) / 1000;
+    track.velocity =
+      seconds > 0
+        ? { x: (at.x - track.at.x) / seconds, y: (at.y - track.at.y) / seconds }
+        : { ...STILL };
+  } else if (!track.at) {
+    track.velocity = { ...STILL };
+  }
+  track.at = { x: at.x, y: at.y };
+  track.tick = ctx.tick;
+  return { at: { x: at.x, y: at.y }, velocity: { ...track.velocity }, weight: 1 };
+}
+
+/** The game's `cameraTargets()` entries as follow targets, those for `player` when it's given. */
+function gameTargets(
+  entries: ReturnType<NonNullable<GameRuntime["cameraTargets"]>>,
+  player?: number,
+): FollowTarget[] {
+  const out: FollowTarget[] = [];
+  for (const e of entries) {
+    if (player !== undefined && e.player !== player) continue;
+    out.push({
+      at: { x: e.at.x, y: e.at.y },
+      velocity: e.velocity ? { x: e.velocity.x, y: e.velocity.y } : { ...STILL },
+      weight: e.weight ?? 1,
+    });
+  }
+  return out;
+}
+
+/** What a `follow` request names, now; empty when it names nothing live. */
+function followedTargets(
+  runtime: SceneRuntimeHandle,
+  spec: CameraTargetSpec,
+  alpha: number,
+): FollowTarget[] {
+  const { ctx } = runtime;
+  if ("entity" in spec) {
+    const t = entityTarget(ctx, spec.entity, spec.weight ?? 1, alpha);
+    return t ? [t] : [];
+  }
+  if ("point" in spec)
+    return [
+      {
+        at: { x: spec.point.x, y: spec.point.y },
+        velocity: { ...STILL },
+        weight: spec.weight ?? 1,
+      },
+    ];
+  const own = runtime.game?.cameraTargets?.();
+  const seats = own ? gameTargets(own, spec.player) : [];
+  return seats.length > 0 ? seats : behaviorTargets(ctx, alpha, spec.player);
+}
+
+/**
+ * What the camera follows, null holding it still: a `follow` request's
+ * target while one stands; else the game's `cameraTargets()`, else its
+ * `cameraTarget()` (`null` holds); otherwise, in a play world, the live
+ * `camera-target` entities, loaded or spawned; failing those, in a scene no
+ * game runs, Play's start when Play began from a point, else the centre of
+ * the scene's bounds. An edit world leaves the camera to the editor.
+ * Entities sit `alpha` of the way through the tick being drawn.
+ */
+function cameraTargetsOf(
+  runtime: SceneRuntimeHandle,
+  playing: boolean,
+  following: CameraTargetSpec | null,
+  alpha: number,
+  track: PointTrack,
+): FollowTarget[] | null {
+  if (following) {
+    const followed = followedTargets(runtime, following, alpha);
+    return followed.length > 0 ? followed : null;
+  }
+  const own = runtime.game;
+  const many = own?.cameraTargets?.();
+  if (many !== undefined) {
+    const targets = gameTargets(many);
+    return targets.length > 0 ? targets : null;
+  }
+  const one = own?.cameraTarget?.();
+  if (one !== undefined) return one ? [pointTarget(runtime.ctx, one, track)] : null;
   const { play, bounds } = runtime.ctx;
   if (play || playing) {
-    const system = runtime.ctx.behavior<CameraTargetSystem>(CAMERA_TARGET.name);
-    const centre = system ? weightedCentre(runtime.ctx, system.targets()) : null;
-    if (centre) return centre;
+    const targets = behaviorTargets(runtime.ctx, alpha);
+    if (targets.length > 0) return targets;
   }
-  if (runtime.game || !play) return null;
-  if (play.at) return { x: play.at.x, y: play.at.y };
-  const [minX, minY, maxX, maxY] = bounds;
-  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+  if (own || !play) return null;
+  const at = play.at
+    ? { x: play.at.x, y: play.at.y }
+    : { x: (bounds[0] + bounds[2]) / 2, y: (bounds[1] + bounds[3]) / 2 };
+  return [{ at, velocity: { ...STILL }, weight: 1 }];
 }
 
 /** Whether the primary pointer is coarse (a touch screen); null where media queries aren't available. */

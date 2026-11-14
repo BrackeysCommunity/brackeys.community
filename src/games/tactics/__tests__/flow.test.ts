@@ -411,9 +411,9 @@ describe("the second game's flow in the shell", () => {
     const log: string[] = [];
     const fade = fadeTransition();
     const veil = () => document.querySelector<HTMLElement>("[data-jams-fade]");
-    const transition: TransitionRunner = async (phase, spec, layer) => {
+    const transition: TransitionRunner = async (phase, spec, layer, env) => {
       log.push(`${phase} ${spec.kind} ${spec.ms}`);
-      await fade(phase, spec, layer);
+      await fade(phase, spec, layer, env);
       log.push(`${phase} ${veil()?.style.opacity ?? "gone"}`);
     };
     const game = await createGame(canvas, {

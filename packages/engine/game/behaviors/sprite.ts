@@ -5,26 +5,18 @@
  */
 import { z } from "zod";
 
-import type { BlendMode } from "../../context";
 import type { AssetInfo } from "../../project/asset-info";
 import { ATLAS_KIND } from "../../project/kinds/atlas";
 import { turnBy } from "../../scene/shape-geometry";
 import type { Pt, RuntimeEntity, ShapeObj } from "../../scene/types";
 import { defineBehavior } from "../behaviors";
-import { DEFAULT_LENGTH_UNIT } from "../defaults";
+import { BLEND_MODES, DEFAULT_LENGTH_UNIT } from "../defaults";
 import { assetField, mirrorField, vectorField } from "../fields";
 import type { FieldEnv } from "../types";
 
 const unit = z.number().min(0).max(1);
 const inset = (description: string) =>
   z.number().int().min(0).describe(description).meta({ unit: "px" });
-
-const BLEND_MODES = ["normal", "add", "multiply", "screen"] as const satisfies readonly BlendMode[];
-/** Compiles only while `BLEND_MODES` lists every `BlendMode`. */
-const everyBlendMode: [Exclude<BlendMode, (typeof BLEND_MODES)[number]>] extends [never]
-  ? true
-  : never = true;
-void everyBlendMode;
 
 const spriteFields = (env: FieldEnv) => ({
   asset: assetField(

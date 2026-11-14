@@ -1,8 +1,32 @@
-import { assetInfo, projectView, type AssetInfo, type ProjectView } from "@jams/engine/project";
-import { closest } from "@jams/engine/scene";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 
-import { failure, usage, type ToolContext, type ToolResult } from "../context";
+import { resolveClips, type ResolvedClip } from "@jams/engine/game";
+import {
+  animationIssues,
+  animationKind,
+  ANIMATION_KIND,
+  assetInfo,
+  parseAssetDoc,
+  projectView,
+  type AnimationFile,
+  type AssetInfo,
+  type ProjectView,
+} from "@jams/engine/project";
+import {
+  aabb,
+  closest,
+  resolveTime,
+  type Aabb,
+  type SceneIssue,
+  type ShapeObj,
+} from "@jams/engine/scene";
+
+import { failure, issueLine, usage, type ToolContext, type ToolResult } from "../context";
 import { locateInProjects, scanProject, type ProjectHandle } from "../projects";
+import { roundBox } from "./render";
+import { boxText } from "./show";
+import { projectEngine } from "./step";
 
 export type AssetsInfoInput = { id?: string; frame?: string };
 
@@ -31,11 +55,147 @@ function infoLines(info: AssetInfo, path: string, frame: string | undefined): st
   return lines;
 }
 
+/** One frame of a clip as the report gives it: its ticks at the run's rate and each shape set's box, metres. */
+export type ClipFrameInfo = {
+  frame: string;
+  ticks: number;
+  events: readonly string[];
+  shapes: Record<string, Aabb>;
+};
+
+/** One clip as a run plays it at `AnimationInfo.rate`; `length` is one pass in ticks. */
+export type ClipInfo = {
+  name: string;
+  loop: ResolvedClip["loop"];
+  speed: number;
+  next: string | null;
+  length: number;
+  frames: ClipFrameInfo[];
+};
+
+/**
+ * An animation doc's clips resolved at the project's tick rate, and its
+ * issues: a clip an error points into is left out of `clips` and named in
+ * `leftOut`; a file that isn't an animation at all has its read issues and
+ * no clips.
+ */
+export type AnimationInfo = {
+  atlas: string | null;
+  rate: number;
+  clips: ClipInfo[];
+  leftOut: string[];
+  issues: SceneIssue[];
+};
+
+/** The box around a shape set, rounded as `show` rounds boxes. */
+const shapeBox = (shapes: readonly ShapeObj[]): Aabb => {
+  const boxes = shapes.map(aabb);
+  return roundBox({
+    minX: Math.min(...boxes.map((b) => b.minX)),
+    minY: Math.min(...boxes.map((b) => b.minY)),
+    maxX: Math.max(...boxes.map((b) => b.maxX)),
+    maxY: Math.max(...boxes.map((b) => b.maxY)),
+  });
+};
+
+function clipInfo(clip: ResolvedClip): ClipInfo {
+  return {
+    name: clip.name,
+    loop: clip.loop,
+    speed: clip.speed,
+    next: clip.next,
+    length: clip.length,
+    frames: clip.frames.map((f) => ({
+      frame: f.frame,
+      ticks: f.ticks,
+      events: f.events,
+      shapes: Object.fromEntries(
+        Object.entries(f.shapes)
+          .filter(([, shapes]) => shapes.length > 0)
+          .map(([set, shapes]) => [set, shapeBox(shapes)]),
+      ),
+    })),
+  };
+}
+
+/**
+ * The animation at `path` in `project` as a run resolves it: its clips at
+ * the project's tick rate (else the game's) through `resolveClips`, whose
+ * issues are `animationIssues` against the atlas. A file the rule refuses
+ * still resolves, without the clips its errors point into; one that isn't
+ * an animation's shape gives only its read issues.
+ */
+async function animationInfo(
+  project: ProjectHandle,
+  view: ProjectView,
+  path: string,
+): Promise<AnimationInfo> {
+  const env = { registry: project.registry, project: view };
+  const text = await readFile(join(project.dir, path), "utf8");
+  const read = parseAssetDoc(animationKind, text, env);
+  let file: AnimationFile | undefined;
+  if (read.ok) file = read.value;
+  else {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      raw = undefined;
+    }
+    const shaped = animationKind.schema().safeParse(raw);
+    if (shaped.success) file = shaped.data;
+  }
+  const { rate } = resolveTime({
+    project: await projectEngine(project, project.registry),
+    game: project.registry.time,
+  });
+  if (!file) return { atlas: null, rate, clips: [], leftOut: [], issues: read.issues };
+  const atlas = assetInfo(view, file.atlas);
+  const resolved = atlas ? resolveClips({ animation: file }, atlas, { rate }) : null;
+  const clips = resolved ? [...resolved.clips.values()].map(clipInfo) : [];
+  const kept = new Set(clips.map((c) => c.name));
+  return {
+    atlas: file.atlas,
+    rate,
+    clips,
+    leftOut: [...new Set(file.clips.map((c) => c.name).filter((n) => !kept.has(n)))],
+    issues: resolved ? resolved.issues : animationIssues(file, null),
+  };
+}
+
+/** `hero-1 5t [strike] hit 0.06,-0.04..0.18,0.04 m`. */
+function frameText(f: ClipFrameInfo): string {
+  const events = f.events.length > 0 ? ` [${f.events.join(", ")}]` : "";
+  const shapes = Object.entries(f.shapes)
+    .map(([set, box]) => ` ${set} ${boxText(box)}`)
+    .join("");
+  return `${f.frame} ${f.ticks}t${events}${shapes}`;
+}
+
+function animationLines(anim: AnimationInfo): string[] {
+  const lines = [
+    `  atlas ${anim.atlas ?? "(unread)"}; clips at ${anim.rate}Hz, frame lengths in ticks`,
+  ];
+  for (const c of anim.clips) {
+    const next = c.next === null ? "" : ` -> ${c.next}`;
+    const speed = c.speed === 1 ? "" : ` ×${c.speed}`;
+    const frames = `${c.frames.length} frame${c.frames.length === 1 ? "" : "s"}`;
+    lines.push(`  clip ${c.name}  ${c.loop}${next}${speed}  ${frames}, ${c.length} ticks a pass`);
+    lines.push(...c.frames.map((f, i) => `    ${i} ${frameText(f)}`));
+  }
+  if (anim.clips.length === 0 && anim.leftOut.length === 0) lines.push("  clips: none");
+  if (anim.leftOut.length > 0) lines.push(`  left out: ${anim.leftOut.join(", ")}`);
+  lines.push(...anim.issues.map(issueLine));
+  return lines;
+}
+
 /**
  * `assetInfo` of a live asset from its project's files: kind, hash and
  * bytes, a texture's size and import pivot, nine-slice and filter, an
  * atlas's frames, tags and texture, and with `--frame` that frame's size
- * and pivot. The id is looked up across projects, `--project` picking one.
+ * and pivot; an animation's clips with their frames, ticks at the
+ * project's rate, events, shape sets and issues. The id is looked up across
+ * projects, `--project` picking one.
  */
 export async function assetsInfo(input: AssetsInfoInput, ctx: ToolContext): Promise<ToolResult> {
   const id = input.id;
@@ -70,6 +230,10 @@ export async function assetsInfo(input: AssetsInfoInput, ctx: ToolContext): Prom
     );
   }
   const path = view.byId.get(id)!.path;
+  const animation =
+    info.kind === ANIMATION_KIND && input.frame === undefined
+      ? await animationInfo(found.project, view, path)
+      : null;
   return {
     exitCode: 0,
     data: {
@@ -79,7 +243,11 @@ export async function assetsInfo(input: AssetsInfoInput, ctx: ToolContext): Prom
       path,
       ...(input.frame !== undefined ? { frame: input.frame } : {}),
       info,
+      ...(animation ? { animation } : {}),
     },
-    text: infoLines(info, path, input.frame).join("\n"),
+    text: [
+      ...infoLines(info, path, input.frame),
+      ...(animation ? animationLines(animation) : []),
+    ].join("\n"),
   };
 }

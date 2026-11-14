@@ -11,7 +11,7 @@ import {
   type ReleaseManifest,
   type Sha256,
 } from "@jams/engine/project";
-import { and, desc, eq, inArray, isNull, ne, notInArray, or, sql, sum } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, ne, notInArray, or, sql, sum } from "drizzle-orm";
 
 import {
   engineProjects,
@@ -300,7 +300,7 @@ export type ChannelRelease = {
 
 /** The release `channel` plays, unless it was collected or its manifest is gone; null when there is none. */
 export async function channelRelease(
-  db: ReleaseDb,
+  db: Pick<ReleaseDb, "select">,
   projectId: string,
   channel: LiveChannel,
 ): Promise<ChannelRelease | null> {
@@ -576,12 +576,17 @@ export async function pointScene(
 
 const SCENE_MOVES = ["scene-promote", "scene-rollback", "scene-clear"] as const;
 
+/** Audit rows `previousPointer` reads at a time, newest first. */
+const HISTORY_PAGE = 20;
+
 /**
- * The version a scene's pointer on the channel named before its last
- * move, from the audit log: a number, or null for the release's own
- * scene. Its last move is either a scene move (its `detail.from`) or a
+ * The version a scene's pointer on the channel named before the last move
+ * that changed it, from the audit log: a number, or null for the release's
+ * own scene. A move is either a scene move (its `detail.from`) or a
  * release move that cleared or restored it (the channel's scenes before
- * it). Rolling back twice returns to where it started.
+ * it). A move that left the pointer where it was, such as a timing-only
+ * change or a release rollback putting back the version it cleared, is
+ * passed over. Rolling back twice returns to where it started.
  */
 async function previousPointer(
   tx: ReleaseDb,
@@ -590,42 +595,63 @@ async function previousPointer(
   scene: AssetId,
 ): Promise<number | null> {
   const nothing = () => notFound(`${scene} has no earlier version on ${channel} to go back to.`);
+  const numberOf = async (versionId: string) => {
+    const [version] = await tx
+      .select({ number: engineSceneVersions.number })
+      .from(engineSceneVersions)
+      .where(
+        and(eq(engineSceneVersions.id, versionId), eq(engineSceneVersions.projectId, projectId)),
+      );
+    return version ? version.number : nothing();
+  };
+  const [current] = await tx
+    .select({ versionId: engineSceneChannels.versionId })
+    .from(engineSceneChannels)
+    .where(pointerWhere(projectId, channel, scene));
+  // What the pointer named after the row being read: walking back, each move's "before".
+  let after = current ? await numberOf(current.versionId) : null;
+
   const detail = engineReleaseAudit.detail;
-  const [last] = await tx
-    .select({ action: engineReleaseAudit.action, detail })
-    .from(engineReleaseAudit)
-    .where(
-      and(
-        eq(engineReleaseAudit.projectId, projectId),
-        eq(engineReleaseAudit.channel, channel),
-        or(
-          and(
-            eq(engineReleaseAudit.sceneId, scene),
-            inArray(engineReleaseAudit.action, [...SCENE_MOVES]),
-          ),
-          and(
-            inArray(engineReleaseAudit.action, ["promote", "rollback"]),
-            sql`(jsonb_exists(${detail} -> 'scenes', ${scene}) or jsonb_exists(${detail} -> 'restored', ${scene}))`,
-          ),
+  const touchesScene = or(
+    and(
+      eq(engineReleaseAudit.sceneId, scene),
+      inArray(engineReleaseAudit.action, [...SCENE_MOVES]),
+    ),
+    and(
+      inArray(engineReleaseAudit.action, ["promote", "rollback"]),
+      sql`(jsonb_exists(${detail} -> 'scenes', ${scene}) or jsonb_exists(${detail} -> 'restored', ${scene}))`,
+    ),
+  );
+  let olderThan: number | null = null;
+  for (;;) {
+    const rows = await tx
+      .select({ id: engineReleaseAudit.id, action: engineReleaseAudit.action, detail })
+      .from(engineReleaseAudit)
+      .where(
+        and(
+          eq(engineReleaseAudit.projectId, projectId),
+          eq(engineReleaseAudit.channel, channel),
+          touchesScene,
+          olderThan === null ? undefined : lt(engineReleaseAudit.id, olderThan),
         ),
-      ),
-    )
-    .orderBy(desc(engineReleaseAudit.id))
-    .limit(1);
-  if (!last) return nothing();
-  if ((SCENE_MOVES as readonly string[]).includes(last.action)) {
-    const previous = (last.detail as { from?: unknown } | null)?.from;
-    return typeof previous === "number" ? previous : null;
+      )
+      .orderBy(desc(engineReleaseAudit.id))
+      .limit(HISTORY_PAGE);
+    for (const row of rows) {
+      let before: number | null;
+      if ((SCENE_MOVES as readonly string[]).includes(row.action)) {
+        const from = (row.detail as { from?: unknown } | null)?.from;
+        before = typeof from === "number" ? from : null;
+      } else {
+        const versionId = scenesBefore(row.detail)[scene];
+        before = versionId === undefined ? null : await numberOf(versionId);
+      }
+      if (before !== after) return before;
+      after = before;
+    }
+    if (rows.length < HISTORY_PAGE) return nothing();
+    olderThan = rows.at(-1)!.id;
   }
-  const versionId = scenesBefore(last.detail)[scene];
-  if (versionId === undefined) return null;
-  const [version] = await tx
-    .select({ number: engineSceneVersions.number })
-    .from(engineSceneVersions)
-    .where(
-      and(eq(engineSceneVersions.id, versionId), eq(engineSceneVersions.projectId, projectId)),
-    );
-  return version ? version.number : nothing();
 }
 
 /**
@@ -633,7 +659,8 @@ async function previousPointer(
  * `live_rev` and announces it. Preview takes editors and agent tokens;
  * production a person with the publisher role. `to: "previous"` (a
  * rollback without a version) goes back to what the audit log says the
- * pointer named before its last move, or off when it named none.
+ * pointer named before the last move that changed it, or off when it
+ * named none.
  */
 export async function moveScenePointer(
   deps: ReleaseDeps,

@@ -355,11 +355,12 @@ describe("transitions and the loading view", () => {
     unmount();
   });
 
-  it("cuts instead of fading under reduced motion", async () => {
+  it("cuts instead of fading under the reduced motion the page asked for at createGame", async () => {
     const log: string[] = [];
+    reduced = true;
     const game = await makeGame({ log });
     await started(game);
-    reduced = true;
+    expect(game.reducedMotion).toBe(true);
     let seen: { opacity: string; transition: string } | null = null;
     game.on("flow:loading", () => {
       const v = veil();

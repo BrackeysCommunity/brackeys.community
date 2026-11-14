@@ -7,6 +7,7 @@ import {
   unsizedIds,
   type AssetBundle,
 } from "../project/bundle";
+import { isRuntimeKind } from "../project/kinds/define";
 import { engineResolution, gameSettingsEntries } from "../project/kinds/game-settings";
 import { prefabKind } from "../project/kinds/prefab";
 import { sceneKind } from "../project/kinds/scene";
@@ -25,7 +26,6 @@ import {
   releaseFiles,
   releaseSceneEntry,
 } from "../project/release-assets";
-import { RUNTIME_VIEW_KINDS } from "../project/runtime-view";
 import { jsonValues, withId } from "../project/snapshot";
 import type { AssetEntry, AssetId, ProjectExport } from "../project/types";
 import { defaultPhysics, expandScene } from "../scene/expand";
@@ -45,6 +45,7 @@ function planScene(
   entry: SceneListEntry,
   input: ExportInput,
   prefabs: PrefabReader,
+  values: ReadonlyMap<AssetId, unknown>,
   issues: SceneIssue[],
 ): PlannedScene {
   const empty: AssetBundle = { name: entry.scene, entries: [], bytes: 0 };
@@ -82,7 +83,9 @@ function planScene(
     const expanded = expandScene(def, input.registry, { prefabs: library, engine: input.engine });
     const named = namedPrefabs(expanded.entities, input.registry, prefabs.get);
     library = new Map([...library, ...named]);
-    const read = sceneBundle(expanded, def, library, input.view, input.kinds, input.registry);
+    const read = sceneBundle(expanded, def, library, input.view, input.kinds, input.registry, {
+      read: (_kind, id) => values.get(id),
+    });
     issues.push(...withId(entry.scene, read.issues));
     bundle = read.bundle;
   } catch (error) {
@@ -252,7 +255,7 @@ export async function planContent(input: ExportInput): Promise<ContentPlan> {
       input.view.byId.get(id)?.kind === prefabKind.kind ? input.texts.get(id) : undefined,
     failed: (id, found) => issues.push(...withId(id, found)),
   });
-  const planned = list.scenes.map((entry) => planScene(entry, input, prefabs, issues));
+  const planned = list.scenes.map((entry) => planScene(entry, input, prefabs, values, issues));
   const listed = new Set(list.scenes.map((e) => e.scene));
 
   const [settingsEntry] = gameSettingsEntries(input.view);
@@ -265,7 +268,7 @@ export async function planContent(input: ExportInput): Promise<ContentPlan> {
   issues.push(...project.issues);
 
   const runtimeDocs = [...input.view.byId.values()]
-    .filter((e) => RUNTIME_VIEW_KINDS.includes(e.kind))
+    .filter((e) => isRuntimeKind(input.kinds.get(e.kind)))
     .map((e) => e.id);
   const roots = [
     ...runtimeDocs,

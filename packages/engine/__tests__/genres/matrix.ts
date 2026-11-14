@@ -1,9 +1,10 @@
+import { ENGINE_VERSION } from "../../version";
 import type { GenreProbe, GenreRow } from "./harness";
 
 export type GenreMatrixRow = {
   /** The matrix's own name for the genre. */
   genre: string;
-  /** Plan 53's "Delivered by" column, as written there. */
+  /** The engine milestones that deliver it, as plan 53's "Delivered by" column names them. */
   deliveredBy: string;
   /** The probes that prove part of the row, by id; matrix.test.ts holds the probes' own `rows` to it. */
   probes: readonly string[];
@@ -37,7 +38,7 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
   racing: {
     genre: "Racing (top-down)",
     deliveredBy: "M14 (PHY-2), M15, M16, M22",
-    probes: ["top-down"],
+    probes: ["racing", "top-down"],
   },
   "physics-sandbox": { genre: "Physics sandbox", deliveredBy: "M14, M15, M26", probes: [] },
   rts: {
@@ -62,7 +63,9 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
     deliveredBy: "M14, M16, M17, M23",
     probes: ["point-and-click"],
   },
-  idle: { genre: "Idle / clicker", deliveredBy: "M14, M17, M18, M21", probes: [] },
+  // Plan 53 also lists M21 here: the site's save store, which an engine probe
+  // can't reach; M21's staging tests cover it.
+  idle: { genre: "Idle / clicker", deliveredBy: "M14, M17, M18", probes: ["idle"] },
   "endless-runner": {
     genre: "Endless runner",
     deliveredBy: "M15, M16, M19, M22",
@@ -83,8 +86,62 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
 
 export const GENRE_ROWS = Object.keys(GENRE_MATRIX) as GenreRow[];
 
-/** Every milestone through this one has landed. */
-export const LANDED_THROUGH = 18;
+/**
+ * The engine version each milestone ships in. Milestones don't land in
+ * number order, so "landed" is read from here against `ENGINE_VERSION`
+ * rather than from the numbers; a milestone missing here hasn't landed.
+ */
+export const MILESTONE_VERSIONS: Readonly<Record<number, string>> = {
+  10: "0.5.0",
+  11: "0.6.0",
+  12: "0.7.0",
+  13: "0.8.0",
+  14: "0.9.0",
+  15: "0.10.0",
+  16: "0.11.0",
+  17: "0.12.0",
+  18: "0.13.0",
+  19: "0.14.0",
+  20: "0.14.1",
+  21: "0.14.2",
+  42: "0.14.3",
+  30: "0.14.4",
+  31: "0.14.5",
+  22: "0.15.0",
+  23: "0.16.0",
+  24: "0.17.0",
+  25: "0.18.0",
+  26: "0.19.0",
+  38: "0.19.1",
+  39: "0.19.2",
+  27: "0.20.0",
+  32: "0.20.1",
+  28: "0.21.0",
+  29: "1.0.0",
+};
+
+/** `a` against `b` as semver release triples: negative, zero or positive. */
+export function compareVersions(a: string, b: string): number {
+  const parts = (v: string) => {
+    const m = /^(\d+)\.(\d+)\.(\d+)(-.+)?$/.exec(v);
+    if (!m) throw new Error(`can't read version ${JSON.stringify(v)}`);
+    return { triple: [Number(m[1]), Number(m[2]), Number(m[3])], pre: m[4] !== undefined };
+  };
+  const pa = parts(a);
+  const pb = parts(b);
+  for (let i = 0; i < 3; i++) {
+    const d = pa.triple[i]! - pb.triple[i]!;
+    if (d !== 0) return d;
+  }
+  // A pre-release comes before its release.
+  return Number(pb.pre) - Number(pa.pre);
+}
+
+/** Whether milestone `m` has shipped by engine version `version` (default this engine's). */
+export function landed(m: number, version: string = ENGINE_VERSION): boolean {
+  const at = MILESTONE_VERSIONS[m];
+  return at !== undefined && compareVersions(version, at) >= 0;
+}
 
 /** The milestone numbers a "Delivered by" cell names, ranges (`M19–M21`) expanded, sorted. */
 export function milestonesOf(deliveredBy: string): number[] {
@@ -97,6 +154,13 @@ export function milestonesOf(deliveredBy: string): number[] {
     for (let n = from; n <= to; n++) out.add(n);
   }
   return [...out].sort((a, b) => a - b);
+}
+
+/** The rows whose milestones have all landed by `version`. */
+export function landedRows(version: string = ENGINE_VERSION): GenreRow[] {
+  return GENRE_ROWS.filter((row) =>
+    milestonesOf(GENRE_MATRIX[row].deliveredBy).every((m) => landed(m, version)),
+  );
 }
 
 /** Each row with its milestones and the probes that name it. */

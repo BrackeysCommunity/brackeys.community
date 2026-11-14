@@ -1,7 +1,10 @@
 import {
   Container,
   Graphics,
+  Matrix,
   NineSliceSprite,
+  ParticleContainer,
+  RenderTexture,
   Sprite,
   Texture,
   TextureSource,
@@ -10,10 +13,17 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 
 import { DRAW_LAYERS, type SpriteVisual, type ViewLayerHandle } from "../../context";
+import type { EmitterFile } from "../../project/kinds/emitter";
 import type { Sha256 } from "../../project/types";
 import type { SceneLayerDef } from "../../scene/layers";
 import type { ShapeObj } from "../../scene/types";
-import { createPixiView, pixiContainer, type TextureSource as TextureSource_ } from "../pixi-view";
+import {
+  createPixiView,
+  createViewportSurface,
+  pixiContainer,
+  type SurfaceRenderer,
+  type TextureSource as TextureSource_,
+} from "../pixi-view";
 
 const box: ShapeObj = { type: "box", cx: 0, cy: 0, hw: 0.1, hh: 0.05, rotDeg: 0 };
 const style = { fill: 0x112233, stroke: 0xffffff, alpha: 0.5 };
@@ -466,6 +476,36 @@ describe("scene layers", () => {
     expect(displayOf(view, "note")!.visible).toBe(false);
   });
 
+  it("offsets the scroll layers for another viewport's camera without moving the visuals", () => {
+    const view = createPixiView(new Container(), { layers });
+    view.draw("hill", box, style, 2);
+    view.pose("hill", 1, 1);
+    view.commit!(0);
+    frame(view, at(2, -0.8));
+    const back = pixiContainer(view.layer(2));
+    view.parallax({ x: 6, y: 0 });
+    expect([back.position.x, back.position.y]).toEqual([300, 0]);
+    expect(displayOf(view, "hill")!.position.x).toBe(100);
+    view.parallax({ x: 2, y: -0.8 });
+    expect([back.position.x, back.position.y]).toEqual([100, -40]);
+  });
+
+  it("shows only the named layers, hiding draw orders no layer names, until shown all again", () => {
+    const view = createPixiView(new Container(), { layers });
+    view.draw("rock", box, style, 0);
+    view.draw("hill", box, style, 2);
+    view.draw("odd", box, style, 35);
+    view.showLayers(["terrain"]);
+    expect(pixiContainer(view.layer(0)).visible).toBe(true);
+    expect(pixiContainer(view.layer(2)).visible).toBe(false);
+    expect(pixiContainer(view.layer(35)).visible).toBe(false);
+    // A layer made later follows the same list.
+    view.draw("actor", box, style, 10);
+    expect(pixiContainer(view.layer(10)).visible).toBe(false);
+    view.showLayers(null);
+    for (const order of [0, 2, 35, 10]) expect(pixiContainer(view.layer(order)).visible).toBe(true);
+  });
+
   it("draws at numeric orders no layer has, and at named draw layers", () => {
     const view = createPixiView(new Container(), { layers });
     view.draw("a", box, style, "actor");
@@ -565,5 +605,113 @@ describe("px per metre", () => {
     expect(g.getLocalBounds().width).toBeGreaterThanOrEqual(32);
     expect(g.getLocalBounds().width).toBeLessThan(34);
     expect(view.container.scale.x).toBe(1 / 32);
+  });
+});
+
+describe("viewport surfaces", () => {
+  it("draws the world into a texture of its rect's size, shown in a sprite at its corner", () => {
+    const surface = createViewportSurface(true);
+    surface.layout({ x: 960, y: 0, width: 960, height: 540.4 }, 2);
+    expect([surface.display.position.x, surface.display.position.y]).toEqual([960, 0]);
+    const sprite = surface.display.children.find((c) => c.label === "viewport-texture") as Sprite;
+    const texture = sprite.texture as RenderTexture;
+    expect(texture).toBeInstanceOf(RenderTexture);
+    expect([texture.width, texture.height, texture.source.resolution]).toEqual([960, 540, 2]);
+    const calls: Parameters<SurfaceRenderer["render"]>[0][] = [];
+    const world = new Container();
+    const transform = new Matrix().translate(5, 6);
+    surface.render({ render: (o) => void calls.push(o) }, world, transform, 0x101010);
+    expect(calls).toEqual([
+      { container: world, target: texture, transform, clear: true, clearColor: 0x101010 },
+    ]);
+    surface.destroy();
+    expect(surface.display.destroyed).toBe(true);
+  });
+
+  it("draws a border inside the rect, and nothing to draw for the stage's own viewport", () => {
+    const surface = createViewportSurface(false);
+    surface.layout({ x: 0, y: 0, width: 200, height: 100 }, 1, { width: 4, color: 0xff0000 });
+    const border = surface.display.children.find((c) => c.label === "viewport-border") as Graphics;
+    const bounds = border.getLocalBounds();
+    expect([bounds.minX, bounds.minY, bounds.maxX, bounds.maxY]).toEqual([0, 0, 200, 100]);
+    expect(surface.display.children.some((c) => c.label === "viewport-texture")).toBe(false);
+    const calls: unknown[] = [];
+    surface.render({ render: (o) => void calls.push(o) }, new Container(), new Matrix(), 0);
+    expect(calls).toEqual([]);
+    surface.layout({ x: 0, y: 0, width: 200, height: 100 }, 1);
+    expect(border.getLocalBounds().maxX).toBe(0);
+  });
+});
+
+describe("SceneView.particles", () => {
+  const preset: EmitterFile = {
+    kind: "emitter",
+    v: 1,
+    rate: 0,
+    bursts: [{ atMs: 0, count: 2 }],
+    lifeMs: [1000, 1000],
+    speed: [0, 0],
+    angle: [0, 0],
+  };
+  const sceneLayers: SceneLayerDef[] = [
+    { name: "back", description: "", draw: 2 },
+    { name: "gameplay", description: "", draw: 12 },
+  ];
+  const particlesIn = (c: Container) =>
+    c.children
+      .filter((k): k is ParticleContainer => k instanceof ParticleContainer)
+      .reduce((n, k) => n + k.particleChildren.length, 0);
+
+  it("is null for a view made without particles", () => {
+    expect(createPixiView(new Container()).particles?.()).toBeNull();
+  });
+
+  it("gives one layer: emitters on their own layer, bursts on gameplay, in world px", () => {
+    const view = createPixiView(new Container(), {
+      layers: sceneLayers,
+      pxPerMetre: 50,
+      particles: { reducedMotion: false, seed: "s" },
+    });
+    const layer = view.particles!()!;
+    expect(view.particles!()).toBe(layer);
+    layer.emitter("e", { ...preset }, () => ({ x: 1, y: 2, rot: 0 }), 2);
+    layer.burst({ ...preset }, { x: 3, y: 0 }, { count: 5 });
+    layer.update(16);
+    const back = pixiContainer(view.layer(2));
+    const gameplay = pixiContainer(view.layer(12));
+    expect([particlesIn(back), particlesIn(gameplay)]).toEqual([2, 5]);
+    const drawn = back.children.find((k) => k instanceof ParticleContainer)!;
+    expect((drawn as ParticleContainer).particleChildren[0]).toMatchObject({ x: 50, y: 100 });
+    view.destroy();
+    expect(layer.stats()).toEqual({ emitters: 0, particles: 0 });
+  });
+
+  it("draws a preset's texture once it loads, squares until then", () => {
+    const hash = "a".repeat(64) as Sha256;
+    const loaded = new Texture({ source: new TextureSource({ width: 8, height: 8 }) });
+    let ready = false;
+    const textures: TextureSource_ = {
+      get: (h) => (ready && h === hash ? loaded : null),
+      onLoad: () => () => {},
+    };
+    const view = createPixiView(new Container(), {
+      textures,
+      particles: {
+        reducedMotion: false,
+        seed: "s",
+        texture: () => ({ hash, sampling: "linear" }),
+      },
+    });
+    const layer = view.particles!()!;
+    layer.emitter("e", { ...preset }, () => ({ x: 0, y: 0, rot: 0 }));
+    layer.update(16);
+    const holder = pixiContainer(view.layer(DRAW_LAYERS.body));
+    const pc = holder.children.find((k) => k instanceof ParticleContainer) as ParticleContainer;
+    expect(pc.texture).toBe(Texture.WHITE);
+    ready = true;
+    layer.update(16);
+    expect(pc.texture.source).toBe(loaded.source);
+    expect(pc.particleChildren.every((p) => p.texture === pc.texture)).toBe(true);
+    view.destroy();
   });
 });

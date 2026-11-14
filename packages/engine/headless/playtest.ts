@@ -7,6 +7,7 @@ import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
 import { recordLiveSwaps } from "../runtime/live";
 import { gamePersistCell } from "../runtime/persist";
+import type { PresentedRequest } from "../runtime/present";
 import {
   createRunRecorder,
   recordedCommand,
@@ -300,6 +301,7 @@ export function runPlaytest<S = unknown, G = unknown>(
   let trailTruncated = false;
   const inputs: InputEdge[] = [];
   const commands: RecordingCommand[] = [];
+  const present: PresentedRequest[] = [];
   const issues = [...first.issues];
   const segments: PlaytestSegment[] = [];
   const base = { slots: 0, ticks: 0 };
@@ -356,6 +358,7 @@ export function runPlaytest<S = unknown, G = unknown>(
       ...(flow ? { flow: { scene: seg.id, entry: seg.entry, library: flow } } : {}),
       ...(saved ? { fromSave: saved.file } : {}),
       ...(opts.timing ? { timing: opts.timing } : {}),
+      ...(opts.recordPresentation ? { recordPresentation: true } : {}),
     });
     if (!started.ok)
       return blockedRun(
@@ -408,9 +411,10 @@ export function runPlaytest<S = unknown, G = unknown>(
           input: segmentSource(source, base),
           carry,
           live: started.live,
-          onTick(state, focus, edges, stepped, tickInput) {
+          onTick(state, focus, edges, stepped, tickInput, requests) {
             last = state;
             const at = base.ticks + state.tick;
+            for (const req of requests ?? []) present.push({ ...req, tick: at });
             standing!.step(tickInput);
             recorder.tick(state, tickInput, focus);
             for (const [, action, pressed] of edges) inputs.push([at, action, pressed]);
@@ -500,6 +504,7 @@ export function runPlaytest<S = unknown, G = unknown>(
         recording: firstRecording,
       };
       if (flow) report.segments = segments;
+      if (opts.recordPresentation) report.present = present;
       return report;
     } finally {
       runtime.destroy();

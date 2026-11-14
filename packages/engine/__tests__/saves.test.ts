@@ -449,6 +449,20 @@ describe("world saves refused", () => {
     rt.destroy();
   });
 
+  it("with a value tween pending, until it ends", () => {
+    const rt = runtime();
+    loadListed(rt, "hall");
+    let seen = 0;
+    const id = rt.ctx.tweens.value(0, 1, { duration: 3, onUpdate: (v) => void (seen = v) });
+    const r = captureSave(rt, { depth: "world", slot: "s", now: 0 });
+    expect(causes(r)).toEqual(["tween"]);
+    expect(r.ok ? "" : r.issue.message).toContain(`a value tween (id ${id}) is pending`);
+    for (let i = 0; i < 3; i++) rt.step(rt.ctx.time.tickMs, []);
+    expect(seen).toBe(1);
+    expect(worldSaveBlockers(rt)).toEqual([]);
+    rt.destroy();
+  });
+
   it("for a game without restore", () => {
     const rt = runtime(
       vaultGame({

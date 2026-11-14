@@ -969,7 +969,7 @@ declare const liveStateMessageSchema: z.ZodObject<{
 
 _function_ in `standalone/manifest-view.ts`
 
-The ProjectRuntimeView (settings, tables, input map, flow) from the shipped doc texts.
+The ProjectRuntimeView (settings, tables, input map, flow, runtime docs) from the shipped doc texts.
 
 ```ts
 declare function manifestRuntimeView(m: ReleaseManifest, texts: ReadonlyMap<AssetId, string>, game: GameDefinition): ProjectRuntimeView;

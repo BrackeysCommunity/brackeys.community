@@ -158,7 +158,9 @@ async function projectFlow(ctx: ToolContext, project: ProjectHandle): Promise<Pr
       const { def: scene, registry, prefabs } = opened;
       row.physics = scenePhysics(scene, registry, engine);
       const expanded = expandScene(scene, registry, { prefabs });
-      const built = sceneBundle(expanded, scene, prefabs, loaded.view, project.kinds, registry);
+      const built = sceneBundle(expanded, scene, prefabs, loaded.view, project.kinds, registry, {
+        read: (_kind, id) => loaded.values.get(id),
+      });
       row.bundle = { blobs: built.bundle.entries.length, bytes: built.bundle.bytes };
       issues.push(...built.issues);
     }

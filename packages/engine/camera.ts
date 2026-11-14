@@ -1,5 +1,6 @@
 import type { Container } from "pixi.js";
 
+import type { CameraFrame } from "./camera/rig";
 import { DEFAULT_LENGTH_UNIT } from "./game/defaults";
 import { clampVec2, lerpVec2 } from "./math";
 import { DEFAULT_RESOLUTION, viewportFor, type ResolutionPolicy } from "./resolution";
@@ -32,6 +33,12 @@ export type Camera = {
   worldToScreen: (world: Vec2) => Vec2;
   /** Jumps to `p` (`null`: the bounds' center) and moves the view now, without easing. */
   snapTo: (p: Vec2 | null) => void;
+  /**
+   * Places the view where a camera rig framed it this frame: position, zoom
+   * and turn, applied now. The rig keeps its own bounds, so the frame isn't
+   * clamped; the next `update`, `snapTo` or `setPosition` drops the turn.
+   */
+  setFrame: (frame: CameraFrame) => void;
   /** Moves the camera to `p`, clamped to the bounds; the view follows on the next `update`. */
   setPosition: (p: Vec2) => void;
   setMode: (mode: CameraMode) => void;
@@ -59,6 +66,8 @@ export function createCamera(
 ): Camera {
   let position: Vec2 = { x: 0, y: 0 };
   let zoom = 1;
+  /** Radians, set only by a rig's frame (a shake's turn). */
+  let rotation = 0;
   let mode: CameraMode = "follow";
   let bounds = { min: { ...config.bounds.min }, max: { ...config.bounds.max } };
 
@@ -109,17 +118,56 @@ export function createCamera(
 
   function apply(): void {
     position = clampToBounds(position);
+    place();
+  }
+
+  /** Moves the world container so `position` sits at the view's centre, turned by `rotation`. */
+  function place(): void {
     const effectiveScale = displayScale * zoom;
-    const x = -position.x * effectiveScale + offset.x + (displayScale * viewW) / 2;
-    const y = -position.y * effectiveScale + offset.y + (displayScale * viewH) / 2;
+    const cx = offset.x + (displayScale * viewW) / 2;
+    const cy = offset.y + (displayScale * viewH) / 2;
+    let x = -position.x * effectiveScale + cx;
+    let y = -position.y * effectiveScale + cy;
+    if (rotation !== 0) {
+      const cos = Math.cos(rotation);
+      const sin = Math.sin(rotation);
+      const px = position.x * effectiveScale;
+      const py = position.y * effectiveScale;
+      x = cx - (px * cos - py * sin);
+      y = cy - (px * sin + py * cos);
+    }
     if (resolution.pixelSnap) worldContainer.position.set(Math.round(x), Math.round(y));
     else worldContainer.position.set(x, y);
+    worldContainer.rotation = rotation;
     worldContainer.scale.set(effectiveScale);
   }
 
   function update(_dt: number, target: Vec2 | null): void {
+    rotation = 0;
     if (target && mode === "follow") position = lerpVec2(position, target, config.lerpSpeed);
     apply();
+  }
+
+  function setFrame(frame: CameraFrame): void {
+    position = { x: frame.position.x, y: frame.position.y };
+    setZoom(frame.zoom);
+    rotation = frame.rotation;
+    place();
+  }
+
+  /** `d`, a canvas-px offset from the view's centre, turned back by the view's turn. */
+  function unturn(d: Vec2): Vec2 {
+    if (rotation === 0) return d;
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    return { x: d.x * cos + d.y * sin, y: -d.x * sin + d.y * cos };
+  }
+
+  function turn(d: Vec2): Vec2 {
+    if (rotation === 0) return d;
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    return { x: d.x * cos - d.y * sin, y: d.x * sin + d.y * cos };
   }
 
   function getPosition(): Vec2 {
@@ -152,23 +200,37 @@ export function createCamera(
   }
 
   function screenToWorld(screen: Vec2): Vec2 {
-    const vp = getViewport();
     const scale = displayScale * zoom;
+    if (rotation !== 0) {
+      const cx = offset.x + (displayScale * viewW) / 2;
+      const cy = offset.y + (displayScale * viewH) / 2;
+      const d = unturn({ x: screen.x - cx, y: screen.y - cy });
+      return { x: position.x + d.x / scale, y: position.y + d.y / scale };
+    }
+    const vp = getViewport();
     return { x: vp.x + (screen.x - offset.x) / scale, y: vp.y + (screen.y - offset.y) / scale };
   }
 
   function worldToScreen(world: Vec2): Vec2 {
-    const vp = getViewport();
     const scale = displayScale * zoom;
+    if (rotation !== 0) {
+      const cx = offset.x + (displayScale * viewW) / 2;
+      const cy = offset.y + (displayScale * viewH) / 2;
+      const d = turn({ x: (world.x - position.x) * scale, y: (world.y - position.y) * scale });
+      return { x: cx + d.x, y: cy + d.y };
+    }
+    const vp = getViewport();
     return { x: (world.x - vp.x) * scale + offset.x, y: (world.y - vp.y) * scale + offset.y };
   }
 
   function snapTo(p: Vec2 | null): void {
+    rotation = 0;
     position = p ? { ...p } : boundsCenter();
     apply();
   }
 
   function setPosition(p: Vec2): void {
+    rotation = 0;
     position = clampToBounds(p);
   }
 
@@ -209,6 +271,7 @@ export function createCamera(
     screenToWorld,
     worldToScreen,
     snapTo,
+    setFrame,
     setPosition,
     setMode,
     setBounds,

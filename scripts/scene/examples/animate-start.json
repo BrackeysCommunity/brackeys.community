@@ -1,0 +1,13 @@
+{
+  "label": "Animate the start marker with the hero's idle clip",
+  "ops": [
+    {
+      "op": "update",
+      "ref": "start",
+      "set": {
+        "behaviors.sprite": { "asset": "hero", "frame": "hero-0", "size": [0.48, 0.48] },
+        "behaviors.anim": { "source": "kitchen-animation", "clip": "idle", "offset": 3 }
+      }
+    }
+  ]
+}

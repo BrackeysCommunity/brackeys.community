@@ -1,5 +1,6 @@
 import type { BasePrimitive, RegisteredType, SystemFactory } from "../game/types";
 import { createPropSystem, createSensorSystem, createSolidSystem } from "../systems/bodies";
+import { createCameraRegionSystem } from "../systems/camera-region";
 import { createDecorSystem } from "../systems/decor";
 import { createMarkerSystem } from "../systems/marker";
 import { createNavSystem } from "../systems/nav";
@@ -14,6 +15,7 @@ export const PRIMITIVE_SYSTEMS: Readonly<Record<BasePrimitive, SystemFactory>> =
   follower: createFollowerSystem,
   decor: createDecorSystem,
   nav: createNavSystem,
+  "camera-region": createCameraRegionSystem,
 };
 
 /** The factory that spawns `type`: its own system, else its base primitive's (a primitive is its own base). */

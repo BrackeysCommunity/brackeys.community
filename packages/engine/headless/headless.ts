@@ -81,6 +81,7 @@ export function createHeadlessRuntime(
     registry,
     dev: opts.dev,
     project: opts.project,
+    ...(opts.recordPresentation ? { recordPresentation: true } : {}),
     ...(opts.prefabs ? { prefabs: opts.prefabs } : {}),
     ...(opts.persist ? { persist: opts.persist } : {}),
     ...(library ? { scenes: () => liveLibrary(library, layer) } : {}),

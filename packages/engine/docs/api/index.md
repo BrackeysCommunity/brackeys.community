@@ -2,7 +2,7 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`ActionBindings`](#actionbindings) · [`AssetLoader`](#assetloader) · [`AssetReloadError`](#assetreloaderror) · [`AssetUrl`](#asseturl) · [`BindingLayerName`](#bindinglayername) · [`BindingLayers`](#bindinglayers) · [`BlendMode`](#blendmode) · [`BoundInput`](#boundinput) · [`CameraMode`](#cameramode) · [`CameraState`](#camerastate) · [`DEFAULT_INDEXED_DB_NAME`](#default_indexed_db_name) · [`DEFAULT_LOCAL_STORAGE_PREFIX`](#default_local_storage_prefix) · [`DEFAULT_RESOLUTION`](#default_resolution) · [`DeviceTables`](#devicetables) · [`Dihedral`](#dihedral) · [`ENGINE_VERSION`](#engine_version) · [`ExpandedScene`](#expandedscene) · [`FlowRequest`](#flowrequest) · [`FlowResult`](#flowresult) · [`FrameRect`](#framerect) · [`GameCommand`](#gamecommand) · [`GameConfig`](#gameconfig) · [`GameDefinition`](#gamedefinition) · [`GameEventMap`](#gameeventmap) · [`GameFlow`](#gameflow) · [`GameInput`](#gameinput) · [`GameInstance`](#gameinstance) · [`GameLive`](#gamelive) · [`GameMode`](#gamemode) · [`GamePhase`](#gamephase) · [`GameStoreState`](#gamestorestate) · [`IDENTITY_2D`](#identity_2d) · [`InputAction`](#inputaction) · [`InputBinding`](#inputbinding) · [`LIVE_CHECK_AGAIN_TICKS`](#live_check_again_ticks) · [`LIVE_DEFAULTS`](#live_defaults) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LiveSceneVersions`](#livesceneversions) · [`LoadFailureReason`](#loadfailurereason) · [`LoadProgress`](#loadprogress) · [`LoadReport`](#loadreport) · [`LoadingView`](#loadingview) · [`LoadingViewFactory`](#loadingviewfactory) · [`MAX_PLAYERS`](#max_players) · [`MountUi`](#mountui) · [`PixiView`](#pixiview) · [`PixiViewOptions`](#pixiviewoptions) · [`PlayOptions`](#playoptions) · [`PlayOutcome`](#playoutcome) · [`PlayReport`](#playreport) · [`PlaySession`](#playsession) · [`PointerKind`](#pointerkind) · [`RapierModule`](#rapiermodule) · [`Registry`](#registry) · [`RemapState`](#remapstate) · [`RemapStore`](#remapstore) · [`RenderBackend`](#renderbackend) · [`RendererConfig`](#rendererconfig) · [`ResolutionPolicy`](#resolutionpolicy) · [`ResolutionViewport`](#resolutionviewport) · [`ResolvedBindings`](#resolvedbindings) · [`RunRecording`](#runrecording) · [`RuntimeEntity`](#runtimeentity) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SaveDepth`](#savedepth) · [`SaveLimits`](#savelimits) · [`SaveMeta`](#savemeta) · [`SaveSlots`](#saveslots) · [`SaveStore`](#savestore) · [`SaveSummary`](#savesummary) · [`SaveWriteResult`](#savewriteresult) · [`SceneDiff`](#scenediff) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneSource`](#scenesource) · [`SceneSwap`](#sceneswap) · [`SimState`](#simstate) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteVisual`](#spritevisual) · [`StagedVersion`](#stagedversion) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`TOOL_PRIORITY`](#tool_priority) · [`TextureSource`](#texturesource) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TouchControlDef`](#touchcontroldef) · [`TouchControlValue`](#touchcontrolvalue) · [`TouchControls`](#touchcontrols) · [`Transform2D`](#transform2d) · [`TransitionRunner`](#transitionrunner) · [`TransitionSpec`](#transitionspec) · [`UiActionEvent`](#uiactionevent) · [`UiContext`](#uicontext) · [`UiHandle`](#uihandle) · [`Vec2`](#vec2) · [`acceptedTimings`](#acceptedtimings) · [`acceptedTimingsWords`](#acceptedtimingswords) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`bindText`](#bindtext) · [`bindToWorld`](#bindtoworld) · [`browserRemapStore`](#browserremapstore) · [`browserSaveStore`](#browsersavestore) · [`clampTiming`](#clamptiming) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`createAssetLoader`](#createassetloader) · [`createGame`](#creategame) · [`createLoadingOverlay`](#createloadingoverlay) · [`createPixiView`](#createpixiview) · [`createTouchControls`](#createtouchcontrols) · [`createUiLayer`](#createuilayer) · [`diffWords`](#diffwords) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`drawSprite`](#drawsprite) · [`fadeTransition`](#fadetransition) · [`flipWorld`](#flipworld) · [`indexedDbSaveStore`](#indexeddbsavestore) · [`invert`](#invert) · [`liveSceneSource`](#livescenesource) · [`localStorageSaveStore`](#localstoragesavestore) · [`memoryRemapStore`](#memoryremapstore) · [`memorySaveStore`](#memorysavestore) · [`mountUi`](#mountui-1) · [`pixiContainer`](#pixicontainer) · [`resolveBindings`](#resolvebindings) · [`resolvePlayers`](#resolveplayers) · [`resolveResolution`](#resolveresolution) · [`selectCamera`](#selectcamera) · [`selectDebugMode`](#selectdebugmode) · [`selectFPS`](#selectfps) · [`selectGame`](#selectgame) · [`selectMode`](#selectmode) · [`selectPhase`](#selectphase) · [`selectSession`](#selectsession) · [`selectSim`](#selectsim) · [`selectTick`](#selecttick) · [`snapshotRemapStore`](#snapshotremapstore) · [`spriteGeometry`](#spritegeometry-1) · [`swapStrategyFor`](#swapstrategyfor) · [`timingWords`](#timingwords) · [`utf8Bytes`](#utf8bytes) · [`versionName`](#versionname) · [`viewportFor`](#viewportfor) · [`watchView`](#watchview)
+[`ActionBindings`](#actionbindings) · [`AssetLoader`](#assetloader) · [`AssetReloadError`](#assetreloaderror) · [`AssetUrl`](#asseturl) · [`BindingLayerName`](#bindinglayername) · [`BindingLayers`](#bindinglayers) · [`BlendMode`](#blendmode) · [`BoundInput`](#boundinput) · [`CameraMode`](#cameramode) · [`CameraState`](#camerastate) · [`DEFAULT_INDEXED_DB_NAME`](#default_indexed_db_name) · [`DEFAULT_LOCAL_STORAGE_PREFIX`](#default_local_storage_prefix) · [`DEFAULT_RESOLUTION`](#default_resolution) · [`DeviceTables`](#devicetables) · [`Dihedral`](#dihedral) · [`ENGINE_VERSION`](#engine_version) · [`EffectLayer`](#effectlayer) · [`ExpandedScene`](#expandedscene) · [`FlowRequest`](#flowrequest) · [`FlowResult`](#flowresult) · [`FrameRect`](#framerect) · [`GameCommand`](#gamecommand) · [`GameConfig`](#gameconfig) · [`GameDefinition`](#gamedefinition) · [`GameEventMap`](#gameeventmap) · [`GameFlow`](#gameflow) · [`GameInput`](#gameinput) · [`GameInstance`](#gameinstance) · [`GameLive`](#gamelive) · [`GameMode`](#gamemode) · [`GamePhase`](#gamephase) · [`GameStoreState`](#gamestorestate) · [`IDENTITY_2D`](#identity_2d) · [`InputAction`](#inputaction) · [`InputBinding`](#inputbinding) · [`LIVE_CHECK_AGAIN_TICKS`](#live_check_again_ticks) · [`LIVE_DEFAULTS`](#live_defaults) · [`LiveContext`](#livecontext) · [`LiveDeclaration`](#livedeclaration) · [`LiveSceneVersions`](#livesceneversions) · [`LoadFailureReason`](#loadfailurereason) · [`LoadProgress`](#loadprogress) · [`LoadReport`](#loadreport) · [`LoadingView`](#loadingview) · [`LoadingViewFactory`](#loadingviewfactory) · [`MAX_PLAYERS`](#max_players) · [`MountUi`](#mountui) · [`ParticleLayer`](#particlelayer) · [`ParticleLayerOptions`](#particlelayeroptions) · [`ParticleTexture`](#particletexture) · [`PixiView`](#pixiview) · [`PixiViewOptions`](#pixiviewoptions) · [`PlayOptions`](#playoptions) · [`PlayOutcome`](#playoutcome) · [`PlayReport`](#playreport) · [`PlaySession`](#playsession) · [`PointerKind`](#pointerkind) · [`RapierModule`](#rapiermodule) · [`Registry`](#registry) · [`RemapState`](#remapstate) · [`RemapStore`](#remapstore) · [`RenderBackend`](#renderbackend) · [`RendererConfig`](#rendererconfig) · [`ResolutionPolicy`](#resolutionpolicy) · [`ResolutionViewport`](#resolutionviewport) · [`ResolvedBindings`](#resolvedbindings) · [`RunRecording`](#runrecording) · [`RuntimeEntity`](#runtimeentity) · [`SPRITE`](#sprite) · [`SPRITE_FALLBACK_SIZE`](#sprite_fallback_size) · [`SaveDepth`](#savedepth) · [`SaveLimits`](#savelimits) · [`SaveMeta`](#savemeta) · [`SaveSlots`](#saveslots) · [`SaveStore`](#savestore) · [`SaveSummary`](#savesummary) · [`SaveWriteResult`](#savewriteresult) · [`SceneDiff`](#scenediff) · [`SceneLibrary`](#scenelibrary) · [`SceneListEntry`](#scenelistentry) · [`SceneSource`](#scenesource) · [`SceneSwap`](#sceneswap) · [`SimState`](#simstate) · [`SpriteAssetInfo`](#spriteassetinfo) · [`SpriteBlock`](#spriteblock) · [`SpriteGeometry`](#spritegeometry) · [`SpriteVisual`](#spritevisual) · [`StagedVersion`](#stagedversion) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`SwapSide`](#swapside) · [`SwapStrategy`](#swapstrategy) · [`SwapTiming`](#swaptiming) · [`TOOL_PRIORITY`](#tool_priority) · [`TextureSource`](#texturesource) · [`ToolConsumer`](#toolconsumer) · [`ToolEvent`](#toolevent) · [`ToolRouter`](#toolrouter) · [`TouchControlDef`](#touchcontroldef) · [`TouchControlValue`](#touchcontrolvalue) · [`TouchControls`](#touchcontrols) · [`Transform2D`](#transform2d) · [`TransitionRunner`](#transitionrunner) · [`TransitionSpec`](#transitionspec) · [`UiActionEvent`](#uiactionevent) · [`UiContext`](#uicontext) · [`UiHandle`](#uihandle) · [`Vec2`](#vec2) · [`ViewportDef`](#viewportdef) · [`acceptedTimings`](#acceptedtimings) · [`acceptedTimingsWords`](#acceptedtimingswords) · [`applyPt`](#applypt) · [`applyVec`](#applyvec) · [`bindText`](#bindtext) · [`bindToWorld`](#bindtoworld) · [`browserRemapStore`](#browserremapstore) · [`browserSaveStore`](#browsersavestore) · [`clampTiming`](#clamptiming) · [`compose`](#compose) · [`composeDihedral`](#composedihedral) · [`createAssetLoader`](#createassetloader) · [`createEffectLayer`](#createeffectlayer) · [`createGame`](#creategame) · [`createLoadingOverlay`](#createloadingoverlay) · [`createParticleLayer`](#createparticlelayer) · [`createPixiView`](#createpixiview) · [`createTouchControls`](#createtouchcontrols) · [`createUiLayer`](#createuilayer) · [`diffWords`](#diffwords) · [`dihedral`](#dihedral-1) · [`dihedralOf`](#dihedralof) · [`drawSprite`](#drawsprite) · [`fadeTransition`](#fadetransition) · [`flipWorld`](#flipworld) · [`indexedDbSaveStore`](#indexeddbsavestore) · [`invert`](#invert) · [`liveSceneSource`](#livescenesource) · [`localStorageSaveStore`](#localstoragesavestore) · [`memoryRemapStore`](#memoryremapstore) · [`memorySaveStore`](#memorysavestore) · [`mountUi`](#mountui-1) · [`pixiContainer`](#pixicontainer) · [`resolveBindings`](#resolvebindings) · [`resolvePlayers`](#resolveplayers) · [`resolveResolution`](#resolveresolution) · [`selectCamera`](#selectcamera) · [`selectDebugMode`](#selectdebugmode) · [`selectFPS`](#selectfps) · [`selectGame`](#selectgame) · [`selectMode`](#selectmode) · [`selectPhase`](#selectphase) · [`selectSession`](#selectsession) · [`selectSim`](#selectsim) · [`selectTick`](#selecttick) · [`snapshotRemapStore`](#snapshotremapstore) · [`spriteGeometry`](#spritegeometry-1) · [`swapStrategyFor`](#swapstrategyfor) · [`timingWords`](#timingwords) · [`utf8Bytes`](#utf8bytes) · [`versionName`](#versionname) · [`viewportFor`](#viewportfor) · [`watchView`](#watchview)
 
 ## `ActionBindings`
 
@@ -236,7 +236,25 @@ type Dihedral = {
 _const_ in `version.ts`
 
 ```ts
-declare const ENGINE_VERSION = "0.14.5";
+declare const ENGINE_VERSION = "0.15.0";
+```
+
+## `EffectLayer`
+
+_interface_ in `render/effects.ts`
+
+```ts
+interface EffectLayer {
+    /** A full-canvas colour (0xRRGGBB) fading over `ms`; reduced motion caps it at 0.3 alpha and 80 ms. */
+    flash(opts?: {
+        alpha?: number;
+        color?: number;
+        ms?: number;
+    }): void;
+    /** Time scale 0 for `ms` of wall time, then the scale before; overlapping stops extend to the latest end. */
+    hitStop(ms: number): void;
+    clear(): void;
+}
 ```
 
 ## `ExpandedScene`
@@ -407,6 +425,12 @@ type GameConfig = {
          */
         flow?: boolean;
     };
+    /**
+     * Whether shake, flashes, particles, fades and HUD animations calm down;
+     * "auto" (the default) follows the page's `prefers-reduced-motion`.
+     * Resolved once, at `createGame`.
+     */
+    reducedMotion?: "auto" | boolean;
     /** A registry the host already built from `game`, so host and shell share one; built here when omitted. */
     registry?: Registry;
     /** The release this instance plays; the recorder writes its id as `release`. */
@@ -432,10 +456,12 @@ type GameConfig = {
      * switch it on while the game runs.
      */
     timing?: boolean;
+    /** Split screen or a minimap: 1–4 viewports over the canvas; default one framing the main targets. */
+    viewports?: readonly ViewportDef[];
 };
 ```
 
-Refers to [`AssetLoader`](#assetloader), [`ExpandedScene`](#expandedscene), [`GameDefinition`](#gamedefinition), [`InputBinding`](#inputbinding), [`LoadingViewFactory`](#loadingviewfactory), [`RapierModule`](#rapiermodule), [`Registry`](#registry), [`RemapStore`](#remapstore), [`RendererConfig`](#rendererconfig), [`ResolutionPolicy`](#resolutionpolicy), [`SaveStore`](#savestore), [`SceneSource`](#scenesource), [`TransitionRunner`](#transitionrunner).
+Refers to [`AssetLoader`](#assetloader), [`ExpandedScene`](#expandedscene), [`GameDefinition`](#gamedefinition), [`InputBinding`](#inputbinding), [`LoadingViewFactory`](#loadingviewfactory), [`RapierModule`](#rapiermodule), [`Registry`](#registry), [`RemapStore`](#remapstore), [`RendererConfig`](#rendererconfig), [`ResolutionPolicy`](#resolutionpolicy), [`SaveStore`](#savestore), [`SceneSource`](#scenesource), [`TransitionRunner`](#transitionrunner), [`ViewportDef`](#viewportdef).
 
 ## `GameDefinition`
 
@@ -451,6 +477,8 @@ type GameDefinition<S = unknown, G = unknown> = {
     attach?(shell: GameShell, runtime: SceneRuntimeHandle): GameAttachment;
     /** The game's behaviors, after the engine's in registration order; names are `<id>/<name>`. */
     behaviors?: readonly BehaviorDef[];
+    /** How the camera follows in Play; a scene's `settings.camera` wins over it. */
+    camera?: CameraRigDef;
     /** `.checks.json` kinds, keyed `<id>/<kind>`. */
     checks?: Readonly<Record<string, CheckKindDef>>;
     /**
@@ -505,7 +533,7 @@ type GameDefinition<S = unknown, G = unknown> = {
      * Spawn groups in order; types inside one group spawn together in file
      * order (bulk first). Lists each of the game's loadable types once; a
      * primitive it leaves out spawns before every listed group, in primitive
-     * order, except `decor` and `nav`, which then spawn last. Omitted means
+     * order, except `decor`, `nav` and `camera-region`, which then spawn last. Omitted means
      * each primitive, then each game type, in registration order.
      */
     spawnOrder?: readonly (EntityTypeName | readonly EntityTypeName[])[];
@@ -668,8 +696,12 @@ _type_ in `types.ts`
 type GameInstance = {
     /** Offers Escape to the game in play (a tool's selection); true when it used it, so play goes on. */
     cancel: () => boolean;
-    /** Page coordinates (a DOM event's `clientX`, `clientY`) to world metres, through the input target's rect and the camera. */
-    clientToWorld: (clientX: number, clientY: number) => Vec2;
+    /**
+     * Page coordinates (a DOM event's `clientX`, `clientY`) to world metres,
+     * through the input target's rect and a viewport's camera: `viewport`'s,
+     * else the one under the point (the first where none is).
+     */
+    clientToWorld: (clientX: number, clientY: number, viewport?: number) => Vec2;
     /** Runs a game command (its `editorKeys`, or a host button); false when the game didn't apply it. */
     command: (name: string) => boolean;
     destroy: () => void;
@@ -744,6 +776,8 @@ type GameInstance = {
     }>;
     /** The project's runtime view: the one `createGame` was given, or the last `reloadAssets` passed; null without one. */
     project: () => ProjectRuntimeView | null;
+    /** `GameConfig.reducedMotion` as resolved at `createGame`: what the effects, the camera and the UI read. */
+    readonly reducedMotion: boolean;
     /**
      * The session's recording once finished (the game's first verdict, or
      * Stop), else the last session's; null before any Play. A session started
@@ -831,6 +865,11 @@ type GameInstance = {
     setPrefabs: (prefabs: PrefabLibrary) => void;
     /** Scales simulated time per frame; throws on a negative or non-finite scale. */
     setTimeScale: (scale: number) => void;
+    /**
+     * Replaces the viewports (1–4; throws on any other count or a rect outside
+     * the canvas). They draw in Play; the editor always shows one full view.
+     */
+    setViewports: (defs: readonly ViewportDef[]) => void;
     start: () => void;
     /** Simulates `n` ticks now (default 1), delivering keys pressed while paused. Play mode only. */
     step: (n?: number) => void;
@@ -841,8 +880,10 @@ type GameInstance = {
      */
     stop: () => void;
     unloadScene: () => void;
-    /** Page coordinates of a world point through the camera and the canvas's rect; clientToWorld's inverse. */
-    worldToClient: (p: Vec2) => {
+    /** The index of the viewport under page coordinates (the topmost), or null off every viewport. */
+    viewportAt: (clientX: number, clientY: number) => null | number;
+    /** Page coordinates of a world point through `viewport`'s camera (default the first) and the canvas's rect; clientToWorld's inverse. */
+    worldToClient: (p: Vec2, viewport?: number) => {
         x: number;
         y: number;
     };
@@ -851,7 +892,7 @@ type GameInstance = {
 };
 ```
 
-Refers to [`AssetReloadError`](#assetreloaderror), [`ExpandedScene`](#expandedscene), [`GameCommand`](#gamecommand), [`GameEventMap`](#gameeventmap), [`GameFlow`](#gameflow), [`GameInput`](#gameinput), [`GameLive`](#gamelive), [`GameMode`](#gamemode), [`GameStoreState`](#gamestorestate), [`LoadProgress`](#loadprogress), [`LoadReport`](#loadreport), [`PlayOptions`](#playoptions), [`PlayReport`](#playreport), [`Registry`](#registry), [`RunRecording`](#runrecording), [`SaveSlots`](#saveslots), [`StagedVersion`](#stagedversion), [`ToolRouter`](#toolrouter), [`Vec2`](#vec2).
+Refers to [`AssetReloadError`](#assetreloaderror), [`ExpandedScene`](#expandedscene), [`GameCommand`](#gamecommand), [`GameEventMap`](#gameeventmap), [`GameFlow`](#gameflow), [`GameInput`](#gameinput), [`GameLive`](#gamelive), [`GameMode`](#gamemode), [`GameStoreState`](#gamestorestate), [`LoadProgress`](#loadprogress), [`LoadReport`](#loadreport), [`PlayOptions`](#playoptions), [`PlayReport`](#playreport), [`Registry`](#registry), [`RunRecording`](#runrecording), [`SaveSlots`](#saveslots), [`StagedVersion`](#stagedversion), [`ToolRouter`](#toolrouter), [`Vec2`](#vec2), [`ViewportDef`](#viewportdef).
 
 ## `GameLive`
 
@@ -1160,6 +1201,80 @@ type MountUi<G = unknown> = (ctx: UiContext<G>) => UiHandle;
 
 Refers to [`UiContext`](#uicontext), [`UiHandle`](#uihandle).
 
+## `ParticleLayer`
+
+_interface_ in `render/particles.ts`
+
+```ts
+interface ParticleLayer {
+    /**
+     * Starts (or restarts) the emitter `id` on `layer` (default the layer's
+     * own container), following `at` each frame; while `at` gives undefined
+     * it emits nothing. A restart keeps the particles it has alive.
+     */
+    emitter(id: string, preset: EmitterFile, at: () => Pose | undefined, layer?: ViewLayer): void;
+    /** Stops the emitter `id`: what it put in world space lives out its life, what it put in local space goes. */
+    remove(id: string): void;
+    /**
+     * One burst at a world point (metres): `count` particles (default the
+     * preset's bursts' total, else one second of its rate), its angle range
+     * turned by `angle` degrees, drawn in `tint` instead of its tint curve.
+     */
+    burst(preset: EmitterFile, at: Vec2, opts?: {
+        angle?: number;
+        count?: number;
+        tint?: number;
+    }): void;
+    /** Wall ms scaled by the loop's time scale; 0 while paused. */
+    update(dtMs: number): void;
+    stats(): {
+        emitters: number;
+        particles: number;
+    };
+    /** Drops every emitter and particle, and the textures it holds. */
+    clear(): void;
+}
+```
+
+Refers to [`Vec2`](#vec2).
+
+## `ParticleLayerOptions`
+
+_type_ in `render/particles.ts`
+
+```ts
+type ParticleLayerOptions = {
+    /** The container an emitter's `layer` draws in; without it, everything draws in `container`. */
+    layer?: (layer: ViewLayer) => Container;
+    /** The game's px per metre; default 100. `container` and the layer containers draw in world px. */
+    pxPerMetre?: number;
+    /** Rates and burst counts are quartered. */
+    reducedMotion: boolean;
+    /** Seeds the layer's own random stream: the scene's name. */
+    seed: string;
+    /** The preset's texture; null (or omitted) draws small squares. */
+    texture?: (preset: EmitterFile) => ParticleTexture | null;
+};
+```
+
+Refers to [`ParticleTexture`](#particletexture).
+
+## `ParticleTexture`
+
+_type_ in `render/particles.ts`
+
+A preset's texture as the layer draws it: a content hash, an atlas frame in it and the sampling.
+
+```ts
+type ParticleTexture = {
+    frame?: NonNullable<SpriteVisual["frame"]>;
+    hash: Sha256;
+    sampling: SpriteVisual["sampling"];
+};
+```
+
+Refers to [`SpriteVisual`](#spritevisual).
+
 ## `PixiView`
 
 _type_ in `render/pixi-view.ts`
@@ -1168,7 +1283,17 @@ _type_ in `render/pixi-view.ts`
 type PixiView = SceneView & {
     /** Destroys every visual and layer, and `container` with them. */
     destroy(): void;
+    /**
+     * Offsets the `scroll` layers for a camera at (x, y) metres, as `frame`
+     * does: what a viewport past the first sets before it draws the world.
+     */
+    parallax(camera: {
+        x: number;
+        y: number;
+    }): void;
     readonly container: Container;
+    /** Shows only the named scene layers (draw orders no layer names hide too); null shows every layer. */
+    showLayers(names: null | readonly string[]): void;
 };
 ```
 
@@ -1189,6 +1314,12 @@ type PixiViewOptions = {
      * no layer has work as plain draw layers.
      */
     layers?: readonly SceneLayerDef[];
+    /**
+     * Gives the view a particle layer, made at the first `particles()`: an
+     * emitter draws on its own layer, a burst on the scene's `gameplay`
+     * layer (the body order without one).
+     */
+    particles?: Pick<ParticleLayerOptions, "reducedMotion" | "seed" | "texture">;
     /** Round visual positions to whole canvas pixels each frame. */
     pixelSnap?: boolean;
     /**
@@ -1204,7 +1335,7 @@ type PixiViewOptions = {
 };
 ```
 
-Refers to [`TextureSource`](#texturesource).
+Refers to [`ParticleLayerOptions`](#particlelayeroptions), [`TextureSource`](#texturesource).
 
 ## `PlayOptions`
 
@@ -1969,6 +2100,12 @@ type StepResult = {
     events: StepEvent[];
     /** The game's `snapshot()` after the step; `null` without a game. */
     game: unknown;
+    /**
+     * What this tick asked the shell to present, in request order; set only
+     * for a runtime made with `recordPresentation`. Requests made outside a
+     * step (a game's `onLoad`) are in the next tick's list.
+     */
+    present?: readonly PresentRequest[];
     /** The tick just simulated, counting from 0 after each load. */
     tick: number;
 };
@@ -2216,10 +2353,12 @@ type Transform2D = {
 
 _type_ in `types.ts`
 
-Runs one half of a transition over `layer`, which sits above the game's UI.
+Runs one half of a transition over `layer`, which sits above the game's UI; under `env.reducedMotion` a fade is a cut.
 
 ```ts
-type TransitionRunner = (phase: "in" | "out", spec: TransitionSpec, layer: HTMLElement) => Promise<void>;
+type TransitionRunner = (phase: "in" | "out", spec: TransitionSpec, layer: HTMLElement, env: {
+    reducedMotion: boolean;
+}) => Promise<void>;
 ```
 
 Refers to [`TransitionSpec`](#transitionspec).
@@ -2290,7 +2429,7 @@ type UiContext<G = unknown> = {
     links?: {
         credits?: string;
     };
-    /** True when the page prefers reduced motion; HUDs skip their own animations. */
+    /** `GameInstance.reducedMotion`: when true, HUDs skip their own animations. */
     reducedMotion: boolean;
     /**
      * A div over the canvas with the canvas's box; pointer-events none, so
@@ -2335,6 +2474,38 @@ _type_ in `types.ts`
 type Vec2 = {
     x: number;
     y: number;
+};
+```
+
+## `ViewportDef`
+
+_type_ in `camera/viewports.ts`
+
+One viewport over the canvas.
+
+```ts
+type ViewportDef = {
+    /** A frame of `width` view px around it. */
+    border?: {
+        color: number;
+        width: number;
+    };
+    /** What it frames: a seat's targets, an entity, the main targets, or the whole scene (a minimap). */
+    frame: "main" | "scene" | {
+        entity: string;
+    } | {
+        player: number;
+    };
+    /** Scene layers drawn; default all but editor-only. */
+    layers?: readonly string[];
+    /** Canvas fractions: [x, y, w, h], 0–1. */
+    rect: [
+        x: number,
+        y: number,
+        w: number,
+        h: number
+    ];
+    rig?: CameraRigDef;
 };
 ```
 
@@ -2499,6 +2670,20 @@ declare function createAssetLoader(opts: {
 
 Refers to [`AssetLoader`](#assetloader), [`AssetUrl`](#asseturl).
 
+## `createEffectLayer`
+
+_function_ in `render/effects.ts`
+
+An effect layer over `layer` (a div over the canvas), driving `loop`'s time scale.
+
+```ts
+declare function createEffectLayer(layer: HTMLElement, loop: Pick<GameLoop, "getTimeScale" | "setTimeScale">, opts: {
+    reducedMotion: () => boolean;
+}): EffectLayer;
+```
+
+Refers to [`EffectLayer`](#effectlayer).
+
 ## `createGame`
 
 _function_ in `engine.ts`
@@ -2527,6 +2712,18 @@ declare function createLoadingOverlay(opts?: {
 ```
 
 Refers to [`LoadingViewFactory`](#loadingviewfactory).
+
+## `createParticleLayer`
+
+_function_ in `render/particles.ts`
+
+A particle layer drawing into `container`; under reduced motion rates and bursts are quartered.
+
+```ts
+declare function createParticleLayer(container: Container, textures: TextureSource | undefined, opts: ParticleLayerOptions): ParticleLayer;
+```
+
+Refers to [`ParticleLayer`](#particlelayer), [`ParticleLayerOptions`](#particlelayeroptions), [`TextureSource`](#texturesource).
 
 ## `createPixiView`
 

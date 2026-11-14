@@ -23,11 +23,13 @@ import {
   type BehaviorName,
   type RegisteredBehavior,
 } from "./behaviors";
+import { ANIM } from "./behaviors/anim";
 import { BODY } from "./behaviors/body";
 import { CAMERA_TARGET } from "./behaviors/camera-target";
 import { CHARACTER_SIDE_VIEW } from "./behaviors/character-side-view";
 import { CHARACTER_TOP_DOWN } from "./behaviors/character-top-down";
 import { COLLIDER } from "./behaviors/collider";
+import { EMITTER } from "./behaviors/emitter";
 import { FORCE_AREA } from "./behaviors/force-area";
 import { JOINT } from "./behaviors/joint";
 import { LIFETIME } from "./behaviors/lifetime";
@@ -37,6 +39,7 @@ import { PATH_FOLLOW } from "./behaviors/path-follow";
 import { PLAYER_INPUT } from "./behaviors/player-input";
 import { SPAWNER } from "./behaviors/spawner";
 import { SPRITE } from "./behaviors/sprite";
+import { TWEEN } from "./behaviors/tween";
 import { COMMAND_NAME_PATTERN, ENGINE_COMMANDS } from "./commands";
 import { DEFAULT_ACTIONS, DEFAULT_TIME } from "./defaults";
 import { ID_PATTERN, isAttachField, RESERVED_FIELDS, SIDES } from "./fields";
@@ -101,7 +104,7 @@ export class RegistryError extends Error {
 }
 
 /** Primitives with no body: left out of a game's `spawnOrder`, they spawn last (the others first). */
-const BODILESS_PRIMITIVES: readonly EntityTypeName[] = ["decor", "nav"];
+const BODILESS_PRIMITIVES: readonly EntityTypeName[] = ["decor", "nav", "camera-region"];
 
 const isPrimitive = (name: string): boolean =>
   (PRIMITIVE_TYPES as readonly string[]).includes(name);
@@ -165,6 +168,9 @@ export const ENGINE_BEHAVIORS: readonly BehaviorDef[] = Object.freeze([
   JOINT,
   SPAWNER,
   CAMERA_TARGET,
+  ANIM,
+  TWEEN,
+  EMITTER,
 ]);
 
 /** Whether behaviors `a` and `b` may not share an entity: either names the other in `conflicts`. */

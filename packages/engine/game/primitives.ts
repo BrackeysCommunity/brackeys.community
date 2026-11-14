@@ -208,6 +208,38 @@ export const PRIMITIVES = {
     style: { stroke: 0x55aaff, alpha: 0.25 },
     ascii: "n",
   },
+  "camera-region": {
+    type: "camera-region",
+    description:
+      "An area that holds the camera: inside it, the view stays within its box and may zoom.",
+    physics: "optional",
+    fields: {
+      shape: shapeField(`The region. ${absolute}`, {
+        types: ["box"],
+        id: "CameraRegionShape",
+        owner: "a camera region's",
+      }),
+      zoom: z
+        .number()
+        .positive()
+        .optional()
+        .describe("The camera's zoom while it frames this region; omitted keeps the rig's own.")
+        .meta({ title: "Zoom" }),
+      clamp: z
+        .boolean()
+        .optional()
+        .describe("Keep the view inside the box; default true.")
+        .meta({ title: "Clamp", default: true }),
+      ease: z
+        .number()
+        .min(0)
+        .optional()
+        .describe("Seconds to move into the region's framing; default 0.4.")
+        .meta({ title: "Ease", unit: "s", default: 0.4 }),
+    },
+    style: { stroke: 0xff9966, alpha: 0.5 },
+    ascii: "c",
+  },
   note: {
     type: "note",
     description: "Editor note: text pinned to a point. Never loaded into the game.",
@@ -281,6 +313,7 @@ export const BASE_REQUIRED_FIELDS: Record<Exclude<PrimitiveType, "note">, readon
   follower: ["shape", "path"],
   decor: ["at"],
   nav: ["shape"],
+  "camera-region": ["shape"],
 };
 
 function metres2(description: string, [a, b]: [string, string] = ["x", "y"]) {
@@ -294,6 +327,69 @@ function metres2(description: string, [a, b]: [string, string] = ["x", "y"]) {
 }
 
 const WHOLE_PX = "each a whole number of px at the game's px per metre";
+
+/**
+ * How a camera rig follows its targets in Play: a game's `camera`, a
+ * scene's `settings.camera` over it, or a viewport's own. Lengths are world
+ * metres, except the shake's offset, which is view px.
+ */
+export const CAMERA_RIG_SCHEMA = z
+  .strictObject({
+    deadzone: metres2(
+      "World metres around the target the camera doesn't follow inside [w, h]; default [0, 0].",
+      ["w", "h"],
+    ).optional(),
+    lookAhead: z
+      .number()
+      .min(0)
+      .optional()
+      .describe("Leads the target by its velocity times this many seconds; default 0.")
+      .meta({ unit: "s" }),
+    maxLead: z
+      .number()
+      .min(0)
+      .optional()
+      .describe("Caps the look-ahead lead, m.")
+      .meta({ unit: "m" }),
+    damping: z
+      .number()
+      .min(0)
+      .optional()
+      .describe("Seconds to close half the distance to the goal, at any frame rate; default 0.12.")
+      .meta({ unit: "s" }),
+    fit: z
+      .strictObject({
+        padding: z
+          .number()
+          .min(0)
+          .describe("Margin kept around the targets, m.")
+          .meta({ unit: "m" }),
+        minZoom: z.number().positive().describe("The furthest it zooms out."),
+        maxZoom: z.number().positive().describe("The closest it zooms in."),
+      })
+      .optional()
+      .describe("With several targets, zooms to keep them all in view within these limits."),
+    shake: z
+      .strictObject({
+        maxOffset: z
+          .number()
+          .min(0)
+          .describe("The offset at full trauma, view px.")
+          .meta({ unit: "px" }),
+        maxTurn: z
+          .number()
+          .min(0)
+          .describe("The turn at full trauma, radians.")
+          .meta({ unit: "rad" }),
+        decay: z.number().min(0).describe("Trauma lost per second."),
+      })
+      .optional()
+      .describe("How shake requests move the view."),
+  })
+  .describe("How the camera follows in Play.");
+
+/** A camera rig's settings. */
+export type CameraRigDef = z.infer<typeof CAMERA_RIG_SCHEMA>;
 
 /** The engine's settings fields; a game's sit beside them. */
 export const ENGINE_SETTINGS = {
@@ -356,6 +452,9 @@ export const ENGINE_SETTINGS = {
     .optional()
     .describe("How the scene is projected to the screen; reserved, only orthogonal exists.")
     .meta({ title: "View" }),
+  camera: CAMERA_RIG_SCHEMA.optional()
+    .describe("How the camera follows in Play here, over the game's own camera settings.")
+    .meta({ title: "Camera" }),
 } satisfies z.ZodRawShape;
 
 /** The keys `ENGINE_SETTINGS` holds; a game's settings may not redefine them. */

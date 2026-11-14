@@ -12,6 +12,13 @@ import { OCCUPANT } from "../game/behaviors/occupant";
 import { PATH_FOLLOW } from "../game/behaviors/path-follow";
 import { SPAWNER } from "../game/behaviors/spawner";
 import { SPRITE } from "../game/behaviors/sprite";
+import {
+  posableType,
+  TWEEN,
+  tweenChannels,
+  tweenTargetProblem,
+  type TweenBlock,
+} from "../game/behaviors/tween";
 import { behaviorsConflict, isSpawnOnly, placeableTypes } from "../game/define";
 import { ID_PATTERN, isPolygonField } from "../game/fields";
 import { flowIssue, type SceneLibrary } from "../game/flow";
@@ -943,8 +950,9 @@ type MakeBatch = (label: string, ops: SceneOp[], refs: Ref[]) => OpBatch;
  * `behavior-conflict` once per carried pair that conflicts,
  * `character-body-kind` for a character on a dynamic body, a
  * `behavior-conflict` warning for a `path-follow` that can't move what it
- * carries (`pathFollowFixed`) and doesn't already conflict, and `schema` for
- * a block's fields once the type's defaults are under them.
+ * carries (`pathFollowFixed`) and doesn't already conflict, `schema` for
+ * a block's fields once the type's defaults are under them, and
+ * `tween-target-invalid` for a tween its entity can't play.
  */
 function checkBehaviors(
   registry: Registry,
@@ -1184,7 +1192,22 @@ function checkBehaviors(
     const base = rules.required.get(name) ?? rules.defaults.get(name) ?? {};
     const merged: Record<string, unknown> = { ...base, ...block };
     const result = refineBlock(behavior, z.strictObject(behavior.shape)).safeParse(merged);
-    if (result.success) continue;
+    if (result.success) {
+      if (name === TWEEN.name) {
+        const sprited = carried.has(SPRITE.name);
+        const target = { type: type.type, posable: posableType(type) };
+        (result.data as TweenBlock).tweens.forEach((spec, j) => {
+          const problem = tweenTargetProblem(target, tweenChannels(spec), sprited);
+          if (!problem) return;
+          push("tween-target-invalid", {
+            message: `${e.id}'s tween ${j} can't play: ${problem}`,
+            path: pointer(name, "tweens", j),
+            entityIds: [e.id],
+          });
+        });
+      }
+      continue;
+    }
     for (const issue of result.error.issues) {
       const path = issue.path.map((s) => (typeof s === "number" ? s : String(s)));
       if (issue.code === "unrecognized_keys") {

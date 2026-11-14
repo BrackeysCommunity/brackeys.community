@@ -7,6 +7,364 @@ usual sections, **Format** records scene format (`v`) changes and **Agent
 surface** records issue codes, ops, JSON Schemas and CLI commands, all of
 which are public contract.
 
+## [0.15.0] — unreleased
+
+Animation, cameras and effects: sprite animation with frame events and
+frame shapes, tweens, a camera rig with regions, split screen and
+minimaps, particles, flash and hit-stop, all asked for through
+presentation requests that never change a run's digest. Projects gain
+runtime doc kinds (`animation`, `emitter`) whose reference closure ships
+with an export. A run that uses none of them behaves as before; recordings
+made against a project that has animations go stale once.
+
+### Added
+
+- `EngineContext.present`, a write-only `PresentationQueue`: game code and
+  behaviors ask for camera moves (`camera.follow`, `zoom`, `shake`,
+  `snap`), effects (`effects.flash`, `hitStop`, `burst`) and sounds
+  (`audio.play`, `stop`, `music`) during a step; each tick's list goes to
+  `StepResult.present` in request order, and a request made outside a step
+  (a game's `onLoad`) joins the next tick's list. The shell records and
+  drains them after each tick's `view.commit` and presents camera and
+  effect requests (bursts and sounds are dropped for now).
+  `@jams/engine/game` exports `PresentationQueue`, `PresentRequest`,
+  `PresentedRequest`, `CameraRequest`, `EffectRequest` and `AudioRequest`.
+- Headless: `recordPresentation` on `createHeadlessRuntime` and
+  `runPlaytest` keeps the requests in `StepResult.present` and
+  `PlaytestReport.present` (each with its tick from the run's start);
+  without it they are dropped.
+- The `anim`, `tween` and `emitter` behaviors (`ANIM`, `TWEEN`, `EMITTER`
+  in `@jams/engine/game`), registered after `camera-target`, so every
+  earlier behavior keeps its attach and step order.
+  `tweenSpecSchema`, `EASE_NAMES` and `EaseName` are the tween spec every
+  tween is checked by; `ease`, `overlapFrameShapes`, `Tweens`,
+  `TweenSpec`, `TweenChannel`, `AnimState`, `AnimContext`, `ResolvedClip`
+  come with them.
+- `SceneSystem.setPose?(id, x, y, rot)`, the hook a tween or a game moves
+  an entity through; `GameDefinition.camera` and `CAMERA_RIG_SCHEMA`
+  (`CameraRigDef`), `GameRuntime.cameraTargets?()`, `CameraTargetSpec`,
+  `CameraFrame`.
+- `GameConfig.reducedMotion` (`boolean | "auto"`, default `"auto"`) and
+  `GameInstance.reducedMotion`: resolved once at `createGame` from
+  `prefers-reduced-motion`, false where the page can't say.
+- Viewports (split screen and minimaps): `GameConfig.viewports` /
+  `GameInstance.setViewports` take 1–4 `ViewportDef`s (canvas-fraction
+  rects, each framing `{ player }`, `{ entity }`, `"main"` or `"scene"`,
+  with an optional rig, layer list and px border); a bad set throws. They
+  draw in Play; the editor keeps one full view. The first viewport draws
+  directly (clipped to its rect), each later one renders the world
+  container into its own render texture with its own camera, rig and
+  parallax, shown in a sprite on the stage; interpolation and y-sort run
+  once per frame. A `"scene"` viewport fits the scene's bounds and takes no
+  camera requests (never shaken). `viewportAt(clientX, clientY)` gives the
+  topmost viewport under a page point; the recorded pointer samples through
+  the viewport under it; `clientToWorld` and `worldToClient` take an
+  optional viewport index. Camera requests reach the rig of the viewport
+  they name.
+- Flash and hit-stop in the shell: `ctx.present.effects.flash({ color, ms,
+alpha })` draws a full-canvas DOM flash over every viewport, on the
+  effect layer under the UI layer, fading over `ms` (default 120, white,
+  alpha 0.8); the layer is made at the first effect. `hitStop(ms)` holds
+  the loop's time scale at 0 for `ms` of wall time and restores the
+  previous scale; overlapping stops extend to the latest end. It acts in
+  Play only (ignored in edit mode; Stop clears both), and no tick runs, so
+  the run's digest is unchanged. Under reduced motion camera shake requests
+  are dropped and flashes are capped at 0.3 alpha and 80 ms.
+- The `anim` behavior runs on the simulation's ticks, headless included.
+  It plays an animation doc's clips, or an atlas's tags as clips, advancing
+  by `speed` in whole thousandths of a tick, and `offset` staggers the
+  start. `ctx.anim` gives `play` (unknown clip: `EngineError`
+  `anim-clip-unknown`; an entity without the block: `behavior-missing`),
+  `stop`, `state` and `shapes(id, set)`, which is a frame's named shape set
+  in world space at the sprite's anchor, mirrored by the sprite's and the
+  instance's flip and turned by the pose. `anim:frame` (`ANIM_FRAME`, data
+  `{ clip, frame, index, event }`) is raised once per event a frame
+  declares, on the tick the frame is entered. A `once` clip goes to its
+  `next`, or holds its last frame and raises `anim:end` (`ANIM_END`, data
+  `{ clip }`). World saves and live reconcile swaps keep the clip's place.
+  `overlapFrameShapes(ctx, a, setA, b, setB)` tests two entities' frame
+  shapes with `shapesIntersect`. The sprite system gains
+  `setFrame(id, frame)`, which an update of the block keeps.
+  `@jams/engine/game` and `@jams/engine/headless` export `ANIM_FRAME` and
+  `ANIM_END`.
+- The `emitter` asset kind (`emitter:v1`, `urn:jams-engine:emitter:v1`):
+  particle presets with rate, bursts, `lifeMs`/`speed` (m/s)/`angle` (deg)
+  as [min, max] pairs, `drift` (m/s²), damping, scale/alpha/tint curves of
+  [t, value] keys sorted by t in 0–1, a birth shape in metres, world or
+  local space, and `max` (default 500, at most 4,096). It is a view-only
+  runtime kind that never joins the run hash, co-edits its bursts as a
+  list and is capped at 32 KiB. Its texture names a texture or an atlas,
+  and an atlas needs a frame it has (`asset-frame-unknown`, through
+  `emitterIssues`). Schema at `@jams/engine/schemas/emitter.schema.json`.
+  `@jams/engine/project` exports `emitterKind`, `EMITTER_KIND`,
+  `EMITTER_VERSION`, `EMITTER_SCHEMA_ID`, `EMITTER_MAX_DEFAULT`,
+  `EMITTER_MAX_CAP` and `emitterIssues`.
+- `createParticleLayer` and `createEffectLayer` with `ParticleLayer` and
+  `EffectLayer` on `.`; `SceneView.particles?()`, the view's particle layer.
+- Runtime doc kinds: `DocKindDef.runtime` (`"sim" | "view"`),
+  `crossValidate` with `DocLookup`, `bundleRefs`, and
+  `BlobKindDef.metaVersion`. `game-settings`, `data-table`, `input-map`
+  and `scene-list` are `sim`. `isRuntimeKind` and `runtimeKindNames` are
+  the one rule the runtime view, the export, the scene CLI and the editor
+  read runtime kinds by. `ProjectRuntimeView.doc(kind, id)` and
+  `docs(kind)` give every runtime kind's docs, parsed, migrated and
+  frozen; `runtimeView` takes the kind registry as an optional fourth
+  argument. `validateProject(view, texts, kinds, env)` runs every doc's
+  checks, then every kind's `crossValidate` over the other docs, and never
+  throws (a check that throws reports as a `schema` error on its doc). It
+  and the `AnimationFile`, `ClipDef`,
+  `AnimFrameDef`, `ClipLoop`, `EmitterFile` and `EmitterCurve` types on
+  `@jams/engine/project`.
+- The `animation` asset kind (`animation:v1`,
+  `urn:jams-engine:animation:v1`): clips over one atlas, keyed by name and
+  co-edited per clip, with per-frame `ms`, `events` and named shape sets in
+  metres; loop modes loop, once, pingpong and hold; `next` for a once clip;
+  capped at 256 KiB and 512 clips; runtime `sim`. `animationIssues` is the
+  one check the kind's validation and clip resolution share.
+  `@jams/engine/project` exports `animationKind`, `ANIMATION_KIND`,
+  `ANIMATION_VERSION`, `ANIMATION_SCHEMA_ID`, `animationIssues`,
+  `CLIP_LOOPS` and `SHAPE_SET_NAME`.
+- `resolveClips` and `clipFrameAt` (`@jams/engine/game`, with
+  `ClipSource`): an animation doc, or an atlas alone whose tags become
+  clips, resolved to whole ticks once (`ms`, else the atlas frame's
+  `durationMs`, else 100, through `ticksFor`, at least 1); a pure frame
+  lookup so a seek and a replay agree.
+- `AssetInfo.durations`: an atlas's frame durations in `frames` order,
+  null where the export gives none.
+- `ease(name, t)` implements every `EaseName` (linear, and quad, cubic,
+  quart, quint, sine, expo, circ, back, elastic, bounce, each In/Out/InOut)
+  using only `+ − × ÷` and `Math.sqrt`, so tweened runs replay the same on
+  every JS engine. Sine, expo and elastic use exact range reduction plus a
+  series and stay within 1e-6 of the standard curves (measured: under
+  1e-13). `t` is clamped to 0–1, and the ends are exact: `ease(n, 0) ===
+0`, `ease(n, 1) === 1`.
+- `SceneSystem.setPose(id, x, y, rot)` on the primitives: `marker` and
+  `decor` write the pose index; `solid` and `sensor` move their fixed
+  Rapier body (collider synced at once, so queries in the same tick see
+  it) or their geometry collider, so a moved door blocks where it is drawn
+  and a sensor's enters and exits follow it; a world-drawn solid or sensor
+  visual is shifted to match. The pose index is written without a snap.
+  `prop` and `follower` have no `setPose`. An attached (`attach`) solid or
+  sensor ignores it and rides its host. `SolidSystem`, `SensorSystem` and
+  `MarkerSystem` require it, and `createDecorSystem` returns it.
+- The camera rig (`camera/rig.ts`, internal): deadzone, look-ahead capped
+  at `maxLead`, frame-rate-independent damping as a half-life, fit for
+  several targets within `minZoom`/`maxZoom`, and trauma² shake from a
+  view `Rng` seeded by the scene name, off under reduced motion; it takes
+  follow, zoom, shake and snap requests. Camera regions (`regionFor`,
+  `cameraRegionsOf` in `camera/regions.ts`) hold the view inside their box.
+- The `camera-region` primitive: a box shape plus `zoom?`, `clamp?` and
+  `ease?`; no body; ascii `c`. Its outline draws on the editor-only layer
+  while editing and is hidden in Play, and schematic renders draw it as a
+  dashed outline box.
+- `GameDefinition.camera` and the scene's `settings.camera`: the scene's
+  fields win over the game's, field by field. `Camera.setFrame` (the
+  editor's free camera keeps its API).
+- Tweens: `ctx.tweens.to(id, spec)` animates an entity's `x`, `y`
+  (metres), `rot` (radians) and its sprite's `alpha`, `tint` (lerped per
+  colour channel) and `scale` (a multiplier of its drawn size) over whole
+  ticks, `from + (to − from) × ease(t)` with `t = elapsed / duration`;
+  `from` defaults to the values when the first play starts. `delay`,
+  `repeat` (-1 forever), `yoyo` (odd plays run backwards) and `key`
+  (replaces the entity's tween with that key). `ctx.tweens.value(from, to,
+opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
+  `size`. The `tween` block plays its entries from spawn. A tween's end
+  raises its `emit`, else `tween:end` (`TWEEN_END`, data `{ id, key? }`).
+  An entity's tweens end with its destroy and pause while it is disabled,
+  whether or not it carries the block. Pose channels go through the type's
+  `setPose` (a `collider` block the entity carries is rebuilt where it now
+  is) and the sprite is posed in the same tick; visual channels go through
+  the sprite system's new `style`. World saves hold data tweens
+  (`world.systems["@tweens"]`, written only when there are tweens or tween
+  blocks); a pending value tween makes a world save `save-unsupported`
+  naming it (cause `tween`). `@jams/engine/game` exports `TWEEN_END` and
+  `UnsaveableTween`.
+- Particles: the `emitter` behavior (visual only, never built headless)
+  draws an `emitter` preset on the entity's layer through the scene view's
+  particle layer (`SceneView.particles()`, implemented by the Pixi view:
+  one Pixi v8 ParticleContainer per texture, layer and blend). Rate,
+  bursts, life, speed (m/s), angle, drift (m/s²), damping, scale/alpha/tint
+  curves, world or local space and `max` are supported, updated on
+  rendered frames with the loop's scaled wall time, so they freeze while
+  paused or hit-stopped; a paused `GameInstance.step(n)` moves them by the
+  n ticks it steps. Reduced motion quarters rates and burst counts.
+  `ctx.present.effects.burst(preset, at, { count, angle, tint })` draws a
+  one-off burst on the scene's `gameplay` layer. The layer's randomness is
+  its own stream, seeded by the scene name, so no run's digest changes.
+  `createParticleLayer` takes `ParticleLayerOptions` (`reducedMotion`,
+  `seed`, `pxPerMetre?`, `layer?`, `texture?`); `ParticleLayer.emitter`
+  takes an optional `layer`; `PixiViewOptions.particles` passes the
+  options through. `.` exports `ParticleLayerOptions` and
+  `ParticleTexture`.
+- `memoryRuntimeView({ settings, engine, tables, inputMap, flow, docs })`
+  in `@jams/engine/headless`: a frozen `ProjectRuntimeView` from plain
+  values, for tests.
+- `sceneBundle` takes an optional 7th argument `docs: { read(kind, id) }`
+  with the doc values it follows. `checkReleaseManifest` raises
+  `asset-missing` for a shipped blob's reference (an atlas's texture, a
+  font's pages) that isn't in `assets`, and, with the new
+  `CheckReleaseOptions.docRefs`, for a shipped doc's reference.
+- Genre probes: `grid-puzzle` slides each pushed crate's picture with a
+  tween over 8 ticks, and gains a `pointer-swap` variant (match-3: two
+  adjacent pieces picked by pointer presses swap through a `swap`
+  command, tweened; a line of three clears) plus `saved-mid-swap`.
+- The `shooter` genre probe trails an `emitter` on every bullet and shakes
+  the camera on every hit. It runs with `recordPresentation`, its digest
+  is held equal to the same run without it, and it is replayed in the
+  shell with a view. It gains `runner` variants, an endless runner: course
+  chunks are built ahead of the runner and destroyed behind it, over two
+  parallax backdrop layers (`runner`, `runner-physics-none`,
+  `saved-runner-physics-none`). This completes the twin-stick and
+  endless-runner matrix rows.
+- The `racing` genre probe: a damped Rapier car (the `body` behavior's
+  linearDamping/angularDamping, collider and material friction) in zero
+  gravity drives three laps through four gates in order, followed by a
+  look-ahead camera rig (`GameDefinition.camera`), with a ghost `decor`
+  replaying a pinned trail one tween a tick; `physics-none` and
+  `saved-mid-lap` (world save mid-lap with the ghost's tween running)
+  variants. Completes the racing row.
+- The `idle` genre probe: an idle/clicker on the event clock with
+  `time.catchUp` (one hour), a generator data table read through
+  `ctx.project.table`, an `@elapsed` that credits offline income (clamped
+  to the catch-up limit), a DOM-less store slice, and a world-save
+  variant; it completes the Idle / clicker row.
+- `local-versus` plays in split screen (one viewport per seat) and the
+  local-multiplayer row is complete; the probes' pending needs no longer
+  name animation, cameras or effects.
+- Tests: the genre harness replays a probe's run in the shell with a view
+  (jsdom, stubbed Pixi; a probe's `view` and `viewports`) and holds it to
+  the headless end; `recordPresentation` probes also digest alike without
+  presentation. `saves-audit.test.ts` runs every probe's save-at-N variant
+  with an animated, tweened entity attached: save-then-continue equals
+  restore-then-continue. matrix.ts reads "landed" from a milestone →
+  version table against ENGINE_VERSION; the idle row lists engine
+  milestones only.
+
+### Changed
+
+- `TransitionRunner` takes a fourth argument, `{ reducedMotion }`, the
+  instance's resolved flag; `fadeTransition` cuts by it instead of asking
+  the page itself, and a runner wrapping it passes it on.
+  `UiContext.reducedMotion` is `GameInstance.reducedMotion`.
+- The editor's Add behavior fills a required asset field with the
+  project's first asset of its kinds, and offers the behavior as
+  unavailable, saying which asset it needs, when the project has none.
+- `runHash` covers every `sim` doc beyond settings, tables and the input
+  map (one key, written only when such a doc exists), so recordings and
+  saves made against a project that has animations (or another new `sim`
+  kind) go stale once after upgrading; projects without them keep their
+  hash byte for byte. `view` kinds (emitters) and the scene list never
+  join it.
+- Exports ship the reference closure: `planContent` ships every listed
+  scene and the prefabs they use, every runtime-kind doc, and then
+  everything their `refs` name, repeated until nothing is added. A scene's
+  bundle also takes the blobs a runtime doc named by one of its entities
+  reaches through its kind's `bundleRefs` (default: every ref), so an
+  animation's atlas texture loads with the first frame. Blobs reached only
+  through runtime docs that no entity names ship, stay out of every bundle
+  and load on demand.
+- Play's follow goes through the camera rig whenever the game or scene
+  declares camera settings, or once the scene makes its first camera
+  request. Its targets are a follow request's target, else
+  `cameraTargets()`, else `cameraTarget()`, else the camera-target
+  entities with velocity from the previous poses. Without a rig, the
+  follow is unchanged. A live swap that changes `settings.camera` keeps
+  the running rig until the next load.
+- The kitchen sink gains the camera region `framing`,
+  `settings.camera: { damping: 0.2 }` and a note.
+- The kitchen sink carries every animation, camera and effect feature:
+  `std-anim` plays the new `kitchen-animation`
+  (`art/kitchen.animation.json`, clips over the hero atlas: `idle` from
+  its tag, `jab` a once clip raising `strike` over a `hit` shape set),
+  `std-tween` is a decor on a yoyo tween, `std-emitter` sprays the new
+  `sparks` emitter preset (`art/sparks.emitter.json`), beside the
+  `framing` camera region; its `fades` check now expects two decors. Its
+  svg and ascii goldens are regenerated (they now draw the camera region
+  too).
+- Internal, no public surface: the editor's outline helpers
+  (`outlineBounds`, `outlineLook`, `frameBounds`, `outlinesOfRef`,
+  `marksBounds`) live in `editor/outline-bounds.ts`, ending the
+  commands/tool-host import cycle; tool-host re-exports them.
+- A `camera-target` with no `seat` is followed by every seat's viewport,
+  as its field's description says (a `{ player: n }` follow used to skip
+  it).
+- `PixiView` gains `parallax(camera)` and `showLayers(names | null)`.
+- Internal: one `BLEND_MODES` list (`game/defaults.ts`) for the
+  sprite block, the material kind and the emitter kind.
+- Genre pins: `grid-puzzle`'s `default`, `gravity-zero`,
+  `gravity-sideways` and `saved-mid-push` move (8df0c7714f456fd0 →
+  9ffe5388c1a4b159): each push tweens the crate's picture over 8 ticks,
+  adding `tween:end` events, the pictures' positions and the tween wait to
+  the run's events and end state, and its scene moved from the legacy px
+  format to metres with 1 m cells. Every other probe's pins hold.
+
+### Removed
+
+- `RUNTIME_VIEW_KINDS` from `@jams/engine/project`: read the kinds'
+  `runtime` flag through `runtimeKindNames(kinds)` or `isRuntimeKind`.
+
+### Fixed
+
+- Site: a scene rollback with no version goes back to what its pointer
+  named before the last move that changed it: after a release promote
+  cleared the pointer, the version the promote cleared; moves that left
+  the pointer where it was (a timing-only change, a release rollback
+  putting back the version it cleared, a kept pointer) are passed over.
+
+### Format
+
+- Scene `settings.camera`: the scene's camera rig settings, over the
+  game's. Lengths are metres, the shake's offset view px.
+
+### Agent surface
+
+- `AGENT_SURFACE_VERSION` is 21, and every committed JSON Schema's
+  `x-agent-surface` with it; `animation.schema.json` and
+  `emitter.schema.json` are new schema ids.
+- Issue codes `anim-tag-unknown`, `anim-clip-unknown`,
+  `frame-shape-invalid` and `tween-target-invalid` (all errors).
+- The scene, prefab and fragment schemas gain the `anim`, `tween` and
+  `emitter` blocks (the tween spec as `$defs/TweenSpec`) and
+  `settings.camera`.
+- `animation:v1` and its schema `./schemas/animation.schema.json`; the
+  issue codes `anim-tag-unknown`, `anim-clip-unknown` and
+  `frame-shape-invalid` are now raised (by `animationIssues`), alongside
+  `asset-frame-unknown` and `asset-kind` for an animation's frames and
+  atlas.
+- The `camera-region` primitive in every scene schema
+  (`$defs/CameraRegionShape`).
+- `emitter:v1` (the emitter kind and its JSON Schema).
+- The `emitter` block's `rate` reads "Particles per second; overrides the
+  preset's rate."
+- `tween-target-invalid` is now raised: structurally (error) for a `tween`
+  entry on a type that can't be posed (`prop`, `follower`, `nav`,
+  `camera-region`, or a game type based on one without its own system) or
+  animating `alpha`/`tint`/`scale` on an entity without a `sprite`, and as
+  `EngineError("tween-target-invalid")` by `ctx.tweens.to` and by the
+  block's attach. The tween spec's `scale` now reads "Multiplies the
+  sprite's drawn size; 1 draws it as its block sizes it."
+- `scene step --anim <id>` prints an entity's clip, frame index and frame
+  after every tick (consecutive ticks run together in the text;
+  `anim.ticks` in --json has one entry per tick).
+- `playtest --present` lists the run's presentation requests with their
+  ticks, points in metres (`present` in --json); the run and its recording
+  are unchanged.
+- `assets info <animation>` prints each clip with its frames' ticks at the
+  project's tick rate (else the game's), events, shape-set boxes in
+  metres, the clips the animation rule leaves out, and its issues
+  (`animation` in --json).
+- `show` lists the camera regions as the camera rig reads them: box, zoom,
+  clamp and ease (`cameraRegions` in --json).
+- `codes` lists `anim-tag-unknown`, `anim-clip-unknown`,
+  `frame-shape-invalid` and `tween-target-invalid`.
+- The headless entry exports `cameraRegionsOf` and `CameraRegion`.
+- MCP `scene_playtest` takes `present: true` and returns the run's
+  presentation requests (`present`: each with `kind`, `op` and `tick`, in
+  request order); `asset_apply_ops` edits animation and emitter docs
+  (insert or remove a clip by name, set an emitter field), refusing a clip
+  whose tag the atlas lacks as `anim-tag-unknown` and a `next` naming no
+  clip as `anim-clip-unknown`. Tool names unchanged.
+
 ## [0.14.5] — unreleased
 
 Live levels on a host: the editor's seam for publishing single scenes

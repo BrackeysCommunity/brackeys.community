@@ -27,8 +27,9 @@ import {
 import { contentMap, layoutFromDoc, layoutPatch } from "../../collab/layout";
 import { logArray, readLog } from "../../collab/log";
 import { docToPrefab, prefabPatch } from "../../collab/prefab-doc";
-import { applyRegistryBatch } from "../../collab/project-apply";
+import { applyRegistryBatch, applyRepairs } from "../../collab/project-apply";
 import { projectAssetsMap, readProject } from "../../collab/project-doc";
+import { readProjectLog } from "../../collab/project-log";
 import { COLLAB_LAYOUT_VERSION } from "../../collab/types";
 import { createRegistry } from "../../game/define";
 import { formatSaveFile, type SaveFile } from "../../game/save-file";
@@ -45,6 +46,7 @@ import {
 import { ENGINE_ASSET_KINDS } from "../../project/kinds/index";
 import type { ProjectOp } from "../../project/ops";
 import { parseProjectFile } from "../../project/project-file";
+import { buildRefIndex, referencedTrash } from "../../project/refs";
 import type { AssetEntry, ProjectFile } from "../../project/types";
 import { projectView } from "../../project/view";
 import { diffToOps } from "../../scene/diff-to-ops";
@@ -2447,6 +2449,180 @@ describe("write-back: replacing and moving every binary kind", () => {
         expect(await s.adapter.syncPath(p, s.lookup, s.project)).toEqual({ kind: "unchanged" });
     });
   }
+});
+
+describe("write-back: animations and emitters", () => {
+  let copy: ProjectCopy;
+  const engine = createRegistry();
+  const KITCHEN = "art/kitchen.animation.json";
+  const SPARKS = "art/sparks.emitter.json";
+  const STAGE = "stage.json";
+  const kitchen = {
+    kind: "animation",
+    v: 1,
+    atlas: "hero",
+    clips: [
+      { name: "idle", tag: "idle" },
+      {
+        name: "strike",
+        frames: [
+          { frame: "hero-0", ms: 50 },
+          {
+            frame: "hero-1",
+            ms: 80,
+            events: ["swing"],
+            shapes: { hit: [["box", 0.2, 0, 0.2, 0.1]] },
+          },
+        ],
+        loop: "once",
+        next: "idle",
+      },
+    ],
+  };
+  const sparks = {
+    kind: "emitter",
+    v: 1,
+    texture: "hero",
+    frame: "hero-1",
+    rate: 30,
+    bursts: [{ atMs: 0, count: 8 }],
+    lifeMs: [300, 600],
+    speed: [0.5, 1.5],
+    angle: [-120, -60],
+  };
+
+  beforeEach(async () => {
+    copy = await engineProjectCopy([
+      "art/hero.json",
+      "art/hero.json.asset.json",
+      "art/hero.png",
+      "art/hero.png.asset.json",
+    ]);
+    ({ dir, cacheDir, project } = copy);
+    await put(KITCHEN, formatAssetDoc(kindOf("animation"), kitchen));
+    await put(SPARKS, formatAssetDoc(kindOf("emitter"), sparks));
+  });
+
+  afterEach(() => copy.remove());
+
+  const keyAt = (s: Session, path: string) =>
+    Object.values(readProject(s.project).assets).find((e) => e.path === path)!.key;
+
+  it("animation: a disk edit to one clip is one disk transaction touching only that clip", async () => {
+    const s = await session();
+    const key = keyAt(s, KITCHEN);
+    expect(s.entry(key)).toMatchObject({ kind: "animation", id: "kitchen-animation" });
+    const doc = await s.open(key);
+    expect(textOf("animation", doc)).toBe(await read(KITCHEN));
+    const clips = contentMap(doc).get("clips") as Y.Map<Y.Map<unknown>>;
+    const clipKey = (name: string) =>
+      [...clips.entries()].find(
+        ([, e]) => (e.get("item") as Y.Map<unknown>).get("name") === name,
+      )![0];
+    const keys = [...clips.keys()].sort();
+    const idle = clips.get(clipKey("idle"));
+    const touched: string[] = [];
+    contentMap(doc).observeDeep((events) => {
+      for (const e of events) touched.push(e.path.join("."));
+    });
+
+    const value = structuredClone(kitchen);
+    value.clips[1]!.frames![1]!.ms = 120;
+    const after = formatAssetDoc(kindOf("animation"), value);
+    await put(KITCHEN, after);
+    const origins = await transactions(doc, async () => {
+      expect(await s.adapter.syncPath(KITCHEN, s.lookup, s.project)).toEqual({
+        kind: "applied",
+        ops: 1,
+      });
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect(touched).toEqual([`clips.${clipKey("strike")}.item.frames`]);
+    expect([...clips.keys()].sort()).toEqual(keys);
+    expect(clips.get(clipKey("idle"))).toBe(idle);
+    expect(textOf("animation", doc)).toBe(after);
+    expect(await s.adapter.syncPath(KITCHEN, s.lookup, s.project)).toEqual({ kind: "unchanged" });
+    expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry(key)!), doc)).toBe(false);
+  });
+
+  it("emitter: a disk move pairs into one move keeping its id, key and open doc", async () => {
+    const s = await session();
+    const key = keyAt(s, SPARKS);
+    const id = s.entry(key)!.id;
+    const doc = await s.open(key);
+    await mkdir(join(dir, "fx"));
+    await rename(join(dir, SPARKS), join(dir, "fx/sparks.emitter.json"));
+    for (const path of [SPARKS, "fx/sparks.emitter.json"])
+      expect(await s.adapter.syncPath(path, s.lookup, s.project)).toEqual({ kind: "pending" });
+    const origins = await transactions(s.project, async () => {
+      expect(await s.adapter.settle(s.lookup, s.project)).toEqual([{ kind: "applied", ops: 1 }]);
+    });
+    expect(origins).toEqual([{ kind: "disk" }]);
+    expect(s.entry(key)).toMatchObject({ id, kind: "emitter", path: "fx/sparks.emitter.json" });
+    expect(s.entry(key)!.deleted).toBeUndefined();
+    expect(await s.adapter.storeProject(s.project)).toBe(false);
+
+    const value = layoutFromDoc(doc, layoutOf("emitter"));
+    layoutPatch(doc, layoutOf("emitter"), { ...value, rate: 45 }, user);
+    expect(await s.adapter.storeDoc(s.adapter.docNameOf(s.entry(key)!), doc)).toBe(true);
+    expect(JSON.parse(await read("fx/sparks.emitter.json"))).toMatchObject({ rate: 45 });
+    expect(await gone(SPARKS)).toBe(true);
+    const rescan = await createProjectFileAdapter(project).scan();
+    expect(
+      rescan.state.assets[key] ?? Object.values(rescan.state.assets).find((e) => e.id === id),
+    ).toMatchObject({ id, path: "fx/sparks.emitter.json" });
+  });
+
+  it("animation: deleted on disk while a scene's anim block names it, it is restored with asset-in-use", async () => {
+    const stage = {
+      v: SCENE_FORMAT_VERSION,
+      name: "stage",
+      bounds: [0, 0, 8, 6],
+      entities: [
+        {
+          id: "knight",
+          type: "decor",
+          layer: "decor",
+          at: [2, 3],
+          behaviors: {
+            sprite: { asset: "hero", frame: "hero-0" },
+            anim: { source: "kitchen-animation", clip: "strike" },
+          },
+        },
+      ],
+    };
+    await put(STAGE, formatScene(parseSceneOrThrow(JSON.stringify(stage), engine)).text);
+    const s = await session();
+    const key = keyAt(s, KITCHEN);
+    const text = await read(KITCHEN);
+    const scene = await s.open("stage");
+    await s.open(key);
+
+    await rm(join(dir, KITCHEN));
+    expect(await s.adapter.syncPath(KITCHEN, s.lookup, s.project)).toEqual({ kind: "pending" });
+    expect(await s.adapter.settle(s.lookup, s.project)).toEqual([{ kind: "applied", ops: 1 }]);
+    expect(s.entry(key)!.deleted?.by).toBe("disk");
+
+    const view = projectView(readProject(s.project), project.kinds);
+    const values = new Map([
+      ["stage", s.adapter.valueOf(s.adapter.docNameOf(s.entry("stage")!), scene)],
+    ]);
+    const index = buildRefIndex(view, values, project.kinds, { registry: engine, project: view });
+    expect(index.referrers("kitchen-animation").map((r) => r.id)).toEqual(["stage"]);
+    const restore = referencedTrash(view, index);
+    expect(restore).toEqual([key]);
+    const repair = { kind: "repair", reason: "asset-in-use" } as const;
+    expect(applyRepairs(s.project, { restore, origin: repair }).restored).toEqual([key]);
+    expect(s.entry(key)!.deleted).toBeUndefined();
+    expect(readProjectLog(s.project).at(-1)).toMatchObject({
+      actor: repair,
+      label: "Restore kitchen-animation",
+    });
+
+    expect(await s.adapter.storeProject(s.project)).toBe(true);
+    expect(await read(KITCHEN)).toBe(text);
+    expect(await s.adapter.syncPath(KITCHEN, s.lookup, s.project)).toEqual({ kind: "unchanged" });
+  });
 });
 
 describe("gameRegisters", () => {

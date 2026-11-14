@@ -60,8 +60,12 @@ const OUTCOME = "!";
 const MORE = "…";
 const RULER_EVERY = 8;
 
-/** Which character wins a cell: points over sensors over moving bodies over static shapes over lines over sprites. */
+/**
+ * Which character wins a cell: points over sensors over moving bodies over
+ * static shapes over lines over sprites over camera regions' outlines.
+ */
 const PRIORITY = {
+  region: -2,
   sprite: -1,
   path: 0,
   trail: 1,
@@ -86,11 +90,13 @@ function markOf(
   const name = d.type.type;
   const priority = !d.shape
     ? PRIORITY.point
-    : d.base === "sensor"
-      ? PRIORITY.sensor
-      : d.path || d.base === "prop" || d.base === "follower"
-        ? PRIORITY.moving
-        : PRIORITY.static;
+    : isRegion(d)
+      ? PRIORITY.region
+      : d.base === "sensor"
+        ? PRIORITY.sensor
+        : d.path || d.base === "prop" || d.base === "follower"
+          ? PRIORITY.moving
+          : PRIORITY.static;
   if (oneWayEdge(d)) return { char: "=", label: `${name} one-way`, priority };
   const tag = d.tags.find((t) => Object.hasOwn(tagChars, t));
   if (tag !== undefined) return { char: tagChars[tag]!, label: `${name} [${tag}]`, priority };
@@ -98,6 +104,9 @@ function markOf(
   const char = d.type.ascii ?? base?.ascii ?? (name[0] ?? "?").toLowerCase();
   return { char, label: name, priority };
 }
+
+/** A camera region: an area the camera frames, drawn as its box's outline only. */
+const isRegion = (d: DrawnEntity) => d.base === "camera-region";
 
 /** The outline as polylines, arcs flattened to at most `step` world px per segment. */
 function outlinePolylines(d: DrawnEntity, step: number): Pt[][] {
@@ -145,7 +154,7 @@ function* sampleLine(pts: readonly Pt[], step: number): Generator<Pt> {
  * The scene as a character map, one character per `cell` world px (the
  * scene's metres times the game's px per metre): each
  * entity in its type's character (`EntityTypeDef.ascii`, else its base
- * primitive's), `=` for one-way solids, tag characters for tagged ones,
+ * primitive's), camera regions as their box's outline under everything else, `=` for one-way solids, tag characters for tagged ones,
  * `~` along paths, each sprite's box in its entity's character under
  * everything else, grid fields' filled cells in their entity's character
  * (at most `SCENE_GRID_MAX_CELLS`, then `…`). Pure; region and `around` work as in `renderSceneSvg`.
@@ -267,7 +276,7 @@ export function sceneAsciiMap(
     const m = markOf(d, registry, tagChars);
     if (d.shape) {
       const span = spanOf(aabb(d.shape));
-      if (shapeIsClosed(d.shape)) {
+      if (shapeIsClosed(d.shape) && !isRegion(d)) {
         const [c0, c1, r0, r1] = span;
         for (let r = Math.max(0, r0); r <= Math.min(rows - 1, r1); r++) {
           for (let c = Math.max(0, c0); c <= Math.min(cols - 1, c1); c++) {

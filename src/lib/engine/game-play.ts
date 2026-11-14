@@ -48,7 +48,7 @@ export type PlayPayload = {
 export type PlayResolution = { ok: true; play: PlayPayload } | { ok: false; reason: PlayRefusal };
 
 export type PlayDeps = {
-  db?: ReleaseDb;
+  db?: Pick<ReleaseDb, "select">;
   now?: () => Date;
   /** Where frames are served from; default `playOrigin()`. */
   playOrigin?: string;
@@ -115,7 +115,7 @@ export function forgetLiveSnapshots(): void {
 
 /** The live scenes `channel` plays over `releaseId` at `rev`, through this process's cache. */
 function channelSnapshot(
-  db: ReleaseDb,
+  db: Pick<ReleaseDb, "select">,
   input: { projectId: string; channel: ReleaseChannel; releaseId: string; rev: number },
   now: number,
 ): Promise<LiveSnapshot | null> {

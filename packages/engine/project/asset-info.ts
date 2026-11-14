@@ -16,6 +16,8 @@ export type AssetInfo = {
   /** An atlas: its frame names in file order, its tags, its texture's id. */
   frames?: readonly string[];
   tags?: readonly { name: string; from: number; to: number; direction: string }[];
+  /** An atlas: each frame's durationMs, in `frames` order; null where the export gives none. */
+  durations?: readonly (number | null)[];
   texture?: AssetId;
   /** An atlas frame's rectangle in its texture, px; only with `frame`. */
   rect?: { x: number; y: number; w: number; h: number };
@@ -56,6 +58,9 @@ export function entryInfo(entry: AssetEntry): EntryInfo {
     const settings = atlasSettingsSchema.safeParse(entry.import ?? {});
     if (meta.success) {
       info.frames = [...meta.data.order];
+      info.durations = meta.data.order.map((name) =>
+        Object.hasOwn(meta.data.frames, name) ? (meta.data.frames[name]?.durationMs ?? null) : null,
+      );
       info.tags = meta.data.tags.map(({ name, from, to, direction }) => ({
         name,
         from,

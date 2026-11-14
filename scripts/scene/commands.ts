@@ -127,7 +127,7 @@ const DEFINITIONS = {
   show: {
     usage: "show <scene|file|-> [--ref id] [--type t] [--near x,y,r]",
     summary:
-      "entities and bulk entries with refs, AABB and top span, the scene hash, and the time model and physics backend",
+      "entities and bulk entries with refs, AABB and top span, the scene hash, the time model and physics backend, and the camera regions as the camera rig reads them (box, zoom, clamp, ease)",
     values: ["ref", "type", "near"],
     switches: [],
     maxPositionals: 1,
@@ -241,8 +241,8 @@ const DEFINITIONS = {
   step: {
     usage: `step <scene|file|-> ${STEP_FLAGS}`,
     summary:
-      "run the headless runtime and report events and the game's final snapshot, with spawns and destroys counted per type; --events type,… prints only those event types; --command and --elapse repeat; --command tick@seat:name sends from a seat (default 0), judged against the project input map's seats, else the game's; both are stepped on their ticks, each tick's @elapsed first, then its commands in flag order; --legal prints the commands legal after the last tick (at most 64, marked truncated beyond), for a game that lists them; --json carries them as legal/legalTruncated; --timing times each tick's parts on the wall clock (the Rapier world step, each type system's beforeStep and afterStep, each behavior, the game's hooks, contacts, timers, events, lifecycle): a block of total, share, mean and worst per part, and stats.timing in --json, the one part of the report that differs between runs",
-    values: ["ticks", "hold", "inputs", "command", "elapse", "events", "game"],
+      "run the headless runtime and report events and the game's final snapshot, with spawns and destroys counted per type; --events type,… prints only those event types; --command and --elapse repeat; --command tick@seat:name sends from a seat (default 0), judged against the project input map's seats, else the game's; both are stepped on their ticks, each tick's @elapsed first, then its commands in flag order; --legal prints the commands legal after the last tick (at most 64, marked truncated beyond), for a game that lists them; --json carries them as legal/legalTruncated; --timing times each tick's parts on the wall clock (the Rapier world step, each type system's beforeStep and afterStep, each behavior, the game's hooks, contacts, timers, events, lifecycle): a block of total, share, mean and worst per part, and stats.timing in --json, the one part of the report that differs between runs; --anim id prints that entity's clip, frame index and frame after every tick, ticks on one frame run together (anim.ticks in --json, one entry a tick)",
+    values: ["ticks", "hold", "inputs", "command", "elapse", "events", "game", "anim"],
     repeatable: ["command", "elapse"],
     switches: ["legal", "timing"],
     maxPositionals: 1,
@@ -258,6 +258,7 @@ const DEFINITIONS = {
         game: str(flags.game),
         legal: flags.legal === true,
         timing: flags.timing === true,
+        anim: str(flags.anim),
       };
       return step(input, ctx);
     },
@@ -283,11 +284,11 @@ const DEFINITIONS = {
   },
   playtest: {
     usage:
-      "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file] [--timing]",
+      "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file] [--timing] [--present]",
     summary:
-      "play an input script headless (actions, waits, game commands, time away), v1 or v2 (steps or tracks per seat, set/pointer/join/leave): the outcome, steps, events with spawns and destroys counted per type, and focus trail; a game that lists its commands (GamePlayDef.commands) prints how many are legal after the last tick (legal/legalTruncated in --json); --at is in metres; --events type,… prints only those event types; --flow follows scene requests through the scene list, --from-save starts from a save fixture; --timing times each tick's parts on the wall clock, as step's does (timing in --json, never in the recording); exit 1 when blocked",
+      "play an input script headless (actions, waits, game commands, time away), v1 or v2 (steps or tracks per seat, set/pointer/join/leave): the outcome, steps, events with spawns and destroys counted per type, and focus trail; a game that lists its commands (GamePlayDef.commands) prints how many are legal after the last tick (legal/legalTruncated in --json); --at is in metres; --events type,… prints only those event types; --flow follows scene requests through the scene list, --from-save starts from a save fixture; --timing times each tick's parts on the wall clock, as step's does (timing in --json, never in the recording); --present lists what the run asked the shell to present (camera moves, effects, sounds) with each request's tick, points in metres (present in --json), none of which changes the run; exit 1 when blocked",
     values: ["script", "at", "events", "game", "record", "from-save"],
-    switches: ["flow", "timing"],
+    switches: ["flow", "timing", "present"],
     maxPositionals: 1,
     run: ({ positionals: [scene], flags }, ctx) =>
       playtest(
@@ -301,6 +302,7 @@ const DEFINITIONS = {
           flow: flags.flow === true,
           fromSave: str(flags["from-save"]),
           timing: flags.timing === true,
+          present: flags.present === true,
         },
         ctx,
       ),
@@ -517,7 +519,7 @@ const DEFINITIONS = {
   "assets info": {
     usage: "assets info <id> [--frame f] [--project id]",
     summary:
-      "an asset's kind, hash and bytes, a texture's size, pivot, nine-slice and filter, an atlas's frames, tags and texture; --frame for one frame's size and pivot",
+      "an asset's kind, hash and bytes, a texture's size, pivot, nine-slice and filter, an atlas's frames, tags and texture; an animation's clips with each frame's ticks at the project's tick rate, events and shape-set boxes in metres, and its issues against the atlas; --frame for one frame's size and pivot",
     values: ["frame"],
     switches: [],
     maxPositionals: 1,

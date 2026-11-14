@@ -6,6 +6,7 @@ import {
   type InputScript,
   type PlaytestBlocked,
   type PlaytestReport,
+  type PresentedRequest,
 } from "@jams/engine/headless";
 import { sha256, type Sha256 } from "@jams/engine/project";
 import { INPUT_SCRIPT_VERSION, migrateInputScript } from "@jams/engine/scene";
@@ -43,10 +44,12 @@ export type PlaytestInput = {
   fromSave?: string;
   /** Time each tick's parts on the wall clock: `timing` beside the report, and a block in the text. */
   timing?: boolean;
+  /** Keep the run's presentation requests (`PlaytestReport.present`) and list them. */
+  present?: boolean;
 };
 
 const USAGE =
-  "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file] [--timing]";
+  "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file] [--timing] [--present]";
 
 /** `x,y` as two finite numbers, or null. */
 export function parsePoint(text: string): [number, number] | null {
@@ -100,6 +103,19 @@ function reportText(
     ...events,
     ...(r.truncated ? ["  (events truncated)"] : []),
   ].join("\n");
+}
+
+/** `t12 camera shake {"trauma":0.5}`: a request's fields beside its kind and op, numbers as `rounded` gives them. */
+export function presentLine(r: PresentedRequest): string {
+  const { op, ...fields } = r.op;
+  const rest = Object.keys(fields).length > 0 ? ` ${rounded(fields)}` : "";
+  return `    t${r.tick} ${r.kind} ${op}${rest}`;
+}
+
+/** The `--present` block: every request in the order the run made them, or that it made none. */
+export function presentLines(present: readonly PresentedRequest[]): string[] {
+  if (present.length === 0) return ["  present: none"];
+  return [`  present (${present.length}, points in metres):`, ...present.map(presentLine)];
 }
 
 /** A save fixture as a run starts from it: parsed (and migrated) for `registry`'s game, with the hash of its bytes. */
@@ -248,6 +264,7 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
     ...(flow ? { flow } : {}),
     ...(save ? { fromSave: { file: save.file, sha256: save.sha256 } } : {}),
     ...(timing ? { timing } : {}),
+    ...(input.present ? { recordPresentation: true } : {}),
   });
   const game = registry.game?.id ?? null;
   if (run.blocked) return blockedResult(run, game);
@@ -268,6 +285,7 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
     },
     text: [
       reportText(run, runs, [...flowLines(run, save), ...printed.lines], migratedFrom),
+      ...(input.present ? presentLines(run.present ?? []) : []),
       ...(timed ? timingLines(timed) : []),
     ].join("\n"),
   };

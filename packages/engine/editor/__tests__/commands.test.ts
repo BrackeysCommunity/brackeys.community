@@ -23,8 +23,8 @@ import {
   ungroupBatch,
   zOrderBatch,
 } from "../commands";
+import { outlineBounds, outlineLook } from "../outline-bounds";
 import { createSpatialIndex } from "../spatial-index";
-import { outlineBounds, outlineLook } from "../tool-host";
 
 const registry = createRegistry();
 /** The engine yard's entities in metres. */

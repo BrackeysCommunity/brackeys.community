@@ -11,6 +11,7 @@ import {
   judgePhysicsFree,
   judgeRender,
   judgeResult,
+  judgeSplit,
   judgeTactics,
   leavesWindow,
   overallOk,
@@ -27,16 +28,30 @@ import {
   type RenderProbe,
   SHELL_TICKS,
   type SmokeExpected,
+  type SplitProbe,
 } from "../browser-compare";
 import { CONTACT_FLOOR, CONTACT_TICK, type ContactRead } from "../browser/contact";
 import type { EngineSmokeResult } from "../browser/main";
 import { runSmokeDigest } from "../browser/run";
+import { ANIM_FRAME_TICKS } from "../browser/sink";
 import type { TacticsProbe } from "../browser/tactics";
 
 const drawn: RenderProbe = {
   renderer: "webgl",
   inside: [255, 136, 0, 255],
   outside: [26, 26, 46, 255],
+};
+
+const split: SplitProbe = {
+  renderer: "webgpu",
+  width: 640,
+  height: 360,
+  crate: { viewport: 0, at: [160.4, 180], pixel: [255, 136, 0, 255] },
+  anim: [
+    { viewport: 1, at: [480, 180.2], pixel: [224, 64, 255, 255] },
+    { viewport: 1, at: [480, 180.2], pixel: [255, 224, 0, 255] },
+  ],
+  ticks: ANIM_FRAME_TICKS,
 };
 
 const free: PhysicsFreeProbe = {
@@ -72,6 +87,7 @@ const passed = (
   ticks: 120,
   digest,
   render,
+  split,
   physicsFree,
   contact,
   tactics: second,
@@ -93,6 +109,7 @@ describe("judgeResult", () => {
       digest: "abc",
       userAgent: "test-agent",
       render: drawn,
+      split,
       physicsFree: free,
       contact: touched,
       tactics,
@@ -131,6 +148,21 @@ describe("judgeResult", () => {
     const { render: _, ...bare } = passed("abc") as Extract<EngineSmokeResult, { ok: true }>;
     const out = judgeResult("chromium", bare as unknown as EngineSmokeResult, want("abc"));
     expect(out).toMatchObject({ status: "fail", reason: "the page ran no render" });
+  });
+
+  it("fails a page whose split screen left a half blank, or that ran none", () => {
+    const blank = {
+      ...passed("abc"),
+      split: { ...split, crate: { ...split.crate, pixel: [26, 26, 46, 255] } },
+    } as EngineSmokeResult;
+    expect(judgeResult("webkit", blank, want("abc"))).toMatchObject({
+      status: "fail",
+      reason: expect.stringContaining("left half's crate pixel is blank"),
+      split: { crate: { pixel: [26, 26, 46, 255] } },
+    });
+    const { split: _, ...bare } = passed("abc") as Extract<EngineSmokeResult, { ok: true }>;
+    const none = judgeResult("chromium", bare as unknown as EngineSmokeResult, want("abc"));
+    expect(none).toMatchObject({ status: "fail", reason: "the page ran no split screen" });
   });
 
   it("fails a page whose physics-free digest differs from the in-process one, naming both", () => {
@@ -237,6 +269,64 @@ describe("judgePhysicsFree", () => {
     const why = judgePhysicsFree(free, "elsewhere", true);
     expect(why).toContain("pf");
     expect(why).toContain("elsewhere");
+  });
+});
+
+describe("judgeSplit", () => {
+  const anim = (before: SplitProbe["anim"][0]["pixel"], after: SplitProbe["anim"][1]["pixel"]) => ({
+    ...split,
+    anim: [
+      { ...split.anim[0], pixel: before },
+      { ...split.anim[1], pixel: after },
+    ] as const,
+  });
+
+  it("passes the crate in the left half and the sprite's two frames in the right, within the tolerance", () => {
+    expect(judgeSplit(split)).toBeNull();
+    expect(judgeSplit(anim([230, 60, 250, 255], [250, 230, 6, 255]))).toBeNull();
+  });
+
+  it("fails a read outside its viewport's half, or both sprites read through one viewport", () => {
+    const strayed = { ...split, crate: { ...split.crate, at: [330, 180] as const } };
+    expect(judgeSplit(strayed)).toMatch(/viewport 0 drew its point at \(330, 180\), outside/);
+    const below = {
+      ...split,
+      anim: [{ ...split.anim[0], at: [480, 360] }, split.anim[1]] as const,
+    };
+    expect(judgeSplit(below)).toMatch(/viewport 1 drew its point at \(480, 360\)/);
+    const one = {
+      ...split,
+      crate: { ...split.crate, viewport: 1, at: [400, 180] as const },
+    };
+    expect(judgeSplit(one)).toMatch(/both read through viewport 1/);
+  });
+
+  it("fails a blank or translucent half", () => {
+    const blank = { ...split, crate: { ...split.crate, pixel: [0, 0, 0, 0] as const } };
+    expect(judgeSplit(blank)).toMatch(/left half's crate pixel isn't opaque/);
+    expect(judgeSplit(anim([26, 26, 46, 255], [255, 224, 0, 255]))).toMatch(
+      /first frame is blank \(the background/,
+    );
+  });
+
+  it("fails a sprite that didn't change a clip frame later, or reads taken another distance apart", () => {
+    expect(judgeSplit(anim([224, 64, 255, 255], [226, 62, 255, 255]))).toMatch(
+      /didn't change in 6 ticks/,
+    );
+    expect(judgeSplit({ ...split, ticks: 1 })).toMatch(/1 ticks apart, not a clip frame's 6/);
+  });
+
+  it("fails frames of another colour, or in the wrong order", () => {
+    expect(judgeSplit(anim([255, 224, 0, 255], [224, 64, 255, 255]))).toMatch(
+      /first frame is rgba\(255, 224, 0, 255\), not #e040ff/,
+    );
+    expect(judgeSplit(anim([224, 64, 255, 255], [255, 136, 0, 255]))).toMatch(
+      /next frame is rgba\(255, 136, 0, 255\), not #ffe000/,
+    );
+  });
+
+  it("fails a page that split nothing", () => {
+    expect(judgeSplit(undefined)).toBe("the page ran no split screen");
   });
 });
 

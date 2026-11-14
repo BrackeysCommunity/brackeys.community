@@ -95,6 +95,8 @@ export type FlowHostOptions = {
   loadingProgress(p: LoadProgress): void;
   destroyed(): boolean;
   dev: boolean;
+  /** The instance's resolved reduced motion, handed to every transition; default false. */
+  reducedMotion?: boolean;
 };
 
 export type FlowHost = {
@@ -158,7 +160,7 @@ export function createFlowHost(opts: FlowHostOptions): FlowHost {
     const layer = opts.layer();
     if (!layer) return;
     try {
-      await runner(phase, spec, layer);
+      await runner(phase, spec, layer, { reducedMotion: opts.reducedMotion ?? false });
     } catch (err) {
       if (opts.dev) console.warn(`[flow] the transition's ${phase} half failed`, err);
     }

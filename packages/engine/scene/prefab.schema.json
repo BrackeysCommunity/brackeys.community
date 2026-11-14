@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:prefab:v4",
-  "x-agent-surface": 20,
+  "x-agent-surface": 21,
   "title": "jams engine prefab, format v4",
   "type": "object",
   "properties": {
@@ -1430,6 +1430,108 @@
                   "description": "Marks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
                   "title": "Camera target",
                   "group": "behaviors"
+                },
+                "anim": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The clips: an animation, or an atlas whose tags are clips.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["animation", "atlas"]
+                    },
+                    "clip": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The clip playing at spawn."
+                    },
+                    "speed": {
+                      "description": "Multiplies the clip's speed; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 16
+                    },
+                    "playing": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["source", "clip"],
+                  "additionalProperties": false,
+                  "description": "Plays an atlas's tags or an animation's clips on the simulation's ticks.",
+                  "title": "Animation",
+                  "group": "behaviors"
+                },
+                "tween": {
+                  "type": "object",
+                  "properties": {
+                    "tweens": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/TweenSpec"
+                      },
+                      "description": "The tweens it plays from spawn, each on its own."
+                    }
+                  },
+                  "required": ["tweens"],
+                  "additionalProperties": false,
+                  "description": "Plays tweens on this entity from spawn: bobbing pickups, swinging signs, pulsing lights.",
+                  "title": "Tween",
+                  "group": "behaviors"
+                },
+                "emitter": {
+                  "type": "object",
+                  "properties": {
+                    "preset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The emitter preset.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["emitter"]
+                    },
+                    "emitting": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose; turns and flips with the instance."
+                    },
+                    "rate": {
+                      "description": "Particles per second; overrides the preset's rate.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": ["preset"],
+                  "additionalProperties": false,
+                  "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
+                  "title": "Emitter",
+                  "group": "behaviors"
                 }
               },
               "additionalProperties": false,
@@ -2460,6 +2562,108 @@
                   "additionalProperties": false,
                   "description": "Marks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
                   "title": "Camera target",
+                  "group": "behaviors"
+                },
+                "anim": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The clips: an animation, or an atlas whose tags are clips.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["animation", "atlas"]
+                    },
+                    "clip": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The clip playing at spawn."
+                    },
+                    "speed": {
+                      "description": "Multiplies the clip's speed; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 16
+                    },
+                    "playing": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["source", "clip"],
+                  "additionalProperties": false,
+                  "description": "Plays an atlas's tags or an animation's clips on the simulation's ticks.",
+                  "title": "Animation",
+                  "group": "behaviors"
+                },
+                "tween": {
+                  "type": "object",
+                  "properties": {
+                    "tweens": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/TweenSpec"
+                      },
+                      "description": "The tweens it plays from spawn, each on its own."
+                    }
+                  },
+                  "required": ["tweens"],
+                  "additionalProperties": false,
+                  "description": "Plays tweens on this entity from spawn: bobbing pickups, swinging signs, pulsing lights.",
+                  "title": "Tween",
+                  "group": "behaviors"
+                },
+                "emitter": {
+                  "type": "object",
+                  "properties": {
+                    "preset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The emitter preset.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["emitter"]
+                    },
+                    "emitting": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose; turns and flips with the instance."
+                    },
+                    "rate": {
+                      "description": "Particles per second; overrides the preset's rate.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": ["preset"],
+                  "additionalProperties": false,
+                  "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
+                  "title": "Emitter",
                   "group": "behaviors"
                 }
               },
@@ -3729,6 +3933,108 @@
                   "description": "Marks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
                   "title": "Camera target",
                   "group": "behaviors"
+                },
+                "anim": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The clips: an animation, or an atlas whose tags are clips.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["animation", "atlas"]
+                    },
+                    "clip": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The clip playing at spawn."
+                    },
+                    "speed": {
+                      "description": "Multiplies the clip's speed; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 16
+                    },
+                    "playing": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["source", "clip"],
+                  "additionalProperties": false,
+                  "description": "Plays an atlas's tags or an animation's clips on the simulation's ticks.",
+                  "title": "Animation",
+                  "group": "behaviors"
+                },
+                "tween": {
+                  "type": "object",
+                  "properties": {
+                    "tweens": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/TweenSpec"
+                      },
+                      "description": "The tweens it plays from spawn, each on its own."
+                    }
+                  },
+                  "required": ["tweens"],
+                  "additionalProperties": false,
+                  "description": "Plays tweens on this entity from spawn: bobbing pickups, swinging signs, pulsing lights.",
+                  "title": "Tween",
+                  "group": "behaviors"
+                },
+                "emitter": {
+                  "type": "object",
+                  "properties": {
+                    "preset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The emitter preset.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["emitter"]
+                    },
+                    "emitting": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose; turns and flips with the instance."
+                    },
+                    "rate": {
+                      "description": "Particles per second; overrides the preset's rate.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": ["preset"],
+                  "additionalProperties": false,
+                  "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
+                  "title": "Emitter",
+                  "group": "behaviors"
                 }
               },
               "additionalProperties": false,
@@ -4811,6 +5117,108 @@
                   "description": "Marks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
                   "title": "Camera target",
                   "group": "behaviors"
+                },
+                "anim": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The clips: an animation, or an atlas whose tags are clips.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["animation", "atlas"]
+                    },
+                    "clip": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The clip playing at spawn."
+                    },
+                    "speed": {
+                      "description": "Multiplies the clip's speed; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 16
+                    },
+                    "playing": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["source", "clip"],
+                  "additionalProperties": false,
+                  "description": "Plays an atlas's tags or an animation's clips on the simulation's ticks.",
+                  "title": "Animation",
+                  "group": "behaviors"
+                },
+                "tween": {
+                  "type": "object",
+                  "properties": {
+                    "tweens": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/TweenSpec"
+                      },
+                      "description": "The tweens it plays from spawn, each on its own."
+                    }
+                  },
+                  "required": ["tweens"],
+                  "additionalProperties": false,
+                  "description": "Plays tweens on this entity from spawn: bobbing pickups, swinging signs, pulsing lights.",
+                  "title": "Tween",
+                  "group": "behaviors"
+                },
+                "emitter": {
+                  "type": "object",
+                  "properties": {
+                    "preset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The emitter preset.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["emitter"]
+                    },
+                    "emitting": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose; turns and flips with the instance."
+                    },
+                    "rate": {
+                      "description": "Particles per second; overrides the preset's rate.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": ["preset"],
+                  "additionalProperties": false,
+                  "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
+                  "title": "Emitter",
+                  "group": "behaviors"
                 }
               },
               "additionalProperties": false,
@@ -5834,6 +6242,108 @@
                   "additionalProperties": false,
                   "description": "Marks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
                   "title": "Camera target",
+                  "group": "behaviors"
+                },
+                "anim": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The clips: an animation, or an atlas whose tags are clips.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["animation", "atlas"]
+                    },
+                    "clip": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The clip playing at spawn."
+                    },
+                    "speed": {
+                      "description": "Multiplies the clip's speed; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 16
+                    },
+                    "playing": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["source", "clip"],
+                  "additionalProperties": false,
+                  "description": "Plays an atlas's tags or an animation's clips on the simulation's ticks.",
+                  "title": "Animation",
+                  "group": "behaviors"
+                },
+                "tween": {
+                  "type": "object",
+                  "properties": {
+                    "tweens": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/TweenSpec"
+                      },
+                      "description": "The tweens it plays from spawn, each on its own."
+                    }
+                  },
+                  "required": ["tweens"],
+                  "additionalProperties": false,
+                  "description": "Plays tweens on this entity from spawn: bobbing pickups, swinging signs, pulsing lights.",
+                  "title": "Tween",
+                  "group": "behaviors"
+                },
+                "emitter": {
+                  "type": "object",
+                  "properties": {
+                    "preset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The emitter preset.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["emitter"]
+                    },
+                    "emitting": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose; turns and flips with the instance."
+                    },
+                    "rate": {
+                      "description": "Particles per second; overrides the preset's rate.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": ["preset"],
+                  "additionalProperties": false,
+                  "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
+                  "title": "Emitter",
                   "group": "behaviors"
                 }
               },
@@ -7093,6 +7603,108 @@
                   "additionalProperties": false,
                   "description": "Marks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
                   "title": "Camera target",
+                  "group": "behaviors"
+                },
+                "anim": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The clips: an animation, or an atlas whose tags are clips.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["animation", "atlas"]
+                    },
+                    "clip": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The clip playing at spawn."
+                    },
+                    "speed": {
+                      "description": "Multiplies the clip's speed; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 16
+                    },
+                    "playing": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["source", "clip"],
+                  "additionalProperties": false,
+                  "description": "Plays an atlas's tags or an animation's clips on the simulation's ticks.",
+                  "title": "Animation",
+                  "group": "behaviors"
+                },
+                "tween": {
+                  "type": "object",
+                  "properties": {
+                    "tweens": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/TweenSpec"
+                      },
+                      "description": "The tweens it plays from spawn, each on its own."
+                    }
+                  },
+                  "required": ["tweens"],
+                  "additionalProperties": false,
+                  "description": "Plays tweens on this entity from spawn: bobbing pickups, swinging signs, pulsing lights.",
+                  "title": "Tween",
+                  "group": "behaviors"
+                },
+                "emitter": {
+                  "type": "object",
+                  "properties": {
+                    "preset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The emitter preset.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["emitter"]
+                    },
+                    "emitting": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose; turns and flips with the instance."
+                    },
+                    "rate": {
+                      "description": "Particles per second; overrides the preset's rate.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": ["preset"],
+                  "additionalProperties": false,
+                  "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
+                  "title": "Emitter",
                   "group": "behaviors"
                 }
               },
@@ -8369,6 +8981,108 @@
                   "description": "Marks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
                   "title": "Camera target",
                   "group": "behaviors"
+                },
+                "anim": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The clips: an animation, or an atlas whose tags are clips.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["animation", "atlas"]
+                    },
+                    "clip": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The clip playing at spawn."
+                    },
+                    "speed": {
+                      "description": "Multiplies the clip's speed; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 16
+                    },
+                    "playing": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["source", "clip"],
+                  "additionalProperties": false,
+                  "description": "Plays an atlas's tags or an animation's clips on the simulation's ticks.",
+                  "title": "Animation",
+                  "group": "behaviors"
+                },
+                "tween": {
+                  "type": "object",
+                  "properties": {
+                    "tweens": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/TweenSpec"
+                      },
+                      "description": "The tweens it plays from spawn, each on its own."
+                    }
+                  },
+                  "required": ["tweens"],
+                  "additionalProperties": false,
+                  "description": "Plays tweens on this entity from spawn: bobbing pickups, swinging signs, pulsing lights.",
+                  "title": "Tween",
+                  "group": "behaviors"
+                },
+                "emitter": {
+                  "type": "object",
+                  "properties": {
+                    "preset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The emitter preset.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["emitter"]
+                    },
+                    "emitting": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose; turns and flips with the instance."
+                    },
+                    "rate": {
+                      "description": "Particles per second; overrides the preset's rate.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": ["preset"],
+                  "additionalProperties": false,
+                  "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
+                  "title": "Emitter",
+                  "group": "behaviors"
                 }
               },
               "additionalProperties": false,
@@ -8380,6 +9094,1388 @@
           "required": ["id", "type", "shape"],
           "additionalProperties": false,
           "description": "nav: A walkable area, or a hole in one, for navigation without physics or a grid."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "description": "Stable id, unique in the scene: lowercase letters, digits and '-', 1-48 characters, starting with a letter or digit. Ops and other entities refer to the entity by it.",
+              "title": "Id",
+              "group": "identity"
+            },
+            "type": {
+              "type": "string",
+              "const": "camera-region",
+              "description": "An area that holds the camera: inside it, the view stays within its box and may zoom.",
+              "title": "Type",
+              "group": "identity"
+            },
+            "name": {
+              "description": "Display label for the editor's outliner. No runtime effect.",
+              "title": "Name",
+              "group": "identity",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "layer": {
+              "description": "Scene layer, one of the game's layers; omitted means the type's default. The editor shows, hides and locks entities by layer, and the engine's own visuals draw on it; a type's shape visuals keep the draw layer their system chooses.",
+              "title": "Layer",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+              "enum": ["terrain", "decor", "gameplay", "editor"]
+            },
+            "group": {
+              "description": "The declared group (top-level `groups`) this belongs to. Its geometry is stored relative to the group's `at`, and members select and move together.",
+              "title": "Group",
+              "group": "identity",
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+            },
+            "off": {
+              "description": "When true the entity stays in the file but is not loaded, e.g. to A/B a change without deleting it.",
+              "title": "Disabled",
+              "group": "identity",
+              "type": "boolean"
+            },
+            "z": {
+              "description": "Draw order within the layer, an integer in [-10000, 10000]; higher draws on top, ties keep spawn order (on a y-sorted layer, z first, then y). Omitted means 0.",
+              "title": "Z",
+              "group": "identity",
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            },
+            "shape": {
+              "description": "The region. Absolute world metres; y is down.",
+              "title": "Shape",
+              "group": "geometry",
+              "$ref": "#/$defs/CameraRegionShape"
+            },
+            "zoom": {
+              "description": "The camera's zoom while it frames this region; omitted keeps the rig's own.",
+              "title": "Zoom",
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "clamp": {
+              "description": "Keep the view inside the box; default true.",
+              "title": "Clamp",
+              "default": true,
+              "type": "boolean"
+            },
+            "ease": {
+              "description": "Seconds to move into the region's framing; default 0.4.",
+              "title": "Ease",
+              "unit": "s",
+              "default": 0.4,
+              "type": "number",
+              "minimum": 0
+            },
+            "behaviors": {
+              "type": "object",
+              "properties": {
+                "sprite": {
+                  "type": "object",
+                  "properties": {
+                    "asset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The texture, or the atlas whose frame it draws.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["texture", "atlas"]
+                    },
+                    "frame": {
+                      "description": "The atlas frame's name; required for an atlas.",
+                      "group": "assets",
+                      "type": "string"
+                    },
+                    "size": {
+                      "description": "Drawn size in world metres; omitted, the frame's pixel size over the game's px per metre, times scale.",
+                      "unit": "m",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Width, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Height, m.",
+                          "unit": "m"
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "description": "Used when size is omitted; default 1.",
+                      "group": "placement",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "anchor": {
+                      "description": "0–1 in the frame; default its pivot, else the centre.",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "x: 0 the frame's left edge, 1 its right."
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "y: 0 the frame's top, 1 its bottom."
+                        }
+                      ]
+                    },
+                    "offset": {
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose to the anchor; turns and flips with the instance."
+                    },
+                    "tint": {
+                      "description": "0xRRGGBB multiplied into the texture; default the material's, else none.",
+                      "widget": "color",
+                      "group": "look",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16777215
+                    },
+                    "alpha": {
+                      "description": "Opacity, 0–1; default 1.",
+                      "group": "look",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "flipX": {
+                      "group": "look",
+                      "type": "boolean",
+                      "description": "Mirror left–right; an instance flip toggles it."
+                    },
+                    "flipY": {
+                      "description": "Mirror top–bottom.",
+                      "group": "look",
+                      "type": "boolean"
+                    },
+                    "blend": {
+                      "description": "How it composites over what is below; default the material's, else normal.",
+                      "group": "look",
+                      "type": "string",
+                      "enum": ["normal", "add", "multiply", "screen"]
+                    },
+                    "tile": {
+                      "description": "Repeat the frame across size.",
+                      "group": "look",
+                      "type": "boolean"
+                    },
+                    "nineSlice": {
+                      "description": "Insets in texture px; default the import's.",
+                      "unit": "px",
+                      "group": "look",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Left inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Top inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Right inset, px.",
+                          "unit": "px"
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "description": "Bottom inset, px.",
+                          "unit": "px"
+                        }
+                      ]
+                    },
+                    "turn": {
+                      "description": "Turn with the pose; default true.",
+                      "group": "placement",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Draws a texture or an atlas frame at the entity's pose.",
+                  "title": "sprite",
+                  "group": "behaviors"
+                },
+                "occupant": {
+                  "type": "object",
+                  "properties": {
+                    "blocks": {
+                      "description": "Whether its cell is impassable to paths while it stands there; default true.",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Stands on the grid cell under its pose, where paths and game code see it.",
+                  "title": "occupant",
+                  "group": "behaviors"
+                },
+                "lifetime": {
+                  "type": "object",
+                  "properties": {
+                    "ticks": {
+                      "description": "Ticks until it goes; give this or `ms`.",
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "ms": {
+                      "description": "Milliseconds until it goes, rounded to ticks at the run's rate; give this or `ticks`.",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "then": {
+                      "description": "Default destroy.",
+                      "type": "string",
+                      "enum": ["destroy", "disable"]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Destroys or disables the entity a time after it spawns or is enabled.",
+                  "title": "lifetime",
+                  "group": "behaviors"
+                },
+                "collider": {
+                  "type": "object",
+                  "properties": {
+                    "shape": {
+                      "description": "The collision shape, local to the entity's pose: centred on 0, 0 for one around it (e.g. [\"box\", 0, 0, 0.25, 0.25]). Not chain.",
+                      "unit": "m",
+                      "oneOf": [
+                        {
+                          "title": "box",
+                          "description": "Axis-aligned box (a Rapier cuboid) by centre and half-extents, optionally rotated about its centre.",
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "const": "box"
+                            },
+                            {
+                              "type": "number",
+                              "unit": "m",
+                              "description": "Centre x."
+                            },
+                            {
+                              "type": "number",
+                              "unit": "m",
+                              "description": "Centre y (y is down)."
+                            },
+                            {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "unit": "m",
+                              "description": "Half-width; the box is 2*hw wide."
+                            },
+                            {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "unit": "m",
+                              "description": "Half-height; the box is 2*hh tall."
+                            },
+                            {
+                              "type": "number",
+                              "unit": "deg",
+                              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+                            }
+                          ],
+                          "items": false,
+                          "minItems": 5,
+                          "maxItems": 6
+                        },
+                        {
+                          "title": "circle",
+                          "description": "Circle (a Rapier ball) by centre and radius.",
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "const": "circle"
+                            },
+                            {
+                              "type": "number",
+                              "unit": "m",
+                              "description": "Centre x."
+                            },
+                            {
+                              "type": "number",
+                              "unit": "m",
+                              "description": "Centre y (y is down)."
+                            },
+                            {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "unit": "m",
+                              "description": "Radius."
+                            }
+                          ],
+                          "items": false,
+                          "minItems": 4,
+                          "maxItems": 4
+                        },
+                        {
+                          "title": "capsule",
+                          "description": "Capsule, vertical before rotation: a segment of half-length halfLen through the centre, swept by radius r.",
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "const": "capsule"
+                            },
+                            {
+                              "type": "number",
+                              "unit": "m",
+                              "description": "Centre x."
+                            },
+                            {
+                              "type": "number",
+                              "unit": "m",
+                              "description": "Centre y (y is down)."
+                            },
+                            {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "unit": "m",
+                              "description": "Half the length of the inner segment."
+                            },
+                            {
+                              "type": "number",
+                              "exclusiveMinimum": 0,
+                              "unit": "m",
+                              "description": "Radius."
+                            },
+                            {
+                              "type": "number",
+                              "unit": "deg",
+                              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+                            }
+                          ],
+                          "items": false,
+                          "minItems": 5,
+                          "maxItems": 6
+                        },
+                        {
+                          "title": "poly",
+                          "description": "Convex polygon as flat x, y pairs (at least 3 points). Points are absolute; the loader centres the body on their centroid. Concave outlines must be split or drawn as a chain.",
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "const": "poly"
+                            }
+                          ],
+                          "items": {
+                            "type": "number",
+                            "unit": "m"
+                          },
+                          "minItems": 7
+                        }
+                      ],
+                      "title": "Shape",
+                      "group": "collider",
+                      "$ref": "#/$defs/BodyShape"
+                    },
+                    "sensor": {
+                      "type": "boolean",
+                      "description": "When true it collides with nothing and raises sensor:enter and sensor:exit, as the sensor type does.",
+                      "title": "Sensor",
+                      "group": "collider",
+                      "default": false
+                    },
+                    "material": {
+                      "description": "Surface material.",
+                      "title": "Material",
+                      "group": "surface",
+                      "not": {}
+                    },
+                    "group": {
+                      "description": "The collision group it belongs to, one of the game's; omitted: sensor for a sensor (dynamic in a project with no game), dynamic on a dynamic body, else static.",
+                      "title": "Collision group",
+                      "group": "collider",
+                      "widget": "collision-group",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+                    },
+                    "density": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Density in kg/m²; with a dynamic body it sets the mass.",
+                      "title": "Density",
+                      "unit": "kg/m²",
+                      "group": "surface",
+                      "default": 1
+                    },
+                    "friction": {
+                      "description": "Surface friction; omitted uses the material's, else the physics default.",
+                      "title": "Friction",
+                      "group": "surface",
+                      "placeholder": "from material",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "restitution": {
+                      "description": "Bounciness: 0 doesn't bounce, 1 keeps all its speed; omitted uses the material's, else 0.",
+                      "title": "Restitution",
+                      "group": "surface",
+                      "placeholder": "from material",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": ["shape"],
+                  "additionalProperties": false,
+                  "description": "A collision shape on the entity: static on its own, moved by a body beside it, or a trigger with sensor.",
+                  "title": "Collider",
+                  "group": "behaviors"
+                },
+                "body": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["dynamic", "kinematic", "static"],
+                      "description": "dynamic: gravity, forces and contacts move it. kinematic: only code moves it, and it carries what stands on it. static: it never moves.",
+                      "title": "Kind",
+                      "group": "body",
+                      "default": "dynamic"
+                    },
+                    "gravityScale": {
+                      "description": "Multiplies the world's gravity on this body: 0 floats, -1 falls up; default 1.",
+                      "title": "Gravity scale",
+                      "group": "body",
+                      "default": 1,
+                      "type": "number"
+                    },
+                    "linearDamping": {
+                      "description": "Slows the body's motion over time; default 0.",
+                      "title": "Linear damping",
+                      "unit": "/s",
+                      "group": "body",
+                      "default": 0,
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "angularDamping": {
+                      "description": "Slows the body's spin over time; default 0.",
+                      "title": "Angular damping",
+                      "unit": "/s",
+                      "group": "body",
+                      "default": 0,
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "fixedRotation": {
+                      "description": "When true, the body never turns.",
+                      "title": "Fixed rotation",
+                      "group": "body",
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "ccd": {
+                      "description": "Continuous collision detection: when true, a fast body can't pass through thin colliders between steps.",
+                      "title": "CCD",
+                      "group": "body",
+                      "default": false,
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Makes the entity's collider a physics body: dynamic, kinematic or static. A dynamic body needs physics.",
+                  "title": "Body",
+                  "group": "behaviors"
+                },
+                "player-input": {
+                  "type": "object",
+                  "properties": {
+                    "seat": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 7,
+                      "description": "The seat whose input drives this entity: 0 is the first player.",
+                      "title": "Seat",
+                      "group": "input",
+                      "default": 0
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Binds the entity to an input seat: behaviors on it read that player's actions through inputFor.",
+                  "title": "Player input",
+                  "group": "behaviors"
+                },
+                "path-follow": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "$ref": "#/$defs/Path"
+                    }
+                  },
+                  "required": ["path"],
+                  "additionalProperties": false,
+                  "description": "Moves the entity along a waypoint path; with a kinematic body it carries what stands on it.",
+                  "title": "Path follow",
+                  "group": "behaviors"
+                },
+                "force-area": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["directional", "point"],
+                      "description": "directional: one acceleration everywhere inside. point: toward (or, negative, away from) the entity's pose. Default directional.",
+                      "title": "Kind",
+                      "group": "force",
+                      "default": "directional"
+                    },
+                    "force": {
+                      "description": "directional: the acceleration it gives what is inside, m/s²; turns with the entity.",
+                      "title": "Force",
+                      "unit": "m/s²",
+                      "group": "force",
+                      "when": {
+                        "kind": ["directional"]
+                      },
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "x, m/s².",
+                          "unit": "m/s²"
+                        },
+                        {
+                          "type": "number",
+                          "description": "y, m/s²; y is down.",
+                          "unit": "m/s²"
+                        }
+                      ]
+                    },
+                    "strength": {
+                      "description": "point: the acceleration toward its pose, m/s²; negative pushes away.",
+                      "title": "Strength",
+                      "unit": "m/s²",
+                      "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
+                      "type": "number"
+                    },
+                    "falloff": {
+                      "type": "string",
+                      "enum": ["none", "linear", "inverse-square"],
+                      "description": "point: how strength fades with distance from the pose: none, linear to zero at the collider's edge, or inverse-square past 1 m. Default none.",
+                      "title": "Falloff",
+                      "group": "force",
+                      "when": {
+                        "kind": ["point"]
+                      },
+                      "default": "none"
+                    },
+                    "drag": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Slows what is inside against its velocity, per second: 0 none. Default 0.",
+                      "title": "Drag",
+                      "unit": "/s",
+                      "group": "force",
+                      "default": 0
+                    },
+                    "affects": {
+                      "description": "Which bodies it pushes; omitted, every dynamic body inside.",
+                      "title": "Affects",
+                      "group": "force",
+                      "type": "object",
+                      "properties": {
+                        "groups": {
+                          "description": "Only bodies in one of these collision groups.",
+                          "widget": "collision-group",
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+                          }
+                        },
+                        "tags": {
+                          "description": "Only entities with one of these tags.",
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+                          }
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Pushes the dynamic bodies inside the entity's sensor collider: one way, or toward or away from a point.",
+                  "title": "Force area",
+                  "group": "behaviors"
+                },
+                "character-top-down": {
+                  "type": "object",
+                  "properties": {
+                    "maxSpeed": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Top speed under full input, m/s. Default 4.",
+                      "title": "Max speed",
+                      "unit": "m/s",
+                      "group": "movement",
+                      "default": 4
+                    },
+                    "accel": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "How fast it speeds up toward max speed, m/s². Default 40.",
+                      "title": "Acceleration",
+                      "unit": "m/s²",
+                      "group": "movement",
+                      "default": 40
+                    },
+                    "decel": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "How fast it slows to rest with no input, m/s². Default 40.",
+                      "title": "Deceleration",
+                      "unit": "m/s²",
+                      "group": "movement",
+                      "default": 40
+                    },
+                    "pushDynamic": {
+                      "type": "boolean",
+                      "description": "Whether it pushes dynamic bodies it runs into. Default false.",
+                      "title": "Push bodies",
+                      "group": "movement",
+                      "default": false
+                    },
+                    "move": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The vector action it walks by. Default \"move\".",
+                      "title": "Move action",
+                      "group": "input",
+                      "widget": "action",
+                      "default": "move"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Walks the entity in the plane from its seat's move action or an intent from code: a kinematic controller stopped and slid along by walls.",
+                  "title": "Character (top-down)",
+                  "group": "behaviors"
+                },
+                "character-side-view": {
+                  "type": "object",
+                  "properties": {
+                    "maxSpeed": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Top speed under full input, m/s. Default 6.",
+                      "title": "Max speed",
+                      "unit": "m/s",
+                      "group": "movement",
+                      "default": 6
+                    },
+                    "accel": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "How fast it speeds up toward max speed, m/s². Default 60.",
+                      "title": "Acceleration",
+                      "unit": "m/s²",
+                      "group": "movement",
+                      "default": 60
+                    },
+                    "decel": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "How fast it slows to rest with no input, m/s². Default 70.",
+                      "title": "Deceleration",
+                      "unit": "m/s²",
+                      "group": "movement",
+                      "default": 70
+                    },
+                    "pushDynamic": {
+                      "type": "boolean",
+                      "description": "Whether it pushes dynamic bodies it runs into. Default true.",
+                      "title": "Push bodies",
+                      "group": "movement",
+                      "default": true
+                    },
+                    "airControl": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "The share of accel and decel it has in the air, 0–1. Default 0.6.",
+                      "title": "Air control",
+                      "group": "movement",
+                      "default": 0.6
+                    },
+                    "jumpHeight": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "How high a full jump rises, m. Default 1.2.",
+                      "title": "Jump height",
+                      "group": "jump",
+                      "unit": "m",
+                      "default": 1.2
+                    },
+                    "gravityScale": {
+                      "type": "number",
+                      "description": "Multiplies the world's gravity on it: 0 floats. Default 1.",
+                      "title": "Gravity scale",
+                      "group": "jump",
+                      "default": 1
+                    },
+                    "maxFallSpeed": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "The fastest it falls, m/s. Default 15.",
+                      "title": "Max fall speed",
+                      "unit": "m/s",
+                      "group": "jump",
+                      "default": 15
+                    },
+                    "coyoteMs": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "How long after running off a ledge a jump still works, ms. Default 100.",
+                      "title": "Coyote time",
+                      "group": "jump",
+                      "unit": "ms",
+                      "default": 100
+                    },
+                    "jumpBufferMs": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "How long before landing a jump press is kept for the landing, ms. Default 100.",
+                      "title": "Jump buffer",
+                      "group": "jump",
+                      "unit": "ms",
+                      "default": 100
+                    },
+                    "jumpCut": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "The share of its upward speed kept when the jump is released early, 0–1: 1 makes every jump full height. Default 0.5.",
+                      "title": "Jump cut",
+                      "group": "jump",
+                      "default": 0.5
+                    },
+                    "maxSlopeDeg": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 90,
+                      "description": "The steepest slope it walks up, degrees. Default 50.",
+                      "title": "Max slope",
+                      "unit": "deg",
+                      "group": "ground",
+                      "default": 50
+                    },
+                    "stepHeight": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "The tallest step it climbs without jumping, m; 0 climbs none. Default 0.04.",
+                      "title": "Step height",
+                      "group": "ground",
+                      "unit": "m",
+                      "default": 0.04
+                    },
+                    "snapToGround": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "How far down it sticks to the ground over bumps and down slopes, m; 0 never snaps. Default 0.04.",
+                      "title": "Snap to ground",
+                      "group": "ground",
+                      "unit": "m",
+                      "default": 0.04
+                    },
+                    "move": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The action it runs by: a vector's x, or an axis. Default \"move\".",
+                      "title": "Move action",
+                      "group": "input",
+                      "widget": "action",
+                      "default": "move"
+                    },
+                    "jump": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The button it jumps with. Default \"jump\".",
+                      "title": "Jump action",
+                      "group": "input",
+                      "widget": "action",
+                      "default": "jump"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Runs and jumps the entity under gravity from its seat's move and jump actions or an intent from code, with coyote time, jump buffering and one-way platforms.",
+                  "title": "Character (side view)",
+                  "group": "behaviors"
+                },
+                "nav-agent": {
+                  "type": "object",
+                  "properties": {
+                    "speed": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Walking speed, m/s. Default 1.2.",
+                      "title": "Speed",
+                      "unit": "m/s",
+                      "group": "navigation",
+                      "default": 1.2
+                    },
+                    "arrive": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "How close to a waypoint or the destination counts as there, m. Default 0.12.",
+                      "title": "Arrive within",
+                      "unit": "m",
+                      "group": "navigation",
+                      "default": 0.12
+                    },
+                    "radius": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Other agents closer than this are pushed apart from it, m. Default 0.3.",
+                      "title": "Radius",
+                      "unit": "m",
+                      "group": "navigation",
+                      "default": 0.3
+                    },
+                    "separation": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "How hard that push is against the pull of the path: 0 never pushes. Default 1.5.",
+                      "title": "Separation",
+                      "group": "navigation",
+                      "default": 1.5
+                    },
+                    "repathTicks": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991,
+                      "description": "Ticks between plans toward a moving entity, and how long without progress before it is blocked. Default 180: 3 s at 60 ticks a second.",
+                      "title": "Repath every",
+                      "unit": "ticks",
+                      "group": "navigation",
+                      "default": 180
+                    },
+                    "to": {
+                      "description": "Where it walks from the start: a point, world m, or an entity it follows; omitted, it waits for setDestination.",
+                      "title": "Destination",
+                      "group": "navigation",
+                      "anyOf": [
+                        {
+                          "description": "A point in world metres: placed with the entity, as a path is.",
+                          "title": "Position",
+                          "$ref": "#/$defs/Pt"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47}){0,8}$",
+                          "description": "An entity's id: it follows that entity.",
+                          "title": "Reference"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Walks the entity through the scene's walk areas to a point or another entity, kept apart from other agents; raises nav:arrived and nav:blocked.",
+                  "title": "Nav agent",
+                  "group": "behaviors"
+                },
+                "joint": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["revolute", "prismatic", "rope", "weld", "spring"],
+                      "description": "revolute: a hinge. prismatic: a slider along axis. rope: at most length apart. weld: held rigidly. spring: pulled toward length apart.",
+                      "title": "Kind",
+                      "group": "joint",
+                      "options": {
+                        "revolute": {
+                          "label": "Hinge",
+                          "description": "Turns about the anchors, within limits."
+                        },
+                        "prismatic": {
+                          "label": "Slider",
+                          "description": "Slides along axis, within limits."
+                        },
+                        "rope": {
+                          "label": "Rope",
+                          "description": "Keeps them at most length apart."
+                        },
+                        "weld": {
+                          "label": "Weld",
+                          "description": "Holds them rigidly together."
+                        },
+                        "spring": {
+                          "label": "Spring",
+                          "description": "Pulls them toward length apart."
+                        }
+                      }
+                    },
+                    "to": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}(?:\\/[a-z0-9][a-z0-9-]{0,47}){0,8}$",
+                      "description": "The other entity's id: one with a body or a collider that isn't a sensor (joint-ref-type otherwise), never this one (joint-self).",
+                      "title": "To",
+                      "group": "joint"
+                    },
+                    "anchorA": {
+                      "title": "Anchor",
+                      "group": "joint",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "Where the joint holds this entity's body, from its pose, m."
+                    },
+                    "anchorB": {
+                      "title": "Other anchor",
+                      "group": "joint",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "Where the joint holds the other entity's body, from its pose, m. Default: the point under `anchorA` when the joint is first made."
+                    },
+                    "axis": {
+                      "title": "Axis",
+                      "group": "joint",
+                      "when": {
+                        "kind": ["prismatic"]
+                      },
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "prismatic: the slide direction, in this body's frame. Default [1, 0]."
+                    },
+                    "limits": {
+                      "description": "revolute: this body's angle relative to `to`, radians (the editor shows degrees). prismatic: its travel along axis, m.",
+                      "title": "Limits",
+                      "widget": "range",
+                      "units": {
+                        "kind": {
+                          "revolute": "rad",
+                          "prismatic": "m"
+                        }
+                      },
+                      "group": "limits",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "The low limit."
+                        },
+                        {
+                          "type": "number",
+                          "description": "The high limit."
+                        }
+                      ]
+                    },
+                    "motor": {
+                      "description": "revolute and prismatic: drives this body's speed relative to `to` toward velocity.",
+                      "title": "Motor",
+                      "group": "motor",
+                      "when": {
+                        "kind": ["revolute", "prismatic"]
+                      },
+                      "type": "object",
+                      "properties": {
+                        "velocity": {
+                          "type": "number",
+                          "description": "The target speed: rad/s for revolute (the editor shows deg/s), m/s for prismatic.",
+                          "title": "Velocity",
+                          "units": {
+                            "kind": {
+                              "revolute": "rad/s",
+                              "prismatic": "m/s"
+                            }
+                          }
+                        },
+                        "maxForce": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "The most force it uses, N; torque for revolute, N·m.",
+                          "title": "Max force",
+                          "units": {
+                            "kind": {
+                              "revolute": "N·m",
+                              "prismatic": "N"
+                            }
+                          }
+                        }
+                      },
+                      "required": ["velocity", "maxForce"],
+                      "additionalProperties": false
+                    },
+                    "length": {
+                      "description": "rope: the most they can be apart, m. spring: the rest length, m.",
+                      "title": "Length",
+                      "unit": "m",
+                      "group": "joint",
+                      "when": {
+                        "kind": ["rope", "spring"]
+                      },
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "stiffness": {
+                      "description": "spring: how hard it pulls toward its rest length, N/m. Default 100.",
+                      "title": "Stiffness",
+                      "unit": "N/m",
+                      "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "damping": {
+                      "description": "spring: how fast its bounce dies down, N·s/m. Default 1.",
+                      "title": "Damping",
+                      "unit": "N·s/m",
+                      "group": "spring",
+                      "when": {
+                        "kind": ["spring"]
+                      },
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "collide": {
+                      "type": "boolean",
+                      "description": "Whether the two bodies still collide with each other. Default false.",
+                      "title": "Collide",
+                      "group": "joint",
+                      "default": false
+                    }
+                  },
+                  "required": ["kind", "to"],
+                  "additionalProperties": false,
+                  "description": "Links the entity's body to another entity's: a hinge, a slider, a rope, a weld or a spring. Needs physics.",
+                  "title": "Joint",
+                  "group": "behaviors"
+                },
+                "spawner": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "description": "The entity type it spawns, spawn-only types included; give this or `prefab`.",
+                      "title": "Type",
+                      "group": "spawn",
+                      "widget": "type",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
+                    },
+                    "fields": {
+                      "description": "The fields each spawn of `type` gets, as a scene entity of that type writes them (a shape type's `shape`); its shapes, points and paths are relative to the spawn point. Without a shape, point or path, a spawn stands at the spawn point by its `at`.",
+                      "title": "Fields",
+                      "group": "spawn",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "prefab": {
+                      "title": "Prefab",
+                      "group": "spawn",
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The prefab it places; give this or `type`.",
+                      "x-asset-kind": ["prefab"]
+                    },
+                    "rate": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Spawns a second while active and under the cap. Default 1.",
+                      "title": "Rate",
+                      "unit": "/s",
+                      "group": "spawn",
+                      "default": 1
+                    },
+                    "cap": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "description": "The most of its spawns alive at once. Default 10.",
+                      "title": "Cap",
+                      "group": "spawn",
+                      "default": 10
+                    },
+                    "burst": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "description": "How many it spawns at once when it starts, within the cap. Default 0.",
+                      "title": "Burst",
+                      "group": "spawn",
+                      "default": 0
+                    },
+                    "lifeMs": {
+                      "description": "Each spawn goes this long after it appears, ms; omitted, spawns stay.",
+                      "title": "Lifetime",
+                      "unit": "ms",
+                      "group": "spawn",
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "spread": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Spawns appear at a random point within this radius of the entity's pose, m; 0 at the pose. Default 0.",
+                      "title": "Spread",
+                      "unit": "m",
+                      "group": "placement",
+                      "default": 0
+                    },
+                    "velocity": {
+                      "description": "The velocity a spawn with a dynamic body starts with, m/s; turns with the entity.",
+                      "title": "Velocity",
+                      "unit": "m/s",
+                      "group": "placement",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "x, m/s.",
+                          "unit": "m/s"
+                        },
+                        {
+                          "type": "number",
+                          "description": "y, m/s; y is down.",
+                          "unit": "m/s"
+                        }
+                      ]
+                    },
+                    "active": {
+                      "type": "boolean",
+                      "description": "Whether it spawns; false holds it, and a block update starts it. Default true.",
+                      "title": "Active",
+                      "group": "spawn",
+                      "default": true
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Spawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones; raises spawner:spawned for each.",
+                  "title": "Spawner",
+                  "group": "behaviors"
+                },
+                "camera-target": {
+                  "type": "object",
+                  "properties": {
+                    "weight": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Its pull on the camera beside the other targets: twice the weight, twice the pull. Default 1.",
+                      "title": "Weight",
+                      "group": "camera",
+                      "default": 1
+                    },
+                    "seat": {
+                      "placeholder": "every view",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 7,
+                      "description": "The seat whose view follows it, for split screens; omitted, every view does.",
+                      "title": "Seat",
+                      "group": "camera"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Marks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
+                  "title": "Camera target",
+                  "group": "behaviors"
+                },
+                "anim": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The clips: an animation, or an atlas whose tags are clips.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["animation", "atlas"]
+                    },
+                    "clip": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The clip playing at spawn."
+                    },
+                    "speed": {
+                      "description": "Multiplies the clip's speed; default 1.",
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 16
+                    },
+                    "playing": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "description": "Starts this many ticks into the clip, so a row of torches doesn't flicker in step.",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["source", "clip"],
+                  "additionalProperties": false,
+                  "description": "Plays an atlas's tags or an animation's clips on the simulation's ticks.",
+                  "title": "Animation",
+                  "group": "behaviors"
+                },
+                "tween": {
+                  "type": "object",
+                  "properties": {
+                    "tweens": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/TweenSpec"
+                      },
+                      "description": "The tweens it plays from spawn, each on its own."
+                    }
+                  },
+                  "required": ["tweens"],
+                  "additionalProperties": false,
+                  "description": "Plays tweens on this entity from spawn: bobbing pickups, swinging signs, pulsing lights.",
+                  "title": "Tween",
+                  "group": "behaviors"
+                },
+                "emitter": {
+                  "type": "object",
+                  "properties": {
+                    "preset": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
+                      "description": "The emitter preset.",
+                      "title": "Asset",
+                      "group": "assets",
+                      "x-asset-kind": ["emitter"]
+                    },
+                    "emitting": {
+                      "description": "Default true.",
+                      "type": "boolean"
+                    },
+                    "offset": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "description": "dx, m.",
+                          "unit": "m"
+                        },
+                        {
+                          "type": "number",
+                          "description": "dy, m; y is down.",
+                          "unit": "m"
+                        }
+                      ],
+                      "unit": "m",
+                      "description": "World metres from the pose; turns and flips with the instance."
+                    },
+                    "rate": {
+                      "description": "Particles per second; overrides the preset's rate.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": ["preset"],
+                  "additionalProperties": false,
+                  "description": "Emits particles from an emitter preset at the entity, drawn only (never in the simulation).",
+                  "title": "Emitter",
+                  "group": "behaviors"
+                }
+              },
+              "additionalProperties": false,
+              "description": "Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present.",
+              "title": "Behaviors",
+              "group": "behaviors"
+            }
+          },
+          "required": ["id", "type", "shape"],
+          "additionalProperties": false,
+          "description": "camera-region: An area that holds the camera: inside it, the view stays within its box and may zoom."
         },
         {
           "type": "object",
@@ -8506,6 +10602,208 @@
       ],
       "description": "A point [x, y] in world metres; y is down.",
       "unit": "m"
+    },
+    "TweenSpec": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "description": "World x, m.",
+              "unit": "m",
+              "type": "number"
+            },
+            "y": {
+              "description": "World y, m.",
+              "unit": "m",
+              "type": "number"
+            },
+            "rot": {
+              "description": "Rotation, radians.",
+              "unit": "rad",
+              "type": "number"
+            },
+            "alpha": {
+              "description": "The sprite's opacity, 0–1.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "tint": {
+              "description": "The sprite's tint, 0xRRGGBB, lerped per channel.",
+              "widget": "color",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16777215
+            },
+            "scale": {
+              "description": "Multiplies the sprite's drawn size; 1 draws it as its block sizes it.",
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "description": "Values to reach."
+        },
+        "from": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "description": "World x, m.",
+              "unit": "m",
+              "type": "number"
+            },
+            "y": {
+              "description": "World y, m.",
+              "unit": "m",
+              "type": "number"
+            },
+            "rot": {
+              "description": "Rotation, radians.",
+              "unit": "rad",
+              "type": "number"
+            },
+            "alpha": {
+              "description": "The sprite's opacity, 0–1.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "tint": {
+              "description": "The sprite's tint, 0xRRGGBB, lerped per channel.",
+              "widget": "color",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16777215
+            },
+            "scale": {
+              "description": "Multiplies the sprite's drawn size; 1 draws it as its block sizes it.",
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "description": "Values to start from; default the current ones."
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "description": "Ticks."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "ms": {
+                  "type": "number",
+                  "minimum": 1,
+                  "description": "Milliseconds, rounded to ticks once at the run's rate."
+                }
+              },
+              "required": ["ms"],
+              "additionalProperties": false
+            }
+          ],
+          "description": "How long one play takes."
+        },
+        "ease": {
+          "description": "Default linear.",
+          "type": "string",
+          "enum": [
+            "linear",
+            "quadIn",
+            "quadOut",
+            "quadInOut",
+            "cubicIn",
+            "cubicOut",
+            "cubicInOut",
+            "quartIn",
+            "quartOut",
+            "quartInOut",
+            "quintIn",
+            "quintOut",
+            "quintInOut",
+            "sineIn",
+            "sineOut",
+            "sineInOut",
+            "expoIn",
+            "expoOut",
+            "expoInOut",
+            "circIn",
+            "circOut",
+            "circInOut",
+            "backIn",
+            "backOut",
+            "backInOut",
+            "elasticIn",
+            "elasticOut",
+            "elasticInOut",
+            "bounceIn",
+            "bounceOut",
+            "bounceInOut"
+          ]
+        },
+        "delay": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Ticks."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "ms": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Milliseconds, rounded to ticks once at the run's rate."
+                }
+              },
+              "required": ["ms"],
+              "additionalProperties": false
+            }
+          ],
+          "description": "Wait before the first play; default none."
+        },
+        "repeat": {
+          "description": "Extra plays after the first; -1 forever. Default 0.",
+          "type": "integer",
+          "minimum": -1,
+          "maximum": 9007199254740991
+        },
+        "yoyo": {
+          "description": "Every other play runs backwards.",
+          "type": "boolean"
+        },
+        "emit": {
+          "description": "Raised as a step event when the tween finishes; default `tween:end`.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The step event's type."
+            },
+            "data": {
+              "description": "Plain JSON the event carries."
+            }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        "key": {
+          "description": "Tweens of one entity sharing a key replace each other.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["to", "duration"],
+      "additionalProperties": false,
+      "title": "Tween"
     },
     "BodyShape": {
       "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?] | [\"circle\", cx, cy, r] | [\"capsule\", cx, cy, halfLen, r, rotDeg?] | [\"poly\", x1, y1, x2, y2, x3, y3, ...]. Metres, y is down; rotDeg in degrees.",
@@ -8655,6 +10953,52 @@
             "unit": "m"
           },
           "minItems": 7
+        }
+      ]
+    },
+    "CameraRegionShape": {
+      "description": "A shape tuple: [\"box\", cx, cy, hw, hh, rotDeg?]. Metres, y is down; rotDeg in degrees.",
+      "unit": "m",
+      "oneOf": [
+        {
+          "title": "box",
+          "description": "Axis-aligned box (a Rapier cuboid) by centre and half-extents, optionally rotated about its centre.",
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "box"
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre x."
+            },
+            {
+              "type": "number",
+              "unit": "m",
+              "description": "Centre y (y is down)."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Half-width; the box is 2*hw wide."
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "unit": "m",
+              "description": "Half-height; the box is 2*hh tall."
+            },
+            {
+              "type": "number",
+              "unit": "deg",
+              "description": "Rotation in integer degrees, clockwise on screen (y is down). Omitted means 0."
+            }
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 6
         }
       ]
     }

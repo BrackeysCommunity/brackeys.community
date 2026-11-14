@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { sceneToDoc, sequentialKeys } from "../../collab/index";
 import { createEditorSession, type SceneDefinition, type SceneIssue } from "../../editor/index";
-import { frameBounds, outlineLook } from "../../editor/tool-host";
+import { frameBounds, outlineLook } from "../../editor/outline-bounds";
 import { createRegistry } from "../../game/index";
 import type { AssetKey } from "../../project/index";
 import {

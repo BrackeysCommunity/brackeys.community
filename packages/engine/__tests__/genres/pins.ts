@@ -9,10 +9,16 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     default: "db3eec27538cd4a6",
   },
   "grid-puzzle": {
-    default: "8df0c7714f456fd0",
-    "gravity-sideways": "8df0c7714f456fd0",
-    "gravity-zero": "8df0c7714f456fd0",
-    "saved-mid-push": "8df0c7714f456fd0",
+    default: "9ffe5388c1a4b159",
+    "gravity-sideways": "9ffe5388c1a4b159",
+    "gravity-zero": "9ffe5388c1a4b159",
+    "pointer-swap": "d083b5bdbe433fac",
+    "saved-mid-push": "9ffe5388c1a4b159",
+    "saved-mid-swap": "d083b5bdbe433fac",
+  },
+  idle: {
+    default: "8345d0a41bec5a71",
+    "saved-mid-income": "8345d0a41bec5a71",
   },
   "local-versus": {
     default: "940edf933971dec4",
@@ -23,6 +29,11 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     default: "c5ebb0dcd62a5eb9",
     "gravity-sideways": "c5ebb0dcd62a5eb9",
     "saved-mid-walk": "c5ebb0dcd62a5eb9",
+  },
+  racing: {
+    default: "179b3c36684efd03",
+    "physics-none": "c3837ee675ecd921",
+    "saved-mid-lap": "c3837ee675ecd921",
   },
   "rhythm-tap": {
     default: "127621617ae3b5ea",
@@ -37,7 +48,10 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
   shooter: {
     default: "576d7bca820e1f53",
     "physics-none": "86e51bdec7fc2f87",
+    runner: "36dd14b2789c1225",
+    "runner-physics-none": "f9ec4dca4f3509f7",
     "saved-physics-none": "86e51bdec7fc2f87",
+    "saved-runner-physics-none": "f9ec4dca4f3509f7",
   },
   "side-view-behaviors": {
     default: "ba49ed303de8181f",

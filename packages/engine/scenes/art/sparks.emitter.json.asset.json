@@ -1,0 +1,11 @@
+{
+  "kind": "asset-sidecar",
+  "v": 1,
+  "key": "rabl6tnoy4ah",
+  "id": "sparks",
+  "licence": {
+    "spdx": "CC0-1.0",
+    "author": "The @jams/engine authors",
+    "source": "Written for this repository."
+  }
+}

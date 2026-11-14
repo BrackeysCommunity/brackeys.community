@@ -316,6 +316,33 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Set `asset`; until then only the box draws.",
     fixable: false,
   },
+  "anim-tag-unknown": {
+    severity: "error",
+    summary: "An animation clip names a tag its atlas doesn't have.",
+    hint: "Use one of the atlas's tags (the message suggests the closest); `vp run scene assets info <atlas>` lists them.",
+    fixable: false,
+  },
+  "anim-clip-unknown": {
+    severity: "error",
+    summary:
+      "A clip's `next`, an `anim` block's `clip` or a `ctx.anim.play` names a clip the animation doesn't have.",
+    hint: "Add the clip, or fix `next`.",
+    fixable: false,
+  },
+  "frame-shape-invalid": {
+    severity: "error",
+    summary:
+      "An animation frame's shape set has a shape that doesn't parse, or a set name that isn't lowercase with dashes.",
+    hint: "Give a shape tuple, in a set named like `hit` or `hurt-high`.",
+    fixable: false,
+  },
+  "tween-target-invalid": {
+    severity: "error",
+    summary:
+      "A tween moves an entity whose type can't be posed, or animates a sprite channel on an entity without a sprite.",
+    hint: "Tween a marker, decor, solid or sensor; visual channels need a `sprite`.",
+    fixable: false,
+  },
   "tick-rate-invalid": {
     severity: "error",
     summary: "A tick rate the clock can't run: it must be an integer from 1 to 240.",

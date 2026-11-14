@@ -8,12 +8,17 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import * as Y from "yjs";
 
+import { resolveClips } from "../anim/clips";
+import { cameraRegionsOf, regionFor } from "../camera/regions";
 import { docToScene, sceneToDoc } from "../collab/convert";
 import { docToPrefab, prefabToDoc } from "../collab/prefab-doc";
+import type { AnimBlock } from "../game/behaviors/anim";
+import type { EmitterBlock } from "../game/behaviors/emitter";
 import { LIFETIME, type LifetimeBlock } from "../game/behaviors/lifetime";
 import { OCCUPANT } from "../game/behaviors/occupant";
 import type { SpawnerBlock, SpawnerSystem } from "../game/behaviors/spawner";
 import { SPRITE, type SpriteBlock } from "../game/behaviors/sprite";
+import { tweenChannels, tweenTargetProblem, type TweenBlock } from "../game/behaviors/tween";
 import { createRegistry, defineGame, ENGINE_BEHAVIORS, withProject } from "../game/define";
 import { parseSaveFile } from "../game/save-file";
 import { PRIMITIVE_TYPES, type GameDefinition, type Registry } from "../game/types";
@@ -33,8 +38,20 @@ import {
   parseAssetDoc,
   type DocKindDef,
 } from "../project/kinds";
+import {
+  ANIMATION_KIND,
+  animationIssues,
+  animationKind,
+  type AnimationFile,
+} from "../project/kinds/animation";
 import { ATLAS_KIND } from "../project/kinds/atlas";
 import { DATA_TABLE_KIND } from "../project/kinds/data-table";
+import {
+  EMITTER_KIND,
+  emitterIssues,
+  emitterKind,
+  type EmitterFile,
+} from "../project/kinds/emitter";
 import { GAME_SETTINGS_KIND } from "../project/kinds/game-settings";
 import { INPUT_MAP_KIND } from "../project/kinds/input-map";
 import { inputScriptKind } from "../project/kinds/input-script";
@@ -42,9 +59,11 @@ import { MATERIAL_KIND } from "../project/kinds/material";
 import { SAVE_KIND } from "../project/kinds/save";
 import { SCENE_LIST_KIND, type SceneListEntry } from "../project/kinds/scene-list";
 import { TEXTURE_KIND } from "../project/kinds/texture";
+import { runtimeView } from "../project/runtime-view";
 import { snapshotProject } from "../project/snapshot";
 import type { AssetEntry, AssetId, ProjectView } from "../project/types";
 import { projectView } from "../project/view";
+import { ANIM_FRAME } from "../runtime/behaviors/anim";
 import { createSceneRuntime } from "../runtime/runtime";
 import { ENTITY_DESTROYED, SENSOR_ENTER, SPAWNER_SPAWNED, type StepEvent } from "../runtime/types";
 import { parseChecks, type ChecksFile, type ReachesCheck } from "../scene/checks";
@@ -187,6 +206,11 @@ const sprites = (): [RuntimeEntity, SpriteBlock][] =>
     const block = (e.behaviors as Record<string, unknown> | undefined)?.[SPRITE.name];
     return block ? [[e, block as SpriteBlock]] : [];
   });
+/** The block named `name` on the scene's entity `id`. */
+const blockOf = <T>(id: string, name: string): T =>
+  (entities().find((e) => e.id === id)?.behaviors as Record<string, unknown> | undefined)?.[
+    name
+  ] as T;
 const atlasTool = (id: string) => (view.byId.get(id)?.meta as { tool?: string } | undefined)?.tool;
 
 /** A snapshot of the project, its doc texts in a memory store; blobs are pinned by hash, size and meta, their bytes left out. */
@@ -531,6 +555,53 @@ describe("kitchen-sink.json", () => {
       expect(entities().some((e) => e.type === "prop" && e.fixedRotation === true)).toBe(true);
     });
 
+    it("an animation over the hero atlas with idle from its tag and a once clip raising an event over a hit shape set", () => {
+      const block = blockOf<AnimBlock>("std-anim", "anim");
+      expect(view.byId.get(block.source)?.kind).toBe(ANIMATION_KIND);
+      const file = values.get(block.source) as AnimationFile;
+      const atlas = assetInfo(view, file.atlas);
+      expect(atlas?.kind).toBe(ATLAS_KIND);
+      expect(animationIssues(file, atlas)).toEqual([]);
+      const { clips, issues } = resolveClips({ animation: file }, atlas!, { rate: 60 });
+      expect(issues).toEqual([]);
+      const tagged = file.clips.find((c) => c.tag !== undefined)!;
+      expect(atlas!.tags?.map((t) => t.name)).toContain(tagged.tag);
+      expect(clips.get(tagged.name)?.frames.length).toBeGreaterThan(1);
+      expect(block.clip).toBe(tagged.name);
+      const once = [...clips.values()].filter((c) => c.loop === "once");
+      expect(once.length).toBeGreaterThanOrEqual(1);
+      expect(once.some((c) => c.frames.some((f) => f.events.length > 0))).toBe(true);
+      expect(once.some((c) => c.frames.some((f) => (f.shapes.hit?.length ?? 0) > 0))).toBe(true);
+      expect(blockOf<SpriteBlock>("std-anim", SPRITE.name).asset).toBe(file.atlas);
+    });
+
+    it("a decor with a tween block its target can take", () => {
+      expect(entities().find((x) => x.id === "std-tween")?.type).toBe("decor");
+      const block = blockOf<TweenBlock>("std-tween", "tween");
+      for (const spec of block.tweens)
+        expect(
+          tweenTargetProblem({ type: "decor", posable: true }, tweenChannels(spec), true),
+        ).toBeNull();
+    });
+
+    it("an emitter drawing the sparks preset from the project's atlas, which parses with no issues", () => {
+      const block = blockOf<EmitterBlock>("std-emitter", "emitter");
+      expect(block.preset).toBe("sparks");
+      expect(view.byId.get(block.preset)?.kind).toBe(EMITTER_KIND);
+      const file = values.get(block.preset) as EmitterFile;
+      expect(file.texture).toBeDefined();
+      expect(emitterIssues(file, assetInfo(view, file.texture!))).toEqual([]);
+    });
+
+    it("a camera region framing the camera target where it stands", () => {
+      const regions = cameraRegionsOf(expanded().entities, engine);
+      expect(regions.map((r) => r.id)).toEqual(["framing"]);
+      const target = entities().find((x) => x.id === "std-camera-target")!;
+      const [x, y] = target.at as Pt;
+      expect(regionFor([{ at: { x, y } }], regions)?.id).toBe("framing");
+      expect(def.settings?.camera).toBeDefined();
+    });
+
     it("a note per region", () => {
       expect(entities().filter((e) => e.type === "note").length).toBeGreaterThanOrEqual(5);
     });
@@ -693,6 +764,56 @@ describe("kitchen-sink.json", () => {
       expect(rt.ctx.tags.handlesOf(d.id)).toEqual([]);
     }
     expect(rt.stats().perType.decor).toBe(decor.length);
+    rt.destroy();
+  });
+
+  it("expands and loads its camera region headless with no collider, the scene's camera settings kept", () => {
+    const regions = expanded().entities.filter((e) => e.type === "camera-region");
+    expect(regions.map((e) => e.id)).toEqual(["framing"]);
+    expect(expanded().settings.camera).toEqual({ damping: 0.2 });
+    const rt = createSceneRuntime({ rapier, view: null, game: null, registry: engine });
+    expect(rt.load(expanded()).ok).toBe(true);
+    for (const e of regions) expect(rt.ctx.tags.handlesOf(e.id)).toEqual([]);
+    expect(rt.stats().perType["camera-region"]).toBe(regions.length);
+    rt.destroy();
+  });
+
+  it("plays its animation, tween and emitter headless: the clip walks its tag and the once clip's event and hit shape, the decor bobs", () => {
+    const rt = createSceneRuntime({
+      rapier,
+      view: null,
+      game: null,
+      registry: engine,
+      project: runtimeView(view, values, engine),
+    });
+    expect(rt.load(expanded()).ok).toBe(true);
+    const tween = entities().find((e) => e.id === "std-tween")!;
+    const [tx, ty] = tween.at as Pt;
+    const to = blockOf<TweenBlock>("std-tween", "tween").tweens[0]!.to.y!;
+    const frames = new Set<string>();
+    let lowest = ty;
+    for (let i = 0; i < 120; i++) {
+      rt.step(rt.ctx.time.tickMs, []);
+      frames.add(rt.ctx.anim.state("std-anim")!.frame);
+      const pose = rt.ctx.poses.get("std-tween")!;
+      expect(pose.x).toBe(tx);
+      expect(pose.y).toBeLessThanOrEqual(ty + 1e-9);
+      lowest = Math.min(lowest, pose.y);
+    }
+    expect(frames).toEqual(new Set(["hero-0", "hero-1"]));
+    expect(lowest).toBeCloseTo(to, 2);
+
+    rt.ctx.anim.play("std-anim", "jab");
+    const raised: unknown[] = [];
+    let hit = 0;
+    for (let i = 0; i < 30; i++) {
+      for (const e of rt.step(rt.ctx.time.tickMs, []).events)
+        if (e.type === ANIM_FRAME && e.entityId === "std-anim") raised.push(e.data);
+      hit = Math.max(hit, rt.ctx.anim.shapes("std-anim", "hit").length);
+    }
+    expect(raised).toContainEqual(expect.objectContaining({ clip: "jab", event: "strike" }));
+    expect(hit).toBe(1);
+    expect(rt.ctx.anim.state("std-anim")?.clip).toBe("idle");
     rt.destroy();
   });
 
@@ -1075,6 +1196,8 @@ describe("the engine project", () => {
         inputScriptKind.kind,
         SCENE_LIST_KIND,
         DATA_TABLE_KIND,
+        animationKind.kind,
+        emitterKind.kind,
         TEXTURE_KIND,
         ATLAS_KIND,
         SAVE_KIND,

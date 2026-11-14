@@ -38,11 +38,18 @@ function observeResize(el: HTMLElement, fn: () => void): () => void {
   return () => view.removeEventListener("resize", fn);
 }
 
-/** A layer over `canvas`'s box, a sibling right after it (after any layers already there), resized with it. */
+const EFFECT_ATTR = "data-jams-effects";
+
+/**
+ * A layer over `canvas`'s box, resized with it: a sibling right after the
+ * canvas, or right after the effect overlay when one is there, so the
+ * overlay stays first and paints under every other layer.
+ */
 function createCanvasLayer(
   canvas: HTMLCanvasElement,
   name: string,
   style: Partial<CSSStyleDeclaration>,
+  opts: { first?: boolean } = {},
 ): { root: HTMLElement; destroy(): void } {
   if (!canvas.parentElement) throw new Error(`${name}: the canvas isn't in a document`);
   const root = canvas.ownerDocument.createElement("div");
@@ -58,7 +65,9 @@ function createCanvasLayer(
     });
   };
   sync();
-  canvas.after(root);
+  const next = canvas.nextElementSibling;
+  const anchor = !opts.first && next?.hasAttribute(EFFECT_ATTR) ? next : canvas;
+  anchor.after(root);
   const unobserve = observeResize(canvas, () => {
     sync();
     root.dispatchEvent(new Event(UI_LAYER_RESIZE));
@@ -105,6 +114,26 @@ export function createTransitionLayer(canvas: HTMLCanvasElement): {
 }
 
 /**
+ * The layer full-canvas effects (a flash) draw into: over `canvas`, under
+ * the UI layer, the touch controls and the transition layer whichever is
+ * made first. It never takes input; nothing in it opts back in.
+ */
+export function createEffectOverlay(canvas: HTMLCanvasElement): {
+  root: HTMLElement;
+  destroy(): void;
+} {
+  const layer = createCanvasLayer(
+    canvas,
+    "createEffectOverlay",
+    { overflow: "hidden" },
+    { first: true },
+  );
+  layer.root.setAttribute(EFFECT_ATTR, "");
+  layer.root.setAttribute("aria-hidden", "true");
+  return layer;
+}
+
+/**
  * createUiLayer + the context + mount; the returned function unmounts and
  * removes the layer. `opts.links` is the host's pages, given to the UI as
  * `UiContext.links`.
@@ -140,7 +169,6 @@ export function mountUi<G>(
     return drop;
   }
 
-  const view = canvas.ownerDocument.defaultView;
   const ctx: UiContext<G> = {
     root: layer.root,
     canvas,
@@ -148,9 +176,7 @@ export function mountUi<G>(
     slice: () => (store.state.game ?? null) as G | null,
     watch,
     settings: game.project()?.settings ?? {},
-    reducedMotion:
-      typeof view?.matchMedia === "function" &&
-      view.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    reducedMotion: game.reducedMotion,
     ...(opts.links ? { links: { ...opts.links } } : {}),
   };
 

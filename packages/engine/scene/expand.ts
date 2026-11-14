@@ -72,6 +72,7 @@ const ENGINE_DEFAULTS = {
   physics: DEFAULT_PHYSICS,
   grid: null,
   view: { projection: "orthogonal" },
+  camera: undefined,
 } satisfies Record<EngineSettingKey, unknown>;
 
 /** The sources each engine key reads after the scene: `grid` skips the project, `view` reads none. */
@@ -80,6 +81,7 @@ const SOURCES_OF: Record<EngineSettingKey, readonly (keyof SettingsSources)[]> =
   physics: ["project", "game"],
   grid: ["game"],
   view: [],
+  camera: [],
 };
 
 function sourceValue(sources: SettingsSources, from: keyof SettingsSources, key: EngineSettingKey) {
@@ -95,7 +97,8 @@ function sourceValue(sources: SettingsSources, from: keyof SettingsSources, key:
  * `physics` come from the scene's `settings`, else the project's engine
  * block, else the game's world, else the engine's default; `grid` from the
  * scene, else the game's world, else none; `view` from the scene, else
- * orthogonal (`game/defaults` holds the engine's values). The game's own
+ * orthogonal (`game/defaults` holds the engine's values); `camera` from the
+ * scene only, absent when it sets none. The game's own
  * keys are the scene's, as given.
  */
 export function resolveSettings(
@@ -106,7 +109,8 @@ export function resolveSettings(
   for (const key of ENGINE_SETTING_KEYS) {
     let value: unknown = settings?.[key];
     for (const from of SOURCES_OF[key]) value ??= sourceValue(sources, from, key);
-    out[key] = structuredClone(value ?? ENGINE_DEFAULTS[key]);
+    value ??= ENGINE_DEFAULTS[key];
+    if (value !== undefined) out[key] = structuredClone(value);
   }
   for (const [key, value] of Object.entries(settings ?? {})) {
     if (!(key in out) && value !== undefined) out[key] = structuredClone(value);

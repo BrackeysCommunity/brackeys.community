@@ -3,10 +3,21 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { inflateSync } from "node:zlib";
 
-import { createRegistry, withProject } from "@jams/engine/game";
+import { createRegistry, resolveClips, withProject } from "@jams/engine/game";
 import { assetInfo, createHeadlessRuntime } from "@jams/engine/headless";
-import { createKindRegistry, projectView, sceneBundle } from "@jams/engine/project";
-import { expandScene, sceneSprites } from "@jams/engine/scene";
+import {
+  createKindRegistry,
+  projectView,
+  runtimeView,
+  sceneBundle,
+  type AnimationFile,
+} from "@jams/engine/project";
+import {
+  expandScene,
+  sceneSprites,
+  type EntityDef,
+  type SceneDefinition,
+} from "@jams/engine/scene";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
 import { devAssetUrl } from "../../../packages/engine/editor-ui/connect/dev";
@@ -14,6 +25,10 @@ import { drawnEntities } from "../../../packages/engine/scene/render-geometry";
 import { answerSinkRequest, loadSinkProject, type SinkProject } from "../browser/project";
 import { loadRapier } from "../browser/run";
 import {
+  ANIM_COLOURS,
+  ANIM_ENTITY,
+  ANIM_FRAME_TICKS,
+  ANIM_POINT,
   INSIDE_COLOUR,
   INSIDE_POINT,
   OUTSIDE_POINT,
@@ -22,6 +37,7 @@ import {
   SINK_PROJECT,
   SINK_SCENE,
   SMOKE_BACKGROUND,
+  SPLIT_VIEWPORTS,
 } from "../browser/sink";
 import { parseSinkScene, sinkPrefabs } from "../browser/sink-prefabs";
 import { smokeGame } from "../game";
@@ -207,5 +223,120 @@ describe("the render run's pinned points", () => {
     ] as const)
       expect(await pngPixel(join(SCENES, texture.path), px, py)).toBe(INSIDE_COLOUR);
     expect(INSIDE_COLOUR).not.toBe(SMOKE_BACKGROUND);
+  });
+});
+
+const grown = (b: { minX: number; minY: number; maxX: number; maxY: number }, m: number) => ({
+  minX: b.minX - m,
+  minY: b.minY - m,
+  maxX: b.maxX + m,
+  maxY: b.maxY + m,
+});
+
+/** The scene's own entities, each with its behavior blocks by name. */
+const entitiesOf = (def: SceneDefinition) =>
+  (def.entities ?? []) as readonly (EntityDef & { behaviors?: Record<string, unknown> })[];
+
+describe("the split run", () => {
+  it("splits the canvas into two halves, each following an entity the sink holds", () => {
+    const { def } = pageSide();
+    expect(SPLIT_VIEWPORTS.map((v) => v.rect)).toEqual([
+      [0, 0, 0.5, 1],
+      [0.5, 0, 0.5, 1],
+    ]);
+    const ids = new Set(entitiesOf(def).map((e) => e.id));
+    expect(SPLIT_VIEWPORTS.map((v) => v.frame)).toEqual([
+      { entity: "crate" },
+      { entity: ANIM_ENTITY },
+    ]);
+    expect(ids.has("crate") && ids.has(ANIM_ENTITY)).toBe(true);
+  });
+
+  it("follows both through the scene's rig with no camera region taking either", () => {
+    const { def } = pageSide();
+    expect(def.settings?.camera).toBeDefined();
+    const regions = entitiesOf(def).filter((e) => e.type === "camera-region");
+    expect(regions.length).toBeGreaterThan(0);
+    for (const point of [INSIDE_POINT, ANIM_POINT])
+      for (const region of regions) {
+        const [kind, cx, cy, hw, hh] = region.shape as [string, number, number, number, number];
+        expect(kind, region.id).toBe("box");
+        const box = { minX: cx - hw, minY: cy - hh, maxX: cx + hw, maxY: cy + hh };
+        expect(inBox(point, grown(box, 1)), region.id).toBe(false);
+      }
+  });
+
+  it("reads the animated sprite's centre: on its sprite, clear of every other sprite, body and the emitter", () => {
+    const { view, registry, def, prefabs } = pageSide();
+    const sprites = sceneSprites(def, { registry, prefabs, project: view });
+    const own = sprites.find((s) => s.ref === ANIM_ENTITY)!;
+    expect(own).toMatchObject({ asset: "hero", frame: "hero-0" });
+    expect(inBox(ANIM_POINT, grown(own.box, -0.1))).toBe(true);
+    const margin = 0.1;
+    for (const s of sprites)
+      if (s.ref !== ANIM_ENTITY) expect(inBox(ANIM_POINT, grown(s.box, margin)), s.ref).toBe(false);
+    for (const d of drawnEntities(expandScene(def, registry, { prefabs }), registry))
+      if (d.shape && d.id !== ANIM_ENTITY)
+        expect(inBox(ANIM_POINT, grown(d.box, margin)), d.id).toBe(false);
+    for (const e of entitiesOf(def).filter((x) => x.behaviors?.emitter)) {
+      const [ex, ey] = e.at as [number, number];
+      const dx = ex - ANIM_POINT[0];
+      const dy = ey - ANIM_POINT[1];
+      expect(dx * dx + dy * dy, e.id).toBeGreaterThan(1.5 * 1.5);
+    }
+  });
+
+  it("steps a clip frame of the idle clip between its reads: hero-0 after one tick, hero-1 after the rest", async () => {
+    const { kinds, view, values, registry, def, prefabs } = pageSide();
+    const block = entitiesOf(def).find((e) => e.id === ANIM_ENTITY)!.behaviors!.anim as {
+      clip: string;
+      source: string;
+    };
+    expect(block.clip).toBe("idle");
+    const file = values.get(block.source) as AnimationFile;
+    const atlas = assetInfo(view, file.atlas)!;
+    const runtime = createHeadlessRuntime({
+      rapier: await loadRapier(),
+      game: smokeGame,
+      registry,
+      scene: expandScene(def, registry, { prefabs }),
+      project: runtimeView(view, values, registry, kinds),
+    });
+    try {
+      const { clips } = resolveClips({ animation: file }, atlas, runtime.ctx.time);
+      const idle = clips.get("idle")!;
+      expect(idle.frames.map((f) => f.frame)).toEqual(["hero-0", "hero-1"]);
+      expect(idle.frames[0]!.ticks).toBe(ANIM_FRAME_TICKS);
+      const tick = () => runtime.step(runtime.ctx.time.tickMs, []);
+      tick();
+      expect(runtime.ctx.anim.state(ANIM_ENTITY)?.frame).toBe("hero-0");
+      for (let i = 0; i < ANIM_FRAME_TICKS; i++) tick();
+      expect(runtime.ctx.anim.state(ANIM_ENTITY)?.frame).toBe("hero-1");
+    } finally {
+      runtime.destroy();
+    }
+  });
+
+  it("expects each idle frame's own colour, apart from each other and the background", async () => {
+    const { view } = pageSide();
+    for (const [i, name] of ["hero-0", "hero-1"].entries()) {
+      const frame = assetInfo(view, "hero", name)!;
+      const texture = view.byId.get(frame.texture!)!;
+      const { rect } = frame;
+      for (const [px, py] of [
+        [rect!.x + Math.floor(rect!.w / 2), rect!.y + Math.floor(rect!.h / 2)],
+        [rect!.x, rect!.y],
+        [rect!.x + rect!.w - 1, rect!.y + rect!.h - 1],
+      ] as const)
+        expect(await pngPixel(join(SCENES, texture.path), px, py), name).toBe(ANIM_COLOURS[i]);
+    }
+    const channels = (c: number) => [(c >> 16) & 0xff, (c >> 8) & 0xff, c & 0xff];
+    const apart = (a: number, b: number) =>
+      Math.max(...channels(a).map((v, k) => Math.abs(v - channels(b)[k]!)));
+    expect(apart(ANIM_COLOURS[0], ANIM_COLOURS[1])).toBeGreaterThan(64);
+    for (const c of ANIM_COLOURS) {
+      expect(apart(c, SMOKE_BACKGROUND)).toBeGreaterThan(64);
+      expect(apart(c, INSIDE_COLOUR)).toBeGreaterThan(64);
+    }
   });
 });

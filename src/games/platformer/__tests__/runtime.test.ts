@@ -73,6 +73,7 @@ describe("platformerGame registry", () => {
       ["player"],
       ["decor"],
       ["nav"],
+      ["camera-region"],
     ]);
   });
 

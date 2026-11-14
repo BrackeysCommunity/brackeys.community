@@ -44,6 +44,35 @@ export {
 } from "./behaviors/character-top-down";
 export { CHARACTER_SIDE_VIEW, type CharacterSideViewBlock } from "./behaviors/character-side-view";
 export { CAMERA_TARGET, type CameraTargetBlock } from "./behaviors/camera-target";
+export { ANIM, type AnimBlock } from "./behaviors/anim";
+export {
+  EASE_NAMES,
+  TWEEN,
+  tweenSpecSchema,
+  type EaseName,
+  type TweenBlock,
+  type TweenChannel,
+  type TweenSpec,
+} from "./behaviors/tween";
+export { EMITTER, type EmitterBlock } from "./behaviors/emitter";
+export { ease } from "../anim/ease";
+export { overlapFrameShapes } from "../anim/shapes";
+export { clipFrameAt, resolveClips, type ClipSource, type ResolvedClip } from "../anim/clips";
+export type { Tweens } from "../anim/tweens";
+export { ANIM_END, ANIM_FRAME } from "../runtime/behaviors/anim";
+export { TWEEN_END } from "../runtime/behaviors/tween";
+export type { AnimContext, AnimState, AnimSystem } from "../runtime/behaviors/anim";
+export type { TweenSystem, UnsaveableTween } from "../runtime/behaviors/tween";
+export { CAMERA_RIG_SCHEMA, type CameraRigDef } from "./primitives";
+export type { CameraFrame, CameraTargetSpec } from "../camera/rig";
+export type {
+  AudioRequest,
+  CameraRequest,
+  EffectRequest,
+  PresentationQueue,
+  PresentedRequest,
+  PresentRequest,
+} from "../runtime/present";
 export { SPAWNER, type SpawnerBlock, type SpawnerSystem } from "./behaviors/spawner";
 export { NAV_AGENT, type NavAgentBlock, type NavAgentSystem } from "./behaviors/nav-agent";
 export { PATH_FOLLOW, type PathFollowBlock, type PathFollowSystem } from "./behaviors/path-follow";

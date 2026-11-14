@@ -11,12 +11,18 @@ import {
   KEYED_Z,
 } from "../../../packages/engine/collab/index.ts";
 import {
+  ANIMATION_KIND,
+  animationKind,
+  EMITTER_KIND,
+  emitterKind,
   formatAssetDoc,
   INPUT_MAP_KIND,
   inputMapKind,
   projectView,
   SCENE_LIST_KIND,
   sceneListKind,
+  type AnimationFile,
+  type EmitterFile,
   type InputMapFile,
   type SceneListFile,
 } from "../../../packages/engine/project/index.ts";
@@ -729,5 +735,212 @@ describe("a scene-list asset doc through the real server", () => {
     expect(row()?.contentSha256).toBe(expected!.sha256);
     expect(row()?.kind).toBe(SCENE_LIST_KIND);
     expect(JSON.parse(row()!.snapshot!)).toEqual(merged);
+  });
+});
+
+describe("animation and emitter asset docs through the real server", () => {
+  const stores = memoryEngineStores();
+  let server: SyncServer;
+  const clients: EngineClient[] = [];
+
+  beforeAll(async () => {
+    server = await startServer({
+      port: 0,
+      secret: SECRET,
+      ...stores.options,
+      instanceId: "project-converge-effects",
+      telemetry: quiet,
+      debounceMs: 100,
+      maxDebounceMs: 400,
+    });
+  });
+
+  afterAll(async () => {
+    for (const client of clients) client.destroy();
+    await server?.stop(3000);
+  });
+
+  // Client docs come from the service's yjs: read them through their bytes,
+  // and write them by their Y types, as a provider's client does.
+  const valueOf = <T>(doc: Y.Doc) => assetDocValue(Y.encodeStateAsUpdate(doc)) as unknown as T;
+  const content = (doc: Y.Doc) => doc.getMap<unknown>(CONTENT_MAP);
+
+  /** Seeds one doc asset, connects two clients to it and waits until both hold the server's one seed. */
+  async function seeded<T>(kind: string, path: string, seed: T) {
+    const projectId = newProjectId();
+    createMemoryProject(
+      stores,
+      { ...emptyProjectState(projectId, "Effects"), assets: { fx: entry("fx", { kind, path }) } },
+      { fx: JSON.stringify(seed) },
+    );
+    const docId = `${projectId}.fx`;
+    const [a, b] = ["alice", "bob"].map((user) => connectAsset(server.port, docId, user));
+    clients.push(a!, b!);
+    expect(await synced(a!)).toBe(true);
+    expect(await synced(b!)).toBe(true);
+    expect(valueOf<T>(a!.doc)).toEqual(seed);
+    expect(Y.encodeStateVector(a!.doc)).toEqual(Y.encodeStateVector(b!.doc));
+    expect(a!.doc.getMap("meta").get("kind")).toBe(kind);
+    const live = () => server.hocuspocus.documents.get(`asset:${docId}`)!;
+    return { docId, a: a!, b: b!, live };
+  }
+
+  /** Waits for both clients and the server to hold one value that `done` accepts. */
+  async function converged(docs: Y.Doc[], done: (doc: Y.Doc) => boolean) {
+    const texts = () =>
+      docs.map((doc) => JSON.stringify(assetDocValue(Y.encodeStateAsUpdate(doc))));
+    expect(
+      await until(() => {
+        const [first, ...rest] = texts();
+        return rest.every((t) => t === first) && docs.every(done);
+      }, 10_000),
+    ).toBe(true);
+  }
+
+  /** The stored row once both clients leave: the snapshot both computed, the hash and the kind. */
+  async function snapshotted(docId: string, a: EngineClient, b: EngineClient, kind: string) {
+    const expected = await assetSnapshotOf(a.doc);
+    expect(await assetSnapshotOf(b.doc)).toEqual(expected);
+    a.destroy();
+    b.destroy();
+    const row = () => stores.assets.rows.get(docId);
+    expect(await until(() => row()?.snapshot === expected!.text, 10_000)).toBe(true);
+    expect(row()?.contentSha256).toBe(expected!.sha256);
+    expect(row()?.kind).toBe(kind);
+    return { expected: expected!, row: row()! };
+  }
+
+  it("an animation seeds once, merges two clients' clip edits and snapshots the canonical text", async () => {
+    const SEED: AnimationFile = {
+      kind: ANIMATION_KIND,
+      v: 1,
+      atlas: "hero",
+      clips: [
+        { name: "idle", tag: "idle" },
+        {
+          name: "strike",
+          frames: [
+            { frame: "hero-0", ms: 50 },
+            { frame: "hero-1", ms: 80, events: ["swing"] },
+          ],
+          loop: "once",
+          next: "idle",
+        },
+      ],
+    };
+    const { docId, a, b, live } = await seeded(ANIMATION_KIND, "art/knight.animation.json", SEED);
+    const clipsOf = (doc: Y.Doc) => content(doc).get("clips") as Y.Map<Y.Map<unknown>>;
+    const ordered = (doc: Y.Doc) =>
+      [...clipsOf(doc).entries()]
+        .map(([key, entry]) => ({ key, entry, z: String(entry.get(KEYED_Z)) }))
+        .sort(compareZ);
+    const clip = (doc: Y.Doc, name: string) =>
+      ordered(doc)
+        .map((e) => e.entry.get(KEYED_ITEM) as Y.Map<unknown>)
+        .find((item) => item.get("name") === name)!;
+
+    // Concurrent, on different clips: one client slows strike's second frame
+    // and speeds the clip up; the other adds a clip at the end.
+    a.doc.transact(() => {
+      const strike = clip(a.doc, "strike");
+      const frames = strike.get("frames") as Y.Array<unknown>;
+      frames.delete(1, 1);
+      frames.insert(1, [{ frame: "hero-1", ms: 120, events: ["swing"] }]);
+      strike.set("speed", 1.5);
+    });
+    b.doc.transact(() => {
+      const zs = ordered(b.doc).map((e) => e.z);
+      const entry = new Y.Map<unknown>();
+      const item = new Y.Map<unknown>();
+      item.set("name", "sway");
+      item.set("tag", "idle");
+      item.set("loop", "pingpong");
+      entry.set(KEYED_Z, assignZ([...zs, undefined]).at(-1)!);
+      entry.set(KEYED_ITEM, item);
+      clipsOf(b.doc).set("b-sway", entry);
+    });
+
+    await converged(
+      [a.doc, b.doc, live()],
+      (doc) =>
+        valueOf<AnimationFile>(doc).clips.length === 3 &&
+        valueOf<AnimationFile>(doc).clips[1]?.speed === 1.5,
+    );
+    const merged = valueOf<AnimationFile>(a.doc);
+    expect(merged).toEqual({
+      ...SEED,
+      clips: [
+        { name: "idle", tag: "idle" },
+        {
+          name: "strike",
+          frames: [
+            { frame: "hero-0", ms: 50 },
+            { frame: "hero-1", ms: 120, events: ["swing"] },
+          ],
+          loop: "once",
+          next: "idle",
+          speed: 1.5,
+        },
+        { name: "sway", tag: "idle", loop: "pingpong" },
+      ],
+    });
+
+    const { expected, row } = await snapshotted(docId, a, b, ANIMATION_KIND);
+    expect(expected.text).toBe(formatAssetDoc(animationKind, merged));
+    expect(JSON.parse(row.snapshot!)).toEqual(merged);
+  });
+
+  it("an emitter seeds once, merges two clients' field and burst edits and snapshots the canonical text", async () => {
+    const SEED: EmitterFile = {
+      kind: EMITTER_KIND,
+      v: 1,
+      texture: "sparks",
+      rate: 40,
+      bursts: [{ atMs: 0, count: 12 }],
+      lifeMs: [300, 600],
+      speed: [0.8, 2.2],
+      angle: [-120, -60],
+      tint: [
+        [0, 16777215],
+        [1, 16744448],
+      ],
+    };
+    const { docId, a, b, live } = await seeded(EMITTER_KIND, "fx/sparks.emitter.json", SEED);
+    const bursts = (doc: Y.Doc) => content(doc).get("bursts") as Y.Array<unknown>;
+
+    // Concurrent: each client sets its own field and adds a burst.
+    a.doc.transact(() => {
+      content(a.doc).set("rate", 55);
+      bursts(a.doc).push([{ atMs: 250, count: 6 }]);
+    });
+    b.doc.transact(() => {
+      content(b.doc).set("tint", [
+        [0, 16777215],
+        [1, 255],
+      ]);
+      bursts(b.doc).push([{ atMs: 500, count: 3 }]);
+    });
+
+    await converged(
+      [a.doc, b.doc, live()],
+      (doc) =>
+        valueOf<EmitterFile>(doc).bursts?.length === 3 && valueOf<EmitterFile>(doc).rate === 55,
+    );
+    const merged = valueOf<EmitterFile>(a.doc);
+    expect(merged.rate).toBe(55);
+    expect(merged.tint).toEqual([
+      [0, 16777215],
+      [1, 255],
+    ]);
+    expect(merged.bursts?.[0]).toEqual({ atMs: 0, count: 12 });
+    expect(merged.bursts).toContainEqual({ atMs: 250, count: 6 });
+    expect(merged.bursts).toContainEqual({ atMs: 500, count: 3 });
+    const { rate: _rate, tint: _tint, bursts: _bursts, ...rest } = merged;
+    const { rate: _r, tint: _t, bursts: _b, ...seedRest } = SEED;
+    expect(rest).toEqual(seedRest);
+
+    const { expected, row } = await snapshotted(docId, a, b, EMITTER_KIND);
+    expect(expected.text).toBe(formatAssetDoc(emitterKind, merged));
+    expect(JSON.parse(row.snapshot!)).toEqual(merged);
   });
 });

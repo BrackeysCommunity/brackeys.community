@@ -70,6 +70,14 @@ export type DocLayout =
    */
   | { as: "keyed"; id?: string /* default "id" */; item: Extract<DocLayout, { as: "map" }> };
 
+/** What a kind's `crossValidate` reads of the other docs in the project. */
+export type DocLookup = {
+  /** Every live asset id of a kind, in path order. */
+  ids(kind: AssetKindName): readonly AssetId[];
+  /** A doc's parsed, migrated value; undefined when missing or invalid. */
+  read<T = unknown>(kind: AssetKindName, id: AssetId): T | undefined;
+};
+
 /** A doc kind's file read: its migrated value, or the issues that refuse it. */
 export type ParseAssetResult<J = unknown> =
   | { ok: true; value: J; migratedFrom?: number; issues: SceneIssue[] }
@@ -104,6 +112,21 @@ export type DocKindDef<J = unknown> = KindBase & {
   refs?(value: J, env: KindEnv): readonly RefSite[];
   /** Issues beyond the schema's; never throws. */
   validate?(value: J, env: KindEnv): readonly SceneIssue[];
+  /** Issues that need other docs' contents (an animation's atlas tags); never throws. */
+  crossValidate?(value: J, lookup: DocLookup, env: KindEnv): readonly SceneIssue[];
+  /**
+   * Game code or an engine system reads this kind while a game runs: it
+   * loads into the runtime view and ships in every export. "sim": its data
+   * can change what a run does, so it joins the run's hash; "view":
+   * presentation only.
+   */
+  runtime?: "sim" | "view";
+  /**
+   * The references a scene's first-frame bundle follows through a doc of
+   * this kind that an entity names; default every `refs` site. A kind whose
+   * blobs load on demand (a sound's non-preloaded clips) leaves those out.
+   */
+  bundleRefs?(value: J, env: KindEnv): readonly RefSite[];
   /** Per-doc caps; the hosted service enforces them. */
   limits?: { maxStateBytes: number; maxItems?: number };
   /**
@@ -147,6 +170,8 @@ export type BlobKindDef<M = unknown, S = unknown> = KindBase & {
   /** Pure and deterministic: the same bytes and settings give the same meta everywhere, from headers alone. */
   inspect(bytes: Uint8Array, settings: S, env: InspectEnv): InspectResult<M>;
   refs?(entry: AssetEntry): readonly RefSite[];
+  /** Bumped when `inspect` learns more; sidecars inspected under an older version are re-inspected. */
+  metaVersion?: number;
 };
 
 /** Game code: listed read-only, never a doc. */
@@ -179,6 +204,18 @@ export const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b 
 /** Path order, the key breaking a tie: how a project's assets of one kind are read in turn. */
 export const byPathThenKey = (a: AssetEntry, b: AssetEntry): number =>
   byCodeUnit(a.path, b.path) || byCodeUnit(a.key, b.key);
+
+/** Whether game code or an engine system reads `def`'s docs while a game runs (`DocKindDef.runtime`). */
+export const isRuntimeKind = (def: AssetKindDef | undefined): def is DocKindDef<any> =>
+  def?.storage === "doc" && def.runtime !== undefined;
+
+/** The names of `kinds`' runtime kinds, in registration order: what a runtime view loads and an export ships. */
+export function runtimeKindNames(kinds: { list(): readonly AssetKindDef[] }): AssetKindName[] {
+  return kinds
+    .list()
+    .filter(isRuntimeKind)
+    .map((def) => def.kind);
+}
 
 /** Whether a project holds at most one asset of `def`'s kind. */
 export const isPerProject = (def: AssetKindDef | undefined): def is DocKindDef<any> =>

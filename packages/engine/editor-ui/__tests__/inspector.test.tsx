@@ -145,11 +145,14 @@ const SENSOR_ENGINE_ITEMS = [
   "Character (top-down)Walks the entity in the plane from its seat's move action or an intent from code: a kinematic controller stopped and slid along by walls.",
   "Character (side view)Runs and jumps the entity under gravity from its seat's move and jump actions or an intent from code, with coyote time, jump buffering and one-way platforms.",
   "Nav agentWalks the entity through the scene's walk areas to a point or another entity, kept apart from other agents; raises nav:arrived and nav:blocked.",
+  "TweenPlays tweens on this entity from spawn: bobbing pickups, swinging signs, pulsing lights.",
   "OccupantStands on the grid cell under its pose, where paths and game code see it.",
   "LifetimeDestroys or disables the entity a time after it spawns or is enabled.",
   "SpawnerSpawns entities of a type, or instances of a prefab, at a rate up to a cap of live ones; raises spawner:spawned for each.",
   "Camera targetMarks what the camera follows when the game names no target: the weighted centre of every entity carrying it.",
   "SpriteDraws a texture or an atlas frame at the entity's pose.",
+  "AnimationPlays an atlas's tags or an animation's clips on the simulation's ticks.Animation needs an animation or an atlas asset in the project.",
+  "EmitterEmits particles from an emitter preset at the entity, drawn only (never in the simulation).Emitter needs an emitter asset in the project.",
 ];
 
 describe("EditorInspector", () => {

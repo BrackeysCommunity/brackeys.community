@@ -3,7 +3,7 @@
   "v": 4,
   "name": "kitchen-sink",
   "bounds": [0, 0, 36, 12],
-  "settings": { "gravity": [0, 12] },
+  "settings": { "camera": { "damping": 0.2 }, "gravity": [0, 12] },
   "assets": ["cards"],
   "groups": {
     "shelf": { "name": "Shelf", "at": [14, 7] },
@@ -64,7 +64,7 @@
     { "id": "upright", "type": "prop", "shape": ["box", 3.12, 1.4, 0.1, 0.1], "density": 1, "fixedRotation": true, "restitution": 0 },
     { "id": "about-sides", "type": "note", "at": [2, 0.6], "text": "One-way sides and body fields: side-wall is one-way from the left, so an actor passes it moving left and stops on its left face; upright starts half past its top and slides off without turning (fixedRotation)." },
     { "id": "spark", "type": "decor", "layer": "decor", "at": [13.4, 10.4], "behaviors": { "lifetime": { "ticks": 30 }, "sprite": { "asset": "crates", "frame": "crate-1", "size": [0.24, 0.24] } } },
-    { "id": "about-lifetime", "type": "note", "at": [12.6, 9.6], "text": "Lifetime: spark is a decor whose lifetime block destroys it 30 ticks after load; the fades check expects the lamp to remain the one decor left." },
+    { "id": "about-lifetime", "type": "note", "at": [12.6, 9.6], "text": "Lifetime: spark is a decor whose lifetime block destroys it 30 ticks after load; the fades check expects the lamp and std-tween to remain the two decors left." },
     { "id": "std-collider", "type": "marker", "at": [14.7, 3], "behaviors": { "collider": { "shape": ["box", 0, 0, 1.5, 0.1] } } },
     { "id": "std-body", "type": "marker", "at": [13.6, 2.6], "behaviors": { "body": {}, "collider": { "shape": ["box", 0, 0, 0.15, 0.15] } } },
     { "id": "std-side-view", "type": "marker", "at": [14.2, 2.5], "behaviors": { "character-side-view": {}, "collider": { "shape": ["box", 0, 0, 0.1, 0.2] } } },
@@ -76,6 +76,12 @@
     { "id": "std-spawner", "type": "marker", "at": [15.6, 1.8], "behaviors": { "spawner": { "cap": 2, "fields": { "shape": ["box", 0, 0, 0.1, 0.1] }, "rate": 0.5, "type": "solid" } } },
     { "id": "std-nav-agent", "type": "marker", "at": [19.6, 5], "behaviors": { "nav-agent": {} } },
     { "id": "std-camera-target", "type": "marker", "at": [12, 6], "behaviors": { "camera-target": {} } },
-    { "id": "about-behaviors", "type": "note", "at": [12.6, 0.4], "text": "Standard behaviors, one entity each: std-collider is the static shelf; on it std-body falls and rests, std-side-view stands, std-top-down floats and std-player-input binds seat 0; std-joint swings on a hinge to the shelf's end; std-force-area pushes up with nothing inside; std-path-follow ping-pongs above; std-spawner places up to two small solids, its fields' box moved to its pose; std-nav-agent waits on floor-plan; std-camera-target is what Play's camera follows." }
+    { "id": "about-behaviors", "type": "note", "at": [12.6, 0.4], "text": "Standard behaviors, one entity each: std-collider is the static shelf; on it std-body falls and rests, std-side-view stands, std-top-down floats and std-player-input binds seat 0; std-joint swings on a hinge to the shelf's end; std-force-area pushes up with nothing inside; std-path-follow ping-pongs above; std-spawner places up to two small solids, its fields' box moved to its pose; std-nav-agent waits on floor-plan; std-camera-target is what Play's camera follows." },
+    { "id": "framing", "type": "camera-region", "shape": ["box", 15, 4, 6, 3.5], "ease": 0.5, "zoom": 1.5 },
+    { "id": "about-camera", "type": "note", "at": [9.4, 7.2], "text": "framing is a camera region, its outline shown only while editing. In Play the scene's camera settings put a rig on the camera: following std-camera-target, it eases into the region's box at zoom 1.5 and keeps the view inside it." },
+    { "id": "std-anim", "type": "marker", "at": [4.8, 5], "behaviors": { "anim": { "clip": "idle", "source": "kitchen-animation" }, "sprite": { "asset": "hero", "frame": "hero-0", "size": [0.48, 0.48] } } },
+    { "id": "std-tween", "type": "decor", "layer": "decor", "at": [5.8, 5], "behaviors": { "sprite": { "asset": "crates", "frame": "crate-0", "size": [0.36, 0.36] }, "tween": { "tweens": [{ "duration": { "ms": 800 }, "ease": "sineInOut", "repeat": -1, "to": { "alpha": 0.5, "y": 4.6 }, "yoyo": true }] } } },
+    { "id": "std-emitter", "type": "marker", "at": [6.8, 5.2], "behaviors": { "emitter": { "preset": "sparks" } } },
+    { "id": "about-motion", "type": "note", "at": [4.2, 3.8], "text": "Animation, tweens and particles: std-anim plays the kitchen-animation's idle clip (the hero sheet's idle tag), which also holds jab, a once clip raising strike with a hit shape set on its second frame; std-tween is a decor bobbing up and fading on a yoyo tween; std-emitter sprays the sparks preset, drawn only." }
   ]
 }

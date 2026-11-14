@@ -10,6 +10,7 @@ import type {
 } from "../game/types";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
+import type { PresentedRequest } from "../runtime/present";
 import type { RunTiming } from "../runtime/timing";
 import type { LoadReport, StepEvent } from "../runtime/types";
 import type {
@@ -227,6 +228,8 @@ export type PlaytestOptions<S = unknown, G = unknown> = {
    * run's report or recording.
    */
   timing?: RunTiming;
+  /** Keep presentation requests in `PlaytestReport.present`; default false, when they are dropped. */
+  recordPresentation?: boolean;
 };
 
 /** How one scene's part of a run ended: the request that left it (`flow`, with `to`), or the run's own end. */
@@ -318,6 +321,11 @@ export type PlaytestReport<S = unknown> = {
   recording: RunRecording;
   /** Each scene the run visited, in order; present when the run was given `flow`. */
   segments?: PlaytestSegment[];
+  /**
+   * What the run asked the shell to present, in request order, each with
+   * its tick counted from the run's start; only with `recordPresentation`.
+   */
+  present?: PresentedRequest[];
 };
 
 /**

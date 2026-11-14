@@ -1,17 +1,21 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
 
-import { testGame } from "../../__tests__/fixtures/test-game";
+import { CARD_TABLE, testGame } from "../../__tests__/fixtures/test-game";
 import { createRegistry } from "../../game/define";
 import { memoryContentStore } from "../content-store";
+import { createKindRegistry } from "../kinds";
+import { DATA_TABLE_KIND } from "../kinds/data-table";
+import { runtimeKindNames } from "../kinds/define";
 import { INPUT_MAP_KIND, type InputMapFile } from "../kinds/input-map";
 import { SCENE_LIST_KIND, type SceneListFile } from "../kinds/scene-list";
-import { heldProject, RUNTIME_VIEW_KINDS, runtimeView, snapshotRuntimeView } from "../runtime-view";
+import { heldProject, runtimeView, snapshotRuntimeView } from "../runtime-view";
 import { snapshotProject } from "../snapshot";
 import type { AssetEntry, AssetId } from "../types";
 import { projectView } from "../view";
 
 const registry = createRegistry(testGame);
+const RUNTIME_KINDS = runtimeKindNames(createKindRegistry(testGame));
 
 const entry = (id: string, kind: string, path: string): AssetEntry => ({
   key: id,
@@ -103,7 +107,7 @@ describe("ProjectRuntimeView.inputMap", () => {
   });
 
   it("is read from a snapshot's pinned input-map doc", async () => {
-    expect(RUNTIME_VIEW_KINDS).toContain(INPUT_MAP_KIND);
+    expect(RUNTIME_KINDS).toContain(INPUT_MAP_KIND);
     const store = memoryContentStore();
     const text = JSON.stringify(MAP);
     await store.put(new TextEncoder().encode(text));
@@ -177,7 +181,7 @@ describe("ProjectRuntimeView.flow", () => {
   });
 
   it("is read from a snapshot's pinned scene-list doc and from held files", async () => {
-    expect(RUNTIME_VIEW_KINDS).toContain(SCENE_LIST_KIND);
+    expect(RUNTIME_KINDS).toContain(SCENE_LIST_KIND);
     const store = memoryContentStore();
     const text = JSON.stringify(LIST);
     await store.put(new TextEncoder().encode(text));
@@ -274,5 +278,56 @@ describe("heldProject", () => {
     );
     expect(view.byId.get("pad")?.path).toBe("a/input-map.json");
     expect(runtime.inputMap?.deadzone).toBe(0.2);
+  });
+});
+
+describe("ProjectRuntimeView.doc and docs", () => {
+  const LIST: SceneListFile = {
+    kind: SCENE_LIST_KIND,
+    v: 1,
+    start: "menu",
+    scenes: [{ scene: "menu" }],
+  };
+  const table = (rows: unknown[]) => ({ kind: DATA_TABLE_KIND, v: 1, table: CARD_TABLE, rows });
+  const view = viewOf([
+    entry("b-cards", DATA_TABLE_KIND, "data/b.json"),
+    entry("a-cards", DATA_TABLE_KIND, "data/a.json"),
+    entry("broken", DATA_TABLE_KIND, "data/c.json"),
+    entry("flow", SCENE_LIST_KIND, "scene-list.json"),
+  ]);
+  const values = new Map<AssetId, unknown>([
+    ["b-cards", table([{ id: "zap", cost: 2 }])],
+    ["a-cards", table([{ id: "jab", cost: 1 }])],
+    ["broken", { kind: DATA_TABLE_KIND, v: 1 }],
+    ["flow", LIST],
+  ]);
+
+  it("lists a runtime kind's docs that parse, in path order, each frozen", () => {
+    const run = runtimeView(view, values, registry);
+    expect(run.docs?.(DATA_TABLE_KIND)).toEqual(["a-cards", "b-cards"]);
+    const doc = run.doc?.<{ rows: { id: string }[] }>(DATA_TABLE_KIND, "a-cards");
+    expect(doc?.rows[0]?.id).toBe("jab");
+    expect(Object.isFrozen(doc)).toBe(true);
+    expect(Object.isFrozen(doc?.rows[0])).toBe(true);
+    expect(run.doc?.(SCENE_LIST_KIND, "flow")).toEqual(LIST);
+  });
+
+  it("answers undefined for an unknown id, a doc that doesn't parse, or a kind that isn't a runtime kind", () => {
+    const run = runtimeView(view, values, registry);
+    expect(run.doc?.(DATA_TABLE_KIND, "nope")).toBeUndefined();
+    expect(run.doc?.(DATA_TABLE_KIND, "broken")).toBeUndefined();
+    expect(run.doc?.("material", "a-cards")).toBeUndefined();
+    expect(run.docs?.("material")).toEqual([]);
+  });
+
+  it("follows the kinds' runtime flag", () => {
+    expect(RUNTIME_KINDS).toEqual([
+      "game-settings",
+      "data-table",
+      "input-map",
+      "scene-list",
+      "animation",
+      "emitter",
+    ]);
   });
 });

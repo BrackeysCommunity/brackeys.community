@@ -103,7 +103,6 @@ const script: InputScriptV2 = {
 export const versusBehaviorsProbe: GenreProbe<BehaviorPoses> = {
   id: ID,
   rows: ["local-multiplayer"],
-  pending: { "local-multiplayer": "M22 (shared multi-target camera, split screen)" },
   game,
   scene,
   script,

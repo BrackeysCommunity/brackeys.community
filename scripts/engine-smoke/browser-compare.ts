@@ -3,14 +3,22 @@
  * runner's rules (a digest must equal Bun's, the physics-free run must
  * never load Rapier, the tactics replay must give its golden pin with no
  * Rapier, the contact read must start on its pinned tick, the
- * sprite's pixel must be drawn and the empty one blank, the editor's islands must keep apart and
+ * sprite's pixel must be drawn and the empty one blank, each half of the split
+ * screen must draw its sprite and the animated one change a clip frame later,
+ * the editor's islands must keep apart and
  * inside the window, a page must answer in time, a missing browser is never
  * a pass) are unit-tested without a browser.
  */
 import { TACTICS_GOLDEN_DIGEST } from "../../src/games/tactics/__tests__/pins";
 import { judgeContact, type ContactRead } from "./browser/contact";
 import type { EngineSmokeResult } from "./browser/main";
-import { INSIDE_COLOUR, SMOKE_BACKGROUND } from "./browser/sink";
+import {
+  ANIM_COLOURS,
+  ANIM_FRAME_TICKS,
+  INSIDE_COLOUR,
+  SMOKE_BACKGROUND,
+  SPLIT_VIEWPORTS,
+} from "./browser/sink";
 import type { TacticsProbe } from "./browser/tactics";
 
 export const BROWSERS = ["chromium", "firefox", "webkit"] as const;
@@ -23,6 +31,23 @@ export type Rgba = readonly [r: number, g: number, b: number, a: number];
 
 /** The page's render run: which renderer drew, and the two pixels it read. */
 export type RenderProbe = { renderer: string; inside: Rgba; outside: Rgba };
+
+/** One pixel the split run read where a viewport draws a world point: canvas CSS px, and its colour. */
+export type ViewportPixel = { viewport: number; at: readonly [x: number, y: number]; pixel: Rgba };
+
+/**
+ * The split run: the canvas's size, the crate's pixel through the left
+ * viewport, and the animated sprite's through the right one before and after
+ * `ticks` more ticks.
+ */
+export type SplitProbe = {
+  renderer: string;
+  width: number;
+  height: number;
+  crate: ViewportPixel;
+  anim: readonly [before: ViewportPixel, after: ViewportPixel];
+  ticks: number;
+};
 
 /** What the physics-free run gives, beside where it ran. */
 export type PhysicsFreeRun = {
@@ -129,12 +154,70 @@ export function judgeRender(render: RenderProbe | undefined): string | null {
   return null;
 }
 
+/** Why a read isn't inside its viewport's rectangle of a `width` × `height` canvas, or null. */
+function outsideViewport(read: ViewportPixel, width: number, height: number): string | null {
+  const def = SPLIT_VIEWPORTS[read.viewport];
+  if (!def) return `viewport ${read.viewport} isn't one of the split run's`;
+  const [rx, ry, rw, rh] = def.rect;
+  const [x, y] = read.at;
+  const inside =
+    x >= rx * width && x < (rx + rw) * width && y >= ry * height && y < (ry + rh) * height;
+  const n = (v: number) => Math.round(v * 10) / 10;
+  return inside
+    ? null
+    : `viewport ${read.viewport} drew its point at (${n(x)}, ${n(y)}), outside its rectangle [${def.rect.join(", ")}] of ${width}×${height}`;
+}
+
+/** Why `read` isn't an opaque pixel of `colour`, or null. */
+function notColour(
+  read: ViewportPixel,
+  colour: number,
+  what: string,
+  renderer: string,
+): string | null {
+  if (read.pixel[3] < 255 - PIXEL_TOLERANCE)
+    return `${what} isn't opaque: ${show(read.pixel)} on ${renderer}`;
+  if (near(read.pixel, SMOKE_BACKGROUND))
+    return `${what} is blank (the background, ${show(read.pixel)}) on ${renderer}`;
+  if (!near(read.pixel, colour))
+    return `${what} is ${show(read.pixel)}, not ${hexOf(colour)}, on ${renderer}`;
+  return null;
+}
+
+/**
+ * Why the split screen failed, or null: each viewport drew its point inside
+ * its own half, the left half the crate's colour, the right the animated
+ * sprite's first frame and then, a clip frame's ticks later, its second.
+ */
+export function judgeSplit(split: SplitProbe | undefined): string | null {
+  if (!split) return "the page ran no split screen";
+  const { renderer, width, height, crate } = split;
+  const [before, after] = split.anim;
+  for (const read of [crate, before, after]) {
+    const wrong = outsideViewport(read, width, height);
+    if (wrong) return wrong;
+  }
+  if (crate.viewport === before.viewport)
+    return `the crate and the animated sprite were both read through viewport ${crate.viewport}`;
+  const left = notColour(crate, INSIDE_COLOUR, "the left half's crate pixel", renderer);
+  if (left) return left;
+  if (split.ticks !== ANIM_FRAME_TICKS)
+    return `the animated sprite was read ${split.ticks} ticks apart, not a clip frame's ${ANIM_FRAME_TICKS}`;
+  if (before.pixel.every((c, i) => Math.abs(c - (after.pixel[i] ?? -1)) <= PIXEL_TOLERANCE))
+    return `the animated sprite didn't change in ${split.ticks} ticks: ${show(before.pixel)} both times on ${renderer}`;
+  return (
+    notColour(before, ANIM_COLOURS[0], "the animated sprite's first frame", renderer) ??
+    notColour(after, ANIM_COLOURS[1], "the animated sprite's next frame", renderer)
+  );
+}
+
 export type BrowserOutcome = {
   browser: BrowserName;
   status: "pass" | "fail" | "skipped";
   digest?: string;
   userAgent?: string;
   render?: RenderProbe;
+  split?: SplitProbe;
   physicsFree?: PhysicsFreeProbe;
   contact?: ContactRead;
   tactics?: TacticsProbe;
@@ -186,6 +269,7 @@ export function judgeResult(
     digest: result.digest,
     userAgent: result.userAgent,
     ...(result.render ? { render: result.render } : {}),
+    ...(result.split ? { split: result.split } : {}),
     ...(result.physicsFree ? { physicsFree: result.physicsFree } : {}),
     ...(result.contact !== undefined ? { contact: result.contact } : {}),
     ...(result.tactics ? { tactics: result.tactics } : {}),
@@ -206,6 +290,8 @@ export function judgeResult(
   }
   const drawn = judgeRender(result.render);
   if (drawn) return { ...seen, status: "fail", reason: drawn };
+  const split = judgeSplit(result.split);
+  if (split) return { ...seen, status: "fail", reason: split };
   const free = judgePhysicsFree(result.physicsFree, expected.physicsFree, true);
   if (free) return { ...seen, status: "fail", reason: free };
   const touched = judgeContact(result.contact);

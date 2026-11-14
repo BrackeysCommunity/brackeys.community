@@ -446,6 +446,51 @@ describe("checkReleaseManifest", () => {
     ]);
   });
 
+  it("fails a shipped blob naming an asset that doesn't ship as a kind it takes", async () => {
+    const atlas = (texture: string) =>
+      corrupt((m) => {
+        const units = mutable(m.assets.units!);
+        units.kind = "atlas";
+        units.import = { texture };
+      });
+    const missing = async (m: ReleaseManifest) =>
+      (await check(m)).filter((i) => i.code === "asset-missing");
+    expect(await missing(atlas("tiles"))).toEqual([]);
+    expect(await missing(atlas("ghost"))).toEqual([
+      expect.objectContaining({
+        path: "/assets/units",
+        entityIds: ["units", "ghost"],
+        expected: "texture",
+        got: "ghost",
+        message: `atlas "units" names "ghost" at /import/texture, which isn't among the manifest's assets`,
+      }),
+    ]);
+    expect((await missing(atlas("menu")))[0]?.message).toBe(
+      `atlas "units" names "menu" at /import/texture, which ships as a scene, not texture`,
+    );
+  });
+
+  it("fails a shipped doc's reference outside assets, given the doc's references", async () => {
+    const sites = {
+      "level-1": [
+        { pointer: "/entities/0/skin", id: "units", kinds: ["texture"] },
+        { pointer: "/entities/1/skin", id: "ghost", kinds: ["texture"] },
+      ],
+      knight: [{ pointer: "/look", id: "tiles", kinds: [] }],
+    } as Record<string, { pointer: string; id: string; kinds: string[] }[]>;
+    const docRefs = (id: AssetId) => sites[id] ?? [];
+    expect(where(await checkReleaseManifest(base.manifest, base.files, { docRefs }))).toEqual([
+      ["asset-missing", "/assets/level-1"],
+    ]);
+    const dropped = corrupt((m) => delete mutable(m.assets).tiles);
+    expect(
+      (await checkReleaseManifest(dropped, undefined, { docRefs }))
+        .filter((i) => i.path === "/assets/knight")
+        .map((i) => [i.code, i.got, i.expected]),
+    ).toEqual([["asset-missing", "tiles", "an asset"]]);
+    expect(where(await check(base.manifest))).toEqual([]);
+  });
+
   it("reports a shape the schema refuses before anything else", async () => {
     const m = corrupt((m) => ((m as unknown as Record<string, unknown>).extra = true));
     expect(where(await check(m))).toEqual([["unknown-key", "/extra"]]);

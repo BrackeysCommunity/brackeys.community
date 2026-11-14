@@ -1,0 +1,10 @@
+{
+  "$schema": "../../project/animation.schema.json",
+  "kind": "animation",
+  "v": 1,
+  "atlas": "hero",
+  "clips": [
+    { "name": "idle", "tag": "idle" },
+    { "name": "jab", "frames": [{ "frame": "hero-0", "ms": 50 }, { "events": ["strike"], "frame": "hero-1", "ms": 80, "shapes": { "hit": [["box", 0.12, 0, 0.06, 0.04]] } }, { "frame": "hero-0", "ms": 100 }], "loop": "once", "next": "idle" }
+  ]
+}

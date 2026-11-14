@@ -1,5 +1,6 @@
 import type { Store } from "@tanstack/store";
 
+import type { ViewportDef } from "./camera/viewports";
 import type { DebugLayerFactory, DebugOverlayFactory } from "./debug";
 import type { FlowRequest, LibraryScene, SceneListEntry, TransitionSpec } from "./game/flow";
 import type { SceneSwap, SwapTiming } from "./game/live";
@@ -145,6 +146,14 @@ export type GameConfig = {
   renderer?: RendererConfig;
   /** The release this instance plays; the recorder writes its id as `release`. */
   release?: { id: Sha256; manifest: ReleaseManifest };
+  /**
+   * Whether shake, flashes, particles, fades and HUD animations calm down;
+   * "auto" (the default) follows the page's `prefers-reduced-motion`.
+   * Resolved once, at `createGame`.
+   */
+  reducedMotion?: boolean | "auto";
+  /** Split screen or a minimap: 1–4 viewports over the canvas; default one framing the main targets. */
+  viewports?: readonly ViewportDef[];
 };
 
 export type RendererConfig = {
@@ -167,11 +176,12 @@ export type SceneSource = {
   scene(id: AssetId): LibraryScene | null;
 };
 
-/** Runs one half of a transition over `layer`, which sits above the game's UI. */
+/** Runs one half of a transition over `layer`, which sits above the game's UI; under `env.reducedMotion` a fade is a cut. */
 export type TransitionRunner = (
   phase: "out" | "in",
   spec: TransitionSpec,
   layer: HTMLElement,
+  env: { reducedMotion: boolean },
 ) => Promise<void>;
 
 /** What the flow host shows while a slow load runs. */
@@ -543,10 +553,14 @@ export type GameInstance = {
   router: ToolRouter;
   /** Router screen px (from the input target's corner) to world metres, through the camera. */
   screenToWorld: (screen: Vec2) => Vec2;
-  /** Page coordinates (a DOM event's `clientX`, `clientY`) to world metres, through the input target's rect and the camera. */
-  clientToWorld: (clientX: number, clientY: number) => Vec2;
-  /** Page coordinates of a world point through the camera and the canvas's rect; clientToWorld's inverse. */
-  worldToClient: (p: Vec2) => { x: number; y: number };
+  /**
+   * Page coordinates (a DOM event's `clientX`, `clientY`) to world metres,
+   * through the input target's rect and a viewport's camera: `viewport`'s,
+   * else the one under the point (the first where none is).
+   */
+  clientToWorld: (clientX: number, clientY: number, viewport?: number) => Vec2;
+  /** Page coordinates of a world point through `viewport`'s camera (default the first) and the canvas's rect; clientToWorld's inverse. */
+  worldToClient: (p: Vec2, viewport?: number) => { x: number; y: number };
   /** The project's runtime view: the one `createGame` was given, or the last `reloadAssets` passed; null without one. */
   project: () => ProjectRuntimeView | null;
   /** Bindings, remapping, seats and pointer tracking. */
@@ -579,6 +593,15 @@ export type GameInstance = {
   saves: SaveSlots;
   /** New versions of listed scenes, staged and swapped into the running game. */
   live: GameLive;
+  /** `GameConfig.reducedMotion` as resolved at `createGame`: what the effects, the camera and the UI read. */
+  readonly reducedMotion: boolean;
+  /**
+   * Replaces the viewports (1–4; throws on any other count or a rect outside
+   * the canvas). They draw in Play; the editor always shows one full view.
+   */
+  setViewports: (defs: readonly ViewportDef[]) => void;
+  /** The index of the viewport under page coordinates (the topmost), or null off every viewport. */
+  viewportAt: (clientX: number, clientY: number) => number | null;
 };
 
 /** A scene version the host fetched, ready to stage. */

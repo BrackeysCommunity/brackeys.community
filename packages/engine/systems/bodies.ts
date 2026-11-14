@@ -31,7 +31,7 @@ import { composePose, relativePose, type Pose } from "../runtime/poses";
 import type { SpaceHit } from "../runtime/space";
 import { shapeSpawnPose } from "../runtime/spawn-pose";
 import { SENSOR_ENTER, SENSOR_EXIT, type StepEvent } from "../runtime/types";
-import { aabb, translateShape } from "../scene/shape-geometry";
+import { aabb, shapeAtPose, translateShape } from "../scene/shape-geometry";
 import type { Aabb, RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
 import type { Attachment, AttachmentHost } from "./attachments";
@@ -148,6 +148,28 @@ export function bodyLocalShape(shape: ShapeObj): ShapeObj {
 
 export type OwnedBody = { body: RigidBody; collider: Collider };
 
+/**
+ * Moves a fixed body and its collider to `to` at once: Rapier carries a
+ * body's move to its colliders only at the next step, and queries before
+ * then must find the collider where the body is.
+ */
+function moveFixedBody(ctx: EngineContext, id: string, entry: OwnedBody, to: Pose): void {
+  const { rapier, physics } = physicsOf(ctx, "a body", id);
+  entry.body.setTranslation(new rapier.Vector2(to.x, to.y), true);
+  entry.body.setRotation(to.rot, true);
+  const t = entry.collider.translationWrtParent();
+  const at = t
+    ? composePose(to.x, to.y, to.rot, {
+        x: t.x,
+        y: t.y,
+        rot: entry.collider.rotationWrtParent() ?? 0,
+      })
+    : to;
+  entry.collider.setTranslation(new rapier.Vector2(at.x, at.y));
+  entry.collider.setRotation(at.rot);
+  physics.moved(entry.body);
+}
+
 const sameShape = (a: ShapeObj, b: ShapeObj) => JSON.stringify(a) === JSON.stringify(b);
 
 /** What a body table reads of an entity: its id, its shape and its quarter turns. */
@@ -164,6 +186,24 @@ function bodyOffset(e: ShapedEntity, local: boolean): Pose {
   const frame = shapePose(e.shape);
   return relativePose(pose, { x: frame.x, y: frame.y, rot: frame.rotation });
 }
+
+/** The pose of a body whose entity, at `offset` in the body's frame, is at `pose`: `composePose`'s inverse. */
+function framePose(pose: Readonly<Pose>, offset: Pose): Pose {
+  const rot = pose.rot - offset.rot;
+  if (rot === 0) return { x: pose.x - offset.x, y: pose.y - offset.y, rot };
+  const c = Math.cos(rot);
+  const s = Math.sin(rot);
+  return {
+    x: pose.x - (offset.x * c - offset.y * s),
+    y: pose.y - (offset.x * s + offset.y * c),
+    rot,
+  };
+}
+
+const framedAt = (shape: ShapeObj): Pose => {
+  const frame = shapePose(shape);
+  return { x: frame.x, y: frame.y, rot: frame.rotation };
+};
 
 /** What a geometry collider is, apart from its shape and pose. */
 export type GeometryPart = Omit<GeometryColliderDesc, "shape" | "pose">;
@@ -186,8 +226,7 @@ export function addGeometryCollider(
   let pose = at;
   let local = shape;
   if (!pose) {
-    const frame = shapePose(shape);
-    pose = { x: frame.x, y: frame.y, rot: frame.rotation };
+    pose = framedAt(shape);
     local = bodyLocalShape(shape);
   }
   const handle = world.add({ ...part, shape: local, pose });
@@ -225,6 +264,12 @@ export function createBodyTable<T extends OwnedBody>(
   const offsets = new Map<string, Pose>();
   const placed = new Map<string, { at: Vec2; handle: number | null }>();
   const disabled = new Set<string>();
+  /**
+   * For each entity `setPose` moved, its body's frame where its shape was
+   * drawn and where it is now: a world-space drawing is shifted by the
+   * difference.
+   */
+  const moved = new Map<string, { drawn: Pose; now: Pose }>();
   const posesView = opts.view !== false;
   /**
    * The pose `poseAll` wrote for each body asleep when it wrote it. A body
@@ -237,10 +282,12 @@ export function createBodyTable<T extends OwnedBody>(
   function despawn(id: string): void {
     disabled.delete(id);
     resting.delete(id);
+    moved.delete(id);
     const p = placed.get(id);
     if (p) {
       removeGeometryCollider(ctx, p.handle);
       placed.delete(id);
+      offsets.delete(id);
       ctx.view?.remove(id);
       return;
     }
@@ -310,6 +357,7 @@ export function createBodyTable<T extends OwnedBody>(
       if (disabled.has(e.id)) entry.collider.setEnabled(false);
       ctx.tags.set(entry.collider.handle, tag);
       offsets.set(e.id, bodyOffset(e, false));
+      moved.delete(e.id);
     },
     /**
      * Holds `e` with no body, at its shape's pose, with a geometry collider
@@ -320,7 +368,42 @@ export function createBodyTable<T extends OwnedBody>(
       const pose = shapePose(e.shape);
       const handle = addGeometryCollider(ctx, e.shape, part, tag);
       placed.set(e.id, { at: { x: pose.x, y: pose.y }, handle });
+      offsets.set(e.id, bodyOffset(e, false));
       return handle;
+    },
+    /**
+     * Moves the entity to `pose` (its own, as the pose index holds it): its
+     * fixed body or geometry collider goes with it, and the pose index is
+     * written without a snap so the view eases there. Returns the body's
+     * frame there, else null for an entity the table doesn't hold.
+     */
+    setPose: (id: string, pose: Readonly<Pose>, shape: ShapeObj): Pose | null => {
+      const offset = offsets.get(id);
+      if (!offset) return null;
+      const frame = framePose(pose, offset);
+      const p = placed.get(id);
+      const entry = owned.get(id);
+      if (p) {
+        p.at = { x: frame.x, y: frame.y };
+        if (p.handle !== null) ctx.geometry?.setPose(p.handle, frame.x, frame.y, frame.rot);
+      } else if (entry) {
+        moveFixedBody(ctx, id, entry, frame);
+        resting.delete(id);
+      } else return null;
+      moved.set(id, { drawn: moved.get(id)?.drawn ?? framedAt(shape), now: frame });
+      ctx.poses.set(id, pose.x, pose.y, pose.rot);
+      return frame;
+    },
+    /**
+     * Shifts the world-space drawing of an entity `setPose` moved to where
+     * its body is now; nothing for one that never moved.
+     */
+    poseDrawn: (id: string): void => {
+      const m = moved.get(id);
+      if (!m || !ctx.view || disabled.has(id)) return;
+      // The current frame seen from the drawn one: the shift that carries one to the other.
+      const at = framePose(m.now, m.drawn);
+      ctx.view.pose(id, at.x, at.y, at.rot);
     },
     /** The geometry collider of a placed entity, else null. */
     placedHandle: (id: string): number | null => placed.get(id)?.handle ?? null,
@@ -577,6 +660,7 @@ export type SolidOptions = SurfaceDefaults &
   };
 
 export type SolidSystem = SceneSystem<SolidEntity> & {
+  setPose(id: string, x: number, y: number, rot: number): void;
   /**
    * Gates this system's one-way entities for one actor's box: each stays
    * solid while the actor is on its one-way side (within 0.04 m of that face)
@@ -795,8 +879,9 @@ export function createSolidSystem(
   }
 
   function draw(e: SolidEntity): void {
-    if (opts.draw !== false && !table.disabled(e.id))
-      drawEntity(ctx, type, e, opts.layer ?? entityDrawLayer(ctx, e, "terrain"));
+    if (opts.draw === false || table.disabled(e.id)) return;
+    drawEntity(ctx, type, e, opts.layer ?? entityDrawLayer(ctx, e, "terrain"));
+    table.poseDrawn(e.id);
   }
 
   function despawn(id: string): void {
@@ -912,6 +997,27 @@ export function createSolidSystem(
     },
     isHidden: (id) => table.owned.get(id)?.hidden ?? placedOneWay.get(id)?.hidden ?? gated.has(id),
     position: (id) => table.position(id) ?? riders.position(id),
+    /**
+     * Moves the solid's body (or geometry collider) with it, so a moved door
+     * blocks where it is drawn; a hidden one-way solid stays out of the world
+     * until its gate shows it there. An attached solid rides its host.
+     */
+    setPose(id, x, y, rot) {
+      const e = records.get(id);
+      if (!e || riders.riders.has(id)) return;
+      const frame = table.setPose(id, { x, y, rot }, e.shape);
+      if (!frame) return;
+      const box = aabb(shapeAtPose(bodyLocalShape(e.shape), frame));
+      const solid = table.owned.get(id);
+      if (solid) {
+        solid.pose = { x: frame.x, y: frame.y };
+        solid.box = box;
+        if (solid.hidden) moveFixedBody(ctx, id, solid, { ...frame, y: HIDDEN_Y });
+      }
+      const placed = placedOneWay.get(id);
+      if (placed) placed.box = box;
+      if (opts.draw !== false) table.poseDrawn(id);
+    },
   };
 
   /** Gates each one-way solid, or each of side `only`: hidden unless the actor is on its side and not passing. */
@@ -1063,7 +1169,10 @@ const sameColliders = (a: readonly Collider[] | undefined, b: readonly Collider[
 const CANDIDATES_MIN_SENSORS = 32;
 
 /** Raises `sensor:enter` / `sensor:exit` after each step for every collider that starts or stops overlapping. */
-export type SensorSystem = SceneSystem<SensorEntity> & { afterStep(dtMs: number): void };
+export type SensorSystem = SceneSystem<SensorEntity> & {
+  afterStep(dtMs: number): void;
+  setPose(id: string, x: number, y: number, rot: number): void;
+};
 
 /** Overlapping collider handle → the entity id its tag names. */
 export type Overlaps = Map<number, string | undefined>;
@@ -1155,7 +1264,10 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
    */
   let stepStart: { colliders: Collider[]; near: (c: Collider) => number[] } | null = null;
   const records = new Map<string, SensorEntity>();
-  const draw = (e: SensorEntity) => drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "terrain"));
+  const draw = (e: SensorEntity) => {
+    drawEntity(ctx, type, e, entityDrawLayer(ctx, e, "terrain"));
+    table.poseDrawn(e.id);
+  };
   const riders = createRiders<SensorEntity>(ctx, type, {
     layer: (e) => entityDrawLayer(ctx, e, "terrain"),
     draw: true,
@@ -1316,6 +1428,16 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
       inside.clear();
     },
     size: () => table.size() + riders.riders.size,
+    /**
+     * Moves the sensor's collider with it: what it overlaps where it is now
+     * raises the enters and exits of the next step. An attached sensor rides
+     * its host.
+     */
+    setPose(id, x, y, rot) {
+      const e = records.get(id);
+      if (!e || riders.riders.has(id)) return;
+      if (table.setPose(id, { x, y, rot }, e.shape)) table.poseDrawn(id);
+    },
     /** What overlaps the sensor since the last step, so a restore raises no enter for it again. */
     save(id): JsonValue | undefined {
       const placed = placedSensors.get(id);

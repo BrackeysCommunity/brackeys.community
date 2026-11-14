@@ -2236,12 +2236,15 @@ export async function startWithArt(
 }
 ```
 
-- **Bundles.** `sceneBundle(scene, def, prefabs, view, kinds, registry)`
+- **Bundles.** `sceneBundle(scene, def, prefabs, view, kinds, registry, docs?)`
   (`./project`, pure) is the list of blobs a scene needs: every asset field
   of the expanded entities (instances resolved and defaults applied, so an
   id only a type's default names counts), the scene's settings, and the
   `assets` headers of the scene and of every prefab it reaches, with each
-  asset's own references followed (an atlas brings its texture). A prefab
+  asset's own references followed (an atlas brings its texture). With
+  `docs` (`{ read(kind, id) }`, the parsed runtime docs), a runtime doc a
+  field names is followed through its kind's `bundleRefs` (default: its
+  `refs`), so an `anim`'s animation brings its atlas and texture. A prefab
   a field names (a spawner's `prefab`) brings its children's assets and its
   header too; no scene `assets` header is needed for it. Only
   textures are entries (`{ id, kind, sha256, bytes }`, sorted by id, each
@@ -3239,7 +3242,8 @@ export function walkAround() {
 ## Standard behaviors
 
 Every registry, a game's or a gameless project's, holds eleven gameplay
-behaviors next to `sprite`, `occupant` and `lifetime`, so a level gets a
+behaviors next to `sprite`, `occupant`, `lifetime`, [`anim`](#animation),
+[`tween`](#tweens) and [`emitter`](#effects-and-particles), so a level gets a
 playable hero, physics props and moving parts from data alone. A behavior
 belongs here when a second, unrelated game would use it unchanged; health,
 damage, inventory, score and abilities stay in games. Each one is built on
@@ -4353,6 +4357,876 @@ Both backends give the same sixteen bumps in five seconds (`start west`,
 `end west`, `start east`, …), two sparks spawned, two bumps refused
 while both were lit, and the same `nearest` and `west`.
 
+## Presentation
+
+Through `ctx.present`, game code asks for what a player sees and hears
+but the simulation never reads back: camera moves, flashes, hit-stop,
+particle bursts and sounds. Each call appends a request to the tick's list
+and returns nothing; there is no getter. After the tick the shell presents
+the list: camera requests go to their viewport's rig, effects to the effect
+layer, bursts to the particle layer. A request made outside a step (in
+`onLoad`, `onSwap` or a hook between ticks) goes out with the next tick's.
+
+| Call                                                   | What it asks                                                                                                   |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `camera.follow(target \| null, { viewport? })`         | follow `{ entity }`, `{ point }` (metres) or `{ player }` instead of the rig's targets; `null` gives them back |
+| `camera.zoom(zoom, { ms?, ease?, viewport? })`         | ease to `zoom` over `ms` (default at once), with a named ease                                                  |
+| `camera.shake(trauma, { viewport? })`                  | add trauma, 0–1; nothing under reduced motion                                                                  |
+| `camera.snap(at?, { viewport? })`                      | jump to `at`, or to the targets' goal, with no easing                                                          |
+| `effects.flash({ color?, ms?, alpha? })`               | a full-canvas colour fading out                                                                                |
+| `effects.hitStop(ms)`                                  | stop the loop's clock for `ms` of wall time                                                                    |
+| `effects.burst(preset, at, { count?, angle?, tint? })` | particles from an `emitter` preset at a world point                                                            |
+| `audio.play`, `audio.stop`, `audio.music`              | sounds; kept in the list, but the shell plays none yet                                                         |
+
+`viewport` picks one of several [viewports](#split-screen) (default the
+first). Headless, the list is dropped unless asked for: `recordPresentation:
+true` keeps it in each `StepResult.present` (`createHeadlessRuntime`) or in
+a playtest report's `present`, each request with its tick, and `vp run
+scene playtest --present` prints it.
+
+**Presentation never changes a digest.** Nothing presentation does reaches
+the simulation: no request returns a value, the camera rig and the particle
+and effect layers draw their randomness from their own streams (seeded by
+the scene's name, never `ctx.random`), particles move on rendered frames,
+not ticks, and none of them is built headless. A run with a view and the
+same run headless end on one digest, and a recording replays the same
+whether its requests were kept or not. `anim` and tweens are the opposite
+case: they are simulation, so they run headless, replay and save.
+
+**Hit-stop online.** Hit-stop is wall time: it sets the loop's time scale
+to 0 for `ms` and back, so no tick runs meanwhile and the run's ticks and
+digest are what they would have been without it. Headless and edit mode
+ignore it, and so will online sessions, since a session owns the clock. A
+game whose pause every peer must agree on freezes its own state for a
+number of ticks (a timer) instead.
+
+The blade game ([Animation](#animation) has it) asks for a shake, a
+hit-stop and a burst on each hit; this plays the same swings twice, once
+keeping the requests:
+
+```ts blade-playtest.ts
+import { runPlaytest } from "@jams/engine/headless";
+
+import { bladeGame, bladeProject, practice } from "./blade-game";
+
+const script = {
+  v: 2 as const,
+  steps: [
+    { command: "cut" },
+    { wait: 20 },
+    { command: "back" },
+    { wait: 10 },
+    { command: "cut" },
+    { wait: 20 },
+  ],
+};
+
+/** Plays the swings twice, once keeping what they asked the shell to present: both runs end on one digest. */
+export function swingTwice() {
+  const play = (recordPresentation: boolean) => {
+    const run = runPlaytest({
+      game: bladeGame,
+      scene: practice,
+      project: bladeProject,
+      script,
+      recordPresentation,
+    });
+    if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run)}`);
+    return run;
+  };
+  const presented = play(true);
+  const plain = play(false);
+  return {
+    final: presented.final,
+    present: presented.present ?? [],
+    sameDigest: presented.recording.end === plain.recording.end,
+  };
+}
+```
+
+It reports one hit at tick 3 (a `camera` `shake`, an `effect` `hitStop`
+and an `effect` `burst` at the post), and `sameDigest` is true.
+
+## Animation
+
+The `anim` behavior plays an atlas's tags, or an animation doc's clips, on
+the simulation's ticks, headless included: frame events and per-frame
+shapes are gameplay, so they must replay. It requires a `sprite`; when there
+is a view, each frame it enters is handed to the sprite system. Its
+definition is `ANIM` (`./game`), beside `TWEEN` and `EMITTER`.
+
+| Field     | Default | What it is                                                                |
+| --------- | ------- | ------------------------------------------------------------------------- |
+| `source`  | —       | an `animation` doc, or an `atlas` whose tags are the clips                |
+| `clip`    | —       | the clip playing at spawn                                                 |
+| `speed`   | 1       | multiplies the clip's own speed, up to 16                                 |
+| `playing` | true    | false starts it stopped, until `ctx.anim.play`                            |
+| `offset`  | 0       | ticks into the clip at spawn, so a row of torches doesn't flicker in step |
+
+An atlas alone animates: name it as `source` and each tag is a clip with
+the atlas's frame durations and direction (`reverse` plays backwards,
+`pingpong` stays). An `animation` doc (`animation:v1`,
+`project/animation.schema.json`) is clips over one atlas, where frame
+events and hitboxes are written:
+
+```json
+{
+  "$schema": "…/animation.schema.json",
+  "kind": "animation",
+  "v": 1,
+  "atlas": "blade-sheet",
+  "clips": [
+    { "name": "rest", "tag": "rest" },
+    {
+      "name": "cut",
+      "loop": "once",
+      "next": "rest",
+      "frames": [
+        { "frame": "cut-0", "ms": 50 },
+        {
+          "frame": "cut-1",
+          "ms": 50,
+          "events": ["swish"],
+          "shapes": { "hit": [["box", 0.3, 0, 0.15, 0.05]] }
+        },
+        { "frame": "cut-2", "ms": 100 }
+      ]
+    }
+  ]
+}
+```
+
+- A clip's `tag` takes the tag's frames and direction; its `frames` list
+  them one by one instead, or override a tag's frames by index. A frame
+  is `{ frame, ms?, events?, shapes? }`: `ms` defaults to the atlas
+  frame's duration, else 100.
+- `loop` is `loop`, `once`, `pingpong` or `hold` (default: the tag's
+  direction, else `loop`). A `once` clip goes on to `next`; with none it
+  holds its last frame.
+- `speed` (default 1) scales the clip, and the block's `speed` scales it
+  again.
+- The doc is checked against its atlas: `anim-tag-unknown` for a tag the
+  atlas lacks, `asset-frame-unknown` for a frame name, `frame-shape-invalid`
+  for a shape that doesn't parse or a set name that isn't lowercase
+  (`/^[a-z][a-z0-9-]{0,31}$/`), `anim-clip-unknown` for a `next` naming no
+  clip, and `asset-kind` for an `atlas` that isn't one, each with the
+  closest name. A doc is at most 256 KiB and 512 clips.
+- `animationIssues(file, atlas)` (`./project`) is that check, the one
+  the kind's validation, `resolveClips` and `assets info` all call;
+  `validateProject(view, texts, kinds, env)` runs every doc's own checks,
+  then the checks across docs, as a project batch does.
+
+**Ticks.** Durations become whole ticks once, when a clip is resolved:
+`ms` through the game's rate, at least one tick. A clip then lands on the
+same tick in every run, on any display. Speed is added up in thousandths
+of a tick: at 1.5 a clip moves one tick, then two, with nothing lost.
+`resolveClips(source, atlas, time)` and `clipFrameAt(clip, elapsed)`
+(`./game`) are the pure functions behind it, and what `vp run scene assets
+info` prints:
+
+```ts blade-clips.ts
+import { clipFrameAt, resolveClips } from "@jams/engine/game";
+import { animationIssues } from "@jams/engine/project";
+
+import { bladeMoves, bladeSheet } from "./blade-game";
+
+/** The blade's clips at a tick rate: frame lengths in whole ticks, and where `cut` is after 4 ticks. */
+export function clipsAt(rate: number) {
+  const { clips, issues } = resolveClips({ animation: bladeMoves }, bladeSheet, { rate });
+  const cut = clips.get("cut")!;
+  return {
+    issues: issues.map((i) => i.code),
+    rest: clips.get("rest")!.frames.map((f) => f.ticks),
+    cut: cut.frames.map((f) => [f.frame, f.ticks, f.events] as const),
+    length: cut.length,
+    afterFour: clipFrameAt(cut, 4),
+  };
+}
+
+/** A clip naming a tag the sheet lacks, and a `next` naming no clip. */
+export function brokenMoves(): string[] {
+  const broken = {
+    ...bladeMoves,
+    clips: [
+      { name: "rest", tag: "idle" },
+      { name: "cut", frames: [{ frame: "cut-0" }], loop: "once" as const, next: "recover" },
+    ],
+  };
+  return animationIssues(broken, bladeSheet).map((i) => i.code);
+}
+```
+
+At 60 Hz `cut`'s frames are 3, 3 and 6 ticks, and four ticks in it is one
+tick into `cut-1`; at 30 Hz they are 2, 2 and 3. `brokenMoves()` gives
+`anim-tag-unknown` and `anim-clip-unknown`.
+
+**Events.** A frame that declares events raises `anim:frame`
+(`ANIM_FRAME`) on the tick it is entered, once per event, with `data: {
+clip, frame, index, event }`; frames without events raise nothing. A
+`once` clip with no `next` raises `anim:end` (`ANIM_END`, `data: { clip }`)
+at its end.
+
+**`ctx.anim`.** `play(id, clip, { restart?, speed? })` (an unknown clip
+throws `EngineError("anim-clip-unknown")`), `stop(id)`, `state(id)` (`{
+clip, frame, index, into, playing, speed }`, `into` in ticks) and
+`shapes(id, set)`.
+
+**Frame shapes are data, not colliders.** A frame's named shape sets
+(`hit`, `hurt-high`) are written in the entity's local metres. `shapes(id,
+set)` gives the current frame's set in world space: mirrored by the
+entity's flip (the sprite's `flipX` and the instance's flip), then turned
+and moved by its pose; `[]` when the frame has none.
+`overlapFrameShapes(ctx, a, setA, b, setB)` is true when any shape of one
+touches any of the other. No physics collider is made, so they cost the
+physics world nothing and behave the same with or without Rapier.
+
+A clip's place is held in world saves, and an entity a live update
+reconciles keeps playing where it was. The blade game plays `cut` on a
+command and tests its `hit` set against the post's `hurt` set on the
+`swish` frame:
+
+```ts blade-game.ts
+import { ANIM_FRAME, defineGame, overlapFrameShapes, type EngineContext } from "@jams/engine/game";
+import { memoryRuntimeView, type AssetInfo, type ProjectRuntimeView } from "@jams/engine/headless";
+import type { AnimationFile } from "@jams/engine/project";
+import type { SceneDefinition } from "@jams/engine/scene";
+
+/** The sheet's meta as the project reads it from the atlas: frames, durations and tags. */
+export const bladeSheet: AssetInfo = {
+  id: "blade-sheet",
+  kind: "atlas",
+  frames: ["rest-0", "rest-1", "cut-0", "cut-1", "cut-2", "post-0"],
+  durations: [150, 150, null, null, null, null],
+  tags: [{ name: "rest", from: 0, to: 1, direction: "forward" }],
+};
+
+/** `rest` is the sheet's tag as it is; `cut` and `stand` are written frame by frame. */
+export const bladeMoves: AnimationFile = {
+  kind: "animation",
+  v: 1,
+  atlas: "blade-sheet",
+  clips: [
+    { name: "rest", tag: "rest" },
+    {
+      name: "cut",
+      loop: "once",
+      next: "rest",
+      frames: [
+        { frame: "cut-0", ms: 50 },
+        {
+          frame: "cut-1",
+          ms: 50,
+          events: ["swish"],
+          shapes: { hit: [["box", 0.3, 0, 0.15, 0.05]] },
+        },
+        { frame: "cut-2", ms: 100 },
+      ],
+    },
+    {
+      name: "stand",
+      frames: [{ frame: "post-0", shapes: { hurt: [["box", 0, 0, 0.1, 0.3]] } }],
+    },
+  ],
+};
+
+/** The docs a run reads, and the atlas meta behind them; no image is ever decoded. */
+export const bladeProject: ProjectRuntimeView = {
+  ...memoryRuntimeView({ docs: { animation: { "blade-moves": bladeMoves } } }),
+  asset: (id) => (id === bladeSheet.id ? bladeSheet : undefined),
+};
+
+const animated = (id: string, x: number, clip: string) => ({
+  id,
+  type: "marker",
+  at: [x, 1] as [number, number],
+  behaviors: {
+    sprite: { asset: "blade-sheet", frame: clip === "stand" ? "post-0" : "rest-0" },
+    anim: { source: "blade-moves", clip },
+  },
+});
+
+export const practice: SceneDefinition = {
+  v: 4,
+  game: "blade",
+  name: "practice",
+  bounds: [0, 0, 4, 2],
+  settings: { physics: "none" },
+  entities: [animated("blade", 1, "rest"), animated("post", 1.4, "stand")],
+};
+
+export type BladeSnapshot = { swishes: number; hits: number; clip: string | null };
+
+/**
+ * `cut` swings the blade and `back` steps it away from the post; each swish
+ * that reaches the post's hurt box shakes the camera, stops time and sparks.
+ */
+export const bladeGame = defineGame<BladeSnapshot>({
+  id: "blade",
+  types: [],
+  actions: [],
+  world: { physics: "none" },
+  commands: {
+    cut: { description: "Swing the blade." },
+    back: { description: "Step the blade half a metre away from the post." },
+  },
+  createRuntime(ctx: EngineContext) {
+    let swishes = 0;
+    let hits = 0;
+    return {
+      onLoad() {
+        swishes = 0;
+        hits = 0;
+        ctx.events.on(ANIM_FRAME, (e) => {
+          const { event } = e.data as { event: string };
+          if (e.entityId !== "blade" || event !== "swish") return;
+          swishes++;
+          if (!overlapFrameShapes(ctx, "blade", "hit", "post", "hurt")) return;
+          hits++;
+          const at = ctx.poses.get("post");
+          ctx.present.camera.shake(0.4);
+          ctx.present.effects.hitStop(60);
+          if (at) ctx.present.effects.burst("sparks", { x: at.x, y: at.y });
+        });
+      },
+      beforeStep(_dtMs, _actions, commands) {
+        for (const c of commands) {
+          if (c.name === "cut") ctx.anim.play("blade", "cut", { restart: true });
+          if (c.name === "back") ctx.tweens.to("blade", { to: { x: 0.5 }, duration: 6 });
+        }
+      },
+      snapshot: () => ({ swishes, hits, clip: ctx.anim.state("blade")?.clip ?? null }),
+    };
+  },
+});
+```
+
+`bladeProject` is a runtime view built by hand, with the atlas's meta and
+the doc; a project's own view gives the same from its files.
+
+## Tweens
+
+`ctx.tweens` and the `tween` behavior animate an entity's pose (`x` and `y`
+in metres, `rot` in radians) and its sprite's `alpha`, `tint` (0xRRGGBB,
+each colour channel in turn) and `scale`, over whole ticks. Each tick the
+value is `from + (to − from) × ease(t)` with `t = elapsed / duration`, a
+fraction that is exact until the ease, so a tween lands on the same tick
+and value in every run. Tweens are simulation: they run headless, replay
+and save.
+
+| Field      | Default        | What it is                                                                                             |
+| ---------- | -------------- | ------------------------------------------------------------------------------------------------------ |
+| `to`       | —              | the values to reach, at least one channel                                                              |
+| `from`     | current values | the values to start from, read when the first play starts                                              |
+| `duration` | —              | ticks, or `{ "ms": n }` rounded to ticks once at the run's rate                                        |
+| `ease`     | `linear`       | one of `EASE_NAMES`                                                                                    |
+| `delay`    | none           | ticks or `{ "ms": n }` before the first play                                                           |
+| `repeat`   | 0              | extra plays; -1 forever                                                                                |
+| `yoyo`     | false          | every other play runs backwards                                                                        |
+| `emit`     | `tween:end`    | `{ type, data? }` raised as a step event when it finishes; without it, `tween:end` with `{ id, key? }` |
+| `key`      | none           | tweens of one entity sharing a key replace each other                                                  |
+
+`EASE_NAMES` is `linear` and each of `quad`, `cubic`, `quart`, `quint`,
+`sine`, `expo`, `circ`, `back`, `elastic` and `bounce` with `In`, `Out` and
+`InOut`. `ease(name, t)` (`./game`) uses only `+ − × ÷` and `Math.sqrt`
+(`sine`, `expo` and `elastic` are polynomials within 1e-6 of the curve):
+every JavaScript engine rounds those operations alike, and transcendental
+functions aren't guaranteed to, so a tweened puzzle replays everywhere.
+
+- `ctx.tweens.to(entityId, spec)` starts one and returns its id;
+  `value(from, to, { …spec, onUpdate, onDone? })` animates a number in game
+  state through callbacks; `cancel(id)`, `cancelAll(entityId)` and `size`
+  (tweens running or waiting on a delay).
+- A `tween` block lists 1–8 specs the entity plays from spawn, each on its
+  own: bobbing pickups, swinging signs, pulsing lights.
+- **What can be tweened.** A pose channel needs a type that can be posed:
+  `marker`, `decor`, `solid` and `sensor`, and game types whose system
+  implements `SceneSystem.setPose` (or that sit on one of those bases with
+  no system of their own). `prop` and `follower` can't. A visual channel
+  needs a `sprite`. Anything else is `tween-target-invalid`: an error in a
+  scene's validation for a `tween` block, and an `EngineError` thrown from
+  `ctx.tweens.to`.
+- `solid` and `sensor` move their collider with the pose, so a tweened
+  door blocks where it is drawn, and the pose is written without a snap,
+  so it draws smoothly between ticks.
+- **A tweened collider teleports.** A posed `solid` is set to its new place
+  each tick; it isn't a moving body. Bodies resting on a tweened platform
+  aren't carried along. A platform that carries riders stays a `follower`
+  (or a kinematic `body` with `path-follow`).
+- An entity's tweens are cancelled when it is destroyed and paused while it
+  is disabled, as its timers are.
+- World saves keep data tweens. A pending `value` tween holds functions, so
+  it makes a world save `save-unsupported`, naming it; raise an event with
+  `emit` and subscribe instead.
+
+A bobbing, fading decor is a block:
+
+```json
+{
+  "id": "lamp",
+  "type": "decor",
+  "at": [5.8, 5],
+  "behaviors": {
+    "sprite": { "asset": "crates", "frame": "crate-0" },
+    "tween": {
+      "tweens": [
+        {
+          "to": { "y": 4.6, "alpha": 0.5 },
+          "duration": { "ms": 800 },
+          "ease": "sineInOut",
+          "repeat": -1,
+          "yoyo": true
+        }
+      ]
+    }
+  }
+}
+```
+
+and a lift is a tween from code:
+
+```ts lift-tweens.ts
+import {
+  createRegistry,
+  defineGame,
+  EngineError,
+  ease,
+  type EngineContext,
+} from "@jams/engine/game";
+import { createHeadlessRuntime } from "@jams/engine/headless";
+import { expandScene, type SceneDefinition } from "@jams/engine/scene";
+
+export const ARRIVED = "lift:arrived";
+
+export type LiftSnapshot = { cabY: number; arrivedAt: number | null; running: number };
+
+/** `raise` eases the cab up a floor; the beacon turns forever from its `tween` block. */
+export const liftGame = defineGame<LiftSnapshot>({
+  id: "lift",
+  types: [],
+  actions: [],
+  world: { physics: "none" },
+  commands: { raise: { description: "Send the cab up one floor." } },
+  createRuntime(ctx: EngineContext) {
+    let arrivedAt: number | null = null;
+    return {
+      onLoad() {
+        arrivedAt = null;
+        ctx.events.on(ARRIVED, (e) => void (arrivedAt = e.tick));
+      },
+      beforeStep(_dtMs, _actions, commands) {
+        for (const c of commands) {
+          if (c.name !== "raise") continue;
+          const y = ctx.poses.get("cab")?.y ?? 0;
+          ctx.tweens.to("cab", {
+            to: { y: y - 1 },
+            duration: { ms: 500 },
+            ease: "quadOut",
+            key: "move",
+            emit: { type: ARRIVED },
+          });
+        }
+      },
+      snapshot: () => ({
+        cabY: ctx.poses.get("cab")?.y ?? 0,
+        arrivedAt,
+        running: ctx.tweens.size,
+      }),
+    };
+  },
+});
+
+export const shaft: SceneDefinition = {
+  v: 4,
+  game: "lift",
+  name: "shaft",
+  bounds: [0, 0, 2, 4],
+  entities: [
+    { id: "cab", type: "marker", at: [1, 3] },
+    {
+      id: "beacon",
+      type: "marker",
+      at: [1, 0.2],
+      behaviors: { tween: { tweens: [{ to: { rot: 6.2832 }, duration: 120, repeat: -1 }] } },
+    },
+  ],
+};
+
+/** Raises the cab, runs past its arrival, then asks a sprite-less marker to fade. */
+export function rideUp() {
+  const registry = createRegistry(liftGame);
+  const rt = createHeadlessRuntime({
+    game: liftGame,
+    registry,
+    scene: expandScene(shaft, registry),
+  });
+  rt.step(rt.ctx.time.tickMs, [], [{ name: "raise" }]);
+  for (let i = 0; i < 40; i++) rt.step(rt.ctx.time.tickMs, []);
+  const snapshot = rt.game?.snapshot?.() as LiftSnapshot;
+  let refused: string | null = null;
+  try {
+    rt.ctx.tweens.to("cab", { to: { alpha: 0.5 }, duration: 10 });
+  } catch (err) {
+    if (err instanceof EngineError) refused = err.code;
+  }
+  rt.destroy();
+  return { ...snapshot, refused, halfway: ease("quadOut", 0.5) };
+}
+```
+
+`rideUp()` finds the cab a floor up (`y` exactly 2) with its arrival
+raised on tick 29, the beacon's tween still running, `refused` as
+`tween-target-invalid` (the cab has no sprite to fade) and `halfway` 0.75.
+
+## Cameras
+
+The camera is view-side: game code steers it, and nothing reads it back.
+In Play the shell runs a camera rig every rendered frame, a pure function
+of the last frame, the frame's wall time, the targets and the scene's
+camera regions. Headless there is no rig. The editor's free camera,
+`screenToWorld` and `snapTo` are unchanged.
+
+**Targets.** The rig follows the first of: `GameRuntime.cameraTargets()`
+(several, each `{ at, velocity?, weight?, player? }`), `cameraTarget()`
+(one point, or `null` to hold still), and the live entities carrying the
+`camera-target` behavior (`weight`, `seat`), read from the pose index with
+velocity from the last tick's pose. A `follow` request replaces them until
+`follow(null)`.
+
+**The rig** is a `CameraRigDef` (`./game`, schema `CAMERA_RIG_SCHEMA`), from
+`GameDefinition.camera`, with the scene's `settings.camera` over it field
+by field; a viewport's own `rig` replaces both. With none, the camera
+follows its targets directly until the first camera request gives it a
+rig with the defaults.
+
+| Field       | Default                    | What it is                                                                                  |
+| ----------- | -------------------------- | ------------------------------------------------------------------------------------------- |
+| `deadzone`  | `[0, 0]`                   | metres around the target, `[w, h]`, the camera doesn't follow inside                        |
+| `lookAhead` | 0                          | seconds of the target's velocity the camera leads by                                        |
+| `maxLead`   | none                       | metres the lead is capped at                                                                |
+| `damping`   | 0.12                       | seconds to close half the distance to the goal, at any frame rate                           |
+| `fit`       | none                       | `{ padding, minZoom, maxZoom }`: with several targets, zoom out to keep them all in view    |
+| `shake`     | 10 px, no turn, 1 a second | `{ maxOffset, maxTurn, decay }`: view px and radians at full trauma, trauma lost per second |
+
+Shake is trauma: `shake(t)` adds `t` (up to 1), it decays at `decay` per
+second, and the offset is trauma² × `maxOffset` (the turn trauma² ×
+`maxTurn`), drawn from the rig's own random stream. `zoom` eases to its
+value; `snap` jumps. Layers with a `scroll` take their parallax from the
+rig's position.
+
+**Camera regions.** `camera-region` is an engine primitive: a `box` shape
+in world metres, `zoom?`, `clamp` (default true: the view stays inside the
+box) and `ease` (seconds to move into the region's framing, default 0.4).
+It has no body and no system state, so it loads with or without physics.
+The region holding the first target wins; where regions overlap, the
+smallest, then the first in scene order; leaving every region eases back
+to the scene's bounds. The editor outlines regions on an editor-only layer,
+hidden in Play, and `vp run scene render` draws their boxes (`c` in
+`--ascii`). The rig reads regions from the scene as it stands each frame,
+so a live update that moves one takes effect on the next frame.
+
+```ts lookout-game.ts
+import { defineGame, type EngineContext } from "@jams/engine/game";
+import type { SceneDefinition } from "@jams/engine/scene";
+
+/**
+ * A scout walks the ridge under a look-ahead rig. When it reaches the tower
+ * the game frames the tower for a second, closer in, then hands the camera
+ * back to the rig's own target.
+ */
+export const lookoutGame = defineGame({
+  id: "lookout",
+  types: [],
+  actions: [],
+  world: { physics: "none" },
+  camera: {
+    deadzone: [1, 0.6],
+    lookAhead: 0.25,
+    maxLead: 1.5,
+    damping: 0.15,
+    shake: { maxOffset: 12, maxTurn: 0.02, decay: 1.5 },
+  },
+  createRuntime(ctx: EngineContext) {
+    let seen = false;
+    return {
+      onLoad() {
+        seen = false;
+      },
+      afterStep() {
+        const scout = ctx.poses.get("scout");
+        if (seen || !scout || scout.x < 7) return;
+        seen = true;
+        ctx.present.camera.follow({ entity: "tower" });
+        ctx.present.camera.zoom(1.6, { ms: 400, ease: "sineOut" });
+        ctx.present.effects.flash({ color: 0xfff1c0, ms: 200, alpha: 0.4 });
+        ctx.timers.after({ ms: 1000 }, () => {
+          ctx.present.camera.follow(null);
+          ctx.present.camera.zoom(1, { ms: 400 });
+        });
+      },
+      snapshot: () => ({ seen }),
+    };
+  },
+});
+
+export const ridge: SceneDefinition = {
+  v: 4,
+  game: "lookout",
+  name: "ridge",
+  bounds: [0, 0, 12, 4],
+  // The scene's camera settings win over the game's, field by field.
+  settings: { camera: { damping: 0.25 } },
+  entities: [
+    {
+      id: "scout",
+      type: "marker",
+      at: [1, 3],
+      behaviors: {
+        "camera-target": {},
+        tween: { tweens: [{ to: { x: 9 }, duration: { ms: 3000 }, ease: "sineInOut" }] },
+      },
+    },
+    { id: "tower", type: "marker", at: [10, 1.5] },
+    { id: "overlook", type: "camera-region", shape: ["box", 10, 2, 2, 2], zoom: 1.4, ease: 0.6 },
+  ],
+};
+```
+
+```ts lookout-playtest.ts
+import { runPlaytest } from "@jams/engine/headless";
+
+import { lookoutGame, ridge } from "./lookout-game";
+
+/** Walks the ridge for four seconds and lists the camera and effect requests with their ticks. */
+export function watchRidge() {
+  const run = runPlaytest({
+    game: lookoutGame,
+    scene: ridge,
+    script: { v: 2, steps: [{ wait: 240 }] },
+    recordPresentation: true,
+  });
+  if (run.blocked) throw new Error(`${run.stage}: ${JSON.stringify(run)}`);
+  return (run.present ?? []).map(({ tick, kind, op }) => `${tick} ${kind} ${op.op}`);
+}
+```
+
+`watchRidge()` lists `120 camera follow`, `120 camera zoom`, `120 effect
+flash`, then `180 camera follow` and `180 camera zoom`: the scout passes
+x 7 on tick 120, and the timer hands the camera back a second later.
+
+## Split screen
+
+`GameConfig.viewports`, or `GameInstance.setViewports(defs)` at any time,
+draws one world through 1–4 viewports: split screen for local
+multiplayer, or a minimap. `setViewports` throws on any other count or a
+rectangle outside the canvas. The editor always shows one full view;
+viewports draw in Play.
+
+| Field    | What it is                                                                                                        |
+| -------- | ----------------------------------------------------------------------------------------------------------------- |
+| `rect`   | `[x, y, w, h]` in canvas fractions, 0–1                                                                           |
+| `frame`  | `{ player: n }` (a seat's targets), `{ entity: id }`, `"main"` (the rig's targets) or `"scene"` (the whole scene) |
+| `layers` | the scene layers it draws; default all but editor-only                                                            |
+| `rig`    | its own `CameraRigDef`, in place of the game's and the scene's                                                    |
+| `border` | `{ width, color }`: a frame of `width` view px around it                                                          |
+
+- `{ player: n }` follows the `cameraTargets()` entries with `player: n`,
+  else the `camera-target` entities whose `seat` is n or unset.
+- A `"scene"` viewport fits the scene's bounds, never shakes and takes no
+  camera requests; a minimap usually lists only a few layers.
+- Each viewport after the first renders the world into its own texture
+  with its camera and parallax; interpolation and y-sort still run once a
+  frame. Later viewports draw over earlier ones.
+- `viewportAt(clientX, clientY)` is the topmost viewport under a point, or
+  null. `clientToWorld(x, y, viewport?)` goes through that viewport's
+  camera (default: the one under the point), and `worldToClient(p,
+viewport?)` through the first's by default. The pointer a tick records
+  is taken through the viewport under it.
+- A camera request names its viewport with `viewport` (default 0).
+
+```ts split-screen.ts
+import type { GameInstance, ViewportDef } from "@jams/engine";
+import { defineGame, type EngineContext } from "@jams/engine/game";
+
+/** Two halves, each following one seat, and a minimap of the whole scene over the seam. */
+export const sideBySide: ViewportDef[] = [
+  { rect: [0, 0, 0.5, 1], frame: { player: 0 }, border: { width: 2, color: 0x101820 } },
+  { rect: [0.5, 0, 0.5, 1], frame: { player: 1 }, border: { width: 2, color: 0x101820 } },
+  { rect: [0.4, 0.74, 0.2, 0.24], frame: "scene", layers: ["terrain", "gameplay"] },
+];
+
+const SOLO: ViewportDef[] = [{ rect: [0, 0, 1, 1], frame: "main" }];
+
+/** Splits the screen once a second seat joins, and joins it back when one leaves. */
+export function fitSeats(game: Pick<GameInstance, "setViewports">, seats: number): void {
+  game.setViewports(seats > 1 ? sideBySide : SOLO);
+}
+
+/** The world point under a click, through whichever viewport it landed in. */
+export function pointUnder(
+  game: Pick<GameInstance, "viewportAt" | "clientToWorld">,
+  clientX: number,
+  clientY: number,
+) {
+  const viewport = game.viewportAt(clientX, clientY);
+  return viewport === null
+    ? null
+    : { viewport, at: game.clientToWorld(clientX, clientY, viewport) };
+}
+
+/** Each seat's runner is that seat's camera target; with one seat the camera frames both. */
+export const relayGame = defineGame({
+  id: "relay",
+  types: [],
+  actions: [],
+  world: { physics: "none" },
+  createRuntime: (ctx: EngineContext) => ({
+    cameraTargets: () =>
+      ["red", "blue"].flatMap((id, player) => {
+        const pose = ctx.poses.get(id);
+        return pose ? [{ at: { x: pose.x, y: pose.y }, player }] : [];
+      }),
+    snapshot: () => null,
+  }),
+});
+```
+
+## Effects and particles
+
+- **Flash** is a full-canvas DOM layer over every viewport and under the
+  UI, fading over `ms` (default 120 ms, alpha 0.8, white).
+- **Hit-stop** sets the loop's time scale to 0 for `ms` of wall time, then
+  back to what it was; overlapping hit-stops extend to the latest end. No
+  tick runs meanwhile. It is ignored headless and in edit mode (see
+  [Hit-stop online](#presentation)).
+- **Bursts** (`present.effects.burst(preset, at, opts)`) fire particles at
+  a world point: `count` defaults to the preset's bursts' total, else one
+  second of its rate; `angle` turns its angle range, in degrees; `tint`
+  replaces its tint curve.
+
+A particle preset is an `emitter` doc (`emitter:v1`,
+`project/emitter.schema.json`). It is drawn only, so it never joins a
+run's hash and a release can change it without staling recordings:
+
+| Field                      | What it is                                                                                          |
+| -------------------------- | --------------------------------------------------------------------------------------------------- |
+| `texture`, `frame`         | a texture, or an atlas and its frame; omitted, particles draw as small squares                      |
+| `blend`                    | how particles blend; default normal                                                                 |
+| `rate`                     | particles per second while emitting; 0 for bursts only                                              |
+| `bursts`                   | `[{ atMs, count }]` fired after emitting starts                                                     |
+| `lifeMs`, `speed`, `angle` | `[min, max]` ranges picked per particle: ms, m/s, and degrees (0 is +x, clockwise with y down)      |
+| `drift`, `damping`         | a constant acceleration `[x, y]` in m/s², and how fast particles slow, per second                   |
+| `scale`, `alpha`, `tint`   | curves over a particle's life: `[t, value]` keys, t from 0 to 1, linear between                     |
+| `shape`                    | where particles are born: `point`, `{ kind: "circle", r }` or `{ kind: "box", w, h }`, metres       |
+| `space`                    | `world` (they stay where born) or `local` (they move with the entity)                               |
+| `max`, `durationMs`        | the most alive at once (default 500, at most 4,096), and how long it emits (default: while enabled) |
+
+```ts sparks-preset.ts
+import { createRegistry } from "@jams/engine/game";
+import type { AssetInfo } from "@jams/engine/headless";
+import { emitterIssues, emitterKind, parseAssetDoc, type EmitterFile } from "@jams/engine/project";
+
+/** Sparks thrown up and to the sides, falling back under their drift. Lengths in metres, speeds m/s. */
+export const sparks: EmitterFile = {
+  kind: "emitter",
+  v: 1,
+  texture: "fx-sheet",
+  frame: "spark",
+  blend: "add",
+  rate: 0,
+  bursts: [{ atMs: 0, count: 12 }],
+  lifeMs: [300, 600],
+  speed: [0.8, 2.2],
+  angle: [-150, -30],
+  drift: [0, 4],
+  damping: 0.5,
+  scale: [
+    [0, 1],
+    [1, 0.2],
+  ],
+  alpha: [
+    [0, 1],
+    [0.7, 1],
+    [1, 0],
+  ],
+  tint: [
+    [0, 0xffffff],
+    [1, 0xff8800],
+  ],
+  shape: { kind: "circle", r: 0.06 },
+  max: 200,
+};
+
+const fxSheet: AssetInfo = { id: "fx-sheet", kind: "atlas", frames: ["spark", "smoke"] };
+
+/** The preset as a project reads its file, then a speed range written backwards and a frame the sheet lacks. */
+export function checkSparks() {
+  const env = { registry: createRegistry(), project: null };
+  const read = (file: EmitterFile) => parseAssetDoc(emitterKind, JSON.stringify(file), env);
+  return {
+    ok: read(sparks).ok,
+    backwards: read({ ...sparks, speed: [2.2, 0.8] }).issues.map((i) => i.code),
+    frame: emitterIssues({ ...sparks, frame: "sprak" }, fxSheet).map((i) => i.code),
+  };
+}
+```
+
+`checkSparks()` reads the preset clean, refuses the backwards speed range
+as `schema`, and the misspelt frame as `asset-frame-unknown`.
+
+The `emitter` behavior (visual only) emits from a preset at its entity:
+`preset`, `emitting` (default true), `offset` (metres from the pose,
+turning and flipping with the instance) and `rate` (over the preset's).
+It draws on the entity's layer, bursts on `gameplay`. Particles move on
+rendered frames by the loop's scaled wall time, so pause and hit-stop
+freeze them, and they draw from the layer's own random stream; headless
+there are none.
+
+The shell makes both layers. A host that draws its own world uses them
+from `.`: `createParticleLayer(container, textures, { reducedMotion, seed,
+pxPerMetre?, layer?, texture? })` draws into a Pixi container, and
+`createEffectLayer(layer, loop, { reducedMotion })` takes a DOM element
+over the canvas and anything with a time scale:
+
+```ts own-effects.ts
+import { createEffectLayer, type EffectLayer } from "@jams/engine";
+
+/** What hit-stop drives: any loop with a time scale. */
+type Clock = { setTimeScale(scale: number): void; getTimeScale(): number };
+
+/**
+ * A host with its own loop and canvas: the flash covers `over` (a div laid
+ * over the canvas, under the UI), and hit-stop holds the loop's clock.
+ */
+export function hostEffects(
+  over: HTMLElement,
+  loop: Clock,
+  prefersCalm: () => boolean,
+): EffectLayer {
+  const effects = createEffectLayer(over, loop, { reducedMotion: prefersCalm });
+  effects.flash({ color: 0xff3344, ms: 150 });
+  effects.hitStop(80);
+  return effects;
+}
+```
+
+## Reduced motion
+
+`GameConfig.reducedMotion` is `true`, `false` or `"auto"` (the default:
+the page's `prefers-reduced-motion`). It is resolved once, at
+`createGame`, and every part reads that one value: `GameInstance.reducedMotion`
+and `UiContext.reducedMotion` carry it.
+
+| What                            | Under reduced motion                                              |
+| ------------------------------- | ----------------------------------------------------------------- |
+| Camera shake                    | dropped: shake requests do nothing and trauma stays 0             |
+| Flash                           | alpha at most 0.3, and at most 80 ms                              |
+| Particles                       | emitter rates and burst counts quartered                          |
+| Scene transitions               | a fade is a cut                                                   |
+| The game's HUD                  | `UiContext.reducedMotion`, for the game's own animations to read  |
+| Hit-stop                        | unchanged: it is a pause, not motion                              |
+| Camera follow, zoom and regions | unchanged                                                         |
+| `anim` and tweens               | unchanged: they are simulation, and run the same for every player |
+
 ## Genre probes
 
 The engine proves it isn't a platformer engine with small games built in
@@ -4360,23 +5234,27 @@ tests from the primitives and the APIs above, under
 `packages/engine/__tests__/genres/`. Each probe is a game, a scene built in
 code, an input script and the result it must reach:
 
-| Probe             | Genres                                    | Physics | Time  | What it plays                                                                                                                |
-| ----------------- | ----------------------------------------- | ------- | ----- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `grid-puzzle`     | puzzle, card and board games              | none    | event | a square-grid Sokoban: arrow keys step a pusher; won with both crates on goals                                               |
-| `top-down`        | top-down, racing                          | rapier  | fixed | a top-down controller steers through a corridor of solids into a goal sensor                                                 |
-| `turn-tactics`    | tactics, roguelikes                       | none    | turns | hex grid, `move` and `end-turn` commands; A\* moves a unit, field of view finds a target                                     |
-| `shooter`         | twin-stick, endless runner, tower defense | rapier  | fixed | a turret spawns a thousand bullets with a `lifetime`; each is destroyed on its first wall contact                            |
-| `roguelike`       | roguelikes                                | none    | turns | `ctx.random` places rooms by `ctx.instantiate` of two prefabs; field of view and A\* find the stairs                         |
-| `local-versus`    | local multiplayer, fighting               | none    | fixed | two seats on vector sticks, one on the keyboard and one on a pad, in a two-track script; the first knock-out wins            |
-| `point-and-click` | point-and-click, RTS                      | none    | fixed | a press on a walk area paths the walker along `ctx.nav`; a press on a hotspot (`ctx.space.pointAt`) walks there and fires it |
-| `rhythm-tap`      | rhythm                                    | none    | fixed | sub-tick offsets on: taps between ticks are graded by their `offset`, and a replay grades them the same                      |
-| `tower-defense`   | tower defense                             | none    | fixed | waves from a data table spawn creeps along a flow field; legal `build` commands place towers firing `lifetime` bolts         |
+| Probe             | Genres                                    | Physics | Time  | What it plays                                                                                                                                                                                                                                             |
+| ----------------- | ----------------------------------------- | ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `grid-puzzle`     | puzzle, card and board games              | none    | event | a square-grid Sokoban: arrow keys step a pusher, each push tweens the crate's picture; won with both crates on goals. `pointer-swap`: match-3, clicks pick two neighbours, a `swap` command trades them tweened, a line of three clears                   |
+| `top-down`        | top-down, racing                          | rapier  | fixed | a top-down controller steers through a corridor of solids into a goal sensor                                                                                                                                                                              |
+| `turn-tactics`    | tactics, roguelikes                       | none    | turns | hex grid, `move` and `end-turn` commands; A\* moves a unit, field of view finds a target                                                                                                                                                                  |
+| `shooter`         | twin-stick, endless runner, tower defense | rapier  | fixed | a turret spawns a thousand bullets with a `lifetime`, each trailing an `emitter`; each is destroyed on its first wall contact and shakes the camera. `runner`: course chunks built ahead of the runner and dropped behind it, over two parallax backdrops |
+| `roguelike`       | roguelikes                                | none    | turns | `ctx.random` places rooms by `ctx.instantiate` of two prefabs; field of view and A\* find the stairs                                                                                                                                                      |
+| `local-versus`    | local multiplayer, fighting               | none    | fixed | two seats on vector sticks, one on the keyboard and one on a pad, in a two-track script and a split screen; the first knock-out wins                                                                                                                      |
+| `point-and-click` | point-and-click, RTS                      | none    | fixed | a press on a walk area paths the walker along `ctx.nav`; a press on a hotspot (`ctx.space.pointAt`) walks there and fires it                                                                                                                              |
+| `rhythm-tap`      | rhythm                                    | none    | fixed | sub-tick offsets on: taps between ticks are graded by their `offset`, and a replay grades them the same                                                                                                                                                   |
+| `tower-defense`   | tower defense                             | none    | fixed | waves from a data table spawn creeps along a flow field; legal `build` commands place towers firing `lifetime` bolts                                                                                                                                      |
+| `racing`          | racing                                    | rapier  | fixed | a damped car drives three laps through four gates in order behind a look-ahead camera rig, with a tweened ghost                                                                                                                                           |
+| `idle`            | idle / clicker                            | none    | event | generators from a data table earn coins; `time.catchUp` credits an hour offline through `@elapsed`                                                                                                                                                        |
 
 `runGenreProbe` plays each, replays its recording, and compares a digest of
 the run with a pinned one, so CI on other machines checks the same numbers.
 Probes also run under variants (gravity zero, gravity sideways, physics
 none, another seed) that must reach the same result; `shooter`'s replay
-also proves both runs name the same thousand ids, `roguelike` pins one
+also proves both runs name the same thousand ids, the probes with a view
+(`local-versus`, `shooter`, `racing`) replay their run in the shell and
+must end on the same digest, `roguelike` pins one
 layout for each of seeds 1 and 2, and some of `tower-defense`'s 32 fuzz
 rollouts at seed 1 must win through its legal commands. A physics-free probe never loads
 Rapier: the harness hands it none and a mock fails if the wasm module ever
@@ -6727,6 +7605,18 @@ A walkable area, or a hole in one, for navigation without physics or a grid.
 | `mode`      | `"walk"` \| `"block"` |          | walk (default) or a hole cut out of the walk area it lies in.                                                                                                             |
 | `tags`      | string[]              |          | Labels a game reads, e.g. a room name.                                                                                                                                    |
 | `behaviors` | object                |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
+
+#### `camera-region`
+
+An area that holds the camera: inside it, the view stays within its box and may zoom.
+
+| Field       | Type                      | Required | Description                                                                                                                                                               |
+| ----------- | ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shape`     | #/$defs/CameraRegionShape | yes      | The region. Absolute world metres; y is down.                                                                                                                             |
+| `zoom`      | number                    |          | The camera's zoom while it frames this region; omitted keeps the rig's own.                                                                                               |
+| `clamp`     | boolean                   |          | Keep the view inside the box; default true.                                                                                                                               |
+| `ease`      | number (s)                |          | Seconds to move into the region's framing; default 0.4.                                                                                                                   |
+| `behaviors` | object                    |          | Behavior blocks by name: each a typed set of fields this entity carries. `{}` carries a behavior with all its defaults; the type's required behaviors are always present. |
 
 #### `note`
 

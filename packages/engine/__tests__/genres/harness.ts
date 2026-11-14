@@ -1,5 +1,7 @@
 import { vi } from "vite-plus/test";
+import { builtinEnvironments } from "vite-plus/test/runtime";
 
+import type { ViewportDef } from "../../camera/viewports";
 import { createRegistry } from "../../game/define";
 import { formatSaveFile, parseSaveFile, type SaveFile } from "../../game/save-file";
 import { resolveTime } from "../../game/time";
@@ -31,6 +33,7 @@ import type { SeatChange, TickInput } from "../../input/stream";
 import { DATA_TABLE_KIND, DATA_TABLE_VERSION } from "../../project/kinds/data-table";
 import { GAME_SETTINGS_KIND, GAME_SETTINGS_VERSION } from "../../project/kinds/game-settings";
 import { heldProject, type HeldFile, type ProjectRuntimeView } from "../../project/runtime-view";
+import type { PresentedRequest } from "../../runtime/present";
 import {
   createRunRecorder,
   emptyTick,
@@ -41,12 +44,12 @@ import {
 } from "../../runtime/recorder";
 import { resolveGame } from "../../runtime/runtime";
 import { captureSave, restoreSave } from "../../runtime/save-state";
-import type { SceneRuntimeHandle, StepEvent } from "../../runtime/types";
+import type { SceneRuntimeHandle, StepEvent, StepResult } from "../../runtime/types";
 import { scenePhysics } from "../../scene/expand";
 import { hashText } from "../../scene/hash";
-import type { RecordingCommand } from "../../scene/recording-schema";
+import type { RecordingCommand, RunRecording } from "../../scene/recording-schema";
 import type { Pt, PrefabLibrary, SceneDefinition, SceneSettings } from "../../scene/types";
-import type { InputAction, RapierModule } from "../../types";
+import type { GameInstance, InputAction, RapierModule } from "../../types";
 import { loadCompatRapier } from "../fixtures/compat-rapier";
 
 /** Plan 53's matrix rows, by id; matrix.ts maps each to the milestones that deliver it. */
@@ -117,12 +120,27 @@ export type GenreProbe<S = unknown> = {
   timeoutMs?: number;
   /** Seeded random rollouts of the probe's scene and game; some rollout must end with `expect.result`. */
   fuzz?: ProbeFuzz;
+  /**
+   * Keeps the run's presentation requests (`ProbeRun.report.present`), and
+   * plays it again without them: both must digest alike.
+   */
+  recordPresentation?: boolean;
+  /**
+   * Also replays each run in the shell, with a view (`viewGenreProbe`): it
+   * must end on the headless run's digest. Needs a jsdom test with the
+   * renderer mocked by `stubbedRenderer`.
+   */
+  view?: boolean;
+  /** The view run's viewports (`GameConfig.viewports`); default the shell's one. */
+  viewports?: readonly ViewportDef[];
 };
 
-/** A probe's project data: a game-settings doc's `game` block and each data table's rows. */
+/** A probe's project data: a game-settings doc's `game` block, each data table's rows, and any other files. */
 export type ProbeProject = {
   settings?: Readonly<Record<string, unknown>>;
   tables?: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
+  /** Held as a host holds them: docs by their JSON, binaries by their sidecars. */
+  files?: readonly HeldFile[];
 };
 
 export type ProbeFuzz = {
@@ -143,6 +161,8 @@ export type ProbeRun = {
   usedRapier: boolean;
   /** With the variant's `saveAt`: the same run played on from a world save. */
   fromSave?: SaveRun;
+  /** With the probe's `recordPresentation`: the digest of the same run played without it. */
+  withoutPresentation?: string;
 };
 
 /** A run that was saved mid-way and finished in a fresh runtime restored from the save. */
@@ -159,6 +179,8 @@ export type SaveRun = {
   final: unknown;
   /** Digested as a whole run's is, so it equals the uninterrupted run's when the save continues it. */
   digest: string;
+  /** What `SaveRunOptions.observe` read of the runtime the run ended in. */
+  observed?: unknown;
 };
 
 /** The name pins.ts files a probe's run without a variant under. */
@@ -291,6 +313,8 @@ export type TickRunOptions = {
   /** Its header starts the run; its `wait` steps set how many slots the input lasts. */
   script: InputScript | InputScriptV2;
   ticks: readonly TickInput[];
+  /** Keep presentation requests in `PlaytestReport.present`, as `runPlaytest`'s option does. */
+  recordPresentation?: boolean;
 };
 
 /**
@@ -330,6 +354,7 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
     play,
     prefabs: library,
     project: opts.project,
+    ...(opts.recordPresentation ? { recordPresentation: true } : {}),
   });
   if (!started.ok) return blockedRun("load", name, prepared.issues, [], started.load);
   const { runtime } = started;
@@ -342,6 +367,7 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
     let trailTruncated = false;
     const inputs: InputEdge[] = [];
     const commands: RecordingCommand[] = [];
+    const present: PresentedRequest[] = [];
     const input = tickSource(slots, length);
     const recorder = createRunRecorder({
       rapier: recordingRapier(prepared.scene, opts.rapier),
@@ -362,7 +388,8 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
         maxTicks,
         input,
         record: inputs,
-        onTick(state, focus, _edges, stepped, tickInput) {
+        onTick(state, focus, _edges, stepped, tickInput, requests) {
+          for (const req of requests ?? []) present.push({ ...req, tick: state.tick });
           recorder.tick(state, tickInput, focus);
           for (const c of stepped) commands.push(recordedCommand(state.tick, c));
           for (const e of state.events) {
@@ -392,7 +419,7 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
     if (end.entityId !== undefined) outcome.entityId = end.entityId;
     const recording = recorder.finish(end, final);
     const { actions, commands: commandNames, inputs: seatStreams, system } = recording;
-    return {
+    const report: PlaytestReport = {
       blocked: false,
       scene: name,
       sceneHash: prepared.hash,
@@ -413,6 +440,8 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
       issues: prepared.issues,
       recording,
     };
+    if (opts.recordPresentation) report.present = present;
+    return report;
   } finally {
     runtime.destroy();
   }
@@ -420,8 +449,8 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
 
 /**
  * The runtime view a probe's game reads, built the way a host builds one
- * from a project's docs: a game-settings doc and one data-table doc per
- * table, each row through the game's row schema. Null for a probe with no
+ * from a project's docs: a game-settings doc, one data-table doc per
+ * table, each row through the game's row schema, and the probe's other files. Null for a probe with no
  * project. Throws on a table the game doesn't declare and on a row the
  * schema leaves out, since the run would read fewer rows than the probe gave.
  */
@@ -449,6 +478,7 @@ export function probeProjectView(probe: GenreProbe): ProjectRuntimeView | null {
       },
     });
   }
+  files.push(...structuredClone(project.files ?? []));
   const { runtime } = heldProject(files, createRegistry(probe.game as GameDefinition), {
     projectId: probe.id,
     name: probe.id,
@@ -488,13 +518,21 @@ export type SaveRunOptions = Omit<TickRunOptions, "ticks"> & {
   at: number;
   /** Names the run in errors. */
   label?: string;
+  /**
+   * Plays on in the runtime that captured the save instead of a fresh one
+   * restored from it: the run a save must be indistinguishable from.
+   */
+  continueSaved?: boolean;
+  /** Reads the runtime the run ended in, before it is destroyed; kept as `SaveRun.observed`. */
+  observe?: (runtime: SceneRuntimeHandle) => unknown;
 };
 
 /**
  * Plays a run in two runtimes: the first to tick `at`, where it captures a
  * world save (written to its canonical text and parsed back); the second
  * loaded fresh, restored from that save and played on with the rest of the
- * input, from the same script or ticks, until the run ends. The parts the
+ * input, from the same script or ticks, until the run ends. With
+ * `continueSaved` the first runtime plays on instead, after the capture. The parts the
  * digest reads are kept across both, so a save that continues the run digests
  * as the uninterrupted run does. Throws when the run ends before `at`, or when
  * anything refuses: the script, the load, the capture, the text or the restore.
@@ -575,6 +613,7 @@ export function playFromSave(opts: SaveRunOptions): SaveRun {
   let save: SaveFile;
   let saved: unknown;
   const first = start();
+  let keep = false;
   try {
     const end = leg(first, opts.at + 1);
     if (end.result !== "timeout" || end.ticks !== opts.at + 1)
@@ -587,14 +626,17 @@ export function playFromSave(opts: SaveRunOptions): SaveRun {
     save = parsed.file;
     base.ticks += end.ticks;
     base.slots += end.slots;
+    keep = opts.continueSaved === true;
   } finally {
-    first.destroy();
+    if (!keep) first.destroy();
   }
 
-  const second = start();
+  const second = keep ? first : start();
   try {
-    const restored = restoreSave(second, save);
-    if (!restored.ok) return fail("the restore", restored.issue);
+    if (!keep) {
+      const restored = restoreSave(second, save);
+      if (!restored.ok) return fail("the restore", restored.issue);
+    }
     const end = leg(second, maxTicks - base.ticks);
     const final = second.snapshot();
     const focus = game?.play?.focus && final !== null ? game.play.focus(final) : null;
@@ -615,7 +657,9 @@ export function playFromSave(opts: SaveRunOptions): SaveRun {
       events,
       trail: pts,
     });
-    return { at: opts.at, save, saved, outcome, ticks, slots, final, digest };
+    const run: SaveRun = { at: opts.at, save, saved, outcome, ticks, slots, final, digest };
+    if (opts.observe) run.observed = opts.observe(second);
+    return run;
   } finally {
     second.destroy();
   }
@@ -631,7 +675,8 @@ function blockedMessage(
 /**
  * Plays a probe headless (under a variant's settings and seed when given),
  * from its script or its `TickInput`s, replays its recording, and digests
- * the run. The probe's prefabs go to both
+ * the run; with the probe's `recordPresentation`, keeps its requests and
+ * digests a second play without them. The probe's prefabs go to both
  * runs as the scene's and as the library `ctx.instantiate` draws on, and its
  * project as `ctx.project`. Rapier is
  * loaded only when the scene's physics resolves to it; a physics-free run
@@ -649,10 +694,13 @@ export async function runGenreProbe<S>(
   const script = variantScript(p, variant);
   const project = probeProjectView(p);
   const runs = { rapier, game: p.game, scene, prefabs: p.prefabs, library: p.prefabs, project };
-  const report = p.ticks
-    ? playTicks({ ...runs, script, ticks: p.ticks })
-    : runPlaytest({ ...runs, script });
-  if (report.blocked) throw new Error(blockedMessage(`${label}: the playtest`, report));
+  const play = (recordPresentation: boolean) => {
+    const opts = { ...runs, script, ...(recordPresentation ? { recordPresentation } : {}) };
+    const played = p.ticks ? playTicks({ ...opts, ticks: p.ticks }) : runPlaytest(opts);
+    if (played.blocked) throw new Error(blockedMessage(`${label}: the playtest`, played));
+    return played as PlaytestReport;
+  };
+  const report = play(p.recordPresentation === true);
 
   const replay = replayRecording({
     rapier,
@@ -666,11 +714,12 @@ export async function runGenreProbe<S>(
   if (replay.blocked) throw new Error(blockedMessage(`${label}: the replay`, replay));
 
   const run: ProbeRun = {
-    report: report as PlaytestReport,
+    report,
     replay: replay as ReplayReport,
-    digest: runDigest(report as PlaytestReport),
+    digest: runDigest(report),
     usedRapier: rapier !== null,
   };
+  if (p.recordPresentation) run.withoutPresentation = runDigest(play(false));
   if (variant?.saveAt !== undefined)
     run.fromSave = playFromSave({
       ...runs,
@@ -680,6 +729,170 @@ export async function runGenreProbe<S>(
       label: `${label} from a save`,
     });
   return run;
+}
+
+/** What the stubbed renderer was asked to draw: each texture a later viewport rendered into, with its draws. */
+type StubbedDraws = { surfaces: Map<unknown, number> };
+
+/** The draws of the renderer `stubbedRenderer` made last. */
+let stubbedDraws: StubbedDraws | null = null;
+
+/**
+ * A stand-in for the engine's `renderer` module: a real Pixi stage and
+ * containers, and a renderer that only counts what it is asked to draw into
+ * each texture. A test with view runs mocks the module with it:
+ * `vi.mock("../../renderer", async () => (await import("./harness")).stubbedRenderer())`.
+ */
+export async function stubbedRenderer() {
+  const { Container } = await import("pixi.js");
+  return {
+    createRenderer: async () => {
+      const stage = new Container();
+      const worldContainer = new Container();
+      const uiContainer = new Container();
+      stage.addChild(worldContainer, uiContainer);
+      const draws: StubbedDraws = { surfaces: new Map() };
+      stubbedDraws = draws;
+      return {
+        app: {
+          stage,
+          renderer: {
+            resolution: 1,
+            render({ target }: { target?: unknown }) {
+              draws.surfaces.set(target, (draws.surfaces.get(target) ?? 0) + 1);
+            },
+          },
+        },
+        worldContainer,
+        uiContainer,
+        resize: () => {},
+        destroy: () => {},
+      };
+    },
+  };
+}
+
+/** The canvas a view run draws on, in CSS px. */
+export const VIEW_CANVAS = { width: 1920, height: 1080 } as const;
+
+/** A probe run replayed in the shell, with a view. */
+export type ViewRun = {
+  /** The shell's own recording of the replay; its `end` is the run's end-state digest. */
+  recording: RunRecording;
+  /** Each tick's step events, as the shell stepped them, capped as a headless run caps them. */
+  events: StepEvent[];
+  /** Each tick's presentation requests, with the tick that asked. */
+  present: PresentedRequest[];
+  /** The viewport the shell finds at the middle of each declared one, in order. */
+  viewports: (number | null)[];
+  /** How many times each texture a later viewport renders into was drawn. */
+  surfaces: number[];
+};
+
+/**
+ * Replays a probe's headless run in the shell: `createGame` on a jsdom
+ * canvas (a jsdom of its own for the run when the test has no DOM) with
+ * the renderer stubbed (`stubbedRenderer`), the probe's
+ * prefabs, project and `viewports`, then `replay` of the run's recording,
+ * one tick and one drawn frame at a time until the shell finishes its
+ * recording. The shell records presentation requests and presents them;
+ * none may change how the run ends (`ViewRun.recording.end` against the
+ * headless recording's). Throws when the shell refuses the replay or never
+ * finishes it.
+ */
+export async function viewGenreProbe<S>(
+  probe: GenreProbe<S>,
+  run: ProbeRun,
+  variant?: ProbeVariant,
+): Promise<ViewRun> {
+  const p = probe as GenreProbe;
+  const label = `${probe.id} ${variant?.name ?? DEFAULT_VARIANT}: the view run`;
+  const dom =
+    typeof document === "undefined"
+      ? await builtinEnvironments.jsdom.setup(globalThis, { jsdom: { pretendToBeVisual: true } })
+      : null;
+  try {
+    return await viewRun(p, run, variant, label);
+  } finally {
+    await dom?.teardown(globalThis);
+  }
+}
+
+async function viewRun(
+  p: GenreProbe,
+  run: ProbeRun,
+  variant: ProbeVariant | undefined,
+  label: string,
+): Promise<ViewRun> {
+  const { createGame } = await import("../../engine");
+  const scene = variantScene(p, variant);
+  const rapier = run.usedRapier ? await loadRapier() : null;
+  const recording = run.report.recording;
+
+  let pending: FrameRequestCallback[] = [];
+  const raf = globalThis.requestAnimationFrame;
+  const caf = globalThis.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = (cb) => pending.push(cb);
+  globalThis.cancelAnimationFrame = () => {};
+  const { width, height } = VIEW_CANVAS;
+  const canvas = document.createElement("canvas");
+  canvas.getBoundingClientRect = () =>
+    ({ left: 0, top: 0, x: 0, y: 0, width, height, right: width, bottom: height }) as DOMRect;
+  document.body.appendChild(canvas);
+  stubbedDraws = null;
+  let game: GameInstance | null = null;
+  try {
+    game = await createGame(canvas, {
+      game: p.game,
+      ...(p.prefabs ? { prefabs: p.prefabs } : {}),
+      project: probeProjectView(p),
+      ...(rapier ? { rapier: async () => rapier } : {}),
+      ...(p.viewports ? { viewports: p.viewports } : {}),
+      reducedMotion: false,
+    });
+    const draws = stubbedDraws as StubbedDraws | null;
+    if (!draws) throw new Error(`${label}: mock ../../renderer with stubbedRenderer`);
+    const events: StepEvent[] = [];
+    const present: PresentedRequest[] = [];
+    const finished: { recording: RunRecording | null } = { recording: null };
+    game.on("scene:step", (step: StepResult) => {
+      for (const e of step.events) if (events.length < DEFAULT_MAX_EVENTS) events.push(e);
+      for (const req of step.present ?? []) present.push({ ...req, tick: step.tick });
+    });
+    game.on("play:recorded", (r) => void (finished.recording = r));
+    game.start();
+    if (rapier) await game.preload(scene);
+    const played = game.replay(scene, recording);
+    if (!played.ok) throw new Error(`${label}: the shell refused it: ${JSON.stringify(played)}`);
+    game.pause();
+    const frameMs = 1000 / recording.time.rate;
+    let now = 0;
+    for (let i = 0; finished.recording === null && i <= recording.ticks; i++) {
+      game.step(1);
+      now += frameMs;
+      const due = pending;
+      pending = [];
+      for (const cb of due) cb(now);
+    }
+    const recorded = finished.recording;
+    if (recorded === null)
+      throw new Error(`${label}: the shell didn't finish in ${recording.ticks} ticks`);
+    const viewports = (p.viewports ?? []).map(({ rect: [x, y, w, h] }) =>
+      game!.viewportAt((x + w / 2) * width, (y + h / 2) * height),
+    );
+    return {
+      recording: recorded,
+      events,
+      present,
+      viewports,
+      surfaces: [...draws.surfaces.values()],
+    };
+  } finally {
+    game?.destroy();
+    canvas.remove();
+    globalThis.requestAnimationFrame = raf;
+    globalThis.cancelAnimationFrame = caf;
+  }
 }
 
 /**

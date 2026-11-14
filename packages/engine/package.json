@@ -1,6 +1,6 @@
 {
   "name": "@jams/engine",
-  "version": "0.14.5",
+  "version": "0.15.0",
   "private": true,
   "files": [
     "dist",
@@ -87,6 +87,8 @@
     "./schemas/project-snapshot.schema.json": "./project/project-snapshot.schema.json",
     "./schemas/release.schema.json": "./project/release.schema.json",
     "./schemas/scene-version.schema.json": "./project/scene-version.schema.json",
+    "./schemas/animation.schema.json": "./project/animation.schema.json",
+    "./schemas/emitter.schema.json": "./project/emitter.schema.json",
     "./package.json": "./package.json"
   },
   "dependencies": {

@@ -1,4 +1,10 @@
-import { DRAW_LAYERS, drawSprite, type SceneView, type SpriteVisual } from "../../context";
+import {
+  DRAW_LAYERS,
+  drawSprite,
+  type SceneView,
+  type SpriteVisual,
+  type ViewLayer,
+} from "../../context";
 import type { BehaviorBlock, BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
 import {
   SPRITE,
@@ -25,13 +31,36 @@ import { spawnPose } from "../spawn-pose";
 export type SpriteSystem<B extends BehaviorBlock = BehaviorBlock> = BehaviorSystem<B> & {
   /** Re-poses every sprite whose entity's pose changed since it was last posed. */
   settle(): void;
+  /**
+   * Draws `frame` of the block's atlas in place of the block's own `frame`,
+   * keeping its pose; an update of the block keeps it, a detach drops it.
+   * Ignored for an entity without a sprite.
+   */
+  setFrame(id: string, frame: string): void;
+  /**
+   * Draws the sprite with `look` over the block's alpha and tint and its
+   * size scaled, merged into what earlier calls gave; an update of the
+   * block keeps it, a detach drops it. Ignored for an entity without a sprite.
+   */
+  style(id: string, look: SpriteLook): void;
 };
+
+/** What a tween animates of a sprite: `scale` multiplies its drawn size. */
+export type SpriteLook = { alpha?: number; tint?: number; scale?: number };
+
+const WHITE = 0xffffff;
 
 /** The view id an entity's sprite draws under. */
 export const spriteViewId = (entityId: string): string => `${entityId}#${SPRITE.name}`;
 
 type Attached = {
   entity: RuntimeEntity;
+  block: SpriteBlock;
+  layer: ViewLayer;
+  /** The frame `setFrame` gave, drawn in place of the block's. */
+  frame: string | undefined;
+  /** What `style` gave, drawn over the block's look. */
+  look: SpriteLook;
   /** The block's offset as it writes it. */
   offset: Pt;
   turn: boolean;
@@ -42,13 +71,35 @@ type Attached = {
 const samePose = (a: Readonly<Pose>, b: Readonly<Pose>) =>
   a.x === b.x && a.y === b.y && a.rot === b.rot;
 
+const materialOf = (ctx: EngineContext, e: RuntimeEntity) =>
+  typeof e.material === "string" ? ctx.registry.materials.get(e.material) : undefined;
+
+/** A block's tint: its own, else the entity's material's, else none. */
+const blockTint = (ctx: EngineContext, e: RuntimeEntity, block: Partial<SpriteBlock>) =>
+  block.tint ?? materialOf(ctx, e)?.tint;
+
+/**
+ * The look `e`'s sprite block draws with before any `style`: its alpha
+ * (default 1), its tint (default white) and scale 1. What a tween of a
+ * visual channel starts from when it gives no `from`.
+ */
+export function spriteLook(ctx: EngineContext, e: RuntimeEntity): Required<SpriteLook> {
+  const block = (e.behaviors?.[SPRITE.name] ?? {}) as Partial<SpriteBlock>;
+  return { alpha: block.alpha ?? 1, tint: blockTint(ctx, e, block) ?? WHITE, scale: 1 };
+}
+
 /**
  * The visual a block draws for `e`, its flips toggled by the entity's
  * transform. Tint and blend are the block's, else the entity's material's
  * (`registry.materials`, so a project material without physics lends
- * none), else unset.
+ * none), else unset; `look` goes over its alpha and tint and scales its size.
  */
-function visualOf(ctx: EngineContext, e: RuntimeEntity, block: SpriteBlock): SpriteVisual {
+function visualOf(
+  ctx: EngineContext,
+  e: RuntimeEntity,
+  block: SpriteBlock,
+  look: SpriteLook,
+): SpriteVisual {
   const flipped = e.transform?.flip ?? false;
   const flipX = (block.flipX ?? false) !== flipped;
   const flipY = block.flipY ?? false;
@@ -57,10 +108,16 @@ function visualOf(ctx: EngineContext, e: RuntimeEntity, block: SpriteBlock): Spr
     project ? (id, frame) => project.asset(id, frame) : undefined,
     block,
   );
-  const geometry = spriteGeometry({ ...block, flipX, flipY }, info, pxPerMetreOf(ctx.registry));
+  const pxPerMetre = pxPerMetreOf(ctx.registry);
+  let geometry = spriteGeometry({ ...block, flipX, flipY }, info, pxPerMetre);
+  if (look.scale !== undefined && look.scale !== 1) {
+    const size: [number, number] = [geometry.size[0] * look.scale, geometry.size[1] * look.scale];
+    geometry = spriteGeometry({ ...block, flipX, flipY, size }, info, pxPerMetre);
+  }
   const material = typeof e.material === "string" ? e.material : undefined;
-  const materialDef = material === undefined ? undefined : ctx.registry.materials.get(material);
-  const tint = block.tint ?? materialDef?.tint;
+  const materialDef = materialOf(ctx, e);
+  const tint = look.tint ?? blockTint(ctx, e, block);
+  const alpha = look.alpha ?? block.alpha;
   const blend = block.blend ?? materialDef?.blend;
   const nineSlice = block.nineSlice ?? (info === texture ? info?.nineSlice : undefined);
   const type = ctx.registry.types.get(e.type);
@@ -71,7 +128,7 @@ function visualOf(ctx: EngineContext, e: RuntimeEntity, block: SpriteBlock): Spr
     size: geometry.size,
     anchor: geometry.anchor,
     ...(tint !== undefined ? { tint } : {}),
-    ...(block.alpha !== undefined ? { alpha: block.alpha } : {}),
+    ...(alpha !== undefined ? { alpha } : {}),
     ...(flipX ? { flipX } : {}),
     ...(flipY ? { flipY } : {}),
     ...(blend !== undefined ? { blend } : {}),
@@ -103,20 +160,28 @@ export const createSpriteSystem: BehaviorSystemFactory = (ctx) => {
     a.applied = pose;
   }
 
+  function draw(id: string, a: Attached): void {
+    const block = a.frame === undefined ? a.block : { ...a.block, frame: a.frame };
+    drawSprite(view, spriteViewId(id), visualOf(ctx, a.entity, block, a.look), a.layer);
+  }
+
   function show(id: string, block: SpriteBlock, entity: RuntimeEntity): void {
-    const sid = spriteViewId(id);
     // An entity naming no layer, or an unknown one, draws on its type's default layer.
     const { layers, types } = ctx.registry;
     const home = defaultLayer(types.get(entity.type), parseBulkId(id) !== null, layers);
     const fallback = layers.find((l) => l.name === home)?.draw ?? DRAW_LAYERS.body;
-    drawSprite(view, sid, visualOf(ctx, entity, block), entityDrawLayer(ctx, entity, fallback));
-    view.depth?.(sid, entity.z ?? 0);
     const a: Attached = {
       entity,
+      block,
+      layer: entityDrawLayer(ctx, entity, fallback),
+      frame: attached.get(id)?.frame,
+      look: attached.get(id)?.look ?? {},
       offset: spriteGeometry(block).offset,
       turn: block.turn !== false,
       applied: null,
     };
+    draw(id, a);
+    view.depth?.(spriteViewId(id), entity.z ?? 0);
     attached.set(id, a);
     place(id, a, ctx.poses.get(id) ?? spawnPose(entity, ctx.registry), true);
   }
@@ -137,6 +202,21 @@ export const createSpriteSystem: BehaviorSystemFactory = (ctx) => {
         const prev = ctx.poses.prev(id);
         place(id, a, pose, prev !== undefined && samePose(prev, pose));
       }
+    },
+    setFrame(id, frame) {
+      const a = attached.get(id);
+      if (!a || a.frame === frame) return;
+      a.frame = frame;
+      draw(id, a);
+    },
+    style(id, look) {
+      const a = attached.get(id);
+      if (!a) return;
+      const next = { ...a.look, ...look };
+      if (next.alpha === a.look.alpha && next.tint === a.look.tint && next.scale === a.look.scale)
+        return;
+      a.look = next;
+      draw(id, a);
     },
     clear() {
       for (const id of [...attached.keys()]) hide(id);

@@ -291,6 +291,7 @@ type FieldMeta = {
   when?: unknown;
   units?: unknown;
   options?: unknown;
+  enum?: unknown;
 };
 
 /** The field's metadata, inner wrappers first so an outer `.meta()` wins. */
@@ -1258,8 +1259,49 @@ function addedBlocks(
       if (other) extra.push(other);
     }
   }
+  for (const n of Object.keys(blocks)) {
+    const title = registry.behaviors.get(n)?.inspector?.label ?? n;
+    for (const [field, schema] of unsetRequired(registry, s, n, blocks[n]!)) {
+      const kinds = assetKindsOf(schema);
+      const [first] = kinds ? assetChoices(schema) : [];
+      if (first !== undefined) {
+        blocks[n]![field] = first;
+        continue;
+      }
+      unavailable ??= kinds
+        ? `${title} needs ${kinds.map((k) => `${/^[aeiou]/.test(k) ? "an" : "a"} ${k}`).join(" or ")} asset in the project.`
+        : `${title} needs its ${field} set, which Add can't choose.`;
+    }
+  }
   fixAdded(registry, def, self, blocks, extra);
   return unavailable ? { blocks, unavailable } : { blocks };
+}
+
+/** The project asset ids an asset field offers, as its schema's choices list them. */
+function assetChoices(schema: z.core.$ZodType): readonly string[] {
+  const ids = fieldMeta(schema).enum;
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+}
+
+/**
+ * The fields of `name`'s block that must hold a value and don't: neither
+ * optional, defaulted, seeded nor an entity reference (those are seeded
+ * from the scene).
+ */
+function unsetRequired(
+  registry: Registry,
+  s: BehaviorState,
+  name: BehaviorName,
+  block: Readonly<Record<string, unknown>>,
+): [string, z.core.$ZodType][] {
+  const defaults = s.rules.defaults.get(name) ?? {};
+  return Object.entries(blockShape(registry, s, name)).filter(
+    ([k, f]) =>
+      f._zod.optin !== "optional" &&
+      defaults[k] === undefined &&
+      block[k] === undefined &&
+      !isChildRef(unwrapSchema(f)),
+  );
 }
 
 function removeBatch(states: readonly BehaviorState[], name: BehaviorName, title: string) {

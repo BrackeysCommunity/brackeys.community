@@ -22,6 +22,7 @@ import {
   restoreScenePointers,
   type ScenePointerMove,
 } from "../live-pointers";
+import { promote, rollback } from "../release-channels";
 import { memoryReleaseStore } from "../release-storage";
 import type { Actor } from "../release-upload";
 import { editedVersion, type FixtureVersion } from "./fixtures/live/scene-versions";
@@ -274,6 +275,80 @@ describe("moveScenePointer", () => {
     expect(
       await move({ scene: "hall", channel: "preview", to: "previous", action: "scene-rollback" }),
     ).toEqual({ from: null, to: 2 });
+  });
+
+  describe("after a release move", () => {
+    const channelDeps = () => ({ db: deps().db, now: () => NOW });
+    const rollbackScene = () =>
+      move({ scene: "hall", channel: "production", to: "previous", action: "scene-rollback" });
+
+    /** hall@1 then hall@2 live on production, and a second release uploaded but not promoted. */
+    const liveHallAndNextRelease = async () => {
+      await publish(await edited("hall", 4));
+      await publish(await edited("hall", 5));
+      await move({ scene: "hall", channel: "production", to: { number: 1 } });
+      await move({ scene: "hall", channel: "production", to: { number: 2 } });
+      const next = await plannedRelease({
+        projectId: PROJECT,
+        gameId: GAME,
+        engineVersion: "0.14.1",
+        hallVariant: 1,
+      });
+      return (await uploadRelease(deps(), next, { actor: publisher, channel: "none" })).version;
+    };
+    const promoteNext = (version: number, keepScenes?: string[]) =>
+      promote(
+        {
+          projectId: PROJECT,
+          version,
+          channel: "production",
+          actor: publisher,
+          ...(keepScenes ? { keepScenes } : {}),
+        },
+        channelDeps(),
+      );
+
+    it("goes back to the version the promote cleared, and twice returns to where it started", async () => {
+      await promoteNext(await liveHallAndNextRelease());
+      expect(await pointers()).toEqual([]);
+
+      expect(await rollbackScene()).toEqual({ from: null, to: 2 });
+      expect(await rollbackScene()).toEqual({ from: 2, to: null });
+      expect(await rollbackScene()).toEqual({ from: null, to: 2 });
+    });
+
+    it("undoes a release rollback's restore, back to the release's own scene", async () => {
+      await promoteNext(await liveHallAndNextRelease());
+      const back = await rollback(
+        { projectId: PROJECT, channel: "production", actor: publisher },
+        channelDeps(),
+      );
+      expect(back.restored).toEqual(["hall"]);
+      expect((await pointers())[0]?.versionId).toBe(await versionId("hall", 2));
+
+      expect(await rollbackScene()).toEqual({ from: 2, to: null });
+    });
+
+    it("passes over release moves that left the pointer where it was", async () => {
+      await promoteNext(await liveHallAndNextRelease(), ["hall"]);
+      await rollback(
+        { projectId: PROJECT, channel: "production", actor: publisher },
+        channelDeps(),
+      );
+      expect((await pointers())[0]?.versionId).toBe(await versionId("hall", 2));
+
+      expect(await rollbackScene()).toEqual({ from: 2, to: 1 });
+    });
+
+    it("passes over a timing-only change", async () => {
+      await publish(await edited("hall", 4));
+      await publish(await edited("hall", 5));
+      await move({ scene: "hall", channel: "production", to: { number: 1 } });
+      await move({ scene: "hall", channel: "production", to: { number: 2 } });
+      await move({ scene: "hall", channel: "production", to: { number: 2 }, timing: "now" });
+
+      expect(await rollbackScene()).toEqual({ from: 2, to: 1 });
+    });
   });
 
   it("keeps a pointer's time when only its timing changes, for the breaker's window", async () => {

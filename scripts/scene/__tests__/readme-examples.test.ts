@@ -24,6 +24,7 @@ import {
 import { formatBytes } from "../../../src/lib/format-bytes";
 import { duelGame, field } from "../../engine-readme/examples/duel-game";
 import { basin, fountainGame, twinSpout } from "../../engine-readme/examples/fountain-game";
+import { lookoutGame, ridge } from "../../engine-readme/examples/lookout-game";
 import { meadow, orchardGame } from "../../engine-readme/examples/orchard-game";
 import { walkerGame } from "../../engine-readme/examples/walker-game";
 import { corridor } from "../../engine-readme/examples/walker-playtest";
@@ -293,6 +294,13 @@ const LIVE_LISTED = [
   "live-timing-unsupported",
   "scene-version-removed",
 ];
+/** The codes animation and tweens added, each reproduced by a doc batch and listed in the issue table. */
+const ANIM_CODES = [
+  "anim-tag-unknown",
+  "anim-clip-unknown",
+  "frame-shape-invalid",
+  "tween-target-invalid",
+];
 const LIFECYCLE_EVENTS = [
   "entity:spawned",
   "entity:destroyed",
@@ -330,6 +338,7 @@ async function projectsIn(base: string): Promise<ToolContext> {
     fountain: join(base, fountainGame.id),
     duel: join(base, duelGame.id),
     tactics: join(base, tacticsGame.id),
+    lookout: join(base, lookoutGame.id),
   };
   await cp(repoFile("packages/engine/scenes"), dirs.engine, { recursive: true });
   await mkdir(dirs.platformer);
@@ -348,6 +357,8 @@ async function projectsIn(base: string): Promise<ToolContext> {
     repoFile("scripts/scene/examples/duel.input-map.json"),
     join(dirs.duel, "input-map.json"),
   );
+  await mkdir(dirs.lookout);
+  await writeFile(join(dirs.lookout, "ridge.json"), formatScene(ridge).text);
   await cp(repoFile("src/games/tactics"), dirs.tactics, {
     recursive: true,
     filter: (src) => !src.includes("__tests__"),
@@ -365,6 +376,7 @@ async function projectsIn(base: string): Promise<ToolContext> {
       await tempProject(dirs.orchard, { game: orchardGame }),
       await tempProject(dirs.fountain, { game: fountainGame }),
       await tempProject(dirs.duel, { game: duelGame }),
+      await tempProject(dirs.lookout, { game: lookoutGame }),
       await openProject(dirs.tactics, {
         game: tacticsGame,
         cacheDir: join(base, ".jams-cache", tacticsGame.id),
@@ -750,6 +762,58 @@ describe("op batches in the docs", () => {
       for (const flag of [...values, ...switches].filter((f) => f !== "project"))
         expect(row, `${name} --${flag}`).toContain(`--${flag}`);
     }
+  });
+
+  it("reproduces every code animation and tweens added, and lists each in the issue table", () => {
+    const expected = new Set(allBatches.map((b) => b.expect));
+    expect(ANIM_CODES.filter((code) => !expected.has(code))).toEqual([]);
+    for (const code of ANIM_CODES)
+      expect(texts[0]!).toMatch(new RegExp(`^\\| \`${code}\` +\\|`, "m"));
+  });
+
+  it("edits an animation and an emitter preset, and adds a tween and a camera region, in batches that apply", () => {
+    const applied = allBatches.filter((b) => !b.expect);
+    const edits = applied.flatMap(
+      (b) => (JSON.parse(b.text) as { ops: { op: string; id?: string }[] }).ops,
+    );
+    for (const id of ["kitchen-animation", "sparks"])
+      expect(edits).toContainEqual(expect.objectContaining({ op: "editAsset", id }));
+    const added = applied
+      .filter((b) => "scene" in b.target)
+      .flatMap((b) => (JSON.parse(b.text) as { ops: { entity?: Record<string, unknown> }[] }).ops)
+      .map((op) => op.entity ?? {});
+    expect(added.some((e) => e.type === "camera-region")).toBe(true);
+    expect(added.some((e) => "tween" in ((e.behaviors as object | undefined) ?? {}))).toBe(true);
+  });
+
+  it("runs assets info on an animation, step --anim, playtest --present and show on camera regions", () => {
+    const run = all.flat().filter((e) => e.fenced && isPure(e.argv) && !e.expect);
+    const used = (name: string, flag?: string, value?: string) =>
+      run.some(
+        (e) =>
+          split(e.argv)[0] === name &&
+          (!flag || e.argv.includes(flag)) &&
+          (!value || e.argv[e.argv.indexOf(flag!) + 1] === value),
+      );
+    expect(run.some((e) => e.line.includes("assets info kitchen-animation"))).toBe(true);
+    expect(used("step", "--anim")).toBe(true);
+    expect(used("playtest", "--present")).toBe(true);
+    expect(used("show", "--type", "camera-region")).toBe(true);
+  });
+
+  it("documents step --anim and playtest --present in the commands table, and the MCP present flag", () => {
+    const table = texts[0]!.slice(
+      texts[0]!.indexOf("## Commands"),
+      texts[0]!.indexOf("## Projects and assets"),
+    );
+    const row = (prefix: string) => table.split("\n").find((l) => l.startsWith(prefix)) ?? "";
+    expect(row("| `step ")).toContain("--anim");
+    expect(row("| `playtest ")).toContain("--present");
+    const tool = (name: string) =>
+      texts[0]!.split("\n").find((l) => l.startsWith(`| \`${name}\``)) ?? "";
+    expect(tool("scene_playtest")).toContain("`present: true`");
+    expect(tool("asset_apply_ops")).toContain("animations");
+    expect(tool("asset_apply_ops")).toContain("emitter presets");
   });
 
   it("lists scene_flow and the playtest tool's flow and fromSave in the MCP table", () => {

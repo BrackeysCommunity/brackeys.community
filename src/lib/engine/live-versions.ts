@@ -135,7 +135,7 @@ const dbOf = (deps: LiveReadDeps): ReleaseDb => siteDeps(deps).db;
 
 /** The channel's scene pointers joined to their versions, as `effectiveLive` reads them. */
 export async function channelPointers(
-  db: ReleaseDb,
+  db: Pick<ReleaseDb, "select">,
   projectId: string,
   channel: LiveChannel,
   scene?: AssetId,
@@ -166,7 +166,7 @@ export async function channelPointers(
 
 /** What a channel plays: its release and the live scenes that apply over it; null with no release. */
 export async function channelLive(
-  db: ReleaseDb,
+  db: Pick<ReleaseDb, "select">,
   projectId: string,
   channel: LiveChannel,
   scene?: AssetId,

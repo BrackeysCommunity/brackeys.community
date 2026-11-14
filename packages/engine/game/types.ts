@@ -1,5 +1,6 @@
 import type { z } from "zod";
 
+import type { Tweens } from "../anim/tweens";
 import type { BlendMode, SceneView } from "../context";
 import type { AssetDrop } from "../editor/asset-drop";
 import type { EditorToolDef } from "../editor/tools";
@@ -9,10 +10,12 @@ import type { AssetKindDef } from "../project/kinds";
 import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId, AssetKindName, Sha256 } from "../project/types";
 import type { ResolutionPolicy } from "../resolution";
+import type { AnimContext } from "../runtime/behaviors/anim";
 import type { GeometryWorld } from "../runtime/geometry-world";
 import type { RuntimeGrid } from "../runtime/grid";
 import type { RuntimeNav } from "../runtime/nav";
 import type { Pose, PoseIndex } from "../runtime/poses";
+import type { PresentationQueue } from "../runtime/present";
 import type { SpaceQuery } from "../runtime/space";
 import type { SceneRuntimeHandle, StepEvent } from "../runtime/types";
 import type { SaveStore } from "../saves/store";
@@ -54,6 +57,7 @@ import type {
 import type { FlowRequest, SublevelInfo, SublevelOptions, SublevelResult } from "./flow";
 import type { PadAxis, PadButton, PointerButton } from "./input-codes";
 import type { LiveDeclaration, SceneSwap } from "./live";
+import type { CameraRigDef } from "./primitives";
 import type { SaveDepth, SaveGameData, SaveLimits } from "./save-file";
 import type { ResolvedTime, TimeModel } from "./time";
 
@@ -82,6 +86,7 @@ export const PRIMITIVE_TYPES = [
   "follower",
   "decor",
   "nav",
+  "camera-region",
   "note",
 ] as const;
 export type PrimitiveType = (typeof PRIMITIVE_TYPES)[number];
@@ -213,6 +218,11 @@ export interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
   save?(id: string): JsonValue | undefined;
   /** Puts back what `save` returned, after the entity was spawned again from its scene or record. */
   restore?(id: string, state: JsonValue): void;
+  /**
+   * Moves `id` as a tween or a game asks (metres, radians), keeping its
+   * colliders in step; a type without it can't be tweened by pose.
+   */
+  setPose?(id: string, x: number, y: number, rot: number): void;
 }
 
 /** A save game code asked for; the host writes it after the tick, and the result is a host event. */
@@ -363,6 +373,16 @@ export type EngineContext = {
   readonly bodies: BodyControl;
   /** Which version of the main scene runs, and where game code marks a safe moment to change it. */
   readonly live: LiveContext;
+  /**
+   * Asks the shell to present something after this tick (a camera move, a
+   * flash, a sound). Write-only: nothing in the simulation reads it back,
+   * and headless drops it unless a test records it.
+   */
+  readonly present: PresentationQueue;
+  /** The `anim` behavior's clips, by entity id. */
+  readonly anim: AnimContext;
+  /** Tweens over whole ticks: an entity's pose and sprite look, or a number in game state. */
+  readonly tweens: Tweens;
 };
 
 /** `EngineContext.live`. */
@@ -866,6 +886,8 @@ export type GameRuntime<S = unknown> = {
   onSwap?(swap: SceneSwap): void;
   /** Where the shell's camera follows; `null` keeps it still. */
   cameraTarget?(): Vec2 | null;
+  /** Several targets, or per-seat targets for split screen; wins over `cameraTarget`. */
+  cameraTargets?(): readonly { at: Vec2; velocity?: Vec2; weight?: number; player?: number }[];
   /** The game's slice of the shell's store, read once per tick. Return the same object when nothing changed. */
   storeSlice?(): unknown;
   /** What the game's debug layers read each tick. */
@@ -1072,7 +1094,7 @@ export type GameDefinition<S = unknown, G = unknown> = {
    * Spawn groups in order; types inside one group spawn together in file
    * order (bulk first). Lists each of the game's loadable types once; a
    * primitive it leaves out spawns before every listed group, in primitive
-   * order, except `decor` and `nav`, which then spawn last. Omitted means
+   * order, except `decor`, `nav` and `camera-region`, which then spawn last. Omitted means
    * each primitive, then each game type, in registration order.
    */
   spawnOrder?: readonly (EntityTypeName | readonly EntityTypeName[])[];
@@ -1139,6 +1161,8 @@ export type GameDefinition<S = unknown, G = unknown> = {
   saves?: GameSavesDef;
   /** Which swap timings the game accepts for a new version of a running scene; omitted: next load only. */
   live?: LiveDeclaration;
+  /** How the camera follows in Play; a scene's `settings.camera` wins over it. */
+  camera?: CameraRigDef;
 };
 
 /** `GameDefinition.persist`. */

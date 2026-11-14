@@ -322,6 +322,40 @@ describe("the engine's doc kinds and a game's converge", () => {
         { scene: "cellar", sublevel: true },
       ],
     },
+    animation: {
+      kind: "animation",
+      v: 1,
+      atlas: "hero",
+      clips: [
+        { name: "idle", tag: "idle" },
+        {
+          name: "jab",
+          loop: "once",
+          next: "idle",
+          frames: [
+            { frame: "hero-0", ms: 50 },
+            { frame: "hero-1", ms: 80, events: ["swing"] },
+            { frame: "hero-0", ms: 120 },
+          ],
+        },
+      ],
+    },
+    emitter: {
+      kind: "emitter",
+      v: 1,
+      rate: 20,
+      bursts: [
+        { atMs: 0, count: 4 },
+        { atMs: 200, count: 2 },
+      ],
+      lifeMs: [300, 600],
+      speed: [1, 2],
+      angle: [-120, -60],
+      alpha: [
+        [0, 1],
+        [1, 0],
+      ],
+    },
     checks: {
       v: 1,
       checks: [
@@ -571,6 +605,77 @@ describe("the engine's doc kinds and a game's converge", () => {
     expect(v.players).toEqual({ max: 4, join: "press" });
     expect(items(v, "touch").map((t) => t.id)).toEqual(["jump", "walk"]);
     expect(v.actions).toEqual(START["input-map"]!.actions);
+  });
+
+  const clip = (x: Obj, name: string) => items(x, "clips").find((c) => c.name === name)!;
+  const withClip = (x: Obj, name: string, change: (c: Obj) => Obj) => ({
+    ...x,
+    clips: items(x, "clips").map((c) => (c.name === name ? change(c) : c)),
+  });
+  const withFrame = (x: Obj, index: number, change: (f: Obj) => Obj) =>
+    withClip(x, "jab", (c) => ({
+      ...c,
+      frames: (c.frames as Obj[]).map((f, i) => (i === index ? change(f) : f)),
+    }));
+
+  it("animation: two clients editing different clips both survive", () => {
+    const v = offline("animation", [
+      (x) => withClip(x, "idle", (c) => ({ ...c, loop: "pingpong", speed: 1.5 })),
+      (x) =>
+        withClip(x, "jab", (c) => ({
+          ...c,
+          speed: 2,
+          frames: [...(c.frames as Obj[]), { frame: "hero-1", ms: 60 }],
+        })),
+    ]);
+    expect(clip(v, "idle")).toEqual({ name: "idle", tag: "idle", loop: "pingpong", speed: 1.5 });
+    expect(clip(v, "jab").speed).toBe(2);
+    expect(clip(v, "jab").frames).toEqual([
+      ...(clip(START.animation!, "jab").frames as Obj[]),
+      { frame: "hero-1", ms: 60 },
+    ]);
+    expect(items(v, "clips").map((c) => c.name)).toEqual(["idle", "jab"]);
+  });
+
+  it("animation: an event added to frame 2 and frame 3's ms changed concurrently both survive", () => {
+    const v = offline("animation", [
+      (x) => withFrame(x, 1, (f) => ({ ...f, events: [...(f.events as string[]), "step"] })),
+      (x) => withFrame(x, 2, (f) => ({ ...f, ms: 150 })),
+    ]);
+    expect(clip(v, "jab").frames).toEqual([
+      { frame: "hero-0", ms: 50 },
+      { frame: "hero-1", ms: 80, events: ["swing", "step"] },
+      { frame: "hero-0", ms: 150 },
+    ]);
+    expect(clip(v, "jab")).toMatchObject({ loop: "once", next: "idle" });
+  });
+
+  it("emitter: concurrent rate and tint edits merge", () => {
+    const tint = [
+      [0, 0xffffff],
+      [1, 0xff8000],
+    ];
+    const v = offline("emitter", [(x) => ({ ...x, rate: 35 }), (x) => ({ ...x, tint })]);
+    expect(v.rate).toBe(35);
+    expect(v.tint).toEqual(tint);
+    expect(v.bursts).toEqual(START.emitter!.bursts);
+    expect(v.alpha).toEqual(START.emitter!.alpha);
+  });
+
+  it("emitter: a burst inserted by each client both survive", () => {
+    const v = offline("emitter", [
+      (x) => ({
+        ...x,
+        bursts: [items(x, "bursts")[0], { atMs: 100, count: 3 }, ...items(x, "bursts").slice(1)],
+      }),
+      (x) => ({ ...x, bursts: [...items(x, "bursts"), { atMs: 400, count: 8 }] }),
+    ]);
+    expect(v.bursts).toEqual([
+      { atMs: 0, count: 4 },
+      { atMs: 100, count: 3 },
+      { atMs: 200, count: 2 },
+      { atMs: 400, count: 8 },
+    ]);
   });
 
   const listed = (x: Obj) => items(x, "scenes").map((e) => e.scene);

@@ -18,7 +18,7 @@ import { runtimeView, type ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetEntry } from "../project/types";
 import { projectView } from "../project/view";
 import { ENGINE_BEHAVIOR_SYSTEMS } from "../runtime/behaviors/index";
-import { createSpriteSystem, spriteViewId } from "../runtime/behaviors/sprite";
+import { createSpriteSystem, spriteViewId, type SpriteSystem } from "../runtime/behaviors/sprite";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { ExpandedScene, RuntimeEntity } from "../scene/types";
 import type { RapierModule } from "../types";
@@ -462,6 +462,41 @@ describe("posing", () => {
     rt.unload();
     expect(live.has(sid)).toBe(false);
     expect(rt.ctx.behavior(SPRITE.name)?.size()).toBe(0);
+  });
+});
+
+describe("setFrame", () => {
+  const sprites = (rt: ReturnType<typeof loaded>["rt"]) =>
+    rt.ctx.behavior<SpriteSystem>(SPRITE.name)!;
+
+  it("draws another frame of the atlas in place, keeping the pose, once per change", () => {
+    const { rt, live, calls, callsFor } = loaded([marker("a", { asset: "hero", frame: "idle-0" })]);
+    const sid = spriteViewId("a");
+    rt.ctx.poses.set("a", 3, 4, 0, { snap: true });
+    rt.step(DT, []);
+    const posed = calls.length;
+    sprites(rt).setFrame("a", "run-0");
+    sprites(rt).setFrame("a", "run-0");
+    expect(callsFor(sid, "sprite")).toHaveLength(2);
+    expect(calls.slice(posed).map((c) => c.op)).toEqual(["sprite"]);
+    expect(visualOf(live, "a")).toMatchObject({
+      texture: SHEET,
+      frame: { x: 16, y: 0, w: 16, h: 24 },
+      anchor: [0.5, 0.5],
+    });
+    expect(live.get(sid)?.pose).toEqual({ x: 3, y: 4, rot: 0 });
+  });
+
+  it("keeps the frame through an update of the block, drops it on detach, and ignores an id without a sprite", () => {
+    const { rt, live } = loaded([marker("a", { asset: "hero", frame: "idle-0" })]);
+    sprites(rt).setFrame("a", "run-0");
+    rt.update([marker("a", { asset: "hero", frame: "idle-0", tint: 0x123456 })]);
+    expect(visualOf(live, "a")).toMatchObject({ tint: 0x123456, frame: { x: 16 } });
+    rt.update([{ id: "a", type: "marker", at: [1, 2] } as RuntimeEntity]);
+    rt.update([marker("a", { asset: "hero", frame: "idle-0" })]);
+    expect(visualOf(live, "a").frame).toMatchObject({ x: 0 });
+    expect(() => sprites(rt).setFrame("nobody", "run-0")).not.toThrow();
+    expect(live.has(spriteViewId("nobody"))).toBe(false);
   });
 });
 

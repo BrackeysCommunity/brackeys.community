@@ -21,7 +21,7 @@ export type UiContext<G = unknown> = {
   ): () => void;
   /** game-settings' `game` block, defaults applied; {} without a project. */
   settings: Readonly<Record<string, unknown>>;
-  /** True when the page prefers reduced motion; HUDs skip their own animations. */
+  /** `GameInstance.reducedMotion`: when true, HUDs skip their own animations. */
   reducedMotion: boolean;
   /**
    * Pages the host ships beside the game, as URLs a link can open; absent

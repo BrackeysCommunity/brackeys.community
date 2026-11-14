@@ -12,6 +12,7 @@ import {
   type DocKindDef,
   type DocLayout,
 } from "../../project/kinds";
+import { animationKind, type AnimationFile } from "../../project/kinds/animation";
 import { dataTableKind } from "../../project/kinds/data-table";
 import { gameSettingsKind } from "../../project/kinds/game-settings";
 import { ENGINE_ASSET_KINDS } from "../../project/kinds/index";
@@ -1084,6 +1085,177 @@ describe("a scene list's references", () => {
         ]);
         for (const s of [a, b]) s.destroy();
       }
+    },
+  );
+});
+
+describe("an animation's atlas reference", () => {
+  const ANIM_LAYOUT = animationKind.layout as DocLayout;
+  const animState: ProjectState = {
+    meta: { projectId: "p", layout: 1, name: "P" },
+    assets: Object.fromEntries(
+      [
+        entry("hero-tex", "texture", "art/hero.png", { sha256: H("a"), bytes: 4 }),
+        entry("hero-sheet", "atlas", "art/hero.atlas.json", {
+          sha256: H("b"),
+          bytes: 4,
+          import: { texture: "hero-tex" },
+          meta: {
+            tool: "aseprite",
+            frames: {
+              "hero-0": { x: 0, y: 0, w: 8, h: 8 },
+              "hero-1": { x: 8, y: 0, w: 8, h: 8 },
+            },
+            tags: [{ name: "idle", from: 0, to: 1, direction: "forward" }],
+            slices: [],
+            order: ["hero-0", "hero-1"],
+          },
+        }),
+        entry("hero-anim", "animation", "anims/hero.animation.json"),
+      ].map((e) => [e.key, e]),
+    ),
+    history: {},
+    code: {},
+    build: {},
+  };
+  const startAnim: AnimationFile = {
+    kind: "animation",
+    v: 1,
+    atlas: "hero-sheet",
+    clips: [
+      { name: "idle", tag: "idle" },
+      {
+        name: "jab",
+        loop: "once",
+        next: "idle",
+        frames: [
+          { frame: "hero-0", ms: 50 },
+          { frame: "hero-1", ms: 80, events: ["swing"] },
+        ],
+      },
+    ],
+  };
+
+  const animOf = (doc: (name: string) => Y.Doc) =>
+    layoutFromDoc(doc("asset:p.hero-anim"), ANIM_LAYOUT) as AnimationFile;
+
+  function animRefs(state: ProjectState, doc: (name: string) => Y.Doc) {
+    const view = projectView(state, kinds);
+    const values = new Map<AssetId, unknown>();
+    for (const e of Object.values(state.assets))
+      if (!e.deleted && e.kind === "animation") values.set(e.id, animOf(doc));
+    return { view, index: buildRefIndex(view, values, kinds, { registry, project: view }) };
+  }
+
+  function simAnim(clients: number, seed: number) {
+    const initial: Record<string, Y.Doc> = {};
+    const doc = (name: string) => {
+      const d = (initial[name] ??= new Y.Doc());
+      d.clientID = 1;
+      return d;
+    };
+    seedProjectDoc(doc("project:p"), animState, { kind: "migration" });
+    layoutToDoc(doc("asset:p.hero-anim"), ANIM_LAYOUT, startAnim, { kind: "migration" });
+    const sim = new SimProject(clients + 1, rng(seed), initial);
+    return {
+      sim,
+      join: (i: number, origin: DocOrigin) =>
+        createProjectSession({ project: "p", openDoc: sim.openDoc(i), origin, registry, kinds }),
+    };
+  }
+
+  it(
+    "renaming the atlas while another client edits a clip leaves the animation's atlas resolving",
+    { timeout: 30_000 },
+    async () => {
+      let partitions = 0;
+      let changedIds = 0;
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        const { sim, join } = simAnim(2, seed);
+        const [mover, animator] = await Promise.all([join(0, ada), join(1, bo)]);
+        for (const s of [mover, animator]) await s.open("asset:p.hero-anim");
+        let atlas = "hero-sheet";
+        const speeds: Record<string, number> = {};
+        const added: string[] = [];
+        const jabFrames = [...startAnim.clips[1]!.frames!];
+        for (let step = 0; step < 12; step++) {
+          const at = mover.view().byId.get(atlas)!;
+          const roll = sim.rand();
+          if (roll < 0.4) {
+            const to = `hero-sheet-${step}`;
+            await applied(mover, [{ op: "changeAssetId", id: atlas, to }]);
+            atlas = to;
+            changedIds++;
+          } else if (roll < 0.7)
+            await applied(mover, [
+              {
+                op: "renameAsset",
+                id: atlas,
+                file: `s${step}-${at.path.slice(at.path.lastIndexOf("/") + 1)}`,
+              },
+            ]);
+          else await applied(mover, [{ op: "moveAsset", ids: [atlas], to: `moved-${step}/` }]);
+
+          const edit = step % 3;
+          if (edit === 0) {
+            const name = step % 2 === 0 ? "idle" : "jab";
+            speeds[name] = 1 + step / 10;
+            await applied(animator, [
+              {
+                op: "editAsset",
+                id: "hero-anim",
+                edits: [{ set: `/clips/@${name}/speed`, value: speeds[name] }],
+              },
+            ]);
+          } else if (edit === 1) {
+            const frame = { frame: step % 2 === 0 ? "hero-0" : "hero-1", ms: 40 + step };
+            jabFrames.push(frame);
+            await applied(animator, [
+              {
+                op: "editAsset",
+                id: "hero-anim",
+                edits: [{ insert: "/clips/@jab/frames/-", value: frame }],
+              },
+            ]);
+          } else {
+            const name = `pose-${step}`;
+            added.push(name);
+            await applied(animator, [
+              {
+                op: "editAsset",
+                id: "hero-anim",
+                edits: [{ insert: "/clips/-", value: { name, frames: [{ frame: "hero-1" }] } }],
+              },
+            ]);
+          }
+          sim.deliver(Math.floor(sim.rand() * 3));
+          sim.weather(0.2, 0.2);
+        }
+        sim.settle();
+
+        const states = [mover, animator].map((s) => readProject(s.projectDoc));
+        expect(states[1], `seed ${seed}`).toEqual(states[0]);
+        for (const s of [mover, animator]) {
+          const doc = sessionDoc(s);
+          const anim = animOf(doc);
+          expect(anim.atlas, `seed ${seed}: atlas follows the id`).toBe(atlas);
+          expect(anim.clips.map((c) => c.name)).toEqual(["idle", "jab", ...added]);
+          for (const [name, speed] of Object.entries(speeds))
+            expect(anim.clips.find((c) => c.name === name)?.speed).toBe(speed);
+          expect(anim.clips.find((c) => c.name === "jab")?.frames).toEqual(jabFrames);
+          const { view, index } = animRefs(readProject(s.projectDoc), doc);
+          expect(view.byId.get(anim.atlas)?.kind).toBe("atlas");
+          expect(index.dangling(), `seed ${seed}`).toEqual([]);
+          expect(index.referrers(atlas).map((r) => [r.id, r.pointer])).toEqual([
+            ["hero-anim", "/atlas"],
+          ]);
+        }
+        expect(animOf(sessionDoc(animator))).toEqual(animOf(sessionDoc(mover)));
+        partitions += sim.partitions;
+        for (const s of [mover, animator]) s.destroy();
+      }
+      expect(partitions, "the runs must cut clients off").toBeGreaterThan(3);
+      expect(changedIds, "the runs must change the atlas's id").toBeGreaterThan(5);
     },
   );
 });

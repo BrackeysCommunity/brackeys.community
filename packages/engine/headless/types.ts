@@ -23,6 +23,8 @@ export type HeadlessRuntimeOptions = {
   fromSave?: SaveFile;
   /** Times each step's parts into this collector; `stats().timing` reports them. */
   timing?: RunTiming;
+  /** Keep presentation requests in each `StepResult.present`; default false, when they are dropped. */
+  recordPresentation?: boolean;
 };
 
 /**

@@ -11,6 +11,7 @@ import {
   projectGlobs,
   RELEASE_FILE,
   sha256,
+  type ReleaseAsset,
   type ReleaseManifest,
   type Sha256,
 } from "@jams/engine/project";
@@ -28,6 +29,14 @@ import { gameExport } from "../tools/game-export";
 import { filesUnder, gameManifest, replayRelease } from "../tools/game-manifest";
 import { GAME_NEW_STAGE } from "../tools/game-new";
 import { hostedSite } from "./fixtures/hosted-site";
+import {
+  addMotion,
+  copyGame,
+  MOTION_ANIMATION,
+  MOTION_PRESET,
+  MOTION_SPARE_PRESET,
+  MOTION_SPARE_TEXTURE,
+} from "./fixtures/motion-project";
 
 vi.mock("@/db", () => ({ db: {} }));
 
@@ -368,11 +377,7 @@ describe("Rapier and the budget", () => {
     "a project over its export.budget writes the build and fails, unless --allow-over-budget",
     async () => {
       const dir = join(ROOT, "over-budget", "tactics");
-      const tactics = join(REPO_ROOT, "src", "games", "tactics");
-      await cp(tactics, dir, {
-        recursive: true,
-        filter: (src) => !src.split(/[\\/]/).includes("__tests__"),
-      });
+      await copyGame("tactics", dir);
       const file = JSON.parse(await readFile(join(dir, PROJECT_FILE), "utf8"));
       await writeFile(
         join(dir, PROJECT_FILE),
@@ -407,6 +412,74 @@ describe("Rapier and the budget", () => {
       expect(allowed.release).toBe(refused.release);
     },
     2 * BUILD_MS,
+  );
+});
+
+describe("a build with an animation and emitter presets", () => {
+  it(
+    "ships the docs in data/, the atlas and the preset's texture in the start scene's bundle, a blob only a preset reaches in none, and a release.json that checks clean",
+    async () => {
+      const dir = join(ROOT, "motion", "tactics");
+      await copyGame("tactics", dir);
+      await addMotion(
+        { ...ctx, projects: [await projectAt(dir)] },
+        join(ROOT, "motion", "staging"),
+      );
+      const project = await projectAt(dir);
+      const motion: ToolContext = { ...ctx, projects: [project] };
+      const b = await buildWith(motion, {
+        id: "tactics",
+        target: "web",
+        out: join(ASIDE, "motion", "web"),
+        allowOverBudget: false,
+      });
+      expect(b.exitCode, b.text).toBe(0);
+      const m = b.manifest;
+      const files = await hashedFiles(b.dir);
+
+      const docs = {
+        [MOTION_ANIMATION]: "animation",
+        [MOTION_PRESET]: "emitter",
+        [MOTION_SPARE_PRESET]: "emitter",
+      };
+      for (const [id, kind] of Object.entries(docs)) {
+        const asset = m.assets[id]!;
+        expect(asset, id).toMatchObject({
+          kind,
+          storage: "doc",
+          file: `data/${asset.sha256}.json`,
+        });
+        expect(m.build.files.find((f) => f.path === asset.file)?.role, id).toBe("data");
+        expect(files.get(asset.file), id).toBe(asset.sha256);
+      }
+
+      expect(m.flow.start).toBe("menu");
+      const menu = m.flow.scenes.find((s) => s.id === "menu")!;
+      expect(menu.bundle.entries).toEqual(
+        expect.arrayContaining(["tile-rubble", "tiles", "units-texture"]),
+      );
+      const spare = m.assets[MOTION_SPARE_TEXTURE]!;
+      expect(spare.storage).toBe("blob");
+      expect(files.get(spare.file)).toBe(spare.sha256);
+      const bundled = [
+        ...m.projectBundle.entries,
+        ...m.flow.scenes.flatMap((s) => s.bundle.entries),
+      ];
+      expect(bundled).not.toContain(MOTION_SPARE_TEXTURE);
+
+      const texts = new Map<string, string>();
+      for (const [id, asset] of Object.entries(m.assets))
+        if (asset.storage === "doc") texts.set(id, await readFile(join(b.dir, asset.file), "utf8"));
+      const env = { registry: project.registry, project: null };
+      const docRefs = (id: string, asset: ReleaseAsset) => {
+        const def = project.kinds.get(asset.kind);
+        return def?.storage === "doc" ? (def.refs?.(JSON.parse(texts.get(id)!), env) ?? []) : [];
+      };
+      expect(await checkReleaseManifest(m, files, { docRefs })).toEqual([]);
+      const checked = await gameManifest({ path: b.dir }, motion);
+      expect(checked.exitCode, checked.text).toBe(0);
+    },
+    BUILD_MS,
   );
 });
 

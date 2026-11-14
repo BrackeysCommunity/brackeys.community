@@ -49,6 +49,17 @@ const items: AssetEntry = {
   import: { texture: "items-art", pivotDefault: [0, 0] },
   created,
 };
+const hero: AssetEntry = {
+  key: "hero",
+  id: "hero",
+  kind: "atlas",
+  path: "art/hero.json",
+  sha256: "c".repeat(64),
+  bytes: 10,
+  meta: inspected(atlasKind, fixture("hero.json"), {}),
+  import: { texture: "items-art" },
+  created,
+};
 const gone: AssetEntry = {
   key: "gone",
   id: "gone",
@@ -63,7 +74,7 @@ const yard: AssetEntry = { key: "yard", id: "yard", kind: "scene", path: "yard.j
 
 const state: ProjectState = {
   meta: { projectId: "p", layout: 1, name: "P" },
-  assets: Object.fromEntries([itemsArt, items, gone, yard].map((e) => [e.key, e])),
+  assets: Object.fromEntries([itemsArt, items, hero, gone, yard].map((e) => [e.key, e])),
   history: {},
   code: {},
   build: {},
@@ -91,9 +102,15 @@ describe("assetInfo", () => {
       sha256: "b".repeat(64),
       bytes: 10,
       frames: ["coin.png", "gem.png", "panel.png"],
+      durations: [null, null, null],
       tags: [{ name: "spin", from: 0, to: 1, direction: "forward" }],
       texture: "items-art",
     });
+  });
+
+  it("gives an atlas's frame durations in frame order, null where the export gives none", () => {
+    expect(assetInfo(view, "items")?.durations).toEqual([null, null, null]);
+    expect(assetInfo(view, "hero")?.durations).toEqual([100, 100, 150, 200]);
   });
 
   it("gives a frame's size and pivot, the pivot default filling a frame without one", () => {

@@ -7,8 +7,10 @@
  * Rapier, that its tactics run (`browser/tactics.ts`) replays the tactics
  * game's golden recording to the game's one pin with no Rapier, and that its
  * render run (`browser/render.ts`) draws the kitchen sink's crate sprite where
- * it stands and nothing in the empty air beside it. The preview server serves the engine project's blobs on the dev route
- * (`browser/project.ts`).
+ * it stands and nothing in the empty air beside it, then, split into two
+ * viewports, the crate in the left half and the animated sprite in the right,
+ * that sprite's frame changing a clip frame later. The preview server serves
+ * the engine project's blobs on the dev route (`browser/project.ts`).
  *
  * Then, in the same browser, the editor page (`browser/editor.ts`): the
  * packed `dist` editor on the kitchen sink of a scratch copy of the engine
@@ -61,7 +63,17 @@ import type { EngineSmokeResult } from "./browser/main";
 import { rapierSpy, runPhysicsFree } from "./browser/physics-free";
 import { loadSinkProject, sinkPreviewPlugin, type SinkProject } from "./browser/project";
 import { loadRapier, runSmokeDigest } from "./browser/run";
-import { INSIDE_COLOUR, INSIDE_POINT, OUTSIDE_POINT, SINK_SCENE } from "./browser/sink";
+import {
+  ANIM_COLOURS,
+  ANIM_ENTITY,
+  ANIM_FRAME_TICKS,
+  ANIM_POINT,
+  INSIDE_COLOUR,
+  INSIDE_POINT,
+  OUTSIDE_POINT,
+  SINK_SCENE,
+  SPLIT_VIEWPORTS,
+} from "./browser/sink";
 import { runTactics, type TacticsProbe } from "./browser/tactics";
 import { closeWithin } from "./export";
 import { ENGINE, REPO, run, VP } from "./pack";
@@ -433,11 +445,14 @@ try {
     const drew = outcome.render
       ? `; ${outcome.render.renderer} drew rgba(${outcome.render.inside.join(", ")}) on the sprite`
       : "";
+    const split = outcome.split
+      ? `; split ${outcome.split.anim.map((r) => `rgba(${r.pixel.join(", ")})`).join(" then ")} on the animated sprite`
+      : "";
     const free = outcome.physicsFree ? `; physics-free ${outcome.physicsFree.digest}` : "";
     const second = outcome.tactics ? `; tactics ${outcome.tactics.digest}` : "";
     const detail =
       outcome.status === "pass"
-        ? `${outcome.digest}${free}${second}${drew} in ${outcome.ms} ms`
+        ? `${outcome.digest}${free}${second}${drew}${split} in ${outcome.ms} ms`
         : outcome.reason;
     console.log(`${name}: ${outcome.status}${detail ? ` — ${detail}` : ""}`);
     const ed = outcome.editor;
@@ -453,6 +468,7 @@ try {
 }
 
 const ok = error === null && overallOk(outcomes);
+const hex = (c: number) => `#${c.toString(16).padStart(6, "0")}`;
 writeFileSync(
   REPORT,
   `${JSON.stringify(
@@ -464,8 +480,17 @@ writeFileSync(
       flavour: "rapier2d-compat",
       render: {
         scene: SINK_SCENE,
-        inside: { at: INSIDE_POINT, colour: `#${INSIDE_COLOUR.toString(16).padStart(6, "0")}` },
+        inside: { at: INSIDE_POINT, colour: hex(INSIDE_COLOUR) },
         outside: { at: OUTSIDE_POINT },
+      },
+      split: {
+        viewports: SPLIT_VIEWPORTS,
+        anim: {
+          entity: ANIM_ENTITY,
+          at: ANIM_POINT,
+          ticks: ANIM_FRAME_TICKS,
+          colours: ANIM_COLOURS.map(hex),
+        },
       },
       editor: {
         scene: SINK_SCENE,

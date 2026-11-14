@@ -20,17 +20,28 @@ import {
 } from "@jams/engine/collab";
 import { DEFAULT_EXPORT_BUDGET, exportTargetNames, ITCH_LIMITS } from "@jams/engine/export";
 import {
+  ANIM_END,
+  ANIM_FRAME,
   clampTiming,
   createRegistry,
+  EASE_NAMES,
   LIVE_DEFAULTS,
   SLOT_MAX_LENGTH,
   SLOT_PATTERN,
   SLOT_RULE,
+  TWEEN_END,
 } from "@jams/engine/game";
-import { createKindRegistry, ENGINE_ASSET_KINDS, type AssetEntry } from "@jams/engine/project";
-import type { SceneDefinition } from "@jams/engine/scene";
+import { createHeadlessRuntime } from "@jams/engine/headless";
+import {
+  createKindRegistry,
+  EMITTER_MAX_CAP,
+  EMITTER_MAX_DEFAULT,
+  ENGINE_ASSET_KINDS,
+  type AssetEntry,
+} from "@jams/engine/project";
+import { expandScene, type SceneDefinition } from "@jams/engine/scene";
 import { Store } from "@tanstack/store";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type * as Y from "yjs";
 
 import { liveAppliedText } from "../../../packages/engine/editor-ui/session/live-scene-editor";
@@ -463,16 +474,12 @@ describe("the UI example runs", () => {
     const { window } = await dom(
       `<div id="stage" style="position: relative"><canvas></canvas></div>`,
     );
-    if (opts.reducedMotion) {
-      window.matchMedia = ((query: string) => ({
-        matches: query === "(prefers-reduced-motion: reduce)",
-      })) as unknown as typeof window.matchMedia;
-    }
     const canvas = window.document.querySelector("canvas")!;
     const store = new Store({ game: null } as unknown as GameStoreState);
     const sent: unknown[] = [];
     const listeners: { fn: Listener; actions?: readonly string[] }[] = [];
     const game = {
+      reducedMotion: opts.reducedMotion ?? false,
       getStore: () => store,
       project: () => ({ settings: { boatName: "Molly" } }),
       send: (command: unknown) => (sent.push(command), true),
@@ -1035,5 +1042,183 @@ describe("the live levels examples run", () => {
       respawns: 1,
       swaps: ["boundary reconcile +crate"],
     });
+  });
+});
+
+describe("the presentation sections", () => {
+  it("come in order before Genre probes", () => {
+    const readme = readFileSync(README, "utf8");
+    const headings = [...readme.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
+    const at = headings.indexOf("Presentation");
+    expect(headings.slice(at, at + 8)).toEqual([
+      "Presentation",
+      "Animation",
+      "Tweens",
+      "Cameras",
+      "Split screen",
+      "Effects and particles",
+      "Reduced motion",
+      "Genre probes",
+    ]);
+  });
+
+  it("names the step events as the engine raises them", () => {
+    const text = readmeSection("## Animation") + readmeSection("## Tweens");
+    for (const type of [ANIM_FRAME, ANIM_END, TWEEN_END]) expect(text).toContain(`\`${type}\``);
+  });
+
+  it("names every ease family as EASE_NAMES has them", () => {
+    const families = new Set(
+      EASE_NAMES.filter((n) => n !== "linear").map((n) => n.replace(/(InOut|In|Out)$/, "")),
+    );
+    const text = readmeSection("## Tweens").replace(/\s+/g, " ");
+    for (const family of families) expect(text).toContain(`\`${family}\``);
+    expect(EASE_NAMES.length).toBe(1 + families.size * 3);
+  });
+
+  it("states the emitter caps as the kind has them", () => {
+    const text = readmeSection("## Effects and particles").replace(/\s+/g, " ");
+    expect(text).toContain(
+      `default ${EMITTER_MAX_DEFAULT}, at most ${EMITTER_MAX_CAP.toLocaleString("en")}`,
+    );
+  });
+
+  it("says a tweened collider teleports, and what each part does under reduced motion", () => {
+    expect(readmeSection("## Tweens").replace(/\s+/g, " ")).toContain(
+      "Bodies resting on a tweened platform aren't carried along.",
+    );
+    const rows = tableRows(readmeSection("## Reduced motion"), "| What");
+    expect(rows.map((r) => r[0])).toEqual([
+      "Camera shake",
+      "Flash",
+      "Particles",
+      "Scene transitions",
+      "The game's HUD",
+      "Hit-stop",
+      "Camera follow, zoom and regions",
+      "anim and tweens",
+    ]);
+  });
+});
+
+describe("the presentation examples run", () => {
+  it("blade-clips.ts rounds each frame to whole ticks at the rate, and names a missing tag and clip", async () => {
+    const { brokenMoves, clipsAt } = await import("../examples/blade-clips");
+    expect(clipsAt(60)).toEqual({
+      issues: [],
+      rest: [9, 9],
+      cut: [
+        ["cut-0", 3, []],
+        ["cut-1", 3, ["swish"]],
+        ["cut-2", 6, []],
+      ],
+      length: 12,
+      afterFour: { index: 1, into: 1, done: false },
+    });
+    expect(clipsAt(30)).toMatchObject({ rest: [5, 5], length: 7 });
+    expect(brokenMoves()).toEqual(["anim-tag-unknown", "anim-clip-unknown"]);
+  });
+
+  it("blade-playtest.ts hits once, asks for a shake, a hit-stop and a burst, and keeps its digest", async () => {
+    const { swingTwice } = await import("../examples/blade-playtest");
+    const r = swingTwice();
+    expect(r.final).toEqual({ swishes: 2, hits: 1, clip: "rest" });
+    expect(r.present).toEqual([
+      { tick: 3, kind: "camera", op: { op: "shake", trauma: 0.4 } },
+      { tick: 3, kind: "effect", op: { op: "hitStop", ms: 60 } },
+      { tick: 3, kind: "effect", op: { op: "burst", preset: "sparks", at: { x: 1.4, y: 1 } } },
+    ]);
+    expect(r.sameDigest).toBe(true);
+  });
+
+  it("lift-tweens.ts lands the cab exactly, raises its arrival and refuses a sprite-less fade", async () => {
+    const { rideUp } = await import("../examples/lift-tweens");
+    expect(rideUp()).toEqual({
+      cabY: 2,
+      arrivedAt: 29,
+      running: 1,
+      refused: "tween-target-invalid",
+      halfway: 0.75,
+    });
+  });
+
+  it("lookout-playtest.ts lists the camera and effect requests with their ticks", async () => {
+    const { watchRidge } = await import("../examples/lookout-playtest");
+    expect(watchRidge()).toEqual([
+      "120 camera follow",
+      "120 camera zoom",
+      "120 effect flash",
+      "180 camera follow",
+      "180 camera zoom",
+    ]);
+  });
+
+  it("split-screen.ts splits for two seats, finds the point under a click, and targets each seat", async () => {
+    const { fitSeats, pointUnder, relayGame, sideBySide } =
+      await import("../examples/split-screen");
+    const set: unknown[] = [];
+    fitSeats({ setViewports: (defs) => void set.push(defs) }, 2);
+    fitSeats({ setViewports: (defs) => void set.push(defs) }, 1);
+    expect(set).toEqual([sideBySide, [{ rect: [0, 0, 1, 1], frame: "main" }]]);
+    const game = {
+      viewportAt: (x: number) => (x < 400 ? 0 : 1),
+      clientToWorld: (x: number, y: number, viewport?: number) => ({
+        x: x / 100,
+        y: viewport ?? y,
+      }),
+    };
+    expect(pointUnder(game, 500, 20)).toEqual({ viewport: 1, at: { x: 5, y: 1 } });
+
+    const registry = createRegistry(relayGame);
+    const track: SceneDefinition = {
+      v: 4,
+      game: "relay",
+      name: "track",
+      bounds: [0, 0, 4, 2],
+      entities: [
+        { id: "red", type: "marker", at: [1, 1] },
+        { id: "blue", type: "marker", at: [3, 1] },
+      ],
+    };
+    const rt = createHeadlessRuntime({
+      game: relayGame,
+      registry,
+      scene: expandScene(track, registry),
+    });
+    expect(rt.game?.cameraTargets?.()).toEqual([
+      { at: { x: 1, y: 1 }, player: 0 },
+      { at: { x: 3, y: 1 }, player: 1 },
+    ]);
+    rt.destroy();
+  });
+
+  it("sparks-preset.ts reads clean, and refuses a backwards range and a misspelt frame", async () => {
+    const { checkSparks } = await import("../examples/sparks-preset");
+    expect(checkSparks()).toEqual({
+      ok: true,
+      backwards: ["schema"],
+      frame: ["asset-frame-unknown"],
+    });
+  });
+
+  it("own-effects.ts flashes calmly and holds the clock for the hit-stop", async () => {
+    const { hostEffects } = await import("../examples/own-effects");
+    const { window } = await dom(`<div id="over"></div>`);
+    const over = window.document.getElementById("over")!;
+    let scale = 1;
+    const loop = { setTimeScale: (s: number) => void (scale = s), getTimeScale: () => scale };
+    vi.useFakeTimers();
+    try {
+      const effects = hostEffects(over, loop, () => true);
+      expect(scale).toBe(0);
+      const flash = over.querySelector<HTMLElement>("[data-jams-flash]")!;
+      expect(flash.style.transition).toBe("opacity 80ms linear");
+      vi.advanceTimersByTime(80);
+      expect(scale).toBe(1);
+      expect(over.children).toHaveLength(0);
+      effects.clear();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

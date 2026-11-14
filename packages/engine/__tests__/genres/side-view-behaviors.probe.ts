@@ -276,7 +276,7 @@ const script: InputScriptV2 = {
 export const sideViewBehaviorsProbe: GenreProbe<BehaviorPoses> = {
   id: ID,
   rows: ["platformer"],
-  pending: { platformer: "M22 (animation, cameras), M23 (audio), M25 (tilemaps)" },
+  pending: { platformer: "M23 (audio), M25 (tilemaps)" },
   game,
   scene,
   script,
@@ -337,7 +337,7 @@ function yardScene(): SceneDefinition {
 export const behaviorYardProbe: GenreProbe<BehaviorPoses> = {
   id: YARD,
   rows: ["platformer"],
-  pending: { platformer: "M22 (animation, cameras), M23 (audio), M25 (tilemaps)" },
+  pending: { platformer: "M23 (audio), M25 (tilemaps)" },
   game: yardGame,
   scene: yardScene(),
   prefabs: yardPrefabs(),

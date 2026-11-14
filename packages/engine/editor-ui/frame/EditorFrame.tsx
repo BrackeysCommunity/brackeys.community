@@ -23,7 +23,7 @@ import {
   type Ref as SceneRef,
   type SceneIssue,
 } from "../../editor/index";
-import { frameBounds, outlineBounds, outlineLook } from "../../editor/tool-host";
+import { frameBounds, outlineBounds, outlineLook } from "../../editor/outline-bounds";
 import type { RapierModule } from "../../index";
 import type { AssetKey } from "../../project/index";
 import { hostPeerColor, type EditorHost, type EditorPublishHost } from "../host";

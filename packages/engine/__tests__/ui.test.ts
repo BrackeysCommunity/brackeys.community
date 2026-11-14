@@ -208,13 +208,9 @@ describe("mountUi", () => {
     expect(game.getStore().listeners.size).toBe(subscribed);
   });
 
-  it("builds the context: slice, settings and reduced motion", () => {
-    vi.stubGlobal(
-      "matchMedia",
-      vi.fn((query: string) => ({ matches: query === "(prefers-reduced-motion: reduce)" })),
-    );
+  it("builds the context: slice, settings and the game's reduced motion", () => {
     let seen: UiContext<{ score: number }> | null = null;
-    const unmount = mountUi<{ score: number }>(game, canvas, (ctx) => {
+    const unmount = mountUi<{ score: number }>({ ...game, reducedMotion: true }, canvas, (ctx) => {
       seen = ctx;
       return { destroy() {} };
     });
@@ -228,6 +224,47 @@ describe("mountUi", () => {
     game.getStore().setState((s) => ({ ...s, game: null }));
     expect(ctx?.slice()).toBeNull();
     unmount();
+  });
+
+  it("resolves reduced motion once, at createGame: auto asks the page, a boolean wins", async () => {
+    const reduce = vi.fn((query: string) => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+    }));
+    vi.stubGlobal("matchMedia", reduce);
+    const auto = await createGame(canvas, { game: testGame, rapier: async () => rapier });
+    const off = await createGame(canvas, {
+      game: testGame,
+      rapier: async () => rapier,
+      reducedMotion: false,
+    });
+    vi.stubGlobal("matchMedia", () => {
+      throw new Error("no media queries here");
+    });
+    const failing = await createGame(canvas, { game: testGame, rapier: async () => rapier });
+    const forced = await createGame(canvas, {
+      game: testGame,
+      rapier: async () => rapier,
+      reducedMotion: true,
+    });
+    try {
+      expect([auto, off, failing, forced].map((g) => g.reducedMotion)).toEqual([
+        true,
+        false,
+        false,
+        true,
+      ]);
+      expect(reduce).toHaveBeenCalledTimes(1);
+      let seen: boolean | undefined;
+      const unmount = mountUi(auto, canvas, (ctx) => {
+        seen = ctx.reducedMotion;
+        return { destroy() {} };
+      });
+      unmount();
+      expect(seen).toBe(true);
+      expect(reduce).toHaveBeenCalledTimes(1);
+    } finally {
+      for (const g of [auto, off, failing, forced]) g.destroy();
+    }
   });
 
   it("reads settings from the project's runtime view, and no reduced motion without matchMedia", () => {

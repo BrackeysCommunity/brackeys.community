@@ -17,6 +17,7 @@ const CLIENT_ENTRIES = [
   "src/lib/engine/save-store.ts",
   "src/lib/engine/local-saves.ts",
   "src/lib/engine/host-server.ts",
+  "src/lib/engine/live-client.ts",
   "src/components/games/SaveNotice.tsx",
   "src/components/games/PlayChrome.tsx",
   "src/components/games/PlayFrame.tsx",

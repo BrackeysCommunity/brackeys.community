@@ -3,18 +3,19 @@ import { assetFileEntries, ownAssetId, type AssetFile } from "./asset-files";
 import { entryInfo, type AssetInfo } from "./asset-info";
 import { deepFreeze } from "./canonical";
 import type { ContentStore } from "./content-store";
-import { createKindRegistry, type KindRegistry } from "./kinds";
-import { DATA_TABLE_KIND, rowSchemaOf, tableAssets } from "./kinds/data-table";
-import { byCodeUnit, isPlainObject } from "./kinds/define";
-import { GAME_SETTINGS_KIND, gameSettingsEntries, gameSettingsValues } from "./kinds/game-settings";
-import { INPUT_MAP_KIND, type InputMapFile } from "./kinds/input-map";
-import { kindInputMap } from "./kinds/input-script";
+import { createKindRegistry, parseAssetDoc, type KindRegistry } from "./kinds";
+import { rowSchemaOf, tableAssets } from "./kinds/data-table";
 import {
-  SCENE_LIST_KIND,
-  sceneListEntries,
-  sceneListFlow,
-  type SceneListFlow,
-} from "./kinds/scene-list";
+  byCodeUnit,
+  byPathThenKey,
+  isPlainObject,
+  isRuntimeKind,
+  runtimeKindNames,
+} from "./kinds/define";
+import { gameSettingsEntries, gameSettingsValues } from "./kinds/game-settings";
+import type { InputMapFile } from "./kinds/input-map";
+import { kindInputMap } from "./kinds/input-script";
+import { sceneListEntries, sceneListFlow, type SceneListFlow } from "./kinds/scene-list";
 import type { AssetSidecar } from "./sidecar";
 import { jsonValues, pinnedDocs, snapshotView, type ProjectSnapshot } from "./snapshot";
 import type {
@@ -50,15 +51,15 @@ export type ProjectRuntimeView = {
    * `{ start: null, scenes: [] }` without one. `runtimeView` always sets it.
    */
   flow?: SceneListFlow;
+  /**
+   * A runtime kind's doc (`DocKindDef.runtime`), parsed, migrated and
+   * frozen; undefined for an unknown id, a doc that doesn't parse, or a
+   * kind that isn't a runtime kind. `runtimeView` always sets it.
+   */
+  doc?<T = unknown>(kind: AssetKindName, id: AssetId): T | undefined;
+  /** The ids `doc` answers for a runtime kind, in path order. `runtimeView` always sets it. */
+  docs?(kind: AssetKindName): readonly AssetId[];
 };
-
-/** The doc kinds a runtime view reads: a host loading one passes these docs' values. */
-export const RUNTIME_VIEW_KINDS: readonly AssetKindName[] = [
-  GAME_SETTINGS_KIND,
-  DATA_TABLE_KIND,
-  INPUT_MAP_KIND,
-  SCENE_LIST_KIND,
-];
 
 type Row = Readonly<Record<string, unknown> & { id: string }>;
 
@@ -72,12 +73,14 @@ type Row = Readonly<Record<string, unknown> & { id: string }>;
  * declare has no rows. `engine` is that asset's `engine` block, unparsed.
  * `inputMap` is the first input-map asset by path, as `usableInputMap`
  * reads it, and `flow` the first scene list's as `sceneListFlow` reads it.
+ * `doc` and `docs` hold every doc of `kinds`' runtime kinds that parses.
  * Read once, copied and frozen.
  */
 export function runtimeView(
   view: ProjectView,
   values: ReadonlyMap<AssetId, unknown>,
   registry: Registry,
+  kinds: KindRegistry = createKindRegistry(registry.game),
 ): ProjectRuntimeView {
   const [settingsEntry] = gameSettingsEntries(view);
   const file = settingsEntry ? values.get(settingsEntry.id) : undefined;
@@ -124,6 +127,9 @@ export function runtimeView(
     structuredClone(sceneListFlow(listEntry ? values.get(listEntry.id) : undefined)),
   );
 
+  const runtimeDocs = runtimeDocsOf(view, values, registry, kinds);
+  const noIds: readonly AssetId[] = Object.freeze([]);
+
   return Object.freeze({
     settings,
     engine,
@@ -134,11 +140,43 @@ export function runtimeView(
     },
     inputMap,
     flow,
+    doc: <T = unknown>(kind: AssetKindName, id: AssetId): T | undefined =>
+      runtimeDocs.get(kind)?.values.get(id) as T | undefined,
+    docs: (kind: AssetKindName) => runtimeDocs.get(kind)?.ids ?? noIds,
   });
 }
 
+/** Each runtime kind's docs that parse, frozen, by id, and their ids in path order. */
+function runtimeDocsOf(
+  view: ProjectView,
+  values: ReadonlyMap<AssetId, unknown>,
+  registry: Registry,
+  kinds: KindRegistry,
+): Map<AssetKindName, { ids: readonly AssetId[]; values: ReadonlyMap<AssetId, unknown> }> {
+  const out = new Map<
+    AssetKindName,
+    { ids: readonly AssetId[]; values: ReadonlyMap<AssetId, unknown> }
+  >();
+  const env = { registry, project: view };
+  const entries = [...view.byId.values()].sort(byPathThenKey);
+  for (const def of kinds.list()) {
+    if (!isRuntimeKind(def)) continue;
+    const ids: AssetId[] = [];
+    const parsed = new Map<AssetId, unknown>();
+    for (const entry of entries) {
+      if (entry.kind !== def.kind || !values.has(entry.id)) continue;
+      const read = parseAssetDoc(def, values.get(entry.id), env);
+      if (!read.ok) continue;
+      ids.push(entry.id);
+      parsed.set(entry.id, deepFreeze(structuredClone(read.value)));
+    }
+    out.set(def.kind, { ids: Object.freeze(ids), values: parsed });
+  }
+  return out;
+}
+
 /**
- * `runtimeView` of a snapshot: its game-settings, data-table, input-map and scene-list docs, each
+ * `runtimeView` of a snapshot: its runtime kinds' docs (`runtimeKindNames`), each
  * read from its canonical text in `store`, and its blobs as the snapshot
  * pins them: hash, size, import settings and meta, so `asset` gives what
  * `assetInfo` gives over the project (pixel sizes and frames included)
@@ -151,9 +189,10 @@ export async function snapshotRuntimeView(
   store: ContentStore,
   registry: Registry,
 ): Promise<ProjectRuntimeView> {
-  const { texts } = await pinnedDocs(snapshot, store, RUNTIME_VIEW_KINDS);
-  const view = snapshotView(snapshot, createKindRegistry(registry.game));
-  return runtimeView(view, jsonValues(texts), registry);
+  const kinds = createKindRegistry(registry.game);
+  const { texts } = await pinnedDocs(snapshot, store, runtimeKindNames(kinds));
+  const view = snapshotView(snapshot, kinds);
+  return runtimeView(view, jsonValues(texts), registry, kinds);
 }
 
 /** A project file as a host holds it in memory: a doc's parsed JSON, or a binary's sidecar alone. */
@@ -218,5 +257,5 @@ export function heldProject(
   // Two files may take one id: each id reads the doc of the entry the view resolves it to.
   const values = new Map<AssetId, unknown>();
   for (const [id, entry] of view.byId) if (docs.has(entry.key)) values.set(id, docs.get(entry.key));
-  return { view, kinds, runtime: runtimeView(view, values, registry) };
+  return { view, kinds, runtime: runtimeView(view, values, registry, kinds) };
 }

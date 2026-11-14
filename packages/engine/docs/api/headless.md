@@ -2,7 +2,27 @@
 
 Generated from the packed `.d.mts` files by `scripts/engine-api-docs.ts`; regenerate with `vp run engine:pack && UPDATE_API_DOCS=1 bun scripts/engine-api-docs.ts`. [All entries](README.md)
 
-[`AnalogValues`](#analogvalues) · [`AssetInfo`](#assetinfo) · [`AssetReloadError`](#assetreloaderror) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CheckEnv`](#checkenv) · [`CheckResult`](#checkresult) · [`CheckVerdict`](#checkverdict) · [`ChecksReport`](#checksreport) · [`CompileResult`](#compileresult) · [`CompiledInputScript`](#compiledinputscript) · [`CompiledPointer`](#compiledpointer) · [`CompiledScript`](#compiledscript) · [`CompiledScriptStep`](#compiledscriptstep) · [`CompiledStep`](#compiledstep) · [`CompiledTrack`](#compiledtrack) · [`DecodeOptions`](#decodeoptions) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EventMatch`](#eventmatch) · [`FilesLoadInput`](#filesloadinput) · [`FuzzLegal`](#fuzzlegal) · [`FuzzMacroInputs`](#fuzzmacroinputs) · [`FuzzOptions`](#fuzzoptions) · [`FuzzReport`](#fuzzreport) · [`FuzzRun`](#fuzzrun) · [`FuzzTouch`](#fuzztouch) · [`HeadlessLive`](#headlesslive) · [`HeadlessLoad`](#headlessload) · [`HeadlessLoadInput`](#headlessloadinput) · [`HeadlessLoadOptions`](#headlessloadoptions) · [`HeadlessRuntime`](#headlessruntime) · [`HeadlessRuntimeOptions`](#headlessruntimeoptions) · [`InputEdge`](#inputedge) · [`InputScript`](#inputscript) · [`InputScriptStep`](#inputscriptstep) · [`InputScriptStepV2`](#inputscriptstepv2) · [`InputScriptTrack`](#inputscripttrack) · [`InputScriptV2`](#inputscriptv2) · [`LoadFailureReason`](#loadfailurereason) · [`LoadReport`](#loadreport) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`ParseRecordingResult`](#parserecordingresult) · [`PersistCell`](#persistcell) · [`PersistCellOptions`](#persistcelloptions) · [`PersistMatch`](#persistmatch) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicalOptions`](#physicaloptions) · [`PlayOptions`](#playoptions) · [`PlaytestBlocked`](#playtestblocked) · [`PlaytestHooks`](#playtesthooks) · [`PlaytestOptions`](#playtestoptions) · [`PlaytestOutcomeReport`](#playtestoutcomereport) · [`PlaytestReport`](#playtestreport) · [`PlaytestRun`](#playtestrun) · [`PlaytestSegment`](#playtestsegment) · [`PlaytestSegmentEnd`](#playtestsegmentend) · [`PlaytestStart`](#playteststart) · [`PlaytestStep`](#playteststep) · [`PointerBindings`](#pointerbindings) · [`PreparedPlay`](#preparedplay) · [`ProbeInput`](#probeinput) · [`ProbeOptions`](#probeoptions) · [`ProbeReport`](#probereport) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`RECORDING_VERSION`](#recording_version) · [`REPLAY_ACROSS_PLATFORMS`](#replay_across_platforms) · [`RapierModule`](#rapiermodule) · [`RecorderOptions`](#recorderoptions) · [`RecordingCommand`](#recordingcommand) · [`RecordingEnd`](#recordingend) · [`RecordingHost`](#recordinghost) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`ReplayOptions`](#replayoptions) · [`ReplayReport`](#replayreport) · [`ReplayRun`](#replayrun) · [`RunChecksOptions`](#runchecksoptions) · [`RunRecorder`](#runrecorder) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RunTiming`](#runtiming) · [`RuntimeRequests`](#runtimerequests) · [`RuntimeStats`](#runtimestats) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`STUCK_METRES`](#stuck_metres) · [`STUCK_TICKS`](#stuck_ticks) · [`SaveBlocker`](#saveblocker) · [`SaveStart`](#savestart) · [`SceneRuntime`](#sceneruntime) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`ScriptIssue`](#scriptissue) · [`ScriptSource`](#scriptsource) · [`ScriptStepLog`](#scriptsteplog) · [`SeatChange`](#seatchange) · [`SeatEvent`](#seatevent) · [`SnapshotError`](#snapshoterror) · [`SnapshotLoadInput`](#snapshotloadinput) · [`StepDuration`](#stepduration) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StreamTables`](#streamtables) · [`SwapCheckOptions`](#swapcheckoptions) · [`SwapCheckReport`](#swapcheckreport) · [`SwapCheckRun`](#swapcheckrun) · [`SwapReport`](#swapreport) · [`SystemEvent`](#systemevent) · [`TickInput`](#tickinput) · [`TimingBucket`](#timingbucket) · [`TimingReport`](#timingreport) · [`TimingScope`](#timingscope) · [`TimingSpan`](#timingspan) · [`UntilClause`](#untilclause) · [`ValidatePhysicalOptions`](#validatephysicaloptions) · [`analogActions`](#analogactions) · [`analogValues`](#analogvalues-1) · [`assetInfo`](#assetinfo-1) · [`captureSave`](#capturesave) · [`compileInputScript`](#compileinputscript) · [`compiledPointer`](#compiledpointer-1) · [`createHeadlessRuntime`](#createheadlessruntime) · [`createPersistCell`](#createpersistcell) · [`createRunRecorder`](#createrunrecorder) · [`createRunTiming`](#createruntiming) · [`decodeStreams`](#decodestreams) · [`defaultFuzzMacro`](#defaultfuzzmacro) · [`defaultSeed`](#defaultseed) · [`fileSchemaIssue`](#fileschemaissue) · [`fuzz`](#fuzz) · [`gamePersistCell`](#gamepersistcell) · [`heldEdges`](#heldedges) · [`loadHeadless`](#loadheadless) · [`memorySaveStore`](#memorysavestore) · [`mergeTick`](#mergetick) · [`parseRecording`](#parserecording) · [`physicalEnv`](#physicalenv-1) · [`plainJsonProblem`](#plainjsonproblem) · [`platformIssues`](#platformissues) · [`playWorld`](#playworld) · [`pointerAt`](#pointerat) · [`pointerHeld`](#pointerheld) · [`preparePlay`](#prepareplay) · [`probeConfigHash`](#probeconfighash) · [`recordedSwap`](#recordedswap) · [`recordingDivergence`](#recordingdivergence) · [`replayRecording`](#replayrecording) · [`restoreSave`](#restoresave) · [`runBlocked`](#runblocked) · [`runChecks`](#runchecks) · [`runPhysicalChecks`](#runphysicalchecks) · [`runPlaytest`](#runplaytest) · [`runProbe`](#runprobe) · [`scriptSource`](#scriptsource-1) · [`simActionError`](#simactionerror) · [`swapCheck`](#swapcheck) · [`tickWakes`](#tickwakes) · [`unknownActionError`](#unknownactionerror) · [`untilHolds`](#untilholds) · [`validatePhysical`](#validatephysical) · [`worldSaveBlockers`](#worldsaveblockers)
+[`ANIM_END`](#anim_end) · [`ANIM_FRAME`](#anim_frame) · [`AnalogValues`](#analogvalues) · [`AssetInfo`](#assetinfo) · [`AssetReloadError`](#assetreloaderror) · [`CONTACT_END`](#contact_end) · [`CONTACT_START`](#contact_start) · [`CameraRegion`](#cameraregion) · [`CheckEnv`](#checkenv) · [`CheckResult`](#checkresult) · [`CheckVerdict`](#checkverdict) · [`ChecksReport`](#checksreport) · [`CompileResult`](#compileresult) · [`CompiledInputScript`](#compiledinputscript) · [`CompiledPointer`](#compiledpointer) · [`CompiledScript`](#compiledscript) · [`CompiledScriptStep`](#compiledscriptstep) · [`CompiledStep`](#compiledstep) · [`CompiledTrack`](#compiledtrack) · [`DecodeOptions`](#decodeoptions) · [`ENTITY_DESTROYED`](#entity_destroyed) · [`ENTITY_DISABLED`](#entity_disabled) · [`ENTITY_ENABLED`](#entity_enabled) · [`ENTITY_SPAWNED`](#entity_spawned) · [`EventMatch`](#eventmatch) · [`FilesLoadInput`](#filesloadinput) · [`FuzzLegal`](#fuzzlegal) · [`FuzzMacroInputs`](#fuzzmacroinputs) · [`FuzzOptions`](#fuzzoptions) · [`FuzzReport`](#fuzzreport) · [`FuzzRun`](#fuzzrun) · [`FuzzTouch`](#fuzztouch) · [`HeadlessLive`](#headlesslive) · [`HeadlessLoad`](#headlessload) · [`HeadlessLoadInput`](#headlessloadinput) · [`HeadlessLoadOptions`](#headlessloadoptions) · [`HeadlessRuntime`](#headlessruntime) · [`HeadlessRuntimeOptions`](#headlessruntimeoptions) · [`InputEdge`](#inputedge) · [`InputScript`](#inputscript) · [`InputScriptStep`](#inputscriptstep) · [`InputScriptStepV2`](#inputscriptstepv2) · [`InputScriptTrack`](#inputscripttrack) · [`InputScriptV2`](#inputscriptv2) · [`LoadFailureReason`](#loadfailurereason) · [`LoadReport`](#loadreport) · [`MemoryRuntimeViewInit`](#memoryruntimeviewinit) · [`PLAYER_JOINED`](#player_joined) · [`PLAYER_LEFT`](#player_left) · [`ParseRecordingResult`](#parserecordingresult) · [`PersistCell`](#persistcell) · [`PersistCellOptions`](#persistcelloptions) · [`PersistMatch`](#persistmatch) · [`PhysicalEnv`](#physicalenv) · [`PhysicalHit`](#physicalhit) · [`PhysicalOptions`](#physicaloptions) · [`PlayOptions`](#playoptions) · [`PlaytestBlocked`](#playtestblocked) · [`PlaytestHooks`](#playtesthooks) · [`PlaytestOptions`](#playtestoptions) · [`PlaytestOutcomeReport`](#playtestoutcomereport) · [`PlaytestReport`](#playtestreport) · [`PlaytestRun`](#playtestrun) · [`PlaytestSegment`](#playtestsegment) · [`PlaytestSegmentEnd`](#playtestsegmentend) · [`PlaytestStart`](#playteststart) · [`PlaytestStep`](#playteststep) · [`PointerBindings`](#pointerbindings) · [`PreparedPlay`](#preparedplay) · [`PresentRequest`](#presentrequest) · [`PresentedRequest`](#presentedrequest) · [`ProbeInput`](#probeinput) · [`ProbeOptions`](#probeoptions) · [`ProbeReport`](#probereport) · [`ProjectRuntimeView`](#projectruntimeview) · [`ProjectSnapshot`](#projectsnapshot) · [`RECORDING_VERSION`](#recording_version) · [`REPLAY_ACROSS_PLATFORMS`](#replay_across_platforms) · [`RapierModule`](#rapiermodule) · [`RecorderOptions`](#recorderoptions) · [`RecordingCommand`](#recordingcommand) · [`RecordingEnd`](#recordingend) · [`RecordingHost`](#recordinghost) · [`RecordingIssue`](#recordingissue) · [`RecordingMarker`](#recordingmarker) · [`RecordingPlatform`](#recordingplatform) · [`RecordingStream`](#recordingstream) · [`ReplayOptions`](#replayoptions) · [`ReplayReport`](#replayreport) · [`ReplayRun`](#replayrun) · [`RunChecksOptions`](#runchecksoptions) · [`RunRecorder`](#runrecorder) · [`RunRecording`](#runrecording) · [`RunRecordingV1`](#runrecordingv1) · [`RunRecordingV2`](#runrecordingv2) · [`RunTiming`](#runtiming) · [`RuntimeRequests`](#runtimerequests) · [`RuntimeStats`](#runtimestats) · [`SENSOR_ENTER`](#sensor_enter) · [`SENSOR_EXIT`](#sensor_exit) · [`STUCK_METRES`](#stuck_metres) · [`STUCK_TICKS`](#stuck_ticks) · [`SaveBlocker`](#saveblocker) · [`SaveStart`](#savestart) · [`SceneRuntime`](#sceneruntime) · [`SceneRuntimeHandle`](#sceneruntimehandle) · [`ScriptIssue`](#scriptissue) · [`ScriptSource`](#scriptsource) · [`ScriptStepLog`](#scriptsteplog) · [`SeatChange`](#seatchange) · [`SeatEvent`](#seatevent) · [`SnapshotError`](#snapshoterror) · [`SnapshotLoadInput`](#snapshotloadinput) · [`StepDuration`](#stepduration) · [`StepEvent`](#stepevent) · [`StepResult`](#stepresult) · [`StreamTables`](#streamtables) · [`SwapCheckOptions`](#swapcheckoptions) · [`SwapCheckReport`](#swapcheckreport) · [`SwapCheckRun`](#swapcheckrun) · [`SwapReport`](#swapreport) · [`SystemEvent`](#systemevent) · [`TickInput`](#tickinput) · [`TimingBucket`](#timingbucket) · [`TimingReport`](#timingreport) · [`TimingScope`](#timingscope) · [`TimingSpan`](#timingspan) · [`UntilClause`](#untilclause) · [`ValidatePhysicalOptions`](#validatephysicaloptions) · [`analogActions`](#analogactions) · [`analogValues`](#analogvalues-1) · [`assetInfo`](#assetinfo-1) · [`cameraRegionsOf`](#cameraregionsof) · [`captureSave`](#capturesave) · [`compileInputScript`](#compileinputscript) · [`compiledPointer`](#compiledpointer-1) · [`createHeadlessRuntime`](#createheadlessruntime) · [`createPersistCell`](#createpersistcell) · [`createRunRecorder`](#createrunrecorder) · [`createRunTiming`](#createruntiming) · [`decodeStreams`](#decodestreams) · [`defaultFuzzMacro`](#defaultfuzzmacro) · [`defaultSeed`](#defaultseed) · [`fileSchemaIssue`](#fileschemaissue) · [`fuzz`](#fuzz) · [`gamePersistCell`](#gamepersistcell) · [`heldEdges`](#heldedges) · [`loadHeadless`](#loadheadless) · [`memoryRuntimeView`](#memoryruntimeview) · [`memorySaveStore`](#memorysavestore) · [`mergeTick`](#mergetick) · [`parseRecording`](#parserecording) · [`physicalEnv`](#physicalenv-1) · [`plainJsonProblem`](#plainjsonproblem) · [`platformIssues`](#platformissues) · [`playWorld`](#playworld) · [`pointerAt`](#pointerat) · [`pointerHeld`](#pointerheld) · [`preparePlay`](#prepareplay) · [`probeConfigHash`](#probeconfighash) · [`recordedSwap`](#recordedswap) · [`recordingDivergence`](#recordingdivergence) · [`replayRecording`](#replayrecording) · [`restoreSave`](#restoresave) · [`runBlocked`](#runblocked) · [`runChecks`](#runchecks) · [`runPhysicalChecks`](#runphysicalchecks) · [`runPlaytest`](#runplaytest) · [`runProbe`](#runprobe) · [`scriptSource`](#scriptsource-1) · [`simActionError`](#simactionerror) · [`swapCheck`](#swapcheck) · [`tickWakes`](#tickwakes) · [`unknownActionError`](#unknownactionerror) · [`untilHolds`](#untilholds) · [`validatePhysical`](#validatephysical) · [`worldSaveBlockers`](#worldsaveblockers)
+
+## `ANIM_END`
+
+_const_ in `runtime/behaviors/anim.ts`
+
+A `once` clip with no `next` played to its end and holds its last frame: `data` is `{ clip }`.
+
+```ts
+declare const ANIM_END = "anim:end";
+```
+
+## `ANIM_FRAME`
+
+_const_ in `runtime/behaviors/anim.ts`
+
+A frame that declares events was entered: `data` is `{ clip, frame, index, event }`, once per event.
+
+```ts
+declare const ANIM_FRAME = "anim:frame";
+```
 
 ## `AnalogValues`
 
@@ -23,6 +43,8 @@ What headless code and the editor know of an asset without decoding or fetching 
 ```ts
 type AssetInfo = {
     bytes?: number;
+    /** An atlas: each frame's durationMs, in `frames` order; null where the export gives none. */
+    durations?: readonly (null | number)[];
     filter?: "linear" | "nearest";
     /** An atlas: its frame names in file order, its tags, its texture's id. */
     frames?: readonly string[];
@@ -95,6 +117,25 @@ A watched pair started touching: `entityId` the watched side, `other` the other,
 
 ```ts
 declare const CONTACT_START = "contact:start";
+```
+
+## `CameraRegion`
+
+_type_ in `camera/regions.ts`
+
+A `camera-region` entity as the rig reads it, world metres.
+
+```ts
+type CameraRegion = {
+    /** Keep the view inside the box; default true. */
+    clamp: boolean;
+    /** Seconds to move into the region's framing. */
+    ease: number;
+    id: string;
+    max: Vec2;
+    min: Vec2;
+    zoom?: number;
+};
 ```
 
 ## `CheckEnv`
@@ -634,6 +675,8 @@ type HeadlessRuntimeOptions = {
     game?: GameDefinition | null;
     /** Needed for a scene that runs on Rapier; a scene without physics loads with none. */
     rapier?: RapierModule | null;
+    /** Keep presentation requests in each `StepResult.present`; default false, when they are dropped. */
+    recordPresentation?: boolean;
     /** Built from `game` when omitted. */
     registry?: Registry;
     scene?: ExpandedScene;
@@ -810,6 +853,25 @@ type LoadReport = {
 ```
 
 Refers to [`LoadFailureReason`](#loadfailurereason).
+
+## `MemoryRuntimeViewInit`
+
+_type_ in `headless/runtime-view.ts`
+
+```ts
+type MemoryRuntimeViewInit = {
+    /** Runtime docs: kind → id → parsed value, ids in the order `docs(kind)` gives them. */
+    docs?: Readonly<Record<AssetKindName, Readonly<Record<AssetId, unknown>>>>;
+    /** game-settings' `engine` block; default `{}`. */
+    engine?: Readonly<Record<string, unknown>>;
+    flow?: SceneListFlow;
+    inputMap?: InputMapFile | null;
+    /** game-settings' `game` block as the game reads it; nothing is defaulted. */
+    settings?: Readonly<Record<string, unknown>>;
+    /** Each table's rows by table name. */
+    tables?: Readonly<Record<string, readonly Row[]>>;
+};
+```
 
 ## `PLAYER_JOINED`
 
@@ -1035,6 +1097,8 @@ type PlaytestOptions<S = unknown, G = unknown> = {
     project?: ProjectRuntimeView | null;
     /** Needed only for a scene whose physics resolves to Rapier; omitted or null, that scene's load fails. */
     rapier?: RapierModule | null;
+    /** Keep presentation requests in `PlaytestReport.present`; default false, when they are dropped. */
+    recordPresentation?: boolean;
     /** Built from `game` when omitted. */
     registry?: Registry;
     /** Validated (errors block), hashed and expanded the way Play does. */
@@ -1101,6 +1165,11 @@ type PlaytestReport<S = unknown> = {
     /** True when `legal` was cut at 64 entries. */
     legalTruncated?: boolean;
     outcome: PlaytestOutcomeReport;
+    /**
+     * What the run asked the shell to present, in request order, each with
+     * its tick counted from the run's start; only with `recordPresentation`.
+     */
+    present?: PresentedRequest[];
     /** The run as a recording: `replayRecording` plays it again tick for tick; the first segment's in a multi-scene run. */
     recording: RunRecording;
     scene: string;
@@ -1132,7 +1201,7 @@ type PlaytestReport<S = unknown> = {
 };
 ```
 
-Refers to [`InputEdge`](#inputedge), [`PlaytestOutcomeReport`](#playtestoutcomereport), [`PlaytestSegment`](#playtestsegment), [`PlaytestStep`](#playteststep), [`RecordingCommand`](#recordingcommand), [`RecordingStream`](#recordingstream), [`RunRecording`](#runrecording), [`StepEvent`](#stepevent).
+Refers to [`InputEdge`](#inputedge), [`PlaytestOutcomeReport`](#playtestoutcomereport), [`PlaytestSegment`](#playtestsegment), [`PlaytestStep`](#playteststep), [`PresentedRequest`](#presentedrequest), [`RecordingCommand`](#recordingcommand), [`RecordingStream`](#recordingstream), [`RunRecording`](#runrecording), [`StepEvent`](#stepevent).
 
 ## `PlaytestRun`
 
@@ -1252,6 +1321,37 @@ type PreparedPlay = {
 };
 ```
 
+## `PresentRequest`
+
+_type_ in `runtime/present.ts`
+
+```ts
+type PresentRequest = {
+    kind: "audio";
+    op: AudioRequest;
+} | {
+    kind: "camera";
+    op: CameraRequest;
+} | {
+    kind: "effect";
+    op: EffectRequest;
+};
+```
+
+## `PresentedRequest`
+
+_type_ in `runtime/present.ts`
+
+A request with the tick that made it, as a playtest report lists them.
+
+```ts
+type PresentedRequest = PresentRequest & {
+    tick: number;
+};
+```
+
+Refers to [`PresentRequest`](#presentrequest).
+
 ## `ProbeInput`
 
 _type_ in `headless/types.ts`
@@ -1344,6 +1444,14 @@ What game code reads of its project, as of load and frozen for the run.
 type ProjectRuntimeView = {
     /** What `assetInfo` gives for a blob asset, frozen at load; undefined for an unknown id, a doc asset or an unknown frame. */
     asset(id: AssetId, frame?: string): AssetInfo | undefined;
+    /**
+     * A runtime kind's doc (`DocKindDef.runtime`), parsed, migrated and
+     * frozen; undefined for an unknown id, a doc that doesn't parse, or a
+     * kind that isn't a runtime kind. `runtimeView` always sets it.
+     */
+    doc?<T = unknown>(kind: AssetKindName, id: AssetId): T | undefined;
+    /** The ids `doc` answers for a runtime kind, in path order. `runtimeView` always sets it. */
+    docs?(kind: AssetKindName): readonly AssetId[];
     /** game-settings' `engine` block as written (`resolution` and the like); empty without one. */
     engine: Readonly<Record<string, unknown>>;
     /**
@@ -1925,6 +2033,10 @@ type SaveBlocker = {
 } | {
     cause: "restore";
     message: string;
+} | {
+    cause: "tween";
+    id: number;
+    message: string;
 };
 ```
 
@@ -2217,12 +2329,18 @@ type StepResult = {
     events: StepEvent[];
     /** The game's `snapshot()` after the step; `null` without a game. */
     game: unknown;
+    /**
+     * What this tick asked the shell to present, in request order; set only
+     * for a runtime made with `recordPresentation`. Requests made outside a
+     * step (a game's `onLoad`) are in the next tick's list.
+     */
+    present?: readonly PresentRequest[];
     /** The tick just simulated, counting from 0 after each load. */
     tick: number;
 };
 ```
 
-Refers to [`StepEvent`](#stepevent).
+Refers to [`PresentRequest`](#presentrequest), [`StepEvent`](#stepevent).
 
 ## `StreamTables`
 
@@ -2533,6 +2651,19 @@ declare function assetInfo(view: ProjectView, id: AssetId, frame?: string): Asse
 
 Refers to [`AssetInfo`](#assetinfo).
 
+## `cameraRegionsOf`
+
+_function_ in `camera/regions.ts`
+
+The camera regions among a scene's expanded entities, in scene order:
+every entity whose type is `camera-region` or based on it.
+
+```ts
+declare function cameraRegionsOf(entities: readonly RuntimeEntity[], registry: Pick<Registry, "types">): CameraRegion[];
+```
+
+Refers to [`CameraRegion`](#cameraregion).
+
 ## `captureSave`
 
 _function_ in `runtime/save-state.ts`
@@ -2791,6 +2922,20 @@ declare function loadHeadless(input: HeadlessLoadInput, opts?: HeadlessLoadOptio
 
 Refers to [`HeadlessLoad`](#headlessload), [`HeadlessLoadInput`](#headlessloadinput), [`HeadlessLoadOptions`](#headlessloadoptions).
 
+## `memoryRuntimeView`
+
+_function_ in `headless/runtime-view.ts`
+
+A ProjectRuntimeView built from plain values, for tests and hosts with no
+project files: everything copied and frozen, no blob assets. Docs are
+taken as given, so they are neither parsed nor checked against a kind.
+
+```ts
+declare function memoryRuntimeView(init?: MemoryRuntimeViewInit): ProjectRuntimeView;
+```
+
+Refers to [`MemoryRuntimeViewInit`](#memoryruntimeviewinit), [`ProjectRuntimeView`](#projectruntimeview).
+
 ## `memorySaveStore`
 
 _function_ in `saves/store.ts`
@@ -3007,7 +3152,7 @@ in production too; a game that declares no persist takes only null. Progress dep
 with the saved data, then `persist` and the play clock. World depth puts
 the world back between the load and the game's `restore` (sublevels,
 spawns, destroys, counters, enabled flags, the tick, poses and each
-owner's state, timers, `ctx.random` and its forks, seats), raising no
+owner's state, timers, tweens, `ctx.random` and its forks, seats), raising no
 event. A scene whose run hash changed since the save loads with an info
 issue; a refused step leaves the scene freshly loaded.
 
@@ -3232,8 +3377,9 @@ _function_ in `runtime/save-state.ts`
 
 Whether `runtime`'s world may be saved at depth `world`: every cause that
 refuses it, none when it may. The main scene running on Rapier, a pending
-function-form timer or coroutine (named by owner), or a game runtime
-without `restore`. Every world save is judged by this one rule.
+function-form timer or coroutine (named by owner), a pending value tween,
+or a game runtime without `restore`. Every world save is judged by this
+one rule.
 
 ```ts
 declare function worldSaveBlockers(runtime: SceneRuntimeHandle): SaveBlocker[];

@@ -9,9 +9,9 @@ import { shapePivot } from "./gizmos/handles";
 import { rotateTargetsBatch, selectionBox } from "./gizmos/multi";
 import { gizmoTarget, type GizmoTarget } from "./gizmos/target";
 import { buildOutline } from "./outline";
+import { outlineBounds, outlineLook } from "./outline-bounds";
 import type { PickLayers } from "./picking";
 import { docRefs } from "./refs";
-import { outlineBounds, outlineLook } from "./tool-host";
 import type { SpatialIndex } from "./tools";
 
 /** World px a coarse (Shift) nudge moves. */

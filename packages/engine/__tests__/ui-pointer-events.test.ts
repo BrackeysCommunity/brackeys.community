@@ -60,7 +60,7 @@ describe("the layers over the canvas, without a host stylesheet", () => {
     const layer = createTransitionLayer(canvas);
     expect(pointerEventsAt(layer.root)).toBe("none");
 
-    await fadeTransition()("out", { kind: "fade", ms: 0 }, layer.root);
+    await fadeTransition()("out", { kind: "fade", ms: 0 }, layer.root, { reducedMotion: false });
     const veil = layer.root.querySelector("[data-jams-fade]");
     expect(veil).not.toBeNull();
     expect(pointerEventsAt(veil!)).toBe("none");

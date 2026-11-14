@@ -4,7 +4,10 @@ import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { inflateSync } from "node:zlib";
 
-import { beforeAll, describe, expect, it } from "vite-plus/test";
+import { Container } from "pixi.js";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
+import { builtinEnvironments } from "vite-plus/test/runtime";
+import { z } from "zod";
 
 import { planContent } from "../export/content";
 import { renderCredits } from "../export/credits";
@@ -14,30 +17,67 @@ import { ITCH_LIMITS } from "../export/itch";
 import { finishExport, type BuiltCode, type ExportInput, type ExportPlan } from "../export/plan";
 import { renderServiceWorker, serviceWorkerCacheName } from "../export/service-worker";
 import { renderWebManifest } from "../export/web-manifest";
+import { defineBehavior } from "../game/behaviors";
 import { defineEntityType, defineGame } from "../game/define";
 import { assetField, pointField } from "../game/fields";
+import type { FieldEnv } from "../game/types";
 import { ENGINE_DIR, ENGINE_PROJECT } from "../project/__tests__/fixtures/scene-version/held-files";
 import { stableJson } from "../project/canonical";
 import { sha256 } from "../project/hash";
+import { defineAssetKind } from "../project/kinds";
 import { parseProjectFile } from "../project/project-file";
 import {
+  checkReleaseManifest,
   ENGINE_FORMATS,
   formatReleaseManifest,
+  parseReleaseManifest,
   RELEASE_FILE,
   releaseSnapshot,
+  type ReleaseAsset,
   type ReleaseManifest,
 } from "../project/release";
+import type { AssetSidecar } from "../project/sidecar";
 import { snapshotProject } from "../project/snapshot";
+import { bootStandalone } from "../standalone/boot";
 import {
   CC0,
   FREE_PROJECT,
+  heldDocs,
   heldInput,
+  type HeldFiles,
   png,
   physicsFreeFiles,
   readHeld,
   scene,
 } from "./fixtures/held-project";
+import { world } from "./fixtures/live-game";
 import { testGame } from "./fixtures/test-game";
+
+vi.mock("../renderer", () => ({
+  createRenderer: async () => ({
+    app: {},
+    worldContainer: new Container(),
+    uiContainer: new Container(),
+    resize: () => {},
+    destroy: () => {},
+  }),
+}));
+
+/** The ids of the blobs a booted build's loader is asked for, standing in for Pixi's fetch. */
+const { loaded } = vi.hoisted(() => ({ loaded: [] as string[] }));
+vi.mock("../render/asset-loader", async (original) => {
+  const { noopLoader } = await import("./fixtures/live-game");
+  return {
+    ...(await original<typeof import("../render/asset-loader")>()),
+    createAssetLoader: () =>
+      noopLoader({
+        load: async (bundle) => {
+          for (const entry of bundle.entries) loaded.push(entry.id);
+          return { failed: [] };
+        },
+      }),
+  };
+});
 
 const builtCode = (rapier: BuiltCode["rapier"] = null): BuiltCode => ({
   files: [
@@ -323,6 +363,353 @@ describe("the content plan over a physics-free project", () => {
     const a = await planContent(input);
     const b = await planContent(await heldInput(FREE_PROJECT, physicsFreeFiles(), testGame));
     expect(stableJson(b)).toBe(stableJson(a));
+  });
+});
+
+/** An atlas's sidecar over `texture`: 16-pixel frames named `frames`, side by side, 50 bytes long. */
+const atlas = (id: string, sha: string, texture: string, frames = ["a"]): AssetSidecar => ({
+  kind: "asset-sidecar",
+  v: 1,
+  key: `key-${id}`,
+  id,
+  assetKind: "atlas",
+  sha256: sha,
+  bytes: 50,
+  import: { texture },
+  meta: {
+    frames: Object.fromEntries(
+      frames.map((name, i) => [name, { x: 16 * i, y: 0, w: 16, h: 16, pivot: [0.5, 0.5] }]),
+    ),
+    order: frames,
+    slices: [],
+    tags: [],
+    tool: "texturepacker",
+  },
+  licence: CC0,
+});
+
+describe("the content plan over runtime docs and their references", () => {
+  const REEL = "test-game/reel";
+  type ReelFile = { v: 1; atlas?: string; still?: string };
+  const reelKind = defineAssetKind({
+    kind: REEL,
+    title: "Reel",
+    description: "A test game's reel of frames.",
+    match: { suffixes: [".reel.json"] },
+    storage: "doc",
+    version: 1,
+    schemaId: "urn:test:test-game:reel:v1",
+    schema: () =>
+      z.strictObject({
+        v: z.literal(1),
+        atlas: z.string().optional(),
+        still: z.string().optional(),
+      }) as z.ZodType<ReelFile>,
+    layout: { as: "map", rest: { as: "atomic" } },
+    empty: () => ({ v: 1 as const }),
+    refs: (value: ReelFile) => [
+      ...(value.atlas ? [{ pointer: "/atlas", id: value.atlas, kinds: ["atlas"] }] : []),
+      ...(value.still ? [{ pointer: "/still", id: value.still, kinds: ["texture"] }] : []),
+    ],
+    runtime: "sim",
+  });
+  const fieldEnv: FieldEnv = {
+    materials: [],
+    materialDefs: new Map(),
+    types: [],
+    assets: () => [],
+  };
+  const PLAY = defineBehavior({
+    name: "test-game/play",
+    description: "Plays a reel.",
+    fields: { reel: assetField(fieldEnv, REEL, "The reel it plays.").optional() },
+  });
+  const reelGame = defineGame({
+    ...testGame,
+    behaviors: [...(testGame.behaviors ?? []), PLAY],
+    assetKinds: [reelKind],
+  });
+
+  /**
+   * The physics-free project, its yard holding a lamp that plays the reel
+   * "walk-reel" (atlas "strip", its texture "strip-art"), and a reel "chain-reel" no
+   * entity names, which names the atlas "band" (texture "band-art") and the
+   * texture "far-art".
+   */
+  function reelFiles(chain: ReelFile = { v: 1, atlas: "band", still: "far-art" }) {
+    const held = physicsFreeFiles();
+    const yard = {
+      ...scene("yard", ["tiles"]),
+      game: testGame.id,
+      entities: [
+        { id: "start", type: "marker", at: [1, 1], tags: ["spawn"] },
+        {
+          id: "dancer",
+          type: "lamp",
+          at: [2, 1],
+          behaviors: { [PLAY.name]: { reel: "walk-reel" } },
+        },
+      ],
+    };
+    const docs = heldDocs({
+      "yard.json": yard,
+      "walk.reel.json": { v: 1, atlas: "strip" },
+      "chain.reel.json": chain,
+    });
+    held.files = [...held.files.filter((f) => f.path !== "yard.json"), ...docs.files];
+    for (const [path, text] of docs.texts) held.texts.set(path, text);
+    held.files.push(
+      { path: "art/strip.json", sidecar: atlas("strip", "1".repeat(64), "strip-art") },
+      { path: "art/strip.png", sidecar: png("strip-art", "2".repeat(64), 40, 16, CC0) },
+      { path: "art/band.json", sidecar: atlas("band", "3".repeat(64), "band-art") },
+      { path: "art/band.png", sidecar: png("band-art", "4".repeat(64), 60, 16, CC0) },
+      { path: "art/far.png", sidecar: png("far-art", "5".repeat(64), 70, 16, CC0) },
+    );
+    return held;
+  }
+
+  it("ships the closure of a runtime doc's references, two hops through an atlas to its texture", async () => {
+    const plan = await planContent(await heldInput(FREE_PROJECT, reelFiles(), reelGame));
+    for (const id of [
+      "chain-reel",
+      "band",
+      "band-art",
+      "far-art",
+      "walk-reel",
+      "strip",
+      "strip-art",
+    ])
+      expect(plan.assets[id], id).toBeDefined();
+    expect(plan.assets.unused).toBeUndefined();
+    expect(plan.issues.filter((i) => i.code === "asset-missing")).toEqual([]);
+  });
+
+  it("puts a reel's atlas texture in the bundle of the scene whose entity names it", async () => {
+    const plan = await planContent(await heldInput(FREE_PROJECT, reelFiles(), reelGame));
+    expect(plan.scenes.find((s) => s.id === "yard")?.bundle).toEqual({
+      entries: ["strip-art", "tiles"],
+      bytes: 340,
+    });
+  });
+
+  it("keeps blobs reached only through runtime docs out of every bundle", async () => {
+    const plan = await planContent(await heldInput(FREE_PROJECT, reelFiles(), reelGame));
+    const bundled = [
+      ...plan.projectBundle.entries,
+      ...plan.scenes.flatMap((s) => s.bundle.entries),
+    ];
+    for (const id of ["band-art", "far-art"]) expect(bundled, id).not.toContain(id);
+  });
+
+  it("reports a runtime doc's reference that doesn't resolve once, and ships the rest", async () => {
+    const held = reelFiles({ v: 1, atlas: "band", still: "gone-art" });
+    const plan = await planContent(await heldInput(FREE_PROJECT, held, reelGame));
+    expect(plan.issues.filter((i) => i.code === "asset-missing")).toEqual([
+      expect.objectContaining({ severity: "error", entityIds: ["chain-reel"], got: "gone-art" }),
+    ]);
+    for (const id of ["chain-reel", "band", "band-art"]) expect(plan.assets[id], id).toBeDefined();
+  });
+});
+
+describe("an export with an animation and an emitter preset", () => {
+  const ANIMATED = ["spare-animation", "walk-animation"];
+  const PRESET = "puff-emitter";
+
+  /**
+   * The physics-free project, its start scene's dancer playing "walk-animation"
+   * (atlas "strip", texture "strip-art") and its fountain spraying the preset
+   * "puff-emitter" (atlas "sparks", texture "sparks-art"), with
+   * "spare-animation" (atlas "band", texture "band-art") named by no entity.
+   */
+  function motionFiles(): HeldFiles {
+    const held = physicsFreeFiles();
+    const yard = {
+      ...scene("yard", ["tiles"]),
+      game: testGame.id,
+      entities: [
+        { id: "start", type: "marker", at: [1, 1], tags: ["spawn"] },
+        {
+          id: "dancer",
+          type: "marker",
+          at: [2, 1],
+          behaviors: {
+            sprite: { asset: "strip", frame: "a", size: [0.5, 0.5] },
+            anim: { source: "walk-animation", clip: "walk" },
+          },
+        },
+        { id: "fountain", type: "marker", at: [3, 1], behaviors: { emitter: { preset: PRESET } } },
+      ],
+    };
+    const docs = heldDocs({
+      "yard.json": yard,
+      "walk.animation.json": {
+        kind: "animation",
+        v: 1,
+        atlas: "strip",
+        clips: [{ name: "walk", frames: [{ frame: "a", ms: 100 }, { frame: "b" }] }],
+      },
+      "spare.animation.json": {
+        kind: "animation",
+        v: 1,
+        atlas: "band",
+        clips: [{ name: "spin", frames: [{ frame: "a" }] }],
+      },
+      "puff.emitter.json": {
+        kind: "emitter",
+        v: 1,
+        texture: "sparks",
+        frame: "a",
+        rate: 10,
+        lifeMs: [200, 400],
+        speed: [0.5, 1],
+        angle: [-120, -60],
+      },
+    });
+    held.files = [...held.files.filter((f) => f.path !== "yard.json"), ...docs.files];
+    for (const [path, text] of docs.texts) held.texts.set(path, text);
+    held.files.push(
+      { path: "art/strip.json", sidecar: atlas("strip", "1".repeat(64), "strip-art", ["a", "b"]) },
+      { path: "art/strip.png", sidecar: png("strip-art", "2".repeat(64), 40, 32, CC0) },
+      { path: "art/sparks.json", sidecar: atlas("sparks", "3".repeat(64), "sparks-art") },
+      { path: "art/sparks.png", sidecar: png("sparks-art", "4".repeat(64), 60, 16, CC0) },
+      { path: "art/band.json", sidecar: atlas("band", "5".repeat(64), "band-art") },
+      { path: "art/band.png", sidecar: png("band-art", "6".repeat(64), 70, 16, CC0) },
+    );
+    return held;
+  }
+
+  let input: ExportInput;
+  let plan: ExportPlan;
+  beforeAll(async () => {
+    input = await heldInput(FREE_PROJECT, motionFiles(), testGame);
+    plan = await finishExport(await planContent(input), builtCode(), input);
+  });
+
+  it("plans with no error and ships the animation and emitter docs in data/, each as written", () => {
+    expect(plan.issues.filter((i) => i.severity === "error")).toEqual([]);
+    for (const id of [...ANIMATED, PRESET]) {
+      const asset = plan.manifest.assets[id];
+      expect(asset, id).toMatchObject({ storage: "doc", file: `data/${asset?.sha256}.json` });
+      expect(plan.files.find((f) => f.path === asset!.file)).toEqual({
+        path: asset!.file,
+        role: "data",
+        source: { kind: "text", text: input.texts.get(id) },
+      });
+    }
+    expect(plan.manifest.assets["walk-animation"]?.kind).toBe("animation");
+    expect(plan.manifest.assets[PRESET]?.kind).toBe("emitter");
+  });
+
+  it("ships every atlas and texture the docs reach as a blob in assets/", () => {
+    for (const id of ["strip", "strip-art", "sparks", "sparks-art", "band", "band-art"]) {
+      const asset = plan.manifest.assets[id];
+      expect(asset?.storage, id).toBe("blob");
+      expect(plan.files.find((f) => f.path === asset!.file)?.source, id).toEqual({
+        kind: "blob",
+        sha256: asset!.sha256,
+      });
+    }
+  });
+
+  it("bundles the start scene's animated atlas and its emitter preset's atlas, and no blob only a runtime doc reaches", () => {
+    const yard = plan.manifest.flow.scenes.find((s) => s.id === "yard")!;
+    expect(yard.bundle.entries).toEqual(["sparks-art", "strip-art", "tiles"]);
+    const bundled = [
+      ...plan.manifest.projectBundle.entries,
+      ...plan.manifest.flow.scenes.flatMap((s) => s.bundle.entries),
+    ];
+    for (const id of ["band", "band-art"]) expect(bundled, id).not.toContain(id);
+  });
+
+  it("writes a release.json that checks clean against its files, every shipped doc's references included", async () => {
+    const text = formatReleaseManifest(plan.manifest);
+    const parsed = parseReleaseManifest(text);
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    const files = new Map<string, string>();
+    for (const f of plan.files) {
+      const { source } = f;
+      if (source.kind === "text") files.set(f.path, await sha256(source.text));
+      else if (source.kind === "bytes") files.set(f.path, await sha256(source.bytes));
+      else if (source.kind === "blob") files.set(f.path, source.sha256);
+      else files.set(f.path, plan.manifest.build.files.find((r) => r.path === f.path)!.sha256);
+    }
+    const env = { registry: input.registry, project: input.view };
+    const docRefs = (id: string, asset: ReleaseAsset) => {
+      const def = input.kinds.get(asset.kind);
+      return def?.storage === "doc"
+        ? (def.refs?.(JSON.parse(input.texts.get(id)!), env) ?? [])
+        : [];
+    };
+    expect(await checkReleaseManifest(parsed.manifest, files, { docRefs })).toEqual([]);
+    expect(docRefs("walk-animation", plan.manifest.assets["walk-animation"]!)).not.toEqual([]);
+  });
+
+  describe("booted standalone", () => {
+    // The rest of this file plans in node; only the boot needs a document.
+    let teardown: (() => unknown) | undefined;
+    beforeAll(async () => {
+      const env = await builtinEnvironments.jsdom.setup(globalThis, {});
+      teardown = () => env.teardown(globalThis);
+      vi.stubGlobal("requestAnimationFrame", () => 0);
+      vi.stubGlobal("cancelAnimationFrame", () => {});
+      vi.stubGlobal(
+        "matchMedia",
+        (query: string) =>
+          ({
+            matches: false,
+            media: query,
+            addEventListener() {},
+            removeEventListener() {},
+          }) as unknown as MediaQueryList,
+      );
+    });
+    afterAll(async () => {
+      vi.unstubAllGlobals();
+      await teardown?.();
+    });
+
+    it("loads the shipped docs, plays the dancer's clip and fetches the start scene's bundle", async () => {
+      const dir = new URL(".", document.baseURI).href;
+      const requested: string[] = [];
+      const served = (url: string): Promise<Response> => {
+        requested.push(url);
+        const path = url.startsWith(dir) ? url.slice(dir.length) : null;
+        const file = plan.files.find((f) => f.path === path);
+        const text =
+          path === RELEASE_FILE
+            ? formatReleaseManifest(plan.manifest)
+            : file?.source.kind === "text"
+              ? file.source.text
+              : undefined;
+        return Promise.resolve(
+          new Response(text ?? "", { status: text === undefined ? 404 : 200 }),
+        );
+      };
+      const root = document.createElement("div");
+      document.body.append(root);
+      loaded.length = 0;
+      const booted = await bootStandalone({
+        root,
+        game: testGame,
+        fetch: served as typeof fetch,
+        fillPage: false,
+        serviceWorker: false,
+      });
+      try {
+        expect(document.documentElement.dataset.jamsState).toBe("ready");
+        expect(booted.instance.flow.current()).toBe("yard");
+        for (const id of [...ANIMATED, PRESET])
+          expect(requested, id).toContain(dir + plan.manifest.assets[id]!.file);
+        const { ctx } = world(booted.instance);
+        expect(ctx.project?.docs?.("animation")).toEqual(ANIMATED);
+        expect(ctx.project?.docs?.("emitter")).toEqual([PRESET]);
+        expect(ctx.anim.state("dancer")).toMatchObject({ clip: "walk", frame: "a", playing: true });
+        expect(loaded).toEqual(expect.arrayContaining(["sparks-art", "strip-art", "tiles"]));
+        expect(loaded).not.toContain("band-art");
+      } finally {
+        booted.destroy();
+      }
+    });
   });
 });
 

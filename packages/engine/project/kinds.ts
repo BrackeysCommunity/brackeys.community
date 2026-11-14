@@ -33,12 +33,15 @@ import {
 
 export {
   defineAssetKind,
+  isRuntimeKind,
+  runtimeKindNames,
   type AssetKindDef,
   type AssetMatch,
   type BlobKindDef,
   type CodeKindDef,
   type DocKindDef,
   type DocLayout,
+  type DocLookup,
   type InspectEnv,
   type InspectResult,
   type KindEnv,

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { GLOW, LAMP, PLAIN, testGame } from "../../__tests__/fixtures/test-game";
 import { defineBehavior } from "../../game/behaviors";
 import { OCCUPANT } from "../../game/behaviors/occupant";
+import { posableType } from "../../game/behaviors/tween";
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { assetField, gridField, pointField } from "../../game/fields";
 import type { SceneLibrary } from "../../game/flow";
@@ -881,6 +882,93 @@ describe("behaviors", () => {
   });
 });
 
+describe("tween blocks", () => {
+  const tweened = (
+    id: string,
+    type: string,
+    to: Record<string, number>,
+    more: Partial<EntityDef> = {},
+  ): EntityDef =>
+    ({
+      id,
+      type,
+      ...(type === "marker" || type === "decor" ? { at: [100, 100] } : {}),
+      ...(type === "solid" || type === "sensor" || type === "prop"
+        ? { shape: ["box", 100, 100, 10, 10] }
+        : {}),
+      ...more,
+      behaviors: {
+        ...(more.behaviors as Record<string, unknown> | undefined),
+        tween: {
+          tweens: [
+            { to: { x: 1 }, duration: 10 },
+            { to, duration: 10 },
+          ],
+        },
+      },
+    }) as EntityDef;
+  const tweenIssues = (def: SceneDefinition, registry: Registry = engine) =>
+    validateScene(def, registry, { lines: formatScene(def).lines }).filter(
+      (i) => i.code === "tween-target-invalid",
+    );
+
+  it("pass on a marker, decor, solid or sensor, and visual channels beside a sprite", () => {
+    const def = scene({}, [
+      tweened("a", "marker", { rot: 1 }),
+      tweened("b", "decor", { y: 2 }),
+      tweened("c", "solid", { x: 3 }),
+      tweened("d", "sensor", { x: 3 }),
+      tweened("e", "marker", { alpha: 0, tint: 0xff0000, scale: 2 }, { behaviors: { sprite: {} } }),
+    ]);
+    expect(tweenIssues(def)).toEqual([]);
+  });
+
+  it("tween-target-invalid on a type that can't be posed, at the entry", () => {
+    const def = scene({ settings: { physics: "rapier" } }, [
+      tweened("crate", "prop", { y: 2 }, { density: 1, restitution: 0 } as Partial<EntityDef>),
+    ]);
+    const issues = tweenIssues(def);
+    expect(issues.map((i) => [i.path, i.severity, i.entityIds, i.message])).toEqual([
+      [
+        "/entities/1/behaviors/tween/tweens/0",
+        "error",
+        ["crate"],
+        "crate's tween 0 can't play: it is a prop, which can't be posed, so a tween can't move its x",
+      ],
+      [
+        "/entities/1/behaviors/tween/tweens/1",
+        "error",
+        ["crate"],
+        "crate's tween 1 can't play: it is a prop, which can't be posed, so a tween can't move its y",
+      ],
+    ]);
+    expect(issues[0]!.line).toBeTypeOf("number");
+  });
+
+  it("tween-target-invalid for a visual channel on an entity without a sprite", () => {
+    const def = scene({}, [tweened("spot", "marker", { alpha: 0.5, tint: 0 })]);
+    expect(tweenIssues(def).map((i) => [i.path, i.message])).toEqual([
+      [
+        "/entities/1/behaviors/tween/tweens/1",
+        "spot's tween 1 can't play: it has no sprite, so a tween can't animate its alpha, tint",
+      ],
+    ]);
+  });
+
+  it("judges a game type by its base, and leaves one with its own system to the run", () => {
+    const registry = createRegistry(testGame);
+    const def = scene({ game: "test-game" }, [{ ...tweened("l", LAMP.type, { rot: 1 }) }]);
+    expect(tweenIssues(def, registry)).toEqual([]);
+    const types = registry.types;
+    expect(posableType(types.get("follower")!)).toBe(false);
+    expect(posableType(types.get("prop")!)).toBe(false);
+    expect(posableType(types.get("decor")!)).toBe(true);
+    expect(posableType(types.get(LAMP.type)!)).toBe(true);
+    expect(posableType({ type: "own", origin: "g", system: () => ({}) as never })).toBeNull();
+    expect(posableType({ type: "on-prop", origin: "g", base: "prop" })).toBe(false);
+  });
+});
+
 describe("sprite blocks", () => {
   const entry = (id: string, kind: string, extra: Partial<AssetEntry> = {}): AssetEntry => ({
     key: `k-${id}`,
@@ -1275,6 +1363,7 @@ describe("physics-required", () => {
       follower: "optional",
       decor: "optional",
       nav: "optional",
+      "camera-region": "optional",
       note: "optional",
     });
   });

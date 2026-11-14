@@ -1,0 +1,20 @@
+{
+  "$schema": "../../project/emitter.schema.json",
+  "kind": "emitter",
+  "v": 1,
+  "bursts": [
+    { "atMs": 0, "count": 8 }
+  ],
+  "alpha": [[0, 1], [1, 0]],
+  "angle": [-120, -60],
+  "blend": "add",
+  "drift": [0, 2],
+  "frame": "crate-1",
+  "lifeMs": [400, 800],
+  "max": 64,
+  "rate": 12,
+  "scale": [[0, 0.3], [1, 0.1]],
+  "shape": { "kind": "circle", "r": 0.05 },
+  "speed": [0.6, 1.4],
+  "texture": "crates"
+}

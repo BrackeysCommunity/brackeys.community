@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:jams-engine:ops:v4",
-  "x-agent-surface": 20,
+  "x-agent-surface": 21,
   "type": "object",
   "properties": {
     "label": {
@@ -42,6 +42,7 @@
                       "follower",
                       "decor",
                       "nav",
+                      "camera-region",
                       "note"
                     ],
                     "description": "The entity's registered type. The remaining fields depend on it, as in the scene schema."
@@ -388,7 +389,7 @@
                 "description": "The op: setSettings."
               },
               "set": {
-                "description": "Settings path to new value, e.g. `{ \"gravity\": [0, 9] }`. Dot-separated like update's `set`. Settings fields: `gravity`, `physics`, `grid`, `view`.",
+                "description": "Settings path to new value, e.g. `{ \"gravity\": [0, 9] }`. Dot-separated like update's `set`. Settings fields: `gravity`, `physics`, `grid`, `view`, `camera`.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"

@@ -917,13 +917,15 @@ export async function buildSceneVersion(
     };
 
   const values = jsonValues(opts.texts);
-  const projectData = runtimeView(view, values, registry);
+  const kinds = createKindRegistry(registry.game);
+  const projectData = runtimeView(view, values, registry, kinds);
   const read = readProjectScene(opts, text, projectData.engine);
   if (!read.ok) return read;
   const issues = [...read.issues];
 
-  const kinds = createKindRegistry(registry.game);
-  const bundle = sceneBundle(read.scene, read.def, read.prefabs, view, kinds, registry);
+  const bundle = sceneBundle(read.scene, read.def, read.prefabs, view, kinds, registry, {
+    read: (_kind, docId) => values.get(docId),
+  });
   issues.push(...withId(id, bundle.issues));
   const listed = projectData.flow?.scenes.find((s) => s.scene === id) ?? { scene: id };
   const entry = releaseSceneEntry(

@@ -1,19 +1,30 @@
-import { pxPerMetreOf, type GameCommand, type PlayersDef } from "@jams/engine/game";
+import {
+  ANIM,
+  pxPerMetreOf,
+  type AnimState,
+  type GameCommand,
+  type PlayersDef,
+} from "@jams/engine/game";
 import {
   compileInputScript,
+  createHeadlessRuntime,
   ENTITY_DESTROYED,
   ENTITY_SPAWNED,
   runProbe,
   simActionError,
   type ProbeInput,
+  type ProjectRuntimeView,
   type RapierModule,
   type StepEvent,
 } from "@jams/engine/headless";
 import {
+  closest,
   expandScene,
   INPUT_SCRIPT_VERSION,
   sceneHashWith,
   scenePhysics,
+  type ExpandedScene,
+  type PrefabLibrary,
   type Registry,
   type SceneDefinition,
 } from "@jams/engine/scene";
@@ -49,10 +60,12 @@ export type StepInput = {
   legal?: boolean;
   /** Time each tick's parts on the wall clock: `stats.timing`, and a block in the text. */
   timing?: boolean;
+  /** An entity with an `anim` block: its clip and frame after every tick. */
+  anim?: string;
 };
 
 export const STEP_FLAGS =
-  "[--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]]… [--elapse tick:ms]… [--events type,…] [--game id] [--legal] [--timing]";
+  "[--ticks N] [--hold a,b] [--inputs file] [--command tick[@seat]:name[=json]]… [--elapse tick:ms]… [--events type,…] [--anim id] [--game id] [--legal] [--timing]";
 const STEP_USAGE = `step ${STEP_FLAGS}`;
 
 const DEFAULT_TICKS = 120;
@@ -315,6 +328,98 @@ function legalLines(
   ];
 }
 
+/** Where an `--anim` entity's clip is after a tick's step; `clip` null when it has none to play. */
+export type AnimTick = { tick: number } & (AnimState | { clip: null });
+
+/** The entity `id` of the expanded scene with an `anim` block, or why `--anim` can't follow it. */
+function animTargetProblem(scene: ExpandedScene, id: string): string | null {
+  const entity = scene.entities.find((e) => e.id === id);
+  const animated = scene.entities.filter((e) => e.behaviors?.[ANIM.name] !== undefined);
+  if (!entity) {
+    const guess = closest(
+      id,
+      animated.map((e) => e.id),
+    );
+    return `--anim ${id}: no entity "${id}" in the scene${guess ? `; did you mean "${guess}"?` : ""}`;
+  }
+  if (entity.behaviors?.[ANIM.name] !== undefined) return null;
+  const others =
+    animated.length > 0 ? ` (entities with one: ${animated.map((e) => e.id).join(", ")})` : "";
+  return `--anim ${id}: "${id}" has no anim block${others}`;
+}
+
+/**
+ * The `--anim` entity's clip and frame after each of the first `ticks`
+ * ticks, from a second headless run of the same scene, input and commands
+ * (the simulation is deterministic, so it steps as the probe's run did); it
+ * stops early where a step throws, as the probe's run is then blocked.
+ */
+function traceAnim(opts: {
+  id: string;
+  ticks: number;
+  rapier: RapierModule | null;
+  registry: Registry;
+  project: ProjectRuntimeView | null;
+  scene: ExpandedScene;
+  library?: PrefabLibrary;
+  hold: readonly string[];
+  inputs: readonly Edge[];
+  commands: readonly (readonly [number, GameCommand])[];
+}): AnimTick[] {
+  const runtime = createHeadlessRuntime({
+    rapier: opts.rapier,
+    game: opts.registry.game,
+    registry: opts.registry,
+    project: opts.project,
+    scene: opts.scene,
+    ...(opts.library ? { prefabs: opts.library } : {}),
+  });
+  const trace: AnimTick[] = [];
+  try {
+    const time = runtime.ctx.time;
+    const press = (action: string, pressed: boolean, tick: number) => ({
+      action,
+      pressed,
+      tick,
+      timestamp: tick * time.tickMs,
+    });
+    for (let tick = 0; tick < opts.ticks; tick++) {
+      const actions = tick === 0 ? opts.hold.map((a) => press(a, true, 0)) : [];
+      for (const [at, action, down] of opts.inputs)
+        if (at === tick) actions.push(press(action, down === 1, tick));
+      const commands = opts.commands.filter(([at]) => at === tick).map(([, c]) => c);
+      try {
+        runtime.step(time.tickMs, actions, commands.length > 0 ? commands : undefined);
+      } catch {
+        break;
+      }
+      const state = runtime.ctx.anim.state(opts.id);
+      trace.push(state ? { tick, ...state } : { tick, clip: null });
+    }
+  } finally {
+    runtime.destroy();
+  }
+  return trace;
+}
+
+/** `t0..5 idle 0 hero-0`: one line per run of ticks on the same frame of the same clip. */
+export function animLines(id: string, trace: readonly AnimTick[]): string[] {
+  const key = (t: AnimTick) =>
+    t.clip === null ? "-" : `${t.clip} ${t.index} ${t.frame}${t.playing ? "" : " stopped"}`;
+  const lines = [`  anim ${id}: clip, frame index and frame per tick`];
+  let start = 0;
+  for (let i = 1; i <= trace.length; i++) {
+    const first = trace[start]!;
+    const here = trace[i];
+    if (here && key(here) === key(first)) continue;
+    const last = trace[i - 1]!;
+    const span = last.tick === first.tick ? `t${first.tick}` : `t${first.tick}..${last.tick}`;
+    lines.push(`    ${span} ${first.clip === null ? "no clip" : key(first)}`);
+    start = i;
+  }
+  return lines;
+}
+
 export const step: Tool<StepInput> = async (input, ctx) => {
   const ticks = input.ticks === undefined ? DEFAULT_TICKS : Number(input.ticks);
   if (!Number.isInteger(ticks) || ticks < 1 || ticks > MAX_TICKS) {
@@ -363,12 +468,18 @@ export const step: Tool<StepInput> = async (input, ctx) => {
   if (typeof commands === "string") return usage(commands);
 
   const engine = project?.engine;
+  const scene = expandScene(loaded.def, registry, { prefabs: loaded.prefabs, engine });
+  if (input.anim !== undefined) {
+    const problem = animTargetProblem(scene, input.anim);
+    if (problem) return usage(problem);
+  }
+  const rapier = await rapierFor(ctx, loaded.def, registry, engine);
   const report = runProbe({
-    rapier: await rapierFor(ctx, loaded.def, registry, engine),
+    rapier,
     game: registry.game,
     registry,
     project,
-    scene: expandScene(loaded.def, registry, { prefabs: loaded.prefabs, engine }),
+    scene,
     library: loaded.prefabs,
     ticks,
     hold,
@@ -377,6 +488,21 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     ...(input.timing ? { timing: wallTiming() } : {}),
   });
   const { timing } = report.stats;
+  const anim =
+    input.anim !== undefined && report.load.ok
+      ? traceAnim({
+          id: input.anim,
+          ticks: report.ticks,
+          rapier,
+          registry,
+          project,
+          scene,
+          ...(loaded.prefabs ? { library: loaded.prefabs } : {}),
+          hold,
+          inputs,
+          commands,
+        })
+      : undefined;
   const hash = sceneHashWith(loaded.def, loaded.prefabs);
   const printed = eventsReport(report.events, report.truncated, types);
   const data = {
@@ -390,6 +516,7 @@ export const step: Tool<StepInput> = async (input, ctx) => {
       : {}),
     events: printed.events,
     ...(printed.lifecycle ? { lifecycle: printed.lifecycle } : {}),
+    ...(anim ? { anim: { id: input.anim, ticks: anim } } : {}),
     commands: commands.map(([tick, c]) =>
       c.player
         ? [tick, c.name, c.args ?? null, c.player]
@@ -412,6 +539,7 @@ export const step: Tool<StepInput> = async (input, ctx) => {
       data: { ok: false, ...data, ...report.blocked },
       text: [
         `${blockedText(report.blocked)}\n  after ${report.ticks} ticks`,
+        ...(anim ? animLines(input.anim!, anim) : []),
         ...(input.legal ? legalLines(registry, report.legal, false) : []),
       ].join("\n"),
     };
@@ -422,6 +550,7 @@ export const step: Tool<StepInput> = async (input, ctx) => {
     ...commands.map(([tick, c]) => `  t${tick} command ${commandText(c)}`),
     ...printed.lines,
     ...(report.truncated ? ["  (events truncated)"] : []),
+    ...(anim ? animLines(input.anim!, anim) : []),
     ...(input.legal ? legalLines(registry, report.legal, report.legalTruncated === true) : []),
     ...(report.outcome
       ? [

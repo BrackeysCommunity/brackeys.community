@@ -295,6 +295,7 @@ describe("createRegistry", () => {
       ["follower"],
       ["decor"],
       ["nav"],
+      ["camera-region"],
     ]);
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid"]);
     expect(r.actionNames).toEqual(["move", "jump"]);
@@ -356,12 +357,13 @@ describe("createRegistry", () => {
     expect((s >>> 16) & (d & 0xffff)).not.toBe(0);
   });
 
-  it("spawns decor and nav last when an explicit spawn order leaves them out", () => {
+  it("spawns decor, nav and camera regions last when an explicit spawn order leaves them out", () => {
     const r = createRegistry(
       game({
         spawnOrder: [
           "decor",
           "nav",
+          "camera-region",
           "solid",
           "sensor",
           "crate",
@@ -372,11 +374,11 @@ describe("createRegistry", () => {
         ],
       }),
     );
-    expect(r.spawnGroups.slice(0, 2)).toEqual([["decor"], ["nav"]]);
+    expect(r.spawnGroups.slice(0, 3)).toEqual([["decor"], ["nav"], ["camera-region"]]);
     const without = createRegistry(
       game({ spawnOrder: ["solid", "sensor", "crate", "prop", "flag", "marker", "follower"] }),
     );
-    expect(without.spawnGroups.slice(-2)).toEqual([["decor"], ["nav"]]);
+    expect(without.spawnGroups.slice(-3)).toEqual([["decor"], ["nav"], ["camera-region"]]);
   });
 
   it("honours an explicit spawn order with shared groups", () => {
@@ -392,6 +394,7 @@ describe("createRegistry", () => {
       ["follower"],
       ["decor"],
       ["nav"],
+      ["camera-region"],
     ]);
     expect(r.bulkKeys.map((b) => b.key)).toEqual(["solid", "solid:mud", "flag"]);
   });
@@ -407,6 +410,7 @@ describe("createRegistry", () => {
       ["crate", "prop"],
       ["decor"],
       ["nav"],
+      ["camera-region"],
     ]);
     expect(problems(() => createRegistry(game({ spawnOrder: ["flag"] })))).toEqual([
       'spawnOrder misses type "crate"',
@@ -528,6 +532,9 @@ describe("createRegistry behavior conflicts and default actions", () => {
       "joint",
       "spawner",
       "camera-target",
+      "anim",
+      "tween",
+      "emitter",
     ]);
     expect(ENGINE_BEHAVIORS.map((b) => b.name)).toEqual(createRegistry().behaviorNames);
     const movers = ["character-top-down", "character-side-view", "nav-agent", "path-follow"];
@@ -884,7 +891,14 @@ describe("createRegistry field names and settings", () => {
 
   it("offers the engine's settings beside the game's", () => {
     const registry = createRegistry(game({ settings: { lives: z.number().optional() } }));
-    expect(Object.keys(registry.settings)).toEqual(["gravity", "physics", "grid", "view", "lives"]);
+    expect(Object.keys(registry.settings)).toEqual([
+      "gravity",
+      "physics",
+      "grid",
+      "view",
+      "camera",
+      "lives",
+    ]);
   });
 });
 

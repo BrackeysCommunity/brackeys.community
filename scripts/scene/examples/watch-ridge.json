@@ -1,0 +1,5 @@
+{
+  "v": 2,
+  "scene": "ridge",
+  "steps": [{ "hold": [], "until": { "tick": 200 }, "max": 240 }]
+}

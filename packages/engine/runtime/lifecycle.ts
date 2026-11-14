@@ -30,6 +30,7 @@ import type {
 } from "../scene/types";
 import type { Vec2 } from "../types";
 import type { BehaviorHost } from "./behaviors";
+import { tweenSystemOf } from "./behaviors/tween";
 import type { RuntimeContacts } from "./contacts";
 import type { EntityTable } from "./entity-table";
 import type { RuntimeEventBus } from "./events";
@@ -248,6 +249,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     else system.despawn(e.id);
     query.enabledChanged(e.id, false);
     deps.timers.pauseOwner(e.id, true);
+    tweenSystemOf(ctx)?.ownerEnabled(e.id, false);
     deps.contacts.forget(e.id);
     raise(ENTITY_DISABLED, e);
   }
@@ -277,6 +279,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     behaviors.enable(e);
     query.enabledChanged(e.id, true);
     deps.timers.pauseOwner(e.id, false);
+    tweenSystemOf(ctx)?.ownerEnabled(e.id, true);
     raise(ENTITY_ENABLED, e);
   }
 
@@ -364,6 +367,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     if (!opts?.keepOwned) {
       deps.timers.cancelOwner(e.id);
       deps.events.dropOwner(e.id);
+      tweenSystemOf(ctx)?.ownerDestroyed(e.id);
     }
     systems.get(e.type)!.despawn(e.id);
     ctx.poses.remove(e.id);

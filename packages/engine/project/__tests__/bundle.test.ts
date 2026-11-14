@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+import { z } from "zod";
 
 import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineGame } from "../../game/define";
@@ -9,7 +10,7 @@ import { parseScene } from "../../scene/parse";
 import { parsePrefab, prefabLibrary } from "../../scene/prefab";
 import type { Prefab, SceneDefinition } from "../../scene/types";
 import { blobContent, namedPrefabs, projectBundle, sceneBundle, unsizedIds } from "../bundle";
-import { createKindRegistry } from "../kinds";
+import { createKindRegistry, defineAssetKind } from "../kinds";
 import type { AssetEntry, ProjectState } from "../types";
 import { projectView } from "../view";
 
@@ -351,6 +352,145 @@ describe("sceneBundle and prefabs a field names", () => {
     );
     expect([...named.keys()].sort()).toEqual(["chute", "crate", "inner"]);
     expect(namedPrefabs([], registry, (id) => prefabs.get(id)).size).toBe(0);
+  });
+});
+
+describe("sceneBundle and runtime docs a field names", () => {
+  type ReelFile = { v: 1; atlas?: string; still?: string; later?: string };
+  const reelSchema = () =>
+    z.strictObject({
+      v: z.literal(1),
+      atlas: z.string().optional(),
+      still: z.string().optional(),
+      later: z.string().optional(),
+    }) as z.ZodType<ReelFile>;
+  const reelRefs = (value: ReelFile) => [
+    ...(value.atlas ? [{ pointer: "/atlas", id: value.atlas, kinds: ["atlas"] }] : []),
+    ...(value.still ? [{ pointer: "/still", id: value.still, kinds: ["texture"] }] : []),
+    ...(value.later ? [{ pointer: "/later", id: value.later, kinds: ["texture"] }] : []),
+  ];
+  const reelKind = (name: string, suffix: string, lazy: boolean) =>
+    defineAssetKind({
+      kind: name,
+      title: "Reel",
+      description: "A test game's reel of frames.",
+      match: { suffixes: [suffix] },
+      storage: "doc",
+      version: 1,
+      schemaId: `urn:test:${name.replace("/", ":")}:v1`,
+      schema: reelSchema,
+      layout: { as: "map", rest: { as: "atomic" } },
+      empty: () => ({ v: 1 as const }),
+      refs: reelRefs,
+      ...(lazy ? { bundleRefs: (v: ReelFile) => reelRefs({ ...v, later: undefined }) } : {}),
+      runtime: "sim" as const,
+    });
+  const REEL = "reels/reel";
+  const LAZY = "reels/lazy";
+
+  const play = defineBehavior({
+    name: "reels/play",
+    description: "Plays a reel.",
+    fields: { reel: assetField(fieldEnv, [REEL, LAZY], "The reel it plays.").optional() },
+  });
+  const reels = defineGame({
+    id: "reels",
+    behaviors: [play],
+    types: [
+      {
+        type: "dancer",
+        description: "Something that plays a reel.",
+        base: "marker",
+        fields: () => ({ at: pointField("Where it stands.") }),
+      },
+    ],
+    actions: [],
+    createRuntime: () => ({ snapshot: () => null }),
+    assetKinds: [reelKind(REEL, ".reel.json", false), reelKind(LAZY, ".lazy.json", true)],
+  });
+  const reelRegistry = createRegistry(reels);
+  const reelKinds = createKindRegistry(reels);
+  const reelView = projectView(
+    state([
+      ...entries,
+      doc("walk", REEL, "walk.reel.json"),
+      doc("wave", LAZY, "wave.lazy.json"),
+      doc("idle", REEL, "idle.reel.json"),
+      doc("lost", REEL, "lost.reel.json"),
+    ]),
+    reelKinds,
+  );
+  const values = new Map<string, unknown>([
+    ["walk", { v: 1, atlas: "crates", still: "icon-art" }],
+    ["wave", { v: 1, still: "sky-art", later: "nested-art" }],
+    ["idle", { v: 1, still: "unused-art" }],
+    ["lost", { v: 1, atlas: "crate" }],
+  ]);
+  const docs = { read: (_kind: string, id: string) => values.get(id) };
+
+  const dancing = (...named: string[]) => {
+    const parsed = parseScene(
+      {
+        v: 4,
+        game: "reels",
+        name: "floor",
+        bounds: [0, 0, 1000, 1000],
+        entities: named.map((reel, i) => ({
+          id: `d${i}`,
+          type: "dancer",
+          at: [i, 0],
+          behaviors: { [play.name]: { reel } },
+        })),
+      },
+      reelRegistry,
+    );
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    return parsed.def;
+  };
+  const reelBundle = (def: SceneDefinition, withDocs = true) =>
+    sceneBundle(
+      expandScene(def, reelRegistry, { prefabs: new Map() }),
+      def,
+      new Map(),
+      reelView,
+      reelKinds,
+      reelRegistry,
+      withDocs ? docs : undefined,
+    );
+
+  it("follows a runtime doc a behavior names to its atlas and the atlas's texture", () => {
+    const r = reelBundle(dancing("walk"));
+    expect(r.issues).toEqual([]);
+    expect(ids(r)).toEqual(["crates-art", "icon-art"]);
+  });
+
+  it("follows only the kind's bundleRefs, leaving a blob it loads on demand out", () => {
+    const r = reelBundle(dancing("wave"));
+    expect(r.issues).toEqual([]);
+    expect(ids(r)).toEqual(["sky-art"]);
+  });
+
+  it("leaves out the blobs of a runtime doc no field names", () => {
+    expect(ids(reelBundle(dancing("walk", "wave")))).not.toContain("unused-art");
+  });
+
+  it("follows no doc without its values, as before", () => {
+    const r = reelBundle(dancing("walk"), false);
+    expect(r.issues).toEqual([]);
+    expect(ids(r)).toEqual([]);
+  });
+
+  it("reports a doc's dangling reference at the doc's field", () => {
+    const r = reelBundle(dancing("lost"));
+    expect(r.issues.map((i) => [i.code, i.path, i.got, i.entityIds, i.message])).toEqual([
+      [
+        "asset-missing",
+        "/atlas",
+        "crate",
+        ["lost"],
+        '"lost" atlas names atlas "crate", which is of kind prefab; did you mean "crates"?',
+      ],
+    ]);
   });
 });
 

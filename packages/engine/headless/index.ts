@@ -63,6 +63,7 @@ export {
   SENSOR_ENTER,
   SENSOR_EXIT,
 } from "../runtime/types";
+export { ANIM_END, ANIM_FRAME } from "../runtime/behaviors/anim";
 export {
   decodeStreams,
   mergeTick,
@@ -84,6 +85,7 @@ export {
 } from "../runtime/timing";
 export type { RapierModule } from "../types";
 export type { ProjectRuntimeView } from "../project/runtime-view";
+export { memoryRuntimeView, type MemoryRuntimeViewInit } from "./runtime-view";
 export { assetInfo, type AssetInfo } from "../project/asset-info";
 export {
   loadHeadless,
@@ -191,3 +193,5 @@ export type {
   StepDuration,
   UntilClause,
 } from "./playtest-types";
+export type { PresentedRequest, PresentRequest } from "../runtime/present";
+export { cameraRegionsOf, type CameraRegion } from "../camera/regions";

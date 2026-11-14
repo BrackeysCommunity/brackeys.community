@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { BlendMode } from "../../context";
+import { BLEND_MODES } from "../../game/defaults";
 import type { ProjectMaterialDef } from "../../game/define";
 import type { Registry, Style } from "../../game/types";
 import { pxPerMetreOf, scaleLengths } from "../../game/units";
@@ -60,10 +60,8 @@ const PhysicsSchema = z
   );
 
 const BlendSchema = z
-  .enum(["normal", "add", "multiply", "screen"])
-  .describe(
-    "How a sprite of this material composites over what is under it.",
-  ) satisfies z.ZodType<BlendMode>;
+  .enum(BLEND_MODES)
+  .describe("How a sprite of this material composites over what is under it.");
 
 const RenderSchema = z
   .strictObject({

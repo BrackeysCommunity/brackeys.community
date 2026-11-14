@@ -260,6 +260,7 @@ export const inputMapKind = defineAssetKind({
   match: { jsonKind: INPUT_MAP_KIND },
   defaultFolder: () => "",
   storage: "doc",
+  runtime: "sim",
   perProject: 1,
   perProjectWords: { noun: "input map", contents: "bindings" },
   version: INPUT_MAP_VERSION,

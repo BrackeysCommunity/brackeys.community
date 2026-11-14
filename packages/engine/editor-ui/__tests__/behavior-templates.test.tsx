@@ -29,6 +29,12 @@ const STANDARD = [
 ];
 
 const registry = createRegistry();
+
+/** Behaviors whose block names a project asset: with none in the project, Add says so instead. */
+const NEEDS_ASSET = [
+  { name: "anim", why: "Animation needs an animation or an atlas asset in the project." },
+  { name: "emitter", why: "Emitter needs an emitter asset in the project." },
+];
 const ada: SceneOrigin = { kind: "user", userId: "ada", name: "Ada" };
 
 const hero: EntityDef = { id: "hero", type: "marker", at: [5, 5] };
@@ -65,7 +71,17 @@ describe("Add behavior templates", () => {
     expect(STANDARD.every((n) => names.includes(n))).toBe(true);
   });
 
-  it.each(ENGINE_BEHAVIORS.map((b) => b.name))("adds %s to a marker as a valid block", (name) => {
+  it.each(NEEDS_ASSET.map((b) => [b.name, b.why]))(
+    "offers %s only once the project has its asset",
+    (name, why) => {
+      const option = optionsFor(room(hero, crate), "hero").find((o) => o.name === name)!;
+      expect(option.unavailable).toBe(why);
+    },
+  );
+
+  it.each(
+    ENGINE_BEHAVIORS.map((b) => b.name).filter((n) => !NEEDS_ASSET.some((b) => b.name === n)),
+  )("adds %s to a marker as a valid block", (name) => {
     const def = room(hero, crate);
     const option = optionsFor(def, "hero").find((o) => o.name === name)!;
     expect(option.unavailable).toBeUndefined();
@@ -77,6 +93,20 @@ describe("Add behavior templates", () => {
       unknown
     >;
     expect(Object.keys(added)).toContain(name);
+  });
+
+  it("names the project's first asset of a required asset field's kinds", () => {
+    const withAssets = createRegistry(null, {
+      assets: (kinds) => (kinds.includes("emitter") ? ["embers", "sparks"] : []),
+    });
+    const def = room(hero, crate);
+    const option = buildInspectorModel(withAssets, [lookupRef(def, "hero")!], {
+      def,
+    }).addBehaviors.find((o) => o.name === "emitter")!;
+    expect(option.unavailable).toBeUndefined();
+    expect(option.batch.ops).toEqual([
+      { op: "update", ref: "hero", set: { "behaviors.emitter": { preset: "embers" } } },
+    ]);
   });
 
   it("adds what a behavior requires alongside it, each from its own template", () => {

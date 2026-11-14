@@ -10,8 +10,14 @@ import {
 } from "../game/types";
 import type { TickInput } from "../input/stream";
 import { deepFreeze, stableJson } from "../project/canonical";
+import { createKindRegistry } from "../project/kinds";
+import { DATA_TABLE_KIND } from "../project/kinds/data-table";
 import { byCodeUnit } from "../project/kinds/define";
+import { GAME_SETTINGS_KIND } from "../project/kinds/game-settings";
+import { INPUT_MAP_KIND } from "../project/kinds/input-map";
+import { SCENE_LIST_KIND } from "../project/kinds/scene-list";
 import type { ProjectRuntimeView } from "../project/runtime-view";
+import type { AssetKindName } from "../project/types";
 import { expandScene } from "../scene/expand";
 import { hashText } from "../scene/hash";
 import { parseScene } from "../scene/parse";
@@ -55,10 +61,13 @@ export type PreparedPlay =
 /**
  * What a run ran, hashed: the expanded scene, the resolved clock, the
  * project view's data (its settings, engine block, the tables the game
- * declares in name order, and the input map) and every prefab the run's
- * `ctx.instantiate` may place, in id order. File text never reaches it, so
- * a re-format that leaves the expanded scene equal leaves it equal, while a
- * changed table row or prefab changes it. A doc's `$schema` points at a
+ * declares in name order, the input map, and every other `sim` kind's docs
+ * in kind then `docs` order) and every prefab the run's `ctx.instantiate`
+ * may place, in id order. The other `sim` docs join under one key written
+ * only when there is one, so a project without any keeps the hash it had
+ * before such kinds existed; `view` kinds and the scene list never join.
+ * File text never reaches it, so a re-format that leaves the expanded scene
+ * equal leaves it equal, while a changed table row or prefab changes it. A doc's `$schema` points at a
  * schema file's location, not at anything the run reads, so moving the
  * schema leaves it equal too.
  */
@@ -73,20 +82,51 @@ export function runHash(
   const tables = Object.keys(registry.game?.tables ?? {})
     .sort(byCodeUnit)
     .map((name) => [name, view ? view.table(name) : []]);
+  const docs = view ? simDocs(view, registry) : [];
   const data = view
     ? {
         settings: withoutSchemaPointer(view.settings),
         engine: view.engine,
         tables,
         inputMap: withoutSchemaPointer(view.inputMap),
+        ...(docs.length > 0 ? { docs } : {}),
       }
     : null;
   const prefabs = [...(library ?? new Map())].sort(([a], [b]) => byCodeUnit(a, b));
   return hashText(stableJson({ scene, time, project: data, prefabs }));
 }
 
-function withoutSchemaPointer<T extends object | null>(doc: T): T {
-  if (doc === null || !("$schema" in doc)) return doc;
+/** Kinds the run hash reads through their own fields, or (the scene list) not at all. */
+function hashedByName(kind: AssetKindName): boolean {
+  switch (kind) {
+    case GAME_SETTINGS_KIND:
+    case DATA_TABLE_KIND:
+    case INPUT_MAP_KIND:
+    case SCENE_LIST_KIND:
+      return true;
+    default:
+      return false;
+  }
+}
+
+/** Each other `sim` kind's docs, in registration order, that has any: `[kind, [id, doc][]]`. */
+function simDocs(view: ProjectRuntimeView, registry: Registry): [AssetKindName, unknown[]][] {
+  if (!view.docs || !view.doc) return [];
+  const out: [AssetKindName, unknown[]][] = [];
+  for (const def of createKindRegistry(registry.game).list()) {
+    if (def.storage !== "doc" || def.runtime !== "sim" || hashedByName(def.kind)) continue;
+    const ids = view.docs(def.kind);
+    if (ids.length === 0) continue;
+    out.push([
+      def.kind,
+      ids.map((id) => [id, withoutSchemaPointer(view.doc!(def.kind, id) ?? null)]),
+    ]);
+  }
+  return out;
+}
+
+function withoutSchemaPointer<T>(doc: T): T {
+  if (doc === null || typeof doc !== "object" || !("$schema" in doc)) return doc;
   const { $schema: _, ...rest } = doc as Record<string, unknown>;
   return rest as T;
 }

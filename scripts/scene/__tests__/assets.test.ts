@@ -77,6 +77,8 @@ describe("assets on files", { timeout: 60_000 }, () => {
       "crates-texture",
       "hero",
       "hero-texture",
+      "kitchen-animation",
+      "sparks",
       "behavior-yard-checks",
       "behavior-yard",
       "behavior-yard-script",

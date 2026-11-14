@@ -1,5 +1,7 @@
+import type { CameraRigDef } from "../game/primitives";
+
 /**
- * The scene format's shared types. Pure types and constants, no imports: the
+ * The scene format's shared types. Pure types and constants, type imports only: the
  * set of entity types, bulk keys, materials and issue codes a scene may use
  * comes from a registry (`game/define.ts`), not from this file.
  */
@@ -159,6 +161,8 @@ export type SceneSettings = {
   grid?: GridSettings;
   /** Reserved for projections; only the default exists. */
   view?: { projection: "orthogonal" };
+  /** How the camera follows in Play here, over the game's `camera`. */
+  camera?: CameraRigDef;
   [key: string]: unknown;
 };
 
@@ -211,6 +215,8 @@ export type ResolvedSettings = {
   physics: "rapier" | "none";
   grid: GridSettings | null;
   view: { projection: "orthogonal" };
+  /** The scene's own camera settings; absent when it sets none. */
+  camera?: CameraRigDef;
   [key: string]: unknown;
 };
 
@@ -281,6 +287,10 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "asset-kind",
   "asset-frame-unknown",
   "sprite-no-asset",
+  "anim-tag-unknown",
+  "anim-clip-unknown",
+  "frame-shape-invalid",
+  "tween-target-invalid",
   "tick-rate-invalid",
   "asset-in-use",
   "asset-id-taken",

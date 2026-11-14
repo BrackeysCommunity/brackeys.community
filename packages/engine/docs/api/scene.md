@@ -27,7 +27,7 @@ Bump it whenever one of those lists changes; `codes --json` and the
 published JSON Schemas carry it.
 
 ```ts
-declare const AGENT_SURFACE_VERSION = 20;
+declare const AGENT_SURFACE_VERSION = 21;
 ```
 
 ## `Aabb`
@@ -562,6 +562,10 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "asset-kind",
     "asset-frame-unknown",
     "sprite-no-asset",
+    "anim-tag-unknown",
+    "anim-clip-unknown",
+    "frame-shape-invalid",
+    "tween-target-invalid",
     "tick-rate-invalid",
     "asset-in-use",
     "asset-id-taken",
@@ -2170,6 +2174,8 @@ The engine's settings with defaults applied, plus the game's as given.
 ```ts
 type ResolvedSettings = {
     [key: string]: unknown;
+    /** The scene's own camera settings; absent when it sets none. */
+    camera?: CameraRigDef;
     gravity: Pt;
     grid: GridSettings | null;
     physics: "none" | "rapier";
@@ -2853,6 +2859,8 @@ The engine's settings, lengths in metres; a game's settings schema adds its own 
 ```ts
 type SceneSettings = {
     [key: string]: unknown;
+    /** How the camera follows in Play here, over the game's `camera`. */
+    camera?: CameraRigDef;
     /** World gravity, m/s²; y is down. Omitted: the project's, else the game's default. */
     gravity?: Pt;
     grid?: GridSettings;
@@ -5187,7 +5195,8 @@ The scene's settings with every engine key filled. `gravity` and
 `physics` come from the scene's `settings`, else the project's engine
 block, else the game's world, else the engine's default; `grid` from the
 scene, else the game's world, else none; `view` from the scene, else
-orthogonal (`game/defaults` holds the engine's values). The game's own
+orthogonal (`game/defaults` holds the engine's values); `camera` from the
+scene only, absent when it sets none. The game's own
 keys are the scene's, as given.
 
 ```ts
@@ -5516,7 +5525,7 @@ _function_ in `scene/ascii.ts`
 The scene as a character map, one character per `cell` world px (the
 scene's metres times the game's px per metre): each
 entity in its type's character (`EntityTypeDef.ascii`, else its base
-primitive's), `=` for one-way solids, tag characters for tagged ones,
+primitive's), camera regions as their box's outline under everything else, `=` for one-way solids, tag characters for tagged ones,
 `~` along paths, each sprite's box in its entity's character under
 everything else, grid fields' filled cells in their entity's character
 (at most `SCENE_GRID_MAX_CELLS`, then `…`). Pure; region and `around` work as in `renderSceneSvg`.

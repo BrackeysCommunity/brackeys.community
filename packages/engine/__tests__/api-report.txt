@@ -18,6 +18,7 @@ DEFAULT_RESOLUTION
 DeviceTables
 Dihedral
 ENGINE_VERSION
+EffectLayer
 ExpandedScene
 FlowRequest
 FlowResult
@@ -48,6 +49,9 @@ LoadingView
 LoadingViewFactory
 MAX_PLAYERS
 MountUi
+ParticleLayer
+ParticleLayerOptions
+ParticleTexture
 PixiView
 PixiViewOptions
 PlayOptions
@@ -106,6 +110,7 @@ UiActionEvent
 UiContext
 UiHandle
 Vec2
+ViewportDef
 acceptedTimings
 acceptedTimingsWords
 applyPt
@@ -118,8 +123,10 @@ clampTiming
 compose
 composeDihedral
 createAssetLoader
+createEffectLayer
 createGame
 createLoadingOverlay
+createParticleLayer
 createPixiView
 createTouchControls
 createUiLayer
@@ -840,12 +847,20 @@ zipFiles
 
 ## @jams/engine/game
 ACTION_KINDS
+ANIM
+ANIM_END
+ANIM_FRAME
 ActionDef
 ActionKind
+AnimBlock
+AnimContext
+AnimState
+AnimSystem
 AssetIdSchema
 AssetKindDef
 Attachment
 AttachmentHub
+AudioRequest
 BASE_FIELDS
 BEHAVIOR_NAME_PATTERN
 BODY
@@ -867,6 +882,7 @@ BodyEntry
 BodyKind
 BodyStandIn
 BulkKeyInfo
+CAMERA_RIG_SCHEMA
 CAMERA_TARGET
 CHARACTER_JUMPED
 CHARACTER_LANDED
@@ -878,7 +894,11 @@ COLLIDER
 COMMAND_NAME_PATTERN
 CONTACT_END
 CONTACT_START
+CameraFrame
+CameraRequest
+CameraRigDef
 CameraTargetBlock
+CameraTargetSpec
 CastResult
 CastSpawnOptions
 Cell
@@ -892,6 +912,7 @@ CharacterTopDownBlock
 CheckEnv
 CheckKindDef
 CheckVerdict
+ClipSource
 ColliderBlock
 ColliderSystem
 ColliderTag
@@ -918,6 +939,8 @@ DecorEntity
 Delay
 DeviceId
 DrawLayer
+EASE_NAMES
+EMITTER
 ENGINE_CHECK_KINDS
 ENGINE_COLLISION_GROUPS
 ENGINE_COMMANDS
@@ -929,7 +952,10 @@ ENTITY_DESTROYED
 ENTITY_DISABLED
 ENTITY_ENABLED
 ENTITY_SPAWNED
+EaseName
 EditorToolDef
+EffectRequest
+EmitterBlock
 EngineCheckKind
 EngineCollisionGroup
 EngineContext
@@ -1069,6 +1095,9 @@ PointerState
 Pool
 Pose
 PoseIndex
+PresentRequest
+PresentationQueue
+PresentedRequest
 PrimitiveType
 ProjectMaterialDef
 ProjectRuntimeView
@@ -1078,6 +1107,7 @@ RegisteredBehavior
 RegisteredType
 Registry
 RegistryError
+ResolvedClip
 ResolvedTime
 RunResult
 RuntimeGrid
@@ -1153,6 +1183,8 @@ SwapTiming
 SystemFactory
 TOOL_PRIORITY
 TOP_DOWN_CONTROLLER
+TWEEN
+TWEEN_END
 TimeKind
 TimeModel
 TimerAction
@@ -1163,6 +1195,12 @@ ToolRouter
 TopDownController
 TopDownOptions
 TransitionSpec
+TweenBlock
+TweenChannel
+TweenSpec
+TweenSystem
+Tweens
+UnsaveableTween
 ViewLayer
 ViewLayerHandle
 VisualOptions
@@ -1189,6 +1227,7 @@ cellOf
 clamp
 clampTiming
 clampVec2
+clipFrameAt
 composePose
 createDataSystem
 createDecorSystem
@@ -1216,6 +1255,7 @@ degToRad
 distanceVec2
 drawEntity
 drawShape
+ease
 effectiveSaveLimits
 fieldOfView
 findPath
@@ -1250,6 +1290,7 @@ navContains
 navNearest
 navPath
 oneWayPasses
+overlapFrameShapes
 parseRuntimeId
 parseSaveFile
 parseShape
@@ -1273,6 +1314,7 @@ relativePose
 releasePromoteMessage
 releaseReplacesMessage
 releaseRollbackMessage
+resolveClips
 resolveTime
 restoreOverlaps
 runtimeId
@@ -1299,17 +1341,21 @@ tagsField
 tickRateProblem
 ticksFor
 traceShape
+tweenSpecSchema
 vectorField
 versionName
 wholeTicksIn
 withProject
 
 ## @jams/engine/headless
+ANIM_END
+ANIM_FRAME
 AnalogValues
 AssetInfo
 AssetReloadError
 CONTACT_END
 CONTACT_START
+CameraRegion
 CheckEnv
 CheckResult
 CheckVerdict
@@ -1348,6 +1394,7 @@ InputScriptTrack
 InputScriptV2
 LoadFailureReason
 LoadReport
+MemoryRuntimeViewInit
 PLAYER_JOINED
 PLAYER_LEFT
 ParseRecordingResult
@@ -1370,6 +1417,8 @@ PlaytestStart
 PlaytestStep
 PointerBindings
 PreparedPlay
+PresentRequest
+PresentedRequest
 ProbeInput
 ProbeOptions
 ProbeReport
@@ -1431,6 +1480,7 @@ ValidatePhysicalOptions
 analogActions
 analogValues
 assetInfo
+cameraRegionsOf
 captureSave
 compileInputScript
 compiledPointer
@@ -1446,6 +1496,7 @@ fuzz
 gamePersistCell
 heldEdges
 loadHeadless
+memoryRuntimeView
 memorySaveStore
 mergeTick
 parseRecording
@@ -1476,9 +1527,14 @@ validatePhysical
 worldSaveBlockers
 
 ## @jams/engine/project
+ANIMATION_KIND
+ANIMATION_SCHEMA_ID
+ANIMATION_VERSION
 ATLAS_KIND
 ATLAS_SUFFIX
 AUDIO_KIND
+AnimFrameDef
+AnimationFile
 AssetBundle
 AssetEntry
 AssetFile
@@ -1507,9 +1563,12 @@ BuildSceneVersionOptions
 BuildSceneVersionResult
 BuildStamp
 BundleEntry
+CLIP_LOOPS
 CREDITS_FILE
 CheckReleaseOptions
 CheckSceneVersionOptions
+ClipDef
+ClipLoop
 CodeKindDef
 CodeModuleInfo
 ContentStore
@@ -1523,10 +1582,18 @@ DataTableFile
 DataTableRow
 DocKindDef
 DocLayout
+DocLookup
 DocName
 DocNameKind
+EMITTER_KIND
+EMITTER_MAX_CAP
+EMITTER_MAX_DEFAULT
+EMITTER_SCHEMA_ID
+EMITTER_VERSION
 ENGINE_ASSET_KINDS
 EditSceneOp
+EmitterCurve
+EmitterFile
 ExportBudget
 ExportBudgetReport
 FONT_KIND
@@ -1604,7 +1671,6 @@ RECORDING_SUFFIX
 RELEASE_FILE
 RELEASE_SCHEMA_ID
 RELEASE_VERSION
-RUNTIME_VIEW_KINDS
 RecordingMeta
 RecordingSettings
 RefIndex
@@ -1628,6 +1694,7 @@ SCENE_LIST_VERSION
 SCENE_VERSION_SCHEMA_ID
 SCENE_VERSION_VERSION
 SERVICE_WORKER_FILE
+SHAPE_SET_NAME
 SIDECAR_SCHEMA_ID
 SIDECAR_SUFFIX
 SIDECAR_VERSION
@@ -1652,6 +1719,8 @@ TextureSettings
 ThirdPartyLicence
 UNLIMITED_QUOTA
 WEB_MANIFEST_FILE
+animationIssues
+animationKind
 applyJsonEdits
 assetFileEntries
 assetFileEntry
@@ -1687,6 +1756,8 @@ defineAssetKind
 detectImport
 docKindJsonSchema
 docNameOf
+emitterIssues
+emitterKind
 engineResolution
 findRelease
 findSceneVersion
@@ -1713,6 +1784,7 @@ inputMapKind
 inputMapProblems
 inputScriptKind
 inspectEntry
+isRuntimeKind
 isSha256
 isSkippedAssetPath
 keyedItemPointer
@@ -1768,6 +1840,7 @@ releaseManifestSchema
 releaseSnapshot
 rewriteRefs
 rowSchemaOf
+runtimeKindNames
 runtimeView
 saveFixtureMetaSchema
 saveFixtureSettingsSchema
@@ -1803,6 +1876,7 @@ unreferencedBlobs
 usableInputMap
 utf8Bytes
 validateAssetDoc
+validateProject
 writesPrefabs
 
 ## @jams/engine/scene
@@ -2309,12 +2383,107 @@ sceneCollabServer
 sceneNameOf
 snapshotFiles
 
+## anim/clips.ts
+type ClipSource = {
+    animation: AnimationFile;
+} | {
+    atlas: AssetInfo;
+};
+type ResolvedClip = {
+    frames: readonly {
+        events: readonly string[];
+        frame: string;
+        shapes: Readonly<Record<string, readonly ShapeObj[]>>;
+        ticks: number;
+    }[];
+    length: number;
+    loop: ClipLoop;
+    name: string;
+    next: null | string;
+    speed: number;
+};
+declare function clipFrameAt(clip: ResolvedClip, elapsed: number): {
+    done: boolean;
+    index: number;
+    into: number;
+};
+declare function resolveClips(source: ClipSource, atlas: AssetInfo, time: Pick<ResolvedTime, "rate">): {
+    clips: ReadonlyMap<string, ResolvedClip>;
+    issues: SceneIssue[];
+};
+
+## anim/ease.ts
+declare function ease(name: EaseName, t: number): number;
+
+## anim/shapes.ts
+declare function overlapFrameShapes(ctx: Pick<EngineContext, "anim">, a: string, setA: string, b: string, setB: string): boolean;
+
+## anim/tweens.ts
+interface Tweens {
+    to(entityId: string, spec: TweenSpec): number;
+    value(from: number, to: number, opts: Omit<TweenSpec, "from" | "to"> & {
+        onDone?: () => void;
+        onUpdate: (v: number) => void;
+    }): number;
+    cancel(id: number): void;
+    cancelAll(entityId: string): void;
+    readonly size: number;
+}
+
 ## camera.ts
 type Viewport = {
     height: number;
     width: number;
     x: number;
     y: number;
+};
+
+## camera/regions.ts
+type CameraRegion = {
+    clamp: boolean;
+    ease: number;
+    id: string;
+    max: Vec2;
+    min: Vec2;
+    zoom?: number;
+};
+declare function cameraRegionsOf(entities: readonly RuntimeEntity[], registry: Pick<Registry, "types">): CameraRegion[];
+
+## camera/rig.ts
+type CameraFrame = {
+    position: Vec2;
+    rotation: number;
+    zoom: number;
+};
+type CameraTargetSpec = {
+    entity: string;
+    weight?: number;
+} | {
+    player: number;
+} | {
+    point: Vec2;
+    weight?: number;
+};
+
+## camera/viewports.ts
+type ViewportDef = {
+    border?: {
+        color: number;
+        width: number;
+    };
+    frame: "main" | "scene" | {
+        entity: string;
+    } | {
+        player: number;
+    };
+    layers?: readonly string[];
+    rect: [
+        x: number,
+        y: number,
+        w: number,
+        h: number
+    ];
+    rig?: CameraRigDef;
 };
 
 ## collab/apply.ts
@@ -3116,6 +3285,7 @@ interface SceneView {
             zoom: number;
         };
     }): void;
+    particles?(): ParticleLayer | null;
 }
 type SpriteVisual = {
     alpha?: number;
@@ -5407,6 +5577,23 @@ type RegisteredBehavior = BehaviorDef & {
 };
 declare function defineBehavior<F extends z.ZodRawShape>(def: BehaviorDef<F>): BehaviorDef<F>;
 
+## game/behaviors/anim.ts
+declare const ANIM: BehaviorDef<{
+    clip: z.ZodString;
+    offset: z.ZodOptional<z.ZodNumber>;
+    playing: z.ZodOptional<z.ZodBoolean>;
+    source: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+    speed: z.ZodOptional<z.ZodNumber>;
+}>;
+type AnimBlock = z.infer<z.ZodObject<ReturnType<typeof animFields>>>;
+declare const animFields: (env: FieldEnv) => {
+    clip: z.ZodString;
+    offset: z.ZodOptional<z.ZodNumber>;
+    playing: z.ZodOptional<z.ZodBoolean>;
+    source: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+    speed: z.ZodOptional<z.ZodNumber>;
+};
+
 ## game/behaviors/body.ts
 declare const BODY: BehaviorDef<{
     angularDamping: z.ZodOptional<z.ZodNumber>;
@@ -5544,6 +5731,21 @@ declare const colliderFields: (env: FieldEnv) => {
     restitution: z.ZodOptional<z.ZodNumber>;
     sensor: z.ZodDefault<z.ZodBoolean>;
     shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
+};
+
+## game/behaviors/emitter.ts
+declare const EMITTER: BehaviorDef<{
+    emitting: z.ZodOptional<z.ZodBoolean>;
+    offset: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    preset: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+    rate: z.ZodOptional<z.ZodNumber>;
+}>;
+type EmitterBlock = z.infer<z.ZodObject<ReturnType<typeof emitterFields>>>;
+declare const emitterFields: (env: FieldEnv) => {
+    emitting: z.ZodOptional<z.ZodBoolean>;
+    offset: z.ZodOptional<z.ZodType<Pt, unknown, z.core.$ZodTypeInternals<Pt, unknown>>>;
+    preset: z.ZodType<string, unknown, z.core.$ZodTypeInternals<string, unknown>>;
+    rate: z.ZodOptional<z.ZodNumber>;
 };
 
 ## game/behaviors/force-area.ts
@@ -5899,6 +6101,244 @@ declare const spriteFields: (env: FieldEnv) => {
 };
 declare function spriteGeometry(block: Partial<SpriteBlock>, info?: SpriteAssetInfo | null, pxPerMetre?: number): SpriteGeometry;
 
+## game/behaviors/tween.ts
+declare const EASE_ENDS: readonly [
+    "In",
+    "Out",
+    "InOut"
+];
+declare const EASE_FAMILIES: readonly [
+    "quad",
+    "cubic",
+    "quart",
+    "quint",
+    "sine",
+    "expo",
+    "circ",
+    "back",
+    "elastic",
+    "bounce"
+];
+declare const EASE_NAMES: readonly EaseName[];
+type EaseName = "linear" | `${(typeof EASE_FAMILIES)[number]}${(typeof EASE_ENDS)[number]}`;
+declare const TWEEN: BehaviorDef<{
+    tweens: z.ZodArray<z.ZodObject<{
+        delay: z.ZodOptional<z.ZodUnion<readonly [
+            z.ZodNumber,
+            z.ZodObject<{
+                ms: z.ZodNumber;
+            }, z.core.$strict>
+        ]>>;
+        duration: z.ZodUnion<readonly [
+            z.ZodNumber,
+            z.ZodObject<{
+                ms: z.ZodNumber;
+            }, z.core.$strict>
+        ]>;
+        ease: z.ZodOptional<z.ZodEnum<{
+            backIn: "backIn";
+            backInOut: "backInOut";
+            backOut: "backOut";
+            bounceIn: "bounceIn";
+            bounceInOut: "bounceInOut";
+            bounceOut: "bounceOut";
+            circIn: "circIn";
+            circInOut: "circInOut";
+            circOut: "circOut";
+            cubicIn: "cubicIn";
+            cubicInOut: "cubicInOut";
+            cubicOut: "cubicOut";
+            elasticIn: "elasticIn";
+            elasticInOut: "elasticInOut";
+            elasticOut: "elasticOut";
+            expoIn: "expoIn";
+            expoInOut: "expoInOut";
+            expoOut: "expoOut";
+            linear: "linear";
+            quadIn: "quadIn";
+            quadInOut: "quadInOut";
+            quadOut: "quadOut";
+            quartIn: "quartIn";
+            quartInOut: "quartInOut";
+            quartOut: "quartOut";
+            quintIn: "quintIn";
+            quintInOut: "quintInOut";
+            quintOut: "quintOut";
+            sineIn: "sineIn";
+            sineInOut: "sineInOut";
+            sineOut: "sineOut";
+        }>>;
+        emit: z.ZodOptional<z.ZodObject<{
+            data: z.ZodOptional<z.ZodUnknown>;
+            type: z.ZodString;
+        }, z.core.$strict>>;
+        from: z.ZodOptional<z.ZodObject<{
+            alpha: z.ZodOptional<z.ZodNumber>;
+            rot: z.ZodOptional<z.ZodNumber>;
+            scale: z.ZodOptional<z.ZodNumber>;
+            tint: z.ZodOptional<z.ZodNumber>;
+            x: z.ZodOptional<z.ZodNumber>;
+            y: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>>;
+        key: z.ZodOptional<z.ZodString>;
+        repeat: z.ZodOptional<z.ZodNumber>;
+        to: z.ZodObject<{
+            alpha: z.ZodOptional<z.ZodNumber>;
+            rot: z.ZodOptional<z.ZodNumber>;
+            scale: z.ZodOptional<z.ZodNumber>;
+            tint: z.ZodOptional<z.ZodNumber>;
+            x: z.ZodOptional<z.ZodNumber>;
+            y: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>;
+        yoyo: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strict>>;
+}>;
+type TweenBlock = z.infer<z.ZodObject<typeof tweenFields>>;
+type TweenChannel = "alpha" | "rot" | "scale" | "tint" | "x" | "y";
+type TweenSpec = z.infer<typeof tweenSpecSchema>;
+declare const tweenFields: {
+    tweens: z.ZodArray<z.ZodObject<{
+        delay: z.ZodOptional<z.ZodUnion<readonly [
+            z.ZodNumber,
+            z.ZodObject<{
+                ms: z.ZodNumber;
+            }, z.core.$strict>
+        ]>>;
+        duration: z.ZodUnion<readonly [
+            z.ZodNumber,
+            z.ZodObject<{
+                ms: z.ZodNumber;
+            }, z.core.$strict>
+        ]>;
+        ease: z.ZodOptional<z.ZodEnum<{
+            backIn: "backIn";
+            backInOut: "backInOut";
+            backOut: "backOut";
+            bounceIn: "bounceIn";
+            bounceInOut: "bounceInOut";
+            bounceOut: "bounceOut";
+            circIn: "circIn";
+            circInOut: "circInOut";
+            circOut: "circOut";
+            cubicIn: "cubicIn";
+            cubicInOut: "cubicInOut";
+            cubicOut: "cubicOut";
+            elasticIn: "elasticIn";
+            elasticInOut: "elasticInOut";
+            elasticOut: "elasticOut";
+            expoIn: "expoIn";
+            expoInOut: "expoInOut";
+            expoOut: "expoOut";
+            linear: "linear";
+            quadIn: "quadIn";
+            quadInOut: "quadInOut";
+            quadOut: "quadOut";
+            quartIn: "quartIn";
+            quartInOut: "quartInOut";
+            quartOut: "quartOut";
+            quintIn: "quintIn";
+            quintInOut: "quintInOut";
+            quintOut: "quintOut";
+            sineIn: "sineIn";
+            sineInOut: "sineInOut";
+            sineOut: "sineOut";
+        }>>;
+        emit: z.ZodOptional<z.ZodObject<{
+            data: z.ZodOptional<z.ZodUnknown>;
+            type: z.ZodString;
+        }, z.core.$strict>>;
+        from: z.ZodOptional<z.ZodObject<{
+            alpha: z.ZodOptional<z.ZodNumber>;
+            rot: z.ZodOptional<z.ZodNumber>;
+            scale: z.ZodOptional<z.ZodNumber>;
+            tint: z.ZodOptional<z.ZodNumber>;
+            x: z.ZodOptional<z.ZodNumber>;
+            y: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>>;
+        key: z.ZodOptional<z.ZodString>;
+        repeat: z.ZodOptional<z.ZodNumber>;
+        to: z.ZodObject<{
+            alpha: z.ZodOptional<z.ZodNumber>;
+            rot: z.ZodOptional<z.ZodNumber>;
+            scale: z.ZodOptional<z.ZodNumber>;
+            tint: z.ZodOptional<z.ZodNumber>;
+            x: z.ZodOptional<z.ZodNumber>;
+            y: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>;
+        yoyo: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strict>>;
+};
+declare const tweenSpecSchema: z.ZodObject<{
+    delay: z.ZodOptional<z.ZodUnion<readonly [
+        z.ZodNumber,
+        z.ZodObject<{
+            ms: z.ZodNumber;
+        }, z.core.$strict>
+    ]>>;
+    duration: z.ZodUnion<readonly [
+        z.ZodNumber,
+        z.ZodObject<{
+            ms: z.ZodNumber;
+        }, z.core.$strict>
+    ]>;
+    ease: z.ZodOptional<z.ZodEnum<{
+        backIn: "backIn";
+        backInOut: "backInOut";
+        backOut: "backOut";
+        bounceIn: "bounceIn";
+        bounceInOut: "bounceInOut";
+        bounceOut: "bounceOut";
+        circIn: "circIn";
+        circInOut: "circInOut";
+        circOut: "circOut";
+        cubicIn: "cubicIn";
+        cubicInOut: "cubicInOut";
+        cubicOut: "cubicOut";
+        elasticIn: "elasticIn";
+        elasticInOut: "elasticInOut";
+        elasticOut: "elasticOut";
+        expoIn: "expoIn";
+        expoInOut: "expoInOut";
+        expoOut: "expoOut";
+        linear: "linear";
+        quadIn: "quadIn";
+        quadInOut: "quadInOut";
+        quadOut: "quadOut";
+        quartIn: "quartIn";
+        quartInOut: "quartInOut";
+        quartOut: "quartOut";
+        quintIn: "quintIn";
+        quintInOut: "quintInOut";
+        quintOut: "quintOut";
+        sineIn: "sineIn";
+        sineInOut: "sineInOut";
+        sineOut: "sineOut";
+    }>>;
+    emit: z.ZodOptional<z.ZodObject<{
+        data: z.ZodOptional<z.ZodUnknown>;
+        type: z.ZodString;
+    }, z.core.$strict>>;
+    from: z.ZodOptional<z.ZodObject<{
+        alpha: z.ZodOptional<z.ZodNumber>;
+        rot: z.ZodOptional<z.ZodNumber>;
+        scale: z.ZodOptional<z.ZodNumber>;
+        tint: z.ZodOptional<z.ZodNumber>;
+        x: z.ZodOptional<z.ZodNumber>;
+        y: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    key: z.ZodOptional<z.ZodString>;
+    repeat: z.ZodOptional<z.ZodNumber>;
+    to: z.ZodObject<{
+        alpha: z.ZodOptional<z.ZodNumber>;
+        rot: z.ZodOptional<z.ZodNumber>;
+        scale: z.ZodOptional<z.ZodNumber>;
+        tint: z.ZodOptional<z.ZodNumber>;
+        x: z.ZodOptional<z.ZodNumber>;
+        y: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>;
+    yoyo: z.ZodOptional<z.ZodBoolean>;
+}, z.core.$strict>;
+
 ## game/commands.ts
 declare const COMMAND_NAME_PATTERN: RegExp;
 declare const ENGINE_COMMANDS: Readonly<Record<"@elapsed" | typeof NAV_COMMAND, CommandDef>>;
@@ -6230,7 +6670,43 @@ declare function physicsOf(ctx: Pick<EngineContext, "physics" | "rapier">, what:
 };
 
 ## game/primitives.ts
+declare const CAMERA_RIG_SCHEMA: z.ZodObject<{
+    damping: z.ZodOptional<z.ZodNumber>;
+    deadzone: z.ZodOptional<z.ZodTuple<[
+        z.ZodNumber,
+        z.ZodNumber
+    ], null>>;
+    fit: z.ZodOptional<z.ZodObject<{
+        maxZoom: z.ZodNumber;
+        minZoom: z.ZodNumber;
+        padding: z.ZodNumber;
+    }, z.core.$strict>>;
+    lookAhead: z.ZodOptional<z.ZodNumber>;
+    maxLead: z.ZodOptional<z.ZodNumber>;
+    shake: z.ZodOptional<z.ZodObject<{
+        decay: z.ZodNumber;
+        maxOffset: z.ZodNumber;
+        maxTurn: z.ZodNumber;
+    }, z.core.$strict>>;
+}, z.core.$strict>;
+type CameraRigDef = z.infer<typeof CAMERA_RIG_SCHEMA>;
 declare const PRIMITIVES: {
+    "camera-region": {
+        ascii: string;
+        description: string;
+        fields: {
+            clamp: z.ZodOptional<z.ZodBoolean>;
+            ease: z.ZodOptional<z.ZodNumber>;
+            shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
+            zoom: z.ZodOptional<z.ZodNumber>;
+        };
+        physics: "optional";
+        style: {
+            alpha: number;
+            stroke: number;
+        };
+        type: string;
+    };
     decor: {
         ascii: string;
         behaviors: {
@@ -6755,16 +7231,19 @@ type EngineContext = {
     query: EntityQuery;
     random: Rng;
     rapier: RapierModule | null;
+    readonly anim: AnimContext;
     readonly bodies: BodyControl;
     readonly grid: RuntimeGrid | null;
     readonly live: LiveContext;
     readonly nav: RuntimeNav | null;
     readonly play: PlayStart | null;
+    readonly present: PresentationQueue;
     readonly project: ProjectRuntimeView | null;
     readonly sampling: "linear" | "nearest";
     readonly seeking: boolean;
     readonly tick: number;
     readonly time: ResolvedTime;
+    readonly tweens: Tweens;
     registry: Registry;
     saves: SavesContext;
     setEnabled: (id: string, enabled: boolean) => void;
@@ -6872,6 +7351,7 @@ type GameDefinition<S = unknown, G = unknown> = {
     assetKinds?: readonly AssetKindDef[];
     attach?(shell: GameShell, runtime: SceneRuntimeHandle): GameAttachment;
     behaviors?: readonly BehaviorDef[];
+    camera?: CameraRigDef;
     checks?: Readonly<Record<string, CheckKindDef>>;
     collisionGroups?: Readonly<Record<string, {
         collidesWith: readonly string[];
@@ -6945,6 +7425,12 @@ type GameRuntime<S = unknown> = {
     beforeStep?(dtMs: number, actions: InputAction[], commands: readonly GameCommand[]): void;
     busy?(): boolean;
     cameraTarget?(): Vec2 | null;
+    cameraTargets?(): readonly {
+        at: Vec2;
+        player?: number;
+        velocity?: Vec2;
+        weight?: number;
+    }[];
     debugInfo?(): unknown;
     destroy?(): void;
     onLoad?(scene: ExpandedScene): void;
@@ -7046,6 +7532,7 @@ declare const PRIMITIVE_TYPES: readonly [
     "follower",
     "decor",
     "nav",
+    "camera-region",
     "note"
 ];
 type PersistContext = {
@@ -7186,6 +7673,7 @@ interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
     enable?(id: string): void;
     save?(id: string): JsonValue | undefined;
     restore?(id: string, state: JsonValue): void;
+    setPose?(id: string, x: number, y: number, rot: number): void;
 }
 type SceneTemplate = {
     [bulkKey: BulkKey]: unknown;
@@ -7626,6 +8114,7 @@ type PlaytestOptions<S = unknown, G = unknown> = {
     prefabs?: PrefabLibrary;
     project?: ProjectRuntimeView | null;
     rapier?: RapierModule | null;
+    recordPresentation?: boolean;
     registry?: Registry;
     scene: SceneDefinition;
     script: CompiledInputScript | InputScript<G> | InputScriptV2<G>;
@@ -7650,6 +8139,7 @@ type PlaytestReport<S = unknown> = {
     legal?: GameCommand[];
     legalTruncated?: boolean;
     outcome: PlaytestOutcomeReport;
+    present?: PresentedRequest[];
     recording: RunRecording;
     scene: string;
     sceneHash: SceneHash;
@@ -7781,6 +8271,20 @@ type RunChecksOptions = {
 };
 declare function runChecks(opts: RunChecksOptions): ChecksReport;
 
+## headless/runtime-view.ts
+type MemoryRuntimeViewInit = {
+    docs?: Readonly<Record<AssetKindName, Readonly<Record<AssetId, unknown>>>>;
+    engine?: Readonly<Record<string, unknown>>;
+    flow?: SceneListFlow;
+    inputMap?: InputMapFile | null;
+    settings?: Readonly<Record<string, unknown>>;
+    tables?: Readonly<Record<string, readonly Row[]>>;
+};
+type Row = Readonly<Record<string, unknown> & {
+    id: string;
+}>;
+declare function memoryRuntimeView(init?: MemoryRuntimeViewInit): ProjectRuntimeView;
+
 ## headless/swap-check.ts
 type SwapCheckOptions = {
     afterTicks?: number;
@@ -7851,6 +8355,7 @@ type HeadlessRuntimeOptions = {
     fromSave?: SaveFile;
     game?: GameDefinition | null;
     rapier?: RapierModule | null;
+    recordPresentation?: boolean;
     registry?: Registry;
     scene?: ExpandedScene;
     timing?: RunTiming;
@@ -8049,6 +8554,21 @@ type TouchControls = {
     show(on: boolean): void;
 };
 declare function createTouchControls(host: HTMLElement, controls: readonly TouchControlDef[], sink: (control: string, value: TouchControlValue) => void): TouchControls;
+
+## loop.ts
+type GameLoop = {
+    getFPS: () => number;
+    getTimeScale: () => number;
+    isPaused: () => boolean;
+    isRunning: () => boolean;
+    pause: () => void;
+    resume: () => void;
+    setTickRate: (rate: number) => void;
+    setTimeScale: (scale: number) => void;
+    start: () => void;
+    step: (n?: number) => void;
+    stop: () => void;
+};
 
 ## math.ts
 declare function clamp(value: number, min: number, max: number): number;
@@ -8299,6 +8819,7 @@ declare function projectPathMatcher(file: ProjectFile, match: GlobMatch): Projec
 ## project/asset-info.ts
 type AssetInfo = {
     bytes?: number;
+    durations?: readonly (null | number)[];
     filter?: "linear" | "nearest";
     frames?: readonly string[];
     id: AssetId;
@@ -8350,7 +8871,9 @@ declare function projectBundle(view: ProjectView, settings: unknown, kinds: Kind
     bundle: AssetBundle;
     issues: SceneIssue[];
 };
-declare function sceneBundle(scene: ExpandedScene, def: SceneDefinition, prefabs: PrefabLibrary, view: ProjectView, kinds: KindRegistry, registry: Registry): {
+declare function sceneBundle(scene: ExpandedScene, def: SceneDefinition, prefabs: PrefabLibrary, view: ProjectView, kinds: KindRegistry, registry: Registry, docs?: {
+    read(kind: AssetKindName, id: AssetId): unknown;
+}): {
     bundle: AssetBundle;
     issues: SceneIssue[];
 };
@@ -8520,6 +9043,93 @@ declare function isSkippedAssetPath(path: AssetPath): boolean;
 declare function parseAssetDoc<J>(kind: DocKindDef<J>, input: unknown, env: KindEnv): ParseAssetResult<J>;
 declare function validateAssetDoc(kind: DocKindDef, value: unknown, env: KindEnv): SceneIssue[];
 
+## project/kinds/animation.ts
+declare const ANIMATION_KIND = "animation";
+declare const ANIMATION_SCHEMA_ID = "urn:jams-engine:animation:v1";
+declare const ANIMATION_VERSION = 1;
+type AnimFrameDef = {
+    events?: readonly string[];
+    frame: string;
+    ms?: number;
+    shapes?: Readonly<Record<string, readonly ShapeTuple[]>>;
+};
+type AnimationFile = {
+    $schema?: string;
+    atlas: AssetId;
+    clips: ClipDef[];
+    kind: typeof ANIMATION_KIND;
+    v: typeof ANIMATION_VERSION;
+};
+declare const CLIP_LOOPS: readonly [
+    "loop",
+    "once",
+    "pingpong",
+    "hold"
+];
+type ClipDef = {
+    frames?: readonly AnimFrameDef[];
+    loop?: ClipLoop;
+    name: string;
+    next?: string;
+    speed?: number;
+    tag?: string;
+};
+type ClipLoop = "hold" | "loop" | "once" | "pingpong";
+declare const SHAPE_SET_NAME: RegExp;
+declare function animationIssues(file: AnimationFile, atlas: AssetInfo | null | undefined): SceneIssue[];
+declare const animationKind: {
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    empty: (env: KindEnv, { id }: {
+        id: AssetId;
+    }) => AnimationFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            atlas: {
+                as: "atomic";
+            };
+            clips: {
+                as: "keyed";
+                id: string;
+                item: {
+                    as: "map";
+                    fields: {
+                        frames: {
+                            as: "list";
+                            item: {
+                                as: "atomic";
+                            };
+                        };
+                    };
+                    rest: {
+                        as: "atomic";
+                    };
+                };
+            };
+        };
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxItems: number;
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    refs: (file: AnimationFile) => RefSite[];
+    runtime: "sim";
+    schema: () => z.ZodType<AnimationFile, unknown, z.core.$ZodTypeInternals<AnimationFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    validate: (file: AnimationFile, env: KindEnv) => SceneIssue[];
+    version: number;
+};
+
 ## project/kinds/atlas.ts
 declare const ATLAS_KIND = "atlas";
 declare const ATLAS_SUFFIX = ".atlas.json";
@@ -8674,6 +9284,7 @@ declare const dataTableKind: {
         1: typeof dataTableV1ToV2;
     };
     refs(file: DataTableFile, env: KindEnv): RefSite[];
+    runtime: "sim";
     schema: (env: KindEnv) => z.ZodType<DataTableFile, unknown, z.core.$ZodTypeInternals<DataTableFile, unknown>>;
     schemaId: string;
     storage: "doc";
@@ -8699,6 +9310,7 @@ type BlobKindDef<M = unknown, S = unknown> = KindBase & {
     inspect(bytes: Uint8Array, settings: S, env: InspectEnv): InspectResult<M>;
     maxBytes: number;
     meta: z.ZodType<M>;
+    metaVersion?: number;
     refs?(entry: AssetEntry): readonly RefSite[];
     settings: z.ZodType<S>;
     storage: "blob";
@@ -8707,6 +9319,8 @@ type CodeKindDef = KindBase & {
     storage: "code";
 };
 type DocKindDef<J = unknown> = KindBase & {
+    bundleRefs?(value: J, env: KindEnv): readonly RefSite[];
+    crossValidate?(value: J, lookup: DocLookup, env: KindEnv): readonly SceneIssue[];
     empty(env: KindEnv, init: {
         id: AssetId;
     }): J;
@@ -8723,6 +9337,7 @@ type DocKindDef<J = unknown> = KindBase & {
     perProjectWords?: PerProjectWords;
     prefix?: "asset" | "scene";
     refs?(value: J, env: KindEnv): readonly RefSite[];
+    runtime?: "sim" | "view";
     schema(env: KindEnv): z.ZodType<J>;
     schemaId: string;
     storage: "doc";
@@ -8746,6 +9361,10 @@ type DocLayout = {
     rest?: DocLayout;
 } | {
     as: "text";
+};
+type DocLookup = {
+    ids(kind: AssetKindName): readonly AssetId[];
+    read<T = unknown>(kind: AssetKindName, id: AssetId): T | undefined;
 };
 type InspectEnv = {
     idAt(path: AssetPath): AssetId | undefined;
@@ -8788,6 +9407,102 @@ type PerProjectWords = {
 };
 declare const byCodeUnit: (a: string, b: string) => number;
 declare function defineAssetKind<K extends AssetKindDef>(def: K): K;
+declare const isRuntimeKind: (def: AssetKindDef | undefined) => def is DocKindDef<any>;
+declare function runtimeKindNames(kinds: {
+    list(): readonly AssetKindDef[];
+}): AssetKindName[];
+
+## project/kinds/emitter.ts
+declare const EMITTER_KIND = "emitter";
+declare const EMITTER_MAX_CAP = 4096;
+declare const EMITTER_MAX_DEFAULT = 500;
+declare const EMITTER_SCHEMA_ID = "urn:jams-engine:emitter:v1";
+declare const EMITTER_VERSION = 1;
+type EmitterCurve = [
+    t: number,
+    value: number
+][];
+type EmitterFile = {
+    $schema?: string;
+    alpha?: EmitterCurve;
+    angle: [
+        min: number,
+        max: number
+    ];
+    blend?: BlendMode;
+    bursts?: {
+        atMs: number;
+        count: number;
+    }[];
+    damping?: number;
+    drift?: [
+        x: number,
+        y: number
+    ];
+    durationMs?: number;
+    frame?: string;
+    kind: typeof EMITTER_KIND;
+    lifeMs: [
+        min: number,
+        max: number
+    ];
+    max?: number;
+    rate: number;
+    scale?: EmitterCurve;
+    shape?: {
+        h: number;
+        kind: "box";
+        w: number;
+    } | {
+        kind: "circle";
+        r: number;
+    } | {
+        kind: "point";
+    };
+    space?: "local" | "world";
+    speed: [
+        min: number,
+        max: number
+    ];
+    texture?: AssetId;
+    tint?: EmitterCurve;
+    v: typeof EMITTER_VERSION;
+};
+declare function emitterIssues(file: EmitterFile, texture: AssetInfo | null | undefined): SceneIssue[];
+declare const emitterKind: {
+    defaultFolder: (_env: KindEnv, near: string | undefined) => string;
+    description: string;
+    empty: () => EmitterFile;
+    kind: string;
+    layout: {
+        as: "map";
+        fields: {
+            bursts: {
+                as: "list";
+                item: {
+                    as: "atomic";
+                };
+            };
+        };
+        rest: {
+            as: "atomic";
+        };
+    };
+    limits: {
+        maxStateBytes: number;
+    };
+    match: {
+        jsonKind: string;
+    };
+    refs: (file: EmitterFile) => RefSite[];
+    runtime: "view";
+    schema: () => z.ZodType<EmitterFile, unknown, z.core.$ZodTypeInternals<EmitterFile, unknown>>;
+    schemaId: string;
+    storage: "doc";
+    title: string;
+    validate: (file: EmitterFile, env: KindEnv) => SceneIssue[];
+    version: number;
+};
 
 ## project/kinds/font.ts
 declare const FONT_KIND = "font";
@@ -8874,6 +9589,7 @@ declare const gameSettingsKind: {
         noun: string;
     };
     refs: (file: GameSettingsFile, env: KindEnv) => RefSite[];
+    runtime: "sim";
     schema: (env: KindEnv) => z.ZodType<GameSettingsFile, unknown, z.core.$ZodTypeInternals<GameSettingsFile, unknown>>;
     schemaId: string;
     storage: "doc";
@@ -8977,6 +9693,7 @@ declare const inputMapKind: {
         contents: string;
         noun: string;
     };
+    runtime: "sim";
     schema: (env: KindEnv) => z.ZodType<InputMapFile, unknown, z.core.$ZodTypeInternals<InputMapFile, unknown>>;
     schemaId: string;
     storage: "doc";
@@ -9319,6 +10036,7 @@ declare const sceneListKind: {
         noun: string;
     };
     refs: (file: SceneListFile) => RefSite[];
+    runtime: "sim";
     schema: () => z.ZodType<SceneListFile, unknown, z.core.$ZodTypeInternals<SceneListFile, unknown>>;
     schemaId: string;
     storage: "doc";
@@ -9788,6 +10506,7 @@ declare const utf8Bytes: (text: string) => number;
 ## project/release.ts
 declare const CREDITS_FILE = "credits.html";
 type CheckReleaseOptions = {
+    docRefs?: (id: AssetId, asset: ReleaseAsset) => readonly RefSite[];
     measureBudget?: (files: readonly ReleaseFile[], content: ReleaseBudgetContent, limits: ExportBudget) => ExportBudgetReport;
 };
 type ExportBudget = {
@@ -9983,6 +10702,8 @@ type HeldProject = {
 };
 type ProjectRuntimeView = {
     asset(id: AssetId, frame?: string): AssetInfo | undefined;
+    doc?<T = unknown>(kind: AssetKindName, id: AssetId): T | undefined;
+    docs?(kind: AssetKindName): readonly AssetId[];
     engine: Readonly<Record<string, unknown>>;
     flow?: SceneListFlow;
     inputMap: InputMapFile | null;
@@ -9991,12 +10712,11 @@ type ProjectRuntimeView = {
         id: string;
     }>[];
 };
-declare const RUNTIME_VIEW_KINDS: readonly AssetKindName[];
 declare function heldProject(files: readonly HeldFile[], registry: Registry, meta: {
     name: string;
     projectId: ProjectId;
 }): HeldProject;
-declare function runtimeView(view: ProjectView, values: ReadonlyMap<AssetId, unknown>, registry: Registry): ProjectRuntimeView;
+declare function runtimeView(view: ProjectView, values: ReadonlyMap<AssetId, unknown>, registry: Registry, kinds?: KindRegistry): ProjectRuntimeView;
 
 ## project/scene-version.ts
 type BuildSceneVersionOptions = {
@@ -10391,6 +11111,9 @@ declare function unreferencedBlobs(view: ProjectView, stored: readonly Sha256[],
     pinned: readonly ProjectSnapshot[];
 }): Sha256[];
 
+## project/validate-project.ts
+declare function validateProject(view: ProjectView, texts: ReadonlyMap<AssetId, string>, kinds: KindRegistry, env: KindEnv): SceneIssue[];
+
 ## project/view.ts
 declare function assetIdOfPath(path: AssetPath): AssetId | null;
 declare function assetPathProblem(path: string): null | string;
@@ -10432,14 +11155,64 @@ declare function createAssetLoader(opts: {
 declare function drawShape(g: Graphics, shape: ShapeObj, style: Style, scale?: number): void;
 declare function traceShape(g: Graphics, shape: ShapeObj, scale?: number): void;
 
+## render/effects.ts
+interface EffectLayer {
+    flash(opts?: {
+        alpha?: number;
+        color?: number;
+        ms?: number;
+    }): void;
+    hitStop(ms: number): void;
+    clear(): void;
+}
+declare function createEffectLayer(layer: HTMLElement, loop: Pick<GameLoop, "getTimeScale" | "setTimeScale">, opts: {
+    reducedMotion: () => boolean;
+}): EffectLayer;
+
+## render/particles.ts
+interface ParticleLayer {
+    emitter(id: string, preset: EmitterFile, at: () => Pose | undefined, layer?: ViewLayer): void;
+    remove(id: string): void;
+    burst(preset: EmitterFile, at: Vec2, opts?: {
+        angle?: number;
+        count?: number;
+        tint?: number;
+    }): void;
+    update(dtMs: number): void;
+    stats(): {
+        emitters: number;
+        particles: number;
+    };
+    clear(): void;
+}
+type ParticleLayerOptions = {
+    layer?: (layer: ViewLayer) => Container;
+    pxPerMetre?: number;
+    reducedMotion: boolean;
+    seed: string;
+    texture?: (preset: EmitterFile) => ParticleTexture | null;
+};
+type ParticleTexture = {
+    frame?: NonNullable<SpriteVisual["frame"]>;
+    hash: Sha256;
+    sampling: SpriteVisual["sampling"];
+};
+declare function createParticleLayer(container: Container, textures: TextureSource | undefined, opts: ParticleLayerOptions): ParticleLayer;
+
 ## render/pixi-view.ts
 type PixiView = SceneView & {
     destroy(): void;
+    parallax(camera: {
+        x: number;
+        y: number;
+    }): void;
     readonly container: Container;
+    showLayers(names: null | readonly string[]): void;
 };
 type PixiViewOptions = {
     editing?: () => boolean;
     layers?: readonly SceneLayerDef[];
+    particles?: Pick<ParticleLayerOptions, "reducedMotion" | "seed" | "texture">;
     pixelSnap?: boolean;
     pxPerMetre?: number;
     textures?: TextureSource;
@@ -10490,6 +11263,54 @@ declare function viewportFor(policy: ResolutionPolicy, canvas: {
     height: number;
     width: number;
 }): ResolutionViewport;
+
+## runtime/behaviors/anim.ts
+declare const ANIM_END = "anim:end";
+declare const ANIM_FRAME = "anim:frame";
+type AnimContext = {
+    play(id: string, clip: string, opts?: {
+        restart?: boolean;
+        speed?: number;
+    }): void;
+    shapes(id: string, set: string): readonly ShapeObj[];
+    state(id: string): Readonly<AnimState> | undefined;
+    stop(id: string): void;
+};
+type AnimState = {
+    clip: string;
+    frame: string;
+    index: number;
+    into: number;
+    playing: boolean;
+    speed: number;
+};
+interface AnimSystem extends BehaviorSystem<AnimBlock> {
+    play(id: string, clip: string, opts?: {
+        restart?: boolean;
+        speed?: number;
+    }): void;
+    stop(id: string): void;
+    state(id: string): AnimState | undefined;
+    shapes(id: string, set: string): readonly ShapeObj[];
+}
+
+## runtime/behaviors/tween.ts
+declare const TWEEN_END = "tween:end";
+interface TweenSystem extends BehaviorSystem<TweenBlock> {
+    to(entityId: string, spec: TweenSpec): number;
+    value(from: number, to: number, opts: Parameters<Tweens["value"]>[2]): number;
+    cancel(id: number): void;
+    cancelAll(entityId: string): void;
+    pending(): number;
+    ownerDestroyed(entityId: string): void;
+    ownerEnabled(entityId: string, on: boolean): void;
+    unsaveable(): UnsaveableTween[];
+    capture(): JsonValue | undefined;
+    restoreCaptured(saved: JsonValue | undefined): void;
+}
+type UnsaveableTween = {
+    id: number;
+};
 
 ## runtime/bodies-control.ts
 type BodyEntry = {
@@ -10640,6 +11461,121 @@ interface PoseIndex {
 declare function composePose(x: number, y: number, rot: number, offset: Pose): Pose;
 declare function relativePose(pose: Pose, frame: Pose): Pose;
 
+## runtime/present.ts
+type AudioRequest = {
+    at: "start" | "tick";
+    fadeMs?: number;
+    op: "music";
+    sound: AssetId | null;
+    tick: number;
+} | {
+    at?: Vec2;
+    entity?: string;
+    key?: string;
+    op: "play";
+    pitch?: number;
+    sound: AssetId;
+    volume?: number;
+} | {
+    fadeMs?: number;
+    key: string;
+    op: "stop";
+};
+type CameraRequest = {
+    at?: Vec2;
+    op: "snap";
+    viewport?: number;
+} | {
+    ease?: EaseName;
+    ms?: number;
+    op: "zoom";
+    viewport?: number;
+    zoom: number;
+} | {
+    op: "follow";
+    target: CameraTargetSpec | null;
+    viewport?: number;
+} | {
+    op: "shake";
+    trauma: number;
+    viewport?: number;
+};
+type EffectRequest = {
+    alpha?: number;
+    color?: number;
+    ms?: number;
+    op: "flash";
+} | {
+    angle?: number;
+    at: Vec2;
+    count?: number;
+    op: "burst";
+    preset: AssetId;
+    tint?: number;
+} | {
+    ms: number;
+    op: "hitStop";
+};
+type PresentRequest = {
+    kind: "audio";
+    op: AudioRequest;
+} | {
+    kind: "camera";
+    op: CameraRequest;
+} | {
+    kind: "effect";
+    op: EffectRequest;
+};
+interface PresentationQueue {
+    camera: {
+        follow(target: CameraTargetSpec | null, opts?: {
+            viewport?: number;
+        }): void;
+        shake(trauma: number, opts?: {
+            viewport?: number;
+        }): void;
+        snap(at?: Vec2, opts?: {
+            viewport?: number;
+        }): void;
+        zoom(zoom: number, opts?: {
+            ease?: EaseName;
+            ms?: number;
+            viewport?: number;
+        }): void;
+    };
+    effects: {
+        burst(preset: AssetId, at: Vec2, opts?: {
+            angle?: number;
+            count?: number;
+            tint?: number;
+        }): void;
+        flash(opts?: {
+            alpha?: number;
+            color?: number;
+            ms?: number;
+        }): void;
+        hitStop(ms: number): void;
+    };
+    audio: {
+        music(sound: AssetId | null, opts?: {
+            at?: "start" | "tick";
+            fadeMs?: number;
+        }): void;
+        play(sound: AssetId, opts?: {
+            at?: Vec2;
+            key?: string;
+            pitch?: number;
+            volume?: number;
+        }): void;
+        stop(key: string, opts?: {
+            fadeMs?: number;
+        }): void;
+    };
+}
+type PresentedRequest = PresentRequest & {
+    tick: number;
+};
+
 ## runtime/recorder.ts
 type RecorderOptions = RecordingHost & {
     entry?: null | string;
@@ -10705,6 +11641,10 @@ type SaveBlocker = {
     message: string;
 } | {
     cause: "restore";
+    message: string;
+} | {
+    cause: "tween";
+    id: number;
     message: string;
 };
 declare function captureSave(runtime: SceneRuntimeHandle, opts: {
@@ -10888,6 +11828,7 @@ type SceneRuntimeOptions = {
     persist?: PersistCell;
     prefabs?: (() => PrefabLibrary) | PrefabLibrary;
     rapier: RapierModule | null | undefined;
+    recordPresentation?: boolean;
     registry?: Registry;
     sampling?: "linear" | "nearest";
     scenes?: (() => SceneLibrary) | SceneLibrary;
@@ -10906,6 +11847,7 @@ type StepEvent = {
 type StepResult = {
     events: StepEvent[];
     game: unknown;
+    present?: readonly PresentRequest[];
     tick: number;
 };
 type SwapReport = {
@@ -10978,7 +11920,7 @@ declare function memorySaveStore(): SaveStore;
 
 ## scene/agent-surface.ts
 declare const AGENT_SURFACE_KEYWORD = "x-agent-surface";
-declare const AGENT_SURFACE_VERSION = 20;
+declare const AGENT_SURFACE_VERSION = 21;
 
 ## scene/ascii.ts
 declare const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>>;
@@ -14053,6 +14995,10 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "asset-kind",
     "asset-frame-unknown",
     "sprite-no-asset",
+    "anim-tag-unknown",
+    "anim-clip-unknown",
+    "frame-shape-invalid",
+    "tween-target-invalid",
     "tick-rate-invalid",
     "asset-in-use",
     "asset-id-taken",
@@ -14252,6 +15198,7 @@ type RectInput = {
 type Ref = string;
 type ResolvedSettings = {
     [key: string]: unknown;
+    camera?: CameraRigDef;
     gravity: Pt;
     grid: GridSettings | null;
     physics: "none" | "rapier";
@@ -14480,6 +15427,7 @@ type SceneOp = {
 };
 type SceneSettings = {
     [key: string]: unknown;
+    camera?: CameraRigDef;
     gravity?: Pt;
     grid?: GridSettings;
     physics?: "none" | "rapier";
@@ -15176,6 +16124,7 @@ type SensorEntity = RuntimeEntity<{
 }>;
 type SensorSystem = SceneSystem<SensorEntity> & {
     afterStep(dtMs: number): void;
+    setPose(id: string, x: number, y: number, rot: number): void;
 };
 type SolidEntity = RuntimeEntity<{
     attach?: string;
@@ -15193,6 +16142,7 @@ type SolidSystem = SceneSystem<SolidEntity> & {
     isHidden(id: string): boolean;
     passesOneWay(actorId: string, actor: Aabb, passing: boolean): void;
     position(id: string): Vec2 | null;
+    setPose(id: string, x: number, y: number, rot: number): void;
 };
 type SurfaceDefaults = {
     friction?: number;
@@ -15231,14 +16181,18 @@ declare function createDataSystem<E extends RuntimeEntity = RuntimeEntity>(_ctx?
 type DecorEntity = RuntimeEntity<{
     at: Pt;
 }>;
-declare function createDecorSystem(_ctx: EngineContext, _type: RegisteredType): SceneSystem<DecorEntity>;
+declare function createDecorSystem(ctx: EngineContext, _type: RegisteredType): SceneSystem<DecorEntity> & {
+    setPose(id: string, x: number, y: number, rot: number): void;
+};
 
 ## systems/marker.ts
 type MarkerEntity = RuntimeEntity<{
     at: Pt;
     tags?: string[];
 }>;
-type MarkerSystem = DataSystem<MarkerEntity>;
+type MarkerSystem = DataSystem<MarkerEntity> & {
+    setPose(id: string, x: number, y: number, rot: number): void;
+};
 declare function createMarkerSystem(ctx: EngineContext, type: RegisteredType): MarkerSystem;
 
 ## systems/nav.ts
@@ -15404,6 +16358,7 @@ type GameConfig = {
     recording?: RecordingHost & {
         flow?: boolean;
     };
+    reducedMotion?: "auto" | boolean;
     registry?: Registry;
     release?: {
         id: Sha256;
@@ -15415,6 +16370,7 @@ type GameConfig = {
     scene?: ExpandedScene | SceneDefinition;
     targetFPS: number;
     timing?: boolean;
+    viewports?: readonly ViewportDef[];
 };
 type GameEventMap = {
     "flow:change": {
@@ -15494,7 +16450,7 @@ type GameInput = {
 };
 type GameInstance = {
     cancel: () => boolean;
-    clientToWorld: (clientX: number, clientY: number) => Vec2;
+    clientToWorld: (clientX: number, clientY: number, viewport?: number) => Vec2;
     command: (name: string) => boolean;
     destroy: () => void;
     elapse: (ms: number) => void;
@@ -15526,6 +16482,7 @@ type GameInstance = {
         failed: BundleEntry[];
     }>;
     project: () => ProjectRuntimeView | null;
+    readonly reducedMotion: boolean;
     recording: (opts?: {
         running?: boolean;
     }) => RunRecording | null;
@@ -15552,11 +16509,13 @@ type GameInstance = {
     setMode: (mode: GameMode) => void;
     setPrefabs: (prefabs: PrefabLibrary) => void;
     setTimeScale: (scale: number) => void;
+    setViewports: (defs: readonly ViewportDef[]) => void;
     start: () => void;
     step: (n?: number) => void;
     stop: () => void;
     unloadScene: () => void;
-    worldToClient: (p: Vec2) => {
+    viewportAt: (clientX: number, clientY: number) => null | number;
+    worldToClient: (p: Vec2, viewport?: number) => {
         x: number;
         y: number;
     };
@@ -15658,7 +16617,9 @@ type StagedVersion = {
     texts: ReadonlyMap<Sha256, string>;
     version: SceneVersion;
 };
-type TransitionRunner = (phase: "in" | "out", spec: TransitionSpec, layer: HTMLElement) => Promise<void>;
+type TransitionRunner = (phase: "in" | "out", spec: TransitionSpec, layer: HTMLElement, env: {
+    reducedMotion: boolean;
+}) => Promise<void>;
 type UiActionEvent = {
     action: string;
     device: DeviceId;
@@ -15721,7 +16682,7 @@ type UiHandle = {
 
 ## version.ts
 declare const COLLAB_LAYOUT_VERSION = 3;
-declare const ENGINE_VERSION = "0.14.5";
+declare const ENGINE_VERSION = "0.15.0";
 declare const REPLAY_ACROSS_PLATFORMS = true;
 
 ## vite/apply-files.ts

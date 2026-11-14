@@ -1,4 +1,4 @@
-import type { PhysicsFreeProbe, RenderProbe } from "../browser-compare";
+import type { PhysicsFreeProbe, RenderProbe, SplitProbe } from "../browser-compare";
 import { readContact, type ContactRead } from "./contact";
 import { rapierSpy, runPhysicsFree, startPhysicsFree } from "./physics-free";
 import { runRenderSmoke } from "./render";
@@ -14,6 +14,8 @@ export type EngineSmokeResult =
       digest: string;
       /** The kitchen sink drawn with its textures, and the pixels read back. */
       render: RenderProbe;
+      /** The sink on two viewports: each half's sprite, the animated one read a clip frame apart. */
+      split: SplitProbe;
       /** The grid scene played headless with no physics, then started in a shell. */
       physicsFree: PhysicsFreeProbe;
       /** A prop dropped onto a floor under `ctx.contacts`: its first contact:start. */
@@ -34,7 +36,7 @@ declare global {
 
 try {
   const { digest } = await runSmokeDigest();
-  const render = await runRenderSmoke();
+  const { render, split } = await runRenderSmoke();
   const spy = rapierSpy(loadRapier);
   const run = await runPhysicsFree(spy.load);
   const shellTicks = await startPhysicsFree(spy.load);
@@ -48,6 +50,7 @@ try {
     ticks: SMOKE_TICKS,
     digest,
     render,
+    split,
     physicsFree: { ...run, shellTicks, rapierLoads: spy.calls() },
     contact,
     tactics: { ...tactics, rapierLoads: tacticsSpy.calls() },

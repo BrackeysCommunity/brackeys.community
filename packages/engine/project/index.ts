@@ -14,8 +14,10 @@ export {
   detectImport,
   docKindJsonSchema,
   formatAssetDoc,
+  isRuntimeKind,
   isSkippedAssetPath,
   parseAssetDoc,
+  runtimeKindNames,
   validateAssetDoc,
   type AssetKindDef,
   type AssetMatch,
@@ -23,6 +25,7 @@ export {
   type CodeKindDef,
   type DocKindDef,
   type DocLayout,
+  type DocLookup,
   type InspectEnv,
   type InspectResult,
   type KindEnv,
@@ -218,12 +221,32 @@ export {
 } from "./usage";
 export {
   heldProject,
-  RUNTIME_VIEW_KINDS,
   runtimeView,
   type HeldFile,
   type HeldProject,
   type ProjectRuntimeView,
 } from "./runtime-view";
+export { validateProject } from "./validate-project";
+export {
+  ANIMATION_KIND,
+  ANIMATION_SCHEMA_ID,
+  ANIMATION_VERSION,
+  animationIssues,
+  animationKind,
+  CLIP_LOOPS,
+  SHAPE_SET_NAME,
+} from "./kinds/animation";
+export type { AnimationFile, AnimFrameDef, ClipDef, ClipLoop } from "./kinds/animation";
+export {
+  EMITTER_KIND,
+  EMITTER_MAX_CAP,
+  EMITTER_MAX_DEFAULT,
+  EMITTER_SCHEMA_ID,
+  EMITTER_VERSION,
+  emitterIssues,
+  emitterKind,
+} from "./kinds/emitter";
+export type { EmitterCurve, EmitterFile } from "./kinds/emitter";
 export { assetInfo, type AssetInfo } from "./asset-info";
 export { projectBundle, sceneBundle, type AssetBundle, type BundleEntry } from "./bundle";
 export {

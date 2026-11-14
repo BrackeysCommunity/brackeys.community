@@ -44,4 +44,19 @@ describe("parseArgs", () => {
       error: "--command needs a value",
     });
   });
+
+  it("takes step's --anim as a value and playtest's --present as a switch", () => {
+    expect(parseArgs(COMMANDS.step, ["s", "--anim", "hero"])).toMatchObject({
+      ok: true,
+      args: { flags: { anim: "hero" } },
+    });
+    expect(parseArgs(COMMANDS.playtest, ["s", "--script", "x.json", "--present"])).toMatchObject({
+      ok: true,
+      args: { flags: { present: true } },
+    });
+    expect(parseArgs(COMMANDS.step, ["s", "--anim"])).toEqual({
+      ok: false,
+      error: "--anim needs a value",
+    });
+  });
 });

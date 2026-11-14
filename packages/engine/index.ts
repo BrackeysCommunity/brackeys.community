@@ -112,6 +112,14 @@ export {
   type ResolutionViewport,
 } from "./resolution";
 export { drawSprite, type BlendMode, type SpriteVisual } from "./context";
+export type { ViewportDef } from "./camera/viewports";
+export {
+  createParticleLayer,
+  type ParticleLayer,
+  type ParticleLayerOptions,
+  type ParticleTexture,
+} from "./render/particles";
+export { createEffectLayer, type EffectLayer } from "./render/effects";
 export {
   SPRITE,
   SPRITE_FALLBACK_SIZE,

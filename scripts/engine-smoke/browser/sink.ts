@@ -1,8 +1,12 @@
 /**
  * What the browser smoke's render run draws and where it reads it, shared by
  * the page, the runner and their tests: the engine project's kitchen sink,
- * framed on its crate, whose sprite is the `crates` atlas's `crate-0` frame.
+ * framed on its crate, whose sprite is the `crates` atlas's `crate-0` frame;
+ * then split in two, the crate on the left and the animated sprite on the
+ * right, whose `idle` clip walks the `hero` sheet's two one-colour frames.
  */
+import type { ViewportDef } from "@jams/engine";
+
 export const SINK_PROJECT = "engine";
 export const SINK_SCENE = "kitchen-sink";
 
@@ -25,3 +29,21 @@ export const SINK_FRAME = { minX: 8, minY: 10.2, maxX: 9.8, maxY: 11.8 } as cons
 
 /** The canvas the render run draws on, CSS px. */
 export const SINK_CANVAS = { width: 640, height: 360 } as const;
+
+/** The entity whose `anim` block plays the `idle` clip over the `hero` sheet. */
+export const ANIM_ENTITY = "std-anim";
+
+/** World metres at the centre of the animated sprite. */
+export const ANIM_POINT: readonly [x: number, y: number] = [4.8, 5];
+
+/** The idle clip's frames' one colours in `art/hero.png`: hero-0, then hero-1. */
+export const ANIM_COLOURS = [0xe040ff, 0xffe000] as const;
+
+/** Ticks the clip's first frame shows: the split run steps this far between its two reads. */
+export const ANIM_FRAME_TICKS = 6;
+
+/** The split run's two viewports: the left half follows the crate, the right the animated sprite. */
+export const SPLIT_VIEWPORTS: readonly ViewportDef[] = [
+  { rect: [0, 0, 0.5, 1], frame: { entity: "crate" } },
+  { rect: [0.5, 0, 0.5, 1], frame: { entity: ANIM_ENTITY } },
+];

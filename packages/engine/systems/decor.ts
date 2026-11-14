@@ -5,13 +5,13 @@ export type DecorEntity = RuntimeEntity<{ at: Pt }>;
 
 /**
  * Pictures with no body. The runtime gives each its spawn pose and the
- * sprite behavior draws it, so this system only keeps count: nothing
- * enters the physics world.
+ * sprite behavior draws it, so this system only keeps count and moves
+ * poses it is asked to: nothing enters the physics world.
  */
 export function createDecorSystem(
-  _ctx: EngineContext,
+  ctx: EngineContext,
   _type: RegisteredType,
-): SceneSystem<DecorEntity> {
+): SceneSystem<DecorEntity> & { setPose(id: string, x: number, y: number, rot: number): void } {
   const live = new Set<string>();
   return {
     spawn: (e) => void live.add(e.id),
@@ -22,5 +22,9 @@ export function createDecorSystem(
     /** Nothing here simulates, so a disabled entity keeps its record as it is. */
     disable() {},
     enable() {},
+    /** Writes the pose index, which the sprite behavior draws from. */
+    setPose(id, x, y, rot) {
+      if (live.has(id)) ctx.poses.set(id, x, y, rot);
+    },
   };
 }

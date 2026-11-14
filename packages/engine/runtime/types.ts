@@ -23,6 +23,7 @@ import type {
   SceneIssue,
 } from "../scene/types";
 import type { InputAction, RapierModule, Vec2 } from "../types";
+import type { PresentRequest } from "./present";
 import type { RunTiming, TimingReport } from "./timing";
 
 export type ReconcileReport = { ok: true } | { ok: false; error: string; entityId?: string };
@@ -105,6 +106,12 @@ export type StepResult = {
   events: StepEvent[];
   /** The game's `snapshot()` after the step; `null` without a game. */
   game: unknown;
+  /**
+   * What this tick asked the shell to present, in request order; set only
+   * for a runtime made with `recordPresentation`. Requests made outside a
+   * step (a game's `onLoad`) are in the next tick's list.
+   */
+  present?: readonly PresentRequest[];
 };
 
 export type RuntimeStats = {
@@ -240,6 +247,8 @@ export type SceneRuntimeOptions = {
    * the version is null and `boundary()` does nothing.
    */
   live?: { version(): Sha256 | null; boundary(label?: string): void };
+  /** Keep `ctx.present`'s requests in `StepResult.present`; default false, when they are dropped. */
+  recordPresentation?: boolean;
 };
 
 /** The runtime plus the parts the shell and a game's tools drive directly. */

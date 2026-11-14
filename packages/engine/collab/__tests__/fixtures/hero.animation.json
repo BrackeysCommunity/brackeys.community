@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../project/animation.schema.json",
+  "kind": "animation",
+  "v": 1,
+  "atlas": "hero",
+  "clips": [
+    { "name": "idle", "tag": "idle" },
+    { "name": "blink", "frames": [{ "events": ["blink"], "frame": "hero-1", "ms": 50 }], "loop": "once", "next": "idle", "tag": "idle" },
+    { "name": "strike", "frames": [{ "frame": "hero-0", "ms": 50 }, { "events": ["swing", "step"], "frame": "hero-1", "ms": 80, "shapes": { "hit": [["box", 0.18, -0.04, 0.2, 0.06]], "hurt-high": [["circle", 0, -0.1, 0.08], ["box", 0, 0, 0.1, 0.18, 15]] } }, { "frame": "hero-0", "ms": 120 }], "loop": "once", "next": "idle" },
+    { "name": "sway", "loop": "pingpong", "speed": 1.25, "tag": "idle" },
+    { "name": "pose", "frames": [{ "frame": "hero-0" }], "loop": "hold" }
+  ]
+}

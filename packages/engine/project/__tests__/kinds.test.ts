@@ -23,6 +23,7 @@ import {
   type DocKindDef,
   type KindEnv,
 } from "../kinds";
+import { animationKind } from "../kinds/animation";
 import { checksKind } from "../kinds/checks";
 import { dataTableIssues, dataTableKind } from "../kinds/data-table";
 import { isPerProject, type DocLayout } from "../kinds/define";
@@ -121,6 +122,17 @@ const FIXTURES = {
     "  ]",
     "}",
   ),
+  animation: lines(
+    "{",
+    '  "kind": "animation",',
+    '  "v": 1,',
+    '  "atlas": "hero",',
+    '  "clips": [',
+    '    { "name": "idle", "loop": "pingpong", "tag": "idle" },',
+    '    { "name": "jab", "frames": [{ "frame": "hero-0", "ms": 50 }, { "events": ["swing"], "frame": "hero-1", "shapes": { "hit": [["box", 0.2, 0, 0.1, 0.05]] } }], "loop": "once", "next": "idle" }',
+    "  ]",
+    "}",
+  ),
   checks: lines(
     "{",
     '  "v": 3,',
@@ -140,6 +152,7 @@ const DECLARATIVE: DocKindDef[] = [
   inputMapKind,
   sceneListKind,
   checksKind,
+  animationKind,
 ];
 
 const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
@@ -211,6 +224,8 @@ describe("ENGINE_ASSET_KINDS", () => {
       "recording",
       "save",
       "code",
+      "animation",
+      "emitter",
     ]);
     expect(
       createKindRegistry()
@@ -231,6 +246,8 @@ describe("ENGINE_ASSET_KINDS", () => {
     expect(kindOf("a.checks.json", { v: 1, checks: [] })).toBe("checks");
     expect(kindOf("input-map.json", { kind: "input-map", v: 1 })).toBe("input-map");
     expect(kindOf("scene-list.json", { kind: "scene-list", v: 1 })).toBe("scene-list");
+    expect(kindOf("art/hero.anim.json", { kind: "animation", v: 1 })).toBe("animation");
+    expect(kindOf("fx/sparks.json", { kind: "emitter", v: 1 })).toBe("emitter");
     expect(kindOf("notes.json", { title: "no v" })).toBeNull();
     expect(kindOf("module.ts")).toBeNull();
   });
@@ -239,7 +256,17 @@ describe("ENGINE_ASSET_KINDS", () => {
     const hashes = await createKindRegistry(testGame).schemaHashes(gameEnv);
     expect(Object.keys(hashes).sort()).toEqual(
       DECLARATIVE.map((k) => k.kind)
-        .concat("scene", "prefab", "texture", "atlas", "font", "audio", "recording", "save")
+        .concat(
+          "scene",
+          "prefab",
+          "texture",
+          "atlas",
+          "font",
+          "audio",
+          "recording",
+          "save",
+          "emitter",
+        )
         .sort(),
     );
     const engine = await createKindRegistry().schemaHashes(engineEnv);
@@ -806,6 +833,18 @@ describe("refs", () => {
       { pointer: "/scenes/0/scene", id: "engine-yard", kinds: ["scene"] },
       { pointer: "/scenes/1/scene", id: "kitchen-sink", kinds: ["scene"] },
     ]);
+  });
+
+  it("animation: its atlas; a new one names the project's first atlas by path", () => {
+    expect(refsOf(animationKind as DocKindDef, JSON.parse(FIXTURES.animation), env)).toEqual([
+      { pointer: "/atlas", id: "hero", kinds: ["atlas"] },
+    ]);
+    const project = viewOf([
+      entry("zed", "atlas", "art/z.atlas.json"),
+      entry("ann", "atlas", "art/a.atlas.json"),
+    ]);
+    expect(animationKind.empty({ ...gameEnv, project }, { id: "walk" }).atlas).toBe("ann");
+    expect(animationKind.empty(gameEnv, { id: "walk" }).atlas).toBe("walk");
   });
 
   it("a material names no other asset; empty game-settings, data-table and scene-list name none", () => {

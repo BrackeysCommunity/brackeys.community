@@ -1,4 +1,4 @@
-export const ENGINE_VERSION = "0.14.5";
+export const ENGINE_VERSION = "0.15.0";
 
 /**
  * The doc layout this engine writes, stored as `meta.layout`. A doc with no

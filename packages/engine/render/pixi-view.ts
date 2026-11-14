@@ -3,12 +3,14 @@ import {
   Graphics,
   type Matrix,
   NineSliceSprite,
+  RenderTexture,
   Sprite,
   type Texture,
   TilingSprite,
 } from "pixi.js";
 
 import {
+  DRAW_LAYERS,
   layerOrder,
   type SceneView,
   type SpriteVisual,
@@ -19,6 +21,7 @@ import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { Sha256 } from "../project/types";
 import type { SceneLayerDef } from "../scene/layers";
 import { drawShape } from "./draw-shape";
+import { createParticleLayer, type ParticleLayer, type ParticleLayerOptions } from "./particles";
 import { createSpriteTextures } from "./sprite-textures";
 
 /** Textures by content hash, for the view's sprites. */
@@ -52,10 +55,23 @@ export type PixiViewOptions = {
    * keep their px and arcs their smoothness.
    */
   pxPerMetre?: number;
+  /**
+   * Gives the view a particle layer, made at the first `particles()`: an
+   * emitter draws on its own layer, a burst on the scene's `gameplay`
+   * layer (the body order without one).
+   */
+  particles?: Pick<ParticleLayerOptions, "reducedMotion" | "seed" | "texture">;
 };
 
 export type PixiView = SceneView & {
   readonly container: Container;
+  /**
+   * Offsets the `scroll` layers for a camera at (x, y) metres, as `frame`
+   * does: what a viewport past the first sets before it draws the world.
+   */
+  parallax(camera: { x: number; y: number }): void;
+  /** Shows only the named scene layers (draw orders no layer names hide too); null shows every layer. */
+  showLayers(names: readonly string[] | null): void;
   /** Destroys every visual and layer, and `container` with them. */
   destroy(): void;
 };
@@ -159,6 +175,9 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
   let unsubscribe: (() => void) | null = null;
   let open = 0;
   let committed = -1;
+  /** The scene layers `showLayers` named; null shows all. */
+  let shown: ReadonlySet<string> | null = null;
+  let particles: ParticleLayer | null = null;
   container.sortableChildren = true;
   container.scale.set(1 / ppm);
 
@@ -172,8 +191,23 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
       c.sortableChildren = !ySorted(order);
       container.addChild(c);
       layers.set(order, c);
+      applyShown(order, c);
     }
     return c;
+  }
+
+  function parallax(camera: { x: number; y: number }): void {
+    for (const [order, layer] of layers) {
+      const scroll = sceneLayers.get(order)?.scroll;
+      if (scroll) {
+        layer.position.set(camera.x * ppm * (1 - scroll[0]), camera.y * ppm * (1 - scroll[1]));
+      }
+    }
+  }
+
+  function applyShown(order: number, layer: Container): void {
+    const name = sceneLayers.get(order)?.name;
+    layer.visible = !shown || (name !== undefined && shown.has(name));
   }
 
   function place(display: Container, p: Pose): void {
@@ -368,13 +402,13 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
       committed = open;
       open++;
     },
+    parallax,
+    showLayers(names) {
+      shown = names ? new Set(names) : null;
+      for (const [order, layer] of layers) applyShown(order, layer);
+    },
     frame({ alpha, camera }) {
-      for (const [order, layer] of layers) {
-        const scroll = sceneLayers.get(order)?.scroll;
-        if (scroll) {
-          layer.position.set(camera.x * ppm * (1 - scroll[0]), camera.y * ppm * (1 - scroll[1]));
-        }
-      }
+      parallax(camera);
       placeVisuals(alpha);
       for (const [order, layer] of layers) if (ySorted(order)) ySort(layer);
       for (const v of visuals.values()) applyVisible(v);
@@ -395,7 +429,21 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
       visuals.delete(id);
     },
     layer: (layer) => layerContainer(layer) as unknown as ViewLayerHandle,
+    particles() {
+      const def = opts.particles;
+      if (!def) return null;
+      if (particles) return particles;
+      const gameplay = opts.layers?.find((l) => l.name === "gameplay")?.draw ?? DRAW_LAYERS.body;
+      particles = createParticleLayer(layerContainer(gameplay), textures, {
+        ...def,
+        pxPerMetre: ppm,
+        layer: layerContainer,
+      });
+      return particles;
+    },
     destroy() {
+      particles?.clear();
+      particles = null;
       for (const v of visuals.values()) releaseSprite(v);
       spriteTextures?.destroy();
       unsubscribe?.();
@@ -412,4 +460,86 @@ export function createPixiView(container: Container, opts: PixiViewOptions = {})
 export function pixiContainer(handle: ViewLayerHandle): Container {
   if (!(handle instanceof Container)) throw new Error("not a Pixi view layer");
   return handle;
+}
+
+/** What a viewport surface draws with: the app's renderer, drawing a container into a texture. */
+export type SurfaceRenderer = {
+  render(options: {
+    container: Container;
+    target: RenderTexture;
+    transform: Matrix;
+    clear: boolean;
+    clearColor: number;
+  }): void;
+};
+
+/**
+ * A viewport's chrome on the stage: for a viewport past the first, the world
+ * drawn into its own render texture and shown in a sprite; for any viewport,
+ * the border around it. Everything sits in `display`, in canvas px.
+ */
+export type ViewportSurface = {
+  readonly display: Container;
+  /** Places it over `rect` (canvas px), its texture at `resolution` texels per px, with `border` inside the edge. */
+  layout(
+    rect: { x: number; y: number; width: number; height: number },
+    resolution: number,
+    border?: { width: number; color: number },
+  ): void;
+  /** Draws `world` into the texture through `transform` (world to the viewport's px), cleared to `clearColor` first. */
+  render(renderer: SurfaceRenderer, world: Container, transform: Matrix, clearColor: number): void;
+  destroy(): void;
+};
+
+/** A viewport surface; `textured` false gives only the border, for the viewport the stage draws directly. */
+export function createViewportSurface(textured: boolean): ViewportSurface {
+  const display = new Container();
+  display.label = "viewport";
+  let texture: RenderTexture | null = null;
+  let sprite: Sprite | null = null;
+  const border = new Graphics();
+  border.label = "viewport-border";
+
+  if (textured) {
+    texture = RenderTexture.create({ width: 1, height: 1 });
+    sprite = new Sprite({ texture });
+    sprite.label = "viewport-texture";
+    display.addChild(sprite);
+  }
+  display.addChild(border);
+
+  return {
+    display,
+    layout(rect, resolution, frame) {
+      display.position.set(rect.x, rect.y);
+      const w = Math.max(1, Math.round(rect.width));
+      const h = Math.max(1, Math.round(rect.height));
+      if (
+        texture &&
+        (texture.width !== w || texture.height !== h || texture.source.resolution !== resolution)
+      )
+        texture.resize(w, h, resolution);
+      border.clear();
+      const b = frame && frame.width > 0 ? Math.min(frame.width, w / 2, h / 2) : 0;
+      if (b > 0) {
+        // Four bands inside the edge, so the frame shows whole whatever sits next to it.
+        border
+          .rect(0, 0, w, b)
+          .rect(0, h - b, w, b)
+          .rect(0, b, b, h - 2 * b)
+          .rect(w - b, b, b, h - 2 * b)
+          .fill(frame!.color);
+      }
+    },
+    render(renderer, world, transform, clearColor) {
+      if (!texture) return;
+      renderer.render({ container: world, target: texture, transform, clear: true, clearColor });
+    },
+    destroy() {
+      display.destroy({ children: true });
+      texture?.destroy(true);
+      texture = null;
+      sprite = null;
+    },
+  };
 }
