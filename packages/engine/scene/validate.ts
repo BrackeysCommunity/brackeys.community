@@ -331,32 +331,12 @@ function extent(
 }
 
 /**
- * Structural checks over a parsed scene, judged by the registry its `game`
- * picks (`sceneRegistry`). On the document itself: ids (entities and
- * instances share them), layers, `settings.grid`, the `assets` header,
- * instances (their prefabs resolved through nesting and variant
- * bases by `resolvePrefab`, every variant's base known and sharing no
- * child id with it), their params (each one the prefab exposes) and
- * overrides (never of a grid field), a prefab view's params (each target
- * naming a child), and grids
- * under a turned or flipped instance or parent (square cells only). On its resolved view
- * (`resolveScene`, so instance children and parented entities are checked
- * where they land): spawn-only types, which game code alone may make
- * (`unknown-type`), references (each type's `refs`; a child ref
- * `<instance>/<child>` is `ref-child-unknown` when the instance's prefab
- * lacks the child), behavior blocks
- * (registered, allowed by the type, their `requires` carried, their fields
- * valid), grid fields (only with a grid: the scene's, else the game's world's), asset ids and sprite
- * frames when `opts.project` is given, and the
- * geometry of every registered shape, point and path field (polys, chains,
- * paths, whole world pixels, bounds), then the game's `registry.validators`. No
- * physics. Each issue names the entity (bulk entries by their `~key:index`
- * reference, instance children as `<instance>/<child>`, pointing at the
- * instance) and carries a `fix` batch when one is mechanical; fixes are
- * written against the document, and those that use a `~` reference carry
- * `base`. Errors come first, then warnings, then info; within a severity,
- * engine and game issues merge in document order of their `path`
- * (`comparePointers`).
+ * Structural checks over a parsed scene, judged by its game's registry
+ * (`sceneRegistry`): document-level checks on the source, then field, ref,
+ * behavior and geometry checks on its resolved view, so instance children
+ * and parented entities are judged where they land, then
+ * `registry.validators`. Fixes are written against the document. Issues sort
+ * errors, warnings, info, then by `path` (`comparePointers`).
  */
 export function validateScene(
   source: SceneDefinition,

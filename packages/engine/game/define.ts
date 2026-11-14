@@ -412,24 +412,10 @@ export function placeableTypes(registry: Registry): EntityTypeName[] {
 }
 
 /**
- * Merges the engine's primitives with a game's types, materials, actions,
- * collision groups and issue codes, and the project's materials over the
- * game's, and the engine's behaviors then the game's. Without a game the
- * actions are `DEFAULT_ACTIONS`. Throws
- * `RegistryError` listing every problem: duplicate or reserved names, bulk
- * keys or codes, a type without a system, a spawn-only type that never
- * loads or has a bulk form, a spawn order that misses or
- * repeats a type, unknown groups, a game behavior outside the game's
- * namespace, a behavior `template` its fields or `refine` refuse, a
- * behavior's `requires` or `conflicts` naming an unknown behavior, behavior
- * rules naming unknown behaviors, failing their schemas or requiring two
- * that conflict, a grid field without a point `at`, a `time.rate` the clock can't run
- * (`tick-rate-invalid`), an unknown `time.kind` or a `time.catchUp.maxMs` that
- * isn't a whole number ≥ 0, world defaults the scene settings would refuse, and
- * `world.gridWalls` naming a type that is unknown or never loads, and input
- * the shell can't read: seats outside 1–8, a deadzone outside 0–1, an
- * unknown action kind, a `ui` flag other than `true`, a 0.x key `keysProblems` refuses and every binding
- * `bindingProblems` refuses (`binding-unknown`, `player-unknown`).
+ * Merges the engine's primitives, behaviors and defaults with a game's and a
+ * project's (its materials over the game's); without a game the actions are
+ * `DEFAULT_ACTIONS`. Throws `RegistryError` listing every problem found
+ * (registry.test.ts covers the full set).
  */
 export function createRegistry(
   game?: GameDefinition | null,

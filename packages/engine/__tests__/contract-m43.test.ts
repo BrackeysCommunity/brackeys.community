@@ -14,13 +14,14 @@ import { createRegistry, defineGame } from "../game/define";
 import type { Entity, HandleOf } from "../game/entity";
 import { BASE_REQUIRED_FIELDS } from "../game/primitives";
 import { behaviorNameOf, defineScript, definitionOf, Script } from "../game/script";
-import { EngineError, PRIMITIVE_TYPES, type EngineContext } from "../game/types";
+import { PRIMITIVE_TYPES, type EngineContext } from "../game/types";
 import { createBehaviorHost } from "../runtime/behaviors";
 import { createEventBus } from "../runtime/events";
 import { createPoseIndex } from "../runtime/poses";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { RuntimeEntity } from "../scene/types";
 import type { Vec2 } from "../types";
+import { engineErrorCode } from "./fixtures/tree-rig";
 
 const DT = 1000 / 60;
 
@@ -138,16 +139,8 @@ describe("ctx.setPose", () => {
         },
       },
     ]);
-    const refusal = (fn: () => void) => {
-      try {
-        fn();
-      } catch (err) {
-        return err instanceof EngineError ? err.code : String(err);
-      }
-      return null;
-    };
-    expect(refusal(() => rt.ctx.setPose("lift", 1, 1))).toBe("pose-not-settable");
-    expect(refusal(() => rt.ctx.setPose("nobody", 1, 1))).toBe("entity-gone");
+    expect(engineErrorCode(() => rt.ctx.setPose("lift", 1, 1))).toBe("pose-not-settable");
+    expect(engineErrorCode(() => rt.ctx.setPose("nobody", 1, 1))).toBe("entity-gone");
   });
 
   it("calls each attached block's posed in registration order, after the pose is written", () => {
@@ -228,8 +221,8 @@ describe("the behavior host's handles", () => {
   });
 });
 
-describe("the stubs later parts fill", () => {
-  it("are all reachable from ctx", () => {
+describe("what the context reaches", () => {
+  it("reaches handles, behaviors and the tree from ctx", () => {
     const rt = world([node("hub", [1, 2])]);
     const { ctx } = rt;
     expect(ctx.entity("hub")).toBe(ctx.entity("hub"));

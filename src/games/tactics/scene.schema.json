@@ -15280,11 +15280,11 @@
               "title": "Position",
               "$ref": "#/$defs/Pt"
             },
-            "sublevel": {
+            "opens": {
               "type": "string",
               "pattern": "^[a-z0-9][a-z0-9-]{0,47}$",
               "description": "The listed sublevel scene it opens, attached under its own id as the label.",
-              "title": "Sublevel"
+              "title": "Opens"
             },
             "offset": {
               "type": "array",
@@ -16635,7 +16635,7 @@
               "group": "behaviors"
             }
           },
-          "required": ["id", "type", "at", "sublevel", "offset"],
+          "required": ["id", "type", "at", "opens", "offset"],
           "additionalProperties": false,
           "description": "stair: A stair cell: the first unit to step on it attaches a listed sublevel beside the board, its units joining the fight."
         }

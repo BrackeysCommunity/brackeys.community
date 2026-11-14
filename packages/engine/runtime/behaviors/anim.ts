@@ -1,6 +1,6 @@
 import { clipFrameAt, resolveClips, type ResolvedClip } from "../../anim/clips";
 import { frameShapesAt } from "../../anim/shapes";
-import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
+import { bindTo, type BehaviorSystem, type BehaviorSystemFactory } from "../../game/behaviors";
 import { ANIM, type AnimBlock, type AnimHandle } from "../../game/behaviors/anim";
 import { SPRITE, spriteOffset, type SpriteBlock } from "../../game/behaviors/sprite";
 import { delayTicks, isCount, wholeTicksIn } from "../../game/time";
@@ -378,12 +378,7 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
       resolved.clear();
     },
     size: () => runs.size,
-    handle: (id): AnimHandle => ({
-      play: (clip, opts) => system.play(id, clip, opts),
-      stop: () => system.stop(id),
-      state: () => system.state(id),
-      shapes: (set) => system.shapes(id, set),
-    }),
+    handle: (id): AnimHandle => bindTo(system, id, ["play", "stop", "state", "shapes"]),
   };
   return system as BehaviorSystem;
 };

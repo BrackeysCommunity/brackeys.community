@@ -1,9 +1,10 @@
 import { z } from "zod";
 
-import type {
-  BehaviorSystem,
-  BehaviorSystemFactory,
-  RegisteredBehavior,
+import {
+  bindTo,
+  type BehaviorSystem,
+  type BehaviorSystemFactory,
+  type RegisteredBehavior,
 } from "../../game/behaviors";
 import { COLLIDER, type ColliderBlock, type ColliderSystem } from "../../game/behaviors/collider";
 import type { NavAgentBlock, NavAgentSystem } from "../../game/behaviors/nav-agent";
@@ -534,11 +535,7 @@ export const createNavAgentSystem: BehaviorSystemFactory = (
       if (!a?.path || (a.to === null && a.target === null)) return null;
       return a.path.slice(a.next);
     },
-    handle: (id) => ({
-      path: () => system.path(id),
-      setDestination: (to: Vec2 | string) => system.setDestination(id, to),
-      stop: () => system.stop(id),
-    }),
+    handle: (id) => bindTo(system, id, ["path", "setDestination", "stop"]),
     /** Its motion body goes there too, and a walk under way plans again from there. */
     posed(id, pose, snap) {
       const a = agents.get(id);

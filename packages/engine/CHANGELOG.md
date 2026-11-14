@@ -57,6 +57,11 @@ pose, snap)`, `selfMoving(entityId)` and `ride(entityId, host)`;
 - `DataSystem.setPose`; `MotionBody.teleport(x, y, opts?)` takes
   `{ snap?: boolean }` (default true).
 - `moveBodyNow` and `OwnedBody` exported from `./game`.
+- `NODE_TYPE` (the `node` primitive's name), `bindTo(system, id, keys)`
+  (a system's per-entity methods bound to one id, the shape most behavior
+  handles take), and `characterHandle` and `characterPoseHooks` (the
+  handle and the `posed`/`selfMoving` hooks both character behaviors
+  share) exported from `./game`.
 - `ctx.entity(id)`: one `Entity` handle per live entity (the same object
   each time, `undefined` for an id that isn't live). Once its entity is
   destroyed or unloaded, `alive` is false and every member but `id` throws

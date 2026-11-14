@@ -9,6 +9,7 @@ import { refField } from "../game/fields";
 import { defineScript, Script, scriptProblem, type ScriptSelf } from "../game/script";
 import type { GameDefinition } from "../game/types";
 import { createSceneRuntime } from "../runtime/runtime";
+import { captureSave } from "../runtime/save-state";
 import { CONTACT_START, SENSOR_ENTER, type StepEvent } from "../runtime/types";
 import { expandScene } from "../scene/expand";
 import { SCENE_FORMAT_VERSION, type EntityDef, type RuntimeEntity } from "../scene/types";
@@ -91,7 +92,7 @@ function probeGame(behaviors: GameDefinition["behaviors"]): GameDefinition {
     types: [],
     actions: [],
     behaviors,
-    createRuntime: () => ({ snapshot: () => null }),
+    createRuntime: () => ({ snapshot: () => null, restore() {} }),
   });
 }
 
@@ -424,6 +425,146 @@ describe("what a script reaches", () => {
     for (let i = 0; i < 4; i++) rt.step(DT, []);
     expect(fired).toEqual([2]);
     rt.destroy();
+  });
+
+  it("stops a replaced or detached instance's emit timers, repeating ones too", () => {
+    const ticker = defineScript({
+      name: "probe/ticker",
+      description: "Ticks.",
+      fields: { n: z.number().default(0) },
+      create: (self) => ({ awake: () => void self.every(1, { emit: "tick" }) }),
+    });
+    const at = (n: number, behaviors = true): RuntimeEntity => ({
+      id: "a",
+      type: "node",
+      at: [0, 0],
+      ...(behaviors ? { behaviors: { "probe/ticker": { n } } } : {}),
+    });
+    const rt = world([at(1)], [ticker]);
+    const ticks = (n: number) => {
+      let count = 0;
+      for (let i = 0; i < n; i++)
+        count += rt.step(DT, []).events.filter((e) => e.type === "tick").length;
+      return count;
+    };
+    // An `every` set outside a step first runs on the next tick.
+    expect(ticks(4)).toBe(3);
+    rt.update([at(2)]);
+    expect(rt.ctx.timers.size).toBe(1);
+    expect(ticks(4)).toBe(3);
+    rt.update([at(2, false)]);
+    expect(rt.ctx.timers.size).toBe(0);
+    expect(ticks(3)).toBe(0);
+    rt.destroy();
+  });
+
+  it("drops a replaced instance's pending function timers, so a world save goes ahead", () => {
+    const pending = defineScript({
+      name: "probe/pending",
+      description: "Waits on the first version only.",
+      fields: { n: z.number().default(0) },
+      create: (self) => ({
+        awake() {
+          if (self.fields.n !== 1) return;
+          self.every(1, () => {});
+          self.run(function* () {
+            yield 100;
+          });
+        },
+      }),
+    });
+    const at = (n: number): RuntimeEntity => ({
+      id: "a",
+      type: "node",
+      at: [0, 0],
+      behaviors: { "probe/pending": { n } },
+    });
+    const rt = world([at(1)], [pending]);
+    const save = () => captureSave(rt, { depth: "world", slot: "s", now: 0 });
+    expect(rt.ctx.timers.size).toBe(2);
+    expect(save().ok).toBe(false);
+    rt.update([at(2)]);
+    expect(rt.ctx.timers.size).toBe(0);
+    expect(save().ok).toBe(true);
+    rt.destroy();
+  });
+
+  it("forgets a function timer after its last run and a coroutine once it returns", () => {
+    let live: ScriptSelf | undefined;
+    const counted = defineScript({
+      name: "probe/counted",
+      description: "Runs out.",
+      fields: {},
+      create: (self) => {
+        live = self;
+        return {
+          awake() {
+            self.every(1, () => {}, 2);
+            self.run(function* () {
+              yield 1;
+            });
+          },
+        };
+      },
+    });
+    const rt = world(
+      [{ id: "a", type: "node", at: [0, 0], behaviors: { "probe/counted": {} } }],
+      [counted],
+    );
+    for (let i = 0; i < 3; i++) rt.step(DT, []);
+    expect(rt.ctx.timers.size).toBe(0);
+    const later = live!.after(5, () => {});
+    live!.cancel(later);
+    expect(rt.ctx.timers.size).toBe(0);
+    rt.destroy();
+  });
+
+  it("can pose its entity in awake, which reads enabled there, and defers a destroy", () => {
+    const seen: unknown[] = [];
+    class Placer extends Script({ name: "probe/placer", description: "Places.", fields: {} }) {
+      awake(): void {
+        this.entity.setPose(5, 6, 0.5);
+        seen.push(this.entity.enabled, this.entity.enabledSelf, this.ctx.enabled(this.entity.id));
+        if (this.entity.id === "b") this.entity.destroy();
+      }
+    }
+    const rt = world(
+      [
+        { id: "a", type: "node", at: [0, 0], behaviors: { "probe/placer": {} } },
+        { id: "b", type: "node", at: [0, 0], behaviors: { "probe/placer": {} } },
+      ],
+      [Placer],
+    );
+    expect(seen).toEqual([true, true, true, true, true, true]);
+    expect(rt.ctx.poses.get("a")).toMatchObject({ x: 5, y: 6, rot: 0.5 });
+    expect(rt.ctx.exists("b")).toBe(true);
+    rt.step(DT, []);
+    expect(rt.ctx.exists("b")).toBe(false);
+    expect(rt.ctx.exists("a")).toBe(true);
+    rt.destroy();
+  });
+
+  it("warns about unsaved instance properties once per class, across runtimes", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    class Forgetful extends Script({
+      name: "probe/forgetful",
+      description: "Forgets.",
+      fields: {},
+    }) {
+      hp = 3;
+    }
+    for (let i = 0; i < 2; i++) {
+      const rt = world(
+        [{ id: "a", type: "node", at: [0, 0], behaviors: { "probe/forgetful": {} } }],
+        [Forgetful],
+        true,
+      );
+      expect(captureSave(rt, { depth: "world", slot: "s", now: 0 }).ok).toBe(true);
+      rt.destroy();
+    }
+    const said = warn.mock.calls.filter((c) => String(c[0]).startsWith("[script]"));
+    expect(said).toHaveLength(1);
+    warn.mockRestore();
   });
 
   it("emits a step event about its entity", () => {

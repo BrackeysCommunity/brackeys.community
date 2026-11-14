@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { Store } from "@tanstack/store";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import {
@@ -65,12 +68,13 @@ function setup(def: SceneDefinition = scene(), prefabs?: PrefabLibrary, reg: Reg
   const dispatch = vi.spyOn(session, "dispatch");
   const onHover = vi.fn();
   const cue = vi.fn();
+  const notify = Object.assign(vi.fn(), { error: vi.fn(), warning: vi.fn(), success: vi.fn() });
   render(
     <KitProvider host={{ cue }}>
-      <EditorOutliner session={session} onHover={onHover} />
+      <EditorOutliner session={session} onHover={onHover} notify={notify} />
     </KitProvider>,
   );
-  return { session, dispatch, onHover, cue };
+  return { session, dispatch, onHover, cue, notify };
 }
 
 /** The outliner under a host whose storage is `storage`. */
@@ -110,12 +114,13 @@ const filter = (query: string) =>
  * in the list: enough for dnd-kit to find the row under the pointer.
  */
 const ROW_PX = 20;
+let listPx = 2000;
 beforeAll(() => {
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
     const li = this.closest("li");
     const i = li ? [...(li.parentElement?.children ?? [])].indexOf(li) : -1;
     if (!li && this.classList.contains("je-outliner-list"))
-      return DOMRect.fromRect({ x: 0, y: 0, width: 200, height: 2000 });
+      return DOMRect.fromRect({ x: 0, y: 0, width: 200, height: listPx });
     if (this.classList.contains("je-outliner-root"))
       return DOMRect.fromRect({ x: 0, y: 2000, width: 200, height: ROW_PX });
     return DOMRect.fromRect(i < 0 ? {} : { x: 0, y: i * ROW_PX, width: 200, height: ROW_PX });
@@ -600,6 +605,31 @@ describe("EditorOutliner tree", () => {
     expect(within(row("tower")).getByLabelText(/Selected inside by/)).toBeTruthy();
   });
 
+  it("shows one stack, each person once, on a closed row selected both itself and inside", () => {
+    const { session } = setup(towerScene());
+    fireEvent.click(outliner().getByRole("button", { name: "Collapse tower", expanded: true }));
+    const bo = { id: "bo", name: "Bo", color: "#f00" };
+    act(() =>
+      session.store.setState((s) => ({
+        ...s,
+        peers: [
+          {
+            clientId: 7,
+            user: bo,
+            selection: [session.keyOf("tower")!, session.keyOf("barrel")!],
+            mode: "edit",
+          },
+        ],
+      })),
+    );
+    expect(within(row("tower")).getAllByRole("img")).toHaveLength(1);
+    expect(
+      within(row("tower")).getByRole("img", { name: "Selected here or inside by Bo" }),
+    ).toBeTruthy();
+    fireEvent.click(outliner().getByRole("button", { name: "Expand tower", expanded: false }));
+    expect(within(row("tower")).getByRole("img", { name: "Selected by Bo" })).toBeTruthy();
+  });
+
   it("a drop on a row reparents onto it, keeps the world pose, and undoes in one step", async () => {
     const { session, dispatch, cue } = setup(towerScene());
     const before = worldOf(session, "lamp").at;
@@ -660,8 +690,8 @@ describe("EditorOutliner tree", () => {
     expect(entry(session, "barrel").parent).toBeUndefined();
   });
 
-  it("shows a drop that would make a loop as refused before release, says why by the row, and dispatches nothing", async () => {
-    const { session, dispatch, cue } = setup(towerScene());
+  it("shows a drop that would make a loop as refused while held, reports why once let go, and dispatches nothing", async () => {
+    const { session, dispatch, notify } = setup(towerScene());
     await drag(row("tower"), row("barrel"), "middle", () => {
       const li = row("barrel").closest("li")!;
       expect(li.hasAttribute("data-drop-refused")).toBe(true);
@@ -669,15 +699,52 @@ describe("EditorOutliner tree", () => {
       const why = within(li).getByText(/would make a loop/);
       expect(why.getAttribute("role")).toBe("status");
       expect(why.getAttribute("data-tone")).toBe("danger");
+      expect(why.hasAttribute("data-side")).toBe(false);
     });
     expect(dispatch).not.toHaveBeenCalled();
-    expect(cue).toHaveBeenCalledWith("error");
     expect(entry(session, "tower").parent).toBeUndefined();
     expect(row("barrel").closest("li")!.hasAttribute("data-drop-refused")).toBe(false);
-    // The reason stays by the row once it's let go, until the next press.
-    expect(within(row("barrel").closest("li")!).getByText(/would make a loop/)).toBeTruthy();
-    fireEvent.pointerDown(row("crate"));
     expect(outliner().queryByText(/would make a loop/)).toBeNull();
+    expect(notify.error).toHaveBeenCalledOnce();
+    expect(notify.error).toHaveBeenCalledWith("Couldn't put tower under barrel", {
+      description: expect.stringMatching(/would make a loop/),
+    });
+  });
+
+  it("puts a held refusal above its row when one below would leave the list", async () => {
+    setup(towerScene());
+    listPx = 80;
+    try {
+      await drag(row("tower"), row("barrel"), "middle", () => {
+        const why = within(row("barrel").closest("li")!).getByText(/would make a loop/);
+        expect(why.getAttribute("data-side")).toBe("above");
+      });
+    } finally {
+      listPx = 2000;
+    }
+  });
+
+  it("draws drop marks over the row, where the aimed row's hover background can't cover them", () => {
+    const css = readFileSync(join(import.meta.dirname, "../style.css"), "utf8");
+    /** The declarations of the first rule whose selector list has `selector`. */
+    const rule = (selector: string) => {
+      const at = [`${selector} {`, `${selector},`]
+        .map((s) => css.indexOf(s))
+        .filter((i) => i >= 0)
+        .sort((a, b) => a - b)[0];
+      expect(at, selector).toBeDefined();
+      return css.slice(css.indexOf("{", at), css.indexOf("}", at));
+    };
+    for (const mark of ["over", "before", "after", "refused"]) {
+      expect(css).not.toContain(`.je-outliner-item[data-drop-${mark}] {`);
+      expect(rule(`.je-outliner-item[data-drop-${mark}]::after`)).toMatch(/box-shadow:/);
+    }
+    const start = css.indexOf(".je-outliner-item:is(");
+    const layer = css.slice(start, css.indexOf("}", start));
+    expect(layer).toMatch(/\)::after \{/);
+    expect(layer).toMatch(/z-index: [1-9]/);
+    expect(layer).toContain("pointer-events: none");
+    expect(rule(".je-outliner-row:hover:not(:disabled, [data-selected])")).not.toMatch(/z-index/);
   });
 
   it("marks an accepted drop on the row it would land on", async () => {
@@ -740,18 +807,19 @@ describe("EditorOutliner tree", () => {
     ).toEqual(["memo", "crate"]);
   });
 
-  it("shows a root strip only while dragging, which moves a row to the root however full the list", async () => {
+  it("keeps the root strip's place in the Tree view, taking drops to the root only while dragging", async () => {
     const { session } = setup(towerScene());
-    expect(outliner().queryByText("Drop here to move to the root")).toBeNull();
+    const strip = () => outliner().getByText("Drop here to move to the root").parentElement!;
+    expect(strip().hasAttribute("data-idle")).toBe(true);
+    expect(strip().getAttribute("aria-hidden")).toBe("true");
     await drag(row("barrel"), "strip", "middle", () => {
-      expect(outliner().getByText("Drop here to move to the root")).toBeTruthy();
-      expect(
-        outliner()
-          .getByText("Drop here to move to the root")
-          .parentElement!.hasAttribute("data-drop-over"),
-      ).toBe(true);
+      expect(strip().hasAttribute("data-idle")).toBe(false);
+      expect(strip().hasAttribute("aria-hidden")).toBe(false);
+      expect(strip().hasAttribute("data-drop-over")).toBe(true);
     });
     expect(entry(session, "barrel").parent).toBeUndefined();
+    expect(strip().hasAttribute("data-idle")).toBe(true);
+    showView("Type");
     expect(outliner().queryByText("Drop here to move to the root")).toBeNull();
   });
 
@@ -772,16 +840,67 @@ describe("EditorOutliner tree", () => {
     expect(levels().map(([n]) => n)).toEqual(["tower", "base", "lamp", "crate"]);
   });
 
-  it("says in the Tree tab's hint that edges reorder", async () => {
+  it("labels the view control and says in the Tree tab's hint that dragging reparents or reorders", async () => {
     setup(towerScene());
+    expect(outliner().getByRole("group", { name: "Outline view" })).toBeTruthy();
     await act(async () => {
       fireEvent.focus(outliner().getByRole("button", { name: "Tree" }));
     });
     expect(
-      await screen.findByText(
-        "Rows under their parents; drag a row onto another to put it under it, or onto its top or bottom edge to put it before or after it",
-      ),
+      await screen.findByText("Rows under their parents; drag to reparent or reorder"),
     ).toBeTruthy();
+  });
+
+  it("moves a focused row among its siblings with Alt+Up and Alt+Down, keeping it focused", () => {
+    const { session, dispatch, cue } = setup(towerScene());
+    const lamp = row("lamp");
+    expect(lamp.getAttribute("aria-keyshortcuts")).toBe("Alt+ArrowUp Alt+ArrowDown");
+    lamp.focus();
+    fireEvent.keyDown(lamp, { key: "ArrowUp", altKey: true });
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      label: "Move lamp before crate",
+      ops: [{ op: "reorder", refs: ["lamp"] }],
+    });
+    expect(cue).toHaveBeenCalledWith("drop");
+    expect(levels().map(([n]) => n)).toEqual(["tower", "base", "barrel", "lamp", "crate"]);
+    expect(document.activeElement).toBe(row("lamp"));
+
+    fireEvent.keyDown(row("lamp"), { key: "ArrowUp", altKey: true });
+    expect(levels().map(([n]) => n)).toEqual(["lamp", "tower", "base", "barrel", "crate"]);
+    expect(document.activeElement).toBe(row("lamp"));
+
+    dispatch.mockClear();
+    fireEvent.keyDown(row("lamp"), { key: "ArrowUp", altKey: true });
+    fireEvent.keyDown(row("barrel"), { key: "ArrowDown", altKey: true });
+    expect(dispatch).not.toHaveBeenCalled();
+
+    const press = new KeyboardEvent("keydown", {
+      key: "ArrowDown",
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => void row("lamp").dispatchEvent(press));
+    expect(press.defaultPrevented).toBe(true);
+    expect(levels().map(([n]) => n)).toEqual(["tower", "base", "barrel", "lamp", "crate"]);
+    expect(
+      session
+        .getDoc()
+        .entities!.filter((e) => !e.parent)
+        .map((e) => e.id),
+    ).toEqual(["tower", "lamp", "crate"]);
+  });
+
+  it("leaves arrows without Alt, and rows outside the Tree view, to the editor", () => {
+    const { dispatch } = setup(towerScene());
+    const plain = new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true });
+    row("lamp").dispatchEvent(plain);
+    expect(plain.defaultPrevented).toBe(false);
+    showView("Type");
+    const lamp = outliner().getByRole("button", { name: /^lamp/ });
+    expect(lamp.hasAttribute("aria-keyshortcuts")).toBe(false);
+    fireEvent.keyDown(lamp, { key: "ArrowUp", altKey: true });
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it("dragging a selected row drags the selection's roots", async () => {

@@ -25,7 +25,6 @@ export class Goal extends Script({
     this.ctx.behavior<PlayerInputSystem>(PLAYER_INPUT.name)?.detach(other.id);
   }
 
-  // A world save keeps whether this goal has fired.
   save() {
     return this.reached;
   }

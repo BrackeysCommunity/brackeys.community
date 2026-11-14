@@ -7,7 +7,7 @@ import {
   type TweenState,
   type TweenValues,
 } from "../../anim/tweens";
-import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
+import { bindTo, type BehaviorSystem, type BehaviorSystemFactory } from "../../game/behaviors";
 import { SPRITE } from "../../game/behaviors/sprite";
 import {
   isLookChannel,
@@ -515,10 +515,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     cancelAll(entityId) {
       for (const [id, r] of tweens) if (r.state.owner === entityId) tweens.delete(id);
     },
-    handle: (id) => ({
-      to: (spec: TweenSpec) => system.to(id, spec),
-      cancelAll: () => system.cancelAll(id),
-    }),
+    handle: (id) => bindTo(system, id, ["to", "cancelAll"]),
     pending: () => tweens.size,
     ownerDestroyed(entityId) {
       system.cancelAll(entityId);

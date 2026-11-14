@@ -14,6 +14,7 @@ export {
 export type { EntityOf } from "./define";
 export {
   BEHAVIOR_NAME_PATTERN,
+  bindTo,
   defineBehavior,
   handleType,
   type BehaviorBlock,
@@ -61,6 +62,8 @@ export {
 } from "./behaviors/player-input";
 export {
   CHARACTER_TOP_DOWN,
+  characterHandle,
+  characterPoseHooks,
   type CharacterHandle,
   type CharacterIntent,
   type CharacterSystem,
@@ -92,7 +95,7 @@ export { ANIM_END, ANIM_FRAME } from "../runtime/behaviors/anim";
 export { TWEEN_END } from "../runtime/behaviors/tween";
 export type { AnimContext, AnimState, AnimSystem } from "../runtime/behaviors/anim";
 export type { TweenSystem, UnsaveableTween } from "../runtime/behaviors/tween";
-export { CAMERA_RIG_SCHEMA, type CameraRigDef } from "./primitives";
+export { CAMERA_RIG_SCHEMA, NODE_TYPE, type CameraRigDef } from "./primitives";
 export type { CameraFrame, CameraTargetSpec } from "../camera/rig";
 export type {
   AudioRequest,

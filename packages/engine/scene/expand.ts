@@ -268,22 +268,13 @@ function enclosing(id: string, nodes: ReadonlySet<string>): string | undefined {
 }
 
 /**
- * One prefab instance's entities as a load expands them. First a `node`
- * at the instance's id, at its world origin and turned by its angle (`rot`
- * in degrees), under `parent` when one is given; then one for each nested
- * instance (`<instance>/<nested>`), each under the nested instance's
- * `parent` if it has one, else under the one that holds it, with its layer
- * and summed `z`. Then the children, ids `<instance>/<child>` (refs
- * between its children remapped to them, the behavior blocks' entity refs
- * by `scopeBehaviorRefs`), fields, behaviors, `z`, layers and `transform`,
- * in spawn-group order, each under its own `parent` in the prefab, else
- * under the nearest enclosing instance's node; `nodes` counts the leading
- * nodes, the rest being the prefab's children. `off` children and types
- * that don't load are dropped; an `off` instance gives nothing. `steps` are
- * the frames above the instance, innermost first (default none);
- * `cells` says the scene's turns are grid turns (`gridTurns`). An issue
- * when the prefab is missing, cyclic or too deep; a child of an
- * unregistered type throws, as a load does.
+ * One prefab instance's entities as a load expands them: its node, then
+ * nested instances' nodes, then its children (ids `<instance>/<child>`) in
+ * spawn-group order, each under its prefab parent or nearest enclosing node;
+ * `nodes` counts the leading nodes. `off` children, types that don't load
+ * and an `off` instance's whole subtree are dropped. `steps` are the frames
+ * above the instance, innermost first. An issue for a missing, cyclic or
+ * too-deep prefab; a child of an unregistered type throws, as a load does.
  */
 export function expandInstance(
   inst: InstanceDef,

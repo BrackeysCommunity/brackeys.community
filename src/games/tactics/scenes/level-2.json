@@ -16,7 +16,7 @@
     { "id": "river-north", "type": "solid", "layer": "decor", "shape": ["box", 6.5, 1, 0.5, 1], "behaviors": { "sprite": { "asset": "tile-river", "size": [1, 2], "tile": true } } },
     { "id": "river-south", "type": "solid", "layer": "decor", "shape": ["box", 6.5, 5, 0.5, 1], "behaviors": { "sprite": { "asset": "tile-river", "size": [1, 2], "tile": true } } },
     { "id": "thicket", "type": "rough", "layer": "decor", "shape": ["box", 8.5, 3, 0.5, 1], "cost": 2, "behaviors": { "sprite": { "asset": "tile-thicket", "size": [1, 2], "tile": true } } },
-    { "id": "stair", "type": "stair", "at": [3.5, 5.5], "offset": [0, 6], "sublevel": "cellar" },
+    { "id": "stair", "type": "stair", "at": [3.5, 5.5], "offset": [0, 6], "opens": "cellar" },
     { "id": "about", "type": "note", "at": [0.5, 0.5], "text": "Level 2: blue (two knights and an archer) against red (a knight and an archer) on a 12 x 6 board of 1 m cells. A river splits it, crossed only by the bridge in rows 2 and 3; the thicket costs two extra moves per cell. The first unit on the stair attaches the cellar sublevel two rows under the board, and the red guard waiting there joins the fight." }
   ]
 }

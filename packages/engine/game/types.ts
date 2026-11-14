@@ -226,12 +226,9 @@ export interface SceneSystem<E extends RuntimeEntity = RuntimeEntity> {
    * colliders in step; a type without it can't be tweened by pose.
    */
   setPose?(id: string, x: number, y: number, rot: number): void;
-  /** True while this type moves `id` in world space, so a parent's movement doesn't carry it. */
+  /** As `BehaviorSystem.selfMoving`, for the type. */
   selfMoving?(id: string): boolean;
-  /**
-   * The tree found a body above `id` (`host`), or none any more (null): put
-   * its collider on that body at its offset, or back on its own.
-   */
+  /** As `BehaviorSystem.ride`, for the type. */
   ride?(id: string, host: string | null): void;
   /**
    * The tree carries `id` to `pose` because `parent` moved. When `id`'s
@@ -340,7 +337,7 @@ export type EngineContext = {
   /**
    * Destroys an entity, or every child of an instance id. Inside a step it
    * happens at the end of the tick, after the game's `afterStep`; outside
-   * one, at once.
+   * one, at once, unless the entity's behaviors are still attaching.
    */
   destroy: (id: string) => void;
   /**
@@ -517,6 +514,29 @@ export class EngineError extends Error {
     this.code = code;
     if (entityId !== undefined) this.entityId = entityId;
   }
+}
+
+/** The refusal for an id no live entity has: `can't <what> "<id>"`. */
+export const entityGone = (
+  id: string,
+  what: string,
+  code: "entity-gone" | "parent-scope" = "entity-gone",
+): EngineError => new EngineError(code, `can't ${what} "${id}": no live entity has that id`, id);
+
+/** An event about `entityId` at its pose (the origin when it has none), as a timer's emit form raises it. */
+export function eventAbout(
+  ctx: Pick<EngineContext, "poses">,
+  type: string,
+  entityId: string | undefined,
+  data?: unknown,
+): Omit<StepEvent, "tick"> {
+  const pose = entityId === undefined ? undefined : ctx.poses.get(entityId);
+  return {
+    type,
+    at: pose ? { x: pose.x, y: pose.y } : { x: 0, y: 0 },
+    ...(entityId === undefined ? {} : { entityId }),
+    ...(data === undefined ? {} : { data }),
+  };
 }
 
 /** Options for `EngineContext.events.on` and `once`. */

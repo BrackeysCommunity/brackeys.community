@@ -1,4 +1,4 @@
-import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
+import { bindTo, type BehaviorSystem, type BehaviorSystemFactory } from "../../game/behaviors";
 import type { BodyBlock, BodyHandle } from "../../game/behaviors/body";
 import { COLLIDER, type ColliderSystem } from "../../game/behaviors/collider";
 import type { EngineContext, JsonValue } from "../../game/types";
@@ -44,21 +44,19 @@ export const createBodySystem: BehaviorSystemFactory = (ctx: EngineContext) => {
       carried.clear();
     },
     size: () => carried.size,
-    handle(id): BodyHandle {
-      const bodies = ctx.bodies;
-      return {
-        kind: () => bodies.kind(id),
-        velocity: () => bodies.velocity(id),
-        setVelocity: (v) => bodies.setVelocity(id, v),
-        angularVelocity: () => bodies.angularVelocity(id),
-        setAngularVelocity: (w) => bodies.setAngularVelocity(id, w),
-        applyImpulse: (impulse, at) => bodies.applyImpulse(id, impulse, at),
-        applyForce: (force, at) => bodies.applyForce(id, force, at),
-        applyTorque: (torque) => bodies.applyTorque(id, torque),
-        mass: () => bodies.mass(id),
-        wake: () => bodies.wake(id),
-      };
-    },
+    handle: (id): BodyHandle =>
+      bindTo(ctx.bodies, id, [
+        "kind",
+        "velocity",
+        "setVelocity",
+        "angularVelocity",
+        "setAngularVelocity",
+        "applyImpulse",
+        "applyForce",
+        "applyTorque",
+        "mass",
+        "wake",
+      ]),
     save(id): JsonValue | undefined {
       if (!ctx.bodies.has(id) || ctx.bodies.kind(id) === "static") return undefined;
       const v = ctx.bodies.velocity(id);

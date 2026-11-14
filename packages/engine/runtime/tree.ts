@@ -1,4 +1,4 @@
-import { EngineError, type EngineContext, type SceneTree } from "../game/types";
+import { EngineError, entityGone, type EngineContext, type SceneTree } from "../game/types";
 import type { RuntimeEntity } from "../scene/types";
 import { composePose, isWatched, relativePose, type Pose, type PoseIndex } from "./poses";
 
@@ -7,10 +7,6 @@ export type { SceneTree };
 /** How a refusal names a scope: a sublevel by its label, else the main scene. */
 export const scopeName = (scope: string | null): string =>
   scope === null ? "the main scene" : `sublevel "${scope}"`;
-
-/** The refusal for an id no live entity has: `can't <what> "<id>"`. */
-export const entityGone = (id: string, what: string): EngineError =>
-  new EngineError("entity-gone", `can't ${what} "${id}": no live entity has that id`, id);
 
 /** Kept with a linked entity for `SceneTreeDeps.follows`; the tree never reads it. */
 export type FollowSlot = { held: unknown };
@@ -275,13 +271,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
     subject: string,
     id?: string,
   ): void {
-    if (!deps.exists(parent)) {
-      throw new EngineError(
-        "parent-scope",
-        `can't ${what} under "${parent}": no live entity has that id`,
-        parent,
-      );
-    }
+    if (!deps.exists(parent)) throw entityGone(parent, `${what} under`, "parent-scope");
     const theirs = deps.scopeOf(parent);
     if (theirs !== scope) {
       throw new EngineError(

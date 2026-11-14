@@ -1,7 +1,6 @@
-import { EngineError, type EngineContext, type SceneSystem } from "../game/types";
+import { EngineError, entityGone, type EngineContext, type SceneSystem } from "../game/types";
 import type { EntityTypeName, RuntimeEntity } from "../scene/types";
 import type { BehaviorHost } from "./behaviors";
-import { entityGone } from "./tree";
 
 export type SetPoseDeps = {
   ctx: EngineContext;

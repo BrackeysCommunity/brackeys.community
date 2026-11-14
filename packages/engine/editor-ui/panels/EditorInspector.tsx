@@ -760,8 +760,8 @@ function RefCombobox({
 /**
  * The Parent row: what `refs` sit under, picked from `parentModel`'s
  * candidates; a pick is one `reparent`, which keeps them where they are in
- * the world, and clearing it moves them to the root. Read-only, with why,
- * where the parent can't change here.
+ * the world, and clearing it or picking None (root) moves them to the
+ * root. Read-only, with why, where the parent can't change here.
  */
 function ParentField({
   session,
@@ -778,9 +778,18 @@ function ParentField({
   const readOnly = useContext(ReadOnlyContext);
   const prefabs = useEditorPrefabs(session);
   const [error, setError] = useState<string | null>(null);
-  const model = parentModel(doc, session.registry, refs, prefabs);
-  const row = field ?? { title: "Parent", description: PARENT_HINT };
-  if (!model) return field?.readonly ? <ReadonlyField field={field} unset={ROOT_PARENT} /> : null;
+  const refsKey = refs.join("\n");
+  // Candidates walk every entity and instance; keep them across renders that change none of these.
+  const model = useMemo(
+    () => parentModel(doc, session.registry, refsKey.split("\n"), prefabs),
+    [doc, session.registry, refsKey, prefabs],
+  );
+  // The schema's description speaks to the CLI; the editor says the same in a designer's words.
+  const row = { ...(field ?? { title: "Parent" }), description: PARENT_HINT };
+  if (!model)
+    return field?.readonly ? (
+      <ReadonlyField field={{ ...field, description: PARENT_HINT }} unset={ROOT_PARENT} />
+    ) : null;
   if (model.fixed !== undefined)
     return (
       <ReadonlyField
@@ -790,14 +799,14 @@ function ParentField({
       />
     );
   const commit = (next: string | null) => {
-    const edit = parentBatch(model, next, doc);
+    const edit = parentBatch(model, next === ROOT_PARENT ? null : next, doc);
     setError(edit.ok ? dispatchSource(session, edit.batch, readOnly) : edit.error);
   };
   return (
     <FieldRow field={row} error={error}>
       <RefCombobox
         label="parent"
-        items={model.candidates}
+        items={model.value === null ? model.candidates : [ROOT_PARENT, ...model.candidates]}
         value={model.value ?? null}
         onChange={commit}
         invalid={!!error}
@@ -809,7 +818,7 @@ function ParentField({
   );
 }
 
-/** The Parent row's words for no parent. */
+/** The Parent row's words for no parent, and its choice for the root: no id has a space, so none clashes. */
 const ROOT_PARENT = "None (root)";
 
 const PARENT_HINT =
@@ -2180,13 +2189,10 @@ function ParamsSection({
   );
 }
 
-const placementText = ({ rot, flip }: InstanceTransformModel) =>
-  [rot > 0 ? `Turned ${rot}°` : "Not turned", ...(flip ? ["flipped"] : [])].join(", ");
-
 /**
- * How an instance sits: what it sits under, Turn and Flip and its angle in
- * degrees, each one batch about its `at`, and its `z`. A nested instance
- * shows its prefab's placement without editing it.
+ * How an instance sits: what it sits under, whether it's flipped, Turn and
+ * Flip and its angle in degrees, each one batch about its `at`, and its
+ * `z`. A nested instance shows its prefab's placement without editing it.
  */
 function PlacementSection({
   session,
@@ -2201,14 +2207,15 @@ function PlacementSection({
   const readOnly = useContext(ReadOnlyContext);
   const prefabs = useEditorPrefabs(session);
   const run = (batch: OpBatch | null) => setError(dispatchSource(session, batch, readOnly));
+  const angle = instanceAngleRow(model);
   const controls = [
     {
-      label: "Turn counter-clockwise",
+      label: "Turn 90° counterclockwise",
       icon: RotateLeft01Icon,
       batch: () => turnBatch(doc, [model.ref], -1),
     },
     {
-      label: "Turn clockwise",
+      label: "Turn 90° clockwise",
       icon: RotateRight01Icon,
       batch: () => turnBatch(doc, [model.ref], 1),
     },
@@ -2227,7 +2234,9 @@ function PlacementSection({
     <Section id="instance:placement" title="Placement">
       <ParentField session={session} doc={doc} refs={[model.ref]} />
       <div className="je-insp-row" data-gap="tight">
-        <span className="je-insp-grow je-sp-truncate je-insp-muted">{placementText(model)}</span>
+        <span className="je-insp-grow je-sp-truncate je-insp-muted">
+          {model.flip ? "Flipped" : "Not flipped"}
+        </span>
         {model.editable
           ? controls.map((c) => (
               <IconButton
@@ -2240,16 +2249,18 @@ function PlacementSection({
             ))
           : null}
       </div>
-      {model.editable ? (
+      {angle.readonly ? (
+        <ReadonlyField field={{ ...angle, value: `${model.rot}°` }} />
+      ) : (
         <AngleField
-          field={instanceAngleRow(model)}
+          field={angle}
           disabled={readOnly}
           commit={(input) => {
             const edit = instanceAngleBatch(doc, model, input, session.registry, prefabs);
             return edit.ok ? dispatchSource(session, edit.batch, readOnly) : edit.error;
           }}
         />
-      ) : null}
+      )}
       <FieldRow label="z" hint="Added to the z of every child; higher draws in front.">
         {model.editable ? (
           <NumberInput

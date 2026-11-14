@@ -1,9 +1,11 @@
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
 import type { BodyBlock } from "../../game/behaviors/body";
-import type {
-  CharacterIntent,
-  CharacterSystem,
-  CharacterTopDownBlock,
+import {
+  characterHandle,
+  characterPoseHooks,
+  type CharacterIntent,
+  type CharacterSystem,
+  type CharacterTopDownBlock,
 } from "../../game/behaviors/character-top-down";
 import { COLLIDER, type ColliderBlock, type ColliderSystem } from "../../game/behaviors/collider";
 import type { ForceAreaSystem } from "../../game/behaviors/force-area";
@@ -222,16 +224,8 @@ export const createCharacterTopDownSystem: BehaviorSystemFactory = (ctx: EngineC
     launch(id, v) {
       own(id, "launch").body.setVelocity({ x: v.x, y: v.y });
     },
-    handle: (id) => ({
-      grounded: () => system.grounded(id),
-      launch: (v: Vec) => system.launch(id, v),
-      setIntent: (intent: CharacterIntent) => system.setIntent(id, intent),
-      velocity: () => system.velocity(id),
-    }),
-    posed(id, pose, snap) {
-      characters.get(id)?.body.teleport(pose.x, pose.y, { snap });
-    },
-    selfMoving: (id) => characters.has(id),
+    handle: (id) => characterHandle(system, id),
+    ...characterPoseHooks(characters),
     save(id): JsonValue | undefined {
       const intent = characters.get(id)?.intent;
       if (!intent) return undefined;

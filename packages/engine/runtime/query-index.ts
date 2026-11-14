@@ -13,6 +13,7 @@ import {
 import { createSpatialHash } from "../scene/spatial-hash";
 import type { Aabb, EntityTypeName, Pt, RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
+import { carriedBehaviors } from "./behaviors";
 import { isWatched, type Pose } from "./poses";
 import { spawnPoseOf, type GeometryFields } from "./spawn-pose";
 
@@ -283,8 +284,7 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
         const value = e[field];
         if (Array.isArray(value)) for (const t of value) if (typeof t === "string") tags.add(t);
       }
-      const behaviors = new Set<BehaviorName>();
-      for (const [name, block] of Object.entries(e.behaviors ?? {})) if (block) behaviors.add(name);
+      const behaviors = new Set<BehaviorName>(carriedBehaviors(e));
       const spawn = spawnPoseOf(e, fields);
       let local: ShapeObj | undefined;
       for (const { field, kind } of fields) {

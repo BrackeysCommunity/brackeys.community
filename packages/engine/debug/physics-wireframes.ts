@@ -3,6 +3,7 @@ import { Container, Graphics } from "pixi.js";
 
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { ColliderTag, Registry } from "../game/types";
+import { radToDeg } from "../physics";
 import { traceShape } from "../render/draw-shape";
 import type { GeometryWorld } from "../runtime/geometry-world";
 import { shapeIsClosed } from "../scene/shape-outline";
@@ -29,7 +30,7 @@ export function colliderShape(
 ): ShapeObj | null {
   const { x: cx, y: cy } = collider.translation();
   const rot = collider.rotation();
-  const rotDeg = (rot * 180) / Math.PI;
+  const rotDeg = radToDeg(rot);
   switch (collider.shapeType()) {
     case ShapeType.Cuboid: {
       const { x: hw, y: hh } = collider.halfExtents();

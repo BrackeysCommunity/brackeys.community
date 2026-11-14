@@ -473,6 +473,10 @@ export function degToRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
+export function radToDeg(rad: number): number {
+  return (rad * 180) / Math.PI;
+}
+
 /**
  * Where a body carrying `shape` sits: the centre of a box, circle or capsule,
  * the origin for poly and chain (whose points are absolute).

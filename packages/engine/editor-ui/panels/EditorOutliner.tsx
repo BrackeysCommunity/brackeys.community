@@ -13,7 +13,15 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { ArrowDown01Icon, ArrowRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
 import { selectionsByKey } from "../../collab/index";
 import {
@@ -42,7 +50,7 @@ import {
 import { defaultLayer } from "../../scene/index";
 import { canBeInTree } from "../../scene/validate";
 import { useCanvasReveal } from "../frame/EditorFrame";
-import { STORAGE_PREFIX } from "../host";
+import { STORAGE_PREFIX, type EditorNotify } from "../host";
 import {
   Badge,
   Button,
@@ -59,7 +67,7 @@ import { useBusy } from "../pending/use-pending";
 import { openPrefabScope } from "../session/live-scene-editor";
 import { readStored, storedFlags, writeStored } from "../session/stored";
 import { useEditorDoc, useEditorPrefabs, useEditorStore } from "../session/use-editor-store";
-import { PeerFaces } from "./peer-faces";
+import { distinctPeople, PeerFaces } from "./peer-faces";
 
 const COLLAPSE_KEY = `${STORAGE_PREFIX}outline-collapsed`;
 const VIEW_KEY = `${STORAGE_PREFIX}outline-view`;
@@ -137,10 +145,9 @@ function placements(def: SceneDefinition, registry: Registry) {
 }
 
 /**
- * The layer view: every registry layer, bottom to top (empty ones too, so
- * they take drops), its bulk buckets, then its entities. Bulk entries have no fields, so they sit in their
- * type's default layer. An instance keeps the child and nested rows the
- * type view puts under it, moved to sit under it here.
+ * The layer view: every registry layer, bottom to top, empty ones too so
+ * they take drops. Bulk entries have no fields, so their buckets sit in
+ * their type's default layer.
  */
 function layerOutline(def: SceneDefinition, registry: Registry, byType: OutlineRow[]): Row[] {
   const rows = new Map(byType.flatMap((r, i) => (r.ref ? [[r.ref, i] as const] : [])));
@@ -300,7 +307,7 @@ type DropData = { kind: "place"; target: DropTarget } | TreeDrop;
 
 /** The empty space below the tree's rows: a drop there puts rows at the root. */
 const ROOT_DROP = "tree-root";
-/** The strip under the list while a tree drag is held, which takes root drops when the rows fill the list. */
+/** The strip under the tree's list, which takes root drops while dragging even when the rows fill the list. */
 const ROOT_STRIP = "tree-root-strip";
 const isRootDrop = (id: unknown) => id === ROOT_DROP || id === ROOT_STRIP;
 const ROOT_DATA = { kind: "reparent", parent: null } satisfies DropData;
@@ -319,11 +326,11 @@ const rowsFirst: CollisionDetection = (args) => {
  */
 const EDGE_BAND = 1 / 3;
 
-/** How long a refused drop's reason stays after the row is let go. */
-const REFUSAL_MS = 4000;
+/** What a tree drop would do: its batch, or why it's refused. */
+type Judged = { drop: TreeDrop; batch: OpBatch | null; refused: SceneIssue | null };
 
-/** Where a tree drag would land: the droppable under the pointer, the drop, and its batch or why it's refused. */
-type Aim = { at: string; drop: TreeDrop; batch: OpBatch | null; refused: SceneIssue | null };
+/** Where a tree drag would land; `above` puts the refusal over the row when one under it would leave the list. */
+type Aim = Judged & { at: string; above: boolean };
 
 const dropKey = (d: TreeDrop) =>
   d.kind === "reparent"
@@ -397,10 +404,17 @@ const markAttrs = (mark: DropMark | undefined) => ({
   "data-drop-refused": mark === "refused" ? "" : undefined,
 });
 
-/** Why a tree drop is refused, in the danger tone beside where it was aimed; announced without taking focus. */
-function Refusal({ message }: { message: string }) {
+/** Why a held tree drop is refused, beside where it's aimed; announced without taking focus. */
+function Refusal({ message, above }: { message: string; above?: boolean }) {
   return (
-    <Text as="p" role="status" size="xs" variant="danger" className="je-outliner-refusal">
+    <Text
+      as="p"
+      role="status"
+      size="xs"
+      variant="danger"
+      className="je-outliner-refusal"
+      data-side={above ? "above" : undefined}
+    >
       {message}
     </Text>
   );
@@ -410,35 +424,75 @@ function Refusal({ message }: { message: string }) {
 function TreeList({
   enabled,
   mark,
+  listRef,
   children,
 }: {
   enabled: boolean;
   mark: DropMark | undefined;
+  listRef: { current: HTMLUListElement | null };
   children: ReactNode;
 }) {
   const { setNodeRef } = useDroppable({ id: ROOT_DROP, data: ROOT_DATA, disabled: !enabled });
   return (
-    <ul ref={setNodeRef} className="je-outliner-list" {...markAttrs(mark)}>
+    <ul
+      ref={(el) => {
+        setNodeRef(el);
+        listRef.current = el;
+      }}
+      className="je-outliner-list"
+      {...markAttrs(mark)}
+    >
       {children}
     </ul>
   );
 }
 
-/** The root drop that is always in reach while a tree drag is held, however full the list is. */
+/**
+ * The root drop in reach however full the list is. Its space stays in the
+ * Tree view when idle, so starting a drag doesn't shrink the list under the pointer.
+ */
 function RootStrip({
+  idle,
   mark,
   refusal,
 }: {
+  idle: boolean;
   mark: DropMark | undefined;
   refusal?: string | undefined;
 }) {
-  const { setNodeRef } = useDroppable({ id: ROOT_STRIP, data: ROOT_DATA });
+  const { setNodeRef } = useDroppable({ id: ROOT_STRIP, data: ROOT_DATA, disabled: idle });
   return (
-    <div ref={setNodeRef} className="je-outliner-root" {...markAttrs(mark)}>
-      <span>Drop here to move to the root</span>
+    <div
+      ref={setNodeRef}
+      className="je-outliner-root"
+      data-idle={idle ? "" : undefined}
+      aria-hidden={idle || undefined}
+      {...markAttrs(mark)}
+    >
+      <Text size="sm" variant="muted">
+        Drop here to move to the root
+      </Text>
       {refusal ? <Refusal message={refusal} /> : null}
     </div>
   );
+}
+
+/** One stack for a row's own selectors and, while it's closed, those of rows under it. */
+function RowPeers({
+  own,
+  inside,
+}: {
+  own: PeerPresence[] | undefined;
+  inside: PeerPresence[] | undefined;
+}) {
+  const peers = distinctPeople([...(own ?? []), ...(inside ?? [])]);
+  if (peers.length === 0) return null;
+  const label = !inside
+    ? "Selected by"
+    : !own
+      ? "Selected inside by"
+      : "Selected here or inside by";
+  return <PeerFaces peers={peers} label={label} size={14} />;
 }
 
 function EntityItem({
@@ -447,6 +501,8 @@ function EntityItem({
   drop,
   mark,
   refusal,
+  refusalAbove,
+  onMove,
   expanded,
   onToggle,
   selected,
@@ -474,6 +530,9 @@ function EntityItem({
   mark?: DropMark | undefined;
   /** Why a drop aimed at this row is refused. */
   refusal?: string | undefined;
+  refusalAbove?: boolean;
+  /** Set on a tree row the keyboard can move among its siblings: -1 up, 1 down. */
+  onMove?: ((step: -1 | 1) => void) | undefined;
   indent: CSSProperties;
   onSelect: (mode: "replace" | "range" | "toggle") => void;
   onHover: (ref: Ref | null) => void;
@@ -492,6 +551,14 @@ function EntityItem({
   });
   const prefab = row.prefab;
   const opening = useBusy(ref ? openPrefabScope(ref) : "") !== undefined;
+  // Capture, so the editor's keymap sees the press as handled and doesn't also nudge.
+  const onMoveKey = (e: KeyboardEvent) => {
+    if (!onMove || !e.altKey || e.shiftKey || e.ctrlKey || e.metaKey) return;
+    const step = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+    if (step === 0) return;
+    e.preventDefault();
+    onMove(step);
+  };
   return (
     <li
       ref={setDropRef}
@@ -517,6 +584,9 @@ function EntityItem({
         disabled={!ref}
         aria-pressed={ref ? selected : undefined}
         {...listeners}
+        onKeyDownCapture={onMove ? onMoveKey : undefined}
+        aria-keyshortcuts={onMove ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
+        data-row-key={row.key}
         onClick={(e) => {
           if (!ref) return;
           onSelect(e.shiftKey ? "range" : e.metaKey || e.ctrlKey ? "toggle" : "replace");
@@ -542,10 +612,7 @@ function EntityItem({
             prefab
           </Badge>
         ) : null}
-        {selectedBy ? <PeerFaces peers={selectedBy} label="Selected by" size={14} /> : null}
-        {insideBy && expanded === false ? (
-          <PeerFaces peers={insideBy} label="Selected inside by" size={14} />
-        ) : null}
+        <RowPeers own={selectedBy} inside={expanded === false ? insideBy : undefined} />
         {row.detail ? <span className="je-outliner-detail">{row.detail}</span> : null}
       </button>
       {prefab && ref && onOpenPrefab ? (
@@ -561,38 +628,28 @@ function EntityItem({
           Open
         </Button>
       ) : null}
-      {refusal ? <Refusal message={refusal} /> : null}
+      {refusal ? <Refusal message={refusal} above={refusalAbove} /> : null}
     </li>
   );
 }
 
 /**
- * The scene's rows as its tree (the default), by type or by layer, filtered
- * by `type:`, `shape:`, `has:problems` chips and free text, with an
- * instance's children nested under it. In the tree, dragging a row onto
- * another puts it under that row, dragging it onto a row's top or bottom
- * edge puts it just before or after that row among its siblings (after only
- * where no open children follow the row), and dragging it onto the empty
- * space below, or the root strip shown while dragging, puts it at the root;
- * nothing moves in the world. A drop the scene would refuse shows as refused,
- * with why, before it is let go and for a while after. A drop under a closed
- * row opens it, so the moved rows stay in sight. Dragging a
- * selected row drags the selection's roots. In the layer view, dragging
- * entity rows onto a layer row moves them there. Either is one batch. `physical`
- * adds physical issues to `has:problems`. The row under the pointer is the
- * editor store's `hover`, which the scene view outlines, and the entity
- * under the pointer in the view marks its row; `onHover` also hears it.
- * The view and the collapsed rows are kept in the host's storage. A row
- * selected here is brought into the canvas's view when it is off-screen.
+ * The scene's rows as a tree (default), by type or by layer, filtered by
+ * chips and text. Dragging reparents or reorders in the tree, or moves
+ * layer in the layer view, as one batch; Alt+Up/Down moves a tree row among
+ * its siblings. A refused move says why.
  */
 export function EditorOutliner({
   session,
   physical,
+  notify,
   onHover,
   onOpenPrefab,
 }: {
   session: EditorSession;
   physical?: readonly SceneIssue[];
+  /** Where a refused tree move is reported once it's let go. */
+  notify?: EditorNotify;
   onHover?: (ref: Ref | null) => void;
   /** Opens an instance's prefab on its own, from the instance's row. */
   onOpenPrefab?: (prefab: string, from: Ref) => void;
@@ -616,9 +673,10 @@ export function EditorOutliner({
   const [query, setQuery] = useState("");
   const [aim, setAim] = useState<Aim | null>(null);
   const [dragging, setDragging] = useState(false);
-  /** A refused drop's reason, kept a while after the row is let go, by the droppable it was aimed at. */
-  const [refusedAt, setRefusedAt] = useState<{ at: string; message: string } | null>(null);
   const dragged = useRef<Ref[]>([]);
+  const listRef = useRef<HTMLUListElement | null>(null);
+  /** The row a keyboard move should keep focused once the list re-renders. */
+  const refocus = useRef<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const prefabs = useEditorPrefabs(session);
@@ -661,11 +719,15 @@ export function EditorOutliner({
   const filtering = !isEmpty(filter);
   const tree = view === "tree";
 
+  // Moving a focused row's DOM node blurs it.
   useEffect(() => {
-    if (!refusedAt) return;
-    const timer = setTimeout(() => setRefusedAt(null), REFUSAL_MS);
-    return () => clearTimeout(timer);
-  }, [refusedAt]);
+    const key = refocus.current;
+    if (key === null) return;
+    refocus.current = null;
+    const rowButtons = listRef.current?.querySelectorAll<HTMLElement>("[data-row-key]") ?? [];
+    const button = [...rowButtons].find((b) => b.dataset.rowKey === key);
+    if (button && document.activeElement !== button) button.focus();
+  });
 
   const hoverRow = (ref: Ref | null) => {
     setHover(session.store, ref);
@@ -707,21 +769,68 @@ export function EditorOutliner({
     writeStored(storage, COLLAPSE_KEY, next);
   };
 
+  /** What moving `ref` moves: the selection's roots when it's selected. */
+  const movedWith = (ref: Ref): Ref[] =>
+    selected.has(ref)
+      ? treeDragRoots(session.getDoc(), registry, session.getPrefabs(), selection)
+      : [ref];
+
   const onDragStart = ({ active }: DragStartEvent) => {
     const ref = active.data.current?.ref as Ref | undefined;
     if (!ref || !tree) return;
-    setRefusedAt(null);
     setDragging(true);
-    dragged.current = selected.has(ref)
-      ? treeDragRoots(session.getDoc(), registry, session.getPrefabs(), selection)
-      : [ref];
+    dragged.current = movedWith(ref);
   };
 
-  /**
-   * The drop a row takes at height `y`: before it on its top edge, after it
-   * on its bottom edge where no open children follow it, else onto it. Only
-   * the scene's own rows take a place among siblings.
-   */
+  const judge = (refs: readonly Ref[], drop: TreeDrop): Judged => {
+    const current = session.getDoc();
+    const prefabLib = session.getPrefabs();
+    const batch = treeDropBatch(current, registry, prefabLib, refs, drop);
+    const refused = batch ? treeDropRefusal(current, registry, prefabLib, batch) : null;
+    return { drop, batch, refused };
+  };
+
+  const land = ({ drop, batch, refused }: Judged) => {
+    if (batch && refused) {
+      const label = batch.label ?? "Move";
+      const title = `Couldn't ${label[0]!.toLowerCase()}${label.slice(1)}`;
+      if (notify) notify.error(title, { description: refused.message });
+      else cue("error");
+      return;
+    }
+    if (!batch || !session.dispatch(batch).ok) return;
+    if (drop.kind === "reparent" && drop.parent !== null) openTo(drop.parent);
+    cue("drop");
+  };
+
+  /** The nearest of the scene's own rows beside the tree row at `i` under the same parent: before it (-1) or after it (1). */
+  const siblingOf = (i: number, step: -1 | 1): Ref | null => {
+    const depth = rows[i]!.depth;
+    for (let j = i + step; j >= 0 && j < rows.length; j += step) {
+      const r = rows[j]!;
+      if (r.depth < depth) return null;
+      if (r.depth === depth && r.ref && own.has(r.ref)) return r.ref;
+    }
+    return null;
+  };
+
+  const moveAmongSiblings = (row: EntityRow, step: -1 | 1) => {
+    const ref = row.ref;
+    const sibling = siblingOf(
+      rows.findIndex((r) => r.key === row.key),
+      step,
+    );
+    if (!ref || !sibling) return;
+    refocus.current = row.key;
+    land(
+      judge(
+        movedWith(ref),
+        step < 0 ? { kind: "reorder", before: sibling } : { kind: "reorder", after: sibling },
+      ),
+    );
+  };
+
+  /** Before a row on its top edge, after it on its bottom edge where no open children follow it; null is onto it. */
   const rowDrop = (key: string, ref: Ref, y: number, rect: { top: number; height: number }) => {
     const i = shown.findIndex((r) => r.key === key);
     const row = shown[i];
@@ -747,11 +856,9 @@ export function EditorOutliner({
       drop = rowDrop(at, parent, y, over.rect) ?? data;
     }
     if (aim && aim.at === at && dropKey(aim.drop) === dropKey(drop)) return aim;
-    const current = session.getDoc();
-    const prefabLib = session.getPrefabs();
-    const batch = treeDropBatch(current, registry, prefabLib, dragged.current, drop);
-    const refused = batch ? treeDropRefusal(current, registry, prefabLib, batch) : null;
-    return { at, drop, batch, refused };
+    const list = listRef.current?.getBoundingClientRect();
+    const above = !!list && over.rect.top + over.rect.height / 2 > list.top + list.height / 2;
+    return { ...judge(dragged.current, drop), at, above };
   };
 
   const onDragMove = (e: DragMoveEvent | DragOverEvent) => {
@@ -771,14 +878,7 @@ export function EditorOutliner({
     if (!ref || !drop) return;
     if (drop.kind !== "place") {
       const landed = aimAt(e);
-      if (landed?.refused) {
-        setRefusedAt({ at: landed.at, message: landed.refused.message });
-        cue("error");
-      } else if (landed?.batch && session.dispatch(landed.batch).ok) {
-        if (landed.drop.kind === "reparent" && landed.drop.parent !== null)
-          openTo(landed.drop.parent);
-        cue("drop");
-      }
+      if (landed) land(landed);
       return;
     }
     const moved = selected.has(ref) ? selection.filter((r) => !isBulkRef(r)) : [ref];
@@ -797,15 +897,8 @@ export function EditorOutliner({
             ? "before"
             : "after";
 
-  /** Why the drop aimed at `key` is refused: while it's held, then for a while after it's let go. */
   const refusalAt = (key: string): string | undefined =>
-    aim
-      ? aim.at === key
-        ? aim.refused?.message
-        : undefined
-      : refusedAt?.at === key
-        ? refusedAt.message
-        : undefined;
+    aim?.at === key ? aim.refused?.message : undefined;
   const rootRefusal = refusalAt(ROOT_DROP) ?? refusalAt(ROOT_STRIP);
 
   return (
@@ -814,13 +907,12 @@ export function EditorOutliner({
       className="je-outliner"
       // The pointer left the scene view for here, so what it last hovered there no longer is.
       onPointerEnter={() => setHover(session.store, null)}
-      onPointerDownCapture={() => setRefusedAt(null)}
     >
       <div className="je-panel-toolbar je-outliner-head">
         <span className="je-sp-truncate je-outliner-scene">{sceneName}</span>
         <SegmentedControl
           size="xs"
-          aria-label="Group rows by"
+          aria-label="Outline view"
           value={view}
           onChange={(v) => {
             if (!isView(v)) return;
@@ -830,7 +922,7 @@ export function EditorOutliner({
         >
           <SegmentedControl.Item
             value="tree"
-            tooltip="Rows under their parents; drag a row onto another to put it under it, or onto its top or bottom edge to put it before or after it"
+            tooltip="Rows under their parents; drag to reparent or reorder"
           >
             Tree
           </SegmentedControl.Item>
@@ -887,7 +979,7 @@ export function EditorOutliner({
         onDragEnd={onDragEnd}
         onDragCancel={endDrag}
       >
-        <TreeList enabled={tree} mark={markOf(ROOT_DROP)}>
+        <TreeList enabled={tree} mark={markOf(ROOT_DROP)} listRef={listRef}>
           {filtering && shown.length === 0 ? (
             <li className="je-outliner-none">Nothing matches.</li>
           ) : null}
@@ -907,6 +999,8 @@ export function EditorOutliner({
                   drop={tree && ref ? { kind: "reparent", parent: ref } : undefined}
                   mark={markOf(row.key)}
                   refusal={refusalAt(row.key)}
+                  refusalAbove={aim?.above}
+                  onMove={tree && draggable ? (step) => moveAmongSiblings(row, step) : undefined}
                   {...(opens
                     ? {
                         expanded: !(collapsed[row.key] ?? collapsedByDefault(row)),
@@ -980,8 +1074,8 @@ export function EditorOutliner({
             );
           })}
         </TreeList>
-        {tree && (dragging || rootRefusal) ? (
-          <RootStrip mark={markOf(ROOT_STRIP)} refusal={rootRefusal} />
+        {tree ? (
+          <RootStrip idle={!dragging} mark={markOf(ROOT_STRIP)} refusal={rootRefusal} />
         ) : null}
       </DndContext>
     </nav>

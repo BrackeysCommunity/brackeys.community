@@ -9,7 +9,11 @@ import type { Pose } from "./poses";
 /** Radians for the angle of what an entity sits in. */
 const turnRad = (transform: RuntimeEntity["transform"]) => turnRadians(transform?.rot ?? 0);
 
-const poseOf = ({ at, rotDeg }: GeometryPose, transform: RuntimeEntity["transform"]): Pose => ({
+/** A pose at `at`, turned by `rotDeg` degrees when set, else by the angle of what it sits in. */
+export const poseOf = (
+  { at, rotDeg }: GeometryPose,
+  transform: RuntimeEntity["transform"],
+): Pose => ({
   x: at[0],
   y: at[1],
   rot: rotDeg === undefined ? turnRad(transform) : degToRad(rotDeg),

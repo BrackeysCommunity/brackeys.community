@@ -8,6 +8,7 @@ import type { SceneRuntimeHandle } from "../runtime/types";
 import { expandScene } from "../scene/expand";
 import { SCENE_FORMAT_VERSION, type EntityDef } from "../scene/types";
 import type { RapierModule } from "../types";
+import { steps, withParents } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -49,30 +50,29 @@ const ENTITIES: EntityDef[] = [
     },
   },
 ] as EntityDef[];
-const CHILDREN = ["lamp", "walker", "jumper", "seeker"];
+const PARENTS = { lamp: "rig", walker: "rig", jumper: "rig", seeker: "rig" };
 
 function load(physics: Physics): SceneRuntimeHandle {
-  const scene = expandScene(
-    {
-      v: SCENE_FORMAT_VERSION,
-      game: game.id,
-      name: "self-moving",
-      bounds: [-20, -20, 20, 20],
-      settings: { physics, gravity: [0, 0] },
-      entities: ENTITIES,
-    },
-    registry,
+  const scene = withParents(
+    expandScene(
+      {
+        v: SCENE_FORMAT_VERSION,
+        game: game.id,
+        name: "self-moving",
+        bounds: [-20, -20, 20, 20],
+        settings: { physics, gravity: [0, 0] },
+        entities: ENTITIES,
+      },
+      registry,
+    ),
+    PARENTS,
   );
-  for (const e of scene.entities) if (CHILDREN.includes(e.id)) e.parent = "rig";
   const rt = createSceneRuntime({ rapier: physics === "rapier" ? rapier : null, view: null, game });
   const report = rt.load(scene);
   if (!report.ok) throw new Error(report.error);
   return rt;
 }
 
-const steps = (rt: SceneRuntimeHandle, n: number) => {
-  for (let i = 0; i < n; i++) rt.step(rt.ctx.time.tickMs, []);
-};
 const at = (rt: SceneRuntimeHandle, id: string) => {
   const p = rt.ctx.poses.get(id)!;
   return { x: p.x, y: p.y };

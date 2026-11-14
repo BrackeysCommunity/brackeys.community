@@ -16,6 +16,7 @@ import {
   type SceneSystem,
   type SpawnInput,
 } from "../game/types";
+import { radToDeg } from "../physics";
 import type { AssetId } from "../project/types";
 import { expandInstance, runtimeEntity } from "../scene/expand";
 import { makeIssue } from "../scene/issues";
@@ -26,8 +27,10 @@ import {
   applyPt,
   composeOrientations,
   dihedral,
+  normDeg,
   translation,
   type Dihedral,
+  type Transform2D,
 } from "../scene/transform";
 import { transformEntityDef } from "../scene/translate";
 import type {
@@ -169,6 +172,7 @@ export type Lifecycle = {
   destroySublevel: (label: string) => void;
   /** Whether any live entity's id carries `label`'s prefix. */
   holdsSublevel: (label: string) => boolean;
+  /** At once outside a step; inside one, or while `id`'s behaviors attach, at the next flush. */
   destroy: (id: string) => void;
   instantiate: (prefab: AssetId, at: Pt | Vec2, opts?: InstantiateOptions) => InstantiateResult;
   /**
@@ -244,17 +248,30 @@ function notSpawnable(prefab: AssetId, id: string, cause: NotSpawnableCause): En
 const NO_TURN: Dihedral = { rot: 0, flip: false };
 
 /**
- * A spawn's fields put in the world from a parent's frame. A parent turned
- * by whole quarter turns transforms them exactly, as a prefab instance does
- * its children; for any other angle they are moved so the entity's spawn
- * point lands where the frame puts it (to the file's length precision),
- * and `aim` holds that point exactly and the frame's angle, which the
- * entity is put at and turned by once it exists.
+ * A spawn's fields put in the world from a parent's frame: exact for
+ * quarter turns; otherwise `aim` holds the exact point and angle (radians,
+ * on top of its own) to set once it exists.
  */
-type Placed = { def: EntityDef; turn: Dihedral; aim?: Aim };
+type Placed = { def: EntityDef; turn: Dihedral; aim?: { x: number; y: number; turn: number } };
 
-/** Where a spawn placed in a turned frame goes, and the angle it turns by on top of its own. */
-type Aim = { x: number; y: number; turn: number };
+/** A frame turned by whole quarter turns, as the exact transform a prefab instance's children take. */
+function quarterFrame(frame: Readonly<Pose>): { turn: Dihedral; t: Transform2D } | null {
+  const q = quarterTurns(frame.rot);
+  if (q === null) return null;
+  const turn: Dihedral = { rot: q, flip: false };
+  return { turn, t: dihedral(turn, [frame.x, frame.y]) };
+}
+
+/**
+ * `pt` in `frame`'s coordinates put in the world, and the degrees the frame
+ * turns what's placed in it; `exact` for a quarter-turn frame.
+ */
+function framePoint(frame: Readonly<Pose>, pt: Pt): { at: Pt; turnDeg: number; exact: boolean } {
+  const quarter = quarterFrame(frame);
+  if (quarter) return { at: applyPt(quarter.t, pt), turnDeg: 90 * quarter.turn.rot, exact: true };
+  const world = composePose(frame.x, frame.y, frame.rot, { x: pt[0], y: pt[1], rot: 0 });
+  return { at: [world.x, world.y], turnDeg: radToDeg(frame.rot), exact: false };
+}
 
 export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   const { ctx, registry, systems, behaviors, entities, query } = deps;
@@ -367,6 +384,8 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   }
 
   const live = (id: string) => entities.has(id);
+  /** Live, or having its behaviors attached before it joins the entity table. */
+  const joined = (id: string) => entities.has(id) || behaviors.attaching(id) !== undefined;
 
   /** Whether `id`'s own switch and every ancestor's are on. */
   function switchedOn(id: string): boolean {
@@ -455,25 +474,21 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   }
 
   function placeLocal(def: EntityDef, frame: Readonly<Pose>): Placed {
-    const q = quarterTurns(frame.rot);
-    if (q !== null) {
-      const turn: Dihedral = { rot: q, flip: false };
-      const t = dihedral(turn, [frame.x, frame.y]);
-      return { def: transformEntityDef(registry, def, t) ?? def, turn };
-    }
+    const quarter = quarterFrame(frame);
+    if (quarter)
+      return { def: transformEntityDef(registry, def, quarter.t) ?? def, turn: quarter.turn };
     const type = registry.types.get(def.type)!;
     const local = spawnPoseOf(
       runtimeEntity(registry, def, type, NO_TURN),
       geometry.get(def.type) ?? [],
     );
-    const world = composePose(frame.x, frame.y, frame.rot, local);
-    const by: Pt = [world.x - local.x, world.y - local.y];
-    const moved = transformEntityDef(registry, def, translation(by)) ?? def;
-    return { def: moved, turn: NO_TURN, aim: { x: world.x, y: world.y, turn: frame.rot } };
+    const [x, y] = framePoint(frame, [local.x, local.y]).at;
+    const moved = transformEntityDef(registry, def, translation([x - local.x, y - local.y])) ?? def;
+    return { def: moved, turn: NO_TURN, aim: { x, y, turn: frame.rot } };
   }
 
   /** Puts a just-linked spawn where `aim` says, turned by its angle, when its type can be posed. */
-  function turnPlaced(e: RuntimeEntity, aim: Aim | undefined): void {
+  function turnPlaced(e: RuntimeEntity, aim: Placed["aim"]): void {
     const pose = ctx.poses.get(e.id);
     if (!aim || !pose || !systems.get(e.type)?.setPose) return;
     ctx.setPose(e.id, aim.x, aim.y, pose.rot + aim.turn, { snap: true });
@@ -618,20 +633,11 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     let where = given;
     let rot = opts.rot ?? 0;
     if (frame && opts.local === true) {
-      const q = quarterTurns(frame.rot);
-      if (q !== null) {
-        where = applyPt(dihedral({ rot: q, flip: false }, [frame.x, frame.y]), given);
-        rot = (((rot + 90 * q) % 360) + 360) % 360;
-      } else {
-        const world = composePose(frame.x, frame.y, frame.rot, {
-          x: given[0],
-          y: given[1],
-          rot: 0,
-        });
-        where = [world.x, world.y];
-        const turn = { rot: (frame.rot * 180) / Math.PI, flip: false };
-        rot = composeOrientations(turn, { rot, flip: false }).rot;
-      }
+      const placed = framePoint(frame, given);
+      where = placed.at;
+      rot = placed.exact
+        ? normDeg(rot + placed.turnDeg)
+        : composeOrientations({ rot: placed.turnDeg, flip: false }, { rot, flip: false }).rot;
     }
     const id = exact !== undefined ? claimExact(exact) : claimId(prefab, opts.id);
     const inst: InstanceDef = {
@@ -918,7 +924,7 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
       return false;
     },
     destroy(id) {
-      if (deps.stepping()) {
+      if (deps.stepping() || behaviors.attaching(id)) {
         doomed.push(id);
         return;
       }
@@ -935,8 +941,8 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     keepDisabled(e) {
       if (entities.has(e.id) && !disabled.has(e.id)) disable(e);
     },
-    enabled: (id) => entities.has(id) && !disabled.has(id),
-    enabledSelf: (id) => entities.has(id) && !off.has(id),
+    enabled: (id) => joined(id) && !disabled.has(id),
+    enabledSelf: (id) => joined(id) && !off.has(id),
     exists: live,
     get: (id) => entities.get(id),
     flush() {

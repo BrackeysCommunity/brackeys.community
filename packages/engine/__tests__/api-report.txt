@@ -1080,6 +1080,7 @@ NAV_AGENT
 NAV_ARRIVED
 NAV_BLOCKED
 NAV_COMMAND
+NODE_TYPE
 NavAgentBlock
 NavAgentHandle
 NavAgentSystem
@@ -1265,6 +1266,7 @@ angleField
 arrivalWords
 assetField
 assetKindsOf
+bindTo
 bindingKeyLabel
 bindingProblems
 bodyLocalShape
@@ -1276,6 +1278,8 @@ carrierDelta
 castSpawn
 cellKey
 cellOf
+characterHandle
+characterPoseHooks
 clamp
 clampTiming
 clampVec2
@@ -4304,7 +4308,7 @@ type SelectingBatch = {
     batch: OpBatch;
     select: Ref[];
 };
-declare function deleteBatch(refs: readonly Ref[]): OpBatch | null;
+declare function deleteBatch(refs: readonly Ref[], def?: SceneDefinition): OpBatch | null;
 declare function flipBatch(def: SceneDefinition, refs: readonly Ref[], axis: "x" | "y"): OpBatch | null;
 declare function groupBatch(def: SceneDefinition, registry: Registry, refs: readonly Ref[], prefabs?: PrefabLibrary): SelectingBatch | null;
 declare function hierarchyDown(def: SceneDefinition, registry: Registry, sel: readonly Ref[], prefabs?: PrefabLibrary): Ref[] | null;
@@ -4345,7 +4349,6 @@ declare function expandRefs(def: SceneDefinition, registry: Registry, refs: Iter
 ## editor/gizmos/batch.ts
 declare function convertToChainFix(def: SceneDefinition, registry: Registry, ref: Ref): OpBatch | undefined;
 declare function moveBatch(refs: readonly Ref[], delta: Pt, pxPerMetre: number, label?: string): OpBatch | null;
-declare function normDeg(deg: number): number;
 declare function pathBatch(t: GizmoTarget, pts: readonly Pt[], pxPerMetre: number, label?: string): OpBatch | null;
 declare function pointBatch(t: GizmoTarget, at: Pt, pxPerMetre: number, label?: string): OpBatch | null;
 declare function roundShape(s: ShapeObj, pxPerMetre: number): ShapeObj;
@@ -5749,6 +5752,7 @@ type RegisteredBehavior = BehaviorDef & {
     origin: string;
     shape: z.ZodRawShape;
 };
+declare function bindTo<S, K extends keyof S>(system: S, id: string, keys: readonly K[]): Bound<S, K>;
 declare function defineBehavior<F extends z.ZodRawShape, H = unknown>(def: BehaviorDef<F, H>): BehaviorDef<F, H>;
 declare const handleType: <H>() => HandleType<H>;
 
@@ -5885,6 +5889,14 @@ type CharacterSystem<B extends BehaviorBlock = BehaviorBlock> = BehaviorSystem<B
     velocity(entityId: string): Vec2;
 };
 type CharacterTopDownBlock = z.infer<z.ZodObject<typeof characterTopDownFields>>;
+declare function characterHandle(system: CharacterSystem, id: string): CharacterHandle;
+declare function characterPoseHooks(characters: ReadonlyMap<string, {
+    body: {
+        teleport(x: number, y: number, opts: {
+            snap: boolean;
+        }): void;
+    };
+}>): Required<Pick<BehaviorSystem, "posed" | "selfMoving">>;
 declare const characterTopDownFields: {
     accel: z.ZodDefault<z.ZodNumber>;
     decel: z.ZodDefault<z.ZodNumber>;
@@ -6938,6 +6950,7 @@ declare const CAMERA_RIG_SCHEMA: z.ZodObject<{
     }, z.core.$strict>>;
 }, z.core.$strict>;
 type CameraRigDef = z.infer<typeof CAMERA_RIG_SCHEMA>;
+declare const NODE_TYPE: EntityTypeName;
 declare const PRIMITIVES: {
     "camera-region": {
         ascii: string;
@@ -15225,6 +15238,7 @@ declare const inverseTurn: (d: Dihedral) => Dihedral;
 declare function invert(t: Transform2D): Transform2D;
 declare const isIdentityTurn: (d: Dihedral) => boolean;
 declare const isQuarterTurn: (deg: number) => boolean;
+declare function normDeg(deg: number): number;
 declare const translation: ([dx, dy]: Pt) => Transform2D;
 declare function turnOf(d: {
     flip?: boolean;

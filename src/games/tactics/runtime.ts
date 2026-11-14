@@ -147,11 +147,11 @@ export const STAIR_TYPE = defineEntityType({
   base: "marker",
   fields: {
     at: pointField("The stair's cell, by its centre. Absolute world metres; y is down."),
-    sublevel: z
+    opens: z
       .string()
       .regex(ID_PATTERN)
       .describe("The listed sublevel scene it opens, attached under its own id as the label.")
-      .meta({ title: "Sublevel" }),
+      .meta({ title: "Opens" }),
     offset: vectorField(
       "Where the sublevel's origin lands, world metres: a whole number of cells, so its cells fall on the board's.",
     ).meta({ title: "Offset" }),
@@ -161,7 +161,7 @@ export const STAIR_TYPE = defineEntityType({
 });
 export type StairEntity = EntityOf<typeof STAIR_TYPE>;
 
-type Stair = { id: string; cell: Cell; sublevel: string; offset: [number, number] };
+type Stair = { id: string; cell: Cell; opens: string; offset: [number, number] };
 
 /**
  * What the runtime reports each tick: the rules' snapshot and where the run
@@ -461,7 +461,7 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     if (at < 0) return;
     const [stair] = stairs.splice(at, 1);
     changed();
-    const opened = ctx.flow.attach(stair!.sublevel, { label: stair!.sublevel, at: stair!.offset });
+    const opened = ctx.flow.attach(stair!.opens, { label: stair!.opens, at: stair!.offset });
     if (!opened.ok) {
       note(`${stair!.id} stays shut: ${opened.issue.message}`);
       if (ctx.dev) console.warn(`[tactics] ${stair!.id} stays shut: ${opened.issue.message}`);
@@ -475,13 +475,13 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     // The grid walls the sublevel's solids at the tick's destroy flush; the board catches up after it.
     boardStale = true;
     state = { ...state, units: { ...state.units, ...units } };
-    note(`${unitId} opens the ${stair!.sublevel}`);
+    note(`${unitId} opens the ${stair!.opens}`);
     ctx.emit({
       type: TACTICS_OPENED,
       entityId: stair!.id,
       other: unitId,
       at: centre(stair!.cell),
-      data: { sublevel: stair!.sublevel, units: Object.keys(units).sort() },
+      data: { sublevel: stair!.opens, units: Object.keys(units).sort() },
     });
   }
 
@@ -636,7 +636,7 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     return {
       id: stair.id,
       cell: board.geometry.cellAt([pose.x, pose.y]),
-      sublevel: stair.sublevel,
+      opens: stair.opens,
       offset: [stair.offset[0], stair.offset[1]],
     };
   }
@@ -747,7 +747,7 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
     state = { turn: s.turn, side: s.side, phase: s.phase, units, result: s.result };
     next = s.next ?? null;
     const open = new Set(ctx.flow.sublevels().map((l) => l.label));
-    stairs = stairs.filter((st) => !open.has(st.sublevel));
+    stairs = stairs.filter((st) => !open.has(st.opens));
     pending = orders;
     aiWait = s.ai?.wait ?? 0;
     autosaved = s.turn;
@@ -846,7 +846,7 @@ export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRun
       .select({ type: STAIR_TYPE.type })
       .map((id) => ctx.get(id) as StairEntity | undefined)
       .filter((e): e is StairEntity => e !== undefined)
-      .filter((e) => (kept.has(e.id) || fresh.has(e.id)) && !open.has(e.sublevel))
+      .filter((e) => (kept.has(e.id) || fresh.has(e.id)) && !open.has(e.opens))
       .map(stairOf);
 
     const before = pending.length;

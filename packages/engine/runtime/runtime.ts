@@ -73,7 +73,7 @@ import { createLookups, type Lookups } from "./lookups";
 import { runtimeNav } from "./nav";
 import { gamePersistCell, playClockOf, type PlayClock } from "./persist";
 import { LOAD_GENERATION } from "./pool";
-import { createPoseIndex, relativePose } from "./poses";
+import { createPoseIndex, relativePose, samePose } from "./poses";
 import { createPresentationQueue } from "./present";
 import { systemFactoryOf } from "./primitives";
 import { createQueryIndex, type RuntimeQueryIndex } from "./query-index";
@@ -602,7 +602,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
     ctx,
     systems,
     behaviors,
-    get: (id) => lifecycle.get(id),
+    get: (id) => lifecycle.get(id) ?? behaviors.attaching(id),
     enabled: (id) => lifecycle.enabled(id),
   });
   handles = createEntityHandles({
@@ -931,12 +931,8 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   }
 
   /**
-   * After an edit replaced records: one whose `parent` changed moves under
-   * the new one (or becomes a root when that isn't live), keeping the pose
-   * the edit gave it; the rest stay where they are among their siblings,
-   * measured anew and asked to ride again, with their children, since a
-   * respawn rebuilt their colliders and bodies. A parent the tree refuses
-   * (a cycle, another sublevel) is the edit's refusal.
+   * Re-links records an edit replaced: a changed `parent` reparents (a
+   * refused one is the edit's refusal), the rest are re-measured in place.
    */
   function relink(
     changes: readonly { e: RuntimeEntity; prev: RuntimeEntity }[],
@@ -1236,8 +1232,7 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
         const frame = ctx.poses.get(parent);
         if (!local || !pose || !frame) continue;
         const measured = relativePose(pose, frame);
-        if (measured.x !== local.x || measured.y !== local.y || measured.rot !== local.rot)
-          locals[id] = [local.x, local.y, local.rot];
+        if (!samePose(measured, local)) locals[id] = [local.x, local.y, local.rot];
       }
     }
     const saved: SavedTree = {};
@@ -1311,16 +1306,9 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   }
 
   /**
-   * After a fresh load of the save's scene, in order: sublevels as saved;
-   * runtime spawns as saved (kept where the load made them again, spawned
-   * again with their exact ids otherwise, and the rest destroyed); saved
-   * destroys; counters; parents; enabled flags (own switches); the tick;
-   * poses, then each child's local pose measured from them, or the saved
-   * one; each owner's `restore` (type system, behaviors, then what
-   * registered with the save registry) and the contact watches; timers;
-   * `ctx.random` and its forks; seats and held input. Outside a step, so
-   * none of it raises an event, and with the tree not following, so a
-   * parent's pose write moves no child.
+   * Puts a fresh load of the save's scene back as saved, outside a step and
+   * with the tree not following, so it raises no events and a parent's pose
+   * write moves no child.
    */
   function restoreWorld(world: WorldState, levels: readonly SublevelInfo[]): SceneIssue | null {
     return tree.quietly(() => restoreWorldQuietly(world, levels));

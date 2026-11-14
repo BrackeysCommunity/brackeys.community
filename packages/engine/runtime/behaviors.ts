@@ -78,12 +78,8 @@ export type BehaviorHost = {
   /** Hands each of `e`'s attached blocks its entry in `states`, through the system's `restore`. */
   restore(e: RuntimeEntity, states: Readonly<Record<string, JsonValue>>): void;
   /**
-   * What `Entity.getBehavior` returns for `e`'s `name` block: the system's
-   * `handle`, asked once per attach and kept until the block detaches, with
-   * `fields` reading the block as it is now; `{ fields }` for a behavior
-   * with no system or a system without `handle`. Undefined when `e` doesn't
-   * carry the block, or its system isn't built, holds it detached or has
-   * no handle for it yet (an earlier block's hook asking mid-attach).
+   * The cached `getBehavior` object for `e`'s `name` block, with live
+   * `fields`; undefined when the block isn't attached or has no handle yet.
    */
   handle(e: RuntimeEntity, name: BehaviorName): object | undefined;
   /** `ctx.setPose` moved `e`: each attached block's `posed`, in registration order. */
@@ -108,6 +104,10 @@ function factoryOf(def: RegisteredBehavior): BehaviorSystemFactory | undefined {
 
 const blockOf = (e: RuntimeEntity, name: BehaviorName): BehaviorBlock | undefined =>
   e.behaviors?.[name];
+
+/** The behaviors whose blocks `e` carries, in its record's order. */
+export const carriedBehaviors = (e: RuntimeEntity): BehaviorName[] =>
+  Object.keys(e.behaviors ?? {}).filter((name) => blockOf(e, name));
 
 /**
  * The behavior host for a runtime's context: one system per behavior that

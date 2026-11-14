@@ -634,26 +634,26 @@ describe("EditorInspector: an instance's placement", () => {
 
   it("turns and flips with one batch, one undo step and one history row per click", () => {
     const { session, dispatch } = placed(["post-2"]);
-    expect(within(section()).getByText("Not turned")).toBeTruthy();
+    expect(within(section()).getByText("Not flipped")).toBeTruthy();
     const rows = session.store.state.history.length;
 
-    fireEvent.click(within(section()).getByRole("button", { name: "Turn clockwise" }));
+    fireEvent.click(within(section()).getByRole("button", { name: "Turn 90° clockwise" }));
     expect(dispatch).toHaveBeenCalledOnce();
     expect(dispatch.mock.calls[0]![0]).toEqual({
-      label: "Turn post-2 clockwise",
+      label: "Turn post-2 90° clockwise",
       ops: [{ op: "transform", refs: ["post-2"], turn: 1 }],
     });
     expect(post(session).rot).toBe(90);
     expect(session.store.state.history).toHaveLength(rows + 1);
-    expect(session.store.state.history.at(-1)!.label).toBe("Turn post-2 clockwise");
-    expect(within(section()).getByText("Turned 90°")).toBeTruthy();
+    expect(session.store.state.history.at(-1)!.label).toBe("Turn post-2 90° clockwise");
+    expect(input("rot").value).toBe("90");
 
     fireEvent.click(within(section()).getByRole("button", { name: "Flip horizontally" }));
     expect(dispatch.mock.calls[1]![0].ops).toEqual([
       { op: "transform", refs: ["post-2"], flip: "x" },
     ]);
     expect(session.store.state.history).toHaveLength(rows + 2);
-    expect(within(section()).getByText(/flipped/)).toBeTruthy();
+    expect(within(section()).getByText("Flipped")).toBeTruthy();
 
     act(() => void session.undo());
     expect(post(session).flip).toBeUndefined();
@@ -661,7 +661,7 @@ describe("EditorInspector: an instance's placement", () => {
     act(() => void session.undo());
     expect(post(session).rot).toBeUndefined();
 
-    fireEvent.click(within(section()).getByRole("button", { name: "Turn counter-clockwise" }));
+    fireEvent.click(within(section()).getByRole("button", { name: "Turn 90° counterclockwise" }));
     fireEvent.click(within(section()).getByRole("button", { name: "Flip vertically" }));
     expect(dispatch.mock.calls.slice(2).map((c) => c[0].ops[0])).toEqual([
       { op: "transform", refs: ["post-2"], turn: -1 },
@@ -693,8 +693,11 @@ describe("EditorInspector: an instance's placement", () => {
   it("shows a nested instance's placement without the controls", () => {
     placed(["yard-1/post-1"]);
     expect(within(section()).getByText("4")).toBeTruthy();
+    expect(within(section()).getByText("Rotation")).toBeTruthy();
+    expect(within(section()).getByText("0°")).toBeTruthy();
     expect(within(section()).queryByRole("button")).toBeNull();
     expect(screen.queryByLabelText("z")).toBeNull();
+    expect(screen.queryByLabelText("rot")).toBeNull();
   });
 
   it("hints with tooltips, never a native title", () => {
@@ -873,7 +876,7 @@ describe("EditorInspector: the Parent row", () => {
     await pick("rig");
     await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
     expect(dispatch.mock.calls[0]![0]).toEqual({
-      label: "Reparent ring under rig",
+      label: "Put ring under rig",
       ops: [{ op: "reparent", refs: ["ring"], parent: "rig" }],
     });
     expect(entity(session, "ring").parent).toBe("rig");
@@ -894,6 +897,34 @@ describe("EditorInspector: the Parent row", () => {
     expect(listed).not.toContain("bolt");
   });
 
+  it("moves a selection under different parents to the root through None (root)", async () => {
+    const { session, dispatch } = tree(["ring", "bolt"]);
+    expect(within(identity()).getByRole("combobox", { name: "parent" })).toBeTruthy();
+    expect((await options())[0]).toBe("None (root)");
+    const root = screen.getAllByRole("option")[0]!;
+    fireEvent.mouseMove(root);
+    fireEvent.click(root);
+    await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
+    expect(dispatch.mock.calls[0]![0].ops).toEqual([
+      { op: "reparent", refs: ["bolt"], parent: null },
+    ]);
+    expect(entity(session, "bolt").parent).toBeUndefined();
+  });
+
+  it("offers no root choice when everything selected is already at the root", async () => {
+    tree(["ring"]);
+    expect(await options()).not.toContain("None (root)");
+  });
+
+  it("hints an entity's Parent row in a designer's words, not the op's", async () => {
+    tree(["ring"]);
+    await act(async () => {
+      fireEvent.focus(within(identity()).getByText("Parent"));
+    });
+    expect(await screen.findByText(/Changing it keeps it where it is in the world/)).toBeTruthy();
+    expect(screen.queryByText(/reparent/)).toBeNull();
+  });
+
   it("says which frame a child's world values are stored in", () => {
     tree(["bolt"]);
     expect(screen.getByText("World values; the file stores them in rig's frame.")).toBeTruthy();
@@ -907,7 +938,7 @@ describe("EditorInspector: the Parent row", () => {
     await pick("rig", placement);
     await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
     expect(dispatch.mock.calls[0]![0]).toEqual({
-      label: "Reparent post-2 under rig",
+      label: "Put post-2 under rig",
       ops: [{ op: "reparent", refs: ["post-2"], parent: "rig" }],
     });
     const inst = () => session.getDoc().instances!.find((i) => i.id === "post-2")!;
@@ -927,7 +958,8 @@ describe("EditorInspector: the Parent row", () => {
       ops: [{ op: "transform", refs: ["post-2"], rotate: 45 }],
     });
     expect(session.getDoc().instances![0]!.rot).toBe(45);
-    expect(screen.getByText("Turned 45°")).toBeTruthy();
+    expect(input("rot").value).toBe("45");
+    expect(within(placement()).queryByText(/Turned/)).toBeNull();
   });
 
   it("shows an instance child's parent without a picker, saying why", async () => {

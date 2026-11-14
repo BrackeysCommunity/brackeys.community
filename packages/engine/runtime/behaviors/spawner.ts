@@ -1,9 +1,10 @@
 import { z } from "zod";
 
-import type {
-  BehaviorSystem,
-  BehaviorSystemFactory,
-  RegisteredBehavior,
+import {
+  bindTo,
+  type BehaviorSystem,
+  type BehaviorSystemFactory,
+  type RegisteredBehavior,
 } from "../../game/behaviors";
 import type { SpawnerBlock, SpawnerHandle, SpawnerSystem } from "../../game/behaviors/spawner";
 import { NODE_TYPE } from "../../game/primitives";
@@ -81,7 +82,7 @@ export const createSpawnerSystem: BehaviorSystemFactory = (
   /**
    * Whether spawn `key` still holds its slot. A prefab instance's node at
    * `key` holds nothing by itself: the instance holds until the last entity
-   * under it that isn't a node goes, as it did before instances had nodes.
+   * under it that isn't a node goes.
    */
   function holds(s: Spawner, key: string): boolean {
     if (!ctx.exists(key)) return false;
@@ -349,7 +350,7 @@ export const createSpawnerSystem: BehaviorSystemFactory = (
     },
     size: () => spawners.size,
     live: (id) => [...(spawners.get(id)?.live ?? [])],
-    handle: (id): SpawnerHandle => ({ live: () => system.live(id) }),
+    handle: (id): SpawnerHandle => bindTo(system, id, ["live"]),
   };
   return system as BehaviorSystem;
 };

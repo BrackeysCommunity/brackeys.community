@@ -20,7 +20,7 @@ import { parseArgs } from "node:util";
 
 import { createServer, runnerImport, type ViteDevServer } from "vite-plus";
 
-import { engineSourceRunner } from "../engine-source-alias";
+import { engineSourceRunner } from "../engine-source-alias.ts";
 
 const CONFIG = fileURLToPath(new URL("./vite.config.ts", import.meta.url));
 

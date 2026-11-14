@@ -1,11 +1,11 @@
 import type { BehaviorName } from "../game/behaviors";
 import type { BehaviorKey, Entity, HandleOf } from "../game/entity";
 import { behaviorNameOf } from "../game/script";
-import { EngineError, type EngineContext, type SceneTree } from "../game/types";
+import { entityGone, type EngineContext, type SceneTree } from "../game/types";
 import { ownChildId } from "../scene/resolve";
 import { tagFieldsOf } from "../scene/schema";
 import type { RuntimeEntity } from "../scene/types";
-import type { BehaviorHost } from "./behaviors";
+import { carriedBehaviors, type BehaviorHost } from "./behaviors";
 import type { EntityTable } from "./entity-table";
 import type { Pose } from "./poses";
 import type { StepEvent } from "./types";
@@ -58,13 +58,7 @@ class EntityHandle implements Entity {
   /** The live record, or `entity-gone`. */
   #live(): RuntimeEntity {
     const e = this.#host.made.get(this.id) === this ? this.#host.record(this.id) : undefined;
-    if (!e) {
-      throw new EngineError(
-        "entity-gone",
-        `entity "${this.id}" was destroyed: its handle no longer reaches it`,
-        this.id,
-      );
-    }
+    if (!e) throw entityGone(this.id, "use the handle of");
     return e;
   }
 
@@ -142,8 +136,7 @@ class EntityHandle implements Entity {
   }
 
   behaviors(): readonly BehaviorName[] {
-    const blocks = this.#live().behaviors ?? {};
-    return Object.keys(blocks).filter((name) => blocks[name]);
+    return carriedBehaviors(this.#live());
   }
 
   on(type: string, handler: (e: StepEvent) => void): () => void {

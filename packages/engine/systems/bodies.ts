@@ -27,7 +27,7 @@ import type {
 import { posedBodyDesc, shapeColliderDesc, shapePose } from "../physics";
 import { rapierBodyEntry, registerBody, type BodyEntry } from "../runtime/bodies-control";
 import type { GeometryColliderDesc } from "../runtime/geometry-world";
-import { composePose, framePose, relativePose, type Pose } from "../runtime/poses";
+import { composePose, framePose, relativePose, samePose, type Pose } from "../runtime/poses";
 import type { SpaceHit } from "../runtime/space";
 import { shapeSpawnPose } from "../runtime/spawn-pose";
 import { SENSOR_ENTER, SENSOR_EXIT, type StepEvent } from "../runtime/types";
@@ -502,9 +502,6 @@ function bodyPose(body: RigidBody): Pose {
 }
 
 const ZERO_POSE: Pose = { x: 0, y: 0, rot: 0 };
-
-const moved = (a: Readonly<Pose>, b: Readonly<Pose>) =>
-  a.x !== b.x || a.y !== b.y || a.rot !== b.rot;
 
 /** The pose that undoes `pose`: what a world point becomes in `pose`'s frame. */
 const inverse = (pose: Pose): Pose => relativePose(ZERO_POSE, pose);
@@ -1131,7 +1128,7 @@ export function createSolidSystem(
       const hidden = isHidden(id);
       const pose = ctx.poses.get(id);
       spawn(e);
-      if (pose && !riders.riders.has(id) && moved(pose, shapeSpawnPose(e.shape, e.transform)))
+      if (pose && !riders.riders.has(id) && !samePose(pose, shapeSpawnPose(e.shape, e.transform)))
         setPose(id, pose.x, pose.y, pose.rot);
       if (hidden) setGate(id, true);
       if (off) disable(id);
@@ -1630,7 +1627,7 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
       const kept = table.owned.get(id)?.inside ?? inside.get(id);
       const pose = ctx.poses.get(id);
       spawn(e);
-      if (pose && !riders.riders.has(id) && moved(pose, shapeSpawnPose(e.shape, e.transform)))
+      if (pose && !riders.riders.has(id) && !samePose(pose, shapeSpawnPose(e.shape, e.transform)))
         setPose(id, pose.x, pose.y, pose.rot);
       if (kept) {
         const owned = table.owned.get(id);

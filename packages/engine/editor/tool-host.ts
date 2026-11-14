@@ -514,7 +514,7 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       case "hierarchy-down":
         return selectRefs(hierarchyDown(doc, registry, sel, prefabs));
       case "delete":
-        return apply(deleteBatch(sel));
+        return apply(deleteBatch(sel, doc));
       case "duplicate":
         return host.duplicate();
       case "toggle-snap":

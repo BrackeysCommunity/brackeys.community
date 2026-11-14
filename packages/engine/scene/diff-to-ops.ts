@@ -394,32 +394,11 @@ function parentMoves(
 }
 
 /**
- * A batch that turns scene `a` into scene `b`: `applyOps(a, diffToOps(a, b))`
- * formats exactly as `b`.
- *
- * Named entities match by id. One present on both sides with the same type
- * becomes an `update` (set and unset of the top-level fields that differ), so
- * a live doc keeps its key, and a survivor whose place in the order moved a
- * `reorder`; a type change is removed and added again. New entities are
- * added at their index. Bulk arrays keep the entries they share in order (LCS); an entry
- * that only moved becomes a `move` (one per offset), one resized or
- * otherwise changed in place an `update` of its shape or point, and the
- * rest is removed or added. The header goes through `setScene`, settings
- * through `setSettings`, the `assets` header through `useAssets`. Instances match by id
- * like named entities, their `rot`, `flip` and `overrides` through
- * `update`, each changed param through `setParam`; a change of only `z` is a `setZ`, and one placing
- * another prefab is removed and instantiated again. A grid field that
- * changed is one `update` of the whole field.
- *
- * A `parent` never goes through `update`. One that changes is a `reparent`
- * after the adds, followed by an `update` that puts the stored geometry
- * back exactly, on it and on everything below it; something under a removed entity or instance goes to the
- * root first, since `remove` takes a subtree. Removals list children
- * before their parents, and adds put a parent before what sits under it.
- *
- * `registry` tells point-form bulk keys from shape-form ones; without it the
- * values decide. Throws when `$schema`, `v` or `game` differ, when `b` has
- * no `name`, or when `b`'s parents form a cycle, since no op makes those.
+ * A batch with `applyOps(a, diffToOps(a, b))` formatting exactly as `b`.
+ * Matching ids become updates or reorders, so live docs keep their keys. A
+ * changed `parent` is a `reparent` after the adds, then an update restoring
+ * stored geometry. `registry` tells point-form bulk keys from shape-form
+ * ones. Throws when the header or `b`'s parents can't be expressed as ops.
  */
 export function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Registry): OpBatch {
   for (const k of HEADER_FIXED) {

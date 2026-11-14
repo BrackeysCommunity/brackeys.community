@@ -1,7 +1,7 @@
 import type { Collider, ColliderDesc, RigidBody, RigidBodyDesc } from "@dimforge/rapier2d";
 
 import { createSensorCollider } from "../../collisions";
-import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
+import { bindTo, type BehaviorSystem, type BehaviorSystemFactory } from "../../game/behaviors";
 import { BODY, type BodyBlock } from "../../game/behaviors/body";
 import type { ColliderBlock, ColliderSystem } from "../../game/behaviors/collider";
 import { physicsOf } from "../../game/physics-of";
@@ -517,7 +517,7 @@ export const createColliderSystem: BehaviorSystemFactory = (ctx: EngineContext) 
       const block = b ? blockOf(b.entity) : undefined;
       if (b && block) build(b.entity, block);
     },
-    handle: (id) => ({ rebuild: () => system.rebuild(id) }),
+    handle: (id) => bindTo(system, id, ["rebuild"]),
     /** Moves the body it built there, whatever its kind; a moving one keeps its velocity. */
     posed(id, pose) {
       const b = built.get(id);

@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 import type { BehaviorBlock } from "../game/behaviors";
@@ -6,11 +8,19 @@ import type { PathFollowSystem } from "../game/behaviors/path-follow";
 import { DEFAULT_ACTIONS } from "../game/defaults";
 import { createRegistry, defineEntityType, defineGame } from "../game/define";
 import { pointField } from "../game/fields";
+import { heldProject } from "../project/runtime-view";
 import { createSceneRuntime } from "../runtime/runtime";
+import type { SceneRuntimeHandle } from "../runtime/types";
 import { expandScene } from "../scene/expand";
-import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
+import {
+  SCENE_FORMAT_VERSION,
+  type EntityDef,
+  type SceneDefinition,
+  type SceneSettings,
+} from "../scene/types";
 import { createDataSystem } from "../systems/data";
 import type { RapierModule } from "../types";
+import { readHeld } from "./fixtures/held-project";
 import { engineErrorCode, stepEvents } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
@@ -49,6 +59,15 @@ const game = defineGame({
 });
 const registry = createRegistry(game);
 
+/** The engine project's hero atlas and kitchen animation, for an `anim` carrier. */
+const engineArt = heldProject(
+  readHeld(fileURLToPath(new URL("../scenes/", import.meta.url)), (path) =>
+    ["art/hero.json", "art/kitchen.animation.json"].includes(path),
+  ).files,
+  registry,
+  { projectId: "p", name: "P" },
+).runtime;
+
 const BACKENDS = ["none", "rapier"] as const;
 type Physics = (typeof BACKENDS)[number];
 
@@ -65,7 +84,15 @@ function carriers(physics: Physics): EntityDef[] {
     marker("fixed", row(0), { collider: { shape: BOX } }),
     marker("kinematic", row(1), { collider: { shape: BOX }, body: { kind: "kinematic" } }),
     ...(physics === "rapier"
-      ? [marker("dynamic", row(2), { collider: { shape: BOX }, body: { kind: "dynamic" } })]
+      ? [
+          marker("dynamic", row(2), { collider: { shape: BOX }, body: { kind: "dynamic" } }),
+          marker("tether", row(14), { collider: { shape: BOX }, body: { kind: "kinematic" } }),
+          marker("roped", row(15), {
+            collider: { shape: BOX },
+            body: { kind: "dynamic" },
+            joint: { kind: "rope", to: "tether", length: 3 },
+          }),
+        ]
       : []),
     marker("walker", row(3), { collider: { shape: BOX }, "character-top-down": {} }),
     marker("jumper", row(4), { collider: { shape: BOX }, "character-side-view": {} }),
@@ -83,23 +110,37 @@ function carriers(physics: Physics): EntityDef[] {
     }),
     { id: "prop", type: "prop", shape: ["box", 0, 22, 0.25, 0.25], density: 1, restitution: 0 },
     { id: "beacon", type: BEACON.type, at: [0, 24] } as EntityDef,
+    marker("spawning", row(13), { spawner: { type: "marker", rate: 2, cap: 10 } }),
+    marker("animated", row(16), {
+      sprite: { asset: "hero", frame: "hero-0" },
+      anim: { source: "kitchen-animation", clip: "idle" },
+    }),
   ].filter((e) => physics === "rapier" || e.type !== "prop");
 }
 
-function scene(entities: EntityDef[], physics: Physics): SceneDefinition {
+function scene(
+  entities: EntityDef[],
+  physics: Physics,
+  settings: Partial<SceneSettings> = {},
+): SceneDefinition {
   return {
     v: SCENE_FORMAT_VERSION,
     game: "posers",
     name: "posers",
     bounds: [-60, -60, 60, 60],
-    settings: { physics, gravity: [0, 0] },
+    settings: { physics, gravity: [0, 0], ...settings },
     entities,
   };
 }
 
-function load(entities: EntityDef[], physics: Physics) {
-  const rt = createSceneRuntime({ rapier: physics === "rapier" ? rapier : null, view: null, game });
-  const report = rt.load(expandScene(scene(entities, physics), registry));
+function load(entities: EntityDef[], physics: Physics, settings: Partial<SceneSettings> = {}) {
+  const rt = createSceneRuntime({
+    rapier: physics === "rapier" ? rapier : null,
+    view: null,
+    game,
+    project: engineArt,
+  });
+  const report = rt.load(expandScene(scene(entities, physics, settings), registry));
   if (!report.ok) throw new Error(report.error);
   const steps = (n: number) => void stepEvents(rt, n);
   return { rt, steps };
@@ -114,28 +155,38 @@ function idsAt(rt: ReturnType<typeof load>["rt"], x: number, y: number): string[
     .sort();
 }
 
+/** Where `teleportHolds` puts the `i`th entity it moves. */
+const target = (i: number) => ({ x: 30, y: i * 2 + 1, rot: 0.5 });
+
+/** Sets each of `ids` to its own `target`, steps 60 ticks, and checks each stayed there. */
+function teleportHolds(rt: SceneRuntimeHandle, steps: (n: number) => void, ids: string[]): void {
+  ids.forEach((id, i) => {
+    const t = target(i);
+    rt.ctx.setPose(id, t.x, t.y, t.rot);
+  });
+  for (const [i, id] of ids.entries()) expect(rt.ctx.poses.get(id), id).toMatchObject(target(i));
+  steps(60);
+  for (const [i, id] of ids.entries()) {
+    const t = target(i);
+    const p = rt.ctx.poses.get(id)!;
+    expect(p.x, id).toBeCloseTo(t.x, 6);
+    expect(p.y, id).toBeCloseTo(t.y, 6);
+  }
+}
+
 for (const physics of BACKENDS) {
   describe(`ctx.setPose on physics: ${physics}`, () => {
     it("moves an entity carrying each standard behavior, and nothing snaps back", () => {
       const entities = carriers(physics);
       const { rt, steps } = load(entities, physics);
+      expect(rt.stats().behaviors).toMatchObject({
+        spawner: 1,
+        anim: 1,
+        ...(physics === "rapier" ? { joint: 1 } : {}),
+      });
       steps(2);
       const moved = entities.filter((e) => e.type !== "nav").map((e) => e.id);
-      const target = (i: number) => ({ x: 30, y: i * 2 + 1, rot: 0.5 });
-      moved.forEach((id, i) => {
-        const t = target(i);
-        rt.ctx.setPose(id, t.x, t.y, t.rot);
-      });
-      for (const [i, id] of moved.entries()) {
-        expect(rt.ctx.poses.get(id), id).toMatchObject(target(i));
-      }
-      steps(60);
-      for (const [i, id] of moved.entries()) {
-        const t = target(i);
-        const p = rt.ctx.poses.get(id)!;
-        expect(p.x, id).toBeCloseTo(t.x, 6);
-        expect(p.y, id).toBeCloseTo(t.y, 6);
-      }
+      teleportHolds(rt, steps, moved);
       // Every collider is where its entity went, and none is left where it was.
       for (const id of ["fixed", "kinematic", "walker", "jumper", "agent", "seated", "tweened"]) {
         const t = target(moved.indexOf(id));
@@ -145,6 +196,36 @@ for (const physics of BACKENDS) {
       }
       const characters = rt.ctx.behavior<CharacterSystem>("character-top-down")!;
       expect(characters.velocity("walker")).toEqual({ x: 0, y: 0 });
+      const placed = new Set(entities.map((e) => e.id));
+      const spawns = rt.ctx.entities().filter((e) => !placed.has(e.id));
+      expect(spawns.length).toBeGreaterThan(0);
+      const at = target(moved.indexOf("spawning"));
+      for (const e of spawns)
+        expect(rt.ctx.poses.get(e.id), e.id).toMatchObject({ x: at.x, y: at.y });
+      rt.destroy();
+    });
+
+    it("moves an occupant's grid cell with it, and nothing snaps back", () => {
+      const { rt, steps } = load(
+        [
+          marker("standing", [0.5, 0.5], { occupant: {} }),
+          marker("walking", [0.5, 2.5], {
+            collider: { shape: BOX },
+            "character-top-down": {},
+            occupant: {},
+          }),
+        ],
+        physics,
+        { grid: { kind: "square", cell: [1, 1] } },
+      );
+      steps(2);
+      const occupancy = rt.ctx.grid!.occupancy;
+      expect(occupancy.at([0, 0])).toEqual(["standing"]);
+      teleportHolds(rt, steps, ["standing", "walking"]);
+      expect(occupancy.cellOf("standing")).toEqual([30, 1]);
+      expect(occupancy.cellOf("walking")).toEqual([30, 3]);
+      expect(occupancy.at([0, 0])).toEqual([]);
+      expect(occupancy.at([0, 2])).toEqual([]);
       rt.destroy();
     });
 
@@ -212,34 +293,44 @@ for (const physics of BACKENDS) {
         mode: "loop",
         speed: 1,
       };
-      const { rt, steps } = load(
-        [
-          marker("rider", [0, 0], { "path-follow": { path } }),
-          marker("platform", [0, 2], {
-            collider: { shape: BOX },
-            body: { kind: "kinematic" },
-            "path-follow": {
-              path: {
-                ...path,
-                pts: [
-                  [0, 2],
-                  [10, 2],
-                ],
-              },
+      const riders = [
+        marker("rider", [0, 0], { "path-follow": { path } }),
+        marker("platform", [0, 2], {
+          collider: { shape: BOX },
+          body: { kind: "kinematic" },
+          "path-follow": {
+            path: {
+              ...path,
+              pts: [
+                [0, 2],
+                [10, 2],
+              ],
             },
-          }),
-        ],
-        physics,
-      );
+          },
+        }),
+      ];
+      const { rt, steps } = load(riders, physics);
+      const twin = load(riders, physics);
       const follow = rt.ctx.behavior<PathFollowSystem>("path-follow")!;
       steps(30);
+      twin.steps(30);
       rt.ctx.setPose("rider", 5, 7);
       rt.ctx.setPose("platform", 5, 9);
       expect(follow.position("rider")).toEqual({ x: 5, y: 7 });
       expect(follow.position("platform")).toEqual({ x: 5, y: 9 });
       expect(follow.frameDelta("platform") ?? { x: 0, y: 0 }).toEqual({ x: 0, y: 0 });
       expect(idsAt(rt, 5, 9)).toContain("platform");
+      // Its path still owns it: it goes on from where an untouched twin is.
+      steps(60);
+      twin.steps(60);
+      for (const id of ["rider", "platform"]) {
+        const got = rt.ctx.poses.get(id)!;
+        const want = twin.rt.ctx.poses.get(id)!;
+        expect(got.x, id).toBeCloseTo(want.x, 6);
+        expect(got.y, id).toBeCloseTo(want.y, 6);
+      }
       rt.destroy();
+      twin.rt.destroy();
     });
 
     it("moves a tweened entity's collider through setPose", () => {

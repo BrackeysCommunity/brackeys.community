@@ -431,6 +431,30 @@ describe("the index by the tree", () => {
     }
   });
 
+  it("rewrites only the instance entries over what an update touched", () => {
+    const applied = (ops: SceneOp[]) => {
+      const result = applyOps(doc, { ops }, reg, { prefabs: tree.prefabs });
+      if (!result.ok) throw new Error(result.issue.message);
+      return result.def;
+    };
+    const instances = ["turret-a", "tilt-turret"];
+    for (const [ops, refs, rewritten] of [
+      [[{ op: "move", refs: ["lone"], by: [1, 0] }], ["lone"], []],
+      [[{ op: "move", refs: ["tilt"], by: [1, 0] }], ["tilt"], ["tilt-turret"]],
+      [[{ op: "move", refs: ["flag"], by: [0, -1] }], ["flag"], ["turret-a"]],
+      [[{ op: "reparent", refs: ["flag"], parent: null }], ["flag"], ["turret-a"]],
+      [[{ op: "reparent", refs: ["lone"], parent: "turret-a/barrel" }], ["lone"], ["turret-a"]],
+    ] as [SceneOp[], string[], string[]][]) {
+      const index = indexed();
+      const before = new Map(instances.map((r) => [r, index.get(r)]));
+      const next = applied(ops);
+      const src = { ...source, doc: next };
+      index.update(viewOf(next), reg, refs, src);
+      expect(instances.filter((r) => index.get(r) !== before.get(r))).toEqual(rewritten);
+      expect(snapshot(index)).toEqual(snapshot(indexed(viewOf(next), src)));
+    }
+  });
+
   it("drops an instance's entries with it", () => {
     const index = indexed();
     const result = applyOps(doc, { ops: [{ op: "remove", refs: ["turret-a"] }] }, reg, {

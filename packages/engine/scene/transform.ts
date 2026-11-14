@@ -152,10 +152,18 @@ export type Frame = { at: Pt; rot: number } & Orientation;
 const micro = (n: number) => Math.round(n * 1e6) / 1e6 + 0;
 
 /** An angle in degrees in [0, 360), never `-0`. */
-export const normDeg = (deg: number): number => {
+export function normDeg(deg: number): number {
   const r = deg % 360;
-  return r < 0 ? r + 360 : r + 0;
-};
+  if (r >= 0) return r + 0;
+  const up = r + 360;
+  return up === 360 ? 0 : up;
+}
+
+/** An angle in degrees in (-180, 180], never `-0`: the shorter way round. */
+export function halfTurnDeg(deg: number): number {
+  const r = deg % 360;
+  return (r > 180 ? r - 360 : r <= -180 ? r + 360 : r) + 0;
+}
 
 /** `deg` in [0, 360) to the micro-degree. */
 const settleDeg = (deg: number) => {

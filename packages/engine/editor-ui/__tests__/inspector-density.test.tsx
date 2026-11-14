@@ -320,7 +320,7 @@ describe("the outliner's density", () => {
     const toolbar = screen.getByRole("navigation", { name: "Outliner" }).firstElementChild!;
     expect(toolbar.classList.contains("je-panel-toolbar")).toBe(true);
     expect(
-      within(toolbar as HTMLElement).getByRole("group", { name: "Group rows by" }),
+      within(toolbar as HTMLElement).getByRole("group", { name: "Outline view" }),
     ).toBeTruthy();
   });
 

@@ -439,6 +439,18 @@ describe("group and ungroup", () => {
     expect(r.session.store.state.selection).toHaveLength(1);
     expect(r.entity(r.session.store.state.selection[0]!)?.parent).toBe("node-1");
   });
+
+  it("names the children a parent's delete takes with it", () => {
+    const r = rig();
+    r.session.select(["crate", "ledge"]);
+    r.host.command("group");
+    r.session.select(["node-1"]);
+    expect(r.host.command("delete")).toBe(true);
+    expect(readLog(r.doc).at(-1)?.label).toBe("Delete node-1 and 2 children");
+    expect(r.entity("crate")).toBeUndefined();
+    expect(r.host.command("undo")).toBe(true);
+    expect(r.entity("crate")?.parent).toBe("node-1");
+  });
 });
 
 describe("the spatial index", () => {

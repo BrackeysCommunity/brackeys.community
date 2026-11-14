@@ -23,15 +23,9 @@ export type CarryContext = {
 };
 
 /**
- * `batch`, a gizmo edit written for the document, as the resolved view
- * previews it: what sits under each thing it moves or turns is carried with
- * it, since the document stores children in their parent's frame and the
- * view places them in the world. A `move` takes the subtree along; a
- * `transform` turns a node and its subtree by updates (the view's nodes
- * already sit in the world, so the op itself would turn them twice); an
- * `update` that moves its entity's frame carries the subtree by the same
- * change. An instance has no entity in the view, so only its subtree shows.
- * `null` when the batch is its own preview.
+ * The view preview of a document gizmo batch: everything under what it moves
+ * or turns is carried along, since the document keeps children in their
+ * parent's frame and the view in the world. Null when the batch previews itself.
  */
 export function carryPreview(cx: CarryContext, batch: OpBatch): OpBatch | null {
   const { view, registry, tree } = cx;
@@ -62,6 +56,7 @@ export function carryPreview(cx: CarryContext, batch: OpBatch): OpBatch | null {
       refs.push(...below);
       if (refs.length > 0) ops.push({ ...op, refs });
     } else if (op.op === "transform") {
+      // The view's nodes already sit in the world, so the op itself would turn them twice.
       changed = true;
       for (const r of op.refs) {
         const at = op.about ?? cx.frameOf(r)?.at;

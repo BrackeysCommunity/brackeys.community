@@ -1,6 +1,5 @@
 import type { EngineContext, RegisteredType } from "../game/types";
-import { degToRad } from "../physics";
-import { turnRadians } from "../scene/transform";
+import { poseOf } from "../runtime/spawn-pose";
 import type { Pt, RuntimeEntity } from "../scene/types";
 import { createDataSystem, type DataSystem } from "./data";
 
@@ -8,17 +7,11 @@ export type NodeEntity = RuntimeEntity<{ at: Pt; rot?: number }>;
 
 export type NodeSystem = DataSystem<NodeEntity>;
 
-/** A node's spawn pose: its `at`, turned by `rot` degrees, else by the angle of what it sits in. */
-function nodePose(e: NodeEntity): { x: number; y: number; rot: number } {
-  const rot = e.rot !== undefined ? degToRad(e.rot) : turnRadians(e.transform?.rot ?? 0);
-  return { x: e.at[0], y: e.at[1], rot };
-}
-
 /** Poses with nothing else: parents that move, hide and destroy what sits under them. */
 export function createNodeSystem(ctx: EngineContext, type: RegisteredType): NodeSystem {
   const data = createDataSystem<NodeEntity>(ctx, type);
   const place = (e: NodeEntity) => {
-    const p = nodePose(e);
+    const p = poseOf({ at: e.at, rotDeg: e.rot }, e.transform);
     ctx.poses.set(e.id, p.x, p.y, p.rot, { snap: true });
   };
   return {

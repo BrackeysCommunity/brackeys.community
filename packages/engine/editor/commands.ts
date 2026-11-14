@@ -224,7 +224,7 @@ function transformBatch(
 
 /**
  * One batch turning the selected instances a quarter turn (`turn` 1
- * clockwise on screen, -1 counter-clockwise), each about its own `at`.
+ * clockwise on screen, -1 counterclockwise), each about its own `at`.
  * Plain entities in the selection are left out; `null` when nothing is
  * left.
  */
@@ -233,8 +233,8 @@ export function turnBatch(
   refs: readonly Ref[],
   turn: 1 | -1,
 ): OpBatch | null {
-  const dir = turn > 0 ? "clockwise" : "counter-clockwise";
-  return transformBatch(def, refs, (w) => `Turn ${w} ${dir}`, { turn });
+  const dir = turn > 0 ? "clockwise" : "counterclockwise";
+  return transformBatch(def, refs, (w) => `Turn ${w} 90° ${dir}`, { turn });
 }
 
 /**

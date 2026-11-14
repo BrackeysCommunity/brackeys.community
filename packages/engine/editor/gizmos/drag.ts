@@ -1,10 +1,11 @@
 import { rotateShape, translateShape } from "../../scene/shape-geometry";
 import { shapeToTuple } from "../../scene/shapes";
+import { halfTurnDeg, normDeg } from "../../scene/transform";
 import type { OpBatch, Pt, ShapeObj } from "../../scene/types";
 import { roundLength, snapToPixel } from "../../scene/units";
 import { onePixel, pixelSize, roundPt, snapAngle, snapMove, snapPoint } from "../snap";
 import type { SnapSettings } from "../tools";
-import { moveBatch, normDeg, roundShape } from "./batch";
+import { moveBatch, roundShape } from "./batch";
 import {
   FORCE_PX,
   isBehaviorHandle,
@@ -86,10 +87,7 @@ export function resizeBox(
 export function dragAngle(pivot: Pt, from: Pt, to: Pt): number {
   const a0 = Math.atan2(from[1] - pivot[1], from[0] - pivot[0]);
   const a1 = Math.atan2(to[1] - pivot[1], to[0] - pivot[0]);
-  let d = (a1 - a0) / DEG;
-  while (d <= -180) d += 360;
-  while (d > 180) d -= 360;
-  return d;
+  return halfTurnDeg((a1 - a0) / DEG);
 }
 
 /**
@@ -164,14 +162,6 @@ export function moveTarget(t: GizmoTarget, from: Pt, to: Pt, opts: DragOptions):
   return withPreview(edit, [t]);
 }
 
-/** `deg` in (-180, 180]. */
-function halfTurn(deg: number): number {
-  let d = deg % 360;
-  if (d > 180) d -= 360;
-  if (d <= -180) d += 360;
-  return d + 0;
-}
-
 /**
  * A node or an instance turned by its rotate handle about its origin: the
  * world angle snaps to the step (Shift: free, to whole degrees) and the turn
@@ -184,7 +174,7 @@ export function rotateFrame(t: GizmoTarget, from: Pt, to: Pt, opts: DragOptions)
   const now = normDeg(
     Math.round(snapAngle(was + dragAngle(f.at, from, to), opts.snap, opts.mods.shift)),
   );
-  const by = halfTurn(now - was);
+  const by = halfTurnDeg(now - was);
   return withPreview(
     {
       batch:

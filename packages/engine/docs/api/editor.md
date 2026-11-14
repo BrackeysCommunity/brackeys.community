@@ -611,7 +611,7 @@ type EditableSpatialIndex = SpatialIndex & {
      * turned parent carries in the world: an instance's id with its children.
      * An empty list rebuilds. A bulk key whose entries changed is re-indexed
      * whole, since its indices shift; entities missing from `def` are dropped,
-     * and every instance's entry is redrawn over its subtree.
+     * and only the instances over what changed are redrawn.
      */
     update(def: SceneDefinition, registry: Registry, touched: readonly Ref[], source?: EditSource): void;
 };
@@ -3554,15 +3554,9 @@ Refers to [`Pt`](#pt).
 
 _function_ in `editor/gizmos/carry.ts`
 
-`batch`, a gizmo edit written for the document, as the resolved view
-previews it: what sits under each thing it moves or turns is carried with
-it, since the document stores children in their parent's frame and the
-view places them in the world. A `move` takes the subtree along; a
-`transform` turns a node and its subtree by updates (the view's nodes
-already sit in the world, so the op itself would turn them twice); an
-`update` that moves its entity's frame carries the subtree by the same
-change. An instance has no entity in the view, so only its subtree shows.
-`null` when the batch is its own preview.
+The view preview of a document gizmo batch: everything under what it moves
+or turns is carried along, since the document keeps children in their
+parent's frame and the view in the world. Null when the batch previews itself.
 
 ```ts
 declare function carryPreview(cx: CarryContext, batch: OpBatch): OpBatch | null;
@@ -4745,9 +4739,9 @@ declare function nextFreeId(id: string, taken: ReadonlySet<string>): string;
 
 ## `normDeg`
 
-_function_ in `editor/gizmos/batch.ts`
+_function_ in `scene/transform.ts`
 
-Degrees in [0, 360).
+An angle in degrees in [0, 360), never `-0`.
 
 ```ts
 declare function normDeg(deg: number): number;
@@ -5978,7 +5972,7 @@ Refers to [`Aabb`](#aabb), [`GizmoTarget`](#gizmotarget).
 _function_ in `editor/commands.ts`
 
 One batch turning the selected instances a quarter turn (`turn` 1
-clockwise on screen, -1 counter-clockwise), each about its own `at`.
+clockwise on screen, -1 counterclockwise), each about its own `at`.
 Plain entities in the selection are left out; `null` when nothing is
 left.
 

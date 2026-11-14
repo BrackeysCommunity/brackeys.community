@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import type { Vec2 } from "../../types";
 import {
+  bindTo,
   type BehaviorBlock,
   type BehaviorSystem,
   type Bound,
@@ -83,6 +84,26 @@ export type CharacterHandle = Bound<
   CharacterSystem,
   "grounded" | "launch" | "setIntent" | "velocity"
 >;
+
+/** Either character behavior's `handle(id)`. */
+export function characterHandle(system: CharacterSystem, id: string): CharacterHandle {
+  return bindTo(system, id, ["grounded", "launch", "setIntent", "velocity"]);
+}
+
+/** A character moves itself, so a pose written to it teleports its motion body. */
+export function characterPoseHooks(
+  characters: ReadonlyMap<
+    string,
+    { body: { teleport(x: number, y: number, opts: { snap: boolean }): void } }
+  >,
+): Required<Pick<BehaviorSystem, "posed" | "selfMoving">> {
+  return {
+    posed(id, pose, snap) {
+      characters.get(id)?.body.teleport(pose.x, pose.y, { snap });
+    },
+    selfMoving: (id) => characters.has(id),
+  };
+}
 
 export const CHARACTER_TOP_DOWN = defineBehavior({
   name: "character-top-down",

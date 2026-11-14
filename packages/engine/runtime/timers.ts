@@ -1,6 +1,13 @@
 import type { SavedTimer } from "../game/save-file";
 import { delayTicks } from "../game/time";
-import type { CoroutineYield, EngineContext, JsonValue, TimerAction, Timers } from "../game/types";
+import {
+  eventAbout,
+  type CoroutineYield,
+  type EngineContext,
+  type JsonValue,
+  type TimerAction,
+  type Timers,
+} from "../game/types";
 
 /** A pending timer a world save can't hold: a function-form timer or a coroutine. */
 export type UnsaveableTimer = { kind: "timer" | "coroutine"; id: number; owner?: string };
@@ -99,13 +106,7 @@ export function createTimers(ctx: EngineContext): RuntimeTimers {
       action();
       return;
     }
-    const pose = action.entityId === undefined ? undefined : ctx.poses.get(action.entityId);
-    ctx.emit({
-      type: action.emit,
-      at: pose ? { x: pose.x, y: pose.y } : { x: 0, y: 0 },
-      ...(action.entityId === undefined ? {} : { entityId: action.entityId }),
-      ...(action.data === undefined ? {} : { data: action.data }),
-    });
+    ctx.emit(eventAbout(ctx, action.emit, action.entityId, action.data));
   }
 
   function runTimer(e: TimerEntry, phase: number): void {

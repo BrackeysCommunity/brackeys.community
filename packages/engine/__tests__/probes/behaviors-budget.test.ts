@@ -1,5 +1,4 @@
 // @vitest-environment node
-import { readFileSync } from "node:fs";
 
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
@@ -12,6 +11,7 @@ import { NAV_ARRIVED, NAV_BLOCKED, type SceneRuntimeHandle } from "../../runtime
 import { expandScene } from "../../scene/expand";
 import type { EntityDef, SceneDefinition } from "../../scene/types";
 import type { RapierModule } from "../../types";
+import { stressRig, stressScene } from "../fixtures/stress-rig";
 
 /**
  * Wall-clock budgets for the standard behaviors, measured against what
@@ -93,14 +93,10 @@ function timed(open: (timing: RunTiming) => SceneRuntimeHandle): Timed {
   return { rt: open(timing), timing };
 }
 
-const repoFile = (path: string) => new URL(`../../../../${path}`, import.meta.url);
-
 // ─── The crowd ───────────────────────────────────────────
 
 /** The stress game's walk areas and pillars, from its crowd scene. */
-const crowdScene = JSON.parse(
-  readFileSync(repoFile("src/games/stress/scenes/crowd.json"), "utf8"),
-) as SceneDefinition;
+const crowdScene = stressScene("crowd");
 
 /** How the stress game's crowd roams: a new point within this far, every this many ticks. */
 const ROAM = 8;
@@ -238,21 +234,16 @@ function cratesScene(as: "prop" | "body"): SceneDefinition {
 
 describe("standard behavior budgets", () => {
   it(`walks ${CROWD} nav-agents within the stress game's own crowd tick time plus 20%`, async () => {
-    // The stress game is the yardstick, loaded by path so the engine's typecheck stays off it.
-    const stressPath = repoFile("src/games/stress/index.ts").href;
-    const { stressGame } = (await import(/* @vite-ignore */ stressPath)) as {
-      stressGame: GameDefinition;
-    };
-    const stressRegistry = createRegistry(stressGame);
+    const yardstick = await stressRig();
     const stress = timed((timing) =>
       createHeadlessRuntime({
         rapier,
-        game: stressGame,
-        registry: stressRegistry,
-        scene: expandScene(
-          { ...crowdScene, settings: { ...crowdScene.settings, crowd: CROWD } },
-          stressRegistry,
-        ),
+        game: yardstick.game,
+        registry: yardstick.registry,
+        scene: yardstick.expand({
+          ...crowdScene,
+          settings: { ...crowdScene.settings, crowd: CROWD },
+        }),
         timing,
       }),
     );

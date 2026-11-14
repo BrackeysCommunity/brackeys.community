@@ -7,6 +7,7 @@ import { pxPerMetreOf } from "../game/units";
 import { behaviorBlocks, bulkEntries, bulkId, bulkKeysOf, parseBulkId } from "../scene/expand";
 import { defaultLayer } from "../scene/layers";
 import { spriteBoxOf, type DrawnSprite, type SpriteAssetLookup } from "../scene/render-geometry";
+import { documentTree } from "../scene/resolve";
 import { geometryFields } from "../scene/schema";
 import { aabb, aabbBox, aabbUnion, translateShape } from "../scene/shape-geometry";
 import { parseShape } from "../scene/shapes";
@@ -149,6 +150,16 @@ const entityZ = (e: EntityDef | undefined) =>
     ? Math.max(-Z_LIMIT, Math.min(Z_LIMIT, e.z))
     : 0;
 
+/**
+ * Topmost first. An instance shares its top entry's `z` and sorts below it,
+ * so the order doesn't depend on which entries an update rewrote.
+ */
+function topFirst(a: IndexEntry, b: IndexEntry): number {
+  if (a.z !== b.z) return b.z - a.z;
+  if (!a.instance !== !b.instance) return a.instance ? 1 : -1;
+  return a.instance && a.ref !== b.ref ? (a.ref < b.ref ? -1 : 1) : 0;
+}
+
 export type SpatialIndexOptions = {
   /** Metres per grid cell; default 2.56. */
   cell?: number;
@@ -179,7 +190,7 @@ export type EditableSpatialIndex = SpatialIndex & {
    * turned parent carries in the world: an instance's id with its children.
    * An empty list rebuilds. A bulk key whose entries changed is re-indexed
    * whole, since its indices shift; entities missing from `def` are dropped,
-   * and every instance's entry is redrawn over its subtree.
+   * and only the instances over what changed are redrawn.
    */
   update(
     def: SceneDefinition,
@@ -243,33 +254,67 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
     };
   }
 
-  /** The instances' entries, each over the entries of its subtree; an instance with none drawn has none. */
-  const instanceRefs = new Set<Ref>();
-  function indexInstances(tree: EditTree) {
-    for (const ref of instanceRefs) drop(ref);
-    instanceRefs.clear();
-    for (const ref of tree.instances()) {
-      let top: IndexEntry | undefined;
-      let box: Aabb | undefined;
-      for (const r of tree.below([ref])) {
-        const e = entries.get(r);
-        if (!e || e.instance) continue;
-        box = box ? aabbUnion(box, e.aabb) : e.aabb;
-        if (!top || e.z > top.z) top = e;
-      }
-      if (!box || !top) continue;
-      insert({
-        ref,
-        key: keyOf(ref),
-        type: NODE_TYPE,
-        layer: top.layer,
-        aabb: box,
-        z: top.z,
-        geometry: aabbBox(box),
-        instance: true,
-      });
-      instanceRefs.add(ref);
+  /** Each instance's subtree as last indexed, and the instances each ref was found under. */
+  const instanceMembers = new Map<Ref, readonly Ref[]>();
+  const memberOf = new Map<Ref, Set<Ref>>();
+
+  /** Redraws one instance's entry over the entries of its subtree; an instance with none drawn has none. */
+  function indexInstance(tree: EditTree, ref: Ref) {
+    drop(ref);
+    for (const r of instanceMembers.get(ref) ?? []) {
+      const held = memberOf.get(r);
+      if (held?.delete(ref) && held.size === 0) memberOf.delete(r);
     }
+    instanceMembers.delete(ref);
+    if (!tree.isInstance(ref)) return;
+    const members = tree.below([ref]);
+    instanceMembers.set(ref, members);
+    let top: IndexEntry | undefined;
+    let box: Aabb | undefined;
+    for (const r of members) {
+      const held = memberOf.get(r);
+      if (held) held.add(ref);
+      else memberOf.set(r, new Set([ref]));
+      const e = entries.get(r);
+      if (!e || e.instance) continue;
+      box = box ? aabbUnion(box, e.aabb) : e.aabb;
+      if (!top || e.z > top.z) top = e;
+    }
+    if (!box || !top) return;
+    insert({
+      ref,
+      key: keyOf(ref),
+      type: NODE_TYPE,
+      layer: top.layer,
+      aabb: box,
+      z: top.z,
+      geometry: aabbBox(box),
+      instance: true,
+    });
+  }
+
+  /**
+   * The instances whose entry `changed` refs can move: those they sat under
+   * at the last index and those they sit under now, plus instances added or
+   * removed since.
+   */
+  function staleInstances(
+    def: SceneDefinition,
+    tree: EditTree,
+    changed: ReadonlySet<Ref>,
+    source: EditSource | undefined,
+  ): Set<Ref> {
+    const out = new Set<Ref>();
+    for (const ref of instanceMembers.keys()) if (!tree.isInstance(ref)) out.add(ref);
+    for (const ref of tree.instances()) if (!instanceMembers.has(ref)) out.add(ref);
+    if (instanceMembers.size === 0 && tree.instances().length === 0) return out;
+    const doc = documentTree(source?.doc ?? def);
+    for (const ref of changed) {
+      if (tree.isInstance(ref)) out.add(ref);
+      for (const i of memberOf.get(ref) ?? []) out.add(i);
+      for (const a of doc.ancestors(ref)) if (tree.isInstance(a)) out.add(a);
+    }
+    return out;
   }
 
   function indexBucket(def: SceneDefinition, registry: Registry, key: BulkKey) {
@@ -300,21 +345,25 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
     return out;
   }
 
-  /** Re-stamps `z` from document order: bulk keys in canonical order, then entities. */
+  /** Re-stamps `z` from document order (bulk keys in canonical order, then entities); returns the refs restacked. */
   function restack(def: SceneDefinition, registry: Registry, ents: Map<string, EntityDef>) {
     const layerIndex = new Map(registry.layers.map((l, i) => [l.name, i]));
+    const moved: Ref[] = [];
     let order = 0;
     const stamp = (ref: Ref, entityZOf = 0) => {
       const e = entries.get(ref);
       if (!e) return;
       const z = zOf(layerIndex.get(e.layer) ?? 0, entityZOf, order++);
-      if (e.z !== z) entries.set(ref, { ...e, z });
+      if (e.z === z) return;
+      entries.set(ref, { ...e, z });
+      moved.push(ref);
     };
     for (const key of bulkKeysOf(def)) {
       const n = bulkEntries(def, key).length;
       for (let i = 0; i < n; i++) stamp(bulkId(key, i));
     }
     for (const [id, e] of ents) stamp(id, entityZ(e));
+    return moved;
   }
 
   const bucketSig = (def: SceneDefinition, key: BulkKey) => JSON.stringify(bulkEntries(def, key));
@@ -329,7 +378,8 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
     entries.clear();
     hash.clear();
     buckets.clear();
-    instanceRefs.clear();
+    instanceMembers.clear();
+    memberOf.clear();
   }
 
   const index: EditableSpatialIndex = {
@@ -345,7 +395,8 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
         if (entry) insert(entry);
       }
       restack(def, registry, ents);
-      indexInstances(editTree(def, source));
+      const tree = editTree(def, source);
+      for (const ref of tree.instances()) indexInstance(tree, ref);
     },
 
     update(def, registry, touched, source) {
@@ -370,27 +421,30 @@ export function createSpatialIndex(opts: SpatialIndexOptions = {}): EditableSpat
       }
 
       const ents = entityMap(def);
+      const changed = new Set<Ref>(touchedIds);
       for (const ref of [...entries.keys()]) {
-        if (instanceRefs.has(ref)) continue;
-        if (!parseBulkId(ref) && (!ents.has(ref) || touchedIds.has(ref))) drop(ref);
+        if (instanceMembers.has(ref) || parseBulkId(ref)) continue;
+        if (ents.has(ref) && !touchedIds.has(ref)) continue;
+        drop(ref);
+        changed.add(ref);
       }
       for (const id of touchedIds) {
         const e = ents.get(id);
         const entry = e && entityEntry(registry, e);
         if (entry) insert(entry);
       }
-      restack(def, registry, ents);
-      indexInstances(tree);
+      for (const ref of restack(def, registry, ents)) changed.add(ref);
+      for (const ref of staleInstances(def, tree, changed, source)) indexInstance(tree, ref);
     },
 
     query: (rect) =>
       hash
         .query(rect)
         .map((ref) => entries.get(ref)!)
-        .sort((a, b) => b.z - a.z),
+        .sort(topFirst),
 
     get: (ref) => entries.get(ref),
-    entries: () => [...entries.values()].sort((a, b) => b.z - a.z),
+    entries: () => [...entries.values()].sort(topFirst),
     get size() {
       return entries.size;
     },

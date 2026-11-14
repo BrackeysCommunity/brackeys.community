@@ -3739,24 +3739,10 @@ Refers to [`Pt`](#pt).
 
 _function_ in `game/define.ts`
 
-Merges the engine's primitives with a game's types, materials, actions,
-collision groups and issue codes, and the project's materials over the
-game's, and the engine's behaviors then the game's. Without a game the
-actions are `DEFAULT_ACTIONS`. Throws
-`RegistryError` listing every problem: duplicate or reserved names, bulk
-keys or codes, a type without a system, a spawn-only type that never
-loads or has a bulk form, a spawn order that misses or
-repeats a type, unknown groups, a game behavior outside the game's
-namespace, a behavior `template` its fields or `refine` refuse, a
-behavior's `requires` or `conflicts` naming an unknown behavior, behavior
-rules naming unknown behaviors, failing their schemas or requiring two
-that conflict, a grid field without a point `at`, a `time.rate` the clock can't run
-(`tick-rate-invalid`), an unknown `time.kind` or a `time.catchUp.maxMs` that
-isn't a whole number ≥ 0, world defaults the scene settings would refuse, and
-`world.gridWalls` naming a type that is unknown or never loads, and input
-the shell can't read: seats outside 1–8, a deadzone outside 0–1, an
-unknown action kind, a `ui` flag other than `true`, a 0.x key `keysProblems` refuses and every binding
-`bindingProblems` refuses (`binding-unknown`, `player-unknown`).
+Merges the engine's primitives, behaviors and defaults with a game's and a
+project's (its materials over the game's); without a game the actions are
+`DEFAULT_ACTIONS`. Throws `RegistryError` listing every problem found
+(registry.test.ts covers the full set).
 
 ```ts
 declare function createRegistry(game?: GameDefinition | null, opts?: CreateRegistryOptions): Registry;
@@ -3908,32 +3894,11 @@ Refers to [`SceneChange`](#scenechange), [`SceneDefinition`](#scenedefinition).
 
 _function_ in `scene/diff-to-ops.ts`
 
-A batch that turns scene `a` into scene `b`: `applyOps(a, diffToOps(a, b))`
-formats exactly as `b`.
-
-Named entities match by id. One present on both sides with the same type
-becomes an `update` (set and unset of the top-level fields that differ), so
-a live doc keeps its key, and a survivor whose place in the order moved a
-`reorder`; a type change is removed and added again. New entities are
-added at their index. Bulk arrays keep the entries they share in order (LCS); an entry
-that only moved becomes a `move` (one per offset), one resized or
-otherwise changed in place an `update` of its shape or point, and the
-rest is removed or added. The header goes through `setScene`, settings
-through `setSettings`, the `assets` header through `useAssets`. Instances match by id
-like named entities, their `rot`, `flip` and `overrides` through
-`update`, each changed param through `setParam`; a change of only `z` is a `setZ`, and one placing
-another prefab is removed and instantiated again. A grid field that
-changed is one `update` of the whole field.
-
-A `parent` never goes through `update`. One that changes is a `reparent`
-after the adds, followed by an `update` that puts the stored geometry
-back exactly, on it and on everything below it; something under a removed entity or instance goes to the
-root first, since `remove` takes a subtree. Removals list children
-before their parents, and adds put a parent before what sits under it.
-
-`registry` tells point-form bulk keys from shape-form ones; without it the
-values decide. Throws when `$schema`, `v` or `game` differ, when `b` has
-no `name`, or when `b`'s parents form a cycle, since no op makes those.
+A batch with `applyOps(a, diffToOps(a, b))` formatting exactly as `b`.
+Matching ids become updates or reorders, so live docs keep their keys. A
+changed `parent` is a `reparent` after the adds, then an update restoring
+stored geometry. `registry` tells point-form bulk keys from shape-form
+ones. Throws when the header or `b`'s parents can't be expressed as ops.
 
 ```ts
 declare function diffToOps(a: SceneDefinition, b: SceneDefinition, registry?: Registry): OpBatch;
@@ -4027,22 +3992,13 @@ Refers to [`EntityTypeName`](#entitytypename), [`Registry`](#registry).
 
 _function_ in `scene/expand.ts`
 
-One prefab instance's entities as a load expands them. First a `node`
-at the instance's id, at its world origin and turned by its angle (`rot`
-in degrees), under `parent` when one is given; then one for each nested
-instance (`<instance>/<nested>`), each under the nested instance's
-`parent` if it has one, else under the one that holds it, with its layer
-and summed `z`. Then the children, ids `<instance>/<child>` (refs
-between its children remapped to them, the behavior blocks' entity refs
-by `scopeBehaviorRefs`), fields, behaviors, `z`, layers and `transform`,
-in spawn-group order, each under its own `parent` in the prefab, else
-under the nearest enclosing instance's node; `nodes` counts the leading
-nodes, the rest being the prefab's children. `off` children and types
-that don't load are dropped; an `off` instance gives nothing. `steps` are
-the frames above the instance, innermost first (default none);
-`cells` says the scene's turns are grid turns (`gridTurns`). An issue
-when the prefab is missing, cyclic or too deep; a child of an
-unregistered type throws, as a load does.
+One prefab instance's entities as a load expands them: its node, then
+nested instances' nodes, then its children (ids `<instance>/<child>`) in
+spawn-group order, each under its prefab parent or nearest enclosing node;
+`nodes` counts the leading nodes. `off` children, types that don't load
+and an `off` instance's whole subtree are dropped. `steps` are the frames
+above the instance, innermost first. An issue for a missing, cyclic or
+too-deep prefab; a child of an unregistered type throws, as a load does.
 
 ```ts
 declare function expandInstance(inst: InstanceDef, library: PrefabLibrary, registry: Registry, opts?: {
@@ -6217,32 +6173,12 @@ declare function untitledEntityFields(schema: Record<string, unknown>): string[]
 
 _function_ in `scene/validate.ts`
 
-Structural checks over a parsed scene, judged by the registry its `game`
-picks (`sceneRegistry`). On the document itself: ids (entities and
-instances share them), layers, `settings.grid`, the `assets` header,
-instances (their prefabs resolved through nesting and variant
-bases by `resolvePrefab`, every variant's base known and sharing no
-child id with it), their params (each one the prefab exposes) and
-overrides (never of a grid field), a prefab view's params (each target
-naming a child), and grids
-under a turned or flipped instance or parent (square cells only). On its resolved view
-(`resolveScene`, so instance children and parented entities are checked
-where they land): spawn-only types, which game code alone may make
-(`unknown-type`), references (each type's `refs`; a child ref
-`<instance>/<child>` is `ref-child-unknown` when the instance's prefab
-lacks the child), behavior blocks
-(registered, allowed by the type, their `requires` carried, their fields
-valid), grid fields (only with a grid: the scene's, else the game's world's), asset ids and sprite
-frames when `opts.project` is given, and the
-geometry of every registered shape, point and path field (polys, chains,
-paths, whole world pixels, bounds), then the game's `registry.validators`. No
-physics. Each issue names the entity (bulk entries by their `~key:index`
-reference, instance children as `<instance>/<child>`, pointing at the
-instance) and carries a `fix` batch when one is mechanical; fixes are
-written against the document, and those that use a `~` reference carry
-`base`. Errors come first, then warnings, then info; within a severity,
-engine and game issues merge in document order of their `path`
-(`comparePointers`).
+Structural checks over a parsed scene, judged by its game's registry
+(`sceneRegistry`): document-level checks on the source, then field, ref,
+behavior and geometry checks on its resolved view, so instance children
+and parented entities are judged where they land, then
+`registry.validators`. Fixes are written against the document. Issues sort
+errors, warnings, info, then by `path` (`comparePointers`).
 
 ```ts
 declare function validateScene(source: SceneDefinition, registry: Registry, opts?: ValidateOptions): SceneIssue[];

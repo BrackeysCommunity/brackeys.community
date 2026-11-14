@@ -1,7 +1,10 @@
 import type { GameNames } from ".";
 
+const GOAL_SUFFIX = "goal";
+
 /** The goal script's behavior name, as the scene's goal sensor carries it. */
-export const goalScriptName = (names: Pick<GameNames, "id">): string => `${names.id}/goal`;
+export const goalScriptName = (names: Pick<GameNames, "id">): string =>
+  `${names.id}/${GOAL_SUFFIX}`;
 
 /**
  * `goal.ts`, a behavior preset's win as a script on the goal sensor: the
@@ -23,7 +26,7 @@ export function goalFile(): string {
     ``,
     `/** On a goal sensor: the hero entering it wins the run. */`,
     `export class Goal extends Script({`,
-    `  name: \`\${GAME_ID}/goal\`,`,
+    `  name: \`\${GAME_ID}/${GOAL_SUFFIX}\`,`,
     `  description: "Wins the run when the hero enters this sensor.",`,
     `  fields: {},`,
     `}) {`,
@@ -37,7 +40,6 @@ export function goalFile(): string {
     `    this.ctx.behavior<PlayerInputSystem>(PLAYER_INPUT.name)?.detach(other.id);`,
     `  }`,
     ``,
-    `  // A world save keeps whether this goal has fired.`,
     `  save() {`,
     `    return this.reached;`,
     `  }`,

@@ -72,6 +72,20 @@ export type Bound<S, K extends keyof S> = {
   [P in K]: S[P] extends (id: string, ...rest: infer A) => infer R ? (...rest: A) => R : never;
 };
 
+/** `keys` of a by-id system with `id` given: what a behavior's `handle(id)` returns. */
+export function bindTo<S, K extends keyof S>(
+  system: S,
+  id: string,
+  keys: readonly K[],
+): Bound<S, K> {
+  const bound: Partial<Record<K, unknown>> = {};
+  for (const key of keys) {
+    bound[key] = (...rest: unknown[]) =>
+      (system[key] as (id: string, ...rest: unknown[]) => unknown).call(system, id, ...rest);
+  }
+  return bound as Bound<S, K>;
+}
+
 export type BehaviorCategory = NonNullable<NonNullable<BehaviorDef["inspector"]>["category"]>;
 
 /** The Add behavior menu's headings, in the order it lists them. */

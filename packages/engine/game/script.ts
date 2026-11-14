@@ -26,7 +26,8 @@ import type {
 import type { BehaviorKey, Entity } from "./entity";
 import { inputFor, type SeatInput } from "./input-for";
 import {
-  EngineError,
+  entityGone,
+  eventAbout,
   scopedRef,
   type CoroutineYield,
   type Delay,
@@ -62,7 +63,10 @@ export type ScriptSelf<F extends z.ZodRawShape = z.ZodRawShape> = {
 
 /** A script's hooks, by the names a class defines as methods and `create` returns. */
 export type ScriptHooks<F extends z.ZodRawShape = z.ZodRawShape> = {
-  /** At attach, once the instance exists. */
+  /**
+   * At attach, once the instance exists. The entity can be posed and reads
+   * enabled; a `destroy()` here waits for the next tick's destroy flush.
+   */
   awake?(): void;
   /** Once, after the load's or the spawn's entities attached; for a disabled entity, at its first enable. */
   start?(): void;
@@ -129,8 +133,8 @@ type Binding = {
   readonly def: RegisteredBehavior;
   fields: BehaviorBlock;
   entity: Entity | undefined;
-  /** Replaced or detached: its function timers and coroutines stop. */
-  dead: boolean;
+  /** Its pending timers and coroutines, cancelled when it is replaced or detached. */
+  readonly timers: Set<number>;
 };
 
 const BOUND = Symbol("script binding");
@@ -152,8 +156,7 @@ class ScriptMembers {
   get entity(): Entity {
     const b = bindingOf(this);
     b.entity ??= b.ctx.entity(b.id);
-    if (!b.entity)
-      throw new EngineError("entity-gone", `script "${b.def.name}": "${b.id}" isn't live`, b.id);
+    if (!b.entity) throw entityGone(b.id, `use script "${b.def.name}" on`);
     return b.entity;
   }
   get fields(): BehaviorBlock {
@@ -176,54 +179,66 @@ class ScriptMembers {
   }
   after(delay: Delay, action: TimerAction): number {
     const b = bindingOf(this);
-    return b.ctx.timers.after(delay, owned(b, action), { owner: b.id });
+    return owned(b, action, 1, (act) => b.ctx.timers.after(delay, act, { owner: b.id }));
   }
   every(period: Delay, action: TimerAction, times?: number): number {
     const b = bindingOf(this);
-    return b.ctx.timers.every(period, owned(b, action), {
-      owner: b.id,
-      ...(times !== undefined ? { times } : {}),
-    });
+    return owned(b, action, times, (act) =>
+      b.ctx.timers.every(period, act, { owner: b.id, ...(times !== undefined ? { times } : {}) }),
+    );
   }
   run(co: () => Generator<CoroutineYield, void, void>): number {
     const b = bindingOf(this);
-    return b.ctx.timers.start(() => whileAlive(b, co), { owner: b.id });
+    let id = 0;
+    id = b.ctx.timers.start(
+      function* () {
+        try {
+          yield* co();
+        } finally {
+          b.timers.delete(id);
+        }
+      },
+      { owner: b.id },
+    );
+    b.timers.add(id);
+    return id;
   }
   cancel(timer: number): void {
-    bindingOf(this).ctx.timers.cancel(timer);
+    const b = bindingOf(this);
+    b.timers.delete(timer);
+    b.ctx.timers.cancel(timer);
   }
   emit(type: string, data?: JsonValue): void {
     const { ctx, id } = bindingOf(this);
-    const pose = ctx.poses.get(id);
-    ctx.emit({
-      type,
-      entityId: id,
-      at: pose ? { x: pose.x, y: pose.y } : { x: 0, y: 0 },
-      ...(data !== undefined ? { data } : {}),
-    });
+    ctx.emit(eventAbout(ctx, type, id, data));
   }
 }
 
-/** A timer action that does nothing once its instance is replaced; the emit form names the entity unless it names one. */
-function owned(b: Binding, action: TimerAction): TimerAction {
-  if (typeof action === "function")
-    return () => {
-      if (!b.dead) action();
-    };
-  return action.entityId === undefined ? { ...action, entityId: b.id } : action;
-}
-
-function* whileAlive(
+/**
+ * Starts `b`'s timer through `start`, kept in `b.timers` until a function
+ * action's last of `runs` (every run when undefined); the emit form names
+ * the entity unless it names one.
+ */
+function owned(
   b: Binding,
-  co: () => Generator<CoroutineYield, void, void>,
-): Generator<CoroutineYield, void, void> {
-  const it = co();
-  while (!b.dead) {
-    const next = it.next();
-    if (next.done) return;
-    yield next.value;
-  }
-  it.return();
+  action: TimerAction,
+  runs: number | undefined,
+  start: (action: TimerAction) => number,
+): number {
+  let id = 0;
+  let left = runs ?? Infinity;
+  const act: TimerAction =
+    typeof action === "function"
+      ? () => {
+          if (--left <= 0) b.timers.delete(id);
+          action();
+        }
+      : action.entityId === undefined
+        ? { ...action, entityId: b.id }
+        : action;
+  id = start(act);
+  b.timers.add(id);
+  return id;
 }
 
 const has = (hooks: object, name: keyof ScriptHooks): boolean =>
@@ -280,6 +295,7 @@ type Instance = {
  * order, built by `make` (a class's `new`, or `create`).
  */
 function scriptSystem(make: (b: Binding) => Hooks): BehaviorSystemFactory {
+  let warned = false;
   return (ctx, def): BehaviorSystem => {
     const instances = new Map<string, Instance>();
     const running: Record<RunHook, number> = {
@@ -289,13 +305,12 @@ function scriptSystem(make: (b: Binding) => Hooks): BehaviorSystemFactory {
       render: 0,
     };
     let listening: (() => void) | null = null;
-    let warned = false;
 
     const stepping = () =>
       (ctx as { [FLOW_LOADER_KEY]?: FlowLoader })[FLOW_LOADER_KEY]?.stepping() ?? false;
 
     function build(id: string, fields: BehaviorBlock): { binding: Binding; target: Hooks } {
-      const binding: Binding = { id, ctx, def, fields, entity: undefined, dead: false };
+      const binding: Binding = { id, ctx, def, fields, entity: undefined, timers: new Set() };
       const target = make(binding);
       const problem = hooksProblem(def, target);
       if (problem) throw new Error(problem);
@@ -369,8 +384,13 @@ function scriptSystem(make: (b: Binding) => Hooks): BehaviorSystemFactory {
       inst.target.start?.();
     }
 
+    function stopTimers(b: Binding): void {
+      for (const timer of b.timers) ctx.timers.cancel(timer);
+      b.timers.clear();
+    }
+
     function end(inst: Instance): void {
-      inst.binding.dead = true;
+      stopTimers(inst.binding);
       unwire(inst);
       count(inst.target, -1);
     }
@@ -474,7 +494,7 @@ function scriptSystem(make: (b: Binding) => Hooks): BehaviorSystemFactory {
       },
       handle: (id) => instances.get(id)?.target,
       clear() {
-        for (const inst of instances.values()) inst.binding.dead = true;
+        for (const inst of instances.values()) stopTimers(inst.binding);
         instances.clear();
         for (const hook of Object.keys(running) as RunHook[]) running[hook] = 0;
         listening?.();

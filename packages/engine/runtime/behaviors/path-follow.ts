@@ -1,4 +1,4 @@
-import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
+import { bindTo, type BehaviorSystem, type BehaviorSystemFactory } from "../../game/behaviors";
 import { COLLIDER, type ColliderSystem } from "../../game/behaviors/collider";
 import type { PathFollowBlock, PathFollowSystem } from "../../game/behaviors/path-follow";
 import type { EngineContext, JsonValue } from "../../game/types";
@@ -52,23 +52,12 @@ function savedFrame(state: JsonValue): { parent: string; frame: Pose } | null {
  * The `path-follow` behavior's system: moves each entity along its `path`
  * with the follower type's waypoint rules, its rotation kept.
  *
- * An entity whose `collider` carries a kinematic (or dynamic) `body` is
- * moved by that body's velocity, set each `beforeStep` to reach this tick's
- * point in the physics step, so what stands on it is carried and
- * `carrierDelta` answers for its collider. Any other entity has its pose
- * written; a collider without such a body stays where it was built.
- * Resets, seeks, restores and enables jump there instead, rebuilding the
- * body at the new pose.
- *
- * For an entity with a parent, the path's points are re-expressed in the
- * parent's frame when it is linked: each step puts it at the parent's pose
- * composed with its point, so it traces its path wherever the parent goes.
- * One that moves a body by its velocity is self-moving: the parent's
- * movement reaches it through that velocity, so what stands on it is
- * carried, rather than through the tree.
- *
- * A disabled entity's path clock keeps running; enabling it puts it where
- * its path is now.
+ * An entity with a kinematic or dynamic `body` is driven by that body's
+ * velocity rather than by writing its pose, so what stands on it is carried
+ * and `carrierDelta` answers for it. A parented entity's path is in its
+ * parent's frame, so it traces the path wherever the parent goes; one that
+ * moves a body is self-moving, the parent's motion reaching it through that
+ * velocity rather than through the tree.
  */
 export const createPathFollowSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
   const riders = new Map<string, Rider>();
@@ -215,6 +204,7 @@ export const createPathFollowSystem: BehaviorSystemFactory = (ctx: EngineContext
       r.frameDelta = { ...ZERO };
       r.driving = false;
     },
+    /** Its path clock kept running while disabled, so it jumps to where its path is now. */
     enable(id) {
       const r = riders.get(id);
       if (!r || !r.disabled) return;
@@ -276,10 +266,7 @@ export const createPathFollowSystem: BehaviorSystemFactory = (ctx: EngineContext
       const r = riders.get(id);
       return r ? { ...r.prevPos } : null;
     },
-    handle: (id) => ({
-      position: () => system.position(id),
-      frameDelta: () => system.frameDelta(id),
-    }),
+    handle: (id) => bindTo(system, id, ["position", "frameDelta"]),
     /** Its last position becomes the pose, so the jump isn't read as this tick's travel. */
     posed(id, pose) {
       const r = riders.get(id);

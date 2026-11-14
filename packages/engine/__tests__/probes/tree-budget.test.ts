@@ -1,19 +1,18 @@
 // @vitest-environment node
-import { readdirSync, readFileSync } from "node:fs";
-
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 
 import { defineBehavior } from "../../game/behaviors";
 import { createRegistry, defineGame } from "../../game/define";
-import type { EngineContext, GameDefinition } from "../../game/types";
+import type { EngineContext } from "../../game/types";
 import { createHeadlessRuntime } from "../../headless/headless";
 import { composePose, lerpPose, relativePose, type Pose } from "../../runtime/poses";
 import type { SceneRuntimeHandle } from "../../runtime/types";
 import { expandScene } from "../../scene/expand";
-import { parsePrefab, prefabLibrary } from "../../scene/prefab";
-import type { EntityDef, ExpandedScene, RuntimeEntity, SceneDefinition } from "../../scene/types";
+import type { EntityDef, ExpandedScene, RuntimeEntity } from "../../scene/types";
 import type { RapierModule } from "../../types";
+import { stressRig, type StressRig } from "../fixtures/stress-rig";
+import { withParents } from "../fixtures/tree-rig";
 
 /**
  * What the scene tree costs. Every comparison steps its runtimes in turn,
@@ -34,14 +33,17 @@ const STRESS_BUDGET = 1.1;
  * Races of each stress scene, each on runtimes loaded afresh; its result is
  * their median. One race's ratio spreads by ±0.06 between runs of the same
  * code, more than half the budget's margin, so a single race can't decide it.
+ * A budgeted scene stops racing once a majority of the rounds falls on one
+ * side of its budget, since the rest can't move the median across it.
  */
 const STRESS_ROUNDS = 5;
 /**
  * The first runtimes a process steps run the engine's hot paths 5–10%
  * faster than later ones, and more so on the side with more to carry, so
- * each stress scene first races once unmeasured.
+ * each stress scene first races once unmeasured. That depends on how many
+ * runtimes ran, not how long, so the settling race is short.
  */
-const SETTLE_ROUNDS = 1;
+const SETTLE_TICKS = 120;
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -181,22 +183,17 @@ function openSpin(carry: Carry, writes = 1): SceneRuntimeHandle {
     },
     registry,
   );
-  if (carry === "tree") {
-    const parentOf = new Map(
-      [...children].flatMap(([parent, kids]) => kids.map((kid) => [kid, parent] as const)),
+  if (carry === "tree")
+    withParents(
+      scene,
+      Object.fromEntries(
+        [...children].flatMap(([parent, kids]) => kids.map((kid) => [kid, parent])),
+      ),
     );
-    scene.entities = scene.entities.map((e) => {
-      const parent = parentOf.get(e.id);
-      return parent === undefined ? e : { ...e, parent };
-    });
-  }
   return createHeadlessRuntime({ rapier: null, game, registry, scene });
 }
 
 // ─── The stress scenes ───────────────────────────────────
-
-const repoFile = (path: string) => new URL(`../../../../${path}`, import.meta.url);
-const readJson = (path: string) => JSON.parse(readFileSync(repoFile(path), "utf8")) as unknown;
 
 type StressScene = "movers" | "rooms" | "combined";
 
@@ -298,43 +295,32 @@ describe("scene tree budgets", () => {
   }, 120_000);
 
   describe("the stress game", () => {
-    let stressGame: GameDefinition;
+    let rig: StressRig;
     let open: (scene: ExpandedScene) => SceneRuntimeHandle;
-    let expand: (name: StressScene) => ExpandedScene;
 
     beforeAll(async () => {
-      // Loaded by path so the engine's typecheck stays off the game.
-      const stressPath = repoFile("src/games/stress/index.ts").href;
-      ({ stressGame } = (await import(/* @vite-ignore */ stressPath)) as {
-        stressGame: GameDefinition;
-      });
-      const registry = createRegistry(stressGame);
-      const prefabDir = "src/games/stress/scenes/prefabs";
-      const prefabs = prefabLibrary(
-        readdirSync(repoFile(prefabDir))
-          .filter((f) => f.endsWith(".json") && !f.endsWith(".asset.json"))
-          .map((f) => {
-            const parsed = parsePrefab(readJson(`${prefabDir}/${f}`), registry);
-            if (!parsed.ok) throw new Error(`${f}: ${JSON.stringify(parsed.issues)}`);
-            return parsed.prefab;
-          }),
-      );
-      expand = (name) =>
-        expandScene(readJson(`src/games/stress/scenes/${name}.json`) as SceneDefinition, registry, {
-          prefabs,
-        });
-      open = (scene) => createHeadlessRuntime({ rapier, game: stressGame, registry, scene });
+      rig = await stressRig();
+      open = (scene) =>
+        createHeadlessRuntime({ rapier, game: rig.game, registry: rig.registry, scene });
     });
 
     /**
      * Steps the scene as it loads, without its riders and, when it has
-     * instances, without their nodes, all in turn, `STRESS_ROUNDS` times
-     * after `SETTLE_ROUNDS` unmeasured; prints each against the scene's
-     * numbers from before the tree. The ratios are to the riderless
-     * scene's tick, the median of the rounds'.
+     * instances, without their nodes, all in turn, up to `STRESS_ROUNDS`
+     * times after a settling race; prints each against the scene's numbers
+     * from before the tree. The ratios are to the riderless scene's tick,
+     * the median of the rounds'. With a `budget` (a multiple of the ratio
+     * before the tree) the rounds stop once a majority of them decides it.
      */
-    function measure(name: StressScene) {
-      const scene = expand(name);
+    function measure(name: StressScene, budget?: number) {
+      const before = BEFORE_TREE[name];
+      const limit = budget === undefined ? undefined : before.ratio * budget;
+      const majority = (STRESS_ROUNDS >> 1) + 1;
+      const decided = (ratios: readonly number[]) =>
+        limit !== undefined &&
+        (ratios.filter((r) => r <= limit).length >= majority ||
+          ratios.filter((r) => r > limit).length >= majority);
+      const scene = rig.expand(name);
       const nodes = scene.entities.filter((e) => e.type === "node").length;
       const parented = scene.entities.filter((e) => e.parent !== undefined).length;
       const variants =
@@ -344,28 +330,28 @@ describe("scene tree budgets", () => {
       const child = scene.entities.find((e) => e.parent !== undefined)!;
       const rounds: { loadedMs: number; riderlessMs: number; nodelessMs: number | undefined }[] =
         [];
-      for (let round = -SETTLE_ROUNDS; round < STRESS_ROUNDS; round++) {
+      for (let round = -1; round < STRESS_ROUNDS; round++) {
         const runs = variants.map(open);
         const [loaded, riderless] = runs as [SceneRuntimeHandle, SceneRuntimeHandle];
         expect(loaded.ctx.tree.parent(child.id)).toBe(child.parent);
         expect(riderless.ctx.tree.parent(child.id)).toBeNull();
-        const [loadedMs, riderlessMs, nodelessMs] = race(runs, 0, STRESS_TICKS) as [
-          number,
-          number,
-          number | undefined,
-        ];
+        const [loadedMs, riderlessMs, nodelessMs] = race(
+          runs,
+          0,
+          round < 0 ? SETTLE_TICKS : STRESS_TICKS,
+        ) as [number, number, number | undefined];
         if (round >= 0) rounds.push({ loadedMs, riderlessMs, nodelessMs });
         for (const rt of runs) rt.destroy();
+        if (decided(rounds.map((r) => r.loadedMs / r.riderlessMs))) break;
       }
       const ratios = rounds.map((r) => r.loadedMs / r.riderlessMs);
       const ratio = median(ratios);
       const loadedMs = median(rounds.map((r) => r.loadedMs));
       const riderlessMs = median(rounds.map((r) => r.riderlessMs));
       const nodelessMs = nodes > 0 ? median(rounds.map((r) => r.nodelessMs!)) : undefined;
-      const before = BEFORE_TREE[name];
       console.info(
         `stress/${name} (${scene.entities.length} entities, ${nodes} nodes, ${parented} with a parent), ` +
-          `median ms/tick over ${STRESS_TICKS}, median of ${STRESS_ROUNDS} rounds: as loaded ${ms(loadedMs)}, without riders ${ms(riderlessMs)}` +
+          `median ms/tick over ${STRESS_TICKS}, median of ${rounds.length} rounds: as loaded ${ms(loadedMs)}, without riders ${ms(riderlessMs)}` +
           (nodelessMs === undefined
             ? ""
             : `, without nodes ${ms(nodelessMs)} (as loaded / without nodes ${(loadedMs / nodelessMs).toFixed(3)})`) +
@@ -373,19 +359,19 @@ describe("scene tree budgets", () => {
           `before the tree ${before.ratio.toFixed(3)} (${((ratio / before.ratio - 1) * 100).toFixed(1)}%); ` +
           `scene step before the tree, mean ${ms(before.mean)} ms/tick`,
       );
-      return { ratio, nodes, budget: before.ratio * STRESS_BUDGET };
+      return { ratio, nodes, limit };
     }
 
     it(`movers: within ${STRESS_BUDGET}× its tick before the tree`, () => {
-      const { ratio, nodes, budget } = measure("movers");
+      const { ratio, nodes, limit } = measure("movers", STRESS_BUDGET);
       expect(nodes).toBe(0);
-      expect(ratio).toBeLessThanOrEqual(budget);
+      expect(ratio).toBeLessThanOrEqual(limit!);
     }, 300_000);
 
     it(`combined: within ${STRESS_BUDGET}× its tick before the tree`, () => {
-      const { ratio, nodes, budget } = measure("combined");
+      const { ratio, nodes, limit } = measure("combined", STRESS_BUDGET);
       expect(nodes).toBeGreaterThan(0);
-      expect(ratio).toBeLessThanOrEqual(budget);
+      expect(ratio).toBeLessThanOrEqual(limit!);
     }, 300_000);
 
     it("rooms: reports what its instance nodes cost", () => {
@@ -412,7 +398,7 @@ describe("scene tree budgets", () => {
       },
       registry,
     );
-    scene.entities = scene.entities.map((e) => (e.id === "arm" ? { ...e, parent: "hub" } : e));
+    withParents(scene, { arm: "hub" });
     const rt = createHeadlessRuntime({ rapier: null, game, registry, scene });
     const local = rt.ctx.tree.local("arm")!;
     const rate = rt.ctx.time.rate;

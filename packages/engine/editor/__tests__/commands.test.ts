@@ -403,11 +403,11 @@ describe("turn and flip", () => {
 
   it("turns and flips through one transform op, leaving plain entities out", () => {
     expect(turnBatch(placed, ["post-1/top", "crate"], 1)).toEqual({
-      label: "Turn post-1 clockwise",
+      label: "Turn post-1 90° clockwise",
       ops: [{ op: "transform", refs: ["post-1"], turn: 1 }],
     });
     expect(turnBatch(placed, ["pin", "post-2", "post-1"], -1)).toEqual({
-      label: "Turn 2 items counter-clockwise",
+      label: "Turn 2 items 90° counterclockwise",
       ops: [{ op: "transform", refs: ["post-2", "post-1"], turn: -1 }],
     });
     expect(flipBatch(placed, ["pin", "post-2"], "x")).toEqual({

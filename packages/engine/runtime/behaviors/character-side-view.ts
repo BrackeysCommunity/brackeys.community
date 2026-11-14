@@ -7,7 +7,12 @@ import type {
 } from "../../game/behaviors";
 import { BODY, type BodyBlock } from "../../game/behaviors/body";
 import type { CharacterSideViewBlock } from "../../game/behaviors/character-side-view";
-import type { CharacterIntent, CharacterSystem } from "../../game/behaviors/character-top-down";
+import {
+  characterHandle,
+  characterPoseHooks,
+  type CharacterIntent,
+  type CharacterSystem,
+} from "../../game/behaviors/character-top-down";
 import { COLLIDER, type ColliderBlock, type ColliderSystem } from "../../game/behaviors/collider";
 import { FORCE_AREA, type ForceAreaSystem } from "../../game/behaviors/force-area";
 import { PLAYER_INPUT } from "../../game/behaviors/player-input";
@@ -483,16 +488,8 @@ export const createCharacterSideViewSystem: BehaviorSystemFactory = (
     launch(id, v) {
       live(id, "launch").controller.launch({ x: v.x, y: v.y });
     },
-    handle: (id) => ({
-      grounded: () => system.grounded(id),
-      launch: (v: Vec2) => system.launch(id, v),
-      setIntent: (intent: CharacterIntent) => system.setIntent(id, intent),
-      velocity: () => system.velocity(id),
-    }),
-    posed(id, pose, snap) {
-      characters.get(id)?.body.teleport(pose.x, pose.y, { snap });
-    },
-    selfMoving: (id) => characters.has(id),
+    handle: (id) => characterHandle(system, id),
+    ...characterPoseHooks(characters),
     save(id): JsonValue | undefined {
       const c = characters.get(id);
       if (!c) return undefined;
