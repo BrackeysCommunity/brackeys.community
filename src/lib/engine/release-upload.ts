@@ -420,6 +420,28 @@ export async function readStored(
 }
 
 /**
+ * Reads each item's stored object (`bytes` of it, or all for null), a few
+ * at a time, and hands the body to `use`; refuses with a missing file when
+ * the store doesn't hold one.
+ */
+async function readEachStored<T extends { key: string }>(
+  store: ReleaseObjectStore,
+  items: readonly T[],
+  bytes: (item: T) => number | null,
+  use: (item: T, body: Uint8Array) => void,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += CHECK_CONCURRENCY) {
+    await Promise.all(
+      items.slice(i, i + CHECK_CONCURRENCY).map(async (item) => {
+        const body = await readStored(store, item.key, bytes(item));
+        if (!body) refuse(releaseFilesMissing(1));
+        use(item, body);
+      }),
+    );
+  }
+}
+
+/**
  * Holds every listed file to the checks a file sent with this upload gets,
  * by path rather than by hash: a hash the project held under one path (or
  * as a blob, which nothing type-checked) may be listed under another. A
@@ -447,20 +469,15 @@ async function checkListedFiles(
       images.set(served.storageKey, (images.get(served.storageKey) ?? false) || checked);
   }
 
-  for (let i = 0; i < toRead.length; i += CHECK_CONCURRENCY) {
-    await Promise.all(
-      toRead.slice(i, i + CHECK_CONCURRENCY).map(async ({ file, key }) => {
-        const body = await readStored(
-          store,
-          key,
-          needsWholeFile(file.path) ? null : Math.min(LEADING_BYTES, file.bytes),
-        );
-        if (!body) refuse(releaseFilesMissing(1));
-        const refusal = fileBytesRefusal(file.path, body, manifest.build.entry);
-        if (refusal) refuse(refusal);
-      }),
-    );
-  }
+  await readEachStored(
+    store,
+    toRead,
+    ({ file }) => (needsWholeFile(file.path) ? null : Math.min(LEADING_BYTES, file.bytes)),
+    ({ file }, body) => {
+      const refusal = fileBytesRefusal(file.path, body, manifest.build.entry);
+      if (refusal) refuse(refusal);
+    },
+  );
 
   const unseen = [...images].filter(([, scanned]) => !scanned).map(([key]) => key);
   const scanned = new Set<string>();
@@ -492,15 +509,12 @@ async function shippedDocTexts(
   });
   const texts = new Map<string, string>();
   const decoder = new TextDecoder();
-  for (let i = 0; i < docs.length; i += CHECK_CONCURRENCY) {
-    await Promise.all(
-      docs.slice(i, i + CHECK_CONCURRENCY).map(async ({ id, key }) => {
-        const body = await readStored(store, key, null);
-        if (!body) refuse(releaseFilesMissing(1));
-        texts.set(id, decoder.decode(body));
-      }),
-    );
-  }
+  await readEachStored(
+    store,
+    docs,
+    () => null,
+    ({ id }, body) => texts.set(id, decoder.decode(body)),
+  );
   return texts;
 }
 

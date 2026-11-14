@@ -64,6 +64,9 @@ import {
 import {
   animSourceEdits,
   articled,
+  delayParts,
+  delayText,
+  type DelayForm,
   fieldTitle,
   lengthStep,
   overlappingKeys,
@@ -73,6 +76,7 @@ import {
 } from "../../editor/inspector-model";
 import { BEHAVIOR_CATEGORIES, BEHAVIORS_FIELD } from "../../game/behaviors";
 import { capitalise } from "../../game/live";
+import { isCameraRegionType } from "../../game/primitives";
 import { ticksIn } from "../../game/time";
 import { pxPerMetreOf } from "../../game/units";
 import { clipLookupOf, sourceClipsIn, type ClipSourceLookup } from "../../project/clip-source";
@@ -770,7 +774,16 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     else setError(dispatch(ctx, batch));
   };
 
-  const slots = tag && first ? shapeSlots(first) : null;
+  // A camera region frames its shape's bounding box, so its turn is offered
+  // only to clear one it already has.
+  const framesBounds = ctx.targets.every(
+    (t) => t.kind === "entity" && isCameraRegionType(ctx.session.registry.types.get(t.entity.type)),
+  );
+  const all = tag && first ? shapeSlots(first) : null;
+  const turnSlot = all?.find((slot) => isTurnSlot(slot.name));
+  const turned =
+    framesBounds && turnSlot !== undefined && tuples.some((t) => (t?.[turnSlot.index] ?? 0) !== 0);
+  const slots = framesBounds && !turned ? (all?.filter((slot) => slot !== turnSlot) ?? null) : all;
   const { step, bigStep, decimals } = lengthStep("m", ppmOf(ctx));
   return (
     <div className="je-insp-stack">
@@ -818,6 +831,7 @@ function ShapeField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
               </label>
             );
           })}
+          {turned ? <p className="je-insp-note">A turned region frames its bounding box.</p> : null}
         </div>
       ) : tag && first && ctx.targets.length === 1 ? (
         <PointsEditor
@@ -986,22 +1000,7 @@ function ListField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   );
 }
 
-const DELAY_FORMS = ["ms", "ticks"] as const;
-type DelayForm = (typeof DELAY_FORMS)[number];
-
-/** A `Delay` value's number and the form it is in; undefined when unset or of neither form. */
-function delayParts(value: unknown): { form: DelayForm; n: number } | undefined {
-  if (typeof value === "number") return { form: "ticks", n: value };
-  if (
-    value !== null &&
-    typeof value === "object" &&
-    typeof (value as { ms?: unknown }).ms === "number"
-  )
-    return { form: "ms", n: (value as { ms: number }).ms };
-  return undefined;
-}
-
-const unitWord = (form: DelayForm, n: number) => (form === "ticks" && n === 1 ? "tick" : form);
+const DELAY_FORMS: readonly DelayForm[] = ["ms", "ticks"];
 
 /**
  * `held` in the other form at `rate` ticks per second, when it converts to
@@ -1013,14 +1012,14 @@ function delaySwitch(
 ): { value?: number | { ms: number }; note: string } {
   const to: DelayForm = held.form === "ms" ? "ticks" : "ms";
   const n = held.form === "ms" ? ticksIn(held.n, { rate }) : (held.n * 1000) / rate;
-  const is = `${held.n} ${unitWord(held.form, held.n)} is`;
+  const is = `${delayText(held)} is`;
   if (!Number.isInteger(n))
     return {
       note: `${is} ${Math.round(n * 100) / 100} ${to} at ${rate} Hz: switching needs a whole number of ${to}.`,
     };
   return {
     value: to === "ms" ? { ms: n } : n,
-    note: `${is} ${n} ${unitWord(to, n)} at ${rate} Hz.`,
+    note: `${is} ${delayText({ form: to, n })} at ${rate} Hz.`,
   };
 }
 

@@ -1242,6 +1242,13 @@ interface ParticleLayer {
      * it emits nothing. A restart keeps the particles it has alive.
      */
     emitter(id: string, preset: EmitterFile, at: () => Pose | undefined, layer?: ViewLayer): void;
+    /**
+     * Moves the running emitter `id` onto `preset` and `layer` without
+     * restarting it: it keeps its clock, its point and its particles, and a
+     * burst due by its clock stays passed. False, changing nothing, when no
+     * emitter `id` runs.
+     */
+    retune(id: string, preset: EmitterFile, layer?: ViewLayer): boolean;
     /** Stops the emitter `id`: what it put in world space lives out its life, what it put in local space goes. */
     remove(id: string): void;
     /**

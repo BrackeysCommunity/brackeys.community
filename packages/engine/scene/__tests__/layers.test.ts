@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../../game/define";
-import { DEFAULT_LAYERS, defaultLayer, editorLayerOf, type SceneLayerDef } from "../layers";
+import {
+  DEFAULT_LAYERS,
+  defaultLayer,
+  editorGlyphLayer,
+  editorLayerOf,
+  type SceneLayerDef,
+} from "../layers";
 
 const registry = createRegistry();
 const note = registry.types.get("note");
@@ -71,5 +77,15 @@ describe("editorLayerOf", () => {
     expect(editorLayerOf([layer("back", 0), { ...layer("notes", 40), editorOnly: true }])).toBe(40);
     expect(editorLayerOf([layer("back", 0), layer("front", 10)])).toBeUndefined();
     expect(editorLayerOf([])).toBeUndefined();
+  });
+});
+
+describe("editorGlyphLayer", () => {
+  it("draws on the editor-only layer only for a view that can order visuals", () => {
+    const depth = () => {};
+    expect(editorGlyphLayer({ depth }, DEFAULT_LAYERS)).toBe(60);
+    expect(editorGlyphLayer({}, DEFAULT_LAYERS)).toBeUndefined();
+    expect(editorGlyphLayer(null, DEFAULT_LAYERS)).toBeUndefined();
+    expect(editorGlyphLayer({ depth }, [layer("back", 0)])).toBeUndefined();
   });
 });

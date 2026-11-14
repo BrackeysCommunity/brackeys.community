@@ -462,6 +462,32 @@ describe("EditorInspector", () => {
     setup(["bell"]);
     expect(document.querySelectorAll("[title]")).toHaveLength(0);
   });
+
+  it("puts a camera region's framing under Camera and offers its turn only to clear one", () => {
+    const def = scene();
+    def.entities!.push(
+      { id: "framing", type: "camera-region", shape: ["box", 400, 300, 200, 100], zoom: 1.5 },
+      { id: "hall", type: "camera-region", shape: ["box", 900, 300, 200, 100, 30] },
+    );
+    const { session } = setup(["framing"], undefined, def);
+    expect(screen.queryByRole("region", { name: "Gameplay" })).toBeNull();
+    const camera = screen.getByRole("region", { name: "Camera" });
+    for (const title of ["Zoom", "Clamp", "Ease time"])
+      expect(within(camera).getByText(title)).toBeTruthy();
+    expect(input("shape.hw").value).toBe("200");
+    expect(screen.queryByLabelText("shape.rotDeg")).toBeNull();
+    expect(screen.queryByText("A turned region frames its bounding box.")).toBeNull();
+
+    cleanup();
+    session.destroy();
+    const turned = setup(["hall"], undefined, def);
+    expect(screen.getByText("A turned region frames its bounding box.")).toBeTruthy();
+    fireEvent.change(input("shape.rotDeg"), { target: { value: "0" } });
+    fireEvent.keyDown(input("shape.rotDeg"), { key: "Enter" });
+    expect(entity(turned.session, "hall").shape).toEqual(["box", 900, 300, 200, 100, 0]);
+    expect(screen.queryByLabelText("shape.rotDeg")).toBeNull();
+    turned.session.destroy();
+  });
 });
 
 describe("EditorInspector: an instance's parameters", () => {

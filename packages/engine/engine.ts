@@ -1,7 +1,7 @@
 import type { Store } from "@tanstack/store";
 import { Container, Graphics } from "pixi.js";
 
-import { createCamera, type Camera } from "./camera";
+import { boxCentre, createCamera, type Camera } from "./camera";
 import { cameraRegionsOf, type CameraRegion } from "./camera/regions";
 import {
   cameraRigProblem,
@@ -86,6 +86,7 @@ import { mergeTick, offsetIn, type SeatChange } from "./input/stream";
 import { createInputSystem } from "./input/system";
 import { createTouchControls, type TouchControls } from "./input/touch-controls";
 import { createGameLoop } from "./loop";
+import { rotate } from "./math";
 import {
   bundleOf,
   projectBundle,
@@ -1844,17 +1845,20 @@ export async function createGame(
     layoutViewports();
   }
 
-  /** Puts the viewports' chrome on the stage over the world, in order: the clip, each later viewport, the first's border. */
+  /** The viewports' chrome in stage order: the clip, each later viewport, the first's border. */
+  const chromeNodes = () => [
+    mainMask,
+    ...extras.map((vc) => vc.surface?.display),
+    mainBorder?.display,
+  ];
+
+  /** Puts `chromeNodes` on the stage over the world, in order. */
   function mountChrome(): void {
     const stage = (renderer.app as { stage?: Container }).stage;
     const world = renderer.worldContainer;
     if (!stage || world.parent !== stage) return;
     let at = stage.getChildIndex(world) + 1;
-    for (const node of [
-      mainMask,
-      ...extras.map((vc) => vc.surface?.display),
-      mainBorder?.display,
-    ]) {
+    for (const node of chromeNodes()) {
       if (!node) continue;
       if (node.parent !== stage || stage.getChildIndex(node) !== at) stage.addChildAt(node, at);
       at++;
@@ -1862,8 +1866,7 @@ export async function createGame(
   }
 
   function detachChrome(): void {
-    for (const node of [mainMask, ...extras.map((vc) => vc.surface?.display), mainBorder?.display])
-      node?.parent?.removeChild(node);
+    for (const node of chromeNodes()) node?.parent?.removeChild(node);
   }
 
   /**
@@ -1877,9 +1880,8 @@ export async function createGame(
     const { x, y } = main.rect;
     if (x === 0 && y === 0) return;
     const s = world.scale.x || 1;
-    const cos = Math.cos(world.rotation);
-    const sin = Math.sin(world.rotation);
-    world.pivot.set(-(x * cos + y * sin) / s, -(-x * sin + y * cos) / s);
+    const p = rotate({ x, y }, -world.rotation);
+    world.pivot.set(-p.x / s, -p.y / s);
   }
 
   /**
@@ -3427,7 +3429,7 @@ function cameraTargetsOf(
   if (own || !play) return null;
   const at = play.at
     ? { x: play.at.x, y: play.at.y }
-    : { x: (bounds[0] + bounds[2]) / 2, y: (bounds[1] + bounds[3]) / 2 };
+    : boxCentre({ x: bounds[0], y: bounds[1] }, { x: bounds[2], y: bounds[3] });
   return [{ at, velocity: { ...STILL }, weight: 1 }];
 }
 

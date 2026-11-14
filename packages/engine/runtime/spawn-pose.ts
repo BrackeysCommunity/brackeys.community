@@ -1,4 +1,4 @@
-import type { Registry } from "../game/types";
+import type { EngineContext, Registry } from "../game/types";
 import { degToRad } from "../physics";
 import { geometryFields } from "../scene/schema";
 import { geometryPose, shapeCentre, type GeometryPose } from "../scene/shape-geometry";
@@ -50,4 +50,15 @@ export function spawnPoseOf(e: RuntimeEntity, fields: GeometryFields): Pose {
 export function spawnPose(e: RuntimeEntity, registry: Registry): Pose {
   const type = registry.types.get(e.type);
   return spawnPoseOf(e, type ? geometryFields(type) : []);
+}
+
+/** An entity's live pose, else where it spawns, else the origin when the scene has no such entity. */
+export function currentPose(
+  ctx: Pick<EngineContext, "poses" | "get" | "registry">,
+  id: string,
+): Pose {
+  const pose = ctx.poses.get(id);
+  if (pose) return pose;
+  const e = ctx.get(id);
+  return e ? spawnPose(e, ctx.registry) : { x: 0, y: 0, rot: 0 };
 }

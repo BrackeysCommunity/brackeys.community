@@ -466,10 +466,7 @@ export function JsonField({ field, commit, unset, scope }: FieldWidgetProps) {
       commit={commit}
       scope={scope}
       shown={field.value === undefined ? "" : JSON.stringify(field.value)}
-      placeholder={placeholderOf(
-        field,
-        unset ?? (field.defaultValue === undefined ? "unset (JSON)" : undefined),
-      )}
+      placeholder={placeholderOf(field, unset)}
       parse={asJson}
     />
   );
@@ -745,7 +742,10 @@ export function PointField({
   commitEach: (next: (current: unknown) => Pt | EditError) => FieldResult;
   /** The game's px per metre, for a metric point's steps. */
   ppm?: number;
-  /** What an unset point falls back to: its placeholders, and the base a typed axis edits. */
+  /**
+   * What an unset point falls back to: its placeholders, and the base a typed
+   * axis edits. Without one, the field's default does both.
+   */
   fallback?: Pt;
 }) {
   const w = field.widget as Extract<InspectorRow["widget"], { kind: "point" }>;
@@ -755,9 +755,19 @@ export function PointField({
   const bigStep = w.bigStep ?? steps.bigStep;
   const decimals = w.decimals ?? steps.decimals;
   const at = asPt(field.value);
+  const declared = asPt(field.defaultValue);
+  const base = fallback ?? declared;
+  const unsetAxis = (i: number): { unset?: string } =>
+    at !== undefined
+      ? {}
+      : fallback
+        ? { unset: String(fallback[i]) }
+        : declared
+          ? { unset: `${declared[i]} (default)` }
+          : {};
   const axis = (i: 0 | 1) => (text: string) =>
     commitEach((cur) => {
-      const pt = asPt(cur) ?? fallback ?? [0, 0];
+      const pt = asPt(cur) ?? base ?? [0, 0];
       const n = resolveNumber(text, pt[i], PT_BOUNDS);
       if (n instanceof EditError) return n;
       const next: Pt = [...pt];
@@ -772,7 +782,7 @@ export function PointField({
             key={name}
             label={`${field.path}.${name}`}
             value={at?.[i]}
-            {...(at === undefined && fallback ? { unset: String(fallback[i]) } : {})}
+            {...unsetAxis(i)}
             mixed={field.mixed}
             step={step}
             bigStep={bigStep}

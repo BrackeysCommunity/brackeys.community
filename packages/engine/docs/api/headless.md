@@ -1780,7 +1780,12 @@ type RunChecksOptions = {
     library?: PrefabLibrary;
     /** The prefabs the scene's instances name. */
     prefabs?: PrefabLibrary;
-    /** The project's data, for the checks that play the scene (`reaches`, `touches`); its `engine` block stands in for `engine` when that is omitted. */
+    /**
+     * The project's data, for the checks that play the scene (`reaches`,
+     * `touches`); its `engine` block stands in for `engine` when that is
+     * omitted, and with `view` a `valid` check reads `anim` blocks'
+     * animation sources through it.
+     */
     project?: ProjectRuntimeView | null;
     /** Needed for checks that load a scene running on Rapier; a scene without physics needs none. */
     rapier?: RapierModule | null;
@@ -1788,6 +1793,8 @@ type RunChecksOptions = {
     readFile: (path: string) => string;
     registry: Registry;
     scene: SceneDefinition;
+    /** The project's assets: with it, a `valid` check judges asset ids as `validateScene`'s `project` does. */
+    view?: ProjectView;
 };
 ```
 

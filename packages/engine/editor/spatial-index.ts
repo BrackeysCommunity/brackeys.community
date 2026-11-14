@@ -1,12 +1,13 @@
 import { SPRITE } from "../game/behaviors/sprite";
 import { Z_LIMIT } from "../game/fields";
+import { isCameraRegionType } from "../game/primitives";
 import type { RegisteredType, Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { behaviorBlocks, bulkEntries, bulkId, bulkKeysOf, parseBulkId } from "../scene/expand";
 import { defaultLayer } from "../scene/layers";
 import { spriteBoxOf, type DrawnSprite, type SpriteAssetLookup } from "../scene/render-geometry";
 import { geometryFields } from "../scene/schema";
-import { aabb, aabbUnion, isCameraRegionType, translateShape } from "../scene/shape-geometry";
+import { aabb, aabbUnion, translateShape } from "../scene/shape-geometry";
 import { parseShape } from "../scene/shapes";
 import { createSpatialHash } from "../scene/spatial-hash";
 import type { Aabb, BulkKey, EntityDef, Pt, Ref, SceneDefinition, ShapeObj } from "../scene/types";

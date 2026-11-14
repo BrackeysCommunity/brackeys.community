@@ -22,6 +22,7 @@ import type { AssetId, AssetKindName } from "../project/types";
 import { bulkKeysOf } from "../scene/expand";
 import { splitFieldPath } from "../scene/field-path";
 import { sceneHash } from "../scene/hash";
+import { plural } from "../scene/plural";
 import { CHILD_SEPARATOR, childEntity, resolvePrefab, splitOverridePath } from "../scene/resolve";
 import { entitySchemaFor, fieldKind, InstanceSchema, unwrapSchema } from "../scene/schema";
 import { aabb, boxCorners, convexHull, isConvex } from "../scene/shape-geometry";
@@ -64,6 +65,7 @@ export const INSPECTOR_SECTIONS = [
   "identity",
   "transform",
   "shape",
+  "camera",
   "behavior",
   "assets",
   "path",
@@ -76,6 +78,7 @@ export const SECTION_TITLES: Readonly<Record<InspectorSectionId, string>> = {
   identity: "Identity",
   transform: "Transform",
   shape: "Shape",
+  camera: "Camera",
   behavior: "Gameplay",
   assets: "Assets",
   path: "Path",
@@ -710,7 +713,12 @@ export function fieldTitle(name: string): string {
 }
 
 /** Where a field lands: `forced` always (a behavior's block), else its group, `inherited`, or its kind's. */
-type Placement = { inherited?: ModelSectionId; forced?: ModelSectionId };
+type Placement = {
+  inherited?: ModelSectionId;
+  forced?: ModelSectionId;
+  /** Where a field its kind would put under Gameplay lands instead: its type's `inspector.group`. */
+  gameplay?: InspectorSectionId;
+};
 
 /**
  * The row for the field at `path` (its value read from `root` by that
@@ -767,6 +775,25 @@ export function describeRow(
 }
 
 /** A set value as a summary words it: by its option's label or name, with its unit; undefined when unset. */
+/** The two forms a `Delay` holds: `{ ms }` or a whole number of ticks. */
+export type DelayForm = "ms" | "ticks";
+
+/** A `Delay` value's number and the form it is in; undefined when unset or of neither form. */
+export function delayParts(value: unknown): { form: DelayForm; n: number } | undefined {
+  if (typeof value === "number") return { form: "ticks", n: value };
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as { ms?: unknown }).ms === "number"
+  )
+    return { form: "ms", n: (value as { ms: number }).ms };
+  return undefined;
+}
+
+/** A delay's amount with its unit: `500 ms`, `1 tick`, `3 ticks`. */
+export const delayText = ({ form, n }: { form: DelayForm; n: number }): string =>
+  form === "ms" ? `${n} ms` : plural(n, "tick");
+
 function valueText(row: InspectorRow): string | undefined {
   const { widget, value } = row;
   if (row.mixed) return "—";
@@ -784,9 +811,8 @@ function valueText(row: InspectorRow): string | undefined {
   if (widget.kind === "list") return Array.isArray(value) ? String(value.length) : undefined;
   if (widget.kind === "color" && typeof value === "number") return cssHex(value);
   if (widget.kind === "delay") {
-    if (typeof value === "number") return `${value} ${value === 1 ? "tick" : "ticks"}`;
-    const ms = (value as { ms?: unknown }).ms;
-    return typeof ms === "number" ? `${ms} ms` : undefined;
+    const parts = delayParts(value);
+    return parts && delayText(parts);
   }
   if (widget.kind === "number" && typeof value === "number") {
     const named = widget.named?.find((n) => n.value === value);
@@ -818,11 +844,12 @@ export function rowSummary(row: InspectorRow): string {
 function placeRow(row: InspectorRow, place: Placement): ModelField {
   const { path, name, title, description, children, ...rest } = row;
   const group = fieldMeta(row.schema).group;
+  const byKind = defaultSection(row.widget);
   const section =
     place.forced ??
     (typeof group === "string" ? GROUP_SECTIONS[group] : undefined) ??
     place.inherited ??
-    defaultSection(row.widget);
+    (byKind === "behavior" ? (place.gameplay ?? byKind) : byKind);
   const field: ModelField = {
     path,
     name,
@@ -895,9 +922,12 @@ function targetFields(
   const schema = entitySchemaFor(registry, target.entity.type);
   if (!type || !schema) return { fields: [] };
   const ctx = entityCtx(registry, type);
+  const base = type.base === undefined ? undefined : registry.types.get(type.base);
+  const group = type.inspector?.group ?? base?.inspector?.group;
+  const gameplay = group === undefined ? undefined : GROUP_SECTIONS[group];
   const fields = orderedFields(schema.shape, type.inspector?.order ?? [])
     .filter(([n]) => n !== BEHAVIORS_FIELD)
-    .map(([n, s]) => describeField(n, s, target.entity, ctx));
+    .map(([n, s]) => describeField(n, s, target.entity, ctx, gameplay ? { gameplay } : {}));
   return { type: type.type, fields: linkFrames(fields) };
 }
 

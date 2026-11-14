@@ -1,11 +1,10 @@
-import { cp, mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { defaultIconPng } from "@jams/engine/export";
 
 import { runCli } from "../../commands";
 import type { ToolContext } from "../../context";
-import { REPO_ROOT } from "../../default-context";
 
 /** The animation the menu's banner plays: the units atlas's "blue" tag as the clip "march". */
 export const MOTION_ANIMATION = "units-march";
@@ -14,14 +13,6 @@ export const MOTION_PRESET = "dust";
 /** An emitter preset no entity names, the only asset that names the texture `MOTION_SPARE_TEXTURE`. */
 export const MOTION_SPARE_PRESET = "spark-spray";
 export const MOTION_SPARE_TEXTURE = "spark";
-
-/** A copy of the game `id` (`src/games/<id>`) at `to`, its tests left out. */
-export async function copyGame(id: string, to: string): Promise<void> {
-  await cp(join(REPO_ROOT, "src", "games", id), to, {
-    recursive: true,
-    filter: (src) => !src.split(/[\\/]/).includes("__tests__"),
-  });
-}
 
 /**
  * Adds an animation and emitter presets to the tactics project `ctx`

@@ -53,13 +53,13 @@ describe("motion behavior fields", () => {
     expect(tween("yoyo").defaultValue).toBe(false);
   });
 
-  it("labels each ease in words, the name after it", () => {
+  it("labels each ease in words", () => {
     const ease = tween("ease").widget;
     expect(ease.kind).toBe("select");
     const labels = (ease as { options: { value: unknown; label: string }[] }).options;
     expect(labels.find((o) => o.value === "linear")?.label).toBe("Linear");
-    expect(labels.find((o) => o.value === "sineInOut")?.label).toBe("Sine in-out (sineInOut)");
-    expect(labels.find((o) => o.value === "quadIn")?.label).toBe("Quad in (quadIn)");
+    expect(labels.find((o) => o.value === "sineInOut")?.label).toBe("Sine in-out");
+    expect(labels.find((o) => o.value === "quadIn")?.label).toBe("Quad in");
   });
 
   it("names the event an unset emit raises as its default, and takes its data as JSON", () => {

@@ -1,5 +1,5 @@
 import { cssHex } from "../game/color";
-import { outlineOnly } from "../game/primitives";
+import { isCameraRegionType, outlineOnly } from "../game/primitives";
 import { styleOf } from "../game/style";
 import type { Registry, Style } from "../game/types";
 import {
@@ -17,7 +17,7 @@ import {
   type SceneOverlay,
   type SceneRegionOptions,
 } from "./render-geometry";
-import { aabb, isCameraRegionType, regionBox, translateShape } from "./shape-geometry";
+import { aabb, regionBox, translateShape } from "./shape-geometry";
 import { shapeIsClosed, shapeOutline, type PathCommand } from "./shape-outline";
 import type { Bounds, ExpandedScene, Pt, SceneDefinition, ShapeObj } from "./types";
 import { pxToMetres } from "./units";

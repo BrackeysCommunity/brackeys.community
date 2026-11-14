@@ -48,7 +48,7 @@ export type PlaytestInput = {
   present?: boolean;
 };
 
-const USAGE =
+export const PLAYTEST_USAGE =
   "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file] [--timing] [--present]";
 
 /** `x,y` as two finite numbers, or null. */
@@ -211,7 +211,7 @@ function flowLines(r: PlaytestReport, save: SaveFixture | undefined): string[] {
  * list; with `fromSave` it starts from a save fixture of the scene.
  */
 export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
-  if (!input.script) return usage(`scene ${USAGE}`);
+  if (!input.script) return usage(`scene ${PLAYTEST_USAGE}`);
   if (input.scene === "-" && input.script === "-")
     return usage("only one of the scene and --script can be read from stdin");
   let at: [number, number] | undefined;
@@ -225,7 +225,7 @@ export const playtest: Tool<PlaytestInput> = async (input, ctx) => {
 
   const under = input.game === undefined ? undefined : gameFlag(ctx, input.game);
   if (isToolResult(under)) return under;
-  const loaded = await openScene(ctx, input.scene, USAGE, under);
+  const loaded = await openScene(ctx, input.scene, PLAYTEST_USAGE, under);
   if (!loaded.ok) return loaded.result;
   const { registry } = loaded;
 

@@ -68,6 +68,48 @@ export function manualFrames(
   };
 }
 
+/** The page's reduced-motion preference, stubbed by `stubReducedMotion`. */
+export type ReducedMotionStub = {
+  /** Changes the preference and fires the query's change listeners. */
+  set(reduce: boolean): void;
+  /** How many change listeners are attached to the query now. */
+  listening(): number;
+};
+
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+/**
+ * Stubs `matchMedia` so `(prefers-reduced-motion: reduce)` matches while
+ * the preference is on (`initial` to start) and no other query ever does.
+ * `vi.unstubAllGlobals` undoes it.
+ */
+export function stubReducedMotion(initial = false): ReducedMotionStub {
+  let reduce = initial;
+  const listeners = new Set<(e: { matches: boolean }) => void>();
+  vi.stubGlobal("matchMedia", (query: string) => {
+    const motion = query === REDUCED_MOTION_QUERY;
+    return {
+      media: query,
+      get matches() {
+        return motion && reduce;
+      },
+      addEventListener(type: string, fn: (e: { matches: boolean }) => void) {
+        if (motion && type === "change") listeners.add(fn);
+      },
+      removeEventListener(type: string, fn: (e: { matches: boolean }) => void) {
+        if (type === "change") listeners.delete(fn);
+      },
+    } as unknown as MediaQueryList;
+  });
+  return {
+    set(next) {
+      reduce = next;
+      for (const fn of [...listeners]) fn({ matches: next });
+    },
+    listening: () => listeners.size,
+  };
+}
+
 /** One draw the stubbed renderer was asked for: what it drew, into which texture (none for the canvas), and how. */
 export type StubbedRender = { container: unknown; target?: unknown; transform?: Matrix };
 

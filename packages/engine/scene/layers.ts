@@ -33,6 +33,16 @@ export const editorLayerOf = (layers: readonly SceneLayerDef[]): number | undefi
   layers.find((l) => l.editorOnly)?.draw;
 
 /**
+ * Where an editing glyph or outline draws: the editor-only layer, or
+ * undefined when `layers` has none or the view can't order visuals (and so
+ * can't hide them in Play).
+ */
+export const editorGlyphLayer = (
+  view: { readonly depth?: unknown } | null | undefined,
+  layers: readonly SceneLayerDef[],
+): number | undefined => (view?.depth ? editorLayerOf(layers) : undefined);
+
+/**
  * The layer an entity without `layer` sits on: types that never load
  * (notes) on `editor`, bulk entries on `terrain`, other entities on
  * `gameplay`. Given a game's `layers` that lack one of those names, an

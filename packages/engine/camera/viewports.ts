@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { boxCentre, clampZoom, zoomToFit } from "../camera";
 import { rgbSchema } from "../game/color";
+import { zodIssueText } from "../game/fields";
 import { CAMERA_RIG_SCHEMA, type CameraRigDef } from "../game/primitives";
 import type { CameraFrame } from "./rig";
 
@@ -64,22 +65,13 @@ const VIEWPORT_SCHEMA = z.strictObject({
   border: z.strictObject({ width: z.number().min(0), color: rgbSchema }).optional(),
 }) satisfies z.ZodType<ViewportDef>;
 
-/** A viewport's first issue: `frame "minimap" isn't …`, `rig damping: Too small …`. */
-function issueText(error: z.ZodError): string {
-  const issue = error.issues[0];
-  if (!issue) return "invalid";
-  const [key, ...rest] = issue.path;
-  if (key === undefined) return issue.message;
-  return `${String(key)} ${rest.length > 0 ? `${rest.join(".")}: ` : ""}${issue.message}`;
-}
-
 /** Why `defs` can't be a canvas's viewports, or null when they can. */
 export function viewportsProblem(defs: readonly ViewportDef[]): string | null {
   if (defs.length < 1 || defs.length > MAX_VIEWPORTS)
     return `a canvas has 1–${MAX_VIEWPORTS} viewports, not ${defs.length}`;
   for (const [i, def] of defs.entries()) {
     const parsed = VIEWPORT_SCHEMA.safeParse(def);
-    if (!parsed.success) return `viewport ${i}: ${issueText(parsed.error)}`;
+    if (!parsed.success) return `viewport ${i}: ${zodIssueText(parsed.error)}`;
   }
   return null;
 }

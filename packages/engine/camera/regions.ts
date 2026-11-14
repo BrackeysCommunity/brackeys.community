@@ -1,7 +1,8 @@
 /** Camera regions: areas that hold the camera's framing while a target is inside. */
 import { DEFAULT_REGION_EASE } from "../game/defaults";
+import { isCameraRegionType } from "../game/primitives";
 import type { Registry } from "../game/types";
-import { aabb, isCameraRegionType, regionBox } from "../scene/shape-geometry";
+import { aabb, regionBox } from "../scene/shape-geometry";
 import type { RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
 

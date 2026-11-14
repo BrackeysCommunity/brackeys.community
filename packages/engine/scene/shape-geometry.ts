@@ -1,4 +1,3 @@
-import { CAMERA_REGION_TYPE } from "../game/primitives";
 import type { Aabb, Pt, ShapeObj } from "./types";
 
 const DEG = Math.PI / 180;
@@ -96,10 +95,6 @@ export const aabbBox = (b: Aabb): ShapeObj => ({
  */
 export const regionBox = (shape: ShapeObj): ShapeObj =>
   shape.type === "box" && shape.rotDeg % 360 === 0 ? shape : aabbBox(aabb(shape));
-
-/** Whether `t` is the `camera-region` primitive or a type based on it. */
-export const isCameraRegionType = (t: { type: string; base?: string | undefined } | undefined) =>
-  t !== undefined && (t.base ?? t.type) === CAMERA_REGION_TYPE;
 
 export function aabbUnion(a: Aabb, b: Aabb): Aabb {
   return {

@@ -1,3 +1,4 @@
+import { isCameraRegionType } from "../game/primitives";
 import type { Registry } from "../game/types";
 import {
   gridCellsIn,
@@ -11,7 +12,7 @@ import {
   type SceneOverlay,
   type SceneRegionOptions,
 } from "./render-geometry";
-import { aabb, containsPoint, isCameraRegionType, regionBox } from "./shape-geometry";
+import { aabb, containsPoint, regionBox } from "./shape-geometry";
 import { shapeIsClosed, shapeOutline } from "./shape-outline";
 import type { Aabb, Bounds, ExpandedScene, Pt, SceneDefinition, ShapeObj } from "./types";
 

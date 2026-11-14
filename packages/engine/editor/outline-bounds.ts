@@ -1,9 +1,10 @@
+import { isCameraRegionType } from "../game/primitives";
 import type { Registry } from "../game/types";
 import type { GridCells } from "../scene/grid";
 import { growOverGrid, type SpriteAssetLookup } from "../scene/render-geometry";
 import { CHILD_SEPARATOR } from "../scene/resolve";
 import { gridFieldsOf } from "../scene/schema";
-import { aabb, aabbBox, aabbUnion, isCameraRegionType, regionBox } from "../scene/shape-geometry";
+import { aabb, aabbBox, aabbUnion, regionBox } from "../scene/shape-geometry";
 import type { Aabb, EntityDef, GridSettings, Pt, Ref, SceneDefinition } from "../scene/types";
 import { pathFollowPath } from "./gizmos/behavior-marks";
 import { editSpriteBox, entityGeometry, geometryOfRef, type EditGeometry } from "./spatial-index";

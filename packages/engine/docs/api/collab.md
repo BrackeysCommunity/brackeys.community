@@ -443,8 +443,9 @@ _type_ in `collab/watch-issues.ts`
 The project a doc belongs to, as validation reads it: a `ProjectSession`
 fits. A change to `projectDoc`'s registry (an asset added, renamed or
 trashed) revalidates. The project's engine block is the view's `engine`,
-else the game-settings doc's while `get` has it open, which an edit to
-revalidates.
+else the game-settings doc's while `get` has it open; an `anim` block's
+animation source is read from its doc while `get` has it open. An edit to
+either doc, or one opening or closing (`subscribe`), revalidates.
 
 ```ts
 type IssueProject = {
@@ -453,10 +454,15 @@ type IssueProject = {
         readonly doc: Y.Doc;
         readonly layout?: DocLayout;
     };
+    /** The kinds its docs are read with; default the game's. */
+    readonly kinds?: KindRegistry;
     readonly projectDoc?: Y.Doc;
+    subscribe?(listener: (e: ProjectSessionEvent) => void): () => void;
     view(): ProjectView;
 };
 ```
+
+Refers to [`ProjectSessionEvent`](#projectsessionevent).
 
 ## `IssueWatch`
 
@@ -1766,7 +1772,7 @@ type WatchIssuesOptions = {
     parentBounds?: Bounds;
     /** Where instances' prefabs come from; a change to one the doc reaches (`prefabsReachedBy`) revalidates. Default none. */
     prefabs?: PrefabSource;
-    /** With it, asset ids the doc names are checked against the project (`asset-missing`, `asset-kind`), and settings resolve through its engine block. */
+    /** With it, asset ids the doc names are checked against the project (`asset-missing`, `asset-kind`) and `anim` blocks against their sources, and settings resolve through its engine block. */
     project?: IssueProject;
     setTimer?: (fn: () => void, ms: number) => unknown;
 };

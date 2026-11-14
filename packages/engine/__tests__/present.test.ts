@@ -11,7 +11,7 @@ import type { PlaytestReport, PlaytestRun } from "../headless/playtest-types";
 import { createPresentationQueue, type PresentRequest } from "../runtime/present";
 import type { ExpandedScene, SceneDefinition } from "../scene/types";
 import type { GameInstance } from "../types";
-import { manualFrames, type FrameClock } from "./fixtures/frame-clock";
+import { manualFrames, stubReducedMotion, type FrameClock } from "./fixtures/frame-clock";
 
 vi.mock("../renderer", async () => (await import("./fixtures/frame-clock")).stubRenderer());
 
@@ -289,30 +289,20 @@ describe("presentation requests, in the shell", () => {
   });
 
   it('follows the page\'s reduced motion as the player changes it, under "auto"', async () => {
-    const listeners = new Set<(e: { matches: boolean }) => void>();
-    const query = {
-      matches: false,
-      addEventListener: (_: string, fn: (e: { matches: boolean }) => void) => listeners.add(fn),
-      removeEventListener: (_: string, fn: (e: { matches: boolean }) => void) =>
-        listeners.delete(fn),
-    };
-    vi.stubGlobal("matchMedia", (q: string) =>
-      q === "(prefers-reduced-motion: reduce)" ? query : { matches: false },
-    );
+    const motion = stubReducedMotion(false);
     const game = await playing(
       asking({ 1: (ctx) => ctx.present.effects.flash({ ms: 500, alpha: 0.9 }) }),
       "auto",
     );
     expect(game.reducedMotion).toBe(false);
-    query.matches = true;
-    for (const fn of listeners) fn({ matches: true });
+    motion.set(true);
     expect(game.reducedMotion).toBe(true);
     runTo(game, ticks(game) + 2);
     expect(document.querySelector<HTMLElement>("[data-jams-flash]")!.style.transition).toContain(
       "80ms",
     );
     game.destroy();
-    expect(listeners.size).toBe(0);
+    expect(motion.listening()).toBe(0);
   });
 
   it("under reduced motion drops the shake: the camera frames as if none was asked for", async () => {

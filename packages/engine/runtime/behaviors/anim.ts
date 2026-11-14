@@ -9,7 +9,7 @@ import { clipSourceIn } from "../../project/clip-source";
 import { isPlainObject } from "../../project/kinds/define";
 import { didYouMean } from "../../scene/did-you-mean";
 import type { ShapeObj } from "../../scene/types";
-import { spawnPose } from "../spawn-pose";
+import { currentPose } from "../spawn-pose";
 import type { SpriteSystem } from "./sprite";
 
 /** A frame that declares events was entered: `data` is `{ clip, frame, index, event }`, once per event. */
@@ -132,20 +132,13 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
     sprites()?.setFrame(id, now);
   }
 
-  const poseOf = (id: string) => {
-    const pose = ctx.poses.get(id);
-    if (pose) return pose;
-    const e = ctx.get(id);
-    return e ? spawnPose(e, ctx.registry) : { x: 0, y: 0, rot: 0 };
-  };
-
   function enter(id: string, run: Run): void {
     show(id, run);
     const at = frameOf(run);
     if (!at || at.into !== 0) return;
     const events = run.clip!.frames[at.index]!.events;
     if (events.length === 0) return;
-    const { x, y } = poseOf(id);
+    const { x, y } = currentPose(ctx, id);
     for (const event of events) {
       ctx.emit({
         type: ANIM_FRAME,
@@ -175,7 +168,7 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
       if (!next) {
         run.playing = false;
         if (quiet) return;
-        const { x, y } = poseOf(id);
+        const { x, y } = currentPose(ctx, id);
         ctx.emit({ type: ANIM_END, entityId: id, at: { x, y }, data: { clip: clip.name } });
         return;
       }
@@ -349,7 +342,7 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
       const e = ctx.get(id);
       const sprite = e?.behaviors?.[SPRITE.name] as Partial<SpriteBlock> | undefined;
       const flipX = (sprite?.flipX ?? false) !== (e?.transform?.flip ?? false);
-      const pose = poseOf(id);
+      const pose = currentPose(ctx, id);
       const turn = sprite?.turn !== false;
       const [dx, dy] = spriteOffset(sprite?.offset ?? [0, 0], e?.transform, turn ? pose.rot : null);
       return frameShapesAt(

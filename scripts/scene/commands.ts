@@ -54,7 +54,7 @@ import { grid } from "./tools/grid";
 import { input } from "./tools/input";
 import { list } from "./tools/list";
 import { newScene } from "./tools/new";
-import { playtest } from "./tools/playtest";
+import { playtest, PLAYTEST_USAGE } from "./tools/playtest";
 import { projectPull } from "./tools/project-pull";
 import { projectPush } from "./tools/project-push";
 import { projectRefs } from "./tools/project-refs";
@@ -283,8 +283,7 @@ const DEFINITIONS = {
       ),
   },
   playtest: {
-    usage:
-      "playtest <scene|file|-> --script <file|-> [--at x,y] [--events type,…] [--game id] [--record file] [--flow] [--from-save file] [--timing] [--present]",
+    usage: PLAYTEST_USAGE,
     summary:
       "play an input script headless (actions, waits, game commands, time away), v1 or v2 (steps or tracks per seat, set/pointer/join/leave): the outcome, steps, events with spawns and destroys counted per type, and focus trail; a game that lists its commands (GamePlayDef.commands) prints how many are legal after the last tick (legal/legalTruncated in --json); --at is in metres; --events type,… prints only those event types; --flow follows scene requests through the scene list, --from-save starts from a save fixture; --timing times each tick's parts on the wall clock, as step's does (timing in --json, never in the recording); --present lists what the run asked the shell to present (camera moves, effects, sounds) with each request's tick, points in metres (present in --json), none of which changes the run; exit 1 when blocked",
     values: ["script", "at", "events", "game", "record", "from-save"],

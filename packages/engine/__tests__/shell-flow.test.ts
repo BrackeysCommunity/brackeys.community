@@ -14,6 +14,7 @@ import type { SceneRuntimeHandle, StepResult } from "../runtime/types";
 import { SCENE_FORMAT_VERSION, type SceneDefinition } from "../scene/types";
 import type { GameConfig, GameInstance, SceneSource, TransitionRunner } from "../types";
 import { mountUi } from "../ui/layer";
+import { stubReducedMotion, type ReducedMotionStub } from "./fixtures/frame-clock";
 
 vi.mock("../renderer", () => ({
   createRenderer: async () => ({
@@ -120,25 +121,15 @@ function slowLoader(log: string[], ms: () => number): AssetLoader {
 
 const games: GameInstance[] = [];
 let canvas: HTMLCanvasElement;
-let reduced = false;
+let motion: ReducedMotionStub;
 
 beforeEach(() => {
   vi.useFakeTimers();
-  reduced = false;
   canvas = document.createElement("canvas");
   document.body.appendChild(canvas);
   vi.stubGlobal("requestAnimationFrame", () => 0);
   vi.stubGlobal("cancelAnimationFrame", () => {});
-  vi.stubGlobal(
-    "matchMedia",
-    (query: string) =>
-      ({
-        matches: reduced && query.includes("reduced-motion"),
-        media: query,
-        addEventListener() {},
-        removeEventListener() {},
-      }) as unknown as MediaQueryList,
-  );
+  motion = stubReducedMotion(false);
 });
 
 afterEach(() => {
@@ -357,7 +348,7 @@ describe("transitions and the loading view", () => {
 
   it("cuts instead of fading under the reduced motion the page asked for at createGame", async () => {
     const log: string[] = [];
-    reduced = true;
+    motion.set(true);
     const game = await makeGame({ log });
     await started(game);
     expect(game.reducedMotion).toBe(true);

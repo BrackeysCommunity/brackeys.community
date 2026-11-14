@@ -84,7 +84,7 @@ describe("the inspector's motion fields", () => {
       },
     });
     const data = screen.getByLabelText("behaviors.tween.tweens.0.emit.data") as HTMLInputElement;
-    expect(data.getAttribute("placeholder")).toBe("unset (JSON)");
+    expect(data.getAttribute("placeholder")).toBe("unset");
     fireEvent.change(data, { target: { value: "{oops" } });
     fireEvent.keyDown(data, { key: "Enter" });
     expect(screen.getByText(/^Enter JSON/)).toBeTruthy();
@@ -94,16 +94,37 @@ describe("the inspector's motion fields", () => {
     expect(data.value).toBe('{"room":2}');
   });
 
-  it("shows an emitter's offset in metres, as the position above it", () => {
-    show({ type: "marker", at: [5, 3], behaviors: { emitter: { preset: "sparks" } } });
-    const row = screen
-      .getByLabelText("behaviors.emitter.offset.x")
-      .closest('.je-insp-row[data-align="start"]')!;
+  it("shows an emitter's offset in metres, as the position above it, from its default", () => {
+    const { session } = show({
+      type: "marker",
+      at: [5, 3],
+      behaviors: { emitter: { preset: "sparks" } },
+    });
+    const x = screen.getByLabelText("behaviors.emitter.offset.x") as HTMLInputElement;
+    const row = x.closest('.je-insp-row[data-align="start"]')!;
     expect([...row.querySelectorAll(".je-insp-suffix")].map((s) => s.textContent)).toEqual([
       "x",
       "y",
       "m",
     ]);
+    expect(x.placeholder).toBe("0 (default)");
+    fireEvent.change(x, { target: { value: "0.5" } });
+    fireEvent.keyDown(x, { key: "Enter" });
+    expect(session.getDoc().entities![0]!.behaviors).toMatchObject({
+      emitter: { offset: [0.5, 0] },
+    });
+  });
+
+  it("says what an unset tween channel does: not animated in to, the current value in from", () => {
+    show({
+      type: "marker",
+      at: [5, 3],
+      behaviors: { tween: { tweens: [{ to: { y: 4 }, from: { y: 0 }, duration: 30 }] } },
+    });
+    expect(placeholder("behaviors.tween.tweens.0.to.x")).toBe("not animated");
+    expect(placeholder("behaviors.tween.tweens.0.to.scale")).toBe("not animated");
+    expect(placeholder("behaviors.tween.tweens.0.from.x")).toBe("current");
+    expect(placeholder("behaviors.tween.tweens.0.from.alpha")).toBe("current");
   });
 
   it("disables removing a list's last allowed item, saying why in its hint", async () => {

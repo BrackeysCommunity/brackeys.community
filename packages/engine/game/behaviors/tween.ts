@@ -189,30 +189,38 @@ export function tweenBlockProblems(
   return out;
 }
 
-const channels = (description: string) =>
+/** A tween's channels; an unset one reads `placeholder` in the inspector. */
+const channels = (description: string, placeholder: string) =>
   z
     .strictObject({
-      x: z.number().optional().describe("World x, m.").meta({ unit: "m" }),
-      y: z.number().optional().describe("World y, m.").meta({ unit: "m" }),
-      rot: z.number().optional().describe("Rotation, radians.").meta({ unit: "rad" }),
-      alpha: z.number().min(0).max(1).optional().describe("The sprite's opacity, 0–1."),
+      x: z.number().optional().describe("World x, m.").meta({ unit: "m", placeholder }),
+      y: z.number().optional().describe("World y, m.").meta({ unit: "m", placeholder }),
+      rot: z.number().optional().describe("Rotation, radians.").meta({ unit: "rad", placeholder }),
+      alpha: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe("The sprite's opacity, 0–1.")
+        .meta({ placeholder }),
       tint: rgbSchema
         .optional()
         .describe("The sprite's tint, 0xRRGGBB, lerped per channel.")
-        .meta({ widget: "color" }),
+        .meta({ widget: "color", placeholder }),
       scale: z
         .number()
         .positive()
         .optional()
-        .describe("Multiplies the sprite's drawn size; 1 draws it as its block sizes it."),
+        .describe("Multiplies the sprite's drawn size; 1 draws it as its block sizes it.")
+        .meta({ placeholder }),
     })
     .describe(description);
 
 /** One tween as data: what a `tween` block lists and `ctx.tweens.to` takes. */
 export const tweenSpecSchema = z
   .strictObject({
-    to: channels("Values to reach."),
-    from: channels("Values to start from; default the current ones.").optional(),
+    to: channels("Values to reach.", "not animated"),
+    from: channels("Values to start from; default the current ones.", "current").optional(),
     duration: delayField("How long one play takes.", 1),
     ease: z
       .enum(EASE_NAMES as readonly [EaseName, ...EaseName[]])

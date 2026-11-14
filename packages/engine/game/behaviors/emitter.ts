@@ -19,7 +19,7 @@ const emitterFields = (env: FieldEnv) => ({
     .meta({ default: true, group: "emission" }),
   offset: vectorField("World metres from the pose; turns and flips with the instance.")
     .optional()
-    .meta({ group: "emission" }),
+    .meta({ default: [0, 0], group: "emission" }),
   rate: z
     .number()
     .min(0)

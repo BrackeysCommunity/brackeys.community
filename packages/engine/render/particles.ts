@@ -10,7 +10,7 @@ import { layerOrder, type SpriteVisual, type ViewLayer } from "../context";
 import { spriteAssets } from "../game/behaviors/sprite";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { EngineContext } from "../game/types";
-import { lerp, lerpRgb } from "../math";
+import { clamp, lerp, lerpRgb } from "../math";
 import { degToRad } from "../physics";
 import {
   EMITTER_MAX_CAP,
@@ -393,7 +393,7 @@ export function createParticleLayer(
   }
 
   const capOf = (preset: EmitterFile) =>
-    Math.min(EMITTER_MAX_CAP, Math.max(1, Math.floor(preset.max ?? EMITTER_MAX_DEFAULT)));
+    clamp(Math.floor(preset.max ?? EMITTER_MAX_DEFAULT), 1, EMITTER_MAX_CAP);
 
   type Source = NonNullable<Group["source"]>;
 

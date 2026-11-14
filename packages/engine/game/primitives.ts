@@ -21,6 +21,10 @@ export { DEFAULT_GRAVITY } from "./defaults";
 /** The primitive whose entities hold the Play camera's framing. */
 export const CAMERA_REGION_TYPE = "camera-region";
 
+/** Whether `t` is the `camera-region` primitive or a type based on it. */
+export const isCameraRegionType = (t: { type: string; base?: string | undefined } | undefined) =>
+  t !== undefined && (t.base ?? t.type) === CAMERA_REGION_TYPE;
+
 /**
  * How every renderer draws a camera region: an area the camera frames, not
  * a surface, so its outline alone, stroked in the fill's colour when the
@@ -262,6 +266,7 @@ export const PRIMITIVES = {
     },
     style: { stroke: 0xff9966, alpha: 0.9, strokeWidth: 2 },
     ascii: "c",
+    inspector: { group: "camera" },
   },
   note: {
     type: "note",

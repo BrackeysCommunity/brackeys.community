@@ -181,8 +181,19 @@ type BehaviorOption = {
     name: BehaviorName;
     /** Why it can't be added yet (a reference with nothing in the scene to name); `batch` would fail. */
     unavailable?: string;
-    /** The project assets `batch` names, each with the clip it picked (`hero (idle)`). */
-    uses?: string[];
+    /**
+     * The project assets `batch` names, and what for: what it plays, with the
+     * clip it picked; what a sprite draws with; any other it uses.
+     */
+    uses?: ({
+        asset: AssetId;
+        clip: string;
+        role: "plays";
+    } | {
+        asset: AssetId;
+        kind?: AssetKindName;
+        role: "draws" | "uses";
+    })[];
 };
 ```
 
@@ -1259,6 +1270,7 @@ declare const INSPECTOR_SECTIONS: readonly [
     "identity",
     "transform",
     "shape",
+    "camera",
     "behavior",
     "assets",
     "path",
@@ -1293,6 +1305,8 @@ type IndexEntry = {
     /** A registry layer's name. */
     layer: string;
     ref: Ref;
+    /** A camera region, or a type based on one: it picks by the outline of the box it frames. */
+    region?: true;
     /** The world box the entity's sprite draws, when it has one. */
     sprite?: ShapeObj;
     type: string;

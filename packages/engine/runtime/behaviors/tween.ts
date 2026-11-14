@@ -24,7 +24,7 @@ import {
   type TweenTarget,
 } from "../../game/behaviors/tween";
 import { zodIssueText } from "../../game/fields";
-import { delayTicks, wholeTicksIn } from "../../game/time";
+import { delayTicks, isCount, wholeTicksIn } from "../../game/time";
 import {
   EngineError,
   type EngineContext,
@@ -34,7 +34,7 @@ import {
 import { isPlainObject } from "../../project/kinds/define";
 import type { RuntimeEntity } from "../../scene/types";
 import { plainJsonProblem } from "../persist";
-import { spawnPose } from "../spawn-pose";
+import { currentPose } from "../spawn-pose";
 import { spriteLook, type SpriteLook, type SpriteSystem } from "./sprite";
 
 /** A tween finished and its `emit` names no type: `data` is the emit's, else `{ id }` plus its `key` when it has one. */
@@ -284,15 +284,9 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     blocks.delete(id);
   }
 
-  const poseOf = (id: string) => {
-    const pose = ctx.poses.get(id);
-    if (pose) return pose;
-    const e = ctx.get(id);
-    return e ? spawnPose(e, ctx.registry) : { x: 0, y: 0, rot: 0 };
-  };
-
   function current(id: string, channel: string): number {
-    if (channel === "x" || channel === "y" || channel === "rot") return poseOf(id)[channel];
+    if (channel === "x" || channel === "y" || channel === "rot")
+      return currentPose(ctx, id)[channel];
     const held = looks.get(id)?.[channel as keyof SpriteLook];
     if (held !== undefined) return held;
     const e = ctx.get(id);
@@ -316,7 +310,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     }
     const owner = ctx.system<SceneSystem>(e.type);
     if (moves && owner?.setPose) {
-      const p = poseOf(id);
+      const p = currentPose(ctx, id);
       owner.setPose(id, values.x ?? p.x, values.y ?? p.y, values.rot ?? p.rot);
       posed.add(id);
       rebuildCollider(id);
@@ -331,7 +325,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     const { state } = run;
     run.onDone?.();
     if (quiet) return;
-    const pose = state.owner === undefined ? null : poseOf(state.owner);
+    const pose = state.owner === undefined ? null : currentPose(ctx, state.owner);
     ctx.emit({
       type: state.emit?.type ?? TWEEN_END,
       at: pose ? { x: pose.x, y: pose.y } : { x: 0, y: 0 },
@@ -415,7 +409,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     tweens.clear();
     const got = (saved ?? {}) as Partial<Captured>;
     const was = got.blocks && typeof got.blocks === "object" ? got.blocks : {};
-    if (typeof got.next === "number" && Number.isInteger(got.next) && got.next > 0) next = got.next;
+    if (isCount(got.next, 1)) next = got.next;
     const unchanged = (owner: string, index: number) => {
       const entry = blocks.get(owner)?.tweens[index];
       return entry !== undefined && was[owner]?.[index] === entryKey(entry);

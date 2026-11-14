@@ -281,11 +281,15 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   points the sprite at the source's atlas on the clip's first frame when
   its asset lacks the frames (an added sprite takes them in its block, a
   carried one as `behaviors.sprite.asset` and `.frame`).
-  `BehaviorOption.uses` names the assets an option's batch picks
-  (`kitchen-animation (idle)`, then the atlas when it isn't the source),
-  and an `"asset"` `FieldWidget` carries `clip?`, the field its picked clip
-  goes to. Picking another source in the inspector moves the sprite to its
-  atlas in the same batch when it lacks the frames.
+  `BehaviorOption.uses` lists the assets an option's batch picks, each
+  with its role: `{ role: "plays", asset, clip }` for an animation source
+  and its clip, `{ role: "draws", asset, kind? }` for the atlas its sprite
+  draws when that isn't the source, `{ role: "uses", asset, kind? }` for a
+  required asset field it fills (an emitter's preset); the item's note
+  reads them ("Plays hero's walk clip."). An `"asset"` `FieldWidget`
+  carries `clip?`, the field its picked clip goes to. Picking another
+  source in the inspector moves the sprite to its atlas in the same batch
+  when it lacks the frames.
 - `EditorProjectLink.runtime`: the project's runtime view as the editor
   keeps it; the inspector reads animations' clips through it instead of
   opening the docs again.
@@ -296,6 +300,26 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   "forever".
 - `@jams/engine/game` exports `rotate(v, angle)` with its other vector
   helpers, so behaviors and games turn a vector with the engine's own.
+- `ParticleLayer.retune(id, preset, layer?)` moves a running emitter onto
+  a new preset and layer without restarting it (its clock, point and
+  particles carry on); false, changing nothing, when no emitter `id` runs.
+- `IssueProject.kinds` (the kind registry its docs are read with; default
+  the game's) and `IssueProject.subscribe` (a `ProjectSession` fits):
+  `watchIssues` judges `anim` blocks against their animation sources while
+  the project has those docs open, and revalidates when one is edited,
+  opened or closed.
+- `RunChecksOptions.view`: the project's assets, so a `valid` check judges
+  asset ids as `validateScene`'s `project` does.
+- `applyOps` takes `validateScene`'s `runtime` option, so a batch is
+  judged against the project's animation sources.
+- `IndexEntry.region`: set on a camera region, or a type based on one, in
+  the editor's spatial index; picking and marquee take it by the outline
+  of the box it frames.
+- The inspector's `"camera"` section ("Camera", after Shape), and
+  `EntityTypeDef.inspector.group`: the section a type's own fields land in
+  where their kind would put them under Gameplay. The `camera-region`
+  primitive sets it, so a region's Zoom, Clamp and Ease time sit under
+  Camera; a type based on a primitive takes the primitive's group.
 
 ### Changed
 
@@ -305,6 +329,18 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   runner wrapping it passes it on.
 - The asset picker names kinds with their articles ("Pick an animation or
   an atlas", "gone isn't a texture or an atlas in this project.").
+- The `emitter` behavior restarts an emitter only when its preset (the id
+  or the doc) changes or it starts emitting again; a new `rate`, `offset`
+  or layer retunes it as it runs instead of starting it over.
+- `buildSceneVersion` judges `anim` blocks against the project's runtime
+  view, so a scene whose clip its source lacks (`anim-clip-unknown`) or
+  whose sprite draws another atlas (`anim-atlas-mismatch`) stops the build
+  like any other error.
+- An optional select whose default is one of its options lists that
+  option once, as "jump (default)", for its unset state: picking it on a
+  set field unsets the field.
+- The inspector offers a camera region's `rotDeg` only to clear a turn it
+  already has, with a note that a turned region frames its bounding box.
 - The camera region's editor outline is drawn at 0.9 alpha, 2 px wide, so
   an unselected region reads at default zoom; the kitchen sink's svg
   golden moves with it.

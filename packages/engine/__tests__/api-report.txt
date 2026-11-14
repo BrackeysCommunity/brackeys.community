@@ -3248,7 +3248,9 @@ type IssueProject = {
         readonly doc: Y.Doc;
         readonly layout?: DocLayout;
     };
+    readonly kinds?: KindRegistry;
     readonly projectDoc?: Y.Doc;
+    subscribe?(listener: (e: ProjectSessionEvent) => void): () => void;
     view(): ProjectView;
 };
 type IssueWatch = {
@@ -4545,7 +4547,15 @@ type BehaviorOption = {
     label: string;
     name: BehaviorName;
     unavailable?: string;
-    uses?: string[];
+    uses?: ({
+        asset: AssetId;
+        clip: string;
+        role: "plays";
+    } | {
+        asset: AssetId;
+        kind?: AssetKindName;
+        role: "draws" | "uses";
+    })[];
 };
 type BehaviorSectionId = `behaviors:${BehaviorName}`;
 type BehaviorSectionInfo = {
@@ -4656,6 +4666,7 @@ declare const INSPECTOR_SECTIONS: readonly [
     "identity",
     "transform",
     "shape",
+    "camera",
     "behavior",
     "assets",
     "path",
@@ -5298,6 +5309,7 @@ type IndexEntry = {
     key: string;
     layer: string;
     ref: Ref;
+    region?: true;
     sprite?: ShapeObj;
     type: string;
     z: number;
@@ -6740,6 +6752,9 @@ declare const PRIMITIVES: {
             ease: z.ZodOptional<z.ZodNumber>;
             shape: z.ZodType<ShapeTuple, unknown, z.core.$ZodTypeInternals<ShapeTuple, unknown>>;
             zoom: z.ZodOptional<z.ZodNumber>;
+        };
+        inspector: {
+            group: string;
         };
         physics: "optional";
         style: {
@@ -8313,6 +8328,7 @@ type RunChecksOptions = {
     readFile: (path: string) => string;
     registry: Registry;
     scene: SceneDefinition;
+    view?: ProjectView;
 };
 declare function runChecks(opts: RunChecksOptions): ChecksReport;
 
@@ -11224,6 +11240,7 @@ declare function createEffectLayer(layer: HTMLElement, loop: Pick<GameLoop, "get
 ## render/particles.ts
 interface ParticleLayer {
     emitter(id: string, preset: EmitterFile, at: () => Pose | undefined, layer?: ViewLayer): void;
+    retune(id: string, preset: EmitterFile, layer?: ViewLayer): boolean;
     remove(id: string): void;
     burst(preset: EmitterFile, at: Vec2, opts?: BurstOptions): void;
     update(dtMs: number): void;
@@ -14147,7 +14164,7 @@ declare function opsSchemaId(registry: Registry): string;
 declare function sceneOpSchemaFor(registry: Registry): OpSchemas["op"];
 
 ## scene/ops.ts
-declare function applyOps(def: SceneDefinition, batch: OpBatch, given: Registry, opts?: ApplyOptions): ApplyResult;
+declare function applyOps(def: SceneDefinition, batch: OpBatch, given: Registry, opts?: ApplyOptions & Pick<ValidateOptions, "runtime">): ApplyResult;
 declare function toSourceBatch(def: SceneDefinition, batch: OpBatch, given: Registry, prefabs?: PrefabLibrary): SourceBatchResult;
 
 ## scene/parse.ts

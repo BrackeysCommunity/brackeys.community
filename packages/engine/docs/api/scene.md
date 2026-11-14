@@ -3393,13 +3393,14 @@ Applies a batch atomically: every op resolves its refs against the
 document the batch started from, and the result carries the inverse batch,
 the diff and (unless `validate: "none"`) the structural issues of the new
 document. Types, bulk keys and settings come from the registry the scene's
-`game` picks out of `given` (`sceneRegistry`), as `validateScene` judges it.
+`game` picks out of `given` (`sceneRegistry`), as `validateScene` judges it,
+with `opts.project` and `opts.runtime` as its options of those names.
 
 ```ts
-declare function applyOps(def: SceneDefinition, batch: OpBatch, given: Registry, opts?: ApplyOptions): ApplyResult;
+declare function applyOps(def: SceneDefinition, batch: OpBatch, given: Registry, opts?: ApplyOptions & Pick<ValidateOptions, "runtime">): ApplyResult;
 ```
 
-Refers to [`ApplyOptions`](#applyoptions), [`ApplyResult`](#applyresult), [`OpBatch`](#opbatch), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition).
+Refers to [`ApplyOptions`](#applyoptions), [`ApplyResult`](#applyresult), [`OpBatch`](#opbatch), [`Registry`](#registry), [`SceneDefinition`](#scenedefinition), [`ValidateOptions`](#validateoptions).
 
 ## `applyPt`
 

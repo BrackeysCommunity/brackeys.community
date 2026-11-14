@@ -4,7 +4,7 @@ import type { EmitterBlock } from "../../game/behaviors/emitter";
 import { spriteOffset } from "../../game/behaviors/sprite";
 import type { EngineContext, Style } from "../../game/types";
 import { EMITTER_KIND, type EmitterFile } from "../../project/kinds/emitter";
-import { editorLayerOf } from "../../scene/layers";
+import { editorGlyphLayer } from "../../scene/layers";
 import type { RuntimeEntity, ShapeObj } from "../../scene/types";
 import { entityHomeLayer } from "../../systems/bodies";
 import { lerpPose, type Pose } from "../poses";
@@ -48,15 +48,14 @@ export const emitterPreset = (
  * the project has emits nothing. A block update restarts it only when its
  * preset (the id or the doc) changes or it starts emitting again; a new
  * `rate`, `offset` or layer carries on from where it was. While editing,
- * a spark glyph on the registry's editor-only layer marks the point it
- * emits from, whatever its preset; a registry without that layer draws none.
+ * a spark glyph on `editorGlyphLayer` marks the point it emits from,
+ * whatever its preset.
  */
 export const createEmitterSystem: BehaviorSystemFactory = (ctx) => {
   if (ctx.view === null)
     throw new Error("the emitter system draws through a view; headless runs build none");
   const view = ctx.view;
-  /** Where the glyphs draw; a view that can't order visuals can't hide them in Play, so it draws none. */
-  const glyphLayer = view.depth ? editorLayerOf(ctx.registry.layers) : undefined;
+  const glyphLayer = editorGlyphLayer(view, ctx.registry.layers);
   const attached = new Map<string, Attached>();
   /** Each entity's pose as the last rendered frame placed it. */
   const framed = new Map<string, Pose>();

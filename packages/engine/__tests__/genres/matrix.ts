@@ -63,7 +63,9 @@ export const GENRE_MATRIX: Readonly<Record<GenreRow, GenreMatrixRow>> = {
     deliveredBy: "M14, M16, M17, M23",
     probes: ["point-and-click"],
   },
-  idle: { genre: "Idle / clicker", deliveredBy: "M14, M17, M18, M21", probes: ["idle"] },
+  // Engine milestones only: the site's player save store, which keeps an idle game between
+  // sessions, is covered by the site's staging tests rather than by a probe.
+  idle: { genre: "Idle / clicker", deliveredBy: "M14, M17, M18", probes: ["idle"] },
   "endless-runner": {
     genre: "Endless runner",
     deliveredBy: "M15, M16, M19, M22",

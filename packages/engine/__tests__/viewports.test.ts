@@ -127,7 +127,7 @@ describe("viewports", () => {
       viewportsProblem([{ rect: [0, 0, 1, 1], frame: "main", rig: { damping: 0.1 } }]),
     ).toBeNull();
     const badRig = { rect: [0, 0, 1, 1], frame: "main", rig: { damping: -1 } } as ViewportDef;
-    expect(viewportsProblem([badRig])).toMatch(/^viewport 0: rig damping: /);
+    expect(viewportsProblem([badRig])).toMatch(/^viewport 0: rig\.damping: /);
     const one = (def: Partial<Record<keyof ViewportDef, unknown>>) =>
       viewportsProblem([{ rect: [0, 0, 1, 1], frame: "main", ...def } as ViewportDef]);
     for (const frame of ["scene", { player: 0 }, { player: 3 }, { entity: "crate" }])
@@ -143,23 +143,23 @@ describe("viewports", () => {
       { player: 0, entity: "crate" },
       { point: { x: 0, y: 0 } },
     ])
-      expect(one({ frame })).toMatch(/^viewport 0: frame /);
+      expect(one({ frame })).toMatch(/^viewport 0: frame(\.\w+)?: /);
     expect(one({ layers: ["world"] })).toBeNull();
-    expect(one({ layers: "world" })).toMatch(/^viewport 0: layers /);
-    expect(one({ layers: [1] })).toMatch(/^viewport 0: layers /);
+    expect(one({ layers: "world" })).toMatch(/^viewport 0: layers(\.\d+)?: /);
+    expect(one({ layers: [1] })).toMatch(/^viewport 0: layers(\.\d+)?: /);
     expect(one({ border: { width: 2, color: 0xffffff } })).toBeNull();
     for (const color of [-1, 0x1000000, 0.5, NaN, "#fff", undefined])
       expect(one({ border: { width: 2, color } })).toMatch(
-        /^viewport 0: border color: Invalid colour/,
+        /^viewport 0: border\.color: Invalid colour/,
       );
-    expect(one({ border: { width: -1, color: 0 } })).toMatch(/^viewport 0: border width: /);
-    expect(one({ border: { width: 2, color: 0, colour: 0 } })).toMatch(/^viewport 0: border /);
+    expect(one({ border: { width: -1, color: 0 } })).toMatch(/^viewport 0: border\.width: /);
+    expect(one({ border: { width: 2, color: 0, colour: 0 } })).toMatch(/^viewport 0: border: /);
     expect(viewportsProblem([{ ...SPLIT[0]!, layer: "world" } as ViewportDef])).toMatch(
       /^viewport 0: Unrecognized key: "layer"/,
     );
-    expect(one({ rect: [0, 0, 1] })).toMatch(/^viewport 0: rect /);
-    expect(one({ rect: [0, 0, NaN, 1] })).toMatch(/^viewport 0: rect /);
-    expect(one({ rect: "full" })).toMatch(/^viewport 0: rect /);
+    expect(one({ rect: [0, 0, 1] })).toMatch(/^viewport 0: rect(\.\d+)?: /);
+    expect(one({ rect: [0, 0, NaN, 1] })).toMatch(/^viewport 0: rect(\.\d+)?: /);
+    expect(one({ rect: "full" })).toMatch(/^viewport 0: rect(\.\d+)?: /);
     // The topmost wins where they overlap.
     const minimap: ViewportDef[] = [
       { rect: [0, 0, 1, 1], frame: "main" },
@@ -175,7 +175,7 @@ describe("viewports", () => {
     const { game } = await playing(SPLIT);
     expect(() => game.setViewports([{ rect: [0, 0, 2, 1], frame: "main" }])).toThrow(/viewports/);
     const minimap = { rect: [0, 0, 1, 1], frame: "minimap" } as unknown as ViewportDef;
-    expect(() => game.setViewports([minimap])).toThrow(/viewport 0: frame "minimap"/);
+    expect(() => game.setViewports([minimap])).toThrow(/viewport 0: frame: "minimap"/);
   });
 
   it("render the world container twice: directly, and into viewport 1's texture with its own transform", async () => {

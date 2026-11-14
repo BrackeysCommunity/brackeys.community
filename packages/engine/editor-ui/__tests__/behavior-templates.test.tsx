@@ -117,7 +117,7 @@ describe("Add behavior templates", () => {
     expect(option.batch.ops).toEqual([
       { op: "update", ref: "hero", set: { "behaviors.emitter": { preset: "embers" } } },
     ]);
-    expect(option.uses).toEqual(["embers"]);
+    expect(option.uses).toEqual([{ asset: "embers", role: "uses" }]);
   });
 
   describe("Animation", () => {
@@ -167,7 +167,10 @@ describe("Add behavior templates", () => {
     it("picks the first source with clips and its first clip, its atlas on the sprite, and the block validates", () => {
       const { def, option } = animOption(SOURCES);
       expect(option.unavailable).toBeUndefined();
-      expect(option.uses).toEqual(["kitchen (idle)", "knight"]);
+      expect(option.uses).toEqual([
+        { asset: "kitchen", clip: "idle", role: "plays" },
+        { asset: "knight", kind: "atlas", role: "draws" },
+      ]);
       expect(option.adds).toEqual(["Sprite"]);
       expect(option.batch.ops).toEqual([
         {
@@ -398,10 +401,33 @@ describe("EditorInspector: standard behaviors", () => {
     const jump = screen.getByRole("combobox", { name: "behaviors.character-side-view.jump" });
     fireEvent.click(jump);
     const options = await waitFor(() => screen.getAllByRole("option"));
-    expect(options.map((o) => o.textContent)).toEqual(["unset", "move (vector)", "jump"]);
+    expect(options.map((o) => o.textContent)).toEqual(["move (vector)", "jump (default)"]);
     choose(options.find((o) => o.textContent === "move (vector)")!);
     await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
     expect(entity("hero").behaviors).toMatchObject({ "character-side-view": { jump: "move" } });
+  });
+
+  it("unsets a set field when its default's option is picked", async () => {
+    const { dispatch, entity } = setup(
+      ["hero"],
+      room({
+        ...hero,
+        behaviors: {
+          collider: { shape: ["box", 0, 0, 0.25, 0.25] },
+          "character-side-view": { jump: "move" },
+        },
+      }),
+    );
+    const jump = screen.getByRole("combobox", { name: "behaviors.character-side-view.jump" });
+    expect(jump.textContent).toBe("move (vector)");
+    fireEvent.click(jump);
+    const options = await waitFor(() => screen.getAllByRole("option"));
+    choose(options.find((o) => o.textContent === "jump (default)")!);
+    await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
+    const block = (entity("hero").behaviors as Record<string, Record<string, unknown>>)[
+      "character-side-view"
+    ]!;
+    expect("jump" in block).toBe(false);
   });
 
   it("picks a joint's other end from the scene's entities, never itself", async () => {
@@ -640,7 +666,7 @@ describe("EditorInspector: Animation's source and clip", () => {
     const item = items.find((i) => i.getAttribute("data-behavior") === "anim")!;
     expect(item.getAttribute("aria-disabled")).toBeNull();
     expect(item.querySelector(".je-insp-behavior-note")?.textContent).toBe(
-      "Uses hero (walk). Also adds Sprite.",
+      "Plays hero's walk clip. Also adds Sprite.",
     );
     await act(async () => {
       choose(item);

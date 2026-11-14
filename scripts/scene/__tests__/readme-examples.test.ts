@@ -39,6 +39,7 @@ import { defaultBuildOut, ZIP_TARGET } from "../tools/game-build";
 import { defaultZipOut, gameExport } from "../tools/game-export";
 import { cardGame } from "./card-game";
 import { tempProject } from "./fixtures";
+import { copyGame } from "./fixtures/copy-game";
 
 const repoFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
 
@@ -360,10 +361,7 @@ async function projectsIn(base: string): Promise<ToolContext> {
   );
   await mkdir(dirs.lookout);
   await writeFile(join(dirs.lookout, "ridge.json"), formatScene(ridge).text);
-  await cp(repoFile("src/games/tactics"), dirs.tactics, {
-    recursive: true,
-    filter: (src) => !src.includes("__tests__"),
-  });
+  await copyGame(tacticsGame.id, dirs.tactics);
   await copyFile(
     repoFile("src/games/platformer/scenes/test-yard.json"),
     join(dirs.platformer, "test-yard.json"),

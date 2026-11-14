@@ -28,10 +28,10 @@ import { bundleReportDir, gameBuild, type GameBuildInput } from "../tools/game-b
 import { gameExport } from "../tools/game-export";
 import { filesUnder, gameManifest, replayRelease } from "../tools/game-manifest";
 import { GAME_NEW_STAGE } from "../tools/game-new";
+import { copyGame } from "./fixtures/copy-game";
 import { hostedSite } from "./fixtures/hosted-site";
 import {
   addMotion,
-  copyGame,
   MOTION_ANIMATION,
   MOTION_PRESET,
   MOTION_SPARE_PRESET,

@@ -12,6 +12,7 @@ import { bindText, bindToWorld, watchView } from "../ui/bind";
 import { createUiLayer, mountUi } from "../ui/layer";
 import type { UiContext } from "../ui/types";
 import { loadCompatRapier } from "./fixtures/compat-rapier";
+import { stubReducedMotion } from "./fixtures/frame-clock";
 import { testGame } from "./fixtures/test-game";
 
 vi.mock("../renderer", () => ({
@@ -227,9 +228,8 @@ describe("mountUi", () => {
   });
 
   it("asks the page once under auto, a boolean wins, and hands UiContext the game's value", async () => {
-    const reduce = vi.fn((query: string) => ({
-      matches: query === "(prefers-reduced-motion: reduce)",
-    }));
+    stubReducedMotion(true);
+    const reduce = vi.fn(globalThis.matchMedia);
     vi.stubGlobal("matchMedia", reduce);
     const auto = await createGame(canvas, { game: testGame, rapier: async () => rapier });
     const off = await createGame(canvas, {
