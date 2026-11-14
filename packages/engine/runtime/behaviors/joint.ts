@@ -33,6 +33,7 @@ type Linked = {
 
 const ZERO: Pose = { x: 0, y: 0, rot: 0 };
 
+/** Behaviors import only what a game can; `math.ts`'s `rotate` isn't on the game entry. */
 const rotate = (v: Vec, rot: number): Vec => {
   if (rot === 0) return { x: v.x, y: v.y };
   const c = Math.cos(rot);

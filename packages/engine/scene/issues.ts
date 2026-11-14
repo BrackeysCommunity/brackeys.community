@@ -329,6 +329,13 @@ export const ISSUE_CODES: Readonly<Record<EngineIssueCode, IssueCodeInfo>> = {
     hint: "Name one of the animation's clips (the message suggests the closest), or add the clip.",
     fixable: false,
   },
+  "anim-atlas-mismatch": {
+    severity: "error",
+    summary:
+      "An `anim` entity's sprite draws an asset that lacks frames its source plays, so they don't show.",
+    hint: "Set the sprite's `asset` to the source's atlas (the message names it), or play a source over the sprite's atlas.",
+    fixable: false,
+  },
   "frame-shape-invalid": {
     severity: "error",
     summary:

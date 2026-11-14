@@ -313,6 +313,25 @@ describe("metres and px per metre", () => {
   });
 });
 
+describe("camera regions", () => {
+  it("draws the box a turned region frames, dashed and unfilled, not its turned outline", () => {
+    const def: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      name: "regions",
+      bounds: [0, 0, 8, 8],
+      entities: [
+        { id: "hall", type: "camera-region", shape: ["box", 4, 4, 2, 2, 45] },
+        { id: "room", type: "camera-region", shape: ["box", 4, 4, 2, 1] },
+      ],
+    };
+    const svg = renderSceneSvg(def, { registry: createRegistry() });
+    expect(svg).toMatch(
+      /data-ref="hall" data-type="camera-region" stroke-dasharray="[^"]+" d="M117\.16 117\.16L682\.84 117\.16L682\.84 682\.84L117\.16 682\.84Z" fill="none"/,
+    );
+    expect(svg).toMatch(/data-ref="room" [^>]* d="M200 300L600 300L600 500L200 500Z" fill="none"/);
+  });
+});
+
 describe("the render's size", () => {
   it("is the region times the scale", () => {
     expect(size(renderSceneSvg(yard, { registry: engine }))).toEqual([1600, 800]);

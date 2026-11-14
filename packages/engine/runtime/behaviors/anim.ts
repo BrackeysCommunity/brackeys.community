@@ -6,6 +6,7 @@ import { SPRITE, spriteOffset, type SpriteBlock } from "../../game/behaviors/spr
 import { delayTicks, isCount, wholeTicksIn } from "../../game/time";
 import { EngineError, type EngineContext, type JsonValue } from "../../game/types";
 import { clipSourceIn } from "../../project/clip-source";
+import { isPlainObject } from "../../project/kinds/define";
 import { didYouMean } from "../../scene/did-you-mean";
 import type { ShapeObj } from "../../scene/types";
 import { spawnPose } from "../spawn-pose";
@@ -366,7 +367,7 @@ export const createAnimSystem: BehaviorSystemFactory = (ctx: EngineContext) => {
     },
     restore(id, state) {
       const run = runs.get(id);
-      if (!run || typeof state !== "object" || state === null || Array.isArray(state)) return;
+      if (!run || !isPlainObject(state)) return;
       const saved = state as Partial<Record<keyof Saved, unknown>>;
       const clip = typeof saved.clip === "string" ? run.clips.get(saved.clip) : undefined;
       if (!clip || !isCount(saved.at) || !isCount(saved.part) || saved.part >= MILLI) return;

@@ -1,18 +1,15 @@
 /**
  * Tweens: an entity's pose and sprite look, or one number, animated over
- * whole ticks. The spec's schema lives in `game/behaviors/tween.ts`, which
- * the hosted service reads; this module holds the arithmetic that runs them
- * and the rule for what they can play on, and `runtime/behaviors/tween.ts`
- * applies them to a run.
+ * whole ticks. The spec's schema and the rule for what a tween can play on
+ * live in `game/behaviors/tween.ts`, which the hosted service reads; this
+ * module holds the arithmetic that runs them, and
+ * `runtime/behaviors/tween.ts` applies them to a run.
  */
-import {
-  tweenChannels,
-  tweenTargetProblem,
-  type EaseName,
-  type TweenSpec,
-} from "../game/behaviors/tween";
+import type { EaseName, TweenSpec } from "../game/behaviors/tween";
+import { isCount } from "../game/time";
 import type { JsonValue } from "../game/types";
 import { lerp, lerpRgb } from "../math";
+import { isPlainObject } from "../project/kinds/define";
 import { ease, EASE_NAMES } from "./ease";
 
 export type { TweenChannel, TweenSpec } from "../game/behaviors/tween";
@@ -74,48 +71,6 @@ export function lerpChannel(channel: string, from: number, to: number, k: number
   return channel === "tint" ? lerpRgb(from, to, k) : lerp(from, to, k);
 }
 
-/**
- * What a tween plays on: an entity's type and whether it can be posed, as
- * `tweenTargetProblem` takes them, and the host it rides when it rides one
- * (a solid's or sensor's `attach`).
- */
-export type TweenTarget = { type: string; posable: boolean | null; riding?: string };
-
-/**
- * Why `spec` can't play on `target`, or null when it can. An entity riding
- * a host goes where the host's body takes it, so its pose can't be tweened.
- */
-export function tweenProblem(
-  target: TweenTarget,
-  spec: Pick<TweenSpec, "to">,
-  hasSprite: boolean,
-): string | null {
-  const posed =
-    target.riding === undefined
-      ? target
-      : { type: `${target.type} riding "${target.riding}"`, posable: false };
-  return tweenTargetProblem(posed, tweenChannels(spec), hasSprite);
-}
-
-/**
- * Each entry of `id`'s `tween` block that can't play on `target`: its index
- * and `tween-target-invalid`'s message, which counts entries from 1. The
- * scene validator and the block's attach both check a block through here.
- */
-export function tweenBlockProblems(
-  id: string,
-  tweens: readonly Pick<TweenSpec, "to">[],
-  target: TweenTarget,
-  hasSprite: boolean,
-): { index: number; message: string }[] {
-  const out: { index: number; message: string }[] = [];
-  tweens.forEach((spec, index) => {
-    const problem = tweenProblem(target, spec, hasSprite);
-    if (problem) out.push({ index, message: `${id}'s tween ${index + 1} can't play: ${problem}` });
-  });
-  return out;
-}
-
 /** The eased progress of `state` at its current tick: running backwards on a yoyo's odd plays. */
 function progress(state: TweenState): number {
   const back = state.yoyo && state.play % 2 === 1;
@@ -170,33 +125,29 @@ export function stepTween(
 
 /** Whether `value` is a `TweenState` a world save can put back. */
 export function isTweenState(value: unknown): value is TweenState {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  if (!isPlainObject(value)) return false;
   const s = value as Partial<Record<keyof TweenState, unknown>>;
-  const count = (n: unknown, min = 0) => typeof n === "number" && Number.isInteger(n) && n >= min;
   const values = (v: unknown): v is TweenValues =>
-    typeof v === "object" &&
-    v !== null &&
-    !Array.isArray(v) &&
-    Object.values(v).every((n) => typeof n === "number" && Number.isFinite(n));
+    isPlainObject(v) && Object.values(v).every((n) => typeof n === "number" && Number.isFinite(n));
   if (!values(s.to)) return false;
   const channels = Object.keys(s.to);
   // `given` names only channels of `to`; a fixed `from` holds every one.
   const given = (v: unknown) => values(v) && Object.keys(v).every((c) => channels.includes(c));
   const from = (v: unknown) => given(v) && channels.every((c) => Object.hasOwn(v as object, c));
   return (
-    count(s.id, 1) &&
+    isCount(s.id, 1) &&
     (s.owner === undefined || typeof s.owner === "string") &&
     (s.key === undefined || typeof s.key === "string") &&
-    (s.block === undefined || count(s.block)) &&
+    (s.block === undefined || isCount(s.block)) &&
     (s.given === undefined || given(s.given)) &&
     (s.from === undefined || from(s.from)) &&
-    count(s.duration, 1) &&
-    count(s.delay) &&
+    isCount(s.duration, 1) &&
+    isCount(s.delay) &&
     EASE_NAMES.includes(s.ease as EaseName) &&
-    count(s.repeat, -1) &&
+    isCount(s.repeat, -1) &&
     typeof s.yoyo === "boolean" &&
-    count(s.play) &&
-    count(s.tick) &&
+    isCount(s.play) &&
+    isCount(s.tick) &&
     (s.tick as number) <= (s.duration as number)
   );
 }

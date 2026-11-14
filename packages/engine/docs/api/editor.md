@@ -909,6 +909,11 @@ type FieldWidget = {
     kind: "number";
     max?: number;
     min?: number;
+    /** Values shown, and typed, as a word (`meta.named`: a repeat's -1 as "forever"). */
+    named?: readonly {
+        label: string;
+        value: number;
+    }[];
     /**
      * Shown in `unit` as the stored value times this (a `rad/s` field as
      * `°/s`): the row's value and default are shown values, and what is
@@ -961,6 +966,8 @@ type FieldWidget = {
     kind: "delay";
     min: number;
     rate: number;
+} | {
+    kind: "json";
 } | {
     kind: "object";
 } | {
@@ -3334,19 +3341,15 @@ differ is `mixed`. Pure: the site renders it.
 
 ```ts
 declare function buildInspectorModel(registry: Registry, targets: readonly RefTarget[], opts?: {
-    /**
-     * A project asset's kind: Add behavior then prefers an animation's
-     * clips over an atlas's tags when it picks an `anim` block's source.
-     */
-    assetKind?: (id: AssetId) => AssetKindName | undefined;
-    /**
-     * The clip names an animation or atlas asset offers, in file order (an
-     * atlas's tags are its clips), null when they can't be read: Add
-     * behavior picks an `anim` block's source and clip from them.
-     */
-    clips?: (source: AssetId) => null | readonly string[];
     /** The scene the targets are in (the resolved view): Add behavior seeds a reference from it. */
     def?: SceneDefinition;
+    /**
+     * Where an `anim` block's source is read (`clipLookupOf`): Add behavior
+     * picks its source and clip from the project's animations' clips (over
+     * an atlas's tags) and points the sprite at the source's atlas
+     * (`animSpriteOf`). Without it, Add can't pick a clip.
+     */
+    sources?: ClipSourceLookup;
 }): InspectorModel;
 ```
 
@@ -4354,8 +4357,8 @@ Refers to [`Ref`](#ref), [`RefTarget`](#reftarget), [`SceneDefinition`](#scenede
 _function_ in `editor/picking.ts`
 
 What a marquee over `rect` selects, topmost first: entries wholly inside
-it, or with `touch` (Alt) any it or its sprite's box touches. Hidden and
-locked layers are skipped.
+it, or with `touch` (Alt) any it or its sprite's box touches (a camera
+region's outline, not its inside). Hidden and locked layers are skipped.
 
 ```ts
 declare function marqueeSelect(index: SpatialIndex, rect: Aabb, opts: {
@@ -4729,7 +4732,8 @@ Refers to [`EditorCommand`](#editorcommand), [`EditorToolContext`](#editortoolco
 
 _function_ in `editor/picking.ts`
 
-Every entry under `p` (its geometry, or the box its sprite draws), topmost first, skipping hidden and locked layers.
+Every entry under `p` (its geometry, a camera region's outline, or the box
+its sprite draws), topmost first, skipping hidden and locked layers.
 
 ```ts
 declare function pickAt(index: SpatialIndex, p: Pt, opts: PickOptions): IndexEntry[];

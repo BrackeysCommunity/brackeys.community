@@ -88,6 +88,8 @@ export type EditorProjectLink = {
   scene?: string;
   /** The project's scene list as flow reads it; default empty. */
   flow?: SceneListFlow;
+  /** The project's runtime view as the editor keeps it, read again as a runtime doc changes. */
+  runtime?: ProjectRuntimeView;
   /**
    * Opens another scene of the project in the editor, in place of this one.
    * `madeFrom` names the scene a new one was made from: an undo that removes
@@ -479,7 +481,8 @@ export function useSceneEditor({
   const current = session !== null && overlay?.session === session ? overlay : null;
   const settled = current !== null;
   const openSession = current?.session ?? null;
-  const flow = current?.projectData?.flow ?? NO_FLOW;
+  const projectData = current?.projectData ?? null;
+  const flow = projectData?.flow ?? NO_FLOW;
   const flowRef = useRef(flow);
   useEffect(() => {
     flowRef.current = flow;
@@ -652,6 +655,7 @@ export function useSceneEditor({
               doc: ready.name,
               scene: ready.id,
               flow,
+              ...(projectData ? { runtime: projectData } : {}),
               openScene,
               notice,
               ...(connection?.blobs ? { blobs: connection.blobs } : {}),
@@ -674,6 +678,7 @@ export function useSceneEditor({
     projects,
     switchProject,
     flow,
+    projectData,
     openScene,
     notice,
   ]);

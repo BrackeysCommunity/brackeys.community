@@ -287,6 +287,7 @@ export function NumberInput({
   preview,
   suffix,
   decimals,
+  named,
   onCommit,
 }: {
   label: string;
@@ -302,17 +303,25 @@ export function NumberInput({
   suffix?: string;
   /** Decimals the value shows; all of them when omitted. */
   decimals?: number;
+  /** Values shown as a word, which typing the word sets. */
+  named?: readonly { value: number; label: string }[];
   onCommit: (text: string) => FieldResult;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const run = (text: string) =>
-    settle(onCommit(text), (problem) => {
+  const run = (text: string) => {
+    const word = named?.find((n) => n.label.toLowerCase() === text.trim().toLowerCase());
+    settle(onCommit(word ? String(word.value) : text), (problem) => {
       setError(problem);
       if (!problem) setDraft(null);
     });
+  };
   const shown =
-    preview ?? draft ?? (mixed || value === undefined ? "" : shownNumber(value, decimals));
+    preview ??
+    draft ??
+    (mixed || value === undefined
+      ? ""
+      : (named?.find((n) => n.value === value)?.label ?? shownNumber(value, decimals)));
   return (
     <div className="je-insp-number">
       <div className="je-insp-row" data-gap="tight">
@@ -398,6 +407,55 @@ export function TextField({ field, commit, unset, scope }: FieldWidgetProps) {
   );
 }
 
+/**
+ * Plain JSON typed as text, committed on Enter or blur once it parses;
+ * empty unsets an optional field.
+ */
+export function JsonField({ field, commit, unset, scope }: FieldWidgetProps) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const value = field.mixed || field.value === undefined ? "" : JSON.stringify(field.value);
+  const run = () => {
+    if (draft === null) return;
+    let input: unknown;
+    if (draft.trim() === "" && field.optional) input = undefined;
+    else {
+      try {
+        input = JSON.parse(draft);
+      } catch {
+        setError('Enter JSON: a number, "text" in quotes, true, an [array] or an {object}.');
+        return;
+      }
+    }
+    settle(commit(input), (problem) => {
+      setError(problem);
+      if (!problem) setDraft(null);
+    });
+  };
+  return (
+    <FieldRow field={field} error={error} scope={scope}>
+      <Input
+        aria-label={field.path}
+        aria-invalid={error ? true : undefined}
+        placeholder={placeholderOf(
+          field,
+          unset ?? (field.defaultValue === undefined ? "unset (JSON)" : undefined),
+        )}
+        value={draft ?? value}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={run}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") run();
+          if (e.key === "Escape") {
+            setDraft(null);
+            setError(null);
+          }
+        }}
+      />
+    </FieldRow>
+  );
+}
+
 type NumberWidget = Extract<InspectorRow["widget"], { kind: "number" }>;
 
 export function NumberField({ field, commit, unset, scope, disabled }: FieldWidgetProps) {
@@ -431,6 +489,7 @@ export function NumberField({ field, commit, unset, scope, disabled }: FieldWidg
         bigStep={w.bigStep}
         suffix={w.unit}
         decimals={w.decimals}
+        {...(w.named ? { named: w.named } : {})}
         preview={
           preview === null
             ? null

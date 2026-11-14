@@ -446,6 +446,22 @@ describe("the particle layer", () => {
     ]);
   });
 
+  it("refuses a burst with a non-finite count, angle, tint or point, and rounds a count down", () => {
+    const { container, layer, drawn } = layerOf();
+    const preset = file({ speed: [1, 1] });
+    for (const o of [{ count: NaN }, { count: Infinity }, { angle: NaN }, { tint: NaN }])
+      layer.burst(preset, { x: 0, y: 0 }, { count: 2, ...o });
+    layer.burst(preset, { x: NaN, y: 0 }, { count: 2 });
+    layer.burst(preset, { x: 0, y: 0 }, { count: 0.5 });
+    expect(layer.stats().particles).toBe(0);
+    expect(container.children).toHaveLength(0);
+    layer.update(FRAME_MS);
+    expect(container.children).toHaveLength(0);
+
+    layer.burst(preset, { x: 0, y: 0 }, { count: 2.5 });
+    expect(drawn()).toHaveLength(2);
+  });
+
   it("moves particles by speed, angle (clockwise, y down), drift and damping", () => {
     const { layer, drawn } = layerOf();
     layer.burst(file({ speed: [2, 2], angle: [90, 90] }), { x: 1, y: 1 }, { count: 1 });

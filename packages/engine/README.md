@@ -1368,7 +1368,9 @@ a lazy loader so editor code stays out of its play bundle, and binds them
 with edit-scope `editorKeys` whose command is `tool:<id>`;
 `placementEditorTool` builds one from a list of shapes to place. Fields a
 game marks with `meta.widget` render with the widget it describes in
-`editor.widgets`.
+`editor.widgets`; `meta.widget: "json"` takes plain JSON as text (a
+tween emit's `data`), and a number field's `meta.named` shows values as
+words (a tween's `repeat` of -1 reads "forever").
 
 Dropping an asset on the canvas places it: `dropFragment` turns a texture
 into a `decor` with `sprite.asset`, an atlas frame into one with `asset`
@@ -4452,8 +4454,13 @@ and an `effect` `burst` at the post), and `sameDigest` is true.
 The `anim` behavior plays an atlas's tags, or an animation doc's clips, on
 the simulation's ticks, headless included: frame events and per-frame
 shapes are gameplay, so they must replay. It requires a `sprite`; when there
-is a view, each frame it enters is handed to the sprite system. Its
-definition is `ANIM` (`./game`), beside `TWEEN` and `EMITTER`.
+is a view, each frame it enters is handed to the sprite system, which draws
+it from the sprite's own `asset`. That asset has to hold the frames: the
+source's atlas, or another atlas with the same frame names. A sprite whose
+asset lacks some is `anim-atlas-mismatch` (with the project's runtime view
+for an animation source), and the editor's Add behavior and source picker
+point the sprite at the source's atlas. Its definition is `ANIM` (`./game`),
+beside `TWEEN` and `EMITTER`.
 
 | Field     | Default | What it is                                                                |
 | --------- | ------- | ------------------------------------------------------------------------- |
@@ -4713,17 +4720,17 @@ fraction that is exact until the ease, so a tween lands on the same tick
 and value in every run. Tweens are simulation: they run headless, replay
 and save.
 
-| Field      | Default        | What it is                                                                                             |
-| ---------- | -------------- | ------------------------------------------------------------------------------------------------------ |
-| `to`       | —              | the values to reach, at least one channel                                                              |
-| `from`     | current values | the values to start from, read when the first play starts                                              |
-| `duration` | —              | ticks, or `{ "ms": n }` rounded to ticks once at the run's rate                                        |
-| `ease`     | `linear`       | one of `EASE_NAMES`                                                                                    |
-| `delay`    | none           | ticks or `{ "ms": n }` before the first play                                                           |
-| `repeat`   | 0              | extra plays; -1 forever                                                                                |
-| `yoyo`     | false          | every other play runs backwards                                                                        |
-| `emit`     | `tween:end`    | `{ type, data? }` raised as a step event when it finishes; without it, `tween:end` with `{ id, key? }` |
-| `key`      | none           | tweens of one entity sharing a key replace each other                                                  |
+| Field      | Default        | What it is                                                                                                                           |
+| ---------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `to`       | —              | the values to reach, at least one channel                                                                                            |
+| `from`     | current values | the values to start from, read when the first play starts                                                                            |
+| `duration` | —              | ticks, or `{ "ms": n }` rounded to ticks once at the run's rate                                                                      |
+| `ease`     | `linear`       | one of `EASE_NAMES`                                                                                                                  |
+| `delay`    | none           | ticks or `{ "ms": n }` before the first play                                                                                         |
+| `repeat`   | 0              | extra plays; -1 forever                                                                                                              |
+| `yoyo`     | false          | every other play runs backwards                                                                                                      |
+| `emit`     | `tween:end`    | `{ type?, data? }` raised as a step event when it finishes (`type` default `tween:end`); without it, `tween:end` with `{ id, key? }` |
+| `key`      | none           | tweens of one entity sharing a key replace each other                                                                                |
 
 `EASE_NAMES` is `linear` and each of `quad`, `cubic`, `quart`, `quint`,
 `sine`, `expo`, `circ`, `back`, `elastic` and `bounce` with `In`, `Out` and
@@ -4742,8 +4749,8 @@ functions aren't guaranteed to, so a tweened puzzle replays everywhere.
   `marker`, `decor`, `solid` and `sensor`, and game types whose system
   implements `SceneSystem.setPose` (or that sit on one of those bases with
   no system of their own). `prop` and `follower` can't, and neither can a
-  `solid` or `sensor` riding a host (`attach`), which goes where the host's
-  body takes it. A visual channel
+  `solid` or `sensor` whose `attach` names a host, live or not, which goes
+  where the host's body takes it. A visual channel
   needs a `sprite`. Anything else is `tween-target-invalid`: an error in a
   scene's validation for a `tween` block, and an `EngineError` thrown from
   `ctx.tweens.to`.
@@ -4906,24 +4913,29 @@ from a region, a request or `fit`, stays within the camera's limits,
 0.1–5. A malformed `GameDefinition.camera` fails `createGame`, and a
 viewport's malformed `rig` fails `setViewports`.
 
-| Field       | Default                    | What it is                                                                                  |
-| ----------- | -------------------------- | ------------------------------------------------------------------------------------------- |
-| `deadzone`  | `[0, 0]`                   | metres around the target, `[w, h]`, the camera doesn't follow inside                        |
-| `lookAhead` | 0                          | seconds of the target's velocity the camera leads by                                        |
-| `maxLead`   | none                       | metres the lead is capped at                                                                |
-| `damping`   | 0.12                       | seconds to close half the distance to the goal, at any frame rate                           |
-| `fit`       | none                       | `{ padding, minZoom, maxZoom }`: with several targets, zoom out to keep them all in view    |
-| `shake`     | 10 px, no turn, 1 a second | `{ maxOffset, maxTurn, decay }`: view px and radians at full trauma, trauma lost per second |
+| Field       | Default                    | What it is                                                                                                        |
+| ----------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `deadzone`  | `[0, 0]`                   | metres around the target, `[w, h]`, each at least 0, the camera doesn't follow inside                             |
+| `lookAhead` | 0                          | seconds of the target's velocity the camera leads by                                                              |
+| `maxLead`   | none                       | metres the lead is capped at                                                                                      |
+| `damping`   | 0.12                       | seconds to close half the distance to the goal, at any frame rate                                                 |
+| `fit`       | none                       | `{ padding, minZoom, maxZoom }`, `minZoom` at most `maxZoom`: with several targets, zoom to keep them all in view |
+| `shake`     | 10 px, no turn, 1 a second | `{ maxOffset, maxTurn, decay }`: view px and radians at full trauma, trauma lost per second                       |
 
 Shake is trauma: `shake(t)` adds `t` (up to 1), it decays at `decay` per
 second, and the offset is trauma² × `maxOffset` (the turn trauma² ×
 `maxTurn`), drawn from the rig's own random stream. `zoom` eases to its
-value; `snap` jumps. Layers with a `scroll` take their parallax from the
+value; `snap` jumps. A request the rig can't show (a number that isn't
+finite, a zoom that isn't positive, an `ease` that isn't one of
+`EASE_NAMES`) is dropped. Layers with a `scroll` take their parallax from the
 rig's position.
 
 **Camera regions.** `camera-region` is an engine primitive: a `box` shape
-in world metres, `zoom?`, `clamp` (default true: the view stays inside the
-box) and `ease` (seconds to move into the region's framing, default 0.4).
+in world metres (axis-aligned: a turned box frames, and draws, its bounding
+box), `zoom?` (a multiplier, `×` in the inspector), `clamp` (default true:
+the view stays inside the box) and `ease` (seconds to move into the
+region's framing, default 0.4; the rig runs on wall time, so it isn't in
+ticks).
 It has no body and no system state, so it loads with or without physics.
 The region holding the first target wins; where regions overlap, the
 smallest, then the first in scene order; leaving every region eases back
@@ -5185,7 +5197,9 @@ as `schema`, and the misspelt frame as `asset-frame-unknown`.
 The `emitter` behavior (visual only) emits from a preset at its entity:
 `preset`, `emitting` (default true), `offset` (metres from the pose,
 turning and flipping with the instance) and `rate` (over the preset's).
-It draws on the entity's layer, bursts on `gameplay`. Particles move on
+It draws on the entity's layer, bursts on `gameplay`. While editing, a
+spark glyph marks each emitter's point on the editor-only layer, hidden in
+Play. Particles move on
 rendered frames by the loop's scaled wall time, so pause and hit-stop
 freeze them, and they draw from the layer's own random stream; headless
 there are none.

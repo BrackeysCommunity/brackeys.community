@@ -32,7 +32,7 @@ const animFields = (env: FieldEnv) => ({
     0,
   )
     .optional()
-    .meta({ default: 0 }),
+    .meta({ title: "Start offset", default: 0 }),
 });
 
 /** An `anim` block as an entity carries it. */

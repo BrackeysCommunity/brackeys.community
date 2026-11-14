@@ -2,7 +2,7 @@ import type { Container } from "pixi.js";
 
 import type { CameraFrame } from "./camera/rig";
 import { DEFAULT_LENGTH_UNIT } from "./game/defaults";
-import { clamp, clampVec2, lerpVec2 } from "./math";
+import { clamp, clampVec2, lerpVec2, rotate } from "./math";
 import { DEFAULT_RESOLUTION, viewportFor, type ResolutionPolicy } from "./resolution";
 import type { Bounds } from "./scene/types";
 import type { CameraConfig, CameraMode, CameraState, Vec2 } from "./types";
@@ -46,14 +46,6 @@ export function clampViewInBox(p: Vec2, half: Vec2, min: Vec2, max: Vec2): Vec2 
     x: axis(p.x, min.x, max.x, half.x, centre.x),
     y: axis(p.y, min.y, max.y, half.y, centre.y),
   };
-}
-
-/** `d` turned by `angle` radians. */
-function rotate(d: Vec2, angle: number): Vec2 {
-  if (angle === 0) return d;
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  return { x: d.x * cos - d.y * sin, y: d.x * sin + d.y * cos };
 }
 
 /** The world area in view, metres. */

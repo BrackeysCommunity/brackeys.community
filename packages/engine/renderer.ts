@@ -1,5 +1,6 @@
 import { Application, Container, Graphics, Rectangle } from "pixi.js";
 
+import { resetCanvasBlendOnTargetChange } from "./render/canvas-blend";
 import { DEFAULT_RESOLUTION, viewportFor, type ResolutionPolicy } from "./resolution";
 import type { GameConfig, GameInstance, RenderBackend, Vec2 } from "./types";
 import { createUiLayer } from "./ui/layer";
@@ -98,6 +99,7 @@ export async function createRenderer(
       autoDensity: true,
       antialias: resolution.antialias ?? true,
     });
+    resetCanvasBlendOnTargetChange(next.renderer);
     if (hooks.draw) {
       const { runners } = (next.renderer ?? {}) as { runners?: Partial<RenderRunners> };
       const { draw } = hooks;

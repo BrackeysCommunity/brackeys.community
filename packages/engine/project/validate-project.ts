@@ -26,7 +26,9 @@ export function validateProject(
   const docs: { entry: AssetEntry; def: DocKindDef }[] = [];
   const ids = new Map<AssetKindName, AssetId[]>();
   for (const entry of entries) {
-    ids.set(entry.kind, [...(ids.get(entry.kind) ?? []), entry.id]);
+    const ofKind = ids.get(entry.kind) ?? [];
+    ofKind.push(entry.id);
+    ids.set(entry.kind, ofKind);
     const def = kinds.get(entry.kind);
     if (def?.storage === "doc") docs.push({ entry, def });
   }

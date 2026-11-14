@@ -12,9 +12,9 @@ import {
   type SceneOverlay,
   type SceneRegionOptions,
 } from "./render-geometry";
-import { aabb, containsPoint } from "./shape-geometry";
+import { aabb, containsPoint, regionBox } from "./shape-geometry";
 import { shapeIsClosed, shapeOutline } from "./shape-outline";
-import type { Aabb, Bounds, ExpandedScene, Pt, SceneDefinition } from "./types";
+import type { Aabb, Bounds, ExpandedScene, Pt, SceneDefinition, ShapeObj } from "./types";
 
 /** Tags that pick a map character over the type's own: a sensor tagged `goal` draws `G`. */
 export const DEFAULT_ASCII_TAG_CHARS: Readonly<Record<string, string>> = {
@@ -106,14 +106,14 @@ function markOf(
   return { char, label: name, priority };
 }
 
-/** A camera region: an area the camera frames, drawn as its box's outline only. */
+/** A camera region: an area the camera frames, drawn as the outline of the box it frames only. */
 const isRegion = (d: DrawnEntity) => d.base === CAMERA_REGION_TYPE;
 
-/** The outline as polylines, arcs flattened to at most `step` world px per segment. */
-function outlinePolylines(d: DrawnEntity, step: number): Pt[][] {
+/** `shape`'s outline as polylines, arcs flattened to at most `step` world px per segment. */
+function outlinePolylines(shape: ShapeObj, step: number): Pt[][] {
   const out: Pt[][] = [];
   let cur: Pt[] = [];
-  for (const c of shapeOutline(d.shape!)) {
+  for (const c of shapeOutline(shape)) {
     switch (c.op) {
       case "moveTo":
         if (cur.length) out.push(cur);
@@ -286,7 +286,7 @@ export function sceneAsciiMap(
           }
         }
       }
-      for (const line of outlinePolylines(d, step)) {
+      for (const line of outlinePolylines(isRegion(d) ? regionBox(d.shape) : d.shape, step)) {
         for (const p of sampleLine(line, step)) put(p, m, span);
       }
     } else if (d.at) {

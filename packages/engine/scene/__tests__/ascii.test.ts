@@ -231,6 +231,31 @@ describe("one-way solids", () => {
   });
 });
 
+describe("camera regions", () => {
+  it("outlines the box a turned region frames, not its turned outline, and never fills it", () => {
+    const map = sceneAsciiMap(
+      {
+        v: SCENE_FORMAT_VERSION,
+        name: "regions",
+        bounds: [0, 0, 8, 8],
+        entities: [{ id: "hall", type: "camera-region", shape: ["box", 4, 4, 2, 2, 45] }],
+      },
+      { registry: createRegistry(), cell: 50 },
+    );
+    const edge = "..cccccccccccc..";
+    const side = "..c..........c..";
+    expect(map.lines).toEqual([
+      "................",
+      "................",
+      edge,
+      ...Array.from({ length: 10 }, () => side),
+      edge,
+      "................",
+      "................",
+    ]);
+  });
+});
+
 describe("metres and px per metre", () => {
   it("maps a v3 scene migrated to metres as its v3 file mapped at 100 px per metre", () => {
     const text = readFileSync(new URL("./fixtures/v3/engine-yard.json", import.meta.url), "utf8");

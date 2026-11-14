@@ -220,16 +220,18 @@
               "prefixItems": [
                 {
                   "type": "number",
+                  "minimum": 0,
                   "description": "w, m.",
                   "unit": "m"
                 },
                 {
                   "type": "number",
+                  "minimum": 0,
                   "description": "h, m.",
                   "unit": "m"
                 }
               ],
-              "description": "World metres around the target the camera doesn't follow inside [w, h]; default [0, 0].",
+              "description": "World metres around the target the camera doesn't follow inside [w, h], each at least 0; default [0, 0].",
               "unit": "m"
             },
             "lookAhead": {
@@ -268,7 +270,7 @@
                 "maxZoom": {
                   "type": "number",
                   "exclusiveMinimum": 0,
-                  "description": "The closest it zooms in."
+                  "description": "The closest it zooms in; at least `minZoom`."
                 }
               },
               "required": ["padding", "minZoom", "maxZoom"],
@@ -1846,6 +1848,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -3003,6 +3006,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -4398,6 +4402,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -5607,6 +5612,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -6758,6 +6764,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -8144,6 +8151,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -9546,6 +9554,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -9715,8 +9724,9 @@
               "$ref": "#/$defs/CameraRegionShape"
             },
             "zoom": {
-              "description": "The camera's zoom while it frames this region; omitted keeps the rig's own.",
+              "description": "The camera's zoom while it frames this region (2 draws the world twice as large); omitted keeps the rig's own.",
               "title": "Zoom",
+              "unit": "×",
               "type": "number",
               "exclusiveMinimum": 0
             },
@@ -10953,6 +10963,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -12409,6 +12420,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -13806,6 +13818,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -14963,6 +14976,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -16120,6 +16134,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -17277,6 +17292,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -18663,6 +18679,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -20070,6 +20087,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -21465,6 +21483,7 @@
                       "type": "boolean"
                     },
                     "offset": {
+                      "title": "Start offset",
                       "default": 0,
                       "anyOf": [
                         {
@@ -21881,6 +21900,9 @@
         "repeat": {
           "description": "Extra plays after the first; -1 forever. Default 0.",
           "default": 0,
+          "named": {
+            "-1": "forever"
+          },
           "type": "integer",
           "minimum": -1,
           "maximum": 9007199254740991
@@ -21891,20 +21913,20 @@
           "type": "boolean"
         },
         "emit": {
-          "description": "Raised as a step event when the tween finishes; default `tween:end`.",
+          "description": "Raised as a step event when the tween finishes; without one, `tween:end` carries its id and key.",
           "type": "object",
           "properties": {
             "type": {
+              "description": "The step event's type; default `tween:end`.",
+              "default": "tween:end",
               "type": "string",
-              "minLength": 1,
-              "description": "The step event's type.",
-              "placeholder": "tween:end"
+              "minLength": 1
             },
             "data": {
-              "description": "Plain JSON the event carries."
+              "description": "Plain JSON the event carries.",
+              "widget": "json"
             }
           },
-          "required": ["type"],
           "additionalProperties": false
         },
         "key": {

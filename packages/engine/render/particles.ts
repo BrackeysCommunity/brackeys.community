@@ -11,6 +11,7 @@ import { spriteAssets } from "../game/behaviors/sprite";
 import { DEFAULT_LENGTH_UNIT } from "../game/defaults";
 import type { EngineContext } from "../game/types";
 import { lerpRgb } from "../math";
+import { degToRad } from "../physics";
 import {
   EMITTER_MAX_CAP,
   EMITTER_MAX_DEFAULT,
@@ -70,7 +71,6 @@ export type ParticleLayerOptions = {
 
 /** How big an untextured particle is at scale 1, metres. */
 const SQUARE_METRES = 0.05;
-const DEG = Math.PI / 180;
 
 /** A preset's texture through a runtime's project: its texture, or its atlas's frame. */
 export function particleTexture(
@@ -268,7 +268,7 @@ export function createParticleLayer(
   ): void {
     const { preset } = g;
     const room = Math.min(count, g.cap - g.particles.length);
-    if (room <= 0) return;
+    if (!(room >= 1)) return;
     const bucket = bucketFor(preset, g.layer);
     for (let i = 0; i < room; i++) {
       let ox = 0;
@@ -283,7 +283,7 @@ export function createParticleLayer(
         ox = (unit() - 0.5) * shape.w;
         oy = (unit() - 0.5) * shape.h;
       }
-      const heading = (between(preset.angle) + (over?.angle ?? 0)) * DEG + origin.rot;
+      const heading = degToRad(between(preset.angle) + (over?.angle ?? 0)) + origin.rot;
       const speed = between(preset.speed);
       const display = new Particle({
         texture: bucket.texture ?? Texture.WHITE,
@@ -410,9 +410,16 @@ export function createParticleLayer(
       release(g.held);
     },
     burst(preset, at, o = {}) {
+      // A fractional count rounds down; a non-finite number draws nothing.
+      if (
+        ![o.count, o.angle, o.tint, at.x, at.y].every((n) => n === undefined || Number.isFinite(n))
+      )
+        return;
       const total = (preset.bursts ?? []).reduce((n, b) => n + b.count, 0);
-      const count = o.count ?? (total > 0 ? total : Math.max(1, Math.round(preset.rate)));
-      if (count <= 0) return;
+      const count = Math.floor(
+        o.count ?? (total > 0 ? total : Math.max(1, Math.round(preset.rate))),
+      );
+      if (count < 1) return;
       const g: Group = {
         preset,
         layer: null,

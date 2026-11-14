@@ -2,7 +2,7 @@
 import { DEFAULT_REGION_EASE } from "../game/defaults";
 import { CAMERA_REGION_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
-import { aabb } from "../scene/shape-geometry";
+import { aabb, regionBox } from "../scene/shape-geometry";
 import type { RuntimeEntity, ShapeObj } from "../scene/types";
 import type { Vec2 } from "../types";
 
@@ -58,7 +58,7 @@ export function cameraRegionsOf(
     if (!type || (type.base ?? type.type) !== CAMERA_REGION_TYPE) continue;
     const shape = e.shape as ShapeObj | undefined;
     if (!shape) continue;
-    const box = aabb(shape);
+    const box = aabb(regionBox(shape));
     const region: CameraRegion = {
       id: e.id,
       min: { x: box.minX, y: box.minY },

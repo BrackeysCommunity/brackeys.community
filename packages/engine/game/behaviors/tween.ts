@@ -1,13 +1,15 @@
 /**
  * The `tween` behavior's schema, the tween spec every tween is checked by,
- * and the ease names. Zod only, so a server validates a scene's tweens; the
- * system lives in `runtime/behaviors/tween.ts`, the eases in `anim/ease.ts`.
+ * the ease names, and the rule for what a tween can play on. Zod only, so a
+ * server validates a scene's tweens; the system lives in
+ * `runtime/behaviors/tween.ts`, the eases in `anim/ease.ts`.
  */
 import { z } from "zod";
 
 import { defineBehavior } from "../behaviors";
 import { delayField } from "../delay-field";
-import { ENGINE_REGISTRY_ID, type EntityTypeDef } from "../types";
+import { isAttachField } from "../fields";
+import { ENGINE_REGISTRY_ID, type EntityTypeDef, type RegisteredType } from "../types";
 
 const EASE_FAMILIES = [
   "quad",
@@ -65,6 +67,10 @@ export const LOOK_CHANNELS = Object.freeze([
 /** A channel of a sprite's look. */
 export type LookChannel = (typeof LOOK_CHANNELS)[number];
 
+/** Whether `channel` moves the pose. */
+export const isPoseChannel = (channel: string): channel is TweenChannel =>
+  (POSE_CHANNELS as readonly string[]).includes(channel);
+
 /** Whether `channel` is one of a sprite's look. */
 export const isLookChannel = (channel: string): channel is LookChannel =>
   (LOOK_CHANNELS as readonly string[]).includes(channel);
@@ -114,13 +120,72 @@ export function tweenTargetProblem(
   channels: readonly TweenChannel[],
   hasSprite: boolean,
 ): string | null {
-  const pose = channels.filter((c) => POSE_CHANNELS.includes(c));
+  const pose = channels.filter(isPoseChannel);
   if (pose.length > 0 && type.posable === false)
     return `it is a ${type.type}, which can't be posed, so a tween can't move its ${pose.join(", ")}`;
   const visual = channels.filter(isLookChannel);
   if (visual.length > 0 && !hasSprite)
     return `it has no sprite, so a tween can't animate its ${visual.join(", ")}`;
   return null;
+}
+
+/**
+ * What a tween plays on: an entity's type and whether it can be posed, as
+ * `tweenTargetProblem` takes them, and the host it rides when it rides one
+ * (`ridingHost`).
+ */
+export type TweenTarget = { type: string; posable: boolean | null; riding?: string };
+
+/**
+ * The host an entity rides: the id an attach field of its type names (a
+ * solid's or sensor's `attach`), whether or not that host is live, since an
+ * attachment made once it spawns would take the pose back. The scene
+ * validator and the run both ask here.
+ */
+export function ridingHost(
+  type: Pick<RegisteredType, "shape"> | undefined,
+  fields: Readonly<Record<string, unknown>>,
+): string | undefined {
+  for (const [field, schema] of Object.entries(type?.shape ?? {})) {
+    const host = fields[field];
+    if (typeof host === "string" && isAttachField(schema)) return host;
+  }
+  return undefined;
+}
+
+/**
+ * Why `spec` can't play on `target`, or null when it can. An entity riding
+ * a host goes where the host's body takes it, so its pose can't be tweened.
+ */
+export function tweenProblem(
+  target: TweenTarget,
+  spec: Pick<TweenSpec, "to">,
+  hasSprite: boolean,
+): string | null {
+  const posed =
+    target.riding === undefined
+      ? target
+      : { type: `${target.type} riding "${target.riding}"`, posable: false };
+  return tweenTargetProblem(posed, tweenChannels(spec), hasSprite);
+}
+
+/**
+ * Each entry of `id`'s `tween` block that can't play on `target`: its index
+ * and `tween-target-invalid`'s message, which counts entries from 1. The
+ * scene validator and the block's attach both check a block through here.
+ */
+export function tweenBlockProblems(
+  id: string,
+  tweens: readonly Pick<TweenSpec, "to">[],
+  target: TweenTarget,
+  hasSprite: boolean,
+): { index: number; message: string }[] {
+  const out: { index: number; message: string }[] = [];
+  tweens.forEach((spec, index) => {
+    const problem = tweenProblem(target, spec, hasSprite);
+    if (problem) out.push({ index, message: `${id}'s tween ${index + 1} can't play: ${problem}` });
+  });
+  return out;
 }
 
 const channels = (description: string) =>
@@ -166,7 +231,7 @@ export const tweenSpecSchema = z
       .min(-1)
       .optional()
       .describe("Extra plays after the first; -1 forever. Default 0.")
-      .meta({ default: 0 }),
+      .meta({ default: 0, named: { "-1": "forever" } }),
     yoyo: z
       .boolean()
       .optional()
@@ -177,12 +242,19 @@ export const tweenSpecSchema = z
         type: z
           .string()
           .min(1)
-          .describe("The step event's type.")
-          .meta({ placeholder: "tween:end" }),
-        data: z.unknown().optional().describe("Plain JSON the event carries."),
+          .optional()
+          .describe("The step event's type; default `tween:end`.")
+          .meta({ default: "tween:end" }),
+        data: z
+          .unknown()
+          .optional()
+          .describe("Plain JSON the event carries.")
+          .meta({ widget: "json" }),
       })
       .optional()
-      .describe("Raised as a step event when the tween finishes; default `tween:end`."),
+      .describe(
+        "Raised as a step event when the tween finishes; without one, `tween:end` carries its id and key.",
+      ),
     key: z
       .string()
       .min(1)
@@ -214,5 +286,5 @@ export const TWEEN = defineBehavior({
     "Plays tweens on this entity from spawn: bobbing pickups, swinging signs, pulsing lights.",
   fields: tweenFields,
   template: { tweens: [{ to: { rot: 6.2832 }, duration: 120, repeat: -1 }] },
-  inspector: { category: "movement", label: "Tween" },
+  inspector: { category: "visual", label: "Tween" },
 });

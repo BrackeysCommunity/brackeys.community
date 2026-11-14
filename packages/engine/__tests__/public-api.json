@@ -1351,6 +1351,7 @@
     ]
   },
   "issueCodes": [
+    "anim-atlas-mismatch",
     "anim-clip-unknown",
     "anim-tag-unknown",
     "asset-frame-unknown",

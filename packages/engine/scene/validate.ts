@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { tweenBlockProblems, type TweenTarget } from "../anim/tweens";
 import { BEHAVIOR_NAME_PATTERN, BEHAVIORS_FIELD, type BehaviorName } from "../game/behaviors";
 import { ANIM } from "../game/behaviors/anim";
 import { BODY } from "../game/behaviors/body";
@@ -14,15 +13,22 @@ import { OCCUPANT } from "../game/behaviors/occupant";
 import { PATH_FOLLOW } from "../game/behaviors/path-follow";
 import { SPAWNER } from "../game/behaviors/spawner";
 import { SPRITE } from "../game/behaviors/sprite";
-import { posableType, TWEEN, type TweenBlock } from "../game/behaviors/tween";
+import {
+  posableType,
+  ridingHost,
+  TWEEN,
+  tweenBlockProblems,
+  type TweenBlock,
+  type TweenTarget,
+} from "../game/behaviors/tween";
 import { behaviorsConflict, isSpawnOnly, placeableTypes } from "../game/define";
-import { isAttachField, ID_PATTERN, isPolygonField } from "../game/fields";
+import { ID_PATTERN, isPolygonField } from "../game/fields";
 import { flowIssue, type SceneLibrary } from "../game/flow";
 import { physicsNeeds } from "../game/primitives";
 import { ENGINE_REGISTRY_ID, scopedRef, type RegisteredType, type Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { assetInfo, atlasFrameIssue } from "../project/asset-info";
-import { sourceClipsIn } from "../project/clip-source";
+import { animSpriteOf, clipLookupOf, sourceClipsIn } from "../project/clip-source";
 import { isPlainObject } from "../project/kinds/define";
 import { entityRefSites, headerAssetRefs } from "../project/kinds/fields";
 import type { SceneListEntry } from "../project/kinds/scene-list";
@@ -124,15 +130,16 @@ export type ValidateOptions = {
    * types, behaviors and settings, and the `assets` header) that isn't live
    * is `asset-missing` and one of the wrong kind `asset-kind`, a sprite
    * without an asset `sprite-no-asset` and one naming a frame its atlas
-   * lacks (or none) `asset-frame-unknown`, and an `anim` block whose atlas
-   * source has no tag named its `clip` `anim-clip-unknown`; without it,
-   * asset ids aren't checked.
+   * lacks (or none) `asset-frame-unknown`, an `anim` block whose atlas
+   * source has no tag named its `clip` `anim-clip-unknown`, and a sprite
+   * whose asset lacks frames its atlas source plays `anim-atlas-mismatch`;
+   * without it, asset ids aren't checked.
    */
   project?: ProjectView;
   /**
    * The project's runtime view, which reads its runtime docs. With it and
    * `project`, an `anim` block whose source is an animation is checked
-   * against that animation's clips too.
+   * against that animation's clips and atlas too.
    */
   runtime?: Pick<ProjectRuntimeView, "doc">;
   /**
@@ -949,17 +956,14 @@ const showValue = (v: unknown): string => (v === undefined ? "missing" : JSON.st
 
 type MakeBatch = (label: string, ops: SceneOp[], refs: Ref[]) => OpBatch;
 
-/**
- * What an entity of `type` is to a tween: whether the type can be posed,
- * and the host an attach field (a solid's or sensor's `attach`) has it ride.
- */
+/** What an entity of `type` is to a tween: whether the type can be posed, and the host it rides. */
 function tweenTargetOf(type: RegisteredType, e: EntityDef): TweenTarget {
-  const target: TweenTarget = { type: type.type, posable: posableType(type) };
-  for (const [field, schema] of Object.entries(type.shape)) {
-    const host = e[field];
-    if (typeof host === "string" && isAttachField(schema)) return { ...target, riding: host };
-  }
-  return target;
+  const host = ridingHost(type, e);
+  return {
+    type: type.type,
+    posable: posableType(type),
+    ...(host !== undefined ? { riding: host } : {}),
+  };
 }
 
 /**
@@ -1306,9 +1310,10 @@ function blockPointer(e: EntityDef, at: string, name: string) {
 /**
  * An entity's anim block against its source: `anim-clip-unknown` for a
  * `clip` that isn't one of the source's clips (an animation's, or an
- * atlas's tags), with a did-you-mean. An animation source is read through
- * `runtime`, and isn't checked without it; a missing or wrong-kind source is
- * the asset checks'.
+ * atlas's tags), with a did-you-mean, and `anim-atlas-mismatch` for a
+ * sprite whose asset lacks frames the source plays (`animSpriteOf`). An
+ * animation source is read through `runtime`, and isn't checked without
+ * it; a missing or wrong-kind source or sprite asset is the asset checks'.
  */
 function checkAnim(
   registry: Registry,
@@ -1318,24 +1323,33 @@ function checkAnim(
   at: string,
   push: Push,
 ): void {
-  const block = behaviorBlocks(registry, e.type, e[BEHAVIORS_FIELD])[ANIM.name];
+  const blocks = behaviorBlocks(registry, e.type, e[BEHAVIORS_FIELD]);
+  const block = blocks[ANIM.name];
   const source = block?.source;
-  const clip = block?.clip;
-  if (typeof source !== "string" || typeof clip !== "string") return;
-  const clips = sourceClipsIn(
-    {
-      asset: (id) => assetInfo(project, id) ?? undefined,
-      ...(runtime?.doc ? { doc: runtime.doc } : {}),
-    },
-    source,
-  );
-  if (!clips || clips.names.includes(clip)) return;
-  push("anim-clip-unknown", {
-    message: `${e.id}'s anim plays clip "${clip}", which ${clips.what} "${source}" doesn't have${didYouMean(clip, clips.names)}`,
-    path: blockPointer(e, at, ANIM.name)("clip"),
+  if (typeof source !== "string") return;
+  const lookup = clipLookupOf(project, runtime?.doc);
+  const clip = typeof block?.clip === "string" ? block.clip : undefined;
+  const clips = clip === undefined ? null : sourceClipsIn(lookup, source);
+  if (clip !== undefined && clips && !clips.names.includes(clip)) {
+    push("anim-clip-unknown", {
+      message: `${e.id}'s anim plays clip "${clip}", which ${clips.what} "${source}" doesn't have${didYouMean(clip, clips.names)}`,
+      path: blockPointer(e, at, ANIM.name)("clip"),
+      entityIds: [e.id],
+      got: clip,
+      ...(clips.names.length > 0 ? { expected: clips.names.join(" | ") } : {}),
+    });
+  }
+  const drawn = blocks[SPRITE.name]?.asset;
+  if (typeof drawn !== "string" || !lookup.asset(drawn)) return;
+  const needs = animSpriteOf(lookup, source, clip, drawn);
+  if (!needs || needs.missing.length === 0) return;
+  const shown = needs.missing.slice(0, 3).join(", ") + (needs.missing.length > 3 ? ", …" : "");
+  push("anim-atlas-mismatch", {
+    message: `${e.id}'s sprite draws "${drawn}", which lacks frames its anim plays from "${source}" (${shown}); set the sprite's asset to "${needs.atlas}"`,
+    path: blockPointer(e, at, SPRITE.name)("asset"),
     entityIds: [e.id],
-    got: clip,
-    ...(clips.names.length > 0 ? { expected: clips.names.join(" | ") } : {}),
+    got: drawn,
+    expected: needs.atlas,
   });
 }
 

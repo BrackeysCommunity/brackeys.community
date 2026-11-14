@@ -289,6 +289,7 @@ export const ENGINE_ISSUE_CODE_LIST = [
   "sprite-no-asset",
   "anim-tag-unknown",
   "anim-clip-unknown",
+  "anim-atlas-mismatch",
   "frame-shape-invalid",
   "tween-target-invalid",
   "tick-rate-invalid",

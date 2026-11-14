@@ -273,14 +273,26 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   bounds (`FieldWidget` kind `"list"`). A ticks-or-`{ ms }` value (a
   tween's `duration` and `delay`, an anim `offset`) is one number with a
   ms/ticks switch that converts at the game's tick rate (kind `"delay"`).
-  `buildInspectorModel` takes an optional `assetKind(id)`: Add behavior's
-  Animation then prefers a source the entity already names (its sprite's
-  atlas), then an animation, then an atlas's tags. It also takes
-  `clips(source)`, the clip names an animation or atlas offers, so Add
-  behavior picks an `anim` block's source and clip; `BehaviorOption.uses`
-  names the assets an option's batch picks (`hero (idle)`), and an
-  `"asset"` `FieldWidget` carries `clip?`, the field its picked clip goes
-  to.
+  `buildInspectorModel` takes an optional `sources` (`{ asset, doc? }`,
+  where an `anim` block's source is read): Add behavior's Animation then
+  picks its source and clip, preferring a source the entity already names
+  (its sprite's atlas), then an animation, then an atlas's tags, and
+  points the sprite at the source's atlas on the clip's first frame when
+  its asset lacks the frames (an added sprite takes them in its block, a
+  carried one as `behaviors.sprite.asset` and `.frame`).
+  `BehaviorOption.uses` names the assets an option's batch picks
+  (`kitchen-animation (idle)`, then the atlas when it isn't the source),
+  and an `"asset"` `FieldWidget` carries `clip?`, the field its picked clip
+  goes to. Picking another source in the inspector moves the sprite to its
+  atlas in the same batch when it lacks the frames.
+- `EditorProjectLink.runtime`: the project's runtime view as the editor
+  keeps it; the inspector reads animations' clips through it instead of
+  opening the docs again.
+- `FieldWidget` kind `"json"` (`meta.widget: "json"`): plain JSON typed as
+  text, refused until it parses; a tween emit's `data` uses it. A number
+  widget carries `named?` (`meta.named`, `{ "-1": "forever" }`): those
+  values show, and are typed, as the word; a tween's `repeat` of -1 reads
+  "forever".
 
 ### Changed
 
@@ -341,6 +353,24 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
 - The editor's project tree, asset panel, delete confirm and trash give
   animation, emitter, scene-list and save assets icons of their own
   instead of the generic file icon.
+- The inspector lists Tween under Visual in Add behavior, beside Sprite,
+  Animation and Emitter; an anim block's `offset` is titled "Start
+  offset"; a camera region's `zoom` shows `×`. A camera region's ease
+  stays in seconds: the rig runs on wall time, not ticks.
+- While editing, the `emitter` behavior marks each emitter's point with a
+  pink spark glyph on the registry's editor-only layer, posed every
+  rendered frame and hidden in Play; a view without that layer, or one
+  that can't order its visuals, draws none.
+- A turned camera region frames its axis-aligned bounding box, and the
+  editor, `render`'s svg and ascii draw that box, so what is drawn is what
+  frames.
+- A `solid` or `sensor` whose `attach` names a host counts as riding it
+  for tweens whether or not that host is live, so a run refuses its pose
+  tween as `tween-target-invalid` just as the validator does (the run used
+  to let it play when the host wasn't attached yet).
+- A tween emit's `type` is optional: an emit with `data` and no `type`
+  raises `tween:end` carrying that data, and one with neither raises what
+  no emit does.
 - Genre pins: `grid-puzzle`'s `default`, `gravity-zero`,
   `gravity-sideways` and `saved-mid-push` move (8df0c7714f456fd0 →
   9ffe5388c1a4b159): each push tweens the crate's picture over 8 ticks,
@@ -362,6 +392,11 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   cleared the pointer, the version the promote cleared; moves that left
   the pointer where it was (a timing-only change, a release rollback
   putting back the version it cleared, a kept pointer) are passed over.
+- Canvas2D fallback (no WebGL, as in Firefox without a GPU): a viewport
+  surface no longer draws its normal sprites additively after an earlier
+  frame left that surface on an additive draw. Pixi caches one blend mode
+  across every target's 2D context, so the renderer now resets it to
+  normal on each render target change.
 
 ### Format
 
@@ -383,7 +418,10 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   the pose of a solid or sensor riding a host (`attach`), or
   animating `alpha`/`tint`/`scale` on an entity without a `sprite`, and as
   `EngineError("tween-target-invalid")` by `ctx.tweens.to` and by the
-  block's attach. `codes` lists all four.
+  block's attach. `codes` lists all four. And `anim-atlas-mismatch`, for
+  an `anim` entity whose sprite's asset lacks frames its source plays (with
+  the project for an atlas source, and its runtime view for an
+  animation): the message names the atlas to draw (`expected`).
 - The scene, prefab and fragment schemas gain the `anim`, `tween` and
   `emitter` blocks (the tween spec as `$defs/TweenSpec`) and
   `settings.camera`.
@@ -402,6 +440,21 @@ opts)` runs a number through `onUpdate`/`onDone`; `cancel`, `cancelAll`,
   from the block's attach alike; its path stays zero-based.
 - The tween spec's `scale` reads "Multiplies the sprite's drawn size; 1
   draws it as its block sizes it."
+- The tween spec's `emit.type` is optional, reads "The step event's type;
+  default `tween:end`." with `default` "tween:end" (it carried a
+  `placeholder`), and `emit` reads "Raised as a step event when the tween
+  finishes; without one, `tween:end` carries its id and key."; `emit.data`
+  carries `widget` "json" and `repeat` `named` `{ "-1": "forever" }`.
+- The `anim` block's `offset` carries `title` "Start offset".
+- The camera rig's `deadzone` refuses a negative size and reads "World
+  metres around the target the camera doesn't follow inside [w, h], each
+  at least 0; default [0, 0]."; its `fit` refuses a `minZoom` above
+  `maxZoom` ("minZoom is more than maxZoom", at `fit.maxZoom`), and
+  `maxZoom` reads "The closest it zooms in; at least `minZoom`.".
+- The `camera-region` primitive's `shape` reads "The region, axis-aligned:
+  a turned box frames its bounding box. …", and its `zoom` reads "The
+  camera's zoom while it frames this region (2 draws the world twice as
+  large); omitted keeps the rig's own." with `unit` "×".
 - `scene step --anim <id>` prints an entity's clip, frame index and frame
   after every tick (consecutive ticks run together in the text;
   `anim.ticks` in --json has one entry per tick).

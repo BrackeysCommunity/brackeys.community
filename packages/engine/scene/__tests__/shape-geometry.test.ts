@@ -4,6 +4,7 @@ import {
   convexHull,
   signedArea,
   aabb,
+  aabbBox,
   boxCorners,
   centroid,
   closestOnSegment,
@@ -24,6 +25,7 @@ import {
   nearestVertex,
   normDeg,
   raycastShape,
+  regionBox,
   rotateShape,
   shapeAtPose,
   shapeCentre,
@@ -92,6 +94,26 @@ describe("aabb", () => {
     const flat = aabb({ type: "capsule", cx: 0, cy: 0, halfLen: 10, r: 2, rotDeg: 90 });
     expect(flat.minX).toBeCloseTo(-12);
     expect(flat.maxY).toBeCloseTo(2);
+  });
+});
+
+describe("aabbBox and regionBox", () => {
+  it("turns bounds into an unturned box with the same bounds", () => {
+    const b = { minX: -1, minY: 2, maxX: 5, maxY: 3 };
+    const box = aabbBox(b);
+    expect(box).toEqual({ type: "box", cx: 2, cy: 2.5, hw: 3, hh: 0.5, rotDeg: 0 });
+    expect(aabb(box)).toEqual(b);
+  });
+
+  it("keeps an unturned box and frames anything else by its bounds", () => {
+    const upright: ShapeObj = { type: "box", cx: 1, cy: 1, hw: 2, hh: 1, rotDeg: 360 };
+    expect(regionBox(upright)).toBe(upright);
+    const turned: ShapeObj = { type: "box", cx: 0, cy: 0, hw: 2, hh: 2, rotDeg: 45 };
+    const framed = regionBox(turned);
+    expect(framed).toMatchObject({ type: "box", cx: 0, cy: 0, rotDeg: 0 });
+    expect(aabb(framed)).toEqual(aabb(turned));
+    const ball: ShapeObj = { type: "circle", cx: 3, cy: 4, r: 1 };
+    expect(regionBox(ball)).toEqual({ type: "box", cx: 3, cy: 4, hw: 1, hh: 1, rotDeg: 0 });
   });
 });
 

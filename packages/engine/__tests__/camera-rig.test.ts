@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vite-plus/test";
 
+import type { EaseName } from "../anim/ease";
 import { MAX_CAMERA_ZOOM, MIN_CAMERA_ZOOM } from "../camera";
 import { cameraRegionsOf, regionFor, type CameraRegion } from "../camera/regions";
 import {
@@ -267,6 +268,7 @@ describe("createCameraRig", () => {
     rig.update(input({ targets: [at(3, 4)] }));
     for (const zoom of [NaN, Infinity, 0, -2]) rig.request({ op: "zoom", zoom });
     rig.request({ op: "zoom", zoom: 2, ms: NaN });
+    rig.request({ op: "zoom", zoom: 2, ms: 100, ease: "smooth" as EaseName });
     rig.request({ op: "shake", trauma: NaN });
     rig.request({ op: "shake", trauma: Infinity });
     rig.request({ op: "snap", at: { x: NaN, y: 0 } });
@@ -304,6 +306,12 @@ describe("cameraRigProblem", () => {
       /^fit\.padding: /,
     );
     expect(cameraRigProblem({ deadzone: "wide" })).toMatch(/^deadzone: /);
+    expect(cameraRigProblem({ deadzone: [-1, 0] })).toMatch(/^deadzone\.0: /);
+    expect(cameraRigProblem({ deadzone: [0, 0] })).toBeNull();
+    expect(cameraRigProblem({ fit: { padding: 1, minZoom: 2, maxZoom: 1 } })).toBe(
+      "fit.maxZoom: minZoom is more than maxZoom",
+    );
+    expect(cameraRigProblem({ fit: { padding: 1, minZoom: 1, maxZoom: 1 } })).toBeNull();
     expect(cameraRigProblem({ follow: true })).not.toBeNull();
   });
 });

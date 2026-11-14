@@ -4,6 +4,7 @@ import { createRegistry, defineEntityType, defineGame } from "../../game/define"
 import { pointField } from "../../game/fields";
 import type { Pt, SceneDefinition } from "../../scene/types";
 import yard from "../../scenes/engine-yard.json";
+import kitchenSink from "../../scenes/kitchen-sink.json";
 import { cycleHit, marqueeSelect, pickAt } from "../picking";
 import { createSpatialIndex } from "../spatial-index";
 
@@ -182,5 +183,64 @@ describe("sprite boxes", () => {
     const touching = { minX: 1.3, minY: 0.9, maxX: 1.5, maxY: 1.1 };
     expect(marqueeSelect(spriteIndex, touching, { touch: false })).toEqual([]);
     expect(marqueeSelect(spriteIndex, touching, { touch: true })).toEqual(["crate"]);
+  });
+});
+
+describe("camera regions", () => {
+  const scene: SceneDefinition = {
+    v: 3,
+    name: "regions",
+    bounds: [0, 0, 20, 6],
+    entities: [
+      {
+        id: "crate",
+        type: "marker",
+        at: [5, 3],
+        behaviors: { sprite: { size: [0.4, 0.4], anchor: [0.5, 0.5] } },
+      },
+      { id: "room", type: "camera-region", shape: ["box", 5, 2.5, 3, 2] },
+      // Framed as its bounds: x 11.902…18.098, y 0.134…4.866.
+      { id: "hall", type: "camera-region", shape: ["box", 15, 2.5, 3, 1, 30] },
+    ],
+  };
+  const regionIndex = createSpatialIndex();
+  regionIndex.rebuild(scene, registry);
+  // 4 screen px at 100 px per metre: 0.04 m of slack.
+  const hits = (p: Pt) => pickAt(regionIndex, p, { tolPx: 4, scale: 100 }).map((e) => e.ref);
+
+  it("picks what's inside a region rather than the region, which picks only by its outline", () => {
+    // In the crate's sprite, clear of its point's pick radius.
+    expect(hits([5.15, 3.15])).toEqual(["crate"]);
+    expect(hits([4, 2])).toEqual([]);
+    expect(hits([2.03, 2.5])).toEqual(["room"]);
+    expect(hits([1.97, 2.5])).toEqual(["room"]);
+    expect(hits([1.9, 2.5])).toEqual([]);
+    expect(hits([5, 4.5])).toEqual(["room"]);
+  });
+
+  it("picks a turned region by the box it frames, not its turned outline", () => {
+    // On the turned box's own edge, well inside the box the region frames.
+    expect(hits([14.5, 3.366])).toEqual([]);
+    expect(hits([11.902, 2.5])).toEqual(["hall"]);
+    expect(hits([15, 4.866])).toEqual(["hall"]);
+  });
+
+  it("picks the kitchen sink's tweened crate inside its framing region", () => {
+    const sinkIndex = createSpatialIndex();
+    sinkIndex.rebuild(structuredClone(kitchenSink) as unknown as SceneDefinition, registry);
+    const at = (p: Pt) => pickAt(sinkIndex, p, { tolPx: 4, scale: 100 }).map((e) => e.ref);
+    expect(at([11.7, 5.1])).toEqual(["std-tween"]);
+    expect(at([9, 4])).toEqual(["framing"]);
+  });
+
+  it("marquees a region by the box it frames, and with touch by its outline only", () => {
+    const inside = { minX: 4, minY: 2, maxX: 6, maxY: 3.5 };
+    expect(marqueeSelect(regionIndex, inside, { touch: true })).toEqual(["crate"]);
+    const crossing = { minX: 7.5, minY: 2, maxX: 8.5, maxY: 3 };
+    expect(marqueeSelect(regionIndex, crossing, { touch: true })).toEqual(["room"]);
+    const aroundHall = { minX: 11.8, minY: 0.1, maxX: 18.2, maxY: 4.9 };
+    expect(marqueeSelect(regionIndex, aroundHall, { touch: false })).toEqual(["hall"]);
+    const aroundTurned = { minX: 12, minY: 0.2, maxX: 18, maxY: 4.8 };
+    expect(marqueeSelect(regionIndex, aroundTurned, { touch: false })).toEqual([]);
   });
 });

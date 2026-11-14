@@ -19,6 +19,11 @@ export type FrameClock = {
   advance(ms: number): void;
   /** Runs `n` frames a tick apart: each steps one tick, then renders. */
   ticks(n: number): void;
+  /**
+   * Puts back the frame functions and `performance.now` it replaced, for a
+   * caller whose globals no `vi.unstubAllGlobals` will undo.
+   */
+  restore(): void;
 };
 
 /**
@@ -31,9 +36,15 @@ export function manualFrames(
 ): FrameClock {
   let pending: FrameRequestCallback[] = [];
   let now = 0;
+  const had = {
+    requestAnimationFrame: Object.getOwnPropertyDescriptor(globalThis, "requestAnimationFrame"),
+    cancelAnimationFrame: Object.getOwnPropertyDescriptor(globalThis, "cancelAnimationFrame"),
+  };
   vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => pending.push(cb));
   vi.stubGlobal("cancelAnimationFrame", () => {});
-  if (opts.performance) vi.spyOn(performance, "now").mockImplementation(() => now);
+  const nowSpy = opts.performance
+    ? vi.spyOn(performance, "now").mockImplementation(() => now)
+    : null;
   const advance = (ms: number) => {
     now += ms;
     if (opts.timers) vi.advanceTimersByTime(ms);
@@ -46,6 +57,13 @@ export function manualFrames(
     advance,
     ticks(n) {
       for (let i = 0; i < n; i++) advance(TICK_MS);
+    },
+    restore() {
+      for (const [name, desc] of Object.entries(had)) {
+        if (desc) Object.defineProperty(globalThis, name, desc);
+        else delete (globalThis as Record<string, unknown>)[name];
+      }
+      nowSpy?.mockRestore();
     },
   };
 }

@@ -298,6 +298,7 @@ const LIVE_LISTED = [
 const ANIM_CODES = [
   "anim-tag-unknown",
   "anim-clip-unknown",
+  "anim-atlas-mismatch",
   "frame-shape-invalid",
   "tween-target-invalid",
 ];

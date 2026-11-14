@@ -45,17 +45,65 @@ describe("the inspector's motion fields", () => {
     });
     expect(placeholder("behaviors.tween.tweens.0.delay")).toBe("0 (default)");
     expect(placeholder("behaviors.tween.tweens.0.repeat")).toBe("0 (default)");
-    expect(placeholder("behaviors.tween.tweens.0.emit.type")).toBe("tween:end");
+    expect(placeholder("behaviors.tween.tweens.0.emit.type")).toBe("tween:end (default)");
     expect(screen.getByText("Linear (default)")).toBeTruthy();
   });
 
-  it("shows an unset anim offset at its default", () => {
+  it("shows an unset anim offset at its default, titled as a time", () => {
     show({
       type: "marker",
       at: [5, 3],
       behaviors: { sprite: { asset: "hero" }, anim: { source: "hero", clip: "idle" } },
     });
     expect(placeholder("behaviors.anim.offset")).toBe("0 (default)");
+    expect(screen.getByText("Start offset")).toBeTruthy();
+  });
+
+  it("shows a repeat of -1 as forever, and takes the word", () => {
+    const { session } = show({
+      type: "marker",
+      at: [5, 3],
+      behaviors: { tween: { tweens: [{ to: { y: 4 }, duration: 30, repeat: -1 }] } },
+    });
+    const repeat = screen.getByLabelText("behaviors.tween.tweens.0.repeat") as HTMLInputElement;
+    expect(repeat.value).toBe("forever");
+    fireEvent.change(repeat, { target: { value: "2" } });
+    fireEvent.keyDown(repeat, { key: "Enter" });
+    expect(tweensOf(session)[0]).toMatchObject({ repeat: 2 });
+    fireEvent.change(repeat, { target: { value: "Forever" } });
+    fireEvent.keyDown(repeat, { key: "Enter" });
+    expect(tweensOf(session)[0]).toMatchObject({ repeat: -1 });
+  });
+
+  it("takes an emit's data as JSON, saying so when it doesn't parse", () => {
+    const { session } = show({
+      type: "marker",
+      at: [5, 3],
+      behaviors: {
+        tween: { tweens: [{ to: { y: 4 }, duration: 30, emit: { type: "lit" } }] },
+      },
+    });
+    const data = screen.getByLabelText("behaviors.tween.tweens.0.emit.data") as HTMLInputElement;
+    expect(data.getAttribute("placeholder")).toBe("unset (JSON)");
+    fireEvent.change(data, { target: { value: "{oops" } });
+    fireEvent.keyDown(data, { key: "Enter" });
+    expect(screen.getByText(/^Enter JSON/)).toBeTruthy();
+    fireEvent.change(data, { target: { value: '{ "room": 2 }' } });
+    fireEvent.keyDown(data, { key: "Enter" });
+    expect(tweensOf(session)[0]).toMatchObject({ emit: { type: "lit", data: { room: 2 } } });
+    expect(data.value).toBe('{"room":2}');
+  });
+
+  it("shows an emitter's offset in metres, as the position above it", () => {
+    show({ type: "marker", at: [5, 3], behaviors: { emitter: { preset: "sparks" } } });
+    const row = screen
+      .getByLabelText("behaviors.emitter.offset.x")
+      .closest('.je-insp-row[data-align="start"]')!;
+    expect([...row.querySelectorAll(".je-insp-suffix")].map((s) => s.textContent)).toEqual([
+      "x",
+      "y",
+      "m",
+    ]);
   });
 
   it("disables removing a list's last allowed item, saying why in its hint", async () => {

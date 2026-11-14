@@ -11,6 +11,7 @@ import {
   lerpAngle,
   lerpRgb,
   lerpVec2,
+  rotate,
   scaleVec2,
 } from "../math";
 import * as transform from "../scene/transform";
@@ -122,6 +123,21 @@ describe("lerpAngle", () => {
     expect(lerpAngle(3, -3, 0.5)).toBeCloseTo(Math.PI, 12);
     expect(lerpAngle(-3, 3, 0.5)).toBeCloseTo(-Math.PI, 12);
     expect(lerpAngle(0.1, 0.1 + 4 * Math.PI, 1)).toBeCloseTo(0.1, 12);
+  });
+});
+
+describe("rotate", () => {
+  it("turns a vector by radians, clockwise on screen (y down), into a new vector", () => {
+    const v = { x: 2, y: 0 };
+    const quarter = rotate(v, Math.PI / 2);
+    expect(quarter.x).toBeCloseTo(0);
+    expect(quarter.y).toBeCloseTo(2);
+    const half = rotate({ x: 1, y: 1 }, Math.PI);
+    expect(half.x).toBeCloseTo(-1);
+    expect(half.y).toBeCloseTo(-1);
+    const same = rotate(v, 0);
+    expect(same).toEqual(v);
+    expect(same).not.toBe(v);
   });
 });
 

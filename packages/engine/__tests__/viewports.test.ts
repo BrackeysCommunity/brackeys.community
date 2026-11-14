@@ -128,6 +128,29 @@ describe("viewports", () => {
     ).toBeNull();
     const badRig = { rect: [0, 0, 1, 1], frame: "main", rig: { damping: -1 } } as ViewportDef;
     expect(viewportsProblem([badRig])).toMatch(/^viewport 0: rig damping: /);
+    const one = (def: Partial<Record<keyof ViewportDef, unknown>>) =>
+      viewportsProblem([{ rect: [0, 0, 1, 1], frame: "main", ...def } as ViewportDef]);
+    for (const frame of ["scene", { player: 0 }, { player: 3 }, { entity: "crate" }])
+      expect(one({ frame })).toBeNull();
+    for (const frame of [
+      "minimap",
+      undefined,
+      null,
+      { player: 1.5 },
+      { player: -1 },
+      { entity: 3 },
+      { entity: "" },
+      { player: 0, entity: "crate" },
+      { point: { x: 0, y: 0 } },
+    ])
+      expect(one({ frame })).toMatch(/^viewport 0: frame /);
+    expect(one({ layers: ["world"] })).toBeNull();
+    expect(one({ layers: "world" })).toMatch(/^viewport 0: layers /);
+    expect(one({ layers: [1] })).toMatch(/^viewport 0: layers /);
+    expect(one({ border: { width: 2, color: 0xffffff } })).toBeNull();
+    for (const color of [-1, 0x1000000, 0.5, NaN, "#fff", undefined])
+      expect(one({ border: { width: 2, color } })).toMatch(/^viewport 0: border color /);
+    expect(one({ rect: "full" })).toMatch(/^viewport 0: rect /);
     // The topmost wins where they overlap.
     const minimap: ViewportDef[] = [
       { rect: [0, 0, 1, 1], frame: "main" },
@@ -142,6 +165,8 @@ describe("viewports", () => {
     await expect(createGame(canvas, { game: null, viewports: [] })).rejects.toThrow(/viewports/);
     const { game } = await playing(SPLIT);
     expect(() => game.setViewports([{ rect: [0, 0, 2, 1], frame: "main" }])).toThrow(/viewports/);
+    const minimap = { rect: [0, 0, 1, 1], frame: "minimap" } as unknown as ViewportDef;
+    expect(() => game.setViewports([minimap])).toThrow(/viewport 0: frame "minimap"/);
   });
 
   it("render the world container twice: directly, and into viewport 1's texture with its own transform", async () => {

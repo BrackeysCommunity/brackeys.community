@@ -1,13 +1,10 @@
 import {
   isTweenState,
   stepTween,
-  tweenBlockProblems,
-  tweenProblem,
   tweenStarted,
   tweenValues,
   type Tweens,
   type TweenState,
-  type TweenTarget,
   type TweenValues,
 } from "../../anim/tweens";
 import type { BehaviorSystem, BehaviorSystemFactory } from "../../game/behaviors";
@@ -15,13 +12,16 @@ import { COLLIDER, type ColliderSystem } from "../../game/behaviors/collider";
 import { SPRITE } from "../../game/behaviors/sprite";
 import {
   isLookChannel,
-  POSE_CHANNELS,
+  isPoseChannel,
+  ridingHost,
   TWEEN,
+  tweenBlockProblems,
   tweenChannels,
+  tweenProblem,
   tweenSpecSchema,
   type TweenBlock,
-  type TweenChannel,
   type TweenSpec,
+  type TweenTarget,
 } from "../../game/behaviors/tween";
 import { zodIssueText } from "../../game/fields";
 import { delayTicks, wholeTicksIn } from "../../game/time";
@@ -31,12 +31,13 @@ import {
   type JsonValue,
   type SceneSystem,
 } from "../../game/types";
+import { isPlainObject } from "../../project/kinds/define";
 import type { RuntimeEntity } from "../../scene/types";
 import { plainJsonProblem } from "../persist";
 import { spawnPose } from "../spawn-pose";
 import { spriteLook, type SpriteLook, type SpriteSystem } from "./sprite";
 
-/** A tween finished and gave no `emit`: `data` is `{ id }`, plus its `key` when it has one. */
+/** A tween finished and its `emit` names no type: `data` is the emit's, else `{ id }` plus its `key` when it has one. */
 export const TWEEN_END = "tween:end";
 
 /** The `world.systems` key a world save keeps the run's tweens under; `@` can't begin an entity id. */
@@ -95,13 +96,11 @@ type Captured = {
 /** The one channel a value tween runs on. */
 const VALUE = "v";
 
-const isPose = (channel: string) => POSE_CHANNELS.includes(channel as TweenChannel);
-
 const entryKey = (spec: TweenSpec) => JSON.stringify(spec);
 
 /** The look a world save held for an entity, its channels checked; null when there is none. */
 function savedLook(value: unknown): SpriteLook | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  if (!isPlainObject(value)) return null;
   const out: SpriteLook = {};
   for (const [channel, v] of Object.entries(value))
     if (isLookChannel(channel) && typeof v === "number" && Number.isFinite(v)) out[channel] = v;
@@ -153,6 +152,8 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     block?: number,
     id = next++,
   ): TweenState {
+    // An emit with neither a type nor data raises what no emit does.
+    const emit = spec.emit?.type !== undefined || spec.emit?.data !== undefined ? spec.emit : null;
     return {
       id,
       ...(owner !== undefined ? { owner } : {}),
@@ -167,11 +168,11 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
       yoyo: spec.yoyo ?? false,
       play: 0,
       tick: 0,
-      ...(spec.emit
+      ...(emit
         ? {
             emit: {
-              type: spec.emit.type,
-              ...(spec.emit.data !== undefined ? { data: spec.emit.data as JsonValue } : {}),
+              type: emit.type ?? TWEEN_END,
+              ...(emit.data !== undefined ? { data: emit.data as JsonValue } : {}),
             },
           }
         : {}),
@@ -199,15 +200,14 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     return add({ state: stateOf(spec, defined(spec.to)!, defined(spec.from), owner, index) });
   }
 
-  /** What `e` is to a tween: posable when its type's system has `setPose`, riding the host it is attached to. */
+  /** What `e` is to a tween: posable when its type's system has `setPose`, riding the host its attach field names. */
   function targetOf(e: RuntimeEntity): TweenTarget {
     const system = ctx.system<SceneSystem>(e.type);
-    const host = e.attach;
-    const rides = typeof host === "string" && ctx.attachments.attachedTo(host).includes(e.id);
+    const host = ridingHost(ctx.registry.types.get(e.type), e);
     return {
       type: e.type,
       posable: typeof system?.setPose === "function",
-      ...(rides ? { riding: host } : {}),
+      ...(host !== undefined ? { riding: host } : {}),
     };
   }
 
@@ -311,7 +311,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
     let moves = false;
     const look: SpriteLook = {};
     for (const [channel, v] of Object.entries(values)) {
-      if (isPose(channel)) moves = true;
+      if (isPoseChannel(channel)) moves = true;
       else look[channel as keyof SpriteLook] = v;
     }
     const owner = ctx.system<SceneSystem>(e.type);
@@ -390,7 +390,7 @@ export const createTweenSystem: BehaviorSystemFactory = (ctx: EngineContext) => 
   function restoreLooks(saved: unknown): void {
     const before = new Map(looks);
     looks.clear();
-    if (typeof saved === "object" && saved !== null && !Array.isArray(saved)) {
+    if (isPlainObject(saved)) {
       for (const [id, value] of Object.entries(saved)) {
         const look = ctx.get(id) ? savedLook(value) : null;
         if (look) looks.set(id, look);

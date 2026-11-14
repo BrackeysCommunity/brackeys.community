@@ -579,6 +579,9 @@ const SCENE_MOVES = ["scene-promote", "scene-rollback", "scene-clear"] as const;
 /** Audit rows `previousPointer` reads at a time, newest first. */
 const HISTORY_PAGE = 20;
 
+/** A version the audit log names that has since been deleted. */
+const GONE = Symbol("gone");
+
 /**
  * The version a scene's pointer on the channel named before the last move
  * that changed it, from the audit log: a number, or null for the release's
@@ -586,7 +589,9 @@ const HISTORY_PAGE = 20;
  * release move that cleared or restored it (the channel's scenes before
  * it). A move that left the pointer where it was, such as a timing-only
  * change or a release rollback putting back the version it cleared, is
- * passed over. Rolling back twice returns to where it started.
+ * passed over. Rolling back twice returns to where it started. A version
+ * the log names that no longer exists can't be gone back to, so the walk
+ * carries on past it to the one before.
  */
 async function previousPointer(
   tx: ReleaseDb,
@@ -595,21 +600,45 @@ async function previousPointer(
   scene: AssetId,
 ): Promise<number | null> {
   const nothing = () => notFound(`${scene} has no earlier version on ${channel} to go back to.`);
-  const numberOf = async (versionId: string) => {
-    const [version] = await tx
-      .select({ number: engineSceneVersions.number })
-      .from(engineSceneVersions)
-      .where(
-        and(eq(engineSceneVersions.id, versionId), eq(engineSceneVersions.projectId, projectId)),
-      );
-    return version ? version.number : nothing();
+  // What the log names a version by: its id (a release move's scenes) or its number (a scene move's `from`).
+  type Named = { id: string } | { number: number } | null;
+  const resolver = async (names: readonly Named[]) => {
+    const ids = names.flatMap((n) => (n && "id" in n ? [n.id] : []));
+    const numbers = names.flatMap((n) => (n && "number" in n ? [n.number] : []));
+    const found =
+      ids.length + numbers.length === 0
+        ? []
+        : await tx
+            .select({ id: engineSceneVersions.id, number: engineSceneVersions.number })
+            .from(engineSceneVersions)
+            .where(
+              and(
+                eq(engineSceneVersions.projectId, projectId),
+                eq(engineSceneVersions.sceneId, scene),
+                or(
+                  ids.length ? inArray(engineSceneVersions.id, ids) : undefined,
+                  numbers.length ? inArray(engineSceneVersions.number, numbers) : undefined,
+                ),
+              ),
+            );
+    const byId = new Map(found.map((v) => [v.id, v.number]));
+    const existing = new Set(found.map((v) => v.number));
+    return (n: Named): number | null | typeof GONE =>
+      n === null
+        ? null
+        : "id" in n
+          ? (byId.get(n.id) ?? GONE)
+          : existing.has(n.number)
+            ? n.number
+            : GONE;
   };
   const [current] = await tx
     .select({ versionId: engineSceneChannels.versionId })
     .from(engineSceneChannels)
     .where(pointerWhere(projectId, channel, scene));
+  const currentName: Named = current ? { id: current.versionId } : null;
   // What the pointer named after the row being read: walking back, each move's "before".
-  let after = current ? await numberOf(current.versionId) : null;
+  let after = (await resolver([currentName]))(currentName);
 
   const detail = engineReleaseAudit.detail;
   const touchesScene = or(
@@ -622,6 +651,14 @@ async function previousPointer(
       sql`(jsonb_exists(${detail} -> 'scenes', ${scene}) or jsonb_exists(${detail} -> 'restored', ${scene}))`,
     ),
   );
+  const beforeRow = (row: { action: string; detail: unknown }): Named => {
+    if ((SCENE_MOVES as readonly string[]).includes(row.action)) {
+      const from = (row.detail as { from?: unknown } | null)?.from;
+      return typeof from === "number" ? { number: from } : null;
+    }
+    const versionId = scenesBefore(row.detail)[scene];
+    return versionId === undefined ? null : { id: versionId };
+  };
   let olderThan: number | null = null;
   for (;;) {
     const rows = await tx
@@ -637,16 +674,11 @@ async function previousPointer(
       )
       .orderBy(desc(engineReleaseAudit.id))
       .limit(HISTORY_PAGE);
-    for (const row of rows) {
-      let before: number | null;
-      if ((SCENE_MOVES as readonly string[]).includes(row.action)) {
-        const from = (row.detail as { from?: unknown } | null)?.from;
-        before = typeof from === "number" ? from : null;
-      } else {
-        const versionId = scenesBefore(row.detail)[scene];
-        before = versionId === undefined ? null : await numberOf(versionId);
-      }
-      if (before !== after) return before;
+    const names = rows.map(beforeRow);
+    const resolve = await resolver(names);
+    for (const name of names) {
+      const before = resolve(name);
+      if (before !== GONE && before !== after) return before;
       after = before;
     }
     if (rows.length < HISTORY_PAGE) return nothing();

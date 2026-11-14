@@ -17,7 +17,7 @@ import {
   type SceneOverlay,
   type SceneRegionOptions,
 } from "./render-geometry";
-import { aabb, translateShape } from "./shape-geometry";
+import { aabb, regionBox, translateShape } from "./shape-geometry";
 import { shapeIsClosed, shapeOutline, type PathCommand } from "./shape-outline";
 import type { Bounds, ExpandedScene, Pt, SceneDefinition, ShapeObj } from "./types";
 import { pxToMetres } from "./units";
@@ -231,11 +231,11 @@ export function renderSceneSvg(
   for (const d of visible) {
     if (!d.shape) continue;
     const style = styleOf({ registry }, d.type, materialOf(d)) ?? FALLBACK_STYLE;
-    // A camera region is an area the camera frames, not a surface: a dashed outline, unfilled.
+    // A camera region is an area the camera frames, not a surface: the box it frames, dashed and unfilled.
     const region = d.base === CAMERA_REGION_TYPE;
     out.push(
       shapeElement(
-        d.shape,
+        region ? regionBox(d.shape) : d.shape,
         region ? outlineOnly(style) : style,
         px,
         `data-ref="${esc(d.id)}" data-type="${esc(d.type.type)}"` +

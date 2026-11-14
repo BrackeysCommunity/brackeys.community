@@ -195,6 +195,12 @@ const sameShape = (a: ShapeObj, b: ShapeObj) => JSON.stringify(a) === JSON.strin
 /** What a body table reads of an entity: its id, its shape and its quarter turns. */
 type ShapedEntity = Pick<RuntimeEntity, "id" | "transform"> & { shape: ShapeObj };
 
+/** Where a body `posedBodyDesc` made for `shape` sits, as a pose. */
+const framedAt = (shape: ShapeObj): Pose => {
+  const frame = shapePose(shape);
+  return { x: frame.x, y: frame.y, rot: frame.rotation };
+};
+
 /**
  * The entity's pose in its body's frame. A body `posedBodyDesc` made sits
  * at `shapePose(shape)`; a `local` one (a follower's) carries the shape at
@@ -202,15 +208,8 @@ type ShapedEntity = Pick<RuntimeEntity, "id" | "transform"> & { shape: ShapeObj 
  */
 function bodyOffset(e: ShapedEntity, local: boolean): Pose {
   const pose = shapeSpawnPose(e.shape, e.transform);
-  if (local) return pose;
-  const frame = shapePose(e.shape);
-  return relativePose(pose, { x: frame.x, y: frame.y, rot: frame.rotation });
+  return local ? pose : relativePose(pose, framedAt(e.shape));
 }
-
-const framedAt = (shape: ShapeObj): Pose => {
-  const frame = shapePose(shape);
-  return { x: frame.x, y: frame.y, rot: frame.rotation };
-};
 
 /** What a geometry collider is, apart from its shape and pose. */
 export type GeometryPart = Omit<GeometryColliderDesc, "shape" | "pose">;

@@ -139,6 +139,7 @@ function InspectorWithAsset({
       onOpenPrefab={onOpenPrefab}
       inPrefab={inPrefab}
       project={project?.session ?? null}
+      runtime={project?.runtime ?? null}
       {...(asset ? { asset } : {})}
     />
   );

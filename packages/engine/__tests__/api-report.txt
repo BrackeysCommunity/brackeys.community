@@ -4037,6 +4037,7 @@ type EditorProjectLink = {
     }) => void;
     projects?: readonly EditorProjectChoice[];
     readOnly?: boolean;
+    runtime?: ProjectRuntimeView;
     scene?: string;
     session: ProjectSession;
 };
@@ -4570,6 +4571,10 @@ type FieldWidget = {
     kind: "number";
     max?: number;
     min?: number;
+    named?: readonly {
+        label: string;
+        value: number;
+    }[];
     scale?: number;
     scrub: boolean;
     step: number;
@@ -4617,6 +4622,8 @@ type FieldWidget = {
     kind: "delay";
     min: number;
     rate: number;
+} | {
+    kind: "json";
 } | {
     kind: "object";
 } | {
@@ -4724,9 +4731,8 @@ type ShapeConversion = {
     tuple: ShapeTuple;
 };
 declare function buildInspectorModel(registry: Registry, targets: readonly RefTarget[], opts?: {
-    assetKind?: (id: AssetId) => AssetKindName | undefined;
-    clips?: (source: AssetId) => null | readonly string[];
     def?: SceneDefinition;
+    sources?: ClipSourceLookup;
 }): InspectorModel;
 declare function instanceParamsModel(def: SceneDefinition, ref: Ref, registry: Registry, prefabs: PrefabLibrary): InstanceParamsModel | null;
 declare function instanceTransformModel(def: SceneDefinition, ref: Ref, prefabs: PrefabLibrary): InstanceTransformModel | null;
@@ -6204,7 +6210,7 @@ declare const TWEEN: BehaviorDef<{
         }>>;
         emit: z.ZodOptional<z.ZodObject<{
             data: z.ZodOptional<z.ZodUnknown>;
-            type: z.ZodString;
+            type: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>>;
         from: z.ZodOptional<z.ZodObject<{
             alpha: z.ZodOptional<z.ZodNumber>;
@@ -6279,7 +6285,7 @@ declare const tweenFields: {
         }>>;
         emit: z.ZodOptional<z.ZodObject<{
             data: z.ZodOptional<z.ZodUnknown>;
-            type: z.ZodString;
+            type: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>>;
         from: z.ZodOptional<z.ZodObject<{
             alpha: z.ZodOptional<z.ZodNumber>;
@@ -6350,7 +6356,7 @@ declare const tweenSpecSchema: z.ZodObject<{
     }>>;
     emit: z.ZodOptional<z.ZodObject<{
         data: z.ZodOptional<z.ZodUnknown>;
-        type: z.ZodString;
+        type: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     from: z.ZodOptional<z.ZodObject<{
         alpha: z.ZodOptional<z.ZodNumber>;
@@ -8924,6 +8930,9 @@ type MapLayout = Extract<DocLayout, {
 declare function canonicalJson(value: unknown, layout: DocLayout): string;
 declare function fieldLayout(layout: MapLayout, key: string): DocLayout;
 declare function stableJson(value: unknown): string;
+
+## project/clip-source.ts
+type ClipSourceLookup = Pick<ProjectRuntimeView, "asset" | "doc">;
 
 ## project/content-store.ts
 type ContentStore = {
@@ -15031,6 +15040,7 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "sprite-no-asset",
     "anim-tag-unknown",
     "anim-clip-unknown",
+    "anim-atlas-mismatch",
     "frame-shape-invalid",
     "tween-target-invalid",
     "tick-rate-invalid",

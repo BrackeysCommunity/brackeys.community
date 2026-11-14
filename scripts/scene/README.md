@@ -2177,6 +2177,24 @@ a clip; `offset` starts it some ticks in, so neighbours don't move in step.
 vp run scene apply kitchen-sink --ops scripts/scene/examples/animate-start.json --dry-run
 ```
 
+The sprite draws the frames the `anim` plays from its own `asset`: the
+source's atlas, or another atlas with the same frame names. One that lacks
+some is `anim-atlas-mismatch`, naming the atlas to draw (an animation
+source is checked when the project's runtime view is passed). The editor's
+Add behavior and source picker point the sprite at the source's atlas:
+
+```json scene=kitchen-sink expect=anim-atlas-mismatch
+{
+  "ops": [
+    {
+      "op": "update",
+      "ref": "std-anim",
+      "set": { "behaviors.anim.source": "crates", "behaviors.anim.clip": "stack" }
+    }
+  ]
+}
+```
+
 `step --anim <id>` follows one entity's `anim` through a headless run:
 its clip, frame index and frame after every tick, the ticks on one frame
 run together (`anim.ticks` in `--json`, one entry a tick), beside the
@@ -3802,6 +3820,7 @@ batch that reports each, and a running game throws `anim-clip-unknown` and
 | ---------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | `anim-tag-unknown`     | error    | An animation clip's `tag` names a tag its atlas doesn't have.                                                                   | did-you-mean                                                  |
 | `anim-clip-unknown`    | error    | A clip's `next`, or a clip asked for by `ctx.anim.play`, names a clip the animation doesn't have.                               | did-you-mean, or add the clip                                 |
+| `anim-atlas-mismatch`  | error    | An `anim` entity's sprite draws an asset that lacks frames its source plays, so they don't show.                                | set the sprite's `asset` to the atlas the message names       |
 | `frame-shape-invalid`  | error    | A frame's shape doesn't parse, or its shape set's name isn't lowercase letters, digits and hyphens (up to 32).                  | fix the tuple, or rename the set                              |
 | `tween-target-invalid` | error    | A tween moves the pose of an entity that can't be posed (a `prop` or `follower`), or animates the look of one with no `sprite`. | tween another channel, add a `sprite`, or move it another way |
 

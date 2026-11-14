@@ -11,15 +11,15 @@ import {
   createContext,
   Fragment,
   useContext,
-  useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type MouseEvent,
   type ReactNode,
 } from "react";
 
-import { layoutFromDoc, type ProjectSession, type SessionDoc } from "../../collab/index";
+import type { ProjectSession } from "../../collab/index";
 import {
   applyLevels,
   applyToPrefabBatch,
@@ -61,6 +61,7 @@ import {
   type ShapeTuple,
 } from "../../editor/index";
 import {
+  animSourceEdits,
   articled,
   fieldTitle,
   lengthStep,
@@ -71,16 +72,8 @@ import {
 import { BEHAVIOR_CATEGORIES, BEHAVIORS_FIELD } from "../../game/behaviors";
 import { ticksFor } from "../../game/time";
 import { pxPerMetreOf } from "../../game/units";
-import { sourceClipsIn } from "../../project/clip-source";
-import {
-  assetInfo,
-  isRuntimeKind,
-  parseAssetDoc,
-  type AssetId,
-  type AssetKindName,
-  type ProjectView,
-} from "../../project/index";
-import { ANIMATION_KIND } from "../../project/kinds/animation";
+import { clipLookupOf, sourceClipsIn, type ClipSourceLookup } from "../../project/clip-source";
+import type { ProjectRuntimeView } from "../../project/index";
 import type { PrefabLibrary } from "../../scene/index";
 import { snapToPixel } from "../../scene/units";
 import { STORAGE_PREFIX } from "../host";
@@ -141,6 +134,7 @@ import {
   EditError,
   FieldRow,
   Hinted,
+  JsonField,
   MIXED,
   NestedField,
   NumberField,
@@ -192,11 +186,9 @@ type Ctx = {
   fields?: ReadonlyMap<string, ModelField>;
   /** Fields an asset picker draws as its frame or clip row, so they aren't drawn again. */
   drawnBy?: ReadonlySet<string>;
-  /** The clips an animation or atlas offers (`useClips`), for an asset picker's clip row. */
-  clips?: ClipLookup;
+  /** Where an `anim` block's source is read (`useClipSources`), for an asset picker's clip row. */
+  sources?: ClipSourceLookup;
 };
-
-type ClipLookup = (source: AssetId) => readonly string[] | null;
 
 type Edit = { ok: true; batch: OpBatch } | { ok: false; error: string };
 
@@ -1046,7 +1038,8 @@ function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   const options = assetOptions(view, w.kinds);
   const chosen = field.mixed ? undefined : options.find((o) => o.id === field.value);
   const problem = error ?? (field.mixed ? null : danglingAsset(field.value, options, w.kinds));
-  const clipsOf = (id: string | undefined) => (id === undefined ? null : (ctx.clips?.(id) ?? null));
+  const clipsOf = (id: string | undefined) =>
+    id === undefined || !ctx.sources ? null : (sourceClipsIn(ctx.sources, id)?.names ?? null);
   const clips = chosen ? clipsOf(chosen.id) : null;
 
   const pick = (id: string | undefined) => {
@@ -1058,6 +1051,8 @@ function AssetField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     const next = clipsOf(id);
     const clip = next ? frameFor(next, clipField?.value) : undefined;
     if (clipField && clip !== undefined) edits.push([clipField, clip]);
+    if (ctx.sources && ctx.fields)
+      edits.push(...animSourceEdits(ctx.fields, field.path, id, clip, ctx.sources));
     setError(commitFields(ctx, `Set ${field.title}`, edits));
   };
 
@@ -1339,7 +1334,7 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
     return (
       <ReadonlyField
         field={field}
-        json={w.kind === "readonly" && w.format === "json"}
+        json={w.kind === "json" || (w.kind === "readonly" && w.format === "json")}
         ppm={ppmOf(ctx)}
       />
     );
@@ -1376,6 +1371,8 @@ function FieldWidgetView({ field, ctx }: { field: ModelField; ctx: Ctx }) {
       );
     case "text":
       return <TextField field={field} commit={committer(ctx, field)} />;
+    case "json":
+      return <JsonField field={field} commit={committer(ctx, field)} />;
     case "point":
       return (
         <PointField
@@ -1447,66 +1444,16 @@ function framesDrawn(fields: ReadonlyMap<string, ModelField>): Set<string> {
 }
 
 /**
- * The clip names each animation and atlas asset of `project` offers, as the
- * scene validator reads an `anim` block's source: an atlas's tags, or an
- * animation doc's clips (every animation doc held open while mounted, and
- * read again as one changes). Undefined without a project.
+ * Where an `anim` block's source is read: `project`'s blob infos as they
+ * are now, and animation docs through `runtime`, the editor's runtime view,
+ * as the scene validator reads them. Undefined without a project.
  */
-function useClips(project: ProjectSession | null): ClipLookup | undefined {
+function useClipSources(
+  project: ProjectSession | null,
+  runtime: ProjectRuntimeView | null,
+): ClipSourceLookup | undefined {
   const view = useProjectView(project);
-  const [, bump] = useState(0);
-  const key = project && view ? animationDocs(project, view).join("\n") : "";
-  useEffect(() => {
-    if (!project || key === "") return;
-    const changed = () => bump((n) => n + 1);
-    const held: SessionDoc[] = [];
-    let gone = false;
-    for (const name of key.split("\n")) {
-      project.open(name).then(
-        (doc) => {
-          if (gone) return project.release(name);
-          held.push(doc);
-          doc.doc.on("update", changed);
-          changed();
-        },
-        // An animation whose doc can't open offers no clips.
-        () => {},
-      );
-    }
-    return () => {
-      gone = true;
-      for (const doc of held) {
-        doc.doc.off("update", changed);
-        project.release(doc.name);
-      }
-    };
-  }, [project, key]);
-  if (!project || !view) return undefined;
-  return (source) => clipsOf(project, view, source);
-}
-
-const animationDocs = (project: ProjectSession, view: ProjectView) =>
-  [...view.byId.values()]
-    .filter((e) => e.kind === ANIMATION_KIND)
-    .flatMap((e) => project.docNameFor(e) ?? [])
-    .sort();
-
-function clipsOf(project: ProjectSession, view: ProjectView, source: AssetId) {
-  const env = { registry: project.registry, project: view };
-  function doc<T = unknown>(kind: AssetKindName, id: AssetId): T | undefined {
-    const entry = view.byId.get(id);
-    if (entry?.kind !== kind) return undefined;
-    const def = project.kinds.get(kind);
-    if (!isRuntimeKind(def)) return undefined;
-    const name = project.docNameFor(entry);
-    const held = name ? project.get(name) : undefined;
-    if (!held?.layout) return undefined;
-    const read = parseAssetDoc(def, layoutFromDoc(held.doc, held.layout), env);
-    return read.ok ? (read.value as T) : undefined;
-  }
-  return (
-    sourceClipsIn({ asset: (id) => assetInfo(view, id) ?? undefined, doc }, source)?.names ?? null
-  );
+  return useMemo(() => (view ? clipLookupOf(view, runtime?.doc) : undefined), [view, runtime]);
 }
 
 /**
@@ -1719,13 +1666,21 @@ type InspectorProps = {
   asset?: SelectedAsset;
   /** The open project, whose assets asset fields pick from; without one they're text fields. */
   project?: ProjectSession | null;
+  /** The project's runtime view the editor keeps (`EditorProjectLink.runtime`), which reads its animations' clips. */
+  runtime?: ProjectRuntimeView | null;
 };
 
-function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: InspectorProps) {
+function Inspector({
+  session,
+  onOpenPrefab,
+  inPrefab = false,
+  asset,
+  project,
+  runtime,
+}: InspectorProps) {
   const readOnly = useContext(ReadOnlyContext);
   const labelColumn = useLabelColumn();
-  const clips = useClips(project ?? null);
-  const projectView = useProjectView(project ?? null);
+  const sources = useClipSources(project ?? null, runtime ?? null);
   const selection = useEditorStore(session, (s) => s.selection);
   const doc = useEditorDoc(session);
   const view = useEditorResolved(session);
@@ -1748,6 +1703,7 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
         id={only}
         onOpenPrefab={onOpenPrefab}
         project={project ?? null}
+        {...(sources ? { sources } : {})}
       />
     );
   }
@@ -1761,8 +1717,7 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
 
   const model = buildInspectorModel(session.registry, targets, {
     def: view,
-    ...(clips ? { clips } : {}),
-    ...(projectView ? { assetKind: (id: AssetId) => projectView.byId.get(id)?.kind } : {}),
+    ...(sources ? { sources } : {}),
   });
   const child = targets.length === 1 ? childOverrides(doc, targets[0]!.ref) : null;
   const childParams = child ? paramsFeeding(doc, child, session.registry, prefabs) : [];
@@ -1775,7 +1730,7 @@ function Inspector({ session, onOpenPrefab, inPrefab = false, asset, project }: 
     project: project ?? null,
     fields: byPath,
     drawnBy: framesDrawn(byPath),
-    ...(clips ? { clips } : {}),
+    ...(sources ? { sources } : {}),
     ...(child
       ? {
           overrides: {
@@ -1939,15 +1894,16 @@ function ParamsSection({
   doc,
   model,
   project,
+  sources,
 }: {
   session: EditorSession;
   doc: SceneDefinition;
   model: InstanceParamsModel;
   project: ProjectSession | null;
+  sources?: ClipSourceLookup | undefined;
 }) {
   const [error, setError] = useState<string | null>(null);
   const readOnly = useContext(ReadOnlyContext);
-  const clips = useClips(project);
   const params = model.params.map((p) => ({ ...p, field: paramFrames(p.field) }));
   const byPath = fieldsByPath(params.map((p) => p.field));
   const ctx: Ctx = {
@@ -1958,7 +1914,7 @@ function ParamsSection({
     project,
     fields: byPath,
     drawnBy: framesDrawn(byPath),
-    ...(clips ? { clips } : {}),
+    ...(sources ? { sources } : {}),
     edit: (field, input) => {
       const param = paramOf(model, field);
       return param
@@ -2093,6 +2049,7 @@ function InstancePanel({
   id,
   onOpenPrefab,
   project,
+  sources,
 }: {
   session: EditorSession;
   doc: SceneDefinition;
@@ -2100,6 +2057,8 @@ function InstancePanel({
   onOpenPrefab?: (prefab: string, from: Ref) => void;
   /** Where asset params find the project's assets; without it they're text fields. */
   project: ProjectSession | null;
+  /** Where an asset param's clips are read. */
+  sources?: ClipSourceLookup;
 }) {
   const readOnly = useContext(ReadOnlyContext);
   const labelColumn = useLabelColumn();
@@ -2130,7 +2089,14 @@ function InstancePanel({
         <PlacementSection key={id} session={session} doc={doc} model={placement} />
       ) : null}
       {params && params.params.length > 0 ? (
-        <ParamsSection key={id} session={session} doc={doc} model={params} project={project} />
+        <ParamsSection
+          key={id}
+          session={session}
+          doc={doc}
+          model={params}
+          project={project}
+          sources={sources}
+        />
       ) : null}
       <Section id="instance:overrides" title="Overrides">
         {keys.length === 0 ? (

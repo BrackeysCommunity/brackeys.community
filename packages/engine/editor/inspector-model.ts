@@ -6,12 +6,15 @@ import {
   type BehaviorName,
   type RegisteredBehavior,
 } from "../game/behaviors";
+import { ANIM } from "../game/behaviors/anim";
+import { SPRITE } from "../game/behaviors/sprite";
 import { DEFAULT_LENGTH_UNIT, DEFAULT_TIME } from "../game/defaults";
 import { behaviorsConflict } from "../game/define";
 import { assetKindsOf, CHILD_REF_PATTERN, SIDES } from "../game/fields";
 import { capitalise } from "../game/live";
 import type { BehaviorRules, InspectorWidgetDef, RegisteredType, Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
+import { animSpriteOf, sourceClipsIn, type ClipSourceLookup } from "../project/clip-source";
 import { ANIMATION_KIND } from "../project/kinds/animation";
 import { ATLAS_KIND } from "../project/kinds/atlas";
 import type { AssetId, AssetKindName } from "../project/types";
@@ -124,6 +127,8 @@ export type FieldWidget =
        * typed is divided back.
        */
       scale?: number;
+      /** Values shown, and typed, as a word (`meta.named`: a repeat's -1 as "forever"). */
+      named?: readonly { value: number; label: string }[];
     }
   /**
    * A [low, high] pair (`meta.widget: "range"`, a joint's limits): two number
@@ -212,6 +217,8 @@ export type FieldWidget =
   | { kind: "asset"; kinds: AssetKindName[]; frame?: FieldPath; clip?: FieldPath }
   /** A game's own widget from `registry.widgets`, by the id the field's `meta.widget` names. */
   | { kind: "custom"; id: string; widget: InspectorWidgetDef }
+  /** Plain JSON typed as text, for `meta.widget: "json"` (a tween emit's `data`). */
+  | { kind: "json" }
   | { kind: "readonly"; format: "text" | "json" };
 
 /** One field as any schema-driven form draws it: the scene inspector's fields and the settings panels' rows. */
@@ -309,6 +316,7 @@ type FieldMeta = {
   units?: unknown;
   options?: unknown;
   enum?: unknown;
+  named?: unknown;
 };
 
 /** The field's metadata, inner wrappers first so an outer `.meta()` wins. */
@@ -479,6 +487,7 @@ function widgetFor(
     const widget = ctx.registry?.widgets.get(meta.widget);
     if (widget) return { kind: "custom", id: meta.widget, widget };
     if (meta.widget === "color") return { kind: "color" };
+    if (meta.widget === "json") return { kind: "json" };
     if (meta.widget === "action" && ctx.registry) return actionChoice(ctx.registry);
     if (meta.widget === "type" && ctx.registry) return choice(ctx.registry.typeNames);
     const groups = ctx.registry?.collisionGroupNames ?? [];
@@ -548,6 +557,7 @@ function widgetFor(
       scrub: unit !== undefined,
       ...(length ? { decimals: length.decimals } : scale ? { decimals: 2 } : {}),
       ...(scale ? { scale } : {}),
+      ...namedNumbers(meta.named),
     };
   }
   if (inner instanceof z.ZodEnum) {
@@ -603,6 +613,17 @@ function widgetFor(
     }
   }
   return { kind: "readonly", format: "json" };
+}
+
+/** A number field's `meta.named` (`{ "-1": "forever" }`) as its widget lists it. */
+function namedNumbers(named: unknown): { named?: { value: number; label: string }[] } {
+  if (named === null || typeof named !== "object") return {};
+  const out = Object.entries(named).flatMap(([value, label]) =>
+    typeof label === "string" && Number.isFinite(Number(value))
+      ? [{ value: Number(value), label }]
+      : [],
+  );
+  return out.length > 0 ? { named: out } : {};
 }
 
 /**
@@ -1304,12 +1325,15 @@ function addedBlocks(
   s: BehaviorState,
   name: BehaviorName,
   def: SceneDefinition | undefined,
-  { clips, assetKind }: ClipSources,
+  sources: ClipSourceLookup | undefined,
 ): {
   blocks: Record<BehaviorName, Record<string, unknown>>;
+  /** Fields of a carried block it sets too (`behaviors.sprite.asset`), by dot path. */
+  also: Record<string, unknown>;
   unavailable?: string;
   uses: string[];
 } {
+  const clipsOf = (id: AssetId) => (sources ? sourceClipsIn(sources, id) : null);
   const blocks: Record<BehaviorName, Record<string, unknown>> = {};
   for (const n of withRequires(registry, s, name))
     blocks[n] = addedBlock(registry, s, n, registry.behaviors.get(n)!);
@@ -1346,10 +1370,10 @@ function addedBlocks(
       if (clip !== undefined && choices.length > 0) {
         const named = namedValues(self, blocks);
         const rank = (id: string) =>
-          named.has(id) ? 0 : assetKind?.(id) === ANIMATION_KIND ? 1 : 2;
+          named.has(id) ? 0 : clipsOf(id)?.what === ANIMATION_KIND ? 1 : 2;
         const picked = [...choices]
           .sort((a, b) => rank(a) - rank(b))
-          .map((id) => [id, clips?.(id)?.[0]] as const)
+          .map((id) => [id, clipsOf(id)?.names[0]] as const)
           .find(([, first]) => first !== undefined);
         if (picked) {
           block[field] = picked[0];
@@ -1357,7 +1381,7 @@ function addedBlocks(
           uses.push(`${picked[0]} (${picked[1]})`);
           continue;
         }
-        unavailable ??= clips
+        unavailable ??= sources
           ? `${title} needs ${articled(kinds!)} asset with clips in the project.`
           : `${title} needs its ${clip} set, which Add can't choose.`;
         continue;
@@ -1373,8 +1397,74 @@ function addedBlocks(
         : `${title} needs its ${field} set, which Add can't choose.`;
     }
   }
+  const also = sources ? animSpriteSeed(s, blocks, sources, uses) : {};
   fixAdded(registry, def, self, blocks, extra);
-  return unavailable ? { blocks, unavailable, uses } : { blocks, uses };
+  return unavailable ? { blocks, also, unavailable, uses } : { blocks, also, uses };
+}
+
+/**
+ * Points the entity's sprite at what an added `anim` block plays when its
+ * asset lacks those frames (`animSpriteOf`): the source's atlas, on the
+ * clip's first frame. An added sprite block takes them in place; a carried
+ * one gets them as fields in `also`. An atlas that isn't the source joins
+ * `uses`.
+ */
+function animSpriteSeed(
+  s: BehaviorState,
+  blocks: Record<BehaviorName, Record<string, unknown>>,
+  sources: ClipSourceLookup,
+  uses: string[],
+): Record<string, unknown> {
+  const anim = blocks[ANIM.name];
+  if (typeof anim?.source !== "string") return {};
+  const added = blocks[SPRITE.name];
+  const carried = added ?? spriteBlockOf(s);
+  if (!carried) return {};
+  const drawn = typeof carried.asset === "string" ? carried.asset : undefined;
+  const clip = typeof anim.clip === "string" ? anim.clip : undefined;
+  const needs = animSpriteOf(sources, anim.source, clip, drawn);
+  if (!needs || (drawn !== undefined && needs.missing.length === 0)) return {};
+  if (needs.atlas !== anim.source) uses.push(needs.atlas);
+  const look = { asset: needs.atlas, ...(needs.frame !== undefined ? { frame: needs.frame } : {}) };
+  if (added) {
+    Object.assign(added, look);
+    if (needs.frame === undefined) delete added.frame;
+    return {};
+  }
+  const at = `${BEHAVIORS_FIELD}.${SPRITE.name}`;
+  return Object.fromEntries(Object.entries(look).map(([k, v]) => [`${at}.${k}`, v]));
+}
+
+/**
+ * What picking `source` (playing `clip`) in an `anim` block's source field
+ * also sets: the sprite's asset and frame, when its asset lacks the frames
+ * the source plays (`animSpriteOf`). None for any other field, without
+ * the sprite's fields among `fields`, or when the targets' sprites differ.
+ */
+export function animSourceEdits(
+  fields: ReadonlyMap<string, ModelField>,
+  path: FieldPath,
+  source: AssetId | undefined,
+  clip: string | undefined,
+  sources: ClipSourceLookup,
+): [ModelField, unknown][] {
+  const at = `${BEHAVIORS_FIELD}.${SPRITE.name}`;
+  const asset = fields.get(`${at}.asset`);
+  if (path !== `${BEHAVIORS_FIELD}.${ANIM.name}.source` || source === undefined) return [];
+  if (!asset || asset.mixed) return [];
+  const drawn = typeof asset.value === "string" ? asset.value : undefined;
+  const needs = animSpriteOf(sources, source, clip, drawn);
+  if (!needs || (drawn !== undefined && needs.missing.length === 0)) return [];
+  const frame = fields.get(`${at}.frame`);
+  return [[asset, needs.atlas], ...(frame ? [[frame, needs.frame] as [ModelField, unknown]] : [])];
+}
+
+/** The sprite block the entity carries: its own, else its type's. */
+function spriteBlockOf(s: BehaviorState): Readonly<Record<string, unknown>> | undefined {
+  if (!s.carried.includes(SPRITE.name)) return undefined;
+  const own = writtenBlocks(s.target.entity)[SPRITE.name];
+  const base = s.rules.required.get(SPRITE.name) ?? s.rules.defaults.get(SPRITE.name) ?? {};
+  return { ...base, ...(isRecord(own) ? own : {}) };
 }
 
 /** A behavior as Add behavior's notes name it: its inspector label, else its key in sentence case. */
@@ -1392,15 +1482,6 @@ export const articled = (kinds: readonly string[]) =>
 
 /** Kinds as a phrase names them without articles: "animation or atlas"; "asset" for none. */
 export const kindsPhrase = (kinds: readonly string[]) => kindWords(kinds).join(" or ");
-
-/** `buildInspectorModel`'s `clips`. */
-type ClipLookup = (source: AssetId) => readonly string[] | null;
-
-/** What Add behavior reads of the project to pick an `anim` block's source and clip. */
-type ClipSources = {
-  clips?: ClipLookup | undefined;
-  assetKind?: ((id: AssetId) => AssetKindName | undefined) | undefined;
-};
 
 /**
  * The strings the entity's blocks already hold at their top level, written
@@ -1468,7 +1549,7 @@ function addOptions(
   registry: Registry,
   states: readonly BehaviorState[],
   def: SceneDefinition | undefined,
-  sources: ClipSources,
+  sources: ClipSourceLookup | undefined,
 ): BehaviorOption[] {
   const [first, ...rest] = states;
   if (!first) return [];
@@ -1488,9 +1569,12 @@ function addOptions(
       for (const u of added.uses) uses.add(u);
       for (const n of Object.keys(added.blocks))
         if (n !== name) adds.add(behaviorLabel(registry, n));
-      const set = Object.fromEntries(
-        Object.entries(added.blocks).map(([n, block]) => [`${BEHAVIORS_FIELD}.${n}`, block]),
-      );
+      const set = {
+        ...Object.fromEntries(
+          Object.entries(added.blocks).map(([n, block]) => [`${BEHAVIORS_FIELD}.${n}`, block]),
+        ),
+        ...added.also,
+      };
       return { op: "update", ref: s.target.ref, set };
     });
     const who = lacking.length === 1 ? lacking[0]!.target.ref : `${lacking.length} entities`;
@@ -1554,16 +1638,12 @@ export function buildInspectorModel(
     /** The scene the targets are in (the resolved view): Add behavior seeds a reference from it. */
     def?: SceneDefinition;
     /**
-     * The clip names an animation or atlas asset offers, in file order (an
-     * atlas's tags are its clips), null when they can't be read: Add
-     * behavior picks an `anim` block's source and clip from them.
+     * Where an `anim` block's source is read (`clipLookupOf`): Add behavior
+     * picks its source and clip from the project's animations' clips (over
+     * an atlas's tags) and points the sprite at the source's atlas
+     * (`animSpriteOf`). Without it, Add can't pick a clip.
      */
-    clips?: (source: AssetId) => readonly string[] | null;
-    /**
-     * A project asset's kind: Add behavior then prefers an animation's
-     * clips over an atlas's tags when it picks an `anim` block's source.
-     */
-    assetKind?: (id: AssetId) => AssetKindName | undefined;
+    sources?: ClipSourceLookup;
   } = {},
 ): InspectorModel {
   const maybe = targets.map((t) => behaviorState(registry, t));
@@ -1605,7 +1685,7 @@ export function buildInspectorModel(
     refs: targets.map((t) => t.ref),
     types,
     sections,
-    addBehaviors: addOptions(registry, states, opts.def, opts),
+    addBehaviors: addOptions(registry, states, opts.def, opts.sources),
   };
 }
 

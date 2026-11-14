@@ -1,5 +1,5 @@
 /** Viewports: split screen and minimaps drawn from one world. View-side; nothing here reads the simulation. */
-import { clampZoom, zoomToFit } from "../camera";
+import { boxCentre, clampZoom, zoomToFit } from "../camera";
 import type { CameraRigDef } from "../game/primitives";
 import { cameraRigProblem, type CameraFrame } from "./rig";
 
@@ -29,16 +29,42 @@ export function defaultViewports(): ViewportDef[] {
 
 const fraction = (n: number) => Number.isFinite(n) && n >= 0 && n <= 1;
 
+/** Whether `frame` is one a viewport can frame: `ViewportDef["frame"]` checked at run time. */
+function knownFrame(frame: unknown): boolean {
+  if (frame === "main" || frame === "scene") return true;
+  if (typeof frame !== "object" || frame === null || Array.isArray(frame)) return false;
+  const keys = Object.keys(frame);
+  if (keys.length !== 1) return false;
+  const f = frame as Record<string, unknown>;
+  if (keys[0] === "player") return Number.isInteger(f.player) && (f.player as number) >= 0;
+  if (keys[0] === "entity") return typeof f.entity === "string" && f.entity.length > 0;
+  return false;
+}
+
 /** Why `defs` can't be a canvas's viewports, or null when they can. */
 export function viewportsProblem(defs: readonly ViewportDef[]): string | null {
   if (defs.length < 1 || defs.length > MAX_VIEWPORTS)
     return `a canvas has 1–${MAX_VIEWPORTS} viewports, not ${defs.length}`;
   for (const [i, def] of defs.entries()) {
+    if (!Array.isArray(def.rect) || def.rect.length !== 4)
+      return `viewport ${i}: rect must be [x, y, w, h]`;
     const [x, y, w, h] = def.rect;
     if (![x, y, w, h].every(fraction) || !(w > 0 && h > 0) || x + w > 1 + 1e-9 || y + h > 1 + 1e-9)
       return `viewport ${i}: rect [${def.rect.join(", ")}] isn't a non-empty part of the canvas in 0–1 fractions`;
-    if (def.border && !(Number.isFinite(def.border.width) && def.border.width >= 0))
-      return `viewport ${i}: border width must be a finite number ≥ 0`;
+    if (!knownFrame(def.frame))
+      return `viewport ${i}: frame ${JSON.stringify(def.frame)} isn't "main", "scene", { player: n ≥ 0 } or { entity: id }`;
+    if (
+      def.layers !== undefined &&
+      !(Array.isArray(def.layers) && def.layers.every((l) => typeof l === "string"))
+    )
+      return `viewport ${i}: layers must be a list of layer names`;
+    if (def.border) {
+      const { width, color } = def.border;
+      if (!(Number.isFinite(width) && width >= 0))
+        return `viewport ${i}: border width must be a finite number ≥ 0`;
+      if (!(Number.isInteger(color) && color >= 0 && color <= 0xffffff))
+        return `viewport ${i}: border color must be 0xRRGGBB`;
+    }
     const rig = def.rig === undefined ? null : cameraRigProblem(def.rig);
     if (rig) return `viewport ${i}: rig ${rig}`;
   }
@@ -92,7 +118,7 @@ export function sceneFitFrame(
   const [minX, minY, maxX, maxY] = bounds;
   const zoom = zoomToFit(maxX - minX, maxY - minY, view);
   return {
-    position: { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
+    position: boxCentre({ x: minX, y: minY }, { x: maxX, y: maxY }),
     zoom: Number.isFinite(zoom) && zoom > 0 ? clampZoom(zoom) : 1,
     rotation: 0,
   };

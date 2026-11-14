@@ -3,7 +3,7 @@
  * time, the targets and the scene's camera regions. View-side only: game
  * code steers it through presentation requests and nothing reads it back.
  */
-import { ease, type EaseName } from "../anim/ease";
+import { ease, EASE_NAMES, type EaseName } from "../anim/ease";
 import { boxCentre, clampViewInBox, clampZoom, zoomToFit } from "../camera";
 import {
   DEFAULT_CAMERA_DAMPING,
@@ -63,14 +63,21 @@ type ZoomEase = { from: number; to: number; ms: number; elapsed: number; ease?: 
 
 const finitePoint = (p: Vec2) => Number.isFinite(p.x) && Number.isFinite(p.y);
 
-/** Whether the rig can take `op`: a number it carries that isn't finite (or a zoom that isn't positive) can't be shown. */
+/**
+ * Whether the rig can take `op`: a number it carries that isn't finite (or
+ * a zoom that isn't positive) can't be shown, nor a zoom whose `ease` isn't
+ * one of `EASE_NAMES`.
+ */
 function usable(op: CameraRequest): boolean {
   switch (op.op) {
     case "follow":
       return op.target === null || !("point" in op.target) || finitePoint(op.target.point);
     case "zoom":
       return (
-        Number.isFinite(op.zoom) && op.zoom > 0 && (op.ms === undefined || Number.isFinite(op.ms))
+        Number.isFinite(op.zoom) &&
+        op.zoom > 0 &&
+        (op.ms === undefined || Number.isFinite(op.ms)) &&
+        (op.ease === undefined || EASE_NAMES.includes(op.ease))
       );
     case "shake":
       return Number.isFinite(op.trauma);

@@ -968,6 +968,16 @@ describe("tween blocks", () => {
     );
   });
 
+  it("counts an attach naming no live host as riding, as the run does", () => {
+    const def = scene({ settings: { physics: "rapier" } }, [
+      tweened("plank", "solid", { y: 3 }, { attach: "ghost" } as Partial<EntityDef>),
+    ]);
+    expect(tweenIssues(def).map((i) => i.message)).toEqual([
+      `plank's tween 1 can't play: it is a solid riding "ghost", which can't be posed, so a tween can't move its x`,
+      `plank's tween 2 can't play: it is a solid riding "ghost", which can't be posed, so a tween can't move its y`,
+    ]);
+  });
+
   it("tween-target-invalid for a visual channel on an entity without a sprite", () => {
     const def = scene({}, [tweened("spot", "marker", { alpha: 0.5, tint: 0 })]);
     expect(tweenIssues(def).map((i) => [i.path, i.message])).toEqual([
@@ -1135,6 +1145,26 @@ describe("anim blocks", () => {
             order: ["idle-0", "run-0"],
           },
         }),
+        entry("skin", "atlas", {
+          sha256: "c".repeat(64),
+          meta: {
+            tool: "aseprite",
+            frames: { "idle-0": frame(0), "run-0": frame(16) },
+            tags: [],
+            slices: [],
+            order: ["idle-0", "run-0"],
+          },
+        }),
+        entry("knight", "atlas", {
+          sha256: "d".repeat(64),
+          meta: {
+            tool: "aseprite",
+            frames: { "idle-0": frame(0) },
+            tags: [],
+            slices: [],
+            order: ["idle-0"],
+          },
+        }),
         entry("moves", "animation"),
       ].map((e) => [e.key, e]),
     ),
@@ -1197,6 +1227,53 @@ describe("anim blocks", () => {
     expect(issue.message).toBe(
       'pic\'s anim plays clip "jabb", which animation "moves" doesn\'t have; did you mean "jab"?',
     );
+  });
+
+  const drawnScene = (asset: string, anim: Record<string, unknown>) =>
+    scene({}, [
+      {
+        id: "pic",
+        type: "marker",
+        at: [10, 10],
+        behaviors: { sprite: { asset, frame: "idle-0" }, anim },
+      },
+    ]);
+  const atlasIssues = (def: SceneDefinition, withRuntime = true) =>
+    validateScene(def, engine, withRuntime ? { project, runtime } : { project }).filter(
+      (i) => i.code === "anim-atlas-mismatch",
+    );
+
+  it("pass for a sprite drawing the source's atlas, or another with every frame it plays", () => {
+    expect(atlasIssues(drawnScene("hero", { source: "hero", clip: "idle" }))).toEqual([]);
+    expect(atlasIssues(drawnScene("hero", { source: "moves", clip: "jab" }))).toEqual([]);
+    expect(atlasIssues(drawnScene("skin", { source: "moves", clip: "kick" }))).toEqual([]);
+  });
+
+  it("anim-atlas-mismatch for a sprite whose asset lacks frames the source plays, naming its atlas", () => {
+    const issue = only(
+      atlasIssues(drawnScene("knight", { source: "hero", clip: "idle" })),
+      "anim-atlas-mismatch",
+    );
+    expect(issue).toMatchObject({
+      severity: "error",
+      path: "/entities/1/behaviors/sprite/asset",
+      entityIds: ["pic"],
+      got: "knight",
+      expected: "hero",
+    });
+    expect(issue.message).toBe(
+      'pic\'s sprite draws "knight", which lacks frames its anim plays from "hero" (run-0); set the sprite\'s asset to "hero"',
+    );
+    expect(
+      only(
+        atlasIssues(drawnScene("knight", { source: "moves", clip: "jab" })),
+        "anim-atlas-mismatch",
+      ).expected,
+    ).toBe("hero");
+  });
+
+  it("leave an animation's atlas unchecked without the runtime view", () => {
+    expect(atlasIssues(drawnScene("knight", { source: "moves", clip: "jab" }), false)).toEqual([]);
   });
 
   it("leave an animation source unchecked without the runtime view, and a missing source to the asset checks", () => {

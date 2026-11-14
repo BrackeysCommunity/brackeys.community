@@ -7,7 +7,6 @@ import type { ProjectRuntimeView } from "../project/runtime-view";
 import type { AssetId } from "../project/types";
 import { recordLiveSwaps } from "../runtime/live";
 import { gamePersistCell } from "../runtime/persist";
-import type { PresentedRequest } from "../runtime/present";
 import {
   createRunRecorder,
   recordedCommand,
@@ -56,6 +55,7 @@ import type {
   ScriptIssue,
   UntilClause,
 } from "./playtest-types";
+import { presentCollector } from "./present-collector";
 
 const DEFAULT_MAX_EVENTS = 1000;
 const DEFAULT_MAX_TRAIL = 2000;
@@ -301,7 +301,7 @@ export function runPlaytest<S = unknown, G = unknown>(
   let trailTruncated = false;
   const inputs: InputEdge[] = [];
   const commands: RecordingCommand[] = [];
-  const present: PresentedRequest[] = [];
+  const present = presentCollector(opts.recordPresentation === true);
   const issues = [...first.issues];
   const segments: PlaytestSegment[] = [];
   const base = { slots: 0, ticks: 0 };
@@ -414,7 +414,7 @@ export function runPlaytest<S = unknown, G = unknown>(
           onTick(state, focus, edges, stepped, tickInput, requests) {
             last = state;
             const at = base.ticks + state.tick;
-            for (const req of requests ?? []) present.push({ ...req, tick: at });
+            present.onTick(requests, at);
             standing!.step(tickInput);
             recorder.tick(state, tickInput, focus);
             for (const [, action, pressed] of edges) inputs.push([at, action, pressed]);
@@ -504,7 +504,7 @@ export function runPlaytest<S = unknown, G = unknown>(
         recording: firstRecording,
       };
       if (flow) report.segments = segments;
-      if (opts.recordPresentation) report.present = present;
+      present.attach(report);
       return report;
     } finally {
       runtime.destroy();

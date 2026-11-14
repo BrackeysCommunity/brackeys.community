@@ -242,8 +242,10 @@ export const PRIMITIVES = {
         .number()
         .positive()
         .optional()
-        .describe("The camera's zoom while it frames this region; omitted keeps the rig's own.")
-        .meta({ title: "Zoom" }),
+        .describe(
+          "The camera's zoom while it frames this region (2 draws the world twice as large); omitted keeps the rig's own.",
+        )
+        .meta({ title: "Zoom", unit: "×" }),
       clamp: z
         .boolean()
         .optional()
@@ -335,12 +337,13 @@ export const BASE_REQUIRED_FIELDS: Record<Exclude<PrimitiveType, "note">, readon
   "camera-region": ["shape"],
 };
 
-function metres2(description: string, [a, b]: [string, string] = ["x", "y"]) {
+function metres2(description: string, [a, b]: [string, string] = ["x", "y"], min?: number) {
+  const metres = (axis: string) => {
+    const n = z.number().describe(`${axis}, m.`);
+    return (min === undefined ? n : n.min(min)).meta({ unit: "m" });
+  };
   return z
-    .tuple([
-      z.number().describe(`${a}, m.`).meta({ unit: "m" }),
-      z.number().describe(`${b}, m.`).meta({ unit: "m" }),
-    ])
+    .tuple([metres(a), metres(b)])
     .describe(description)
     .meta({ unit: "m" });
 }
@@ -355,8 +358,9 @@ const WHOLE_PX = "each a whole number of px at the game's px per metre";
 export const CAMERA_RIG_SCHEMA = z
   .strictObject({
     deadzone: metres2(
-      "World metres around the target the camera doesn't follow inside [w, h]; default [0, 0].",
+      "World metres around the target the camera doesn't follow inside [w, h], each at least 0; default [0, 0].",
       ["w", "h"],
+      0,
     ).optional(),
     lookAhead: z
       .number()
@@ -386,7 +390,11 @@ export const CAMERA_RIG_SCHEMA = z
           .describe("Margin kept around the targets, m.")
           .meta({ unit: "m" }),
         minZoom: z.number().positive().describe("The furthest it zooms out."),
-        maxZoom: z.number().positive().describe("The closest it zooms in."),
+        maxZoom: z.number().positive().describe("The closest it zooms in; at least `minZoom`."),
+      })
+      .refine((f) => f.minZoom <= f.maxZoom, {
+        message: "minZoom is more than maxZoom",
+        path: ["maxZoom"],
       })
       .optional()
       .describe("With several targets, zooms to keep them all in view within these limits."),

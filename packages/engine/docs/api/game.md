@@ -6065,7 +6065,7 @@ declare const TWEEN: BehaviorDef<{
         }>>;
         emit: z.ZodOptional<z.ZodObject<{
             data: z.ZodOptional<z.ZodUnknown>;
-            type: z.ZodString;
+            type: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>>;
         from: z.ZodOptional<z.ZodObject<{
             alpha: z.ZodOptional<z.ZodNumber>;
@@ -6096,7 +6096,7 @@ Refers to [`BehaviorDef`](#behaviordef).
 
 _const_ in `runtime/behaviors/tween.ts`
 
-A tween finished and gave no `emit`: `data` is `{ id }`, plus its `key` when it has one.
+A tween finished and its `emit` names no type: `data` is the emit's, else `{ id }` plus its `key` when it has one.
 
 ```ts
 declare const TWEEN_END = "tween:end";
@@ -8319,7 +8319,7 @@ declare const tweenSpecSchema: z.ZodObject<{
     }>>;
     emit: z.ZodOptional<z.ZodObject<{
         data: z.ZodOptional<z.ZodUnknown>;
-        type: z.ZodString;
+        type: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     from: z.ZodOptional<z.ZodObject<{
         alpha: z.ZodOptional<z.ZodNumber>;

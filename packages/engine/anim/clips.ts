@@ -5,12 +5,12 @@
  */
 import { ticksFor, type ResolvedTime } from "../game/time";
 import type { AssetInfo } from "../project/asset-info";
+import { clipFrames, tagOf } from "../project/clip-source";
 import {
   animationIssues,
   DEFAULT_FRAME_MS,
   sourceAnimation,
   type AnimFrameDef,
-  type ClipDef,
   type ClipLoop,
   type ClipSource,
 } from "../project/kinds/animation";
@@ -47,17 +47,6 @@ function refusedClips(issues: readonly SceneIssue[]): Set<number> | "all" {
     out.add(Number(clip));
   }
   return out;
-}
-
-/** A clip's frames: its tag's (reversed for a reverse tag), each replaced by `frames` at its index, then the rest of `frames`. */
-function clipFrames(clip: ClipDef, atlas: AssetInfo): readonly AnimFrameDef[] {
-  const own = clip.frames ?? [];
-  const tag = clip.tag === undefined ? undefined : atlas.tags?.find((t) => t.name === clip.tag);
-  if (!tag) return own;
-  const tagged = (atlas.frames ?? []).slice(tag.from, tag.to + 1);
-  if (tag.direction === "reverse") tagged.reverse();
-  const base = tagged.map((frame, i): AnimFrameDef => own[i] ?? { frame });
-  return [...base, ...own.slice(base.length)];
 }
 
 function resolveShapes(def: AnimFrameDef): Readonly<Record<string, readonly ShapeObj[]>> {
@@ -105,7 +94,7 @@ export function resolveClips(
   };
   file.clips.forEach((clip, c) => {
     if (refused.has(c) || clips.has(clip.name)) return;
-    const tag = clip.tag === undefined ? undefined : atlas.tags?.find((t) => t.name === clip.tag);
+    const tag = tagOf(clip, atlas);
     const loop = clip.loop ?? (tag?.direction === "pingpong" ? "pingpong" : "loop");
     const frames = clipFrames(clip, atlas).map((def) => ({
       frame: def.frame,

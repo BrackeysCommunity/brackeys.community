@@ -584,6 +584,19 @@ const FIXTURES: Record<EngineIssueCode, (() => SceneIssue[] | Promise<SceneIssue
       { project },
     ),
   ],
+  "anim-atlas-mismatch": () =>
+    validated(
+      scene({}, [
+        {
+          id: "pic",
+          type: "marker",
+          at: [100, 100],
+          behaviors: { sprite: { asset: "boom" }, anim: { source: "hero", clip: "idle" } },
+        },
+      ]),
+      engine,
+      { project },
+    ),
   "frame-shape-invalid": () =>
     animated([{ name: "jab", frames: [{ frame: "idle-0", shapes: { Hit: [["box", 0, 0, 1]] } }] }]),
   "tween-target-invalid": () =>

@@ -20,6 +20,14 @@ export {
 export { cssHex } from "./game/color";
 export { lerpAngle } from "./runtime/poses";
 
+/** `v` turned by `angle` radians, as a new vector. */
+export function rotate(v: Vec2, angle: number): Vec2 {
+  if (angle === 0) return { x: v.x, y: v.y };
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return { x: v.x * cos - v.y * sin, y: v.x * sin + v.y * cos };
+}
+
 /** Linearly interpolate between two numbers */
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;

@@ -78,6 +78,24 @@ export function aabb(s: ShapeObj): Aabb {
   }
 }
 
+/** `b` as an unturned box shape. */
+export const aabbBox = (b: Aabb): ShapeObj => ({
+  type: "box",
+  cx: (b.minX + b.maxX) / 2,
+  cy: (b.minY + b.maxY) / 2,
+  hw: (b.maxX - b.minX) / 2,
+  hh: (b.maxY - b.minY) / 2,
+  rotDeg: 0,
+});
+
+/**
+ * The box a camera region with `shape` frames, which every view draws and
+ * the editor picks by: `shape` itself when it's an unturned box, else its
+ * axis-aligned bounds.
+ */
+export const regionBox = (shape: ShapeObj): ShapeObj =>
+  shape.type === "box" && shape.rotDeg % 360 === 0 ? shape : aabbBox(aabb(shape));
+
 export function aabbUnion(a: Aabb, b: Aabb): Aabb {
   return {
     minX: Math.min(a.minX, b.minX),

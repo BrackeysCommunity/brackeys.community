@@ -27,6 +27,7 @@ import type {
   PlaytestBlocked,
   PlaytestReport,
 } from "../../headless/playtest-types";
+import { presentCollector } from "../../headless/present-collector";
 import { replayRecording, type ReplayReport } from "../../headless/recording";
 import type { PointerState } from "../../input/state";
 import type { SeatChange, TickInput } from "../../input/stream";
@@ -51,7 +52,7 @@ import type { RecordingCommand, RunRecording } from "../../scene/recording-schem
 import type { Pt, PrefabLibrary, SceneDefinition, SceneSettings } from "../../scene/types";
 import type { GameInstance, InputAction, RapierModule } from "../../types";
 import { loadCompatRapier } from "../fixtures/compat-rapier";
-import { stubRenderer } from "../fixtures/frame-clock";
+import { manualFrames, stubRenderer } from "../fixtures/frame-clock";
 
 /** Plan 53's matrix rows, by id; matrix.ts maps each to the milestones that deliver it. */
 export type GenreRow =
@@ -368,7 +369,7 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
     let trailTruncated = false;
     const inputs: InputEdge[] = [];
     const commands: RecordingCommand[] = [];
-    const present: PresentedRequest[] = [];
+    const present = presentCollector(opts.recordPresentation === true);
     const input = tickSource(slots, length);
     const recorder = createRunRecorder({
       rapier: recordingRapier(prepared.scene, opts.rapier),
@@ -390,7 +391,7 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
         input,
         record: inputs,
         onTick(state, focus, _edges, stepped, tickInput, requests) {
-          for (const req of requests ?? []) present.push({ ...req, tick: state.tick });
+          present.onTick(requests, state.tick);
           recorder.tick(state, tickInput, focus);
           for (const c of stepped) commands.push(recordedCommand(state.tick, c));
           for (const e of state.events) {
@@ -441,7 +442,7 @@ export function playTicks(opts: TickRunOptions): PlaytestReport | PlaytestBlocke
       issues: prepared.issues,
       recording,
     };
-    if (opts.recordPresentation) report.present = present;
+    present.attach(report);
     return report;
   } finally {
     runtime.destroy();
@@ -815,11 +816,7 @@ async function viewRun(
   const rapier = run.usedRapier ? await loadRapier() : null;
   const recording = run.report.recording;
 
-  let pending: FrameRequestCallback[] = [];
-  const raf = globalThis.requestAnimationFrame;
-  const caf = globalThis.cancelAnimationFrame;
-  globalThis.requestAnimationFrame = (cb) => pending.push(cb);
-  globalThis.cancelAnimationFrame = () => {};
+  const clock = manualFrames();
   const { width, height } = VIEW_CANVAS;
   const canvas = document.createElement("canvas");
   canvas.getBoundingClientRect = () =>
@@ -839,11 +836,11 @@ async function viewRun(
     const draws = stubbedDraws as StubbedDraws | null;
     if (!draws) throw new Error(`${label}: mock ../../renderer with stubbedRenderer`);
     const events: StepEvent[] = [];
-    const present: PresentedRequest[] = [];
+    const present = presentCollector(true);
     const finished: { recording: RunRecording | null } = { recording: null };
     game.on("scene:step", (step: StepResult) => {
       for (const e of step.events) if (events.length < DEFAULT_MAX_EVENTS) events.push(e);
-      for (const req of step.present ?? []) present.push({ ...req, tick: step.tick });
+      present.onTick(step.present, step.tick);
     });
     game.on("play:recorded", (r) => void (finished.recording = r));
     game.start();
@@ -852,13 +849,9 @@ async function viewRun(
     if (!played.ok) throw new Error(`${label}: the shell refused it: ${JSON.stringify(played)}`);
     game.pause();
     const frameMs = 1000 / recording.time.rate;
-    let now = 0;
     for (let i = 0; finished.recording === null && i <= recording.ticks; i++) {
       game.step(1);
-      now += frameMs;
-      const due = pending;
-      pending = [];
-      for (const cb of due) cb(now);
+      clock.advance(frameMs);
     }
     const recorded = finished.recording;
     if (recorded === null)
@@ -869,15 +862,14 @@ async function viewRun(
     return {
       recording: recorded,
       events,
-      present,
+      present: present.present,
       viewports,
       surfaces: [...draws.surfaces.values()],
     };
   } finally {
     game?.destroy();
     canvas.remove();
-    globalThis.requestAnimationFrame = raf;
-    globalThis.cancelAnimationFrame = caf;
+    clock.restore();
   }
 }
 

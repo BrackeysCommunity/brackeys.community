@@ -62,8 +62,16 @@ describe("motion behavior fields", () => {
     expect(labels.find((o) => o.value === "quadIn")?.label).toBe("Quad in (quadIn)");
   });
 
-  it("names the event an unset emit raises", () => {
-    expect(tween("emit.type").placeholder).toBe("tween:end");
+  it("names the event an unset emit raises as its default, and takes its data as JSON", () => {
+    expect(tween("emit.type")).toMatchObject({ optional: true, defaultValue: "tween:end" });
+    expect(tween("emit.data")).toMatchObject({ widget: { kind: "json" }, readonly: false });
+  });
+
+  it("names a repeat's -1 forever", () => {
+    expect(tween("repeat").widget).toMatchObject({
+      kind: "number",
+      named: [{ value: -1, label: "forever" }],
+    });
   });
 
   it("numbers list items from 1", () => {

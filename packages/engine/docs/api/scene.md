@@ -564,6 +564,7 @@ declare const ENGINE_ISSUE_CODE_LIST: readonly [
     "sprite-no-asset",
     "anim-tag-unknown",
     "anim-clip-unknown",
+    "anim-atlas-mismatch",
     "frame-shape-invalid",
     "tween-target-invalid",
     "tick-rate-invalid",
@@ -3343,15 +3344,16 @@ type ValidateOptions = {
      * types, behaviors and settings, and the `assets` header) that isn't live
      * is `asset-missing` and one of the wrong kind `asset-kind`, a sprite
      * without an asset `sprite-no-asset` and one naming a frame its atlas
-     * lacks (or none) `asset-frame-unknown`, and an `anim` block whose atlas
-     * source has no tag named its `clip` `anim-clip-unknown`; without it,
-     * asset ids aren't checked.
+     * lacks (or none) `asset-frame-unknown`, an `anim` block whose atlas
+     * source has no tag named its `clip` `anim-clip-unknown`, and a sprite
+     * whose asset lacks frames its atlas source plays `anim-atlas-mismatch`;
+     * without it, asset ids aren't checked.
      */
     project?: ProjectView;
     /**
      * The project's runtime view, which reads its runtime docs. With it and
      * `project`, an `anim` block whose source is an animation is checked
-     * against that animation's clips too.
+     * against that animation's clips and atlas too.
      */
     runtime?: Pick<ProjectRuntimeView, "doc">;
     /** Overrides the sources `engine` and the game's world give, key by key. */

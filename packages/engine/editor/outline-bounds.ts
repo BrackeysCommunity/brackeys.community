@@ -1,18 +1,11 @@
+import { CAMERA_REGION_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import type { GridCells } from "../scene/grid";
 import { growOverGrid, type SpriteAssetLookup } from "../scene/render-geometry";
 import { CHILD_SEPARATOR } from "../scene/resolve";
 import { gridFieldsOf } from "../scene/schema";
-import { aabb, aabbUnion } from "../scene/shape-geometry";
-import type {
-  Aabb,
-  EntityDef,
-  GridSettings,
-  Pt,
-  Ref,
-  SceneDefinition,
-  ShapeObj,
-} from "../scene/types";
+import { aabb, aabbBox, aabbUnion, regionBox } from "../scene/shape-geometry";
+import type { Aabb, EntityDef, GridSettings, Pt, Ref, SceneDefinition } from "../scene/types";
 import { pathFollowPath } from "./gizmos/behavior-marks";
 import { editSpriteBox, entityGeometry, geometryOfRef, type EditGeometry } from "./spatial-index";
 import type { OverlayTone, ToolOverlay } from "./tools";
@@ -32,15 +25,6 @@ export type OutlineLook = {
 export const outlineLook = (registry: Registry, asset?: SpriteAssetLookup): OutlineLook => ({
   registry,
   ...(asset ? { asset } : {}),
-});
-
-const boxShape = (b: Aabb): ShapeObj => ({
-  type: "box",
-  cx: (b.minX + b.maxX) / 2,
-  cy: (b.minY + b.maxY) / 2,
-  hw: (b.maxX - b.minX) / 2,
-  hh: (b.maxY - b.minY) / 2,
-  rotDeg: 0,
 });
 
 const ptsBox = (pts: readonly Pt[]): Aabb | null =>
@@ -67,7 +51,8 @@ function gridBox(grid: GridSettings, at: Pt, e: EntityDef, registry: Registry): 
 
 /**
  * One entity's or bulk row's marks as the scene draws it, posed by `g`:
- * its shape, its sprite's box, its grid cells' box, and without a shape its point.
+ * its shape (a camera region's framed box), its sprite's box, its grid
+ * cells' box, and without a shape its point.
  */
 function geometryMarks(
   def: SceneDefinition,
@@ -79,13 +64,17 @@ function geometryMarks(
   out: OutlineMarks,
   look: OutlineLook,
 ): void {
-  if (g.shape) out.outlines.push({ shape: g.shape, tone, ref: owner });
+  if (g.shape) {
+    const t = look.registry.types.get(type);
+    const region = t !== undefined && (t.base ?? t.type) === CAMERA_REGION_TYPE;
+    out.outlines.push({ shape: region ? regionBox(g.shape) : g.shape, tone, ref: owner });
+  }
   const sprite = editSpriteBox(look.registry, type, g, entity?.behaviors, look.asset);
   if (sprite) out.outlines.push({ shape: sprite.shape, tone, ref: owner });
   const grid = def.settings?.grid;
   const cells =
     !g.shape && g.at && grid && entity ? gridBox(grid, g.at, entity, look.registry) : null;
-  if (cells) out.outlines.push({ shape: boxShape(cells), tone, ref: owner });
+  if (cells) out.outlines.push({ shape: aabbBox(cells), tone, ref: owner });
   if (!g.shape && g.at && (!sprite || look.spritePoints !== false))
     out.points.push({ at: g.at, tone, ref: owner });
 }
