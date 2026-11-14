@@ -717,6 +717,53 @@ function rideTarget(ctx: EngineContext, host: string | null): string | null {
 }
 
 /**
+ * A body system's `ready` and `ride`. `ride` respawns the collider on `host`'s
+ * body, or back on its own, where the entity is now, keeping it disabled if it
+ * was; `keep` carries over what a respawn would otherwise lose.
+ */
+function riding<
+  E extends { id: string; shape: ShapeObj; transform?: RuntimeEntity["transform"] },
+  K,
+>(
+  ctx: EngineContext,
+  deps: {
+    records: ReadonlyMap<string, E>;
+    rides: Map<string, string | null>;
+    riders: { riders: ReadonlyMap<string, { hostId: string }>; disabled(id: string): boolean };
+    table: { disabled(id: string): boolean };
+    spawn(e: E): void;
+    setPose(id: string, x: number, y: number, rot: number): void;
+    disable(id: string): void;
+    keep: { take(id: string): K; put(id: string, kept: K): void };
+  },
+): { ready(ids: readonly string[]): void; ride(id: string, host: string | null): void } {
+  const { records, rides, riders, table, keep } = deps;
+  function ride(id: string, host: string | null): void {
+    const e = records.get(id);
+    if (!e || !ctx.physics) return;
+    const target = rideTarget(ctx, host);
+    const was = riders.riders.get(id)?.hostId ?? null;
+    rides.set(id, target);
+    if (target === was) return;
+    const off = table.disabled(id) || riders.disabled(id);
+    const kept = keep.take(id);
+    const pose = ctx.poses.get(id);
+    deps.spawn(e);
+    if (pose && !riders.riders.has(id) && !samePose(pose, shapeSpawnPose(e.shape, e.transform)))
+      deps.setPose(id, pose.x, pose.y, pose.rot);
+    keep.put(id, kept);
+    if (off) deps.disable(id);
+  }
+  return {
+    /** A rider still waiting for a parent the tree never linked gets a body of its own. */
+    ready(ids) {
+      for (const id of ids) if (riders.riders.has(id) && !rides.has(id)) ride(id, null);
+    },
+    ride,
+  };
+}
+
+/**
  * The body `e`'s collider rides: the host the tree named, else, before the
  * tree has said, its `parent`, whose body it waits for, so a child that
  * spawns before its host is made on the host's body once rather than on a
@@ -1112,27 +1159,21 @@ export function createSolidSystem(
       restoreMoved(ctx, id, state, setPose);
       setGate(id, state.hidden === true);
     },
-    /** A rider still waiting for a parent the tree never linked gets a body of its own. */
-    ready(ids) {
-      for (const id of ids) if (riders.riders.has(id) && !rides.has(id)) this.ride!(id, null);
-    },
-    /** Moves the collider onto `host`'s body where the solid is now, or back onto its own. */
-    ride(id, host) {
-      const e = records.get(id);
-      if (!e || !ctx.physics) return;
-      const target = rideTarget(ctx, host);
-      const was = riders.riders.get(id)?.hostId ?? null;
-      rides.set(id, target);
-      if (target === was) return;
-      const off = table.disabled(id) || riders.disabled(id);
-      const hidden = isHidden(id);
-      const pose = ctx.poses.get(id);
-      spawn(e);
-      if (pose && !riders.riders.has(id) && !samePose(pose, shapeSpawnPose(e.shape, e.transform)))
-        setPose(id, pose.x, pose.y, pose.rot);
-      if (hidden) setGate(id, true);
-      if (off) disable(id);
-    },
+    ...riding(ctx, {
+      records,
+      rides,
+      riders,
+      table,
+      spawn,
+      setPose,
+      disable,
+      keep: {
+        take: isHidden,
+        put: (id, hidden) => {
+          if (hidden) setGate(id, true);
+        },
+      },
+    }),
     gateOneWaySides: (actor, passing) => gateSides(actor, passing, null),
     passesOneWay(actorId, actor, passing) {
       const { all, by } = actorPasses(ctx, actorId);
@@ -1611,31 +1652,24 @@ export function createSensorSystem(ctx: EngineContext, type: RegisteredType): Se
       if (placed) placed.fresh = true;
       if (e) draw(e);
     },
-    /** A rider still waiting for a parent the tree never linked gets a body of its own. */
-    ready(ids) {
-      for (const id of ids) if (riders.riders.has(id) && !rides.has(id)) this.ride!(id, null);
-    },
-    /** Moves the collider onto `host`'s body where the sensor is now, or back onto its own, keeping what is inside. */
-    ride(id, host) {
-      const e = records.get(id);
-      if (!e || !ctx.physics) return;
-      const target = rideTarget(ctx, host);
-      const was = riders.riders.get(id)?.hostId ?? null;
-      rides.set(id, target);
-      if (target === was) return;
-      const off = table.disabled(id) || riders.disabled(id);
-      const kept = table.owned.get(id)?.inside ?? inside.get(id);
-      const pose = ctx.poses.get(id);
-      spawn(e);
-      if (pose && !riders.riders.has(id) && !samePose(pose, shapeSpawnPose(e.shape, e.transform)))
-        setPose(id, pose.x, pose.y, pose.rot);
-      if (kept) {
-        const owned = table.owned.get(id);
-        if (owned) owned.inside = kept;
-        else inside.set(id, kept);
-      }
-      if (off) disable(id);
-    },
+    ...riding(ctx, {
+      records,
+      rides,
+      riders,
+      table,
+      spawn,
+      setPose,
+      disable,
+      keep: {
+        take: (id) => table.owned.get(id)?.inside ?? inside.get(id),
+        put: (id, kept) => {
+          if (!kept) return;
+          const owned = table.owned.get(id);
+          if (owned) owned.inside = kept;
+          else inside.set(id, kept);
+        },
+      },
+    }),
     clear() {
       riders.clear();
       inside.clear();

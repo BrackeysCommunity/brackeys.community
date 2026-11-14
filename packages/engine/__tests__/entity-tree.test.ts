@@ -5,14 +5,7 @@ import type { Entity } from "../game/entity";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { ExpandedScene, RuntimeEntity } from "../scene/types";
 import { testGame } from "./fixtures/test-game";
-import { engineError } from "./fixtures/tree-rig";
-
-const marker = (id: string, extra: Partial<RuntimeEntity> = {}): RuntimeEntity => ({
-  id,
-  type: "marker",
-  at: [0, 0],
-  ...extra,
-});
+import { engineError, marker } from "./fixtures/tree-rig";
 
 const life = (ticks: number) => ({ behaviors: { lifetime: { ticks } } });
 
@@ -22,11 +15,11 @@ const life = (ticks: number) => ({ behaviors: { lifetime: { ticks } } });
  * loose
  */
 const TREE = (): RuntimeEntity[] => [
-  marker("base", { at: [1, 1], ...life(600) }),
-  marker("arm", { at: [3, 1], parent: "base" }),
-  marker("hand", { at: [4, 1], parent: "arm", ...life(300) }),
-  marker("leg", { at: [1, 3], parent: "base", ...life(200) }),
-  marker("loose", { at: [-5, -5] }),
+  marker("base", [1, 1], life(600)),
+  marker("arm", [3, 1], { parent: "base" }),
+  marker("hand", [4, 1], { parent: "arm", ...life(300) }),
+  marker("leg", [1, 3], { parent: "base", ...life(200) }),
+  marker("loose", [-5, -5]),
 ];
 
 function setup(entities: RuntimeEntity[] = TREE()) {
@@ -181,8 +174,8 @@ describe("Entity in the scene tree", () => {
     const { get } = setup([
       { id: "room-1", type: "node", at: [2, 2] },
       { id: "room-1/door-1", type: "node", at: [3, 2], parent: "room-1" },
-      marker("room-1/door-1/panel", { at: [3, 3], parent: "room-1/door-1", ...life(90) }),
-      marker("room-1/lamp", { at: [2, 4], parent: "room-1" }),
+      marker("room-1/door-1/panel", [3, 3], { parent: "room-1/door-1", ...life(90) }),
+      marker("room-1/lamp", [2, 4], { parent: "room-1" }),
     ]);
     const room = get("room-1");
     expect(room.find("door-1/panel")).toBe(get("room-1/door-1/panel"));

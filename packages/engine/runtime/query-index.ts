@@ -1,6 +1,6 @@
 import type { BehaviorName } from "../game/behaviors";
 import type { EngineContext, EntityQuery, EntitySelector } from "../game/types";
-import { geometryFields, tagFieldsOf } from "../scene/schema";
+import { entityTags, geometryFields, tagFieldsOf } from "../scene/schema";
 import {
   aabb,
   distanceToShape,
@@ -279,11 +279,7 @@ export function createQueryIndex(ctx: EngineContext): RuntimeQueryIndex {
       const was = slots.get(e.id);
       if (was) unindex(was);
       const { fields, tags: tagFields } = fieldsOf(e.type);
-      const tags = new Set<string>();
-      for (const field of tagFields) {
-        const value = e[field];
-        if (Array.isArray(value)) for (const t of value) if (typeof t === "string") tags.add(t);
-      }
+      const tags = entityTags(e, tagFields);
       const behaviors = new Set<BehaviorName>(carriedBehaviors(e));
       const spawn = spawnPoseOf(e, fields);
       let local: ShapeObj | undefined;

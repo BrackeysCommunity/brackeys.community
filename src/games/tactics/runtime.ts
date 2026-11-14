@@ -349,22 +349,6 @@ const describe = (c: GameCommand) =>
  * `occupant` behavior follows it. After `end-turn` the red side plays: one
  * unit's orders every `aiStepTicks` ticks, each walk finished before the
  * next order. The run stays busy while either goes on.
- *
- * Around the levels: the menu's `start` asks for the next level, a listed
- * level that ends asks for the result scene with the progress updated, and
- * the result's `menu` goes back; each request fades. A level loaded on its
- * own (no scene list) asks for nothing, so its run ends won or lost. The
- * first unit to step on a stair attaches the stair's sublevel, whose units
- * join the fight and whose walls and rough ground join the board.
- *
- * Saves: a listed level asks for a world save to `TACTICS_AUTOSAVE_SLOT`
- * as each of blue's turns starts, and `restore` rebuilds the run from
- * `snapshot()` output, a walk or the red side's orders under way included.
- *
- * Live levels: the end of a full round (red handing the turn back) is a
- * `ctx.live.boundary()`. After a swap, `onSwap` rebuilds the board, puts
- * each unit on the cell its pose stands on, and drops the orders that a new
- * wall, a new unit or a removed cell made impossible.
  */
 export function createTacticsRuntime(ctx: EngineContext): GameRuntime<TacticsRunSnapshot> {
   let state: TacticsSnapshot = INITIAL;

@@ -105,6 +105,9 @@ export type KeyMatch =
 const arrows: Direction[] = ["up", "down", "left", "right"];
 const arrowKey = (d: Direction) => `Arrow${d[0]!.toUpperCase()}${d.slice(1)}`;
 
+/** Degrees Q and E turn by when the snap angle is 0. */
+export const UNSNAPPED_TURN_DEG = 15;
+
 /**
  * The editor's own bindings, in the order they're tried within a scope.
  * Mod is Ctrl or Cmd. Play is Mod+Enter, not Mod+P, which opens the print
@@ -153,13 +156,13 @@ export const ENGINE_KEYS: readonly EngineKeyBinding[] = [
     key: "q",
     scope: "edit",
     command: "rotate-ccw",
-    description: "Rotate counterclockwise by the snap angle",
+    description: `Rotate counterclockwise by the snap angle (${UNSNAPPED_TURN_DEG}° without one)`,
   },
   {
     key: "e",
     scope: "edit",
     command: "rotate-cw",
-    description: "Rotate clockwise by the snap angle",
+    description: `Rotate clockwise by the snap angle (${UNSNAPPED_TURN_DEG}° without one)`,
   },
   { key: "Shift+h", scope: "edit", command: "flip-x", description: "Flip horizontally" },
   { key: "Shift+v", scope: "edit", command: "flip-y", description: "Flip vertically" },

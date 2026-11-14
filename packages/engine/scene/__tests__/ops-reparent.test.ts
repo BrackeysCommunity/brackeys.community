@@ -11,6 +11,7 @@ import { aabb } from "../shape-geometry";
 import { parseShape } from "../shapes";
 import {
   PARENT_MAX_DEPTH,
+  SCENE_FORMAT_VERSION,
   type ApplyResult,
   type EntityDef,
   type OpBatch,
@@ -24,7 +25,7 @@ const engine = createRegistry();
 const text = (def: SceneDefinition) => formatScene(def).text;
 
 const scene = (over: Partial<SceneDefinition>): SceneDefinition => ({
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   name: "tree",
   bounds: [-2000, -2000, 4000, 4000],
   ...over,
@@ -304,13 +305,13 @@ describe("reparent", () => {
       const prefabs = prefabLibrary([
         {
           kind: "prefab",
-          v: 4,
+          v: SCENE_FORMAT_VERSION,
           id: "door",
           entities: [{ id: "panel", type: "node", at: [1, 0] }],
         },
         {
           kind: "prefab",
-          v: 4,
+          v: SCENE_FORMAT_VERSION,
           id: "hall",
           entities: [{ id: "post", type: "node", at: [0, 0] }],
           instances: [{ id: "door-1", prefab: "door", at: [4, 0] }],
@@ -466,7 +467,7 @@ describe("unpack under a parent", () => {
     prefabLibrary([
       {
         kind: "prefab",
-        v: 4,
+        v: SCENE_FORMAT_VERSION,
         id: "arm",
         entities: [
           { id: "hinge", type: "node", at: [10, 0], rot: 30 },

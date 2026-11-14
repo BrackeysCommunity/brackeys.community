@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vite-plus/test";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { ExpandedScene, RuntimeEntity } from "../scene/types";
 import type { RapierModule } from "../types";
+import { steps } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 
@@ -49,7 +50,7 @@ describe("a tween on an entity riding a host", () => {
       ]),
     );
     expect(report.ok).toBe(true);
-    for (let i = 0; i < 10; i++) rt.step(rt.ctx.time.tickMs, []);
+    steps(rt, 10);
     expect(rt.ctx.tree.local("plank")).toMatchObject({ x: 1, y: expect.closeTo(3, 6) });
     const [handle] = rt.ctx.tags.handlesOf("plank");
     const plank = rt.ctx.physics!.world.getCollider(handle!)!;
@@ -67,7 +68,7 @@ describe("a tween on an entity riding a host", () => {
     );
     expect(report.ok).toBe(true);
     expect(rt.ctx.tree.parent("plank")).toBeNull();
-    for (let i = 0; i < 10; i++) rt.step(rt.ctx.time.tickMs, []);
+    steps(rt, 10);
     expect(rt.ctx.poses.get("plank")).toMatchObject({ x: 1, y: 3 });
     rt.destroy();
   });

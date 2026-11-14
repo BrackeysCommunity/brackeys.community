@@ -10,7 +10,7 @@ import { SHA256_PATTERN } from "../project/hash";
 import type { DocLayout } from "../project/kinds/define";
 import { readJsonDocument, zodSceneIssues } from "../project/project-file";
 import type { AssetId, ProjectId, Sha256 } from "../project/types";
-import { makeIssue } from "../scene/issues";
+import { makeIssue, parentCycleMessage } from "../scene/issues";
 import { locatePointer } from "../scene/parse";
 import type { SceneIssue } from "../scene/types";
 import type { RngState } from "../sim-kit/rng";
@@ -332,7 +332,7 @@ export const saveFileSchema: z.ZodType<SaveFile> = z
         ctx.addIssue({
           code: "custom",
           path: ["world", "parents", id],
-          message: `"${id}" can't be its own parent`,
+          message: parentCycleMessage(id, parent),
         });
     }
     if (file.depth === "progress" && file.world !== undefined)

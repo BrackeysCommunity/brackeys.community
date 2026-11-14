@@ -515,7 +515,10 @@ function treeStep(registry: Registry, env: MigrateEnv) {
     return out;
   }
 
-  /** Step 1: instance `rot` in degrees, in the doc's instances and in overrides that set one. */
+  /**
+   * Step 1: instance `rot` in degrees (`k` quarter turns are `90 × k`), in
+   * the doc's instances and in overrides that set one.
+   */
   function rotations(doc: Body, out: Record<string, unknown>): void {
     if (!Array.isArray(doc.instances)) return;
     out.instances = doc.instances.map((inst, i) => {
@@ -532,7 +535,11 @@ function treeStep(registry: Registry, env: MigrateEnv) {
     });
   }
 
-  /** Step 2: each group a node at the front of `entities`, each `group` a `parent`. */
+  /**
+   * Step 2: each group a node at the front of `entities` (the next free
+   * `<id>-<n>` when its id is taken), each `group` a `parent`; a `group`
+   * naming no declared group is dropped.
+   */
   function groups(doc: Body, out: Record<string, unknown>): void {
     const declared = isRecord(doc.groups) ? doc.groups : {};
     delete out.groups;
@@ -588,7 +595,11 @@ function treeStep(registry: Registry, env: MigrateEnv) {
     return out;
   }
 
-  /** Step 3: `attach: f` on a type with no field of that name becomes `parent: f`, kept in place. */
+  /**
+   * Step 3: `attach: f` on a type with no field of that name becomes
+   * `parent: f`, its geometry moved from the world into `f`'s frame; an `f`
+   * inside an instance is placed through `env.prefab`.
+   */
   function attachments(out: Record<string, unknown>): void {
     const entities = listOf(out.entities);
     const riders = entities.filter(
@@ -655,18 +666,9 @@ function treeStep(registry: Registry, env: MigrateEnv) {
 }
 
 /**
- * v4 → v5: the scene tree. In order: an instance's `rot` counts degrees
- * (`k` quarter turns become `90 × k`), in scenes, prefab files' nested
- * instances, overrides keyed `<instance>.rot` and fragments; each declared
- * group becomes a `node` at the front of `entities` (its id, or the next
- * free `<id>-<n>` when an entity or instance has it, at the group's `at`,
- * turn and flip, with its name) and each `group` naming one becomes
- * `parent`, one naming none is dropped; then `attach: f` on a solid or
- * sensor becomes `parent: f`, its geometry taken from the world into
- * `f`'s frame, through the frames above it first. An `f` inside an
- * instance is placed through `env.prefab`. Refuses
- * (`migration-unresolved`) without a registry, or when a ref can't be
- * followed through the prefabs.
+ * v4 → v5: the scene tree, where instance `rot` counts degrees and groups and
+ * `attach` become parents; refuses (`migration-unresolved`) without a
+ * registry, or when a ref can't be followed through the prefabs.
  */
 function v4ToV5(raw: unknown, env: MigrateEnv): unknown {
   const doc = raw as Record<string, unknown>;

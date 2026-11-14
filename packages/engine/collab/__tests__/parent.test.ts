@@ -6,7 +6,7 @@ import { formatScene } from "../../scene/format";
 import { sceneHash } from "../../scene/hash";
 import { applyOps } from "../../scene/ops";
 import { sceneFrames } from "../../scene/resolve";
-import type { OpBatch, SceneDefinition } from "../../scene/types";
+import { SCENE_FORMAT_VERSION, type OpBatch, type SceneDefinition } from "../../scene/types";
 import { applyOpsToDoc } from "../apply";
 import { docToScene, entitiesMap, readDoc, sceneToDoc } from "../convert";
 import { sequentialKeys } from "../keys";
@@ -20,7 +20,7 @@ const text = (doc: Y.Doc) => formatScene(docToScene(doc)).text;
 
 /** A turned, mirrored node with a chain below it and two roots beside it. */
 const tree = (): SceneDefinition => ({
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   name: "tree",
   bounds: [0, 0, 400, 400],
   entities: [

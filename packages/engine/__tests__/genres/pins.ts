@@ -69,7 +69,7 @@ export const GENRE_PINS: Readonly<Record<string, Readonly<Record<string, string>
     "saved-mid-wave": "b039a55159fd6798",
   },
   "tree-yard": {
-    default: "148f898ba90d43c6",
+    default: "d307e068e9b6254d",
   },
   "turn-tactics": {
     default: "355be025a7f4aeda",

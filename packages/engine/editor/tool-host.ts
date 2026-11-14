@@ -1,5 +1,6 @@
 import { ENGINE_TOOL_IDS } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
+import { plural } from "../scene/plural";
 import type { SpriteAssetLookup } from "../scene/render-geometry";
 import type { Aabb, OpBatch, Pt, Ref } from "../scene/types";
 import { TOOL_PRIORITY, type ToolEvent, type ToolRouter } from "../tool-router";
@@ -12,7 +13,7 @@ import { copySelection, cutSelection, duplicateSelection, pasteFragment } from "
 import {
   deleteBatch,
   flipBatch,
-  groupBatch,
+  groupEdit,
   hierarchyDown,
   hierarchyUp,
   nudgeBatch,
@@ -22,11 +23,12 @@ import {
   selectionRoots,
   turnBatch,
   ungroupBatch,
+  ungroupRefusal,
   zOrderBatch,
 } from "./commands";
 import { createGesturePreview, type PreviewRuntime } from "./gesture";
 import type { EditSource } from "./gizmos/tree";
-import type { KeyContext } from "./keymap";
+import { UNSNAPPED_TURN_DEG, type KeyContext } from "./keymap";
 import {
   frameBounds,
   isComposite,
@@ -429,15 +431,20 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     emit();
   }
 
-  /** Says why a command did nothing, beside the selection (else the pointer) for a moment; false, as the command is. */
-  function refuse(text: string): false {
+  /** Shows `text` beside the selection (else the pointer) for a moment. */
+  function say(text: string): void {
     clearNotice();
     const box = outlineBounds(session.getResolved(), selection(), look());
     const at: Pt | null = box ? [box.maxX, box.minY] : cursorWorld;
-    if (at === null) return false;
+    if (at === null) return;
     notice = { at, text };
     noticeTimer = setTimeout(clearNotice, NOTICE_MS);
     emit();
+  }
+
+  /** Says why a command did nothing; false, as the command is. */
+  function refuse(text: string): false {
+    say(text);
     return false;
   }
 
@@ -484,7 +491,9 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
     switch (command) {
       case "rotate-cw":
       case "rotate-ccw": {
-        const deg = (command === "rotate-cw" ? 1 : -1) * (snap.angleDeg > 0 ? snap.angleDeg : 15);
+        const deg =
+          (command === "rotate-cw" ? 1 : -1) *
+          (snap.angleDeg > 0 ? snap.angleDeg : UNSNAPPED_TURN_DEG);
         return apply(rotateSelectionBatch(doc, registry, sel, deg, prefabs));
       }
       case "turn-cw":
@@ -496,14 +505,19 @@ export function createToolHost(opts: ToolHostOptions): ToolHost {
       case "select-all":
         return selectRefs(selectAllRefs(def, index, layers));
       case "group": {
-        const edit = groupBatch(doc, registry, sel, prefabs);
-        if (edit) return apply(edit.batch, edit.select);
-        return sel.length > 0 && refuse("Nothing selected can go under a node.");
+        const { edit, grouped, left } = groupEdit(doc, registry, sel, prefabs);
+        if (!edit) return left.length > 0 && refuse(left[0]!.why);
+        if (!apply(edit.batch, edit.select)) return false;
+        if (left.length > 0)
+          say(
+            `Grouped ${grouped.length}; ${plural(left.length, "item")} left out. ${left[0]!.why}`,
+          );
+        return true;
       }
       case "ungroup": {
         const edit = ungroupBatch(doc, sel);
         if (edit) return apply(edit.batch, edit.select);
-        return sel.length > 0 && refuse("Select a node to ungroup.");
+        return sel.length > 0 && refuse(ungroupRefusal(doc, sel) ?? "Nothing to ungroup.");
       }
       case "bring-forward":
         return apply(zOrderBatch(sel, 1));

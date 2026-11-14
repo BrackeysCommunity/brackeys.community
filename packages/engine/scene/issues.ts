@@ -813,6 +813,12 @@ export function liveIssue(input: LiveIssueInput): SceneIssue {
   }
 }
 
+/** Why `id` can't go under `parent`: `parent` is `id` itself or sits below it. */
+export const parentCycleMessage = (id: string, parent: string): string =>
+  parent === id
+    ? `${id} can't be its own parent.`
+    : `${parent} is under ${id}, so putting ${id} under it would make a loop.`;
+
 /** A thrown value as message text: an `Error`'s message, else the value as a string. */
 export const errorText = (err: unknown): string =>
   err instanceof Error ? err.message : String(err);

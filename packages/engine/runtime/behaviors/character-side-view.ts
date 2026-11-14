@@ -89,25 +89,12 @@ function readSaved(state: JsonValue): {
 }
 
 /**
- * The `character-side-view` behavior's system: a motion body in the
- * entity's `collider` shape run by `createSideViewController`, which then
- * stands in for the collider system's own body on that entity (that one is
- * taken out of the world, and `ctx.bodies` answers for the motion body).
- *
- * Each `beforeStep` it reads the entity's seat through `inputFor` (the move
- * action's x, or an axis's value, and the jump button), or the last
- * `setIntent` when the entity has no `player-input`; gates every solid
- * system's one-way solids for it, passing up through a platform while it
- * rises and down through one while it holds down;
- * rides what it stands on by `carrierDelta`; adds the force areas'
- * `sample` as acceleration, which its `decel` (at its air share off the
- * ground) takes back each tick while idle, so only a push past the decel
- * builds speed; and steps. It raises `character:jumped`,
- * `character:left-ground` and `character:landed` (with the ground's entity
- * as `other`). With `pushDynamic` it pushes the dynamic bodies it walks
- * into. Play from here starts seat 0's character at the chosen point.
- * The controller keeps its velocity and timers in world saves; its
- * own save holds the intent and the grounded state the events compare.
+ * The `character-side-view` system: a motion body in the entity's `collider`
+ * shape, run by `createSideViewController`, replacing the collider system's
+ * own body. Input comes from the entity's seat, else `setIntent`. It raises
+ * `character:jumped`, `character:left-ground` and `character:landed`; world
+ * saves keep the controller's velocity and timers plus the intent and
+ * grounded state.
  */
 export const createCharacterSideViewSystem: BehaviorSystemFactory = (
   ctx: EngineContext,

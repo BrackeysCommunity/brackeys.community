@@ -210,15 +210,11 @@ Refers to [`Pose`](#pose).
 
 _type_ in `systems/attachments.ts`
 
-Colliders that ride another entity's body: a solid's or sensor's `attach`,
-and any solid, sensor or `collider` behavior with no body of its own under
-a parent that has one. Hosts are followers, props and `collider` behaviors
-with a kinematic or dynamic `body`: each offers its body when it has one
-and withdraws it before the body goes. Requests made before the host
-offered its body, or across its respawns, attach when it (re)appears. The
-host's body carries the colliders; the scene tree carries the riding
-entities' poses. One per runtime. `attach` throws `PhysicsRequiredError`
-while the runtime has no physics world.
+Colliders that ride another entity's body: a solid, sensor or `collider`
+behavior with no body of its own, under a parent whose kinematic or dynamic
+body carries it. A host offers its body while it has one; a request made
+before that, or across a respawn, connects when the body appears. One per
+runtime; `attach` throws `PhysicsRequiredError` without a physics world.
 
 ```ts
 type AttachmentHub = {
@@ -2021,14 +2017,8 @@ Refers to [`AnimContext`](#animcontext), [`AttachmentHub`](#attachmenthub), [`Be
 
 _class_ in `game/types.ts`
 
-A runtime refusal with an issue code: `spawn-id-invalid`,
-`prefab-not-spawnable`, `physics-required`, `unknown-type`, `schema`,
-`entity-gone` (a handle used after its entity was destroyed),
-`pose-not-settable` (`ctx.setPose` on a type nothing can pose),
-`parent-cycle` (a reparent under its own subtree) and `parent-scope` (a
-parent that isn't live, or is in another sublevel than what goes under
-it, on a reparent, spawn or instantiate). A playtest that hits one ends
-blocked at stage `"run"` with its code.
+A runtime refusal with an issue code from `ISSUE_CODES`; a playtest that
+hits one ends blocked at stage `"run"`.
 
 ```ts
 declare class EngineError extends Error {
@@ -2204,9 +2194,9 @@ type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
     /** One sentence for the JSON Schema, `codes`, `show` and the inspector. */
     description: string;
     /**
-     * The type's own fields. `id`, `type`, `name`, `layer`, `group` and `off`
-     * are added by the engine. Written as a function when a field depends on
-     * the registry (a material enum).
+     * The type's own fields; the engine adds the `BASE_FIELDS` (`id`, `name`,
+     * `layer`, `parent`, `off`, `z`) and `type`. A function when a field
+     * depends on the registry (a material enum).
      */
     fields: ((env: FieldEnv) => F) | F;
     inspector?: {
@@ -7437,15 +7427,13 @@ _function_ in `systems/path-follower.ts`
 
 Kinematic bodies that follow their `path`, advanced in `beforeStep`;
 poses and visuals follow in `afterStep`, and the scene tree carries their
-children from those poses. Each offers its body for colliders to ride. In a scene without physics a follower has no body: its pose,
-and its geometry collider, follow the path all the same.
+children from those poses. Each offers its body for colliders to ride. In
+a scene without physics a follower has no body: its pose, and its geometry
+collider, follow the path all the same.
 
 A disabled follower's path clock keeps running, but it has no collider
 (its body's riders lose theirs with it), no visual and posts no poses;
 enabling it snaps it to where its path is now.
-
-Each follower answers `ctx.bodies` as a kinematic body whose velocity is
-what its path moved it by in the last step; its path alone sets it.
 
 ```ts
 declare function createFollowerSystem(ctx: EngineContext, type: RegisteredType, opts?: FollowerOptions): FollowerSystem;
@@ -8811,7 +8799,7 @@ _function_ in `runtime/spawn-pose.ts`
 Where an entity starts, from its type's geometry: a shape's centre (a
 path rider's shape placed at the path's first point), else its point
 field, else its path's first point. The angle is the shape's `rotDeg`,
-else `RuntimeEntity.transform`'s angle.
+else `RuntimeEntity.transform`'s angle; a node's is its own `rot`.
 
 ```ts
 declare function spawnPose(e: RuntimeEntity, registry: Registry): Pose;

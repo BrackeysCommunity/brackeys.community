@@ -8,6 +8,7 @@ import { applyOps } from "../ops";
 import { prefabLibrary } from "../prefab";
 import {
   PARENT_MAX_DEPTH,
+  SCENE_FORMAT_VERSION,
   type EntityDef,
   type IssueCode,
   type Prefab,
@@ -20,7 +21,7 @@ import { canBeInTree, validateScene } from "../validate";
 const engine = createRegistry();
 
 const scene = (over: Partial<SceneDefinition>): SceneDefinition => ({
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   name: "tree",
   bounds: [-100, -100, 100, 100],
   ...over,
@@ -28,7 +29,7 @@ const scene = (over: Partial<SceneDefinition>): SceneDefinition => ({
 
 const prefab = (id: string, body: Partial<Prefab>): Prefab => ({
   kind: "prefab",
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   id,
   entities: [],
   ...body,

@@ -5,6 +5,7 @@ import {
   fragmentOf,
   parseFragment,
   placeFragment,
+  takenIds,
   withSubtrees,
   type SceneFragment,
 } from "../scene/fragment";
@@ -149,7 +150,7 @@ export function duplicateSelection(
   const { ids, ...pasted } = result;
   const frames = sceneFrames(from, registry, prefabs);
   const copied = new Set(withSubtrees(from, refs, registry, prefabs).map((e) => e.ref));
-  const here = new Set([...(def.entities ?? []), ...(def.instances ?? [])].map((x) => x.id));
+  const here = takenIds(def);
   const under = new Map<Ref, Ref[]>();
   for (const root of [...fragment.entities, ...(fragment.instances ?? [])]) {
     if (root.parent !== undefined || !copied.has(root.id)) continue;

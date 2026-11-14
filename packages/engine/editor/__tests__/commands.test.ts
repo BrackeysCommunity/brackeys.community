@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../../game/define";
+import { bulkEntries } from "../../scene/expand";
 import { applyOps } from "../../scene/ops";
 import { parseSceneOrThrow } from "../../scene/parse";
 import { prefabLibrary } from "../../scene/prefab";
@@ -11,6 +12,8 @@ import {
   deleteBatch,
   flipBatch,
   groupBatch,
+  groupEdit,
+  groupRefusal,
   hierarchyDown,
   hierarchyUp,
   nudgeBatch,
@@ -23,6 +26,7 @@ import {
   selectionRoots,
   turnBatch,
   ungroupBatch,
+  ungroupRefusal,
   zOrderBatch,
 } from "../commands";
 import { outlineBounds, outlineLook } from "../outline-bounds";
@@ -173,8 +177,38 @@ describe("the tree commands", () => {
     expect(world(r.def, "lamp").at).toEqual(world(tree, "lamp").at);
   });
 
+  it("promotes a drawn shape to an entity on its way under the node, in the same batch", () => {
+    const edit = groupBatch(tree, registry, ["~solid:0", "crate"], prefabs)!;
+    expect(edit.batch.ops[0]).toEqual({ op: "promote", ref: "~solid:0", id: "solid-1" });
+    expect(edit.batch.ops.at(-1)).toEqual({
+      op: "reparent",
+      refs: ["solid-1", "crate"],
+      parent: "node-1",
+    });
+    const r = apply(tree, edit.batch);
+    expect(entity(r.def, "solid-1").parent).toBe("node-1");
+    expect(world(r.def, "solid-1").shape).toEqual(bulkEntries(tree, "solid")[0]);
+    expect(apply(r.def, r.inverse).def).toEqual(tree);
+  });
+
+  it("says why what it leaves out stays out", () => {
+    const edit = groupEdit(tree, registry, ["post-1/top", "readme", "crate"], prefabs);
+    expect(edit.grouped).toEqual(["crate"]);
+    expect(edit.left).toEqual([
+      { ref: "post-1/top", why: "In post-1; unpack the instance to move it." },
+      { ref: "readme", why: "A note can't be in the tree, so it stays at the root." },
+    ]);
+    expect(groupRefusal(tree, registry, ["post-1/top"])).toBe(
+      "In post-1; unpack the instance to move it.",
+    );
+    expect(groupRefusal(tree, registry, ["post-1/top", "~solid:0"])).toBeNull();
+    expect(groupRefusal(tree, registry, [])).toBe("Select what to group.");
+    expect(ungroupRefusal(tree, ["crate"])).toBe("Select a node to ungroup.");
+    expect(ungroupRefusal(tree, ["crate", "base"])).toBeNull();
+  });
+
   it("makes no group from what can't be in the tree, or without a node type", () => {
-    expect(groupBatch(tree, registry, ["~solid:0", "post-1/top"], prefabs)).toBeNull();
+    expect(groupBatch(tree, registry, ["post-1/top"], prefabs)).toBeNull();
     expect(groupBatch(tree, registry, [], prefabs)).toBeNull();
     const bare = {
       ...registry,

@@ -1342,16 +1342,6 @@ class BatchWork {
       };
     }
     if (!ownPrefab) return { ok: true, result };
-    if (result.def.entities?.some((e) => e.group !== undefined))
-      return {
-        ok: false,
-        fail: [
-          "op-invalid",
-          `"${d.entry.id}": a prefab's children can't join a group; an instance takes its group`,
-          "ops",
-          { entityIds: [d.entry.id] },
-        ],
-      };
     const nested = result.def.instances?.length ? { instances: result.def.instances } : {};
     const headed = applyHeaderOps(
       { ...ownPrefab, ...nested },

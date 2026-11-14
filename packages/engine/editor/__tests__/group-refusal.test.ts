@@ -64,7 +64,7 @@ describe("group and ungroup that do nothing", () => {
     expect(host.command("group")).toBe(false);
     expect(host.overlay().readout).toEqual({
       at: expect.any(Array),
-      text: "Nothing selected can go under a node.",
+      text: "A note can't be in the tree, so it stays at the root.",
     });
     vi.advanceTimersByTime(3000);
     expect(host.overlay().readout).toBeUndefined();

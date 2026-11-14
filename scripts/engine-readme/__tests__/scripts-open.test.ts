@@ -14,7 +14,12 @@ import {
   type PlaytestReport,
   type RapierModule,
 } from "@jams/engine/headless";
-import type { EntityDef, Prefab, SceneDefinition } from "@jams/engine/scene";
+import {
+  SCENE_FORMAT_VERSION,
+  type EntityDef,
+  type Prefab,
+  type SceneDefinition,
+} from "@jams/engine/scene";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 import type { z } from "zod";
 
@@ -122,7 +127,7 @@ const DOCK: EntityDef = {
 };
 const SHIP_PREFAB: Prefab = {
   kind: "prefab",
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   game: thrusterGame.id,
   id: "ship",
   entities: [ship("hull", [0, 0])],
@@ -130,7 +135,7 @@ const SHIP_PREFAB: Prefab = {
 const LIBRARY = new Map([["ship", SHIP_PREFAB]]);
 
 const scene = (entities: EntityDef[]): SceneDefinition => ({
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   game: thrusterGame.id,
   name: "script-yard",
   bounds: [-20, -20, 20, 20],

@@ -5,6 +5,7 @@ import type { Registry } from "../../game/types";
 import { pxPerMetreOf } from "../../game/units";
 import type { PlacementCheck } from "../../placement";
 import { bulkEntries, bulkId } from "../../scene/expand";
+import { takenIds } from "../../scene/fragment";
 import { geometryFields } from "../../scene/schema";
 import { aabb } from "../../scene/shape-geometry";
 import { shapeToTuple } from "../../scene/shapes";
@@ -145,9 +146,10 @@ export function drawTypeChoice(
 
 /**
  * The one `add` that puts a drawn shape in the document: an entry of the
- * type's own shape bulk key when the registry has one, else an entity of
- * `type` with a fresh id and the shape in its first shape field. `select`
- * names what it adds. `null` when `type` has no shape field.
+ * type's own shape bulk key when the registry has one (it has no id until
+ * the tree promotes it), else an entity of `type` with a fresh id and the
+ * shape in its first shape field. `select` names what it adds. `null` when
+ * `type` has no shape field.
  */
 export function drawBatch(
   def: SceneDefinition,
@@ -166,7 +168,7 @@ export function drawBatch(
   }
   const field = drawField(registry, type)?.field;
   if (!field) return null;
-  const id = nextFreeId(type, new Set((def.entities ?? []).map((e) => e.id)));
+  const id = nextFreeId(type, takenIds(def));
   return {
     batch: { label, ops: [{ op: "add", entity: { id, type, [field]: tuple } }] },
     select: id,

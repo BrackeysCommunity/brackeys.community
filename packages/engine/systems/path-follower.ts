@@ -298,15 +298,13 @@ type BodilessFollower = Motion & { handle: number | null };
 /**
  * Kinematic bodies that follow their `path`, advanced in `beforeStep`;
  * poses and visuals follow in `afterStep`, and the scene tree carries their
- * children from those poses. Each offers its body for colliders to ride. In a scene without physics a follower has no body: its pose,
- * and its geometry collider, follow the path all the same.
+ * children from those poses. Each offers its body for colliders to ride. In
+ * a scene without physics a follower has no body: its pose, and its geometry
+ * collider, follow the path all the same.
  *
  * A disabled follower's path clock keeps running, but it has no collider
  * (its body's riders lose theirs with it), no visual and posts no poses;
  * enabling it snaps it to where its path is now.
- *
- * Each follower answers `ctx.bodies` as a kinematic body whose velocity is
- * what its path moved it by in the last step; its path alone sets it.
  */
 export function createFollowerSystem(
   ctx: EngineContext,

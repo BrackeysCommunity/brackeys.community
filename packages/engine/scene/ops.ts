@@ -21,7 +21,7 @@ import {
 } from "./fragment";
 import { decodeRow, GRID_CHUNK, paintGrid, parseChunkKey, type GridCells } from "./grid";
 import { sceneHash } from "./hash";
-import { jsonPointer, makeIssue } from "./issues";
+import { jsonPointer, makeIssue, parentCycleMessage } from "./issues";
 import {
   MAX_PAINT_CELLS,
   opBatchSchemaFor,
@@ -1132,16 +1132,10 @@ function reparentOp(w: Work, op: Extract<SceneOp, { op: "reparent" }>, i: number
         });
       const refused = tree.refusal(id, parent);
       if (refused?.kind === "cycle")
-        fail(
-          "parent-cycle",
-          parent === id
-            ? `${id} can't be its own parent.`
-            : `${parent} is under ${id}, so putting ${id} under it would make a loop.`,
-          {
-            entityIds: [id, headOfRef(parent)],
-            hint: "Pick a parent outside the entity's own subtree, or reparent to null.",
-          },
-        );
+        fail("parent-cycle", parentCycleMessage(id, parent), {
+          entityIds: [id, headOfRef(parent)],
+          hint: "Pick a parent outside the entity's own subtree, or reparent to null.",
+        });
       if (refused?.kind === "depth")
         fail(
           "parent-depth",
@@ -2305,14 +2299,11 @@ function retargetNested(
 }
 
 /**
- * `remove` of the instance, then one level of it placed where it stood, in
- * the frame its `at` is in and under its parent: its own children as
- * plain entries, the instance's angle and flip baked into their fields, and
- * its nested instances as instances of the document, their `at`, angle,
- * `z`, layer and `off` composed with the outer instance's and its
- * overrides through them folded in; then `reparent`s that put back the
- * links between them. `placed` maps a child's ref inside the prefab to the
- * ref it ends up with.
+ * `remove` of the instance, then one level of it placed where it stood under
+ * its parent: its children as plain entries with the instance's angle and
+ * flip baked in, its nested instances as document instances with the outer
+ * placement and overrides composed in, and `reparent`s restoring the links
+ * between them. `placed` maps a child's ref inside the prefab to its new ref.
  */
 function unpackOps(
   w: Work,
@@ -2496,14 +2487,11 @@ function unpackOp(w: Work, rec: InstRec, i: number): void {
 }
 
 /**
- * `createPrefab`: the picked roots go into the frame of the parent they
- * all share, or else to the world through their whole parent chain (a `reparent`, so what sits under them stays put), then
- * `definePrefab` with them and everything under them around the origin,
- * `remove` of them, and one `instantiate` of the new prefab at the origin
- * under that shared parent. What sits under a picked entry comes along and
- * keeps its links and its geometry in its parent's frame. Instances become the prefab's nested instances. The
- * origin is `at`, or the top-left of the roots' box and the root
- * instances' `at`s.
+ * `createPrefab`: the picked roots and everything under them become a new
+ * prefab around `at` (else the top-left of the roots' box and the root
+ * instances' `at`s), in the frame of the parent they share or the world.
+ * They are removed and replaced by one instance under that parent;
+ * instances among them become nested instances.
  */
 function createPrefabOp(w: Work, op: Extract<SceneOp, { op: "createPrefab" }>, i: number): void {
   if (w.prefabs.has(op.id))
@@ -2961,16 +2949,12 @@ type TreePlan = {
 
 /**
  * How the inverse restores the tree, or null when neither document has a
- * parent. An entity whose parent changed, or whose parent the inverse
- * removes, goes to the root first and back under its start parent after
- * everything is re-added, which neither loops nor nests too deep, since
- * every link left between is a start link; then every field it and what
- * sits under it had is set back, so rounding can't drift. An entity whose
- * start link `reparent` would refuse (a missing parent, a loop, too deep,
- * a type outside the tree), and an instance that would need moving, is
- * removed and re-added as it was instead, and so is an entity that would
- * move with an instance below it, which reparenting might have to turn off
- * the quarter turns.
+ * parent. A changed or removed link goes to the root first and back under
+ * its start parent once everything is re-added, so no step loops or nests
+ * too deep; then the subtree's fields are set back so rounding can't drift.
+ * Where `reparent` would refuse the start link, or an instance would have
+ * to move (reparenting can knock it off its quarter turns), the entity is
+ * removed and re-added as it was instead.
  */
 function treeInverse(
   start: SceneDefinition,

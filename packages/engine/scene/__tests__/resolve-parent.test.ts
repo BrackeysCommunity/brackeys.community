@@ -23,14 +23,20 @@ import {
   type Frame,
   type Transform2D,
 } from "../transform";
-import type { EntityDef, Prefab, Pt, SceneDefinition } from "../types";
+import {
+  SCENE_FORMAT_VERSION,
+  type EntityDef,
+  type Prefab,
+  type Pt,
+  type SceneDefinition,
+} from "../types";
 
 const engine = createRegistry();
 const micro = (n: number) => Math.round(n * 1e6) / 1e6 + 0;
 const place = (t: Transform2D, p: Pt): Pt => applyPt(t, p).map(micro) as Pt;
 
 const scene = (over: Partial<SceneDefinition>): SceneDefinition => ({
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   name: "tree",
   bounds: [-100, -100, 100, 100],
   ...over,
@@ -40,7 +46,7 @@ const byId = (def: SceneDefinition) => new Map((def.entities ?? []).map((e) => [
 
 const prefab = (id: string, body: Partial<Prefab>): Prefab => ({
   kind: "prefab",
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   id,
   entities: [],
   ...body,

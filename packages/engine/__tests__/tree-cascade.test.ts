@@ -9,7 +9,6 @@ import {
   ENTITY_DISABLED,
   ENTITY_ENABLED,
   ENTITY_SPAWNED,
-  type StepEvent,
 } from "../runtime/types";
 import { expandScene } from "../scene/expand";
 import { prefabLibrary } from "../scene/prefab";
@@ -20,6 +19,7 @@ import {
   type RuntimeEntity,
   type SceneDefinition,
 } from "../scene/types";
+import { marker, stepEvents } from "./fixtures/tree-rig";
 
 const game = defineGame({
   id: "cascades",
@@ -30,8 +30,6 @@ const game = defineGame({
   createRuntime: () => ({ snapshot: () => null, restore: () => {} }),
 });
 const registry = createRegistry(game);
-
-const marker = (id: string, at: [number, number]) => ({ id, type: "marker", at }) as EntityDef;
 
 /** `hub` holds a lamp (which holds a bulb) and a post; `stone` stands alone. */
 const ENTITIES: EntityDef[] = [
@@ -75,8 +73,7 @@ function load() {
   /** One tick that runs `act` from a timer, and the entity events it raised. */
   const tickWith = (act: () => void): string[] => {
     rt.ctx.timers.after(0, act);
-    const { events } = rt.step(rt.ctx.time.tickMs, []);
-    return (events as StepEvent[])
+    return stepEvents(rt, 1)
       .filter((e) => e.type.startsWith("entity:"))
       .map((e) => `${e.type} ${e.entityId}`);
   };

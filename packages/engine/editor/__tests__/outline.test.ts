@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry, defineEntityType, defineGame } from "../../game/define";
 import { pointField, shapeField } from "../../game/fields";
+import { sceneHash } from "../../scene/hash";
 import {
   SCENE_FORMAT_VERSION,
   type Prefab,
@@ -12,6 +13,7 @@ import {
   buildOutline,
   buildTreeOutline,
   outlineOrder,
+  promotedRefs,
   treeDragRoots,
   treeDropBatch,
   treeDropRefusal,
@@ -341,6 +343,11 @@ describe("buildTreeOutline", () => {
     expect(rows.find((r) => r.key === "bucket:solid")).toMatchObject({ kind: "bucket", count: 1 });
   });
 
+  it("details a parented entity's point in world coordinates, as the inspector shows it", () => {
+    expect(rows.find((r) => r.ref === "flag")?.detail).toMatch(/· 51, -1$/);
+    expect(rows.find((r) => r.ref === "lost")?.detail).toMatch(/· 0, 0$/);
+  });
+
   it("puts an entity whose parents loop at the root, with what sits under it", () => {
     const loop = buildTreeOutline(
       {
@@ -400,10 +407,10 @@ describe("tree drops", () => {
   const batch = (refs: string[], drop: Parameters<typeof treeDropBatch>[4]) =>
     treeDropBatch(scene, reg, library, refs, drop);
 
-  it("drags a selection's own entities and instances, without any under another of them", () => {
+  it("drags a selection's own entities, instances and drawn shapes, without any under another of them", () => {
     expect(
       treeDragRoots(scene, reg, library, ["barrel", "tower", "lamp", "i-2", "i-1/x", "~solid:0"]),
-    ).toEqual(["tower", "lamp"]);
+    ).toEqual(["tower", "lamp", "~solid:0"]);
     expect(treeDragRoots(scene, reg, library, ["base", "lamp"])).toEqual(["base", "lamp"]);
   });
 
@@ -418,6 +425,31 @@ describe("tree drops", () => {
       ops: [{ op: "reparent", refs: ["barrel"], parent: null }],
     });
     expect(batch(["i-1/x"], { kind: "reparent", parent: null })).toBeNull();
+  });
+
+  it("promotes a drawn shape dropped in the tree, in the same batch", () => {
+    const drop = batch(["~solid:0"], { kind: "reparent", parent: "tower" })!;
+    expect(drop).toEqual({
+      label: "Put solid-1 under tower",
+      base: sceneHash(scene),
+      ops: [
+        { op: "promote", ref: "~solid:0", id: "solid-1" },
+        { op: "reparent", refs: ["solid-1"], parent: "tower" },
+      ],
+    });
+    expect(treeDropRefusal(scene, reg, library, drop)).toBeNull();
+    expect(promotedRefs(drop, ["~solid:0", "lamp"])).toEqual(["solid-1", "lamp"]);
+    expect(
+      promotedRefs({ ops: [{ op: "promote", ref: "~solid:1", id: "s" }] }, [
+        "~solid:0",
+        "~solid:2",
+      ]),
+    ).toEqual(["~solid:0", "~solid:1"]);
+    const beside = batch(["~solid:0"], { kind: "reorder", before: "lamp" })!;
+    expect(beside.ops.map((o) => o.op)).toEqual(["promote", "reorder"]);
+    expect(treeDropRefusal(scene, reg, library, beside)).toBeNull();
+    // At the root already, and last there once promoted: nothing to do, so nothing is promoted.
+    expect(batch(["~solid:0"], { kind: "reparent", parent: null })).toBeNull();
   });
 
   it("reorders before a sibling in its own list, reparenting first when the parent differs", () => {

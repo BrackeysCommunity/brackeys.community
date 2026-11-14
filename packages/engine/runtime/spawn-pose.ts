@@ -30,6 +30,10 @@ export function shapeSpawnPose(shape: ShapeObj, transform?: RuntimeEntity["trans
 /** Where a type's geometry puts an entity: its first shape, point and path fields. */
 export type GeometryFields = ReturnType<typeof geometryFields>;
 
+/** A node's pose: its `at`, at its own `rot` when set, else at the angle of what it sits in. */
+export const nodePose = (e: RuntimeEntity<{ at: Pt; rot?: number }>): Pose =>
+  poseOf({ at: e.at, rotDeg: e.rot }, e.transform);
+
 /** `spawnPose` over a type's geometry fields, for callers that look them up once per type. */
 export function spawnPoseOf(e: RuntimeEntity, fields: GeometryFields): Pose {
   let shape: ShapeObj | undefined;

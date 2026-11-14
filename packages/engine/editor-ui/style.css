@@ -795,9 +795,15 @@
   }
 
   .je-menu-chevron,
-  .je-menu-shortcut {
+  .je-menu-shortcut,
+  .je-menu-detail {
     margin-left: auto;
     color: var(--je-muted-fg);
+  }
+
+  .je-menu-detail {
+    min-width: 0;
+    font-size: var(--je-text-sm);
   }
 
   .je-menu-shortcut {
@@ -2527,19 +2533,24 @@
     border-radius: var(--je-radius-sm);
   }
 
+  /* Over the list's foot while dragging, so it reserves no room at rest. */
   .je-outliner-root {
     display: flex;
-    position: relative;
-    flex-shrink: 0;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 2;
     align-items: center;
     justify-content: center;
     min-height: var(--je-row);
     border: 1px dashed var(--je-border);
     border-radius: var(--je-radius-sm);
+    background: var(--je-panel);
   }
 
   .je-outliner-root[data-idle] {
-    visibility: hidden;
+    display: none;
   }
 
   /* Hung beside the aimed row without moving the rows. */

@@ -76,10 +76,10 @@ describe("edit scope", () => {
     expect(command(key("e"), edit)).toBe("rotate-cw");
     expect(command(key("q"), edit)).toBe("rotate-ccw");
     expect(keymap.bindings.find((b) => b.key === "e")?.description).toBe(
-      "Rotate clockwise by the snap angle",
+      "Rotate clockwise by the snap angle (15° without one)",
     );
     expect(keymap.bindings.find((b) => b.key === "q")?.description).toBe(
-      "Rotate counterclockwise by the snap angle",
+      "Rotate counterclockwise by the snap angle (15° without one)",
     );
     expect(command(key("H", { shiftKey: true }), edit)).toBe("flip-x");
     expect(command(key("V", { shiftKey: true }), edit)).toBe("flip-y");

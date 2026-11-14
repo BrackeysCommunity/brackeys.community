@@ -8,18 +8,11 @@ import { createSceneRuntime } from "../runtime/runtime";
 import { ENTITY_DISABLED } from "../runtime/types";
 import type { ExpandedScene, RuntimeEntity } from "../scene/types";
 import { testGame } from "./fixtures/test-game";
-import { engineErrorCode, stepEvents } from "./fixtures/tree-rig";
-
-const marker = (id: string, extra: Partial<RuntimeEntity> = {}): RuntimeEntity => ({
-  id,
-  type: "marker",
-  at: [1, 2],
-  ...extra,
-});
+import { engineErrorCode, marker, stepEvents } from "./fixtures/tree-rig";
 
 const ENTITIES = (): RuntimeEntity[] => [
-  marker("a", { tags: ["spawn", "red"], behaviors: { lifetime: { ticks: 600 } } }),
-  marker("b"),
+  marker("a", [1, 2], { tags: ["spawn", "red"], behaviors: { lifetime: { ticks: 600 } } }),
+  marker("b", [1, 2]),
 ];
 
 function scene(entities: RuntimeEntity[] = ENTITIES()): ExpandedScene {
@@ -94,8 +87,8 @@ describe("entity handles", () => {
 
   it("getBehavior is undefined for a behavior it doesn't carry, or one whose system a headless run doesn't build", () => {
     const { ctx, rt } = setup([
-      marker("a", { behaviors: { sprite: { size: [1, 1] } } }),
-      marker("b", { behaviors: { lifetime: { ticks: 5 } } }),
+      marker("a", [1, 2], { behaviors: { sprite: { size: [1, 1] } } }),
+      marker("b", [1, 2], { behaviors: { lifetime: { ticks: 5 } } }),
     ]);
     expect(rt.get("a")?.behaviors?.sprite).toBeDefined();
     expect(ctx.entity("a")!.getBehavior(SPRITE)).toBeUndefined();
@@ -171,7 +164,7 @@ describe("entity handles", () => {
   it("an edit that replaces the record keeps the handle; removing the entity drops it", () => {
     const { ctx, rt } = setup();
     const b = ctx.entity("b")!;
-    expect(rt.update([marker("b", { at: [6, 6] })])).toMatchObject({ ok: true });
+    expect(rt.update([marker("b", [6, 6])])).toMatchObject({ ok: true });
     expect(ctx.entity("b")).toBe(b);
     expect(b.record).toBe(rt.get("b"));
     rt.remove(["b"]);
@@ -205,7 +198,7 @@ describe("entity handles", () => {
     expect(got).toEqual(["a"]);
     ctx.setEnabled("a", true);
     a.destroy();
-    expect(rt.add([marker("a")])).toMatchObject({ ok: true });
+    expect(rt.add([marker("a", [1, 2])])).toMatchObject({ ok: true });
     ctx.timers.after(1, () => ctx.setEnabled("a", false));
     step(2);
     expect(got).toEqual(["a"]);

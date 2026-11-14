@@ -6,7 +6,7 @@ import { sortedAssets } from "./format";
 import { parentsFirst } from "./fragment";
 import { sceneHash } from "./hash";
 import { usesBulkRefs } from "./ops-schema";
-import { headOfRef } from "./resolve";
+import { headOfRef, treeItems } from "./resolve";
 import type {
   BulkEntry,
   BulkKey,
@@ -321,8 +321,7 @@ function parentMoves(
 ) {
   const parents = (def: SceneDefinition) => {
     const out = new Map<string, Ref | undefined>();
-    for (const x of [...(def.entities ?? []), ...(def.instances ?? [])])
-      if (!out.has(x.id)) out.set(x.id, x.parent);
+    for (const x of treeItems(def)) if (!out.has(x.id)) out.set(x.id, x.parent);
     return out;
   };
   const before = parents(a);

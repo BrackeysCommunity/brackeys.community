@@ -19,7 +19,7 @@ import { animSpriteOf, sourceClipsIn, type ClipSourceLookup } from "../project/c
 import { ANIMATION_KIND } from "../project/kinds/animation";
 import { ATLAS_KIND } from "../project/kinds/atlas";
 import type { AssetId, AssetKindName } from "../project/types";
-import { bulkKeysOf } from "../scene/expand";
+import { bulkEntries, bulkKeysOf, parseBulkId } from "../scene/expand";
 import { splitFieldPath } from "../scene/field-path";
 import { sceneHash } from "../scene/hash";
 import { plural } from "../scene/plural";
@@ -28,11 +28,11 @@ import {
   childEntity,
   documentTree,
   enclosingInstance,
-  headOfRef,
   resolvePrefab,
   resolveScene,
   sceneFrames,
   splitOverridePath,
+  treeItems,
 } from "../scene/resolve";
 import {
   entitySchemaFor,
@@ -77,6 +77,7 @@ import {
 } from "../scene/validate";
 import { editPose } from "./gizmos/behavior-target";
 import { numberBounds } from "./inspector";
+import { liftedBatch, outOfTreeReason, promoteOps, promotedRefs } from "./outline";
 import { nestedInstanceOf, prefabInstances } from "./prefab-commands";
 import { referableEntities, type RefTarget } from "./refs";
 import { entityGeometry } from "./spatial-index";
@@ -2048,10 +2049,10 @@ export type ParentModel = {
 /**
  * The Parent row for `refs` in `def` (the document): each one's parent,
  * and what they can be put under. A document entity of a type the tree
- * takes, or a scene instance, can be reparented; an instance's child or
- * nested instance stays under its instance, and nav areas, camera regions
- * and notes stay at the root. Null when a ref isn't in `def` or names a
- * bulk entry.
+ * takes, a drawn shape (promoted on the way in), or a scene instance can
+ * be reparented; an instance's child or nested instance stays under its
+ * instance, and nav areas, camera regions and notes stay at the root. Null
+ * when a ref isn't in `def`.
  */
 export function parentModel(
   def: SceneDefinition,
@@ -2064,13 +2065,18 @@ export function parentModel(
   const parents: (Ref | null)[] = [];
   let fixed: string | undefined;
   for (const ref of refs) {
-    if (ref.startsWith("~")) return null;
+    const bulk = parseBulkId(ref);
+    if (bulk) {
+      if (bulkEntries(def, bulk.key)[bulk.index] === undefined) return null;
+      parents.push(null);
+      fixed ??= outOfTreeReason(registry, ref) ?? undefined;
+      continue;
+    }
     const entity = def.entities?.find((e) => e.id === ref);
     const inst = entity ? undefined : def.instances?.find((i) => i.id === ref);
     if (entity) {
       parents.push(entity.parent ?? null);
-      if (!canBeInTree(registry.types.get(entity.type)))
-        fixed ??= `A ${entity.type} can't be in the tree, so it stays at the root.`;
+      fixed ??= outOfTreeReason(registry, ref, entity.type) ?? undefined;
       continue;
     }
     if (inst) {
@@ -2093,7 +2099,7 @@ export function parentModel(
     parents.push(
       parent === undefined ? holder : nested ? `${holder}${CHILD_SEPARATOR}${parent}` : parent,
     );
-    fixed ??= `In ${headOfRef(ref)}; unpack the instance to move it.`;
+    fixed ??= outOfTreeReason(registry, ref) ?? undefined;
   }
   const first = parents[0]!;
   const mixed = parents.some((p) => p !== first);
@@ -2123,7 +2129,7 @@ export function parentCandidates(
   const tree = documentTree(def, frames);
   const target = parentTargets(def, registry, frames);
   const moving = [...new Set(refs)];
-  const out: Ref[] = [...(def.entities ?? []), ...(def.instances ?? [])].map((d) => d.id);
+  const out: Ref[] = treeItems(def).map((d) => d.id);
   for (const inst of def.instances ?? [])
     for (const c of frames.placed(inst) ?? []) out.push(c.def.id);
   return [...new Set(out)].filter(
@@ -2133,7 +2139,8 @@ export function parentCandidates(
 
 /**
  * The batch putting `model`'s refs under `parent` (null: the root), each
- * keeping its world pose: one `reparent`, of the refs not already there.
+ * keeping its world pose: one `reparent`, of the refs not already there,
+ * after a `promote` for each drawn shape among them.
  */
 export function parentBatch(
   model: ParentModel,
@@ -2146,14 +2153,13 @@ export function parentBatch(
   const current = (ref: Ref) =>
     (def.entities?.find((e) => e.id === ref) ?? def.instances?.find((i) => i.id === ref))?.parent ??
     null;
-  const refs = model.refs.filter((r) => current(r) !== parent);
-  return {
-    ok: true,
-    batch: {
-      label: reparentLabel(model.refs, parent),
-      ops: refs.length > 0 ? [{ op: "reparent", refs, parent }] : [],
-    },
-  };
+  const lift = promoteOps(
+    def,
+    model.refs.filter((r) => current(r) !== parent),
+  );
+  const ops: SceneOp[] = lift.refs.length > 0 ? [{ op: "reparent", refs: lift.refs, parent }] : [];
+  const named = promotedRefs({ ops: lift.ops }, model.refs);
+  return { ok: true, batch: liftedBatch(def, lift, reparentLabel(named, parent), ops) };
 }
 
 // ─── Instance parameters ─────────────────────────────────
@@ -2480,7 +2486,7 @@ export function instanceZBatch(
   return { ok: true, batch: { label, ops } };
 }
 
-/** The instance's angle as the placement panel's angle field draws it: degrees, unset at 0. */
+/** The instance's angle as the placement panel's angle field draws it: degrees, unset (its default, 0) at 0. */
 export function instanceAngleRow(model: InstanceTransformModel): InspectorRow {
   const row = describeRow("rot", InstanceSchema.shape.rot, model.rot === 0 ? {} : model, {
     registry: undefined,
@@ -2488,7 +2494,31 @@ export function instanceAngleRow(model: InstanceTransformModel): InspectorRow {
     ppm: DEFAULT_LENGTH_UNIT,
     entity: false,
   });
+  return { ...row, defaultValue: 0, readonly: row.readonly || !model.editable };
+}
+
+/** The instance's mirror flag as the placement panel's switch draws it, under the schema's own title. */
+export function instanceFlipRow(model: InstanceTransformModel): InspectorRow {
+  const row = describeRow("flip", InstanceSchema.shape.flip, model.flip ? model : {}, {
+    registry: undefined,
+    type: undefined,
+    ppm: DEFAULT_LENGTH_UNIT,
+    entity: false,
+  });
   return { ...row, readonly: row.readonly || !model.editable };
+}
+
+/** The batch setting a scene instance's mirror flag, in its own frame: its angle and place stay. */
+export function instanceFlipBatch(model: InstanceTransformModel, on: boolean): OpBatch {
+  if (on === model.flip) return { label: `Mirror ${model.ref}`, ops: [] };
+  return {
+    label: on ? `Mirror ${model.ref}` : `Unmirror ${model.ref}`,
+    ops: [
+      on
+        ? { op: "update", ref: model.ref, set: { flip: true } }
+        : { op: "update", ref: model.ref, unset: ["flip"] },
+    ],
+  };
 }
 
 /**

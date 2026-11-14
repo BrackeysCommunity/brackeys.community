@@ -1,5 +1,5 @@
 import type { EngineContext, RegisteredType } from "../game/types";
-import { poseOf } from "../runtime/spawn-pose";
+import { nodePose } from "../runtime/spawn-pose";
 import type { Pt, RuntimeEntity } from "../scene/types";
 import { createDataSystem, type DataSystem } from "./data";
 
@@ -11,7 +11,7 @@ export type NodeSystem = DataSystem<NodeEntity>;
 export function createNodeSystem(ctx: EngineContext, type: RegisteredType): NodeSystem {
   const data = createDataSystem<NodeEntity>(ctx, type);
   const place = (e: NodeEntity) => {
-    const p = poseOf({ at: e.at, rotDeg: e.rot }, e.transform);
+    const p = nodePose(e);
     ctx.poses.set(e.id, p.x, p.y, p.rot, { snap: true });
   };
   return {

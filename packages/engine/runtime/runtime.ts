@@ -1199,12 +1199,18 @@ export function createSceneRuntime(opts: SceneRuntimeOptions & ProjectOption): S
   /**
    * The links a fresh load and a restore's spawns would make again: a
    * spawn's or an instance node's from its record, anything else's from
-   * its own `parent`, when that entity is live.
+   * its own `parent`, when that entity is live. A restore spawns in record
+   * order, so a record naming a parent a later spawn makes comes back a root.
    */
   function loadedParents(): (id: string) => string | null {
+    const records = lifecycle.spawns();
+    const unmade = new Set(records.flatMap((rec) => rec.ids));
     const spawned = new Map<string, string | undefined>();
-    for (const rec of lifecycle.spawns())
-      spawned.set(rec.id, rec.instance ? rec.instance.parent : rec.input.parent);
+    for (const rec of records) {
+      const named = rec.instance ? rec.instance.parent : rec.input.parent;
+      spawned.set(rec.id, named !== undefined && unmade.has(named) ? undefined : named);
+      for (const id of rec.ids) unmade.delete(id);
+    }
     return (id) => {
       const named = spawned.has(id) ? spawned.get(id) : byId.get(id)?.parent;
       return named !== undefined && named !== id && byId.has(named) ? named : null;

@@ -115,21 +115,12 @@ function clearCorners(path: Vec2[], clearance: number, nav: RuntimeNav): Vec2[] 
 }
 
 /**
- * The `nav-agent` system: each agent walks its route across `ctx.nav` to a
- * point, or after an entity it plans toward again every `repathTicks`
- * (staggered by entity id), at `speed` and pushed off the agents within
- * its `radius`. Agents step in attach order, so in spawn order. It arrives
- * within `arrive` of a point (within `arrive + radius` of an entity) and
- * raises `nav:arrived`; with no route, or no progress along it for
- * `repathTicks`, it raises `nav:blocked`. Either ends the walk. An entity
- * with a solid `collider` moves through a motion body of the collider's
- * shape, sliding along what it meets, and the collider system's own copy
- * of the collider leaves the world while it does; any other moves by pose.
- * Both stay on the walk areas. A tick's `@nav` commands (a script's or a
- * check's `nav`) set destinations before any agent steps; one naming an
- * entity that doesn't exist is `dangling-ref`, and one without a nav-agent
- * `behavior-missing`. A world save holds each agent's place in the step
- * order, its destination, its route and its timers.
+ * The `nav-agent` system: agents walk `ctx.nav` routes in attach order toward
+ * a point or an entity (replanned every `repathTicks`), pushed apart within
+ * `radius`, raising `nav:arrived` or `nav:blocked`. A tick's `@nav` commands
+ * set destinations before any agent steps. A solid collider moves through a
+ * motion body; a world save keeps each agent's order, destination, route and
+ * timers.
  */
 export const createNavAgentSystem: BehaviorSystemFactory = (
   ctx: EngineContext,

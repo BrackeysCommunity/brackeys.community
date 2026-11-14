@@ -9,14 +9,14 @@ import type { EngineContext } from "../../game/types";
 import { createHeadlessRuntime } from "../../headless/headless";
 import type { SceneRuntimeHandle } from "../../runtime/types";
 import { expandScene } from "../../scene/expand";
-import type { EntityDef } from "../../scene/types";
+import { SCENE_FORMAT_VERSION, type EntityDef } from "../../scene/types";
 
 /**
  * What a script costs against the same work written as one system: 2,000
  * entities each circling its start, once as a behavior system over a map,
  * once as a script class and once as a function script. The runs step in
- * turn, tick by tick, and their median tick times are compared, so
- * whatever else loads the machine falls on all of them alike. The ratio is
+ * turn, tick by tick, in a rotating order, and their median tick times are
+ * compared, so whatever else loads the machine falls on all of them alike. The ratio is
  * printed; only past 2× is it a failure.
  */
 
@@ -128,7 +128,7 @@ function open(behavior: BehaviorDef | typeof AsClass): SceneRuntimeHandle {
   const registry = createRegistry(game);
   const scene = expandScene(
     {
-      v: 4,
+      v: SCENE_FORMAT_VERSION,
       game: game.id,
       name: "orbits",
       bounds: [-2, -2, 102, 82],
@@ -151,7 +151,9 @@ describe(`${COUNT} script instances against one system doing the same work`, () 
     const runs = [open(asSystem), open(AsClass), open(asFunction)];
     const ticks: number[][] = runs.map(() => []);
     for (let i = 0; i < WARM_TICKS + MEASURED_TICKS; i++) {
-      for (const [n, rt] of runs.entries()) {
+      for (let k = 0; k < runs.length; k++) {
+        const n = (i + k) % runs.length;
+        const rt = runs[n]!;
         const t0 = performance.now();
         rt.step(rt.ctx.time.tickMs, []);
         if (i >= WARM_TICKS) ticks[n]!.push(performance.now() - t0);

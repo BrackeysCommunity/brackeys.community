@@ -152,8 +152,10 @@ pose, snap)`, `selfMoving(entityId)` and `ride(entityId, host)`;
   children become roots.
 - `tree-yard`, the engine project's scene-tree proof scene (listed in its
   scene list), with a `turret` prefab: a prefab instance's parts move with
-  its node; a turret instantiated under a tweening marker swings with it;
-  a sensor under a dynamic prop rides the prop's body; a character
+  its node; a turret instance under a tweening marker (carrier-turret)
+  swings with it, as one instantiated there at runtime does; a sensor
+  under a dynamic prop rides the prop's body and a decor child is drawn
+  where the prop is; a character
   stands on a deck under a follower and is carried; a spawned room's
   nested prefabs go with its node when its `lifeMs` ends. Its checks and
   input script play it to a `near` headless, and a `tree-yard` genre
@@ -161,7 +163,10 @@ pose, snap)`, `selfMoving(entityId)` and `ride(entityId, host)`;
   entities (the tower node, a base solid under it and a barrel marker with
   a collider under the base), a node at 30° carrying a turret instance
   (tilt, tilt-turret), and a three-level chain swinging on a tween (arm,
-  forearm, hand), with a plain-tree check.
+  forearm, hand), with a plain-tree check. Its genre pin is
+  `d307e068e9b6254d` (was `148f898ba90d43c6`) since carrier-turret and the
+  crate's decor child are in the file; the probe no longer instantiates
+  the turret as the scene loads.
 - kitchen-sink adds `pivot` (a node at 30°), hook (a quarter-turned node
   with a child, hook-mark) and cap-flag (a child of post-1/cap, an
   instance's child), with a parented check, and its notes speak of nodes
@@ -473,6 +478,14 @@ refs)` take the document and return `{ batch, select } | null`
 
 ### Fixed
 
+- A world save keeps the parent of a runtime spawn reparented under a
+  spawn made after it, and its place among that parent's children: a
+  restore spawns in record order, so the save's `parents` holds the link.
+- A live swap that changes only a node's `rot` turns the node and what it
+  carries, instead of putting the old pose back.
+- An entity whose type system has `setPose` but no `disable`, posed while
+  disabled, comes back where it was put when enabled, not at its spawn
+  pose.
 - A world save taken after every tween has ended keeps the id the next
   tween gets, so `tween:end` ids after a restore match the unsaved run.
 - A fork of `ctx.random` restored from a world save and not yet forked

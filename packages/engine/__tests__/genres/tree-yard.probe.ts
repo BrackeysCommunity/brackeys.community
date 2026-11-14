@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 
-import { createRegistry, defineGame } from "../../game/define";
-import type { EngineContext, GameDefinition, PlayState } from "../../game/types";
+import { createRegistry } from "../../game/define";
+import type { PlayState } from "../../game/types";
 import type { InputScriptV2 } from "../../headless/playtest-types";
 import { parseScene } from "../../scene/parse";
 import { parsePrefab, prefabLibrary } from "../../scene/prefab";
@@ -34,22 +34,8 @@ const yard = behaviorsGame({
       : null,
 });
 
-/** The behaviors-only game, which also places a turret under the tweening carrier as the scene loads. */
-const yardGame: GameDefinition<BehaviorPoses> = defineGame<BehaviorPoses>({
-  ...yard,
-  createRuntime(ctx: EngineContext) {
-    const runtime = yard.createRuntime(ctx);
-    return {
-      ...runtime,
-      onLoad() {
-        ctx.instantiate("turret", [0, 0.8], { parent: "carrier", local: true });
-      },
-    };
-  },
-});
-
 function yardPrefabs() {
-  const registry = createRegistry(yardGame);
+  const registry = createRegistry(yard);
   const dir = new URL("prefabs/", scenesDir);
   const prefabs: Prefab[] = [];
   for (const name of readdirSync(dir)
@@ -65,7 +51,7 @@ function yardPrefabs() {
 function yardScene(): SceneDefinition {
   const parsed = parseScene(
     readFileSync(new URL(`${YARD}.json`, scenesDir), "utf8"),
-    createRegistry(yardGame),
+    createRegistry(yard),
   );
   if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
   return { ...parsed.def, game: YARD };
@@ -80,7 +66,7 @@ export const treeYardProbe: GenreProbe<BehaviorPoses> = {
   id: YARD,
   rows: ["platformer"],
   pending: { platformer: "M23 (audio), M25 (tilemaps)" },
-  game: yardGame,
+  game: yard,
   scene: yardScene(),
   prefabs: yardPrefabs(),
   script: JSON.parse(

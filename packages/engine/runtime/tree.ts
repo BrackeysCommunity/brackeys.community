@@ -1,4 +1,5 @@
 import { EngineError, entityGone, type EngineContext, type SceneTree } from "../game/types";
+import { parentCycleMessage } from "../scene/issues";
 import type { RuntimeEntity } from "../scene/types";
 import { composePose, isWatched, relativePose, type Pose, type PoseIndex } from "./poses";
 
@@ -313,11 +314,7 @@ export function createSceneTree(deps: SceneTreeDeps): RuntimeSceneTree {
       live(id, "reparent");
       if (parent !== null) {
         if (deps.exists(parent) && isUnder(parent, id)) {
-          throw new EngineError(
-            "parent-cycle",
-            `can't put "${id}" under "${parent}": ${parent === id ? "an entity can't be its own parent" : `"${parent}" is below "${id}"`}`,
-            id,
-          );
+          throw new EngineError("parent-cycle", parentCycleMessage(id, parent), id);
         }
         checkParent(parent, deps.scopeOf(id), `put "${id}"`, `"${id}"`, id);
       }

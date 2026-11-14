@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { EntityTable } from "../runtime/entity-table";
-import type { RuntimeEntity } from "../scene/types";
-
-const marker = (id: string): RuntimeEntity => ({ id, type: "marker", at: [0, 0] });
+import { marker } from "./fixtures/tree-rig";
 
 describe("EntityTable", () => {
   it("keeps spawn order", () => {

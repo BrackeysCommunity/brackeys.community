@@ -20,6 +20,7 @@ import { sceneToDoc, sequentialKeys, type SceneOrigin } from "../../collab/index
 import {
   createEditorSession,
   createToolHost,
+  DEFAULT_SNAP,
   type SceneDefinition,
   type SceneIssue,
 } from "../../editor/index";
@@ -807,9 +808,12 @@ describe("EditorOutliner tree", () => {
     ).toEqual(["memo", "crate"]);
   });
 
-  it("keeps the root strip's place in the Tree view, taking drops to the root only while dragging", async () => {
+  it("shows the root strip in the Tree view only while dragging, taking drops to the root", async () => {
     const { session } = setup(towerScene());
     const strip = () => outliner().getByText("Drop here to move to the root").parentElement!;
+    expect(outliner().getByText("Drop here to move to the root").className).toBe(
+      "je-outliner-none",
+    );
     expect(strip().hasAttribute("data-idle")).toBe(true);
     expect(strip().getAttribute("aria-hidden")).toBe("true");
     await drag(row("barrel"), "strip", "middle", () => {
@@ -852,7 +856,7 @@ describe("EditorOutliner tree", () => {
   });
 
   it("moves a focused row among its siblings with Alt+Up and Alt+Down, keeping it focused", () => {
-    const { session, dispatch, cue } = setup(towerScene());
+    const { session, dispatch, cue, notify } = setup(towerScene());
     const lamp = row("lamp");
     expect(lamp.getAttribute("aria-keyshortcuts")).toBe("Alt+ArrowUp Alt+ArrowDown");
     lamp.focus();
@@ -873,6 +877,10 @@ describe("EditorOutliner tree", () => {
     fireEvent.keyDown(row("lamp"), { key: "ArrowUp", altKey: true });
     fireEvent.keyDown(row("barrel"), { key: "ArrowDown", altKey: true });
     expect(dispatch).not.toHaveBeenCalled();
+    expect(notify.warning.mock.calls.map((c) => c[0])).toEqual([
+      "lamp is already first at the root.",
+      "barrel is already last under base.",
+    ]);
 
     const press = new KeyboardEvent("keydown", {
       key: "ArrowDown",
@@ -889,6 +897,42 @@ describe("EditorOutliner tree", () => {
         .entities!.filter((e) => !e.parent)
         .map((e) => e.id),
     ).toEqual(["tower", "lamp", "crate"]);
+  });
+
+  it("keeps a root row's twisty inside the list, with room for it before every tree row's label", () => {
+    setup(towerScene());
+    const twisty = outliner().getByRole("button", { name: "Collapse tower" });
+    expect(parseFloat(twisty.style.left)).toBeGreaterThanOrEqual(0);
+    expect(parseFloat(row("tower").style.paddingLeft)).toBeGreaterThanOrEqual(
+      parseFloat(twisty.style.left) + 16,
+    );
+    expect(row("crate").style.paddingLeft).toBe(row("tower").style.paddingLeft);
+    showView("Type");
+    expect(row("crate").style.paddingLeft).toBe("20px");
+  });
+
+  it("groups and ungroups from its head, saying why it can't while it can't", async () => {
+    const { session, dispatch } = setup(towerScene());
+    const groupButton = () => outliner().getByRole("button", { name: "Group under a node" });
+    const ungroupButton = () => outliner().getByRole("button", { name: "Ungroup" });
+    expect(groupButton().getAttribute("aria-disabled")).toBe("true");
+    await act(async () => {
+      fireEvent.focus(groupButton());
+    });
+    expect(await screen.findByText("Select what to group.")).toBeTruthy();
+
+    act(() => session.select(["crate", "lamp"]));
+    expect(groupButton().getAttribute("aria-disabled")).not.toBe("true");
+    expect(ungroupButton().getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(groupButton());
+    expect(dispatch.mock.calls[0]![0].label).toBe("Group 2 entities");
+    expect(entry(session, "crate").parent).toBe("node-1");
+    expect(session.store.state.selection).toEqual(["node-1"]);
+
+    fireEvent.click(ungroupButton());
+    expect(dispatch.mock.calls[1]![0].label).toBe("Ungroup node-1");
+    expect(entry(session, "crate").parent).toBeUndefined();
+    expect(session.getDoc().entities!.some((e) => e.id === "node-1")).toBe(false);
   });
 
   it("leaves arrows without Alt, and rows outside the Tree view, to the editor", () => {
@@ -908,11 +952,16 @@ describe("EditorOutliner tree", () => {
     act(() => session.select(["base", "barrel", "lamp", "~solid:0"]));
     await drag(row("lamp"), row("crate"));
     expect(dispatch.mock.calls[0]![0]).toMatchObject({
-      label: "Put 2 items under crate",
-      ops: [{ op: "reparent", refs: ["base", "lamp"], parent: "crate" }],
+      label: "Put 3 items under crate",
+      ops: [
+        { op: "promote", ref: "~solid:0", id: "solid-1" },
+        { op: "reparent", refs: ["base", "lamp", "solid-1"], parent: "crate" },
+      ],
     });
     expect(entry(session, "barrel").parent).toBe("base");
     expect(entry(session, "base").parent).toBe("crate");
+    expect(entry(session, "solid-1").parent).toBe("crate");
+    expect(session.store.state.selection).toEqual(["base", "barrel", "lamp", "solid-1"]);
   });
 
   it("keeps an instance's children as rows that take drops but can't be dragged out", async () => {
@@ -964,11 +1013,13 @@ describe("EditorOutliner tree", () => {
       registry,
       issuesDebounceMs: 0,
     });
+    const router = createToolRouter();
     const host = createToolHost({
       session,
-      router: createToolRouter(),
+      router,
       toWorld: ({ x, y }) => [x / 100, y / 100],
       scale: () => 100,
+      snap: { ...DEFAULT_SNAP, enabled: false },
     });
     render(
       <KitProvider host={{ cue: vi.fn() }}>
@@ -976,49 +1027,52 @@ describe("EditorOutliner tree", () => {
         <EditorInspector session={session} />
       </KitProvider>,
     );
-    // The batches the draw and place tools commit.
-    act(() => {
-      session.dispatch({
-        label: "Add base",
-        ops: [
-          { op: "add", entity: { id: "base", type: "solid", shape: ["box", 6, 10, 0.4, 0.2] } },
-        ],
+    const pointer = (type: "down" | "move" | "up", x: number, y: number) =>
+      router.dispatch({
+        kind: "pointer",
+        type,
+        screen: { x, y },
+        button: 0,
+        deltaY: 0,
+        native: { shiftKey: false, altKey: false, ctrlKey: false, metaKey: false } as PointerEvent,
       });
-      session.dispatch({
-        label: "Add barrel",
-        ops: [{ op: "add", entity: { id: "barrel", type: "marker", at: [6.5, 9.65] } }],
+    const drawBox = ([x0, y0]: [number, number], [x1, y1]: [number, number]) =>
+      act(() => {
+        pointer("down", x0, y0);
+        pointer("move", x1, y1);
+        pointer("up", x1, y1);
       });
-      session.select(["base", "barrel"]);
+    // The base is a drawn solid, which has no id until it joins the tree. The barrel is a drawn
+    // sensor, a collider of its own: the engine's draw tools place no marker to give one to.
+    act(() => void host.setTool("box"));
+    drawBox([560, 990], [640, 1010]);
+    expect(session.getDoc().solid).toEqual([["box", 6, 10, 0.4, 0.1]]);
+    act(() => void host.command("type:sensor"));
+    drawBox([630, 955], [670, 975]);
+    expect(session.getDoc().entities!.map((e) => [e.id, e.type])).toEqual([["sensor", "sensor"]]);
+
+    act(() => void host.command("select-all"));
+    await act(async () => {
+      fireEvent.click(outliner().getByRole("button", { name: "Group under a node" }));
     });
-    act(() => void host.command("group"));
     expect(levels()).toEqual([
       ["node-1", "1"],
-      ["base", "2"],
-      ["barrel", "2"],
+      ["sensor", "2"],
+      ["solid-1", "2"],
     ]);
-    await drag(row("barrel"), row("base"));
+    expect(session.getDoc().solid ?? []).toEqual([]);
+    await drag(row("sensor"), row("solid-1"));
     expect(levels()).toEqual([
       ["node-1", "1"],
-      ["base", "2"],
-      ["barrel", "3"],
+      ["solid-1", "2"],
+      ["sensor", "3"],
     ]);
-    act(() => session.select(["barrel"]));
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add behavior" }));
-    });
-    const collider = (await screen.findAllByRole("menuitem")).find((i) =>
-      i.textContent?.startsWith("Collider"),
-    )!;
-    await act(async () => {
-      fireEvent.click(collider);
-    });
     const doc = session.getDoc();
     expect(doc.entities!.map((e) => [e.id, e.type, e.parent])).toEqual([
       ["node-1", "node", undefined],
-      ["base", "solid", "node-1"],
-      ["barrel", "marker", "base"],
+      ["sensor", "sensor", "solid-1"],
+      ["solid-1", "solid", "node-1"],
     ]);
-    expect(Object.keys(doc.entities![2]!.behaviors ?? {})).toEqual(["collider"]);
     expect(session.store.state.issues).toEqual([]);
 
     const rapier = await import("@dimforge/rapier2d");
@@ -1026,17 +1080,17 @@ describe("EditorOutliner tree", () => {
     const report = rt.load(expandScene(doc, registry));
     expect(report.ok).toBe(true);
     const { tree } = rt.ctx;
-    expect(tree.subtree("node-1")).toEqual(["node-1", "base", "barrel"]);
-    expect(rt.ctx.tags.handlesOf("barrel")).toHaveLength(1);
+    expect(tree.subtree("node-1")).toEqual(["node-1", "solid-1", "sensor"]);
+    expect(rt.ctx.tags.handlesOf("sensor")).toHaveLength(1);
     const pose = (id: string): Pose => {
       const p = rt.ctx.poses.get(id)!;
       return { x: p.x, y: p.y, rot: p.rot };
     };
     const node = pose("node-1");
-    const locals = ["base", "barrel"].map((id) => relativePose(pose(id), node));
+    const locals = ["solid-1", "sensor"].map((id) => relativePose(pose(id), node));
     rt.ctx.setPose("node-1", 8, 10, -Math.PI / 4);
     rt.step(rt.ctx.time.tickMs, []);
-    for (const [i, id] of ["base", "barrel"].entries()) {
+    for (const [i, id] of ["solid-1", "sensor"].entries()) {
       const want = composePose(8, 10, -Math.PI / 4, locals[i]!);
       const got = pose(id);
       expect(got.x).toBeCloseTo(want.x, 6);

@@ -2745,17 +2745,10 @@ _function_ in `headless/headless.ts`
 A runtime with no view: nothing is drawn and nothing touches the DOM. Its
 persistent value lasts as long as it does, across every `load`, unless
 `persist` hands it one that outlives it. With `flow`, a flow request is
-applied after the `step` that made it, with no transition and no wall
-time (`applyFlowRequest`; a refused one throws), and `scene` loads as the
-library's id for it, while save requests still wait in `takeRequests` for
-the caller (taken after the scene changed, so a save of one made in the
-tick that left a scene holds the next); without, every request waits there.
-With `fromSave` it starts where the save left off (`restoreSave`): its
-scene from `flow`, else `scene`, which must be the save's; a save that
-can't be restored throws. `save` captures it as `captureSave` does.
-`live` stages versions and swaps them in after the step their timing
-waits for (after its flow request), and a flow load of a scene uses the
-version active for it.
+applied after the step that made it, with no transition (a refused one
+throws); save requests, and every request without `flow`, wait in
+`takeRequests`. With `fromSave` it starts where the save left off; its
+scene (from `flow`, else `scene`) must be the save's, or it throws.
 
 ```ts
 declare function createHeadlessRuntime(opts: HeadlessRuntimeOptions & ProjectOption & RuntimeShareOptions): HeadlessRuntime & {

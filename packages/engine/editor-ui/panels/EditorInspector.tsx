@@ -33,6 +33,7 @@ import {
   instanceTransformModel,
   instanceZBatch,
   instancesOf,
+  isBulkRef,
   lookupRef,
   modelBatch,
   nestedInstanceOf,
@@ -40,6 +41,7 @@ import {
   paramBatch,
   refCandidates,
   revertAllBatch,
+  SECTION_TITLES,
   shapeConversions,
   shapeSlots,
   turnBatch,
@@ -66,6 +68,8 @@ import {
   articled,
   instanceAngleBatch,
   instanceAngleRow,
+  instanceFlipBatch,
+  instanceFlipRow,
   parentBatch,
   parentModel,
   delayParts,
@@ -78,6 +82,7 @@ import {
   rowSummary,
   withArticle,
 } from "../../editor/inspector-model";
+import { promotedRefs } from "../../editor/outline";
 import { BEHAVIOR_CATEGORIES, BEHAVIORS_FIELD } from "../../game/behaviors";
 import { capitalise } from "../../game/live";
 import { isCameraRegionType } from "../../game/primitives";
@@ -86,6 +91,7 @@ import { pxPerMetreOf } from "../../game/units";
 import { clipLookupOf, sourceClipsIn, type ClipSourceLookup } from "../../project/clip-source";
 import type { ProjectRuntimeView } from "../../project/index";
 import type { PrefabLibrary } from "../../scene/index";
+import { headOfRef, treeItems } from "../../scene/resolve";
 import { snapToPixel } from "../../scene/units";
 import { STORAGE_PREFIX } from "../host";
 import {
@@ -120,6 +126,7 @@ import {
   Text,
   useComboboxAnchor,
   useKit,
+  type IconSvgElement,
 } from "../kit/index";
 import { useBrowserState } from "../kit/ssr";
 import { openPrefabScope } from "../session/live-scene-editor";
@@ -171,11 +178,10 @@ const ReadOnlyContext = createContext(false);
 /** Makes every inspector below it take no edits, as `EditorInspector`'s `readOnly` does. */
 export const InspectorReadOnly = ReadOnlyContext.Provider;
 
-/** Where an edit lands: the selection's targets in the doc they were read from. */
 /**
- * `targets` come from the session's resolved view, so instance children and
- * group members read in world coordinates and their edits go through
- * `toSourceBatch`; `def` is the document, for the `base` hash.
+ * Where an edit lands. `targets` come from the resolved view, so instance
+ * children and parented entities read in world coordinates and their edits
+ * go through `toSourceBatch`; `def` is the document, for the `base` hash.
  */
 type Ctx = {
   session: EditorSession;
@@ -250,10 +256,11 @@ function dispatchSource(
   session: EditorSession,
   batch: OpBatch | null,
   readOnly: boolean,
+  selectionAfter?: Ref[],
 ): string | null {
   if (!batch) return null;
   if (readOnly) return READ_ONLY;
-  const result = session.dispatch(batch);
+  const result = session.dispatch(batch, selectionAfter ? { selectionAfter } : {});
   return result.ok ? null : result.issue.message;
 }
 
@@ -715,6 +722,9 @@ function RefField({ field, ctx }: { field: ModelField; ctx: Ctx }) {
   );
 }
 
+/** How a combobox shows an id: its label, and muted text after it that tells it from similar ones. */
+type Described = { label: string; detail?: string };
+
 /** A combobox picking one id of `items`; cleared, it reports null. */
 function RefCombobox({
   label,
@@ -725,6 +735,7 @@ function RefCombobox({
   placeholder,
   clearable,
   empty,
+  describe,
 }: {
   label: string;
   items: readonly string[];
@@ -734,9 +745,26 @@ function RefCombobox({
   placeholder: string;
   clearable: boolean;
   empty: string;
+  /** Without it, items show their ids. */
+  describe?: (id: string) => Described;
 }) {
+  const shown = describe ? (id: string) => describe(id).label : undefined;
   return (
-    <Combobox items={items} value={value} onValueChange={onChange}>
+    <Combobox
+      items={items}
+      value={value}
+      onValueChange={onChange}
+      {...(describe
+        ? {
+            itemToStringLabel: shown,
+            filter: (id: string, query: string) => {
+              const q = query.trim().toLowerCase();
+              const d = describe(id);
+              return `${id} ${d.label} ${d.detail ?? ""}`.toLowerCase().includes(q);
+            },
+          }
+        : {})}
+    >
       <ComboboxInput
         aria-label={label}
         aria-invalid={invalid || undefined}
@@ -745,11 +773,17 @@ function RefCombobox({
       />
       <ComboboxContent>
         <ComboboxList>
-          {(id: string) => (
-            <ComboboxItem key={id} value={id}>
-              {id}
-            </ComboboxItem>
-          )}
+          {(id: string) => {
+            const d = describe?.(id);
+            return (
+              <ComboboxItem key={id} value={id}>
+                <span className="je-sp-truncate">{d?.label ?? id}</span>
+                {d?.detail ? (
+                  <span className="je-menu-detail je-sp-truncate">{d.detail}</span>
+                ) : null}
+              </ComboboxItem>
+            );
+          }}
         </ComboboxList>
         <ComboboxEmpty>{empty}</ComboboxEmpty>
       </ComboboxContent>
@@ -757,11 +791,33 @@ function RefCombobox({
   );
 }
 
+/** A document entry's name (the outliner's label), else its ref. */
+function entryLabel(def: SceneDefinition, ref: Ref): string {
+  return treeItems(def).find((d) => d.id === ref)?.name ?? ref;
+}
+
+/** How the Parent row shows each ref: the outliner's label, then its id where that differs and what it is. */
+function parentDescriber(def: SceneDefinition, typeLabel: (type: string) => string) {
+  const kinds = new Map<Ref, { name?: string | undefined; what: string }>();
+  for (const e of def.entities ?? []) kinds.set(e.id, { name: e.name, what: typeLabel(e.type) });
+  for (const i of def.instances ?? [])
+    kinds.set(i.id, { name: i.name, what: `instance of ${i.prefab}` });
+  return (ref: Ref): Described => {
+    if (ref === ROOT_PARENT) return { label: ref };
+    const d = kinds.get(ref);
+    const label = d?.name ?? ref;
+    const what = d?.what ?? (headOfRef(ref) !== ref ? `in ${headOfRef(ref)}` : undefined);
+    const detail = [label !== ref ? ref : undefined, what].filter((s) => s !== undefined);
+    return detail.length > 0 ? { label, detail: detail.join(" · ") } : { label };
+  };
+}
+
 /**
  * The Parent row: what `refs` sit under, picked from `parentModel`'s
  * candidates; a pick is one `reparent`, which keeps them where they are in
- * the world, and clearing it or picking None (root) moves them to the
- * root. Read-only, with why, where the parent can't change here.
+ * the world (a drawn shape is promoted to an entity first and stays
+ * selected), and clearing it or picking None (root) moves them to the root.
+ * Read-only, with why, where the parent can't change here.
  */
 function ParentField({
   session,
@@ -784,8 +840,17 @@ function ParentField({
     () => parentModel(doc, session.registry, refsKey.split("\n"), prefabs),
     [doc, session.registry, refsKey, prefabs],
   );
+  const describe = useMemo(
+    () =>
+      parentDescriber(doc, (type) => session.registry.types.get(type)?.inspector?.label ?? type),
+    [doc, session.registry],
+  );
   // The schema's description speaks to the CLI; the editor says the same in a designer's words.
-  const row = { ...(field ?? { title: "Parent" }), description: PARENT_HINT };
+  const drawn = refs.some((r) => isBulkRef(r));
+  const row = {
+    ...(field ?? { title: "Parent" }),
+    description: drawn ? `${PARENT_HINT} ${DRAWN_PARENT_HINT}` : PARENT_HINT,
+  };
   if (!model)
     return field?.readonly ? (
       <ReadonlyField field={{ ...field, description: PARENT_HINT }} unset={ROOT_PARENT} />
@@ -793,19 +858,30 @@ function ParentField({
   if (model.fixed !== undefined)
     return (
       <ReadonlyField
-        field={{ ...row, value: model.value ?? undefined, mixed: model.mixed }}
+        field={{
+          ...row,
+          value:
+            model.value === null || model.value === undefined
+              ? undefined
+              : describe(model.value).label,
+          mixed: model.mixed,
+        }}
         unset={ROOT_PARENT}
         hint={model.fixed}
       />
     );
   const commit = (next: string | null) => {
     const edit = parentBatch(model, next === ROOT_PARENT ? null : next, doc);
-    setError(edit.ok ? dispatchSource(session, edit.batch, readOnly) : edit.error);
+    if (!edit.ok) return setError(edit.error);
+    const promoted = edit.batch.ops.some((op) => op.op === "promote");
+    const after = promoted ? promotedRefs(edit.batch, session.store.state.selection) : undefined;
+    setError(dispatchSource(session, edit.batch, readOnly, after));
   };
   return (
     <FieldRow field={row} error={error}>
       <RefCombobox
-        label="parent"
+        label="Parent"
+        describe={describe}
         items={model.value === null ? model.candidates : [ROOT_PARENT, ...model.candidates]}
         value={model.value ?? null}
         onChange={commit}
@@ -824,8 +900,10 @@ const ROOT_PARENT = "None (root)";
 const PARENT_HINT =
   "What this sits under: it moves, turns, hides and is destroyed with its parent. Changing it keeps it where it is in the world.";
 
+const DRAWN_PARENT_HINT = "A drawn shape has no id, so picking a parent makes it an entity.";
+
 /** One note for a section whose geometry fields show world values that the file stores in a parent's frame. */
-function storedInNote(fields: readonly ModelField[]): ReactNode {
+function storedInNote(fields: readonly ModelField[], def: SceneDefinition): ReactNode {
   const marked = fields.filter((f) => f.storedIn !== undefined);
   if (marked.length === 0) return null;
   const parents = new Set(marked.map((f) => f.storedIn));
@@ -833,7 +911,7 @@ function storedInNote(fields: readonly ModelField[]): ReactNode {
   return (
     <p className="je-insp-note" data-stored-in={only ?? ""}>
       {only
-        ? `World values; the file stores them in ${only}'s frame.`
+        ? `World values; the file stores them in ${entryLabel(def, only)}'s frame.`
         : "World values; the file stores each in its parent's frame."}
     </p>
   );
@@ -2005,12 +2083,18 @@ function Inspector({
           {targets.length > 1 ? "Nothing in common to edit." : "Nothing to edit."}
         </p>
       ) : null}
+      {targets.every((t) => t.kind === "bulk") ? (
+        // A drawn shape's one field is its shape; its Parent row is where it can join the tree.
+        <Section id="identity" title={SECTION_TITLES.identity}>
+          <ParentField key={scope} session={session} doc={doc} refs={targets.map((t) => t.ref)} />
+        </Section>
+      ) : null}
       {model.sections.map((section) => {
         const fieldView = (field: ModelField) => (
           <FieldView key={`${scope}:${field.path}`} field={field} ctx={ctx} />
         );
         const fields = section.fields.map(fieldView);
-        const note = storedInNote(section.fields);
+        const note = storedInNote(section.fields, doc);
         return section.behavior ? (
           <BehaviorSection key={`${scope}:${section.id}`} section={section} ctx={ctx}>
             {note}
@@ -2190,9 +2274,9 @@ function ParamsSection({
 }
 
 /**
- * How an instance sits: what it sits under, whether it's flipped, Turn and
- * Flip and its angle in degrees, each one batch about its `at`, and its
- * `z`. A nested instance shows its prefab's placement without editing it.
+ * How an instance sits: its mirror flag with Flip beside it, its angle in
+ * degrees with Turn beside it, each one batch about its `at`, and its `z`.
+ * A nested instance shows its prefab's placement without editing it.
  */
 function PlacementSection({
   session,
@@ -2208,59 +2292,83 @@ function PlacementSection({
   const prefabs = useEditorPrefabs(session);
   const run = (batch: OpBatch | null) => setError(dispatchSource(session, batch, readOnly));
   const angle = instanceAngleRow(model);
-  const controls = [
-    {
-      label: "Turn 90° counterclockwise",
-      icon: RotateLeft01Icon,
-      batch: () => turnBatch(doc, [model.ref], -1),
-    },
-    {
-      label: "Turn 90° clockwise",
-      icon: RotateRight01Icon,
-      batch: () => turnBatch(doc, [model.ref], 1),
-    },
-    {
-      label: "Flip horizontally",
-      icon: FlipHorizontalIcon,
-      batch: () => flipBatch(doc, [model.ref], "x"),
-    },
-    {
-      label: "Flip vertically",
-      icon: FlipVerticalIcon,
-      batch: () => flipBatch(doc, [model.ref], "y"),
-    },
-  ];
+  const mirror = instanceFlipRow(model);
+  const buttons = (
+    controls: { label: string; icon: IconSvgElement; batch: () => OpBatch | null }[],
+  ) =>
+    model.editable
+      ? controls.map((c) => (
+          <IconButton
+            key={c.label}
+            icon={c.icon}
+            size="icon-xs"
+            label={c.label}
+            onClick={() => run(c.batch())}
+          />
+        ))
+      : null;
   return (
     <Section id="instance:placement" title="Placement">
-      <ParentField session={session} doc={doc} refs={[model.ref]} />
       <div className="je-insp-row" data-gap="tight">
-        <span className="je-insp-grow je-sp-truncate je-insp-muted">
-          {model.flip ? "Flipped" : "Not flipped"}
-        </span>
-        {model.editable
-          ? controls.map((c) => (
-              <IconButton
-                key={c.label}
-                icon={c.icon}
-                size="icon-xs"
-                label={c.label}
-                onClick={() => run(c.batch())}
-              />
-            ))
-          : null}
+        <div className="je-insp-grow">
+          {mirror.readonly ? (
+            <ReadonlyField
+              field={{ ...mirror, value: model.flip ? "Mirrored" : undefined }}
+              unset="Not mirrored"
+            />
+          ) : (
+            <SwitchField
+              field={mirror}
+              commit={(on) =>
+                dispatchSource(session, instanceFlipBatch(model, on === true), readOnly)
+              }
+            />
+          )}
+        </div>
+        {buttons([
+          {
+            label: "Flip horizontally",
+            icon: FlipHorizontalIcon,
+            batch: () => flipBatch(doc, [model.ref], "x"),
+          },
+          {
+            label: "Flip vertically",
+            icon: FlipVerticalIcon,
+            batch: () => flipBatch(doc, [model.ref], "y"),
+          },
+        ])}
       </div>
-      {angle.readonly ? (
-        <ReadonlyField field={{ ...angle, value: `${model.rot}°` }} />
-      ) : (
-        <AngleField
-          field={angle}
-          disabled={readOnly}
-          commit={(input) => {
-            const edit = instanceAngleBatch(doc, model, input, session.registry, prefabs);
-            return edit.ok ? dispatchSource(session, edit.batch, readOnly) : edit.error;
-          }}
-        />
-      )}
+      <div className="je-insp-row" data-gap="tight">
+        <div className="je-insp-grow">
+          {angle.readonly ? (
+            <ReadonlyField
+              field={{ ...angle, value: model.rot === 0 ? undefined : `${model.rot}°` }}
+              unset={unsetText(angle)}
+            />
+          ) : (
+            <AngleField
+              field={angle}
+              disabled={readOnly}
+              commit={(input) => {
+                const edit = instanceAngleBatch(doc, model, input, session.registry, prefabs);
+                return edit.ok ? dispatchSource(session, edit.batch, readOnly) : edit.error;
+              }}
+            />
+          )}
+        </div>
+        {buttons([
+          {
+            label: "Turn 90° counterclockwise",
+            icon: RotateLeft01Icon,
+            batch: () => turnBatch(doc, [model.ref], -1),
+          },
+          {
+            label: "Turn 90° clockwise",
+            icon: RotateRight01Icon,
+            batch: () => turnBatch(doc, [model.ref], 1),
+          },
+        ])}
+      </div>
       <FieldRow label="z" hint="Added to the z of every child; higher draws in front.">
         {model.editable ? (
           <NumberInput
@@ -2330,11 +2438,12 @@ function InstancePanel({
           {nested ? ` in ${nested.holder}` : ""}
         </span>
       </header>
+      <Section id="instance:identity" title={SECTION_TITLES.identity}>
+        <ParentField key={id} session={session} doc={doc} refs={[id]} />
+      </Section>
       {placement ? (
         <PlacementSection key={id} session={session} doc={doc} model={placement} />
-      ) : (
-        <ParentField key={id} session={session} doc={doc} refs={[id]} />
-      )}
+      ) : null}
       {params && params.params.length > 0 ? (
         <ParamsSection
           key={id}

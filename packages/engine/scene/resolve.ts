@@ -606,11 +606,16 @@ export type DocumentTree = {
   refusal(id: string, parent: Ref): TreeRefusal | null;
 };
 
+/** The document's own entries that can sit in the tree: its entities, then its instances. */
+export function treeItems(def: SceneDefinition): (EntityDef | InstanceDef)[] {
+  return [...(def.entities ?? []), ...(def.instances ?? [])];
+}
+
 export function documentTree(
   def: SceneDefinition,
   frames: SceneFrames = sceneFrames(def),
 ): DocumentTree {
-  const items = [...(def.entities ?? []), ...(def.instances ?? [])];
+  const items = treeItems(def);
   const links = refLinks();
   for (const { id } of items) {
     const p = frames.parentOf(id);
@@ -1578,25 +1583,9 @@ const refuse = (message: string, ref: Ref): never => {
 
 /**
  * Maps a batch written against the resolved view (world coordinates,
- * instance children by `gate-3/door`) back onto the document:
- *
- * - an edit to an instance child becomes an `override` of the fields it
- *   changes, in the frame of the child's own prefab: taken back through the
- *   inverse of its world transform (the instance's, and a nested child's
- *   nested instances'), so a world `move` of a flipped child is a mirrored
- *   override, and points, vectors and angles it sets turn back too (a field
- *   moved back to its value without the override drops the override
- *   instead); a `setZ` on one becomes an override of its `z`, less what
- *   its instances add;
- * - a parented entity's geometry and moves, an instance's `at`, an added
- *   entity or instance, and a paint of a child's cells go through the
- *   inverse of its parent chain's transform the same way;
- * - removing, renaming or painting a child is refused, since a child only
- *   exists through its instance.
- *
- * Every other op passes through as written. `apply` runs one op on a
- * scratch scene holding a single child (`toSourceBatch` in `ops.ts` passes
- * the op engine's).
+ * instance children by `gate-3/door`) back onto the document; `apply` runs
+ * one op on a scratch scene holding a single child (`toSourceBatch` in
+ * `ops.ts` passes the op engine's).
  */
 export function mapResolvedBatch(
   def: SceneDefinition,
@@ -1931,13 +1920,14 @@ function mapOp(
   frames: SceneFrames,
 ): SceneOp[] {
   const cells = gridTurns(def);
+  // An instance child's edit becomes overrides in its own prefab's frame, so a world move of a flipped child is a mirrored override.
   const onChild = (ref: Ref, local: (t: ChildTarget) => SceneOp): SceneOp[] | null => {
     const t = childTarget(def, ref, registry, prefabs, frames);
     if (!t) return null;
     const after = apply(t.child, local(t));
     return overrideOps(t.inst, t.base, t.child, after, registry);
   };
-  /** What takes world geometry into the frame an item (an entity or instance, or one about to be added) stores it in. */
+  /** What takes world geometry into the frame an item (an entity or instance, or one about to be added) stores it in: its parent chain's. */
   const toFrame = (item: Pick<EntityDef, "id" | "parent"> | undefined): Transform2D =>
     item ? invert(composeSteps(frames.stepsFor(item))) : IDENTITY_2D;
   const toParent = (ref: Ref): Transform2D => toFrame(entityOf(def, ref) ?? instanceOf(def, ref));

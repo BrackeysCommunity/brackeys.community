@@ -342,13 +342,15 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
   /**
    * The type system first: its `enable`, or without a `disable` a spawn from
    * the record at its spawn pose (state reset); then the behaviors in
-   * registration order. A driven child then goes where its parent puts it.
+   * registration order. A driven child then goes where its parent puts it;
+   * anything else posed while off goes where it was put.
    */
   function enable(e: RuntimeEntity): void {
     const system = systems.get(e.type)!;
+    const held = ctx.poses.get(e.id);
+    const kept = held && { x: held.x, y: held.y, rot: held.rot };
     if (system.disable) system.enable?.(e.id);
     else {
-      const kept = ctx.poses.get(e.id);
       tree.quietly(() => {
         ctx.poses.remove(e.id);
         try {
@@ -370,16 +372,9 @@ export function createLifecycle(deps: LifecycleDeps): Lifecycle {
     // Posed while off: only the pose index moved, so the system and behaviors follow it now.
     const was = offPoses.get(e.id);
     offPoses.delete(e.id);
-    const pose = ctx.poses.get(e.id);
-    if (
-      !tree.drive(e.id, { snap: true }) &&
-      system.disable &&
-      system.setPose &&
-      was &&
-      pose &&
-      !samePose(was, pose)
-    )
-      ctx.setPose(e.id, pose.x, pose.y, pose.rot);
+    const pose = system.disable ? ctx.poses.get(e.id) : kept;
+    if (!tree.drive(e.id, { snap: true }) && system.setPose && was && pose && !samePose(was, pose))
+      ctx.setPose(e.id, pose.x, pose.y, pose.rot, system.disable ? undefined : { snap: true });
     raise(ENTITY_ENABLED, e);
   }
 

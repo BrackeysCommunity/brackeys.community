@@ -107,6 +107,19 @@ export function tagFieldsOf(t: RegisteredType | undefined): string[] {
   );
 }
 
+/** The string tags an entity carries across its type's `tagFields`; what `ctx.query`'s `tag` matches. */
+export function entityTags(
+  e: Readonly<Record<string, unknown>>,
+  tagFields: readonly string[],
+): Set<string> {
+  const tags = new Set<string>();
+  for (const field of tagFields) {
+    const value = e[field];
+    if (Array.isArray(value)) for (const t of value) if (typeof t === "string") tags.add(t);
+  }
+  return tags;
+}
+
 /** A type's grid fields, in declaration order; none for an unregistered type. */
 export function gridFieldsOf(t: RegisteredType | undefined): string[] {
   return t ? geometryFields(t).flatMap((f) => (f.kind === "grid" ? [f.field] : [])) : [];

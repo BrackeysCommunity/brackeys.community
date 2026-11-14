@@ -7,7 +7,8 @@
   "instances": [
     { "id": "turret-a", "prefab": "turret", "at": [2.5, 11] },
     { "id": "rider", "prefab": "hero-side", "at": [18, 8.7] },
-    { "id": "tilt-turret", "prefab": "turret", "parent": "tilt", "at": [0, 0] }
+    { "id": "tilt-turret", "prefab": "turret", "parent": "tilt", "at": [0, 0] },
+    { "id": "carrier-turret", "prefab": "turret", "parent": "carrier", "at": [0, 0.8] }
   ],
   "entities": [
     { "id": "floor", "type": "solid", "shape": ["box", 16, 11.5, 16, 0.5] },
@@ -20,13 +21,14 @@
     { "id": "deck", "type": "solid", "parent": "lift", "shape": ["box", 0, -0.2, 1.2, 0.1] },
     { "id": "lift-stop", "type": "marker", "at": [27, 8.8] },
     { "id": "room-drop", "type": "marker", "at": [24, 4.4], "behaviors": { "spawner": { "burst": 1, "cap": 1, "lifeMs": 2000, "prefab": "room", "rate": 0.25 } } },
-    { "id": "about", "type": "note", "at": [1, 0.6], "text": "Tree yard: parents and children at runtime. Left, turret-a is a turret prefab (base, barrel and a sight sensor) whose parts sit under the instance's node and move with it; tower is the same turret built from plain entities, a node with a base solid under it and a barrel marker with a collider under the base. carrier is a marker on a turning yoyo tween: game code that instantiates a turret under it (parent: carrier) gets one that swings with it. tilt is a node at 30 degrees carrying tilt-turret, a second turret instance, leaning with it. crate is a dynamic prop; crate-eye, its child, is a second collider on the crate's body. lift is a follower carrying deck, a child solid, and rider (hero-side) stands on the deck and is carried to lift-stop. room-drop's spawner places a room, whose doorway and latches are nested prefabs; when its lifeMs ends the room's node goes and takes them with it, and the spawner places another. Right, arm, forearm and hand are a three-level chain: arm swings on a tween and the two below it follow, each turned 30 degrees further." },
+    { "id": "about", "type": "note", "at": [1, 0.6], "text": "Tree yard: parents and children at runtime. Left, turret-a is a turret prefab (base, barrel and a sight sensor) whose parts sit under the instance's node and move with it; tower is the same turret built from plain entities, a node with a base solid under it and a barrel marker with a collider under the base. carrier is a marker on a turning yoyo tween carrying carrier-turret, a turret instance that swings with it; game code that instantiates another under it (parent: carrier) gets the same. tilt is a node at 30 degrees carrying tilt-turret, a second turret instance, leaning with it. crate is a dynamic prop; crate-eye, its child, is a second collider on the crate's body, and crate-label, a decor child, is drawn wherever the crate tumbles. lift is a follower carrying deck, a child solid, and rider (hero-side) stands on the deck and is carried to lift-stop. room-drop's spawner places a room, whose doorway and latches are nested prefabs; when its lifeMs ends the room's node goes and takes them with it, and the spawner places another. Right, arm, forearm and hand are a three-level chain: arm swings on a tween and the two below it follow, each turned 30 degrees further." },
     { "id": "tower", "type": "node", "name": "Tower", "at": [6.5, 11] },
     { "id": "tower-base", "type": "solid", "parent": "tower", "shape": ["box", 0, -0.2, 0.4, 0.2] },
     { "id": "tower-barrel", "type": "marker", "parent": "tower-base", "at": [0.5, -0.35], "behaviors": { "collider": { "shape": ["box", 0, 0, 0.5, 0.08] } } },
     { "id": "tilt", "type": "node", "name": "Tilt", "at": [12.5, 3], "rot": 30 },
     { "id": "arm", "type": "node", "name": "Arm", "at": [28.5, 2], "rot": 30, "behaviors": { "tween": { "tweens": [{ "duration": { "ms": 1500 }, "ease": "sineInOut", "repeat": -1, "to": { "rot": 0.9 }, "yoyo": true }] } } },
     { "id": "forearm", "type": "node", "name": "Forearm", "parent": "arm", "at": [1, 0], "rot": 30 },
-    { "id": "hand", "type": "marker", "parent": "forearm", "at": [1, 0], "tags": ["hand"] }
+    { "id": "hand", "type": "marker", "parent": "forearm", "at": [1, 0], "tags": ["hand"] },
+    { "id": "crate-label", "type": "decor", "parent": "crate", "at": [0, 0], "behaviors": { "sprite": { "asset": "crates", "frame": "crate-1", "size": [0.3, 0.3] } } }
   ]
 }

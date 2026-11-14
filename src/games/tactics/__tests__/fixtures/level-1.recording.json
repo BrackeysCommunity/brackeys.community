@@ -1,7 +1,7 @@
 {
   "v": 2,
   "engine": {
-    "version": "0.15.0",
+    "version": "0.16.0",
     "physics": null
   },
   "platform": {
@@ -14,7 +14,7 @@
   "sceneHash": "4fea84d456102e77",
   "runHash": "88825d427ae3a38f",
   "project": null,
-  "configHash": "5c3d010acc03242d",
+  "configHash": "c482218f28b64ffc",
   "time": {
     "kind": "turns",
     "rate": 60

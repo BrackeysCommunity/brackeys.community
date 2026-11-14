@@ -2,6 +2,7 @@ import { NODE_TYPE } from "../game/primitives";
 import type { Registry } from "../game/types";
 import { pxPerMetreOf } from "../game/units";
 import { parseBulkId } from "../scene/expand";
+import { takenIds } from "../scene/fragment";
 import { plural } from "../scene/plural";
 import {
   CHILD_SEPARATOR,
@@ -11,6 +12,7 @@ import {
   ownChildId,
   resolveScene,
   sceneFrames,
+  treeItems,
 } from "../scene/resolve";
 import type {
   Aabb,
@@ -27,7 +29,7 @@ import { moveBatch } from "./gizmos/batch";
 import { rotateTargetsBatch, selectionBox } from "./gizmos/multi";
 import { gizmoTarget, targetPivot, type GizmoTarget } from "./gizmos/target";
 import type { EditSource } from "./gizmos/tree";
-import { buildOutline } from "./outline";
+import { buildOutline, liftIntoTree, liftedBatch, outOfTreeReason } from "./outline";
 import { outlineBounds, outlineLook } from "./outline-bounds";
 import type { PickLayers } from "./picking";
 import { docRefs } from "./refs";
@@ -280,9 +282,9 @@ export type SelectingBatch = { batch: OpBatch; select: Ref[] };
  * Grouping the selection (`def` is the document): one batch that adds a
  * `node` at the centre of the selection's bounds, under the selection's
  * common parent, and puts the selection's roots under it, so nothing moves
- * in the world. Bulk entries, instances' children and types that can't be in
- * the tree are left out; `null` when nothing is left or the game has no
- * `node`. Selects the node.
+ * in the world. Drawn shapes are promoted to entities first; instances'
+ * children and types that can't be in the tree are left out. `null` when
+ * nothing is left or the game has no `node`. Selects the node.
  */
 export function groupBatch(
   def: SceneDefinition,
@@ -290,21 +292,45 @@ export function groupBatch(
   refs: readonly Ref[],
   prefabs?: PrefabLibrary,
 ): SelectingBatch | null {
-  if (!registry.types.has(NODE_TYPE)) return null;
+  return groupEdit(def, registry, refs, prefabs).edit;
+}
+
+/** `groupBatch`, with the roots it groups and why each one it leaves out stays out. */
+export function groupEdit(
+  given: SceneDefinition,
+  registry: Registry,
+  refs: readonly Ref[],
+  prefabs?: PrefabLibrary,
+): { edit: SelectingBatch | null; grouped: Ref[]; left: { ref: Ref; why: string }[] } {
+  if (!registry.types.has(NODE_TYPE))
+    return {
+      edit: null,
+      grouped: [],
+      left: refs.map((ref) => ({ ref, why: "This game has no nodes to group under." })),
+    };
+  const lift = liftIntoTree(given, registry, refs, prefabs);
+  const def = lift.def;
   const frames = sceneFrames(def, registry, prefabs);
   const tree = documentTree(def, frames);
   const target = parentTargets(def, registry, frames);
-  const roots = tree.roots(refs).filter((r) => canBeChild(target(r)));
-  if (roots.length === 0) return null;
-  const entities = new Set((def.entities ?? []).map((e) => e.id));
-  const instances = new Set((def.instances ?? []).map((i) => i.id));
+  const roots: Ref[] = [];
+  const left: { ref: Ref; why: string }[] = [];
+  for (const r of tree.roots(lift.refs)) {
+    if (canBeChild(target(r))) roots.push(r);
+    else {
+      const t = target(r);
+      const why = outOfTreeReason(registry, r, t.kind === "entity" ? t.what : undefined);
+      left.push({ ref: r, why: why ?? `${r} can't go under a node.` });
+    }
+  }
+  if (roots.length === 0) return { edit: null, grouped: [], left };
   const lines = roots.map((r) => [...tree.ancestors(r), undefined]);
   const parent = lines[0]!.find((a) => lines.every((line) => line.includes(a)));
   const box = selectionBounds(resolveScene(def, registry, prefabs), registry, roots);
   const ppm = pxPerMetreOf(registry);
   const centre = box ? [(box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2] : [0, 0];
   const at: Pt = [snapToPixel(centre[0]!, ppm) + 0, snapToPixel(centre[1]!, ppm) + 0];
-  const taken = new Set([...entities, ...instances]);
+  const taken = takenIds(def);
   let n = 1;
   while (taken.has(`${NODE_TYPE}-${n}`)) n++;
   const id = `${NODE_TYPE}-${n}`;
@@ -315,7 +341,32 @@ export function groupBatch(
   if (parent !== undefined) ops.push({ op: "reparent", refs: [id], parent });
   ops.push({ op: "reparent", refs: roots, parent: id });
   const what = roots.length === 1 ? roots[0]! : `${roots.length} entities`;
-  return { batch: { label: `Group ${what}`, ops }, select: [id] };
+  const batch = liftedBatch(given, lift, `Group ${what}`, ops);
+  return { edit: { batch, select: [id] }, grouped: roots, left };
+}
+
+/**
+ * Why grouping `refs` would do nothing, without building the batch: the
+ * first one's reason when none of them can go under a node; null when one can.
+ */
+export function groupRefusal(
+  def: SceneDefinition,
+  registry: Registry,
+  refs: readonly Ref[],
+): string | null {
+  if (refs.length === 0) return "Select what to group.";
+  if (!registry.types.has(NODE_TYPE)) return "This game has no nodes to group under.";
+  const types = new Map((def.entities ?? []).map((e) => [e.id, e.type] as const));
+  const why = refs.map((r) => outOfTreeReason(registry, r, types.get(r)));
+  return why.every((w) => w !== null) ? why[0]! : null;
+}
+
+/** Why ungrouping `refs` would do nothing; null when one of them is a node. */
+export function ungroupRefusal(def: SceneDefinition, refs: readonly Ref[]): string | null {
+  const picked = new Set(refs);
+  return (def.entities ?? []).some((e) => e.type === NODE_TYPE && picked.has(e.id))
+    ? null
+    : "Select a node to ungroup.";
 }
 
 /**
@@ -337,7 +388,7 @@ export function ungroupBatch(def: SceneDefinition, refs: readonly Ref[]): Select
   const keeper = (id: string) => tree.ancestors(id).find((a) => !gone.has(a)) ?? null;
   const moves = new Map<Ref | null, Ref[]>();
   const moved: Ref[] = [];
-  for (const item of [...(def.entities ?? []), ...(def.instances ?? [])]) {
+  for (const item of treeItems(def)) {
     const p = parentOf(item.id);
     if (p === undefined || !gone.has(p) || gone.has(item.id)) continue;
     const to = keeper(p);
@@ -403,8 +454,6 @@ export function hierarchyDown(
     }
   }
   const tree = documentTree(def);
-  const below = [...(def.entities ?? []), ...(def.instances ?? [])].find(
-    (item) => tree.parentOf(item.id) === ref,
-  );
+  const below = treeItems(def).find((item) => tree.parentOf(item.id) === ref);
   return below ? [below.id] : null;
 }

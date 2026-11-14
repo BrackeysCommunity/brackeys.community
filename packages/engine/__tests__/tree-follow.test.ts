@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
-import { defineBehavior, type BehaviorBlock, type BehaviorSystem } from "../game/behaviors";
+import { defineBehavior, type BehaviorSystem } from "../game/behaviors";
 import { DEFAULT_ACTIONS } from "../game/defaults";
 import { createRegistry, defineGame } from "../game/define";
 import { composePose, createPoseIndex } from "../runtime/poses";
@@ -9,7 +9,7 @@ import { createSceneTree } from "../runtime/tree";
 import { expandScene } from "../scene/expand";
 import { SCENE_FORMAT_VERSION, type EntityDef, type SceneDefinition } from "../scene/types";
 import type { RapierModule } from "../types";
-import { expectPoseClose, stepEvents, withParents } from "./fixtures/tree-rig";
+import { expectPoseClose, markerWith, stepEvents, withParents } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -48,19 +48,16 @@ const BACKENDS = ["none", "rapier"] as const;
 type Physics = (typeof BACKENDS)[number];
 const BOX = ["box", 0, 0, 0.25, 0.25];
 
-const marker = (id: string, at: [number, number], behaviors: Record<string, BehaviorBlock> = {}) =>
-  ({ id, type: "marker", at, behaviors }) as EntityDef;
-
 /**
  * A node `hub` at the origin with a lamp (carrying a bulb), a post with a
  * fixed collider and a drifter that moves itself.
  */
 const ENTITIES: EntityDef[] = [
   { id: "hub", type: "node", at: [0, 0] } as EntityDef,
-  marker("lamp", [1, 0]),
-  marker("bulb", [1, 1]),
-  marker("post", [0, 2], { collider: { shape: BOX } }),
-  marker("drifter", [-1, 0], { "trees/drift": {} }),
+  markerWith("lamp", [1, 0]),
+  markerWith("bulb", [1, 1]),
+  markerWith("post", [0, 2], { collider: { shape: BOX } }),
+  markerWith("drifter", [-1, 0], { "trees/drift": {} }),
 ];
 const PARENTS: Record<string, string> = { lamp: "hub", bulb: "lamp", post: "hub", drifter: "hub" };
 

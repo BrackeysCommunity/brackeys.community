@@ -7,12 +7,18 @@ import { createSceneRuntime } from "../runtime/runtime";
 import { ENTITY_DESTROYED, ENTITY_SPAWNED, type StepEvent } from "../runtime/types";
 import { expandScene } from "../scene/expand";
 import { prefabLibrary } from "../scene/prefab";
-import type { InstanceDef, Prefab, RuntimeEntity, SceneDefinition } from "../scene/types";
+import {
+  SCENE_FORMAT_VERSION,
+  type InstanceDef,
+  type Prefab,
+  type RuntimeEntity,
+  type SceneDefinition,
+} from "../scene/types";
 import { stepEvents } from "./fixtures/tree-rig";
 
 const prefab = (id: string, body: Partial<Prefab> = {}): Prefab => ({
   kind: "prefab",
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   id,
   entities: [],
   ...body,
@@ -42,7 +48,7 @@ const game = defineGame({
 function load(instances: InstanceDef[], entities: SceneDefinition["entities"] = []) {
   const rt = createSceneRuntime({ rapier: undefined, view: null, game, prefabs: PREFABS });
   const def: SceneDefinition = {
-    v: 4,
+    v: SCENE_FORMAT_VERSION,
     name: "nodes",
     bounds: [-500, -500, 500, 500],
     settings: { gravity: [0, 0], physics: "none" },

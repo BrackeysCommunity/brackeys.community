@@ -47,6 +47,7 @@ import type { RapierModule } from "../types";
 import { loadCompatRapier } from "./fixtures/compat-rapier";
 import { recordingView } from "./fixtures/recording-view";
 import { testGame } from "./fixtures/test-game";
+import { steps } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -161,10 +162,6 @@ function load(opts: { view?: boolean } = {}): SceneRuntimeHandle {
   if (!report.ok) throw new Error(report.error);
   return rt;
 }
-
-const step = (rt: SceneRuntimeHandle, n = 1) => {
-  for (let i = 0; i < n; i++) rt.step(rt.ctx.time.tickMs, []);
-};
 
 const entity = (rt: SceneRuntimeHandle, id: string): Entity => {
   const e = rt.ctx.entity(id);
@@ -352,7 +349,7 @@ describe("behavior handles", () => {
     expect(body.velocity()).toEqual({ x: 2, y: 0 });
     expect(body.mass()).toBeGreaterThan(0);
     expect(entity(rt, "bob").getBehavior(JOINT)!.joined()).toBe(true);
-    step(rt, 30);
+    steps(rt, 30);
     const spawner = entity(rt, "spawner").getBehavior(SPAWNER)!;
     expect(spawner.live()).toHaveLength(2);
     expect(spawner.live()).toEqual(rt.ctx.behavior<SpawnerSystem>(SPAWNER.name)!.live("spawner"));

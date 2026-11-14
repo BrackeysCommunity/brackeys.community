@@ -13,13 +13,17 @@ import { BODY, type BodyKind } from "../game/behaviors/body";
 import { createRegistry, defineGame } from "../game/define";
 import type { Entity, HandleOf } from "../game/entity";
 import { BASE_REQUIRED_FIELDS } from "../game/primitives";
+import { parseSaveFile, SAVE_VERSION, type SaveFile } from "../game/save-file";
 import { behaviorNameOf, defineScript, definitionOf, Script } from "../game/script";
 import { PRIMITIVE_TYPES, type EngineContext } from "../game/types";
 import { createBehaviorHost } from "../runtime/behaviors";
 import { createEventBus } from "../runtime/events";
 import { createPoseIndex } from "../runtime/poses";
 import { createSceneRuntime } from "../runtime/runtime";
-import type { RuntimeEntity } from "../scene/types";
+import { parentCycleMessage } from "../scene/issues";
+import { applyOps } from "../scene/ops";
+import { entityTags } from "../scene/schema";
+import { SCENE_FORMAT_VERSION, type RuntimeEntity, type SceneDefinition } from "../scene/types";
 import type { Vec2 } from "../types";
 import { engineErrorCode } from "./fixtures/tree-rig";
 
@@ -241,6 +245,82 @@ describe("what the context reaches", () => {
     expect(() => ctx.tree.setParent("hub", "hub")).toThrow(/can't be its own parent/);
     const kid = ctx.spawn({ type: "node", at: [0, 0], parent: "hub" });
     expect(ctx.tree.parent(kid.id)).toBe("hub");
+  });
+
+  it("refuses a parent cycle in the runtime, the reparent op and a save file in the same words", () => {
+    const { ctx } = world([node("hub", [0, 0]), { ...node("arm", [1, 0]), parent: "hub" }]);
+    const thrown = (f: () => void) => {
+      try {
+        f();
+      } catch (err) {
+        return (err as Error).message;
+      }
+      throw new Error("expected a throw");
+    };
+    expect(thrown(() => ctx.tree.setParent("hub", "hub"))).toBe(parentCycleMessage("hub", "hub"));
+    expect(thrown(() => ctx.tree.setParent("hub", "arm"))).toBe(parentCycleMessage("hub", "arm"));
+
+    const doc: SceneDefinition = {
+      v: SCENE_FORMAT_VERSION,
+      name: "cycle",
+      bounds: [-50, -50, 50, 50],
+      entities: [node("hub", [0, 0]), { ...node("arm", [1, 0]), parent: "hub" }],
+    };
+    const op = applyOps(
+      doc,
+      { ops: [{ op: "reparent", refs: ["hub"], parent: "arm" }] },
+      createRegistry(),
+    );
+    expect(op.ok).toBe(false);
+    if (!op.ok) expect(op.issue.message).toBe(parentCycleMessage("hub", "arm"));
+
+    const save: SaveFile = {
+      kind: "save",
+      v: SAVE_VERSION,
+      game: "probe",
+      gameVersion: 1,
+      engine: "0.16.0",
+      release: null,
+      project: null,
+      slot: "slot-1",
+      meta: { title: "Cycle", scene: "cycle", savedAt: 0, playTicks: 0 },
+      depth: "world",
+      persist: null,
+      scene: { id: "cycle", runHash: "0000000000000000", sublevels: [] },
+      data: null,
+      world: {
+        tick: 0,
+        counters: {},
+        random: [1, 2, 3, 4],
+        timers: [],
+        enabled: {},
+        parents: { hub: "hub" },
+        destroyed: [],
+        spawned: [],
+        poses: {},
+        systems: {},
+        seats: [],
+      },
+    };
+    const parsed = parseSaveFile(JSON.stringify(save));
+    expect(parsed.ok ? [] : parsed.issues).toContainEqual(
+      expect.objectContaining({
+        path: "/world/parents/hub",
+        message: expect.stringContaining(parentCycleMessage("hub", "hub")),
+      }),
+    );
+  });
+
+  it("gives a handle's hasTag the tags the query index matches", () => {
+    const { ctx } = world([
+      { id: "spot", type: "marker", at: [0, 0], tags: ["spawn", 3, "goal"] } as RuntimeEntity,
+    ]);
+    const spot = ctx.entity("spot")!;
+    expect(entityTags({ tags: ["spawn", 3, "goal"] }, ["tags"])).toEqual(
+      new Set(["spawn", "goal"]),
+    );
+    for (const tag of ["spawn", "goal", "3", "exit"])
+      expect(spot.hasTag(tag)).toBe(ctx.query.byTag(tag).includes("spot"));
   });
 
   it("registers a script class and a function script", () => {

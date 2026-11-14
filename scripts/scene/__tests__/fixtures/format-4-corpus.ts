@@ -9,7 +9,9 @@ import type { Registry, RuntimeEntity } from "@jams/engine/scene";
  * Every scene and prefab file that was at format 4 when format 5 came in,
  * as its v4 text, with a digest of what a v4 engine expanded it to: the
  * scenes through `expandScene` with their project's prefabs, a prefab as
- * one instance of it at the origin.
+ * one instance of it at the origin. A game's own field renames since then
+ * are applied to its v4 text (tactics' stair `sublevel` is `opens`, since
+ * `sublevel` became a reserved spawn key), as they don't touch the format.
  */
 export type Format4Corpus = {
   files: Record<string, string>;

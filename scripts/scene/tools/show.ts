@@ -5,20 +5,20 @@ import {
   aabb,
   bulkEntries,
   closest,
-  compose,
+  composeSteps,
   decodeRow,
   expandScene,
   frameOf,
   geometryFields,
   gridCellBounds,
-  IDENTITY_2D,
-  instanceSteps,
+  instanceTransform,
   isGridValue,
   parseShape,
   resolvePrefab,
   resolveSceneDetailed,
   resolveTime,
   roundLength,
+  sceneFrames,
   sceneHash,
   scenePhysics,
   sceneSprites,
@@ -28,7 +28,6 @@ import {
   type EntityDef,
   type GridCells,
   type ExpandedScene,
-  type InstanceDef,
   type Orientation,
   type PathDef,
   type PrefabLibrary,
@@ -37,7 +36,6 @@ import {
   type SceneDefinition,
   type ShapeObj,
   type ShapeTuple,
-  type Transform2D,
 } from "@jams/engine/scene";
 
 import { openScene, usage, type Tool } from "../context";
@@ -139,26 +137,6 @@ export function gridSummary(grid: GridCells): GridSummary {
 
 const turns = (o: Orientation | undefined): o is Orientation => !!o && (o.rot !== 0 || o.flip);
 
-const composeSteps = (steps: readonly Transform2D[]): Transform2D =>
-  steps.reduce((acc, t) => compose(t, acc), IDENTITY_2D);
-
-/**
- * The transforms that take an entity's stored geometry to the world,
- * innermost first: its parent chain's read leniently as the
- * resolver reads it (none for a root, a missing parent or the id a cycle
- * drops).
- */
-function storedSteps(
-  def: SceneDefinition,
-  e: EntityDef,
-  registry: Registry,
-  prefabs: PrefabLibrary | undefined,
-): Transform2D[] {
-  if (e.parent === undefined) return [];
-  const item: InstanceDef = { id: e.id, prefab: "", at: [0, 0], parent: e.parent };
-  return instanceSteps(def, item, registry, prefabs).slice(1);
-}
-
 export function countEntities(scene: ExpandedScene): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const e of scene.entities) counts[e.type] = (counts[e.type] ?? 0) + 1;
@@ -259,9 +237,10 @@ function sceneRowsOf(
     });
   }
   const resolved = resolveSceneDetailed(def, registry, prefabs);
+  const frames = sceneFrames(def, registry, prefabs);
   (def.entities ?? []).forEach((e, i) => {
     const row = entityRow(e, registry);
-    const steps = storedSteps(def, e, registry, prefabs);
+    const steps = frames.stepsFor(e);
     if (steps.length > 0) {
       const t = composeSteps(steps);
       row.origin = [roundLength(t.tx), roundLength(t.ty)];
@@ -296,13 +275,12 @@ function sceneRowsOf(
   });
   def.instances.forEach((inst, i) => {
     const { id, prefab, at: _at, rot: _rot, flip: _flip, z, params, parent, ...rest } = inst;
-    const steps = instanceSteps(def, inst, registry, prefabs);
-    const t = composeSteps(steps);
+    const t = instanceTransform(def, inst, registry, prefabs);
     const row: ShownEntity = { ref: id, type: "instance" };
     if (parent !== undefined) row.parent = parent;
     row.prefab = prefab;
     row.at = [roundLength(t.tx), roundLength(t.ty)];
-    if (parent !== undefined && steps.length > 1) TREE_PARENT.set(row, parent);
+    if (parent !== undefined && frames.stepsFor(inst).length > 0) TREE_PARENT.set(row, parent);
     if (typeof z === "number" && z !== 0) row.z = z;
     const turn = frameOf(t);
     if (turns(turn)) row.transform = turn;

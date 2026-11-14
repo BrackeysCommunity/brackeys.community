@@ -632,9 +632,12 @@ describe("EditorInspector: an instance's placement", () => {
   const post = (session: ReturnType<typeof placed>["session"]) =>
     session.getDoc().instances!.find((i) => i.id === "post-2")!;
 
+  const mirror = () => within(section()).getByRole("switch", { name: "flip" });
+
   it("turns and flips with one batch, one undo step and one history row per click", () => {
     const { session, dispatch } = placed(["post-2"]);
-    expect(within(section()).getByText("Not flipped")).toBeTruthy();
+    expect(within(section()).getByText("Mirror")).toBeTruthy();
+    expect(mirror().getAttribute("aria-checked")).toBe("false");
     const rows = session.store.state.history.length;
 
     fireEvent.click(within(section()).getByRole("button", { name: "Turn 90° clockwise" }));
@@ -653,7 +656,7 @@ describe("EditorInspector: an instance's placement", () => {
       { op: "transform", refs: ["post-2"], flip: "x" },
     ]);
     expect(session.store.state.history).toHaveLength(rows + 2);
-    expect(within(section()).getByText("Flipped")).toBeTruthy();
+    expect(mirror().getAttribute("aria-checked")).toBe("true");
 
     act(() => void session.undo());
     expect(post(session).flip).toBeUndefined();
@@ -667,6 +670,37 @@ describe("EditorInspector: an instance's placement", () => {
       { op: "transform", refs: ["post-2"], turn: -1 },
       { op: "transform", refs: ["post-2"], flip: "y" },
     ]);
+  });
+
+  it("mirrors an instance in its own frame with the switch the node's Mirror uses, keeping its angle", () => {
+    const { session, dispatch } = placed(["post-2"]);
+    fireEvent.click(within(section()).getByRole("button", { name: "Turn 90° clockwise" }));
+    fireEvent.click(mirror());
+    expect(dispatch.mock.calls[1]![0]).toEqual({
+      label: "Mirror post-2",
+      ops: [{ op: "update", ref: "post-2", set: { flip: true } }],
+    });
+    expect(post(session)).toMatchObject({ flip: true, rot: 90, at: [300, 300] });
+    fireEvent.click(mirror());
+    expect(post(session).flip).toBeUndefined();
+    expect(post(session).rot).toBe(90);
+  });
+
+  it("puts Turn beside the angle and Flip beside the mirror switch", () => {
+    placed(["post-2"]);
+    const rowOf = (el: Element) => el.closest(".je-insp-grow")!.parentElement!;
+    const angleRow = rowOf(input("rot"));
+    expect(
+      within(angleRow as HTMLElement).getByRole("button", { name: "Turn 90° clockwise" }),
+    ).toBeTruthy();
+    expect(
+      within(rowOf(mirror()) as HTMLElement).getByRole("button", { name: "Flip vertically" }),
+    ).toBeTruthy();
+  });
+
+  it("reads an unturned instance's angle as its default, as a node's does", () => {
+    placed(["post-2"]);
+    expect(input("rot").placeholder).toBe("0 (default)");
   });
 
   it("shows the instance's z and sets it with one setZ", () => {
@@ -694,7 +728,8 @@ describe("EditorInspector: an instance's placement", () => {
     placed(["yard-1/post-1"]);
     expect(within(section()).getByText("4")).toBeTruthy();
     expect(within(section()).getByText("Rotation")).toBeTruthy();
-    expect(within(section()).getByText("0°")).toBeTruthy();
+    expect(within(section()).getByText("0 (default)")).toBeTruthy();
+    expect(within(section()).getByText("Not mirrored")).toBeTruthy();
     expect(within(section()).queryByRole("button")).toBeNull();
     expect(screen.queryByLabelText("z")).toBeNull();
     expect(screen.queryByLabelText("rot")).toBeNull();
@@ -833,11 +868,12 @@ describe("EditorInspector: the Parent row", () => {
       name: "tree",
       bounds: [0, 0, 2000, 1200],
       entities: [
-        { id: "rig", type: "node", at: [100, 100], rot: 90 },
+        { id: "rig", type: "node", name: "Rig", at: [100, 100], rot: 90 },
         { id: "ring", type: "sensor", shape: ["circle", 700, 600, 30] },
         { id: "bolt", type: "sensor", shape: ["circle", 10, 0, 5], parent: "rig" },
       ],
       instances: [{ id: "post-2", prefab: "post", at: [300, 300] }],
+      solid: [["box", 50, 50, 5, 5]],
     };
     const session = createEditorSession({
       doc: sceneToDoc(def, { key: sequentialKeys("t") }),
@@ -855,25 +891,27 @@ describe("EditorInspector: the Parent row", () => {
 
   const identity = () => screen.getByRole("region", { name: "Identity" });
   const placement = () => screen.getByRole("region", { name: "Placement" });
-  const pick = async (id: string, region = identity) => {
+  /** An option's label, without the muted id and kind after it. */
+  const labelOf = (o: HTMLElement) => o.querySelector(".je-sp-truncate")?.textContent;
+  const pick = async (label: string, region = identity) => {
     fireEvent.click(within(region()).getByRole("button", { name: "Show options" }));
     const options = await waitFor(() => screen.getAllByRole("option"));
-    const option = options.find((o) => o.textContent === id)!;
+    const option = options.find((o) => labelOf(o) === label)!;
     fireEvent.mouseMove(option);
     fireEvent.click(option);
   };
   const options = async () => {
     fireEvent.click(within(identity()).getByRole("button", { name: "Show options" }));
-    return (await waitFor(() => screen.getAllByRole("option"))).map((o) => o.textContent);
+    return (await waitFor(() => screen.getAllByRole("option"))).map(labelOf);
   };
 
   it("reparents an entity with one reparent, keeps it in place, and undo restores it", async () => {
     const { session, dispatch } = tree(["ring"]);
-    expect(within(identity()).getByRole("combobox", { name: "parent" })).toBeTruthy();
+    expect(within(identity()).getByRole("combobox", { name: "Parent" })).toBeTruthy();
     const world = () => session.getResolved().entities!.find((e) => e.id === "ring")!.shape;
     const before = world();
     const rows = session.store.state.history.length;
-    await pick("rig");
+    await pick("Rig");
     await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
     expect(dispatch.mock.calls[0]![0]).toEqual({
       label: "Put ring under rig",
@@ -882,7 +920,7 @@ describe("EditorInspector: the Parent row", () => {
     expect(entity(session, "ring").parent).toBe("rig");
     expect(world()).toEqual(before);
     expect(session.store.state.history).toHaveLength(rows + 1);
-    expect(screen.getByText("World values; the file stores them in rig's frame.")).toBeTruthy();
+    expect(screen.getByText("World values; the file stores them in Rig's frame.")).toBeTruthy();
 
     act(() => void session.undo());
     expect(entity(session, "ring").parent).toBeUndefined();
@@ -893,13 +931,45 @@ describe("EditorInspector: the Parent row", () => {
     tree(["rig"]);
     const listed = await options();
     expect(listed).toEqual(expect.arrayContaining(["ring", "post-2", "post-2/p"]));
-    expect(listed).not.toContain("rig");
+    expect(listed).not.toContain("Rig");
     expect(listed).not.toContain("bolt");
+  });
+
+  it("names each candidate as the outliner does, with its id and what it is after it", async () => {
+    tree(["ring"]);
+    await options();
+    const detail = (label: string) =>
+      screen
+        .getAllByRole("option")
+        .find((o) => labelOf(o) === label)
+        ?.querySelector(".je-menu-detail")?.textContent;
+    expect(detail("Rig")).toMatch(/^rig · /);
+    expect(detail("post-2")).toBe("instance of post");
+    expect(detail("post-2/p")).toBe("in post-2");
+  });
+
+  it("gives a drawn shape a Parent row, promoting it to an entity that stays selected", async () => {
+    const { session, dispatch } = tree(["~solid:0"]);
+    expect(within(identity()).getByRole("combobox", { name: "Parent" })).toBeTruthy();
+    await pick("Rig");
+    await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      label: "Put solid-1 under rig",
+      ops: [
+        { op: "promote", ref: "~solid:0", id: "solid-1" },
+        { op: "reparent", refs: ["solid-1"], parent: "rig" },
+      ],
+    });
+    expect(entity(session, "solid-1").parent).toBe("rig");
+    expect(session.getDoc().solid ?? []).toEqual([]);
+    expect(session.store.state.selection).toEqual(["solid-1"]);
+    act(() => void session.undo());
+    expect(session.getDoc().solid).toEqual([["box", 50, 50, 5, 5]]);
   });
 
   it("moves a selection under different parents to the root through None (root)", async () => {
     const { session, dispatch } = tree(["ring", "bolt"]);
-    expect(within(identity()).getByRole("combobox", { name: "parent" })).toBeTruthy();
+    expect(within(identity()).getByRole("combobox", { name: "Parent" })).toBeTruthy();
     expect((await options())[0]).toBe("None (root)");
     const root = screen.getAllByRole("option")[0]!;
     fireEvent.mouseMove(root);
@@ -927,15 +997,14 @@ describe("EditorInspector: the Parent row", () => {
 
   it("says which frame a child's world values are stored in", () => {
     tree(["bolt"]);
-    expect(screen.getByText("World values; the file stores them in rig's frame.")).toBeTruthy();
+    expect(screen.getByText("World values; the file stores them in Rig's frame.")).toBeTruthy();
   });
 
-  it("puts the Parent row atop an instance's Placement and reparents the instance", async () => {
+  it("puts an instance's Parent row in Identity, as an entity's, and reparents the instance", async () => {
     const { session, dispatch } = tree(["post-2"]);
-    expect(screen.queryByRole("region", { name: "Identity" })).toBeNull();
-    const rows = within(placement()).getAllByText(/^(Parent|Angle|z)$/);
-    expect(rows.map((r) => r.textContent)[0]).toBe("Parent");
-    await pick("rig", placement);
+    expect(within(identity()).getByRole("combobox", { name: "Parent" })).toBeTruthy();
+    expect(within(placement()).queryByText("Parent")).toBeNull();
+    await pick("Rig");
     await waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
     expect(dispatch.mock.calls[0]![0]).toEqual({
       label: "Put post-2 under rig",
@@ -964,7 +1033,7 @@ describe("EditorInspector: the Parent row", () => {
 
   it("shows an instance child's parent without a picker, saying why", async () => {
     tree(["post-2/p"]);
-    expect(within(identity()).queryByRole("combobox", { name: "parent" })).toBeNull();
+    expect(within(identity()).queryByRole("combobox", { name: "Parent" })).toBeNull();
     expect(within(identity()).getByText("post-2")).toBeTruthy();
     expect(document.querySelectorAll("[title]")).toHaveLength(0);
     await act(async () => {

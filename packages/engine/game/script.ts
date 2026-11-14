@@ -143,6 +143,16 @@ let building: Binding | undefined;
 
 const bindingOf = (self: object): Binding => (self as { [BOUND]: Binding })[BOUND];
 
+/** What `make` constructs, bound to `b`. */
+function constructBound<T>(b: Binding, make: () => T): T {
+  building = b;
+  try {
+    return make();
+  } finally {
+    building = undefined;
+  }
+}
+
 /** The members `ScriptSelf` names, read from the instance's binding: a class's base, a function's `self`. */
 class ScriptMembers {
   constructor() {
@@ -521,14 +531,7 @@ export function Script<F extends z.ZodRawShape>(def: ScriptDef<F>): ScriptClass<
       const Cls = this as unknown as new () => Hooks;
       let behavior = made.get(Cls);
       if (!behavior) {
-        const system = scriptSystem((b) => {
-          building = b;
-          try {
-            return new Cls();
-          } finally {
-            building = undefined;
-          }
-        });
+        const system = scriptSystem((b) => constructBound(b, () => new Cls()));
         behavior = withCheck({ ...def, system }, () => hooksProblem(def, Cls.prototype));
         made.set(Cls, behavior);
       }
@@ -538,23 +541,29 @@ export function Script<F extends z.ZodRawShape>(def: ScriptDef<F>): ScriptClass<
   return ScriptBase as unknown as ScriptClass<F>;
 }
 
+const SELF = Symbol("script self");
+
+// Shared getters rather than a closure per instance, so every handle `create` returns
+// keeps one shape and the system's hook calls stay monomorphic.
+function selfEntity(this: { [SELF]: ScriptMembers }): Entity {
+  return this[SELF].entity;
+}
+function selfFields(this: { [SELF]: ScriptMembers }): BehaviorBlock {
+  return this[SELF].fields;
+}
+
 /** The function form. Returns a `BehaviorDef` whose handle is what `create` returned. */
 export function defineScript<F extends z.ZodRawShape, H extends ScriptHooks<F> & object>(
   def: ScriptDef<F> & { create(self: ScriptSelf<F>): H },
 ): BehaviorDef<F, H & Pick<ScriptSelf<F>, "entity" | "fields">> {
   const system = scriptSystem((b) => {
-    building = b;
-    let self: ScriptMembers;
-    try {
-      self = new ScriptMembers();
-    } finally {
-      building = undefined;
-    }
+    const self = constructBound(b, () => new ScriptMembers());
     const hooks: Hooks = def.create(self as unknown as ScriptSelf<F>);
-    for (const key of ["entity", "fields"] as const) {
-      if (!Object.prototype.hasOwnProperty.call(hooks, key))
-        Object.defineProperty(hooks, key, { get: () => self[key], enumerable: false });
-    }
+    Object.defineProperty(hooks, SELF, { value: self });
+    if (!Object.prototype.hasOwnProperty.call(hooks, "entity"))
+      Object.defineProperty(hooks, "entity", { get: selfEntity, enumerable: false });
+    if (!Object.prototype.hasOwnProperty.call(hooks, "fields"))
+      Object.defineProperty(hooks, "fields", { get: selfFields, enumerable: false });
     return hooks;
   });
   return { ...def, system } as BehaviorDef<F, H & Pick<ScriptSelf<F>, "entity" | "fields">>;

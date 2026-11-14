@@ -7,6 +7,7 @@ import { defineGame } from "../game/define";
 import type { EntitySelector } from "../game/types";
 import { createSceneRuntime } from "../runtime/runtime";
 import type { RuntimeEntity, ShapeObj } from "../scene/types";
+import { marker } from "./fixtures/tree-rig";
 
 const MARK = defineBehavior({
   name: "probe/mark",
@@ -23,8 +24,9 @@ const box = (cx: number, cy: number, hw: number, hh: number): ShapeObj => ({
   rotDeg: 0,
 });
 
-const marker = (id: string, at: [number, number], extra: Partial<RuntimeEntity> = {}) =>
-  ({ id, type: "marker", at, tags: ["gem"], ...extra }) as RuntimeEntity;
+/** A marker tagged gem unless `extra` says otherwise. */
+const gem = (id: string, at: [number, number], extra: Partial<RuntimeEntity> = {}) =>
+  marker(id, at, { tags: ["gem"], ...extra });
 
 /**
  * `yard` holds `a` (which holds `a1`) and the solid `b`; `other` holds `c`;
@@ -33,11 +35,11 @@ const marker = (id: string, at: [number, number], extra: Partial<RuntimeEntity> 
 const ENTITIES: RuntimeEntity[] = [
   { id: "yard", type: "node", at: [0, 0] } as RuntimeEntity,
   { id: "other", type: "node", at: [20, 0] } as RuntimeEntity,
-  marker("a", [1, 0], { parent: "yard", behaviors: { "probe/mark": { label: "a" } } }),
-  marker("a1", [2, 0], { parent: "a", tags: [] }),
+  gem("a", [1, 0], { parent: "yard", behaviors: { "probe/mark": { label: "a" } } }),
+  gem("a1", [2, 0], { parent: "a", tags: [] }),
   { id: "b", type: "solid", shape: box(4.5, 0, 1, 1), parent: "yard" } as RuntimeEntity,
-  marker("c", [21, 0], { parent: "other", behaviors: { "probe/mark": { label: "c" } } }),
-  marker("d", [3, 0]),
+  gem("c", [21, 0], { parent: "other", behaviors: { "probe/mark": { label: "c" } } }),
+  gem("d", [3, 0]),
 ];
 
 function world() {

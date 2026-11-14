@@ -22,6 +22,7 @@ import {
   type SceneDefinition,
 } from "../scene/types";
 import { testGame } from "./fixtures/test-game";
+import { steps } from "./fixtures/tree-rig";
 
 const game = defineGame({
   ...testGame,
@@ -73,10 +74,6 @@ function load(opts?: { timeOffsetMs: number }): SceneRuntimeHandle {
   return rt;
 }
 
-const step = (rt: SceneRuntimeHandle, n = 1) => {
-  for (let i = 0; i < n; i++) rt.step(rt.ctx.time.tickMs, []);
-};
-
 /** `id`'s pose in `parent`'s frame, from the live world poses. */
 const offset = (rt: SceneRuntimeHandle, id: string, parent: string): Pose =>
   relativePose(rt.ctx.poses.get(id)!, rt.ctx.poses.get(parent)!);
@@ -100,7 +97,7 @@ describe("a tween on a child", () => {
     expect(rt.ctx.tree.parent("rig/arm")).toBe("rig");
     moveRig(rt);
     for (let k = 1; k <= 150; k++) {
-      step(rt);
+      steps(rt, 1);
       const local = offset(rt, "rig/arm", "rig");
       expect(local.x).toBeCloseTo(swingX(k), 9);
       expect(local.y).toBeCloseTo(0, 9);
@@ -115,7 +112,7 @@ describe("a tween on a child", () => {
   it("starts each channel it doesn't give a `from` for at the child's local pose", () => {
     const rt = load();
     rt.ctx.tweens.to("rig/arm", { to: { y: 1 }, duration: 10, key: "lift" });
-    step(rt, 10);
+    steps(rt, 10);
     const local = offset(rt, "rig/arm", "rig");
     expect(local.y).toBeCloseTo(1, 9);
     expect(local.x).toBeCloseTo(swingX(10), 9);
@@ -124,7 +121,7 @@ describe("a tween on a child", () => {
 
   it("seeks to where stepping would put it", () => {
     const stepped = load();
-    step(stepped, 47);
+    steps(stepped, 47);
     const sought = load({ timeOffsetMs: 47 * stepped.ctx.time.tickMs });
     const a = stepped.ctx.poses.get("rig/arm")!;
     const b = sought.ctx.poses.get("rig/arm")!;
@@ -138,10 +135,10 @@ describe("a tween on a child", () => {
   it("starts over from its block's `from` on a reset, in the parent's frame where it is now", () => {
     const rt = load();
     moveRig(rt);
-    step(rt, 45);
+    steps(rt, 45);
     rt.ctx.behavior<BehaviorSystem>("tween")!.reset!();
     for (let k = 1; k <= 20; k++) {
-      step(rt);
+      steps(rt, 1);
       expect(offset(rt, "rig/arm", "rig").x).toBeCloseTo(swingX(k), 9);
     }
     rt.destroy();
@@ -207,7 +204,7 @@ describe("a tween on a root", () => {
     if (!report.ok) throw new Error(report.error);
     rt.ctx.tweens.to("post", { to: { x: 5 }, duration: 20 });
     for (let k = 1; k <= 20; k++) {
-      step(rt);
+      steps(rt, 1);
       const want = k === 20 ? 5 : 1 + 4 * ease("linear", k / 20);
       expect(rt.ctx.poses.get("post")).toEqual({ x: want, y: 1, rot: 0 });
       expect(rt.ctx.poses.get("flag")).toEqual({ x: want, y: 3, rot: 0 });

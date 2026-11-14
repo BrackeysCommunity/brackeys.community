@@ -7,17 +7,11 @@ import { createSceneRuntime } from "../runtime/runtime";
 import { captureSave, restoreSave } from "../runtime/save-state";
 import type { SceneRuntimeHandle } from "../runtime/types";
 import { hashText } from "../scene/hash";
-import type { ExpandedScene, RuntimeEntity } from "../scene/types";
+import type { ExpandedScene } from "../scene/types";
 import { testGame } from "./fixtures/test-game";
+import { marker } from "./fixtures/tree-rig";
 
 const SCENE_ID = "tree-saves";
-
-const marker = (id: string, at: [number, number], parent?: string): RuntimeEntity => ({
-  id,
-  type: "marker",
-  at,
-  ...(parent !== undefined ? { parent } : {}),
-});
 
 /**
  * base ─┬─ arm ── hand
@@ -30,9 +24,9 @@ const SCENE: ExpandedScene = {
   settings: { gravity: [0, 0], physics: "none", grid: null, view: { projection: "orthogonal" } },
   entities: [
     marker("base", [1, 1]),
-    marker("arm", [3, 1], "base"),
-    marker("hand", [4.25, 1.5], "arm"),
-    marker("leg", [1, 3], "base"),
+    marker("arm", [3, 1], { parent: "base" }),
+    marker("hand", [4.25, 1.5], { parent: "arm" }),
+    marker("leg", [1, 3], { parent: "base" }),
     marker("loose", [-5, -5]),
   ],
 };
@@ -148,6 +142,22 @@ describe("world saves of the scene tree (geometry backend)", () => {
     expect(file.world).not.toHaveProperty("parents");
     expect(restoredAt.children.leg).toEqual(["marker#bolt", "marker#nut"]);
     expect(replay).toBe(digest);
+  });
+
+  it("a spawn reparented under a later spawn keeps that link, and its place among the siblings, through a save", () => {
+    const script: Script = (ctx, t) => {
+      if (t === 10) ctx.spawn({ type: "marker", id: "marker#a", at: [2, 0] });
+      if (t === 12) ctx.spawn({ type: "marker", id: "marker#b", at: [-2, 0] });
+      if (t === 14) ctx.tree.setParent("marker#a", "marker#b");
+      if (t === 16)
+        ctx.spawn({ type: "marker", id: "marker#c", at: [0, 1], parent: "marker#b", local: true });
+      if (t >= 60) ctx.setPose("marker#b", -2 + t * 0.01, Math.sin(t * 0.1), t * 0.02);
+    };
+    const { file, digest, replay, b } = saveAndReplay(script);
+    expect(file.world!.parents).toEqual({ "marker#a": "marker#b" });
+    expect(replay).toBe(digest);
+    expect(b.ctx.tree.parent("marker#a")).toBe("marker#b");
+    expect([...b.ctx.tree.children("marker#b")]).toEqual(["marker#a", "marker#c"]);
   });
 
   it("a save with a child disabled under an enabled parent restores to the same digest 300 ticks later", () => {

@@ -86,6 +86,7 @@ export {
   resolvePrefab,
   resolveScene,
   resolveSceneDetailed,
+  sceneFrames,
   splitChildRef,
   splitOverridePath,
   type BulkPlacement,
@@ -96,6 +97,7 @@ export {
   type ResolvedPrefab,
   type ResolvedScene,
   type ResolveOptions,
+  type SceneFrames,
 } from "./resolve";
 export {
   formatPrefabs,
@@ -119,6 +121,7 @@ export {
   composeDihedral,
   composeFrames,
   composeOrientations,
+  composeSteps,
   dihedral,
   dihedralOf,
   flipWorld,

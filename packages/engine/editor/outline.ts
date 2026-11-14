@@ -1,16 +1,22 @@
 import { placeableTypes } from "../game/define";
 import type { Registry } from "../game/types";
-import { bulkEntries, bulkId, bulkKeysOf, bulkKeyType } from "../scene/expand";
+import { pxPerMetreOf } from "../game/units";
+import { bulkEntries, bulkId, bulkKeysOf, bulkKeyType, parseBulkId } from "../scene/expand";
+import { nextFreeId, takenIds } from "../scene/fragment";
 import { sceneHash } from "../scene/hash";
 import { applyOps } from "../scene/ops";
 import {
   CHILD_SEPARATOR,
   childRef,
   documentTree,
+  headOfRef,
   localChildren,
   sceneFrames,
+  treeItems,
   type LocalChild,
+  type SceneFrames,
 } from "../scene/resolve";
+import { applyPt, composeSteps } from "../scene/transform";
 import {
   PREFAB_MAX_DEPTH,
   type BulkEntry,
@@ -21,12 +27,14 @@ import {
   type OpBatch,
   type Prefab,
   type PrefabLibrary,
+  type Pt,
   type Ref,
   type SceneDefinition,
   type SceneIssue,
   type SceneOp,
 } from "../scene/types";
-import { itemsLabel, reparentLabel } from "../scene/validate";
+import { lengthDecimals } from "../scene/units";
+import { canBeInTree, itemsLabel, reparentLabel } from "../scene/validate";
 import { prefabInstances } from "./prefab-commands";
 
 export type OutlineRow = {
@@ -52,9 +60,13 @@ export const INSTANCES_ROW = "instances";
 const describeEntry = (v: unknown): string | undefined =>
   Array.isArray(v) ? (typeof v[0] === "string" ? v[0] : `${v[0]}, ${v[1]}`) : undefined;
 
+/** How a parented entity's point is shown: in world coordinates to the inspector's decimals. */
+type WorldView = { frames: SceneFrames; decimals: number };
+
 /** An entity's row; `kind` leads its detail where no type row says it. */
-function entityRow(e: EntityDef, depth = 1, kind?: string): OutlineRow {
-  const detail = [kind, describeEntry(e.shape ?? e.at), e.material, e.off ? "off" : undefined]
+function entityRow(e: EntityDef, depth = 1, kind?: string, world?: WorldView): OutlineRow {
+  const at = world && e.shape === undefined && e.parent !== undefined ? worldAt(e, world) : e.at;
+  const detail = [kind, describeEntry(e.shape ?? at), e.material, e.off ? "off" : undefined]
     .filter((s) => typeof s === "string")
     .join(" · ");
   return {
@@ -66,6 +78,12 @@ function entityRow(e: EntityDef, depth = 1, kind?: string): OutlineRow {
     ref: e.id,
     type: e.type,
   };
+}
+
+function worldAt(e: EntityDef, { frames, decimals }: WorldView): unknown {
+  if (!Array.isArray(e.at) || typeof e.at[0] !== "number") return e.at;
+  const [x, y] = applyPt(composeSteps(frames.stepsFor(e)), e.at as Pt);
+  return [Number(x.toFixed(decimals)) + 0, Number(y.toFixed(decimals)) + 0];
 }
 
 function bucketRows(key: BulkKey, values: BulkEntry[], depth = 1): OutlineRow[] {
@@ -263,6 +281,7 @@ export function buildTreeOutline(
   prefabs?: PrefabLibrary,
 ): OutlineRow[] {
   const frames = sceneFrames(def, registry, prefabs);
+  const world: WorldView = { frames, decimals: lengthDecimals(pxPerMetreOf(registry)) };
   type Item = { kind: "entity"; def: EntityDef } | { kind: "instance"; def: InstanceDef };
   const items: Item[] = [
     ...(def.entities ?? []).map((e): Item => ({ kind: "entity", def: e })),
@@ -282,7 +301,7 @@ export function buildTreeOutline(
     done.add(item);
     const head =
       item.kind === "entity"
-        ? [entityRow(item.def, depth, typeLabel(item.def.type))]
+        ? [entityRow(item.def, depth, typeLabel(item.def.type), world)]
         : instanceRows(item.def, prefabs, registry, depth, under);
     return [...head, ...under(item.def.id, depth + 1)];
   };
@@ -307,9 +326,97 @@ export type TreeDrop =
   | { kind: "reorder"; after: Ref };
 
 /**
- * What dragging `refs` moves in the tree: the scene's own entities and
- * instances among them (no bulk entries, no instance children), without
- * any that sit under another of them, since those come along.
+ * The `promote` each drawn shape among `refs` needs before it can be named
+ * in the tree, since a bulk entry has no id: a fresh `<type>-<n>` for each,
+ * and `refs` with those ids in place. With `registry`, entries of a type the
+ * tree doesn't take stay as they are.
+ */
+export function promoteOps(
+  def: SceneDefinition,
+  refs: readonly Ref[],
+  registry?: Registry,
+): { ops: SceneOp[]; refs: Ref[] } {
+  const taken = takenIds(def);
+  const ops: SceneOp[] = [];
+  const out = [...new Set(refs)].map((ref) => {
+    const bulk = parseBulkId(ref);
+    if (!bulk || bulkEntries(def, bulk.key)[bulk.index] === undefined) return ref;
+    const type = bulkKeyType(bulk.key);
+    if (registry && !canBeInTree(registry.types.get(type))) return ref;
+    const id = nextFreeId(`${type}-1`, taken);
+    taken.add(id);
+    ops.push({ op: "promote", ref, id });
+    return id;
+  });
+  return { ops, refs: out };
+}
+
+/** `promoteOps` and the document after them, which the ops that follow in the batch are written against. */
+export type TreeLift = { ops: SceneOp[]; refs: Ref[]; def: SceneDefinition };
+
+export function liftIntoTree(
+  def: SceneDefinition,
+  registry: Registry,
+  refs: readonly Ref[],
+  prefabs?: PrefabLibrary,
+): TreeLift {
+  const lift = promoteOps(def, refs, registry);
+  if (lift.ops.length === 0) return { ...lift, def };
+  const result = applyOps(def, { base: sceneHash(def), ops: lift.ops }, registry, {
+    validate: "none",
+    ...(prefabs ? { prefabs } : {}),
+  });
+  return result.ok ? { ...lift, def: result.def } : { ops: [], refs: [...refs], def };
+}
+
+/** `ops` after `lift`'s promotes, with the `base` hash their bulk refs need. */
+export function liftedBatch(
+  def: SceneDefinition,
+  lift: Pick<TreeLift, "ops">,
+  label: string,
+  ops: readonly SceneOp[],
+): OpBatch {
+  return lift.ops.length > 0
+    ? { label, base: sceneHash(def), ops: [...lift.ops, ...ops] }
+    : { label, ops: [...ops] };
+}
+
+/**
+ * Where `refs` are once `batch`'s promotes apply: a promoted drawn shape
+ * under the id it took, and a drawn shape after one in its bucket a place
+ * earlier.
+ */
+export function promotedRefs(batch: OpBatch, refs: readonly Ref[]): Ref[] {
+  const to = new Map<Ref, string>();
+  for (const op of batch.ops) if (op.op === "promote") to.set(op.ref, op.id);
+  const gone = [...to.keys()].flatMap((r) => parseBulkId(r) ?? []);
+  return refs.map((r) => {
+    const id = to.get(r);
+    if (id !== undefined) return id;
+    const bulk = parseBulkId(r);
+    if (!bulk) return r;
+    const before = gone.filter((g) => g.key === bulk.key && g.index < bulk.index).length;
+    return before > 0 ? bulkId(bulk.key, bulk.index - before) : r;
+  });
+}
+
+/**
+ * Why `ref` can't be put under a parent, in a designer's words; null when it
+ * can. `type` is a document entity's type; a drawn shape's is its bucket's.
+ */
+export function outOfTreeReason(registry: Registry, ref: Ref, type?: string): string | null {
+  if (headOfRef(ref) !== ref) return `In ${headOfRef(ref)}; unpack the instance to move it.`;
+  const bulk = parseBulkId(ref);
+  const t = type ?? (bulk ? bulkKeyType(bulk.key) : undefined);
+  return t !== undefined && !canBeInTree(registry.types.get(t))
+    ? `A ${t} can't be in the tree, so it stays at the root.`
+    : null;
+}
+
+/**
+ * What dragging `refs` moves in the tree: the scene's own entities,
+ * instances and drawn shapes among them (no instance children), without any
+ * that sit under another of them, since those come along.
  */
 export function treeDragRoots(
   def: SceneDefinition,
@@ -317,31 +424,32 @@ export function treeDragRoots(
   prefabs: PrefabLibrary | undefined,
   refs: readonly Ref[],
 ): Ref[] {
-  const ids = new Set([...(def.entities ?? []), ...(def.instances ?? [])].map((d) => d.id));
-  const movable = [...new Set(refs)].filter((r) => ids.has(r));
+  const ids = takenIds(def);
+  const movable = [...new Set(refs)].filter((r) => ids.has(r) || parseBulkId(r) !== null);
   if (movable.length < 2) return movable;
   return documentTree(def, sceneFrames(def, registry, prefabs)).roots(movable);
 }
 
 /**
- * One batch for dropping `refs` in the tree: a `reparent` for those whose
- * parent changes and, beside a sibling or onto the parent they all already
- * have, a `reorder` per list (entities, instances) that changes. Nothing
- * moves in the world. Null when nothing changes.
+ * One batch for dropping `refs` in the tree: a `promote` for each drawn
+ * shape, a `reparent` for those whose parent changes and, beside a sibling
+ * or onto the parent they all already have, a `reorder` per list (entities,
+ * instances) that changes. Nothing moves in the world. Null when nothing
+ * changes.
  */
 export function treeDropBatch(
-  def: SceneDefinition,
+  given: SceneDefinition,
   registry: Registry,
   prefabs: PrefabLibrary | undefined,
   refs: readonly Ref[],
   drop: TreeDrop,
 ): OpBatch | null {
+  const lift = liftIntoTree(given, registry, refs, prefabs);
+  const def = lift.def;
   const entities = def.entities ?? [];
   const instances = def.instances ?? [];
-  const declared = new Map<string, Ref | undefined>(
-    [...entities, ...instances].map((d) => [d.id, d.parent]),
-  );
-  const moving = [...new Set(refs)].filter((r) => declared.has(r));
+  const declared = new Map<string, Ref | undefined>(treeItems(def).map((d) => [d.id, d.parent]));
+  const moving = lift.refs.filter((r) => declared.has(r));
   if (moving.length === 0) return null;
   const sibling =
     drop.kind === "reparent"
@@ -387,7 +495,7 @@ export function treeDropBatch(
   else if (last)
     label = parent === null ? `Move ${what} last at the root` : `Move ${what} last under ${parent}`;
   else label = reparentLabel(moving, parent);
-  return { label, ops };
+  return liftedBatch(given, lift, label, ops);
 }
 
 /** Why `batch` would be refused against `def`, as dispatching it would judge it; null when it applies. */

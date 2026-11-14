@@ -9,7 +9,12 @@ import { createHeadlessRuntime } from "../../headless/headless";
 import { composePose, lerpPose, relativePose, type Pose } from "../../runtime/poses";
 import type { SceneRuntimeHandle } from "../../runtime/types";
 import { expandScene } from "../../scene/expand";
-import type { EntityDef, ExpandedScene, RuntimeEntity } from "../../scene/types";
+import {
+  SCENE_FORMAT_VERSION,
+  type EntityDef,
+  type ExpandedScene,
+  type RuntimeEntity,
+} from "../../scene/types";
 import type { RapierModule } from "../../types";
 import { stressRig, type StressRig } from "../fixtures/stress-rig";
 import { withParents } from "../fixtures/tree-rig";
@@ -174,7 +179,7 @@ function openSpin(carry: Carry, writes = 1): SceneRuntimeHandle {
   const registry = createRegistry(game);
   const scene = expandScene(
     {
-      v: 4,
+      v: SCENE_FORMAT_VERSION,
       game: game.id,
       name: `spin-${carry}`,
       bounds: [-5, -5, 105, 55],
@@ -386,7 +391,7 @@ describe("scene tree budgets", () => {
     const registry = createRegistry(game);
     const scene = expandScene(
       {
-        v: 4,
+        v: SCENE_FORMAT_VERSION,
         game: game.id,
         name: "drawing-error",
         bounds: [-10, -10, 10, 10],

@@ -3,7 +3,7 @@ import type { BehaviorKey, Entity, HandleOf } from "../game/entity";
 import { behaviorNameOf } from "../game/script";
 import { entityGone, type EngineContext, type SceneTree } from "../game/types";
 import { ownChildId } from "../scene/resolve";
-import { tagFieldsOf } from "../scene/schema";
+import { entityTags, tagFieldsOf } from "../scene/schema";
 import type { RuntimeEntity } from "../scene/types";
 import { carriedBehaviors, type BehaviorHost } from "./behaviors";
 import type { EntityTable } from "./entity-table";
@@ -101,11 +101,7 @@ class EntityHandle implements Entity {
 
   hasTag(tag: string): boolean {
     const e = this.#live();
-    for (const field of tagFieldsOf(this.#host.ctx.registry.types.get(e.type))) {
-      const value = e[field];
-      if (Array.isArray(value) && value.includes(tag)) return true;
-    }
-    return false;
+    return entityTags(e, tagFieldsOf(this.#host.ctx.registry.types.get(e.type))).has(tag);
   }
 
   get enabled(): boolean {

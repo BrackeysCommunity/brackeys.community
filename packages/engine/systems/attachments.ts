@@ -38,15 +38,11 @@ const carried = (a: Readonly<Pose>, b: Readonly<Pose>): boolean =>
   Math.abs(a.rot - b.rot) <= CARRIED_EPSILON;
 
 /**
- * Colliders that ride another entity's body: a solid's or sensor's `attach`,
- * and any solid, sensor or `collider` behavior with no body of its own under
- * a parent that has one. Hosts are followers, props and `collider` behaviors
- * with a kinematic or dynamic `body`: each offers its body when it has one
- * and withdraws it before the body goes. Requests made before the host
- * offered its body, or across its respawns, attach when it (re)appears. The
- * host's body carries the colliders; the scene tree carries the riding
- * entities' poses. One per runtime. `attach` throws `PhysicsRequiredError`
- * while the runtime has no physics world.
+ * Colliders that ride another entity's body: a solid, sensor or `collider`
+ * behavior with no body of its own, under a parent whose kinematic or dynamic
+ * body carries it. A host offers its body while it has one; a request made
+ * before that, or across a respawn, connects when the body appears. One per
+ * runtime; `attach` throws `PhysicsRequiredError` without a physics world.
  */
 export type AttachmentHub = {
   /** Offers `body` to ride on; `origin` defaults to where the body is now. */

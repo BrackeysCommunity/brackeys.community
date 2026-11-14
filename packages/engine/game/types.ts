@@ -496,14 +496,8 @@ export type SpawnInput = {
 };
 
 /**
- * A runtime refusal with an issue code: `spawn-id-invalid`,
- * `prefab-not-spawnable`, `physics-required`, `unknown-type`, `schema`,
- * `entity-gone` (a handle used after its entity was destroyed),
- * `pose-not-settable` (`ctx.setPose` on a type nothing can pose),
- * `parent-cycle` (a reparent under its own subtree) and `parent-scope` (a
- * parent that isn't live, or is in another sublevel than what goes under
- * it, on a reparent, spawn or instantiate). A playtest that hits one ends
- * blocked at stage `"run"` with its code.
+ * A runtime refusal with an issue code from `ISSUE_CODES`; a playtest that
+ * hits one ends blocked at stage `"run"`.
  */
 export class EngineError extends Error {
   readonly code: string;
@@ -687,9 +681,9 @@ export type EntityTypeDef<F extends z.ZodRawShape = z.ZodRawShape> = {
   /** One sentence for the JSON Schema, `codes`, `show` and the inspector. */
   description: string;
   /**
-   * The type's own fields. `id`, `type`, `name`, `layer`, `group` and `off`
-   * are added by the engine. Written as a function when a field depends on
-   * the registry (a material enum).
+   * The type's own fields; the engine adds the `BASE_FIELDS` (`id`, `name`,
+   * `layer`, `parent`, `off`, `z`) and `type`. A function when a field
+   * depends on the registry (a material enum).
    */
   fields: F | ((env: FieldEnv) => F);
   /** The primitive whose engine system spawns this type; the fields must include the primitive's. */

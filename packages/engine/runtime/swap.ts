@@ -1,6 +1,7 @@
 import type { RigidBody } from "@dimforge/rapier2d";
 
 import { swapStrategyFor, type SceneDiff } from "../game/live";
+import { NODE_TYPE } from "../game/primitives";
 import { isRuntimeId } from "../game/runtime-ids";
 import type { SaveDepth, SaveFile } from "../game/save-file";
 import type { EngineContext, GameRuntime, JsonValue, Registry } from "../game/types";
@@ -8,11 +9,12 @@ import { sameValue } from "../project/canonical";
 import { diffExpanded } from "../scene/expanded-diff";
 import { errorText, liveIssue } from "../scene/issues";
 import type { ExpandedScene, PrefabLibrary, RuntimeEntity } from "../scene/types";
+import type { NodeEntity } from "../systems/node";
 import type { SpawnRecord } from "./lifecycle";
 import type { Pose } from "./poses";
 import type { SaveHost } from "./runtime";
 import { captureSave, restoreLoaded, worldSaveBlockers } from "./save-state";
-import { spawnPose } from "./spawn-pose";
+import { nodePose, spawnPose } from "./spawn-pose";
 import type { LoadReport, ReconcileReport, SceneRuntimeHandle, SwapReport } from "./types";
 
 /** What a runtime hands `swapRuntime`: the parts of its closure a swap reads and drives. */
@@ -135,11 +137,15 @@ function settle(ctx: EngineContext, carried: readonly Taken[]): void {
   physics.world.propagateModifiedBodyPositionsToColliders();
 }
 
-/** Whether a designer moved the entity: its type, parent, spawn pose or transform differ. */
+/** Where an entity stands as authored: a node at its own `rot`, anything else at its spawn pose. */
+const authoredPose = (registry: Registry, e: RuntimeEntity): Pose =>
+  e.type === NODE_TYPE ? nodePose(e as NodeEntity) : spawnPose(e, registry);
+
+/** Whether a designer moved the entity: its type, parent, authored pose or transform differ. */
 function moved(registry: Registry, prev: RuntimeEntity, next: RuntimeEntity): boolean {
   if (prev.type !== next.type || (prev.parent ?? null) !== (next.parent ?? null)) return true;
-  const a = spawnPose(prev, registry);
-  const b = spawnPose(next, registry);
+  const a = authoredPose(registry, prev);
+  const b = authoredPose(registry, next);
   return (
     a.x !== b.x ||
     a.y !== b.y ||

@@ -2,7 +2,6 @@ import { fileURLToPath } from "node:url";
 
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
-import type { BehaviorBlock } from "../game/behaviors";
 import type { CharacterSystem } from "../game/behaviors/character-top-down";
 import type { PathFollowSystem } from "../game/behaviors/path-follow";
 import { DEFAULT_ACTIONS } from "../game/defaults";
@@ -21,7 +20,7 @@ import {
 import { createDataSystem } from "../systems/data";
 import type { RapierModule } from "../types";
 import { readHeld } from "./fixtures/held-project";
-import { engineErrorCode, stepEvents } from "./fixtures/tree-rig";
+import { engineErrorCode, markerWith, stepEvents } from "./fixtures/tree-rig";
 
 let rapier: RapierModule;
 beforeAll(async () => {
@@ -49,9 +48,39 @@ const STATUE = defineEntityType({
   fields: { at: pointField("Where it stands.") },
 });
 
+/** Where each signpost's own system last put it. */
+const SIGNPOSTS: { placed: Record<string, [number, number]> } = { placed: {} };
+
+/** A game type whose system has `setPose` but no `disable`: enabling one spawns it again. */
+const SIGNPOST = defineEntityType({
+  type: "signpost",
+  description: "A post a game moves.",
+  system: () => {
+    const live = new Set<string>();
+    return {
+      spawn(e) {
+        live.add(e.id);
+        const at = e.at as [number, number];
+        SIGNPOSTS.placed[e.id] = [at[0], at[1]];
+      },
+      despawn(id) {
+        live.delete(id);
+      },
+      setPose(id, x, y) {
+        SIGNPOSTS.placed[id] = [x, y];
+      },
+      clear() {
+        live.clear();
+      },
+      size: () => live.size,
+    };
+  },
+  fields: { at: pointField("Where it stands.") },
+});
+
 const game = defineGame({
   id: "posers",
-  types: [BEACON, STATUE],
+  types: [BEACON, STATUE, SIGNPOST],
   actions: [...DEFAULT_ACTIONS],
   input: { players: { max: 1, join: "auto" } },
   time: { kind: "fixed", rate: 60 },
@@ -73,45 +102,42 @@ type Physics = (typeof BACKENDS)[number];
 
 const BOX = ["box", 0, 0, 0.25, 0.25];
 
-const marker = (id: string, at: [number, number], behaviors: Record<string, BehaviorBlock>) =>
-  ({ id, type: "marker", at, behaviors }) as EntityDef;
-
 /** One entity per standard behavior that runs headless, each on its own row. */
 function carriers(physics: Physics): EntityDef[] {
   const row = (i: number): [number, number] => [0, i * 2];
   return [
     { id: "floor", type: "nav", shape: ["box", 0, -2, 60, 40] } as EntityDef,
-    marker("fixed", row(0), { collider: { shape: BOX } }),
-    marker("kinematic", row(1), { collider: { shape: BOX }, body: { kind: "kinematic" } }),
+    markerWith("fixed", row(0), { collider: { shape: BOX } }),
+    markerWith("kinematic", row(1), { collider: { shape: BOX }, body: { kind: "kinematic" } }),
     ...(physics === "rapier"
       ? [
-          marker("dynamic", row(2), { collider: { shape: BOX }, body: { kind: "dynamic" } }),
-          marker("tether", row(14), { collider: { shape: BOX }, body: { kind: "kinematic" } }),
-          marker("roped", row(15), {
+          markerWith("dynamic", row(2), { collider: { shape: BOX }, body: { kind: "dynamic" } }),
+          markerWith("tether", row(14), { collider: { shape: BOX }, body: { kind: "kinematic" } }),
+          markerWith("roped", row(15), {
             collider: { shape: BOX },
             body: { kind: "dynamic" },
             joint: { kind: "rope", to: "tether", length: 3 },
           }),
         ]
       : []),
-    marker("walker", row(3), { collider: { shape: BOX }, "character-top-down": {} }),
-    marker("jumper", row(4), { collider: { shape: BOX }, "character-side-view": {} }),
-    marker("agent", row(5), { collider: { shape: BOX }, "nav-agent": {} }),
-    marker("seated", row(6), { collider: { shape: BOX }, "player-input": { seat: 0 } }),
-    marker("timed", row(7), { lifetime: { ticks: 1000 } }),
-    marker("area", row(8), {
+    markerWith("walker", row(3), { collider: { shape: BOX }, "character-top-down": {} }),
+    markerWith("jumper", row(4), { collider: { shape: BOX }, "character-side-view": {} }),
+    markerWith("agent", row(5), { collider: { shape: BOX }, "nav-agent": {} }),
+    markerWith("seated", row(6), { collider: { shape: BOX }, "player-input": { seat: 0 } }),
+    markerWith("timed", row(7), { lifetime: { ticks: 1000 } }),
+    markerWith("area", row(8), {
       collider: { shape: BOX, sensor: true },
       "force-area": { force: [1, 0] },
     }),
-    marker("framed", row(9), { "camera-target": {} }),
-    marker("tweened", row(10), {
+    markerWith("framed", row(9), { "camera-target": {} }),
+    markerWith("tweened", row(10), {
       collider: { shape: BOX },
       tween: { tweens: [{ to: { rot: 0 }, duration: 1 }] },
     }),
     { id: "prop", type: "prop", shape: ["box", 0, 22, 0.25, 0.25], density: 1, restitution: 0 },
     { id: "beacon", type: BEACON.type, at: [0, 24] } as EntityDef,
-    marker("spawning", row(13), { spawner: { type: "marker", rate: 2, cap: 10 } }),
-    marker("animated", row(16), {
+    markerWith("spawning", row(13), { spawner: { type: "marker", rate: 2, cap: 10 } }),
+    markerWith("animated", row(16), {
       sprite: { asset: "hero", frame: "hero-0" },
       anim: { source: "kitchen-animation", clip: "idle" },
     }),
@@ -208,8 +234,8 @@ for (const physics of BACKENDS) {
     it("moves an occupant's grid cell with it, and nothing snaps back", () => {
       const { rt, steps } = load(
         [
-          marker("standing", [0.5, 0.5], { occupant: {} }),
-          marker("walking", [0.5, 2.5], {
+          markerWith("standing", [0.5, 0.5], { occupant: {} }),
+          markerWith("walking", [0.5, 2.5], {
             collider: { shape: BOX },
             "character-top-down": {},
             occupant: {},
@@ -231,7 +257,7 @@ for (const physics of BACKENDS) {
 
     it("snaps the pose with `snap`, and eases it without", () => {
       const { rt, steps } = load(
-        [marker("walker", [0, 0], { collider: { shape: BOX }, "character-top-down": {} })],
+        [markerWith("walker", [0, 0], { collider: { shape: BOX }, "character-top-down": {} })],
         physics,
       );
       steps(1);
@@ -294,8 +320,8 @@ for (const physics of BACKENDS) {
         speed: 1,
       };
       const riders = [
-        marker("rider", [0, 0], { "path-follow": { path } }),
-        marker("platform", [0, 2], {
+        markerWith("rider", [0, 0], { "path-follow": { path } }),
+        markerWith("platform", [0, 2], {
           collider: { shape: BOX },
           body: { kind: "kinematic" },
           "path-follow": {
@@ -336,7 +362,7 @@ for (const physics of BACKENDS) {
     it("moves a tweened entity's collider through setPose", () => {
       const { rt, steps } = load(
         [
-          marker("door", [0, 0], {
+          markerWith("door", [0, 0], {
             collider: { shape: BOX },
             tween: { tweens: [{ to: { x: 6 }, duration: 10 }] },
           }),
@@ -357,8 +383,8 @@ describe("ctx.setPose on bodies", () => {
     const { rt, steps } = load(
       [
         { id: "crate", type: "prop", shape: BOX, density: 1, restitution: 0 } as EntityDef,
-        marker("walker", [0, 4], { collider: { shape: BOX }, "character-top-down": {} }),
-        marker("lift", [0, 8], { collider: { shape: BOX }, body: { kind: "kinematic" } }),
+        markerWith("walker", [0, 4], { collider: { shape: BOX }, "character-top-down": {} }),
+        markerWith("lift", [0, 8], { collider: { shape: BOX }, body: { kind: "kinematic" } }),
       ],
       "rapier",
     );
@@ -385,6 +411,28 @@ describe("ctx.setPose on bodies", () => {
     rt.destroy();
   });
 
+  it("brings a type whose system can't switch off, posed while disabled, back where it was put", () => {
+    for (const physics of BACKENDS) {
+      const { rt, steps } = load(
+        [
+          { id: "post", type: SIGNPOST.type, at: [1, 2] } as EntityDef,
+          { id: "still", type: SIGNPOST.type, at: [3, 4] } as EntityDef,
+        ],
+        physics,
+      );
+      steps(1);
+      for (const id of ["post", "still"]) rt.ctx.setEnabled(id, false);
+      rt.ctx.setPose("post", 20, 6, 0.5);
+      for (const id of ["post", "still"]) rt.ctx.setEnabled(id, true);
+      expect(rt.ctx.poses.get("post"), physics).toMatchObject({ x: 20, y: 6, rot: 0.5 });
+      expect(SIGNPOSTS.placed.post, physics).toEqual([20, 6]);
+      expect(rt.ctx.poses.get("still"), physics).toMatchObject({ x: 3, y: 4 });
+      steps(5);
+      expect(rt.ctx.poses.get("post"), physics).toMatchObject({ x: 20, y: 6 });
+      rt.destroy();
+    }
+  });
+
   it("keeps a prop's velocity and wakes it", () => {
     const { rt, steps } = load(
       [{ id: "crate", type: "prop", shape: BOX, density: 1, restitution: 0 } as EntityDef],
@@ -403,7 +451,7 @@ describe("ctx.setPose on bodies", () => {
 
   it("keeps a dynamic collider body's velocity", () => {
     const { rt, steps } = load(
-      [marker("ball", [0, 0], { collider: { shape: BOX }, body: { kind: "dynamic" } })],
+      [markerWith("ball", [0, 0], { collider: { shape: BOX }, body: { kind: "dynamic" } })],
       "rapier",
     );
     rt.ctx.bodies.setVelocity("ball", { x: 0, y: 2 });
@@ -420,7 +468,7 @@ describe("ctx.setPose on bodies", () => {
   it("keeps a kinematic collider body's velocity on both backends", () => {
     for (const physics of BACKENDS) {
       const { rt, steps } = load(
-        [marker("lift", [0, 0], { collider: { shape: BOX }, body: { kind: "kinematic" } })],
+        [markerWith("lift", [0, 0], { collider: { shape: BOX }, body: { kind: "kinematic" } })],
         physics,
       );
       rt.ctx.bodies.setVelocity("lift", { x: 0, y: 1 });

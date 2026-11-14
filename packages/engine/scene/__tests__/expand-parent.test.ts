@@ -5,7 +5,8 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { createRegistry } from "../../game/define";
 import { degToRad } from "../../physics";
-import { spawnPose } from "../../runtime/spawn-pose";
+import { nodePose, spawnPose } from "../../runtime/spawn-pose";
+import type { NodeEntity } from "../../systems/node";
 import { expandScene } from "../expand";
 import { prefabLibrary } from "../prefab";
 import {
@@ -16,12 +17,17 @@ import {
   sceneFrames,
 } from "../resolve";
 import { asFrame, compose, composeFrames, IDENTITY_2D } from "../transform";
-import type { Prefab, RuntimeEntity, SceneDefinition } from "../types";
+import {
+  SCENE_FORMAT_VERSION,
+  type Prefab,
+  type RuntimeEntity,
+  type SceneDefinition,
+} from "../types";
 
 const engine = createRegistry();
 
 const scene = (over: Partial<SceneDefinition>): SceneDefinition => ({
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   name: "tree",
   bounds: [-100, -100, 100, 100],
   ...over,
@@ -29,7 +35,7 @@ const scene = (over: Partial<SceneDefinition>): SceneDefinition => ({
 
 const prefab = (id: string, body: Partial<Prefab>): Prefab => ({
   kind: "prefab",
-  v: 4,
+  v: SCENE_FORMAT_VERSION,
   id,
   entities: [],
   ...body,
@@ -198,12 +204,9 @@ describe("entityFrame against spawnPose", () => {
         const world = placedFrame(engine, e, origin.transform);
         const pose = spawnPose(runtime, engine);
         expect([pose.x, pose.y], e.id).toEqual(world.at);
-        // A node's own angle is its system's, from `rot`; spawnPose reads only the frames above it.
-        if (e.type !== "node") expect(sameRad(pose.rot, degToRad(world.rot)), e.id).toBe(true);
-        else
-          expect(
-            sameRad(degToRad((runtime.rot as number | undefined) ?? 0), degToRad(world.rot)),
-          ).toBe(true);
+        // A node stands at its own `rot`, as its system places it; spawnPose reads only the frames above it.
+        const rot = e.type === "node" ? nodePose(runtime as NodeEntity).rot : pose.rot;
+        expect(sameRad(rot, degToRad(world.rot)), e.id).toBe(true);
         // The same frame by the chain: the stored frame under every step above it.
         if (origin.kind === "entity") {
           const own = def.entities![origin.index]!;

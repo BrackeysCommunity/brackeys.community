@@ -133,6 +133,31 @@ describe("the turret", () => {
     rt.destroy();
   });
 
+  it("carrier-turret, from the file, swings with the tweening carrier", () => {
+    const rt = load();
+    expect(rt.ctx.tree.parent("carrier-turret")).toBe("carrier");
+    expect(rt.ctx.tree.children("carrier-turret")).toEqual(
+      TURRET_PARTS.map((p) => `carrier-turret/${p}`),
+    );
+    const start = pose(rt, "carrier");
+    let carrier = start;
+    for (let i = 0; i < 4; i++) {
+      stepEvents(rt, 30);
+      carrier = pose(rt, "carrier");
+      expectPoseClose(
+        pose(rt, "carrier-turret"),
+        composePose(carrier.x, carrier.y, carrier.rot, { x: 0, y: 0.8, rot: 0 }),
+      );
+      expectPoseClose(
+        pose(rt, "carrier-turret/barrel"),
+        composePose(carrier.x, carrier.y, carrier.rot, { x: 0.5, y: 0.8 - 0.55, rot: 0 }),
+      );
+    }
+    expect(carrier.x).toBeGreaterThan(start.x + 1);
+    expect(carrier.rot).toBeGreaterThan(0.2);
+    rt.destroy();
+  });
+
   it("spawned at runtime under the tweening carrier, swings with it", () => {
     const rt = load();
     const placed = rt.ctx.instantiate("turret", [0, 0.8], { parent: "carrier", local: true });
@@ -255,6 +280,19 @@ describe("the crate", () => {
     const crate = pose(rt, "crate");
     expect(crate.y).toBeGreaterThan(10.5);
     expectPoseClose(pose(rt, "crate-eye"), composePose(crate.x, crate.y, crate.rot, offset));
+    rt.destroy();
+  });
+
+  it("carries crate-label, its decor child, wherever it tumbles", () => {
+    const rt = load();
+    expect(rt.ctx.tree.children("crate")).toEqual(["crate-eye", "crate-label"]);
+    expect(rt.ctx.tags.handlesOf("crate-label")).toEqual([]);
+    const offset = relativePose(pose(rt, "crate-label"), pose(rt, "crate"));
+    rt.ctx.setPose("crate", 9, 6, 0.7);
+    stepEvents(rt, 90);
+    const crate = pose(rt, "crate");
+    expect(crate.y).toBeGreaterThan(10.5);
+    expectPoseClose(pose(rt, "crate-label"), composePose(crate.x, crate.y, crate.rot, offset));
     rt.destroy();
   });
 
